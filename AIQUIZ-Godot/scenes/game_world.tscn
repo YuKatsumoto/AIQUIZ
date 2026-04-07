@@ -1,0 +1,48 @@
+[gd_scene load_steps=7 format=3 uid="uid://b5k9m3xr7t2pw"]
+
+[ext_resource type="Script" path="res://scripts/world/game_world.gd" id="1_game_world"]
+[ext_resource type="Script" path="res://scripts/world/player_controller.gd" id="2_player"]
+[ext_resource type="Script" path="res://scripts/world/camera_controller.gd" id="3_camera"]
+[ext_resource type="Script" path="res://scripts/effects/particle_spawner.gd" id="4_particles"]
+[ext_resource type="PackedScene" path="res://ui/gameplay_hud.tscn" id="5_hud_scene"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_floor"]
+size = Vector3(24.0, 0.2, 144.0)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_floor"]
+albedo_color = Color(0.35, 0.35, 0.35, 1)
+roughness = 0.8
+
+[node name="GameWorld" type="Node3D"]
+script = ExtResource("1_game_world")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.766044, 0.642788, 0, -0.642788, 0.766044, 0, 8, 0)
+light_color = Color(0.9, 0.92, 0.95, 1)
+light_energy = 1.2
+shadow_enabled = true
+
+[node name="Floor" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1.3, 12)
+mesh = SubResource("BoxMesh_floor")
+material_override = SubResource("StandardMaterial3D_floor")
+
+[node name="Player" type="Node3D" parent="."]
+script = ExtResource("2_player")
+
+[node name="CameraController" type="Node3D" parent="."]
+script = ExtResource("3_camera")
+
+[node name="Camera3D" type="Camera3D" parent="CameraController"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+fov = 44.0
+far = 160.0
+
+[node name="WallContainer" type="Node3D" parent="."]
+
+[node name="ParticleSpawner" type="Node3D" parent="."]
+script = ExtResource("4_particles")
+
+[node name="GameplayHUD" parent="." instance=ExtResource("5_hud_scene")]
