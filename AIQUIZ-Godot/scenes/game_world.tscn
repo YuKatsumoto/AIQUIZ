@@ -1,10 +1,11 @@
-[gd_scene load_steps=7 format=3 uid="uid://b5k9m3xr7t2pw"]
+[gd_scene load_steps=8 format=3 uid="uid://b5k9m3xr7t2pw"]
 
 [ext_resource type="Script" path="res://scripts/world/game_world.gd" id="1_game_world"]
 [ext_resource type="Script" path="res://scripts/world/player_controller.gd" id="2_player"]
 [ext_resource type="Script" path="res://scripts/world/camera_controller.gd" id="3_camera"]
 [ext_resource type="Script" path="res://scripts/effects/particle_spawner.gd" id="4_particles"]
 [ext_resource type="PackedScene" path="res://ui/gameplay_hud.tscn" id="5_hud_scene"]
+[ext_resource type="PackedScene" path="res://ui/death_wipe.tscn" id="6_death_wipe"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_floor"]
 size = Vector3(24.0, 16.0, 144.0)
@@ -46,3 +47,8 @@ far = 160.0
 script = ExtResource("4_particles")
 
 [node name="GameplayHUD" parent="." instance=ExtResource("5_hud_scene")]
+
+[node name="DeathWipeLayer" type="CanvasLayer" parent="."]
+layer = 5
+
+[node name="DeathWipe" parent="DeathWipeLayer" instance=ExtResource("6_death_wipe")]
