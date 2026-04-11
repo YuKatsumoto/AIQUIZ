@@ -1,0 +1,286 @@
+import os
+import json
+import time
+import requests
+import traceback
+import concurrent.futures
+from pathlib import Path
+
+# パスの解決
+PROJECT_ROOT = Path(__file__).parent.parent
+BANK_PATH = PROJECT_ROOT / "offline_bank.json"
+PROGRESS_PATH = PROJECT_ROOT / "offline_bank_in_progress.json"
+FINAL_PATH = PROJECT_ROOT / "offline_bank_optimized.json"
+
+# --- 超絶限界突破・ハイブリッドメガバッチ設定 ---
+OLLAMA_URL = "http://localhost:11434/api/generate"
+TARGET_MODEL = "hf.co/mradermacher/Qwen3-14B-Uncensored-GGUF:Q4_K_M"
+
+STATIC_NG_PATTERNS = ["次のうち", "どれですか", "どれかな", "図の", "上の", "テープが"]
+TARGET_COUNT_PER_CATEGORY = 100
+BATCH_SIZE = 50       # 一気に判定させるメガバッチサイズ（GPUの読む力を最大活用）
+GENERATE_SIZE = 10    # 新規生成時のバッチサイズ（10問ずつ確実に作らせる）
+MAX_RETRIES = 3
+MAX_WORKERS = 4       # インデックス判定は非常に高速なため並列数は4〜6で十分
+HTTP_TIMEOUT = 600
+# -------------------------------------------
+
+def check_ollama_running():
+    try:
+        res = requests.get("http://localhost:11434/", timeout=3)
+        return res.status_code == 200
+    except:
+        return False
+
+def load_json(path):
+    if not os.path.exists(path): return {}
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def save_json(path, data):
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+def clean_text(text):
+    if not isinstance(text, str): return text
+    return text.replace('\n', '').strip()
+
+def request_ollama_json(prompt, system_inst):
+    for attempt in range(MAX_RETRIES):
+        try:
+            payload = {
+                "model": TARGET_MODEL,
+                "system": system_inst,
+                "prompt": prompt,
+                "stream": False,
+                "format": "json"
+            }
+            
+            response = requests.post(OLLAMA_URL, json=payload, timeout=HTTP_TIMEOUT)
+            if response.status_code != 200:
+                time.sleep(2)
+                continue
+                
+            text = response.json().get('response', '').strip()
+            
+            if text.startswith("```json"): text = text[7:]
+            if text.endswith("```"): text = text[:-3]
+            
+            data = json.loads(text.strip())
+            
+            if isinstance(data, dict):
+                for key, val in data.items():
+                    if isinstance(val, list): return val
+                return [data]
+            
+            if not isinstance(data, list):
+                raise ValueError("JSON配列ではありません。")
+            
+            return data
+        except Exception as e:
+            time.sleep(2)
+    return None
+
+def phase1_static_validation(bank_data):
+    print("\n" + "="*40)
+    print("Phase 1: プログラムによる静的スクリーニング (不要なAI稼働をスキップ)")
+    print("="*40)
+    
+    valid_data = {}
+    total_removed = 0
+    for subject, grades in bank_data.items():
+        valid_data[subject] = {}
+        for grade, questions in grades.items():
+            valid_questions = []
+            for q in questions:
+                if not all(k in q for k in ("q", "c", "a", "exp")):
+                    total_removed += 1; continue
+                if len(q["c"]) < 2:
+                    total_removed += 1; continue
+                if not (0 <= q["a"] < len(q["c"])):
+                    total_removed += 1; continue
+                
+                text = clean_text(q["q"])
+                if any(ng in text for ng in STATIC_NG_PATTERNS):
+                    total_removed += 1; continue
+                valid_questions.append(q)
+            valid_data[subject][grade] = valid_questions
+
+    print(f"完了: プログラムの力で {total_removed} 問のエラー/NG問題を事前除去しました。")
+    return valid_data
+
+def process_p2_task(task):
+    subject, grade, start_idx, batch = task
+    
+    # 識別用のIDを付与した一時辞書を作成
+    indexed_batch = [{"id": i, **q} for i, q in enumerate(batch)]
+    
+    system_inst = """あなたは小学生向けクイズの厳格な品質管理者です。
+入力されるJSONには複数のクイズが含まれます。各クイズの品質を判定し、
+「不適切な問題（悪い問題）」の "id" の数値だけを抽出してJSONの配列（リスト）で出力してください。
+問題ない場合（すべて良問）は空の配列 [] を出力してください。"""
+
+    prompt = f"""以下の問題配列は「{subject}」の「{grade}年生」向けクイズです。
+以下の基準に【1つでも違反している悪い問題】の "id" の数字だけを集めてJSONの配列で出力せよ。(例: [2, 5, 14])
+
+【違反基準（即NG）】
+1. この『{grade}年生の学習範囲』から逸脱している。（例：小6なのに単純な引き算がある、簡単な九九があるなど）
+2. 選択肢(c)の中に「正しい答え」が含まれていないか、正解インデックス(a)が間違っている。
+3. グラフや前提条件が足りず、文字だけでは絶対に解けない。
+
+入力データ ({len(batch)}問):
+{json.dumps(indexed_batch, ensure_ascii=False, indent=2)}"""
+    
+    bad_ids = request_ollama_json(prompt, system_inst)
+    
+    if bad_ids is not None:
+        # 万が一IDが数値以外で返ってきても対応
+        bad_ids_set = set()
+        for b_id in bad_ids:
+            if isinstance(b_id, int): bad_ids_set.add(b_id)
+            elif isinstance(b_id, dict) and 'id' in b_id: bad_ids_set.add(b_id['id'])
+            elif isinstance(b_id, str) and b_id.isdigit(): bad_ids_set.add(int(b_id))
+            
+        valid_qs = [q for i, q in enumerate(batch) if i not in bad_ids_set]
+        dropped_count = len(batch) - len(valid_qs)
+        return subject, grade, start_idx, valid_qs, dropped_count
+    
+    # AIが回答失敗した場合は安全のため全て残す
+    return subject, grade, start_idx, batch, 0
+
+def phase2_llm_evaluation(bank_data):
+    print("\n" + "="*40)
+    print(f"Phase 2: メガバッチ・インデックス判定 (AIの出力を削ぎ落とした爆速版)")
+    print("="*40)
+    
+    processed_data = json.loads(json.dumps(bank_data))
+    tasks = []
+    
+    for subject, grades in processed_data.items():
+        for grade, questions in grades.items():
+            for i in range(0, len(questions), BATCH_SIZE):
+                tasks.append((subject, grade, i, questions[i:i+BATCH_SIZE]))
+
+    results = []
+    completed = 0
+    total_tasks = len(tasks)
+    total_dropped = 0
+    print(f"全 {total_tasks} メガバッチのインデックス解析を開始します...")
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        future_to_task = {executor.submit(process_p2_task, t): t for t in tasks}
+        for future in concurrent.futures.as_completed(future_to_task):
+            completed += 1
+            res = future.result()
+            results.append(res)
+            # res[4] は dropped_count
+            total_dropped += res[4]
+            if completed % 5 == 0 or completed == total_tasks:
+                print(f"  ... 進捗: {completed}/{total_tasks}完了 (計 {total_dropped}問の不備問題を破棄)")
+
+    grouped = {}
+    for subject in processed_data:
+        for grade in processed_data[subject]:
+            processed_data[subject][grade] = []
+            
+    for res in results:
+        subject, grade, start_idx, qs, dropped = res
+        if (subject, grade) not in grouped: grouped[(subject, grade)] = []
+        grouped[(subject, grade)].append((start_idx, qs))
+        
+    for (subject, grade), batches in grouped.items():
+        batches.sort(key=lambda x: x[0])
+        for start_idx, qs in batches:
+            processed_data[subject][grade].extend(qs)
+            
+    save_json(PROGRESS_PATH, processed_data)
+    print("Phase 2 完了！")
+    return processed_data
+
+def process_p3_task(task):
+    subject, grade, req_size = task
+    system_inst = "あなたはクイズ作成AIです。JSON配列のみを出力します。"
+    
+    prompt = f"""{subject}の{grade}年生向けの高品質なクイズを【{req_size}問】作成し、以下の配列フォーマットで出力してください。
+[ {{ "q": "問題", "c": ["選択肢1", "選択肢2"], "a": 正解インデックス(0始まり), "exp": "解説" }} ]
+
+【重要】
+- その学年・科目の指導要領に含まれる【様々な分野（図形・文章題・割合・理科・歴史など）】から幅広く出題し、ジャンルを被らせないでください。
+- 画面(テキスト)だけで自己完結して解ける問題にしてください。"""
+    
+    new_qs = request_ollama_json(prompt, system_inst)
+    if new_qs is not None:
+        return subject, grade, [q for q in new_qs if all(k in q for k in ("q", "c", "a", "exp"))]
+    return subject, grade, []
+
+def phase3_augmentation(bank_data):
+    print("\n" + "="*40)
+    print(f"Phase 3: 不足分野の自動増補 (破棄された分を一気に生成)")
+    print("="*40)
+    
+    tasks = []
+    for subject, grades in bank_data.items():
+        for grade, questions in grades.items():
+            needed = TARGET_COUNT_PER_CATEGORY - len(questions)
+            if needed > 0:
+                print(f"  {subject} {grade}年: あと {needed}問 不足中。生成タスクへ追加...")
+                gens = (needed // GENERATE_SIZE) + int(needed % GENERATE_SIZE > 0)
+                for i in range(gens):
+                    tasks.append((subject, grade, min(GENERATE_SIZE, needed - (i * GENERATE_SIZE))))
+
+    if not tasks: return bank_data
+
+    completed = 0
+    total_tasks = len(tasks)
+    print(f"生成を開始します...")
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = [executor.submit(process_p3_task, t) for t in tasks]
+        for future in concurrent.futures.as_completed(futures):
+            subject, grade, qs = future.result()
+            bank_data[subject][grade].extend(qs)
+            completed += 1
+            if len(qs) > 0:
+                print(f"  ... [進捗 {completed}/{total_tasks}] {subject} {grade}年 に {len(qs)}問 を新規追加！")
+
+    save_json(PROGRESS_PATH, bank_data)
+    print("Phase 3 完了！")
+    return bank_data
+
+def main():
+    if not check_ollama_running():
+        print("エラー: Ollama が localhost:11434 で応答しませんでした。")
+        return
+
+    print("★ メガバッチ・ハイブリッド方式で起動しました！（超高速）★")
+
+    if PROGRESS_PATH.exists():
+        bank_data = load_json(PROGRESS_PATH)
+    elif BANK_PATH.exists():
+        bank_data = load_json(BANK_PATH)
+    else:
+        return
+
+    try:
+        t0 = time.time()
+        # プロダクション実行
+        data_p1 = phase1_static_validation(bank_data)
+        data_p2 = phase2_llm_evaluation(data_p1)
+        data_p3 = phase3_augmentation(data_p2)
+        
+        t1 = time.time()
+        save_json(FINAL_PATH, data_p3)
+        print("\n" + "="*40)
+        print(f"限界突破プロセスが完了しました！ (所要時間: {t1-t0:.1f} 秒)")
+        print(f"結果は {FINAL_PATH} に出力されています。")
+        print("="*40)
+        
+        if PROGRESS_PATH.exists(): os.remove(PROGRESS_PATH)
+
+    except KeyboardInterrupt:
+        print("\n[中断] キャンセルされました。進捗は保存されています。")
+    except Exception as e:
+        traceback.print_exc()
+
+if __name__ == "__main__":
+    main()

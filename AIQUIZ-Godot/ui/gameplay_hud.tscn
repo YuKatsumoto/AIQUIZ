@@ -81,6 +81,15 @@ grow_vertical = 0
 max_value = 10.0
 show_percentage = false
 
+[node name="PreloadBackground" type="ColorRect" parent="."]
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.1, 0.1, 0.15, 1.0)
+
 [node name="PreloadPanel" type="Panel" parent="."]
 visible = false
 anchors_preset = 8
@@ -156,6 +165,25 @@ grow_vertical = 0
 theme_override_colors/font_color = Color(0.6, 0.65, 0.7, 1)
 theme_override_font_sizes/font_size = 16
 text = "問題取得中..."
+horizontal_alignment = 1
+
+[node name="StartPromptLabel" type="Label" parent="PreloadPanel"]
+visible = false
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -200.0
+offset_top = -100.0
+offset_right = 200.0
+offset_bottom = -60.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_colors/font_color = Color(1, 1, 0.5, 1)
+theme_override_font_sizes/font_size = 20
+text = "[ 任意のキーを押してスタート ]"
 horizontal_alignment = 1
 
 [node name="GameOverPanel" type="Panel" parent="."]
@@ -259,19 +287,100 @@ text = "評価を送信しました"
 horizontal_alignment = 1
 
 [node name="MenuBtn" type="Button" parent="GameOverPanel"]
-custom_minimum_size = Vector2(240, 56)
+custom_minimum_size = Vector2(200, 56)
 layout_mode = 1
 anchors_preset = 7
 anchor_left = 0.5
 anchor_top = 1.0
 anchor_right = 0.5
 anchor_bottom = 1.0
-offset_left = -120.0
+offset_left = 10.0
 offset_top = -120.0
-offset_right = 120.0
+offset_right = 210.0
 offset_bottom = -64.0
 grow_horizontal = 2
 grow_vertical = 0
-theme_override_font_sizes/font_size = 24
+theme_override_font_sizes/font_size = 22
 text = "メニューに戻る"
+
+[node name="HistoryBtn" type="Button" parent="GameOverPanel"]
+custom_minimum_size = Vector2(200, 56)
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -210.0
+offset_top = -120.0
+offset_right = -10.0
+offset_bottom = -64.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_font_sizes/font_size = 22
+text = "📋 問題履歴"
+
+[node name="HistoryPanel" type="Panel" parent="."]
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="BgRect" type="ColorRect" parent="HistoryPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.03, 0.04, 0.09, 0.95)
+
+[node name="HeaderBar" type="HBoxContainer" parent="HistoryPanel"]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 16.0
+offset_top = 16.0
+offset_right = -16.0
+offset_bottom = 64.0
+grow_horizontal = 2
+
+[node name="BackBtn" type="Button" parent="HistoryPanel/HeaderBar"]
+custom_minimum_size = Vector2(100, 44)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "◀ 戻る"
+
+[node name="HeaderTitle" type="Label" parent="HistoryPanel/HeaderBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(1, 0.95, 0.7, 1)
+theme_override_font_sizes/font_size = 28
+text = "出題された問題"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Spacer" type="Control" parent="HistoryPanel/HeaderBar"]
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+
+[node name="ScrollContainer" type="ScrollContainer" parent="HistoryPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 40.0
+offset_top = 80.0
+offset_right = -40.0
+offset_bottom = -16.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="HistoryList" type="VBoxContainer" parent="HistoryPanel/ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 16
 

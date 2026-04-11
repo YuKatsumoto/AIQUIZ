@@ -146,6 +146,10 @@ func _complexity_score(item: QuizItem, subject: String, grade: int) -> float:
 		for token: String in ["敬語", "四字熟語", "古典", "短歌", "俳句", "歴史的仮名遣い", "比喩"]:
 			if token in text:
 				score += 0.9
+	elif subject == "社会":
+		for token: String in ["歴史", "公民", "憲法", "三権分立", "貿易", "工業", "農業", "地層", "気候"]:
+			if token in text:
+				score += 0.8
 
 	score -= maxf(0.0, float(grade - 1)) * 0.08
 	return score

@@ -102,6 +102,20 @@ func set_quiz(quiz: QuizItem, num_choices: int) -> void:
 			door_labels[0].text = quiz.c[0] if quiz.c.size() > 0 else ""
 			door_labels[1].text = quiz.c[1] if quiz.c.size() > 1 else ""
 
+func break_door(door_index: int) -> void:
+	if door_index >= 0 and door_index < doors.size():
+		var door := doors[door_index]
+		# 扉が崩れ落ちるようなアニメーション（スケールを潰して下へ）
+		var tween := create_tween()
+		tween.set_parallel(true)
+		tween.tween_property(door, "scale", Vector3(1.1, 0.05, 1.1), 0.15)
+		tween.tween_property(door, "position:y", -0.5, 0.15)
+		
+		if door_index < door_labels.size():
+			var label := door_labels[door_index]
+			var l_tween := create_tween()
+			l_tween.tween_property(label, "modulate:a", 0.0, 0.1)
+
 func _create_box(half_extents: Vector3, color: Color) -> MeshInstance3D:
 	var mesh_inst := MeshInstance3D.new()
 	var box := BoxMesh.new()

@@ -137,8 +137,7 @@ func update_from_state(gs: QuizGameState) -> void:
 			right_leg.rotation.x = -flail
 			left_arm.rotation.x = PI + flail
 			right_arm.rotation.x = PI - flail
-			# small panic rotation around Y
-			rotation.y += _time * 2.0
+			rotation.y = _time * 5.0
 		elif gs.player_y > 0.01:
 			rotation.y = 0.0
 			if gs.player_vel_y > 0.0:
@@ -188,7 +187,7 @@ func update_from_state(gs: QuizGameState) -> void:
 				p2_right_leg.rotation.x = -flail
 				p2_left_arm.rotation.x = PI + flail
 				p2_right_arm.rotation.x = PI - flail
-				p2_container.rotation.y += _time * 2.0
+				p2_container.rotation.y = _time * 5.0
 			elif gs.player2_y > 0.01:
 				p2_container.rotation.y = 0.0
 				if gs.player2_vel_y > 0.0:

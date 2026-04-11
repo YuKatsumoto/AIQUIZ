@@ -37,13 +37,7 @@ func start_game() -> void:
 	emit_signal("game_started")
 	get_tree().change_scene_to_file("res://scenes/game_world.tscn")
 
-func end_game_clear() -> void:
-	emit_signal("game_over", true)
-	get_tree().change_scene_to_file("res://ui/result_overlay.tscn")
-
-func end_game_fail() -> void:
-	emit_signal("game_over", false)
-	get_tree().change_scene_to_file("res://ui/result_overlay.tscn")
+# NOTE: Result handling is done via game_state signals, not scene transitions.
 
 func back_to_menu() -> void:
 	get_tree().change_scene_to_file("res://ui/main_menu.tscn")

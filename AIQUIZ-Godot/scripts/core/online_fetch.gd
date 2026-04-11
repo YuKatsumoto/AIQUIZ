@@ -70,10 +70,16 @@ func normalize_single(raw: Dictionary, src: String) -> QuizItem:
 	if q.is_empty() or not (c_raw is Array) or (c_raw.size() != 2 and c_raw.size() != 4):
 		return null
 		
-	if typeof(a) != TYPE_INT and typeof(a) != TYPE_FLOAT:
+	var a_int: int
+	if typeof(a) == TYPE_INT:
+		a_int = a
+	elif typeof(a) == TYPE_FLOAT:
+		a_int = int(a)
+	elif typeof(a) == TYPE_STRING and (a as String).is_valid_int():
+		a_int = int(a)
+	else:
 		return null
 	
-	var a_int := int(a)
 	if a_int < 0 or a_int >= c_raw.size():
 		return null
 		

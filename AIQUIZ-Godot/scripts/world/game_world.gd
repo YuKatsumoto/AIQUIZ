@@ -44,32 +44,27 @@ const MAGMA_SHADER = """
 shader_type spatial;
 render_mode blend_mix, depth_draw_opaque, cull_back, unshaded;
 
-uniform sampler2D magma_tex : repeat_enable, filter_linear_mipmap;
-uniform float speed = 0.5;
-
 varying float v_height;
 
 void vertex() {
-	// 巨大なうねり（波）
+	// Large slow waves
 	float wave1 = sin(VERTEX.x * 0.3 + TIME * 1.0) * cos(VERTEX.z * 0.3 + TIME * 0.8) * 0.8;
 	float wave2 = sin(VERTEX.x * 0.1 - TIME * 0.6) * sin(VERTEX.z * 0.15 + TIME * 0.4) * 1.0;
-	
-	// コポコポする細かい泡（鋭いピーク）
-	float bubbles = pow(sin(VERTEX.x * 1.5 + TIME * 3.0) * cos(VERTEX.z * 1.5 - TIME * 2.5), 6.0) * 0.8;
-	
+
+	// Bubbling peaks
+	float bx = sin(VERTEX.x * 1.5 + TIME * 3.0);
+	float bz = cos(VERTEX.z * 1.5 - TIME * 2.5);
+	float bubbles = pow(abs(bx * bz), 6.0) * 0.8;
+
 	VERTEX.y += wave1 + wave2 + bubbles;
 	v_height = wave1 + wave2 + bubbles;
 }
 
 void fragment() {
-	vec2 uv = UV * 20.0;
-	uv += vec2(TIME * speed * 0.2, TIME * speed * 0.8);
-	
-	vec4 col = texture(magma_tex, uv);
-	
-	// 高さが高い箇所（泡の先端）ほど白く発光させる
+	vec3 base_color = vec3(0.9, 0.3, 0.0); // Simple magma orange
 	vec3 highlight = vec3(1.0, 0.9, 0.3) * clamp(v_height * 0.6, 0.0, 1.0);
-	ALBEDO = col.rgb + highlight;
+	
+	ALBEDO = base_color + highlight;
 }
 """
 
@@ -80,25 +75,13 @@ func _setup_magma() -> void:
 	plane.subdivide_width = 128
 	plane.subdivide_depth = 128
 	magma_mesh.mesh = plane
-	magma_mesh.position = Vector3(0, -10.0, 0) # Slightly deeper since waves go UP
-	
-	var tex = load("res://assets/textures/lava.png") as Texture2D
-	
+	magma_mesh.position = Vector3(0, -10.0, 0)
+	magma_mesh.custom_aabb = AABB(Vector3(-200, -10, -200), Vector3(400, 20, 400))
+
 	var mat := ShaderMaterial.new()
 	mat.shader = Shader.new()
 	mat.shader.code = MAGMA_SHADER
-	if tex:
-		mat.set_shader_parameter("magma_tex", tex)
-	else:
-		# Fallback if image not loaded yet
-		var def_mat = StandardMaterial3D.new()
-		def_mat.albedo_color = Color(1.0, 0.4, 0.0)
-		def_mat.emission_enabled = true
-		def_mat.emission = Color(1.0, 0.3, 0.0)
-		magma_mesh.material_override = def_mat
-		add_child(magma_mesh)
-		return
-		
+
 	magma_mesh.material_override = mat
 	add_child(magma_mesh)
 
@@ -200,12 +183,17 @@ func _unhandled_input(event: InputEvent) -> void:
 			game_state.camera_pitch -= event.relative.y * 0.002
 			game_state.camera_pitch = clampf(game_state.camera_pitch,
 				-PI / 2.5, PI / 2.5)
+	elif event is InputEventKey or event is InputEventJoypadButton or event is InputEventMouseButton:
+		if event.is_pressed() and not event.is_echo():
+			if game_state and game_state.game_state == Constants.STATE_WAITING_START:
+				if game_state.has_method("trigger_start"):
+					game_state.trigger_start()
 
 func _update_floor() -> void:
-	# Floor is 144 units long (from -72 to +72 local to itself)
-	# We want the back edge to be exactly at Z = -4.5 
-	# So its local center should be at 67.5
-	floor_mesh.position = Vector3(0, -1.3, 67.5)
+	# Floor is 144 units long. Keep it centered around the player's local area.
+	# The floor mesh is in local (camera-relative) space, so we just keep it
+	# positioned so the player is always on it.
+	floor_mesh.position = Vector3(0, -9.2, 67.5)
 
 func _update_player() -> void:
 	if game_state.game_state == Constants.STATE_MENU:
@@ -307,7 +295,13 @@ func _on_quiz_loaded(quiz: QuizItem) -> void:
 			_update_wall_labels(wall)
 
 func _on_correct() -> void:
-	pass  # Audio handled by AudioManager
+	if game_state.current_quiz:
+		var answer_idx: int = game_state.current_quiz.a
+		for wall: Node3D in _active_walls:
+			if wall.has_meta("wall_index") and wall.get_meta("wall_index") == game_state.current_wall_index:
+				if wall.has_method("break_door"):
+					wall.break_door(answer_idx)
+	# Audio handled by AudioManager
 
 func _on_wrong(_msg: String) -> void:
 	pass  # Audio handled by AudioManager

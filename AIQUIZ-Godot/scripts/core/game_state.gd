@@ -58,6 +58,10 @@ var recent_results: Array[bool] = []
 var rating_target_quiz: QuizItem = null
 var rating_feedback: String = ""
 
+# --- Quiz History (for game-over review) ---
+var quiz_history: Array[Dictionary] = []  # [{quiz: QuizItem, correct: bool, rated: String}]
+var countdown_timer: float = 3.0
+
 # --- Multiplayer ---
 var num_players: int = 1
 var p1_alive: bool = true
@@ -162,6 +166,7 @@ func cycle_difficulty(delta: int) -> void:
 func start_game() -> void:
 	score = 0
 	current_index = 0
+	quiz_history.clear()
 	player_x = -1.5 if num_players == 2 else 0.0
 	player_y = 0.0
 	player_z = 0.0
@@ -221,6 +226,7 @@ func reset_to_menu() -> void:
 	player2_game_over_timer = 0.0
 	rating_target_quiz = null
 	rating_feedback = ""
+	quiz_history.clear()
 	refresh_status_text()
 	state_changed.emit(game_state)
 
@@ -246,6 +252,29 @@ func load_current_quiz() -> void:
 			state_changed.emit(game_state)
 			return
 		current_quiz = quiz_list[0]
+
+	# Handle 4-to-2 conversion for offline quizzes or any quiz with too many choices
+	if num_choices == 2 and current_quiz.c.size() > 2:
+		var correct_text: String = current_quiz.c[current_quiz.a]
+		var wrong_texts: PackedStringArray = []
+		for i: int in range(current_quiz.c.size()):
+			if i != current_quiz.a:
+				wrong_texts.append(current_quiz.c[i])
+		
+		# Pick one random wrong answer
+		var chosen_wrong: String = wrong_texts[randi() % wrong_texts.size()]
+		
+		var new_c := PackedStringArray([correct_text, chosen_wrong])
+		# Shuffle them
+		if randf() > 0.5:
+			new_c = PackedStringArray([chosen_wrong, correct_text])
+			
+		var new_a: int = 0 if new_c[0] == correct_text else 1
+		
+		current_quiz = QuizItem.create(
+			current_quiz.q, new_c, new_a, current_quiz.e, current_quiz.src,
+			current_quiz.img, current_quiz.choice_img
+		)
 
 	choice_locked = false
 	message_text = ""
@@ -281,6 +310,14 @@ func update(dt: float, axis_p1: Vector2 = Vector2.ZERO, axis_p2: Vector2 = Vecto
 		_update_preloading(dt)
 		return
 
+	if game_state == Constants.STATE_WAITING_START:
+		_update_waiting_start(dt, axis_p1, axis_p2, jump_p1, jump_p2)
+		return
+
+	if game_state == Constants.STATE_COUNTDOWN:
+		_update_countdown(dt)
+		return
+
 	if game_state == Constants.STATE_PLAYING:
 		_update_playing(dt, axis_p1, axis_p2, jump_p1, jump_p2)
 		return
@@ -310,18 +347,34 @@ func _update_preloading(dt: float) -> void:
 		ready = true
 
 	if ready and preload_wait_sec >= min_preload_sec:
-		game_state = Constants.STATE_PLAYING
+		game_state = Constants.STATE_WAITING_START
 		load_current_quiz()
 		state_changed.emit(game_state)
 	elif not ready and preload_wait_sec >= 4.0 and quiz_list.size() > 0:
 		if mode == Constants.MODE_TEN:
 			target_count = quiz_list.size()
-		game_state = Constants.STATE_PLAYING
+		game_state = Constants.STATE_WAITING_START
 		load_current_quiz()
 		state_changed.emit(game_state)
 	else:
 		message_text = "Loading quizzes..." if use_english_ui else "クイズを準備中..."
 		refresh_status_text()
+
+func _update_waiting_start(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: bool, jump_p2: bool) -> void:
+	pass # Input is now handled via _unhandled_input in game_world.gd
+
+func trigger_start() -> void:
+	if game_state == Constants.STATE_WAITING_START:
+		game_state = Constants.STATE_COUNTDOWN
+		countdown_timer = 3.99 # starting with 3
+		state_changed.emit(game_state)
+
+func _update_countdown(dt: float) -> void:
+	countdown_timer -= dt
+	if countdown_timer <= 0:
+		game_state = Constants.STATE_PLAYING
+		state_changed.emit(game_state)
+
 
 func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: bool, jump_p2: bool) -> void:
 	world_scroll_z += _active_wall_speed * dt
@@ -333,23 +386,23 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 		var move_z: float = axis_p1.y * cos(yaw) - axis_p1.x * sin(yaw)
 		
 		player_x += move_x * tuning.player_speed * dt
-		player_x = clampf(player_x, tuning.min_x, tuning.max_x)
+		# Removed clamp to allow falling off sides
 		
 		player_z += _active_wall_speed * dt # Carry forward with world scroll
 		player_z += move_z * tuning.player_speed * dt
 		
-		# Constrain local position on the treadmill (Only front is constrained!)
+		# Removed forward limit to allow running ahead
 		var loc1 := player_z - world_scroll_z
-		loc1 = minf(loc1, 8.0)
-		player_z = world_scroll_z + loc1
 		
-		if jump_p1 and player_y <= 0.0 and loc1 >= -4.0:
+		var is_on_floor = (absf(player_x) <= 12.0) and (loc1 >= -4.5 and loc1 <= 139.5)
+		
+		if jump_p1 and player_y <= 0.0 and is_on_floor:
 			player_vel_y = JUMP_FORCE
 		
 		player_vel_y -= GRAVITY * dt
 		player_y += player_vel_y * dt
 		
-		if player_y <= 0.0 and loc1 >= -4.0:
+		if player_y <= 0.0 and is_on_floor:
 			player_y = 0.0
 			player_vel_y = 0.0
 			
@@ -362,32 +415,34 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 				if current_quiz and not choice_locked:
 					choice_locked = true
 					provider.submit_result(current_quiz, false)
+					quiz_history.append({"quiz": current_quiz, "correct": false, "rated": ""})
 				_game_over("マグマに落ちてしまった！" if not use_english_ui else "Fell into magma!")
 				wrong_answer.emit(message_text)
 	else:
 		if game_over_timer > 0.0:
-			# Stay at same local offset
-			pass
+			# Tick explosion timer for dead P1 while game continues (2P)
+			game_over_timer += dt
 			
 	# Player 2 movement
 	if num_players >= 2 and p2_alive:
 		player2_x += axis_p2.x * tuning.player_speed * dt
-		player2_x = clampf(player2_x, tuning.min_x, tuning.max_x)
+		# Removed clamp
 		
 		player2_z += _active_wall_speed * dt
 		player2_z += axis_p2.y * tuning.player_speed * dt
 		
+		# Removed forward limit
 		var loc2 := player2_z - world_scroll_z
-		loc2 = minf(loc2, 8.0)
-		player2_z = world_scroll_z + loc2
 		
-		if jump_p2 and player2_y <= 0.0 and loc2 >= -4.0:
+		var p2_is_on_floor = (absf(player2_x) <= 12.0) and (loc2 >= -4.5 and loc2 <= 139.5)
+		
+		if jump_p2 and player2_y <= 0.0 and p2_is_on_floor:
 			player2_vel_y = JUMP_FORCE
 		
 		player2_vel_y -= GRAVITY * dt
 		player2_y += player2_vel_y * dt
 		
-		if player2_y <= 0.0 and loc2 >= -4.0:
+		if player2_y <= 0.0 and p2_is_on_floor:
 			player2_y = 0.0
 			player2_vel_y = 0.0
 			
@@ -400,6 +455,7 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 				if current_quiz and not choice_locked:
 					choice_locked = true
 					provider.submit_result(current_quiz, false)
+					quiz_history.append({"quiz": current_quiz, "correct": false, "rated": ""})
 				_game_over("マグマに落ちてしまった！" if not use_english_ui else "Fell into magma!")
 				wrong_answer.emit(message_text)
 			
@@ -480,12 +536,14 @@ func resolve_collision() -> void:
 			recent_results.append(true)
 			if recent_results.size() > 12:
 				recent_results.remove_at(0)
+			quiz_history.append({"quiz": current_quiz, "correct": true, "rated": ""})
 		else:
 			p1_alive = false
 			game_over_timer = 0.001
 			recent_results.append(false)
 			if recent_results.size() > 12:
 				recent_results.remove_at(0)
+			quiz_history.append({"quiz": current_quiz, "correct": false, "rated": ""})
 
 	# --- Player 2 ---
 	if num_players >= 2 and p2_alive:
@@ -530,14 +588,14 @@ func resolve_collision() -> void:
 		correct_answer.emit()
 		state_changed.emit(game_state)
 	else:
-		var nc: int = num_choices
-		var ans_label: String
-		if nc == 4:
-			var labels := ["A", "B", "C", "D"]
-			ans_label = labels[answer] if answer >= 0 and answer < 4 else "?"
+		var nc2: int = num_choices
+		var ans_label2: String
+		if nc2 == 4:
+			var labels2 := ["A", "B", "C", "D"]
+			ans_label2 = labels2[answer] if answer >= 0 and answer < 4 else "?"
 		else:
-			ans_label = "左" if answer == 0 else "右"
-		_game_over("不正解！ 正解は %s" % ans_label)
+			ans_label2 = "左" if answer == 0 else "右"
+		_game_over("不正解！ 正解は %s" % ans_label2)
 		wrong_answer.emit(message_text)
 
 func advance_after_correct() -> void:
@@ -551,7 +609,7 @@ func advance_after_correct() -> void:
 		quiz_list = provider.get_quizzes(subject, grade, difficulty,
 			Constants.MODE_ENDLESS, 1)
 		load_current_quiz()
-	if game_state != Constants.STATE_PRELOADING:
+	if game_state != Constants.STATE_PRELOADING and game_state != Constants.STATE_WAITING_START and game_state != Constants.STATE_COUNTDOWN:
 		game_state = Constants.STATE_PLAYING
 		message_text = ""
 		state_changed.emit(game_state)
@@ -606,32 +664,23 @@ func rate_last_question(good: bool) -> void:
 		rating_feedback = "Rated: Good" if use_english_ui else "評価: 良い問題"
 	else:
 		rating_feedback = "Rated: Bad" if use_english_ui else "評価: 悪い問題"
-		
-	# Save rating to file
-	var path := "user://quiz_ratings.json"
-	var ratings := []
-	if FileAccess.file_exists(path):
-		var f := FileAccess.open(path, FileAccess.READ)
-		if f:
-			var txt := f.get_as_text()
-			f.close()
-			if not txt.is_empty():
-				var parsed = JSON.parse_string(txt)
-				if parsed is Array:
-					ratings = parsed
-	
-	ratings.append({
-		"q": rating_target_quiz.q,
-		"c": rating_target_quiz.c,
-		"a": rating_target_quiz.a,
-		"good": good,
-		"src": rating_target_quiz.src
-	})
-	
-	var fw := FileAccess.open(path, FileAccess.WRITE)
-	if fw:
-		fw.store_string(JSON.stringify(ratings, "  "))
-		fw.close()
+	# Send to Firebase via QuizManager
+	QuizManager.firebase_ratings.send_rating(
+		rating_target_quiz, good, subject, grade, difficulty
+	)
+
+func rate_quiz_at(index: int, good: bool) -> void:
+	"""Rate a specific question in the history by its index."""
+	if index < 0 or index >= quiz_history.size():
+		return
+	var entry: Dictionary = quiz_history[index]
+	var quiz: QuizItem = entry["quiz"]
+	entry["rated"] = "good" if good else "bad"
+	quiz_history[index] = entry
+	# Send to Firebase
+	QuizManager.firebase_ratings.send_rating(
+		quiz, good, subject, grade, difficulty
+	)
 
 
 # ---------- Display helpers ----------
@@ -644,6 +693,13 @@ func question_text() -> String:
 func choices_text() -> PackedStringArray:
 	if not current_quiz:
 		return PackedStringArray(["", ""])
+	if num_choices == 4 and current_quiz.c.size() >= 4:
+		return PackedStringArray([
+			"A: %s" % current_quiz.c[0],
+			"B: %s" % current_quiz.c[1],
+			"C: %s" % current_quiz.c[2],
+			"D: %s" % current_quiz.c[3],
+		])
 	if use_english_ui:
 		return PackedStringArray([
 			"Left [A]: %s" % current_quiz.c[0],
