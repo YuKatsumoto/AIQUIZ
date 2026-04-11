@@ -18,6 +18,7 @@ extends Control
 @onready var api_status_label: RichTextLabel = $SettingsPanel/VBox/ApiStatusLabel
 @onready var vol_slider: HSlider = $SettingsPanel/VBox/VolBox/VolSlider
 @onready var speed_slider: HSlider = $SettingsPanel/VBox/SpeedBox/SpeedSlider
+@onready var res_option: OptionButton = %ResOption
 
 var game_state: QuizGameState
 
@@ -29,6 +30,26 @@ func _ready() -> void:
 	
 	vol_slider.value = AudioManager.sfx_volume
 	speed_slider.value = game_state.tuning.wall_speed
+	
+	res_option.item_selected.connect(_on_resolution_selected)
+	res_option.add_item("1280x720 (HD)", 0)
+	res_option.add_item("1920x1080 (FHD)", 1)
+	res_option.add_item("2560x1440 (WQHD)", 2)
+	res_option.add_item("3840x2160 (4K)", 3)
+	res_option.add_item("フルスクリーン", 4)
+	
+	if DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN:
+		res_option.select(4)
+	else:
+		var w = DisplayServer.window_get_size().x
+		if w >= 3840:
+			res_option.select(3)
+		elif w >= 2560:
+			res_option.select(2)
+		elif w >= 1920:
+			res_option.select(1)
+		else:
+			res_option.select(0)
 	
 	ApiStatusAutoload.check_completed.connect(_update_api_status_text)
 	_update_ui()
@@ -144,3 +165,25 @@ func _on_vol_slider_changed(value: float) -> void:
 
 func _on_speed_slider_changed(value: float) -> void:
 	game_state.set_wall_speed(value)
+
+func _on_resolution_selected(index: int) -> void:
+	if index == 4:
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
+	else:
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+		match index:
+			0:
+				DisplayServer.window_set_size(Vector2i(1280, 720))
+			1:
+				DisplayServer.window_set_size(Vector2i(1920, 1080))
+			2:
+				DisplayServer.window_set_size(Vector2i(2560, 1440))
+			3:
+				DisplayServer.window_set_size(Vector2i(3840, 2160))
+		
+		# Center the window on the current screen
+		var screen_idx = DisplayServer.window_get_current_screen()
+		var screen_pos = DisplayServer.screen_get_position(screen_idx)
+		var screen_size = DisplayServer.screen_get_size(screen_idx)
+		var win_size = DisplayServer.window_get_size()
+		DisplayServer.window_set_position(screen_pos + (screen_size - win_size) / 2)

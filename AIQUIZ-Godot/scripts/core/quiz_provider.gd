@@ -183,6 +183,151 @@ func _bucket_by_difficulty(items: Array[QuizItem], subject: String,
 
 	return bucket if not bucket.is_empty() else items
 
+# ---------- Hard distractor enhancement ----------
+
+func _is_numeric_choice(text: String) -> bool:
+	## Check if a choice text is essentially a number (with optional unit suffix)
+	var stripped := text.strip_edges()
+	# Remove common unit suffixes for checking
+	var units := ["cm", "c㎡", "m", "km", "kg", "g", "L", "dL", "mL", "mm",
+		"度", "個", "こ", "人", "台", "本", "枚", "まい", "匹", "冊", "円",
+		"時間", "分", "秒", "わ", "箱"]
+	for u: String in units:
+		if stripped.ends_with(u):
+			stripped = stripped.substr(0, stripped.length() - u.length()).strip_edges()
+			break
+	# Check if remaining part is a valid number
+	if stripped.is_valid_int() or stripped.is_valid_float():
+		return true
+	return false
+
+func _extract_number(text: String) -> float:
+	## Extract the numeric portion from a choice text
+	var stripped := text.strip_edges()
+	var units := ["cm", "c㎡", "m", "km", "kg", "g", "L", "dL", "mL", "mm",
+		"度", "個", "こ", "人", "台", "本", "枚", "まい", "匹", "冊", "円",
+		"時間", "分", "秒", "わ", "箱"]
+	for u: String in units:
+		if stripped.ends_with(u):
+			stripped = stripped.substr(0, stripped.length() - u.length()).strip_edges()
+			break
+	if stripped.is_valid_float():
+		return float(stripped)
+	if stripped.is_valid_int():
+		return float(int(stripped))
+	return 0.0
+
+func _extract_unit(text: String) -> String:
+	## Extract the unit suffix from a choice text
+	var stripped := text.strip_edges()
+	var units := ["c㎡", "cm", "km", "kg", "dL", "mL", "mm", "m", "g", "L",
+		"度", "個", "こ", "人", "台", "本", "枚", "まい", "匹", "冊", "円",
+		"時間", "分", "秒", "わ", "箱"]
+	for u: String in units:
+		if stripped.ends_with(u):
+			return u
+	return ""
+
+func _harden_distractors(item: QuizItem) -> QuizItem:
+	## Replace obviously wrong choices with more plausible near-miss values
+	if item.c.size() < 4:
+		return item  # Only process 4-choice questions
+
+	var correct_text: String = item.c[item.a]
+
+	# Check if all choices are numeric
+	var all_numeric := true
+	for ch: String in item.c:
+		if not _is_numeric_choice(ch):
+			all_numeric = false
+			break
+
+	if not all_numeric:
+		# For text-based questions, just shuffle the order to prevent positional bias
+		return item
+
+	# For numeric questions: generate near-miss distractors
+	var correct_val: float = _extract_number(correct_text)
+	var unit: String = _extract_unit(correct_text)
+	var is_integer: bool = correct_text.strip_edges().replace(unit, "").strip_edges().is_valid_int()
+
+	# Collect current wrong values
+	var wrong_vals: Array[float] = []
+	for i: int in range(item.c.size()):
+		if i != item.a:
+			wrong_vals.append(_extract_number(item.c[i]))
+
+	# Check if any wrong answer is "too far" from correct (more than 30% deviation or >10 absolute)
+	var needs_replacement := false
+	for wv: float in wrong_vals:
+		var diff: float = absf(wv - correct_val)
+		var relative_diff: float = diff / maxf(absf(correct_val), 1.0)
+		if relative_diff > 0.4 or (diff > 10.0 and relative_diff > 0.25):
+			needs_replacement = true
+			break
+
+	if not needs_replacement:
+		return item  # Choices are already close enough
+
+	# Generate new near-miss distractors
+	var new_wrongs: Array[float] = []
+	var attempts := 0
+	while new_wrongs.size() < 3 and attempts < 50:
+		attempts += 1
+		var offset: float
+		if is_integer:
+			# For integers: ±1 to ±3, occasionally ±4~5
+			var range_options := [-3, -2, -1, 1, 2, 3]
+			if absf(correct_val) >= 20:
+				range_options.append_array([-5, -4, 4, 5])
+			if absf(correct_val) >= 100:
+				range_options.append_array([-10, -8, 8, 10])
+			offset = float(range_options.pick_random())
+		else:
+			# For decimals: ±0.1 to ±0.5
+			offset = [-0.3, -0.2, -0.1, 0.1, 0.2, 0.3, 0.4, 0.5].pick_random()
+
+		var candidate: float = correct_val + offset
+		# Don't allow negative results for elementary school
+		if candidate < 0:
+			continue
+		# Don't duplicate correct answer
+		if absf(candidate - correct_val) < 0.001:
+			continue
+		# Don't duplicate existing new wrongs
+		var is_dup := false
+		for nw: float in new_wrongs:
+			if absf(nw - candidate) < 0.001:
+				is_dup = true
+				break
+		if is_dup:
+			continue
+		new_wrongs.append(candidate)
+
+	if new_wrongs.size() < 3:
+		return item  # Couldn't generate enough, keep original
+
+	# Build new choices array
+	new_wrongs.shuffle()
+	var new_choices := PackedStringArray()
+	var new_a: int = 0
+
+	# Mix correct and wrong answers, randomize correct position
+	var all_vals: Array[float] = [correct_val]
+	all_vals.append_array(new_wrongs)
+
+	# Sort numerically for natural presentation
+	all_vals.sort()
+	new_a = all_vals.find(correct_val)
+
+	for v: float in all_vals:
+		if is_integer:
+			new_choices.append("%d%s" % [int(v), unit])
+		else:
+			new_choices.append("%s%s" % [str(v), unit])
+
+	return QuizItem.create(item.q, new_choices, new_a, item.e, item.src, item.img, item.choice_img)
+
 # ---------- Fallback ----------
 
 func _fallback_question(subject: String, grade: int) -> QuizItem:
@@ -231,6 +376,13 @@ func get_quizzes(subject: String, grade: int, difficulty: String,
 	var pool := _bucket_by_difficulty(items, subject, grade, difficulty)
 	pool.shuffle()
 
+	# 難しい難易度の場合、選択肢をより紛らわしくする
+	if difficulty == "難しい":
+		var hardened: Array[QuizItem] = []
+		for q_item: QuizItem in pool:
+			hardened.append(_harden_distractors(q_item))
+		pool = hardened
+
 	if mode == Constants.MODE_TEN:
 		var uniq: Array[QuizItem] = []
 		var seen: Dictionary = {}
@@ -247,7 +399,10 @@ func get_quizzes(subject: String, grade: int, difficulty: String,
 				if q_item.q in seen:
 					continue
 				seen[q_item.q] = true
-				uniq.append(q_item)
+				if difficulty == "難しい":
+					uniq.append(_harden_distractors(q_item))
+				else:
+					uniq.append(q_item)
 				if uniq.size() >= count:
 					break
 		while uniq.size() < count:

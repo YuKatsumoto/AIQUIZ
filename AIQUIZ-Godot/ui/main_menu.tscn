@@ -319,6 +319,19 @@ min_value = 3.0
 max_value = 12.0
 step = 0.5
 
+[node name="ResolutionBox" type="HBoxContainer" parent="SettingsPanel/VBox"]
+layout_mode = 2
+alignment = 1
+
+[node name="Label" type="Label" parent="SettingsPanel/VBox/ResolutionBox"]
+layout_mode = 2
+text = "解像度:"
+
+[node name="ResOption" type="OptionButton" parent="SettingsPanel/VBox/ResolutionBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(250, 0)
+layout_mode = 2
+
 [node name="SettingsBackBtn" type="Button" parent="SettingsPanel/VBox"]
 unique_name_in_owner = true
 layout_mode = 2
