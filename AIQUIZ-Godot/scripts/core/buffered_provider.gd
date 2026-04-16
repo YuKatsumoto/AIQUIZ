@@ -30,12 +30,13 @@ func _ready() -> void:
 	
 	online_fetcher = OnlineFetch.new()
 	online_fetcher.fetch_completed.connect(_on_fetch_completed)
+	online_fetcher.fetch_partial.connect(_on_fetch_partial)
 	add_child(online_fetcher)
 	
 	ApiStatusAutoload.set_offline_count(offline_provider.total_count())
 
 	_poll_timer = Timer.new()
-	_poll_timer.wait_time = 0.5
+	_poll_timer.wait_time = 0.3
 	_poll_timer.autostart = true
 	_poll_timer.timeout.connect(_on_poll)
 	add_child(_poll_timer)
@@ -76,8 +77,10 @@ func _target_buffer_size() -> int:
 func _worker_should_fill() -> bool:
 	if not is_active_round:
 		return false
-		
-	var pending = buffer.size() + inflight
+	# Allow up to 2 concurrent in-flight requests for faster filling
+	if inflight >= 2:
+		return false
+	var pending = buffer.size() + inflight * 5  # estimate 5 per inflight
 	if current_mode == Constants.MODE_TEN:
 		var needed = max(0, target_count - yielded_count)
 		if pending >= needed:
@@ -89,23 +92,23 @@ func _on_poll() -> void:
 		return
 	
 	inflight += 1
-	var fetch_count := 3
-	if current_mode == Constants.MODE_TEN:
-		fetch_count = 5
+	# Always request 5 questions per batch for throughput
+	var fetch_count := 5
 		
 	if llm_mode == "ONLINE" and (ApiStatusAutoload.gemini_key_set or ApiStatusAutoload.openai_key_set):
 		online_fetcher.fetch_quiz_parallel(current_subject, current_grade, current_difficulty, fetch_count, play_history)
 	else:
 		# Offline fallback
-		var b_size := 2
+		var b_size := 6
 		if current_mode == Constants.MODE_TEN:
 			b_size = clampi(target_count, 6, 10)
 		var out = offline_provider.get_quizzes(current_subject, current_grade, current_difficulty, current_mode, b_size)
 		_on_fetch_completed(out)
 
-func _on_fetch_completed(quizzes: Array[QuizItem]) -> void:
-	inflight = max(0, inflight - 1)
-	
+func _on_fetch_partial(quizzes: Array[QuizItem]) -> void:
+	if quizzes.size() == 0:
+		return
+		
 	var accepted := false
 	for q in quizzes:
 		# Very naive deduplication
@@ -118,10 +121,23 @@ func _on_fetch_completed(quizzes: Array[QuizItem]) -> void:
 			continue
 			
 		recent_questions.append(q.q)
-		if recent_questions.size() > 80:
+		if recent_questions.size() > 120:
 			recent_questions.pop_front()
 		buffer.append(q)
 		accepted = true
+	
+	# 全問題が重複で弾かれた場合 → 履歴をクリアして問題を再利用可能にする
+	if not accepted and quizzes.size() > 0 and buffer.size() == 0:
+		recent_questions.clear()
+		# 履歴クリア後、取得した問題をそのまま投入
+		for q in quizzes:
+			recent_questions.append(q.q)
+			buffer.append(q)
+			accepted = true
+
+func _on_fetch_completed(quizzes: Array[QuizItem]) -> void:
+	inflight = max(0, inflight - 1)
+	_on_fetch_partial(quizzes)
 
 func get_quizzes(_subject: String, _grade: int, _difficulty: String,
 		_mode: String, count: int) -> Array[QuizItem]:

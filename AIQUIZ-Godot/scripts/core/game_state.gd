@@ -58,6 +58,13 @@ var recent_results: Array[bool] = []
 var rating_target_quiz: QuizItem = null
 var rating_feedback: String = ""
 
+# --- Streak & Stats ---
+var current_streak: int = 0
+var max_streak: int = 0
+var play_time: float = 0.0
+var total_answered: int = 0
+var total_wrong: int = 0
+
 # --- Quiz History (for game-over review) ---
 var quiz_history: Array[Dictionary] = []  # [{quiz: QuizItem, correct: bool, rated: String}]
 var countdown_timer: float = 3.0
@@ -185,6 +192,12 @@ func start_game() -> void:
 	player2_vel_y = 0.0
 	p2_alive = true
 	player2_game_over_timer = 0.0
+	# Streak & stats reset
+	current_streak = 0
+	max_streak = 0
+	play_time = 0.0
+	total_answered = 0
+	total_wrong = 0
 	# Dynamic wall speed reset
 	_active_wall_speed = tuning.wall_speed
 	var count: int = 10 if mode == Constants.MODE_TEN else 1
@@ -236,8 +249,17 @@ func reset_to_menu() -> void:
 func load_current_quiz() -> void:
 	if mode == Constants.MODE_TEN:
 		if current_index >= quiz_list.size():
-			clear_game()
-			return
+			if current_index >= target_count:
+				clear_game()
+				return
+			else:
+				# 途中でバッファが尽きた場合は再度プレロード待ちへ
+				game_state = Constants.STATE_PRELOADING
+				preload_wait_sec = 0.0
+				message_text = "Loading quizzes..." if use_english_ui else "次の問題を準備中..."
+				refresh_status_text()
+				state_changed.emit(game_state)
+				return
 		current_quiz = quiz_list[current_index]
 	else:
 		if quiz_list.is_empty():
@@ -350,9 +372,8 @@ func _update_preloading(dt: float) -> void:
 		game_state = Constants.STATE_WAITING_START
 		load_current_quiz()
 		state_changed.emit(game_state)
-	elif not ready and preload_wait_sec >= 4.0 and quiz_list.size() > 0:
-		if mode == Constants.MODE_TEN:
-			target_count = quiz_list.size()
+	elif not ready and preload_wait_sec >= 4.0 and quiz_list.size() > current_index:
+		# Don't overwrite target_count! Just start if we have some UNPLAYED questions.
 		game_state = Constants.STATE_WAITING_START
 		load_current_quiz()
 		state_changed.emit(game_state)
@@ -377,6 +398,7 @@ func _update_countdown(dt: float) -> void:
 
 
 func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: bool, jump_p2: bool) -> void:
+	play_time += dt
 	world_scroll_z += _active_wall_speed * dt
 	
 	# Player 1 movement
@@ -406,8 +428,8 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 			player_y = 0.0
 			player_vel_y = 0.0
 			
-		if player_y < -9.5:
-			player_y = -9.5
+		if player_y < -8.0:
+			player_y = -8.0
 			player_vel_y = 0.0
 			p1_alive = false
 			game_over_timer = 0.001
@@ -446,8 +468,8 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 			player2_y = 0.0
 			player2_vel_y = 0.0
 			
-		if player2_y < -9.5:
-			player2_y = -9.5
+		if player2_y < -8.0:
+			player2_y = -8.0
 			player2_vel_y = 0.0
 			p2_alive = false
 			player2_game_over_timer = 0.001
@@ -458,6 +480,10 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 					quiz_history.append({"quiz": current_quiz, "correct": false, "rated": ""})
 				_game_over("マグマに落ちてしまった！" if not use_english_ui else "Fell into magma!")
 				wrong_answer.emit(message_text)
+	elif num_players >= 2 and not p2_alive:
+		if player2_game_over_timer > 0.0:
+			# Tick explosion timer for dead P2 while game continues
+			player2_game_over_timer += dt
 			
 	# Check collisions with wall
 	if player_z >= wall_z - 0.45 or (num_players >= 2 and player2_z >= wall_z - 0.45):
@@ -530,20 +556,31 @@ func resolve_collision() -> void:
 		if door < 0:
 			p1_alive = false
 			game_over_timer = 0.001
-		elif door == answer:
-			score += 1
-			p1_correct = true
-			recent_results.append(true)
-			if recent_results.size() > 12:
-				recent_results.remove_at(0)
-			quiz_history.append({"quiz": current_quiz, "correct": true, "rated": ""})
-		else:
-			p1_alive = false
-			game_over_timer = 0.001
+			current_streak = 0
+			total_answered += 1
+			total_wrong += 1
 			recent_results.append(false)
 			if recent_results.size() > 12:
 				recent_results.remove_at(0)
-			quiz_history.append({"quiz": current_quiz, "correct": false, "rated": ""})
+		elif door == answer:
+			score += 1
+			p1_correct = true
+			current_streak += 1
+			if current_streak > max_streak:
+				max_streak = current_streak
+			total_answered += 1
+			recent_results.append(true)
+			if recent_results.size() > 12:
+				recent_results.remove_at(0)
+		else:
+			p1_alive = false
+			game_over_timer = 0.001
+			current_streak = 0
+			total_answered += 1
+			total_wrong += 1
+			recent_results.append(false)
+			if recent_results.size() > 12:
+				recent_results.remove_at(0)
 
 	# --- Player 2 ---
 	if num_players >= 2 and p2_alive:
@@ -562,6 +599,7 @@ func resolve_collision() -> void:
 	var any_alive: bool = p1_alive or (num_players >= 2 and p2_alive)
 
 	provider.submit_result(current_quiz, any_correct)
+	quiz_history.append({"quiz": current_quiz, "correct": any_correct, "rated": ""})
 
 	if not any_alive:
 		var nc: int = num_choices
@@ -580,13 +618,12 @@ func resolve_collision() -> void:
 			_game_over("不正解！ 正解は %s" % ans_label)
 		wrong_answer.emit(message_text)
 	elif any_correct:
-		game_state = Constants.STATE_CORRECT
-		message_timer = tuning.correct_hold_sec
-		message_text = "Correct!" if use_english_ui else "正解！"
+		# No-stop: stay in STATE_PLAYING and advance immediately
 		correct_flash = 1.0
 		camera_shake = 0.22
+		message_text = "Correct!" if use_english_ui else "正解！"
 		correct_answer.emit()
-		state_changed.emit(game_state)
+		advance_after_correct()
 	else:
 		var nc2: int = num_choices
 		var ans_label2: String
@@ -600,16 +637,22 @@ func resolve_collision() -> void:
 
 func advance_after_correct() -> void:
 	current_wall_index += 1
-	game_over_timer = 0.0
-	player2_game_over_timer = 0.0
+	if p1_alive:
+		game_over_timer = 0.0
+	if p2_alive or num_players < 2:
+		player2_game_over_timer = 0.0
 	if mode == Constants.MODE_TEN:
 		current_index += 1
+		var missing := maxi(0, target_count - quiz_list.size())
+		if missing > 0:
+			var new_quizzes := provider.get_quizzes(subject, grade, difficulty, mode, missing)
+			quiz_list.append_array(new_quizzes)
 		load_current_quiz()
 	else:
 		quiz_list = provider.get_quizzes(subject, grade, difficulty,
 			Constants.MODE_ENDLESS, 1)
 		load_current_quiz()
-	if game_state != Constants.STATE_PRELOADING and game_state != Constants.STATE_WAITING_START and game_state != Constants.STATE_COUNTDOWN:
+	if game_state not in [Constants.STATE_PRELOADING, Constants.STATE_WAITING_START, Constants.STATE_COUNTDOWN, Constants.STATE_CLEAR, Constants.STATE_GAME_OVER]:
 		game_state = Constants.STATE_PLAYING
 		message_text = ""
 		state_changed.emit(game_state)
@@ -634,6 +677,7 @@ func _game_over(msg: String) -> void:
 	camera_shake = 0.35
 	refresh_status_text()
 	state_changed.emit(game_state)
+	QuizManager.quiz_optimizer.evaluate_history(quiz_history, subject, grade, difficulty)
 
 func clear_game() -> void:
 	game_state = Constants.STATE_CLEAR
@@ -653,6 +697,7 @@ func clear_game() -> void:
 	refresh_status_text()
 	game_cleared.emit(message_text)
 	state_changed.emit(game_state)
+	QuizManager.quiz_optimizer.evaluate_history(quiz_history, subject, grade, difficulty)
 
 
 # ---------- Rating ----------

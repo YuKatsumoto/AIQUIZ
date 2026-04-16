@@ -167,11 +167,11 @@ func _process(dt: float) -> void:
 
 	# Handle ESC / R key
 	if game_state.game_state == Constants.STATE_PLAYING:
-		if Input.is_key_pressed(KEY_ESCAPE):
+		if Input.is_key_pressed(KEY_ESCAPE) :
 			game_state.reset_to_menu()
 			get_tree().change_scene_to_file("res://ui/main_menu.tscn")
 	if game_state.game_state in [Constants.STATE_GAME_OVER, Constants.STATE_CLEAR]:
-		if Input.is_key_pressed(KEY_R):
+		if Input.is_key_pressed(KEY_R) :
 			game_state.reset_to_menu()
 			get_tree().change_scene_to_file("res://ui/main_menu.tscn")
 

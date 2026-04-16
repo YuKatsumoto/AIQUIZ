@@ -96,25 +96,106 @@ func set_quiz(quiz: QuizItem, num_choices: int) -> void:
 	if num_choices == 4:
 		for i: int in range(mini(4, quiz.c.size())):
 			if i < door_labels.size():
-				door_labels[i].text = "%s. %s" % [labels_4[i], quiz.c[i]]
+				var choice := quiz.c[i]
+				if FractionFormatter.is_pure_fraction(choice):
+					# 分数の場合: プレフィックスを上に、分数をスタック表示
+					door_labels[i].text = "%s.\n%s" % [labels_4[i], FractionFormatter.to_stacked(choice)]
+				elif FractionFormatter.has_fraction(choice):
+					# 混合テキストの場合: インライン分数表示
+					door_labels[i].text = "%s. %s" % [labels_4[i], FractionFormatter.to_inline(choice)]
+				else:
+					door_labels[i].text = "%s. %s" % [labels_4[i], choice]
 	else:
 		if door_labels.size() >= 2:
-			door_labels[0].text = quiz.c[0] if quiz.c.size() > 0 else ""
-			door_labels[1].text = quiz.c[1] if quiz.c.size() > 1 else ""
+			door_labels[0].text = FractionFormatter.format_choice(quiz.c[0]) if quiz.c.size() > 0 else ""
+			door_labels[1].text = FractionFormatter.format_choice(quiz.c[1]) if quiz.c.size() > 1 else ""
 
 func break_door(door_index: int) -> void:
-	if door_index >= 0 and door_index < doors.size():
-		var door := doors[door_index]
-		# 扉が崩れ落ちるようなアニメーション（スケールを潰して下へ）
-		var tween := create_tween()
-		tween.set_parallel(true)
-		tween.tween_property(door, "scale", Vector3(1.1, 0.05, 1.1), 0.15)
-		tween.tween_property(door, "position:y", -0.5, 0.15)
-		
-		if door_index < door_labels.size():
-			var label := door_labels[door_index]
-			var l_tween := create_tween()
-			l_tween.tween_property(label, "modulate:a", 0.0, 0.1)
+	if door_index < 0 or door_index >= doors.size():
+		return
+	var door := doors[door_index]
+	var door_color: Color = Color.WHITE
+	if door.material_override:
+		door_color = door.material_override.albedo_color
+	var door_pos: Vector3 = door.global_position
+	var door_size: Vector3 = (door.mesh as BoxMesh).size if door.mesh is BoxMesh else Vector3(2.0, 4.0, 1.0)
+
+	# Hide original door and label
+	door.visible = false
+	if door_index < door_labels.size():
+		door_labels[door_index].visible = false
+
+	# Spawn debris chunks — fine fragmentation
+	var chunks_x := 4
+	var chunks_y := 5
+	var chunk_size := Vector3(door_size.x / chunks_x, door_size.y / chunks_y, door_size.z)
+
+	for cx: int in range(chunks_x):
+		for cy: int in range(chunks_y):
+			var chunk := RigidBody3D.new()
+			chunk.mass = 0.6
+			chunk.gravity_scale = 1.8
+
+			# Collision shape
+			var col := CollisionShape3D.new()
+			var shape := BoxShape3D.new()
+			var size_variation: float = randf_range(0.7, 1.0)
+			shape.size = chunk_size * 0.9 * size_variation
+			col.shape = shape
+			chunk.add_child(col)
+
+			# Mesh
+			var mesh_inst := MeshInstance3D.new()
+			var box := BoxMesh.new()
+			box.size = chunk_size * 0.9 * size_variation
+			mesh_inst.mesh = box
+			var mat := StandardMaterial3D.new()
+			mat.albedo_color = door_color.lerp(Color.WHITE, randf() * 0.2)
+			mat.roughness = 0.6
+			mat.metallic = 0.05
+			mesh_inst.material_override = mat
+			chunk.add_child(mesh_inst)
+
+			# Position: offset from door center
+			var offset_x: float = (cx - (chunks_x - 1) * 0.5) * chunk_size.x
+			var offset_y: float = (cy - (chunks_y - 1) * 0.5) * chunk_size.y
+			chunk.global_position = door_pos + Vector3(offset_x, offset_y, 0)
+
+			# Collision layers: only collide with floor (layer 1), not players
+			chunk.collision_layer = 0
+			chunk.collision_mask = 1
+
+			get_tree().current_scene.add_child(chunk)
+
+			# Scatter in all directions: sideways, upward, and mixed forward/backward
+			# so shards are visible in both 1P FPS (fly past the player) and 2P top-down
+			var scatter_z: float
+			if randf() < 0.4:
+				# 40% fly backward (toward the player / camera) for FPS visibility
+				scatter_z = randf_range(3.0, 8.0)
+			else:
+				# 60% fly forward (through the door opening)
+				scatter_z = -randf_range(2.0, 7.0)
+
+			var impulse := Vector3(
+				(randf() - 0.5) * 10.0,  # wide sideways scatter
+				randf() * 5.0 + 1.5,      # upward
+				scatter_z
+			)
+			chunk.apply_impulse(impulse)
+			chunk.apply_torque_impulse(Vector3(
+				(randf() - 0.5) * 12.0,
+				(randf() - 0.5) * 8.0,
+				(randf() - 0.5) * 12.0
+			))
+
+			# Auto-cleanup after 3 seconds
+			var timer := Timer.new()
+			timer.wait_time = 3.0
+			timer.one_shot = true
+			timer.autostart = true
+			chunk.add_child(timer)
+			timer.timeout.connect(chunk.queue_free)
 
 func _create_box(half_extents: Vector3, color: Color) -> MeshInstance3D:
 	var mesh_inst := MeshInstance3D.new()

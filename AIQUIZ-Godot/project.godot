@@ -20,6 +20,7 @@ GameManager="*res://scripts/autoload/game_manager.gd"
 QuizManager="*res://scripts/autoload/quiz_manager.gd"
 AudioManager="*res://scripts/autoload/audio_manager.gd"
 ApiStatusAutoload="*res://scripts/core/api_status.gd"
+SceneTransition="*res://scripts/autoload/scene_transition.gd"
 
 [display]
 

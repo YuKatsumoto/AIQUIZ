@@ -43,19 +43,29 @@ func update_camera(gs: QuizGameState, dt: float) -> void:
 			_go_timer += dt
 			var t_val: float = minf(1.0, _go_timer * 0.5)
 			var ease_t: float = 1.0 - pow(1.0 - t_val, 3)
+			var dist: float = ease_t * 8.0
 
 			var decay_shake: float = maxf(0.0, 1.0 - _go_timer * 0.8) * 1.5
 			var sx: float = (randf() - 0.5) * decay_shake
 			var sy: float = (randf() - 0.5) * decay_shake
 
+			# Find the last player who died (the one with the smaller death timer)
+			var target_px: float = gs.player_x
+			var target_py: float = gs.player_y
+			var target_pz: float = gs.player_local_z
+			if gs.player2_game_over_timer < gs.game_over_timer:
+				target_px = gs.player2_x
+				target_py = gs.player2_y
+				target_pz = gs.player2_local_z
+
 			eye = Vector3(
-				sx,
-				4.5 + bob + ease_t * 5.0 + sy,
-				z_focus + (-9.0 - ease_t * 8.0))
+				target_px + sx,
+				target_py + 1.2 + bob + ease_t * 4.0 + sy,
+				target_pz - dist)
 			target = Vector3(
-				sx * 0.5,
-				1.0 + sy * 0.5,
-				z_focus)
+				target_px + sx * 0.5,
+				target_py + 0.5 + sy * 0.5,
+				target_pz)
 		else:
 			_go_timer = 0.0
 			eye = Vector3(0.0, 4.5 + bob, z_focus - 9.0)

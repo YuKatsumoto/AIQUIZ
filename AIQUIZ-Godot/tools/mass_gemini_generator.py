@@ -1,0 +1,109 @@
+import os
+import json
+import time
+import requests
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).parent.parent
+BANK_PATH = PROJECT_ROOT / "offline_bank.json"
+ENV_PATH = PROJECT_ROOT / "tools" / ".env"
+
+def get_api_key():
+    if not ENV_PATH.exists(): return None
+    with open(ENV_PATH, "r", encoding="utf-8") as f:
+        for line in f:
+            if line.startswith("GEMINI_API_KEY="):
+                return line.strip().split("=", 1)[1]
+    return None
+
+API_KEY = get_api_key()
+# gemini-1.5-flash is fast and great for massive generation
+API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={API_KEY}"
+
+SUBJECTS = ["算数", "国語", "理科", "社会"]
+GRADES = ["1", "2", "3", "4", "5", "6"]
+QUESTIONS_PER_BATCH = 60 # Number of questions to generate per subject-grade combo
+
+def generate_questions(subject, grade):
+    system_instruction = f"""あなたは日本の{grade}年生向け教育エキスパートです。
+以下のJSONスキーマに従い、「{subject}」のクイズを{QUESTIONS_PER_BATCH}問、【絶対にJSONのリスト(配列)形式のみ】で出力してください。
+マークダウンのコードブロック(```json ... ```)は付けないでください！[ {{...}}, {{...}} ] のみを出力してください。
+問題(q)の先頭には【テーマ名】を付けてください。
+選択肢(c)は4つ、正解(a)は 0〜3 のインデックス、解説(exp)も出力してください。
+問題は絶対に被らないように、様々な単元を網羅してください。"""
+
+    prompt = f"小学{grade}年生の{subject}の高品質なクイズを{QUESTIONS_PER_BATCH}問作成せよ。"
+
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "systemInstruction": {"parts": [{"text": system_instruction}]},
+        "generationConfig": {"temperature": 0.7, "responseMimeType": "application/json"}
+    }
+    
+    headers = {'Content-Type': 'application/json'}
+    
+    for attempt in range(3):
+        try:
+            response = requests.post(API_URL, json=payload, headers=headers, timeout=240)
+            response.raise_for_status()
+            text_resp = response.json().get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+            
+            # Clean markdown if accidentally included
+            text_resp = text_resp.strip()
+            if text_resp.startswith("```json"):
+                text_resp = text_resp[7:]
+            if text_resp.endswith("```"):
+                text_resp = text_resp[:-3]
+            
+            data = json.loads(text_resp.strip())
+            return data if isinstance(data, list) else []
+        except Exception as e:
+            print(f"Attempt {attempt+1} Error generating {subject} Grade {grade}: {e}")
+            time.sleep(5) # wait before retrying
+    return []
+
+def main():
+    if not API_KEY:
+        print("GEMINI_API_KEY が .env に見つかりません。")
+        return
+
+    print("🚀 [超大量クイズ生成モード開始] 各学年・各教科の新しいクイズをGeminiで直接生成して注入します...")
+    
+    with open(BANK_PATH, "r", encoding="utf-8") as f:
+        bank_data = json.load(f)
+
+    total_added = 0
+    # Process only 2 grades (e.g. 5 and 6) across all subjects for a massive boost (8 batches = 240 questions)
+    for grade in ["1", "2", "3", "4", "5", "6"]:
+        for subj in SUBJECTS:
+            print(f"📚 {subj}(小{grade}) を生成中... (目標:{QUESTIONS_PER_BATCH}問)")
+            new_qs = generate_questions(subj, grade)
+            
+            # Add to bank if valid
+            valid_qs = [q for q in new_qs if "q" in q and "c" in q and "a" in q and "exp" in q and len(q["c"]) >= 2]
+            
+            if subj not in bank_data: bank_data[subj] = {}
+            if grade not in bank_data[subj]: bank_data[subj][grade] = []
+            
+            # Simple dedup
+            existing = {q.get("q"): True for q in bank_data[subj][grade]}
+            added = 0
+            for q in valid_qs:
+                if q["q"] not in existing:
+                    bank_data[subj][grade].append(q)
+                    existing[q["q"]] = True
+                    added += 1
+                    total_added += 1
+            
+            print(f"  -> {added}問 追加されました！")
+            
+            # Save after each successful batch
+            with open(BANK_PATH, "w", encoding="utf-8") as f:
+                json.dump(bank_data, f, ensure_ascii=False, indent=2)
+                
+            time.sleep(1) # API rate limit protection
+
+    print(f"\n🎉 完了！ 超大量の {total_added} 問が新たにオフラインバンクに注入されました！")
+
+if __name__ == "__main__":
+    main()

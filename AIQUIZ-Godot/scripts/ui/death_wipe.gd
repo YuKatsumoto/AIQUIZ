@@ -31,7 +31,7 @@ func _ready() -> void:
 
 	# SubViewport sizing
 	sub_viewport.size = Vector2i(WIPE_W, WIPE_H)
-	sub_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	sub_viewport.render_target_update_mode = SubViewport.UPDATE_WHEN_PARENT_VISIBLE
 	sub_viewport.transparent_bg = false
 
 	# Camera defaults
@@ -83,16 +83,18 @@ func _process(dt: float) -> void:
 	var should_show := false
 	var target_player := 0
 
-	if p1_dead and not p2_dead and game_state.game_over_timer > 0:
+	if p1_dead and not p2_dead and game_state.game_over_timer > 0 and game_state.game_over_timer < 4.0:
 		should_show = true
 		target_player = 1
-	elif p2_dead and not p1_dead and game_state.player2_game_over_timer > 0:
+	elif p2_dead and not p1_dead and game_state.player2_game_over_timer > 0 and game_state.player2_game_over_timer < 4.0:
 		should_show = true
 		target_player = 2
 	# Keep showing briefly after both die (game over state)
 	elif p1_dead and p2_dead and _active:
-		should_show = true
-		target_player = _dead_player
+		var current_timer := game_state.game_over_timer if _dead_player == 1 else game_state.player2_game_over_timer
+		if current_timer < 4.0:
+			should_show = true
+			target_player = _dead_player
 
 	if should_show:
 		if not _active:
@@ -117,19 +119,19 @@ func _start_wipe(player: int) -> void:
 
 	# Label styling per player
 	if player == 1:
-		label.text = "💀 P1"
+		label.text = "P1"
 		label.add_theme_color_override("font_color", Color(1.0, 0.6, 0.25))
 	else:
-		label.text = "💀 P2"
+		label.text = "P2"
 		label.add_theme_color_override("font_color", Color(0.35, 0.75, 1.0))
-	skull_label.text = "💀"
+	skull_label.text = ""
 
 func _hide_wipe() -> void:
 	if _active:
 		_active = false
 		visible = false
-		_world_set = false
-		sub_viewport.world_3d = null
+		# DO NOT reset world_3d to avoid Godot renderer crash during scene/state transitions
+		# sub_viewport.world_3d = null
 
 func _update_wipe(dt: float) -> void:
 	_timer += dt
@@ -187,20 +189,20 @@ func _update_wipe_camera() -> void:
 		# Phase 1: Watch the player tumble and fall into magma
 		# Camera positioned slightly to the side and above, looking down
 		var fall_progress := clampf(death_timer / 2.0, 0.0, 1.0)
-		var cam_y := py + 2.5 + fall_progress * 4.0  # Rise as player falls
+		var cam_y := py + 2.5 + fall_progress * 3.0  # Rise as player falls
 		cam_eye = Vector3(px + 3.0, cam_y, local_z - 3.5)
 		cam_target = Vector3(px, py, local_z)
 	else:
 		# Phase 2: Dramatic orbit around the explosion debris
 		var exp_t := death_timer - 2.0
 		var orbit_angle := exp_t * 0.6
-		var radius := 4.5
+		var radius := 3.5
 		cam_eye = Vector3(
 			px + sin(orbit_angle) * radius,
-			-7.0 + sin(exp_t * 1.5) * 0.5,  # Near magma level
+			-4.0 + sin(exp_t * 1.5) * 0.5,  # Steeper angle to look over fireball
 			local_z - cos(orbit_angle) * radius
 		)
-		cam_target = Vector3(px, -8.5, local_z)
+		cam_target = Vector3(px, py, local_z) # Look directly at where body was
 
 	wipe_camera.global_position = cam_eye
 	wipe_camera.look_at(cam_target, Vector3.UP)

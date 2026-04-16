@@ -6,7 +6,7 @@ extends Control
 @onready var title_label: Label = $VBoxContainer/TitleLabel
 @onready var mode_container: VBoxContainer = $VBoxContainer/ModeContainer
 @onready var config_container: VBoxContainer = $VBoxContainer/ConfigContainer
-@onready var start_button: Button = $VBoxContainer/StartButton
+@onready var start_button: Button = $VBoxContainer/ConfigContainer/ConfigBtnRow/StartButton
 @onready var status_label: Label = $VBoxContainer/StatusLabel
 @onready var grade_label: Label = $VBoxContainer/ConfigContainer/GradeRow/GradeLabel
 @onready var subject_label: Label = $VBoxContainer/ConfigContainer/SubjectRow/SubjectLabel
@@ -21,6 +21,9 @@ extends Control
 @onready var res_option: OptionButton = %ResOption
 
 var game_state: QuizGameState
+
+# Filter state
+
 
 func _ready() -> void:
 	game_state = QuizManager.game_state
@@ -52,8 +55,79 @@ func _ready() -> void:
 			res_option.select(0)
 	
 	ApiStatusAutoload.check_completed.connect(_update_api_status_text)
+	_style_all_buttons()
 	_update_ui()
 
+
+func _style_all_buttons() -> void:
+	"""全ボタンにダークテーマのスタイルを動的に適用"""
+	# 通常ボタンのスタイル
+	var normal_style := StyleBoxFlat.new()
+	normal_style.bg_color = Color(0.14, 0.16, 0.22)
+	normal_style.border_color = Color(0.28, 0.32, 0.42)
+	normal_style.set_border_width_all(1)
+	normal_style.set_corner_radius_all(10)
+	normal_style.content_margin_left = 16.0
+	normal_style.content_margin_right = 16.0
+	normal_style.content_margin_top = 8.0
+	normal_style.content_margin_bottom = 8.0
+	
+	var hover_style := StyleBoxFlat.new()
+	hover_style.bg_color = Color(0.18, 0.20, 0.28)
+	hover_style.border_color = Color(0.4, 0.5, 0.7)
+	hover_style.set_border_width_all(1)
+	hover_style.set_corner_radius_all(10)
+	hover_style.content_margin_left = 16.0
+	hover_style.content_margin_right = 16.0
+	hover_style.content_margin_top = 8.0
+	hover_style.content_margin_bottom = 8.0
+	
+	var pressed_style := StyleBoxFlat.new()
+	pressed_style.bg_color = Color(0.10, 0.12, 0.18)
+	pressed_style.border_color = Color(0.35, 0.45, 0.65)
+	pressed_style.set_border_width_all(1)
+	pressed_style.set_corner_radius_all(10)
+	pressed_style.content_margin_left = 16.0
+	pressed_style.content_margin_right = 16.0
+	pressed_style.content_margin_top = 8.0
+	pressed_style.content_margin_bottom = 8.0
+	
+	# 全ボタンを再帰的に取得してスタイル適用
+	var all_buttons := _get_all_buttons(self)
+	for btn: Button in all_buttons:
+		btn.add_theme_stylebox_override("normal", normal_style.duplicate())
+		btn.add_theme_stylebox_override("hover", hover_style.duplicate())
+		btn.add_theme_stylebox_override("pressed", pressed_style.duplicate())
+		btn.add_theme_color_override("font_color", Color(0.82, 0.85, 0.92))
+		btn.add_theme_color_override("font_hover_color", Color(0.95, 0.97, 1.0))
+	
+	# スタートボタンにアクセントカラー
+	var start_normal := StyleBoxFlat.new()
+	start_normal.bg_color = Color(0.15, 0.35, 0.65)
+	start_normal.border_color = Color(0.3, 0.55, 0.9)
+	start_normal.set_border_width_all(2)
+	start_normal.set_corner_radius_all(12)
+	start_normal.content_margin_left = 20.0
+	start_normal.content_margin_right = 20.0
+	start_normal.content_margin_top = 10.0
+	start_normal.content_margin_bottom = 10.0
+	
+	var start_hover := start_normal.duplicate()
+	start_hover.bg_color = Color(0.2, 0.42, 0.75)
+	start_hover.border_color = Color(0.4, 0.65, 1.0)
+	
+	start_button.add_theme_stylebox_override("normal", start_normal)
+	start_button.add_theme_stylebox_override("hover", start_hover)
+	start_button.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0))
+	start_button.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 1.0))
+
+func _get_all_buttons(node: Node) -> Array[Button]:
+	var buttons: Array[Button] = []
+	if node is Button:
+		buttons.append(node)
+	for child in node.get_children():
+		buttons.append_array(_get_all_buttons(child))
+	return buttons
 func _update_ui() -> void:
 	if not game_state:
 		return
@@ -64,20 +138,18 @@ func _update_ui() -> void:
 	if game_state.menu_step == Constants.MENU_STEP_MODE:
 		mode_container.visible = true
 		config_container.visible = false
-		start_button.visible = false
 	elif game_state.menu_step == Constants.MENU_STEP_CONFIG:
 		mode_container.visible = false
 		config_container.visible = true
-		start_button.visible = true
 
 		# Update config labels
-		grade_label.text = "学年: %d" % game_state.grade
-		subject_label.text = "教科: %s" % game_state.subject
-		diff_label.text = "難易度: %s" % game_state.difficulty
-		var p_text: String = "👥 2人プレイ中" if game_state.num_players >= 2 else "👤 1人プレイ中"
+		grade_label.text = "📚 %d年生" % game_state.grade
+		subject_label.text = "📖 %s" % game_state.subject
+		diff_label.text = "⚡ %s" % game_state.difficulty
+		var p_text: String = "👥 2人プレイ" if game_state.num_players >= 2 else "👤 1人プレイ"
 		players_btn.text = p_text
 
-		var llm_text: String = "出題: ONLINE (AI生成)" if QuizManager.provider.llm_mode == "ONLINE" else "出題: OFFLINE (内蔵問題)"
+		var llm_text: String = "🌐 ONLINE (AI生成)" if QuizManager.provider.llm_mode == "ONLINE" else "📦 OFFLINE (内蔵問題)"
 		llm_toggle_btn.text = llm_text
 
 func _on_ten_questions_pressed() -> void:
@@ -132,11 +204,11 @@ func _on_start_pressed() -> void:
 # --- Settings ---
 
 func _on_settings_btn_pressed() -> void:
-	settings_panel.visible = true
+	_show_panel_animated(settings_panel)
 	_on_recheck_btn_pressed()
 
 func _on_settings_back_btn_pressed() -> void:
-	settings_panel.visible = false
+	_hide_panel_animated(settings_panel)
 
 func _on_recheck_btn_pressed() -> void:
 	api_status_label.text = "[color=yellow]API状態チェック中...[/color]"
@@ -187,3 +259,13 @@ func _on_resolution_selected(index: int) -> void:
 		var screen_size = DisplayServer.screen_get_size(screen_idx)
 		var win_size = DisplayServer.window_get_size()
 		DisplayServer.window_set_position(screen_pos + (screen_size - win_size) / 2)
+
+
+
+func _show_panel_animated(panel: Control, duration: float = 0.3) -> void:
+	panel.visible = true
+	panel.modulate.a = 1.0
+	panel.scale = Vector2.ONE
+
+func _hide_panel_animated(panel: Control, duration: float = 0.25) -> void:
+	panel.visible = false

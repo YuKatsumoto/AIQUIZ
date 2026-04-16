@@ -1,0 +1,29 @@
+import { NextResponse } from 'next/server';
+import fs from 'fs';
+import path from 'path';
+
+// Absolute path to the Godot offline bank file
+const BANK_PATH = 'C:/AIQUIZ/AIQUIZ-Godot/offline_bank.json';
+
+export async function GET() {
+  try {
+    if (!fs.existsSync(BANK_PATH)) {
+      return NextResponse.json({ error: 'offline_bank.json not found' }, { status: 404 });
+    }
+    const data = fs.readFileSync(BANK_PATH, 'utf-8');
+    const json = JSON.parse(data);
+    return NextResponse.json(json);
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    const newData = await req.json();
+    fs.writeFileSync(BANK_PATH, JSON.stringify(newData, null, 2), 'utf-8');
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
