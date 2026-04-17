@@ -214,6 +214,10 @@ func _on_recheck_btn_pressed() -> void:
 	api_status_label.text = "[color=yellow]API状態チェック中...[/color]"
 	ApiStatusAutoload.run_connectivity_check()
 
+func _on_open_dashboard_pressed() -> void:
+	# Opens the locally running Next.js dashboard in the default browser
+	OS.shell_open("http://localhost:3000")
+
 func _update_api_status_text() -> void:
 	var text := ""
 	

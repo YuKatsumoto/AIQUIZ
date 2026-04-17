@@ -19,7 +19,7 @@ var subject: String = "算数"
 var grade: int = 3
 var difficulty: String = "普通"
 var mode: String = Constants.MODE_TEN
-var llm_mode: String = "OFFLINE"
+var llm_mode: String = "ONLINE"
 var menu_step: String = Constants.MENU_STEP_MODE
 
 # --- Player 1 ---
@@ -64,6 +64,9 @@ var max_streak: int = 0
 var play_time: float = 0.0
 var total_answered: int = 0
 var total_wrong: int = 0
+
+# --- 案3: 回答時間計測 ---
+var _quiz_shown_time: float = 0.0  # 問題表示時刻 (Time.get_ticks_msec())
 
 # --- Quiz History (for game-over review) ---
 var quiz_history: Array[Dictionary] = []  # [{quiz: QuizItem, correct: bool, rated: String}]
@@ -263,8 +266,9 @@ func load_current_quiz() -> void:
 		current_quiz = quiz_list[current_index]
 	else:
 		if quiz_list.is_empty():
+			# バッファから3問ずつ引き出し、ローカルキューに保持
 			quiz_list = provider.get_quizzes(subject, grade, difficulty,
-				Constants.MODE_ENDLESS, 1)
+				Constants.MODE_ENDLESS, 3)
 		# Guard: if buffer is still empty, transition to PRELOADING
 		if quiz_list.is_empty():
 			game_state = Constants.STATE_PRELOADING
@@ -301,6 +305,8 @@ func load_current_quiz() -> void:
 	choice_locked = false
 	message_text = ""
 	_recalc_wall_speed()
+	# 案3: 問題表示時刻を記録
+	_quiz_shown_time = Time.get_ticks_msec()
 	refresh_status_text()
 	quiz_loaded.emit(current_quiz)
 
@@ -600,6 +606,15 @@ func resolve_collision() -> void:
 
 	provider.submit_result(current_quiz, any_correct)
 	quiz_history.append({"quiz": current_quiz, "correct": any_correct, "rated": ""})
+	
+	# 案3: プレイヤー行動データを記録
+	if current_quiz and QuizManager.player_analytics != null:
+		var response_time: float = (Time.get_ticks_msec() - _quiz_shown_time) / 1000.0
+		var chosen_door: int = _check_player_door(player_x) if p1_alive or not p1_correct else current_quiz.a
+		QuizManager.player_analytics.record(
+			current_quiz, response_time, any_correct, chosen_door,
+			subject, grade, difficulty
+		)
 
 	if not any_alive:
 		var nc: int = num_choices
@@ -649,8 +664,13 @@ func advance_after_correct() -> void:
 			quiz_list.append_array(new_quizzes)
 		load_current_quiz()
 	else:
-		quiz_list = provider.get_quizzes(subject, grade, difficulty,
-			Constants.MODE_ENDLESS, 1)
+		# 現在の問題を消費してローカルキューから除去
+		if quiz_list.size() > 0:
+			quiz_list.pop_front()
+		# ローカルキューが空になったら3問ずつ補充
+		if quiz_list.is_empty():
+			quiz_list = provider.get_quizzes(subject, grade, difficulty,
+				Constants.MODE_ENDLESS, 3)
 		load_current_quiz()
 	if game_state not in [Constants.STATE_PRELOADING, Constants.STATE_WAITING_START, Constants.STATE_COUNTDOWN, Constants.STATE_CLEAR, Constants.STATE_GAME_OVER]:
 		game_state = Constants.STATE_PLAYING

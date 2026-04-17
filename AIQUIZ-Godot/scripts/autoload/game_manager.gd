@@ -17,6 +17,15 @@ var current_question_index: int = 0
 func _ready() -> void:
 	print("GameManager initialized.")
 	_load_env()
+	_start_dashboard_server()
+
+func _start_dashboard_server() -> void:
+	if OS.has_feature("windows"):
+		var dash_dir := ProjectSettings.globalize_path("res://../aiquiz-dashboard")
+		if DirAccess.dir_exists_absolute(dash_dir):
+			# open_consoleフラグをfalseにしてcmd経由で実行することで、完全にバックグラウンド(非表示)で動作させる
+			var args = ["/c", "cd /d \"" + dash_dir + "\" && npm run dev"]
+			OS.create_process("cmd.exe", args, false)
 
 func _load_env() -> void:
 	# .envファイルの簡易パース（拡張機能として）

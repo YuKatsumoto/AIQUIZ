@@ -98,13 +98,33 @@ func normalize_single(raw: Dictionary, src: String) -> QuizItem:
 	item.src = src
 	return item
 
+## システムインストラクション（ロール設定）を生成
+## generationConfig.systemInstruction に渡す
+func compose_system_instruction() -> String:
+	var sys := "あなたは日本の小学校で20年以上の指導経験を持つベテラン教員です。\n"
+	sys += "文部科学省の学習指導要領に完全準拠した、高品質なクイズ問題を生成します。\n"
+	sys += "クイズは3Dランナーゲーム内で使われるため、問題文は短く明瞭にしてください（50文字以内）。\n"
+	sys += "出力は常にJSON配列のみ。マークダウン装飾や説明文は一切含めないでください。\n"
+	return sys
+
+## 難易度に応じた temperature を返す
+func get_temperature_for_difficulty(difficulty: String, retry_count: int = 0) -> float:
+	var base: float
+	match difficulty:
+		"簡単":
+			base = 0.3
+		"普通":
+			base = 0.5
+		"難しい":
+			base = 0.7
+		_:
+			base = 0.45
+	# リトライ時は少し上げて多様性を出す
+	base += retry_count * 0.1
+	return clampf(base, 0.1, 1.0)
+
 func compose_prompt(subject: String, grade: int, difficulty: String, count: int, history: Array[String]) -> String:
 	var prompt := ""
-
-	# ── システム前文 ──
-	prompt += "あなたは日本の小学校で20年以上の指導経験を持つベテラン教員です。\n"
-	prompt += "文部科学省の学習指導要領に完全準拠した、高品質なクイズ問題を生成してください。\n"
-	prompt += "このクイズは3Dランナーゲーム内で使われるため、問題文は短く明瞭にしてください（50文字以内推奨）。\n\n"
 
 	# ── 基本条件 ──
 	prompt += "【基本条件】\n"
@@ -112,26 +132,43 @@ func compose_prompt(subject: String, grade: int, difficulty: String, count: int,
 	prompt += "- 難易度: %s\n" % difficulty
 	prompt += "- 問題数: %d問\n" % count
 	prompt += "- 形式: 4択（推奨）または 2択\n"
-	prompt += "- 出力: JSON配列のみ（キーなし、マークダウン装飾なし）\n"
 	prompt += "- 問題文(q)は50文字以内に収めること。長い文章題でも簡潔に書くこと\n"
 	prompt += "- 解説文(e)は20文字以内で、なぜその答えになるか核心だけ書くこと\n"
 	prompt += "- 選択肢(c)は各15文字以内に収めること\n\n"
 
 	# ── 学年×教科別カリキュラムデータ ──
 	var curriculum := _get_curriculum(grade, subject)
+	
+	# ── 案1: Few-Shot強化 — QuizOptimizer から JSON形式の例を注入 ──
 	if QuizManager.quiz_optimizer != null:
-		var feedback = QuizManager.quiz_optimizer.get_feedback_examples(subject, grade)
+		var feedback = QuizManager.quiz_optimizer.get_feedback_examples_json(subject, grade, 5)
 		for b in feedback["bad"]:
 			curriculum["bad_examples"].append(b)
-		for g in feedback["good"]:
-			curriculum["examples"].append(g)
+		for g in feedback["good_json"]:
+			curriculum["good_json_examples"].append(g)
+		for g_text in feedback["good"]:
+			curriculum["examples"].append(g_text)
 			
 	prompt += "【小学%d年生・%sのカリキュラム情報】\n" % [grade, subject]
 	prompt += "＜学習単元＞ %s\n" % curriculum["topics"]
 	prompt += "＜この学年のキーワード＞ %s\n" % curriculum["keywords"]
+	
+	# ── 案6: ありがちな間違い ──
+	if curriculum["typical_mistakes"].size() > 0:
+		prompt += "＜生徒がよくやる間違い（誤答のヒント）＞\n"
+		for m: String in curriculum["typical_mistakes"]:
+			prompt += "  - %s\n" % m
+		prompt += "→ 上記の間違いを誤答選択肢に反映してください\n"
+	
 	prompt += "＜良い問題の例＞\n"
 	for ex: String in curriculum["examples"]:
 		prompt += "  - %s\n" % ex
+	
+	# ── 案1: JSON形式の良問例（Few-Shot） ──
+	if curriculum["good_json_examples"].size() > 0:
+		prompt += "\n＜出力参考例（JSON）＞\n"
+		for json_ex: String in curriculum["good_json_examples"]:
+			prompt += "%s\n" % json_ex
 	prompt += "\n"
 
 	# ── 絶対禁止事項（全難易度共通） ──
@@ -143,7 +180,14 @@ func compose_prompt(subject: String, grade: int, difficulty: String, count: int,
 		prompt += "- 単純な九九・1桁の足し引き算・2桁同士の足し算のような%d年生には簡単すぎる問題\n" % grade
 	prompt += "- 同じ単元・パターンの問題ばかり出すこと（%d問すべて異なる単元から出題せよ）\n" % count
 	prompt += "- 正解が曖昧な問題や、複数の選択肢が正解になりうる問題\n"
-	prompt += "- 選択肢に「わからない」「どれでもない」を含めること\n\n"
+	prompt += "- 選択肢に「わからない」「どれでもない」を含めること\n"
+	
+	# ── bad_examples ──
+	if curriculum["bad_examples"].size() > 0:
+		prompt += "- ↓以下のような問題は品質が低いので生成禁止↓\n"
+		for bad: String in curriculum["bad_examples"]:
+			prompt += "  × %s\n" % bad
+	prompt += "\n"
 
 	# ── 難易度別の詳細指示 ──
 	if difficulty == "簡単":
@@ -159,6 +203,12 @@ func compose_prompt(subject: String, grade: int, difficulty: String, count: int,
 	prompt += "- 計算問題・知識問題・思考問題をバランスよく混ぜること\n"
 	prompt += "- 正解の位置(a)を0〜3で均等に散らすこと（全部0や全部1にしない）\n"
 	prompt += "- 4択と2択を混ぜて出題すること\n\n"
+	
+	# ── 案3: プレイヤー行動分析フィードバック ──
+	if QuizManager.player_analytics != null:
+		var analytics_feedback := QuizManager.player_analytics.get_prompt_feedback(subject, grade, difficulty)
+		if not analytics_feedback.is_empty():
+			prompt += analytics_feedback
 
 	# ── 出題済み問題の除外 ──
 	if history.size() > 0:
@@ -168,15 +218,6 @@ func compose_prompt(subject: String, grade: int, difficulty: String, count: int,
 			prompt += "- " + history[history.size() - 1 - i] + "\n"
 		prompt += "\n"
 
-	# ── 出力フォーマット ──
-	prompt += "【出力フォーマット（厳守）】\n"
-	prompt += "[\n  {\n"
-	prompt += "    \"q\": \"問題文（50文字以内）\",\n"
-	prompt += "    \"c\": [\"選択肢A\", \"選択肢B\", \"選択肢C\", \"選択肢D\"],\n"
-	prompt += "    \"a\": 0,\n"
-	prompt += "    \"e\": \"解説（20文字以内）\"\n"
-	prompt += "  }\n]\n"
-	prompt += "JSON配列のみを出力してください。前後に説明文やマークダウンを含めないでください。\n"
 	return prompt
 
 # ── カリキュラムデータベース ──
@@ -185,7 +226,9 @@ func _get_curriculum(grade: int, subject: String) -> Dictionary:
 	var data := {
 		"topics": "", "keywords": "", "examples": [] as Array[String],
 		"easy_desc": "", "normal_desc": "", "hard_desc": "",
-		"bad_examples": [] as Array[String]
+		"bad_examples": [] as Array[String],
+		"typical_mistakes": [] as Array[String],
+		"good_json_examples": [] as Array[String]
 	}
 
 	# ── 算数 ──
@@ -201,6 +244,11 @@ func _get_curriculum(grade: int, subject: String) -> Dictionary:
 					"□＋7＝13、□に入る数は？",
 				]
 				data["bad_examples"] = ["3+2は？（簡単すぎ）", "1+1は？"]
+				data["typical_mistakes"] = [
+					"繰り上がりで10の位への加算を忘れる（9+6=6と答える）",
+					"繰り下がりで引けないとき引く数と引かれる数を逆にする",
+					"時計の長い針と短い針を取り違える",
+				]
 			2:
 				data["topics"] = "かけ算（九九すべて）、1000までの数、たし算ひき算の筆算（3桁）、長さの単位（cm, mm, m）、かさの単位（L, dL, mL）、時刻と時間、三角形と四角形、箱の形"
 				data["keywords"] = "九九, 筆算, 繰り上がり, 繰り下がり, cm, mm, m, L, dL, 直角, 三角形, 四角形, 時刻, 時間"
@@ -211,6 +259,12 @@ func _get_curriculum(grade: int, subject: String) -> Dictionary:
 					"2時40分から30分後は何時何分？",
 				]
 				data["bad_examples"] = ["2+3は？（1年レベル）", "5×1は？（簡単すぎ）"]
+				data["typical_mistakes"] = [
+					"九九の7の段・8の段の暗記間違い（7×6=48, 8×7=54等）",
+					"筆算で百の位への繰り上がりを忘れる",
+					"cm/mm/mの単位変換ミス（1m=10cmと答える）",
+					"時刻と時間の区別がつかない（30分後を30時と答える）",
+				]
 			3:
 				data["topics"] = "わり算（あまりありなし）、大きな数（一万〜一億）、かけ算の筆算（2桁×1桁、2桁×2桁）、小数（0.1の位まで）、分数の導入（同分母の加減）、円と球（半径・直径）、三角形の分類（二等辺・正三角形）、棒グラフ・表、重さ（g, kg）、時間と時刻の計算"
 				data["keywords"] = "わり算, あまり, 万, 小数, 分数, 円, 半径, 直径, 二等辺三角形, 正三角形, 棒グラフ, g, kg, コンパス"
@@ -221,6 +275,12 @@ func _get_curriculum(grade: int, subject: String) -> Dictionary:
 					"1/4＋2/4はいくつ？",
 				]
 				data["bad_examples"] = ["6×3は？（単純九九）", "10+20は？（2年レベル）"]
+				data["typical_mistakes"] = [
+					"わり算であまりと商を取り違える（23÷5=3あまり4→商4あまり3と逆にする）",
+					"半径と直径を混同する（半径=直径と答える）",
+					"小数の位取りを間違える（0.3+0.5=0.35と答える）",
+					"分数の加算で分母も足してしまう（1/4+2/4=3/8）",
+				]
 			4:
 				data["topics"] = "大きな数（億・兆）、わり算の筆算（3桁÷2桁）、小数のかけ算わり算、がい数と四捨五入、面積（c㎡, m², km², a, ha）、角度（分度器、三角形の角の和）、垂直と平行、台形・平行四辺形・ひし形、折れ線グラフ、変わり方（□を使った式）、そろばん"
 				data["keywords"] = "億, 兆, 筆算, 四捨五入, がい数, 面積, c㎡, m², 角度, 分度器, 垂直, 平行, 台形, 平行四辺形, ひし形, 折れ線グラフ"
@@ -232,6 +292,12 @@ func _get_curriculum(grade: int, subject: String) -> Dictionary:
 					"48735を千の位で四捨五入すると？",
 				]
 				data["bad_examples"] = ["5×6は？（九九＝2年レベル）", "偶数はどれ？（一般常識）", "78と45で大きい数は？（低学年レベル）"]
+				data["typical_mistakes"] = [
+					"四捨五入の位を間違える（千の位で丸めるべきを百の位で丸める）",
+					"面積の公式でたて×横を足してしまう（5+8=13c㎡）",
+					"角度の計算で180°を使うべきところ360°を使う",
+					"小数のわり算で小数点の移動方向を間違える",
+				]
 			5:
 				data["topics"] = "小数のかけ算わり算（小数÷小数）、分数のたし算ひき算（異分母＝通分・約分）、割合と百分率（%）、歩合、平均、単位量あたりの大きさ、速さ、三角形の面積、平行四辺形・台形の面積、円周と直径の関係（円周率3.14）、角柱と円柱の特徴、合同な図形、偶数と奇数、倍数と約数、公倍数・公約数"
 				data["keywords"] = "通分, 約分, 割合, 百分率, %, 平均, 単位量あたり, 速さ, 面積, 底辺, 高さ, 円周率, 3.14, 合同, 偶数, 奇数, 倍数, 約数, 公倍数, 公約数"
@@ -243,6 +309,13 @@ func _get_curriculum(grade: int, subject: String) -> Dictionary:
 					"12と18の最大公約数は？",
 				]
 				data["bad_examples"] = ["7×8は？（九九）", "100−30は？（低学年レベル）"]
+				data["typical_mistakes"] = [
+					"通分で最小公倍数ではなく最大公約数を使ってしまう",
+					"割合の計算で『くらべる量÷もとにする量』を逆にする",
+					"三角形の面積で÷2を忘れる（底辺×高さだけで計算）",
+					"円周率を3.14でなく3で計算してしまう",
+					"百分率と歩合を混同する（25%=2割5分と答える）",
+				]
 			6:
 				data["topics"] = "分数のかけ算わり算（分数×分数、分数÷分数）、比と比の値、比例と反比例（表・式・グラフ）、速さ（道のり・時間・速さの関係）、拡大図と縮図（縮尺）、対称な図形（線対称・点対称）、円の面積、角柱と円柱の体積、資料の調べ方（度数分布表・ドットプロット・代表値）、場合の数（順列・組合せの基礎）、文字を使った式"
 				data["keywords"] = "分数×分数, 逆数, 比, 比の値, 比例, 反比例, 速さ, 道のり, 時間, 縮尺, 線対称, 点対称, 円の面積, 体積, 度数分布, 平均値, 場合の数, 文字式"
@@ -254,6 +327,13 @@ func _get_curriculum(grade: int, subject: String) -> Dictionary:
 					"赤白青の3色の旗を一列に並べる並べ方は何通り？",
 				]
 				data["bad_examples"] = ["1/2＋1/2は？（同分母は3年レベル）", "3×4は？"]
+				data["typical_mistakes"] = [
+					"分数÷分数で逆数にするのを忘れる（3/4÷2/5をそのまま掛ける）",
+					"速さの公式で距離÷時間と時間÷距離を逆にする",
+					"円の面積を直径×3.14と計算（半径×半径×3.14が正しい）",
+					"比の計算で内項の積と外項の積を取り違える",
+					"場合の数で順列と組合せを混同する",
+				]
 			_:
 				data["topics"] = "小学%d年生の学習内容全般" % grade
 				data["keywords"] = ""
@@ -283,6 +363,11 @@ func _get_curriculum(grade: int, subject: String) -> Dictionary:
 					"太陽は東から出て□の方角に沈む",
 				]
 				data["bad_examples"] = []
+				data["typical_mistakes"] = [
+					"完全変態と不完全変態を混同する（バッタにさなぎがあると思う）",
+					"磁石のN極とS極の引き合う・退け合うを逆に記憶する",
+					"電気を通すものと通さないものでアルミを「通さない」と答える",
+				]
 			4:
 				data["topics"] = "天気と一日の気温の変化、水の三態変化（固体・液体・気体）と温度、電池のつなぎ方（直列・並列の違い）、月や星の動き（月の満ち欠け・星座の動き）、人の体のつくりと運動（骨・筋肉・関節）、季節と生き物の変化、水の循環（蒸発・結露）"
 				data["keywords"] = "気温, 天気, 水蒸気, 氷, 沸騰, 100℃, 0℃, 直列つなぎ, 並列つなぎ, 月, 星座, 骨, 筋肉, 関節, 蒸発, 結露"
@@ -293,6 +378,11 @@ func _get_curriculum(grade: int, subject: String) -> Dictionary:
 					"骨と骨のつなぎ目を何という？",
 				]
 				data["bad_examples"] = ["春に咲く花は？（1-2年レベル）"]
+				data["typical_mistakes"] = [
+					"直列つなぎと並列つなぎの明るさの違いを逆に覚える",
+					"水が氷になる温度を100℃と答える（0℃が正しい）",
+					"月の満ち欠けの原因を「雲に隠れるから」と答える",
+				]
 			5:
 				data["topics"] = "天気の変化と雲の動き（天気は西から東へ変わる）、流れる水のはたらき（浸食・運搬・堆積）、電磁石の性質（巻き数・電流で強さが変わる）、植物の発芽と成長（発芽条件：水・空気・適温）、メダカの誕生と成長、ふりこの運動（周期は長さで決まる）、もののとけ方（飽和・水温と溶ける量）、人の誕生"
 				data["keywords"] = "雲, 天気予報, 浸食, 運搬, 堆積, 電磁石, コイル, 巻き数, 発芽条件, 水, 空気, 適温, メダカ, ふりこ, 周期, 長さ, 飽和水溶液, 溶解度"
@@ -303,6 +393,11 @@ func _get_curriculum(grade: int, subject: String) -> Dictionary:
 					"川の上流と下流で石の形が違うのはなぜ？",
 				]
 				data["bad_examples"] = ["磁石にくっつくものは？（3年レベル）"]
+				data["typical_mistakes"] = [
+					"ふりこの周期が重さで変わると思う（長さで決まる）",
+					"発芽に日光が必要だと思う（正しくは水・空気・適温）",
+					"電磁石の強さが「電池の大きさ」で決まると思う（巻き数・電流）",
+				]
 			6:
 				data["topics"] = "水溶液の性質（酸性・中性・アルカリ性、リトマス紙）、てこの規則性（支点・力点・作用点、うでの長さ×おもりの重さ）、燃焼のしくみ（酸素が使われ二酸化炭素が出る）、発電と電気の利用（手回し発電機・コンデンサー・LED）、大地のつくりと変化（地層・火山・地震）、植物の体のつくりとはたらき（光合成・蒸散・水の通り道）、人の体のつくりとはたらき（消化・呼吸・血液循環）、月と太陽（月の位置と太陽の関係）、生物と環境"
 				data["keywords"] = "酸性, アルカリ性, 中性, リトマス紙, てこ, 支点, 力点, 作用点, 燃焼, 酸素, 二酸化炭素, 光合成, 蒸散, 消化, 呼吸, 地層, 火山, 地震, LED, コンデンサー"
@@ -313,6 +408,12 @@ func _get_curriculum(grade: int, subject: String) -> Dictionary:
 					"植物が日光を使って養分を作ることを何という？",
 				]
 				data["bad_examples"] = ["水を凍らせると？（4年レベル）"]
+				data["typical_mistakes"] = [
+					"リトマス紙の色変化を逆に覚える（青が赤→酸性が正しい）",
+					"てこの支点・力点・作用点の位置関係を入れ替える",
+					"燃焼に必要な気体を二酸化炭素と答える（酸素が正しい）",
+					"光合成と呼吸の気体の出入りを混同する",
+				]
 			_:
 				data["topics"] = "小学%d年生の理科全般" % grade
 				data["keywords"] = ""
@@ -352,6 +453,11 @@ func _get_curriculum(grade: int, subject: String) -> Dictionary:
 					"「転」の部首は？（車へん）",
 				]
 				data["bad_examples"] = ["「あ」はひらがな？カタカナ？（1年レベル）"]
+				data["typical_mistakes"] = [
+					"ローマ字で「shi」と「si」、「chi」と「ti」を混同する",
+					"つなぎ言葉の「だから」と「しかし」の使い分けを逆にする",
+					"ことわざの意味を字面どおりに解釈する",
+				]
 			4:
 				data["topics"] = "4年生配当漢字202字、つなぎ言葉の種類と使い分け、文章の要約、故事成語（矛盾・五十歩百歩等）、類義語・対義語、慣用句・ことわざの深い理解、漢字辞典の使い方（部首引き・総画引き・音訓引き）、手紙の書き方（敬称）、物語の構成（起承転結）、説明文の構造"
 				data["keywords"] = "漢字202字, 故事成語, 類義語, 対義語, 慣用句, 要約, 起承転結, 漢字辞典, 部首引き, 総画引き, 音訓索引, 説明文, 段落構成"
@@ -362,6 +468,11 @@ func _get_curriculum(grade: int, subject: String) -> Dictionary:
 					"「便利」の「便」の音読みは？",
 				]
 				data["bad_examples"] = ["「山」の読み方は？（1年レベル）"]
+				data["typical_mistakes"] = [
+					"類義語と対義語を混同する（「明」の類義語を「暗」と答える）",
+					"漢字の音読みと訓読みを取り違える",
+					"故事成語の由来と意味を逆に覚える",
+				]
 			5:
 				data["topics"] = "5年生配当漢字193字、敬語（尊敬語・謙譲語・丁寧語の使い分け）、古文に親しむ（竹取物語・枕草子の冒頭等）、和語・漢語・外来語の区別、文章の構成（序論・本論・結論）、同音異義語、四字熟語、複合語、言葉の由来、話し合い・討論の仕方"
 				data["keywords"] = "漢字193字, 尊敬語, 謙譲語, 丁寧語, 古文, 竹取物語, 枕草子, 和語, 漢語, 外来語, 同音異義語, 四字熟語, 複合語, 序論本論結論"
@@ -372,6 +483,11 @@ func _get_curriculum(grade: int, subject: String) -> Dictionary:
 					"「以心伝心」の意味は？",
 				]
 				data["bad_examples"] = ["「犬」の読み方は？（1-2年レベル）"]
+				data["typical_mistakes"] = [
+					"尊敬語・謙譲語・丁寧語の区別を間違える（「いらっしゃる」を謙譲語と答える）",
+					"和語・漢語・外来語の分類で「パン」を和語と答える",
+					"古文の作品名と作者を取り違える（『枕草子』を紫式部と答える）",
+				]
 			6:
 				data["topics"] = "6年生配当漢字191字、熟語の成り立ち（同義・対義・修飾など）、文の組み立て（主語述語の対応・複文・重文）、話し言葉と書き言葉、短歌と俳句（季語・五七五七七/五七五）、古典の名文に親しむ（平家物語・方丈記・徒然草等）、漢文の読み下し（レ点・一二点の基礎）、仮名遣いと歴史的仮名遣い、比喩・倒置・反復などの表現技法"
 				data["keywords"] = "漢字191字, 熟語の成り立ち, 主語述語対応, 複文, 季語, 五七五, 五七五七七, 平家物語, 徒然草, 方丈記, レ点, 一二点, 比喩, 倒置, 反復, 歴史的仮名遣い"
@@ -382,6 +498,12 @@ func _get_curriculum(grade: int, subject: String) -> Dictionary:
 					"「月日は百代の過客にして」の出典は？",
 				]
 				data["bad_examples"] = ["「花」のよみがなは？（低学年レベル）"]
+				data["typical_mistakes"] = [
+					"短歌（五七五七七）と俳句（五七五）の形式を混同する",
+					"季語を季節と関係ない言葉から選ぶ",
+					"比喩と倒置の表現技法を取り違える",
+					"レ点・一二点の読み下し順序を逆にする",
+				]
 			_:
 				data["topics"] = "小学%d年生の国語全般" % grade
 				data["keywords"] = ""
@@ -420,6 +542,10 @@ func _get_curriculum(grade: int, subject: String) -> Dictionary:
 					"富士山がある都道府県は？（山梨県と静岡県）",
 				]
 				data["bad_examples"] = ["火事のときの電話番号は？（3年レベル）"]
+				data["typical_mistakes"] = [
+					"県庁所在地と県名を混同する（仙台市→仙台県と答える）",
+					"3Rの内容を逆に覚える（リユースとリサイクルを混同）",
+				]
 			5:
 				data["topics"] = "日本の国土と世界の中の位置（領土・排他的経済水域）、日本の気候区分（太平洋側・日本海側・瀬戸内・中央高地・沖縄・北海道）、米づくり・畑作・畜産（食料生産）、水産業（漁港・養殖）、自動車工業・製鉄業（工業生産）、情報社会とメディアリテラシー、自然環境と公害（四大公害病）、林業・森林の役割"
 				data["keywords"] = "領土, 排他的経済水域, 気候区分, 太平洋側, 日本海側, 稲作, 畑作, 漁業, 養殖, 自動車工業, 情報社会, 公害, 四大公害病, 森林"
@@ -430,6 +556,11 @@ func _get_curriculum(grade: int, subject: String) -> Dictionary:
 					"日本の食料自給率は約何％？",
 				]
 				data["bad_examples"] = ["47都道府県で一番大きいのは？（4年レベル）"]
+				data["typical_mistakes"] = [
+					"太平洋側と日本海側の気候の特徴を逆に覚える",
+					"四大公害病の名前と発生地を取り違える",
+					"食料自給率の数値を大きく見積もる（38%を約70%と答える）",
+				]
 			6:
 				data["topics"] = "日本の歴史（縄文→弥生→古墳→飛鳥→奈良→平安→鎌倉→室町→安土桃山→江戸→明治→大正→昭和→平成→令和）の流れ、歴史上の人物と業績、日本国憲法の三原則（国民主権・基本的人権の尊重・平和主義）、三権分立（国会・内閣・裁判所）、選挙と政治参加、世界の中の日本（国際連合・ユニセフ）、税金の仕組み、震災復興"
 				data["keywords"] = "縄文, 弥生, 古墳, 聖徳太子, 大化の改新, 平安, 鎌倉, 室町, 織田信長, 豊臣秀吉, 徳川家康, 明治維新, 国民主権, 基本的人権, 平和主義, 三権分立, 国会, 内閣, 裁判所, 国際連合"
@@ -440,6 +571,12 @@ func _get_curriculum(grade: int, subject: String) -> Dictionary:
 					"奈良時代に建てられた大仏がある寺は？（東大寺）",
 				]
 				data["bad_examples"] = ["日本の首都は？（常識すぎる）"]
+				data["typical_mistakes"] = [
+					"歴史上の人物と時代を取り違える（織田信長を江戸時代と答える）",
+					"三権分立の役割を混同（内閣が法律を作ると答える）",
+					"憲法の三原則に「三権分立」を含めてしまう",
+					"時代の順序で鎌倉と室町を逆にする",
+				]
 			_:
 				data["topics"] = "小学%d年生の社会全般" % grade
 				data["keywords"] = ""
@@ -581,16 +718,27 @@ func _compose_hard_instructions(grade: int, subject: String, curriculum: Diction
 	return p
 
 func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count: int, history: Array[String]) -> void:
-	# Split into multiple smaller parallel requests for speed.
-	# Each request generates ceil(count/NUM_PARALLEL) questions.
-	const NUM_PARALLEL: int = 3
+	# Split into many small parallel requests for minimum latency.
+	# Each request generates only 2 questions → faster per-request response.
+	const NUM_PARALLEL: int = 5
 	var per_call: int = maxi(2, ceili(float(count) / float(NUM_PARALLEL)))
 	
 	var expected_calls: int = NUM_PARALLEL
 	var completed_calls: int = 0
 	var unique_seen := {}
 	
+	# 案5: 難易度に応じた temperature
+	var temperature := get_temperature_for_difficulty(difficulty)
+	
 	var on_complete = func(items: Array[QuizItem]):
+		# 案2: ルールベースバリデーション（即時・無料）
+		var validator: QuizValidator = QuizManager.quiz_validator
+		if validator:
+			var rule_result := validator.validate_rules(items)
+			items = rule_result["valid"]
+			if rule_result["reasons"].size() > 0:
+				print("[OnlineFetch] Rule validation removed %d items" % rule_result["reasons"].size())
+		
 		var unique_items: Array[QuizItem] = []
 		items.shuffle()
 		for q in items:
@@ -599,20 +747,33 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 			unique_items.append(q)
 			
 		if unique_items.size() > 0:
+			# 速度優先: ルールベース検証をパスした問題は即座にバッファへ投入
 			fetch_partial.emit(unique_items)
 			
+			# 案2: LLMバリデーションは非同期で裏側実行
+			# 不合格の問題が見つかった場合はログに記録するだけ
+			# （次回生成のフィードバックとして活用）
+			if validator and unique_items.size() > 0:
+				validator.validate_answers_llm(unique_items, subject, grade,
+					func(valid_items: Array[QuizItem], invalid_reasons: Array[String]):
+						if invalid_reasons.size() > 0:
+							print("[OnlineFetch] LLM validation flagged %d items (async)" % invalid_reasons.size())
+							for reason in invalid_reasons:
+								print("  - %s" % reason)
+				)
+		
 		completed_calls += 1
 		if completed_calls >= expected_calls:
 			fetch_completed.emit([] as Array[QuizItem])
 	
-	var timer := get_tree().create_timer(25.0)
+	var timer := get_tree().create_timer(20.0)  # Reduced from 30s
 	timer.timeout.connect(func():
 		if completed_calls < expected_calls:
 			completed_calls = 999 
 			fetch_completed.emit([] as Array[QuizItem])
 	)
 	
-	# Fire NUM_PARALLEL concurrent Gemini 2.5 Pro requests, each with a
+	# Fire NUM_PARALLEL concurrent requests, each with a
 	# slightly different prompt seed so the model doesn't return duplicates.
 	for i in range(NUM_PARALLEL):
 		var extra_history: Array[String] = history.duplicate()
@@ -620,9 +781,9 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 		if i > 0:
 			extra_history.append("[多様性シード: バッチ%d — 他のバッチと異なる単元・切り口で出題せよ]" % (i + 1))
 		var prompt := compose_prompt(subject, grade, difficulty, per_call, extra_history)
-		_fetch_gemini_target(prompt, "gemini-2.5-pro", on_complete)
+		_fetch_gemini_target(prompt, "gemini-3-flash-preview", temperature, on_complete)
 
-func _fetch_gemini_target(prompt: String, target_model: String, callback: Callable) -> void:
+func _fetch_gemini_target(prompt: String, target_model: String, temperature: float, callback: Callable) -> void:
 	var key := ApiStatusAutoload.get_env("GOOGLE_API_KEY")
 	if key.is_empty():
 		key = ApiStatusAutoload.get_env("GEMINI_API_KEY")
@@ -636,9 +797,36 @@ func _fetch_gemini_target(prompt: String, target_model: String, callback: Callab
 	add_child(http)
 	http.timeout = 25.0
 	
+	# 案5: systemInstruction の分離
+	var sys_instruction := compose_system_instruction()
+	
+	# 案4: Structured Output (responseSchema)
+	var response_schema := {
+		"type": "ARRAY",
+		"items": {
+			"type": "OBJECT",
+			"required": ["q", "c", "a", "e"],
+			"properties": {
+				"q": {"type": "STRING", "description": "問題文 (50文字以内)"},
+				"c": {
+					"type": "ARRAY",
+					"items": {"type": "STRING"},
+					"description": "選択肢 (2個または4個、各15文字以内)"
+				},
+				"a": {"type": "INTEGER", "description": "正解インデックス (0始まり)"},
+				"e": {"type": "STRING", "description": "解説 (20文字以内)"}
+			}
+		}
+	}
+	
 	var body := JSON.stringify({
+		"systemInstruction": {"parts": [{"text": sys_instruction}]},
 		"contents": [{"parts": [{"text": prompt}]}],
-		"generationConfig": {"temperature": 0.45, "responseMimeType": "application/json"}
+		"generationConfig": {
+			"temperature": temperature,
+			"responseMimeType": "application/json",
+			"responseSchema": response_schema
+		}
 	})
 	
 	http.request_completed.connect(func(result: int, response_code: int, _h, b: PackedByteArray):

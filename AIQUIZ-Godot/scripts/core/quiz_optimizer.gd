@@ -183,3 +183,66 @@ func get_feedback_examples(subject: String, grade: int, limit: int = 3) -> Dicti
 			res[type].append(matches[i])
 			
 	return res
+
+
+## 案1: JSON形式のFew-Shot例を返す（get_feedback_examplesの強化版）
+## good_json: 完全なJSON文字列の良問例
+## bad: 理由付きのテキスト形式の悪問例
+## good: テキスト形式の良問例
+func get_feedback_examples_json(subject: String, grade: int, limit: int = 5) -> Dictionary:
+	var res := {
+		"good_json": [] as Array[String],
+		"good": [] as Array[String],
+		"bad": [] as Array[String]
+	}
+	
+	# Good examples as JSON
+	var good_matches := []
+	for item in ratings["good"]:
+		if str(item.get("subject", "")) == subject and str(item.get("grade", "")) == str(grade):
+			good_matches.append(item)
+	
+	good_matches.reverse() # newest first
+	for i in range(mini(good_matches.size(), limit)):
+		var item: Dictionary = good_matches[i]
+		# 古いデータには c や a が含まれない場合があるためスキップ
+		if not item.has("c") or not item.has("a"):
+			continue
+			
+		# JSON形式の完全な例
+		var json_str := JSON.stringify({
+			"q": item.get("q", ""),
+			"c": item.get("c", []),
+			"a": item.get("a", 0),
+			"e": item.get("e", "")
+		})
+		res["good_json"].append(json_str)
+		
+		# テキスト形式も追加
+		var choices: Array = item.get("c", [])
+		var answer_idx: int = item.get("a", 0)
+		var answer_text := ""
+		if choices.size() > answer_idx and answer_idx >= 0:
+			answer_text = choices[answer_idx]
+		
+		var txt := "%s (解答: %s)" % [item.get("q", ""), answer_text]
+		res["good"].append(txt)
+	
+	# Bad examples with reasons
+	var bad_matches := []
+	for item in ratings["bad"]:
+		if str(item.get("subject", "")) == subject and str(item.get("grade", "")) == str(grade):
+			bad_matches.append(item)
+		elif str(item.get("subject", "")).is_empty() or str(item.get("grade", "")).is_empty():
+			# Include entries without subject/grade (legacy data)
+			bad_matches.append(item)
+	
+	bad_matches.reverse()
+	for i in range(mini(bad_matches.size(), limit)):
+		var item: Dictionary = bad_matches[i]
+		var txt := "%s" % item.get("q", "")
+		if item.has("reason") and not str(item.get("reason", "")).is_empty():
+			txt += " ※理由: %s" % item["reason"]
+		res["bad"].append(txt)
+	
+	return res
