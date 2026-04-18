@@ -14,6 +14,10 @@ var gemini_model: String = "gemini-2.5-flash"
 var gemini_status: Variant = null
 var gemini_msg: String = "未チェック"
 
+var firebase_configured: bool = false
+var firebase_status: Variant = null
+var firebase_msg: String = "未チェック"
+
 var offline_count: int = 0
 var checking: bool = false
 
@@ -60,6 +64,7 @@ func _update_config() -> void:
 		g_key = get_env("GEMINI_API_KEY")
 	gemini_key_set = not g_key.is_empty()
 	gemini_model = get_env("GEMINI_MODEL", "gemini-2.5-flash")
+	firebase_configured = not get_env("FIREBASE_DB_URL").is_empty()
 
 func set_offline_count(count: int) -> void:
 	offline_count = count
@@ -74,6 +79,7 @@ func run_connectivity_check() -> void:
 	_check_internet()
 	_check_openai()
 	_check_gemini()
+	_check_firebase()
 	
 	# Usually we would await them, but for UI we can just emit completed when we guess they're done.
 	# Or emit immediately and let UI poll.
@@ -172,3 +178,32 @@ func _check_gemini() -> void:
 		http.queue_free()
 	)
 	http.request(url, headers, HTTPClient.METHOD_POST, body)
+
+func _check_firebase() -> void:
+	if not firebase_configured:
+		firebase_status = false
+		firebase_msg = "URL未設定"
+		return
+	firebase_msg = "チェック中..."
+	firebase_status = null
+
+	var http := HTTPRequest.new()
+	add_child(http)
+	http.timeout = 5.0
+	
+	var url := get_env("FIREBASE_DB_URL")
+	if url.ends_with("/"):
+		url = url.substr(0, url.length() - 1)
+		
+	http.request_completed.connect(func(result: int, response_code: int, _h, _b):
+		if result == HTTPRequest.RESULT_SUCCESS and response_code != 0:
+			# Realtime DB returns 200 (OK) or 401 (Unauthorized - no auth parameter), 
+			# both of which successfully prove network reachability to the Firebase host.
+			firebase_status = true
+			firebase_msg = "接続OK"
+		else:
+			firebase_status = false
+			firebase_msg = "接続失敗"
+		http.queue_free()
+	)
+	http.request(url + "/.json?shallow=true", [], HTTPClient.METHOD_GET)

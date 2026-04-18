@@ -1,12 +1,15 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
+import path from 'path';
 
-const ENV_PATH = 'C:/AIQUIZ/AIQUIZ-Godot/.env';
+export const dynamic = 'force-dynamic';
+
+const ENV_PATH = path.join(process.cwd(), '../AIQUIZ-Godot/.env');
 
 export async function GET() {
   try {
     if (!fs.existsSync(ENV_PATH)) {
-      return NextResponse.json({ error: '.env not found' }, { status: 404 });
+      return NextResponse.json({ error: '.env not found at ' + ENV_PATH }, { status: 404 });
     }
     const data = fs.readFileSync(ENV_PATH, 'utf-8');
     const lines = data.split('\n');
@@ -16,10 +19,14 @@ export async function GET() {
       if (line.trim() && !line.startsWith('#')) {
         const [key, ...rest] = line.split('=');
         if (key && rest.length > 0) {
-          // Hide actual API keys
           let value = rest.join('=').trim();
-          if (key.includes('API_KEY')) {
-            value = value.substring(0, 8) + '...' + value.substring(value.length - 4);
+          // Strip surrounding quotes
+          if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+            value = value.slice(1, -1);
+          }
+          // Mask API keys for security
+          if (key.includes('API_KEY') || key.includes('SECRET')) {
+            value = value.length > 12 ? value.substring(0, 8) + '••••' + value.substring(value.length - 4) : '••••••••';
           }
           config[key.trim()] = value;
         }

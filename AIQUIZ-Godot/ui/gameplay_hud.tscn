@@ -288,23 +288,6 @@ theme_override_font_sizes/font_size = 22
 text = "評価を送信しました"
 horizontal_alignment = 1
 
-[node name="MenuBtn" type="Button" parent="GameOverPanel"]
-custom_minimum_size = Vector2(200, 56)
-layout_mode = 1
-anchors_preset = 7
-anchor_left = 0.5
-anchor_top = 1.0
-anchor_right = 0.5
-anchor_bottom = 1.0
-offset_left = 10.0
-	offset_top = -80.0
-offset_right = 210.0
-	offset_bottom = -24.0
-grow_horizontal = 2
-grow_vertical = 0
-theme_override_font_sizes/font_size = 22
-text = "メニューに戻る"
-
 [node name="HistoryBtn" type="Button" parent="GameOverPanel"]
 custom_minimum_size = Vector2(200, 56)
 layout_mode = 1
@@ -313,14 +296,48 @@ anchor_left = 0.5
 anchor_top = 1.0
 anchor_right = 0.5
 anchor_bottom = 1.0
-offset_left = -210.0
+offset_left = -310.0
 	offset_top = -80.0
-offset_right = -10.0
+offset_right = -110.0
 	offset_bottom = -24.0
 grow_horizontal = 2
 grow_vertical = 0
 theme_override_font_sizes/font_size = 22
 text = "📋 問題履歴"
+
+[node name="RetryBtn" type="Button" parent="GameOverPanel"]
+custom_minimum_size = Vector2(200, 56)
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -100.0
+	offset_top = -80.0
+offset_right = 100.0
+	offset_bottom = -24.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_font_sizes/font_size = 22
+text = "🔃 リトライ"
+
+[node name="MenuBtn" type="Button" parent="GameOverPanel"]
+custom_minimum_size = Vector2(200, 56)
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = 110.0
+	offset_top = -80.0
+offset_right = 310.0
+	offset_bottom = -24.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_font_sizes/font_size = 22
+text = "🏠 メニュー"
 
 [node name="HistoryPanel" type="Panel" parent="."]
 visible = false

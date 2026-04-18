@@ -16,7 +16,7 @@ func _ready() -> void:
 		print("[FirebaseRatings] Ready — DB: %s / Path: %s" % [_db_url, _ratings_path])
 
 
-func send_rating(quiz: QuizItem, good: bool, subject: String, grade: int, difficulty: String) -> void:
+func send_rating(quiz: QuizItem, good: bool, subject: String, grade: int, difficulty: String, reason: String = "") -> void:
 	"""Send a quiz rating to Firebase Realtime Database."""
 	if _db_url.is_empty():
 		push_warning("[FirebaseRatings] Cannot send rating: FIREBASE_DB_URL not configured")
@@ -36,6 +36,7 @@ func send_rating(quiz: QuizItem, good: bool, subject: String, grade: int, diffic
 		"grade": grade,
 		"difficulty": difficulty,
 		"src": quiz.src,
+		"reason": reason,
 		"ts": int(Time.get_unix_time_from_system())
 	}
 

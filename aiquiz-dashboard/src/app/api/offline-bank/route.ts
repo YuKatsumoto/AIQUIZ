@@ -2,8 +2,10 @@ import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 
-// Absolute path to the Godot offline bank file
-const BANK_PATH = 'C:/AIQUIZ/AIQUIZ-Godot/offline_bank.json';
+export const dynamic = 'force-dynamic';
+
+// Absolute path to the Godot offline bank file relative to the dashboard directory
+const BANK_PATH = path.join(process.cwd(), '../AIQUIZ-Godot/offline_bank.json');
 
 export async function GET() {
   try {

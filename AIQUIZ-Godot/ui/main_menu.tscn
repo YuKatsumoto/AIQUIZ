@@ -1,7 +1,6 @@
-[gd_scene load_steps=3 format=3 uid="uid://dm4k7xr5p9t2w"]
+[gd_scene load_steps=2 format=3 uid="uid://dm4k7xr5qat2w"]
 
 [ext_resource type="Script" path="res://scripts/ui/main_menu.gd" id="1_main_menu"]
-[ext_resource type="FontFile" path="res://resources/fonts/NotoSansJP-Regular.otf" id="2_font"]
 
 [node name="MainMenu" type="Control"]
 layout_mode = 3
@@ -38,7 +37,7 @@ theme_override_constants/separation = 12
 
 [node name="TitleLabel" type="Label" parent="VBoxContainer"]
 layout_mode = 2
-theme_override_colors/font_color = Color(1.0, 0.88, 0.25, 1)
+theme_override_colors/font_color = Color(1, 0.88, 0.25, 1)
 theme_override_font_sizes/font_size = 46
 text = "AI脱出クイズ 3D"
 horizontal_alignment = 1
@@ -51,8 +50,8 @@ text = "Godot Edition"
 horizontal_alignment = 1
 
 [node name="Spacer1" type="Control" parent="VBoxContainer"]
-layout_mode = 2
 custom_minimum_size = Vector2(0, 16)
+layout_mode = 2
 
 [node name="ModeContainer" type="VBoxContainer" parent="VBoxContainer"]
 layout_mode = 2
@@ -67,20 +66,20 @@ horizontal_alignment = 1
 
 [node name="ModeButtons" type="HBoxContainer" parent="VBoxContainer/ModeContainer"]
 layout_mode = 2
-alignment = 1
 theme_override_constants/separation = 20
+alignment = 1
 
 [node name="TenQuestionsBtn" type="Button" parent="VBoxContainer/ModeContainer/ModeButtons"]
 unique_name_in_owner = true
-layout_mode = 2
 custom_minimum_size = Vector2(260, 80)
+layout_mode = 2
 theme_override_font_sizes/font_size = 22
 text = "🏆 10問チャレンジ"
 
 [node name="EndlessBtn" type="Button" parent="VBoxContainer/ModeContainer/ModeButtons"]
 unique_name_in_owner = true
-layout_mode = 2
 custom_minimum_size = Vector2(260, 80)
+layout_mode = 2
 theme_override_font_sizes/font_size = 22
 text = "♾️ エンドレス"
 
@@ -102,14 +101,14 @@ alignment = 1
 
 [node name="GradeDownBtn" type="Button" parent="VBoxContainer/ConfigContainer/GradeRow"]
 unique_name_in_owner = true
-layout_mode = 2
 custom_minimum_size = Vector2(50, 44)
+layout_mode = 2
 theme_override_font_sizes/font_size = 20
 text = "◀"
 
 [node name="GradeLabel" type="Label" parent="VBoxContainer/ConfigContainer/GradeRow"]
-layout_mode = 2
 custom_minimum_size = Vector2(180, 0)
+layout_mode = 2
 theme_override_colors/font_color = Color(0.92, 0.94, 0.98, 1)
 theme_override_font_sizes/font_size = 22
 text = "学年: 3"
@@ -117,8 +116,8 @@ horizontal_alignment = 1
 
 [node name="GradeUpBtn" type="Button" parent="VBoxContainer/ConfigContainer/GradeRow"]
 unique_name_in_owner = true
-layout_mode = 2
 custom_minimum_size = Vector2(50, 44)
+layout_mode = 2
 theme_override_font_sizes/font_size = 20
 text = "▶"
 
@@ -128,14 +127,14 @@ alignment = 1
 
 [node name="SubjectLeftBtn" type="Button" parent="VBoxContainer/ConfigContainer/SubjectRow"]
 unique_name_in_owner = true
-layout_mode = 2
 custom_minimum_size = Vector2(50, 44)
+layout_mode = 2
 theme_override_font_sizes/font_size = 20
 text = "◀"
 
 [node name="SubjectLabel" type="Label" parent="VBoxContainer/ConfigContainer/SubjectRow"]
-layout_mode = 2
 custom_minimum_size = Vector2(180, 0)
+layout_mode = 2
 theme_override_colors/font_color = Color(0.92, 0.94, 0.98, 1)
 theme_override_font_sizes/font_size = 22
 text = "教科: 算数"
@@ -143,8 +142,8 @@ horizontal_alignment = 1
 
 [node name="SubjectRightBtn" type="Button" parent="VBoxContainer/ConfigContainer/SubjectRow"]
 unique_name_in_owner = true
-layout_mode = 2
 custom_minimum_size = Vector2(50, 44)
+layout_mode = 2
 theme_override_font_sizes/font_size = 20
 text = "▶"
 
@@ -154,14 +153,14 @@ alignment = 1
 
 [node name="DiffLeftBtn" type="Button" parent="VBoxContainer/ConfigContainer/DiffRow"]
 unique_name_in_owner = true
-layout_mode = 2
 custom_minimum_size = Vector2(50, 44)
+layout_mode = 2
 theme_override_font_sizes/font_size = 20
 text = "◀"
 
 [node name="DiffLabel" type="Label" parent="VBoxContainer/ConfigContainer/DiffRow"]
-layout_mode = 2
 custom_minimum_size = Vector2(180, 0)
+layout_mode = 2
 theme_override_colors/font_color = Color(0.92, 0.94, 0.98, 1)
 theme_override_font_sizes/font_size = 22
 text = "難易度: 普通"
@@ -169,8 +168,8 @@ horizontal_alignment = 1
 
 [node name="DiffRightBtn" type="Button" parent="VBoxContainer/ConfigContainer/DiffRow"]
 unique_name_in_owner = true
-layout_mode = 2
 custom_minimum_size = Vector2(50, 44)
+layout_mode = 2
 theme_override_font_sizes/font_size = 20
 text = "▶"
 
@@ -183,8 +182,8 @@ alignment = 1
 
 [node name="LlmToggleBtn" type="Button" parent="VBoxContainer/ConfigContainer/LlmRow"]
 unique_name_in_owner = true
-layout_mode = 2
 custom_minimum_size = Vector2(300, 44)
+layout_mode = 2
 theme_override_font_sizes/font_size = 18
 text = "出題: OFFLINE (内蔵問題)"
 
@@ -194,27 +193,27 @@ alignment = 1
 
 [node name="PlayersToggleBtn" type="Button" parent="VBoxContainer/ConfigContainer/PlayersRow"]
 unique_name_in_owner = true
-layout_mode = 2
 custom_minimum_size = Vector2(300, 44)
+layout_mode = 2
 theme_override_font_sizes/font_size = 18
 text = "👤 1人プレイ / 👥 2人プレイ"
 
 [node name="ConfigBtnRow" type="HBoxContainer" parent="VBoxContainer/ConfigContainer"]
 layout_mode = 2
-alignment = 1
 theme_override_constants/separation = 16
+alignment = 1
 
 [node name="BackBtn" type="Button" parent="VBoxContainer/ConfigContainer/ConfigBtnRow"]
 unique_name_in_owner = true
-layout_mode = 2
 custom_minimum_size = Vector2(160, 44)
+layout_mode = 2
 theme_override_font_sizes/font_size = 18
 text = "← 戻る"
 
 [node name="StartButton" type="Button" parent="VBoxContainer/ConfigContainer/ConfigBtnRow"]
 unique_name_in_owner = true
-layout_mode = 2
 custom_minimum_size = Vector2(260, 56)
+layout_mode = 2
 theme_override_font_sizes/font_size = 24
 text = "▶ ゲーム開始"
 
@@ -222,7 +221,6 @@ text = "▶ ゲーム開始"
 layout_mode = 2
 theme_override_colors/font_color = Color(0.45, 0.48, 0.58, 1)
 theme_override_font_sizes/font_size = 13
-text = ""
 horizontal_alignment = 1
 autowrap_mode = 2
 
@@ -242,7 +240,6 @@ grow_horizontal = 0
 grow_vertical = 0
 theme_override_font_sizes/font_size = 16
 text = "⚙ 設定 / API状態"
-
 
 [node name="SettingsPanel" type="Panel" parent="."]
 unique_name_in_owner = true
@@ -294,16 +291,16 @@ theme_override_constants/separation = 20
 
 [node name="ApiStatusLabel" type="RichTextLabel" parent="SettingsPanel/VBox"]
 unique_name_in_owner = true
-layout_mode = 2
 custom_minimum_size = Vector2(500, 200)
+layout_mode = 2
 theme_override_font_sizes/normal_font_size = 18
 bbcode_enabled = true
 text = "API状態チェック中..."
 
 [node name="RecheckBtn" type="Button" parent="SettingsPanel/VBox"]
 unique_name_in_owner = true
-layout_mode = 2
 custom_minimum_size = Vector2(0, 45)
+layout_mode = 2
 text = "再チェック"
 
 [node name="VolBox" type="HBoxContainer" parent="SettingsPanel/VBox"]
@@ -338,6 +335,7 @@ size_flags_vertical = 4
 min_value = 3.0
 max_value = 12.0
 step = 0.5
+value = 3.0
 
 [node name="ResolutionBox" type="HBoxContainer" parent="SettingsPanel/VBox"]
 layout_mode = 2
@@ -354,14 +352,14 @@ layout_mode = 2
 
 [node name="OpenDashboardBtn" type="Button" parent="SettingsPanel/VBox"]
 unique_name_in_owner = true
-layout_mode = 2
 custom_minimum_size = Vector2(0, 45)
+layout_mode = 2
 text = "🖥️ プロンプト&クイズ管理ダッシュボードを開く"
 
 [node name="SettingsBackBtn" type="Button" parent="SettingsPanel/VBox"]
 unique_name_in_owner = true
-layout_mode = 2
 custom_minimum_size = Vector2(0, 45)
+layout_mode = 2
 text = "← 戻る"
 
 [connection signal="pressed" from="VBoxContainer/ModeContainer/ModeButtons/TenQuestionsBtn" to="." method="_on_ten_questions_pressed"]
@@ -377,9 +375,8 @@ text = "← 戻る"
 [connection signal="pressed" from="VBoxContainer/ConfigContainer/ConfigBtnRow/BackBtn" to="." method="_on_back_pressed"]
 [connection signal="pressed" from="VBoxContainer/ConfigContainer/ConfigBtnRow/StartButton" to="." method="_on_start_pressed"]
 [connection signal="pressed" from="SettingsBtn" to="." method="_on_settings_btn_pressed"]
-[connection signal="pressed" from="RankingBtn" to="." method="_on_ranking_btn_pressed"]
 [connection signal="pressed" from="SettingsPanel/VBox/RecheckBtn" to="." method="_on_recheck_btn_pressed"]
 [connection signal="value_changed" from="SettingsPanel/VBox/VolBox/VolSlider" to="." method="_on_vol_slider_changed"]
 [connection signal="value_changed" from="SettingsPanel/VBox/SpeedBox/SpeedSlider" to="." method="_on_speed_slider_changed"]
-[connection signal="pressed" from="SettingsPanel/VBox/SettingsBackBtn" to="." method="_on_settings_back_btn_pressed"]
 [connection signal="pressed" from="SettingsPanel/VBox/OpenDashboardBtn" to="." method="_on_open_dashboard_pressed"]
+[connection signal="pressed" from="SettingsPanel/VBox/SettingsBackBtn" to="." method="_on_settings_back_btn_pressed"]

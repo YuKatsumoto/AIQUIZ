@@ -90,6 +90,15 @@ function RatingCard({ r, onDelete, onUpdate }: { r: any, onDelete: (id: string) 
             </p>
           </div>
 
+          {r.reason && (
+            <div style={{ backgroundColor: 'var(--background)', padding: '0.75rem 1rem', borderRadius: '8px', borderLeft: '3px solid var(--warning)', marginBottom: '1rem' }}>
+              <span style={{ color: 'var(--warning)', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase' }}>🤖 AI評価理由</span>
+              <p style={{ color: 'var(--text-main)', fontSize: '0.9rem', marginTop: '0.25rem' }}>
+                {r.reason}
+              </p>
+            </div>
+          )}
+
           <div style={{ backgroundColor: 'var(--surface)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
             <span style={{ color: 'var(--text-main)', fontSize: '0.85rem', fontWeight: 600, display: 'block', marginBottom: '0.5rem' }}>💬 フィードバック・コメント</span>
             <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>

@@ -21,7 +21,7 @@ export default function OfflineBankPage() {
   const [newE, setNewE] = useState('');
 
   useEffect(() => {
-    fetch('/api/offline-bank')
+    fetch('/api/offline-bank', { cache: 'no-store', headers: { pragma: 'no-cache', 'cache-control': 'no-cache' } })
       .then(res => res.json())
       .then(data => {
         if (!data.error) {

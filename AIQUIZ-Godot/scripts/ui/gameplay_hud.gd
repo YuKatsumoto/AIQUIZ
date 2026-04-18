@@ -25,6 +25,7 @@ extends CanvasLayer
 @onready var btn_bad: Button = $GameOverPanel/RateBox/HBoxContainer/RateBadBtn
 @onready var rate_feedback: Label = $GameOverPanel/RateBox/RateFeedback
 @onready var btn_menu: Button = $GameOverPanel/MenuBtn
+@onready var btn_retry: Button = $GameOverPanel/RetryBtn
 @onready var btn_history: Button = $GameOverPanel/HistoryBtn
 
 @onready var history_panel: Panel = $HistoryPanel
@@ -48,6 +49,20 @@ func _ready() -> void:
 	preload_panel.visible = false
 	game_over_panel.visible = false
 	history_panel.visible = false
+	
+	# プリロード用プログレスバーのスタイル設定（ダーク背景で見えるように）
+	var pl_bg_style := StyleBoxFlat.new()
+	pl_bg_style.bg_color = Color(0.12, 0.14, 0.22, 1.0)
+	pl_bg_style.border_color = Color(0.3, 0.4, 0.6, 0.5)
+	pl_bg_style.set_border_width_all(1)
+	pl_bg_style.set_corner_radius_all(6)
+	pl_progress.add_theme_stylebox_override("background", pl_bg_style)
+	
+	var pl_fill_style := StyleBoxFlat.new()
+	pl_fill_style.bg_color = Color(0.25, 0.55, 1.0, 1.0)
+	pl_fill_style.set_corner_radius_all(5)
+	pl_progress.add_theme_stylebox_override("fill", pl_fill_style)
+	pl_progress.custom_minimum_size.y = 22.0
 	
 	# フェードイン（ゲームシーン開始時）
 	
@@ -85,6 +100,10 @@ func _ready() -> void:
 		game_state.reset_to_menu()
 		get_tree().change_scene_to_file("res://ui/main_menu.tscn")
 	)
+	btn_retry.pressed.connect(func():
+		game_state.start_game()
+		get_tree().change_scene_to_file("res://scenes/game_world.tscn")
+	)
 	btn_history.pressed.connect(func():
 		_open_history()
 	)
@@ -102,7 +121,7 @@ func _process(_dt: float) -> void:
 		return
 		
 	if game_state.game_state == Constants.STATE_PRELOADING:
-		_show_preloading()
+		_show_preloading(_dt)
 		return
 	elif game_state.game_state == Constants.STATE_WAITING_START:
 		_show_waiting_start(_dt)
@@ -138,7 +157,9 @@ func _update_flash() -> void:
 	else:
 		flash_rect.visible = false
 
-func _show_preloading() -> void:
+var _displayed_progress: float = 0.0
+
+func _show_preloading(dt: float) -> void:
 	preload_bg.visible = true
 	preload_panel.visible = true
 	question_panel.visible = false
@@ -151,12 +172,30 @@ func _show_preloading() -> void:
 	
 	pl_status.text = game_state.status_text
 	
-	if QuizManager.provider is BufferedQuizProvider:
-		var bp = QuizManager.provider as BufferedQuizProvider
-		var target: int = bp.target_count if bp.current_mode == Constants.MODE_TEN else 1
-		var current: int = bp.buffer.size()
-		pl_progress.max_value = target
-		pl_progress.value = current
+	var target: int = game_state.target_count if game_state.mode == Constants.MODE_TEN else 1
+	var current: int = game_state.quiz_list.size()
+	
+	pl_progress.max_value = float(target)
+	
+	# スムーズな進行度アニメーション (LLM待機時のフェイク進捗 ＋ 取得完了時のlerp)
+	if current < target:
+		# 問題を待っている間は最大90%まで徐々に進める
+		var fake_speed := float(target) * 0.45 
+		var max_fake := float(target) * 0.90
+		if _displayed_progress < max_fake:
+			_displayed_progress += fake_speed * dt
+			if _displayed_progress > max_fake:
+				_displayed_progress = max_fake
+	
+	# 実際の進捗がフェイク進捗を上回った場合はLerpで追いつかせる
+	if float(current) > _displayed_progress:
+		_displayed_progress = lerpf(_displayed_progress, float(current), dt * 15.0)
+		
+	# 完了時はキッチリ合わせる
+	if current >= target:
+		_displayed_progress = float(target)
+		
+	pl_progress.value = _displayed_progress
 
 var _blink_timer: float = 0.0
 func _show_waiting_start(dt: float) -> void:

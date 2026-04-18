@@ -67,6 +67,7 @@ var total_wrong: int = 0
 
 # --- 案3: 回答時間計測 ---
 var _quiz_shown_time: float = 0.0  # 問題表示時刻 (Time.get_ticks_msec())
+var recent_response_times: Array[float] = [] # 直近の回答時間履歴 (パフォーマンス連動速度用)
 
 # --- Quiz History (for game-over review) ---
 var quiz_history: Array[Dictionary] = []  # [{quiz: QuizItem, correct: bool, rated: String}]
@@ -201,6 +202,7 @@ func start_game() -> void:
 	play_time = 0.0
 	total_answered = 0
 	total_wrong = 0
+	recent_response_times.clear()
 	# Dynamic wall speed reset
 	_active_wall_speed = tuning.wall_speed
 	var count: int = 10 if mode == Constants.MODE_TEN else 1
@@ -320,7 +322,20 @@ func _recalc_wall_speed() -> void:
 				q_text += ch
 	var text_len: int = q_text.length()
 	var length_factor: float = clampf(1.0 - (text_len - 20) * 0.0045, 0.55, 1.0)
-	var final_speed: float = base * length_factor
+	
+	# 直近パフォーマンス連動による速度調整 (Case A)
+	var perf_factor: float = 1.0
+	if recent_response_times.size() > 0:
+		var sum_time: float = 0.0
+		for t: float in recent_response_times:
+			sum_time += t
+		var avg_time: float = sum_time / recent_response_times.size()
+		# avg_timeが2秒(速い)から5秒(遅い)の間で重みを0.0〜1.0に変換
+		var weight: float = clampf((avg_time - 2.0) / 3.0, 0.0, 1.0)
+		# 速い(0.0) -> x1.25, 遅い(1.0) -> x0.8
+		perf_factor = lerpf(1.25, 0.8, weight)
+		
+	var final_speed: float = base * length_factor * perf_factor
 	_active_wall_speed = clampf(final_speed, tuning.wall_speed_min, tuning.wall_speed_max)
 
 
@@ -607,14 +622,19 @@ func resolve_collision() -> void:
 	provider.submit_result(current_quiz, any_correct)
 	quiz_history.append({"quiz": current_quiz, "correct": any_correct, "rated": ""})
 	
-	# 案3: プレイヤー行動データを記録
-	if current_quiz and QuizManager.player_analytics != null:
+	# パフォーマンスと行動データを記録
+	if current_quiz:
 		var response_time: float = (Time.get_ticks_msec() - _quiz_shown_time) / 1000.0
-		var chosen_door: int = _check_player_door(player_x) if p1_alive or not p1_correct else current_quiz.a
-		QuizManager.player_analytics.record(
-			current_quiz, response_time, any_correct, chosen_door,
-			subject, grade, difficulty
-		)
+		recent_response_times.append(response_time)
+		if recent_response_times.size() > 5:
+			recent_response_times.pop_front()
+			
+		if QuizManager.player_analytics != null:
+			var chosen_door: int = _check_player_door(player_x) if p1_alive or not p1_correct else current_quiz.a
+			QuizManager.player_analytics.record(
+				current_quiz, response_time, any_correct, chosen_door,
+				subject, grade, difficulty
+			)
 
 	if not any_alive:
 		var nc: int = num_choices

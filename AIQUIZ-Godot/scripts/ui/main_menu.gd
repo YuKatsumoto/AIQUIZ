@@ -232,6 +232,10 @@ func _update_api_status_text() -> void:
 	var g_key = "設定済" if ApiStatusAutoload.gemini_key_set else "未設定"
 	text += "[color=%s]Gemini: %s[/color] (キー: %s)\n" % [g_col, ApiStatusAutoload.gemini_msg, g_key]
 	
+	var f_col = "green" if ApiStatusAutoload.firebase_status else ("red" if ApiStatusAutoload.firebase_status == false else "yellow")
+	var f_key = "設定済" if ApiStatusAutoload.firebase_configured else "未設定"
+	text += "[color=%s]Firebase: %s[/color] (DB URL: %s)\n" % [f_col, ApiStatusAutoload.firebase_msg, f_key]
+	
 	text += "\n[color=gray]オフライン問題数: %d問[/color]" % ApiStatusAutoload.offline_count
 	
 	api_status_label.text = text

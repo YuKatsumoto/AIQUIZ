@@ -147,11 +147,11 @@ func _process_evaluation_results(eval_results: Array, to_evaluate: Array[Diction
 			if rating == "good":
 				ratings["good"].append(payload)
 				new_good += 1
-				QuizManager.firebase_ratings.send_rating(q, true, subject, grade, difficulty)
+				QuizManager.firebase_ratings.send_rating(q, true, subject, grade, difficulty, reason)
 			elif rating == "bad":
 				ratings["bad"].append(payload)
 				new_bad += 1
-				QuizManager.firebase_ratings.send_rating(q, false, subject, grade, difficulty)
+				QuizManager.firebase_ratings.send_rating(q, false, subject, grade, difficulty, reason)
 				
 	if new_good > 0 or new_bad > 0:
 		_limit_cache()
