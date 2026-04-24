@@ -27,3 +27,7 @@
   `quiz_wall.gd` の `break_door()` では、元のドアを非表示にして代わりに4つの `RigidBody3D` 破片を生成し、前方（-Z）+ 上方に `apply_impulse()` で吹き飛ばす。破片は `collision_layer = 0` でプレイヤーに干渉せず、3秒後に `queue_free()` で自動クリーンアップされる。
 - **ハイスコアシステム**:
   `HighscoreManager` (Autoload) が `user://highscores.json` にローカル保存。キーは `{学年}_{教科}_{難易度}_{モード}` で各カテゴリ上位5件を保持。`game_state.gd` の `_game_over()` と `clear_game()` から `_submit_highscore()` が呼ばれ、`is_new_record` フラグでHUDに `NEW RECORD!` を表示する。メインメニューの `🏆 ランキング` ボタンで全カテゴリのベストスコアを一覧表示。
+
+## AI Agent ルール
+- **計画書の言語**:
+  ユーザーへ提示する計画書 (Implementation Plan) および各種成果物ドキュメントは、常に日本語で記述すること。

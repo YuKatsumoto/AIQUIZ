@@ -13,6 +13,7 @@ extends Control
 @onready var diff_label: Label = $VBoxContainer/ConfigContainer/DiffRow/DiffLabel
 @onready var players_btn: Button = $VBoxContainer/ConfigContainer/PlayersRow/PlayersToggleBtn
 @onready var llm_toggle_btn: Button = $VBoxContainer/ConfigContainer/LlmRow/LlmToggleBtn
+@onready var hat_select_row: HBoxContainer = $VBoxContainer/ConfigContainer/HatSelectRow
 
 @onready var settings_panel: Panel = $SettingsPanel
 @onready var api_status_label: RichTextLabel = $SettingsPanel/VBox/ApiStatusLabel
@@ -21,9 +22,6 @@ extends Control
 @onready var res_option: OptionButton = %ResOption
 
 var game_state: QuizGameState
-
-# Filter state
-
 
 func _ready() -> void:
 	game_state = QuizManager.game_state
@@ -55,6 +53,7 @@ func _ready() -> void:
 			res_option.select(0)
 	
 	ApiStatusAutoload.check_completed.connect(_update_api_status_text)
+
 	_style_all_buttons()
 	_update_ui()
 
@@ -151,7 +150,11 @@ func _update_ui() -> void:
 
 		var llm_text: String = "🌐 ONLINE (AI生成)" if QuizManager.provider.llm_mode == "ONLINE" else "📦 OFFLINE (内蔵問題)"
 		llm_toggle_btn.text = llm_text
-
+		
+		# Show hat select button only in 2P mode
+		if hat_select_row:
+			hat_select_row.visible = game_state.num_players >= 2
+		
 func _on_ten_questions_pressed() -> void:
 	game_state.select_mode_and_continue(Constants.MODE_TEN)
 	_update_ui()
@@ -172,6 +175,9 @@ func _on_llm_toggle_pressed() -> void:
 func _on_players_toggle_pressed() -> void:
 	game_state.num_players = 2 if game_state.num_players == 1 else 1
 	_update_ui()
+
+func _on_hat_select_pressed() -> void:
+	get_tree().change_scene_to_file("res://ui/hat_select.tscn")
 
 func _on_grade_down_pressed() -> void:
 	game_state.update_grade(-1)

@@ -197,26 +197,25 @@ func compose_prompt(subject: String, grade: int, difficulty: String, count: int,
 	elif difficulty == "難しい":
 		prompt += _compose_hard_instructions(grade, subject, curriculum)
 
-	# ── 問題の多様性 ──
-	prompt += "【多様性のルール】\n"
-	prompt += "- %d問の中で同じ単元から2問以上出さないこと\n" % count
-	prompt += "- 計算問題・知識問題・思考問題をバランスよく混ぜること\n"
-	prompt += "- 正解の位置(a)を0〜3で均等に散らすこと（全部0や全部1にしない）\n"
-	prompt += "- 4択と2択を混ぜて出題すること\n\n"
-	
 	# ── 案3: プレイヤー行動分析フィードバック ──
 	if QuizManager.player_analytics != null:
 		var analytics_feedback := QuizManager.player_analytics.get_prompt_feedback(subject, grade, difficulty)
 		if not analytics_feedback.is_empty():
 			prompt += analytics_feedback
 
-	# ── 出題済み問題の除外 ──
+	# ── AI自己チェック・多様性と重複の絶対禁止 ──
+	prompt += "【AI自己チェック・重複絶対禁止】（超重要）\n"
+	prompt += "- %d問の中で、まったく同じ問題や「数値・単語・聞き方を少し変えただけ」の似た問題が重複しないよう、出力前にAI自身で厳密に比較チェックしてください。\n" % count
+	prompt += "- %d問すべて『完全に異なる単元』から出題すること。\n" % count
+	prompt += "- 計算問題・知識問題・思考問題をバランスよく混ぜること\n"
+	prompt += "- 正解の位置(a)を0〜3で均等に散らすこと（全部0や全部1にしない）\n"
+	prompt += "- 4択と2択を任意に混ぜて出題すること\n"
 	if history.size() > 0:
-		prompt += "【重複禁止】以下は出題済みです。同じ問題・類似問題を避けてください:\n"
+		prompt += "- また、以下の「出題済み過去問題」とも明確に違う問題にすること:\n"
 		var max_h = min(20, history.size())
 		for i in range(max_h):
-			prompt += "- " + history[history.size() - 1 - i] + "\n"
-		prompt += "\n"
+			prompt += "  * " + history[history.size() - 1 - i] + "\n"
+	prompt += "\n"
 
 	return prompt
 
@@ -719,7 +718,7 @@ func _compose_hard_instructions(grade: int, subject: String, curriculum: Diction
 
 func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count: int, history: Array[String]) -> void:
 	# Split into many small parallel requests for minimum latency.
-	# Each request generates only 2 questions → faster per-request response.
+	# 速度を維持したまま重複を防ぐため、並列生成を維持しつつ各リクエストに別々の「テーマ」を強制する
 	const NUM_PARALLEL: int = 5
 	var per_call: int = maxi(2, ceili(float(count) / float(NUM_PARALLEL)))
 	
@@ -766,7 +765,7 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 		if completed_calls >= expected_calls:
 			fetch_completed.emit([] as Array[QuizItem])
 	
-	var timer := get_tree().create_timer(20.0)  # Reduced from 30s
+	var timer := get_tree().create_timer(30.0)  # Increased back to 30s for large batches
 	timer.timeout.connect(func():
 		if completed_calls < expected_calls:
 			completed_calls = 999 
@@ -775,11 +774,18 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 	
 	# Fire NUM_PARALLEL concurrent requests, each with a
 	# slightly different prompt seed so the model doesn't return duplicates.
+	var themes := [
+		"テーマA: 基礎的な用語や計算、単純な事実を問う問題",
+		"テーマB: 日常生活に関連した文章題や応用問題",
+		"テーマC: 図形、単位、文字、グラフなどの表現・概念を問う問題",
+		"テーマD: 少しひねった問題や、よくある間違いを誘う問題",
+		"テーマE: この学年の学習内容のうち、最も難易度が高い問題"
+	]
+	
 	for i in range(NUM_PARALLEL):
 		var extra_history: Array[String] = history.duplicate()
-		# Add a diversity seed to each parallel request
-		if i > 0:
-			extra_history.append("[多様性シード: バッチ%d — 他のバッチと異なる単元・切り口で出題せよ]" % (i + 1))
+		# Add a strong diversity seed to each parallel request to avoid similarity across parallel batches
+		extra_history.append("【並列バッチ制約: この生成では必ず『%s』の傾向を中心に出題し、他のバッチと内容が被るのを防いでください】" % themes[i % themes.size()])
 		var prompt := compose_prompt(subject, grade, difficulty, per_call, extra_history)
 		_fetch_gemini_target(prompt, "gemini-3-flash-preview", temperature, on_complete)
 
@@ -795,7 +801,7 @@ func _fetch_gemini_target(prompt: String, target_model: String, temperature: flo
 	
 	var http := HTTPRequest.new()
 	add_child(http)
-	http.timeout = 25.0
+	http.timeout = 30.0
 	
 	# 案5: systemInstruction の分離
 	var sys_instruction := compose_system_instruction()

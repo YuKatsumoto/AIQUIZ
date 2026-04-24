@@ -74,14 +74,14 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(260, 80)
 layout_mode = 2
 theme_override_font_sizes/font_size = 22
-text = "🏆 10問チャレンジ"
+text = "10問チャレンジ"
 
 [node name="EndlessBtn" type="Button" parent="VBoxContainer/ModeContainer/ModeButtons"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(260, 80)
 layout_mode = 2
 theme_override_font_sizes/font_size = 22
-text = "♾️ エンドレス"
+text = "エンドレス"
 
 [node name="ConfigContainer" type="VBoxContainer" parent="VBoxContainer"]
 visible = false
@@ -196,7 +196,19 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(300, 44)
 layout_mode = 2
 theme_override_font_sizes/font_size = 18
-text = "👤 1人プレイ / 👥 2人プレイ"
+text = "1人プレイ / 2人プレイ"
+
+[node name="HatSelectRow" type="HBoxContainer" parent="VBoxContainer/ConfigContainer"]
+visible = false
+layout_mode = 2
+alignment = 1
+
+[node name="HatSelectBtn" type="Button" parent="VBoxContainer/ConfigContainer/HatSelectRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(300, 44)
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "スキン設定"
 
 [node name="ConfigBtnRow" type="HBoxContainer" parent="VBoxContainer/ConfigContainer"]
 layout_mode = 2
@@ -208,14 +220,14 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(160, 44)
 layout_mode = 2
 theme_override_font_sizes/font_size = 18
-text = "← 戻る"
+text = "戻る"
 
 [node name="StartButton" type="Button" parent="VBoxContainer/ConfigContainer/ConfigBtnRow"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(260, 56)
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
-text = "▶ ゲーム開始"
+text = "ゲーム開始"
 
 [node name="StatusLabel" type="Label" parent="VBoxContainer"]
 layout_mode = 2
@@ -239,7 +251,7 @@ offset_bottom = -16.0
 grow_horizontal = 0
 grow_vertical = 0
 theme_override_font_sizes/font_size = 16
-text = "⚙ 設定 / API状態"
+text = "設定 / API状態"
 
 [node name="SettingsPanel" type="Panel" parent="."]
 unique_name_in_owner = true
@@ -354,13 +366,13 @@ layout_mode = 2
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 45)
 layout_mode = 2
-text = "🖥️ プロンプト&クイズ管理ダッシュボードを開く"
+text = "プロンプト&クイズ管理ダッシュボードを開く"
 
 [node name="SettingsBackBtn" type="Button" parent="SettingsPanel/VBox"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 45)
 layout_mode = 2
-text = "← 戻る"
+text = "戻る"
 
 [connection signal="pressed" from="VBoxContainer/ModeContainer/ModeButtons/TenQuestionsBtn" to="." method="_on_ten_questions_pressed"]
 [connection signal="pressed" from="VBoxContainer/ModeContainer/ModeButtons/EndlessBtn" to="." method="_on_endless_pressed"]
@@ -372,6 +384,7 @@ text = "← 戻る"
 [connection signal="pressed" from="VBoxContainer/ConfigContainer/DiffRow/DiffRightBtn" to="." method="_on_diff_right_pressed"]
 [connection signal="pressed" from="VBoxContainer/ConfigContainer/LlmRow/LlmToggleBtn" to="." method="_on_llm_toggle_pressed"]
 [connection signal="pressed" from="VBoxContainer/ConfigContainer/PlayersRow/PlayersToggleBtn" to="." method="_on_players_toggle_pressed"]
+[connection signal="pressed" from="VBoxContainer/ConfigContainer/HatSelectRow/HatSelectBtn" to="." method="_on_hat_select_pressed"]
 [connection signal="pressed" from="VBoxContainer/ConfigContainer/ConfigBtnRow/BackBtn" to="." method="_on_back_pressed"]
 [connection signal="pressed" from="VBoxContainer/ConfigContainer/ConfigBtnRow/StartButton" to="." method="_on_start_pressed"]
 [connection signal="pressed" from="SettingsBtn" to="." method="_on_settings_btn_pressed"]

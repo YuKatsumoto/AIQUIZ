@@ -126,6 +126,15 @@ func _process(_dt: float) -> void:
 	elif game_state.game_state == Constants.STATE_WAITING_START:
 		_show_waiting_start(_dt)
 		return
+	elif game_state.game_state == Constants.STATE_FLYOVER:
+		preload_bg.visible = false
+		preload_panel.visible = false
+		question_panel.visible = false
+		score_label.visible = false
+		progress_bar.visible = false
+		game_over_panel.visible = false
+		message_label.visible = false
+		return
 	else:
 		preload_bg.visible = false
 		preload_panel.visible = false
@@ -213,6 +222,21 @@ func _show_waiting_start(dt: float) -> void:
 	
 	_blink_timer += dt
 	start_prompt_label.modulate.a = 0.5 + 0.5 * sin(_blink_timer * 6.0)
+
+func _update_flyover_message() -> void:
+	message_label.visible = true
+	var progress := clampf(game_state.flyover_timer / game_state.flyover_duration, 0.0, 1.0)
+	var wall_count := game_state.flyover_total_walls
+	var showing := ceili(progress * wall_count)
+	if progress < 0.15:
+		message_label.text = "全%d問のコースを確認中..." % wall_count
+	elif progress < 0.85:
+		message_label.text = "Q%d / %d" % [wall_count - showing + 1, wall_count]
+	else:
+		message_label.text = "スタート準備!"
+	message_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.9))
+	message_label.add_theme_font_size_override("font_size", 42)
+	message_label.modulate.a = 1.0
 
 
 # ============================================================

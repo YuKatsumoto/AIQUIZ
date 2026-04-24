@@ -125,10 +125,11 @@ func _on_fetch_partial(quizzes: Array[QuizItem]) -> void:
 		
 	var accepted := false
 	for q in quizzes:
-		# Very naive deduplication
+		# Advanced deduplication (similarity check)
 		var is_sim := false
 		for rq in recent_questions:
-			if rq == q.q:
+			# 完全一致、または類似度が75%以上のものは似た問題とみなして弾く
+			if rq == q.q or rq.similarity(q.q) > 0.75:
 				is_sim = true
 				break
 		if is_sim:

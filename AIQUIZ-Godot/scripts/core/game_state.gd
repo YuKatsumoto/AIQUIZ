@@ -73,16 +73,31 @@ var recent_response_times: Array[float] = [] # 直近の回答時間履歴 (パ�
 var quiz_history: Array[Dictionary] = []  # [{quiz: QuizItem, correct: bool, rated: String}]
 var countdown_timer: float = 3.0
 
+# --- Flyover (10問モードのカメラ演出) ---
+var flyover_timer: float = 0.0
+var flyover_duration: float = 8.5  # フライオーバー全体の秒数 (2フェーズ)
+var flyover_total_walls: int = 10
+
 # --- Multiplayer ---
 var num_players: int = 1
 var p1_alive: bool = true
+var p1_emote: int = 0
+
 var player2_x: float = 0.0
 var player2_y: float = 0.0
 var player2_z: float = 0.0
 var player2_score: int = 0
 var player2_vel_y: float = 0.0
 var p2_alive: bool = true
+var p2_emote: int = 0
+var p1_moving_back: bool = false
+var p2_moving_back: bool = false
+var p1_hat: int = 0
+var p2_hat: int = 0
+
 var player2_game_over_timer: float = 0.0
+
+
 
 # --- Dynamic wall speed ---
 var _active_wall_speed: float = 6.8
@@ -170,6 +185,8 @@ func cycle_difficulty(delta: int) -> void:
 		idx = 1
 	difficulty = Constants.DIFFICULTY_LEVELS[(idx + delta) % Constants.DIFFICULTY_LEVELS.size()]
 	refresh_status_text()
+
+
 
 
 # ---------- Game lifecycle ----------
@@ -341,7 +358,7 @@ func _recalc_wall_speed() -> void:
 
 # ---------- Frame update ----------
 
-func update(dt: float, axis_p1: Vector2 = Vector2.ZERO, axis_p2: Vector2 = Vector2.ZERO, jump_p1: bool = false, jump_p2: bool = false) -> void:
+func update(dt: float, axis_p1: Vector2 = Vector2.ZERO, axis_p2: Vector2 = Vector2.ZERO, jump_p1: bool = false, jump_p2: bool = false, emote_p1: int = 0, emote_p2: int = 0) -> void:
 	correct_flash = maxf(0.0, correct_flash - dt * 1.5)
 	wrong_flash = maxf(0.0, wrong_flash - dt * 1.2)
 	camera_shake = maxf(0.0, camera_shake - dt * 2.8)
@@ -357,12 +374,16 @@ func update(dt: float, axis_p1: Vector2 = Vector2.ZERO, axis_p2: Vector2 = Vecto
 		_update_waiting_start(dt, axis_p1, axis_p2, jump_p1, jump_p2)
 		return
 
+	if game_state == Constants.STATE_FLYOVER:
+		_update_flyover(dt)
+		return
+
 	if game_state == Constants.STATE_COUNTDOWN:
 		_update_countdown(dt)
 		return
 
 	if game_state == Constants.STATE_PLAYING:
-		_update_playing(dt, axis_p1, axis_p2, jump_p1, jump_p2)
+		_update_playing(dt, axis_p1, axis_p2, jump_p1, jump_p2, emote_p1, emote_p2)
 		return
 
 	if game_state == Constants.STATE_CORRECT:
@@ -407,8 +428,24 @@ func _update_waiting_start(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p
 
 func trigger_start() -> void:
 	if game_state == Constants.STATE_WAITING_START:
+		game_state = Constants.STATE_FLYOVER
+		flyover_timer = 0.0
+		if mode == Constants.MODE_TEN:
+			# 10問モード: 全壁を見せる
+			flyover_total_walls = target_count
+			flyover_duration = 8.5
+		else:
+			# エンドレスモード: 見えなくなるくらい遠くまで壁を並べる
+			flyover_total_walls = 25
+			flyover_duration = 8.5
+		state_changed.emit(game_state)
+
+func _update_flyover(dt: float) -> void:
+	flyover_timer += dt
+	if flyover_timer >= flyover_duration:
+		# フライオーバー完了 → カウントダウンへ
 		game_state = Constants.STATE_COUNTDOWN
-		countdown_timer = 3.99 # starting with 3
+		countdown_timer = 3.99
 		state_changed.emit(game_state)
 
 func _update_countdown(dt: float) -> void:
@@ -418,9 +455,14 @@ func _update_countdown(dt: float) -> void:
 		state_changed.emit(game_state)
 
 
-func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: bool, jump_p2: bool) -> void:
+func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: bool, jump_p2: bool, emote_p1: int = 0, emote_p2: int = 0) -> void:
 	play_time += dt
 	world_scroll_z += _active_wall_speed * dt
+	
+	p1_emote = emote_p1
+	p2_emote = emote_p2
+	p1_moving_back = axis_p1.y < -0.1
+	p2_moving_back = axis_p2.y < -0.1
 	
 	# Player 1 movement
 	if p1_alive:
@@ -507,10 +549,10 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 			player2_game_over_timer += dt
 			
 	# Check collisions with wall
-	if player_z >= wall_z - 0.45 or (num_players >= 2 and player2_z >= wall_z - 0.45):
+	if player_z >= wall_z - 0.8 or (num_players >= 2 and player2_z >= wall_z - 0.8):
 		# Prevent clipping through
-		if player_z >= wall_z - 0.45: player_z = wall_z - 0.45
-		if num_players >= 2 and player2_z >= wall_z - 0.45: player2_z = wall_z - 0.45
+		if player_z >= wall_z - 0.8: player_z = wall_z - 0.8
+		if num_players >= 2 and player2_z >= wall_z - 0.8: player2_z = wall_z - 0.8
 		resolve_collision()
 
 func _update_correct(dt: float) -> void:
