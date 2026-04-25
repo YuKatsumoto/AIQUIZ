@@ -71,13 +71,19 @@ func validate_answers_llm(items: Array[QuizItem], subject: String, grade: int,
 		callback.call(items, [])
 		return
 	
-	var key := ApiStatusAutoload.get_env("GOOGLE_API_KEY")
-	if key.is_empty():
-		key = ApiStatusAutoload.get_env("GEMINI_API_KEY")
-	if key.is_empty():
-		# Can't validate without API key, pass all through
-		callback.call(items, [])
-		return
+	var proxy := ApiStatusAutoload.get_env("PROXY_URL")
+	var url: String
+	if not proxy.is_empty():
+		url = proxy + "/gemini?model=" + FLASH_MODEL
+	else:
+		var key := ApiStatusAutoload.get_env("GOOGLE_API_KEY")
+		if key.is_empty():
+			key = ApiStatusAutoload.get_env("GEMINI_API_KEY")
+		if key.is_empty():
+			# Can't validate without API key, pass all through
+			callback.call(items, [])
+			return
+		url = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s" % [FLASH_MODEL, key]
 	
 	# Build the verification prompt
 	var quiz_data := []
@@ -100,8 +106,6 @@ func validate_answers_llm(items: Array[QuizItem], subject: String, grade: int,
 	prompt += "[{\"id\": 0, \"correct_answer\": 実際の正解インデックス, \"claimed_ok\": true/false, \"grade_ok\": true/false, \"issue\": \"問題があれば理由\"}]\n\n"
 	prompt += "問題データ:\n"
 	prompt += JSON.stringify(quiz_data, "  ")
-	
-	var url := "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s" % [FLASH_MODEL, key]
 	
 	var http := HTTPRequest.new()
 	add_child(http)

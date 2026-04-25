@@ -664,6 +664,9 @@ func resolve_collision() -> void:
 	provider.submit_result(current_quiz, any_correct)
 	quiz_history.append({"quiz": current_quiz, "correct": any_correct, "rated": ""})
 	
+	# 確実に問題を解き終わったあとにFirebaseへ保存する（バックグラウンド評価を即時キック）
+	QuizManager.quiz_optimizer.evaluate_history(quiz_history, subject, grade, difficulty)
+	
 	# パフォーマンスと行動データを記録
 	if current_quiz:
 		var response_time: float = (Time.get_ticks_msec() - _quiz_shown_time) / 1000.0

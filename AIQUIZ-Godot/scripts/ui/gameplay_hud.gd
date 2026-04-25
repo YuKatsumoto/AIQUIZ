@@ -421,13 +421,25 @@ func _build_result_card(is_clear: bool, explanation: String) -> void:
 	# ─── Row 3: Explanation (if any) ───
 	if not explanation.is_empty():
 		_add_separator(root_vbox)
+		
+		var scroll := ScrollContainer.new()
+		scroll.custom_minimum_size = Vector2(0, 110)
+		scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		root_vbox.add_child(scroll)
+		
+		var exp_vbox := VBoxContainer.new()
+		exp_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		scroll.add_child(exp_vbox)
+		
 		var exp_label := Label.new()
 		exp_label.text = explanation
 		exp_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		exp_label.add_theme_font_size_override("font_size", 18)
 		exp_label.add_theme_color_override("font_color", Color(0.82, 0.85, 0.92))
 		exp_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		root_vbox.add_child(exp_label)
+		exp_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		exp_vbox.add_child(exp_label)
 	
 	# ─── Row 4: Rating (if applicable) ───
 	if game_state.rating_target_quiz:

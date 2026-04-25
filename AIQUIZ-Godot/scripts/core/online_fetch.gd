@@ -790,14 +790,18 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 		_fetch_gemini_target(prompt, "gemini-3-flash-preview", temperature, on_complete)
 
 func _fetch_gemini_target(prompt: String, target_model: String, temperature: float, callback: Callable) -> void:
-	var key := ApiStatusAutoload.get_env("GOOGLE_API_KEY")
-	if key.is_empty():
-		key = ApiStatusAutoload.get_env("GEMINI_API_KEY")
-	if key.is_empty():
-		callback.call([])
-		return
-		
-	var url := "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s" % [target_model, key]
+	var proxy := ApiStatusAutoload.get_env("PROXY_URL")
+	var url: String
+	if not proxy.is_empty():
+		url = proxy + "/gemini?model=" + target_model
+	else:
+		var key := ApiStatusAutoload.get_env("GOOGLE_API_KEY")
+		if key.is_empty():
+			key = ApiStatusAutoload.get_env("GEMINI_API_KEY")
+		if key.is_empty():
+			callback.call([])
+			return
+		url = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s" % [target_model, key]
 	
 	var http := HTTPRequest.new()
 	add_child(http)
@@ -851,13 +855,22 @@ func _fetch_gemini_target(prompt: String, target_model: String, temperature: flo
 	http.request(url, ["Content-Type: application/json"], HTTPClient.METHOD_POST, body)
 
 func _fetch_openai(prompt: String, callback: Callable) -> void:
-	var key := ApiStatusAutoload.get_env("OPENAI_API_KEY")
-	if key.is_empty():
-		callback.call([])
-		return
-		
 	var model := ApiStatusAutoload.get_env("OPENAI_FAST_MODEL", "gpt-4o-mini")
-	var url := "https://api.openai.com/v1/chat/completions"
+	
+	var proxy := ApiStatusAutoload.get_env("PROXY_URL")
+	var url: String
+	var headers: PackedStringArray
+	
+	if not proxy.is_empty():
+		url = proxy + "/openai"
+		headers = ["Content-Type: application/json"]
+	else:
+		var key := ApiStatusAutoload.get_env("OPENAI_API_KEY")
+		if key.is_empty():
+			callback.call([])
+			return
+		url = "https://api.openai.com/v1/chat/completions"
+		headers = ["Content-Type: application/json", "Authorization: Bearer " + key]
 	
 	var http := HTTPRequest.new()
 	add_child(http)
@@ -882,18 +895,23 @@ func _fetch_openai(prompt: String, callback: Callable) -> void:
 		http.queue_free()
 		callback.call(out)
 	)
-	http.request(url, ["Content-Type: application/json", "Authorization: Bearer " + key], HTTPClient.METHOD_POST, body)
+	http.request(url, headers, HTTPClient.METHOD_POST, body)
 
 func fetch_explanation(subject: String, grade: int, quiz_q: String, quiz_c: PackedStringArray, quiz_a: int, callback: Callable) -> void:
-	var key := ApiStatusAutoload.get_env("GOOGLE_API_KEY")
-	if key.is_empty():
-		key = ApiStatusAutoload.get_env("GEMINI_API_KEY")
-	if key.is_empty():
-		callback.call("解説を取得できませんでした")
-		return
-		
 	var model := ApiStatusAutoload.gemini_model
-	var url := "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s" % [model, key]
+	var proxy := ApiStatusAutoload.get_env("PROXY_URL")
+	var url: String
+	
+	if not proxy.is_empty():
+		url = proxy + "/gemini?model=" + model
+	else:
+		var key := ApiStatusAutoload.get_env("GOOGLE_API_KEY")
+		if key.is_empty():
+			key = ApiStatusAutoload.get_env("GEMINI_API_KEY")
+		if key.is_empty():
+			callback.call("解説を取得できませんでした")
+			return
+		url = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s" % [model, key]
 	
 	var http := HTTPRequest.new()
 	add_child(http)

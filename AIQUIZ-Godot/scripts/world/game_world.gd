@@ -252,6 +252,7 @@ func _process(dt: float) -> void:
 		if Input.is_key_pressed(KEY_1): emote_p1 = 1
 		elif Input.is_key_pressed(KEY_2): emote_p1 = 2
 		elif Input.is_key_pressed(KEY_3): emote_p1 = 3
+		elif Input.is_key_pressed(KEY_4): emote_p1 = 4
 		
 		# Player 1: W/A/S/D
 		if Input.is_key_pressed(KEY_D): axis_p1.x -= 1.0
@@ -264,6 +265,7 @@ func _process(dt: float) -> void:
 			if Input.is_key_pressed(KEY_8) or Input.is_key_pressed(KEY_KP_7): emote_p2 = 1
 			elif Input.is_key_pressed(KEY_9) or Input.is_key_pressed(KEY_KP_8): emote_p2 = 2
 			elif Input.is_key_pressed(KEY_0) or Input.is_key_pressed(KEY_KP_9): emote_p2 = 3
+			elif Input.is_key_pressed(KEY_MINUS) or Input.is_key_pressed(KEY_KP_SUBTRACT): emote_p2 = 4
 			
 			# 2P: Arrow keys for P2
 			if Input.is_key_pressed(KEY_RIGHT): axis_p2.x -= 1.0

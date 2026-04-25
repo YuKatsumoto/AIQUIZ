@@ -42,13 +42,6 @@ theme_override_font_sizes/font_size = 46
 text = "AI脱出クイズ 3D"
 horizontal_alignment = 1
 
-[node name="SubtitleLabel" type="Label" parent="VBoxContainer"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.5, 0.55, 0.65, 1)
-theme_override_font_sizes/font_size = 14
-text = "Godot Edition"
-horizontal_alignment = 1
-
 [node name="Spacer1" type="Control" parent="VBoxContainer"]
 custom_minimum_size = Vector2(0, 16)
 layout_mode = 2

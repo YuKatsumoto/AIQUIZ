@@ -28,8 +28,21 @@ func _start_dashboard_server() -> void:
 			OS.create_process("cmd.exe", args, false)
 
 func _load_env() -> void:
-	# .envファイルの簡易パース（拡張機能として）
-	var file = FileAccess.open("res://.env", FileAccess.READ)
+	# .envファイルの簡易パース
+	# エクスポートビルド: exe と同じフォルダの .env を優先
+	# エディター実行: res://.env にフォールバック
+	var env_path := ""
+	var exe_dir := OS.get_executable_path().get_base_dir()
+	var external_env := exe_dir.path_join(".env")
+	if FileAccess.file_exists(external_env):
+		env_path = external_env
+	elif FileAccess.file_exists("res://.env"):
+		env_path = "res://.env"
+
+	if env_path.is_empty():
+		return
+
+	var file = FileAccess.open(env_path, FileAccess.READ)
 	if file:
 		while not file.eof_reached():
 			var line = file.get_line().strip_edges()

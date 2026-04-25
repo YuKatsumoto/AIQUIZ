@@ -77,6 +77,12 @@ var _drowning_ap: AnimationPlayer = null
 var _drowning_bone_indices: Dictionary = {}
 var _drowning_anim_name1: String = ""
 
+var _flair_scene: Node3D = null
+var _flair_skeleton: Skeleton3D = null
+var _flair_ap: AnimationPlayer = null
+var _flair_bone_indices: Dictionary = {}
+var _flair_anim_name1: String = ""
+
 # 現在アクティブなスケルトンと骨インデックス(P1)
 var _active_skeleton: Skeleton3D = null
 var _active_bone_indices: Dictionary = {}
@@ -118,6 +124,12 @@ var _p2_drowning_skeleton: Skeleton3D = null
 var _p2_drowning_ap: AnimationPlayer = null
 var _p2_drowning_bone_indices: Dictionary = {}
 var _p2_drowning_anim_name1: String = ""
+
+var _p2_flair_scene: Node3D = null
+var _p2_flair_skeleton: Skeleton3D = null
+var _p2_flair_ap: AnimationPlayer = null
+var _p2_flair_bone_indices: Dictionary = {}
+var _p2_flair_anim_name1: String = ""
 
 var _p2_active_skeleton: Skeleton3D = null
 var _p2_active_bone_indices: Dictionary = {}
@@ -188,6 +200,16 @@ func _load_mixamo_rig() -> void:
 		_drowning_anim_name1 = drowning_data["anim_name"]
 		print("[RIG] P1 Drowning scene ready: ", _drowning_anim_name1)
 		
+	# P1 Flair FBX
+	var flair_data = _load_fbx_scene("res://assets/animations/Flair.fbx", "FlairRig")
+	if flair_data:
+		_flair_scene = flair_data["node"]
+		_flair_skeleton = flair_data["skeleton"]
+		_flair_ap = flair_data["anim_player"]
+		_flair_bone_indices = flair_data["bone_indices"]
+		_flair_anim_name1 = flair_data["anim_name"]
+		print("[RIG] P1 Flair scene ready: ", _flair_anim_name1)
+		
 	# P2 煽りダンスFBX
 	var p2_taunt_data = _load_fbx_scene("res://assets/animations/Y Bot@Step Hip Hop Dance.fbx", "P2TauntRig")
 	if p2_taunt_data:
@@ -243,6 +265,15 @@ func _load_mixamo_rig() -> void:
 		_p2_drowning_ap = p2_drowning_data["anim_player"]
 		_p2_drowning_bone_indices = p2_drowning_data["bone_indices"]
 		_p2_drowning_anim_name1 = p2_drowning_data["anim_name"]
+	
+	# P2 Flair
+	var p2_flair_data = _load_fbx_scene("res://assets/animations/Flair.fbx", "P2FlairRig")
+	if p2_flair_data:
+		_p2_flair_scene = p2_flair_data["node"]
+		_p2_flair_skeleton = p2_flair_data["skeleton"]
+		_p2_flair_ap = p2_flair_data["anim_player"]
+		_p2_flair_bone_indices = p2_flair_data["bone_indices"]
+		_p2_flair_anim_name1 = p2_flair_data["anim_name"]
 	
 	# どちらかが読み込めたらリグモードON
 	if _taunt_skeleton or _run_skeleton:
@@ -617,7 +648,7 @@ func update_from_state(gs: QuizGameState) -> void:
 		else:
 			var apply_rig := false
 			# 全APリスト（排他的に止めるため）
-			var all_p1_aps: Array = [_taunt_ap, _run_ap, _gangnam_ap, _slide_ap, _moonwalk_ap, _drowning_ap]
+			var all_p1_aps: Array = [_taunt_ap, _run_ap, _gangnam_ap, _slide_ap, _moonwalk_ap, _drowning_ap, _flair_ap]
 			
 			# リグモードの再生ロジック - 各FBXの独自APを使い分ける
 			if gs.player_y < -1.0 and _drowning_ap and _drowning_anim_name1 != "":
@@ -651,6 +682,9 @@ func update_from_state(gs: QuizGameState) -> void:
 				elif gs.p1_emote == 3 and _slide_ap and _slide_anim_name1 != "":
 					target_ap = _slide_ap; target_skel = _slide_skeleton
 					target_bones = _slide_bone_indices; target_anim = _slide_anim_name1
+				elif gs.p1_emote == 4 and _flair_ap and _flair_anim_name1 != "":
+					target_ap = _flair_ap; target_skel = _flair_skeleton
+					target_bones = _flair_bone_indices; target_anim = _flair_anim_name1
 				
 				var mirror_x := true # 全てのFBX（+Z向き）を-Z向きのキャラクターに正しく適用するためXミラーを有効化
 				if target_ap:
@@ -718,7 +752,7 @@ func update_from_state(gs: QuizGameState) -> void:
 				var target_bones: Dictionary = _drowning_bone_indices
 				var target_anim: String = _drowning_anim_name1
 				
-				var all_p1_aps: Array = [_taunt_ap, _run_ap, _gangnam_ap, _slide_ap, _moonwalk_ap, _drowning_ap]
+				var all_p1_aps: Array = [_taunt_ap, _run_ap, _gangnam_ap, _slide_ap, _moonwalk_ap, _drowning_ap, _flair_ap]
 				for ap: AnimationPlayer in all_p1_aps:
 					if ap and ap != target_ap and ap.is_playing():
 						ap.stop()
@@ -757,7 +791,7 @@ func update_from_state(gs: QuizGameState) -> void:
 				_animate_skeleton(p2_parts, gs.player2_y, gs.player2_vel_y, gs.game_state == Constants.STATE_PLAYING, walk_phase * 1.1, true, gs.p2_emote)
 			else:
 				var apply_rig := false
-				var all_p2_aps: Array = [_p2_taunt_ap, _p2_run_ap, _p2_gangnam_ap, _p2_slide_ap, _p2_moonwalk_ap, _p2_drowning_ap]
+				var all_p2_aps: Array = [_p2_taunt_ap, _p2_run_ap, _p2_gangnam_ap, _p2_slide_ap, _p2_moonwalk_ap, _p2_drowning_ap, _p2_flair_ap]
 				
 				if gs.player2_y < -1.0 and _p2_drowning_ap and _p2_drowning_anim_name1 != "":
 					var target_ap: AnimationPlayer = _p2_drowning_ap
@@ -789,6 +823,9 @@ func update_from_state(gs: QuizGameState) -> void:
 					elif gs.p2_emote == 3 and _p2_slide_ap and _p2_slide_anim_name1 != "":
 						target_ap = _p2_slide_ap; target_skel = _p2_slide_skeleton
 						target_bones = _p2_slide_bone_indices; target_anim = _p2_slide_anim_name1
+					elif gs.p2_emote == 4 and _p2_flair_ap and _p2_flair_anim_name1 != "":
+						target_ap = _p2_flair_ap; target_skel = _p2_flair_skeleton
+						target_bones = _p2_flair_bone_indices; target_anim = _p2_flair_anim_name1
 					
 					var p2_mirror_x := true # 全てのFBX（+Z向き）を-Z向きのキャラクターに正しく適用するためXミラーを有効化
 					if target_ap:
@@ -1180,6 +1217,8 @@ func _animate_emote(parts: Dictionary, emote: int) -> void:
 		_emote_floss(t * 0.85, parts) # Gangnam fallback
 	elif emote == 3:
 		_emote_floss(t * 1.15, parts) # Slide Hip Hop fallback
+	elif emote == 4:
+		_emote_floss(t * 1.0, parts) # Flair fallback
 
 
 # --- Emote 1: Floss Dance ---

@@ -30,22 +30,33 @@ func _init() -> void:
 	_update_config()
 
 func _load_env() -> void:
-	# Try loading from .env file
-	if FileAccess.file_exists("res://.env"):
-		var f := FileAccess.open("res://.env", FileAccess.READ)
-		if f:
-			while not f.eof_reached():
-				var line := f.get_line().strip_edges()
-				if line.is_empty() or line.begins_with("#"):
-					continue
-				var parts := line.split("=", true, 1)
-				if parts.size() == 2:
-					var k := parts[0].strip_edges()
-					var v := parts[1].strip_edges()
-					if v.begins_with('"') and v.ends_with('"'):
-						v = v.substr(1, v.length() - 2)
-					env_vars[k] = v
-			f.close()
+	# Determine .env path: prefer external file next to exe (exported build),
+	# then fall back to res://.env (editor run).
+	var env_path := ""
+	var exe_dir := OS.get_executable_path().get_base_dir()
+	var external_env := exe_dir.path_join(".env")
+	if FileAccess.file_exists(external_env):
+		env_path = external_env
+	elif FileAccess.file_exists("res://.env"):
+		env_path = "res://.env"
+
+	if env_path.is_empty():
+		return
+
+	var f := FileAccess.open(env_path, FileAccess.READ)
+	if f:
+		while not f.eof_reached():
+			var line := f.get_line().strip_edges()
+			if line.is_empty() or line.begins_with("#"):
+				continue
+			var parts := line.split("=", true, 1)
+			if parts.size() == 2:
+				var k := parts[0].strip_edges()
+				var v := parts[1].strip_edges()
+				if v.begins_with('"') and v.ends_with('"'):
+					v = v.substr(1, v.length() - 2)
+				env_vars[k] = v
+		f.close()
 
 func get_env(key: String, default_val: String = "") -> String:
 	# Priority: OS Env -> .env file -> default
@@ -57,12 +68,18 @@ func get_env(key: String, default_val: String = "") -> String:
 	return default_val
 
 func _update_config() -> void:
-	openai_key_set = not get_env("OPENAI_API_KEY").is_empty()
+	var proxy := get_env("PROXY_URL")
+	if not proxy.is_empty():
+		openai_key_set = true
+		gemini_key_set = true
+	else:
+		openai_key_set = not get_env("OPENAI_API_KEY").is_empty()
+		var g_key := get_env("GOOGLE_API_KEY")
+		if g_key.is_empty():
+			g_key = get_env("GEMINI_API_KEY")
+		gemini_key_set = not g_key.is_empty()
+	
 	openai_model = get_env("OPENAI_MODEL", "gpt-4o")
-	var g_key := get_env("GOOGLE_API_KEY")
-	if g_key.is_empty():
-		g_key = get_env("GEMINI_API_KEY")
-	gemini_key_set = not g_key.is_empty()
 	gemini_model = get_env("GEMINI_MODEL", "gemini-2.5-flash")
 	firebase_configured = not get_env("FIREBASE_DB_URL").is_empty()
 
@@ -123,8 +140,18 @@ func _check_openai() -> void:
 	var http := HTTPRequest.new()
 	add_child(http)
 	http.timeout = 8.0
-	var key := get_env("OPENAI_API_KEY")
-	var headers := ["Content-Type: application/json", "Authorization: Bearer " + key]
+	
+	var proxy := get_env("PROXY_URL")
+	var headers: PackedStringArray
+	var url: String
+	if not proxy.is_empty():
+		headers = ["Content-Type: application/json"]
+		url = proxy + "/openai"
+	else:
+		var key := get_env("OPENAI_API_KEY")
+		headers = ["Content-Type: application/json", "Authorization: Bearer " + key]
+		url = "https://api.openai.com/v1/chat/completions"
+
 	var body := JSON.stringify({
 		"model": get_env("OPENAI_FAST_MODEL", "gpt-4o-mini"),
 		"messages": [{"role": "user", "content": "Reply with just OK"}],
@@ -142,16 +169,19 @@ func _check_openai() -> void:
 			openai_msg = err_txt
 		http.queue_free()
 	)
-	http.request("https://api.openai.com/v1/chat/completions", headers, HTTPClient.METHOD_POST, body)
+	http.request(url, headers, HTTPClient.METHOD_POST, body)
 
 func _check_gemini() -> void:
-	var g_key := get_env("GOOGLE_API_KEY")
-	if g_key.is_empty():
-		g_key = get_env("GEMINI_API_KEY")
-	if g_key.is_empty():
-		gemini_status = false
-		gemini_msg = "APIキー未設定"
-		return
+	var proxy := get_env("PROXY_URL")
+	var g_key := ""
+	if proxy.is_empty():
+		g_key = get_env("GOOGLE_API_KEY")
+		if g_key.is_empty():
+			g_key = get_env("GEMINI_API_KEY")
+		if g_key.is_empty():
+			gemini_status = false
+			gemini_msg = "APIキー未設定"
+			return
 
 	gemini_msg = "チェック中..."
 	gemini_status = null
@@ -164,7 +194,12 @@ func _check_gemini() -> void:
 		"contents": [{"parts": [{"text": "Reply with just OK"}]}],
 		"generationConfig": {"temperature": 0.0, "maxOutputTokens": 5}
 	})
-	var url := "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s" % [gemini_model, g_key]
+	
+	var url: String
+	if not proxy.is_empty():
+		url = proxy + "/gemini?model=" + gemini_model
+	else:
+		url = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s" % [gemini_model, g_key]
 	http.request_completed.connect(func(result: int, response_code: int, _h, b: PackedByteArray):
 		if result == HTTPRequest.RESULT_SUCCESS and response_code == 200:
 			gemini_status = true

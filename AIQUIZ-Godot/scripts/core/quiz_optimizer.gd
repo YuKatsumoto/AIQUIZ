@@ -36,6 +36,7 @@ func evaluate_history(history: Array[Dictionary], subject: String, grade: int, d
 		var q: QuizItem = entry.get("quiz")
 		if not q: continue
 		if entry.get("rated", "") == "" and (q.src == "GEMINI" or q.src == "OPENAI"):
+			entry["rated"] = "evaluating"
 			to_evaluate.append(entry)
 			
 	if to_evaluate.is_empty():
@@ -68,14 +69,19 @@ func evaluate_history(history: Array[Dictionary], subject: String, grade: int, d
 	_fetch_evaluation(prompt, to_evaluate, subject, grade, difficulty)
 
 func _fetch_evaluation(prompt: String, to_evaluate: Array[Dictionary], subject: String, grade: int, difficulty: String) -> void:
-	var key := ApiStatusAutoload.get_env("GOOGLE_API_KEY")
-	if key.is_empty():
-		key = ApiStatusAutoload.get_env("GEMINI_API_KEY")
-	if key.is_empty():
-		return
-		
 	var target_model := "gemini-3.1-pro-preview"
-	var url := "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s" % [target_model, key]
+	
+	var proxy := ApiStatusAutoload.get_env("PROXY_URL")
+	var url: String
+	if not proxy.is_empty():
+		url = proxy + "/gemini?model=" + target_model
+	else:
+		var key := ApiStatusAutoload.get_env("GOOGLE_API_KEY")
+		if key.is_empty():
+			key = ApiStatusAutoload.get_env("GEMINI_API_KEY")
+		if key.is_empty():
+			return
+		url = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s" % [target_model, key]
 	
 	var http := HTTPRequest.new()
 	add_child(http)
