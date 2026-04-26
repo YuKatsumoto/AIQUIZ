@@ -94,8 +94,17 @@ var p1_moving_back: bool = false
 var p2_moving_back: bool = false
 var p1_hat: int = 0
 var p2_hat: int = 0
+var p1_emote_selected: int = 0  # メニューで選択したデフォルトエモートID
+var p2_emote_selected: int = 0
+# エモートスロット: P1はキー1,2,3 / P2はキー8,9,0 にそれぞれエモートIDを割り当て
+var p1_emote_slots: Array[int] = [1, 2, 3]  # デフォルト: Step Hip Hop, Gangnam, Slide
+var p2_emote_slots: Array[int] = [1, 2, 3]
 
 var player2_game_over_timer: float = 0.0
+
+# --- Goal Race (2P 10問モード) ---
+var goal_z: float = 0.0
+var goal_winner: int = 0  # 0=未確定, 1=P1, 2=P2
 
 
 
@@ -194,7 +203,7 @@ func start_game() -> void:
 	score = 0
 	current_index = 0
 	quiz_history.clear()
-	player_x = -1.5 if num_players == 2 else 0.0
+	player_x = 1.5 if num_players == 2 else 0.0
 	player_y = 0.0
 	player_z = 0.0
 	player_vel_y = 0.0
@@ -205,13 +214,14 @@ func start_game() -> void:
 	game_over_timer = 0.0
 	p1_alive = true
 	# Player 2 reset
-	player2_x = 1.5
+	player2_x = -1.5
 	player2_y = 0.0
 	player2_z = 0.0
 	player2_score = 0
 	player2_vel_y = 0.0
 	p2_alive = true
 	player2_game_over_timer = 0.0
+	goal_winner = 0
 	# Streak & stats reset
 	current_streak = 0
 	max_streak = 0
@@ -219,8 +229,11 @@ func start_game() -> void:
 	total_answered = 0
 	total_wrong = 0
 	recent_response_times.clear()
-	# Dynamic wall speed reset（デフォルト予測時間4秒で初期化、問題読み込み時に再計算される）
-	_active_wall_speed = 28.0 / (4.0 + 1.5)  # VISIBLE_DISTANCE / (default_est + buffer)
+	# Dynamic wall speed reset（手動オーバーライドがあればそれを使用）
+	if tuning.wall_speed_override > 0:
+		_active_wall_speed = tuning.wall_speed_override
+	else:
+		_active_wall_speed = 28.0 / (4.0 + 1.5)  # VISIBLE_DISTANCE / (default_est + buffer)
 	var count: int = 10 if mode == Constants.MODE_TEN else 1
 	target_count = count
 
@@ -271,7 +284,11 @@ func load_current_quiz() -> void:
 	if mode == Constants.MODE_TEN:
 		if current_index >= quiz_list.size():
 			if current_index >= target_count:
-				clear_game()
+				# 2P: ゴールラインまでのレースへ移行
+				if num_players >= 2:
+					_start_goal_race()
+				else:
+					clear_game()
 				return
 			else:
 				# 途中でバッファが尽きた場合は再度プレロード待ちへ
@@ -333,6 +350,11 @@ func _recalc_wall_speed() -> void:
 	## speed = 可視距離 ÷ (予測秒数 + 移動バッファ)
 	## + ステージ加速（緊張感演出）
 	
+	# --- 手動オーバーライドモード ---
+	if tuning.wall_speed_override > 0:
+		_active_wall_speed = tuning.wall_speed_override
+		return
+	
 	# --- AI予測解答時間を取得 ---
 	var est_sec: float = 4.0  # デフォルト
 	if current_quiz:
@@ -390,6 +412,10 @@ func update(dt: float, axis_p1: Vector2 = Vector2.ZERO, axis_p2: Vector2 = Vecto
 		_update_playing(dt, axis_p1, axis_p2, jump_p1, jump_p2, emote_p1, emote_p2)
 		return
 
+	if game_state == Constants.STATE_GOAL_RACE:
+		_update_goal_race(dt, axis_p1, axis_p2, jump_p1, jump_p2, emote_p1, emote_p2)
+		return
+
 	if game_state == Constants.STATE_CORRECT:
 		_update_correct(dt)
 		return
@@ -409,22 +435,52 @@ func _update_preloading(dt: float) -> void:
 		quiz_list.append_array(new_quizzes)
 
 	var ready: bool = false
-	if mode == Constants.MODE_TEN and quiz_list.size() >= target_count:
-		ready = true
-	elif mode == Constants.MODE_ENDLESS and quiz_list.size() >= 1:
-		ready = true
+	# ゲーム開始前（current_index == 0）は全問揃うのを待つ
+	# ゲーム中の再プレロード（current_index > 0）は次の1問があれば即再開
+	var is_mid_game: bool = current_index > 0
+	
+	if is_mid_game:
+		# 中盤プレロード: 次の問題が1つでもあればすぐ再開
+		if quiz_list.size() > current_index:
+			ready = true
+	else:
+		# 初期プレロード: 全問揃うのが理想
+		if mode == Constants.MODE_TEN and quiz_list.size() >= target_count:
+			ready = true
+		elif mode == Constants.MODE_ENDLESS and quiz_list.size() >= 1:
+			ready = true
 
 	if ready and preload_wait_sec >= min_preload_sec:
-		game_state = Constants.STATE_WAITING_START
-		load_current_quiz()
-		state_changed.emit(game_state)
-	elif not ready and preload_wait_sec >= 4.0 and quiz_list.size() > current_index:
-		# Don't overwrite target_count! Just start if we have some UNPLAYED questions.
-		game_state = Constants.STATE_WAITING_START
-		load_current_quiz()
-		state_changed.emit(game_state)
+		print("[GameState] Preload complete: %d quizzes in %.1fs (mid_game=%s)" % [quiz_list.size(), preload_wait_sec, str(is_mid_game)])
+		if is_mid_game:
+			# 中盤: PLAYINGに復帰して次の問題を表示
+			game_state = Constants.STATE_PLAYING
+			load_current_quiz()
+			state_changed.emit(game_state)
+		else:
+			game_state = Constants.STATE_WAITING_START
+			load_current_quiz()
+			state_changed.emit(game_state)
+	elif not ready and preload_wait_sec >= 2.5 and mode != Constants.MODE_TEN and quiz_list.size() > current_index:
+		# タイムアウト: エンドレス等では全問揃わなくても一部があれば開始（2.5秒で打ち切り）
+		print("[GameState] Preload timeout (%.1fs): starting with %d/%d quizzes" % [preload_wait_sec, quiz_list.size(), target_count])
+		if is_mid_game:
+			game_state = Constants.STATE_PLAYING
+			load_current_quiz()
+			state_changed.emit(game_state)
+		else:
+			game_state = Constants.STATE_WAITING_START
+			load_current_quiz()
+			state_changed.emit(game_state)
 	else:
-		message_text = "Loading quizzes..." if use_english_ui else "クイズを準備中..."
+		if is_mid_game:
+			message_text = "Loading quizzes..." if use_english_ui else "次の問題を準備中..."
+		else:
+			if mode == Constants.MODE_TEN:
+				var q_count = mini(quiz_list.size(), target_count)
+				message_text = "Generating quizzes... (%d/%d)" % [q_count, target_count] if use_english_ui else "AIクイズ生成中... (%d/%d)" % [q_count, target_count]
+			else:
+				message_text = "Loading quizzes..." if use_english_ui else "クイズを準備中..."
 		refresh_status_text()
 
 func _update_waiting_start(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: bool, jump_p2: bool) -> void:
@@ -434,6 +490,11 @@ func trigger_start() -> void:
 	if game_state == Constants.STATE_WAITING_START:
 		game_state = Constants.STATE_FLYOVER
 		flyover_timer = 0.0
+		
+		# 最初のカメラ演出(Flyover)中にランダムなエモートを再生
+		p1_emote = randi_range(1, 4)
+		p2_emote = randi_range(1, 4)
+		
 		if mode == Constants.MODE_TEN:
 			# 10問モード: 全壁を見せる
 			flyover_total_walls = target_count
@@ -584,6 +645,108 @@ func _update_game_over(dt: float) -> void:
 			message_text = "GAME OVER\n\n%s\n\n%s" % [msg, score_line]
 		else:
 			message_text = "GAME OVER\n\n%s" % msg
+
+
+# ---------- Goal Race (2P 10問モード) ----------
+
+func _start_goal_race() -> void:
+	# ゴールラインは最後の壁の先に配置
+	goal_z = tuning.wall_start_z + target_count * tuning.wall_spacing + 15.0
+	goal_winner = 0
+	game_state = Constants.STATE_GOAL_RACE
+	message_text = "GOAL へ走れ！" if not use_english_ui else "Race to the GOAL!"
+	state_changed.emit(game_state)
+
+func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: bool, jump_p2: bool, emote_p1: int = 0, emote_p2: int = 0) -> void:
+	play_time += dt
+	world_scroll_z += _active_wall_speed * dt
+
+	p1_emote = emote_p1
+	p2_emote = emote_p2
+	p1_moving_back = axis_p1.y < -0.1
+	p2_moving_back = axis_p2.y < -0.1
+
+	# Player 1 movement
+	if p1_alive:
+		player_x += axis_p1.x * tuning.player_speed * dt
+		player_z += _active_wall_speed * dt
+		player_z += axis_p1.y * tuning.player_speed * dt
+
+		var loc1 := player_z - world_scroll_z
+		var is_on_floor = (absf(player_x) <= 12.0) and (loc1 >= -4.5 and loc1 <= 400.0)
+
+		if jump_p1 and player_y <= 0.0 and is_on_floor:
+			player_vel_y = JUMP_FORCE
+		player_vel_y -= GRAVITY * dt
+		player_y += player_vel_y * dt
+		if player_y <= 0.0 and is_on_floor:
+			player_y = 0.0
+			player_vel_y = 0.0
+		if player_y < -8.0:
+			player_y = -8.0
+			player_vel_y = 0.0
+			p1_alive = false
+			game_over_timer = 0.001
+
+	# Player 2 movement
+	if p2_alive:
+		player2_x += axis_p2.x * tuning.player_speed * dt
+		player2_z += _active_wall_speed * dt
+		player2_z += axis_p2.y * tuning.player_speed * dt
+
+		var loc2 := player2_z - world_scroll_z
+		var p2_is_on_floor = (absf(player2_x) <= 12.0) and (loc2 >= -4.5 and loc2 <= 400.0)
+
+		if jump_p2 and player2_y <= 0.0 and p2_is_on_floor:
+			player2_vel_y = JUMP_FORCE
+		player2_vel_y -= GRAVITY * dt
+		player2_y += player2_vel_y * dt
+		if player2_y <= 0.0 and p2_is_on_floor:
+			player2_y = 0.0
+			player2_vel_y = 0.0
+		if player2_y < -8.0:
+			player2_y = -8.0
+			player2_vel_y = 0.0
+			p2_alive = false
+			player2_game_over_timer = 0.001
+
+	# Tick explosion timers for dead players
+	if not p1_alive and game_over_timer > 0:
+		game_over_timer += dt
+	if not p2_alive and player2_game_over_timer > 0:
+		player2_game_over_timer += dt
+
+	# ゴール判定
+	var p1_reached := p1_alive and player_z >= goal_z
+	var p2_reached := p2_alive and player2_z >= goal_z
+
+	if p1_reached or p2_reached:
+		if p1_reached and p2_reached:
+			# 同時ゴール — スコアで勝敗を決定
+			if score > player2_score:
+				goal_winner = 1
+			elif player2_score > score:
+				goal_winner = 2
+			else:
+				goal_winner = 0  # 完全同点
+		elif p1_reached:
+			goal_winner = 1
+		else:
+			goal_winner = 2
+		clear_game()
+		return
+
+	# 両方死んだ場合
+	if not p1_alive and not p2_alive:
+		# スコアで勝敗を決定
+		if score > player2_score:
+			goal_winner = 1
+		elif player2_score > score:
+			goal_winner = 2
+		else:
+			goal_winner = 0
+		clear_game()
+		return
 
 
 # ---------- Collision ----------
@@ -741,7 +904,7 @@ func advance_after_correct() -> void:
 			quiz_list = provider.get_quizzes(subject, grade, difficulty,
 				Constants.MODE_ENDLESS, 3)
 		load_current_quiz()
-	if game_state not in [Constants.STATE_PRELOADING, Constants.STATE_WAITING_START, Constants.STATE_COUNTDOWN, Constants.STATE_CLEAR, Constants.STATE_GAME_OVER]:
+	if game_state not in [Constants.STATE_PRELOADING, Constants.STATE_WAITING_START, Constants.STATE_COUNTDOWN, Constants.STATE_CLEAR, Constants.STATE_GAME_OVER, Constants.STATE_GOAL_RACE]:
 		game_state = Constants.STATE_PLAYING
 		message_text = ""
 		state_changed.emit(game_state)
@@ -773,10 +936,17 @@ func clear_game() -> void:
 	rating_target_quiz = current_quiz
 	rating_feedback = ""
 	if num_players >= 2:
-		if use_english_ui:
-			message_text = "CLEAR! Congrats\n10 questions done\nP1 Score: %d/10  P2 Score: %d/10" % [score, player2_score]
+		var winner_text: String
+		if goal_winner == 1:
+			winner_text = "🏆 P1 WIN!" if use_english_ui else "🏆 P1 の勝ち！"
+		elif goal_winner == 2:
+			winner_text = "🏆 P2 WIN!" if use_english_ui else "🏆 P2 の勝ち！"
 		else:
-			message_text = "CLEAR! おめでとう\n10問完走\nP1 正解数: %d/10  P2 正解数: %d/10" % [score, player2_score]
+			winner_text = "DRAW!" if use_english_ui else "引き分け！"
+		if use_english_ui:
+			message_text = "CLEAR! Congrats\n%s\n10 questions done\nP1 Score: %d/10  P2 Score: %d/10" % [winner_text, score, player2_score]
+		else:
+			message_text = "CLEAR! おめでとう\n%s\n10問完走\nP1 正解数: %d/10  P2 正解数: %d/10" % [winner_text, score, player2_score]
 	else:
 		if use_english_ui:
 			message_text = "CLEAR! Congrats\n10 questions done  Score: %d/10" % score
@@ -810,6 +980,7 @@ func rate_quiz_at(index: int, good: bool) -> void:
 	var entry: Dictionary = quiz_history[index]
 	var quiz: QuizItem = entry["quiz"]
 	entry["rated"] = "good" if good else "bad"
+	entry["player_rated"] = true
 	quiz_history[index] = entry
 	# Send to Firebase
 	QuizManager.firebase_ratings.send_rating(

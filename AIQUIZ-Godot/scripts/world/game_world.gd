@@ -23,9 +23,12 @@ var _active_walls: Array[Node3D] = []
 var _flyover_walls: Array[Node3D] = []
 var _flyover_active: bool = false
 var _hats_applied: bool = false
+var _goal_line_node: Node3D = null
 const MAX_VISIBLE_WALLS := 4
 const BG_COLOR := Color(0.82, 0.85, 0.90)
 const FLOOR_COLOR := Color(0.35, 0.35, 0.35)
+
+var pause_menu: CanvasLayer = null
 
 func _ready() -> void:
 	game_state = QuizManager.game_state
@@ -41,6 +44,10 @@ func _ready() -> void:
 	_setup_environment()
 	_setup_lighting()
 	_setup_magma()
+
+	# Pause menu setup
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	_build_pause_menu()
 
 const MAGMA_SHADER = """
 shader_type spatial;
@@ -237,7 +244,7 @@ func _setup_lighting() -> void:
 	directional_light.shadow_enabled = true
 
 func _process(dt: float) -> void:
-	if not game_state:
+	if not game_state or get_tree().paused:
 		return
 
 	# Gather input
@@ -248,11 +255,11 @@ func _process(dt: float) -> void:
 	var emote_p1 := 0
 	var emote_p2 := 0
 
-	if game_state.game_state == Constants.STATE_PLAYING:
-		if Input.is_key_pressed(KEY_1): emote_p1 = 1
-		elif Input.is_key_pressed(KEY_2): emote_p1 = 2
-		elif Input.is_key_pressed(KEY_3): emote_p1 = 3
-		elif Input.is_key_pressed(KEY_4): emote_p1 = 4
+	if game_state.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]:
+		# P1 エモート: キー1,2,3 → スロットからエモートIDを取得
+		if Input.is_key_pressed(KEY_1) and game_state.p1_emote_slots.size() > 0: emote_p1 = game_state.p1_emote_slots[0]
+		elif Input.is_key_pressed(KEY_2) and game_state.p1_emote_slots.size() > 1: emote_p1 = game_state.p1_emote_slots[1]
+		elif Input.is_key_pressed(KEY_3) and game_state.p1_emote_slots.size() > 2: emote_p1 = game_state.p1_emote_slots[2]
 		
 		# Player 1: W/A/S/D
 		if Input.is_key_pressed(KEY_D): axis_p1.x -= 1.0
@@ -262,10 +269,10 @@ func _process(dt: float) -> void:
 		jump_p1 = Input.is_key_pressed(KEY_SPACE)
 
 		if game_state.num_players >= 2:
-			if Input.is_key_pressed(KEY_8) or Input.is_key_pressed(KEY_KP_7): emote_p2 = 1
-			elif Input.is_key_pressed(KEY_9) or Input.is_key_pressed(KEY_KP_8): emote_p2 = 2
-			elif Input.is_key_pressed(KEY_0) or Input.is_key_pressed(KEY_KP_9): emote_p2 = 3
-			elif Input.is_key_pressed(KEY_MINUS) or Input.is_key_pressed(KEY_KP_SUBTRACT): emote_p2 = 4
+			# P2 エモート: キー8,9,0 → スロットからエモートIDを取得
+			if (Input.is_key_pressed(KEY_8) or Input.is_key_pressed(KEY_KP_7)) and game_state.p2_emote_slots.size() > 0: emote_p2 = game_state.p2_emote_slots[0]
+			elif (Input.is_key_pressed(KEY_9) or Input.is_key_pressed(KEY_KP_8)) and game_state.p2_emote_slots.size() > 1: emote_p2 = game_state.p2_emote_slots[1]
+			elif (Input.is_key_pressed(KEY_0) or Input.is_key_pressed(KEY_KP_9)) and game_state.p2_emote_slots.size() > 2: emote_p2 = game_state.p2_emote_slots[2]
 			
 			# 2P: Arrow keys for P2
 			if Input.is_key_pressed(KEY_RIGHT): axis_p2.x -= 1.0
@@ -300,23 +307,24 @@ func _process(dt: float) -> void:
 	_update_flyover()
 	_update_player()
 	_update_walls()
+	_update_goal_line()
 	_update_camera(dt)
 	_check_particles()
 
-	# Handle ESC / R key
-	if game_state.game_state == Constants.STATE_PLAYING:
-		if Input.is_key_pressed(KEY_ESCAPE) :
-			game_state.reset_to_menu()
-			get_tree().change_scene_to_file("res://ui/main_menu.tscn")
+	# Handle R key for restart (ESC is handled in _unhandled_input)
 	if game_state.game_state in [Constants.STATE_GAME_OVER, Constants.STATE_CLEAR]:
 		if Input.is_key_pressed(KEY_R) :
 			game_state.reset_to_menu()
 			get_tree().change_scene_to_file("res://ui/main_menu.tscn")
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.keycode == KEY_ESCAPE and event.is_pressed() and not event.is_echo():
+		if game_state and game_state.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]:
+			_toggle_pause()
+			
 	if event is InputEventMouseMotion:
 		if game_state and game_state.game_state == Constants.STATE_PLAYING \
-				and game_state.num_players == 1:
+				and game_state.num_players == 1 and not get_tree().paused:
 			game_state.camera_yaw -= event.relative.x * 0.002
 			game_state.camera_pitch -= event.relative.y * 0.002
 			game_state.camera_pitch = clampf(game_state.camera_pitch,
@@ -329,13 +337,27 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _update_floor() -> void:
 	if game_state.game_state == Constants.STATE_FLYOVER:
-		# フライオーバー中: 最後の壁まで床を延長
+		# フライオーバー中: 最後の壁(orゴールライン)まで床を延長
 		# 後端を通常時と同じ -4.5 に揃えて、遷移時に崖の位置がずれないようにする
 		var t := game_state.tuning
 		var last_wall_z: float = t.wall_start_z + (game_state.flyover_total_walls - 1) * t.wall_spacing
 		var floor_front: float = last_wall_z + 30.0  # 最後の壁の少し先まで
+		# 2P×10Qモード: ゴールラインまで延長
+		if game_state.num_players >= 2 and game_state.mode == Constants.MODE_TEN:
+			var goal_line_z: float = t.wall_start_z + game_state.target_count * t.wall_spacing + 15.0
+			floor_front = maxf(floor_front, goal_line_z + 20.0)
 		var floor_back: float = -4.5  # 通常時の床の後端と一致
 		var floor_length: float = floor_front - floor_back
+		var floor_center_z: float = (floor_front + floor_back) / 2.0
+		var box_mesh: BoxMesh = floor_mesh.mesh as BoxMesh
+		if box_mesh:
+			box_mesh.size = Vector3(24.0, 16.0, floor_length)
+		floor_mesh.position = Vector3(0, -9.2, floor_center_z)
+	elif game_state.game_state == Constants.STATE_GOAL_RACE:
+		# ゴールレース中: ゴールラインの先まで床を延長
+		var floor_front: float = game_state.goal_z + 20.0 - game_state.world_scroll_z
+		var floor_back: float = -4.5
+		var floor_length: float = maxf(144.0, floor_front - floor_back)
 		var floor_center_z: float = (floor_front + floor_back) / 2.0
 		var box_mesh: BoxMesh = floor_mesh.mesh as BoxMesh
 		if box_mesh:
@@ -403,10 +425,12 @@ func _update_walls() -> void:
 
 	var t := game_state.tuning
 	var needed_indices: Array[int] = []
-	for i: int in range(MAX_VISIBLE_WALLS):
-		var idx: int = game_state.current_wall_index + i
+	# Keep 1 wall behind (the one just passed through) so its wall mesh stays visible
+	var start_idx := maxi(0, game_state.current_wall_index - 1)
+	for i: int in range(MAX_VISIBLE_WALLS + 1):
+		var idx: int = start_idx + i
 		var wz: float = t.wall_start_z + idx * t.wall_spacing
-		if wz > game_state.player_z - 2.0:
+		if wz > game_state.player_z - 5.0:
 			needed_indices.append(idx)
 
 	# Remove walls no longer needed
@@ -447,6 +471,104 @@ func _update_walls() -> void:
 func _update_wall_labels(wall_node: Node3D) -> void:
 	if wall_node.has_method("set_quiz"):
 		wall_node.set_quiz(game_state.current_quiz, game_state.num_choices)
+
+func _update_goal_line() -> void:
+	# Only show goal line in 2P × 10Q mode during relevant states
+	var should_show := (
+		game_state.num_players >= 2
+		and game_state.mode == Constants.MODE_TEN
+		and game_state.game_state in [
+			Constants.STATE_GOAL_RACE,
+			Constants.STATE_FLYOVER,
+			Constants.STATE_PLAYING,
+			Constants.STATE_CLEAR,
+		]
+	)
+
+	if not should_show:
+		if _goal_line_node and is_instance_valid(_goal_line_node):
+			_goal_line_node.queue_free()
+			_goal_line_node = null
+		return
+
+	# Calculate goal Z position
+	var t := game_state.tuning
+	var g_z: float
+	if game_state.goal_z > 0.0:
+		g_z = game_state.goal_z
+	else:
+		g_z = t.wall_start_z + game_state.target_count * t.wall_spacing + 15.0
+
+	# Create goal line if not exists
+	if not _goal_line_node or not is_instance_valid(_goal_line_node):
+		_goal_line_node = Node3D.new()
+		_goal_line_node.name = "GoalLine"
+		add_child(_goal_line_node)
+
+		# --- Goal gate: two pillars + crossbar ---
+		var pillar_color := Color(1.0, 0.85, 0.1)  # Gold
+		var bar_color := Color(1.0, 0.85, 0.1)
+
+		# Left pillar
+		var left_pillar := _create_goal_box(Vector3(0.4, 5.0, 0.4), pillar_color)
+		left_pillar.position = Vector3(-7.0, 2.5, 0)
+		_goal_line_node.add_child(left_pillar)
+
+		# Right pillar
+		var right_pillar := _create_goal_box(Vector3(0.4, 5.0, 0.4), pillar_color)
+		right_pillar.position = Vector3(7.0, 2.5, 0)
+		_goal_line_node.add_child(right_pillar)
+
+		# Crossbar
+		var crossbar := _create_goal_box(Vector3(14.4, 0.4, 0.4), bar_color)
+		crossbar.position = Vector3(0, 5.0, 0)
+		_goal_line_node.add_child(crossbar)
+
+		# Ground line (checkerboard-style stripe)
+		for i: int in range(28):
+			var stripe := _create_goal_box(Vector3(0.5, 0.05, 1.0),
+				Color.WHITE if i % 2 == 0 else Color(0.15, 0.15, 0.15))
+			stripe.position = Vector3(-6.75 + i * 0.5, 0.03, 0)
+			_goal_line_node.add_child(stripe)
+
+		# "GOAL" label
+		var goal_label := Label3D.new()
+		goal_label.text = "🏁 GOAL 🏁"
+		goal_label.font_size = 72
+		goal_label.pixel_size = 0.012
+		goal_label.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+		goal_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		goal_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		goal_label.modulate = Color(1.0, 0.95, 0.3)
+		goal_label.outline_modulate = Color(0.1, 0.05, 0.0, 1.0)
+		goal_label.outline_size = 10
+		goal_label.position = Vector3(0, 3.8, -0.3)
+		goal_label.rotation.y = PI
+		var font := load("res://resources/fonts/NotoSansJP-Regular.otf")
+		if font:
+			goal_label.font = font
+		_goal_line_node.add_child(goal_label)
+
+	# Update position relative to world scroll
+	if game_state.game_state == Constants.STATE_FLYOVER:
+		_goal_line_node.position = Vector3(0, 0, g_z)
+	else:
+		_goal_line_node.position = Vector3(0, 0, g_z - game_state.world_scroll_z)
+
+func _create_goal_box(box_size: Vector3, color: Color) -> MeshInstance3D:
+	var mesh_inst := MeshInstance3D.new()
+	var box := BoxMesh.new()
+	box.size = box_size
+	mesh_inst.mesh = box
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color
+	mat.roughness = 0.4
+	mat.metallic = 0.3
+	mat.emission_enabled = true
+	mat.emission = color * 0.3
+	mat.emission_energy_multiplier = 0.5
+	mesh_inst.material_override = mat
+	return mesh_inst
 
 func _update_camera(dt: float) -> void:
 	if camera_controller.has_method("update_camera"):
@@ -494,3 +616,103 @@ func _on_correct() -> void:
 
 func _on_wrong(_msg: String) -> void:
 	pass  # Audio handled by AudioManager
+
+func _build_pause_menu() -> void:
+	pause_menu = CanvasLayer.new()
+	pause_menu.layer = 100
+	pause_menu.visible = false
+	add_child(pause_menu)
+	
+	var bg = ColorRect.new()
+	bg.color = Color(0, 0, 0, 0.75)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	pause_menu.add_child(bg)
+	
+	var vbox = VBoxContainer.new()
+	vbox.set_anchors_preset(Control.PRESET_CENTER)
+	vbox.add_theme_constant_override("separation", 24)
+	pause_menu.add_child(vbox)
+	
+	var title = Label.new()
+	title.text = "PAUSE"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 64)
+	vbox.add_child(title)
+	
+	# --- BGM Volume ---
+	var bgm_label = Label.new()
+	bgm_label.text = "BGM Volume"
+	bgm_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(bgm_label)
+	
+	var bgm_slider = HSlider.new()
+	bgm_slider.min_value = 0.0
+	bgm_slider.max_value = 1.0
+	bgm_slider.step = 0.05
+	bgm_slider.value = game_state.bgm_volume
+	bgm_slider.custom_minimum_size = Vector2(400, 40)
+	bgm_slider.value_changed.connect(func(val: float):
+		game_state.set_bgm_volume(val)
+		var bus_idx = AudioServer.get_bus_index("BGM")
+		if bus_idx >= 0:
+			AudioServer.set_bus_volume_db(bus_idx, linear_to_db(val) if val > 0 else -80.0)
+		else:
+			# Fallback if no BGM bus exists
+			pass
+	)
+	vbox.add_child(bgm_slider)
+	
+	# --- SFX Volume ---
+	var sfx_label = Label.new()
+	sfx_label.text = "SFX Volume"
+	sfx_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(sfx_label)
+	
+	var sfx_slider = HSlider.new()
+	sfx_slider.min_value = 0.0
+	sfx_slider.max_value = 1.0
+	sfx_slider.step = 0.05
+	sfx_slider.value = game_state.sfx_volume
+	sfx_slider.custom_minimum_size = Vector2(400, 40)
+	sfx_slider.value_changed.connect(func(val: float):
+		game_state.set_sfx_volume(val)
+		var bus_idx = AudioServer.get_bus_index("SFX")
+		if bus_idx >= 0:
+			AudioServer.set_bus_volume_db(bus_idx, linear_to_db(val) if val > 0 else -80.0)
+		else:
+			# Fallback for SFX if using AudioManager
+			if AudioManager.has_method("set_volume"):
+				AudioManager.set_volume(val)
+	)
+	vbox.add_child(sfx_slider)
+	
+	# --- Buttons ---
+	var btn_resume = Button.new()
+	btn_resume.text = "ゲームに戻る"
+	btn_resume.add_theme_font_size_override("font_size", 28)
+	btn_resume.custom_minimum_size = Vector2(0, 60)
+	btn_resume.pressed.connect(func(): _toggle_pause())
+	vbox.add_child(btn_resume)
+	
+	var btn_title = Button.new()
+	btn_title.text = "タイトルに戻る"
+	btn_title.add_theme_font_size_override("font_size", 28)
+	btn_title.custom_minimum_size = Vector2(0, 60)
+	btn_title.pressed.connect(func():
+		get_tree().paused = false
+		game_state.reset_to_menu()
+		get_tree().change_scene_to_file("res://ui/main_menu.tscn")
+	)
+	vbox.add_child(btn_title)
+
+func _toggle_pause() -> void:
+	if not pause_menu:
+		return
+	var new_paused = !get_tree().paused
+	get_tree().paused = new_paused
+	pause_menu.visible = new_paused
+	if new_paused:
+		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+	else:
+		if game_state.num_players == 1:
+			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)

@@ -1,10 +1,14 @@
 extends Control
 
-## 帽子選択画面 — 3Dプレビュー付き
-## SubViewport内にプレイヤーモデルと帽子を表示し、リアルタイムで切り替え
+## スキン＆エモート選択画面 — 3Dプレビュー付き
+## 帽子選択 + エモート（ダンス）プレビュー選択を統合
 
 @onready var p1_hat_label: Label = $MainContainer/SelectionContainer/P1Section/P1HatRow/P1HatLabel
 @onready var p2_hat_label: Label = $MainContainer/SelectionContainer/P2Section/P2HatRow/P2HatLabel
+@onready var p1_emote_label: Label = $MainContainer/SelectionContainer/P1Section/P1EmoteRow/P1EmoteLabel
+@onready var p2_emote_label: Label = $MainContainer/SelectionContainer/P2Section/P2EmoteRow/P2EmoteLabel
+@onready var p1_emote_desc: Label = $MainContainer/SelectionContainer/P1Section/P1EmoteDesc
+@onready var p2_emote_desc: Label = $MainContainer/SelectionContainer/P2Section/P2EmoteDesc
 @onready var back_btn: Button = $MainContainer/BackBtn
 @onready var p1_viewport: SubViewport = $MainContainer/PreviewContainer/P1PreviewPanel/P1SubViewport
 @onready var p2_viewport: SubViewport = $MainContainer/PreviewContainer/P2PreviewPanel/P2SubViewport
@@ -12,9 +16,10 @@ extends Control
 @onready var p2_viewport_tex: TextureRect = $MainContainer/PreviewContainer/P2PreviewPanel/P2ViewportTexture
 
 var game_state: QuizGameState
-
 var _p1_hat_id: int = 0
 var _p2_hat_id: int = 0
+var _p1_emote_id: int = 0
+var _p2_emote_id: int = 0
 
 # Preview scene nodes
 var _p1_preview_player: Node3D = null
@@ -24,45 +29,61 @@ var _p2_preview_hat: Node3D = null
 var _p1_hat_mount: Node3D = null
 var _p2_hat_mount: Node3D = null
 
+# Emote preview FBX rigs
+var _p1_emote_rig: Dictionary = {}
+var _p2_emote_rig: Dictionary = {}
+var _p1_scene_root: Node3D = null
+var _p2_scene_root: Node3D = null
+
 var _preview_time: float = 0.0
 
 func _ready() -> void:
 	game_state = QuizManager.game_state
 	_p1_hat_id = game_state.p1_hat
 	_p2_hat_id = game_state.p2_hat
+	_p1_emote_id = game_state.p1_emote_selected
+	_p2_emote_id = game_state.p2_emote_selected
 	
 	_setup_preview(p1_viewport, true)
 	_setup_preview(p2_viewport, false)
 	
-	# Set viewport textures from code (cannot be set in .tscn)
 	p1_viewport_tex.texture = p1_viewport.get_texture()
 	p2_viewport_tex.texture = p2_viewport.get_texture()
 	
-	_update_hat_labels()
+	_update_labels()
 	_update_preview_hats()
+	
+	# エモート選択UIを非表示化（帽子選択のみにする）
+	p1_emote_label.get_parent().hide()
+	p2_emote_label.get_parent().hide()
+	p1_emote_desc.hide()
+	p2_emote_desc.hide()
+	
 	_style_all_buttons()
 
 func _process(dt: float) -> void:
 	_preview_time += dt
-	# Slowly rotate preview models
-	if _p1_preview_player:
+	# Slowly rotate when no emote is playing
+	if _p1_emote_id == EmoteData.EMOTE_NONE and _p1_preview_player:
 		_p1_preview_player.rotation.y = sin(_preview_time * 0.8) * 0.4
-	if _p2_preview_player:
+	if _p2_emote_id == EmoteData.EMOTE_NONE and _p2_preview_player:
 		_p2_preview_player.rotation.y = sin(_preview_time * 0.8 + PI) * 0.4
 
 func _setup_preview(viewport: SubViewport, is_p1: bool) -> void:
 	viewport.transparent_bg = false
-	viewport.size = Vector2i(320, 400)
+	viewport.size = Vector2i(320, 360)
 	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	
-	# World3D
 	var world := World3D.new()
 	viewport.world_3d = world
 	
-	# Root node for the preview scene
 	var scene_root := Node3D.new()
 	scene_root.name = "PreviewRoot"
 	viewport.add_child(scene_root)
+	if is_p1:
+		_p1_scene_root = scene_root
+	else:
+		_p2_scene_root = scene_root
 	
 	# Environment
 	var env_node := WorldEnvironment.new()
@@ -76,10 +97,10 @@ func _setup_preview(viewport: SubViewport, is_p1: bool) -> void:
 	env_node.environment = env
 	scene_root.add_child(env_node)
 	
-	# Camera — 帽子が中心に来るように上半身にフォーカス
+	# Camera — full body view
 	var cam := Camera3D.new()
-	cam.position = Vector3(0, 1.0, 2.4)
-	cam.rotation.x = -0.08
+	cam.position = Vector3(0, 0.4, 3.2)
+	cam.rotation.x = -0.05
 	cam.fov = 35.0
 	scene_root.add_child(cam)
 	
@@ -97,13 +118,13 @@ func _setup_preview(viewport: SubViewport, is_p1: bool) -> void:
 	fill_light.light_energy = 0.6
 	scene_root.add_child(fill_light)
 	
-	# Floor hint (subtle disc)
+	# Floor disc
 	var floor_mesh := MeshInstance3D.new()
 	var disc := CylinderMesh.new()
-	disc.top_radius = 0.8
-	disc.bottom_radius = 0.8
+	disc.top_radius = 1.2
+	disc.bottom_radius = 1.2
 	disc.height = 0.01
-	disc.radial_segments = 24
+	disc.radial_segments = 32
 	floor_mesh.mesh = disc
 	var floor_mat := StandardMaterial3D.new()
 	floor_mat.albedo_color = Color(0.15, 0.16, 0.20)
@@ -112,7 +133,7 @@ func _setup_preview(viewport: SubViewport, is_p1: bool) -> void:
 	floor_mesh.position = Vector3(0, -1.2, 0)
 	scene_root.add_child(floor_mesh)
 	
-	# Build a player model for the preview
+	# Player model
 	var player_root := Node3D.new()
 	player_root.name = "PreviewPlayer"
 	scene_root.add_child(player_root)
@@ -121,7 +142,6 @@ func _setup_preview(viewport: SubViewport, is_p1: bool) -> void:
 	var head_col: Color = PlayerController.P1_HEAD if is_p1 else PlayerController.P2_HEAD
 	var limb_col: Color = PlayerController.P1_LIMB if is_p1 else PlayerController.P2_LIMB
 	
-	# Simplified standing player for preview
 	var pelvis := Node3D.new()
 	pelvis.position = Vector3(0, -0.3, 0)
 	player_root.add_child(pelvis)
@@ -150,7 +170,6 @@ func _setup_preview(viewport: SubViewport, is_p1: bool) -> void:
 	var l_arm := _preview_box(Vector3(0.12, 0.40, 0.14), limb_col)
 	l_arm.position = Vector3(-0.52, 0.45, 0)
 	pelvis.add_child(l_arm)
-	
 	var r_arm := _preview_box(Vector3(0.12, 0.40, 0.14), limb_col)
 	r_arm.position = Vector3(0.52, 0.45, 0)
 	pelvis.add_child(r_arm)
@@ -159,7 +178,6 @@ func _setup_preview(viewport: SubViewport, is_p1: bool) -> void:
 	var l_leg := _preview_box(Vector3(0.18, 0.45, 0.18), limb_col)
 	l_leg.position = Vector3(-0.22, -0.225, 0)
 	pelvis.add_child(l_leg)
-	
 	var r_leg := _preview_box(Vector3(0.18, 0.45, 0.18), limb_col)
 	r_leg.position = Vector3(0.22, -0.225, 0)
 	pelvis.add_child(r_leg)
@@ -183,12 +201,15 @@ func _preview_box(size: Vector3, color: Color) -> MeshInstance3D:
 	mi.material_override = mat
 	return mi
 
-func _update_hat_labels() -> void:
+func _update_labels() -> void:
 	p1_hat_label.text = HatData.get_hat_name(_p1_hat_id)
 	p2_hat_label.text = HatData.get_hat_name(_p2_hat_id)
+	p1_emote_label.text = EmoteData.get_emote_name(_p1_emote_id)
+	p2_emote_label.text = EmoteData.get_emote_name(_p2_emote_id)
+	p1_emote_desc.text = EmoteData.get_emote_desc(_p1_emote_id)
+	p2_emote_desc.text = EmoteData.get_emote_desc(_p2_emote_id)
 
 func _update_preview_hats() -> void:
-	# P1 hat
 	if _p1_preview_hat and is_instance_valid(_p1_preview_hat):
 		_p1_preview_hat.queue_free()
 		_p1_preview_hat = null
@@ -197,7 +218,6 @@ func _update_preview_hats() -> void:
 		if _p1_preview_hat:
 			_p1_hat_mount.add_child(_p1_preview_hat)
 	
-	# P2 hat
 	if _p2_preview_hat and is_instance_valid(_p2_preview_hat):
 		_p2_preview_hat.queue_free()
 		_p2_preview_hat = null
@@ -206,38 +226,134 @@ func _update_preview_hats() -> void:
 		if _p2_preview_hat:
 			_p2_hat_mount.add_child(_p2_preview_hat)
 
-# --- Button handlers ---
+func _update_emote_preview(is_p1: bool) -> void:
+	var emote_id: int = _p1_emote_id if is_p1 else _p2_emote_id
+	var scene_root: Node3D = _p1_scene_root if is_p1 else _p2_scene_root
+	var player_root: Node3D = _p1_preview_player if is_p1 else _p2_preview_player
+	var old_rig: Dictionary = _p1_emote_rig if is_p1 else _p2_emote_rig
+	
+	# Cleanup old emote rig
+	if old_rig.has("node") and is_instance_valid(old_rig["node"]):
+		old_rig["node"].queue_free()
+	if is_p1:
+		_p1_emote_rig = {}
+	else:
+		_p2_emote_rig = {}
+	
+	if emote_id == EmoteData.EMOTE_NONE or not scene_root:
+		if player_root:
+			player_root.rotation.y = 0.0
+		return
+	
+	# Load emote FBX for preview
+	var fbx_path: String = EmoteData.get_emote_fbx(emote_id)
+	if fbx_path.is_empty() or not ResourceLoader.exists(fbx_path):
+		return
+	
+	var scene = load(fbx_path) as PackedScene
+	if not scene:
+		return
+	
+	var rig_name := "EmotePreview_P%d" % (1 if is_p1 else 2)
+	var node = scene.instantiate()
+	node.name = rig_name
+	# Hide the FBX meshes — we only use bones for reference
+	scene_root.add_child(node)
+	
+	for child in node.find_children("*", "MeshInstance3D", true, false):
+		child.hide()
+	
+	# Find AnimationPlayer and play
+	var ap: AnimationPlayer = null
+	for child in node.find_children("*", "AnimationPlayer", true, false):
+		ap = child as AnimationPlayer
+		break
+	
+	if ap:
+		# Find best animation (prefer mixamo_com)
+		var anim_name := ""
+		var max_tracks := -1
+		for lib_name in ap.get_animation_library_list():
+			var lib = ap.get_animation_library(lib_name)
+			for a_name in lib.get_animation_list():
+				var full = lib_name + "/" + a_name if lib_name != "" else a_name
+				var anim = lib.get_animation(a_name)
+				var tc = anim.get_track_count()
+				if "mixamo_com" in a_name:
+					anim_name = full
+					max_tracks = 9999
+				elif tc > max_tracks:
+					max_tracks = tc
+					if anim_name == "" or not ("mixamo_com" in anim_name):
+						anim_name = full
+		if anim_name != "":
+			ap.play(anim_name)
+	
+	var rig_data := {"node": node, "anim_player": ap}
+	if is_p1:
+		_p1_emote_rig = rig_data
+		# Face the character toward camera
+		if _p1_preview_player:
+			_p1_preview_player.rotation.y = 0.0
+	else:
+		_p2_emote_rig = rig_data
+		if _p2_preview_player:
+			_p2_preview_player.rotation.y = 0.0
 
+# --- Hat button handlers ---
 func _on_p1_hat_left_pressed() -> void:
 	_p1_hat_id = (_p1_hat_id - 1 + HatData.HAT_COUNT) % HatData.HAT_COUNT
 	game_state.p1_hat = _p1_hat_id
-	_update_hat_labels()
+	_update_labels()
 	_update_preview_hats()
 
 func _on_p1_hat_right_pressed() -> void:
 	_p1_hat_id = (_p1_hat_id + 1) % HatData.HAT_COUNT
 	game_state.p1_hat = _p1_hat_id
-	_update_hat_labels()
+	_update_labels()
 	_update_preview_hats()
 
 func _on_p2_hat_left_pressed() -> void:
 	_p2_hat_id = (_p2_hat_id - 1 + HatData.HAT_COUNT) % HatData.HAT_COUNT
 	game_state.p2_hat = _p2_hat_id
-	_update_hat_labels()
+	_update_labels()
 	_update_preview_hats()
 
 func _on_p2_hat_right_pressed() -> void:
 	_p2_hat_id = (_p2_hat_id + 1) % HatData.HAT_COUNT
 	game_state.p2_hat = _p2_hat_id
-	_update_hat_labels()
+	_update_labels()
 	_update_preview_hats()
+
+# --- Emote button handlers ---
+func _on_p1_emote_left_pressed() -> void:
+	_p1_emote_id = (_p1_emote_id - 1 + EmoteData.EMOTE_COUNT) % EmoteData.EMOTE_COUNT
+	game_state.p1_emote_selected = _p1_emote_id
+	_update_labels()
+	_update_emote_preview(true)
+
+func _on_p1_emote_right_pressed() -> void:
+	_p1_emote_id = (_p1_emote_id + 1) % EmoteData.EMOTE_COUNT
+	game_state.p1_emote_selected = _p1_emote_id
+	_update_labels()
+	_update_emote_preview(true)
+
+func _on_p2_emote_left_pressed() -> void:
+	_p2_emote_id = (_p2_emote_id - 1 + EmoteData.EMOTE_COUNT) % EmoteData.EMOTE_COUNT
+	game_state.p2_emote_selected = _p2_emote_id
+	_update_labels()
+	_update_emote_preview(false)
+
+func _on_p2_emote_right_pressed() -> void:
+	_p2_emote_id = (_p2_emote_id + 1) % EmoteData.EMOTE_COUNT
+	game_state.p2_emote_selected = _p2_emote_id
+	_update_labels()
+	_update_emote_preview(false)
 
 func _on_back_pressed() -> void:
 	get_tree().change_scene_to_file("res://ui/main_menu.tscn")
 
-
 # --- Styling ---
-
 func _style_all_buttons() -> void:
 	var normal_style := StyleBoxFlat.new()
 	normal_style.bg_color = Color(0.14, 0.16, 0.22)

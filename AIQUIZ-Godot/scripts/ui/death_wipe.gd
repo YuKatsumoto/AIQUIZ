@@ -71,7 +71,7 @@ func _process(dt: float) -> void:
 		return
 
 	var playing_states := [Constants.STATE_PLAYING, Constants.STATE_CORRECT,
-		Constants.STATE_GAME_OVER]
+		Constants.STATE_GAME_OVER, Constants.STATE_GOAL_RACE]
 	if game_state.game_state not in playing_states:
 		_hide_wipe()
 		return
@@ -116,6 +116,13 @@ func _start_wipe(player: int) -> void:
 		if root_vp and root_vp.world_3d:
 			sub_viewport.world_3d = root_vp.world_3d
 			_world_set = true
+			
+			# Find WorldEnvironment to share the sky and lighting
+			var current_scene = get_tree().current_scene
+			if current_scene:
+				var world_env = current_scene.find_child("WorldEnvironment", true, false)
+				if world_env and world_env is WorldEnvironment:
+					wipe_camera.environment = world_env.environment
 
 	# Label styling per player
 	if player == 1:
@@ -196,13 +203,15 @@ func _update_wipe_camera() -> void:
 		# Phase 2: Dramatic orbit around the explosion debris
 		var exp_t := death_timer - 2.0
 		var orbit_angle := exp_t * 0.6
-		var radius := 3.5
+		var radius := 4.5
+		# Pan down towards the magma surface so limbs are visible sinking
+		var target_y := lerpf(py, -9.5, clampf(exp_t / 1.5, 0.0, 1.0))
 		cam_eye = Vector3(
 			px + sin(orbit_angle) * radius,
-			-4.0 + sin(exp_t * 1.5) * 0.5,  # Steeper angle to look over fireball
+			target_y + 4.5 + sin(exp_t * 1.5) * 0.5,  # Steeper angle to look over fireball
 			local_z - cos(orbit_angle) * radius
 		)
-		cam_target = Vector3(px, py, local_z) # Look directly at where body was
+		cam_target = Vector3(px, target_y, local_z) # Look at sinking debris
 
 	wipe_camera.global_position = cam_eye
 	wipe_camera.look_at(cam_target, Vector3.UP)

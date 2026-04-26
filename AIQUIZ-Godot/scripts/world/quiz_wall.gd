@@ -3,7 +3,7 @@ extends Node3D
 ## クイズの壁 + ドア (2個 or 4個)
 ## Python版 renderer.py の _draw_wall_doors + _draw_labels に相当
 
-var wall_mesh: MeshInstance3D
+var wall_parts: Array[MeshInstance3D] = []
 var doors: Array[MeshInstance3D] = []
 var door_labels: Array[Label3D] = []
 
@@ -21,23 +21,85 @@ const DOOR_COLORS_4 := [
 const WALL_COLOR := Color(0.50, 0.50, 0.50)
 
 # Door positions from tuning
-const LEFT_DOOR_X: float = 2.8
-const RIGHT_DOOR_X: float = -2.8
+const LEFT_DOOR_X: float = 3.5
+const RIGHT_DOOR_X: float = -3.5
 const DOOR4_XS: Array[float] = [-5.8, -1.95, 1.95, 5.8]
 
 var _current_num_choices: int = 2
 
 func _ready() -> void:
-	_build_wall()
 	_build_doors(2)
 
-func _build_wall() -> void:
-	wall_mesh = _create_box(Vector3(14.0, 3.6, 0.55), WALL_COLOR)
-	wall_mesh.position = Vector3(0, 0.45, 0)
-	add_child(wall_mesh)
+func _build_wall_around_doors(num_choices: int) -> void:
+	# Clear existing wall parts
+	for part in wall_parts:
+		if is_instance_valid(part):
+			part.queue_free()
+	wall_parts.clear()
+
+	# Wall dimensions (matching original single box)
+	var total_width := 28.0
+	var min_x := -14.0
+	var max_x := 14.0
+	var door_top_y := 2.38
+	var door_bottom_y := -2.02
+	var wall_top_y := 4.05
+	var wall_bottom_y := -3.15
+
+	# 1. Top beam
+	var top_height := wall_top_y - door_top_y
+	var top_beam := _create_box(Vector3(total_width / 2.0, top_height / 2.0, 0.55), WALL_COLOR)
+	top_beam.position = Vector3(0, door_top_y + top_height / 2.0, 0)
+	add_child(top_beam)
+	wall_parts.append(top_beam)
+
+	# 2. Bottom beam
+	var bottom_height := door_bottom_y - wall_bottom_y
+	var bottom_beam := _create_box(Vector3(total_width / 2.0, bottom_height / 2.0, 0.55), WALL_COLOR)
+	bottom_beam.position = Vector3(0, wall_bottom_y + bottom_height / 2.0, 0)
+	add_child(bottom_beam)
+	wall_parts.append(bottom_beam)
+
+	# 3. Pillars
+	var pillar_height := door_top_y - door_bottom_y
+	var pillar_y := door_bottom_y + pillar_height / 2.0
+
+	var door_xs: Array[float] = []
+	var door_half_widths: Array[float] = []
+	if num_choices == 4:
+		door_xs = DOOR4_XS
+		door_half_widths = [1.45, 1.45, 1.45, 1.45]
+	else:
+		door_xs = [RIGHT_DOOR_X, LEFT_DOOR_X] # Sorted by X (-3.5, 3.5)
+		door_half_widths = [1.8, 1.8]
+
+	var current_x := min_x
+	for i in range(door_xs.size()):
+		var dx := door_xs[i]
+		var dhw := door_half_widths[i]
+		var door_left := dx - dhw
+		var door_right := dx + dhw
+		
+		var pillar_width := door_left - current_x
+		if pillar_width > 0:
+			var pillar := _create_box(Vector3(pillar_width / 2.0, pillar_height / 2.0, 0.55), WALL_COLOR)
+			pillar.position = Vector3(current_x + pillar_width / 2.0, pillar_y, 0)
+			add_child(pillar)
+			wall_parts.append(pillar)
+		
+		current_x = door_right
+	
+	var final_width := max_x - current_x
+	if final_width > 0:
+		var pillar := _create_box(Vector3(final_width / 2.0, pillar_height / 2.0, 0.55), WALL_COLOR)
+		pillar.position = Vector3(current_x + final_width / 2.0, pillar_y, 0)
+		add_child(pillar)
+		wall_parts.append(pillar)
 
 func _build_doors(num_choices: int) -> void:
 	_current_num_choices = num_choices
+	_build_wall_around_doors(num_choices)
+	
 	# Clear existing doors
 	for d: MeshInstance3D in doors:
 		d.queue_free()

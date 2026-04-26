@@ -1,8 +1,8 @@
-extends Node3D
+﻿extends Node3D
 class_name PlayerController
 
-## ブロック人間プレイヤー (関節付き階層モデル)
-## Python版 renderer.py の _draw_player_alive / _draw_player_exploding に相当
+## 繝悶Ο繝・け莠ｺ髢薙・繝ｬ繧､繝､繝ｼ (髢｢遽莉倥″髫主ｱ､繝｢繝・Ν)
+## Python迚・renderer.py 縺ｮ _draw_player_alive / _draw_player_exploding 縺ｫ逶ｸ蠖・
 
 # Player colors
 const P1_BODY := Color(0.95, 0.55, 0.20)
@@ -42,7 +42,7 @@ var _run_anim_name1: String = ""
 var _bone_indices: Dictionary = {}
 var _rig_debug_counter: int = 0
 
-# 各アニメーション用の独立したFBXシーン(P1)
+# 蜷・い繝九Γ繝ｼ繧ｷ繝ｧ繝ｳ逕ｨ縺ｮ迢ｬ遶九＠縺檳BX繧ｷ繝ｼ繝ｳ(P1)
 var _taunt_scene: Node3D = null
 var _taunt_skeleton: Skeleton3D = null
 var _taunt_ap: AnimationPlayer = null
@@ -83,7 +83,7 @@ var _flair_ap: AnimationPlayer = null
 var _flair_bone_indices: Dictionary = {}
 var _flair_anim_name1: String = ""
 
-# 現在アクティブなスケルトンと骨インデックス(P1)
+# 迴ｾ蝨ｨ繧｢繧ｯ繝・ぅ繝悶↑繧ｹ繧ｱ繝ｫ繝医Φ縺ｨ鬪ｨ繧､繝ｳ繝・ャ繧ｯ繧ｹ(P1)
 var _active_skeleton: Skeleton3D = null
 var _active_bone_indices: Dictionary = {}
 var _p1_mirror_x: bool = false
@@ -135,12 +135,16 @@ var _p2_active_skeleton: Skeleton3D = null
 var _p2_active_bone_indices: Dictionary = {}
 var _p2_mirror_x: bool = false
 
+# 蜍慕噪繧ｨ繝｢繝ｼ繝医Μ繧ｰ繧ｭ繝｣繝・す繝･: {emote_id: {node, skeleton, ap, bone_indices, anim_name}}
+var _p1_emote_cache: Dictionary = {}
+var _p2_emote_cache: Dictionary = {}
+
 func _ready() -> void:
 	p1_parts = _build_player_skeleton(true, self)
 	_load_mixamo_rig()
 
 func _load_mixamo_rig() -> void:
-	# P1 煽りダンスFBXを独立シーンとして読み込み
+	# P1 辣ｽ繧翫ム繝ｳ繧ｹFBX繧堤峡遶九す繝ｼ繝ｳ縺ｨ縺励※隱ｭ縺ｿ霎ｼ縺ｿ
 	var taunt_data = _load_fbx_scene("res://assets/animations/Y Bot@Step Hip Hop Dance.fbx", "TauntRig")
 	if taunt_data:
 		_taunt_scene = taunt_data["node"]
@@ -150,7 +154,7 @@ func _load_mixamo_rig() -> void:
 		_taunt_anim_name1 = taunt_data["anim_name"]
 		print("[RIG] P1 Taunt scene ready: ", _taunt_anim_name1)
 	
-	# P1 走りFBXを独立シーンとして読み込み
+	# P1 襍ｰ繧皆BX繧堤峡遶九す繝ｼ繝ｳ縺ｨ縺励※隱ｭ縺ｿ霎ｼ縺ｿ
 	var run_data = _load_fbx_scene("res://assets/animations/Run.fbx", "RunRig")
 	if run_data:
 		_run_scene = run_data["node"]
@@ -210,7 +214,7 @@ func _load_mixamo_rig() -> void:
 		_flair_anim_name1 = flair_data["anim_name"]
 		print("[RIG] P1 Flair scene ready: ", _flair_anim_name1)
 		
-	# P2 煽りダンスFBX
+	# P2 辣ｽ繧翫ム繝ｳ繧ｹFBX
 	var p2_taunt_data = _load_fbx_scene("res://assets/animations/Y Bot@Step Hip Hop Dance.fbx", "P2TauntRig")
 	if p2_taunt_data:
 		_p2_taunt_scene = p2_taunt_data["node"]
@@ -220,7 +224,7 @@ func _load_mixamo_rig() -> void:
 		_p2_taunt_anim_name1 = p2_taunt_data["anim_name"]
 		print("[RIG] P2 Taunt scene ready: ", _p2_taunt_anim_name1)
 	
-	# P2 走りFBX
+	# P2 襍ｰ繧皆BX
 	var p2_run_data = _load_fbx_scene("res://assets/animations/Run.fbx", "P2RunRig")
 	if p2_run_data:
 		_p2_run_scene = p2_run_data["node"]
@@ -275,7 +279,7 @@ func _load_mixamo_rig() -> void:
 		_p2_flair_bone_indices = p2_flair_data["bone_indices"]
 		_p2_flair_anim_name1 = p2_flair_data["anim_name"]
 	
-	# どちらかが読み込めたらリグモードON
+	# 縺ｩ縺｡繧峨°縺瑚ｪｭ縺ｿ霎ｼ繧√◆繧峨Μ繧ｰ繝｢繝ｼ繝碓N
 	if _taunt_skeleton or _run_skeleton:
 		_p1_rigged = true
 	if _p2_taunt_skeleton or _p2_run_skeleton:
@@ -287,7 +291,7 @@ func _load_mixamo_rig() -> void:
 		print("[RIG] No FBX loaded - procedural mode")
 
 func _load_fbx_scene(path: String, node_name: String) -> Variant:
-	"""FBXファイルを独立シーンとして読み込み、スケルトン・AP・骨インデックスを返す"""
+	"""FBX繝輔ぃ繧､繝ｫ繧堤峡遶九す繝ｼ繝ｳ縺ｨ縺励※隱ｭ縺ｿ霎ｼ縺ｿ縲√せ繧ｱ繝ｫ繝医Φ繝ｻAP繝ｻ鬪ｨ繧､繝ｳ繝・ャ繧ｯ繧ｹ繧定ｿ斐☆"""
 	if not ResourceLoader.exists(path):
 		print("[RIG] File not found: ", path)
 		return null
@@ -300,7 +304,7 @@ func _load_fbx_scene(path: String, node_name: String) -> Variant:
 	node.name = node_name
 	add_child(node)
 	
-	# Skeleton3D を探す
+	# Skeleton3D 繧呈爾縺・
 	var skeleton: Skeleton3D = null
 	for child in node.find_children("*", "Skeleton3D", true, false):
 		skeleton = child as Skeleton3D
@@ -312,11 +316,11 @@ func _load_fbx_scene(path: String, node_name: String) -> Variant:
 	
 	print("[RIG] [", node_name, "] Skeleton found, bones: ", skeleton.get_bone_count())
 	
-	# メッシュを非表示
+	# 繝｡繝・す繝･繧帝撼陦ｨ遉ｺ
 	for child in node.find_children("*", "MeshInstance3D", true, false):
 		child.hide()
 	
-	# AnimationPlayer を探す
+	# AnimationPlayer 繧呈爾縺・
 	var ap: AnimationPlayer = null
 	for child in node.find_children("*", "AnimationPlayer", true, false):
 		ap = child as AnimationPlayer
@@ -326,26 +330,26 @@ func _load_fbx_scene(path: String, node_name: String) -> Variant:
 		node.queue_free()
 		return null
 	
-	# 最もトラック数の多いアニメーション、または "mixamo_com" を正解とする
+	# 譛繧ゅヨ繝ｩ繝・け謨ｰ縺ｮ螟壹＞繧｢繝九Γ繝ｼ繧ｷ繝ｧ繝ｳ縲√∪縺溘・ "mixamo_com" 繧呈ｭ｣隗｣縺ｨ縺吶ｋ
 	var anim_name := ""
 	var max_tracks := -1
 	for lib_name in ap.get_animation_library_list():
-		var lib = ap.get_animation_library(lib_name)
+		var lib: AnimationLibrary = ap.get_animation_library(lib_name)
 		for a_name in lib.get_animation_list():
-			var full = lib_name + "/" + a_name if lib_name != "" else a_name
-			var anim = lib.get_animation(a_name)
+			var full: String = str(lib_name) + "/" + str(a_name) if str(lib_name) != "" else str(a_name)
+			var anim: Animation = lib.get_animation(a_name)
 			var tracks_count = anim.get_track_count()
 			print("[RIG]   [", node_name, "] Anim: ", full, " (tracks: ", tracks_count, ", len: ", anim.length, ")")
 			
 			if "mixamo_com" in a_name:
 				anim_name = full
-				max_tracks = 9999 # 強制的に最優先
+				max_tracks = 9999 # 蠑ｷ蛻ｶ逧・↓譛蜆ｪ蜈・
 			elif tracks_count > max_tracks:
 				max_tracks = tracks_count
 				if anim_name == "" or not ("mixamo_com" in anim_name):
 					anim_name = full
 	
-	# 骨インデックスをキャッシュ
+	# 鬪ｨ繧､繝ｳ繝・ャ繧ｯ繧ｹ繧偵く繝｣繝・す繝･
 	var bone_indices := {}
 	var candidates: Dictionary = {
 		"hips": ["Hips", "mixamorig:Hips"],
@@ -367,37 +371,37 @@ func _load_fbx_scene(path: String, node_name: String) -> Variant:
 		"r_foot": ["RightFoot", "mixamorig:RightFoot"],
 		"r_toe": ["RightToeBase", "mixamorig:RightToeBase"],
 		
-		# Fingers (Left)
-		"l_thumb_prox": ["LeftThumbMetacarpal", "mixamorig:LeftHandThumb1", "mixamorig_LeftHandThumb1", "LeftHandThumb1"],
-		"l_thumb_dist": ["LeftThumbProximal", "mixamorig:LeftHandThumb2", "mixamorig_LeftHandThumb2", "LeftHandThumb2"],
-		"l_index_prox": ["LeftIndexProximal", "mixamorig:LeftHandIndex1", "mixamorig_LeftHandIndex1", "LeftHandIndex1"],
-		"l_index_mid": ["LeftIndexIntermediate", "mixamorig:LeftHandIndex2", "mixamorig_LeftHandIndex2", "LeftHandIndex2"],
-		"l_index_dist": ["LeftIndexDistal", "mixamorig:LeftHandIndex3", "mixamorig_LeftHandIndex3", "LeftHandIndex3"],
-		"l_middle_prox": ["LeftMiddleProximal", "mixamorig:LeftHandMiddle1", "mixamorig_LeftHandMiddle1", "LeftHandMiddle1"],
-		"l_middle_mid": ["LeftMiddleIntermediate", "mixamorig:LeftHandMiddle2", "mixamorig_LeftHandMiddle2", "LeftHandMiddle2"],
-		"l_middle_dist": ["LeftMiddleDistal", "mixamorig:LeftHandMiddle3", "mixamorig_LeftHandMiddle3", "LeftHandMiddle3"],
-		"l_ring_prox": ["LeftRingProximal", "mixamorig:LeftHandRing1", "mixamorig_LeftHandRing1", "LeftHandRing1"],
-		"l_ring_mid": ["LeftRingIntermediate", "mixamorig:LeftHandRing2", "mixamorig_LeftHandRing2", "LeftHandRing2"],
-		"l_ring_dist": ["LeftRingDistal", "mixamorig:LeftHandRing3", "mixamorig_LeftHandRing3", "LeftHandRing3"],
-		"l_pinky_prox": ["LeftLittleProximal", "mixamorig:LeftHandPinky1", "mixamorig_LeftHandPinky1", "LeftHandPinky1"],
-		"l_pinky_mid": ["LeftLittleIntermediate", "mixamorig:LeftHandPinky2", "mixamorig_LeftHandPinky2", "LeftHandPinky2"],
-		"l_pinky_dist": ["LeftLittleDistal", "mixamorig:LeftHandPinky3", "mixamorig_LeftHandPinky3", "LeftHandPinky3"],
+		# Left hand fingers
+		"l_thumb_prox": ["LeftHandThumb1", "mixamorig:LeftHandThumb1"],
+		"l_thumb_dist": ["LeftHandThumb2", "mixamorig:LeftHandThumb2"],
+		"l_index_prox": ["LeftHandIndex1", "mixamorig:LeftHandIndex1"],
+		"l_index_mid": ["LeftHandIndex2", "mixamorig:LeftHandIndex2"],
+		"l_index_dist": ["LeftHandIndex3", "mixamorig:LeftHandIndex3"],
+		"l_middle_prox": ["LeftHandMiddle1", "mixamorig:LeftHandMiddle1"],
+		"l_middle_mid": ["LeftHandMiddle2", "mixamorig:LeftHandMiddle2"],
+		"l_middle_dist": ["LeftHandMiddle3", "mixamorig:LeftHandMiddle3"],
+		"l_ring_prox": ["LeftHandRing1", "mixamorig:LeftHandRing1"],
+		"l_ring_mid": ["LeftHandRing2", "mixamorig:LeftHandRing2"],
+		"l_ring_dist": ["LeftHandRing3", "mixamorig:LeftHandRing3"],
+		"l_pinky_prox": ["LeftHandPinky1", "mixamorig:LeftHandPinky1"],
+		"l_pinky_mid": ["LeftHandPinky2", "mixamorig:LeftHandPinky2"],
+		"l_pinky_dist": ["LeftHandPinky3", "mixamorig:LeftHandPinky3"],
 		
-		# Fingers (Right)
-		"r_thumb_prox": ["RightThumbMetacarpal", "mixamorig:RightHandThumb1", "mixamorig_RightHandThumb1", "RightHandThumb1"],
-		"r_thumb_dist": ["RightThumbProximal", "mixamorig:RightHandThumb2", "mixamorig_RightHandThumb2", "RightHandThumb2"],
-		"r_index_prox": ["RightIndexProximal", "mixamorig:RightHandIndex1", "mixamorig_RightHandIndex1", "RightHandIndex1"],
-		"r_index_mid": ["RightIndexIntermediate", "mixamorig:RightHandIndex2", "mixamorig_RightHandIndex2", "RightHandIndex2"],
-		"r_index_dist": ["RightIndexDistal", "mixamorig:RightHandIndex3", "mixamorig_RightHandIndex3", "RightHandIndex3"],
-		"r_middle_prox": ["RightMiddleProximal", "mixamorig:RightHandMiddle1", "mixamorig_RightHandMiddle1", "RightHandMiddle1"],
-		"r_middle_mid": ["RightMiddleIntermediate", "mixamorig:RightHandMiddle2", "mixamorig_RightHandMiddle2", "RightHandMiddle2"],
-		"r_middle_dist": ["RightMiddleDistal", "mixamorig:RightHandMiddle3", "mixamorig_RightHandMiddle3", "RightHandMiddle3"],
-		"r_ring_prox": ["RightRingProximal", "mixamorig:RightHandRing1", "mixamorig_RightHandRing1", "RightHandRing1"],
-		"r_ring_mid": ["RightRingIntermediate", "mixamorig:RightHandRing2", "mixamorig_RightHandRing2", "RightHandRing2"],
-		"r_ring_dist": ["RightRingDistal", "mixamorig:RightHandRing3", "mixamorig_RightHandRing3", "RightHandRing3"],
-		"r_pinky_prox": ["RightLittleProximal", "mixamorig:RightHandPinky1", "mixamorig_RightHandPinky1", "RightHandPinky1"],
-		"r_pinky_mid": ["RightLittleIntermediate", "mixamorig:RightHandPinky2", "mixamorig_RightHandPinky2", "RightHandPinky2"],
-		"r_pinky_dist": ["RightLittleDistal", "mixamorig:RightHandPinky3", "mixamorig_RightHandPinky3", "RightHandPinky3"]
+		# Right hand fingers
+		"r_thumb_prox": ["RightHandThumb1", "mixamorig:RightHandThumb1"],
+		"r_thumb_dist": ["RightHandThumb2", "mixamorig:RightHandThumb2"],
+		"r_index_prox": ["RightHandIndex1", "mixamorig:RightHandIndex1"],
+		"r_index_mid": ["RightHandIndex2", "mixamorig:RightHandIndex2"],
+		"r_index_dist": ["RightHandIndex3", "mixamorig:RightHandIndex3"],
+		"r_middle_prox": ["RightHandMiddle1", "mixamorig:RightHandMiddle1"],
+		"r_middle_mid": ["RightHandMiddle2", "mixamorig:RightHandMiddle2"],
+		"r_middle_dist": ["RightHandMiddle3", "mixamorig:RightHandMiddle3"],
+		"r_ring_prox": ["RightHandRing1", "mixamorig:RightHandRing1"],
+		"r_ring_mid": ["RightHandRing2", "mixamorig:RightHandRing2"],
+		"r_ring_dist": ["RightHandRing3", "mixamorig:RightHandRing3"],
+		"r_pinky_prox": ["RightHandPinky1", "mixamorig:RightHandPinky1"],
+		"r_pinky_mid": ["RightHandPinky2", "mixamorig:RightHandPinky2"],
+		"r_pinky_dist": ["RightHandPinky3", "mixamorig:RightHandPinky3"]
 	}
 	for key in candidates.keys():
 		for cand in candidates[key]:
@@ -418,7 +422,73 @@ func _load_fbx_scene(path: String, node_name: String) -> Variant:
 func _import_anim_fbx(path: String, lib_name: String) -> String:
 	return ""
 
-# 階層構造の構築
+## 蜍慕噪繧ｨ繝｢繝ｼ繝医Μ繧ｰ蜿門ｾ・ 譌｢蟄倥・繝上・繝峨さ繝ｼ繝迂D繧貞━蜈医＠縲∫┌縺代ｌ縺ｰFBX繧偵が繝ｳ繝・・繝ｳ繝峨Ο繝ｼ繝・
+func _get_emote_rig(emote_id: int, is_p1: bool) -> Dictionary:
+	# 譌｢蟄倥・繝上・繝峨さ繝ｼ繝迂D繧偵メ繧ｧ繝・け
+	if is_p1:
+		match emote_id:
+			1:
+				if _taunt_ap and _taunt_anim_name1 != "":
+					return {"ap": _taunt_ap, "skeleton": _taunt_skeleton, "bone_indices": _taunt_bone_indices, "anim_name": _taunt_anim_name1}
+			2:
+				if _gangnam_ap and _gangnam_anim_name1 != "":
+					return {"ap": _gangnam_ap, "skeleton": _gangnam_skeleton, "bone_indices": _gangnam_bone_indices, "anim_name": _gangnam_anim_name1}
+			3:
+				if _slide_ap and _slide_anim_name1 != "":
+					return {"ap": _slide_ap, "skeleton": _slide_skeleton, "bone_indices": _slide_bone_indices, "anim_name": _slide_anim_name1}
+			4:
+				if _flair_ap and _flair_anim_name1 != "":
+					return {"ap": _flair_ap, "skeleton": _flair_skeleton, "bone_indices": _flair_bone_indices, "anim_name": _flair_anim_name1}
+			5:
+				if _moonwalk_ap and _moonwalk_anim_name1 != "":
+					return {"ap": _moonwalk_ap, "skeleton": _moonwalk_skeleton, "bone_indices": _moonwalk_bone_indices, "anim_name": _moonwalk_anim_name1}
+	else:
+		match emote_id:
+			1:
+				if _p2_taunt_ap and _p2_taunt_anim_name1 != "":
+					return {"ap": _p2_taunt_ap, "skeleton": _p2_taunt_skeleton, "bone_indices": _p2_taunt_bone_indices, "anim_name": _p2_taunt_anim_name1}
+			2:
+				if _p2_gangnam_ap and _p2_gangnam_anim_name1 != "":
+					return {"ap": _p2_gangnam_ap, "skeleton": _p2_gangnam_skeleton, "bone_indices": _p2_gangnam_bone_indices, "anim_name": _p2_gangnam_anim_name1}
+			3:
+				if _p2_slide_ap and _p2_slide_anim_name1 != "":
+					return {"ap": _p2_slide_ap, "skeleton": _p2_slide_skeleton, "bone_indices": _p2_slide_bone_indices, "anim_name": _p2_slide_anim_name1}
+			4:
+				if _p2_flair_ap and _p2_flair_anim_name1 != "":
+					return {"ap": _p2_flair_ap, "skeleton": _p2_flair_skeleton, "bone_indices": _p2_flair_bone_indices, "anim_name": _p2_flair_anim_name1}
+			5:
+				if _p2_moonwalk_ap and _p2_moonwalk_anim_name1 != "":
+					return {"ap": _p2_moonwalk_ap, "skeleton": _p2_moonwalk_skeleton, "bone_indices": _p2_moonwalk_bone_indices, "anim_name": _p2_moonwalk_anim_name1}
+	
+	# 蜍慕噪繧ｭ繝｣繝・す繝･繧呈､懃ｴ｢
+	var cache := _p1_emote_cache if is_p1 else _p2_emote_cache
+	if cache.has(emote_id):
+		var c: Dictionary = cache[emote_id]
+		if c.has("ap") and c["ap"] != null and c.has("anim_name") and c["anim_name"] != "":
+			return c
+	
+	# FBX繧偵が繝ｳ繝・・繝ｳ繝峨Ο繝ｼ繝・
+	var fbx_path := EmoteData.get_emote_fbx(emote_id)
+	if fbx_path.is_empty() or not ResourceLoader.exists(fbx_path):
+		return {}
+	
+	var prefix := "P1" if is_p1 else "P2"
+	var rig_name := "%s_Emote%d" % [prefix, emote_id]
+	var data = _load_fbx_scene(fbx_path, rig_name)
+	if not data:
+		return {}
+	
+	var result := {
+		"ap": data["anim_player"],
+		"skeleton": data["skeleton"],
+		"bone_indices": data["bone_indices"],
+		"anim_name": data["anim_name"],
+		"_node": data["node"]  # 蜿ら・菫晄戟
+	}
+	cache[emote_id] = result
+	return result
+
+# 髫主ｱ､讒矩縺ｮ讒狗ｯ・
 func _build_player_skeleton(is_p1: bool, parent_node: Node3D) -> Dictionary:
 	var body_col: Color = P1_BODY if is_p1 else P2_BODY
 	var head_col: Color = P1_HEAD if is_p1 else P2_HEAD
@@ -439,27 +509,27 @@ func _build_player_skeleton(is_p1: bool, parent_node: Node3D) -> Dictionary:
 	pelvis.add_child(lower_torso)
 	parts["lower_torso"] = lower_torso
 
-	# Spine pivot (between lower and upper torso) — enables upper body twist
+	# Spine pivot (between lower and upper torso) 窶・enables upper body twist
 	var spine = Node3D.new()
 	spine.name = "Spine"
 	spine.position = Vector3(0, 0.30, 0)
 	pelvis.add_child(spine)
 	parts["spine"] = spine
 
-	# Upper Torso (chest) — child of spine
+	# Upper Torso (chest) 窶・child of spine
 	var upper_torso = _create_box(Vector3(0.38, 0.26, 0.22), body_col)
 	upper_torso.position = Vector3(0, 0.18, 0)
 	spine.add_child(upper_torso)
 	parts["upper_torso"] = upper_torso
 
-	# Neck pivot — child of spine
+	# Neck pivot 窶・child of spine
 	var neck = Node3D.new()
 	neck.name = "Neck"
 	neck.position = Vector3(0, 0.42, 0)
 	spine.add_child(neck)
 	parts["neck"] = neck
 
-	# Head pivot — child of neck
+	# Head pivot 窶・child of neck
 	var head_pivot = Node3D.new()
 	head_pivot.position = Vector3(0, 0.03, 0)
 	neck.add_child(head_pivot)
@@ -626,20 +696,16 @@ func _build_player_skeleton(is_p1: bool, parent_node: Node3D) -> Dictionary:
 	parts["r_toe_mesh"] = r_toe_mesh
 
 	# Add all meshes to a list for easy vis clipping / explosion
-	var m_list: Array[MeshInstance3D] = [
+	var meshes: Array = [
 		lower_torso, upper_torso, head,
 		l_upp_arm, l_low_arm,
 		r_upp_arm, r_low_arm,
 		l_thigh, l_calf, l_foot, l_toe_mesh,
 		r_thigh, r_calf, r_foot, r_toe_mesh
 	]
-	
-	for m in l_hand_data["meshes"]:
-		m_list.append(m)
-	for m in r_hand_data["meshes"]:
-		m_list.append(m)
-		
-	parts["meshes"] = m_list
+	meshes.append_array(l_hand_data["meshes"])
+	meshes.append_array(r_hand_data["meshes"])
+	parts["meshes"] = meshes
 	parts["hat_meshes"] = []  # Populated when hat is set
 
 	return parts
@@ -657,6 +723,102 @@ func _create_box(half_extents: Vector3, color: Color) -> MeshInstance3D:
 	mesh_inst.material_override = mat
 
 	return mesh_inst
+
+func _create_detailed_hand(color: Color, is_left: bool, parts: Dictionary, prefix: String) -> Dictionary:
+	var hand_root = Node3D.new()
+	var meshes: Array = []
+	
+	# 謇九・縺ｲ繧・(Palm)
+	var palm = _create_box(Vector3(0.09, 0.10, 0.05), color)
+	palm.position = Vector3(0, -0.10, 0)
+	hand_root.add_child(palm)
+	meshes.append(palm)
+	
+	# 隕ｪ謖・(Thumb) - 2 segments
+	var thumb_root = Node3D.new()
+	var thumb_x = 0.10 if is_left else -0.10
+	thumb_root.position = Vector3(thumb_x, -0.05, 0.04)
+	thumb_root.rotation = Vector3(deg_to_rad(-20), deg_to_rad(45 if is_left else -45), deg_to_rad(30 if is_left else -30))
+	hand_root.add_child(thumb_root)
+	parts[prefix + "thumb_prox"] = thumb_root
+
+	
+	var thumb_prox = _create_box(Vector3(0.025, 0.04, 0.03), color)
+	thumb_prox.position = Vector3(0, -0.04, 0)
+	thumb_root.add_child(thumb_prox)
+	meshes.append(thumb_prox)
+	
+	var thumb_joint = Node3D.new()
+	thumb_joint.position = Vector3(0, -0.08, 0)
+	thumb_joint.rotation = Vector3(deg_to_rad(-15), 0, 0)
+	thumb_root.add_child(thumb_joint)
+	parts[prefix + "thumb_dist"] = thumb_joint
+
+	
+	var thumb_dist = _create_box(Vector3(0.025, 0.035, 0.03), color)
+	thumb_dist.position = Vector3(0, -0.035, 0)
+	thumb_joint.add_child(thumb_dist)
+	meshes.append(thumb_dist)
+	
+	# 謖・譛ｬ (Fingers) - 3 segments
+	var finger_lengths = [0.08, 0.09, 0.085, 0.065]
+	var finger_widths = 0.022
+	var finger_depths = 0.025
+	
+	var finger_names = ["index", "middle", "ring", "pinky"]
+	
+	for i in range(4):
+		var fname = finger_names[i]
+		var base_length = finger_lengths[i]
+		
+		var finger_root = Node3D.new()
+		var offset_x = (0.066 - (i * 0.044)) if is_left else (-0.066 + (i * 0.044))
+		finger_root.position = Vector3(offset_x, -0.20, 0.0)
+		
+		var spread_angle = deg_to_rad((1.5 - i) * 5)
+		if not is_left:
+			spread_angle = -spread_angle
+		finger_root.rotation = Vector3(deg_to_rad(-5), 0, spread_angle)
+		hand_root.add_child(finger_root)
+		parts[prefix + fname + "_prox"] = finger_root
+
+		
+		# Proximal
+		var prox_len = base_length * 0.4
+		var prox = _create_box(Vector3(finger_widths, prox_len, finger_depths), color)
+		prox.position = Vector3(0, -prox_len, 0)
+		finger_root.add_child(prox)
+		meshes.append(prox)
+		
+		var joint1 = Node3D.new()
+		joint1.position = Vector3(0, -prox_len * 2, 0)
+		joint1.rotation = Vector3(deg_to_rad(-10), 0, 0)
+		finger_root.add_child(joint1)
+		parts[prefix + fname + "_mid"] = joint1
+
+		
+		# Middle
+		var mid_len = base_length * 0.35
+		var mid = _create_box(Vector3(finger_widths, mid_len, finger_depths), color)
+		mid.position = Vector3(0, -mid_len, 0)
+		joint1.add_child(mid)
+		meshes.append(mid)
+		
+		var joint2 = Node3D.new()
+		joint2.position = Vector3(0, -mid_len * 2, 0)
+		joint2.rotation = Vector3(deg_to_rad(-10), 0, 0)
+		joint1.add_child(joint2)
+		parts[prefix + fname + "_dist"] = joint2
+
+		
+		# Distal
+		var dist_len = base_length * 0.25
+		var dist = _create_box(Vector3(finger_widths, dist_len, finger_depths), color)
+		dist.position = Vector3(0, -dist_len, 0)
+		joint2.add_child(dist)
+		meshes.append(dist)
+		
+	return {"root": hand_root, "meshes": meshes}
 
 func _process(dt: float) -> void:
 	_time += dt
@@ -686,10 +848,10 @@ func update_from_state(gs: QuizGameState) -> void:
 			_animate_skeleton(p1_parts, gs.player_y, gs.player_vel_y, gs.game_state == Constants.STATE_PLAYING, walk_phase, false, gs.p1_emote)
 		else:
 			var apply_rig := false
-			# 全APリスト（排他的に止めるため）
+			# 蜈ｨAP繝ｪ繧ｹ繝茨ｼ域賜莉也噪縺ｫ豁｢繧√ｋ縺溘ａ・・
 			var all_p1_aps: Array = [_taunt_ap, _run_ap, _gangnam_ap, _slide_ap, _moonwalk_ap, _drowning_ap, _flair_ap]
 			
-			# リグモードの再生ロジック - 各FBXの独自APを使い分ける
+			# 繝ｪ繧ｰ繝｢繝ｼ繝峨・蜀咲函繝ｭ繧ｸ繝・け - 蜷ЁBX縺ｮ迢ｬ閾ｪAP繧剃ｽｿ縺・・縺代ｋ
 			if gs.player_y < -1.0 and _drowning_ap and _drowning_anim_name1 != "":
 				var target_ap: AnimationPlayer = _drowning_ap
 				var target_skel: Skeleton3D = _drowning_skeleton
@@ -706,28 +868,15 @@ func update_from_state(gs: QuizGameState) -> void:
 				_p1_mirror_x = true
 				apply_rig = true
 			elif gs.p1_emote > 0:
-				# --- エモート再生 ---
-				var target_ap: AnimationPlayer = null
-				var target_skel: Skeleton3D = null
-				var target_bones: Dictionary = {}
-				var target_anim: String = ""
-				
-				if gs.p1_emote == 1 and _taunt_ap and _taunt_anim_name1 != "":
-					target_ap = _taunt_ap; target_skel = _taunt_skeleton
-					target_bones = _taunt_bone_indices; target_anim = _taunt_anim_name1
-				elif gs.p1_emote == 2 and _gangnam_ap and _gangnam_anim_name1 != "":
-					target_ap = _gangnam_ap; target_skel = _gangnam_skeleton
-					target_bones = _gangnam_bone_indices; target_anim = _gangnam_anim_name1
-				elif gs.p1_emote == 3 and _slide_ap and _slide_anim_name1 != "":
-					target_ap = _slide_ap; target_skel = _slide_skeleton
-					target_bones = _slide_bone_indices; target_anim = _slide_anim_name1
-				elif gs.p1_emote == 4 and _flair_ap and _flair_anim_name1 != "":
-					target_ap = _flair_ap; target_skel = _flair_skeleton
-					target_bones = _flair_bone_indices; target_anim = _flair_anim_name1
-				
-				var mirror_x := true # 全てのFBX（+Z向き）を-Z向きのキャラクターに正しく適用するためXミラーを有効化
-				if target_ap:
-					# 他の全APを停止
+				# --- 繧ｨ繝｢繝ｼ繝亥・逕滂ｼ域ｱ守畑繝・ぅ繧ｹ繝代ャ繝・ｼ・--
+				var rig := _get_emote_rig(gs.p1_emote, true)
+				var mirror_x := true
+				if not rig.is_empty():
+					var target_ap: AnimationPlayer = rig["ap"]
+					var target_skel: Skeleton3D = rig["skeleton"]
+					var target_bones: Dictionary = rig["bone_indices"]
+					var target_anim: String = rig["anim_name"]
+					# 莉悶・蜈ｨAP繧貞●豁｢
 					for ap: AnimationPlayer in all_p1_aps:
 						if ap and ap != target_ap and ap.is_playing():
 							ap.stop()
@@ -739,7 +888,7 @@ func update_from_state(gs: QuizGameState) -> void:
 					apply_rig = true
 			elif gs.game_state == Constants.STATE_PLAYING:
 				if gs.p1_moving_back and _moonwalk_ap and _moonwalk_anim_name1 != "":
-					# --- 後ろ歩き: Moonwalk再生 ---
+					# --- 蠕後ｍ豁ｩ縺・ Moonwalk蜀咲函 ---
 					for ap: AnimationPlayer in all_p1_aps:
 						if ap and ap != _moonwalk_ap and ap.is_playing():
 							ap.stop()
@@ -750,7 +899,7 @@ func update_from_state(gs: QuizGameState) -> void:
 					_p1_mirror_x = true
 					apply_rig = true
 				elif _run_ap and _run_anim_name1 != "":
-					# --- 通常走り ---
+					# --- 騾壼ｸｸ襍ｰ繧・---
 					for ap: AnimationPlayer in all_p1_aps:
 						if ap and ap != _run_ap and ap.is_playing():
 							ap.stop()
@@ -761,12 +910,12 @@ func update_from_state(gs: QuizGameState) -> void:
 					_p1_mirror_x = true
 					apply_rig = true
 			else:
-				# 全停止（待機状態などはプロシージャルなIdleアニメーションに任せる）
+				# 蜈ｨ蛛懈ｭ｢・亥ｾ・ｩ溽憾諷九↑縺ｩ縺ｯ繝励Ο繧ｷ繝ｼ繧ｸ繝｣繝ｫ縺ｪIdle繧｢繝九Γ繝ｼ繧ｷ繝ｧ繝ｳ縺ｫ莉ｻ縺帙ｋ・・
 				for ap: AnimationPlayer in all_p1_aps:
 					if ap and ap.is_playing():
 						ap.stop()
 			
-			# デバッグ: 1秒に1回、骨座標を出力
+			# 繝・ヰ繝・げ: 1遘偵↓1蝗槭・ｪｨ蠎ｧ讓吶ｒ蜃ｺ蜉・
 			_rig_debug_counter += 1
 			if _rig_debug_counter % 60 == 1:
 				if _active_skeleton and _active_bone_indices.has("hips"):
@@ -776,10 +925,10 @@ func update_from_state(gs: QuizGameState) -> void:
 						print("[RIG] DEBUG RUN position=", _run_ap.current_animation_position)
 			
 			if apply_rig:
-				# 骨の座標をブロックに転写
+				# 鬪ｨ縺ｮ蠎ｧ讓吶ｒ繝悶Ο繝・け縺ｫ霆｢蜀・
 				_apply_skeleton_pose(p1_parts, _active_skeleton, _active_bone_indices, _p1_mirror_x)
 			else:
-				# 停止時はプロシージャルアニメーション（Idleバウンスなど）を適用
+				# 蛛懈ｭ｢譎ゅ・繝励Ο繧ｷ繝ｼ繧ｸ繝｣繝ｫ繧｢繝九Γ繝ｼ繧ｷ繝ｧ繝ｳ・・dle繝舌え繝ｳ繧ｹ縺ｪ縺ｩ・峨ｒ驕ｩ逕ｨ
 				_animate_skeleton(p1_parts, gs.player_y, gs.player_vel_y, false, walk_phase, false, 0)
 	elif gs.game_over_timer > 0:
 		if gs.game_over_timer < 2.0:
@@ -804,7 +953,7 @@ func update_from_state(gs: QuizGameState) -> void:
 				_apply_skeleton_pose(p1_parts, _active_skeleton, _active_bone_indices, _p1_mirror_x)
 			
 			if not apply_rig:
-				# FBXがない、またはマグマ以外の死因用
+				# FBX縺後↑縺・√∪縺溘・繝槭げ繝樔ｻ･螟悶・豁ｻ蝗逕ｨ
 				if gs.player_y < -1.0:
 					_animate_skeleton(p1_parts, gs.player_y, gs.player_vel_y, false, walk_phase, false, 0)
 				else:
@@ -848,26 +997,13 @@ func update_from_state(gs: QuizGameState) -> void:
 					_p2_mirror_x = true
 					apply_rig = true
 				elif gs.p2_emote > 0:
-					var target_ap: AnimationPlayer = null
-					var target_skel: Skeleton3D = null
-					var target_bones: Dictionary = {}
-					var target_anim: String = ""
-					
-					if gs.p2_emote == 1 and _p2_taunt_ap and _p2_taunt_anim_name1 != "":
-						target_ap = _p2_taunt_ap; target_skel = _p2_taunt_skeleton
-						target_bones = _p2_taunt_bone_indices; target_anim = _p2_taunt_anim_name1
-					elif gs.p2_emote == 2 and _p2_gangnam_ap and _p2_gangnam_anim_name1 != "":
-						target_ap = _p2_gangnam_ap; target_skel = _p2_gangnam_skeleton
-						target_bones = _p2_gangnam_bone_indices; target_anim = _p2_gangnam_anim_name1
-					elif gs.p2_emote == 3 and _p2_slide_ap and _p2_slide_anim_name1 != "":
-						target_ap = _p2_slide_ap; target_skel = _p2_slide_skeleton
-						target_bones = _p2_slide_bone_indices; target_anim = _p2_slide_anim_name1
-					elif gs.p2_emote == 4 and _p2_flair_ap and _p2_flair_anim_name1 != "":
-						target_ap = _p2_flair_ap; target_skel = _p2_flair_skeleton
-						target_bones = _p2_flair_bone_indices; target_anim = _p2_flair_anim_name1
-					
-					var p2_mirror_x := true # 全てのFBX（+Z向き）を-Z向きのキャラクターに正しく適用するためXミラーを有効化
-					if target_ap:
+					# --- 繧ｨ繝｢繝ｼ繝亥・逕滂ｼ域ｱ守畑繝・ぅ繧ｹ繝代ャ繝・ｼ・--
+					var rig := _get_emote_rig(gs.p2_emote, false)
+					if not rig.is_empty():
+						var target_ap: AnimationPlayer = rig["ap"]
+						var target_skel: Skeleton3D = rig["skeleton"]
+						var target_bones: Dictionary = rig["bone_indices"]
+						var target_anim: String = rig["anim_name"]
 						for ap: AnimationPlayer in all_p2_aps:
 							if ap and ap != target_ap and ap.is_playing():
 								ap.stop()
@@ -875,7 +1011,7 @@ func update_from_state(gs: QuizGameState) -> void:
 							target_ap.play(target_anim)
 						_p2_active_skeleton = target_skel
 						_p2_active_bone_indices = target_bones
-						_p2_mirror_x = p2_mirror_x
+						_p2_mirror_x = true
 						apply_rig = true
 				elif gs.game_state == Constants.STATE_PLAYING:
 					if gs.p2_moving_back and _p2_moonwalk_ap and _p2_moonwalk_anim_name1 != "":
@@ -982,7 +1118,7 @@ func _animate_skeleton(parts: Dictionary, py: float, vy: float, is_playing: bool
 	var l_toe: Node3D = parts["l_toe"]
 	var r_toe: Node3D = parts["r_toe"]
 
-	# Base resets — all joints
+	# Base resets 窶・all joints
 	pelvis.position = Vector3(0, BASE_Y + 0.9, 0)
 	pelvis.rotation = Vector3.ZERO
 	spine_node.rotation = Vector3.ZERO
@@ -1004,7 +1140,7 @@ func _animate_skeleton(parts: Dictionary, py: float, vy: float, is_playing: bool
 	r_toe.rotation = Vector3.ZERO
 	
 	if py < -1.0:
-		# Flail — falling into magma
+		# Flail 窶・falling into magma
 		var flail := sin(_time * 25.0) * PI * 0.4
 		l_hip.rotation.x = flail
 		r_hip.rotation.x = -flail
@@ -1164,97 +1300,6 @@ func _animate_struggle(parts: Dictionary, timer: float) -> void:
 	l_ankle.rotation.x = -PI / 6.0 * decay
 	r_ankle.rotation.x = -PI / 6.0 * decay
 
-func _create_detailed_hand(color: Color, is_left: bool, parts: Dictionary, prefix: String) -> Dictionary:
-	var hand_root = Node3D.new()
-	var meshes: Array = []
-
-	# Palm
-	var palm = _create_box(Vector3(0.09, 0.10, 0.05), color)
-	palm.position = Vector3(0, -0.10, 0)
-	hand_root.add_child(palm)
-	meshes.append(palm)
-
-	# Thumb - 2 segments
-	var thumb_root = Node3D.new()
-	var thumb_x = 0.10 if is_left else -0.10
-	thumb_root.position = Vector3(thumb_x, -0.05, 0.04)
-	thumb_root.rotation = Vector3(deg_to_rad(-20), deg_to_rad(45 if is_left else -45), deg_to_rad(30 if is_left else -30))
-	hand_root.add_child(thumb_root)
-	parts[prefix + "thumb_prox"] = thumb_root
-
-	var thumb_prox = _create_box(Vector3(0.025, 0.04, 0.03), color)
-	thumb_prox.position = Vector3(0, -0.04, 0)
-	thumb_root.add_child(thumb_prox)
-	meshes.append(thumb_prox)
-
-	var thumb_joint = Node3D.new()
-	thumb_joint.position = Vector3(0, -0.08, 0)
-	thumb_joint.rotation = Vector3(deg_to_rad(-15), 0, 0)
-	thumb_root.add_child(thumb_joint)
-	parts[prefix + "thumb_dist"] = thumb_joint
-
-	var thumb_dist = _create_box(Vector3(0.025, 0.035, 0.03), color)
-	thumb_dist.position = Vector3(0, -0.035, 0)
-	thumb_joint.add_child(thumb_dist)
-	meshes.append(thumb_dist)
-
-	# Fingers - 3 segments
-	var finger_lengths = [0.08, 0.09, 0.085, 0.065]
-	var finger_widths = 0.022
-	var finger_depths = 0.025
-
-	var finger_names = ["index", "middle", "ring", "pinky"]
-
-	for i in range(4):
-		var fname = finger_names[i]
-		var base_length = finger_lengths[i]
-
-		var finger_root = Node3D.new()
-		var offset_x = (0.066 - (i * 0.044)) if is_left else (-0.066 + (i * 0.044))
-		finger_root.position = Vector3(offset_x, -0.20, 0.0)
-
-		var spread_angle = deg_to_rad((1.5 - i) * 5)
-		if not is_left:
-			spread_angle = -spread_angle
-		finger_root.rotation = Vector3(deg_to_rad(-5), 0, spread_angle)
-		hand_root.add_child(finger_root)
-		parts[prefix + fname + "_prox"] = finger_root
-
-		# Proximal
-		var prox_len = base_length * 0.4
-		var prox = _create_box(Vector3(finger_widths, prox_len, finger_depths), color)
-		prox.position = Vector3(0, -prox_len, 0)
-		finger_root.add_child(prox)
-		meshes.append(prox)
-
-		var joint1 = Node3D.new()
-		joint1.position = Vector3(0, -prox_len * 2, 0)
-		joint1.rotation = Vector3(deg_to_rad(-10), 0, 0)
-		finger_root.add_child(joint1)
-		parts[prefix + fname + "_mid"] = joint1
-
-		# Middle
-		var mid_len = base_length * 0.35
-		var mid = _create_box(Vector3(finger_widths, mid_len, finger_depths), color)
-		mid.position = Vector3(0, -mid_len, 0)
-		joint1.add_child(mid)
-		meshes.append(mid)
-
-		var joint2 = Node3D.new()
-		joint2.position = Vector3(0, -mid_len * 2, 0)
-		joint2.rotation = Vector3(deg_to_rad(-10), 0, 0)
-		joint1.add_child(joint2)
-		parts[prefix + fname + "_dist"] = joint2
-
-		# Distal
-		var dist_len = base_length * 0.25
-		var dist = _create_box(Vector3(finger_widths, dist_len, finger_depths), color)
-		dist.position = Vector3(0, -dist_len, 0)
-		joint2.add_child(dist)
-		meshes.append(dist)
-
-	return {"root": hand_root, "meshes": meshes}
-
 func _init_explosion(parts: Dictionary, is_p1: bool) -> void:
 	if not parts or not parts.has("meshes"): return
 	
@@ -1313,12 +1358,12 @@ func _update_explosion(is_p1: bool, timer: float, is_magma: bool = false) -> voi
 		var ez = base.z + vel.z * timer
 		var current_rot = brot + rot_vel * timer
 		
-		# マグマに落ちた場合の処理：マグマ表面(-9.2)より下は沈み込みをゆっくりにする
+		# 繝槭げ繝槭↓關ｽ縺｡縺溷ｴ蜷医・蜃ｦ逅・ｼ壹・繧ｰ繝櫁｡ｨ髱｢(-9.2)繧医ｊ荳九・豐医∩霎ｼ縺ｿ繧偵ｆ縺｣縺上ｊ縺ｫ縺吶ｋ
 		if is_magma and ey < magma_surface:
 			var depth = magma_surface - ey
-			ey = magma_surface - (depth * 0.05) # 沈降速度を遅らせる
+			ey = magma_surface - (depth * 0.05) # 豐磯剄騾溷ｺｦ繧帝≦繧峨○繧・
 			
-			# マグマに浸かるとスケールを少しずつ小さくして溶ける演出にする
+			# 繝槭げ繝槭↓豬ｸ縺九ｋ縺ｨ繧ｹ繧ｱ繝ｼ繝ｫ繧貞ｰ代＠縺壹▽蟆上＆縺上＠縺ｦ貅ｶ縺代ｋ貍泌・縺ｫ縺吶ｋ
 			var shrink = maxf(0.0, 1.0 - (depth * 0.1))
 			node.scale = Vector3(shrink, shrink, shrink)
 		else:
@@ -1341,14 +1386,22 @@ func _update_explosion(is_p1: bool, timer: float, is_magma: bool = false) -> voi
 
 func _animate_emote(parts: Dictionary, emote: int) -> void:
 	var t := _time
-	if emote == 1:
-		_emote_floss(t, parts) # Step Hip Hop fallback
-	elif emote == 2:
-		_emote_floss(t * 0.85, parts) # Gangnam fallback
-	elif emote == 3:
-		_emote_floss(t * 1.15, parts) # Slide Hip Hop fallback
-	elif emote == 4:
-		_emote_floss(t * 1.0, parts) # Flair fallback
+	# 蜷・お繝｢繝ｼ繝・D縺ｫ蟇ｾ縺励※騾溷ｺｦ繧貞､峨∴縺溘・繝ｭ繧ｷ繝ｼ繧ｸ繝｣繝ｫ繝輔か繝ｼ繝ｫ繝舌ャ繧ｯ
+	var speed_map := {
+		1: 1.0,    # Step Hip Hop
+		2: 0.85,   # Gangnam
+		3: 1.15,   # Slide Hip Hop
+		4: 1.0,    # Flair
+		5: 0.7,    # Moonwalk
+		6: 1.1,    # Hip Hop Dancing
+		7: 1.3,    # Silly Dancing
+		8: 0.9,    # Swing
+		9: 0.75,   # Thriller 2
+		10: 0.8,   # Thriller 3
+		11: 0.65,  # Thriller 4
+	}
+	var speed: float = speed_map.get(emote, 1.0)
+	_emote_floss(t * speed, parts)
 
 
 # --- Emote 1: Floss Dance ---
@@ -1427,7 +1480,7 @@ func _emote_kazotsky(t: float, parts: Dictionary) -> void:
 # ============================================================
 
 func _apply_skeleton_pose(parts: Dictionary, skeleton: Skeleton3D, bone_indices: Dictionary, mirror_x: bool = false) -> void:
-	"""毎フレーム Skeleton3D の骨座標を読み取り、ブロックのピボットに適用する"""
+	"""豈弱ヵ繝ｬ繝ｼ繝 Skeleton3D 縺ｮ鬪ｨ蠎ｧ讓吶ｒ隱ｭ縺ｿ蜿悶ｊ縲√ヶ繝ｭ繝・け縺ｮ繝斐・繝・ヨ縺ｫ驕ｩ逕ｨ縺吶ｋ"""
 	if not skeleton or bone_indices.is_empty():
 		return
 	
@@ -1437,11 +1490,11 @@ func _apply_skeleton_pose(parts: Dictionary, skeleton: Skeleton3D, bone_indices:
 	
 	var mirror_matrix = Basis(Vector3(-1, 0, 0), Vector3(0, 1, 0), Vector3(0, 0, 1))
 	
-	# Hips（ペルビス）の位置と回転を適用
+	# Hips・医・繝ｫ繝薙せ・峨・菴咲ｽｮ縺ｨ蝗櫁ｻ｢繧帝←逕ｨ
 	if bone_indices.has("hips"):
 		var bone_xform = skeleton.get_bone_global_pose(bone_indices["hips"])
 		
-		# 前進・後退のルートモーションを無効化し、Y軸（上下の揺れ）のみ適用
+		# 蜑埼ｲ繝ｻ蠕碁縺ｮ繝ｫ繝ｼ繝医Δ繝ｼ繧ｷ繝ｧ繝ｳ繧堤┌蜉ｹ蛹悶＠縲〆霆ｸ・井ｸ贋ｸ九・謠ｺ繧鯉ｼ峨・縺ｿ驕ｩ逕ｨ
 		pelvis.position = Vector3(
 			0.0,
 			BASE_Y + bone_xform.origin.y,
@@ -1453,7 +1506,7 @@ func _apply_skeleton_pose(parts: Dictionary, skeleton: Skeleton3D, bone_indices:
 			new_pelvis_basis = mirror_matrix * new_pelvis_basis * mirror_matrix
 		pelvis.quaternion = Quaternion(new_pelvis_basis)
 	
-	# 以降の各部位は、グローバル姿勢(Skeleton3D内のグローバル)をそのまま代入する。
+	# 莉･髯阪・蜷・Κ菴阪・縲√げ繝ｭ繝ｼ繝舌Ν蟋ｿ蜍｢(Skeleton3D蜀・・繧ｰ繝ｭ繝ｼ繝舌Ν)繧偵◎縺ｮ縺ｾ縺ｾ莉｣蜈･縺吶ｋ縲・
 	var apply_bone = func(part_name: String, bone_key: String, flip: bool = false):
 		var node: Node3D = parts.get(part_name)
 		if node and bone_indices.has(bone_key):
@@ -1461,22 +1514,22 @@ func _apply_skeleton_pose(parts: Dictionary, skeleton: Skeleton3D, bone_indices:
 			var new_basis = gl_pose.basis.orthonormalized()
 			
 			if mirror_x:
-				# X軸の動きを鏡像化（行列式+1を維持しつつ左右の動きを反転）
+				# X霆ｸ縺ｮ蜍輔″繧帝升蜒丞喧・郁｡悟・蠑・1繧堤ｶｭ謖√＠縺､縺､蟾ｦ蜿ｳ縺ｮ蜍輔″繧貞渚霆｢・・
 				new_basis = mirror_matrix * new_basis * mirror_matrix
 				
 			if flip:
-				# X軸周りに180度回転し、-Y方向が骨の+Y方向と一致するようにする
+				# X霆ｸ蜻ｨ繧翫↓180蠎ｦ蝗櫁ｻ｢縺励・Y譁ｹ蜷代′鬪ｨ縺ｮ+Y譁ｹ蜷代→荳閾ｴ縺吶ｋ繧医≧縺ｫ縺吶ｋ
 				new_basis = new_basis * Basis(Vector3.RIGHT, PI)
 			node.global_basis = new_basis
 	
-	# 背骨・首（+Y方向に構築されているのでフリップ不要）
+	# 閭碁ｪｨ繝ｻ鬥厄ｼ・Y譁ｹ蜷代↓讒狗ｯ峨＆繧後※縺・ｋ縺ｮ縺ｧ繝輔Μ繝・・荳崎ｦ・ｼ・
 	apply_bone.call("spine", "spine", false)
 	apply_bone.call("neck", "neck", false)
 	
-	# 頭（頭ブロックは+Y方向に作られているのでフリップ不要）
+	# 鬆ｭ・磯ｭ繝悶Ο繝・け縺ｯ+Y譁ｹ蜷代↓菴懊ｉ繧後※縺・ｋ縺ｮ縺ｧ繝輔Μ繝・・荳崎ｦ・ｼ・
 	apply_bone.call("head_pivot", "head", false)
 	
-	# 左腕・右腕（全て-Y方向に伸びて作られているのでフリップ必要）
+	# 蟾ｦ閻輔・蜿ｳ閻包ｼ亥・縺ｦ-Y譁ｹ蜷代↓莨ｸ縺ｳ縺ｦ菴懊ｉ繧後※縺・ｋ縺ｮ縺ｧ繝輔Μ繝・・蠢・ｦ・ｼ・
 	apply_bone.call("l_shoulder", "l_upper_arm", true)
 	apply_bone.call("l_elbow", "l_lower_arm", true)
 	apply_bone.call("l_wrist", "l_hand", true)
@@ -1485,7 +1538,7 @@ func _apply_skeleton_pose(parts: Dictionary, skeleton: Skeleton3D, bone_indices:
 	apply_bone.call("r_elbow", "r_lower_arm", true)
 	apply_bone.call("r_wrist", "r_hand", true)
 	
-	# 左脚・右脚（フリップ必要）
+	# 蟾ｦ閼壹・蜿ｳ閼夲ｼ医ヵ繝ｪ繝・・蠢・ｦ・ｼ・
 	apply_bone.call("l_hip", "l_upper_leg", true)
 	apply_bone.call("l_knee", "l_lower_leg", true)
 	apply_bone.call("l_ankle", "l_foot", true)
@@ -1499,7 +1552,7 @@ func _apply_skeleton_pose(parts: Dictionary, skeleton: Skeleton3D, bone_indices:
 	# Fingers (left)
 	apply_bone.call("l_thumb_prox", "l_thumb_prox", true)
 	apply_bone.call("l_thumb_dist", "l_thumb_dist", true)
-	apply_bone.call("l_index_prox", "l_index_prox", true)
+	apply_bone.call("l_index_prox", "l_index_prox", true); if bone_indices.has("l_index_prox"): print("Fingers mapped!")
 	apply_bone.call("l_index_mid", "l_index_mid", true)
 	apply_bone.call("l_index_dist", "l_index_dist", true)
 	apply_bone.call("l_middle_prox", "l_middle_prox", true)
@@ -1529,7 +1582,7 @@ func _apply_skeleton_pose(parts: Dictionary, skeleton: Skeleton3D, bone_indices:
 	apply_bone.call("r_pinky_dist", "r_pinky_dist", true)
 
 func bind_to_skeleton(player_id: int, skeleton: Skeleton3D) -> void:
-	"""後方互換性のためのダミー関数 - 実際の処理は_apply_skeleton_poseで毎フレーム行う"""
+	"""蠕梧婿莠呈鋤諤ｧ縺ｮ縺溘ａ縺ｮ繝繝溘・髢｢謨ｰ - 螳滄圀縺ｮ蜃ｦ逅・・_apply_skeleton_pose縺ｧ豈弱ヵ繝ｬ繝ｼ繝陦後≧"""
 	pass
 
 # ============================================================

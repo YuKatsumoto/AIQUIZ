@@ -67,9 +67,8 @@ func begin_round(subject: String, grade: int, difficulty: String,
 	play_history.clear()
 	_emergency_cache.clear()
 	
-	# エンドレスモード: ラウンド開始時にオフラインの緊急キャッシュを事前準備
-	if mode == Constants.MODE_ENDLESS:
-		_prepare_emergency_cache()
+	# ラウンド開始時にオフラインの緊急キャッシュを事前準備（10問・エンドレス共通）
+	_prepare_emergency_cache()
 	
 	# ★★★ 速度最適化: ポーリング待ちを廃止し、即座に最初のリクエストを発火 ★★★
 	_fire_immediate_fetch()
@@ -93,11 +92,11 @@ func _worker_should_fill() -> bool:
 	if not is_active_round:
 		return false
 	# エンドレスモード: 最大4つの同時リクエスト
-	# 10問モード: 2並列バッチが1回で十分なのでmax_inflight=1
+	# 10問モード: fetch_quiz_parallel内部で4並列管理するのでproviderレベルは1で十分
 	var max_inflight: int = 4 if current_mode == Constants.MODE_ENDLESS else 1
 	if inflight >= max_inflight:
 		return false
-	var per_batch_estimate: int = 7  # 各バッチの推定問題数
+	var per_batch_estimate: int = 15  # 4バッチ×4問 − dedup ≈ 15問期待
 	var pending = buffer.size() + inflight * per_batch_estimate
 	if current_mode == Constants.MODE_TEN:
 		var needed = max(0, target_count - yielded_count)
@@ -134,7 +133,8 @@ func _on_poll() -> void:
 			for rq in recent_questions:
 				if rq not in full_history:
 					full_history.append(rq)
-		online_fetcher.fetch_quiz_parallel(current_subject, current_grade, current_difficulty, fetch_count, full_history)
+		var is_ten: bool = current_mode == Constants.MODE_TEN
+		online_fetcher.fetch_quiz_parallel(current_subject, current_grade, current_difficulty, fetch_count, full_history, is_ten)
 	else:
 		# Offline fallback
 		var b_size := 6
@@ -189,18 +189,19 @@ func get_quizzes(_subject: String, _grade: int, _difficulty: String,
 	while buffer.size() > 0 and out.size() < count:
 		out.append(buffer.pop_front())
 	
-	# バッファが空の場合の処理
-	if out.is_empty() and _mode == Constants.MODE_ENDLESS:
+	# バッファが空の場合の処理（10問・エンドレス共通）
+	if out.is_empty():
 		# オンラインリクエストが処理中 → 空を返してPRELOADING待ちにさせる
-		# （オンライン生成の結果を最大限待つ）
 		if inflight > 0:
 			# リクエスト中なので何も返さない → game_state がPRELOADINGに遷移して待つ
 			pass
 		elif _emergency_cache.size() > 0:
 			# リクエストもゼロ、バッファも空 → 最後の手段としてオフライン緊急キャッシュ
-			out.append(_emergency_cache.pop_front())
-			print("[BufferedProvider] Emergency cache used (no inflight requests)! Remaining: %d" % _emergency_cache.size())
-			if _emergency_cache.size() < 2:
+			var needed_from_cache := maxi(1, count - out.size())
+			for _i in range(mini(needed_from_cache, _emergency_cache.size())):
+				out.append(_emergency_cache.pop_front())
+			print("[BufferedProvider] Emergency cache used! Gave %d, Remaining: %d" % [out.size(), _emergency_cache.size()])
+			if _emergency_cache.size() < 3:
 				_prepare_emergency_cache()
 	
 	yielded_count += out.size()

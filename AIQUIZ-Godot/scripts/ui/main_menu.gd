@@ -14,6 +14,7 @@ extends Control
 @onready var players_btn: Button = $VBoxContainer/ConfigContainer/PlayersRow/PlayersToggleBtn
 @onready var llm_toggle_btn: Button = $VBoxContainer/ConfigContainer/LlmRow/LlmToggleBtn
 @onready var hat_select_row: HBoxContainer = $VBoxContainer/ConfigContainer/HatSelectRow
+@onready var wall_speed_btn: Button = %WallSpeedBtn
 
 @onready var settings_panel: Panel = $SettingsPanel
 @onready var api_status_label: RichTextLabel = $SettingsPanel/VBox/ApiStatusLabel
@@ -26,7 +27,7 @@ var game_state: QuizGameState
 func _ready() -> void:
 	game_state = QuizManager.game_state
 	game_state.game_state = Constants.STATE_MENU
-	game_state.menu_step = Constants.MENU_STEP_MODE
+	# 戻るボタン等からの遷移時に状態を保持するため、menu_stepの強制リセットを削除
 	settings_panel.visible = false
 	
 	vol_slider.value = AudioManager.sfx_volume
@@ -151,9 +152,16 @@ func _update_ui() -> void:
 		var llm_text: String = "🌐 ONLINE (AI生成)" if QuizManager.provider.llm_mode == "ONLINE" else "📦 OFFLINE (内蔵問題)"
 		llm_toggle_btn.text = llm_text
 		
-		# Show hat select button only in 2P mode
+		# Show skin & emote button for all modes (emotes usable in 1P too)
 		if hat_select_row:
-			hat_select_row.visible = game_state.num_players >= 2
+			hat_select_row.visible = true
+		
+		# Update wall speed button label
+		if wall_speed_btn:
+			if game_state.tuning.wall_speed_override > 0:
+				wall_speed_btn.text = "⚡ 壁速度: %.1f（手動）" % game_state.tuning.wall_speed_override
+			else:
+				wall_speed_btn.text = "⚡ 壁速度設定（自動）"
 		
 func _on_ten_questions_pressed() -> void:
 	game_state.select_mode_and_continue(Constants.MODE_TEN)
@@ -176,8 +184,14 @@ func _on_players_toggle_pressed() -> void:
 	game_state.num_players = 2 if game_state.num_players == 1 else 1
 	_update_ui()
 
+func _on_wall_speed_pressed() -> void:
+	get_tree().change_scene_to_file("res://ui/wall_speed_settings.tscn")
+
 func _on_hat_select_pressed() -> void:
 	get_tree().change_scene_to_file("res://ui/hat_select.tscn")
+
+func _on_emote_select_pressed() -> void:
+	get_tree().change_scene_to_file("res://ui/emote_select.tscn")
 
 func _on_grade_down_pressed() -> void:
 	game_state.update_grade(-1)
@@ -230,13 +244,19 @@ func _update_api_status_text() -> void:
 	var i_col = "green" if ApiStatusAutoload.internet_ok else ("red" if ApiStatusAutoload.internet_ok == false else "yellow")
 	text += "[color=%s]インターネット: %s[/color]\n" % [i_col, ApiStatusAutoload.internet_msg]
 	
-	var o_col = "green" if ApiStatusAutoload.openai_status else ("red" if ApiStatusAutoload.openai_status == false else "yellow")
-	var o_key = "設定済" if ApiStatusAutoload.openai_key_set else "未設定"
-	text += "[color=%s]OpenAI: %s[/color] (キー: %s)\n" % [o_col, ApiStatusAutoload.openai_msg, o_key]
-	
-	var g_col = "green" if ApiStatusAutoload.gemini_status else ("red" if ApiStatusAutoload.gemini_status == false else "yellow")
-	var g_key = "設定済" if ApiStatusAutoload.gemini_key_set else "未設定"
-	text += "[color=%s]Gemini: %s[/color] (キー: %s)\n" % [g_col, ApiStatusAutoload.gemini_msg, g_key]
+	var proxy := ApiStatusAutoload.get_env("PROXY_URL")
+	if not proxy.is_empty():
+		# プロキシ稼働時はAI Gatewayとして表示（内部チェックはgemini_statusを使用）
+		var p_col = "green" if ApiStatusAutoload.gemini_status else ("red" if ApiStatusAutoload.gemini_status == false else "yellow")
+		text += "[color=%s]AI Gateway (Proxy): %s[/color] (設定済)\n" % [p_col, ApiStatusAutoload.gemini_msg]
+	else:
+		var o_col = "green" if ApiStatusAutoload.openai_status else ("red" if ApiStatusAutoload.openai_status == false else "yellow")
+		var o_key = "設定済" if ApiStatusAutoload.openai_key_set else "未設定"
+		text += "[color=%s]OpenAI: %s[/color] (キー: %s)\n" % [o_col, ApiStatusAutoload.openai_msg, o_key]
+		
+		var g_col = "green" if ApiStatusAutoload.gemini_status else ("red" if ApiStatusAutoload.gemini_status == false else "yellow")
+		var g_key = "設定済" if ApiStatusAutoload.gemini_key_set else "未設定"
+		text += "[color=%s]Gemini: %s[/color] (キー: %s)\n" % [g_col, ApiStatusAutoload.gemini_msg, g_key]
 	
 	var f_col = "green" if ApiStatusAutoload.firebase_status else ("red" if ApiStatusAutoload.firebase_status == false else "yellow")
 	var f_key = "設定済" if ApiStatusAutoload.firebase_configured else "未設定"

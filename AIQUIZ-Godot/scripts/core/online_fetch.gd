@@ -764,10 +764,10 @@ func _compose_hard_instructions(grade: int, subject: String, curriculum: Diction
 	p += "- 4択の場合、4つすべてが「ありえそう」に見えるのが理想\n\n"
 	return p
 
-func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count: int, history: Array[String]) -> void:
-	# 10問モード: 2並列リクエスト（各バッチに異なる単元を割当て → セマンティックdedupで最終フィルタ）
+func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count: int, history: Array[String], force_ten_mode: bool = false) -> void:
+	# 10問モード: 4並列リクエスト（各バッチに異なる単元を割当て → セマンティックdedupで最終フィルタ）
 	# エンドレスモード: 5並列リクエストで速度最重視
-	var is_ten_mode := count >= 6  # 6問以上は10問モード扱い
+	var is_ten_mode := count >= 6 or force_ten_mode  # 6問以上、または強制フラグで10問モード扱い
 	
 	var unique_seen := {}
 	
@@ -819,14 +819,15 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 				fetch_completed.emit([] as Array[QuizItem])
 	
 	if is_ten_mode:
-		# ═══ 10問モード: 2並列 × 各7問（速度2倍 + セマンティックdedup）═══
+		# ═══ 10問モード: 4並列 × 各4問（超高速レスポンス + セマンティックdedup）═══
 		# 各バッチに異なる単元テーマを明示的に割り当て → バッチ間重複を構造的に防止
-		const TEN_PARALLEL: int = 2
-		var per_batch: int = 7  # 余剰を含めた各バッチの問題数
+		# 4問/バッチは非常に軽量なのでAPIレスポンスが最速
+		const TEN_PARALLEL: int = 4
+		var per_batch: int = 4  # 各バッチの問題数（合計16問 → dedup後10問以上確保）
 		var expected_ref := [TEN_PARALLEL]
 		var completed_ref := [0]
 		
-		var timer := get_tree().create_timer(25.0)  # 2並列なので25sで十分
+		var timer := get_tree().create_timer(20.0)  # 4並列・軽量バッチなので20sで十分
 		timer.timeout.connect(func():
 			if completed_ref[0] < expected_ref[0]:
 				completed_ref[0] = 999
@@ -835,18 +836,21 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 		
 		var on_complete: Callable = _make_on_complete.call(expected_ref, completed_ref)
 		
-		# バッチごとに異なる単元テーマを強制割り当て
+		# バッチごとに異なる単元テーマを強制割り当て（4分類で重複率を最小化）
 		var batch_themes := [
-			"【バッチ指示】問1〜7は以下のジャンルから出題: 計算・数値操作・公式適用・単位変換・基本知識確認。残りのバッチとは異なるジャンルです。",
-			"【バッチ指示】問1〜7は以下のジャンルから出題: 文章題・応用思考・図形概念・グラフ読取・因果推論。残りのバッチとは異なるジャンルです。"
+			"【バッチ指示】問1〜4は以下のジャンルから出題: 計算・数値操作・公式適用・単位変換。他バッチとジャンルが異なります。",
+			"【バッチ指示】問1〜4は以下のジャンルから出題: 文章題・応用思考・因果推論・日常場面の問題。他バッチとジャンルが異なります。",
+			"【バッチ指示】問1〜4は以下のジャンルから出題: 図形・グラフ読取・空間認識・図の性質。他バッチとジャンルが異なります。",
+			"【バッチ指示】問1〜4は以下のジャンルから出題: 概念理解・知識問題・定義の確認・法則の適用。他バッチとジャンルが異なります。"
 		]
 		
 		for i in range(TEN_PARALLEL):
 			var extra_history: Array[String] = history.duplicate()
 			extra_history.append(batch_themes[i])
 			var prompt := compose_prompt(subject, grade, difficulty, per_batch, extra_history)
-			print("[OnlineFetch] 10-question parallel batch %d: requesting %d questions" % [i, per_batch])
-			_fetch_gemini_target(prompt, "gemini-2.5-flash", temperature, on_complete)
+			var proxy_msg := " (via AI Gateway)" if not ApiStatusAutoload.get_env("PROXY_URL").is_empty() else ""
+			print("[OnlineFetch] 10-question mode - batch %d/%d: requesting %d questions%s" % [i+1, TEN_PARALLEL, per_batch, proxy_msg])
+			_fetch_gemini_target(prompt, ApiStatusAutoload.gemini_model, temperature, on_complete)
 	else:
 		# ═══ エンドレスモード: 並列リクエストで速度重視 ═══
 		const NUM_PARALLEL: int = 5
@@ -875,7 +879,9 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 			var extra_history: Array[String] = history.duplicate()
 			extra_history.append("【並列バッチ制約: この生成では必ず『%s』の傾向を中心に出題し、他のバッチと内容が被るのを防いでください】" % themes[i % themes.size()])
 			var prompt := compose_prompt(subject, grade, difficulty, per_call, extra_history)
-			_fetch_gemini_target(prompt, "gemini-3-flash-preview", temperature, on_complete)
+			var proxy_msg := " (via AI Gateway)" if not ApiStatusAutoload.get_env("PROXY_URL").is_empty() else ""
+			print("[OnlineFetch] Endless mode - batch %d: requesting %d questions%s" % [i+1, per_call, proxy_msg])
+			_fetch_gemini_target(prompt, ApiStatusAutoload.gemini_model, temperature, on_complete)
 
 ## セマンティック重複検出
 ## 問題文からキーワードを抽出し、Jaccard類似度で内容レベルの重複を検出する

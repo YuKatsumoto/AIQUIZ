@@ -186,22 +186,11 @@ func _show_preloading(dt: float) -> void:
 	
 	pl_progress.max_value = float(target)
 	
-	# スムーズな進行度アニメーション (LLM待機時のフェイク進捗 ＋ 取得完了時のlerp)
+	# スムーズな進行度アニメーション (実際の取得数にlerpで追いつかせる)
 	if current < target:
-		# 問題を待っている間は最大90%まで徐々に進める
-		var fake_speed := float(target) * 0.45 
-		var max_fake := float(target) * 0.90
-		if _displayed_progress < max_fake:
-			_displayed_progress += fake_speed * dt
-			if _displayed_progress > max_fake:
-				_displayed_progress = max_fake
-	
-	# 実際の進捗がフェイク進捗を上回った場合はLerpで追いつかせる
-	if float(current) > _displayed_progress:
-		_displayed_progress = lerpf(_displayed_progress, float(current), dt * 15.0)
-		
-	# 完了時はキッチリ合わせる
-	if current >= target:
+		_displayed_progress = lerpf(_displayed_progress, float(current), dt * 10.0)
+	else:
+		# 完了時はキッチリ合わせる
 		_displayed_progress = float(target)
 		
 	pl_progress.value = _displayed_progress
@@ -534,7 +523,7 @@ func _update_question() -> void:
 		question_panel.visible = false
 
 func _update_score() -> void:
-	if game_state.game_state in [Constants.STATE_PLAYING, Constants.STATE_CORRECT]:
+	if game_state.game_state in [Constants.STATE_PLAYING, Constants.STATE_CORRECT, Constants.STATE_GOAL_RACE]:
 		score_label.visible = true
 		if game_state.num_players >= 2:
 			score_label.text = "P1: %d  P2: %d" % [game_state.score, game_state.player2_score]
@@ -581,6 +570,14 @@ func _update_message() -> void:
 			message_label.text = "GO!"
 		message_label.add_theme_color_override("font_color", Color(1.0, 0.8, 0.2))
 		message_label.add_theme_font_size_override("font_size", 160)
+	elif game_state.game_state == Constants.STATE_GOAL_RACE:
+		message_label.visible = true
+		message_label.text = game_state.message_text
+		# Pulsating gold text
+		var pulse: float = (sin(Time.get_ticks_msec() * 0.004) + 1.0) * 0.5
+		message_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.15 + pulse * 0.2))
+		message_label.add_theme_font_size_override("font_size", 48)
+		message_label.modulate.a = 1.0
 	elif game_state.correct_flash > 0.0 and game_state.message_text:
 		message_label.visible = true
 		message_label.text = game_state.message_text
@@ -720,10 +717,17 @@ func _create_history_card(index: int, quiz: QuizItem, correct: bool, rated: Stri
 	rate_container.add_theme_constant_override("separation", 12)
 	vbox.add_child(rate_container)
 	
-	if rated.is_empty():
-		# Show rating buttons
+	var entry: Dictionary = game_state.quiz_history[index]
+	var player_rated: bool = entry.get("player_rated", false)
+	if not player_rated:
+		# Show rating buttons, optionally mentioning AI's rating if any
 		var rate_label := Label.new()
-		rate_label.text = "この問題の評価:"
+		if rated == "good":
+			rate_label.text = "AI評価:良い | あなたの評価:"
+		elif rated == "bad":
+			rate_label.text = "AI評価:悪い | あなたの評価:"
+		else:
+			rate_label.text = "この問題の評価:"
 		rate_label.add_theme_font_size_override("font_size", 15)
 		rate_label.add_theme_color_override("font_color", Color(0.5, 0.55, 0.65))
 		rate_container.add_child(rate_label)
@@ -753,13 +757,13 @@ func _create_history_card(index: int, quiz: QuizItem, correct: bool, rated: Stri
 			_replace_rate_buttons(rate_container, false)
 		)
 	else:
-		# Already rated — show feedback
+		# Already rated by player manually — show feedback
 		var feedback := Label.new()
 		if rated == "good":
-			feedback.text = "◯ 良い問題として評価済み"
+			feedback.text = "◯ 良い問題として評価しました"
 			feedback.add_theme_color_override("font_color", Color(0.3, 1.0, 0.5))
 		else:
-			feedback.text = "× 悪い問題として評価済み"
+			feedback.text = "× 悪い問題として評価しました"
 			feedback.add_theme_color_override("font_color", Color(1.0, 0.4, 0.3))
 		feedback.add_theme_font_size_override("font_size", 15)
 		rate_container.add_child(feedback)
