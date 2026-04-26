@@ -67,6 +67,14 @@ func get_env(key: String, default_val: String = "") -> String:
 		return env_vars[key]
 	return default_val
 
+func get_proxy_headers() -> PackedStringArray:
+	## プロキシリクエスト用のヘッダー配列を返す（APP_SECRET 付き）
+	var headers: PackedStringArray = ["Content-Type: application/json"]
+	var secret := get_env("APP_SECRET")
+	if not secret.is_empty():
+		headers.append("X-App-Secret: " + secret)
+	return headers
+
 func _update_config() -> void:
 	var proxy := get_env("PROXY_URL")
 	if not proxy.is_empty():
@@ -145,7 +153,7 @@ func _check_openai() -> void:
 	var headers: PackedStringArray
 	var url: String
 	if not proxy.is_empty():
-		headers = ["Content-Type: application/json"]
+		headers = get_proxy_headers()
 		url = proxy + "/openai"
 	else:
 		var key := get_env("OPENAI_API_KEY")
@@ -189,7 +197,11 @@ func _check_gemini() -> void:
 	var http := HTTPRequest.new()
 	add_child(http)
 	http.timeout = 8.0
-	var headers := ["Content-Type: application/json"]
+	var headers: PackedStringArray
+	if not proxy.is_empty():
+		headers = get_proxy_headers()
+	else:
+		headers = ["Content-Type: application/json"]
 	var body := JSON.stringify({
 		"contents": [{"parts": [{"text": "Reply with just OK"}]}],
 		"generationConfig": {"temperature": 0.0, "maxOutputTokens": 5}

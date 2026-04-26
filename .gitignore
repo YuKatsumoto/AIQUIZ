@@ -3,3 +3,5 @@ Godot_v4.3-stable_win64.exe
 .godot/
 *.log
 node_modules/
+AIQUIZ-Godot/build/
+*.pck

@@ -1,12 +1,71 @@
 const express = require('express');
 const cors = require('cors');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 app.use(cors());
 // すべてのリクエストボディをテキストとして受け取る
 app.use(express.text({ type: '*/*' }));
 
-app.post('/openai', async (req, res) => {
+// ========================================
+// Layer 1: APP_SECRET トークン認証
+// ========================================
+const APP_SECRET = process.env.APP_SECRET || '';
+
+function authMiddleware(req, res, next) {
+    if (!APP_SECRET) {
+        // サーバー側にAPP_SECRETが未設定の場合はスキップ（開発用）
+        return next();
+    }
+    const clientSecret = req.headers['x-app-secret'] || '';
+    if (clientSecret !== APP_SECRET) {
+        return res.status(403).json({ error: 'Forbidden: Invalid app secret' });
+    }
+    next();
+}
+
+// ========================================
+// Layer 2: レート制限 (1分あたり30リクエスト/IP)
+// ========================================
+const apiLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1分
+    max: 30,             // 最大30リクエスト
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many requests. Please wait a moment.' }
+});
+
+// ========================================
+// Layer 3: リクエスト形状バリデーション
+// ========================================
+function validateGeminiBody(req, res, next) {
+    try {
+        const body = JSON.parse(req.body);
+        if (!body.contents || !Array.isArray(body.contents)) {
+            return res.status(400).json({ error: 'Bad Request: Missing contents array' });
+        }
+    } catch (e) {
+        return res.status(400).json({ error: 'Bad Request: Invalid JSON' });
+    }
+    next();
+}
+
+function validateOpenAIBody(req, res, next) {
+    try {
+        const body = JSON.parse(req.body);
+        if (!body.messages || !Array.isArray(body.messages)) {
+            return res.status(400).json({ error: 'Bad Request: Missing messages array' });
+        }
+    } catch (e) {
+        return res.status(400).json({ error: 'Bad Request: Invalid JSON' });
+    }
+    next();
+}
+
+// ========================================
+// エンドポイント
+// ========================================
+app.post('/openai', authMiddleware, apiLimiter, validateOpenAIBody, async (req, res) => {
     try {
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
@@ -23,7 +82,7 @@ app.post('/openai', async (req, res) => {
     }
 });
 
-app.post('/gemini', async (req, res) => {
+app.post('/gemini', authMiddleware, apiLimiter, validateGeminiBody, async (req, res) => {
     try {
         const model = req.query.model || 'gemini-2.5-flash';
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`;
@@ -42,10 +101,10 @@ app.post('/gemini', async (req, res) => {
 });
 
 app.get('/', (req, res) => {
-    res.send('AIQUIZ Proxy Server is running! (Native Fetch v2)');
+    res.send('AIQUIZ Proxy Server is running! (Secured v3)');
 });
 
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
-    console.log(`Proxy listening on port ${PORT}`);
+    console.log(`Proxy listening on port ${PORT} (secured)`);
 });

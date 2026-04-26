@@ -158,7 +158,7 @@ func validate_answers_llm(items: Array[QuizItem], subject: String, grade: int,
 		http.queue_free()
 		callback.call(valid_items, invalid_reasons)
 	)
-	http.request(url, ["Content-Type: application/json"], HTTPClient.METHOD_POST, body)
+	http.request(url, ApiStatusAutoload.get_proxy_headers() if not proxy.is_empty() else ["Content-Type: application/json"], HTTPClient.METHOD_POST, body)
 
 
 func _parse_validation_results(text: String) -> Array:

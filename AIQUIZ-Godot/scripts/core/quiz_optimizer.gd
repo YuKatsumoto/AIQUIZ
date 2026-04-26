@@ -102,7 +102,7 @@ func _fetch_evaluation(prompt: String, to_evaluate: Array[Dictionary], subject: 
 					_process_evaluation_results(res, to_evaluate, subject, grade, difficulty)
 		http.queue_free()
 	)
-	http.request(url, ["Content-Type: application/json"], HTTPClient.METHOD_POST, body)
+	http.request(url, ApiStatusAutoload.get_proxy_headers() if not proxy.is_empty() else ["Content-Type: application/json"], HTTPClient.METHOD_POST, body)
 
 func _extract_json_array(text: String) -> Variant:
 	text = text.strip_edges()

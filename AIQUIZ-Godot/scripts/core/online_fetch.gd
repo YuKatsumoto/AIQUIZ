@@ -1010,7 +1010,7 @@ func _fetch_gemini_target(prompt: String, target_model: String, temperature: flo
 		http.queue_free()
 		callback.call(out)
 	)
-	http.request(url, ["Content-Type: application/json"], HTTPClient.METHOD_POST, body)
+	http.request(url, ApiStatusAutoload.get_proxy_headers() if not proxy.is_empty() else ["Content-Type: application/json"], HTTPClient.METHOD_POST, body)
 
 func _fetch_openai(prompt: String, callback: Callable) -> void:
 	var model := ApiStatusAutoload.get_env("OPENAI_FAST_MODEL", "gpt-4o-mini")
@@ -1021,7 +1021,7 @@ func _fetch_openai(prompt: String, callback: Callable) -> void:
 	
 	if not proxy.is_empty():
 		url = proxy + "/openai"
-		headers = ["Content-Type: application/json"]
+		headers = ApiStatusAutoload.get_proxy_headers()
 	else:
 		var key := ApiStatusAutoload.get_env("OPENAI_API_KEY")
 		if key.is_empty():
@@ -1095,4 +1095,4 @@ func fetch_explanation(subject: String, grade: int, quiz_q: String, quiz_c: Pack
 		http.queue_free()
 		callback.call(ans)
 	)
-	http.request(url, ["Content-Type: application/json"], HTTPClient.METHOD_POST, body)
+	http.request(url, ApiStatusAutoload.get_proxy_headers() if not proxy.is_empty() else ["Content-Type: application/json"], HTTPClient.METHOD_POST, body)
