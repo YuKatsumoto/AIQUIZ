@@ -10,10 +10,12 @@ class_name QuizItem
 @export var src: String = "OFFLINE"  # ソース (OFFLINE / ONLINE / FALLBACK)
 @export var img: String = ""         # 画像パス
 @export var choice_img: PackedStringArray = [] # 選択肢画像
+@export var estimated_seconds: float = 4.0  # AI予測解答時間（秒）
 
 static func create(question: String, choices: PackedStringArray, answer: int,
 		explanation: String = "", source: String = "OFFLINE",
-		image: String = "", choice_images: PackedStringArray = []) -> QuizItem:
+		image: String = "", choice_images: PackedStringArray = [],
+		est_seconds: float = 4.0) -> QuizItem:
 	var item := QuizItem.new()
 	item.q = question
 	item.c = choices
@@ -22,4 +24,5 @@ static func create(question: String, choices: PackedStringArray, answer: int,
 	item.src = source
 	item.img = image
 	item.choice_img = choice_images
+	item.estimated_seconds = est_seconds
 	return item

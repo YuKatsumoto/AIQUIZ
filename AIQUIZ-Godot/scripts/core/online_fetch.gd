@@ -90,12 +90,24 @@ func normalize_single(raw: Dictionary, src: String) -> QuizItem:
 		if s.is_empty(): return null
 		cleaned.append(s)
 		
+	# AI予測解答時間をパース
+	var t_raw = raw.get("t", null)
+	var est_sec: float = 4.0
+	if t_raw != null:
+		if typeof(t_raw) == TYPE_FLOAT:
+			est_sec = clampf(t_raw, 1.5, 10.0)
+		elif typeof(t_raw) == TYPE_INT:
+			est_sec = clampf(float(t_raw), 1.5, 10.0)
+		elif typeof(t_raw) == TYPE_STRING and (t_raw as String).is_valid_float():
+			est_sec = clampf(float(t_raw), 1.5, 10.0)
+	
 	var item := QuizItem.new()
 	item.q = q
 	item.c = cleaned
 	item.a = a_int
 	item.e = e
 	item.src = src
+	item.estimated_seconds = est_sec
 	return item
 
 ## システムインストラクション（ロール設定）を生成
@@ -104,6 +116,8 @@ func compose_system_instruction() -> String:
 	var sys := "あなたは日本の小学校で20年以上の指導経験を持つベテラン教員です。\n"
 	sys += "文部科学省の学習指導要領に完全準拠した、高品質なクイズ問題を生成します。\n"
 	sys += "クイズは3Dランナーゲーム内で使われるため、問題文は短く明瞭にしてください（50文字以内）。\n"
+	sys += "【重要】算数の問題は、計算用紙なしで暗算だけで解ける難易度にしてください。\n"
+	sys += "大きな桁数の計算・複雑な筆算を必要とする問題は禁止です。\n"
 	sys += "出力は常にJSON配列のみ。マークダウン装飾や説明文は一切含めないでください。\n"
 	return sys
 
@@ -134,7 +148,9 @@ func compose_prompt(subject: String, grade: int, difficulty: String, count: int,
 	prompt += "- 形式: 4択（推奨）または 2択\n"
 	prompt += "- 問題文(q)は50文字以内に収めること。長い文章題でも簡潔に書くこと\n"
 	prompt += "- 解説文(e)は20文字以内で、なぜその答えになるか核心だけ書くこと\n"
-	prompt += "- 選択肢(c)は各15文字以内に収めること\n\n"
+	prompt += "- 選択肢(c)は各15文字以内に収めること\n"
+	prompt += "- 予測解答時間(t)を各問題に付けること。対象学年の生徒が問題を読んで答えるまでの秒数（小数第1位）\n"
+	prompt += "  目安: 即答=2.0, 標準=4.0, 思考問題=6.0, 難問=8.0\n\n"
 
 	# ── 学年×教科別カリキュラムデータ ──
 	var curriculum := _get_curriculum(grade, subject)
@@ -181,6 +197,9 @@ func compose_prompt(subject: String, grade: int, difficulty: String, count: int,
 	prompt += "- 同じ単元・パターンの問題ばかり出すこと（%d問すべて異なる単元から出題せよ）\n" % count
 	prompt += "- 正解が曖昧な問題や、複数の選択肢が正解になりうる問題\n"
 	prompt += "- 選択肢に「わからない」「どれでもない」を含めること\n"
+	if subject == "算数":
+		prompt += "- 【算数限定】3桁以上の数同士の計算を必要とする問題（暗算で解けない問題）\n"
+		prompt += "- 【算数限定】このゲームは計算用紙がないため、筆算が必要な問題は全難易度で禁止\n"
 	
 	# ── bad_examples ──
 	if curriculum["bad_examples"].size() > 0:
@@ -204,17 +223,21 @@ func compose_prompt(subject: String, grade: int, difficulty: String, count: int,
 			prompt += analytics_feedback
 
 	# ── AI自己チェック・多様性と重複の絶対禁止 ──
-	prompt += "【AI自己チェック・重複絶対禁止】（超重要）\n"
-	prompt += "- %d問の中で、まったく同じ問題や「数値・単語・聞き方を少し変えただけ」の似た問題が重複しないよう、出力前にAI自身で厳密に比較チェックしてください。\n" % count
-	prompt += "- %d問すべて『完全に異なる単元』から出題すること。\n" % count
+	prompt += "【AI自己チェック・重複絶対禁止】（超重要 ― ここが最も重要な制約）\n"
+	prompt += "- %d問の中で一切の重複を許さない。出力前に全問題ペアを比較し、以下のいずれかに該当する場合は片方を別の問題に差し替えること:\n" % count
+	prompt += "  (a) まったく同じ問題文\n"
+	prompt += "  (b) 数値・単語を変えただけの類似問題（例:「3+5は？」と「4+6は？」は同パターン）\n"
+	prompt += "  (c) 聞き方を変えただけの同じ知識を問う問題（例:「半径と直径の関係は？」と「直径は半径の何倍？」）\n"
+	prompt += "  (d) 同じ公式・概念を別の数値で問う問題（例:面積問題が2つ以上）\n"
+	prompt += "- %d問すべて『完全に異なる単元・トピック』から出題すること。同じ単元から2問以上出さないこと。\n" % count
 	prompt += "- 計算問題・知識問題・思考問題をバランスよく混ぜること\n"
 	prompt += "- 正解の位置(a)を0〜3で均等に散らすこと（全部0や全部1にしない）\n"
 	prompt += "- 4択と2択を任意に混ぜて出題すること\n"
 	if history.size() > 0:
-		prompt += "- また、以下の「出題済み過去問題」とも明確に違う問題にすること:\n"
-		var max_h = min(20, history.size())
+		prompt += "- 【出題済みリスト】以下の問題は既に出題済みなので、同じ問題・類似の問題は絶対に出さないこと:\n"
+		var max_h = min(30, history.size())
 		for i in range(max_h):
-			prompt += "  * " + history[history.size() - 1 - i] + "\n"
+			prompt += "  × " + history[history.size() - 1 - i] + "\n"
 	prompt += "\n"
 
 	return prompt
@@ -253,9 +276,9 @@ func _get_curriculum(grade: int, subject: String) -> Dictionary:
 				data["keywords"] = "九九, 筆算, 繰り上がり, 繰り下がり, cm, mm, m, L, dL, 直角, 三角形, 四角形, 時刻, 時間"
 				data["examples"] = [
 					"7×8はいくつ？",
-					"345＋278の筆算の答えは？",
 					"1m＝□cm、□に入る数は？",
 					"2時40分から30分後は何時何分？",
+					"30+50+20はいくつ？",
 				]
 				data["bad_examples"] = ["2+3は？（1年レベル）", "5×1は？（簡単すぎ）"]
 				data["typical_mistakes"] = [
@@ -284,11 +307,11 @@ func _get_curriculum(grade: int, subject: String) -> Dictionary:
 				data["topics"] = "大きな数（億・兆）、わり算の筆算（3桁÷2桁）、小数のかけ算わり算、がい数と四捨五入、面積（c㎡, m², km², a, ha）、角度（分度器、三角形の角の和）、垂直と平行、台形・平行四辺形・ひし形、折れ線グラフ、変わり方（□を使った式）、そろばん"
 				data["keywords"] = "億, 兆, 筆算, 四捨五入, がい数, 面積, c㎡, m², 角度, 分度器, 垂直, 平行, 台形, 平行四辺形, ひし形, 折れ線グラフ"
 				data["examples"] = [
-					"276÷12の商は？",
-					"3.6×4はいくつ？",
+					"24÷6の答えは？",
+					"0.5×4はいくつ？",
 					"たて5cm、横8cmの長方形の面積は？",
 					"三角形の2つの角が45°と90°のとき、残りの角は？",
-					"48735を千の位で四捨五入すると？",
+					"3500を千の位で四捨五入すると？",
 				]
 				data["bad_examples"] = ["5×6は？（九九＝2年レベル）", "偶数はどれ？（一般常識）", "78と45で大きい数は？（低学年レベル）"]
 				data["typical_mistakes"] = [
@@ -303,7 +326,7 @@ func _get_curriculum(grade: int, subject: String) -> Dictionary:
 				data["examples"] = [
 					"2.5÷0.5はいくつ？",
 					"1/3＋1/6を通分して計算すると？",
-					"定価800円の25%引きはいくら？",
+					"定価100円の50%引きはいくら？",
 					"底辺6cm、高さ4cmの三角形の面積は？",
 					"12と18の最大公約数は？",
 				]
@@ -320,10 +343,10 @@ func _get_curriculum(grade: int, subject: String) -> Dictionary:
 				data["keywords"] = "分数×分数, 逆数, 比, 比の値, 比例, 反比例, 速さ, 道のり, 時間, 縮尺, 線対称, 点対称, 円の面積, 体積, 度数分布, 平均値, 場合の数, 文字式"
 				data["examples"] = [
 					"3/4÷2/5はいくつ？",
-					"時速60kmで2時間30分走ると何km？",
-					"半径5cmの円の面積は？（円周率3.14）",
-					"A:B＝3:5のとき、Aが12ならBは？",
+					"分速60mで5分歩くと何m？",
+					"A:B＝3:5のとき、Aが6ならBは？",
 					"赤白青の3色の旗を一列に並べる並べ方は何通り？",
+					"50%引きの後さらに半額。元の何%？",
 				]
 				data["bad_examples"] = ["1/2＋1/2は？（同分母は3年レベル）", "3×4は？"]
 				data["typical_mistakes"] = [
@@ -608,7 +631,7 @@ func _compose_easy_instructions(grade: int, subject: String, curriculum: Diction
 		"算数":
 			p += "- %d年生で新しく習う計算・概念の基本問題を出すこと\n" % grade
 			p += "- 教科書の練習問題（A問題）レベルを想定\n"
-			p += "- 数値は小さめで計算しやすいものを選ぶこと\n"
+			p += "- 数値は小さめで計算しやすいものを選ぶこと（暗算で解ける範囲に限定）\n"
 		"理科":
 			p += "- 基本的な用語・概念の確認問題を出すこと\n"
 			p += "- 「〇〇とは何か？」「〇〇の名前は？」のような知識確認が中心\n"
@@ -645,8 +668,9 @@ func _compose_normal_instructions(grade: int, subject: String, curriculum: Dicti
 	match subject:
 		"算数":
 			p += "- 以下の単元から満遍なく出題すること: %s\n" % curriculum["topics"]
-			p += "- 筆算レベルの計算、面積、角度、グラフの読み取り等%d年生で実際に学ぶ内容\n" % grade
-			p += "- 数値は教科書で使われる標準的な大きさにすること\n"
+			p += "- 計算用紙なしで暗算で解ける範囲の数値を使うこと（3桁以上の計算は禁止）\n"
+			p += "- 面積、角度、グラフの読み取り等%d年生で実際に学ぶ内容\n" % grade
+			p += "- 数値は暗算しやすい小さめの値にすること\n"
 			if grade >= 3:
 				p += "- 九九の単純暗唱問題は禁止（3年以上は既習）\n"
 			if grade >= 4:
@@ -682,18 +706,42 @@ func _compose_hard_instructions(grade: int, subject: String, curriculum: Diction
 	p += "\n＜%sの具体的な応用問題例＞\n" % subject
 	match subject:
 		"算数":
-			p += "- 文章題（買い物のおつり、速さと距離、割合の比較）を出すこと\n"
-			p += "- 図形の複合問題（面積の差、角度の計算）を出すこと\n"
-			p += "- 単位変換を含む問題も良い\n"
+			p += "\n＜★★★ 暗算制約（最重要・絶対遵守）★★★＞\n"
+			p += "- このゲームでは計算用紙を使えません。すべての問題は暗算だけで解けること！\n"
+			p += "- 3桁以上の計算（例: 2500÷5, 345+278）は【絶対禁止】\n"
+			p += "- 掛け算は九九の範囲内（1桁×1桁）、または10×□, □×10 等の簡単なもののみ可\n"
+			p += "- 割り算は割り切れる簡単な組合せのみ（例: 20÷4, 36÷6）\n"
+			p += "- 小数は0.1, 0.5, 0.25 等、暗算しやすい値のみ使用\n"
+			p += "- 分数は分母が2,3,4,5,6,8,10程度の簡単なもののみ\n"
+			p += "- 割合・百分率は 10%, 20%, 25%, 50%, 75% 等のキリが良い値のみ使用\n"
+			p += "- 面積・体積は小さくて暗算しやすい数値のみ（例: 3×4, 5×6）\n"
+			p += "- 「難しさ」は計算の複雑さではなく、概念理解・思考力・ひっかけで表現すること\n\n"
+			p += "＜良い「難しい」問題の方向性＞\n"
+			p += "- 概念の本質を問う問題（なぜそうなるか？どの公式を使うか？）\n"
+			p += "- 紛らわしい選択肢で判断力を試す問題\n"
+			p += "- 日常場面の文章題で立式力を試す（ただし数値は簡単に）\n"
+			p += "- 図形の性質や単位の関係を問う問題\n"
+			p += "- 条件整理が必要だが計算自体は簡単な問題\n\n"
+			p += "＜悪い「難しい」問題の例（絶対禁止）＞\n"
+			p += "  × 2500÷5＝？（大きな数の計算 → 暗算困難）\n"
+			p += "  × 345+278＝？（3桁の足し算 → 筆算必要）\n"
+			p += "  × 1500×0.65＝？（大きな数×小数 → 暗算困難）\n"
+			p += "  × 半径5cmの円の面積は？ 5×5×3.14＝78.5（暗算困難）\n\n"
+			p += "＜良い「難しい」問題の例＞\n"
+			p += "  ○ 底辺6cm高さ4cmの三角形の面積は？（6×4÷2=12 → 暗算可能）\n"
+			p += "  ○ 50%引きの後さらに20%引き。元の何%？（概念理解）\n"
+			p += "  ○ 比 3:5 でAが6のとき、Bは？（比例の理解、6÷3×5=10）\n"
+			p += "  ○ 正三角形の1つの角は何度？（図形知識）\n"
+			p += "  ○ 分速60mで5分歩くと何m？（60×5=300 → 暗算可能）\n\n"
 			if grade >= 4:
-				p += "- がい数を使った見積もり、概算の問題\n"
+				p += "- がい数の概念、四捨五入のルール理解を問う問題は良い\n"
 			if grade >= 5:
-				p += "- 割合・百分率の応用（定価→売値→利益の計算等）\n"
-				p += "- 倍数・約数を使った文章題\n"
+				p += "- 割合・百分率の概念理解（計算は10%,25%,50%等に限定）\n"
+				p += "- 倍数・約数の概念を問う問題（小さな数値で）\n"
 			if grade >= 6:
-				p += "- 速さ×時間＝道のりの文章題\n"
-				p += "- 比の応用（配分問題）\n"
-				p += "- 場合の数の応用\n"
+				p += "- 速さ=道のり÷時間 の立式力（数値は暗算範囲内）\n"
+				p += "- 比の概念理解（小さな整数の比のみ）\n"
+				p += "- 場合の数（3〜4個程度の並べ方・選び方）\n"
 		"理科":
 			p += "- 実験結果から原因・法則を推測させる問題\n"
 			p += "- 「もし条件を変えたらどうなるか？」という思考実験系の問題\n"
@@ -717,77 +765,187 @@ func _compose_hard_instructions(grade: int, subject: String, curriculum: Diction
 	return p
 
 func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count: int, history: Array[String]) -> void:
-	# Split into many small parallel requests for minimum latency.
-	# 速度を維持したまま重複を防ぐため、並列生成を維持しつつ各リクエストに別々の「テーマ」を強制する
-	const NUM_PARALLEL: int = 5
-	var per_call: int = maxi(2, ceili(float(count) / float(NUM_PARALLEL)))
+	# 10問モード: 2並列リクエスト（各バッチに異なる単元を割当て → セマンティックdedupで最終フィルタ）
+	# エンドレスモード: 5並列リクエストで速度最重視
+	var is_ten_mode := count >= 6  # 6問以上は10問モード扱い
 	
-	var expected_calls: int = NUM_PARALLEL
-	var completed_calls: int = 0
 	var unique_seen := {}
 	
 	# 案5: 難易度に応じた temperature
 	var temperature := get_temperature_for_difficulty(difficulty)
 	
-	var on_complete = func(items: Array[QuizItem]):
-		# 案2: ルールベースバリデーション（即時・無料）
-		var validator: QuizValidator = QuizManager.quiz_validator
-		if validator:
-			var rule_result := validator.validate_rules(items)
-			items = rule_result["valid"]
-			if rule_result["reasons"].size() > 0:
-				print("[OnlineFetch] Rule validation removed %d items" % rule_result["reasons"].size())
-		
-		var unique_items: Array[QuizItem] = []
-		items.shuffle()
-		for q in items:
-			if unique_seen.has(q.q): continue
-			unique_seen[q.q] = true
-			unique_items.append(q)
+	# ── 共通コールバック ──
+	var _make_on_complete = func(expected_ref: Array, completed_ref: Array) -> Callable:
+		return func(items: Array[QuizItem]):
+			# 案2: ルールベースバリデーション（即時・無料）
+			var validator: QuizValidator = QuizManager.quiz_validator
+			if validator:
+				var rule_result := validator.validate_rules(items)
+				items = rule_result["valid"]
+				if rule_result["reasons"].size() > 0:
+					print("[OnlineFetch] Rule validation removed %d items" % rule_result["reasons"].size())
 			
-		if unique_items.size() > 0:
-			# 速度優先: ルールベース検証をパスした問題は即座にバッファへ投入
-			fetch_partial.emit(unique_items)
+			var unique_items: Array[QuizItem] = []
+			items.shuffle()
+			for q in items:
+				if unique_seen.has(q.q): continue
+				# セマンティック重複チェック: 既に見た問題と内容レベルで比較
+				var is_dup := false
+				for seen_q: String in unique_seen.keys():
+					if _is_semantically_similar(q.q, seen_q):
+						is_dup = true
+						print("[OnlineFetch] Dedup blocked (semantic): '%s' ≈ '%s'" % [q.q.left(30), seen_q.left(30)])
+						break
+				if is_dup:
+					continue
+				unique_seen[q.q] = true
+				unique_items.append(q)
+				
+			if unique_items.size() > 0:
+				# 速度優先: 先着バッチの結果を即座にバッファ投入
+				fetch_partial.emit(unique_items)
+				
+				if validator and unique_items.size() > 0:
+					validator.validate_answers_llm(unique_items, subject, grade,
+						func(valid_items: Array[QuizItem], invalid_reasons: Array[String]):
+							if invalid_reasons.size() > 0:
+								print("[OnlineFetch] LLM validation flagged %d items (async)" % invalid_reasons.size())
+								for reason in invalid_reasons:
+									print("  - %s" % reason)
+					)
 			
-			# 案2: LLMバリデーションは非同期で裏側実行
-			# 不合格の問題が見つかった場合はログに記録するだけ
-			# （次回生成のフィードバックとして活用）
-			if validator and unique_items.size() > 0:
-				validator.validate_answers_llm(unique_items, subject, grade,
-					func(valid_items: Array[QuizItem], invalid_reasons: Array[String]):
-						if invalid_reasons.size() > 0:
-							print("[OnlineFetch] LLM validation flagged %d items (async)" % invalid_reasons.size())
-							for reason in invalid_reasons:
-								print("  - %s" % reason)
-				)
+			completed_ref[0] += 1
+			if completed_ref[0] >= expected_ref[0]:
+				fetch_completed.emit([] as Array[QuizItem])
+	
+	if is_ten_mode:
+		# ═══ 10問モード: 2並列 × 各7問（速度2倍 + セマンティックdedup）═══
+		# 各バッチに異なる単元テーマを明示的に割り当て → バッチ間重複を構造的に防止
+		const TEN_PARALLEL: int = 2
+		var per_batch: int = 7  # 余剰を含めた各バッチの問題数
+		var expected_ref := [TEN_PARALLEL]
+		var completed_ref := [0]
 		
-		completed_calls += 1
-		if completed_calls >= expected_calls:
-			fetch_completed.emit([] as Array[QuizItem])
-	
-	var timer := get_tree().create_timer(30.0)  # Increased back to 30s for large batches
-	timer.timeout.connect(func():
-		if completed_calls < expected_calls:
-			completed_calls = 999 
-			fetch_completed.emit([] as Array[QuizItem])
-	)
-	
-	# Fire NUM_PARALLEL concurrent requests, each with a
-	# slightly different prompt seed so the model doesn't return duplicates.
-	var themes := [
-		"テーマA: 基礎的な用語や計算、単純な事実を問う問題",
-		"テーマB: 日常生活に関連した文章題や応用問題",
-		"テーマC: 図形、単位、文字、グラフなどの表現・概念を問う問題",
-		"テーマD: 少しひねった問題や、よくある間違いを誘う問題",
-		"テーマE: この学年の学習内容のうち、最も難易度が高い問題"
-	]
-	
-	for i in range(NUM_PARALLEL):
-		var extra_history: Array[String] = history.duplicate()
-		# Add a strong diversity seed to each parallel request to avoid similarity across parallel batches
-		extra_history.append("【並列バッチ制約: この生成では必ず『%s』の傾向を中心に出題し、他のバッチと内容が被るのを防いでください】" % themes[i % themes.size()])
-		var prompt := compose_prompt(subject, grade, difficulty, per_call, extra_history)
-		_fetch_gemini_target(prompt, "gemini-3-flash-preview", temperature, on_complete)
+		var timer := get_tree().create_timer(25.0)  # 2並列なので25sで十分
+		timer.timeout.connect(func():
+			if completed_ref[0] < expected_ref[0]:
+				completed_ref[0] = 999
+				fetch_completed.emit([] as Array[QuizItem])
+		)
+		
+		var on_complete: Callable = _make_on_complete.call(expected_ref, completed_ref)
+		
+		# バッチごとに異なる単元テーマを強制割り当て
+		var batch_themes := [
+			"【バッチ指示】問1〜7は以下のジャンルから出題: 計算・数値操作・公式適用・単位変換・基本知識確認。残りのバッチとは異なるジャンルです。",
+			"【バッチ指示】問1〜7は以下のジャンルから出題: 文章題・応用思考・図形概念・グラフ読取・因果推論。残りのバッチとは異なるジャンルです。"
+		]
+		
+		for i in range(TEN_PARALLEL):
+			var extra_history: Array[String] = history.duplicate()
+			extra_history.append(batch_themes[i])
+			var prompt := compose_prompt(subject, grade, difficulty, per_batch, extra_history)
+			print("[OnlineFetch] 10-question parallel batch %d: requesting %d questions" % [i, per_batch])
+			_fetch_gemini_target(prompt, "gemini-2.5-flash", temperature, on_complete)
+	else:
+		# ═══ エンドレスモード: 並列リクエストで速度重視 ═══
+		const NUM_PARALLEL: int = 5
+		var per_call: int = maxi(2, ceili(float(count) / float(NUM_PARALLEL)))
+		var expected_ref := [NUM_PARALLEL]
+		var completed_ref := [0]
+		
+		var timer := get_tree().create_timer(30.0)
+		timer.timeout.connect(func():
+			if completed_ref[0] < expected_ref[0]:
+				completed_ref[0] = 999
+				fetch_completed.emit([] as Array[QuizItem])
+		)
+		
+		var on_complete: Callable = _make_on_complete.call(expected_ref, completed_ref)
+		
+		var themes := [
+			"テーマA: 基礎的な用語や計算、単純な事実を問う問題",
+			"テーマB: 日常生活に関連した文章題や応用問題",
+			"テーマC: 図形、単位、文字、グラフなどの表現・概念を問う問題",
+			"テーマD: 少しひねった問題や、よくある間違いを誘う問題",
+			"テーマE: この学年の学習内容のうち、最も難易度が高い問題"
+		]
+		
+		for i in range(NUM_PARALLEL):
+			var extra_history: Array[String] = history.duplicate()
+			extra_history.append("【並列バッチ制約: この生成では必ず『%s』の傾向を中心に出題し、他のバッチと内容が被るのを防いでください】" % themes[i % themes.size()])
+			var prompt := compose_prompt(subject, grade, difficulty, per_call, extra_history)
+			_fetch_gemini_target(prompt, "gemini-3-flash-preview", temperature, on_complete)
+
+## セマンティック重複検出
+## 問題文からキーワードを抽出し、Jaccard類似度で内容レベルの重複を検出する
+## 「数値を変えただけ」「聞き方を変えただけ」のパターンを確実にブロック
+func _is_semantically_similar(q1: String, q2: String) -> bool:
+	# 完全一致チェック
+	if q1 == q2:
+		return true
+	# 通常の文字列類似度（GDScript built-in）
+	if q1.similarity(q2) > 0.70:
+		return true
+	# キーワード抽出ベースの類似度チェック
+	var kw1 := _extract_keywords(q1)
+	var kw2 := _extract_keywords(q2)
+	if kw1.is_empty() or kw2.is_empty():
+		return false
+	# Jaccard類似度: 共通キーワード / 全キーワードの和集合
+	var intersection := 0
+	for k in kw1:
+		if kw2.has(k):
+			intersection += 1
+	var union_size := kw1.size() + kw2.size() - intersection
+	if union_size == 0:
+		return false
+	var jaccard := float(intersection) / float(union_size)
+	return jaccard > 0.55  # 55%以上のキーワードが一致 → 重複と判定
+
+## 問題文からコンテンツキーワードを抽出する
+## 助詞・構造語・数値を除去して内容の骨格だけを残す
+func _extract_keywords(text: String) -> Dictionary:
+	# 数字を正規化（全角→半角は GDScript では手動）
+	var normalized := text
+	# 助詞・接続詞・構造語を除去してトークン化
+	var noise_words := ["は", "の", "が", "を", "に", "で", "と", "も", "へ", "から",
+		"まで", "より", "など", "たり", "って", "です", "ます", "した", "する",
+		"ある", "いる", "なる", "ない", "この", "その", "どの", "どれ",
+		"いくつ", "何", "どう", "とき", "こと", "もの", "ため", "ところ",
+		"？", "。", "、", "「", "」", "（", "）", "＝", "＋", "−", "×", "÷",
+		"?", ".", ",", "(", ")", "=", "+", "-"]
+	# 文字を1〜3文字のn-gramに分割してキーワード辞書を構築
+	var keywords := {}
+	# まずスペースや記号で大まかにトークン分割
+	var tokens := normalized.split(" ")
+	var expanded_tokens: Array[String] = []
+	for t in tokens:
+		# さらに日本語の助詞的な境界で分割（簡易）
+		expanded_tokens.append(t)
+	for token: String in expanded_tokens:
+		var cleaned := token.strip_edges()
+		if cleaned.length() < 2:
+			continue
+		if cleaned in noise_words:
+			continue
+		# 数値だけのトークンは除外（数値違いの問題を同一視するため）
+		if cleaned.is_valid_int() or cleaned.is_valid_float():
+			continue
+		keywords[cleaned] = true
+	# 2文字bigram も追加（日本語は空白区切りがないため）
+	for i in range(normalized.length() - 1):
+		var bigram := normalized.substr(i, 2)
+		var skip := false
+		for nw: String in ["は", "の", "が", "を", "に", "で", "と", "も"]:
+			if bigram.contains(nw):
+				skip = true
+				break
+		if skip:
+			continue
+		if bigram.strip_edges().length() == 2:
+			keywords[bigram] = true
+	return keywords
 
 func _fetch_gemini_target(prompt: String, target_model: String, temperature: float, callback: Callable) -> void:
 	var proxy := ApiStatusAutoload.get_env("PROXY_URL")

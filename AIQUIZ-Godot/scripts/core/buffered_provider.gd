@@ -70,6 +70,9 @@ func begin_round(subject: String, grade: int, difficulty: String,
 	# エンドレスモード: ラウンド開始時にオフラインの緊急キャッシュを事前準備
 	if mode == Constants.MODE_ENDLESS:
 		_prepare_emergency_cache()
+	
+	# ★★★ 速度最適化: ポーリング待ちを廃止し、即座に最初のリクエストを発火 ★★★
+	_fire_immediate_fetch()
 
 func end_round() -> void:
 	is_active_round = false
@@ -89,28 +92,49 @@ func _target_buffer_size() -> int:
 func _worker_should_fill() -> bool:
 	if not is_active_round:
 		return false
-	# エンドレスモード: 最大4つの同時リクエストを許可（was 2）
-	# 10問モード: 最大2つの同時リクエスト（変更なし）
-	var max_inflight: int = 4 if current_mode == Constants.MODE_ENDLESS else 2
+	# エンドレスモード: 最大4つの同時リクエスト
+	# 10問モード: 2並列バッチが1回で十分なのでmax_inflight=1
+	var max_inflight: int = 4 if current_mode == Constants.MODE_ENDLESS else 1
 	if inflight >= max_inflight:
 		return false
-	var pending = buffer.size() + inflight * 5  # estimate 5 per inflight
+	var per_batch_estimate: int = 7  # 各バッチの推定問題数
+	var pending = buffer.size() + inflight * per_batch_estimate
 	if current_mode == Constants.MODE_TEN:
 		var needed = max(0, target_count - yielded_count)
 		if pending >= needed:
 			return false
 	return pending < _target_buffer_size()
 
+## begin_round()から即座に呼ばれる高速初回フェッチ
+## ポーリングタイマーの0.25秒待ちをスキップしてAPIリクエストを即発火
+func _fire_immediate_fetch() -> void:
+	if not _worker_should_fill():
+		return
+	_on_poll()  # 即座に最初のリクエストを発火
+
 func _on_poll() -> void:
 	if not _worker_should_fill():
 		return
 	
 	inflight += 1
-	# エンドレスは7問、10問プレイは残りの必要数(上限10)を一気にリクエスト（1撃で全問生成）
-	var fetch_count: int = 7 if current_mode == Constants.MODE_ENDLESS else clampi(target_count - yielded_count - buffer.size(), 2, 10)
+	# エンドレス: 7問ずつ、10問モード: 残り必要数を一括リクエスト
+	var fetch_count: int
+	if current_mode == Constants.MODE_ENDLESS:
+		fetch_count = 7
+	else:
+		fetch_count = clampi(target_count - yielded_count - buffer.size(), 2, 10)
 		
 	if llm_mode == "ONLINE" and (ApiStatusAutoload.gemini_key_set or ApiStatusAutoload.openai_key_set):
-		online_fetcher.fetch_quiz_parallel(current_subject, current_grade, current_difficulty, fetch_count, play_history)
+		# 10問モード: バッファ内の既存問題もhistoryに含め、LLMに「既出」と伝える
+		var full_history: Array[String] = play_history.duplicate()
+		if current_mode == Constants.MODE_TEN:
+			for bq in buffer:
+				if bq.q not in full_history:
+					full_history.append(bq.q)
+			for rq in recent_questions:
+				if rq not in full_history:
+					full_history.append(rq)
+		online_fetcher.fetch_quiz_parallel(current_subject, current_grade, current_difficulty, fetch_count, full_history)
 	else:
 		# Offline fallback
 		var b_size := 6
@@ -125,12 +149,17 @@ func _on_fetch_partial(quizzes: Array[QuizItem]) -> void:
 		
 	var accepted := false
 	for q in quizzes:
-		# Advanced deduplication (similarity check)
+		# Advanced deduplication: 完全一致 + 文字列類似度 + セマンティック判定
 		var is_sim := false
 		for rq in recent_questions:
-			# 完全一致、または類似度が75%以上のものは似た問題とみなして弾く
-			if rq == q.q or rq.similarity(q.q) > 0.75:
+			# 完全一致チェック
+			if rq == q.q:
 				is_sim = true
+				break
+			# 文字列類似度チェック（閾値を厳しく: 0.75 → 0.65）
+			if rq.similarity(q.q) > 0.65:
+				is_sim = true
+				print("[BufferedProvider] Dedup: similarity %.2f '%s' ≈ '%s'" % [rq.similarity(q.q), q.q.left(25), rq.left(25)])
 				break
 		if is_sim:
 			continue

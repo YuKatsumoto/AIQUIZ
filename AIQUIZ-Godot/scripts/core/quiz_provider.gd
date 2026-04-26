@@ -100,6 +100,41 @@ func _normalize(raw: Variant) -> QuizItem:
 
 	return QuizItem.create(q_text, cleaned, a_int, e_text, src_text, img_text, choice_imgs)
 
+# ---------- Estimated solving time (heuristic for offline) ----------
+
+func _estimate_seconds(item: QuizItem, subject: String, difficulty: String) -> float:
+	## オフライン問題のAI予測解答時間をヒューリスティクスで推定する
+	var base: float
+	match difficulty:
+		"簡単": base = 2.5
+		"普通": base = 3.5
+		"難しい": base = 5.0
+		_: base = 3.5
+	
+	# テキスト量補正（35文字基準、1文字あたり+0.04秒）
+	var total_chars: int = item.q.length()
+	for ch: String in item.c:
+		total_chars += ch.length()
+	base += maxf(0.0, float(total_chars - 35)) * 0.04
+	
+	# 教科ごとの思考時間加算
+	if subject == "算数":
+		# 計算記号が含まれる場合は+1秒
+		var regex := RegEx.new()
+		regex.compile("[＋\\+\\-×÷＝]")
+		if regex.search(item.q):
+			base += 1.0
+	elif subject == "国語":
+		# 漢字の読み問題は速い
+		if "読み" in item.q:
+			base -= 0.5
+	
+	# 4択は2択より+0.8秒
+	if item.c.size() == 4:
+		base += 0.8
+	
+	return clampf(base, 1.5, 10.0)
+
 # ---------- Difficulty bucketing ----------
 
 func _complexity_score(item: QuizItem, subject: String, grade: int) -> float:
@@ -134,10 +169,17 @@ func _complexity_score(item: QuizItem, subject: String, grade: int) -> float:
 		for token: String in ["割合", "比", "速さ", "体積", "平均", "合同", "比例", "反比例"]:
 			if token in text:
 				score += 0.9
+		# 概念理解・思考力系のキーワードにボーナス（暗算で解けつつ難しい問題）
+		for token: String in ["なぜ", "どちら", "正しい", "間違い", "性質", "規則", "関係", "条件"]:
+			if token in text:
+				score += 0.5
+		# 3桁以上の数字を含む問題は暗算困難 → ハードバケットから除外
 		var regex_big_num := RegEx.new()
 		regex_big_num.compile("\\d{3,}")
-		if regex_big_num.search(text):
-			score += 0.4
+		var big_matches := regex_big_num.search_all(text)
+		if big_matches.size() > 0:
+			# 大きな数が多いほどペナルティを強くする
+			score -= big_matches.size() * 1.5
 	elif subject == "理科":
 		for token: String in ["実験", "観察", "原因", "結果", "規則", "電磁石", "水溶液", "燃焼", "光合成"]:
 			if token in text:
@@ -363,6 +405,8 @@ func get_quizzes(subject: String, grade: int, difficulty: String,
 		for raw: Variant in raw_items_data:
 			var n := _normalize(raw)
 			if n:
+				# オフライン問題にはヒューリスティクスで解答時間を推定
+				n.estimated_seconds = _estimate_seconds(n, subject, difficulty)
 				items.append(n)
 
 	if items.is_empty():

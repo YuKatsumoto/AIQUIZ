@@ -100,7 +100,7 @@ var player2_game_over_timer: float = 0.0
 
 
 # --- Dynamic wall speed ---
-var _active_wall_speed: float = 6.8
+var _active_wall_speed: float = 6.0
 
 # --- Physics Constants ---
 const GRAVITY: float = 18.0
@@ -159,8 +159,7 @@ func back_from_settings() -> void:
 	menu_step = Constants.MENU_STEP_MODE
 	refresh_status_text()
 
-func set_wall_speed(speed: float) -> void:
-	tuning.wall_speed = clampf(speed, 3.0, 12.0)
+# set_wall_speed() は廃止。壁速度はAI予測解答時間から自動算出される。
 
 func set_sfx_volume(vol: float) -> void:
 	sfx_volume = clampf(vol, 0.0, 1.0)
@@ -220,8 +219,8 @@ func start_game() -> void:
 	total_answered = 0
 	total_wrong = 0
 	recent_response_times.clear()
-	# Dynamic wall speed reset
-	_active_wall_speed = tuning.wall_speed
+	# Dynamic wall speed reset（デフォルト予測時間4秒で初期化、問題読み込み時に再計算される）
+	_active_wall_speed = 28.0 / (4.0 + 1.5)  # VISIBLE_DISTANCE / (default_est + buffer)
 	var count: int = 10 if mode == Constants.MODE_TEN else 1
 	target_count = count
 
@@ -330,29 +329,34 @@ func load_current_quiz() -> void:
 	quiz_loaded.emit(current_quiz)
 
 func _recalc_wall_speed() -> void:
-	var base: float = tuning.wall_speed
-	var q_text: String = ""
-	if current_quiz:
-		q_text = current_quiz.q if current_quiz.q else ""
-		if current_quiz.c.size() > 0:
-			for ch: String in current_quiz.c:
-				q_text += ch
-	var text_len: int = q_text.length()
-	var length_factor: float = clampf(1.0 - (text_len - 20) * 0.0045, 0.55, 1.0)
+	## AI予測解答時間から壁速度を逆算する
+	## speed = 可視距離 ÷ (予測秒数 + 移動バッファ)
+	## + ステージ加速（緊張感演出）
 	
-	# 直近パフォーマンス連動による速度調整 (Case A)
-	var perf_factor: float = 1.0
-	if recent_response_times.size() > 0:
-		var sum_time: float = 0.0
-		for t: float in recent_response_times:
-			sum_time += t
-		var avg_time: float = sum_time / recent_response_times.size()
-		# avg_timeが2秒(速い)から5秒(遅い)の間で重みを0.0〜1.0に変換
-		var weight: float = clampf((avg_time - 2.0) / 3.0, 0.0, 1.0)
-		# 速い(0.0) -> x1.25, 遅い(1.0) -> x0.8
-		perf_factor = lerpf(1.25, 0.8, weight)
-		
-	var final_speed: float = base * length_factor * perf_factor
+	# --- AI予測解答時間を取得 ---
+	var est_sec: float = 4.0  # デフォルト
+	if current_quiz:
+		est_sec = current_quiz.estimated_seconds
+	
+	# --- 壁が見えてからプレイヤーに到達するまでの距離 ---
+	const VISIBLE_DISTANCE: float = 28.0  # wall_start_z(22) - hit_z(-6)
+	const MOVE_BUFFER: float = 1.5        # ドアまで移動する余白（秒）
+	
+	var target_time: float = est_sec + MOVE_BUFFER
+	var base_speed: float = VISIBLE_DISTANCE / target_time
+	
+	# --- ステージ加速 ---
+	var stage_factor: float = 1.0
+	if mode == Constants.MODE_TEN:
+		# 10問モード: 問題番号 0〜9 で 0%〜15% 加速
+		var progress: float = clampf(float(current_index) / 9.0, 0.0, 1.0)
+		stage_factor = 1.0 + progress * 0.15
+	else:
+		# エンドレスモード: 5問周期で微加速、最大+20%
+		var cycle_pos: float = float(total_answered % 5) / 4.0
+		stage_factor = 1.0 + minf(cycle_pos * 0.15, 0.20)
+	
+	var final_speed: float = base_speed * stage_factor
 	_active_wall_speed = clampf(final_speed, tuning.wall_speed_min, tuning.wall_speed_max)
 
 

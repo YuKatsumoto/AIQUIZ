@@ -7,7 +7,7 @@ var player_speed: float = 7.6
 var min_x: float = -6.5
 var max_x: float = 6.5
 var wall_start_z: float = 22.0
-var wall_speed: float = 6.8
+# 壁速度はAI予測解答時間から自動計算。クランプ定数のみ保持。
 var wall_speed_min: float = 3.0
 var wall_speed_max: float = 9.0
 var wall_spacing: float = 30.0

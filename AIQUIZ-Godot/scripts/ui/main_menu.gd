@@ -18,7 +18,7 @@ extends Control
 @onready var settings_panel: Panel = $SettingsPanel
 @onready var api_status_label: RichTextLabel = $SettingsPanel/VBox/ApiStatusLabel
 @onready var vol_slider: HSlider = $SettingsPanel/VBox/VolBox/VolSlider
-@onready var speed_slider: HSlider = $SettingsPanel/VBox/SpeedBox/SpeedSlider
+# speed_slider は廃止（壁速度は難易度から自動決定）
 @onready var res_option: OptionButton = %ResOption
 
 var game_state: QuizGameState
@@ -30,7 +30,7 @@ func _ready() -> void:
 	settings_panel.visible = false
 	
 	vol_slider.value = AudioManager.sfx_volume
-	speed_slider.value = game_state.tuning.wall_speed
+
 	
 	res_option.item_selected.connect(_on_resolution_selected)
 	res_option.add_item("1280x720 (HD)", 0)
@@ -249,8 +249,7 @@ func _update_api_status_text() -> void:
 func _on_vol_slider_changed(value: float) -> void:
 	AudioManager.set_volume(value)
 
-func _on_speed_slider_changed(value: float) -> void:
-	game_state.set_wall_speed(value)
+# _on_speed_slider_changed は廃止（壁速度は難易度から自動決定）
 
 func _on_resolution_selected(index: int) -> void:
 	if index == 4:
