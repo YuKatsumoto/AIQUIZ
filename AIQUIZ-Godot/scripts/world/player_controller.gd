@@ -28,260 +28,23 @@ var _p2_exploding: bool = false
 var _p1_explosion_data: Array[Dictionary] = []
 var _p2_explosion_data: Array[Dictionary] = []
 
-var _p1_rigged: bool = false
-var _p2_rigged: bool = false
+# Animation Rig (P1/P2共通クラスで管理)
+var _p1_rig: AnimationRig = AnimationRig.new("P1")
+var _p2_rig: AnimationRig = AnimationRig.new("P2")
 
 var _time: float = 0.0
 const BASE_Y: float = -1.2
-
-var _rig_node1: Node3D = null
-var _p1_anim_player: AnimationPlayer = null
-var _p1_skeleton: Skeleton3D = null
-var _taunt_anim_name1: String = ""
-var _run_anim_name1: String = ""
-var _bone_indices: Dictionary = {}
 var _rig_debug_counter: int = 0
-
-# 各アニメーション用の独立したFBXシーン(P1)
-var _taunt_scene: Node3D = null
-var _taunt_skeleton: Skeleton3D = null
-var _taunt_ap: AnimationPlayer = null
-var _taunt_bone_indices: Dictionary = {}
-
-var _run_scene: Node3D = null
-var _run_skeleton: Skeleton3D = null
-var _run_ap: AnimationPlayer = null
-var _run_bone_indices: Dictionary = {}
-
-var _gangnam_scene: Node3D = null
-var _gangnam_skeleton: Skeleton3D = null
-var _gangnam_ap: AnimationPlayer = null
-var _gangnam_bone_indices: Dictionary = {}
-var _gangnam_anim_name1: String = ""
-
-var _slide_scene: Node3D = null
-var _slide_skeleton: Skeleton3D = null
-var _slide_ap: AnimationPlayer = null
-var _slide_bone_indices: Dictionary = {}
-var _slide_anim_name1: String = ""
-
-var _moonwalk_scene: Node3D = null
-var _moonwalk_skeleton: Skeleton3D = null
-var _moonwalk_ap: AnimationPlayer = null
-var _moonwalk_bone_indices: Dictionary = {}
-var _moonwalk_anim_name1: String = ""
-
-var _drowning_scene: Node3D = null
-var _drowning_skeleton: Skeleton3D = null
-var _drowning_ap: AnimationPlayer = null
-var _drowning_bone_indices: Dictionary = {}
-var _drowning_anim_name1: String = ""
-
-var _flair_scene: Node3D = null
-var _flair_skeleton: Skeleton3D = null
-var _flair_ap: AnimationPlayer = null
-var _flair_bone_indices: Dictionary = {}
-var _flair_anim_name1: String = ""
-
-# 現在アクティブなスケルトンと骨インデックス(P1)
-var _active_skeleton: Skeleton3D = null
-var _active_bone_indices: Dictionary = {}
-var _p1_mirror_x: bool = false
-
-# P2 Rig state
-var _p2_taunt_scene: Node3D = null
-var _p2_taunt_skeleton: Skeleton3D = null
-var _p2_taunt_ap: AnimationPlayer = null
-var _p2_taunt_bone_indices: Dictionary = {}
-var _p2_taunt_anim_name1: String = ""
-
-var _p2_run_scene: Node3D = null
-var _p2_run_skeleton: Skeleton3D = null
-var _p2_run_ap: AnimationPlayer = null
-var _p2_run_bone_indices: Dictionary = {}
-var _p2_run_anim_name1: String = ""
-
-var _p2_gangnam_scene: Node3D = null
-var _p2_gangnam_skeleton: Skeleton3D = null
-var _p2_gangnam_ap: AnimationPlayer = null
-var _p2_gangnam_bone_indices: Dictionary = {}
-var _p2_gangnam_anim_name1: String = ""
-
-var _p2_slide_scene: Node3D = null
-var _p2_slide_skeleton: Skeleton3D = null
-var _p2_slide_ap: AnimationPlayer = null
-var _p2_slide_bone_indices: Dictionary = {}
-var _p2_slide_anim_name1: String = ""
-
-var _p2_moonwalk_scene: Node3D = null
-var _p2_moonwalk_skeleton: Skeleton3D = null
-var _p2_moonwalk_ap: AnimationPlayer = null
-var _p2_moonwalk_bone_indices: Dictionary = {}
-var _p2_moonwalk_anim_name1: String = ""
-
-var _p2_drowning_scene: Node3D = null
-var _p2_drowning_skeleton: Skeleton3D = null
-var _p2_drowning_ap: AnimationPlayer = null
-var _p2_drowning_bone_indices: Dictionary = {}
-var _p2_drowning_anim_name1: String = ""
-
-var _p2_flair_scene: Node3D = null
-var _p2_flair_skeleton: Skeleton3D = null
-var _p2_flair_ap: AnimationPlayer = null
-var _p2_flair_bone_indices: Dictionary = {}
-var _p2_flair_anim_name1: String = ""
-
-var _p2_active_skeleton: Skeleton3D = null
-var _p2_active_bone_indices: Dictionary = {}
-var _p2_mirror_x: bool = false
 
 func _ready() -> void:
 	p1_parts = _build_player_skeleton(true, self)
 	_load_mixamo_rig()
 
 func _load_mixamo_rig() -> void:
-	# P1 煽りダンスFBXを独立シーンとして読み込み
-	var taunt_data = _load_fbx_scene("res://assets/animations/Y Bot@Step Hip Hop Dance.fbx", "TauntRig")
-	if taunt_data:
-		_taunt_scene = taunt_data["node"]
-		_taunt_skeleton = taunt_data["skeleton"]
-		_taunt_ap = taunt_data["anim_player"]
-		_taunt_bone_indices = taunt_data["bone_indices"]
-		_taunt_anim_name1 = taunt_data["anim_name"]
-		print("[RIG] P1 Taunt scene ready: ", _taunt_anim_name1)
-	
-	# P1 走りFBXを独立シーンとして読み込み
-	var run_data = _load_fbx_scene("res://assets/animations/Run.fbx", "RunRig")
-	if run_data:
-		_run_scene = run_data["node"]
-		_run_skeleton = run_data["skeleton"]
-		_run_ap = run_data["anim_player"]
-		_run_bone_indices = run_data["bone_indices"]
-		_run_anim_name1 = run_data["anim_name"]
-		print("[RIG] P1 Run scene ready: ", _run_anim_name1)
-	
-	# P1 Gangnam Style FBX
-	var gangnam_data = _load_fbx_scene("res://assets/animations/Y Bot@Gangnam Style.fbx", "GangnamRig")
-	if gangnam_data:
-		_gangnam_scene = gangnam_data["node"]
-		_gangnam_skeleton = gangnam_data["skeleton"]
-		_gangnam_ap = gangnam_data["anim_player"]
-		_gangnam_bone_indices = gangnam_data["bone_indices"]
-		_gangnam_anim_name1 = gangnam_data["anim_name"]
-		print("[RIG] P1 Gangnam scene ready: ", _gangnam_anim_name1)
-	
-	# P1 Slide Hip Hop Dance FBX
-	var slide_data = _load_fbx_scene("res://assets/animations/Slide Hip Hop Dance.fbx", "SlideRig")
-	if slide_data:
-		_slide_scene = slide_data["node"]
-		_slide_skeleton = slide_data["skeleton"]
-		_slide_ap = slide_data["anim_player"]
-		_slide_bone_indices = slide_data["bone_indices"]
-		_slide_anim_name1 = slide_data["anim_name"]
-		print("[RIG] P1 Slide scene ready: ", _slide_anim_name1)
-	
-	# P1 Moonwalk FBX
-	var moonwalk_data = _load_fbx_scene("res://assets/animations/Moonwalk.fbx", "MoonwalkRig")
-	if moonwalk_data:
-		_moonwalk_scene = moonwalk_data["node"]
-		_moonwalk_skeleton = moonwalk_data["skeleton"]
-		_moonwalk_ap = moonwalk_data["anim_player"]
-		_moonwalk_bone_indices = moonwalk_data["bone_indices"]
-		_moonwalk_anim_name1 = moonwalk_data["anim_name"]
-		print("[RIG] P1 Moonwalk scene ready: ", _moonwalk_anim_name1)
-		
-	# P1 Drowning FBX
-	var drowning_data = _load_fbx_scene("res://assets/animations/Drowning.fbx", "DrowningRig")
-	if drowning_data:
-		_drowning_scene = drowning_data["node"]
-		_drowning_skeleton = drowning_data["skeleton"]
-		_drowning_ap = drowning_data["anim_player"]
-		_drowning_bone_indices = drowning_data["bone_indices"]
-		_drowning_anim_name1 = drowning_data["anim_name"]
-		print("[RIG] P1 Drowning scene ready: ", _drowning_anim_name1)
-		
-	# P1 Flair FBX
-	var flair_data = _load_fbx_scene("res://assets/animations/Flair.fbx", "FlairRig")
-	if flair_data:
-		_flair_scene = flair_data["node"]
-		_flair_skeleton = flair_data["skeleton"]
-		_flair_ap = flair_data["anim_player"]
-		_flair_bone_indices = flair_data["bone_indices"]
-		_flair_anim_name1 = flair_data["anim_name"]
-		print("[RIG] P1 Flair scene ready: ", _flair_anim_name1)
-		
-	# P2 煽りダンスFBX
-	var p2_taunt_data = _load_fbx_scene("res://assets/animations/Y Bot@Step Hip Hop Dance.fbx", "P2TauntRig")
-	if p2_taunt_data:
-		_p2_taunt_scene = p2_taunt_data["node"]
-		_p2_taunt_skeleton = p2_taunt_data["skeleton"]
-		_p2_taunt_ap = p2_taunt_data["anim_player"]
-		_p2_taunt_bone_indices = p2_taunt_data["bone_indices"]
-		_p2_taunt_anim_name1 = p2_taunt_data["anim_name"]
-		print("[RIG] P2 Taunt scene ready: ", _p2_taunt_anim_name1)
-	
-	# P2 走りFBX
-	var p2_run_data = _load_fbx_scene("res://assets/animations/Run.fbx", "P2RunRig")
-	if p2_run_data:
-		_p2_run_scene = p2_run_data["node"]
-		_p2_run_skeleton = p2_run_data["skeleton"]
-		_p2_run_ap = p2_run_data["anim_player"]
-		_p2_run_bone_indices = p2_run_data["bone_indices"]
-		_p2_run_anim_name1 = p2_run_data["anim_name"]
-		print("[RIG] P2 Run scene ready: ", _p2_run_anim_name1)
-	
-	# P2 Gangnam Style FBX
-	var p2_gangnam_data = _load_fbx_scene("res://assets/animations/Y Bot@Gangnam Style.fbx", "P2GangnamRig")
-	if p2_gangnam_data:
-		_p2_gangnam_scene = p2_gangnam_data["node"]
-		_p2_gangnam_skeleton = p2_gangnam_data["skeleton"]
-		_p2_gangnam_ap = p2_gangnam_data["anim_player"]
-		_p2_gangnam_bone_indices = p2_gangnam_data["bone_indices"]
-		_p2_gangnam_anim_name1 = p2_gangnam_data["anim_name"]
-	
-	# P2 Slide Hip Hop Dance
-	var p2_slide_data = _load_fbx_scene("res://assets/animations/Slide Hip Hop Dance.fbx", "P2SlideRig")
-	if p2_slide_data:
-		_p2_slide_scene = p2_slide_data["node"]
-		_p2_slide_skeleton = p2_slide_data["skeleton"]
-		_p2_slide_ap = p2_slide_data["anim_player"]
-		_p2_slide_bone_indices = p2_slide_data["bone_indices"]
-		_p2_slide_anim_name1 = p2_slide_data["anim_name"]
-	
-	# P2 Moonwalk
-	var p2_moonwalk_data = _load_fbx_scene("res://assets/animations/Moonwalk.fbx", "P2MoonwalkRig")
-	if p2_moonwalk_data:
-		_p2_moonwalk_scene = p2_moonwalk_data["node"]
-		_p2_moonwalk_skeleton = p2_moonwalk_data["skeleton"]
-		_p2_moonwalk_ap = p2_moonwalk_data["anim_player"]
-		_p2_moonwalk_bone_indices = p2_moonwalk_data["bone_indices"]
-		_p2_moonwalk_anim_name1 = p2_moonwalk_data["anim_name"]
-	
-	# P2 Drowning
-	var p2_drowning_data = _load_fbx_scene("res://assets/animations/Drowning.fbx", "P2DrowningRig")
-	if p2_drowning_data:
-		_p2_drowning_scene = p2_drowning_data["node"]
-		_p2_drowning_skeleton = p2_drowning_data["skeleton"]
-		_p2_drowning_ap = p2_drowning_data["anim_player"]
-		_p2_drowning_bone_indices = p2_drowning_data["bone_indices"]
-		_p2_drowning_anim_name1 = p2_drowning_data["anim_name"]
-	
-	# P2 Flair
-	var p2_flair_data = _load_fbx_scene("res://assets/animations/Flair.fbx", "P2FlairRig")
-	if p2_flair_data:
-		_p2_flair_scene = p2_flair_data["node"]
-		_p2_flair_skeleton = p2_flair_data["skeleton"]
-		_p2_flair_ap = p2_flair_data["anim_player"]
-		_p2_flair_bone_indices = p2_flair_data["bone_indices"]
-		_p2_flair_anim_name1 = p2_flair_data["anim_name"]
-	
-	# どちらかが読み込めたらリグモードON
-	if _taunt_skeleton or _run_skeleton:
-		_p1_rigged = true
-	if _p2_taunt_skeleton or _p2_run_skeleton:
-		_p2_rigged = true
-		
-	if _p1_rigged or _p2_rigged:
+	var loader := Callable(self, "_load_fbx_scene")
+	_p1_rig.load_all(self, loader)
+	_p2_rig.load_all(self, loader)
+	if _p1_rig.is_rigged or _p2_rig.is_rigged:
 		print("[RIG] Rig mode ENABLED for active players")
 	else:
 		print("[RIG] No FBX loaded - procedural mode")
@@ -344,6 +107,11 @@ func _load_fbx_scene(path: String, node_name: String) -> Variant:
 				max_tracks = tracks_count
 				if anim_name == "" or not ("mixamo_com" in anim_name):
 					anim_name = full
+					
+	if anim_name != "":
+		var anim = ap.get_animation(anim_name)
+		if anim:
+			anim.loop_mode = Animation.LOOP_LINEAR
 	
 	# 骨インデックスをキャッシュ
 	var bone_indices := {}
@@ -682,126 +450,26 @@ func update_from_state(gs: QuizGameState) -> void:
 	if gs.p1_alive:
 		_p1_exploding = false
 		_set_parts_visible(p1_parts, true)
-		if not _p1_rigged:
-			_animate_skeleton(p1_parts, gs.player_y, gs.player_vel_y, gs.game_state == Constants.STATE_PLAYING, walk_phase, false, gs.p1_emote)
+		if not _p1_rig.is_rigged:
+			var p1_is_playing := gs.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]
+			_animate_skeleton(p1_parts, gs.player_y, gs.player_vel_y, p1_is_playing, walk_phase, false, gs.p1_emote)
 		else:
-			var apply_rig := false
-			# 全APリスト（排他的に止めるため）
-			var all_p1_aps: Array = [_taunt_ap, _run_ap, _gangnam_ap, _slide_ap, _moonwalk_ap, _drowning_ap, _flair_ap]
-			
-			# リグモードの再生ロジック - 各FBXの独自APを使い分ける
-			if gs.player_y < -1.0 and _drowning_ap and _drowning_anim_name1 != "":
-				var target_ap: AnimationPlayer = _drowning_ap
-				var target_skel: Skeleton3D = _drowning_skeleton
-				var target_bones: Dictionary = _drowning_bone_indices
-				var target_anim: String = _drowning_anim_name1
-				
-				for ap: AnimationPlayer in all_p1_aps:
-					if ap and ap != target_ap and ap.is_playing():
-						ap.stop()
-				if not target_ap.is_playing():
-					target_ap.play(target_anim)
-				_active_skeleton = target_skel
-				_active_bone_indices = target_bones
-				_p1_mirror_x = true
-				apply_rig = true
-			elif gs.p1_emote > 0:
-				# --- エモート再生 ---
-				var target_ap: AnimationPlayer = null
-				var target_skel: Skeleton3D = null
-				var target_bones: Dictionary = {}
-				var target_anim: String = ""
-				
-				if gs.p1_emote == 1 and _taunt_ap and _taunt_anim_name1 != "":
-					target_ap = _taunt_ap; target_skel = _taunt_skeleton
-					target_bones = _taunt_bone_indices; target_anim = _taunt_anim_name1
-				elif gs.p1_emote == 2 and _gangnam_ap and _gangnam_anim_name1 != "":
-					target_ap = _gangnam_ap; target_skel = _gangnam_skeleton
-					target_bones = _gangnam_bone_indices; target_anim = _gangnam_anim_name1
-				elif gs.p1_emote == 3 and _slide_ap and _slide_anim_name1 != "":
-					target_ap = _slide_ap; target_skel = _slide_skeleton
-					target_bones = _slide_bone_indices; target_anim = _slide_anim_name1
-				elif gs.p1_emote == 4 and _flair_ap and _flair_anim_name1 != "":
-					target_ap = _flair_ap; target_skel = _flair_skeleton
-					target_bones = _flair_bone_indices; target_anim = _flair_anim_name1
-				
-				var mirror_x := true # 全てのFBX（+Z向き）を-Z向きのキャラクターに正しく適用するためXミラーを有効化
-				if target_ap:
-					# 他の全APを停止
-					for ap: AnimationPlayer in all_p1_aps:
-						if ap and ap != target_ap and ap.is_playing():
-							ap.stop()
-					if not target_ap.is_playing():
-						target_ap.play(target_anim)
-					_active_skeleton = target_skel
-					_active_bone_indices = target_bones
-					_p1_mirror_x = mirror_x
-					apply_rig = true
-			elif gs.game_state == Constants.STATE_PLAYING:
-				if gs.p1_moving_back and _moonwalk_ap and _moonwalk_anim_name1 != "":
-					# --- 後ろ歩き: Moonwalk再生 ---
-					for ap: AnimationPlayer in all_p1_aps:
-						if ap and ap != _moonwalk_ap and ap.is_playing():
-							ap.stop()
-					if not _moonwalk_ap.is_playing():
-						_moonwalk_ap.play(_moonwalk_anim_name1)
-					_active_skeleton = _moonwalk_skeleton
-					_active_bone_indices = _moonwalk_bone_indices
-					_p1_mirror_x = true
-					apply_rig = true
-				elif _run_ap and _run_anim_name1 != "":
-					# --- 通常走り ---
-					for ap: AnimationPlayer in all_p1_aps:
-						if ap and ap != _run_ap and ap.is_playing():
-							ap.stop()
-					if not _run_ap.is_playing():
-						_run_ap.play(_run_anim_name1)
-					_active_skeleton = _run_skeleton
-					_active_bone_indices = _run_bone_indices
-					_p1_mirror_x = true
-					apply_rig = true
-			else:
-				# 全停止（待機状態などはプロシージャルなIdleアニメーションに任せる）
-				for ap: AnimationPlayer in all_p1_aps:
-					if ap and ap.is_playing():
-						ap.stop()
-			
-			# デバッグ: 1秒に1回、骨座標を出力
-			_rig_debug_counter += 1
-			if _rig_debug_counter % 60 == 1:
-				if _active_skeleton and _active_bone_indices.has("hips"):
-					var hips_rot = _active_skeleton.get_bone_pose_rotation(_active_bone_indices["hips"])
-					var hips_pos = _active_skeleton.get_bone_global_pose(_active_bone_indices["hips"]).origin
-					if _run_ap and _run_ap.is_playing():
-						print("[RIG] DEBUG RUN position=", _run_ap.current_animation_position)
+			var is_active := gs.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]
+			var apply_rig := _p1_rig.select_animation(
+				gs.player_y, gs.p1_jump_trigger, gs.p1_emote,
+				gs.p1_moving_back, is_active, _p1_rig.is_jump_playing())
 			
 			if apply_rig:
-				# 骨の座標をブロックに転写
-				_apply_skeleton_pose(p1_parts, _active_skeleton, _active_bone_indices, _p1_mirror_x)
+				_apply_skeleton_pose(p1_parts, _p1_rig.active_skeleton, _p1_rig.active_bone_indices, _p1_rig.mirror_x)
 			else:
-				# 停止時はプロシージャルアニメーション（Idleバウンスなど）を適用
 				_animate_skeleton(p1_parts, gs.player_y, gs.player_vel_y, false, walk_phase, false, 0)
 	elif gs.game_over_timer > 0:
 		if gs.game_over_timer < 2.0:
 			_set_parts_visible(p1_parts, true)
 			var apply_rig := false
-			if _p1_rigged and _drowning_ap and _drowning_anim_name1 != "":
-				var target_ap: AnimationPlayer = _drowning_ap
-				var target_skel: Skeleton3D = _drowning_skeleton
-				var target_bones: Dictionary = _drowning_bone_indices
-				var target_anim: String = _drowning_anim_name1
-				
-				var all_p1_aps: Array = [_taunt_ap, _run_ap, _gangnam_ap, _slide_ap, _moonwalk_ap, _drowning_ap, _flair_ap]
-				for ap: AnimationPlayer in all_p1_aps:
-					if ap and ap != target_ap and ap.is_playing():
-						ap.stop()
-				if not target_ap.is_playing():
-					target_ap.play(target_anim)
-				_active_skeleton = target_skel
-				_active_bone_indices = target_bones
-				_p1_mirror_x = true
+			if _p1_rig.is_rigged and _p1_rig.play_slot(AnimationRig.SLOT_DROWNING):
 				apply_rig = true
-				_apply_skeleton_pose(p1_parts, _active_skeleton, _active_bone_indices, _p1_mirror_x)
+				_apply_skeleton_pose(p1_parts, _p1_rig.active_skeleton, _p1_rig.active_bone_indices, _p1_rig.mirror_x)
 			
 			if not apply_rig:
 				# FBXがない、またはマグマ以外の死因用
@@ -826,108 +494,26 @@ func update_from_state(gs: QuizGameState) -> void:
 		if gs.p2_alive:
 			_p2_exploding = false
 			_set_parts_visible(p2_parts, true)
-			if not _p2_rigged:
-				_animate_skeleton(p2_parts, gs.player2_y, gs.player2_vel_y, gs.game_state == Constants.STATE_PLAYING, walk_phase * 1.1, true, gs.p2_emote)
+			if not _p2_rig.is_rigged:
+				var p2_is_playing := gs.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]
+				_animate_skeleton(p2_parts, gs.player2_y, gs.player2_vel_y, p2_is_playing, walk_phase * 1.1, true, gs.p2_emote)
 			else:
-				var apply_rig := false
-				var all_p2_aps: Array = [_p2_taunt_ap, _p2_run_ap, _p2_gangnam_ap, _p2_slide_ap, _p2_moonwalk_ap, _p2_drowning_ap, _p2_flair_ap]
-				
-				if gs.player2_y < -1.0 and _p2_drowning_ap and _p2_drowning_anim_name1 != "":
-					var target_ap: AnimationPlayer = _p2_drowning_ap
-					var target_skel: Skeleton3D = _p2_drowning_skeleton
-					var target_bones: Dictionary = _p2_drowning_bone_indices
-					var target_anim: String = _p2_drowning_anim_name1
-					
-					for ap: AnimationPlayer in all_p2_aps:
-						if ap and ap != target_ap and ap.is_playing():
-							ap.stop()
-					if not target_ap.is_playing():
-						target_ap.play(target_anim)
-					_p2_active_skeleton = target_skel
-					_p2_active_bone_indices = target_bones
-					_p2_mirror_x = true
-					apply_rig = true
-				elif gs.p2_emote > 0:
-					var target_ap: AnimationPlayer = null
-					var target_skel: Skeleton3D = null
-					var target_bones: Dictionary = {}
-					var target_anim: String = ""
-					
-					if gs.p2_emote == 1 and _p2_taunt_ap and _p2_taunt_anim_name1 != "":
-						target_ap = _p2_taunt_ap; target_skel = _p2_taunt_skeleton
-						target_bones = _p2_taunt_bone_indices; target_anim = _p2_taunt_anim_name1
-					elif gs.p2_emote == 2 and _p2_gangnam_ap and _p2_gangnam_anim_name1 != "":
-						target_ap = _p2_gangnam_ap; target_skel = _p2_gangnam_skeleton
-						target_bones = _p2_gangnam_bone_indices; target_anim = _p2_gangnam_anim_name1
-					elif gs.p2_emote == 3 and _p2_slide_ap and _p2_slide_anim_name1 != "":
-						target_ap = _p2_slide_ap; target_skel = _p2_slide_skeleton
-						target_bones = _p2_slide_bone_indices; target_anim = _p2_slide_anim_name1
-					elif gs.p2_emote == 4 and _p2_flair_ap and _p2_flair_anim_name1 != "":
-						target_ap = _p2_flair_ap; target_skel = _p2_flair_skeleton
-						target_bones = _p2_flair_bone_indices; target_anim = _p2_flair_anim_name1
-					
-					var p2_mirror_x := true # 全てのFBX（+Z向き）を-Z向きのキャラクターに正しく適用するためXミラーを有効化
-					if target_ap:
-						for ap: AnimationPlayer in all_p2_aps:
-							if ap and ap != target_ap and ap.is_playing():
-								ap.stop()
-						if not target_ap.is_playing():
-							target_ap.play(target_anim)
-						_p2_active_skeleton = target_skel
-						_p2_active_bone_indices = target_bones
-						_p2_mirror_x = p2_mirror_x
-						apply_rig = true
-				elif gs.game_state == Constants.STATE_PLAYING:
-					if gs.p2_moving_back and _p2_moonwalk_ap and _p2_moonwalk_anim_name1 != "":
-						for ap: AnimationPlayer in all_p2_aps:
-							if ap and ap != _p2_moonwalk_ap and ap.is_playing():
-								ap.stop()
-						if not _p2_moonwalk_ap.is_playing():
-							_p2_moonwalk_ap.play(_p2_moonwalk_anim_name1)
-						_p2_active_skeleton = _p2_moonwalk_skeleton
-						_p2_active_bone_indices = _p2_moonwalk_bone_indices
-						_p2_mirror_x = true
-						apply_rig = true
-					elif _p2_run_ap and _p2_run_anim_name1 != "":
-						for ap: AnimationPlayer in all_p2_aps:
-							if ap and ap != _p2_run_ap and ap.is_playing():
-								ap.stop()
-						if not _p2_run_ap.is_playing():
-							_p2_run_ap.play(_p2_run_anim_name1)
-						_p2_active_skeleton = _p2_run_skeleton
-						_p2_active_bone_indices = _p2_run_bone_indices
-						_p2_mirror_x = true
-						apply_rig = true
-				else:
-					for ap: AnimationPlayer in all_p2_aps:
-						if ap and ap.is_playing():
-							ap.stop()
+				var is_active := gs.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]
+				var apply_rig := _p2_rig.select_animation(
+					gs.player2_y, gs.p2_jump_trigger, gs.p2_emote,
+					gs.p2_moving_back, is_active, _p2_rig.is_jump_playing())
 				
 				if apply_rig:
-					_apply_skeleton_pose(p2_parts, _p2_active_skeleton, _p2_active_bone_indices, _p2_mirror_x)
+					_apply_skeleton_pose(p2_parts, _p2_rig.active_skeleton, _p2_rig.active_bone_indices, _p2_rig.mirror_x)
 				else:
 					_animate_skeleton(p2_parts, gs.player2_y, gs.player2_vel_y, false, walk_phase * 1.1, true, 0)
 		elif gs.player2_game_over_timer > 0:
 			if gs.player2_game_over_timer < 2.0:
 				_set_parts_visible(p2_parts, true)
 				var apply_rig := false
-				if _p2_rigged and _p2_drowning_ap and _p2_drowning_anim_name1 != "":
-					var target_ap: AnimationPlayer = _p2_drowning_ap
-					var target_skel: Skeleton3D = _p2_drowning_skeleton
-					var target_bones: Dictionary = _p2_drowning_bone_indices
-					var target_anim: String = _p2_drowning_anim_name1
-					
-					var all_p2_aps: Array = [_p2_taunt_ap, _p2_run_ap, _p2_gangnam_ap, _p2_slide_ap, _p2_moonwalk_ap, _p2_drowning_ap]
-					for ap: AnimationPlayer in all_p2_aps:
-						if ap and ap != target_ap and ap.is_playing():
-							ap.stop()
-					if not target_ap.is_playing():
-						target_ap.play(target_anim)
-					_p2_active_skeleton = target_skel
-					_p2_active_bone_indices = target_bones
-					_p2_mirror_x = true
+				if _p2_rig.is_rigged and _p2_rig.play_slot(AnimationRig.SLOT_DROWNING):
 					apply_rig = true
-					_apply_skeleton_pose(p2_parts, _p2_active_skeleton, _p2_active_bone_indices, _p2_mirror_x)
+					_apply_skeleton_pose(p2_parts, _p2_rig.active_skeleton, _p2_rig.active_bone_indices, _p2_rig.mirror_x)
 					
 				if not apply_rig:
 					if gs.player2_y < -1.0:

@@ -18,6 +18,7 @@ var quiz_wall_scene: PackedScene
 var _prev_correct_flash: float = 0.0
 var _prev_wrong_flash: float = 0.0
 var _prev_go_timer: float = 0.0
+var _fireworks_launched: bool = false
 var _prev_p2_go_timer: float = 0.0
 var _active_walls: Array[Node3D] = []
 var _flyover_walls: Array[Node3D] = []
@@ -255,7 +256,7 @@ func _process(dt: float) -> void:
 	var emote_p1 := 0
 	var emote_p2 := 0
 
-	if game_state.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]:
+	if game_state.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE, Constants.STATE_WAITING_START, Constants.STATE_FLYOVER, Constants.STATE_COUNTDOWN]:
 		# P1 エモート: キー1,2,3 → スロットからエモートIDを取得
 		if Input.is_key_pressed(KEY_1) and game_state.p1_emote_slots.size() > 0: emote_p1 = game_state.p1_emote_slots[0]
 		elif Input.is_key_pressed(KEY_2) and game_state.p1_emote_slots.size() > 1: emote_p1 = game_state.p1_emote_slots[1]
@@ -391,20 +392,23 @@ func _update_player() -> void:
 func _update_flyover() -> void:
 	if game_state.game_state == Constants.STATE_FLYOVER:
 		if not _flyover_active:
-			# フライオーバー開始: 全壁を生成
+			# フライオーバー開始 (壁はWAITING_STARTで生成済み)
 			_flyover_active = true
-			_clear_flyover_walls()
-			var t := game_state.tuning
-			for i: int in range(game_state.flyover_total_walls):
-				var wz: float = t.wall_start_z + i * t.wall_spacing
-				var wall_node: Node3D = quiz_wall_scene.instantiate()
-				wall_node.set_meta("wall_index", i)
-				wall_node.position = Vector3(0, 0, wz)
-				wall_container.add_child(wall_node)
-				_flyover_walls.append(wall_node)
-				# クイズ内容を壁に設定
-				if i < game_state.quiz_list.size() and wall_node.has_method("set_quiz"):
-					wall_node.set_quiz(game_state.quiz_list[i], game_state.num_choices)
+			# WAITING_STARTを経由せずにFLYOVERに入った場合のフォールバック
+			if _flyover_walls.is_empty():
+				var t := game_state.tuning
+				for i: int in range(game_state.flyover_total_walls):
+					var wz: float = t.wall_start_z + i * t.wall_spacing
+					var wall_node: Node3D = quiz_wall_scene.instantiate()
+					wall_node.set_meta("wall_index", i)
+					wall_node.position = Vector3(0, 0, wz)
+					wall_container.add_child(wall_node)
+					_flyover_walls.append(wall_node)
+					if i < game_state.quiz_list.size() and wall_node.has_method("set_quiz"):
+						wall_node.set_quiz(game_state.quiz_list[i], game_state.num_choices)
+			# WAITING_STARTで非表示にした壁を表示
+			for w: Node3D in _flyover_walls:
+				w.visible = true
 	elif _flyover_active:
 		# フライオーバー終了: 壁をクリーンアップ
 		_flyover_active = false
@@ -417,7 +421,8 @@ func _clear_flyover_walls() -> void:
 	_flyover_walls.clear()
 
 func _update_walls() -> void:
-	if game_state.game_state in [Constants.STATE_MENU, Constants.STATE_FLYOVER]:
+	# ゴールレース中・クリア後・メニュー・フライオーバー中は壁を全て非表示
+	if game_state.game_state in [Constants.STATE_MENU, Constants.STATE_FLYOVER, Constants.STATE_GOAL_RACE, Constants.STATE_CLEAR]:
 		for wall: Node3D in _active_walls:
 			wall.queue_free()
 		_active_walls.clear()
@@ -427,8 +432,15 @@ func _update_walls() -> void:
 	var needed_indices: Array[int] = []
 	# Keep 1 wall behind (the one just passed through) so its wall mesh stays visible
 	var start_idx := maxi(0, game_state.current_wall_index - 1)
+	# 2P×10問モードでは target_count 以降の壁を生成しない
+	var max_wall_idx: int = -1
+	if game_state.num_players >= 2 and game_state.mode == Constants.MODE_TEN:
+		max_wall_idx = game_state.target_count - 1  # 0-indexed: 壁0〜9まで
 	for i: int in range(MAX_VISIBLE_WALLS + 1):
 		var idx: int = start_idx + i
+		# 2P×10問モードでは target_count 以降の壁をスキップ
+		if max_wall_idx >= 0 and idx > max_wall_idx:
+			continue
 		var wz: float = t.wall_start_z + idx * t.wall_spacing
 		if wz > game_state.player_z - 5.0:
 			needed_indices.append(idx)
@@ -482,6 +494,7 @@ func _update_goal_line() -> void:
 			Constants.STATE_FLYOVER,
 			Constants.STATE_PLAYING,
 			Constants.STATE_CLEAR,
+			Constants.STATE_WAITING_START,
 		]
 	)
 
@@ -506,32 +519,34 @@ func _update_goal_line() -> void:
 		add_child(_goal_line_node)
 
 		# --- Goal gate: two pillars + crossbar ---
+		# 床のトップ面は Y = -9.2 + 8.0 = -1.2 なので、それに合わせて配置
+		const FLOOR_TOP_Y: float = -1.2
 		var pillar_color := Color(1.0, 0.85, 0.1)  # Gold
 		var bar_color := Color(1.0, 0.85, 0.1)
 
-		# Left pillar
+		# Left pillar (高さ5.0、中心をFLOOR_TOP_Y + 2.5に配置)
 		var left_pillar := _create_goal_box(Vector3(0.4, 5.0, 0.4), pillar_color)
-		left_pillar.position = Vector3(-7.0, 2.5, 0)
+		left_pillar.position = Vector3(-7.0, FLOOR_TOP_Y + 2.5, 0)
 		_goal_line_node.add_child(left_pillar)
 
 		# Right pillar
 		var right_pillar := _create_goal_box(Vector3(0.4, 5.0, 0.4), pillar_color)
-		right_pillar.position = Vector3(7.0, 2.5, 0)
+		right_pillar.position = Vector3(7.0, FLOOR_TOP_Y + 2.5, 0)
 		_goal_line_node.add_child(right_pillar)
 
-		# Crossbar
+		# Crossbar (柱の上端に配置)
 		var crossbar := _create_goal_box(Vector3(14.4, 0.4, 0.4), bar_color)
-		crossbar.position = Vector3(0, 5.0, 0)
+		crossbar.position = Vector3(0, FLOOR_TOP_Y + 5.0, 0)
 		_goal_line_node.add_child(crossbar)
 
-		# Ground line (checkerboard-style stripe)
+		# Ground line (checkerboard-style stripe — 床面に接着)
 		for i: int in range(28):
 			var stripe := _create_goal_box(Vector3(0.5, 0.05, 1.0),
 				Color.WHITE if i % 2 == 0 else Color(0.15, 0.15, 0.15))
-			stripe.position = Vector3(-6.75 + i * 0.5, 0.03, 0)
+			stripe.position = Vector3(-6.75 + i * 0.5, FLOOR_TOP_Y + 0.03, 0)
 			_goal_line_node.add_child(stripe)
 
-		# "GOAL" label
+		# "GOAL" label (クロスバーのやや下に配置)
 		var goal_label := Label3D.new()
 		goal_label.text = "🏁 GOAL 🏁"
 		goal_label.font_size = 72
@@ -542,7 +557,7 @@ func _update_goal_line() -> void:
 		goal_label.modulate = Color(1.0, 0.95, 0.3)
 		goal_label.outline_modulate = Color(0.1, 0.05, 0.0, 1.0)
 		goal_label.outline_size = 10
-		goal_label.position = Vector3(0, 3.8, -0.3)
+		goal_label.position = Vector3(0, FLOOR_TOP_Y + 3.8, -0.3)
 		goal_label.rotation.y = PI
 		var font := load("res://resources/fonts/NotoSansJP-Regular.otf")
 		if font:
@@ -596,8 +611,36 @@ func _check_particles() -> void:
 				Vector3(game_state.player2_x, game_state.player2_y, game_state.player2_local_z))
 	_prev_p2_go_timer = game_state.player2_game_over_timer
 
+	# Fireworks on CLEAR state (花火演出)
+	if game_state.game_state == Constants.STATE_CLEAR and not _fireworks_launched:
+		_fireworks_launched = true
+		if particle_spawner.has_method("spawn_fireworks"):
+			# ゴールライン位置から花火を打ち上げ
+			var fw_z: float = game_state.goal_z - game_state.world_scroll_z if game_state.goal_z > 0 else 50.0
+			particle_spawner.spawn_fireworks(Vector3(0, 0, fw_z))
+
 func _on_state_changed(new_state: String) -> void:
-	pass
+	if new_state == Constants.STATE_CLEAR:
+		_fireworks_launched = false
+	elif new_state in [Constants.STATE_MENU, Constants.STATE_PLAYING]:
+		_fireworks_launched = false
+	elif new_state == Constants.STATE_WAITING_START:
+		# ロード完了時に裏で壁を生成し、フライオーバー時のカクつきを防ぐ
+		_clear_flyover_walls()
+		var t := game_state.tuning
+		for i: int in range(game_state.flyover_total_walls):
+			var wz: float = t.wall_start_z + i * t.wall_spacing
+			var wall_node: Node3D = quiz_wall_scene.instantiate()
+			wall_node.set_meta("wall_index", i)
+			wall_node.position = Vector3(0, 0, wz)
+			wall_container.add_child(wall_node)
+			_flyover_walls.append(wall_node)
+			# クイズ内容を壁に設定
+			if i < game_state.quiz_list.size() and wall_node.has_method("set_quiz"):
+				wall_node.set_quiz(game_state.quiz_list[i], game_state.num_choices)
+		# プリロード画面中は壁を非表示にしておく
+		for w: Node3D in _flyover_walls:
+			w.visible = false
 
 func _on_quiz_loaded(quiz: QuizItem) -> void:
 	# Update labels on the current wall

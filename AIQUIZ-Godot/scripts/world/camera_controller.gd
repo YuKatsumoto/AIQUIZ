@@ -165,11 +165,12 @@ func _update_flyover_camera(gs: QuizGameState, _dt: float) -> void:
 		end_fov = 44.0
 
 	# --- キーポイント ---
-	# 2P×10Qモードの場合、ゴールラインまで含めた位置から開始
+	# 2P×10Qモードの場合、ゴールラインが見える位置から開始
 	var flyover_start_z: float = camera_start_z + 8.0
 	if gs.num_players >= 2 and gs.mode == Constants.MODE_TEN:
 		var goal_line_z: float = t.wall_start_z + gs.target_count * t.wall_spacing + 15.0
-		flyover_start_z = maxf(flyover_start_z, goal_line_z + 8.0)
+		# ゴールの少し手前(-25.0)をスタート地点にし、最初の画面にゴールが映るようにする
+		flyover_start_z = goal_line_z - 25.0
 	var start_pos := Vector3(0.0, 6.0, flyover_start_z)
 	
 	# オフセット距離。最終視点からカメラが真っ直ぐ引く距離

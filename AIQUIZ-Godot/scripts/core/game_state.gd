@@ -106,6 +106,9 @@ var player2_game_over_timer: float = 0.0
 var goal_z: float = 0.0
 var goal_winner: int = 0  # 0=未確定, 1=P1, 2=P2
 
+var p1_jump_trigger: bool = false
+var p2_jump_trigger: bool = false
+
 
 
 # --- Dynamic wall speed ---
@@ -392,20 +395,23 @@ func update(dt: float, axis_p1: Vector2 = Vector2.ZERO, axis_p2: Vector2 = Vecto
 	if game_state == Constants.STATE_MENU:
 		return
 
+	p1_jump_trigger = false
+	p2_jump_trigger = false
+
 	if game_state == Constants.STATE_PRELOADING:
 		_update_preloading(dt)
 		return
 
 	if game_state == Constants.STATE_WAITING_START:
-		_update_waiting_start(dt, axis_p1, axis_p2, jump_p1, jump_p2)
+		_update_waiting_start(dt, axis_p1, axis_p2, jump_p1, jump_p2, emote_p1, emote_p2)
 		return
 
 	if game_state == Constants.STATE_FLYOVER:
-		_update_flyover(dt)
+		_update_flyover(dt, emote_p1, emote_p2)
 		return
 
 	if game_state == Constants.STATE_COUNTDOWN:
-		_update_countdown(dt)
+		_update_countdown(dt, emote_p1, emote_p2)
 		return
 
 	if game_state == Constants.STATE_PLAYING:
@@ -483,17 +489,13 @@ func _update_preloading(dt: float) -> void:
 				message_text = "Loading quizzes..." if use_english_ui else "クイズを準備中..."
 		refresh_status_text()
 
-func _update_waiting_start(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: bool, jump_p2: bool) -> void:
-	pass # Input is now handled via _unhandled_input in game_world.gd
-
+func _update_waiting_start(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: bool, jump_p2: bool, emote_p1: int = 0, emote_p2: int = 0) -> void:
+	p1_emote = emote_p1
+	p2_emote = emote_p2
 func trigger_start() -> void:
 	if game_state == Constants.STATE_WAITING_START:
 		game_state = Constants.STATE_FLYOVER
 		flyover_timer = 0.0
-		
-		# 最初のカメラ演出(Flyover)中にランダムなエモートを再生
-		p1_emote = randi_range(1, 4)
-		p2_emote = randi_range(1, 4)
 		
 		if mode == Constants.MODE_TEN:
 			# 10問モード: 全壁を見せる
@@ -505,7 +507,9 @@ func trigger_start() -> void:
 			flyover_duration = 8.5
 		state_changed.emit(game_state)
 
-func _update_flyover(dt: float) -> void:
+func _update_flyover(dt: float, emote_p1: int = 0, emote_p2: int = 0) -> void:
+	p1_emote = emote_p1
+	p2_emote = emote_p2
 	flyover_timer += dt
 	if flyover_timer >= flyover_duration:
 		# フライオーバー完了 → カウントダウンへ
@@ -513,7 +517,9 @@ func _update_flyover(dt: float) -> void:
 		countdown_timer = 3.99
 		state_changed.emit(game_state)
 
-func _update_countdown(dt: float) -> void:
+func _update_countdown(dt: float, emote_p1: int = 0, emote_p2: int = 0) -> void:
+	p1_emote = emote_p1
+	p2_emote = emote_p2
 	countdown_timer -= dt
 	if countdown_timer <= 0:
 		game_state = Constants.STATE_PLAYING
@@ -547,7 +553,7 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 		var is_on_floor = (absf(player_x) <= 12.0) and (loc1 >= -4.5 and loc1 <= 139.5)
 		
 		if jump_p1 and player_y <= 0.0 and is_on_floor:
-			player_vel_y = JUMP_FORCE
+			p1_jump_trigger = true
 		
 		player_vel_y -= GRAVITY * dt
 		player_y += player_vel_y * dt
@@ -587,7 +593,7 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 		var p2_is_on_floor = (absf(player2_x) <= 12.0) and (loc2 >= -4.5 and loc2 <= 139.5)
 		
 		if jump_p2 and player2_y <= 0.0 and p2_is_on_floor:
-			player2_vel_y = JUMP_FORCE
+			p2_jump_trigger = true
 		
 		player2_vel_y -= GRAVITY * dt
 		player2_y += player2_vel_y * dt
@@ -659,7 +665,7 @@ func _start_goal_race() -> void:
 
 func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: bool, jump_p2: bool, emote_p1: int = 0, emote_p2: int = 0) -> void:
 	play_time += dt
-	world_scroll_z += _active_wall_speed * dt
+	# world_scroll_z += _active_wall_speed * dt  # ゴールの動きを止めるためスクロールを停止
 
 	p1_emote = emote_p1
 	p2_emote = emote_p2
@@ -676,7 +682,7 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 		var is_on_floor = (absf(player_x) <= 12.0) and (loc1 >= -4.5 and loc1 <= 400.0)
 
 		if jump_p1 and player_y <= 0.0 and is_on_floor:
-			player_vel_y = JUMP_FORCE
+			p1_jump_trigger = true
 		player_vel_y -= GRAVITY * dt
 		player_y += player_vel_y * dt
 		if player_y <= 0.0 and is_on_floor:
@@ -698,7 +704,7 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 		var p2_is_on_floor = (absf(player2_x) <= 12.0) and (loc2 >= -4.5 and loc2 <= 400.0)
 
 		if jump_p2 and player2_y <= 0.0 and p2_is_on_floor:
-			player2_vel_y = JUMP_FORCE
+			p2_jump_trigger = true
 		player2_vel_y -= GRAVITY * dt
 		player2_y += player2_vel_y * dt
 		if player2_y <= 0.0 and p2_is_on_floor:
