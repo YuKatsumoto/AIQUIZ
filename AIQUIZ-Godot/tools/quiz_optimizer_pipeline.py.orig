@@ -55,27 +55,27 @@ def request_ollama_json(prompt, system_inst):
                 "stream": False,
                 "format": "json"
             }
-            
+
             response = requests.post(OLLAMA_URL, json=payload, timeout=HTTP_TIMEOUT)
             if response.status_code != 200:
                 time.sleep(2)
                 continue
-                
+
             text = response.json().get('response', '').strip()
-            
+
             if text.startswith("```json"): text = text[7:]
             if text.endswith("```"): text = text[:-3]
-            
+
             data = json.loads(text.strip())
-            
+
             if isinstance(data, dict):
                 for key, val in data.items():
                     if isinstance(val, list): return val
                 return [data]
-            
+
             if not isinstance(data, list):
                 raise ValueError("JSON配列ではありません。")
-            
+
             return data
         except Exception as e:
             time.sleep(2)
@@ -85,7 +85,7 @@ def phase1_static_validation(bank_data):
     print("\n" + "="*40)
     print("Phase 1: プログラムによる静的スクリーニング (不要なAI稼働をスキップ)")
     print("="*40)
-    
+
     valid_data = {}
     total_removed = 0
     for subject, grades in bank_data.items():
@@ -99,7 +99,7 @@ def phase1_static_validation(bank_data):
                     total_removed += 1; continue
                 if not (0 <= q["a"] < len(q["c"])):
                     total_removed += 1; continue
-                
+
                 text = clean_text(q["q"])
                 if any(ng in text for ng in STATIC_NG_PATTERNS):
                     total_removed += 1; continue
@@ -111,10 +111,10 @@ def phase1_static_validation(bank_data):
 
 def process_p2_task(task):
     subject, grade, start_idx, batch = task
-    
+
     # 識別用のIDを付与した一時辞書を作成
     indexed_batch = [{"id": i, **q} for i, q in enumerate(batch)]
-    
+
     system_inst = """あなたは小学生向けクイズの厳格な品質管理者です。
 入力されるJSONには複数のクイズが含まれます。各クイズの品質を判定し、
 「不適切な問題（悪い問題）」の "id" の数値だけを抽出してJSONの配列（リスト）で出力してください。
@@ -130,9 +130,9 @@ def process_p2_task(task):
 
 入力データ ({len(batch)}問):
 {json.dumps(indexed_batch, ensure_ascii=False, indent=2)}"""
-    
+
     bad_ids = request_ollama_json(prompt, system_inst)
-    
+
     if bad_ids is not None:
         # 万が一IDが数値以外で返ってきても対応
         bad_ids_set = set()
@@ -140,11 +140,11 @@ def process_p2_task(task):
             if isinstance(b_id, int): bad_ids_set.add(b_id)
             elif isinstance(b_id, dict) and 'id' in b_id: bad_ids_set.add(b_id['id'])
             elif isinstance(b_id, str) and b_id.isdigit(): bad_ids_set.add(int(b_id))
-            
+
         valid_qs = [q for i, q in enumerate(batch) if i not in bad_ids_set]
         dropped_count = len(batch) - len(valid_qs)
         return subject, grade, start_idx, valid_qs, dropped_count
-    
+
     # AIが回答失敗した場合は安全のため全て残す
     return subject, grade, start_idx, batch, 0
 
@@ -152,10 +152,10 @@ def phase2_llm_evaluation(bank_data):
     print("\n" + "="*40)
     print(f"Phase 2: メガバッチ・インデックス判定 (AIの出力を削ぎ落とした爆速版)")
     print("="*40)
-    
+
     processed_data = json.loads(json.dumps(bank_data))
     tasks = []
-    
+
     for subject, grades in processed_data.items():
         for grade, questions in grades.items():
             for i in range(0, len(questions), BATCH_SIZE):
@@ -182,17 +182,17 @@ def phase2_llm_evaluation(bank_data):
     for subject in processed_data:
         for grade in processed_data[subject]:
             processed_data[subject][grade] = []
-            
+
     for res in results:
         subject, grade, start_idx, qs, dropped = res
         if (subject, grade) not in grouped: grouped[(subject, grade)] = []
         grouped[(subject, grade)].append((start_idx, qs))
-        
+
     for (subject, grade), batches in grouped.items():
         batches.sort(key=lambda x: x[0])
         for start_idx, qs in batches:
             processed_data[subject][grade].extend(qs)
-            
+
     save_json(PROGRESS_PATH, processed_data)
     print("Phase 2 完了！")
     return processed_data
@@ -200,19 +200,15 @@ def phase2_llm_evaluation(bank_data):
 def process_p3_task(task):
     subject, grade, req_size = task
     system_inst = "あなたはクイズ作成AIです。JSON配列のみを出力します。"
-    
+
     prompt = f"""{subject}の{grade}年生向けの高品質なクイズを【{req_size}問】作成し、以下の配列フォーマットで出力してください。
 [ {{ "q": "問題", "c": ["選択肢1", "選択肢2"], "a": 正解インデックス(0始まり), "exp": "解説" }} ]
 
 【重要】
 - その学年・科目の指導要領に含まれる【様々な分野（図形・文章題・割合・理科・歴史など）】から幅広く出題し、ジャンルを被らせないでください。
 - 画面(テキスト)だけで自己完結して解ける問題にしてください。"""
-    
-    # Better quality prompt constraint
-    quality_constraints = "\n- 問題文は50文字以内、解説は20文字以内で核心の一言のみとしてください。\n- 各問題に解答までにかかる時間(t)を秒単位（1.5〜10.0）で予測し、フィールドとして付与してください。"
-    full_prompt = prompt + quality_constraints
 
-    new_qs = request_ollama_json(full_prompt, system_inst)
+    new_qs = request_ollama_json(prompt, system_inst)
     if new_qs is not None:
         return subject, grade, [q for q in new_qs if all(k in q for k in ("q", "c", "a", "exp"))]
     return subject, grade, []
@@ -221,7 +217,7 @@ def phase3_augmentation(bank_data):
     print("\n" + "="*40)
     print(f"Phase 3: 不足分野の自動増補 (破棄された分を一気に生成)")
     print("="*40)
-    
+
     tasks = []
     for subject, grades in bank_data.items():
         for grade, questions in grades.items():
@@ -271,14 +267,14 @@ def main():
         data_p1 = phase1_static_validation(bank_data)
         data_p2 = phase2_llm_evaluation(data_p1)
         data_p3 = phase3_augmentation(data_p2)
-        
+
         t1 = time.time()
         save_json(FINAL_PATH, data_p3)
         print("\n" + "="*40)
         print(f"限界突破プロセスが完了しました！ (所要時間: {t1-t0:.1f} 秒)")
         print(f"結果は {FINAL_PATH} に出力されています。")
         print("="*40)
-        
+
         if PROGRESS_PATH.exists(): os.remove(PROGRESS_PATH)
 
     except KeyboardInterrupt:
