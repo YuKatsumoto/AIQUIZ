@@ -320,6 +320,7 @@ func _build_ui() -> void:
 		hover_style.bg_color = Color(0.18, 0.20, 0.30)
 		hover_style.border_color = Color(0.4, 0.5, 0.7)
 		card.add_theme_stylebox_override("hover", hover_style)
+		card.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 
 		card.add_theme_color_override("font_color", Color(0.82, 0.85, 0.92))
 		card.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 1.0))
@@ -1066,6 +1067,7 @@ func _style_buttons() -> void:
 			continue
 		btn.add_theme_stylebox_override("normal", normal_style.duplicate())
 		btn.add_theme_stylebox_override("hover", hover_style.duplicate())
+		btn.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 		btn.add_theme_color_override("font_color", Color(0.82, 0.85, 0.92))
 		btn.add_theme_color_override("font_hover_color", Color(0.95, 0.97, 1.0))
 

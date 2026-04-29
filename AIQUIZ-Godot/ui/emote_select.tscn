@@ -1,4 +1,4 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=2 format=3 uid="uid://ujnj6gfhpll0"]
 
 [ext_resource type="Script" path="res://scripts/ui/emote_select.gd" id="1"]
 

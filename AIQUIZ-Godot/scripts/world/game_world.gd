@@ -671,10 +671,13 @@ func _build_pause_menu() -> void:
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	pause_menu.add_child(bg)
 	
+	var center = CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	pause_menu.add_child(center)
+	
 	var vbox = VBoxContainer.new()
-	vbox.set_anchors_preset(Control.PRESET_CENTER)
 	vbox.add_theme_constant_override("separation", 24)
-	pause_menu.add_child(vbox)
+	center.add_child(vbox)
 	
 	var title = Label.new()
 	title.text = "PAUSE"
@@ -734,6 +737,7 @@ func _build_pause_menu() -> void:
 	btn_resume.text = "ゲームに戻る"
 	btn_resume.add_theme_font_size_override("font_size", 28)
 	btn_resume.custom_minimum_size = Vector2(0, 60)
+	btn_resume.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	btn_resume.pressed.connect(func(): _toggle_pause())
 	vbox.add_child(btn_resume)
 	
@@ -741,6 +745,7 @@ func _build_pause_menu() -> void:
 	btn_title.text = "タイトルに戻る"
 	btn_title.add_theme_font_size_override("font_size", 28)
 	btn_title.custom_minimum_size = Vector2(0, 60)
+	btn_title.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	btn_title.pressed.connect(func():
 		get_tree().paused = false
 		game_state.reset_to_menu()

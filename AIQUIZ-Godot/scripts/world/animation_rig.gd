@@ -111,9 +111,10 @@ func select_animation(player_y: float, jump_trigger: bool, emote: int,
 		return play_slot(SLOT_DROWNING)
 
 	# Priority 2: ジャンプ
-	# jump_triggerがオン、またはジャンプ中かつ空中にいる場合
-	if jump_trigger or (jump_ap_playing and player_y > -1.19):
-		return play_slot(SLOT_JUMP)
+	# 物理ジャンプ中はFBXアニメーションを適用せず、従来のプロシージャルジャンプを使用する
+	if player_y > 0.01:
+		stop_all()
+		return false
 
 	# Priority 3: エモート
 	if emote > 0:

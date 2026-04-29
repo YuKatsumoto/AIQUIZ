@@ -379,6 +379,7 @@ func _style_all_buttons() -> void:
 	for btn: Button in all_buttons:
 		btn.add_theme_stylebox_override("normal", normal_style.duplicate())
 		btn.add_theme_stylebox_override("hover", hover_style.duplicate())
+		btn.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 		btn.add_theme_color_override("font_color", Color(0.82, 0.85, 0.92))
 		btn.add_theme_color_override("font_hover_color", Color(0.95, 0.97, 1.0))
 

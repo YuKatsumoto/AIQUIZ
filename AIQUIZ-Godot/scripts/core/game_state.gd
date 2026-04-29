@@ -554,6 +554,7 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 		
 		if jump_p1 and player_y <= 0.0 and is_on_floor:
 			p1_jump_trigger = true
+			player_vel_y = JUMP_FORCE
 		
 		player_vel_y -= GRAVITY * dt
 		player_y += player_vel_y * dt
@@ -594,6 +595,7 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 		
 		if jump_p2 and player2_y <= 0.0 and p2_is_on_floor:
 			p2_jump_trigger = true
+			player2_vel_y = JUMP_FORCE
 		
 		player2_vel_y -= GRAVITY * dt
 		player2_y += player2_vel_y * dt
@@ -683,6 +685,7 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 
 		if jump_p1 and player_y <= 0.0 and is_on_floor:
 			p1_jump_trigger = true
+			player_vel_y = JUMP_FORCE
 		player_vel_y -= GRAVITY * dt
 		player_y += player_vel_y * dt
 		if player_y <= 0.0 and is_on_floor:
@@ -705,6 +708,7 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 
 		if jump_p2 and player2_y <= 0.0 and p2_is_on_floor:
 			p2_jump_trigger = true
+			player2_vel_y = JUMP_FORCE
 		player2_vel_y -= GRAVITY * dt
 		player2_y += player2_vel_y * dt
 		if player2_y <= 0.0 and p2_is_on_floor:

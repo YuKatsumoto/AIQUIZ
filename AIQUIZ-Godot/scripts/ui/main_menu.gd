@@ -11,9 +11,9 @@ extends Control
 @onready var grade_label: Label = $VBoxContainer/ConfigContainer/GradeRow/GradeLabel
 @onready var subject_label: Label = $VBoxContainer/ConfigContainer/SubjectRow/SubjectLabel
 @onready var diff_label: Label = $VBoxContainer/ConfigContainer/DiffRow/DiffLabel
-@onready var players_btn: Button = $VBoxContainer/ConfigContainer/PlayersRow/PlayersToggleBtn
-@onready var llm_toggle_btn: Button = $VBoxContainer/ConfigContainer/LlmRow/LlmToggleBtn
-@onready var hat_select_row: HBoxContainer = $VBoxContainer/ConfigContainer/HatSelectRow
+@onready var players_btn: Button = %PlayersToggleBtn
+@onready var llm_toggle_btn: Button = %LlmToggleBtn
+@onready var hat_select_btn: Button = %HatSelectBtn
 @onready var wall_speed_btn: Button = %WallSpeedBtn
 
 @onready var settings_panel: Panel = $SettingsPanel
@@ -98,6 +98,7 @@ func _style_all_buttons() -> void:
 		btn.add_theme_stylebox_override("normal", normal_style.duplicate())
 		btn.add_theme_stylebox_override("hover", hover_style.duplicate())
 		btn.add_theme_stylebox_override("pressed", pressed_style.duplicate())
+		btn.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 		btn.add_theme_color_override("font_color", Color(0.82, 0.85, 0.92))
 		btn.add_theme_color_override("font_hover_color", Color(0.95, 0.97, 1.0))
 	
@@ -153,8 +154,8 @@ func _update_ui() -> void:
 		llm_toggle_btn.text = llm_text
 		
 		# Show skin & emote button for all modes (emotes usable in 1P too)
-		if hat_select_row:
-			hat_select_row.visible = true
+		if hat_select_btn:
+			hat_select_btn.visible = true
 		
 		# Update wall speed button label
 		if wall_speed_btn:
