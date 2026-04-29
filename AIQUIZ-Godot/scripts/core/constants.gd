@@ -1,8 +1,8 @@
 extends RefCounted
 class_name Constants
 
-const SUBJECTS = ["算数", "理科", "国語", "社会"]
-const SUBJECT_EN = {"算数": "Math", "理科": "Science", "国語": "Japanese", "社会": "Social Studies"}
+const SUBJECTS = ["算数", "理科", "国語", "社会", "生活"]
+const SUBJECT_EN = {"算数": "Math", "理科": "Science", "国語": "Japanese", "社会": "Social Studies", "生活": "Life Env"}
 
 const DIFFICULTY_LEVELS = ["簡単", "普通", "難しい"]
 const DIFFICULTY_EN = {"簡単": "Easy", "普通": "Normal", "難しい": "Hard"}

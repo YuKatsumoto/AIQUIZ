@@ -13,6 +13,13 @@ signal game_cleared(message: String)
 var provider: QuizProvider
 var use_english_ui: bool = false
 var tuning: GameTuning
+const TUTORIAL_SAVE_PATH := "user://tutorial_state.json"
+const TUTORIAL_STEP_NONE := 0
+const TUTORIAL_STEP_WAITING := 1
+const TUTORIAL_STEP_FLYOVER := 2
+const TUTORIAL_STEP_COUNTDOWN := 3
+const TUTORIAL_STEP_FIRST_QUIZ := 4
+const TUTORIAL_STEP_DONE := 5
 
 # --- Settings ---
 var subject: String = "算数"
@@ -106,8 +113,15 @@ var player2_game_over_timer: float = 0.0
 var goal_z: float = 0.0
 var goal_winner: int = 0  # 0=未確定, 1=P1, 2=P2
 
-var p1_jump_trigger: bool = false
-var p2_jump_trigger: bool = false
+# --- Tutorial (first-run onboarding) ---
+var tutorial_done: bool = false
+var tutorial_enabled: bool = false
+var tutorial_step: int = TUTORIAL_STEP_NONE
+var tutorial_title: String = ""
+var tutorial_body: String = ""
+var tutorial_action: String = ""
+
+
 
 
 
@@ -125,6 +139,8 @@ func _init(quiz_provider: QuizProvider = null) -> void:
 	else:
 		provider = QuizProvider.new()
 	tuning = GameTuning.new()
+	_load_tutorial_state()
+	_sync_tutorial_state()
 	refresh_status_text()
 
 
@@ -181,20 +197,44 @@ func set_bgm_volume(vol: float) -> void:
 
 func update_grade(delta: int) -> void:
 	grade = clampi(grade + delta, 1, 6)
+	_ensure_valid_subject()
 	refresh_status_text()
 
+func _ensure_valid_subject() -> void:
+	if grade <= 2:
+		if subject in ["理科", "社会"]:
+			subject = "生活"
+	else:
+		if subject == "生活":
+			subject = "理科"
+
 func cycle_subject(delta: int) -> void:
-	var idx := Constants.SUBJECTS.find(subject)
+	var valid_subjects: Array[String] = []
+	if grade <= 2:
+		valid_subjects = ["算数", "国語", "生活"]
+	else:
+		valid_subjects = ["算数", "理科", "国語", "社会"]
+		
+	var idx := valid_subjects.find(subject)
 	if idx < 0:
 		idx = 0
-	subject = Constants.SUBJECTS[(idx + delta) % Constants.SUBJECTS.size()]
+		
+	# % operator with negative numbers in GDScript can be negative, so we use a safe wrap
+	var new_idx = (idx + delta) % valid_subjects.size()
+	if new_idx < 0:
+		new_idx += valid_subjects.size()
+		
+	subject = valid_subjects[new_idx]
 	refresh_status_text()
 
 func cycle_difficulty(delta: int) -> void:
 	var idx := Constants.DIFFICULTY_LEVELS.find(difficulty)
 	if idx < 0:
 		idx = 1
-	difficulty = Constants.DIFFICULTY_LEVELS[(idx + delta) % Constants.DIFFICULTY_LEVELS.size()]
+	var new_idx = (idx + delta) % Constants.DIFFICULTY_LEVELS.size()
+	if new_idx < 0:
+		new_idx += Constants.DIFFICULTY_LEVELS.size()
+	difficulty = Constants.DIFFICULTY_LEVELS[new_idx]
 	refresh_status_text()
 
 
@@ -244,6 +284,8 @@ func start_game() -> void:
 
 	quiz_list = provider.get_quizzes(subject, grade, difficulty, mode, count)
 	message_text = ""
+	tutorial_enabled = not tutorial_done and num_players == 1
+	_sync_tutorial_state()
 	game_state = Constants.STATE_PRELOADING
 	preload_wait_sec = 0.0
 	refresh_status_text()
@@ -277,6 +319,7 @@ func reset_to_menu() -> void:
 	rating_target_quiz = null
 	rating_feedback = ""
 	quiz_history.clear()
+	_sync_tutorial_state()
 	refresh_status_text()
 	state_changed.emit(game_state)
 
@@ -393,10 +436,12 @@ func update(dt: float, axis_p1: Vector2 = Vector2.ZERO, axis_p2: Vector2 = Vecto
 	camera_shake = maxf(0.0, camera_shake - dt * 2.8)
 
 	if game_state == Constants.STATE_MENU:
+		_sync_tutorial_state()
 		return
 
-	p1_jump_trigger = false
-	p2_jump_trigger = false
+	_sync_tutorial_state()
+
+
 
 	if game_state == Constants.STATE_PRELOADING:
 		_update_preloading(dt)
@@ -479,14 +524,27 @@ func _update_preloading(dt: float) -> void:
 			load_current_quiz()
 			state_changed.emit(game_state)
 	else:
+		var is_online: bool = false
+		if "llm_mode" in provider:
+			is_online = (provider.llm_mode == "ONLINE")
+			
 		if is_mid_game:
-			message_text = "Loading quizzes..." if use_english_ui else "次の問題を準備中..."
+			if is_online:
+				message_text = "Generating next quiz..." if use_english_ui else "次の問題を生成中..."
+			else:
+				message_text = "Loading quizzes..." if use_english_ui else "次の問題を準備中..."
 		else:
 			if mode == Constants.MODE_TEN:
 				var q_count = mini(quiz_list.size(), target_count)
-				message_text = "Generating quizzes... (%d/%d)" % [q_count, target_count] if use_english_ui else "AIクイズ生成中... (%d/%d)" % [q_count, target_count]
+				if is_online:
+					message_text = "Generating quizzes... (%d/%d)" % [q_count, target_count] if use_english_ui else "問題を生成中... (%d/%d)" % [q_count, target_count]
+				else:
+					message_text = "Loading quizzes... (%d/%d)" % [q_count, target_count] if use_english_ui else "問題を準備中... (%d/%d)" % [q_count, target_count]
 			else:
-				message_text = "Loading quizzes..." if use_english_ui else "クイズを準備中..."
+				if is_online:
+					message_text = "Generating quizzes..." if use_english_ui else "問題を生成中..."
+				else:
+					message_text = "Loading quizzes..." if use_english_ui else "問題を準備中..."
 		refresh_status_text()
 
 func _update_waiting_start(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: bool, jump_p2: bool, emote_p1: int = 0, emote_p2: int = 0) -> void:
@@ -553,7 +611,7 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 		var is_on_floor = (absf(player_x) <= 12.0) and (loc1 >= -4.5 and loc1 <= 139.5)
 		
 		if jump_p1 and player_y <= 0.0 and is_on_floor:
-			p1_jump_trigger = true
+			player_vel_y = JUMP_FORCE
 		
 		player_vel_y -= GRAVITY * dt
 		player_y += player_vel_y * dt
@@ -593,7 +651,7 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 		var p2_is_on_floor = (absf(player2_x) <= 12.0) and (loc2 >= -4.5 and loc2 <= 139.5)
 		
 		if jump_p2 and player2_y <= 0.0 and p2_is_on_floor:
-			p2_jump_trigger = true
+			player2_vel_y = JUMP_FORCE
 		
 		player2_vel_y -= GRAVITY * dt
 		player2_y += player2_vel_y * dt
@@ -682,7 +740,7 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 		var is_on_floor = (absf(player_x) <= 12.0) and (loc1 >= -4.5 and loc1 <= 400.0)
 
 		if jump_p1 and player_y <= 0.0 and is_on_floor:
-			p1_jump_trigger = true
+			player_vel_y = JUMP_FORCE
 		player_vel_y -= GRAVITY * dt
 		player_y += player_vel_y * dt
 		if player_y <= 0.0 and is_on_floor:
@@ -704,7 +762,7 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 		var p2_is_on_floor = (absf(player2_x) <= 12.0) and (loc2 >= -4.5 and loc2 <= 400.0)
 
 		if jump_p2 and player2_y <= 0.0 and p2_is_on_floor:
-			p2_jump_trigger = true
+			player2_vel_y = JUMP_FORCE
 		player2_vel_y -= GRAVITY * dt
 		player2_y += player2_vel_y * dt
 		if player2_y <= 0.0 and p2_is_on_floor:
@@ -780,6 +838,8 @@ func _check_player_door(px: float) -> int:
 func resolve_collision() -> void:
 	if not current_quiz or choice_locked:
 		return
+	if not tutorial_allows_answers():
+		return
 	choice_locked = true
 	var answer: int = current_quiz.a
 
@@ -836,6 +896,8 @@ func resolve_collision() -> void:
 
 	provider.submit_result(current_quiz, any_correct)
 	quiz_history.append({"quiz": current_quiz, "correct": any_correct, "rated": ""})
+	if tutorial_enabled and not tutorial_done and current_index == 0:
+		mark_tutorial_done()
 	
 	# 確実に問題を解き終わったあとにFirebaseへ保存する（バックグラウンド評価を即時キック）
 	QuizManager.quiz_optimizer.evaluate_history(quiz_history, subject, grade, difficulty)
@@ -914,6 +976,7 @@ func advance_after_correct() -> void:
 		game_state = Constants.STATE_PLAYING
 		message_text = ""
 		state_changed.emit(game_state)
+	_sync_tutorial_state()
 
 
 # ---------- Game over / clear ----------
@@ -963,6 +1026,93 @@ func clear_game() -> void:
 	game_cleared.emit(message_text)
 	state_changed.emit(game_state)
 	QuizManager.quiz_optimizer.evaluate_history(quiz_history, subject, grade, difficulty)
+
+
+func mark_tutorial_done() -> void:
+	if tutorial_done:
+		return
+	tutorial_done = true
+	tutorial_enabled = false
+	_save_tutorial_state()
+	_sync_tutorial_state()
+
+func reset_tutorial_progress() -> void:
+	tutorial_done = false
+	tutorial_enabled = false
+	_save_tutorial_state()
+	_sync_tutorial_state()
+
+func tutorial_is_active() -> bool:
+	return tutorial_enabled and not tutorial_done and num_players == 1
+
+func tutorial_allows_movement() -> bool:
+	if not tutorial_is_active():
+		return true
+	if game_state == Constants.STATE_PLAYING and current_index == 0:
+		return true
+	return tutorial_step >= TUTORIAL_STEP_FIRST_QUIZ
+
+func tutorial_allows_answers() -> bool:
+	if not tutorial_is_active():
+		return true
+	if game_state == Constants.STATE_PLAYING and current_index == 0:
+		return true
+	return tutorial_step >= TUTORIAL_STEP_FIRST_QUIZ
+
+func _sync_tutorial_state() -> void:
+	if not tutorial_is_active():
+		tutorial_step = TUTORIAL_STEP_DONE if tutorial_done else TUTORIAL_STEP_NONE
+		tutorial_title = ""
+		tutorial_body = ""
+		tutorial_action = ""
+		return
+
+	if game_state == Constants.STATE_WAITING_START:
+		tutorial_step = TUTORIAL_STEP_WAITING
+		tutorial_title = "チュートリアル 1/4"
+		tutorial_body = "準備完了です。まずは開始してコースを確認しましょう。"
+		tutorial_action = "任意キーを押してスタート"
+	elif game_state == Constants.STATE_FLYOVER:
+		tutorial_step = TUTORIAL_STEP_FLYOVER
+		tutorial_title = "チュートリアル 2/4"
+		tutorial_body = "前方にクイズの壁が並びます。正解のドアを選んで通過します。"
+		tutorial_action = "コース確認中..."
+	elif game_state == Constants.STATE_COUNTDOWN:
+		tutorial_step = TUTORIAL_STEP_COUNTDOWN
+		tutorial_title = "チュートリアル 3/4"
+		tutorial_body = "移動は W/A/S/D（または矢印キー）、ジャンプは Space です。"
+		tutorial_action = "カウントダウン後に移動開始"
+	elif game_state == Constants.STATE_PLAYING and current_index == 0:
+		tutorial_step = TUTORIAL_STEP_FIRST_QUIZ
+		tutorial_title = "チュートリアル 4/4"
+		tutorial_body = "問題文を読んで、正解のドアに入って第1問を突破しましょう。"
+		tutorial_action = "第1問をクリアすると完了"
+	else:
+		tutorial_step = TUTORIAL_STEP_NONE
+		tutorial_title = ""
+		tutorial_body = ""
+		tutorial_action = ""
+
+func _load_tutorial_state() -> void:
+	tutorial_done = false
+	if not FileAccess.file_exists(TUTORIAL_SAVE_PATH):
+		return
+	var f := FileAccess.open(TUTORIAL_SAVE_PATH, FileAccess.READ)
+	if not f:
+		return
+	var parsed = JSON.parse_string(f.get_as_text())
+	if parsed is Dictionary:
+		tutorial_done = bool(parsed.get("tutorial_done", false))
+
+func _save_tutorial_state() -> void:
+	var f := FileAccess.open(TUTORIAL_SAVE_PATH, FileAccess.WRITE)
+	if not f:
+		return
+	var payload := {
+		"tutorial_done": tutorial_done,
+		"saved_at": int(Time.get_unix_time_from_system())
+	}
+	f.store_string(JSON.stringify(payload, "  "))
 
 
 # ---------- Rating ----------

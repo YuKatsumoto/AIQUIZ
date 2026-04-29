@@ -25,7 +25,7 @@ var _flyover_walls: Array[Node3D] = []
 var _flyover_active: bool = false
 var _hats_applied: bool = false
 var _goal_line_node: Node3D = null
-const MAX_VISIBLE_WALLS := 4
+const MAX_VISIBLE_WALLS := 10
 const BG_COLOR := Color(0.82, 0.85, 0.90)
 const FLOOR_COLOR := Color(0.35, 0.35, 0.35)
 
@@ -291,6 +291,13 @@ func _process(dt: float) -> void:
 		axis_p1 = axis_p1.normalized()
 		if game_state.num_players >= 2:
 			axis_p2 = axis_p2.normalized()
+		if game_state.has_method("tutorial_allows_movement") and not game_state.tutorial_allows_movement():
+			axis_p1 = Vector2.ZERO
+			axis_p2 = Vector2.ZERO
+			jump_p1 = false
+			jump_p2 = false
+			emote_p1 = 0
+			emote_p2 = 0
 
 	# Mouse look (1P only)
 	if game_state.game_state == Constants.STATE_PLAYING and game_state.num_players == 1:
@@ -671,10 +678,13 @@ func _build_pause_menu() -> void:
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	pause_menu.add_child(bg)
 	
+	var center = CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	pause_menu.add_child(center)
+	
 	var vbox = VBoxContainer.new()
-	vbox.set_anchors_preset(Control.PRESET_CENTER)
 	vbox.add_theme_constant_override("separation", 24)
-	pause_menu.add_child(vbox)
+	center.add_child(vbox)
 	
 	var title = Label.new()
 	title.text = "PAUSE"

@@ -456,8 +456,8 @@ func update_from_state(gs: QuizGameState) -> void:
 		else:
 			var is_active := gs.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]
 			var apply_rig := _p1_rig.select_animation(
-				gs.player_y, gs.p1_jump_trigger, gs.p1_emote,
-				gs.p1_moving_back, is_active, _p1_rig.is_jump_playing())
+				gs.player_y, gs.p1_emote,
+				gs.p1_moving_back, is_active)
 			
 			if apply_rig:
 				_apply_skeleton_pose(p1_parts, _p1_rig.active_skeleton, _p1_rig.active_bone_indices, _p1_rig.mirror_x)
@@ -500,8 +500,8 @@ func update_from_state(gs: QuizGameState) -> void:
 			else:
 				var is_active := gs.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]
 				var apply_rig := _p2_rig.select_animation(
-					gs.player2_y, gs.p2_jump_trigger, gs.p2_emote,
-					gs.p2_moving_back, is_active, _p2_rig.is_jump_playing())
+					gs.player2_y, gs.p2_emote,
+					gs.p2_moving_back, is_active)
 				
 				if apply_rig:
 					_apply_skeleton_pose(p2_parts, _p2_rig.active_skeleton, _p2_rig.active_bone_indices, _p2_rig.mirror_x)

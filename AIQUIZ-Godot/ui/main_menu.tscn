@@ -79,150 +79,174 @@ text = "エンドレス"
 [node name="ConfigContainer" type="VBoxContainer" parent="VBoxContainer"]
 visible = false
 layout_mode = 2
-theme_override_constants/separation = 10
+theme_override_constants/separation = 8
 
-[node name="ConfigTitle" type="Label" parent="VBoxContainer/ConfigContainer"]
+[node name="QuizSectionHeader" type="Label" parent="VBoxContainer/ConfigContainer"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.7, 0.72, 0.8, 1)
-theme_override_font_sizes/font_size = 18
-text = "設定"
+theme_override_colors/font_color = Color(0.55, 0.7, 1, 1)
+theme_override_font_sizes/font_size = 16
+text = "── クイズ設定 ──"
 horizontal_alignment = 1
 
-[node name="GradeRow" type="HBoxContainer" parent="VBoxContainer/ConfigContainer"]
+[node name="QuizSettingsCard" type="PanelContainer" parent="VBoxContainer/ConfigContainer"]
 layout_mode = 2
+
+[node name="QuizSettingsVBox" type="VBoxContainer" parent="VBoxContainer/ConfigContainer/QuizSettingsCard"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="GradeRow" type="HBoxContainer" parent="VBoxContainer/ConfigContainer/QuizSettingsCard/QuizSettingsVBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
 alignment = 1
 
-[node name="GradeDownBtn" type="Button" parent="VBoxContainer/ConfigContainer/GradeRow"]
+[node name="GradeDownBtn" type="Button" parent="VBoxContainer/ConfigContainer/QuizSettingsCard/QuizSettingsVBox/GradeRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(50, 44)
+custom_minimum_size = Vector2(52, 48)
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
+theme_override_font_sizes/font_size = 22
 text = "◀"
 
-[node name="GradeLabel" type="Label" parent="VBoxContainer/ConfigContainer/GradeRow"]
-custom_minimum_size = Vector2(180, 0)
+[node name="GradeLabel" type="Label" parent="VBoxContainer/ConfigContainer/QuizSettingsCard/QuizSettingsVBox/GradeRow"]
+custom_minimum_size = Vector2(200, 0)
 layout_mode = 2
-theme_override_colors/font_color = Color(0.92, 0.94, 0.98, 1)
+theme_override_colors/font_color = Color(0.95, 0.92, 0.75, 1)
 theme_override_font_sizes/font_size = 22
-text = "学年: 3"
+text = "📚 3年生"
 horizontal_alignment = 1
 
-[node name="GradeUpBtn" type="Button" parent="VBoxContainer/ConfigContainer/GradeRow"]
+[node name="GradeUpBtn" type="Button" parent="VBoxContainer/ConfigContainer/QuizSettingsCard/QuizSettingsVBox/GradeRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(50, 44)
+custom_minimum_size = Vector2(52, 48)
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
+theme_override_font_sizes/font_size = 22
 text = "▶"
 
-[node name="SubjectRow" type="HBoxContainer" parent="VBoxContainer/ConfigContainer"]
+[node name="SubjectRow" type="HBoxContainer" parent="VBoxContainer/ConfigContainer/QuizSettingsCard/QuizSettingsVBox"]
 layout_mode = 2
+theme_override_constants/separation = 8
 alignment = 1
 
-[node name="SubjectLeftBtn" type="Button" parent="VBoxContainer/ConfigContainer/SubjectRow"]
+[node name="SubjectLeftBtn" type="Button" parent="VBoxContainer/ConfigContainer/QuizSettingsCard/QuizSettingsVBox/SubjectRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(50, 44)
+custom_minimum_size = Vector2(52, 48)
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
+theme_override_font_sizes/font_size = 22
 text = "◀"
 
-[node name="SubjectLabel" type="Label" parent="VBoxContainer/ConfigContainer/SubjectRow"]
-custom_minimum_size = Vector2(180, 0)
+[node name="SubjectLabel" type="Label" parent="VBoxContainer/ConfigContainer/QuizSettingsCard/QuizSettingsVBox/SubjectRow"]
+custom_minimum_size = Vector2(200, 0)
 layout_mode = 2
-theme_override_colors/font_color = Color(0.92, 0.94, 0.98, 1)
+theme_override_colors/font_color = Color(0.7, 0.95, 0.8, 1)
 theme_override_font_sizes/font_size = 22
-text = "教科: 算数"
+text = "📖 算数"
 horizontal_alignment = 1
 
-[node name="SubjectRightBtn" type="Button" parent="VBoxContainer/ConfigContainer/SubjectRow"]
+[node name="SubjectRightBtn" type="Button" parent="VBoxContainer/ConfigContainer/QuizSettingsCard/QuizSettingsVBox/SubjectRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(50, 44)
+custom_minimum_size = Vector2(52, 48)
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
+theme_override_font_sizes/font_size = 22
 text = "▶"
 
-[node name="DiffRow" type="HBoxContainer" parent="VBoxContainer/ConfigContainer"]
+[node name="DiffRow" type="HBoxContainer" parent="VBoxContainer/ConfigContainer/QuizSettingsCard/QuizSettingsVBox"]
 layout_mode = 2
+theme_override_constants/separation = 8
 alignment = 1
 
-[node name="DiffLeftBtn" type="Button" parent="VBoxContainer/ConfigContainer/DiffRow"]
+[node name="DiffLeftBtn" type="Button" parent="VBoxContainer/ConfigContainer/QuizSettingsCard/QuizSettingsVBox/DiffRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(50, 44)
+custom_minimum_size = Vector2(52, 48)
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
+theme_override_font_sizes/font_size = 22
 text = "◀"
 
-[node name="DiffLabel" type="Label" parent="VBoxContainer/ConfigContainer/DiffRow"]
-custom_minimum_size = Vector2(180, 0)
+[node name="DiffLabel" type="Label" parent="VBoxContainer/ConfigContainer/QuizSettingsCard/QuizSettingsVBox/DiffRow"]
+custom_minimum_size = Vector2(200, 0)
 layout_mode = 2
-theme_override_colors/font_color = Color(0.92, 0.94, 0.98, 1)
+theme_override_colors/font_color = Color(0.85, 0.75, 0.95, 1)
 theme_override_font_sizes/font_size = 22
-text = "難易度: 普通"
+text = "⚡ 普通"
 horizontal_alignment = 1
 
-[node name="DiffRightBtn" type="Button" parent="VBoxContainer/ConfigContainer/DiffRow"]
+[node name="DiffRightBtn" type="Button" parent="VBoxContainer/ConfigContainer/QuizSettingsCard/QuizSettingsVBox/DiffRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(50, 44)
+custom_minimum_size = Vector2(52, 48)
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
+theme_override_font_sizes/font_size = 22
 text = "▶"
 
-[node name="OptionsSep" type="HSeparator" parent="VBoxContainer/ConfigContainer"]
+[node name="CardSpacer" type="Control" parent="VBoxContainer/ConfigContainer"]
+custom_minimum_size = Vector2(0, 4)
 layout_mode = 2
 
-[node name="LlmRow" type="HBoxContainer" parent="VBoxContainer/ConfigContainer"]
+[node name="GameSectionHeader" type="Label" parent="VBoxContainer/ConfigContainer"]
 layout_mode = 2
+theme_override_colors/font_color = Color(0.55, 0.7, 1, 1)
+theme_override_font_sizes/font_size = 16
+text = "── ゲーム設定 ──"
+horizontal_alignment = 1
+
+[node name="GameSettingsCard" type="PanelContainer" parent="VBoxContainer/ConfigContainer"]
+layout_mode = 2
+
+[node name="GameSettingsVBox" type="VBoxContainer" parent="VBoxContainer/ConfigContainer/GameSettingsCard"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="GameTopRow" type="HBoxContainer" parent="VBoxContainer/ConfigContainer/GameSettingsCard/GameSettingsVBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
 alignment = 1
 
-[node name="LlmToggleBtn" type="Button" parent="VBoxContainer/ConfigContainer/LlmRow"]
+[node name="LlmToggleBtn" type="Button" parent="VBoxContainer/ConfigContainer/GameSettingsCard/GameSettingsVBox/GameTopRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(300, 44)
+custom_minimum_size = Vector2(220, 44)
 layout_mode = 2
-theme_override_font_sizes/font_size = 18
-text = "出題: OFFLINE (内蔵問題)"
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 16
+text = "📦 OFFLINE (内蔵問題)"
 
-[node name="PlayersRow" type="HBoxContainer" parent="VBoxContainer/ConfigContainer"]
+[node name="PlayersToggleBtn" type="Button" parent="VBoxContainer/ConfigContainer/GameSettingsCard/GameSettingsVBox/GameTopRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(160, 44)
 layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 16
+text = "👤 1人プレイ"
+
+[node name="GameBottomRow" type="HBoxContainer" parent="VBoxContainer/ConfigContainer/GameSettingsCard/GameSettingsVBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
 alignment = 1
 
-[node name="PlayersToggleBtn" type="Button" parent="VBoxContainer/ConfigContainer/PlayersRow"]
+[node name="WallSpeedBtn" type="Button" parent="VBoxContainer/ConfigContainer/GameSettingsCard/GameSettingsVBox/GameBottomRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(300, 44)
+custom_minimum_size = Vector2(140, 44)
 layout_mode = 2
-theme_override_font_sizes/font_size = 18
-text = "1人プレイ / 2人プレイ"
-
-[node name="WallSpeedRow" type="HBoxContainer" parent="VBoxContainer/ConfigContainer"]
-layout_mode = 2
-alignment = 1
-
-[node name="WallSpeedBtn" type="Button" parent="VBoxContainer/ConfigContainer/WallSpeedRow"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(300, 44)
-layout_mode = 2
-theme_override_font_sizes/font_size = 18
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 16
 text = "⚡ 壁速度設定"
 
-[node name="HatSelectRow" type="HBoxContainer" parent="VBoxContainer/ConfigContainer"]
-layout_mode = 2
-alignment = 1
-
-[node name="HatSelectBtn" type="Button" parent="VBoxContainer/ConfigContainer/HatSelectRow"]
+[node name="HatSelectBtn" type="Button" parent="VBoxContainer/ConfigContainer/GameSettingsCard/GameSettingsVBox/GameBottomRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(300, 44)
+custom_minimum_size = Vector2(120, 44)
 layout_mode = 2
-theme_override_font_sizes/font_size = 18
-text = "🎩 スキン設定"
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 16
+text = "🎩 スキン"
 
-[node name="EmoteSelectRow" type="HBoxContainer" parent="VBoxContainer/ConfigContainer"]
-layout_mode = 2
-alignment = 1
-
-[node name="EmoteSelectBtn" type="Button" parent="VBoxContainer/ConfigContainer/EmoteSelectRow"]
+[node name="EmoteSelectBtn" type="Button" parent="VBoxContainer/ConfigContainer/GameSettingsCard/GameSettingsVBox/GameBottomRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(300, 44)
+custom_minimum_size = Vector2(120, 44)
 layout_mode = 2
-theme_override_font_sizes/font_size = 18
-text = "🎭 エモート設定"
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 16
+text = "🎭 エモート"
+
+[node name="ActionSpacer" type="Control" parent="VBoxContainer/ConfigContainer"]
+custom_minimum_size = Vector2(0, 6)
+layout_mode = 2
 
 [node name="ConfigBtnRow" type="HBoxContainer" parent="VBoxContainer/ConfigContainer"]
 layout_mode = 2
@@ -231,17 +255,24 @@ alignment = 1
 
 [node name="BackBtn" type="Button" parent="VBoxContainer/ConfigContainer/ConfigBtnRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(160, 44)
+custom_minimum_size = Vector2(160, 50)
 layout_mode = 2
 theme_override_font_sizes/font_size = 18
-text = "戻る"
+text = "◀ 戻る"
 
 [node name="StartButton" type="Button" parent="VBoxContainer/ConfigContainer/ConfigBtnRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(260, 56)
+custom_minimum_size = Vector2(280, 56)
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
-text = "ゲーム開始"
+text = "🚀 ゲーム開始"
+
+[node name="TutorialButton" type="Button" parent="VBoxContainer/ConfigContainer/ConfigBtnRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(220, 50)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "🎓 チュートリアル"
 
 [node name="StatusLabel" type="Label" parent="VBoxContainer"]
 layout_mode = 2
@@ -345,7 +376,6 @@ size_flags_vertical = 4
 max_value = 1.0
 step = 0.1
 
-
 [node name="ResolutionBox" type="HBoxContainer" parent="SettingsPanel/VBox"]
 layout_mode = 2
 alignment = 1
@@ -373,22 +403,22 @@ text = "戻る"
 
 [connection signal="pressed" from="VBoxContainer/ModeContainer/ModeButtons/TenQuestionsBtn" to="." method="_on_ten_questions_pressed"]
 [connection signal="pressed" from="VBoxContainer/ModeContainer/ModeButtons/EndlessBtn" to="." method="_on_endless_pressed"]
-[connection signal="pressed" from="VBoxContainer/ConfigContainer/GradeRow/GradeDownBtn" to="." method="_on_grade_down_pressed"]
-[connection signal="pressed" from="VBoxContainer/ConfigContainer/GradeRow/GradeUpBtn" to="." method="_on_grade_up_pressed"]
-[connection signal="pressed" from="VBoxContainer/ConfigContainer/SubjectRow/SubjectLeftBtn" to="." method="_on_subject_left_pressed"]
-[connection signal="pressed" from="VBoxContainer/ConfigContainer/SubjectRow/SubjectRightBtn" to="." method="_on_subject_right_pressed"]
-[connection signal="pressed" from="VBoxContainer/ConfigContainer/DiffRow/DiffLeftBtn" to="." method="_on_diff_left_pressed"]
-[connection signal="pressed" from="VBoxContainer/ConfigContainer/DiffRow/DiffRightBtn" to="." method="_on_diff_right_pressed"]
-[connection signal="pressed" from="VBoxContainer/ConfigContainer/LlmRow/LlmToggleBtn" to="." method="_on_llm_toggle_pressed"]
-[connection signal="pressed" from="VBoxContainer/ConfigContainer/PlayersRow/PlayersToggleBtn" to="." method="_on_players_toggle_pressed"]
-[connection signal="pressed" from="VBoxContainer/ConfigContainer/WallSpeedRow/WallSpeedBtn" to="." method="_on_wall_speed_pressed"]
-[connection signal="pressed" from="VBoxContainer/ConfigContainer/HatSelectRow/HatSelectBtn" to="." method="_on_hat_select_pressed"]
-[connection signal="pressed" from="VBoxContainer/ConfigContainer/EmoteSelectRow/EmoteSelectBtn" to="." method="_on_emote_select_pressed"]
+[connection signal="pressed" from="VBoxContainer/ConfigContainer/QuizSettingsCard/QuizSettingsVBox/GradeRow/GradeDownBtn" to="." method="_on_grade_down_pressed"]
+[connection signal="pressed" from="VBoxContainer/ConfigContainer/QuizSettingsCard/QuizSettingsVBox/GradeRow/GradeUpBtn" to="." method="_on_grade_up_pressed"]
+[connection signal="pressed" from="VBoxContainer/ConfigContainer/QuizSettingsCard/QuizSettingsVBox/SubjectRow/SubjectLeftBtn" to="." method="_on_subject_left_pressed"]
+[connection signal="pressed" from="VBoxContainer/ConfigContainer/QuizSettingsCard/QuizSettingsVBox/SubjectRow/SubjectRightBtn" to="." method="_on_subject_right_pressed"]
+[connection signal="pressed" from="VBoxContainer/ConfigContainer/QuizSettingsCard/QuizSettingsVBox/DiffRow/DiffLeftBtn" to="." method="_on_diff_left_pressed"]
+[connection signal="pressed" from="VBoxContainer/ConfigContainer/QuizSettingsCard/QuizSettingsVBox/DiffRow/DiffRightBtn" to="." method="_on_diff_right_pressed"]
+[connection signal="pressed" from="VBoxContainer/ConfigContainer/GameSettingsCard/GameSettingsVBox/GameTopRow/LlmToggleBtn" to="." method="_on_llm_toggle_pressed"]
+[connection signal="pressed" from="VBoxContainer/ConfigContainer/GameSettingsCard/GameSettingsVBox/GameTopRow/PlayersToggleBtn" to="." method="_on_players_toggle_pressed"]
+[connection signal="pressed" from="VBoxContainer/ConfigContainer/GameSettingsCard/GameSettingsVBox/GameBottomRow/WallSpeedBtn" to="." method="_on_wall_speed_pressed"]
+[connection signal="pressed" from="VBoxContainer/ConfigContainer/GameSettingsCard/GameSettingsVBox/GameBottomRow/HatSelectBtn" to="." method="_on_hat_select_pressed"]
+[connection signal="pressed" from="VBoxContainer/ConfigContainer/GameSettingsCard/GameSettingsVBox/GameBottomRow/EmoteSelectBtn" to="." method="_on_emote_select_pressed"]
 [connection signal="pressed" from="VBoxContainer/ConfigContainer/ConfigBtnRow/BackBtn" to="." method="_on_back_pressed"]
 [connection signal="pressed" from="VBoxContainer/ConfigContainer/ConfigBtnRow/StartButton" to="." method="_on_start_pressed"]
+[connection signal="pressed" from="VBoxContainer/ConfigContainer/ConfigBtnRow/TutorialButton" to="." method="_on_tutorial_button_pressed"]
 [connection signal="pressed" from="SettingsBtn" to="." method="_on_settings_btn_pressed"]
 [connection signal="pressed" from="SettingsPanel/VBox/RecheckBtn" to="." method="_on_recheck_btn_pressed"]
 [connection signal="value_changed" from="SettingsPanel/VBox/VolBox/VolSlider" to="." method="_on_vol_slider_changed"]
-
 [connection signal="pressed" from="SettingsPanel/VBox/OpenDashboardBtn" to="." method="_on_open_dashboard_pressed"]
 [connection signal="pressed" from="SettingsPanel/VBox/SettingsBackBtn" to="." method="_on_settings_back_btn_pressed"]

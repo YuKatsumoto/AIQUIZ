@@ -11,7 +11,6 @@ const SLOT_SLIDE := 3
 const SLOT_MOONWALK := 4
 const SLOT_DROWNING := 5
 const SLOT_FLAIR := 6
-const SLOT_JUMP := 7
 
 const FBX_PATHS := [
 	"res://assets/animations/Y Bot@Step Hip Hop Dance.fbx",
@@ -21,12 +20,11 @@ const FBX_PATHS := [
 	"res://assets/animations/Moonwalk.fbx",
 	"res://assets/animations/Drowning.fbx",
 	"res://assets/animations/Flair.fbx",
-	"res://assets/animations/Jumping.fbx",
 ]
 
 const SLOT_NAMES := [
 	"Taunt", "Run", "Gangnam", "Slide",
-	"Moonwalk", "Drowning", "Flair", "Jump",
+	"Moonwalk", "Drowning", "Flair",
 ]
 
 # 各スロットのデータ (nullを許容するためVariant型の配列)
@@ -55,7 +53,7 @@ func _init(prefix: String = "P1") -> void:
 
 func load_all(parent: Node3D, loader: Callable) -> void:
 	"""全FBXを読み込む。loader は _load_fbx_scene(path, name) -> Variant を渡す"""
-	for i in range(8):
+	for i in range(7):
 		var rig_name: String = _prefix + str(SLOT_NAMES[i]) + "Rig"
 		var data = loader.call(FBX_PATHS[i], rig_name)
 		if data:
@@ -64,10 +62,6 @@ func load_all(parent: Node3D, loader: Callable) -> void:
 			aps[i] = data["anim_player"]
 			bone_indices_list[i] = data["bone_indices"]
 			anim_names[i] = data["anim_name"]
-			if i == SLOT_JUMP:
-				var anim = aps[i].get_animation(anim_names[i])
-				if anim:
-					anim.loop_mode = Animation.LOOP_NONE
 			print("[RIG] %s %s scene ready: %s" % [_prefix, SLOT_NAMES[i], anim_names[i]])
 	is_rigged = (skeletons[SLOT_TAUNT] != null) or (skeletons[SLOT_RUN] != null)
 	if is_rigged:
@@ -80,16 +74,13 @@ func play_slot(slot: int) -> bool:
 	if not target_ap or target_anim == "":
 		return false
 	# 他のAPを停止
-	for i in range(8):
+	for i in range(7):
 		var ap = aps[i] as AnimationPlayer
 		if ap and ap != target_ap and ap.is_playing():
 			ap.stop()
 	# 再生開始
 	if not target_ap.is_playing():
-		if slot == SLOT_JUMP:
-			target_ap.play(target_anim, -1, 1.0)
-		else:
-			target_ap.play(target_anim)
+		target_ap.play(target_anim)
 	active_skeleton = skeletons[slot]
 	active_bone_indices = bone_indices_list[slot]
 	mirror_x = true
@@ -97,23 +88,18 @@ func play_slot(slot: int) -> bool:
 
 func stop_all() -> void:
 	"""全APを停止"""
-	for i in range(8):
+	for i in range(7):
 		var ap = aps[i] as AnimationPlayer
 		if ap and ap.is_playing():
 			ap.stop()
 
-func select_animation(player_y: float, jump_trigger: bool, emote: int,
-		moving_back: bool, is_active_state: bool,
-		jump_ap_playing: bool) -> bool:
+func select_animation(player_y: float, emote: int,
+		moving_back: bool, is_active_state: bool) -> bool:
 	"""状態から再生すべきアニメーションを決定し実行。リグ適用すべきならtrueを返す"""
 	# Priority 1: 溺死（マグマ落下中）
 	if player_y < -1.0:
 		return play_slot(SLOT_DROWNING)
 
-	# Priority 2: ジャンプ
-	# jump_triggerがオン、またはジャンプ中かつ空中にいる場合
-	if jump_trigger or (jump_ap_playing and player_y > -1.19):
-		return play_slot(SLOT_JUMP)
 
 	# Priority 3: エモート
 	if emote > 0:
@@ -131,8 +117,3 @@ func select_animation(player_y: float, jump_trigger: bool, emote: int,
 	# Idle: 全停止
 	stop_all()
 	return false
-
-func is_jump_playing() -> bool:
-	"""ジャンプAPが再生中かどうか"""
-	var ap = aps[SLOT_JUMP] as AnimationPlayer
-	return ap != null and ap.is_playing()

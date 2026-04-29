@@ -10,6 +10,10 @@ extends CanvasLayer
 @onready var score_label: Label = $ScoreLabel
 @onready var message_label: Label = $MessageLabel
 @onready var progress_bar: ProgressBar = $ProgressBar
+@onready var tutorial_panel: PanelContainer = $TutorialGuide
+@onready var tutorial_title_label: Label = $TutorialGuide/Margin/VBox/Title
+@onready var tutorial_body_label: Label = $TutorialGuide/Margin/VBox/Body
+@onready var tutorial_action_label: Label = $TutorialGuide/Margin/VBox/Action
 
 @onready var preload_panel: Panel = $PreloadPanel
 @onready var preload_bg: ColorRect = $PreloadBackground
@@ -49,6 +53,7 @@ func _ready() -> void:
 	preload_panel.visible = false
 	game_over_panel.visible = false
 	history_panel.visible = false
+	tutorial_panel.visible = false
 	
 	# プリロード用プログレスバーのスタイル設定（ダーク背景で見えるように）
 	var pl_bg_style := StyleBoxFlat.new()
@@ -119,6 +124,7 @@ func _show_feedback(txt: String) -> void:
 func _process(_dt: float) -> void:
 	if not game_state:
 		return
+	_update_tutorial_guide()
 		
 	if game_state.game_state == Constants.STATE_PRELOADING:
 		_show_preloading(_dt)
@@ -155,6 +161,22 @@ func _process(_dt: float) -> void:
 	_update_progress()
 	_update_flash()
 	_update_streak_label()
+
+func _update_tutorial_guide() -> void:
+	if not game_state or not game_state.tutorial_is_active():
+		tutorial_panel.visible = false
+		return
+	if game_state.num_players >= 2:
+		tutorial_panel.visible = false
+		return
+	if game_state.tutorial_title.is_empty() and game_state.tutorial_body.is_empty():
+		tutorial_panel.visible = false
+		return
+
+	tutorial_panel.visible = true
+	tutorial_title_label.text = game_state.tutorial_title
+	tutorial_body_label.text = game_state.tutorial_body
+	tutorial_action_label.text = "次の操作: %s" % game_state.tutorial_action
 
 func _update_flash() -> void:
 	if game_state.correct_flash > 0.0:
@@ -206,7 +228,13 @@ func _show_waiting_start(dt: float) -> void:
 	game_over_panel.visible = false
 	
 	pl_status.text = "読み込み完了"
-	pl_progress.visible = false
+	pl_progress.visible = true
+	if game_state.mode == Constants.MODE_TEN:
+		pl_progress.max_value = float(game_state.target_count)
+		pl_progress.value = float(game_state.target_count)
+	else:
+		pl_progress.max_value = 1.0
+		pl_progress.value = 1.0
 	start_prompt_label.visible = true
 	
 	_blink_timer += dt

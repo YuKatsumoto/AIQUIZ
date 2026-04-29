@@ -235,7 +235,7 @@ func compose_prompt(subject: String, grade: int, difficulty: String, count: int,
 	prompt += "- 4択と2択を任意に混ぜて出題すること\n"
 	if history.size() > 0:
 		prompt += "- 【出題済みリスト】以下の問題は既に出題済みなので、同じ問題・類似の問題は絶対に出さないこと:\n"
-		var max_h = min(30, history.size())
+		var max_h = min(50, history.size())
 		for i in range(max_h):
 			prompt += "  × " + history[history.size() - 1 - i] + "\n"
 	prompt += "\n"

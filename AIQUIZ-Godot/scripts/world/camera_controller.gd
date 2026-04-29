@@ -139,8 +139,8 @@ func _update_flyover_camera(gs: QuizGameState, _dt: float) -> void:
 	var t := gs.tuning
 	var progress: float = clampf(gs.flyover_timer / gs.flyover_duration, 0.0, 1.0)
 
-	# カメラ開始位置の基準壁数（10問モードと同じ位置から開始）
-	var camera_walls: int = mini(gs.flyover_total_walls, 10)
+	# カメラ開始位置の基準壁数（エンドレスモードでは奥深くまで並ぶようにする）
+	var camera_walls: int = gs.flyover_total_walls
 	var camera_start_z: float = t.wall_start_z + (camera_walls - 1) * t.wall_spacing
 	var player_y: float = 1.2  # FPS eye height
 

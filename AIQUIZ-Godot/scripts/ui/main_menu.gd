@@ -7,14 +7,16 @@ extends Control
 @onready var mode_container: VBoxContainer = $VBoxContainer/ModeContainer
 @onready var config_container: VBoxContainer = $VBoxContainer/ConfigContainer
 @onready var start_button: Button = $VBoxContainer/ConfigContainer/ConfigBtnRow/StartButton
+@onready var tutorial_button: Button = %TutorialButton
 @onready var status_label: Label = $VBoxContainer/StatusLabel
-@onready var grade_label: Label = $VBoxContainer/ConfigContainer/GradeRow/GradeLabel
-@onready var subject_label: Label = $VBoxContainer/ConfigContainer/SubjectRow/SubjectLabel
-@onready var diff_label: Label = $VBoxContainer/ConfigContainer/DiffRow/DiffLabel
-@onready var players_btn: Button = $VBoxContainer/ConfigContainer/PlayersRow/PlayersToggleBtn
-@onready var llm_toggle_btn: Button = $VBoxContainer/ConfigContainer/LlmRow/LlmToggleBtn
-@onready var hat_select_row: HBoxContainer = $VBoxContainer/ConfigContainer/HatSelectRow
+@onready var grade_label: Label = $VBoxContainer/ConfigContainer/QuizSettingsCard/QuizSettingsVBox/GradeRow/GradeLabel
+@onready var subject_label: Label = $VBoxContainer/ConfigContainer/QuizSettingsCard/QuizSettingsVBox/SubjectRow/SubjectLabel
+@onready var diff_label: Label = $VBoxContainer/ConfigContainer/QuizSettingsCard/QuizSettingsVBox/DiffRow/DiffLabel
+@onready var players_btn: Button = %PlayersToggleBtn
+@onready var llm_toggle_btn: Button = %LlmToggleBtn
 @onready var wall_speed_btn: Button = %WallSpeedBtn
+@onready var quiz_settings_card: PanelContainer = $VBoxContainer/ConfigContainer/QuizSettingsCard
+@onready var game_settings_card: PanelContainer = $VBoxContainer/ConfigContainer/GameSettingsCard
 
 @onready var settings_panel: Panel = $SettingsPanel
 @onready var api_status_label: RichTextLabel = $SettingsPanel/VBox/ApiStatusLabel
@@ -56,6 +58,7 @@ func _ready() -> void:
 	ApiStatusAutoload.check_completed.connect(_update_api_status_text)
 
 	_style_all_buttons()
+	_style_config_cards()
 	_update_ui()
 
 
@@ -121,6 +124,26 @@ func _style_all_buttons() -> void:
 	start_button.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0))
 	start_button.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 1.0))
 
+	# チュートリアルボタン（視認しやすい緑系アクセント）
+	var tutorial_normal := StyleBoxFlat.new()
+	tutorial_normal.bg_color = Color(0.12, 0.42, 0.30)
+	tutorial_normal.border_color = Color(0.22, 0.68, 0.48)
+	tutorial_normal.set_border_width_all(2)
+	tutorial_normal.set_corner_radius_all(10)
+	tutorial_normal.content_margin_left = 18.0
+	tutorial_normal.content_margin_right = 18.0
+	tutorial_normal.content_margin_top = 8.0
+	tutorial_normal.content_margin_bottom = 8.0
+
+	var tutorial_hover := tutorial_normal.duplicate()
+	tutorial_hover.bg_color = Color(0.16, 0.5, 0.36)
+	tutorial_hover.border_color = Color(0.30, 0.82, 0.58)
+
+	tutorial_button.add_theme_stylebox_override("normal", tutorial_normal)
+	tutorial_button.add_theme_stylebox_override("hover", tutorial_hover)
+	tutorial_button.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0))
+	tutorial_button.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 1.0))
+
 func _get_all_buttons(node: Node) -> Array[Button]:
 	var buttons: Array[Button] = []
 	if node is Button:
@@ -128,6 +151,53 @@ func _get_all_buttons(node: Node) -> Array[Button]:
 	for child in node.get_children():
 		buttons.append_array(_get_all_buttons(child))
 	return buttons
+
+func _style_config_cards() -> void:
+	"""クイズ設定・ゲーム設定カードに角丸ダーク背景を適用"""
+	var card_style := StyleBoxFlat.new()
+	card_style.bg_color = Color(0.11, 0.13, 0.19, 0.85)
+	card_style.border_color = Color(0.25, 0.30, 0.45, 0.6)
+	card_style.set_border_width_all(1)
+	card_style.set_corner_radius_all(14)
+	card_style.content_margin_left = 20.0
+	card_style.content_margin_right = 20.0
+	card_style.content_margin_top = 14.0
+	card_style.content_margin_bottom = 14.0
+	
+	if quiz_settings_card:
+		quiz_settings_card.add_theme_stylebox_override("panel", card_style.duplicate())
+	if game_settings_card:
+		var game_card_style := card_style.duplicate()
+		game_card_style.border_color = Color(0.3, 0.25, 0.45, 0.6)
+		game_settings_card.add_theme_stylebox_override("panel", game_card_style)
+	
+	# ◀▶ ボタンにアクセントカラーを適用
+	var arrow_normal := StyleBoxFlat.new()
+	arrow_normal.bg_color = Color(0.15, 0.22, 0.38)
+	arrow_normal.border_color = Color(0.3, 0.45, 0.7)
+	arrow_normal.set_border_width_all(1)
+	arrow_normal.set_corner_radius_all(8)
+	arrow_normal.content_margin_left = 6.0
+	arrow_normal.content_margin_right = 6.0
+	arrow_normal.content_margin_top = 4.0
+	arrow_normal.content_margin_bottom = 4.0
+	
+	var arrow_hover := arrow_normal.duplicate()
+	arrow_hover.bg_color = Color(0.2, 0.3, 0.5)
+	arrow_hover.border_color = Color(0.4, 0.6, 0.9)
+	
+	var arrow_btns: Array[Button] = []
+	for name_str in ["GradeDownBtn", "GradeUpBtn", "SubjectLeftBtn", "SubjectRightBtn", "DiffLeftBtn", "DiffRightBtn"]:
+		var btn := get_node_or_null("%%%s" % name_str) as Button
+		if btn:
+			arrow_btns.append(btn)
+	
+	for btn in arrow_btns:
+		btn.add_theme_stylebox_override("normal", arrow_normal.duplicate())
+		btn.add_theme_stylebox_override("hover", arrow_hover.duplicate())
+		btn.add_theme_color_override("font_color", Color(0.6, 0.8, 1.0))
+		btn.add_theme_color_override("font_hover_color", Color(0.85, 0.92, 1.0))
+
 func _update_ui() -> void:
 	if not game_state:
 		return
@@ -152,9 +222,6 @@ func _update_ui() -> void:
 		var llm_text: String = "🌐 ONLINE (AI生成)" if QuizManager.provider.llm_mode == "ONLINE" else "📦 OFFLINE (内蔵問題)"
 		llm_toggle_btn.text = llm_text
 		
-		# Show skin & emote button for all modes (emotes usable in 1P too)
-		if hat_select_row:
-			hat_select_row.visible = true
 		
 		# Update wall speed button label
 		if wall_speed_btn:
@@ -218,6 +285,15 @@ func _on_diff_right_pressed() -> void:
 	_update_ui()
 
 func _on_start_pressed() -> void:
+	game_state.start_game()
+	get_tree().change_scene_to_file("res://scenes/game_world.tscn")
+
+func _on_tutorial_button_pressed() -> void:
+	# チュートリアルは1P前提で実行する
+	game_state.num_players = 1
+	# 途中で完了済みでも、ボタンから再実行できるようにする
+	if game_state.has_method("reset_tutorial_progress"):
+		game_state.reset_tutorial_progress()
 	game_state.start_game()
 	get_tree().change_scene_to_file("res://scenes/game_world.tscn")
 

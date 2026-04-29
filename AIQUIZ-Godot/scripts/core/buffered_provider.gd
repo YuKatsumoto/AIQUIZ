@@ -23,6 +23,11 @@ var play_history: Array[String] = []
 var _emergency_cache: Array[QuizItem] = []
 const EMERGENCY_CACHE_SIZE: int = 5
 
+## 永続的な出題履歴 — セッションをまたいで過去に出題した問題を記録
+const HISTORY_SAVE_PATH := "user://question_history.json"
+const MAX_HISTORY_PER_KEY := 200  # 教科+学年ごとの最大保存数
+var _persistent_history: Dictionary = {}  # { "算数_3": ["問題文1", "問題文2", ...], ... }
+
 var _poll_timer: Timer
 
 func _init() -> void:
@@ -38,6 +43,9 @@ func _ready() -> void:
 	add_child(online_fetcher)
 	
 	ApiStatusAutoload.set_offline_count(offline_provider.total_count())
+	
+	# 永続出題履歴をロード
+	_load_persistent_history()
 
 	_poll_timer = Timer.new()
 	_poll_timer.wait_time = 0.25  # Slightly faster polling (was 0.3)
@@ -67,6 +75,14 @@ func begin_round(subject: String, grade: int, difficulty: String,
 	play_history.clear()
 	_emergency_cache.clear()
 	
+	# 永続履歴から過去の出題をplay_historyに注入（LLMプロンプトに渡される）
+	var hist_key := _history_key(subject, grade)
+	if _persistent_history.has(hist_key):
+		var saved: Array = _persistent_history[hist_key]
+		for q_text in saved:
+			play_history.append(str(q_text))
+		print("[BufferedProvider] Loaded %d persistent history items for %s" % [saved.size(), hist_key])
+	
 	# ラウンド開始時にオフラインの緊急キャッシュを事前準備（10問・エンドレス共通）
 	_prepare_emergency_cache()
 	
@@ -81,6 +97,8 @@ func submit_result(quiz: QuizItem, _correct: bool) -> void:
 		play_history.append(quiz.q)
 		if play_history.size() > 90:
 			play_history.pop_front()
+		# 永続履歴にも追加してディスクに保存
+		_add_to_persistent_history(quiz.q)
 
 ## エンドレスモードのバッファ目標サイズ
 ## 15問を確保 — 1問5秒でプレイしても75秒分のストック
@@ -221,3 +239,51 @@ func _prepare_emergency_cache() -> void:
 		_emergency_cache.append(q)
 	if _emergency_cache.size() > 0:
 		print("[BufferedProvider] Emergency cache prepared: %d offline questions" % _emergency_cache.size())
+
+## ── 永続出題履歴の管理 ──
+
+func _history_key(subject: String, grade: int) -> String:
+	return "%s_%d" % [subject, grade]
+
+func _load_persistent_history() -> void:
+	if not FileAccess.file_exists(HISTORY_SAVE_PATH):
+		_persistent_history = {}
+		return
+	var f := FileAccess.open(HISTORY_SAVE_PATH, FileAccess.READ)
+	if not f:
+		_persistent_history = {}
+		return
+	var json := JSON.new()
+	var err := json.parse(f.get_as_text())
+	f.close()
+	if err == OK and json.get_data() is Dictionary:
+		_persistent_history = json.get_data()
+		var total := 0
+		for key in _persistent_history:
+			if _persistent_history[key] is Array:
+				total += (_persistent_history[key] as Array).size()
+		print("[BufferedProvider] Persistent history loaded: %d keys, %d total questions" % [_persistent_history.size(), total])
+	else:
+		_persistent_history = {}
+
+func _save_persistent_history() -> void:
+	var f := FileAccess.open(HISTORY_SAVE_PATH, FileAccess.WRITE)
+	if not f:
+		return
+	f.store_string(JSON.stringify(_persistent_history))
+	f.close()
+
+func _add_to_persistent_history(question_text: String) -> void:
+	var key := _history_key(current_subject, current_grade)
+	if not _persistent_history.has(key):
+		_persistent_history[key] = []
+	var arr: Array = _persistent_history[key]
+	# 重複チェック
+	if question_text in arr:
+		return
+	arr.append(question_text)
+	# キャップ: 古い履歴を削除
+	while arr.size() > MAX_HISTORY_PER_KEY:
+		arr.pop_front()
+	_persistent_history[key] = arr
+	_save_persistent_history()
