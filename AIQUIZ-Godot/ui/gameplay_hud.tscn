@@ -68,57 +68,6 @@ horizontal_alignment = 1
 vertical_alignment = 1
 autowrap_mode = 2
 
-[node name="TutorialGuide" type="PanelContainer" parent="."]
-visible = false
-anchors_preset = 9
-anchor_left = 0.5
-anchor_right = 0.5
-offset_left = -320.0
-offset_top = 16.0
-offset_right = 320.0
-offset_bottom = 160.0
-grow_horizontal = 2
-
-[node name="Margin" type="MarginContainer" parent="TutorialGuide"]
-layout_mode = 2
-theme_override_constants/margin_left = 16
-theme_override_constants/margin_top = 12
-theme_override_constants/margin_right = 16
-theme_override_constants/margin_bottom = 12
-
-[node name="VBox" type="VBoxContainer" parent="TutorialGuide/Margin"]
-layout_mode = 2
-theme_override_constants/separation = 6
-
-[node name="Title" type="Label" parent="TutorialGuide/Margin/VBox"]
-layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.9, 0.45, 1)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 0.9)
-theme_override_constants/outline_size = 3
-theme_override_font_sizes/font_size = 26
-text = ""
-horizontal_alignment = 1
-
-[node name="Body" type="Label" parent="TutorialGuide/Margin/VBox"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.92, 0.95, 1, 1)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 0.8)
-theme_override_constants/outline_size = 2
-theme_override_font_sizes/font_size = 20
-text = ""
-horizontal_alignment = 1
-autowrap_mode = 2
-
-[node name="Action" type="Label" parent="TutorialGuide/Margin/VBox"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.65, 0.9, 1, 1)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 0.8)
-theme_override_constants/outline_size = 2
-theme_override_font_sizes/font_size = 18
-text = ""
-horizontal_alignment = 1
-autowrap_mode = 2
-
 [node name="ProgressBar" type="ProgressBar" parent="."]
 anchors_preset = 12
 anchor_top = 1.0

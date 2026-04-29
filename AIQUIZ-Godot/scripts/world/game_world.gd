@@ -291,13 +291,6 @@ func _process(dt: float) -> void:
 		axis_p1 = axis_p1.normalized()
 		if game_state.num_players >= 2:
 			axis_p2 = axis_p2.normalized()
-		if game_state.has_method("tutorial_allows_movement") and not game_state.tutorial_allows_movement():
-			axis_p1 = Vector2.ZERO
-			axis_p2 = Vector2.ZERO
-			jump_p1 = false
-			jump_p2 = false
-			emote_p1 = 0
-			emote_p2 = 0
 
 	# Mouse look (1P only)
 	if game_state.game_state == Constants.STATE_PLAYING and game_state.num_players == 1:

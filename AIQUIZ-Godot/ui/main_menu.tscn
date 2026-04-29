@@ -267,13 +267,6 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 24
 text = "🚀 ゲーム開始"
 
-[node name="TutorialButton" type="Button" parent="VBoxContainer/ConfigContainer/ConfigBtnRow"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(220, 50)
-layout_mode = 2
-theme_override_font_sizes/font_size = 20
-text = "🎓 チュートリアル"
-
 [node name="StatusLabel" type="Label" parent="VBoxContainer"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.45, 0.48, 0.58, 1)
@@ -416,7 +409,6 @@ text = "戻る"
 [connection signal="pressed" from="VBoxContainer/ConfigContainer/GameSettingsCard/GameSettingsVBox/GameBottomRow/EmoteSelectBtn" to="." method="_on_emote_select_pressed"]
 [connection signal="pressed" from="VBoxContainer/ConfigContainer/ConfigBtnRow/BackBtn" to="." method="_on_back_pressed"]
 [connection signal="pressed" from="VBoxContainer/ConfigContainer/ConfigBtnRow/StartButton" to="." method="_on_start_pressed"]
-[connection signal="pressed" from="VBoxContainer/ConfigContainer/ConfigBtnRow/TutorialButton" to="." method="_on_tutorial_button_pressed"]
 [connection signal="pressed" from="SettingsBtn" to="." method="_on_settings_btn_pressed"]
 [connection signal="pressed" from="SettingsPanel/VBox/RecheckBtn" to="." method="_on_recheck_btn_pressed"]
 [connection signal="value_changed" from="SettingsPanel/VBox/VolBox/VolSlider" to="." method="_on_vol_slider_changed"]

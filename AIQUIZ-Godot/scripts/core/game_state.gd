@@ -13,13 +13,6 @@ signal game_cleared(message: String)
 var provider: QuizProvider
 var use_english_ui: bool = false
 var tuning: GameTuning
-const TUTORIAL_SAVE_PATH := "user://tutorial_state.json"
-const TUTORIAL_STEP_NONE := 0
-const TUTORIAL_STEP_WAITING := 1
-const TUTORIAL_STEP_FLYOVER := 2
-const TUTORIAL_STEP_COUNTDOWN := 3
-const TUTORIAL_STEP_FIRST_QUIZ := 4
-const TUTORIAL_STEP_DONE := 5
 
 # --- Settings ---
 var subject: String = "算数"
@@ -113,18 +106,6 @@ var player2_game_over_timer: float = 0.0
 var goal_z: float = 0.0
 var goal_winner: int = 0  # 0=未確定, 1=P1, 2=P2
 
-# --- Tutorial (first-run onboarding) ---
-var tutorial_done: bool = false
-var tutorial_enabled: bool = false
-var tutorial_step: int = TUTORIAL_STEP_NONE
-var tutorial_title: String = ""
-var tutorial_body: String = ""
-var tutorial_action: String = ""
-
-
-
-
-
 # --- Dynamic wall speed ---
 var _active_wall_speed: float = 6.0
 
@@ -139,8 +120,6 @@ func _init(quiz_provider: QuizProvider = null) -> void:
 	else:
 		provider = QuizProvider.new()
 	tuning = GameTuning.new()
-	_load_tutorial_state()
-	_sync_tutorial_state()
 	refresh_status_text()
 
 
@@ -284,8 +263,6 @@ func start_game() -> void:
 
 	quiz_list = provider.get_quizzes(subject, grade, difficulty, mode, count)
 	message_text = ""
-	tutorial_enabled = not tutorial_done and num_players == 1
-	_sync_tutorial_state()
 	game_state = Constants.STATE_PRELOADING
 	preload_wait_sec = 0.0
 	refresh_status_text()
@@ -319,7 +296,6 @@ func reset_to_menu() -> void:
 	rating_target_quiz = null
 	rating_feedback = ""
 	quiz_history.clear()
-	_sync_tutorial_state()
 	refresh_status_text()
 	state_changed.emit(game_state)
 
@@ -436,10 +412,7 @@ func update(dt: float, axis_p1: Vector2 = Vector2.ZERO, axis_p2: Vector2 = Vecto
 	camera_shake = maxf(0.0, camera_shake - dt * 2.8)
 
 	if game_state == Constants.STATE_MENU:
-		_sync_tutorial_state()
 		return
-
-	_sync_tutorial_state()
 
 
 
@@ -838,8 +811,6 @@ func _check_player_door(px: float) -> int:
 func resolve_collision() -> void:
 	if not current_quiz or choice_locked:
 		return
-	if not tutorial_allows_answers():
-		return
 	choice_locked = true
 	var answer: int = current_quiz.a
 
@@ -896,8 +867,6 @@ func resolve_collision() -> void:
 
 	provider.submit_result(current_quiz, any_correct)
 	quiz_history.append({"quiz": current_quiz, "correct": any_correct, "rated": ""})
-	if tutorial_enabled and not tutorial_done and current_index == 0:
-		mark_tutorial_done()
 	
 	# 確実に問題を解き終わったあとにFirebaseへ保存する（バックグラウンド評価を即時キック）
 	QuizManager.quiz_optimizer.evaluate_history(quiz_history, subject, grade, difficulty)
@@ -976,7 +945,6 @@ func advance_after_correct() -> void:
 		game_state = Constants.STATE_PLAYING
 		message_text = ""
 		state_changed.emit(game_state)
-	_sync_tutorial_state()
 
 
 # ---------- Game over / clear ----------
@@ -1026,93 +994,6 @@ func clear_game() -> void:
 	game_cleared.emit(message_text)
 	state_changed.emit(game_state)
 	QuizManager.quiz_optimizer.evaluate_history(quiz_history, subject, grade, difficulty)
-
-
-func mark_tutorial_done() -> void:
-	if tutorial_done:
-		return
-	tutorial_done = true
-	tutorial_enabled = false
-	_save_tutorial_state()
-	_sync_tutorial_state()
-
-func reset_tutorial_progress() -> void:
-	tutorial_done = false
-	tutorial_enabled = false
-	_save_tutorial_state()
-	_sync_tutorial_state()
-
-func tutorial_is_active() -> bool:
-	return tutorial_enabled and not tutorial_done and num_players == 1
-
-func tutorial_allows_movement() -> bool:
-	if not tutorial_is_active():
-		return true
-	if game_state == Constants.STATE_PLAYING and current_index == 0:
-		return true
-	return tutorial_step >= TUTORIAL_STEP_FIRST_QUIZ
-
-func tutorial_allows_answers() -> bool:
-	if not tutorial_is_active():
-		return true
-	if game_state == Constants.STATE_PLAYING and current_index == 0:
-		return true
-	return tutorial_step >= TUTORIAL_STEP_FIRST_QUIZ
-
-func _sync_tutorial_state() -> void:
-	if not tutorial_is_active():
-		tutorial_step = TUTORIAL_STEP_DONE if tutorial_done else TUTORIAL_STEP_NONE
-		tutorial_title = ""
-		tutorial_body = ""
-		tutorial_action = ""
-		return
-
-	if game_state == Constants.STATE_WAITING_START:
-		tutorial_step = TUTORIAL_STEP_WAITING
-		tutorial_title = "チュートリアル 1/4"
-		tutorial_body = "準備完了です。まずは開始してコースを確認しましょう。"
-		tutorial_action = "任意キーを押してスタート"
-	elif game_state == Constants.STATE_FLYOVER:
-		tutorial_step = TUTORIAL_STEP_FLYOVER
-		tutorial_title = "チュートリアル 2/4"
-		tutorial_body = "前方にクイズの壁が並びます。正解のドアを選んで通過します。"
-		tutorial_action = "コース確認中..."
-	elif game_state == Constants.STATE_COUNTDOWN:
-		tutorial_step = TUTORIAL_STEP_COUNTDOWN
-		tutorial_title = "チュートリアル 3/4"
-		tutorial_body = "移動は W/A/S/D（または矢印キー）、ジャンプは Space です。"
-		tutorial_action = "カウントダウン後に移動開始"
-	elif game_state == Constants.STATE_PLAYING and current_index == 0:
-		tutorial_step = TUTORIAL_STEP_FIRST_QUIZ
-		tutorial_title = "チュートリアル 4/4"
-		tutorial_body = "問題文を読んで、正解のドアに入って第1問を突破しましょう。"
-		tutorial_action = "第1問をクリアすると完了"
-	else:
-		tutorial_step = TUTORIAL_STEP_NONE
-		tutorial_title = ""
-		tutorial_body = ""
-		tutorial_action = ""
-
-func _load_tutorial_state() -> void:
-	tutorial_done = false
-	if not FileAccess.file_exists(TUTORIAL_SAVE_PATH):
-		return
-	var f := FileAccess.open(TUTORIAL_SAVE_PATH, FileAccess.READ)
-	if not f:
-		return
-	var parsed = JSON.parse_string(f.get_as_text())
-	if parsed is Dictionary:
-		tutorial_done = bool(parsed.get("tutorial_done", false))
-
-func _save_tutorial_state() -> void:
-	var f := FileAccess.open(TUTORIAL_SAVE_PATH, FileAccess.WRITE)
-	if not f:
-		return
-	var payload := {
-		"tutorial_done": tutorial_done,
-		"saved_at": int(Time.get_unix_time_from_system())
-	}
-	f.store_string(JSON.stringify(payload, "  "))
 
 
 # ---------- Rating ----------
