@@ -147,7 +147,13 @@ func _update_ui() -> void:
 		grade_label.text = "📚 %d年生" % game_state.grade
 		subject_label.text = "📖 %s" % game_state.subject
 		diff_label.text = "⚡ %s" % game_state.difficulty
-		var p_text: String = "👥 2人プレイ" if game_state.num_players >= 2 else "👤 1人プレイ"
+		var p_text: String
+		if game_state.num_players == 1:
+			p_text = "👤 1人プレイ"
+		elif game_state.num_players == 2:
+			p_text = "👥 2人プレイ"
+		else:
+			p_text = "🌐 オンライン対戦"
 		players_btn.text = p_text
 
 		var llm_text: String = "🌐 ONLINE (AI生成)" if QuizManager.provider.llm_mode == "ONLINE" else "📦 OFFLINE (内蔵問題)"
@@ -172,6 +178,8 @@ func _on_endless_pressed() -> void:
 	game_state.select_mode_and_continue(Constants.MODE_ENDLESS)
 	_update_ui()
 
+
+
 func _on_back_pressed() -> void:
 	game_state.back_to_mode_select()
 	_update_ui()
@@ -182,7 +190,13 @@ func _on_llm_toggle_pressed() -> void:
 	_update_ui()
 
 func _on_players_toggle_pressed() -> void:
-	game_state.num_players = 2 if game_state.num_players == 1 else 1
+	# 1人 → 2人(ローカル) → オンライン対戦 のサイクル
+	if game_state.num_players == 1:
+		game_state.num_players = 2
+	elif game_state.num_players == 2:
+		game_state.num_players = 3  # 3 = オンライン対戦を示す内部値
+	else:
+		game_state.num_players = 1
 	_update_ui()
 
 func _on_wall_speed_pressed() -> void:
@@ -219,6 +233,11 @@ func _on_diff_right_pressed() -> void:
 	_update_ui()
 
 func _on_start_pressed() -> void:
+	if game_state.num_players == 3:
+		# オンライン対戦: ロビー画面へ
+		game_state.num_players = 2  # 実際のプレイは2人
+		get_tree().change_scene_to_file("res://ui/online_lobby.tscn")
+		return
 	game_state.start_game()
 	get_tree().change_scene_to_file("res://scenes/game_world.tscn")
 

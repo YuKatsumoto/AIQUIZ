@@ -1,18 +1,18 @@
-[gd_scene load_steps=8 format=3 uid="uid://b5k9m3xr7t2pw"]
+[gd_scene load_steps=9 format=3 uid="uid://b5lam3xr7t2pw"]
 
 [ext_resource type="Script" path="res://scripts/world/game_world.gd" id="1_game_world"]
 [ext_resource type="Script" path="res://scripts/world/player_controller.gd" id="2_player"]
 [ext_resource type="Script" path="res://scripts/world/camera_controller.gd" id="3_camera"]
 [ext_resource type="Script" path="res://scripts/effects/particle_spawner.gd" id="4_particles"]
-[ext_resource type="PackedScene" path="res://ui/gameplay_hud.tscn" id="5_hud_scene"]
-[ext_resource type="PackedScene" path="res://ui/death_wipe.tscn" id="6_death_wipe"]
-
-[sub_resource type="BoxMesh" id="BoxMesh_floor"]
-size = Vector3(24.0, 16.0, 144.0)
+[ext_resource type="PackedScene" uid="uid://cv7m3xlap2t5w" path="res://ui/gameplay_hud.tscn" id="5_hud_scene"]
+[ext_resource type="PackedScene" uid="uid://coaittg30ha33" path="res://ui/death_wipe.tscn" id="6_death_wipe"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_floor"]
 albedo_color = Color(0.35, 0.35, 0.35, 1)
 roughness = 0.8
+
+[sub_resource type="BoxMesh" id="BoxMesh_floor"]
+size = Vector3(24, 16, 144)
 
 [node name="GameWorld" type="Node3D"]
 script = ExtResource("1_game_world")
@@ -27,8 +27,8 @@ shadow_enabled = true
 
 [node name="Floor" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -9.2, 12)
-mesh = SubResource("BoxMesh_floor")
 material_override = SubResource("StandardMaterial3D_floor")
+mesh = SubResource("BoxMesh_floor")
 
 [node name="Player" type="Node3D" parent="."]
 script = ExtResource("2_player")

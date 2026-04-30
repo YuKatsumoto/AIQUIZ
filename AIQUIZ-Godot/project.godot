@@ -13,6 +13,8 @@ config_version=5
 config/name="AIQUIZ 3D"
 run/main_scene="res://ui/main_menu.tscn"
 config/features=PackedStringArray("4.3", "Forward Plus")
+config/icon="res://icon.jpg"
+boot_splash/show_image=false
 
 [autoload]
 
@@ -21,6 +23,7 @@ QuizManager="*res://scripts/autoload/quiz_manager.gd"
 AudioManager="*res://scripts/autoload/audio_manager.gd"
 ApiStatusAutoload="*res://scripts/core/api_status.gd"
 SceneTransition="*res://scripts/autoload/scene_transition.gd"
+NetworkManager="*res://scripts/autoload/network_manager.gd"
 
 [display]
 

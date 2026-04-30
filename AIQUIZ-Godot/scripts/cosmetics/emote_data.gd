@@ -15,8 +15,14 @@ const EMOTE_SWING := 8
 const EMOTE_THRILLER2 := 9
 const EMOTE_THRILLER3 := 10
 const EMOTE_THRILLER4 := 11
+const EMOTE_THRILLER1 := 12
+const EMOTE_YMCA := 13
+const EMOTE_HOUSE := 14
+const EMOTE_HIP_HOP_1 := 15
+const EMOTE_HEAD_SPINNING := 16
+const EMOTE_RUNNING_MAN := 17
 
-const EMOTE_COUNT := 12
+const EMOTE_COUNT := 18
 
 static func get_emote_list() -> Array[Dictionary]:
 	return [
@@ -32,6 +38,12 @@ static func get_emote_list() -> Array[Dictionary]:
 		{"id": EMOTE_THRILLER2,    "name": "スリラー2",            "icon": "🧟", "desc": "深夜のテンション(初期症状)"},
 		{"id": EMOTE_THRILLER3,    "name": "スリラー3",            "icon": "💀", "desc": "深夜のテンション(末期症状)"},
 		{"id": EMOTE_THRILLER4,    "name": "スリラー4",            "icon": "👻", "desc": "完全に朝を迎えちゃった顔"},
+		{"id": EMOTE_THRILLER1,    "name": "スリラー1",            "icon": "🧟‍♂️", "desc": "怪奇現象の始まり"},
+		{"id": EMOTE_YMCA,         "name": "YMCA",                 "icon": "🔠", "desc": "文字で体を表現する喜び"},
+		{"id": EMOTE_HOUSE,        "name": "ハウスダンス",         "icon": "🏠", "desc": "足さばきで床を磨く"},
+		{"id": EMOTE_HIP_HOP_1,    "name": "ヒップホップ2",        "icon": "🧢", "desc": "さらにYO! YO! 言うやつ"},
+		{"id": EMOTE_HEAD_SPINNING,"name": "ヘッドスピン",         "icon": "🌀", "desc": "頭皮へのダメージは甚大"},
+		{"id": EMOTE_RUNNING_MAN,  "name": "ランニングマン",       "icon": "🏃‍♂️", "desc": "走ってるのに進まない"},
 	]
 
 ## FBXパスのマッピング（IDからパスへ）
@@ -48,6 +60,12 @@ static func get_emote_fbx(emote_id: int) -> String:
 		EMOTE_THRILLER2:     "res://assets/animations/Thriller Part 2.fbx",
 		EMOTE_THRILLER3:     "res://assets/animations/Thriller Part 3.fbx",
 		EMOTE_THRILLER4:     "res://assets/animations/Thriller Part 4.fbx",
+		EMOTE_THRILLER1:     "res://assets/animations/Thriller Part 1.fbx",
+		EMOTE_YMCA:          "res://assets/animations/Ymca Dance.fbx",
+		EMOTE_HOUSE:         "res://assets/animations/House Dancing.fbx",
+		EMOTE_HIP_HOP_1:     "res://assets/animations/Hip Hop Dancing (1).fbx",
+		EMOTE_HEAD_SPINNING: "res://assets/animations/Head Spinning.fbx",
+		EMOTE_RUNNING_MAN:   "res://assets/animations/Dancing Running Man.fbx",
 	}
 	return paths.get(emote_id, "")
 

@@ -428,6 +428,7 @@ func update(dt: float, axis_p1: Vector2 = Vector2.ZERO, axis_p2: Vector2 = Vecto
 
 	if game_state == Constants.STATE_GAME_OVER:
 		_update_game_over(dt)
+		return
 
 func _update_preloading(dt: float) -> void:
 	preload_wait_sec += dt
@@ -1092,3 +1093,117 @@ func refresh_status_text() -> void:
 		status_text = "教科:%s  学年:%d  難易度:%s  モード:%s  進行:%s  正解数:%d" % [
 			subject, grade, difficulty, mode_label, progress, score
 		]
+
+# ===========================================================================
+# Network snapshot serialization (used by net_game_state.gd)
+# ===========================================================================
+
+func to_snapshot() -> Dictionary:
+	"""ホスト側: 現在のゲーム状態をDictionaryにシリアライズ (クライアントに送信用)"""
+	return {
+		# Player 1
+		"p1x": player_x,
+		"p1y": player_y,
+		"p1z": player_z,
+		"p1vy": player_vel_y,
+		"p1a": p1_alive,
+		"p1e": p1_emote,
+		"p1mb": p1_moving_back,
+		"s1": score,
+		# Player 2
+		"p2x": player2_x,
+		"p2y": player2_y,
+		"p2z": player2_z,
+		"p2vy": player2_vel_y,
+		"p2a": p2_alive,
+		"p2e": p2_emote,
+		"p2mb": p2_moving_back,
+		"s2": player2_score,
+		# World
+		"ws": world_scroll_z,
+		"wi": current_wall_index,
+		"ci": current_index,
+		"gs": game_state,
+		# Effects
+		"cf": correct_flash,
+		"wf": wrong_flash,
+		"cs": camera_shake,
+		"cy": camera_yaw,
+		"cp": camera_pitch,
+		# Timers
+		"got1": game_over_timer,
+		"got2": player2_game_over_timer,
+		"mt": message_timer,
+		"ct": countdown_timer,
+		# Text
+		"msg": message_text,
+		# Goal race
+		"gz": goal_z,
+		"gw": goal_winner,
+		# Streaks & stats
+		"st": current_streak,
+		"ms": max_streak,
+		"ta": total_answered,
+		"tw": total_wrong,
+		# Wall speed
+		"aws": _active_wall_speed,
+		# Jump triggers
+		"p1j": p1_jump_trigger,
+		"p2j": p2_jump_trigger,
+	}
+
+
+func apply_snapshot(data: Dictionary) -> void:
+	"""クライアント側: 受信したスナップショットをローカル状態に適用"""
+	# Player 1
+	player_x = data.get("p1x", player_x)
+	player_y = data.get("p1y", player_y)
+	player_z = data.get("p1z", player_z)
+	player_vel_y = data.get("p1vy", player_vel_y)
+	p1_alive = data.get("p1a", p1_alive)
+	p1_emote = data.get("p1e", p1_emote)
+	p1_moving_back = data.get("p1mb", p1_moving_back)
+	score = int(data.get("s1", score))
+	# Player 2
+	player2_x = data.get("p2x", player2_x)
+	player2_y = data.get("p2y", player2_y)
+	player2_z = data.get("p2z", player2_z)
+	player2_vel_y = data.get("p2vy", player2_vel_y)
+	p2_alive = data.get("p2a", p2_alive)
+	p2_emote = data.get("p2e", p2_emote)
+	p2_moving_back = data.get("p2mb", p2_moving_back)
+	player2_score = int(data.get("s2", player2_score))
+	# World
+	world_scroll_z = data.get("ws", world_scroll_z)
+	current_wall_index = int(data.get("wi", current_wall_index))
+	current_index = int(data.get("ci", current_index))
+	var new_state: String = data.get("gs", game_state)
+	if new_state != game_state:
+		game_state = new_state
+		state_changed.emit(new_state)
+	# Effects
+	correct_flash = data.get("cf", correct_flash)
+	wrong_flash = data.get("wf", wrong_flash)
+	camera_shake = data.get("cs", camera_shake)
+	camera_yaw = data.get("cy", camera_yaw)
+	camera_pitch = data.get("cp", camera_pitch)
+	# Timers
+	game_over_timer = data.get("got1", game_over_timer)
+	player2_game_over_timer = data.get("got2", player2_game_over_timer)
+	message_timer = data.get("mt", message_timer)
+	countdown_timer = data.get("ct", countdown_timer)
+	# Text
+	message_text = data.get("msg", message_text)
+	# Goal race
+	goal_z = data.get("gz", goal_z)
+	goal_winner = int(data.get("gw", goal_winner))
+	# Streaks & stats
+	current_streak = int(data.get("st", current_streak))
+	max_streak = int(data.get("ms", max_streak))
+	total_answered = int(data.get("ta", total_answered))
+	total_wrong = int(data.get("tw", total_wrong))
+	# Wall speed
+	_active_wall_speed = data.get("aws", _active_wall_speed)
+	# Jump triggers
+	p1_jump_trigger = data.get("p1j", p1_jump_trigger)
+	p2_jump_trigger = data.get("p2j", p2_jump_trigger)

@@ -12,6 +12,7 @@ extends Node3D
 @onready var directional_light: DirectionalLight3D = $DirectionalLight3D
 
 var game_state: QuizGameState
+var _net_state: NetGameState = null
 var quiz_wall_scene: PackedScene
 
 # Track previous flash values for particle spawning
@@ -40,6 +41,11 @@ func _ready() -> void:
 	game_state.quiz_loaded.connect(_on_quiz_loaded)
 	game_state.correct_answer.connect(_on_correct)
 	game_state.wrong_answer.connect(_on_wrong)
+
+	# Setup network sync layer
+	_net_state = NetGameState.new()
+	add_child(_net_state)
+	_net_state.setup(game_state)
 
 	# Setup environment
 	_setup_environment()
@@ -248,6 +254,10 @@ func _process(dt: float) -> void:
 	if not game_state or get_tree().paused:
 		return
 
+	# --- Online mode: client skips game logic, only sends input ---
+	var _is_online: bool = _net_state and _net_state.is_online
+	var _is_client: bool = _is_online and not NetworkManager.is_host
+
 	# Gather input
 	var axis_p1 := Vector2.ZERO
 	var axis_p2 := Vector2.ZERO
@@ -257,6 +267,7 @@ func _process(dt: float) -> void:
 	var emote_p2 := 0
 
 	if game_state.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE, Constants.STATE_WAITING_START, Constants.STATE_FLYOVER, Constants.STATE_COUNTDOWN]:
+		# --- ローカル入力収集 (P1 or クライアントの自分) ---
 		# P1 エモート: キー1,2,3 → スロットからエモートIDを取得
 		if Input.is_key_pressed(KEY_1) and game_state.p1_emote_slots.size() > 0: emote_p1 = game_state.p1_emote_slots[0]
 		elif Input.is_key_pressed(KEY_2) and game_state.p1_emote_slots.size() > 1: emote_p1 = game_state.p1_emote_slots[1]
@@ -269,7 +280,17 @@ func _process(dt: float) -> void:
 		if Input.is_key_pressed(KEY_S): axis_p1.y -= 1.0
 		jump_p1 = Input.is_key_pressed(KEY_SPACE)
 
-		if game_state.num_players >= 2:
+		# --- Online client: 自分の入力をホストに送信 ---
+		if _is_client:
+			axis_p1 = axis_p1.normalized()
+			_net_state.send_local_input(axis_p1, jump_p1, emote_p1)
+		# --- Online host: P2の入力はネットワーク経由 ---
+		elif _is_online and NetworkManager.is_host:
+			axis_p2 = _net_state.get_remote_axis()
+			jump_p2 = _net_state.get_remote_jump()
+			emote_p2 = _net_state.get_remote_emote()
+		# --- ローカル2P ---
+		elif game_state.num_players >= 2:
 			# P2 エモート: キー8,9,0 → スロットからエモートIDを取得
 			if (Input.is_key_pressed(KEY_8) or Input.is_key_pressed(KEY_KP_7)) and game_state.p2_emote_slots.size() > 0: emote_p2 = game_state.p2_emote_slots[0]
 			elif (Input.is_key_pressed(KEY_9) or Input.is_key_pressed(KEY_KP_8)) and game_state.p2_emote_slots.size() > 1: emote_p2 = game_state.p2_emote_slots[1]
@@ -292,16 +313,21 @@ func _process(dt: float) -> void:
 		if game_state.num_players >= 2:
 			axis_p2 = axis_p2.normalized()
 
-	# Mouse look (1P only)
-	if game_state.game_state == Constants.STATE_PLAYING and game_state.num_players == 1:
+	# Mouse look (1P only, not online)
+	if game_state.game_state == Constants.STATE_PLAYING and game_state.num_players == 1 and not _is_online:
 		if Input.get_mouse_mode() != Input.MOUSE_MODE_CAPTURED:
 			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	else:
 		if Input.get_mouse_mode() == Input.MOUSE_MODE_CAPTURED:
 			Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 
-	# Update game state
-	game_state.update(dt, axis_p1, axis_p2, jump_p1, jump_p2, emote_p1, emote_p2)
+	# Update game state (host or offline only — client receives snapshots)
+	if not _is_client:
+		game_state.update(dt, axis_p1, axis_p2, jump_p1, jump_p2, emote_p1, emote_p2)
+
+	# Network sync (snapshot send for host)
+	if _net_state:
+		_net_state.process_network(dt)
 
 	# Update visuals
 	_update_floor()
