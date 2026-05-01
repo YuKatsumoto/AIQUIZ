@@ -14,10 +14,54 @@ var questions_to_clear: int = 10
 var current_score: int = 0
 var current_question_index: int = 0
 
+const USER_SETTINGS_PATH := "user://settings.json"
+
+var tutorial_completed: bool = false
+var tutorial_dismissed: bool = false
+var _user_settings: Dictionary = {}
+
 func _ready() -> void:
 	print("GameManager initialized.")
+	_load_user_settings()
 	_load_env()
 	_start_dashboard_server()
+
+func should_show_tutorial_on_start() -> bool:
+	return not tutorial_completed and not tutorial_dismissed
+
+func mark_tutorial_completed() -> void:
+	tutorial_completed = true
+	tutorial_dismissed = true
+	_save_user_settings()
+
+func dismiss_tutorial() -> void:
+	tutorial_dismissed = true
+	_save_user_settings()
+
+func reset_tutorial_prompt() -> void:
+	tutorial_completed = false
+	tutorial_dismissed = false
+	_save_user_settings()
+
+func _load_user_settings() -> void:
+	_user_settings.clear()
+	if FileAccess.file_exists(USER_SETTINGS_PATH):
+		var file := FileAccess.open(USER_SETTINGS_PATH, FileAccess.READ)
+		if file:
+			var parsed = JSON.parse_string(file.get_as_text())
+			if parsed is Dictionary:
+				_user_settings = parsed
+			file.close()
+	tutorial_completed = bool(_user_settings.get("tutorial_completed", false))
+	tutorial_dismissed = bool(_user_settings.get("tutorial_dismissed", false))
+
+func _save_user_settings() -> void:
+	_user_settings["tutorial_completed"] = tutorial_completed
+	_user_settings["tutorial_dismissed"] = tutorial_dismissed
+	var file := FileAccess.open(USER_SETTINGS_PATH, FileAccess.WRITE)
+	if file:
+		file.store_string(JSON.stringify(_user_settings, "  "))
+		file.close()
 
 func _start_dashboard_server() -> void:
 	if OS.has_feature("windows"):

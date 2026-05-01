@@ -23,23 +23,26 @@ extends Control
 @onready var res_option: OptionButton = %ResOption
 
 var game_state: QuizGameState
+var _tutorial_row: HBoxContainer = null
+var _tutorial_btn: Button = null
+var _tutorial_2p_btn: Button = null
 
 func _ready() -> void:
 	game_state = QuizManager.game_state
 	game_state.game_state = Constants.STATE_MENU
 	# 戻るボタン等からの遷移時に状態を保持するため、menu_stepの強制リセットを削除
 	settings_panel.visible = false
-	
+
 	vol_slider.value = AudioManager.sfx_volume
 
-	
+
 	res_option.item_selected.connect(_on_resolution_selected)
 	res_option.add_item("1280x720 (HD)", 0)
 	res_option.add_item("1920x1080 (FHD)", 1)
 	res_option.add_item("2560x1440 (WQHD)", 2)
 	res_option.add_item("3840x2160 (4K)", 3)
 	res_option.add_item("フルスクリーン", 4)
-	
+
 	if DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN:
 		res_option.select(4)
 	else:
@@ -52,11 +55,14 @@ func _ready() -> void:
 			res_option.select(1)
 		else:
 			res_option.select(0)
-	
+
 	ApiStatusAutoload.check_completed.connect(_update_api_status_text)
 
+	_ensure_tutorial_button()
 	_style_all_buttons()
 	_update_ui()
+	if GameManager.should_show_tutorial_on_start():
+		call_deferred("_start_first_run_tutorial")
 
 
 func _style_all_buttons() -> void:
@@ -71,7 +77,7 @@ func _style_all_buttons() -> void:
 	normal_style.content_margin_right = 16.0
 	normal_style.content_margin_top = 8.0
 	normal_style.content_margin_bottom = 8.0
-	
+
 	var hover_style := StyleBoxFlat.new()
 	hover_style.bg_color = Color(0.18, 0.20, 0.28)
 	hover_style.border_color = Color(0.4, 0.5, 0.7)
@@ -81,7 +87,7 @@ func _style_all_buttons() -> void:
 	hover_style.content_margin_right = 16.0
 	hover_style.content_margin_top = 8.0
 	hover_style.content_margin_bottom = 8.0
-	
+
 	var pressed_style := StyleBoxFlat.new()
 	pressed_style.bg_color = Color(0.10, 0.12, 0.18)
 	pressed_style.border_color = Color(0.35, 0.45, 0.65)
@@ -91,7 +97,7 @@ func _style_all_buttons() -> void:
 	pressed_style.content_margin_right = 16.0
 	pressed_style.content_margin_top = 8.0
 	pressed_style.content_margin_bottom = 8.0
-	
+
 	# 全ボタンを再帰的に取得してスタイル適用
 	var all_buttons := _get_all_buttons(self)
 	for btn: Button in all_buttons:
@@ -101,7 +107,7 @@ func _style_all_buttons() -> void:
 		btn.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 		btn.add_theme_color_override("font_color", Color(0.82, 0.85, 0.92))
 		btn.add_theme_color_override("font_hover_color", Color(0.95, 0.97, 1.0))
-	
+
 	# スタートボタンにアクセントカラー
 	var start_normal := StyleBoxFlat.new()
 	start_normal.bg_color = Color(0.15, 0.35, 0.65)
@@ -112,15 +118,19 @@ func _style_all_buttons() -> void:
 	start_normal.content_margin_right = 20.0
 	start_normal.content_margin_top = 10.0
 	start_normal.content_margin_bottom = 10.0
-	
+
 	var start_hover := start_normal.duplicate()
 	start_hover.bg_color = Color(0.2, 0.42, 0.75)
 	start_hover.border_color = Color(0.4, 0.65, 1.0)
-	
+
 	start_button.add_theme_stylebox_override("normal", start_normal)
 	start_button.add_theme_stylebox_override("hover", start_hover)
 	start_button.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0))
 	start_button.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 1.0))
+
+	if not GameManager.tutorial_completed:
+		_style_tutorial_button(_tutorial_btn)
+		_style_tutorial_button(_tutorial_2p_btn)
 
 func _get_all_buttons(node: Node) -> Array[Button]:
 	var buttons: Array[Button] = []
@@ -129,12 +139,67 @@ func _get_all_buttons(node: Node) -> Array[Button]:
 	for child in node.get_children():
 		buttons.append_array(_get_all_buttons(child))
 	return buttons
+
+func _ensure_tutorial_button() -> void:
+	if _tutorial_btn and _tutorial_2p_btn:
+		return
+	_tutorial_row = HBoxContainer.new()
+	_tutorial_row.name = "TutorialRow"
+	_tutorial_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	_tutorial_row.add_theme_constant_override("separation", 12)
+	mode_container.add_child(_tutorial_row)
+
+	_tutorial_btn = _make_tutorial_button("TutorialBtn", _on_tutorial_pressed)
+	_tutorial_2p_btn = _make_tutorial_button("Tutorial2PBtn", _on_tutorial_2p_pressed)
+	_tutorial_row.add_child(_tutorial_btn)
+	_tutorial_row.add_child(_tutorial_2p_btn)
+
+func _make_tutorial_button(node_name: String, pressed_callable: Callable) -> Button:
+	var btn := Button.new()
+	btn.name = node_name
+	btn.custom_minimum_size = Vector2(260, 52)
+	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	btn.add_theme_font_size_override("font_size", 18)
+	btn.pressed.connect(pressed_callable)
+	return btn
+
+func _style_tutorial_button(btn: Button) -> void:
+	if not btn:
+		return
+	var tutorial_normal := StyleBoxFlat.new()
+	tutorial_normal.bg_color = Color(0.28, 0.20, 0.08)
+	tutorial_normal.border_color = Color(0.85, 0.62, 0.18)
+	tutorial_normal.set_border_width_all(2)
+	tutorial_normal.set_corner_radius_all(12)
+	tutorial_normal.content_margin_left = 18.0
+	tutorial_normal.content_margin_right = 18.0
+	tutorial_normal.content_margin_top = 9.0
+	tutorial_normal.content_margin_bottom = 9.0
+	var tutorial_hover := tutorial_normal.duplicate()
+	tutorial_hover.bg_color = Color(0.36, 0.26, 0.10)
+	btn.add_theme_stylebox_override("normal", tutorial_normal)
+	btn.add_theme_stylebox_override("hover", tutorial_hover)
+	btn.add_theme_color_override("font_color", Color(1.0, 0.92, 0.62))
+	btn.add_theme_color_override("font_hover_color", Color(1.0, 0.98, 0.78))
+
+func _start_tutorial_game(tutorial_players: int = 1) -> void:
+	game_state.start_tutorial(tutorial_players)
+	get_tree().change_scene_to_file("res://scenes/game_world.tscn")
+
+func _start_first_run_tutorial() -> void:
+	GameManager.dismiss_tutorial()
+	_start_tutorial_game()
+
 func _update_ui() -> void:
 	if not game_state:
 		return
 
 	game_state.refresh_status_text()
 	status_label.text = game_state.status_text
+	if _tutorial_btn:
+		_tutorial_btn.text = "はじめてのチュートリアル" if not GameManager.tutorial_completed else "1人用チュートリアル"
+	if _tutorial_2p_btn:
+		_tutorial_2p_btn.text = "2人用チュートリアル"
 
 	if game_state.menu_step == Constants.MENU_STEP_MODE:
 		mode_container.visible = true
@@ -158,18 +223,18 @@ func _update_ui() -> void:
 
 		var llm_text: String = "🌐 ONLINE (AI生成)" if QuizManager.provider.llm_mode == "ONLINE" else "📦 OFFLINE (内蔵問題)"
 		llm_toggle_btn.text = llm_text
-		
+
 		# Show skin & emote button for all modes (emotes usable in 1P too)
 		if hat_select_btn:
 			hat_select_btn.visible = true
-		
+
 		# Update wall speed button label
 		if wall_speed_btn:
 			if game_state.tuning.wall_speed_override > 0:
 				wall_speed_btn.text = "⚡ 壁速度: %.1f（手動）" % game_state.tuning.wall_speed_override
 			else:
 				wall_speed_btn.text = "⚡ 壁速度設定（自動）"
-		
+
 func _on_ten_questions_pressed() -> void:
 	game_state.select_mode_and_continue(Constants.MODE_TEN)
 	_update_ui()
@@ -207,6 +272,12 @@ func _on_hat_select_pressed() -> void:
 
 func _on_emote_select_pressed() -> void:
 	get_tree().change_scene_to_file("res://ui/emote_select.tscn")
+
+func _on_tutorial_pressed() -> void:
+	_start_tutorial_game()
+
+func _on_tutorial_2p_pressed() -> void:
+	_start_tutorial_game(2)
 
 func _on_grade_down_pressed() -> void:
 	game_state.update_grade(-1)
@@ -260,10 +331,10 @@ func _on_open_dashboard_pressed() -> void:
 
 func _update_api_status_text() -> void:
 	var text := ""
-	
+
 	var i_col = "green" if ApiStatusAutoload.internet_ok else ("red" if ApiStatusAutoload.internet_ok == false else "yellow")
 	text += "[color=%s]インターネット: %s[/color]\n" % [i_col, ApiStatusAutoload.internet_msg]
-	
+
 	var proxy := ApiStatusAutoload.get_env("PROXY_URL")
 	if not proxy.is_empty():
 		# プロキシ稼働時はAI Gatewayとして表示（内部チェックはgemini_statusを使用）
@@ -273,17 +344,17 @@ func _update_api_status_text() -> void:
 		var o_col = "green" if ApiStatusAutoload.openai_status else ("red" if ApiStatusAutoload.openai_status == false else "yellow")
 		var o_key = "設定済" if ApiStatusAutoload.openai_key_set else "未設定"
 		text += "[color=%s]OpenAI: %s[/color] (キー: %s)\n" % [o_col, ApiStatusAutoload.openai_msg, o_key]
-		
+
 		var g_col = "green" if ApiStatusAutoload.gemini_status else ("red" if ApiStatusAutoload.gemini_status == false else "yellow")
 		var g_key = "設定済" if ApiStatusAutoload.gemini_key_set else "未設定"
 		text += "[color=%s]Gemini: %s[/color] (キー: %s)\n" % [g_col, ApiStatusAutoload.gemini_msg, g_key]
-	
+
 	var f_col = "green" if ApiStatusAutoload.firebase_status else ("red" if ApiStatusAutoload.firebase_status == false else "yellow")
 	var f_key = "設定済" if ApiStatusAutoload.firebase_configured else "未設定"
 	text += "[color=%s]Firebase: %s[/color] (DB URL: %s)\n" % [f_col, ApiStatusAutoload.firebase_msg, f_key]
-	
+
 	text += "\n[color=gray]オフライン問題数: %d問[/color]" % ApiStatusAutoload.offline_count
-	
+
 	api_status_label.text = text
 
 func _on_vol_slider_changed(value: float) -> void:
@@ -305,7 +376,7 @@ func _on_resolution_selected(index: int) -> void:
 				DisplayServer.window_set_size(Vector2i(2560, 1440))
 			3:
 				DisplayServer.window_set_size(Vector2i(3840, 2160))
-		
+
 		# Center the window on the current screen
 		var screen_idx = DisplayServer.window_get_current_screen()
 		var screen_pos = DisplayServer.screen_get_position(screen_idx)

@@ -17,41 +17,7 @@ export default function SettingsPage() {
   const [healthChecks, setHealthChecks] = useState<HealthCheck[]>([]);
   const [firebaseStats, setFirebaseStats] = useState<{ total: number; lastTs: number | null }>({ total: 0, lastTs: null });
 
-  useEffect(() => {
-    // Load env config
-    fetch('/api/env')
-      .then(res => res.json())
-      .then(data => {
-        if (!data.error) {
-          setConfig(data);
-          runHealthChecks(data);
-        } else {
-          setHealthChecks([{
-            label: '.env ファイル',
-            icon: <img src="https://cdn.simpleicons.org/dotenv/C8C8C8" width="24" height="24" alt="dotenv" />,
-            status: 'error',
-            detail: '.env ファイルの読み込みに失敗しました。'
-          }]);
-        }
-        setLoading(false);
-      })
-      .catch(() => {
-        setLoading(false);
-      });
-
-    // Firebase stats
-    const ratingsRef = ref(db, 'quiz_ratings/shared');
-    get(ratingsRef).then(snapshot => {
-      if (snapshot.exists()) {
-        const data = snapshot.val();
-        const arr = Object.values<any>(data);
-        const lastTs = arr.reduce((max, r) => Math.max(max, r.ts || 0), 0);
-        setFirebaseStats({ total: arr.length, lastTs: lastTs || null });
-      }
-    }).catch(() => {});
-  }, []);
-
-  const runHealthChecks = (envData: Record<string, string>) => {
+  function runHealthChecks(envData: Record<string, string>) {
     const checks: HealthCheck[] = [];
 
     // .env file
@@ -128,7 +94,41 @@ export default function SettingsPage() {
             : c
         ));
       });
-  };
+  }
+
+  useEffect(() => {
+    // Load env config
+    fetch('/api/env')
+      .then(res => res.json())
+      .then(data => {
+        if (!data.error) {
+          setConfig(data);
+          runHealthChecks(data);
+        } else {
+          setHealthChecks([{
+            label: '.env ファイル',
+            icon: <img src="https://cdn.simpleicons.org/dotenv/C8C8C8" width="24" height="24" alt="dotenv" />,
+            status: 'error',
+            detail: '.env ファイルの読み込みに失敗しました。'
+          }]);
+        }
+        setLoading(false);
+      })
+      .catch(() => {
+        setLoading(false);
+      });
+
+    // Firebase stats
+    const ratingsRef = ref(db, 'quiz_ratings/shared');
+    get(ratingsRef).then(snapshot => {
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        const arr = Object.values(data as Record<string, { ts?: number }>);
+        const lastTs = arr.reduce((max, r) => Math.max(max, r.ts || 0), 0);
+        setFirebaseStats({ total: arr.length, lastTs: lastTs || null });
+      }
+    }).catch(() => {});
+  }, []);
 
   const statusColor = (s: string) => {
     switch (s) {

@@ -15,8 +15,9 @@ export async function GET() {
     const data = fs.readFileSync(BANK_PATH, 'utf-8');
     const json = JSON.parse(data);
     return NextResponse.json(json);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -25,7 +26,8 @@ export async function POST(req: Request) {
     const newData = await req.json();
     fs.writeFileSync(BANK_PATH, JSON.stringify(newData, null, 2), 'utf-8');
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

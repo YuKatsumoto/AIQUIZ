@@ -13,8 +13,8 @@ config_version=5
 config/name="AIQUIZ 3D"
 run/main_scene="res://ui/main_menu.tscn"
 config/features=PackedStringArray("4.3", "Forward Plus")
-config/icon="res://icon.jpg"
 boot_splash/show_image=false
+config/icon="res://icon.jpg"
 
 [autoload]
 

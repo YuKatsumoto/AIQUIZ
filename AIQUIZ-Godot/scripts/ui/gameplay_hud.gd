@@ -41,6 +41,12 @@ var _score_anim_timer: float = 0.0
 var _displayed_score: float = 0.0
 var _target_score: int = 0
 var _streak_label: Label = null
+var _confetti_fired: bool = false
+var _tutorial_panel: PanelContainer = null
+var _tutorial_title: Label = null
+var _tutorial_detail: Label = null
+var _tutorial_keys_box: HBoxContainer = null
+var _tutorial_key_signature: String = ""
 
 func _ready() -> void:
 	game_state = QuizManager.game_state
@@ -49,7 +55,7 @@ func _ready() -> void:
 	preload_panel.visible = false
 	game_over_panel.visible = false
 	history_panel.visible = false
-	
+
 	# プリロード用プログレスバーのスタイル設定（ダーク背景で見えるように）
 	var pl_bg_style := StyleBoxFlat.new()
 	pl_bg_style.bg_color = Color(0.12, 0.14, 0.22, 1.0)
@@ -57,16 +63,16 @@ func _ready() -> void:
 	pl_bg_style.set_border_width_all(1)
 	pl_bg_style.set_corner_radius_all(6)
 	pl_progress.add_theme_stylebox_override("background", pl_bg_style)
-	
+
 	var pl_fill_style := StyleBoxFlat.new()
 	pl_fill_style.bg_color = Color(0.25, 0.55, 1.0, 1.0)
 	pl_fill_style.set_corner_radius_all(5)
 	pl_progress.add_theme_stylebox_override("fill", pl_fill_style)
 	pl_progress.custom_minimum_size.y = 22.0
-	
+
 	# フェードイン（ゲームシーン開始時）
-	
-	
+
+
 	# Create streak label for in-game display
 	_streak_label = Label.new()
 	_streak_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
@@ -82,11 +88,12 @@ func _ready() -> void:
 	_streak_label.offset_right = -16.0
 	_streak_label.offset_bottom = 68.0
 	add_child(_streak_label)
-	
+
 	# Build the stats panel for game over (created once, updated per game)
 	_create_stats_panel()
+	_create_tutorial_overlay()
 
-	
+
 	btn_good.pressed.connect(func():
 		game_state.rate_last_question(true)
 		_show_feedback("◯ 良い問題として評価しました")
@@ -96,7 +103,7 @@ func _ready() -> void:
 		_show_feedback("× 悪い問題として評価しました")
 	)
 	btn_menu.pressed.connect(func():
-		
+
 		game_state.reset_to_menu()
 		get_tree().change_scene_to_file("res://ui/main_menu.tscn")
 	)
@@ -119,12 +126,14 @@ func _show_feedback(txt: String) -> void:
 func _process(_dt: float) -> void:
 	if not game_state:
 		return
-		
+
 	if game_state.game_state == Constants.STATE_PRELOADING:
 		_show_preloading(_dt)
+		_update_tutorial_overlay()
 		return
 	elif game_state.game_state == Constants.STATE_WAITING_START:
 		_show_waiting_start(_dt)
+		_update_tutorial_overlay()
 		return
 	elif game_state.game_state == Constants.STATE_FLYOVER:
 		preload_bg.visible = false
@@ -134,6 +143,7 @@ func _process(_dt: float) -> void:
 		progress_bar.visible = false
 		game_over_panel.visible = false
 		message_label.visible = false
+		_update_tutorial_overlay()
 		return
 	else:
 		preload_bg.visible = false
@@ -145,6 +155,7 @@ func _process(_dt: float) -> void:
 		_go_fade_timer = 0.0
 		_score_anim_timer = 0.0
 		_displayed_score = 0.0
+		_confetti_fired = false
 		game_over_panel.visible = false
 		history_panel.visible = false
 		_history_built = false
@@ -155,6 +166,7 @@ func _process(_dt: float) -> void:
 	_update_progress()
 	_update_flash()
 	_update_streak_label()
+	_update_tutorial_overlay()
 
 func _update_flash() -> void:
 	if game_state.correct_flash > 0.0:
@@ -178,21 +190,21 @@ func _show_preloading(dt: float) -> void:
 	game_over_panel.visible = false
 	pl_progress.visible = true
 	start_prompt_label.visible = false
-	
+
 	pl_status.text = game_state.status_text
-	
+
 	var target: int = game_state.target_count if game_state.mode == Constants.MODE_TEN else 1
 	var current: int = game_state.quiz_list.size()
-	
+
 	pl_progress.max_value = float(target)
-	
+
 	# スムーズな進行度アニメーション (実際の取得数にlerpで追いつかせる)
 	if current < target:
 		_displayed_progress = lerpf(_displayed_progress, float(current), dt * 10.0)
 	else:
 		# 完了時はキッチリ合わせる
 		_displayed_progress = float(target)
-		
+
 	pl_progress.value = _displayed_progress
 
 var _blink_timer: float = 0.0
@@ -204,11 +216,15 @@ func _show_waiting_start(dt: float) -> void:
 	message_label.visible = false
 	progress_bar.visible = false
 	game_over_panel.visible = false
-	
+
 	pl_status.text = "読み込み完了"
 	pl_progress.visible = false
 	start_prompt_label.visible = true
-	
+	if game_state.mode == Constants.MODE_TUTORIAL:
+		start_prompt_label.text = "[ 任意のキーでチュートリアル開始 ]"
+	else:
+		start_prompt_label.text = "[ 任意のキーを押してスタート ]"
+
 	_blink_timer += dt
 	start_prompt_label.modulate.a = 0.5 + 0.5 * sin(_blink_timer * 6.0)
 
@@ -237,7 +253,7 @@ func _create_stats_panel() -> void:
 	# tscn側のMessageBoxとRateBoxは非表示にする（カード内に統合）
 	go_message.get_parent().visible = false
 	go_rate_box.visible = false
-	
+
 	_stats_panel = PanelContainer.new()
 	_stats_panel.visible = false
 	var style := StyleBoxFlat.new()
@@ -259,27 +275,206 @@ func _create_stats_panel() -> void:
 	_stats_panel.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	game_over_panel.add_child(_stats_panel)
 
+func _create_tutorial_overlay() -> void:
+	_tutorial_panel = PanelContainer.new()
+	_tutorial_panel.visible = false
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.04, 0.06, 0.12, 0.90)
+	style.border_color = Color(0.28, 0.46, 0.88, 0.75)
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(8)
+	style.content_margin_left = 22.0
+	style.content_margin_right = 22.0
+	style.content_margin_top = 14.0
+	style.content_margin_bottom = 14.0
+	_tutorial_panel.add_theme_stylebox_override("panel", style)
+	_tutorial_panel.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	add_child(_tutorial_panel)
+
+	var root := VBoxContainer.new()
+	root.add_theme_constant_override("separation", 8)
+	_tutorial_panel.add_child(root)
+
+	_tutorial_title = Label.new()
+	_tutorial_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_tutorial_title.add_theme_font_size_override("font_size", 22)
+	_tutorial_title.add_theme_color_override("font_color", Color(1.0, 0.88, 0.28))
+	root.add_child(_tutorial_title)
+
+	_tutorial_detail = Label.new()
+	_tutorial_detail.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_tutorial_detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_tutorial_detail.add_theme_font_size_override("font_size", 16)
+	_tutorial_detail.add_theme_color_override("font_color", Color(0.84, 0.88, 0.98))
+	root.add_child(_tutorial_detail)
+
+	_tutorial_keys_box = HBoxContainer.new()
+	_tutorial_keys_box.alignment = BoxContainer.ALIGNMENT_CENTER
+	_tutorial_keys_box.add_theme_constant_override("separation", 18)
+	root.add_child(_tutorial_keys_box)
+
+func _update_tutorial_overlay() -> void:
+	if not _tutorial_panel or not game_state:
+		return
+	var tutorial_visible := (
+		game_state.mode == Constants.MODE_TUTORIAL
+		and game_state.game_state in [
+			Constants.STATE_WAITING_START,
+			Constants.STATE_COUNTDOWN,
+			Constants.STATE_PLAYING,
+		]
+	)
+	if not tutorial_visible:
+		_tutorial_panel.visible = false
+		_tutorial_key_signature = ""
+		return
+
+	_tutorial_panel.visible = true
+	_tutorial_title.text = game_state.tutorial_instruction_text()
+	_tutorial_detail.text = game_state.tutorial_detail_text()
+	var is_2p := game_state.num_players >= 2
+	_tutorial_panel.offset_left = 90.0
+	_tutorial_panel.offset_right = -90.0
+	_tutorial_panel.offset_top = -212.0 if is_2p else -186.0
+	_tutorial_panel.offset_bottom = -28.0
+
+	var signature := "%d:%d:%s" % [
+		game_state.num_players,
+		game_state.current_index,
+		game_state.game_state,
+	]
+	if signature != _tutorial_key_signature:
+		_tutorial_key_signature = signature
+		_rebuild_tutorial_keys()
+
+func _rebuild_tutorial_keys() -> void:
+	if not _tutorial_keys_box:
+		return
+	for child in _tutorial_keys_box.get_children():
+		child.queue_free()
+
+	if game_state.num_players >= 2:
+		_add_tutorial_player_keys(
+			"P1",
+			PackedStringArray(["W", "A", "S", "D", "Space"]),
+			PackedStringArray(["前", "左", "後", "右", "ジャンプ"]),
+			Color(0.40, 0.66, 1.0)
+		)
+		_add_tutorial_player_keys(
+			"P2",
+			PackedStringArray(["↑", "←", "↓", "→", "Ctrl / Num0"]),
+			PackedStringArray(["前", "左", "後", "右", "ジャンプ"]),
+			Color(0.35, 0.95, 0.64)
+		)
+	else:
+		_add_tutorial_player_keys(
+			"P1",
+			PackedStringArray(["W / ↑", "A / ←", "S / ↓", "D / →", "Space"]),
+			PackedStringArray(["前", "左", "後", "右", "ジャンプ"]),
+			Color(0.40, 0.66, 1.0)
+		)
+
+func _add_tutorial_player_keys(
+		player_label: String,
+		keys: PackedStringArray,
+		captions: PackedStringArray,
+		accent: Color) -> void:
+	var block := VBoxContainer.new()
+	block.add_theme_constant_override("separation", 5)
+	block.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_tutorial_keys_box.add_child(block)
+
+	var label := Label.new()
+	label.text = player_label
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.add_theme_font_size_override("font_size", 15)
+	label.add_theme_color_override("font_color", accent)
+	block.add_child(label)
+
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 8)
+	block.add_child(row)
+
+	for i: int in range(keys.size()):
+		var caption := captions[i] if i < captions.size() else ""
+		_add_key_chip(row, keys[i], caption, accent, _tutorial_key_highlighted(caption))
+
+func _add_key_chip(
+		parent: HBoxContainer,
+		key_text: String,
+		caption: String,
+		accent: Color,
+		highlighted: bool) -> void:
+	var stack := VBoxContainer.new()
+	stack.add_theme_constant_override("separation", 2)
+	parent.add_child(stack)
+
+	var key_panel := PanelContainer.new()
+	var width := clampf(float(key_text.length()) * 11.0 + 24.0, 44.0, 120.0)
+	key_panel.custom_minimum_size = Vector2(width, 34.0)
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.20, 0.26, 0.39, 0.96) if highlighted else Color(0.08, 0.10, 0.17, 0.94)
+	style.border_color = Color(1.0, 0.86, 0.22, 1.0) if highlighted else accent
+	style.set_border_width_all(2 if highlighted else 1)
+	style.set_corner_radius_all(6)
+	style.content_margin_left = 8.0
+	style.content_margin_right = 8.0
+	style.content_margin_top = 5.0
+	style.content_margin_bottom = 5.0
+	key_panel.add_theme_stylebox_override("panel", style)
+	stack.add_child(key_panel)
+
+	var key_label := Label.new()
+	key_label.text = key_text
+	key_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	key_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	key_label.add_theme_font_size_override("font_size", 17 if key_text.length() <= 6 else 15)
+	key_label.add_theme_color_override("font_color", Color(1.0, 0.92, 0.45) if highlighted else Color(0.92, 0.95, 1.0))
+	key_panel.add_child(key_label)
+
+	var caption_label := Label.new()
+	caption_label.text = caption
+	caption_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	caption_label.add_theme_font_size_override("font_size", 12)
+	caption_label.add_theme_color_override("font_color", Color(1.0, 0.88, 0.32) if highlighted else Color(0.58, 0.64, 0.78))
+	stack.add_child(caption_label)
+
+func _tutorial_key_highlighted(caption: String) -> bool:
+	if not game_state or game_state.game_state != Constants.STATE_PLAYING:
+		return false
+	match game_state.current_index:
+		0:
+			return caption == "左"
+		1:
+			return caption == "右"
+		_:
+			return caption == "左"
+
 
 func _show_game_over() -> void:
 	var is_clear := game_state.game_state == Constants.STATE_CLEAR
-	
+
 	if not is_clear and _go_fade_timer < 4.0:
 		game_over_panel.visible = false
 		return
-		
+
 	game_over_panel.visible = true
 	# tscn側のMessageBox/RateBoxは常に非表示（カード内に統合済）
 	go_message.get_parent().visible = false
-	
+
 	if not is_clear:
 		var alpha := clampf((_go_fade_timer - 4.0) / 1.0, 0.0, 1.0)
 		game_over_panel.modulate.a = alpha
 	else:
 		game_over_panel.modulate.a = 1.0
-	
+		if not _confetti_fired:
+			_confetti_fired = true
+			_fire_confetti()
+
 	go_title.text = "CLEAR!" if is_clear else "GAME OVER"
 	go_title.add_theme_color_override("font_color", Color(1, 0.8, 0.2) if is_clear else Color(1, 0.3, 0.3))
-	
+
 	# Parse message: remove redundant GAME OVER/CLEAR text
 	var raw_msg: String = game_state.message_text
 	if raw_msg.begins_with("GAME OVER\n\n"):
@@ -293,19 +488,24 @@ func _show_game_over() -> void:
 			if not p.begins_with("CLEAR!") and not "questions done" in p and not "問完走" in p and not "Score:" in p and not "正解数:" in p:
 				new_parts.append(p)
 		raw_msg = "\n".join(new_parts)
+	elif raw_msg.begins_with("TUTORIAL CLEAR!"):
+		var tutorial_parts = raw_msg.split("\n")
+		if tutorial_parts.size() > 1:
+			tutorial_parts.remove_at(0)
+		raw_msg = "\n".join(tutorial_parts)
 	# Strip trailing score lines
 	var msg_lines = raw_msg.split("\n\n")
 	if msg_lines.size() > 1 and ("Score:" in msg_lines[-1] or "正解数:" in msg_lines[-1]):
 		msg_lines.remove_at(msg_lines.size() - 1)
 		raw_msg = "\n\n".join(msg_lines)
 	raw_msg = raw_msg.strip_edges()
-	
+
 	# Build the unified card content
 	_build_result_card(is_clear, raw_msg)
-	
+
 	# NEW RECORD display
 
-	
+
 	# Bottom buttons
 	btn_history.visible = game_state.quiz_history.size() > 0
 
@@ -314,20 +514,21 @@ func _build_result_card(is_clear: bool, explanation: String) -> void:
 	_stats_panel.visible = true
 	for child in _stats_panel.get_children():
 		child.queue_free()
-	
+
 	var root_vbox := VBoxContainer.new()
 	root_vbox.add_theme_constant_override("separation", 10)
 	_stats_panel.add_child(root_vbox)
-	
+
 	var current_score: int = game_state.score
 	var p2_score: int = game_state.player2_score
 	var is_2p: bool = game_state.num_players >= 2
-	
+	var is_tutorial: bool = game_state.mode == Constants.MODE_TUTORIAL
+
 	# ─── Score animation ───
 	_score_anim_timer += 0.016
 	var anim_progress := clampf(_score_anim_timer / 1.5, 0.0, 1.0)
 	anim_progress = 1.0 - pow(1.0 - anim_progress, 3.0)
-	
+
 	# ─── Row 1: Score display ───
 	if is_2p:
 		var hbox_scores := HBoxContainer.new()
@@ -337,16 +538,23 @@ func _build_result_card(is_clear: bool, explanation: String) -> void:
 		_add_player_score_column(hbox_scores, "P1", current_score, anim_progress,
 			current_score > p2_score)
 		var vs_label := Label.new()
-		vs_label.text = "vs"
+		vs_label.text = "+" if is_tutorial else "vs"
 		vs_label.add_theme_font_size_override("font_size", 20)
 		vs_label.add_theme_color_override("font_color", Color(0.5, 0.55, 0.65))
 		vs_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		hbox_scores.add_child(vs_label)
 		_add_player_score_column(hbox_scores, "P2", p2_score, anim_progress,
 			p2_score > current_score)
-		
+
 		# Winner
-		if current_score != p2_score:
+		if is_tutorial:
+			var done_label := Label.new()
+			done_label.text = "2人で完了 / 3つの壁"
+			done_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			done_label.add_theme_font_size_override("font_size", 22)
+			done_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
+			root_vbox.add_child(done_label)
+		elif current_score != p2_score:
 			var wl := Label.new()
 			wl.text = "🏆 %s WIN!" % ("P1" if current_score > p2_score else "P2")
 			wl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -366,7 +574,7 @@ func _build_result_card(is_clear: bool, explanation: String) -> void:
 		score_row.alignment = BoxContainer.ALIGNMENT_CENTER
 		score_row.add_theme_constant_override("separation", 12)
 		root_vbox.add_child(score_row)
-		
+
 		var score_num := Label.new()
 		var displayed := int(anim_progress * current_score)
 		score_num.text = "%d" % displayed
@@ -374,7 +582,7 @@ func _build_result_card(is_clear: bool, explanation: String) -> void:
 		score_num.add_theme_color_override("font_color",
 			Color(1.0, 0.85, 0.2) if is_clear else Color(0.9, 0.92, 0.95))
 		score_row.add_child(score_num)
-		
+
 		if game_state.mode == Constants.MODE_TEN:
 			var sub := Label.new()
 			sub.text = "正解 / 10問"
@@ -382,45 +590,52 @@ func _build_result_card(is_clear: bool, explanation: String) -> void:
 			sub.add_theme_color_override("font_color", Color(0.6, 0.65, 0.75))
 			sub.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 			score_row.add_child(sub)
-	
+		elif is_tutorial:
+			var sub := Label.new()
+			sub.text = "完了 / 3つの壁"
+			sub.add_theme_font_size_override("font_size", 16)
+			sub.add_theme_color_override("font_color", Color(0.6, 0.65, 0.75))
+			sub.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			score_row.add_child(sub)
+
 	# ─── Separator ───
 	_add_separator(root_vbox)
-	
+
 	# ─── Row 2: Stats (横並びの4つのミニカード) ───
 	var stats_hbox := HBoxContainer.new()
 	stats_hbox.alignment = BoxContainer.ALIGNMENT_CENTER
 	stats_hbox.add_theme_constant_override("separation", 16)
 	root_vbox.add_child(stats_hbox)
-	
+
 	var total := game_state.total_answered
 	var correct_count := maxi(current_score, p2_score) if is_2p else current_score
 	var rate_pct: float = (float(correct_count) / float(total) * 100.0) if total > 0 else 0.0
 	var rate_color := Color(0.3, 1.0, 0.5) if rate_pct >= 80.0 else (
 		Color(1.0, 0.85, 0.3) if rate_pct >= 50.0 else Color(1.0, 0.4, 0.3))
 	_add_mini_stat(stats_hbox, "正答率", "%.0f%%" % rate_pct, rate_color)
-	
+
 	var streak_color := Color(1.0, 0.6, 0.2) if game_state.max_streak >= 3 else Color(0.75, 0.78, 0.85)
 	_add_mini_stat(stats_hbox, "連続正解", "%d 🔥" % game_state.max_streak, streak_color)
-	
+
 	var mins := int(game_state.play_time) / 60
 	var secs := int(game_state.play_time) % 60
 	_add_mini_stat(stats_hbox, "時間", "%d:%02d" % [mins, secs], Color(0.65, 0.7, 0.82))
-	
+
 
 	# ─── Row 3: Explanation (if any) ───
 	if not explanation.is_empty():
 		_add_separator(root_vbox)
-		
+
 		var scroll := ScrollContainer.new()
 		scroll.custom_minimum_size = Vector2(0, 110)
 		scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 		scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		root_vbox.add_child(scroll)
-		
+
 		var exp_vbox := VBoxContainer.new()
 		exp_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		scroll.add_child(exp_vbox)
-		
+
 		var exp_label := Label.new()
 		exp_label.text = explanation
 		exp_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -429,7 +644,7 @@ func _build_result_card(is_clear: bool, explanation: String) -> void:
 		exp_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		exp_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		exp_vbox.add_child(exp_label)
-	
+
 	# ─── Row 4: Rating (if applicable) ───
 	if game_state.rating_target_quiz:
 		_add_separator(root_vbox)
@@ -457,14 +672,14 @@ func _add_mini_stat(parent: HBoxContainer, title: String, value: String, color: 
 	col.add_theme_constant_override("separation", 2)
 	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	parent.add_child(col)
-	
+
 	var val_lbl := Label.new()
 	val_lbl.text = value
 	val_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	val_lbl.add_theme_font_size_override("font_size", 20)
 	val_lbl.add_theme_color_override("font_color", color)
 	col.add_child(val_lbl)
-	
+
 	var title_lbl := Label.new()
 	title_lbl.text = title
 	title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -482,7 +697,7 @@ func _add_player_score_column(parent: HBoxContainer, label_text: String, score_v
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 2)
 	parent.add_child(col)
-	
+
 	var name_label := Label.new()
 	name_label.text = label_text
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -490,7 +705,7 @@ func _add_player_score_column(parent: HBoxContainer, label_text: String, score_v
 	name_label.add_theme_color_override("font_color",
 		Color(1.0, 0.85, 0.2) if is_winner else Color(0.6, 0.65, 0.75))
 	col.add_child(name_label)
-	
+
 	var val_label := Label.new()
 	var displayed := int(anim_progress * score_val)
 	val_label.text = "%d" % displayed
@@ -506,7 +721,7 @@ func _add_stat_row(grid: GridContainer, label_text: String, value_text: String, 
 	lbl.add_theme_font_size_override("font_size", 17)
 	lbl.add_theme_color_override("font_color", Color(0.55, 0.6, 0.7))
 	grid.add_child(lbl)
-	
+
 	var val := Label.new()
 	val.text = value_text
 	val.add_theme_font_size_override("font_size", 18)
@@ -526,9 +741,17 @@ func _update_score() -> void:
 	if game_state.game_state in [Constants.STATE_PLAYING, Constants.STATE_CORRECT, Constants.STATE_GOAL_RACE]:
 		score_label.visible = true
 		if game_state.num_players >= 2:
-			score_label.text = "P1: %d  P2: %d" % [game_state.score, game_state.player2_score]
+			if game_state.mode == Constants.MODE_TUTORIAL:
+				score_label.text = "2P練習  P1:%d  P2:%d" % [game_state.score, game_state.player2_score]
+			else:
+				score_label.text = "P1: %d  P2: %d" % [game_state.score, game_state.player2_score]
 		else:
-			if game_state.mode == Constants.MODE_TEN:
+			if game_state.mode == Constants.MODE_TUTORIAL:
+				score_label.text = "チュートリアル: %d/%d" % [
+					mini(game_state.current_index + 1, game_state.target_count),
+					game_state.target_count
+				]
+			elif game_state.mode == Constants.MODE_TEN:
 				score_label.text = "正解: %d  問題: %d/10" % [game_state.score, game_state.current_index + 1]
 			else:
 				score_label.text = "正解: %d" % game_state.score
@@ -605,7 +828,7 @@ func _open_history() -> void:
 	if not _history_built:
 		_build_history_items()
 		_history_built = true
-	
+
 	game_over_panel.visible = false
 	history_panel.visible = true
 	history_panel.modulate.a = 1.0
@@ -620,7 +843,7 @@ func _build_history_items() -> void:
 	# Clear existing items
 	for child in history_list.get_children():
 		child.queue_free()
-	
+
 	if game_state.quiz_history.is_empty():
 		var empty_label := Label.new()
 		empty_label.text = "出題された問題はありません"
@@ -629,19 +852,19 @@ func _build_history_items() -> void:
 		empty_label.add_theme_color_override("font_color", Color(0.6, 0.65, 0.7))
 		history_list.add_child(empty_label)
 		return
-	
+
 	for i: int in range(game_state.quiz_history.size()):
 		var entry: Dictionary = game_state.quiz_history[i]
 		var quiz: QuizItem = entry["quiz"]
 		var correct: bool = entry["correct"]
 		var rated: String = entry.get("rated", "")
-		
+
 		var card := _create_history_card(i, quiz, correct, rated)
 		history_list.add_child(card)
 
 func _create_history_card(index: int, quiz: QuizItem, correct: bool, rated: String) -> PanelContainer:
 	var card := PanelContainer.new()
-	
+
 	# Card style
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color(0.08, 0.09, 0.16, 0.9)
@@ -659,11 +882,11 @@ func _create_history_card(index: int, quiz: QuizItem, correct: bool, rated: Stri
 	style.content_margin_top = 12.0
 	style.content_margin_bottom = 12.0
 	card.add_theme_stylebox_override("panel", style)
-	
+
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 8)
 	card.add_child(vbox)
-	
+
 	# --- Header: Q number + result icon + question text ---
 	var header := Label.new()
 	var icon: String = "◯" if correct else "✗"
@@ -677,12 +900,12 @@ func _create_history_card(index: int, quiz: QuizItem, correct: bool, rated: Stri
 	header.add_theme_color_override("font_color", Color(0.3, 1.0, 0.5) if correct else Color(1.0, 0.4, 0.3))
 	header.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vbox.add_child(header)
-	
+
 	# --- Choices ---
 	var choices_box := VBoxContainer.new()
 	choices_box.add_theme_constant_override("separation", 2)
 	vbox.add_child(choices_box)
-	
+
 	var labels_4 := ["A", "B", "C", "D"]
 	for ci: int in range(quiz.c.size()):
 		var choice_label := Label.new()
@@ -691,7 +914,7 @@ func _create_history_card(index: int, quiz: QuizItem, correct: bool, rated: Stri
 			prefix = "左" if ci == 0 else "右"
 		else:
 			prefix = labels_4[ci] if ci < 4 else str(ci)
-		
+
 		var is_correct_choice := (ci == quiz.a)
 		choice_label.text = "  %s: %s %s" % [prefix, FractionFormatter.to_inline(quiz.c[ci]), "✓" if is_correct_choice else ""]
 		choice_label.add_theme_font_size_override("font_size", 17)
@@ -701,7 +924,7 @@ func _create_history_card(index: int, quiz: QuizItem, correct: bool, rated: Stri
 			choice_label.add_theme_color_override("font_color", Color(0.65, 0.7, 0.75))
 		choice_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		choices_box.add_child(choice_label)
-	
+
 	# --- Explanation ---
 	if not quiz.e.is_empty():
 		var explain_label := Label.new()
@@ -710,13 +933,13 @@ func _create_history_card(index: int, quiz: QuizItem, correct: bool, rated: Stri
 		explain_label.add_theme_color_override("font_color", Color(0.55, 0.6, 0.75))
 		explain_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		vbox.add_child(explain_label)
-	
+
 	# --- Rating buttons ---
 	var rate_container := HBoxContainer.new()
 	rate_container.alignment = BoxContainer.ALIGNMENT_END
 	rate_container.add_theme_constant_override("separation", 12)
 	vbox.add_child(rate_container)
-	
+
 	var entry: Dictionary = game_state.quiz_history[index]
 	var player_rated: bool = entry.get("player_rated", false)
 	if not player_rated:
@@ -731,21 +954,21 @@ func _create_history_card(index: int, quiz: QuizItem, correct: bool, rated: Stri
 		rate_label.add_theme_font_size_override("font_size", 15)
 		rate_label.add_theme_color_override("font_color", Color(0.5, 0.55, 0.65))
 		rate_container.add_child(rate_label)
-		
+
 		var good_btn := Button.new()
 		good_btn.text = "◯ 良い"
 		good_btn.custom_minimum_size = Vector2(100, 36)
 		good_btn.add_theme_font_size_override("font_size", 16)
 		good_btn.add_theme_color_override("font_color", Color(0.2, 1.0, 0.4))
 		rate_container.add_child(good_btn)
-		
+
 		var bad_btn := Button.new()
 		bad_btn.text = "× 悪い"
 		bad_btn.custom_minimum_size = Vector2(100, 36)
 		bad_btn.add_theme_font_size_override("font_size", 16)
 		bad_btn.add_theme_color_override("font_color", Color(1.0, 0.3, 0.2))
 		rate_container.add_child(bad_btn)
-		
+
 		# Capture index for closure
 		var idx := index
 		good_btn.pressed.connect(func():
@@ -767,14 +990,14 @@ func _create_history_card(index: int, quiz: QuizItem, correct: bool, rated: Stri
 			feedback.add_theme_color_override("font_color", Color(1.0, 0.4, 0.3))
 		feedback.add_theme_font_size_override("font_size", 15)
 		rate_container.add_child(feedback)
-	
+
 	return card
 
 func _replace_rate_buttons(container: HBoxContainer, good: bool) -> void:
 	# Remove all children
 	for child in container.get_children():
 		child.queue_free()
-	
+
 	# Add feedback label
 	var feedback := Label.new()
 	if good:
@@ -785,3 +1008,100 @@ func _replace_rate_buttons(container: HBoxContainer, good: bool) -> void:
 		feedback.add_theme_color_override("font_color", Color(1.0, 0.4, 0.3))
 	feedback.add_theme_font_size_override("font_size", 15)
 	container.add_child(feedback)
+
+func _fire_confetti() -> void:
+	var viewport_size = get_viewport().get_visible_rect().size
+	# Center position (assuming CLEAR! text is somewhat central, slightly top)
+	var center_pos = Vector2(viewport_size.x / 2.0, viewport_size.y * 0.3)
+
+	# Create two emitters (left and right) to burst from center outwards
+	var angles = [200.0, 340.0]  # Slightly upwards left and right
+	var colors = [Color.RED, Color.YELLOW, Color.GREEN, Color.CYAN, Color.MAGENTA, Color.WHITE, Color.ORANGE]
+
+	for i in range(2):
+		var emitter = CPUParticles2D.new()
+		emitter.emitting = false
+		emitter.one_shot = true
+		emitter.explosiveness = 0.8
+		emitter.amount = 60
+		emitter.lifetime = 3.0
+
+		# Position relative to go_title or screen center
+		emitter.position = go_title.global_position + Vector2(go_title.size.x / 2.0, go_title.size.y / 2.0)
+
+		# Emission shape
+		emitter.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
+		emitter.emission_rect_extents = Vector2(40.0, 20.0)
+
+		# Movement
+		emitter.direction = Vector2.UP.rotated(deg_to_rad(angles[i] - 270.0))
+		if i == 0:
+			emitter.direction = Vector2(-1, -0.5).normalized()
+		else:
+			emitter.direction = Vector2(1, -0.5).normalized()
+
+		emitter.spread = 35.0
+		emitter.gravity = Vector2(0, 900.0)
+		emitter.initial_velocity_min = 400.0
+		emitter.initial_velocity_max = 750.0
+		emitter.angular_velocity_min = -360.0
+		emitter.angular_velocity_max = 360.0
+
+		# Size and scale
+		emitter.scale_amount_min = 6.0
+		emitter.scale_amount_max = 12.0
+
+		# Color curve for fading out
+		var gradient = Gradient.new()
+		gradient.add_point(0.0, Color(1, 1, 1, 1))
+		gradient.add_point(0.7, Color(1, 1, 1, 1))
+		gradient.add_point(1.0, Color(1, 1, 1, 0))
+		emitter.color_ramp = gradient
+
+		# Random colors from preset
+		emitter.color_initial_ramp = Gradient.new()
+		emitter.color_initial_ramp.set_color(0, colors[randi() % colors.size()])
+		emitter.color_initial_ramp.set_color(1, colors[randi() % colors.size()])
+
+		# Actually, CPUParticles2D doesn't support multiple discrete colors easily without a texture.
+		# Let's make multiple small emitters to get different colors.
+		pass
+
+	# Better approach for discrete colors: multiple small emitters
+	for col in colors:
+		var emitter = CPUParticles2D.new()
+		emitter.emitting = false
+		emitter.one_shot = true
+		emitter.explosiveness = 0.9
+		emitter.amount = 15
+		emitter.lifetime = 2.5
+
+		if go_title.is_inside_tree():
+			emitter.position = go_title.global_position + Vector2(go_title.size.x / 2.0, go_title.size.y / 2.0)
+		else:
+			emitter.position = center_pos
+
+		emitter.direction = Vector2(0, -1)
+		emitter.spread = 75.0
+		emitter.gravity = Vector2(0, 800.0)
+		emitter.initial_velocity_min = 350.0
+		emitter.initial_velocity_max = 850.0
+		emitter.angular_velocity_min = -720.0
+		emitter.angular_velocity_max = 720.0
+
+		emitter.scale_amount_min = 8.0
+		emitter.scale_amount_max = 16.0
+		emitter.color = col
+
+		var gradient = Gradient.new()
+		gradient.add_point(0.0, Color(1, 1, 1, 1))
+		gradient.add_point(0.7, Color(1, 1, 1, 1))
+		gradient.add_point(1.0, Color(1, 1, 1, 0))
+		emitter.color_ramp = gradient
+
+		add_child(emitter)
+		emitter.emitting = true
+
+		# Self destruct timer
+		var timer = get_tree().create_timer(3.0)
+		timer.timeout.connect(func(): if is_instance_valid(emitter): emitter.queue_free())

@@ -3,8 +3,18 @@
 import { useEffect, useState } from 'react';
 import { useToast } from '../../components/ToastProvider';
 
+type Quiz = {
+  q: string;
+  c?: string[];
+  a?: number;
+  e?: string;
+  exp?: string;
+};
+
+type OfflineBank = Record<string, Record<string, Quiz[]>>;
+
 export default function OfflineBankPage() {
-  const [bankData, setBankData] = useState<any>(null);
+  const [bankData, setBankData] = useState<OfflineBank | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const { addToast } = useToast();
@@ -47,7 +57,7 @@ export default function OfflineBankPage() {
         body: JSON.stringify(bankData)
       });
       addToast('正常に保存されました！', 'success');
-    } catch (e) {
+    } catch {
       addToast('データの保存中にエラーが発生しました', 'error');
     }
     setSaving(false);
@@ -93,11 +103,11 @@ export default function OfflineBankPage() {
 
   const subjects = Object.keys(bankData);
   const grades = subject && bankData[subject] ? Object.keys(bankData[subject]) : [];
-  let currentQuizzes = subject && grade && bankData[subject][grade] ? bankData[subject][grade] : [];
+  const currentQuizzes = subject && grade && bankData[subject]?.[grade] ? bankData[subject][grade] : [];
 
   // Add original index tracking for deletion when filtered
-  const filteredQuizzes = currentQuizzes.map((q: any, originalIndex: number) => ({ q, originalIndex }))
-    .filter((item: any) => {
+  const filteredQuizzes = currentQuizzes.map((q, originalIndex) => ({ q, originalIndex }))
+    .filter((item) => {
       if (!search) return true;
       return item.q.q.includes(search) || item.q.exp?.includes(search) || item.q.e?.includes(search);
     });
@@ -168,7 +178,7 @@ export default function OfflineBankPage() {
           {subject} ({grade}年生) の問題数: {filteredQuizzes.length}問 {search && '(検索結果)'}
         </h3>
 
-        {filteredQuizzes.map(({ q, originalIndex }: any) => (
+        {filteredQuizzes.map(({ q, originalIndex }) => (
           <div key={originalIndex} className="card glass-panel animate-slide">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div style={{ flex: 1, paddingRight: '2rem' }}>

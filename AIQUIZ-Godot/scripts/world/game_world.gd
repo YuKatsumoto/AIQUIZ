@@ -458,13 +458,13 @@ func _update_walls() -> void:
 	var needed_indices: Array[int] = []
 	# Keep 1 wall behind (the one just passed through) so its wall mesh stays visible
 	var start_idx := maxi(0, game_state.current_wall_index - 1)
-	# 2P×10問モードでは target_count 以降の壁を生成しない
+	# 固定問数モードでは target_count 以降の壁を生成しない
 	var max_wall_idx: int = -1
-	if game_state.num_players >= 2 and game_state.mode == Constants.MODE_TEN:
+	if game_state.mode == Constants.MODE_TEN or game_state.mode == Constants.MODE_TUTORIAL:
 		max_wall_idx = game_state.target_count - 1  # 0-indexed: 壁0〜9まで
 	for i: int in range(MAX_VISIBLE_WALLS + 1):
 		var idx: int = start_idx + i
-		# 2P×10問モードでは target_count 以降の壁をスキップ
+		# 固定問数モードでは target_count 以降の壁をスキップ
 		if max_wall_idx >= 0 and idx > max_wall_idx:
 			continue
 		var wz: float = t.wall_start_z + idx * t.wall_spacing

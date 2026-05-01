@@ -7,14 +7,27 @@ import { useToast } from '../../components/ToastProvider';
 
 const QUICK_TAGS = ['🟢とても良い', '🟡簡単すぎる', '🔴難しすぎる', '⚠️不適切/バグ'];
 
-function RatingCard({ r, onDelete, onUpdate }: { r: any, onDelete: (id: string) => void, onUpdate: (id: string, payload: any) => Promise<void> }) {
+type Rating = {
+  id: string;
+  good?: boolean;
+  subject?: string;
+  grade?: string | number;
+  difficulty?: string | number;
+  src?: string;
+  ts?: number;
+  q?: string;
+  c?: string[];
+  a?: number;
+  e?: string;
+  reason?: string;
+  comment?: string;
+};
+
+type RatingUpdate = Partial<Pick<Rating, 'good' | 'comment'>>;
+
+function RatingCard({ r, onDelete, onUpdate }: { r: Rating, onDelete: (id: string) => void, onUpdate: (id: string, payload: RatingUpdate) => Promise<void> }) {
   const [comment, setComment] = useState(r.comment || '');
   const [isSaving, setIsSaving] = useState(false);
-
-  // Sync state if external update happens
-  useEffect(() => {
-    setComment(r.comment || '');
-  }, [r.comment]);
 
   const handleToggleGood = async () => {
     setIsSaving(true);
@@ -159,7 +172,7 @@ function RatingCard({ r, onDelete, onUpdate }: { r: any, onDelete: (id: string) 
 }
 
 export default function RatingsPage() {
-  const [ratings, setRatings] = useState<any[]>([]);
+  const [ratings, setRatings] = useState<Rating[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterMode, setFilterMode] = useState<'all' | 'good' | 'bad' | 'commented'>('all');
   const [search, setSearch] = useState('');
@@ -169,7 +182,7 @@ export default function RatingsPage() {
     const ratingsRef = ref(db, 'quiz_ratings/shared');
     const unsubscribe = onValue(ratingsRef, (snapshot) => {
       if (snapshot.exists()) {
-        const data = snapshot.val();
+        const data = snapshot.val() as Record<string, Omit<Rating, 'id'>>;
         const parsed = Object.keys(data).map(key => ({
           id: key,
           ...data[key]
@@ -192,7 +205,7 @@ export default function RatingsPage() {
     }
   };
 
-  const handleUpdate = async (id: string, payload: any) => {
+  const handleUpdate = async (id: string, payload: RatingUpdate) => {
     try {
       const itemRef = ref(db, `quiz_ratings/shared/${id}`);
       await update(itemRef, payload);
@@ -200,8 +213,9 @@ export default function RatingsPage() {
       if (payload.comment !== undefined) {
         addToast('コメントを保存しました', 'success');
       }
-    } catch (e: any) {
-      addToast('保存に失敗しました: ' + e.message, 'error');
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Unknown error';
+      addToast('保存に失敗しました: ' + message, 'error');
     }
   };
 

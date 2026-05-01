@@ -150,6 +150,12 @@ var player2_local_z: float:
 	get:
 		return player2_z - world_scroll_z
 
+func _is_fixed_count_mode() -> bool:
+	return mode == Constants.MODE_TEN or mode == Constants.MODE_TUTORIAL
+
+func _is_tutorial_mode() -> bool:
+	return mode == Constants.MODE_TUTORIAL
+
 
 # ---------- Menu ----------
 
@@ -249,6 +255,121 @@ func start_game() -> void:
 	refresh_status_text()
 	state_changed.emit(game_state)
 
+func start_tutorial(tutorial_players: int = 1) -> void:
+	mode = Constants.MODE_TUTORIAL
+	llm_mode = "OFFLINE"
+	subject = "チュートリアル"
+	grade = 3
+	difficulty = "普通"
+	num_players = clampi(tutorial_players, 1, 2)
+	score = 0
+	current_index = 0
+	quiz_history.clear()
+	player_x = 1.5 if num_players >= 2 else 0.0
+	player_y = 0.0
+	player_z = 0.0
+	player_vel_y = 0.0
+	world_scroll_z = 0.0
+	camera_yaw = 0.0
+	camera_pitch = 0.0
+	current_wall_index = 0
+	game_over_timer = 0.0
+	p1_alive = true
+	player2_x = -1.5 if num_players >= 2 else 0.0
+	player2_y = 0.0
+	player2_z = 0.0
+	player2_score = 0
+	player2_vel_y = 0.0
+	p2_alive = num_players >= 2
+	player2_game_over_timer = 0.0
+	goal_winner = 0
+	current_streak = 0
+	max_streak = 0
+	play_time = 0.0
+	total_answered = 0
+	total_wrong = 0
+	recent_results.clear()
+	recent_response_times.clear()
+	rating_target_quiz = null
+	rating_feedback = ""
+	choice_locked = false
+	message_text = ""
+	status_text = ""
+	target_count = 3
+	quiz_list = _build_tutorial_quizzes()
+	_active_wall_speed = 3.8
+	game_state = Constants.STATE_WAITING_START
+	load_current_quiz()
+	refresh_status_text()
+	state_changed.emit(game_state)
+
+func _build_tutorial_quizzes() -> Array[QuizItem]:
+	if num_players >= 2:
+		return [
+			QuizItem.create(
+				"2人練習1: 2人で左ドアへ",
+				PackedStringArray(["左", "右"]),
+				0,
+				"P1はA、P2は←で左へ移動します。2人とも左ドアを抜けましょう。",
+				"TUTORIAL",
+				"",
+				PackedStringArray(),
+				7.0
+			),
+			QuizItem.create(
+				"2人練習2: 2人で右ドアへ",
+				PackedStringArray(["左", "右"]),
+				1,
+				"P1はD、P2は→で右へ移動します。今度は2人とも右ドアです。",
+				"TUTORIAL",
+				"",
+				PackedStringArray(),
+				7.0
+			),
+			QuizItem.create(
+				"2人練習3: 正解ドアを一緒に抜けよう",
+				PackedStringArray(["協力して進む", "止まる"]),
+				0,
+				"2人とも正解ドアを抜けると、壁が壊れてクリアできます。",
+				"TUTORIAL",
+				"",
+				PackedStringArray(),
+				7.0
+			)
+		]
+	return [
+		QuizItem.create(
+			"練習1: 2 + 3 = ?",
+			PackedStringArray(["5", "6"]),
+			0,
+			"2に3を足すと5です。左のドアへ移動して抜けましょう。",
+			"TUTORIAL",
+			"",
+			PackedStringArray(),
+			7.0
+		),
+		QuizItem.create(
+			"練習2: 右のドアに入ってみよう",
+			PackedStringArray(["左", "右"]),
+			1,
+			"今度は右側のドアを選ぶ練習です。",
+			"TUTORIAL",
+			"",
+			PackedStringArray(),
+			7.0
+		),
+		QuizItem.create(
+			"練習3: 正解ドアを通るとどうなる？",
+			PackedStringArray(["次へ進める", "ゲームが止まる"]),
+			0,
+			"正解ドアを抜けると壁が壊れて次へ進めます。",
+			"TUTORIAL",
+			"",
+			PackedStringArray(),
+			7.0
+		)
+	]
+
 func reset_to_menu() -> void:
 	provider.end_round()
 	game_state = Constants.STATE_MENU
@@ -284,11 +405,11 @@ func reset_to_menu() -> void:
 # ---------- Quiz loading ----------
 
 func load_current_quiz() -> void:
-	if mode == Constants.MODE_TEN:
+	if _is_fixed_count_mode():
 		if current_index >= quiz_list.size():
 			if current_index >= target_count:
 				# 2P: ゴールラインまでのレースへ移行
-				if num_players >= 2:
+				if num_players >= 2 and mode == Constants.MODE_TEN:
 					_start_goal_race()
 				else:
 					clear_game()
@@ -324,17 +445,17 @@ func load_current_quiz() -> void:
 		for i: int in range(current_quiz.c.size()):
 			if i != current_quiz.a:
 				wrong_texts.append(current_quiz.c[i])
-		
+
 		# Pick one random wrong answer
 		var chosen_wrong: String = wrong_texts[randi() % wrong_texts.size()]
-		
+
 		var new_c := PackedStringArray([correct_text, chosen_wrong])
 		# Shuffle them
 		if randf() > 0.5:
 			new_c = PackedStringArray([chosen_wrong, correct_text])
-			
+
 		var new_a: int = 0 if new_c[0] == correct_text else 1
-		
+
 		current_quiz = QuizItem.create(
 			current_quiz.q, new_c, new_a, current_quiz.e, current_quiz.src,
 			current_quiz.img, current_quiz.choice_img
@@ -352,24 +473,28 @@ func _recalc_wall_speed() -> void:
 	## AI予測解答時間から壁速度を逆算する
 	## speed = 可視距離 ÷ (予測秒数 + 移動バッファ)
 	## + ステージ加速（緊張感演出）
-	
+
+	if _is_tutorial_mode():
+		_active_wall_speed = 3.8
+		return
+
 	# --- 手動オーバーライドモード ---
 	if tuning.wall_speed_override > 0:
 		_active_wall_speed = tuning.wall_speed_override
 		return
-	
+
 	# --- AI予測解答時間を取得 ---
 	var est_sec: float = 4.0  # デフォルト
 	if current_quiz:
 		est_sec = current_quiz.estimated_seconds
-	
+
 	# --- 壁が見えてからプレイヤーに到達するまでの距離 ---
 	const VISIBLE_DISTANCE: float = 28.0  # wall_start_z(22) - hit_z(-6)
 	const MOVE_BUFFER: float = 1.5        # ドアまで移動する余白（秒）
-	
+
 	var target_time: float = est_sec + MOVE_BUFFER
 	var base_speed: float = VISIBLE_DISTANCE / target_time
-	
+
 	# --- ステージ加速 ---
 	var stage_factor: float = 1.0
 	if mode == Constants.MODE_TEN:
@@ -380,7 +505,7 @@ func _recalc_wall_speed() -> void:
 		# エンドレスモード: 5問周期で微加速、最大+20%
 		var cycle_pos: float = float(total_answered % 5) / 4.0
 		stage_factor = 1.0 + minf(cycle_pos * 0.15, 0.20)
-	
+
 	var final_speed: float = base_speed * stage_factor
 	_active_wall_speed = clampf(final_speed, tuning.wall_speed_min, tuning.wall_speed_max)
 
@@ -445,7 +570,7 @@ func _update_preloading(dt: float) -> void:
 	# ゲーム開始前（current_index == 0）は全問揃うのを待つ
 	# ゲーム中の再プレロード（current_index > 0）は次の1問があれば即再開
 	var is_mid_game: bool = current_index > 0
-	
+
 	if is_mid_game:
 		# 中盤プレロード: 次の問題が1つでもあればすぐ再開
 		if quiz_list.size() > current_index:
@@ -495,9 +620,15 @@ func _update_waiting_start(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p
 	p2_emote = emote_p2
 func trigger_start() -> void:
 	if game_state == Constants.STATE_WAITING_START:
+		if _is_tutorial_mode():
+			game_state = Constants.STATE_COUNTDOWN
+			countdown_timer = 3.99
+			state_changed.emit(game_state)
+			return
+
 		game_state = Constants.STATE_FLYOVER
 		flyover_timer = 0.0
-		
+
 		if mode == Constants.MODE_TEN:
 			# 10問モード: 全壁を見せる
 			flyover_total_walls = target_count
@@ -530,41 +661,47 @@ func _update_countdown(dt: float, emote_p1: int = 0, emote_p2: int = 0) -> void:
 func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: bool, jump_p2: bool, emote_p1: int = 0, emote_p2: int = 0) -> void:
 	play_time += dt
 	world_scroll_z += _active_wall_speed * dt
-	
+
 	p1_emote = emote_p1
 	p2_emote = emote_p2
 	p1_moving_back = axis_p1.y < -0.1
 	p2_moving_back = axis_p2.y < -0.1
-	
+
 	# Player 1 movement
 	if p1_alive:
 		var yaw: float = camera_yaw if num_players == 1 else 0.0
 		var move_x: float = axis_p1.x * cos(yaw) + axis_p1.y * sin(yaw)
 		var move_z: float = axis_p1.y * cos(yaw) - axis_p1.x * sin(yaw)
-		
+
 		player_x += move_x * tuning.player_speed * dt
 		# Removed clamp to allow falling off sides
-		
+
 		player_z += _active_wall_speed * dt # Carry forward with world scroll
 		player_z += move_z * tuning.player_speed * dt
-		
+
 		# Removed forward limit to allow running ahead
 		var loc1 := player_z - world_scroll_z
-		
+
 		var is_on_floor = (absf(player_x) <= 12.0) and (loc1 >= -4.5 and loc1 <= 139.5)
-		
+
 		if jump_p1 and player_y <= 0.0 and is_on_floor:
 			p1_jump_trigger = true
 			player_vel_y = JUMP_FORCE
-		
+
 		player_vel_y -= GRAVITY * dt
 		player_y += player_vel_y * dt
-		
+
 		if player_y <= 0.0 and is_on_floor:
 			player_y = 0.0
 			player_vel_y = 0.0
-			
+
 		if player_y < -8.0:
+			if _is_tutorial_mode():
+				if num_players >= 2:
+					_reset_tutorial_attempt("P1が床から落ちました。2人ともスタート位置へ戻して、同じ壁でもう一度練習しましょう。")
+				else:
+					_reset_tutorial_attempt("床から落ちました。中央に戻して、同じ壁でもう一度練習しましょう。")
+				return
 			player_y = -8.0
 			player_vel_y = 0.0
 			p1_alive = false
@@ -580,32 +717,35 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 		if game_over_timer > 0.0:
 			# Tick explosion timer for dead P1 while game continues (2P)
 			game_over_timer += dt
-			
+
 	# Player 2 movement
 	if num_players >= 2 and p2_alive:
 		player2_x += axis_p2.x * tuning.player_speed * dt
 		# Removed clamp
-		
+
 		player2_z += _active_wall_speed * dt
 		player2_z += axis_p2.y * tuning.player_speed * dt
-		
+
 		# Removed forward limit
 		var loc2 := player2_z - world_scroll_z
-		
+
 		var p2_is_on_floor = (absf(player2_x) <= 12.0) and (loc2 >= -4.5 and loc2 <= 139.5)
-		
+
 		if jump_p2 and player2_y <= 0.0 and p2_is_on_floor:
 			p2_jump_trigger = true
 			player2_vel_y = JUMP_FORCE
-		
+
 		player2_vel_y -= GRAVITY * dt
 		player2_y += player2_vel_y * dt
-		
+
 		if player2_y <= 0.0 and p2_is_on_floor:
 			player2_y = 0.0
 			player2_vel_y = 0.0
-			
+
 		if player2_y < -8.0:
+			if _is_tutorial_mode():
+				_reset_tutorial_attempt("P2が床から落ちました。2人ともスタート位置へ戻して、同じ壁でもう一度練習しましょう。")
+				return
 			player2_y = -8.0
 			player2_vel_y = 0.0
 			p2_alive = false
@@ -621,7 +761,7 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 		if player2_game_over_timer > 0.0:
 			# Tick explosion timer for dead P2 while game continues
 			player2_game_over_timer += dt
-			
+
 	# Check collisions with wall
 	if player_z >= wall_z - 0.8 or (num_players >= 2 and player2_z >= wall_z - 0.8):
 		# Prevent clipping through
@@ -782,8 +922,157 @@ func _check_player_door(px: float) -> int:
 		return -2
 	return hits[0]
 
+func _resolve_tutorial_collision() -> void:
+	if num_players >= 2:
+		_resolve_tutorial_collision_2p()
+		return
+
+	choice_locked = true
+	var door := _check_player_door(player_x)
+	if door == current_quiz.a:
+		score += 1
+		current_streak += 1
+		max_streak = maxi(max_streak, current_streak)
+		total_answered += 1
+		recent_results.append(true)
+		if recent_results.size() > 12:
+			recent_results.remove_at(0)
+		quiz_history.append({"quiz": current_quiz, "correct": true, "rated": "tutorial"})
+		correct_flash = 1.0
+		camera_shake = 0.18
+		message_text = _tutorial_correct_message()
+		correct_answer.emit()
+		advance_after_correct()
+		return
+
+	total_answered += 1
+	total_wrong += 1
+	current_streak = 0
+	recent_results.append(false)
+	if recent_results.size() > 12:
+		recent_results.remove_at(0)
+
+	var hint := ""
+	if door < 0:
+		hint = "ドアから外れて壁にぶつかりました。ドアの中央をねらって、もう一度進みましょう。"
+	else:
+		var labels := ["左", "右"]
+		var correct_label: String = "正解"
+		if current_quiz.a >= 0 and current_quiz.a < labels.size():
+			correct_label = labels[current_quiz.a]
+		hint = "そのドアは不正解です。今回は %s のドアをねらってみましょう。" % correct_label
+	_reset_tutorial_attempt(hint)
+
+func _resolve_tutorial_collision_2p() -> void:
+	var p1_at_wall := p1_alive and player_z >= wall_z - 0.8
+	var p2_at_wall := p2_alive and player2_z >= wall_z - 0.8
+	if not (p1_at_wall and p2_at_wall):
+		choice_locked = false
+		if p1_at_wall:
+			message_text = "P1はドア前で待機中です。P2も同じドアへ進みましょう。"
+		elif p2_at_wall:
+			message_text = "P2はドア前で待機中です。P1も同じドアへ進みましょう。"
+		return
+
+	choice_locked = true
+	var p1_door := _check_player_door(player_x)
+	var p2_door := _check_player_door(player2_x)
+	var answer := current_quiz.a
+	var p1_correct := p1_door == answer
+	var p2_correct := p2_door == answer
+	if p1_correct and p2_correct:
+		score += 1
+		player2_score += 1
+		current_streak += 1
+		max_streak = maxi(max_streak, current_streak)
+		total_answered += 1
+		recent_results.append(true)
+		if recent_results.size() > 12:
+			recent_results.remove_at(0)
+		quiz_history.append({"quiz": current_quiz, "correct": true, "rated": "tutorial"})
+		correct_flash = 1.0
+		camera_shake = 0.18
+		message_text = _tutorial_correct_message()
+		correct_answer.emit()
+		advance_after_correct()
+		return
+
+	total_answered += 1
+	total_wrong += 1
+	current_streak = 0
+	recent_results.append(false)
+	if recent_results.size() > 12:
+		recent_results.remove_at(0)
+
+	var misses: Array[String] = []
+	if not p1_correct:
+		misses.append(_tutorial_player_miss_text("P1", p1_door, answer))
+	if not p2_correct:
+		misses.append(_tutorial_player_miss_text("P2", p2_door, answer))
+	var hint := misses[0]
+	if misses.size() > 1:
+		hint += " / " + misses[1]
+	hint += " 今回は %s ドアを2人で抜けましょう。" % _tutorial_answer_label(answer)
+	_reset_tutorial_attempt(hint)
+
+func _tutorial_player_miss_text(player_label: String, door: int, answer: int) -> String:
+	if door == -2:
+		return "%sはドアの境目にいます" % player_label
+	if door < 0:
+		return "%sはドアから外れています" % player_label
+	if door == answer:
+		return ""
+	return "%sは逆のドアです" % player_label
+
+func _tutorial_answer_label(answer: int) -> String:
+	var labels := ["左", "右"]
+	if answer >= 0 and answer < labels.size():
+		return labels[answer]
+	return "正解"
+
+func _reset_tutorial_attempt(hint: String) -> void:
+	var reset_z := float(current_wall_index) * tuning.wall_spacing
+	player_x = 1.5 if num_players >= 2 else 0.0
+	player_y = 0.0
+	player_z = reset_z
+	player_vel_y = 0.0
+	world_scroll_z = reset_z
+	p1_alive = true
+	game_over_timer = 0.0
+	if num_players >= 2:
+		player2_x = -1.5
+		player2_y = 0.0
+		player2_z = reset_z
+		player2_vel_y = 0.0
+		p2_alive = true
+		player2_game_over_timer = 0.0
+	else:
+		p2_alive = false
+	choice_locked = false
+	wrong_flash = 1.0
+	camera_shake = 0.16
+	message_text = hint
+	refresh_status_text()
+	state_changed.emit(game_state)
+
+func _tutorial_correct_message() -> String:
+	if num_players >= 2:
+		if current_index == 0:
+			return "2人とも左ドアを抜けました。次は右ドアを練習します。"
+		if current_index == 1:
+			return "いい連携です。最後は問題を読んで同じ正解ドアへ進みましょう。"
+		return "2人プレイ チュートリアル完了！"
+	if current_index == 0:
+		return "正解！ ドアを抜けられました。次は右のドアを練習します。"
+	if current_index == 1:
+		return "いい感じです。最後は本番に近い問題を抜けましょう。"
+	return "チュートリアル完了！"
+
 func resolve_collision() -> void:
 	if not current_quiz or choice_locked:
+		return
+	if _is_tutorial_mode():
+		_resolve_tutorial_collision()
 		return
 	choice_locked = true
 	var answer: int = current_quiz.a
@@ -841,17 +1130,17 @@ func resolve_collision() -> void:
 
 	provider.submit_result(current_quiz, any_correct)
 	quiz_history.append({"quiz": current_quiz, "correct": any_correct, "rated": ""})
-	
+
 	# 確実に問題を解き終わったあとにFirebaseへ保存する（バックグラウンド評価を即時キック）
 	QuizManager.quiz_optimizer.evaluate_history(quiz_history, subject, grade, difficulty)
-	
+
 	# パフォーマンスと行動データを記録
 	if current_quiz:
 		var response_time: float = (Time.get_ticks_msec() - _quiz_shown_time) / 1000.0
 		recent_response_times.append(response_time)
 		if recent_response_times.size() > 5:
 			recent_response_times.pop_front()
-			
+
 		if QuizManager.player_analytics != null:
 			var chosen_door: int = _check_player_door(player_x) if p1_alive or not p1_correct else current_quiz.a
 			QuizManager.player_analytics.record(
@@ -899,10 +1188,10 @@ func advance_after_correct() -> void:
 		game_over_timer = 0.0
 	if p2_alive or num_players < 2:
 		player2_game_over_timer = 0.0
-	if mode == Constants.MODE_TEN:
+	if _is_fixed_count_mode():
 		current_index += 1
 		var missing := maxi(0, target_count - quiz_list.size())
-		if missing > 0:
+		if missing > 0 and mode == Constants.MODE_TEN:
 			var new_quizzes := provider.get_quizzes(subject, grade, difficulty, mode, missing)
 			quiz_list.append_array(new_quizzes)
 		load_current_quiz()
@@ -946,6 +1235,18 @@ func clear_game() -> void:
 	game_state = Constants.STATE_CLEAR
 	rating_target_quiz = current_quiz
 	rating_feedback = ""
+	if _is_tutorial_mode():
+		rating_target_quiz = null
+		if num_players >= 2:
+			message_text = "TUTORIAL CLEAR!\n2人で3つの壁を抜けました\nメニューからいつでも復習できます"
+		else:
+			message_text = "TUTORIAL CLEAR!\n3つの壁を抜けました\nメニューからいつでも復習できます"
+		correct_flash = 1.0
+		GameManager.mark_tutorial_completed()
+		refresh_status_text()
+		game_cleared.emit(message_text)
+		state_changed.emit(game_state)
+		return
 	if num_players >= 2:
 		var winner_text: String
 		if goal_winner == 1:
@@ -1028,6 +1329,9 @@ func choices_text() -> PackedStringArray:
 
 func refresh_status_text() -> void:
 	if game_state in [Constants.STATE_GAME_OVER, Constants.STATE_CLEAR]:
+		if _is_tutorial_mode():
+			status_text = "チュートリアル完了  |  [R] でメニューへ戻る"
+			return
 		if use_english_ui:
 			status_text = "Score: %d  |  Press [R] for menu" % score
 		else:
@@ -1079,6 +1383,16 @@ func refresh_status_text() -> void:
 		return
 
 	# Playing state
+	if _is_tutorial_mode():
+		var progress_tutorial := "%d/%d" % [mini(current_index + 1, target_count), target_count]
+		if num_players >= 2:
+			status_text = "2P 3Dチュートリアル  進行:%s  P1:%d  P2:%d" % [
+				progress_tutorial, score, player2_score
+			]
+		else:
+			status_text = "3Dチュートリアル  進行:%s  正解:%d" % [progress_tutorial, score]
+		return
+
 	if use_english_ui:
 		var mode_label: String = "10 Q" if mode == Constants.MODE_TEN else "Endless"
 		var progress: String = "%d/10" % (current_index + 1) if mode == Constants.MODE_TEN else "inf"
@@ -1093,6 +1407,76 @@ func refresh_status_text() -> void:
 		status_text = "教科:%s  学年:%d  難易度:%s  モード:%s  進行:%s  正解数:%d" % [
 			subject, grade, difficulty, mode_label, progress, score
 		]
+
+func tutorial_instruction_text() -> String:
+	if not _is_tutorial_mode():
+		return ""
+	if game_state == Constants.STATE_WAITING_START:
+		if num_players >= 2:
+			return "2人プレイ チュートリアル: 同じ正解ドアを抜ける練習"
+		return "3Dチュートリアル: 実際に壁を抜ける練習"
+	if game_state == Constants.STATE_COUNTDOWN:
+		if num_players >= 2:
+			return "P1はWASD、P2は矢印キーで動きます"
+		return "カウントダウン後、壁が近づいてきます"
+	if game_state == Constants.STATE_PLAYING:
+		if num_players >= 2:
+			match current_index:
+				0:
+					return "練習1: P1はA、P2は←で左ドアへ"
+				1:
+					return "練習2: P1はD、P2は→で右ドアへ"
+				_:
+					return "練習3: 2人で問題を読んで正解ドアへ"
+		else:
+			match current_index:
+				0:
+					return "練習1: A / ← で左の正解ドアへ移動"
+				1:
+					return "練習2: D / → で右の正解ドアへ移動"
+				_:
+					return "練習3: 問題を読んで正解ドアへ移動"
+	if game_state == Constants.STATE_CLEAR:
+		if num_players >= 2:
+			return "2人プレイ チュートリアル完了"
+		return "チュートリアル完了"
+	return ""
+
+func tutorial_detail_text() -> String:
+	if not _is_tutorial_mode():
+		return ""
+	if game_state == Constants.STATE_WAITING_START:
+		if num_players >= 2:
+			return "任意のキーで開始です。2人とも正解ドアに入るまで、同じ壁で練習できます。"
+		return "任意のキーを押すと、3秒後に練習開始です。失敗しても同じ壁からやり直せます。"
+	if game_state == Constants.STATE_COUNTDOWN:
+		if num_players >= 2:
+			return "P1はSpace、P2はCtrlまたはNum0でジャンプできます。"
+		return "問題文は画面上、答えは壁のドアに表示されます。"
+	if game_state == Constants.STATE_PLAYING:
+		if not message_text.is_empty() and (wrong_flash > 0.0 or num_players >= 2):
+			return message_text
+		if num_players >= 2:
+			match current_index:
+				0:
+					return "左のドアに2人とも入ります。P1はA、P2は←を押して寄りましょう。"
+				1:
+					return "今度は右のドアです。P1はD、P2は→で右へ寄りましょう。"
+				_:
+					return "壁の表示を見て、2人とも同じ正解ドアを抜けましょう。"
+		else:
+			match current_index:
+				0:
+					return "2 + 3 の答え「5」は左ドアです。左へ寄って壁を抜けましょう。"
+				1:
+					return "今度は右側のドアを選びます。右へ移動して通過しましょう。"
+				_:
+					return "正解ドアを抜けると壁が壊れ、次へ進めることを確認しましょう。"
+	if game_state == Constants.STATE_CLEAR:
+		if num_players >= 2:
+			return "メニューに戻って、2人プレイの10問チャレンジにも挑戦できます。"
+		return "メニューに戻って、10問チャレンジやエンドレスに挑戦できます。"
+	return ""
 
 # ===========================================================================
 # Network snapshot serialization (used by net_game_state.gd)
