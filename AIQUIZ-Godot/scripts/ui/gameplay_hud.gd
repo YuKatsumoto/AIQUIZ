@@ -53,11 +53,11 @@ var _tutorial_emote_p1_slots: Label = null
 var _tutorial_emote_p2_slots: Label = null
 var _tutorial_emote_signature: String = ""
 
-# ── ミニゲーム（プリロード中） ──
-var _minigame: MinigameCatch = null
-var _minigame_started: bool = false
-var _minigame_result_label: Label = null
-var _minigame_result_timer: float = 0.0
+# ── ローディング演出（プリロード中） ──
+var _loading_overlay: Control = null
+var _loading_elapsed: float = 0.0
+var _loading_particles: Array[Dictionary] = []
+var _loading_prev_count: int = 0
 
 func _ready() -> void:
 	game_state = QuizManager.game_state
@@ -103,7 +103,7 @@ func _ready() -> void:
 	# Build the stats panel for game over (created once, updated per game)
 	_create_stats_panel()
 	_create_tutorial_overlay()
-	_create_minigame()
+	_create_loading_overlay()
 
 
 	btn_good.pressed.connect(func():
@@ -141,12 +141,12 @@ func _process(_dt: float) -> void:
 
 	if game_state.game_state == Constants.STATE_PRELOADING:
 		_show_preloading(_dt)
-		_show_minigame()
+		_update_loading_overlay(_dt)
 		_update_tutorial_overlay(_dt)
 		return
 	elif game_state.game_state == Constants.STATE_WAITING_START:
 		_show_waiting_start(_dt)
-		_show_minigame()
+		_update_loading_overlay(_dt)
 		_update_tutorial_overlay(_dt)
 		return
 	elif game_state.game_state == Constants.STATE_FLYOVER:
@@ -157,13 +157,13 @@ func _process(_dt: float) -> void:
 		progress_bar.visible = false
 		game_over_panel.visible = false
 		message_label.visible = false
-		_hide_minigame()
+		_hide_loading_overlay()
 		_update_tutorial_overlay(_dt)
 		return
 	else:
 		preload_bg.visible = false
 		preload_panel.visible = false
-		_hide_minigame()
+		_hide_loading_overlay()
 	if game_state.game_state in [Constants.STATE_GAME_OVER, Constants.STATE_CLEAR]:
 		_go_fade_timer += _dt
 		_show_game_over()
@@ -1211,128 +1211,38 @@ func _fire_confetti() -> void:
 
 
 # ============================================================
-# ミニゲーム（プリロード中のBlockmanキャッチ）─ 右側小窓レイアウト
+# ローディング演出（プリロード中のアニメーション強化）
 # ============================================================
 
-var _minigame_frame: Panel = null  # ミニゲームを囲むフレームパネル
-
-func _create_minigame() -> void:
-	"""ミニゲーム用のControlノードとリザルトラベルを事前構築"""
-	# ── フレーム（右側の小窓パネル）──
-	_minigame_frame = Panel.new()
-	_minigame_frame.name = "MinigameFrame"
-	_minigame_frame.visible = false
-	_minigame_frame.clip_children = CanvasItem.CLIP_CHILDREN_AND_DRAW
-	# スタイル：暗い半透明パネル＋丸角ボーダー
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.08, 0.08, 0.14, 0.85)
-	style.border_color = Color(0.3, 0.5, 1.0, 0.5)
-	style.set_border_width_all(2)
-	style.set_corner_radius_all(12)
-	style.content_margin_top = 4.0
-	style.content_margin_bottom = 4.0
-	style.content_margin_left = 4.0
-	style.content_margin_right = 4.0
-	_minigame_frame.add_theme_stylebox_override("panel", style)
-	add_child(_minigame_frame)
-
-	# ── フレーム内のタイトル ──
-	var title_label := Label.new()
-	title_label.text = "🎮 ウォーミングアップ"
-	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title_label.add_theme_font_size_override("font_size", 14)
-	title_label.add_theme_color_override("font_color", Color(0.7, 0.8, 1.0, 0.9))
-	title_label.position = Vector2(0, 4)
-	title_label.size = Vector2(400, 22)
-	_minigame_frame.add_child(title_label)
-
-	# ── ミニゲーム本体（フレーム内に配置）──
-	_minigame = MinigameCatch.new()
-	_minigame.name = "MinigameCatch"
-	_minigame.mouse_filter = Control.MOUSE_FILTER_PASS
-	_minigame.position = Vector2(0, 24)
-	# サイズはshow時にフレームサイズに合わせて設定
-	_minigame_frame.add_child(_minigame)
-
-	# ── リザルト表示用ラベル ──
-	_minigame_result_label = Label.new()
-	_minigame_result_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_minigame_result_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_minigame_result_label.add_theme_font_size_override("font_size", 22)
-	_minigame_result_label.add_theme_color_override("font_color", Color(1.0, 0.95, 0.5))
-	_minigame_result_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
-	_minigame_result_label.add_theme_constant_override("outline_size", 4)
-	_minigame_result_label.visible = false
-	_minigame_result_label.set_anchors_preset(Control.PRESET_CENTER)
-	_minigame_result_label.offset_left = -180.0
-	_minigame_result_label.offset_top = -20.0
-	_minigame_result_label.offset_right = 180.0
-	_minigame_result_label.offset_bottom = 20.0
-	add_child(_minigame_result_label)
+func _create_loading_overlay() -> void:
+	"""_drawでパーティクルやリングを描画するControlを生成"""
+	_loading_overlay = Control.new()
+	_loading_overlay.name = "LoadingOverlay"
+	_loading_overlay.visible = false
+	_loading_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_loading_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_loading_overlay.set_script(load("res://scripts/ui/loading_overlay.gd"))
+	add_child(_loading_overlay)
+	# PreloadPanelより下に配置（背景側）
+	move_child(_loading_overlay, preload_bg.get_index() + 1)
 
 
-func _show_minigame() -> void:
-	"""プリロード中にミニゲームを右側小窓に表示"""
-	if _minigame == null or _minigame_frame == null:
+func _update_loading_overlay(dt: float) -> void:
+	"""プリロード中の演出を更新"""
+	if _loading_overlay == null:
 		return
+	_loading_overlay.visible = true
 
-	# フレーム位置を右側に配置
-	var vp_size := get_viewport().get_visible_rect().size
-	var frame_w := 400.0
-	var frame_h := vp_size.y - 60.0  # 上下マージン30px
-	var frame_x := vp_size.x - frame_w - 30.0  # 右端から30pxマージン
-	var frame_y := 30.0
+	# 進捗情報をオーバーレイに渡す
+	var target: int = 1 if game_state.mode == Constants.MODE_ENDLESS else game_state.target_count
+	target = maxi(1, target)
+	var current: int = mini(game_state.quiz_list.size(), target)
+	var is_complete: bool = (game_state.game_state == Constants.STATE_WAITING_START)
 
-	_minigame_frame.position = Vector2(frame_x, frame_y)
-	_minigame_frame.size = Vector2(frame_w, frame_h)
-
-	# ミニゲーム本体のサイズをフレーム内に合わせる
-	_minigame.position = Vector2(0, 24)
-	_minigame.size = Vector2(frame_w, frame_h - 28)
-
-	if not _minigame_started:
-		_minigame_started = true
-		_minigame_result_timer = 0.0
-		_minigame_result_label.visible = false
-		_minigame_frame.visible = true
-		_minigame.start()
-
-	# PreloadPanelを左寄りに配置
-	preload_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
-	var panel_x := 30.0
-	var panel_y := vp_size.y * 0.5 - 120.0
-	preload_panel.offset_left = panel_x
-	preload_panel.offset_top = panel_y
-	preload_panel.offset_right = panel_x + 460.0
-	preload_panel.offset_bottom = panel_y + 240.0
+	if _loading_overlay.has_method("update_progress"):
+		_loading_overlay.update_progress(current, target, is_complete)
 
 
-func _hide_minigame() -> void:
-	"""ミニゲームを停止・非表示にする"""
-	if _minigame == null:
-		return
-	if _minigame_started:
-		_minigame_started = false
-		var final_score := _minigame.get_score()
-		_minigame.stop()
-		_minigame_frame.visible = false
-
-		if final_score > 0:
-			_minigame_result_label.text = "⭐ ウォーミングアップ: %d 個キャッチ！" % final_score
-			_minigame_result_label.visible = true
-			_minigame_result_timer = 2.5
-
-	# リザルトラベルのフェードアウト
-	if _minigame_result_label != null and _minigame_result_label.visible:
-		_minigame_result_timer -= get_process_delta_time()
-		if _minigame_result_timer <= 0.0:
-			_minigame_result_label.visible = false
-		else:
-			_minigame_result_label.modulate.a = clampf(_minigame_result_timer / 0.5, 0.0, 1.0)
-
-	# PreloadPanelを元の中央位置に戻す
-	preload_panel.set_anchors_preset(Control.PRESET_CENTER)
-	preload_panel.offset_left = -300.0
-	preload_panel.offset_top = -120.0
-	preload_panel.offset_right = 300.0
-	preload_panel.offset_bottom = 120.0
+func _hide_loading_overlay() -> void:
+	if _loading_overlay != null:
+		_loading_overlay.visible = false
