@@ -36,6 +36,12 @@ var _p1_scene_root: Node3D = null
 var _p2_scene_root: Node3D = null
 
 var _preview_time: float = 0.0
+var _last_p1_preview_size: Vector2i = Vector2i.ZERO
+var _last_p2_preview_size: Vector2i = Vector2i.ZERO
+
+const PREVIEW_SIZE := Vector2i(960, 1080)
+const PREVIEW_SUPERSAMPLE := 2.0
+const MAX_PREVIEW_EDGE := 4096
 
 func _ready() -> void:
 	game_state = QuizManager.game_state
@@ -49,6 +55,11 @@ func _ready() -> void:
 	
 	p1_viewport_tex.texture = p1_viewport.get_texture()
 	p2_viewport_tex.texture = p2_viewport.get_texture()
+	p1_viewport_tex.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	p2_viewport_tex.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	p1_viewport_tex.resized.connect(_update_preview_viewport_sizes)
+	p2_viewport_tex.resized.connect(_update_preview_viewport_sizes)
+	get_viewport().size_changed.connect(_update_preview_viewport_sizes)
 	
 	_update_labels()
 	_update_preview_hats()
@@ -60,6 +71,7 @@ func _ready() -> void:
 	p2_emote_desc.hide()
 	
 	_style_all_buttons()
+	call_deferred("_update_preview_viewport_sizes")
 
 func _process(dt: float) -> void:
 	_preview_time += dt
@@ -71,8 +83,8 @@ func _process(dt: float) -> void:
 
 func _setup_preview(viewport: SubViewport, is_p1: bool) -> void:
 	viewport.transparent_bg = false
-	viewport.size = Vector2i(320, 360)
 	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	_apply_ultra_preview_quality(viewport, PREVIEW_SIZE)
 	
 	var world := World3D.new()
 	viewport.world_3d = world
@@ -97,10 +109,10 @@ func _setup_preview(viewport: SubViewport, is_p1: bool) -> void:
 	env_node.environment = env
 	scene_root.add_child(env_node)
 	
-	# Camera — full body view
+	# Camera — upper body view (hat visible)
 	var cam := Camera3D.new()
-	cam.position = Vector3(0, 0.4, 3.2)
-	cam.rotation.x = -0.05
+	cam.position = Vector3(0, 0.85, 2.2)
+	cam.rotation.x = -0.08
 	cam.fov = 35.0
 	scene_root.add_child(cam)
 	
@@ -188,6 +200,47 @@ func _setup_preview(viewport: SubViewport, is_p1: bool) -> void:
 	else:
 		_p2_preview_player = player_root
 		_p2_hat_mount = hat_mount
+
+func _apply_ultra_preview_quality(viewport: SubViewport, viewport_size: Vector2i) -> void:
+	viewport.size = viewport_size
+	viewport.msaa_3d = Viewport.MSAA_8X
+	viewport.msaa_2d = Viewport.MSAA_4X
+	viewport.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
+	viewport.use_taa = true
+	viewport.use_debanding = true
+
+func _update_preview_viewport_sizes() -> void:
+	if not p1_viewport or not p2_viewport:
+		return
+	var p1_size := _preview_viewport_size_for(p1_viewport_tex, PREVIEW_SIZE)
+	var p2_size := _preview_viewport_size_for(p2_viewport_tex, PREVIEW_SIZE)
+	if p1_size != _last_p1_preview_size:
+		p1_viewport.size = p1_size
+		_last_p1_preview_size = p1_size
+	if p2_size != _last_p2_preview_size:
+		p2_viewport.size = p2_size
+		_last_p2_preview_size = p2_size
+
+func _preview_viewport_size_for(control: Control, minimum_size: Vector2i) -> Vector2i:
+	if not control:
+		return minimum_size
+	var display_size := control.size
+	if display_size.x <= 1.0 or display_size.y <= 1.0:
+		return minimum_size
+	var scale := _window_pixel_scale()
+	var target_x := ceili(display_size.x * scale * PREVIEW_SUPERSAMPLE)
+	var target_y := ceili(display_size.y * scale * PREVIEW_SUPERSAMPLE)
+	return Vector2i(
+		clampi(target_x, minimum_size.x, MAX_PREVIEW_EDGE),
+		clampi(target_y, minimum_size.y, MAX_PREVIEW_EDGE)
+	)
+
+func _window_pixel_scale() -> float:
+	var logical_size := get_viewport().get_visible_rect().size
+	if logical_size.x <= 0.0 or logical_size.y <= 0.0:
+		return 1.0
+	var window_size := Vector2(DisplayServer.window_get_size())
+	return maxf(1.0, maxf(window_size.x / logical_size.x, window_size.y / logical_size.y))
 
 func _preview_box(size: Vector3, color: Color) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()

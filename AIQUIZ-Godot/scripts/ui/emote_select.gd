@@ -14,8 +14,14 @@ var _current_preview_id: int = 0  # 陦ｨ遉ｺ荳ｭ縺ｮ繧ｨ繝｢繝ｼ�
 var _preview_skeleton: Skeleton3D = null
 var _preview_bone_indices: Dictionary = {}
 var _preview_player_parts: Dictionary = {}
+var _preview_root_motion_ready: bool = false
+var _preview_root_motion_origin: Vector3 = Vector3.ZERO
+var _last_preview_size: Vector2i = Vector2i.ZERO
 
 const BASE_Y: float = -1.2
+const PREVIEW_SIZE := Vector2i(1920, 1440)
+const PREVIEW_SUPERSAMPLE := 2.0
+const MAX_PREVIEW_EDGE := 4096
 
 # --- Camera orbit ---
 var _cam_yaw: float = 0.0
@@ -25,12 +31,14 @@ var _cam_target: Vector3 = Vector3(0.0, 0.0, 0.0)
 var _cam_dragging: bool = false
 var _cam_panning: bool = false
 var _cam_last_mouse: Vector2 = Vector2.ZERO
-var _svc_node: SubViewportContainer  # 繝槭え繧ｹ繧､繝吶Φ繝育畑蜿ら・
+var _svc_node: Control  # 繝槭え繧ｹ繧､繝吶Φ繝育畑蜿ら・
+var _preview_texture_rect: TextureRect
 
 # --- UI nodes ---
 var _slot_labels: Array[Label] = []  # 繧ｹ繝ｭ繝・ヨ陦ｨ遉ｺ繝ｩ繝吶Ν [3縺､]
 var _emote_name_label: Label
 var _emote_desc_label: Label
+var _preview_help_label: Label
 var _player_toggle_btn: Button
 var _back_btn: Button
 var _emote_grid: GridContainer  # 繧ｨ繝｢繝ｼ繝医げ繝ｪ繝・ラ
@@ -49,9 +57,11 @@ func _ready() -> void:
 	game_state = QuizManager.game_state
 	_build_ui()
 	_build_3d_preview()
+	get_viewport().size_changed.connect(_update_preview_viewport_size)
 	_update_all()
 	# 譛蛻昴・繧ｹ繝ｭ繝・ヨ縺ｮ繧ｨ繝｢繝ｼ繝医ｒ繝励Ξ繝薙Η繝ｼ
 	_preview_emote(game_state.p1_emote_slots[0])
+	call_deferred("_update_preview_viewport_size")
 
 func _process(dt: float) -> void:
 	_preview_time += dt
@@ -163,21 +173,44 @@ func _build_ui() -> void:
 	_emote_name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	preview_vbox.add_child(_emote_name_label)
 
-	# SubViewportContainer
-	var svc := SubViewportContainer.new()
-	svc.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	svc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	svc.stretch = true
-	svc.mouse_filter = Control.MOUSE_FILTER_STOP
-	svc.gui_input.connect(_on_preview_gui_input)
-	_svc_node = svc
-	preview_vbox.add_child(svc)
+	# SubViewportContainer + small operation hint overlay
+	var preview_stage := Control.new()
+	preview_stage.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	preview_stage.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	preview_vbox.add_child(preview_stage)
+
+	_preview_texture_rect = TextureRect.new()
+	_preview_texture_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_preview_texture_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_preview_texture_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	_preview_texture_rect.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	_preview_texture_rect.mouse_filter = Control.MOUSE_FILTER_STOP
+	_preview_texture_rect.gui_input.connect(_on_preview_gui_input)
+	_preview_texture_rect.resized.connect(_update_preview_viewport_size)
+	_svc_node = _preview_texture_rect
+	preview_stage.add_child(_preview_texture_rect)
 
 	_sub_viewport = SubViewport.new()
-	_sub_viewport.size = Vector2i(640, 480)
 	_sub_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	_sub_viewport.transparent_bg = false
-	svc.add_child(_sub_viewport)
+	_apply_ultra_preview_quality(_sub_viewport, PREVIEW_SIZE)
+	preview_stage.add_child(_sub_viewport)
+	_preview_texture_rect.texture = _sub_viewport.get_texture()
+
+	_preview_help_label = Label.new()
+	_preview_help_label.text = "右ドラッグ: 回転  中ドラッグ/WASD: 移動  ホイール: ズーム"
+	_preview_help_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_preview_help_label.add_theme_font_size_override("font_size", 11)
+	_preview_help_label.add_theme_color_override("font_color", Color(0.82, 0.86, 0.95, 0.78))
+	_preview_help_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.70))
+	_preview_help_label.add_theme_constant_override("shadow_offset_x", 1)
+	_preview_help_label.add_theme_constant_override("shadow_offset_y", 1)
+	_preview_help_label.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	_preview_help_label.offset_left = 12.0
+	_preview_help_label.offset_top = -26.0
+	_preview_help_label.offset_right = 520.0
+	_preview_help_label.offset_bottom = -8.0
+	preview_stage.add_child(_preview_help_label)
 
 	# エモート説明
 	_emote_desc_label = Label.new()
@@ -422,8 +455,50 @@ func _build_3d_preview() -> void:
 	var is_p1 := true
 	_preview_player_parts = _build_player_skeleton(is_p1, _preview_player)
 
+func _apply_ultra_preview_quality(viewport: SubViewport, viewport_size: Vector2i) -> void:
+	viewport.size = viewport_size
+	viewport.msaa_3d = Viewport.MSAA_8X
+	viewport.msaa_2d = Viewport.MSAA_4X
+	viewport.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
+	viewport.use_taa = true
+	viewport.use_debanding = true
+
+func _update_preview_viewport_size() -> void:
+	if not _sub_viewport or not _svc_node:
+		return
+	var target_size := _preview_viewport_size_for(_svc_node, PREVIEW_SIZE)
+	if target_size == _last_preview_size:
+		return
+	_sub_viewport.size = target_size
+	_last_preview_size = target_size
+
+func _preview_viewport_size_for(control: Control, minimum_size: Vector2i) -> Vector2i:
+	if not control:
+		return minimum_size
+	var display_size := control.size
+	if display_size.x <= 1.0 or display_size.y <= 1.0:
+		return minimum_size
+	var scale := _window_pixel_scale()
+	var target_x := ceili(display_size.x * scale * PREVIEW_SUPERSAMPLE)
+	var target_y := ceili(display_size.y * scale * PREVIEW_SUPERSAMPLE)
+	return Vector2i(
+		clampi(target_x, minimum_size.x, MAX_PREVIEW_EDGE),
+		clampi(target_y, minimum_size.y, MAX_PREVIEW_EDGE)
+	)
+
+func _window_pixel_scale() -> float:
+	var logical_size := get_viewport().get_visible_rect().size
+	if logical_size.x <= 0.0 or logical_size.y <= 0.0:
+		return 1.0
+	var window_size := Vector2(DisplayServer.window_get_size())
+	return maxf(1.0, maxf(window_size.x / logical_size.x, window_size.y / logical_size.y))
+
 func _preview_emote(emote_id: int) -> void:
 	_current_preview_id = emote_id
+	_preview_root_motion_ready = false
+	_preview_root_motion_origin = Vector3.ZERO
+	if _preview_player:
+		_preview_player.position = Vector3.ZERO
 
 	# 譌｢蟄倥・FBX繝弱・繝峨ｒ蜑企勁
 	if _preview_emote_node and is_instance_valid(_preview_emote_node):
@@ -700,6 +775,19 @@ func _build_player_skeleton(is_p1: bool, parent_node: Node3D) -> Dictionary:
 	head_pivot.add_child(head)
 	parts["head"] = head
 
+	# Hat mount point
+	var hat_mount = Node3D.new()
+	hat_mount.name = "HatMount"
+	hat_mount.position = Vector3(0, 0.44, 0)
+	head_pivot.add_child(hat_mount)
+	parts["hat_mount"] = hat_mount
+
+	var hat_id: int = game_state.p1_hat if is_p1 else game_state.p2_hat
+	if hat_id != HatData.HAT_NONE:
+		var hat_node := HatFactory.create_hat(hat_id)
+		if hat_node:
+			hat_mount.add_child(hat_node)
+
 	# Left Arm
 	var l_shoulder = Node3D.new()
 	l_shoulder.position = Vector3(-0.52, 0.35, 0)
@@ -966,6 +1054,14 @@ func _apply_skeleton_pose(parts: Dictionary, skeleton: Skeleton3D, bone_indices:
 	
 	if bone_indices.has("hips"):
 		var bone_xform = skeleton.get_bone_global_pose(bone_indices["hips"])
+		if not _preview_root_motion_ready:
+			_preview_root_motion_origin = bone_xform.origin
+			_preview_root_motion_ready = true
+		var root_motion: Vector3 = bone_xform.origin - _preview_root_motion_origin
+		if mirror_x:
+			root_motion.x = -root_motion.x
+		if _preview_player:
+			_preview_player.position = Vector3(root_motion.x, 0.0, root_motion.z)
 		pelvis.position = Vector3(
 			0.0,
 			BASE_Y + bone_xform.origin.y,

@@ -12,3 +12,7 @@ All 3D hat models are sourced from [Poly Pizza](https://poly.pizza/) under the C
 | 🪖 Helmet | Hard hat | Poly by Google | CC-BY 3.0 |
 | 🧙 Wizard Hat | Wizard hat | Poly by Google | CC-BY 3.0 |
 | 🚧 Traffic Cone | Traffic Cone | Adam Marc Williams | CC-BY 3.0 |
+| 🌮 Sombrero | Sombrero | Poly by Google | CC-BY 3.0 |
+| 🐸 Frog Hat | Frog Hat | J-Toastie | CC-BY 3.0 |
+| 🌀 Propeller Hat | Propeller hat | jeremy | CC-BY 3.0 |
+| 🦊 Fox Hat | Fox Hat | J-Toastie | CC-BY 3.0 |

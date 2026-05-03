@@ -1,9 +1,9 @@
 [gd_scene load_steps=9 format=3 uid="uid://b5lam3xr7t2pw"]
 
-[ext_resource type="Script" path="res://scripts/world/game_world.gd" id="1_game_world"]
-[ext_resource type="Script" path="res://scripts/world/player_controller.gd" id="2_player"]
-[ext_resource type="Script" path="res://scripts/world/camera_controller.gd" id="3_camera"]
-[ext_resource type="Script" path="res://scripts/effects/particle_spawner.gd" id="4_particles"]
+[ext_resource type="Script" uid="uid://cujkojhjsxtkf" path="res://scripts/world/game_world.gd" id="1_game_world"]
+[ext_resource type="Script" uid="uid://b04s5xhxabi7t" path="res://scripts/world/player_controller.gd" id="2_player"]
+[ext_resource type="Script" uid="uid://thi2cdxovmob" path="res://scripts/world/camera_controller.gd" id="3_camera"]
+[ext_resource type="Script" uid="uid://ds7xmtwofj7qr" path="res://scripts/effects/particle_spawner.gd" id="4_particles"]
 [ext_resource type="PackedScene" uid="uid://cv7m3xlap2t5w" path="res://ui/gameplay_hud.tscn" id="5_hud_scene"]
 [ext_resource type="PackedScene" uid="uid://coaittg30ha33" path="res://ui/death_wipe.tscn" id="6_death_wipe"]
 

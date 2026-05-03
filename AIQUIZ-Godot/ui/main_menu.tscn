@@ -88,82 +88,88 @@ theme_override_font_sizes/font_size = 18
 text = "設定"
 horizontal_alignment = 1
 
-[node name="GradeRow" type="HBoxContainer" parent="VBoxContainer/ConfigContainer"]
+[node name="SubjectCarousel" type="HBoxContainer" parent="VBoxContainer/ConfigContainer"]
 layout_mode = 2
+theme_override_constants/separation = 16
 alignment = 1
 
-[node name="GradeDownBtn" type="Button" parent="VBoxContainer/ConfigContainer/GradeRow"]
+[node name="PrevSubjectBtn" type="Button" parent="VBoxContainer/ConfigContainer/SubjectCarousel"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(50, 44)
+custom_minimum_size = Vector2(60, 44)
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
+theme_override_font_sizes/font_size = 24
 text = "◀"
 
-[node name="GradeLabel" type="Label" parent="VBoxContainer/ConfigContainer/GradeRow"]
-custom_minimum_size = Vector2(180, 0)
-layout_mode = 2
-theme_override_colors/font_color = Color(0.92, 0.94, 0.98, 1)
-theme_override_font_sizes/font_size = 22
-text = "学年: 3"
-horizontal_alignment = 1
-
-[node name="GradeUpBtn" type="Button" parent="VBoxContainer/ConfigContainer/GradeRow"]
+[node name="CurrentSubjectLabel" type="Label" parent="VBoxContainer/ConfigContainer/SubjectCarousel"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(50, 44)
+custom_minimum_size = Vector2(200, 44)
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
+theme_override_font_sizes/font_size = 22
+horizontal_alignment = 1
+vertical_alignment = 1
+text = "📐 算数"
+
+[node name="NextSubjectBtn" type="Button" parent="VBoxContainer/ConfigContainer/SubjectCarousel"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(60, 44)
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
 text = "▶"
 
-[node name="SubjectRow" type="HBoxContainer" parent="VBoxContainer/ConfigContainer"]
+[node name="GradeCarousel" type="HBoxContainer" parent="VBoxContainer/ConfigContainer"]
 layout_mode = 2
+theme_override_constants/separation = 16
 alignment = 1
 
-[node name="SubjectLeftBtn" type="Button" parent="VBoxContainer/ConfigContainer/SubjectRow"]
+[node name="PrevGradeBtn" type="Button" parent="VBoxContainer/ConfigContainer/GradeCarousel"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(50, 44)
+custom_minimum_size = Vector2(60, 44)
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
+theme_override_font_sizes/font_size = 24
 text = "◀"
 
-[node name="SubjectLabel" type="Label" parent="VBoxContainer/ConfigContainer/SubjectRow"]
-custom_minimum_size = Vector2(180, 0)
-layout_mode = 2
-theme_override_colors/font_color = Color(0.92, 0.94, 0.98, 1)
-theme_override_font_sizes/font_size = 22
-text = "教科: 算数"
-horizontal_alignment = 1
-
-[node name="SubjectRightBtn" type="Button" parent="VBoxContainer/ConfigContainer/SubjectRow"]
+[node name="CurrentGradeLabel" type="Label" parent="VBoxContainer/ConfigContainer/GradeCarousel"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(50, 44)
+custom_minimum_size = Vector2(200, 44)
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
+theme_override_font_sizes/font_size = 22
+horizontal_alignment = 1
+vertical_alignment = 1
+text = "📚 3年生"
+
+[node name="NextGradeBtn" type="Button" parent="VBoxContainer/ConfigContainer/GradeCarousel"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(60, 44)
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
 text = "▶"
 
-[node name="DiffRow" type="HBoxContainer" parent="VBoxContainer/ConfigContainer"]
+[node name="DiffCarousel" type="HBoxContainer" parent="VBoxContainer/ConfigContainer"]
 layout_mode = 2
+theme_override_constants/separation = 16
 alignment = 1
 
-[node name="DiffLeftBtn" type="Button" parent="VBoxContainer/ConfigContainer/DiffRow"]
+[node name="PrevDiffBtn" type="Button" parent="VBoxContainer/ConfigContainer/DiffCarousel"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(50, 44)
+custom_minimum_size = Vector2(60, 44)
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
+theme_override_font_sizes/font_size = 24
 text = "◀"
 
-[node name="DiffLabel" type="Label" parent="VBoxContainer/ConfigContainer/DiffRow"]
-custom_minimum_size = Vector2(180, 0)
-layout_mode = 2
-theme_override_colors/font_color = Color(0.92, 0.94, 0.98, 1)
-theme_override_font_sizes/font_size = 22
-text = "難易度: 普通"
-horizontal_alignment = 1
-
-[node name="DiffRightBtn" type="Button" parent="VBoxContainer/ConfigContainer/DiffRow"]
+[node name="CurrentDiffLabel" type="Label" parent="VBoxContainer/ConfigContainer/DiffCarousel"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(50, 44)
+custom_minimum_size = Vector2(200, 44)
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
+theme_override_font_sizes/font_size = 22
+horizontal_alignment = 1
+vertical_alignment = 1
+text = "⚡ 普通"
+
+[node name="NextDiffBtn" type="Button" parent="VBoxContainer/ConfigContainer/DiffCarousel"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(60, 44)
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
 text = "▶"
 
 [node name="OptionsSep" type="HSeparator" parent="VBoxContainer/ConfigContainer"]
@@ -371,12 +377,7 @@ text = "戻る"
 
 [connection signal="pressed" from="VBoxContainer/ModeContainer/ModeButtons/TenQuestionsBtn" to="." method="_on_ten_questions_pressed"]
 [connection signal="pressed" from="VBoxContainer/ModeContainer/ModeButtons/EndlessBtn" to="." method="_on_endless_pressed"]
-[connection signal="pressed" from="VBoxContainer/ConfigContainer/GradeRow/GradeDownBtn" to="." method="_on_grade_down_pressed"]
-[connection signal="pressed" from="VBoxContainer/ConfigContainer/GradeRow/GradeUpBtn" to="." method="_on_grade_up_pressed"]
-[connection signal="pressed" from="VBoxContainer/ConfigContainer/SubjectRow/SubjectLeftBtn" to="." method="_on_subject_left_pressed"]
-[connection signal="pressed" from="VBoxContainer/ConfigContainer/SubjectRow/SubjectRightBtn" to="." method="_on_subject_right_pressed"]
-[connection signal="pressed" from="VBoxContainer/ConfigContainer/DiffRow/DiffLeftBtn" to="." method="_on_diff_left_pressed"]
-[connection signal="pressed" from="VBoxContainer/ConfigContainer/DiffRow/DiffRightBtn" to="." method="_on_diff_right_pressed"]
+
 [connection signal="pressed" from="VBoxContainer/ConfigContainer/SettingsRows/Row1/LlmToggleBtn" to="." method="_on_llm_toggle_pressed"]
 [connection signal="pressed" from="VBoxContainer/ConfigContainer/SettingsRows/Row1/PlayersToggleBtn" to="." method="_on_players_toggle_pressed"]
 [connection signal="pressed" from="VBoxContainer/ConfigContainer/SettingsRows/Row2/WallSpeedBtn" to="." method="_on_wall_speed_pressed"]

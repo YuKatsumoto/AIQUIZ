@@ -47,6 +47,11 @@ var _tutorial_title: Label = null
 var _tutorial_detail: Label = null
 var _tutorial_keys_box: HBoxContainer = null
 var _tutorial_key_signature: String = ""
+var _tutorial_emote_panel: PanelContainer = null
+var _tutorial_emote_preview: Control = null
+var _tutorial_emote_p1_slots: Label = null
+var _tutorial_emote_p2_slots: Label = null
+var _tutorial_emote_signature: String = ""
 
 func _ready() -> void:
 	game_state = QuizManager.game_state
@@ -129,11 +134,11 @@ func _process(_dt: float) -> void:
 
 	if game_state.game_state == Constants.STATE_PRELOADING:
 		_show_preloading(_dt)
-		_update_tutorial_overlay()
+		_update_tutorial_overlay(_dt)
 		return
 	elif game_state.game_state == Constants.STATE_WAITING_START:
 		_show_waiting_start(_dt)
-		_update_tutorial_overlay()
+		_update_tutorial_overlay(_dt)
 		return
 	elif game_state.game_state == Constants.STATE_FLYOVER:
 		preload_bg.visible = false
@@ -143,7 +148,7 @@ func _process(_dt: float) -> void:
 		progress_bar.visible = false
 		game_over_panel.visible = false
 		message_label.visible = false
-		_update_tutorial_overlay()
+		_update_tutorial_overlay(_dt)
 		return
 	else:
 		preload_bg.visible = false
@@ -166,7 +171,7 @@ func _process(_dt: float) -> void:
 	_update_progress()
 	_update_flash()
 	_update_streak_label()
-	_update_tutorial_overlay()
+	_update_tutorial_overlay(_dt)
 
 func _update_flash() -> void:
 	if game_state.correct_flash > 0.0:
@@ -279,41 +284,50 @@ func _create_tutorial_overlay() -> void:
 	_tutorial_panel = PanelContainer.new()
 	_tutorial_panel.visible = false
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.04, 0.06, 0.12, 0.90)
-	style.border_color = Color(0.28, 0.46, 0.88, 0.75)
+	# --- より透過的な背景で3Dキャラクターが見えるように ---
+	style.bg_color = Color(0.02, 0.04, 0.10, 0.62)
+	style.border_color = Color(0.28, 0.46, 0.88, 0.55)
 	style.set_border_width_all(1)
-	style.set_corner_radius_all(8)
-	style.content_margin_left = 22.0
-	style.content_margin_right = 22.0
-	style.content_margin_top = 14.0
-	style.content_margin_bottom = 14.0
+	style.corner_radius_top_left = 12
+	style.corner_radius_top_right = 12
+	style.corner_radius_bottom_left = 0
+	style.corner_radius_bottom_right = 0
+	style.content_margin_left = 18.0
+	style.content_margin_right = 18.0
+	style.content_margin_top = 8.0
+	style.content_margin_bottom = 10.0
 	_tutorial_panel.add_theme_stylebox_override("panel", style)
 	_tutorial_panel.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	add_child(_tutorial_panel)
 
 	var root := VBoxContainer.new()
-	root.add_theme_constant_override("separation", 8)
+	root.add_theme_constant_override("separation", 4)
 	_tutorial_panel.add_child(root)
 
 	_tutorial_title = Label.new()
 	_tutorial_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_tutorial_title.add_theme_font_size_override("font_size", 22)
-	_tutorial_title.add_theme_color_override("font_color", Color(1.0, 0.88, 0.28))
+	_tutorial_title.add_theme_font_size_override("font_size", 18)
+	_tutorial_title.add_theme_color_override("font_color", Color(1.0, 0.90, 0.32))
+	# アウトライン追加（半透明背景でも文字が読めるように）
+	_tutorial_title.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	_tutorial_title.add_theme_constant_override("outline_size", 4)
 	root.add_child(_tutorial_title)
 
 	_tutorial_detail = Label.new()
 	_tutorial_detail.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_tutorial_detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_tutorial_detail.add_theme_font_size_override("font_size", 16)
-	_tutorial_detail.add_theme_color_override("font_color", Color(0.84, 0.88, 0.98))
+	_tutorial_detail.add_theme_font_size_override("font_size", 14)
+	_tutorial_detail.add_theme_color_override("font_color", Color(0.88, 0.92, 1.0))
+	_tutorial_detail.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+	_tutorial_detail.add_theme_constant_override("outline_size", 3)
 	root.add_child(_tutorial_detail)
 
 	_tutorial_keys_box = HBoxContainer.new()
 	_tutorial_keys_box.alignment = BoxContainer.ALIGNMENT_CENTER
-	_tutorial_keys_box.add_theme_constant_override("separation", 18)
+	_tutorial_keys_box.add_theme_constant_override("separation", 14)
 	root.add_child(_tutorial_keys_box)
 
-func _update_tutorial_overlay() -> void:
+func _update_tutorial_overlay(dt: float = 0.0) -> void:
 	if not _tutorial_panel or not game_state:
 		return
 	var tutorial_visible := (
@@ -333,10 +347,11 @@ func _update_tutorial_overlay() -> void:
 	_tutorial_title.text = game_state.tutorial_instruction_text()
 	_tutorial_detail.text = game_state.tutorial_detail_text()
 	var is_2p := game_state.num_players >= 2
-	_tutorial_panel.offset_left = 90.0
-	_tutorial_panel.offset_right = -90.0
-	_tutorial_panel.offset_top = -212.0 if is_2p else -186.0
-	_tutorial_panel.offset_bottom = -28.0
+	# --- パネルを画面最下部にコンパクト配置（キャラクターと重ならない） ---
+	_tutorial_panel.offset_left = 60.0
+	_tutorial_panel.offset_right = -60.0
+	_tutorial_panel.offset_top = -148.0 if is_2p else -128.0
+	_tutorial_panel.offset_bottom = 0.0
 
 	var signature := "%d:%d:%s" % [
 		game_state.num_players,
@@ -380,20 +395,22 @@ func _add_tutorial_player_keys(
 		captions: PackedStringArray,
 		accent: Color) -> void:
 	var block := VBoxContainer.new()
-	block.add_theme_constant_override("separation", 5)
+	block.add_theme_constant_override("separation", 3)
 	block.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_tutorial_keys_box.add_child(block)
 
 	var label := Label.new()
 	label.text = player_label
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.add_theme_font_size_override("font_size", 15)
+	label.add_theme_font_size_override("font_size", 13)
 	label.add_theme_color_override("font_color", accent)
+	label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
+	label.add_theme_constant_override("outline_size", 2)
 	block.add_child(label)
 
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_theme_constant_override("separation", 8)
+	row.add_theme_constant_override("separation", 5)
 	block.add_child(row)
 
 	for i: int in range(keys.size()):
@@ -407,21 +424,21 @@ func _add_key_chip(
 		accent: Color,
 		highlighted: bool) -> void:
 	var stack := VBoxContainer.new()
-	stack.add_theme_constant_override("separation", 2)
+	stack.add_theme_constant_override("separation", 1)
 	parent.add_child(stack)
 
 	var key_panel := PanelContainer.new()
-	var width := clampf(float(key_text.length()) * 11.0 + 24.0, 44.0, 120.0)
-	key_panel.custom_minimum_size = Vector2(width, 34.0)
+	var width := clampf(float(key_text.length()) * 10.0 + 18.0, 36.0, 100.0)
+	key_panel.custom_minimum_size = Vector2(width, 28.0)
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.20, 0.26, 0.39, 0.96) if highlighted else Color(0.08, 0.10, 0.17, 0.94)
-	style.border_color = Color(1.0, 0.86, 0.22, 1.0) if highlighted else accent
+	style.bg_color = Color(0.20, 0.26, 0.39, 0.80) if highlighted else Color(0.08, 0.10, 0.17, 0.72)
+	style.border_color = Color(1.0, 0.86, 0.22, 1.0) if highlighted else accent.lerp(Color.WHITE, 0.15)
 	style.set_border_width_all(2 if highlighted else 1)
-	style.set_corner_radius_all(6)
-	style.content_margin_left = 8.0
-	style.content_margin_right = 8.0
-	style.content_margin_top = 5.0
-	style.content_margin_bottom = 5.0
+	style.set_corner_radius_all(5)
+	style.content_margin_left = 6.0
+	style.content_margin_right = 6.0
+	style.content_margin_top = 3.0
+	style.content_margin_bottom = 3.0
 	key_panel.add_theme_stylebox_override("panel", style)
 	stack.add_child(key_panel)
 
@@ -429,14 +446,14 @@ func _add_key_chip(
 	key_label.text = key_text
 	key_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	key_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	key_label.add_theme_font_size_override("font_size", 17 if key_text.length() <= 6 else 15)
+	key_label.add_theme_font_size_override("font_size", 14 if key_text.length() <= 6 else 12)
 	key_label.add_theme_color_override("font_color", Color(1.0, 0.92, 0.45) if highlighted else Color(0.92, 0.95, 1.0))
 	key_panel.add_child(key_label)
 
 	var caption_label := Label.new()
 	caption_label.text = caption
 	caption_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	caption_label.add_theme_font_size_override("font_size", 12)
+	caption_label.add_theme_font_size_override("font_size", 10)
 	caption_label.add_theme_color_override("font_color", Color(1.0, 0.88, 0.32) if highlighted else Color(0.58, 0.64, 0.78))
 	stack.add_child(caption_label)
 

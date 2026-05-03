@@ -12,50 +12,66 @@ const DEFAULT_TARGET_HEIGHT := 0.28
 
 # モデルファイルパス（res://assets/hats/ 配下）
 const HAT_PATHS := {
-	HatData.HAT_TOP_HAT:  "res://assets/hats/top_hat.glb",
-	HatData.HAT_CROWN:    "res://assets/hats/crown.glb",
-	HatData.HAT_CAP:      "res://assets/hats/cap.glb",
-	HatData.HAT_SANTA:    "res://assets/hats/santa_hat.glb",
-	HatData.HAT_COWBOY:   "res://assets/hats/cowboy_hat.glb",
-	HatData.HAT_HELMET:   "res://assets/hats/helmet.glb",
-	HatData.HAT_WIZARD:   "res://assets/hats/wizard_hat.glb",
-	HatData.HAT_CONE:     "res://assets/hats/traffic_cone.glb",
+	HatData.HAT_TOP_HAT:   "res://assets/hats/top_hat.glb",
+	HatData.HAT_CROWN:     "res://assets/hats/crown.glb",
+	HatData.HAT_CAP:       "res://assets/hats/cap.glb",
+	HatData.HAT_SANTA:     "res://assets/hats/santa_hat.glb",
+	HatData.HAT_COWBOY:    "res://assets/hats/cowboy_hat.glb",
+	HatData.HAT_HELMET:    "res://assets/hats/helmet.glb",
+	HatData.HAT_WIZARD:    "res://assets/hats/wizard_hat.glb",
+	HatData.HAT_CONE:      "res://assets/hats/traffic_cone.glb",
+	HatData.HAT_SOMBRERO:  "res://assets/hats/sombrero.glb",
+	HatData.HAT_FROG:      "res://assets/hats/frog_hat.glb",
+	HatData.HAT_PROPELLER: "res://assets/hats/propeller_hat.glb",
+	HatData.HAT_FOX:       "res://assets/hats/fox_hat.glb",
 }
 
 # 帽子ごとのターゲット高さ（デフォルトより大きくしたい帽子を個別指定）
 const HAT_TARGET_HEIGHTS := {
-	HatData.HAT_TOP_HAT:  0.42,  # シルクハットは背が高い
-	HatData.HAT_CROWN:    0.30,  # 王冠
-	HatData.HAT_CAP:      0.24,  # キャップ
-	HatData.HAT_SANTA:    0.45,  # サンタ帽
-	HatData.HAT_COWBOY:   0.32,  # カウボーイハット
-	HatData.HAT_HELMET:   0.30,  # ヘルメット
-	HatData.HAT_WIZARD:   0.50,  # ウィザード帽子
-	HatData.HAT_CONE:     0.45,  # コーン
+	HatData.HAT_TOP_HAT:   0.42,  # シルクハットは背が高い
+	HatData.HAT_CROWN:     0.30,  # 王冠
+	HatData.HAT_CAP:       0.28,  # キャップ
+	HatData.HAT_SANTA:     0.45,  # サンタ帽
+	HatData.HAT_COWBOY:    0.32,  # カウボーイハット
+	HatData.HAT_HELMET:    0.32,  # ヘルメット
+	HatData.HAT_WIZARD:    0.50,  # ウィザード帽子
+	HatData.HAT_CONE:      0.45,  # コーン
+	HatData.HAT_SOMBRERO:  0.25,  # ソンブレロ（横に広いので高さは控えめ）
+	HatData.HAT_FROG:      0.30,  # カエル帽
+	HatData.HAT_PROPELLER: 0.35,  # プロペラ帽
+	HatData.HAT_FOX:       0.85,  # キツネ帽（めり込まないようにさらに大きく）
 }
 
 # 帽子ごとの追加Y軸オフセット（微調整用、正=上、負=下）
 const HAT_Y_TWEAKS := {
-	HatData.HAT_TOP_HAT:  0.0,
-	HatData.HAT_CROWN:    0.0,
-	HatData.HAT_CAP:      -0.02,
-	HatData.HAT_SANTA:    0.0,
-	HatData.HAT_COWBOY:   -0.02,  # そのまま
-	HatData.HAT_HELMET:   -0.04,
-	HatData.HAT_WIZARD:   -0.01,
-	HatData.HAT_CONE:     0.0,    # そのまま
+	HatData.HAT_TOP_HAT:   0.0,
+	HatData.HAT_CROWN:     0.0,
+	HatData.HAT_CAP:       0.02,   # Raised to avoid sinking
+	HatData.HAT_SANTA:     0.0,
+	HatData.HAT_COWBOY:    -0.02,
+	HatData.HAT_HELMET:    -0.12,  # Lowered significantly to stop floating
+	HatData.HAT_WIZARD:    -0.01,
+	HatData.HAT_CONE:      0.0,
+	HatData.HAT_SOMBRERO:  -0.05,  # ソンブレロは少し下げる
+	HatData.HAT_FROG:      -0.02,  # カエル帽
+	HatData.HAT_PROPELLER: 0.0,    # プロペラ帽
+	HatData.HAT_FOX:       -0.42,  # キツネ帽（すっぽり被せる）
 }
 
 # Poly Pizza CC BY 3.0 クレジット
 const HAT_CREDITS := {
-	HatData.HAT_TOP_HAT: "Top hat by jeremy [CC-BY] via Poly Pizza",
-	HatData.HAT_CROWN:   "Crown by Poly by Google [CC-BY] via Poly Pizza",
-	HatData.HAT_CAP:     "Cap by J-Toastie [CC-BY] via Poly Pizza",
-	HatData.HAT_SANTA:   "Santa Hat by Joe Dorman [CC-BY] via Poly Pizza",
-	HatData.HAT_COWBOY:  "Cowboy Hat by J-Toastie [CC-BY] via Poly Pizza",
-	HatData.HAT_HELMET:  "Hard hat by Poly by Google [CC-BY] via Poly Pizza",
-	HatData.HAT_WIZARD:  "Wizard hat by Poly by Google [CC-BY] via Poly Pizza",
-	HatData.HAT_CONE:    "Traffic Cone by Adam Marc Williams [CC-BY] via Poly Pizza",
+	HatData.HAT_TOP_HAT:   "Top hat by jeremy [CC-BY] via Poly Pizza",
+	HatData.HAT_CROWN:     "Crown by Poly by Google [CC-BY] via Poly Pizza",
+	HatData.HAT_CAP:       "Cap by J-Toastie [CC-BY] via Poly Pizza",
+	HatData.HAT_SANTA:     "Santa Hat by Joe Dorman [CC-BY] via Poly Pizza",
+	HatData.HAT_COWBOY:    "Cowboy Hat by J-Toastie [CC-BY] via Poly Pizza",
+	HatData.HAT_HELMET:    "Hard hat by Poly by Google [CC-BY] via Poly Pizza",
+	HatData.HAT_WIZARD:    "Wizard hat by Poly by Google [CC-BY] via Poly Pizza",
+	HatData.HAT_CONE:      "Traffic Cone by Adam Marc Williams [CC-BY] via Poly Pizza",
+	HatData.HAT_SOMBRERO:  "Sombrero by Poly by Google [CC-BY] via Poly Pizza",
+	HatData.HAT_FROG:      "Frog Hat by J-Toastie [CC-BY] via Poly Pizza",
+	HatData.HAT_PROPELLER: "Propeller hat by jeremy [CC-BY] via Poly Pizza",
+	HatData.HAT_FOX:       "Fox Hat by J-Toastie [CC-BY] via Poly Pizza",
 }
 
 

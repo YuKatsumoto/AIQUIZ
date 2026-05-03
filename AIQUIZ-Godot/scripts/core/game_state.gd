@@ -1447,12 +1447,12 @@ func tutorial_detail_text() -> String:
 		return ""
 	if game_state == Constants.STATE_WAITING_START:
 		if num_players >= 2:
-			return "任意のキーで開始です。2人とも正解ドアに入るまで、同じ壁で練習できます。"
-		return "任意のキーを押すと、3秒後に練習開始です。失敗しても同じ壁からやり直せます。"
+			return "任意のキーで開始です。上のガイドでエモートキーと設定方法も確認できます。"
+		return "任意のキーを押すと、3秒後に練習開始です。上のガイドでエモートキーと設定方法も確認できます。"
 	if game_state == Constants.STATE_COUNTDOWN:
 		if num_players >= 2:
-			return "P1はSpace、P2はCtrlまたはNum0でジャンプできます。"
-		return "問題文は画面上、答えは壁のドアに表示されます。"
+			return "P1はSpace、P2はCtrlまたはNum0でジャンプ。エモートはP1:1/2/3、P2:8/9/0です。"
+		return "問題文は画面上、答えは壁のドアに表示されます。エモートは1/2/3で出せます。"
 	if game_state == Constants.STATE_PLAYING:
 		if not message_text.is_empty() and (wrong_flash > 0.0 or num_players >= 2):
 			return message_text

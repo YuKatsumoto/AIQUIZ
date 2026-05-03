@@ -8,9 +8,15 @@ extends Control
 @onready var config_container: VBoxContainer = $VBoxContainer/ConfigContainer
 @onready var start_button: Button = $VBoxContainer/ConfigContainer/ConfigBtnRow/StartButton
 @onready var status_label: Label = $VBoxContainer/StatusLabel
-@onready var grade_label: Label = $VBoxContainer/ConfigContainer/GradeRow/GradeLabel
-@onready var subject_label: Label = $VBoxContainer/ConfigContainer/SubjectRow/SubjectLabel
-@onready var diff_label: Label = $VBoxContainer/ConfigContainer/DiffRow/DiffLabel
+@onready var prev_grade_btn: Button = %PrevGradeBtn
+@onready var current_grade_label: Label = %CurrentGradeLabel
+@onready var next_grade_btn: Button = %NextGradeBtn
+@onready var prev_subject_btn: Button = %PrevSubjectBtn
+@onready var next_subject_btn: Button = %NextSubjectBtn
+@onready var current_subject_label: Label = %CurrentSubjectLabel
+@onready var prev_diff_btn: Button = %PrevDiffBtn
+@onready var current_diff_label: Label = %CurrentDiffLabel
+@onready var next_diff_btn: Button = %NextDiffBtn
 @onready var players_btn: Button = %PlayersToggleBtn
 @onready var llm_toggle_btn: Button = %LlmToggleBtn
 @onready var hat_select_btn: Button = %HatSelectBtn
@@ -26,6 +32,9 @@ var game_state: QuizGameState
 var _tutorial_row: HBoxContainer = null
 var _tutorial_btn: Button = null
 var _tutorial_2p_btn: Button = null
+
+const PICKER_HEIGHT := 52.0
+const PICKER_ANIM_DURATION := 0.18
 
 func _ready() -> void:
 	game_state = QuizManager.game_state
@@ -60,10 +69,18 @@ func _ready() -> void:
 
 	_ensure_tutorial_button()
 	_style_all_buttons()
+	
+	prev_grade_btn.pressed.connect(_on_prev_grade_pressed)
+	next_grade_btn.pressed.connect(_on_next_grade_pressed)
+	prev_subject_btn.pressed.connect(_on_prev_subject_pressed)
+	next_subject_btn.pressed.connect(_on_next_subject_pressed)
+	prev_diff_btn.pressed.connect(_on_prev_diff_pressed)
+	next_diff_btn.pressed.connect(_on_next_diff_pressed)
+	
 	_update_ui()
+	
 	if GameManager.should_show_tutorial_on_start():
 		call_deferred("_start_first_run_tutorial")
-
 
 func _style_all_buttons() -> void:
 	"""全ボタンにダークテーマのスタイルを動的に適用"""
@@ -182,6 +199,7 @@ func _style_tutorial_button(btn: Button) -> void:
 	btn.add_theme_color_override("font_color", Color(1.0, 0.92, 0.62))
 	btn.add_theme_color_override("font_hover_color", Color(1.0, 0.98, 0.78))
 
+
 func _start_tutorial_game(tutorial_players: int = 1) -> void:
 	game_state.start_tutorial(tutorial_players)
 	get_tree().change_scene_to_file("res://scenes/game_world.tscn")
@@ -209,9 +227,9 @@ func _update_ui() -> void:
 		config_container.visible = true
 
 		# Update config labels
-		grade_label.text = "📚 %d年生" % game_state.grade
-		subject_label.text = "📖 %s" % game_state.subject
-		diff_label.text = "⚡ %s" % game_state.difficulty
+		_update_grade_carousel()
+		_update_diff_carousel()
+		_update_subject_carousel()
 		var p_text: String
 		if game_state.num_players == 1:
 			p_text = "👤 1人プレイ"
@@ -279,29 +297,93 @@ func _on_tutorial_pressed() -> void:
 func _on_tutorial_2p_pressed() -> void:
 	_start_tutorial_game(2)
 
-func _on_grade_down_pressed() -> void:
-	game_state.update_grade(-1)
+func _on_prev_grade_pressed() -> void:
+	game_state.grade -= 1
+	if game_state.grade < 1: game_state.grade = 6
+	game_state.refresh_status_text()
 	_update_ui()
 
-func _on_grade_up_pressed() -> void:
-	game_state.update_grade(1)
+func _on_next_grade_pressed() -> void:
+	game_state.grade += 1
+	if game_state.grade > 6: game_state.grade = 1
+	game_state.refresh_status_text()
 	_update_ui()
 
-func _on_subject_left_pressed() -> void:
-	game_state.cycle_subject(-1)
+func _on_prev_diff_pressed() -> void:
+	var diffs = Constants.DIFFICULTY_LEVELS
+	var current_idx = diffs.find(game_state.difficulty)
+	if current_idx == -1: current_idx = 0
+	var prev_idx = (current_idx - 1 + diffs.size()) % diffs.size()
+	game_state.difficulty = diffs[prev_idx]
+	game_state.refresh_status_text()
 	_update_ui()
 
-func _on_subject_right_pressed() -> void:
-	game_state.cycle_subject(1)
+func _on_next_diff_pressed() -> void:
+	var diffs = Constants.DIFFICULTY_LEVELS
+	var current_idx = diffs.find(game_state.difficulty)
+	if current_idx == -1: current_idx = 0
+	var next_idx = (current_idx + 1) % diffs.size()
+	game_state.difficulty = diffs[next_idx]
+	game_state.refresh_status_text()
 	_update_ui()
 
-func _on_diff_left_pressed() -> void:
-	game_state.cycle_difficulty(-1)
+func _on_prev_subject_pressed() -> void:
+	var current_idx = Constants.SUBJECTS.find(game_state.subject)
+	if current_idx == -1: current_idx = 0
+	var prev_idx = (current_idx - 1 + Constants.SUBJECTS.size()) % Constants.SUBJECTS.size()
+	game_state.subject = Constants.SUBJECTS[prev_idx]
+	game_state.refresh_status_text()
 	_update_ui()
 
-func _on_diff_right_pressed() -> void:
-	game_state.cycle_difficulty(1)
+func _on_next_subject_pressed() -> void:
+	var current_idx = Constants.SUBJECTS.find(game_state.subject)
+	if current_idx == -1: current_idx = 0
+	var next_idx = (current_idx + 1) % Constants.SUBJECTS.size()
+	game_state.subject = Constants.SUBJECTS[next_idx]
+	game_state.refresh_status_text()
 	_update_ui()
+
+func _update_grade_carousel() -> void:
+	current_grade_label.text = "📚 %d年生" % game_state.grade
+	var normal := StyleBoxFlat.new()
+	normal.bg_color = Color(0.12, 0.14, 0.20)
+	normal.border_color = Color(0.25, 0.30, 0.40)
+	normal.set_border_width_all(2)
+	normal.set_corner_radius_all(10)
+	current_grade_label.add_theme_stylebox_override("normal", normal)
+
+func _update_diff_carousel() -> void:
+	current_diff_label.text = "⚡ %s" % game_state.difficulty
+	var normal := StyleBoxFlat.new()
+	normal.bg_color = Color(0.12, 0.14, 0.20)
+	normal.border_color = Color(0.25, 0.30, 0.40)
+	normal.set_border_width_all(2)
+	normal.set_corner_radius_all(10)
+	current_diff_label.add_theme_stylebox_override("normal", normal)
+
+func _update_subject_carousel() -> void:
+	var colors = {
+		"算数": {"icon": "📐 算数", "color": Color(0.15, 0.40, 0.80)},
+		"理科": {"icon": "🔬 理科", "color": Color(0.15, 0.70, 0.35)},
+		"国語": {"icon": "📖 国語", "color": Color(0.85, 0.25, 0.30)},
+		"社会": {"icon": "🌍 社会", "color": Color(0.85, 0.60, 0.15)}
+	}
+	
+	var sub = game_state.subject
+	if not colors.has(sub): sub = "算数"
+	
+	var info = colors[sub]
+	current_subject_label.text = info["icon"]
+	
+	var normal := StyleBoxFlat.new()
+	normal.bg_color = info["color"].darkened(0.2)
+	normal.border_color = info["color"].lightened(0.2)
+	normal.set_border_width_all(2)
+	normal.set_corner_radius_all(10)
+	
+	current_subject_label.add_theme_stylebox_override("normal", normal)
+
+
 
 func _on_start_pressed() -> void:
 	if game_state.num_players == 3:

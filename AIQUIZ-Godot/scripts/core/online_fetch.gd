@@ -169,6 +169,19 @@ func compose_prompt(subject: String, grade: int, difficulty: String, count: int,
 	prompt += "＜学習単元＞ %s\n" % curriculum["topics"]
 	prompt += "＜この学年のキーワード＞ %s\n" % curriculum["keywords"]
 	
+	# ── 案6: 重要概念（JSONデータから注入） ──
+	if curriculum.has("key_concepts") and curriculum["key_concepts"].size() > 0:
+		prompt += "＜重要概念・公式＞\n"
+		for kc: String in curriculum["key_concepts"]:
+			prompt += "  ・%s\n" % kc
+		prompt += "→ 上記の概念を問う問題を出してください\n"
+	
+	# ── 案6: 出題範囲の明示 ──
+	if curriculum.has("selected_unit_names") and curriculum["selected_unit_names"].size() > 0:
+		prompt += "＜★出題範囲（以下の単元から出題せよ）＞\n"
+		for uname in curriculum["selected_unit_names"]:
+			prompt += "  - %s\n" % str(uname)
+	
 	# ── 案6: ありがちな間違い ──
 	if curriculum["typical_mistakes"].size() > 0:
 		prompt += "＜生徒がよくやる間違い（誤答のヒント）＞\n"
@@ -245,6 +258,12 @@ func compose_prompt(subject: String, grade: int, difficulty: String, count: int,
 # ── カリキュラムデータベース ──
 
 func _get_curriculum(grade: int, subject: String) -> Dictionary:
+	# ── 案6: 教科書DB（JSONファイル）を優先的に使用 ──
+	var db_data := CurriculumDB.build_curriculum(subject, grade, 3)
+	if not db_data.is_empty():
+		return db_data
+	
+	# ── フォールバック: JSONがない場合は従来のハードコード ──
 	var data := {
 		"topics": "", "keywords": "", "examples": [] as Array[String],
 		"easy_desc": "", "normal_desc": "", "hard_desc": "",
