@@ -220,26 +220,17 @@ func _update_flyover_camera(gs: QuizGameState, _dt: float) -> void:
 	camera.look_at(look_target, Vector3.UP)
 
 
-## プリロード中のシネマティック俯瞰カメラ
-## 道の斜め上方から見下ろし、壁が次々と落下・建設される様子を一望する
+## プリロード中の固定俯瞰カメラ
+## 道の斜め上方に固定し、壁が次々と落下・建設される様子を一望する
 func _update_preload_camera(gs: QuizGameState, _dt: float) -> void:
 	var t := gs.tuning
-	var quiz_count: int = gs.quiz_list.size()
 
-	# 注視点: 現在建設中の壁の少し先を追いかける
-	var focus_idx: float = maxf(0.0, float(quiz_count) - 0.5)
-	var focus_z: float = t.wall_start_z + focus_idx * t.wall_spacing
-	# 最低限の注視点（最初の壁付近）
-	focus_z = maxf(focus_z, t.wall_start_z + t.wall_spacing * 1.0)
+	# 注視点: 道の中盤あたりを固定で見る
+	var look_z: float = t.wall_start_z + t.wall_spacing * 3.0
+	var look_at_pos := Vector3(0.0, 1.0, look_z)
 
-	var look_at_pos := Vector3(0.0, 1.0, focus_z)
-
-	# カメラ位置: 道の右斜め上方、手前から見下ろす
-	var cam_x: float = -8.0  # 左にオフセット
-	var cam_y: float = 12.0 + sin(_time * 0.25) * 0.5  # 高さ + 微かな上下動
-	var cam_z: float = focus_z - 20.0  # 注視点の手前
-
-	var eye := Vector3(cam_x, cam_y, cam_z)
+	# カメラ位置: 完全固定
+	var eye := Vector3(-8.0, 12.0, look_z - 20.0)
 
 	camera.fov = 55.0
 	camera.global_position = eye
