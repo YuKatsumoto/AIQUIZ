@@ -403,7 +403,7 @@ func _update_floor() -> void:
 		floor_mesh.position = Vector3(0, -9.2, 67.5)
 
 func _update_player() -> void:
-	if game_state.game_state == Constants.STATE_MENU:
+	if game_state.game_state in [Constants.STATE_MENU, Constants.STATE_PRELOADING]:
 		player_node.visible = false
 		_hats_applied = false
 		return
@@ -452,8 +452,8 @@ func _clear_flyover_walls() -> void:
 	_flyover_walls.clear()
 
 func _update_walls() -> void:
-	# ゴールレース中・クリア後・メニュー・フライオーバー中は壁を全て非表示
-	if game_state.game_state in [Constants.STATE_MENU, Constants.STATE_FLYOVER, Constants.STATE_GOAL_RACE, Constants.STATE_CLEAR]:
+	# プリロード中・ゴールレース中・クリア後・メニュー・フライオーバー中は通常壁を全て非表示
+	if game_state.game_state in [Constants.STATE_MENU, Constants.STATE_FLYOVER, Constants.STATE_GOAL_RACE, Constants.STATE_CLEAR, Constants.STATE_PRELOADING, Constants.STATE_WAITING_START]:
 		for wall: Node3D in _active_walls:
 			wall.queue_free()
 		_active_walls.clear()

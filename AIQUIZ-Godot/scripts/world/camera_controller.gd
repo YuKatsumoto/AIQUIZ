@@ -220,28 +220,28 @@ func _update_flyover_camera(gs: QuizGameState, _dt: float) -> void:
 	camera.look_at(look_target, Vector3.UP)
 
 
-## プリロード中のシネマティックオービットカメラ
-## 道の上空をゆっくり旋回し、壁が建設される様子を見下ろす
+## プリロード中のシネマティック俯瞰カメラ
+## 道の斜め上方から見下ろし、壁が次々と落下・建設される様子を一望する
 func _update_preload_camera(gs: QuizGameState, _dt: float) -> void:
 	var t := gs.tuning
+	var quiz_count: int = gs.quiz_list.size()
 
-	# 注視点: 道の少し先（壁が建つあたり）
-	var look_z: float = t.wall_start_z + t.wall_spacing * 2.5
-	var look_at_pos := Vector3(0.0, 0.0, look_z)
+	# 注視点: 現在建設中の壁の少し先を追いかける
+	var focus_idx: float = maxf(0.0, float(quiz_count) - 0.5)
+	var focus_z: float = t.wall_start_z + focus_idx * t.wall_spacing
+	# 最低限の注視点（最初の壁付近）
+	focus_z = maxf(focus_z, t.wall_start_z + t.wall_spacing * 1.0)
 
-	# オービット: 時間で角度を変えながら周回
-	var orbit_speed: float = 0.15  # ゆっくり周回
-	var orbit_angle: float = _time * orbit_speed
-	var orbit_radius: float = 18.0
-	var orbit_height: float = 10.0 + sin(_time * 0.3) * 1.5  # 微かな上下動
+	var look_at_pos := Vector3(0.0, 1.0, focus_z)
 
-	var eye := Vector3(
-		sin(orbit_angle) * orbit_radius,
-		orbit_height,
-		look_z - cos(orbit_angle) * orbit_radius
-	)
+	# カメラ位置: 道の右斜め上方、手前から見下ろす
+	var cam_x: float = -8.0  # 左にオフセット
+	var cam_y: float = 12.0 + sin(_time * 0.25) * 0.5  # 高さ + 微かな上下動
+	var cam_z: float = focus_z - 20.0  # 注視点の手前
 
-	camera.fov = 50.0
+	var eye := Vector3(cam_x, cam_y, cam_z)
+
+	camera.fov = 55.0
 	camera.global_position = eye
 	camera.look_at(look_at_pos, Vector3.UP)
 
