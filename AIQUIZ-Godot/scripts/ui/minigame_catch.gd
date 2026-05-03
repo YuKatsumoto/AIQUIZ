@@ -7,14 +7,14 @@ class_name MinigameCatch
 signal game_ended(score: int)
 
 # ── 設定 ──
-const PLAYER_WIDTH := 52.0
-const PLAYER_HEIGHT := 52.0
-const ITEM_SIZE := 34.0
-const SPAWN_INTERVAL_MIN := 0.35
-const SPAWN_INTERVAL_MAX := 0.80
-const FALL_SPEED_MIN := 160.0
-const FALL_SPEED_MAX := 280.0
-const PLAY_AREA_MARGIN := 40.0
+const PLAYER_WIDTH := 40.0
+const PLAYER_HEIGHT := 40.0
+const ITEM_SIZE := 28.0
+const SPAWN_INTERVAL_MIN := 0.4
+const SPAWN_INTERVAL_MAX := 0.85
+const FALL_SPEED_MIN := 120.0
+const FALL_SPEED_MAX := 220.0
+const PLAY_AREA_MARGIN := 16.0
 
 # アイテム定義: {emoji, points, color, weight}
 const ITEM_DEFS := [
@@ -58,7 +58,7 @@ func _ready() -> void:
 
 	_score_label = Label.new()
 	_score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_score_label.add_theme_font_size_override("font_size", 24)
+	_score_label.add_theme_font_size_override("font_size", 18)
 	_score_label.add_theme_color_override("font_color", Color(1.0, 0.95, 0.5))
 	_score_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
 	_score_label.add_theme_constant_override("outline_size", 4)
@@ -68,7 +68,7 @@ func _ready() -> void:
 
 	_combo_label = Label.new()
 	_combo_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_combo_label.add_theme_font_size_override("font_size", 18)
+	_combo_label.add_theme_font_size_override("font_size", 14)
 	_combo_label.add_theme_color_override("font_color", Color(1.0, 0.6, 0.2))
 	_combo_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
 	_combo_label.add_theme_constant_override("outline_size", 3)
@@ -79,8 +79,8 @@ func _ready() -> void:
 
 	_instruction_label = Label.new()
 	_instruction_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_instruction_label.add_theme_font_size_override("font_size", 16)
-	_instruction_label.add_theme_color_override("font_color", Color(0.7, 0.75, 0.85, 0.8))
+	_instruction_label.add_theme_font_size_override("font_size", 12)
+	_instruction_label.add_theme_color_override("font_color", Color(0.7, 0.75, 0.85, 0.7))
 	_instruction_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.6))
 	_instruction_label.add_theme_constant_override("outline_size", 3)
 	_instruction_label.text = "🖱️ マウスを動かしてアイテムをキャッチ！"
@@ -127,8 +127,8 @@ func _init_bg_stars() -> void:
 	_bg_stars.clear()
 	for idx: int in range(30):
 		_bg_stars.append({
-			"x": randf() * 1280.0,
-			"y": randf() * 600.0,
+			"x": randf() * 400.0,
+			"y": randf() * 660.0,
 			"speed": randf_range(15.0, 50.0),
 			"size": randf_range(1.0, 2.5),
 			"alpha": randf_range(0.15, 0.4),
@@ -165,7 +165,7 @@ func _process(dt: float) -> void:
 		)
 
 	# アイテム更新＆判定
-	var play_h := size.y - 100.0
+	var play_h := size.y - 30.0
 	var player_rect := Rect2(
 		_player_x - PLAYER_WIDTH * 0.6,
 		play_h - PLAYER_HEIGHT - 8.0,
@@ -244,21 +244,21 @@ func _process(dt: float) -> void:
 
 	# ラベル更新
 	_score_label.text = "⭐ %d" % _score
-	_score_label.position = Vector2(size.x * 0.5 - 60.0, 8.0)
-	_score_label.size = Vector2(120.0, 32.0)
+	_score_label.position = Vector2(size.x * 0.5 - 50.0, 4.0)
+	_score_label.size = Vector2(100.0, 24.0)
 
 	if _combo >= 3:
 		_combo_label.visible = true
 		_combo_label.text = "🔥 %d COMBO" % _combo
-		_combo_label.position = Vector2(size.x * 0.5 - 80.0, 36.0)
-		_combo_label.size = Vector2(160.0, 24.0)
-		var pulse := 1.0 + sin(_elapsed * 8.0) * 0.1
+		_combo_label.position = Vector2(size.x * 0.5 - 60.0, 26.0)
+		_combo_label.size = Vector2(120.0, 20.0)
+		var pulse := 1.0 + sin(_elapsed * 8.0) * 0.08
 		_combo_label.scale = Vector2(pulse, pulse)
 	else:
 		_combo_label.visible = false
 
-	_instruction_label.position = Vector2(size.x * 0.5 - 200.0, size.y - 92.0)
-	_instruction_label.size = Vector2(400.0, 24.0)
+	_instruction_label.position = Vector2(size.x * 0.5 - 150.0, size.y - 28.0)
+	_instruction_label.size = Vector2(300.0, 20.0)
 	_instruction_label.modulate.a = clampf(1.0 - _elapsed * 0.2, 0.0, 0.8)
 
 	queue_redraw()
