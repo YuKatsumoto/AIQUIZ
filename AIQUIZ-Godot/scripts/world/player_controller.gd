@@ -483,7 +483,7 @@ func update_from_state(gs: QuizGameState) -> void:
 				_init_explosion(p1_parts, true)
 			_set_parts_visible(p1_parts, false)
 			var is_magma = gs.player_y < -1.0
-			_update_explosion(true, gs.game_over_timer - 2.0, is_magma)
+			_update_explosion(true, gs.game_over_timer - 2.0, is_magma, gs.is_coop_mode(), -global_position.x)
 	else:
 		_set_parts_visible(p1_parts, false)
 
@@ -526,7 +526,7 @@ func update_from_state(gs: QuizGameState) -> void:
 					_init_explosion(p2_parts, false)
 				_set_parts_visible(p2_parts, false)
 				var is_magma = gs.player2_y < -1.0
-				_update_explosion(false, gs.player2_game_over_timer - 2.0, is_magma)
+				_update_explosion(false, gs.player2_game_over_timer - 2.0, is_magma, gs.is_coop_mode(), -global_position.x)
 		else:
 			_set_parts_visible(p2_parts, false)
 
@@ -873,7 +873,8 @@ func _init_explosion(parts: Dictionary, is_p1: bool) -> void:
 			"base_pos": mesh.position,
 			"base_rot": mesh.rotation,
 			"velocity": vel,
-			"rot_velocity": rot_vel
+			"rot_velocity": rot_vel,
+			"groove_offset": randf_range(-0.42, 0.42)
 		})
 		
 	if is_p1:
@@ -881,10 +882,16 @@ func _init_explosion(parts: Dictionary, is_p1: bool) -> void:
 	else:
 		_p2_explosion_data = exp_data
 
-func _update_explosion(is_p1: bool, timer: float, is_magma: bool = false) -> void:
+func _update_explosion(
+		is_p1: bool,
+		timer: float,
+		is_magma: bool = false,
+		fall_to_groove: bool = false,
+		groove_local_x: float = 0.0) -> void:
 	var data = _p1_explosion_data if is_p1 else _p2_explosion_data
 	var gravity = 15.0
-	var limit_y = -12.0 if is_magma else BASE_Y + 0.1
+	var should_sink := is_magma or fall_to_groove
+	var limit_y = -12.0 if should_sink else BASE_Y + 0.1
 	var magma_surface = -9.2
 	
 	for d: Dictionary in data:
@@ -898,9 +905,14 @@ func _update_explosion(is_p1: bool, timer: float, is_magma: bool = false) -> voi
 		var ex = base.x + vel.x * timer
 		var ez = base.z + vel.z * timer
 		var current_rot = brot + rot_vel * timer
+
+		if fall_to_groove:
+			var groove_pull := clampf(timer / 1.8, 0.0, 1.0)
+			groove_pull = 1.0 - pow(1.0 - groove_pull, 2.0)
+			ex = lerpf(ex, groove_local_x + float(d.get("groove_offset", 0.0)), groove_pull)
 		
 		# マグマに落ちた場合の処理：マグマ表面(-9.2)より下は沈み込みをゆっくりにする
-		if is_magma and ey < magma_surface:
+		if should_sink and ey < magma_surface:
 			var depth = magma_surface - ey
 			ey = magma_surface - (depth * 0.05) # 沈降速度を遅らせる
 			

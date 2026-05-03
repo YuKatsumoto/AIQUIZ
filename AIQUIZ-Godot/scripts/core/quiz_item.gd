@@ -12,6 +12,15 @@ class_name QuizItem
 @export var choice_img: PackedStringArray = [] # 選択肢画像
 @export var estimated_seconds: float = 4.0  # AI予測解答時間（秒）
 
+# 協力モード用: P1/P2 が式・根拠カードと答えカードを分担して選ぶ
+@export var coop_prompt: String = ""
+@export var coop_p1_label: String = ""
+@export var coop_p2_label: String = ""
+@export var coop_p1_choices: PackedStringArray = []
+@export var coop_p2_choices: PackedStringArray = []
+@export var coop_p1_answer: int = -1
+@export var coop_p2_answer: int = -1
+
 
 
 static func create(question: String, choices: PackedStringArray, answer: int,
@@ -28,3 +37,11 @@ static func create(question: String, choices: PackedStringArray, answer: int,
 	item.choice_img = choice_images
 	item.estimated_seconds = est_seconds
 	return item
+
+func has_coop_data() -> bool:
+	return coop_p1_choices.size() == 2 \
+		and coop_p2_choices.size() == 2 \
+		and coop_p1_answer >= 0 \
+		and coop_p1_answer < coop_p1_choices.size() \
+		and coop_p2_answer >= 0 \
+		and coop_p2_answer < coop_p2_choices.size()

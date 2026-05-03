@@ -117,6 +117,10 @@ var _active_wall_speed: float = 6.0
 # --- Physics Constants ---
 const GRAVITY: float = 18.0
 const JUMP_FORCE: float = 7.0
+const FLOOR_HALF_WIDTH: float = 12.0
+const FLOOR_BACK_Z: float = -4.5
+const FLOOR_PLAY_FRONT_Z: float = 139.5
+const FLOOR_RACE_FRONT_Z: float = 400.0
 
 
 func _init(quiz_provider: QuizProvider = null) -> void:
@@ -156,16 +160,31 @@ var player2_local_z: float:
 		return player2_z - world_scroll_z
 
 func _is_fixed_count_mode() -> bool:
-	return mode == Constants.MODE_TEN or mode == Constants.MODE_TUTORIAL
+	return mode == Constants.MODE_TEN or mode == Constants.MODE_COOP or mode == Constants.MODE_TUTORIAL
 
 func _is_tutorial_mode() -> bool:
 	return mode == Constants.MODE_TUTORIAL
+
+func _provider_mode() -> String:
+	return Constants.MODE_TEN if is_coop_mode() else mode
+
+func _is_on_track_floor(x_pos: float, local_z: float, player_num: int, front_z: float = FLOOR_PLAY_FRONT_Z) -> bool:
+	if local_z < FLOOR_BACK_Z or local_z > front_z:
+		return false
+	if absf(x_pos) > FLOOR_HALF_WIDTH:
+		return false
+	if is_coop_mode():
+		if player_num == 1:
+			return x_pos >= tuning.coop_lane_gap_half_width
+		if player_num == 2:
+			return x_pos <= -tuning.coop_lane_gap_half_width
+	return true
 
 
 # ---------- Menu ----------
 
 func select_mode_and_continue(selected_mode: String) -> void:
-	if selected_mode in [Constants.MODE_TEN, Constants.MODE_ENDLESS]:
+	if selected_mode in [Constants.MODE_TEN, Constants.MODE_ENDLESS, Constants.MODE_COOP]:
 		mode = selected_mode
 	menu_step = Constants.MENU_STEP_CONFIG
 	refresh_status_text()
@@ -214,10 +233,12 @@ func cycle_difficulty(delta: int) -> void:
 # ---------- Game lifecycle ----------
 
 func start_game() -> void:
+	if is_coop_mode():
+		num_players = 2
 	score = 0
 	current_index = 0
 	quiz_history.clear()
-	player_x = 1.5 if num_players == 2 else 0.0
+	player_x = 6.0 if is_coop_mode() else (1.5 if num_players == 2 else 0.0)
 	player_y = 0.0
 	player_z = 0.0
 	player_vel_y = 0.0
@@ -228,7 +249,7 @@ func start_game() -> void:
 	game_over_timer = 0.0
 	p1_alive = true
 	# Player 2 reset
-	player2_x = -1.5
+	player2_x = -6.0 if is_coop_mode() else -1.5
 	player2_y = 0.0
 	player2_z = 0.0
 	player2_score = 0
@@ -248,17 +269,39 @@ func start_game() -> void:
 		_active_wall_speed = tuning.wall_speed_override
 	else:
 		_active_wall_speed = 28.0 / (4.0 + 1.5)  # VISIBLE_DISTANCE / (default_est + buffer)
-	var count: int = 10 if mode == Constants.MODE_TEN else 1
+	var count: int = 10 if _is_fixed_count_mode() else 1
 	target_count = count
 
-	provider.begin_round(subject, grade, difficulty, mode, count)
+	var provider_mode := _provider_mode()
+	provider.begin_round(subject, grade, difficulty, provider_mode, count)
 
-	quiz_list = provider.get_quizzes(subject, grade, difficulty, mode, count)
+	quiz_list = provider.get_quizzes(subject, grade, difficulty, provider_mode, count)
+	_prepare_coop_quiz_list()
 	message_text = ""
 	game_state = Constants.STATE_PRELOADING
 	preload_wait_sec = 0.0
 	refresh_status_text()
 	state_changed.emit(game_state)
+
+func _prepare_coop_quiz_list() -> void:
+	if not is_coop_mode():
+		return
+	for i: int in range(quiz_list.size()):
+		var quiz := quiz_list[i]
+		if quiz and _should_rebuild_coop_quiz(quiz):
+			var coop_quiz := CoopQuizBuilder.build_coop_quiz(quiz, subject, grade, i)
+			if coop_quiz:
+				quiz_list[i] = coop_quiz
+
+func _should_rebuild_coop_quiz(quiz: QuizItem) -> bool:
+	if not quiz:
+		return false
+	if not quiz.has_coop_data():
+		return true
+	return quiz.coop_p1_label.contains("解答セット") \
+		or quiz.coop_p2_label.contains("解答セット") \
+		or quiz.coop_p1_label.contains("ヒント") \
+		or quiz.coop_p2_label.contains("ヒント")
 
 func start_tutorial(tutorial_players: int = 1) -> void:
 	mode = Constants.MODE_TUTORIAL
@@ -443,8 +486,9 @@ func load_current_quiz() -> void:
 			return
 		current_quiz = quiz_list[0]
 
-	# Handle 4-to-2 conversion for offline quizzes or any quiz with too many choices
-	if num_choices == 2 and current_quiz.c.size() > 2:
+	# Handle 4-to-2 conversion for offline quizzes or any quiz with too many choices.
+	# Coop keeps the original choices so each player can receive a different answer set.
+	if not is_coop_mode() and num_choices == 2 and current_quiz.c.size() > 2:
 		var correct_text: String = current_quiz.c[current_quiz.a]
 		var wrong_texts: PackedStringArray = []
 		for i: int in range(current_quiz.c.size()):
@@ -466,9 +510,12 @@ func load_current_quiz() -> void:
 			current_quiz.img, current_quiz.choice_img
 		)
 
-	# 協力モード: CoopQuizBuilder で P1/P2 分担データを生成
-	if is_coop_mode() and current_quiz and not current_quiz.has_coop_data():
-		current_quiz = CoopQuizBuilder.build_coop_quiz(current_quiz, subject, grade)
+	if is_coop_mode() and current_quiz and _should_rebuild_coop_quiz(current_quiz):
+		current_quiz = CoopQuizBuilder.build_coop_quiz(current_quiz, subject, grade, current_index)
+	if _is_fixed_count_mode() and current_index < quiz_list.size():
+		quiz_list[current_index] = current_quiz
+	elif not _is_fixed_count_mode() and quiz_list.size() > 0:
+		quiz_list[0] = current_quiz
 
 	choice_locked = false
 	message_text = ""
@@ -506,7 +553,7 @@ func _recalc_wall_speed() -> void:
 
 	# --- ステージ加速 ---
 	var stage_factor: float = 1.0
-	if mode == Constants.MODE_TEN:
+	if _is_fixed_count_mode() and not _is_tutorial_mode():
 		# 10問モード: 問題番号 0〜9 で 0%〜15% 加速
 		var progress: float = clampf(float(current_index) / 9.0, 0.0, 1.0)
 		stage_factor = 1.0 + progress * 0.15
@@ -567,13 +614,14 @@ func update(dt: float, axis_p1: Vector2 = Vector2.ZERO, axis_p2: Vector2 = Vecto
 func _update_preloading(dt: float) -> void:
 	preload_wait_sec += dt
 	var missing: int
-	if mode == Constants.MODE_TEN:
+	if _is_fixed_count_mode():
 		missing = maxi(0, target_count - quiz_list.size())
 	else:
 		missing = 1
 	if missing > 0:
-		var new_quizzes := provider.get_quizzes(subject, grade, difficulty, mode, missing)
+		var new_quizzes := provider.get_quizzes(subject, grade, difficulty, _provider_mode(), missing)
 		quiz_list.append_array(new_quizzes)
+		_prepare_coop_quiz_list()
 
 	var ready: bool = false
 	# ゲーム開始前（current_index == 0）は全問揃うのを待つ
@@ -586,7 +634,7 @@ func _update_preloading(dt: float) -> void:
 			ready = true
 	else:
 		# 初期プレロード: 全問揃うのが理想
-		if mode == Constants.MODE_TEN and quiz_list.size() >= target_count:
+		if _is_fixed_count_mode() and quiz_list.size() >= target_count:
 			ready = true
 		elif mode == Constants.MODE_ENDLESS and quiz_list.size() >= 1:
 			ready = true
@@ -602,7 +650,7 @@ func _update_preloading(dt: float) -> void:
 			game_state = Constants.STATE_WAITING_START
 			load_current_quiz()
 			state_changed.emit(game_state)
-	elif not ready and preload_wait_sec >= 2.5 and mode != Constants.MODE_TEN and quiz_list.size() > current_index:
+	elif not ready and preload_wait_sec >= 2.5 and not _is_fixed_count_mode() and quiz_list.size() > current_index:
 		# タイムアウト: エンドレス等では全問揃わなくても一部があれば開始（2.5秒で打ち切り）
 		print("[GameState] Preload timeout (%.1fs): starting with %d/%d quizzes" % [preload_wait_sec, quiz_list.size(), target_count])
 		if is_mid_game:
@@ -617,7 +665,7 @@ func _update_preloading(dt: float) -> void:
 		if is_mid_game:
 			message_text = "Loading quizzes..." if use_english_ui else "次の問題を準備中..."
 		else:
-			if mode == Constants.MODE_TEN:
+			if _is_fixed_count_mode():
 				var q_count = mini(quiz_list.size(), target_count)
 				message_text = "Generating quizzes... (%d/%d)" % [q_count, target_count] if use_english_ui else "AIクイズ生成中... (%d/%d)" % [q_count, target_count]
 			else:
@@ -638,7 +686,7 @@ func trigger_start() -> void:
 		game_state = Constants.STATE_FLYOVER
 		flyover_timer = 0.0
 
-		if mode == Constants.MODE_TEN:
+		if _is_fixed_count_mode():
 			# 10問モード: 全壁を見せる
 			flyover_total_walls = target_count
 			flyover_duration = 8.5
@@ -691,7 +739,7 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 		# Removed forward limit to allow running ahead
 		var loc1 := player_z - world_scroll_z
 
-		var is_on_floor = (absf(player_x) <= 12.0) and (loc1 >= -4.5 and loc1 <= 139.5)
+		var is_on_floor = _is_on_track_floor(player_x, loc1, 1)
 
 		if jump_p1 and player_y <= 0.0 and is_on_floor:
 			p1_jump_trigger = true
@@ -710,6 +758,9 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 					_reset_tutorial_attempt("P1が床から落ちました。2人ともスタート位置へ戻して、同じ壁でもう一度練習しましょう。")
 				else:
 					_reset_tutorial_attempt("床から落ちました。中央に戻して、同じ壁でもう一度練習しましょう。")
+				return
+			if is_coop_mode():
+				_fail_coop_immediately("P1が落下しました。協力失敗です。")
 				return
 			player_y = -8.0
 			player_vel_y = 0.0
@@ -738,7 +789,7 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 		# Removed forward limit
 		var loc2 := player2_z - world_scroll_z
 
-		var p2_is_on_floor = (absf(player2_x) <= 12.0) and (loc2 >= -4.5 and loc2 <= 139.5)
+		var p2_is_on_floor = _is_on_track_floor(player2_x, loc2, 2)
 
 		if jump_p2 and player2_y <= 0.0 and p2_is_on_floor:
 			p2_jump_trigger = true
@@ -754,6 +805,9 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 		if player2_y < -8.0:
 			if _is_tutorial_mode():
 				_reset_tutorial_attempt("P2が床から落ちました。2人ともスタート位置へ戻して、同じ壁でもう一度練習しましょう。")
+				return
+			if is_coop_mode():
+				_fail_coop_immediately("P2が落下しました。協力失敗です。")
 				return
 			player2_y = -8.0
 			player2_vel_y = 0.0
@@ -831,7 +885,7 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 		player_z += axis_p1.y * tuning.player_speed * dt
 
 		var loc1 := player_z - world_scroll_z
-		var is_on_floor = (absf(player_x) <= 12.0) and (loc1 >= -4.5 and loc1 <= 400.0)
+		var is_on_floor = _is_on_track_floor(player_x, loc1, 1, FLOOR_RACE_FRONT_Z)
 
 		if jump_p1 and player_y <= 0.0 and is_on_floor:
 			p1_jump_trigger = true
@@ -854,7 +908,7 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 		player2_z += axis_p2.y * tuning.player_speed * dt
 
 		var loc2 := player2_z - world_scroll_z
-		var p2_is_on_floor = (absf(player2_x) <= 12.0) and (loc2 >= -4.5 and loc2 <= 400.0)
+		var p2_is_on_floor = _is_on_track_floor(player2_x, loc2, 2, FLOOR_RACE_FRONT_Z)
 
 		if jump_p2 and player2_y <= 0.0 and p2_is_on_floor:
 			p2_jump_trigger = true
@@ -1107,96 +1161,128 @@ func _tutorial_correct_message() -> String:
 		return "いい感じです。最後は本番に近い問題を抜けましょう。"
 	return "チュートリアル完了！"
 
-func _resolve_coop_collision() -> void:
-	## 協力モード専用の衝突判定
-	## P1は左半分（coop_p1_door_xs）、P2は右半分（coop_p2_door_xs）で個別判定
-	## 両方正解して初めてクリア
-	if not current_quiz or not current_quiz.has_coop_data():
-		# フォールバック: 通常の判定
-		choice_locked = true
+func _coop_wait_message(p1_at_wall: bool, p2_at_wall: bool) -> String:
+	if p1_at_wall and not p2_at_wall:
+		return "P1はカード選択完了。P2も自分のカードへ進んでください。"
+	if p2_at_wall and not p1_at_wall:
+		return "P2はカード選択完了。P1も自分のカードへ進んでください。"
+	return "式・根拠カードと答えカードを組み合わせて、2人で突破しましょう。"
+
+func _register_coop_result(correct: bool, p1_door: int = -1, p2_door: int = -1) -> void:
+	if not current_quiz:
 		return
-	
-	choice_locked = true
-	var p1_correct := false
-	var p2_correct := false
-	
-	# --- P1 判定（式/ヒント/読み を選ぶ側） ---
-	if p1_alive:
-		var p1_door: int = _check_coop_p1_door(player_x)
-		if p1_door < 0:
-			# 壁にぶつかった
-			p1_alive = false
-			game_over_timer = 0.001
-		elif p1_door == current_quiz.coop_p1_answer:
-			p1_correct = true
-			score += 1
-		else:
-			# 不正解ドア
-			p1_alive = false
-			game_over_timer = 0.001
-	
-	# --- P2 判定（答え/名称/漢字 を選ぶ側） ---
-	if p2_alive:
-		var p2_door: int = _check_coop_p2_door(player2_x)
-		if p2_door < 0:
-			p2_alive = false
-			player2_game_over_timer = 0.001
-		elif p2_door == current_quiz.coop_p2_answer:
-			p2_correct = true
-			player2_score += 1
-		else:
-			p2_alive = false
-			player2_game_over_timer = 0.001
-	
-	# 協力モード: 両方正解で進行、片方でも不正解なら両方不正解扱い
-	var both_correct: bool = p1_correct and p2_correct
-	
-	# 記録
-	total_answered += 1
-	if not both_correct:
+	if correct:
+		score += 1
+		player2_score += 1
+		current_streak += 1
+		max_streak = maxi(max_streak, current_streak)
+	else:
 		total_wrong += 1
 		current_streak = 0
-	else:
-		current_streak += 1
-		if current_streak > max_streak:
-			max_streak = current_streak
-	recent_results.append(both_correct)
+	total_answered += 1
+	recent_results.append(correct)
 	if recent_results.size() > 12:
 		recent_results.remove_at(0)
-	
-	provider.submit_result(current_quiz, both_correct)
-	quiz_history.append({"quiz": current_quiz, "correct": both_correct, "rated": ""})
-	
-	QuizManager.quiz_optimizer.evaluate_history(quiz_history, subject, grade, difficulty)
-	
-	if current_quiz:
-		var response_time: float = (Time.get_ticks_msec() - _quiz_shown_time) / 1000.0
-		recent_response_times.append(response_time)
-		if recent_response_times.size() > 5:
-			recent_response_times.pop_front()
-	
+
+	provider.submit_result(current_quiz, correct)
+	quiz_history.append({
+		"quiz": current_quiz,
+		"correct": correct,
+		"rated": "",
+		"p1_choice": p1_door,
+		"p2_choice": p2_door
+	})
+
+	var response_time: float = (Time.get_ticks_msec() - _quiz_shown_time) / 1000.0
+	recent_response_times.append(response_time)
+	if recent_response_times.size() > 5:
+		recent_response_times.pop_front()
+
+	if correct:
+		QuizManager.quiz_optimizer.evaluate_history(quiz_history, subject, grade, difficulty)
+
+func _coop_choice_label(player: int, door: int) -> String:
+	if door == -2:
+		return "ドアの境目"
+	if door < 0:
+		return "壁"
+	if not current_quiz or not current_quiz.has_coop_data():
+		return "?"
+	var choices := current_quiz.coop_p1_choices if player == 1 else current_quiz.coop_p2_choices
+	if door >= 0 and door < choices.size():
+		return choices[door]
+	return "?"
+
+func _coop_correct_label(player: int) -> String:
+	if not current_quiz or not current_quiz.has_coop_data():
+		return "?"
+	var choices := current_quiz.coop_p1_choices if player == 1 else current_quiz.coop_p2_choices
+	var answer := current_quiz.coop_p1_answer if player == 1 else current_quiz.coop_p2_answer
+	if answer >= 0 and answer < choices.size():
+		return choices[answer]
+	return "?"
+
+func _coop_failure_message(p1_door: int, p2_door: int) -> String:
+	var lines: Array[String] = ["協力失敗"]
+	if p1_door != current_quiz.coop_p1_answer:
+		lines.append("P1: %s / 正解: %s" % [
+			_coop_choice_label(1, p1_door),
+			_coop_correct_label(1)
+		])
+	if p2_door != current_quiz.coop_p2_answer:
+		lines.append("P2: %s / 正解: %s" % [
+			_coop_choice_label(2, p2_door),
+			_coop_correct_label(2)
+		])
+	return "\n".join(lines)
+
+func _fail_coop_immediately(msg: String) -> void:
+	if choice_locked:
+		return
+	choice_locked = true
+	p1_alive = false
+	p2_alive = false
+	game_over_timer = 0.001
+	player2_game_over_timer = 0.001
+	_register_coop_result(false)
+	_game_over(msg)
+	wrong_answer.emit(message_text)
+
+func _resolve_coop_collision() -> void:
+	if current_quiz and _should_rebuild_coop_quiz(current_quiz):
+		current_quiz = CoopQuizBuilder.build_coop_quiz(current_quiz, subject, grade, current_index)
+	if not current_quiz or not current_quiz.has_coop_data():
+		_fail_coop_immediately("協力問題の準備に失敗しました。")
+		return
+
+	var p1_at_wall := p1_alive and player_z >= wall_z - 0.81
+	var p2_at_wall := p2_alive and player2_z >= wall_z - 0.81
+	if not (p1_at_wall and p2_at_wall):
+		choice_locked = false
+		message_text = _coop_wait_message(p1_at_wall, p2_at_wall)
+		return
+
+	choice_locked = true
+	var p1_door := _check_coop_p1_door(player_x)
+	var p2_door := _check_coop_p2_door(player2_x)
+	var p1_correct := p1_door == current_quiz.coop_p1_answer
+	var p2_correct := p2_door == current_quiz.coop_p2_answer
+	var both_correct := p1_correct and p2_correct
+
+	_register_coop_result(both_correct, p1_door, p2_door)
+
 	if both_correct:
-		# 両方正解！ 進行
 		correct_flash = 1.0
 		camera_shake = 0.22
 		message_text = "協力成功！"
 		correct_answer.emit()
 		advance_after_correct()
-	elif p1_correct and not p2_correct:
-		# P1は正解したがP2が失敗 → 協力失敗、P1も道連れ
-		p1_alive = false
-		game_over_timer = 0.001
-		_game_over("P2が不正解！ 協力失敗...")
-		wrong_answer.emit(message_text)
-	elif p2_correct and not p1_correct:
-		# P2は正解したがP1が失敗 → 協力失敗、P2も道連れ
-		p2_alive = false
-		player2_game_over_timer = 0.001
-		_game_over("P1が不正解！ 協力失敗...")
-		wrong_answer.emit(message_text)
 	else:
-		# 両方不正解
-		_game_over("両方不正解！ 協力失敗...")
+		p1_alive = false
+		p2_alive = false
+		game_over_timer = 0.001
+		player2_game_over_timer = 0.001
+		_game_over(_coop_failure_message(p1_door, p2_door))
 		wrong_answer.emit(message_text)
 
 func resolve_collision() -> void:
@@ -1325,9 +1411,10 @@ func advance_after_correct() -> void:
 	if _is_fixed_count_mode():
 		current_index += 1
 		var missing := maxi(0, target_count - quiz_list.size())
-		if missing > 0 and mode == Constants.MODE_TEN:
-			var new_quizzes := provider.get_quizzes(subject, grade, difficulty, mode, missing)
+		if missing > 0 and not _is_tutorial_mode():
+			var new_quizzes := provider.get_quizzes(subject, grade, difficulty, _provider_mode(), missing)
 			quiz_list.append_array(new_quizzes)
+			_prepare_coop_quiz_list()
 		load_current_quiz()
 	else:
 		# 現在の問題を消費してローカルキューから除去
@@ -1380,6 +1467,17 @@ func clear_game() -> void:
 		refresh_status_text()
 		game_cleared.emit(message_text)
 		state_changed.emit(game_state)
+		return
+	if is_coop_mode():
+		if use_english_ui:
+			message_text = "COOP CLEAR!\n10 questions cleared together\nTeam Score: %d/10" % score
+		else:
+			message_text = "COOP CLEAR!\n2人で10問突破\n協力成功: %d/10" % score
+		correct_flash = 1.0
+		refresh_status_text()
+		game_cleared.emit(message_text)
+		state_changed.emit(game_state)
+		QuizManager.quiz_optimizer.evaluate_history(quiz_history, subject, grade, difficulty)
 		return
 	if num_players >= 2:
 		var winner_text: String
@@ -1444,6 +1542,13 @@ func question_text() -> String:
 func choices_text() -> PackedStringArray:
 	if not current_quiz:
 		return PackedStringArray(["", ""])
+	if is_coop_mode() and current_quiz.has_coop_data():
+		return PackedStringArray([
+			"%s A: %s" % [current_quiz.coop_p1_label, current_quiz.coop_p1_choices[0]],
+			"%s B: %s" % [current_quiz.coop_p1_label, current_quiz.coop_p1_choices[1]],
+			"%s A: %s" % [current_quiz.coop_p2_label, current_quiz.coop_p2_choices[0]],
+			"%s B: %s" % [current_quiz.coop_p2_label, current_quiz.coop_p2_choices[1]],
+		])
 	if num_choices == 4 and current_quiz.c.size() >= 4:
 		return PackedStringArray([
 			"A: %s" % current_quiz.c[0],
@@ -1467,7 +1572,12 @@ func refresh_status_text() -> void:
 			status_text = "チュートリアル完了  |  [R] でメニューへ戻る"
 			return
 		if use_english_ui:
-			status_text = "Score: %d  |  Press [R] for menu" % score
+			if is_coop_mode():
+				status_text = "Team Score: %d  |  Press [R] for menu" % score
+			else:
+				status_text = "Score: %d  |  Press [R] for menu" % score
+		elif is_coop_mode():
+			status_text = "協力成功: %d  |  [R] でメニューへ戻る" % score
 		else:
 			status_text = "正解数: %d  |  [R] でメニューへ戻る" % score
 		return
@@ -1477,7 +1587,7 @@ func refresh_status_text() -> void:
 			if menu_step == Constants.MENU_STEP_MODE:
 				status_text = "Step 1/3: Select mode"
 			else:
-				var mode_label: String = "10 Q" if mode == Constants.MODE_TEN else "Endless"
+				var mode_label: String = "Co-op" if is_coop_mode() else ("10 Q" if mode == Constants.MODE_TEN else "Endless")
 				status_text = "Step 2/3: Set grade/subject  |  Mode:%s Subject:%s Grade:%d" % [
 					mode_label,
 					Constants.SUBJECT_EN.get(subject, subject),
@@ -1487,7 +1597,7 @@ func refresh_status_text() -> void:
 			if menu_step == Constants.MENU_STEP_MODE:
 				status_text = "手順 1/3: モードを選択"
 			else:
-				var mode_label: String = "10問チャレンジ" if mode == Constants.MODE_TEN else "エンドレス"
+				var mode_label: String = "2人協力" if is_coop_mode() else ("10問チャレンジ" if mode == Constants.MODE_TEN else "エンドレス")
 				status_text = "手順 2/3: 学年・教科を設定  |  モード:%s  教科:%s  学年:%d" % [
 					mode_label, subject, grade
 				]
@@ -1495,7 +1605,7 @@ func refresh_status_text() -> void:
 
 	if game_state == Constants.STATE_PRELOADING:
 		if use_english_ui:
-			if mode == Constants.MODE_TEN:
+			if _is_fixed_count_mode():
 				status_text = "Loading quizzes... %d/%d (Subject:%s Grade:%d)" % [
 					quiz_list.size(), target_count,
 					Constants.SUBJECT_EN.get(subject, subject), grade
@@ -1506,7 +1616,7 @@ func refresh_status_text() -> void:
 					Constants.SUBJECT_EN.get(subject, subject), grade
 				]
 		else:
-			if mode == Constants.MODE_TEN:
+			if _is_fixed_count_mode():
 				status_text = "クイズ準備中... %d/%d 教科:%s 学年:%d" % [
 					quiz_list.size(), target_count, subject, grade
 				]
@@ -1528,18 +1638,19 @@ func refresh_status_text() -> void:
 		return
 
 	if use_english_ui:
-		var mode_label: String = "10 Q" if mode == Constants.MODE_TEN else "Endless"
-		var progress: String = "%d/10" % (current_index + 1) if mode == Constants.MODE_TEN else "inf"
+		var mode_label: String = "Co-op" if is_coop_mode() else ("10 Q" if mode == Constants.MODE_TEN else "Endless")
+		var progress: String = "%d/10" % (current_index + 1) if _is_fixed_count_mode() else "inf"
 		var subj: String = Constants.SUBJECT_EN.get(subject, subject)
 		var diff: String = Constants.DIFFICULTY_EN.get(difficulty, difficulty)
 		status_text = "Subject:%s Grade:%d Diff:%s Mode:%s Progress:%s Score:%d" % [
 			subj, grade, diff, mode_label, progress, score
 		]
 	else:
-		var mode_label: String = "10問チャレンジ" if mode == Constants.MODE_TEN else "エンドレス"
-		var progress: String = "%d/10" % (current_index + 1) if mode == Constants.MODE_TEN else "∞"
-		status_text = "教科:%s  学年:%d  難易度:%s  モード:%s  進行:%s  正解数:%d" % [
-			subject, grade, difficulty, mode_label, progress, score
+		var mode_label: String = "2人協力" if is_coop_mode() else ("10問チャレンジ" if mode == Constants.MODE_TEN else "エンドレス")
+		var progress: String = "%d/10" % (current_index + 1) if _is_fixed_count_mode() else "∞"
+		var score_name := "協力成功" if is_coop_mode() else "正解数"
+		status_text = "教科:%s  学年:%d  難易度:%s  モード:%s  進行:%s  %s:%d" % [
+			subject, grade, difficulty, mode_label, progress, score_name, score
 		]
 
 func tutorial_instruction_text() -> String:

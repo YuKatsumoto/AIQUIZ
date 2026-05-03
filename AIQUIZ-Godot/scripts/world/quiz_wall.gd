@@ -29,13 +29,6 @@ const LEFT_DOOR_X: float = 3.5
 const RIGHT_DOOR_X: float = -3.5
 const DOOR4_XS: Array[float] = [-5.8, -1.95, 1.95, 5.8]
 
-	Color(0.15, 0.45, 0.95),  # P1-A: Deep Blue
-	Color(0.30, 0.60, 0.95),  # P1-B: Light Blue
-]
-	Color(0.15, 0.80, 0.35),  # P2-A: Green
-	Color(0.40, 0.90, 0.30),  # P2-B: Light Green
-]
-
 var _current_num_choices: int = 2
 
 func _ready() -> void:

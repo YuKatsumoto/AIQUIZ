@@ -35,9 +35,11 @@ var _tutorial_2p_btn: Button = null
 
 const PICKER_HEIGHT := 52.0
 const PICKER_ANIM_DURATION := 0.18
+const SHOW_COOP_MODE := false
 
 func _ready() -> void:
 	game_state = QuizManager.game_state
+	_hide_coop_mode_if_disabled()
 	game_state.game_state = Constants.STATE_MENU
 	# 戻るボタン等からの遷移時に状態を保持するため、menu_stepの強制リセットを削除
 	settings_panel.visible = false
@@ -212,6 +214,7 @@ func _update_ui() -> void:
 	if not game_state:
 		return
 
+	_hide_coop_mode_if_disabled()
 	game_state.refresh_status_text()
 	status_label.text = game_state.status_text
 	if _tutorial_btn:
@@ -276,18 +279,32 @@ func _on_llm_toggle_pressed() -> void:
 	_update_ui()
 
 func _on_players_toggle_pressed() -> void:
+	if not SHOW_COOP_MODE:
+		if game_state.mode == Constants.MODE_COOP:
+			game_state.mode = Constants.MODE_TEN
+		if game_state.num_players == 1:
+			game_state.num_players = 2
+		elif game_state.num_players == 2:
+			game_state.num_players = 3
+		else:
+			game_state.num_players = 1
+		_update_ui()
+		return
+
 	# 1人 → 2人(ローカル) → 2人協力 → オンライン対戦 のサイクル
 	if game_state.num_players == 1:
 		game_state.num_players = 2
-		game_state.mode = Constants.MODE_ENDLESS
+		if game_state.mode == Constants.MODE_COOP:
+			game_state.mode = Constants.MODE_TEN
 	elif game_state.num_players == 2 and game_state.mode != Constants.MODE_COOP:
 		game_state.mode = Constants.MODE_COOP
 	elif game_state.num_players == 2 and game_state.mode == Constants.MODE_COOP:
 		game_state.num_players = 3
-		game_state.mode = Constants.MODE_ENDLESS
+		game_state.mode = Constants.MODE_TEN
 	else:
 		game_state.num_players = 1
-		game_state.mode = Constants.MODE_ENDLESS
+		if game_state.mode == Constants.MODE_COOP:
+			game_state.mode = Constants.MODE_TEN
 	_update_ui()
 
 func _on_wall_speed_pressed() -> void:
@@ -394,13 +411,24 @@ func _update_subject_carousel() -> void:
 
 
 func _on_start_pressed() -> void:
+	_hide_coop_mode_if_disabled()
 	if game_state.num_players == 3:
 		# オンライン対戦: ロビー画面へ
 		game_state.num_players = 2  # 実際のプレイは2人
 		get_tree().change_scene_to_file("res://ui/online_lobby.tscn")
 		return
+	if game_state.mode == Constants.MODE_COOP:
+		game_state.num_players = 2
 	game_state.start_game()
 	get_tree().change_scene_to_file("res://scenes/game_world.tscn")
+
+func _hide_coop_mode_if_disabled() -> void:
+	if SHOW_COOP_MODE or not game_state:
+		return
+	if game_state.mode == Constants.MODE_COOP:
+		game_state.mode = Constants.MODE_TEN
+		if game_state.num_players < 2:
+			game_state.num_players = 2
 
 # --- Settings ---
 

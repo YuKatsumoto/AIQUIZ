@@ -19,6 +19,10 @@ var right_door_x: float = -3.5
 # 4-choice door positions
 var door4_xs: Array[float] = [-5.8, -1.95, 1.95, 5.8]
 var door4_half_width: float = 1.45
+var coop_p1_door_xs: Array[float] = [4.1, 8.1]
+var coop_p2_door_xs: Array[float] = [-8.1, -4.1]
+var coop_door_half_width: float = 1.15
+var coop_lane_gap_half_width: float = 2.55
 var hit_z: float = -6.0
 var correct_hold_sec: float = 1.05
 

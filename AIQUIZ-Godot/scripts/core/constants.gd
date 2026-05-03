@@ -9,6 +9,7 @@ const DIFFICULTY_EN = {"簡単": "Easy", "普通": "Normal", "難しい": "Hard"
 
 const MODE_TEN = "TEN_QUESTIONS"
 const MODE_ENDLESS = "ENDLESS"
+const MODE_COOP = "COOP"
 const MODE_TUTORIAL = "TUTORIAL"
 
 const STATE_MENU = "MENU"
