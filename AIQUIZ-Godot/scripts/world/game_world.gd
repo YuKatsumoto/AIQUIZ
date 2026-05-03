@@ -811,8 +811,23 @@ func _toggle_pause() -> void:
 
 # ============================================================
 # プリロード中の3D構築アニメーション
-# 壁を左右から爆速スライドイン → 合体＋火花エフェクト
+# 軽量シルエットが左右から爆速スライドイン → 合体＋火花エフェクト
 # ============================================================
+
+## 左右スライド用の軽量シルエットメッシュを生成
+func _create_slide_silhouette(wz: float, x_pos: float) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var box := BoxMesh.new()
+	box.size = Vector3(8.0, 5.5, 0.4)  # 壁とほぼ同サイズ
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.3, 0.35, 0.5, 0.85)
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	box.material = mat
+	mi.mesh = box
+	mi.position = Vector3(x_pos, 2.75, wz)
+	mi.visible = false
+	return mi
 
 func _update_preview_walls(dt: float) -> void:
 	if game_state.game_state not in [Constants.STATE_PRELOADING, Constants.STATE_WAITING_START]:
@@ -821,7 +836,7 @@ func _update_preview_walls(dt: float) -> void:
 	var t := game_state.tuning
 	var quiz_count: int = game_state.quiz_list.size()
 
-	# 新しい問題が取得されたら壁を3セット生成（完成壁+左右スライド壁）
+	# 新しい問題が取得されたら壁+シルエットを生成
 	if game_state.game_state == Constants.STATE_PRELOADING:
 		while _pw_count < quiz_count:
 			var idx: int = _pw_count
@@ -838,22 +853,17 @@ func _update_preview_walls(dt: float) -> void:
 			if idx < game_state.quiz_list.size() and wall_final.has_method("set_quiz"):
 				wall_final.set_quiz(game_state.quiz_list[idx], game_state.num_choices)
 
-			# 左スライド壁
-			var wall_l: Node3D = quiz_wall_scene.instantiate()
-			wall_l.position = Vector3(-25.0, 0, wz)
-			wall_l.visible = false
-			wall_container.add_child(wall_l)
-			_pw_left.append(wall_l)
+			# 左右は軽量シルエット（BoxMesh）
+			var sil_l := _create_slide_silhouette(wz, -25.0)
+			wall_container.add_child(sil_l)
+			_pw_left.append(sil_l)
 
-			# 右スライド壁
-			var wall_r: Node3D = quiz_wall_scene.instantiate()
-			wall_r.position = Vector3(25.0, 0, wz)
-			wall_r.visible = false
-			wall_container.add_child(wall_r)
-			_pw_right.append(wall_r)
+			var sil_r := _create_slide_silhouette(wz, 25.0)
+			wall_container.add_child(sil_r)
+			_pw_right.append(sil_r)
 
 			_pw_anims.append({
-				"phase": 0,     # 0=待機, 1=スライド中, 2=合体演出, 3=完了
+				"phase": 0,
 				"timer": 0.0,
 				"started": false,
 			})
@@ -875,9 +885,9 @@ func _update_preview_walls(dt: float) -> void:
 			_pw_merge_timer -= MERGE_INTERVAL
 
 	# アニメーション更新
-	const SLIDE_DURATION: float = 0.25   # スライド所要時間
-	const FLASH_DURATION: float = 0.35   # 合体エフェクト時間
-	const SLIDE_START_X: float = 25.0    # 左右の開始X位置
+	const SLIDE_DURATION: float = 0.25
+	const FLASH_DURATION: float = 0.35
+	const SLIDE_START_X: float = 25.0
 
 	for i: int in range(_pw_anims.size()):
 		var anim: Dictionary = _pw_anims[i]
@@ -890,27 +900,22 @@ func _update_preview_walls(dt: float) -> void:
 		anim["timer"] = t_val
 
 		if phase == 1:
-			# スライドイン: ease-out cubic で爆速接近
 			var p: float = clampf(t_val / SLIDE_DURATION, 0.0, 1.0)
-			var eased: float = 1.0 - pow(1.0 - p, 3.0)  # ease-out cubic
+			var eased: float = 1.0 - pow(1.0 - p, 3.0)
 			var x_offset: float = SLIDE_START_X * (1.0 - eased)
 			_pw_left[i].position.x = -x_offset
 			_pw_right[i].position.x = x_offset
 
 			if p >= 1.0:
-				# 合体！
 				anim["phase"] = 2
 				anim["timer"] = 0.0
-				# 左右を非表示、完成壁を表示
 				_pw_left[i].visible = false
 				_pw_right[i].visible = false
 				_pw_walls[i].visible = true
 				_pw_walls[i].scale = Vector3(1.15, 1.15, 1.15)
-				# 火花エフェクトを生成
 				_spawn_merge_sparks(_pw_walls[i].global_position)
 
 		elif phase == 2:
-			# 合体フラッシュ: スケールを戻す
 			var p: float = clampf(t_val / FLASH_DURATION, 0.0, 1.0)
 			var eased: float = 1.0 - pow(1.0 - p, 2.0)
 			var s: float = lerpf(1.15, 1.0, eased)
@@ -942,7 +947,6 @@ func _spawn_merge_sparks(pos: Vector3) -> void:
 	sparks.scale_amount_min = 0.05
 	sparks.scale_amount_max = 0.2
 
-	# オレンジ～黄色の輝くマテリアル
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.albedo_color = Color(1.0, 0.7, 0.1)
@@ -959,7 +963,6 @@ func _spawn_merge_sparks(pos: Vector3) -> void:
 	sparks.global_position = pos + Vector3(0, 2.5, 0)
 	wall_container.add_child(sparks)
 
-	# 2秒後に自動削除
 	var tw := create_tween()
 	tw.tween_callback(sparks.queue_free).set_delay(2.0)
 

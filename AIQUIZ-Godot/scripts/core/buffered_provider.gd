@@ -170,14 +170,30 @@ func _on_fetch_partial(quizzes: Array[QuizItem]) -> void:
 		buffer.append(q)
 		accepted = true
 	
-	# 全問題が重複で弾かれた場合 → 履歴をクリアして問題を再利用可能にする
-	if not accepted and quizzes.size() > 0 and buffer.size() == 0:
-		recent_questions.clear()
-		# 履歴クリア後、取得した問題をそのまま投入
+	# 全問題が重複で弾かれた場合のフォールバック
+	# yielded_count == 0（まだ1問もプレイヤーに渡していない）場合のみ履歴をクリア
+	# それ以外はオフライン緊急キャッシュに委ねる
+	if not accepted and quizzes.size() > 0 and buffer.size() == 0 and yielded_count == 0:
+		# 最古の履歴を半分だけ削除（完全クリアより重複リスクが低い）
+		var half := recent_questions.size() / 2
+		for _i in range(half):
+			if recent_questions.size() > 0:
+				recent_questions.pop_front()
+		# 再フィルタして重複しないものだけ投入
 		for q in quizzes:
-			recent_questions.append(q.q)
-			buffer.append(q)
-			accepted = true
+			var still_dup := false
+			for rq in recent_questions:
+				if rq == q.q or rq.similarity(q.q) > 0.65:
+					still_dup = true
+					break
+			if not still_dup:
+				recent_questions.append(q.q)
+				buffer.append(q)
+				accepted = true
+		# それでも空なら最後の手段で1問だけ投入
+		if not accepted and quizzes.size() > 0:
+			recent_questions.append(quizzes[0].q)
+			buffer.append(quizzes[0])
 
 func _on_fetch_completed(quizzes: Array[QuizItem]) -> void:
 	inflight = max(0, inflight - 1)
