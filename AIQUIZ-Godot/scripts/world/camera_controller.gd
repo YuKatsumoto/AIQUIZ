@@ -220,18 +220,15 @@ func _update_flyover_camera(gs: QuizGameState, _dt: float) -> void:
 	camera.look_at(look_target, Vector3.UP)
 
 
-## プリロード中の固定俯瞰カメラ
-## 2Pフライオーバーの開始位置と同じアングルで固定
+## プリロード中の固定カメラ
+## 2Pフライオーバーの終着位置（三人称俯瞰）と同じアングルで固定
 func _update_preload_camera(gs: QuizGameState, _dt: float) -> void:
-	var t := gs.tuning
-	var wall_count: int = gs.target_count if gs.target_count > 0 else 10
-	var goal_line_z: float = t.wall_start_z + wall_count * t.wall_spacing + 15.0
-	var start_z: float = goal_line_z - 25.0
+	# 2Pフライオーバー終着位置: end_pos = (0, 4.5, z_focus - 9), end_look = (0, 1, z_focus + 8)
+	var z_focus: float = 0.0  # プレイヤー初期位置
+	var eye := Vector3(0.0, 4.5, z_focus - 9.0)
+	var look_at_pos := Vector3(0.0, 1.0, z_focus + 8.0)
 
-	var eye := Vector3(0.0, 6.0, start_z)
-	var look_at_pos := eye + Vector3(0.0, -0.6, 20.0)
-
-	camera.fov = 52.0
+	camera.fov = 50.0
 	camera.global_position = eye
 	camera.look_at(look_at_pos, Vector3.UP)
 
