@@ -663,9 +663,9 @@ func _on_state_changed(new_state: String) -> void:
 		_fireworks_launched = false
 	elif new_state in [Constants.STATE_MENU, Constants.STATE_PLAYING]:
 		_fireworks_launched = false
-	elif new_state == Constants.STATE_WAITING_START:
-		# プレビュー壁をクリーンアップ
 		_clear_preview_walls()
+	elif new_state == Constants.STATE_WAITING_START:
+		# プレビュー壁はそのまま残す（落下済みの壁がフライオーバーまで表示される）
 		# ロード完了時に裏で壁を生成し、フライオーバー時のカクつきを防ぐ
 		_clear_flyover_walls()
 		var t := game_state.tuning
@@ -819,30 +819,31 @@ func _update_preview_walls(dt: float) -> void:
 	var t := game_state.tuning
 	var quiz_count: int = game_state.quiz_list.size()
 
-	# 新しい問題が取得されたら壁を生成（非表示で待機）
-	while _preview_wall_count < quiz_count:
-		var idx: int = _preview_wall_count
-		var wz: float = t.wall_start_z + idx * t.wall_spacing
-		var wall_node: Node3D = quiz_wall_scene.instantiate()
-		wall_node.set_meta("wall_index", idx)
-		wall_node.position = Vector3(0, 15.0, wz)
-		wall_node.visible = false  # 落下開始まで非表示
-		wall_container.add_child(wall_node)
-		_preview_walls.append(wall_node)
+	# 新しい問題が取得されたら壁を生成（非表示で待機）─ プリロード中のみ
+	if game_state.game_state == Constants.STATE_PRELOADING:
+		while _preview_wall_count < quiz_count:
+			var idx: int = _preview_wall_count
+			var wz: float = t.wall_start_z + idx * t.wall_spacing
+			var wall_node: Node3D = quiz_wall_scene.instantiate()
+			wall_node.set_meta("wall_index", idx)
+			wall_node.position = Vector3(0, 15.0, wz)
+			wall_node.visible = false  # 落下開始まで非表示
+			wall_container.add_child(wall_node)
+			_preview_walls.append(wall_node)
 
-		_preview_wall_anims.append({
-			"target_y": 0.0,
-			"current_y": 15.0,
-			"velocity": 0.0,
-			"landed": false,
-			"bounce_timer": 0.0,
-			"dropping": false,  # 落下開始フラグ
-		})
+			_preview_wall_anims.append({
+				"target_y": 0.0,
+				"current_y": 15.0,
+				"velocity": 0.0,
+				"landed": false,
+				"bounce_timer": 0.0,
+				"dropping": false,
+			})
 
-		if idx < game_state.quiz_list.size() and wall_node.has_method("set_quiz"):
-			wall_node.set_quiz(game_state.quiz_list[idx], game_state.num_choices)
+			if idx < game_state.quiz_list.size() and wall_node.has_method("set_quiz"):
+				wall_node.set_quiz(game_state.quiz_list[idx], game_state.num_choices)
 
-		_preview_wall_count += 1
+			_preview_wall_count += 1
 
 	# ディレイ付きで壁を順番に落下開始（0.4秒間隔）
 	const DROP_INTERVAL: float = 0.4
