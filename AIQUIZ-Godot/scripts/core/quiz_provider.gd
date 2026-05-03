@@ -451,6 +451,21 @@ func get_quizzes(subject: String, grade: int, difficulty: String,
 					break
 		while uniq.size() < count:
 			uniq.append(_fallback_question(subject, grade))
+
+		# Make the hardest question the "Boss" (last question)
+		if uniq.size() > 1:
+			var max_score := -100.0
+			var max_idx := -1
+			for i: int in range(uniq.size()):
+				var score := _complexity_score(uniq[i], subject, grade)
+				if score > max_score:
+					max_score = score
+					max_idx = i
+			if max_idx >= 0 and max_idx != uniq.size() - 1:
+				var hardest: QuizItem = uniq[max_idx]
+				uniq.remove_at(max_idx)
+				uniq.append(hardest)
+
 		return uniq
 
 	return [pool.pick_random()]

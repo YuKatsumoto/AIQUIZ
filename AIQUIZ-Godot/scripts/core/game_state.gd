@@ -130,8 +130,13 @@ func _init(quiz_provider: QuizProvider = null) -> void:
 
 # ---------- Properties ----------
 
+func is_coop_mode() -> bool:
+	return mode == Constants.MODE_COOP
+
 var num_choices: int:
 	get:
+		if is_coop_mode():
+			return 2  # Coop uses 2 doors per player (4 total, but 2+2 split)
 		if difficulty == "難しい":
 			if current_quiz and current_quiz.c.size() < 4:
 				return current_quiz.c.size()
@@ -460,6 +465,10 @@ func load_current_quiz() -> void:
 			current_quiz.q, new_c, new_a, current_quiz.e, current_quiz.src,
 			current_quiz.img, current_quiz.choice_img
 		)
+
+	# 協力モード: CoopQuizBuilder で P1/P2 分担データを生成
+	if is_coop_mode() and current_quiz and not current_quiz.has_coop_data():
+		current_quiz = CoopQuizBuilder.build_coop_quiz(current_quiz, subject, grade)
 
 	choice_locked = false
 	message_text = ""
@@ -909,6 +918,36 @@ func is_within_door(x_pos: float, side: int) -> bool:
 	var center: float = tuning.left_door_x if side == 0 else tuning.right_door_x
 	return absf(x_pos - center) <= tuning.door_half_width
 
+func _is_within_coop_door(x_pos: float, door_xs: Array[float], idx: int) -> bool:
+	## Coop用ドア判定 (P1用ドアまたはP2用ドア)
+	if idx < 0 or idx >= door_xs.size():
+		return false
+	return absf(x_pos - door_xs[idx]) <= tuning.coop_door_half_width
+
+func _check_coop_p1_door(px: float) -> int:
+	## P1用ドア（左半分=正のX）の判定。 0 or 1、-1=壁
+	var hits: Array[int] = []
+	for i: int in range(tuning.coop_p1_door_xs.size()):
+		if _is_within_coop_door(px, tuning.coop_p1_door_xs, i):
+			hits.append(i)
+	if hits.is_empty():
+		return -1
+	if hits.size() > 1:
+		return -2
+	return hits[0]
+
+func _check_coop_p2_door(px: float) -> int:
+	## P2用ドア（右半分=負のX）の判定。 0 or 1、-1=壁
+	var hits: Array[int] = []
+	for i: int in range(tuning.coop_p2_door_xs.size()):
+		if _is_within_coop_door(px, tuning.coop_p2_door_xs, i):
+			hits.append(i)
+	if hits.is_empty():
+		return -1
+	if hits.size() > 1:
+		return -2
+	return hits[0]
+
 func _check_player_door(px: float) -> int:
 	## Return door index (0..N-1), -1=wall, -2=ambiguous
 	var nc: int = num_choices
@@ -1068,11 +1107,106 @@ func _tutorial_correct_message() -> String:
 		return "いい感じです。最後は本番に近い問題を抜けましょう。"
 	return "チュートリアル完了！"
 
+func _resolve_coop_collision() -> void:
+	## 協力モード専用の衝突判定
+	## P1は左半分（coop_p1_door_xs）、P2は右半分（coop_p2_door_xs）で個別判定
+	## 両方正解して初めてクリア
+	if not current_quiz or not current_quiz.has_coop_data():
+		# フォールバック: 通常の判定
+		choice_locked = true
+		return
+	
+	choice_locked = true
+	var p1_correct := false
+	var p2_correct := false
+	
+	# --- P1 判定（式/ヒント/読み を選ぶ側） ---
+	if p1_alive:
+		var p1_door: int = _check_coop_p1_door(player_x)
+		if p1_door < 0:
+			# 壁にぶつかった
+			p1_alive = false
+			game_over_timer = 0.001
+		elif p1_door == current_quiz.coop_p1_answer:
+			p1_correct = true
+			score += 1
+		else:
+			# 不正解ドア
+			p1_alive = false
+			game_over_timer = 0.001
+	
+	# --- P2 判定（答え/名称/漢字 を選ぶ側） ---
+	if p2_alive:
+		var p2_door: int = _check_coop_p2_door(player2_x)
+		if p2_door < 0:
+			p2_alive = false
+			player2_game_over_timer = 0.001
+		elif p2_door == current_quiz.coop_p2_answer:
+			p2_correct = true
+			player2_score += 1
+		else:
+			p2_alive = false
+			player2_game_over_timer = 0.001
+	
+	# 協力モード: 両方正解で進行、片方でも不正解なら両方不正解扱い
+	var both_correct: bool = p1_correct and p2_correct
+	
+	# 記録
+	total_answered += 1
+	if not both_correct:
+		total_wrong += 1
+		current_streak = 0
+	else:
+		current_streak += 1
+		if current_streak > max_streak:
+			max_streak = current_streak
+	recent_results.append(both_correct)
+	if recent_results.size() > 12:
+		recent_results.remove_at(0)
+	
+	provider.submit_result(current_quiz, both_correct)
+	quiz_history.append({"quiz": current_quiz, "correct": both_correct, "rated": ""})
+	
+	QuizManager.quiz_optimizer.evaluate_history(quiz_history, subject, grade, difficulty)
+	
+	if current_quiz:
+		var response_time: float = (Time.get_ticks_msec() - _quiz_shown_time) / 1000.0
+		recent_response_times.append(response_time)
+		if recent_response_times.size() > 5:
+			recent_response_times.pop_front()
+	
+	if both_correct:
+		# 両方正解！ 進行
+		correct_flash = 1.0
+		camera_shake = 0.22
+		message_text = "協力成功！"
+		correct_answer.emit()
+		advance_after_correct()
+	elif p1_correct and not p2_correct:
+		# P1は正解したがP2が失敗 → 協力失敗、P1も道連れ
+		p1_alive = false
+		game_over_timer = 0.001
+		_game_over("P2が不正解！ 協力失敗...")
+		wrong_answer.emit(message_text)
+	elif p2_correct and not p1_correct:
+		# P2は正解したがP1が失敗 → 協力失敗、P2も道連れ
+		p2_alive = false
+		player2_game_over_timer = 0.001
+		_game_over("P1が不正解！ 協力失敗...")
+		wrong_answer.emit(message_text)
+	else:
+		# 両方不正解
+		_game_over("両方不正解！ 協力失敗...")
+		wrong_answer.emit(message_text)
+
 func resolve_collision() -> void:
 	if not current_quiz or choice_locked:
 		return
 	if _is_tutorial_mode():
 		_resolve_tutorial_collision()
+		return
+	if is_coop_mode():
+		_resolve_coop_collision()
 		return
 	choice_locked = true
 	var answer: int = current_quiz.a

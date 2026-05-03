@@ -750,7 +750,14 @@ func _add_stat_row(grid: GridContainer, label_text: String, value_text: String, 
 func _update_question() -> void:
 	if game_state.current_quiz and game_state.game_state == Constants.STATE_PLAYING:
 		question_panel.visible = true
-		question_label.text = FractionFormatter.to_inline(game_state.current_quiz.q)
+		if game_state.is_coop_mode() and game_state.current_quiz.has_coop_data():
+			var q_text := FractionFormatter.to_inline(game_state.current_quiz.q)
+			var p1_role := game_state.current_quiz.coop_p1_label
+			var p2_role := game_state.current_quiz.coop_p2_label
+			question_label.text = q_text + "
+" + p1_role + "  " + p2_role
+		else:
+			question_label.text = FractionFormatter.to_inline(game_state.current_quiz.q)
 	else:
 		question_panel.visible = false
 
@@ -760,6 +767,8 @@ func _update_score() -> void:
 		if game_state.num_players >= 2:
 			if game_state.mode == Constants.MODE_TUTORIAL:
 				score_label.text = "2P練習  P1:%d  P2:%d" % [game_state.score, game_state.player2_score]
+			elif game_state.is_coop_mode():
+				score_label.text = "🤝 協力: %d" % game_state.score
 			else:
 				score_label.text = "P1: %d  P2: %d" % [game_state.score, game_state.player2_score]
 		else:

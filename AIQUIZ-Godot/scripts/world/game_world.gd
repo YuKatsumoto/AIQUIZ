@@ -494,7 +494,11 @@ func _update_walls() -> void:
 			wall_node.position = Vector3(0, 0, wz - game_state.world_scroll_z)
 			wall_container.add_child(wall_node)
 			_active_walls.append(wall_node)
-			
+
+			if wall_node.has_method("set_is_boss"):
+				var is_boss: bool = (idx == game_state.target_count - 1 and game_state.mode == Constants.MODE_TEN)
+				wall_node.set_is_boss(is_boss)
+
 		# Also MUST update positions of existing walls because they slide!
 	for wall: Node3D in _active_walls:
 		if wall.has_meta("wall_index"):

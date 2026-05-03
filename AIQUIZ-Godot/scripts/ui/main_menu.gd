@@ -234,7 +234,10 @@ func _update_ui() -> void:
 		if game_state.num_players == 1:
 			p_text = "👤 1人プレイ"
 		elif game_state.num_players == 2:
-			p_text = "👥 2人プレイ"
+			if game_state.mode == Constants.MODE_COOP:
+				p_text = "🤝 2人協力"
+			else:
+				p_text = "👥 2人プレイ"
 		else:
 			p_text = "🌐 オンライン対戦"
 		players_btn.text = p_text
@@ -273,13 +276,18 @@ func _on_llm_toggle_pressed() -> void:
 	_update_ui()
 
 func _on_players_toggle_pressed() -> void:
-	# 1人 → 2人(ローカル) → オンライン対戦 のサイクル
+	# 1人 → 2人(ローカル) → 2人協力 → オンライン対戦 のサイクル
 	if game_state.num_players == 1:
 		game_state.num_players = 2
-	elif game_state.num_players == 2:
-		game_state.num_players = 3  # 3 = オンライン対戦を示す内部値
+		game_state.mode = Constants.MODE_ENDLESS
+	elif game_state.num_players == 2 and game_state.mode != Constants.MODE_COOP:
+		game_state.mode = Constants.MODE_COOP
+	elif game_state.num_players == 2 and game_state.mode == Constants.MODE_COOP:
+		game_state.num_players = 3
+		game_state.mode = Constants.MODE_ENDLESS
 	else:
 		game_state.num_players = 1
+		game_state.mode = Constants.MODE_ENDLESS
 	_update_ui()
 
 func _on_wall_speed_pressed() -> void:

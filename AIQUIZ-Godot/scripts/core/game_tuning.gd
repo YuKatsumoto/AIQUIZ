@@ -21,3 +21,5 @@ var door4_xs: Array[float] = [-5.8, -1.95, 1.95, 5.8]
 var door4_half_width: float = 1.45
 var hit_z: float = -6.0
 var correct_hold_sec: float = 1.05
+
+

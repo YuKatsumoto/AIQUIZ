@@ -12,6 +12,8 @@ class_name QuizItem
 @export var choice_img: PackedStringArray = [] # 選択肢画像
 @export var estimated_seconds: float = 4.0  # AI予測解答時間（秒）
 
+
+
 static func create(question: String, choices: PackedStringArray, answer: int,
 		explanation: String = "", source: String = "OFFLINE",
 		image: String = "", choice_images: PackedStringArray = [],

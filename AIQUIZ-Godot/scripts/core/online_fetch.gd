@@ -137,7 +137,7 @@ func get_temperature_for_difficulty(difficulty: String, retry_count: int = 0) ->
 	base += retry_count * 0.1
 	return clampf(base, 0.1, 1.0)
 
-func compose_prompt(subject: String, grade: int, difficulty: String, count: int, history: Array[String]) -> String:
+func compose_prompt(subject: String, grade: int, difficulty: String, count: int, history: Array[String], is_coop: bool = false) -> String:
 	var prompt := ""
 
 	# ── 基本条件 ──
@@ -253,6 +253,28 @@ func compose_prompt(subject: String, grade: int, difficulty: String, count: int,
 			prompt += "  × " + history[history.size() - 1 - i] + "\n"
 	prompt += "\n"
 
+	# ── 協力モード用追加指示 ──
+	if is_coop:
+		prompt += "【協力モード（分割問題）追加指示 - 厳守】\n"
+		prompt += "この問題は2人協力モードで出題され、内部ロジックで自動的に「P1用ヒント」と「P2用答え」に分割されます。\n"
+		prompt += "分割抽出が失敗しないよう、問題文(q)と正解(c)の形式を以下の教科ルールに『厳格に』従ってください:\n"
+		match subject:
+			"算数":
+				prompt += "- 問題文(q)には必ず「3 + 4」や「12 × 3」のような『計算式』を半角記号等で明確に含めること。\n"
+				prompt += "- 正解(c)は必ずその計算の「答え（数値や単位付き数値）」にすること。\n"
+			"理科":
+				prompt += "- 問題文(q)の核心となるヒントやキーワードを必ず「」で囲むこと。\n"
+				prompt += "- 正解(c)はその現象・物質・生物などの「正式な名称（短い単語）」にすること。\n"
+			"国語":
+				prompt += "- 漢字の「読み」または「書き」を問う問題を中心に出すこと。\n"
+				prompt += "- 問題文(q)には対象となる漢字やひらがなを必ず「」で囲むこと。（例：「時計」の読みは？）\n"
+			"社会":
+				prompt += "- 歴史の人物や出来事、地理の地名、用語などを問うこと。\n"
+				prompt += "- 問題文(q)の手がかりとなるキーワードは必ず「」で囲むこと。\n"
+			_:
+				prompt += "- 問題文(q)の最も重要なキーワードやヒントは、必ず「」で囲んで強調すること。\n"
+		prompt += "- ※出力フォーマットは通常のJSON（q, c, a, e）のままですが、上記ルールを満たさないとゲーム側での分割処理がエラーになります。\n\n"
+
 	return prompt
 
 # ── カリキュラムデータベース ──
@@ -264,7 +286,7 @@ func _get_curriculum(grade: int, subject: String) -> Dictionary:
 		return db_data
 	
 	# ── フォールバック: JSONがない場合は従来のハードコード ──
-	var data := {
+	var data: Dictionary = {
 		"topics": "", "keywords": "", "examples": [] as Array[String],
 		"easy_desc": "", "normal_desc": "", "hard_desc": "",
 		"bad_examples": [] as Array[String],
@@ -866,7 +888,7 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 		for i in range(TEN_PARALLEL):
 			var extra_history: Array[String] = history.duplicate()
 			extra_history.append(batch_themes[i])
-			var prompt := compose_prompt(subject, grade, difficulty, per_batch, extra_history)
+			var prompt := compose_prompt(subject, grade, difficulty, per_batch, extra_history, QuizManager.game_state.is_coop_mode())
 			var proxy_msg := " (via AI Gateway)" if not ApiStatusAutoload.get_env("PROXY_URL").is_empty() else ""
 			print("[OnlineFetch] 10-question mode - batch %d/%d: requesting %d questions%s" % [i+1, TEN_PARALLEL, per_batch, proxy_msg])
 			_fetch_gemini_target(prompt, ApiStatusAutoload.gemini_model, temperature, on_complete)
@@ -897,7 +919,7 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 		for i in range(NUM_PARALLEL):
 			var extra_history: Array[String] = history.duplicate()
 			extra_history.append("【並列バッチ制約: この生成では必ず『%s』の傾向を中心に出題し、他のバッチと内容が被るのを防いでください】" % themes[i % themes.size()])
-			var prompt := compose_prompt(subject, grade, difficulty, per_call, extra_history)
+			var prompt := compose_prompt(subject, grade, difficulty, per_call, extra_history, QuizManager.game_state.is_coop_mode())
 			var proxy_msg := " (via AI Gateway)" if not ApiStatusAutoload.get_env("PROXY_URL").is_empty() else ""
 			print("[OnlineFetch] Endless mode - batch %d: requesting %d questions%s" % [i+1, per_call, proxy_msg])
 			_fetch_gemini_target(prompt, ApiStatusAutoload.gemini_model, temperature, on_complete)

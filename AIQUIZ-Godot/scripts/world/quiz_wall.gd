@@ -7,6 +7,10 @@ var wall_parts: Array[MeshInstance3D] = []
 var doors: Array[MeshInstance3D] = []
 var door_labels: Array[Label3D] = []
 
+var is_boss: bool = false
+var boss_label: Label3D = null
+var boss_sparks: Array[CPUParticles3D] = []
+
 # Door colors
 const DOOR_COLORS_2 := [
 	Color(0.10, 0.60, 0.95),  # Left - Blue
@@ -24,6 +28,13 @@ const WALL_COLOR := Color(0.50, 0.50, 0.50)
 const LEFT_DOOR_X: float = 3.5
 const RIGHT_DOOR_X: float = -3.5
 const DOOR4_XS: Array[float] = [-5.8, -1.95, 1.95, 5.8]
+
+	Color(0.15, 0.45, 0.95),  # P1-A: Deep Blue
+	Color(0.30, 0.60, 0.95),  # P1-B: Light Blue
+]
+	Color(0.15, 0.80, 0.35),  # P2-A: Green
+	Color(0.40, 0.90, 0.30),  # P2-B: Light Green
+]
 
 var _current_num_choices: int = 2
 
@@ -172,6 +183,75 @@ func set_quiz(quiz: QuizItem, num_choices: int) -> void:
 			door_labels[0].text = FractionFormatter.format_choice(quiz.c[0]) if quiz.c.size() > 0 else ""
 			door_labels[1].text = FractionFormatter.format_choice(quiz.c[1]) if quiz.c.size() > 1 else ""
 
+func set_is_boss(boss: bool) -> void:
+	is_boss = boss
+	var target_color = Color(0.65, 0.15, 0.15) if is_boss else WALL_COLOR
+	for part in wall_parts:
+		if is_instance_valid(part) and part.material_override:
+			part.material_override.albedo_color = target_color
+	
+	if is_boss and not is_instance_valid(boss_label):
+		boss_label = _create_label()
+		boss_label.text = "BOSS問題"
+		boss_label.font_size = 72
+		boss_label.modulate = Color(1.0, 0.4, 0.4)
+		boss_label.outline_modulate = Color(0.1, 0.1, 0.1)
+		boss_label.outline_size = 12
+		boss_label.position = Vector3(0, 4.8, 0)
+		add_child(boss_label)
+		
+		# ボス壁のサイドに火花エフェクトを追加
+		var left_spark := _create_boss_sparks(13.0)
+		var right_spark := _create_boss_sparks(-13.0)
+		add_child(left_spark)
+		add_child(right_spark)
+		boss_sparks.append(left_spark)
+		boss_sparks.append(right_spark)
+		
+	elif not is_boss:
+		if is_instance_valid(boss_label):
+			boss_label.queue_free()
+			boss_label = null
+		for sp in boss_sparks:
+			if is_instance_valid(sp):
+				sp.queue_free()
+		boss_sparks.clear()
+
+func _create_boss_sparks(pos_x: float) -> CPUParticles3D:
+	var sparks := CPUParticles3D.new()
+	sparks.amount = 60
+	sparks.lifetime = 0.8
+	sparks.explosiveness = 0.05
+	sparks.randomness = 1.0
+	
+	sparks.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	sparks.emission_box_extents = Vector3(0.5, 3.5, 0.5)
+	
+	# 外側に向かって吹き出すようにする
+	sparks.direction = Vector3(sign(pos_x), 0.5, 0.5).normalized()
+	sparks.spread = 25.0
+	sparks.initial_velocity_min = 4.0
+	sparks.initial_velocity_max = 10.0
+	
+	sparks.gravity = Vector3(0, -12.0, 0)
+	sparks.scale_amount_min = 0.08
+	sparks.scale_amount_max = 0.25
+	
+	# ピカピカ光るマテリアル
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = Color(1.0, 0.8, 0.2)
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	mat.billboard_keep_scale = true
+	
+	var mesh := QuadMesh.new()
+	mesh.material = mat
+	sparks.mesh = mesh
+	
+	sparks.position = Vector3(pos_x, 0.5, 0.0)
+	return sparks
+
+
 func break_door(door_index: int) -> void:
 	if door_index < 0 or door_index >= doors.size():
 		return
@@ -186,6 +266,15 @@ func break_door(door_index: int) -> void:
 	door.visible = false
 	if door_index < door_labels.size():
 		door_labels[door_index].visible = false
+
+	# Hide boss label if it exists
+	if is_instance_valid(boss_label):
+		boss_label.visible = false
+	
+	# Stop boss sparks
+	for sp in boss_sparks:
+		if is_instance_valid(sp):
+			sp.emitting = false
 
 	# Spawn debris chunks — fine fragmentation
 	var chunks_x := 4
