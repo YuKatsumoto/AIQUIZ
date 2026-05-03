@@ -809,7 +809,7 @@ func _toggle_pause() -> void:
 
 # ============================================================
 # プリロード中の3D構築アニメーション
-# 問題が1つ取得されるたびに壁が上から落下して「建設」される演出
+# 奥の壁から手前に向かって順番に落下する迫力のある建設演出
 # ============================================================
 
 func _update_preview_walls(dt: float) -> void:
@@ -826,16 +826,18 @@ func _update_preview_walls(dt: float) -> void:
 			var wz: float = t.wall_start_z + idx * t.wall_spacing
 			var wall_node: Node3D = quiz_wall_scene.instantiate()
 			wall_node.set_meta("wall_index", idx)
-			wall_node.position = Vector3(0, 15.0, wz)
-			wall_node.visible = false  # 落下開始まで非表示
+			wall_node.position = Vector3(0, 25.0, wz)
+			wall_node.visible = false
+			wall_node.scale = Vector3(1.4, 1.4, 1.4)
 			wall_container.add_child(wall_node)
 			_preview_walls.append(wall_node)
 
 			_preview_wall_anims.append({
 				"target_y": 0.0,
-				"current_y": 15.0,
+				"current_y": 25.0,
 				"velocity": 0.0,
 				"landed": false,
+				"bounce_phase": 0,
 				"bounce_timer": 0.0,
 				"dropping": false,
 			})
@@ -845,50 +847,72 @@ func _update_preview_walls(dt: float) -> void:
 
 			_preview_wall_count += 1
 
-	# ディレイ付きで壁を順番に落下開始（0.4秒間隔）
-	const DROP_INTERVAL: float = 0.4
+	# 奥から手前へ順番に落下開始（0.35秒間隔）
+	const DROP_INTERVAL: float = 0.35
 	if _preview_drop_next < _preview_wall_anims.size():
 		_preview_drop_timer += dt
 		while _preview_drop_timer >= DROP_INTERVAL and _preview_drop_next < _preview_wall_anims.size():
-			_preview_wall_anims[_preview_drop_next]["dropping"] = true
-			if _preview_drop_next < _preview_walls.size():
-				_preview_walls[_preview_drop_next].visible = true
+			var drop_idx: int = (_preview_wall_anims.size() - 1) - _preview_drop_next
+			_preview_wall_anims[drop_idx]["dropping"] = true
+			if drop_idx < _preview_walls.size():
+				_preview_walls[drop_idx].visible = true
 			_preview_drop_next += 1
 			_preview_drop_timer -= DROP_INTERVAL
 
-	# 落下アニメーションを更新
+	# 落下・着地アニメーションを更新
 	for i: int in range(_preview_wall_anims.size()):
 		var anim: Dictionary = _preview_wall_anims[i]
-		if not anim["dropping"]:
-			continue  # まだ落下開始していない
+		if not anim["dropping"] or i >= _preview_walls.size():
+			continue
+		var wall: Node3D = _preview_walls[i]
+		var bp: int = anim["bounce_phase"]
 
-		if anim["landed"]:
-			var bt: float = anim["bounce_timer"]
-			if bt < 0.4:
-				anim["bounce_timer"] = bt + dt
-				var bounce_y: float = sin(bt * PI / 0.4) * 0.3 * (1.0 - bt / 0.4)
-				if i < _preview_walls.size():
-					_preview_walls[i].position.y = anim["target_y"] + bounce_y
-			else:
-				if i < _preview_walls.size():
-					_preview_walls[i].position.y = anim["target_y"]
+		if bp >= 3:
+			wall.position.y = anim["target_y"]
+			wall.scale = Vector3.ONE
 			continue
 
+		if bp > 0:
+			var bt: float = anim["bounce_timer"]
+			bt += dt
+			anim["bounce_timer"] = bt
+			if bp == 1:
+				var dur: float = 0.25
+				if bt < dur:
+					var p: float = bt / dur
+					wall.position.y = anim["target_y"] + sin(p * PI) * 1.5
+					var s: float = lerpf(1.2, 1.0, p)
+					wall.scale = Vector3(s, s, s)
+				else:
+					anim["bounce_phase"] = 2
+					anim["bounce_timer"] = 0.0
+					wall.position.y = anim["target_y"]
+			elif bp == 2:
+				var dur: float = 0.15
+				if bt < dur:
+					wall.position.y = anim["target_y"] + sin(bt / dur * PI) * 0.4
+				else:
+					anim["bounce_phase"] = 3
+					wall.position.y = anim["target_y"]
+					wall.scale = Vector3.ONE
+			continue
+
+		# 落下中
 		var vel: float = anim["velocity"]
-		vel += 30.0 * dt
+		vel += 50.0 * dt
 		var cy: float = anim["current_y"] - vel * dt
 		var ty: float = anim["target_y"]
 
 		if cy <= ty:
 			cy = ty
 			anim["landed"] = true
+			anim["bounce_phase"] = 1
 			anim["bounce_timer"] = 0.0
+			wall.scale = Vector3(1.2, 0.85, 1.2)
 
 		anim["current_y"] = cy
 		anim["velocity"] = vel
-
-		if i < _preview_walls.size():
-			_preview_walls[i].position.y = cy
+		wall.position.y = cy
 
 
 func _clear_preview_walls() -> void:
