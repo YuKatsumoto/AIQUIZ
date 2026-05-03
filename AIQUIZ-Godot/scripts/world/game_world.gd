@@ -25,6 +25,10 @@ var _active_walls: Array[Node3D] = []
 var _flyover_walls: Array[Node3D] = []
 var _flyover_active: bool = false
 var _hats_applied: bool = false
+# ── プリロード中の3D構築アニメーション ──
+var _preview_walls: Array[Node3D] = []
+var _preview_wall_count: int = 0
+var _preview_wall_anims: Array[Dictionary] = []
 var _goal_line_node: Node3D = null
 const MAX_VISIBLE_WALLS := 4
 const BG_COLOR := Color(0.82, 0.85, 0.90)
@@ -335,6 +339,7 @@ func _process(dt: float) -> void:
 	_update_player()
 	_update_walls()
 	_update_goal_line()
+	_update_preview_walls(dt)
 	_update_camera(dt)
 	_check_particles()
 
@@ -655,6 +660,8 @@ func _on_state_changed(new_state: String) -> void:
 	elif new_state in [Constants.STATE_MENU, Constants.STATE_PLAYING]:
 		_fireworks_launched = false
 	elif new_state == Constants.STATE_WAITING_START:
+		# プレビュー壁をクリーンアップ
+		_clear_preview_walls()
 		# ロード完了時に裏で壁を生成し、フライオーバー時のカクつきを防ぐ
 		_clear_flyover_walls()
 		var t := game_state.tuning
@@ -794,3 +801,88 @@ func _toggle_pause() -> void:
 	else:
 		if game_state.num_players == 1:
 			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+
+
+# ============================================================
+# プリロード中の3D構築アニメーション
+# 問題が1つ取得されるたびに壁が上から落下して「建設」される演出
+# ============================================================
+
+func _update_preview_walls(dt: float) -> void:
+	"""quiz_listの数に応じてプレビュー壁を生成・落下アニメーション"""
+	if game_state.game_state not in [Constants.STATE_PRELOADING, Constants.STATE_WAITING_START]:
+		# プリロード中以外は何もしない
+		return
+
+	var t := game_state.tuning
+	var quiz_count: int = game_state.quiz_list.size()
+
+	# 新しい問題が取得されたら壁を追加
+	while _preview_wall_count < quiz_count:
+		var idx: int = _preview_wall_count
+		var wz: float = t.wall_start_z + idx * t.wall_spacing
+		var wall_node: Node3D = quiz_wall_scene.instantiate()
+		wall_node.set_meta("wall_index", idx)
+		# 初期位置: 最終位置の上空15mから落下開始
+		wall_node.position = Vector3(0, 15.0, wz)
+		wall_container.add_child(wall_node)
+		_preview_walls.append(wall_node)
+
+		# 落下アニメーション状態を記録
+		_preview_wall_anims.append({
+			"target_y": 0.0,
+			"current_y": 15.0,
+			"velocity": 0.0,
+			"landed": false,
+			"bounce_timer": 0.0,
+		})
+
+		# クイズ内容を壁に設定
+		if idx < game_state.quiz_list.size() and wall_node.has_method("set_quiz"):
+			wall_node.set_quiz(game_state.quiz_list[idx], game_state.num_choices)
+
+		_preview_wall_count += 1
+
+	# 落下アニメーションを更新
+	for i: int in range(_preview_wall_anims.size()):
+		var anim: Dictionary = _preview_wall_anims[i]
+		if anim["landed"]:
+			# 着地後の微小バウンスアニメーション
+			var bt: float = anim["bounce_timer"]
+			if bt < 0.4:
+				anim["bounce_timer"] = bt + dt
+				var bounce_y: float = sin(bt * PI / 0.4) * 0.3 * (1.0 - bt / 0.4)
+				if i < _preview_walls.size():
+					_preview_walls[i].position.y = anim["target_y"] + bounce_y
+			else:
+				if i < _preview_walls.size():
+					_preview_walls[i].position.y = anim["target_y"]
+			continue
+
+		# 重力加速による落下
+		var vel: float = anim["velocity"]
+		vel += 30.0 * dt  # 重力加速
+		var cy: float = anim["current_y"] - vel * dt
+		var ty: float = anim["target_y"]
+
+		if cy <= ty:
+			# 着地
+			cy = ty
+			anim["landed"] = true
+			anim["bounce_timer"] = 0.0
+
+		anim["current_y"] = cy
+		anim["velocity"] = vel
+
+		if i < _preview_walls.size():
+			_preview_walls[i].position.y = cy
+
+
+func _clear_preview_walls() -> void:
+	"""プレビュー壁を全て削除"""
+	for wall: Node3D in _preview_walls:
+		if is_instance_valid(wall):
+			wall.queue_free()
+	_preview_walls.clear()
+	_preview_wall_anims.clear()
+	_preview_wall_count = 0

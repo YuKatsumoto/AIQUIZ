@@ -37,6 +37,11 @@ func update_camera(gs: QuizGameState, dt: float) -> void:
 	var target: Vector3
 	var fov: float = 44.0
 
+	# === PRELOADING / WAITING_START: 俯瞰オービットカメラ ===
+	if gs.game_state in [Constants.STATE_PRELOADING, Constants.STATE_WAITING_START]:
+		_update_preload_camera(gs, dt)
+		return
+
 	# === FLYOVER: 10問モードの壁全体俯瞰演出 ===
 	if gs.game_state == Constants.STATE_FLYOVER:
 		_update_flyover_camera(gs, dt)
@@ -213,6 +218,32 @@ func _update_flyover_camera(gs: QuizGameState, _dt: float) -> void:
 	camera.fov = fov
 	camera.global_position = eye
 	camera.look_at(look_target, Vector3.UP)
+
+
+## プリロード中のシネマティックオービットカメラ
+## 道の上空をゆっくり旋回し、壁が建設される様子を見下ろす
+func _update_preload_camera(gs: QuizGameState, _dt: float) -> void:
+	var t := gs.tuning
+
+	# 注視点: 道の少し先（壁が建つあたり）
+	var look_z: float = t.wall_start_z + t.wall_spacing * 2.5
+	var look_at_pos := Vector3(0.0, 0.0, look_z)
+
+	# オービット: 時間で角度を変えながら周回
+	var orbit_speed: float = 0.15  # ゆっくり周回
+	var orbit_angle: float = _time * orbit_speed
+	var orbit_radius: float = 18.0
+	var orbit_height: float = 10.0 + sin(_time * 0.3) * 1.5  # 微かな上下動
+
+	var eye := Vector3(
+		sin(orbit_angle) * orbit_radius,
+		orbit_height,
+		look_z - cos(orbit_angle) * orbit_radius
+	)
+
+	camera.fov = 50.0
+	camera.global_position = eye
+	camera.look_at(look_at_pos, Vector3.UP)
 
 
 ## Quintic ease-in-out (滑らかな加速/減速)

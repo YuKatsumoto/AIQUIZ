@@ -90,9 +90,9 @@ func _draw() -> void:
 	var cx := w * 0.5
 	var cy := h * 0.5
 
-	# ── 1. 背景グラデーション（上部が暗い紺、下部が深い紫）──
-	var bg_top := Color(0.04, 0.05, 0.12, 0.95)
-	var bg_bot := Color(0.08, 0.04, 0.16, 0.95)
+	# ── 1. 背景グラデーション（半透明 — 3Dシーンを透かして見せる）──
+	var bg_top := Color(0.04, 0.05, 0.12, 0.5)
+	var bg_bot := Color(0.08, 0.04, 0.16, 0.5)
 	# 横線で簡易グラデーション（60本で十分滑らか）
 	var grad_steps := 60
 	for i: int in range(grad_steps):
@@ -103,8 +103,8 @@ func _draw() -> void:
 
 	# ── 2. 浮遊する星パーティクル ──
 	for star: Dictionary in _stars:
-		var sx := star["x"] * w
-		var sy := star["y"] * h
+		var sx: float = star["x"] * w
+		var sy: float = star["y"] * h
 		var sa: float = star["alpha"]
 		# 微かな明滅
 		sa *= 0.7 + 0.3 * sin(_elapsed * 2.0 + star["phase"])
@@ -125,7 +125,7 @@ func _draw() -> void:
 		var pt: float = pulse["time"]
 		var pd: float = pulse["duration"]
 		var progress := pt / pd
-		var radius := pulse["max_radius"] * ease(progress, 0.3)
+		var radius: float = pulse["max_radius"] * ease(progress, 0.3)
 		var alpha := (1.0 - progress) * 0.35
 		var pulse_color := Color(0.4, 0.7, 1.0, alpha)
 		_draw_ring(cx, cy, radius, 2.0, pulse_color)
