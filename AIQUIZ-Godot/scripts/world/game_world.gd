@@ -26,11 +26,13 @@ var _flyover_walls: Array[Node3D] = []
 var _flyover_active: bool = false
 var _hats_applied: bool = false
 # ── プリロード中の3D構築アニメーション ──
-var _preview_walls: Array[Node3D] = []
-var _preview_wall_count: int = 0  # 生成済み壁数
-var _preview_wall_anims: Array[Dictionary] = []
-var _preview_drop_next: int = 0  # 次に落下開始する壁のインデックス
-var _preview_drop_timer: float = 0.0  # 壁間のディレイタイマー
+var _pw_walls: Array[Node3D] = []        # 完成壁
+var _pw_left: Array[Node3D] = []          # 左半分スライド壁
+var _pw_right: Array[Node3D] = []         # 右半分スライド壁
+var _pw_anims: Array[Dictionary] = []     # アニメ状態
+var _pw_count: int = 0                    # 生成済み壁数
+var _pw_merge_next: int = 0               # 次に合体開始する壁
+var _pw_merge_timer: float = 0.0          # 壁間のディレイタイマー
 var _goal_line_node: Node3D = null
 const MAX_VISIBLE_WALLS := 4
 const BG_COLOR := Color(0.82, 0.85, 0.90)
@@ -809,7 +811,7 @@ func _toggle_pause() -> void:
 
 # ============================================================
 # プリロード中の3D構築アニメーション
-# 奥の壁から手前に向かって順番に落下する迫力のある建設演出
+# 壁を左右から爆速スライドイン → 合体＋火花エフェクト
 # ============================================================
 
 func _update_preview_walls(dt: float) -> void:
@@ -819,108 +821,160 @@ func _update_preview_walls(dt: float) -> void:
 	var t := game_state.tuning
 	var quiz_count: int = game_state.quiz_list.size()
 
-	# 新しい問題が取得されたら壁を生成（非表示で待機）─ プリロード中のみ
+	# 新しい問題が取得されたら壁を3セット生成（完成壁+左右スライド壁）
 	if game_state.game_state == Constants.STATE_PRELOADING:
-		while _preview_wall_count < quiz_count:
-			var idx: int = _preview_wall_count
+		while _pw_count < quiz_count:
+			var idx: int = _pw_count
 			var wz: float = t.wall_start_z + idx * t.wall_spacing
-			var wall_node: Node3D = quiz_wall_scene.instantiate()
-			wall_node.set_meta("wall_index", idx)
-			wall_node.position = Vector3(0, 25.0, wz)
-			wall_node.visible = false
-			wall_node.scale = Vector3(1.4, 1.4, 1.4)
-			wall_container.add_child(wall_node)
-			_preview_walls.append(wall_node)
 
-			_preview_wall_anims.append({
-				"target_y": 0.0,
-				"current_y": 25.0,
-				"velocity": 0.0,
-				"landed": false,
-				"bounce_phase": 0,
-				"bounce_timer": 0.0,
-				"dropping": false,
+			# 完成壁（合体後に表示）
+			var wall_final: Node3D = quiz_wall_scene.instantiate()
+			wall_final.set_meta("wall_index", idx)
+			wall_final.position = Vector3(0, 0, wz)
+			wall_final.visible = false
+			wall_container.add_child(wall_final)
+			_pw_walls.append(wall_final)
+
+			if idx < game_state.quiz_list.size() and wall_final.has_method("set_quiz"):
+				wall_final.set_quiz(game_state.quiz_list[idx], game_state.num_choices)
+
+			# 左スライド壁
+			var wall_l: Node3D = quiz_wall_scene.instantiate()
+			wall_l.position = Vector3(-25.0, 0, wz)
+			wall_l.visible = false
+			wall_container.add_child(wall_l)
+			_pw_left.append(wall_l)
+
+			# 右スライド壁
+			var wall_r: Node3D = quiz_wall_scene.instantiate()
+			wall_r.position = Vector3(25.0, 0, wz)
+			wall_r.visible = false
+			wall_container.add_child(wall_r)
+			_pw_right.append(wall_r)
+
+			_pw_anims.append({
+				"phase": 0,     # 0=待機, 1=スライド中, 2=合体演出, 3=完了
+				"timer": 0.0,
+				"started": false,
 			})
 
-			if idx < game_state.quiz_list.size() and wall_node.has_method("set_quiz"):
-				wall_node.set_quiz(game_state.quiz_list[idx], game_state.num_choices)
+			_pw_count += 1
 
-			_preview_wall_count += 1
+	# 奥から手前へ順番に合体開始（0.3秒間隔）
+	const MERGE_INTERVAL: float = 0.3
+	if _pw_merge_next < _pw_anims.size():
+		_pw_merge_timer += dt
+		while _pw_merge_timer >= MERGE_INTERVAL and _pw_merge_next < _pw_anims.size():
+			var merge_idx: int = (_pw_anims.size() - 1) - _pw_merge_next
+			_pw_anims[merge_idx]["phase"] = 1
+			_pw_anims[merge_idx]["started"] = true
+			if merge_idx < _pw_left.size():
+				_pw_left[merge_idx].visible = true
+				_pw_right[merge_idx].visible = true
+			_pw_merge_next += 1
+			_pw_merge_timer -= MERGE_INTERVAL
 
-	# 奥から手前へ順番に落下開始（0.35秒間隔）
-	const DROP_INTERVAL: float = 0.35
-	if _preview_drop_next < _preview_wall_anims.size():
-		_preview_drop_timer += dt
-		while _preview_drop_timer >= DROP_INTERVAL and _preview_drop_next < _preview_wall_anims.size():
-			var drop_idx: int = (_preview_wall_anims.size() - 1) - _preview_drop_next
-			_preview_wall_anims[drop_idx]["dropping"] = true
-			if drop_idx < _preview_walls.size():
-				_preview_walls[drop_idx].visible = true
-			_preview_drop_next += 1
-			_preview_drop_timer -= DROP_INTERVAL
+	# アニメーション更新
+	const SLIDE_DURATION: float = 0.25   # スライド所要時間
+	const FLASH_DURATION: float = 0.35   # 合体エフェクト時間
+	const SLIDE_START_X: float = 25.0    # 左右の開始X位置
 
-	# 落下・着地アニメーションを更新
-	for i: int in range(_preview_wall_anims.size()):
-		var anim: Dictionary = _preview_wall_anims[i]
-		if not anim["dropping"] or i >= _preview_walls.size():
-			continue
-		var wall: Node3D = _preview_walls[i]
-		var bp: int = anim["bounce_phase"]
-
-		if bp >= 3:
-			wall.position.y = anim["target_y"]
-			wall.scale = Vector3.ONE
+	for i: int in range(_pw_anims.size()):
+		var anim: Dictionary = _pw_anims[i]
+		if not anim["started"] or i >= _pw_walls.size():
 			continue
 
-		if bp > 0:
-			var bt: float = anim["bounce_timer"]
-			bt += dt
-			anim["bounce_timer"] = bt
-			if bp == 1:
-				var dur: float = 0.25
-				if bt < dur:
-					var p: float = bt / dur
-					wall.position.y = anim["target_y"] + sin(p * PI) * 1.5
-					var s: float = lerpf(1.2, 1.0, p)
-					wall.scale = Vector3(s, s, s)
-				else:
-					anim["bounce_phase"] = 2
-					anim["bounce_timer"] = 0.0
-					wall.position.y = anim["target_y"]
-			elif bp == 2:
-				var dur: float = 0.15
-				if bt < dur:
-					wall.position.y = anim["target_y"] + sin(bt / dur * PI) * 0.4
-				else:
-					anim["bounce_phase"] = 3
-					wall.position.y = anim["target_y"]
-					wall.scale = Vector3.ONE
-			continue
+		var phase: int = anim["phase"]
+		var t_val: float = anim["timer"]
+		t_val += dt
+		anim["timer"] = t_val
 
-		# 落下中
-		var vel: float = anim["velocity"]
-		vel += 50.0 * dt
-		var cy: float = anim["current_y"] - vel * dt
-		var ty: float = anim["target_y"]
+		if phase == 1:
+			# スライドイン: ease-out cubic で爆速接近
+			var p: float = clampf(t_val / SLIDE_DURATION, 0.0, 1.0)
+			var eased: float = 1.0 - pow(1.0 - p, 3.0)  # ease-out cubic
+			var x_offset: float = SLIDE_START_X * (1.0 - eased)
+			_pw_left[i].position.x = -x_offset
+			_pw_right[i].position.x = x_offset
 
-		if cy <= ty:
-			cy = ty
-			anim["landed"] = true
-			anim["bounce_phase"] = 1
-			anim["bounce_timer"] = 0.0
-			wall.scale = Vector3(1.2, 0.85, 1.2)
+			if p >= 1.0:
+				# 合体！
+				anim["phase"] = 2
+				anim["timer"] = 0.0
+				# 左右を非表示、完成壁を表示
+				_pw_left[i].visible = false
+				_pw_right[i].visible = false
+				_pw_walls[i].visible = true
+				_pw_walls[i].scale = Vector3(1.15, 1.15, 1.15)
+				# 火花エフェクトを生成
+				_spawn_merge_sparks(_pw_walls[i].global_position)
 
-		anim["current_y"] = cy
-		anim["velocity"] = vel
-		wall.position.y = cy
+		elif phase == 2:
+			# 合体フラッシュ: スケールを戻す
+			var p: float = clampf(t_val / FLASH_DURATION, 0.0, 1.0)
+			var eased: float = 1.0 - pow(1.0 - p, 2.0)
+			var s: float = lerpf(1.15, 1.0, eased)
+			_pw_walls[i].scale = Vector3(s, s, s)
+			if p >= 1.0:
+				anim["phase"] = 3
+				_pw_walls[i].scale = Vector3.ONE
+
+
+## 合体時の火花パーティクルを生成
+func _spawn_merge_sparks(pos: Vector3) -> void:
+	var sparks := CPUParticles3D.new()
+	sparks.amount = 80
+	sparks.lifetime = 0.6
+	sparks.one_shot = true
+	sparks.explosiveness = 0.95
+	sparks.randomness = 1.0
+	sparks.emitting = true
+
+	sparks.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	sparks.emission_box_extents = Vector3(0.3, 3.0, 0.3)
+
+	sparks.direction = Vector3(0.0, 0.5, 0.0)
+	sparks.spread = 90.0
+	sparks.initial_velocity_min = 6.0
+	sparks.initial_velocity_max = 14.0
+	sparks.gravity = Vector3(0, -15.0, 0)
+
+	sparks.scale_amount_min = 0.05
+	sparks.scale_amount_max = 0.2
+
+	# オレンジ～黄色の輝くマテリアル
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = Color(1.0, 0.7, 0.1)
+	mat.emission_enabled = true
+	mat.emission = Color(1.0, 0.6, 0.0)
+	mat.emission_energy_multiplier = 3.0
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	mat.billboard_keep_scale = true
+
+	var mesh := QuadMesh.new()
+	mesh.material = mat
+	sparks.mesh = mesh
+
+	sparks.global_position = pos + Vector3(0, 2.5, 0)
+	wall_container.add_child(sparks)
+
+	# 2秒後に自動削除
+	var tw := create_tween()
+	tw.tween_callback(sparks.queue_free).set_delay(2.0)
 
 
 func _clear_preview_walls() -> void:
-	for wall: Node3D in _preview_walls:
-		if is_instance_valid(wall):
-			wall.queue_free()
-	_preview_walls.clear()
-	_preview_wall_anims.clear()
-	_preview_wall_count = 0
-	_preview_drop_next = 0
-	_preview_drop_timer = 0.0
+	for wall: Node3D in _pw_walls:
+		if is_instance_valid(wall): wall.queue_free()
+	for wall: Node3D in _pw_left:
+		if is_instance_valid(wall): wall.queue_free()
+	for wall: Node3D in _pw_right:
+		if is_instance_valid(wall): wall.queue_free()
+	_pw_walls.clear()
+	_pw_left.clear()
+	_pw_right.clear()
+	_pw_anims.clear()
+	_pw_count = 0
+	_pw_merge_next = 0
+	_pw_merge_timer = 0.0
