@@ -53,11 +53,7 @@ var _tutorial_emote_p1_slots: Label = null
 var _tutorial_emote_p2_slots: Label = null
 var _tutorial_emote_signature: String = ""
 
-# ── ローディング演出（プリロード中） ──
-var _loading_overlay: Control = null
-var _loading_elapsed: float = 0.0
-var _loading_particles: Array[Dictionary] = []
-var _loading_prev_count: int = 0
+
 
 func _ready() -> void:
 	game_state = QuizManager.game_state
@@ -103,7 +99,7 @@ func _ready() -> void:
 	# Build the stats panel for game over (created once, updated per game)
 	_create_stats_panel()
 	_create_tutorial_overlay()
-	_create_loading_overlay()
+
 
 
 	btn_good.pressed.connect(func():
@@ -141,12 +137,10 @@ func _process(_dt: float) -> void:
 
 	if game_state.game_state == Constants.STATE_PRELOADING:
 		_show_preloading(_dt)
-		_update_loading_overlay(_dt)
 		_update_tutorial_overlay(_dt)
 		return
 	elif game_state.game_state == Constants.STATE_WAITING_START:
 		_show_waiting_start(_dt)
-		_update_loading_overlay(_dt)
 		_update_tutorial_overlay(_dt)
 		return
 	elif game_state.game_state == Constants.STATE_FLYOVER:
@@ -157,13 +151,13 @@ func _process(_dt: float) -> void:
 		progress_bar.visible = false
 		game_over_panel.visible = false
 		message_label.visible = false
-		_hide_loading_overlay()
+
 		_update_tutorial_overlay(_dt)
 		return
 	else:
 		preload_bg.visible = false
 		preload_panel.visible = false
-		_hide_loading_overlay()
+
 	if game_state.game_state in [Constants.STATE_GAME_OVER, Constants.STATE_CLEAR]:
 		_go_fade_timer += _dt
 		_show_game_over()
@@ -197,7 +191,7 @@ func _update_flash() -> void:
 var _displayed_progress: float = 0.0
 
 func _show_preloading(dt: float) -> void:
-	preload_bg.visible = true
+	preload_bg.visible = false
 	preload_panel.visible = true
 	question_panel.visible = false
 	score_label.visible = false
@@ -227,7 +221,7 @@ func _show_preloading(dt: float) -> void:
 
 var _blink_timer: float = 0.0
 func _show_waiting_start(dt: float) -> void:
-	preload_bg.visible = true
+	preload_bg.visible = false
 	preload_panel.visible = true
 	question_panel.visible = false
 	score_label.visible = false
@@ -1212,37 +1206,3 @@ func _fire_confetti() -> void:
 
 # ============================================================
 # ローディング演出（プリロード中のアニメーション強化）
-# ============================================================
-
-func _create_loading_overlay() -> void:
-	"""_drawでパーティクルやリングを描画するControlを生成"""
-	_loading_overlay = Control.new()
-	_loading_overlay.name = "LoadingOverlay"
-	_loading_overlay.visible = false
-	_loading_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_loading_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_loading_overlay.set_script(load("res://scripts/ui/loading_overlay.gd"))
-	add_child(_loading_overlay)
-	# PreloadPanelより下に配置（背景側）
-	move_child(_loading_overlay, preload_bg.get_index() + 1)
-
-
-func _update_loading_overlay(dt: float) -> void:
-	"""プリロード中の演出を更新"""
-	if _loading_overlay == null:
-		return
-	_loading_overlay.visible = true
-
-	# 進捗情報をオーバーレイに渡す
-	var target: int = 1 if game_state.mode == Constants.MODE_ENDLESS else game_state.target_count
-	target = maxi(1, target)
-	var current: int = mini(game_state.quiz_list.size(), target)
-	var is_complete: bool = (game_state.game_state == Constants.STATE_WAITING_START)
-
-	if _loading_overlay.has_method("update_progress"):
-		_loading_overlay.update_progress(current, target, is_complete)
-
-
-func _hide_loading_overlay() -> void:
-	if _loading_overlay != null:
-		_loading_overlay.visible = false

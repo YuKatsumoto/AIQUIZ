@@ -368,17 +368,19 @@ func _unhandled_input(event: InputEvent) -> void:
 					game_state.trigger_start()
 
 func _update_floor() -> void:
-	if game_state.game_state == Constants.STATE_FLYOVER:
-		# フライオーバー中: 最後の壁(orゴールライン)まで床を延長
-		# 後端を通常時と同じ -4.5 に揃えて、遷移時に崖の位置がずれないようにする
+	if game_state.game_state in [Constants.STATE_FLYOVER, Constants.STATE_PRELOADING, Constants.STATE_WAITING_START]:
+		# フライオーバー / プリロード中: 最後の壁(orゴールライン)まで床を延長
 		var t := game_state.tuning
-		var last_wall_z: float = t.wall_start_z + (game_state.flyover_total_walls - 1) * t.wall_spacing
-		var floor_front: float = last_wall_z + 30.0  # 最後の壁の少し先まで
+		var wall_count: int = game_state.target_count if game_state.target_count > 0 else 10
+		if game_state.game_state == Constants.STATE_FLYOVER:
+			wall_count = game_state.flyover_total_walls
+		var last_wall_z: float = t.wall_start_z + (wall_count - 1) * t.wall_spacing
+		var floor_front: float = last_wall_z + 30.0
 		# 2P×10Qモード: ゴールラインまで延長
 		if game_state.num_players >= 2 and game_state.mode == Constants.MODE_TEN:
 			var goal_line_z: float = t.wall_start_z + game_state.target_count * t.wall_spacing + 15.0
 			floor_front = maxf(floor_front, goal_line_z + 20.0)
-		var floor_back: float = -4.5  # 通常時の床の後端と一致
+		var floor_back: float = -4.5
 		var floor_length: float = floor_front - floor_back
 		var floor_center_z: float = (floor_front + floor_back) / 2.0
 		var box_mesh: BoxMesh = floor_mesh.mesh as BoxMesh
