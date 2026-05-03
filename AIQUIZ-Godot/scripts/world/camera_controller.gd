@@ -221,18 +221,22 @@ func _update_flyover_camera(gs: QuizGameState, _dt: float) -> void:
 
 
 ## プリロード中の固定俯瞰カメラ
-## 道の斜め上方に固定し、壁が次々と落下・建設される様子を一望する
+## 10枚の壁全体を一望できる位置に固定
 func _update_preload_camera(gs: QuizGameState, _dt: float) -> void:
 	var t := gs.tuning
+	# 10枚の壁の範囲: Z=22 ~ Z=292、中心≈157
+	var wall_count: int = gs.target_count if gs.target_count > 0 else 10
+	var first_z: float = t.wall_start_z
+	var last_z: float = t.wall_start_z + (wall_count - 1) * t.wall_spacing
+	var center_z: float = (first_z + last_z) / 2.0
 
-	# 注視点: 道の中盤あたりを固定で見る
-	var look_z: float = t.wall_start_z + t.wall_spacing * 3.0
-	var look_at_pos := Vector3(0.0, 1.0, look_z)
+	# 注視点: 壁全体の中心
+	var look_at_pos := Vector3(0.0, 0.0, center_z)
 
-	# カメラ位置: 完全固定
-	var eye := Vector3(-8.0, 12.0, look_z - 20.0)
+	# カメラ位置: 左斜め上方の高い位置から俯瞰
+	var eye := Vector3(-40.0, 90.0, center_z - 30.0)
 
-	camera.fov = 55.0
+	camera.fov = 60.0
 	camera.global_position = eye
 	camera.look_at(look_at_pos, Vector3.UP)
 
