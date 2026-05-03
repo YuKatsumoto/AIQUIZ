@@ -309,7 +309,7 @@ func _draw() -> void:
 
 	# ── 背景星 ──
 	for star: Dictionary in _bg_stars:
-		var sa := star["alpha"] * alpha
+		var sa: float = star["alpha"] * alpha
 		draw_circle(Vector2(star["x"], star["y"]) + shake_off, star["size"], Color(0.7, 0.8, 1.0, sa))
 
 	# ── 地面ライン ──
@@ -370,7 +370,7 @@ func _draw_blockman(cx: float, cy: float, alpha: float) -> void:
 	var h := PLAYER_HEIGHT
 
 	# 影（足元）
-	draw_ellipse(Rect2(cx - w * 0.4, cy + h - 2, w * 0.8, 8.0), Color(0, 0, 0, 0.15 * alpha))
+	draw_rect(Rect2(cx - w * 0.4, cy + h - 2, w * 0.8, 8.0), Color(0, 0, 0, 0.15 * alpha))
 
 	# 体
 	draw_rect(Rect2(cx - w * 0.5, cy, w, h), Color(0.25, 0.55, 1.0, alpha))
