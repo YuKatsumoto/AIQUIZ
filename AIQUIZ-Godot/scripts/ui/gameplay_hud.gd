@@ -53,6 +53,12 @@ var _tutorial_emote_p1_slots: Label = null
 var _tutorial_emote_p2_slots: Label = null
 var _tutorial_emote_signature: String = ""
 
+# ── ミニゲーム（プリロード中） ──
+var _minigame: MinigameCatch = null
+var _minigame_started: bool = false
+var _minigame_result_label: Label = null
+var _minigame_result_timer: float = 0.0
+
 func _ready() -> void:
 	game_state = QuizManager.game_state
 	message_label.visible = false
@@ -97,6 +103,7 @@ func _ready() -> void:
 	# Build the stats panel for game over (created once, updated per game)
 	_create_stats_panel()
 	_create_tutorial_overlay()
+	_create_minigame()
 
 
 	btn_good.pressed.connect(func():
@@ -134,10 +141,12 @@ func _process(_dt: float) -> void:
 
 	if game_state.game_state == Constants.STATE_PRELOADING:
 		_show_preloading(_dt)
+		_show_minigame()
 		_update_tutorial_overlay(_dt)
 		return
 	elif game_state.game_state == Constants.STATE_WAITING_START:
 		_show_waiting_start(_dt)
+		_show_minigame()
 		_update_tutorial_overlay(_dt)
 		return
 	elif game_state.game_state == Constants.STATE_FLYOVER:
@@ -148,11 +157,13 @@ func _process(_dt: float) -> void:
 		progress_bar.visible = false
 		game_over_panel.visible = false
 		message_label.visible = false
+		_hide_minigame()
 		_update_tutorial_overlay(_dt)
 		return
 	else:
 		preload_bg.visible = false
 		preload_panel.visible = false
+		_hide_minigame()
 	if game_state.game_state in [Constants.STATE_GAME_OVER, Constants.STATE_CLEAR]:
 		_go_fade_timer += _dt
 		_show_game_over()
@@ -198,10 +209,12 @@ func _show_preloading(dt: float) -> void:
 
 	pl_status.text = game_state.status_text
 
-	var target: int = game_state.target_count if game_state.mode == Constants.MODE_TEN else 1
-	var current: int = game_state.quiz_list.size()
+	var target: int = 1 if game_state.mode == Constants.MODE_ENDLESS else game_state.target_count
+	target = maxi(1, target)
+	var current: int = mini(game_state.quiz_list.size(), target)
 
 	pl_progress.max_value = float(target)
+	_displayed_progress = clampf(_displayed_progress, 0.0, float(current))
 
 	# スムーズな進行度アニメーション (実際の取得数にlerpで追いつかせる)
 	if current < target:
@@ -540,6 +553,7 @@ func _build_result_card(is_clear: bool, explanation: String) -> void:
 	var p2_score: int = game_state.player2_score
 	var is_2p: bool = game_state.num_players >= 2
 	var is_tutorial: bool = game_state.mode == Constants.MODE_TUTORIAL
+	var is_coop: bool = game_state.is_coop_mode()
 
 	# ─── Score animation ───
 	_score_anim_timer += 0.016
@@ -547,7 +561,35 @@ func _build_result_card(is_clear: bool, explanation: String) -> void:
 	anim_progress = 1.0 - pow(1.0 - anim_progress, 3.0)
 
 	# ─── Row 1: Score display ───
-	if is_2p:
+	if is_coop:
+		var score_row := HBoxContainer.new()
+		score_row.alignment = BoxContainer.ALIGNMENT_CENTER
+		score_row.add_theme_constant_override("separation", 12)
+		root_vbox.add_child(score_row)
+
+		var score_num := Label.new()
+		var displayed := int(anim_progress * current_score)
+		score_num.text = "%d" % displayed
+		score_num.add_theme_font_size_override("font_size", 48)
+		score_num.add_theme_color_override("font_color",
+			Color(1.0, 0.85, 0.2) if is_clear else Color(0.9, 0.92, 0.95))
+		score_row.add_child(score_num)
+
+		var sub := Label.new()
+		sub.text = "協力成功 / %d問" % game_state.target_count
+		sub.add_theme_font_size_override("font_size", 16)
+		sub.add_theme_color_override("font_color", Color(0.6, 0.65, 0.75))
+		sub.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		score_row.add_child(sub)
+
+		var team_label := Label.new()
+		team_label.text = "COOP CLEAR" if is_clear else "協力失敗"
+		team_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		team_label.add_theme_font_size_override("font_size", 22)
+		team_label.add_theme_color_override("font_color",
+			Color(1.0, 0.85, 0.2) if is_clear else Color(1.0, 0.45, 0.35))
+		root_vbox.add_child(team_label)
+	elif is_2p:
 		var hbox_scores := HBoxContainer.new()
 		hbox_scores.alignment = BoxContainer.ALIGNMENT_CENTER
 		hbox_scores.add_theme_constant_override("separation", 30)
@@ -754,8 +796,7 @@ func _update_question() -> void:
 			var q_text := FractionFormatter.to_inline(game_state.current_quiz.q)
 			var p1_role := game_state.current_quiz.coop_p1_label
 			var p2_role := game_state.current_quiz.coop_p2_label
-			question_label.text = q_text + "
-" + p1_role + "  " + p2_role
+			question_label.text = "%s\n%s / %s" % [q_text, p1_role, p2_role]
 		else:
 			question_label.text = FractionFormatter.to_inline(game_state.current_quiz.q)
 	else:
@@ -768,7 +809,7 @@ func _update_score() -> void:
 			if game_state.mode == Constants.MODE_TUTORIAL:
 				score_label.text = "2P練習  P1:%d  P2:%d" % [game_state.score, game_state.player2_score]
 			elif game_state.is_coop_mode():
-				score_label.text = "🤝 協力: %d" % game_state.score
+				score_label.text = "協力: %d/%d" % [game_state.score, game_state.target_count]
 			else:
 				score_label.text = "P1: %d  P2: %d" % [game_state.score, game_state.player2_score]
 		else:
@@ -921,35 +962,41 @@ func _create_history_card(index: int, quiz: QuizItem, correct: bool, rated: Stri
 		icon_color_tag = "Q%d  %s" % [index + 1, icon]
 	else:
 		icon_color_tag = "Q%d  %s" % [index + 1, icon]
-	header.text = "%s  %s" % [icon_color_tag, FractionFormatter.to_inline(quiz.q)]
+	var question_text := quiz.coop_prompt if quiz.has_coop_data() and not quiz.coop_prompt.is_empty() else quiz.q
+	header.text = "%s  %s" % [icon_color_tag, FractionFormatter.to_inline(question_text)]
 	header.add_theme_font_size_override("font_size", 20)
 	header.add_theme_color_override("font_color", Color(0.3, 1.0, 0.5) if correct else Color(1.0, 0.4, 0.3))
 	header.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vbox.add_child(header)
+
+	var entry: Dictionary = game_state.quiz_history[index]
 
 	# --- Choices ---
 	var choices_box := VBoxContainer.new()
 	choices_box.add_theme_constant_override("separation", 2)
 	vbox.add_child(choices_box)
 
-	var labels_4 := ["A", "B", "C", "D"]
-	for ci: int in range(quiz.c.size()):
-		var choice_label := Label.new()
-		var prefix: String
-		if quiz.c.size() <= 2:
-			prefix = "左" if ci == 0 else "右"
-		else:
-			prefix = labels_4[ci] if ci < 4 else str(ci)
+	if quiz.has_coop_data():
+		_add_coop_history_choices(choices_box, quiz, entry)
+	else:
+		var labels_4 := ["A", "B", "C", "D"]
+		for ci: int in range(quiz.c.size()):
+			var choice_label := Label.new()
+			var prefix: String
+			if quiz.c.size() <= 2:
+				prefix = "左" if ci == 0 else "右"
+			else:
+				prefix = labels_4[ci] if ci < 4 else str(ci)
 
-		var is_correct_choice := (ci == quiz.a)
-		choice_label.text = "  %s: %s %s" % [prefix, FractionFormatter.to_inline(quiz.c[ci]), "✓" if is_correct_choice else ""]
-		choice_label.add_theme_font_size_override("font_size", 17)
-		if is_correct_choice:
-			choice_label.add_theme_color_override("font_color", Color(0.3, 1.0, 0.5))
-		else:
-			choice_label.add_theme_color_override("font_color", Color(0.65, 0.7, 0.75))
-		choice_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		choices_box.add_child(choice_label)
+			var is_correct_choice := (ci == quiz.a)
+			choice_label.text = "  %s: %s %s" % [prefix, FractionFormatter.to_inline(quiz.c[ci]), "✓" if is_correct_choice else ""]
+			choice_label.add_theme_font_size_override("font_size", 17)
+			if is_correct_choice:
+				choice_label.add_theme_color_override("font_color", Color(0.3, 1.0, 0.5))
+			else:
+				choice_label.add_theme_color_override("font_color", Color(0.65, 0.7, 0.75))
+			choice_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			choices_box.add_child(choice_label)
 
 	# --- Explanation ---
 	if not quiz.e.is_empty():
@@ -966,7 +1013,6 @@ func _create_history_card(index: int, quiz: QuizItem, correct: bool, rated: Stri
 	rate_container.add_theme_constant_override("separation", 12)
 	vbox.add_child(rate_container)
 
-	var entry: Dictionary = game_state.quiz_history[index]
 	var player_rated: bool = entry.get("player_rated", false)
 	if not player_rated:
 		# Show rating buttons, optionally mentioning AI's rating if any
@@ -1018,6 +1064,37 @@ func _create_history_card(index: int, quiz: QuizItem, correct: bool, rated: Stri
 		rate_container.add_child(feedback)
 
 	return card
+
+func _add_coop_history_choices(choices_box: VBoxContainer, quiz: QuizItem, entry: Dictionary) -> void:
+	var p1_chosen: int = int(entry.get("p1_choice", -99))
+	var p2_chosen: int = int(entry.get("p2_choice", -99))
+	_add_coop_history_role(choices_box, quiz.coop_p1_label, quiz.coop_p1_choices, quiz.coop_p1_answer, p1_chosen)
+	_add_coop_history_role(choices_box, quiz.coop_p2_label, quiz.coop_p2_choices, quiz.coop_p2_answer, p2_chosen)
+
+func _add_coop_history_role(choices_box: VBoxContainer, title: String,
+		choices: PackedStringArray, answer: int, chosen: int) -> void:
+	var title_label := Label.new()
+	title_label.text = title
+	title_label.add_theme_font_size_override("font_size", 16)
+	title_label.add_theme_color_override("font_color", Color(0.55, 0.62, 0.75))
+	choices_box.add_child(title_label)
+
+	var names := ["A", "B"]
+	for ci: int in range(mini(2, choices.size())):
+		var choice_label := Label.new()
+		var is_correct_choice := ci == answer
+		var picked := " / 選択" if ci == chosen else ""
+		choice_label.text = "  %s: %s%s %s" % [
+			names[ci],
+			FractionFormatter.to_inline(choices[ci]),
+			picked,
+			"✓" if is_correct_choice else ""
+		]
+		choice_label.add_theme_font_size_override("font_size", 17)
+		choice_label.add_theme_color_override("font_color",
+			Color(0.3, 1.0, 0.5) if is_correct_choice else Color(0.65, 0.7, 0.75))
+		choice_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		choices_box.add_child(choice_label)
 
 func _replace_rate_buttons(container: HBoxContainer, good: bool) -> void:
 	# Remove all children
@@ -1131,3 +1208,84 @@ func _fire_confetti() -> void:
 		# Self destruct timer
 		var timer = get_tree().create_timer(3.0)
 		timer.timeout.connect(func(): if is_instance_valid(emitter): emitter.queue_free())
+
+
+# ============================================================
+# ミニゲーム（プリロード中のBlockmanキャッチ）
+# ============================================================
+
+func _create_minigame() -> void:
+	"""ミニゲーム用のControlノードとリザルトラベルを事前構築"""
+	_minigame = MinigameCatch.new()
+	_minigame.name = "MinigameCatch"
+	_minigame.visible = false
+	_minigame.mouse_filter = Control.MOUSE_FILTER_PASS
+	# 全画面サイズ（アンカー設定）
+	_minigame.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(_minigame)
+	
+	# リザルト表示用ラベル（ミニゲーム終了時に短時間表示）
+	_minigame_result_label = Label.new()
+	_minigame_result_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_minigame_result_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_minigame_result_label.add_theme_font_size_override("font_size", 28)
+	_minigame_result_label.add_theme_color_override("font_color", Color(1.0, 0.95, 0.5))
+	_minigame_result_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	_minigame_result_label.add_theme_constant_override("outline_size", 5)
+	_minigame_result_label.visible = false
+	_minigame_result_label.set_anchors_preset(Control.PRESET_CENTER)
+	_minigame_result_label.offset_left = -200.0
+	_minigame_result_label.offset_top = -30.0
+	_minigame_result_label.offset_right = 200.0
+	_minigame_result_label.offset_bottom = 30.0
+	add_child(_minigame_result_label)
+
+
+func _show_minigame() -> void:
+	"""プリロード中にミニゲームを表示・開始"""
+	if _minigame == null:
+		return
+	if not _minigame_started:
+		_minigame_started = true
+		_minigame_result_timer = 0.0
+		_minigame_result_label.visible = false
+		_minigame.visible = true
+		_minigame.start()
+	# PreloadPanelを画面上部に移動（ミニゲームの邪魔にならないように）
+	preload_panel.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	preload_panel.offset_left = -300.0
+	preload_panel.offset_top = 10.0
+	preload_panel.offset_right = 300.0
+	preload_panel.offset_bottom = 130.0
+
+
+func _hide_minigame() -> void:
+	"""ミニゲームを停止・非表示にする"""
+	if _minigame == null:
+		return
+	if _minigame_started:
+		_minigame_started = false
+		var final_score := _minigame.get_score()
+		_minigame.stop()
+		_minigame.visible = false
+		
+		# スコアが1以上ならリザルトを短時間表示
+		if final_score > 0:
+			_minigame_result_label.text = "⭐ ウォーミングアップ: %d 個キャッチ！" % final_score
+			_minigame_result_label.visible = true
+			_minigame_result_timer = 2.5  # 2.5秒表示
+	
+	# リザルトラベルのフェードアウト
+	if _minigame_result_label.visible:
+		_minigame_result_timer -= get_process_delta_time()
+		if _minigame_result_timer <= 0.0:
+			_minigame_result_label.visible = false
+		else:
+			_minigame_result_label.modulate.a = clampf(_minigame_result_timer / 0.5, 0.0, 1.0)
+	
+	# PreloadPanelを元の位置に戻す
+	preload_panel.set_anchors_preset(Control.PRESET_CENTER)
+	preload_panel.offset_left = -300.0
+	preload_panel.offset_top = -120.0
+	preload_panel.offset_right = 300.0
+	preload_panel.offset_bottom = 120.0
