@@ -862,15 +862,15 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 				fetch_completed.emit([] as Array[QuizItem])
 	
 	if is_ten_mode:
-		# ═══ 10問モード: 4並列 × 各4問（超高速レスポンス + セマンティックdedup）═══
-		# 各バッチに異なる単元テーマを明示的に割り当て → バッチ間重複を構造的に防止
-		# 4問/バッチは非常に軽量なのでAPIレスポンスが最速
-		const TEN_PARALLEL: int = 4
-		var per_batch: int = 4  # 各バッチの問題数（合計16問 → dedup後10問以上確保）
+		# ═══ 10問モード: 6並列 × 各2問（TTFT極小化 + ストリーミング最適化）═══
+		# 2問/バッチで出力トークン数を最小化 → 最初の1問が最速で到着
+		# 6テーマ × 2問 = 12問生成 → dedup後10問以上確保（安全マージン2問）
+		const TEN_PARALLEL: int = 6
+		var per_batch: int = 2  # 各バッチの問題数（合計12問 → dedup後10問以上確保）
 		var expected_ref := [TEN_PARALLEL]
 		var completed_ref := [0]
 		
-		var timer := get_tree().create_timer(20.0)  # 4並列・軽量バッチなので20sで十分
+		var timer := get_tree().create_timer(15.0)  # 2問/バッチは超軽量なので15sで十分
 		timer.timeout.connect(func():
 			if completed_ref[0] < expected_ref[0]:
 				completed_ref[0] = 999
@@ -879,12 +879,14 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 		
 		var on_complete: Callable = _make_on_complete.call(expected_ref, completed_ref)
 		
-		# バッチごとに異なる単元テーマを強制割り当て（4分類で重複率を最小化）
+		# バッチごとに異なる単元テーマを強制割り当て（6分類で重複率を最小化）
 		var batch_themes := [
-			"【バッチ指示】問1〜4は以下のジャンルから出題: 計算・数値操作・公式適用・単位変換。他バッチとジャンルが異なります。",
-			"【バッチ指示】問1〜4は以下のジャンルから出題: 文章題・応用思考・因果推論・日常場面の問題。他バッチとジャンルが異なります。",
-			"【バッチ指示】問1〜4は以下のジャンルから出題: 図形・グラフ読取・空間認識・図の性質。他バッチとジャンルが異なります。",
-			"【バッチ指示】問1〜4は以下のジャンルから出題: 概念理解・知識問題・定義の確認・法則の適用。他バッチとジャンルが異なります。"
+			"【バッチ指示】この2問は以下のジャンルから出題: 計算・数値操作・公式適用・単位変換。2問は必ず異なる単元から出題せよ。",
+			"【バッチ指示】この2問は以下のジャンルから出題: 文章題・応用思考・因果推論・日常場面の問題。2問は必ず異なる単元から出題せよ。",
+			"【バッチ指示】この2問は以下のジャンルから出題: 図形・グラフ読取・空間認識・図の性質。2問は必ず異なる単元から出題せよ。",
+			"【バッチ指示】この2問は以下のジャンルから出題: 概念理解・知識問題・定義の確認・法則の適用。2問は必ず異なる単元から出題せよ。",
+			"【バッチ指示】この2問は以下のジャンルから出題: ひねった応用問題・よくある間違いを誘う問題。2問は必ず異なる単元から出題せよ。",
+			"【バッチ指示】この2問は以下のジャンルから出題: この学年で最も重要な単元から総合的に出題。2問は必ず異なる単元から出題せよ。"
 		]
 		
 		for i in range(TEN_PARALLEL):
@@ -892,8 +894,12 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 			extra_history.append(batch_themes[i])
 			var prompt := compose_prompt(subject, grade, difficulty, per_batch, extra_history, QuizManager.game_state.is_coop_mode())
 			var proxy_msg := " (via AI Gateway)" if not ApiStatusAutoload.get_env("PROXY_URL").is_empty() else ""
-			print("[OnlineFetch] 10-question mode - batch %d/%d: requesting %d questions%s" % [i+1, TEN_PARALLEL, per_batch, proxy_msg])
-			_fetch_gemini_target(prompt, ApiStatusAutoload.gemini_model, temperature, on_complete)
+			if is_streaming_available():
+				print("[OnlineFetch] 10-question mode - batch %d/%d: STREAMING %d questions%s" % [i+1, TEN_PARALLEL, per_batch, proxy_msg])
+				_fetch_gemini_streaming(prompt, ApiStatusAutoload.gemini_model, temperature, on_complete)
+			else:
+				print("[OnlineFetch] 10-question mode - batch %d/%d: requesting %d questions%s" % [i+1, TEN_PARALLEL, per_batch, proxy_msg])
+				_fetch_gemini_target(prompt, ApiStatusAutoload.gemini_model, temperature, on_complete)
 	else:
 		# ═══ エンドレスモード: 並列リクエストで速度重視 ═══
 		const NUM_PARALLEL: int = 5
@@ -1145,3 +1151,219 @@ func fetch_explanation(subject: String, grade: int, quiz_q: String, quiz_c: Pack
 		callback.call(ans)
 	)
 	http.request(url, ApiStatusAutoload.get_proxy_headers() if not proxy.is_empty() else ["Content-Type: application/json"], HTTPClient.METHOD_POST, body)
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SSE ストリーミング対応（10問チャレンジ高速化用）
+# ═══════════════════════════════════════════════════════════════════════════
+
+## ストリーミング中のテキストから、完成したJSONオブジェクト（{...}）を随時抽出する
+## 配列 `[{...}, {...}]` の途中でも、閉じた `{...}` を個別に切り出す
+##
+## text: LLMが生成中の累積テキスト
+## start_idx: 前回抽出済みの位置（ここ以降だけ走査する）
+##
+## 戻り値: { "objects": Array[Dictionary], "next_idx": int }
+##   objects: 今回新たに抽出できた完全なJSONオブジェクト群
+##   next_idx: 次回の start_idx（ここまで処理済み）
+func extract_complete_objects_from_stream(text: String, start_idx: int) -> Dictionary:
+	var objects: Array = []
+	var idx := start_idx
+	var text_len := text.length()
+	
+	while idx < text_len:
+		# 次の '{' を探す
+		var obj_start := -1
+		for i in range(idx, text_len):
+			if text[i] == "{":
+				obj_start = i
+				break
+		
+		if obj_start == -1:
+			# '{' が見つからない → まだオブジェクトが始まっていない
+			break
+		
+		# '{' から対応する '}' を探す（ネストに対応）
+		var depth := 0
+		var in_string := false
+		var escape_next := false
+		var obj_end := -1
+		
+		for i in range(obj_start, text_len):
+			var ch := text[i]
+			
+			if escape_next:
+				escape_next = false
+				continue
+			
+			if ch == "\\":
+				if in_string:
+					escape_next = true
+				continue
+			
+			if ch == "\"":
+				in_string = not in_string
+				continue
+			
+			if in_string:
+				continue
+			
+			if ch == "{":
+				depth += 1
+			elif ch == "}":
+				depth -= 1
+				if depth == 0:
+					obj_end = i
+					break
+		
+		if obj_end == -1:
+			# '}' がまだ来ていない → オブジェクトが不完全 → 次のチャンクを待つ
+			break
+		
+		# 完全なオブジェクト文字列を取得
+		var obj_str := text.substr(obj_start, obj_end - obj_start + 1)
+		
+		# JSONパースを試みる
+		var json := JSON.new()
+		var err := json.parse(obj_str)
+		if err == OK:
+			var data = json.get_data()
+			if data is Dictionary:
+				objects.append(data)
+		else:
+			# パースに失敗 → スキップして次へ
+			push_warning("[OnlineFetch] Stream JSON parse failed (skipping): %s" % obj_str.left(80))
+		
+		# 次のオブジェクト検索位置を更新
+		idx = obj_end + 1
+	
+	return { "objects": objects, "next_idx": idx }
+
+
+## ストリーミングを使用してGemini APIからクイズを取得する
+## GeminiStreamClient を使い、LLMのテキスト生成を受信しながら
+## 完成したJSONオブジェクトを1問ずつリアルタイムで callback に渡す
+##
+## callback: func(items: Array[QuizItem]) — 既存の on_complete と同じシグネチャ
+func _fetch_gemini_streaming(prompt: String, target_model: String, temperature: float, callback: Callable) -> void:
+	# ── URL構築 ──
+	var proxy := ApiStatusAutoload.get_env("PROXY_URL")
+	var url: String
+	var headers: PackedStringArray
+	
+	if not proxy.is_empty():
+		# プロキシ経由: ストリーミング専用エンドポイント
+		url = proxy + "/gemini-stream?model=" + target_model
+		headers = ApiStatusAutoload.get_proxy_headers()
+	else:
+		# 直接接続: streamGenerateContent エンドポイント
+		var key := ApiStatusAutoload.get_env("GOOGLE_API_KEY")
+		if key.is_empty():
+			key = ApiStatusAutoload.get_env("GEMINI_API_KEY")
+		if key.is_empty():
+			push_error("[OnlineFetch] No API key for streaming")
+			callback.call([] as Array[QuizItem])
+			return
+		url = "https://generativelanguage.googleapis.com/v1beta/models/%s:streamGenerateContent?alt=sse&key=%s" % [target_model, key]
+		headers = PackedStringArray(["Content-Type: application/json"])
+	
+	# ── リクエストボディ（非ストリーミング版と同一）──
+	var sys_instruction := compose_system_instruction()
+	
+	# ストリーミングでは responseSchema（Structured Output）を使わない
+	# ∵ SSEのチャンク分割とStructured Outputの組み合わせで
+	#   1チャンク=1完全JSONになる保証がないため、手動パースの方が安全
+	# 代わりにプロンプト側で JSON 出力を強制する
+	var body := JSON.stringify({
+		"systemInstruction": {"parts": [{"text": sys_instruction}]},
+		"contents": [{"parts": [{"text": prompt + "\n\n【出力形式】JSON配列のみ出力せよ。マークダウンや説明文は一切不要。例: [{\"q\":\"...\",\"c\":[\"A\",\"B\",\"C\",\"D\"],\"a\":0,\"e\":\"...\"}]"}]}],
+		"generationConfig": {
+			"temperature": temperature,
+			"responseMimeType": "application/json"
+		}
+	})
+	
+	# ── GeminiStreamClient をインスタンス化 ──
+	var stream_client := GeminiStreamClient.new()
+	add_child(stream_client)
+	
+	# ストリーミングパース用の状態（クロージャでキャプチャ）
+	var parse_state := { "next_idx": 0 }
+	var emitted_items: Array[QuizItem] = []
+	
+	# ── テキストチャンク受信ごとに完成したJSONオブジェクトを抽出 ──
+	stream_client.text_chunk_received.connect(func(accumulated: String, _chunk: String):
+		var result := extract_complete_objects_from_stream(accumulated, parse_state["next_idx"])
+		parse_state["next_idx"] = result["next_idx"]
+		
+		var new_items: Array[QuizItem] = []
+		for raw_dict in result["objects"]:
+			var item := normalize_single(raw_dict, "GEMINI_STREAM")
+			if item != null:
+				new_items.append(item)
+		
+		# ルールベースバリデーション（CPU処理のみ・高速）
+		if new_items.size() > 0:
+			var validator: QuizValidator = QuizManager.quiz_validator
+			if validator:
+				var rule_result := validator.validate_rules(new_items)
+				if rule_result["reasons"].size() > 0:
+					print("[OnlineFetch] Stream: rule validation removed %d items" % rule_result["reasons"].size())
+				new_items = rule_result["valid"]
+		
+		for item in new_items:
+			emitted_items.append(item)
+			print("[OnlineFetch] Streamed quiz #%d: %s" % [emitted_items.size(), item.q.left(40)])
+		
+		# 新しい問題が抽出できたら即座に fetch_partial で通知
+		if new_items.size() > 0:
+			fetch_partial.emit(new_items)
+	)
+	
+	# ── ストリーム完了時 ──
+	stream_client.stream_finished.connect(func(success: bool, accumulated: String):
+		if not success and emitted_items.is_empty():
+			# ストリーミング完全失敗 → 以降のリクエストは非ストリーミングにフォールバック
+			_stream_available = false
+			print("[OnlineFetch] Streaming failed, disabling streaming for this session. Falling back...")
+			_fetch_gemini_target(prompt, target_model, temperature, callback)
+			return
+		
+		# 最終パース: ストリーム中に拾い切れなかったオブジェクトがあるかチェック
+		if not accumulated.is_empty():
+			var final_result := extract_complete_objects_from_stream(accumulated, parse_state["next_idx"])
+			var final_items: Array[QuizItem] = []
+			for raw_dict in final_result["objects"]:
+				var item := normalize_single(raw_dict, "GEMINI_STREAM")
+				if item != null:
+					final_items.append(item)
+					emitted_items.append(item)
+			if final_items.size() > 0:
+				fetch_partial.emit(final_items)
+		
+		print("[OnlineFetch] ✅ Stream completed. Total streamed: %d items" % emitted_items.size())
+		# callback を呼んで fetch_completed のカウンタを進める（空配列を渡す — 問題はfetch_partialで既に送信済み）
+		callback.call([] as Array[QuizItem])
+	)
+	
+	# ── ストリーミング開始 ──
+	print("[OnlineFetch] 🚀 Starting SSE streaming to %s" % url.left(80))
+	stream_client.start_stream(url, headers, body)
+
+
+## ストリーミングが利用可能かどうかを判定する
+## プロキシ経由の場合: /gemini-stream エンドポイントが存在するか不明なので
+## _stream_available フラグで管理する（初回失敗時にfalseに設定）
+var _stream_available: bool = true
+
+func is_streaming_available() -> bool:
+	if not _stream_available:
+		return false
+	# APIキーが設定されている必要がある
+	var proxy := ApiStatusAutoload.get_env("PROXY_URL")
+	if not proxy.is_empty():
+		return true  # プロキシ側にストリーミングエンドポイントがあることを期待
+	# 直接接続の場合はキーがあればOK
+	var key := ApiStatusAutoload.get_env("GOOGLE_API_KEY")
+	if key.is_empty():
+		key = ApiStatusAutoload.get_env("GEMINI_API_KEY")
+	return not key.is_empty()

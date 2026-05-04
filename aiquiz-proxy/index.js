@@ -100,6 +100,53 @@ app.post('/gemini', authMiddleware, apiLimiter, validateGeminiBody, async (req, 
     }
 });
 
+// ========================================
+// SSE ストリーミング（Gemini streamGenerateContent パススルー）
+// ========================================
+app.post('/gemini-stream', authMiddleware, apiLimiter, validateGeminiBody, async (req, res) => {
+    try {
+        const model = req.query.model || 'gemini-2.5-flash';
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${process.env.GEMINI_API_KEY}`;
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: req.body
+        });
+
+        if (!response.ok) {
+            const errText = await response.text();
+            return res.status(response.status).send(errText);
+        }
+
+        // SSEヘッダーを設定してストリームをパイプする
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        res.setHeader('X-Accel-Buffering', 'no'); // nginx/Cloud Run バッファリング無効化
+
+        // レスポンスボディをそのまま転送
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+
+        try {
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                const chunk = decoder.decode(value, { stream: true });
+                res.write(chunk);
+            }
+        } catch (streamErr) {
+            console.error('Stream pipe error:', streamErr.message);
+        } finally {
+            res.end();
+        }
+    } catch (err) {
+        res.status(500).send("Proxy Stream Error: " + err.message);
+    }
+});
+
 app.get('/', (req, res) => {
     res.send('AIQUIZ Proxy Server is running! (Secured v3)');
 });
