@@ -142,6 +142,9 @@ func compose_prompt(subject: String, grade: int, difficulty: String, count: int,
 
 	# ── 基本条件 ──
 	prompt += "【基本条件】\n"
+	if LiveConfigManager.is_active and not LiveConfigManager.event_theme.is_empty():
+		prompt += "- ★特別テーマ: 『%s』\n" % LiveConfigManager.event_theme
+		prompt += "  ※すべての問題は、必ずこの特別テーマに沿った内容、世界観、または用語を含めること！\n"
 	prompt += "- 対象: 小学%d年生の%s\n" % [grade, subject]
 	prompt += "- 難易度: %s\n" % difficulty
 	prompt += "- 問題数: %d問\n" % count

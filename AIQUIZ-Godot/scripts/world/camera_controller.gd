@@ -170,12 +170,8 @@ func _update_flyover_camera(gs: QuizGameState, _dt: float) -> void:
 		end_fov = 44.0
 
 	# --- キーポイント ---
-	# 2P×10Qモードの場合、ゴールラインが見える位置から開始
+	# 1P/2P共通: 最後の壁から開始
 	var flyover_start_z: float = camera_start_z + 8.0
-	if gs.num_players >= 2 and gs.mode == Constants.MODE_TEN:
-		var goal_line_z: float = t.wall_start_z + gs.target_count * t.wall_spacing + 15.0
-		# ゴールの少し手前(-25.0)をスタート地点にし、最初の画面にゴールが映るようにする
-		flyover_start_z = goal_line_z - 25.0
 	var start_pos := Vector3(0.0, 6.0, flyover_start_z)
 	
 	# オフセット距離。最終視点からカメラが真っ直ぐ引く距離
@@ -220,13 +216,21 @@ func _update_flyover_camera(gs: QuizGameState, _dt: float) -> void:
 	camera.look_at(look_target, Vector3.UP)
 
 
-## プリロード中の固定カメラ
-## 2Pフライオーバーの終着位置（三人称俯瞰）と同じアングルで固定
 func _update_preload_camera(gs: QuizGameState, _dt: float) -> void:
 	# 2Pフライオーバー終着位置: end_pos = (0, 4.5, z_focus - 9), end_look = (0, 1, z_focus + 8)
 	var z_focus: float = 0.0  # プレイヤー初期位置
 	var eye := Vector3(0.0, 4.5, z_focus - 9.0)
 	var look_at_pos := Vector3(0.0, 1.0, z_focus + 8.0)
+
+	if gs.camera_shake > 0.0:
+		var shake_ox: float = (randf() - 0.5) * gs.camera_shake
+		var shake_oy: float = (randf() - 0.5) * gs.camera_shake
+		var shake_oz: float = (randf() - 0.5) * gs.camera_shake
+		eye.x += shake_ox
+		eye.y += shake_oy
+		eye.z += shake_oz
+		look_at_pos.x += shake_ox * 0.5
+		look_at_pos.y += shake_oy * 0.5
 
 	camera.fov = 50.0
 	camera.global_position = eye

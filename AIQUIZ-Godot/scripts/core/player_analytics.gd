@@ -45,6 +45,25 @@ func record(quiz: QuizItem, response_time: float, correct: bool,
 		entries = entries.slice(entries.size() - MAX_ENTRIES)
 	
 	_save()
+	_send_to_firebase(entry)
+
+func _send_to_firebase(entry: Dictionary) -> void:
+	var db_url := ApiStatusAutoload.get_env("FIREBASE_DB_URL", "")
+	if db_url.is_empty():
+		return
+	
+	var url := "%s/telemetry/sessions.json" % db_url.trim_suffix("/")
+	var http := HTTPRequest.new()
+	add_child(http)
+	http.timeout = 5.0
+	
+	http.request_completed.connect(func(result: int, response_code: int, _headers, _body):
+		http.queue_free()
+	)
+	
+	var err := http.request(url, ["Content-Type: application/json"], HTTPClient.METHOD_POST, JSON.stringify(entry))
+	if err != OK:
+		http.queue_free()
 
 
 # ── 品質シグナル抽出 ──

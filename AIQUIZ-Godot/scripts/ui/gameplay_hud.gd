@@ -378,21 +378,21 @@ func _rebuild_tutorial_keys() -> void:
 	if game_state.num_players >= 2:
 		_add_tutorial_player_keys(
 			"P1",
-			PackedStringArray(["W", "A", "S", "D", "Space"]),
-			PackedStringArray(["前", "左", "後", "右", "ジャンプ"]),
+			PackedStringArray(["W", "A", "S", "D", "Space", "1, 2, 3"]),
+			PackedStringArray(["前", "左", "後", "右", "ジャンプ", "エモート"]),
 			Color(0.40, 0.66, 1.0)
 		)
 		_add_tutorial_player_keys(
 			"P2",
-			PackedStringArray(["↑", "←", "↓", "→", "Ctrl / Num0"]),
-			PackedStringArray(["前", "左", "後", "右", "ジャンプ"]),
+			PackedStringArray(["↑", "←", "↓", "→", "Ctrl / Num0", "8, 9, 0"]),
+			PackedStringArray(["前", "左", "後", "右", "ジャンプ", "エモート"]),
 			Color(0.35, 0.95, 0.64)
 		)
 	else:
 		_add_tutorial_player_keys(
 			"P1",
-			PackedStringArray(["W / ↑", "A / ←", "S / ↓", "D / →", "Space"]),
-			PackedStringArray(["前", "左", "後", "右", "ジャンプ"]),
+			PackedStringArray(["W / ↑", "A / ←", "S / ↓", "D / →", "Space", "1, 2, 3"]),
+			PackedStringArray(["前", "左", "後", "右", "ジャンプ", "エモート"]),
 			Color(0.40, 0.66, 1.0)
 		)
 
@@ -845,16 +845,7 @@ func _update_streak_label() -> void:
 		_streak_label.visible = false
 
 func _update_message() -> void:
-	if game_state.game_state == Constants.STATE_COUNTDOWN:
-		message_label.visible = true
-		var t = ceili(game_state.countdown_timer)
-		if t > 0:
-			message_label.text = str(t)
-		else:
-			message_label.text = "GO!"
-		message_label.add_theme_color_override("font_color", Color(1.0, 0.8, 0.2))
-		message_label.add_theme_font_size_override("font_size", 160)
-	elif game_state.game_state == Constants.STATE_GOAL_RACE:
+	if game_state.game_state == Constants.STATE_GOAL_RACE:
 		message_label.visible = true
 		message_label.text = game_state.message_text
 		# Pulsating gold text

@@ -34,6 +34,12 @@ var _pw_count: int = 0                    # 生成済み壁数
 var _pw_merge_started: Array[bool] = []   # 各壁のマージ開始フラグ
 var _pw_merge_timer: float = 0.0          # 壁間のディレイタイマー
 var _goal_line_node: Node3D = null
+# ── スタートバリア壁（カウントダウン終了まで問題を隠す） ──
+var _start_barrier: Node3D = null
+var _barrier_exploded: bool = false
+var _barrier_dropping: bool = false
+var _barrier_drop_timer: float = 0.0
+var _barrier_spawned_for_session: bool = false  # 1ゲームに1回だけ
 const MAX_VISIBLE_WALLS := 4
 const BG_COLOR := Color(0.82, 0.85, 0.90)
 const FLOOR_COLOR := Color(0.35, 0.35, 0.35)
@@ -346,6 +352,7 @@ func _process(dt: float) -> void:
 	_update_preview_walls(dt)
 	_update_camera(dt)
 	_check_particles()
+	_update_start_barrier()
 
 	# Handle R key for restart (ESC is handled in _unhandled_input)
 	if game_state.game_state in [Constants.STATE_GAME_OVER, Constants.STATE_CLEAR]:
@@ -368,6 +375,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event is InputEventKey or event is InputEventJoypadButton or event is InputEventMouseButton:
 		if event.is_pressed() and not event.is_echo():
 			if game_state and game_state.game_state == Constants.STATE_WAITING_START:
+				# カウントダウン壁が出現し終わるまで開始トリガーをブロック
+				if not _barrier_spawned_for_session or _barrier_dropping:
+					return
 				if game_state.has_method("trigger_start"):
 					game_state.trigger_start()
 
@@ -384,7 +394,7 @@ func _update_floor() -> void:
 		if game_state.num_players >= 2 and game_state.mode == Constants.MODE_TEN:
 			var goal_line_z: float = t.wall_start_z + game_state.target_count * t.wall_spacing + 15.0
 			floor_front = maxf(floor_front, goal_line_z + 20.0)
-		var floor_back: float = -4.5
+		var floor_back: float = game_state.FLOOR_BACK_Z
 		var floor_length: float = floor_front - floor_back
 		var floor_center_z: float = (floor_front + floor_back) / 2.0
 		var box_mesh: BoxMesh = floor_mesh.mesh as BoxMesh
@@ -394,7 +404,7 @@ func _update_floor() -> void:
 	elif game_state.game_state == Constants.STATE_GOAL_RACE:
 		# ゴールレース中: ゴールラインの先まで床を延長
 		var floor_front: float = game_state.goal_z + 20.0 - game_state.world_scroll_z
-		var floor_back: float = -4.5
+		var floor_back: float = game_state.FLOOR_BACK_Z
 		var floor_length: float = maxf(144.0, floor_front - floor_back)
 		var floor_center_z: float = (floor_front + floor_back) / 2.0
 		var box_mesh: BoxMesh = floor_mesh.mesh as BoxMesh
@@ -402,11 +412,15 @@ func _update_floor() -> void:
 			box_mesh.size = Vector3(24.0, 16.0, floor_length)
 		floor_mesh.position = Vector3(0, -9.2, floor_center_z)
 	else:
-		# 通常時: 固定サイズ 144 units
+		# 通常時: 固定サイズ
+		var floor_front: float = game_state.FLOOR_PLAY_FRONT_Z
+		var floor_back: float = game_state.FLOOR_BACK_Z
+		var floor_length: float = floor_front - floor_back
+		var floor_center_z: float = (floor_front + floor_back) / 2.0
 		var box_mesh: BoxMesh = floor_mesh.mesh as BoxMesh
 		if box_mesh:
-			box_mesh.size = Vector3(24.0, 16.0, 144.0)
-		floor_mesh.position = Vector3(0, -9.2, 67.5)
+			box_mesh.size = Vector3(24.0, 16.0, floor_length)
+		floor_mesh.position = Vector3(0, -9.2, floor_center_z)
 
 func _update_player() -> void:
 	if game_state.game_state in [Constants.STATE_MENU, Constants.STATE_PRELOADING]:
@@ -663,20 +677,31 @@ func _check_particles() -> void:
 func _on_state_changed(new_state: String) -> void:
 	if new_state == Constants.STATE_CLEAR:
 		_fireworks_launched = false
-	elif new_state in [Constants.STATE_MENU, Constants.STATE_PLAYING]:
+	elif new_state == Constants.STATE_PLAYING:
 		_fireworks_launched = false
 		_clear_preview_walls()
+		# カウントダウン終了 → バリア壁を爆散！
+		if not _barrier_exploded:
+			_explode_start_barrier()
+	elif new_state == Constants.STATE_MENU:
+		_fireworks_launched = false
+		_clear_preview_walls()
+		_remove_start_barrier()
+		_barrier_spawned_for_session = false
 	elif new_state == Constants.STATE_WAITING_START:
-		# プレビュー壁＋マージアニメーションはそのまま続行させる
-		# フライオーバー壁の重複を防ぐため、ここでは何もしない
-		# （FLYOVER開始時にプレビュー壁をフライオーバー壁へ移管する）
 		_clear_flyover_walls()
+		# バリアはプレビュー壁完了後に自動スポーンするので、ここでは何もしない
+	elif new_state == Constants.STATE_COUNTDOWN:
+		# チュートリアル等でプレビュー壁がない場合のフォールバック
+		if not _barrier_spawned_for_session:
+			_begin_barrier_drop()
 
 func _on_quiz_loaded(quiz: QuizItem) -> void:
 	# Update labels on the current wall
 	for wall: Node3D in _active_walls:
 		if wall.has_meta("wall_index") and wall.get_meta("wall_index") == game_state.current_wall_index:
 			_update_wall_labels(wall)
+			
 
 func _on_correct() -> void:
 	if game_state.current_quiz:
@@ -866,7 +891,8 @@ func _update_preview_walls(dt: float) -> void:
 
 	# ── マージアニメーション順次開始（0.3秒間隔）──
 	# 配列順 = 奥→手前（逆マッピング済み）なので、index 0 から順に開始
-	const MERGE_INTERVAL: float = 0.3
+	var is_offline: bool = QuizManager.provider.llm_mode == "OFFLINE"
+	var merge_interval: float = 0.15 if is_offline else 0.3
 	var total_walls: int = _pw_anims.size()
 	if total_walls > 0:
 		var all_started: bool = true
@@ -876,7 +902,7 @@ func _update_preview_walls(dt: float) -> void:
 				break
 		if not all_started:
 			_pw_merge_timer += dt
-			while _pw_merge_timer >= MERGE_INTERVAL:
+			while _pw_merge_timer >= merge_interval:
 				# 配列順（0=最奥）でまだ開始していない壁を探す
 				var found_next: bool = false
 				for search_i: int in range(total_walls):
@@ -891,11 +917,11 @@ func _update_preview_walls(dt: float) -> void:
 						break
 				if not found_next:
 					break
-				_pw_merge_timer -= MERGE_INTERVAL
+				_pw_merge_timer -= merge_interval
 
 	# アニメーション更新
-	const SLIDE_DURATION: float = 0.25
-	const FLASH_DURATION: float = 0.35
+	var slide_duration: float = 0.125 if is_offline else 0.25
+	var flash_duration: float = 0.175 if is_offline else 0.35
 	# 画面外（遠く）から飛んでくるように開始位置を拡張
 	const SLIDE_START_X: float = 150.0
 
@@ -910,7 +936,7 @@ func _update_preview_walls(dt: float) -> void:
 		anim["timer"] = t_val
 
 		if phase == 1:
-			var p: float = clampf(t_val / SLIDE_DURATION, 0.0, 1.0)
+			var p: float = clampf(t_val / slide_duration, 0.0, 1.0)
 			# キレのあるイージング (EaseOutExpo風) に変更して超高速で飛んできて急ブレーキ
 			var eased: float = 1.0 - pow(1.0 - p, 5.0)
 			var x_offset: float = SLIDE_START_X * (1.0 - eased)
@@ -927,13 +953,23 @@ func _update_preview_walls(dt: float) -> void:
 				_spawn_merge_sparks(_pw_walls[i].global_position)
 
 		elif phase == 2:
-			var p: float = clampf(t_val / FLASH_DURATION, 0.0, 1.0)
+			var p: float = clampf(t_val / flash_duration, 0.0, 1.0)
 			var eased: float = 1.0 - pow(1.0 - p, 2.0)
 			var s: float = lerpf(1.15, 1.0, eased)
 			_pw_walls[i].scale = Vector3(s, s, s)
 			if p >= 1.0:
 				anim["phase"] = 3
 				_pw_walls[i].scale = Vector3.ONE
+
+	# ── 全壁のアニメ完了を検出 → バリア壁を落下開始 ──
+	if _pw_anims.size() > 0 and not _barrier_spawned_for_session:
+		var all_done := true
+		for anim: Dictionary in _pw_anims:
+			if anim.get("phase", 0) < 3:
+				all_done = false
+				break
+		if all_done:
+			_begin_barrier_drop()
 
 
 ## 合体時の火花パーティクルを生成
@@ -1030,3 +1066,298 @@ func _clear_preview_walls() -> void:
 	_pw_count = 0
 	_pw_merge_started.clear()
 	_pw_merge_timer = 0.0
+
+# ============================================================
+# スタートバリア壁（プレビュー壁完了後に上からズドンと落下）
+# ============================================================
+
+const BARRIER_SIZE := Vector3(32.0, 24.0, 1.8)
+const BARRIER_COLOR := Color(0.12, 0.16, 0.28)
+const BARRIER_DROP_HEIGHT := 40.0
+const BARRIER_DROP_DURATION := 0.45
+
+func _begin_barrier_drop() -> void:
+	if _barrier_spawned_for_session:
+		return
+	_barrier_spawned_for_session = true
+	_remove_start_barrier()
+	_barrier_exploded = false
+	var barrier_z: float = game_state.tuning.wall_start_z - 7.0
+	_start_barrier = Node3D.new()
+	_start_barrier.name = "StartBarrier"
+	_start_barrier.position = Vector3(0, BARRIER_DROP_HEIGHT, barrier_z)
+	# 壁メッシュ
+	var mi := MeshInstance3D.new()
+	var bx := BoxMesh.new()
+	bx.size = BARRIER_SIZE
+	mi.mesh = bx
+	var mt := StandardMaterial3D.new()
+	mt.albedo_color = BARRIER_COLOR
+	mt.roughness = 0.45
+	mt.metallic = 0.25
+	mt.emission_enabled = true
+	mt.emission = Color(0.08, 0.12, 0.25)
+	mt.emission_energy_multiplier = 0.4
+	mi.material_override = mt
+	_start_barrier.add_child(mi)
+	# カウントダウン用ラベル
+	var ql := Label3D.new()
+	ql.name = "QuestionLabel"
+	ql.text = ""
+	ql.font_size = 450 if game_state.num_players == 1 else 800
+	ql.pixel_size = 0.012
+	ql.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+	ql.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ql.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	ql.modulate = Color(1.0, 0.9, 0.3, 0.9)
+	ql.outline_modulate = Color(0.02, 0.02, 0.08, 1.0)
+	ql.outline_size = 40
+	var label_y: float = 2.5 if game_state.num_players == 1 else 5.0
+	ql.position = Vector3(0, label_y, -1.0)
+	ql.rotation.y = PI
+	var font := load("res://resources/fonts/NotoSansJP-Regular.otf")
+	if font: ql.font = font
+	_start_barrier.add_child(ql)
+	# 待機パーティクル
+	var sp := CPUParticles3D.new()
+	sp.amount = 50
+	sp.lifetime = 1.2
+	sp.randomness = 1.0
+	sp.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	sp.emission_box_extents = Vector3(16.0, 12.0, 0.3)
+	sp.direction = Vector3(0, 1, 0)
+	sp.spread = 70.0
+	sp.initial_velocity_min = 1.5
+	sp.initial_velocity_max = 4.0
+	sp.gravity = Vector3(0, -3.0, 0)
+	sp.scale_amount_min = 0.06
+	sp.scale_amount_max = 0.18
+	var sm := StandardMaterial3D.new()
+	sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	sm.albedo_color = Color(0.35, 0.55, 1.0)
+	sm.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	sm.billboard_keep_scale = true
+	var sq := QuadMesh.new()
+	sq.material = sm
+	sp.mesh = sq
+	_start_barrier.add_child(sp)
+	wall_container.add_child(_start_barrier)
+	_barrier_dropping = true
+	_barrier_drop_timer = 0.0
+
+func _update_start_barrier() -> void:
+	if _barrier_dropping and _start_barrier and is_instance_valid(_start_barrier):
+		_barrier_drop_timer += get_process_delta_time()
+		var p: float = clampf(_barrier_drop_timer / BARRIER_DROP_DURATION, 0.0, 1.0)
+		var eased: float = p * p  # 加速落下
+		_start_barrier.position.y = lerpf(BARRIER_DROP_HEIGHT, 0.0, eased)
+		if p >= 1.0:
+			_barrier_dropping = false
+			_start_barrier.position.y = 0.0
+			game_state.camera_shake = 1.2
+			_spawn_landing_impact(_start_barrier.global_position)
+		return
+		
+	if _start_barrier and is_instance_valid(_start_barrier):
+		var ql := _start_barrier.get_node_or_null("QuestionLabel") as Label3D
+		if ql:
+			if game_state.game_state == Constants.STATE_COUNTDOWN:
+				var remain := int(ceil(game_state.countdown_timer))
+				ql.text = str(remain) if remain > 0 else "GO!"
+			else:
+				ql.text = ""
+				
+		if game_state.game_state not in [Constants.STATE_COUNTDOWN, Constants.STATE_FLYOVER, Constants.STATE_WAITING_START, Constants.STATE_PRELOADING]:
+			if _barrier_exploded:
+				_remove_start_barrier()
+
+func _spawn_landing_impact(pos: Vector3) -> void:
+	var dust := CPUParticles3D.new()
+	dust.amount = 80
+	dust.lifetime = 1.0
+	dust.one_shot = true
+	dust.explosiveness = 1.0
+	dust.randomness = 1.0
+	dust.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	dust.emission_box_extents = Vector3(16.0, 0.5, 1.0)
+	dust.spread = 180.0
+	dust.initial_velocity_min = 5.0
+	dust.initial_velocity_max = 15.0
+	dust.gravity = Vector3(0, -3.0, 0)
+	dust.scale_amount_min = 0.3
+	dust.scale_amount_max = 1.0
+	dust.color = Color(0.5, 0.5, 0.6, 0.5)
+	var dm := StandardMaterial3D.new()
+	dm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	dm.albedo_color = Color(0.6, 0.6, 0.7, 0.4)
+	dm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	dm.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	dm.billboard_keep_scale = true
+	var dq := QuadMesh.new()
+	dq.material = dm
+	dust.mesh = dq
+	dust.position = pos + Vector3(0, -BARRIER_SIZE.y * 0.5, 0)
+	dust.emitting = true
+	get_tree().current_scene.add_child(dust)
+	var ct := Timer.new()
+	ct.wait_time = 3.0
+	ct.one_shot = true
+	ct.autostart = true
+	dust.add_child(ct)
+	ct.timeout.connect(dust.queue_free)
+
+func _explode_start_barrier() -> void:
+	_barrier_exploded = true
+	if not _start_barrier or not is_instance_valid(_start_barrier):
+		return
+	var bpos: Vector3 = _start_barrier.global_position
+	_start_barrier.visible = false
+	game_state.camera_shake = 0.7
+	var cx_n := 12
+	var cy_n := 10
+	var cs := Vector3(BARRIER_SIZE.x / cx_n, BARRIER_SIZE.y / cy_n, BARRIER_SIZE.z)
+	var shared_box := BoxMesh.new()
+	shared_box.size = cs * 0.8
+	for cx: int in range(cx_n):
+		for cy: int in range(cy_n):
+			var chunk := RigidBody3D.new()
+			chunk.mass = 0.4
+			chunk.gravity_scale = 2.5
+			chunk.collision_layer = 0
+			chunk.collision_mask = 0
+			var cmi := MeshInstance3D.new()
+			cmi.mesh = shared_box
+			var m := StandardMaterial3D.new()
+			m.albedo_color = BARRIER_COLOR.lerp(Color(0.4, 0.5, 0.9), randf() * 0.4)
+			m.roughness = 0.5
+			m.metallic = 0.1
+			if randf() > 0.5:
+				m.emission_enabled = true
+				m.emission = Color(0.2, 0.35, 0.8) * 0.6
+				m.emission_energy_multiplier = 0.5
+			cmi.material_override = m
+			chunk.add_child(cmi)
+			var ox: float = (cx - (cx_n - 1) * 0.5) * cs.x + randf_range(-0.5, 0.5)
+			var oy: float = (cy - (cy_n - 1) * 0.5) * cs.y + randf_range(-0.5, 0.5)
+			chunk.global_position = bpos + Vector3(ox, oy, 0)
+			get_tree().current_scene.add_child(chunk)
+			var radial := Vector3(ox, oy, 0).normalized()
+			var rand_dir := Vector3(randf_range(-1.0, 1.0), randf_range(-0.5, 1.5), randf_range(-1.0, 1.0)).normalized()
+			var force: float = randf_range(18.0, 40.0)
+			var impulse := (radial * 0.6 + rand_dir * 0.4).normalized() * force
+			impulse.z += randf_range(-15.0, 15.0)
+			impulse.y += randf_range(3.0, 12.0)
+			chunk.apply_impulse(impulse)
+			chunk.apply_torque_impulse(Vector3(randf_range(-25.0, 25.0), randf_range(-20.0, 20.0), randf_range(-25.0, 25.0)))
+			var t := Timer.new()
+			t.wait_time = randf_range(2.5, 4.0)
+			t.one_shot = true
+			t.autostart = true
+			chunk.add_child(t)
+			t.timeout.connect(chunk.queue_free)
+	
+	game_state.camera_shake = 1.5
+	_spawn_mega_explosion(bpos)
+	var ct := Timer.new()
+	ct.wait_time = 0.3
+	ct.one_shot = true
+	ct.autostart = true
+	add_child(ct)
+	ct.timeout.connect(_remove_start_barrier)
+
+func _spawn_mega_explosion(pos: Vector3) -> void:
+	var sr := get_tree().current_scene
+	var flash := CPUParticles3D.new()
+	flash.amount = 200
+	flash.lifetime = 0.6
+	flash.one_shot = true
+	flash.explosiveness = 1.0
+	flash.randomness = 1.0
+	flash.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+	flash.emission_sphere_radius = 5.0
+	flash.spread = 180.0
+	flash.initial_velocity_min = 15.0
+	flash.initial_velocity_max = 45.0
+	flash.gravity = Vector3(0, -5.0, 0)
+	flash.scale_amount_min = 0.3
+	flash.scale_amount_max = 1.2
+	flash.color = Color(0.8, 0.85, 1.0)
+	var fm := StandardMaterial3D.new()
+	fm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	fm.albedo_color = Color(0.9, 0.92, 1.0)
+	fm.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	fm.billboard_keep_scale = true
+	var fq := QuadMesh.new()
+	fq.material = fm
+	flash.mesh = fq
+	flash.position = pos
+	flash.emitting = true
+	sr.add_child(flash)
+	var sparks := CPUParticles3D.new()
+	sparks.amount = 250
+	sparks.lifetime = 1.5
+	sparks.one_shot = true
+	sparks.explosiveness = 0.98
+	sparks.randomness = 1.0
+	sparks.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+	sparks.emission_sphere_radius = 4.0
+	sparks.spread = 180.0
+	sparks.initial_velocity_min = 10.0
+	sparks.initial_velocity_max = 35.0
+	sparks.gravity = Vector3(0, -15.0, 0)
+	sparks.scale_amount_min = 0.04
+	sparks.scale_amount_max = 0.2
+	sparks.color = Color(1.0, 0.75, 0.15)
+	var spm := StandardMaterial3D.new()
+	spm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	spm.albedo_color = Color(1.0, 0.85, 0.2)
+	spm.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	spm.billboard_keep_scale = true
+	var spq := QuadMesh.new()
+	spq.material = spm
+	sparks.mesh = spq
+	sparks.position = pos
+	sparks.emitting = true
+	sr.add_child(sparks)
+	var smoke := CPUParticles3D.new()
+	smoke.amount = 60
+	smoke.lifetime = 2.0
+	smoke.one_shot = true
+	smoke.explosiveness = 0.9
+	smoke.randomness = 1.0
+	smoke.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+	smoke.emission_sphere_radius = 6.0
+	smoke.spread = 180.0
+	smoke.initial_velocity_min = 3.0
+	smoke.initial_velocity_max = 12.0
+	smoke.gravity = Vector3(0, 2.0, 0)
+	smoke.scale_amount_min = 0.8
+	smoke.scale_amount_max = 2.5
+	smoke.color = Color(0.4, 0.42, 0.5, 0.6)
+	var smm := StandardMaterial3D.new()
+	smm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	smm.albedo_color = Color(0.5, 0.52, 0.6, 0.5)
+	smm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	smm.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	smm.billboard_keep_scale = true
+	var smq := QuadMesh.new()
+	smq.material = smm
+	smoke.mesh = smq
+	smoke.position = pos
+	smoke.emitting = true
+	sr.add_child(smoke)
+	var cleanup := Timer.new()
+	cleanup.wait_time = 4.0
+	cleanup.one_shot = true
+	cleanup.autostart = true
+	flash.add_child(cleanup)
+	cleanup.timeout.connect(func():
+		if is_instance_valid(flash): flash.queue_free()
+		if is_instance_valid(sparks): sparks.queue_free()
+		if is_instance_valid(smoke): smoke.queue_free()
+	)
+
+func _remove_start_barrier() -> void:
+	if _start_barrier and is_instance_valid(_start_barrier):
+		_start_barrier.queue_free()
+		_start_barrier = null

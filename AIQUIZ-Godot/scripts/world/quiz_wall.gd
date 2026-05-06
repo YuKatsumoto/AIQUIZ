@@ -176,6 +176,12 @@ func set_quiz(quiz: QuizItem, num_choices: int) -> void:
 			door_labels[0].text = FractionFormatter.format_choice(quiz.c[0]) if quiz.c.size() > 0 else ""
 			door_labels[1].text = FractionFormatter.format_choice(quiz.c[1]) if quiz.c.size() > 1 else ""
 
+func set_labels_visible(is_visible: bool) -> void:
+	for label: Label3D in door_labels:
+		if is_instance_valid(label):
+			label.visible = is_visible
+
+
 func set_is_boss(boss: bool) -> void:
 	is_boss = boss
 	var target_color = Color(0.65, 0.15, 0.15) if is_boss else WALL_COLOR

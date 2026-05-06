@@ -4,6 +4,7 @@ extends Control
 ## Python版 hud.py のメニュー部分に相当
 
 @onready var title_label: Label = $VBoxContainer/TitleLabel
+@onready var announcement_label: RichTextLabel = %AnnouncementLabel
 @onready var mode_container: VBoxContainer = $VBoxContainer/ModeContainer
 @onready var config_container: VBoxContainer = $VBoxContainer/ConfigContainer
 @onready var start_button: Button = $VBoxContainer/ConfigContainer/ConfigBtnRow/StartButton
@@ -68,6 +69,9 @@ func _ready() -> void:
 			res_option.select(0)
 
 	ApiStatusAutoload.check_completed.connect(_update_api_status_text)
+	
+	LiveConfigManager.config_updated.connect(_on_live_config_updated)
+	_on_live_config_updated()
 
 	_ensure_tutorial_button()
 	_style_all_buttons()
@@ -83,6 +87,13 @@ func _ready() -> void:
 	
 	if GameManager.should_show_tutorial_on_start():
 		call_deferred("_start_first_run_tutorial")
+
+func _on_live_config_updated() -> void:
+	if LiveConfigManager.is_active and not LiveConfigManager.announcement.is_empty():
+		announcement_label.text = "[center]📢 %s[/center]" % LiveConfigManager.announcement
+		announcement_label.visible = true
+	else:
+		announcement_label.visible = false
 
 func _style_all_buttons() -> void:
 	"""全ボタンにダークテーマのスタイルを動的に適用"""

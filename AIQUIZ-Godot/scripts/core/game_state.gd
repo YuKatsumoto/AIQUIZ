@@ -118,7 +118,7 @@ var _active_wall_speed: float = 6.0
 const GRAVITY: float = 18.0
 const JUMP_FORCE: float = 7.0
 const FLOOR_HALF_WIDTH: float = 12.0
-const FLOOR_BACK_Z: float = -4.5
+const FLOOR_BACK_Z: float = -12.5
 const FLOOR_PLAY_FRONT_Z: float = 139.5
 const FLOOR_RACE_FRONT_Z: float = 400.0
 
@@ -240,7 +240,7 @@ func start_game() -> void:
 	quiz_history.clear()
 	player_x = 6.0 if is_coop_mode() else (1.5 if num_players == 2 else 0.0)
 	player_y = 0.0
-	player_z = 0.0
+	player_z = -8.0 if num_players == 1 else 0.0
 	player_vel_y = 0.0
 	world_scroll_z = 0.0
 	camera_yaw = 0.0
@@ -315,7 +315,7 @@ func start_tutorial(tutorial_players: int = 1) -> void:
 	quiz_history.clear()
 	player_x = 1.5 if num_players >= 2 else 0.0
 	player_y = 0.0
-	player_z = 0.0
+	player_z = -8.0 if num_players == 1 else 0.0
 	player_vel_y = 0.0
 	world_scroll_z = 0.0
 	camera_yaw = 0.0
@@ -679,7 +679,7 @@ func trigger_start() -> void:
 	if game_state == Constants.STATE_WAITING_START:
 		if _is_tutorial_mode():
 			game_state = Constants.STATE_COUNTDOWN
-			countdown_timer = 3.99
+			countdown_timer = 5.99
 			state_changed.emit(game_state)
 			return
 
@@ -703,7 +703,7 @@ func _update_flyover(dt: float, emote_p1: int = 0, emote_p2: int = 0) -> void:
 	if flyover_timer >= flyover_duration:
 		# フライオーバー完了 → カウントダウンへ
 		game_state = Constants.STATE_COUNTDOWN
-		countdown_timer = 3.99
+		countdown_timer = 5.99
 		state_changed.emit(game_state)
 
 func _update_countdown(dt: float, emote_p1: int = 0, emote_p2: int = 0) -> void:

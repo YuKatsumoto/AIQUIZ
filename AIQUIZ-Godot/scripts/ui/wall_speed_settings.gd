@@ -50,82 +50,60 @@ func _process(dt: float) -> void:
 		_preview_wall.position.z = -wall_z
 
 func _build_ui() -> void:
-	# ── 背景 ──
-	var bg := ColorRect.new()
-	bg.color = Color(0.08, 0.09, 0.13)
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(bg)
-	
-	# ── メインレイアウト（水平: プレビュー左 + 設定右）──
-	var main_hbox := HBoxContainer.new()
-	main_hbox.set_anchors_preset(Control.PRESET_FULL_RECT)
-	main_hbox.add_theme_constant_override("separation", 0)
-	add_child(main_hbox)
-	
-	# === 左側: 3Dプレビュー領域 ===
-	var preview_panel := PanelContainer.new()
-	preview_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	preview_panel.size_flags_stretch_ratio = 1.5
-	var preview_style := StyleBoxFlat.new()
-	preview_style.bg_color = Color(0.05, 0.06, 0.09)
-	preview_style.set_border_width_all(2)
-	preview_style.border_color = Color(0.2, 0.25, 0.35)
-	preview_style.set_corner_radius_all(12)
-	preview_style.content_margin_left = 8.0
-	preview_style.content_margin_right = 8.0
-	preview_style.content_margin_top = 8.0
-	preview_style.content_margin_bottom = 8.0
-	preview_panel.add_theme_stylebox_override("panel", preview_style)
-	main_hbox.add_child(preview_panel)
-	
-	# プレビュー用VBox（タイトル + SubViewportContainer）
-	var preview_vbox := VBoxContainer.new()
-	preview_vbox.add_theme_constant_override("separation", 8)
-	preview_panel.add_child(preview_vbox)
-	
-	var preview_title := Label.new()
-	preview_title.text = "🎮 プレビュー"
-	preview_title.add_theme_font_size_override("font_size", 20)
-	preview_title.add_theme_color_override("font_color", Color(0.7, 0.75, 0.85))
-	preview_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	preview_vbox.add_child(preview_title)
-	
-	# SubViewportContainer
+	# ── 3Dプレビュー背景（全画面） ──
 	var svc := SubViewportContainer.new()
-	svc.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	svc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	svc.set_anchors_preset(Control.PRESET_FULL_RECT)
 	svc.stretch = true
-	preview_vbox.add_child(svc)
+	add_child(svc)
 	
-	# SubViewport
 	_sub_viewport = SubViewport.new()
-	_sub_viewport.size = Vector2i(640, 480)
+	_sub_viewport.size = Vector2i(1280, 720)
 	_sub_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	_sub_viewport.transparent_bg = false
 	svc.add_child(_sub_viewport)
 	
-	# === 右側: 設定パネル ===
+	# ── UIオーバーレイ（フロートパネル） ──
+	var margin_container := MarginContainer.new()
+	margin_container.set_anchors_preset(Control.PRESET_FULL_RECT)
+	margin_container.add_theme_constant_override("margin_right", 40)
+	margin_container.add_theme_constant_override("margin_top", 40)
+	margin_container.add_theme_constant_override("margin_bottom", 40)
+	margin_container.add_theme_constant_override("margin_left", 40)
+	add_child(margin_container)
+	
+	var h_split := HBoxContainer.new()
+	margin_container.add_child(h_split)
+	
+	# 左側の空きスペース（プレビューを見せるため）
+	var spacer_left := Control.new()
+	spacer_left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	spacer_left.size_flags_stretch_ratio = 1.2
+	h_split.add_child(spacer_left)
+	
+	# 右側の設定パネル
 	var settings_panel := PanelContainer.new()
-	settings_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	settings_panel.size_flags_stretch_ratio = 1.0
+	settings_panel.custom_minimum_size = Vector2(480, 0)
+	settings_panel.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	var settings_style := StyleBoxFlat.new()
-	settings_style.bg_color = Color(0.10, 0.11, 0.16)
-	settings_style.set_border_width_all(0)
+	settings_style.bg_color = Color(0.05, 0.08, 0.12, 0.85)
+	settings_style.set_border_width_all(2)
+	settings_style.border_color = Color(0.3, 0.4, 0.6, 0.5)
+	settings_style.set_corner_radius_all(24)
 	settings_style.content_margin_left = 32.0
 	settings_style.content_margin_right = 32.0
 	settings_style.content_margin_top = 24.0
 	settings_style.content_margin_bottom = 24.0
 	settings_panel.add_theme_stylebox_override("panel", settings_style)
-	main_hbox.add_child(settings_panel)
+	h_split.add_child(settings_panel)
 	
 	var settings_vbox := VBoxContainer.new()
-	settings_vbox.add_theme_constant_override("separation", 18)
+	settings_vbox.add_theme_constant_override("separation", 16)
 	settings_panel.add_child(settings_vbox)
 	
 	# タイトル
 	var title := Label.new()
 	title.text = "⚡ 壁速度設定"
-	title.add_theme_font_size_override("font_size", 30)
+	title.add_theme_font_size_override("font_size", 32)
 	title.add_theme_color_override("font_color", Color(1.0, 0.88, 0.25))
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	settings_vbox.add_child(title)
@@ -134,7 +112,7 @@ func _build_ui() -> void:
 	var desc := Label.new()
 	desc.text = "壁が手前に向かって移動する速度を調整します。\n速度が速いほど解答時間が短くなります。"
 	desc.add_theme_font_size_override("font_size", 15)
-	desc.add_theme_color_override("font_color", Color(0.55, 0.58, 0.68))
+	desc.add_theme_color_override("font_color", Color(0.7, 0.75, 0.85))
 	desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	settings_vbox.add_child(desc)
@@ -145,14 +123,28 @@ func _build_ui() -> void:
 	_mode_label.add_theme_color_override("font_color", Color(0.4, 0.75, 1.0))
 	_mode_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_update_mode_label()
-	settings_vbox.add_child(_mode_label)
+	
+	var mode_panel := PanelContainer.new()
+	var mode_style := StyleBoxFlat.new()
+	mode_style.bg_color = Color(0.1, 0.15, 0.25, 0.6)
+	mode_style.set_corner_radius_all(12)
+	mode_style.content_margin_top = 8
+	mode_style.content_margin_bottom = 8
+	mode_panel.add_theme_stylebox_override("panel", mode_style)
+	mode_panel.add_child(_mode_label)
+	settings_vbox.add_child(mode_panel)
 	
 	# セパレータ
-	settings_vbox.add_child(HSeparator.new())
+	var sep := HSeparator.new()
+	sep.add_theme_constant_override("separation", 12)
+	var sep_style := StyleBoxLine.new()
+	sep_style.color = Color(1, 1, 1, 0.1)
+	sep.add_theme_stylebox_override("separator", sep_style)
+	settings_vbox.add_child(sep)
 	
 	# 速度ラベル
 	_speed_label = Label.new()
-	_speed_label.text = "壁速度"
+	_speed_label.text = "現在の速度"
 	_speed_label.add_theme_font_size_override("font_size", 18)
 	_speed_label.add_theme_color_override("font_color", Color(0.82, 0.85, 0.92))
 	_speed_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -160,7 +152,7 @@ func _build_ui() -> void:
 	
 	# 速度値表示（大きいフォント）
 	_speed_value_label = Label.new()
-	_speed_value_label.add_theme_font_size_override("font_size", 42)
+	_speed_value_label.add_theme_font_size_override("font_size", 48)
 	_speed_value_label.add_theme_color_override("font_color", Color(0.3, 1.0, 0.5))
 	_speed_value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	settings_vbox.add_child(_speed_value_label)
@@ -171,9 +163,20 @@ func _build_ui() -> void:
 	_speed_slider.max_value = 10.0
 	_speed_slider.step = 0.1
 	_speed_slider.value = _preview_speed
-	_speed_slider.custom_minimum_size = Vector2(0, 32)
+	_speed_slider.custom_minimum_size = Vector2(0, 36)
 	_speed_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_speed_slider.value_changed.connect(_on_speed_changed)
+	
+	var slider_bg := StyleBoxFlat.new()
+	slider_bg.bg_color = Color(0.0, 0.0, 0.0, 0.5)
+	slider_bg.set_corner_radius_all(10)
+	slider_bg.expand_margin_top = 4
+	slider_bg.expand_margin_bottom = 4
+	
+	_speed_slider.add_theme_stylebox_override("slider", slider_bg)
+	_speed_slider.add_theme_stylebox_override("grabber_area", StyleBoxEmpty.new())
+	_speed_slider.add_theme_stylebox_override("grabber_area_highlight", StyleBoxEmpty.new())
+	
 	settings_vbox.add_child(_speed_slider)
 	
 	# スライダーの範囲ラベル
@@ -181,34 +184,34 @@ func _build_ui() -> void:
 	settings_vbox.add_child(range_hbox)
 	
 	var slow_label := Label.new()
-	slow_label.text = "🐢 遅い (2.0)"
-	slow_label.add_theme_font_size_override("font_size", 13)
-	slow_label.add_theme_color_override("font_color", Color(0.45, 0.48, 0.58))
+	slow_label.text = "🐢 遅い"
+	slow_label.add_theme_font_size_override("font_size", 14)
+	slow_label.add_theme_color_override("font_color", Color(0.6, 0.65, 0.75))
 	slow_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	range_hbox.add_child(slow_label)
 	
 	var fast_label := Label.new()
-	fast_label.text = "🐇 速い (10.0)"
-	fast_label.add_theme_font_size_override("font_size", 13)
-	fast_label.add_theme_color_override("font_color", Color(0.45, 0.48, 0.58))
+	fast_label.text = "🐇 速い"
+	fast_label.add_theme_font_size_override("font_size", 14)
+	fast_label.add_theme_color_override("font_color", Color(0.6, 0.65, 0.75))
 	fast_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	fast_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	range_hbox.add_child(fast_label)
 	
 	# スペーサー
 	var spacer := Control.new()
-	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	spacer.custom_minimum_size = Vector2(0, 8)
 	settings_vbox.add_child(spacer)
 	
 	# ボタン行
 	var btn_vbox := VBoxContainer.new()
-	btn_vbox.add_theme_constant_override("separation", 10)
+	btn_vbox.add_theme_constant_override("separation", 12)
 	settings_vbox.add_child(btn_vbox)
 	
 	# リセット（自動モード）ボタン
 	_reset_btn = Button.new()
 	_reset_btn.text = "🔄 自動モードに戻す"
-	_reset_btn.custom_minimum_size = Vector2(0, 48)
+	_reset_btn.custom_minimum_size = Vector2(0, 44)
 	_reset_btn.add_theme_font_size_override("font_size", 16)
 	_reset_btn.pressed.connect(_on_reset_pressed)
 	btn_vbox.add_child(_reset_btn)
@@ -227,18 +230,18 @@ func _build_ui() -> void:
 func _style_buttons() -> void:
 	# 通常ボタン
 	var normal_style := StyleBoxFlat.new()
-	normal_style.bg_color = Color(0.14, 0.16, 0.22)
-	normal_style.border_color = Color(0.28, 0.32, 0.42)
+	normal_style.bg_color = Color(0.14, 0.16, 0.22, 0.8)
+	normal_style.border_color = Color(0.28, 0.32, 0.42, 0.8)
 	normal_style.set_border_width_all(1)
-	normal_style.set_corner_radius_all(10)
+	normal_style.set_corner_radius_all(12)
 	normal_style.content_margin_left = 16.0
 	normal_style.content_margin_right = 16.0
 	normal_style.content_margin_top = 8.0
 	normal_style.content_margin_bottom = 8.0
 	
 	var hover_style := normal_style.duplicate()
-	hover_style.bg_color = Color(0.18, 0.20, 0.28)
-	hover_style.border_color = Color(0.4, 0.5, 0.7)
+	hover_style.bg_color = Color(0.18, 0.20, 0.28, 0.9)
+	hover_style.border_color = Color(0.4, 0.5, 0.7, 0.9)
 	
 	for btn: Button in [_reset_btn]:
 		btn.add_theme_stylebox_override("normal", normal_style.duplicate())
@@ -249,18 +252,18 @@ func _style_buttons() -> void:
 	
 	# 決定ボタン（アクセントカラー）
 	var accent_style := StyleBoxFlat.new()
-	accent_style.bg_color = Color(0.15, 0.35, 0.65)
-	accent_style.border_color = Color(0.3, 0.55, 0.9)
+	accent_style.bg_color = Color(0.15, 0.35, 0.65, 0.85)
+	accent_style.border_color = Color(0.3, 0.55, 0.9, 0.8)
 	accent_style.set_border_width_all(2)
-	accent_style.set_corner_radius_all(12)
+	accent_style.set_corner_radius_all(14)
 	accent_style.content_margin_left = 20.0
 	accent_style.content_margin_right = 20.0
 	accent_style.content_margin_top = 10.0
 	accent_style.content_margin_bottom = 10.0
 	
 	var accent_hover := accent_style.duplicate()
-	accent_hover.bg_color = Color(0.2, 0.42, 0.75)
-	accent_hover.border_color = Color(0.4, 0.65, 1.0)
+	accent_hover.bg_color = Color(0.2, 0.42, 0.75, 0.95)
+	accent_hover.border_color = Color(0.4, 0.65, 1.0, 0.9)
 	
 	_back_btn.add_theme_stylebox_override("normal", accent_style)
 	_back_btn.add_theme_stylebox_override("hover", accent_hover)
@@ -313,8 +316,8 @@ func _build_3d_preview() -> void:
 	
 	# カメラ（プレイヤー視点に近い角度）
 	_preview_camera = Camera3D.new()
-	_preview_camera.position = Vector3(0, 3.5, 2.0)
-	_preview_camera.rotation_degrees = Vector3(-12, 0, 0)
+	_preview_camera.position = Vector3(2.5, 3.5, 2.0) # UIが右にあるので、カメラを右にずらして被写体を左に寄せる
+	_preview_camera.rotation_degrees = Vector3(-12, 10, 0) # 少しだけ斜めから見るように角度もつける
 	_preview_camera.fov = 65.0
 	_sub_viewport.add_child(_preview_camera)
 	

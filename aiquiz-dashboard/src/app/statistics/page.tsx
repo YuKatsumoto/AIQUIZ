@@ -17,6 +17,16 @@ interface RatingEntry {
   e?: string;
 }
 
+interface TelemetryEntry {
+  q: string;
+  response_time: number;
+  correct: boolean;
+  subject: string;
+  grade: number;
+  difficulty: string;
+  ts: number;
+}
+
 export default function StatisticsPage() {
   const [loading, setLoading] = useState(true);
   const [totalRatings, setTotalRatings] = useState(0);
@@ -28,12 +38,21 @@ export default function StatisticsPage() {
   const [recentActivity, setRecentActivity] = useState<RatingEntry[]>([]);
   const [dailyCounts, setDailyCounts] = useState<Record<string, { good: number, bad: number }>>({});
   const [worstQuestions, setWorstQuestions] = useState<RatingEntry[]>([]);
+  const [killerQuestions, setKillerQuestions] = useState<Array<{q: string, total: number, correct: number, ratio: number, avg_time: number}>>([]);
 
   useEffect(() => {
-    const ratingsRef = ref(db, 'quiz_ratings/shared');
-    get(ratingsRef).then((snapshot) => {
-      if (snapshot.exists()) {
-        const data = snapshot.val();
+    const fetchAll = async () => {
+      const ratingsRef = ref(db, 'quiz_ratings/shared');
+      const telemetryRef = ref(db, 'telemetry/sessions');
+      
+      const [ratingsSnap, telemetrySnap] = await Promise.all([
+        get(ratingsRef),
+        get(telemetryRef).catch(() => null)
+      ]);
+
+      // --- Ratings Processing ---
+      if (ratingsSnap.exists()) {
+        const data = ratingsSnap.val();
         const arr: RatingEntry[] = Object.values(data);
         const sorted = [...arr].sort((a, b) => (b.ts || 0) - (a.ts || 0));
         
@@ -84,12 +103,44 @@ export default function StatisticsPage() {
         setSrcDist(src);
         setRecentActivity(sorted.slice(0, 15));
         setDailyCounts(daily);
-        
-        // Worst questions (BAD rated, most recent)
         setWorstQuestions(sorted.filter(r => !r.good).slice(0, 5));
       }
+
+      // --- Telemetry Processing ---
+      if (telemetrySnap && telemetrySnap.exists()) {
+        const data = telemetrySnap.val();
+        const arr: TelemetryEntry[] = Object.values(data);
+        const qStats: Record<string, { total: number, correct: number, time_sum: number }> = {};
+        
+        arr.forEach(t => {
+          if (!qStats[t.q]) qStats[t.q] = { total: 0, correct: 0, time_sum: 0 };
+          qStats[t.q].total++;
+          if (t.correct) qStats[t.q].correct++;
+          qStats[t.q].time_sum += t.response_time || 0;
+        });
+
+        const killers = Object.entries(qStats)
+          .map(([q, stats]) => ({
+            q,
+            total: stats.total,
+            correct: stats.correct,
+            ratio: stats.correct / stats.total,
+            avg_time: stats.time_sum / stats.total
+          }))
+          .filter(k => k.total >= 1) // 1回以上出題された問題
+          .sort((a, b) => {
+            if (a.ratio !== b.ratio) return a.ratio - b.ratio; // 正答率低い順
+            return b.total - a.total; // 同じ正答率なら出題回数が多い順
+          })
+          .slice(0, 10); // Worst 10
+        
+        setKillerQuestions(killers);
+      }
+
       setLoading(false);
-    });
+    };
+    
+    fetchAll();
   }, []);
 
   const overallRatio = totalRatings > 0 ? (goodRatings / totalRatings) * 100 : 0;
@@ -255,6 +306,46 @@ export default function StatisticsPage() {
                   <span><span style={{ display: 'inline-block', width: '10px', height: '10px', background: 'var(--success)', borderRadius: '2px', marginRight: '4px' }}></span>GOOD</span>
                   <span><span style={{ display: 'inline-block', width: '10px', height: '10px', background: 'var(--danger)', borderRadius: '2px', marginRight: '4px' }}></span>BAD</span>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Killer Questions */}
+          {killerQuestions.length > 0 && (
+            <div style={{ marginBottom: '2rem' }}>
+              <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span>💀</span>キラー問題（正答率が極端に低い問題）
+              </h3>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+                実際のプレイヤーの解答データに基づき、誰も解けない・難しすぎる問題を特定します。
+              </p>
+              <div className="card glass-panel" style={{ padding: 0, overflow: 'hidden' }}>
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '60px' }}>正答率</th>
+                      <th style={{ width: '80px' }}>出題回数</th>
+                      <th style={{ width: '80px' }}>平均回答時間</th>
+                      <th>問題文</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {killerQuestions.map((kq, i) => (
+                      <tr key={i}>
+                        <td>
+                          <span className={`badge ${kq.ratio < 0.3 ? 'bad' : 'warning'}`} style={{ backgroundColor: 'transparent' }}>
+                            {(kq.ratio * 100).toFixed(0)}%
+                          </span>
+                        </td>
+                        <td style={{ textAlign: 'center' }}>{kq.total}回</td>
+                        <td style={{ textAlign: 'center' }}>{kq.avg_time.toFixed(1)}秒</td>
+                        <td style={{ maxWidth: '400px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {kq.q}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}

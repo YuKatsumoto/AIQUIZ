@@ -6,9 +6,12 @@ import { usePathname } from 'next/navigation';
 const navItems = [
   { label: 'メイン', section: true },
   { href: '/', icon: '📊', label: 'ダッシュボード' },
+  { href: '/live-control', icon: '📡', label: 'ライブコントロール' },
   { href: '/ratings', icon: '⭐', label: '評価済みクイズ' },
   { href: '/offline-bank', icon: '📚', label: 'オフライン問題庫' },
   { label: 'ツール', section: true },
+  { href: '/offline-assist', icon: '🤖', label: '問題庫アシスト' },
+  { href: '/ai-tuning', icon: '🧪', label: 'AIチューニング' },
   { href: '/statistics', icon: '📈', label: '統計・分析' },
   { href: '/settings', icon: '⚙️', label: '設定・環境情報' },
 ];
