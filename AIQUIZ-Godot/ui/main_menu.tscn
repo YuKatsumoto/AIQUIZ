@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://dm4k7xr5qat2w"]
 
-[ext_resource type="Script" path="res://scripts/ui/main_menu.gd" id="1_main_menu"]
+[ext_resource type="Script" uid="uid://cwqgcjlg0spa8" path="res://scripts/ui/main_menu.gd" id="1_main_menu"]
 
 [node name="MainMenu" type="Control"]
 layout_mode = 3
@@ -116,9 +116,9 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(200, 44)
 layout_mode = 2
 theme_override_font_sizes/font_size = 22
+text = "📐 算数"
 horizontal_alignment = 1
 vertical_alignment = 1
-text = "📐 算数"
 
 [node name="NextSubjectBtn" type="Button" parent="VBoxContainer/ConfigContainer/SubjectCarousel"]
 unique_name_in_owner = true
@@ -144,9 +144,9 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(200, 44)
 layout_mode = 2
 theme_override_font_sizes/font_size = 22
+text = "📚 3年生"
 horizontal_alignment = 1
 vertical_alignment = 1
-text = "📚 3年生"
 
 [node name="NextGradeBtn" type="Button" parent="VBoxContainer/ConfigContainer/GradeCarousel"]
 unique_name_in_owner = true
@@ -172,9 +172,9 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(200, 44)
 layout_mode = 2
 theme_override_font_sizes/font_size = 22
+text = "⚡ 普通"
 horizontal_alignment = 1
 vertical_alignment = 1
-text = "⚡ 普通"
 
 [node name="NextDiffBtn" type="Button" parent="VBoxContainer/ConfigContainer/DiffCarousel"]
 unique_name_in_owner = true
@@ -388,7 +388,6 @@ text = "戻る"
 
 [connection signal="pressed" from="VBoxContainer/ModeContainer/ModeButtons/TenQuestionsBtn" to="." method="_on_ten_questions_pressed"]
 [connection signal="pressed" from="VBoxContainer/ModeContainer/ModeButtons/EndlessBtn" to="." method="_on_endless_pressed"]
-
 [connection signal="pressed" from="VBoxContainer/ConfigContainer/SettingsRows/Row1/LlmToggleBtn" to="." method="_on_llm_toggle_pressed"]
 [connection signal="pressed" from="VBoxContainer/ConfigContainer/SettingsRows/Row1/PlayersToggleBtn" to="." method="_on_players_toggle_pressed"]
 [connection signal="pressed" from="VBoxContainer/ConfigContainer/SettingsRows/Row2/WallSpeedBtn" to="." method="_on_wall_speed_pressed"]

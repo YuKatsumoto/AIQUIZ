@@ -22,6 +22,13 @@ var mode: String = Constants.MODE_TEN
 var llm_mode: String = "ONLINE"
 var menu_step: String = Constants.MENU_STEP_MODE
 
+# --- Pre-Tutorial State Backup ---
+var pre_tutorial_subject: String = "算数"
+var pre_tutorial_grade: int = 3
+var pre_tutorial_difficulty: String = "普通"
+var pre_tutorial_mode: String = Constants.MODE_TEN
+var pre_tutorial_llm_mode: String = "ONLINE"
+
 # --- Player 1 ---
 var score: int = 0
 var current_index: int = 0
@@ -75,7 +82,7 @@ var countdown_timer: float = 3.0
 
 # --- Flyover (10問モードのカメラ演出) ---
 var flyover_timer: float = 0.0
-var flyover_duration: float = 8.5  # フライオーバー全体の秒数 (2フェーズ)
+var flyover_duration: float = 3.8  # フライオーバー全体の秒数 (ドリーインのみ)
 var flyover_total_walls: int = 10
 
 # --- Multiplayer ---
@@ -304,6 +311,12 @@ func _should_rebuild_coop_quiz(quiz: QuizItem) -> bool:
 		or quiz.coop_p2_label.contains("ヒント")
 
 func start_tutorial(tutorial_players: int = 1) -> void:
+	pre_tutorial_subject = subject
+	pre_tutorial_grade = grade
+	pre_tutorial_difficulty = difficulty
+	pre_tutorial_mode = mode
+	pre_tutorial_llm_mode = llm_mode
+
 	mode = Constants.MODE_TUTORIAL
 	llm_mode = "OFFLINE"
 	subject = "チュートリアル"
@@ -420,6 +433,13 @@ func _build_tutorial_quizzes() -> Array[QuizItem]:
 
 func reset_to_menu() -> void:
 	provider.end_round()
+	if mode == Constants.MODE_TUTORIAL:
+		subject = pre_tutorial_subject
+		grade = pre_tutorial_grade
+		difficulty = pre_tutorial_difficulty
+		mode = pre_tutorial_mode
+		llm_mode = pre_tutorial_llm_mode
+
 	game_state = Constants.STATE_MENU
 	menu_step = Constants.MENU_STEP_MODE
 	player_x = 0.0
@@ -679,7 +699,7 @@ func trigger_start() -> void:
 	if game_state == Constants.STATE_WAITING_START:
 		if _is_tutorial_mode():
 			game_state = Constants.STATE_COUNTDOWN
-			countdown_timer = 5.99
+			countdown_timer = 3.99
 			state_changed.emit(game_state)
 			return
 
@@ -689,11 +709,11 @@ func trigger_start() -> void:
 		if _is_fixed_count_mode():
 			# 10問モード: 全壁を見せる
 			flyover_total_walls = target_count
-			flyover_duration = 8.5
+			flyover_duration = 3.8
 		else:
 			# エンドレスモード: 見えなくなるくらい遠くまで壁を並べる
 			flyover_total_walls = 25
-			flyover_duration = 8.5
+			flyover_duration = 3.8
 		state_changed.emit(game_state)
 
 func _update_flyover(dt: float, emote_p1: int = 0, emote_p2: int = 0) -> void:
@@ -703,7 +723,7 @@ func _update_flyover(dt: float, emote_p1: int = 0, emote_p2: int = 0) -> void:
 	if flyover_timer >= flyover_duration:
 		# フライオーバー完了 → カウントダウンへ
 		game_state = Constants.STATE_COUNTDOWN
-		countdown_timer = 5.99
+		countdown_timer = 3.99
 		state_changed.emit(game_state)
 
 func _update_countdown(dt: float, emote_p1: int = 0, emote_p2: int = 0) -> void:

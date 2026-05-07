@@ -192,24 +192,15 @@ func _update_flyover_camera(gs: QuizGameState, _dt: float) -> void:
 	var look_target: Vector3
 	var fov: float
 
-	if progress < 0.55:
-		# === Phase 1: 最後の壁から後方まで一気に飛行 ===
-		var p: float = progress / 0.55
-		var eased: float = _ease_smooth(p)
-		eye = start_pos.lerp(overshoot_pos, eased)
-		# 視線: スタート時の視点から、オーバーシュート時のドリー軌道の視線へと100%滑らかに繋ぐ
-		look_target = start_look.lerp(overshoot_look, eased)
-		# FOV: 飛行中に徐々にワイドに
-		fov = lerpf(52.0, 66.0, eased)
-
-	else:
-		# === Phase 2: 後方 → 終着点へ ゆっくり 復帰 ===
-		var p: float = (progress - 0.55) / 0.45
-		var eased: float = _ease_smooth(p)
+	if progress < 1.0:
+		var eased: float = _ease_smooth(progress)
 		eye = overshoot_pos.lerp(end_pos, eased)
-		# 視線: カメラ座標と一緒に全く同じベクトルで引かれるため、ピッチとヨーは一切変化しない心地よいドリー・イン
 		look_target = overshoot_look.lerp(end_look, eased)
 		fov = lerpf(66.0, end_fov, eased)
+	else:
+		eye = end_pos
+		look_target = end_look
+		fov = end_fov
 
 	camera.fov = fov
 	camera.global_position = eye
@@ -217,10 +208,26 @@ func _update_flyover_camera(gs: QuizGameState, _dt: float) -> void:
 
 
 func _update_preload_camera(gs: QuizGameState, _dt: float) -> void:
-	# 2Pフライオーバー終着位置: end_pos = (0, 4.5, z_focus - 9), end_look = (0, 1, z_focus + 8)
-	var z_focus: float = 0.0  # プレイヤー初期位置
-	var eye := Vector3(0.0, 4.5, z_focus - 9.0)
-	var look_at_pos := Vector3(0.0, 1.0, z_focus + 8.0)
+	var end_pos: Vector3
+	var end_look: Vector3
+	
+	if gs.num_players >= 2:
+		var z_focus: float = gs.player_local_z
+		if gs.p1_alive and gs.p2_alive:
+			z_focus = (gs.player_local_z + gs.player2_local_z) / 2.0
+		elif gs.p2_alive:
+			z_focus = gs.player2_local_z
+		end_pos = Vector3(0.0, 4.5, z_focus - 9.0)
+		end_look = Vector3(0.0, 1.0, z_focus + 8.0)
+	else:
+		var player_y: float = 1.2
+		end_pos = Vector3(gs.player_x, player_y, gs.player_local_z)
+		end_look = end_pos + Vector3(0.0, 0.0, 10.0)
+
+	var pullback_distance := 14.0
+	var view_dir := (end_look - end_pos).normalized()
+	var eye := end_pos - view_dir * pullback_distance
+	var look_at_pos := end_look - view_dir * pullback_distance
 
 	if gs.camera_shake > 0.0:
 		var shake_ox: float = (randf() - 0.5) * gs.camera_shake
@@ -232,7 +239,7 @@ func _update_preload_camera(gs: QuizGameState, _dt: float) -> void:
 		look_at_pos.x += shake_ox * 0.5
 		look_at_pos.y += shake_oy * 0.5
 
-	camera.fov = 50.0
+	camera.fov = 66.0
 	camera.global_position = eye
 	camera.look_at(look_at_pos, Vector3.UP)
 

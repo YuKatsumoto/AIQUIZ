@@ -879,13 +879,19 @@ func _update_preview_walls(dt: float) -> void:
 		wall_container.add_child(sil_r)
 		_pw_right.append(sil_r)
 
-		# 新しい壁のアニメーション情報 — まだ開始しない（タイマーで順次開始）
+		var is_endless: bool = not game_state._is_fixed_count_mode()
+
+		# 新しい壁のアニメーション情報 — エンドレスモードなら即座に完了状態(phase 3)とする
 		_pw_anims.append({
-			"phase": 0,
+			"phase": 3 if is_endless else 0,
 			"timer": 0.0,
-			"started": false,
+			"started": is_endless,
 		})
-		_pw_merge_started.append(false)
+		_pw_merge_started.append(is_endless)
+		
+		if is_endless:
+			wall_final.visible = true
+			wall_final.scale = Vector3.ONE
 
 		_pw_count += 1
 
@@ -962,7 +968,10 @@ func _update_preview_walls(dt: float) -> void:
 				_pw_walls[i].scale = Vector3.ONE
 
 	# ── 全壁のアニメ完了を検出 → バリア壁を落下開始 ──
-	if _pw_anims.size() > 0 and not _barrier_spawned_for_session:
+	var is_endless: bool = not game_state._is_fixed_count_mode()
+	var required_walls: int = 10 if is_endless else game_state.target_count
+
+	if _pw_anims.size() >= required_walls and not _barrier_spawned_for_session:
 		var all_done := true
 		for anim: Dictionary in _pw_anims:
 			if anim.get("phase", 0) < 3:
@@ -1141,6 +1150,54 @@ func _begin_barrier_drop() -> void:
 	sq.material = sm
 	sp.mesh = sq
 	_start_barrier.add_child(sp)
+
+	# スチーム用マテリアル
+	var steam_mat := StandardMaterial3D.new()
+	steam_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	steam_mat.albedo_color = Color(0.9, 0.9, 0.95, 0.25)
+	steam_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	steam_mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	steam_mat.billboard_keep_scale = true
+	var steam_quad := QuadMesh.new()
+	steam_quad.material = steam_mat
+
+	# 左から右へ噴き出す蒸気
+	var steam_l := CPUParticles3D.new()
+	steam_l.name = "SteamL"
+	steam_l.emitting = false
+	steam_l.amount = 120
+	steam_l.lifetime = 1.5
+	steam_l.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	steam_l.emission_box_extents = Vector3(0.5, 10.0, 1.0)
+	steam_l.direction = Vector3(1, 0, 0)
+	steam_l.spread = 15.0
+	steam_l.gravity = Vector3(0, -1.0, 0)
+	steam_l.initial_velocity_min = 5.0
+	steam_l.initial_velocity_max = 8.0
+	steam_l.scale_amount_min = 2.0
+	steam_l.scale_amount_max = 4.5
+	steam_l.mesh = steam_quad
+	steam_l.position = Vector3(-16.0, 10.0, 0)
+	_start_barrier.add_child(steam_l)
+
+	# 右から左へ噴き出す蒸気
+	var steam_r := CPUParticles3D.new()
+	steam_r.name = "SteamR"
+	steam_r.emitting = false
+	steam_r.amount = 120
+	steam_r.lifetime = 1.5
+	steam_r.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	steam_r.emission_box_extents = Vector3(0.5, 10.0, 1.0)
+	steam_r.direction = Vector3(-1, 0, 0)
+	steam_r.spread = 15.0
+	steam_r.gravity = Vector3(0, -1.0, 0)
+	steam_r.initial_velocity_min = 5.0
+	steam_r.initial_velocity_max = 8.0
+	steam_r.scale_amount_min = 2.0
+	steam_r.scale_amount_max = 4.5
+	steam_r.mesh = steam_quad
+	steam_r.position = Vector3(16.0, 10.0, 0)
+	_start_barrier.add_child(steam_r)
 	wall_container.add_child(_start_barrier)
 	_barrier_dropping = true
 	_barrier_drop_timer = 0.0
@@ -1163,9 +1220,34 @@ func _update_start_barrier() -> void:
 		if ql:
 			if game_state.game_state == Constants.STATE_COUNTDOWN:
 				var remain := int(ceil(game_state.countdown_timer))
-				ql.text = str(remain) if remain > 0 else "GO!"
+				ql.text = str(remain) if remain > 0 else ""
+				
+				var progress := 1.0 - clampf(game_state.countdown_timer / 3.99, 0.0, 1.0)
+				
+				# 1. 壁の振動演出
+				# base position is x=0, y=0. apply non-linear random offset based on progress.
+				var shake_intensity = lerpf(0.0, 0.6, pow(progress, 4.0))
+				_start_barrier.position.x = randf_range(-shake_intensity, shake_intensity)
+				_start_barrier.position.y = randf_range(-shake_intensity, shake_intensity)
+				
+				# 2. 横から噴き出す蒸気演出
+				var steam_l := _start_barrier.get_node_or_null("SteamL") as CPUParticles3D
+				if steam_l:
+					steam_l.emitting = true
+					steam_l.initial_velocity_max = lerpf(8.0, 35.0, progress)
+					steam_l.scale_amount_max = lerpf(2.0, 6.0, progress)
+					
+				var steam_r := _start_barrier.get_node_or_null("SteamR") as CPUParticles3D
+				if steam_r:
+					steam_r.emitting = true
+					steam_r.initial_velocity_max = lerpf(8.0, 35.0, progress)
+					steam_r.scale_amount_max = lerpf(2.0, 6.0, progress)
+					
 			else:
 				ql.text = ""
+				if game_state.game_state != Constants.STATE_WAITING_START:
+					_start_barrier.position.x = 0
+					_start_barrier.position.y = 0
 				
 		if game_state.game_state not in [Constants.STATE_COUNTDOWN, Constants.STATE_FLYOVER, Constants.STATE_WAITING_START, Constants.STATE_PRELOADING]:
 			if _barrier_exploded:
@@ -1241,14 +1323,15 @@ func _explode_start_barrier() -> void:
 			var oy: float = (cy - (cy_n - 1) * 0.5) * cs.y + randf_range(-0.5, 0.5)
 			chunk.global_position = bpos + Vector3(ox, oy, 0)
 			get_tree().current_scene.add_child(chunk)
-			var radial := Vector3(ox, oy, 0).normalized()
-			var rand_dir := Vector3(randf_range(-1.0, 1.0), randf_range(-0.5, 1.5), randf_range(-1.0, 1.0)).normalized()
-			var force: float = randf_range(18.0, 40.0)
-			var impulse := (radial * 0.6 + rand_dir * 0.4).normalized() * force
-			impulse.z += randf_range(-15.0, 15.0)
-			impulse.y += randf_range(3.0, 12.0)
-			chunk.apply_impulse(impulse)
-			chunk.apply_torque_impulse(Vector3(randf_range(-25.0, 25.0), randf_range(-20.0, 20.0), randf_range(-25.0, 25.0)))
+			# キャラの爆散と同じような散り方（左右に分かれて上に跳ねる）
+			var sx := 1.0 if ox >= 0 else -1.0
+			var vel := Vector3(
+				sx * randf_range(3.0, 10.0),
+				randf_range(6.0, 15.0),
+				randf_range(-5.0, 5.0)
+			)
+			chunk.linear_velocity = vel
+			chunk.angular_velocity = Vector3(randf_range(-10.0, 10.0), randf_range(-10.0, 10.0), randf_range(-10.0, 10.0))
 			var t := Timer.new()
 			t.wait_time = randf_range(2.5, 4.0)
 			t.one_shot = true
@@ -1258,6 +1341,7 @@ func _explode_start_barrier() -> void:
 	
 	game_state.camera_shake = 1.5
 	_spawn_mega_explosion(bpos)
+	
 	var ct := Timer.new()
 	ct.wait_time = 0.3
 	ct.one_shot = true

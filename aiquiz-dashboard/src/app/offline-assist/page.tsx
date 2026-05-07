@@ -19,6 +19,7 @@ interface Suggestion {
   grade?: string;
   message: string;
   severity: 'high' | 'medium' | 'low';
+  originalText?: string;
 }
 
 const TARGET_COUNT = 30; // 理想的な問題数/単元
@@ -93,10 +94,10 @@ export default function OfflineAssistPage() {
               allQuestions[text].push({ subj, grade });
 
               if (!q.c || q.c.length < 2) {
-                sugs.push({ type: 'low_quality', subject: subj, grade, message: `選択肢が少なすぎる問題があります: "${text.substring(0, 20)}..."`, severity: 'medium' });
+                sugs.push({ type: 'low_quality', subject: subj, grade, message: `選択肢が少なすぎる問題があります: "${text.substring(0, 20)}..."`, severity: 'medium', originalText: q.q });
               }
               if (!q.a && q.a !== 0) {
-                sugs.push({ type: 'low_quality', subject: subj, grade, message: `正解(a)が設定されていない問題があります: "${text.substring(0, 20)}..."`, severity: 'high' });
+                sugs.push({ type: 'low_quality', subject: subj, grade, message: `正解(a)が設定されていない問題があります: "${text.substring(0, 20)}..."`, severity: 'high', originalText: q.q });
               }
             });
           });
@@ -147,6 +148,30 @@ export default function OfflineAssistPage() {
       } else {
         addToast(`生成完了しましたが、既存問題との重複などで追加されませんでした。`, 'info');
       }
+    } catch (err: any) {
+      console.error(err);
+      addToast(err.message, 'error');
+    } finally {
+      setGenerating(null);
+    }
+  };
+
+  const handleRefine = async (subject: string, grade: string, originalText: string) => {
+    setGenerating({ subj: subject, grade }); // UI上は生成中と同じスピナーを出すために再利用
+    try {
+      const res = await fetch('/api/refine-single', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subject, grade, originalText })
+      });
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.error || '改善に失敗しました');
+      }
+      
+      addToast(`問題をAIで改善し、品質を向上させました！`, 'success');
+      fetchBank();
     } catch (err: any) {
       console.error(err);
       addToast(err.message, 'error');
@@ -234,6 +259,19 @@ export default function OfflineAssistPage() {
                                 生成シミュレーター
                               </button>
                             </Link>
+                          </div>
+                        )}
+
+                        {s.type === 'low_quality' && s.subject && s.grade && s.originalText && (
+                          <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.5rem' }}>
+                            <button 
+                              className="btn btn-sm" 
+                              style={{ background: 'var(--success)', color: '#fff' }}
+                              onClick={() => handleRefine(s.subject!, s.grade!, s.originalText!)}
+                              disabled={!!generating}
+                            >
+                              {isGeneratingThis ? '⏳ 改善中...' : '✨ AIでこの問題を改善'}
+                            </button>
                           </div>
                         )}
                       </div>

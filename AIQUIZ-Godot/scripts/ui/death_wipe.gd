@@ -15,6 +15,8 @@ var _active: bool = false
 var _dead_player: int = 0  # 1 or 2
 var _timer: float = 0.0
 var _fade_in: float = 0.0
+var _fade_out: float = 0.0
+var _is_hiding: bool = false
 var _world_set: bool = false
 
 const WIPE_W := 320
@@ -66,48 +68,47 @@ func _process(dt: float) -> void:
 		return
 
 	# Only in 2P mode during gameplay-related states
-	if game_state.num_players < 2:
-		_hide_wipe()
-		return
-
-	var playing_states := [Constants.STATE_PLAYING, Constants.STATE_CORRECT,
-		Constants.STATE_GAME_OVER, Constants.STATE_GOAL_RACE]
-	if game_state.game_state not in playing_states:
-		_hide_wipe()
-		return
-
-	var p1_dead := not game_state.p1_alive
-	var p2_dead := not game_state.p2_alive
-
-	# Determine if we should show the wipe
 	var should_show := false
 	var target_player := 0
 
-	if p1_dead and not p2_dead and game_state.game_over_timer > 0 and game_state.game_over_timer < 4.0:
-		should_show = true
-		target_player = 1
-	elif p2_dead and not p1_dead and game_state.player2_game_over_timer > 0 and game_state.player2_game_over_timer < 4.0:
-		should_show = true
-		target_player = 2
-	# Keep showing briefly after both die (game over state)
-	elif p1_dead and p2_dead and _active:
-		var current_timer := game_state.game_over_timer if _dead_player == 1 else game_state.player2_game_over_timer
-		if current_timer < 4.0:
-			should_show = true
-			target_player = _dead_player
+	if game_state.num_players >= 2:
+		var playing_states := [Constants.STATE_PLAYING, Constants.STATE_CORRECT,
+			Constants.STATE_GAME_OVER, Constants.STATE_GOAL_RACE]
+		
+		if game_state.game_state in playing_states:
+			var p1_dead := not game_state.p1_alive
+			var p2_dead := not game_state.p2_alive
+
+			if p1_dead and not p2_dead and game_state.game_over_timer > 0 and game_state.game_over_timer < 4.0:
+				should_show = true
+				target_player = 1
+			elif p2_dead and not p1_dead and game_state.player2_game_over_timer > 0 and game_state.player2_game_over_timer < 4.0:
+				should_show = true
+				target_player = 2
+			# Keep showing briefly after both die (game over state)
+			elif p1_dead and p2_dead and _active:
+				var current_timer := game_state.game_over_timer if _dead_player == 1 else game_state.player2_game_over_timer
+				if current_timer < 4.0:
+					should_show = true
+					target_player = _dead_player
 
 	if should_show:
-		if not _active:
+		if not _active or _is_hiding:
 			_start_wipe(target_player)
-		_update_wipe(dt)
 	else:
 		_hide_wipe()
+
+	# If active (including while sliding out), continue updating animation
+	if _active:
+		_update_wipe(dt)
 
 func _start_wipe(player: int) -> void:
 	_active = true
 	_dead_player = player
 	_timer = 0.0
 	_fade_in = 0.0
+	_fade_out = 0.0
+	_is_hiding = false
 	visible = true
 
 	# Share main viewport's World3D so the wipe camera sees the same scene
@@ -134,28 +135,37 @@ func _start_wipe(player: int) -> void:
 	skull_label.text = ""
 
 func _hide_wipe() -> void:
-	if _active:
-		_active = false
-		visible = false
+	if _active and not _is_hiding:
+		_is_hiding = true
+		_fade_out = 0.0
 		# DO NOT reset world_3d to avoid Godot renderer crash during scene/state transitions
 		# sub_viewport.world_3d = null
 
 func _update_wipe(dt: float) -> void:
 	_timer += dt
-	_fade_in = clampf(_fade_in + dt / FADE_DURATION, 0.0, 1.0)
+	
+	var slide_offset := Vector2(size.x + WIPE_MARGIN_X + 50.0, 0.0) # 右側に完全に隠れるオフセット
+	var current_offset := slide_offset
 
-	# Smooth ease-out fade
-	var alpha := 1.0 - pow(1.0 - _fade_in, 3.0)
-	modulate.a = alpha
+	if _is_hiding:
+		_fade_out = clampf(_fade_out + dt / FADE_DURATION, 0.0, 1.0)
+		var eased := pow(_fade_out, 3.0) # easeInCubic
+		current_offset = slide_offset * eased
+		
+		# スライドアウト完了時に非表示化
+		if _fade_out >= 1.0:
+			_active = false
+			_is_hiding = false
+			visible = false
+			return
+	else:
+		_fade_in = clampf(_fade_in + dt / FADE_DURATION, 0.0, 1.0)
+		var eased := 1.0 - pow(1.0 - _fade_in, 3.0) # easeOutCubic
+		current_offset = slide_offset * (1.0 - eased)
 
-	# Scale-in pop effect
-	var scale_t := 1.0 - pow(1.0 - clampf(_fade_in * 1.5, 0.0, 1.0), 4.0)
-	scale = Vector2(scale_t, scale_t)
-	pivot_offset = size / 2.0
-
-	# Position at bottom-right
+	# Position at bottom-right + slide offset
 	var screen_size := get_viewport_rect().size
-	position = screen_size - size - Vector2(WIPE_MARGIN_X, WIPE_MARGIN_Y)
+	position = screen_size - size - Vector2(WIPE_MARGIN_X, WIPE_MARGIN_Y) + current_offset
 
 	# Animate border color (danger pulse)
 	var pulse := 0.5 + 0.5 * sin(_timer * 5.0)
