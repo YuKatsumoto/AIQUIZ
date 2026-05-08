@@ -275,7 +275,7 @@ func start_game() -> void:
 	if tuning.wall_speed_override > 0:
 		_active_wall_speed = tuning.wall_speed_override
 	else:
-		_active_wall_speed = 28.0 / (4.0 + 1.5)  # VISIBLE_DISTANCE / (default_est + buffer)
+		_active_wall_speed = 28.0 / (4.0 + 3.5)  # VISIBLE_DISTANCE / (default_est + buffer)
 	var count: int = 10 if _is_fixed_count_mode() else 1
 	target_count = count
 
@@ -566,7 +566,7 @@ func _recalc_wall_speed() -> void:
 
 	# --- 壁が見えてからプレイヤーに到達するまでの距離 ---
 	const VISIBLE_DISTANCE: float = 28.0  # wall_start_z(22) - hit_z(-6)
-	const MOVE_BUFFER: float = 1.5        # ドアまで移動する余白（秒）
+	const MOVE_BUFFER: float = 3.5        # ドアまで移動する余白（秒）
 
 	var target_time: float = est_sec + MOVE_BUFFER
 	var base_speed: float = VISIBLE_DISTANCE / target_time
@@ -869,8 +869,11 @@ func _update_game_over(dt: float) -> void:
 
 	# Update message with async explanation
 	if current_quiz:
-		var explain: String = current_quiz.e if current_quiz.e else \
-			("No explanation" if use_english_ui else "解説なし")
+		var explain: String
+		if current_quiz.e and not current_quiz.e.strip_edges().is_empty():
+			explain = current_quiz.e
+		else:
+			explain = ("解説を読み込み中…" if not use_english_ui else "Loading explanation...")
 		var msg: String = "%s\n%s" % [game_over_base_msg, explain]
 		if num_players >= 2:
 			var score_line := "P1: %d  P2: %d" % [score, player2_score]
@@ -1458,8 +1461,11 @@ func _game_over(msg: String) -> void:
 	rating_target_quiz = current_quiz
 	rating_feedback = ""
 	game_over_base_msg = msg
-	var explain: String = current_quiz.e if current_quiz else \
-		("No explanation" if use_english_ui else "解説なし")
+	var explain: String
+	if current_quiz and current_quiz.e and not current_quiz.e.strip_edges().is_empty():
+		explain = current_quiz.e
+	else:
+		explain = ("解説を読み込み中…" if not use_english_ui else "Loading explanation...")
 	var full_msg: String = "%s\n%s" % [msg, explain]
 	if num_players >= 2:
 		var score_line := "P1: %d  P2: %d" % [score, player2_score]

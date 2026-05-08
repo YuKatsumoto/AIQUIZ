@@ -8,8 +8,8 @@ var min_x: float = -6.5
 var max_x: float = 6.5
 var wall_start_z: float = 22.0
 # 壁速度はAI予測解答時間から自動計算。クランプ定数のみ保持。
-var wall_speed_min: float = 3.0
-var wall_speed_max: float = 9.0
+var wall_speed_min: float = 2.0
+var wall_speed_max: float = 7.0
 var wall_speed_override: float = 0.0  # 0 = 自動モード, >0 = 手動固定速度
 var wall_spacing: float = 30.0
 var door_half_width: float = 1.8

@@ -8,6 +8,9 @@ var ratings: Dictionary = {
 	"bad": []
 }
 
+var _eval_queue: Array[Dictionary] = []
+var _is_evaluating: bool = false
+
 func _ready() -> void:
 	_load_ratings()
 
@@ -31,21 +34,38 @@ func _save_ratings() -> void:
 		f.store_string(JSON.stringify(ratings, "  "))
 
 func evaluate_history(history: Array[Dictionary], subject: String, grade: int, difficulty: String) -> void:
-	var to_evaluate: Array[Dictionary] = []
 	for entry in history:
 		var q: QuizItem = entry.get("quiz")
 		if not q: continue
 		if entry.get("rated", "") == "" and (q.src == "GEMINI" or q.src == "OPENAI"):
-			entry["rated"] = "evaluating"
-			to_evaluate.append(entry)
+			entry["rated"] = "queued"
+			entry["_eval_ctx"] = {"subject": subject, "grade": grade, "difficulty": difficulty}
+			entry["_retry_count"] = 0
+			_eval_queue.append(entry)
 			
-	if to_evaluate.is_empty():
+	if not _is_evaluating and not _eval_queue.is_empty():
+		_process_next_batch()
+
+func _process_next_batch() -> void:
+	if _eval_queue.is_empty():
+		_is_evaluating = false
 		return
 		
+	_is_evaluating = true
+	var batch_size = mini(10, _eval_queue.size())
+	var to_evaluate: Array[Dictionary] = []
+	for i in range(batch_size):
+		to_evaluate.append(_eval_queue.pop_front())
+		
 	var items := []
+	var subject: String = to_evaluate[0]["_eval_ctx"]["subject"]
+	var grade: int = to_evaluate[0]["_eval_ctx"]["grade"]
+	var difficulty: String = to_evaluate[0]["_eval_ctx"]["difficulty"]
+	
 	for i in range(to_evaluate.size()):
 		var entry = to_evaluate[i]
 		var q: QuizItem = entry["quiz"]
+		entry["rated"] = "evaluating"
 		items.append({
 			"id": i,
 			"q": q.q,
@@ -93,6 +113,7 @@ func _fetch_evaluation(prompt: String, to_evaluate: Array[Dictionary], subject: 
 	})
 	
 	http.request_completed.connect(func(result: int, response_code: int, _h, b: PackedByteArray):
+		var success := false
 		if result == HTTPRequest.RESULT_SUCCESS and response_code == 200:
 			var json = JSON.parse_string(b.get_string_from_utf8())
 			if json is Dictionary and json.has("candidates"):
@@ -100,7 +121,24 @@ func _fetch_evaluation(prompt: String, to_evaluate: Array[Dictionary], subject: 
 				var res = _extract_json_array(text)
 				if res:
 					_process_evaluation_results(res, to_evaluate, subject, grade, difficulty)
+					success = true
+		
+		if not success:
+			for entry in to_evaluate:
+				var retries: int = entry.get("_retry_count", 0)
+				if retries < 3:
+					entry["_retry_count"] = retries + 1
+					entry["rated"] = "queued"
+					_eval_queue.append(entry)
+				else:
+					entry["rated"] = "failed"
+					
 		http.queue_free()
+		var tree := get_tree()
+		if tree:
+			tree.create_timer(1.0).timeout.connect(_process_next_batch)
+		else:
+			_process_next_batch()
 	)
 	http.request(url, ApiStatusAutoload.get_proxy_headers() if not proxy.is_empty() else ["Content-Type: application/json"], HTTPClient.METHOD_POST, body)
 
@@ -114,6 +152,7 @@ func _extract_json_array(text: String) -> Variant:
 	if json.parse(text) == OK:
 		var d = json.get_data()
 		if d is Array: return d
+		if d is Dictionary: return [d]
 	return null
 
 func _process_evaluation_results(eval_results: Array, to_evaluate: Array[Dictionary], subject: String, grade: int, difficulty: String) -> void:

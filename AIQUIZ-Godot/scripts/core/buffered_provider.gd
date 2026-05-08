@@ -24,6 +24,9 @@ var _emergency_cache: Array[QuizItem] = []
 const EMERGENCY_CACHE_SIZE: int = 5
 
 var _poll_timer: Timer
+var _explanation_inflight: bool = false
+## 解説待ちのクイズを追跡（重複リクエスト防止）
+var _explanation_requested_ids: Dictionary = {}
 
 func _init() -> void:
 	super._init()
@@ -66,6 +69,8 @@ func begin_round(subject: String, grade: int, difficulty: String,
 	recent_questions.clear()
 	play_history.clear()
 	_emergency_cache.clear()
+	_explanation_inflight = false
+	_explanation_requested_ids.clear()
 	
 	# ラウンド開始時にオフラインの緊急キャッシュを事前準備（10問・エンドレス共通）
 	_prepare_emergency_cache()
@@ -198,6 +203,8 @@ func _on_fetch_partial(quizzes: Array[QuizItem]) -> void:
 func _on_fetch_completed(quizzes: Array[QuizItem]) -> void:
 	inflight = max(0, inflight - 1)
 	_on_fetch_partial(quizzes)
+	# フェッチ完了時にバッファ内の解説未取得問題をまとめて解説生成
+	_kick_explanation_batch()
 
 func get_quizzes(_subject: String, _grade: int, _difficulty: String,
 		_mode: String, count: int) -> Array[QuizItem]:
@@ -237,3 +244,36 @@ func _prepare_emergency_cache() -> void:
 		_emergency_cache.append(q)
 	if _emergency_cache.size() > 0:
 		print("[BufferedProvider] Emergency cache prepared: %d offline questions" % _emergency_cache.size())
+
+## バッファ内の解説未取得問題に対してバックグラウンドで解説生成をキック
+func _kick_explanation_batch() -> void:
+	if _explanation_inflight:
+		return
+	if llm_mode != "ONLINE":
+		return
+	if not (ApiStatusAutoload.gemini_key_set or ApiStatusAutoload.openai_key_set):
+		return
+	
+	# 解説が空のオンライン生成問題を収集
+	var need_explanation: Array[QuizItem] = []
+	for q in buffer:
+		if q.e.strip_edges().is_empty() and q.src != "OFFLINE" and not _explanation_requested_ids.has(q.q):
+			need_explanation.append(q)
+			_explanation_requested_ids[q.q] = true
+	
+	if need_explanation.is_empty():
+		return
+	
+	_explanation_inflight = true
+	print("[BufferedProvider] Kicking explanation batch for %d quizzes" % need_explanation.size())
+	online_fetcher.fetch_explanations_batch(need_explanation, current_subject, current_grade)
+	
+	# 完了時にフラグをリセット（シグナル接続）
+	if not online_fetcher.explanations_ready.is_connected(_on_explanations_ready):
+		online_fetcher.explanations_ready.connect(_on_explanations_ready)
+
+func _on_explanations_ready(_quizzes: Array[QuizItem]) -> void:
+	_explanation_inflight = false
+	print("[BufferedProvider] Explanations received, checking for more...")
+	# まだ解説未取得の問題があれば次のバッチをキック
+	_kick_explanation_batch()

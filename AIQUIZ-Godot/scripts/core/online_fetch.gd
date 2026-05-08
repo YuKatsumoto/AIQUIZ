@@ -150,7 +150,10 @@ func compose_prompt(subject: String, grade: int, difficulty: String, count: int,
 	prompt += "- 問題数: %d問\n" % count
 	prompt += "- 形式: 4択（推奨）または 2択\n"
 	prompt += "- 問題文(q)は50文字以内に収めること。長い文章題でも簡潔に書くこと\n"
-	prompt += "- 解説文(e)は20文字以内で、なぜその答えになるか核心だけ書くこと\n"
+	if not is_coop:
+		prompt += "- 解説文(e)は空文字列\"\"を入れること（解説は別途生成するため不要）\n"
+	else:
+		prompt += "- 解説文(e)はなぜその答えになるかを小学生にもわかるよう丁寧に説明すること（50〜100文字程度）。計算過程や考え方の手順を含めること\n"
 	prompt += "- 選択肢(c)は各15文字以内に収めること\n"
 	prompt += "- 予測解答時間(t)を各問題に付けること。対象学年の生徒が問題を読んで答えるまでの秒数（小数第1位）\n"
 	prompt += "  目安: 即答=2.0, 標準=4.0, 思考問題=6.0, 難問=8.0\n\n"
@@ -261,7 +264,7 @@ func compose_prompt(subject: String, grade: int, difficulty: String, count: int,
 		prompt += "【協力モード（コンボ回答 + 役割交代）追加指示 - 厳守】\n"
 		prompt += "この問題は2人協力モードで出題され、片方が式・根拠・条件カード、もう片方が答えカードを選びます。役割は問題ごとに交代します。\n"
 		prompt += "ゲーム側でカード化しやすいよう、選択肢(c)は可能な限り4択にし、誤答は短く自然で紛らわしいものにしてください。\n"
-		prompt += "解説(e)は根拠カードに使うため、正解につながる理由を20文字以内で具体的に書いてください。\n"
+		prompt += "解説(e)は根拠カードに使うため、正解につながる理由を小学生にもわかるよう丁寧に書いてください。\n"
 		prompt += "問題文(q)と正解(c)は以下の教科ルールに従ってください:\n"
 		match subject:
 			"算数":
@@ -1040,7 +1043,7 @@ func _fetch_gemini_target(prompt: String, target_model: String, temperature: flo
 					"description": "選択肢 (2個または4個、各15文字以内)"
 				},
 				"a": {"type": "INTEGER", "description": "正解インデックス (0始まり)"},
-				"e": {"type": "STRING", "description": "解説 (20文字以内)"}
+				"e": {"type": "STRING", "description": "解説 (空文字列でも可)"}
 			}
 		}
 	}
@@ -1154,6 +1157,107 @@ func fetch_explanation(subject: String, grade: int, quiz_q: String, quiz_c: Pack
 		callback.call(ans)
 	)
 	http.request(url, ApiStatusAutoload.get_proxy_headers() if not proxy.is_empty() else ["Content-Type: application/json"], HTTPClient.METHOD_POST, body)
+
+## 解説バッチ生成（バックグラウンド並列タスク）
+## クイズ本体の生成後に呼び出し、複数問の解説を1つのAPIコールで一括生成する。
+## 各QuizItem.eに結果を書き戻す。
+signal explanations_ready(quizzes: Array[QuizItem])
+
+func fetch_explanations_batch(quizzes: Array[QuizItem], subject: String, grade: int) -> void:
+	# 解説が必要な（e が空の）クイズだけ抽出
+	var targets: Array[QuizItem] = []
+	var target_indices: Array[int] = []
+	for i in range(quizzes.size()):
+		if quizzes[i].e.strip_edges().is_empty() and quizzes[i].src != "OFFLINE":
+			targets.append(quizzes[i])
+			target_indices.append(i)
+	
+	if targets.is_empty():
+		return
+	
+	var model := "gemini-3.1-flash-lite"
+	var proxy := ApiStatusAutoload.get_env("PROXY_URL")
+	var url: String
+	
+	if not proxy.is_empty():
+		url = proxy + "/gemini?model=" + model
+	else:
+		var key := ApiStatusAutoload.get_env("GOOGLE_API_KEY")
+		if key.is_empty():
+			key = ApiStatusAutoload.get_env("GEMINI_API_KEY")
+		if key.is_empty():
+			return
+		url = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s" % [model, key]
+	
+	# バッチプロンプトを構築
+	var items := []
+	for i in range(targets.size()):
+		var q: QuizItem = targets[i]
+		items.append({
+			"id": i,
+			"q": q.q,
+			"c": Array(q.c),
+			"a": q.a
+		})
+	
+	var prompt := "あなたは小学%d年生の担任の先生です。\n" % grade
+	prompt += "以下のクイズ問題それぞれについて、なぜその答えが正解なのかを小学%d年生にもわかるように丁寧に解説してください。\n" % grade
+	prompt += "【解説のルール】\n"
+	prompt += "- 50〜100文字程度で、計算過程や考え方の手順を含めること\n"
+	prompt += "- 小学生が「なるほど！」と思える、わかりやすい言葉で書くこと\n"
+	prompt += "- 専門用語を使う場合は簡単な説明を添えること\n\n"
+	prompt += "以下のJSON配列フォーマットのみで出力してください（マークダウン等不要）。\n"
+	prompt += '[{"id": 0, "e": "解説文テキスト"}]\n\n'
+	prompt += "対象問題:\n"
+	prompt += JSON.stringify(items, "  ")
+	
+	var body := JSON.stringify({
+		"contents": [{"parts": [{"text": prompt}]}],
+		"generationConfig": {"temperature": 0.3, "responseMimeType": "application/json"}
+	})
+	
+	var http := HTTPRequest.new()
+	add_child(http)
+	http.timeout = 25.0
+	
+	http.request_completed.connect(func(result: int, response_code: int, _h, b: PackedByteArray):
+		if result == HTTPRequest.RESULT_SUCCESS and response_code == 200:
+			var json = JSON.parse_string(b.get_string_from_utf8())
+			if json is Dictionary and json.has("candidates"):
+				var text: String = json["candidates"][0]["content"]["parts"][0].get("text", "")
+				var res = extract_json_from_text(text)
+				if res is Array:
+					for item in res:
+						if item is Dictionary and item.has("id") and item.has("e"):
+							var idx = item["id"]
+							if typeof(idx) == TYPE_FLOAT:
+								idx = int(idx)
+							elif typeof(idx) == TYPE_STRING and (idx as String).is_valid_int():
+								idx = int(idx)
+							if typeof(idx) == TYPE_INT and idx >= 0 and idx < targets.size():
+								targets[idx].e = str(item["e"]).strip_edges()
+					print("[OnlineFetch] Batch explanations filled: %d/%d" % [_count_filled(targets), targets.size()])
+					explanations_ready.emit(targets)
+				elif res is Dictionary and res.has("id") and res.has("e"):
+					# 単一オブジェクトで返された場合
+					var idx = res["id"]
+					if typeof(idx) == TYPE_FLOAT: idx = int(idx)
+					if typeof(idx) == TYPE_INT and idx >= 0 and idx < targets.size():
+						targets[idx].e = str(res["e"]).strip_edges()
+					explanations_ready.emit(targets)
+		else:
+			print("[OnlineFetch] Batch explanation request failed: result=%d code=%d" % [result, response_code])
+		http.queue_free()
+	)
+	http.request(url, ApiStatusAutoload.get_proxy_headers() if not proxy.is_empty() else ["Content-Type: application/json"], HTTPClient.METHOD_POST, body)
+
+func _count_filled(quizzes: Array[QuizItem]) -> int:
+	var count := 0
+	for q in quizzes:
+		if not q.e.strip_edges().is_empty():
+			count += 1
+	return count
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # SSE ストリーミング対応（10問チャレンジ高速化用）
