@@ -530,9 +530,11 @@ func update_from_state(gs: QuizGameState) -> void:
 		else:
 			_set_parts_visible(p2_parts, false)
 
-	# 1P: only show player body during game over explosion, flyover, or menu
+	# 1P: only show player body during game over explosion, flyover, menu, or replay
 	if gs.num_players == 1:
-		if gs.game_state == Constants.STATE_GAME_OVER and gs.game_over_timer > 0:
+		if gs.is_replay:
+			visible = true
+		elif gs.game_state == Constants.STATE_GAME_OVER and gs.game_over_timer > 0:
 			visible = true
 		elif gs.game_state == Constants.STATE_FLYOVER:
 			visible = true

@@ -30,8 +30,8 @@ signal text_chunk_received(accumulated_text: String, chunk_text: String)
 signal stream_finished(success: bool, accumulated_text: String)
 
 ## ── 定数 ──
-const TIMEOUT_SECONDS: float = 30.0
-const MAX_IDLE_SECONDS: float = 10.0  # チャンクが来なくなってから切断するまで
+const TIMEOUT_SECONDS: float = 90.0
+const MAX_IDLE_SECONDS: float = 20.0  # チャンクが来なくなってから切断するまで
 
 ## ── 内部状態 ──
 

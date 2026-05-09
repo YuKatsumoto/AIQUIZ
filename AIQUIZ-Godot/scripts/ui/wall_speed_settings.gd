@@ -34,7 +34,7 @@ func _ready() -> void:
 		_preview_speed = game_state.tuning.wall_speed_override
 	else:
 		# 「自動」モードの場合、デフォルト速度を使用
-		_preview_speed = 28.0 / (4.0 + 1.5)  # ≈ 5.09
+		_preview_speed = 28.0 / (4.0 + 5.0)  # ≈ 3.11（MOVE_BUFFER=5.0に合わせた自動モード基準速度）
 	
 	_build_ui()
 	_build_3d_preview()
@@ -159,7 +159,7 @@ func _build_ui() -> void:
 	
 	# スライダー
 	_speed_slider = HSlider.new()
-	_speed_slider.min_value = 2.0
+	_speed_slider.min_value = 1.0
 	_speed_slider.max_value = 10.0
 	_speed_slider.step = 0.1
 	_speed_slider.value = _preview_speed
@@ -434,7 +434,7 @@ func _on_reset_pressed() -> void:
 	game_state.tuning.wall_speed_override = 0.0
 	
 	# デフォルト速度を再計算
-	_preview_speed = 28.0 / (4.0 + 1.5)
+	_preview_speed = 28.0 / (4.0 + 5.0)  # MOVE_BUFFER=5.0に合わせた自動モード基準速度
 	_speed_slider.value = _preview_speed
 	_update_speed_display()
 	_update_mode_label()

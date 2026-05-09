@@ -46,15 +46,34 @@ const FLOOR_COLOR := Color(0.35, 0.35, 0.35)
 
 var pause_menu: CanvasLayer = null
 
+# ── アイテムボックス 3D管理 ──
+var _item_box_nodes: Dictionary = {}  # { wall_index: Node3D }
+var _p1_item_use_trigger: bool = false
+var _p2_item_use_trigger: bool = false
+
+# ── リプレイ記録 ──
+var _recorder: ReplayRecorder = null
+var _replay_mode: bool = false
+
 func _ready() -> void:
 	game_state = QuizManager.game_state
 	quiz_wall_scene = preload("res://scenes/quiz_wall.tscn")
+
+	# リプレイモードチェック
+	_replay_mode = get_meta("replay_mode", false)
 
 	# Listen for game state signals
 	game_state.state_changed.connect(_on_state_changed)
 	game_state.quiz_loaded.connect(_on_quiz_loaded)
 	game_state.correct_answer.connect(_on_correct)
 	game_state.wrong_answer.connect(_on_wrong)
+
+	# リプレイ記録を開始（通常モードのみ）
+	# TODO: 一旦リプレイ機能を封印するため無効化
+	if not _replay_mode:
+		pass
+		#_recorder = ReplayRecorder.new()
+		#_recorder.start_recording(game_state)
 
 	# Setup network sync layer
 	_net_state = NetGameState.new()
@@ -279,6 +298,10 @@ func _process(dt: float) -> void:
 	var jump_p2 := false
 	var emote_p1 := 0
 	var emote_p2 := 0
+	var use_item_p1 := _p1_item_use_trigger
+	var use_item_p2 := _p2_item_use_trigger
+	_p1_item_use_trigger = false
+	_p2_item_use_trigger = false
 
 	if game_state.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE, Constants.STATE_WAITING_START, Constants.STATE_FLYOVER, Constants.STATE_COUNTDOWN]:
 		# --- ローカル入力収集 (P1 or クライアントの自分) ---
@@ -327,8 +350,8 @@ func _process(dt: float) -> void:
 		if game_state.num_players >= 2:
 			axis_p2 = axis_p2.normalized()
 
-	# Mouse look (1P only, not online)
-	if game_state.game_state == Constants.STATE_PLAYING and game_state.num_players == 1 and not _is_online:
+	# Mouse look (1P only, not online and not replay)
+	if not _replay_mode and game_state.game_state == Constants.STATE_PLAYING and game_state.num_players == 1 and not _is_online:
 		if Input.get_mouse_mode() != Input.MOUSE_MODE_CAPTURED:
 			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	else:
@@ -336,8 +359,23 @@ func _process(dt: float) -> void:
 			Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 
 	# Update game state (host or offline only — client receives snapshots)
-	if not _is_client:
-		game_state.update(dt, axis_p1, axis_p2, jump_p1, jump_p2, emote_p1, emote_p2)
+	if not _is_client and not _replay_mode:
+		game_state.update(dt, axis_p1, axis_p2, jump_p1, jump_p2, emote_p1, emote_p2, use_item_p1, use_item_p2)
+
+	# リプレイ記録
+	if _recorder and _recorder.is_recording:
+		_recorder.capture(game_state)
+
+		# 記録の終了判定（ゲームオーバーやクリア演出が終わるまで記録を続ける）
+		if game_state.game_state in [Constants.STATE_GAME_OVER, Constants.STATE_CLEAR]:
+			# 1Pと2P両方のタイマーを確認
+			var go_timer: float = game_state.game_over_timer
+			if game_state.num_players >= 2:
+				go_timer = maxf(game_state.game_over_timer, game_state.player2_game_over_timer)
+			if go_timer >= 4.0:
+				_recorder.stop_recording(game_state)
+				QuizManager.set_meta("last_replay", _recorder)
+				print("[ReplayRecorder] Recording stopped: %d frames, %.1fs" % [_recorder.frame_count, _recorder.get_duration()])
 
 	# Network sync (snapshot send for host)
 	if _net_state:
@@ -350,6 +388,8 @@ func _process(dt: float) -> void:
 	_update_walls()
 	_update_goal_line()
 	_update_preview_walls(dt)
+	_time_for_item_box += dt
+	_update_item_boxes()
 	_update_camera(dt)
 	_check_particles()
 	_update_start_barrier()
@@ -366,7 +406,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			_toggle_pause()
 			
 	if event is InputEventMouseMotion:
-		if game_state and game_state.game_state == Constants.STATE_PLAYING \
+		if not _replay_mode and game_state and game_state.game_state == Constants.STATE_PLAYING \
 				and game_state.num_players == 1 and not get_tree().paused:
 			game_state.camera_yaw -= event.relative.x * 0.002
 			game_state.camera_pitch -= event.relative.y * 0.002
@@ -374,6 +414,12 @@ func _unhandled_input(event: InputEvent) -> void:
 				-PI / 2.5, PI / 2.5)
 	elif event is InputEventKey or event is InputEventJoypadButton or event is InputEventMouseButton:
 		if event.is_pressed() and not event.is_echo():
+			# アイテム使用キー
+			if event is InputEventKey:
+				if event.keycode == KEY_E:
+					_p1_item_use_trigger = true
+				elif event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER:
+					_p2_item_use_trigger = true
 			if game_state and game_state.game_state == Constants.STATE_WAITING_START:
 				# カウントダウン壁が出現し終わるまで開始トリガーをブロック
 				if not _barrier_spawned_for_session or _barrier_dropping:
@@ -412,8 +458,20 @@ func _update_floor() -> void:
 			box_mesh.size = Vector3(24.0, 16.0, floor_length)
 		floor_mesh.position = Vector3(0, -9.2, floor_center_z)
 	else:
-		# 通常時: 固定サイズ
-		var floor_front: float = game_state.FLOOR_PLAY_FRONT_Z
+		# 通常時: 最奥の壁、またはプレイヤーの位置に合わせて床を動的に延長
+		var t := game_state.tuning
+		var max_wall_idx: int = game_state.current_wall_index + MAX_VISIBLE_WALLS
+		if game_state.mode == Constants.MODE_TEN or game_state.mode == Constants.MODE_TUTORIAL:
+			max_wall_idx = mini(max_wall_idx, game_state.target_count)
+		var furthest_wall_z: float = t.wall_start_z + max_wall_idx * t.wall_spacing
+		var player_ahead_z: float = game_state.player_z + 40.0
+		if game_state.num_players >= 2:
+			player_ahead_z = maxf(player_ahead_z, game_state.player2_z + 40.0)
+
+		var max_z_needed: float = maxf(furthest_wall_z, player_ahead_z)
+		var floor_front: float = max_z_needed + 40.0 - game_state.world_scroll_z
+		floor_front = maxf(floor_front, 139.5) # 最低限の長さを保証
+
 		var floor_back: float = game_state.FLOOR_BACK_Z
 		var floor_length: float = floor_front - floor_back
 		var floor_center_z: float = (floor_front + floor_back) / 2.0
@@ -643,6 +701,96 @@ func _create_goal_box(box_size: Vector3, color: Color) -> MeshInstance3D:
 func _update_camera(dt: float) -> void:
 	if camera_controller.has_method("update_camera"):
 		camera_controller.update_camera(game_state, dt)
+
+# ── アイテムボックス 3D管理 ──
+
+func _update_item_boxes() -> void:
+	"""アイテムボックスの生成・配置・回収を管理"""
+	if not game_state.item_system or not game_state.item_system.is_enabled():
+		# アイテムシステム無効 → 全ボックス削除
+		for key: int in _item_box_nodes.keys():
+			if is_instance_valid(_item_box_nodes[key]):
+				_item_box_nodes[key].queue_free()
+		_item_box_nodes.clear()
+		return
+
+	if game_state.game_state != Constants.STATE_PLAYING:
+		return
+
+	var isys: ItemSystem = game_state.item_system
+	var start_idx: int = maxi(0, game_state.current_wall_index - 1)
+	var end_idx: int = game_state.current_wall_index + MAX_VISIBLE_WALLS + 1
+
+	# 可視範囲にあるべきアイテムボックスのインデックスを列挙
+	var needed: Array[int] = []
+	for idx: int in range(start_idx, end_idx):
+		if isys.is_box_available(idx):
+			needed.append(idx)
+
+	# 不要なボックスを削除
+	var to_remove: Array[int] = []
+	for key: int in _item_box_nodes.keys():
+		if key not in needed:
+			to_remove.append(key)
+	for key: int in to_remove:
+		if is_instance_valid(_item_box_nodes[key]):
+			_item_box_nodes[key].queue_free()
+		_item_box_nodes.erase(key)
+
+	# 必要なボックスを生成
+	for idx: int in needed:
+		if not _item_box_nodes.has(idx):
+			var box_node: Node3D = _create_item_box_mesh()
+			wall_container.add_child(box_node)
+			_item_box_nodes[idx] = box_node
+
+	# 位置更新 + 回転アニメーション
+	for idx: int in _item_box_nodes.keys():
+		var node: Node3D = _item_box_nodes[idx]
+		if not is_instance_valid(node):
+			continue
+		var box_z: float = isys.get_item_box_z(idx) - game_state.world_scroll_z
+		var bob: float = sin(_time_for_item_box + idx * 1.5) * 0.3
+		node.position = Vector3(0, ItemSystem.ITEM_BOX_Y + bob, box_z)
+		node.rotation.y += 0.03  # 毎フレーム回転
+
+var _time_for_item_box: float = 0.0
+
+func _create_item_box_mesh() -> Node3D:
+	"""虹色グローの回転アイテムボックスを生成"""
+	var root := Node3D.new()
+
+	# メインのキューブ
+	var cube := MeshInstance3D.new()
+	var box_mesh := BoxMesh.new()
+	box_mesh.size = Vector3(1.2, 1.2, 1.2)
+	cube.mesh = box_mesh
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(1.0, 1.0, 1.0, 0.85)
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.roughness = 0.2
+	mat.metallic = 0.6
+	mat.emission_enabled = true
+	mat.emission = Color(0.4, 0.7, 1.0)
+	mat.emission_energy_multiplier = 1.5
+	cube.material_override = mat
+	root.add_child(cube)
+
+	# 「？」マーク
+	var label := Label3D.new()
+	label.text = "？"
+	label.font_size = 64
+	label.pixel_size = 0.01
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.modulate = Color(1.0, 0.95, 0.3)
+	label.outline_modulate = Color(0.0, 0.0, 0.0, 0.8)
+	label.outline_size = 8
+	label.position = Vector3(0, 0, 0)
+	label.no_depth_test = true
+	root.add_child(label)
+
+	return root
+
 
 func _check_particles() -> void:
 	# Correct particle spawn
