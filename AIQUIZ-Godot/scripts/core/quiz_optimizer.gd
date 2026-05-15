@@ -37,7 +37,7 @@ func evaluate_history(history: Array[Dictionary], subject: String, grade: int, d
 	for entry in history:
 		var q: QuizItem = entry.get("quiz")
 		if not q: continue
-		if entry.get("rated", "") == "" and (q.src == "GEMINI" or q.src == "OPENAI"):
+		if entry.get("rated", "") == "" and (q.src == "GEMINI" or q.src == "OPENAI" or q.src == "GEMINI_STREAM"):
 			entry["rated"] = "queued"
 			entry["_eval_ctx"] = {"subject": subject, "grade": grade, "difficulty": difficulty}
 			entry["_retry_count"] = 0

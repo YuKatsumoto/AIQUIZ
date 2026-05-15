@@ -53,14 +53,6 @@ var _tutorial_emote_p1_slots: Label = null
 var _tutorial_emote_p2_slots: Label = null
 var _tutorial_emote_signature: String = ""
 
-# --- アイテムHUD ---
-var _p1_item_label: Label = null
-var _p2_item_label: Label = null
-var _p1_effect_label: Label = null
-var _p2_effect_label: Label = null
-var _item_hud_container: Control = null
-
-
 
 func _ready() -> void:
 	game_state = QuizManager.game_state
@@ -106,7 +98,6 @@ func _ready() -> void:
 	# Build the stats panel for game over (created once, updated per game)
 	_create_stats_panel()
 	_create_tutorial_overlay()
-	_create_item_hud()
 
 
 
@@ -185,7 +176,6 @@ func _process(_dt: float) -> void:
 	_update_flash()
 	_update_streak_label()
 	_update_tutorial_overlay(_dt)
-	_update_item_hud()
 
 func _update_flash() -> void:
 	if game_state.correct_flash > 0.0:
@@ -1206,109 +1196,3 @@ func _fire_confetti() -> void:
 
 # ============================================================
 # ローディング演出（プリロード中のアニメーション強化）
-
-
-# ============================================================
-# アイテムHUD (2P対戦用)
-# ============================================================
-
-func _create_item_hud() -> void:
-	_item_hud_container = Control.new()
-	_item_hud_container.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_item_hud_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_item_hud_container.visible = false
-	add_child(_item_hud_container)
-
-	# P1 アイテム表示 (左下)
-	_p1_item_label = Label.new()
-	_p1_item_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_p1_item_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_p1_item_label.add_theme_font_size_override("font_size", 48)
-	_p1_item_label.add_theme_color_override("font_color", Color(1.0, 0.9, 0.5))
-	_p1_item_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
-	_p1_item_label.add_theme_constant_override("outline_size", 6)
-	_p1_item_label.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	_p1_item_label.offset_left = 16.0
-	_p1_item_label.offset_top = -90.0
-	_p1_item_label.offset_right = 200.0
-	_p1_item_label.offset_bottom = -16.0
-	_item_hud_container.add_child(_p1_item_label)
-
-	# P1 エフェクト表示
-	_p1_effect_label = Label.new()
-	_p1_effect_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	_p1_effect_label.add_theme_font_size_override("font_size", 20)
-	_p1_effect_label.add_theme_color_override("font_color", Color(1.0, 0.4, 0.3))
-	_p1_effect_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
-	_p1_effect_label.add_theme_constant_override("outline_size", 4)
-	_p1_effect_label.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	_p1_effect_label.offset_left = 16.0
-	_p1_effect_label.offset_top = -110.0
-	_p1_effect_label.offset_right = 250.0
-	_p1_effect_label.offset_bottom = -90.0
-	_item_hud_container.add_child(_p1_effect_label)
-
-	# P2 アイテム表示 (右下)
-	_p2_item_label = Label.new()
-	_p2_item_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_p2_item_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_p2_item_label.add_theme_font_size_override("font_size", 48)
-	_p2_item_label.add_theme_color_override("font_color", Color(0.5, 0.85, 1.0))
-	_p2_item_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
-	_p2_item_label.add_theme_constant_override("outline_size", 6)
-	_p2_item_label.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	_p2_item_label.offset_left = -200.0
-	_p2_item_label.offset_top = -90.0
-	_p2_item_label.offset_right = -16.0
-	_p2_item_label.offset_bottom = -16.0
-	_item_hud_container.add_child(_p2_item_label)
-
-	# P2 エフェクト表示
-	_p2_effect_label = Label.new()
-	_p2_effect_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	_p2_effect_label.add_theme_font_size_override("font_size", 20)
-	_p2_effect_label.add_theme_color_override("font_color", Color(1.0, 0.4, 0.3))
-	_p2_effect_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
-	_p2_effect_label.add_theme_constant_override("outline_size", 4)
-	_p2_effect_label.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	_p2_effect_label.offset_left = -250.0
-	_p2_effect_label.offset_top = -110.0
-	_p2_effect_label.offset_right = -16.0
-	_p2_effect_label.offset_bottom = -90.0
-	_item_hud_container.add_child(_p2_effect_label)
-
-func _update_item_hud() -> void:
-	if not game_state or not game_state.item_system or not game_state.item_system.is_enabled():
-		if _item_hud_container:
-			_item_hud_container.visible = false
-		return
-
-	_item_hud_container.visible = game_state.game_state == Constants.STATE_PLAYING
-
-	var isys: ItemSystem = game_state.item_system
-
-	# P1 ストック表示
-	if isys.p1_item != ItemSystem.ItemType.NONE:
-		_p1_item_label.text = "P1 [E]: " + isys.get_item_emoji(isys.p1_item) + " " + isys.get_item_name(isys.p1_item)
-	else:
-		_p1_item_label.text = "P1 [E]: -"
-
-	# P2 ストック表示
-	if isys.p2_item != ItemSystem.ItemType.NONE:
-		_p2_item_label.text = isys.get_item_name(isys.p2_item) + " " + isys.get_item_emoji(isys.p2_item) + " [Enter] :P2"
-	else:
-		_p2_item_label.text = "- [Enter] :P2"
-
-	# P1 エフェクト表示
-	var p1_effects := isys.get_active_effects(1)
-	if p1_effects.is_empty():
-		_p1_effect_label.text = ""
-	else:
-		_p1_effect_label.text = "P1: " + " ".join(p1_effects)
-
-	# P2 エフェクト表示
-	var p2_effects := isys.get_active_effects(2)
-	if p2_effects.is_empty():
-		_p2_effect_label.text = ""
-	else:
-		_p2_effect_label.text = " ".join(p2_effects) + " :P2"

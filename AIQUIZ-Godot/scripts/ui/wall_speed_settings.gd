@@ -8,8 +8,11 @@ extends Control
 var _sub_viewport: SubViewport
 var _preview_camera: Camera3D
 var _preview_floor: MeshInstance3D
-var _preview_wall: Node3D
+var _preview_walls: Array[Node3D] = []
 var _preview_scroll_z: float = 0.0
+var _preview_floor_material: ShaderMaterial
+var _conveyor_roller_front_material: ShaderMaterial
+var _conveyor_return_material: ShaderMaterial
 
 # --- UI nodes ---
 var _speed_slider: HSlider
@@ -24,6 +27,22 @@ var _wall_scene: PackedScene
 var _preview_speed: float = 5.0
 const WALL_SPACING := 30.0
 const WALL_START_Z := 22.0
+const CONVEYOR_FLOOR_SHADER: Shader = preload("res://shaders/conveyor_belt_floor.gdshader")
+
+# --- Conveyor Constants ---
+const FLOOR_HALF_WIDTH: float = 12.0
+const FLOOR_TOP_Y: float = -1.2
+const FLOOR_RAIL_HEIGHT: float = 0.26
+const FLOOR_RAIL_WIDTH: float = 0.16
+const FLOOR_RAIL_INSET: float = 0.06
+const CONVEYOR_BELT_BASE_COLOR := Color(0.40, 0.41, 0.42, 1.0)
+const CONVEYOR_BELT_STRIPE_COLOR := Color(0.34, 0.345, 0.35, 1.0)
+const CONVEYOR_BELT_SIDE_COLOR := Color(0.33, 0.34, 0.35, 1.0)
+const CONVEYOR_ROLLER_RADIUS: float = 0.48
+const CONVEYOR_ROLLER_LENGTH: float = 23.4
+const CONVEYOR_RETURN_BELT_THICKNESS: float = 0.10
+const CONVEYOR_SIDE_FRAME_WIDTH: float = 0.24
+const CONVEYOR_SIDE_FRAME_HEIGHT: float = 1.05
 
 func _ready() -> void:
 	_wall_scene = preload("res://scenes/quiz_wall.tscn")
@@ -42,12 +61,41 @@ func _ready() -> void:
 
 func _process(dt: float) -> void:
 	# 3Dプレビューのアニメーション（壁がプレイヤーに向かって移動）
-	_preview_scroll_z += _preview_speed * dt
+	var move_dist := _preview_speed * dt
+	_preview_scroll_z += move_dist
 	
-	# 壁の位置を更新
-	if _preview_wall and is_instance_valid(_preview_wall):
-		var wall_z: float = WALL_START_Z - fmod(_preview_scroll_z, WALL_SPACING)
-		_preview_wall.position.z = -wall_z
+	if _preview_floor_material:
+		_preview_floor_material.set_shader_parameter("scroll_z", _preview_scroll_z)
+	if _conveyor_roller_front_material:
+		_conveyor_roller_front_material.set_shader_parameter("scroll_z", _preview_scroll_z)
+	if _conveyor_return_material:
+		_conveyor_return_material.set_shader_parameter("scroll_z", _preview_scroll_z)
+	
+	# 壁の位置を更新（前方に進ませ、崖で落下させる）
+	for i in range(_preview_walls.size() - 1, -1, -1):
+		var wall = _preview_walls[i]
+		if not is_instance_valid(wall):
+			_preview_walls.remove_at(i)
+			continue
+			
+		# 壁を+Z方向（カメラ手前方向）へ移動
+		wall.position.z += move_dist
+		
+		# 崖 (Z=8.0) に到達したら物理落下させる
+		if wall.position.z >= 8.0:
+			if wall.has_method("fall_off_cliff"):
+				wall.fall_off_cliff(_preview_speed)
+			_preview_walls.remove_at(i)
+			
+	# 新しい壁を生成するための距離計算
+	var furthest_z := 8.0
+	for wall in _preview_walls:
+		if is_instance_valid(wall) and wall.position.z < furthest_z:
+			furthest_z = wall.position.z
+			
+	# カメラの奥（見えない位置）で壁が足りなくなったら生成
+	if furthest_z > 8.0 - WALL_SPACING * 2.5:
+		_spawn_preview_wall(furthest_z - WALL_SPACING)
 
 func _build_ui() -> void:
 	# ── 3Dプレビュー背景（全画面） ──
@@ -60,6 +108,7 @@ func _build_ui() -> void:
 	_sub_viewport.size = Vector2i(1280, 720)
 	_sub_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	_sub_viewport.transparent_bg = false
+	_sub_viewport.msaa_3d = Viewport.MSAA_4X
 	svc.add_child(_sub_viewport)
 	
 	# ── UIオーバーレイ（フロートパネル） ──
@@ -316,8 +365,9 @@ func _build_3d_preview() -> void:
 	
 	# カメラ（プレイヤー視点に近い角度）
 	_preview_camera = Camera3D.new()
-	_preview_camera.position = Vector3(2.5, 3.5, 2.0) # UIが右にあるので、カメラを右にずらして被写体を左に寄せる
-	_preview_camera.rotation_degrees = Vector3(-12, 10, 0) # 少しだけ斜めから見るように角度もつける
+	# カメラを崖（Z=8）の外側まで下げ、壁と衝突しない位置に配置
+	_preview_camera.position = Vector3(4.5, 4.5, 16.0) 
+	_preview_camera.rotation_degrees = Vector3(-14, 15, 0)
 	_preview_camera.fov = 65.0
 	_sub_viewport.add_child(_preview_camera)
 	
@@ -326,11 +376,13 @@ func _build_3d_preview() -> void:
 	var floor_mesh := BoxMesh.new()
 	floor_mesh.size = Vector3(24.0, 16.0, 144.0)
 	_preview_floor.mesh = floor_mesh
-	var floor_mat := StandardMaterial3D.new()
-	floor_mat.albedo_color = Color(0.35, 0.35, 0.35)
-	floor_mat.roughness = 0.8
-	_preview_floor.material_override = floor_mat
-	_preview_floor.position = Vector3(0, -9.2, -50)
+	_preview_floor_material = ShaderMaterial.new()
+	_preview_floor_material.shader = CONVEYOR_FLOOR_SHADER
+	_preview_floor_material.set_shader_parameter("scroll_z", 0.0)
+	_preview_floor_material.set_shader_parameter("scroll_sign", -1.0)
+	_preview_floor.material_override = _preview_floor_material
+	# 床の端（崖）がちょうどZ=8になるように位置を調整（size.z=144なので、-64 + 72 = 8）
+	_preview_floor.position = Vector3(0, -9.2, -64.0)
 	_sub_viewport.add_child(_preview_floor)
 	
 	# マグマの追加
@@ -379,17 +431,13 @@ func _build_3d_preview() -> void:
 	magma_mesh.material_override = mmat
 	_sub_viewport.add_child(magma_mesh)
 	
-	# プレビュー用の壁を配置
-	_preview_wall = _wall_scene.instantiate()
-	_preview_wall.position.z = -WALL_START_Z
-	_sub_viewport.add_child(_preview_wall)
+	# コンベアのレールやローラーを追加
+	_setup_conveyor_extras()
 	
-	# 本番同様に壁の色やドアを生成させるため、ダミーのクイズデータを渡す
-	var dummy_quiz := QuizItem.new()
-	dummy_quiz.q = "プレビュー"
-	dummy_quiz.c = ["A", "B"]
-	if _preview_wall.has_method("set_quiz"):
-		_preview_wall.set_quiz(dummy_quiz, 2)
+	# プレビュー用の壁を初期配置（3枚）
+	var start_z := 8.0 - WALL_SPACING * 2
+	for i in range(3):
+		_spawn_preview_wall(start_z + i * WALL_SPACING)
 	
 	# プレイヤー代わりのダミーボックス（位置参照用）
 	var player_dummy := MeshInstance3D.new()
@@ -401,6 +449,130 @@ func _build_3d_preview() -> void:
 	player_dummy.material_override = player_mat
 	player_dummy.position = Vector3(0, 0.0, 0)
 	_sub_viewport.add_child(player_dummy)
+
+func _spawn_preview_wall(z_pos: float) -> void:
+	var dummy_quiz := QuizItem.new()
+	dummy_quiz.q = "プレビュー"
+	dummy_quiz.c = ["A", "B"]
+	
+	var wall = _wall_scene.instantiate()
+	wall.position.z = z_pos
+	_sub_viewport.add_child(wall)
+	if wall.has_method("set_quiz"):
+		wall.set_quiz(dummy_quiz, 2)
+	_preview_walls.append(wall)
+
+func _setup_conveyor_extras() -> void:
+	var floor_length := 144.0
+	var floor_center_z := -64.0
+	var half_len := floor_length * 0.5
+	var front_z := floor_center_z + half_len # ベルト端に完全一致（隙間をなくす）
+	var top_front_contact_z := floor_center_z + half_len # 8.0
+	var roller_center_y := FLOOR_TOP_Y - CONVEYOR_ROLLER_RADIUS # 上端=ベルト面、半分を床に埋め込む
+	
+	# 0. 物理衝突用の床（壁がめり込まないようにする）
+	var floor_body := StaticBody3D.new()
+	floor_body.collision_layer = 1
+	floor_body.collision_mask = 0
+	var floor_col := CollisionShape3D.new()
+	var floor_shape := BoxShape3D.new()
+	floor_shape.size = Vector3(24.0, 0.5, floor_length)
+	floor_col.shape = floor_shape
+	floor_body.add_child(floor_col)
+	# 床上面がFLOOR_TOP_Yにぴったり合うように配置
+	floor_body.position = Vector3(0, FLOOR_TOP_Y - 0.25, floor_center_z)
+	_sub_viewport.add_child(floor_body)
+	
+	# 1. ローラー (Front)
+	var roller_mesh := CylinderMesh.new()
+	roller_mesh.top_radius = CONVEYOR_ROLLER_RADIUS
+	roller_mesh.bottom_radius = CONVEYOR_ROLLER_RADIUS
+	roller_mesh.height = CONVEYOR_ROLLER_LENGTH
+	roller_mesh.radial_segments = 64
+	roller_mesh.rings = 4
+	
+	_conveyor_roller_front_material = ShaderMaterial.new()
+	_conveyor_roller_front_material.shader = CONVEYOR_FLOOR_SHADER
+	_conveyor_roller_front_material.set_shader_parameter("scroll_z", 0.0)
+	_conveyor_roller_front_material.set_shader_parameter("scroll_sign", -1.0) # プレビュー用の進行方向合わせ
+	_conveyor_roller_front_material.set_shader_parameter("roller_mode", 1.0)
+	_conveyor_roller_front_material.set_shader_parameter("roller_radius", CONVEYOR_ROLLER_RADIUS)
+	_conveyor_roller_front_material.set_shader_parameter("roller_contact_z", top_front_contact_z)
+	_conveyor_roller_front_material.set_shader_parameter("roller_arc_sign", 1.0)
+	_conveyor_roller_front_material.set_shader_parameter("base_color", CONVEYOR_BELT_BASE_COLOR)
+	_conveyor_roller_front_material.set_shader_parameter("stripe_color", CONVEYOR_BELT_STRIPE_COLOR)
+	_conveyor_roller_front_material.set_shader_parameter("side_color", CONVEYOR_BELT_SIDE_COLOR)
+	_conveyor_roller_front_material.set_shader_parameter("stripe_scale", 12.0)
+	_conveyor_roller_front_material.set_shader_parameter("stripe_softness", 0.08)
+	_conveyor_roller_front_material.set_shader_parameter("groove_strength", 0.12)
+	_conveyor_roller_front_material.set_shader_parameter("roughness_val", 0.72)
+	_conveyor_roller_front_material.set_shader_parameter("metallic_val", 0.16)
+	
+	var roller_front := MeshInstance3D.new()
+	roller_front.mesh = roller_mesh
+	roller_front.material_override = _conveyor_roller_front_material
+	roller_front.rotation = Vector3(0.0, 0.0, PI * 0.5)
+	roller_front.position = Vector3(0.0, roller_center_y, front_z)
+	_sub_viewport.add_child(roller_front)
+	
+	# 2. リターンベルト (ローラーの下を通る折り返し)
+	var return_mesh := BoxMesh.new()
+	return_mesh.size = Vector3(CONVEYOR_ROLLER_LENGTH, CONVEYOR_RETURN_BELT_THICKNESS, 8.0)
+	var return_belt := MeshInstance3D.new()
+	return_belt.mesh = return_mesh
+	_conveyor_return_material = ShaderMaterial.new()
+	_conveyor_return_material.shader = CONVEYOR_FLOOR_SHADER
+	_conveyor_return_material.set_shader_parameter("scroll_z", 0.0)
+	_conveyor_return_material.set_shader_parameter("scroll_sign", 1.0) # 逆方向
+	_conveyor_return_material.set_shader_parameter("base_color", CONVEYOR_BELT_BASE_COLOR)
+	_conveyor_return_material.set_shader_parameter("stripe_color", CONVEYOR_BELT_STRIPE_COLOR)
+	_conveyor_return_material.set_shader_parameter("side_color", CONVEYOR_BELT_SIDE_COLOR)
+	return_belt.material_override = _conveyor_return_material
+	return_belt.position = Vector3(0.0, roller_center_y - CONVEYOR_ROLLER_RADIUS, front_z - 4.0)
+	_sub_viewport.add_child(return_belt)
+	
+	# 3. レールとサイドフレーム
+	var rail_mesh := BoxMesh.new()
+	rail_mesh.size = Vector3(FLOOR_RAIL_WIDTH, FLOOR_RAIL_HEIGHT, floor_length)
+	var rail_mat := StandardMaterial3D.new()
+	rail_mat.albedo_color = Color(0.27, 0.275, 0.28)
+	rail_mat.roughness = 0.66
+	
+	var rail_y := FLOOR_TOP_Y + FLOOR_RAIL_HEIGHT * 0.5
+	var rail_x := FLOOR_HALF_WIDTH - FLOOR_RAIL_WIDTH * 0.5 - FLOOR_RAIL_INSET
+	
+	var rail_l := MeshInstance3D.new()
+	rail_l.mesh = rail_mesh
+	rail_l.material_override = rail_mat
+	rail_l.position = Vector3(-rail_x, rail_y, floor_center_z)
+	_sub_viewport.add_child(rail_l)
+	
+	var rail_r := MeshInstance3D.new()
+	rail_r.mesh = rail_mesh
+	rail_r.material_override = rail_mat
+	rail_r.position = Vector3(rail_x, rail_y, floor_center_z)
+	_sub_viewport.add_child(rail_r)
+	
+	var side_frame_mesh := BoxMesh.new()
+	side_frame_mesh.size = Vector3(CONVEYOR_SIDE_FRAME_WIDTH, CONVEYOR_SIDE_FRAME_HEIGHT, floor_length)
+	var side_frame_mat := StandardMaterial3D.new()
+	side_frame_mat.albedo_color = Color(0.30, 0.31, 0.33)
+	side_frame_mat.roughness = 0.62
+	
+	var frame_y := FLOOR_TOP_Y + CONVEYOR_SIDE_FRAME_HEIGHT * 0.5 - 0.26
+	var frame_x := FLOOR_HALF_WIDTH - CONVEYOR_SIDE_FRAME_WIDTH * 0.5
+	
+	var frame_l := MeshInstance3D.new()
+	frame_l.mesh = side_frame_mesh
+	frame_l.material_override = side_frame_mat
+	frame_l.position = Vector3(-frame_x, frame_y, floor_center_z)
+	_sub_viewport.add_child(frame_l)
+	
+	var frame_r := MeshInstance3D.new()
+	frame_r.mesh = side_frame_mesh
+	frame_r.material_override = side_frame_mat
+	frame_r.position = Vector3(frame_x, frame_y, floor_center_z)
+	_sub_viewport.add_child(frame_r)
 
 func _update_mode_label() -> void:
 	var game_state := QuizManager.game_state

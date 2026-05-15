@@ -100,7 +100,7 @@ export default function Home() {
   const badRatings = ratingCount - goodRatings;
 
   // Determine system health
-  const hasGeminiKey = envStatus && Object.keys(envStatus).some(k => k.includes('GOOGLE_API_KEY') || k.includes('GEMINI_API_KEY'));
+  const hasProxyUrl = envStatus && Object.keys(envStatus).some(k => k === 'PROXY_URL');
   const hasFirebaseUrl = envStatus && Object.keys(envStatus).some(k => k === 'FIREBASE_DB_URL');
 
   return (
@@ -122,10 +122,10 @@ export default function Home() {
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span style={{ fontSize: '1.2rem' }}>{hasGeminiKey ? '🟢' : '🟡'}</span>
-          <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Gemini API Key</span>
-          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: hasGeminiKey ? 'var(--success)' : 'var(--warning)' }}>
-            {hasGeminiKey ? '設定済' : '未設定'}
+          <span style={{ fontSize: '1.2rem' }}>{hasProxyUrl ? '🟢' : '🟡'}</span>
+          <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Proxy Server</span>
+          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: hasProxyUrl ? 'var(--success)' : 'var(--warning)' }}>
+            {hasProxyUrl ? '設定済' : '未設定'}
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

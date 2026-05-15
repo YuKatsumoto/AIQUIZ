@@ -111,8 +111,8 @@ func _setup_preview(viewport: SubViewport, is_p1: bool) -> void:
 	
 	# Camera — upper body view (hat visible)
 	var cam := Camera3D.new()
-	cam.position = Vector3(0, 0.85, 2.2)
-	cam.rotation.x = -0.08
+	cam.position = Vector3(0, 1.35, 2.6)
+	cam.rotation.x = -0.1
 	cam.fov = 35.0
 	scene_root.add_child(cam)
 	

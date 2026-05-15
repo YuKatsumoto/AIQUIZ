@@ -1,0 +1,16 @@
+[gd_scene format=3 uid="uid://dqwre6yphxwn2"]
+
+[ext_resource type="Script" uid="uid://coaobv7s7idle" path="res://addons/psx/scenes/PsxConversionDialogOption.gd" id="1_5iuaf"]
+
+[node name="PsxConversionDialogOption" type="HBoxContainer" unique_id=316445801]
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 23.0
+grow_horizontal = 2
+script = ExtResource("1_5iuaf")
+label_text = "Option"
+
+[node name="label" type="Label" parent="." unique_id=1737280564]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Option"

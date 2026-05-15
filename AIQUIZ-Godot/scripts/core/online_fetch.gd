@@ -126,16 +126,16 @@ func get_temperature_for_difficulty(difficulty: String, retry_count: int = 0) ->
 	var base: float
 	match difficulty:
 		"簡単":
-			base = 0.3
+			base = 0.6
 		"普通":
-			base = 0.5
+			base = 0.8
 		"難しい":
-			base = 0.7
+			base = 0.95
 		_:
-			base = 0.45
+			base = 0.7
 	# リトライ時は少し上げて多様性を出す
 	base += retry_count * 0.1
-	return clampf(base, 0.1, 1.0)
+	return clampf(base, 0.1, 1.2)
 
 func compose_prompt(subject: String, grade: int, difficulty: String, count: int, history: Array[String], is_coop: bool = false) -> String:
 	var prompt := ""
@@ -884,19 +884,12 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 		
 		var on_complete: Callable = _make_on_complete.call(expected_ref, completed_ref)
 		
-		# バッチごとに異なる単元テーマを強制割り当て（6分類で重複率を最小化）
-		var batch_themes := [
-			"【バッチ指示】この2問は以下のジャンルから出題: 計算・数値操作・公式適用・単位変換。2問は必ず異なる単元から出題せよ。",
-			"【バッチ指示】この2問は以下のジャンルから出題: 文章題・応用思考・因果推論・日常場面の問題。2問は必ず異なる単元から出題せよ。",
-			"【バッチ指示】この2問は以下のジャンルから出題: 図形・グラフ読取・空間認識・図の性質。2問は必ず異なる単元から出題せよ。",
-			"【バッチ指示】この2問は以下のジャンルから出題: 概念理解・知識問題・定義の確認・法則の適用。2問は必ず異なる単元から出題せよ。",
-			"【バッチ指示】この2問は以下のジャンルから出題: ひねった応用問題・よくある間違いを誘う問題。2問は必ず異なる単元から出題せよ。",
-			"【バッチ指示】この2問は以下のジャンルから出題: この学年で最も重要な単元から総合的に出題。2問は必ず異なる単元から出題せよ。"
-		]
+		# CurriculumDBから全単元を取得し、6バッチに重複なく振り分ける
+		var batch_unit_instructions: Array[String] = _allocate_units_to_batches(subject, grade, TEN_PARALLEL)
 		
 		for i in range(TEN_PARALLEL):
 			var extra_history: Array[String] = history.duplicate()
-			extra_history.append(batch_themes[i])
+			extra_history.append(batch_unit_instructions[i])
 			var prompt := compose_prompt(subject, grade, difficulty, per_batch, extra_history, QuizManager.game_state.is_coop_mode())
 			var proxy_msg := " (via AI Gateway)" if not ApiStatusAutoload.get_env("PROXY_URL").is_empty() else ""
 			if is_streaming_available():
@@ -936,6 +929,49 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 			var proxy_msg := " (via AI Gateway)" if not ApiStatusAutoload.get_env("PROXY_URL").is_empty() else ""
 			print("[OnlineFetch] Endless mode - batch %d: requesting %d questions%s" % [i+1, per_call, proxy_msg])
 			_fetch_gemini_target(prompt, ApiStatusAutoload.gemini_model, temperature, on_complete)
+
+## CurriculumDB から全単元を取得し、batch_count 個のバッチに重複なく振り分ける
+## 各バッチに「この2問は〇〇と△△の単元から出題せよ」という指示文字列を返す
+func _allocate_units_to_batches(subject: String, grade: int, batch_count: int) -> Array[String]:
+	var result: Array[String] = []
+	
+	# CurriculumDB から全単元名を取得
+	var data := CurriculumDB.load_grade(subject, grade)
+	var all_unit_names: Array[String] = []
+	if not data.is_empty() and data.has("units"):
+		var units: Array = data["units"]
+		for unit in units:
+			if unit is Dictionary and unit.has("name"):
+				all_unit_names.append(str(unit["name"]))
+	
+	if all_unit_names.size() >= batch_count:
+		# 十分な単元がある → シャッフルして各バッチに2単元ずつ割り当て
+		all_unit_names.shuffle()
+		for i in range(batch_count):
+			var idx1 := i * 2
+			var idx2 := i * 2 + 1
+			var unit1: String = all_unit_names[idx1 % all_unit_names.size()]
+			var unit2: String = all_unit_names[idx2 % all_unit_names.size()]
+			# 同じ単元になった場合は次の単元を使う
+			if unit1 == unit2 and all_unit_names.size() > 1:
+				unit2 = all_unit_names[(idx2 + 1) % all_unit_names.size()]
+			result.append("【バッチ指示】この2問は必ず以下の2つの単元から1問ずつ出題せよ: 『%s』『%s』。他の単元からは出題禁止。" % [unit1, unit2])
+		print("[OnlineFetch] Allocated %d units across %d batches from CurriculumDB" % [all_unit_names.size(), batch_count])
+	else:
+		# フォールバック: カリキュラムDBがない場合は汎用ジャンルを使用
+		var fallback_themes := [
+			"計算・数値操作・公式適用・単位変換",
+			"文章題・応用思考・因果推論・日常場面の問題",
+			"図形・グラフ読取・空間認識・図の性質",
+			"概念理解・知識問題・定義の確認・法則の適用",
+			"ひねった応用問題・よくある間違いを誘う問題",
+			"この学年で最も重要な単元から総合的に出題"
+		]
+		for i in range(batch_count):
+			result.append("【バッチ指示】この2問は以下のジャンルから出題: %s。2問は必ず異なる単元から出題せよ。" % fallback_themes[i % fallback_themes.size()])
+		print("[OnlineFetch] Using fallback themes (no CurriculumDB data for %s/%d)" % [subject, grade])
+	
+	return result
 
 ## セマンティック重複検出
 ## 問題文からキーワードを抽出し、Jaccard類似度で内容レベルの重複を検出する

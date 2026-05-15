@@ -11,6 +11,11 @@ var is_boss: bool = false
 var boss_label: Label3D = null
 var boss_sparks: Array[CPUParticles3D] = []
 
+var _is_falling: bool = false
+var _fall_velocity: Vector3 = Vector3.ZERO
+var _fall_angular_velocity: Vector3 = Vector3.ZERO
+var _fall_timer: float = 0.0
+
 # Door colors
 const DOOR_COLORS_2 := [
 	Color(0.10, 0.60, 0.95),  # Left - Blue
@@ -34,6 +39,39 @@ var _current_num_choices: int = 2
 func _ready() -> void:
 	_build_doors(2)
 
+func _process(delta: float) -> void:
+	if not _is_falling:
+		return
+	
+	# 重力を適用
+	_fall_velocity.y -= 9.8 * 1.5 * delta
+	
+	# 位置を更新
+	position += _fall_velocity * delta
+	
+	# 回転を更新（不規則な回転）
+	rotation += _fall_angular_velocity * delta
+	
+	# タイマーで自動削除
+	_fall_timer += delta
+	if _fall_timer >= 4.0:
+		queue_free()
+
+func fall_off_cliff(forward_velocity_z: float = -5.0) -> void:
+	if _is_falling:
+		return
+	_is_falling = true
+	
+	# 初速: 前方への慣性 + わずかな下降
+	_fall_velocity = Vector3(0, -1.0, forward_velocity_z)
+	# ランダムな回転速度で自然な落下感
+	_fall_angular_velocity = Vector3(
+		(randf() - 0.5) * 1.5,
+		(randf() - 0.5) * 1.0,
+		(randf() - 0.5) * 1.5
+	)
+	_fall_timer = 0.0
+
 func _build_wall_around_doors(num_choices: int) -> void:
 	# Clear existing wall parts
 	for part in wall_parts:
@@ -42,9 +80,9 @@ func _build_wall_around_doors(num_choices: int) -> void:
 	wall_parts.clear()
 
 	# Wall dimensions (matching original single box)
-	var total_width := 28.0
-	var min_x := -14.0
-	var max_x := 14.0
+	var total_width := 24.0
+	var min_x := -12.0
+	var max_x := 12.0
 	var door_top_y := 2.38
 	var door_bottom_y := -2.02
 	var wall_top_y := 4.05

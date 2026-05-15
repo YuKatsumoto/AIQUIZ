@@ -1,8 +1,8 @@
 extends Node3D
 class_name PlayerController
 
-## ブロック人間プレイヤー (関節付き階層モデル)
-## Python版 renderer.py の _draw_player_alive / _draw_player_exploding に相当
+## 繝悶Ο繝・け莠ｺ髢薙・繝ｬ繧､繝､繝ｼ (髢｢遽莉倥″髫主ｱ､繝｢繝・Ν)
+## Python迚・renderer.py 縺ｮ _draw_player_alive / _draw_player_exploding 縺ｫ逶ｸ蠖・
 
 # Player colors
 const P1_BODY := Color(0.95, 0.55, 0.20)
@@ -28,7 +28,7 @@ var _p2_exploding: bool = false
 var _p1_explosion_data: Array[Dictionary] = []
 var _p2_explosion_data: Array[Dictionary] = []
 
-# Animation Rig (P1/P2共通クラスで管理)
+# Animation Rig (P1/P2蜈ｱ騾壹け繝ｩ繧ｹ縺ｧ邂｡逅・
 var _p1_rig: AnimationRig = AnimationRig.new("P1")
 var _p2_rig: AnimationRig = AnimationRig.new("P2")
 
@@ -50,7 +50,7 @@ func _load_mixamo_rig() -> void:
 		print("[RIG] No FBX loaded - procedural mode")
 
 func _load_fbx_scene(path: String, node_name: String) -> Variant:
-	"""FBXファイルを独立シーンとして読み込み、スケルトン・AP・骨インデックスを返す"""
+	"""FBX繝輔ぃ繧､繝ｫ繧堤峡遶九す繝ｼ繝ｳ縺ｨ縺励※隱ｭ縺ｿ霎ｼ縺ｿ縲√せ繧ｱ繝ｫ繝医Φ繝ｻAP繝ｻ鬪ｨ繧､繝ｳ繝・ャ繧ｯ繧ｹ繧定ｿ斐☆"""
 	if not ResourceLoader.exists(path):
 		print("[RIG] File not found: ", path)
 		return null
@@ -63,7 +63,7 @@ func _load_fbx_scene(path: String, node_name: String) -> Variant:
 	node.name = node_name
 	add_child(node)
 	
-	# Skeleton3D を探す
+	# Skeleton3D 繧呈爾縺・
 	var skeleton: Skeleton3D = null
 	for child in node.find_children("*", "Skeleton3D", true, false):
 		skeleton = child as Skeleton3D
@@ -75,11 +75,11 @@ func _load_fbx_scene(path: String, node_name: String) -> Variant:
 	
 	print("[RIG] [", node_name, "] Skeleton found, bones: ", skeleton.get_bone_count())
 	
-	# メッシュを非表示
+	# 繝｡繝・す繝･繧帝撼陦ｨ遉ｺ
 	for child in node.find_children("*", "MeshInstance3D", true, false):
 		child.hide()
 	
-	# AnimationPlayer を探す
+	# AnimationPlayer 繧呈爾縺・
 	var ap: AnimationPlayer = null
 	for child in node.find_children("*", "AnimationPlayer", true, false):
 		ap = child as AnimationPlayer
@@ -89,7 +89,7 @@ func _load_fbx_scene(path: String, node_name: String) -> Variant:
 		node.queue_free()
 		return null
 	
-	# 最もトラック数の多いアニメーション、または "mixamo_com" を正解とする
+	# 譛繧ゅヨ繝ｩ繝・け謨ｰ縺ｮ螟壹＞繧｢繝九Γ繝ｼ繧ｷ繝ｧ繝ｳ縲√∪縺溘・ "mixamo_com" 繧呈ｭ｣隗｣縺ｨ縺吶ｋ
 	var anim_name := ""
 	var max_tracks := -1
 	for lib_name in ap.get_animation_library_list():
@@ -102,7 +102,7 @@ func _load_fbx_scene(path: String, node_name: String) -> Variant:
 			
 			if "mixamo_com" in a_name:
 				anim_name = full
-				max_tracks = 9999 # 強制的に最優先
+				max_tracks = 9999 # 蠑ｷ蛻ｶ逧・↓譛蜆ｪ蜈・
 			elif tracks_count > max_tracks:
 				max_tracks = tracks_count
 				if anim_name == "" or not ("mixamo_com" in anim_name):
@@ -113,7 +113,7 @@ func _load_fbx_scene(path: String, node_name: String) -> Variant:
 		if anim:
 			anim.loop_mode = Animation.LOOP_LINEAR
 	
-	# 骨インデックスをキャッシュ
+	# 鬪ｨ繧､繝ｳ繝・ャ繧ｯ繧ｹ繧偵く繝｣繝・す繝･
 	var bone_indices := {}
 	var candidates: Dictionary = {
 		"hips": ["Hips", "mixamorig:Hips"],
@@ -186,7 +186,7 @@ func _load_fbx_scene(path: String, node_name: String) -> Variant:
 func _import_anim_fbx(path: String, lib_name: String) -> String:
 	return ""
 
-# 階層構造の構築
+# 髫主ｱ､讒矩縺ｮ讒狗ｯ・
 func _build_player_skeleton(is_p1: bool, parent_node: Node3D) -> Dictionary:
 	var body_col: Color = P1_BODY if is_p1 else P2_BODY
 	var head_col: Color = P1_HEAD if is_p1 else P2_HEAD
@@ -207,27 +207,27 @@ func _build_player_skeleton(is_p1: bool, parent_node: Node3D) -> Dictionary:
 	pelvis.add_child(lower_torso)
 	parts["lower_torso"] = lower_torso
 
-	# Spine pivot (between lower and upper torso) — enables upper body twist
+	# Spine pivot (between lower and upper torso) 窶・enables upper body twist
 	var spine = Node3D.new()
 	spine.name = "Spine"
 	spine.position = Vector3(0, 0.30, 0)
 	pelvis.add_child(spine)
 	parts["spine"] = spine
 
-	# Upper Torso (chest) — child of spine
+	# Upper Torso (chest) 窶・child of spine
 	var upper_torso = _create_box(Vector3(0.38, 0.26, 0.22), body_col)
 	upper_torso.position = Vector3(0, 0.18, 0)
 	spine.add_child(upper_torso)
 	parts["upper_torso"] = upper_torso
 
-	# Neck pivot — child of spine
+	# Neck pivot 窶・child of spine
 	var neck = Node3D.new()
 	neck.name = "Neck"
 	neck.position = Vector3(0, 0.42, 0)
 	spine.add_child(neck)
 	parts["neck"] = neck
 
-	# Head pivot — child of neck
+	# Head pivot 窶・child of neck
 	var head_pivot = Node3D.new()
 	head_pivot.position = Vector3(0, 0.03, 0)
 	neck.add_child(head_pivot)
@@ -472,7 +472,7 @@ func update_from_state(gs: QuizGameState) -> void:
 				_apply_skeleton_pose(p1_parts, _p1_rig.active_skeleton, _p1_rig.active_bone_indices, _p1_rig.mirror_x)
 			
 			if not apply_rig:
-				# FBXがない、またはマグマ以外の死因用
+				# FBX縺後↑縺・√∪縺溘・繝槭げ繝樔ｻ･螟悶・豁ｻ蝗逕ｨ
 				if gs.player_y < -1.0:
 					_animate_skeleton(p1_parts, gs.player_y, gs.player_vel_y, false, walk_phase, false, 0)
 				else:
@@ -532,9 +532,7 @@ func update_from_state(gs: QuizGameState) -> void:
 
 	# 1P: only show player body during game over explosion, flyover, menu, or replay
 	if gs.num_players == 1:
-		if gs.is_replay:
-			visible = true
-		elif gs.game_state == Constants.STATE_GAME_OVER and gs.game_over_timer > 0:
+		if gs.game_state == Constants.STATE_GAME_OVER and gs.game_over_timer > 0:
 			visible = true
 		elif gs.game_state == Constants.STATE_FLYOVER:
 			visible = true
@@ -570,7 +568,7 @@ func _animate_skeleton(parts: Dictionary, py: float, vy: float, is_playing: bool
 	var l_toe: Node3D = parts["l_toe"]
 	var r_toe: Node3D = parts["r_toe"]
 
-	# Base resets — all joints
+	# Base resets 窶・all joints
 	pelvis.position = Vector3(0, BASE_Y + 0.9, 0)
 	pelvis.rotation = Vector3.ZERO
 	spine_node.rotation = Vector3.ZERO
@@ -592,7 +590,7 @@ func _animate_skeleton(parts: Dictionary, py: float, vy: float, is_playing: bool
 	r_toe.rotation = Vector3.ZERO
 	
 	if py < -1.0:
-		# Flail — falling into magma
+		# Flail 窶・falling into magma
 		var flail := sin(_time * 25.0) * PI * 0.4
 		l_hip.rotation.x = flail
 		r_hip.rotation.x = -flail
@@ -913,12 +911,12 @@ func _update_explosion(
 			groove_pull = 1.0 - pow(1.0 - groove_pull, 2.0)
 			ex = lerpf(ex, groove_local_x + float(d.get("groove_offset", 0.0)), groove_pull)
 		
-		# マグマに落ちた場合の処理：マグマ表面(-9.2)より下は沈み込みをゆっくりにする
+		# 繝槭げ繝槭↓關ｽ縺｡縺溷ｴ蜷医・蜃ｦ逅・ｼ壹・繧ｰ繝櫁｡ｨ髱｢(-9.2)繧医ｊ荳九・豐医∩霎ｼ縺ｿ繧偵ｆ縺｣縺上ｊ縺ｫ縺吶ｋ
 		if should_sink and ey < magma_surface:
 			var depth = magma_surface - ey
-			ey = magma_surface - (depth * 0.05) # 沈降速度を遅らせる
+			ey = magma_surface - (depth * 0.05) # 豐磯剄騾溷ｺｦ繧帝≦繧峨○繧・
 			
-			# マグマに浸かるとスケールを少しずつ小さくして溶ける演出にする
+			# 繝槭げ繝槭↓豬ｸ縺九ｋ縺ｨ繧ｹ繧ｱ繝ｼ繝ｫ繧貞ｰ代＠縺壹▽蟆上＆縺上＠縺ｦ貅ｶ縺代ｋ貍泌・縺ｫ縺吶ｋ
 			var shrink = maxf(0.0, 1.0 - (depth * 0.1))
 			node.scale = Vector3(shrink, shrink, shrink)
 		else:
@@ -1027,7 +1025,7 @@ func _emote_kazotsky(t: float, parts: Dictionary) -> void:
 # ============================================================
 
 func _apply_skeleton_pose(parts: Dictionary, skeleton: Skeleton3D, bone_indices: Dictionary, mirror_x: bool = false) -> void:
-	"""毎フレーム Skeleton3D の骨座標を読み取り、ブロックのピボットに適用する"""
+	"""豈弱ヵ繝ｬ繝ｼ繝 Skeleton3D 縺ｮ鬪ｨ蠎ｧ讓吶ｒ隱ｭ縺ｿ蜿悶ｊ縲√ヶ繝ｭ繝・け縺ｮ繝斐・繝・ヨ縺ｫ驕ｩ逕ｨ縺吶ｋ"""
 	if not skeleton or bone_indices.is_empty():
 		return
 	
@@ -1037,11 +1035,11 @@ func _apply_skeleton_pose(parts: Dictionary, skeleton: Skeleton3D, bone_indices:
 	
 	var mirror_matrix = Basis(Vector3(-1, 0, 0), Vector3(0, 1, 0), Vector3(0, 0, 1))
 	
-	# Hips（ペルビス）の位置と回転を適用
+	# Hips・医・繝ｫ繝薙せ・峨・菴咲ｽｮ縺ｨ蝗櫁ｻ｢繧帝←逕ｨ
 	if bone_indices.has("hips"):
 		var bone_xform = skeleton.get_bone_global_pose(bone_indices["hips"])
 		
-		# 前進・後退のルートモーションを無効化し、Y軸（上下の揺れ）のみ適用
+		# 蜑埼ｲ繝ｻ蠕碁縺ｮ繝ｫ繝ｼ繝医Δ繝ｼ繧ｷ繝ｧ繝ｳ繧堤┌蜉ｹ蛹悶＠縲〆霆ｸ・井ｸ贋ｸ九・謠ｺ繧鯉ｼ峨・縺ｿ驕ｩ逕ｨ
 		pelvis.position = Vector3(
 			0.0,
 			BASE_Y + bone_xform.origin.y,
@@ -1053,7 +1051,7 @@ func _apply_skeleton_pose(parts: Dictionary, skeleton: Skeleton3D, bone_indices:
 			new_pelvis_basis = mirror_matrix * new_pelvis_basis * mirror_matrix
 		pelvis.quaternion = Quaternion(new_pelvis_basis)
 	
-	# 以降の各部位は、グローバル姿勢(Skeleton3D内のグローバル)をそのまま代入する。
+	# 莉･髯阪・蜷・Κ菴阪・縲√げ繝ｭ繝ｼ繝舌Ν蟋ｿ蜍｢(Skeleton3D蜀・・繧ｰ繝ｭ繝ｼ繝舌Ν)繧偵◎縺ｮ縺ｾ縺ｾ莉｣蜈･縺吶ｋ縲・
 	var apply_bone = func(part_name: String, bone_key: String, flip: bool = false):
 		var node: Node3D = parts.get(part_name)
 		if node and bone_indices.has(bone_key):
@@ -1061,22 +1059,22 @@ func _apply_skeleton_pose(parts: Dictionary, skeleton: Skeleton3D, bone_indices:
 			var new_basis = gl_pose.basis.orthonormalized()
 			
 			if mirror_x:
-				# X軸の動きを鏡像化（行列式+1を維持しつつ左右の動きを反転）
+				# X霆ｸ縺ｮ蜍輔″繧帝升蜒丞喧・郁｡悟・蠑・1繧堤ｶｭ謖√＠縺､縺､蟾ｦ蜿ｳ縺ｮ蜍輔″繧貞渚霆｢・・
 				new_basis = mirror_matrix * new_basis * mirror_matrix
 				
 			if flip:
-				# X軸周りに180度回転し、-Y方向が骨の+Y方向と一致するようにする
+				# X霆ｸ蜻ｨ繧翫↓180蠎ｦ蝗櫁ｻ｢縺励・Y譁ｹ蜷代′鬪ｨ縺ｮ+Y譁ｹ蜷代→荳閾ｴ縺吶ｋ繧医≧縺ｫ縺吶ｋ
 				new_basis = new_basis * Basis(Vector3.RIGHT, PI)
 			node.global_basis = new_basis
 	
-	# 背骨・首（+Y方向に構築されているのでフリップ不要）
+	# 閭碁ｪｨ繝ｻ鬥厄ｼ・Y譁ｹ蜷代↓讒狗ｯ峨＆繧後※縺・ｋ縺ｮ縺ｧ繝輔Μ繝・・荳崎ｦ・ｼ・
 	apply_bone.call("spine", "spine", false)
 	apply_bone.call("neck", "neck", false)
 	
-	# 頭（頭ブロックは+Y方向に作られているのでフリップ不要）
+	# 鬆ｭ・磯ｭ繝悶Ο繝・け縺ｯ+Y譁ｹ蜷代↓菴懊ｉ繧後※縺・ｋ縺ｮ縺ｧ繝輔Μ繝・・荳崎ｦ・ｼ・
 	apply_bone.call("head_pivot", "head", false)
 	
-	# 左腕・右腕（全て-Y方向に伸びて作られているのでフリップ必要）
+	# 蟾ｦ閻輔・蜿ｳ閻包ｼ亥・縺ｦ-Y譁ｹ蜷代↓莨ｸ縺ｳ縺ｦ菴懊ｉ繧後※縺・ｋ縺ｮ縺ｧ繝輔Μ繝・・蠢・ｦ・ｼ・
 	apply_bone.call("l_shoulder", "l_upper_arm", true)
 	apply_bone.call("l_elbow", "l_lower_arm", true)
 	apply_bone.call("l_wrist", "l_hand", true)
@@ -1085,7 +1083,7 @@ func _apply_skeleton_pose(parts: Dictionary, skeleton: Skeleton3D, bone_indices:
 	apply_bone.call("r_elbow", "r_lower_arm", true)
 	apply_bone.call("r_wrist", "r_hand", true)
 	
-	# 左脚・右脚（フリップ必要）
+	# 蟾ｦ閼壹・蜿ｳ閼夲ｼ医ヵ繝ｪ繝・・蠢・ｦ・ｼ・
 	apply_bone.call("l_hip", "l_upper_leg", true)
 	apply_bone.call("l_knee", "l_lower_leg", true)
 	apply_bone.call("l_ankle", "l_foot", true)
@@ -1129,7 +1127,7 @@ func _apply_skeleton_pose(parts: Dictionary, skeleton: Skeleton3D, bone_indices:
 	apply_bone.call("r_pinky_dist", "r_pinky_dist", true)
 
 func bind_to_skeleton(player_id: int, skeleton: Skeleton3D) -> void:
-	"""後方互換性のためのダミー関数 - 実際の処理は_apply_skeleton_poseで毎フレーム行う"""
+	"""蠕梧婿莠呈鋤諤ｧ縺ｮ縺溘ａ縺ｮ繝繝溘・髢｢謨ｰ - 螳滄圀縺ｮ蜃ｦ逅・・_apply_skeleton_pose縺ｧ豈弱ヵ繝ｬ繝ｼ繝陦後≧"""
 	pass
 
 # ============================================================

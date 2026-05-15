@@ -30,13 +30,13 @@ export default function SettingsPage() {
         : '.envファイルが見つかりません。'
     });
 
-    // Gemini API Key
-    const hasGemini = Object.keys(envData).some(k => k.includes('GOOGLE_API_KEY') || k.includes('GEMINI_API_KEY'));
+    // Proxy Server
+    const hasProxyUrl = Object.keys(envData).some(k => k === 'PROXY_URL');
     checks.push({
-      label: 'Gemini API Key',
-      icon: <img src="https://cdn.simpleicons.org/googlegemini/8E75B2" width="24" height="24" alt="Gemini" />,
-      status: hasGemini ? 'ok' : 'warn',
-      detail: hasGemini ? 'API Keyが設定されています。' : 'GOOGLE_API_KEY / GEMINI_API_KEY が未設定。オンラインモードは使用できません。'
+      label: 'Proxy Server',
+      icon: <span style={{ fontSize: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>🌐</span>,
+      status: hasProxyUrl ? 'ok' : 'warn',
+      detail: hasProxyUrl ? `URL: ${envData['PROXY_URL']}` : 'PROXY_URLが未設定。外部のAI Gatewayを経由せずに直接APIを叩きます。'
     });
 
     // OpenAI API Key

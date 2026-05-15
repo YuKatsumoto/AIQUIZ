@@ -116,9 +116,6 @@ var goal_winner: int = 0  # 0=未確定, 1=P1, 2=P2
 var p1_jump_trigger: bool = false
 var p2_jump_trigger: bool = false
 
-# --- Item System (2P対戦用) ---
-var item_system: ItemSystem = null
-
 # --- Dynamic wall speed ---
 var _active_wall_speed: float = 6.0
 
@@ -267,12 +264,7 @@ func start_game() -> void:
 	p2_alive = true
 	player2_game_over_timer = 0.0
 	goal_winner = 0
-	# Item system setup (2P対戦モードのみ)
-	if num_players >= 2 and not is_coop_mode() and not _is_tutorial_mode():
-		item_system = ItemSystem.new()
-		item_system.setup(tuning.wall_start_z, tuning.wall_spacing)
-	else:
-		item_system = null
+
 	# Streak & stats reset
 	current_streak = 0
 	max_streak = 0
@@ -597,7 +589,7 @@ func _recalc_wall_speed() -> void:
 
 # ---------- Frame update ----------
 
-func update(dt: float, axis_p1: Vector2 = Vector2.ZERO, axis_p2: Vector2 = Vector2.ZERO, jump_p1: bool = false, jump_p2: bool = false, emote_p1: int = 0, emote_p2: int = 0, use_item_p1: bool = false, use_item_p2: bool = false) -> void:
+func update(dt: float, axis_p1: Vector2 = Vector2.ZERO, axis_p2: Vector2 = Vector2.ZERO, jump_p1: bool = false, jump_p2: bool = false, emote_p1: int = 0, emote_p2: int = 0) -> void:
 	correct_flash = maxf(0.0, correct_flash - dt * 1.5)
 	wrong_flash = maxf(0.0, wrong_flash - dt * 1.2)
 	camera_shake = maxf(0.0, camera_shake - dt * 2.8)
@@ -607,6 +599,17 @@ func update(dt: float, axis_p1: Vector2 = Vector2.ZERO, axis_p2: Vector2 = Vecto
 
 	p1_jump_trigger = false
 	p2_jump_trigger = false
+
+	# Emote latching: trigger once, cancel on movement or jump
+	if emote_p1 > 0:
+		p1_emote = emote_p1
+	if axis_p1.length_squared() > 0.01 or jump_p1:
+		p1_emote = 0
+
+	if emote_p2 > 0:
+		p2_emote = emote_p2
+	if axis_p2.length_squared() > 0.01 or jump_p2:
+		p2_emote = 0
 
 	if game_state == Constants.STATE_PRELOADING:
 		_update_preloading(dt)
@@ -625,7 +628,7 @@ func update(dt: float, axis_p1: Vector2 = Vector2.ZERO, axis_p2: Vector2 = Vecto
 		return
 
 	if game_state == Constants.STATE_PLAYING:
-		_update_playing(dt, axis_p1, axis_p2, jump_p1, jump_p2, emote_p1, emote_p2, use_item_p1, use_item_p2)
+		_update_playing(dt, axis_p1, axis_p2, jump_p1, jump_p2, emote_p1, emote_p2)
 		return
 
 	if game_state == Constants.STATE_GOAL_RACE:
@@ -702,8 +705,7 @@ func _update_preloading(dt: float) -> void:
 		refresh_status_text()
 
 func _update_waiting_start(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: bool, jump_p2: bool, emote_p1: int = 0, emote_p2: int = 0) -> void:
-	p1_emote = emote_p1
-	p2_emote = emote_p2
+	pass
 func trigger_start() -> void:
 	if game_state == Constants.STATE_WAITING_START:
 		if _is_tutorial_mode():
@@ -726,8 +728,6 @@ func trigger_start() -> void:
 		state_changed.emit(game_state)
 
 func _update_flyover(dt: float, emote_p1: int = 0, emote_p2: int = 0) -> void:
-	p1_emote = emote_p1
-	p2_emote = emote_p2
 	flyover_timer += dt
 	if flyover_timer >= flyover_duration:
 		# フライオーバー完了 → カウントダウンへ
@@ -736,79 +736,30 @@ func _update_flyover(dt: float, emote_p1: int = 0, emote_p2: int = 0) -> void:
 		state_changed.emit(game_state)
 
 func _update_countdown(dt: float, emote_p1: int = 0, emote_p2: int = 0) -> void:
-	p1_emote = emote_p1
-	p2_emote = emote_p2
 	countdown_timer -= dt
 	if countdown_timer <= 0:
 		game_state = Constants.STATE_PLAYING
 		state_changed.emit(game_state)
 
 
-func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: bool, jump_p2: bool, emote_p1: int = 0, emote_p2: int = 0, use_item_p1: bool = false, use_item_p2: bool = false) -> void:
+func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: bool, jump_p2: bool, emote_p1: int = 0, emote_p2: int = 0) -> void:
 	play_time += dt
 	world_scroll_z += _active_wall_speed * dt
 
-	p1_emote = emote_p1
-	p2_emote = emote_p2
 	p1_moving_back = axis_p1.y < -0.1
 	p2_moving_back = axis_p2.y < -0.1
 
-	# --- アイテムシステム更新 ---
-	if item_system and item_system.is_enabled():
-		item_system.update(dt)
-		# アイテム使用
-		if use_item_p1 and p1_alive:
-			var held: int = item_system.p1_item
-			if held == ItemSystem.ItemType.BOMB:
-				item_system.p1_item = ItemSystem.ItemType.NONE
-				item_system.place_bomb(1, player_x, player_z)
-			else:
-				item_system.use_item(1)
-		if use_item_p2 and p2_alive:
-			var held2: int = item_system.p2_item
-			if held2 == ItemSystem.ItemType.BOMB:
-				item_system.p2_item = ItemSystem.ItemType.NONE
-				item_system.place_bomb(2, player2_x, player2_z)
-			else:
-				item_system.use_item(2)
-		# アイテムボックス取得判定
-		if p1_alive:
-			item_system.check_item_pickup(1, player_x, player_z, current_wall_index)
-		if p2_alive:
-			item_system.check_item_pickup(2, player2_x, player2_z, current_wall_index)
-		# ボム衝突判定
-		if p1_alive:
-			item_system.check_bomb_collision(1, player_x, player_z)
-		if p2_alive:
-			item_system.check_bomb_collision(2, player2_x, player2_z)
-
-	# --- アイテム効果: 入力反転 ---
-	var eff_axis_p1 := axis_p1
-	var eff_axis_p2 := axis_p2
-	if item_system and item_system.is_enabled():
-		if item_system.is_input_reversed(1):
-			eff_axis_p1.x = -eff_axis_p1.x
-		if item_system.is_input_reversed(2):
-			eff_axis_p2.x = -eff_axis_p2.x
-
-	# --- アイテム効果: 速度補正 ---
-	var p1_speed_mult: float = 1.0
-	var p2_speed_mult: float = 1.0
-	if item_system and item_system.is_enabled():
-		p1_speed_mult = item_system.get_speed_multiplier(1)
-		p2_speed_mult = item_system.get_speed_multiplier(2)
-
 	# Player 1 movement
-	if p1_alive and not (item_system and item_system.is_frozen(1)):
+	if p1_alive:
 		var yaw: float = camera_yaw if num_players == 1 else 0.0
-		var move_x: float = eff_axis_p1.x * cos(yaw) + eff_axis_p1.y * sin(yaw)
-		var move_z: float = eff_axis_p1.y * cos(yaw) - eff_axis_p1.x * sin(yaw)
+		var move_x: float = axis_p1.x * cos(yaw) + axis_p1.y * sin(yaw)
+		var move_z: float = axis_p1.y * cos(yaw) - axis_p1.x * sin(yaw)
 
-		player_x += move_x * tuning.player_speed * p1_speed_mult * dt
+		player_x += move_x * tuning.player_speed * dt
 		# Removed clamp to allow falling off sides
 
 		player_z += _active_wall_speed * dt # Carry forward with world scroll
-		player_z += move_z * tuning.player_speed * p1_speed_mult * dt
+		player_z += move_z * tuning.player_speed * dt
 
 		# Removed forward limit to allow running ahead
 		var loc1 := player_z - world_scroll_z
@@ -847,21 +798,17 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 					quiz_history.append({"quiz": current_quiz, "correct": false, "rated": ""})
 				_game_over("マグマに落ちてしまった！" if not use_english_ui else "Fell into magma!")
 				wrong_answer.emit(message_text)
-	else:
-		if p1_alive and item_system and item_system.is_frozen(1):
-			# フリーズ中でも世界スクロールには追従
-			player_z += _active_wall_speed * dt
-		if game_over_timer > 0.0:
-			# Tick explosion timer for dead P1 while game continues (2P)
-			game_over_timer += dt
+	elif game_over_timer > 0.0:
+		# Tick explosion timer for dead P1 while game continues (2P)
+		game_over_timer += dt
 
 	# Player 2 movement
-	if num_players >= 2 and p2_alive and not (item_system and item_system.is_frozen(2)):
-		player2_x += eff_axis_p2.x * tuning.player_speed * p2_speed_mult * dt
+	if num_players >= 2 and p2_alive:
+		player2_x += axis_p2.x * tuning.player_speed * dt
 		# Removed clamp
 
 		player2_z += _active_wall_speed * dt
-		player2_z += eff_axis_p2.y * tuning.player_speed * p2_speed_mult * dt
+		player2_z += axis_p2.y * tuning.player_speed * dt
 
 		# Removed forward limit
 		var loc2 := player2_z - world_scroll_z
@@ -897,9 +844,6 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 					quiz_history.append({"quiz": current_quiz, "correct": false, "rated": ""})
 				_game_over("マグマに落ちてしまった！" if not use_english_ui else "Fell into magma!")
 				wrong_answer.emit(message_text)
-	elif num_players >= 2 and p2_alive and item_system and item_system.is_frozen(2):
-		# フリーズ中でも世界スクロールには追従
-		player2_z += _active_wall_speed * dt
 	elif num_players >= 2 and not p2_alive:
 		if player2_game_over_timer > 0.0:
 			# Tick explosion timer for dead P2 while game continues
@@ -1416,13 +1360,10 @@ func resolve_collision(p1_hit: bool = false, p2_hit: bool = false) -> void:
 		evaluated_anyone = true
 		var door: int = _check_player_door(player_x)
 		if door < 0:
-			# 壁に衝突 → シールドチェック
-			if item_system and item_system.has_shield(1):
-				item_system.consume_shield(1)
-			else:
-				p1_alive = false
-				game_over_timer = 0.001
-				current_streak = 0
+			# 壁に衝突
+			p1_alive = false
+			game_over_timer = 0.001
+			current_streak = 0
 			total_answered += 1
 			total_wrong += 1
 			recent_results.append(false)
@@ -1439,13 +1380,10 @@ func resolve_collision(p1_hit: bool = false, p2_hit: bool = false) -> void:
 			if recent_results.size() > 12:
 				recent_results.remove_at(0)
 		else:
-			# 不正解ドア → シールドチェック
-			if item_system and item_system.has_shield(1):
-				item_system.consume_shield(1)
-			else:
-				p1_alive = false
-				game_over_timer = 0.001
-				current_streak = 0
+			# 不正解ドア
+			p1_alive = false
+			game_over_timer = 0.001
+			current_streak = 0
 			total_answered += 1
 			total_wrong += 1
 			recent_results.append(false)
@@ -1457,20 +1395,14 @@ func resolve_collision(p1_hit: bool = false, p2_hit: bool = false) -> void:
 		evaluated_anyone = true
 		var door2: int = _check_player_door(player2_x)
 		if door2 < 0:
-			if item_system and item_system.has_shield(2):
-				item_system.consume_shield(2)
-			else:
-				p2_alive = false
-				player2_game_over_timer = 0.001
+			p2_alive = false
+			player2_game_over_timer = 0.001
 		elif door2 == answer:
 			player2_score += 1
 			p2_correct = true
 		else:
-			if item_system and item_system.has_shield(2):
-				item_system.consume_shield(2)
-			else:
-				p2_alive = false
-				player2_game_over_timer = 0.001
+			p2_alive = false
+			player2_game_over_timer = 0.001
 
 	if not evaluated_anyone:
 		return
@@ -1531,10 +1463,7 @@ func advance_after_correct() -> void:
 		game_over_timer = 0.0
 	if p2_alive or num_players < 2:
 		player2_game_over_timer = 0.0
-	# ゴースト効果を壁通過時にリセット
-	if item_system and item_system.is_enabled():
-		item_system.clear_ghost(1)
-		item_system.clear_ghost(2)
+
 	if _is_fixed_count_mode():
 		current_index += 1
 		var missing := maxi(0, target_count - quiz_list.size())

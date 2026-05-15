@@ -24,6 +24,7 @@ const HAT_PATHS := {
 	HatData.HAT_FROG:      "res://assets/hats/frog_hat.glb",
 	HatData.HAT_PROPELLER: "res://assets/hats/propeller_hat.glb",
 	HatData.HAT_FOX:       "res://assets/hats/fox_hat.glb",
+	HatData.HAT_CHICKEN:   "res://assets/hats/chicken.glb",
 }
 
 # 帽子ごとのターゲット高さ（デフォルトより大きくしたい帽子を個別指定）
@@ -40,6 +41,7 @@ const HAT_TARGET_HEIGHTS := {
 	HatData.HAT_FROG:      0.30,  # カエル帽
 	HatData.HAT_PROPELLER: 0.35,  # プロペラ帽
 	HatData.HAT_FOX:       0.85,  # キツネ帽（めり込まないようにさらに大きく）
+	HatData.HAT_CHICKEN:   0.95,  # ニワトリ（頭と同じくらい大きく）
 }
 
 # 帽子ごとの追加Y軸オフセット（微調整用、正=上、負=下）
@@ -56,6 +58,12 @@ const HAT_Y_TWEAKS := {
 	HatData.HAT_FROG:      -0.02,  # カエル帽
 	HatData.HAT_PROPELLER: 0.0,    # プロペラ帽
 	HatData.HAT_FOX:       -0.42,  # キツネ帽（すっぽり被せる）
+	HatData.HAT_CHICKEN:   0.0,    # ニワトリ
+}
+
+# 帽子ごとの追加Y軸回転オフセット（度数法）
+const HAT_Y_ROTATIONS := {
+	HatData.HAT_CHICKEN: 90.0,   # ニワトリを正面に向かせる（逆なら90.0に変更）
 }
 
 # Poly Pizza CC BY 3.0 クレジット
@@ -72,6 +80,7 @@ const HAT_CREDITS := {
 	HatData.HAT_FROG:      "Frog Hat by J-Toastie [CC-BY] via Poly Pizza",
 	HatData.HAT_PROPELLER: "Propeller hat by jeremy [CC-BY] via Poly Pizza",
 	HatData.HAT_FOX:       "Fox Hat by J-Toastie [CC-BY] via Poly Pizza",
+	HatData.HAT_CHICKEN:   "Chicken by jeremy [CC-BY] via Poly Pizza",
 }
 
 
@@ -109,7 +118,12 @@ static func create_hat(hat_id: int) -> Node3D:
 	
 	model.scale = Vector3(scale_factor, scale_factor, scale_factor)
 	
-	# 3. スケール適用後の AABB を再計算
+	# 2.5 追加の回転オフセットを適用（AABB再計算前に行うことでセンタリングを完璧にする）
+	var y_rot: float = HAT_Y_ROTATIONS.get(hat_id, 0.0)
+	if y_rot != 0.0:
+		model.rotation_degrees.y += y_rot
+	
+	# 3. スケール・回転適用後の AABB を再計算
 	var scaled_aabb := _compute_model_aabb(model, Transform3D.IDENTITY)
 	
 	# 4. 帽子の底面が Y=0（HatMount位置）に来るように配置

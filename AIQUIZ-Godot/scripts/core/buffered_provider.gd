@@ -19,6 +19,10 @@ var llm_mode: String = "ONLINE"
 var recent_questions: Array[String] = []
 var play_history: Array[String] = []
 
+## ラウンド間で引き継ぐ問題履歴の最大サイズ
+const CROSS_ROUND_HISTORY_MAX: int = 60
+const HISTORY_SAVE_PATH: String = "user://recent_quiz_history.json"
+
 ## オフラインの緊急キャッシュ — オンライン生成が間に合わない時の保険
 var _emergency_cache: Array[QuizItem] = []
 const EMERGENCY_CACHE_SIZE: int = 5
@@ -41,6 +45,9 @@ func _ready() -> void:
 	add_child(online_fetcher)
 	
 	ApiStatusAutoload.set_offline_count(offline_provider.total_count())
+	
+	# ラウンド間の問題履歴をディスクから復元
+	_load_cross_round_history()
 
 	_poll_timer = Timer.new()
 	_poll_timer.wait_time = 0.25  # Slightly faster polling (was 0.3)
@@ -66,7 +73,7 @@ func begin_round(subject: String, grade: int, difficulty: String,
 	buffer.clear()
 	inflight = 0
 	yielded_count = 0
-	recent_questions.clear()
+	# recent_questions はクリアしない — ラウンド間で引き継いで重複を防ぐ
 	play_history.clear()
 	_emergency_cache.clear()
 	_explanation_inflight = false
@@ -80,6 +87,15 @@ func begin_round(subject: String, grade: int, difficulty: String,
 
 func end_round() -> void:
 	is_active_round = false
+	# プレイ中に出題した問題を recent_questions にマージして次のラウンドに引き継ぐ
+	for q in play_history:
+		if q not in recent_questions:
+			recent_questions.append(q)
+	# 上限を超えたら古いものから削除
+	while recent_questions.size() > CROSS_ROUND_HISTORY_MAX:
+		recent_questions.pop_front()
+	# ディスクに保存
+	_save_cross_round_history()
 
 func submit_result(quiz: QuizItem, _correct: bool) -> void:
 	if quiz and quiz.q:
@@ -277,3 +293,35 @@ func _on_explanations_ready(_quizzes: Array[QuizItem]) -> void:
 	print("[BufferedProvider] Explanations received, checking for more...")
 	# まだ解説未取得の問題があれば次のバッチをキック
 	_kick_explanation_batch()
+
+
+## ── ラウンド間 問題履歴の永続化 ──
+
+func _load_cross_round_history() -> void:
+	if not FileAccess.file_exists(HISTORY_SAVE_PATH):
+		return
+	var f := FileAccess.open(HISTORY_SAVE_PATH, FileAccess.READ)
+	if f == null:
+		return
+	var json = JSON.parse_string(f.get_as_text())
+	f.close()
+	if json is Array:
+		recent_questions.clear()
+		for item in json:
+			if item is String and not (item as String).is_empty():
+				recent_questions.append(item as String)
+		# 上限を超えたら古いものから削除
+		while recent_questions.size() > CROSS_ROUND_HISTORY_MAX:
+			recent_questions.pop_front()
+		if recent_questions.size() > 0:
+			print("[BufferedProvider] Loaded %d cross-round history entries from disk" % recent_questions.size())
+
+func _save_cross_round_history() -> void:
+	var save_data: Array[String] = []
+	for q in recent_questions:
+		save_data.append(q)
+	var f := FileAccess.open(HISTORY_SAVE_PATH, FileAccess.WRITE)
+	if f:
+		f.store_string(JSON.stringify(save_data))
+		f.close()
+		print("[BufferedProvider] Saved %d cross-round history entries to disk" % save_data.size())
