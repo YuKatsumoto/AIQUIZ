@@ -32,7 +32,7 @@ const CONVEYOR_FLOOR_SHADER: Shader = preload("res://shaders/conveyor_belt_floor
 # --- Conveyor Constants ---
 const FLOOR_HALF_WIDTH: float = 12.0
 const FLOOR_TOP_Y: float = -1.2
-const FLOOR_RAIL_HEIGHT: float = 0.26
+const FLOOR_RAIL_HEIGHT: float = 0.26 
 const FLOOR_RAIL_WIDTH: float = 0.16
 const FLOOR_RAIL_INSET: float = 0.06
 const CONVEYOR_BELT_BASE_COLOR := Color(0.40, 0.41, 0.42, 1.0)
@@ -81,10 +81,11 @@ func _process(dt: float) -> void:
 		# 壁を+Z方向（カメラ手前方向）へ移動
 		wall.position.z += move_dist
 		
-		# 崖 (Z=8.0) に到達したら物理落下させる
+		# 崖 (Z=8.0) に到達したら粉々にする
 		if wall.position.z >= 8.0:
-			if wall.has_method("fall_off_cliff"):
-				wall.fall_off_cliff(_preview_speed)
+			if wall.has_method("shatter_wall"):
+				wall.shatter_wall(1.0) # 設定画面は壁が+Zに動くため、+Z方向へ飛ばす
+			wall.queue_free()
 			_preview_walls.remove_at(i)
 			
 	# 新しい壁を生成するための距離計算
@@ -439,16 +440,7 @@ func _build_3d_preview() -> void:
 	for i in range(3):
 		_spawn_preview_wall(start_z + i * WALL_SPACING)
 	
-	# プレイヤー代わりのダミーボックス（位置参照用）
-	var player_dummy := MeshInstance3D.new()
-	var box_mesh := BoxMesh.new()
-	box_mesh.size = Vector3(0.6, 1.8, 0.6)
-	player_dummy.mesh = box_mesh
-	var player_mat := StandardMaterial3D.new()
-	player_mat.albedo_color = Color(0.3, 0.7, 1.0)
-	player_dummy.material_override = player_mat
-	player_dummy.position = Vector3(0, 0.0, 0)
-	_sub_viewport.add_child(player_dummy)
+
 
 func _spawn_preview_wall(z_pos: float) -> void:
 	var dummy_quiz := QuizItem.new()
@@ -513,6 +505,16 @@ func _setup_conveyor_extras() -> void:
 	roller_front.material_override = _conveyor_roller_front_material
 	roller_front.rotation = Vector3(0.0, 0.0, PI * 0.5)
 	roller_front.position = Vector3(0.0, roller_center_y, front_z)
+	var body_f := StaticBody3D.new()
+	body_f.collision_layer = 1
+	body_f.collision_mask = 0
+	var col_f := CollisionShape3D.new()
+	var shape_f := CylinderShape3D.new()
+	shape_f.radius = CONVEYOR_ROLLER_RADIUS
+	shape_f.height = CONVEYOR_ROLLER_LENGTH
+	col_f.shape = shape_f
+	body_f.add_child(col_f)
+	roller_front.add_child(body_f)
 	_sub_viewport.add_child(roller_front)
 	
 	# 2. リターンベルト (ローラーの下を通る折り返し)

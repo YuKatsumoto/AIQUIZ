@@ -17,8 +17,9 @@ const HAT_FROG := 10
 const HAT_PROPELLER := 11
 const HAT_FOX := 12
 const HAT_CHICKEN := 13
+const HAT_BOUSI := 14
 
-const HAT_COUNT := 14
+const HAT_COUNT := 15
 
 static func get_hat_list() -> Array[Dictionary]:
 	return [
@@ -36,6 +37,7 @@ static func get_hat_list() -> Array[Dictionary]:
 		{"id": HAT_PROPELLER, "name": "プロペラ帽",     "icon": "🌀", "desc": "ぶんぶん回る！"},
 		{"id": HAT_FOX,       "name": "キツネ帽",       "icon": "🦊", "desc": "コンコン！もふもふ"},
 		{"id": HAT_CHICKEN,   "name": "チキン",         "icon": "🐔", "desc": "コケコッコー！"},
+		{"id": HAT_BOUSI,     "name": "ぼうし",         "icon": "🧢", "desc": "おしゃれな帽子！"},
 	]
 
 static func get_hat_name(hat_id: int) -> String:

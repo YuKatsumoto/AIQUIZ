@@ -65,6 +65,18 @@ func get_env(key: String, default_val: String = "") -> String:
 		return os_val
 	if env_vars.has(key):
 		return env_vars[key]
+		
+	# Fallbacks for running without .env
+	match key:
+		"PROXY_URL": return "https://aiquiz-proxy-818033448758.asia-northeast1.run.app"
+		"APP_SECRET": return "PEkewaUv6Irgmb8t1zCFMR9Y0Qlo3jOx7hfAyGZiDs2dT4JnBLN5HWcuVpqXKS"
+		"FIREBASE_DB_URL": return "https://aiquiz-a12f6-default-rtdb.asia-southeast1.firebasedatabase.app"
+		"FIREBASE_RATINGS_PATH": return "quiz_ratings/shared"
+		"OPENAI_MODEL": return "gpt-4o"
+		"OPENAI_FAST_MODEL": return "gpt-4o-mini"
+		"GEMINI_MODEL": return "gemini-3-flash-preview"
+		"GEMINI_IMAGE_MODEL": return "gemini-2.5-flash-image"
+		
 	return default_val
 
 func get_proxy_headers() -> PackedStringArray:

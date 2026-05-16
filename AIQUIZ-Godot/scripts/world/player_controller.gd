@@ -36,6 +36,10 @@ var _time: float = 0.0
 const BASE_Y: float = -1.2
 var _rig_debug_counter: int = 0
 
+# ボブルヘッド（赤ベコ）バネ物理状態
+var _p1_bobble: Dictionary = {"active": false, "vel_x": 0.0, "vel_z": 0.0, "angle_x": 0.0, "angle_z": 0.0, "prev_head_y": 0.0, "prev_pos_x": 0.0}
+var _p2_bobble: Dictionary = {"active": false, "vel_x": 0.0, "vel_z": 0.0, "angle_x": 0.0, "angle_z": 0.0, "prev_head_y": 0.0, "prev_pos_x": 0.0}
+
 func _ready() -> void:
 	p1_parts = _build_player_skeleton(true, self)
 	_load_mixamo_rig()
@@ -426,12 +430,18 @@ func _create_box(half_extents: Vector3, color: Color) -> MeshInstance3D:
 
 	return mesh_inst
 
+var _run_phase: float = 0.0
+
 func _process(dt: float) -> void:
 	_time += dt
+	var gs = QuizManager.game_state
+	var speed: float = gs._active_wall_speed if gs else 3.5
+	_run_phase += dt * 8.0 * (speed / 3.5)
 
 func update_from_state(gs: QuizGameState) -> void:
 	var pz: float = gs.player_z
-	var walk_phase: float = _time * 8.0
+	var walk_phase: float = _run_phase
+	var speed_ratio: float = clampf(gs._active_wall_speed / 3.5, 0.3, 3.0)
 
 	# Ensure P2 is created if needed
 	if gs.num_players >= 2 and p2_container == null:
@@ -461,8 +471,13 @@ func update_from_state(gs: QuizGameState) -> void:
 			
 			if apply_rig:
 				_apply_skeleton_pose(p1_parts, _p1_rig.active_skeleton, _p1_rig.active_bone_indices, _p1_rig.mirror_x)
+				var run_ap := _p1_rig.aps[1] as AnimationPlayer # SLOT_RUN
+				if run_ap and run_ap.is_playing():
+					run_ap.speed_scale = speed_ratio
 			else:
 				_animate_skeleton(p1_parts, gs.player_y, gs.player_vel_y, false, walk_phase, false, 0)
+			# FBXリグモードでもボブルヘッドを更新
+			_update_bobblehead(p1_parts, false, is_active, walk_phase)
 	elif gs.game_over_timer > 0:
 		if gs.game_over_timer < 2.0:
 			_set_parts_visible(p1_parts, true)
@@ -505,8 +520,13 @@ func update_from_state(gs: QuizGameState) -> void:
 				
 				if apply_rig:
 					_apply_skeleton_pose(p2_parts, _p2_rig.active_skeleton, _p2_rig.active_bone_indices, _p2_rig.mirror_x)
+					var run_ap := _p2_rig.aps[1] as AnimationPlayer # SLOT_RUN
+					if run_ap and run_ap.is_playing():
+						run_ap.speed_scale = speed_ratio
 				else:
 					_animate_skeleton(p2_parts, gs.player2_y, gs.player2_vel_y, false, walk_phase * 1.1, true, 0)
+				# FBXリグモードでもボブルヘッドを更新
+				_update_bobblehead(p2_parts, true, is_active, walk_phase * 1.1)
 		elif gs.player2_game_over_timer > 0:
 			if gs.player2_game_over_timer < 2.0:
 				_set_parts_visible(p2_parts, true)
@@ -685,17 +705,57 @@ func _animate_skeleton(parts: Dictionary, py: float, vy: float, is_playing: bool
 				l_wrist.rotation.x = sin(phase + 0.4) * 0.15
 				r_wrist.rotation.x = sin(phase + 0.4 + PI) * 0.15
 		
-		# Hat sway animation (subtle lag behind head movement)
-		if parts.has("hat_mount") and parts["hat_mount"] != null:
-			var hat_m: Node3D = parts["hat_mount"]
-			if is_playing:
-				# Slight delayed sway opposite to running motion
-				var hat_sway_x := sin(phase + 0.3) * 0.06  # Forward/back lag
-				var hat_sway_z := sin(phase * 0.7 + 0.5) * 0.04  # Side sway
-				hat_m.rotation.x = hat_sway_x
-				hat_m.rotation.z = hat_sway_z
-			else:
-				hat_m.rotation = Vector3.ZERO
+		# Hat sway animation
+		_update_bobblehead(parts, is_p2, is_playing, phase)
+
+func _update_bobblehead(parts: Dictionary, is_p2: bool, is_playing: bool, phase: float) -> void:
+	"""帽子のボブルヘッド/スウェイアニメーション更新（_animate_skeletonとFBXリグの両方から呼ばれる）"""
+	if not parts.has("hat_mount") or parts["hat_mount"] == null:
+		return
+	var hat_m: Node3D = parts["hat_mount"]
+	var bobble: Dictionary = _p1_bobble if not is_p2 else _p2_bobble
+	
+	if bobble["active"]:
+		# 赤ベコモード: バネ物理で首を揺らす
+		var spring_k: float = 18.0
+		var damping: float = 3.5
+		var max_angle: float = 0.4
+		var delta: float = get_process_delta_time()
+		
+		var head_pivot: Node3D = parts.get("head_pivot", null)
+		var force_x: float = 0.0
+		var force_z: float = 0.0
+		
+		if head_pivot:
+			var current_head_rot: float = head_pivot.rotation.x
+			var head_delta: float = current_head_rot - float(bobble["prev_head_y"])
+			bobble["prev_head_y"] = current_head_rot
+			force_x += head_delta * 8.0
+		
+		if is_playing:
+			force_x += sin(phase * 2.0) * 0.8
+			force_z += cos(phase * 1.3) * 0.5
+		
+		var accel_x: float = -spring_k * float(bobble["angle_x"]) - damping * float(bobble["vel_x"]) + force_x * 6.0
+		var accel_z: float = -spring_k * float(bobble["angle_z"]) - damping * float(bobble["vel_z"]) + force_z * 6.0
+		bobble["vel_x"] = float(bobble["vel_x"]) + accel_x * delta
+		bobble["vel_z"] = float(bobble["vel_z"]) + accel_z * delta
+		bobble["angle_x"] = float(bobble["angle_x"]) + float(bobble["vel_x"]) * delta
+		bobble["angle_z"] = float(bobble["angle_z"]) + float(bobble["vel_z"]) * delta
+		
+		bobble["angle_x"] = clampf(float(bobble["angle_x"]), -max_angle, max_angle)
+		bobble["angle_z"] = clampf(float(bobble["angle_z"]), -max_angle, max_angle)
+		
+		hat_m.rotation.x = float(bobble["angle_x"])
+		hat_m.rotation.z = float(bobble["angle_z"])
+	elif is_playing:
+		var hat_sway_x := sin(phase + 0.3) * 0.06
+		var hat_sway_z := sin(phase * 0.7 + 0.5) * 0.04
+		hat_m.rotation.x = hat_sway_x
+		hat_m.rotation.z = hat_sway_z
+	else:
+		if not bobble["active"]:
+			hat_m.rotation = Vector3.ZERO
 
 func _animate_struggle(parts: Dictionary, timer: float) -> void:
 	var pelvis: Node3D = parts["pelvis"]
@@ -872,6 +932,7 @@ func _init_explosion(parts: Dictionary, is_p1: bool) -> void:
 			"node": mesh,
 			"base_pos": mesh.position,
 			"base_rot": mesh.rotation,
+			"base_scale": mesh.scale,
 			"velocity": vel,
 			"rot_velocity": rot_vel,
 			"groove_offset": randf_range(-0.42, 0.42)
@@ -898,6 +959,7 @@ func _update_explosion(
 		var node: MeshInstance3D = d["node"]
 		var base: Vector3 = d["base_pos"]
 		var brot: Vector3 = d["base_rot"]
+		var bscale: Vector3 = d.get("base_scale", Vector3.ONE)
 		var vel: Vector3 = d["velocity"]
 		var rot_vel: Vector3 = d["rot_velocity"]
 		
@@ -918,9 +980,9 @@ func _update_explosion(
 			
 			# 繝槭げ繝槭↓豬ｸ縺九ｋ縺ｨ繧ｹ繧ｱ繝ｼ繝ｫ繧貞ｰ代＠縺壹▽蟆上＆縺上＠縺ｦ貅ｶ縺代ｋ貍泌・縺ｫ縺吶ｋ
 			var shrink = maxf(0.0, 1.0 - (depth * 0.1))
-			node.scale = Vector3(shrink, shrink, shrink)
+			node.scale = bscale * shrink
 		else:
-			node.scale = Vector3.ONE
+			node.scale = bscale
 		
 		ey = maxf(limit_y, ey)
 		
@@ -1175,6 +1237,14 @@ func _set_hat_for_parts(parts: Dictionary, hat_id: int, is_p1: bool) -> void:
 	# Collect hat meshes for explosion
 	var hat_meshes := HatFactory.get_hat_meshes(hat_node)
 	parts["hat_meshes"] = hat_meshes
+	
+	# ボブルヘッドフラグを設定
+	var bobble: Dictionary = _p1_bobble if is_p1 else _p2_bobble
+	bobble["active"] = HatFactory.is_bobblehead(hat_id)
+	bobble["vel_x"] = 0.0
+	bobble["vel_z"] = 0.0
+	bobble["angle_x"] = 0.0
+	bobble["angle_z"] = 0.0
 	
 	if is_p1:
 		_p1_hat_node = hat_node

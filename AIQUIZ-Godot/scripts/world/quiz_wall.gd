@@ -11,10 +11,7 @@ var is_boss: bool = false
 var boss_label: Label3D = null
 var boss_sparks: Array[CPUParticles3D] = []
 
-var _is_falling: bool = false
-var _fall_velocity: Vector3 = Vector3.ZERO
-var _fall_angular_velocity: Vector3 = Vector3.ZERO
-var _fall_timer: float = 0.0
+
 
 # Door colors
 const DOOR_COLORS_2 := [
@@ -39,38 +36,7 @@ var _current_num_choices: int = 2
 func _ready() -> void:
 	_build_doors(2)
 
-func _process(delta: float) -> void:
-	if not _is_falling:
-		return
-	
-	# 重力を適用
-	_fall_velocity.y -= 9.8 * 1.5 * delta
-	
-	# 位置を更新
-	position += _fall_velocity * delta
-	
-	# 回転を更新（不規則な回転）
-	rotation += _fall_angular_velocity * delta
-	
-	# タイマーで自動削除
-	_fall_timer += delta
-	if _fall_timer >= 4.0:
-		queue_free()
 
-func fall_off_cliff(forward_velocity_z: float = -5.0) -> void:
-	if _is_falling:
-		return
-	_is_falling = true
-	
-	# 初速: 前方への慣性 + わずかな下降
-	_fall_velocity = Vector3(0, -1.0, forward_velocity_z)
-	# ランダムな回転速度で自然な落下感
-	_fall_angular_velocity = Vector3(
-		(randf() - 0.5) * 1.5,
-		(randf() - 0.5) * 1.0,
-		(randf() - 0.5) * 1.5
-	)
-	_fall_timer = 0.0
 
 func _build_wall_around_doors(num_choices: int) -> void:
 	# Clear existing wall parts
@@ -353,17 +319,10 @@ func break_door(door_index: int) -> void:
 			chunk.collision_layer = 0
 			chunk.collision_mask = 1
 
-			get_tree().current_scene.add_child(chunk)
+			get_parent().add_child(chunk)
 
-			# Scatter in all directions: sideways, upward, and mixed forward/backward
-			# so shards are visible in both 1P FPS (fly past the player) and 2P top-down
-			var scatter_z: float
-			if randf() < 0.4:
-				# 40% fly backward (toward the player / camera) for FPS visibility
-				scatter_z = randf_range(3.0, 8.0)
-			else:
-				# 60% fly forward (through the door opening)
-				scatter_z = -randf_range(2.0, 7.0)
+			# 後方に飛ばす（画面奥側、-Z方向）
+			var scatter_z: float = randf_range(-15.0, -5.0)
 
 			var impulse := Vector3(
 				(randf() - 0.5) * 10.0,  # wide sideways scatter
@@ -377,13 +336,11 @@ func break_door(door_index: int) -> void:
 				(randf() - 0.5) * 12.0
 			))
 
-			# Auto-cleanup after 3 seconds
-			var timer := Timer.new()
-			timer.wait_time = 3.0
-			timer.one_shot = true
-			timer.autostart = true
-			chunk.add_child(timer)
-			timer.timeout.connect(chunk.queue_free)
+			# 縮小しながら消滅する演出
+			var tween := chunk.create_tween()
+			tween.tween_interval(1.5) # 1.5秒間はそのまま
+			tween.tween_property(mesh_inst, "scale", Vector3.ZERO, 1.0).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+			tween.tween_callback(chunk.queue_free)
 
 func _create_box(half_extents: Vector3, color: Color) -> MeshInstance3D:
 	var mesh_inst := MeshInstance3D.new()
@@ -420,3 +377,85 @@ func _create_label() -> Label3D:
 		label.font = font
 
 	return label
+
+func shatter_wall(direction_z: float = -1.0) -> void:
+	for part in wall_parts:
+		if is_instance_valid(part) and part.visible:
+			_shatter_mesh(part, direction_z)
+			part.visible = false
+	for door in doors:
+		if is_instance_valid(door) and door.visible:
+			_shatter_mesh(door, direction_z)
+			door.visible = false
+	for label in door_labels:
+		if is_instance_valid(label):
+			label.visible = false
+	if is_instance_valid(boss_label):
+		boss_label.visible = false
+
+func _shatter_mesh(mesh_inst: MeshInstance3D, direction_z: float) -> void:
+	if not is_instance_valid(mesh_inst): return
+	var box := mesh_inst.mesh as BoxMesh
+	if not box: return
+	
+	var base_color := WALL_COLOR
+	if mesh_inst.material_override and mesh_inst.material_override is StandardMaterial3D:
+		base_color = (mesh_inst.material_override as StandardMaterial3D).albedo_color
+		
+	var size := box.size
+	var pos := mesh_inst.global_position
+	
+	var chunks_x := maxi(1, ceili(size.x / 1.5))
+	var chunks_y := maxi(1, ceili(size.y / 1.5))
+	var chunk_size := Vector3(size.x / chunks_x, size.y / chunks_y, size.z)
+	
+	for cx: int in range(chunks_x):
+		for cy: int in range(chunks_y):
+			var chunk := RigidBody3D.new()
+			chunk.mass = 0.5
+			chunk.gravity_scale = 1.8
+			chunk.collision_layer = 0
+			chunk.collision_mask = 1
+			
+			var col := CollisionShape3D.new()
+			var shape := BoxShape3D.new()
+			var size_variation: float = randf_range(0.7, 0.95)
+			shape.size = chunk_size * size_variation
+			col.shape = shape
+			chunk.add_child(col)
+			
+			var cmi := MeshInstance3D.new()
+			var cbox := BoxMesh.new()
+			cbox.size = chunk_size * size_variation
+			cmi.mesh = cbox
+			var mat := StandardMaterial3D.new()
+			mat.albedo_color = base_color.lerp(Color.WHITE, randf() * 0.2)
+			mat.roughness = 0.6
+			mat.metallic = 0.05
+			cmi.material_override = mat
+			chunk.add_child(cmi)
+			
+			var offset_x: float = (cx - (chunks_x - 1) * 0.5) * chunk_size.x
+			var offset_y: float = (cy - (chunks_y - 1) * 0.5) * chunk_size.y
+			chunk.global_position = pos + Vector3(offset_x, offset_y, 0)
+			
+			get_parent().add_child(chunk)
+			
+			# 進行方向（direction_z）へ爆散させる
+			var impulse_x: float = (randf() - 0.5) * 30.0 # 左右への強い散らばり
+			var impulse_y: float = randf_range(5.0, 25.0) # 上方向への強い吹き飛ばし
+			var impulse_z: float = randf_range(10.0, 40.0) * direction_z # 指定方向へ大きく飛ばす
+			
+			var impulse := Vector3(impulse_x, impulse_y, impulse_z)
+			chunk.apply_impulse(impulse)
+			chunk.apply_torque_impulse(Vector3(
+				(randf() - 0.5) * 40.0,
+				(randf() - 0.5) * 40.0,
+				(randf() - 0.5) * 40.0
+			))
+			
+			# 縮小しながら消滅する演出
+			var tween := chunk.create_tween()
+			tween.tween_interval(1.5)
+			tween.tween_property(cmi, "scale", Vector3.ZERO, 1.0).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+			tween.tween_callback(chunk.queue_free)

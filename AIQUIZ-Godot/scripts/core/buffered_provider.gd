@@ -79,8 +79,9 @@ func begin_round(subject: String, grade: int, difficulty: String,
 	_explanation_inflight = false
 	_explanation_requested_ids.clear()
 	
-	# ラウンド開始時にオフラインの緊急キャッシュを事前準備（10問・エンドレス共通）
-	_prepare_emergency_cache()
+	# ラウンド開始時にオフラインの緊急キャッシュを事前準備（OFFLINEモードのみ）
+	if llm_mode == "OFFLINE":
+		_prepare_emergency_cache()
 	
 	# ★★★ 速度最適化: ポーリング待ちを廃止し、即座に最初のリクエストを発火 ★★★
 	_fire_immediate_fetch()
@@ -234,8 +235,8 @@ func get_quizzes(_subject: String, _grade: int, _difficulty: String,
 		if inflight > 0:
 			# リクエスト中なので何も返さない → game_state がPRELOADINGに遷移して待つ
 			pass
-		elif _emergency_cache.size() > 0:
-			# リクエストもゼロ、バッファも空 → 最後の手段としてオフライン緊急キャッシュ
+		elif llm_mode == "OFFLINE" and _emergency_cache.size() > 0:
+			# OFFLINEモードのみ: 緊急キャッシュから問題を提供
 			var needed_from_cache := maxi(1, count - out.size())
 			for _i in range(mini(needed_from_cache, _emergency_cache.size())):
 				out.append(_emergency_cache.pop_front())

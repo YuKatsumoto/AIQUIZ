@@ -551,12 +551,32 @@ func _setup_conveyor_loop_geometry() -> void:
 	_conveyor_roller_front.mesh = roller_mesh
 	_conveyor_roller_front.material_override = _conveyor_roller_front_material
 	_conveyor_roller_front.rotation = Vector3(0.0, 0.0, PI * 0.5)
+	var body_f := StaticBody3D.new()
+	body_f.collision_layer = 1
+	body_f.collision_mask = 0
+	var col_f := CollisionShape3D.new()
+	var shape_f := CylinderShape3D.new()
+	shape_f.radius = CONVEYOR_ROLLER_RADIUS
+	shape_f.height = CONVEYOR_ROLLER_LENGTH
+	col_f.shape = shape_f
+	body_f.add_child(col_f)
+	_conveyor_roller_front.add_child(body_f)
 	add_child(_conveyor_roller_front)
 
 	_conveyor_roller_back = MeshInstance3D.new()
 	_conveyor_roller_back.mesh = roller_mesh
 	_conveyor_roller_back.material_override = _conveyor_roller_back_material
 	_conveyor_roller_back.rotation = Vector3(0.0, 0.0, PI * 0.5)
+	var body_b := StaticBody3D.new()
+	body_b.collision_layer = 1
+	body_b.collision_mask = 0
+	var col_b := CollisionShape3D.new()
+	var shape_b := CylinderShape3D.new()
+	shape_b.radius = CONVEYOR_ROLLER_RADIUS
+	shape_b.height = CONVEYOR_ROLLER_LENGTH
+	col_b.shape = shape_b
+	body_b.add_child(col_b)
+	_conveyor_roller_back.add_child(body_b)
 	add_child(_conveyor_roller_back)
 
 	var return_mesh := BoxMesh.new()
@@ -729,12 +749,12 @@ func _update_player() -> void:
 	if pc:
 		pc.update_from_state(game_state)
 		
-		# Apply hats when game starts (2P mode)
-		if not _hats_applied and game_state.num_players >= 2:
-			if pc.p2_container != null:
-				pc.set_hat(1, game_state.p1_hat)
+		# Apply hats when game starts
+		if not _hats_applied:
+			pc.set_hat(1, game_state.p1_hat)
+			if game_state.num_players >= 2 and pc.p2_container != null:
 				pc.set_hat(2, game_state.p2_hat)
-				_hats_applied = true
+			_hats_applied = true
 
 func _update_flyover() -> void:
 	if game_state.game_state == Constants.STATE_FLYOVER:
@@ -800,16 +820,14 @@ func _update_walls() -> void:
 			to_remove.append(wall)
 	for wall: Node3D in to_remove:
 		_active_walls.erase(wall)
-		if wall.has_method("fall_off_cliff"):
-			var idx: int = wall.get_meta("wall_index") as int
-			var wz: float = t.wall_start_z + idx * t.wall_spacing
-			var local_z: float = wz - game_state.world_scroll_z
-			if local_z <= game_state.FLOOR_BACK_Z + 0.1:
-				wall.fall_off_cliff()
-			else:
-				wall.queue_free()
-		else:
-			wall.queue_free()
+		var idx: int = wall.get_meta("wall_index") as int
+		var wz: float = t.wall_start_z + idx * t.wall_spacing
+		var local_z: float = wz - game_state.world_scroll_z
+		if local_z <= game_state.FLOOR_BACK_Z + 0.1:
+			if wall.has_method("shatter_wall"):
+				wall.shatter_wall()
+		wall.queue_free()
+
 
 	# Add walls that are missing
 	var existing_indices: Array[int] = []
@@ -1201,10 +1219,10 @@ func _update_preview_walls(dt: float) -> void:
 
 		_pw_count += 1
 
-	# ── マージアニメーション順次開始（0.3秒間隔）──
+	# ── マージアニメーション順次開始（0.15秒間隔）──
 	# 配列順 = 奥→手前（逆マッピング済み）なので、index 0 から順に開始
 	var is_offline: bool = QuizManager.provider.llm_mode == "OFFLINE"
-	var merge_interval: float = 0.15 if is_offline else 0.3
+	var merge_interval: float = 0.15 # オンライン・オフライン問わず爆速で開始
 	var total_walls: int = _pw_anims.size()
 	if total_walls > 0:
 		var all_started: bool = true
@@ -1232,8 +1250,8 @@ func _update_preview_walls(dt: float) -> void:
 				_pw_merge_timer -= merge_interval
 
 	# アニメーション更新
-	var slide_duration: float = 0.125 if is_offline else 0.25
-	var flash_duration: float = 0.175 if is_offline else 0.35
+	var slide_duration: float = 0.125 # 常に最速
+	var flash_duration: float = 0.175
 	# 画面外（遠く）から飛んでくるように開始位置を拡張
 	const SLIDE_START_X: float = 150.0
 
@@ -1263,6 +1281,11 @@ func _update_preview_walls(dt: float) -> void:
 				_pw_walls[i].visible = true
 				_pw_walls[i].scale = Vector3(1.15, 1.15, 1.15)
 				_spawn_merge_sparks(_pw_walls[i].global_position)
+				
+				# カメラに近づくほど強い振動を発生させる (全体的に振動を強化)
+				var dist_z = absf(_pw_walls[i].global_position.z - camera_controller.global_position.z)
+				var shake_power = clampf(40.0 / maxf(1.0, dist_z), 0.2, 1.6)
+				game_state.camera_shake = maxf(game_state.camera_shake, shake_power)
 
 		elif phase == 2:
 			var p: float = clampf(t_val / flash_duration, 0.0, 1.0)
