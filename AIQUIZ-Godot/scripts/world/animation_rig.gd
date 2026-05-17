@@ -137,3 +137,11 @@ func is_jump_playing() -> bool:
 	"""ジャンプAPが再生中かどうか"""
 	var ap = aps[SLOT_JUMP] as AnimationPlayer
 	return ap != null and ap.is_playing()
+
+func is_emote_playing() -> bool:
+	"""エモート再生中かどうか"""
+	for slot in [SLOT_TAUNT, SLOT_GANGNAM, SLOT_SLIDE, SLOT_FLAIR]:
+		var ap = aps[slot] as AnimationPlayer
+		if ap and ap.is_playing():
+			return true
+	return false

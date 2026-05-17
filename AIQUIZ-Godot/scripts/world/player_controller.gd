@@ -973,12 +973,12 @@ func _update_explosion(
 			groove_pull = 1.0 - pow(1.0 - groove_pull, 2.0)
 			ex = lerpf(ex, groove_local_x + float(d.get("groove_offset", 0.0)), groove_pull)
 		
-		# 繝槭げ繝槭↓關ｽ縺｡縺溷ｴ蜷医・蜃ｦ逅・ｼ壹・繧ｰ繝櫁｡ｨ髱｢(-9.2)繧医ｊ荳九・豐医∩霎ｼ縺ｿ繧偵ｆ縺｣縺上ｊ縺ｫ縺吶ｋ
+		# Magma sink logic: slow down falling and shrink fragments
 		if should_sink and ey < magma_surface:
 			var depth = magma_surface - ey
-			ey = magma_surface - (depth * 0.05) # 豐磯剄騾溷ｺｦ繧帝≦繧峨○繧・
+			ey = magma_surface - (depth * 0.05) # Slower sink velocity
 			
-			# 繝槭げ繝槭↓豬ｸ縺九ｋ縺ｨ繧ｹ繧ｱ繝ｼ繝ｫ繧貞ｰ代＠縺壹▽蟆上＆縺上＠縺ｦ貅ｶ縺代ｋ貍泌・縺ｫ縺吶ｋ
+			# Shrink fragments over time when sunk
 			var shrink = maxf(0.0, 1.0 - (depth * 0.1))
 			node.scale = bscale * shrink
 		else:
@@ -1101,7 +1101,7 @@ func _apply_skeleton_pose(parts: Dictionary, skeleton: Skeleton3D, bone_indices:
 	if bone_indices.has("hips"):
 		var bone_xform = skeleton.get_bone_global_pose(bone_indices["hips"])
 		
-		# 蜑埼ｲ繝ｻ蠕碁縺ｮ繝ｫ繝ｼ繝医Δ繝ｼ繧ｷ繝ｧ繝ｳ繧堤┌蜉ｹ蛹悶＠縲〆霆ｸ・井ｸ贋ｸ九・謠ｺ繧鯉ｼ峨・縺ｿ驕ｩ逕ｨ
+		# 蜑埼€ｲ繝ｻ蠕碁€€縺ｮ繝ｫ繝ｼ繝医Δ繝ｼ繧ｷ繝ｧ繝ｳ繧堤┌蜉ｹ蛹悶＠縲〆霆ｸ・井ｸ贋ｸ九・謠ｺ繧鯉ｼ峨・縺ｿ驕ｩ逕ｨ
 		pelvis.position = Vector3(
 			0.0,
 			BASE_Y + bone_xform.origin.y,
@@ -1125,7 +1125,7 @@ func _apply_skeleton_pose(parts: Dictionary, skeleton: Skeleton3D, bone_indices:
 				new_basis = mirror_matrix * new_basis * mirror_matrix
 				
 			if flip:
-				# X霆ｸ蜻ｨ繧翫↓180蠎ｦ蝗櫁ｻ｢縺励・Y譁ｹ蜷代′鬪ｨ縺ｮ+Y譁ｹ蜷代→荳閾ｴ縺吶ｋ繧医≧縺ｫ縺吶ｋ
+				# X霆ｸ蜻ｨ繧翫↓180蠎ｦ蝗櫁ｻ｢縺励€・Y譁ｹ蜷代′鬪ｨ縺ｮ+Y譁ｹ蜷代→荳€閾ｴ縺吶ｋ繧医≧縺ｫ縺吶ｋ
 				new_basis = new_basis * Basis(Vector3.RIGHT, PI)
 			node.global_basis = new_basis
 	

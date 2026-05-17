@@ -79,15 +79,17 @@ func begin_round(subject: String, grade: int, difficulty: String,
 	_explanation_inflight = false
 	_explanation_requested_ids.clear()
 	
-	# ラウンド開始時にオフラインの緊急キャッシュを事前準備（OFFLINEモードのみ）
-	if llm_mode == "OFFLINE":
-		_prepare_emergency_cache()
+	# ラウンド開始時にオフラインの緊急キャッシュを事前準備（オンライン時もフォールバックとして使用）
+	_prepare_emergency_cache()
 	
 	# ★★★ 速度最適化: ポーリング待ちを廃止し、即座に最初のリクエストを発火 ★★★
 	_fire_immediate_fetch()
 
 func end_round() -> void:
 	is_active_round = false
+	if is_instance_valid(online_fetcher) and online_fetcher.has_method("cancel_all"):
+		online_fetcher.cancel_all()
+	inflight = 0
 	# プレイ中に出題した問題を recent_questions にマージして次のラウンドに引き継ぐ
 	for q in play_history:
 		if q not in recent_questions:
@@ -105,17 +107,25 @@ func submit_result(quiz: QuizItem, _correct: bool) -> void:
 			play_history.pop_front()
 
 ## エンドレスモードのバッファ目標サイズ
-## 15問を確保 — 1問5秒でプレイしても75秒分のストック
+## 序盤は過剰生成を防ぐため小さく(3)、長く生き残れば最大(6)まで拡張
 func _target_buffer_size() -> int:
-	return 10 if current_mode == Constants.MODE_TEN else 15
+	if current_mode == Constants.MODE_TEN:
+		return 10
+	else:
+		if yielded_count < 3:
+			return 3
+		elif yielded_count < 10:
+			return 4
+		else:
+			return 6
 
 ## 補充リクエストを飛ばすべきかの判定
 func _worker_should_fill() -> bool:
 	if not is_active_round:
 		return false
-	# エンドレスモード: 最大4つの同時リクエスト
 	# 10問モード: fetch_quiz_parallel内部で4並列管理するのでproviderレベルは1で十分
-	var max_inflight: int = 4 if current_mode == Constants.MODE_ENDLESS else 1
+	# エンドレスモードでも内部で5並列管理しているため1で十分
+	var max_inflight: int = 1
 	if inflight >= max_inflight:
 		return false
 	var per_batch_estimate: int = 15  # 4バッチ×4問 − dedup ≈ 15問期待
@@ -138,10 +148,10 @@ func _on_poll() -> void:
 		return
 	
 	inflight += 1
-	# エンドレス: 7問ずつ、10問モード: 残り必要数を一括リクエスト
 	var fetch_count: int
 	if current_mode == Constants.MODE_ENDLESS:
-		fetch_count = 7
+		# 目標バッファサイズを満たすための必要最小限のみをリクエスト (最小1)
+		fetch_count = maxi(1, _target_buffer_size() - buffer.size())
 	else:
 		fetch_count = clampi(target_count - yielded_count - buffer.size(), 2, 10)
 		
@@ -231,18 +241,19 @@ func get_quizzes(_subject: String, _grade: int, _difficulty: String,
 	
 	# バッファが空の場合の処理（10問・エンドレス共通）
 	if out.is_empty():
-		# オンラインリクエストが処理中 → 空を返してPRELOADING待ちにさせる
-		if inflight > 0:
-			# リクエスト中なので何も返さない → game_state がPRELOADINGに遷移して待つ
-			pass
-		elif llm_mode == "OFFLINE" and _emergency_cache.size() > 0:
-			# OFFLINEモードのみ: 緊急キャッシュから問題を提供
+		# 緊急キャッシュがあれば、オンラインのリクエスト待ちであっても即座に提供（フォールバック）
+		if _emergency_cache.size() > 0:
 			var needed_from_cache := maxi(1, count - out.size())
 			for _i in range(mini(needed_from_cache, _emergency_cache.size())):
-				out.append(_emergency_cache.pop_front())
+				var eq = _emergency_cache.pop_front()
+				eq.src = "OFFLINE_FALLBACK" # 判別用にマーク
+				out.append(eq)
 			print("[BufferedProvider] Emergency cache used! Gave %d, Remaining: %d" % [out.size(), _emergency_cache.size()])
 			if _emergency_cache.size() < 3:
 				_prepare_emergency_cache()
+		elif inflight > 0:
+			# キャッシュも無くリクエスト中の場合は何も返さず PRELOADING 待ちにさせる
+			pass
 	
 	yielded_count += out.size()
 	return out

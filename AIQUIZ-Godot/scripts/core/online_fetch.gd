@@ -818,6 +818,7 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 	var is_ten_mode := count >= 6 or force_ten_mode  # 6問以上、または強制フラグで10問モード扱い
 	
 	var unique_seen := {}
+	var answer_seen := {}  # 正解テキスト → 問題文 のマップ（同じ正解の問題を検出）
 	
 	# 案5: 難易度に応じた temperature
 	var temperature := get_temperature_for_difficulty(difficulty)
@@ -846,7 +847,19 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 						break
 				if is_dup:
 					continue
+				# 正解テキストベースの重複チェック: 同じ正解 + 問題文も似ている → 重複
+				var correct_text := ""
+				if q.a >= 0 and q.a < q.c.size():
+					correct_text = q.c[q.a]
+				if not correct_text.is_empty() and answer_seen.has(correct_text):
+					var prev_q: String = answer_seen[correct_text]
+					# 正解が同じで、問題文のコア概念も似ている場合は重複
+					if _extract_core_concept(q.q).similarity(_extract_core_concept(prev_q)) > 0.40:
+						print("[OnlineFetch] Dedup blocked (same answer + similar concept): '%s' answer='%s'" % [q.q.left(30), correct_text])
+						continue
 				unique_seen[q.q] = true
+				if not correct_text.is_empty():
+					answer_seen[correct_text] = q.q
 				unique_items.append(q)
 				
 			if unique_items.size() > 0:
@@ -899,10 +912,12 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 				print("[OnlineFetch] 10-question mode - batch %d/%d: requesting %d questions%s" % [i+1, TEN_PARALLEL, per_batch, proxy_msg])
 				_fetch_gemini_target(prompt, ApiStatusAutoload.gemini_model, temperature, on_complete)
 	else:
-		# ═══ エンドレスモード: 並列リクエストで速度重視 ═══
-		const NUM_PARALLEL: int = 5
-		var per_call: int = maxi(2, ceili(float(count) / float(NUM_PARALLEL)))
-		var expected_ref := [NUM_PARALLEL]
+		# ═══ エンドレスモード: 必要なだけ細かくリクエスト ═══
+		# 過剰な並列リクエストによるコストを防ぐため、最小限の並列数（バッチ）でリクエストする
+		# count は不足分（通常1〜4程度）。バッチあたり最大3問として並列数を決める
+		var parallel_count: int = clampi(ceili(float(count) / 3.0), 1, 3)
+		var per_call: int = maxi(1, ceili(float(count) / float(parallel_count)))
+		var expected_ref := [parallel_count]
 		var completed_ref := [0]
 		
 		var timer := get_tree().create_timer(30.0)
@@ -922,13 +937,17 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 			"テーマE: この学年の学習内容のうち、最も難易度が高い問題"
 		]
 		
-		for i in range(NUM_PARALLEL):
+		for i in range(parallel_count):
 			var extra_history: Array[String] = history.duplicate()
-			extra_history.append("【並列バッチ制約: この生成では必ず『%s』の傾向を中心に出題し、他のバッチと内容が被るのを防いでください】" % themes[i % themes.size()])
+			extra_history.append("【バッチ制約: この生成では必ず『%s』の傾向を中心に出題し、他のバッチと内容が被るのを防いでください】" % themes[i % themes.size()])
 			var prompt := compose_prompt(subject, grade, difficulty, per_call, extra_history, QuizManager.game_state.is_coop_mode())
 			var proxy_msg := " (via AI Gateway)" if not ApiStatusAutoload.get_env("PROXY_URL").is_empty() else ""
-			print("[OnlineFetch] Endless mode - batch %d: requesting %d questions%s" % [i+1, per_call, proxy_msg])
-			_fetch_gemini_target(prompt, ApiStatusAutoload.gemini_model, temperature, on_complete)
+			if is_streaming_available():
+				print("[OnlineFetch] Endless mode - batch %d/%d: STREAMING %d questions%s" % [i+1, parallel_count, per_call, proxy_msg])
+				_fetch_gemini_streaming(prompt, ApiStatusAutoload.gemini_model, temperature, on_complete)
+			else:
+				print("[OnlineFetch] Endless mode - batch %d/%d: requesting %d questions%s" % [i+1, parallel_count, per_call, proxy_msg])
+				_fetch_gemini_target(prompt, ApiStatusAutoload.gemini_model, temperature, on_complete)
 
 ## CurriculumDB から全単元を取得し、batch_count 個のバッチに重複なく振り分ける
 ## 各バッチに「この2問は〇〇と△△の単元から出題せよ」という指示文字列を返す
@@ -980,15 +999,22 @@ func _is_semantically_similar(q1: String, q2: String) -> bool:
 	# 完全一致チェック
 	if q1 == q2:
 		return true
-	# 通常の文字列類似度（GDScript built-in）
-	if q1.similarity(q2) > 0.70:
+	# 通常の文字列類似度（GDScript built-in） — 閾値を下げて言い換えも検出
+	if q1.similarity(q2) > 0.55:
 		return true
+	# コアコンセプト比較: 数値・助詞・構造語をすべて除去した「概念骨格」で比較
+	var core1 := _extract_core_concept(q1)
+	var core2 := _extract_core_concept(q2)
+	if not core1.is_empty() and not core2.is_empty():
+		# 概念骨格の文字列類似度（数値が消えるので表現違いでも高スコアになる）
+		if core1.similarity(core2) > 0.60:
+			return true
 	# キーワード抽出ベースの類似度チェック
 	var kw1 := _extract_keywords(q1)
 	var kw2 := _extract_keywords(q2)
 	if kw1.is_empty() or kw2.is_empty():
 		return false
-	# Jaccard類似度: 共通キーワード / 全キーワードの和集合
+	# Jaccard類似度: 共通キーワード / 全キーワードの和集合 — 閾値を下げて検出感度UP
 	var intersection := 0
 	for k in kw1:
 		if kw2.has(k):
@@ -997,7 +1023,33 @@ func _is_semantically_similar(q1: String, q2: String) -> bool:
 	if union_size == 0:
 		return false
 	var jaccard := float(intersection) / float(union_size)
-	return jaccard > 0.55  # 55%以上のキーワードが一致 → 重複と判定
+	return jaccard > 0.45  # 45%以上のキーワードが一致 → 重複と判定
+
+## 問題文から数値・助詞・構造語をすべて除去し、コア概念だけの文字列を返す
+## 例: 「乾電池2個を使って豆電球を光らせるとき」→「乾電池個使って豆電球光らせるとき」
+func _extract_core_concept(text: String) -> String:
+	var result := ""
+	# 数字（半角・全角）を除去
+	for i in range(text.length()):
+		var c := text[i]
+		# 半角数字
+		if c >= "0" and c <= "9":
+			continue
+		# 全角数字
+		if c in ["０","１","２","３","４","５","６","７","８","９"]:
+			continue
+		result += c
+	# 構造語・助詞・記号を除去
+	var noise := ["は", "の", "が", "を", "に", "で", "と", "も", "へ", "から",
+		"まで", "より", "など", "たり", "って", "です", "ます", "した", "する",
+		"ある", "いる", "なる", "ない", "この", "その", "どの", "どれ",
+		"いくつ", "何", "どう", "とき", "こと", "もの", "ため", "ところ",
+		"一番", "最も", "どの", "どれ", "どちら", "いくら",
+		"？", "。", "、", "「", "」", "（", "）", "＝", "＋", "−", "×", "÷",
+		"?", ".", ",", "(", ")", "=", "+", "-", " ", "　"]
+	for nw: String in noise:
+		result = result.replace(nw, "")
+	return result
 
 ## 問題文からコンテンツキーワードを抽出する
 ## 助詞・構造語・数値を除去して内容の骨格だけを残す
@@ -1509,3 +1561,16 @@ func is_streaming_available() -> bool:
 	if key.is_empty():
 		key = ApiStatusAutoload.get_env("GEMINI_API_KEY")
 	return not key.is_empty()
+
+## 実行中のすべてのリクエスト（ストリーミング含む）をキャンセルし、ノードを破棄する。
+## ゲームオーバー時などにトークン消費を即座に止めるために使用する。
+func cancel_all() -> void:
+	print("[OnlineFetch] Cancelling all active requests...")
+	for child in get_children():
+		if child is HTTPRequest:
+			child.cancel_request()
+			child.queue_free()
+		elif child.has_method("cancel_request"):
+			# GeminiStreamClient 等の独自クライアント対応
+			child.cancel_request()
+			child.queue_free()

@@ -53,6 +53,10 @@ move_right={
 ]
 }
 
+[network]
+
+limits/tcp/connect_timeout_seconds=3
+
 [shader_globals]
 
 psx_affine_strength={

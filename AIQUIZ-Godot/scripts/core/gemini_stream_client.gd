@@ -98,7 +98,7 @@ func start_stream(url: String, headers: PackedStringArray, body: String) -> void
 	# チャンクサイズを大きめに設定して効率化
 	_http.read_chunk_size = 4096
 
-	print("[GeminiStreamClient] Connecting to %s:%d (TLS=%s)..." % [_host, _port, str(_use_tls)])
+	print("[%d] [GeminiStreamClient] Connecting to %s:%d (TLS=%s)..." % [Time.get_ticks_msec(), _host, _port, str(_use_tls)])
 	var err: int
 	if _use_tls:
 		var tls_opts := TLSOptions.client()
@@ -154,7 +154,7 @@ func _handle_connecting(status: int, _now: float) -> void:
 			pass
 		HTTPClient.STATUS_CONNECTED:
 			# 接続完了 → リクエスト送信
-			print("[GeminiStreamClient] Connected, sending request...")
+			print("[%d] [GeminiStreamClient] Connected, sending request..." % Time.get_ticks_msec())
 			var err := _http.request(
 				HTTPClient.METHOD_POST,
 				_path,
@@ -184,7 +184,7 @@ func _handle_requesting(status: int, _now: float) -> void:
 		HTTPClient.STATUS_BODY:
 			# レスポンスのヘッダーを受信し、ボディ受信開始
 			var resp_code := _http.get_response_code()
-			print("[GeminiStreamClient] Response code: %d" % resp_code)
+			print("[%d] [GeminiStreamClient] Response code: %d" % [Time.get_ticks_msec(), resp_code])
 			if resp_code != 200:
 				push_error("[GeminiStreamClient] Non-200 response: %d" % resp_code)
 				# ボディを読んでエラー内容を出力してから終了
@@ -205,7 +205,7 @@ func _handle_headers(status: int, _now: float) -> void:
 	match status:
 		HTTPClient.STATUS_BODY:
 			var resp_code := _http.get_response_code()
-			print("[GeminiStreamClient] Response code (headers): %d" % resp_code)
+			print("[%d] [GeminiStreamClient] Response code (headers): %d" % [Time.get_ticks_msec(), resp_code])
 			if resp_code != 200:
 				push_error("[GeminiStreamClient] Non-200 response: %d" % resp_code)
 			_last_chunk_time = _now
@@ -222,7 +222,7 @@ func _handle_body(status: int, now: float) -> void:
 		_finish(false)
 		return
 
-	if _http.has_response() or status == HTTPClient.STATUS_BODY:
+	if status == HTTPClient.STATUS_BODY:
 		# ボディチャンクを読み取る
 		var chunk := _http.read_response_body_chunk()
 		if chunk.size() > 0:
@@ -243,7 +243,7 @@ func _handle_body(status: int, now: float) -> void:
 		if not _line_buffer.is_empty():
 			_process_sse_line(_line_buffer)
 			_line_buffer = ""
-		print("[GeminiStreamClient] Stream completed. Total text length: %d" % _accumulated_text.length())
+		print("[%d] [GeminiStreamClient] Stream completed. Total text length: %d" % [Time.get_ticks_msec(), _accumulated_text.length()])
 		_finish(true)
 
 

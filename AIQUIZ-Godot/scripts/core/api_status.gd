@@ -11,6 +11,7 @@ var openai_msg: String = "未チェック"
 
 var gemini_key_set: bool = false
 var gemini_model: String = "gemini-3-flash-preview"
+var user_selected_gemini_model: String = ""
 var gemini_status: Variant = null
 var gemini_msg: String = "未チェック"
 
@@ -100,7 +101,10 @@ func _update_config() -> void:
 		gemini_key_set = not g_key.is_empty()
 	
 	openai_model = get_env("OPENAI_MODEL", "gpt-4o")
-	gemini_model = get_env("GEMINI_MODEL", "gemini-3-flash-preview")
+	if user_selected_gemini_model.is_empty():
+		gemini_model = get_env("GEMINI_MODEL", "gemini-3-flash-preview")
+	else:
+		gemini_model = user_selected_gemini_model
 	firebase_configured = not get_env("FIREBASE_DB_URL").is_empty()
 
 func set_offline_count(count: int) -> void:

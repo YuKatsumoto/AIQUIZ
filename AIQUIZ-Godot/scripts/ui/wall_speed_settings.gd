@@ -29,6 +29,15 @@ const WALL_SPACING := 30.0
 const WALL_START_Z := 22.0
 const CONVEYOR_FLOOR_SHADER: Shader = preload("res://shaders/conveyor_belt_floor.gdshader")
 
+# --- Preview Player ---
+const PLAYER_CONTROLLER_SCRIPT: Script = preload("res://scripts/world/player_controller.gd")
+const PREVIEW_PLAYER_X: float = -3.5
+## 2扉時のドア奥行き BoxMesh size.z=0.60 の半分（世界+Zへ伸びる側が先にキャラに届く）
+const PREVIEW_DOOR_HALF_DEPTH_Z: float = 0.30
+const PREVIEW_RED_DOOR_INDEX: int = 1
+var _preview_player: Node3D
+var _preview_gs: QuizGameState
+
 # --- Conveyor Constants ---
 const FLOOR_HALF_WIDTH: float = 12.0
 const FLOOR_TOP_Y: float = -1.2
@@ -60,7 +69,7 @@ func _ready() -> void:
 	_update_speed_display()
 
 func _process(dt: float) -> void:
-	# 3Dプレビューのアニメーション（壁がプレイヤーに向かって移動）
+	# 3Dプレビューのアニメーション（壁がカメラに向かって移動）
 	var move_dist := _preview_speed * dt
 	_preview_scroll_z += move_dist
 	
@@ -80,11 +89,20 @@ func _process(dt: float) -> void:
 			
 		# 壁を+Z方向（カメラ手前方向）へ移動
 		wall.position.z += move_dist
+
+		# 壁が +Z に進み、赤扉の手前側面がプレイヤーZに届いた瞬間に崩す（中心一致ではなく接触基準）
+		var player_z: float = 0.0
+		if _preview_gs:
+			player_z = _preview_gs.player_local_z
+		var door_leading_z: float = wall.position.z + PREVIEW_DOOR_HALF_DEPTH_Z
+		if door_leading_z >= player_z and not wall.get_meta("preview_door_broken", false):
+			if wall.has_method("break_door"):
+				wall.break_door(PREVIEW_RED_DOOR_INDEX)
+			wall.set_meta("preview_door_broken", true)
 		
-		# 崖 (Z=8.0) に到達したら粉々にする
+		# 崖 (Z=8.0) に到達したら、壁を物理パーツ化してマグマへ落とす
 		if wall.position.z >= 8.0:
-			if wall.has_method("shatter_wall"):
-				wall.shatter_wall(1.0) # 設定画面は壁が+Zに動くため、+Z方向へ飛ばす
+			_drop_wall_into_magma(wall)
 			wall.queue_free()
 			_preview_walls.remove_at(i)
 			
@@ -97,6 +115,105 @@ func _process(dt: float) -> void:
 	# カメラの奥（見えない位置）で壁が足りなくなったら生成
 	if furthest_z > 8.0 - WALL_SPACING * 2.5:
 		_spawn_preview_wall(furthest_z - WALL_SPACING)
+	
+	# プレビュープレイヤーのアニメーション更新（速度連動）
+	if _preview_player and _preview_gs:
+		_preview_gs._active_wall_speed = _preview_speed
+		_preview_player.update_from_state(_preview_gs)
+		# update_from_state は num_players==1 + STATE_PLAYING で visible=false に上書きするため強制表示
+		_preview_player.visible = true
+		_force_preview_player_facing_away()
+	
+	# カメラ付近の破片は縮小して消す（視界を塞がないため）
+	_update_preview_debris_near_camera()
+
+func _drop_wall_into_magma(wall: Node3D) -> void:
+	if not wall or not is_instance_valid(wall):
+		return
+	
+	for child in wall.get_children():
+		if not (child is MeshInstance3D):
+			continue
+		var src_mesh := child as MeshInstance3D
+		if not src_mesh.visible:
+			continue
+		var box_mesh := src_mesh.mesh as BoxMesh
+		if not box_mesh:
+			continue
+		
+		var piece := RigidBody3D.new()
+		piece.mass = 3.2
+		piece.gravity_scale = 2.4
+		piece.linear_damp = 0.35
+		piece.angular_damp = 0.45
+		piece.collision_layer = 0
+		piece.collision_mask = 1
+		
+		var col := CollisionShape3D.new()
+		var shape := BoxShape3D.new()
+		shape.size = box_mesh.size
+		col.shape = shape
+		piece.add_child(col)
+		
+		var mesh_inst := MeshInstance3D.new()
+		var mesh_copy := BoxMesh.new()
+		mesh_copy.size = box_mesh.size
+		mesh_inst.mesh = mesh_copy
+		if src_mesh.material_override:
+			mesh_inst.material_override = src_mesh.material_override.duplicate()
+		piece.add_child(mesh_inst)
+		
+		_sub_viewport.add_child(piece)
+		piece.global_transform = src_mesh.global_transform
+		
+		# 重めに落ちつつ、少し前へ押し出されてから落ちる
+		piece.apply_impulse(Vector3(
+			randf_range(-0.18, 0.18),
+			randf_range(0.0, 0.25),
+			randf_range(1.15, 2.0)
+		))
+		piece.apply_torque_impulse(Vector3(
+			randf_range(-0.25, 0.25),
+			randf_range(-0.15, 0.15),
+			randf_range(-0.25, 0.25)
+		))
+
+func _force_preview_player_facing_away() -> void:
+	var pc := _preview_player as PlayerController
+	if not pc:
+		return
+	if not pc.p1_parts.has("pelvis"):
+		return
+	var pelvis := pc.p1_parts["pelvis"] as Node3D
+	if not pelvis:
+		return
+	# update_from_state 内で毎フレーム姿勢が再適用されるため、最後に向きを固定する。
+	pelvis.rotation.y = PI
+
+func _update_preview_debris_near_camera() -> void:
+	if not _sub_viewport or not _preview_camera:
+		return
+	
+	const FADE_START_DIST: float = 7.0
+	const KILL_DIST: float = 2.3
+	
+	for child in _sub_viewport.get_children():
+		if child is RigidBody3D:
+			var body := child as RigidBody3D
+			if body.global_position.y < -12.0:
+				body.queue_free()
+				continue
+			var dist := body.global_position.distance_to(_preview_camera.global_position)
+			
+			if dist <= FADE_START_DIST:
+				var t := clampf((dist - KILL_DIST) / maxf(0.001, FADE_START_DIST - KILL_DIST), 0.0, 1.0)
+				var visual_scale := maxf(0.05, t)
+				for mesh_child in body.get_children():
+					if mesh_child is MeshInstance3D:
+						(mesh_child as MeshInstance3D).scale = Vector3.ONE * visual_scale
+			
+			if dist <= KILL_DIST:
+				body.queue_free()
 
 func _build_ui() -> void:
 	# ── 3Dプレビュー背景（全画面） ──
@@ -440,6 +557,30 @@ func _build_3d_preview() -> void:
 	for i in range(3):
 		_spawn_preview_wall(start_z + i * WALL_SPACING)
 	
+	# プレビュー専用 GameState（QuizManager.game_state には触れず独立）
+	_preview_gs = QuizGameState.new()
+	_preview_gs.game_state = Constants.STATE_PLAYING
+	_preview_gs.num_players = 1
+	_preview_gs.p1_alive = true
+	_preview_gs.player_x = PREVIEW_PLAYER_X
+	_preview_gs.player_y = 0.0
+	_preview_gs.player_z = 0.0
+	_preview_gs.world_scroll_z = 0.0
+	_preview_gs.p1_emote = 0
+	_preview_gs.p1_jump_trigger = false
+	_preview_gs.p1_moving_back = false
+	_preview_gs.player_vel_y = 0.0
+	_preview_gs._active_wall_speed = _preview_speed
+	
+	# ゲーム内 (game_world.tscn) の Player と同一条件: 無回転で SubViewport 直下に追加
+	_preview_player = Node3D.new()
+	_preview_player.set_script(PLAYER_CONTROLLER_SCRIPT)
+	_sub_viewport.add_child(_preview_player)
+	
+	# 帽子をメインメニューで選択されているものに合わせる
+	var gm := QuizManager.game_state
+	if _preview_player.has_method("set_hat"):
+		_preview_player.set_hat(1, gm.p1_hat)
 
 
 func _spawn_preview_wall(z_pos: float) -> void:

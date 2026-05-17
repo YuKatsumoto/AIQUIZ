@@ -43,6 +43,7 @@ var player_x: float = 0.0
 var player_y: float = 0.0
 var player_z: float = 0.0
 var player_vel_y: float = 0.0
+var player_vel_z: float = 0.0
 var world_scroll_z: float = 0.0
 var current_wall_index: int = 0
 
@@ -95,10 +96,13 @@ var player2_y: float = 0.0
 var player2_z: float = 0.0
 var player2_score: int = 0
 var player2_vel_y: float = 0.0
+var player2_vel_z: float = 0.0
 var p2_alive: bool = true
 var p2_emote: int = 0
 var p1_moving_back: bool = false
 var p2_moving_back: bool = false
+var p1_emote_lock_timer: float = 0.0
+var p2_emote_lock_timer: float = 0.0
 var p1_hat: int = 0
 var p2_hat: int = 0
 var p1_emote_selected: int = 0  # メニューで選択したデフォルトエモートID
@@ -249,19 +253,23 @@ func start_game() -> void:
 	player_y = 0.0
 	player_z = -8.0 if num_players == 1 else 0.0
 	player_vel_y = 0.0
+	player_vel_z = 0.0
 	world_scroll_z = 0.0
 	camera_yaw = 0.0
 	camera_pitch = 0.0
 	current_wall_index = 0
 	game_over_timer = 0.0
 	p1_alive = true
+	p1_emote_lock_timer = 0.0
 	# Player 2 reset
 	player2_x = -6.0 if is_coop_mode() else -1.5
 	player2_y = 0.0
 	player2_z = 0.0
 	player2_score = 0
 	player2_vel_y = 0.0
+	player2_vel_z = 0.0
 	p2_alive = true
+	p2_emote_lock_timer = 0.0
 	player2_game_over_timer = 0.0
 	goal_winner = 0
 
@@ -331,6 +339,7 @@ func start_tutorial(tutorial_players: int = 1) -> void:
 	player_y = 0.0
 	player_z = -8.0 if num_players == 1 else 0.0
 	player_vel_y = 0.0
+	player_vel_z = 0.0
 	world_scroll_z = 0.0
 	camera_yaw = 0.0
 	camera_pitch = 0.0
@@ -342,6 +351,7 @@ func start_tutorial(tutorial_players: int = 1) -> void:
 	player2_z = 0.0
 	player2_score = 0
 	player2_vel_y = 0.0
+	player2_vel_z = 0.0
 	p2_alive = num_players >= 2
 	player2_game_over_timer = 0.0
 	goal_winner = 0
@@ -447,6 +457,7 @@ func reset_to_menu() -> void:
 	player_y = 0.0
 	player_z = 0.0
 	player_vel_y = 0.0
+	player_vel_z = 0.0
 	world_scroll_z = 0.0
 	current_wall_index = 0
 	message_text = ""
@@ -462,7 +473,9 @@ func reset_to_menu() -> void:
 	player2_z = 0.0
 	player2_score = 0
 	player2_vel_y = 0.0
+	player2_vel_z = 0.0
 	p2_alive = true
+	p2_emote_lock_timer = 0.0
 	player2_game_over_timer = 0.0
 	rating_target_quiz = null
 	rating_feedback = ""
@@ -600,16 +613,16 @@ func update(dt: float, axis_p1: Vector2 = Vector2.ZERO, axis_p2: Vector2 = Vecto
 	p1_jump_trigger = false
 	p2_jump_trigger = false
 
-	# Emote latching: trigger once, cancel on movement or jump
-	if emote_p1 > 0:
-		p1_emote = emote_p1
-	if axis_p1.length_squared() > 0.01 or jump_p1:
+	# Emote logic: Loop until jump. Can move while emoting.
+	if jump_p1:
 		p1_emote = 0
+	elif emote_p1 > 0 and p1_alive and player_vel_y == 0.0:
+		p1_emote = emote_p1
 
-	if emote_p2 > 0:
-		p2_emote = emote_p2
-	if axis_p2.length_squared() > 0.01 or jump_p2:
+	if jump_p2:
 		p2_emote = 0
+	elif emote_p2 > 0 and p2_alive and player2_vel_y == 0.0:
+		p2_emote = emote_p2
 
 	if game_state == Constants.STATE_PRELOADING:
 		_update_preloading(dt)
@@ -898,6 +911,8 @@ func _update_game_over(dt: float) -> void:
 	if num_players >= 2 and not p2_alive:
 		player2_game_over_timer += dt
 
+	_process_dead_player_physics(dt)
+
 	# Update message with async explanation
 	if current_quiz:
 		var explain: String
@@ -1183,6 +1198,7 @@ func _reset_tutorial_attempt(hint: String) -> void:
 	player_y = 0.0
 	player_z = reset_z
 	player_vel_y = 0.0
+	player_vel_z = 0.0
 	world_scroll_z = reset_z
 	p1_alive = true
 	game_over_timer = 0.0
@@ -1290,6 +1306,37 @@ func _coop_failure_message(p1_door: int, p2_door: int) -> String:
 		])
 	return "\n".join(lines)
 
+func _process_dead_player_physics(dt: float) -> void:
+	if not p1_alive and game_over_timer > 0.0 and game_over_timer < 2.5:
+		player_vel_y -= GRAVITY * dt
+		player_y += player_vel_y * dt
+		player_vel_z = move_toward(player_vel_z, 0.0, dt * 15.0)
+		player_z += player_vel_z * dt
+		var local_z = player_z - world_scroll_z
+		var is_on_floor = local_z >= FLOOR_BACK_Z and abs(player_x) <= FLOOR_HALF_WIDTH
+		var limit_y = 0.0 if is_on_floor else -8.0
+		
+		if player_y <= limit_y and player_vel_y < 0.0:
+			player_y = limit_y
+			player_vel_y = 0.0
+			if is_on_floor:
+				player_vel_z = 0.0
+			
+	if num_players >= 2 and not p2_alive and player2_game_over_timer > 0.0 and player2_game_over_timer < 2.5:
+		player2_vel_y -= GRAVITY * dt
+		player2_y += player2_vel_y * dt
+		player2_vel_z = move_toward(player2_vel_z, 0.0, dt * 15.0)
+		player2_z += player2_vel_z * dt
+		var local2_z = player2_z - world_scroll_z
+		var is2_on_floor = local2_z >= FLOOR_BACK_Z and abs(player2_x) <= FLOOR_HALF_WIDTH
+		var limit2_y = 0.0 if is2_on_floor else -8.0
+		
+		if player2_y <= limit2_y and player2_vel_y < 0.0:
+			player2_y = limit2_y
+			player2_vel_y = 0.0
+			if is2_on_floor:
+				player2_vel_z = 0.0
+
 func _fail_coop_immediately(msg: String) -> void:
 	if choice_locked:
 		return
@@ -1336,6 +1383,10 @@ func _resolve_coop_collision() -> void:
 		p2_alive = false
 		game_over_timer = 0.001
 		player2_game_over_timer = 0.001
+		player_vel_y = JUMP_FORCE * 0.8
+		player_vel_z = -12.0
+		player2_vel_y = JUMP_FORCE * 0.8
+		player2_vel_z = -12.0
 		_game_over(_coop_failure_message(p1_door, p2_door))
 		wrong_answer.emit(message_text)
 
@@ -1363,6 +1414,8 @@ func resolve_collision(p1_hit: bool = false, p2_hit: bool = false) -> void:
 			# 壁に衝突
 			p1_alive = false
 			game_over_timer = 0.001
+			player_vel_y = JUMP_FORCE * 0.8
+			player_vel_z = -12.0
 			current_streak = 0
 			total_answered += 1
 			total_wrong += 1
@@ -1383,6 +1436,8 @@ func resolve_collision(p1_hit: bool = false, p2_hit: bool = false) -> void:
 			# 不正解ドア
 			p1_alive = false
 			game_over_timer = 0.001
+			player_vel_y = JUMP_FORCE * 0.8
+			player_vel_z = -12.0
 			current_streak = 0
 			total_answered += 1
 			total_wrong += 1
@@ -1397,12 +1452,16 @@ func resolve_collision(p1_hit: bool = false, p2_hit: bool = false) -> void:
 		if door2 < 0:
 			p2_alive = false
 			player2_game_over_timer = 0.001
+			player2_vel_y = JUMP_FORCE * 0.8
+			player2_vel_z = -12.0
 		elif door2 == answer:
 			player2_score += 1
 			p2_correct = true
 		else:
 			p2_alive = false
 			player2_game_over_timer = 0.001
+			player2_vel_y = JUMP_FORCE * 0.8
+			player2_vel_z = -12.0
 
 	if not evaluated_anyone:
 		return
@@ -1491,6 +1550,7 @@ func advance_after_correct() -> void:
 
 func _game_over(msg: String) -> void:
 	game_state = Constants.STATE_GAME_OVER
+	provider.end_round()
 	rating_target_quiz = current_quiz
 	rating_feedback = ""
 	game_over_base_msg = msg
@@ -1513,6 +1573,7 @@ func _game_over(msg: String) -> void:
 
 func clear_game() -> void:
 	game_state = Constants.STATE_CLEAR
+	provider.end_round()
 	rating_target_quiz = current_quiz
 	rating_feedback = ""
 	if _is_tutorial_mode():

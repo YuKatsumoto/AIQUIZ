@@ -28,6 +28,7 @@ extends Control
 @onready var vol_slider: HSlider = $SettingsPanel/VBox/VolBox/VolSlider
 # speed_slider は廃止（壁速度は難易度から自動決定）
 @onready var res_option: OptionButton = %ResOption
+@onready var model_option: OptionButton = %ModelOption
 
 var game_state: QuizGameState
 var _tutorial_row: HBoxContainer = null
@@ -67,6 +68,18 @@ func _ready() -> void:
 			res_option.select(1)
 		else:
 			res_option.select(0)
+
+	model_option.item_selected.connect(_on_model_selected)
+	model_option.add_item("gemini-3-flash-preview", 0)
+	model_option.add_item("gemini-3.1-pro-preview", 1)
+	model_option.add_item("gemini-3.1-flash-lite", 2)
+	match ApiStatusAutoload.gemini_model:
+		"gemini-3-flash-preview": model_option.select(0)
+		"gemini-3.1-pro-preview": model_option.select(1)
+		"gemini-3.1-flash-lite": model_option.select(2)
+		_:
+			model_option.add_item(ApiStatusAutoload.gemini_model, 3)
+			model_option.select(3)
 
 	ApiStatusAutoload.check_completed.connect(_update_api_status_text)
 	
@@ -490,6 +503,12 @@ func _on_vol_slider_changed(value: float) -> void:
 	AudioManager.set_volume(value)
 
 # _on_speed_slider_changed は廃止（壁速度は難易度から自動決定）
+
+func _on_model_selected(index: int) -> void:
+	var selected_model = model_option.get_item_text(index)
+	ApiStatusAutoload.user_selected_gemini_model = selected_model
+	ApiStatusAutoload.gemini_model = selected_model
+	_on_recheck_btn_pressed()
 
 func _on_resolution_selected(index: int) -> void:
 	if index == 4:

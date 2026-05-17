@@ -687,7 +687,11 @@ func _update_floor() -> void:
 	if game_state.game_state in [Constants.STATE_FLYOVER, Constants.STATE_PRELOADING, Constants.STATE_WAITING_START]:
 		# フライオーバー / プリロード中: 最後の壁(orゴールライン)まで床を延長
 		var t := game_state.tuning
-		var wall_count: int = game_state.target_count if game_state.target_count > 0 else 10
+		var wall_count: int
+		if not game_state._is_fixed_count_mode():
+			wall_count = 30
+		else:
+			wall_count = game_state.target_count if game_state.target_count > 0 else 10
 		if game_state.game_state == Constants.STATE_FLYOVER:
 			wall_count = game_state.flyover_total_walls
 		var last_wall_z: float = t.wall_start_z + (wall_count - 1) * t.wall_spacing
@@ -1175,10 +1179,14 @@ func _update_preview_walls(dt: float) -> void:
 	# ── 壁+シルエットの生成（クイズ到着に同期、奥から手前へ配置）──
 	# 到着N番目のクイズ → 位置 (total - 1 - N) に壁を生成
 	# これにより最初のクイズが最奥、最後のクイズが最手前に出現
-	var total_expected: int = maxi(game_state.target_count, quiz_count)
-	while _pw_count < quiz_count:
-		# 逆マッピング: 到着順 → 奥から手前の位置
-		var visual_idx: int = total_expected - 1 - _pw_count
+	var is_endless: bool = not game_state._is_fixed_count_mode()
+	var total_expected: int = maxi(30 if is_endless else game_state.target_count, quiz_count)
+	var target_pw_count: int = total_expected if is_endless else quiz_count
+
+	# ── 壁+シルエットの生成（クイズ到着に同期、奥から手前へ配置）──
+	while _pw_count < target_pw_count:
+		# エンドレスは手前から奥へ、固定モードは逆マッピング（奥から手前へ）
+		var visual_idx: int = _pw_count if is_endless else (total_expected - 1 - _pw_count)
 		var wz: float = t.wall_start_z + visual_idx * t.wall_spacing
 
 		# 完成壁（合体後に表示）
@@ -1191,6 +1199,8 @@ func _update_preview_walls(dt: float) -> void:
 
 		if _pw_count < game_state.quiz_list.size() and wall_final.has_method("set_quiz"):
 			wall_final.set_quiz(game_state.quiz_list[_pw_count], game_state.num_choices)
+		elif wall_final.has_method("set_quiz"):
+			wall_final.set_quiz(null, game_state.num_choices)
 
 		# 左右は軽量シルエット（BoxMesh）
 		var sil_l := _create_slide_silhouette(wz, -25.0)
@@ -1202,8 +1212,6 @@ func _update_preview_walls(dt: float) -> void:
 		sil_r.visible = false
 		wall_container.add_child(sil_r)
 		_pw_right.append(sil_r)
-
-		var is_endless: bool = not game_state._is_fixed_count_mode()
 
 		# 新しい壁のアニメーション情報 — エンドレスモードなら即座に完了状態(phase 3)とする
 		_pw_anims.append({
@@ -1297,8 +1305,7 @@ func _update_preview_walls(dt: float) -> void:
 				_pw_walls[i].scale = Vector3.ONE
 
 	# ── 全壁のアニメ完了を検出 → バリア壁を落下開始 ──
-	var is_endless: bool = not game_state._is_fixed_count_mode()
-	var required_walls: int = 10 if is_endless else game_state.target_count
+	var required_walls: int = 1 if is_endless else game_state.target_count
 
 	if _pw_anims.size() >= required_walls and not _barrier_spawned_for_session:
 		var all_done := true
