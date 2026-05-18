@@ -332,13 +332,13 @@ func _on_players_toggle_pressed() -> void:
 	_update_ui()
 
 func _on_wall_speed_pressed() -> void:
-	get_tree().change_scene_to_file("res://ui/wall_speed_settings.tscn")
+	get_tree().change_scene_to_file("res://ui/customize_settings.tscn")
 
 func _on_hat_select_pressed() -> void:
-	get_tree().change_scene_to_file("res://ui/hat_select.tscn")
+	get_tree().change_scene_to_file("res://ui/customize_settings.tscn")
 
 func _on_emote_select_pressed() -> void:
-	get_tree().change_scene_to_file("res://ui/emote_select.tscn")
+	get_tree().change_scene_to_file("res://ui/customize_settings.tscn")
 
 func _on_tutorial_pressed() -> void:
 	_start_tutorial_game()

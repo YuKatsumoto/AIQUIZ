@@ -144,8 +144,8 @@ func _drop_wall_into_magma(wall: Node3D) -> void:
 		var piece := RigidBody3D.new()
 		piece.mass = 3.2
 		piece.gravity_scale = 2.4
-		piece.linear_damp = 0.35
-		piece.angular_damp = 0.45
+		piece.linear_damp = 0.28
+		piece.angular_damp = 0.38
 		piece.collision_layer = 0
 		piece.collision_mask = 1
 		
@@ -166,16 +166,16 @@ func _drop_wall_into_magma(wall: Node3D) -> void:
 		_sub_viewport.add_child(piece)
 		piece.global_transform = src_mesh.global_transform
 		
-		# 重めに落ちつつ、少し前へ押し出されてから落ちる
-		piece.apply_impulse(Vector3(
-			randf_range(-0.18, 0.18),
-			randf_range(0.0, 0.25),
-			randf_range(1.15, 2.0)
+		# 統合設定プレビューのソフト落下と同程度のわずかな吹き飛び
+		piece.apply_central_impulse(Vector3(
+			randf_range(-0.36, 0.36),
+			randf_range(0.0, 0.48),
+			randf_range(1.85, 3.85)
 		))
 		piece.apply_torque_impulse(Vector3(
-			randf_range(-0.25, 0.25),
-			randf_range(-0.15, 0.15),
-			randf_range(-0.25, 0.25)
+			randf_range(-0.52, 0.52),
+			randf_range(-0.32, 0.32),
+			randf_range(-0.52, 0.52)
 		))
 
 func _force_preview_player_facing_away() -> void:
@@ -194,20 +194,26 @@ func _update_preview_debris_near_camera() -> void:
 	if not _sub_viewport or not _preview_camera:
 		return
 	
-	const FADE_START_DIST: float = 7.0
-	const KILL_DIST: float = 2.3
+	const FADE_START_DIST: float = 7.5
+	const KILL_DIST: float = 2.0
+	const SCALE_FLOOR: float = 0.02
 	
 	for child in _sub_viewport.get_children():
 		if child is RigidBody3D:
 			var body := child as RigidBody3D
-			if body.global_position.y < -12.0:
+			if body.get_meta("preview_door_shard", false):
+				var d_far_w := body.global_position.distance_to(_preview_camera.global_position)
+				if d_far_w > 48.0 or body.global_position.y < -14.0:
+					body.queue_free()
+				continue
+			if body.global_position.y < -14.0:
 				body.queue_free()
 				continue
 			var dist := body.global_position.distance_to(_preview_camera.global_position)
 			
 			if dist <= FADE_START_DIST:
 				var t := clampf((dist - KILL_DIST) / maxf(0.001, FADE_START_DIST - KILL_DIST), 0.0, 1.0)
-				var visual_scale := maxf(0.05, t)
+				var visual_scale := maxf(SCALE_FLOOR, t)
 				for mesh_child in body.get_children():
 					if mesh_child is MeshInstance3D:
 						(mesh_child as MeshInstance3D).scale = Vector3.ONE * visual_scale

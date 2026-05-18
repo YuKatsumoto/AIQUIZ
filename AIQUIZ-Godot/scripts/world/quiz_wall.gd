@@ -321,26 +321,53 @@ func break_door(door_index: int) -> void:
 
 			get_parent().add_child(chunk)
 
-			# 後方に飛ばす（画面奥側、-Z方向）
-			var scatter_z: float = randf_range(-15.0, -5.0)
+			var vp := chunk.get_viewport()
+			var is_preview_subviewport := vp is SubViewport
 
-			var impulse := Vector3(
-				(randf() - 0.5) * 10.0,  # wide sideways scatter
-				randf() * 5.0 + 1.5,      # upward
-				scatter_z
-			)
-			chunk.apply_impulse(impulse)
-			chunk.apply_torque_impulse(Vector3(
-				(randf() - 0.5) * 12.0,
-				(randf() - 0.5) * 8.0,
-				(randf() - 0.5) * 12.0
-			))
-
-			# 縮小しながら消滅する演出
-			var tween := chunk.create_tween()
-			tween.tween_interval(1.5) # 1.5秒間はそのまま
-			tween.tween_property(mesh_inst, "scale", Vector3.ZERO, 1.0).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
-			tween.tween_callback(chunk.queue_free)
+			if is_preview_subviewport:
+				# 扉欠片だけ強めに弾け、短いTweenで縮小消滅（カメラ縮小処理とは別）
+				chunk.set_meta("preview_door_shard", true)
+				chunk.mass = 1.22
+				chunk.gravity_scale = 2.35
+				chunk.linear_damp = 0.09
+				chunk.angular_damp = 0.14
+				chunk.collision_mask = 1
+				chunk.apply_central_impulse(
+					Vector3(
+						randf_range(-2.35, 2.35),
+						randf_range(0.45, 3.15),
+						randf_range(14.0, 26.5),
+					)
+				)
+				chunk.apply_torque_impulse(
+					Vector3(
+						randf_range(-3.6, 3.6),
+						randf_range(-2.5, 2.5),
+						randf_range(-3.6, 3.6),
+					)
+				)
+				var vanish_tw := chunk.create_tween()
+				vanish_tw.tween_interval(0.22)
+				vanish_tw.tween_property(mesh_inst, "scale", Vector3.ZERO, 0.34).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+				vanish_tw.tween_callback(chunk.queue_free)
+			else:
+				# 本番：後方に飛ばす（画面奥側、-Z方向）＋縮小で消滅
+				var scatter_z: float = randf_range(-15.0, -5.0)
+				var impulse := Vector3(
+					(randf() - 0.5) * 10.0,
+					randf() * 5.0 + 1.5,
+					scatter_z
+				)
+				chunk.apply_central_impulse(impulse)
+				chunk.apply_torque_impulse(Vector3(
+					(randf() - 0.5) * 12.0,
+					(randf() - 0.5) * 8.0,
+					(randf() - 0.5) * 12.0
+				))
+				var tween := chunk.create_tween()
+				tween.tween_interval(1.5)
+				tween.tween_property(mesh_inst, "scale", Vector3.ZERO, 1.0).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+				tween.tween_callback(chunk.queue_free)
 
 func _create_box(half_extents: Vector3, color: Color) -> MeshInstance3D:
 	var mesh_inst := MeshInstance3D.new()
@@ -447,7 +474,7 @@ func _shatter_mesh(mesh_inst: MeshInstance3D, direction_z: float) -> void:
 			var impulse_z: float = randf_range(10.0, 40.0) * direction_z # 指定方向へ大きく飛ばす
 			
 			var impulse := Vector3(impulse_x, impulse_y, impulse_z)
-			chunk.apply_impulse(impulse)
+			chunk.apply_central_impulse(impulse)
 			chunk.apply_torque_impulse(Vector3(
 				(randf() - 0.5) * 40.0,
 				(randf() - 0.5) * 40.0,
