@@ -211,34 +211,13 @@ size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 18
 text = "1人プレイ / 2人プレイ"
 
-[node name="Row2" type="HBoxContainer" parent="VBoxContainer/ConfigContainer/SettingsRows"]
-layout_mode = 2
-theme_override_constants/separation = 16
-alignment = 1
-
-[node name="WallSpeedBtn" type="Button" parent="VBoxContainer/ConfigContainer/SettingsRows/Row2"]
+[node name="CustomizeBtn" type="Button" parent="VBoxContainer/ConfigContainer/SettingsRows/Row1"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 44)
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 18
-text = "⚡ 壁速度設定"
-
-[node name="HatSelectBtn" type="Button" parent="VBoxContainer/ConfigContainer/SettingsRows/Row2"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 44)
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 18
-text = "🎩 スキン設定"
-
-[node name="EmoteSelectBtn" type="Button" parent="VBoxContainer/ConfigContainer/SettingsRows/Row2"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 44)
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 18
-text = "🎭 エモート設定"
+text = "カスタマイズ"
 
 [node name="ConfigBtnRow" type="HBoxContainer" parent="VBoxContainer/ConfigContainer"]
 layout_mode = 2
@@ -403,9 +382,7 @@ text = "戻る"
 [connection signal="pressed" from="VBoxContainer/ModeContainer/ModeButtons/EndlessBtn" to="." method="_on_endless_pressed"]
 [connection signal="pressed" from="VBoxContainer/ConfigContainer/SettingsRows/Row1/LlmToggleBtn" to="." method="_on_llm_toggle_pressed"]
 [connection signal="pressed" from="VBoxContainer/ConfigContainer/SettingsRows/Row1/PlayersToggleBtn" to="." method="_on_players_toggle_pressed"]
-[connection signal="pressed" from="VBoxContainer/ConfigContainer/SettingsRows/Row2/WallSpeedBtn" to="." method="_on_wall_speed_pressed"]
-[connection signal="pressed" from="VBoxContainer/ConfigContainer/SettingsRows/Row2/HatSelectBtn" to="." method="_on_hat_select_pressed"]
-[connection signal="pressed" from="VBoxContainer/ConfigContainer/SettingsRows/Row2/EmoteSelectBtn" to="." method="_on_emote_select_pressed"]
+[connection signal="pressed" from="VBoxContainer/ConfigContainer/SettingsRows/Row1/CustomizeBtn" to="." method="_on_customize_pressed"]
 [connection signal="pressed" from="VBoxContainer/ConfigContainer/ConfigBtnRow/BackBtn" to="." method="_on_back_pressed"]
 [connection signal="pressed" from="VBoxContainer/ConfigContainer/ConfigBtnRow/StartButton" to="." method="_on_start_pressed"]
 [connection signal="pressed" from="SettingsBtn" to="." method="_on_settings_btn_pressed"]

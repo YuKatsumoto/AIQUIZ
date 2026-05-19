@@ -20,8 +20,7 @@ extends Control
 @onready var next_diff_btn: Button = %NextDiffBtn
 @onready var players_btn: Button = %PlayersToggleBtn
 @onready var llm_toggle_btn: Button = %LlmToggleBtn
-@onready var hat_select_btn: Button = %HatSelectBtn
-@onready var wall_speed_btn: Button = %WallSpeedBtn
+@onready var customize_btn: Button = %CustomizeBtn
 
 @onready var settings_panel: Panel = $SettingsPanel
 @onready var api_status_label: RichTextLabel = $SettingsPanel/VBox/ApiStatusLabel
@@ -272,16 +271,9 @@ func _update_ui() -> void:
 		var llm_text: String = "🌐 ONLINE (AI生成)" if QuizManager.provider.llm_mode == "ONLINE" else "📦 OFFLINE (内蔵問題)"
 		llm_toggle_btn.text = llm_text
 
-		# Show skin & emote button for all modes (emotes usable in 1P too)
-		if hat_select_btn:
-			hat_select_btn.visible = true
-
-		# Update wall speed button label
-		if wall_speed_btn:
-			if game_state.tuning.wall_speed_override > 0:
-				wall_speed_btn.text = "⚡ 壁速度: %.1f（手動）" % game_state.tuning.wall_speed_override
-			else:
-				wall_speed_btn.text = "⚡ 壁速度設定（自動）"
+		if customize_btn:
+			customize_btn.visible = true
+			customize_btn.text = "カスタマイズ"
 
 func _on_ten_questions_pressed() -> void:
 	game_state.select_mode_and_continue(Constants.MODE_TEN)
@@ -331,13 +323,7 @@ func _on_players_toggle_pressed() -> void:
 			game_state.mode = Constants.MODE_TEN
 	_update_ui()
 
-func _on_wall_speed_pressed() -> void:
-	get_tree().change_scene_to_file("res://ui/customize_settings.tscn")
-
-func _on_hat_select_pressed() -> void:
-	get_tree().change_scene_to_file("res://ui/customize_settings.tscn")
-
-func _on_emote_select_pressed() -> void:
+func _on_customize_pressed() -> void:
 	get_tree().change_scene_to_file("res://ui/customize_settings.tscn")
 
 func _on_tutorial_pressed() -> void:

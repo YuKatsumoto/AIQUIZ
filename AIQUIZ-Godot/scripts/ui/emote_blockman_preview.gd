@@ -369,6 +369,116 @@ static func apply_skeleton_pose(
 	apply_bone.call("r_pinky_dist", "r_pinky_dist", true)
 
 
+static func setup_thriller_sequence_preview(
+	entry: Dictionary,
+	viewport: Node,
+	lane_x: float,
+	pick_best_anim: Callable,
+) -> void:
+	var parts_data: Array[Dictionary] = []
+	for path in EmoteData.THRILLER_PART_PATHS:
+		if path.is_empty() or not ResourceLoader.exists(path):
+			continue
+		var scene := load(path) as PackedScene
+		if not scene:
+			continue
+		var node := scene.instantiate() as Node3D
+		node.position = Vector3(lane_x, 0.0, 0.0)
+		node.visible = false
+		viewport.add_child(node)
+		for child in node.find_children("*", "MeshInstance3D", true, false):
+			child.hide()
+		var skel: Skeleton3D = null
+		for child in node.find_children("*", "Skeleton3D", true, false):
+			skel = child as Skeleton3D
+			break
+		var ap: AnimationPlayer = null
+		for child in node.find_children("*", "AnimationPlayer", true, false):
+			ap = child as AnimationPlayer
+			break
+		var anim_name := ""
+		if ap:
+			anim_name = str(pick_best_anim.call(ap))
+		parts_data.append({"node": node, "skel": skel, "ap": ap, "anim": anim_name})
+
+	if parts_data.is_empty():
+		return
+
+	entry["is_thriller_sequence"] = true
+	entry["thriller_parts"] = parts_data
+	entry["thriller_part_idx"] = 0
+	entry["fbx"] = parts_data[0]["node"]
+	play_thriller_part(entry, 0, false)
+
+
+static func play_thriller_part(entry: Dictionary, part_idx: int, random_start: bool) -> void:
+	var parts: Array = entry.get("thriller_parts", [])
+	if parts.is_empty():
+		return
+	part_idx = clampi(part_idx, 0, parts.size() - 1)
+	entry["thriller_part_idx"] = part_idx
+	for i in range(parts.size()):
+		var part: Dictionary = parts[i]
+		var node: Node3D = part.get("node", null)
+		if node and is_instance_valid(node):
+			node.visible = i == part_idx
+
+	var active: Dictionary = parts[part_idx]
+	var skel: Skeleton3D = active.get("skel", null)
+	var ap: AnimationPlayer = active.get("ap", null)
+	var anim_name: String = active.get("anim", "")
+	entry["skel"] = skel
+	entry["bones"] = map_mixamo_bones(skel) if skel else {}
+	entry["ap"] = ap
+	var rm: Dictionary = entry.get("rm", {})
+	rm["ready"] = false
+	entry["rm"] = rm
+
+	if not ap or anim_name == "":
+		return
+	if ap.animation_finished.is_connected(_on_thriller_animation_finished):
+		ap.animation_finished.disconnect(_on_thriller_animation_finished)
+	ap.animation_finished.connect(_on_thriller_animation_finished.bind(entry), CONNECT_ONE_SHOT)
+	var anim: Animation = ap.get_animation(anim_name)
+	if anim:
+		anim.loop_mode = Animation.LOOP_NONE
+	ap.play(anim_name)
+	if random_start and anim and anim.length > 0.05:
+		ap.advance(randf() * anim.length)
+
+
+static func _on_thriller_animation_finished(_anim_name: StringName, entry: Dictionary) -> void:
+	if not entry.get("is_thriller_sequence", false):
+		return
+	if not EmoteData.is_thriller_emote(int(entry.get("preview_emote_id", EmoteData.EMOTE_NONE))):
+		return
+	var parts: Array = entry.get("thriller_parts", [])
+	if parts.is_empty():
+		return
+	var next_idx := int(entry.get("thriller_part_idx", 0)) + 1
+	if next_idx >= parts.size():
+		next_idx = 0
+	play_thriller_part(entry, next_idx, false)
+
+
+static func free_thriller_sequence(entry: Dictionary) -> void:
+	if not entry.get("is_thriller_sequence", false):
+		return
+	for part in entry.get("thriller_parts", []):
+		var node: Node3D = part.get("node", null)
+		if node and is_instance_valid(node):
+			var ap: AnimationPlayer = part.get("ap", null)
+			if ap and ap.animation_finished.is_connected(_on_thriller_animation_finished):
+				ap.animation_finished.disconnect(_on_thriller_animation_finished)
+			node.queue_free()
+	entry["is_thriller_sequence"] = false
+	entry["thriller_parts"] = []
+	entry["fbx"] = null
+	entry["skel"] = null
+	entry["ap"] = null
+	entry["bones"] = {}
+
+
 static func _create_box(half_extents: Vector3, color: Color) -> MeshInstance3D:
 	var mesh_inst := MeshInstance3D.new()
 	var box := BoxMesh.new()

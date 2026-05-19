@@ -15,18 +15,22 @@ const WALL_SPACING := 30.0
 const PREVIEW_PLAYER_P1_X: float = -3.5
 const PREVIEW_PLAYER_P2_X: float = 3.5
 ## スキンプレビュー：runner の反対側（-Z）から正面を見る
-const SKIN_PREVIEW_CAM_DIST_Z: float = 2.95
+const SKIN_PREVIEW_CAM_DIST_Z: float = 2.78
 const SKIN_PREVIEW_CAM_Y: float = 1.35
 const SKIN_PREVIEW_CAM_LOOK_Y: float = 1.08
+## 右上UIと帽子の重なりを避ける: 正面の向きは維持したままカメラ位置だけ X 方向に平行移動
+const SKIN_PREVIEW_CAM_OFFSET_X: float = -0.60
 const SKIN_PREVIEW_FOV: float = 38.0
-## セクション間カメラ切替のスムーズさ（大きいほど早く目的値に追従）
+## 通常時のプレビューカメラ追従（エモート操作の反応）
 const CAM_PREVIEW_SMOOTH_RATE: float = 9.0
+## タブ切替直後のみ。大きいほど素早く目的姿勢へ収束（通常 CAM_PREVIEW_SMOOTH_RATE より低めで差を残す）
+const CAM_TAB_TRANSITION_SMOOTH_RATE: float = 4.6
 const PREVIEW_DOOR_HALF_DEPTH_Z: float = 0.30
 const PREVIEW_BLUE_DOOR_INDEX: int = 0
 const PREVIEW_RED_DOOR_INDEX: int = 1
 const AUTO_WALL_SPEED: float = 28.0 / (4.0 + 5.0)
-## エモートタブ時にベルト表示速度が 0 に近づく時間感（大きいほどゆっくり停止）
-const BELT_VISUAL_RAMP_TAU_SEC: float = 2.8
+## エモートタブ時にベルト表示速度が 0 に近づく時間感（小さいほど早く減速）
+const BELT_VISUAL_RAMP_TAU_SEC: float = 1.25
 ## game_world の「次の問題を準備中」壁合体プレビューに合わせたパラメータ
 const PREVIEW_MERGE_SLIDE_START_X: float = 150.0
 const PREVIEW_MERGE_INTERVAL_SEC: float = 0.15
@@ -54,6 +58,8 @@ const FLOOR_HALF_WIDTH: float = 12.0
 const FLOOR_TOP_Y: float = -1.2
 ## エモートカメラ（emote_select と同じオービット）、床より下にレンズが入らないよう Y をクランプ
 const EMOTE_CAM_MIN_WORLD_Y: float = FLOOR_TOP_Y + 0.72
+## エモートタブ初期オービット距離（大きいほど引いた画角）
+const EMOTE_CAM_DEFAULT_DISTANCE: float = 5.2
 const FLOOR_RAIL_HEIGHT: float = 0.26
 const FLOOR_RAIL_WIDTH: float = 0.16
 const FLOOR_RAIL_INSET: float = 0.06
@@ -65,9 +71,20 @@ const CONVEYOR_ROLLER_LENGTH: float = 23.4
 const CONVEYOR_RETURN_BELT_THICKNESS: float = 0.10
 const CONVEYOR_SIDE_FRAME_WIDTH: float = 0.24
 const CONVEYOR_SIDE_FRAME_HEIGHT: float = 1.05
+## スキンタブ：帽子切替（頭ローカル X）。画面外まで離し、入り／出りで重ならない
+const HAT_SLIDE_OFFSCREEN_X: float = 1.48
+const HAT_SLIDE_DURATION: float = 0.24
+const HAT_SLIDE_ENTER_EASE_POW: float = 2.25
+const HAT_SLIDE_EXIT_EASE_POW: float = 0.72
+const HAT_SLIDE_ENTER_DELAY_FRAC: float = 0.12
+const HAT_SLIDE_INCOMING_Z: float = 0.035
+## この X を超えたら画面外扱いで非表示（完全オフスクリーン手前の縁）
+const HAT_SLIDE_VISIBILITY_EDGE_X: float = 1.02
 
 var _sub_viewport: SubViewport
 var _preview_camera: Camera3D
+var _preview_world_env: WorldEnvironment
+var _skin_front_spot: SpotLight3D
 var _preview_floor_material: ShaderMaterial
 var _conveyor_roller_front_material: ShaderMaterial
 var _conveyor_return_material: ShaderMaterial
@@ -91,7 +108,6 @@ var _emote_preview_holder: Node3D
 ## P1／P2 レーンごとの FBX＋ブロック人形プレビュー
 var _emote_lane_previews: Array[Dictionary] = []
 var _emote_preview_time: float = 0.0
-var _current_preview_emote_id: int = EmoteData.EMOTE_NONE
 
 const SLOT_KEYS_P1 := ["1", "2", "3"]
 const SLOT_KEYS_P2 := ["8", "9", "0"]
@@ -110,9 +126,22 @@ var _skin_player_label: Label
 var _skin_player_btn_p1: Button
 var _skin_player_btn_p2: Button
 var _hat_name_label: Label
+var _hat_slide_active: bool = false
+var _hat_slide_t: float = 0.0
+var _hat_slide_dir: int = 0
+var _hat_slide_player_id: int = 1
+var _hat_slide_target_id: int = 0
+var _hat_slide_old: Node3D = null
+var _hat_slide_new: Node3D = null
 
-var _emote_player_toggle_btn: Button
-var _slot_labels: Array[Label] = []
+var _emote_player_btn_p1: Button
+var _emote_player_btn_p2: Button
+var _emote_browse_icon_label: Label
+var _emote_browse_name_label: Label
+var _emote_browse_desc_label: Label
+var _emote_slot_btns: Array[Button] = []
+var _active_assign_slot_idx: int = 0
+var _assign_slot_btn: Button
 var _emote_grid: GridContainer
 var _selected_grid_btn: Button = null
 var _grid_card_by_id: Dictionary = {}
@@ -124,10 +153,12 @@ var _preview_input_catcher: Control
 ## エモートタブ用オービット（emote_select.gd と同じ操作・係数）
 var _emote_cam_yaw: float = 0.0
 var _emote_cam_pitch: float = -8.0
-var _emote_cam_distance: float = 4.0
+var _emote_cam_distance: float = EMOTE_CAM_DEFAULT_DISTANCE
 var _emote_cam_target: Vector3 = Vector3(PREVIEW_PLAYER_P1_X, 0.2, 0.0)
 var _emote_cam_dragging: bool = false
 var _emote_cam_panning: bool = false
+## タブ切替直後は CAM_TAB_TRANSITION_SMOOTH_RATE で寄せ、収束したら通常レートに戻す
+var _preview_cam_tab_transition_active: bool = false
 
 func _ready() -> void:
 	var game_state := QuizManager.game_state
@@ -225,8 +256,9 @@ func _process(dt: float) -> void:
 			var br: Node3D = entry.get("block_root", null)
 			if br == null or not is_instance_valid(br):
 				continue
-			if _current_preview_emote_id == EmoteData.EMOTE_NONE:
-				br.rotation.y = sin(_emote_preview_time * 0.6) * 0.5
+			if int(entry.get("preview_emote_id", EmoteData.EMOTE_NONE)) == EmoteData.EMOTE_NONE:
+				var sway_ph: float = float(entry.get("idle_sway_phase", 0.0))
+				br.rotation.y = sin(_emote_preview_time * 0.6 + sway_ph) * 0.5
 			else:
 				br.rotation.y = 0.0
 				var ap: AnimationPlayer = entry.get("ap", null)
@@ -254,6 +286,11 @@ func _process(dt: float) -> void:
 	if _preview_camera:
 		_apply_preview_camera_smoothing(dt)
 
+	if _active_section == Section.SKIN:
+		_update_skin_preview_lighting()
+
+	_process_hat_slide(dt)
+
 func _build_ui() -> void:
 	var svc := SubViewportContainer.new()
 	svc.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -278,6 +315,7 @@ func _build_ui() -> void:
 
 	var h_split := HBoxContainer.new()
 	h_split.alignment = BoxContainer.ALIGNMENT_BEGIN
+	h_split.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	margin_container.add_child(h_split)
 
 	var spacer_left := Control.new()
@@ -290,7 +328,8 @@ func _build_ui() -> void:
 
 	var settings_panel := PanelContainer.new()
 	settings_panel.custom_minimum_size = Vector2(520, 0)
-	settings_panel.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	settings_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	settings_panel.clip_contents = true
 	var settings_style := StyleBoxFlat.new()
 	settings_style.bg_color = Color(0.05, 0.08, 0.12, 0.86)
 	settings_style.set_border_width_all(2)
@@ -303,48 +342,61 @@ func _build_ui() -> void:
 	settings_panel.add_theme_stylebox_override("panel", settings_style)
 	h_split.add_child(settings_panel)
 
-	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 14)
-	settings_panel.add_child(vbox)
+	var outer_vbox := VBoxContainer.new()
+	outer_vbox.add_theme_constant_override("separation", 12)
+	outer_vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	outer_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	settings_panel.add_child(outer_vbox)
 
 	_section_title = Label.new()
 	_section_title.text = "統合設定"
 	_section_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_section_title.add_theme_font_size_override("font_size", 30)
 	_section_title.add_theme_color_override("font_color", Color(1.0, 0.88, 0.25))
-	vbox.add_child(_section_title)
+	outer_vbox.add_child(_section_title)
 
 	var section_row := HBoxContainer.new()
 	section_row.add_theme_constant_override("separation", 10)
-	vbox.add_child(section_row)
+	outer_vbox.add_child(section_row)
 
 	_section_buttons[Section.WALL_SPEED] = _make_section_button("⚡ 壁速度", section_row, Section.WALL_SPEED)
 	_section_buttons[Section.SKIN] = _make_section_button("🧢 スキン", section_row, Section.SKIN)
 	_section_buttons[Section.EMOTE] = _make_section_button("💃 エモート", section_row, Section.EMOTE)
 
-	vbox.add_child(HSeparator.new())
+	outer_vbox.add_child(HSeparator.new())
+
+	var body_scroll := ScrollContainer.new()
+	body_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	body_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	outer_vbox.add_child(body_scroll)
+
+	var body_vbox := VBoxContainer.new()
+	body_vbox.add_theme_constant_override("separation", 12)
+	body_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	body_scroll.add_child(body_vbox)
 
 	_wall_panel = VBoxContainer.new()
 	_wall_panel.add_theme_constant_override("separation", 10)
-	vbox.add_child(_wall_panel)
+	body_vbox.add_child(_wall_panel)
 	_build_wall_panel()
 
 	_skin_panel = VBoxContainer.new()
 	_skin_panel.add_theme_constant_override("separation", 10)
-	vbox.add_child(_skin_panel)
+	body_vbox.add_child(_skin_panel)
 	_build_skin_panel()
 
 	_emote_panel = VBoxContainer.new()
-	_emote_panel.add_theme_constant_override("separation", 10)
-	vbox.add_child(_emote_panel)
+	_emote_panel.add_theme_constant_override("separation", 8)
+	body_vbox.add_child(_emote_panel)
 	_build_emote_panel()
 
-	vbox.add_child(HSeparator.new())
+	outer_vbox.add_child(HSeparator.new())
 	var back_btn := Button.new()
 	back_btn.text = "✓ 決定して戻る"
 	back_btn.custom_minimum_size = Vector2(0, 52)
 	back_btn.pressed.connect(_on_back_pressed)
-	vbox.add_child(back_btn)
+	outer_vbox.add_child(back_btn)
 
 	_style_all_buttons()
 	_refresh_skin_player_button_styles()
@@ -426,11 +478,119 @@ func _build_skin_panel() -> void:
 	hat_row.add_child(hat_next)
 
 func _build_emote_panel() -> void:
-	_emote_player_toggle_btn = Button.new()
-	_emote_player_toggle_btn.custom_minimum_size = Vector2(0, 44)
-	_emote_player_toggle_btn.add_theme_font_size_override("font_size", 18)
-	_emote_player_toggle_btn.pressed.connect(_on_emote_player_toggle)
-	_emote_panel.add_child(_emote_player_toggle_btn)
+	var player_row := HBoxContainer.new()
+	player_row.add_theme_constant_override("separation", 8)
+	_emote_panel.add_child(player_row)
+
+	_emote_player_btn_p1 = Button.new()
+	_emote_player_btn_p1.text = "プレイヤー１"
+	_emote_player_btn_p1.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_emote_player_btn_p1.custom_minimum_size = Vector2(0, 44)
+	_emote_player_btn_p1.pressed.connect(func() -> void: _set_emote_editing_player(1))
+	player_row.add_child(_emote_player_btn_p1)
+
+	_emote_player_btn_p2 = Button.new()
+	_emote_player_btn_p2.text = "プレイヤー２"
+	_emote_player_btn_p2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_emote_player_btn_p2.custom_minimum_size = Vector2(0, 44)
+	_emote_player_btn_p2.pressed.connect(func() -> void: _set_emote_editing_player(2))
+	player_row.add_child(_emote_player_btn_p2)
+
+	var detail_panel := PanelContainer.new()
+	var detail_style := StyleBoxFlat.new()
+	detail_style.bg_color = Color(0.08, 0.10, 0.16, 0.92)
+	detail_style.border_color = Color(0.28, 0.38, 0.55, 0.65)
+	detail_style.set_border_width_all(1)
+	detail_style.set_corner_radius_all(12)
+	detail_style.content_margin_left = 14.0
+	detail_style.content_margin_right = 14.0
+	detail_style.content_margin_top = 12.0
+	detail_style.content_margin_bottom = 12.0
+	detail_panel.add_theme_stylebox_override("panel", detail_style)
+	_emote_panel.add_child(detail_panel)
+
+	var detail_vbox := VBoxContainer.new()
+	detail_vbox.add_theme_constant_override("separation", 6)
+	detail_panel.add_child(detail_vbox)
+
+	_emote_browse_icon_label = Label.new()
+	_emote_browse_icon_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_emote_browse_icon_label.add_theme_font_size_override("font_size", 32)
+	detail_vbox.add_child(_emote_browse_icon_label)
+
+	_emote_browse_name_label = Label.new()
+	_emote_browse_name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_emote_browse_name_label.add_theme_font_size_override("font_size", 18)
+	_emote_browse_name_label.add_theme_color_override("font_color", Color(1.0, 0.88, 0.25))
+	detail_vbox.add_child(_emote_browse_name_label)
+
+	_emote_browse_desc_label = Label.new()
+	_emote_browse_desc_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_emote_browse_desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_emote_browse_desc_label.add_theme_font_size_override("font_size", 12)
+	_emote_browse_desc_label.add_theme_color_override("font_color", Color(0.58, 0.62, 0.72))
+	detail_vbox.add_child(_emote_browse_desc_label)
+
+	var slot_title := Label.new()
+	slot_title.text = "登録先スロット"
+	slot_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	slot_title.add_theme_font_size_override("font_size", 13)
+	slot_title.add_theme_color_override("font_color", Color(0.62, 0.66, 0.76))
+	_emote_panel.add_child(slot_title)
+
+	var slot_row := HBoxContainer.new()
+	slot_row.add_theme_constant_override("separation", 8)
+	_emote_panel.add_child(slot_row)
+
+	_emote_slot_btns.clear()
+	for i in range(3):
+		var slot_btn := Button.new()
+		slot_btn.custom_minimum_size = Vector2(0, 72)
+		slot_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		slot_btn.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+		slot_btn.set_meta("slot_idx", i)
+		var slot_idx := i
+		slot_btn.pressed.connect(func() -> void: _set_active_assign_slot(slot_idx))
+
+		var slot_vbox := VBoxContainer.new()
+		slot_vbox.set_anchors_preset(Control.PRESET_FULL_RECT)
+		slot_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+		slot_vbox.add_theme_constant_override("separation", 2)
+		slot_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		slot_btn.add_child(slot_vbox)
+
+		var key_lbl := Label.new()
+		key_lbl.name = "KeyLabel"
+		key_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		key_lbl.add_theme_font_size_override("font_size", 11)
+		key_lbl.add_theme_color_override("font_color", Color(0.55, 0.60, 0.72))
+		key_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		slot_vbox.add_child(key_lbl)
+
+		var icon_lbl := Label.new()
+		icon_lbl.name = "IconLabel"
+		icon_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		icon_lbl.add_theme_font_size_override("font_size", 22)
+		icon_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		slot_vbox.add_child(icon_lbl)
+
+		var name_lbl := Label.new()
+		name_lbl.name = "NameLabel"
+		name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		name_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		name_lbl.add_theme_font_size_override("font_size", 11)
+		name_lbl.add_theme_color_override("font_color", Color(0.88, 0.90, 0.96))
+		name_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		slot_vbox.add_child(name_lbl)
+
+		slot_row.add_child(slot_btn)
+		_emote_slot_btns.append(slot_btn)
+
+	_assign_slot_btn = Button.new()
+	_assign_slot_btn.custom_minimum_size = Vector2(0, 48)
+	_assign_slot_btn.pressed.connect(_on_assign_emote_to_slot)
+	_style_assign_slot_button()
+	_emote_panel.add_child(_assign_slot_btn)
 
 	var emote_cam_hint := Label.new()
 	emote_cam_hint.text = "左プレビュー: 右ドラッグ＝回転  中ドラッグ／WASD＝移動  ホイール＝ズーム"
@@ -442,63 +602,19 @@ func _build_emote_panel() -> void:
 
 	_emote_panel.add_child(HSeparator.new())
 
-	for i in range(3):
-		var slot_hbox := HBoxContainer.new()
-		slot_hbox.alignment = BoxContainer.ALIGNMENT_CENTER
-		slot_hbox.add_theme_constant_override("separation", 8)
-		_emote_panel.add_child(slot_hbox)
-
-		var key_label := Label.new()
-		key_label.custom_minimum_size = Vector2(60, 0)
-		key_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		key_label.add_theme_font_size_override("font_size", 16)
-		key_label.add_theme_color_override("font_color", Color(0.6, 0.65, 0.75))
-		slot_hbox.add_child(key_label)
-
-		var left_btn := Button.new()
-		left_btn.text = "◀"
-		left_btn.custom_minimum_size = Vector2(40, 36)
-		left_btn.add_theme_font_size_override("font_size", 18)
-		var slot_idx := i
-		left_btn.pressed.connect(func() -> void: _on_slot_change(slot_idx, -1))
-		slot_hbox.add_child(left_btn)
-
-		var emote_label := Label.new()
-		emote_label.custom_minimum_size = Vector2(180, 0)
-		emote_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		emote_label.add_theme_font_size_override("font_size", 16)
-		emote_label.add_theme_color_override("font_color", Color(0.92, 0.94, 0.98))
-		slot_hbox.add_child(emote_label)
-		_slot_labels.append(emote_label)
-
-		var right_btn := Button.new()
-		right_btn.text = "▶"
-		right_btn.custom_minimum_size = Vector2(40, 36)
-		right_btn.add_theme_font_size_override("font_size", 18)
-		right_btn.pressed.connect(func() -> void: _on_slot_change(slot_idx, +1))
-		slot_hbox.add_child(right_btn)
-
-	_emote_panel.add_child(HSeparator.new())
-
 	var grid_title := Label.new()
-	grid_title.text = "🔍 エモート一覧"
+	grid_title.text = "エモート一覧"
 	grid_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	grid_title.add_theme_font_size_override("font_size", 16)
+	grid_title.add_theme_font_size_override("font_size", 15)
 	grid_title.add_theme_color_override("font_color", Color(0.7, 0.75, 0.85))
 	_emote_panel.add_child(grid_title)
 
-	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(0, 220)
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	_emote_panel.add_child(scroll)
-
 	_emote_grid = GridContainer.new()
 	_emote_grid.columns = 3
-	_emote_grid.add_theme_constant_override("h_separation", 6)
-	_emote_grid.add_theme_constant_override("v_separation", 6)
+	_emote_grid.add_theme_constant_override("h_separation", 8)
+	_emote_grid.add_theme_constant_override("v_separation", 8)
 	_emote_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(_emote_grid)
+	_emote_panel.add_child(_emote_grid)
 
 	_grid_card_by_id.clear()
 	var emote_list := EmoteData.get_emote_list()
@@ -508,30 +624,34 @@ func _build_emote_panel() -> void:
 		var eicon: String = entry["icon"]
 
 		var card := Button.new()
-		card.custom_minimum_size = Vector2(0, 56)
+		card.custom_minimum_size = Vector2(0, 68)
 		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		card.add_theme_font_size_override("font_size", 13)
-		card.text = "%s\n%s" % [eicon, ename]
-		card.clip_text = true
-
-		var card_style := StyleBoxFlat.new()
-		card_style.bg_color = Color(0.12, 0.13, 0.19)
-		card_style.border_color = Color(0.25, 0.28, 0.38)
-		card_style.set_border_width_all(1)
-		card_style.set_corner_radius_all(8)
-		card_style.content_margin_left = 4.0
-		card_style.content_margin_right = 4.0
-		card_style.content_margin_top = 4.0
-		card_style.content_margin_bottom = 4.0
-		card.add_theme_stylebox_override("normal", card_style)
-
-		var hover_style := card_style.duplicate() as StyleBoxFlat
-		hover_style.bg_color = Color(0.18, 0.20, 0.30)
-		hover_style.border_color = Color(0.4, 0.5, 0.7)
-		card.add_theme_stylebox_override("hover", hover_style)
+		card.add_theme_stylebox_override("normal", _grid_card_normal_style())
+		card.add_theme_stylebox_override("hover", _grid_card_hover_style())
 		card.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
-		card.add_theme_color_override("font_color", Color(0.82, 0.85, 0.92))
-		card.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 1.0))
+
+		var card_vbox := VBoxContainer.new()
+		card_vbox.set_anchors_preset(Control.PRESET_FULL_RECT)
+		card_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+		card_vbox.add_theme_constant_override("separation", 2)
+		card_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		card.add_child(card_vbox)
+
+		var card_icon := Label.new()
+		card_icon.text = eicon
+		card_icon.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		card_icon.add_theme_font_size_override("font_size", 24)
+		card_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		card_vbox.add_child(card_icon)
+
+		var card_name := Label.new()
+		card_name.text = ename
+		card_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		card_name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		card_name.add_theme_font_size_override("font_size", 11)
+		card_name.add_theme_color_override("font_color", Color(0.82, 0.85, 0.92))
+		card_name.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		card_vbox.add_child(card_name)
 
 		card.pressed.connect(_on_grid_emote_selected.bind(eid, card))
 		_emote_grid.add_child(card)
@@ -551,15 +671,26 @@ func _build_3d_preview() -> void:
 	env.fog_aerial_perspective = 0.5
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
 	env.tonemap_white = 6.0
-	var world_env := WorldEnvironment.new()
-	world_env.environment = env
-	_sub_viewport.add_child(world_env)
+	_preview_world_env = WorldEnvironment.new()
+	_preview_world_env.environment = env
+	_sub_viewport.add_child(_preview_world_env)
 
 	var light := DirectionalLight3D.new()
 	light.rotation_degrees = Vector3(-50, -20, 0)
 	light.light_energy = 0.8
 	light.shadow_enabled = true
 	_sub_viewport.add_child(light)
+
+	_skin_front_spot = SpotLight3D.new()
+	_skin_front_spot.name = "SkinFrontSpot"
+	_skin_front_spot.visible = false
+	_skin_front_spot.light_color = Color(1.0, 0.98, 0.94)
+	_skin_front_spot.light_energy = 1.05
+	_skin_front_spot.shadow_enabled = false
+	_skin_front_spot.spot_range = 14.0
+	_skin_front_spot.spot_angle = 58.0
+	_skin_front_spot.spot_angle_attenuation = 0.55
+	_sub_viewport.add_child(_skin_front_spot)
 
 	_preview_camera = Camera3D.new()
 	_sub_viewport.add_child(_preview_camera)
@@ -637,7 +768,12 @@ func _build_3d_preview() -> void:
 	_sub_viewport.add_child(_emote_preview_holder)
 
 func _set_section(section: Section) -> void:
+	var prev_section := _active_section
+	if prev_section == Section.SKIN and section != Section.SKIN:
+		_finish_hat_slide_immediate()
 	_active_section = section
+	if prev_section != section:
+		_preview_cam_tab_transition_active = true
 	_wall_panel.visible = section == Section.WALL_SPEED
 	_skin_panel.visible = section == Section.SKIN
 	_emote_panel.visible = section == Section.EMOTE
@@ -653,6 +789,7 @@ func _set_section(section: Section) -> void:
 
 	match section:
 		Section.WALL_SPEED:
+			_set_skin_preview_lighting_active(false)
 			_section_title.visible = true
 			_section_title.text = "⚡ 壁速度設定"
 			_cleanup_emote_preview()
@@ -660,6 +797,8 @@ func _set_section(section: Section) -> void:
 			if _preview_walls.is_empty():
 				_replenish_preview_walls_after_emote()
 		Section.SKIN:
+			_set_skin_preview_lighting_active(true)
+			_update_skin_preview_lighting()
 			_section_title.visible = true
 			_section_title.text = "🧢 スキン設定"
 			_explode_preview_walls_for_emote()
@@ -667,22 +806,52 @@ func _set_section(section: Section) -> void:
 			_preview_player.visible = true
 			_sync_preview_hat()
 		Section.EMOTE:
+			_set_skin_preview_lighting_active(false)
 			_explode_preview_walls_for_emote()
 			_section_title.visible = false
 			if _emote_preview_holder:
 				_emote_preview_holder.visible = true
 			_reset_emote_orbit_default()
 			_preview_player.visible = false
+			_active_assign_slot_idx = 0
 			var gs_emote := QuizManager.game_state
 			var slots_emote: Array[int] = gs_emote.p1_emote_slots if _editing_player == 1 else gs_emote.p2_emote_slots
 			if slots_emote.size() > 0:
 				_browsing_emote_id = slots_emote[0]
 			_update_emote_panel_ui()
 			_highlight_grid_card_for_emote(_browsing_emote_id)
-			_play_emote_preview(_browsing_emote_id)
+			_refresh_emote_lane_previews()
 
 func _preview_editing_lane_x() -> float:
 	return PREVIEW_PLAYER_P1_X if _editing_player == 1 else PREVIEW_PLAYER_P2_X
+
+
+func _update_skin_preview_lighting() -> void:
+	if not _skin_front_spot:
+		return
+	_skin_front_spot.visible = true
+	var tx := _preview_editing_lane_x()
+	var look_tgt := Vector3(tx, SKIN_PREVIEW_CAM_LOOK_Y, 0.0)
+	var cam_pos := Vector3(
+		tx + SKIN_PREVIEW_CAM_OFFSET_X,
+		SKIN_PREVIEW_CAM_Y,
+		-SKIN_PREVIEW_CAM_DIST_Z * 0.75,
+	)
+	_skin_front_spot.global_position = cam_pos
+	_skin_front_spot.look_at(look_tgt, Vector3.UP)
+	if _preview_world_env and _preview_world_env.environment:
+		_preview_world_env.environment.ambient_light_energy = 1.18
+		_preview_world_env.environment.ambient_light_color = Color(0.38, 0.40, 0.44)
+
+
+func _set_skin_preview_lighting_active(active: bool) -> void:
+	if _skin_front_spot:
+		_skin_front_spot.visible = active
+	if _preview_world_env and _preview_world_env.environment:
+		_preview_world_env.environment.ambient_light_energy = 1.18 if active else 1.0
+		_preview_world_env.environment.ambient_light_color = (
+			Color(0.38, 0.40, 0.44) if active else Color(0.30, 0.32, 0.35)
+		)
 
 
 func _snap_preview_camera_to_current_section() -> void:
@@ -704,8 +873,9 @@ func _get_desired_preview_camera() -> Dictionary:
 		Section.SKIN:
 			var tx_skin := _preview_editing_lane_x()
 			var look_tgt := Vector3(tx_skin, SKIN_PREVIEW_CAM_LOOK_Y, 0.0)
-			var cam_pos_skin := Vector3(tx_skin, SKIN_PREVIEW_CAM_Y, -SKIN_PREVIEW_CAM_DIST_Z)
-			var qs := _camera_quat_look_at(cam_pos_skin, look_tgt)
+			var cam_base := Vector3(tx_skin, SKIN_PREVIEW_CAM_Y, -SKIN_PREVIEW_CAM_DIST_Z)
+			var qs := _camera_quat_look_at(cam_base, look_tgt)
+			var cam_pos_skin := cam_base + Vector3(SKIN_PREVIEW_CAM_OFFSET_X, 0.0, 0.0)
 			return {"pos": cam_pos_skin, "quat": qs, "fov": SKIN_PREVIEW_FOV}
 		Section.EMOTE:
 			var yaw_rad := deg_to_rad(_emote_cam_yaw)
@@ -716,6 +886,8 @@ func _get_desired_preview_camera() -> Dictionary:
 				_emote_cam_distance * cos(pitch_rad) * cos(yaw_rad)
 			)
 			var cam_pos := _emote_cam_target + offset
+			# スキンタブと同じ X 平行移動でキャラを画面左寄りに
+			cam_pos.x += SKIN_PREVIEW_CAM_OFFSET_X
 			cam_pos.y = maxf(cam_pos.y, EMOTE_CAM_MIN_WORLD_Y)
 			var qe := _camera_quat_look_at(cam_pos, _emote_cam_target)
 			return {"pos": cam_pos, "quat": qe, "fov": 40.0}
@@ -743,16 +915,33 @@ func _apply_preview_camera_smoothing(dt: float) -> void:
 	if not _preview_camera:
 		return
 	var d := _get_desired_preview_camera()
-	var k: float = 1.0 - exp(-CAM_PREVIEW_SMOOTH_RATE * dt)
+	var rate := (
+		CAM_TAB_TRANSITION_SMOOTH_RATE
+		if _preview_cam_tab_transition_active
+		else CAM_PREVIEW_SMOOTH_RATE
+	)
+	var k: float = 1.0 - exp(-rate * dt)
 	_preview_camera.position = _preview_camera.position.lerp(d.pos, k)
 	_preview_camera.quaternion = _preview_camera.quaternion.slerp(d.quat, k)
 	_preview_camera.fov = lerpf(_preview_camera.fov, d.fov, k)
+	if _preview_cam_tab_transition_active and _preview_camera_close_to_desired(d):
+		_preview_cam_tab_transition_active = false
+
+func _preview_camera_close_to_desired(d: Dictionary) -> bool:
+	var pos: Vector3 = d.pos
+	var quat: Quaternion = d.quat
+	var fov: float = d.fov
+	if _preview_camera.position.distance_to(pos) > 0.06:
+		return false
+	if absf(_preview_camera.fov - fov) > 0.25:
+		return false
+	return _preview_camera.quaternion.angle_to(quat) < 0.02
 
 
 func _reset_emote_orbit_default() -> void:
 	_emote_cam_yaw = 0.0
 	_emote_cam_pitch = -8.0
-	_emote_cam_distance = 4.0
+	_emote_cam_distance = EMOTE_CAM_DEFAULT_DISTANCE
 	var tx_em := _preview_editing_lane_x()
 	_emote_cam_target = Vector3(tx_em, 0.2, 0.0)
 	_emote_cam_dragging = false
@@ -800,8 +989,9 @@ func _refresh_all_labels() -> void:
 	_hat_name_label.text = HatData.get_hat_name(_get_current_hat())
 	_update_emote_panel_ui()
 	_refresh_skin_player_button_styles()
+	_refresh_emote_player_button_styles()
 
-	if gs and _preview_player and _preview_player.has_method("set_hat"):
+	if gs and _preview_player and _preview_player.has_method("set_hat") and not _hat_slide_active:
 		_sync_preview_hat()
 
 func _update_mode_label() -> void:
@@ -841,10 +1031,13 @@ func _set_skin_editing_player(which: int) -> void:
 		return
 	if _editing_player == which:
 		return
+	_finish_hat_slide_immediate()
 	_editing_player = which
 	_refresh_all_labels()
+	if _active_section == Section.SKIN:
+		_update_skin_preview_lighting()
 
-func _skin_player_btn_theme(btn: Button, accent: Color, selected: bool) -> void:
+func _player_accent_btn_theme(btn: Button, accent: Color, selected: bool) -> void:
 	var normal := StyleBoxFlat.new()
 	normal.bg_color = accent.darkened(0.52 if selected else 0.62)
 	normal.bg_color.a = 0.94
@@ -868,83 +1061,172 @@ func _skin_player_btn_theme(btn: Button, accent: Color, selected: bool) -> void:
 func _refresh_skin_player_button_styles() -> void:
 	if not _skin_player_btn_p1 or not _skin_player_btn_p2:
 		return
-	_skin_player_btn_theme(_skin_player_btn_p1, PlayerController.P1_BODY, _editing_player == 1)
-	_skin_player_btn_theme(_skin_player_btn_p2, PlayerController.P2_BODY, _editing_player == 2)
+	_player_accent_btn_theme(_skin_player_btn_p1, PlayerController.P1_BODY, _editing_player == 1)
+	_player_accent_btn_theme(_skin_player_btn_p2, PlayerController.P2_BODY, _editing_player == 2)
+
+
+func _refresh_emote_player_button_styles() -> void:
+	if not _emote_player_btn_p1 or not _emote_player_btn_p2:
+		return
+	_player_accent_btn_theme(_emote_player_btn_p1, PlayerController.P1_BODY, _editing_player == 1)
+	_player_accent_btn_theme(_emote_player_btn_p2, PlayerController.P2_BODY, _editing_player == 2)
 
 func _on_hat_prev() -> void:
+	if _hat_slide_active:
+		return
 	var next_hat := (_get_current_hat() - 1 + HatData.HAT_COUNT) % HatData.HAT_COUNT
-	_set_current_hat(next_hat)
-	_refresh_all_labels()
+	_apply_hat_change_animated(next_hat, -1)
 
 func _on_hat_next() -> void:
-	var next_hat := (_get_current_hat() + 1) % HatData.HAT_COUNT
-	_set_current_hat(next_hat)
-	_refresh_all_labels()
-
-func _update_emote_panel_ui() -> void:
-	if not _emote_player_toggle_btn:
+	if _hat_slide_active:
 		return
-	var gs := QuizManager.game_state
-	if _editing_player == 1:
-		_emote_player_toggle_btn.text = "👤 P1 設定中 (➡ P2に切替)"
-		_emote_player_toggle_btn.add_theme_color_override("font_color", Color(0.95, 0.55, 0.20))
-	else:
-		_emote_player_toggle_btn.text = "👤 P2 設定中 (➡ P1に切替)"
-		_emote_player_toggle_btn.add_theme_color_override("font_color", Color(0.20, 0.65, 0.90))
+	var next_hat := (_get_current_hat() + 1) % HatData.HAT_COUNT
+	_apply_hat_change_animated(next_hat, 1)
 
-	var slots: Array[int] = gs.p1_emote_slots if _editing_player == 1 else gs.p2_emote_slots
-	var keys := SLOT_KEYS_P1 if _editing_player == 1 else SLOT_KEYS_P2
-	for i in range(_slot_labels.size()):
-		var emote_id := slots[i] if i < slots.size() else EmoteData.EMOTE_NONE
-		_slot_labels[i].text = EmoteData.get_emote_name(emote_id)
-		var slot_hbox := _slot_labels[i].get_parent()
-		if slot_hbox and slot_hbox.get_child_count() > 0:
-			var key_label := slot_hbox.get_child(0) as Label
-			if key_label:
-				key_label.text = "[ %s ]" % keys[i]
+func _emote_catalog_entry(emote_id: int) -> Dictionary:
+	var id := EmoteData.normalize_emote_id(emote_id)
+	for entry in EmoteData.get_emote_list():
+		if int(entry["id"]) == id:
+			return entry
+	return {"id": EmoteData.EMOTE_NONE, "name": "なし", "icon": "—", "desc": ""}
 
-func _on_emote_player_toggle() -> void:
-	_editing_player = 2 if _editing_player == 1 else 1
+
+func _editing_player_emote_slots() -> Array[int]:
 	var gs := QuizManager.game_state
-	var slots: Array[int] = gs.p1_emote_slots if _editing_player == 1 else gs.p2_emote_slots
+	return gs.p1_emote_slots if _editing_player == 1 else gs.p2_emote_slots
+
+
+func _set_emote_editing_player(which: int) -> void:
+	if which != 1 and which != 2:
+		return
+	if _editing_player == which:
+		return
+	_editing_player = which
+	var slots := _editing_player_emote_slots()
 	if slots.size() > 0:
 		_browsing_emote_id = slots[0]
+	_active_assign_slot_idx = 0
 	_refresh_all_labels()
 	if _active_section != Section.EMOTE:
 		return
 	_sync_emote_orbit_lane_x()
 	_highlight_grid_card_for_emote(_browsing_emote_id)
-	_play_emote_preview(_browsing_emote_id)
+	_refresh_emote_lane_previews()
 
-func _on_slot_change(slot_idx: int, direction: int) -> void:
-	var gs := QuizManager.game_state
-	var slots: Array[int]
-	if _editing_player == 1:
-		slots = gs.p1_emote_slots.duplicate()
-	else:
-		slots = gs.p2_emote_slots.duplicate()
-	if slot_idx < 0 or slot_idx >= slots.size():
+
+func _set_active_assign_slot(idx: int) -> void:
+	if idx < 0 or idx > 2:
 		return
-	var current := slots[slot_idx]
-	var next_id := (current + direction + EmoteData.EMOTE_COUNT) % EmoteData.EMOTE_COUNT
-	slots[slot_idx] = next_id
+	_active_assign_slot_idx = idx
+	_update_emote_panel_ui()
+
+
+func _on_assign_emote_to_slot() -> void:
+	var gs := QuizManager.game_state
+	var slots := _editing_player_emote_slots().duplicate()
+	if _active_assign_slot_idx < 0 or _active_assign_slot_idx >= slots.size():
+		return
+	slots[_active_assign_slot_idx] = _browsing_emote_id
 	if _editing_player == 1:
 		gs.p1_emote_slots = slots
 	else:
 		gs.p2_emote_slots = slots
+	_update_emote_panel_ui()
 	if _active_section == Section.EMOTE:
-		_browsing_emote_id = next_id
-	_refresh_all_labels()
-	if _active_section == Section.EMOTE:
-		_highlight_grid_card_for_emote(_browsing_emote_id)
-		_play_emote_preview(next_id)
+		_refresh_emote_lane_previews()
+
+
+func _update_emote_browse_detail() -> void:
+	if not _emote_browse_name_label:
+		return
+	var entry := _emote_catalog_entry(_browsing_emote_id)
+	if _emote_browse_icon_label:
+		_emote_browse_icon_label.text = str(entry.get("icon", "—"))
+	_emote_browse_name_label.text = str(entry.get("name", "なし"))
+	if _emote_browse_desc_label:
+		_emote_browse_desc_label.text = EmoteData.get_emote_desc(_browsing_emote_id)
+
+
+func _slot_card_style(selected: bool) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.14, 0.17, 0.26, 0.95) if selected else Color(0.10, 0.11, 0.17, 0.92)
+	style.border_color = Color(0.45, 0.65, 1.0, 0.95) if selected else Color(0.22, 0.26, 0.36, 0.85)
+	style.set_border_width_all(2 if selected else 1)
+	style.set_corner_radius_all(10)
+	style.content_margin_left = 6.0
+	style.content_margin_right = 6.0
+	style.content_margin_top = 6.0
+	style.content_margin_bottom = 6.0
+	return style
+
+
+func _style_assign_slot_button() -> void:
+	if not _assign_slot_btn:
+		return
+	var normal := StyleBoxFlat.new()
+	normal.bg_color = Color(0.15, 0.35, 0.65, 0.95)
+	normal.border_color = Color(0.35, 0.55, 0.9, 0.9)
+	normal.set_border_width_all(2)
+	normal.set_corner_radius_all(12)
+	normal.content_margin_left = 16.0
+	normal.content_margin_right = 16.0
+	normal.content_margin_top = 10.0
+	normal.content_margin_bottom = 10.0
+	var hover := normal.duplicate() as StyleBoxFlat
+	hover.bg_color = Color(0.2, 0.42, 0.75, 0.98)
+	hover.border_color = Color(0.45, 0.65, 1.0)
+	_assign_slot_btn.add_theme_stylebox_override("normal", normal)
+	_assign_slot_btn.add_theme_stylebox_override("hover", hover)
+	_assign_slot_btn.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	_assign_slot_btn.add_theme_font_size_override("font_size", 15)
+	_assign_slot_btn.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0))
+	_assign_slot_btn.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 1.0))
+
+
+func _update_emote_panel_ui() -> void:
+	if not _emote_player_btn_p1:
+		return
+	_refresh_emote_player_button_styles()
+	_update_emote_browse_detail()
+
+	var slots := _editing_player_emote_slots()
+	var keys := SLOT_KEYS_P1 if _editing_player == 1 else SLOT_KEYS_P2
+	for i in range(_emote_slot_btns.size()):
+		var slot_btn: Button = _emote_slot_btns[i]
+		var selected := i == _active_assign_slot_idx
+		var slot_style := _slot_card_style(selected)
+		slot_btn.add_theme_stylebox_override("normal", slot_style)
+		slot_btn.add_theme_stylebox_override("hover", slot_style)
+		slot_btn.add_theme_stylebox_override("pressed", slot_style)
+
+		var emote_id := EmoteData.normalize_emote_id(
+			slots[i] if i < slots.size() else EmoteData.EMOTE_NONE
+		)
+		var entry := _emote_catalog_entry(emote_id)
+		var slot_vbox := slot_btn.get_child(0) as VBoxContainer
+		if slot_vbox:
+			var key_lbl := slot_vbox.get_node_or_null("KeyLabel") as Label
+			var icon_lbl := slot_vbox.get_node_or_null("IconLabel") as Label
+			var name_lbl := slot_vbox.get_node_or_null("NameLabel") as Label
+			if key_lbl:
+				key_lbl.text = "[ %s ]" % keys[i]
+			if icon_lbl:
+				icon_lbl.text = str(entry.get("icon", "—"))
+			if name_lbl:
+				name_lbl.text = str(entry.get("name", "なし"))
+
+	if _assign_slot_btn:
+		var key_hint: String = (
+			str(keys[_active_assign_slot_idx]) if _active_assign_slot_idx < keys.size() else "?"
+		)
+		_assign_slot_btn.text = "キー %s のスロットに登録" % key_hint
 
 func _grid_card_normal_style() -> StyleBoxFlat:
 	var card_style := StyleBoxFlat.new()
 	card_style.bg_color = Color(0.12, 0.13, 0.19)
 	card_style.border_color = Color(0.25, 0.28, 0.38)
 	card_style.set_border_width_all(1)
-	card_style.set_corner_radius_all(8)
+	card_style.set_corner_radius_all(10)
 	card_style.content_margin_left = 4.0
 	card_style.content_margin_right = 4.0
 	card_style.content_margin_top = 4.0
@@ -962,7 +1244,7 @@ func _grid_card_selected_style() -> StyleBoxFlat:
 	sel_style.bg_color = Color(0.15, 0.25, 0.45)
 	sel_style.border_color = Color(0.4, 0.65, 1.0)
 	sel_style.set_border_width_all(2)
-	sel_style.set_corner_radius_all(8)
+	sel_style.set_corner_radius_all(10)
 	sel_style.content_margin_left = 4.0
 	sel_style.content_margin_right = 4.0
 	sel_style.content_margin_top = 4.0
@@ -985,10 +1267,23 @@ func _on_grid_emote_selected(emote_id: int, card: Button) -> void:
 		_selected_grid_btn.add_theme_stylebox_override("hover", _grid_card_hover_style())
 	_selected_grid_btn = card
 	card.add_theme_stylebox_override("normal", _grid_card_selected_style())
-	_browsing_emote_id = emote_id
+	_browsing_emote_id = EmoteData.normalize_emote_id(emote_id)
+	_update_emote_browse_detail()
 	_update_emote_panel_ui()
 	if _active_section == Section.EMOTE:
-		_play_emote_preview(emote_id)
+		_refresh_emote_lane_previews()
+
+func _lane_preview_emote_id_for_player(is_p1_lane: bool, gs: QuizGameState) -> int:
+	## 編集中レーンのみグリッドの閲覧中 ID。もう一方はそのプレイヤーのスロット0をそのまま表示。
+	if is_p1_lane:
+		if _editing_player == 1:
+			return EmoteData.normalize_emote_id(_browsing_emote_id)
+		var sid := gs.p1_emote_slots[0] if gs.p1_emote_slots.size() > 0 else EmoteData.EMOTE_NONE
+		return EmoteData.normalize_emote_id(sid)
+	if _editing_player == 2:
+		return EmoteData.normalize_emote_id(_browsing_emote_id)
+	var sid2 := gs.p2_emote_slots[0] if gs.p2_emote_slots.size() > 0 else EmoteData.EMOTE_NONE
+	return EmoteData.normalize_emote_id(sid2)
 
 func _pick_best_emote_animation(ap: AnimationPlayer) -> String:
 	var best_name := ""
@@ -1023,7 +1318,22 @@ func _spawn_lane_emote_preview(emote_id: int, lane_x: float, is_p1: bool, hat_id
 	_emote_preview_holder.add_child(block_root)
 	entry.parts = EmoteBlockmanPreview.build_player_skeleton(is_p1, block_root, hat_id)
 
+	emote_id = EmoteData.normalize_emote_id(emote_id)
+	entry.preview_emote_id = emote_id
+	entry.idle_sway_phase = 0.0 if is_p1 else PI
+
 	if emote_id == EmoteData.EMOTE_NONE:
+		block_root.rotation.y = 0.0
+		return entry
+
+	if EmoteData.is_thriller_emote(emote_id):
+		EmoteBlockmanPreview.setup_thriller_sequence_preview(
+			entry,
+			_sub_viewport,
+			lane_x,
+			Callable(self, "_pick_best_emote_animation"),
+		)
+		block_root.rotation.y = 0.0
 		return entry
 
 	var fbx_path := EmoteData.get_emote_fbx(emote_id)
@@ -1061,6 +1371,9 @@ func _spawn_lane_emote_preview(emote_id: int, lane_x: float, is_p1: bool, hat_id
 			if best_anim:
 				best_anim.loop_mode = Animation.LOOP_LINEAR
 			entry.ap.play(best_name)
+			var anim_played: Animation = entry.ap.get_animation(best_name)
+			if anim_played and anim_played.length > 0.05:
+				entry.ap.advance(randf() * anim_played.length)
 
 	block_root.rotation.y = 0.0
 	return entry
@@ -1068,6 +1381,8 @@ func _spawn_lane_emote_preview(emote_id: int, lane_x: float, is_p1: bool, hat_id
 
 func _cleanup_emote_lane_previews() -> void:
 	for entry in _emote_lane_previews:
+		if entry.get("is_thriller_sequence", false):
+			EmoteBlockmanPreview.free_thriller_sequence(entry)
 		var fbx: Node3D = entry.get("fbx", null)
 		if fbx != null and is_instance_valid(fbx):
 			fbx.queue_free()
@@ -1077,15 +1392,13 @@ func _cleanup_emote_lane_previews() -> void:
 	_emote_lane_previews.clear()
 
 
-func _play_emote_preview(emote_id: int) -> void:
+func _refresh_emote_lane_previews() -> void:
 	if _active_section != Section.EMOTE:
 		return
 	if not _emote_preview_holder:
 		return
 
 	_cleanup_emote_lane_previews()
-	_current_preview_emote_id = emote_id
-
 	var gm := QuizManager.game_state
 	var lane_infos: Array[Dictionary] = [
 		{"lane_x": PREVIEW_PLAYER_P1_X, "is_p1": true, "hat": gm.p1_hat},
@@ -1096,7 +1409,8 @@ func _play_emote_preview(emote_id: int) -> void:
 		var lx: float = float(lane_info["lane_x"])
 		var lane_p1: bool = bool(lane_info["is_p1"])
 		var hid: int = int(lane_info["hat"])
-		var e := _spawn_lane_emote_preview(emote_id, lx, lane_p1, hid)
+		var eid := _lane_preview_emote_id_for_player(lane_p1, gm)
+		var e := _spawn_lane_emote_preview(eid, lx, lane_p1, hid)
 		_emote_lane_previews.append(e)
 
 
@@ -1111,6 +1425,154 @@ func _sync_preview_hat() -> void:
 	var gs := QuizManager.game_state
 	_preview_player.set_hat(1, gs.p1_hat)
 	_preview_player.set_hat(2, gs.p2_hat)
+
+
+func _sync_preview_hat_for_player(player_id: int) -> void:
+	if not _preview_player or not _preview_player.has_method("set_hat"):
+		return
+	var gs := QuizManager.game_state
+	var hat_id := gs.p1_hat if player_id == 1 else gs.p2_hat
+	_preview_player.set_hat(player_id, hat_id)
+
+
+func _apply_hat_change_animated(new_hat_id: int, direction: int) -> void:
+	_set_current_hat(new_hat_id)
+	_hat_name_label.text = HatData.get_hat_name(new_hat_id)
+	if _active_section != Section.SKIN:
+		_sync_preview_hat_for_player(_editing_player)
+		return
+	_start_hat_slide_preview(_editing_player, new_hat_id, direction)
+
+
+func _start_hat_slide_preview(player_id: int, new_hat_id: int, direction: int) -> void:
+	_finish_hat_slide_immediate()
+	var pc := _preview_player as PlayerController
+	if pc == null:
+		_sync_preview_hat_for_player(player_id)
+		return
+
+	var is_p1 := player_id == 1
+	var parts: Dictionary = pc.p1_parts if is_p1 else pc.p2_parts
+	if not parts.has("hat_mount"):
+		_sync_preview_hat_for_player(player_id)
+		return
+	var mount: Node3D = parts["hat_mount"]
+
+	var old_node: Node3D = pc._p1_hat_node if is_p1 else pc._p2_hat_node
+	if is_p1:
+		pc._p1_hat_node = null
+	else:
+		pc._p2_hat_node = null
+	parts["hat_meshes"] = []
+
+	var new_node: Node3D = null
+	if new_hat_id != HatData.HAT_NONE:
+		new_node = HatFactory.create_hat(new_hat_id)
+		if new_node:
+			mount.add_child(new_node)
+			new_node.position = Vector3(
+				float(direction) * HAT_SLIDE_OFFSCREEN_X,
+				0.0,
+				HAT_SLIDE_INCOMING_Z,
+			)
+
+	if old_node and is_instance_valid(old_node):
+		old_node.position = Vector3.ZERO
+		_set_hat_slide_node_visible(old_node, true)
+
+	if new_node and is_instance_valid(new_node):
+		_set_hat_slide_node_visible(new_node, not _hat_slide_is_past_viewport_edge(new_node.position.x))
+
+	if old_node == null and new_node == null:
+		_sync_preview_hat_for_player(player_id)
+		return
+
+	_hat_slide_active = true
+	_hat_slide_t = 0.0
+	_hat_slide_dir = direction
+	_hat_slide_player_id = player_id
+	_hat_slide_target_id = new_hat_id
+	_hat_slide_old = old_node
+	_hat_slide_new = new_node
+
+
+func _hat_slide_enter_weight(u: float) -> float:
+	# 画面外から勢いよく飛び込み、装着位置で減速
+	return 1.0 - pow(1.0 - u, HAT_SLIDE_ENTER_EASE_POW)
+
+
+func _hat_slide_exit_weight(u: float) -> float:
+	# 前半で素早く画面外へ（入りより先に抜ける）
+	return pow(u, HAT_SLIDE_EXIT_EASE_POW)
+
+
+func _hat_slide_is_past_viewport_edge(local_x: float) -> bool:
+	return absf(local_x) >= HAT_SLIDE_VISIBILITY_EDGE_X
+
+
+func _set_hat_slide_node_visible(node: Node3D, visible: bool) -> void:
+	if node == null or not is_instance_valid(node):
+		return
+	node.visible = visible
+
+
+func _process_hat_slide(dt: float) -> void:
+	if not _hat_slide_active:
+		return
+	_hat_slide_t += dt
+	var u := clampf(_hat_slide_t / HAT_SLIDE_DURATION, 0.0, 1.0)
+	var enter_u := clampf(
+		(u - HAT_SLIDE_ENTER_DELAY_FRAC) / (1.0 - HAT_SLIDE_ENTER_DELAY_FRAC),
+		0.0,
+		1.0,
+	)
+	var enter_w := _hat_slide_enter_weight(enter_u)
+	var exit_w := _hat_slide_exit_weight(u)
+	var off := HAT_SLIDE_OFFSCREEN_X
+	var dir_f := float(_hat_slide_dir)
+	var enter_x := lerpf(dir_f * off, 0.0, enter_w)
+	var exit_x := lerpf(0.0, -dir_f * off, exit_w)
+	if _hat_slide_old and is_instance_valid(_hat_slide_old):
+		_hat_slide_old.position.x = exit_x
+		_set_hat_slide_node_visible(_hat_slide_old, not _hat_slide_is_past_viewport_edge(exit_x))
+	if _hat_slide_new and is_instance_valid(_hat_slide_new):
+		_hat_slide_new.position.x = enter_x
+		_hat_slide_new.position.z = lerpf(HAT_SLIDE_INCOMING_Z, 0.0, enter_w)
+		_set_hat_slide_node_visible(_hat_slide_new, not _hat_slide_is_past_viewport_edge(enter_x))
+	if u >= 1.0:
+		_finish_hat_slide()
+
+
+func _finish_hat_slide() -> void:
+	if not _hat_slide_active:
+		return
+	if _hat_slide_old and is_instance_valid(_hat_slide_old):
+		_hat_slide_old.queue_free()
+	if _hat_slide_new and is_instance_valid(_hat_slide_new):
+		_hat_slide_new.queue_free()
+	var player_id := _hat_slide_player_id
+	var hat_id := _hat_slide_target_id
+	_hat_slide_active = false
+	_hat_slide_old = null
+	_hat_slide_new = null
+	_hat_slide_t = 0.0
+	if _preview_player and _preview_player.has_method("set_hat"):
+		_preview_player.set_hat(player_id, hat_id)
+
+
+func _finish_hat_slide_immediate() -> void:
+	if not _hat_slide_active:
+		return
+	if _hat_slide_old and is_instance_valid(_hat_slide_old):
+		_hat_slide_old.queue_free()
+	if _hat_slide_new and is_instance_valid(_hat_slide_new):
+		_hat_slide_new.queue_free()
+	var player_id := _hat_slide_player_id
+	_hat_slide_active = false
+	_hat_slide_old = null
+	_hat_slide_new = null
+	_hat_slide_t = 0.0
+	_sync_preview_hat_for_player(player_id)
 
 func _get_current_hat() -> int:
 	var gs := QuizManager.game_state
@@ -1578,6 +2040,14 @@ func _style_all_buttons() -> void:
 		if _emote_grid and btn.get_parent() == _emote_grid:
 			continue
 		if btn == _skin_player_btn_p1 or btn == _skin_player_btn_p2:
+			continue
+		if btn == _emote_player_btn_p1 or btn == _emote_player_btn_p2:
+			continue
+		if btn == _assign_slot_btn:
+			continue
+		if btn in _emote_slot_btns:
+			continue
+		if btn in _grid_card_by_id.values():
 			continue
 		btn.add_theme_stylebox_override("normal", normal_style.duplicate())
 		btn.add_theme_stylebox_override("hover", hover_style.duplicate())
