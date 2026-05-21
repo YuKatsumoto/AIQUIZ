@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://cq8w2xr4m7t5k"]
+
+[ext_resource type="Script" uid="uid://dylbysr8an63v" path="res://scripts/world/quiz_wall.gd" id="1_quiz_wall"]
+
+[node name="QuizWall" type="Node3D"]
+script = ExtResource("1_quiz_wall")

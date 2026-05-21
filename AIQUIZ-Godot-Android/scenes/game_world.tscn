@@ -1,0 +1,79 @@
+[gd_scene load_steps=10 format=3 uid="uid://b5lam3xr7t2pw"]
+
+[ext_resource type="Script" uid="uid://cujkojhjsxtkf" path="res://scripts/world/game_world.gd" id="1_game_world"]
+[ext_resource type="Script" uid="uid://b04s5xhxabi7t" path="res://scripts/world/player_controller.gd" id="2_player"]
+[ext_resource type="Script" uid="uid://thi2cdxovmob" path="res://scripts/world/camera_controller.gd" id="3_camera"]
+[ext_resource type="Script" uid="uid://ds7xmtwofj7qr" path="res://scripts/effects/particle_spawner.gd" id="4_particles"]
+[ext_resource type="PackedScene" uid="uid://cv7m3xlap2t5w" path="res://ui/gameplay_hud.tscn" id="5_hud_scene"]
+[ext_resource type="PackedScene" uid="uid://coaittg30ha33" path="res://ui/death_wipe.tscn" id="6_death_wipe"]
+[ext_resource type="Shader" uid="uid://bom0fpd17yipy" path="res://shaders/conveyor_belt_floor.gdshader" id="7_floor_shader"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_floor"]
+render_priority = 0
+shader = ExtResource("7_floor_shader")
+shader_parameter/scroll_z = 0.0
+shader_parameter/scroll_sign = 1.0
+shader_parameter/roller_mode = 0.0
+shader_parameter/roller_radius = 0.5
+shader_parameter/roller_contact_z = 0.0
+shader_parameter/roller_arc_sign = 1.0
+shader_parameter/belt_scale = 0.22
+shader_parameter/stripe_scale = 12.0
+shader_parameter/stripe_softness = 0.12
+shader_parameter/groove_strength = 0.3
+shader_parameter/base_color = Color(0.17, 0.19, 0.23, 1)
+shader_parameter/stripe_color = Color(0.44, 0.47, 0.52, 1)
+shader_parameter/side_color = Color(0.14, 0.14, 0.16, 1)
+shader_parameter/rim_color = Color(0.26, 0.265, 0.27, 1)
+shader_parameter/rim_inner_x = 10.15
+shader_parameter/rim_outer_x = 12.0
+shader_parameter/rim_softness = 0.12
+shader_parameter/rim_lip_width = 0.06
+shader_parameter/roller_freq = 7.5
+shader_parameter/roller_sharpness = 180.0
+shader_parameter/roller_depth = 0.22
+shader_parameter/roughness_val = 0.82
+shader_parameter/metallic_val = 0.08
+shader_parameter/rim_metallic_boost = 0.18
+
+[sub_resource type="BoxMesh" id="BoxMesh_floor"]
+size = Vector3(24, 16, 160)
+
+[node name="GameWorld" type="Node3D"]
+script = ExtResource("1_game_world")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.766044, 0.642788, 0, -0.642788, 0.766044, 0, 8, 0)
+light_color = Color(0.9, 0.92, 0.95, 1)
+light_energy = 1.2
+shadow_enabled = true
+
+[node name="Floor" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -9.2, 4)
+material_override = SubResource("ShaderMaterial_floor")
+mesh = SubResource("BoxMesh_floor")
+
+[node name="Player" type="Node3D" parent="."]
+script = ExtResource("2_player")
+
+[node name="CameraController" type="Node3D" parent="."]
+script = ExtResource("3_camera")
+
+[node name="Camera3D" type="Camera3D" parent="CameraController"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+fov = 44.0
+far = 160.0
+
+[node name="WallContainer" type="Node3D" parent="."]
+
+[node name="ParticleSpawner" type="Node3D" parent="."]
+script = ExtResource("4_particles")
+
+[node name="GameplayHUD" parent="." instance=ExtResource("5_hud_scene")]
+
+[node name="DeathWipeLayer" type="CanvasLayer" parent="."]
+layer = 5
+
+[node name="DeathWipe" parent="DeathWipeLayer" instance=ExtResource("6_death_wipe")]

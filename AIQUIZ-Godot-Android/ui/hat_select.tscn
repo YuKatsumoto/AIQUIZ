@@ -1,0 +1,300 @@
+[gd_scene load_steps=2 format=3 uid="uid://hat_select_scene"]
+
+[ext_resource type="Script" path="res://scripts/ui/hat_select.gd" id="1_hat_select"]
+
+[node name="HatSelect" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_hat_select")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.06, 0.07, 0.11, 1)
+
+[node name="MainContainer" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 40.0
+offset_top = 12.0
+offset_right = -40.0
+offset_bottom = -12.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 10
+
+[node name="TitleLabel" type="Label" parent="MainContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.88, 0.25, 1)
+theme_override_font_sizes/font_size = 32
+text = "スキン設定"
+horizontal_alignment = 1
+
+[node name="SubtitleLabel" type="Label" parent="MainContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.5, 0.55, 0.65, 1)
+theme_override_font_sizes/font_size = 13
+text = "帽子を選んでください"
+horizontal_alignment = 1
+
+[node name="PreviewContainer" type="HBoxContainer" parent="MainContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 24
+alignment = 1
+
+[node name="P1PreviewPanel" type="Panel" parent="MainContainer/PreviewContainer"]
+custom_minimum_size = Vector2(340, 380)
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+
+[node name="P1Label" type="Label" parent="MainContainer/PreviewContainer/P1PreviewPanel"]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -60.0
+offset_top = 8.0
+offset_right = 60.0
+offset_bottom = 35.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(0.95, 0.55, 0.20, 1)
+theme_override_font_sizes/font_size = 20
+text = "P1"
+horizontal_alignment = 1
+
+[node name="P1SubViewport" type="SubViewport" parent="MainContainer/PreviewContainer/P1PreviewPanel"]
+transparent_bg = false
+handle_input_locally = false
+size = Vector2i(960, 1080)
+msaa_2d = 2
+msaa_3d = 3
+screen_space_aa = 1
+use_taa = true
+use_debanding = true
+render_target_update_mode = 4
+
+[node name="P1ViewportTexture" type="TextureRect" parent="MainContainer/PreviewContainer/P1PreviewPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 10.0
+offset_top = 10.0
+offset_right = -10.0
+offset_bottom = -10.0
+grow_horizontal = 2
+grow_vertical = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="P2PreviewPanel" type="Panel" parent="MainContainer/PreviewContainer"]
+custom_minimum_size = Vector2(340, 380)
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+
+[node name="P2Label" type="Label" parent="MainContainer/PreviewContainer/P2PreviewPanel"]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -60.0
+offset_top = 8.0
+offset_right = 60.0
+offset_bottom = 35.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(0.20, 0.65, 0.90, 1)
+theme_override_font_sizes/font_size = 20
+text = "P2"
+horizontal_alignment = 1
+
+[node name="P2SubViewport" type="SubViewport" parent="MainContainer/PreviewContainer/P2PreviewPanel"]
+transparent_bg = false
+handle_input_locally = false
+size = Vector2i(960, 1080)
+msaa_2d = 2
+msaa_3d = 3
+screen_space_aa = 1
+use_taa = true
+use_debanding = true
+render_target_update_mode = 4
+
+[node name="P2ViewportTexture" type="TextureRect" parent="MainContainer/PreviewContainer/P2PreviewPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 10.0
+offset_top = 10.0
+offset_right = -10.0
+offset_bottom = -10.0
+grow_horizontal = 2
+grow_vertical = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="SelectionContainer" type="HBoxContainer" parent="MainContainer"]
+layout_mode = 2
+theme_override_constants/separation = 60
+alignment = 1
+
+[node name="P1Section" type="VBoxContainer" parent="MainContainer/SelectionContainer"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="P1Title" type="Label" parent="MainContainer/SelectionContainer/P1Section"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.55, 0.20, 1)
+theme_override_font_sizes/font_size = 16
+text = "プレイヤー1"
+horizontal_alignment = 1
+
+[node name="P1HatRow" type="HBoxContainer" parent="MainContainer/SelectionContainer/P1Section"]
+layout_mode = 2
+alignment = 1
+
+[node name="P1HatLeftBtn" type="Button" parent="MainContainer/SelectionContainer/P1Section/P1HatRow"]
+custom_minimum_size = Vector2(44, 40)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "◀"
+
+[node name="P1HatLabel" type="Label" parent="MainContainer/SelectionContainer/P1Section/P1HatRow"]
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.92, 0.94, 0.98, 1)
+theme_override_font_sizes/font_size = 18
+text = "🎩 — なし"
+horizontal_alignment = 1
+
+[node name="P1HatRightBtn" type="Button" parent="MainContainer/SelectionContainer/P1Section/P1HatRow"]
+custom_minimum_size = Vector2(44, 40)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "▶"
+
+[node name="P1EmoteRow" type="HBoxContainer" parent="MainContainer/SelectionContainer/P1Section"]
+layout_mode = 2
+alignment = 1
+
+[node name="P1EmoteLeftBtn" type="Button" parent="MainContainer/SelectionContainer/P1Section/P1EmoteRow"]
+custom_minimum_size = Vector2(44, 40)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "◀"
+
+[node name="P1EmoteLabel" type="Label" parent="MainContainer/SelectionContainer/P1Section/P1EmoteRow"]
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.92, 0.94, 0.98, 1)
+theme_override_font_sizes/font_size = 18
+text = "🕺 — なし"
+horizontal_alignment = 1
+
+[node name="P1EmoteRightBtn" type="Button" parent="MainContainer/SelectionContainer/P1Section/P1EmoteRow"]
+custom_minimum_size = Vector2(44, 40)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "▶"
+
+[node name="P1EmoteDesc" type="Label" parent="MainContainer/SelectionContainer/P1Section"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.45, 0.50, 0.60, 1)
+theme_override_font_sizes/font_size = 12
+text = ""
+horizontal_alignment = 1
+
+[node name="P2Section" type="VBoxContainer" parent="MainContainer/SelectionContainer"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="P2Title" type="Label" parent="MainContainer/SelectionContainer/P2Section"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.20, 0.65, 0.90, 1)
+theme_override_font_sizes/font_size = 16
+text = "プレイヤー2"
+horizontal_alignment = 1
+
+[node name="P2HatRow" type="HBoxContainer" parent="MainContainer/SelectionContainer/P2Section"]
+layout_mode = 2
+alignment = 1
+
+[node name="P2HatLeftBtn" type="Button" parent="MainContainer/SelectionContainer/P2Section/P2HatRow"]
+custom_minimum_size = Vector2(44, 40)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "◀"
+
+[node name="P2HatLabel" type="Label" parent="MainContainer/SelectionContainer/P2Section/P2HatRow"]
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.92, 0.94, 0.98, 1)
+theme_override_font_sizes/font_size = 18
+text = "🎩 — なし"
+horizontal_alignment = 1
+
+[node name="P2HatRightBtn" type="Button" parent="MainContainer/SelectionContainer/P2Section/P2HatRow"]
+custom_minimum_size = Vector2(44, 40)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "▶"
+
+[node name="P2EmoteRow" type="HBoxContainer" parent="MainContainer/SelectionContainer/P2Section"]
+layout_mode = 2
+alignment = 1
+
+[node name="P2EmoteLeftBtn" type="Button" parent="MainContainer/SelectionContainer/P2Section/P2EmoteRow"]
+custom_minimum_size = Vector2(44, 40)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "◀"
+
+[node name="P2EmoteLabel" type="Label" parent="MainContainer/SelectionContainer/P2Section/P2EmoteRow"]
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.92, 0.94, 0.98, 1)
+theme_override_font_sizes/font_size = 18
+text = "🕺 — なし"
+horizontal_alignment = 1
+
+[node name="P2EmoteRightBtn" type="Button" parent="MainContainer/SelectionContainer/P2Section/P2EmoteRow"]
+custom_minimum_size = Vector2(44, 40)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "▶"
+
+[node name="P2EmoteDesc" type="Label" parent="MainContainer/SelectionContainer/P2Section"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.45, 0.50, 0.60, 1)
+theme_override_font_sizes/font_size = 12
+text = ""
+horizontal_alignment = 1
+
+[node name="BackBtn" type="Button" parent="MainContainer"]
+custom_minimum_size = Vector2(260, 48)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 20
+text = "メニューに戻る"
+
+[connection signal="pressed" from="MainContainer/SelectionContainer/P1Section/P1HatRow/P1HatLeftBtn" to="." method="_on_p1_hat_left_pressed"]
+[connection signal="pressed" from="MainContainer/SelectionContainer/P1Section/P1HatRow/P1HatRightBtn" to="." method="_on_p1_hat_right_pressed"]
+[connection signal="pressed" from="MainContainer/SelectionContainer/P1Section/P1EmoteRow/P1EmoteLeftBtn" to="." method="_on_p1_emote_left_pressed"]
+[connection signal="pressed" from="MainContainer/SelectionContainer/P1Section/P1EmoteRow/P1EmoteRightBtn" to="." method="_on_p1_emote_right_pressed"]
+[connection signal="pressed" from="MainContainer/SelectionContainer/P2Section/P2HatRow/P2HatLeftBtn" to="." method="_on_p2_hat_left_pressed"]
+[connection signal="pressed" from="MainContainer/SelectionContainer/P2Section/P2HatRow/P2HatRightBtn" to="." method="_on_p2_hat_right_pressed"]
+[connection signal="pressed" from="MainContainer/SelectionContainer/P2Section/P2EmoteRow/P2EmoteLeftBtn" to="." method="_on_p2_emote_left_pressed"]
+[connection signal="pressed" from="MainContainer/SelectionContainer/P2Section/P2EmoteRow/P2EmoteRightBtn" to="." method="_on_p2_emote_right_pressed"]
+[connection signal="pressed" from="MainContainer/BackBtn" to="." method="_on_back_pressed"]

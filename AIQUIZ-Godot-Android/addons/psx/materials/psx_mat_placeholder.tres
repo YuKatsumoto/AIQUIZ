@@ -1,0 +1,18 @@
+[gd_resource type="ShaderMaterial" script_class="PsxMaterial3D" format=3 uid="uid://c5volcllr43l7"]
+
+[ext_resource type="Script" uid="uid://cb12verrfoj5k" path="res://addons/psx/scripts/PsxMaterial3D.gd" id="1_a1w80"]
+[ext_resource type="Shader" uid="uid://cbjxdnph5jcmg" path="res://addons/psx/shaders/cache/psx_00000.gdshader" id="2_a1w80"]
+
+[sub_resource type="PlaceholderTexture2D" id="PlaceholderTexture2D_t3daf"]
+
+[resource]
+render_priority = 0
+shader = ExtResource("2_a1w80")
+shader_parameter/u_vertex_color_use_as_albedo = false
+shader_parameter/u_albedo_texture = SubResource("PlaceholderTexture2D_t3daf")
+shader_parameter/u_albedo_color = Color(1, 1, 1, 1)
+script = ExtResource("1_a1w80")
+shading_mode = 0
+fog_mode = 0
+vertex_color_use_as_albedo = false
+albedo_texture = SubResource("PlaceholderTexture2D_t3daf")
