@@ -571,4 +571,14 @@ select.input-field {
   .sidebar { width: 200px; min-width: 200px; }
   .main-content { padding: 1.5rem; }
   .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+  .health-grid { grid-template-columns: 1fr; }
+  .quick-grid { grid-template-columns: 1fr; }
+  .dashboard-hero-meta { align-items: flex-start; }
+  .activity-item {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+  .subject-bar-row {
+    grid-template-columns: 64px 1fr 40px;
+  }
 }
