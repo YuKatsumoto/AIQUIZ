@@ -888,13 +888,13 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 			game_over_timer = 0.001
 
 	# Check collisions with wall
-	var p1_hit: bool = p1_alive and player_z >= wall_z - 0.8
-	var p2_hit: bool = num_players >= 2 and p2_alive and player2_z >= wall_z - 0.8
+	var p1_hit: bool = p1_alive and player_z >= wall_z - 0.4
+	var p2_hit: bool = num_players >= 2 and p2_alive and player2_z >= wall_z - 0.4
 
 	if p1_hit or p2_hit:
 		# Prevent clipping through
-		if p1_hit: player_z = wall_z - 0.8
-		if p2_hit: player2_z = wall_z - 0.8
+		if p1_hit: player_z = wall_z - 0.4
+		if p2_hit: player2_z = wall_z - 0.4
 		resolve_collision(p1_hit, p2_hit)
 
 func _update_correct(dt: float) -> void:
@@ -1127,8 +1127,8 @@ func _resolve_tutorial_collision() -> void:
 	_reset_tutorial_attempt(hint)
 
 func _resolve_tutorial_collision_2p() -> void:
-	var p1_at_wall := p1_alive and player_z >= wall_z - 0.8
-	var p2_at_wall := p2_alive and player2_z >= wall_z - 0.8
+	var p1_at_wall := p1_alive and player_z >= wall_z - 0.4
+	var p2_at_wall := p2_alive and player2_z >= wall_z - 0.4
 	if not (p1_at_wall and p2_at_wall):
 		choice_locked = false
 		if p1_at_wall:
@@ -1357,8 +1357,8 @@ func _resolve_coop_collision() -> void:
 		_fail_coop_immediately("協力問題の準備に失敗しました。")
 		return
 
-	var p1_at_wall := p1_alive and player_z >= wall_z - 0.81
-	var p2_at_wall := p2_alive and player2_z >= wall_z - 0.81
+	var p1_at_wall := p1_alive and player_z >= wall_z - 0.41
+	var p2_at_wall := p2_alive and player2_z >= wall_z - 0.41
 	if not (p1_at_wall and p2_at_wall):
 		choice_locked = false
 		message_text = _coop_wait_message(p1_at_wall, p2_at_wall)

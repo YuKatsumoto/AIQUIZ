@@ -47,7 +47,6 @@ func _ready() -> void:
 
 	vol_slider.value = AudioManager.sfx_volume
 
-
 	res_option.item_selected.connect(_on_resolution_selected)
 	res_option.add_item("1280x720 (HD)", 0)
 	res_option.add_item("1920x1080 (FHD)", 1)

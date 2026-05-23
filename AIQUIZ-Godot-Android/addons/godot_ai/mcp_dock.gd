@@ -26,6 +26,7 @@ extends VBoxContainer
 
 const ServerStateScript := preload("res://addons/godot_ai/utils/mcp_server_state.gd")
 const ClientRefreshStateScript := preload("res://addons/godot_ai/utils/mcp_client_refresh_state.gd")
+const Telemetry := preload("res://addons/godot_ai/telemetry.gd")
 const UpdateManagerScript := preload("res://addons/godot_ai/utils/update_manager.gd")
 const UpdateMixedStateScript := preload("res://addons/godot_ai/utils/update_mixed_state.gd")
 const Client := preload("res://addons/godot_ai/clients/_base.gd")
@@ -39,11 +40,6 @@ const LogViewerScript := preload("res://addons/godot_ai/dock_panels/log_viewer.g
 const PortPickerPanelScript := preload("res://addons/godot_ai/dock_panels/port_picker_panel.gd")
 
 const DEV_MODE_SETTING := "godot_ai/dev_mode"
-## Index ↔ persisted-value mapping for the mode-override dropdown. The array
-## index is the OptionButton item id; the string is what's written to the
-## EditorSetting and read by `ClientConfigurator.mode_override()`.
-const MODE_OVERRIDE_VALUES := ["", "user", "dev"]
-const MODE_OVERRIDE_LABELS := ["Auto", "Force user", "Force dev"]
 const CLIENT_STATUS_REFRESH_COOLDOWN_MSEC := 15 * 1000
 const CLIENT_STATUS_REFRESH_TIMEOUT_MSEC := 30 * 1000
 static var COLOR_MUTED := Color(0.7, 0.7, 0.7)
@@ -69,7 +65,7 @@ var _clients_window: Window
 var _dev_mode_toggle: CheckButton
 var _install_label: Label
 
-# Tools tab (secondary window, Tab 2) — domain-exclusion UI for clients
+# Settings tab (secondary window, Tab 2) — domain-exclusion UI for clients
 # that cap total tool count (Antigravity: 100). Pending set is mutated by
 # checkbox clicks; saved set reflects what the spawned server actually
 # sees. `Apply & Restart Server` writes pending → setting and triggers a
@@ -82,6 +78,9 @@ var _tools_apply_btn: Button
 var _tools_reset_btn: Button
 var _tools_dirty_warning: Label
 var _tools_close_confirm: ConfirmationDialog
+var _telemetry_toggle: CheckButton
+var _telemetry_pending_enabled: bool = true
+var _telemetry_saved_enabled: bool = true
 
 ## Per-client UI handles, keyed by client id. Each entry holds the row's
 ## status dot, configure button, remove button, manual-command panel + text.
@@ -170,10 +169,17 @@ var _client_action_generations: Dictionary = {}
 var _dev_section: VBoxContainer
 var _server_label: Label
 var _reload_btn: Button
-var _mode_override_btn: OptionButton
 var _setup_section: VBoxContainer
 var _setup_container: VBoxContainer
-var _dev_server_btn: Button
+## Primary dev-section button — always (re)starts a `--reload` dev server.
+## Same-version Python edits get adopted as compatible by the lifecycle, so
+## neither the drift nor the crash Restart button surfaces; this is the
+## unconditional kick contributors need to pick up source changes without
+## a version bump.
+var _dev_primary_btn: Button
+## Small "✕" affordance next to the primary — stops the dev server without
+## spawning a replacement. Disabled when no dev server is running.
+var _dev_stop_btn: Button
 var _log_viewer: LogViewerScript
 
 var _last_connected := false
@@ -374,6 +380,15 @@ func _on_redock() -> void:
 		win.close_requested.emit()
 
 
+func _build_margin_container(margin: int = 12) -> MarginContainer:
+	var margin_container := MarginContainer.new()
+	margin_container.add_theme_constant_override("margin_left", margin)
+	margin_container.add_theme_constant_override("margin_right", margin)
+	margin_container.add_theme_constant_override("margin_top", margin)
+	margin_container.add_theme_constant_override("margin_bottom", margin)
+	return margin_container
+
+
 func _build_ui() -> void:
 	add_theme_constant_override("separation", 8)
 
@@ -523,23 +538,6 @@ func _build_ui() -> void:
 
 	_dev_section.add_child(btn_row)
 
-	# Dev-only override for testing the update-banner flow; persisted via EditorSettings.
-	var mode_row := HBoxContainer.new()
-	mode_row.add_theme_constant_override("separation", 6)
-	var mode_label := Label.new()
-	mode_label.text = "Mode override"
-	mode_label.tooltip_text = "Force dev or user mode for testing the update flow. Normally leave on Auto. GODOT_AI_MODE env var is the fallback when this is Auto."
-	mode_row.add_child(mode_label)
-	_mode_override_btn = OptionButton.new()
-	_mode_override_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	for i in MODE_OVERRIDE_LABELS.size():
-		_mode_override_btn.add_item(MODE_OVERRIDE_LABELS[i], i)
-	_mode_override_btn.tooltip_text = mode_label.tooltip_text
-	_mode_override_btn.select(_mode_override_index_from_setting())
-	_mode_override_btn.item_selected.connect(_on_mode_override_selected)
-	mode_row.add_child(_mode_override_btn)
-	_dev_section.add_child(mode_row)
-
 	# --- Setup section (dev-only or when uv missing) ---
 	_setup_section = VBoxContainer.new()
 	_setup_section.add_theme_constant_override("separation", 6)
@@ -572,8 +570,8 @@ func _build_ui() -> void:
 	clients_row.add_child(clients_refresh_btn)
 
 	var clients_open_btn := Button.new()
-	clients_open_btn.text = "Clients & Tools"
-	clients_open_btn.tooltip_text = "Open the MCP settings window — configure AI clients or disable tool domains to fit under a client's hard tool-count cap (e.g. Antigravity's 100)."
+	clients_open_btn.text = "Clients & Settings"
+	clients_open_btn.tooltip_text = "Open the MCP settings window — configure AI clients, choose telemetry preferences, or disable tool domains to fit under a client's hard tool-count cap (e.g. Antigravity's 100)."
 	clients_open_btn.pressed.connect(_on_open_clients_window)
 	clients_row.add_child(clients_open_btn)
 
@@ -596,34 +594,28 @@ func _build_ui() -> void:
 	add_child(_drift_banner)
 
 	_clients_window = Window.new()
-	_clients_window.title = "MCP Clients & Tools"
-	_clients_window.min_size = Vector2i(560, 460)
+	_clients_window.title = "MCP Clients & Settings"
+	## `Vector2i * float` yields Vector2; wrap the result back to Vector2i.
+	_clients_window.min_size = Vector2i(Vector2(560, 460) * EditorInterface.get_editor_scale())
 	_clients_window.visible = false
 	_clients_window.close_requested.connect(_on_clients_window_close_requested)
 	add_child(_clients_window)
-
-	var window_margin := MarginContainer.new()
-	window_margin.anchor_right = 1.0
-	window_margin.anchor_bottom = 1.0
-	window_margin.add_theme_constant_override("margin_left", 12)
-	window_margin.add_theme_constant_override("margin_right", 12)
-	window_margin.add_theme_constant_override("margin_top", 12)
-	window_margin.add_theme_constant_override("margin_bottom", 12)
-	_clients_window.add_child(window_margin)
 
 	## Two-tab secondary window: Clients (existing per-client rows) and Tools
 	## (domain-exclusion checkboxes for clients that cap total tool count,
 	## like Antigravity at 100). Adding a third tab is one more _build_*_tab
 	## call and a set_tab_title line — no surgery on the rest of the window.
 	var tabs := TabContainer.new()
-	tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	window_margin.add_child(tabs)
+	tabs.anchor_right = 1.0
+	tabs.anchor_bottom = 1.0
+	_clients_window.add_child(tabs)
 
 	var clients_tab := VBoxContainer.new()
-	clients_tab.name = "Clients"
 	clients_tab.add_theme_constant_override("separation", 8)
-	tabs.add_child(clients_tab)
+	var clients_margin := _build_margin_container()
+	clients_margin.name = "Clients"
+	clients_margin.add_child(clients_tab)
+	tabs.add_child(clients_margin)
 
 	_client_configure_all_btn = Button.new()
 	_client_configure_all_btn.text = "Configure all"
@@ -830,7 +822,7 @@ func _update_status() -> void:
 	_status_icon.color = status_color
 	_status_label.text = status_text
 
-	_update_dev_server_btn()
+	_update_dev_section_buttons()
 
 
 ## Render the diagnostic panel body for a given spawn state. The top
@@ -1000,7 +992,7 @@ func _on_log_logging_enabled_changed(enabled: bool) -> void:
 func _on_port_apply_requested(new_port: int) -> void:
 	var es := EditorInterface.get_editor_settings()
 	if es != null:
-		es.set_setting(ClientConfigurator.SETTING_HTTP_PORT, new_port)
+		es.set_setting(McpSettings.SETTING_HTTP_PORT, new_port)
 	## Every saved client config now points at the old port. Re-sweep so the
 	## drift banner appears in the same frame the user committed the change —
 	## the plugin reload below will run a second sweep on its own first paint,
@@ -1021,7 +1013,66 @@ func _refresh_server_label() -> void:
 	_server_label.text = "WS: %d  HTTP: %d" % [ws_port, ClientConfigurator.http_port()]
 
 
+# --- Telemetry setting persistence ---
+
+
+## Returns true if GODOT_AI_DISABLE_TELEMETRY or DISABLE_TELEMETRY is set
+## to a truthy value, false if either is set and non-truthy, null if neither
+## env var is present at all.
+func _is_telemetry_disabled_via_env() -> Variant:
+	if not (OS.has_environment("GODOT_AI_DISABLE_TELEMETRY") or OS.has_environment("DISABLE_TELEMETRY")):
+		return null
+	return McpSettings.env_truthy("GODOT_AI_DISABLE_TELEMETRY") or McpSettings.env_truthy("DISABLE_TELEMETRY")
+
+
+## Reads the telemetry preference, applying env-var override when present.
+## Initialises _telemetry_pending_enabled / _telemetry_saved_enabled and
+## sets the checkbox state + locked tooltip. Call after _telemetry_toggle
+## has been created.
+func _load_telemetry_setting() -> void:
+	var es := EditorInterface.get_editor_settings()
+	var env_disabled = _is_telemetry_disabled_via_env()
+
+	var enabled: bool
+	if env_disabled != null:
+		## Env var present: resolve and save to EditorSettings so future sessions without
+		## the env var honour the last-set value.
+		enabled = not bool(env_disabled)
+		if es != null:
+			es.set_setting(McpSettings.SETTING_TELEMETRY_ENABLED, enabled)
+	else:
+		## No env var: read (or create) the EditorSettings key.
+		if es != null and es.has_setting(McpSettings.SETTING_TELEMETRY_ENABLED):
+			enabled = bool(es.get_setting(McpSettings.SETTING_TELEMETRY_ENABLED))
+		else:
+			enabled = true
+			if es != null:
+				es.set_setting(McpSettings.SETTING_TELEMETRY_ENABLED, true)
+
+	_telemetry_pending_enabled = enabled
+	_telemetry_saved_enabled = enabled
+
+	if _telemetry_toggle == null:
+		return
+	_telemetry_toggle.set_pressed_no_signal(enabled)
+	if env_disabled != null:
+		_telemetry_toggle.disabled = true
+		_telemetry_toggle.tooltip_text = (
+			"Telemetry is controlled by an environment variable "
+			+ "(GODOT_AI_DISABLE_TELEMETRY / DISABLE_TELEMETRY)."
+		)
+	else:
+		_telemetry_toggle.disabled = false
+		_telemetry_toggle.tooltip_text = ""
+
+
+func _on_telemetry_toggled(pressed: bool) -> void:
+	_telemetry_pending_enabled = pressed
+	_refresh_tools_ui_state()
+
+
 # --- Dev mode persistence ---
+
 
 func _load_dev_mode() -> bool:
 	# Default OFF for every install (including dev checkouts). Contributors
@@ -1058,56 +1109,24 @@ func _apply_dev_mode_visibility() -> void:
 	_setup_section.visible = dev or uv_missing
 
 
-func _mode_override_index_from_setting() -> int:
-	var es := EditorInterface.get_editor_settings()
-	if es == null or not es.has_setting(ClientConfigurator.MODE_OVERRIDE_SETTING):
-		return 0
-	var v := str(es.get_setting(ClientConfigurator.MODE_OVERRIDE_SETTING)).strip_edges().to_lower()
-	return maxi(MODE_OVERRIDE_VALUES.find(v), 0)
-
-
-## Called whenever `is_dev_checkout()`'s answer could have changed — repaints
-## the install label/tooltip, rebuilds the setup container (Mode row, Dev
-## Server button vs uv status), and clears any stale update banner so a
-## fresh check paints over a clean slate. The Update button state is reset
-## too: a prior install attempt may have left it disabled with text like
-## "Dev checkout — update via git" or "Extract failed"; without this reset,
-## flipping the dropdown and re-checking would re-open the banner with the
-## stale button text.
-func _refresh_install_mode_ui() -> void:
-	_install_label.text = _install_mode_text()
-	_install_label.tooltip_text = _install_mode_tooltip()
-	_refresh_setup_status()
-	_update_banner.visible = false
-	if _update_manager != null:
-		_update_manager.clear_pending_download()
-	if _update_btn != null:
-		_update_btn.text = "Update"
-		_update_btn.disabled = false
-
-
-func _on_mode_override_selected(index: int) -> void:
-	var value: String = MODE_OVERRIDE_VALUES[index] if index >= 0 and index < MODE_OVERRIDE_VALUES.size() else ""
-	var es := EditorInterface.get_editor_settings()
-	if es != null:
-		es.set_setting(ClientConfigurator.MODE_OVERRIDE_SETTING, value)
-	_refresh_install_mode_ui()
-	## Cancel any in-flight startup check before firing a new one, otherwise
-	## the next `request()` returns ERR_BUSY and the dropdown flip silently
-	## fails to re-check. `call_deferred` lets the cancel settle before the
-	## new request goes out.
-	if _update_manager != null:
-		_update_manager.cancel_check()
-		_update_manager.check_for_updates.call_deferred()
-	print("MCP | mode override -> %s" % (value if value else "auto"))
-
-
 # --- Button handlers ---
 
-func _on_reload_plugin() -> void:
-	# Toggle plugin off/on to reload all GDScript
+
+func _do_plugin_reload() -> void:
 	EditorInterface.set_plugin_enabled("res://addons/godot_ai/plugin.cfg", false)
 	EditorInterface.set_plugin_enabled("res://addons/godot_ai/plugin.cfg", true)
+
+
+func _on_reload_plugin() -> void:
+	# Persist a pending plugin_reload telemetry event *before* the
+	# disable kills the live WebSocket — the new plugin's _enter_tree
+	# flushes it via `_telemetry.flush_pending_plugin_reload()`.
+	Telemetry.record_pending_plugin_reload("dock_button")
+	# Defer the toggle so any in-flight input event finishes propagating
+	# before the dock (and its Window children) leave the tree. Calling
+	# set_plugin_enabled synchronously from a button press frees the
+	# viewport mid-dispatch.
+	_do_plugin_reload.call_deferred()
 
 
 ## Setup-section "Server" row: always report the TRUE running server
@@ -1252,16 +1271,31 @@ func _refresh_setup_status() -> void:
 		return
 	for child in _setup_container.get_children():
 		child.queue_free()
-	_dev_server_btn = null
+	_dev_primary_btn = null
+	_dev_stop_btn = null
 
 	var is_dev := ClientConfigurator.is_dev_checkout()
 	if is_dev:
 		_setup_container.add_child(_make_status_row("Mode", "Dev (venv)", Color.CYAN))
-		_dev_server_btn = Button.new()
-		_dev_server_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		_dev_server_btn.pressed.connect(_on_dev_server_pressed)
-		_update_dev_server_btn()
-		_setup_container.add_child(_dev_server_btn)
+
+		var btn_row := HBoxContainer.new()
+		btn_row.add_theme_constant_override("separation", 4)
+		btn_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+		_dev_primary_btn = Button.new()
+		_dev_primary_btn.text = "Restart Dev Server"
+		_dev_primary_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_dev_primary_btn.pressed.connect(_on_dev_primary_pressed)
+		btn_row.add_child(_dev_primary_btn)
+
+		_dev_stop_btn = Button.new()
+		_dev_stop_btn.text = "✕"
+		_dev_stop_btn.tooltip_text = "Stop the dev server without spawning a replacement."
+		_dev_stop_btn.pressed.connect(_on_dev_stop_pressed)
+		btn_row.add_child(_dev_stop_btn)
+
+		_setup_container.add_child(btn_row)
+		_update_dev_section_buttons()
 		return
 
 	# User mode — check for uv
@@ -1346,53 +1380,108 @@ func _make_status_row(label_text: String, value_text: String, value_color: Color
 	return row
 
 
-## Pure helper — given the two independent server states, return the button
-## label and tooltip. Factored out so tests can cover all three states without
-## spinning up a real server or plugin.
-static func _dev_server_btn_state(has_managed: bool, dev_running: bool) -> Dictionary:
+## Pure helper for the primary "Restart Dev Server" button. Always enabled
+## (clicking with nothing running just spawns fresh); tooltip adapts to
+## whether a kill+respawn or fresh spawn is what'll happen.
+static func _dev_primary_btn_state(has_managed: bool, dev_running: bool) -> Dictionary:
 	var port := ClientConfigurator.http_port()
-	if has_managed:
+	if has_managed or dev_running:
 		return {
-			"text": "Switch to dev mode (--reload)",
-			"tooltip": "Stops the plugin's managed server and replaces it with a --reload dev server on port %d. The dev server auto-restarts when you edit Python sources." % port,
-		}
-	if dev_running:
-		return {
-			"text": "Exit dev mode",
-			"tooltip": "Stops the external dev server on port %d so the plugin's managed server can take over on next reload." % port,
+			"text": "Restart Dev Server",
+			"tooltip": (
+				"Kill the server on port %d and start a fresh --reload dev server. "
+				+ "Use this to pick up Python source changes that don't bump the version."
+			) % port,
 		}
 	return {
-		"text": "Start dev server",
-		"tooltip": "Spawns a --reload dev server on port %d. Auto-restarts when you edit Python sources." % port,
+		"text": "Start Dev Server",
+		"tooltip": "Spawn a --reload dev server on port %d. Auto-restarts when you edit Python sources." % port,
 	}
 
 
-func _update_dev_server_btn() -> void:
-	if _dev_server_btn == null:
+## Pure helper for the small "✕" stop button — only enabled when a dev
+## server is actually running. Stops without respawning; intentionally
+## never targets a managed server (that's the lifecycle's responsibility).
+static func _dev_stop_btn_state(dev_running: bool) -> Dictionary:
+	if dev_running:
+		return {"enabled": true, "tooltip": "Stop the dev server without spawning a replacement."}
+	return {"enabled": false, "tooltip": "No --reload dev server to stop."}
+
+
+func _on_dev_primary_pressed() -> void:
+	if _plugin == null or _server_restart_in_progress:
 		return
+	if not _plugin.has_method("force_restart_or_start_dev_server"):
+		return
+	if _plugin.has_method("record_dev_server_toggle"):
+		_plugin.record_dev_server_toggle("start")
+	_server_restart_in_progress = true
+	_update_dev_section_buttons()
+	if not is_inside_tree():
+		## Test path — no scene tree means no timer; run synchronously
+		## so suite assertions see the dispatch without `await`.
+		_plugin.force_restart_or_start_dev_server()
+		_server_restart_in_progress = false
+		return
+	call_deferred("_perform_dev_restart_after_feedback")
+
+
+func _on_dev_stop_pressed() -> void:
 	if _plugin == null:
 		return
-	## Defensive guard against the self-update mixed-state window — see the
-	## comment in `_update_status` for the full story. Same #168.
+	if _plugin.has_method("stop_dev_server"):
+		_plugin.stop_dev_server()
+		if _plugin.has_method("record_dev_server_toggle"):
+			_plugin.record_dev_server_toggle("stop")
+	_update_dev_section_buttons.call_deferred()
+
+
+func _perform_dev_restart_after_feedback() -> void:
+	## Brief paint cycle so the user sees "Restarting..." before the
+	## blocking _wait_for_port_free freezes the editor for up to 5s.
+	await get_tree().create_timer(0.15).timeout
+	## Re-check has_method post-await — a self-update mixed-state window
+	## could swap _plugin's script class while we were sleeping, leaving
+	## the old reference pointing at a class that no longer carries the
+	## new method. Same #168 guard pattern as _update_dev_section_buttons.
+	if _plugin != null and _plugin.has_method("force_restart_or_start_dev_server"):
+		_plugin.force_restart_or_start_dev_server()
+	## start_dev_server's spawn happens via a 0.5s SceneTree timer; give
+	## it time to land plus a buffer for the WS reconnect before clearing
+	## the busy state. The unconditional clear matches sibling restart
+	## buttons — overshoot is fine because subsequent _update_status calls
+	## refresh the button against live plugin state.
+	await get_tree().create_timer(2.0).timeout
+	_server_restart_in_progress = false
+	_update_dev_section_buttons()
+
+
+## Single-scan refresh of every dev-section button state. Both buttons
+## key off the same `has_managed_server` / `is_dev_server_running` pair,
+## and the latter scrapes lsof/ps — so doing the discovery once and
+## applying to both avoids the duplicate subprocess fork on every
+## connection-state transition.
+func _update_dev_section_buttons() -> void:
+	if _plugin == null:
+		return
 	if not (_plugin.has_method("has_managed_server") and _plugin.has_method("is_dev_server_running")):
 		return
-	var state := _dev_server_btn_state(_plugin.has_managed_server(), _plugin.is_dev_server_running())
-	_dev_server_btn.text = state["text"]
-	_dev_server_btn.tooltip_text = state["tooltip"]
-
-
-func _on_dev_server_pressed() -> void:
-	if _plugin == null:
-		return
-	if _plugin.has_managed_server():
-		# Managed server running — swap it for a --reload dev server.
-		# start_dev_server() calls _stop_server() internally before spawning.
-		_plugin.start_dev_server()
-	elif _plugin.is_dev_server_running():
-		_plugin.stop_dev_server()
-	else:
-		_plugin.start_dev_server()
-	_update_dev_server_btn.call_deferred()
+	var has_managed: bool = _plugin.has_managed_server()
+	var dev_running: bool = _plugin.is_dev_server_running()
+	if _dev_primary_btn != null:
+		if _server_restart_in_progress:
+			_dev_primary_btn.disabled = true
+			_dev_primary_btn.text = "Restarting..."
+			_dev_primary_btn.tooltip_text = "Killing the current server and respawning..."
+		else:
+			var primary_state := _dev_primary_btn_state(has_managed, dev_running)
+			_dev_primary_btn.disabled = false
+			_dev_primary_btn.text = primary_state["text"]
+			_dev_primary_btn.tooltip_text = primary_state["tooltip"]
+	if _dev_stop_btn != null:
+		var stop_state := _dev_stop_btn_state(dev_running)
+		_dev_stop_btn.disabled = (not stop_state["enabled"]) or _server_restart_in_progress
+		_dev_stop_btn.tooltip_text = stop_state["tooltip"]
 
 
 func _on_install_uv() -> void:
@@ -1589,14 +1678,18 @@ func _on_open_clients_window() -> void:
 	_clients_window.popup_centered(Vector2i(640, 600))
 
 
+func _settings_are_dirty() -> bool:
+	return _tools_pending_excluded != _tools_saved_excluded or _telemetry_pending_enabled != _telemetry_saved_enabled
+
+
 func _on_clients_window_close_requested() -> void:
 	if _clients_window == null:
 		return
-	## If the user has checked/unchecked domains without applying, a close
-	## would silently throw the pending state away. Prompt; if they confirm
-	## discard, reset pending → saved so the window shows the persisted
+	## If the user has unapplied settings, a close would silently throw the
+	## pending state away. Prompt before discarding current options and if
+	## they confirm, reset pending → saved so the window shows the persisted
 	## state the next time they open it.
-	if _tools_pending_excluded != _tools_saved_excluded:
+	if _settings_are_dirty():
 		_show_tools_close_confirm()
 		return
 	_clients_window.hide()
@@ -1609,9 +1702,11 @@ func _build_tools_tab(tabs: TabContainer) -> void:
 	## `_reset_tools_pending_from_setting()` re-syncs checkbox state from the
 	## saved setting each time the window opens.
 	var tools_tab := VBoxContainer.new()
-	tools_tab.name = "Tools"
 	tools_tab.add_theme_constant_override("separation", 8)
-	tabs.add_child(tools_tab)
+	var tools_margin := _build_margin_container()
+	tools_margin.name = "Settings"
+	tools_margin.add_child(tools_tab)
+	tabs.add_child(tools_margin)
 
 	var intro := Label.new()
 	intro.text = (
@@ -1627,7 +1722,7 @@ func _build_tools_tab(tabs: TabContainer) -> void:
 	var count_row := HBoxContainer.new()
 	count_row.add_theme_constant_override("separation", 8)
 	var count_header := Label.new()
-	count_header.text = "Enabled:"
+	count_header.text = "Tools Enabled:"
 	count_header.add_theme_color_override("font_color", COLOR_MUTED)
 	count_row.add_child(count_header)
 	_tools_count_label = Label.new()
@@ -1682,6 +1777,19 @@ func _build_tools_tab(tabs: TabContainer) -> void:
 	_tools_domain_checkboxes.clear()
 	for entry in ToolCatalog.DOMAINS:
 		_build_tools_domain_row(grid, entry)
+
+	tools_tab.add_child(HSeparator.new())
+
+	var telemetry_row := HBoxContainer.new()
+	telemetry_row.add_theme_constant_override("separation", 8)
+	var telemetry_label := Label.new()
+	telemetry_label.text = "Telemetry"
+	telemetry_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	telemetry_row.add_child(telemetry_label)
+	_telemetry_toggle = CheckButton.new()
+	_telemetry_toggle.toggled.connect(_on_telemetry_toggled)
+	telemetry_row.add_child(_telemetry_toggle)
+	tools_tab.add_child(telemetry_row)
 
 	tools_tab.add_child(HSeparator.new())
 
@@ -1770,6 +1878,9 @@ func _reset_tools_pending_from_setting() -> void:
 		## `set_pressed_no_signal` — mutating programmatically should not
 		## fire the toggled handler, which would mutate pending back.
 		chk.set_pressed_no_signal(_tools_pending_excluded.find(id) == -1)
+	## Also reset telemetry pending state from the persisted setting.
+	if _telemetry_toggle != null:
+		_load_telemetry_setting()
 
 
 func _on_tools_domain_toggled(pressed: bool, domain_id: String) -> void:
@@ -1788,7 +1899,7 @@ func _refresh_tools_ui_state() -> void:
 	var enabled := ToolCatalog.enabled_tool_count(_tools_pending_excluded)
 	var total := ToolCatalog.total_tool_count()
 	_tools_count_label.text = "%d / %d" % [enabled, total]
-	var dirty := _tools_pending_excluded != _tools_saved_excluded
+	var dirty := _settings_are_dirty()
 	_tools_dirty_warning.visible = dirty
 	_tools_apply_btn.disabled = not dirty
 	## Color the count when the user is over Antigravity's cap — a soft
@@ -1804,16 +1915,23 @@ func _on_tools_apply() -> void:
 	var canonical_excluded := ToolCatalog.canonical(_tools_pending_excluded)
 	var es := EditorInterface.get_editor_settings()
 	if es != null:
-		es.set_setting(ClientConfigurator.SETTING_EXCLUDED_DOMAINS, canonical_excluded)
+		es.set_setting(McpSettings.SETTING_EXCLUDED_DOMAINS, canonical_excluded)
+		es.set_setting(McpSettings.SETTING_TELEMETRY_ENABLED, _telemetry_pending_enabled)
 	_tools_saved_excluded = _tools_pending_excluded.duplicate()
+	_telemetry_saved_enabled = _telemetry_pending_enabled
 	_refresh_tools_ui_state()
-	## Plugin reload respawns the server with the new `--exclude-domains`
-	## flag (see `plugin.gd::_build_server_flags`). Mirrors the port-change
-	## Apply flow.
+	## Plugin reload respawns the server with the new `--exclude-domains` flag
+	## (see `plugin.gd::_build_server_flags`) and telemetry option. Mirrors the
+	## port-change Apply flow.
 	_on_reload_plugin()
 
 
 func _on_tools_reset() -> void:
+	## Resets only the tool-domain exclusions, not the telemetry toggle.
+	## Telemetry is a privacy preference users typically want to set once
+	## and have honored — flipping it back to "on" via a generic Reset
+	## button would be a surprising privacy regression. The button label
+	## is scoped to tools accordingly.
 	_tools_pending_excluded = PackedStringArray()
 	for id in _tools_domain_checkboxes:
 		var chk: CheckBox = _tools_domain_checkboxes[id]

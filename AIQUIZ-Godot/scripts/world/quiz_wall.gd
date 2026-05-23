@@ -336,7 +336,7 @@ func break_door(door_index: int) -> void:
 					Vector3(
 						randf_range(-2.35, 2.35),
 						randf_range(0.45, 3.15),
-						randf_range(14.0, 26.5),
+						randf_range(-26.5, -14.0),
 					)
 				)
 				chunk.apply_torque_impulse(
@@ -351,8 +351,8 @@ func break_door(door_index: int) -> void:
 				vanish_tw.tween_property(mesh_inst, "scale", Vector3.ZERO, 0.34).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 				vanish_tw.tween_callback(chunk.queue_free)
 			else:
-				# 本番：後方に飛ばす（画面奥側、-Z方向）＋縮小で消滅
-				var scatter_z: float = randf_range(-15.0, -5.0)
+				# 本番：前方に飛ばす（画面手前側、+Z方向）＋縮小で消滅
+				var scatter_z: float = randf_range(5.0, 15.0)
 				var impulse := Vector3(
 					(randf() - 0.5) * 10.0,
 					randf() * 5.0 + 1.5,

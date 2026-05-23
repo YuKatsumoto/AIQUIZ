@@ -1,6 +1,8 @@
 @tool
 extends RefCounted
 
+const ErrorCodes := preload("res://addons/godot_ai/utils/error_codes.gd")
+
 ## Handles node creation and manipulation with undo/redo support.
 
 const ResourceHandler := preload("res://addons/godot_ai/handlers/resource_handler.gd")
@@ -27,7 +29,7 @@ func create_node(params: Dictionary) -> Dictionary:
 	if not parent_path.is_empty():
 		parent = McpScenePath.resolve(parent_path, scene_root)
 		if parent == null:
-			return McpErrorCodes.make(McpErrorCodes.NODE_NOT_FOUND, McpScenePath.format_parent_error(parent_path, scene_root))
+			return ErrorCodes.make(ErrorCodes.NODE_NOT_FOUND, McpScenePath.format_parent_error(parent_path, scene_root))
 
 	var new_node: Node
 
@@ -38,26 +40,26 @@ func create_node(params: Dictionary) -> Dictionary:
 		# an exploded subtree). Descendants remain owned by their sub-scene;
 		# setting their owner to our scene_root would break the instance link.
 		if not scene_path.begins_with("res://"):
-			return McpErrorCodes.make(McpErrorCodes.VALUE_OUT_OF_RANGE, "scene_path must start with res://")
+			return ErrorCodes.make(ErrorCodes.VALUE_OUT_OF_RANGE, "scene_path must start with res://")
 		if not ResourceLoader.exists(scene_path):
-			return McpErrorCodes.make(McpErrorCodes.RESOURCE_NOT_FOUND, "Scene not found: %s" % scene_path)
+			return ErrorCodes.make(ErrorCodes.RESOURCE_NOT_FOUND, "Scene not found: %s" % scene_path)
 		var packed_scene = ResourceLoader.load(scene_path)
 		if packed_scene == null or not packed_scene is PackedScene:
-			return McpErrorCodes.make(McpErrorCodes.WRONG_TYPE, "Resource at %s is not a PackedScene" % scene_path)
+			return ErrorCodes.make(ErrorCodes.WRONG_TYPE, "Resource at %s is not a PackedScene" % scene_path)
 		new_node = packed_scene.instantiate(PackedScene.GEN_EDIT_STATE_INSTANCE)
 		if new_node == null:
-			return McpErrorCodes.make(McpErrorCodes.INTERNAL_ERROR, "Failed to instantiate scene: %s" % scene_path)
+			return ErrorCodes.make(ErrorCodes.INTERNAL_ERROR, "Failed to instantiate scene: %s" % scene_path)
 	else:
 		# ClassDB path — create by type.
 		if node_type.is_empty():
-			return McpErrorCodes.make(McpErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: type (or provide scene_path)")
+			return ErrorCodes.make(ErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: type (or provide scene_path)")
 		if not ClassDB.class_exists(node_type):
-			return McpErrorCodes.make(McpErrorCodes.VALUE_OUT_OF_RANGE, "Unknown node type: %s" % node_type)
+			return ErrorCodes.make(ErrorCodes.VALUE_OUT_OF_RANGE, "Unknown node type: %s" % node_type)
 		if not ClassDB.is_parent_class(node_type, "Node"):
-			return McpErrorCodes.make(McpErrorCodes.WRONG_TYPE, "%s is not a Node type" % node_type)
+			return ErrorCodes.make(ErrorCodes.WRONG_TYPE, "%s is not a Node type" % node_type)
 		new_node = ClassDB.instantiate(node_type)
 		if new_node == null:
-			return McpErrorCodes.make(McpErrorCodes.INTERNAL_ERROR, "Failed to instantiate %s" % node_type)
+			return ErrorCodes.make(ErrorCodes.INTERNAL_ERROR, "Failed to instantiate %s" % node_type)
 
 	if not node_name.is_empty():
 		new_node.name = node_name
@@ -122,11 +124,11 @@ func reparent_node(params: Dictionary) -> Dictionary:
 
 	var new_parent_path: String = params.get("new_parent", "")
 	if new_parent_path.is_empty():
-		return McpErrorCodes.make(McpErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: new_parent")
+		return ErrorCodes.make(ErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: new_parent")
 
 	var new_parent := McpScenePath.resolve(new_parent_path, scene_root)
 	if new_parent == null:
-		return McpErrorCodes.make(McpErrorCodes.NODE_NOT_FOUND, McpScenePath.format_parent_error(new_parent_path, scene_root))
+		return ErrorCodes.make(ErrorCodes.NODE_NOT_FOUND, McpScenePath.format_parent_error(new_parent_path, scene_root))
 
 	var root_err := _reject_if_scene_root(node, scene_root, "reparent")
 	if root_err != null:
@@ -140,7 +142,7 @@ func reparent_node(params: Dictionary) -> Dictionary:
 	# the opposite question — whether we were trying to move a node to one of
 	# its own ancestors — which is a perfectly valid operation. See issue #121.
 	if node == new_parent or node.is_ancestor_of(new_parent):
-		return McpErrorCodes.make(McpErrorCodes.INVALID_PARAMS, "Cannot reparent a node to itself or its descendant")
+		return ErrorCodes.make(ErrorCodes.INVALID_PARAMS, "Cannot reparent a node to itself or its descendant")
 
 	var old_parent := node.get_parent()
 	var old_idx := node.get_index()
@@ -180,10 +182,10 @@ func set_property(params: Dictionary) -> Dictionary:
 
 	var property: String = params.get("property", "")
 	if property.is_empty():
-		return McpErrorCodes.make(McpErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: property")
+		return ErrorCodes.make(ErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: property")
 
 	if not "value" in params:
-		return McpErrorCodes.make(McpErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: value")
+		return ErrorCodes.make(ErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: value")
 
 	var value = params.get("value")
 
@@ -195,7 +197,7 @@ func set_property(params: Dictionary) -> Dictionary:
 			prop_type = prop.get("type", TYPE_NIL)
 			break
 	if not found:
-		return McpErrorCodes.make(McpErrorCodes.PROPERTY_NOT_ON_CLASS, McpPropertyErrors.build_message(node, property))
+		return ErrorCodes.make(ErrorCodes.PROPERTY_NOT_ON_CLASS, McpPropertyErrors.build_message(node, property))
 
 	var old_value = node.get(property)
 	# Prefer declared property type; fall back to runtime type for dynamic props
@@ -221,10 +223,10 @@ func set_property(params: Dictionary) -> Dictionary:
 			value = null
 		else:
 			if not ResourceLoader.exists(value):
-				return McpErrorCodes.make(McpErrorCodes.RESOURCE_NOT_FOUND, "Resource not found: %s" % value)
+				return ErrorCodes.make(ErrorCodes.RESOURCE_NOT_FOUND, "Resource not found: %s" % value)
 			var loaded := ResourceLoader.load(value)
 			if loaded == null:
-				return McpErrorCodes.make(McpErrorCodes.RESOURCE_NOT_FOUND, "Resource not found: %s" % value)
+				return ErrorCodes.make(ErrorCodes.RESOURCE_NOT_FOUND, "Resource not found: %s" % value)
 			value = loaded
 	elif target_type == TYPE_OBJECT and value is Dictionary and value.has("__class__"):
 		# Shortcut: {"__class__": "BoxMesh", "size": {...}} instantiates a
@@ -237,8 +239,8 @@ func set_property(params: Dictionary) -> Dictionary:
 			return class_err
 		var instance := ClassDB.instantiate(type_str)
 		if instance == null or not (instance is Resource):
-			return McpErrorCodes.make(
-				McpErrorCodes.INTERNAL_ERROR,
+			return ErrorCodes.make(
+				ErrorCodes.INTERNAL_ERROR,
 				"Failed to instantiate %s as a Resource" % type_str
 			)
 		var res: Resource = instance
@@ -287,7 +289,7 @@ func rename_node(params: Dictionary) -> Dictionary:
 
 	var new_name: String = params.get("new_name", "")
 	if new_name.is_empty():
-		return McpErrorCodes.make(McpErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: new_name")
+		return ErrorCodes.make(ErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: new_name")
 
 	## The scene root's name is baked into the .tscn serialization and is
 	## referenced by every NodePath that starts with `/<root>` (AnimationPlayer
@@ -295,10 +297,10 @@ func rename_node(params: Dictionary) -> Dictionary:
 	## Renaming it silently breaks those references. The MCP tool's docstring
 	## has always promised "Cannot rename the scene root" — enforce it. #122
 	if node == scene_root:
-		return McpErrorCodes.make(McpErrorCodes.INVALID_PARAMS, "Cannot rename the scene root")
+		return ErrorCodes.make(ErrorCodes.INVALID_PARAMS, "Cannot rename the scene root")
 
 	if new_name.validate_node_name() != new_name:
-		return McpErrorCodes.make(McpErrorCodes.VALUE_OUT_OF_RANGE, "Invalid characters in name: %s" % new_name)
+		return ErrorCodes.make(ErrorCodes.VALUE_OUT_OF_RANGE, "Invalid characters in name: %s" % new_name)
 
 	var old_name := String(node.name)
 	if old_name == new_name:
@@ -316,7 +318,7 @@ func rename_node(params: Dictionary) -> Dictionary:
 	var parent := node.get_parent()
 	for sibling in parent.get_children():
 		if sibling != node and String(sibling.name) == new_name:
-			return McpErrorCodes.make(McpErrorCodes.INVALID_PARAMS, "A sibling already has the name '%s'" % new_name)
+			return ErrorCodes.make(ErrorCodes.INVALID_PARAMS, "A sibling already has the name '%s'" % new_name)
 
 	_undo_redo.create_action("MCP: Rename %s to %s" % [old_name, new_name])
 	_undo_redo.add_do_property(node, "name", new_name)
@@ -349,7 +351,7 @@ func duplicate_node(params: Dictionary) -> Dictionary:
 	var parent := node.get_parent()
 	var dup: Node = node.duplicate()
 	if dup == null:
-		return McpErrorCodes.make(McpErrorCodes.INTERNAL_ERROR, "Failed to duplicate node")
+		return ErrorCodes.make(ErrorCodes.INTERNAL_ERROR, "Failed to duplicate node")
 
 	# Apply optional name
 	var new_name: String = params.get("name", "")
@@ -390,7 +392,7 @@ func move_node(params: Dictionary) -> Dictionary:
 		return root_err
 
 	if not "index" in params:
-		return McpErrorCodes.make(McpErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: index")
+		return ErrorCodes.make(ErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: index")
 
 	var new_index: int = params.get("index", 0)
 	var parent := node.get_parent()
@@ -398,7 +400,7 @@ func move_node(params: Dictionary) -> Dictionary:
 	var sibling_count := parent.get_child_count()
 
 	if new_index < 0 or new_index >= sibling_count:
-		return McpErrorCodes.make(McpErrorCodes.VALUE_OUT_OF_RANGE, "Index %d out of range (0..%d)" % [new_index, sibling_count - 1])
+		return ErrorCodes.make(ErrorCodes.VALUE_OUT_OF_RANGE, "Index %d out of range (0..%d)" % [new_index, sibling_count - 1])
 
 	_undo_redo.create_action("MCP: Move %s to index %d" % [node.name, new_index])
 	_undo_redo.add_do_method(parent, "move_child", node, new_index)
@@ -428,7 +430,7 @@ func add_to_group(params: Dictionary) -> Dictionary:
 		return type_err
 	var group := String(group_value)
 	if group.is_empty():
-		return McpErrorCodes.make(McpErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: group")
+		return ErrorCodes.make(ErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: group")
 
 	if node.is_in_group(group):
 		return {"data": {"path": node_path, "group": group, "already_member": true, "undoable": false, "reason": "No change made"}}
@@ -460,7 +462,7 @@ func remove_from_group(params: Dictionary) -> Dictionary:
 		return type_err
 	var group := String(group_value)
 	if group.is_empty():
-		return McpErrorCodes.make(McpErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: group")
+		return ErrorCodes.make(ErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: group")
 
 	if not node.is_in_group(group):
 		return {"data": {"path": node_path, "group": group, "not_member": true, "undoable": false, "reason": "Node not in group"}}
@@ -545,25 +547,59 @@ static func _check_coerced(value: Variant, target_type: int, prefix: String = ""
 			ok = value is Vector3
 		TYPE_COLOR:
 			ok = value is Color
+		TYPE_PACKED_VECTOR2_ARRAY:
+			ok = value is PackedVector2Array
+		TYPE_PACKED_VECTOR3_ARRAY:
+			ok = value is PackedVector3Array
+		TYPE_PACKED_COLOR_ARRAY:
+			ok = value is PackedColorArray
+		TYPE_PACKED_INT32_ARRAY:
+			ok = value is PackedInt32Array
+		TYPE_PACKED_INT64_ARRAY:
+			ok = value is PackedInt64Array
+		TYPE_PACKED_FLOAT32_ARRAY:
+			ok = value is PackedFloat32Array
+		TYPE_PACKED_FLOAT64_ARRAY:
+			ok = value is PackedFloat64Array
+		TYPE_PACKED_STRING_ARRAY:
+			ok = value is PackedStringArray
 		_:
 			return null
 	if ok:
 		return null
 	var dict_err := _check_dict_coerce_failed(value, target_type)
 	if dict_err != null:
-		return McpErrorCodes.prefix_message(dict_err, prefix)
-	var err := McpErrorCodes.make(
-		McpErrorCodes.WRONG_TYPE,
-		"Cannot coerce %s to %s; expected a dict like %s" % [
+		return ErrorCodes.prefix_message(dict_err, prefix)
+	## Wording stays neutral on shape — `_shape_hint` already produces a
+	## dict-shaped string for Vector2/3/Color and a list-shaped one for
+	## the Packed*Array slots. The old "expected a dict like [...]" phrasing
+	## read self-contradictory for packed targets (PR #424 review).
+	var err := ErrorCodes.make(
+		ErrorCodes.WRONG_TYPE,
+		"Cannot coerce %s to %s; expected %s" % [
 			type_string(typeof(value)), type_string(target_type), _shape_hint(target_type),
 		],
 	)
-	return McpErrorCodes.prefix_message(err, prefix)
+	return ErrorCodes.prefix_message(err, prefix)
 
 
 ## Build a "{\"x\":1,...}" hint string from the canonical key constants
-## so adding a key (e.g. Vector4) only touches VECTORN_KEYS.
+## so adding a key (e.g. Vector4) only touches VECTORN_KEYS. Packed*Array
+## targets short-circuit to a literal list-shaped hint.
 static func _shape_hint(target_type: int) -> String:
+	match target_type:
+		TYPE_PACKED_VECTOR2_ARRAY:
+			return "[{\"x\":0,\"y\":0}, ...]"
+		TYPE_PACKED_VECTOR3_ARRAY:
+			return "[{\"x\":0,\"y\":0,\"z\":0}, ...]"
+		TYPE_PACKED_COLOR_ARRAY:
+			return "[{\"r\":0,\"g\":0,\"b\":0,\"a\":1}, ...]"
+		TYPE_PACKED_INT32_ARRAY, TYPE_PACKED_INT64_ARRAY:
+			return "[int, ...]"
+		TYPE_PACKED_FLOAT32_ARRAY, TYPE_PACKED_FLOAT64_ARRAY:
+			return "[float, ...]"
+		TYPE_PACKED_STRING_ARRAY:
+			return "[\"...\", ...]"
 	var keys: Array[String] = []
 	match target_type:
 		TYPE_VECTOR2: keys = VECTOR2_KEYS
@@ -598,8 +634,8 @@ static func _check_dict_coerce_failed(value: Variant, target_type: int) -> Varia
 		_:
 			return null
 	var got_keys: Array = (value as Dictionary).keys()
-	return McpErrorCodes.make(
-		McpErrorCodes.WRONG_TYPE,
+	return ErrorCodes.make(
+		ErrorCodes.WRONG_TYPE,
 		"Cannot coerce dict to %s: expected keys %s; got %s" % [type_name, str(expected), str(got_keys)]
 	)
 
@@ -654,6 +690,70 @@ static func _coerce_value(value: Variant, target_type: int) -> Variant:
 		TYPE_DICTIONARY:
 			if value is Dictionary:
 				return value
+		TYPE_PACKED_VECTOR2_ARRAY:
+			if value is Array:
+				var out := PackedVector2Array()
+				for item in value:
+					if item is Vector2:
+						out.append(item)
+					elif item is Dictionary and item.has_all(VECTOR2_KEYS):
+						out.append(Vector2(item["x"], item["y"]))
+					else:
+						return value  # leave for _check_coerced to flag
+				return out
+		TYPE_PACKED_VECTOR3_ARRAY:
+			if value is Array:
+				var out := PackedVector3Array()
+				for item in value:
+					if item is Vector3:
+						out.append(item)
+					elif item is Dictionary and item.has_all(VECTOR3_KEYS):
+						out.append(Vector3(item["x"], item["y"], item["z"]))
+					else:
+						return value
+				return out
+		TYPE_PACKED_COLOR_ARRAY:
+			if value is Array:
+				var out := PackedColorArray()
+				for item in value:
+					if item is Color:
+						out.append(item)
+					elif item is Dictionary and item.has_all(COLOR_KEYS):
+						out.append(Color(item["r"], item["g"], item["b"], item.get("a", 1.0)))
+					elif item is String:
+						out.append(Color(item))
+					else:
+						return value
+				return out
+		TYPE_PACKED_INT32_ARRAY, TYPE_PACKED_INT64_ARRAY:
+			if value is Array:
+				var out: Variant = PackedInt32Array() if target_type == TYPE_PACKED_INT32_ARRAY else PackedInt64Array()
+				for item in value:
+					if item is int or item is float:
+						out.append(int(item))
+					else:
+						return value
+				return out
+		TYPE_PACKED_FLOAT32_ARRAY, TYPE_PACKED_FLOAT64_ARRAY:
+			if value is Array:
+				var out: Variant = PackedFloat32Array() if target_type == TYPE_PACKED_FLOAT32_ARRAY else PackedFloat64Array()
+				for item in value:
+					if item is float or item is int:
+						out.append(float(item))
+					else:
+						return value
+				return out
+		TYPE_PACKED_STRING_ARRAY:
+			if value is Array:
+				var out := PackedStringArray()
+				for item in value:
+					if item is String:
+						out.append(item)
+					else:
+						return value
+				return out
+		# PackedByteArray intentionally unhandled — needs design decision
+		# (base64 string vs. raw int list); JSON has no native byte type.
 	return value
 
 
@@ -749,7 +849,7 @@ func _resolve_node(params: Dictionary) -> Dictionary:
 ## dict with "Cannot <op> the scene root", or null if `node` is not the root.
 static func _reject_if_scene_root(node: Node, scene_root: Node, op: String) -> Variant:
 	if node == scene_root:
-		return McpErrorCodes.make(McpErrorCodes.INVALID_PARAMS, "Cannot %s the scene root" % op)
+		return ErrorCodes.make(ErrorCodes.INVALID_PARAMS, "Cannot %s the scene root" % op)
 	return null
 
 

@@ -1,6 +1,8 @@
 @tool
 extends RefCounted
 
+const ErrorCodes := preload("res://addons/godot_ai/utils/error_codes.gd")
+
 ## Handles script creation, reading, attaching, detaching, and symbol inspection.
 
 var _undo_redo: EditorUndoRedoManager
@@ -27,23 +29,23 @@ func create_script(params: Dictionary) -> Dictionary:
 
 	var path_err := McpPathValidator.validate_resource_path(path)
 	if not path_err.is_empty():
-		return McpErrorCodes.make(McpErrorCodes.INVALID_PARAMS, path_err)
+		return ErrorCodes.make(ErrorCodes.INVALID_PARAMS, path_err)
 
 	if not path.ends_with(".gd"):
-		return McpErrorCodes.make(McpErrorCodes.VALUE_OUT_OF_RANGE, "Path must end with .gd")
+		return ErrorCodes.make(ErrorCodes.VALUE_OUT_OF_RANGE, "Path must end with .gd")
 
 	# Ensure parent directory exists
 	var dir_path := path.get_base_dir()
 	if not DirAccess.dir_exists_absolute(dir_path):
 		var err := DirAccess.make_dir_recursive_absolute(dir_path)
 		if err != OK:
-			return McpErrorCodes.make(McpErrorCodes.INTERNAL_ERROR, "Failed to create directory: %s" % dir_path)
+			return ErrorCodes.make(ErrorCodes.INTERNAL_ERROR, "Failed to create directory: %s" % dir_path)
 
 	var existed_before := FileAccess.file_exists(path)
 
 	var file := FileAccess.open(path, FileAccess.WRITE)
 	if file == null:
-		return McpErrorCodes.make(McpErrorCodes.INTERNAL_ERROR, "Failed to open file for writing: %s" % path)
+		return ErrorCodes.make(ErrorCodes.INTERNAL_ERROR, "Failed to open file for writing: %s" % path)
 
 	file.store_string(content)
 	file.close()
@@ -71,7 +73,7 @@ func create_script(params: Dictionary) -> Dictionary:
 	# overwrite the resource was already known to ResourceLoader, so reply now.
 	var request_id: String = params.get("_request_id", "")
 	if not existed_before and _connection != null and not request_id.is_empty():
-		_finish_create_script_deferred(request_id, path, data)
+		_finish_create_script_deferred(_connection, request_id, path, data)
 		return McpDispatcher.DEFERRED_RESPONSE
 
 	# Synchronous fallback: batch_execute (no request_id) and unit-test contexts
@@ -79,8 +81,25 @@ func create_script(params: Dictionary) -> Dictionary:
 	return {"data": data}
 
 
-func _finish_create_script_deferred(request_id: String, path: String, data: Dictionary) -> void:
-	var tree := _connection.get_tree()
+# `static` is load-bearing: the deferred completion captures no `self`, so the
+# coroutine survives even if the ScriptHandler RefCounted is freed mid-await.
+# Under concurrent script_create storms with editor_reload_plugin fired during
+# the burst, the handler instance is otherwise GC'd between `await` and resume,
+# producing "Resumed function '_finish_create_script_deferred()' after await,
+# but class instance is gone" errors and dropping the response. Keep this
+# function static and parameterise everything it needs explicitly — do not
+# reference instance state.
+static func _finish_create_script_deferred(
+	connection: McpConnection,
+	request_id: String,
+	path: String,
+	data: Dictionary,
+) -> void:
+	if not is_instance_valid(connection):
+		return
+	var tree := connection.get_tree()
+	if tree == null:
+		return
 	var deadline_ms := Time.get_ticks_msec() + _IMPORT_SETTLE_MAX_MSEC
 	# Let _dispatch() return DEFERRED_RESPONSE and register the request before
 	# this coroutine can send a committed result. ResourceLoader.exists(path)
@@ -98,17 +117,17 @@ func _finish_create_script_deferred(request_id: String, path: String, data: Dict
 	):
 		await tree.process_frame
 		frames += 1
-	# If the plugin tears down (_exit_tree frees _connection) during the await,
-	# is_instance_valid() goes false and we drop the response silently — the
-	# server's request timeout will surface the failure to the caller.
-	if not is_instance_valid(_connection):
+	# If the plugin tears down (_exit_tree frees the connection) during the
+	# await, is_instance_valid() goes false and we drop the response silently —
+	# the server's request timeout will surface the failure to the caller.
+	if not is_instance_valid(connection):
 		return
 	var payload := data.duplicate()
 	var settled := ResourceLoader.exists(path)
 	payload["import_settled"] = settled
 	payload["import_settle"] = "settled" if settled else "timeout"
 	payload["import_pending"] = not settled
-	_connection.send_deferred_response(request_id, {"data": payload})
+	connection.send_deferred_response(request_id, {"data": payload})
 
 
 func read_script(params: Dictionary) -> Dictionary:
@@ -116,14 +135,14 @@ func read_script(params: Dictionary) -> Dictionary:
 
 	var path_err := McpPathValidator.validate_resource_path(path)
 	if not path_err.is_empty():
-		return McpErrorCodes.make(McpErrorCodes.INVALID_PARAMS, path_err)
+		return ErrorCodes.make(ErrorCodes.INVALID_PARAMS, path_err)
 
 	if not FileAccess.file_exists(path):
-		return McpErrorCodes.make(McpErrorCodes.RESOURCE_NOT_FOUND, "File not found: %s" % path)
+		return ErrorCodes.make(ErrorCodes.RESOURCE_NOT_FOUND, "File not found: %s" % path)
 
 	var file := FileAccess.open(path, FileAccess.READ)
 	if file == null:
-		return McpErrorCodes.make(McpErrorCodes.INTERNAL_ERROR, "Failed to open file: %s" % path)
+		return ErrorCodes.make(ErrorCodes.INTERNAL_ERROR, "Failed to open file: %s" % path)
 
 	var content := file.get_as_text()
 	file.close()
@@ -146,28 +165,28 @@ func patch_script(params: Dictionary) -> Dictionary:
 
 	var path_err := McpPathValidator.validate_resource_path(path)
 	if not path_err.is_empty():
-		return McpErrorCodes.make(McpErrorCodes.INVALID_PARAMS, path_err)
+		return ErrorCodes.make(ErrorCodes.INVALID_PARAMS, path_err)
 	if not "old_text" in params:
-		return McpErrorCodes.make(McpErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: old_text")
+		return ErrorCodes.make(ErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: old_text")
 	if not "new_text" in params:
-		return McpErrorCodes.make(McpErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: new_text")
+		return ErrorCodes.make(ErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: new_text")
 	if not path.ends_with(".gd"):
-		return McpErrorCodes.make(McpErrorCodes.VALUE_OUT_OF_RANGE, "Path must end with .gd (use filesystem_write_text for other text files)")
+		return ErrorCodes.make(ErrorCodes.VALUE_OUT_OF_RANGE, "Path must end with .gd (use filesystem_write_text for other text files)")
 	if old_text.is_empty():
-		return McpErrorCodes.make(McpErrorCodes.MISSING_REQUIRED_PARAM, "old_text must not be empty")
+		return ErrorCodes.make(ErrorCodes.MISSING_REQUIRED_PARAM, "old_text must not be empty")
 
 	var read := FileAccess.open(path, FileAccess.READ)
 	if read == null:
-		return McpErrorCodes.make(McpErrorCodes.RESOURCE_NOT_FOUND, "File not found or unreadable: %s" % path)
+		return ErrorCodes.make(ErrorCodes.RESOURCE_NOT_FOUND, "File not found or unreadable: %s" % path)
 	var content := read.get_as_text()
 	read.close()
 
 	var match_count := content.count(old_text)
 	if match_count == 0:
-		return McpErrorCodes.make(McpErrorCodes.INVALID_PARAMS, "old_text not found in %s" % path)
+		return ErrorCodes.make(ErrorCodes.INVALID_PARAMS, "old_text not found in %s" % path)
 	if match_count > 1 and not replace_all:
-		return McpErrorCodes.make(
-			McpErrorCodes.INVALID_PARAMS,
+		return ErrorCodes.make(
+			ErrorCodes.INVALID_PARAMS,
 			"old_text matches %d times; pass replace_all=true or provide a more specific snippet" % match_count,
 		)
 
@@ -183,7 +202,7 @@ func patch_script(params: Dictionary) -> Dictionary:
 
 	var write := FileAccess.open(path, FileAccess.WRITE)
 	if write == null:
-		return McpErrorCodes.make(McpErrorCodes.INTERNAL_ERROR, "Failed to open file for writing: %s" % path)
+		return ErrorCodes.make(ErrorCodes.INTERNAL_ERROR, "Failed to open file for writing: %s" % path)
 	write.store_string(new_content)
 	write.close()
 
@@ -206,10 +225,10 @@ func attach_script(params: Dictionary) -> Dictionary:
 	var script_path: String = params.get("script_path", "")
 
 	if node_path.is_empty():
-		return McpErrorCodes.make(McpErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: path")
+		return ErrorCodes.make(ErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: path")
 
 	if script_path.is_empty():
-		return McpErrorCodes.make(McpErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: script_path")
+		return ErrorCodes.make(ErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: script_path")
 
 	var _resolved := McpNodeValidator.resolve_or_error(node_path, "node_path")
 	if _resolved.has("error"):
@@ -218,11 +237,11 @@ func attach_script(params: Dictionary) -> Dictionary:
 	var scene_root: Node = _resolved.scene_root
 
 	if not ResourceLoader.exists(script_path):
-		return McpErrorCodes.make(McpErrorCodes.RESOURCE_NOT_FOUND, "Script not found: %s" % script_path)
+		return ErrorCodes.make(ErrorCodes.RESOURCE_NOT_FOUND, "Script not found: %s" % script_path)
 
 	var script: Script = load(script_path)
 	if script == null:
-		return McpErrorCodes.make(McpErrorCodes.INTERNAL_ERROR, "Failed to load script: %s" % script_path)
+		return ErrorCodes.make(ErrorCodes.INTERNAL_ERROR, "Failed to load script: %s" % script_path)
 
 	var old_script: Script = node.get_script()
 
@@ -245,7 +264,7 @@ func detach_script(params: Dictionary) -> Dictionary:
 	var node_path: String = params.get("path", "")
 
 	if node_path.is_empty():
-		return McpErrorCodes.make(McpErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: path")
+		return ErrorCodes.make(ErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: path")
 
 	var _resolved := McpNodeValidator.resolve_or_error(node_path, "node_path")
 	if _resolved.has("error"):
@@ -276,14 +295,14 @@ func find_symbols(params: Dictionary) -> Dictionary:
 
 	var path_err := McpPathValidator.validate_resource_path(path)
 	if not path_err.is_empty():
-		return McpErrorCodes.make(McpErrorCodes.INVALID_PARAMS, path_err)
+		return ErrorCodes.make(ErrorCodes.INVALID_PARAMS, path_err)
 
 	if not FileAccess.file_exists(path):
-		return McpErrorCodes.make(McpErrorCodes.RESOURCE_NOT_FOUND, "File not found: %s" % path)
+		return ErrorCodes.make(ErrorCodes.RESOURCE_NOT_FOUND, "File not found: %s" % path)
 
 	var file := FileAccess.open(path, FileAccess.READ)
 	if file == null:
-		return McpErrorCodes.make(McpErrorCodes.INTERNAL_ERROR, "Failed to open file: %s" % path)
+		return ErrorCodes.make(ErrorCodes.INTERNAL_ERROR, "Failed to open file: %s" % path)
 
 	var content := file.get_as_text()
 	file.close()

@@ -119,6 +119,7 @@ const SLOT_KEYS_P1 := ["1", "2", "3"]
 const SLOT_KEYS_P2 := ["8", "9", "0"]
 
 var _section_buttons: Dictionary = {}
+var _settings_panel: PanelContainer
 var _section_title: Label
 var _wall_panel: VBoxContainer
 var _skin_panel: VBoxContainer
@@ -148,7 +149,6 @@ var _emote_browse_name_label: Label
 var _emote_browse_desc_label: Label
 var _emote_slot_btns: Array[Button] = []
 var _active_assign_slot_idx: int = 0
-var _assign_slot_btn: Button
 var _emote_grid: GridContainer
 var _selected_grid_btn: Button = null
 var _grid_card_by_id: Dictionary = {}
@@ -321,10 +321,10 @@ func _build_ui() -> void:
 	_preview_input_catcher = spacer_left
 	h_split.add_child(spacer_left)
 
-	var settings_panel := PanelContainer.new()
-	settings_panel.custom_minimum_size = Vector2(520, 0)
-	settings_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	settings_panel.clip_contents = true
+	_settings_panel = PanelContainer.new()
+	_settings_panel.custom_minimum_size = Vector2(520, 480)
+	_settings_panel.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_settings_panel.clip_contents = true
 	var settings_style := StyleBoxFlat.new()
 	settings_style.bg_color = Color(0.05, 0.08, 0.12, 0.86)
 	settings_style.set_border_width_all(2)
@@ -334,14 +334,14 @@ func _build_ui() -> void:
 	settings_style.content_margin_right = 28.0
 	settings_style.content_margin_top = 24.0
 	settings_style.content_margin_bottom = 24.0
-	settings_panel.add_theme_stylebox_override("panel", settings_style)
-	h_split.add_child(settings_panel)
+	_settings_panel.add_theme_stylebox_override("panel", settings_style)
+	h_split.add_child(_settings_panel)
 
 	var outer_vbox := VBoxContainer.new()
 	outer_vbox.add_theme_constant_override("separation", 12)
 	outer_vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	outer_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	settings_panel.add_child(outer_vbox)
+	_settings_panel.add_child(outer_vbox)
 
 	_section_title = Label.new()
 	_section_title.text = "統合設定"
@@ -446,19 +446,19 @@ func _build_skin_panel() -> void:
 	player_row.add_theme_constant_override("separation", 8)
 	_skin_panel.add_child(player_row)
 
-	_skin_player_btn_p1 = Button.new()
-	_skin_player_btn_p1.text = "プレイヤー１"
-	_skin_player_btn_p1.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_skin_player_btn_p1.custom_minimum_size = Vector2(0, 44)
-	_skin_player_btn_p1.pressed.connect(func() -> void: _set_skin_editing_player(1))
-	player_row.add_child(_skin_player_btn_p1)
-
 	_skin_player_btn_p2 = Button.new()
 	_skin_player_btn_p2.text = "プレイヤー２"
 	_skin_player_btn_p2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_skin_player_btn_p2.custom_minimum_size = Vector2(0, 44)
 	_skin_player_btn_p2.pressed.connect(func() -> void: _set_skin_editing_player(2))
 	player_row.add_child(_skin_player_btn_p2)
+
+	_skin_player_btn_p1 = Button.new()
+	_skin_player_btn_p1.text = "プレイヤー１"
+	_skin_player_btn_p1.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_skin_player_btn_p1.custom_minimum_size = Vector2(0, 44)
+	_skin_player_btn_p1.pressed.connect(func() -> void: _set_skin_editing_player(1))
+	player_row.add_child(_skin_player_btn_p1)
 
 	var hat_row := HBoxContainer.new()
 	hat_row.add_theme_constant_override("separation", 8)
@@ -499,101 +499,105 @@ func _build_emote_panel() -> void:
 	_emote_player_btn_p2.pressed.connect(func() -> void: _set_emote_editing_player(2))
 	player_row.add_child(_emote_player_btn_p2)
 
+	var slot_detail_hbox := HBoxContainer.new()
+	slot_detail_hbox.add_theme_constant_override("separation", 10)
+	_emote_panel.add_child(slot_detail_hbox)
+
+	var slot_vbox_left := VBoxContainer.new()
+	slot_vbox_left.add_theme_constant_override("separation", 6)
+	slot_vbox_left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	slot_vbox_left.size_flags_stretch_ratio = 1.0
+	slot_detail_hbox.add_child(slot_vbox_left)
+
 	var detail_panel := PanelContainer.new()
+	detail_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	detail_panel.size_flags_stretch_ratio = 1.3
+	detail_panel.size_flags_vertical = Control.SIZE_FILL
 	var detail_style := StyleBoxFlat.new()
 	detail_style.bg_color = Color(0.08, 0.10, 0.16, 0.92)
 	detail_style.border_color = Color(0.28, 0.38, 0.55, 0.65)
 	detail_style.set_border_width_all(1)
 	detail_style.set_corner_radius_all(12)
-	detail_style.content_margin_left = 14.0
-	detail_style.content_margin_right = 14.0
-	detail_style.content_margin_top = 12.0
-	detail_style.content_margin_bottom = 12.0
+	detail_style.content_margin_left = 12.0
+	detail_style.content_margin_right = 12.0
+	detail_style.content_margin_top = 10.0
+	detail_style.content_margin_bottom = 10.0
 	detail_panel.add_theme_stylebox_override("panel", detail_style)
-	_emote_panel.add_child(detail_panel)
+	slot_detail_hbox.add_child(detail_panel)
 
 	var detail_vbox := VBoxContainer.new()
-	detail_vbox.add_theme_constant_override("separation", 6)
+	detail_vbox.add_theme_constant_override("separation", 4)
+	detail_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
 	detail_panel.add_child(detail_vbox)
 
 	_emote_browse_icon_label = Label.new()
 	_emote_browse_icon_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_emote_browse_icon_label.add_theme_font_size_override("font_size", 32)
+	_emote_browse_icon_label.add_theme_font_size_override("font_size", 28)
 	detail_vbox.add_child(_emote_browse_icon_label)
 
 	_emote_browse_name_label = Label.new()
 	_emote_browse_name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_emote_browse_name_label.add_theme_font_size_override("font_size", 18)
+	_emote_browse_name_label.add_theme_font_size_override("font_size", 16)
 	_emote_browse_name_label.add_theme_color_override("font_color", Color(1.0, 0.88, 0.25))
 	detail_vbox.add_child(_emote_browse_name_label)
 
 	_emote_browse_desc_label = Label.new()
 	_emote_browse_desc_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_emote_browse_desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_emote_browse_desc_label.add_theme_font_size_override("font_size", 12)
+	_emote_browse_desc_label.add_theme_font_size_override("font_size", 11)
 	_emote_browse_desc_label.add_theme_color_override("font_color", Color(0.58, 0.62, 0.72))
 	detail_vbox.add_child(_emote_browse_desc_label)
-
-	var slot_title := Label.new()
-	slot_title.text = "登録先スロット"
-	slot_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	slot_title.add_theme_font_size_override("font_size", 13)
-	slot_title.add_theme_color_override("font_color", Color(0.62, 0.66, 0.76))
-	_emote_panel.add_child(slot_title)
-
-	var slot_row := HBoxContainer.new()
-	slot_row.add_theme_constant_override("separation", 8)
-	_emote_panel.add_child(slot_row)
 
 	_emote_slot_btns.clear()
 	for i in range(3):
 		var slot_btn := Button.new()
-		slot_btn.custom_minimum_size = Vector2(0, 72)
+		slot_btn.custom_minimum_size = Vector2(180, 46)
 		slot_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		slot_btn.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 		slot_btn.set_meta("slot_idx", i)
 		var slot_idx := i
 		slot_btn.pressed.connect(func() -> void: _set_active_assign_slot(slot_idx))
 
-		var slot_vbox := VBoxContainer.new()
-		slot_vbox.set_anchors_preset(Control.PRESET_FULL_RECT)
-		slot_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
-		slot_vbox.add_theme_constant_override("separation", 2)
-		slot_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		slot_btn.add_child(slot_vbox)
+		var slot_hbox := HBoxContainer.new()
+		slot_hbox.set_anchors_preset(Control.PRESET_FULL_RECT)
+		slot_hbox.anchor_right = 1.0
+		slot_hbox.anchor_bottom = 1.0
+		slot_hbox.offset_left = 6.0
+		slot_hbox.offset_right = -6.0
+		slot_hbox.alignment = BoxContainer.ALIGNMENT_BEGIN
+		slot_hbox.add_theme_constant_override("separation", 6)
+		slot_hbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		slot_btn.add_child(slot_hbox)
 
 		var key_lbl := Label.new()
 		key_lbl.name = "KeyLabel"
-		key_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		key_lbl.custom_minimum_size = Vector2(28, 0)
 		key_lbl.add_theme_font_size_override("font_size", 11)
 		key_lbl.add_theme_color_override("font_color", Color(0.55, 0.60, 0.72))
 		key_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		slot_vbox.add_child(key_lbl)
+		key_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		slot_hbox.add_child(key_lbl)
 
 		var icon_lbl := Label.new()
 		icon_lbl.name = "IconLabel"
-		icon_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		icon_lbl.add_theme_font_size_override("font_size", 22)
+		icon_lbl.custom_minimum_size = Vector2(24, 0)
+		icon_lbl.add_theme_font_size_override("font_size", 18)
 		icon_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		slot_vbox.add_child(icon_lbl)
+		icon_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		slot_hbox.add_child(icon_lbl)
 
 		var name_lbl := Label.new()
 		name_lbl.name = "NameLabel"
-		name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		name_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		name_lbl.clip_text = true
 		name_lbl.add_theme_font_size_override("font_size", 11)
 		name_lbl.add_theme_color_override("font_color", Color(0.88, 0.90, 0.96))
 		name_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		slot_vbox.add_child(name_lbl)
+		slot_hbox.add_child(name_lbl)
 
-		slot_row.add_child(slot_btn)
+		slot_vbox_left.add_child(slot_btn)
 		_emote_slot_btns.append(slot_btn)
-
-	_assign_slot_btn = Button.new()
-	_assign_slot_btn.custom_minimum_size = Vector2(0, 48)
-	_assign_slot_btn.pressed.connect(_on_assign_emote_to_slot)
-	_style_assign_slot_button()
-	_emote_panel.add_child(_assign_slot_btn)
 
 	var emote_cam_hint := Label.new()
 	emote_cam_hint.text = "左プレビュー: 右ドラッグ＝回転  ホイール＝ズーム"
@@ -783,6 +787,22 @@ func _set_section(section: Section) -> void:
 	_skin_panel.visible = section == Section.SKIN
 	_emote_panel.visible = section == Section.EMOTE
 
+	var target_height := 640.0
+	match section:
+		Section.WALL_SPEED:
+			target_height = 480.0
+		Section.SKIN:
+			target_height = 440.0
+		Section.EMOTE:
+			target_height = 640.0
+
+	if is_inside_tree():
+		var tween = create_tween().set_parallel(true)
+		tween.tween_property(_settings_panel, "custom_minimum_size:y", target_height, 0.22)\
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	else:
+		_settings_panel.custom_minimum_size.y = target_height
+
 	for key in _section_buttons.keys():
 		var btn: Button = _section_buttons[key]
 		btn.disabled = key == section
@@ -813,7 +833,8 @@ func _set_section(section: Section) -> void:
 		Section.EMOTE:
 			_set_skin_preview_lighting_active(false)
 			_explode_preview_walls_for_emote()
-			_section_title.visible = false
+			_section_title.visible = true
+			_section_title.text = "💃 エモート設定"
 			if _emote_preview_holder:
 				_emote_preview_holder.visible = true
 			_reset_emote_orbit_default()
@@ -874,13 +895,13 @@ func _get_desired_preview_camera() -> Dictionary:
 	match _active_section:
 		Section.WALL_SPEED:
 			var qw := Quaternion.from_euler(
-				Vector3(deg_to_rad(-14.0), deg_to_rad(15.0), 0.0),
+				Vector3(deg_to_rad(-14.0), deg_to_rad(-18.0), 0.0),
 			)
 			return {
-				"pos": Vector3(4.5, 4.5, 16.0),
+				"pos": Vector3(-5.2, 4.5, 16.0),
 				"quat": qw,
 				"fov": 65.0,
-				"h_offset": 0.0,
+				"h_offset": 0.65,
 				"v_offset": 0.0,
 			}
 		Section.SKIN:
@@ -1160,21 +1181,6 @@ func _set_active_assign_slot(idx: int) -> void:
 	_update_emote_panel_ui()
 
 
-func _on_assign_emote_to_slot() -> void:
-	var gs := QuizManager.game_state
-	var slots := _editing_player_emote_slots().duplicate()
-	if _active_assign_slot_idx < 0 or _active_assign_slot_idx >= slots.size():
-		return
-	slots[_active_assign_slot_idx] = _browsing_emote_id
-	if _editing_player == 1:
-		gs.p1_emote_slots = slots
-	else:
-		gs.p2_emote_slots = slots
-	_update_emote_panel_ui()
-	if _active_section == Section.EMOTE:
-		_refresh_emote_lane_previews()
-
-
 func _update_emote_browse_detail() -> void:
 	if not _emote_browse_name_label:
 		return
@@ -1199,29 +1205,6 @@ func _slot_card_style(selected: bool) -> StyleBoxFlat:
 	return style
 
 
-func _style_assign_slot_button() -> void:
-	if not _assign_slot_btn:
-		return
-	var normal := StyleBoxFlat.new()
-	normal.bg_color = Color(0.15, 0.35, 0.65, 0.95)
-	normal.border_color = Color(0.35, 0.55, 0.9, 0.9)
-	normal.set_border_width_all(2)
-	normal.set_corner_radius_all(12)
-	normal.content_margin_left = 16.0
-	normal.content_margin_right = 16.0
-	normal.content_margin_top = 10.0
-	normal.content_margin_bottom = 10.0
-	var hover := normal.duplicate() as StyleBoxFlat
-	hover.bg_color = Color(0.2, 0.42, 0.75, 0.98)
-	hover.border_color = Color(0.45, 0.65, 1.0)
-	_assign_slot_btn.add_theme_stylebox_override("normal", normal)
-	_assign_slot_btn.add_theme_stylebox_override("hover", hover)
-	_assign_slot_btn.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
-	_assign_slot_btn.add_theme_font_size_override("font_size", 15)
-	_assign_slot_btn.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0))
-	_assign_slot_btn.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 1.0))
-
-
 func _update_emote_panel_ui() -> void:
 	if not _emote_player_btn_p1:
 		return
@@ -1242,23 +1225,17 @@ func _update_emote_panel_ui() -> void:
 			slots[i] if i < slots.size() else EmoteData.EMOTE_NONE
 		)
 		var entry := _emote_catalog_entry(emote_id)
-		var slot_vbox := slot_btn.get_child(0) as VBoxContainer
-		if slot_vbox:
-			var key_lbl := slot_vbox.get_node_or_null("KeyLabel") as Label
-			var icon_lbl := slot_vbox.get_node_or_null("IconLabel") as Label
-			var name_lbl := slot_vbox.get_node_or_null("NameLabel") as Label
+		var slot_hbox := slot_btn.get_child(0) as HBoxContainer
+		if slot_hbox:
+			var key_lbl := slot_hbox.get_node_or_null("KeyLabel") as Label
+			var icon_lbl := slot_hbox.get_node_or_null("IconLabel") as Label
+			var name_lbl := slot_hbox.get_node_or_null("NameLabel") as Label
 			if key_lbl:
 				key_lbl.text = "[ %s ]" % keys[i]
 			if icon_lbl:
 				icon_lbl.text = str(entry.get("icon", "—"))
 			if name_lbl:
 				name_lbl.text = str(entry.get("name", "なし"))
-
-	if _assign_slot_btn:
-		var key_hint: String = (
-			str(keys[_active_assign_slot_idx]) if _active_assign_slot_idx < keys.size() else "?"
-		)
-		_assign_slot_btn.text = "キー %s のスロットに登録" % key_hint
 
 func _grid_card_normal_style() -> StyleBoxFlat:
 	var card_style := StyleBoxFlat.new()
@@ -1307,6 +1284,16 @@ func _on_grid_emote_selected(emote_id: int, card: Button) -> void:
 	_selected_grid_btn = card
 	card.add_theme_stylebox_override("normal", _grid_card_selected_style())
 	_browsing_emote_id = EmoteData.normalize_emote_id(emote_id)
+	
+	var gs := QuizManager.game_state
+	var slots := _editing_player_emote_slots().duplicate()
+	if _active_assign_slot_idx >= 0 and _active_assign_slot_idx < slots.size():
+		slots[_active_assign_slot_idx] = _browsing_emote_id
+		if _editing_player == 1:
+			gs.p1_emote_slots = slots
+		else:
+			gs.p2_emote_slots = slots
+
 	_update_emote_browse_detail()
 	_update_emote_panel_ui()
 	if _active_section == Section.EMOTE:
@@ -2166,8 +2153,6 @@ func _style_all_buttons() -> void:
 		if btn == _skin_player_btn_p1 or btn == _skin_player_btn_p2:
 			continue
 		if btn == _emote_player_btn_p1 or btn == _emote_player_btn_p2:
-			continue
-		if btn == _assign_slot_btn:
 			continue
 		if btn in _emote_slot_btns:
 			continue
