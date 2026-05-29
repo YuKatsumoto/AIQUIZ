@@ -14,6 +14,11 @@ var questions_to_clear: int = 10
 var current_score: int = 0
 var current_question_index: int = 0
 
+# エモートスロットの設定
+var p1_emote_slots: Array[int] = [1, 2, 3]
+var p2_emote_slots: Array[int] = [1, 2, 3]
+
+
 const USER_SETTINGS_PATH := "user://settings.json"
 
 var tutorial_completed: bool = false
@@ -54,10 +59,27 @@ func _load_user_settings() -> void:
 			file.close()
 	tutorial_completed = bool(_user_settings.get("tutorial_completed", false))
 	tutorial_dismissed = bool(_user_settings.get("tutorial_dismissed", false))
+	
+	if _user_settings.has("p1_emote_slots"):
+		var slots = _user_settings["p1_emote_slots"]
+		if slots is Array:
+			p1_emote_slots.clear()
+			for s in slots:
+				p1_emote_slots.append(int(s))
+	if _user_settings.has("p2_emote_slots"):
+		var slots = _user_settings["p2_emote_slots"]
+		if slots is Array:
+			p2_emote_slots.clear()
+			for s in slots:
+				p2_emote_slots.append(int(s))
+
 
 func _save_user_settings() -> void:
 	_user_settings["tutorial_completed"] = tutorial_completed
 	_user_settings["tutorial_dismissed"] = tutorial_dismissed
+	_user_settings["p1_emote_slots"] = p1_emote_slots
+	_user_settings["p2_emote_slots"] = p2_emote_slots
+
 	var file := FileAccess.open(USER_SETTINGS_PATH, FileAccess.WRITE)
 	if file:
 		file.store_string(JSON.stringify(_user_settings, "  "))

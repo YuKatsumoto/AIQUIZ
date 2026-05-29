@@ -122,8 +122,16 @@ func _ready() -> void:
 		if vc:
 			vc.pause_triggered.connect(_toggle_pause)
 			vc.emote_triggered.connect(func(emote_id: int):
+				print("[WORLD] Received mobile emote: %d" % emote_id)
 				_mobile_emote_p1 = emote_id
 			)
+			vc.swipe_left.connect(func():
+				game_state.handle_mobile_swipe(true)
+			)
+			vc.swipe_right.connect(func():
+				game_state.handle_mobile_swipe(false)
+			)
+
 
 const MAGMA_SHADER = """
 shader_type spatial;

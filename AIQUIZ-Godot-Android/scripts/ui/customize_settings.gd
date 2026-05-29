@@ -166,6 +166,12 @@ var _emote_cam_dragging: bool = false
 var _emote_cam_panning: bool = false
 ## タブ切替直後は CAM_TAB_TRANSITION_SMOOTH_RATE で寄せ、収束したら通常レートに戻す
 var _preview_cam_tab_transition_active: bool = false
+var _touch_points: Dictionary = {}
+var _last_pinch_dist: float = 0.0
+var _body_scroll: ScrollContainer = null
+var _is_scrolling_drag := false
+var _scroll_drag_start_y := 0.0
+var _scroll_start_v := 0.0
 
 func _ready() -> void:
 	var game_state := QuizManager.game_state
@@ -360,16 +366,16 @@ func _build_ui() -> void:
 
 	outer_vbox.add_child(HSeparator.new())
 
-	var body_scroll := ScrollContainer.new()
-	body_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	body_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	body_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	outer_vbox.add_child(body_scroll)
+	_body_scroll = ScrollContainer.new()
+	_body_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_body_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_body_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	outer_vbox.add_child(_body_scroll)
 
 	var body_vbox := VBoxContainer.new()
 	body_vbox.add_theme_constant_override("separation", 12)
 	body_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	body_scroll.add_child(body_vbox)
+	_body_scroll.add_child(body_vbox)
 
 	_wall_panel = VBoxContainer.new()
 	_wall_panel.add_theme_constant_override("separation", 10)
@@ -629,6 +635,7 @@ func _build_emote_panel() -> void:
 		var card := Button.new()
 		card.custom_minimum_size = Vector2(0, 68)
 		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		card.mouse_filter = Control.MOUSE_FILTER_PASS
 		card.add_theme_stylebox_override("normal", _grid_card_normal_style())
 		card.add_theme_stylebox_override("hover", _grid_card_hover_style())
 		card.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
@@ -641,7 +648,8 @@ func _build_emote_panel() -> void:
 		card.add_child(card_vbox)
 
 		var card_icon := Label.new()
-		card_icon.text = eicon
+		card_icon.text = ""
+		card_icon.visible = false
 		card_icon.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		card_icon.add_theme_font_size_override("font_size", 24)
 		card_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -991,12 +999,48 @@ func _sync_emote_orbit_lane_x() -> void:
 	_emote_cam_target.x = _preview_editing_lane_x()
 
 
+func _input(event: InputEvent) -> void:
+	if not _body_scroll or not _body_scroll.is_visible_in_tree():
+		return
+
+	if event is InputEventScreenTouch:
+		var st := event as InputEventScreenTouch
+		if st.pressed:
+			if _body_scroll.get_global_rect().has_point(st.position):
+				_is_scrolling_drag = true
+				_scroll_drag_start_y = st.position.y
+				_scroll_start_v = _body_scroll.scroll_vertical
+		else:
+			_is_scrolling_drag = false
+	elif event is InputEventScreenDrag:
+		var sd := event as InputEventScreenDrag
+		if _is_scrolling_drag:
+			var diff = sd.position.y - _scroll_drag_start_y
+			_body_scroll.scroll_vertical = int(_scroll_start_v - diff)
+	
+	elif event is InputEventMouseButton:
+		var mb := event as InputEventMouseButton
+		if mb.button_index == MOUSE_BUTTON_LEFT:
+			if mb.pressed:
+				if _body_scroll.get_global_rect().has_point(mb.position):
+					_is_scrolling_drag = true
+					_scroll_drag_start_y = mb.position.y
+					_scroll_start_v = _body_scroll.scroll_vertical
+			else:
+				_is_scrolling_drag = false
+	elif event is InputEventMouseMotion:
+		var mm := event as InputEventMouseMotion
+		if _is_scrolling_drag:
+			var diff = mm.position.y - _scroll_drag_start_y
+			_body_scroll.scroll_vertical = int(_scroll_start_v - diff)
+
+
 func _on_emote_preview_gui_input(event: InputEvent) -> void:
 	if _active_section != Section.EMOTE:
 		return
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
-		if mb.button_index == MOUSE_BUTTON_RIGHT:
+		if mb.button_index == MOUSE_BUTTON_RIGHT or mb.button_index == MOUSE_BUTTON_LEFT:
 			_emote_cam_dragging = mb.pressed
 		elif mb.button_index == MOUSE_BUTTON_MIDDLE:
 			_emote_cam_panning = mb.pressed
@@ -1017,6 +1061,38 @@ func _on_emote_preview_gui_input(event: InputEvent) -> void:
 			var right_pan := Vector3(cos(yaw_rad_pan), 0, -sin(yaw_rad_pan))
 			_emote_cam_target += right_pan * mm.relative.x * -0.005
 			_emote_cam_target.y += mm.relative.y * 0.005
+	elif event is InputEventScreenTouch:
+		var st := event as InputEventScreenTouch
+		if st.pressed:
+			_touch_points[st.index] = st.position
+		else:
+			_touch_points.erase(st.index)
+			if _touch_points.is_empty():
+				_last_pinch_dist = 0.0
+				_emote_cam_dragging = false
+		
+		if _touch_points.size() == 1:
+			_emote_cam_dragging = true
+		else:
+			_emote_cam_dragging = false
+			if _touch_points.size() == 2:
+				var keys = _touch_points.keys()
+				_last_pinch_dist = _touch_points[keys[0]].distance_to(_touch_points[keys[1]])
+	elif event is InputEventScreenDrag:
+		var sd := event as InputEventScreenDrag
+		_touch_points[sd.index] = sd.position
+		
+		if _touch_points.size() == 1:
+			_emote_cam_yaw -= sd.relative.x * 0.25
+			_emote_cam_pitch -= sd.relative.y * 0.25
+			_emote_cam_pitch = clampf(_emote_cam_pitch, -80.0, 80.0)
+		elif _touch_points.size() == 2:
+			var keys = _touch_points.keys()
+			var current_dist: float = _touch_points[keys[0]].distance_to(_touch_points[keys[1]])
+			if _last_pinch_dist > 0.0:
+				var diff := current_dist - _last_pinch_dist
+				_emote_cam_distance = clampf(_emote_cam_distance - diff * 0.015, 1.5, 12.0)
+			_last_pinch_dist = current_dist
 
 
 func _refresh_all_labels() -> void:
@@ -1168,8 +1244,11 @@ func _on_assign_emote_to_slot() -> void:
 	slots[_active_assign_slot_idx] = _browsing_emote_id
 	if _editing_player == 1:
 		gs.p1_emote_slots = slots
+		GameManager.p1_emote_slots = slots.duplicate()
 	else:
 		gs.p2_emote_slots = slots
+		GameManager.p2_emote_slots = slots.duplicate()
+	GameManager._save_user_settings()
 	_update_emote_panel_ui()
 	if _active_section == Section.EMOTE:
 		_refresh_emote_lane_previews()
@@ -1180,7 +1259,8 @@ func _update_emote_browse_detail() -> void:
 		return
 	var entry := _emote_catalog_entry(_browsing_emote_id)
 	if _emote_browse_icon_label:
-		_emote_browse_icon_label.text = str(entry.get("icon", "—"))
+		_emote_browse_icon_label.text = ""
+		_emote_browse_icon_label.visible = false
 	_emote_browse_name_label.text = str(entry.get("name", "なし"))
 	if _emote_browse_desc_label:
 		_emote_browse_desc_label.text = EmoteData.get_emote_desc(_browsing_emote_id)
@@ -1250,7 +1330,8 @@ func _update_emote_panel_ui() -> void:
 			if key_lbl:
 				key_lbl.text = "[ %s ]" % keys[i]
 			if icon_lbl:
-				icon_lbl.text = str(entry.get("icon", "—"))
+				icon_lbl.text = ""
+				icon_lbl.visible = false
 			if name_lbl:
 				name_lbl.text = str(entry.get("name", "なし"))
 

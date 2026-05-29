@@ -2,13 +2,23 @@
 class_name McpUpdateManager
 extends Node
 
-## Self-update pipeline + install-in-flight gate. Boundary: this manager
-## owns decisions, HTTP traffic, and the install state machine; the dock
-## owns banner rendering and forwards button clicks. The split exists
-## because the dock script is one of the files overwritten on disk during
-## install — keeping pipeline state on a separate Node lets the dock
-## tear down cleanly without losing the in-flight gate that other dock
-## spawn paths consult.
+## Self-update manager for pre-runner work. Owns release checks, HTTP ZIP
+## download, the install-in-flight gate, and install state signals back to
+## the dock. Once `_install_zip()` calls
+## `plugin.gd::install_downloaded_update(...)`, ownership transfers to
+## `update_reload_runner.gd`, which owns extract, scan, plugin re-enable,
+## and detached-dock cleanup.
+##
+## The dock owns banner rendering and forwards button clicks. The split
+## exists because the dock script is one of the files overwritten on disk
+## during install — keeping pipeline state on a separate Node lets the dock
+## tear down cleanly without losing the in-flight gate that other dock spawn
+## paths consult.
+##
+## `class_name McpUpdateManager` is retained because it shipped in a
+## published release. If this class is ever retired, follow CLAUDE.md's
+## never-delete-published-class_name shim policy instead of deleting the
+## declaration.
 ##
 ## `_plugin` and `_dock` are deliberately untyped: the same self-update
 ## window that overwrites this script also overwrites the dock and plugin
@@ -93,11 +103,65 @@ func clear_pending_download() -> void:
 	_latest_download_url = ""
 
 
-## Driven by the dock's Update button. With no resolved download URL —
-## either the check never completed, or the release didn't ship a
-## matching asset — falls back to opening the release page. Otherwise
-## kicks off the download → extract → reload pipeline.
+## True when the running Godot can self-update in place. Godot < 4.4 takes
+## the `_install_zip_inline` extract-then-restart path, and that engine's
+## stricter `GDScript::reload()` (`!p_keep_state && has_instances` ->
+## `ERR_ALREADY_IN_USE`) turns the extract-over-live-scripts into a reload
+## error flood plus a SIGSEGV in `EditorDockManager::remove_dock` /
+## `SceneTree::finalize` on the restart/quit (#475). So on < 4.4 we don't
+## run the in-editor pipeline at all — the user updates manually.
+## Guards `major` too so a future Godot 5.x (minor 0) isn't misclassified.
+func _can_self_update() -> bool:
+	var v := Engine.get_version_info()
+	return _version_can_self_update(int(v.get("major", 0)), int(v.get("minor", 0)))
+
+
+## Pure version predicate, split out so it's testable without faking the
+## running engine. In-editor self-update needs Godot >= 4.4.
+static func _version_can_self_update(major: int, minor: int) -> bool:
+	return major > 4 or (major == 4 and minor >= 4)
+
+
+## Banner guidance for the gated (< 4.4) path. Shown up-front at check time
+## (with the available version) and again on click, so the user understands
+## the manual-update flow before they press anything. Single source of truth
+## so check-time and click-time text never drift.
+static func _manual_update_label(version: String) -> String:
+	var prefix := "Update available"
+	if not version.is_empty():
+		prefix = "Update v%s available" % version
+	return (
+		prefix
+		+ " — in-editor update needs Godot 4.4+. Open the download page, then "
+		+ "replace addons/godot_ai/ manually and relaunch."
+	)
+
+
+## Driven by the dock's Update button. On Godot < 4.4 (see `_can_self_update`)
+## the in-editor install is disabled — we open the release page for a manual
+## download instead, never entering the extract pipeline that crashes those
+## engines. With no resolved download URL — either the check never completed,
+## or the release didn't ship a matching asset — also falls back to opening
+## the release page. Otherwise kicks off the download → extract → reload
+## pipeline.
 func start_install() -> void:
+	if not _can_self_update():
+		## Only claim success + lock the button if the browser actually opened.
+		## On failure (no handler, headless) keep the button enabled so the
+		## user can retry. Either way, leave the version-bearing guidance label
+		## from check time in place — don't re-emit label_text.
+		if OS.shell_open(RELEASES_PAGE) == OK:
+			install_state_changed.emit({
+				"button_text": "Opened download page",
+				"button_disabled": true,
+			})
+		else:
+			install_state_changed.emit({
+				"button_text": "Couldn't open browser — retry",
+				"button_disabled": false,
+			})
+		return
+
 	if _latest_download_url.is_empty():
 		OS.shell_open(RELEASES_PAGE)
 		return
@@ -223,6 +287,14 @@ func _on_update_check_completed(
 		return
 	_latest_download_url = String(parsed.get("download_url", ""))
 	update_check_completed.emit(parsed)
+	## On engines that can't self-update (Godot < 4.4, #475), surface the
+	## full manual-update guidance AND relabel the button up-front — before
+	## any click — so the user knows what the button does and why.
+	if not _can_self_update():
+		install_state_changed.emit({
+			"button_text": "Open download page",
+			"label_text": _manual_update_label(String(parsed.get("version", ""))),
+		})
 
 
 func _on_download_completed(
@@ -274,7 +346,11 @@ func _install_zip() -> void:
 		_plugin != null
 		and _plugin.has_method("install_downloaded_update")
 	)
-	if int(version.get("minor", 0)) >= 4 and has_runner:
+	## Same major-aware predicate as the _can_self_update() gate, so a future
+	## Godot 5.x (minor 0) takes the runner path the gate promised — not the
+	## pre-4.4 inline extract. A bare `minor >= 4` here would route 5.0 to the
+	## crash-prone inline path even though the gate let it in.
+	if _version_can_self_update(int(version.get("major", 0)), int(version.get("minor", 0))) and has_runner:
 		install_state_changed.emit({"button_text": "Reloading..."})
 		## Runner takes over: plugin tears down, runner extracts + scans +
 		## re-enables. `install_downloaded_update` calls
@@ -327,7 +403,7 @@ func _install_zip_inline(version: Dictionary) -> void:
 	if _plugin != null and _plugin.has_method("prepare_for_update_reload"):
 		_plugin.prepare_for_update_reload()
 
-	if int(version.get("minor", 0)) >= 4:
+	if _version_can_self_update(int(version.get("major", 0)), int(version.get("minor", 0))):
 		install_state_changed.emit({"button_text": "Scanning..."})
 		## Filesystem scan must complete before plugin reload — otherwise
 		## plugin.gd re-parses against a ClassDB that hasn't seen the new

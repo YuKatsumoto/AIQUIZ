@@ -4,18 +4,31 @@ extends Logger
 ## Game-process Logger subclass.
 ##
 ## NOTE: deliberately no `class_name` — `extends Logger` requires the Logger
-## class which Godot only exposes from 4.5+. game_helper.gd loads this
-## script dynamically via load() after gating on
-## ClassDB.class_exists("Logger"), so the script never gets parsed on
-## older engines. Registered via OS.add_logger() from inside
-## the running game so we can intercept print(), printerr(), push_error(),
-## and push_warning() and ferry them back to the editor over the
+## class which Godot only exposes from 4.5+. This file lives in the
+## `.gdignore`'d `runtime/loggers/` folder so Godot's editor filesystem scan
+## skips it entirely — on Godot < 4.5 it is never parsed, so it emits no
+## "Could not find base class Logger" error (it used to, before #475's
+## follow-up). game_helper.gd builds it from source at runtime via
+## `logger_loader.gd` and only calls OS.add_logger() after gating on
+## ClassDB.class_exists("Logger"). Registered from inside the running game
+## so we can intercept print(), printerr(), push_error(), and
+## push_warning() and ferry them back to the editor over the
 ## EngineDebugger channel — the same bridge PR #76 uses for screenshots.
 ##
 ## Logger virtuals can be called from any thread (e.g. async loaders push
 ## errors off the main thread). We accumulate into _pending under a Mutex
 ## and the host (game_helper.gd) flushes once per frame from the main
 ## thread, where EngineDebugger.send_message is safe to call.
+
+## `McpLogBacktrace` is published as a `class_name` on log_backtrace.gd, but a
+## freshly-launched game subprocess (no prior editor scan; e.g. CI launching
+## `--headless --path`) hits this autoload before the global class_name table
+## is populated, and parsing this script fails with
+## "Identifier 'McpLogBacktrace' not declared in the current scope". Using
+## `const preload` resolves the path at parse time and is independent of the
+## class_name registry — matches the project convention in CLAUDE.md
+## ("Internals … skip class_name entirely and load via const preload").
+const _LogBacktrace := preload("res://addons/godot_ai/utils/log_backtrace.gd")
 
 var _pending: Array = []
 var _mutex := Mutex.new()
@@ -41,7 +54,7 @@ func _log_error(
 	## location has nowhere structured to land for the game side, so we
 	## inline it into `text`. editor_logger keeps the resolved fields
 	## as structured columns instead.
-	var resolved := McpLogBacktrace.resolve_error(
+	var resolved := _LogBacktrace.resolve_error(
 		function, file, line, code, rationale, error_type, script_backtraces,
 	)
 	var loc := ""

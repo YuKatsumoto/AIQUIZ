@@ -14,7 +14,7 @@ extends RefCounted
 ## `_host.<method>()` shims; the test fixtures override those shims to
 ## drive the manager without touching the editor.
 ##
-## `_host` is untyped to honor the self-update parse-hazard policy
+## `_host` is untyped to honor the self-update field-storage policy
 ## plugin.gd calls out near `_connection`.
 var _host
 
@@ -46,7 +46,6 @@ var _server_actual_name: String = ""
 
 ## Diagnostic + recovery flags surfaced to the dock via `get_status()`.
 var _server_status_message: String = ""
-var _server_dev_version_mismatch_allowed: bool = false
 var _can_recover_incompatible: bool = false
 var _connection_blocked: bool = false
 
@@ -87,7 +86,6 @@ func get_status_dict() -> Dictionary:
 		"actual_version": _server_actual_version,
 		"expected_version": _server_expected_version,
 		"message": _server_status_message,
-		"dev_version_mismatch_allowed": _server_dev_version_mismatch_allowed,
 		"can_recover_incompatible": _can_recover_incompatible,
 		"connection_blocked": _connection_blocked,
 	}
@@ -215,21 +213,9 @@ func handle_server_version_verified(expected_version: String, version: String) -
 	_server_actual_version = version
 	var expected := _resolve_expected_version(expected_version)
 	_server_expected_version = expected
-	var compatibility := _server_version_compatibility(
-		version,
-		expected,
-		ClientConfigurator.is_dev_checkout()
-	)
+	var compatibility := _server_version_compatibility(version, expected)
 	if compatibility.get("compatible", false):
 		_can_recover_incompatible = false
-		_server_dev_version_mismatch_allowed = bool(
-			compatibility.get("dev_mismatch_allowed", false)
-		)
-		if _server_dev_version_mismatch_allowed:
-			_server_status_message = (
-				"Using dev server v%s with plugin v%s "
-				+ "(dev checkout version mismatch allowed)."
-			) % [version, expected]
 		## Foreign-port and post-spawn handshakes both clear to READY
 		## on a successful handshake. Late re-arms from READY also land
 		## here and self-confirm.
@@ -259,18 +245,22 @@ func handle_server_version_unverified(expected_version: String) -> void:
 
 # ---- Compatibility / version helpers (pure) ---------------------------
 
+## Plugin and server speak a single, version-coupled protocol — new commands
+## and response fields are added together. Treating dev-mode mismatches as
+## "compatible" silently adopts a stale server whose code may differ from the
+## live source tree (e.g. another worktree on a different branch holding
+## port 8000). Strict match in all modes routes mismatches through
+## `recover_strong_port_occupant`, which kills the branded port-holder and
+## lets `start_server` spawn fresh against the current source.
 static func _server_version_compatibility(
 	actual_version: String,
-	expected_version: String,
-	is_dev_checkout: bool
+	expected_version: String
 ) -> Dictionary:
 	if actual_version.is_empty():
-		return {"compatible": false, "reason": "unknown", "dev_mismatch_allowed": false}
+		return {"compatible": false, "reason": "unknown"}
 	if actual_version == expected_version:
-		return {"compatible": true, "reason": "exact", "dev_mismatch_allowed": false}
-	if is_dev_checkout:
-		return {"compatible": true, "reason": "dev_mismatch", "dev_mismatch_allowed": true}
-	return {"compatible": false, "reason": "version_mismatch", "dev_mismatch_allowed": false}
+		return {"compatible": true, "reason": "exact"}
+	return {"compatible": false, "reason": "version_mismatch"}
 
 
 static func _server_status_compatibility(
@@ -278,17 +268,12 @@ static func _server_status_compatibility(
 	expected_version: String,
 	actual_ws_port: int,
 	expected_ws_port: int,
-	is_dev_checkout: bool,
 ) -> Dictionary:
-	var version_result := _server_version_compatibility(
-		actual_version,
-		expected_version,
-		is_dev_checkout
-	)
+	var version_result := _server_version_compatibility(actual_version, expected_version)
 	if not bool(version_result.get("compatible", false)):
 		return version_result
 	if actual_ws_port != expected_ws_port:
-		return {"compatible": false, "reason": "ws_port_mismatch", "dev_mismatch_allowed": false}
+		return {"compatible": false, "reason": "ws_port_mismatch"}
 	return version_result
 
 
@@ -308,7 +293,6 @@ func _set_incompatible_server(live: Dictionary, expected_version: String, port: 
 	_server_expected_version = expected_version
 	_server_actual_name = str(live.get("name", ""))
 	_server_actual_version = _live_version_for_message(live)
-	_server_dev_version_mismatch_allowed = false
 	_server_status_message = _incompatible_server_message(
 		live, expected_version, port, int(_host._resolved_ws_port)
 	)
@@ -327,17 +311,23 @@ static func _incompatible_server_message(
 ) -> String:
 	var version := _live_version_for_message(live)
 	var actual_ws_port := _live_ws_port_for_message(live)
+	## `package_path` is a v2.4.4+ field — older servers omit it. Suffix
+	## the message with "(loaded from <path>)" when present so the user
+	## can tell *which* `src/godot_ai/` is serving the port without
+	## walking the process tree. See #416.
+	var package_path := _live_package_path_for_message(live)
+	var path_suffix := " (loaded from %s)" % package_path if not package_path.is_empty() else ""
 	if not version.is_empty():
 		if actual_ws_port > 0 and actual_ws_port != expected_ws_port:
 			return (
-				"Port %d is occupied by godot-ai server v%s using WS port %d; "
+				"Port %d is occupied by godot-ai server v%s using WS port %d%s; "
 				+ "plugin expects v%s with WS port %d. Stop the old server or "
 				+ "change both HTTP and WS ports."
-			) % [port, version, actual_ws_port, expected_version, expected_ws_port]
+			) % [port, version, actual_ws_port, path_suffix, expected_version, expected_ws_port]
 		return (
-			"Port %d is occupied by godot-ai server v%s; plugin expects v%s. "
+			"Port %d is occupied by godot-ai server v%s%s; plugin expects v%s. "
 			+ "Stop the old server or change both HTTP and WS ports."
-		) % [port, version, expected_version]
+		) % [port, version, path_suffix, expected_version]
 	var status_code := int(live.get("status_code", 0))
 	if status_code > 0:
 		return (
@@ -366,7 +356,35 @@ static func _live_ws_port_for_message(live: Dictionary) -> int:
 	return int(live.get("ws_port", 0))
 
 
+static func _live_package_path_for_message(live: Dictionary) -> String:
+	## Only trust the path when the live snapshot confirms a godot-ai
+	## server — a probe of some unrelated HTTP service could in theory
+	## return a `package_path` JSON field, and we don't want to mislabel
+	## that as "godot-ai loaded from …" in the incompatible banner.
+	if live.has("name") and str(live.get("name", "")) != "godot-ai":
+		return ""
+	return str(live.get("package_path", ""))
+
+
 # ---- start_server / spawn watch / respawn -----------------------------
+
+
+## Sets GODOT_AI_DISABLE_TELEMETRY in the process environment for the
+## upcoming OS.create_process call if: (a) neither GODOT_AI_DISABLE_TELEMETRY
+## nor DISABLE_TELEMETRY is already set, and (b) the EditorSettings key
+## "godot_ai/telemetry_enabled" is set to false. Returns true if the var was
+## injected so the caller can unset it after spawning.
+func _inject_telemetry_env() -> bool:
+	## Guard: if the user or CI already set an env var (even to "false"), leave
+	## it alone. McpSettings.telemetry_enabled() only reads the EditorSetting
+	## when no env var overrides are present.
+	if OS.has_environment("GODOT_AI_DISABLE_TELEMETRY") or OS.has_environment("DISABLE_TELEMETRY"):
+		return false
+	if not McpSettings.telemetry_enabled():
+		OS.set_environment("GODOT_AI_DISABLE_TELEMETRY", "true")
+		return true
+	return false
+
 
 ## Branch table (recorded version is the "is this ours?" signal — uvx
 ## launcher PIDs go stale; #135/#137):
@@ -408,18 +426,11 @@ func start_server() -> void:
 			current_version,
 			live_ws_port,
 			ws_port,
-			ClientConfigurator.is_dev_checkout()
 		)
 		if compatibility.get("compatible", false):
 			_server_actual_name = "godot-ai"
 			_server_actual_version = live_version
 			_can_recover_incompatible = false
-			_server_dev_version_mismatch_allowed = bool(compatibility.get("dev_mismatch_allowed", false))
-			if bool(_server_dev_version_mismatch_allowed):
-				_server_status_message = (
-					"Using dev server v%s on WS port %d with plugin v%s "
-					+ "(dev checkout version mismatch allowed)."
-				) % [str(_server_actual_version), live_ws_port, current_version]
 			var owner := int(_host._find_managed_pid(port))
 			var owner_label := adopt_compatible_server(record_version, current_version, owner)
 			_host._server_started_this_session = true
@@ -479,8 +490,53 @@ func start_server() -> void:
 		push_warning("MCP | port %d is reserved by Windows (Hyper-V / WSL2 / Docker)" % port)
 		return
 
+	var injected_telemetry_env := _inject_telemetry_env()
+
+	## PYTHONPATH handling for dev checkouts: when the editor is launched
+	## against a worktree whose `src/godot_ai/__version__` differs from the
+	## root repo's editable install, the dev-venv python's `sitecustomize`
+	## adds the *root repo's* `src/` to `sys.path`. The spawned server then
+	## reports the root repo's version, the plugin's compatibility check
+	## flags it as incompatible, and the user gets a Restart-Server loop
+	## with no exit. `start_dev_server` already prepends the worktree's
+	## `src/` for its --reload spawn; mirror that here for the auto-spawn
+	## path so the same worktree-vs-root version skew is impossible. Gated
+	## on `is_dev_checkout()` so production user installs (no nearby `src/`)
+	## are untouched. See #418.
+	var worktree_src := ""
+	var prev_pythonpath := ""
+	var pythonpath_set := false
+	if ClientConfigurator.is_dev_checkout():
+		worktree_src = ClientConfigurator.find_worktree_src_dir(
+			ProjectSettings.globalize_path("res://")
+		)
+		if not worktree_src.is_empty():
+			prev_pythonpath = OS.get_environment("PYTHONPATH")
+			var sep := ";" if OS.get_name() == "Windows" else ":"
+			var new_pp := (
+				worktree_src
+				if prev_pythonpath.is_empty()
+				else worktree_src + sep + prev_pythonpath
+			)
+			OS.set_environment("PYTHONPATH", new_pp)
+			pythonpath_set = true
+
 	_server_pid = OS.create_process(cmd, args)
 	var spawned_pid := int(_server_pid)
+
+	## Restore PYTHONPATH immediately — the spawned child has already
+	## copied the env, so the editor's own process state returns to
+	## baseline. Leaving it set would leak to any later OS.create_process
+	## from unrelated paths.
+	if pythonpath_set:
+		if prev_pythonpath.is_empty():
+			OS.unset_environment("PYTHONPATH")
+		else:
+			OS.set_environment("PYTHONPATH", prev_pythonpath)
+
+	if injected_telemetry_env:
+		OS.unset_environment("GODOT_AI_DISABLE_TELEMETRY")
+
 	if spawned_pid > 0:
 		_server_spawn_ms = Time.get_ticks_msec()
 		_server_exit_ms = 0
@@ -491,7 +547,13 @@ func start_server() -> void:
 		## editor start's adopt branch heals it to the real port owner.
 		_host._write_managed_server_record(spawned_pid, current_version)
 		_startup_path = McpStartupPathScript.SPAWNED
-		print("MCP | started server (PID %d, v%s): %s %s" % [spawned_pid, current_version, cmd, " ".join(args)])
+		## Log "PYTHONPATH prefix=" rather than "PYTHONPATH=" so the line
+		## isn't misleading when an existing PYTHONPATH was present —
+		## we prepended `worktree_src`, not replaced. Keeps the log
+		## compact (worktree_src is the actionable piece; the full
+		## prev_pythonpath can be 5+ entries long on dev machines).
+		var suffix := " (PYTHONPATH prefix=%s)" % worktree_src if not worktree_src.is_empty() else ""
+		print("MCP | started server (PID %d, v%s): %s %s%s" % [spawned_pid, current_version, cmd, " ".join(args), suffix])
 		_host._start_server_watch()
 	else:
 		set_terminal_diagnosis(McpServerStateScript.CRASHED)
@@ -542,7 +604,10 @@ func respawn_with_refresh() -> void:
 	args.append_array(_host._build_server_flags(ClientConfigurator.http_port(), int(_host._resolved_ws_port)))
 	_host._clear_pid_file()
 	_host._log_buffer.log("retrying with --refresh (PyPI index may be stale)")
+	var injected_telemetry_env := _inject_telemetry_env()
 	_server_pid = OS.create_process(cmd, args)
+	if injected_telemetry_env:
+		OS.unset_environment("GODOT_AI_DISABLE_TELEMETRY")
 	var spawn_pid := int(_server_pid)
 	if spawn_pid > 0:
 		_server_spawn_ms = Time.get_ticks_msec()

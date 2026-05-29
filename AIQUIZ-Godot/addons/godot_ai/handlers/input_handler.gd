@@ -1,6 +1,8 @@
 @tool
 extends RefCounted
 
+const ErrorCodes := preload("res://addons/godot_ai/utils/error_codes.gd")
+
 ## Handles input action listing, creation, removal, and event binding.
 ## Actions are persisted via ProjectSettings so they survive editor restarts.
 
@@ -50,10 +52,14 @@ func add_action(params: Dictionary) -> Dictionary:
 	var deadzone: float = params.get("deadzone", 0.5)
 
 	if action.is_empty():
-		return McpErrorCodes.make(McpErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: action")
+		return ErrorCodes.make(ErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: action")
+
+	if deadzone < 0.0 or deadzone > 1.0:
+		return ErrorCodes.make(ErrorCodes.VALUE_OUT_OF_RANGE,
+			"deadzone must be in [0.0, 1.0] (got %s). Typical values are 0.2-0.5; default is 0.5." % deadzone)
 
 	if InputMap.has_action(action):
-		return McpErrorCodes.make(McpErrorCodes.INVALID_PARAMS, "Action '%s' already exists" % action)
+		return ErrorCodes.make(ErrorCodes.INVALID_PARAMS, "Action '%s' already exists" % action)
 
 	InputMap.add_action(action, deadzone)
 
@@ -66,7 +72,7 @@ func add_action(params: Dictionary) -> Dictionary:
 	if err != OK:
 		InputMap.erase_action(action)
 		ProjectSettings.clear(key)
-		return McpErrorCodes.make(McpErrorCodes.INTERNAL_ERROR,
+		return ErrorCodes.make(ErrorCodes.INTERNAL_ERROR,
 			"Failed to save project settings while adding action '%s': %s (error %d)" % [action, error_string(err), err])
 
 	return {
@@ -82,10 +88,10 @@ func add_action(params: Dictionary) -> Dictionary:
 func remove_action(params: Dictionary) -> Dictionary:
 	var action: String = params.get("action", "")
 	if action.is_empty():
-		return McpErrorCodes.make(McpErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: action")
+		return ErrorCodes.make(ErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: action")
 
 	if not InputMap.has_action(action):
-		return McpErrorCodes.make(McpErrorCodes.VALUE_OUT_OF_RANGE, "Action '%s' not found" % action)
+		return ErrorCodes.make(ErrorCodes.VALUE_OUT_OF_RANGE, "Action '%s' not found" % action)
 
 	var key := "input/%s" % action
 	var old_setting = ProjectSettings.get_setting(key) if ProjectSettings.has_setting(key) else null
@@ -102,7 +108,7 @@ func remove_action(params: Dictionary) -> Dictionary:
 					if ev is InputEvent:
 						InputMap.action_add_event(action, ev)
 			ProjectSettings.set_setting(key, old_setting)
-			return McpErrorCodes.make(McpErrorCodes.INTERNAL_ERROR,
+			return ErrorCodes.make(ErrorCodes.INTERNAL_ERROR,
 				"Failed to save project settings while removing action '%s': %s (error %d)" % [action, error_string(err), err])
 
 	return {
@@ -120,23 +126,25 @@ func bind_event(params: Dictionary) -> Dictionary:
 	var event_type: String = params.get("event_type", "")
 
 	if action.is_empty():
-		return McpErrorCodes.make(McpErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: action")
+		return ErrorCodes.make(ErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: action")
 	if event_type.is_empty():
-		return McpErrorCodes.make(McpErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: event_type")
+		return ErrorCodes.make(ErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: event_type")
 
 	if not InputMap.has_action(action):
-		return McpErrorCodes.make(McpErrorCodes.VALUE_OUT_OF_RANGE, "Action '%s' not found" % action)
+		return ErrorCodes.make(ErrorCodes.VALUE_OUT_OF_RANGE,
+			"Action '%s' not found. Call input_map_manage(op='add_action', params={action: '%s'}) first." % [action, action])
 
-	var event: InputEvent = _create_event(event_type, params)
-	if event == null:
-		return McpErrorCodes.make(McpErrorCodes.VALUE_OUT_OF_RANGE, "Unsupported event_type: %s (use key, mouse_button, or joy_button)" % event_type)
+	var event_or_error = _create_event(event_type, params)
+	if event_or_error is Dictionary:
+		return event_or_error
+	var event: InputEvent = event_or_error
 
 	InputMap.action_add_event(action, event)
 
 	var err := _save_action_events(action)
 	if err != OK:
 		InputMap.action_erase_event(action, event)
-		return McpErrorCodes.make(McpErrorCodes.INTERNAL_ERROR,
+		return ErrorCodes.make(ErrorCodes.INTERNAL_ERROR,
 			"Failed to save project settings while binding event to action '%s': %s (error %d)" % [action, error_string(err), err])
 
 	return {
@@ -149,35 +157,72 @@ func bind_event(params: Dictionary) -> Dictionary:
 	}
 
 
-func _create_event(event_type: String, params: Dictionary) -> InputEvent:
+## Returns an InputEvent on success, or a Dictionary error on failure.
+## Caller must check ``result is Dictionary`` before treating it as an event.
+func _create_event(event_type: String, params: Dictionary):
 	match event_type:
 		"key":
 			var ev := InputEventKey.new()
 			var keycode_str: String = params.get("keycode", "")
 			if keycode_str.is_empty():
-				return null
+				return ErrorCodes.make(ErrorCodes.MISSING_REQUIRED_PARAM,
+					"event_type='key' requires keycode (e.g. 'Space', 'A', 'Enter', 'Escape', 'F1').")
 			ev.keycode = OS.find_keycode_from_string(keycode_str)
 			if ev.keycode == KEY_NONE:
-				return null
+				return ErrorCodes.make(ErrorCodes.VALUE_OUT_OF_RANGE,
+					"Invalid keycode '%s'. Use Godot keycode names like 'A', 'Space', 'Enter', 'Escape', 'F1', 'Left', 'Right'." % keycode_str)
 			ev.ctrl_pressed = params.get("ctrl", false)
 			ev.alt_pressed = params.get("alt", false)
 			ev.shift_pressed = params.get("shift", false)
 			ev.meta_pressed = params.get("meta", false)
 			return ev
 		"mouse_button":
-			var ev := InputEventMouseButton.new()
-			var button: int = params.get("button", 0)
+			if not params.has("button"):
+				return ErrorCodes.make(ErrorCodes.MISSING_REQUIRED_PARAM,
+					"event_type='mouse_button' requires button (1=left, 2=right, 3=middle, 4=wheel up, 5=wheel down).")
+			var button: int = int(params.get("button", 0))
 			if button <= 0:
-				return null
+				return ErrorCodes.make(ErrorCodes.VALUE_OUT_OF_RANGE,
+					"mouse_button button must be > 0 (got %d). Use 1=left, 2=right, 3=middle, 4=wheel up, 5=wheel down." % button)
+			var ev := InputEventMouseButton.new()
 			ev.button_index = button
 			return ev
 		"joy_button":
-			var ev := InputEventJoypadButton.new()
 			if not params.has("button"):
-				return null
+				return ErrorCodes.make(ErrorCodes.MISSING_REQUIRED_PARAM,
+					"event_type='joy_button' requires button (JoyButton index, e.g. 0=A/Cross, 1=B/Circle).")
+			var ev := InputEventJoypadButton.new()
 			ev.button_index = int(params.get("button", 0))
 			return ev
-	return null
+		"joy_axis":
+			var axis_param = params.get("axis", null)
+			if axis_param == null:
+				return ErrorCodes.make(ErrorCodes.MISSING_REQUIRED_PARAM,
+					"event_type='joy_axis' requires axis (JoyAxis index, e.g. 0=left stick X, 1=left stick Y).")
+			var axis: int
+			match typeof(axis_param):
+				TYPE_INT:
+					axis = axis_param
+				TYPE_FLOAT:
+					if axis_param != floor(axis_param):
+						return ErrorCodes.make(ErrorCodes.VALUE_OUT_OF_RANGE,
+							"joy_axis axis must be an integer JoyAxis index (got %s)." % str(axis_param))
+					axis = int(axis_param)
+				TYPE_STRING:
+					var axis_text := str(axis_param)
+					if not axis_text.is_valid_int():
+						return ErrorCodes.make(ErrorCodes.WRONG_TYPE,
+							"joy_axis axis must be an integer JoyAxis index (got '%s')." % axis_text)
+					axis = int(axis_text)
+				_:
+					return ErrorCodes.make(ErrorCodes.WRONG_TYPE,
+						"joy_axis axis must be an integer JoyAxis index (got %s)." % type_string(typeof(axis_param)))
+			var ev := InputEventJoypadMotion.new()
+			ev.axis = axis
+			ev.axis_value = float(params.get("axis_value", 1.0))
+			return ev
+	return ErrorCodes.make(ErrorCodes.VALUE_OUT_OF_RANGE,
+		"Unsupported event_type: '%s'. Use 'key', 'mouse_button', 'joy_button', or 'joy_axis'." % event_type)
 
 
 func _serialize_event(event: InputEvent) -> Dictionary:

@@ -1,6 +1,8 @@
 @tool
 extends RefCounted
 
+const ErrorCodes := preload("res://addons/godot_ai/utils/error_codes.gd")
+
 ## Handles project settings and filesystem search commands.
 
 const NodeHandler := preload("res://addons/godot_ai/handlers/node_handler.gd")
@@ -17,10 +19,10 @@ func _init(connection: McpConnection = null, debugger_plugin = null) -> void:
 func get_project_setting(params: Dictionary) -> Dictionary:
 	var key: String = params.get("key", "")
 	if key.is_empty():
-		return McpErrorCodes.make(McpErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: key")
+		return ErrorCodes.make(ErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: key")
 
 	if not ProjectSettings.has_setting(key):
-		return McpErrorCodes.make(McpErrorCodes.VALUE_OUT_OF_RANGE, "Setting not found: %s" % key)
+		return ErrorCodes.make(ErrorCodes.VALUE_OUT_OF_RANGE, "Setting not found: %s" % key)
 
 	var value = ProjectSettings.get_setting(key)
 	return {
@@ -35,10 +37,10 @@ func get_project_setting(params: Dictionary) -> Dictionary:
 func set_project_setting(params: Dictionary) -> Dictionary:
 	var key: String = params.get("key", "")
 	if key.is_empty():
-		return McpErrorCodes.make(McpErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: key")
+		return ErrorCodes.make(ErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: key")
 
 	if not params.has("value"):
-		return McpErrorCodes.make(McpErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: value")
+		return ErrorCodes.make(ErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: value")
 
 	var value = params.get("value")
 	var had_setting := ProjectSettings.has_setting(key)
@@ -56,7 +58,7 @@ func set_project_setting(params: Dictionary) -> Dictionary:
 			ProjectSettings.set_setting(key, old_value)
 		else:
 			ProjectSettings.clear(key)
-		return McpErrorCodes.make(McpErrorCodes.INTERNAL_ERROR, "Failed to save project settings (error %d)" % err)
+		return ErrorCodes.make(ErrorCodes.INTERNAL_ERROR, "Failed to save project settings (error %d)" % err)
 
 	return {
 		"data": {
@@ -73,16 +75,30 @@ func set_project_setting(params: Dictionary) -> Dictionary:
 func run_project(params: Dictionary) -> Dictionary:
 	var mode: String = params.get("mode", "main")
 	var autosave: bool = params.get("autosave", true)
+	# Idempotent: a project that's already running satisfies the caller's intent.
+	# Returning INVALID_PARAMS here punished agents that legitimately called run
+	# to ensure the project is playing (87+ installs/day hit the matching
+	# stop-not-running case in telemetry). Surface state via was_already_running
+	# so a caller wanting a *different* scene can detect and stop+restart.
 	if EditorInterface.is_playing_scene():
-		return McpErrorCodes.make(McpErrorCodes.INVALID_PARAMS, "Project is already running")
+		return {
+			"data": {
+				"mode": mode,
+				"scene": params.get("scene", ""),
+				"autosave": autosave,
+				"was_already_running": true,
+				"undoable": false,
+				"reason": "Project was already running; no action taken",
+			}
+		}
 
 	var validation_error: Variant = null
 	if mode == "custom":
 		var custom_scene: String = params.get("scene", "")
 		if custom_scene.is_empty():
-			validation_error = McpErrorCodes.make(McpErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: scene (required when mode='custom')")
+			validation_error = ErrorCodes.make(ErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: scene (required when mode='custom')")
 	elif mode != "main" and mode != "current":
-		validation_error = McpErrorCodes.make(McpErrorCodes.VALUE_OUT_OF_RANGE, "Invalid mode '%s' — use 'main', 'current', or 'custom'" % mode)
+		validation_error = ErrorCodes.make(ErrorCodes.VALUE_OUT_OF_RANGE, "Invalid mode '%s' — use 'main', 'current', or 'custom'" % mode)
 	if validation_error != null:
 		return validation_error
 
@@ -131,6 +147,7 @@ func run_project(params: Dictionary) -> Dictionary:
 			"mode": mode,
 			"scene": params.get("scene", ""),
 			"autosave": autosave,
+			"was_already_running": false,
 			"undoable": false,
 			"reason": "Play/stop is a runtime action",
 		}
@@ -138,8 +155,19 @@ func run_project(params: Dictionary) -> Dictionary:
 
 
 func stop_project(params: Dictionary) -> Dictionary:
+	# Idempotent: a project that's already stopped satisfies the caller's intent.
+	# Returning INVALID_PARAMS here was the largest single source of fleet-wide
+	# project_manage failures (87 installs/24h). was_running=false lets callers
+	# distinguish a no-op stop from one that actually halted a running session.
 	if not EditorInterface.is_playing_scene():
-		return McpErrorCodes.make(McpErrorCodes.INVALID_PARAMS, "Project is not running")
+		return {
+			"data": {
+				"stopped": true,
+				"was_running": false,
+				"undoable": false,
+				"reason": "Project was not running; no action taken",
+			}
+		}
 
 	if _debugger_plugin != null:
 		_debugger_plugin.end_game_run()
@@ -159,6 +187,7 @@ func stop_project(params: Dictionary) -> Dictionary:
 	return {
 		"data": {
 			"stopped": true,
+			"was_running": true,
 			"undoable": false,
 			"reason": "Play/stop is a runtime action",
 		}
@@ -179,6 +208,7 @@ func _finish_stop_project_deferred(request_id: String) -> void:
 	_connection.send_deferred_response(request_id, {
 		"data": {
 			"stopped": true,
+			"was_running": true,
 			"undoable": false,
 			"reason": "Play/stop is a runtime action",
 			"readiness_after": McpConnection.get_readiness(),
@@ -192,11 +222,11 @@ func search_filesystem(params: Dictionary) -> Dictionary:
 	var path_filter: String = params.get("path", "")
 
 	if name_filter.is_empty() and type_filter.is_empty() and path_filter.is_empty():
-		return McpErrorCodes.make(McpErrorCodes.MISSING_REQUIRED_PARAM, "At least one filter (name, type, path) is required")
+		return ErrorCodes.make(ErrorCodes.MISSING_REQUIRED_PARAM, "At least one filter (name, type, path) is required")
 
 	var efs := EditorInterface.get_resource_filesystem()
 	if efs == null:
-		return McpErrorCodes.make(McpErrorCodes.EDITOR_NOT_READY, "EditorFileSystem not available")
+		return ErrorCodes.make(ErrorCodes.EDITOR_NOT_READY, "EditorFileSystem not available")
 
 	var results: Array[Dictionary] = []
 	_scan_directory(efs.get_filesystem(), name_filter, type_filter, path_filter, results)

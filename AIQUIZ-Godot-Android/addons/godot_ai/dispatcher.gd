@@ -268,7 +268,7 @@ func _collect_deferred_timeouts() -> Array[Dictionary]:
 
 static func _capture_compact_backtrace(max_frames: int = 8) -> String:
 	if Engine.has_method("capture_script_backtraces"):
-		var traces: Array = Engine.capture_script_backtraces(false)
+		var traces: Array = Engine.call("capture_script_backtraces", false)
 		for bt in traces:
 			if bt != null and not bt.is_empty():
 				return _trim_backtrace_string(bt.format(0, 2), max_frames)

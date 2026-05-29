@@ -94,8 +94,8 @@ static func get_emote_name(emote_id: int) -> String:
 	var id := normalize_emote_id(emote_id)
 	for entry in get_emote_list():
 		if int(entry["id"]) == id:
-			return "%s %s" % [entry["icon"], entry["name"]]
-	return "— なし"
+			return entry["name"]
+	return "なし"
 
 
 static func get_emote_desc(emote_id: int) -> String:

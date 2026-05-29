@@ -460,12 +460,18 @@ func _process(dt: float) -> void:
 	_time += dt
 	var gs = QuizManager.game_state
 	var speed: float = gs._active_wall_speed if gs else 3.5
-	_run_phase += dt * 8.0 * (speed / 3.5)
+	var mult := 1.0
+	if Input.is_key_pressed(KEY_W):
+		mult = 2.0
+	_run_phase += dt * 8.0 * (speed / 3.5) * mult
 
 func update_from_state(gs: QuizGameState) -> void:
 	var pz: float = gs.player_z
 	var walk_phase: float = _run_phase
-	var speed_ratio: float = clampf(gs._active_wall_speed / 3.5, 0.3, 3.0)
+	var mult := 1.0
+	if Input.is_key_pressed(KEY_W):
+		mult = 2.0
+	var speed_ratio: float = clampf((gs._active_wall_speed / 3.5) * mult, 0.3, 6.0)
 
 	# Ensure P2 is created if needed
 	if gs.num_players >= 2 and p2_container == null:

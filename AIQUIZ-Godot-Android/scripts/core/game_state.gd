@@ -46,6 +46,9 @@ var player_vel_y: float = 0.0
 var player_vel_z: float = 0.0
 var world_scroll_z: float = 0.0
 var current_wall_index: int = 0
+var target_player_x: float = 0.0
+var mobile_lane_mode: bool = false
+
 
 var message_text: String = ""
 var status_text: String = ""
@@ -139,6 +142,11 @@ func _init(quiz_provider: QuizProvider = null) -> void:
 		provider = QuizProvider.new()
 	tuning = GameTuning.new()
 	refresh_status_text()
+
+	# GameManagerからエモート設定をロード
+	p1_emote_slots = GameManager.p1_emote_slots.duplicate()
+	p2_emote_slots = GameManager.p2_emote_slots.duplicate()
+
 
 
 # ---------- Properties ----------
@@ -769,7 +777,14 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 		var move_x: float = axis_p1.x * cos(yaw) + axis_p1.y * sin(yaw)
 		var move_z: float = axis_p1.y * cos(yaw) - axis_p1.x * sin(yaw)
 
-		player_x += move_x * tuning.player_speed * dt
+		if mobile_lane_mode:
+			player_x = lerpf(player_x, target_player_x, dt * 12.0)
+		else:
+			player_x += move_x * tuning.player_speed * dt
+
+		if abs(axis_p1.x) > 0.1:
+			mobile_lane_mode = false
+
 		# Removed clamp to allow falling off sides
 
 		player_z += _active_wall_speed * dt # Carry forward with world scroll
@@ -1783,23 +1798,25 @@ func tutorial_instruction_text() -> String:
 		return "3Dチュートリアル: 実際に壁を抜ける練習"
 	if game_state == Constants.STATE_COUNTDOWN:
 		if num_players >= 2:
-			return "P1はWASD、P2は矢印キーで動きます"
+			var is_mobile := OS.has_feature("mobile")
+			return "左右スワイプでレーン移動、ボタンでジャンプします" if is_mobile else "P1はWASD、P2は矢印キーで動きます"
 		return "カウントダウン後、壁が近づいてきます"
 	if game_state == Constants.STATE_PLAYING:
+		var is_mobile := OS.has_feature("mobile")
 		if num_players >= 2:
 			match current_index:
 				0:
-					return "練習1: P1はA、P2は←で左ドアへ"
+					return "練習1: 左右スワイプで左ドアへ" if is_mobile else "練習1: P1はA、P2は←で左ドアへ"
 				1:
-					return "練習2: P1はD、P2は→で右ドアへ"
+					return "練習2: 左右スワイプで右ドアへ" if is_mobile else "練習2: P1はD、P2は→で右ドアへ"
 				_:
 					return "練習3: 2人で問題を読んで正解ドアへ"
 		else:
 			match current_index:
 				0:
-					return "練習1: A / ← で左の正解ドアへ移動"
+					return "練習1: 左スワイプで左の正解ドアへ移動" if is_mobile else "練習1: A / ← で左の正解ドアへ移動"
 				1:
-					return "練習2: D / → で右の正解ドアへ移動"
+					return "練習2: 右スワイプで右の正解ドアへ移動" if is_mobile else "練習2: D / → で右の正解ドアへ移動"
 				_:
 					return "練習3: 問題を読んで正解ドアへ移動"
 	if game_state == Constants.STATE_CLEAR:
@@ -1811,31 +1828,32 @@ func tutorial_instruction_text() -> String:
 func tutorial_detail_text() -> String:
 	if not _is_tutorial_mode():
 		return ""
+	var is_mobile := OS.has_feature("mobile")
 	if game_state == Constants.STATE_WAITING_START:
 		if num_players >= 2:
-			return "任意のキーで開始です。上のガイドでエモートキーと設定方法も確認できます。"
-		return "任意のキーを押すと、3秒後に練習開始です。上のガイドでエモートキーと設定方法も確認できます。"
+			return "画面タップで開始です。" if is_mobile else "任意のキーで開始です。上のガイドでエモートキーと設定方法も確認できます。"
+		return "画面タップで3秒後に練習開始です。" if is_mobile else "任意のキーを押すと、3秒後に練習開始です。上のガイドでエモートキーと設定方法も確認できます。"
 	if game_state == Constants.STATE_COUNTDOWN:
 		if num_players >= 2:
-			return "P1はSpace、P2はCtrlまたはNum0でジャンプ。エモートはP1:1/2/3、P2:8/9/0です。"
-		return "問題文は画面上、答えは壁のドアに表示されます。エモートは1/2/3で出せます。"
+			return "上スワイプまたはJUMPボタンでジャンプ。エモートはボタンで出せます。" if is_mobile else "P1はSpace、P2はCtrlまたはNum0でジャンプ。エモートはP1:1/2/3、P2:8/9/0です。"
+		return "問題文は画面上、答えはドアに表示されます。ジャンプは上スワイプかJUMPボタン。" if is_mobile else "問題文は画面上、答えは壁のドアに表示されます。エモートは1/2/3で出せます。"
 	if game_state == Constants.STATE_PLAYING:
 		if not message_text.is_empty() and (wrong_flash > 0.0 or num_players >= 2):
 			return message_text
 		if num_players >= 2:
 			match current_index:
 				0:
-					return "左のドアに2人とも入ります。P1はA、P2は←を押して寄りましょう。"
+					return "左のドアに入ります。左スワイプで左に寄りましょう。" if is_mobile else "左のドアに2人とも入ります。P1はA、P2は←を押して寄りましょう。"
 				1:
-					return "今度は右のドアです。P1はD、P2は→で右へ寄りましょう。"
+					return "今度は右のドアです。右スワイプで右に寄りましょう。" if is_mobile else "今度は右のドアです. P1はD、P2は→で右へ寄りましょう。"
 				_:
 					return "壁の表示を見て、2人とも同じ正解ドアを抜けましょう。"
 		else:
 			match current_index:
 				0:
-					return "2 + 3 の答え「5」は左ドアです。左へ寄って壁を抜けましょう。"
+					return "2 + 3 の答え「5」は左ドアです。左スワイプで左へ寄って壁を抜けましょう。" if is_mobile else "2 + 3 の答え「5」は左ドアです。左へ寄って壁を抜けましょう。"
 				1:
-					return "今度は右側のドアを選びます。右へ移動して通過しましょう。"
+					return "今度は右側のドアを選びます。右スワイプで右へ移動して通過しましょう。" if is_mobile else "今度は右側のドアを選びます。右へ移動して通過しましょう。"
 				_:
 					return "正解ドアを抜けると壁が壊れ、次へ進めることを確認しましょう。"
 	if game_state == Constants.STATE_CLEAR:
@@ -1957,3 +1975,48 @@ func apply_snapshot(data: Dictionary) -> void:
 	# Jump triggers
 	p1_jump_trigger = data.get("p1j", p1_jump_trigger)
 	p2_jump_trigger = data.get("p2j", p2_jump_trigger)
+
+func _get_available_lanes(is_p1: bool) -> Array[float]:
+	var lanes: Array[float] = []
+	if is_coop_mode():
+		if is_p1:
+			for x in tuning.coop_p1_door_xs:
+				lanes.append(x)
+		else:
+			for x in tuning.coop_p2_door_xs:
+				lanes.append(x)
+	elif num_choices == 4:
+		for x in tuning.door4_xs:
+			lanes.append(x)
+	else:
+		lanes.append(tuning.left_door_x)
+		lanes.append(tuning.right_door_x)
+	
+	lanes.sort()
+	return lanes
+
+func handle_mobile_swipe(is_left: bool) -> void:
+	mobile_lane_mode = true
+	var lanes: Array[float] = _get_available_lanes(true)
+	if lanes.is_empty():
+		return
+		
+	# Find closest lane index to current player_x
+	var closest_idx: int = 0
+	var min_dist: float = 99999.0
+	for i in range(lanes.size()):
+		var dist: float = abs(player_x - lanes[i])
+		if dist < min_dist:
+			min_dist = dist
+			closest_idx = i
+			
+	# Left swipe -> move left (increase X)
+	# Right swipe -> move right (decrease X)
+	var next_idx: int = closest_idx
+	if is_left:
+		next_idx = mini(closest_idx + 1, lanes.size() - 1)
+	else:
+		next_idx = maxi(closest_idx - 1, 0)
+		
+	target_player_x = lanes[next_idx]
+

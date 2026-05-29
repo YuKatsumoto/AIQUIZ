@@ -144,7 +144,6 @@ var _hat_slide_offscreen_dist: float = HAT_SLIDE_OFFSCREEN_X
 
 var _emote_player_btn_p1: Button
 var _emote_player_btn_p2: Button
-var _emote_browse_icon_label: Label
 var _emote_browse_name_label: Label
 var _emote_browse_desc_label: Label
 var _emote_slot_btns: Array[Button] = []
@@ -530,11 +529,6 @@ func _build_emote_panel() -> void:
 	detail_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
 	detail_panel.add_child(detail_vbox)
 
-	_emote_browse_icon_label = Label.new()
-	_emote_browse_icon_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_emote_browse_icon_label.add_theme_font_size_override("font_size", 28)
-	detail_vbox.add_child(_emote_browse_icon_label)
-
 	_emote_browse_name_label = Label.new()
 	_emote_browse_name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_emote_browse_name_label.add_theme_font_size_override("font_size", 16)
@@ -578,14 +572,6 @@ func _build_emote_panel() -> void:
 		key_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		slot_hbox.add_child(key_lbl)
 
-		var icon_lbl := Label.new()
-		icon_lbl.name = "IconLabel"
-		icon_lbl.custom_minimum_size = Vector2(24, 0)
-		icon_lbl.add_theme_font_size_override("font_size", 18)
-		icon_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		icon_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		slot_hbox.add_child(icon_lbl)
-
 		var name_lbl := Label.new()
 		name_lbl.name = "NameLabel"
 		name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -628,10 +614,9 @@ func _build_emote_panel() -> void:
 	for entry in emote_list:
 		var eid: int = entry["id"]
 		var ename: String = entry["name"]
-		var eicon: String = entry["icon"]
 
 		var card := Button.new()
-		card.custom_minimum_size = Vector2(0, 68)
+		card.custom_minimum_size = Vector2(0, 46)
 		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		card.add_theme_stylebox_override("normal", _grid_card_normal_style())
 		card.add_theme_stylebox_override("hover", _grid_card_hover_style())
@@ -640,16 +625,9 @@ func _build_emote_panel() -> void:
 		var card_vbox := VBoxContainer.new()
 		card_vbox.set_anchors_preset(Control.PRESET_FULL_RECT)
 		card_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
-		card_vbox.add_theme_constant_override("separation", 2)
+		card_vbox.add_theme_constant_override("separation", 0)
 		card_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		card.add_child(card_vbox)
-
-		var card_icon := Label.new()
-		card_icon.text = eicon
-		card_icon.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		card_icon.add_theme_font_size_override("font_size", 24)
-		card_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		card_vbox.add_child(card_icon)
 
 		var card_name := Label.new()
 		card_name.text = ename
@@ -1185,8 +1163,6 @@ func _update_emote_browse_detail() -> void:
 	if not _emote_browse_name_label:
 		return
 	var entry := _emote_catalog_entry(_browsing_emote_id)
-	if _emote_browse_icon_label:
-		_emote_browse_icon_label.text = str(entry.get("icon", "—"))
 	_emote_browse_name_label.text = str(entry.get("name", "なし"))
 	if _emote_browse_desc_label:
 		_emote_browse_desc_label.text = EmoteData.get_emote_desc(_browsing_emote_id)
@@ -1228,12 +1204,9 @@ func _update_emote_panel_ui() -> void:
 		var slot_hbox := slot_btn.get_child(0) as HBoxContainer
 		if slot_hbox:
 			var key_lbl := slot_hbox.get_node_or_null("KeyLabel") as Label
-			var icon_lbl := slot_hbox.get_node_or_null("IconLabel") as Label
 			var name_lbl := slot_hbox.get_node_or_null("NameLabel") as Label
 			if key_lbl:
 				key_lbl.text = "[ %s ]" % keys[i]
-			if icon_lbl:
-				icon_lbl.text = str(entry.get("icon", "—"))
 			if name_lbl:
 				name_lbl.text = str(entry.get("name", "なし"))
 

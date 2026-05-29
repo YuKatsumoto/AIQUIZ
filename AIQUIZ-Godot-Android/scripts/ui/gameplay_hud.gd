@@ -139,6 +139,11 @@ func _process(_dt: float) -> void:
 	if not game_state:
 		return
 
+	if virtual_controller:
+		var is_playing = game_state.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]
+		var is_mobile_platform = OS.has_feature("mobile") or OS.is_debug_build() or OS.has_feature("editor")
+		virtual_controller.visible = is_mobile_platform and is_playing
+
 	if game_state.game_state == Constants.STATE_PRELOADING:
 		_show_preloading(_dt)
 		_update_tutorial_overlay(_dt)
@@ -294,6 +299,7 @@ func _create_stats_panel() -> void:
 func _create_tutorial_overlay() -> void:
 	_tutorial_panel = PanelContainer.new()
 	_tutorial_panel.visible = false
+	_tutorial_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var style := StyleBoxFlat.new()
 	# --- より透過的な背景で3Dキャラクターが見えるように ---
 	style.bg_color = Color(0.02, 0.04, 0.10, 0.62)
@@ -313,6 +319,7 @@ func _create_tutorial_overlay() -> void:
 
 	var root := VBoxContainer.new()
 	root.add_theme_constant_override("separation", 4)
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_tutorial_panel.add_child(root)
 
 	_tutorial_title = Label.new()
@@ -322,6 +329,7 @@ func _create_tutorial_overlay() -> void:
 	# アウトライン追加（半透明背景でも文字が読めるように）
 	_tutorial_title.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
 	_tutorial_title.add_theme_constant_override("outline_size", 4)
+	_tutorial_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_tutorial_title)
 
 	_tutorial_detail = Label.new()
@@ -331,11 +339,13 @@ func _create_tutorial_overlay() -> void:
 	_tutorial_detail.add_theme_color_override("font_color", Color(0.88, 0.92, 1.0))
 	_tutorial_detail.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
 	_tutorial_detail.add_theme_constant_override("outline_size", 3)
+	_tutorial_detail.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_tutorial_detail)
 
 	_tutorial_keys_box = HBoxContainer.new()
 	_tutorial_keys_box.alignment = BoxContainer.ALIGNMENT_CENTER
 	_tutorial_keys_box.add_theme_constant_override("separation", 14)
+	_tutorial_keys_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_tutorial_keys_box)
 
 func _update_tutorial_overlay(dt: float = 0.0) -> void:
@@ -379,26 +389,51 @@ func _rebuild_tutorial_keys() -> void:
 	for child in _tutorial_keys_box.get_children():
 		child.queue_free()
 
-	if game_state.num_players >= 2:
-		_add_tutorial_player_keys(
-			"P1",
-			PackedStringArray(["W", "A", "S", "D", "Space", "1, 2, 3"]),
-			PackedStringArray(["前", "左", "後", "右", "ジャンプ", "エモート"]),
-			Color(0.40, 0.66, 1.0)
-		)
-		_add_tutorial_player_keys(
-			"P2",
-			PackedStringArray(["↑", "←", "↓", "→", "Ctrl / Num0", "8, 9, 0"]),
-			PackedStringArray(["前", "左", "後", "右", "ジャンプ", "エモート"]),
-			Color(0.35, 0.95, 0.64)
-		)
+	var is_mobile := OS.has_feature("mobile") or OS.has_feature("android") or OS.has_feature("ios")
+
+	if is_mobile:
+		if game_state.num_players >= 2:
+			_add_tutorial_player_keys(
+				"P1",
+				PackedStringArray(["Swipe 左右", "Swipe 上 / ボタン", "ボタン"]),
+				PackedStringArray(["移動", "ジャンプ", "エモート"]),
+				Color(0.40, 0.66, 1.0)
+			)
+			_add_tutorial_player_keys(
+				"P2",
+				PackedStringArray(["Swipe 左右", "Swipe 上 / ボタン", "ボタン"]),
+				PackedStringArray(["移動", "ジャンプ", "エモート"]),
+				Color(0.35, 0.95, 0.64)
+			)
+		else:
+			_add_tutorial_player_keys(
+				"P1",
+				PackedStringArray(["Swipe 左右", "Swipe 上 / ボタン", "エモートボタン"]),
+				PackedStringArray(["レーン移動", "ジャンプ", "エモート"]),
+				Color(0.40, 0.66, 1.0)
+			)
 	else:
-		_add_tutorial_player_keys(
-			"P1",
-			PackedStringArray(["W / ↑", "A / ←", "S / ↓", "D / →", "Space", "1, 2, 3"]),
-			PackedStringArray(["前", "左", "後", "右", "ジャンプ", "エモート"]),
-			Color(0.40, 0.66, 1.0)
-		)
+		if game_state.num_players >= 2:
+			_add_tutorial_player_keys(
+				"P1",
+				PackedStringArray(["W", "A", "S", "D", "Space", "1, 2, 3"]),
+				PackedStringArray(["前", "左", "後", "右", "ジャンプ", "エモート"]),
+				Color(0.40, 0.66, 1.0)
+			)
+			_add_tutorial_player_keys(
+				"P2",
+				PackedStringArray(["↑", "←", "↓", "→", "Ctrl / Num0", "8, 9, 0"]),
+				PackedStringArray(["前", "左", "後", "右", "ジャンプ", "エモート"]),
+				Color(0.35, 0.95, 0.64)
+			)
+		else:
+			_add_tutorial_player_keys(
+				"P1",
+				PackedStringArray(["W / ↑", "A / ←", "S / ↓", "D / →", "Space", "1, 2, 3"]),
+				PackedStringArray(["前", "左", "後", "右", "ジャンプ", "エモート"]),
+				Color(0.40, 0.66, 1.0)
+			)
+
 
 func _add_tutorial_player_keys(
 		player_label: String,
@@ -408,6 +443,7 @@ func _add_tutorial_player_keys(
 	var block := VBoxContainer.new()
 	block.add_theme_constant_override("separation", 3)
 	block.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	block.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_tutorial_keys_box.add_child(block)
 
 	var label := Label.new()
@@ -417,11 +453,13 @@ func _add_tutorial_player_keys(
 	label.add_theme_color_override("font_color", accent)
 	label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
 	label.add_theme_constant_override("outline_size", 2)
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	block.add_child(label)
 
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 5)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	block.add_child(row)
 
 	for i: int in range(keys.size()):
@@ -436,11 +474,13 @@ func _add_key_chip(
 		highlighted: bool) -> void:
 	var stack := VBoxContainer.new()
 	stack.add_theme_constant_override("separation", 1)
+	stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	parent.add_child(stack)
 
 	var key_panel := PanelContainer.new()
 	var width := clampf(float(key_text.length()) * 10.0 + 18.0, 36.0, 100.0)
 	key_panel.custom_minimum_size = Vector2(width, 28.0)
+	key_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color(0.20, 0.26, 0.39, 0.80) if highlighted else Color(0.08, 0.10, 0.17, 0.72)
 	style.border_color = Color(1.0, 0.86, 0.22, 1.0) if highlighted else accent.lerp(Color.WHITE, 0.15)
@@ -459,6 +499,7 @@ func _add_key_chip(
 	key_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	key_label.add_theme_font_size_override("font_size", 14 if key_text.length() <= 6 else 12)
 	key_label.add_theme_color_override("font_color", Color(1.0, 0.92, 0.45) if highlighted else Color(0.92, 0.95, 1.0))
+	key_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	key_panel.add_child(key_label)
 
 	var caption_label := Label.new()
@@ -466,6 +507,7 @@ func _add_key_chip(
 	caption_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	caption_label.add_theme_font_size_override("font_size", 10)
 	caption_label.add_theme_color_override("font_color", Color(1.0, 0.88, 0.32) if highlighted else Color(0.58, 0.64, 0.78))
+	caption_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	stack.add_child(caption_label)
 
 func _tutorial_key_highlighted(caption: String) -> bool:

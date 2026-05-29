@@ -100,9 +100,19 @@ func _ready() -> void:
 	if GameManager.should_show_tutorial_on_start():
 		call_deferred("_start_first_run_tutorial")
 
+	# モバイル版（Android/iOS/実機・エミュレータ）では、生成モデル設定とダッシュボードボタンを非表示にする
+	var is_mobile := OS.has_feature("mobile") or OS.has_feature("android") or OS.has_feature("ios")
+	if is_mobile:
+		var model_box = $SettingsPanel/VBox/ModelBox
+		if model_box:
+			model_box.visible = false
+		var dash_btn = $SettingsPanel/VBox/OpenDashboardBtn
+		if dash_btn:
+			dash_btn.visible = false
+
 func _on_live_config_updated() -> void:
 	if LiveConfigManager.is_active and not LiveConfigManager.announcement.is_empty():
-		announcement_label.text = "[center]📢 %s[/center]" % LiveConfigManager.announcement
+		announcement_label.text = "[center][おしらせ] %s[/center]" % LiveConfigManager.announcement
 		announcement_label.visible = true
 	else:
 		announcement_label.visible = false
@@ -258,17 +268,17 @@ func _update_ui() -> void:
 		_update_subject_carousel()
 		var p_text: String
 		if game_state.num_players == 1:
-			p_text = "👤 1人プレイ"
+			p_text = "1人プレイ"
 		elif game_state.num_players == 2:
 			if game_state.mode == Constants.MODE_COOP:
-				p_text = "🤝 2人協力"
+				p_text = "2人協力"
 			else:
-				p_text = "👥 2人プレイ"
+				p_text = "2人プレイ"
 		else:
-			p_text = "🌐 オンライン対戦"
+			p_text = "オンライン対戦"
 		players_btn.text = p_text
 
-		var llm_text: String = "🌐 ONLINE (AI生成)" if QuizManager.provider.llm_mode == "ONLINE" else "📦 OFFLINE (内蔵問題)"
+		var llm_text: String = "ONLINE (AI生成)" if QuizManager.provider.llm_mode == "ONLINE" else "OFFLINE (内蔵問題)"
 		llm_toggle_btn.text = llm_text
 
 		if customize_btn:
@@ -379,7 +389,7 @@ func _on_next_subject_pressed() -> void:
 	_update_ui()
 
 func _update_grade_carousel() -> void:
-	current_grade_label.text = "📚 %d年生" % game_state.grade
+	current_grade_label.text = "%d年生" % game_state.grade
 	var normal := StyleBoxFlat.new()
 	normal.bg_color = Color(0.12, 0.14, 0.20)
 	normal.border_color = Color(0.25, 0.30, 0.40)
@@ -388,7 +398,7 @@ func _update_grade_carousel() -> void:
 	current_grade_label.add_theme_stylebox_override("normal", normal)
 
 func _update_diff_carousel() -> void:
-	current_diff_label.text = "⚡ %s" % game_state.difficulty
+	current_diff_label.text = "%s" % game_state.difficulty
 	var normal := StyleBoxFlat.new()
 	normal.bg_color = Color(0.12, 0.14, 0.20)
 	normal.border_color = Color(0.25, 0.30, 0.40)
@@ -398,10 +408,10 @@ func _update_diff_carousel() -> void:
 
 func _update_subject_carousel() -> void:
 	var colors = {
-		"算数": {"icon": "📐 算数", "color": Color(0.15, 0.40, 0.80)},
-		"理科": {"icon": "🔬 理科", "color": Color(0.15, 0.70, 0.35)},
-		"国語": {"icon": "📖 国語", "color": Color(0.85, 0.25, 0.30)},
-		"社会": {"icon": "🌍 社会", "color": Color(0.85, 0.60, 0.15)}
+		"算数": {"icon": "算数", "color": Color(0.15, 0.40, 0.80)},
+		"理科": {"icon": "理科", "color": Color(0.15, 0.70, 0.35)},
+		"国語": {"icon": "国語", "color": Color(0.85, 0.25, 0.30)},
+		"社会": {"icon": "社会", "color": Color(0.85, 0.60, 0.15)}
 	}
 	
 	var sub = game_state.subject

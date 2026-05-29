@@ -33,6 +33,8 @@ var _cam_panning: bool = false
 var _cam_last_mouse: Vector2 = Vector2.ZERO
 var _svc_node: Control  # 繝槭え繧ｹ繧､繝吶Φ繝育畑蜿ら・
 var _preview_texture_rect: TextureRect
+var _touch_points: Dictionary = {}
+var _last_pinch_dist: float = 0.0
 
 # --- UI nodes ---
 var _slot_labels: Array[Label] = []  # 繧ｹ繝ｭ繝・ヨ陦ｨ遉ｺ繝ｩ繝吶Ν [3縺､]
@@ -125,6 +127,39 @@ func _on_preview_gui_input(event: InputEvent) -> void:
 			var right := Vector3(cos(yaw_rad), 0, -sin(yaw_rad))
 			_cam_target += right * mm.relative.x * -0.005
 			_cam_target.y += mm.relative.y * 0.005
+	elif event is InputEventScreenTouch:
+		var st := event as InputEventScreenTouch
+		if st.pressed:
+			_touch_points[st.index] = st.position
+		else:
+			_touch_points.erase(st.index)
+			if _touch_points.is_empty():
+				_last_pinch_dist = 0.0
+				_cam_dragging = false
+		
+		if _touch_points.size() == 1:
+			_cam_dragging = true
+			_cam_last_mouse = st.position
+		else:
+			_cam_dragging = false
+			if _touch_points.size() == 2:
+				var keys = _touch_points.keys()
+				_last_pinch_dist = _touch_points[keys[0]].distance_to(_touch_points[keys[1]])
+	elif event is InputEventScreenDrag:
+		var sd := event as InputEventScreenDrag
+		_touch_points[sd.index] = sd.position
+		
+		if _touch_points.size() == 1:
+			_cam_yaw -= sd.relative.x * 0.25
+			_cam_pitch -= sd.relative.y * 0.25
+			_cam_pitch = clampf(_cam_pitch, -80.0, 80.0)
+		elif _touch_points.size() == 2:
+			var keys = _touch_points.keys()
+			var current_dist: float = _touch_points[keys[0]].distance_to(_touch_points[keys[1]])
+			if _last_pinch_dist > 0.0:
+				var diff := current_dist - _last_pinch_dist
+				_cam_distance = clampf(_cam_distance - diff * 0.015, 1.5, 12.0)
+			_last_pinch_dist = current_dist
 
 func _build_ui() -> void:
 	# 笏笏 閭梧勹 笏笏
@@ -337,6 +372,7 @@ func _build_ui() -> void:
 		card.add_theme_font_size_override("font_size", 13)
 		card.text = "%s\n%s" % [eicon, ename]
 		card.clip_text = true
+		card.mouse_filter = Control.MOUSE_FILTER_PASS
 
 		var card_style := StyleBoxFlat.new()
 		card_style.bg_color = Color(0.12, 0.13, 0.19)
@@ -654,8 +690,11 @@ func _on_slot_change(slot_idx: int, direction: int) -> void:
 
 	if _editing_player == 1:
 		game_state.p1_emote_slots = slots
+		GameManager.p1_emote_slots = slots.duplicate()
 	else:
 		game_state.p2_emote_slots = slots
+		GameManager.p2_emote_slots = slots.duplicate()
+	GameManager._save_user_settings()
 
 	_update_all()
 	_preview_emote(next_id)
