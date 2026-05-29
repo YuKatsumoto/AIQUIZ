@@ -113,6 +113,10 @@ func _ready() -> void:
 	# Pause menu setup
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_build_pause_menu()
+	call_deferred("_reveal_after_transition")
+
+func _reveal_after_transition() -> void:
+	SceneTransition.reveal_current()
 
 const MAGMA_SHADER = """
 shader_type spatial;

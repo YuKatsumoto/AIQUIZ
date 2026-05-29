@@ -3,7 +3,8 @@ extends Control
 ## メインメニュー画面 (STAGE A: 最低限のUI)
 ## Python版 hud.py のメニュー部分に相当
 
-@onready var title_label: Label = $VBoxContainer/TitleLabel
+@onready var title_label: Label = $VBoxContainer/TitleRow/TitleLabel
+@onready var accent_line: ColorRect = $AccentLine
 @onready var announcement_label: RichTextLabel = %AnnouncementLabel
 @onready var mode_container: VBoxContainer = $VBoxContainer/ModeContainer
 @onready var config_container: VBoxContainer = $VBoxContainer/ConfigContainer
@@ -37,6 +38,14 @@ var _tutorial_2p_btn: Button = null
 const PICKER_HEIGHT := 52.0
 const PICKER_ANIM_DURATION := 0.18
 const SHOW_COOP_MODE := false
+
+# --- 推移アニメーション設定 ---
+const ANIM_SLIDE_OFFSET := 56.0
+const ANIM_FADE_DURATION := 0.32
+const ANIM_STAGGER := 0.055
+
+var _prev_menu_step: String = ""
+var _entrance_done: bool = false
 
 func _ready() -> void:
 	game_state = QuizManager.game_state
@@ -95,13 +104,14 @@ func _ready() -> void:
 	next_diff_btn.pressed.connect(_on_next_diff_pressed)
 	
 	_update_ui()
+	_play_initial_entrance()
 	
 	if GameManager.should_show_tutorial_on_start():
 		call_deferred("_start_first_run_tutorial")
 
 func _on_live_config_updated() -> void:
 	if LiveConfigManager.is_active and not LiveConfigManager.announcement.is_empty():
-		announcement_label.text = "[center]📢 %s[/center]" % LiveConfigManager.announcement
+		announcement_label.text = "📢 %s" % LiveConfigManager.announcement
 		announcement_label.visible = true
 	else:
 		announcement_label.visible = false
@@ -186,7 +196,7 @@ func _ensure_tutorial_button() -> void:
 		return
 	_tutorial_row = HBoxContainer.new()
 	_tutorial_row.name = "TutorialRow"
-	_tutorial_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	_tutorial_row.alignment = BoxContainer.ALIGNMENT_BEGIN
 	_tutorial_row.add_theme_constant_override("separation", 12)
 	mode_container.add_child(_tutorial_row)
 
@@ -199,7 +209,7 @@ func _make_tutorial_button(node_name: String, pressed_callable: Callable) -> But
 	var btn := Button.new()
 	btn.name = node_name
 	btn.custom_minimum_size = Vector2(260, 52)
-	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	btn.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	btn.add_theme_font_size_override("font_size", 18)
 	btn.pressed.connect(pressed_callable)
 	return btn
@@ -224,9 +234,17 @@ func _style_tutorial_button(btn: Button) -> void:
 	btn.add_theme_color_override("font_hover_color", Color(1.0, 0.98, 0.78))
 
 
+const GAME_SCENE := "res://scenes/game_world.tscn"
+
+func _go_to_game() -> void:
+	if SceneTransition.is_transitioning():
+		return
+	var seam := accent_line.global_position.x + accent_line.size.x * 0.5
+	SceneTransition.change_scene_doors(GAME_SCENE, seam)
+
 func _start_tutorial_game(tutorial_players: int = 1) -> void:
 	game_state.start_tutorial(tutorial_players)
-	get_tree().change_scene_to_file("res://scenes/game_world.tscn")
+	_go_to_game()
 
 func _start_first_run_tutorial() -> void:
 	GameManager.dismiss_tutorial()
@@ -244,12 +262,17 @@ func _update_ui() -> void:
 	if _tutorial_2p_btn:
 		_tutorial_2p_btn.text = "2人用チュートリアル"
 
+	var step_changed := game_state.menu_step != _prev_menu_step
 	if game_state.menu_step == Constants.MENU_STEP_MODE:
 		mode_container.visible = true
 		config_container.visible = false
+		if step_changed and _entrance_done:
+			_play_entrance(mode_container, false)
 	elif game_state.menu_step == Constants.MENU_STEP_CONFIG:
 		mode_container.visible = false
 		config_container.visible = true
+		if step_changed and _entrance_done:
+			_play_entrance(config_container, true)
 
 		# Update config labels
 		_update_grade_carousel()
@@ -273,6 +296,8 @@ func _update_ui() -> void:
 		if customize_btn:
 			customize_btn.visible = true
 			customize_btn.text = "カスタマイズ"
+
+	_prev_menu_step = game_state.menu_step
 
 func _on_ten_questions_pressed() -> void:
 	game_state.select_mode_and_continue(Constants.MODE_TEN)
@@ -429,7 +454,7 @@ func _on_start_pressed() -> void:
 	if game_state.mode == Constants.MODE_COOP:
 		game_state.num_players = 2
 	game_state.start_game()
-	get_tree().change_scene_to_file("res://scenes/game_world.tscn")
+	_go_to_game()
 
 func _hide_coop_mode_if_disabled() -> void:
 	if SHOW_COOP_MODE or not game_state:
@@ -526,3 +551,38 @@ func _show_panel_animated(panel: Control, duration: float = 0.3) -> void:
 
 func _hide_panel_animated(panel: Control, duration: float = 0.25) -> void:
 	panel.visible = false
+
+# --- 入場 / ステップ切替アニメーション ---
+
+func _play_initial_entrance() -> void:
+	## メニュー表示時に全体を左からスライド＋段階的フェードインさせる
+	_entrance_done = true
+	_play_entrance($VBoxContainer, true)
+
+func _play_entrance(container: Control, from_left: bool = true) -> void:
+	## container の表示中の子要素を、方向付きスライド＋段階フェードで順番に出現させる
+	if not container or not is_inside_tree():
+		return
+	# コンテナのレイアウト確定を待ってから各子の定位置を取得する
+	await get_tree().process_frame
+	if not is_instance_valid(container):
+		return
+	var dir := -1.0 if from_left else 1.0
+	var idx := 0
+	for child in container.get_children():
+		if not (child is Control):
+			continue
+		var ci := child as Control
+		if not ci.visible:
+			continue
+		var target_x: float = ci.position.x
+		ci.modulate.a = 0.0
+		ci.position.x = target_x + dir * ANIM_SLIDE_OFFSET
+		var delay: float = idx * ANIM_STAGGER
+		var tw := create_tween()
+		tw.set_parallel(true)
+		tw.set_ease(Tween.EASE_OUT)
+		tw.set_trans(Tween.TRANS_CUBIC)
+		tw.tween_property(ci, "modulate:a", 1.0, ANIM_FADE_DURATION).set_delay(delay)
+		tw.tween_property(ci, "position:x", target_x, ANIM_FADE_DURATION).set_delay(delay)
+		idx += 1

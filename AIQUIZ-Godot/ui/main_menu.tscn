@@ -18,29 +18,54 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.08, 0.09, 0.13, 1)
+color = Color(0.07, 0.08, 0.12, 1)
+
+[node name="SidePanel" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 9
+anchor_bottom = 1.0
+offset_right = 900.0
+grow_vertical = 2
+color = Color(0.1, 0.115, 0.16, 1)
+
+[node name="AccentLine" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 9
+anchor_bottom = 1.0
+offset_left = 900.0
+offset_right = 904.0
+grow_vertical = 2
+color = Color(0.18, 0.36, 0.62, 1)
 
 [node name="VBoxContainer" type="VBoxContainer" parent="."]
 layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
+anchors_preset = 4
 anchor_top = 0.5
-anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -320.0
-offset_top = -280.0
-offset_right = 320.0
-offset_bottom = 280.0
-grow_horizontal = 2
+offset_left = 88.0
+offset_top = -300.0
+offset_right = 760.0
+offset_bottom = 300.0
+grow_horizontal = 1
 grow_vertical = 2
 theme_override_constants/separation = 12
 
-[node name="TitleLabel" type="Label" parent="VBoxContainer"]
+[node name="TitleRow" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="AccentBar" type="ColorRect" parent="VBoxContainer/TitleRow"]
+custom_minimum_size = Vector2(7, 54)
+layout_mode = 2
+color = Color(1, 0.88, 0.25, 1)
+
+[node name="TitleLabel" type="Label" parent="VBoxContainer/TitleRow"]
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.88, 0.25, 1)
-theme_override_font_sizes/font_size = 46
+theme_override_font_sizes/font_size = 48
 text = "AI脱出クイズ 3D"
-horizontal_alignment = 1
+horizontal_alignment = 0
+vertical_alignment = 1
 
 [node name="AnnouncementLabel" type="RichTextLabel" parent="VBoxContainer"]
 unique_name_in_owner = true
@@ -66,12 +91,12 @@ layout_mode = 2
 theme_override_colors/font_color = Color(0.7, 0.72, 0.8, 1)
 theme_override_font_sizes/font_size = 18
 text = "モードを選んでください"
-horizontal_alignment = 1
+horizontal_alignment = 0
 
 [node name="ModeButtons" type="HBoxContainer" parent="VBoxContainer/ModeContainer"]
 layout_mode = 2
 theme_override_constants/separation = 20
-alignment = 1
+alignment = 0
 
 [node name="TenQuestionsBtn" type="Button" parent="VBoxContainer/ModeContainer/ModeButtons"]
 unique_name_in_owner = true
@@ -97,12 +122,12 @@ layout_mode = 2
 theme_override_colors/font_color = Color(0.7, 0.72, 0.8, 1)
 theme_override_font_sizes/font_size = 18
 text = "設定"
-horizontal_alignment = 1
+horizontal_alignment = 0
 
 [node name="SubjectCarousel" type="HBoxContainer" parent="VBoxContainer/ConfigContainer"]
 layout_mode = 2
 theme_override_constants/separation = 16
-alignment = 1
+alignment = 0
 
 [node name="PrevSubjectBtn" type="Button" parent="VBoxContainer/ConfigContainer/SubjectCarousel"]
 unique_name_in_owner = true
@@ -130,7 +155,7 @@ text = "▶"
 [node name="GradeCarousel" type="HBoxContainer" parent="VBoxContainer/ConfigContainer"]
 layout_mode = 2
 theme_override_constants/separation = 16
-alignment = 1
+alignment = 0
 
 [node name="PrevGradeBtn" type="Button" parent="VBoxContainer/ConfigContainer/GradeCarousel"]
 unique_name_in_owner = true
@@ -158,7 +183,7 @@ text = "▶"
 [node name="DiffCarousel" type="HBoxContainer" parent="VBoxContainer/ConfigContainer"]
 layout_mode = 2
 theme_override_constants/separation = 16
-alignment = 1
+alignment = 0
 
 [node name="PrevDiffBtn" type="Button" parent="VBoxContainer/ConfigContainer/DiffCarousel"]
 unique_name_in_owner = true
@@ -193,7 +218,7 @@ theme_override_constants/separation = 12
 [node name="Row1" type="HBoxContainer" parent="VBoxContainer/ConfigContainer/SettingsRows"]
 layout_mode = 2
 theme_override_constants/separation = 16
-alignment = 1
+alignment = 0
 
 [node name="LlmToggleBtn" type="Button" parent="VBoxContainer/ConfigContainer/SettingsRows/Row1"]
 unique_name_in_owner = true
@@ -222,7 +247,7 @@ text = "カスタマイズ"
 [node name="ConfigBtnRow" type="HBoxContainer" parent="VBoxContainer/ConfigContainer"]
 layout_mode = 2
 theme_override_constants/separation = 16
-alignment = 1
+alignment = 0
 
 [node name="BackBtn" type="Button" parent="VBoxContainer/ConfigContainer/ConfigBtnRow"]
 unique_name_in_owner = true
@@ -242,7 +267,7 @@ text = "ゲーム開始"
 layout_mode = 2
 theme_override_colors/font_color = Color(0.45, 0.48, 0.58, 1)
 theme_override_font_sizes/font_size = 13
-horizontal_alignment = 1
+horizontal_alignment = 0
 autowrap_mode = 2
 
 [node name="SettingsBtn" type="Button" parent="."]

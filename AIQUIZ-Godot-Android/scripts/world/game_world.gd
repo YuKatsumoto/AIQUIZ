@@ -132,6 +132,10 @@ func _ready() -> void:
 				game_state.handle_mobile_swipe(false)
 			)
 
+	call_deferred("_reveal_after_transition")
+
+func _reveal_after_transition() -> void:
+	SceneTransition.reveal_current()
 
 const MAGMA_SHADER = """
 shader_type spatial;
