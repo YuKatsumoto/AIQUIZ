@@ -11,6 +11,25 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_main_menu")
 
+[node name="LiveBackground" type="SubViewportContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+stretch = true
+
+[node name="LiveViewport" type="SubViewport" parent="LiveBackground"]
+handle_input_locally = false
+size = Vector2i(1920, 1080)
+render_target_update_mode = 3
+
+[node name="LiveCamera" type="Camera3D" parent="LiveBackground/LiveViewport"]
+current = true
+fov = 58.0
+
 [node name="Background" type="ColorRect" parent="."]
 layout_mode = 1
 anchors_preset = 15
@@ -18,7 +37,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.07, 0.08, 0.12, 1)
+color = Color(0.07, 0.08, 0.12, 0.22)
 
 [node name="SidePanel" type="ColorRect" parent="."]
 layout_mode = 1
@@ -26,7 +45,7 @@ anchors_preset = 9
 anchor_bottom = 1.0
 offset_right = 900.0
 grow_vertical = 2
-color = Color(0.1, 0.115, 0.16, 1)
+color = Color(0.1, 0.115, 0.16, 0.82)
 
 [node name="AccentLine" type="ColorRect" parent="."]
 layout_mode = 1

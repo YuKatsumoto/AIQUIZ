@@ -5,6 +5,12 @@ extends Control
 
 @onready var title_label: Label = $VBoxContainer/TitleRow/TitleLabel
 @onready var accent_line: ColorRect = $AccentLine
+@onready var side_panel: ColorRect = $SidePanel
+@onready var background_overlay: ColorRect = $Background
+@onready var menu_vbox: VBoxContainer = $VBoxContainer
+@onready var live_background: SubViewportContainer = $LiveBackground
+@onready var live_viewport: SubViewport = $LiveBackground/LiveViewport
+@onready var live_camera: Camera3D = $LiveBackground/LiveViewport/LiveCamera
 @onready var announcement_label: RichTextLabel = %AnnouncementLabel
 @onready var mode_container: VBoxContainer = $VBoxContainer/ModeContainer
 @onready var config_container: VBoxContainer = $VBoxContainer/ConfigContainer
@@ -24,6 +30,7 @@ extends Control
 @onready var customize_btn: Button = %CustomizeBtn
 
 @onready var settings_panel: Panel = $SettingsPanel
+@onready var settings_btn: Button = %SettingsBtn
 @onready var api_status_label: RichTextLabel = $SettingsPanel/VBox/ApiStatusLabel
 @onready var vol_slider: HSlider = $SettingsPanel/VBox/VolBox/VolSlider
 # speed_slider は廃止（壁速度は難易度から自動決定）
@@ -38,14 +45,20 @@ var _tutorial_2p_btn: Button = null
 const PICKER_HEIGHT := 52.0
 const PICKER_ANIM_DURATION := 0.18
 const SHOW_COOP_MODE := false
+const GAME_WORLD_SCENE: PackedScene = preload("res://scenes/game_world.tscn")
 
 # --- 推移アニメーション設定 ---
 const ANIM_SLIDE_OFFSET := 56.0
 const ANIM_FADE_DURATION := 0.32
 const ANIM_STAGGER := 0.055
+const MENU_EXIT_DURATION := 0.34
+const MENU_EXIT_OFFSET_X := -520.0
 
 var _prev_menu_step: String = ""
 var _entrance_done: bool = false
+var _menu_world: Node3D = null
+var _menu_exit_in_progress: bool = false
+var _menu_exit_targets: Array[Control] = []
 
 func _ready() -> void:
 	game_state = QuizManager.game_state
@@ -53,6 +66,9 @@ func _ready() -> void:
 	game_state.game_state = Constants.STATE_MENU
 	# 戻るボタン等からの遷移時に状態を保持するため、menu_stepの強制リセットを削除
 	settings_panel.visible = false
+	_setup_live_background()
+	_setup_menu_exit_targets()
+	_reset_menu_visual_state()
 
 	vol_slider.value = AudioManager.sfx_volume
 
@@ -108,6 +124,101 @@ func _ready() -> void:
 	
 	if GameManager.should_show_tutorial_on_start():
 		call_deferred("_start_first_run_tutorial")
+
+func _setup_live_background() -> void:
+	if not live_background or not live_viewport:
+		return
+	live_background.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	live_background.stretch = true
+	live_viewport.own_world_3d = true
+	live_viewport.render_target_update_mode = SubViewport.UPDATE_WHEN_PARENT_VISIBLE
+	_spawn_menu_world()
+	if live_camera:
+		live_camera.current = false
+
+func _spawn_menu_world() -> void:
+	if _menu_world or not live_viewport:
+		return
+	_menu_world = GAME_WORLD_SCENE.instantiate()
+	_menu_world.set_meta("menu_preview", true)
+	live_viewport.add_child(_menu_world)
+
+func _setup_menu_exit_targets() -> void:
+	_menu_exit_targets = []
+	if side_panel:
+		_menu_exit_targets.append(side_panel)
+	if accent_line:
+		_menu_exit_targets.append(accent_line)
+	if menu_vbox:
+		_menu_exit_targets.append(menu_vbox)
+	if settings_btn:
+		_menu_exit_targets.append(settings_btn)
+	if background_overlay:
+		_menu_exit_targets.append(background_overlay)
+	for target in _menu_exit_targets:
+		if not target.has_meta("base_position"):
+			target.set_meta("base_position", target.position)
+
+func _reset_menu_visual_state() -> void:
+	_menu_exit_in_progress = false
+	_set_all_buttons_disabled(false)
+	for target in _menu_exit_targets:
+		var base_pos: Variant = target.get_meta("base_position", target.position)
+		target.position = base_pos
+		target.modulate.a = 1.0
+		target.visible = true
+
+func _play_exit_and_change_scene(path: String) -> void:
+	if _menu_exit_in_progress:
+		return
+	_menu_exit_in_progress = true
+	_set_all_buttons_disabled(true)
+	settings_panel.visible = false
+
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.set_ease(Tween.EASE_IN_OUT)
+	tw.set_trans(Tween.TRANS_CUBIC)
+
+	for target in _menu_exit_targets:
+		if not target:
+			continue
+		var base_pos: Variant = target.get_meta("base_position", target.position)
+		tw.tween_property(target, "position:x", base_pos.x + MENU_EXIT_OFFSET_X, MENU_EXIT_DURATION)
+		tw.tween_property(target, "modulate:a", 0.0, MENU_EXIT_DURATION * 0.9)
+
+	tw.chain().tween_callback(_begin_scene_change.bind(path))
+
+func _begin_scene_change(path: String) -> void:
+	await get_tree().process_frame
+	_hold_menu_frame_before_scene_change()
+	if path.ends_with("game_world.tscn"):
+		get_tree().change_scene_to_packed(GAME_WORLD_SCENE)
+	else:
+		get_tree().change_scene_to_file(path)
+
+func _hold_menu_frame_before_scene_change() -> void:
+	if not live_viewport:
+		SceneTransition.hold_color()
+		return
+	var viewport_texture: ViewportTexture = live_viewport.get_texture()
+	if not viewport_texture:
+		SceneTransition.hold_color()
+		return
+	var frame_image: Image = viewport_texture.get_image()
+	if frame_image.is_empty():
+		SceneTransition.hold_color()
+		return
+	SceneTransition.hold_image_texture(ImageTexture.create_from_image(frame_image))
+
+func _set_all_buttons_disabled(disabled: bool) -> void:
+	for btn: Button in _get_all_buttons(self):
+		btn.disabled = disabled
+
+func _notification(what: int) -> void:
+	if what != NOTIFICATION_VISIBILITY_CHANGED or not live_viewport:
+		return
+	live_viewport.render_target_update_mode = SubViewport.UPDATE_WHEN_PARENT_VISIBLE if visible else SubViewport.UPDATE_DISABLED
 
 func _on_live_config_updated() -> void:
 	if LiveConfigManager.is_active and not LiveConfigManager.announcement.is_empty():
@@ -237,10 +348,9 @@ func _style_tutorial_button(btn: Button) -> void:
 const GAME_SCENE := "res://scenes/game_world.tscn"
 
 func _go_to_game() -> void:
-	if SceneTransition.is_transitioning():
+	if _menu_exit_in_progress:
 		return
-	var seam := accent_line.global_position.x + accent_line.size.x * 0.5
-	SceneTransition.change_scene_doors(GAME_SCENE, seam)
+	_play_exit_and_change_scene(GAME_SCENE)
 
 func _start_tutorial_game(tutorial_players: int = 1) -> void:
 	game_state.start_tutorial(tutorial_players)

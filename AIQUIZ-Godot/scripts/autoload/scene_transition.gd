@@ -6,14 +6,17 @@ extends CanvasLayer
 var _overlay: ColorRect
 var _door_left: ColorRect
 var _door_right: ColorRect
+var _hold_texture_rect: TextureRect
 var _is_transitioning: bool = false
 var _active_style: String = ""
 var _door_seam_x: float = 0.0
 var _door_color: Color = Color(0.18, 0.36, 0.62, 1.0)
 
 const FADE_DURATION := 0.45
+const HOLD_TEXTURE_REVEAL_DURATION := 0.22
 const DOOR_DURATION := 0.5
 const ACCENT_BLUE := Color(0.18, 0.36, 0.62, 1.0)
+const GAME_BG_COLOR := Color(0.82, 0.85, 0.90, 1.0)
 
 func _ready() -> void:
 	layer = 100  # Always on top
@@ -35,10 +38,40 @@ func _ready() -> void:
 	_door_right.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_door_right)
 
+	_hold_texture_rect = TextureRect.new()
+	_hold_texture_rect.visible = false
+	_hold_texture_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hold_texture_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_hold_texture_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_hold_texture_rect.stretch_mode = TextureRect.STRETCH_SCALE
+	add_child(_hold_texture_rect)
+
+## シーン切替直前の画面を静止画として保持し、読み込み中の空白フレームを隠す
+func hold_image_texture(texture: Texture2D) -> void:
+	_hide_doors()
+	_overlay.color.a = 0.0
+	_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hold_texture_rect.texture = texture
+	_hold_texture_rect.modulate.a = 1.0
+	_hold_texture_rect.visible = true
+	_hold_texture_rect.mouse_filter = Control.MOUSE_FILTER_STOP
+	_is_transitioning = true
+	_active_style = "texture_hold"
+
+## 静止画が取れない場合のフォールバック
+func hold_color(color: Color = GAME_BG_COLOR) -> void:
+	_clear_texture_hold()
+	_hide_doors()
+	_overlay.color = color
+	_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	_is_transitioning = true
+	_active_style = "fade"
+
 ## シーン切り替え (フェードアウト → 切替 → フェードイン)
 func change_scene(path: String, fade_color: Color = Color.BLACK) -> void:
 	if _is_transitioning:
 		return
+	_clear_texture_hold()
 	_is_transitioning = true
 	_active_style = "fade"
 	_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -56,6 +89,7 @@ func change_scene(path: String, fade_color: Color = Color.BLACK) -> void:
 func change_scene_doors(path: String, seam_x: float = -1.0, color: Color = ACCENT_BLUE) -> void:
 	if _is_transitioning:
 		return
+	_clear_texture_hold()
 	_is_transitioning = true
 	_active_style = "doors"
 	_door_color = color
@@ -100,6 +134,8 @@ func reveal_current(fade_color: Color = Color.BLACK) -> void:
 			_reveal_doors()
 		"fade":
 			_fade_in(fade_color)
+		"texture_hold":
+			_reveal_texture_hold()
 		_:
 			_is_transitioning = false
 
@@ -154,6 +190,27 @@ func _hide_doors() -> void:
 	_door_right.visible = false
 	_door_left.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_door_right.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+func _reveal_texture_hold() -> void:
+	if not _hold_texture_rect.visible:
+		_is_transitioning = false
+		_active_style = ""
+		return
+	var tw := create_tween()
+	tw.set_ease(Tween.EASE_OUT)
+	tw.set_trans(Tween.TRANS_QUAD)
+	tw.tween_property(_hold_texture_rect, "modulate:a", 0.0, HOLD_TEXTURE_REVEAL_DURATION)
+	tw.tween_callback(func():
+		_clear_texture_hold()
+		_is_transitioning = false
+		_active_style = ""
+	)
+
+func _clear_texture_hold() -> void:
+	_hold_texture_rect.visible = false
+	_hold_texture_rect.texture = null
+	_hold_texture_rect.modulate.a = 1.0
+	_hold_texture_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 ## 遷移中かどうか
 func is_transitioning() -> bool:
