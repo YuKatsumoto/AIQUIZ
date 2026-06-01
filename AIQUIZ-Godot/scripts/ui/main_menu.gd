@@ -4,8 +4,6 @@ extends Control
 ## Python版 hud.py のメニュー部分に相当
 
 @onready var title_label: Label = $VBoxContainer/TitleRow/TitleLabel
-@onready var accent_line: ColorRect = $AccentLine
-@onready var side_panel: ColorRect = $SidePanel
 @onready var background_overlay: ColorRect = $Background
 @onready var menu_vbox: VBoxContainer = $VBoxContainer
 @onready var live_background: SubViewportContainer = $LiveBackground
@@ -46,6 +44,8 @@ const PICKER_HEIGHT := 52.0
 const PICKER_ANIM_DURATION := 0.18
 const SHOW_COOP_MODE := false
 const GAME_WORLD_SCENE: PackedScene = preload("res://scenes/game_world.tscn")
+const CUSTOMIZE_SETTINGS_SCENE: PackedScene = preload("res://ui/customize_settings.tscn")
+const MenuWallBackgroundPreviewScene := preload("res://scripts/ui/menu_wall_background_preview.gd")
 
 # --- 推移アニメーション設定 ---
 const ANIM_SLIDE_OFFSET := 56.0
@@ -56,9 +56,11 @@ const MENU_EXIT_OFFSET_X := -520.0
 
 var _prev_menu_step: String = ""
 var _entrance_done: bool = false
-var _menu_world: Node3D = null
+var _menu_wall_preview: Node = null
 var _menu_exit_in_progress: bool = false
 var _menu_exit_targets: Array[Control] = []
+var _embedded_customize: Control = null
+var _embedded_customize_open: bool = false
 
 func _ready() -> void:
 	game_state = QuizManager.game_state
@@ -68,7 +70,9 @@ func _ready() -> void:
 	settings_panel.visible = false
 	_setup_live_background()
 	_setup_menu_exit_targets()
+	_setup_embedded_customize()
 	_reset_menu_visual_state()
+	SceneTransition.reveal_current()
 
 	vol_slider.value = AudioManager.sfx_volume
 
@@ -132,23 +136,26 @@ func _setup_live_background() -> void:
 	live_background.stretch = true
 	live_viewport.own_world_3d = true
 	live_viewport.render_target_update_mode = SubViewport.UPDATE_WHEN_PARENT_VISIBLE
-	_spawn_menu_world()
+	_spawn_menu_wall_preview()
 	if live_camera:
 		live_camera.current = false
 
-func _spawn_menu_world() -> void:
-	if _menu_world or not live_viewport:
+func _sync_menu_wall_preview_players() -> void:
+	if not _menu_wall_preview or not _menu_wall_preview.has_method("sync_menu_player_count"):
 		return
-	_menu_world = GAME_WORLD_SCENE.instantiate()
-	_menu_world.set_meta("menu_preview", true)
-	live_viewport.add_child(_menu_world)
+	var count := 2 if game_state.num_players == 2 else 1
+	_menu_wall_preview.call("sync_menu_player_count", count)
+
+
+func _spawn_menu_wall_preview() -> void:
+	if _menu_wall_preview or not live_viewport:
+		return
+	_menu_wall_preview = MenuWallBackgroundPreviewScene.new()
+	live_viewport.add_child(_menu_wall_preview)
+	_sync_menu_wall_preview_players()
 
 func _setup_menu_exit_targets() -> void:
 	_menu_exit_targets = []
-	if side_panel:
-		_menu_exit_targets.append(side_panel)
-	if accent_line:
-		_menu_exit_targets.append(accent_line)
 	if menu_vbox:
 		_menu_exit_targets.append(menu_vbox)
 	if settings_btn:
@@ -167,6 +174,88 @@ func _reset_menu_visual_state() -> void:
 		target.position = base_pos
 		target.modulate.a = 1.0
 		target.visible = true
+
+
+func _setup_embedded_customize() -> void:
+	if _embedded_customize or not CUSTOMIZE_SETTINGS_SCENE:
+		return
+	var overlay := CUSTOMIZE_SETTINGS_SCENE.instantiate() as Control
+	if not overlay:
+		return
+	if overlay.has_method("set"):
+		overlay.set("embedded_mode", true)
+	overlay.visible = false
+	overlay.modulate.a = 0.0
+	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if overlay.has_signal("request_close"):
+		overlay.connect("request_close", Callable(self, "_on_embedded_customize_close_requested"))
+	add_child(overlay)
+	_embedded_customize = overlay
+	# 共有3Dワールド（メニュー背景）へカスタマイズ用キャラ等を事前構築し、開閉時のヒッチを防ぐ
+	if _menu_wall_preview and overlay.has_method("setup_embedded"):
+		overlay.call("setup_embedded", _menu_wall_preview)
+
+
+func _open_embedded_customize() -> void:
+	if _embedded_customize_open or _menu_exit_in_progress or not _embedded_customize:
+		return
+	_embedded_customize_open = true
+	_menu_exit_in_progress = true
+	_set_all_buttons_disabled(true)
+	settings_panel.visible = false
+	if _embedded_customize.has_method("prepare_embedded_open"):
+		_embedded_customize.call("prepare_embedded_open")
+	_embedded_customize.visible = true
+	_embedded_customize.mouse_filter = Control.MOUSE_FILTER_STOP
+	_embedded_customize.modulate.a = 0.0
+	_set_buttons_disabled_in(_embedded_customize, false)
+
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.set_ease(Tween.EASE_IN_OUT)
+	tw.set_trans(Tween.TRANS_CUBIC)
+	for target in _menu_exit_targets:
+		if not target:
+			continue
+		var base_pos: Variant = target.get_meta("base_position", target.position)
+		tw.tween_property(target, "position:x", base_pos.x + MENU_EXIT_OFFSET_X, MENU_EXIT_DURATION)
+		tw.tween_property(target, "modulate:a", 0.0, MENU_EXIT_DURATION * 0.9)
+	tw.tween_property(_embedded_customize, "modulate:a", 1.0, MENU_EXIT_DURATION)
+	tw.chain().tween_callback(func() -> void:
+		_menu_exit_in_progress = false
+	)
+
+
+func _on_embedded_customize_close_requested() -> void:
+	if not _embedded_customize_open or _menu_exit_in_progress or not _embedded_customize:
+		return
+	_menu_exit_in_progress = true
+	_embedded_customize_open = false
+
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.set_ease(Tween.EASE_IN_OUT)
+	tw.set_trans(Tween.TRANS_CUBIC)
+	for target in _menu_exit_targets:
+		if not target:
+			continue
+		var base_pos: Variant = target.get_meta("base_position", target.position)
+		tw.tween_property(target, "position:x", base_pos.x, MENU_EXIT_DURATION)
+		tw.tween_property(target, "modulate:a", 1.0, MENU_EXIT_DURATION * 0.9)
+	tw.tween_property(_embedded_customize, "modulate:a", 0.0, MENU_EXIT_DURATION * 0.9)
+	tw.chain().tween_callback(func() -> void:
+		_embedded_customize.visible = false
+		_embedded_customize.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_set_all_buttons_disabled(false)
+		_menu_exit_in_progress = false
+	)
+
+
+func _set_buttons_disabled_in(node: Node, disabled: bool) -> void:
+	if node is Button:
+		(node as Button).disabled = disabled
+	for child in node.get_children():
+		_set_buttons_disabled_in(child, disabled)
 
 func _play_exit_and_change_scene(path: String) -> void:
 	if _menu_exit_in_progress:
@@ -198,6 +287,7 @@ func _begin_scene_change(path: String) -> void:
 		get_tree().change_scene_to_file(path)
 
 func _hold_menu_frame_before_scene_change() -> void:
+	_capture_menu_camera_pose_for_next_scene()
 	if not live_viewport:
 		SceneTransition.hold_color()
 		return
@@ -210,6 +300,19 @@ func _hold_menu_frame_before_scene_change() -> void:
 		SceneTransition.hold_color()
 		return
 	SceneTransition.hold_image_texture(ImageTexture.create_from_image(frame_image))
+
+func _capture_menu_camera_pose_for_next_scene() -> void:
+	if not _menu_wall_preview:
+		return
+	if not _menu_wall_preview.has_method("get_camera"):
+		return
+	var cam: Camera3D = _menu_wall_preview.get_camera() as Camera3D
+	if not cam:
+		return
+	var eye: Vector3 = cam.global_position
+	var forward: Vector3 = -cam.global_basis.z
+	var look: Vector3 = eye + forward * 10.0
+	SceneTransition.set_start_camera_pose(eye, look)
 
 func _set_all_buttons_disabled(disabled: bool) -> void:
 	for btn: Button in _get_all_buttons(self):
@@ -407,6 +510,8 @@ func _update_ui() -> void:
 			customize_btn.visible = true
 			customize_btn.text = "カスタマイズ"
 
+	_sync_menu_wall_preview_players()
+
 	_prev_menu_step = game_state.menu_step
 
 func _on_ten_questions_pressed() -> void:
@@ -458,7 +563,7 @@ func _on_players_toggle_pressed() -> void:
 	_update_ui()
 
 func _on_customize_pressed() -> void:
-	get_tree().change_scene_to_file("res://ui/customize_settings.tscn")
+	_open_embedded_customize()
 
 func _on_tutorial_pressed() -> void:
 	_start_tutorial_game()

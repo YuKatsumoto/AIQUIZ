@@ -1,4 +1,5 @@
 extends Control
+signal request_close
 
 enum Section {
 	WALL_SPEED,
@@ -9,6 +10,9 @@ enum Section {
 const WALL_SCENE: PackedScene = preload("res://scenes/quiz_wall.tscn")
 const CONVEYOR_FLOOR_SHADER: Shader = preload("res://shaders/conveyor_belt_floor.gdshader")
 const PLAYER_CONTROLLER_SCRIPT: Script = preload("res://scripts/world/player_controller.gd")
+const CustomizePreviewCameraSettingsScript = preload(
+	"res://scripts/ui/customize_preview_camera_settings.gd"
+)
 
 const WALL_SPACING := 30.0
 ## 左レーンP1（壁速度プレビューと同じオフセット）／右レーンP2は対称配置
@@ -165,6 +169,15 @@ var _emote_cam_dragging: bool = false
 var _emote_cam_panning: bool = false
 ## タブ切替直後は CAM_TAB_TRANSITION_SMOOTH_RATE で寄せ、収束したら通常レートに戻す
 var _preview_cam_tab_transition_active: bool = false
+var _back_to_menu_in_progress: bool = false
+var embedded_mode: bool = false
+## 埋め込み時に共有する MenuWallBackgroundPreview（メニュー背景の単一ワールド）
+var _menu_preview: MenuWallBackgroundPreview = null
+## 埋め込み時にカスタマイズ専用キャラ等を載せる共有ビューポート内のルート
+var _cust_world_root: Node3D = null
+## 埋め込みオーバーレイが開いている間だけ 3D を駆動する
+var _is_open: bool = false
+var _wall_speed_cam_settings: Dictionary = {}
 
 func _ready() -> void:
 	var game_state := QuizManager.game_state
@@ -173,13 +186,43 @@ func _ready() -> void:
 	_belt_visual_speed = _preview_speed
 
 	_build_ui()
-	_build_3d_preview()
 	_browsing_emote_id = game_state.p1_emote_slots[0] if game_state.p1_emote_slots.size() > 0 else EmoteData.EMOTE_NONE
 	_refresh_all_labels()
+	if embedded_mode:
+		# 3D は setup_embedded() で共有ワールドに構築。セクションは開いたときに設定する
+		return
+	_build_3d_preview()
 	_set_section(Section.WALL_SPEED)
-	_snap_preview_camera_to_current_section()
+	if not _apply_transition_start_camera_pose():
+		_snap_preview_camera_to_current_section()
+	SceneTransition.reveal_current()
+
+
+func _apply_transition_start_camera_pose() -> bool:
+	if not _preview_camera:
+		return false
+	var pose: Dictionary = SceneTransition.consume_start_camera_pose()
+	if pose.is_empty():
+		return false
+	var eye_v: Variant = pose.get("eye", null)
+	var look_v: Variant = pose.get("look", null)
+	if not (eye_v is Vector3) or not (look_v is Vector3):
+		return false
+	var eye: Vector3 = eye_v
+	var look: Vector3 = look_v
+	if eye.distance_to(look) < 0.05:
+		return false
+	_preview_camera.position = eye
+	_preview_camera.quaternion = _camera_quat_look_at(eye, look)
+	_preview_camera.fov = 66.0
+	_preview_camera.h_offset = 0.0
+	_preview_camera.v_offset = 0.0
+	_preview_cam_tab_transition_active = true
+	return true
 
 func _process(dt: float) -> void:
+	if embedded_mode and not _is_open:
+		return
 	var belt_target := 0.0 if _active_section == Section.EMOTE else _preview_speed
 	var alpha := 1.0 - exp(-dt / BELT_VISUAL_RAMP_TAU_SEC)
 	_belt_visual_speed = lerpf(_belt_visual_speed, belt_target, alpha)
@@ -286,18 +329,21 @@ func _process(dt: float) -> void:
 	_process_hat_slide(dt)
 
 func _build_ui() -> void:
-	var svc := SubViewportContainer.new()
-	svc.set_anchors_preset(Control.PRESET_FULL_RECT)
-	svc.stretch = true
-	add_child(svc)
-	_preview_svc = svc
+	if not embedded_mode:
+		# 単体起動時のみ自前の 3D ビューポートを作る。
+		# 埋め込み時はメニュー背景の共有ワールドをそのまま使う（背面が透ける）。
+		var svc := SubViewportContainer.new()
+		svc.set_anchors_preset(Control.PRESET_FULL_RECT)
+		svc.stretch = true
+		add_child(svc)
+		_preview_svc = svc
 
-	_sub_viewport = SubViewport.new()
-	_sub_viewport.size = Vector2i(1280, 720)
-	_sub_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-	_sub_viewport.transparent_bg = false
-	_sub_viewport.msaa_3d = Viewport.MSAA_4X
-	svc.add_child(_sub_viewport)
+		_sub_viewport = SubViewport.new()
+		_sub_viewport.size = Vector2i(1280, 720)
+		_sub_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+		_sub_viewport.transparent_bg = false
+		_sub_viewport.msaa_3d = Viewport.MSAA_4X
+		svc.add_child(_sub_viewport)
 
 	var margin_container := MarginContainer.new()
 	margin_container.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -790,6 +836,15 @@ func _set_section(section: Section) -> void:
 			Control.MOUSE_FILTER_STOP if section == Section.EMOTE else Control.MOUSE_FILTER_IGNORE
 		)
 
+	if embedded_mode and _menu_preview:
+		# 壁速度タブのみ共有ワールドの流れる壁を見せ、スキン／エモートは隠して近接プレビュー
+		if section == Section.WALL_SPEED:
+			_menu_preview.set_customize_walls_hidden(false)
+			_menu_preview.set_belt_speed(_preview_speed)
+		else:
+			_menu_preview.set_customize_walls_hidden(true)
+			_menu_preview.set_belt_speed(0.0)
+
 	match section:
 		Section.WALL_SPEED:
 			_set_skin_preview_lighting_active(false)
@@ -869,18 +924,32 @@ func _snap_preview_camera_to_current_section() -> void:
 	_preview_camera.v_offset = d.get("v_offset", 0.0)
 
 
+func _get_wall_speed_camera_settings() -> Dictionary:
+	if _wall_speed_cam_settings.is_empty():
+		reload_wall_speed_camera_settings()
+	return _wall_speed_cam_settings
+
+
+func reload_wall_speed_camera_settings() -> void:
+	_wall_speed_cam_settings = CustomizePreviewCameraSettingsScript.load_settings()
+	if _active_section == Section.WALL_SPEED and _is_open:
+		_preview_cam_tab_transition_active = true
+
+
 func _get_desired_preview_camera() -> Dictionary:
 	match _active_section:
 		Section.WALL_SPEED:
+			var s := _get_wall_speed_camera_settings()
+			var rot: Vector3 = s["rotation_degrees"]
 			var qw := Quaternion.from_euler(
-				Vector3(deg_to_rad(-14.0), deg_to_rad(-18.0), 0.0),
+				Vector3(deg_to_rad(rot.x), deg_to_rad(rot.y), deg_to_rad(rot.z)),
 			)
 			return {
-				"pos": Vector3(-5.2, 4.5, 16.0),
+				"pos": s["position"],
 				"quat": qw,
-				"fov": 65.0,
-				"h_offset": 0.65,
-				"v_offset": 0.0,
+				"fov": float(s["fov"]),
+				"h_offset": float(s["h_offset"]),
+				"v_offset": float(s.get("v_offset", 0.0)),
 			}
 		Section.SKIN:
 			var tx_skin := _preview_editing_lane_x()
@@ -1051,6 +1120,8 @@ func _on_speed_changed(value: float) -> void:
 	_preview_speed = value
 	if _active_section != Section.EMOTE:
 		_belt_visual_speed = value
+	if embedded_mode and _menu_preview and _active_section == Section.WALL_SPEED:
+		_menu_preview.set_belt_speed(value)
 	QuizManager.game_state.tuning.wall_speed_override = value
 	_update_mode_label()
 	_update_speed_value()
@@ -1619,8 +1690,111 @@ func _set_current_hat(hat_id: int) -> void:
 		gs.p2_hat = hat_id
 
 func _on_back_pressed() -> void:
+	if _back_to_menu_in_progress:
+		return
+	_back_to_menu_in_progress = true
 	_stop_preview_wall_speed_emotes()
+	if embedded_mode:
+		_is_open = false
+		_finish_hat_slide_immediate()
+		_cleanup_emote_preview()
+		if _cust_world_root:
+			_cust_world_root.visible = false
+		if _menu_preview:
+			_menu_preview.exit_customize_mode()
+		request_close.emit()
+		return
+	_hold_customize_frame_before_scene_change()
 	get_tree().change_scene_to_file("res://ui/main_menu.tscn")
+
+
+## メニュー起動時に一度だけ呼ばれ、共有ワールドへカスタマイズ用キャラ等を事前構築する。
+## 開くたびの生成ヒッチを避けるため、ここで重い PlayerController を作っておく。
+func setup_embedded(menu_preview: MenuWallBackgroundPreview) -> void:
+	_menu_preview = menu_preview
+	if _menu_preview:
+		_sub_viewport = _menu_preview.get_shared_viewport()
+		_preview_camera = _menu_preview.get_camera()
+	reload_wall_speed_camera_settings()
+	_build_embedded_world()
+
+
+func _build_embedded_world() -> void:
+	if not _sub_viewport or _cust_world_root:
+		return
+	_cust_world_root = Node3D.new()
+	_cust_world_root.name = "CustomizePreviewRoot"
+	_cust_world_root.visible = false
+	_sub_viewport.add_child(_cust_world_root)
+
+	_skin_front_spot = SpotLight3D.new()
+	_skin_front_spot.name = "SkinFrontSpot"
+	_skin_front_spot.visible = false
+	_skin_front_spot.light_color = Color(1.0, 0.98, 0.94)
+	_skin_front_spot.light_energy = 1.05
+	_skin_front_spot.shadow_enabled = false
+	_skin_front_spot.spot_range = 14.0
+	_skin_front_spot.spot_angle = 58.0
+	_skin_front_spot.spot_angle_attenuation = 0.55
+	_cust_world_root.add_child(_skin_front_spot)
+
+	_preview_gs = QuizGameState.new()
+	_preview_gs.game_state = Constants.STATE_PLAYING
+	_preview_gs.num_players = 2
+	_preview_gs.p1_alive = true
+	_preview_gs.p2_alive = true
+	_preview_gs.player_x = PREVIEW_PLAYER_P1_X
+	_preview_gs.player_y = 0.0
+	_preview_gs.player_z = 0.0
+	_preview_gs.player2_x = PREVIEW_PLAYER_P2_X
+	_preview_gs.player2_y = 0.0
+	_preview_gs.player2_z = 0.0
+	_preview_gs.world_scroll_z = 0.0
+	_preview_gs._active_wall_speed = _belt_visual_speed
+
+	_preview_player = Node3D.new()
+	_preview_player.set_script(PLAYER_CONTROLLER_SCRIPT)
+	_cust_world_root.add_child(_preview_player)
+
+	var gm := QuizManager.game_state
+	if _preview_player.has_method("set_hat"):
+		_preview_player.set_hat(1, gm.p1_hat)
+		_preview_player.set_hat(2, gm.p2_hat)
+
+	_emote_preview_holder = Node3D.new()
+	_emote_preview_holder.name = "EmotePreviewHolder"
+	_emote_preview_holder.visible = false
+	_cust_world_root.add_child(_emote_preview_holder)
+
+
+func prepare_embedded_open() -> void:
+	_back_to_menu_in_progress = false
+	if embedded_mode:
+		_is_open = true
+		if _cust_world_root:
+			_cust_world_root.visible = true
+		if _menu_preview:
+			_menu_preview.enter_customize_mode()
+		_editing_player = 1
+		_preview_cam_tab_transition_active = true
+		_refresh_all_labels()
+		_set_section(Section.WALL_SPEED)
+		return
+
+
+func _hold_customize_frame_before_scene_change() -> void:
+	if not _sub_viewport:
+		SceneTransition.hold_color()
+		return
+	var viewport_texture: ViewportTexture = _sub_viewport.get_texture()
+	if not viewport_texture:
+		SceneTransition.hold_color()
+		return
+	var frame_image: Image = viewport_texture.get_image()
+	if frame_image.is_empty():
+		SceneTransition.hold_color()
+		return
+	SceneTransition.hold_image_texture(ImageTexture.create_from_image(frame_image))
 
 func _read_emote_keys_pressed(slots_p1: Array, slots_p2: Array, num_players: int) -> Vector2i:
 	var emote_p1 := 0
@@ -1686,6 +1860,9 @@ func _force_preview_player_facing_away() -> void:
 			p2_pelvis.rotation.y = PI
 
 func _update_preview_debris_near_camera() -> void:
+	if embedded_mode:
+		# 共有ワールドの破片はメニュー側が管理する
+		return
 	if not _sub_viewport or not _preview_camera:
 		return
 	for child in _sub_viewport.get_children():
@@ -1749,6 +1926,8 @@ func _remove_preview_merge_slots_at(idx: int) -> void:
 
 
 func _process_preview_wall_merge(dt: float) -> void:
+	if embedded_mode:
+		return
 	if _active_section == Section.EMOTE or _active_section == Section.SKIN:
 		return
 	var total: int = _preview_walls.size()
@@ -1904,6 +2083,8 @@ func _spawn_preview_merge_sparks_on_wall(wall: Node3D) -> void:
 
 
 func _replenish_preview_walls_after_emote() -> void:
+	if embedded_mode:
+		return
 	_merge_timer = 0.0
 	var start_z := 8.0 - WALL_SPACING * 2
 	for idx in range(3):
@@ -1911,6 +2092,8 @@ func _replenish_preview_walls_after_emote() -> void:
 
 
 func _explode_preview_walls_for_emote() -> void:
+	if embedded_mode:
+		return
 	for i in range(_preview_walls.size() - 1, -1, -1):
 		var w: Node3D = _preview_walls[i]
 		if is_instance_valid(w):
@@ -2003,6 +2186,8 @@ func _preview_spawn_wall_debris_pieces(wall: Node3D, burst: bool) -> void:
 
 
 func _spawn_preview_wall(z_pos: float) -> void:
+	if embedded_mode:
+		return
 	var dummy_quiz := QuizItem.new()
 	dummy_quiz.q = "プレビュー"
 	dummy_quiz.c = ["A", "B"]

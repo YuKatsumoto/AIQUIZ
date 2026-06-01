@@ -25,6 +25,8 @@ const EMOTE_HEAD_SPINNING := 16
 const EMOTE_RUNNING_MAN := 17
 
 const EMOTE_COUNT := 18
+## AnimationRig.EMOTE_RIG_SLOTS と同数（全ダンスFBXを同時ロードする上限）
+const MAX_EMOTES_ON_RIG := 18
 
 const THRILLER_PART_PATHS: Array[String] = [
 	"res://assets/animations/Thriller Part 1.fbx",
@@ -104,3 +106,45 @@ static func get_emote_desc(emote_id: int) -> String:
 		if int(entry["id"]) == id:
 			return str(entry["desc"])
 	return ""
+
+
+## プレイ可能なダンスID一覧（なし・重複なし）
+static func get_playable_emote_ids() -> Array[int]:
+	var ids: Array[int] = []
+	for entry in get_emote_list():
+		var id := normalize_emote_id(int(entry["id"]))
+		if id == EMOTE_NONE or ids.has(id):
+			continue
+		ids.append(id)
+	return ids
+
+
+## メニュー背景プレビュー用：FBXリグに載せる代表エモート（最大5種）
+static func get_menu_preview_rig_slots(for_p2: bool = false) -> Array[int]:
+	if for_p2:
+		return [2, 6, 8, 14, 17]
+	return [1, 3, 5, 4, 13]
+
+
+## スロット配列と既定リストをマージ（重複除去・max_countまで）
+static func merge_emote_slot_ids(
+	slots: Array[int],
+	defaults: Array[int],
+	max_count: int = MAX_EMOTES_ON_RIG
+) -> Array[int]:
+	var merged: Array[int] = []
+	for raw in slots:
+		var id := normalize_emote_id(int(raw))
+		if id == EMOTE_NONE or merged.has(id):
+			continue
+		merged.append(id)
+		if merged.size() >= max_count:
+			return merged
+	for raw in defaults:
+		var id := normalize_emote_id(int(raw))
+		if id == EMOTE_NONE or merged.has(id):
+			continue
+		merged.append(id)
+		if merged.size() >= max_count:
+			break
+	return merged

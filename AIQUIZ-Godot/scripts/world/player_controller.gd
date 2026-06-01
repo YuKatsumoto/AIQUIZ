@@ -52,11 +52,110 @@ func _load_mixamo_rig(gs: QuizGameState) -> void:
 	if gs:
 		p1_slots = gs.p1_emote_slots
 		p2_slots = gs.p2_emote_slots
-		
 	if NetworkManager and NetworkManager.state == NetworkManager.State.IN_GAME:
 		p2_slots = NetworkManager.opponent_emote_slots
+	_apply_emote_rig_slots(p1_slots, p2_slots, loader)
 
-	print("[RIG] _load_mixamo_rig - p1_slots: %s, p2_slots: %s" % [str(p1_slots), str(p2_slots)])
+
+func reload_emote_rigs(p1_slots: Array[int], p2_slots: Array[int]) -> void:
+	_clear_rig_scene_nodes()
+	_p1_rig = AnimationRig.new("P1")
+	_p2_rig = AnimationRig.new("P2")
+	_apply_emote_rig_slots(p1_slots, p2_slots, Callable(self, "_load_fbx_scene"))
+
+
+func _is_emote_locked(gs: QuizGameState, is_p2: bool) -> bool:
+	return gs.p2_emote_lock_timer > 0.0 if is_p2 else gs.p1_emote_lock_timer > 0.0
+
+
+func start_thriller_sequence(is_p2: bool) -> void:
+	var rig := _p2_rig if is_p2 else _p1_rig
+	rig.start_thriller_sequence()
+
+
+func reset_thriller_sequence(is_p2: bool) -> void:
+	var rig := _p2_rig if is_p2 else _p1_rig
+	rig.reset_thriller_sequence()
+
+
+func get_loaded_emote_ids(is_p2: bool) -> Array[int]:
+	var rig := _p2_rig if is_p2 else _p1_rig
+	return rig.loaded_emotes.duplicate()
+
+
+func ensure_emote_playback(is_p2: bool, emote_id: int) -> void:
+	var rig := _p2_rig if is_p2 else _p1_rig
+	if not rig.is_rigged:
+		return
+	var norm := EmoteData.normalize_emote_id(emote_id)
+	if EmoteData.is_thriller_emote(norm):
+		if not rig.is_thriller_locked():
+			rig.start_thriller_sequence()
+		return
+	var idx := rig.loaded_emotes.find(norm)
+	if idx < 0 or idx >= AnimationRig.EMOTE_RIG_SLOTS.size():
+		return
+	rig.play_slot(AnimationRig.EMOTE_RIG_SLOTS[idx], true)
+
+
+func _clear_rig_scene_nodes() -> void:
+	for child in get_children():
+		var n := str(child.name)
+		if n.begins_with("P1") or n.begins_with("P2"):
+			child.queue_free()
+
+
+func _apply_p1_rig_animation_fallback(gs: QuizGameState, is_active: bool, walk_phase: float, speed_ratio: float) -> void:
+	var emote_lock := _is_emote_locked(gs, false)
+	if emote_lock and gs.p1_emote > 0:
+		if _p1_rig.select_animation(
+			gs.player_y, false, gs.p1_emote, false, is_active, false, true
+		):
+			_apply_skeleton_pose(p1_parts, _p1_rig.active_skeleton, _p1_rig.active_bone_indices, _p1_rig.mirror_x)
+		else:
+			_animate_emote(p1_parts, gs.p1_emote, false)
+		return
+	if (gs.player_y > 0.01 or gs.p1_jump_trigger) and not (emote_lock and gs.p1_emote > 0):
+		_animate_skeleton(p1_parts, gs.player_y, gs.player_vel_y, is_active, walk_phase, false, 0)
+		return
+	if _p1_rig.select_animation(
+		gs.player_y, gs.p1_jump_trigger, gs.p1_emote if emote_lock else 0,
+		gs.p1_moving_back, is_active, _p1_rig.is_jump_playing(), emote_lock
+	):
+		_apply_skeleton_pose(p1_parts, _p1_rig.active_skeleton, _p1_rig.active_bone_indices, _p1_rig.mirror_x)
+		var run_ap := _p1_rig.aps[AnimationRig.SLOT_RUN] as AnimationPlayer
+		if run_ap and run_ap.is_playing():
+			run_ap.speed_scale = clampf(speed_ratio * gs.p1_run_anim_speed_mult, 0.3, 6.0)
+	else:
+		_animate_skeleton(p1_parts, gs.player_y, gs.player_vel_y, is_active, walk_phase, false, 0)
+
+
+func _apply_p2_rig_animation_fallback(gs: QuizGameState, is_active: bool, walk_phase: float, speed_ratio: float) -> void:
+	var emote_lock := _is_emote_locked(gs, true)
+	if emote_lock and gs.p2_emote > 0:
+		if _p2_rig.select_animation(
+			gs.player2_y, false, gs.p2_emote, false, is_active, false, true
+		):
+			_apply_skeleton_pose(p2_parts, _p2_rig.active_skeleton, _p2_rig.active_bone_indices, _p2_rig.mirror_x)
+		else:
+			_animate_emote(p2_parts, gs.p2_emote, true)
+		return
+	if (gs.player2_y > 0.01 or gs.p2_jump_trigger) and not (emote_lock and gs.p2_emote > 0):
+		_animate_skeleton(p2_parts, gs.player2_y, gs.player2_vel_y, is_active, walk_phase * 1.1, true, 0)
+		return
+	if _p2_rig.select_animation(
+		gs.player2_y, gs.p2_jump_trigger, gs.p2_emote if emote_lock else 0,
+		gs.p2_moving_back, is_active, _p2_rig.is_jump_playing(), emote_lock
+	):
+		_apply_skeleton_pose(p2_parts, _p2_rig.active_skeleton, _p2_rig.active_bone_indices, _p2_rig.mirror_x)
+		var run_ap := _p2_rig.aps[AnimationRig.SLOT_RUN] as AnimationPlayer
+		if run_ap and run_ap.is_playing():
+			run_ap.speed_scale = clampf(speed_ratio * gs.p2_run_anim_speed_mult, 0.3, 6.0)
+	else:
+		_animate_skeleton(p2_parts, gs.player2_y, gs.player2_vel_y, is_active, walk_phase * 1.1, true, 0)
+
+
+func _apply_emote_rig_slots(p1_slots: Array[int], p2_slots: Array[int], loader: Callable) -> void:
 	_p1_rig.load_all(self, loader, p1_slots)
 	_p2_rig.load_all(self, loader, p2_slots)
 	if _p1_rig.is_rigged or _p2_rig.is_rigged:
@@ -492,20 +591,32 @@ func update_from_state(gs: QuizGameState) -> void:
 		_set_parts_visible(p1_parts, true)
 		if not _p1_rig.is_rigged:
 			var p1_is_playing := gs.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]
-			_animate_skeleton(p1_parts, gs.player_y, gs.player_vel_y, p1_is_playing, walk_phase, false, gs.p1_emote)
+			_animate_skeleton(p1_parts, gs.player_y, gs.player_vel_y, p1_is_playing, walk_phase, false, 0)
 		else:
 			var is_active := gs.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]
+			var p1_emote_lock := _is_emote_locked(gs, false)
 			var apply_rig := _p1_rig.select_animation(
 				gs.player_y, gs.p1_jump_trigger, gs.p1_emote,
-				gs.p1_moving_back, is_active, _p1_rig.is_jump_playing())
+				gs.p1_moving_back, is_active, _p1_rig.is_jump_playing(), p1_emote_lock)
 			
 			if apply_rig:
 				_apply_skeleton_pose(p1_parts, _p1_rig.active_skeleton, _p1_rig.active_bone_indices, _p1_rig.mirror_x)
-				var run_ap := _p1_rig.aps[1] as AnimationPlayer # SLOT_RUN
+				var run_ap := _p1_rig.aps[AnimationRig.SLOT_RUN] as AnimationPlayer
 				if run_ap and run_ap.is_playing():
-					run_ap.speed_scale = speed_ratio
+					run_ap.speed_scale = clampf(
+						speed_ratio * gs.p1_run_anim_speed_mult,
+						0.3,
+						6.0
+					)
+			elif p1_emote_lock and gs.p1_emote > 0:
+				if _p1_rig.select_animation(
+					gs.player_y, false, gs.p1_emote, false, is_active, false, true
+				):
+					_apply_skeleton_pose(p1_parts, _p1_rig.active_skeleton, _p1_rig.active_bone_indices, _p1_rig.mirror_x)
+				elif not _p1_rig.is_rigged:
+					_animate_emote(p1_parts, gs.p1_emote, false)
 			else:
-				_animate_skeleton(p1_parts, gs.player_y, gs.player_vel_y, false, walk_phase, false, 0)
+				_apply_p1_rig_animation_fallback(gs, is_active, walk_phase, speed_ratio)
 			# FBXリグモードでもボブルヘッドを更新
 			_update_bobblehead(p1_parts, false, is_active, walk_phase)
 	elif gs.game_over_timer > 0:
@@ -541,20 +652,32 @@ func update_from_state(gs: QuizGameState) -> void:
 			_set_parts_visible(p2_parts, true)
 			if not _p2_rig.is_rigged:
 				var p2_is_playing := gs.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]
-				_animate_skeleton(p2_parts, gs.player2_y, gs.player2_vel_y, p2_is_playing, walk_phase * 1.1, true, gs.p2_emote)
+				_animate_skeleton(p2_parts, gs.player2_y, gs.player2_vel_y, p2_is_playing, walk_phase * 1.1, true, 0)
 			else:
 				var is_active := gs.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]
+				var p2_emote_lock := _is_emote_locked(gs, true)
 				var apply_rig := _p2_rig.select_animation(
 					gs.player2_y, gs.p2_jump_trigger, gs.p2_emote,
-					gs.p2_moving_back, is_active, _p2_rig.is_jump_playing())
+					gs.p2_moving_back, is_active, _p2_rig.is_jump_playing(), p2_emote_lock)
 				
 				if apply_rig:
 					_apply_skeleton_pose(p2_parts, _p2_rig.active_skeleton, _p2_rig.active_bone_indices, _p2_rig.mirror_x)
-					var run_ap := _p2_rig.aps[1] as AnimationPlayer # SLOT_RUN
+					var run_ap := _p2_rig.aps[AnimationRig.SLOT_RUN] as AnimationPlayer
 					if run_ap and run_ap.is_playing():
-						run_ap.speed_scale = speed_ratio
+						run_ap.speed_scale = clampf(
+							speed_ratio * gs.p2_run_anim_speed_mult,
+							0.3,
+							6.0
+						)
+				elif p2_emote_lock and gs.p2_emote > 0:
+					if _p2_rig.select_animation(
+						gs.player2_y, false, gs.p2_emote, false, is_active, false, true
+					):
+						_apply_skeleton_pose(p2_parts, _p2_rig.active_skeleton, _p2_rig.active_bone_indices, _p2_rig.mirror_x)
+					elif not _p2_rig.is_rigged:
+						_animate_emote(p2_parts, gs.p2_emote, true)
 				else:
-					_animate_skeleton(p2_parts, gs.player2_y, gs.player2_vel_y, false, walk_phase * 1.1, true, 0)
+					_apply_p2_rig_animation_fallback(gs, is_active, walk_phase, speed_ratio)
 				# FBXリグモードでもボブルヘッドを更新
 				_update_bobblehead(p2_parts, true, is_active, walk_phase * 1.1)
 		elif gs.player2_game_over_timer > 0:
@@ -1030,17 +1153,37 @@ func _update_explosion(
 # ============================================================
 
 func _animate_emote(parts: Dictionary, emote: int, is_p2: bool = false) -> void:
+	var norm := EmoteData.normalize_emote_id(emote)
+	if norm == EmoteData.EMOTE_NONE:
+		return
 	var t := _time
-	var slots = _p2_rig.loaded_emotes if is_p2 else _p1_rig.loaded_emotes
-	var idx = slots.find(emote)
-	if idx == 0:
-		_emote_floss(t, parts) # Step Hip Hop fallback
-	elif idx == 1:
-		_emote_floss(t * 0.85, parts) # Gangnam fallback
-	elif idx == 2:
-		_emote_floss(t * 1.15, parts) # Slide Hip Hop fallback
-	else:
-		_emote_floss(t * 1.0, parts) # Default fallback
+	match norm:
+		EmoteData.EMOTE_GANGNAM:
+			_emote_floss(t * 0.82, parts)
+		EmoteData.EMOTE_SLIDE_HIP_HOP:
+			_emote_floss(t * 1.18, parts)
+		EmoteData.EMOTE_MOONWALK:
+			_emote_side_groove(t * 0.9, parts, -1.0)
+		EmoteData.EMOTE_FLAIR:
+			_emote_arm_wave(t * 1.25, parts, 1.15)
+		EmoteData.EMOTE_HIP_HOP, EmoteData.EMOTE_HIP_HOP_1:
+			_emote_side_groove(t * 1.05, parts, 1.0)
+		EmoteData.EMOTE_SILLY:
+			_emote_arm_wave(t * 1.35, parts, 0.75)
+		EmoteData.EMOTE_SWING:
+			_emote_side_groove(t * 0.75, parts, -0.85)
+		EmoteData.EMOTE_THRILLER:
+			_emote_arm_wave(t * 0.95, parts, 1.35)
+		EmoteData.EMOTE_YMCA:
+			_emote_arm_wave(t * 1.1, parts, 1.0)
+		EmoteData.EMOTE_HOUSE:
+			_emote_floss(t * 1.4, parts)
+		EmoteData.EMOTE_HEAD_SPINNING:
+			_emote_side_groove(t * 1.55, parts, 1.25)
+		EmoteData.EMOTE_RUNNING_MAN:
+			_emote_floss(t * 1.25, parts)
+		_:
+			_emote_floss(t, parts)
 
 
 # --- Emote 1: Floss Dance ---
@@ -1102,6 +1245,46 @@ func _emote_floss(t: float, parts: Dictionary) -> void:
 	l_knee.rotation.x = abs(leg_phase) * 0.2
 	r_hip.rotation.x = -leg_phase * 0.15
 	r_knee.rotation.x = abs(-leg_phase) * 0.2
+
+
+func _emote_side_groove(t: float, parts: Dictionary, sway_sign: float) -> void:
+	var pelvis: Node3D = parts["pelvis"]
+	var spine_node: Node3D = parts["spine"]
+	var head: Node3D = parts["head_pivot"]
+	var l_shoulder: Node3D = parts["l_shoulder"]
+	var r_shoulder: Node3D = parts["r_shoulder"]
+	var l_hip: Node3D = parts["l_hip"]
+	var r_hip: Node3D = parts["r_hip"]
+	var phase := t * 7.5
+	var sway := sin(phase) * 0.55 * sway_sign
+	pelvis.position.y = BASE_Y + 0.9 + abs(sin(phase * 2.0)) * 0.1
+	pelvis.rotation.y = sway
+	spine_node.rotation.y = -sway * 0.35
+	head.rotation.y = sway * 0.2
+	l_shoulder.rotation.z = sway * 0.55
+	r_shoulder.rotation.z = -sway * 0.55
+	l_hip.rotation.x = sin(phase + 0.4) * 0.22
+	r_hip.rotation.x = -sin(phase + 0.4) * 0.22
+
+
+func _emote_arm_wave(t: float, parts: Dictionary, amp: float) -> void:
+	var pelvis: Node3D = parts["pelvis"]
+	var spine_node: Node3D = parts["spine"]
+	var head: Node3D = parts["head_pivot"]
+	var l_shoulder: Node3D = parts["l_shoulder"]
+	var r_shoulder: Node3D = parts["r_shoulder"]
+	var l_elbow: Node3D = parts["l_elbow"]
+	var r_elbow: Node3D = parts["r_elbow"]
+	var phase := t * 6.0
+	var wave := sin(phase) * amp
+	pelvis.position.y = BASE_Y + 0.9 + abs(cos(phase)) * 0.07
+	pelvis.rotation.y = sin(phase * 0.5) * 0.25
+	spine_node.rotation.x = -0.06
+	head.rotation.x = sin(phase * 2.0) * 0.08
+	l_shoulder.rotation.x = -0.4 + wave * 0.35
+	r_shoulder.rotation.x = -0.4 - wave * 0.35
+	l_elbow.rotation.x = -0.55 + abs(wave) * 0.25
+	r_elbow.rotation.x = -0.55 + abs(wave) * 0.25
 
 
 # --- Emote 2: Kazotsky Kick (Squat Dance) ---

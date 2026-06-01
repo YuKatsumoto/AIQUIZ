@@ -12,6 +12,12 @@ extends Node3D
 var _time: float = 0.0
 var _go_timer: float = 0.0
 var _prev_state: String = ""
+var _entry_start_eye: Vector3 = Vector3.ZERO
+var _entry_start_look: Vector3 = Vector3.ZERO
+var _entry_blend_active: bool = false
+var _entry_blend_t: float = 0.0
+
+const ENTRY_BLEND_DURATION := 0.95
 
 func _ready() -> void:
 	if not camera:
@@ -22,6 +28,7 @@ func _ready() -> void:
 	camera.fov = 44.0
 	camera.near = 0.1
 	camera.far = 500.0
+	_consume_transition_camera_pose()
 
 func update_camera(gs: QuizGameState, dt: float) -> void:
 	# フライオーバー→カウントダウン遷移時にbobタイマーをリセット
@@ -229,6 +236,15 @@ func _update_preload_camera(gs: QuizGameState, _dt: float) -> void:
 	var eye := end_pos - view_dir * pullback_distance
 	var look_at_pos := end_look - view_dir * pullback_distance
 
+	if _entry_blend_active:
+		_entry_blend_t += _dt
+		var progress: float = clampf(_entry_blend_t / ENTRY_BLEND_DURATION, 0.0, 1.0)
+		var eased: float = _ease_smooth(progress)
+		eye = _entry_start_eye.lerp(eye, eased)
+		look_at_pos = _entry_start_look.lerp(look_at_pos, eased)
+		if progress >= 1.0:
+			_entry_blend_active = false
+
 	if gs.camera_shake > 0.0:
 		var shake_ox: float = (randf() - 0.5) * gs.camera_shake
 		var shake_oy: float = (randf() - 0.5) * gs.camera_shake
@@ -242,6 +258,18 @@ func _update_preload_camera(gs: QuizGameState, _dt: float) -> void:
 	camera.fov = 66.0
 	camera.global_position = eye
 	camera.look_at(look_at_pos, Vector3.UP)
+
+func _consume_transition_camera_pose() -> void:
+	var pose: Dictionary = SceneTransition.consume_start_camera_pose()
+	if pose.is_empty():
+		return
+	var eye: Variant = pose.get("eye", Vector3.ZERO)
+	var look: Variant = pose.get("look", Vector3.ZERO)
+	if eye is Vector3 and look is Vector3:
+		_entry_start_eye = eye
+		_entry_start_look = look
+		_entry_blend_active = true
+		_entry_blend_t = 0.0
 
 
 ## Quintic ease-in-out (滑らかな加速/減速)

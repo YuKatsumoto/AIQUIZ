@@ -101,6 +101,9 @@ var p2_alive: bool = true
 var p2_emote: int = 0
 var p1_moving_back: bool = false
 var p2_moving_back: bool = false
+## 走行FBXの speed_scale 倍率（メニュープレビュー前進時など）
+var p1_run_anim_speed_mult: float = 1.0
+var p2_run_anim_speed_mult: float = 1.0
 var p1_emote_lock_timer: float = 0.0
 var p2_emote_lock_timer: float = 0.0
 var p1_hat: int = 0
@@ -108,8 +111,8 @@ var p2_hat: int = 0
 var p1_emote_selected: int = 0  # メニューで選択したデフォルトエモートID
 var p2_emote_selected: int = 0
 # エモートスロット: P1はキー1,2,3 / P2はキー8,9,0 にそれぞれエモートIDを割り当て
-var p1_emote_slots: Array[int] = [1, 2, 3]  # デフォルト: Step Hip Hop, Gangnam, Slide
-var p2_emote_slots: Array[int] = [1, 2, 3]
+var p1_emote_slots: Array[int] = [1, 5, 13]  # Step Hip Hop, Moonwalk, YMCA
+var p2_emote_slots: Array[int] = [2, 8, 17]  # Gangnam, Swing, Running Man
 
 var player2_game_over_timer: float = 0.0
 

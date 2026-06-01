@@ -259,6 +259,8 @@ func break_door(door_index: int) -> void:
 	if door_index < 0 or door_index >= doors.size():
 		return
 	var door := doors[door_index]
+	if not door.visible:
+		return
 	var door_color: Color = Color.WHITE
 	if door.material_override:
 		door_color = door.material_override.albedo_color
@@ -280,8 +282,10 @@ func break_door(door_index: int) -> void:
 			sp.emitting = false
 
 	# Spawn debris chunks — fine fragmentation
-	var chunks_x := 4
-	var chunks_y := 5
+	var vp := door.get_viewport()
+	var is_preview_subviewport := vp is SubViewport
+	var chunks_x := 2 if is_preview_subviewport else 4
+	var chunks_y := 2 if is_preview_subviewport else 5
 	var chunk_size := Vector3(door_size.x / chunks_x, door_size.y / chunks_y, door_size.z)
 
 	for cx: int in range(chunks_x):
@@ -320,9 +324,6 @@ func break_door(door_index: int) -> void:
 			chunk.collision_mask = 1
 
 			get_parent().add_child(chunk)
-
-			var vp := chunk.get_viewport()
-			var is_preview_subviewport := vp is SubViewport
 
 			if is_preview_subviewport:
 				# 扉欠片だけ強めに弾け、短いTweenで縮小消滅（カメラ縮小処理とは別）
@@ -468,21 +469,48 @@ func _shatter_mesh(mesh_inst: MeshInstance3D, direction_z: float) -> void:
 			
 			get_parent().add_child(chunk)
 			
-			# 進行方向（direction_z）へ爆散させる
-			var impulse_x: float = (randf() - 0.5) * 30.0 # 左右への強い散らばり
-			var impulse_y: float = randf_range(5.0, 25.0) # 上方向への強い吹き飛ばし
-			var impulse_z: float = randf_range(10.0, 40.0) * direction_z # 指定方向へ大きく飛ばす
-			
-			var impulse := Vector3(impulse_x, impulse_y, impulse_z)
-			chunk.apply_central_impulse(impulse)
-			chunk.apply_torque_impulse(Vector3(
-				(randf() - 0.5) * 40.0,
-				(randf() - 0.5) * 40.0,
-				(randf() - 0.5) * 40.0
-			))
-			
-			# 縮小しながら消滅する演出
-			var tween := chunk.create_tween()
-			tween.tween_interval(1.5)
-			tween.tween_property(cmi, "scale", Vector3.ZERO, 1.0).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
-			tween.tween_callback(chunk.queue_free)
+			var vp := chunk.get_viewport()
+			var is_preview_subviewport := vp is SubViewport
+			if is_preview_subviewport:
+				chunk.set_meta("preview_door_shard", true)
+				chunk.mass = 1.1
+				chunk.gravity_scale = 2.2
+				chunk.linear_damp = 0.12
+				chunk.angular_damp = 0.16
+				chunk.apply_central_impulse(
+					Vector3(
+						randf_range(-2.8, 2.8),
+						randf_range(0.5, 3.4),
+						randf_range(12.0, 24.0) * direction_z,
+					)
+				)
+				chunk.apply_torque_impulse(
+					Vector3(
+						randf_range(-4.0, 4.0),
+						randf_range(-3.0, 3.0),
+						randf_range(-4.0, 4.0),
+					)
+				)
+				var vanish_tw := chunk.create_tween()
+				vanish_tw.tween_interval(0.25)
+				vanish_tw.tween_property(cmi, "scale", Vector3.ZERO, 0.38).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+				vanish_tw.tween_callback(chunk.queue_free)
+			else:
+				# 進行方向（direction_z）へ爆散させる
+				var impulse_x: float = (randf() - 0.5) * 30.0 # 左右への強い散らばり
+				var impulse_y: float = randf_range(5.0, 25.0) # 上方向への強い吹き飛ばし
+				var impulse_z: float = randf_range(10.0, 40.0) * direction_z # 指定方向へ大きく飛ばす
+				
+				var impulse := Vector3(impulse_x, impulse_y, impulse_z)
+				chunk.apply_central_impulse(impulse)
+				chunk.apply_torque_impulse(Vector3(
+					(randf() - 0.5) * 40.0,
+					(randf() - 0.5) * 40.0,
+					(randf() - 0.5) * 40.0
+				))
+				
+				# 縮小しながら消滅する演出
+				var tween := chunk.create_tween()
+				tween.tween_interval(1.5)
+				tween.tween_property(cmi, "scale", Vector3.ZERO, 1.0).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+				tween.tween_callback(chunk.queue_free)

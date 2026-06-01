@@ -79,19 +79,7 @@ var _floor_collision_body: StaticBody3D = null
 var _recorder: ReplayRecorder = null
 var _replay_mode: bool = false
 
-# ── メニュー背景プレビュー ──
-var _menu_preview: bool = false
-var _menu_scroll_z: float = 0.0
-const MENU_PREVIEW_SCROLL_SPEED := 2.5
-const MENU_PREVIEW_CAMERA_EYE := Vector3(0.0, 1.2, -14.0)
-const MENU_PREVIEW_CAMERA_LOOK := Vector3(0.0, 1.0, 10.0)
-
 func _ready() -> void:
-	_menu_preview = get_meta("menu_preview", false)
-	if _menu_preview:
-		_ready_menu_preview()
-		return
-
 	game_state = QuizManager.game_state
 	quiz_wall_scene = preload("res://scenes/quiz_wall.tscn")
 
@@ -126,29 +114,6 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_build_pause_menu()
 	call_deferred("_reveal_after_transition")
-
-func _ready_menu_preview() -> void:
-	_setup_environment()
-	_setup_lighting()
-	_setup_floor_conveyor()
-	_setup_magma()
-
-	player_node.visible = false
-	wall_container.visible = false
-	particle_spawner.set_process(false)
-
-	var hud := get_node_or_null("GameplayHUD")
-	if hud:
-		hud.queue_free()
-	var death_layer := get_node_or_null("DeathWipeLayer")
-	if death_layer:
-		death_layer.queue_free()
-
-	var menu_cam: Camera3D = camera_controller.get_node("Camera3D") as Camera3D
-	menu_cam.current = true
-	menu_cam.fov = 44.0
-	menu_cam.global_position = MENU_PREVIEW_CAMERA_EYE
-	menu_cam.look_at(MENU_PREVIEW_CAMERA_LOOK, Vector3.UP)
 
 func _reveal_after_transition() -> void:
 	SceneTransition.reveal_current()
@@ -348,10 +313,6 @@ func _setup_lighting() -> void:
 	directional_light.shadow_enabled = true
 
 func _process(dt: float) -> void:
-	if _menu_preview:
-		_process_menu_preview(dt)
-		return
-
 	if not game_state or get_tree().paused:
 		return
 
@@ -462,18 +423,6 @@ func _process(dt: float) -> void:
 			game_state.reset_to_menu()
 			get_tree().change_scene_to_file("res://ui/main_menu.tscn")
 
-func _process_menu_preview(dt: float) -> void:
-	_menu_scroll_z += MENU_PREVIEW_SCROLL_SPEED * dt
-	if not _floor_belt_material:
-		return
-	_floor_belt_material.set_shader_parameter("scroll_z", _menu_scroll_z)
-	if _conveyor_roller_front_material:
-		_conveyor_roller_front_material.set_shader_parameter("scroll_z", _menu_scroll_z)
-	if _conveyor_roller_back_material:
-		_conveyor_roller_back_material.set_shader_parameter("scroll_z", _menu_scroll_z)
-	if _conveyor_return_material:
-		_conveyor_return_material.set_shader_parameter("scroll_z", _menu_scroll_z)
-
 func _setup_floor_conveyor() -> void:
 	if not floor_mesh:
 		return
@@ -487,8 +436,7 @@ func _setup_floor_conveyor() -> void:
 	floor_mesh.material_override = _floor_belt_material
 	_setup_floor_rails()
 	_setup_conveyor_loop_geometry()
-	if not _menu_preview:
-		_setup_floor_collision()
+	_setup_floor_collision()
 
 func _setup_floor_collision() -> void:
 	if not floor_mesh:
