@@ -287,7 +287,6 @@ func _begin_scene_change(path: String) -> void:
 		get_tree().change_scene_to_file(path)
 
 func _hold_menu_frame_before_scene_change() -> void:
-	_capture_menu_camera_pose_for_next_scene()
 	if not live_viewport:
 		SceneTransition.hold_color()
 		return
@@ -300,19 +299,6 @@ func _hold_menu_frame_before_scene_change() -> void:
 		SceneTransition.hold_color()
 		return
 	SceneTransition.hold_image_texture(ImageTexture.create_from_image(frame_image))
-
-func _capture_menu_camera_pose_for_next_scene() -> void:
-	if not _menu_wall_preview:
-		return
-	if not _menu_wall_preview.has_method("get_camera"):
-		return
-	var cam: Camera3D = _menu_wall_preview.get_camera() as Camera3D
-	if not cam:
-		return
-	var eye: Vector3 = cam.global_position
-	var forward: Vector3 = -cam.global_basis.z
-	var look: Vector3 = eye + forward * 10.0
-	SceneTransition.set_start_camera_pose(eye, look)
 
 func _set_all_buttons_disabled(disabled: bool) -> void:
 	for btn: Button in _get_all_buttons(self):
@@ -660,6 +646,8 @@ func _update_subject_carousel() -> void:
 
 
 func _on_start_pressed() -> void:
+	if _menu_exit_in_progress:
+		return
 	_hide_coop_mode_if_disabled()
 	if game_state.num_players == 3:
 		# オンライン対戦: ロビー画面へ

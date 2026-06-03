@@ -14,10 +14,14 @@ var _go_timer: float = 0.0
 var _prev_state: String = ""
 var _entry_start_eye: Vector3 = Vector3.ZERO
 var _entry_start_look: Vector3 = Vector3.ZERO
+var _entry_start_quat: Quaternion = Quaternion.IDENTITY
+var _entry_start_fov: float = 44.0
+var _entry_start_h_offset: float = 0.0
 var _entry_blend_active: bool = false
 var _entry_blend_t: float = 0.0
 
 const ENTRY_BLEND_DURATION := 0.95
+const PRELOAD_CAMERA_FOV := 66.0
 
 func _ready() -> void:
 	if not camera:
@@ -29,6 +33,12 @@ func _ready() -> void:
 	camera.near = 0.1
 	camera.far = 500.0
 	_consume_transition_camera_pose()
+
+func wait_for_entry_blend() -> void:
+	if not _entry_blend_active:
+		return
+	while _entry_blend_active and is_inside_tree():
+		await get_tree().process_frame
 
 func update_camera(gs: QuizGameState, dt: float) -> void:
 	# フライオーバー→カウントダウン遷移時にbobタイマーをリセット
@@ -233,17 +243,27 @@ func _update_preload_camera(gs: QuizGameState, _dt: float) -> void:
 
 	var pullback_distance := 14.0
 	var view_dir := (end_look - end_pos).normalized()
-	var eye := end_pos - view_dir * pullback_distance
-	var look_at_pos := end_look - view_dir * pullback_distance
+	var target_eye := end_pos - view_dir * pullback_distance
+	var target_look := end_look - view_dir * pullback_distance
+	var target_quat := _quat_look_at(target_eye, target_look)
+	var eye := target_eye
+	var look_at_pos := target_look
+	var fov := PRELOAD_CAMERA_FOV
+	var h_offset := 0.0
 
 	if _entry_blend_active:
 		_entry_blend_t += _dt
 		var progress: float = clampf(_entry_blend_t / ENTRY_BLEND_DURATION, 0.0, 1.0)
 		var eased: float = _ease_smooth(progress)
-		eye = _entry_start_eye.lerp(eye, eased)
-		look_at_pos = _entry_start_look.lerp(look_at_pos, eased)
+		eye = _entry_start_eye.lerp(target_eye, eased)
+		camera.quaternion = _entry_start_quat.slerp(target_quat, eased)
+		fov = lerpf(_entry_start_fov, PRELOAD_CAMERA_FOV, eased)
+		h_offset = lerpf(_entry_start_h_offset, 0.0, eased)
 		if progress >= 1.0:
 			_entry_blend_active = false
+			look_at_pos = target_look
+	else:
+		camera.quaternion = target_quat
 
 	if gs.camera_shake > 0.0:
 		var shake_ox: float = (randf() - 0.5) * gs.camera_shake
@@ -255,9 +275,11 @@ func _update_preload_camera(gs: QuizGameState, _dt: float) -> void:
 		look_at_pos.x += shake_ox * 0.5
 		look_at_pos.y += shake_oy * 0.5
 
-	camera.fov = 66.0
+	camera.fov = fov
+	camera.h_offset = h_offset
 	camera.global_position = eye
-	camera.look_at(look_at_pos, Vector3.UP)
+	if not _entry_blend_active:
+		camera.look_at(look_at_pos, Vector3.UP)
 
 func _consume_transition_camera_pose() -> void:
 	var pose: Dictionary = SceneTransition.consume_start_camera_pose()
@@ -265,11 +287,35 @@ func _consume_transition_camera_pose() -> void:
 		return
 	var eye: Variant = pose.get("eye", Vector3.ZERO)
 	var look: Variant = pose.get("look", Vector3.ZERO)
-	if eye is Vector3 and look is Vector3:
-		_entry_start_eye = eye
-		_entry_start_look = look
-		_entry_blend_active = true
-		_entry_blend_t = 0.0
+	if not (eye is Vector3 and look is Vector3):
+		return
+	_entry_start_eye = eye
+	_entry_start_look = look
+	_entry_start_quat = _quat_look_at(_entry_start_eye, _entry_start_look)
+	_entry_start_fov = float(pose.get("fov", camera.fov))
+	_entry_start_h_offset = float(pose.get("h_offset", camera.h_offset))
+	_entry_blend_active = true
+	_entry_blend_t = 0.0
+	camera.global_position = _entry_start_eye
+	camera.quaternion = _entry_start_quat
+	camera.fov = _entry_start_fov
+	camera.h_offset = _entry_start_h_offset
+
+
+func _quat_look_at(origin: Vector3, look_target: Vector3) -> Quaternion:
+	var dir: Vector3 = origin.direction_to(look_target)
+	if dir.length_squared() < 1e-8:
+		return Quaternion.IDENTITY
+	var up: Vector3 = Vector3.UP
+	if absf(dir.dot(up)) > 0.998:
+		up = Vector3.RIGHT
+	var z_axis: Vector3 = -dir
+	var x_axis: Vector3 = up.cross(z_axis)
+	if x_axis.length_squared() < 1e-8:
+		x_axis = Vector3.FORWARD.cross(z_axis)
+	x_axis = x_axis.normalized()
+	var y_axis: Vector3 = z_axis.cross(x_axis).normalized()
+	return Basis(x_axis, y_axis, z_axis).get_rotation_quaternion()
 
 
 ## Quintic ease-in-out (滑らかな加速/減速)

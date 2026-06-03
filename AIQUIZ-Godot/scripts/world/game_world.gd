@@ -4,13 +4,12 @@ extends Node3D
 ## Python版 renderer.py の _draw_world + main_3d.py の入力処理に相当
 
 @onready var camera_controller: Node3D = $CameraController
-@onready var floor_mesh: MeshInstance3D = $Floor
 @onready var player_node: Node3D = $Player
 @onready var wall_container: Node3D = $WallContainer
 @onready var particle_spawner: Node3D = $ParticleSpawner
-@onready var environment_node: WorldEnvironment = $WorldEnvironment
-@onready var directional_light: DirectionalLight3D = $DirectionalLight3D
-const CONVEYOR_FLOOR_SHADER: Shader = preload("res://shaders/conveyor_belt_floor.gdshader")
+
+## 共有ステージ（床・コンベア・マグマ・環境・照明）。メニュープレビューと同一の StageEnvironment。
+var stage_env: StageEnvironment = null
 
 var game_state: QuizGameState
 var _net_state: NetGameState = null
@@ -42,38 +41,8 @@ var _barrier_dropping: bool = false
 var _barrier_drop_timer: float = 0.0
 var _barrier_spawned_for_session: bool = false  # 1ゲームに1回だけ
 const MAX_VISIBLE_WALLS := 4
-const BG_COLOR := Color(0.82, 0.85, 0.90)
-const FLOOR_COLOR := Color(0.35, 0.35, 0.35)
-const FLOOR_HALF_WIDTH: float = 12.0
-const FLOOR_TOP_Y: float = -1.2
-const FLOOR_RAIL_HEIGHT: float = 0.26
-const FLOOR_RAIL_WIDTH: float = 0.16
-const FLOOR_RAIL_INSET: float = 0.06
-const CONVEYOR_BELT_BASE_COLOR := Color(0.40, 0.41, 0.42, 1.0)
-const CONVEYOR_BELT_STRIPE_COLOR := Color(0.34, 0.345, 0.35, 1.0)
-const CONVEYOR_BELT_SIDE_COLOR := Color(0.33, 0.34, 0.35, 1.0)
-const CONVEYOR_ROLLER_RADIUS: float = 0.48
-const CONVEYOR_ROLLER_LENGTH: float = 23.4
-const CONVEYOR_RETURN_BELT_THICKNESS: float = 0.10
-const CONVEYOR_RETURN_BELT_GAP: float = 0.03
-const CONVEYOR_SIDE_FRAME_WIDTH: float = 0.24
-const CONVEYOR_SIDE_FRAME_HEIGHT: float = 1.05
-const CONVEYOR_SIDE_FRAME_OVERHANG: float = 1.2
-const CONVEYOR_SIDE_FRAME_TOP_CLEARANCE: float = 0.26
 
 var pause_menu: CanvasLayer = null
-var _floor_belt_material: ShaderMaterial = null
-var _floor_rail_left: MeshInstance3D = null
-var _floor_rail_right: MeshInstance3D = null
-var _conveyor_roller_front: MeshInstance3D = null
-var _conveyor_roller_back: MeshInstance3D = null
-var _conveyor_return_belt: MeshInstance3D = null
-var _conveyor_return_material: ShaderMaterial = null
-var _conveyor_roller_front_material: ShaderMaterial = null
-var _conveyor_roller_back_material: ShaderMaterial = null
-var _conveyor_side_frame_left: MeshInstance3D = null
-var _conveyor_side_frame_right: MeshInstance3D = null
-var _floor_collision_body: StaticBody3D = null
 
 # ── リプレイ記録 ──
 var _recorder: ReplayRecorder = null
@@ -104,11 +73,17 @@ func _ready() -> void:
 	add_child(_net_state)
 	_net_state.setup(game_state)
 
-	# Setup environment
-	_setup_environment()
-	_setup_lighting()
-	_setup_floor_conveyor()
-	_setup_magma()
+	# Setup shared stage (environment / lighting / floor / conveyor / magma)
+	stage_env = StageEnvironment.new()
+	add_child(stage_env)
+	stage_env.build({
+		"floor_center_z": 4.0,
+		"floor_length": 160.0,
+		"scroll_sign": 1.0,
+		"return_scroll_sign": -1.0,
+		"include_back_roller": true,
+		"include_floor_collision": true,
+	})
 
 	# Pause menu setup
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -117,200 +92,6 @@ func _ready() -> void:
 
 func _reveal_after_transition() -> void:
 	SceneTransition.reveal_current()
-
-const MAGMA_SHADER = """
-shader_type spatial;
-render_mode blend_mix, depth_draw_opaque, cull_back, diffuse_lambert;
-
-// --- Uniforms ---
-uniform vec3 deep_color : source_color = vec3(0.15, 0.02, 0.0);
-uniform vec3 mid_color : source_color = vec3(0.85, 0.18, 0.0);
-uniform vec3 hot_color : source_color = vec3(1.0, 0.65, 0.0);
-uniform vec3 white_hot : source_color = vec3(1.0, 0.95, 0.6);
-uniform float flow_speed : hint_range(0.0, 2.0) = 0.35;
-uniform float voronoi_scale : hint_range(1.0, 40.0) = 8.0;
-uniform float emission_intensity : hint_range(0.0, 8.0) = 1.5;
-uniform float wave_height : hint_range(0.0, 3.0) = 1.2;
-uniform float roughness_val : hint_range(0.0, 1.0) = 0.35;
-uniform sampler2D noise_tex;
-uniform sampler2D noise_tex2;
-
-varying float v_height;
-varying float v_flow;
-
-// --- Voronoi ---
-vec2 random2D(vec2 p) {
-	return fract(sin(vec2(
-		dot(p, vec2(127.1, 311.7)),
-		dot(p, vec2(269.5, 183.3))
-	)) * 43758.5453);
-}
-
-float voronoi(vec2 pos, float t) {
-	vec2 p = floor(pos);
-	vec2 f = fract(pos);
-	float res = 0.0;
-	for (int j = -1; j <= 1; j++) {
-		for (int i = -1; i <= 1; i++) {
-			vec2 b = vec2(float(i), float(j));
-			vec2 pnt = random2D(p + b);
-			pnt = 0.5 + 0.5 * sin(t + 6.2831 * pnt);
-			vec2 r = vec2(b) - f + pnt;
-			float d = dot(r, r);
-			res += exp(-18.0 * d);
-		}
-	}
-	return clamp(-(1.0 / 18.0) * log(max(res, 1e-6)), 0.0, 1.0);
-}
-
-void vertex() {
-	float t = TIME * flow_speed;
-
-	// Sample noise for organic waves
-	vec2 uv1 = VERTEX.xz * 0.008 + vec2(t * 0.3, t * 0.2);
-	vec2 uv2 = VERTEX.xz * 0.015 + vec2(-t * 0.15, t * 0.25);
-	float n1 = texture(noise_tex, uv1).r;
-	float n2 = texture(noise_tex2, uv2).r;
-
-	// Large slow waves
-	float wave1 = sin(VERTEX.x * 0.25 + TIME * 0.8) * cos(VERTEX.z * 0.2 + TIME * 0.6) * 0.6;
-	float wave2 = sin(VERTEX.x * 0.08 - TIME * 0.5) * sin(VERTEX.z * 0.12 + TIME * 0.3) * 0.8;
-
-	// Noise-driven displacement
-	float noise_disp = (n1 * 0.7 + n2 * 0.3) * wave_height;
-
-	// Bubbling hotspots
-	float bx = sin(VERTEX.x * 1.2 + TIME * 2.5);
-	float bz = cos(VERTEX.z * 1.2 - TIME * 2.0);
-	float bubbles = pow(abs(bx * bz), 8.0) * 0.6;
-
-	float total = wave1 + wave2 + noise_disp + bubbles;
-	VERTEX.y += total;
-	v_height = total;
-	v_flow = n1 * 0.6 + n2 * 0.4;
-}
-
-void fragment() {
-	float t = TIME * flow_speed;
-
-	// Voronoi for crack patterns
-	vec2 uv_v = UV * voronoi_scale + vec2(t * 0.4, -t * 0.3);
-	float v1 = voronoi(uv_v, TIME * 2.0);
-	float v2 = voronoi(uv_v * 0.5 + vec2(5.0, 3.0), TIME * 1.5);
-	float cracks = v1 * 0.7 + v2 * 0.3;
-
-	// Flow noise for organic movement
-	vec2 fuv1 = UV * 3.0 + vec2(t * 0.6, t * 0.4);
-	vec2 fuv2 = UV * 5.0 + vec2(-t * 0.3, t * 0.5);
-	float fn1 = texture(noise_tex, fuv1).r;
-	float fn2 = texture(noise_tex2, fuv2).r;
-	float flow = fn1 * 0.6 + fn2 * 0.4;
-
-	// Combine: cracks reveal hot interior, surface is cooler crust
-	float heat = clamp(cracks * 1.2 + flow * 0.3 + v_height * 0.15, 0.0, 1.0);
-
-	// 4-stop color gradient: deep -> mid -> hot -> white-hot
-	vec3 col;
-	if (heat < 0.3) {
-		col = mix(deep_color, mid_color, heat / 0.3);
-	} else if (heat < 0.6) {
-		col = mix(mid_color, hot_color, (heat - 0.3) / 0.3);
-	} else {
-		col = mix(hot_color, white_hot, clamp((heat - 0.6) / 0.4, 0.0, 1.0));
-	}
-
-	// Pulsing glow on hotspots
-	float pulse = 1.0 + sin(TIME * 3.0) * 0.08;
-
-	ALBEDO = col;
-	EMISSION = col * emission_intensity * heat * pulse;
-	ROUGHNESS = roughness_val + (1.0 - heat) * 0.4;
-	METALLIC = 0.0;
-}
-"""
-
-func _setup_magma() -> void:
-	var magma_mesh := MeshInstance3D.new()
-	var plane := PlaneMesh.new()
-	plane.size = Vector2(800.0, 800.0)
-	plane.subdivide_width = 200
-	plane.subdivide_depth = 200
-	magma_mesh.mesh = plane
-	magma_mesh.position = Vector3(0, -10.0, 150.0)
-	magma_mesh.custom_aabb = AABB(Vector3(-400, -10, -400), Vector3(800, 20, 800))
-
-	var mat := ShaderMaterial.new()
-	mat.shader = Shader.new()
-	mat.shader.code = MAGMA_SHADER
-
-	# Procedural noise texture 1 (Perlin-like)
-	var noise1 := NoiseTexture2D.new()
-	var fnl1 := FastNoiseLite.new()
-	fnl1.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
-	fnl1.frequency = 0.01
-	fnl1.fractal_octaves = 4
-	fnl1.fractal_lacunarity = 2.0
-	fnl1.fractal_gain = 0.5
-	noise1.noise = fnl1
-	noise1.seamless = true
-	noise1.width = 512
-	noise1.height = 512
-	mat.set_shader_parameter("noise_tex", noise1)
-
-	# Procedural noise texture 2 (Cellular for cracks)
-	var noise2 := NoiseTexture2D.new()
-	var fnl2 := FastNoiseLite.new()
-	fnl2.noise_type = FastNoiseLite.TYPE_CELLULAR
-	fnl2.frequency = 0.015
-	fnl2.fractal_octaves = 3
-	fnl2.cellular_distance_function = FastNoiseLite.DISTANCE_EUCLIDEAN
-	fnl2.cellular_return_type = FastNoiseLite.RETURN_DISTANCE
-	noise2.noise = fnl2
-	noise2.seamless = true
-	noise2.width = 512
-	noise2.height = 512
-	mat.set_shader_parameter("noise_tex2", noise2)
-
-	magma_mesh.material_override = mat
-	add_child(magma_mesh)
-
-func _setup_environment() -> void:
-	var env := Environment.new()
-	env.background_mode = Environment.BG_COLOR
-	env.background_color = BG_COLOR
-	env.ambient_light_color = Color(0.30, 0.32, 0.35)
-	env.ambient_light_energy = 1.0
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-
-	# Fog
-	env.fog_enabled = true
-	env.fog_light_color = BG_COLOR
-	env.fog_density = 0.012
-	env.fog_aerial_perspective = 0.5
-
-	# Tonemap
-	env.tonemap_mode = Environment.TONE_MAPPER_ACES
-	env.tonemap_white = 6.0
-
-	# Glow (for magma emission bloom)
-	env.glow_enabled = true
-	env.glow_intensity = 0.5
-	env.glow_strength = 0.8
-	env.glow_bloom = 0.05
-	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_SOFTLIGHT
-	env.glow_hdr_threshold = 0.8
-	env.set_glow_level(0, true)
-	env.set_glow_level(1, true)
-	env.set_glow_level(2, true)
-	env.set_glow_level(3, false)
-
-	environment_node.environment = env
-
-func _setup_lighting() -> void:
-	directional_light.rotation_degrees = Vector3(-50, -20, 0)
-	directional_light.light_color = Color(0.90, 0.92, 0.95)
-	directional_light.light_energy = 1.2
-	directional_light.shadow_enabled = true
 
 func _process(dt: float) -> void:
 	if not game_state or get_tree().paused:
@@ -423,248 +204,9 @@ func _process(dt: float) -> void:
 			game_state.reset_to_menu()
 			get_tree().change_scene_to_file("res://ui/main_menu.tscn")
 
-func _setup_floor_conveyor() -> void:
-	if not floor_mesh:
-		return
-	_floor_belt_material = ShaderMaterial.new()
-	_floor_belt_material.shader = CONVEYOR_FLOOR_SHADER
-	_floor_belt_material.set_shader_parameter("scroll_z", 0.0)
-	_floor_belt_material.set_shader_parameter("scroll_sign", 1.0)
-	_floor_belt_material.set_shader_parameter("base_color", CONVEYOR_BELT_BASE_COLOR)
-	_floor_belt_material.set_shader_parameter("stripe_color", CONVEYOR_BELT_STRIPE_COLOR)
-	_floor_belt_material.set_shader_parameter("side_color", CONVEYOR_BELT_SIDE_COLOR)
-	floor_mesh.material_override = _floor_belt_material
-	_setup_floor_rails()
-	_setup_conveyor_loop_geometry()
-	_setup_floor_collision()
-
-func _setup_floor_collision() -> void:
-	if not floor_mesh:
-		return
-	var floor_box: BoxMesh = floor_mesh.mesh as BoxMesh
-	if not floor_box:
-		return
-	_floor_collision_body = StaticBody3D.new()
-	_floor_collision_body.collision_layer = 1
-	_floor_collision_body.collision_mask = 0
-	var col := CollisionShape3D.new()
-	var shape := BoxShape3D.new()
-	shape.size = Vector3(floor_box.size.x, 0.5, floor_box.size.z)
-	col.shape = shape
-	_floor_collision_body.add_child(col)
-	# 床上面がFLOOR_TOP_Yに一致するように配置（floor_meshの子として相対座標）
-	_floor_collision_body.position = Vector3(0, -0.25, 0)
-	floor_mesh.add_child(_floor_collision_body)
-
 func _update_floor_conveyor() -> void:
-	if not _floor_belt_material:
-		return
-	_floor_belt_material.set_shader_parameter("scroll_z", game_state.world_scroll_z)
-	if _conveyor_roller_front_material:
-		_conveyor_roller_front_material.set_shader_parameter("scroll_z", game_state.world_scroll_z)
-	if _conveyor_roller_back_material:
-		_conveyor_roller_back_material.set_shader_parameter("scroll_z", game_state.world_scroll_z)
-	if _conveyor_return_material:
-		_conveyor_return_material.set_shader_parameter("scroll_z", game_state.world_scroll_z)
-
-func _setup_floor_rails() -> void:
-	var rail_mesh := BoxMesh.new()
-	rail_mesh.size = Vector3(FLOOR_RAIL_WIDTH, FLOOR_RAIL_HEIGHT, 144.0)
-	var rail_mat := StandardMaterial3D.new()
-	rail_mat.albedo_color = Color(0.27, 0.275, 0.28)
-	rail_mat.roughness = 0.66
-	rail_mat.metallic = 0.22
-
-	_floor_rail_left = MeshInstance3D.new()
-	_floor_rail_left.mesh = rail_mesh
-	_floor_rail_left.material_override = rail_mat
-	add_child(_floor_rail_left)
-
-	_floor_rail_right = MeshInstance3D.new()
-	_floor_rail_right.mesh = rail_mesh
-	_floor_rail_right.material_override = rail_mat
-	add_child(_floor_rail_right)
-
-	_update_floor_rails()
-
-func _update_floor_rails() -> void:
-	if not _floor_rail_left or not _floor_rail_right or not floor_mesh:
-		return
-	var box_mesh: BoxMesh = floor_mesh.mesh as BoxMesh
-	if not box_mesh:
-		return
-	var floor_length: float = box_mesh.size.z
-	var rail_mesh_l := _floor_rail_left.mesh as BoxMesh
-	var rail_mesh_r := _floor_rail_right.mesh as BoxMesh
-	if rail_mesh_l:
-		rail_mesh_l.size = Vector3(FLOOR_RAIL_WIDTH, FLOOR_RAIL_HEIGHT, floor_length)
-	if rail_mesh_r:
-		rail_mesh_r.size = Vector3(FLOOR_RAIL_WIDTH, FLOOR_RAIL_HEIGHT, floor_length)
-
-	var rail_y: float = FLOOR_TOP_Y + FLOOR_RAIL_HEIGHT * 0.5
-	var rail_x: float = FLOOR_HALF_WIDTH - FLOOR_RAIL_WIDTH * 0.5 - FLOOR_RAIL_INSET
-	var floor_center_z: float = floor_mesh.position.z
-	_floor_rail_left.position = Vector3(-rail_x, rail_y, floor_center_z)
-	_floor_rail_right.position = Vector3(rail_x, rail_y, floor_center_z)
-
-func _setup_conveyor_loop_geometry() -> void:
-	var roller_mesh := CylinderMesh.new()
-	roller_mesh.top_radius = CONVEYOR_ROLLER_RADIUS
-	roller_mesh.bottom_radius = CONVEYOR_ROLLER_RADIUS
-	roller_mesh.height = CONVEYOR_ROLLER_LENGTH
-	roller_mesh.radial_segments = 64
-	roller_mesh.rings = 4
-
-	_conveyor_roller_front_material = ShaderMaterial.new()
-	_conveyor_roller_front_material.shader = CONVEYOR_FLOOR_SHADER
-	_conveyor_roller_front_material.set_shader_parameter("scroll_z", 0.0)
-	_conveyor_roller_front_material.set_shader_parameter("scroll_sign", 1.0)
-	_conveyor_roller_front_material.set_shader_parameter("roller_mode", 1.0)
-	_conveyor_roller_front_material.set_shader_parameter("roller_radius", CONVEYOR_ROLLER_RADIUS)
-	_conveyor_roller_front_material.set_shader_parameter("roller_contact_z", 0.0)
-	_conveyor_roller_front_material.set_shader_parameter("roller_arc_sign", -1.0)
-	_conveyor_roller_front_material.set_shader_parameter("base_color", CONVEYOR_BELT_BASE_COLOR)
-	_conveyor_roller_front_material.set_shader_parameter("stripe_color", CONVEYOR_BELT_STRIPE_COLOR)
-	_conveyor_roller_front_material.set_shader_parameter("side_color", CONVEYOR_BELT_SIDE_COLOR)
-	_conveyor_roller_front_material.set_shader_parameter("stripe_scale", 12.0)
-	_conveyor_roller_front_material.set_shader_parameter("stripe_softness", 0.08)
-	_conveyor_roller_front_material.set_shader_parameter("groove_strength", 0.12)
-	_conveyor_roller_front_material.set_shader_parameter("roller_depth", 0.0)
-	_conveyor_roller_front_material.set_shader_parameter("roughness_val", 0.72)
-	_conveyor_roller_front_material.set_shader_parameter("metallic_val", 0.16)
-
-	_conveyor_roller_back_material = ShaderMaterial.new()
-	_conveyor_roller_back_material.shader = CONVEYOR_FLOOR_SHADER
-	_conveyor_roller_back_material.set_shader_parameter("scroll_z", 0.0)
-	_conveyor_roller_back_material.set_shader_parameter("scroll_sign", 1.0)
-	_conveyor_roller_back_material.set_shader_parameter("roller_mode", 1.0)
-	_conveyor_roller_back_material.set_shader_parameter("roller_radius", CONVEYOR_ROLLER_RADIUS)
-	_conveyor_roller_back_material.set_shader_parameter("roller_contact_z", 0.0)
-	_conveyor_roller_back_material.set_shader_parameter("roller_arc_sign", 1.0)
-	_conveyor_roller_back_material.set_shader_parameter("base_color", CONVEYOR_BELT_BASE_COLOR)
-	_conveyor_roller_back_material.set_shader_parameter("stripe_color", CONVEYOR_BELT_STRIPE_COLOR)
-	_conveyor_roller_back_material.set_shader_parameter("side_color", CONVEYOR_BELT_SIDE_COLOR)
-	_conveyor_roller_back_material.set_shader_parameter("stripe_scale", 12.0)
-	_conveyor_roller_back_material.set_shader_parameter("stripe_softness", 0.08)
-	_conveyor_roller_back_material.set_shader_parameter("groove_strength", 0.12)
-	_conveyor_roller_back_material.set_shader_parameter("roller_depth", 0.0)
-	_conveyor_roller_back_material.set_shader_parameter("roughness_val", 0.72)
-	_conveyor_roller_back_material.set_shader_parameter("metallic_val", 0.16)
-
-	_conveyor_roller_front = MeshInstance3D.new()
-	_conveyor_roller_front.mesh = roller_mesh
-	_conveyor_roller_front.material_override = _conveyor_roller_front_material
-	_conveyor_roller_front.rotation = Vector3(0.0, 0.0, PI * 0.5)
-	var body_f := StaticBody3D.new()
-	body_f.collision_layer = 1
-	body_f.collision_mask = 0
-	var col_f := CollisionShape3D.new()
-	var shape_f := CylinderShape3D.new()
-	shape_f.radius = CONVEYOR_ROLLER_RADIUS
-	shape_f.height = CONVEYOR_ROLLER_LENGTH
-	col_f.shape = shape_f
-	body_f.add_child(col_f)
-	_conveyor_roller_front.add_child(body_f)
-	add_child(_conveyor_roller_front)
-
-	_conveyor_roller_back = MeshInstance3D.new()
-	_conveyor_roller_back.mesh = roller_mesh
-	_conveyor_roller_back.material_override = _conveyor_roller_back_material
-	_conveyor_roller_back.rotation = Vector3(0.0, 0.0, PI * 0.5)
-	var body_b := StaticBody3D.new()
-	body_b.collision_layer = 1
-	body_b.collision_mask = 0
-	var col_b := CollisionShape3D.new()
-	var shape_b := CylinderShape3D.new()
-	shape_b.radius = CONVEYOR_ROLLER_RADIUS
-	shape_b.height = CONVEYOR_ROLLER_LENGTH
-	col_b.shape = shape_b
-	body_b.add_child(col_b)
-	_conveyor_roller_back.add_child(body_b)
-	add_child(_conveyor_roller_back)
-
-	var return_mesh := BoxMesh.new()
-	return_mesh.size = Vector3(CONVEYOR_ROLLER_LENGTH, CONVEYOR_RETURN_BELT_THICKNESS, 8.0)
-	_conveyor_return_belt = MeshInstance3D.new()
-	_conveyor_return_belt.mesh = return_mesh
-	_conveyor_return_material = ShaderMaterial.new()
-	_conveyor_return_material.shader = CONVEYOR_FLOOR_SHADER
-	_conveyor_return_material.set_shader_parameter("scroll_z", 0.0)
-	_conveyor_return_material.set_shader_parameter("scroll_sign", -1.0)
-	_conveyor_return_material.set_shader_parameter("base_color", CONVEYOR_BELT_BASE_COLOR)
-	_conveyor_return_material.set_shader_parameter("stripe_color", CONVEYOR_BELT_STRIPE_COLOR)
-	_conveyor_return_material.set_shader_parameter("side_color", CONVEYOR_BELT_SIDE_COLOR)
-	_conveyor_return_material.set_shader_parameter("rim_inner_x", 12.0)
-	_conveyor_return_material.set_shader_parameter("rim_softness", 0.02)
-	_conveyor_return_belt.material_override = _conveyor_return_material
-	add_child(_conveyor_return_belt)
-
-	var side_frame_mesh := BoxMesh.new()
-	side_frame_mesh.size = Vector3(CONVEYOR_SIDE_FRAME_WIDTH, CONVEYOR_SIDE_FRAME_HEIGHT, 12.0)
-	var side_frame_mat := StandardMaterial3D.new()
-	side_frame_mat.albedo_color = Color(0.30, 0.31, 0.33)
-	side_frame_mat.roughness = 0.62
-	side_frame_mat.metallic = 0.16
-
-	_conveyor_side_frame_left = MeshInstance3D.new()
-	_conveyor_side_frame_left.mesh = side_frame_mesh
-	_conveyor_side_frame_left.material_override = side_frame_mat
-	add_child(_conveyor_side_frame_left)
-
-	_conveyor_side_frame_right = MeshInstance3D.new()
-	_conveyor_side_frame_right.mesh = side_frame_mesh
-	_conveyor_side_frame_right.material_override = side_frame_mat
-	add_child(_conveyor_side_frame_right)
-
-	_update_conveyor_loop_geometry()
-
-func _update_conveyor_loop_geometry() -> void:
-	if not floor_mesh:
-		return
-	var floor_box: BoxMesh = floor_mesh.mesh as BoxMesh
-	if not floor_box:
-		return
-
-	var floor_length: float = floor_box.size.z
-	var floor_center_z: float = floor_mesh.position.z
-	var half_len: float = floor_length * 0.5
-	var top_front_contact_z: float = floor_center_z + half_len
-	var top_back_contact_z: float = floor_center_z - half_len
-	# 実機風: ローラー中心は上面より下に置いて、ベルトが端で巻き取られる接線を作る
-	var roller_center_y: float = FLOOR_TOP_Y - CONVEYOR_ROLLER_RADIUS # 上端=ベルト面、半分を床に埋め込む
-	var front_z: float = floor_center_z + half_len
-	var back_z: float = floor_center_z - half_len
-
-	if _conveyor_roller_front:
-		_conveyor_roller_front.position = Vector3(0.0, roller_center_y, front_z)
-		if _conveyor_roller_front_material:
-			_conveyor_roller_front_material.set_shader_parameter("roller_contact_z", top_front_contact_z)
-	if _conveyor_roller_back:
-		_conveyor_roller_back.position = Vector3(0.0, roller_center_y, back_z)
-		if _conveyor_roller_back_material:
-			_conveyor_roller_back_material.set_shader_parameter("roller_contact_z", top_back_contact_z)
-
-	if _conveyor_return_belt:
-		var return_len: float = maxf(0.2, floor_length - 0.12)
-		var return_mesh: BoxMesh = _conveyor_return_belt.mesh as BoxMesh
-		if return_mesh:
-			return_mesh.size = Vector3(CONVEYOR_ROLLER_LENGTH, CONVEYOR_RETURN_BELT_THICKNESS, return_len)
-		var return_y: float = roller_center_y - CONVEYOR_ROLLER_RADIUS - CONVEYOR_RETURN_BELT_GAP - CONVEYOR_RETURN_BELT_THICKNESS * 0.5
-		_conveyor_return_belt.position = Vector3(0.0, return_y, floor_center_z)
-
-	var frame_len: float = floor_length + CONVEYOR_SIDE_FRAME_OVERHANG * 2.0
-	var frame_center_y: float = FLOOR_TOP_Y + CONVEYOR_SIDE_FRAME_TOP_CLEARANCE - CONVEYOR_SIDE_FRAME_HEIGHT * 0.5
-	var frame_x: float = FLOOR_HALF_WIDTH - CONVEYOR_SIDE_FRAME_WIDTH * 0.5
-	if _conveyor_side_frame_left:
-		var frame_mesh_l := _conveyor_side_frame_left.mesh as BoxMesh
-		if frame_mesh_l:
-			frame_mesh_l.size = Vector3(CONVEYOR_SIDE_FRAME_WIDTH, CONVEYOR_SIDE_FRAME_HEIGHT, frame_len)
-		_conveyor_side_frame_left.position = Vector3(-frame_x, frame_center_y, floor_center_z)
-	if _conveyor_side_frame_right:
-		var frame_mesh_r := _conveyor_side_frame_right.mesh as BoxMesh
-		if frame_mesh_r:
-			frame_mesh_r.size = Vector3(CONVEYOR_SIDE_FRAME_WIDTH, CONVEYOR_SIDE_FRAME_HEIGHT, frame_len)
-		_conveyor_side_frame_right.position = Vector3(frame_x, frame_center_y, floor_center_z)
+	if stage_env:
+		stage_env.set_scroll_z(game_state.world_scroll_z)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.keycode == KEY_ESCAPE and event.is_pressed() and not event.is_echo():
@@ -688,6 +230,10 @@ func _unhandled_input(event: InputEvent) -> void:
 					game_state.trigger_start()
 
 func _update_floor() -> void:
+	if not stage_env:
+		return
+	var floor_front: float
+	var floor_back: float = game_state.FLOOR_BACK_Z
 	if game_state.game_state in [Constants.STATE_FLYOVER, Constants.STATE_PRELOADING, Constants.STATE_WAITING_START]:
 		# フライオーバー / プリロード中: 最後の壁(orゴールライン)まで床を延長
 		var t := game_state.tuning
@@ -699,28 +245,14 @@ func _update_floor() -> void:
 		if game_state.game_state == Constants.STATE_FLYOVER:
 			wall_count = game_state.flyover_total_walls
 		var last_wall_z: float = t.wall_start_z + (wall_count - 1) * t.wall_spacing
-		var floor_front: float = last_wall_z + 30.0
+		floor_front = last_wall_z + 30.0
 		# 2P×10Qモード: ゴールラインまで延長
 		if game_state.num_players >= 2 and game_state.mode == Constants.MODE_TEN:
 			var goal_line_z: float = t.wall_start_z + game_state.target_count * t.wall_spacing + 15.0
 			floor_front = maxf(floor_front, goal_line_z + 20.0)
-		var floor_back: float = game_state.FLOOR_BACK_Z
-		var floor_length: float = floor_front - floor_back
-		var floor_center_z: float = (floor_front + floor_back) / 2.0
-		var box_mesh: BoxMesh = floor_mesh.mesh as BoxMesh
-		if box_mesh:
-			box_mesh.size = Vector3(24.0, 16.0, floor_length)
-		floor_mesh.position = Vector3(0, -9.2, floor_center_z)
 	elif game_state.game_state == Constants.STATE_GOAL_RACE:
 		# ゴールレース中: ゴールラインの先まで床を延長
-		var floor_front: float = game_state.goal_z + 20.0 - game_state.world_scroll_z
-		var floor_back: float = game_state.FLOOR_BACK_Z
-		var floor_length: float = maxf(144.0, floor_front - floor_back)
-		var floor_center_z: float = (floor_front + floor_back) / 2.0
-		var box_mesh: BoxMesh = floor_mesh.mesh as BoxMesh
-		if box_mesh:
-			box_mesh.size = Vector3(24.0, 16.0, floor_length)
-		floor_mesh.position = Vector3(0, -9.2, floor_center_z)
+		floor_front = maxf(144.0 + floor_back, game_state.goal_z + 20.0 - game_state.world_scroll_z)
 	else:
 		# 通常時: 最奥の壁、またはプレイヤーの位置に合わせて床を動的に延長
 		var t := game_state.tuning
@@ -733,18 +265,12 @@ func _update_floor() -> void:
 			player_ahead_z = maxf(player_ahead_z, game_state.player2_z + 40.0)
 
 		var max_z_needed: float = maxf(furthest_wall_z, player_ahead_z)
-		var floor_front: float = max_z_needed + 40.0 - game_state.world_scroll_z
+		floor_front = max_z_needed + 40.0 - game_state.world_scroll_z
 		floor_front = maxf(floor_front, 139.5) # 最低限の長さを保証
 
-		var floor_back: float = game_state.FLOOR_BACK_Z
-		var floor_length: float = floor_front - floor_back
-		var floor_center_z: float = (floor_front + floor_back) / 2.0
-		var box_mesh: BoxMesh = floor_mesh.mesh as BoxMesh
-		if box_mesh:
-			box_mesh.size = Vector3(24.0, 16.0, floor_length)
-		floor_mesh.position = Vector3(0, -9.2, floor_center_z)
-	_update_floor_rails()
-	_update_conveyor_loop_geometry()
+	var floor_length: float = floor_front - floor_back
+	var floor_center_z: float = (floor_front + floor_back) / 2.0
+	stage_env.set_floor_geometry(floor_center_z, floor_length)
 
 func _update_player() -> void:
 	if game_state.game_state in [Constants.STATE_MENU, Constants.STATE_PRELOADING]:

@@ -4,17 +4,18 @@ extends Node
 ## メインメニュー背景: カスタマイズ「壁速度」タブ／壁速度設定画面と同型の3Dプレビュー
 
 const WALL_SCENE: PackedScene = preload("res://scenes/quiz_wall.tscn")
-const CONVEYOR_FLOOR_SHADER: Shader = preload("res://shaders/conveyor_belt_floor.gdshader")
 const PLAYER_CONTROLLER_SCRIPT: Script = preload("res://scripts/world/player_controller.gd")
-const GAME_WORLD_SCRIPT: Script = preload("res://scripts/world/game_world.gd")
 const MenuPreviewCameraSettingsScript = preload("res://scripts/ui/menu_preview_camera_settings.gd")
 const MenuPreviewDoorLearnerScript = preload("res://scripts/ui/menu_preview_door_learner.gd")
 const MenuPreviewActorAIStateScript = preload("res://scripts/ui/menu_preview_actor_ai_state.gd")
+const PreviewWallMergeAnimatorScript = preload("res://scripts/ui/preview_wall_merge_animator.gd")
 
 const WALL_SPACING := 30.0
 const PREVIEW_PLAYER_X: float = -3.5
 const PREVIEW_PLAYER2_X: float = 3.5
 const PREVIEW_DOOR_HALF_DEPTH_Z: float = 0.30
+## 本編 game_state の wall_z - 0.4 を扉手前(+Z)基準に換算（0.4 + 扉半奥行0.3）
+const PREVIEW_WALL_CONTACT_Z: float = 0.70
 const PREVIEW_RED_DOOR_INDEX: int = 1
 ## quiz_wall.gd の 2択ドア位置（左=青, 右=赤）
 const PREVIEW_DOOR_X_LEFT: float = 3.5
@@ -42,7 +43,7 @@ const AI_WEIGHT_LANE_SHIFT: float = 0.22
 const AI_WEIGHT_STEP_FORWARD: float = 0.10
 const AI_WEIGHT_STEP_BACK: float = 0.10
 const AI_WEIGHT_JUMP: float = 0.05
-const AI_WEIGHT_EMOTE: float = 0.18
+const AI_WEIGHT_EMOTE: float = 0.26
 const AI_WEIGHT_ACROBATICS: float = 0.07
 const AI_DEPTH_STEP_MIN: float = 1.0
 const AI_DEPTH_STEP_MAX: float = 3.4
@@ -68,8 +69,10 @@ const AI_DEPTH_SHIFT_SPEED_MIN: float = 2.0
 const AI_DEPTH_SHIFT_SPEED_MAX: float = 4.0
 const AI_JUMP_SPEED_MIN: float = 6.4
 const AI_JUMP_SPEED_MAX: float = 7.4
-const AI_EMOTE_DURATION_MIN: float = 2.2
-const AI_EMOTE_DURATION_MAX: float = 4.2
+const AI_EMOTE_DURATION_MIN: float = 4.8
+const AI_EMOTE_DURATION_MAX: float = 8.0
+const AI_ACRO_EMOTE_BURST_DURATION_MIN: float = 2.8
+const AI_ACRO_EMOTE_BURST_DURATION_MAX: float = 4.5
 const AI_GRAVITY: float = 26.0
 const AI_MAGMA_GRAVITY_SCALE: float = 1.35
 const AI_DEAD_TO_RESPAWN_MIN: float = 3.2
@@ -98,34 +101,17 @@ const PREVIEW_BELT_Z_MAX: float = AI_DEPTH_RANGE_FRONT
 const PREVIEW_BELT_EDGE_FALL_Z: float = 4.55
 const PREVIEW_BELT_EDGE_RUSH_SPEED: float = 4.2
 
-## game_world.gd の BG_COLOR / _setup_environment と同一
-const BG_COLOR := Color(0.82, 0.85, 0.90)
 ## 壁速度タブ基準から少し引いて左寄せ（UIが右側のため）
 const PREVIEW_CAM_POS := Vector3(-18.0, 6.1, 23.15)
 const PREVIEW_CAM_ROT_DEG := Vector3(-14.0, -19.0, 0.0)
 const PREVIEW_CAM_FOV := 37.5
 const PREVIEW_CAM_H_OFFSET := 0.05
 
-const FLOOR_HALF_WIDTH: float = 12.0
-const FLOOR_TOP_Y: float = -1.2
-const FLOOR_RAIL_HEIGHT: float = 0.26
-const FLOOR_RAIL_WIDTH: float = 0.16
-const FLOOR_RAIL_INSET: float = 0.06
-const CONVEYOR_BELT_BASE_COLOR := Color(0.40, 0.41, 0.42, 1.0)
-const CONVEYOR_BELT_STRIPE_COLOR := Color(0.34, 0.345, 0.35, 1.0)
-const CONVEYOR_BELT_SIDE_COLOR := Color(0.33, 0.34, 0.35, 1.0)
-const CONVEYOR_ROLLER_RADIUS: float = 0.48
-const CONVEYOR_ROLLER_LENGTH: float = 23.4
-const CONVEYOR_RETURN_BELT_THICKNESS: float = 0.10
-const CONVEYOR_SIDE_FRAME_WIDTH: float = 0.24
-const CONVEYOR_SIDE_FRAME_HEIGHT: float = 1.05
-
 var _viewport: SubViewport
 var _preview_camera: Camera3D
-var _preview_floor_material: ShaderMaterial
-var _conveyor_roller_front_material: ShaderMaterial
-var _conveyor_return_material: ShaderMaterial
+var _stage_env: StageEnvironment = null
 var _preview_walls: Array[Node3D] = []
+var _wall_merge: PreviewWallMergeAnimator = null
 var _preview_scroll_z: float = 0.0
 var _preview_speed: float = AUTO_WALL_SPEED
 var _conveyor_paused: bool = false
@@ -148,6 +134,7 @@ var _menu_cam_pose: Dictionary = {}
 
 func _ready() -> void:
 	_viewport = get_parent() as SubViewport
+	_wall_merge = PreviewWallMergeAnimatorScript.new()
 	_p1_ai = MenuPreviewActorAIStateScript.new()
 	_p2_ai = MenuPreviewActorAIStateScript.new()
 	set_process(false)
@@ -203,9 +190,12 @@ func set_customize_walls_hidden(hidden: bool) -> void:
 
 func _set_customize_walls_hidden(hidden: bool) -> void:
 	_customize_walls_hidden = hidden
-	for wall in _preview_walls:
-		if is_instance_valid(wall):
-			wall.visible = not hidden
+	for i in range(_preview_walls.size()):
+		var wall: Node3D = _preview_walls[i]
+		if not is_instance_valid(wall):
+			continue
+		var show := (not hidden) and _wall_merge.is_wall_ready(i)
+		wall.visible = show
 
 
 func _start_camera_return_to_menu() -> void:
@@ -242,6 +232,10 @@ func _resume_preview_conveyor() -> void:
 	_resolve_preview_speed()
 
 
+static func wall_front_touches_player(door_leading_z: float, player_local_z: float) -> bool:
+	return door_leading_z >= player_local_z - PREVIEW_WALL_CONTACT_Z
+
+
 func _process(dt: float) -> void:
 	if not _viewport:
 		return
@@ -251,17 +245,14 @@ func _process(dt: float) -> void:
 	if not _conveyor_paused:
 		_preview_scroll_z += move_dist
 
-	if _preview_floor_material:
-		_preview_floor_material.set_shader_parameter("scroll_z", _preview_scroll_z)
-	if _conveyor_roller_front_material:
-		_conveyor_roller_front_material.set_shader_parameter("scroll_z", _preview_scroll_z)
-	if _conveyor_return_material:
-		_conveyor_return_material.set_shader_parameter("scroll_z", _preview_scroll_z)
+	if _stage_env:
+		_stage_env.set_scroll_z(_preview_scroll_z)
 
 	for i in range(_preview_walls.size() - 1, -1, -1):
 		var wall := _preview_walls[i]
 		if not is_instance_valid(wall):
 			_on_learning_wall_removed(wall)
+			_wall_merge.remove_slot_at(i)
 			_preview_walls.remove_at(i)
 			continue
 
@@ -277,14 +268,18 @@ func _process(dt: float) -> void:
 				and wall.is_inside_tree()
 				and wall.visible
 				and not wall.get_meta("preview_door_broken", false)
-				and door_leading_z >= 0.0
+				and wall_front_touches_player(door_leading_z, 0.0)
 			):
 				if wall.has_method("break_door"):
 					wall.break_door(0)
 					wall.break_door(PREVIEW_RED_DOOR_INDEX)
 				wall.set_meta("preview_door_broken", true)
 		elif wall.is_inside_tree() and wall.visible and not wall.get_meta("preview_door_broken", false):
-			if _preview_gs and _preview_gs.p1_alive and door_leading_z >= _preview_gs.player_local_z:
+			if (
+				_preview_gs
+				and _preview_gs.p1_alive
+				and wall_front_touches_player(door_leading_z, _preview_gs.player_local_z)
+			):
 				if not wall.get_meta("preview_hit_p1", false):
 					if should_break_door:
 						var door_idx := _pick_preview_door_index(_preview_gs.player_x)
@@ -294,7 +289,11 @@ func _process(dt: float) -> void:
 							_handle_preview_wall_crash(wall, _p1_ai, true)
 					else:
 						_handle_preview_wall_crash(wall, _p1_ai, true)
-			if _is_local_2p_active() and _preview_gs.p2_alive and door_leading_z >= _preview_gs.player2_local_z:
+			if (
+				_is_local_2p_active()
+				and _preview_gs.p2_alive
+				and wall_front_touches_player(door_leading_z, _preview_gs.player2_local_z)
+			):
 				if not wall.get_meta("preview_hit_p2", false):
 					if should_break_door:
 						var door_idx2 := _pick_preview_door_index(_preview_gs.player2_x)
@@ -314,7 +313,11 @@ func _process(dt: float) -> void:
 			_on_learning_wall_removed(wall)
 			_drop_wall_into_magma(wall)
 			wall.queue_free()
+			_wall_merge.remove_slot_at(i)
 			_preview_walls.remove_at(i)
+
+	if not _customize_walls_hidden:
+		_wall_merge.process(dt, _preview_walls, self)
 
 	var furthest_z := 8.0
 	for wall in _preview_walls:
@@ -352,100 +355,21 @@ func _build_3d_scene() -> void:
 	_clear_learning_commit(_p1_ai)
 	_clear_learning_commit(_p2_ai)
 
-	var env := Environment.new()
-	env.background_mode = Environment.BG_COLOR
-	env.background_color = BG_COLOR
-	env.ambient_light_color = Color(0.30, 0.32, 0.35)
-	env.ambient_light_energy = 1.0
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.fog_enabled = true
-	env.fog_light_color = BG_COLOR
-	env.fog_density = 0.012
-	env.fog_aerial_perspective = 0.5
-	env.tonemap_mode = Environment.TONE_MAPPER_ACES
-	env.tonemap_white = 6.0
-	env.glow_enabled = true
-	env.glow_intensity = 0.5
-	env.glow_strength = 0.8
-	env.glow_bloom = 0.05
-	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_SOFTLIGHT
-	env.glow_hdr_threshold = 0.8
-	env.set_glow_level(0, true)
-	env.set_glow_level(1, true)
-	env.set_glow_level(2, true)
-	env.set_glow_level(3, false)
-
-	var world_env := WorldEnvironment.new()
-	world_env.environment = env
-	_viewport.add_child(world_env)
-
-	var light := DirectionalLight3D.new()
-	light.rotation_degrees = Vector3(-50, -20, 0)
-	light.light_color = Color(0.90, 0.92, 0.95)
-	light.light_energy = 1.2
-	light.shadow_enabled = true
-	_viewport.add_child(light)
-
 	_preview_camera = Camera3D.new()
 	MenuPreviewCameraSettingsScript.apply_code_defaults_to_camera(_preview_camera)
 	_preview_camera.current = true
 	_viewport.add_child(_preview_camera)
 
-	var floor := MeshInstance3D.new()
-	var floor_mesh := BoxMesh.new()
-	floor_mesh.size = Vector3(24.0, 16.0, 144.0)
-	floor.mesh = floor_mesh
-	_preview_floor_material = ShaderMaterial.new()
-	_preview_floor_material.shader = CONVEYOR_FLOOR_SHADER
-	_preview_floor_material.set_shader_parameter("scroll_z", 0.0)
-	_preview_floor_material.set_shader_parameter("scroll_sign", -1.0)
-	floor.material_override = _preview_floor_material
-	floor.position = Vector3(0, -9.2, -64.0)
-	_viewport.add_child(floor)
-
-	var magma_mesh := MeshInstance3D.new()
-	var plane := PlaneMesh.new()
-	plane.size = Vector2(800.0, 800.0)
-	plane.subdivide_width = 200
-	plane.subdivide_depth = 200
-	magma_mesh.mesh = plane
-	magma_mesh.position = Vector3(0, -10.0, 150.0)
-	magma_mesh.custom_aabb = AABB(Vector3(-400, -10, -400), Vector3(800, 20, 800))
-
-	var magma_mat := ShaderMaterial.new()
-	magma_mat.shader = Shader.new()
-	magma_mat.shader.code = GAME_WORLD_SCRIPT.MAGMA_SHADER
-
-	var noise1 := NoiseTexture2D.new()
-	var fnl1 := FastNoiseLite.new()
-	fnl1.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
-	fnl1.frequency = 0.01
-	fnl1.fractal_octaves = 4
-	fnl1.fractal_lacunarity = 2.0
-	fnl1.fractal_gain = 0.5
-	noise1.noise = fnl1
-	noise1.seamless = true
-	noise1.width = 512
-	noise1.height = 512
-	magma_mat.set_shader_parameter("noise_tex", noise1)
-
-	var noise2 := NoiseTexture2D.new()
-	var fnl2 := FastNoiseLite.new()
-	fnl2.noise_type = FastNoiseLite.TYPE_CELLULAR
-	fnl2.frequency = 0.015
-	fnl2.fractal_octaves = 3
-	fnl2.cellular_distance_function = FastNoiseLite.DISTANCE_EUCLIDEAN
-	fnl2.cellular_return_type = FastNoiseLite.RETURN_DISTANCE
-	noise2.noise = fnl2
-	noise2.seamless = true
-	noise2.width = 512
-	noise2.height = 512
-	magma_mat.set_shader_parameter("noise_tex2", noise2)
-
-	magma_mesh.material_override = magma_mat
-	_viewport.add_child(magma_mesh)
-
-	_setup_conveyor_extras()
+	_stage_env = StageEnvironment.new()
+	_viewport.add_child(_stage_env)
+	_stage_env.build({
+		"floor_center_z": -64.0,
+		"floor_length": 144.0,
+		"scroll_sign": -1.0,
+		"return_scroll_sign": 1.0,
+		"include_back_roller": true,
+		"include_floor_collision": true,
+	})
 
 	var start_z := 8.0 - WALL_SPACING * 2
 	for i in range(3):
@@ -486,127 +410,7 @@ func _spawn_preview_wall(z_pos: float) -> void:
 	wall.set_meta("preview_hit_p2", false)
 	wall.set_meta("preview_pass_shattered", false)
 	_preview_walls.append(wall)
-
-
-func _setup_conveyor_extras() -> void:
-	if not _viewport:
-		return
-
-	var floor_length := 144.0
-	var floor_center_z := -64.0
-	var half_len := floor_length * 0.5
-	var front_z := floor_center_z + half_len
-	var top_front_contact_z := floor_center_z + half_len
-	var roller_center_y := FLOOR_TOP_Y - CONVEYOR_ROLLER_RADIUS
-
-	var floor_body := StaticBody3D.new()
-	floor_body.collision_layer = 1
-	floor_body.collision_mask = 0
-	var floor_col := CollisionShape3D.new()
-	var floor_shape := BoxShape3D.new()
-	floor_shape.size = Vector3(24.0, 0.5, floor_length)
-	floor_col.shape = floor_shape
-	floor_body.add_child(floor_col)
-	floor_body.position = Vector3(0, FLOOR_TOP_Y - 0.25, floor_center_z)
-	_viewport.add_child(floor_body)
-
-	var roller_mesh := CylinderMesh.new()
-	roller_mesh.top_radius = CONVEYOR_ROLLER_RADIUS
-	roller_mesh.bottom_radius = CONVEYOR_ROLLER_RADIUS
-	roller_mesh.height = CONVEYOR_ROLLER_LENGTH
-	roller_mesh.radial_segments = 64
-	roller_mesh.rings = 4
-
-	_conveyor_roller_front_material = ShaderMaterial.new()
-	_conveyor_roller_front_material.shader = CONVEYOR_FLOOR_SHADER
-	_conveyor_roller_front_material.set_shader_parameter("scroll_z", 0.0)
-	_conveyor_roller_front_material.set_shader_parameter("scroll_sign", -1.0)
-	_conveyor_roller_front_material.set_shader_parameter("roller_mode", 1.0)
-	_conveyor_roller_front_material.set_shader_parameter("roller_radius", CONVEYOR_ROLLER_RADIUS)
-	_conveyor_roller_front_material.set_shader_parameter("roller_contact_z", top_front_contact_z)
-	_conveyor_roller_front_material.set_shader_parameter("roller_arc_sign", 1.0)
-	_conveyor_roller_front_material.set_shader_parameter("base_color", CONVEYOR_BELT_BASE_COLOR)
-	_conveyor_roller_front_material.set_shader_parameter("stripe_color", CONVEYOR_BELT_STRIPE_COLOR)
-	_conveyor_roller_front_material.set_shader_parameter("side_color", CONVEYOR_BELT_SIDE_COLOR)
-	_conveyor_roller_front_material.set_shader_parameter("stripe_scale", 12.0)
-	_conveyor_roller_front_material.set_shader_parameter("stripe_softness", 0.08)
-	_conveyor_roller_front_material.set_shader_parameter("groove_strength", 0.12)
-	_conveyor_roller_front_material.set_shader_parameter("roughness_val", 0.72)
-	_conveyor_roller_front_material.set_shader_parameter("metallic_val", 0.16)
-
-	var roller_front := MeshInstance3D.new()
-	roller_front.mesh = roller_mesh
-	roller_front.material_override = _conveyor_roller_front_material
-	roller_front.rotation = Vector3(0.0, 0.0, PI * 0.5)
-	roller_front.position = Vector3(0.0, roller_center_y, front_z)
-	var body_f := StaticBody3D.new()
-	body_f.collision_layer = 1
-	body_f.collision_mask = 0
-	var col_f := CollisionShape3D.new()
-	var shape_f := CylinderShape3D.new()
-	shape_f.radius = CONVEYOR_ROLLER_RADIUS
-	shape_f.height = CONVEYOR_ROLLER_LENGTH
-	col_f.shape = shape_f
-	body_f.add_child(col_f)
-	roller_front.add_child(body_f)
-	_viewport.add_child(roller_front)
-
-	var return_mesh := BoxMesh.new()
-	return_mesh.size = Vector3(CONVEYOR_ROLLER_LENGTH, CONVEYOR_RETURN_BELT_THICKNESS, 8.0)
-	var return_belt := MeshInstance3D.new()
-	return_belt.mesh = return_mesh
-	_conveyor_return_material = ShaderMaterial.new()
-	_conveyor_return_material.shader = CONVEYOR_FLOOR_SHADER
-	_conveyor_return_material.set_shader_parameter("scroll_z", 0.0)
-	_conveyor_return_material.set_shader_parameter("scroll_sign", 1.0)
-	_conveyor_return_material.set_shader_parameter("base_color", CONVEYOR_BELT_BASE_COLOR)
-	_conveyor_return_material.set_shader_parameter("stripe_color", CONVEYOR_BELT_STRIPE_COLOR)
-	_conveyor_return_material.set_shader_parameter("side_color", CONVEYOR_BELT_SIDE_COLOR)
-	return_belt.material_override = _conveyor_return_material
-	return_belt.position = Vector3(0.0, roller_center_y - CONVEYOR_ROLLER_RADIUS, front_z - 4.0)
-	_viewport.add_child(return_belt)
-
-	var rail_mesh := BoxMesh.new()
-	rail_mesh.size = Vector3(FLOOR_RAIL_WIDTH, FLOOR_RAIL_HEIGHT, floor_length)
-	var rail_mat := StandardMaterial3D.new()
-	rail_mat.albedo_color = Color(0.27, 0.275, 0.28)
-	rail_mat.roughness = 0.66
-
-	var rail_y := FLOOR_TOP_Y + FLOOR_RAIL_HEIGHT * 0.5
-	var rail_x := FLOOR_HALF_WIDTH - FLOOR_RAIL_WIDTH * 0.5 - FLOOR_RAIL_INSET
-
-	var rail_l := MeshInstance3D.new()
-	rail_l.mesh = rail_mesh
-	rail_l.material_override = rail_mat
-	rail_l.position = Vector3(-rail_x, rail_y, floor_center_z)
-	_viewport.add_child(rail_l)
-
-	var rail_r := MeshInstance3D.new()
-	rail_r.mesh = rail_mesh
-	rail_r.material_override = rail_mat
-	rail_r.position = Vector3(rail_x, rail_y, floor_center_z)
-	_viewport.add_child(rail_r)
-
-	var side_frame_mesh := BoxMesh.new()
-	side_frame_mesh.size = Vector3(CONVEYOR_SIDE_FRAME_WIDTH, CONVEYOR_SIDE_FRAME_HEIGHT, floor_length)
-	var side_frame_mat := StandardMaterial3D.new()
-	side_frame_mat.albedo_color = Color(0.30, 0.31, 0.33)
-	side_frame_mat.roughness = 0.62
-
-	var frame_y := FLOOR_TOP_Y + CONVEYOR_SIDE_FRAME_HEIGHT * 0.5 - 0.26
-	var frame_x := FLOOR_HALF_WIDTH - CONVEYOR_SIDE_FRAME_WIDTH * 0.5
-
-	var frame_l := MeshInstance3D.new()
-	frame_l.mesh = side_frame_mesh
-	frame_l.material_override = side_frame_mat
-	frame_l.position = Vector3(-frame_x, frame_y, floor_center_z)
-	_viewport.add_child(frame_l)
-
-	var frame_r := MeshInstance3D.new()
-	frame_r.mesh = side_frame_mesh
-	frame_r.material_override = side_frame_mat
-	frame_r.position = Vector3(frame_x, frame_y, floor_center_z)
-	_viewport.add_child(frame_r)
+	_wall_merge.attach_new_wall(wall)
 
 
 func _drop_wall_into_magma(wall: Node3D) -> void:
@@ -738,7 +542,7 @@ func _pick_learning_target_wall(player_z: float) -> Node3D:
 		if bool(wall.get_meta("preview_door_broken", false)):
 			continue
 		var door_leading_z := wall.position.z + PREVIEW_DOOR_HALF_DEPTH_Z
-		if door_leading_z >= player_z:
+		if wall_front_touches_player(door_leading_z, player_z):
 			continue
 		var dist := player_z - door_leading_z
 		if dist < AI_LEARN_APPROACH_MIN_DIST or dist > AI_LEARN_APPROACH_MAX_DIST:
@@ -978,12 +782,19 @@ func _set_actor_game_over_timer(is_p1: bool, value: float) -> void:
 		_preview_gs.player2_game_over_timer = value
 
 
+func _clamp_actor_before_wall_front(is_p1: bool, door_leading_z: float) -> void:
+	var max_local_z := door_leading_z - PREVIEW_WALL_CONTACT_Z
+	if _actor_local_z(is_p1) > max_local_z:
+		_set_actor_local_z(is_p1, max_local_z)
+
+
 func _handle_preview_wall_crash(wall: Node3D, bundle: MenuPreviewActorAIState, is_p1: bool) -> void:
 	if not wall or not _preview_gs:
 		return
 	var alive := _preview_gs.p1_alive if is_p1 else _preview_gs.p2_alive
 	if not alive:
 		return
+	_clamp_actor_before_wall_front(is_p1, wall.position.z + PREVIEW_DOOR_HALF_DEPTH_Z)
 	var hit_key := "preview_hit_p1" if is_p1 else "preview_hit_p2"
 	if wall.get_meta(hit_key, false):
 		return
@@ -1009,6 +820,7 @@ func _trigger_preview_door_pass(
 ) -> void:
 	if not wall:
 		return
+	_clamp_actor_before_wall_front(is_p1, wall.position.z + PREVIEW_DOOR_HALF_DEPTH_Z)
 	var hit_key := "preview_hit_p1" if is_p1 else "preview_hit_p2"
 	if wall.get_meta(hit_key, false):
 		return
@@ -1363,7 +1175,7 @@ func _reconcile_actor_moving_back(bundle: MenuPreviewActorAIState, is_p1: bool) 
 func _pick_depth_target_z(is_p1: bool, forward_hint: int = 0) -> float:
 	var cur := _actor_local_z(is_p1)
 	var step := randf_range(AI_DEPTH_STEP_MIN, AI_DEPTH_STEP_MAX)
-	# 本編と同じ: 前進は -Z（壁方向）、後退は +Z（ムーンウォーク）
+	# 本編と同じ: 前進は -Z（壁方向）、後退は +Z
 	if forward_hint > 0:
 		return _clamp_depth_target_z(cur - step)
 	if forward_hint < 0:
@@ -1529,7 +1341,7 @@ func _start_ai_emote(bundle: MenuPreviewActorAIState, is_p1: bool) -> bool:
 	bundle.last_emote = _actor_emote(is_p1)
 	bundle.emote_end_t = _ai_time + randf_range(AI_EMOTE_DURATION_MIN, AI_EMOTE_DURATION_MAX)
 	bundle.is_emoting = true
-	bundle.next_action_t = maxf(bundle.next_action_t, bundle.emote_end_t + 0.35)
+	bundle.next_action_t = maxf(bundle.next_action_t, bundle.emote_end_t + 0.25)
 	_set_actor_moving_back(is_p1, false)
 	return true
 
@@ -1695,7 +1507,10 @@ func _update_acrobatic_action(dt: float, bundle: MenuPreviewActorAIState, is_p1:
 
 	if _actor_y(is_p1) <= 0.03 and not bundle.is_emoting and randf() < AI_ACRO_EMOTE_BURST_CHANCE * dt:
 		if _start_ai_emote(bundle, is_p1):
-			bundle.emote_end_t = minf(bundle.emote_end_t, _ai_time + randf_range(0.8, 1.4))
+			bundle.emote_end_t = minf(
+				bundle.emote_end_t,
+				_ai_time + randf_range(AI_ACRO_EMOTE_BURST_DURATION_MIN, AI_ACRO_EMOTE_BURST_DURATION_MAX)
+			)
 
 	_set_actor_moving_back(
 		is_p1,

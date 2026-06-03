@@ -23,7 +23,7 @@ const FBX_PATHS: Array[String] = [
 	"res://assets/animations/Run.fbx",
 	"res://assets/animations/Y Bot@Gangnam Style.fbx",
 	"res://assets/animations/Slide Hip Hop Dance.fbx",
-	"res://assets/animations/Moonwalk.fbx",
+	"",
 	"res://assets/animations/Drowning.fbx",
 	"res://assets/animations/Flair.fbx",
 	"res://assets/animations/Jumping.fbx",
@@ -37,7 +37,7 @@ const SLOT_NAMES: Array[String] = [
 	"Emote15", "Emote16", "Emote17", "Emote18", "Emote19", "Emote20", "Emote21",
 ]
 
-## ムーンウォーク枠(SLOT_MOONWALK)は後退歩行専用。エモート用は他スロットへ割当
+## SLOT_MOONWALK はコア8枠のプレースホルダ（未使用）。エモート用は他スロットへ割当
 const EMOTE_RIG_SLOTS: Array[int] = [
 	SLOT_TAUNT, SLOT_GANGNAM, SLOT_SLIDE, SLOT_FLAIR,
 	8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
@@ -326,8 +326,6 @@ func select_animation(player_y: float, jump_trigger: bool, emote: int,
 		return false
 
 	if is_active_state:
-		if moving_back:
-			return play_slot(SLOT_MOONWALK)
 		return play_slot(SLOT_RUN)
 
 	stop_all()

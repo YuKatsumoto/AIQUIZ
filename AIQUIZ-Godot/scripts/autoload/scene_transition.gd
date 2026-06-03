@@ -13,6 +13,8 @@ var _door_seam_x: float = 0.0
 var _door_color: Color = Color(0.18, 0.36, 0.62, 1.0)
 var _start_camera_eye: Vector3 = Vector3.ZERO
 var _start_camera_look: Vector3 = Vector3.ZERO
+var _start_camera_fov: float = 44.0
+var _start_camera_h_offset: float = 0.0
 var _has_start_camera_pose: bool = false
 
 const FADE_DURATION := 0.45
@@ -216,9 +218,16 @@ func _clear_texture_hold() -> void:
 	_hold_texture_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 ## 次シーン開始時に使用する開始カメラ姿勢を保存
-func set_start_camera_pose(eye: Vector3, look: Vector3) -> void:
+func set_start_camera_pose(
+	eye: Vector3,
+	look: Vector3,
+	fov: float = 44.0,
+	h_offset: float = 0.0,
+) -> void:
 	_start_camera_eye = eye
 	_start_camera_look = look
+	_start_camera_fov = fov
+	_start_camera_h_offset = h_offset
 	_has_start_camera_pose = true
 
 ## 保存済み開始カメラ姿勢を取り出す（取り出し時に消費）
@@ -229,6 +238,8 @@ func consume_start_camera_pose() -> Dictionary:
 	return {
 		"eye": _start_camera_eye,
 		"look": _start_camera_look,
+		"fov": _start_camera_fov,
+		"h_offset": _start_camera_h_offset,
 	}
 
 ## 遷移中かどうか

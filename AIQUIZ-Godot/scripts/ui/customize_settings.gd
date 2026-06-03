@@ -251,7 +251,10 @@ func _process(dt: float) -> void:
 		var door_leading_z: float = wall.position.z + PREVIEW_DOOR_HALF_DEPTH_Z
 		var p1_z: float = _preview_gs.player_local_z if _preview_gs else 0.0
 		var p2_z: float = _preview_gs.player2_local_z if _preview_gs else p1_z
-		var crossed_row := door_leading_z >= p1_z or door_leading_z >= p2_z
+		var crossed_row := (
+			MenuWallBackgroundPreview.wall_front_touches_player(door_leading_z, p1_z)
+			or MenuWallBackgroundPreview.wall_front_touches_player(door_leading_z, p2_z)
+		)
 		if (
 			wall.visible
 			and crossed_row
@@ -738,7 +741,6 @@ func _build_3d_preview() -> void:
 	floor.position = Vector3(0, -9.2, -64.0)
 	_sub_viewport.add_child(floor)
 
-	var game_world_script := preload("res://scripts/world/game_world.gd")
 	var magma_mesh := MeshInstance3D.new()
 	var plane := PlaneMesh.new()
 	plane.size = Vector2(800.0, 800.0)
@@ -747,8 +749,7 @@ func _build_3d_preview() -> void:
 	magma_mesh.mesh = plane
 	magma_mesh.position = Vector3(0, -10.0, 150.0)
 	var magma_mat := ShaderMaterial.new()
-	magma_mat.shader = Shader.new()
-	magma_mat.shader.code = game_world_script.MAGMA_SHADER
+	magma_mat.shader = StageConstants.MAGMA_SHADER
 	var noise1 := NoiseTexture2D.new()
 	var fnl1 := FastNoiseLite.new()
 	fnl1.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH

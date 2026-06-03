@@ -18,7 +18,7 @@ const FBX_PATHS := [
 	"res://assets/animations/Run.fbx",
 	"res://assets/animations/Y Bot@Gangnam Style.fbx",
 	"res://assets/animations/Slide Hip Hop Dance.fbx",
-	"res://assets/animations/Moonwalk.fbx",
+	"",
 	"res://assets/animations/Drowning.fbx",
 	"res://assets/animations/Flair.fbx",
 	"res://assets/animations/Jumping.fbx",
@@ -149,10 +149,7 @@ func select_animation(player_y: float, jump_trigger: bool, emote: int,
 
 	# Priority 4: 走行（プレイ中 or ゴールレース中）
 	if is_active_state:
-		if moving_back:
-			return play_slot(SLOT_MOONWALK)
-		else:
-			return play_slot(SLOT_RUN)
+		return play_slot(SLOT_RUN)
 
 	# Idle: 全停止
 	stop_all()

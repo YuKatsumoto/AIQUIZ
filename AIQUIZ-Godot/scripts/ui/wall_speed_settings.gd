@@ -95,7 +95,10 @@ func _process(dt: float) -> void:
 		if _preview_gs:
 			player_z = _preview_gs.player_local_z
 		var door_leading_z: float = wall.position.z + PREVIEW_DOOR_HALF_DEPTH_Z
-		if door_leading_z >= player_z and not wall.get_meta("preview_door_broken", false):
+		if (
+			MenuWallBackgroundPreview.wall_front_touches_player(door_leading_z, player_z)
+			and not wall.get_meta("preview_door_broken", false)
+		):
 			if wall.has_method("break_door"):
 				wall.break_door(PREVIEW_RED_DOOR_INDEX)
 			wall.set_meta("preview_door_broken", true)
@@ -553,7 +556,6 @@ func _build_3d_preview() -> void:
 	_sub_viewport.add_child(_preview_floor)
 	
 	# マグマの追加
-	var GameWorldScript := preload("res://scripts/world/game_world.gd")
 	var magma_mesh := MeshInstance3D.new()
 	var plane := PlaneMesh.new()
 	plane.size = Vector2(800.0, 800.0)
@@ -564,8 +566,7 @@ func _build_3d_preview() -> void:
 	magma_mesh.custom_aabb = AABB(Vector3(-400, -10, -400), Vector3(800, 20, 800))
 	
 	var mmat := ShaderMaterial.new()
-	mmat.shader = Shader.new()
-	mmat.shader.code = GameWorldScript.MAGMA_SHADER
+	mmat.shader = StageConstants.MAGMA_SHADER
 	
 	# Procedural noise texture 1 (Perlin-like)
 	var noise1 := NoiseTexture2D.new()
