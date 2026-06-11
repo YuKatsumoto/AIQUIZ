@@ -364,19 +364,6 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(250, 0)
 layout_mode = 2
 
-[node name="ModelBox" type="HBoxContainer" parent="SettingsPanel/VBox" unique_id=760935924]
-layout_mode = 2
-alignment = 1
-
-[node name="Label" type="Label" parent="SettingsPanel/VBox/ModelBox" unique_id=1363082926]
-layout_mode = 2
-text = "生成モデル:"
-
-[node name="ModelOption" type="OptionButton" parent="SettingsPanel/VBox/ModelBox" unique_id=376011192]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(250, 0)
-layout_mode = 2
-
 [node name="OpenDashboardBtn" type="Button" parent="SettingsPanel/VBox" unique_id=412664169]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 45)

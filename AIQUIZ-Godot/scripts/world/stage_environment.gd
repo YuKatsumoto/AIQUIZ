@@ -126,15 +126,18 @@ func _setup_floor_collision() -> void:
 	var floor_box: BoxMesh = floor_mesh.mesh as BoxMesh
 	if not floor_box:
 		return
+	var half_thickness := StageConstants.FLOOR_THICKNESS * 0.5
+	const COL_HEIGHT := 0.5
 	_floor_collision_body = StaticBody3D.new()
 	_floor_collision_body.collision_layer = 1
 	_floor_collision_body.collision_mask = 0
 	var col := CollisionShape3D.new()
 	var shape := BoxShape3D.new()
-	shape.size = Vector3(floor_box.size.x, 0.5, floor_box.size.z)
+	shape.size = Vector3(floor_box.size.x, COL_HEIGHT, floor_box.size.z)
 	col.shape = shape
 	_floor_collision_body.add_child(col)
-	_floor_collision_body.position = Vector3(0, -0.25, 0)
+	# コリジョン上面を FLOOR_TOP_Y（床上面）に合わせる
+	_floor_collision_body.position = Vector3(0, half_thickness - COL_HEIGHT * 0.5, 0)
 	floor_mesh.add_child(_floor_collision_body)
 
 

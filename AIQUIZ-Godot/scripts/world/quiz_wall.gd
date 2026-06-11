@@ -261,6 +261,13 @@ func break_door(door_index: int) -> void:
 	var door := doors[door_index]
 	if not door.visible:
 		return
+	# global_position はツリー内でのみ有効。ツリー外で読むと identity を返し
+	# !is_inside_tree() エラーを毎回吐くため、ツリー外なら破砕をスキップする。
+	if not door.is_inside_tree():
+		return
+	var parent := get_parent()
+	if parent == null:
+		return
 	var door_color: Color = Color.WHITE
 	if door.material_override:
 		door_color = door.material_override.albedo_color
@@ -317,13 +324,16 @@ func break_door(door_index: int) -> void:
 			# Position: offset from door center
 			var offset_x: float = (cx - (chunks_x - 1) * 0.5) * chunk_size.x
 			var offset_y: float = (cy - (chunks_y - 1) * 0.5) * chunk_size.y
-			chunk.global_position = door_pos + Vector3(offset_x, offset_y, 0)
 
 			# Collision layers: only collide with floor (layer 1), not players
 			chunk.collision_layer = 0
 			chunk.collision_mask = 1
 
-			get_parent().add_child(chunk)
+			# 先にツリーへ追加してから global_position を設定する。
+			# ツリー外で global_position を書くと get_global_transform() が
+			# identity を返し !is_inside_tree() エラーを毎回吐く。
+			parent.add_child(chunk)
+			chunk.global_position = door_pos + Vector3(offset_x, offset_y, 0)
 
 			if is_preview_subviewport:
 				# 扉欠片だけ強めに弾け、短いTweenで縮小消滅（カメラ縮小処理とは別）
@@ -430,9 +440,15 @@ func _shatter_mesh(mesh_inst: MeshInstance3D, direction_z: float) -> void:
 	if mesh_inst.material_override and mesh_inst.material_override is StandardMaterial3D:
 		base_color = (mesh_inst.material_override as StandardMaterial3D).albedo_color
 		
+	# global_position はツリー内でのみ有効。ツリー外で読むと identity を返し
+	# !is_inside_tree() エラーを毎回吐くため、ツリー外なら破砕をスキップする。
+	if not mesh_inst.is_inside_tree(): return
+	var parent := get_parent()
+	if parent == null: return
+
 	var size := box.size
 	var pos := mesh_inst.global_position
-	
+
 	var chunks_x := maxi(1, ceili(size.x / 1.5))
 	var chunks_y := maxi(1, ceili(size.y / 1.5))
 	var chunk_size := Vector3(size.x / chunks_x, size.y / chunks_y, size.z)
@@ -465,9 +481,12 @@ func _shatter_mesh(mesh_inst: MeshInstance3D, direction_z: float) -> void:
 			
 			var offset_x: float = (cx - (chunks_x - 1) * 0.5) * chunk_size.x
 			var offset_y: float = (cy - (chunks_y - 1) * 0.5) * chunk_size.y
+
+			# 先にツリーへ追加してから global_position を設定する。
+			# ツリー外で global_position を書くと get_global_transform() が
+			# identity を返し !is_inside_tree() エラーを毎回吐く。
+			parent.add_child(chunk)
 			chunk.global_position = pos + Vector3(offset_x, offset_y, 0)
-			
-			get_parent().add_child(chunk)
 			
 			var vp := chunk.get_viewport()
 			var is_preview_subviewport := vp is SubViewport

@@ -12,7 +12,7 @@ class_name QuizValidator
 signal validation_completed(valid: Array[QuizItem], invalid_reasons: Array[String])
 
 const MAX_RETRY: int = 2
-const FLASH_MODEL: String = "gemini-3-flash-preview"
+const FLASH_MODEL: String = "gemini-3.5-flash"
 
 ## ルールベースのバリデーション（即時・無料）
 func validate_rules(items: Array[QuizItem]) -> Dictionary:
@@ -71,19 +71,10 @@ func validate_answers_llm(items: Array[QuizItem], subject: String, grade: int,
 		callback.call(items, [])
 		return
 	
-	var proxy := ApiStatusAutoload.get_env("PROXY_URL")
-	var url: String
-	if not proxy.is_empty():
-		url = proxy + "/gemini?model=" + FLASH_MODEL
-	else:
-		var key := ApiStatusAutoload.get_env("GOOGLE_API_KEY")
-		if key.is_empty():
-			key = ApiStatusAutoload.get_env("GEMINI_API_KEY")
-		if key.is_empty():
-			# Can't validate without API key, pass all through
-			callback.call(items, [])
-			return
-		url = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s" % [FLASH_MODEL, key]
+	var url := ApiStatusAutoload.gemini_endpoint(FLASH_MODEL)
+	if url.is_empty():
+		callback.call(items, [])
+		return
 	
 	# Build the verification prompt
 	var quiz_data := []
@@ -158,7 +149,7 @@ func validate_answers_llm(items: Array[QuizItem], subject: String, grade: int,
 		http.queue_free()
 		callback.call(valid_items, invalid_reasons)
 	)
-	http.request(url, ApiStatusAutoload.get_proxy_headers() if not proxy.is_empty() else ["Content-Type: application/json"], HTTPClient.METHOD_POST, body)
+	http.request(url, ApiStatusAutoload.get_proxy_headers(), HTTPClient.METHOD_POST, body)
 
 
 func _parse_validation_results(text: String) -> Array:

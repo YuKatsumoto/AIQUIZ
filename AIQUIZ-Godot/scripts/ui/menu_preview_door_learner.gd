@@ -12,6 +12,7 @@ const MISS_CHANCE_MIN: float = 0.12
 const LEFT_DOOR_X: float = 3.5
 const RIGHT_DOOR_X: float = -3.5
 const CENTER_MISS_X: float = 0.0
+const MISS_CENTER_CHANCE: float = 0.15
 
 var _q_values: Array[float] = [0.0, 0.0]
 var _attempts: int = 0
@@ -43,10 +44,15 @@ func pick_door_action() -> int:
 func target_x_for_action(action: int) -> float:
 	var clamped_action := clampi(action, ACTION_LEFT, ACTION_RIGHT)
 	if _episode_miss:
-		if randf() < 0.55:
+		if randf() < MISS_CENTER_CHANCE:
 			return CENTER_MISS_X + randf_range(-0.65, 0.65)
-		var wrong_action := ACTION_RIGHT if clamped_action == ACTION_LEFT else ACTION_LEFT
-		clamped_action = wrong_action
+		if randf() < 0.5:
+			var wrong_action := ACTION_RIGHT if clamped_action == ACTION_LEFT else ACTION_LEFT
+			clamped_action = wrong_action
+		else:
+			var base_miss_x := LEFT_DOOR_X if clamped_action == ACTION_LEFT else RIGHT_DOOR_X
+			var outward_sign := 1.0 if base_miss_x > 0.0 else -1.0
+			return base_miss_x + outward_sign * randf_range(0.55, 1.05)
 	var base_x := LEFT_DOOR_X if clamped_action == ACTION_LEFT else RIGHT_DOOR_X
 	var noise_amp := lerpf(NOISE_START, NOISE_MIN, get_skill())
 	return base_x + randf_range(-noise_amp, noise_amp)

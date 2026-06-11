@@ -65,6 +65,34 @@ static func build_curriculum(subject: String, grade: int, unit_count: int = 3) -
 	if selected_units.is_empty():
 		return {}
 	
+	return _assemble_curriculum(data, selected_units)
+
+
+## 指定した単元名のみで curriculum Dictionary を組み立てる
+## バッチ単元割当（_allocate_units_to_batches）と連動し、
+## 「出題範囲」をバッチの担当単元に限定するために使う。
+static func build_curriculum_for_units(subject: String, grade: int, unit_names: PackedStringArray) -> Dictionary:
+	var data := load_grade(subject, grade)
+	if data.is_empty() or not data.has("units"):
+		return {}
+	
+	var name_set := {}
+	for n in unit_names:
+		name_set[str(n)] = true
+	
+	var selected_units: Array = []
+	for unit in data["units"]:
+		if unit is Dictionary and name_set.has(str(unit.get("name", ""))):
+			selected_units.append(unit)
+	
+	if selected_units.is_empty():
+		return {}
+	
+	return _assemble_curriculum(data, selected_units)
+
+
+## selected_units 配列から compose_prompt 用 Dictionary を組み立てる共通処理
+static func _assemble_curriculum(data: Dictionary, selected_units: Array) -> Dictionary:
 	# ── 選択した単元名を結合 ──
 	var topic_names: PackedStringArray = []
 	for unit: Dictionary in selected_units:

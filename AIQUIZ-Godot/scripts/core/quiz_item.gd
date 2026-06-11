@@ -8,6 +8,7 @@ class_name QuizItem
 @export var a: int = 0               # 正解インデックス
 @export var e: String = ""           # 解説
 @export var src: String = "OFFLINE"  # ソース (OFFLINE / ONLINE / FALLBACK)
+@export var genre: String = ""       # ジャンル/単元ラベル（出題順分散に使用）
 @export var img: String = ""         # 画像パス
 @export var choice_img: PackedStringArray = [] # 選択肢画像
 @export var estimated_seconds: float = 4.0  # AI予測解答時間（秒）

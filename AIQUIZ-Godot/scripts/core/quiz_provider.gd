@@ -391,7 +391,7 @@ func _fallback_question(subject: String, grade: int) -> QuizItem:
 # ---------- Main API ----------
 
 func get_quizzes(subject: String, grade: int, difficulty: String,
-		mode: String, count: int) -> Array[QuizItem]:
+		mode: String, count: int, exclude_texts: Array[String] = []) -> Array[QuizItem]:
 	var grade_str := str(grade)
 	var subj_data: Variant = bank.get(subject, {})
 	var raw_items_data: Variant
@@ -419,6 +419,14 @@ func get_quizzes(subject: String, grade: int, difficulty: String,
 
 	var pool := _bucket_by_difficulty(items, subject, grade, difficulty)
 	pool.shuffle()
+	if exclude_texts.size() > 0:
+		var filtered: Array[QuizItem] = []
+		for q_item: QuizItem in pool:
+			if QuizDedup.is_similar_to_any(q_item.q, exclude_texts):
+				continue
+			filtered.append(q_item)
+		if not filtered.is_empty():
+			pool = filtered
 
 	# 難しい難易度の場合、選択肢をより紛らわしくする
 	if difficulty == "難しい":
@@ -433,6 +441,8 @@ func get_quizzes(subject: String, grade: int, difficulty: String,
 		for q_item: QuizItem in pool:
 			if q_item.q in seen:
 				continue
+			if QuizDedup.is_similar_to_any(q_item.q, exclude_texts):
+				continue
 			seen[q_item.q] = true
 			uniq.append(q_item)
 			if uniq.size() >= count:
@@ -441,6 +451,8 @@ func get_quizzes(subject: String, grade: int, difficulty: String,
 		if uniq.size() < count:
 			for q_item: QuizItem in items:
 				if q_item.q in seen:
+					continue
+				if QuizDedup.is_similar_to_any(q_item.q, exclude_texts):
 					continue
 				seen[q_item.q] = true
 				if difficulty == "難しい":
@@ -468,4 +480,4 @@ func get_quizzes(subject: String, grade: int, difficulty: String,
 
 		return uniq
 
-	return [pool.pick_random()]
+	return [pool.pick_random()] if pool.size() > 0 else [_fallback_question(subject, grade)]

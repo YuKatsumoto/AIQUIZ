@@ -25,8 +25,23 @@ var _p2_hat_node: Node3D = null
 
 var _p1_exploding: bool = false
 var _p2_exploding: bool = false
-var _p1_explosion_data: Array[Dictionary] = []
-var _p2_explosion_data: Array[Dictionary] = []
+var _p1_explosion_bodies: Array[RigidBody3D] = []
+var _p2_explosion_bodies: Array[RigidBody3D] = []
+
+const EXPLOSION_DEBRIS_LIFETIME: float = 4.5
+const EXPLOSION_MAGMA_SURFACE_Y: float = -9.2
+const EXPLOSION_KILL_Y: float = -14.0
+const EXPLOSION_MIN_COLLISION_SIZE: float = 0.10
+const EXPLOSION_IMPULSE_X_MIN: float = 5.5
+const EXPLOSION_IMPULSE_X_MAX: float = 15.0
+const EXPLOSION_IMPULSE_Y_MIN: float = 9.0
+const EXPLOSION_IMPULSE_Y_MAX: float = 20.0
+const EXPLOSION_IMPULSE_Z_MIN: float = -9.0
+const EXPLOSION_IMPULSE_Z_MAX: float = 9.0
+const EXPLOSION_TORQUE_MIN: float = -22.0
+const EXPLOSION_TORQUE_MAX: float = 22.0
+const EXPLOSION_PHYSICS_FRICTION: float = 0.62
+const EXPLOSION_PHYSICS_BOUNCE: float = 0.32
 
 # Animation Rig (P1/P2蜈ｱ騾壹け繝ｩ繧ｹ縺ｧ邂｡逅・
 var _p1_rig: AnimationRig = AnimationRig.new("P1")
@@ -482,7 +497,10 @@ func update_from_state(gs: QuizGameState) -> void:
 	position = Vector3(gs.player_x, gs.player_y, gs.player_local_z)
 	
 	if gs.p1_alive:
-		_p1_exploding = false
+		if _p1_exploding or not _p1_explosion_bodies.is_empty():
+			_p1_exploding = false
+			_clear_explosion_bodies(true)
+			_set_rig_scenes_visible(true, true)
 		_set_parts_visible(p1_parts, true)
 		if not _p1_rig.is_rigged:
 			var p1_is_playing := gs.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]
@@ -521,8 +539,9 @@ func update_from_state(gs: QuizGameState) -> void:
 				_p1_exploding = true
 				_init_explosion(p1_parts, true)
 			_set_parts_visible(p1_parts, false)
-			var is_magma = gs.player_y < -1.0
-			_update_explosion(true, gs.game_over_timer - 2.0, is_magma, gs.is_coop_mode(), -global_position.x)
+			if not _p1_explosion_bodies.is_empty():
+				var is_magma := gs.player_y < -1.0
+				_update_explosion(true, gs.game_over_timer - 2.0, is_magma, gs.is_coop_mode(), -global_position.x)
 	else:
 		_set_parts_visible(p1_parts, false)
 
@@ -531,7 +550,10 @@ func update_from_state(gs: QuizGameState) -> void:
 		p2_container.position = Vector3(gs.player2_x - gs.player_x, gs.player2_y - gs.player_y, gs.player2_local_z - gs.player_local_z)
 		
 		if gs.p2_alive:
-			_p2_exploding = false
+			if _p2_exploding or not _p2_explosion_bodies.is_empty():
+				_p2_exploding = false
+				_clear_explosion_bodies(false)
+				_set_rig_scenes_visible(false, true)
 			_set_parts_visible(p2_parts, true)
 			if not _p2_rig.is_rigged:
 				var p2_is_playing := gs.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]
@@ -569,8 +591,9 @@ func update_from_state(gs: QuizGameState) -> void:
 					_p2_exploding = true
 					_init_explosion(p2_parts, false)
 				_set_parts_visible(p2_parts, false)
-				var is_magma = gs.player2_y < -1.0
-				_update_explosion(false, gs.player2_game_over_timer - 2.0, is_magma, gs.is_coop_mode(), -global_position.x)
+				if not _p2_explosion_bodies.is_empty():
+					var is_magma := gs.player2_y < -1.0
+					_update_explosion(false, gs.player2_game_over_timer - 2.0, is_magma, gs.is_coop_mode(), -global_position.x)
 		else:
 			_set_parts_visible(p2_parts, false)
 
@@ -925,47 +948,134 @@ func _create_detailed_hand(color: Color, is_left: bool, parts: Dictionary, prefi
 
 	return {"root": hand_root, "meshes": meshes}
 
+func _get_explosion_spawn_root() -> Node:
+	var parent := get_parent()
+	return parent if parent else self
+
+
+func _is_preview_subviewport() -> bool:
+	return get_viewport() is SubViewport
+
+
+func _set_rig_scenes_visible(is_p1: bool, vis: bool) -> void:
+	var prefix := "P1" if is_p1 else "P2"
+	for child in get_children():
+		if str(child.name).begins_with(prefix):
+			child.visible = vis
+
+
+func _clear_explosion_bodies(is_p1: bool) -> void:
+	var bodies := _p1_explosion_bodies if is_p1 else _p2_explosion_bodies
+	for body in bodies:
+		if is_instance_valid(body):
+			body.queue_free()
+	bodies.clear()
+
+
+func _mesh_box_size(mesh_inst: MeshInstance3D) -> Vector3:
+	var box := mesh_inst.mesh as BoxMesh
+	var size := box.size if box else Vector3(0.18, 0.18, 0.18)
+	return size.max(Vector3.ONE * EXPLOSION_MIN_COLLISION_SIZE)
+
+
 func _init_explosion(parts: Dictionary, is_p1: bool) -> void:
-	if not parts or not parts.has("meshes"): return
-	
-	# Collect all meshes including hat meshes
+	if not parts or not parts.has("meshes"):
+		return
+	_hide_rig_scenes(is_p1)
+	_clear_explosion_bodies(is_p1)
+
 	var all_meshes: Array[MeshInstance3D] = []
 	for mesh: MeshInstance3D in parts["meshes"]:
 		all_meshes.append(mesh)
-	# Also add hat meshes if any
 	if parts.has("hat_meshes"):
 		for hat_mesh: MeshInstance3D in parts["hat_meshes"]:
 			all_meshes.append(hat_mesh)
-	
-	var exp_data: Array[Dictionary] = []
+
+	var spawn_root := _get_explosion_spawn_root()
+	var is_preview := _is_preview_subviewport()
+	var bodies: Array[RigidBody3D] = []
+
 	for mesh: MeshInstance3D in all_meshes:
-		var gt = mesh.global_transform
-		var old_parent = mesh.get_parent()
-		if old_parent != self:
-			old_parent.remove_child(mesh)
-			self.add_child(mesh)
-			mesh.global_transform = gt
-			
-		var gx = mesh.global_position.x - self.global_position.x
-		var sx = 1.0 if gx >= 0 else -1.0
-		
-		var vel = Vector3(sx * randf_range(2.0, 6.0), randf_range(4.0, 9.0), randf_range(-3.0, 3.0))
-		var rot_vel = Vector3(randf_range(-6.0, 6.0), randf_range(-6.0, 6.0), randf_range(-6.0, 6.0))
-		
-		exp_data.append({
-			"node": mesh,
-			"base_pos": mesh.position,
-			"base_rot": mesh.rotation,
-			"base_scale": mesh.scale,
-			"velocity": vel,
-			"rot_velocity": rot_vel,
-			"groove_offset": randf_range(-0.42, 0.42)
-		})
-		
+		if not is_instance_valid(mesh):
+			continue
+		mesh.visible = false
+
+		var gt := mesh.global_transform
+		var gx := gt.origin.x - global_position.x
+		var sx := 1.0 if gx >= 0.0 else -1.0
+
+		var piece := RigidBody3D.new()
+		piece.mass = randf_range(0.22, 0.45)
+		piece.gravity_scale = 2.0
+		piece.linear_damp = 0.05
+		piece.angular_damp = 0.06
+		piece.continuous_cd = true
+		piece.collision_layer = 0
+		piece.collision_mask = 1
+		var phys_mat := PhysicsMaterial.new()
+		phys_mat.friction = EXPLOSION_PHYSICS_FRICTION
+		phys_mat.bounce = EXPLOSION_PHYSICS_BOUNCE
+		piece.physics_material_override = phys_mat
+		piece.set_meta("player_death_shard", true)
+		piece.set_meta("preview_death_shard_p1", is_p1)
+		piece.set_meta("base_scale", mesh.scale)
+		piece.set_meta("groove_offset", randf_range(-0.42, 0.42))
+
+		var col := CollisionShape3D.new()
+		var shape := BoxShape3D.new()
+		shape.size = _mesh_box_size(mesh)
+		col.shape = shape
+		piece.add_child(col)
+
+		var visual := MeshInstance3D.new()
+		if mesh.mesh:
+			visual.mesh = mesh.mesh
+		if mesh.material_override:
+			visual.material_override = mesh.material_override
+		visual.scale = mesh.scale
+		piece.add_child(visual)
+
+		spawn_root.add_child(piece)
+		piece.global_transform = gt
+
+		var impulse := Vector3(
+			sx * randf_range(EXPLOSION_IMPULSE_X_MIN, EXPLOSION_IMPULSE_X_MAX),
+			randf_range(EXPLOSION_IMPULSE_Y_MIN, EXPLOSION_IMPULSE_Y_MAX),
+			randf_range(EXPLOSION_IMPULSE_Z_MIN, EXPLOSION_IMPULSE_Z_MAX)
+		)
+		# X/Z 回転を強めにして着地後も転がりやすくする
+		var torque := Vector3(
+			randf_range(EXPLOSION_TORQUE_MIN, EXPLOSION_TORQUE_MAX),
+			randf_range(EXPLOSION_TORQUE_MIN * 0.35, EXPLOSION_TORQUE_MAX * 0.35),
+			randf_range(EXPLOSION_TORQUE_MIN, EXPLOSION_TORQUE_MAX)
+		)
+		if is_preview:
+			piece.mass = randf_range(0.35, 0.65)
+			piece.gravity_scale = 2.3
+			piece.linear_damp = 0.06
+			piece.angular_damp = 0.05
+			impulse *= 1.45
+			torque *= 1.35
+
+		piece.apply_central_impulse(impulse)
+		piece.apply_torque_impulse(torque)
+		# 初速の回転を与えて床での転がりを強調
+		piece.angular_velocity = Vector3(
+			randf_range(-14.0, 14.0),
+			randf_range(-4.0, 4.0),
+			randf_range(-14.0, 14.0)
+		)
+		bodies.append(piece)
+
 	if is_p1:
-		_p1_explosion_data = exp_data
+		_p1_explosion_bodies = bodies
 	else:
-		_p2_explosion_data = exp_data
+		_p2_explosion_bodies = bodies
+
+
+func _hide_rig_scenes(is_p1: bool) -> void:
+	_set_rig_scenes_visible(is_p1, false)
+
 
 func _update_explosion(
 		is_p1: bool,
@@ -973,46 +1083,36 @@ func _update_explosion(
 		is_magma: bool = false,
 		fall_to_groove: bool = false,
 		groove_local_x: float = 0.0) -> void:
-	var data = _p1_explosion_data if is_p1 else _p2_explosion_data
-	var gravity = 15.0
+	var bodies := _p1_explosion_bodies if is_p1 else _p2_explosion_bodies
 	var should_sink := is_magma or fall_to_groove
-	var limit_y = -12.0 if should_sink else BASE_Y + 0.1
-	var magma_surface = -9.2
-	
-	for d: Dictionary in data:
-		var node: MeshInstance3D = d["node"]
-		var base: Vector3 = d["base_pos"]
-		var brot: Vector3 = d["base_rot"]
-		var bscale: Vector3 = d.get("base_scale", Vector3.ONE)
-		var vel: Vector3 = d["velocity"]
-		var rot_vel: Vector3 = d["rot_velocity"]
-		
-		var ey = base.y + vel.y * timer - 0.5 * gravity * timer * timer
-		var ex = base.x + vel.x * timer
-		var ez = base.z + vel.z * timer
-		var current_rot = brot + rot_vel * timer
+	var i := bodies.size() - 1
+	while i >= 0:
+		var body := bodies[i]
+		if not is_instance_valid(body):
+			bodies.remove_at(i)
+			i -= 1
+			continue
 
-		if fall_to_groove:
-			var groove_pull := clampf(timer / 1.8, 0.0, 1.0)
-			groove_pull = 1.0 - pow(1.0 - groove_pull, 2.0)
-			ex = lerpf(ex, groove_local_x + float(d.get("groove_offset", 0.0)), groove_pull)
-		
-		# Magma sink logic: slow down falling and shrink fragments
-		if should_sink and ey < magma_surface:
-			var depth = magma_surface - ey
-			ey = magma_surface - (depth * 0.05) # Slower sink velocity
-			
-			# Shrink fragments over time when sunk
-			var shrink = maxf(0.0, 1.0 - (depth * 0.1))
-			node.scale = bscale * shrink
-		else:
-			node.scale = bscale
-		
-		ey = maxf(limit_y, ey)
-		
-		node.position = Vector3(ex, ey, ez)
-		node.rotation = current_rot
-		node.visible = true
+		if timer >= EXPLOSION_DEBRIS_LIFETIME or body.global_position.y <= EXPLOSION_KILL_Y:
+			body.queue_free()
+			bodies.remove_at(i)
+			i -= 1
+			continue
+
+		if fall_to_groove and timer < 1.8:
+			var target_x := groove_local_x + float(body.get_meta("groove_offset", 0.0))
+			var dx := target_x - body.global_position.x
+			body.apply_central_force(Vector3(dx * 12.0, 0.0, 0.0))
+
+		if should_sink and body.global_position.y < EXPLOSION_MAGMA_SURFACE_Y:
+			var depth := EXPLOSION_MAGMA_SURFACE_Y - body.global_position.y
+			var bscale: Vector3 = body.get_meta("base_scale", Vector3.ONE)
+			var shrink := maxf(0.0, 1.0 - depth * 0.1)
+			for child in body.get_children():
+				if child is MeshInstance3D:
+					(child as MeshInstance3D).scale = bscale * shrink
+
+		i -= 1
 
 
 # ============================================================

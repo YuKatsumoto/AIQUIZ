@@ -90,6 +90,21 @@ func change_scene(path: String, fade_color: Color = Color.BLACK) -> void:
 		get_tree().change_scene_to_file(path)
 	)
 
+## 黒(指定色)へフェードアウトしてから完了。状態は fade のまま保持し、
+## 次シーンの reveal_current() でフェードインさせる (change_scene_to_packed 等と併用)
+func fade_to_color_and_wait(fade_color: Color = Color.BLACK) -> void:
+	_clear_texture_hold()
+	_hide_doors()
+	_is_transitioning = true
+	_active_style = "fade"
+	_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	_overlay.color = Color(fade_color.r, fade_color.g, fade_color.b, _overlay.color.a)
+	var tween := create_tween()
+	tween.set_ease(Tween.EASE_IN)
+	tween.set_trans(Tween.TRANS_QUAD)
+	tween.tween_property(_overlay, "color:a", 1.0, FADE_DURATION)
+	await tween.finished
+
 ## ドア・ワイプでシーン切り替え (左右パネルが seam から広がって画面を覆う)
 func change_scene_doors(path: String, seam_x: float = -1.0, color: Color = ACCENT_BLUE) -> void:
 	if _is_transitioning:

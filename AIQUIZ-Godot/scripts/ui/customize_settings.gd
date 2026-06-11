@@ -13,7 +13,7 @@ const PLAYER_CONTROLLER_SCRIPT: Script = preload("res://scripts/world/player_con
 const CustomizePreviewCameraSettingsScript = preload(
 	"res://scripts/ui/customize_preview_camera_settings.gd"
 )
-
+const EmoteDancer2DScript = preload("res://scripts/ui/emote_dancer_2d.gd")
 const WALL_SPACING := 30.0
 ## 左レーンP1（壁速度プレビューと同じオフセット）／右レーンP2は対称配置
 const PREVIEW_PLAYER_P1_X: float = -3.5
@@ -148,7 +148,7 @@ var _hat_slide_offscreen_dist: float = HAT_SLIDE_OFFSCREEN_X
 
 var _emote_player_btn_p1: Button
 var _emote_player_btn_p2: Button
-var _emote_browse_name_label: Label
+var _emote_dancer: EmoteDancer2D
 var _emote_browse_desc_label: Label
 var _emote_slot_btns: Array[Button] = []
 var _active_assign_slot_idx: int = 0
@@ -578,11 +578,13 @@ func _build_emote_panel() -> void:
 	detail_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
 	detail_panel.add_child(detail_vbox)
 
-	_emote_browse_name_label = Label.new()
-	_emote_browse_name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_emote_browse_name_label.add_theme_font_size_override("font_size", 16)
-	_emote_browse_name_label.add_theme_color_override("font_color", Color(1.0, 0.88, 0.25))
-	detail_vbox.add_child(_emote_browse_name_label)
+	## 選択中スロットのエモートを踊る2Dキャラ（空きスペースのショーケース）
+	_emote_dancer = EmoteDancer2DScript.new()
+	_emote_dancer.custom_minimum_size = Vector2(0, 200)
+	_emote_dancer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_emote_dancer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_emote_dancer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	detail_vbox.add_child(_emote_dancer)
 
 	_emote_browse_desc_label = Label.new()
 	_emote_browse_desc_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1232,12 +1234,14 @@ func _set_active_assign_slot(idx: int) -> void:
 
 
 func _update_emote_browse_detail() -> void:
-	if not _emote_browse_name_label:
-		return
-	var entry := _emote_catalog_entry(_browsing_emote_id)
-	_emote_browse_name_label.text = str(entry.get("name", "なし"))
+	var slots := _editing_player_emote_slots()
+	var active_id := EmoteData.normalize_emote_id(
+		slots[_active_assign_slot_idx] if _active_assign_slot_idx < slots.size() else EmoteData.EMOTE_NONE
+	)
 	if _emote_browse_desc_label:
-		_emote_browse_desc_label.text = EmoteData.get_emote_desc(_browsing_emote_id)
+		_emote_browse_desc_label.text = EmoteData.get_emote_desc(active_id)
+	if _emote_dancer:
+		_emote_dancer.set_emote(active_id, _editing_player == 1)
 
 
 func _slot_card_style(selected: bool) -> StyleBoxFlat:
@@ -1357,21 +1361,7 @@ func _lane_preview_emote_id_for_player(is_p1_lane: bool, gs: QuizGameState) -> i
 	return EmoteData.normalize_emote_id(sid2)
 
 func _pick_best_emote_animation(ap: AnimationPlayer) -> String:
-	var best_name := ""
-	var best_tracks := -1
-	for lib_name in ap.get_animation_library_list():
-		var lib: AnimationLibrary = ap.get_animation_library(lib_name)
-		for a_name in lib.get_animation_list():
-			var full: String = str(lib_name) + "/" + str(a_name) if str(lib_name) != "" else str(a_name)
-			var anim: Animation = lib.get_animation(a_name)
-			if "mixamo_com" in a_name:
-				best_name = full
-				best_tracks = 9999
-			elif anim.get_track_count() > best_tracks:
-				best_tracks = anim.get_track_count()
-				if not ("mixamo_com" in best_name):
-					best_name = full
-	return best_name
+	return EmoteBlockmanPreview.pick_best_emote_animation(ap)
 
 
 func _spawn_lane_emote_preview(emote_id: int, lane_x: float, is_p1: bool, hat_id: int) -> Dictionary:

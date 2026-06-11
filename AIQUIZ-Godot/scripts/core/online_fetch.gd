@@ -8,6 +8,16 @@ signal fetch_partial(quizzes: Array[QuizItem])
 const QUIZ_GENERATION_GEMINI_MODEL: String = "gemini-3.5-flash"
 ## オンライン問題生成（エンドレスモード）
 const QUIZ_GENERATION_ENDLESS_GEMINI_MODEL: String = "gemini-3.1-flash-lite"
+## オンライン補助処理（検証・解説・評価など）
+const AUXILIARY_GEMINI_MODEL: String = "gemini-3.5-flash"
+const UNIT_USAGE_PATH: String = "user://recent_unit_usage.json"
+
+## プロキシ/API のレート制限（429）バックオフ
+var _rate_limit_until_ms: int = 0
+var _rate_limit_strikes: int = 0
+## 10問モードの同時ストリーム上限（429 回避のため 6→2 に削減）
+const TEN_PARALLEL: int = 2
+const TEN_BATCH_STAGGER_SEC: float = 1.0
 
 func extract_json_from_text(text: String) -> Variant:
 	text = text.strip_edges()
@@ -112,6 +122,7 @@ func normalize_single(raw: Dictionary, src: String) -> QuizItem:
 	item.a = a_int
 	item.e = e
 	item.src = src
+	item.genre = str(raw.get("g", raw.get("genre", ""))).strip_edges()
 	item.estimated_seconds = est_sec
 	return item
 
@@ -142,7 +153,7 @@ func get_temperature_for_difficulty(difficulty: String, retry_count: int = 0) ->
 	base += retry_count * 0.1
 	return clampf(base, 0.1, 1.2)
 
-func compose_prompt(subject: String, grade: int, difficulty: String, count: int, history: Array[String], is_coop: bool = false) -> String:
+func compose_prompt(subject: String, grade: int, difficulty: String, count: int, history: Array[String], is_coop: bool = false, forced_units: PackedStringArray = []) -> String:
 	var prompt := ""
 
 	# ── 基本条件 ──
@@ -158,10 +169,11 @@ func compose_prompt(subject: String, grade: int, difficulty: String, count: int,
 	prompt += "- 解説文(e)はなぜその答えになるかを小学生にもわかるよう丁寧に説明すること（50〜100文字程度）。計算過程や考え方の手順を含めること\n"
 	prompt += "- 選択肢(c)は各15文字以内に収めること\n"
 	prompt += "- 予測解答時間(t)を各問題に付けること。対象学年の生徒が問題を読んで答えるまでの秒数（小数第1位）\n"
-	prompt += "  目安: 即答=2.0, 標準=4.0, 思考問題=6.0, 難問=8.0\n\n"
+	prompt += "  目安: 即答=2.0, 標準=4.0, 思考問題=6.0, 難問=8.0\n"
+	prompt += "- ジャンル(g)を各問題に付けること。その問題が属する単元・ジャンルの短いラベル（例: つなぎ言葉、慣用句、面積、割合）。同じ単元の問題には必ず同じラベルを付けること\n\n"
 
-	# ── 学年×教科別カリキュラムデータ ──
-	var curriculum := _get_curriculum(grade, subject)
+	# ── 学年×教科別カリキュラムデータ（forced_units 指定時は担当単元に限定） ──
+	var curriculum := _get_curriculum(grade, subject, forced_units)
 	
 	# ── 案1: Few-Shot強化 — QuizOptimizer から JSON形式の例を注入 ──
 	if QuizManager.quiz_optimizer != null:
@@ -185,7 +197,18 @@ func compose_prompt(subject: String, grade: int, difficulty: String, count: int,
 		prompt += "→ 上記の概念を問う問題を出してください\n"
 	
 	# ── 案6: 出題範囲の明示 ──
-	if curriculum.has("selected_unit_names") and curriculum["selected_unit_names"].size() > 0:
+	# forced_units 指定時は「このバッチの担当単元」を最優先制約として明示する。
+	# （バッチごとに異なる単元を割り当てることで、全体として同ジャンルの偏りを防ぐ）
+	if forced_units.size() > 0:
+		prompt += "＜★このバッチの担当単元（最重要・ここからのみ出題）＞\n"
+		for uname in forced_units:
+			prompt += "  - %s\n" % str(uname)
+		if forced_units.size() == 1:
+			prompt += "→ %d問すべてを単元『%s』から出題すること。他の単元からは絶対に出題しないこと。\n" % [count, str(forced_units[0])]
+			prompt += "→ ただし%d問は互いに異なる観点・問い方にし、同じ知識の繰り返しにしないこと。\n" % count
+		else:
+			prompt += "→ 上記の単元からのみ出題し、他の単元からは絶対に出題しないこと。\n"
+	elif curriculum.has("selected_unit_names") and curriculum["selected_unit_names"].size() > 0:
 		prompt += "＜★出題範囲（以下の単元から出題せよ）＞\n"
 		for uname in curriculum["selected_unit_names"]:
 			prompt += "  - %s\n" % str(uname)
@@ -258,9 +281,19 @@ func compose_prompt(subject: String, grade: int, difficulty: String, count: int,
 	prompt += "- 4択と2択を任意に混ぜて出題すること\n"
 	if history.size() > 0:
 		prompt += "- 【出題済みリスト】以下の問題は既に出題済みなので、同じ問題・類似の問題は絶対に出さないこと:\n"
-		var max_h = min(30, history.size())
-		for i in range(max_h):
-			prompt += "  × " + history[history.size() - 1 - i] + "\n"
+		var tail := QuizDedup.tail_texts(history, QuizDedup.PROMPT_HISTORY_MAX)
+		for i in range(tail.size()):
+			var hq := tail[tail.size() - 1 - i]
+			if hq.is_empty():
+				continue
+			var core := QuizDedup.extract_core_concept(hq)
+			if i >= 12 and not core.is_empty():
+				prompt += "  × [概念:%s]\n" % core.left(40)
+			else:
+				prompt += "  × " + hq
+				if not core.is_empty():
+					prompt += " [概念:%s]" % core.left(40)
+				prompt += "\n"
 	prompt += "\n"
 
 	# ── 協力モード用追加指示 ──
@@ -291,8 +324,13 @@ func compose_prompt(subject: String, grade: int, difficulty: String, count: int,
 
 # ── カリキュラムデータベース ──
 
-func _get_curriculum(grade: int, subject: String) -> Dictionary:
+func _get_curriculum(grade: int, subject: String, forced_units: PackedStringArray = []) -> Dictionary:
 	# ── 案6: 教科書DB（JSONファイル）を優先的に使用 ──
+	# forced_units 指定時はその担当単元に限定してカリキュラムを構築する
+	if forced_units.size() > 0:
+		var forced_data := CurriculumDB.build_curriculum_for_units(subject, grade, forced_units)
+		if not forced_data.is_empty():
+			return forced_data
 	var db_data := CurriculumDB.build_curriculum(subject, grade, 3)
 	if not db_data.is_empty():
 		return db_data
@@ -817,19 +855,45 @@ func _compose_hard_instructions(grade: int, subject: String, curriculum: Diction
 	p += "- 4択の場合、4つすべてが「ありえそう」に見えるのが理想\n\n"
 	return p
 
+func is_rate_limited() -> bool:
+	return Time.get_ticks_msec() < _rate_limit_until_ms
+
+
+func get_rate_limit_wait_sec() -> float:
+	var remaining_ms := _rate_limit_until_ms - Time.get_ticks_msec()
+	return maxf(0.0, float(remaining_ms) / 1000.0)
+
+
+func notify_rate_limit() -> void:
+	_rate_limit_strikes += 1
+	var backoff_sec := minf(60.0, pow(2.0, float(_rate_limit_strikes)) * 2.0)
+	_rate_limit_until_ms = Time.get_ticks_msec() + int(backoff_sec * 1000.0)
+	print("[OnlineFetch] Rate limited (429) — backing off %.0fs (strike %d)" % [backoff_sec, _rate_limit_strikes])
+
+
+func reset_rate_limit() -> void:
+	_rate_limit_strikes = 0
+	_rate_limit_until_ms = 0
+
+
 func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count: int, history: Array[String], force_ten_mode: bool = false) -> void:
+	if is_rate_limited():
+		print("[OnlineFetch] Skipping fetch — rate limit backoff (%.0fs remaining)" % get_rate_limit_wait_sec())
+		fetch_completed.emit([] as Array[QuizItem])
+		return
 	# 10問モード: 4並列リクエスト（各バッチに異なる単元を割当て → セマンティックdedupで最終フィルタ）
 	# エンドレスモード: 5並列リクエストで速度最重視
 	var is_ten_mode := count >= 6 or force_ten_mode  # 6問以上、または強制フラグで10問モード扱い
 	
 	var unique_seen := {}
 	var answer_seen := {}  # 正解テキスト → 問題文 のマップ（同じ正解の問題を検出）
+	var dedup_blocklist: Array = _collect_dedup_blocklist(subject, grade, difficulty, history)
 	
 	# 案5: 難易度に応じた temperature
 	var temperature := get_temperature_for_difficulty(difficulty)
 	
 	# ── 共通コールバック ──
-	var _make_on_complete = func(expected_ref: Array, completed_ref: Array) -> Callable:
+	var _make_on_complete = func(expected_ref: Array, completed_ref: Array, fallback_genre: String = "") -> Callable:
 		return func(items: Array[QuizItem]):
 			# 案2: ルールベースバリデーション（即時・無料）
 			var validator: QuizValidator = QuizManager.quiz_validator
@@ -843,10 +907,13 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 			items.shuffle()
 			for q in items:
 				if unique_seen.has(q.q): continue
+				if QuizDedup.is_similar_to_any(q.q, dedup_blocklist):
+					print("[OnlineFetch] Dedup blocked (history/bad): '%s'" % q.q.left(30))
+					continue
 				# セマンティック重複チェック: 既に見た問題と内容レベルで比較
 				var is_dup := false
 				for seen_q: String in unique_seen.keys():
-					if _is_semantically_similar(q.q, seen_q):
+					if QuizDedup.is_semantically_similar(q.q, seen_q):
 						is_dup = true
 						print("[OnlineFetch] Dedup blocked (semantic): '%s' ≈ '%s'" % [q.q.left(30), seen_q.left(30)])
 						break
@@ -858,8 +925,7 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 					correct_text = q.c[q.a]
 				if not correct_text.is_empty() and answer_seen.has(correct_text):
 					var prev_q: String = answer_seen[correct_text]
-					# 正解が同じで、問題文のコア概念も似ている場合は重複
-					if _extract_core_concept(q.q).similarity(_extract_core_concept(prev_q)) > 0.40:
+					if QuizDedup.is_duplicate_answer_concept(q.q, prev_q, correct_text, correct_text):
 						print("[OnlineFetch] Dedup blocked (same answer + similar concept): '%s' answer='%s'" % [q.q.left(30), correct_text])
 						continue
 				unique_seen[q.q] = true
@@ -867,11 +933,19 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 					answer_seen[correct_text] = q.q
 				unique_items.append(q)
 				
+			# ジャンルタグが空の問題は、このバッチの担当単元で補完（出題順分散に使う）
+			if not fallback_genre.is_empty():
+				for q in unique_items:
+					if q.genre.strip_edges().is_empty():
+						q.genre = fallback_genre
+			
 			if unique_items.size() > 0:
 				# 速度優先: 先着バッチの結果を即座にバッファ投入
 				fetch_partial.emit(unique_items)
 				
-				if validator and unique_items.size() > 0:
+				var gs := QuizManager.game_state
+				var in_preload := gs != null and gs.game_state == Constants.STATE_PRELOADING
+				if validator and unique_items.size() > 0 and not in_preload:
 					validator.validate_answers_llm(unique_items, subject, grade,
 						func(valid_items: Array[QuizItem], invalid_reasons: Array[String]):
 							if invalid_reasons.size() > 0:
@@ -885,37 +959,43 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 				fetch_completed.emit([] as Array[QuizItem])
 	
 	if is_ten_mode:
-		# ═══ 10問モード: 6並列 × 各2問（TTFT極小化 + ストリーミング最適化）═══
-		# 2問/バッチで出力トークン数を最小化 → 最初の1問が最速で到着
-		# 6テーマ × 2問 = 12問生成 → dedup後10問以上確保（安全マージン2問）
-		const TEN_PARALLEL: int = 6
-		var per_batch: int = 2  # 各バッチの問題数（合計12問 → dedup後10問以上確保）
+		# ═══ 10問モード: 2並列 × 各5問（429 回避 + 十分な生成量）═══
+		var per_batch: int = 5
 		var expected_ref := [TEN_PARALLEL]
 		var completed_ref := [0]
 		
-		var timer := get_tree().create_timer(15.0)  # 2問/バッチは超軽量なので15sで十分
+		var timer := get_tree().create_timer(30.0)
 		timer.timeout.connect(func():
 			if completed_ref[0] < expected_ref[0]:
 				completed_ref[0] = 999
 				fetch_completed.emit([] as Array[QuizItem])
 		)
 		
-		var on_complete: Callable = _make_on_complete.call(expected_ref, completed_ref)
-		
-		# CurriculumDBから全単元を取得し、6バッチに重複なく振り分ける
-		var batch_unit_instructions: Array[String] = _allocate_units_to_batches(subject, grade, TEN_PARALLEL)
+		var batch_units: Array[PackedStringArray] = _allocate_units_to_batches(subject, grade, TEN_PARALLEL)
+		_mark_units_used(subject, grade, batch_units)
 		
 		for i in range(TEN_PARALLEL):
-			var extra_history: Array[String] = history.duplicate()
-			extra_history.append(batch_unit_instructions[i])
-			var prompt := compose_prompt(subject, grade, difficulty, per_batch, extra_history, QuizManager.game_state.is_coop_mode())
-			var proxy_msg := " (via AI Gateway)" if not ApiStatusAutoload.get_env("PROXY_URL").is_empty() else ""
-			if is_streaming_available():
-				print("[OnlineFetch] 10-question mode - batch %d/%d: STREAMING %d questions%s" % [i+1, TEN_PARALLEL, per_batch, proxy_msg])
-				_fetch_gemini_streaming(prompt, QUIZ_GENERATION_GEMINI_MODEL, temperature, on_complete)
+			var batch_idx := i
+			var forced_units: PackedStringArray = batch_units[batch_idx]
+			var fallback_genre: String = forced_units[0] if forced_units.size() > 0 else ""
+			var on_complete: Callable = _make_on_complete.call(expected_ref, completed_ref, fallback_genre)
+			var prompt := compose_prompt(subject, grade, difficulty, per_batch, history, QuizManager.game_state.is_coop_mode(), forced_units)
+			var proxy_msg := " (via AI Gateway)"
+			var launch := func():
+				if is_rate_limited():
+					print("[OnlineFetch] Batch %d skipped — rate limit active" % (batch_idx + 1))
+					on_complete.call([] as Array[QuizItem])
+					return
+				if is_streaming_available():
+					print("[OnlineFetch] 10-question mode - batch %d/%d: STREAMING %d questions%s" % [batch_idx + 1, TEN_PARALLEL, per_batch, proxy_msg])
+					_fetch_gemini_streaming(prompt, QUIZ_GENERATION_GEMINI_MODEL, temperature, on_complete)
+				else:
+					print("[OnlineFetch] 10-question mode - batch %d/%d: requesting %d questions%s" % [batch_idx + 1, TEN_PARALLEL, per_batch, proxy_msg])
+					_fetch_gemini_target(prompt, QUIZ_GENERATION_GEMINI_MODEL, temperature, on_complete)
+			if batch_idx == 0:
+				launch.call()
 			else:
-				print("[OnlineFetch] 10-question mode - batch %d/%d: requesting %d questions%s" % [i+1, TEN_PARALLEL, per_batch, proxy_msg])
-				_fetch_gemini_target(prompt, QUIZ_GENERATION_GEMINI_MODEL, temperature, on_complete)
+				get_tree().create_timer(float(batch_idx) * TEN_BATCH_STAGGER_SEC).timeout.connect(launch)
 	else:
 		# ═══ エンドレスモード: 必要なだけ細かくリクエスト ═══
 		# 過剰な並列リクエストによるコストを防ぐため、最小限の並列数（バッチ）でリクエストする
@@ -932,7 +1012,8 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 				fetch_completed.emit([] as Array[QuizItem])
 		)
 		
-		var on_complete: Callable = _make_on_complete.call(expected_ref, completed_ref)
+		var batch_units: Array[PackedStringArray] = _allocate_units_to_batches(subject, grade, parallel_count)
+		_mark_units_used(subject, grade, batch_units)
 		
 		var themes := [
 			"テーマA: 基礎的な用語や計算、単純な事実を問う問題",
@@ -943,10 +1024,13 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 		]
 		
 		for i in range(parallel_count):
+			var forced_units: PackedStringArray = batch_units[i] if i < batch_units.size() else PackedStringArray()
+			var fallback_genre: String = forced_units[0] if forced_units.size() > 0 else ""
+			var on_complete: Callable = _make_on_complete.call(expected_ref, completed_ref, fallback_genre)
 			var extra_history: Array[String] = history.duplicate()
 			extra_history.append("【バッチ制約: この生成では必ず『%s』の傾向を中心に出題し、他のバッチと内容が被るのを防いでください】" % themes[i % themes.size()])
-			var prompt := compose_prompt(subject, grade, difficulty, per_call, extra_history, QuizManager.game_state.is_coop_mode())
-			var proxy_msg := " (via AI Gateway)" if not ApiStatusAutoload.get_env("PROXY_URL").is_empty() else ""
+			var prompt := compose_prompt(subject, grade, difficulty, per_call, extra_history, QuizManager.game_state.is_coop_mode(), forced_units)
+			var proxy_msg := " (via AI Gateway)"
 			if is_streaming_available():
 				print("[OnlineFetch] Endless mode - batch %d/%d: STREAMING %d questions%s" % [i+1, parallel_count, per_call, proxy_msg])
 				_fetch_gemini_streaming(prompt, QUIZ_GENERATION_ENDLESS_GEMINI_MODEL, temperature, on_complete)
@@ -955,9 +1039,11 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 				_fetch_gemini_target(prompt, QUIZ_GENERATION_ENDLESS_GEMINI_MODEL, temperature, on_complete)
 
 ## CurriculumDB から全単元を取得し、batch_count 個のバッチに重複なく振り分ける
-## 各バッチに「この2問は〇〇と△△の単元から出題せよ」という指示文字列を返す
-func _allocate_units_to_batches(subject: String, grade: int, batch_count: int) -> Array[String]:
-	var result: Array[String] = []
+## 各バッチに「担当単元（1単元）」を割り当てて返す。
+## 単元数 < バッチ数 でも巡回割当し、隣接バッチが同じ単元にならないようにする。
+## カリキュラムDBが無い教科・学年では空配列を返し、compose_prompt 側が汎用指示にフォールバックする。
+func _allocate_units_to_batches(subject: String, grade: int, batch_count: int) -> Array[PackedStringArray]:
+	var result: Array[PackedStringArray] = []
 	
 	# CurriculumDB から全単元名を取得
 	var data := CurriculumDB.load_grade(subject, grade)
@@ -968,151 +1054,114 @@ func _allocate_units_to_batches(subject: String, grade: int, batch_count: int) -
 			if unit is Dictionary and unit.has("name"):
 				all_unit_names.append(str(unit["name"]))
 	
-	if all_unit_names.size() >= batch_count:
-		# 十分な単元がある → シャッフルして各バッチに2単元ずつ割り当て
-		all_unit_names.shuffle()
+	if all_unit_names.is_empty():
+		# カリキュラムDB無し → 空の担当単元（compose_prompt が汎用指示にフォールバック）
 		for i in range(batch_count):
-			var idx1 := i * 2
-			var idx2 := i * 2 + 1
-			var unit1: String = all_unit_names[idx1 % all_unit_names.size()]
-			var unit2: String = all_unit_names[idx2 % all_unit_names.size()]
-			# 同じ単元になった場合は次の単元を使う
-			if unit1 == unit2 and all_unit_names.size() > 1:
-				unit2 = all_unit_names[(idx2 + 1) % all_unit_names.size()]
-			result.append("【バッチ指示】この2問は必ず以下の2つの単元から1問ずつ出題せよ: 『%s』『%s』。他の単元からは出題禁止。" % [unit1, unit2])
-		print("[OnlineFetch] Allocated %d units across %d batches from CurriculumDB" % [all_unit_names.size(), batch_count])
-	else:
-		# フォールバック: カリキュラムDBがない場合は汎用ジャンルを使用
-		var fallback_themes := [
-			"計算・数値操作・公式適用・単位変換",
-			"文章題・応用思考・因果推論・日常場面の問題",
-			"図形・グラフ読取・空間認識・図の性質",
-			"概念理解・知識問題・定義の確認・法則の適用",
-			"ひねった応用問題・よくある間違いを誘う問題",
-			"この学年で最も重要な単元から総合的に出題"
-		]
-		for i in range(batch_count):
-			result.append("【バッチ指示】この2問は以下のジャンルから出題: %s。2問は必ず異なる単元から出題せよ。" % fallback_themes[i % fallback_themes.size()])
-		print("[OnlineFetch] Using fallback themes (no CurriculumDB data for %s/%d)" % [subject, grade])
+			result.append(PackedStringArray())
+		print("[OnlineFetch] No CurriculumDB units for %s/%d, using generic prompt" % [subject, grade])
+		return result
+	
+	# 最近使っていない単元を優先（LRU）してから割当
+	all_unit_names = _sort_units_lru(subject, grade, all_unit_names)
+	for i in range(batch_count):
+		var primary: String = all_unit_names[i % all_unit_names.size()]
+		result.append(PackedStringArray([primary]))
+	print("[OnlineFetch] Allocated %d units across %d batches from CurriculumDB (LRU)" % [all_unit_names.size(), batch_count])
 	
 	return result
 
-## セマンティック重複検出
-## 問題文からキーワードを抽出し、Jaccard類似度で内容レベルの重複を検出する
-## 「数値を変えただけ」「聞き方を変えただけ」のパターンを確実にブロック
-func _is_semantically_similar(q1: String, q2: String) -> bool:
-	# 完全一致チェック
-	if q1 == q2:
-		return true
-	# 通常の文字列類似度（GDScript built-in） — 閾値を下げて言い換えも検出
-	if q1.similarity(q2) > 0.55:
-		return true
-	# コアコンセプト比較: 数値・助詞・構造語をすべて除去した「概念骨格」で比較
-	var core1 := _extract_core_concept(q1)
-	var core2 := _extract_core_concept(q2)
-	if not core1.is_empty() and not core2.is_empty():
-		# 概念骨格の文字列類似度（数値が消えるので表現違いでも高スコアになる）
-		if core1.similarity(core2) > 0.60:
-			return true
-	# キーワード抽出ベースの類似度チェック
-	var kw1 := _extract_keywords(q1)
-	var kw2 := _extract_keywords(q2)
-	if kw1.is_empty() or kw2.is_empty():
-		return false
-	# Jaccard類似度: 共通キーワード / 全キーワードの和集合 — 閾値を下げて検出感度UP
-	var intersection := 0
-	for k in kw1:
-		if kw2.has(k):
-			intersection += 1
-	var union_size := kw1.size() + kw2.size() - intersection
-	if union_size == 0:
-		return false
-	var jaccard := float(intersection) / float(union_size)
-	return jaccard > 0.45  # 45%以上のキーワードが一致 → 重複と判定
 
-## 問題文から数値・助詞・構造語をすべて除去し、コア概念だけの文字列を返す
-## 例: 「乾電池2個を使って豆電球を光らせるとき」→「乾電池個使って豆電球光らせるとき」
-func _extract_core_concept(text: String) -> String:
-	var result := ""
-	# 数字（半角・全角）を除去
-	for i in range(text.length()):
-		var c := text[i]
-		# 半角数字
-		if c >= "0" and c <= "9":
-			continue
-		# 全角数字
-		if c in ["０","１","２","３","４","５","６","７","８","９"]:
-			continue
-		result += c
-	# 構造語・助詞・記号を除去
-	var noise := ["は", "の", "が", "を", "に", "で", "と", "も", "へ", "から",
-		"まで", "より", "など", "たり", "って", "です", "ます", "した", "する",
-		"ある", "いる", "なる", "ない", "この", "その", "どの", "どれ",
-		"いくつ", "何", "どう", "とき", "こと", "もの", "ため", "ところ",
-		"一番", "最も", "どの", "どれ", "どちら", "いくら",
-		"？", "。", "、", "「", "」", "（", "）", "＝", "＋", "−", "×", "÷",
-		"?", ".", ",", "(", ")", "=", "+", "-", " ", "　"]
-	for nw: String in noise:
-		result = result.replace(nw, "")
-	return result
+func _collect_dedup_blocklist(subject: String, grade: int, difficulty: String, history: Array) -> Array:
+	var blocklist: Array = QuizDedup.tail_texts(history, QuizDedup.BLOCKLIST_HISTORY_MAX)
+	if QuizManager.quiz_optimizer != null:
+		for item: Variant in QuizManager.quiz_optimizer.ratings.get("bad", []):
+			if not item is Dictionary:
+				continue
+			var entry: Dictionary = item
+			if str(entry.get("subject", "")) != subject:
+				continue
+			if str(entry.get("grade", "")) != str(grade):
+				continue
+			var q_text := str(entry.get("q", ""))
+			if not q_text.is_empty():
+				blocklist.append(q_text)
+	if QuizManager.player_analytics != null:
+		var signals := QuizManager.player_analytics.get_quality_signals(subject, grade, difficulty)
+		for q_text: String in signals.get("too_easy", []):
+			if not q_text.is_empty():
+				blocklist.append(q_text)
+	return blocklist
 
-## 問題文からコンテンツキーワードを抽出する
-## 助詞・構造語・数値を除去して内容の骨格だけを残す
-func _extract_keywords(text: String) -> Dictionary:
-	# 数字を正規化（全角→半角は GDScript では手動）
-	var normalized := text
-	# 助詞・接続詞・構造語を除去してトークン化
-	var noise_words := ["は", "の", "が", "を", "に", "で", "と", "も", "へ", "から",
-		"まで", "より", "など", "たり", "って", "です", "ます", "した", "する",
-		"ある", "いる", "なる", "ない", "この", "その", "どの", "どれ",
-		"いくつ", "何", "どう", "とき", "こと", "もの", "ため", "ところ",
-		"？", "。", "、", "「", "」", "（", "）", "＝", "＋", "−", "×", "÷",
-		"?", ".", ",", "(", ")", "=", "+", "-"]
-	# 文字を1〜3文字のn-gramに分割してキーワード辞書を構築
-	var keywords := {}
-	# まずスペースや記号で大まかにトークン分割
-	var tokens := normalized.split(" ")
-	var expanded_tokens: Array[String] = []
-	for t in tokens:
-		# さらに日本語の助詞的な境界で分割（簡易）
-		expanded_tokens.append(t)
-	for token: String in expanded_tokens:
-		var cleaned := token.strip_edges()
-		if cleaned.length() < 2:
+
+func _load_unit_usage() -> Array:
+	if not FileAccess.file_exists(UNIT_USAGE_PATH):
+		return []
+	var f := FileAccess.open(UNIT_USAGE_PATH, FileAccess.READ)
+	if f == null:
+		return []
+	var json = JSON.parse_string(f.get_as_text())
+	f.close()
+	return json if json is Array else []
+
+
+func _save_unit_usage(entries: Array) -> void:
+	var f := FileAccess.open(UNIT_USAGE_PATH, FileAccess.WRITE)
+	if f:
+		f.store_string(JSON.stringify(entries))
+		f.close()
+
+
+func _record_unit_usage(subject: String, grade: int, unit_name: String) -> void:
+	if unit_name.is_empty():
+		return
+	var entries: Array = _load_unit_usage()
+	var now := int(Time.get_unix_time_from_system())
+	var found := false
+	for entry: Variant in entries:
+		if not entry is Dictionary:
 			continue
-		if cleaned in noise_words:
+		var e: Dictionary = entry
+		if e.get("subject", "") == subject and int(e.get("grade", 0)) == grade and e.get("unit_name", "") == unit_name:
+			e["last_used_at"] = now
+			found = true
+			break
+	if not found:
+		entries.append({
+			"subject": subject,
+			"grade": grade,
+			"unit_name": unit_name,
+			"last_used_at": now,
+		})
+	while entries.size() > 200:
+		entries.pop_front()
+	_save_unit_usage(entries)
+
+
+func _mark_units_used(subject: String, grade: int, batch_units: Array[PackedStringArray]) -> void:
+	for batch: PackedStringArray in batch_units:
+		for unit_name: String in batch:
+			_record_unit_usage(subject, grade, unit_name)
+
+
+func _sort_units_lru(subject: String, grade: int, units: Array[String]) -> Array[String]:
+	var last_used := {}
+	for entry: Variant in _load_unit_usage():
+		if not entry is Dictionary:
 			continue
-		# 数値だけのトークンは除外（数値違いの問題を同一視するため）
-		if cleaned.is_valid_int() or cleaned.is_valid_float():
-			continue
-		keywords[cleaned] = true
-	# 2文字bigram も追加（日本語は空白区切りがないため）
-	for i in range(normalized.length() - 1):
-		var bigram := normalized.substr(i, 2)
-		var skip := false
-		for nw: String in ["は", "の", "が", "を", "に", "で", "と", "も"]:
-			if bigram.contains(nw):
-				skip = true
-				break
-		if skip:
-			continue
-		if bigram.strip_edges().length() == 2:
-			keywords[bigram] = true
-	return keywords
+		var e: Dictionary = entry
+		if e.get("subject", "") == subject and int(e.get("grade", 0)) == grade:
+			last_used[e.get("unit_name", "")] = int(e.get("last_used_at", 0))
+	units.sort_custom(func(a: String, b: String) -> bool:
+		return int(last_used.get(a, 0)) < int(last_used.get(b, 0))
+	)
+	return units
 
 func _fetch_gemini_target(prompt: String, target_model: String, temperature: float, callback: Callable) -> void:
-	var proxy := ApiStatusAutoload.get_env("PROXY_URL")
-	var url: String
-	if not proxy.is_empty():
-		url = proxy + "/gemini?model=" + target_model
-	else:
-		var key := ApiStatusAutoload.get_env("GOOGLE_API_KEY")
-		if key.is_empty():
-			key = ApiStatusAutoload.get_env("GEMINI_API_KEY")
-		if key.is_empty():
-			callback.call([])
-			return
-		url = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s" % [target_model, key]
+	var url := ApiStatusAutoload.gemini_endpoint(target_model)
+	if url.is_empty():
+		push_error("[OnlineFetch] PROXY_URL is not configured")
+		callback.call([])
+		return
 	
 	var http := HTTPRequest.new()
 	add_child(http)
@@ -1135,7 +1184,8 @@ func _fetch_gemini_target(prompt: String, target_model: String, temperature: flo
 					"description": "選択肢 (2個または4個、各15文字以内)"
 				},
 				"a": {"type": "INTEGER", "description": "正解インデックス (0始まり)"},
-				"e": {"type": "STRING", "description": "解説 (空文字列でも可)"}
+				"e": {"type": "STRING", "description": "解説 (空文字列でも可)"},
+				"g": {"type": "STRING", "description": "ジャンル/単元の短いラベル (例: つなぎ言葉)"}
 			}
 		}
 	}
@@ -1152,7 +1202,9 @@ func _fetch_gemini_target(prompt: String, target_model: String, temperature: flo
 	
 	http.request_completed.connect(func(result: int, response_code: int, _h, b: PackedByteArray):
 		var out: Array[QuizItem] = []
-		if result == HTTPRequest.RESULT_SUCCESS and response_code == 200:
+		if response_code == 429:
+			notify_rate_limit()
+		elif result == HTTPRequest.RESULT_SUCCESS and response_code == 200:
 			var json = JSON.parse_string(b.get_string_from_utf8())
 			if json is Dictionary and json.has("candidates"):
 				var text: String = json["candidates"][0]["content"]["parts"][0].get("text", "")
@@ -1163,25 +1215,15 @@ func _fetch_gemini_target(prompt: String, target_model: String, temperature: flo
 		http.queue_free()
 		callback.call(out)
 	)
-	http.request(url, ApiStatusAutoload.get_proxy_headers() if not proxy.is_empty() else ["Content-Type: application/json"], HTTPClient.METHOD_POST, body)
+	http.request(url, ApiStatusAutoload.get_proxy_headers(), HTTPClient.METHOD_POST, body)
 
 func _fetch_openai(prompt: String, callback: Callable) -> void:
 	var model := ApiStatusAutoload.get_env("OPENAI_FAST_MODEL", "gpt-4o-mini")
-	
-	var proxy := ApiStatusAutoload.get_env("PROXY_URL")
-	var url: String
-	var headers: PackedStringArray
-	
-	if not proxy.is_empty():
-		url = proxy + "/openai"
-		headers = ApiStatusAutoload.get_proxy_headers()
-	else:
-		var key := ApiStatusAutoload.get_env("OPENAI_API_KEY")
-		if key.is_empty():
-			callback.call([])
-			return
-		url = "https://api.openai.com/v1/chat/completions"
-		headers = ["Content-Type: application/json", "Authorization: Bearer " + key]
+	var url := ApiStatusAutoload.openai_endpoint()
+	if url.is_empty():
+		callback.call([])
+		return
+	var headers := ApiStatusAutoload.get_proxy_headers()
 	
 	var http := HTTPRequest.new()
 	add_child(http)
@@ -1209,20 +1251,11 @@ func _fetch_openai(prompt: String, callback: Callable) -> void:
 	http.request(url, headers, HTTPClient.METHOD_POST, body)
 
 func fetch_explanation(subject: String, grade: int, quiz_q: String, quiz_c: PackedStringArray, quiz_a: int, callback: Callable) -> void:
-	var model := ApiStatusAutoload.gemini_model
-	var proxy := ApiStatusAutoload.get_env("PROXY_URL")
-	var url: String
-	
-	if not proxy.is_empty():
-		url = proxy + "/gemini?model=" + model
-	else:
-		var key := ApiStatusAutoload.get_env("GOOGLE_API_KEY")
-		if key.is_empty():
-			key = ApiStatusAutoload.get_env("GEMINI_API_KEY")
-		if key.is_empty():
-			callback.call("解説を取得できませんでした")
-			return
-		url = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s" % [model, key]
+	var model := AUXILIARY_GEMINI_MODEL
+	var url := ApiStatusAutoload.gemini_endpoint(model)
+	if url.is_empty():
+		callback.call("解説を取得できませんでした")
+		return
 	
 	var http := HTTPRequest.new()
 	add_child(http)
@@ -1248,7 +1281,7 @@ func fetch_explanation(subject: String, grade: int, quiz_q: String, quiz_c: Pack
 		http.queue_free()
 		callback.call(ans)
 	)
-	http.request(url, ApiStatusAutoload.get_proxy_headers() if not proxy.is_empty() else ["Content-Type: application/json"], HTTPClient.METHOD_POST, body)
+	http.request(url, ApiStatusAutoload.get_proxy_headers(), HTTPClient.METHOD_POST, body)
 
 ## 解説バッチ生成（バックグラウンド並列タスク）
 ## クイズ本体の生成後に呼び出し、複数問の解説を1つのAPIコールで一括生成する。
@@ -1267,19 +1300,10 @@ func fetch_explanations_batch(quizzes: Array[QuizItem], subject: String, grade: 
 	if targets.is_empty():
 		return
 	
-	var model := "gemini-3.1-flash-lite"
-	var proxy := ApiStatusAutoload.get_env("PROXY_URL")
-	var url: String
-	
-	if not proxy.is_empty():
-		url = proxy + "/gemini?model=" + model
-	else:
-		var key := ApiStatusAutoload.get_env("GOOGLE_API_KEY")
-		if key.is_empty():
-			key = ApiStatusAutoload.get_env("GEMINI_API_KEY")
-		if key.is_empty():
-			return
-		url = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s" % [model, key]
+	var model := AUXILIARY_GEMINI_MODEL
+	var url := ApiStatusAutoload.gemini_endpoint(model)
+	if url.is_empty():
+		return
 	
 	# バッチプロンプトを構築
 	var items := []
@@ -1341,7 +1365,7 @@ func fetch_explanations_batch(quizzes: Array[QuizItem], subject: String, grade: 
 			print("[OnlineFetch] Batch explanation request failed: result=%d code=%d" % [result, response_code])
 		http.queue_free()
 	)
-	http.request(url, ApiStatusAutoload.get_proxy_headers() if not proxy.is_empty() else ["Content-Type: application/json"], HTTPClient.METHOD_POST, body)
+	http.request(url, ApiStatusAutoload.get_proxy_headers(), HTTPClient.METHOD_POST, body)
 
 func _count_filled(quizzes: Array[QuizItem]) -> int:
 	var count := 0
@@ -1444,26 +1468,12 @@ func extract_complete_objects_from_stream(text: String, start_idx: int) -> Dicti
 ##
 ## callback: func(items: Array[QuizItem]) — 既存の on_complete と同じシグネチャ
 func _fetch_gemini_streaming(prompt: String, target_model: String, temperature: float, callback: Callable) -> void:
-	# ── URL構築 ──
-	var proxy := ApiStatusAutoload.get_env("PROXY_URL")
-	var url: String
-	var headers: PackedStringArray
-	
-	if not proxy.is_empty():
-		# プロキシ経由: ストリーミング専用エンドポイント
-		url = proxy + "/gemini-stream?model=" + target_model
-		headers = ApiStatusAutoload.get_proxy_headers()
-	else:
-		# 直接接続: streamGenerateContent エンドポイント
-		var key := ApiStatusAutoload.get_env("GOOGLE_API_KEY")
-		if key.is_empty():
-			key = ApiStatusAutoload.get_env("GEMINI_API_KEY")
-		if key.is_empty():
-			push_error("[OnlineFetch] No API key for streaming")
-			callback.call([] as Array[QuizItem])
-			return
-		url = "https://generativelanguage.googleapis.com/v1beta/models/%s:streamGenerateContent?alt=sse&key=%s" % [target_model, key]
-		headers = PackedStringArray(["Content-Type: application/json"])
+	var url := ApiStatusAutoload.gemini_endpoint(target_model, true)
+	if url.is_empty():
+		push_error("[OnlineFetch] PROXY_URL is not configured for streaming")
+		callback.call([] as Array[QuizItem])
+		return
+	var headers := ApiStatusAutoload.get_proxy_headers()
 	
 	# ── リクエストボディ（非ストリーミング版と同一）──
 	var sys_instruction := compose_system_instruction()
@@ -1474,7 +1484,7 @@ func _fetch_gemini_streaming(prompt: String, target_model: String, temperature: 
 	# 代わりにプロンプト側で JSON 出力を強制する
 	var body := JSON.stringify({
 		"systemInstruction": {"parts": [{"text": sys_instruction}]},
-		"contents": [{"parts": [{"text": prompt + "\n\n【出力形式】JSON配列のみ出力せよ。マークダウンや説明文は一切不要。例: [{\"q\":\"...\",\"c\":[\"A\",\"B\",\"C\",\"D\"],\"a\":0,\"e\":\"...\"}]"}]}],
+		"contents": [{"parts": [{"text": prompt + "\n\n【出力形式】JSON配列のみ出力せよ。マークダウンや説明文は一切不要。例: [{\"q\":\"...\",\"c\":[\"A\",\"B\",\"C\",\"D\"],\"a\":0,\"e\":\"...\",\"g\":\"単元名\"}]"}]}],
 		"generationConfig": {
 			"temperature": temperature,
 			"responseMimeType": "application/json"
@@ -1521,7 +1531,11 @@ func _fetch_gemini_streaming(prompt: String, target_model: String, temperature: 
 	# ── ストリーム完了時 ──
 	stream_client.stream_finished.connect(func(success: bool, accumulated: String):
 		if not success and emitted_items.is_empty():
-			# ストリーミング完全失敗 → 以降のリクエストは非ストリーミングにフォールバック
+			if stream_client.response_code == 429:
+				notify_rate_limit()
+				callback.call([] as Array[QuizItem])
+				return
+			# 429 以外のストリーミング完全失敗 → 非ストリーミングにフォールバック
 			_stream_available = false
 			print("[OnlineFetch] Streaming failed, disabling streaming for this session. Falling back...")
 			_fetch_gemini_target(prompt, target_model, temperature, callback)
@@ -1557,15 +1571,7 @@ var _stream_available: bool = true
 func is_streaming_available() -> bool:
 	if not _stream_available:
 		return false
-	# APIキーが設定されている必要がある
-	var proxy := ApiStatusAutoload.get_env("PROXY_URL")
-	if not proxy.is_empty():
-		return true  # プロキシ側にストリーミングエンドポイントがあることを期待
-	# 直接接続の場合はキーがあればOK
-	var key := ApiStatusAutoload.get_env("GOOGLE_API_KEY")
-	if key.is_empty():
-		key = ApiStatusAutoload.get_env("GEMINI_API_KEY")
-	return not key.is_empty()
+	return ApiStatusAutoload.is_proxy_available()
 
 ## 実行中のすべてのリクエスト（ストリーミング含む）をキャンセルし、ノードを破棄する。
 ## ゲームオーバー時などにトークン消費を即座に止めるために使用する。

@@ -2,6 +2,8 @@
 Godot_v4.3-stable_win64.exe
 Godot_v4.4-stable_win64.exe
 Godot_v4.4-stable_win64_console.exe
+Godot_v4.6.3-stable_win64.exe
+Godot_v4.6.3-stable_win64_console.exe
 *.pck
 
 # Environments and configs
@@ -25,3 +27,14 @@ AIQUIZ-Godot-Android/.godot/
 *.log
 *.txt
 node_modules/
+
+# Unreal Engine (AIQUIZ-Unreal) — generated/derived, do not track
+AIQUIZ-Unreal/Binaries/
+AIQUIZ-Unreal/Intermediate/
+AIQUIZ-Unreal/DerivedDataCache/
+AIQUIZ-Unreal/Saved/
+AIQUIZ-Unreal/.vs/
+AIQUIZ-Unreal/*.sln
+AIQUIZ-Unreal/Plugins/*/Binaries/
+AIQUIZ-Unreal/Plugins/*/Intermediate/
+AIQUIZ-Unreal/Tools/mcp-unreal-src/

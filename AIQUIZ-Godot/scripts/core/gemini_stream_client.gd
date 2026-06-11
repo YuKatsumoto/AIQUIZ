@@ -61,6 +61,9 @@ var _start_time: float = 0.0
 var _last_chunk_time: float = 0.0
 
 var _is_proxy: bool = false  # プロキシ経由かどうか
+var _http_ok: bool = false
+## 最後に受信した HTTP ステータス（429 判定などに使用）
+var response_code: int = 0
 
 
 ## ── パブリックメソッド ──
@@ -184,11 +187,12 @@ func _handle_requesting(status: int, _now: float) -> void:
 		HTTPClient.STATUS_BODY:
 			# レスポンスのヘッダーを受信し、ボディ受信開始
 			var resp_code := _http.get_response_code()
+			response_code = resp_code
+			_http_ok = resp_code == 200
 			print("[%d] [GeminiStreamClient] Response code: %d" % [Time.get_ticks_msec(), resp_code])
-			if resp_code != 200:
+			if not _http_ok:
 				push_error("[GeminiStreamClient] Non-200 response: %d" % resp_code)
-				# ボディを読んでエラー内容を出力してから終了
-				_state = State.BODY  # ボディを読みきってからfinish
+				_state = State.BODY  # ボディを読みきってから finish
 				return
 			_last_chunk_time = _now
 			_state = State.BODY
@@ -205,8 +209,10 @@ func _handle_headers(status: int, _now: float) -> void:
 	match status:
 		HTTPClient.STATUS_BODY:
 			var resp_code := _http.get_response_code()
+			response_code = resp_code
+			_http_ok = resp_code == 200
 			print("[%d] [GeminiStreamClient] Response code (headers): %d" % [Time.get_ticks_msec(), resp_code])
-			if resp_code != 200:
+			if not _http_ok:
 				push_error("[GeminiStreamClient] Non-200 response: %d" % resp_code)
 			_last_chunk_time = _now
 			_state = State.BODY
@@ -244,7 +250,8 @@ func _handle_body(status: int, now: float) -> void:
 			_process_sse_line(_line_buffer)
 			_line_buffer = ""
 		print("[%d] [GeminiStreamClient] Stream completed. Total text length: %d" % [Time.get_ticks_msec(), _accumulated_text.length()])
-		_finish(true)
+		var ok := _http_ok and not _accumulated_text.is_empty()
+		_finish(ok)
 
 
 ## ── SSEパース ──

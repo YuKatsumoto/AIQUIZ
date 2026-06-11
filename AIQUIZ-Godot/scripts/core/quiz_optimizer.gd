@@ -89,19 +89,11 @@ func _process_next_batch() -> void:
 	_fetch_evaluation(prompt, to_evaluate, subject, grade, difficulty)
 
 func _fetch_evaluation(prompt: String, to_evaluate: Array[Dictionary], subject: String, grade: int, difficulty: String) -> void:
-	var target_model := "gemini-3.1-pro-preview"
+	var target_model := "gemini-3.5-flash"
 	
-	var proxy := ApiStatusAutoload.get_env("PROXY_URL")
-	var url: String
-	if not proxy.is_empty():
-		url = proxy + "/gemini?model=" + target_model
-	else:
-		var key := ApiStatusAutoload.get_env("GOOGLE_API_KEY")
-		if key.is_empty():
-			key = ApiStatusAutoload.get_env("GEMINI_API_KEY")
-		if key.is_empty():
-			return
-		url = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s" % [target_model, key]
+	var url := ApiStatusAutoload.gemini_endpoint(target_model)
+	if url.is_empty():
+		return
 	
 	var http := HTTPRequest.new()
 	add_child(http)
@@ -140,7 +132,7 @@ func _fetch_evaluation(prompt: String, to_evaluate: Array[Dictionary], subject: 
 		else:
 			_process_next_batch()
 	)
-	http.request(url, ApiStatusAutoload.get_proxy_headers() if not proxy.is_empty() else ["Content-Type: application/json"], HTTPClient.METHOD_POST, body)
+	http.request(url, ApiStatusAutoload.get_proxy_headers(), HTTPClient.METHOD_POST, body)
 
 func _extract_json_array(text: String) -> Variant:
 	text = text.strip_edges()

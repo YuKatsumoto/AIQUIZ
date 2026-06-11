@@ -33,7 +33,6 @@ extends Control
 @onready var vol_slider: HSlider = $SettingsPanel/VBox/VolBox/VolSlider
 # speed_slider は廃止（壁速度は難易度から自動決定）
 @onready var res_option: OptionButton = %ResOption
-@onready var model_option: OptionButton = %ModelOption
 
 var game_state: QuizGameState
 var _tutorial_row: HBoxContainer = null
@@ -95,18 +94,6 @@ func _ready() -> void:
 			res_option.select(1)
 		else:
 			res_option.select(0)
-
-	model_option.item_selected.connect(_on_model_selected)
-	model_option.add_item("gemini-3-flash-preview", 0)
-	model_option.add_item("gemini-3.1-pro-preview", 1)
-	model_option.add_item("gemini-3.1-flash-lite", 2)
-	match ApiStatusAutoload.gemini_model:
-		"gemini-3-flash-preview": model_option.select(0)
-		"gemini-3.1-pro-preview": model_option.select(1)
-		"gemini-3.1-flash-lite": model_option.select(2)
-		_:
-			model_option.add_item(ApiStatusAutoload.gemini_model, 3)
-			model_option.select(3)
 
 	ApiStatusAutoload.check_completed.connect(_update_api_status_text)
 	
@@ -280,25 +267,11 @@ func _play_exit_and_change_scene(path: String) -> void:
 
 func _begin_scene_change(path: String) -> void:
 	await get_tree().process_frame
-	_hold_menu_frame_before_scene_change()
+	await SceneTransition.fade_to_color_and_wait(Color.BLACK)
 	if path.ends_with("game_world.tscn"):
 		get_tree().change_scene_to_packed(GAME_WORLD_SCENE)
 	else:
 		get_tree().change_scene_to_file(path)
-
-func _hold_menu_frame_before_scene_change() -> void:
-	if not live_viewport:
-		SceneTransition.hold_color()
-		return
-	var viewport_texture: ViewportTexture = live_viewport.get_texture()
-	if not viewport_texture:
-		SceneTransition.hold_color()
-		return
-	var frame_image: Image = viewport_texture.get_image()
-	if frame_image.is_empty():
-		SceneTransition.hold_color()
-		return
-	SceneTransition.hold_image_texture(ImageTexture.create_from_image(frame_image))
 
 func _set_all_buttons_disabled(disabled: bool) -> void:
 	for btn: Button in _get_all_buttons(self):
@@ -690,19 +663,10 @@ func _update_api_status_text() -> void:
 	var i_col = "green" if ApiStatusAutoload.internet_ok else ("red" if ApiStatusAutoload.internet_ok == false else "yellow")
 	text += "[color=%s]インターネット: %s[/color]\n" % [i_col, ApiStatusAutoload.internet_msg]
 
-	var proxy := ApiStatusAutoload.get_env("PROXY_URL")
-	if not proxy.is_empty():
-		# プロキシ稼働時はAI Gatewayとして表示（内部チェックはgemini_statusを使用）
-		var p_col = "green" if ApiStatusAutoload.gemini_status else ("red" if ApiStatusAutoload.gemini_status == false else "yellow")
-		text += "[color=%s]AI Gateway (Proxy): %s[/color] (設定済)\n" % [p_col, ApiStatusAutoload.gemini_msg]
-	else:
-		var o_col = "green" if ApiStatusAutoload.openai_status else ("red" if ApiStatusAutoload.openai_status == false else "yellow")
-		var o_key = "設定済" if ApiStatusAutoload.openai_key_set else "未設定"
-		text += "[color=%s]OpenAI: %s[/color] (キー: %s)\n" % [o_col, ApiStatusAutoload.openai_msg, o_key]
-
-		var g_col = "green" if ApiStatusAutoload.gemini_status else ("red" if ApiStatusAutoload.gemini_status == false else "yellow")
-		var g_key = "設定済" if ApiStatusAutoload.gemini_key_set else "未設定"
-		text += "[color=%s]Gemini: %s[/color] (キー: %s)\n" % [g_col, ApiStatusAutoload.gemini_msg, g_key]
+	var proxy := ApiStatusAutoload.get_proxy_url()
+	var p_col = "green" if ApiStatusAutoload.proxy_status else ("red" if ApiStatusAutoload.proxy_status == false else "yellow")
+	var p_cfg = "設定済" if ApiStatusAutoload.proxy_configured else "未設定"
+	text += "[color=%s]AI Gateway (PROXY): %s[/color] (URL: %s)\n" % [p_col, ApiStatusAutoload.proxy_msg, p_cfg]
 
 	var f_col = "green" if ApiStatusAutoload.firebase_status else ("red" if ApiStatusAutoload.firebase_status == false else "yellow")
 	var f_key = "設定済" if ApiStatusAutoload.firebase_configured else "未設定"
@@ -716,12 +680,6 @@ func _on_vol_slider_changed(value: float) -> void:
 	AudioManager.set_volume(value)
 
 # _on_speed_slider_changed は廃止（壁速度は難易度から自動決定）
-
-func _on_model_selected(index: int) -> void:
-	var selected_model = model_option.get_item_text(index)
-	ApiStatusAutoload.user_selected_gemini_model = selected_model
-	ApiStatusAutoload.gemini_model = selected_model
-	_on_recheck_btn_pressed()
 
 func _on_resolution_selected(index: int) -> void:
 	if index == 4:

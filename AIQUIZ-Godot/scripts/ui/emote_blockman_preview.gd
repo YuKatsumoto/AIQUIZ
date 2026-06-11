@@ -66,6 +66,28 @@ static func map_mixamo_bones(skeleton: Skeleton3D) -> Dictionary:
 	return bone_indices
 
 
+## エモートFBXの AnimationPlayer から「踊り本体」のアニメ名を選ぶ。
+## mixamo_com を最優先、無ければトラック数最大のものを採用。
+static func pick_best_emote_animation(ap: AnimationPlayer) -> String:
+	if not ap:
+		return ""
+	var best_name := ""
+	var best_tracks := -1
+	for lib_name in ap.get_animation_library_list():
+		var lib: AnimationLibrary = ap.get_animation_library(lib_name)
+		for a_name in lib.get_animation_list():
+			var full: String = str(lib_name) + "/" + str(a_name) if str(lib_name) != "" else str(a_name)
+			var anim: Animation = lib.get_animation(a_name)
+			if "mixamo_com" in a_name:
+				best_name = full
+				best_tracks = 9999
+			elif anim.get_track_count() > best_tracks:
+				best_tracks = anim.get_track_count()
+				if not ("mixamo_com" in best_name):
+					best_name = full
+	return best_name
+
+
 static func build_player_skeleton(is_p1: bool, parent_node: Node3D, hat_id: int) -> Dictionary:
 	var body_col: Color = PlayerController.P1_BODY if is_p1 else PlayerController.P2_BODY
 	var head_col: Color = PlayerController.P1_HEAD if is_p1 else PlayerController.P2_HEAD
