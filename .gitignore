@@ -38,3 +38,8 @@ AIQUIZ-Unreal/*.sln
 AIQUIZ-Unreal/Plugins/*/Binaries/
 AIQUIZ-Unreal/Plugins/*/Intermediate/
 AIQUIZ-Unreal/Tools/mcp-unreal-src/
+
+# Stray debug / generated artifacts (not project sources)
+/screen.png
+/window_dump.xml
+/docs/index.bleve/

@@ -8,7 +8,8 @@ public class AiQuiz : ModuleRules
 		PublicDependencyModuleNames.AddRange(new string[] {
 			"Core",
 			"CoreUObject",
-			"Engine"
+			"Engine",
+			"InputCore"   // EKeys for direct key polling (faithful to Godot Input.is_key_pressed)
 		});
 	}
 }

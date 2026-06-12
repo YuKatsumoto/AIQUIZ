@@ -25,8 +25,14 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Tuning") float Gravity = 18.0f;
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Tuning") float JumpForce = 7.0f;
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Tuning") float PlayerSpeed = 7.6f;
+	// Logical play range, used by camera/HUD hints. NOTE: not a hard clamp during
+	// PLAYING — Godot deliberately lets the player run off the sides into the magma.
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Tuning") float MinX = -6.5f;
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Tuning") float MaxX = 6.5f;
+	// Floor geometry (game_state.gd: FLOOR_HALF_WIDTH / FLOOR_BACK_Z, magma death at y < -8).
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Tuning") float FloorHalfWidth = 12.0f;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Tuning") float FloorBackZ = -12.5f;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Tuning") float MagmaDeathY = -8.0f;
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Tuning") float WallStartZ = 22.0f;
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Tuning") float WallSpacing = 30.0f;
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Tuning") float HitOffsetZ = 0.4f;
@@ -41,6 +47,13 @@ public:
 	/** Optional explicit DataTable; if null, loaded by path (/Game/AiQuiz/Data/DT_QuizBank). */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Data") TObjectPtr<UDataTable> QuizBank = nullptr;
 
+	// ---------- Debug / Phase4-5 testing ----------
+	/** If true, BeginPlay auto-starts a round so PIE enters gameplay (no menu yet).
+	 *  Disable once the real WBP_MainMenu drives StartRound (Phase 7). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Debug") bool bAutoStartInPIE = true;
+	/** Quizzes to auto-start with. 0 = free-run (no walls/collision) for movement+anim testing. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Debug") int32 DebugAutoStartCount = 0;
+
 	// ---------- Runtime state (read by BP visuals) ----------
 	UPROPERTY(BlueprintReadOnly, Category = "State") EAiQuizState State = EAiQuizState::Menu;
 	UPROPERTY(BlueprintReadOnly, Category = "State") float PlayerX = 0.0f;
@@ -50,6 +63,7 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "State") float WorldScrollZ = 0.0f;
 	UPROPERTY(BlueprintReadOnly, Category = "State") int32 CurrentWallIndex = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "State") int32 Score = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "State") EAiQuizOverReason LastOverReason = EAiQuizOverReason::None;
 	UPROPERTY(BlueprintReadOnly, Category = "State") int32 TargetCount = 10;
 	UPROPERTY(BlueprintReadOnly, Category = "State") float ActiveWallSpeed = 3.5f;
 	UPROPERTY(BlueprintReadOnly, Category = "State") float CountdownTimer = 0.0f;
@@ -64,6 +78,11 @@ public:
 	/** Filter DT_QuizBank by subject+grade, take Count, reset and begin the round. */
 	UFUNCTION(BlueprintCallable, Category = "AiQuiz")
 	void StartRound(const FString& Subject, int32 Grade, EAiQuizDifficulty Difficulty, int32 Count);
+
+	/** Headless/deterministic entry point: begin a round from an explicit quiz list
+	 *  (no DataTable, no shuffle). Used by automation tests and debug menus. */
+	UFUNCTION(BlueprintCallable, Category = "AiQuiz|Test")
+	void StartRoundWithQuizzes(const TArray<FQuizItem>& InQuizzes, int32 Count);
 
 	UFUNCTION(BlueprintCallable, Category = "AiQuiz")
 	void SetInput(float AxisX, bool bJumpPressed);
@@ -95,12 +114,13 @@ public:
 
 protected:
 	void SetState(EAiQuizState NewState);
+	void ResetRoundState();
 	void UpdatePlaying(float Dt);
 	void ResolveCollision();
 	/** Returns choice index the player X is within, or -1 if hitting a pillar. */
 	int32 CheckPlayerDoor(float X, const FQuizItem& Q) const;
 	void AdvanceAfterCorrect();
-	void DoGameOver();
+	void DoGameOver(EAiQuizOverReason Reason);
 	void RecalcWallSpeed();
 	void LoadQuizzes(const FString& Subject, int32 Grade, EAiQuizDifficulty Difficulty, int32 Count);
 	UDataTable* ResolveQuizBank();

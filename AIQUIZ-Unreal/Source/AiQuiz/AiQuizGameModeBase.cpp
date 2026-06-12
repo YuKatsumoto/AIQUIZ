@@ -1,4 +1,5 @@
 #include "AiQuizGameModeBase.h"
+#include "AiQuizPawn.h"
 #include "Engine/DataTable.h"
 #include "UObject/ConstructorHelpers.h"
 
@@ -8,12 +9,23 @@ AAiQuizGameModeBase::AAiQuizGameModeBase()
 {
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.bStartWithTickEnabled = true;
+	DefaultPawnClass = AAiQuizPawn::StaticClass();
 }
 
 void AAiQuizGameModeBase::BeginPlay()
 {
 	Super::BeginPlay();
 	ResolveQuizBank();
+
+	if (bAutoStartInPIE)
+	{
+		// Phase 4/5: enter gameplay immediately. count=0 -> empty quiz list -> free-run
+		// (no walls, no door collision) so movement / jump / fall / camera / anim can be
+		// observed indefinitely. Real rounds come from the menu in Phase 7.
+		const TArray<FQuizItem> Empty;
+		StartRoundWithQuizzes(Empty, DebugAutoStartCount);
+		UE_LOG(LogAiQuiz, Display, TEXT("Auto-start (PIE): free-run round, count=%d"), DebugAutoStartCount);
+	}
 }
 
 UDataTable* AAiQuizGameModeBase::ResolveQuizBank()
@@ -167,11 +179,8 @@ void AAiQuizGameModeBase::LoadQuizzes(const FString& Subject, int32 Grade, EAiQu
 		*Subject, Grade, (int32)Difficulty, Quizzes.Num(), Pool.Num());
 }
 
-void AAiQuizGameModeBase::StartRound(const FString& Subject, int32 Grade, EAiQuizDifficulty Difficulty, int32 Count)
+void AAiQuizGameModeBase::ResetRoundState()
 {
-	LoadQuizzes(Subject, Grade, Difficulty, Count);
-	TargetCount = FMath::Min(Count, Quizzes.Num());
-
 	PlayerX = 0.0f;
 	PlayerY = 0.0f;
 	PlayerWorldZ = 0.0f;
@@ -182,12 +191,30 @@ void AAiQuizGameModeBase::StartRound(const FString& Subject, int32 Grade, EAiQui
 	bOnFloor = true;
 	InputAxisX = 0.0f;
 	bJumpQueued = false;
+	LastOverReason = EAiQuizOverReason::None;
 
 	RecalcWallSpeed();
 	CountdownTimer = CountdownSeconds;
 	SetState(EAiQuizState::Countdown);
+}
+
+void AAiQuizGameModeBase::StartRound(const FString& Subject, int32 Grade, EAiQuizDifficulty Difficulty, int32 Count)
+{
+	LoadQuizzes(Subject, Grade, Difficulty, Count);
+	TargetCount = FMath::Min(Count, Quizzes.Num());
+	ResetRoundState();
 
 	UE_LOG(LogAiQuiz, Display, TEXT("StartRound target=%d firstSpeed=%.2f"), TargetCount, ActiveWallSpeed);
+}
+
+void AAiQuizGameModeBase::StartRoundWithQuizzes(const TArray<FQuizItem>& InQuizzes, int32 Count)
+{
+	Quizzes = InQuizzes;
+	TargetCount = FMath::Min(Count, Quizzes.Num());
+	ResetRoundState();
+
+	UE_LOG(LogAiQuiz, Display, TEXT("StartRoundWithQuizzes target=%d items=%d firstSpeed=%.2f"),
+		TargetCount, Quizzes.Num(), ActiveWallSpeed);
 }
 
 void AAiQuizGameModeBase::UpdatePlaying(float Dt)
@@ -196,31 +223,51 @@ void AAiQuizGameModeBase::UpdatePlaying(float Dt)
 	WorldScrollZ += ActiveWallSpeed * Dt;
 	PlayerWorldZ += ActiveWallSpeed * Dt;
 
-	// Lateral movement (clamped to safe rail range)
-	PlayerX = FMath::Clamp(PlayerX + InputAxisX * PlayerSpeed * Dt, MinX, MaxX);
+	// Lateral movement. NO clamp — game_state.gd removed it so the player can run
+	// off the sides and fall into the magma (PlayerX += axis * speed * dt).
+	PlayerX += InputAxisX * PlayerSpeed * Dt;
 
-	// Jump / gravity
-	if (bJumpQueued && bOnFloor)
+	// On-floor test (game_state.gd::_is_on_track_floor). In the slice the player's
+	// local Z stays ~0 (advances with the scroll), so FLOOR_BACK_Z is always met
+	// and only the lateral half-width matters.
+	const bool bOverFloor = FMath::Abs(PlayerX) <= FloorHalfWidth;
+
+	// Jump must come from the floor (game_state.gd checks player_y<=0 && is_on_floor).
+	if (bJumpQueued && PlayerY <= 0.0f && bOverFloor)
 	{
 		VelY = JumpForce;
-		bOnFloor = false;
 	}
 	bJumpQueued = false;
+
+	// Gravity
 	VelY -= Gravity * Dt;
 	PlayerY += VelY * Dt;
-	if (PlayerY <= 0.0f)
+
+	// Land only when standing over the floor; otherwise keep falling.
+	bOnFloor = false;
+	if (PlayerY <= 0.0f && bOverFloor)
 	{
 		PlayerY = 0.0f;
 		VelY = 0.0f;
 		bOnFloor = true;
 	}
 
-	// Wall collision / door judgement (world coords, like game_state.gd)
+	// Magma death: fell off the side and dropped past the kill plane (player_y < -8).
+	if (PlayerY < MagmaDeathY)
+	{
+		PlayerY = MagmaDeathY;
+		VelY = 0.0f;
+		DoGameOver(EAiQuizOverReason::Magma);
+		return;
+	}
+
+	// Wall collision / door judgement (world coords, like game_state.gd).
 	if (Quizzes.IsValidIndex(CurrentWallIndex))
 	{
 		const float WallZ = GetWallWorldZ(CurrentWallIndex);
 		if (PlayerWorldZ >= WallZ - HitOffsetZ)
 		{
+			PlayerWorldZ = WallZ - HitOffsetZ; // prevent clipping through (game_state.gd:899)
 			ResolveCollision();
 		}
 	}
@@ -238,9 +285,13 @@ void AAiQuizGameModeBase::ResolveCollision()
 	{
 		AdvanceAfterCorrect();
 	}
+	else if (Door < 0)
+	{
+		DoGameOver(EAiQuizOverReason::Wall);      // missed every door / hit a pillar
+	}
 	else
 	{
-		DoGameOver();
+		DoGameOver(EAiQuizOverReason::WrongDoor);  // entered the wrong door
 	}
 }
 
@@ -259,9 +310,11 @@ void AAiQuizGameModeBase::AdvanceAfterCorrect()
 	}
 }
 
-void AAiQuizGameModeBase::DoGameOver()
+void AAiQuizGameModeBase::DoGameOver(EAiQuizOverReason Reason)
 {
-	UE_LOG(LogAiQuiz, Display, TEXT("GameOver at wall=%d score=%d"), CurrentWallIndex, Score);
+	LastOverReason = Reason;
+	UE_LOG(LogAiQuiz, Display, TEXT("GameOver reason=%s wall=%d score=%d"),
+		*UEnum::GetValueAsString(Reason), CurrentWallIndex, Score);
 	SetState(EAiQuizState::GameOver);
 }
 

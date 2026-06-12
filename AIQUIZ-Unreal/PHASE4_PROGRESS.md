@@ -12,12 +12,21 @@
 |---|---|---|
 | 0 | UE5.7 BPプロジェクト＋Unreal MCP導入 | ✅ 完了 |
 | 1 | データ（DT_QuizBank DataTable） | ✅ 完了（`Content/AiQuiz/Data/DT_QuizBank.uasset` 存在） |
-| 2 | 状態機械（無描画 BP_AiQuizGameMode） | ⚠ **未着手**（BPまだ無し。Phase4と並行で必要になる可能性あり） |
+| 2 | 状態機械（無描画 BP_AiQuizGameMode） | ✅ **完了**（C++ `AAiQuizGameModeBase`＋無描画オートメーションテスト。`PHASE2_PROGRESS.md` 参照） |
 | 3 | ステージ＋スクロール（マグマ/コンベア/フォグ） | ✅ 完了（液体マグマ刷新まで。`L_Game.umap`） |
-| **4** | **Pawn＋カメラ＋入力（仮Box）** | 🔧 **作業中（本メモの対象）** |
-| 5〜10 | ブロック人間／クイズ壁／フルループ／PSX／仕上げ／パッケージ | 未着手 |
+| **4** | **Pawn＋カメラ＋入力** | ✅ **完了**（C++ `AAiQuizPawn`。`PHASE45_PROGRESS.md` 参照） |
+| **5** | **ブロック人間＋アニメ（run/jump/fall）** | ✅ **完了**（Mixamo＋箱人間。`PHASE45_PROGRESS.md`） |
+| 6〜10 | クイズ壁／フルループ／PSX／仕上げ／パッケージ | 未着手 |
 
-> 注: Phase2（状態機械）は実は飛ばされており、Phase4のPawnは単独で解析的運動を持つ簡易実装として先行構築中。最終的にはGameModeの状態機械へ移植統合する想定。
+> **このメモ（PHASE4_PROGRESS.md）は §1.2 の Pawn 内蔵移動アプローチを記録した古い作業ログ。最終的な
+> Phase 4/5 の実装と検証は `PHASE45_PROGRESS.md` を正典とすること**（Pawn は C++ 化され、移動ロジックは
+> GameMode に集約、入力は直接キーポーリング、ブロック人間は隠しスケルトン＋箱方式）。
+
+> 注（2026-06-12 更新）: Phase2（状態機械）は **完了**。コアは C++ `AAiQuizGameModeBase` に
+> 集約され、`BP_AiQuizGameMode` は同クラス派生にリペアレント済み（`PHASE2_PROGRESS.md`）。
+> よって Phase4 の Pawn は **解析的運動を自前で持たず**、毎 tick `GameMode::SetInput()` で入力を
+> push し、`PlayerX/PlayerY/GetPlayerLocalZ/State` を読んで可視化する形へ寄せること
+> （`p4_graph.py` の Pawn 内蔵移動ロジックは状態機械と二重化するので破棄/置換）。
 
 ---
 
@@ -136,7 +145,15 @@ Godot定数を1:1移植（`game_state.gd` 確認済み）:
     `FLOOR_BACK_Z=-12.5`, マグマ死 `player_y<-8.0`
 - カメラ: `AIQUIZ-Godot/scripts/world/camera_controller.gd`（FPS eye height=1.2、FOV44、bob `sin(t*1.2)*0.04`）
   - ※現Pawnのカメラは FOV71.4・Z=120 で暫定。原作FOV44に寄せるか要検討。
-- ステージ座標: ベルト中心 UE`(400,0,-130)`、上面Z=-120、マグマ面 ≒ Godot Y=-9.2（UE Z=-920）
+- ステージ座標: 床上面 Z=-120（Godot FLOOR_TOP_Y=-1.2）。
+  - **マグマ面 = Godot `stage_environment.gd:263` magma.position.y=-10.0 → UE Z=-1000**（床上面との落差 8.8m）。
+  - 2026-06-12 修正①: マグマが Z=-360（落差2.4m）で浅くステージが浸かって見えたため Z=-1000 へ降下。
+    陽炎(Stage_HeatHaze)も同 delta(-640)で -150→-790 へ。`Saved/peace3/p3_apply_and_shot.py`。
+  - **2026-06-12 修正②: Stage_Floor が厚み0.2mの薄板で「マグマの上に浮いて」見えたため、Godot
+    `FLOOR_THICKNESS=16` に合わせ厚い箱へ。** loc Z -130→-920、scale Z 0.2→16.0（上面-120維持、
+    下面-1720）。マグマ(-1000)を突き抜けてマグマから立ち上がる固い台になる。`Saved/peace3/p3_thicken.py`。
+    - `M_ConveyorBelt`(_belt_hlsl.txt) は `top_mask=abs(N.z)` で上面=ベルト/側面=`side_color(0.33,0.34,0.35)`
+      を出し分けるので、厚くしても側面は灰色の壁として正しく描画される（Godot 同様）。
 
 ---
 

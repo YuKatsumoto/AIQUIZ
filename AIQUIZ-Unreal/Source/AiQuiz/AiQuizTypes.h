@@ -31,3 +31,28 @@ enum class EAiQuizDifficulty : uint8
 	Normal UMETA(DisplayName = "Normal"),
 	Hard   UMETA(DisplayName = "Hard")
 };
+
+/** Why the round ended in GameOver. The HUD/BP layer maps this to the
+ *  Godot game-over messages (壁にぶつかった / 不正解 / マグマに落ちた) so no
+ *  non-ASCII literals are needed in C++. */
+UENUM(BlueprintType)
+enum class EAiQuizOverReason : uint8
+{
+	None      UMETA(DisplayName = "None"),
+	WrongDoor UMETA(DisplayName = "WrongDoor"),  // entered a door, but not the answer
+	Wall      UMETA(DisplayName = "Wall"),       // missed every door / hit a pillar
+	Magma     UMETA(DisplayName = "Magma")       // fell off the side of the floor
+};
+
+/** Avatar animation clip selected from the gameplay state. Mirrors the Godot
+ *  player_controller.gd / animation_rig.gd ladder: chosen by PlayerY (height)
+ *  and VelY (sign), NOT by horizontal speed. */
+UENUM(BlueprintType)
+enum class EAiQuizAnim : uint8
+{
+	Idle     UMETA(DisplayName = "Idle"),     // grounded, not in an active round
+	Run      UMETA(DisplayName = "Run"),      // grounded, round active (Playing)
+	Jump     UMETA(DisplayName = "Jump"),     // airborne, rising (VelY > 0)
+	Fall     UMETA(DisplayName = "Fall"),     // airborne, descending (VelY <= 0)
+	Drowning UMETA(DisplayName = "Drowning")  // fell into the magma (PlayerY < -1)
+};
