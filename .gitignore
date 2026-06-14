@@ -28,17 +28,6 @@ AIQUIZ-Godot-Android/.godot/
 *.txt
 node_modules/
 
-# Unreal Engine (AIQUIZ-Unreal) — generated/derived, do not track
-AIQUIZ-Unreal/Binaries/
-AIQUIZ-Unreal/Intermediate/
-AIQUIZ-Unreal/DerivedDataCache/
-AIQUIZ-Unreal/Saved/
-AIQUIZ-Unreal/.vs/
-AIQUIZ-Unreal/*.sln
-AIQUIZ-Unreal/Plugins/*/Binaries/
-AIQUIZ-Unreal/Plugins/*/Intermediate/
-AIQUIZ-Unreal/Tools/mcp-unreal-src/
-
 # Stray debug / generated artifacts (not project sources)
 /screen.png
 /window_dump.xml
