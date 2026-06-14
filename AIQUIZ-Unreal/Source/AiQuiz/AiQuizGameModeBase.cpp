@@ -1,6 +1,9 @@
 #include "AiQuizGameModeBase.h"
 #include "AiQuizPawn.h"
+#include "AiQuizWorld.h"
+#include "AiQuizHUD.h"
 #include "Engine/DataTable.h"
+#include "Engine/World.h"
 #include "UObject/ConstructorHelpers.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogAiQuiz, Log, All);
@@ -10,6 +13,7 @@ AAiQuizGameModeBase::AAiQuizGameModeBase()
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.bStartWithTickEnabled = true;
 	DefaultPawnClass = AAiQuizPawn::StaticClass();
+	HUDClass = AAiQuizHUD::StaticClass();   // Phase 7: Canvas-driven menu / HUD / result
 }
 
 void AAiQuizGameModeBase::BeginPlay()
@@ -17,14 +21,27 @@ void AAiQuizGameModeBase::BeginPlay()
 	Super::BeginPlay();
 	ResolveQuizBank();
 
+	// Phase 6: spawn the visual world manager (wall pool). Spawning here avoids having
+	// to hand-place the director in L_Game.umap (binary uasset).
+	if (UWorld* W = GetWorld())
+	{
+		FActorSpawnParameters Params;
+		Params.Owner = this;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		WallDirector = W->SpawnActor<AAiQuizWorld>(AAiQuizWorld::StaticClass(), FTransform::Identity, Params);
+	}
+
 	if (bAutoStartInPIE)
 	{
-		// Phase 4/5: enter gameplay immediately. count=0 -> empty quiz list -> free-run
-		// (no walls, no door collision) so movement / jump / fall / camera / anim can be
-		// observed indefinitely. Real rounds come from the menu in Phase 7.
+		// Debug free-run: enter gameplay immediately (count=0 -> empty list -> no walls).
 		const TArray<FQuizItem> Empty;
 		StartRoundWithQuizzes(Empty, DebugAutoStartCount);
 		UE_LOG(LogAiQuiz, Display, TEXT("Auto-start (PIE): free-run round, count=%d"), DebugAutoStartCount);
+	}
+	else
+	{
+		// Phase 7: start at the menu; the HUD + Pawn drive StartRoundFromMenu.
+		SetState(EAiQuizState::Menu);
 	}
 }
 
@@ -57,6 +74,12 @@ float AAiQuizGameModeBase::GetWallWorldZ(int32 Index) const
 	return WallStartZ + (float)Index * WallSpacing;
 }
 
+int32 AAiQuizGameModeBase::GetCountdownDisplay() const
+{
+	const int32 N = FMath::CeilToInt(CountdownTimer);
+	return (N > 0) ? N : 0;
+}
+
 FQuizItem AAiQuizGameModeBase::GetCurrentQuiz() const
 {
 	if (Quizzes.IsValidIndex(CurrentWallIndex))
@@ -64,6 +87,15 @@ FQuizItem AAiQuizGameModeBase::GetCurrentQuiz() const
 		return Quizzes[CurrentWallIndex];
 	}
 	return FQuizItem();
+}
+
+int32 AAiQuizGameModeBase::GetNumChoices() const
+{
+	if (Quizzes.IsValidIndex(CurrentWallIndex))
+	{
+		return (Quizzes[CurrentWallIndex].NumChoices == 2) ? 2 : 4;
+	}
+	return 2;
 }
 
 float AAiQuizGameModeBase::GetDoorCenterX(int32 NumChoices, int32 ChoiceIndex) const
@@ -104,6 +136,7 @@ void AAiQuizGameModeBase::SetState(EAiQuizState NewState)
 	}
 	State = NewState;
 	UE_LOG(LogAiQuiz, Display, TEXT("State -> %s"), *UEnum::GetValueAsString(NewState));
+	OnStateChanged.Broadcast(NewState);
 }
 
 void AAiQuizGameModeBase::RecalcWallSpeed()
@@ -172,6 +205,8 @@ void AAiQuizGameModeBase::LoadQuizzes(const FString& Subject, int32 Grade, EAiQu
 			Q.A = NewCorrect;
 			Q.NumChoices = 2;
 		}
+		// Hard keeps the DataTable's 4 choices (NumChoices already 4); CheckPlayerDoor /
+		// the wall treat NumChoices as a binary 2-or-4 selector.
 		Quizzes.Add(Q);
 	}
 
@@ -185,6 +220,7 @@ void AAiQuizGameModeBase::ResetRoundState()
 	PlayerY = 0.0f;
 	PlayerWorldZ = 0.0f;
 	VelY = 0.0f;
+	VelZ = 0.0f;
 	WorldScrollZ = 0.0f;
 	CurrentWallIndex = 0;
 	Score = 0;
@@ -193,9 +229,19 @@ void AAiQuizGameModeBase::ResetRoundState()
 	bJumpQueued = false;
 	LastOverReason = EAiQuizOverReason::None;
 
+	CorrectFlash = 0.0f;
+	WrongFlash = 0.0f;
+	CameraShake = 0.0f;
+	GameOverTimer = 0.0f;
+	PlayTime = 0.0f;
+	MaxStreak = 0;
+	CurrentStreak = 0;
+	TotalAnswered = 0;
+
 	RecalcWallSpeed();
 	CountdownTimer = CountdownSeconds;
 	SetState(EAiQuizState::Countdown);
+	OnQuizLoaded.Broadcast(CurrentWallIndex);
 }
 
 void AAiQuizGameModeBase::StartRound(const FString& Subject, int32 Grade, EAiQuizDifficulty Difficulty, int32 Count)
@@ -205,6 +251,24 @@ void AAiQuizGameModeBase::StartRound(const FString& Subject, int32 Grade, EAiQui
 	ResetRoundState();
 
 	UE_LOG(LogAiQuiz, Display, TEXT("StartRound target=%d firstSpeed=%.2f"), TargetCount, ActiveWallSpeed);
+}
+
+void AAiQuizGameModeBase::StartRoundFromMenu()
+{
+	const TArray<FString> Subjects = GetAvailableSubjects();
+	if (Subjects.Num() == 0)
+	{
+		UE_LOG(LogAiQuiz, Warning, TEXT("StartRoundFromMenu: no subjects in DataTable."));
+		return;
+	}
+	const FString Subject = Subjects[FMath::Clamp(MenuSubjectIndex, 0, Subjects.Num() - 1)];
+
+	const TArray<int32> Grades = GetAvailableGrades(Subject);
+	const int32 Grade = Grades.IsValidIndex(MenuGradeIndex) ? Grades[MenuGradeIndex]
+		: (Grades.Num() > 0 ? Grades[0] : 1);
+
+	const EAiQuizDifficulty Diff = (EAiQuizDifficulty)FMath::Clamp(MenuDifficultyIndex, 0, 2);
+	StartRound(Subject, Grade, Diff, 10);
 }
 
 void AAiQuizGameModeBase::StartRoundWithQuizzes(const TArray<FQuizItem>& InQuizzes, int32 Count)
@@ -217,8 +281,90 @@ void AAiQuizGameModeBase::StartRoundWithQuizzes(const TArray<FQuizItem>& InQuizz
 		TargetCount, Quizzes.Num(), ActiveWallSpeed);
 }
 
+void AAiQuizGameModeBase::ReturnToMenu()
+{
+	Quizzes.Reset();
+	PlayerX = PlayerY = PlayerWorldZ = 0.0f;
+	VelY = VelZ = 0.0f;
+	WorldScrollZ = 0.0f;
+	CurrentWallIndex = 0;
+	Score = 0;
+	CorrectFlash = WrongFlash = CameraShake = 0.0f;
+	GameOverTimer = 0.0f;
+	LastOverReason = EAiQuizOverReason::None;
+	SetState(EAiQuizState::Menu);
+}
+
+TArray<FString> AAiQuizGameModeBase::GetAvailableSubjects() const
+{
+	TArray<FString> Subjects;
+	UDataTable* DT = const_cast<AAiQuizGameModeBase*>(this)->ResolveQuizBank();
+	if (!DT)
+	{
+		return Subjects;
+	}
+	// Collect distinct subjects in a deterministic order (sorted by smallest row name,
+	// so the menu order is stable across runs despite the row map being unordered).
+	TMap<FString, FName> FirstKey;
+	for (const TPair<FName, uint8*>& Row : DT->GetRowMap())
+	{
+		const FQuizItem* Item = reinterpret_cast<const FQuizItem*>(Row.Value);
+		if (!Item || Item->Subject.IsEmpty()) { continue; }
+		FName* Existing = FirstKey.Find(Item->Subject);
+		if (!Existing || Row.Key.LexicalLess(*Existing))
+		{
+			FirstKey.Add(Item->Subject, Row.Key);
+		}
+	}
+	FirstKey.GetKeys(Subjects);
+	Subjects.Sort([&FirstKey](const FString& A, const FString& B)
+	{
+		return FirstKey[A].LexicalLess(FirstKey[B]);
+	});
+	return Subjects;
+}
+
+TArray<int32> AAiQuizGameModeBase::GetAvailableGrades(const FString& Subject) const
+{
+	TArray<int32> Grades;
+	UDataTable* DT = const_cast<AAiQuizGameModeBase*>(this)->ResolveQuizBank();
+	if (!DT)
+	{
+		return Grades;
+	}
+	for (const TPair<FName, uint8*>& Row : DT->GetRowMap())
+	{
+		const FQuizItem* Item = reinterpret_cast<const FQuizItem*>(Row.Value);
+		if (Item && Item->Subject == Subject)
+		{
+			Grades.AddUnique(Item->Grade);
+		}
+	}
+	Grades.Sort();
+	return Grades;
+}
+
+void AAiQuizGameModeBase::DecayFeedback(float Dt)
+{
+	// game_state.gd::update() top — flash/shake decay every frame regardless of state.
+	CorrectFlash = FMath::Max(0.0f, CorrectFlash - Dt * 1.5f);
+	WrongFlash   = FMath::Max(0.0f, WrongFlash   - Dt * 1.2f);
+	CameraShake  = FMath::Max(0.0f, CameraShake  - Dt * 2.8f);
+}
+
+void AAiQuizGameModeBase::UpdateCountdown(float Dt)
+{
+	CountdownTimer -= Dt;
+	if (CountdownTimer <= 0.0f)
+	{
+		SetState(EAiQuizState::Playing);
+	}
+}
+
 void AAiQuizGameModeBase::UpdatePlaying(float Dt)
 {
+	PlayTime += Dt;
+
 	// Treadmill: world scrolls toward player; player world Z advances equally.
 	WorldScrollZ += ActiveWallSpeed * Dt;
 	PlayerWorldZ += ActiveWallSpeed * Dt;
@@ -281,75 +427,107 @@ void AAiQuizGameModeBase::ResolveCollision()
 	}
 	const FQuizItem Q = Quizzes[CurrentWallIndex];
 	const int32 Door = CheckPlayerDoor(PlayerX, Q);
+	TotalAnswered++;
+
 	if (Door == Q.A)
 	{
+		// No-stop: stay in PLAYING and advance immediately (game_state.gd:1499-1505).
+		Score++;
+		CurrentStreak++;
+		MaxStreak = FMath::Max(MaxStreak, CurrentStreak);
+		CorrectFlash = 1.0f;
+		CameraShake = 0.22f;
+		OnCorrect.Broadcast(CurrentWallIndex, Q.A); // fire BEFORE the index advances (door break)
 		AdvanceAfterCorrect();
-	}
-	else if (Door < 0)
-	{
-		DoGameOver(EAiQuizOverReason::Wall);      // missed every door / hit a pillar
 	}
 	else
 	{
-		DoGameOver(EAiQuizOverReason::WrongDoor);  // entered the wrong door
+		// Wrong door / pillar -> game over with knockback (game_state.gd:1419-1450).
+		CurrentStreak = 0;
+		VelY = JumpForce * 0.8f;
+		VelZ = -12.0f;
+		DoGameOver((Door < 0) ? EAiQuizOverReason::Wall : EAiQuizOverReason::WrongDoor);
 	}
 }
 
 void AAiQuizGameModeBase::AdvanceAfterCorrect()
 {
-	Score++;
 	CurrentWallIndex++;
 	UE_LOG(LogAiQuiz, Display, TEXT("Correct! score=%d nextWall=%d"), Score, CurrentWallIndex);
 	if (CurrentWallIndex >= TargetCount || CurrentWallIndex >= Quizzes.Num())
 	{
+		CorrectFlash = 1.0f;
 		SetState(EAiQuizState::Clear);
+		OnCleared.Broadcast();
 	}
 	else
 	{
-		RecalcWallSpeed(); // stay in Playing
+		RecalcWallSpeed();        // stay in Playing
+		OnQuizLoaded.Broadcast(CurrentWallIndex);
 	}
 }
 
 void AAiQuizGameModeBase::DoGameOver(EAiQuizOverReason Reason)
 {
 	LastOverReason = Reason;
+	WrongFlash = 1.0f;
+	CameraShake = 0.35f;
+	GameOverTimer = 0.001f;     // game_state.gd starts the explosion/death timer here
 	UE_LOG(LogAiQuiz, Display, TEXT("GameOver reason=%s wall=%d score=%d"),
 		*UEnum::GetValueAsString(Reason), CurrentWallIndex, Score);
 	SetState(EAiQuizState::GameOver);
+	OnWrong.Broadcast(Reason);
+}
+
+void AAiQuizGameModeBase::ProcessDeadPhysics(float Dt)
+{
+	// game_state.gd::_process_dead_player_physics (1P) — the body keeps flying for 2.5s.
+	if (GameOverTimer > 0.0f && GameOverTimer < 2.5f)
+	{
+		VelY -= Gravity * Dt;
+		PlayerY += VelY * Dt;
+		VelZ = FMath::FInterpConstantTo(VelZ, 0.0f, Dt, 15.0f); // move_toward(vel_z, 0, dt*15)
+		PlayerWorldZ += VelZ * Dt;
+
+		const float LocalZ = PlayerWorldZ - WorldScrollZ;
+		const bool bOver = (LocalZ >= FloorBackZ) && (FMath::Abs(PlayerX) <= FloorHalfWidth);
+		const float LimitY = bOver ? 0.0f : MagmaDeathY;
+		if (PlayerY <= LimitY && VelY < 0.0f)
+		{
+			PlayerY = LimitY;
+			VelY = 0.0f;
+			if (bOver) { VelZ = 0.0f; }
+		}
+	}
+}
+
+void AAiQuizGameModeBase::UpdateGameOver(float Dt)
+{
+	GameOverTimer += Dt;
+	ProcessDeadPhysics(Dt);
 }
 
 void AAiQuizGameModeBase::TestStep(float Dt)
 {
+	DecayFeedback(Dt);
 	switch (State)
 	{
-	case EAiQuizState::Countdown:
-		CountdownTimer -= Dt;
-		if (CountdownTimer <= 0.0f) { SetState(EAiQuizState::Playing); }
-		break;
-	case EAiQuizState::Playing:
-		UpdatePlaying(Dt);
-		break;
-	default:
-		break;
+	case EAiQuizState::Countdown: UpdateCountdown(Dt); break;
+	case EAiQuizState::Playing:   UpdatePlaying(Dt);   break;
+	case EAiQuizState::GameOver:  UpdateGameOver(Dt);  break;
+	default: break;
 	}
 }
 
 void AAiQuizGameModeBase::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	DecayFeedback(DeltaSeconds);
 	switch (State)
 	{
-	case EAiQuizState::Countdown:
-		CountdownTimer -= DeltaSeconds;
-		if (CountdownTimer <= 0.0f)
-		{
-			SetState(EAiQuizState::Playing);
-		}
-		break;
-	case EAiQuizState::Playing:
-		UpdatePlaying(DeltaSeconds);
-		break;
-	default:
-		break;
+	case EAiQuizState::Countdown: UpdateCountdown(DeltaSeconds); break;
+	case EAiQuizState::Playing:   UpdatePlaying(DeltaSeconds);   break;
+	case EAiQuizState::GameOver:  UpdateGameOver(DeltaSeconds);  break;
+	default: break;
 	}
 }

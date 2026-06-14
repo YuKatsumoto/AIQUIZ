@@ -1,0 +1,80 @@
+// Faithful inline port of AIQUIZ-Godot/shaders/magma.gdshader fragment().
+// No helper functions (HLSL forbids forward refs / nested funcs in a Custom
+// node); everything is inlined with scope blocks. Inputs: UV (float2),
+// Time (float). Output: float4(col.rgb, heat).
+float Tw = fmod(Time, 120.0);   // keep coords small -> stable analytic noise
+float fs = 0.35;
+float t = Tw * fs;
+
+// --- voronoi v1 ---
+float2 uv_v = UV * 8.0 + float2(t * 0.4, -t * 0.3);
+float v1 = 0.0;
+{
+    float2 pp = floor(uv_v); float2 ff = frac(uv_v); float res = 0.0;
+    for (int j = -1; j <= 1; j++) { for (int i = -1; i <= 1; i++) {
+        float2 b = float2(i, j);
+        float2 q = pp + b;
+        float2 pnt = frac(sin(float2(dot(q, float2(127.1, 311.7)), dot(q, float2(269.5, 183.3)))) * 43758.5453);
+        pnt = 0.5 + 0.5 * sin(Tw * 2.0 + 6.2831 * pnt);
+        float2 r = b - ff + pnt;
+        res += exp(-18.0 * dot(r, r));
+    } }
+    v1 = clamp(-(1.0 / 18.0) * log(max(res, 1e-6)), 0.0, 1.0);
+}
+
+// --- voronoi v2 ---
+float2 uv_v2 = uv_v * 0.5 + float2(5.0, 3.0);
+float v2 = 0.0;
+{
+    float2 pp = floor(uv_v2); float2 ff = frac(uv_v2); float res = 0.0;
+    for (int j = -1; j <= 1; j++) { for (int i = -1; i <= 1; i++) {
+        float2 b = float2(i, j);
+        float2 q = pp + b;
+        float2 pnt = frac(sin(float2(dot(q, float2(127.1, 311.7)), dot(q, float2(269.5, 183.3)))) * 43758.5453);
+        pnt = 0.5 + 0.5 * sin(Tw * 1.5 + 6.2831 * pnt);
+        float2 r = b - ff + pnt;
+        res += exp(-18.0 * dot(r, r));
+    } }
+    v2 = clamp(-(1.0 / 18.0) * log(max(res, 1e-6)), 0.0, 1.0);
+}
+float cracks = v1 * 0.7 + v2 * 0.3;
+
+// --- flow value-noise fn1 ---
+float2 fuv1 = UV * 3.0 + float2(t * 0.6, t * 0.4);
+float fn1;
+{
+    float2 ip = floor(fuv1); float2 f = frac(fuv1); f = f * f * (3.0 - 2.0 * f);
+    float a = frac(sin(dot(ip, float2(127.1, 311.7))) * 43758.5453);
+    float b = frac(sin(dot(ip + float2(1, 0), float2(127.1, 311.7))) * 43758.5453);
+    float c = frac(sin(dot(ip + float2(0, 1), float2(127.1, 311.7))) * 43758.5453);
+    float d = frac(sin(dot(ip + float2(1, 1), float2(127.1, 311.7))) * 43758.5453);
+    fn1 = lerp(lerp(a, b, f.x), lerp(c, d, f.x), f.y);
+}
+
+// --- worley fn2 ---
+float2 fuv2 = UV * 5.0 + float2(-t * 0.3, t * 0.5);
+float fn2;
+{
+    float2 ip = floor(fuv2); float2 fp = frac(fuv2); float md = 1.0;
+    for (int j = -1; j <= 1; j++) { for (int i = -1; i <= 1; i++) {
+        float2 b = float2(i, j);
+        float2 q = ip + b;
+        float2 pnt = frac(sin(float2(dot(q, float2(127.1, 311.7)), dot(q, float2(269.5, 183.3)))) * 43758.5453);
+        float2 r = b + pnt - fp;
+        md = min(md, length(r));
+    } }
+    fn2 = saturate(md);
+}
+float flow = fn1 * 0.6 + fn2 * 0.4;
+
+float heat = saturate(cracks * 1.2 + flow * 0.3);
+
+float3 deep = float3(0.15, 0.02, 0.0);
+float3 mid = float3(0.85, 0.18, 0.0);
+float3 hot = float3(1.0, 0.65, 0.0);
+float3 white = float3(1.0, 0.95, 0.6);
+float3 col;
+if (heat < 0.3) { col = lerp(deep, mid, heat / 0.3); }
+else if (heat < 0.6) { col = lerp(mid, hot, (heat - 0.3) / 0.3); }
+else { col = lerp(hot, white, saturate((heat - 0.6) / 0.4)); }
+return float4(col, heat);

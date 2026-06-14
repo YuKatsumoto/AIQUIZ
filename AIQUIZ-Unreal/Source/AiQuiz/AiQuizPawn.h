@@ -90,14 +90,18 @@ public:
 protected:
 	AAiQuizGameModeBase* ResolveGameMode();
 	void GatherInputAndPush();
+	/** Phase 7: menu navigation + result-screen keys (R retry / Esc menu). */
+	void HandleMetaInput();
 	void ApplyStateToActor(float Dt);
 	void UpdateAnimation();
 	void BuildBlockman();   // create the colored limb boxes (Phase 5b)
 	void UpdateBlockman();  // place each box between its two bone sockets each tick
+	void BurstBlockman();   // Phase 9: explode the limb boxes into physics debris on death
 
 private:
 	UPROPERTY(Transient) TObjectPtr<AAiQuizGameModeBase> GM = nullptr;
 	float BobTime = 0.0f;
 	EAiQuizAnim CurrentAnim = EAiQuizAnim::Idle;
 	bool bAnimInited = false;
+	bool bExploded = false;   // limb boxes burst into debris (reset on the next round)
 };
