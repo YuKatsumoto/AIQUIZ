@@ -381,7 +381,7 @@ func start_tutorial(tutorial_players: int = 1) -> void:
 
 func _build_tutorial_quizzes() -> Array[QuizItem]:
 	if num_players >= 2:
-		return [
+		var quizzes_coop: Array[QuizItem] = [
 			QuizItem.create(
 				"2人練習1: 2人で左ドアへ",
 				PackedStringArray(["左", "右"]),
@@ -413,7 +413,8 @@ func _build_tutorial_quizzes() -> Array[QuizItem]:
 				7.0
 			)
 		]
-	return [
+		return quizzes_coop
+	var quizzes_solo: Array[QuizItem] = [
 		QuizItem.create(
 			"練習1: 2 + 3 = ?",
 			PackedStringArray(["5", "6"]),
@@ -445,6 +446,7 @@ func _build_tutorial_quizzes() -> Array[QuizItem]:
 			7.0
 		)
 	]
+	return quizzes_solo
 
 func reset_to_menu() -> void:
 	provider.end_round()

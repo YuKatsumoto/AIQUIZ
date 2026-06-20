@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://cr5gv5b5wsiy8"]
+
+[ext_resource type="Script" path="res://tests/ragdoll_full.gd" id="1_ragf1"]
+
+[node name="RagdollFull" type="Node3D"]
+script = ExtResource("1_ragf1")

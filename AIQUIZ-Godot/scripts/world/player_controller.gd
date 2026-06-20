@@ -17,6 +17,25 @@ var p1_parts := {}
 var p2_parts := {}
 var p2_container: Node3D
 
+# --- HFF風アクティブラグドール (Phase2) ---
+# 四肢を物理ボディ化し、_animate_skeleton が動かす表示ピボットを目標として
+# PDトルクで半追従させる。表示用の四肢メッシュは隠し、物理ボディが見える四肢
+# として振る舞う(体幹はキネマのまま=Phase6で物理化予定)。
+const USE_ACTIVE_RAGDOLL := true
+const RagdollBuilderScript = preload("res://scripts/world/ragdoll_builder.gd")
+const ActiveRagdollDriverScript = preload("res://scripts/world/active_ragdoll_driver.gd")
+# 物理駆動に置き換えるため非表示にする表示メッシュのキー
+const _RAGDOLL_HIDE_KEYS := [
+	"head", "l_upp_arm", "l_low_arm", "r_upp_arm", "r_low_arm",
+	"l_thigh", "l_calf", "l_foot", "r_thigh", "r_calf", "r_foot",
+	"l_toe_mesh", "r_toe_mesh", "l_hand", "r_hand",
+	"lower_torso", "upper_torso",  # Phase6: 体幹も物理体化したため表示メッシュを隠す
+]
+var _p1_ragdoll: Dictionary = {}
+var _p2_ragdoll: Dictionary = {}
+var _p1_driver: ActiveRagdollDriver = null
+var _p2_driver: ActiveRagdollDriver = null
+
 # Hat state
 var _p1_hat_id: int = 0
 var _p2_hat_id: int = 0
@@ -57,8 +76,77 @@ var _p2_bobble: Dictionary = {"active": false, "vel_x": 0.0, "vel_z": 0.0, "angl
 
 func _ready() -> void:
 	p1_parts = _build_player_skeleton(true, self)
+	# ラグドール生成は _process で self.position が実プレイヤー位置へ設定された後に
+	# 遅延実行する(_ready 時点では原点のため、初フレームのアンカー瞬間移動を回避)。
 	var gs = QuizManager.game_state
 	_load_mixamo_rig(gs)
+
+
+## 四肢物理ツリー+駆動器を生成する。
+## 物理ボディは「移動するプレイヤーノード」の子にできない(物理が親変換と競合)。
+## 静止した親(このコントローラの親)の下に別ツリーで生成し、キネマアンカーを
+## pelvis のワールド変換へ毎物理フレーム同期して四肢を追従させる。
+func _setup_ragdoll(parts: Dictionary, is_p1: bool) -> Dictionary:
+	var host: Node = get_parent()
+	if host == null:
+		host = self
+	var container := Node3D.new()
+	container.name = "RagdollLimbsP1" if is_p1 else "RagdollLimbsP2"
+	host.add_child(container)
+
+	var limb_col: Color = P1_LIMB if is_p1 else P2_LIMB
+	var head_col: Color = P1_HEAD if is_p1 else P2_HEAD
+	var body_col: Color = P1_BODY if is_p1 else P2_BODY
+	var rag: Dictionary = RagdollBuilderScript.build(container, parts["pelvis"], parts, {
+		"debug": false, "limb_color": limb_col, "head_color": head_col, "torso_color": body_col,
+	})
+
+	# 物理駆動に置き換える表示メッシュを非表示にする(体幹は表示のまま)
+	for key in _RAGDOLL_HIDE_KEYS:
+		var n = parts.get(key)
+		if n and is_instance_valid(n):
+			n.visible = false
+
+	var driver: ActiveRagdollDriver = ActiveRagdollDriverScript.new()
+	driver.name = "ActiveRagdollDriverP1" if is_p1 else "ActiveRagdollDriverP2"
+	driver.process_physics_priority = 10   # 目標アニメ(_process)の後に駆動
+	container.add_child(driver)
+	driver.setup(rag, parts, parts["pelvis"])
+
+	return {"rag": rag, "driver": driver, "container": container}
+
+
+## HFF: 死亡時の脱力。駆動を止め、全身(通常 gravity_scale=0 の体幹を含む)を
+## 自重で崩れ落とす。爆発デブリではなくグニャっと崩れる HFF らしい死に方。
+func _go_limp(ragdoll: Dictionary) -> void:
+	var driver = ragdoll.get("driver")
+	if driver and is_instance_valid(driver):
+		driver.enabled = false
+	var rag: Dictionary = ragdoll.get("rag", {})
+	var rag_bodies: Dictionary = rag.get("bodies", {})
+	for key in rag_bodies:
+		var b = rag_bodies[key]
+		if key != "anchor" and b is RigidBody3D and is_instance_valid(b):
+			b.gravity_scale = 1.0   # 体幹(0だった)も含め全身を自重落下させる
+			b.can_sleep = true       # 崩れて静止したらスリープ(負荷低減)
+
+
+## ラグドールツリーを破棄する(別親に置いているため明示的に解放)。
+func _teardown_ragdoll(ragdoll: Dictionary) -> void:
+	if ragdoll.has("container"):
+		var c = ragdoll["container"]
+		if is_instance_valid(c):
+			c.queue_free()
+
+
+func _exit_tree() -> void:
+	# 爆発デブリは get_parent() 配下(別ツリー)に生成されるため、明示解放しないと
+	# このノード破棄時に孤児として残存リークする。
+	_clear_explosion_bodies(true)
+	_clear_explosion_bodies(false)
+	_teardown_ragdoll(_p1_ragdoll)
+	_teardown_ragdoll(_p2_ragdoll)
+
 
 func _load_mixamo_rig(gs: QuizGameState) -> void:
 	var loader := Callable(self, "_load_fbx_scene")
@@ -593,19 +681,40 @@ func update_from_state(gs: QuizGameState) -> void:
 		p2_container.name = "Player2"
 		add_child(p2_container)
 		p2_parts = _build_player_skeleton(false, p2_container)
+		# P2ラグドールは p2_container.position 確定後に遅延生成する
 	if gs.num_players < 2 and p2_container != null:
+		# 爆発デブリは別親(get_parent())に在り container 解放では消えないので明示解放。
+		# _p2_exploding を残すと再エントリ時に二度目の爆発が初期化されない不具合になる。
+		_p2_exploding = false
+		_clear_explosion_bodies(false)
+		if USE_ACTIVE_RAGDOLL:
+			_teardown_ragdoll(_p2_ragdoll)
+			_p2_ragdoll = {}
+			_p2_driver = null
 		p2_container.queue_free()
 		p2_container = null
 		p2_parts.clear()
 
 	# --- Player 1 ---
 	position = Vector3(gs.player_x, gs.player_y, gs.player_local_z)
-	
+
+	# P1ラグドールは位置確定後の初回に生成(アンカー瞬間移動を回避)。
+	# メニュープレビュー(SubViewport)では不要な物理負荷になるので生成しない
+	# (表示メッシュも隠さないため、プレビューはブロック四肢のまま正しく描画される)。
+	if USE_ACTIVE_RAGDOLL and not _is_preview_subviewport() and _p1_ragdoll.is_empty() and not p1_parts.is_empty():
+		_p1_ragdoll = _setup_ragdoll(p1_parts, true)
+		_p1_driver = _p1_ragdoll.get("driver")
+
 	if gs.p1_alive:
 		if _p1_exploding or not _p1_explosion_bodies.is_empty():
 			_p1_exploding = false
 			_clear_explosion_bodies(true)
 			_set_rig_scenes_visible(true, true)
+			# 脱力崩壊したラグドールを破棄→次フレームで直立状態に再生成(復活)
+			if USE_ACTIVE_RAGDOLL and not _p1_ragdoll.is_empty():
+				_teardown_ragdoll(_p1_ragdoll)
+				_p1_ragdoll = {}
+				_p1_driver = null
 		_set_parts_visible(p1_parts, true)
 		if not _p1_rig.is_rigged:
 			var p1_is_playing := gs.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]
@@ -654,7 +763,13 @@ func update_from_state(gs: QuizGameState) -> void:
 		else:
 			if not _p1_exploding:
 				_p1_exploding = true
-				_init_explosion(p1_parts, true)
+				# HFF: 死亡時は脱力崩壊。駆動を止め全身を重力で崩す。ラグドール非生成時
+				# (プレビュー等)のみ従来の爆発にフォールバック。復活時にラグドールを
+				# 破棄し再生成して直立復帰する(下の alive 分岐)。
+				if USE_ACTIVE_RAGDOLL and not _p1_ragdoll.is_empty():
+					_go_limp(_p1_ragdoll)
+				else:
+					_init_explosion(p1_parts, true)
 			_set_parts_visible(p1_parts, false)
 			if not _p1_explosion_bodies.is_empty():
 				var is_magma := gs.player_y < -1.0
@@ -665,12 +780,23 @@ func update_from_state(gs: QuizGameState) -> void:
 	# --- Player 2 ---
 	if gs.num_players >= 2 and p2_container:
 		p2_container.position = Vector3(gs.player2_x - gs.player_x, gs.player2_y - gs.player_y, gs.player2_local_z - gs.player_local_z)
-		
+
+		# P2ラグドールは位置確定後の初回に生成(アンカー瞬間移動を回避)。
+		# プレビュー(SubViewport)では生成しない(P1と同様)。
+		if USE_ACTIVE_RAGDOLL and not _is_preview_subviewport() and _p2_ragdoll.is_empty() and not p2_parts.is_empty():
+			_p2_ragdoll = _setup_ragdoll(p2_parts, false)
+			_p2_driver = _p2_ragdoll.get("driver")
+
 		if gs.p2_alive:
 			if _p2_exploding or not _p2_explosion_bodies.is_empty():
 				_p2_exploding = false
 				_clear_explosion_bodies(false)
 				_set_rig_scenes_visible(false, true)
+				# 脱力崩壊したラグドールを破棄→次フレームで直立状態に再生成(復活)
+				if USE_ACTIVE_RAGDOLL and not _p2_ragdoll.is_empty():
+					_teardown_ragdoll(_p2_ragdoll)
+					_p2_ragdoll = {}
+					_p2_driver = null
 			_set_parts_visible(p2_parts, true)
 			if not _p2_rig.is_rigged:
 				var p2_is_playing := gs.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]
@@ -718,7 +844,11 @@ func update_from_state(gs: QuizGameState) -> void:
 			else:
 				if not _p2_exploding:
 					_p2_exploding = true
-					_init_explosion(p2_parts, false)
+					# HFF: 死亡時は脱力崩壊(P1と同様)。復活時に破棄→再生成で直立復帰。
+					if USE_ACTIVE_RAGDOLL and not _p2_ragdoll.is_empty():
+						_go_limp(_p2_ragdoll)
+					else:
+						_init_explosion(p2_parts, false)
 				_set_parts_visible(p2_parts, false)
 				if not _p2_explosion_bodies.is_empty():
 					var is_magma := gs.player2_y < -1.0
@@ -739,8 +869,18 @@ func update_from_state(gs: QuizGameState) -> void:
 
 func _set_parts_visible(parts: Dictionary, vis: bool) -> void:
 	if not parts or not parts.has("meshes"): return
+	# ラグドール有効時は、物理体に置換した表示メッシュ(_RAGDOLL_HIDE_KEYS)を
+	# 表示要求時も隠したままにする。これをしないと毎フレームの再表示で表示メッシュ
+	# (=目標ゴースト)が物理体と二重に描画され、揺れた瞬間に分離して見える。
+	var hidden := {}
+	if vis and USE_ACTIVE_RAGDOLL:
+		var rag_active: bool = (not _p1_ragdoll.is_empty()) if parts == p1_parts else (not _p2_ragdoll.is_empty())
+		if rag_active:
+			for k in _RAGDOLL_HIDE_KEYS:
+				var n = parts.get(k)
+				if n: hidden[n] = true
 	for mesh: MeshInstance3D in parts["meshes"]:
-		if mesh: mesh.visible = vis
+		if mesh: mesh.visible = vis and not hidden.has(mesh)
 
 
 

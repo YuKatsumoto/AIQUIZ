@@ -61,6 +61,10 @@ move_right={
 
 limits/tcp/connect_timeout_seconds=3
 
+[physics]
+
+common/physics_ticks_per_second=120
+
 [shader_globals]
 
 psx_affine_strength={

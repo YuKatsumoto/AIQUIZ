@@ -415,7 +415,8 @@ func get_quizzes(subject: String, grade: int, difficulty: String,
 			for i: int in range(maxi(1, count)):
 				fallbacks.append(_fallback_question(subject, grade))
 			return fallbacks
-		return [_fallback_question(subject, grade)]
+		var single: Array[QuizItem] = [_fallback_question(subject, grade)]
+		return single
 
 	var pool := _bucket_by_difficulty(items, subject, grade, difficulty)
 	pool.shuffle()
@@ -480,4 +481,9 @@ func get_quizzes(subject: String, grade: int, difficulty: String,
 
 		return uniq
 
-	return [pool.pick_random()] if pool.size() > 0 else [_fallback_question(subject, grade)]
+	var result: Array[QuizItem] = []
+	if pool.size() > 0:
+		result.append(pool.pick_random())
+	else:
+		result.append(_fallback_question(subject, grade))
+	return result
