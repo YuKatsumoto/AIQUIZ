@@ -43,17 +43,6 @@ const PREVIEW_MERGE_INTERVAL_SEC: float = 0.15
 const PREVIEW_MERGE_SLIDE_DURATION: float = 0.125
 const PREVIEW_MERGE_FLASH_DURATION: float = 0.175
 const PREVIEW_DEBRIS_LIFETIME_SEC: float = 5.0
-## 壁速度プレビュー：崖端〜マグマで割れた壁本体の「ボトッと落ちる」破片（wall_speed と質量・減衰・インパルスを同期）
-const PREVIEW_SOFT_FALL_DEBRIS_MASS: float = 3.2
-const PREVIEW_SOFT_FALL_DEBRIS_GRAVITY_SCALE: float = 2.4
-const PREVIEW_SOFT_FALL_DEBRIS_LINEAR_DAMP: float = 0.28
-const PREVIEW_SOFT_FALL_DEBRIS_ANGULAR_DAMP: float = 0.38
-## ソフト落下のわずかな吹き飛び（以前よりやや強め・壁本体と扉破片で揃える）
-const PREVIEW_SOFT_FALL_IMP_X: float = 0.36
-const PREVIEW_SOFT_FALL_IMP_Y: float = 0.48
-const PREVIEW_SOFT_FALL_IMP_Z_MIN: float = 1.85
-const PREVIEW_SOFT_FALL_IMP_Z_MAX: float = 3.85
-const PREVIEW_SOFT_FALL_TORQUE: float = 0.52
 ## プレビュー破片：カメラに近づいたら縮小し、十分小さくなったら削除（wall_speed_settings と同系）
 const PREVIEW_DEBRIS_FADE_START_DIST: float = 7.5
 const PREVIEW_DEBRIS_KILL_DIST: float = 2.0
@@ -402,9 +391,9 @@ func _build_ui() -> void:
 	section_row.add_theme_constant_override("separation", 10)
 	outer_vbox.add_child(section_row)
 
-	_section_buttons[Section.WALL_SPEED] = _make_section_button("⚡ 壁速度", section_row, Section.WALL_SPEED)
-	_section_buttons[Section.SKIN] = _make_section_button("🧢 スキン", section_row, Section.SKIN)
-	_section_buttons[Section.EMOTE] = _make_section_button("💃 エモート", section_row, Section.EMOTE)
+	_section_buttons[Section.WALL_SPEED] = _make_section_button("壁速度", section_row, Section.WALL_SPEED)
+	_section_buttons[Section.SKIN] = _make_section_button("スキン", section_row, Section.SKIN)
+	_section_buttons[Section.EMOTE] = _make_section_button("エモート", section_row, Section.EMOTE)
 
 	outer_vbox.add_child(HSeparator.new())
 
@@ -472,7 +461,7 @@ func _build_wall_panel() -> void:
 	_wall_panel.add_child(_speed_slider)
 
 	var reset_btn := Button.new()
-	reset_btn.text = "🔄 自動モードに戻す"
+	reset_btn.text = "自動モードに戻す"
 	reset_btn.pressed.connect(_on_reset_pressed)
 	_wall_panel.add_child(reset_btn)
 
@@ -547,51 +536,12 @@ func _build_emote_panel() -> void:
 	_emote_player_btn_p2.pressed.connect(func() -> void: _set_emote_editing_player(2))
 	player_row.add_child(_emote_player_btn_p2)
 
-	var slot_detail_hbox := HBoxContainer.new()
-	slot_detail_hbox.add_theme_constant_override("separation", 10)
-	_emote_panel.add_child(slot_detail_hbox)
-
+	## エモートプレビュー枠（2Dダンサーのショーケース）は撤去。
+	## スロット一覧をパネル横幅いっぱいに表示する。
 	var slot_vbox_left := VBoxContainer.new()
 	slot_vbox_left.add_theme_constant_override("separation", 6)
 	slot_vbox_left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	slot_vbox_left.size_flags_stretch_ratio = 1.0
-	slot_detail_hbox.add_child(slot_vbox_left)
-
-	var detail_panel := PanelContainer.new()
-	detail_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	detail_panel.size_flags_stretch_ratio = 1.3
-	detail_panel.size_flags_vertical = Control.SIZE_FILL
-	var detail_style := StyleBoxFlat.new()
-	detail_style.bg_color = Color(0.08, 0.10, 0.16, 0.92)
-	detail_style.border_color = Color(0.28, 0.38, 0.55, 0.65)
-	detail_style.set_border_width_all(1)
-	detail_style.set_corner_radius_all(12)
-	detail_style.content_margin_left = 12.0
-	detail_style.content_margin_right = 12.0
-	detail_style.content_margin_top = 10.0
-	detail_style.content_margin_bottom = 10.0
-	detail_panel.add_theme_stylebox_override("panel", detail_style)
-	slot_detail_hbox.add_child(detail_panel)
-
-	var detail_vbox := VBoxContainer.new()
-	detail_vbox.add_theme_constant_override("separation", 4)
-	detail_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
-	detail_panel.add_child(detail_vbox)
-
-	## 選択中スロットのエモートを踊る2Dキャラ（空きスペースのショーケース）
-	_emote_dancer = EmoteDancer2DScript.new()
-	_emote_dancer.custom_minimum_size = Vector2(0, 200)
-	_emote_dancer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_emote_dancer.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_emote_dancer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	detail_vbox.add_child(_emote_dancer)
-
-	_emote_browse_desc_label = Label.new()
-	_emote_browse_desc_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_emote_browse_desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_emote_browse_desc_label.add_theme_font_size_override("font_size", 11)
-	_emote_browse_desc_label.add_theme_color_override("font_color", Color(0.58, 0.62, 0.72))
-	detail_vbox.add_child(_emote_browse_desc_label)
+	_emote_panel.add_child(slot_vbox_left)
 
 	_emote_slot_btns.clear()
 	for i in range(3):
@@ -852,7 +802,7 @@ func _set_section(section: Section) -> void:
 		Section.WALL_SPEED:
 			_set_skin_preview_lighting_active(false)
 			_section_title.visible = true
-			_section_title.text = "⚡ 壁速度設定"
+			_section_title.text = "壁速度設定"
 			_cleanup_emote_preview()
 			_preview_player.visible = true
 			if _preview_walls.is_empty():
@@ -861,7 +811,7 @@ func _set_section(section: Section) -> void:
 			_set_skin_preview_lighting_active(true)
 			_update_skin_preview_lighting()
 			_section_title.visible = true
-			_section_title.text = "🧢 スキン設定"
+			_section_title.text = "スキン設定"
 			_explode_preview_walls_for_emote()
 			_cleanup_emote_preview()
 			_preview_player.visible = true
@@ -870,7 +820,7 @@ func _set_section(section: Section) -> void:
 			_set_skin_preview_lighting_active(false)
 			_explode_preview_walls_for_emote()
 			_section_title.visible = true
-			_section_title.text = "💃 エモート設定"
+			_section_title.text = "エモート設定"
 			if _emote_preview_holder:
 				_emote_preview_holder.visible = true
 			_reset_emote_orbit_default()
@@ -1107,10 +1057,10 @@ func _refresh_all_labels() -> void:
 func _update_mode_label() -> void:
 	var gs := QuizManager.game_state
 	if gs.tuning.wall_speed_override > 0:
-		_mode_label.text = "📌 手動モード"
+		_mode_label.text = "手動モード"
 		_mode_label.add_theme_color_override("font_color", Color(1.0, 0.7, 0.3))
 	else:
-		_mode_label.text = "🤖 自動モード"
+		_mode_label.text = "自動モード"
 		_mode_label.add_theme_color_override("font_color", Color(0.4, 0.75, 1.0))
 
 func _update_speed_value() -> void:
@@ -2088,7 +2038,7 @@ func _explode_preview_walls_for_emote() -> void:
 	for i in range(_preview_walls.size() - 1, -1, -1):
 		var w: Node3D = _preview_walls[i]
 		if is_instance_valid(w):
-			_preview_spawn_wall_debris_pieces(w, true)
+			_preview_spawn_wall_debris_pieces(w)
 			w.queue_free()
 	_preview_walls.clear()
 	_merge_left_sils.clear()
@@ -2098,19 +2048,13 @@ func _explode_preview_walls_for_emote() -> void:
 	_merge_timer = 0.0
 
 
-## burst==true: スキン／エモートタブへ入ったときの強い散り方。
-## burst==false: 壁速度プレビューでマグマへ落ちるとき（wall_speed 単独画面と同じ「ボトッと落下」）
-func _preview_spawn_wall_debris_pieces(wall: Node3D, burst: bool) -> void:
+## スキン／エモートタブへ入ったときの強い散り方（崖でのマグマ落下は quiz_wall.gd の collapse_into_magma に統一）。
+func _preview_spawn_wall_debris_pieces(wall: Node3D) -> void:
 	if not wall or not is_instance_valid(wall):
 		return
 	var mesh_nodes: Array[MeshInstance3D] = []
-	if burst:
-		for n in wall.find_children("*", "MeshInstance3D", true, false):
-			mesh_nodes.append(n as MeshInstance3D)
-	else:
-		for child in wall.get_children():
-			if child is MeshInstance3D:
-				mesh_nodes.append(child as MeshInstance3D)
+	for n in wall.find_children("*", "MeshInstance3D", true, false):
+		mesh_nodes.append(n as MeshInstance3D)
 
 	for src_mesh in mesh_nodes:
 		if not src_mesh.visible:
@@ -2119,21 +2063,12 @@ func _preview_spawn_wall_debris_pieces(wall: Node3D, burst: bool) -> void:
 		if not box_mesh:
 			continue
 		var piece := RigidBody3D.new()
-		if burst:
-			piece.mass = 1.55
-			piece.gravity_scale = 0.76
-			piece.linear_damp = 0.018
-			piece.angular_damp = 0.045
-		else:
-			piece.mass = PREVIEW_SOFT_FALL_DEBRIS_MASS
-			piece.gravity_scale = PREVIEW_SOFT_FALL_DEBRIS_GRAVITY_SCALE
-			piece.linear_damp = PREVIEW_SOFT_FALL_DEBRIS_LINEAR_DAMP
-			piece.angular_damp = PREVIEW_SOFT_FALL_DEBRIS_ANGULAR_DAMP
+		piece.mass = 1.55
+		piece.gravity_scale = 0.76
+		piece.linear_damp = 0.018
+		piece.angular_damp = 0.045
 		piece.collision_layer = 0
-		if burst:
-			piece.collision_mask = 0
-		else:
-			piece.collision_mask = 1
+		piece.collision_mask = 0
 		var col := CollisionShape3D.new()
 		var shape := BoxShape3D.new()
 		shape.size = box_mesh.size
@@ -2145,34 +2080,17 @@ func _preview_spawn_wall_debris_pieces(wall: Node3D, burst: bool) -> void:
 		mesh_inst.mesh = mesh_copy
 		if src_mesh.material_override:
 			mesh_inst.material_override = src_mesh.material_override.duplicate()
-		elif burst and box_mesh.material:
+		elif box_mesh.material:
 			mesh_inst.material_override = box_mesh.material.duplicate()
 		piece.add_child(mesh_inst)
 		_sub_viewport.add_child(piece)
 		piece.global_transform = src_mesh.global_transform
-		if burst:
-			piece.apply_central_impulse(
-				Vector3(randf_range(-92.0, 92.0), randf_range(62.0, 158.0), randf_range(-62.0, 188.0))
-			)
-			piece.apply_torque_impulse(
-				Vector3(randf_range(-138.0, 138.0), randf_range(-138.0, 138.0), randf_range(-138.0, 138.0))
-			)
-		else:
-			## customize_settings の PREVIEW_SOFT_FALL_IMP_* と揃える（quiz_wall.gd 扉破片）
-			piece.apply_central_impulse(
-				Vector3(
-					randf_range(-PREVIEW_SOFT_FALL_IMP_X, PREVIEW_SOFT_FALL_IMP_X),
-					randf_range(0.0, PREVIEW_SOFT_FALL_IMP_Y),
-					randf_range(PREVIEW_SOFT_FALL_IMP_Z_MIN, PREVIEW_SOFT_FALL_IMP_Z_MAX),
-				)
-			)
-			piece.apply_torque_impulse(
-				Vector3(
-					randf_range(-PREVIEW_SOFT_FALL_TORQUE, PREVIEW_SOFT_FALL_TORQUE),
-					randf_range(-PREVIEW_SOFT_FALL_TORQUE * 0.62, PREVIEW_SOFT_FALL_TORQUE * 0.62),
-					randf_range(-PREVIEW_SOFT_FALL_TORQUE, PREVIEW_SOFT_FALL_TORQUE),
-				)
-			)
+		piece.apply_central_impulse(
+			Vector3(randf_range(-92.0, 92.0), randf_range(62.0, 158.0), randf_range(-62.0, 188.0))
+		)
+		piece.apply_torque_impulse(
+			Vector3(randf_range(-138.0, 138.0), randf_range(-138.0, 138.0), randf_range(-138.0, 138.0))
+		)
 		_schedule_preview_debris_free(piece, PREVIEW_DEBRIS_LIFETIME_SEC)
 
 
@@ -2209,7 +2127,8 @@ func _spawn_preview_wall(z_pos: float) -> void:
 func _drop_wall_into_magma(wall: Node3D) -> void:
 	if not wall or not is_instance_valid(wall):
 		return
-	_preview_spawn_wall_debris_pieces(wall, false)
+	if wall.has_method("collapse_into_magma"):
+		wall.collapse_into_magma()
 
 func _setup_conveyor_extras() -> void:
 	var floor_length := 144.0

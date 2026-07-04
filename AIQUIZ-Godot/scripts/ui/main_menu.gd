@@ -36,8 +36,12 @@ extends Control
 
 var game_state: QuizGameState
 var _tutorial_row: HBoxContainer = null
+var _tutorial_main_btn: Button = null
+var _tutorial_clip: Control = null
+var _tutorial_options: HBoxContainer = null
 var _tutorial_btn: Button = null
 var _tutorial_2p_btn: Button = null
+var _tutorial_expanded: bool = false
 
 const PICKER_HEIGHT := 52.0
 const PICKER_ANIM_DURATION := 0.18
@@ -61,6 +65,9 @@ var _menu_exit_targets: Array[Control] = []
 var _embedded_customize: Control = null
 var _embedded_customize_open: bool = false
 
+## ステップインジケータの各ピル {sb: StyleBoxFlat, lbl: Label}
+var _step_pills: Array[Dictionary] = []
+
 func _ready() -> void:
 	game_state = QuizManager.game_state
 	_hide_coop_mode_if_disabled()
@@ -68,6 +75,9 @@ func _ready() -> void:
 	# 戻るボタン等からの遷移時に状態を保持するため、menu_stepの強制リセットを削除
 	settings_panel.visible = false
 	_setup_live_background()
+	_enhance_title()
+	_apply_menu_text_shadows()
+	_setup_step_indicator()
 	_setup_menu_exit_targets()
 	_setup_embedded_customize()
 	_reset_menu_visual_state()
@@ -126,6 +136,51 @@ func _setup_live_background() -> void:
 	_spawn_menu_wall_preview()
 	if live_camera:
 		live_camera.current = false
+	# モニター/ウィンドウの実解像度に合わせて背景の描画解像度を自動最適化する。
+	# 固定解像度のままだと大画面で引き伸ばされてボケるため、実サイズに追従させる。
+	_update_live_viewport_quality()
+	get_window().size_changed.connect(_update_live_viewport_quality)
+
+## 実際のウィンドウ/モニター解像度に応じて LiveViewport の描画解像度とスーパーサンプリング倍率を決める。
+## 本プロジェクトの stretch mode (canvas_items, 基準1280x720) では Control のサイズは常に論理座標のままで、
+## ウィンドウを最大化しても SubViewportContainer は論理サイズ(≒1280x720)しか持たない。
+## そのため stretch=true の SubViewport は論理解像度でしか描画されず、高解像度モニタでは
+## 物理ピクセルまで引き伸ばされてボケていた（2D UIはcanvas_itemsが自動で物理解像度描画するためボケない）。
+## 対策として、コンテナを物理ピクセルサイズへ広げてから逆スケールで論理サイズに縮めて表示することで、
+## SubViewport を常にモニタの実ピクセル解像度で描画させる。リサイズ/最大化/解像度変更のたびに再計算される。
+func _update_live_viewport_quality() -> void:
+	if not live_background or not live_viewport:
+		return
+	var logical: Vector2 = get_viewport().get_visible_rect().size
+	if logical.x <= 0.0 or logical.y <= 0.0:
+		return
+	# canvas_items stretch の拡大率。物理解像度 = 論理解像度 × 拡大率
+	var stretch_scale: Vector2 = get_window().get_final_transform().get_scale()
+	var target: Vector2 = logical * stretch_scale
+
+	var is_mobile := OS.has_feature("mobile") or OS.has_feature("android") or OS.has_feature("ios")
+	# 背景はあくまで演出用途のため、過大な負荷を避けるための上限（デスクトップは4K相当まで実解像度）
+	var max_w: float = 1280.0 if is_mobile else 3840.0
+	if target.x > max_w:
+		target *= max_w / target.x
+	target.x = maxf(target.x, 640.0)
+	target.y = maxf(target.y, 360.0)
+
+	live_background.stretch_shrink = 1
+	live_background.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	live_background.position = Vector2.ZERO
+	live_background.size = target
+	live_background.scale = logical / target
+
+	# 物理解像度で描画できている時はスーパーサンプリングを控えめに、低解像度時は強めに掛ける
+	if is_mobile:
+		live_viewport.scaling_3d_scale = 1.2
+	elif target.x >= 2560.0:
+		live_viewport.scaling_3d_scale = 1.0
+	elif target.x >= 1600.0:
+		live_viewport.scaling_3d_scale = 1.25
+	else:
+		live_viewport.scaling_3d_scale = 1.5
 
 func _sync_menu_wall_preview_players() -> void:
 	if not _menu_wall_preview or not _menu_wall_preview.has_method("sync_menu_player_count"):
@@ -141,6 +196,107 @@ func _spawn_menu_wall_preview() -> void:
 	live_viewport.add_child(_menu_wall_preview)
 	_sync_menu_wall_preview_players()
 
+## ④ タイトル強化: アクセントバー＋サブタイトルを追加
+func _enhance_title() -> void:
+	if not menu_vbox or not is_instance_valid(title_label):
+		return
+	var title_row := title_label.get_parent() as Control
+	if not title_row:
+		return
+	var insert_idx := title_row.get_index() + 1
+
+	var accent := ColorRect.new()
+	accent.name = "TitleAccentBar"
+	accent.color = Color(1.0, 0.88, 0.25)
+	accent.custom_minimum_size = Vector2(96, 4)
+	accent.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	menu_vbox.add_child(accent)
+	menu_vbox.move_child(accent, insert_idx)
+
+	var sub := Label.new()
+	sub.name = "SubtitleLabel"
+	sub.text = "AIで学んで走る、クイズランナー"
+	sub.add_theme_font_size_override("font_size", 15)
+	sub.add_theme_color_override("font_color", Color(0.74, 0.80, 0.90))
+	menu_vbox.add_child(sub)
+	menu_vbox.move_child(sub, insert_idx + 1)
+
+## ③ 文字影: 背景に負けないようメニュー内ラベルへ影を付ける
+func _apply_menu_text_shadows() -> void:
+	if not menu_vbox:
+		return
+	for lbl in _get_all_labels(menu_vbox):
+		_apply_label_shadow(lbl, false)
+	_apply_label_shadow(title_label, true)
+
+func _apply_label_shadow(lbl: Label, strong: bool) -> void:
+	if not lbl:
+		return
+	lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.85 if strong else 0.7))
+	lbl.add_theme_constant_override("shadow_offset_x", 2 if strong else 1)
+	lbl.add_theme_constant_override("shadow_offset_y", 2 if strong else 1)
+	if strong:
+		lbl.add_theme_constant_override("shadow_outline_size", 1)
+
+func _get_all_labels(node: Node) -> Array[Label]:
+	var labels: Array[Label] = []
+	if node is Label:
+		labels.append(node)
+	for child in node.get_children():
+		labels.append_array(_get_all_labels(child))
+	return labels
+
+## ⑥ ステップ表示: 「手順 1/3」テキストを3つのピル(モード→設定→スタート)に置き換える
+func _setup_step_indicator() -> void:
+	if not menu_vbox or not status_label:
+		return
+	var row := HBoxContainer.new()
+	row.name = "StepIndicator"
+	row.add_theme_constant_override("separation", 8)
+
+	var steps := [["1", "モード"], ["2", "設定"], ["3", "スタート"]]
+	_step_pills.clear()
+	for s in steps:
+		var pill := PanelContainer.new()
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color(1, 1, 1, 0.10)
+		sb.set_corner_radius_all(11)
+		sb.content_margin_left = 12.0
+		sb.content_margin_right = 12.0
+		sb.content_margin_top = 4.0
+		sb.content_margin_bottom = 4.0
+		pill.add_theme_stylebox_override("panel", sb)
+
+		var lbl := Label.new()
+		lbl.text = "%s %s" % [s[0], s[1]]
+		lbl.add_theme_font_size_override("font_size", 12)
+		lbl.add_theme_color_override("font_color", Color(0.70, 0.76, 0.86))
+		pill.add_child(lbl)
+
+		row.add_child(pill)
+		_step_pills.append({"sb": sb, "lbl": lbl})
+
+	menu_vbox.add_child(row)
+	menu_vbox.move_child(row, status_label.get_index())
+
+func _update_step_indicator() -> void:
+	if _step_pills.is_empty() or not game_state:
+		return
+	var active := 1 if game_state.menu_step == Constants.MENU_STEP_CONFIG else 0
+	for i in range(_step_pills.size()):
+		var sb: StyleBoxFlat = _step_pills[i]["sb"]
+		var lbl: Label = _step_pills[i]["lbl"]
+		if i == active:
+			sb.bg_color = Color(0.18, 0.43, 0.75, 0.95)
+			lbl.add_theme_color_override("font_color", Color(1, 1, 1))
+		elif i < active:
+			sb.bg_color = Color(0.18, 0.43, 0.75, 0.40)
+			lbl.add_theme_color_override("font_color", Color(0.85, 0.90, 1.0))
+		else:
+			sb.bg_color = Color(1, 1, 1, 0.10)
+			lbl.add_theme_color_override("font_color", Color(0.70, 0.76, 0.86))
+
+## ② メニュー本体を半透明パネルで囲う（VBoxの背後に敷き、_processで追従）
 func _setup_menu_exit_targets() -> void:
 	_menu_exit_targets = []
 	if menu_vbox:
@@ -284,7 +440,7 @@ func _notification(what: int) -> void:
 
 func _on_live_config_updated() -> void:
 	if LiveConfigManager.is_active and not LiveConfigManager.announcement.is_empty():
-		announcement_label.text = "📢 %s" % LiveConfigManager.announcement
+		announcement_label.text = "%s" % LiveConfigManager.announcement
 		announcement_label.visible = true
 	else:
 		announcement_label.visible = false
@@ -352,9 +508,7 @@ func _style_all_buttons() -> void:
 	start_button.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0))
 	start_button.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 1.0))
 
-	if not GameManager.tutorial_completed:
-		_style_tutorial_button(_tutorial_btn)
-		_style_tutorial_button(_tutorial_2p_btn)
+	# チュートリアル系ボタンも他ボタンと同じ配色（上のループで既に適用済み）
 
 func _get_all_buttons(node: Node) -> Array[Button]:
 	var buttons: Array[Button] = []
@@ -365,7 +519,7 @@ func _get_all_buttons(node: Node) -> Array[Button]:
 	return buttons
 
 func _ensure_tutorial_button() -> void:
-	if _tutorial_btn and _tutorial_2p_btn:
+	if _tutorial_main_btn and _tutorial_btn and _tutorial_2p_btn:
 		return
 	_tutorial_row = HBoxContainer.new()
 	_tutorial_row.name = "TutorialRow"
@@ -373,10 +527,32 @@ func _ensure_tutorial_button() -> void:
 	_tutorial_row.add_theme_constant_override("separation", 12)
 	mode_container.add_child(_tutorial_row)
 
+	# 単一の親ボタン。タップすると1人/2人プレイの選択肢が展開する
+	_tutorial_main_btn = _make_tutorial_button("TutorialMainBtn", _on_tutorial_toggle_pressed)
+	_tutorial_row.add_child(_tutorial_main_btn)
+
+	# 選択肢は clip_contents つきのクリップ枠の中でスライドさせる。
+	# 枠は親ボタンの右隣に置かれ、枠からはみ出た部分（＝親ボタンに重なる領域）は
+	# 物理的に切り取られて描画されないため、親ボタンと絶対に重ならない。
+	_tutorial_clip = Control.new()
+	_tutorial_clip.name = "TutorialClip"
+	_tutorial_clip.clip_contents = true
+	_tutorial_clip.custom_minimum_size = Vector2(0, PICKER_HEIGHT)
+	_tutorial_clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_tutorial_row.add_child(_tutorial_clip)
+
+	# クリップ枠の中で一体スライドする選択肢グループ
+	_tutorial_options = HBoxContainer.new()
+	_tutorial_options.name = "TutorialOptions"
+	_tutorial_options.add_theme_constant_override("separation", 12)
+	_tutorial_clip.add_child(_tutorial_options)
+
 	_tutorial_btn = _make_tutorial_button("TutorialBtn", _on_tutorial_pressed)
 	_tutorial_2p_btn = _make_tutorial_button("Tutorial2PBtn", _on_tutorial_2p_pressed)
-	_tutorial_row.add_child(_tutorial_btn)
-	_tutorial_row.add_child(_tutorial_2p_btn)
+	_tutorial_options.add_child(_tutorial_btn)
+	_tutorial_options.add_child(_tutorial_2p_btn)
+	# 初期は折りたたみ（枠幅0＝完全にクリップされて非表示）
+	_tutorial_options.position = Vector2(-2000.0, 0.0)
 
 func _make_tutorial_button(node_name: String, pressed_callable: Callable) -> Button:
 	var btn := Button.new()
@@ -386,25 +562,6 @@ func _make_tutorial_button(node_name: String, pressed_callable: Callable) -> But
 	btn.add_theme_font_size_override("font_size", 18)
 	btn.pressed.connect(pressed_callable)
 	return btn
-
-func _style_tutorial_button(btn: Button) -> void:
-	if not btn:
-		return
-	var tutorial_normal := StyleBoxFlat.new()
-	tutorial_normal.bg_color = Color(0.28, 0.20, 0.08)
-	tutorial_normal.border_color = Color(0.85, 0.62, 0.18)
-	tutorial_normal.set_border_width_all(2)
-	tutorial_normal.set_corner_radius_all(12)
-	tutorial_normal.content_margin_left = 18.0
-	tutorial_normal.content_margin_right = 18.0
-	tutorial_normal.content_margin_top = 9.0
-	tutorial_normal.content_margin_bottom = 9.0
-	var tutorial_hover := tutorial_normal.duplicate()
-	tutorial_hover.bg_color = Color(0.36, 0.26, 0.10)
-	btn.add_theme_stylebox_override("normal", tutorial_normal)
-	btn.add_theme_stylebox_override("hover", tutorial_hover)
-	btn.add_theme_color_override("font_color", Color(1.0, 0.92, 0.62))
-	btn.add_theme_color_override("font_hover_color", Color(1.0, 0.98, 0.78))
 
 
 const GAME_SCENE := "res://scenes/game_world.tscn"
@@ -429,15 +586,24 @@ func _update_ui() -> void:
 	_hide_coop_mode_if_disabled()
 	game_state.refresh_status_text()
 	status_label.text = game_state.status_text
+	# メニュー中はステップピルが「手順N/3」を兼ねるので重複テキストを消す
+	if game_state.game_state == Constants.STATE_MENU:
+		status_label.text = ""
+	_update_step_indicator()
+	if _tutorial_main_btn:
+		_tutorial_main_btn.text = "チュートリアル"
 	if _tutorial_btn:
-		_tutorial_btn.text = "はじめてのチュートリアル" if not GameManager.tutorial_completed else "1人用チュートリアル"
+		_tutorial_btn.text = "1人プレイ"
 	if _tutorial_2p_btn:
-		_tutorial_2p_btn.text = "2人用チュートリアル"
+		_tutorial_2p_btn.text = "2人プレイ"
 
 	var step_changed := game_state.menu_step != _prev_menu_step
 	if game_state.menu_step == Constants.MENU_STEP_MODE:
 		mode_container.visible = true
 		config_container.visible = false
+		# モード選択に戻ってきたらチュートリアルは折りたたみ状態に戻す
+		if step_changed:
+			_set_tutorial_expanded(false)
 		if step_changed and _entrance_done:
 			_play_entrance(mode_container, false)
 	elif game_state.menu_step == Constants.MENU_STEP_CONFIG:
@@ -452,18 +618,34 @@ func _update_ui() -> void:
 		_update_subject_carousel()
 		var p_text: String
 		if game_state.num_players == 1:
-			p_text = "👤 1人プレイ"
+			p_text = "1人プレイ"
 		elif game_state.num_players == 2:
 			if game_state.mode == Constants.MODE_COOP:
-				p_text = "🤝 2人協力"
+				p_text = "2人協力"
 			else:
-				p_text = "👥 2人プレイ"
+				p_text = "2人プレイ"
 		else:
-			p_text = "🌐 オンライン対戦"
+			p_text = "オンライン対戦"
 		players_btn.text = p_text
 
-		var llm_text: String = "🌐 ONLINE (AI生成)" if QuizManager.provider.llm_mode == "ONLINE" else "📦 OFFLINE (内蔵問題)"
-		llm_toggle_btn.text = llm_text
+		# エンドレスモードはオフライン問題のみ対応（オンラインAI生成は選択不可）
+		if game_state.mode == Constants.MODE_ENDLESS:
+			if QuizManager.provider.llm_mode != "OFFLINE":
+				QuizManager.provider.set_llm_mode("OFFLINE")
+			llm_toggle_btn.text = "出題: OFFLINE 固定 🔒"
+			llm_toggle_btn.disabled = true
+			llm_toggle_btn.focus_mode = Control.FOCUS_NONE
+			llm_toggle_btn.mouse_default_cursor_shape = Control.CURSOR_ARROW
+			llm_toggle_btn.tooltip_text = "エンドレスモードはオフライン問題のみ対応しています"
+			_set_llm_toggle_locked_style(true)
+		else:
+			llm_toggle_btn.disabled = false
+			llm_toggle_btn.focus_mode = Control.FOCUS_ALL
+			llm_toggle_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+			llm_toggle_btn.tooltip_text = ""
+			_set_llm_toggle_locked_style(false)
+			var llm_text: String = "出題: ONLINE (AI生成)" if QuizManager.provider.llm_mode == "ONLINE" else "出題: OFFLINE (内蔵問題)"
+			llm_toggle_btn.text = llm_text
 
 		if customize_btn:
 			customize_btn.visible = true
@@ -488,9 +670,33 @@ func _on_back_pressed() -> void:
 	_update_ui()
 
 func _on_llm_toggle_pressed() -> void:
+	if game_state.mode == Constants.MODE_ENDLESS:
+		return  # エンドレスモードはオフライン固定のため切り替え不可
 	var new_mode := "ONLINE" if QuizManager.provider.llm_mode == "OFFLINE" else "OFFLINE"
 	QuizManager.provider.set_llm_mode(new_mode)
 	_update_ui()
+
+func _set_llm_toggle_locked_style(locked: bool) -> void:
+	## エンドレスモードでオフライン固定のとき、ボタンをグレーアウトして操作不可を明示する
+	if not llm_toggle_btn:
+		return
+	if locked:
+		var disabled_style := StyleBoxFlat.new()
+		disabled_style.bg_color = Color(0.10, 0.11, 0.14)
+		disabled_style.border_color = Color(0.20, 0.22, 0.28)
+		disabled_style.set_border_width_all(1)
+		disabled_style.set_corner_radius_all(10)
+		disabled_style.content_margin_left = 16.0
+		disabled_style.content_margin_right = 16.0
+		disabled_style.content_margin_top = 8.0
+		disabled_style.content_margin_bottom = 8.0
+		llm_toggle_btn.add_theme_stylebox_override("disabled", disabled_style)
+		llm_toggle_btn.add_theme_color_override("font_disabled_color", Color(0.45, 0.48, 0.55))
+		llm_toggle_btn.modulate = Color(1, 1, 1, 0.85)
+	else:
+		llm_toggle_btn.remove_theme_stylebox_override("disabled")
+		llm_toggle_btn.remove_theme_color_override("font_disabled_color")
+		llm_toggle_btn.modulate = Color(1, 1, 1, 1)
 
 func _on_players_toggle_pressed() -> void:
 	if not SHOW_COOP_MODE:
@@ -523,6 +729,56 @@ func _on_players_toggle_pressed() -> void:
 
 func _on_customize_pressed() -> void:
 	_open_embedded_customize()
+
+func _on_tutorial_toggle_pressed() -> void:
+	_set_tutorial_expanded(not _tutorial_expanded)
+
+const TUTORIAL_SLIDE_DURATION := 0.24
+var _tutorial_tweens: Array[Tween] = []
+
+## チュートリアルボタンの展開/折りたたみを切り替える。
+## 展開時: 選択肢グループがクリップ枠の中を左（親ボタンの陰）から右へスライドして出てくる。
+## 折りたたみ時: その逆で、親ボタンの陰へ滑り込んで消える。
+## クリップ枠(clip_contents)が親ボタン側へのはみ出しを切り取るため、絶対に重ならない。
+func _set_tutorial_expanded(expanded: bool) -> void:
+	_tutorial_expanded = expanded
+	if not (_tutorial_main_btn and _tutorial_clip and _tutorial_options):
+		return
+	_kill_tutorial_tweens()
+	_animate_tutorial_slide(expanded)
+
+func _kill_tutorial_tweens() -> void:
+	for t in _tutorial_tweens:
+		if t and t.is_valid():
+			t.kill()
+	_tutorial_tweens.clear()
+
+func _animate_tutorial_slide(reveal: bool) -> void:
+	# レイアウト確定を待ってから選択肢グループの幅を取得する
+	await get_tree().process_frame
+	if _tutorial_expanded != reveal:
+		return
+	if not (is_instance_valid(_tutorial_clip) and is_instance_valid(_tutorial_options)):
+		return
+	var w: float = _tutorial_options.get_combined_minimum_size().x
+	_tutorial_options.size = Vector2(w, PICKER_HEIGHT)
+	var tw := create_tween()
+	_tutorial_tweens.append(tw)
+	tw.set_ease(Tween.EASE_OUT)
+	tw.set_trans(Tween.TRANS_CUBIC)
+	if reveal:
+		# 枠を確保し、左（クリップ外＝親ボタンの陰）から x=0 へスライドイン
+		_tutorial_clip.custom_minimum_size.x = w
+		if _tutorial_options.position.x < -w:
+			_tutorial_options.position.x = -w
+		tw.tween_property(_tutorial_options, "position:x", 0.0, TUTORIAL_SLIDE_DURATION)
+	else:
+		# 左（クリップ外）へスライドして消え、完了後に枠幅を0にして場所を空ける
+		tw.tween_property(_tutorial_options, "position:x", -w, TUTORIAL_SLIDE_DURATION)
+		tw.tween_callback(func() -> void:
+			if not _tutorial_expanded and is_instance_valid(_tutorial_clip):
+				_tutorial_clip.custom_minimum_size.x = 0.0
+		)
 
 func _on_tutorial_pressed() -> void:
 	_start_tutorial_game()
@@ -577,7 +833,7 @@ func _on_next_subject_pressed() -> void:
 	_update_ui()
 
 func _update_grade_carousel() -> void:
-	current_grade_label.text = "📚 %d年生" % game_state.grade
+	current_grade_label.text = "%d年生" % game_state.grade
 	var normal := StyleBoxFlat.new()
 	normal.bg_color = Color(0.12, 0.14, 0.20)
 	normal.border_color = Color(0.25, 0.30, 0.40)
@@ -586,7 +842,7 @@ func _update_grade_carousel() -> void:
 	current_grade_label.add_theme_stylebox_override("normal", normal)
 
 func _update_diff_carousel() -> void:
-	current_diff_label.text = "⚡ %s" % game_state.difficulty
+	current_diff_label.text = "%s" % game_state.difficulty
 	var normal := StyleBoxFlat.new()
 	normal.bg_color = Color(0.12, 0.14, 0.20)
 	normal.border_color = Color(0.25, 0.30, 0.40)
@@ -596,10 +852,10 @@ func _update_diff_carousel() -> void:
 
 func _update_subject_carousel() -> void:
 	var colors = {
-		"算数": {"icon": "📐 算数", "color": Color(0.15, 0.40, 0.80)},
-		"理科": {"icon": "🔬 理科", "color": Color(0.15, 0.70, 0.35)},
-		"国語": {"icon": "📖 国語", "color": Color(0.85, 0.25, 0.30)},
-		"社会": {"icon": "🌍 社会", "color": Color(0.85, 0.60, 0.15)}
+		"算数": {"icon": "算数", "color": Color(0.15, 0.40, 0.80)},
+		"理科": {"icon": "理科", "color": Color(0.15, 0.70, 0.35)},
+		"国語": {"icon": "国語", "color": Color(0.85, 0.25, 0.30)},
+		"社会": {"icon": "社会", "color": Color(0.85, 0.60, 0.15)}
 	}
 	
 	var sub = game_state.subject

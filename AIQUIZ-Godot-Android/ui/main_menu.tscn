@@ -20,13 +20,40 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0.07, 0.08, 0.12, 1)
 
+[node name="DemoBackdrop" type="SubViewportContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+stretch = true
+stretch_shrink = 2
+
+[node name="DemoViewport" type="SubViewport" parent="DemoBackdrop"]
+own_world_3d = true
+handle_input_locally = false
+gui_disable_input = true
+size = Vector2i(640, 360)
+
+[node name="DemoDim" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.03, 0.04, 0.08, 0.45)
+
 [node name="SidePanel" type="ColorRect" parent="."]
 layout_mode = 1
 anchors_preset = 9
 anchor_bottom = 1.0
 offset_right = 900.0
 grow_vertical = 2
-color = Color(0.1, 0.115, 0.16, 1)
+color = Color(0.1, 0.115, 0.16, 0.82)
 
 [node name="AccentLine" type="ColorRect" parent="."]
 layout_mode = 1

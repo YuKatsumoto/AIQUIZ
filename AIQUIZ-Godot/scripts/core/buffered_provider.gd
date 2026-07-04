@@ -20,11 +20,11 @@ var recent_questions: Array[String] = []
 var recent_history_entries: Array[Dictionary] = []
 var play_history: Array[String] = []
 
-## ラウンド間で引き継ぐ問題履歴の最大サイズ
-const CROSS_ROUND_HISTORY_MAX: int = 120
+## ラウンド間で引き継ぐ問題履歴の最大サイズ（新鮮さ確保のため大きめに保持）
+const CROSS_ROUND_HISTORY_MAX: int = 300
 const HISTORY_SAVE_PATH: String = "user://recent_quiz_history.json"
 const DEDUP_RETRY_MAX: int = 1
-const MIN_REFETCH_INTERVAL_SEC: float = 3.0
+const MIN_REFETCH_INTERVAL_SEC: float = 1.2
 
 ## オフラインの緊急キャッシュ — オンライン生成が間に合わない時の保険
 var _emergency_cache: Array[QuizItem] = []
@@ -34,6 +34,18 @@ var _poll_timer: Timer
 var _explanation_inflight: bool = false
 ## 解説待ちのクイズを追跡（重複リクエスト防止）
 var _explanation_requested_ids: Dictionary = {}
+## このラウンドで払い出し済みのオンライン生成クイズ（QuizItem は参照共有なので
+## 解説の書き戻しや正解修正が後からでもゲーム側に反映される）
+var _dispatched_items: Array[QuizItem] = []
+## プリロード中でも解説バッチを先行キックする未充填問題数のしきい値
+const EXPLANATION_KICK_MIN: int = 5
+## 10問モードのプリロード完了後に1回だけ実行する正解一括検証
+var _answer_validation_done: bool = false
+
+## エンドレスモード(ONLINE)でバッファが空になり続けている開始時刻（0=空でない）
+var _endless_empty_since_ms: int = 0
+## この秒数だけオンライン生成を待っても間に合わなければオフライン問題で一時補完する
+const ENDLESS_OFFLINE_FALLBACK_DELAY_SEC: float = 1.5
 
 ## ── 出題ジャンル分散（10問モード） ──
 ## 1ラウンド内で同一ジャンルを出しすぎないための上限
@@ -124,8 +136,12 @@ func begin_round(subject: String, grade: int, difficulty: String,
 	_last_refetch_ms = 0
 	_explanation_inflight = false
 	_explanation_requested_ids.clear()
-	
-	# オンラインモードではオフライン緊急キャッシュを一切使わない
+	_dispatched_items.clear()
+	_answer_validation_done = false
+	_endless_empty_since_ms = 0
+
+	# オンラインモードでは通常オフライン緊急キャッシュを使わないが、
+	# エンドレスモードに限り、生成が遅延した際の一時補完用に緊急キャッシュを使う
 	if _should_use_offline_quizzes():
 		_prepare_emergency_cache()
 	else:
@@ -144,10 +160,29 @@ func end_round() -> void:
 	if is_instance_valid(online_fetcher) and online_fetcher.has_method("cancel_all"):
 		online_fetcher.cancel_all()
 	inflight = 0
+	# ゲームオーバー画面・履歴パネル用: 払い出し済みで解説が未充填のものは
+	# 駆け込みで一括充填を依頼する（cancel_all は解説リクエストを生かす）
+	_flush_pending_explanations_on_end()
 	# プレイ中に出題した問題を recent_history_entries にマージして次のラウンドに引き継ぐ
 	for q_text: String in play_history:
 		_append_history_entry(q_text, "")
 	_save_cross_round_history()
+
+
+## ラウンド終了時、出題済み（プレイヤーが実際に見た）問題のうち
+## 解説が未充填かつ未リクエストのものをまとめて充填依頼する
+func _flush_pending_explanations_on_end() -> void:
+	if _should_use_offline_quizzes() or not _online_api_available():
+		return
+	var pending: Array[QuizItem] = []
+	for q in _dispatched_items:
+		if q.e.strip_edges().is_empty() and q.src != "OFFLINE" and not _explanation_requested_ids.has(q.q):
+			pending.append(q)
+			_explanation_requested_ids[q.q] = true
+	if pending.is_empty():
+		return
+	print("[BufferedProvider] End-of-round explanation flush for %d quizzes" % pending.size())
+	online_fetcher.fetch_explanations_batch(pending, current_subject, current_grade)
 
 func submit_result(quiz: QuizItem, _correct: bool) -> void:
 	if quiz and quiz.q:
@@ -222,9 +257,13 @@ func _schedule_fetch(delay_sec: float = 0.0) -> void:
 		call_deferred("_fire_immediate_fetch")
 
 func _on_poll() -> void:
+	# 補充とは独立して、解説充填と正解検証のバックグラウンド処理を進める
+	_kick_explanation_batch()
+	_run_answer_validation_once()
+
 	if not _worker_should_fill():
 		return
-	
+
 	if llm_mode == "ONLINE" and not _online_api_available():
 		return
 	if online_fetcher.has_method("is_rate_limited") and online_fetcher.is_rate_limited():
@@ -269,7 +308,7 @@ func _should_block_quiz(question: String, batch_accepted: Array[String], during_
 	if QuizDedup.is_similar_to_any(question, batch_accepted):
 		return true
 	if during_preload:
-		# プリロード中: 今回バッファ内・プレイ中のみ照合（cross-round 履歴はプロンプト側で抑制）
+		# プリロード中: バッファ内・プレイ中 + 直近の cross-round 履歴（新鮮さ確保）を照合
 		for bq in buffer:
 			if QuizDedup.is_semantically_similar(question, bq.q):
 				return true
@@ -278,6 +317,9 @@ func _should_block_quiz(question: String, batch_accepted: Array[String], during_
 				return true
 		for oq in _overflow_buffer:
 			if QuizDedup.is_semantically_similar(question, oq.q):
+				return true
+		for rq in QuizDedup.tail_texts(recent_questions, QuizDedup.PRELOAD_ACCEPT_HISTORY_MAX):
+			if QuizDedup.is_semantically_similar(question, rq):
 				return true
 		return false
 	return QuizDedup.is_similar_to_any(question, _collect_active_question_texts(false))
@@ -377,8 +419,9 @@ func get_quizzes(_subject: String, _grade: int, _difficulty: String,
 			print("[BufferedProvider] Skipped offline quiz in online buffer: '%s'" % picked.q.left(30))
 			continue
 		_last_dispatched_genre = picked.genre
+		_track_dispatched_unexplained(picked)
 		out.append(picked)
-	
+
 	# バッファが足りない場合、ジャンル上限で控えに回した問題から補充する
 	if current_mode == Constants.MODE_TEN and out.size() < count:
 		while _overflow_buffer.size() > 0 and out.size() < count:
@@ -386,6 +429,7 @@ func get_quizzes(_subject: String, _grade: int, _difficulty: String,
 			if llm_mode == "ONLINE" and _is_offline_quiz_item(ov):
 				continue
 			_last_dispatched_genre = ov.genre
+			_track_dispatched_unexplained(ov)
 			out.append(ov)
 	
 	# バッファが空の場合の処理（10問・エンドレス共通）
@@ -406,15 +450,46 @@ func get_quizzes(_subject: String, _grade: int, _difficulty: String,
 				)
 				if _emergency_cache.size() < 3:
 					_prepare_emergency_cache()
-		elif inflight > 0:
-			# オンライン生成待ち — 空配列のまま PRELOADING で待機
-			pass
 		else:
-			if _online_api_available():
+			if inflight == 0 and _online_api_available():
 				_schedule_fetch()
-			print("[BufferedProvider] Online buffer empty, waiting for AI fetch (no offline fallback)")
-	
+			if current_mode == Constants.MODE_ENDLESS:
+				# エンドレスモード: オンライン生成が遅延した場合のみオフラインで一時補完する
+				# （生成自体は止めず、バックグラウンドで継続する）
+				out = _endless_online_fallback(count)
+			else:
+				# 10問モード: 純粋なオンライン問題のみを維持するためフォールバックしない
+				print("[BufferedProvider] Online buffer empty, waiting for AI fetch (no offline fallback)")
+
+	if out.size() > 0:
+		_endless_empty_since_ms = 0
 	yielded_count += out.size()
+	return out
+
+
+## エンドレスモード(ONLINE)専用: バッファ空が一定時間続いたらオフライン問題で一時補完する。
+## オンライン生成は止めない（_schedule_fetch は呼び出し側で既に手配済み）。
+## 猶予時間内であれば空配列を返し、プレイヤーは通常どおり生成完了を待つ。
+func _endless_online_fallback(count: int) -> Array[QuizItem]:
+	var now := Time.get_ticks_msec()
+	if _endless_empty_since_ms == 0:
+		_endless_empty_since_ms = now
+	var elapsed_sec := float(now - _endless_empty_since_ms) / 1000.0
+	if elapsed_sec < ENDLESS_OFFLINE_FALLBACK_DELAY_SEC:
+		return []
+
+	var out: Array[QuizItem] = []
+	if _emergency_cache.is_empty():
+		_prepare_emergency_cache()
+	if _emergency_cache.size() > 0:
+		var needed := maxi(1, count)
+		for _i in range(mini(needed, _emergency_cache.size())):
+			var eq: QuizItem = _emergency_cache.pop_front()
+			eq.src = "OFFLINE_FALLBACK"
+			out.append(eq)
+		print("[BufferedProvider] Endless: online generation lagging (%.1fs) — filled %d from offline fallback" % [elapsed_sec, out.size()])
+		if _emergency_cache.size() < 3:
+			_prepare_emergency_cache()
 	return out
 
 
@@ -482,39 +557,126 @@ func _prepare_emergency_cache() -> void:
 	if _emergency_cache.size() > 0:
 		print("[BufferedProvider] Emergency cache prepared: %d offline questions" % _emergency_cache.size())
 
-## バッファ内の解説未取得問題に対してバックグラウンドで解説生成をキック
+## 払い出し済みのオンライン問題を追跡リストに登録する
+## （解説の後充填・正解の一括検証の対象にするため）
+func _track_dispatched_unexplained(q: QuizItem) -> void:
+	if q == null or _is_offline_quiz_item(q):
+		return
+	_dispatched_items.append(q)
+	while _dispatched_items.size() > 30:
+		_dispatched_items.pop_front()
+
+
+## バッファ内・払い出し済みの解説未取得問題に対してバックグラウンドで解説生成をキック。
+## 10問モードでは生成時に解説を省略して高速化しているため、
+## プリロード中でも未充填が一定数たまり次第、先行してバッチ充填を始める。
 func _kick_explanation_batch() -> void:
 	if _explanation_inflight:
 		return
+	if not is_active_round:
+		return
 	if _should_use_offline_quizzes():
 		return
-	# プレロード完了前は解説生成を後回し（生成帯域をクイズ本体に集中）
-	if _is_preloading():
-		return
-	
-	# 解説が空のオンライン生成問題を収集
+
+	# 解説が空のオンライン生成問題を収集（バッファ・控え・払い出し済みすべて対象）
 	var need_explanation: Array[QuizItem] = []
+	var candidates: Array[QuizItem] = []
 	for q in buffer:
+		candidates.append(q)
+	for q in _overflow_buffer:
+		candidates.append(q)
+	for q in _dispatched_items:
+		candidates.append(q)
+	for q in candidates:
 		if q.e.strip_edges().is_empty() and q.src != "OFFLINE" and not _explanation_requested_ids.has(q.q):
 			need_explanation.append(q)
-			_explanation_requested_ids[q.q] = true
-	
+
 	if need_explanation.is_empty():
 		return
-	
+
+	# プリロード中は、しきい値以上たまるまで待つ（生成帯域をクイズ本体に集中しつつ先行充填）
+	if _is_preloading() and need_explanation.size() < EXPLANATION_KICK_MIN:
+		return
+
+	for q in need_explanation:
+		_explanation_requested_ids[q.q] = true
+
 	_explanation_inflight = true
 	print("[BufferedProvider] Kicking explanation batch for %d quizzes" % need_explanation.size())
 	online_fetcher.fetch_explanations_batch(need_explanation, current_subject, current_grade)
-	
+
 	# 完了時にフラグをリセット（シグナル接続）
 	if not online_fetcher.explanations_ready.is_connected(_on_explanations_ready):
 		online_fetcher.explanations_ready.connect(_on_explanations_ready)
 
-func _on_explanations_ready(_quizzes: Array[QuizItem]) -> void:
+func _on_explanations_ready(quizzes: Array[QuizItem]) -> void:
 	_explanation_inflight = false
+	# game_state 側は4→2択変換時に QuizItem をクローンするため、
+	# 参照共有では届かないケースに備えて問題文一致でも解説を伝播させる
+	_propagate_explanations_to_game(quizzes)
 	print("[BufferedProvider] Explanations received, checking for more...")
 	# まだ解説未取得の問題があれば次のバッチをキック
 	_kick_explanation_batch()
+
+
+## 充填された解説を、game_state が保持するクローン（4→2択変換後の QuizItem）にも
+## 問題文の一致で書き写す。current_quiz と quiz_history の両方が対象。
+func _propagate_explanations_to_game(quizzes: Array[QuizItem]) -> void:
+	var gs = QuizManager.game_state
+	if gs == null:
+		return
+	for src_q in quizzes:
+		if src_q == null or src_q.e.strip_edges().is_empty():
+			continue
+		var cq = gs.current_quiz
+		if cq != null and cq != src_q and cq.q == src_q.q and cq.e.strip_edges().is_empty():
+			cq.e = src_q.e
+		for entry in gs.quiz_history:
+			if not entry is Dictionary:
+				continue
+			var hq = (entry as Dictionary).get("quiz", null)
+			if hq is QuizItem and hq != src_q and hq.q == src_q.q and hq.e.strip_edges().is_empty():
+				hq.e = src_q.e
+
+
+## 10問モード: プリロード完了後に1回だけ、ラウンド全問の正解をLLMで一括検証する。
+## QuizItem は参照共有のため、誤りが見つかった場合は item.a がその場で修正され、
+## すでに壁が構築済みでも衝突判定（current_quiz.a 参照）に正しく反映される。
+func _run_answer_validation_once() -> void:
+	if _answer_validation_done:
+		return
+	if not is_active_round or current_mode != Constants.MODE_TEN:
+		return
+	if _should_use_offline_quizzes() or not _online_api_available():
+		return
+	if _is_preloading():
+		return
+	var validator: QuizValidator = QuizManager.quiz_validator
+	if validator == null:
+		return
+
+	var targets: Array[QuizItem] = []
+	for q in buffer:
+		if not _is_offline_quiz_item(q):
+			targets.append(q)
+	for q in _overflow_buffer:
+		if not _is_offline_quiz_item(q):
+			targets.append(q)
+	for q in _dispatched_items:
+		if q not in targets:
+			targets.append(q)
+	if targets.is_empty():
+		return
+
+	_answer_validation_done = true
+	print("[BufferedProvider] Running one-shot answer validation for %d quizzes" % targets.size())
+	validator.validate_answers_llm(targets, current_subject, current_grade,
+		func(_valid_items: Array[QuizItem], invalid_reasons: Array[String]):
+			if invalid_reasons.size() > 0:
+				print("[BufferedProvider] Answer validation flagged %d items:" % invalid_reasons.size())
+				for reason in invalid_reasons:
+					print("  - %s" % reason)
+	)
 
 
 ## ── ラウンド間 問題履歴の永続化 ──

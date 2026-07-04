@@ -110,7 +110,6 @@ const PREVIEW_BELT_EDGE_FALL_Z: float = 4.55
 ## マグマ落下待機中だけ通常上限(4.2)を超えて端まで進める
 const PREVIEW_MAGMA_DEPTH_MAX: float = PREVIEW_BELT_EDGE_FALL_Z + 0.85
 const PREVIEW_BELT_EDGE_RUSH_SPEED: float = 4.2
-const AI_PENDING_EMOTE_CHANCE: float = 0.42
 
 ## 壁速度タブ基準から少し引いて左寄せ（UIが右側のため）
 const PREVIEW_CAM_POS := Vector3(-18.0, 6.1, 23.15)
@@ -136,6 +135,9 @@ var _applied_preview_p1_hat: int = -999
 var _applied_preview_p2_hat: int = -999
 var _p1_ai: MenuPreviewActorAIState
 var _p2_ai: MenuPreviewActorAIState
+## 本物の問題を壁に載せるためのオフライン問題プロバイダ (API不要)
+var _quiz_provider: QuizProvider = null
+var _preview_subject_idx: int = 0
 var _menu_synced_player_count: int = 1
 var _p2_remove_deadline: float = -1.0
 var _preview_p1_rig_emote_ids: Array[int] = []
@@ -153,6 +155,9 @@ func _ready() -> void:
 	_wall_merge = PreviewWallMergeAnimatorScript.new()
 	_p1_ai = MenuPreviewActorAIStateScript.new()
 	_p2_ai = MenuPreviewActorAIStateScript.new()
+	_quiz_provider = QuizProvider.new()
+	add_child(_quiz_provider)
+	_preview_subject_idx = randi() % Constants.SUBJECTS.size()
 	set_process(false)
 	_resolve_preview_speed()
 	_build_3d_scene()
@@ -440,16 +445,50 @@ func _build_3d_scene() -> void:
 	_reset_preview_ai_state()
 
 
+func _pick_preview_quiz() -> QuizItem:
+	## オフラインバンクから本物の問題を1問取得し、2択に変換する
+	if not _quiz_provider:
+		return null
+	_preview_subject_idx = (_preview_subject_idx + 1) % Constants.SUBJECTS.size()
+	var subject: String = Constants.SUBJECTS[_preview_subject_idx]
+	var grade: int = randi_range(1, 6)
+	var got: Array[QuizItem] = _quiz_provider.get_quizzes(
+		subject, grade, "普通", Constants.MODE_ENDLESS, 1)
+	if got.is_empty() or got[0] == null:
+		return null
+	var quiz := got[0]
+	# 2択に変換 (本編 game_state.load_current_quiz の 4→2 変換と同じ要領)
+	if quiz.c.size() > 2:
+		var correct_text: String = quiz.c[quiz.a]
+		var wrong_texts: PackedStringArray = []
+		for i: int in range(quiz.c.size()):
+			if i != quiz.a:
+				wrong_texts.append(quiz.c[i])
+		var chosen_wrong: String = wrong_texts[randi() % wrong_texts.size()]
+		var pair := [correct_text, chosen_wrong]
+		pair.shuffle()
+		quiz.c = PackedStringArray(pair)
+		quiz.a = pair.find(correct_text)
+	return quiz
+
+
 func _spawn_preview_wall(z_pos: float) -> void:
-	var dummy_quiz := QuizItem.new()
-	dummy_quiz.q = "プレビュー"
-	dummy_quiz.c = ["A", "B"]
+	var quiz := _pick_preview_quiz()
+	if quiz == null:
+		quiz = QuizItem.new()
+		quiz.q = "プレビュー"
+		quiz.c = ["A", "B"]
 
 	var wall := WALL_SCENE.instantiate()
 	wall.position.z = z_pos
 	_viewport.add_child(wall)
 	if wall.has_method("set_quiz"):
-		wall.set_quiz(dummy_quiz, 2)
+		wall.set_quiz(quiz, 2)
+	if not quiz.q.is_empty() and quiz.q != "プレビュー":
+		# 本物の問題: カメラ側に問題文・選択肢を表示し、AIが解く正解扉を記録
+		if wall.has_method("set_preview_labels"):
+			wall.set_preview_labels(quiz)
+		wall.set_meta("preview_correct_door", quiz.a)
 	wall.set_meta("preview_should_break_door", true)
 	wall.set_meta("preview_collision_processed", false)
 	wall.set_meta("preview_hit_p1", false)
@@ -462,51 +501,8 @@ func _spawn_preview_wall(z_pos: float) -> void:
 func _drop_wall_into_magma(wall: Node3D) -> void:
 	if not wall or not is_instance_valid(wall) or not _viewport:
 		return
-
-	for child in wall.get_children():
-		if not (child is MeshInstance3D):
-			continue
-		var src_mesh := child as MeshInstance3D
-		if not src_mesh.visible:
-			continue
-		var box_mesh := src_mesh.mesh as BoxMesh
-		if not box_mesh:
-			continue
-
-		var piece := RigidBody3D.new()
-		piece.mass = 3.2
-		piece.gravity_scale = 2.4
-		piece.linear_damp = 0.28
-		piece.angular_damp = 0.38
-		piece.collision_layer = 0
-		piece.collision_mask = 1
-
-		var col := CollisionShape3D.new()
-		var shape := BoxShape3D.new()
-		shape.size = box_mesh.size
-		col.shape = shape
-		piece.add_child(col)
-
-		var mesh_inst := MeshInstance3D.new()
-		var mesh_copy := BoxMesh.new()
-		mesh_copy.size = box_mesh.size
-		mesh_inst.mesh = mesh_copy
-		if src_mesh.material_override:
-			mesh_inst.material_override = src_mesh.material_override.duplicate()
-		piece.add_child(mesh_inst)
-
-		_viewport.add_child(piece)
-		piece.global_transform = src_mesh.global_transform
-		piece.apply_central_impulse(Vector3(
-			randf_range(-0.36, 0.36),
-			randf_range(0.0, 0.48),
-			randf_range(1.85, 3.85)
-		))
-		piece.apply_torque_impulse(Vector3(
-			randf_range(-0.52, 0.52),
-			randf_range(-0.32, 0.32),
-			randf_range(-0.52, 0.52)
-		))
+	if wall.has_method("collapse_into_magma"):
+		wall.collapse_into_magma()
 
 
 func _pick_ai_dash_target_x(bundle: MenuPreviewActorAIState) -> float:
@@ -583,9 +579,11 @@ func _resolve_preview_actor_wall_contact(
 	var should_break_door: bool = bool(wall.get_meta("preview_should_break_door", true))
 	if should_break_door:
 		var door_idx := _pick_preview_door_index(_actor_x(is_p1))
-		if door_idx >= 0:
+		var correct_door := int(wall.get_meta("preview_correct_door", -1))
+		if door_idx >= 0 and (correct_door < 0 or door_idx == correct_door):
 			_trigger_preview_door_pass(wall, door_idx, bundle, is_p1)
 		else:
+			# 不正解の扉は本編同様に通れない (激突扱い)
 			_handle_preview_wall_crash(wall, bundle, is_p1)
 	else:
 		_handle_preview_wall_crash(wall, bundle, is_p1)
@@ -626,7 +624,10 @@ func _update_door_learning_approach(bundle: MenuPreviewActorAIState, is_p1: bool
 	if not candidate:
 		return
 	bundle.learn_approach_wall = candidate
-	bundle.learn_intended_action = int(bundle.door_learner.pick_door_action())
+	var learner_action := int(bundle.door_learner.pick_door_action())
+	var correct_door := int(candidate.get_meta("preview_correct_door", -1))
+	# 本物の問題が載った壁では正解の扉を狙う (迷い・ミスの揺らぎは door_learner が担う)
+	bundle.learn_intended_action = correct_door if correct_door >= 0 else learner_action
 	bundle.learn_target_x = clampf(
 		bundle.door_learner.target_x_for_action(bundle.learn_intended_action),
 		AI_PLAYER_X_MIN,
@@ -973,6 +974,8 @@ func _trigger_preview_door_pass(
 	if wall.get_meta(hit_key, false):
 		return
 	wall.set_meta(hit_key, true)
+	# 正解の扉をくぐった時だけ、設定中の3エモートからランダムに1つ選んで踊る
+	_start_ai_emote(bundle, is_p1)
 	_record_learning_outcome_for_wall(wall, 1.0, bundle, _home_x_for_bundle(bundle))
 	var door_key := "preview_broken_door_%d" % door_index
 	if not wall.get_meta(door_key, false):
@@ -1314,8 +1317,7 @@ func _roll_next_action(bundle: MenuPreviewActorAIState, is_p1: bool) -> void:
 	if bundle.is_emoting:
 		return
 	if bundle.pending_accident != PENDING_ACCIDENT_NONE:
-		if randf() < AI_PENDING_EMOTE_CHANCE and _start_ai_emote(bundle, is_p1):
-			return
+		# エモートは正解の扉をくぐった時だけ再生するため、ここでは発生させない
 		return
 	var skill := _get_door_learning_skill(bundle)
 	var accident_weight := AI_WEIGHT_ACCIDENT * (1.0 - 0.65 * skill)
@@ -1347,10 +1349,8 @@ func _roll_next_action(bundle: MenuPreviewActorAIState, is_p1: bool) -> void:
 		return
 	accum += AI_WEIGHT_EMOTE
 	if roll < accum:
-		if not _start_ai_emote(bundle, is_p1):
-			_start_ai_dash_move(false, bundle, is_p1)
-		else:
-			_start_ai_dash_move(false, bundle, is_p1)
+		# エモートは正解の扉をくぐった時だけ再生するため、ここでは通常移動にフォールバックする
+		_start_ai_dash_move(false, bundle, is_p1)
 		return
 	accum += AI_WEIGHT_ACROBATICS
 	if roll < accum:

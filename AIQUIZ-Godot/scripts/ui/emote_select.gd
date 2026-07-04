@@ -160,7 +160,7 @@ func _build_ui() -> void:
 	preview_panel.add_child(preview_vbox)
 
 	var preview_title := Label.new()
-	preview_title.text = "💃 ダンスプレビュー"
+	preview_title.text = "ダンスプレビュー"
 	preview_title.add_theme_font_size_override("font_size", 20)
 	preview_title.add_theme_color_override("font_color", Color(0.7, 0.75, 0.85))
 	preview_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -238,7 +238,7 @@ func _build_ui() -> void:
 
 	# タイトル
 	var title := Label.new()
-	title.text = "💃 エモート設定"
+	title.text = "エモート設定"
 	title.add_theme_font_size_override("font_size", 28)
 	title.add_theme_color_override("font_color", Color(1.0, 0.88, 0.25))
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -307,7 +307,7 @@ func _build_ui() -> void:
 
 	# エモートグリッド（Mixamo風カタログ）
 	var grid_title := Label.new()
-	grid_title.text = "🔍 エモート一覧"
+	grid_title.text = "エモート一覧"
 	grid_title.add_theme_font_size_override("font_size", 16)
 	grid_title.add_theme_color_override("font_color", Color(0.7, 0.75, 0.85))
 	grid_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -363,7 +363,7 @@ func _build_ui() -> void:
 
 	# 戻るボタン
 	_back_btn = Button.new()
-	_back_btn.text = "❌ 決定して戻る"
+	_back_btn.text = "決定して戻る"
 	_back_btn.custom_minimum_size = Vector2(0, 52)
 	_back_btn.add_theme_font_size_override("font_size", 18)
 	_back_btn.pressed.connect(_on_back_pressed)
@@ -709,10 +709,10 @@ func _update_all() -> void:
 	# 繝励Ξ繧､繝､繝ｼ蛻・崛繝懊ち繝ｳ
 	var p_col: Color
 	if _editing_player == 1:
-		_player_toggle_btn.text = "👤 P1 設定中 (➡ P2に切替)"
+		_player_toggle_btn.text = "P1 設定中 (P2に切替)"
 		p_col = Color(0.95, 0.55, 0.20)
 	else:
-		_player_toggle_btn.text = "👤 P2 設定中 (➡ P1に切替)"
+		_player_toggle_btn.text = "P2 設定中 (P1に切替)"
 		p_col = Color(0.20, 0.65, 0.90)
 	_player_toggle_btn.add_theme_color_override("font_color", p_col)
 

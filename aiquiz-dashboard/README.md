@@ -14,7 +14,9 @@ pnpm dev
 bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3001](http://localhost:3001) with your browser to see the result.
+
+> Note: this dev server runs on port **3001** (set in `package.json`) to avoid colliding with the UnrealClaude editor plugin, which uses port 3000.
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 

@@ -2154,7 +2154,8 @@ func _spawn_preview_wall(z_pos: float) -> void:
 func _drop_wall_into_magma(wall: Node3D) -> void:
 	if not wall or not is_instance_valid(wall):
 		return
-	_preview_spawn_wall_debris_pieces(wall, false)
+	if wall.has_method("collapse_into_magma"):
+		wall.collapse_into_magma()
 
 func _setup_conveyor_extras() -> void:
 	var floor_length := 144.0

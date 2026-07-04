@@ -132,7 +132,7 @@ func _on_room_list_received(rooms: Array) -> void:
 	status_label.text = "%d 個のルームが見つかりました" % rooms.size()
 	for room_data in rooms:
 		var btn := Button.new()
-		btn.text = "🎮 %s (ルーム: %s)" % [
+		btn.text = "%s (ルーム: %s)" % [
 			room_data.get("host_name", "不明"),
 			room_data.get("room_id", "?")
 		]

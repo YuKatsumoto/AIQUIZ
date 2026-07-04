@@ -1,0 +1,65 @@
+[gd_scene format=3 uid="uid://1l21s5xnh08x"]
+
+[ext_resource type="BoxMesh" path="res://tests/_mcp_smoke_box.tres" id="1_e1xtj"]
+[ext_resource type="Script" path="res://tests/_mcp_smoke_script.gd" id="2_wk0hu"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_j7p73"]
+albedo_color = Color(1, 0.53333336, 0, 1)
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_nr4n0"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_vxc3b"]
+transparency = 1
+shading_mode = 0
+vertex_color_use_as_albedo = true
+billboard_mode = 3
+billboard_keep_scale = true
+particles_anim_h_frames = 1
+particles_anim_v_frames = 1
+particles_anim_loop = false
+
+[sub_resource type="QuadMesh" id="QuadMesh_1ak7q"]
+material = SubResource("StandardMaterial3D_vxc3b")
+size = Vector2(0.25, 0.25)
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_cuqi1"]
+
+[node name="Smoke" type="Node3D" unique_id=59336033]
+
+[node name="Box" type="MeshInstance3D" parent="." unique_id=593688319]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0)
+material_override = SubResource("StandardMaterial3D_j7p73")
+mesh = ExtResource("1_e1xtj")
+script = ExtResource("2_wk0hu")
+
+[node name="Mark" type="Marker3D" parent="Box" unique_id=601194934]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0, 0)
+
+[node name="Cam" type="Camera3D" parent="." unique_id=628148692]
+fov = 60.0
+
+[node name="Sfx" type="AudioStreamPlayer3D" parent="." unique_id=1587646881]
+volume_db = -6.0
+
+[node name="Fx" type="GPUParticles3D" parent="." unique_id=382001614]
+amount = 16
+lifetime = 2.0
+process_material = SubResource("ParticleProcessMaterial_nr4n0")
+draw_pass_1 = SubResource("QuadMesh_1ak7q")
+
+[node name="Anim" type="AnimationPlayer" parent="." unique_id=1515653750]
+libraries/ = SubResource("AnimationLibrary_cuqi1")
+
+[node name="HUD" type="CanvasLayer" parent="." unique_id=510669053]
+
+[node name="Root" type="Control" parent="HUD" unique_id=7128893]
+layout_mode = 3
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+
+[node name="Title" type="Label" parent="HUD/Root" unique_id=1901821181]
+layout_mode = 0
+text = "hi"

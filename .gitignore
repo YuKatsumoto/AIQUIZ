@@ -32,3 +32,9 @@ node_modules/
 /screen.png
 /window_dump.xml
 /docs/index.bleve/
+
+# Fennara MCP tooling (dev-only, not project sources)
+AIQUIZ-Godot/.fennara/
+AIQUIZ-Godot/addons/fennara/
+AIQUIZ-Godot-Android/.fennara/
+AIQUIZ-Godot-Android/addons/fennara/

@@ -313,13 +313,14 @@ func break_door(door_index: int) -> void:
 			# Position: offset from door center
 			var offset_x: float = (cx - (chunks_x - 1) * 0.5) * chunk_size.x
 			var offset_y: float = (cy - (chunks_y - 1) * 0.5) * chunk_size.y
-			chunk.global_position = door_pos + Vector3(offset_x, offset_y, 0)
 
 			# Collision layers: only collide with floor (layer 1), not players
 			chunk.collision_layer = 0
 			chunk.collision_mask = 1
 
+			# ツリー追加後に global_position を設定 (先に設定すると is_inside_tree エラー)
 			get_parent().add_child(chunk)
+			chunk.global_position = door_pos + Vector3(offset_x, offset_y, 0)
 
 			var vp := chunk.get_viewport()
 			var is_preview_subviewport := vp is SubViewport
@@ -464,9 +465,9 @@ func _shatter_mesh(mesh_inst: MeshInstance3D, direction_z: float) -> void:
 			
 			var offset_x: float = (cx - (chunks_x - 1) * 0.5) * chunk_size.x
 			var offset_y: float = (cy - (chunks_y - 1) * 0.5) * chunk_size.y
-			chunk.global_position = pos + Vector3(offset_x, offset_y, 0)
-			
+
 			get_parent().add_child(chunk)
+			chunk.global_position = pos + Vector3(offset_x, offset_y, 0)
 			
 			# 進行方向（direction_z）へ爆散させる
 			var impulse_x: float = (randf() - 0.5) * 30.0 # 左右への強い散らばり
@@ -486,3 +487,81 @@ func _shatter_mesh(mesh_inst: MeshInstance3D, direction_z: float) -> void:
 			tween.tween_interval(1.5)
 			tween.tween_property(cmi, "scale", Vector3.ZERO, 1.0).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 			tween.tween_callback(chunk.queue_free)
+
+const MAGMA_DEBRIS_MASS: float = 3.2
+const MAGMA_DEBRIS_GRAVITY_SCALE: float = 2.4
+const MAGMA_DEBRIS_LINEAR_DAMP: float = 0.28
+const MAGMA_DEBRIS_ANGULAR_DAMP: float = 0.38
+const MAGMA_DEBRIS_IMP_X: float = 0.36
+const MAGMA_DEBRIS_IMP_Y: float = 0.48
+const MAGMA_DEBRIS_IMP_Z_MIN: float = 1.85
+const MAGMA_DEBRIS_IMP_Z_MAX: float = 3.85
+const MAGMA_DEBRIS_TORQUE: float = 0.52
+const MAGMA_DEBRIS_LIFETIME_SEC: float = 5.0
+
+## 崖に到達した壁を、扉破壊の爆散(shatter_wall)とは別の
+## 静かな「ボトッ」落下でマグマへ崩す。実ゲーム・各種プレビュー共通の見た目。
+func collapse_into_magma() -> void:
+	for part in wall_parts:
+		if is_instance_valid(part) and part.visible:
+			_drop_mesh_into_magma(part)
+			part.visible = false
+	for door in doors:
+		if is_instance_valid(door) and door.visible:
+			_drop_mesh_into_magma(door)
+			door.visible = false
+	for label in door_labels:
+		if is_instance_valid(label):
+			label.visible = false
+	if is_instance_valid(boss_label):
+		boss_label.visible = false
+
+func _drop_mesh_into_magma(mesh_inst: MeshInstance3D) -> void:
+	if not mesh_inst.is_inside_tree(): return
+	var box := mesh_inst.mesh as BoxMesh
+	if not box: return
+	var parent := get_parent()
+	if parent == null: return
+
+	var piece := RigidBody3D.new()
+	piece.mass = MAGMA_DEBRIS_MASS
+	piece.gravity_scale = MAGMA_DEBRIS_GRAVITY_SCALE
+	piece.linear_damp = MAGMA_DEBRIS_LINEAR_DAMP
+	piece.angular_damp = MAGMA_DEBRIS_ANGULAR_DAMP
+	piece.collision_layer = 0
+	piece.collision_mask = 1
+
+	var col := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = box.size
+	col.shape = shape
+	piece.add_child(col)
+
+	var cmi := MeshInstance3D.new()
+	var cbox := BoxMesh.new()
+	cbox.size = box.size
+	cmi.mesh = cbox
+	if mesh_inst.material_override:
+		cmi.material_override = mesh_inst.material_override.duplicate()
+	piece.add_child(cmi)
+
+	parent.add_child(piece)
+	piece.global_transform = mesh_inst.global_transform
+
+	piece.apply_central_impulse(Vector3(
+		randf_range(-MAGMA_DEBRIS_IMP_X, MAGMA_DEBRIS_IMP_X),
+		randf_range(0.0, MAGMA_DEBRIS_IMP_Y),
+		randf_range(MAGMA_DEBRIS_IMP_Z_MIN, MAGMA_DEBRIS_IMP_Z_MAX),
+	))
+	piece.apply_torque_impulse(Vector3(
+		randf_range(-MAGMA_DEBRIS_TORQUE, MAGMA_DEBRIS_TORQUE),
+		randf_range(-MAGMA_DEBRIS_TORQUE * 0.62, MAGMA_DEBRIS_TORQUE * 0.62),
+		randf_range(-MAGMA_DEBRIS_TORQUE, MAGMA_DEBRIS_TORQUE),
+	))
+
+	var tw := piece.create_tween()
+	tw.tween_interval(MAGMA_DEBRIS_LIFETIME_SEC)
+	tw.tween_callback(func() -> void:
+		if is_instance_valid(piece):
+			piece.queue_free()
+	)

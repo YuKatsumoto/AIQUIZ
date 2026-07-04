@@ -21,6 +21,8 @@ var difficulty: String = "普通"
 var mode: String = Constants.MODE_TEN
 var llm_mode: String = "ONLINE"
 var menu_step: String = Constants.MENU_STEP_MODE
+# メニュー背景のアトラクトデモ用: 分析送信などプレイヤー由来の副作用を止める
+var is_demo: bool = false
 
 # --- Pre-Tutorial State Backup ---
 var pre_tutorial_subject: String = "算数"
@@ -1501,7 +1503,7 @@ func resolve_collision(p1_hit: bool = false, p2_hit: bool = false) -> void:
 			if recent_response_times.size() > 5:
 				recent_response_times.pop_front()
 
-			if QuizManager.player_analytics != null:
+			if QuizManager.player_analytics != null and not is_demo:
 				var chosen_door: int = _check_player_door(player_x) if p1_hit or not p1_correct else current_quiz.a
 				QuizManager.player_analytics.record(
 					current_quiz, response_time, any_correct, chosen_door,

@@ -599,7 +599,10 @@ func update_from_state(gs: QuizGameState) -> void:
 
 	# 1P: only show player body during game over explosion, flyover, menu, or replay
 	if gs.num_players == 1:
-		if gs.game_state == Constants.STATE_GAME_OVER and gs.game_over_timer > 0:
+		if gs.is_demo:
+			# メニュー背景デモは三人称視点なので常に表示
+			visible = true
+		elif gs.game_state == Constants.STATE_GAME_OVER and gs.game_over_timer > 0:
 			visible = true
 		elif gs.game_state == Constants.STATE_FLYOVER:
 			visible = true

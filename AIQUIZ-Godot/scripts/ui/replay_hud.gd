@@ -130,7 +130,7 @@ func _build_ui() -> void:
 	hbox.add_child(spacer)
 
 	# カメラモードボタン
-	_camera_btn = _create_btn("🎥 フリー", 120, Color(0.5, 0.5, 0.7))
+	_camera_btn = _create_btn("フリー", 120, Color(0.5, 0.5, 0.7))
 	_camera_btn.pressed.connect(func():
 		if replay_camera:
 			replay_camera.cycle_mode()
@@ -138,7 +138,7 @@ func _build_ui() -> void:
 	hbox.add_child(_camera_btn)
 
 	# 共有ボタン
-	_share_btn = _create_btn("📤 共有", 80, Color(0.6, 0.5, 0.8))
+	_share_btn = _create_btn("共有", 80, Color(0.6, 0.5, 0.8))
 	_share_btn.pressed.connect(_on_share_pressed)
 	hbox.add_child(_share_btn)
 
@@ -151,7 +151,7 @@ func _build_ui() -> void:
 
 	# 上部: REPLAY 表示
 	var replay_badge := Label.new()
-	replay_badge.text = "🎬 REPLAY"
+	replay_badge.text = "REPLAY"
 	replay_badge.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	replay_badge.offset_left = 20.0
 	replay_badge.offset_top = 16.0
@@ -245,5 +245,5 @@ func _on_share_pressed() -> void:
 		var tree := get_tree()
 		if tree:
 			tree.create_timer(3.0).timeout.connect(func():
-				_share_btn.text = "📤 共有"
+				_share_btn.text = "共有"
 			)

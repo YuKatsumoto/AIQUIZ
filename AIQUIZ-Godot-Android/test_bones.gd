@@ -1,7 +1,7 @@
 extends SceneTree
 
 func _init():
-	var scene = preload("res://assets/animations/Y Bot@Step Hip Hop Dance.fbx").instantiate()
+	var scene = preload("res://assets/animations/Y Bot@Step Hip Hop Dance・.fbx").instantiate()
 	var skel = scene.find_child("Skeleton3D", true, false)
 	if skel:
 		var txt = ""

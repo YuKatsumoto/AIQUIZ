@@ -39,7 +39,7 @@ theme_override_constants/separation = 12
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.88, 0.25, 1)
 theme_override_font_sizes/font_size = 36
-text = "🌐 オンライン対戦"
+text = "オンライン対戦"
 horizontal_alignment = 1
 
 [node name="Spacer1" type="Control" parent="VBoxContainer"]
@@ -50,7 +50,7 @@ layout_mode = 2
 custom_minimum_size = Vector2(0, 56)
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
-text = "🏠 部屋を作る"
+text = "部屋を作る"
 
 [node name="HSeparator" type="HSeparator" parent="VBoxContainer"]
 layout_mode = 2
@@ -82,7 +82,7 @@ layout_mode = 2
 custom_minimum_size = Vector2(0, 40)
 layout_mode = 2
 theme_override_font_sizes/font_size = 16
-text = "🔄 ルーム一覧を更新"
+text = "ルーム一覧を更新"
 
 [node name="RoomListScroll" type="ScrollContainer" parent="VBoxContainer"]
 custom_minimum_size = Vector2(0, 120)

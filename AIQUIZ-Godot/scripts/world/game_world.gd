@@ -358,8 +358,8 @@ func _update_walls() -> void:
 		var wz: float = t.wall_start_z + idx * t.wall_spacing
 		var local_z: float = wz - game_state.world_scroll_z
 		if local_z <= game_state.FLOOR_BACK_Z + 0.1:
-			if wall.has_method("shatter_wall"):
-				wall.shatter_wall()
+			if wall.has_method("collapse_into_magma"):
+				wall.collapse_into_magma()
 		wall.queue_free()
 
 
@@ -461,7 +461,7 @@ func _update_goal_line() -> void:
 
 		# "GOAL" label (クロスバーのやや下に配置)
 		var goal_label := Label3D.new()
-		goal_label.text = "🏁 GOAL 🏁"
+		goal_label.text = "GOAL"
 		goal_label.font_size = 72
 		goal_label.pixel_size = 0.012
 		goal_label.billboard = BaseMaterial3D.BILLBOARD_DISABLED

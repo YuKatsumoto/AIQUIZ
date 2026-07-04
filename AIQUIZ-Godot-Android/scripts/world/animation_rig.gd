@@ -141,7 +141,6 @@ func select_animation(player_y: float, jump_trigger: bool, emote: int,
 	# Priority 3: エモート
 	if emote > 0:
 		var idx = loaded_emotes.find(emote)
-		print("[RIG] %s select_animation - emote: %d, loaded_emotes: %s, idx: %d" % [_prefix, emote, str(loaded_emotes), idx])
 		if idx != -1:
 			var slot_map := {0: SLOT_TAUNT, 1: SLOT_GANGNAM, 2: SLOT_SLIDE}
 			if slot_map.has(idx):

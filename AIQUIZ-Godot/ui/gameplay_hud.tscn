@@ -208,12 +208,12 @@ layout_mode = 1
 anchors_preset = 5
 anchor_left = 0.5
 anchor_right = 0.5
-offset_left = -300.0
+offset_left = -300.0
 
-offset_top = 15.0
-offset_right = 300.0
+offset_top = 15.0
+offset_right = 300.0
 
-offset_bottom = 75.0
+offset_bottom = 75.0
 grow_horizontal = 2
 theme_override_font_sizes/font_size = 56
 text = "GAME OVER"
@@ -303,7 +303,7 @@ offset_right = -110.0
 grow_horizontal = 2
 grow_vertical = 0
 theme_override_font_sizes/font_size = 22
-text = "📋 問題履歴"
+text = "問題履歴"
 
 [node name="RetryBtn" type="Button" parent="GameOverPanel"]
 custom_minimum_size = Vector2(200, 56)
@@ -320,7 +320,7 @@ offset_right = 100.0
 grow_horizontal = 2
 grow_vertical = 0
 theme_override_font_sizes/font_size = 22
-text = "🔃 リトライ"
+text = "リトライ"
 
 [node name="MenuBtn" type="Button" parent="GameOverPanel"]
 custom_minimum_size = Vector2(200, 56)
@@ -337,7 +337,7 @@ offset_right = 310.0
 grow_horizontal = 2
 grow_vertical = 0
 theme_override_font_sizes/font_size = 22
-text = "🏠 メニュー"
+text = "メニュー"
 
 [node name="HistoryPanel" type="Panel" parent="."]
 visible = false

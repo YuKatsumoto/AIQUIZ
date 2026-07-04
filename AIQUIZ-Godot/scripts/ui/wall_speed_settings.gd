@@ -134,53 +134,8 @@ func _process(dt: float) -> void:
 func _drop_wall_into_magma(wall: Node3D) -> void:
 	if not wall or not is_instance_valid(wall):
 		return
-	
-	for child in wall.get_children():
-		if not (child is MeshInstance3D):
-			continue
-		var src_mesh := child as MeshInstance3D
-		if not src_mesh.visible:
-			continue
-		var box_mesh := src_mesh.mesh as BoxMesh
-		if not box_mesh:
-			continue
-		
-		var piece := RigidBody3D.new()
-		piece.mass = 3.2
-		piece.gravity_scale = 2.4
-		piece.linear_damp = 0.28
-		piece.angular_damp = 0.38
-		piece.collision_layer = 0
-		piece.collision_mask = 1
-		
-		var col := CollisionShape3D.new()
-		var shape := BoxShape3D.new()
-		shape.size = box_mesh.size
-		col.shape = shape
-		piece.add_child(col)
-		
-		var mesh_inst := MeshInstance3D.new()
-		var mesh_copy := BoxMesh.new()
-		mesh_copy.size = box_mesh.size
-		mesh_inst.mesh = mesh_copy
-		if src_mesh.material_override:
-			mesh_inst.material_override = src_mesh.material_override.duplicate()
-		piece.add_child(mesh_inst)
-		
-		_sub_viewport.add_child(piece)
-		piece.global_transform = src_mesh.global_transform
-		
-		# 統合設定プレビューのソフト落下と同程度のわずかな吹き飛び
-		piece.apply_central_impulse(Vector3(
-			randf_range(-0.36, 0.36),
-			randf_range(0.0, 0.48),
-			randf_range(1.85, 3.85)
-		))
-		piece.apply_torque_impulse(Vector3(
-			randf_range(-0.52, 0.52),
-			randf_range(-0.32, 0.32),
-			randf_range(-0.52, 0.52)
-		))
+	if wall.has_method("collapse_into_magma"):
+		wall.collapse_into_magma()
 
 func _force_preview_player_facing_away() -> void:
 	var pc := _preview_player as PlayerController
@@ -313,7 +268,7 @@ func _build_ui() -> void:
 	
 	# タイトル
 	var title := Label.new()
-	title.text = "⚡ 壁速度設定"
+	title.text = "壁速度設定"
 	title.add_theme_font_size_override("font_size", 32)
 	title.add_theme_color_override("font_color", Color(1.0, 0.88, 0.25))
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -395,14 +350,14 @@ func _build_ui() -> void:
 	settings_vbox.add_child(range_hbox)
 	
 	var slow_label := Label.new()
-	slow_label.text = "🐢 遅い"
+	slow_label.text = "遅い"
 	slow_label.add_theme_font_size_override("font_size", 14)
 	slow_label.add_theme_color_override("font_color", Color(0.6, 0.65, 0.75))
 	slow_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	range_hbox.add_child(slow_label)
 	
 	var fast_label := Label.new()
-	fast_label.text = "🐇 速い"
+	fast_label.text = "速い"
 	fast_label.add_theme_font_size_override("font_size", 14)
 	fast_label.add_theme_color_override("font_color", Color(0.6, 0.65, 0.75))
 	fast_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
@@ -421,7 +376,7 @@ func _build_ui() -> void:
 	
 	# リセット（自動モード）ボタン
 	_reset_btn = Button.new()
-	_reset_btn.text = "🔄 自動モードに戻す"
+	_reset_btn.text = "自動モードに戻す"
 	_reset_btn.custom_minimum_size = Vector2(0, 44)
 	_reset_btn.add_theme_font_size_override("font_size", 16)
 	_reset_btn.pressed.connect(_on_reset_pressed)
@@ -770,10 +725,10 @@ func _setup_conveyor_extras() -> void:
 func _update_mode_label() -> void:
 	var game_state := QuizManager.game_state
 	if game_state.tuning.wall_speed_override > 0:
-		_mode_label.text = "📌 手動モード（固定速度）"
+		_mode_label.text = "手動モード（固定速度）"
 		_mode_label.add_theme_color_override("font_color", Color(1.0, 0.7, 0.3))
 	else:
-		_mode_label.text = "🤖 自動モード（AI解答時間から算出）"
+		_mode_label.text = "自動モード（AI解答時間から算出）"
 		_mode_label.add_theme_color_override("font_color", Color(0.4, 0.75, 1.0))
 
 func _update_speed_display() -> void:

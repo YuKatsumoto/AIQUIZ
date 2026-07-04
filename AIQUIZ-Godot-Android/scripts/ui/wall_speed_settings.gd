@@ -131,53 +131,8 @@ func _process(dt: float) -> void:
 func _drop_wall_into_magma(wall: Node3D) -> void:
 	if not wall or not is_instance_valid(wall):
 		return
-	
-	for child in wall.get_children():
-		if not (child is MeshInstance3D):
-			continue
-		var src_mesh := child as MeshInstance3D
-		if not src_mesh.visible:
-			continue
-		var box_mesh := src_mesh.mesh as BoxMesh
-		if not box_mesh:
-			continue
-		
-		var piece := RigidBody3D.new()
-		piece.mass = 3.2
-		piece.gravity_scale = 2.4
-		piece.linear_damp = 0.28
-		piece.angular_damp = 0.38
-		piece.collision_layer = 0
-		piece.collision_mask = 1
-		
-		var col := CollisionShape3D.new()
-		var shape := BoxShape3D.new()
-		shape.size = box_mesh.size
-		col.shape = shape
-		piece.add_child(col)
-		
-		var mesh_inst := MeshInstance3D.new()
-		var mesh_copy := BoxMesh.new()
-		mesh_copy.size = box_mesh.size
-		mesh_inst.mesh = mesh_copy
-		if src_mesh.material_override:
-			mesh_inst.material_override = src_mesh.material_override.duplicate()
-		piece.add_child(mesh_inst)
-		
-		_sub_viewport.add_child(piece)
-		piece.global_transform = src_mesh.global_transform
-		
-		# 統合設定プレビューのソフト落下と同程度のわずかな吹き飛び
-		piece.apply_central_impulse(Vector3(
-			randf_range(-0.36, 0.36),
-			randf_range(0.0, 0.48),
-			randf_range(1.85, 3.85)
-		))
-		piece.apply_torque_impulse(Vector3(
-			randf_range(-0.52, 0.52),
-			randf_range(-0.32, 0.32),
-			randf_range(-0.52, 0.52)
-		))
+	if wall.has_method("collapse_into_magma"):
+		wall.collapse_into_magma()
 
 func _force_preview_player_facing_away() -> void:
 	var pc := _preview_player as PlayerController

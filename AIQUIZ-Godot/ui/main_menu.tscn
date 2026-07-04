@@ -23,6 +23,7 @@ stretch = true
 
 [node name="LiveViewport" type="SubViewport" parent="LiveBackground" unique_id=1222750294]
 handle_input_locally = false
+msaa_3d = 2
 size = Vector2i(1280, 720)
 render_target_update_mode = 4
 
@@ -69,7 +70,7 @@ layout_mode = 2
 theme_override_colors/default_color = Color(0.6, 0.9, 1, 1)
 theme_override_font_sizes/normal_font_size = 16
 bbcode_enabled = true
-text = "[center]📢 お知らせがここに入ります[/center]"
+text = "[center]お知らせがここに入ります[/center]"
 fit_content = true
 scroll_active = false
 
@@ -132,7 +133,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(200, 44)
 layout_mode = 2
 theme_override_font_sizes/font_size = 22
-text = "📐 算数"
+text = "算数"
 horizontal_alignment = 1
 vertical_alignment = 1
 
@@ -159,7 +160,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(200, 44)
 layout_mode = 2
 theme_override_font_sizes/font_size = 22
-text = "📚 3年生"
+text = "3年生"
 horizontal_alignment = 1
 vertical_alignment = 1
 
@@ -186,7 +187,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(200, 44)
 layout_mode = 2
 theme_override_font_sizes/font_size = 22
-text = "⚡ 普通"
+text = "普通"
 horizontal_alignment = 1
 vertical_alignment = 1
 

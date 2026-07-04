@@ -81,8 +81,20 @@ var _floor_collision_body: StaticBody3D = null
 var _recorder: ReplayRecorder = null
 var _replay_mode: bool = false
 
+# ── メニュー背景デモ (AIオートプレイ) ──
+var _demo_mode: bool = false
+var _demo_driver: DemoAIDriver = null
+
 func _ready() -> void:
-	game_state = QuizManager.game_state
+	_demo_mode = get_meta("demo_mode", false)
+	if _demo_mode:
+		# デモは共有stateに触れない専用stateをオフライン問題で回す
+		var demo_provider := QuizProvider.new()
+		add_child(demo_provider)  # Node継承のためツリーに載せて解放を保証
+		game_state = QuizGameState.new(demo_provider)
+		game_state.is_demo = true
+	else:
+		game_state = QuizManager.game_state
 	quiz_wall_scene = preload("res://scenes/quiz_wall.tscn")
 
 	# リプレイモードチェック
@@ -101,16 +113,33 @@ func _ready() -> void:
 		#_recorder = ReplayRecorder.new()
 		#_recorder.start_recording(game_state)
 
-	# Setup network sync layer
-	_net_state = NetGameState.new()
-	add_child(_net_state)
-	_net_state.setup(game_state)
+	# Setup network sync layer (デモでは不要)
+	if not _demo_mode:
+		_net_state = NetGameState.new()
+		add_child(_net_state)
+		_net_state.setup(game_state)
 
 	# Setup environment
 	_setup_environment()
 	_setup_lighting()
 	_setup_floor_conveyor()
 	_setup_magma()
+
+	if _demo_mode:
+		# HUD/DeathWipe は共有stateを掴んでいるためデモでは破棄
+		if gameplay_hud:
+			gameplay_hud.queue_free()
+			gameplay_hud = null
+		var death_wipe_layer := get_node_or_null("DeathWipeLayer")
+		if death_wipe_layer:
+			death_wipe_layer.queue_free()
+		set_process_unhandled_input(false)
+		camera_controller.demo_mode = true
+		_apply_demo_quality()
+		_demo_driver = DemoAIDriver.new()
+		_demo_driver.setup(game_state)
+		_demo_driver.restart_game()
+		return
 
 	# Pause menu setup
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -252,8 +281,10 @@ func _setup_magma() -> void:
 	var magma_mesh := MeshInstance3D.new()
 	var plane := PlaneMesh.new()
 	plane.size = Vector2(800.0, 800.0)
-	plane.subdivide_width = 200
-	plane.subdivide_depth = 200
+	# デモ(メニュー背景)では頂点数を落として負荷を下げる
+	var subdiv: int = 96 if _demo_mode else 200
+	plane.subdivide_width = subdiv
+	plane.subdivide_depth = subdiv
 	magma_mesh.mesh = plane
 	magma_mesh.position = Vector3(0, -10.0, 150.0)
 	magma_mesh.custom_aabb = AABB(Vector3(-400, -10, -400), Vector3(800, 20, 800))
@@ -331,6 +362,12 @@ func _setup_lighting() -> void:
 	directional_light.light_energy = 1.2
 	directional_light.shadow_enabled = true
 
+func _apply_demo_quality() -> void:
+	# メニュー背景用の軽量化 (Android での発熱/FPS対策)
+	directional_light.shadow_enabled = false
+	if environment_node.environment:
+		environment_node.environment.glow_enabled = false
+
 func _process(dt: float) -> void:
 	if not game_state or get_tree().paused:
 		return
@@ -346,7 +383,15 @@ func _process(dt: float) -> void:
 	var jump_p2 := false
 	var emote_p1 := 0
 	var emote_p2 := 0
-	if game_state.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE, Constants.STATE_WAITING_START, Constants.STATE_FLYOVER, Constants.STATE_COUNTDOWN]:
+	if _demo_mode:
+		# デモ: AIドライバーが入力を合成 (実入力は一切拾わない)
+		# ※ P制御の減衰を保つため normalize しない
+		if _demo_driver:
+			var demo_input: Dictionary = _demo_driver.compute(dt)
+			axis_p1 = demo_input["axis"]
+			jump_p1 = demo_input["jump"]
+			emote_p1 = demo_input["emote"]
+	elif game_state.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE, Constants.STATE_WAITING_START, Constants.STATE_FLYOVER, Constants.STATE_COUNTDOWN]:
 		# --- ローカル入力収集 (P1 or クライアントの自分) ---
 		# P1 エモート: キー1,2,3 → スロットからエモートIDを取得
 		if Input.is_key_pressed(KEY_1) and game_state.p1_emote_slots.size() > 0: emote_p1 = game_state.p1_emote_slots[0]
@@ -412,7 +457,7 @@ func _process(dt: float) -> void:
 
 	# Mouse look (1P only, not online and not replay, and not mobile)
 	var is_mobile := OS.has_feature("mobile")
-	if not is_mobile and not _replay_mode and game_state.game_state == Constants.STATE_PLAYING and game_state.num_players == 1 and not _is_online:
+	if not is_mobile and not _replay_mode and not _demo_mode and game_state.game_state == Constants.STATE_PLAYING and game_state.num_players == 1 and not _is_online:
 		if Input.get_mouse_mode() != Input.MOUSE_MODE_CAPTURED:
 			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	else:
@@ -455,7 +500,7 @@ func _process(dt: float) -> void:
 	_update_start_barrier()
 
 	# Handle R key for restart (ESC is handled in _unhandled_input)
-	if game_state.game_state in [Constants.STATE_GAME_OVER, Constants.STATE_CLEAR]:
+	if not _demo_mode and game_state.game_state in [Constants.STATE_GAME_OVER, Constants.STATE_CLEAR]:
 		if Input.is_key_pressed(KEY_R) :
 			game_state.reset_to_menu()
 			get_tree().change_scene_to_file("res://ui/main_menu.tscn")
@@ -869,8 +914,8 @@ func _update_walls() -> void:
 		var wz: float = t.wall_start_z + idx * t.wall_spacing
 		var local_z: float = wz - game_state.world_scroll_z
 		if local_z <= game_state.FLOOR_BACK_Z + 0.1:
-			if wall.has_method("shatter_wall"):
-				wall.shatter_wall()
+			if wall.has_method("collapse_into_magma"):
+				wall.collapse_into_magma()
 		wall.queue_free()
 
 
@@ -1057,6 +1102,17 @@ func _on_state_changed(new_state: String) -> void:
 		_clear_preview_walls()
 		_remove_start_barrier()
 		_barrier_spawned_for_session = false
+	elif new_state == Constants.STATE_PRELOADING:
+		# デモの周回リスタート: シーンを再ロードしないため前ランの演出状態を手動リセット
+		# (通常プレイの中盤再プレロード current_index > 0 では何もしない)
+		if _demo_mode and game_state.current_index == 0:
+			_clear_flyover_walls()
+			_clear_preview_walls()
+			_remove_start_barrier()
+			_barrier_spawned_for_session = false
+			_barrier_exploded = false
+			_barrier_dropping = false
+			_barrier_drop_timer = 0.0
 	elif new_state == Constants.STATE_WAITING_START:
 		_clear_flyover_walls()
 		# バリアはプレビュー壁完了後に自動スポーンするので、ここでは何もしない
@@ -1655,7 +1711,8 @@ func _spawn_landing_impact(pos: Vector3) -> void:
 	dust.mesh = dq
 	dust.position = pos + Vector3(0, -BARRIER_SIZE.y * 0.5, 0)
 	dust.emitting = true
-	get_tree().current_scene.add_child(dust)
+	# 自ノード配下に生成 (通常時は current_scene == self。デモでは SubViewport 内に収める)
+	add_child(dust)
 	var ct := Timer.new()
 	ct.wait_time = 3.0
 	ct.one_shot = true
@@ -1696,8 +1753,8 @@ func _explode_start_barrier() -> void:
 			chunk.add_child(cmi)
 			var ox: float = (cx - (cx_n - 1) * 0.5) * cs.x + randf_range(-0.5, 0.5)
 			var oy: float = (cy - (cy_n - 1) * 0.5) * cs.y + randf_range(-0.5, 0.5)
+			add_child(chunk)
 			chunk.global_position = bpos + Vector3(ox, oy, 0)
-			get_tree().current_scene.add_child(chunk)
 			# キャラの爆散と同じような散り方（左右に分かれて上に跳ねる）
 			var sx := 1.0 if ox >= 0 else -1.0
 			var vel := Vector3(
@@ -1725,7 +1782,7 @@ func _explode_start_barrier() -> void:
 	ct.timeout.connect(_remove_start_barrier)
 
 func _spawn_mega_explosion(pos: Vector3) -> void:
-	var sr := get_tree().current_scene
+	var sr: Node = self
 	var flash := CPUParticles3D.new()
 	flash.amount = 200
 	flash.lifetime = 0.6

@@ -33,13 +33,13 @@ func _initialize() -> void:
 		QuizDedup.is_similar_to_any("4 + 6 は？", endless_active),
 		"エンドレス: recent_questions 統合で重複ブロック"
 	)
-	# 3ラウンド分の履歴上限
+	# 複数ラウンド分の履歴上限
 	var entries: Array[Dictionary] = []
-	for i in range(130):
+	for i in range(310):
 		entries.append(QuizDedup.make_history_entry("ユニーク問題%d" % i, "単元A"))
-	while entries.size() > 120:
+	while entries.size() > 300:
 		entries.pop_front()
-	failures += _assert_true(entries.size() == 120, "cross-round 履歴120件上限")
+	failures += _assert_true(entries.size() == 300, "cross-round 履歴300件上限")
 	if failures == 0:
 		print("[BufferedDedupSim] ALL PASSED")
 		quit(0)

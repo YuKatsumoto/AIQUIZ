@@ -22,7 +22,17 @@ func validate_rules(items: Array[QuizItem]) -> Dictionary:
 	
 	for item in items:
 		var issues: PackedStringArray = []
-		
+
+		# 文字化けチェック（UTF-8デコード失敗による置換文字 U+FFFD を含む問題は破棄）
+		if _has_mojibake(item.q):
+			issues.append("問題文に文字化け(�)を含む")
+		for i in range(item.c.size()):
+			if _has_mojibake(item.c[i]):
+				issues.append("選択肢%dに文字化け(�)を含む" % i)
+		if _has_mojibake(item.e):
+			# 解説の文字化けは問題本体を捨てず解説だけクリアする
+			item.e = ""
+
 		# 問題文の文字数チェック
 		if item.q.length() > 60:
 			issues.append("問題文が%d文字（60文字超過）" % item.q.length())
@@ -62,6 +72,11 @@ func validate_rules(items: Array[QuizItem]) -> Dictionary:
 			reasons.append("%s → %s" % [item.q.left(30), ", ".join(issues)])
 	
 	return {"valid": valid, "invalid": invalid, "reasons": reasons}
+
+
+## 文字化け（UTF-8置換文字 U+FFFD = "�"）を含むかどうか
+func _has_mojibake(text: String) -> bool:
+	return text.contains("�")
 
 
 ## LLMベースの正解検証（Flash で独立に解かせる）

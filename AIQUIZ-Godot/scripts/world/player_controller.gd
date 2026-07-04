@@ -21,7 +21,10 @@ var p2_container: Node3D
 # 四肢を物理ボディ化し、_animate_skeleton が動かす表示ピボットを目標として
 # PDトルクで半追従させる。表示用の四肢メッシュは隠し、物理ボディが見える四肢
 # として振る舞う(体幹はキネマのまま=Phase6で物理化予定)。
-const USE_ACTIVE_RAGDOLL := true
+# NOTE: ラグドール仕様は一旦廃止(無効化)。false でラグドール生成/表示メッシュ非表示/
+# 脱力崩壊をすべてスキップし、従来のブロック四肢アニメ+死亡時爆発に戻る。
+# 関連コード(RagdollBuilder/ActiveRagdollDriver/_setup_ragdoll 等)は復活に備えて温存。
+const USE_ACTIVE_RAGDOLL := false
 const RagdollBuilderScript = preload("res://scripts/world/ragdoll_builder.gd")
 const ActiveRagdollDriverScript = preload("res://scripts/world/active_ragdoll_driver.gd")
 # 物理駆動に置き換えるため非表示にする表示メッシュのキー

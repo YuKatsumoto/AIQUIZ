@@ -11,6 +11,11 @@ var is_boss: bool = false
 var boss_label: Label3D = null
 var boss_sparks: Array[CPUParticles3D] = []
 
+# メニュー背景プレビュー用: カメラ側(+Z)を向いた問題文・選択肢ラベル
+# (通常の door_labels はプレイヤー側(-Z)向きでメニューカメラからは見えない)
+var preview_question_label: Label3D = null
+var preview_choice_labels: Array[Label3D] = []
+
 
 
 # Door colors
@@ -25,6 +30,9 @@ const DOOR_COLORS_4 := [
 	Color(0.90, 0.15, 0.15),  # D - Red
 ]
 const WALL_COLOR := Color(0.50, 0.50, 0.50)
+## 壁本体の物理的な最上端(Y座標)。メニュー背景プレビューの問題文はこの高さより
+## 確実に上に留めるための基準として参照する。
+const WALL_TOP_Y: float = 4.05
 
 # Door positions from tuning
 const LEFT_DOOR_X: float = 3.5
@@ -51,7 +59,7 @@ func _build_wall_around_doors(num_choices: int) -> void:
 	var max_x := 12.0
 	var door_top_y := 2.38
 	var door_bottom_y := -2.02
-	var wall_top_y := 4.05
+	var wall_top_y := WALL_TOP_Y
 	var wall_bottom_y := -3.15
 
 	# 1. Top beam
@@ -186,6 +194,88 @@ func set_labels_visible(is_visible: bool) -> void:
 			label.visible = is_visible
 
 
+## メニュー背景プレビュー用: 問題文と選択肢をカメラ側(+Z)の面に表示する (2択専用)
+func set_preview_labels(quiz: QuizItem) -> void:
+	_clear_preview_labels()
+	if not quiz or quiz.q.is_empty():
+		return
+
+	preview_question_label = _create_label()
+	preview_question_label.rotation.y = 0.0
+	# Y座標は _fit_question_label_to_two_lines 内で壁と衝突しない位置に決定する
+	preview_question_label.position = Vector3(0, 0, 0.65)
+	preview_question_label.width = 640.0
+	# 遠くの壁でも読めるよう純黒の太アウトラインで縁取ってコントラストを上げる
+	preview_question_label.outline_modulate = Color(0, 0, 0, 1.0)
+	preview_question_label.outline_size = 16
+	var question_text: String = FractionFormatter.to_inline(quiz.q) if FractionFormatter.has_fraction(quiz.q) else quiz.q
+	add_child(preview_question_label)
+	_fit_question_label_to_two_lines(preview_question_label, question_text)
+
+	var door_xs := [LEFT_DOOR_X, RIGHT_DOOR_X]
+	for i: int in range(mini(2, quiz.c.size())):
+		var lbl := _create_label()
+		lbl.rotation.y = 0.0
+		lbl.position = Vector3(door_xs[i], 0.18, 0.65)
+		lbl.width = 200.0
+		lbl.font_size = 56
+		lbl.outline_modulate = Color(0, 0, 0, 1.0)
+		lbl.outline_size = 16
+		lbl.text = FractionFormatter.format_choice(quiz.c[i])
+		add_child(lbl)
+		preview_choice_labels.append(lbl)
+
+
+const QUESTION_LABEL_MAX_LINES := 2
+## 1行でも2行でも常にこの大きさで表示する（行数によって縮小しない）
+const QUESTION_LABEL_FONT_SIZE := 52
+## 壁の最上端(WALL_TOP_Y)から問題文の下端までの最低クリアランス
+const QUESTION_LABEL_WALL_CLEARANCE := 0.5
+## 横幅の初期値・拡張刻み・上限（壁全幅24mに対して十分小さく、省略せず全文表示するために広げる）
+const QUESTION_LABEL_BASE_WIDTH := 640.0
+const QUESTION_LABEL_WIDTH_STEP := 80.0
+const QUESTION_LABEL_MAX_WIDTH := 1600.0
+
+## 問題文ラベルは1行・2行のどちらでも同じ文字サイズで表示し、省略はしない。
+## 2行に収まらない場合は横幅を段階的に広げて全文を表示する（上限に達したらそこで止める）。
+## 縦位置は「下端」を壁の最上端より確実に上の固定位置にアンカーし、行数が増えても
+## 上方向にしか伸びないようにすることで、絶対に壁と重ならないようにする。
+func _fit_question_label_to_two_lines(label: Label3D, text: String) -> void:
+	if not label:
+		return
+	var font: Font = label.font if label.font else ThemeDB.fallback_font
+	var break_flags := TextServer.BREAK_MANDATORY | TextServer.BREAK_WORD_BOUND | TextServer.BREAK_ADAPTIVE
+	var font_size := QUESTION_LABEL_FONT_SIZE
+	label.font_size = font_size
+	label.text = text
+
+	var width := QUESTION_LABEL_BASE_WIDTH
+	while width < QUESTION_LABEL_MAX_WIDTH and _measure_line_count(text, font, font_size, width, break_flags) > QUESTION_LABEL_MAX_LINES:
+		width = minf(width + QUESTION_LABEL_WIDTH_STEP, QUESTION_LABEL_MAX_WIDTH)
+	label.width = width
+
+	# 下端を壁の最上端より確実に上へ固定し、行数が増えても壁側(下方向)へは伸びないようにする
+	label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	label.position.y = WALL_TOP_Y + QUESTION_LABEL_WALL_CLEARANCE
+
+func _measure_line_count(text: String, font: Font, font_size: int, width: float, break_flags: int) -> int:
+	var tp := TextParagraph.new()
+	tp.width = width
+	tp.break_flags = break_flags
+	tp.add_string(text, font, font_size)
+	return maxi(1, tp.get_line_count())
+
+
+func _clear_preview_labels() -> void:
+	if is_instance_valid(preview_question_label):
+		preview_question_label.queue_free()
+	preview_question_label = null
+	for lbl: Label3D in preview_choice_labels:
+		if is_instance_valid(lbl):
+			lbl.queue_free()
+	preview_choice_labels.clear()
+
+
 func set_is_boss(boss: bool) -> void:
 	is_boss = boss
 	var target_color = Color(0.65, 0.15, 0.15) if is_boss else WALL_COLOR
@@ -278,6 +368,8 @@ func break_door(door_index: int) -> void:
 	door.visible = false
 	if door_index < door_labels.size():
 		door_labels[door_index].visible = false
+	if door_index < preview_choice_labels.size() and is_instance_valid(preview_choice_labels[door_index]):
+		preview_choice_labels[door_index].visible = false
 
 	# Hide boss label if it exists
 	if is_instance_valid(boss_label):
@@ -430,6 +522,11 @@ func shatter_wall(direction_z: float = -1.0) -> void:
 			label.visible = false
 	if is_instance_valid(boss_label):
 		boss_label.visible = false
+	if is_instance_valid(preview_question_label):
+		preview_question_label.visible = false
+	for plbl in preview_choice_labels:
+		if is_instance_valid(plbl):
+			plbl.visible = false
 
 func _shatter_mesh(mesh_inst: MeshInstance3D, direction_z: float) -> void:
 	if not is_instance_valid(mesh_inst): return
@@ -533,3 +630,89 @@ func _shatter_mesh(mesh_inst: MeshInstance3D, direction_z: float) -> void:
 				tween.tween_interval(1.5)
 				tween.tween_property(cmi, "scale", Vector3.ZERO, 1.0).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 				tween.tween_callback(chunk.queue_free)
+
+const MAGMA_DEBRIS_MASS: float = 3.2
+const MAGMA_DEBRIS_GRAVITY_SCALE: float = 2.4
+const MAGMA_DEBRIS_LINEAR_DAMP: float = 0.28
+const MAGMA_DEBRIS_ANGULAR_DAMP: float = 0.38
+const MAGMA_DEBRIS_IMP_X: float = 0.36
+const MAGMA_DEBRIS_IMP_Y: float = 0.48
+const MAGMA_DEBRIS_IMP_Z_MIN: float = 1.85
+const MAGMA_DEBRIS_IMP_Z_MAX: float = 3.85
+const MAGMA_DEBRIS_TORQUE: float = 0.52
+const MAGMA_DEBRIS_LIFETIME_SEC: float = 5.0
+
+## 崖に到達した壁を、扉破壊の爆散(shatter_wall)とは別の
+## 静かな「ボトッ」落下でマグマへ崩す。実ゲーム・各種プレビュー共通の見た目。
+func collapse_into_magma() -> void:
+	for part in wall_parts:
+		if is_instance_valid(part) and part.visible:
+			_drop_mesh_into_magma(part)
+			part.visible = false
+	for door in doors:
+		if is_instance_valid(door) and door.visible:
+			_drop_mesh_into_magma(door)
+			door.visible = false
+	for label in door_labels:
+		if is_instance_valid(label):
+			label.visible = false
+	if is_instance_valid(boss_label):
+		boss_label.visible = false
+	if is_instance_valid(preview_question_label):
+		preview_question_label.visible = false
+	for plbl in preview_choice_labels:
+		if is_instance_valid(plbl):
+			plbl.visible = false
+
+func _drop_mesh_into_magma(mesh_inst: MeshInstance3D) -> void:
+	if not mesh_inst.is_inside_tree(): return
+	var box := mesh_inst.mesh as BoxMesh
+	if not box: return
+	var parent := get_parent()
+	if parent == null: return
+
+	var piece := RigidBody3D.new()
+	piece.mass = MAGMA_DEBRIS_MASS
+	piece.gravity_scale = MAGMA_DEBRIS_GRAVITY_SCALE
+	piece.linear_damp = MAGMA_DEBRIS_LINEAR_DAMP
+	piece.angular_damp = MAGMA_DEBRIS_ANGULAR_DAMP
+	piece.collision_layer = 0
+	piece.collision_mask = 1
+
+	var col := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = box.size
+	col.shape = shape
+	piece.add_child(col)
+
+	var cmi := MeshInstance3D.new()
+	var cbox := BoxMesh.new()
+	cbox.size = box.size
+	cmi.mesh = cbox
+	if mesh_inst.material_override:
+		cmi.material_override = mesh_inst.material_override.duplicate()
+	piece.add_child(cmi)
+
+	parent.add_child(piece)
+	piece.global_transform = mesh_inst.global_transform
+
+	# Z-: 崖の奥(マグマ側) / Z+: 床が残っているコンベア側。
+	# wall.position.z は world_scroll_z の増加で減っていき、崖(FLOOR_BACK_Z)の先＝マグマは-Z側にあるため、
+	# 崩落時はコンベア側(+Z)に戻さず -Z 方向へ押し出す。
+	piece.apply_central_impulse(Vector3(
+		randf_range(-MAGMA_DEBRIS_IMP_X, MAGMA_DEBRIS_IMP_X),
+		randf_range(0.0, MAGMA_DEBRIS_IMP_Y),
+		randf_range(-MAGMA_DEBRIS_IMP_Z_MAX, -MAGMA_DEBRIS_IMP_Z_MIN),
+	))
+	piece.apply_torque_impulse(Vector3(
+		randf_range(-MAGMA_DEBRIS_TORQUE, MAGMA_DEBRIS_TORQUE),
+		randf_range(-MAGMA_DEBRIS_TORQUE * 0.62, MAGMA_DEBRIS_TORQUE * 0.62),
+		randf_range(-MAGMA_DEBRIS_TORQUE, MAGMA_DEBRIS_TORQUE),
+	))
+
+	var tw := piece.create_tween()
+	tw.tween_interval(MAGMA_DEBRIS_LIFETIME_SEC)
+	tw.tween_callback(func() -> void:
+		if is_instance_valid(piece):
+			piece.queue_free()
+	)

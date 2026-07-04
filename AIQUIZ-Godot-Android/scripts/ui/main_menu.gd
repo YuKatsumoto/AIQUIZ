@@ -35,6 +35,10 @@ var _tutorial_row: HBoxContainer = null
 var _tutorial_btn: Button = null
 var _tutorial_2p_btn: Button = null
 
+# --- 背景AIオートプレイデモ ---
+@onready var demo_viewport: SubViewport = $DemoBackdrop/DemoViewport
+var _demo_world: Node3D = null
+
 const PICKER_HEIGHT := 52.0
 const PICKER_ANIM_DURATION := 0.18
 const SHOW_COOP_MODE := false
@@ -53,6 +57,9 @@ func _ready() -> void:
 	game_state.game_state = Constants.STATE_MENU
 	# 戻るボタン等からの遷移時に状態を保持するため、menu_stepの強制リセットを削除
 	settings_panel.visible = false
+
+	# 背景デモはメニュー初期表示を遅らせないよう1フレーム後に生成
+	_setup_demo_background.call_deferred()
 
 	vol_slider.value = AudioManager.sfx_volume
 
@@ -247,9 +254,27 @@ func _style_tutorial_button(btn: Button) -> void:
 
 const GAME_SCENE := "res://scenes/game_world.tscn"
 
+func _setup_demo_background() -> void:
+	if not demo_viewport:
+		return
+	var scene := load(GAME_SCENE) as PackedScene
+	if not scene:
+		return
+	_demo_world = scene.instantiate()
+	_demo_world.set_meta("demo_mode", true)
+	demo_viewport.add_child(_demo_world)
+
+func _pause_demo() -> void:
+	# シーン遷移前にデモの描画と進行を止める (解放はツリーごと自動)
+	if demo_viewport:
+		demo_viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	if _demo_world and is_instance_valid(_demo_world):
+		_demo_world.process_mode = Node.PROCESS_MODE_DISABLED
+
 func _go_to_game() -> void:
 	if SceneTransition.is_transitioning():
 		return
+	_pause_demo()
 	var seam := accent_line.global_position.x + accent_line.size.x * 0.5
 	SceneTransition.change_scene_doors(GAME_SCENE, seam)
 
@@ -301,8 +326,24 @@ func _update_ui() -> void:
 			p_text = "オンライン対戦"
 		players_btn.text = p_text
 
-		var llm_text: String = "ONLINE (AI生成)" if QuizManager.provider.llm_mode == "ONLINE" else "OFFLINE (内蔵問題)"
-		llm_toggle_btn.text = llm_text
+		# エンドレスモードはオフライン問題のみ対応（オンラインAI生成は選択不可）
+		if game_state.mode == Constants.MODE_ENDLESS:
+			if QuizManager.provider.llm_mode != "OFFLINE":
+				QuizManager.provider.set_llm_mode("OFFLINE")
+			llm_toggle_btn.text = "出題: OFFLINE 固定 🔒"
+			llm_toggle_btn.disabled = true
+			llm_toggle_btn.focus_mode = Control.FOCUS_NONE
+			llm_toggle_btn.mouse_default_cursor_shape = Control.CURSOR_ARROW
+			llm_toggle_btn.tooltip_text = "エンドレスモードはオフライン問題のみ対応しています"
+			_set_llm_toggle_locked_style(true)
+		else:
+			llm_toggle_btn.disabled = false
+			llm_toggle_btn.focus_mode = Control.FOCUS_ALL
+			llm_toggle_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+			llm_toggle_btn.tooltip_text = ""
+			_set_llm_toggle_locked_style(false)
+			var llm_text: String = "出題: ONLINE (AI生成)" if QuizManager.provider.llm_mode == "ONLINE" else "出題: OFFLINE (内蔵問題)"
+			llm_toggle_btn.text = llm_text
 
 		if customize_btn:
 			customize_btn.visible = true
@@ -325,9 +366,33 @@ func _on_back_pressed() -> void:
 	_update_ui()
 
 func _on_llm_toggle_pressed() -> void:
+	if game_state.mode == Constants.MODE_ENDLESS:
+		return  # エンドレスモードはオフライン固定のため切り替え不可
 	var new_mode := "ONLINE" if QuizManager.provider.llm_mode == "OFFLINE" else "OFFLINE"
 	QuizManager.provider.set_llm_mode(new_mode)
 	_update_ui()
+
+func _set_llm_toggle_locked_style(locked: bool) -> void:
+	## エンドレスモードでオフライン固定のとき、ボタンをグレーアウトして操作不可を明示する
+	if not llm_toggle_btn:
+		return
+	if locked:
+		var disabled_style := StyleBoxFlat.new()
+		disabled_style.bg_color = Color(0.10, 0.11, 0.14)
+		disabled_style.border_color = Color(0.20, 0.22, 0.28)
+		disabled_style.set_border_width_all(1)
+		disabled_style.set_corner_radius_all(10)
+		disabled_style.content_margin_left = 16.0
+		disabled_style.content_margin_right = 16.0
+		disabled_style.content_margin_top = 8.0
+		disabled_style.content_margin_bottom = 8.0
+		llm_toggle_btn.add_theme_stylebox_override("disabled", disabled_style)
+		llm_toggle_btn.add_theme_color_override("font_disabled_color", Color(0.45, 0.48, 0.55))
+		llm_toggle_btn.modulate = Color(1, 1, 1, 0.85)
+	else:
+		llm_toggle_btn.remove_theme_stylebox_override("disabled")
+		llm_toggle_btn.remove_theme_color_override("font_disabled_color")
+		llm_toggle_btn.modulate = Color(1, 1, 1, 1)
 
 func _on_players_toggle_pressed() -> void:
 	if not SHOW_COOP_MODE:
@@ -359,6 +424,7 @@ func _on_players_toggle_pressed() -> void:
 	_update_ui()
 
 func _on_customize_pressed() -> void:
+	_pause_demo()
 	get_tree().change_scene_to_file("res://ui/customize_settings.tscn")
 
 func _on_tutorial_pressed() -> void:
@@ -460,6 +526,7 @@ func _on_start_pressed() -> void:
 	if game_state.num_players == 3:
 		# オンライン対戦: ロビー画面へ
 		game_state.num_players = 2  # 実際のプレイは2人
+		_pause_demo()
 		get_tree().change_scene_to_file("res://ui/online_lobby.tscn")
 		return
 	if game_state.mode == Constants.MODE_COOP:

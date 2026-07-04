@@ -4,10 +4,10 @@ extends RefCounted
 ## 問題文のセマンティック重複判定（online_fetch / buffered_provider 共通）
 
 const SAME_ANSWER_CORE_SIMILARITY: float = 0.40
-const PROMPT_HISTORY_MAX: int = 25
-const BLOCKLIST_HISTORY_MAX: int = 40
+const PROMPT_HISTORY_MAX: int = 30
+const BLOCKLIST_HISTORY_MAX: int = 80
 ## プリロード中は cross-round 履歴のこの件数だけをセマンティック dedup 対象にする
-const PRELOAD_ACCEPT_HISTORY_MAX: int = 12
+const PRELOAD_ACCEPT_HISTORY_MAX: int = 30
 
 
 static func tail_texts(candidates: Array, max_count: int) -> Array[String]:

@@ -9,6 +9,9 @@ extends Node3D
 
 @onready var camera: Camera3D = $Camera3D
 
+# メニュー背景デモ: 1PでもFPSではなく三人称視点で映す
+var demo_mode: bool = false
+
 var _time: float = 0.0
 var _go_timer: float = 0.0
 var _prev_state: String = ""
@@ -113,13 +116,19 @@ func update_camera(gs: QuizGameState, dt: float) -> void:
 				gs.player_local_z)
 		else:
 			_go_timer = 0.0
-			var yaw: float = gs.camera_yaw
-			var pitch: float = gs.camera_pitch
-			var dx: float = sin(yaw) * cos(pitch)
-			var dy: float = sin(pitch)
-			var dz: float = cos(yaw) * cos(pitch)
-			eye = Vector3(gs.player_x, gs.player_y + 1.2 + bob, gs.player_local_z)
-			target = eye + Vector3(dx, dy, dz) * 10.0
+			if demo_mode:
+				# デモ: 三人称視点 (2P俯瞰の式をP1単独で流用)
+				fov = 50.0
+				eye = Vector3(0.0, 4.5 + bob, gs.player_local_z - 9.0)
+				target = Vector3(0.0, 1.0, gs.player_local_z + 8.0)
+			else:
+				var yaw: float = gs.camera_yaw
+				var pitch: float = gs.camera_pitch
+				var dx: float = sin(yaw) * cos(pitch)
+				var dy: float = sin(pitch)
+				var dz: float = cos(yaw) * cos(pitch)
+				eye = Vector3(gs.player_x, gs.player_y + 1.2 + bob, gs.player_local_z)
+				target = eye + Vector3(dx, dy, dz) * 10.0
 
 	# Apply camera shake
 	if gs.camera_shake > 0.0:
@@ -162,6 +171,11 @@ func _update_flyover_camera(gs: QuizGameState, _dt: float) -> void:
 			z_focus = gs.player2_local_z
 		end_pos = Vector3(0.0, 4.5, z_focus - 9.0)
 		end_look = Vector3(0.0, 1.0, z_focus + 8.0)
+		end_fov = 50.0
+	elif demo_mode:
+		# デモ: 三人称視点へ着地させてカットの繋がりを保つ
+		end_pos = Vector3(0.0, 4.5, gs.player_local_z - 9.0)
+		end_look = Vector3(0.0, 1.0, gs.player_local_z + 8.0)
 		end_fov = 50.0
 	else:
 		# 1P: FPS一人称視点
@@ -219,6 +233,9 @@ func _update_preload_camera(gs: QuizGameState, _dt: float) -> void:
 			z_focus = gs.player2_local_z
 		end_pos = Vector3(0.0, 4.5, z_focus - 9.0)
 		end_look = Vector3(0.0, 1.0, z_focus + 8.0)
+	elif demo_mode:
+		end_pos = Vector3(0.0, 4.5, gs.player_local_z - 9.0)
+		end_look = Vector3(0.0, 1.0, gs.player_local_z + 8.0)
 	else:
 		var player_y: float = 1.2
 		end_pos = Vector3(gs.player_x, player_y, gs.player_local_z)
