@@ -501,8 +501,8 @@ func _spawn_preview_wall(z_pos: float) -> void:
 func _drop_wall_into_magma(wall: Node3D) -> void:
 	if not wall or not is_instance_valid(wall) or not _viewport:
 		return
-	if wall.has_method("collapse_into_magma"):
-		wall.collapse_into_magma()
+	if wall.has_method("shatter_wall"):
+		wall.shatter_wall(PREVIEW_WALL_SHATTER_DIR_Z)
 
 
 func _pick_ai_dash_target_x(bundle: MenuPreviewActorAIState) -> float:

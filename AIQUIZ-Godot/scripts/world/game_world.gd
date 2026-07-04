@@ -358,8 +358,8 @@ func _update_walls() -> void:
 		var wz: float = t.wall_start_z + idx * t.wall_spacing
 		var local_z: float = wz - game_state.world_scroll_z
 		if local_z <= game_state.FLOOR_BACK_Z + 0.1:
-			if wall.has_method("collapse_into_magma"):
-				wall.collapse_into_magma()
+			if wall.has_method("shatter_wall"):
+				wall.shatter_wall()
 		wall.queue_free()
 
 

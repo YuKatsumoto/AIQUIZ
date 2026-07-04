@@ -18,6 +18,9 @@ AIQUIZ-Godot-Android/android/
 AIQUIZ-Godot-Android/build/
 AIQUIZ-Godot/build/
 
+# Windows export build artifacts
+AIQUIZ-Godot/AIQUIZ.exe
+
 # Godot cache directories
 .godot/
 AIQUIZ-Godot/.godot/

@@ -18,15 +18,17 @@ const WALL_SPACING := 30.0
 ## 左レーンP1（壁速度プレビューと同じオフセット）／右レーンP2は対称配置
 const PREVIEW_PLAYER_P1_X: float = -3.5
 const PREVIEW_PLAYER_P2_X: float = 3.5
-## スキンプレビュー：runner の反対側（-Z）から正面を見る
-const SKIN_PREVIEW_CAM_DIST_Z: float = 2.78
-const SKIN_PREVIEW_CAM_Y: float = 1.35
-const SKIN_PREVIEW_CAM_LOOK_Y: float = 1.08
-## 右上UIと帽子の重なりを避ける: 正面の向きは維持したままカメラ位置だけ X 方向に平行移動
-const SKIN_PREVIEW_CAM_OFFSET_X: float = -0.60
+## スキンプレビュー：runner の反対側（-Z）から顔に寄って正面を見る
+const SKIN_PREVIEW_CAM_DIST_Z: float = 2.3
+const SKIN_PREVIEW_CAM_Y: float = 1.3
+const SKIN_PREVIEW_CAM_LOOK_Y: float = 0.68
+## 右上UIパネルとの重なりを避ける: look_at のまま画面内フレームだけ左寄せ（レンズシフト）
+const SKIN_PREVIEW_CAM_H_OFFSET: float = 0.30
 ## エモートタブ: look_at のまま画面内フレームだけ左寄せ（ビューポート幅に対する比率）
 const EMOTE_PREVIEW_CAM_H_OFFSET: float = 0.70
-const SKIN_PREVIEW_FOV: float = 38.0
+const SKIN_PREVIEW_FOV: float = 34.0
+## true で縦方向(ピッチ)ドラッグとホイールズームも有効化。false なら横回転のみ(既定)。
+const SKIN_PREVIEW_ALLOW_VERTICAL_ORBIT: bool = true
 ## 通常時のプレビューカメラ追従（エモート操作の反応）
 const CAM_PREVIEW_SMOOTH_RATE: float = 9.0
 ## タブ切替直後のみ。大きいほど素早く目的姿勢へ収束（通常 CAM_PREVIEW_SMOOTH_RATE より低めで差を残す）
@@ -156,6 +158,12 @@ var _emote_cam_distance: float = EMOTE_CAM_DEFAULT_DISTANCE
 var _emote_cam_target: Vector3 = Vector3(PREVIEW_PLAYER_P1_X, 0.2, 0.0)
 var _emote_cam_dragging: bool = false
 var _emote_cam_panning: bool = false
+## スキンタブ用オービット（右ドラッグで回転、ホイールでズーム。パンは無し）
+var _skin_cam_yaw: float = 0.0
+var _skin_cam_pitch: float = 0.0
+var _skin_cam_distance: float = 2.8
+var _skin_cam_target: Vector3 = Vector3(PREVIEW_PLAYER_P1_X, SKIN_PREVIEW_CAM_LOOK_Y, 0.0)
+var _skin_cam_dragging: bool = false
 ## タブ切替直後は CAM_TAB_TRANSITION_SMOOTH_RATE で寄せ、収束したら通常レートに戻す
 var _preview_cam_tab_transition_active: bool = false
 var _back_to_menu_in_progress: bool = false
@@ -786,7 +794,9 @@ func _set_section(section: Section) -> void:
 
 	if _preview_input_catcher:
 		_preview_input_catcher.mouse_filter = (
-			Control.MOUSE_FILTER_STOP if section == Section.EMOTE else Control.MOUSE_FILTER_IGNORE
+			Control.MOUSE_FILTER_STOP
+			if section == Section.EMOTE or section == Section.SKIN
+			else Control.MOUSE_FILTER_IGNORE
 		)
 
 	if embedded_mode and _menu_preview:
@@ -816,6 +826,7 @@ func _set_section(section: Section) -> void:
 			_cleanup_emote_preview()
 			_preview_player.visible = true
 			_sync_preview_hat()
+			_reset_skin_orbit_default()
 		Section.EMOTE:
 			_set_skin_preview_lighting_active(false)
 			_explode_preview_walls_for_emote()
@@ -845,7 +856,7 @@ func _update_skin_preview_lighting() -> void:
 	var tx := _preview_editing_lane_x()
 	var look_tgt := Vector3(tx, SKIN_PREVIEW_CAM_LOOK_Y, 0.0)
 	var cam_pos := Vector3(
-		tx + SKIN_PREVIEW_CAM_OFFSET_X,
+		tx,
 		SKIN_PREVIEW_CAM_Y,
 		-SKIN_PREVIEW_CAM_DIST_Z * 0.75,
 	)
@@ -905,16 +916,21 @@ func _get_desired_preview_camera() -> Dictionary:
 				"v_offset": float(s.get("v_offset", 0.0)),
 			}
 		Section.SKIN:
-			var tx_skin := _preview_editing_lane_x()
-			var look_tgt := Vector3(tx_skin, SKIN_PREVIEW_CAM_LOOK_Y, 0.0)
-			var cam_base := Vector3(tx_skin, SKIN_PREVIEW_CAM_Y, -SKIN_PREVIEW_CAM_DIST_Z)
-			var qs := _camera_quat_look_at(cam_base, look_tgt)
-			var cam_pos_skin := cam_base + Vector3(SKIN_PREVIEW_CAM_OFFSET_X, 0.0, 0.0)
+			var yaw_rad_sk := deg_to_rad(_skin_cam_yaw)
+			var pitch_rad_sk := deg_to_rad(clampf(_skin_cam_pitch, -80.0, 80.0))
+			var offset_sk := Vector3(
+				_skin_cam_distance * cos(pitch_rad_sk) * sin(yaw_rad_sk),
+				_skin_cam_distance * sin(pitch_rad_sk),
+				_skin_cam_distance * cos(pitch_rad_sk) * cos(yaw_rad_sk)
+			)
+			var cam_pos_skin := _skin_cam_target + offset_sk
+			cam_pos_skin.y = maxf(cam_pos_skin.y, EMOTE_CAM_MIN_WORLD_Y)
+			var qs := _camera_quat_look_at(cam_pos_skin, _skin_cam_target)
 			return {
 				"pos": cam_pos_skin,
 				"quat": qs,
 				"fov": SKIN_PREVIEW_FOV,
-				"h_offset": 0.0,
+				"h_offset": SKIN_PREVIEW_CAM_H_OFFSET,
 				"v_offset": 0.0,
 			}
 		Section.EMOTE:
@@ -1012,24 +1028,58 @@ func _sync_emote_orbit_lane_x() -> void:
 	_emote_cam_target.x = _preview_editing_lane_x()
 
 
+## スキンタブの既定カメラ姿勢(_get_desired_preview_camera の旧固定値)から
+## 距離・yaw・pitch を逆算し、ドラッグ開始時に見た目が変わらないようにする。
+func _reset_skin_orbit_default() -> void:
+	var tx_sk := _preview_editing_lane_x()
+	_skin_cam_target = Vector3(tx_sk, SKIN_PREVIEW_CAM_LOOK_Y, 0.0)
+	var cam_base_sk := Vector3(tx_sk, SKIN_PREVIEW_CAM_Y, -SKIN_PREVIEW_CAM_DIST_Z)
+	var offset_sk := cam_base_sk - _skin_cam_target
+	_skin_cam_distance = offset_sk.length()
+	_skin_cam_pitch = rad_to_deg(asin(clampf(offset_sk.y / maxf(_skin_cam_distance, 0.001), -1.0, 1.0)))
+	_skin_cam_yaw = rad_to_deg(atan2(offset_sk.x, offset_sk.z))
+	_skin_cam_dragging = false
+
+
+func _sync_skin_orbit_lane_x() -> void:
+	_skin_cam_target.x = _preview_editing_lane_x()
+
+
 func _on_emote_preview_gui_input(event: InputEvent) -> void:
-	if _active_section != Section.EMOTE:
+	var is_skin := _active_section == Section.SKIN
+	if _active_section != Section.EMOTE and not is_skin:
 		return
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
-		if mb.button_index == MOUSE_BUTTON_RIGHT:
+		if mb.button_index == MOUSE_BUTTON_RIGHT and is_skin:
+			_skin_cam_dragging = mb.pressed
+		elif mb.button_index == MOUSE_BUTTON_RIGHT:
 			_emote_cam_dragging = mb.pressed
-		elif mb.button_index == MOUSE_BUTTON_MIDDLE:
+		elif mb.button_index == MOUSE_BUTTON_MIDDLE and not is_skin:
 			_emote_cam_panning = mb.pressed
-		elif mb.button_index == MOUSE_BUTTON_WHEEL_UP and mb.pressed:
-			_emote_cam_distance = maxf(1.5, _emote_cam_distance - 0.3)
+		elif mb.button_index == MOUSE_BUTTON_WHEEL_UP and mb.pressed and (not is_skin or SKIN_PREVIEW_ALLOW_VERTICAL_ORBIT):
+			if is_skin:
+				_skin_cam_distance = maxf(1.4, _skin_cam_distance - 0.25)
+			else:
+				_emote_cam_distance = maxf(1.5, _emote_cam_distance - 0.3)
 			get_viewport().set_input_as_handled()
-		elif mb.button_index == MOUSE_BUTTON_WHEEL_DOWN and mb.pressed:
-			_emote_cam_distance = minf(12.0, _emote_cam_distance + 0.3)
+		elif mb.button_index == MOUSE_BUTTON_WHEEL_DOWN and mb.pressed and (not is_skin or SKIN_PREVIEW_ALLOW_VERTICAL_ORBIT):
+			if is_skin:
+				_skin_cam_distance = minf(6.5, _skin_cam_distance + 0.25)
+			else:
+				_emote_cam_distance = minf(12.0, _emote_cam_distance + 0.3)
 			get_viewport().set_input_as_handled()
 	elif event is InputEventMouseMotion:
 		var mm := event as InputEventMouseMotion
-		if _emote_cam_dragging:
+		if is_skin:
+			# 既定は横回転のみ。SKIN_PREVIEW_ALLOW_VERTICAL_ORBIT を true にすると
+			# 縦方向(ピッチ)も一緒にドラッグで動かせるようになる。
+			if _skin_cam_dragging:
+				_skin_cam_yaw -= mm.relative.x * 0.3
+				if SKIN_PREVIEW_ALLOW_VERTICAL_ORBIT:
+					_skin_cam_pitch -= mm.relative.y * 0.3
+					_skin_cam_pitch = clampf(_skin_cam_pitch, -80.0, 80.0)
+		elif _emote_cam_dragging:
 			_emote_cam_yaw -= mm.relative.x * 0.3
 			_emote_cam_pitch -= mm.relative.y * 0.3
 			_emote_cam_pitch = clampf(_emote_cam_pitch, -80.0, 80.0)
@@ -1098,6 +1148,7 @@ func _set_skin_editing_player(which: int) -> void:
 	_refresh_all_labels()
 	if _active_section == Section.SKIN:
 		_update_skin_preview_lighting()
+		_sync_skin_orbit_lane_x()
 
 func _player_accent_btn_theme(btn: Button, accent: Color, selected: bool) -> void:
 	var normal := StyleBoxFlat.new()
@@ -2048,7 +2099,7 @@ func _explode_preview_walls_for_emote() -> void:
 	_merge_timer = 0.0
 
 
-## スキン／エモートタブへ入ったときの強い散り方（崖でのマグマ落下は quiz_wall.gd の collapse_into_magma に統一）。
+## スキン／エモートタブへ入ったときの強い散り方（崖到達時の壁破砕は quiz_wall.gd の shatter_wall に統一）。
 func _preview_spawn_wall_debris_pieces(wall: Node3D) -> void:
 	if not wall or not is_instance_valid(wall):
 		return
@@ -2127,8 +2178,10 @@ func _spawn_preview_wall(z_pos: float) -> void:
 func _drop_wall_into_magma(wall: Node3D) -> void:
 	if not wall or not is_instance_valid(wall):
 		return
-	if wall.has_method("collapse_into_magma"):
-		wall.collapse_into_magma()
+	# 壁は position.z 増加方向(奥→手前=カメラ側)へ進むため、+Z がキャラクターから
+	# 遠ざかる向き(手前へ抜けていく方向)。既存の break_door 演出と同じ向き。
+	if wall.has_method("shatter_wall"):
+		wall.shatter_wall(1.0)
 
 func _setup_conveyor_extras() -> void:
 	var floor_length := 144.0

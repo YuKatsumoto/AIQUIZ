@@ -103,7 +103,7 @@ func _process(dt: float) -> void:
 				wall.break_door(PREVIEW_RED_DOOR_INDEX)
 			wall.set_meta("preview_door_broken", true)
 		
-		# 崖 (Z=8.0) に到達したら、壁を物理パーツ化してマグマへ落とす
+		# 崖 (Z=8.0) に到達したら、壁を粉々に破砕する（扉通過時と同じ shatter_wall 演出）
 		if wall.position.z >= 8.0:
 			_drop_wall_into_magma(wall)
 			wall.queue_free()
@@ -134,8 +134,10 @@ func _process(dt: float) -> void:
 func _drop_wall_into_magma(wall: Node3D) -> void:
 	if not wall or not is_instance_valid(wall):
 		return
-	if wall.has_method("collapse_into_magma"):
-		wall.collapse_into_magma()
+	# 壁は position.z 増加方向(奥→手前=カメラ側)へ進むため、+Z がキャラクターから
+	# 遠ざかる向き(手前へ抜けていく方向)。既存の break_door 演出と同じ向き。
+	if wall.has_method("shatter_wall"):
+		wall.shatter_wall(1.0)
 
 func _force_preview_player_facing_away() -> void:
 	var pc := _preview_player as PlayerController

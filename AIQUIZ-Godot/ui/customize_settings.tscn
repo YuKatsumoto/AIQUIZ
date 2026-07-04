@@ -1,8 +1,8 @@
-[gd_scene load_steps=2 format=3 uid="uid://b3x2x6r6kk5m7"]
+[gd_scene format=3 uid="uid://b3x2x6r6kk5m7"]
 
-[ext_resource type="Script" path="res://scripts/ui/customize_settings.gd" id="1_cs"]
+[ext_resource type="Script" uid="uid://duaqub8va5xla" path="res://scripts/ui/customize_settings.gd" id="1_cs"]
 
-[node name="CustomizeSettings" type="Control"]
+[node name="CustomizeSettings" type="Control" unique_id=660384467]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
