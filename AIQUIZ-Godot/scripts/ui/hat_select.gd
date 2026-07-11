@@ -83,7 +83,7 @@ func _process(dt: float) -> void:
 
 func _setup_preview(viewport: SubViewport, is_p1: bool) -> void:
 	viewport.transparent_bg = false
-	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	viewport.render_target_update_mode = SubViewport.UPDATE_WHEN_VISIBLE
 	_apply_ultra_preview_quality(viewport, PREVIEW_SIZE)
 	
 	var world := World3D.new()
@@ -106,6 +106,7 @@ func _setup_preview(viewport: SubViewport, is_p1: bool) -> void:
 	env.ambient_light_color = Color(0.35, 0.37, 0.42)
 	env.ambient_light_energy = 1.2
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
+	GraphicsQuality.apply_environment(env, GameManager.graphics_quality)
 	env_node.environment = env
 	scene_root.add_child(env_node)
 	
@@ -121,6 +122,7 @@ func _setup_preview(viewport: SubViewport, is_p1: bool) -> void:
 	key_light.rotation_degrees = Vector3(-40, -30, 0)
 	key_light.light_color = Color(0.95, 0.93, 0.90)
 	key_light.light_energy = 1.5
+	key_light.shadow_enabled = GraphicsQuality.preview_shadow_enabled(GameManager.graphics_quality)
 	scene_root.add_child(key_light)
 	
 	# Fill Light
@@ -203,11 +205,7 @@ func _setup_preview(viewport: SubViewport, is_p1: bool) -> void:
 
 func _apply_ultra_preview_quality(viewport: SubViewport, viewport_size: Vector2i) -> void:
 	viewport.size = viewport_size
-	viewport.msaa_3d = Viewport.MSAA_8X
-	viewport.msaa_2d = Viewport.MSAA_4X
-	viewport.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
-	viewport.use_taa = true
-	viewport.use_debanding = true
+	GraphicsQuality.apply_character_preview(viewport, GameManager.graphics_quality)
 
 func _update_preview_viewport_sizes() -> void:
 	if not p1_viewport or not p2_viewport:

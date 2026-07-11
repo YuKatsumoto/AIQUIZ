@@ -2,7 +2,7 @@ class_name StageEnvironment
 extends Node3D
 
 ## メニュープレビューと本編ゲームで共有するステージの「器」。
-## 環境・照明・床・コンベアベルト・ローラー・レール・サイドフレーム・マグマを構築し、
+## 環境・照明・床・コンベアベルト・ローラー・レール・サイドフレーム・海を構築し、
 ## 床ジオメトリとベルトスクロールの更新 API を公開する。
 ##
 ## 壁・プレイヤー・演出は各レイヤー（MenuPreviewLayer / GamePlayLayer）が別に持つ。
@@ -14,6 +14,7 @@ var _scroll_sign: float = 1.0
 var _return_scroll_sign: float = -1.0
 var _include_back_roller: bool = true
 var _include_floor_collision: bool = true
+var _is_preview_environment: bool = false
 
 # --- ノード参照 ---
 var floor_mesh: MeshInstance3D = null
@@ -47,26 +48,53 @@ func build(config: Dictionary = {}) -> void:
 	_return_scroll_sign = float(config.get("return_scroll_sign", -1.0))
 	_include_back_roller = bool(config.get("include_back_roller", true))
 	_include_floor_collision = bool(config.get("include_floor_collision", true))
+	_is_preview_environment = bool(config.get("is_preview", false))
 
 	_setup_environment()
 	_setup_lighting()
 	_setup_floor()
 	_setup_floor_conveyor()
-	_setup_magma()
+	_setup_ocean()
+
 	set_floor_geometry(_floor_center_z, _floor_length)
+
+
+static func create_clear_day_sky() -> Sky:
+	var sky_material: ProceduralSkyMaterial = ProceduralSkyMaterial.new()
+	sky_material.sky_top_color = Color(0.08, 0.32, 0.74)
+	sky_material.sky_horizon_color = Color(0.48, 0.76, 0.98)
+	sky_material.sky_curve = 0.12
+	sky_material.sky_energy_multiplier = 1.0
+	sky_material.ground_bottom_color = Color(0.08, 0.16, 0.28)
+	sky_material.ground_horizon_color = Color(0.48, 0.76, 0.98)
+	sky_material.ground_curve = 0.08
+	# 地平線では空側と同じ明るさにし、海との間に暗い帯が出ないようにする。
+	sky_material.ground_energy_multiplier = 1.0
+	sky_material.sun_angle_max = 4.0
+	sky_material.sun_curve = 0.08
+
+	var sky: Sky = Sky.new()
+	sky.sky_material = sky_material
+	sky.radiance_size = Sky.RADIANCE_SIZE_256
+	return sky
+
+
+static func configure_clear_day_environment(env: Environment) -> void:
+	env.background_mode = Environment.BG_SKY
+	env.sky = create_clear_day_sky()
+	env.background_energy_multiplier = 1.0
+	env.ambient_light_color = Color(0.58, 0.68, 0.82)
+	env.ambient_light_energy = 1.0
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+	env.ambient_light_sky_contribution = 0.7
+	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
+	env.fog_enabled = false
+	env.volumetric_fog_enabled = false
 
 
 func _setup_environment() -> void:
 	var env := Environment.new()
-	env.background_mode = Environment.BG_COLOR
-	env.background_color = StageConstants.BG_COLOR
-	env.ambient_light_color = Color(0.30, 0.32, 0.35)
-	env.ambient_light_energy = 1.0
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.fog_enabled = true
-	env.fog_light_color = StageConstants.BG_COLOR
-	env.fog_density = 0.012
-	env.fog_aerial_perspective = 0.5
+	configure_clear_day_environment(env)
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
 	env.tonemap_white = 6.0
 	env.glow_enabled = true
@@ -79,6 +107,7 @@ func _setup_environment() -> void:
 	env.set_glow_level(1, true)
 	env.set_glow_level(2, true)
 	env.set_glow_level(3, false)
+	GraphicsQuality.apply_environment(env, GameManager.graphics_quality)
 
 	environment_node = WorldEnvironment.new()
 	environment_node.environment = env
@@ -90,7 +119,11 @@ func _setup_lighting() -> void:
 	directional_light.rotation_degrees = Vector3(-50, -20, 0)
 	directional_light.light_color = Color(0.90, 0.92, 0.95)
 	directional_light.light_energy = 1.2
-	directional_light.shadow_enabled = true
+	directional_light.shadow_enabled = (
+		GraphicsQuality.preview_shadow_enabled(GameManager.graphics_quality)
+		if _is_preview_environment
+		else GraphicsQuality.gameplay_shadow_enabled(GameManager.graphics_quality)
+	)
 	add_child(directional_light)
 
 
@@ -252,19 +285,28 @@ func _make_roller(roller_mesh: CylinderMesh, mat: ShaderMaterial) -> MeshInstanc
 	return roller
 
 
-func _setup_magma() -> void:
-	var magma_mesh := MeshInstance3D.new()
-	magma_mesh.name = "Magma"
+func _setup_ocean() -> void:
+	add_child(create_ocean_surface())
+
+
+static func create_ocean_surface() -> MeshInstance3D:
+	var ocean_mesh := MeshInstance3D.new()
+	ocean_mesh.name = "Ocean"
 	var plane := PlaneMesh.new()
-	plane.size = Vector2(800.0, 800.0)
-	plane.subdivide_width = 200
-	plane.subdivide_depth = 200
-	magma_mesh.mesh = plane
-	magma_mesh.position = Vector3(0, -10.0, 150.0)
-	magma_mesh.custom_aabb = AABB(Vector3(-400, -10, -400), Vector3(800, 20, 800))
+	plane.size = StageConstants.OCEAN_SIZE
+	var subdivisions: int = GraphicsQuality.ocean_subdivisions(GameManager.graphics_quality)
+	plane.subdivide_width = subdivisions
+	plane.subdivide_depth = subdivisions
+	ocean_mesh.mesh = plane
+	ocean_mesh.position = Vector3(0.0, StageConstants.OCEAN_SURFACE_Y, StageConstants.OCEAN_CENTER_Z)
+	var ocean_half_size: Vector2 = StageConstants.OCEAN_SIZE * 0.5
+	ocean_mesh.custom_aabb = AABB(
+		Vector3(-ocean_half_size.x, -3.0, -ocean_half_size.y),
+		Vector3(StageConstants.OCEAN_SIZE.x, 6.0, StageConstants.OCEAN_SIZE.y)
+	)
 
 	var mat := ShaderMaterial.new()
-	mat.shader = StageConstants.MAGMA_SHADER
+	mat.shader = StageConstants.OCEAN_SHADER
 
 	var noise1 := NoiseTexture2D.new()
 	var fnl1 := FastNoiseLite.new()
@@ -292,8 +334,8 @@ func _setup_magma() -> void:
 	noise2.height = 512
 	mat.set_shader_parameter("noise_tex2", noise2)
 
-	magma_mesh.material_override = mat
-	add_child(magma_mesh)
+	ocean_mesh.material_override = mat
+	return ocean_mesh
 
 
 ## 床ボックスのサイズ・位置と、それに追従するレール／ローラー／サイドフレームを更新する。

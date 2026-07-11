@@ -312,7 +312,7 @@ func set_is_boss(boss: bool) -> void:
 
 func _create_boss_sparks(pos_x: float) -> CPUParticles3D:
 	var sparks := CPUParticles3D.new()
-	sparks.amount = 60
+	sparks.amount = GraphicsQuality.particle_amount(60, GameManager.graphics_quality)
 	sparks.lifetime = 0.8
 	sparks.explosiveness = 0.05
 	sparks.randomness = 1.0
@@ -630,4 +630,3 @@ func _shatter_mesh(mesh_inst: MeshInstance3D, direction_z: float) -> void:
 				tween.tween_interval(1.5)
 				tween.tween_property(cmi, "scale", Vector3.ZERO, 1.0).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 				tween.tween_callback(chunk.queue_free)
-

@@ -30,7 +30,7 @@ const AUTO_WALL_SPEED: float = 28.0 / (4.0 + 5.0)
 const AI_STATE_NORMAL: int = 0
 const AI_STATE_CRASH_RUNUP: int = 1
 const AI_STATE_KNOCKBACK: int = 2
-const AI_STATE_MAGMA_FALL: int = 3
+const AI_STATE_OCEAN_FALL: int = 3
 const AI_STATE_DEAD: int = 4
 const AI_STATE_RESPAWN: int = 5
 const AI_STATE_ACROBATICS: int = 6
@@ -58,7 +58,7 @@ const AI_2P_EDGE_WANDER_CHANCE: float = 0.12
 const AI_ACCIDENT_CRASH_RATIO: float = 0.45
 const PENDING_ACCIDENT_NONE: int = 0
 const PENDING_ACCIDENT_WALL: int = 1
-const PENDING_ACCIDENT_MAGMA: int = 2
+const PENDING_ACCIDENT_OCEAN: int = 2
 const AI_ACCIDENT_COOLDOWN_MIN: float = 7.5
 const AI_ACCIDENT_COOLDOWN_MAX: float = 12.0
 
@@ -81,7 +81,7 @@ const AI_EMOTE_DURATION_MAX: float = 8.0
 const AI_ACRO_EMOTE_BURST_DURATION_MIN: float = 2.8
 const AI_ACRO_EMOTE_BURST_DURATION_MAX: float = 4.5
 const AI_GRAVITY: float = 26.0
-const AI_MAGMA_GRAVITY_SCALE: float = 1.35
+const AI_OCEAN_GRAVITY_SCALE: float = 1.35
 const AI_DEAD_TO_RESPAWN_MIN: float = 3.2
 const AI_DEAD_TO_RESPAWN_MAX: float = 4.1
 const PREVIEW_DEATH_SHARD_LINGER_SEC: float = 5.0
@@ -107,8 +107,8 @@ const PREVIEW_FLOOR_Y: float = 0.0
 const PREVIEW_BELT_Z_MIN: float = AI_DEPTH_RANGE_BACK
 const PREVIEW_BELT_Z_MAX: float = AI_DEPTH_RANGE_FRONT
 const PREVIEW_BELT_EDGE_FALL_Z: float = 4.55
-## マグマ落下待機中だけ通常上限(4.2)を超えて端まで進める
-const PREVIEW_MAGMA_DEPTH_MAX: float = PREVIEW_BELT_EDGE_FALL_Z + 0.85
+## 海落下待機中だけ通常上限(4.2)を超えて端まで進める
+const PREVIEW_OCEAN_DEPTH_MAX: float = PREVIEW_BELT_EDGE_FALL_Z + 0.85
 const PREVIEW_BELT_EDGE_RUSH_SPEED: float = 4.2
 
 ## 壁速度タブ基準から少し引いて左寄せ（UIが右側のため）
@@ -166,6 +166,28 @@ func _ready() -> void:
 
 func get_camera() -> Camera3D:
 	return _preview_camera
+
+
+func apply_graphics_quality() -> void:
+	if _viewport:
+		GraphicsQuality.apply_text_viewport(_viewport, GameManager.graphics_quality)
+	if not _stage_env:
+		return
+	if _stage_env.environment_node and _stage_env.environment_node.environment:
+		GraphicsQuality.apply_environment(
+			_stage_env.environment_node.environment,
+			GameManager.graphics_quality
+		)
+	if _stage_env.directional_light:
+		_stage_env.directional_light.shadow_enabled = GraphicsQuality.preview_shadow_enabled(
+			GameManager.graphics_quality
+		)
+	var ocean: MeshInstance3D = _stage_env.get_node_or_null("Ocean") as MeshInstance3D
+	if ocean and ocean.mesh is PlaneMesh:
+		var subdivisions: int = GraphicsQuality.ocean_subdivisions(GameManager.graphics_quality)
+		var plane: PlaneMesh = ocean.mesh as PlaneMesh
+		plane.subdivide_width = subdivisions
+		plane.subdivide_depth = subdivisions
 
 
 ## カスタマイズUIがキャラ・スキン照明・エモートを載せる共有 SubViewport
@@ -360,7 +382,7 @@ func _process(dt: float) -> void:
 				_clear_pending_accident(_p2_ai)
 			_release_wall_accident_claim(wall)
 			_on_learning_wall_removed(wall)
-			_drop_wall_into_magma(wall)
+			_drop_wall_into_ocean(wall)
 			wall.queue_free()
 			_wall_merge.remove_slot_at(i)
 			_preview_walls.remove_at(i)
@@ -420,6 +442,7 @@ func _build_3d_scene() -> void:
 		"return_scroll_sign": 1.0,
 		"include_back_roller": true,
 		"include_floor_collision": true,
+		"is_preview": true,
 	})
 
 	var start_z := 8.0 - WALL_SPACING * 2
@@ -498,7 +521,7 @@ func _spawn_preview_wall(z_pos: float) -> void:
 	_wall_merge.attach_new_wall(wall)
 
 
-func _drop_wall_into_magma(wall: Node3D) -> void:
+func _drop_wall_into_ocean(wall: Node3D) -> void:
 	if not wall or not is_instance_valid(wall) or not _viewport:
 		return
 	if wall.has_method("shatter_wall"):
@@ -1239,7 +1262,7 @@ func _update_actor_ai(dt: float, bundle: MenuPreviewActorAIState, is_p1: bool) -
 			_reconcile_actor_moving_back(bundle, is_p1)
 			_update_ground_movement(dt, bundle, is_p1)
 			_update_pending_accident_wall(dt, bundle, is_p1)
-			_update_pending_accident_magma(dt, bundle, is_p1)
+			_update_pending_accident_ocean(dt, bundle, is_p1)
 			if (
 				bundle.pending_accident == PENDING_ACCIDENT_NONE
 				and not bundle.lane_shift_active
@@ -1256,12 +1279,19 @@ func _update_actor_ai(dt: float, bundle: MenuPreviewActorAIState, is_p1: bool) -
 			_stop_ai_emote_if_needed(bundle, is_p1)
 			_set_actor_moving_back(is_p1, false)
 			_update_knockback_motion(dt, bundle, is_p1)
-		AI_STATE_MAGMA_FALL:
+		AI_STATE_OCEAN_FALL:
 			bundle.ai_state = AI_STATE_NORMAL
-			bundle.pending_accident = PENDING_ACCIDENT_MAGMA
+			bundle.pending_accident = PENDING_ACCIDENT_OCEAN
 		AI_STATE_DEAD:
 			_set_actor_moving_back(is_p1, false)
 			_add_actor_game_over_timer(is_p1, dt)
+			if _actor_y(is_p1) <= StageConstants.OCEAN_ENTRY_Y:
+				_set_actor_y(is_p1, move_toward(
+					_actor_y(is_p1),
+					StageConstants.OCEAN_SINK_Y,
+					StageConstants.OCEAN_SINK_SPEED * dt
+				))
+				_set_actor_vel_y(is_p1, 0.0)
 			if _ai_time >= bundle.dead_end_t:
 				_start_respawn(bundle, is_p1)
 		AI_STATE_RESPAWN:
@@ -1290,7 +1320,7 @@ func _is_past_belt_edge(is_p1: bool) -> bool:
 
 
 func _allows_below_floor(bundle: MenuPreviewActorAIState, is_p1: bool) -> bool:
-	return bundle.pending_accident == PENDING_ACCIDENT_MAGMA and _is_past_belt_edge(is_p1)
+	return bundle.pending_accident == PENDING_ACCIDENT_OCEAN and _is_past_belt_edge(is_p1)
 
 
 func _enforce_floor_support(bundle: MenuPreviewActorAIState, is_p1: bool) -> void:
@@ -1369,10 +1399,10 @@ func _roll_next_action(bundle: MenuPreviewActorAIState, is_p1: bool) -> void:
 		return
 	if randf() < AI_ACCIDENT_CRASH_RATIO:
 		if not _start_ai_collision_accident(bundle, is_p1):
-			if not _start_ai_magma_accident(bundle, is_p1):
+			if not _start_ai_ocean_accident(bundle, is_p1):
 				_start_ai_dash_move(true, bundle, is_p1)
 	else:
-		if not _start_ai_magma_accident(bundle, is_p1):
+		if not _start_ai_ocean_accident(bundle, is_p1):
 			if not _start_ai_collision_accident(bundle, is_p1):
 				_start_ai_dash_move(true, bundle, is_p1)
 
@@ -1382,8 +1412,8 @@ func _start_ai_lane_shift(bundle: MenuPreviewActorAIState, is_p1: bool) -> void:
 
 
 func _max_depth_z_for_bundle(bundle: MenuPreviewActorAIState = null) -> float:
-	if bundle != null and bundle.pending_accident == PENDING_ACCIDENT_MAGMA:
-		return PREVIEW_MAGMA_DEPTH_MAX
+	if bundle != null and bundle.pending_accident == PENDING_ACCIDENT_OCEAN:
+		return PREVIEW_OCEAN_DEPTH_MAX
 	return PREVIEW_BELT_Z_MAX
 
 
@@ -1817,12 +1847,12 @@ func _wall_available_for_accident(wall: Node3D, for_bundle: MenuPreviewActorAISt
 	return true
 
 
-func _start_ai_magma_accident(bundle: MenuPreviewActorAIState, is_p1: bool) -> bool:
+func _start_ai_ocean_accident(bundle: MenuPreviewActorAIState, is_p1: bool) -> bool:
 	if not _preview_gs or not _actor_alive(is_p1):
 		return false
 	if bundle.pending_accident != PENDING_ACCIDENT_NONE:
 		return false
-	bundle.pending_accident = PENDING_ACCIDENT_MAGMA
+	bundle.pending_accident = PENDING_ACCIDENT_OCEAN
 	bundle.pending_accident_wall = null
 	bundle.crash_wall = null
 	bundle.lane_shift_active = false
@@ -1847,8 +1877,8 @@ func _update_pending_accident_wall(_dt: float, bundle: MenuPreviewActorAIState, 
 		bundle.lane_shift_speed = randf_range(AI_LANE_SHIFT_SPEED_MIN, AI_LANE_SHIFT_SPEED_MAX)
 
 
-func _update_pending_accident_magma(dt: float, bundle: MenuPreviewActorAIState, is_p1: bool) -> void:
-	if bundle.pending_accident != PENDING_ACCIDENT_MAGMA:
+func _update_pending_accident_ocean(dt: float, bundle: MenuPreviewActorAIState, is_p1: bool) -> void:
+	if bundle.pending_accident != PENDING_ACCIDENT_OCEAN:
 		return
 	if not _is_past_belt_edge(is_p1):
 		var next_z := move_toward(
@@ -1861,13 +1891,13 @@ func _update_pending_accident_magma(dt: float, bundle: MenuPreviewActorAIState, 
 		if not bundle.is_emoting:
 			_sync_actor_moving_back_for_depth(bundle, is_p1)
 		return
-	_set_actor_vel_y(is_p1, _actor_vel_y(is_p1) - AI_GRAVITY * AI_MAGMA_GRAVITY_SCALE * dt)
+	_set_actor_vel_y(is_p1, _actor_vel_y(is_p1) - AI_GRAVITY * AI_OCEAN_GRAVITY_SCALE * dt)
 	var next_y := _actor_y(is_p1) + _actor_vel_y(is_p1) * dt
 	_set_actor_y(is_p1, next_y)
-	if _actor_y(is_p1) <= -8.0:
-		_set_actor_y(is_p1, -8.0)
+	if _actor_y(is_p1) <= StageConstants.OCEAN_ENTRY_Y:
+		_set_actor_y(is_p1, StageConstants.OCEAN_ENTRY_Y)
 		_clear_pending_accident(bundle)
-		_trigger_preview_death("magma", bundle, is_p1)
+		_trigger_preview_death("ocean", bundle, is_p1)
 
 
 func _start_crash_knockback(
@@ -1950,8 +1980,8 @@ func _trigger_preview_death(reason: String, bundle: MenuPreviewActorAIState = nu
 		_set_actor_moving_back(is_p1, false)
 		_set_actor_alive(is_p1, false)
 		_set_actor_game_over_timer(is_p1, 0.001)
-		if reason == "magma":
-			_set_actor_y(is_p1, -8.0)
+		if reason == "ocean":
+			_set_actor_y(is_p1, StageConstants.OCEAN_ENTRY_Y)
 			_set_actor_vel_y(is_p1, -3.8)
 		else:
 			_set_actor_y(is_p1, maxf(_actor_y(is_p1), 0.0))
@@ -1966,8 +1996,8 @@ func _trigger_preview_death(reason: String, bundle: MenuPreviewActorAIState = nu
 		_preview_gs.p2_moving_back = false
 		_preview_gs.p2_alive = false
 		_preview_gs.player2_game_over_timer = 0.001
-		if reason == "magma":
-			_preview_gs.player2_y = -8.0
+		if reason == "ocean":
+			_preview_gs.player2_y = StageConstants.OCEAN_ENTRY_Y
 			_preview_gs.player2_vel_y = -3.8
 		else:
 			_preview_gs.player2_y = maxf(_preview_gs.player2_y, 0.0)

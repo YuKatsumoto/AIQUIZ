@@ -157,7 +157,7 @@ static func _spawn_merge_sparks_on_wall(wall: Node3D, tween_host: Node) -> void:
 	curve.add_point(Vector2(1.0, 0.0))
 
 	var sparks := CPUParticles3D.new()
-	sparks.amount = 55
+	sparks.amount = GraphicsQuality.particle_amount(55, GameManager.graphics_quality)
 	sparks.lifetime = 0.75
 	sparks.one_shot = true
 	sparks.explosiveness = 1.0
@@ -192,7 +192,7 @@ static func _spawn_merge_sparks_on_wall(wall: Node3D, tween_host: Node) -> void:
 	sparks.emitting = true
 
 	var flash := CPUParticles3D.new()
-	flash.amount = 1
+	flash.amount = GraphicsQuality.particle_amount(1, GameManager.graphics_quality)
 	flash.lifetime = 0.22
 	flash.one_shot = true
 	flash.gravity = Vector3.ZERO

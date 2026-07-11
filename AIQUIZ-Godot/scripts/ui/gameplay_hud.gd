@@ -1110,7 +1110,7 @@ func _fire_confetti() -> void:
 		emitter.emitting = false
 		emitter.one_shot = true
 		emitter.explosiveness = 0.8
-		emitter.amount = 60
+		emitter.amount = GraphicsQuality.particle_amount(60, GameManager.graphics_quality)
 		emitter.lifetime = 3.0
 
 		# Position relative to go_title or screen center
@@ -1160,7 +1160,7 @@ func _fire_confetti() -> void:
 		emitter.emitting = false
 		emitter.one_shot = true
 		emitter.explosiveness = 0.9
-		emitter.amount = 15
+		emitter.amount = GraphicsQuality.particle_amount(15, GameManager.graphics_quality)
 		emitter.lifetime = 2.5
 
 		if go_title.is_inside_tree():
