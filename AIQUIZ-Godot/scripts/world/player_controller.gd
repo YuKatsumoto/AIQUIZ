@@ -51,7 +51,7 @@ var _p1_explosion_bodies: Array[RigidBody3D] = []
 var _p2_explosion_bodies: Array[RigidBody3D] = []
 
 const EXPLOSION_DEBRIS_LIFETIME: float = 4.5
-const EXPLOSION_MAGMA_SURFACE_Y: float = -9.2
+const EXPLOSION_SINK_SURFACE_Y: float = StageConstants.OCEAN_SURFACE_Y
 const EXPLOSION_KILL_Y: float = -14.0
 const EXPLOSION_MIN_COLLISION_SIZE: float = 0.10
 const EXPLOSION_IMPULSE_X_MIN: float = 5.5
@@ -700,11 +700,16 @@ func update_from_state(gs: QuizGameState) -> void:
 
 	# --- Player 1 ---
 	position = Vector3(gs.player_x, gs.player_y, gs.player_local_z)
+	var p1_visual_hidden: bool = (
+		gs.num_players == 1
+		and not _is_preview_subviewport()
+		and gs.game_state not in [Constants.STATE_GAME_OVER, Constants.STATE_FLYOVER]
+	)
 
 	# P1ラグドールは位置確定後の初回に生成(アンカー瞬間移動を回避)。
 	# メニュープレビュー(SubViewport)では不要な物理負荷になるので生成しない
 	# (表示メッシュも隠さないため、プレビューはブロック四肢のまま正しく描画される)。
-	if USE_ACTIVE_RAGDOLL and not _is_preview_subviewport() and _p1_ragdoll.is_empty() and not p1_parts.is_empty():
+	if USE_ACTIVE_RAGDOLL and not p1_visual_hidden and not _is_preview_subviewport() and _p1_ragdoll.is_empty() and not p1_parts.is_empty():
 		_p1_ragdoll = _setup_ragdoll(p1_parts, true)
 		_p1_driver = _p1_ragdoll.get("driver")
 
@@ -718,8 +723,10 @@ func update_from_state(gs: QuizGameState) -> void:
 				_teardown_ragdoll(_p1_ragdoll)
 				_p1_ragdoll = {}
 				_p1_driver = null
-		_set_parts_visible(p1_parts, true)
-		if not _p1_rig.is_rigged:
+		_set_parts_visible(p1_parts, not p1_visual_hidden)
+		if p1_visual_hidden:
+			pass
+		elif not _p1_rig.is_rigged:
 			var p1_is_playing := gs.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]
 			_animate_skeleton(p1_parts, gs.player_y, gs.player_vel_y, p1_is_playing, walk_phase, false, 0)
 		else:
@@ -764,7 +771,7 @@ func update_from_state(gs: QuizGameState) -> void:
 				else:
 					_animate_struggle(p1_parts, gs.game_over_timer)
 		else:
-			if not _p1_exploding:
+			if not _p1_exploding and gs.player_y > StageConstants.OCEAN_ENTRY_Y:
 				_p1_exploding = true
 				# HFF: 死亡時は脱力崩壊。駆動を止め全身を重力で崩す。ラグドール非生成時
 				# (プレビュー等)のみ従来の爆発にフォールバック。復活時にラグドールを
@@ -775,8 +782,8 @@ func update_from_state(gs: QuizGameState) -> void:
 					_init_explosion(p1_parts, true)
 			_set_parts_visible(p1_parts, false)
 			if not _p1_explosion_bodies.is_empty():
-				var is_magma := gs.player_y < -1.0
-				_update_explosion(true, gs.game_over_timer - 2.0, is_magma, gs.is_coop_mode(), -global_position.x)
+				var sink_debris: bool = gs.player_y <= StageConstants.OCEAN_ENTRY_Y
+				_update_explosion(true, gs.game_over_timer - 2.0, sink_debris, gs.is_coop_mode(), -global_position.x)
 	else:
 		_set_parts_visible(p1_parts, false)
 
@@ -845,7 +852,7 @@ func update_from_state(gs: QuizGameState) -> void:
 					else:
 						_animate_struggle(p2_parts, gs.player2_game_over_timer)
 			else:
-				if not _p2_exploding:
+				if not _p2_exploding and gs.player2_y > StageConstants.OCEAN_ENTRY_Y:
 					_p2_exploding = true
 					# HFF: 死亡時は脱力崩壊(P1と同様)。復活時に破棄→再生成で直立復帰。
 					if USE_ACTIVE_RAGDOLL and not _p2_ragdoll.is_empty():
@@ -854,8 +861,8 @@ func update_from_state(gs: QuizGameState) -> void:
 						_init_explosion(p2_parts, false)
 				_set_parts_visible(p2_parts, false)
 				if not _p2_explosion_bodies.is_empty():
-					var is_magma := gs.player2_y < -1.0
-					_update_explosion(false, gs.player2_game_over_timer - 2.0, is_magma, gs.is_coop_mode(), -global_position.x)
+					var sink_debris: bool = gs.player2_y <= StageConstants.OCEAN_ENTRY_Y
+					_update_explosion(false, gs.player2_game_over_timer - 2.0, sink_debris, gs.is_coop_mode(), -global_position.x)
 		else:
 			_set_parts_visible(p2_parts, false)
 
@@ -929,7 +936,7 @@ func _animate_skeleton(parts: Dictionary, py: float, vy: float, is_playing: bool
 	r_toe.rotation = Vector3.ZERO
 	
 	if py < -1.0:
-		# Flail 窶・falling into magma
+		# Flail 窶・falling into the ocean
 		var flail := sin(_time * 25.0) * PI * 0.4
 		l_hip.rotation.x = flail
 		r_hip.rotation.x = -flail
@@ -1352,11 +1359,11 @@ func _hide_rig_scenes(is_p1: bool) -> void:
 func _update_explosion(
 		is_p1: bool,
 		timer: float,
-		is_magma: bool = false,
+		sink_debris: bool = false,
 		fall_to_groove: bool = false,
 		groove_local_x: float = 0.0) -> void:
 	var bodies := _p1_explosion_bodies if is_p1 else _p2_explosion_bodies
-	var should_sink := is_magma or fall_to_groove
+	var should_sink := sink_debris or fall_to_groove
 	var i := bodies.size() - 1
 	while i >= 0:
 		var body := bodies[i]
@@ -1376,8 +1383,8 @@ func _update_explosion(
 			var dx := target_x - body.global_position.x
 			body.apply_central_force(Vector3(dx * 12.0, 0.0, 0.0))
 
-		if should_sink and body.global_position.y < EXPLOSION_MAGMA_SURFACE_Y:
-			var depth := EXPLOSION_MAGMA_SURFACE_Y - body.global_position.y
+		if should_sink and body.global_position.y < EXPLOSION_SINK_SURFACE_Y:
+			var depth := EXPLOSION_SINK_SURFACE_Y - body.global_position.y
 			var bscale: Vector3 = body.get_meta("base_scale", Vector3.ONE)
 			var shrink := maxf(0.0, 1.0 - depth * 0.1)
 			for child in body.get_children():

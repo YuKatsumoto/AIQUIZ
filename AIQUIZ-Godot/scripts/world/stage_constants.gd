@@ -1,7 +1,7 @@
 class_name StageConstants
 extends RefCounted
 
-## メニュープレビューと本編ゲームで共有するステージ（床・コンベア・マグマ・環境）の定数。
+## メニュープレビューと本編ゲームで共有するステージ（床・コンベア・海・環境）の定数。
 ## game_world.gd / menu_wall_background_preview.gd に重複していた値の単一ソース。
 
 const BG_COLOR := Color(0.82, 0.85, 0.90)
@@ -31,7 +31,15 @@ const CONVEYOR_SIDE_FRAME_HEIGHT: float = 1.05
 const CONVEYOR_SIDE_FRAME_OVERHANG: float = 1.2
 const CONVEYOR_SIDE_FRAME_TOP_CLEARANCE: float = 0.26
 
-const MAGMA_SHADER: Shader = preload("res://shaders/magma.gdshader")
+const OCEAN_SHADER: Shader = preload("res://shaders/ocean.gdshader")
+
+## 海面描画と落下・沈下演出の共通基準。
+const OCEAN_SURFACE_Y: float = -9.2
+const OCEAN_ENTRY_Y: float = -8.0
+const OCEAN_SINK_Y: float = -11.8
+const OCEAN_SINK_SPEED: float = 1.9
+const OCEAN_CENTER_Z: float = 150.0
+const OCEAN_SIZE: Vector2 = Vector2(4000.0, 4000.0)
 
 ## 本編 GameTuning / game_state と揃えた床・壁基準
 const FLOOR_BACK_Z: float = -12.5

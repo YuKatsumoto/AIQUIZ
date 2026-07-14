@@ -2,6 +2,7 @@ extends Node
 
 signal game_started
 signal game_over(is_cleared: bool)
+signal graphics_quality_changed(quality: String)
 
 # ゲーム全体の設定
 var is_2p_mode: bool = false
@@ -18,6 +19,7 @@ const USER_SETTINGS_PATH := "user://settings.json"
 
 var tutorial_completed: bool = false
 var tutorial_dismissed: bool = false
+var graphics_quality: String = GraphicsQuality.BALANCED
 var _user_settings: Dictionary = {}
 
 func _ready() -> void:
@@ -43,6 +45,16 @@ func reset_tutorial_prompt() -> void:
 	tutorial_dismissed = false
 	_save_user_settings()
 
+
+func set_graphics_quality(value: String) -> void:
+	var normalized: String = GraphicsQuality.normalize(value)
+	if graphics_quality == normalized:
+		return
+	graphics_quality = normalized
+	_save_user_settings()
+	graphics_quality_changed.emit(graphics_quality)
+
+
 func _load_user_settings() -> void:
 	_user_settings.clear()
 	if FileAccess.file_exists(USER_SETTINGS_PATH):
@@ -54,10 +66,12 @@ func _load_user_settings() -> void:
 			file.close()
 	tutorial_completed = bool(_user_settings.get("tutorial_completed", false))
 	tutorial_dismissed = bool(_user_settings.get("tutorial_dismissed", false))
+	graphics_quality = GraphicsQuality.normalize(str(_user_settings.get("graphics_quality", GraphicsQuality.BALANCED)))
 
 func _save_user_settings() -> void:
 	_user_settings["tutorial_completed"] = tutorial_completed
 	_user_settings["tutorial_dismissed"] = tutorial_dismissed
+	_user_settings["graphics_quality"] = graphics_quality
 	var file := FileAccess.open(USER_SETTINGS_PATH, FileAccess.WRITE)
 	if file:
 		file.store_string(JSON.stringify(_user_settings, "  "))

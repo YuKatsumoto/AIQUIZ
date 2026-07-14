@@ -33,6 +33,7 @@ extends Control
 @onready var vol_slider: HSlider = $SettingsPanel/VBox/VolBox/VolSlider
 # speed_slider は廃止（壁速度は難易度から自動決定）
 @onready var res_option: OptionButton = %ResOption
+var graphics_quality_option: OptionButton = null
 
 var game_state: QuizGameState
 var _tutorial_row: HBoxContainer = null
@@ -105,6 +106,7 @@ func _ready() -> void:
 		else:
 			res_option.select(0)
 
+	_setup_graphics_quality_option()
 	ApiStatusAutoload.check_completed.connect(_update_api_status_text)
 	
 	LiveConfigManager.config_updated.connect(_on_live_config_updated)
@@ -173,14 +175,8 @@ func _update_live_viewport_quality() -> void:
 	live_background.scale = logical / target
 
 	# 物理解像度で描画できている時はスーパーサンプリングを控えめに、低解像度時は強めに掛ける
-	if is_mobile:
-		live_viewport.scaling_3d_scale = 1.2
-	elif target.x >= 2560.0:
-		live_viewport.scaling_3d_scale = 1.0
-	elif target.x >= 1600.0:
-		live_viewport.scaling_3d_scale = 1.25
-	else:
-		live_viewport.scaling_3d_scale = 1.5
+	# 壁のLabel3Dを含むため、常にネイティブ解像度を維持する。
+	GraphicsQuality.apply_text_viewport(live_viewport, GameManager.graphics_quality)
 
 func _sync_menu_wall_preview_players() -> void:
 	if not _menu_wall_preview or not _menu_wall_preview.has_method("sync_menu_player_count"):
@@ -936,6 +932,53 @@ func _on_vol_slider_changed(value: float) -> void:
 	AudioManager.set_volume(value)
 
 # _on_speed_slider_changed は廃止（壁速度は難易度から自動決定）
+
+
+func _setup_graphics_quality_option() -> void:
+	var settings_vbox: VBoxContainer = $SettingsPanel/VBox
+	var resolution_row: HBoxContainer = $SettingsPanel/VBox/ResolutionBox
+	var row: HBoxContainer = HBoxContainer.new()
+	row.name = "GraphicsQualityBox"
+	row.add_theme_constant_override("separation", 12)
+	var label: Label = Label.new()
+	label.name = "Label"
+	label.text = "画質"
+	label.custom_minimum_size = Vector2(120.0, 0.0)
+	label.add_theme_font_size_override("font_size", 18)
+	var option: OptionButton = OptionButton.new()
+	option.name = "GraphicsQualityOption"
+	option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	option.add_theme_font_size_override("font_size", 18)
+	option.add_item("軽量", 0)
+	option.add_item("標準", 1)
+	option.add_item("高画質", 2)
+	match GameManager.graphics_quality:
+		GraphicsQuality.LOW:
+			option.select(0)
+		GraphicsQuality.HIGH:
+			option.select(2)
+		_:
+			option.select(1)
+	option.item_selected.connect(_on_graphics_quality_selected)
+	row.add_child(label)
+	row.add_child(option)
+	settings_vbox.add_child(row)
+	settings_vbox.move_child(row, resolution_row.get_index() + 1)
+	graphics_quality_option = option
+
+
+func _on_graphics_quality_selected(index: int) -> void:
+	var quality: String = GraphicsQuality.BALANCED
+	match index:
+		0:
+			quality = GraphicsQuality.LOW
+		2:
+			quality = GraphicsQuality.HIGH
+	GameManager.set_graphics_quality(quality)
+	GraphicsQuality.apply_text_viewport(live_viewport, quality)
+	if _menu_wall_preview and _menu_wall_preview.has_method("apply_graphics_quality"):
+		_menu_wall_preview.call("apply_graphics_quality")
+
 
 func _on_resolution_selected(index: int) -> void:
 	if index == 4:

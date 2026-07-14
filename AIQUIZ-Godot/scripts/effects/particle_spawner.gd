@@ -6,17 +6,21 @@ extends Node3D
 
 var correct_particles: GPUParticles3D
 var explosion_particles: GPUParticles3D
+var ocean_splash_pool: Array[GPUParticles3D] = []
+var _ocean_splash_cursor: int = 0
 
 func _ready() -> void:
 	_create_correct_particles()
 	_create_explosion_particles()
+	for i: int in range(2):
+		_create_ocean_splash_particles()
 
 func _create_correct_particles() -> void:
 	correct_particles = GPUParticles3D.new()
 	correct_particles.name = "CorrectParticles"
 	correct_particles.emitting = false
 	correct_particles.one_shot = true
-	correct_particles.amount = 100
+	correct_particles.amount = GraphicsQuality.particle_amount(100, GameManager.graphics_quality)
 	correct_particles.lifetime = 2.0
 	correct_particles.explosiveness = 1.0
 	correct_particles.visibility_aabb = AABB(Vector3(-15, -5, -15), Vector3(30, 20, 30))
@@ -54,7 +58,7 @@ func _create_explosion_particles() -> void:
 	explosion_particles.name = "ExplosionParticles"
 	explosion_particles.emitting = false
 	explosion_particles.one_shot = true
-	explosion_particles.amount = 250
+	explosion_particles.amount = GraphicsQuality.particle_amount(250, GameManager.graphics_quality)
 	explosion_particles.lifetime = 2.5
 	explosion_particles.explosiveness = 1.0
 	explosion_particles.visibility_aabb = AABB(Vector3(-20, -5, -20), Vector3(40, 25, 40))
@@ -106,6 +110,65 @@ func spawn_explosion(pos: Vector3) -> void:
 	explosion_particles.restart()
 	explosion_particles.emitting = true
 
+func _create_ocean_splash_particles() -> void:
+	var splash: GPUParticles3D = GPUParticles3D.new()
+	splash.name = "OceanSplash"
+	splash.emitting = false
+	splash.one_shot = true
+	splash.amount = GraphicsQuality.particle_amount(96, GameManager.graphics_quality)
+	splash.lifetime = 1.35
+	splash.explosiveness = 0.96
+	splash.randomness = 0.35
+	splash.local_coords = false
+	splash.visibility_aabb = AABB(Vector3(-6.0, -2.0, -6.0), Vector3(12.0, 12.0, 12.0))
+
+	var mat: ParticleProcessMaterial = ParticleProcessMaterial.new()
+	mat.direction = Vector3.UP
+	mat.spread = 66.0
+	mat.initial_velocity_min = 4.5
+	mat.initial_velocity_max = 11.0
+	mat.gravity = Vector3(0.0, -13.0, 0.0)
+	mat.damping_min = 0.4
+	mat.damping_max = 1.2
+	mat.scale_min = 0.08
+	mat.scale_max = 0.28
+	mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	mat.emission_sphere_radius = 0.85
+
+	var color_ramp: Gradient = Gradient.new()
+	color_ramp.set_color(0, Color(0.82, 0.98, 1.0, 1.0))
+	color_ramp.set_color(1, Color(0.05, 0.42, 0.72, 0.0))
+	color_ramp.add_point(0.28, Color(0.28, 0.78, 0.95, 0.92))
+	var color_tex: GradientTexture1D = GradientTexture1D.new()
+	color_tex.gradient = color_ramp
+	mat.color_ramp = color_tex
+	splash.process_material = mat
+
+	var droplet_mesh: SphereMesh = SphereMesh.new()
+	droplet_mesh.radius = 0.055
+	droplet_mesh.height = 0.22
+	var droplet_mat: StandardMaterial3D = StandardMaterial3D.new()
+	droplet_mat.albedo_color = Color(0.55, 0.9, 1.0, 0.88)
+	droplet_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	droplet_mat.vertex_color_use_as_albedo = true
+	droplet_mat.roughness = 0.16
+	droplet_mesh.material = droplet_mat
+	splash.draw_pass_1 = droplet_mesh
+
+	add_child(splash)
+	ocean_splash_pool.append(splash)
+
+
+func spawn_ocean_splash(pos: Vector3) -> void:
+	if ocean_splash_pool.is_empty():
+		return
+	var splash: GPUParticles3D = ocean_splash_pool[_ocean_splash_cursor]
+	_ocean_splash_cursor = (_ocean_splash_cursor + 1) % ocean_splash_pool.size()
+	splash.global_position = pos
+	splash.restart()
+	splash.emitting = true
+
+
 # ---------- Fireworks ----------
 
 const FIREWORK_COLORS: Array[Color] = [
@@ -146,7 +209,7 @@ func _launch_single_firework(pos: Vector3, color: Color, height: float) -> void:
 	var trail := GPUParticles3D.new()
 	trail.emitting = false
 	trail.one_shot = true
-	trail.amount = 30
+	trail.amount = GraphicsQuality.particle_amount(30, GameManager.graphics_quality)
 	trail.lifetime = 0.8
 	trail.explosiveness = 0.9
 
@@ -204,7 +267,7 @@ func _spawn_firework_burst(pos: Vector3, color: Color) -> void:
 	var burst := GPUParticles3D.new()
 	burst.emitting = false
 	burst.one_shot = true
-	burst.amount = 200
+	burst.amount = GraphicsQuality.particle_amount(200, GameManager.graphics_quality)
 	burst.lifetime = 2.5
 	burst.explosiveness = 1.0
 

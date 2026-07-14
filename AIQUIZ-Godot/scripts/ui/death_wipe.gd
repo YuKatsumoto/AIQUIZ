@@ -2,7 +2,7 @@ extends SubViewportContainer
 
 ## 2Pモード死亡ワイプカメラ
 ## 片方のプレイヤーが画面外で死んだとき、右下にワイプ画面を表示して
-## マグマに落ちて粉々になる様を晒す
+## 海に落ちて溺れて沈む様を晒す
 
 @onready var sub_viewport: SubViewport = $SubViewport
 @onready var wipe_camera: Camera3D = $SubViewport/WipeCamera
@@ -31,10 +31,10 @@ func _ready() -> void:
 	visible = false
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	# SubViewport sizing
-	sub_viewport.size = Vector2i(WIPE_W, WIPE_H)
+	# Containerのstretchにサイズを委ね、非表示中は描画を停止する。
 	sub_viewport.render_target_update_mode = SubViewport.UPDATE_WHEN_PARENT_VISIBLE
 	sub_viewport.transparent_bg = false
+	GraphicsQuality.apply_character_preview(sub_viewport, GameManager.graphics_quality)
 
 	# Camera defaults
 	wipe_camera.current = false
@@ -203,25 +203,24 @@ func _update_wipe_camera() -> void:
 	var cam_target: Vector3
 
 	if death_timer < 2.0:
-		# Phase 1: Watch the player tumble and fall into magma
+		# Phase 1: Watch the player tumble and fall into ocean
 		# Camera positioned slightly to the side and above, looking down
 		var fall_progress := clampf(death_timer / 2.0, 0.0, 1.0)
 		var cam_y := py + 2.5 + fall_progress * 3.0  # Rise as player falls
 		cam_eye = Vector3(px + 3.0, cam_y, local_z - 3.5)
 		cam_target = Vector3(px, py, local_z)
 	else:
-		# Phase 2: Dramatic orbit around the explosion debris
-		var exp_t := death_timer - 2.0
-		var orbit_angle := exp_t * 0.6
-		var radius := 4.5
-		# Pan down towards the magma surface so limbs are visible sinking
-		var target_y := lerpf(py, -9.5, clampf(exp_t / 1.5, 0.0, 1.0))
+		# Phase 2: Drift above the impact point after the player sinks out of view
+		var sink_t: float = death_timer - 2.0
+		var orbit_angle: float = sink_t * 0.35
+		var radius: float = 4.0
+		var target_y: float = StageConstants.OCEAN_SURFACE_Y
 		cam_eye = Vector3(
 			px + sin(orbit_angle) * radius,
-			target_y + 4.5 + sin(exp_t * 1.5) * 0.5,  # Steeper angle to look over fireball
+			target_y + 3.8 + sin(sink_t * 1.2) * 0.25,
 			local_z - cos(orbit_angle) * radius
 		)
-		cam_target = Vector3(px, target_y, local_z) # Look at sinking debris
+		cam_target = Vector3(px, target_y, local_z)
 
 	wipe_camera.global_position = cam_eye
 	wipe_camera.look_at(cam_target, Vector3.UP)

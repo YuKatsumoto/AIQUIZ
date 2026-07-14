@@ -30,6 +30,7 @@ LiveConfigManager="*res://scripts/autoload/live_config_manager.gd"
 SceneTransition="*res://scripts/autoload/scene_transition.gd"
 NetworkManager="*res://scripts/autoload/network_manager.gd"
 _fennara_game_capture="*res://addons/fennara/runtime/game_capture_helper.gd"
+GraphicsQuality="*res://scripts/core/graphics_quality.gd"
 
 [display]
 

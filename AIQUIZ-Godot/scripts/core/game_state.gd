@@ -9,6 +9,7 @@ signal quiz_loaded(quiz: QuizItem)
 signal correct_answer
 signal wrong_answer(message: String)
 signal game_cleared(message: String)
+signal player_entered_ocean(player_index: int, local_position: Vector3)
 
 var provider: QuizProvider
 var use_english_ui: bool = false
@@ -796,7 +797,7 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 			player_y = 0.0
 			player_vel_y = 0.0
 
-		if player_y < -8.0:
+		if player_y < StageConstants.OCEAN_ENTRY_Y:
 			if _is_tutorial_mode():
 				if num_players >= 2:
 					_reset_tutorial_attempt("P1が床から落ちました。2人ともスタート位置へ戻して、同じ壁でもう一度練習しましょう。")
@@ -804,9 +805,11 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 					_reset_tutorial_attempt("床から落ちました。中央に戻して、同じ壁でもう一度練習しましょう。")
 				return
 			if is_coop_mode():
+				_emit_player_entered_ocean(1)
 				_fail_coop_immediately("P1が落下しました。協力失敗です。")
 				return
-			player_y = -8.0
+			_emit_player_entered_ocean(1)
+			player_y = StageConstants.OCEAN_ENTRY_Y
 			player_vel_y = 0.0
 			p1_alive = false
 			game_over_timer = 0.001
@@ -815,7 +818,7 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 					choice_locked = true
 					provider.submit_result(current_quiz, false)
 					quiz_history.append({"quiz": current_quiz, "correct": false, "rated": ""})
-				_game_over("マグマに落ちてしまった！" if not use_english_ui else "Fell into magma!")
+				_game_over("海に落ちてしまった！" if not use_english_ui else "Fell into the ocean!")
 				wrong_answer.emit(message_text)
 	elif game_over_timer > 0.0:
 		# Tick explosion timer for dead P1 while game continues (2P)
@@ -845,14 +848,16 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 			player2_y = 0.0
 			player2_vel_y = 0.0
 
-		if player2_y < -8.0:
+		if player2_y < StageConstants.OCEAN_ENTRY_Y:
 			if _is_tutorial_mode():
 				_reset_tutorial_attempt("P2が床から落ちました。2人ともスタート位置へ戻して、同じ壁でもう一度練習しましょう。")
 				return
 			if is_coop_mode():
+				_emit_player_entered_ocean(2)
 				_fail_coop_immediately("P2が落下しました。協力失敗です。")
 				return
-			player2_y = -8.0
+			_emit_player_entered_ocean(2)
+			player2_y = StageConstants.OCEAN_ENTRY_Y
 			player2_vel_y = 0.0
 			p2_alive = false
 			player2_game_over_timer = 0.001
@@ -861,12 +866,14 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 					choice_locked = true
 					provider.submit_result(current_quiz, false)
 					quiz_history.append({"quiz": current_quiz, "correct": false, "rated": ""})
-				_game_over("マグマに落ちてしまった！" if not use_english_ui else "Fell into magma!")
+				_game_over("海に落ちてしまった！" if not use_english_ui else "Fell into the ocean!")
 				wrong_answer.emit(message_text)
 	elif num_players >= 2 and not p2_alive:
 		if player2_game_over_timer > 0.0:
 			# Tick explosion timer for dead P2 while game continues
 			player2_game_over_timer += dt
+
+	_sink_ocean_players(dt)
 
 	# スクロールアウト死 (画面外に取り残された場合の脱落)
 	if num_players >= 2 and p1_alive and p2_alive:
@@ -909,6 +916,7 @@ func _update_correct(dt: float) -> void:
 		game_over_timer += dt
 	if num_players >= 2 and not p2_alive and player2_game_over_timer > 0:
 		player2_game_over_timer += dt
+	_sink_ocean_players(dt)
 	if message_timer <= 0:
 		advance_after_correct()
 
@@ -918,6 +926,7 @@ func _update_game_over(dt: float) -> void:
 		player2_game_over_timer += dt
 
 	_process_dead_player_physics(dt)
+	_sink_ocean_players(dt)
 
 	# Update message with async explanation
 	if current_quiz:
@@ -970,8 +979,9 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 		if player_y <= 0.0 and is_on_floor:
 			player_y = 0.0
 			player_vel_y = 0.0
-		if player_y < -8.0:
-			player_y = -8.0
+		if player_y < StageConstants.OCEAN_ENTRY_Y:
+			_emit_player_entered_ocean(1)
+			player_y = StageConstants.OCEAN_ENTRY_Y
 			player_vel_y = 0.0
 			p1_alive = false
 			game_over_timer = 0.001
@@ -993,8 +1003,9 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 		if player2_y <= 0.0 and p2_is_on_floor:
 			player2_y = 0.0
 			player2_vel_y = 0.0
-		if player2_y < -8.0:
-			player2_y = -8.0
+		if player2_y < StageConstants.OCEAN_ENTRY_Y:
+			_emit_player_entered_ocean(2)
+			player2_y = StageConstants.OCEAN_ENTRY_Y
 			player2_vel_y = 0.0
 			p2_alive = false
 			player2_game_over_timer = 0.001
@@ -1004,6 +1015,8 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 		game_over_timer += dt
 	if not p2_alive and player2_game_over_timer > 0:
 		player2_game_over_timer += dt
+
+	_sink_ocean_players(dt)
 
 	# ゴール判定
 	var p1_reached := p1_alive and player_z >= goal_z
@@ -1312,15 +1325,33 @@ func _coop_failure_message(p1_door: int, p2_door: int) -> String:
 		])
 	return "\n".join(lines)
 
+func _sink_ocean_players(dt: float) -> void:
+	if not p1_alive and game_over_timer > 0.0 and player_y <= StageConstants.OCEAN_ENTRY_Y:
+		player_y = move_toward(player_y, StageConstants.OCEAN_SINK_Y, StageConstants.OCEAN_SINK_SPEED * dt)
+		player_vel_y = 0.0
+	if num_players >= 2 and not p2_alive and player2_game_over_timer > 0.0 and player2_y <= StageConstants.OCEAN_ENTRY_Y:
+		player2_y = move_toward(player2_y, StageConstants.OCEAN_SINK_Y, StageConstants.OCEAN_SINK_SPEED * dt)
+		player2_vel_y = 0.0
+
+
+func _emit_player_entered_ocean(player_index: int) -> void:
+	var local_position: Vector3
+	if player_index == 1:
+		local_position = Vector3(player_x, StageConstants.OCEAN_SURFACE_Y, player_local_z)
+	else:
+		local_position = Vector3(player2_x, StageConstants.OCEAN_SURFACE_Y, player2_local_z)
+	player_entered_ocean.emit(player_index, local_position)
+
+
 func _process_dead_player_physics(dt: float) -> void:
-	if not p1_alive and game_over_timer > 0.0 and game_over_timer < 2.5:
+	if not p1_alive and game_over_timer > 0.0 and game_over_timer < 2.5 and player_y > StageConstants.OCEAN_ENTRY_Y:
 		player_vel_y -= GRAVITY * dt
 		player_y += player_vel_y * dt
 		player_vel_z = move_toward(player_vel_z, 0.0, dt * 15.0)
 		player_z += player_vel_z * dt
 		var local_z = player_z - world_scroll_z
 		var is_on_floor = local_z >= FLOOR_BACK_Z and abs(player_x) <= FLOOR_HALF_WIDTH
-		var limit_y = 0.0 if is_on_floor else -8.0
+		var limit_y: float = 0.0 if is_on_floor else StageConstants.OCEAN_ENTRY_Y
 		
 		if player_y <= limit_y and player_vel_y < 0.0:
 			player_y = limit_y
@@ -1328,14 +1359,14 @@ func _process_dead_player_physics(dt: float) -> void:
 			if is_on_floor:
 				player_vel_z = 0.0
 			
-	if num_players >= 2 and not p2_alive and player2_game_over_timer > 0.0 and player2_game_over_timer < 2.5:
+	if num_players >= 2 and not p2_alive and player2_game_over_timer > 0.0 and player2_game_over_timer < 2.5 and player2_y > StageConstants.OCEAN_ENTRY_Y:
 		player2_vel_y -= GRAVITY * dt
 		player2_y += player2_vel_y * dt
 		player2_vel_z = move_toward(player2_vel_z, 0.0, dt * 15.0)
 		player2_z += player2_vel_z * dt
 		var local2_z = player2_z - world_scroll_z
 		var is2_on_floor = local2_z >= FLOOR_BACK_Z and abs(player2_x) <= FLOOR_HALF_WIDTH
-		var limit2_y = 0.0 if is2_on_floor else -8.0
+		var limit2_y: float = 0.0 if is2_on_floor else StageConstants.OCEAN_ENTRY_Y
 		
 		if player2_y <= limit2_y and player2_vel_y < 0.0:
 			player2_y = limit2_y

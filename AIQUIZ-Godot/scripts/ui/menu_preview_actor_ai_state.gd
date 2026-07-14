@@ -32,6 +32,6 @@ var learn_episode_reported: bool = false
 var available_emotes: Array[int] = []
 var taunt_target_x: float = 0.0
 var taunt_target_z: float = 0.0
-## 潜伏型事故: 0=なし, 1=壁, 2=マグマ（AI_STATE は NORMAL のまま）
+## 潜伏型事故: 0=なし, 1=壁, 2=海（AI_STATE は NORMAL のまま）
 var pending_accident: int = 0
 var pending_accident_wall: Node3D = null

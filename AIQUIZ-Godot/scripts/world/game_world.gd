@@ -8,7 +8,7 @@ extends Node3D
 @onready var wall_container: Node3D = $WallContainer
 @onready var particle_spawner: Node3D = $ParticleSpawner
 
-## 共有ステージ（床・コンベア・マグマ・環境・照明）。メニュープレビューと同一の StageEnvironment。
+## 共有ステージ（床・コンベア・海・環境・照明）。メニュープレビューと同一の StageEnvironment。
 var stage_env: StageEnvironment = null
 
 var game_state: QuizGameState
@@ -21,7 +21,10 @@ var _prev_wrong_flash: float = 0.0
 var _prev_go_timer: float = 0.0
 var _fireworks_launched: bool = false
 var _prev_p2_go_timer: float = 0.0
+var _prev_player_y: float = 0.0
+var _prev_p2_y: float = 0.0
 var _active_walls: Array[Node3D] = []
+var _merge_effect_pool: Array[Dictionary] = []
 var _flyover_walls: Array[Node3D] = []
 var _flyover_active: bool = false
 var _hats_applied: bool = false
@@ -50,6 +53,7 @@ var _replay_mode: bool = false
 
 func _ready() -> void:
 	game_state = QuizManager.game_state
+	GraphicsQuality.apply_text_viewport(get_viewport(), GameManager.graphics_quality)
 	quiz_wall_scene = preload("res://scenes/quiz_wall.tscn")
 
 	# リプレイモードチェック
@@ -73,7 +77,7 @@ func _ready() -> void:
 	add_child(_net_state)
 	_net_state.setup(game_state)
 
-	# Setup shared stage (environment / lighting / floor / conveyor / magma)
+	# Setup shared stage (environment / lighting / floor / conveyor / ocean)
 	stage_env = StageEnvironment.new()
 	add_child(stage_env)
 	stage_env.build({
@@ -510,19 +514,53 @@ func _check_particles() -> void:
 				Vector3(game_state.player_x, game_state.player_y, game_state.player_local_z))
 	_prev_correct_flash = game_state.correct_flash
 
-	# Explosion particle spawn (P1)
-	if game_state.game_over_timer >= 2.0 and _prev_go_timer < 2.0:
+	# Ocean entry splash (position crossing keeps replay/network visuals deterministic)
+	if (
+		game_state.game_over_timer > 0.0
+		and game_state.player_y <= StageConstants.OCEAN_ENTRY_Y
+		and _prev_player_y > StageConstants.OCEAN_ENTRY_Y
+	):
+		if particle_spawner.has_method("spawn_ocean_splash"):
+			particle_spawner.spawn_ocean_splash(Vector3(
+				game_state.player_x,
+				StageConstants.OCEAN_SURFACE_Y,
+				game_state.player_local_z
+			))
+	if (
+		game_state.player2_game_over_timer > 0.0
+		and game_state.player2_y <= StageConstants.OCEAN_ENTRY_Y
+		and _prev_p2_y > StageConstants.OCEAN_ENTRY_Y
+	):
+		if particle_spawner.has_method("spawn_ocean_splash"):
+			particle_spawner.spawn_ocean_splash(Vector3(
+				game_state.player2_x,
+				StageConstants.OCEAN_SURFACE_Y,
+				game_state.player2_local_z
+			))
+
+	# Explosion particle spawn (P1: non-ocean deaths only)
+	if (
+		game_state.game_over_timer >= 2.0
+		and _prev_go_timer < 2.0
+		and game_state.player_y > StageConstants.OCEAN_ENTRY_Y
+	):
 		if particle_spawner.has_method("spawn_explosion"):
 			particle_spawner.spawn_explosion(
 				Vector3(game_state.player_x, game_state.player_y, game_state.player_local_z))
 	_prev_go_timer = game_state.game_over_timer
 	
-	# Explosion particle spawn (P2)
-	if game_state.player2_game_over_timer >= 2.0 and _prev_p2_go_timer < 2.0:
+	# Explosion particle spawn (P2: non-ocean deaths only)
+	if (
+		game_state.player2_game_over_timer >= 2.0
+		and _prev_p2_go_timer < 2.0
+		and game_state.player2_y > StageConstants.OCEAN_ENTRY_Y
+	):
 		if particle_spawner.has_method("spawn_explosion"):
 			particle_spawner.spawn_explosion(
 				Vector3(game_state.player2_x, game_state.player2_y, game_state.player2_local_z))
 	_prev_p2_go_timer = game_state.player2_game_over_timer
+	_prev_player_y = game_state.player_y
+	_prev_p2_y = game_state.player2_y
 
 	# Fireworks on CLEAR state (花火演出)
 	if game_state.game_state == Constants.STATE_CLEAR and not _fireworks_launched:
@@ -849,6 +887,18 @@ func _update_preview_walls(dt: float) -> void:
 
 ## 合体時の火花パーティクルを生成
 func _spawn_merge_sparks(pos: Vector3) -> void:
+	for effect: Dictionary in _merge_effect_pool:
+		var pooled_sparks: CPUParticles3D = effect.get("sparks") as CPUParticles3D
+		var pooled_flash: CPUParticles3D = effect.get("flash") as CPUParticles3D
+		if pooled_sparks and pooled_flash and not pooled_sparks.emitting:
+			pooled_sparks.global_position = pos + Vector3(0, 2.5, 0)
+			pooled_flash.global_position = pos + Vector3(0, 2.5, 0)
+			pooled_sparks.restart()
+			pooled_flash.restart()
+			pooled_sparks.emitting = true
+			pooled_flash.emitting = true
+			return
+
 	# サイズを時間経過で縮小するカーブ
 	var curve := Curve.new()
 	curve.add_point(Vector2(0, 1.0))
@@ -856,7 +906,7 @@ func _spawn_merge_sparks(pos: Vector3) -> void:
 
 	# 1. 飛び散る火花 (Spark) - 抑えめに調整
 	var sparks := CPUParticles3D.new()
-	sparks.amount = 60
+	sparks.amount = GraphicsQuality.particle_amount(60, GameManager.graphics_quality)
 	sparks.lifetime = 0.8
 	sparks.one_shot = true
 	sparks.explosiveness = 1.0
@@ -896,7 +946,7 @@ func _spawn_merge_sparks(pos: Vector3) -> void:
 
 	# 2. 中央の閃光 (Flash) - 抑えめに調整
 	var flash := CPUParticles3D.new()
-	flash.amount = 1
+	flash.amount = GraphicsQuality.particle_amount(1, GameManager.graphics_quality)
 	flash.lifetime = 0.25
 	flash.one_shot = true
 	flash.gravity = Vector3.ZERO
@@ -919,10 +969,8 @@ func _spawn_merge_sparks(pos: Vector3) -> void:
 	wall_container.add_child(flash)
 	flash.emitting = true
 
-	# クリーンアップ
-	var tw := create_tween()
-	tw.tween_callback(sparks.queue_free).set_delay(2.5)
-	tw.tween_callback(flash.queue_free).set_delay(2.0)
+	# one_shot終了後は同じエミッターを再利用し、生成・破棄によるスパイクを防ぐ。
+	_merge_effect_pool.append({"sparks": sparks, "flash": flash})
 
 
 func _clear_preview_walls() -> void:
@@ -993,7 +1041,7 @@ func _begin_barrier_drop() -> void:
 	_start_barrier.add_child(ql)
 	# 待機パーティクル
 	var sp := CPUParticles3D.new()
-	sp.amount = 50
+	sp.amount = GraphicsQuality.particle_amount(50, GameManager.graphics_quality)
 	sp.lifetime = 1.2
 	sp.randomness = 1.0
 	sp.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
@@ -1029,7 +1077,7 @@ func _begin_barrier_drop() -> void:
 	var steam_l := CPUParticles3D.new()
 	steam_l.name = "SteamL"
 	steam_l.emitting = false
-	steam_l.amount = 120
+	steam_l.amount = GraphicsQuality.particle_amount(120, GameManager.graphics_quality)
 	steam_l.lifetime = 1.5
 	steam_l.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
 	steam_l.emission_box_extents = Vector3(0.5, 10.0, 1.0)
@@ -1048,7 +1096,7 @@ func _begin_barrier_drop() -> void:
 	var steam_r := CPUParticles3D.new()
 	steam_r.name = "SteamR"
 	steam_r.emitting = false
-	steam_r.amount = 120
+	steam_r.amount = GraphicsQuality.particle_amount(120, GameManager.graphics_quality)
 	steam_r.lifetime = 1.5
 	steam_r.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
 	steam_r.emission_box_extents = Vector3(0.5, 10.0, 1.0)
@@ -1119,7 +1167,7 @@ func _update_start_barrier() -> void:
 
 func _spawn_landing_impact(pos: Vector3) -> void:
 	var dust := CPUParticles3D.new()
-	dust.amount = 80
+	dust.amount = GraphicsQuality.particle_amount(80, GameManager.graphics_quality)
 	dust.lifetime = 1.0
 	dust.one_shot = true
 	dust.explosiveness = 1.0
@@ -1216,7 +1264,7 @@ func _explode_start_barrier() -> void:
 func _spawn_mega_explosion(pos: Vector3) -> void:
 	var sr := get_tree().current_scene
 	var flash := CPUParticles3D.new()
-	flash.amount = 200
+	flash.amount = GraphicsQuality.particle_amount(200, GameManager.graphics_quality)
 	flash.lifetime = 0.6
 	flash.one_shot = true
 	flash.explosiveness = 1.0
@@ -1242,7 +1290,7 @@ func _spawn_mega_explosion(pos: Vector3) -> void:
 	flash.emitting = true
 	sr.add_child(flash)
 	var sparks := CPUParticles3D.new()
-	sparks.amount = 250
+	sparks.amount = GraphicsQuality.particle_amount(250, GameManager.graphics_quality)
 	sparks.lifetime = 1.5
 	sparks.one_shot = true
 	sparks.explosiveness = 0.98
@@ -1268,7 +1316,7 @@ func _spawn_mega_explosion(pos: Vector3) -> void:
 	sparks.emitting = true
 	sr.add_child(sparks)
 	var smoke := CPUParticles3D.new()
-	smoke.amount = 60
+	smoke.amount = GraphicsQuality.particle_amount(60, GameManager.graphics_quality)
 	smoke.lifetime = 2.0
 	smoke.one_shot = true
 	smoke.explosiveness = 0.9
