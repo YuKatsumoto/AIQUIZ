@@ -205,9 +205,9 @@ func set_preview_labels(quiz: QuizItem) -> void:
 	# Y座標は _fit_question_label_to_two_lines 内で壁と衝突しない位置に決定する
 	preview_question_label.position = Vector3(0, 0, 0.65)
 	preview_question_label.width = 640.0
-	# 遠くの壁でも読めるよう純黒の太アウトラインで縁取ってコントラストを上げる
-	preview_question_label.outline_modulate = Color(0, 0, 0, 1.0)
-	preview_question_label.outline_size = 16
+	# 遠景で塗りと輪郭が競合しないよう、細めの濃紺アウトラインでコントラストを保つ
+	preview_question_label.outline_modulate = Color(0.02, 0.05, 0.08, 0.95)
+	preview_question_label.outline_size = 8
 	var question_text: String = FractionFormatter.to_inline(quiz.q) if FractionFormatter.has_fraction(quiz.q) else quiz.q
 	add_child(preview_question_label)
 	_fit_question_label_to_two_lines(preview_question_label, question_text)
@@ -218,9 +218,9 @@ func set_preview_labels(quiz: QuizItem) -> void:
 		lbl.rotation.y = 0.0
 		lbl.position = Vector3(door_xs[i], 0.18, 0.65)
 		lbl.width = 200.0
-		lbl.font_size = 56
-		lbl.outline_modulate = Color(0, 0, 0, 1.0)
-		lbl.outline_size = 16
+		lbl.font_size = 64
+		lbl.outline_modulate = Color(0.02, 0.05, 0.08, 0.95)
+		lbl.outline_size = 8
 		lbl.text = FractionFormatter.format_choice(quiz.c[i])
 		add_child(lbl)
 		preview_choice_labels.append(lbl)
@@ -228,7 +228,7 @@ func set_preview_labels(quiz: QuizItem) -> void:
 
 const QUESTION_LABEL_MAX_LINES := 2
 ## 1行でも2行でも常にこの大きさで表示する（行数によって縮小しない）
-const QUESTION_LABEL_FONT_SIZE := 52
+const QUESTION_LABEL_FONT_SIZE := 64
 ## 壁の最上端(WALL_TOP_Y)から問題文の下端までの最低クリアランス
 const QUESTION_LABEL_WALL_CLEARANCE := 0.5
 ## 横幅の初期値・拡張刻み・上限（壁全幅24mに対して十分小さく、省略せず全文表示するために広げる）
