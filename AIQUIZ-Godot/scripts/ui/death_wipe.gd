@@ -28,6 +28,11 @@ const FADE_DURATION := 0.5
 
 func _ready() -> void:
 	game_state = QuizManager.game_state
+	if (
+		game_state
+		and not game_state.player_entered_ocean.is_connected(_on_player_entered_ocean)
+	):
+		game_state.player_entered_ocean.connect(_on_player_entered_ocean)
 	visible = false
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
@@ -63,34 +68,61 @@ func _setup_labels() -> void:
 	skull_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
 	skull_label.add_theme_constant_override("outline_size", 4)
 
+func _on_player_entered_ocean(player_index: int, _local_position: Vector3) -> void:
+	if not game_state or game_state.num_players < 2:
+		return
+	# 海面へ入った瞬間に開始する。表示中にもう一人が落ちた場合も、
+	# 後から落ちたプレイヤーへ即座に切り替える。
+	_start_wipe(player_index)
+
+
 func _process(dt: float) -> void:
 	if not game_state:
 		return
 
-	# Only in 2P mode during gameplay-related states
-	var should_show := false
-	var target_player := 0
-
+	var should_show: bool = false
+	var target_player: int = _dead_player
 	if game_state.num_players >= 2:
-		var playing_states := [Constants.STATE_PLAYING, Constants.STATE_CORRECT,
-			Constants.STATE_GAME_OVER, Constants.STATE_GOAL_RACE]
-		
+		var playing_states := [
+			Constants.STATE_PLAYING,
+			Constants.STATE_CORRECT,
+			Constants.STATE_GAME_OVER,
+			Constants.STATE_GOAL_RACE,
+		]
 		if game_state.game_state in playing_states:
-			var p1_dead := not game_state.p1_alive
-			var p2_dead := not game_state.p2_alive
+			# 落下直後は alive のままサメ待機へ入るため、死亡フラグより
+			# waiting_for_shark を優先して表示を維持する。
+			if _active and _dead_player in [1, 2]:
+				var waiting_for_shark: bool = game_state.is_player_waiting_for_shark(
+					_dead_player
+				)
+				var current_timer: float = (
+					game_state.game_over_timer
+					if _dead_player == 1
+					else game_state.player2_game_over_timer
+				)
+				should_show = waiting_for_shark or (
+					current_timer > 0.0 and current_timer < 4.0
+				)
 
-			if p1_dead and not p2_dead and game_state.game_over_timer > 0 and game_state.game_over_timer < 4.0:
-				should_show = true
-				target_player = 1
-			elif p2_dead and not p1_dead and game_state.player2_game_over_timer > 0 and game_state.player2_game_over_timer < 4.0:
-				should_show = true
-				target_player = 2
-			# Keep showing briefly after both die (game over state)
-			elif p1_dead and p2_dead and _active:
-				var current_timer := game_state.game_over_timer if _dead_player == 1 else game_state.player2_game_over_timer
-				if current_timer < 4.0:
+			# 海以外の死亡でも従来どおりワイプを出せるフォールバック。
+			if not should_show and not _active:
+				if (
+					not game_state.p1_alive
+					and game_state.p2_alive
+					and game_state.game_over_timer > 0.0
+					and game_state.game_over_timer < 4.0
+				):
 					should_show = true
-					target_player = _dead_player
+					target_player = 1
+				elif (
+					not game_state.p2_alive
+					and game_state.p1_alive
+					and game_state.player2_game_over_timer > 0.0
+					and game_state.player2_game_over_timer < 4.0
+				):
+					should_show = true
+					target_player = 2
 
 	if should_show:
 		if not _active or _is_hiding:
@@ -98,7 +130,6 @@ func _process(dt: float) -> void:
 	else:
 		_hide_wipe()
 
-	# If active (including while sliding out), continue updating animation
 	if _active:
 		_update_wipe(dt)
 
@@ -186,41 +217,44 @@ func _update_wipe_camera() -> void:
 	var px: float
 	var py: float
 	var local_z: float
-	var death_timer: float
 
 	if _dead_player == 1:
 		px = game_state.player_x
 		py = game_state.player_y
 		local_z = game_state.player_local_z
-		death_timer = game_state.game_over_timer
 	else:
 		px = game_state.player2_x
 		py = game_state.player2_y
 		local_z = game_state.player2_local_z
-		death_timer = game_state.player2_game_over_timer
 
-	var cam_eye: Vector3
-	var cam_target: Vector3
+	var player_position: Vector3 = Vector3(px, py + 0.65, local_z)
+	var shark_position: Vector3 = Vector3.ZERO
+	var has_shark: bool = false
+	var current_scene: Node = get_tree().current_scene
+	if current_scene != null and current_scene.has_method("get_ocean_attack_shark_position"):
+		var shark_position_variant: Variant = current_scene.get_ocean_attack_shark_position(_dead_player)
+		if shark_position_variant is Vector3:
+			shark_position = shark_position_variant
+			has_shark = true
 
-	if death_timer < 2.0:
-		# Phase 1: Watch the player tumble and fall into ocean
-		# Camera positioned slightly to the side and above, looking down
-		var fall_progress := clampf(death_timer / 2.0, 0.0, 1.0)
-		var cam_y := py + 2.5 + fall_progress * 3.0  # Rise as player falls
-		cam_eye = Vector3(px + 3.0, cam_y, local_z - 3.5)
-		cam_target = Vector3(px, py, local_z)
-	else:
-		# Phase 2: Drift above the impact point after the player sinks out of view
-		var sink_t: float = death_timer - 2.0
-		var orbit_angle: float = sink_t * 0.35
-		var radius: float = 4.0
-		var target_y: float = StageConstants.OCEAN_SURFACE_Y
-		cam_eye = Vector3(
-			px + sin(orbit_angle) * radius,
-			target_y + 3.8 + sin(sink_t * 1.2) * 0.25,
-			local_z - cos(orbit_angle) * radius
+	var cam_eye: Vector3 = player_position + Vector3(3.0, 2.5, -3.5)
+	var cam_target: Vector3 = player_position
+	var camera_controller: Node = null
+	if current_scene != null:
+		camera_controller = current_scene.get_node_or_null("CameraController")
+	if (
+		camera_controller != null
+		and camera_controller.has_method("get_ocean_attack_camera_pose")
+	):
+		# 1Pのサメ接近カメラと同じ位置・注視点・FOVをそのまま使用する。
+		var pose: Dictionary = camera_controller.get_ocean_attack_camera_pose(
+			player_position,
+			shark_position,
+			has_shark
 		)
-		cam_target = Vector3(px, target_y, local_z)
+		cam_eye = pose.get("eye", cam_eye)
+		cam_target = pose.get("target", cam_target)
+		wipe_camera.fov = float(pose.get("fov", wipe_camera.fov))
 
 	wipe_camera.global_position = cam_eye
 	wipe_camera.look_at(cam_target, Vector3.UP)

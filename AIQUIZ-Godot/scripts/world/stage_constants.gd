@@ -36,6 +36,7 @@ const OCEAN_SHADER: Shader = preload("res://shaders/ocean.gdshader")
 ## 海面描画と落下・沈下演出の共通基準。
 const OCEAN_SURFACE_Y: float = -9.2
 const OCEAN_ENTRY_Y: float = -8.0
+const OCEAN_FLOAT_Y: float = OCEAN_SURFACE_Y + 0.25
 const OCEAN_SINK_Y: float = -11.8
 const OCEAN_SINK_SPEED: float = 1.9
 const OCEAN_CENTER_Z: float = 150.0

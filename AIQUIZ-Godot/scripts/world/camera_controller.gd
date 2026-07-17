@@ -19,6 +19,9 @@ var _entry_start_fov: float = 44.0
 var _entry_start_h_offset: float = 0.0
 var _entry_blend_active: bool = false
 var _entry_blend_t: float = 0.0
+var _ocean_attack_focus: Vector3 = Vector3.ZERO
+var _has_ocean_attack_focus: bool = false
+var _ocean_attack_camera_active: bool = false
 
 const ENTRY_BLEND_DURATION := 0.95
 const PRELOAD_CAMERA_FOV := 66.0
@@ -33,6 +36,15 @@ func _ready() -> void:
 	camera.near = 0.1
 	camera.far = 500.0
 	_consume_transition_camera_pose()
+
+func set_ocean_attack_focus(shark_position: Vector3) -> void:
+	_ocean_attack_focus = shark_position
+	_has_ocean_attack_focus = true
+
+
+func clear_ocean_attack_focus() -> void:
+	_has_ocean_attack_focus = false
+
 
 func wait_for_entry_blend() -> void:
 	if not _entry_blend_active:
@@ -63,6 +75,17 @@ func update_camera(gs: QuizGameState, dt: float) -> void:
 	if gs.game_state == Constants.STATE_FLYOVER:
 		_update_flyover_camera(gs, dt)
 		return
+
+	# 2P中のサメ演出は DeathWipe の専用カメラだけで表示する。
+	# 生存中のプレイヤーのメイン画面を、落下側の演出で奪わない。
+	var ocean_attack_active: bool = (
+		gs.num_players < 2
+		and gs.p1_waiting_for_shark
+	)
+	if ocean_attack_active:
+		_update_ocean_attack_camera(gs, dt)
+		return
+	_ocean_attack_camera_active = false
 
 	if gs.num_players >= 2:
 		# === 2-PLAYER: top-down view ===
@@ -157,6 +180,86 @@ func update_camera(gs: QuizGameState, dt: float) -> void:
 ## フライオーバーカメラ演出 (2フェーズ)
 ## Phase 1 (0.0–0.55): 最後の壁から後方まで一気に止まらず飛行（+Z方向を向いたまま）
 ## Phase 2 (0.55–1.0): 後方からFPS一人称視点へゆっくり復帰
+func get_ocean_attack_camera_pose(
+	player_position: Vector3,
+	shark_position: Vector3,
+	has_shark_focus: bool
+) -> Dictionary:
+	var resolved_shark_position: Vector3 = shark_position
+	if not has_shark_focus:
+		var outward_sign: float = signf(player_position.x)
+		if is_zero_approx(outward_sign):
+			outward_sign = 1.0
+		resolved_shark_position = player_position + Vector3(outward_sign * 15.0, -1.0, -8.0)
+
+	var separation: float = clampf(
+		player_position.distance_to(resolved_shark_position),
+		4.0,
+		34.0
+	)
+	var same_side_of_stage: bool = (
+		absf(player_position.x) >= StageConstants.FLOOR_HALF_WIDTH
+		and absf(resolved_shark_position.x) >= StageConstants.FLOOR_HALF_WIDTH
+		and signf(player_position.x) == signf(resolved_shark_position.x)
+	)
+	var framing_anchor: Vector3 = player_position
+	if has_shark_focus and same_side_of_stage:
+		framing_anchor = player_position.lerp(resolved_shark_position, 0.5)
+
+	var orbit_distance: float = 9.0 + separation * 0.14
+	var vertical_lift: float = 7.0 + separation * 0.11
+	var desired_eye: Vector3 = framing_anchor + Vector3(0.0, vertical_lift, -7.0)
+	var floor_half_length: float = StageConstants.GAME_FLOOR_LENGTH * 0.5
+	var floor_min_z: float = StageConstants.GAME_FLOOR_CENTER_Z - floor_half_length
+	var floor_max_z: float = StageConstants.GAME_FLOOR_CENTER_Z + floor_half_length
+	if absf(player_position.x) >= StageConstants.FLOOR_HALF_WIDTH:
+		desired_eye.x += signf(player_position.x) * orbit_distance
+	elif player_position.z >= floor_max_z or player_position.z <= floor_min_z:
+		var outward_z: float = signf(player_position.z - StageConstants.GAME_FLOOR_CENTER_Z)
+		desired_eye.z += outward_z * orbit_distance
+	else:
+		var approach: Vector3 = resolved_shark_position - player_position
+		var horizontal: Vector3 = Vector3(approach.x, 0.0, approach.z)
+		if horizontal.length_squared() < 0.01:
+			horizontal = Vector3.FORWARD
+		horizontal = horizontal.normalized()
+		var camera_side: Vector3 = Vector3(-horizontal.z, 0.0, horizontal.x)
+		desired_eye += camera_side * orbit_distance
+
+	return {
+		"eye": desired_eye,
+		"target": framing_anchor + Vector3(0.0, -0.45, 0.0),
+		"fov": clampf(55.0 + separation * 0.24, 57.0, 64.0),
+	}
+
+
+func _update_ocean_attack_camera(gs: QuizGameState, dt: float) -> void:
+	var player_position: Vector3
+	if gs.p1_waiting_for_shark:
+		player_position = Vector3(gs.player_x, gs.player_y + 0.65, gs.player_local_z)
+	else:
+		player_position = Vector3(gs.player2_x, gs.player2_y + 0.65, gs.player2_local_z)
+
+	var pose: Dictionary = get_ocean_attack_camera_pose(
+		player_position,
+		_ocean_attack_focus,
+		_has_ocean_attack_focus
+	)
+	var desired_eye: Vector3 = pose.get("eye", camera.global_position)
+	var desired_target: Vector3 = pose.get("target", player_position)
+	var desired_fov: float = float(pose.get("fov", 60.0))
+	var blend: float = clampf(dt * 4.5, 0.0, 1.0)
+	camera.h_offset = 0.0
+	if not _ocean_attack_camera_active:
+		camera.global_position = desired_eye
+		camera.fov = desired_fov
+		_ocean_attack_camera_active = true
+	else:
+		camera.fov = lerpf(camera.fov, desired_fov, blend)
+		camera.global_position = camera.global_position.lerp(desired_eye, blend)
+	camera.look_at(desired_target, Vector3.UP)
+
+
 func _update_flyover_camera(gs: QuizGameState, _dt: float) -> void:
 	var t := gs.tuning
 	var progress: float = clampf(gs.flyover_timer / gs.flyover_duration, 0.0, 1.0)

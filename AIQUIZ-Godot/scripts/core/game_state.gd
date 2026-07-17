@@ -90,6 +90,10 @@ var flyover_total_walls: int = 10
 # --- Multiplayer ---
 var num_players: int = 1
 var p1_alive: bool = true
+var p1_waiting_for_shark: bool = false
+var p1_shark_killed: bool = false
+var p1_ocean_float_time: float = 0.0
+var p1_ocean_local_z: float = 0.0
 var p1_emote: int = 0
 
 var player2_x: float = 0.0
@@ -99,6 +103,10 @@ var player2_score: int = 0
 var player2_vel_y: float = 0.0
 var player2_vel_z: float = 0.0
 var p2_alive: bool = true
+var p2_waiting_for_shark: bool = false
+var p2_shark_killed: bool = false
+var p2_ocean_float_time: float = 0.0
+var p2_ocean_local_z: float = 0.0
 var p2_emote: int = 0
 var p1_moving_back: bool = false
 var p2_moving_back: bool = false
@@ -248,6 +256,7 @@ func cycle_difficulty(delta: int) -> void:
 # ---------- Game lifecycle ----------
 
 func start_game() -> void:
+	_reset_ocean_shark_state()
 	if is_coop_mode():
 		num_players = 2
 	score = 0
@@ -325,6 +334,7 @@ func _should_rebuild_coop_quiz(quiz: QuizItem) -> bool:
 		or quiz.coop_p2_label.contains("ヒント")
 
 func start_tutorial(tutorial_players: int = 1) -> void:
+	_reset_ocean_shark_state()
 	pre_tutorial_subject = subject
 	pre_tutorial_grade = grade
 	pre_tutorial_difficulty = difficulty
@@ -450,6 +460,7 @@ func _build_tutorial_quizzes() -> Array[QuizItem]:
 	return quizzes_solo
 
 func reset_to_menu() -> void:
+	_reset_ocean_shark_state()
 	provider.end_round()
 	if mode == Constants.MODE_TUTORIAL:
 		subject = pre_tutorial_subject
@@ -770,7 +781,7 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 	p2_moving_back = axis_p2.y < -0.1
 
 	# Player 1 movement
-	if p1_alive:
+	if p1_alive and not p1_waiting_for_shark:
 		var yaw: float = camera_yaw if num_players == 1 else 0.0
 		var move_x: float = axis_p1.x * cos(yaw) + axis_p1.y * sin(yaw)
 		var move_z: float = axis_p1.y * cos(yaw) - axis_p1.x * sin(yaw)
@@ -804,28 +815,15 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 				else:
 					_reset_tutorial_attempt("床から落ちました。中央に戻して、同じ壁でもう一度練習しましょう。")
 				return
-			if is_coop_mode():
-				_emit_player_entered_ocean(1)
-				_fail_coop_immediately("P1が落下しました。協力失敗です。")
-				return
-			_emit_player_entered_ocean(1)
-			player_y = StageConstants.OCEAN_ENTRY_Y
-			player_vel_y = 0.0
-			p1_alive = false
-			game_over_timer = 0.001
-			if num_players == 1 or not p2_alive:
-				if current_quiz and not choice_locked:
-					choice_locked = true
-					provider.submit_result(current_quiz, false)
-					quiz_history.append({"quiz": current_quiz, "correct": false, "rated": ""})
-				_game_over("海に落ちてしまった！" if not use_english_ui else "Fell into the ocean!")
-				wrong_answer.emit(message_text)
+			_begin_ocean_shark_wait(1)
+	elif p1_alive and p1_waiting_for_shark:
+		_update_ocean_float(1, dt)
 	elif game_over_timer > 0.0:
 		# Tick explosion timer for dead P1 while game continues (2P)
 		game_over_timer += dt
 
 	# Player 2 movement
-	if num_players >= 2 and p2_alive:
+	if num_players >= 2 and p2_alive and not p2_waiting_for_shark:
 		player2_x += axis_p2.x * tuning.player_speed * dt
 		# Removed clamp
 
@@ -852,22 +850,9 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 			if _is_tutorial_mode():
 				_reset_tutorial_attempt("P2が床から落ちました。2人ともスタート位置へ戻して、同じ壁でもう一度練習しましょう。")
 				return
-			if is_coop_mode():
-				_emit_player_entered_ocean(2)
-				_fail_coop_immediately("P2が落下しました。協力失敗です。")
-				return
-			_emit_player_entered_ocean(2)
-			player2_y = StageConstants.OCEAN_ENTRY_Y
-			player2_vel_y = 0.0
-			p2_alive = false
-			player2_game_over_timer = 0.001
-			if not p1_alive:
-				if current_quiz and not choice_locked:
-					choice_locked = true
-					provider.submit_result(current_quiz, false)
-					quiz_history.append({"quiz": current_quiz, "correct": false, "rated": ""})
-				_game_over("海に落ちてしまった！" if not use_english_ui else "Fell into the ocean!")
-				wrong_answer.emit(message_text)
+			_begin_ocean_shark_wait(2)
+	elif num_players >= 2 and p2_alive and p2_waiting_for_shark:
+		_update_ocean_float(2, dt)
 	elif num_players >= 2 and not p2_alive:
 		if player2_game_over_timer > 0.0:
 			# Tick explosion timer for dead P2 while game continues
@@ -876,7 +861,13 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 	_sink_ocean_players(dt)
 
 	# スクロールアウト死 (画面外に取り残された場合の脱落)
-	if num_players >= 2 and p1_alive and p2_alive:
+	if (
+		num_players >= 2
+		and p1_alive
+		and p2_alive
+		and not p1_waiting_for_shark
+		and not p2_waiting_for_shark
+	):
 		const SCROLL_OUT_LIMIT: float = 14.0
 		if player_z - player2_z > SCROLL_OUT_LIMIT:
 			# P2 が遅れて画面外に消えた
@@ -900,8 +891,13 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 			game_over_timer = 0.001
 
 	# Check collisions with wall
-	var p1_hit: bool = p1_alive and player_z >= wall_z - 0.4
-	var p2_hit: bool = num_players >= 2 and p2_alive and player2_z >= wall_z - 0.4
+	var p1_hit: bool = p1_alive and not p1_waiting_for_shark and player_z >= wall_z - 0.4
+	var p2_hit: bool = (
+		num_players >= 2
+		and p2_alive
+		and not p2_waiting_for_shark
+		and player2_z >= wall_z - 0.4
+	)
 
 	if p1_hit or p2_hit:
 		# Prevent clipping through
@@ -963,7 +959,7 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 	p2_moving_back = axis_p2.y < -0.1
 
 	# Player 1 movement
-	if p1_alive:
+	if p1_alive and not p1_waiting_for_shark:
 		player_x += axis_p1.x * tuning.player_speed * dt
 		player_z += _active_wall_speed * dt
 		player_z += axis_p1.y * tuning.player_speed * dt
@@ -980,14 +976,12 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 			player_y = 0.0
 			player_vel_y = 0.0
 		if player_y < StageConstants.OCEAN_ENTRY_Y:
-			_emit_player_entered_ocean(1)
-			player_y = StageConstants.OCEAN_ENTRY_Y
-			player_vel_y = 0.0
-			p1_alive = false
-			game_over_timer = 0.001
+			_begin_ocean_shark_wait(1)
+	elif p1_alive and p1_waiting_for_shark:
+		_update_ocean_float(1, dt)
 
 	# Player 2 movement
-	if p2_alive:
+	if p2_alive and not p2_waiting_for_shark:
 		player2_x += axis_p2.x * tuning.player_speed * dt
 		player2_z += _active_wall_speed * dt
 		player2_z += axis_p2.y * tuning.player_speed * dt
@@ -1004,11 +998,9 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 			player2_y = 0.0
 			player2_vel_y = 0.0
 		if player2_y < StageConstants.OCEAN_ENTRY_Y:
-			_emit_player_entered_ocean(2)
-			player2_y = StageConstants.OCEAN_ENTRY_Y
-			player2_vel_y = 0.0
-			p2_alive = false
-			player2_game_over_timer = 0.001
+			_begin_ocean_shark_wait(2)
+	elif p2_alive and p2_waiting_for_shark:
+		_update_ocean_float(2, dt)
 
 	# Tick explosion timers for dead players
 	if not p1_alive and game_over_timer > 0:
@@ -1019,8 +1011,8 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 	_sink_ocean_players(dt)
 
 	# ゴール判定
-	var p1_reached := p1_alive and player_z >= goal_z
-	var p2_reached := p2_alive and player2_z >= goal_z
+	var p1_reached := p1_alive and not p1_waiting_for_shark and player_z >= goal_z
+	var p2_reached := p2_alive and not p2_waiting_for_shark and player2_z >= goal_z
 
 	if p1_reached or p2_reached:
 		if p1_reached and p2_reached:
@@ -1212,6 +1204,7 @@ func _tutorial_answer_label(answer: int) -> String:
 	return "正解"
 
 func _reset_tutorial_attempt(hint: String) -> void:
+	_reset_ocean_shark_state()
 	var reset_z := float(current_wall_index) * tuning.wall_spacing
 	player_x = 1.5 if num_players >= 2 else 0.0
 	player_y = 0.0
@@ -1325,11 +1318,134 @@ func _coop_failure_message(p1_door: int, p2_door: int) -> String:
 		])
 	return "\n".join(lines)
 
+func _reset_ocean_shark_state() -> void:
+	p1_waiting_for_shark = false
+	p2_waiting_for_shark = false
+	p1_shark_killed = false
+	p2_shark_killed = false
+	p1_ocean_float_time = 0.0
+	p2_ocean_float_time = 0.0
+	p1_ocean_local_z = 0.0
+	p2_ocean_local_z = 0.0
+
+
+func _begin_ocean_shark_wait(player_index: int) -> void:
+	if player_index == 1:
+		if p1_waiting_for_shark or not p1_alive:
+			return
+		p1_waiting_for_shark = true
+		p1_shark_killed = false
+		p1_ocean_float_time = 0.0
+		p1_ocean_local_z = player_local_z
+		player_y = StageConstants.OCEAN_FLOAT_Y
+		player_vel_y = 0.0
+		player_vel_z = 0.0
+		p1_moving_back = false
+		p1_jump_trigger = false
+	else:
+		if p2_waiting_for_shark or not p2_alive:
+			return
+		p2_waiting_for_shark = true
+		p2_shark_killed = false
+		p2_ocean_float_time = 0.0
+		p2_ocean_local_z = player2_local_z
+		player2_y = StageConstants.OCEAN_FLOAT_Y
+		player2_vel_y = 0.0
+		player2_vel_z = 0.0
+		p2_moving_back = false
+		p2_jump_trigger = false
+	_emit_player_entered_ocean(player_index)
+
+
+func _update_ocean_float(player_index: int, dt: float) -> void:
+	if player_index == 1:
+		p1_ocean_float_time += dt
+		player_y = StageConstants.OCEAN_FLOAT_Y + sin(p1_ocean_float_time * 2.35) * 0.12
+		player_z = world_scroll_z + p1_ocean_local_z
+		player_vel_y = 0.0
+		player_vel_z = 0.0
+		p1_moving_back = false
+		p1_jump_trigger = false
+	else:
+		p2_ocean_float_time += dt
+		player2_y = StageConstants.OCEAN_FLOAT_Y + sin(p2_ocean_float_time * 2.35 + 1.1) * 0.12
+		player2_z = world_scroll_z + p2_ocean_local_z
+		player2_vel_y = 0.0
+		player2_vel_z = 0.0
+		p2_moving_back = false
+		p2_jump_trigger = false
+
+
+func is_player_waiting_for_shark(player_index: int) -> bool:
+	return p1_waiting_for_shark if player_index == 1 else p2_waiting_for_shark
+
+
+func get_ocean_player_local_position(player_index: int) -> Vector3:
+	if player_index == 1:
+		return Vector3(player_x, StageConstants.OCEAN_SURFACE_Y, p1_ocean_local_z)
+	return Vector3(player2_x, StageConstants.OCEAN_SURFACE_Y, p2_ocean_local_z)
+
+
+func complete_ocean_shark_attack(player_index: int) -> void:
+	if not is_player_waiting_for_shark(player_index):
+		return
+
+	if player_index == 1:
+		p1_waiting_for_shark = false
+		p1_shark_killed = true
+		p1_alive = false
+		player_y = StageConstants.OCEAN_FLOAT_Y
+		player_vel_y = 0.0
+		game_over_timer = 0.001
+	else:
+		p2_waiting_for_shark = false
+		p2_shark_killed = true
+		p2_alive = false
+		player2_y = StageConstants.OCEAN_FLOAT_Y
+		player2_vel_y = 0.0
+		player2_game_over_timer = 0.001
+
+	camera_shake = 0.75
+	if is_coop_mode():
+		var coop_message: String = (
+			"P%dがサメに襲われました。協力失敗です。" % player_index
+			if not use_english_ui
+			else "P%d was caught by a shark. Co-op failed." % player_index
+		)
+		_fail_coop_immediately(coop_message)
+		return
+
+	var all_players_defeated: bool = (
+		not p1_alive
+		and (num_players < 2 or not p2_alive)
+	)
+	if not all_players_defeated:
+		return
+
+	if current_quiz and not choice_locked:
+		choice_locked = true
+		provider.submit_result(current_quiz, false)
+		quiz_history.append({"quiz": current_quiz, "correct": false, "rated": ""})
+	var message: String = (
+		"海でサメに襲われた！"
+		if not use_english_ui
+		else "A shark caught you in the ocean!"
+	)
+	_game_over(message)
+	wrong_answer.emit(message_text)
+
+
 func _sink_ocean_players(dt: float) -> void:
-	if not p1_alive and game_over_timer > 0.0 and player_y <= StageConstants.OCEAN_ENTRY_Y:
+	if p1_shark_killed:
+		player_y = StageConstants.OCEAN_FLOAT_Y
+		player_vel_y = 0.0
+	elif not p1_alive and game_over_timer > 0.0 and player_y <= StageConstants.OCEAN_ENTRY_Y:
 		player_y = move_toward(player_y, StageConstants.OCEAN_SINK_Y, StageConstants.OCEAN_SINK_SPEED * dt)
 		player_vel_y = 0.0
-	if num_players >= 2 and not p2_alive and player2_game_over_timer > 0.0 and player2_y <= StageConstants.OCEAN_ENTRY_Y:
+	if p2_shark_killed:
+		player2_y = StageConstants.OCEAN_FLOAT_Y
+		player2_vel_y = 0.0
+	elif num_players >= 2 and not p2_alive and player2_game_over_timer > 0.0 and player2_y <= StageConstants.OCEAN_ENTRY_Y:
 		player2_y = move_toward(player2_y, StageConstants.OCEAN_SINK_Y, StageConstants.OCEAN_SINK_SPEED * dt)
 		player2_vel_y = 0.0
 
@@ -1378,6 +1494,8 @@ func _fail_coop_immediately(msg: String) -> void:
 	if choice_locked:
 		return
 	choice_locked = true
+	p1_waiting_for_shark = false
+	p2_waiting_for_shark = false
 	p1_alive = false
 	p2_alive = false
 	game_over_timer = 0.001
@@ -1893,6 +2011,10 @@ func to_snapshot() -> Dictionary:
 		"p1z": player_z,
 		"p1vy": player_vel_y,
 		"p1a": p1_alive,
+		"p1sw": p1_waiting_for_shark,
+		"p1sk": p1_shark_killed,
+		"p1oft": p1_ocean_float_time,
+		"p1olz": p1_ocean_local_z,
 		"p1e": p1_emote,
 		"p1mb": p1_moving_back,
 		"s1": score,
@@ -1902,6 +2024,10 @@ func to_snapshot() -> Dictionary:
 		"p2z": player2_z,
 		"p2vy": player2_vel_y,
 		"p2a": p2_alive,
+		"p2sw": p2_waiting_for_shark,
+		"p2sk": p2_shark_killed,
+		"p2oft": p2_ocean_float_time,
+		"p2olz": p2_ocean_local_z,
 		"p2e": p2_emote,
 		"p2mb": p2_moving_back,
 		"s2": player2_score,
@@ -1947,6 +2073,10 @@ func apply_snapshot(data: Dictionary) -> void:
 	player_z = data.get("p1z", player_z)
 	player_vel_y = data.get("p1vy", player_vel_y)
 	p1_alive = data.get("p1a", p1_alive)
+	p1_waiting_for_shark = data.get("p1sw", p1_waiting_for_shark)
+	p1_shark_killed = data.get("p1sk", p1_shark_killed)
+	p1_ocean_float_time = data.get("p1oft", p1_ocean_float_time)
+	p1_ocean_local_z = data.get("p1olz", p1_ocean_local_z)
 	p1_emote = data.get("p1e", p1_emote)
 	p1_moving_back = data.get("p1mb", p1_moving_back)
 	score = int(data.get("s1", score))
@@ -1956,6 +2086,10 @@ func apply_snapshot(data: Dictionary) -> void:
 	player2_z = data.get("p2z", player2_z)
 	player2_vel_y = data.get("p2vy", player2_vel_y)
 	p2_alive = data.get("p2a", p2_alive)
+	p2_waiting_for_shark = data.get("p2sw", p2_waiting_for_shark)
+	p2_shark_killed = data.get("p2sk", p2_shark_killed)
+	p2_ocean_float_time = data.get("p2oft", p2_ocean_float_time)
+	p2_ocean_local_z = data.get("p2olz", p2_ocean_local_z)
 	p2_emote = data.get("p2e", p2_emote)
 	p2_moving_back = data.get("p2mb", p2_moving_back)
 	player2_score = int(data.get("s2", player2_score))

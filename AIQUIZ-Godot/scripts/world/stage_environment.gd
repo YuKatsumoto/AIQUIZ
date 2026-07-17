@@ -8,6 +8,7 @@ extends Node3D
 ## 壁・プレイヤー・演出は各レイヤー（MenuPreviewLayer / GamePlayLayer）が別に持つ。
 
 const CONVEYOR_FLOOR_SHADER: Shader = preload("res://shaders/conveyor_belt_floor.gdshader")
+const SHARK_SWIMMER_SCENE: PackedScene = preload("res://scenes/shark_swimmer.tscn")
 
 # --- 構成オプション ---
 var _scroll_sign: float = 1.0
@@ -15,6 +16,7 @@ var _return_scroll_sign: float = -1.0
 var _include_back_roller: bool = true
 var _include_floor_collision: bool = true
 var _is_preview_environment: bool = false
+var _include_sharks: bool = false
 
 # --- ノード参照 ---
 var floor_mesh: MeshInstance3D = null
@@ -49,12 +51,15 @@ func build(config: Dictionary = {}) -> void:
 	_include_back_roller = bool(config.get("include_back_roller", true))
 	_include_floor_collision = bool(config.get("include_floor_collision", true))
 	_is_preview_environment = bool(config.get("is_preview", false))
+	_include_sharks = bool(config.get("include_sharks", false))
 
 	_setup_environment()
 	_setup_lighting()
 	_setup_floor()
 	_setup_floor_conveyor()
 	_setup_ocean()
+	if _include_sharks:
+		_setup_sharks()
 
 	set_floor_geometry(_floor_center_z, _floor_length)
 
@@ -287,6 +292,81 @@ func _make_roller(roller_mesh: CylinderMesh, mat: ShaderMaterial) -> MeshInstanc
 
 func _setup_ocean() -> void:
 	add_child(create_ocean_surface())
+
+
+func _setup_sharks() -> void:
+	var school: Node3D = Node3D.new()
+	school.name = "OceanSharks"
+	add_child(school)
+
+	var centers: Array[Vector3]
+	var radii: Array[Vector2]
+	var speeds: Array[float]
+	var phases: Array[float]
+	var scales: Array[float]
+
+	if _is_preview_environment:
+		# 奥側から画面手前まで、床の左側を大きく往復するメニュー用回遊ルート。
+		centers = [
+			Vector3(-17.0, StageConstants.OCEAN_SURFACE_Y + 0.55, -76.0),
+		]
+		radii = [
+			Vector2(2.0, 56.0),
+		]
+		speeds = [0.09]
+		phases = [0.25]
+		scales = [1.45]
+	else:
+		centers = [
+			Vector3(-18.0, StageConstants.OCEAN_SURFACE_Y - 0.42, 35.0),
+			Vector3(18.0, StageConstants.OCEAN_SURFACE_Y - 0.42, 35.0),
+		]
+		radii = [
+			Vector2(2.3, 30.0),
+			Vector2(2.3, 30.0),
+		]
+		speeds = [0.24, 0.22]
+		phases = [0.0, PI]
+		scales = [1.25, 1.18]
+
+	for index: int in range(centers.size()):
+		var shark: SharkSwimmer = SHARK_SWIMMER_SCENE.instantiate() as SharkSwimmer
+		if shark == null:
+			push_warning("Failed to instantiate ocean shark %d" % (index + 1))
+			continue
+		shark.name = (
+			"PreviewShark_%02d" % (index + 1)
+			if _is_preview_environment
+			else "AmbientShark_%02d" % (index + 1)
+		)
+		shark.position = centers[index]
+		shark.orbit_radius = radii[index]
+		shark.swim_speed = speeds[index]
+		shark.phase = phases[index]
+		shark.animation_speed = 0.92 + float(index) * 0.08
+		shark.model_scale = scales[index]
+		shark.bite_distance = maxf(shark.bite_distance, shark.model_scale * 4.0)
+		school.add_child(shark)
+
+
+func get_ocean_sharks() -> Array[SharkSwimmer]:
+	var sharks: Array[SharkSwimmer] = []
+	var school: Node3D = get_node_or_null("OceanSharks") as Node3D
+	if school == null:
+		return sharks
+	for child: Node in school.get_children():
+		var shark: SharkSwimmer = child as SharkSwimmer
+		if shark != null:
+			sharks.append(shark)
+	return sharks
+
+
+func get_floor_center_z() -> float:
+	return _floor_center_z
+
+
+func get_floor_length() -> float:
+	return _floor_length
 
 
 static func create_ocean_surface() -> MeshInstance3D:

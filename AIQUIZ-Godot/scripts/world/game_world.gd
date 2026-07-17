@@ -23,7 +23,10 @@ var _fireworks_launched: bool = false
 var _prev_p2_go_timer: float = 0.0
 var _prev_player_y: float = 0.0
 var _prev_p2_y: float = 0.0
+var _ocean_attack_sharks: Dictionary = {}
 var _active_walls: Array[Node3D] = []
+const MERGE_EFFECT_POOL_SIZE := 6
+const MERGE_SPARK_BASE_AMOUNT := 40
 var _merge_effect_pool: Array[Dictionary] = []
 var _flyover_walls: Array[Node3D] = []
 var _flyover_active: bool = false
@@ -44,6 +47,7 @@ var _barrier_dropping: bool = false
 var _barrier_drop_timer: float = 0.0
 var _barrier_spawned_for_session: bool = false  # 1ゲームに1回だけ
 const MAX_VISIBLE_WALLS := 4
+const PREVIEW_WALLS_PER_FRAME := 1
 
 var pause_menu: CanvasLayer = null
 
@@ -64,6 +68,7 @@ func _ready() -> void:
 	game_state.quiz_loaded.connect(_on_quiz_loaded)
 	game_state.correct_answer.connect(_on_correct)
 	game_state.wrong_answer.connect(_on_wrong)
+	game_state.player_entered_ocean.connect(_on_player_entered_ocean)
 
 	# リプレイ記録を開始（通常モードのみ）
 	# TODO: 一旦リプレイ機能を封印するため無効化
@@ -79,6 +84,7 @@ func _ready() -> void:
 
 	# Setup shared stage (environment / lighting / floor / conveyor / ocean)
 	stage_env = StageEnvironment.new()
+	stage_env.name = "StageEnvironment"
 	add_child(stage_env)
 	stage_env.build({
 		"floor_center_z": 4.0,
@@ -87,12 +93,123 @@ func _ready() -> void:
 		"return_scroll_sign": -1.0,
 		"include_back_roller": true,
 		"include_floor_collision": true,
+		"include_sharks": true,
 	})
+	_setup_ocean_shark_signals()
+	_warm_merge_effect_pool()
 
 	# Pause menu setup
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_build_pause_menu()
 	call_deferred("_reveal_after_transition")
+
+func _setup_ocean_shark_signals() -> void:
+	if stage_env == null:
+		return
+	for shark: SharkSwimmer in stage_env.get_ocean_sharks():
+		var callback: Callable = _on_shark_attack_reached.bind(shark)
+		if not shark.attack_reached.is_connected(callback):
+			shark.attack_reached.connect(callback)
+
+
+func _on_player_entered_ocean(player_index: int, local_position: Vector3) -> void:
+	if particle_spawner.has_method("spawn_ocean_splash"):
+		particle_spawner.spawn_ocean_splash(local_position)
+	_start_ocean_shark_attack(player_index, local_position)
+
+
+func _start_ocean_shark_attack(player_index: int, target_position: Vector3) -> void:
+	if stage_env == null:
+		return
+	var assigned_variant: Variant = _ocean_attack_sharks.get(player_index)
+	var assigned_shark: SharkSwimmer = assigned_variant as SharkSwimmer
+	if assigned_shark != null and is_instance_valid(assigned_shark):
+		assigned_shark.set_attack_target(target_position)
+		return
+
+	var selected_shark: SharkSwimmer = null
+	var best_score: float = INF
+	var target_side: float = 0.0
+	if absf(target_position.x) >= StageConstants.FLOOR_HALF_WIDTH:
+		target_side = signf(target_position.x)
+	for shark: SharkSwimmer in stage_env.get_ocean_sharks():
+		if shark.is_attacking:
+			continue
+		var shark_side: float = signf(shark.position.x)
+		var opposite_side_penalty: float = (
+			10000.0
+			if not is_zero_approx(target_side) and shark_side != target_side
+			else 0.0
+		)
+		var score: float = opposite_side_penalty + shark.position.distance_to(target_position)
+		if score < best_score:
+			best_score = score
+			selected_shark = shark
+
+	if selected_shark == null:
+		push_warning("No available shark for ocean attack on P%d" % player_index)
+		return
+	if selected_shark.begin_attack(
+		player_index,
+		target_position,
+		stage_env.get_floor_center_z(),
+		stage_env.get_floor_length()
+	):
+		_ocean_attack_sharks[player_index] = selected_shark
+
+
+func get_ocean_attack_shark_position(player_index: int) -> Variant:
+	var shark_variant: Variant = _ocean_attack_sharks.get(player_index)
+	var shark: SharkSwimmer = shark_variant as SharkSwimmer
+	if shark != null and is_instance_valid(shark):
+		return shark.global_position
+	return null
+
+
+func _update_ocean_shark_attacks() -> void:
+	var player_count: int = maxi(1, game_state.num_players)
+	for player_index: int in range(1, player_count + 1):
+		if game_state.is_player_waiting_for_shark(player_index):
+			var target_position: Vector3 = game_state.get_ocean_player_local_position(player_index)
+			if not _ocean_attack_sharks.has(player_index):
+				_start_ocean_shark_attack(player_index, target_position)
+			var shark_variant: Variant = _ocean_attack_sharks.get(player_index)
+			var shark: SharkSwimmer = shark_variant as SharkSwimmer
+			if shark != null and is_instance_valid(shark):
+				# Refresh the target every frame so the bite stays locked to the player.
+				shark.set_attack_target(target_position)
+		elif _ocean_attack_sharks.has(player_index):
+			var stale_variant: Variant = _ocean_attack_sharks.get(player_index)
+			var stale_shark: SharkSwimmer = stale_variant as SharkSwimmer
+			if stale_shark != null and is_instance_valid(stale_shark):
+				stale_shark.cancel_attack()
+			_ocean_attack_sharks.erase(player_index)
+
+
+func _on_shark_attack_reached(player_index: int, shark: SharkSwimmer) -> void:
+	var is_remote_client: bool = (
+		_net_state != null
+		and _net_state.is_online
+		and not NetworkManager.is_host
+	)
+	if is_remote_client:
+		return
+
+	var assigned_variant: Variant = _ocean_attack_sharks.get(player_index)
+	var assigned_shark: SharkSwimmer = assigned_variant as SharkSwimmer
+	if assigned_shark != shark or not game_state.is_player_waiting_for_shark(player_index):
+		return
+	_ocean_attack_sharks.erase(player_index)
+
+	var attack_position: Vector3 = (
+		Vector3(game_state.player_x, game_state.player_y, game_state.player_local_z)
+		if player_index == 1
+		else Vector3(game_state.player2_x, game_state.player2_y, game_state.player2_local_z)
+	)
+	if particle_spawner.has_method("spawn_explosion"):
+		particle_spawner.spawn_explosion(attack_position)
+	game_state.complete_ocean_shark_attack(player_index)
+
 
 func _reveal_after_transition() -> void:
 	SceneTransition.reveal_current()
@@ -189,6 +306,8 @@ func _process(dt: float) -> void:
 	# Network sync (snapshot send for host)
 	if _net_state:
 		_net_state.process_network(dt)
+
+	_update_ocean_shark_attacks()
 
 	# Update visuals
 	_update_floor_conveyor()
@@ -503,8 +622,25 @@ func _create_goal_box(box_size: Vector3, color: Color) -> MeshInstance3D:
 	return mesh_inst
 
 func _update_camera(dt: float) -> void:
-	if camera_controller.has_method("update_camera"):
-		camera_controller.update_camera(game_state, dt)
+	if not camera_controller or not camera_controller.has_method("update_camera"):
+		return
+
+	var focus_shark: SharkSwimmer = null
+	var player_count: int = maxi(1, game_state.num_players)
+	for player_index: int in range(1, player_count + 1):
+		if not game_state.is_player_waiting_for_shark(player_index):
+			continue
+		var shark_variant: Variant = _ocean_attack_sharks.get(player_index)
+		var shark: SharkSwimmer = shark_variant as SharkSwimmer
+		if shark != null and is_instance_valid(shark):
+			focus_shark = shark
+			break
+
+	if focus_shark != null:
+		camera_controller.set_ocean_attack_focus(focus_shark.position)
+	else:
+		camera_controller.clear_ocean_attack_focus()
+	camera_controller.update_camera(game_state, dt)
 
 func _check_particles() -> void:
 	# Correct particle spawn
@@ -751,8 +887,10 @@ func _update_preview_walls(dt: float) -> void:
 	var total_expected: int = maxi(30 if is_endless else game_state.target_count, quiz_count)
 	var target_pw_count: int = total_expected if is_endless else quiz_count
 
-	# ── 壁+シルエットの生成（クイズ到着に同期、奥から手前へ配置）──
-	while _pw_count < target_pw_count:
+	# 10枚分のインスタンス化と問題文セットを同フレームに集中させない。
+	# 準備画面の裏で1枚ずつ分散し、合体演出の開始前に滑らかに組み立てる。
+	var walls_to_build: int = mini(PREVIEW_WALLS_PER_FRAME, target_pw_count - _pw_count)
+	for _build_index: int in range(walls_to_build):
 		# エンドレスは手前から奥へ、固定モードは逆マッピング（奥から手前へ）
 		var visual_idx: int = _pw_count if is_endless else (total_expected - 1 - _pw_count)
 		var wz: float = t.wall_start_z + visual_idx * t.wall_spacing
@@ -796,11 +934,16 @@ func _update_preview_walls(dt: float) -> void:
 		_pw_count += 1
 
 	# ── マージアニメーション順次開始（0.15秒間隔）──
-	# 配列順 = 奥→手前（逆マッピング済み）なので、index 0 から順に開始
+	# オフライン固定枚数モードでは、全壁の構築完了後に演出を開始する。
+	# 壁生成・ラベル初期化と火花・カメラ揺れを同じフレーム帯に重ねない。
 	var is_offline: bool = QuizManager.provider.llm_mode == "OFFLINE"
-	var merge_interval: float = 0.15 # オンライン・オフライン問わず爆速で開始
+	var merge_interval: float = 0.15
 	var total_walls: int = _pw_anims.size()
-	if total_walls > 0:
+	var wall_set_ready: bool = is_endless or not is_offline or (
+		quiz_count >= game_state.target_count
+		and _pw_count >= game_state.target_count
+	)
+	if total_walls > 0 and wall_set_ready:
 		var all_started: bool = true
 		for ms: bool in _pw_merge_started:
 			if not ms:
@@ -886,6 +1029,75 @@ func _update_preview_walls(dt: float) -> void:
 
 
 ## 合体時の火花パーティクルを生成
+func _warm_merge_effect_pool() -> void:
+	for effect_index: int in range(MERGE_EFFECT_POOL_SIZE):
+		_merge_effect_pool.append(_create_merge_effect(effect_index))
+
+
+func _create_merge_effect(effect_index: int) -> Dictionary:
+	var curve := Curve.new()
+	curve.add_point(Vector2(0, 1.0))
+	curve.add_point(Vector2(1.0, 0.0))
+
+	var sparks := CPUParticles3D.new()
+	sparks.name = "MergeSparksPool%d" % effect_index
+	sparks.emitting = false
+	sparks.amount = GraphicsQuality.particle_amount(MERGE_SPARK_BASE_AMOUNT, GameManager.graphics_quality)
+	sparks.lifetime = 0.8
+	sparks.one_shot = true
+	sparks.explosiveness = 1.0
+	sparks.randomness = 1.0
+	sparks.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	sparks.emission_box_extents = Vector3(0.5, 2.0, 0.5)
+	sparks.direction = Vector3(0.0, 1.0, 0.0)
+	sparks.spread = 180.0
+	sparks.initial_velocity_min = 8.0
+	sparks.initial_velocity_max = 20.0
+	sparks.gravity = Vector3(0, -25.0, 0)
+	sparks.damping_min = 5.0
+	sparks.damping_max = 10.0
+	sparks.scale_amount_min = 1.0
+	sparks.scale_amount_max = 2.5
+	sparks.scale_amount_curve = curve
+
+	var spark_mat := StandardMaterial3D.new()
+	spark_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	spark_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	spark_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	spark_mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	spark_mat.albedo_color = Color(1.5, 1.0, 0.6, 1.0)
+	spark_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	spark_mat.billboard_keep_scale = true
+	var spark_mesh := QuadMesh.new()
+	spark_mesh.material = spark_mat
+	sparks.mesh = spark_mesh
+	wall_container.add_child(sparks)
+
+	var flash := CPUParticles3D.new()
+	flash.name = "MergeFlashPool%d" % effect_index
+	flash.emitting = false
+	flash.amount = GraphicsQuality.particle_amount(1, GameManager.graphics_quality)
+	flash.lifetime = 0.25
+	flash.one_shot = true
+	flash.gravity = Vector3.ZERO
+	flash.scale_amount_min = 8.0
+	flash.scale_amount_max = 8.0
+	flash.scale_amount_curve = curve
+	var flash_mat := StandardMaterial3D.new()
+	flash_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	flash_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	flash_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	flash_mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	flash_mat.albedo_color = Color(1.2, 1.0, 0.8, 0.8)
+	flash_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	var flash_mesh := QuadMesh.new()
+	flash_mesh.material = flash_mat
+	flash.mesh = flash_mesh
+	wall_container.add_child(flash)
+
+	return {"sparks": sparks, "flash": flash}
+
+
 func _spawn_merge_sparks(pos: Vector3) -> void:
 	for effect: Dictionary in _merge_effect_pool:
 		var pooled_sparks: CPUParticles3D = effect.get("sparks") as CPUParticles3D
@@ -899,78 +1111,6 @@ func _spawn_merge_sparks(pos: Vector3) -> void:
 			pooled_flash.emitting = true
 			return
 
-	# サイズを時間経過で縮小するカーブ
-	var curve := Curve.new()
-	curve.add_point(Vector2(0, 1.0))
-	curve.add_point(Vector2(1.0, 0.0))
-
-	# 1. 飛び散る火花 (Spark) - 抑えめに調整
-	var sparks := CPUParticles3D.new()
-	sparks.amount = GraphicsQuality.particle_amount(60, GameManager.graphics_quality)
-	sparks.lifetime = 0.8
-	sparks.one_shot = true
-	sparks.explosiveness = 1.0
-	sparks.randomness = 1.0
-
-	sparks.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
-	sparks.emission_box_extents = Vector3(0.5, 2.0, 0.5)
-
-	sparks.direction = Vector3(0.0, 1.0, 0.0)
-	sparks.spread = 180.0
-	sparks.initial_velocity_min = 8.0
-	sparks.initial_velocity_max = 20.0
-	sparks.gravity = Vector3(0, -25.0, 0)
-	sparks.damping_min = 5.0
-	sparks.damping_max = 10.0
-
-	sparks.scale_amount_min = 1.0
-	sparks.scale_amount_max = 2.5
-	sparks.scale_amount_curve = curve
-
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
-	mat.albedo_color = Color(1.5, 1.0, 0.6, 1.0) # 抑えめの発光
-	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
-	mat.billboard_keep_scale = true
-
-	var mesh := QuadMesh.new()
-	mesh.material = mat
-	sparks.mesh = mesh
-
-	sparks.global_position = pos + Vector3(0, 2.5, 0)
-	wall_container.add_child(sparks)
-	sparks.emitting = true
-
-	# 2. 中央の閃光 (Flash) - 抑えめに調整
-	var flash := CPUParticles3D.new()
-	flash.amount = GraphicsQuality.particle_amount(1, GameManager.graphics_quality)
-	flash.lifetime = 0.25
-	flash.one_shot = true
-	flash.gravity = Vector3.ZERO
-	flash.scale_amount_min = 8.0
-	flash.scale_amount_max = 8.0
-	flash.scale_amount_curve = curve
-	
-	var mat_flash := StandardMaterial3D.new()
-	mat_flash.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat_flash.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat_flash.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	mat_flash.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
-	mat_flash.albedo_color = Color(1.2, 1.0, 0.8, 0.8)
-	mat_flash.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
-	
-	var mesh_flash := QuadMesh.new()
-	mesh_flash.material = mat_flash
-	flash.mesh = mesh_flash
-	flash.global_position = pos + Vector3(0, 2.5, 0)
-	wall_container.add_child(flash)
-	flash.emitting = true
-
-	# one_shot終了後は同じエミッターを再利用し、生成・破棄によるスパイクを防ぐ。
-	_merge_effect_pool.append({"sparks": sparks, "flash": flash})
 
 
 func _clear_preview_walls() -> void:

@@ -8,7 +8,7 @@ const SLOT_TAUNT := 0
 const SLOT_RUN := 1
 const SLOT_GANGNAM := 2
 const SLOT_SLIDE := 3
-const SLOT_MOONWALK := 4
+const SLOT_TREADING_WATER := 4
 const SLOT_DROWNING := 5
 const SLOT_FLAIR := 6
 const SLOT_JUMP := 7
@@ -23,7 +23,7 @@ const FBX_PATHS: Array[String] = [
 	"res://assets/animations/Run.fbx",
 	"res://assets/animations/Y Bot@Gangnam Style.fbx",
 	"res://assets/animations/Slide Hip Hop Dance.fbx",
-	"",
+	"res://assets/animations/Treading Water.fbx",
 	"res://assets/animations/Drowning.fbx",
 	"res://assets/animations/Flair.fbx",
 	"res://assets/animations/Jumping.fbx",
@@ -32,7 +32,7 @@ const FBX_PATHS: Array[String] = [
 
 const SLOT_NAMES: Array[String] = [
 	"Taunt", "Run", "Gangnam", "Slide",
-	"Moonwalk", "Drowning", "Flair", "Jump",
+	"TreadingWater", "Drowning", "Flair", "Jump",
 	"Emote08", "Emote09", "Emote10", "Emote11", "Emote12", "Emote13", "Emote14",
 	"Emote15", "Emote16", "Emote17", "Emote18", "Emote19", "Emote20", "Emote21",
 ]

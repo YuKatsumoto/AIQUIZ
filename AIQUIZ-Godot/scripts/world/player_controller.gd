@@ -406,7 +406,20 @@ func _load_fbx_scene(path: String, node_name: String) -> Variant:
 			if idx != -1:
 				bone_indices[key] = idx
 				break
-	print("[RIG]   [", node_name, "] Mapped ", bone_indices.size(), "/18 bones")
+		if bone_indices.has(key):
+			continue
+		# Mixamo can number its namespace (for example mixamorig7_Hips).
+		# Match the stable bone-name suffix so separately exported FBX clips retarget correctly.
+		for cand in candidates[key]:
+			var suffix: String = String(cand).replace("mixamorig:", "").replace("mixamorig_", "")
+			for bone_idx: int in range(skeleton.get_bone_count()):
+				var bone_name: String = skeleton.get_bone_name(bone_idx)
+				if bone_name == suffix or bone_name.ends_with(":" + suffix) or bone_name.ends_with("_" + suffix):
+					bone_indices[key] = bone_idx
+					break
+			if bone_indices.has(key):
+				break
+	print("[RIG]   [", node_name, "] Mapped ", bone_indices.size(), "/", candidates.size(), " bones")
 	
 	return {
 		"node": node,
@@ -703,6 +716,7 @@ func update_from_state(gs: QuizGameState) -> void:
 	var p1_visual_hidden: bool = (
 		gs.num_players == 1
 		and not _is_preview_subviewport()
+		and not gs.p1_waiting_for_shark
 		and gs.game_state not in [Constants.STATE_GAME_OVER, Constants.STATE_FLYOVER]
 	)
 
@@ -726,6 +740,18 @@ func update_from_state(gs: QuizGameState) -> void:
 		_set_parts_visible(p1_parts, not p1_visual_hidden)
 		if p1_visual_hidden:
 			pass
+		elif gs.p1_waiting_for_shark:
+			var p1_float_pose_applied: bool = false
+			if _p1_rig.is_rigged and _p1_rig.play_slot(AnimationRig.SLOT_TREADING_WATER):
+				p1_float_pose_applied = true
+				_apply_skeleton_pose(
+					p1_parts,
+					_p1_rig.active_skeleton,
+					_p1_rig.active_bone_indices,
+					_p1_rig.mirror_x
+				)
+			if not p1_float_pose_applied:
+				_animate_struggle(p1_parts, gs.p1_ocean_float_time)
 		elif not _p1_rig.is_rigged:
 			var p1_is_playing := gs.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]
 			_animate_skeleton(p1_parts, gs.player_y, gs.player_vel_y, p1_is_playing, walk_phase, false, 0)
@@ -757,7 +783,20 @@ func update_from_state(gs: QuizGameState) -> void:
 			# FBXリグモードでもボブルヘッドを更新
 			_update_bobblehead(p1_parts, false, is_active, walk_phase)
 	elif gs.game_over_timer > 0:
-		if gs.game_over_timer < 2.0:
+		if gs.p1_shark_killed:
+			if not _p1_exploding:
+				_p1_exploding = true
+				_init_explosion(p1_parts, true)
+			_set_parts_visible(p1_parts, false)
+			if not _p1_explosion_bodies.is_empty():
+				_update_explosion(
+					true,
+					gs.game_over_timer,
+					true,
+					gs.is_coop_mode(),
+					-global_position.x
+				)
+		elif gs.game_over_timer < 2.0:
 			_set_parts_visible(p1_parts, true)
 			var apply_rig := false
 			if _p1_rig.is_rigged and _p1_rig.play_slot(AnimationRig.SLOT_DROWNING):
@@ -808,7 +847,19 @@ func update_from_state(gs: QuizGameState) -> void:
 					_p2_ragdoll = {}
 					_p2_driver = null
 			_set_parts_visible(p2_parts, true)
-			if not _p2_rig.is_rigged:
+			if gs.p2_waiting_for_shark:
+				var p2_float_pose_applied: bool = false
+				if _p2_rig.is_rigged and _p2_rig.play_slot(AnimationRig.SLOT_TREADING_WATER):
+					p2_float_pose_applied = true
+					_apply_skeleton_pose(
+						p2_parts,
+						_p2_rig.active_skeleton,
+						_p2_rig.active_bone_indices,
+						_p2_rig.mirror_x
+					)
+				if not p2_float_pose_applied:
+					_animate_struggle(p2_parts, gs.p2_ocean_float_time)
+			elif not _p2_rig.is_rigged:
 				var p2_is_playing := gs.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]
 				_animate_skeleton(p2_parts, gs.player2_y, gs.player2_vel_y, p2_is_playing, walk_phase * 1.1, true, 0)
 			else:
@@ -839,7 +890,20 @@ func update_from_state(gs: QuizGameState) -> void:
 				# FBXリグモードでもボブルヘッドを更新
 				_update_bobblehead(p2_parts, true, is_active, walk_phase * 1.1)
 		elif gs.player2_game_over_timer > 0:
-			if gs.player2_game_over_timer < 2.0:
+			if gs.p2_shark_killed:
+				if not _p2_exploding:
+					_p2_exploding = true
+					_init_explosion(p2_parts, false)
+				_set_parts_visible(p2_parts, false)
+				if not _p2_explosion_bodies.is_empty():
+					_update_explosion(
+						false,
+						gs.player2_game_over_timer,
+						true,
+						gs.is_coop_mode(),
+						-global_position.x
+					)
+			elif gs.player2_game_over_timer < 2.0:
 				_set_parts_visible(p2_parts, true)
 				var apply_rig := false
 				if _p2_rig.is_rigged and _p2_rig.play_slot(AnimationRig.SLOT_DROWNING):
@@ -868,7 +932,9 @@ func update_from_state(gs: QuizGameState) -> void:
 
 	# 1P: only show player body during game over explosion, flyover, menu, or replay
 	if gs.num_players == 1:
-		if gs.game_state == Constants.STATE_GAME_OVER and gs.game_over_timer > 0:
+		if gs.p1_waiting_for_shark:
+			visible = true
+		elif gs.game_state == Constants.STATE_GAME_OVER and gs.game_over_timer > 0:
 			visible = true
 		elif gs.game_state == Constants.STATE_FLYOVER:
 			visible = true

@@ -10,7 +10,7 @@ uniform float wave_speed : hint_range(0.0, 2.0) = 0.42;
 uniform float wave_height : hint_range(0.0, 2.0) = 0.52;
 uniform float detail_strength : hint_range(0.0, 1.0) = 0.28;
 uniform float roughness_val : hint_range(0.0, 1.0) = 1.0;
-uniform float opacity : hint_range(0.0, 1.0) = 0.48;
+uniform float opacity : hint_range(0.0, 1.0) = 0.34;
 uniform sampler2D noise_tex;
 uniform sampler2D noise_tex2;
 
@@ -68,5 +68,5 @@ void fragment() {
 	METALLIC = 0.0;
 	ROUGHNESS = roughness_val;
 	SPECULAR = 0.0;
-	ALPHA = clamp(opacity + crest * 0.02, 0.0, 0.50);
+	ALPHA = clamp(opacity + crest * 0.02, 0.0, 0.38);
 }

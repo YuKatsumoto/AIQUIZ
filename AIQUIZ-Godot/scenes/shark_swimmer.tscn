@@ -1,0 +1,9 @@
+[gd_scene format=3 uid="uid://dkvupl6ga6bmu"]
+
+[ext_resource type="PackedScene" uid="uid://bbh514oxejcan" path="res://assets/shark/shark_swim.glb" id="1_mn84h"]
+[ext_resource type="Script" uid="uid://b5qevcj7ahce6" path="res://scripts/world/shark_swimmer.gd" id="1_tklo6"]
+
+[node name="SharkSwimmer" type="Node3D" unique_id=239653961]
+script = ExtResource("1_tklo6")
+
+[node name="Model" type="Node3D" parent="." unique_id=1650108750 instance=ExtResource("1_mn84h")]
