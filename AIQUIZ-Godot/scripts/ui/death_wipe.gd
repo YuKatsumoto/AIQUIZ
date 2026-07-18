@@ -18,6 +18,8 @@ var _fade_in: float = 0.0
 var _fade_out: float = 0.0
 var _is_hiding: bool = false
 var _world_set: bool = false
+var _shark_impact_flash: float = 0.0
+var _impact_overlay: ColorRect = null
 
 const WIPE_W := 320
 const WIPE_H := 240
@@ -53,6 +55,23 @@ func _ready() -> void:
 	stretch = true
 
 	_setup_labels()
+	_setup_impact_overlay()
+
+func _setup_impact_overlay() -> void:
+	_impact_overlay = ColorRect.new()
+	_impact_overlay.name = "SharkImpactFlash"
+	_impact_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_impact_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_impact_overlay.color = Color(0.72, 0.94, 1.0, 0.0)
+	add_child(_impact_overlay)
+	move_child(_impact_overlay, get_child_count() - 1)
+
+
+func play_shark_impact_flash(player_index: int) -> void:
+	if not _active or _dead_player != player_index:
+		return
+	_shark_impact_flash = 1.0
+
 
 func _setup_labels() -> void:
 	# Player label (top overlay)
@@ -137,6 +156,7 @@ func _start_wipe(player: int) -> void:
 	_active = true
 	_dead_player = player
 	_timer = 0.0
+	_shark_impact_flash = 0.0
 	_fade_in = 0.0
 	_fade_out = 0.0
 	_is_hiding = false
@@ -174,6 +194,9 @@ func _hide_wipe() -> void:
 
 func _update_wipe(dt: float) -> void:
 	_timer += dt
+	_shark_impact_flash = maxf(0.0, _shark_impact_flash - dt * 12.5)
+	if _impact_overlay != null:
+		_impact_overlay.color = Color(0.72, 0.94, 1.0, _shark_impact_flash * 0.76)
 	
 	var slide_offset := Vector2(size.x + WIPE_MARGIN_X + 50.0, 0.0) # 右側に完全に隠れるオフセット
 	var current_offset := slide_offset
@@ -230,12 +253,15 @@ func _update_wipe_camera() -> void:
 	var player_position: Vector3 = Vector3(px, py + 0.65, local_z)
 	var shark_position: Vector3 = Vector3.ZERO
 	var has_shark: bool = false
+	var shark_intensity: float = 0.0
 	var current_scene: Node = get_tree().current_scene
 	if current_scene != null and current_scene.has_method("get_ocean_attack_shark_position"):
 		var shark_position_variant: Variant = current_scene.get_ocean_attack_shark_position(_dead_player)
 		if shark_position_variant is Vector3:
 			shark_position = shark_position_variant
 			has_shark = true
+	if current_scene != null and current_scene.has_method("get_ocean_attack_shark_intensity"):
+		shark_intensity = float(current_scene.get_ocean_attack_shark_intensity(_dead_player))
 
 	var cam_eye: Vector3 = player_position + Vector3(3.0, 2.5, -3.5)
 	var cam_target: Vector3 = player_position
@@ -250,11 +276,11 @@ func _update_wipe_camera() -> void:
 		var pose: Dictionary = camera_controller.get_ocean_attack_camera_pose(
 			player_position,
 			shark_position,
-			has_shark
+			has_shark,
+			shark_intensity
 		)
 		cam_eye = pose.get("eye", cam_eye)
 		cam_target = pose.get("target", cam_target)
-		wipe_camera.fov = float(pose.get("fov", wipe_camera.fov))
 
 	wipe_camera.global_position = cam_eye
 	wipe_camera.look_at(cam_target, Vector3.UP)

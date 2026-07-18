@@ -1,6 +1,7 @@
 extends CanvasLayer
 
 @onready var flash_rect: ColorRect = $FlashRect
+var _shark_impact_flash: float = 0.0
 
 ## ゲーム中HUD (3Dシーン上に重ねて表示)
 ## Python版 hud.py の _draw_play 部分に相当
@@ -133,6 +134,7 @@ func _show_feedback(txt: String) -> void:
 func _process(_dt: float) -> void:
 	if not game_state:
 		return
+	_shark_impact_flash = maxf(0.0, _shark_impact_flash - _dt * 12.5)
 
 	if game_state.game_state == Constants.STATE_PRELOADING:
 		_show_preloading(_dt)
@@ -177,8 +179,15 @@ func _process(_dt: float) -> void:
 	_update_streak_label()
 	_update_tutorial_overlay(_dt)
 
+func play_shark_impact_flash() -> void:
+	_shark_impact_flash = 1.0
+
+
 func _update_flash() -> void:
-	if game_state.correct_flash > 0.0:
+	if _shark_impact_flash > 0.0:
+		flash_rect.color = Color(0.72, 0.94, 1.0, _shark_impact_flash * 0.78)
+		flash_rect.visible = true
+	elif game_state.correct_flash > 0.0:
 		flash_rect.color = Color(0.2, 1.0, 0.4, game_state.correct_flash * 0.4)
 		flash_rect.visible = true
 	elif game_state.wrong_flash > 0.0:

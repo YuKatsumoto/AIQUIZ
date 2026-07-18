@@ -169,6 +169,98 @@ func spawn_ocean_splash(pos: Vector3) -> void:
 	splash.emitting = true
 
 
+func spawn_shark_impact(pos: Vector3, attack_forward: Vector3 = Vector3.FORWARD) -> void:
+	var column: GPUParticles3D = _create_shark_water_column()
+	column.name = "SharkImpactColumn"
+	var horizontal_forward: Vector3 = Vector3(attack_forward.x, 0.0, attack_forward.z)
+	if horizontal_forward.length_squared() > 0.001:
+		column.rotation.y = atan2(horizontal_forward.x, horizontal_forward.z)
+	add_child(column, true)
+	column.global_position = Vector3(pos.x, StageConstants.OCEAN_SURFACE_Y, pos.z)
+	column.restart()
+	column.emitting = true
+
+	var shock_ring: MeshInstance3D = _create_shark_shock_ring()
+	shock_ring.name = "SharkImpactRing"
+	add_child(shock_ring, true)
+	shock_ring.global_position = Vector3(pos.x, StageConstants.OCEAN_SURFACE_Y + 0.06, pos.z)
+	var ring_tween: Tween = create_tween()
+	ring_tween.set_parallel(true)
+	ring_tween.tween_property(shock_ring, "scale", Vector3(5.4, 0.18, 5.4), 0.52).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	ring_tween.tween_property(shock_ring, "transparency", 1.0, 0.52).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	ring_tween.finished.connect(shock_ring.queue_free)
+
+	var cleanup_timer: SceneTreeTimer = get_tree().create_timer(2.4)
+	cleanup_timer.timeout.connect(func() -> void:
+		if is_instance_valid(column):
+			column.queue_free()
+	)
+
+
+func _create_shark_water_column() -> GPUParticles3D:
+	var particles: GPUParticles3D = GPUParticles3D.new()
+	particles.emitting = false
+	particles.one_shot = true
+	particles.amount = GraphicsQuality.particle_amount(190, GameManager.graphics_quality)
+	particles.lifetime = 1.25
+	particles.explosiveness = 0.96
+	particles.randomness = 0.38
+	particles.local_coords = false
+	particles.visibility_aabb = AABB(Vector3(-9.0, -3.0, -9.0), Vector3(18.0, 20.0, 18.0))
+
+	var process_material: ParticleProcessMaterial = ParticleProcessMaterial.new()
+	process_material.direction = Vector3.UP
+	process_material.spread = 62.0
+	process_material.initial_velocity_min = 7.5
+	process_material.initial_velocity_max = 17.0
+	process_material.gravity = Vector3(0.0, -18.0, 0.0)
+	process_material.damping_min = 0.35
+	process_material.damping_max = 1.4
+	process_material.scale_min = 0.10
+	process_material.scale_max = 0.42
+	process_material.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	process_material.emission_box_extents = Vector3(1.45, 0.20, 1.45)
+	var color_ramp: Gradient = Gradient.new()
+	color_ramp.set_color(0, Color(1.0, 1.0, 1.0, 1.0))
+	color_ramp.add_point(0.24, Color(0.62, 0.92, 1.0, 0.98))
+	color_ramp.set_color(1, Color(0.04, 0.36, 0.68, 0.0))
+	var color_texture: GradientTexture1D = GradientTexture1D.new()
+	color_texture.gradient = color_ramp
+	process_material.color_ramp = color_texture
+	particles.process_material = process_material
+
+	var droplet_mesh: SphereMesh = SphereMesh.new()
+	droplet_mesh.radius = 0.075
+	droplet_mesh.height = 0.32
+	var droplet_material: StandardMaterial3D = StandardMaterial3D.new()
+	droplet_material.albedo_color = Color(0.78, 0.96, 1.0, 0.92)
+	droplet_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	droplet_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	droplet_mesh.material = droplet_material
+	particles.draw_pass_1 = droplet_mesh
+	return particles
+
+
+func _create_shark_shock_ring() -> MeshInstance3D:
+	var ring_instance: MeshInstance3D = MeshInstance3D.new()
+	var ring_mesh: TorusMesh = TorusMesh.new()
+	ring_mesh.inner_radius = 0.92
+	ring_mesh.outer_radius = 1.08
+	ring_mesh.rings = 48
+	ring_mesh.ring_segments = 8
+	var ring_material: StandardMaterial3D = StandardMaterial3D.new()
+	ring_material.albedo_color = Color(0.78, 0.96, 1.0, 0.92)
+	ring_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	ring_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	ring_material.emission_enabled = true
+	ring_material.emission = Color(0.36, 0.82, 1.0)
+	ring_material.emission_energy_multiplier = 1.35
+	ring_mesh.material = ring_material
+	ring_instance.mesh = ring_mesh
+	ring_instance.scale = Vector3(0.48, 0.18, 0.48)
+	return ring_instance
+
+
 # ---------- Fireworks ----------
 
 const FIREWORK_COLORS: Array[Color] = [

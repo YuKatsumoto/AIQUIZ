@@ -1,0 +1,2 @@
+# Godot may extract packed images when a .blend source is inspected manually.
+textures/

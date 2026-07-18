@@ -6,6 +6,8 @@ extends Node
 
 var correct_player: AudioStreamPlayer
 var explosion_player: AudioStreamPlayer
+var shark_rush_stream: AudioStreamWAV
+var shark_impact_stream: AudioStreamWAV
 
 var sfx_volume: float = 1.0
 
@@ -23,6 +25,8 @@ func _ready() -> void:
 	# Generate audio samples
 	_generate_correct_sound()
 	_generate_explosion_sound()
+	_generate_shark_rush_sound()
+	_generate_shark_impact_sound()
 
 	# Connect to game state
 	var game_state: QuizGameState = QuizManager.game_state
@@ -39,6 +43,14 @@ func play_explosion() -> void:
 
 func set_volume(vol: float) -> void:
 	sfx_volume = clampf(vol, 0.0, 1.0)
+
+func get_shark_rush_stream() -> AudioStreamWAV:
+	return shark_rush_stream
+
+
+func get_shark_impact_stream() -> AudioStreamWAV:
+	return shark_impact_stream
+
 
 func _generate_correct_sound() -> void:
 	var sample_rate: int = 44100
@@ -122,3 +134,61 @@ func _generate_explosion_sound() -> void:
 
 	stream.data = data
 	explosion_player.stream = stream
+
+
+func _generate_shark_rush_sound() -> void:
+	var sample_rate: int = 22050
+	var duration: float = 1.0
+	var num_samples: int = int(sample_rate * duration)
+	var stream: AudioStreamWAV = AudioStreamWAV.new()
+	stream.format = AudioStreamWAV.FORMAT_16_BITS
+	stream.mix_rate = sample_rate
+	stream.stereo = false
+	stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	stream.loop_begin = 0
+	stream.loop_end = num_samples
+
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.seed = 0x5A4B11
+	var data: PackedByteArray = PackedByteArray()
+	data.resize(num_samples * 2)
+	var filtered_noise: float = 0.0
+	for i: int in range(num_samples):
+		var t: float = float(i) / float(sample_rate)
+		filtered_noise = lerpf(filtered_noise, rng.randf_range(-1.0, 1.0), 0.08)
+		var churn: float = sin(TAU * 43.0 * t) * 0.18 + sin(TAU * 71.0 * t) * 0.09
+		var seam_fade: float = minf(1.0, minf(t * 18.0, (duration - t) * 18.0))
+		var value: float = clampf((filtered_noise * 0.68 + churn) * seam_fade, -1.0, 1.0)
+		data.encode_s16(i * 2, int(value * 32767.0))
+	stream.data = data
+	shark_rush_stream = stream
+
+
+func _generate_shark_impact_sound() -> void:
+	var sample_rate: int = 44100
+	var duration: float = 0.72
+	var num_samples: int = int(sample_rate * duration)
+	var stream: AudioStreamWAV = AudioStreamWAV.new()
+	stream.format = AudioStreamWAV.FORMAT_16_BITS
+	stream.mix_rate = sample_rate
+	stream.stereo = false
+
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.seed = 0xB17E5
+	var data: PackedByteArray = PackedByteArray()
+	data.resize(num_samples * 2)
+	var filtered_noise: float = 0.0
+	for i: int in range(num_samples):
+		var t: float = float(i) / float(sample_rate)
+		var progress: float = t / duration
+		var envelope: float = exp(-t * 6.2)
+		filtered_noise = lerpf(filtered_noise, rng.randf_range(-1.0, 1.0), 0.16)
+		var frequency: float = lerpf(92.0, 42.0, progress)
+		var boom: float = sin(TAU * frequency * t) * 0.78
+		var snap: float = sin(TAU * 215.0 * t) * exp(-t * 22.0) * 0.46
+		var splash: float = filtered_noise * 0.74
+		var attack: float = minf(1.0, t * 120.0)
+		var value: float = clampf((boom + snap + splash) * envelope * attack, -1.0, 1.0)
+		data.encode_s16(i * 2, int(value * 32767.0))
+	stream.data = data
+	shark_impact_stream = stream
