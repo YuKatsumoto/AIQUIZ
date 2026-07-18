@@ -22,6 +22,8 @@ var _entry_blend_t: float = 0.0
 var _ocean_attack_focus: Vector3 = Vector3.ZERO
 var _has_ocean_attack_focus: bool = false
 var _ocean_attack_camera_active: bool = false
+var _ocean_attack_intensity: float = 0.0
+var _ocean_attack_impact_timer: float = 0.0
 
 const ENTRY_BLEND_DURATION := 0.95
 const PRELOAD_CAMERA_FOV := 66.0
@@ -37,13 +39,19 @@ func _ready() -> void:
 	camera.far = 500.0
 	_consume_transition_camera_pose()
 
-func set_ocean_attack_focus(shark_position: Vector3) -> void:
+func set_ocean_attack_focus(shark_position: Vector3, attack_intensity: float = 0.0) -> void:
 	_ocean_attack_focus = shark_position
+	_ocean_attack_intensity = clampf(attack_intensity, 0.0, 1.0)
 	_has_ocean_attack_focus = true
 
 
 func clear_ocean_attack_focus() -> void:
 	_has_ocean_attack_focus = false
+	_ocean_attack_intensity = 0.0
+
+
+func trigger_ocean_attack_impact() -> void:
+	_ocean_attack_impact_timer = 0.35
 
 
 func wait_for_entry_blend() -> void:
@@ -60,6 +68,7 @@ func update_camera(gs: QuizGameState, dt: float) -> void:
 	_prev_state = gs.game_state
 
 	_time += dt
+	_ocean_attack_impact_timer = maxf(0.0, _ocean_attack_impact_timer - dt)
 	var bob: float = sin(_time * 1.2) * 0.04
 
 	var eye: Vector3
@@ -183,7 +192,8 @@ func update_camera(gs: QuizGameState, dt: float) -> void:
 func get_ocean_attack_camera_pose(
 	player_position: Vector3,
 	shark_position: Vector3,
-	has_shark_focus: bool
+	has_shark_focus: bool,
+	_attack_intensity: float = 0.0
 ) -> Dictionary:
 	var resolved_shark_position: Vector3 = shark_position
 	if not has_shark_focus:
@@ -229,7 +239,6 @@ func get_ocean_attack_camera_pose(
 	return {
 		"eye": desired_eye,
 		"target": framing_anchor + Vector3(0.0, -0.45, 0.0),
-		"fov": clampf(55.0 + separation * 0.24, 57.0, 64.0),
 	}
 
 
@@ -243,19 +252,26 @@ func _update_ocean_attack_camera(gs: QuizGameState, dt: float) -> void:
 	var pose: Dictionary = get_ocean_attack_camera_pose(
 		player_position,
 		_ocean_attack_focus,
-		_has_ocean_attack_focus
+		_has_ocean_attack_focus,
+		_ocean_attack_intensity
 	)
 	var desired_eye: Vector3 = pose.get("eye", camera.global_position)
 	var desired_target: Vector3 = pose.get("target", player_position)
-	var desired_fov: float = float(pose.get("fov", 60.0))
+	var impact_strength: float = clampf(_ocean_attack_impact_timer / 0.35, 0.0, 1.0)
+	var shake_strength: float = 0.10 * pow(_ocean_attack_intensity, 2.0) + 0.38 * impact_strength
+	var shake_offset: Vector3 = Vector3(
+		sin(_time * 31.0),
+		cos(_time * 43.0),
+		sin(_time * 37.0 + 0.8)
+	) * shake_strength
+	desired_eye += shake_offset
+	desired_target += shake_offset * 0.24
 	var blend: float = clampf(dt * 4.5, 0.0, 1.0)
 	camera.h_offset = 0.0
 	if not _ocean_attack_camera_active:
 		camera.global_position = desired_eye
-		camera.fov = desired_fov
 		_ocean_attack_camera_active = true
 	else:
-		camera.fov = lerpf(camera.fov, desired_fov, blend)
 		camera.global_position = camera.global_position.lerp(desired_eye, blend)
 	camera.look_at(desired_target, Vector3.UP)
 

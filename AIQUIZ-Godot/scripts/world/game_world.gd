@@ -166,6 +166,14 @@ func get_ocean_attack_shark_position(player_index: int) -> Variant:
 	return null
 
 
+func get_ocean_attack_shark_intensity(player_index: int) -> float:
+	var shark_variant: Variant = _ocean_attack_sharks.get(player_index)
+	var shark: SharkSwimmer = shark_variant as SharkSwimmer
+	if shark != null and is_instance_valid(shark):
+		return shark.get_attack_intensity()
+	return 0.0
+
+
 func _update_ocean_shark_attacks() -> void:
 	var player_count: int = maxi(1, game_state.num_players)
 	for player_index: int in range(1, player_count + 1):
@@ -206,8 +214,19 @@ func _on_shark_attack_reached(player_index: int, shark: SharkSwimmer) -> void:
 		if player_index == 1
 		else Vector3(game_state.player2_x, game_state.player2_y, game_state.player2_local_z)
 	)
-	if particle_spawner.has_method("spawn_explosion"):
-		particle_spawner.spawn_explosion(attack_position)
+	var attack_forward: Vector3 = -shark.global_basis.z
+	if particle_spawner.has_method("spawn_shark_impact"):
+		particle_spawner.spawn_shark_impact(attack_position, attack_forward)
+	if camera_controller != null and camera_controller.has_method("trigger_ocean_attack_impact"):
+		camera_controller.trigger_ocean_attack_impact()
+	if game_state.num_players < 2:
+		var gameplay_hud: Node = get_node_or_null("GameplayHUD")
+		if gameplay_hud != null and gameplay_hud.has_method("play_shark_impact_flash"):
+			gameplay_hud.play_shark_impact_flash()
+	else:
+		var death_wipe: Node = get_node_or_null("DeathWipeLayer/DeathWipe")
+		if death_wipe != null and death_wipe.has_method("play_shark_impact_flash"):
+			death_wipe.play_shark_impact_flash(player_index)
 	game_state.complete_ocean_shark_attack(player_index)
 
 
@@ -637,7 +656,10 @@ func _update_camera(dt: float) -> void:
 			break
 
 	if focus_shark != null:
-		camera_controller.set_ocean_attack_focus(focus_shark.position)
+		camera_controller.set_ocean_attack_focus(
+			focus_shark.position,
+			focus_shark.get_attack_intensity()
+		)
 	else:
 		camera_controller.clear_ocean_attack_focus()
 	camera_controller.update_camera(game_state, dt)
