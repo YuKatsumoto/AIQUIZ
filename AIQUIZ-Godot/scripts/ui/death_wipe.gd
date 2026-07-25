@@ -35,6 +35,11 @@ func _ready() -> void:
 		and not game_state.player_entered_ocean.is_connected(_on_player_entered_ocean)
 	):
 		game_state.player_entered_ocean.connect(_on_player_entered_ocean)
+	if (
+		game_state
+		and not game_state.player_scrolled_out.is_connected(_on_player_scrolled_out)
+	):
+		game_state.player_scrolled_out.connect(_on_player_scrolled_out)
 	visible = false
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
@@ -90,8 +95,24 @@ func _setup_labels() -> void:
 func _on_player_entered_ocean(player_index: int, _local_position: Vector3) -> void:
 	if not game_state or game_state.num_players < 2:
 		return
+	var other_player_alive: bool = (
+		game_state.p2_alive if player_index == 1 else game_state.p1_alive
+	)
+	if not other_player_alive:
+		return
 	# 海面へ入った瞬間に開始する。表示中にもう一人が落ちた場合も、
 	# 後から落ちたプレイヤーへ即座に切り替える。
+	_start_wipe(player_index)
+
+
+func _on_player_scrolled_out(player_index: int) -> void:
+	if not game_state or game_state.num_players < 2:
+		return
+	var other_player_alive: bool = (
+		game_state.p2_alive if player_index == 1 else game_state.p1_alive
+	)
+	if not other_player_alive:
+		return
 	_start_wipe(player_index)
 
 
@@ -112,6 +133,9 @@ func _process(dt: float) -> void:
 			# 落下直後は alive のままサメ待機へ入るため、死亡フラグより
 			# waiting_for_shark を優先して表示を維持する。
 			if _active and _dead_player in [1, 2]:
+				var other_player_alive: bool = (
+					game_state.p2_alive if _dead_player == 1 else game_state.p1_alive
+				)
 				var waiting_for_shark: bool = game_state.is_player_waiting_for_shark(
 					_dead_player
 				)
@@ -120,28 +144,11 @@ func _process(dt: float) -> void:
 					if _dead_player == 1
 					else game_state.player2_game_over_timer
 				)
-				should_show = waiting_for_shark or (
-					current_timer > 0.0 and current_timer < 4.0
+				should_show = other_player_alive and (
+					waiting_for_shark
+					or (current_timer > 0.0 and current_timer < 4.0)
 				)
 
-			# 海以外の死亡でも従来どおりワイプを出せるフォールバック。
-			if not should_show and not _active:
-				if (
-					not game_state.p1_alive
-					and game_state.p2_alive
-					and game_state.game_over_timer > 0.0
-					and game_state.game_over_timer < 4.0
-				):
-					should_show = true
-					target_player = 1
-				elif (
-					not game_state.p2_alive
-					and game_state.p1_alive
-					and game_state.player2_game_over_timer > 0.0
-					and game_state.player2_game_over_timer < 4.0
-				):
-					should_show = true
-					target_player = 2
 
 	if should_show:
 		if not _active or _is_hiding:

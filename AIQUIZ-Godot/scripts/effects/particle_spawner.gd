@@ -337,8 +337,8 @@ func _launch_single_firework(pos: Vector3, color: Color, height: float) -> void:
 	trail.draw_pass_1 = trail_mesh
 
 	trail.visibility_aabb = AABB(Vector3(-5, -2, -5), Vector3(10, 20, 10))
-	trail.global_position = pos
 	add_child(trail)
+	trail.global_position = pos
 	trail.restart()
 	trail.emitting = true
 
@@ -411,8 +411,8 @@ func _spawn_firework_burst(pos: Vector3, color: Color) -> void:
 	burst.draw_pass_1 = sphere
 
 	burst.visibility_aabb = AABB(Vector3(-20, -15, -20), Vector3(40, 30, 40))
-	burst.global_position = pos
 	add_child(burst)
+	burst.global_position = pos
 	burst.restart()
 	burst.emitting = true
 

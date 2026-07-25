@@ -12,11 +12,15 @@ var _game_world_scene: PackedScene
 var _game_world: Node3D
 
 func _ready() -> void:
-	# QuizManager から recorder を取得
-	var recorder: ReplayRecorder = QuizManager.get_meta("last_replay", null)
+	# QuizManager から recorder を取得。直接起動時はメタデータが無いので安全にメニューへ戻す。
+	var recorder: ReplayRecorder = null
+	if QuizManager.has_meta("last_replay"):
+		var replay_candidate: Variant = QuizManager.get_meta("last_replay")
+		if replay_candidate is ReplayRecorder:
+			recorder = replay_candidate
 	if recorder == null or recorder.frame_count == 0:
-		push_error("[ReplayScene] No replay data found")
-		get_tree().change_scene_to_file("res://ui/main_menu.tscn")
+		push_warning("[ReplayScene] No replay data found; returning to main menu")
+		get_tree().call_deferred("change_scene_to_file", "res://ui/main_menu.tscn")
 		return
 
 	# ゲーム状態を初期化（リプレイ用のダミー状態）

@@ -327,7 +327,7 @@ func _update_emote_preview(is_p1: bool) -> void:
 		for lib_name in ap.get_animation_library_list():
 			var lib = ap.get_animation_library(lib_name)
 			for a_name in lib.get_animation_list():
-				var full = lib_name + "/" + a_name if lib_name != "" else a_name
+				var full: String = ("%s/%s" % [lib_name, a_name]) if not String(lib_name).is_empty() else String(a_name)
 				var anim = lib.get_animation(a_name)
 				var tc = anim.get_track_count()
 				if "mixamo_com" in a_name:

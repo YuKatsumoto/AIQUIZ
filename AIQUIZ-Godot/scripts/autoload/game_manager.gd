@@ -16,9 +16,12 @@ var current_score: int = 0
 var current_question_index: int = 0
 
 const USER_SETTINGS_PATH := "user://settings.json"
+const CURRENT_TUTORIAL_VERSION := 2
 
 var tutorial_completed: bool = false
 var tutorial_dismissed: bool = false
+var tutorial_completed_version: int = 0
+var tutorial_dismissed_version: int = 0
 var graphics_quality: String = GraphicsQuality.BALANCED
 var _user_settings: Dictionary = {}
 
@@ -29,20 +32,34 @@ func _ready() -> void:
 	_start_dashboard_server()
 
 func should_show_tutorial_on_start() -> bool:
-	return not tutorial_completed and not tutorial_dismissed
+	return (
+		tutorial_completed_version < CURRENT_TUTORIAL_VERSION
+		and tutorial_dismissed_version < CURRENT_TUTORIAL_VERSION
+	)
+
+func has_tutorial_update() -> bool:
+	return (
+		tutorial_completed_version > 0
+		and tutorial_completed_version < CURRENT_TUTORIAL_VERSION
+	)
 
 func mark_tutorial_completed() -> void:
 	tutorial_completed = true
 	tutorial_dismissed = true
+	tutorial_completed_version = CURRENT_TUTORIAL_VERSION
+	tutorial_dismissed_version = CURRENT_TUTORIAL_VERSION
 	_save_user_settings()
 
 func dismiss_tutorial() -> void:
 	tutorial_dismissed = true
+	tutorial_dismissed_version = CURRENT_TUTORIAL_VERSION
 	_save_user_settings()
 
 func reset_tutorial_prompt() -> void:
 	tutorial_completed = false
 	tutorial_dismissed = false
+	tutorial_completed_version = 0
+	tutorial_dismissed_version = 0
 	_save_user_settings()
 
 
@@ -64,13 +81,25 @@ func _load_user_settings() -> void:
 			if parsed is Dictionary:
 				_user_settings = parsed
 			file.close()
-	tutorial_completed = bool(_user_settings.get("tutorial_completed", false))
-	tutorial_dismissed = bool(_user_settings.get("tutorial_dismissed", false))
+	var legacy_completed := bool(_user_settings.get("tutorial_completed", false))
+	var legacy_dismissed := bool(_user_settings.get("tutorial_dismissed", false))
+	tutorial_completed_version = int(_user_settings.get(
+		"tutorial_completed_version",
+		1 if legacy_completed else 0
+	))
+	tutorial_dismissed_version = int(_user_settings.get(
+		"tutorial_dismissed_version",
+		1 if legacy_dismissed else 0
+	))
+	tutorial_completed = tutorial_completed_version >= CURRENT_TUTORIAL_VERSION
+	tutorial_dismissed = tutorial_dismissed_version >= CURRENT_TUTORIAL_VERSION
 	graphics_quality = GraphicsQuality.normalize(str(_user_settings.get("graphics_quality", GraphicsQuality.BALANCED)))
 
 func _save_user_settings() -> void:
 	_user_settings["tutorial_completed"] = tutorial_completed
 	_user_settings["tutorial_dismissed"] = tutorial_dismissed
+	_user_settings["tutorial_completed_version"] = tutorial_completed_version
+	_user_settings["tutorial_dismissed_version"] = tutorial_dismissed_version
 	_user_settings["graphics_quality"] = graphics_quality
 	var file := FileAccess.open(USER_SETTINGS_PATH, FileAccess.WRITE)
 	if file:

@@ -19,6 +19,8 @@ var crash_wall: Node3D = null
 var blocking_wall: Node3D = null
 var accident_cooldown_t: float = 0.0
 var last_emote: int = 0
+## メニューの壁通過ごとのダンス間引き用カウンター。
+var door_passes_since_emote: int = 0
 var next_acro_jump_t: float = 0.0
 var acro_seed: float = 0.0
 var knockback_end_t: float = 0.0

@@ -998,8 +998,11 @@ func _trigger_preview_door_pass(
 	if wall.get_meta(hit_key, false):
 		return
 	wall.set_meta(hit_key, true)
-	# 正解の扉をくぐった時だけ、設定中の3エモートからランダムに1つ選んで踊る
-	_start_ai_emote(bundle, is_p1)
+	# 正解の扉を3回くぐるごとに、設定中のエモートからランダムに1つ選んで踊る
+	bundle.door_passes_since_emote += 1
+	if bundle.door_passes_since_emote >= 3:
+		bundle.door_passes_since_emote = 0
+		_start_ai_emote(bundle, is_p1)
 	_record_learning_outcome_for_wall(wall, 1.0, bundle, _home_x_for_bundle(bundle))
 	var door_key := "preview_broken_door_%d" % door_index
 	if not wall.get_meta(door_key, false):

@@ -41,7 +41,7 @@ window/stretch/aspect="expand"
 
 [editor_plugins]
 
-enabled=PackedStringArray()
+enabled=PackedStringArray("res://addons/Tripo3d_Godot_Bridge/plugin.cfg")
 
 [input]
 
@@ -96,3 +96,7 @@ psx_precision_z={
 "type": "float",
 "value": 512.0
 }
+
+[tripo_bridge]
+
+last_cleanup="2026-07-24T21:47:24"

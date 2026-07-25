@@ -1,8 +1,10 @@
 extends Node3D
 
+const BIKE_RULES_SCRIPT = preload("res://scripts/core/bike_race_rules.gd")
+
 ## カメラ制御
 ## Python版 renderer.py の _camera() メソッドに相当
-## 1P: FPS視点 (マウスルック)
+## 1P: 固定三人称追従視点
 ## 2P: 俯瞰視点
 ## ゲームオーバー: ズームアウト + シェイク
 ## フライオーバー: 10問モード開始時の壁全体俯瞰
@@ -27,6 +29,10 @@ var _ocean_attack_impact_timer: float = 0.0
 
 const ENTRY_BLEND_DURATION := 0.95
 const PRELOAD_CAMERA_FOV := 66.0
+const THIRD_PERSON_FOV := 50.0
+const THIRD_PERSON_DISTANCE := 5.6
+const THIRD_PERSON_FOCUS_HEIGHT := 1.0
+const THIRD_PERSON_BASE_HEIGHT := 2.0
 
 func _ready() -> void:
 	if not camera:
@@ -45,7 +51,9 @@ func set_ocean_attack_focus(shark_position: Vector3, attack_intensity: float = 0
 	_has_ocean_attack_focus = true
 
 
-func clear_ocean_attack_focus() -> void:
+func clear_ocean_attack_focus(keep_focus: bool = false) -> void:
+	if keep_focus:
+		return
 	_has_ocean_attack_focus = false
 	_ocean_attack_intensity = 0.0
 
@@ -85,11 +93,22 @@ func update_camera(gs: QuizGameState, dt: float) -> void:
 		_update_flyover_camera(gs, dt)
 		return
 
-	# 2P中のサメ演出は DeathWipe の専用カメラだけで表示する。
-	# 生存中のプレイヤーのメイン画面を、落下側の演出で奪わない。
+	if gs.game_state == Constants.STATE_ATHLETIC_RACE:
+		_update_bike_camera(gs, dt)
+		return
+
+	# 1Pではサメの到達後も、ゲームオーバー中はサメ追従カメラを維持する。
+	# 2Pのサメ演出は DeathWipe の専用カメラだけで表示する。
 	var ocean_attack_active: bool = (
 		gs.num_players < 2
-		and gs.p1_waiting_for_shark
+		and (
+			gs.p1_waiting_for_shark
+			or (
+				gs.p1_shark_killed
+				and not gs.p1_alive
+				and gs.game_state == Constants.STATE_GAME_OVER
+			)
+		)
 	)
 	if ocean_attack_active:
 		_update_ocean_attack_camera(gs, dt)
@@ -138,8 +157,8 @@ func update_camera(gs: QuizGameState, dt: float) -> void:
 			eye = Vector3(0.0, 4.5 + bob, z_focus - 9.0)
 			target = Vector3(0.0, 1.0, z_focus + 8.0)
 	else:
-		# === 1-PLAYER: FPS view ===
-		fov = 44.0
+		# === 1-PLAYER: fixed third-person follow view ===
+		fov = THIRD_PERSON_FOV
 		var all_dead: bool = not gs.p1_alive
 
 		if all_dead and gs.game_state == Constants.STATE_GAME_OVER:
@@ -162,13 +181,14 @@ func update_camera(gs: QuizGameState, dt: float) -> void:
 				gs.player_local_z)
 		else:
 			_go_timer = 0.0
-			var yaw: float = gs.camera_yaw
-			var pitch: float = gs.camera_pitch
-			var dx: float = sin(yaw) * cos(pitch)
-			var dy: float = sin(pitch)
-			var dz: float = cos(yaw) * cos(pitch)
-			eye = Vector3(gs.player_x, gs.player_y + 1.2 + bob, gs.player_local_z)
-			target = eye + Vector3(dx, dy, dz) * 10.0
+			var focus: Vector3 = Vector3(
+				gs.player_x,
+				gs.player_y + THIRD_PERSON_FOCUS_HEIGHT + bob,
+				gs.player_local_z
+			)
+			eye = focus - Vector3.BACK * THIRD_PERSON_DISTANCE
+			eye += Vector3.UP * THIRD_PERSON_BASE_HEIGHT
+			target = focus + Vector3.BACK * 8.0
 
 	# Apply camera shake
 	if gs.camera_shake > 0.0:
@@ -186,9 +206,57 @@ func update_camera(gs: QuizGameState, dt: float) -> void:
 	camera.look_at(target, Vector3.UP)
 
 
+func _update_bike_camera(gs: QuizGameState, dt: float) -> void:
+	var p1_z: float = gs.player_z - gs.world_scroll_z
+	var blend: float = 1.0 - exp(-dt * 5.6)
+	if gs.num_players < 2:
+		var focus_x: float = gs.player_x
+		var focus_z: float = p1_z
+		var recovery_separation: float = 0.0
+		if gs.bike_p1_recovery_state != BIKE_RULES_SCRIPT.RIDER_RIDING:
+			var bike_z: float = gs.bike_p1_bike_z - gs.world_scroll_z
+			focus_x = (gs.player_x + gs.bike_p1_bike_x) * 0.5
+			focus_z = (p1_z + bike_z) * 0.5
+			recovery_separation = Vector2(
+				gs.player_x - gs.bike_p1_bike_x,
+				p1_z - bike_z
+			).length()
+		var solo_follow_distance: float = 5.8 + minf(recovery_separation * 0.42, 3.2)
+		var solo_height: float = 3.65 + minf(recovery_separation * 0.20, 1.8)
+		var solo_look_ahead: float = (
+			2.0
+			if gs.bike_p1_recovery_state != BIKE_RULES_SCRIPT.RIDER_RIDING
+			else 4.4 + gs.bike_p1_speed * 0.24
+		)
+		var solo_target_eye := Vector3(
+			focus_x,
+			solo_height,
+			focus_z - solo_follow_distance
+		)
+		var solo_target_look := Vector3(focus_x, 0.05, focus_z + solo_look_ahead)
+		camera.global_position = camera.global_position.lerp(solo_target_eye, blend)
+		camera.fov = lerpf(camera.fov, 47.0 + minf(recovery_separation * 1.2, 7.0), blend)
+		camera.look_at(solo_target_look, Vector3.UP)
+		return
+
+	var p2_z: float = gs.player2_z - gs.world_scroll_z
+	var midpoint_z: float = (p1_z + p2_z) * 0.5
+	var midpoint_x: float = (gs.player_x + gs.player2_x) * 0.5
+	var gap: float = absf(p1_z - p2_z)
+	var lead_speed: float = maxf(gs.bike_p1_speed, gs.bike_p2_speed)
+	var height: float = 4.85 + minf(gap * 0.11, 4.4)
+	var follow_distance: float = 7.1 + minf(gap * 0.20, 7.2)
+	var look_ahead: float = 5.8 + lead_speed * 0.31
+	var target_eye := Vector3(midpoint_x * 0.45, height, midpoint_z - follow_distance)
+	var target_look := Vector3(midpoint_x * 0.62, 0.12, midpoint_z + look_ahead)
+	camera.global_position = camera.global_position.lerp(target_eye, blend)
+	camera.fov = lerpf(camera.fov, 49.0 + minf(gap * 0.48, 15.0), blend)
+	camera.look_at(target_look, Vector3.UP)
+
+
 ## フライオーバーカメラ演出 (2フェーズ)
 ## Phase 1 (0.0–0.55): 最後の壁から後方まで一気に止まらず飛行（+Z方向を向いたまま）
-## Phase 2 (0.55–1.0): 後方からFPS一人称視点へゆっくり復帰
+## Phase 2 (0.55–1.0): 後方から三人称追従視点へゆっくり復帰
 func get_ocean_attack_camera_pose(
 	player_position: Vector3,
 	shark_position: Vector3,
@@ -244,7 +312,7 @@ func get_ocean_attack_camera_pose(
 
 func _update_ocean_attack_camera(gs: QuizGameState, dt: float) -> void:
 	var player_position: Vector3
-	if gs.p1_waiting_for_shark:
+	if gs.num_players < 2 or gs.p1_waiting_for_shark:
 		player_position = Vector3(gs.player_x, gs.player_y + 0.65, gs.player_local_z)
 	else:
 		player_position = Vector3(gs.player2_x, gs.player2_y + 0.65, gs.player2_local_z)
@@ -283,9 +351,7 @@ func _update_flyover_camera(gs: QuizGameState, _dt: float) -> void:
 	# カメラ開始位置の基準壁数（10問モードと同じ位置から開始）
 	var camera_walls: int = mini(gs.flyover_total_walls, 10)
 	var camera_start_z: float = t.wall_start_z + (camera_walls - 1) * t.wall_spacing
-	var player_y: float = 1.2  # FPS eye height
-
-	# --- 終着点: 1P=FPS / 2P=三人称 ---
+	# --- 終着点: 1P=三人称追従 / 2P=俯瞰 ---
 	var end_pos: Vector3
 	var end_look: Vector3
 	var end_fov: float
@@ -300,10 +366,16 @@ func _update_flyover_camera(gs: QuizGameState, _dt: float) -> void:
 		end_look = Vector3(0.0, 1.0, z_focus + 8.0)
 		end_fov = 50.0
 	else:
-		# 1P: FPS一人称視点
-		end_pos = Vector3(gs.player_x, player_y, gs.player_local_z)
-		end_look = end_pos + Vector3(0.0, 0.0, 10.0)
-		end_fov = 44.0
+		# 1P: 通常プレイと同じ三人称追従視点
+		var focus: Vector3 = Vector3(
+			gs.player_x,
+			gs.player_y + THIRD_PERSON_FOCUS_HEIGHT,
+			gs.player_local_z
+		)
+		end_pos = focus - Vector3.BACK * THIRD_PERSON_DISTANCE
+		end_pos += Vector3.UP * THIRD_PERSON_BASE_HEIGHT
+		end_look = focus + Vector3.BACK * 8.0
+		end_fov = THIRD_PERSON_FOV
 
 	# --- キーポイント ---
 	# 1P/2P共通: 最後の壁から開始
@@ -356,9 +428,14 @@ func _update_preload_camera(gs: QuizGameState, _dt: float) -> void:
 		end_pos = Vector3(0.0, 4.5, z_focus - 9.0)
 		end_look = Vector3(0.0, 1.0, z_focus + 8.0)
 	else:
-		var player_y: float = 1.2
-		end_pos = Vector3(gs.player_x, player_y, gs.player_local_z)
-		end_look = end_pos + Vector3(0.0, 0.0, 10.0)
+		var focus: Vector3 = Vector3(
+			gs.player_x,
+			gs.player_y + THIRD_PERSON_FOCUS_HEIGHT,
+			gs.player_local_z
+		)
+		end_pos = focus - Vector3.BACK * THIRD_PERSON_DISTANCE
+		end_pos += Vector3.UP * THIRD_PERSON_BASE_HEIGHT
+		end_look = focus + Vector3.BACK * 8.0
 
 	var pullback_distance := 14.0
 	var view_dir := (end_look - end_pos).normalized()

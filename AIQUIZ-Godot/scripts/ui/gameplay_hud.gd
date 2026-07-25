@@ -1,5 +1,15 @@
 extends CanvasLayer
 
+const OFFSCREEN_PLAYER_MARKER_SCRIPT := preload("res://scripts/ui/offscreen_player_marker.gd")
+const OFFSCREEN_MARKER_EDGE_MARGIN := 78.0
+const OFFSCREEN_MARKER_NEAR_SCALE := 0.82
+const OFFSCREEN_MARKER_FAR_SCALE := 1.24
+const OFFSCREEN_MARKER_DISTANCE_RANGE := 520.0
+const OFFSCREEN_MARKER_PLAYER_HEIGHT := 1.35
+# Start warning when the trailing player is this close to the 2P scroll-out
+# death separation. The authoritative limit lives in QuizGameState.
+const OFFSCREEN_MARKER_SCROLL_WARNING_DISTANCE := 4.0
+
 @onready var flash_rect: ColorRect = $FlashRect
 var _shark_impact_flash: float = 0.0
 
@@ -45,14 +55,11 @@ var _streak_label: Label = null
 var _confetti_fired: bool = false
 var _tutorial_panel: PanelContainer = null
 var _tutorial_title: Label = null
-var _tutorial_detail: Label = null
 var _tutorial_keys_box: HBoxContainer = null
 var _tutorial_key_signature: String = ""
-var _tutorial_emote_panel: PanelContainer = null
-var _tutorial_emote_preview: Control = null
-var _tutorial_emote_p1_slots: Label = null
-var _tutorial_emote_p2_slots: Label = null
-var _tutorial_emote_signature: String = ""
+var _p1_offscreen_marker: Control = null
+var _p2_offscreen_marker: Control = null
+var _gameplay_camera: Camera3D = null
 
 
 func _ready() -> void:
@@ -99,6 +106,7 @@ func _ready() -> void:
 	# Build the stats panel for game over (created once, updated per game)
 	_create_stats_panel()
 	_create_tutorial_overlay()
+	_create_offscreen_player_markers()
 
 
 
@@ -126,6 +134,171 @@ func _ready() -> void:
 		_close_history()
 	)
 
+func _create_offscreen_player_markers() -> void:
+	var p1_marker: Control = OFFSCREEN_PLAYER_MARKER_SCRIPT.new() as Control
+	p1_marker.name = "P1OffscreenMarker"
+	add_child(p1_marker)
+	p1_marker.call("configure", "1P", Color(0.95, 0.55, 0.20))
+	_p1_offscreen_marker = p1_marker
+
+	var p2_marker: Control = OFFSCREEN_PLAYER_MARKER_SCRIPT.new() as Control
+	p2_marker.name = "P2OffscreenMarker"
+	add_child(p2_marker)
+	p2_marker.call("configure", "2P", Color(0.20, 0.65, 0.90))
+	_p2_offscreen_marker = p2_marker
+
+
+func _update_offscreen_player_markers(delta: float) -> void:
+	if _p1_offscreen_marker == null or _p2_offscreen_marker == null:
+		return
+
+	var marker_state_active: bool = (
+		game_state.num_players >= 2
+		and game_state.game_state in [
+			Constants.STATE_COUNTDOWN,
+			Constants.STATE_PLAYING,
+			Constants.STATE_CORRECT,
+			Constants.STATE_GOAL_RACE,
+			Constants.STATE_ATHLETIC_RACE,
+		]
+	)
+	if not marker_state_active:
+		_hide_offscreen_player_markers()
+		return
+
+	var world_root: Node3D = get_parent() as Node3D
+	if world_root == null:
+		_hide_offscreen_player_markers()
+		return
+	if _gameplay_camera == null or not is_instance_valid(_gameplay_camera):
+		_gameplay_camera = world_root.get_node_or_null("CameraController/Camera3D") as Camera3D
+	if _gameplay_camera == null or not _gameplay_camera.is_inside_tree():
+		_hide_offscreen_player_markers()
+		return
+
+	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
+	if viewport_size.x <= OFFSCREEN_MARKER_EDGE_MARGIN * 2.0 or viewport_size.y <= OFFSCREEN_MARKER_EDGE_MARGIN * 2.0:
+		_hide_offscreen_player_markers()
+		return
+
+	var p1_local_position := Vector3(
+		game_state.player_x,
+		game_state.player_y + OFFSCREEN_MARKER_PLAYER_HEIGHT,
+		game_state.player_local_z
+	)
+	var p2_local_position := Vector3(
+		game_state.player2_x,
+		game_state.player2_y + OFFSCREEN_MARKER_PLAYER_HEIGHT,
+		game_state.player2_local_z
+	)
+	_update_single_offscreen_marker(
+		_p1_offscreen_marker,
+		world_root.to_global(p1_local_position),
+		game_state.p1_alive and not game_state.p1_waiting_for_shark,
+		_scroll_out_danger_ratio(1),
+		viewport_size,
+		delta
+	)
+	_update_single_offscreen_marker(
+		_p2_offscreen_marker,
+		world_root.to_global(p2_local_position),
+		game_state.p2_alive and not game_state.p2_waiting_for_shark,
+		_scroll_out_danger_ratio(2),
+		viewport_size,
+		delta
+	)
+
+
+func _update_single_offscreen_marker(
+		marker: Control,
+		player_world_position: Vector3,
+		should_track: bool,
+		warning_strength: float,
+		viewport_size: Vector2,
+		delta: float) -> void:
+	if not should_track or _gameplay_camera.is_position_in_frustum(player_world_position):
+		marker.call("hide_marker")
+		return
+
+	var viewport_center := viewport_size * 0.5
+	var screen_position: Vector2 = _gameplay_camera.unproject_position(player_world_position)
+	var target_direction := screen_position - viewport_center
+	var is_behind: bool = _gameplay_camera.is_position_behind(player_world_position)
+	if is_behind:
+		target_direction = -target_direction
+	if target_direction.length_squared() <= 0.0001:
+		target_direction = Vector2.DOWN
+
+	target_direction = target_direction.normalized()
+	var marker_center := _marker_edge_position(viewport_center, viewport_size, target_direction)
+	var clamped_screen := Vector2(
+		clampf(screen_position.x, 0.0, viewport_size.x),
+		clampf(screen_position.y, 0.0, viewport_size.y)
+	)
+	var offscreen_distance: float = screen_position.distance_to(clamped_screen)
+	if is_behind:
+		offscreen_distance = maxf(offscreen_distance, minf(viewport_size.x, viewport_size.y) * 0.55)
+	var distance_range: float = maxf(
+		OFFSCREEN_MARKER_DISTANCE_RANGE,
+		minf(viewport_size.x, viewport_size.y) * 0.55
+	)
+	var distance_ratio: float = clampf(offscreen_distance / distance_range, 0.0, 1.0)
+	var marker_scale: float = lerpf(
+		OFFSCREEN_MARKER_NEAR_SCALE,
+		OFFSCREEN_MARKER_FAR_SCALE,
+		distance_ratio
+	)
+	marker.call(
+		"set_marker_state",
+		marker_center,
+		target_direction,
+		marker_scale,
+		delta,
+		warning_strength
+	)
+
+
+func _scroll_out_danger_ratio(player_index: int) -> float:
+	var trailing_distance: float = (
+		game_state.player2_z - game_state.player_z
+		if player_index == 1
+		else game_state.player_z - game_state.player2_z
+	)
+	var warning_start: float = (
+		game_state.SCROLL_OUT_LIMIT
+		- OFFSCREEN_MARKER_SCROLL_WARNING_DISTANCE
+	)
+	return clampf(
+		(trailing_distance - warning_start)
+		/ OFFSCREEN_MARKER_SCROLL_WARNING_DISTANCE,
+		0.0,
+		1.0
+	)
+
+
+func _marker_edge_position(
+		viewport_center: Vector2,
+		viewport_size: Vector2,
+		direction: Vector2) -> Vector2:
+	var half_extents := viewport_size * 0.5 - Vector2(
+		OFFSCREEN_MARKER_EDGE_MARGIN,
+		OFFSCREEN_MARKER_EDGE_MARGIN
+	)
+	var distance_to_edge: float = 1000000.0
+	if absf(direction.x) > 0.0001:
+		distance_to_edge = minf(distance_to_edge, half_extents.x / absf(direction.x))
+	if absf(direction.y) > 0.0001:
+		distance_to_edge = minf(distance_to_edge, half_extents.y / absf(direction.y))
+	return viewport_center + direction * distance_to_edge
+
+
+func _hide_offscreen_player_markers() -> void:
+	if _p1_offscreen_marker != null:
+		_p1_offscreen_marker.call("hide_marker")
+	if _p2_offscreen_marker != null:
+		_p2_offscreen_marker.call("hide_marker")
+
+
 func _show_feedback(txt: String) -> void:
 	btn_good.get_parent().visible = false
 	rate_feedback.text = txt
@@ -135,6 +308,7 @@ func _process(_dt: float) -> void:
 	if not game_state:
 		return
 	_shark_impact_flash = maxf(0.0, _shark_impact_flash - _dt * 12.5)
+	_update_offscreen_player_markers(_dt)
 
 	if game_state.game_state == Constants.STATE_PRELOADING:
 		_show_preloading(_dt)
@@ -153,6 +327,19 @@ func _process(_dt: float) -> void:
 		game_over_panel.visible = false
 		message_label.visible = false
 
+		_update_tutorial_overlay(_dt)
+		return
+	elif game_state.game_state == Constants.STATE_ATHLETIC_RACE:
+		preload_bg.visible = false
+		preload_panel.visible = false
+		question_panel.visible = false
+		score_label.visible = false
+		progress_bar.visible = false
+		game_over_panel.visible = false
+		history_panel.visible = false
+		message_label.visible = false
+		flash_rect.visible = false
+		_streak_label.visible = false
 		_update_tutorial_overlay(_dt)
 		return
 	else:
@@ -328,15 +515,6 @@ func _create_tutorial_overlay() -> void:
 	_tutorial_title.add_theme_constant_override("outline_size", 4)
 	root.add_child(_tutorial_title)
 
-	_tutorial_detail = Label.new()
-	_tutorial_detail.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_tutorial_detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_tutorial_detail.add_theme_font_size_override("font_size", 14)
-	_tutorial_detail.add_theme_color_override("font_color", Color(0.88, 0.92, 1.0))
-	_tutorial_detail.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
-	_tutorial_detail.add_theme_constant_override("outline_size", 3)
-	root.add_child(_tutorial_detail)
-
 	_tutorial_keys_box = HBoxContainer.new()
 	_tutorial_keys_box.alignment = BoxContainer.ALIGNMENT_CENTER
 	_tutorial_keys_box.add_theme_constant_override("separation", 14)
@@ -351,6 +529,7 @@ func _update_tutorial_overlay(dt: float = 0.0) -> void:
 			Constants.STATE_WAITING_START,
 			Constants.STATE_COUNTDOWN,
 			Constants.STATE_PLAYING,
+			Constants.STATE_GOAL_RACE,
 		]
 	)
 	if not tutorial_visible:
@@ -360,18 +539,16 @@ func _update_tutorial_overlay(dt: float = 0.0) -> void:
 
 	_tutorial_panel.visible = true
 	_tutorial_title.text = game_state.tutorial_instruction_text()
-	_tutorial_detail.text = game_state.tutorial_detail_text()
 	var is_2p := game_state.num_players >= 2
 	# --- パネルを画面最下部にコンパクト配置（キャラクターと重ならない） ---
 	_tutorial_panel.offset_left = 60.0
 	_tutorial_panel.offset_right = -60.0
-	_tutorial_panel.offset_top = -148.0 if is_2p else -128.0
+	_tutorial_panel.offset_top = -128.0 if is_2p else -108.0
 	_tutorial_panel.offset_bottom = 0.0
 
-	var signature := "%d:%d:%s" % [
+	var signature := "%d:%s" % [
 		game_state.num_players,
-		game_state.current_index,
-		game_state.game_state,
+		game_state.tutorial_progress_signature(),
 	]
 	if signature != _tutorial_key_signature:
 		_tutorial_key_signature = signature
@@ -383,31 +560,21 @@ func _rebuild_tutorial_keys() -> void:
 	for child in _tutorial_keys_box.get_children():
 		child.queue_free()
 
+	_add_tutorial_player_keys(
+		"P1",
+		game_state.tutorial_key_items(1),
+		Color(0.40, 0.66, 1.0)
+	)
 	if game_state.num_players >= 2:
 		_add_tutorial_player_keys(
-			"P1",
-			PackedStringArray(["W", "A", "S", "D", "Space", "1, 2, 3"]),
-			PackedStringArray(["前", "左", "後", "右", "ジャンプ", "エモート"]),
-			Color(0.40, 0.66, 1.0)
-		)
-		_add_tutorial_player_keys(
 			"P2",
-			PackedStringArray(["↑", "←", "↓", "→", "Ctrl / Num0", "8, 9, 0"]),
-			PackedStringArray(["前", "左", "後", "右", "ジャンプ", "エモート"]),
+			game_state.tutorial_key_items(2),
 			Color(0.35, 0.95, 0.64)
-		)
-	else:
-		_add_tutorial_player_keys(
-			"P1",
-			PackedStringArray(["W / ↑", "A / ←", "S / ↓", "D / →", "Space", "1, 2, 3"]),
-			PackedStringArray(["前", "左", "後", "右", "ジャンプ", "エモート"]),
-			Color(0.40, 0.66, 1.0)
 		)
 
 func _add_tutorial_player_keys(
 		player_label: String,
-		keys: PackedStringArray,
-		captions: PackedStringArray,
+		items: Array[Dictionary],
 		accent: Color) -> void:
 	var block := VBoxContainer.new()
 	block.add_theme_constant_override("separation", 3)
@@ -428,27 +595,44 @@ func _add_tutorial_player_keys(
 	row.add_theme_constant_override("separation", 5)
 	block.add_child(row)
 
-	for i: int in range(keys.size()):
-		var caption := captions[i] if i < captions.size() else ""
-		_add_key_chip(row, keys[i], caption, accent, _tutorial_key_highlighted(caption))
+	for item: Dictionary in items:
+		_add_key_chip(
+			row,
+			str(item.get("key", "")),
+			str(item.get("caption", "")),
+			accent,
+			bool(item.get("done", false)),
+			bool(item.get("highlight", false))
+		)
 
 func _add_key_chip(
 		parent: HBoxContainer,
 		key_text: String,
 		caption: String,
 		accent: Color,
+		done: bool,
 		highlighted: bool) -> void:
 	var stack := VBoxContainer.new()
 	stack.add_theme_constant_override("separation", 1)
 	parent.add_child(stack)
 
 	var key_panel := PanelContainer.new()
-	var width := clampf(float(key_text.length()) * 10.0 + 18.0, 36.0, 100.0)
+	var display_key := ("✓ " + key_text) if done else key_text
+	var width := clampf(float(display_key.length()) * 9.0 + 18.0, 40.0, 118.0)
 	key_panel.custom_minimum_size = Vector2(width, 28.0)
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.20, 0.26, 0.39, 0.80) if highlighted else Color(0.08, 0.10, 0.17, 0.72)
-	style.border_color = Color(1.0, 0.86, 0.22, 1.0) if highlighted else accent.lerp(Color.WHITE, 0.15)
-	style.set_border_width_all(2 if highlighted else 1)
+	if done:
+		style.bg_color = Color(0.10, 0.38, 0.24, 0.90)
+		style.border_color = Color(0.36, 1.0, 0.58, 1.0)
+		style.set_border_width_all(2)
+	elif highlighted:
+		style.bg_color = Color(0.20, 0.26, 0.39, 0.90)
+		style.border_color = Color(1.0, 0.86, 0.22, 1.0)
+		style.set_border_width_all(2)
+	else:
+		style.bg_color = Color(0.08, 0.10, 0.17, 0.72)
+		style.border_color = accent.lerp(Color.WHITE, 0.15)
+		style.set_border_width_all(1)
 	style.set_corner_radius_all(5)
 	style.content_margin_left = 6.0
 	style.content_margin_right = 6.0
@@ -458,30 +642,29 @@ func _add_key_chip(
 	stack.add_child(key_panel)
 
 	var key_label := Label.new()
-	key_label.text = key_text
+	key_label.text = display_key
 	key_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	key_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	key_label.add_theme_font_size_override("font_size", 14 if key_text.length() <= 6 else 12)
-	key_label.add_theme_color_override("font_color", Color(1.0, 0.92, 0.45) if highlighted else Color(0.92, 0.95, 1.0))
+	key_label.add_theme_font_size_override("font_size", 14 if display_key.length() <= 8 else 12)
+	if done:
+		key_label.add_theme_color_override("font_color", Color(0.78, 1.0, 0.84))
+	elif highlighted:
+		key_label.add_theme_color_override("font_color", Color(1.0, 0.92, 0.45))
+	else:
+		key_label.add_theme_color_override("font_color", Color(0.92, 0.95, 1.0))
 	key_panel.add_child(key_label)
 
 	var caption_label := Label.new()
 	caption_label.text = caption
 	caption_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	caption_label.add_theme_font_size_override("font_size", 10)
-	caption_label.add_theme_color_override("font_color", Color(1.0, 0.88, 0.32) if highlighted else Color(0.58, 0.64, 0.78))
+	if done:
+		caption_label.add_theme_color_override("font_color", Color(0.46, 1.0, 0.65))
+	elif highlighted:
+		caption_label.add_theme_color_override("font_color", Color(1.0, 0.88, 0.32))
+	else:
+		caption_label.add_theme_color_override("font_color", Color(0.58, 0.64, 0.78))
 	stack.add_child(caption_label)
-
-func _tutorial_key_highlighted(caption: String) -> bool:
-	if not game_state or game_state.game_state != Constants.STATE_PLAYING:
-		return false
-	match game_state.current_index:
-		0:
-			return caption == "左"
-		1:
-			return caption == "右"
-		_:
-			return caption == "左"
 
 
 func _show_game_over() -> void:
@@ -610,7 +793,7 @@ func _build_result_card(is_clear: bool, explanation: String) -> void:
 		# Winner
 		if is_tutorial:
 			var done_label := Label.new()
-			done_label.text = "2人で完了 / 3つの壁"
+			done_label.text = "チュートリアル完了"
 			done_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 			done_label.add_theme_font_size_override("font_size", 22)
 			done_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
@@ -653,7 +836,7 @@ func _build_result_card(is_clear: bool, explanation: String) -> void:
 			score_row.add_child(sub)
 		elif is_tutorial:
 			var sub := Label.new()
-			sub.text = "完了 / 3つの壁"
+			sub.text = "チュートリアル完了"
 			sub.add_theme_font_size_override("font_size", 16)
 			sub.add_theme_color_override("font_color", Color(0.6, 0.65, 0.75))
 			sub.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -809,17 +992,33 @@ func _update_score() -> void:
 		score_label.visible = true
 		if game_state.num_players >= 2:
 			if game_state.mode == Constants.MODE_TUTORIAL:
-				score_label.text = "2P練習  P1:%d  P2:%d" % [game_state.score, game_state.player2_score]
+				if game_state.is_tutorial_basics():
+					score_label.text = "2P 基本操作"
+				elif game_state.game_state == Constants.STATE_GOAL_RACE:
+					score_label.text = "2P GOAL  P1:%d  P2:%d" % [game_state.score, game_state.player2_score]
+				else:
+					score_label.text = "2Pクイズ %d/%d  P1:%d  P2:%d" % [
+						mini(game_state.current_index + 1, game_state.target_count),
+						game_state.target_count,
+						game_state.score,
+						game_state.player2_score,
+					]
 			elif game_state.is_coop_mode():
 				score_label.text = "協力: %d/%d" % [game_state.score, game_state.target_count]
 			else:
 				score_label.text = "P1: %d  P2: %d" % [game_state.score, game_state.player2_score]
 		else:
 			if game_state.mode == Constants.MODE_TUTORIAL:
-				score_label.text = "チュートリアル: %d/%d" % [
-					mini(game_state.current_index + 1, game_state.target_count),
-					game_state.target_count
-				]
+				if game_state.is_tutorial_basics():
+					score_label.text = "基本操作"
+				elif game_state.game_state == Constants.STATE_GOAL_RACE:
+					score_label.text = "GOAL"
+				else:
+					score_label.text = "クイズ練習: %d/%d  正解:%d" % [
+						mini(game_state.current_index + 1, game_state.target_count),
+						game_state.target_count,
+						game_state.score,
+					]
 			elif game_state.mode == Constants.MODE_TEN:
 				score_label.text = "正解: %d  問題: %d/10" % [game_state.score, game_state.current_index + 1]
 			else:

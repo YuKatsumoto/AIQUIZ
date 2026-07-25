@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bjtnewa7sivpd"
-path="res://.godot/imported/shark_swim_T_Shark_BaseColor.png-9f13a6626ca657f1aca14b02a528c299.ctex"
+path.s3tc="res://.godot/imported/shark_swim_T_Shark_BaseColor.png-9f13a6626ca657f1aca14b02a528c299.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "4aa805a466868098daea09f43358ce67"
@@ -14,7 +15,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/shark/shark_swim_T_Shark_BaseColor.png"
-dest_files=["res://.godot/imported/shark_swim_T_Shark_BaseColor.png-9f13a6626ca657f1aca14b02a528c299.ctex"]
+dest_files=["res://.godot/imported/shark_swim_T_Shark_BaseColor.png-9f13a6626ca657f1aca14b02a528c299.s3tc.ctex"]
 
 [params]
 

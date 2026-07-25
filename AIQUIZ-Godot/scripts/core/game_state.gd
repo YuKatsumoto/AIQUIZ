@@ -1,6 +1,8 @@
 extends RefCounted
 class_name QuizGameState
 
+const BIKE_RULES_SCRIPT = preload("res://scripts/core/bike_race_rules.gd")
+
 ## ゲーム状態管理クラス
 ## Python版 game_state.py の QuizGameState (638行) を移植
 
@@ -10,6 +12,7 @@ signal correct_answer
 signal wrong_answer(message: String)
 signal game_cleared(message: String)
 signal player_entered_ocean(player_index: int, local_position: Vector3)
+signal player_scrolled_out(player_index: int)
 
 var provider: QuizProvider
 var use_english_ui: bool = false
@@ -29,6 +32,22 @@ var pre_tutorial_grade: int = 3
 var pre_tutorial_difficulty: String = "普通"
 var pre_tutorial_mode: String = Constants.MODE_TEN
 var pre_tutorial_llm_mode: String = "ONLINE"
+
+# --- Tutorial ---
+const TUTORIAL_PHASE_BASICS := "BASICS"
+const TUTORIAL_PHASE_QUIZ := "QUIZ"
+const TUTORIAL_PHASE_GOAL := "GOAL"
+
+var tutorial_phase: String = TUTORIAL_PHASE_BASICS
+var tutorial_p1_side: bool = false
+var tutorial_p1_forward: bool = false
+var tutorial_p1_jump: bool = false
+var tutorial_p1_look: bool = false
+var tutorial_p2_side: bool = false
+var tutorial_p2_forward: bool = false
+var tutorial_p2_jump: bool = false
+var tutorial_hazard_seen: bool = false
+var tutorial_ui_revision: int = 0
 
 # --- Player 1 ---
 var score: int = 0
@@ -129,6 +148,48 @@ var player2_game_over_timer: float = 0.0
 var goal_z: float = 0.0
 var goal_winner: int = 0  # 0=未確定, 1=P1, 2=P2
 
+# --- Athletic Race / Phase 1: Mama-chari ---
+var race_phase: String = Constants.RACE_PHASE_BIKE
+var race_winner: int = 0
+var race_finished: bool = false
+var race_win_reason: String = ""
+var race_elapsed: float = 0.0
+var p1_finish_time: float = -1.0
+var p2_finish_time: float = -1.0
+var bike_start_z: float = 0.0
+var bike_finish_z: float = 0.0
+var bike_p1_speed: float = 0.0
+var bike_p2_speed: float = 0.0
+var bike_p1_stamina: float = 1.0
+var bike_p2_stamina: float = 1.0
+var bike_p1_steer: float = 0.0
+var bike_p2_steer: float = 0.0
+var bike_p1_wobble: float = 0.0
+var bike_p2_wobble: float = 0.0
+var bike_p1_fall_timer: float = 0.0
+var bike_p2_fall_timer: float = 0.0
+var bike_p1_invulnerable: float = 0.0
+var bike_p2_invulnerable: float = 0.0
+var bike_p1_checkpoint: int = 0
+var bike_p2_checkpoint: int = 0
+var bike_p1_slipstream: bool = false
+var bike_p2_slipstream: bool = false
+var bike_p1_boosting: bool = false
+var bike_p2_boosting: bool = false
+var bike_p1_start_delay: float = 0.0
+var bike_p2_start_delay: float = 0.0
+var bike_p1_recovery_state: String = "RIDING"
+var bike_p2_recovery_state: String = "RIDING"
+var bike_p1_bike_x: float = 0.0
+var bike_p2_bike_x: float = 0.0
+var bike_p1_bike_z: float = 0.0
+var bike_p2_bike_z: float = 0.0
+var bike_p1_crash_revision: int = 0
+var bike_p2_crash_revision: int = 0
+var bike_p1_crash_strength: float = 0.0
+var bike_p2_crash_strength: float = 0.0
+var _bike_rules: RefCounted
+
 var p1_jump_trigger: bool = false
 var p2_jump_trigger: bool = false
 
@@ -142,6 +203,7 @@ const FLOOR_HALF_WIDTH: float = 12.0
 const FLOOR_BACK_Z: float = -12.5
 const FLOOR_PLAY_FRONT_Z: float = 139.5
 const FLOOR_RACE_FRONT_Z: float = 400.0
+const SCROLL_OUT_LIMIT: float = 14.0
 
 
 func _init(quiz_provider: QuizProvider = null) -> void:
@@ -150,6 +212,7 @@ func _init(quiz_provider: QuizProvider = null) -> void:
 	else:
 		provider = QuizProvider.new()
 	tuning = GameTuning.new()
+	_bike_rules = BIKE_RULES_SCRIPT.new()
 	refresh_status_text()
 
 
@@ -185,6 +248,210 @@ func _is_fixed_count_mode() -> bool:
 
 func _is_tutorial_mode() -> bool:
 	return mode == Constants.MODE_TUTORIAL
+
+func is_tutorial_basics() -> bool:
+	return _is_tutorial_mode() and tutorial_phase == TUTORIAL_PHASE_BASICS
+
+func _reset_tutorial_v2_progress() -> void:
+	tutorial_phase = TUTORIAL_PHASE_BASICS
+	tutorial_p1_side = false
+	tutorial_p1_forward = false
+	tutorial_p1_jump = false
+	tutorial_p1_look = false
+	tutorial_p2_side = false
+	tutorial_p2_forward = false
+	tutorial_p2_jump = false
+	tutorial_hazard_seen = false
+	tutorial_ui_revision += 1
+
+func _reset_athletic_state() -> void:
+	race_phase = Constants.RACE_PHASE_BIKE
+	race_winner = 0
+	race_finished = false
+	race_win_reason = ""
+	race_elapsed = 0.0
+	p1_finish_time = -1.0
+	p2_finish_time = -1.0
+	bike_start_z = 0.0
+	bike_finish_z = 0.0
+	bike_p1_speed = 0.0
+	bike_p2_speed = 0.0
+	bike_p1_stamina = 1.0
+	bike_p2_stamina = 1.0
+	bike_p1_fall_timer = 0.0
+	bike_p2_fall_timer = 0.0
+	bike_p1_invulnerable = 0.0
+	bike_p2_invulnerable = 0.0
+	bike_p1_checkpoint = 0
+	bike_p2_checkpoint = 0
+	bike_p1_slipstream = false
+	bike_p2_slipstream = false
+	bike_p1_boosting = false
+	bike_p2_boosting = false
+	bike_p1_steer = 0.0
+	bike_p2_steer = 0.0
+	bike_p1_wobble = 0.0
+	bike_p2_wobble = 0.0
+	bike_p1_start_delay = 0.0
+	bike_p2_start_delay = 0.0
+	bike_p1_recovery_state = BIKE_RULES_SCRIPT.RIDER_RIDING
+	bike_p2_recovery_state = BIKE_RULES_SCRIPT.RIDER_RIDING
+	bike_p1_bike_x = 0.0
+	bike_p2_bike_x = 0.0
+	bike_p1_bike_z = 0.0
+	bike_p2_bike_z = 0.0
+	bike_p1_crash_revision = 0
+	bike_p2_crash_revision = 0
+	bike_p1_crash_strength = 0.0
+	bike_p2_crash_strength = 0.0
+
+func register_tutorial_camera_look(relative: Vector2) -> void:
+	if not is_tutorial_basics() or num_players >= 2:
+		return
+	if relative.length_squared() < 16.0 or tutorial_p1_look:
+		return
+	tutorial_p1_look = true
+	tutorial_ui_revision += 1
+	if _tutorial_basics_complete():
+		_finish_tutorial_basics()
+
+func _update_tutorial_control_progress(
+		axis_p1: Vector2,
+		axis_p2: Vector2,
+		jump_p1: bool,
+		jump_p2: bool) -> void:
+	if not is_tutorial_basics():
+		return
+	var changed := false
+	if absf(axis_p1.x) > 0.35 and not tutorial_p1_side:
+		tutorial_p1_side = true
+		changed = true
+	if absf(axis_p1.y) > 0.35 and not tutorial_p1_forward:
+		tutorial_p1_forward = true
+		changed = true
+	if jump_p1 and not tutorial_p1_jump:
+		tutorial_p1_jump = true
+		changed = true
+	if num_players >= 2:
+		if absf(axis_p2.x) > 0.35 and not tutorial_p2_side:
+			tutorial_p2_side = true
+			changed = true
+		if absf(axis_p2.y) > 0.35 and not tutorial_p2_forward:
+			tutorial_p2_forward = true
+			changed = true
+		if jump_p2 and not tutorial_p2_jump:
+			tutorial_p2_jump = true
+			changed = true
+	if changed:
+		tutorial_ui_revision += 1
+	if _tutorial_basics_complete():
+		_finish_tutorial_basics()
+
+func _tutorial_basics_complete() -> bool:
+	var p1_ready := (
+		tutorial_p1_side
+		and tutorial_p1_forward
+		and tutorial_p1_jump
+	)
+	if num_players < 2:
+		return p1_ready
+	return (
+		p1_ready
+		and tutorial_p2_side
+		and tutorial_p2_forward
+		and tutorial_p2_jump
+	)
+
+func _finish_tutorial_basics() -> void:
+	if not is_tutorial_basics():
+		return
+	tutorial_phase = TUTORIAL_PHASE_QUIZ
+	player_x = 1.5 if num_players >= 2 else 0.0
+	player_y = 0.0
+	player_z = world_scroll_z
+	player_vel_y = 0.0
+	player_vel_z = 0.0
+	p1_emote = 0
+	if num_players >= 2:
+		player2_x = -1.5
+		player2_y = 0.0
+		player2_z = world_scroll_z
+		player2_vel_y = 0.0
+		player2_vel_z = 0.0
+		p2_emote = 0
+	tutorial_ui_revision += 1
+	refresh_status_text()
+	state_changed.emit(game_state)
+
+func tutorial_progress_signature() -> String:
+	return "%s:%d:%d:%s:%s%s%s%s:%s%s%s:%s" % [
+		tutorial_phase,
+		current_index,
+		tutorial_ui_revision,
+		game_state,
+		str(tutorial_p1_side),
+		str(tutorial_p1_forward),
+		str(tutorial_p1_jump),
+		str(tutorial_p1_look),
+		str(tutorial_p2_side),
+		str(tutorial_p2_forward),
+		str(tutorial_p2_jump),
+		str(tutorial_hazard_seen),
+	]
+
+func tutorial_remaining_control_text() -> String:
+	var remaining: Array[String] = []
+	if not tutorial_p1_side:
+		remaining.append("P1左右移動")
+	if not tutorial_p1_forward:
+		remaining.append("P1前後移動")
+	if not tutorial_p1_jump:
+		remaining.append("P1ジャンプ")
+	if num_players >= 2:
+		if not tutorial_p2_side:
+			remaining.append("P2左右移動")
+		if not tutorial_p2_forward:
+			remaining.append("P2前後移動")
+		if not tutorial_p2_jump:
+			remaining.append("P2ジャンプ")
+	return "完了！" if remaining.is_empty() else "未達成: " + " / ".join(remaining)
+
+func tutorial_key_items(player_index: int) -> Array[Dictionary]:
+	var items: Array[Dictionary] = []
+	if game_state in [Constants.STATE_WAITING_START, Constants.STATE_COUNTDOWN] or is_tutorial_basics():
+		if player_index == 1:
+			items.append({"key": "A / D", "caption": "左右", "done": tutorial_p1_side, "highlight": not tutorial_p1_side})
+			items.append({"key": "W / S", "caption": "前後", "done": tutorial_p1_forward, "highlight": not tutorial_p1_forward})
+			items.append({"key": "Space", "caption": "ジャンプ", "done": tutorial_p1_jump, "highlight": not tutorial_p1_jump})
+		else:
+			items.append({"key": "← / →", "caption": "左右", "done": tutorial_p2_side, "highlight": not tutorial_p2_side})
+			items.append({"key": "↑ / ↓", "caption": "前後", "done": tutorial_p2_forward, "highlight": not tutorial_p2_forward})
+			items.append({"key": "Ctrl / Num0", "caption": "ジャンプ", "done": tutorial_p2_jump, "highlight": not tutorial_p2_jump})
+		return items
+	if tutorial_phase == TUTORIAL_PHASE_GOAL or game_state == Constants.STATE_GOAL_RACE:
+		items.append({
+			"key": "W" if player_index == 1 else "↑",
+			"caption": "GOALへ",
+			"done": false,
+			"highlight": true,
+		})
+		return items
+	var left_key := "A" if player_index == 1 else "←"
+	var right_key := "D" if player_index == 1 else "→"
+	var reveal_answer := current_index < 2 and current_quiz != null
+	items.append({
+		"key": left_key,
+		"caption": "左ドア",
+		"done": false,
+		"highlight": reveal_answer and current_quiz.a == 0,
+	})
+	items.append({
+		"key": right_key,
+		"caption": "右ドア",
+		"done": false,
+		"highlight": reveal_answer and current_quiz.a == 1,
+	})
+	return items
 
 func _provider_mode() -> String:
 	return Constants.MODE_TEN if is_coop_mode() else mode
@@ -257,6 +524,7 @@ func cycle_difficulty(delta: int) -> void:
 
 func start_game() -> void:
 	_reset_ocean_shark_state()
+	_reset_athletic_state()
 	if is_coop_mode():
 		num_players = 2
 	score = 0
@@ -382,6 +650,7 @@ func start_tutorial(tutorial_players: int = 1) -> void:
 	choice_locked = false
 	message_text = ""
 	status_text = ""
+	_reset_tutorial_v2_progress()
 	target_count = 3
 	quiz_list = _build_tutorial_quizzes()
 	_active_wall_speed = 3.8
@@ -394,30 +663,30 @@ func _build_tutorial_quizzes() -> Array[QuizItem]:
 	if num_players >= 2:
 		var quizzes_coop: Array[QuizItem] = [
 			QuizItem.create(
-				"2人練習1: 2人で左ドアへ",
+				"2人練習1: それぞれ左ドアへ",
 				PackedStringArray(["左", "右"]),
 				0,
-				"P1はA、P2は←で左へ移動します。2人とも左ドアを抜けましょう。",
+				"P1はA、P2は←で左へ移動します。正解数はプレイヤー別に記録されます。",
 				"TUTORIAL",
 				"",
 				PackedStringArray(),
 				7.0
 			),
 			QuizItem.create(
-				"2人練習2: 2人で右ドアへ",
+				"2人練習2: それぞれ右ドアへ",
 				PackedStringArray(["左", "右"]),
 				1,
-				"P1はD、P2は→で右へ移動します。今度は2人とも右ドアです。",
+				"P1はD、P2は→で右へ移動します。片方だけ正解した場合も個別に得点します。",
 				"TUTORIAL",
 				"",
 				PackedStringArray(),
 				7.0
 			),
 			QuizItem.create(
-				"2人練習3: 正解ドアを一緒に抜けよう",
+				"2人練習3: 自分で正解ドアを選ぼう",
 				PackedStringArray(["協力して進む", "止まる"]),
 				0,
-				"2人とも正解ドアを抜けると、壁が壊れてクリアできます。",
+				"それぞれが選んだドアを個別採点し、どちらかが正解なら次へ進みます。",
 				"TUTORIAL",
 				"",
 				PackedStringArray(),
@@ -461,6 +730,7 @@ func _build_tutorial_quizzes() -> Array[QuizItem]:
 
 func reset_to_menu() -> void:
 	_reset_ocean_shark_state()
+	_reset_athletic_state()
 	provider.end_round()
 	if mode == Constants.MODE_TUTORIAL:
 		subject = pre_tutorial_subject
@@ -508,9 +778,16 @@ func load_current_quiz() -> void:
 	if _is_fixed_count_mode():
 		if current_index >= quiz_list.size():
 			if current_index >= target_count:
-				# 2P: ゴールラインまでのレースへ移行
-				if num_players >= 2 and mode == Constants.MODE_TEN:
-					_start_goal_race()
+				# 1P tutorial clears after the quizzes; 2P keeps the final goal race.
+				if _is_tutorial_mode():
+					if num_players >= 2:
+						tutorial_phase = TUTORIAL_PHASE_GOAL
+						tutorial_ui_revision += 1
+						_start_goal_race()
+					else:
+						clear_game()
+				elif num_players >= 2 and mode == Constants.MODE_TEN:
+					_start_athletic_race()
 				else:
 					clear_game()
 				return
@@ -666,6 +943,10 @@ func update(dt: float, axis_p1: Vector2 = Vector2.ZERO, axis_p2: Vector2 = Vecto
 		_update_goal_race(dt, axis_p1, axis_p2, jump_p1, jump_p2, emote_p1, emote_p2)
 		return
 
+	if game_state == Constants.STATE_ATHLETIC_RACE:
+		_update_athletic_race(dt, axis_p1, axis_p2, jump_p1, jump_p2)
+		return
+
 	if game_state == Constants.STATE_CORRECT:
 		_update_correct(dt)
 		return
@@ -773,23 +1054,26 @@ func _update_countdown(dt: float, emote_p1: int = 0, emote_p2: int = 0) -> void:
 		state_changed.emit(game_state)
 
 
-func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: bool, jump_p2: bool, emote_p1: int = 0, emote_p2: int = 0) -> void:
+func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: bool, jump_p2: bool, _emote_p1: int = 0, _emote_p2: int = 0) -> void:
 	play_time += dt
-	world_scroll_z += _active_wall_speed * dt
+	if is_tutorial_basics():
+		_update_tutorial_control_progress(axis_p1, axis_p2, jump_p1, jump_p2)
+	var world_speed := 0.0 if is_tutorial_basics() else _active_wall_speed
+	world_scroll_z += world_speed * dt
 
 	p1_moving_back = axis_p1.y < -0.1
 	p2_moving_back = axis_p2.y < -0.1
 
 	# Player 1 movement
 	if p1_alive and not p1_waiting_for_shark:
-		var yaw: float = camera_yaw if num_players == 1 else 0.0
+		var yaw: float = 0.0
 		var move_x: float = axis_p1.x * cos(yaw) + axis_p1.y * sin(yaw)
 		var move_z: float = axis_p1.y * cos(yaw) - axis_p1.x * sin(yaw)
 
 		player_x += move_x * tuning.player_speed * dt
 		# Removed clamp to allow falling off sides
 
-		player_z += _active_wall_speed * dt # Carry forward with world scroll
+		player_z += world_speed * dt # Carry forward with world scroll
 		player_z += move_z * tuning.player_speed * dt
 
 		# Removed forward limit to allow running ahead
@@ -810,11 +1094,8 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 
 		if player_y < StageConstants.OCEAN_ENTRY_Y:
 			if _is_tutorial_mode():
-				if num_players >= 2:
-					_reset_tutorial_attempt("P1が床から落ちました。2人ともスタート位置へ戻して、同じ壁でもう一度練習しましょう。")
-				else:
-					_reset_tutorial_attempt("床から落ちました。中央に戻して、同じ壁でもう一度練習しましょう。")
-				return
+				message_text = "海では泳いで待機し、サメが近づきます。危険演出の後は安全な場所へ戻ります。"
+				tutorial_ui_revision += 1
 			_begin_ocean_shark_wait(1)
 	elif p1_alive and p1_waiting_for_shark:
 		_update_ocean_float(1, dt)
@@ -827,7 +1108,7 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 		player2_x += axis_p2.x * tuning.player_speed * dt
 		# Removed clamp
 
-		player2_z += _active_wall_speed * dt
+		player2_z += world_speed * dt
 		player2_z += axis_p2.y * tuning.player_speed * dt
 
 		# Removed forward limit
@@ -848,8 +1129,8 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 
 		if player2_y < StageConstants.OCEAN_ENTRY_Y:
 			if _is_tutorial_mode():
-				_reset_tutorial_attempt("P2が床から落ちました。2人ともスタート位置へ戻して、同じ壁でもう一度練習しましょう。")
-				return
+				message_text = "P2は海でサメを待機中です。P1のメイン画面は継続し、右下のDeathWipeで演出を確認できます。"
+				tutorial_ui_revision += 1
 			_begin_ocean_shark_wait(2)
 	elif num_players >= 2 and p2_alive and p2_waiting_for_shark:
 		_update_ocean_float(2, dt)
@@ -868,7 +1149,6 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 		and not p1_waiting_for_shark
 		and not p2_waiting_for_shark
 	):
-		const SCROLL_OUT_LIMIT: float = 14.0
 		if player_z - player2_z > SCROLL_OUT_LIMIT:
 			# P2 が遅れて画面外に消えた
 			if _is_tutorial_mode():
@@ -879,6 +1159,7 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 				return
 			p2_alive = false
 			player2_game_over_timer = 0.001
+			player_scrolled_out.emit(2)
 		elif player2_z - player_z > SCROLL_OUT_LIMIT:
 			# P1 が遅れて画面外に消えた
 			if _is_tutorial_mode():
@@ -889,6 +1170,7 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 				return
 			p1_alive = false
 			game_over_timer = 0.001
+			player_scrolled_out.emit(1)
 
 	# Check collisions with wall
 	var p1_hit: bool = p1_alive and not p1_waiting_for_shark and player_z >= wall_z - 0.4
@@ -939,14 +1221,63 @@ func _update_game_over(dt: float) -> void:
 			message_text = "GAME OVER\n\n%s" % msg
 
 
-# ---------- Goal Race (2P 10問モード) ----------
+# ---------- Athletic Race / Phase 1: Mama-chari ----------
+
+func _start_athletic_race() -> void:
+	var quiz_exit_z: float = tuning.wall_start_z + target_count * tuning.wall_spacing
+	bike_start_z = quiz_exit_z + 15.0
+	bike_finish_z = bike_start_z + BIKE_RULES_SCRIPT.COURSE_LENGTH
+	goal_z = bike_finish_z
+	goal_winner = 0
+	race_phase = Constants.RACE_PHASE_BIKE
+	race_finished = false
+	race_win_reason = ""
+	p1_alive = true
+	p2_alive = true
+	p1_waiting_for_shark = false
+	p2_waiting_for_shark = false
+	_bike_rules.reset(self)
+	game_state = Constants.STATE_ATHLETIC_RACE
+	message_text = "ママチャリ区間 START！ W/↑でこいで、Space/Ctrlでブースト"
+	refresh_status_text()
+	state_changed.emit(game_state)
+
+
+func _update_athletic_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, boost_p1: bool, boost_p2: bool) -> void:
+	if race_phase != Constants.RACE_PHASE_BIKE or race_finished:
+		return
+	play_time += dt
+	race_elapsed += dt
+	_bike_rules.step(self, dt, axis_p1, axis_p2, boost_p1, boost_p2)
+
+
+func apply_bike_hazard(player_index: int, severity: float) -> void:
+	_bike_rules.apply_hazard(self, player_index, severity)
+
+
+func complete_bike_phase(winner: int, reason: String) -> void:
+	if race_finished:
+		return
+	race_finished = true
+	race_winner = winner
+	goal_winner = winner
+	race_win_reason = reason
+	race_phase = Constants.RACE_PHASE_OBSTACLE_RUN
+	clear_game()
+
+
+# ---------- Goal Race (2P tutorial legacy) ----------
 
 func _start_goal_race() -> void:
 	# ゴールラインは最後の壁の先に配置
 	goal_z = tuning.wall_start_z + target_count * tuning.wall_spacing + 15.0
 	goal_winner = 0
+	if _is_tutorial_mode():
+		tutorial_phase = TUTORIAL_PHASE_GOAL
+		tutorial_ui_revision += 1
 	game_state = Constants.STATE_GOAL_RACE
 	message_text = "GOAL へ走れ！" if not use_english_ui else "Race to the GOAL!"
+	refresh_status_text()
 	state_changed.emit(game_state)
 
 func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: bool, jump_p2: bool, emote_p1: int = 0, emote_p2: int = 0) -> void:
@@ -1142,9 +1473,9 @@ func _resolve_tutorial_collision_2p() -> void:
 	if not (p1_at_wall and p2_at_wall):
 		choice_locked = false
 		if p1_at_wall:
-			message_text = "P1はドア前で待機中です。P2も同じドアへ進みましょう。"
+			message_text = "P1は回答済みです。P2も自分でドアを選びましょう。"
 		elif p2_at_wall:
-			message_text = "P2はドア前で待機中です。P1も同じドアへ進みましょう。"
+			message_text = "P2は回答済みです。P1も自分でドアを選びましょう。"
 		return
 
 	choice_locked = true
@@ -1153,40 +1484,51 @@ func _resolve_tutorial_collision_2p() -> void:
 	var answer := current_quiz.a
 	var p1_correct := p1_door == answer
 	var p2_correct := p2_door == answer
-	if p1_correct and p2_correct:
-		score += 1
-		player2_score += 1
-		current_streak += 1
-		max_streak = maxi(max_streak, current_streak)
+	var round_correct := p1_correct or p2_correct
+
+	if not round_correct:
 		total_answered += 1
-		recent_results.append(true)
+		total_wrong += 1
+		current_streak = 0
+		recent_results.append(false)
 		if recent_results.size() > 12:
 			recent_results.remove_at(0)
-		quiz_history.append({"quiz": current_quiz, "correct": true, "rated": "tutorial"})
-		correct_flash = 1.0
-		camera_shake = 0.18
-		message_text = _tutorial_correct_message()
-		correct_answer.emit()
-		advance_after_correct()
+		var misses: Array[String] = [
+			_tutorial_player_miss_text("P1", p1_door, answer),
+			_tutorial_player_miss_text("P2", p2_door, answer),
+		]
+		var hint := " / ".join(misses)
+		hint += " 正解は%sドアです。2人とももう一度選びましょう。" % _tutorial_answer_label(answer)
+		_reset_tutorial_attempt(hint)
 		return
 
+	if p1_correct:
+		score += 1
+	if p2_correct:
+		player2_score += 1
+	current_streak += 1
+	max_streak = maxi(max_streak, current_streak)
 	total_answered += 1
-	total_wrong += 1
-	current_streak = 0
-	recent_results.append(false)
+	recent_results.append(true)
 	if recent_results.size() > 12:
 		recent_results.remove_at(0)
-
-	var misses: Array[String] = []
-	if not p1_correct:
-		misses.append(_tutorial_player_miss_text("P1", p1_door, answer))
-	if not p2_correct:
-		misses.append(_tutorial_player_miss_text("P2", p2_door, answer))
-	var hint := misses[0]
-	if misses.size() > 1:
-		hint += " / " + misses[1]
-	hint += " 今回は %s ドアを2人で抜けましょう。" % _tutorial_answer_label(answer)
-	_reset_tutorial_attempt(hint)
+	quiz_history.append({
+		"quiz": current_quiz,
+		"correct": true,
+		"rated": "tutorial",
+		"p1_choice": p1_door,
+		"p2_choice": p2_door,
+	})
+	correct_flash = 1.0
+	camera_shake = 0.18
+	if p1_correct and p2_correct:
+		message_text = _tutorial_correct_message()
+	elif p1_correct:
+		message_text = "P1正解・P2不正解。得点は別々に入り、どちらかが正解なら次へ進みます。"
+	else:
+		message_text = "P1不正解・P2正解。得点は別々に入り、どちらかが正解なら次へ進みます。"
+	correct_answer.emit()
+	advance_after_correct()
 
 func _tutorial_player_miss_text(player_label: String, door: int, answer: int) -> String:
 	if door == -2:
@@ -1233,15 +1575,15 @@ func _reset_tutorial_attempt(hint: String) -> void:
 func _tutorial_correct_message() -> String:
 	if num_players >= 2:
 		if current_index == 0:
-			return "2人とも左ドアを抜けました。次は右ドアを練習します。"
+			return "2人とも正解！ 次は右ドアを選びます。得点はP1・P2別々に記録されます。"
 		if current_index == 1:
-			return "いい連携です。最後は問題を読んで同じ正解ドアへ進みましょう。"
-		return "2人プレイ チュートリアル完了！"
+			return "2人とも正解！ 最後は問題を読んで、それぞれドアを選びましょう。"
+		return "クイズ練習完了！ 最後はGOALまで走ります。"
 	if current_index == 0:
 		return "正解！ ドアを抜けられました。次は右のドアを練習します。"
 	if current_index == 1:
 		return "いい感じです。最後は本番に近い問題を抜けましょう。"
-	return "チュートリアル完了！"
+	return "クイズ練習完了！ チュートリアルクリアです。"
 
 func _coop_wait_message(p1_at_wall: bool, p2_at_wall: bool) -> String:
 	if p1_at_wall and not p2_at_wall:
@@ -1386,6 +1728,37 @@ func get_ocean_player_local_position(player_index: int) -> Vector3:
 	return Vector3(player2_x, StageConstants.OCEAN_SURFACE_Y, p2_ocean_local_z)
 
 
+func _reset_tutorial_after_hazard(player_index: int) -> void:
+	# サメの接近中にも壁は進むため、復帰時は現在の壁の安全な開始位置へ巻き戻す。
+	_reset_ocean_shark_state()
+	var reset_z := float(current_wall_index) * tuning.wall_spacing
+	world_scroll_z = reset_z
+	player_x = 1.5 if num_players >= 2 else 0.0
+	player_y = 0.0
+	player_z = reset_z
+	player_vel_y = 0.0
+	player_vel_z = 0.0
+	p1_alive = true
+	game_over_timer = 0.0
+	if num_players >= 2:
+		player2_x = -1.5
+		player2_y = 0.0
+		player2_z = reset_z
+		player2_vel_y = 0.0
+		player2_vel_z = 0.0
+		p2_alive = true
+		player2_game_over_timer = 0.0
+	else:
+		p2_alive = false
+	choice_locked = false
+	wrong_flash = 0.0
+	correct_flash = 1.0
+	camera_shake = 0.16
+	message_text = "P%dの危険練習完了！ 海へ落ちるとサメ演出後に安全な位置へ復帰します。" % player_index
+	refresh_status_text()
+	state_changed.emit(game_state)
+
+
 func complete_ocean_shark_attack(player_index: int) -> void:
 	if not is_player_waiting_for_shark(player_index):
 		return
@@ -1406,7 +1779,14 @@ func complete_ocean_shark_attack(player_index: int) -> void:
 		player2_game_over_timer = 0.001
 
 	camera_shake = 0.75
-	if is_coop_mode():
+	if _is_tutorial_mode():
+		tutorial_hazard_seen = true
+		tutorial_ui_revision += 1
+		_reset_tutorial_after_hazard(player_index)
+		return
+	# 片方が先にサメに倒されても、もう片方の海上・サメ襲撃演出を完走させる。
+	# 両者が倒れた後だけ、協力プレイの失敗処理へ進む。
+	if is_coop_mode() and not p1_alive and not p2_alive:
 		var coop_message: String = (
 			"P%dがサメに襲われました。協力失敗です。" % player_index
 			if not use_english_ui
@@ -1695,7 +2075,7 @@ func advance_after_correct() -> void:
 			quiz_list = provider.get_quizzes(subject, grade, difficulty,
 				Constants.MODE_ENDLESS, 3)
 		load_current_quiz()
-	if game_state not in [Constants.STATE_PRELOADING, Constants.STATE_WAITING_START, Constants.STATE_COUNTDOWN, Constants.STATE_CLEAR, Constants.STATE_GAME_OVER, Constants.STATE_GOAL_RACE]:
+	if game_state not in [Constants.STATE_PRELOADING, Constants.STATE_WAITING_START, Constants.STATE_COUNTDOWN, Constants.STATE_CLEAR, Constants.STATE_GAME_OVER, Constants.STATE_GOAL_RACE, Constants.STATE_ATHLETIC_RACE]:
 		game_state = Constants.STATE_PLAYING
 		message_text = ""
 		state_changed.emit(game_state)
@@ -1734,9 +2114,9 @@ func clear_game() -> void:
 	if _is_tutorial_mode():
 		rating_target_quiz = null
 		if num_players >= 2:
-			message_text = "TUTORIAL CLEAR!\n2人で3つの壁を抜けました\nメニューからいつでも復習できます"
+			message_text = "TUTORIAL CLEAR!\n基本操作・クイズ3問・GOALを完了\nP1:%d  P2:%d" % [score, player2_score]
 		else:
-			message_text = "TUTORIAL CLEAR!\n3つの壁を抜けました\nメニューからいつでも復習できます"
+			message_text = "TUTORIAL CLEAR!\n基本操作・クイズ3問を完了"
 		correct_flash = 1.0
 		GameManager.mark_tutorial_completed()
 		refresh_status_text()
@@ -1748,6 +2128,23 @@ func clear_game() -> void:
 			message_text = "COOP CLEAR!\n10 questions cleared together\nTeam Score: %d/10" % score
 		else:
 			message_text = "COOP CLEAR!\n2人で10問突破\n協力成功: %d/10" % score
+		correct_flash = 1.0
+		refresh_status_text()
+		game_cleared.emit(message_text)
+		state_changed.emit(game_state)
+		QuizManager.quiz_optimizer.evaluate_history(quiz_history, subject, grade, difficulty)
+		return
+	if race_win_reason.begins_with("BIKE_") or race_win_reason == "PHOTO_FINISH_SCORE_TIEBREAK":
+		var bike_winner_text: String
+		if race_winner == 1:
+			bike_winner_text = "P1 が先着！"
+		elif race_winner == 2:
+			bike_winner_text = "P2 が先着！"
+		else:
+			bike_winner_text = "写真判定でも同着！"
+		var p1_time_text: String = "%.2f秒" % p1_finish_time if p1_finish_time >= 0.0 else "未完走"
+		var p2_time_text: String = "%.2f秒" % p2_finish_time if p2_finish_time >= 0.0 else "未完走"
+		message_text = "ママチャリ区間 完走！\n%s\nP1 %s  P2 %s\n障害物ランは次フェーズで接続します" % [bike_winner_text, p1_time_text, p2_time_text]
 		correct_flash = 1.0
 		refresh_status_text()
 		game_cleared.emit(message_text)
@@ -1903,13 +2300,17 @@ func refresh_status_text() -> void:
 
 	# Playing state
 	if _is_tutorial_mode():
-		var progress_tutorial := "%d/%d" % [mini(current_index + 1, target_count), target_count]
+		var phase_label := "基本操作"
+		if tutorial_phase == TUTORIAL_PHASE_QUIZ:
+			phase_label = "クイズ %d/%d" % [mini(current_index + 1, target_count), target_count]
+		elif tutorial_phase == TUTORIAL_PHASE_GOAL or game_state == Constants.STATE_GOAL_RACE:
+			phase_label = "GOAL"
 		if num_players >= 2:
-			status_text = "2P 3Dチュートリアル  進行:%s  P1:%d  P2:%d" % [
-				progress_tutorial, score, player2_score
+			status_text = "2P チュートリアル  %s  P1:%d  P2:%d" % [
+				phase_label, score, player2_score
 			]
 		else:
-			status_text = "3Dチュートリアル  進行:%s  正解:%d" % [progress_tutorial, score]
+			status_text = "チュートリアル  %s  正解:%d" % [phase_label, score]
 		return
 
 	if use_english_ui:
@@ -1932,70 +2333,23 @@ func tutorial_instruction_text() -> String:
 	if not _is_tutorial_mode():
 		return ""
 	if game_state == Constants.STATE_WAITING_START:
-		if num_players >= 2:
-			return "2人プレイ チュートリアル: 同じ正解ドアを抜ける練習"
-		return "3Dチュートリアル: 実際に壁を抜ける練習"
+		return "チュートリアル"
 	if game_state == Constants.STATE_COUNTDOWN:
-		if num_players >= 2:
-			return "P1はWASD、P2は矢印キーで動きます"
-		return "カウントダウン後、壁が近づいてきます"
+		return "基本操作を試そう"
 	if game_state == Constants.STATE_PLAYING:
-		if num_players >= 2:
-			match current_index:
-				0:
-					return "練習1: P1はA、P2は←で左ドアへ"
-				1:
-					return "練習2: P1はD、P2は→で右ドアへ"
-				_:
-					return "練習3: 2人で問題を読んで正解ドアへ"
-		else:
-			match current_index:
-				0:
-					return "練習1: A / ← で左の正解ドアへ移動"
-				1:
-					return "練習2: D / → で右の正解ドアへ移動"
-				_:
-					return "練習3: 問題を読んで正解ドアへ移動"
+		if is_tutorial_basics():
+			return "基本操作を試そう"
+		match current_index:
+			0:
+				return "左の正解ドアを選ぼう"
+			1:
+				return "右の正解ドアを選ぼう"
+			_:
+				return "正解ドアを選ぼう"
+	if game_state == Constants.STATE_GOAL_RACE:
+		return "GOALへ走れ！"
 	if game_state == Constants.STATE_CLEAR:
-		if num_players >= 2:
-			return "2人プレイ チュートリアル完了"
 		return "チュートリアル完了"
-	return ""
-
-func tutorial_detail_text() -> String:
-	if not _is_tutorial_mode():
-		return ""
-	if game_state == Constants.STATE_WAITING_START:
-		if num_players >= 2:
-			return "任意のキーで開始です。上のガイドでエモートキーと設定方法も確認できます。"
-		return "任意のキーを押すと、3秒後に練習開始です。上のガイドでエモートキーと設定方法も確認できます。"
-	if game_state == Constants.STATE_COUNTDOWN:
-		if num_players >= 2:
-			return "P1はSpace、P2はCtrlまたはNum0でジャンプ。エモートはP1:1/2/3、P2:8/9/0です。"
-		return "問題文は画面上、答えは壁のドアに表示されます。エモートは1/2/3で出せます。"
-	if game_state == Constants.STATE_PLAYING:
-		if not message_text.is_empty() and (wrong_flash > 0.0 or num_players >= 2):
-			return message_text
-		if num_players >= 2:
-			match current_index:
-				0:
-					return "左のドアに2人とも入ります。P1はA、P2は←を押して寄りましょう。"
-				1:
-					return "今度は右のドアです。P1はD、P2は→で右へ寄りましょう。"
-				_:
-					return "壁の表示を見て、2人とも同じ正解ドアを抜けましょう。"
-		else:
-			match current_index:
-				0:
-					return "2 + 3 の答え「5」は左ドアです。左へ寄って壁を抜けましょう。"
-				1:
-					return "今度は右側のドアを選びます。右へ移動して通過しましょう。"
-				_:
-					return "正解ドアを抜けると壁が壊れ、次へ進めることを確認しましょう。"
-	if game_state == Constants.STATE_CLEAR:
-		if num_players >= 2:
-			return "メニューに戻って、2人プレイの10問チャレンジにも挑戦できます。"
-		return "メニューに戻って、10問チャレンジやエンドレスに挑戦できます。"
 	return ""
 
 # ===========================================================================

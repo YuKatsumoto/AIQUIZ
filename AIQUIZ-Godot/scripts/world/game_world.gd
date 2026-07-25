@@ -1,5 +1,9 @@
 extends Node3D
 
+const BIKE_COURSE_SCENE: PackedScene = preload("res://scenes/bike_course.tscn")
+const MAMA_CHARI_SCENE: PackedScene = preload("res://scenes/mama_chari.tscn")
+const RACE_HUD_SCRIPT = preload("res://scripts/ui/race_hud.gd")
+
 ## 3Dゲームワールド管理
 ## Python版 renderer.py の _draw_world + main_3d.py の入力処理に相当
 
@@ -40,6 +44,10 @@ var _pw_count: int = 0                    # 生成済み壁数
 var _pw_merge_started: Array[bool] = []   # 各壁のマージ開始フラグ
 var _pw_merge_timer: float = 0.0          # 壁間のディレイタイマー
 var _goal_line_node: Node3D = null
+var _bike_course: Node3D = null
+var _bike_p1: Node3D = null
+var _bike_p2: Node3D = null
+var _race_hud: CanvasLayer = null
 # ── スタートバリア壁（カウントダウン終了まで問題を隠す） ──
 var _start_barrier: Node3D = null
 var _barrier_exploded: bool = false
@@ -95,6 +103,7 @@ func _ready() -> void:
 		"include_floor_collision": true,
 		"include_sharks": true,
 	})
+	_setup_bike_phase_nodes()
 	_setup_ocean_shark_signals()
 	_warm_merge_effect_pool()
 
@@ -102,6 +111,50 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_build_pause_menu()
 	call_deferred("_reveal_after_transition")
+
+func _setup_bike_phase_nodes() -> void:
+	_bike_course = BIKE_COURSE_SCENE.instantiate() as Node3D
+	_bike_course.name = "BikeCourse"
+	_bike_course.visible = false
+	add_child(_bike_course)
+
+	_bike_p1 = MAMA_CHARI_SCENE.instantiate() as Node3D
+	_bike_p1.name = "MamaChariP1"
+	_bike_p1.visible = false
+	if _bike_p1.has_method("configure"):
+		_bike_p1.configure(1)
+	add_child(_bike_p1)
+
+	_bike_p2 = MAMA_CHARI_SCENE.instantiate() as Node3D
+	_bike_p2.name = "MamaChariP2"
+	_bike_p2.visible = false
+	if _bike_p2.has_method("configure"):
+		_bike_p2.configure(2)
+	add_child(_bike_p2)
+
+	_race_hud = RACE_HUD_SCRIPT.new() as CanvasLayer
+	_race_hud.name = "RaceHUD"
+	add_child(_race_hud)
+
+
+func _update_athletic_visuals(dt: float) -> void:
+	var bike_phase_active: bool = (
+		game_state.game_state == Constants.STATE_ATHLETIC_RACE
+		and game_state.race_phase == Constants.RACE_PHASE_BIKE
+	)
+	if stage_env != null:
+		# The hand-built road replaces the conveyor visually. Keeping both
+		# coplanar surfaces visible produces severe z-fighting.
+		stage_env.set_conveyor_visuals_visible(not bike_phase_active)
+	if _bike_course != null and _bike_course.has_method("update_from_state"):
+		_bike_course.update_from_state(game_state, dt)
+	if _bike_p1 != null and _bike_p1.has_method("update_from_state"):
+		_bike_p1.update_from_state(game_state, dt)
+	if _bike_p2 != null and _bike_p2.has_method("update_from_state"):
+		_bike_p2.update_from_state(game_state, dt)
+	if _race_hud != null and _race_hud.has_method("update_from_state"):
+		_race_hud.update_from_state(game_state, _bike_course, dt)
+
 
 func _setup_ocean_shark_signals() -> void:
 	if stage_env == null:
@@ -248,7 +301,7 @@ func _process(dt: float) -> void:
 	var jump_p2 := false
 	var emote_p1 := 0
 	var emote_p2 := 0
-	if game_state.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE, Constants.STATE_WAITING_START, Constants.STATE_FLYOVER, Constants.STATE_COUNTDOWN]:
+	if game_state.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE, Constants.STATE_ATHLETIC_RACE, Constants.STATE_WAITING_START, Constants.STATE_FLYOVER, Constants.STATE_COUNTDOWN]:
 		# --- ローカル入力収集 (P1 or クライアントの自分) ---
 		# P1 エモート: キー1,2,3 → スロットからエモートIDを取得
 		if Input.is_key_pressed(KEY_1) and game_state.p1_emote_slots.size() > 0: emote_p1 = game_state.p1_emote_slots[0]
@@ -295,13 +348,9 @@ func _process(dt: float) -> void:
 		if game_state.num_players >= 2:
 			axis_p2 = axis_p2.normalized()
 
-	# Mouse look (1P only, not online and not replay)
-	if not _replay_mode and game_state.game_state == Constants.STATE_PLAYING and game_state.num_players == 1 and not _is_online:
-		if Input.get_mouse_mode() != Input.MOUSE_MODE_CAPTURED:
-			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
-	else:
-		if Input.get_mouse_mode() == Input.MOUSE_MODE_CAPTURED:
-			Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+	# 1P uses a fixed third-person view, so gameplay never captures the mouse.
+	if Input.get_mouse_mode() == Input.MOUSE_MODE_CAPTURED:
+		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 
 	# Update game state (host or offline only — client receives snapshots)
 	if not _is_client and not _replay_mode:
@@ -332,7 +381,8 @@ func _process(dt: float) -> void:
 	_update_floor_conveyor()
 	_update_floor()
 	_update_flyover()
-	_update_player()
+	_update_athletic_visuals(dt)
+	_update_player(dt)
 	_update_walls()
 	_update_goal_line()
 	_update_preview_walls(dt)
@@ -352,17 +402,10 @@ func _update_floor_conveyor() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.keycode == KEY_ESCAPE and event.is_pressed() and not event.is_echo():
-		if game_state and game_state.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]:
+		if game_state and game_state.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE, Constants.STATE_ATHLETIC_RACE]:
 			_toggle_pause()
 			
-	if event is InputEventMouseMotion:
-		if not _replay_mode and game_state and game_state.game_state == Constants.STATE_PLAYING \
-				and game_state.num_players == 1 and not get_tree().paused:
-			game_state.camera_yaw -= event.relative.x * 0.002
-			game_state.camera_pitch -= event.relative.y * 0.002
-			game_state.camera_pitch = clampf(game_state.camera_pitch,
-				-PI / 2.5, PI / 2.5)
-	elif event is InputEventKey or event is InputEventJoypadButton or event is InputEventMouseButton:
+	if event is InputEventKey or event is InputEventJoypadButton or event is InputEventMouseButton:
 		if event.is_pressed() and not event.is_echo():
 			if game_state and game_state.game_state == Constants.STATE_WAITING_START:
 				# カウントダウン壁が出現し終わるまで開始トリガーをブロック
@@ -392,6 +435,8 @@ func _update_floor() -> void:
 		if game_state.num_players >= 2 and game_state.mode == Constants.MODE_TEN:
 			var goal_line_z: float = t.wall_start_z + game_state.target_count * t.wall_spacing + 15.0
 			floor_front = maxf(floor_front, goal_line_z + 20.0)
+	elif game_state.game_state == Constants.STATE_ATHLETIC_RACE:
+		floor_front = maxf(144.0 + floor_back, game_state.bike_finish_z + 25.0 - game_state.world_scroll_z)
 	elif game_state.game_state == Constants.STATE_GOAL_RACE:
 		# ゴールレース中: ゴールラインの先まで床を延長
 		floor_front = maxf(144.0 + floor_back, game_state.goal_z + 20.0 - game_state.world_scroll_z)
@@ -414,7 +459,7 @@ func _update_floor() -> void:
 	var floor_center_z: float = (floor_front + floor_back) / 2.0
 	stage_env.set_floor_geometry(floor_center_z, floor_length)
 
-func _update_player() -> void:
+func _update_player(dt: float) -> void:
 	if game_state.game_state in [Constants.STATE_MENU, Constants.STATE_PRELOADING]:
 		player_node.visible = false
 		_hats_applied = false
@@ -423,9 +468,39 @@ func _update_player() -> void:
 	player_node.visible = true
 	var pc: PlayerController = player_node as PlayerController
 	if pc:
-		pc.update_from_state(game_state)
-		
-		# Apply hats when game starts
+		if game_state.game_state == Constants.STATE_ATHLETIC_RACE:
+			var p1_bike_lean: float = (
+				float(_bike_p1.get_visual_lean())
+				if _bike_p1 != null and _bike_p1.has_method("get_visual_lean")
+				else 0.0
+			)
+			var p2_bike_lean: float = (
+				float(_bike_p2.get_visual_lean())
+				if _bike_p2 != null and _bike_p2.has_method("get_visual_lean")
+				else 0.0
+			)
+			var p1_rider_physics: Dictionary = (
+				_bike_p1.get_rider_visual_transform()
+				if _bike_p1 != null and _bike_p1.has_method("get_rider_visual_transform")
+				else {"active": false}
+			)
+			var p2_rider_physics: Dictionary = (
+				_bike_p2.get_rider_visual_transform()
+				if _bike_p2 != null and _bike_p2.has_method("get_rider_visual_transform")
+				else {"active": false}
+			)
+			pc.update_bike_from_state(
+				game_state,
+				p1_bike_lean,
+				p2_bike_lean,
+				dt,
+				p1_rider_physics,
+				p2_rider_physics
+			)
+		else:
+			pc.update_from_state(game_state)
+
+		# Apply the same runner hats/cosmetics before and during the bike phase.
 		if not _hats_applied:
 			pc.set_hat(1, game_state.p1_hat)
 			if game_state.num_players >= 2 and pc.p2_container != null:
@@ -465,7 +540,7 @@ func _clear_flyover_walls() -> void:
 
 func _update_walls() -> void:
 	# プリロード中・ゴールレース中・クリア後・メニュー・フライオーバー中は通常壁を全て非表示
-	if game_state.game_state in [Constants.STATE_MENU, Constants.STATE_FLYOVER, Constants.STATE_GOAL_RACE, Constants.STATE_CLEAR, Constants.STATE_PRELOADING, Constants.STATE_WAITING_START]:
+	if game_state.game_state in [Constants.STATE_MENU, Constants.STATE_FLYOVER, Constants.STATE_GOAL_RACE, Constants.STATE_ATHLETIC_RACE, Constants.STATE_CLEAR, Constants.STATE_PRELOADING, Constants.STATE_WAITING_START]:
 		for wall: Node3D in _active_walls:
 			wall.queue_free()
 		_active_walls.clear()
@@ -540,10 +615,11 @@ func _update_wall_labels(wall_node: Node3D) -> void:
 		wall_node.set_quiz(game_state.current_quiz, game_state.num_choices)
 
 func _update_goal_line() -> void:
-	# Only show goal line in 2P × 10Q mode during relevant states
+	# Show the goal gate for 2P 10-question games and 2P tutorials.
 	var should_show := (
 		game_state.num_players >= 2
-		and game_state.mode == Constants.MODE_TEN
+		and game_state.mode in [Constants.MODE_TEN, Constants.MODE_TUTORIAL]
+		and (game_state.race_win_reason.is_empty() or game_state.mode == Constants.MODE_TUTORIAL)
 		and game_state.game_state in [
 			Constants.STATE_GOAL_RACE,
 			Constants.STATE_FLYOVER,
@@ -579,26 +655,33 @@ func _update_goal_line() -> void:
 		var pillar_color := Color(1.0, 0.85, 0.1)  # Gold
 		var bar_color := Color(1.0, 0.85, 0.1)
 
+		# ゴールの外端をベルト面の外端（幅24.0）に揃える。
+		const GOAL_PILLAR_WIDTH: float = 0.4
+		const GOAL_STRIPE_WIDTH: float = 0.5
+		var goal_width: float = StageConstants.FLOOR_WIDTH
+		var pillar_x: float = goal_width * 0.5 - GOAL_PILLAR_WIDTH * 0.5
+
 		# Left pillar (高さ5.0、中心をFLOOR_TOP_Y + 2.5に配置)
-		var left_pillar := _create_goal_box(Vector3(0.4, 5.0, 0.4), pillar_color)
-		left_pillar.position = Vector3(-7.0, FLOOR_TOP_Y + 2.5, 0)
+		var left_pillar := _create_goal_box(Vector3(GOAL_PILLAR_WIDTH, 5.0, 0.4), pillar_color)
+		left_pillar.position = Vector3(-pillar_x, FLOOR_TOP_Y + 2.5, 0)
 		_goal_line_node.add_child(left_pillar)
 
 		# Right pillar
-		var right_pillar := _create_goal_box(Vector3(0.4, 5.0, 0.4), pillar_color)
-		right_pillar.position = Vector3(7.0, FLOOR_TOP_Y + 2.5, 0)
+		var right_pillar := _create_goal_box(Vector3(GOAL_PILLAR_WIDTH, 5.0, 0.4), pillar_color)
+		right_pillar.position = Vector3(pillar_x, FLOOR_TOP_Y + 2.5, 0)
 		_goal_line_node.add_child(right_pillar)
 
 		# Crossbar (柱の上端に配置)
-		var crossbar := _create_goal_box(Vector3(14.4, 0.4, 0.4), bar_color)
+		var crossbar := _create_goal_box(Vector3(goal_width, 0.4, 0.4), bar_color)
 		crossbar.position = Vector3(0, FLOOR_TOP_Y + 5.0, 0)
 		_goal_line_node.add_child(crossbar)
 
 		# Ground line (checkerboard-style stripe — 床面に接着)
-		for i: int in range(28):
-			var stripe := _create_goal_box(Vector3(0.5, 0.05, 1.0),
+		var stripe_count: int = int(goal_width / GOAL_STRIPE_WIDTH)
+		for i: int in range(stripe_count):
+			var stripe := _create_goal_box(Vector3(GOAL_STRIPE_WIDTH, 0.05, 1.0),
 				Color.WHITE if i % 2 == 0 else Color(0.15, 0.15, 0.15))
-			stripe.position = Vector3(-6.75 + i * 0.5, FLOOR_TOP_Y + 0.03, 0)
+			stripe.position = Vector3(-goal_width * 0.5 + GOAL_STRIPE_WIDTH * 0.5 + i * GOAL_STRIPE_WIDTH, FLOOR_TOP_Y + 0.03, 0)
 			_goal_line_node.add_child(stripe)
 
 		# "GOAL" label (クロスバーのやや下に配置)
@@ -661,7 +744,13 @@ func _update_camera(dt: float) -> void:
 			focus_shark.get_attack_intensity()
 		)
 	else:
-		camera_controller.clear_ocean_attack_focus()
+		var keep_dead_shark_focus: bool = (
+			game_state.num_players < 2
+			and game_state.p1_shark_killed
+			and not game_state.p1_alive
+			and game_state.game_state == Constants.STATE_GAME_OVER
+		)
+		camera_controller.clear_ocean_attack_focus(keep_dead_shark_focus)
 	camera_controller.update_camera(game_state, dt)
 
 func _check_particles() -> void:
@@ -868,11 +957,7 @@ func _toggle_pause() -> void:
 	var new_paused = !get_tree().paused
 	get_tree().paused = new_paused
 	pause_menu.visible = new_paused
-	if new_paused:
-		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
-	else:
-		if game_state.num_players == 1:
-			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 
 
 # ============================================================
@@ -1395,8 +1480,8 @@ func _explode_start_barrier() -> void:
 			chunk.add_child(cmi)
 			var ox: float = (cx - (cx_n - 1) * 0.5) * cs.x + randf_range(-0.5, 0.5)
 			var oy: float = (cy - (cy_n - 1) * 0.5) * cs.y + randf_range(-0.5, 0.5)
-			chunk.global_position = bpos + Vector3(ox, oy, 0)
 			get_tree().current_scene.add_child(chunk)
+			chunk.global_position = bpos + Vector3(ox, oy, 0)
 			# キャラの爆散と同じような散り方（左右に分かれて上に跳ねる）
 			var sx := 1.0 if ox >= 0 else -1.0
 			var vel := Vector3(

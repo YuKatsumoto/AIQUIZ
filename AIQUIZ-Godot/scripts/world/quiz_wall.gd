@@ -39,6 +39,9 @@ const LEFT_DOOR_X: float = 3.5
 const RIGHT_DOOR_X: float = -3.5
 const DOOR4_XS: Array[float] = [-5.8, -1.95, 1.95, 5.8]
 
+## 問題の壁はコンベア床端より各側をわずかに内側へ収める。
+const WALL_EDGE_INSET: float = 0.10
+
 var _current_num_choices: int = 2
 
 func _ready() -> void:
@@ -54,9 +57,9 @@ func _build_wall_around_doors(num_choices: int) -> void:
 	wall_parts.clear()
 
 	# Wall dimensions (matching original single box)
-	var total_width := 24.0
-	var min_x := -12.0
-	var max_x := 12.0
+	var total_width: float = StageConstants.FLOOR_WIDTH - WALL_EDGE_INSET * 2.0
+	var min_x: float = -total_width * 0.5
+	var max_x: float = total_width * 0.5
 	var door_top_y := 2.38
 	var door_bottom_y := -2.02
 	var wall_top_y := WALL_TOP_Y

@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://emymkre0uiq7"]
+
+[ext_resource type="Script" uid="uid://c0bbqrxpil5sb" path="res://scripts/world/mama_chari_visual.gd" id="1_rmipn"]
+
+[node name="MamaChari" type="Node3D" unique_id=1409217073]
+script = ExtResource("1_rmipn")

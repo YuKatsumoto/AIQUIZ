@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://du1v65gwdsr6h"]
+
+[ext_resource type="Script" uid="uid://cilwt0juwxlsc" path="res://scripts/world/bike_course.gd" id="1_1cif5"]
+
+[node name="BikeCourse" type="Node3D" unique_id=1418137505]
+script = ExtResource("1_1cif5")

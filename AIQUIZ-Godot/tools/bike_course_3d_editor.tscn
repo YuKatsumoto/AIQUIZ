@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://nvjju27okifd"]
+
+[ext_resource type="Script" uid="uid://5vbwcw3c00q7" path="res://scripts/tools/bike_course_3d_editor.gd" id="1_65bi7"]
+
+[node name="BikeCourse3DEditor" type="Node3D" unique_id=314613200]
+script = ExtResource("1_65bi7")
