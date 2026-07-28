@@ -21,10 +21,13 @@ var p2_container: Node3D
 # 四肢を物理ボディ化し、_animate_skeleton が動かす表示ピボットを目標として
 # PDトルクで半追従させる。表示用の四肢メッシュは隠し、物理ボディが見える四肢
 # として振る舞う(体幹はキネマのまま=Phase6で物理化予定)。
-# NOTE: ラグドール仕様は一旦廃止(無効化)。false でラグドール生成/表示メッシュ非表示/
-# 脱力崩壊をすべてスキップし、従来のブロック四肢アニメ+死亡時爆発に戻る。
-# 関連コード(RagdollBuilder/ActiveRagdollDriver/_setup_ragdoll 等)は復活に備えて温存。
+# 通常走行中のアクティブラグドールは無効。壁衝突死では同じ物理骨格をその瞬間だけ生成し、
+# 受動ラグドールとして吹き飛ばす。
 const USE_ACTIVE_RAGDOLL := false
+const WALL_RAGDOLL_GAME_VELOCITY := Vector3(0.0, 4.8, -8.0)
+const WALL_RAGDOLL_PREVIEW_VELOCITY := Vector3(0.0, 4.0, 5.5)
+const WALL_RAGDOLL_SIDE_VELOCITY := 1.5
+const WALL_RAGDOLL_SPIN := Vector3(2.8, 0.7, 1.8)
 const RagdollBuilderScript = preload("res://scripts/world/ragdoll_builder.gd")
 const ActiveRagdollDriverScript = preload("res://scripts/world/active_ragdoll_driver.gd")
 const BIKE_RULES_SCRIPT = preload("res://scripts/core/bike_race_rules.gd")
@@ -65,6 +68,13 @@ const EXPLOSION_IMPULSE_Y_MIN: float = 9.0
 const EXPLOSION_IMPULSE_Y_MAX: float = 20.0
 const EXPLOSION_IMPULSE_Z_MIN: float = -9.0
 const EXPLOSION_IMPULSE_Z_MAX: float = 9.0
+const WALL_EXPLOSION_BACKWARD_Z_MIN: float = 2.0
+const WALL_EXPLOSION_BACKWARD_Z_MAX: float = 5.0
+const WALL_EXPLOSION_SIDE_SPEED_MIN: float = 2.0
+const WALL_EXPLOSION_SIDE_SPEED_MAX: float = 4.5
+const WALL_EXPLOSION_UP_SPEED_MIN: float = 3.5
+const WALL_EXPLOSION_UP_SPEED_MAX: float = 6.0
+const WALL_EXPLOSION_SPIN_MAX: float = 5.0
 const EXPLOSION_TORQUE_MIN: float = -22.0
 const EXPLOSION_TORQUE_MAX: float = 22.0
 const EXPLOSION_PHYSICS_FRICTION: float = 0.62
@@ -141,12 +151,97 @@ func _go_limp(ragdoll: Dictionary) -> void:
 			b.can_sleep = true       # 崩れて静止したらスリープ(負荷低減)
 
 
+## 壁へ走り込んだ勢いを保ったまま、全身を後方・上方へ吹き飛ばす。
+## 全ボディを同じ初速にそろえ、ジョイント経由でインパルスが重複増幅しないようにする。
+func _launch_wall_ragdoll(ragdoll: Dictionary, is_p1: bool) -> void:
+	_go_limp(ragdoll)
+	var rag: Dictionary = ragdoll.get("rag", {})
+	var rag_bodies: Dictionary = rag.get("bodies", {})
+	var torso: RigidBody3D = rag_bodies.get("torso") as RigidBody3D
+	var side_sign := 1.0 if (torso != null and torso.global_position.x >= 0.0) else -1.0
+	if torso == null or absf(torso.global_position.x) < 0.05:
+		side_sign = -1.0 if is_p1 else 1.0
+	# メニューは壁が -Z 側から流れてくるため、コース前方が本編と逆向きになる。
+	var launch_velocity := (
+		WALL_RAGDOLL_PREVIEW_VELOCITY
+		if _is_preview_subviewport()
+		else WALL_RAGDOLL_GAME_VELOCITY
+	)
+	launch_velocity.x = WALL_RAGDOLL_SIDE_VELOCITY * side_sign
+	for key: Variant in rag_bodies:
+		if str(key) == "anchor":
+			continue
+		var body: RigidBody3D = rag_bodies[key] as RigidBody3D
+		if body == null or not is_instance_valid(body):
+			continue
+		body.sleeping = false
+		body.linear_velocity = launch_velocity
+		var spin_sign := -1.0 if (str(key).hash() & 1) == 0 else 1.0
+		body.angular_velocity = Vector3(
+			WALL_RAGDOLL_SPIN.x * spin_sign,
+			WALL_RAGDOLL_SPIN.y * side_sign,
+			WALL_RAGDOLL_SPIN.z * side_sign * spin_sign
+		)
+
+
 ## ラグドールツリーを破棄する(別親に置いているため明示的に解放)。
 func _teardown_ragdoll(ragdoll: Dictionary) -> void:
 	if ragdoll.has("container"):
 		var c = ragdoll["container"]
 		if is_instance_valid(c):
 			c.queue_free()
+
+
+func _set_hat_visible(is_p1: bool, should_show: bool) -> void:
+	var hat: Node3D = _p1_hat_node if is_p1 else _p2_hat_node
+	if hat != null and is_instance_valid(hat):
+		hat.visible = should_show
+
+
+## 吹き飛んだラグドールの現在姿勢をそのまま四肢分散の開始位置へ引き継ぐ。
+func _init_wall_ragdoll_explosion(ragdoll: Dictionary, fallback_parts: Dictionary, is_p1: bool) -> void:
+	var ragdoll_meshes: Array[MeshInstance3D] = []
+	var container: Node = ragdoll.get("container") as Node
+	if container != null and is_instance_valid(container):
+		for node: Node in container.find_children("*", "MeshInstance3D", true, false):
+			var mesh := node as MeshInstance3D
+			if mesh != null and mesh.visible:
+				ragdoll_meshes.append(mesh)
+
+	if ragdoll_meshes.is_empty():
+		_init_explosion(fallback_parts, is_p1, true)
+	else:
+		_init_explosion({"meshes": ragdoll_meshes}, is_p1, true)
+	_teardown_ragdoll(ragdoll)
+
+
+## 死亡演出で現在見えている身体の中心を返す。
+## 壁ラグドール中は胴体、四肢分散後は全破片の重心を優先する。
+func get_death_presentation_position(is_p1: bool) -> Vector3:
+	var ragdoll: Dictionary = _p1_ragdoll if is_p1 else _p2_ragdoll
+	var rag: Dictionary = ragdoll.get("rag", {})
+	var rag_bodies: Dictionary = rag.get("bodies", {})
+	var torso := rag_bodies.get("torso") as RigidBody3D
+	if torso != null and is_instance_valid(torso):
+		return torso.global_position
+
+	var explosion_bodies := _p1_explosion_bodies if is_p1 else _p2_explosion_bodies
+	var center := Vector3.ZERO
+	var body_count := 0
+	for body: RigidBody3D in explosion_bodies:
+		if body != null and is_instance_valid(body):
+			center += body.global_position
+			body_count += 1
+	if body_count > 0:
+		return center / float(body_count)
+
+	var parts: Dictionary = p1_parts if is_p1 else p2_parts
+	var pelvis := parts.get("pelvis") as Node3D
+	if pelvis != null and is_instance_valid(pelvis):
+		return pelvis.global_position
+	if not is_p1 and p2_container != null and is_instance_valid(p2_container):
+		return p2_container.global_position
+	return global_position
 
 
 func _exit_tree() -> void:
@@ -1079,10 +1174,9 @@ func update_from_state(gs: QuizGameState) -> void:
 		# _p2_exploding を残すと再エントリ時に二度目の爆発が初期化されない不具合になる。
 		_p2_exploding = false
 		_clear_explosion_bodies(false)
-		if USE_ACTIVE_RAGDOLL:
-			_teardown_ragdoll(_p2_ragdoll)
-			_p2_ragdoll = {}
-			_p2_driver = null
+		_teardown_ragdoll(_p2_ragdoll)
+		_p2_ragdoll = {}
+		_p2_driver = null
 		p2_container.queue_free()
 		p2_container = null
 		p2_parts.clear()
@@ -1101,12 +1195,13 @@ func update_from_state(gs: QuizGameState) -> void:
 		_p1_driver = _p1_ragdoll.get("driver")
 
 	if gs.p1_alive:
-		if _p1_exploding or not _p1_explosion_bodies.is_empty():
+		if _p1_exploding or not _p1_explosion_bodies.is_empty() or not _p1_ragdoll.is_empty():
 			_p1_exploding = false
 			_clear_explosion_bodies(true)
 			_set_rig_scenes_visible(true, true)
+			_set_hat_visible(true, true)
 			# 脱力崩壊したラグドールを破棄→次フレームで直立状態に再生成(復活)
-			if USE_ACTIVE_RAGDOLL and not _p1_ragdoll.is_empty():
+			if not _p1_ragdoll.is_empty():
 				_teardown_ragdoll(_p1_ragdoll)
 				_p1_ragdoll = {}
 				_p1_driver = null
@@ -1169,6 +1264,21 @@ func update_from_state(gs: QuizGameState) -> void:
 					gs.is_coop_mode(),
 					-global_position.x
 				)
+		elif gs.p1_wall_impact:
+			if gs.game_over_timer < QuizGameState.WALL_RAGDOLL_DURATION:
+				if _p1_ragdoll.is_empty():
+					_p1_ragdoll = _setup_ragdoll(p1_parts, true)
+					_p1_driver = _p1_ragdoll.get("driver")
+					_launch_wall_ragdoll(_p1_ragdoll, true)
+			elif not _p1_exploding:
+				_p1_exploding = true
+				_init_wall_ragdoll_explosion(_p1_ragdoll, p1_parts, true)
+				_p1_ragdoll = {}
+				_p1_driver = null
+			_set_hat_visible(true, false)
+			_set_parts_visible(p1_parts, false)
+			if not _p1_explosion_bodies.is_empty():
+				_update_explosion(true, gs.game_over_timer - QuizGameState.WALL_RAGDOLL_DURATION)
 		elif gs.game_over_timer < 2.0:
 			_set_parts_visible(p1_parts, true)
 			var apply_rig := false
@@ -1210,12 +1320,13 @@ func update_from_state(gs: QuizGameState) -> void:
 			_p2_driver = _p2_ragdoll.get("driver")
 
 		if gs.p2_alive:
-			if _p2_exploding or not _p2_explosion_bodies.is_empty():
+			if _p2_exploding or not _p2_explosion_bodies.is_empty() or not _p2_ragdoll.is_empty():
 				_p2_exploding = false
 				_clear_explosion_bodies(false)
 				_set_rig_scenes_visible(false, true)
+				_set_hat_visible(false, true)
 				# 脱力崩壊したラグドールを破棄→次フレームで直立状態に再生成(復活)
-				if USE_ACTIVE_RAGDOLL and not _p2_ragdoll.is_empty():
+				if not _p2_ragdoll.is_empty():
 					_teardown_ragdoll(_p2_ragdoll)
 					_p2_ragdoll = {}
 					_p2_driver = null
@@ -1276,6 +1387,21 @@ func update_from_state(gs: QuizGameState) -> void:
 						gs.is_coop_mode(),
 						-global_position.x
 					)
+			elif gs.p2_wall_impact:
+				if gs.player2_game_over_timer < QuizGameState.WALL_RAGDOLL_DURATION:
+					if _p2_ragdoll.is_empty():
+						_p2_ragdoll = _setup_ragdoll(p2_parts, false)
+						_p2_driver = _p2_ragdoll.get("driver")
+						_launch_wall_ragdoll(_p2_ragdoll, false)
+				elif not _p2_exploding:
+					_p2_exploding = true
+					_init_wall_ragdoll_explosion(_p2_ragdoll, p2_parts, false)
+					_p2_ragdoll = {}
+					_p2_driver = null
+				_set_hat_visible(false, false)
+				_set_parts_visible(p2_parts, false)
+				if not _p2_explosion_bodies.is_empty():
+					_update_explosion(false, gs.player2_game_over_timer - QuizGameState.WALL_RAGDOLL_DURATION)
 			elif gs.player2_game_over_timer < 2.0:
 				_set_parts_visible(p2_parts, true)
 				var apply_rig := false
@@ -1688,7 +1814,7 @@ func _mesh_box_size(mesh_inst: MeshInstance3D) -> Vector3:
 	return size.max(Vector3.ONE * EXPLOSION_MIN_COLLISION_SIZE)
 
 
-func _init_explosion(parts: Dictionary, is_p1: bool) -> void:
+func _init_explosion(parts: Dictionary, is_p1: bool, force_non_forward: bool = false) -> void:
 	if not parts or not parts.has("meshes"):
 		return
 	_hide_rig_scenes(is_p1)
@@ -1748,10 +1874,18 @@ func _init_explosion(parts: Dictionary, is_p1: bool) -> void:
 		spawn_root.add_child(piece)
 		piece.global_transform = gt
 
+		var impulse_z := randf_range(EXPLOSION_IMPULSE_Z_MIN, EXPLOSION_IMPULSE_Z_MAX)
+		if force_non_forward:
+			# メニューは前方=-Z、本編は前方=+Z。どちらも必ず逆側へ分散させる。
+			var backward_z_sign := 1.0 if is_preview else -1.0
+			impulse_z = backward_z_sign * randf_range(
+				WALL_EXPLOSION_BACKWARD_Z_MIN,
+				WALL_EXPLOSION_BACKWARD_Z_MAX
+			)
 		var impulse := Vector3(
 			sx * randf_range(EXPLOSION_IMPULSE_X_MIN, EXPLOSION_IMPULSE_X_MAX),
 			randf_range(EXPLOSION_IMPULSE_Y_MIN, EXPLOSION_IMPULSE_Y_MAX),
-			randf_range(EXPLOSION_IMPULSE_Z_MIN, EXPLOSION_IMPULSE_Z_MAX)
+			impulse_z
 		)
 		# X/Z 回転を強めにして着地後も転がりやすくする
 		var torque := Vector3(
@@ -1764,17 +1898,31 @@ func _init_explosion(parts: Dictionary, is_p1: bool) -> void:
 			piece.gravity_scale = 2.3
 			piece.linear_damp = 0.06
 			piece.angular_damp = 0.05
-			impulse *= 1.45
-			torque *= 1.35
 
-		piece.apply_central_impulse(impulse)
-		piece.apply_torque_impulse(torque)
-		# 初速の回転を与えて床での転がりを強調
-		piece.angular_velocity = Vector3(
-			randf_range(-14.0, 14.0),
-			randf_range(-4.0, 4.0),
-			randf_range(-14.0, 14.0)
-		)
+		if force_non_forward:
+			# 壁衝突は質量に左右されない控えめな速度指定にし、画面外へ消えにくくする。
+			piece.linear_velocity = Vector3(
+				sx * randf_range(WALL_EXPLOSION_SIDE_SPEED_MIN, WALL_EXPLOSION_SIDE_SPEED_MAX),
+				randf_range(WALL_EXPLOSION_UP_SPEED_MIN, WALL_EXPLOSION_UP_SPEED_MAX),
+				impulse_z
+			)
+			piece.angular_velocity = Vector3(
+				randf_range(-WALL_EXPLOSION_SPIN_MAX, WALL_EXPLOSION_SPIN_MAX),
+				randf_range(-WALL_EXPLOSION_SPIN_MAX * 0.35, WALL_EXPLOSION_SPIN_MAX * 0.35),
+				randf_range(-WALL_EXPLOSION_SPIN_MAX, WALL_EXPLOSION_SPIN_MAX)
+			)
+		else:
+			if is_preview:
+				impulse *= 1.45
+				torque *= 1.35
+			piece.apply_central_impulse(impulse)
+			piece.apply_torque_impulse(torque)
+			# 初速の回転を与えて床での転がりを強調
+			piece.angular_velocity = Vector3(
+				randf_range(-14.0, 14.0),
+				randf_range(-4.0, 4.0),
+				randf_range(-14.0, 14.0)
+			)
 		bodies.append(piece)
 
 	if is_p1:

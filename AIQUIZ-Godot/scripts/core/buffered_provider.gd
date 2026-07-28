@@ -21,10 +21,13 @@ var recent_history_entries: Array[Dictionary] = []
 var play_history: Array[String] = []
 
 ## ラウンド間で引き継ぐ問題履歴の最大サイズ（新鮮さ確保のため大きめに保持）
-const CROSS_ROUND_HISTORY_MAX: int = 300
+const CROSS_ROUND_HISTORY_MAX: int = 1000
 const HISTORY_SAVE_PATH: String = "user://recent_quiz_history.json"
-const DEDUP_RETRY_MAX: int = 1
 const MIN_REFETCH_INTERVAL_SEC: float = 1.2
+const HISTORY_SAVE_DEBOUNCE_SEC: float = 0.2
+## 履歴が多い条件では候補の大半が新規性ゲートで落ちるため、
+## 10問プリロードの不足補充は1〜2候補だけでなく余裕を持って生成する。
+const TEN_PRELOAD_MIN_CANDIDATES: int = 6
 
 ## オフラインの緊急キャッシュ — オンライン生成が間に合わない時の保険
 var _emergency_cache: Array[QuizItem] = []
@@ -57,6 +60,8 @@ var _last_dispatched_genre: String = ""
 var _dedup_retry_count: int = 0
 var _fetch_scheduled: bool = false
 var _last_refetch_ms: int = 0
+var _history_save_scheduled: bool = false
+var _initial_ten_fetch_started: bool = false
 
 func _init() -> void:
 	super._init()
@@ -134,6 +139,7 @@ func begin_round(subject: String, grade: int, difficulty: String,
 	_dedup_retry_count = 0
 	_fetch_scheduled = false
 	_last_refetch_ms = 0
+	_initial_ten_fetch_started = false
 	_explanation_inflight = false
 	_explanation_requested_ids.clear()
 	_dispatched_items.clear()
@@ -271,17 +277,20 @@ func _on_poll() -> void:
 	
 	_last_refetch_ms = Time.get_ticks_msec()
 	inflight += 1
-	var fetch_count: int
-	if current_mode == Constants.MODE_ENDLESS:
-		# 目標バッファサイズを満たすための必要最小限のみをリクエスト (最小1)
-		fetch_count = maxi(1, _target_buffer_size() - buffer.size())
-	else:
-		fetch_count = clampi(target_count - yielded_count - buffer.size(), 2, 10)
+	var fetch_count: int = _calculate_fetch_candidate_count()
 		
 	if llm_mode == "ONLINE":
 		var full_history: Array[String] = _build_fetch_history()
-		var is_ten: bool = current_mode == Constants.MODE_TEN
-		online_fetcher.fetch_quiz_parallel(current_subject, current_grade, current_difficulty, fetch_count, full_history, is_ten)
+		# 初回だけ24候補の高速並列生成。不足分の補充は重複落ちを見越して余裕を持たせる。
+		var is_initial_ten := current_mode == Constants.MODE_TEN \
+			and not _initial_ten_fetch_started \
+			and yielded_count == 0 and _preload_buffer_count() == 0 and fetch_count >= 6
+		if is_initial_ten:
+			_initial_ten_fetch_started = true
+		online_fetcher.fetch_quiz_parallel(
+			current_subject, current_grade, current_difficulty,
+			fetch_count, full_history, is_initial_ten
+		)
 	else:
 		print("[BufferedProvider] Using offline bank (llm_mode=%s)" % llm_mode)
 		var b_size := 6
@@ -289,6 +298,16 @@ func _on_poll() -> void:
 			b_size = clampi(target_count, 6, 10)
 		var out = offline_provider.get_quizzes(current_subject, current_grade, current_difficulty, current_mode, b_size)
 		_on_fetch_completed(out)
+
+
+func _calculate_fetch_candidate_count() -> int:
+	if current_mode == Constants.MODE_ENDLESS:
+		# 目標バッファサイズを満たすための必要最小限のみをリクエスト (最小1)
+		return maxi(1, _target_buffer_size() - buffer.size())
+	var missing: int = target_count - yielded_count - buffer.size() - _overflow_buffer.size()
+	if current_mode == Constants.MODE_TEN and _is_preloading():
+		return clampi(maxi(missing, TEN_PRELOAD_MIN_CANDIDATES), 2, 10)
+	return clampi(missing, 2, 10)
 
 func _is_preloading() -> bool:
 	# yielded_count は get_quizzes 呼び出しごとに増えるため、
@@ -307,6 +326,8 @@ func _needs_more_preload() -> bool:
 func _should_block_quiz(question: String, batch_accepted: Array[String], during_preload: bool) -> bool:
 	if QuizDedup.is_similar_to_any(question, batch_accepted):
 		return true
+	if QuizDedup.is_strict_duplicate_to_any(question, recent_questions):
+		return true
 	if during_preload:
 		# プリロード中: バッファ内・プレイ中 + 直近の cross-round 履歴（新鮮さ確保）を照合
 		for bq in buffer:
@@ -318,36 +339,16 @@ func _should_block_quiz(question: String, batch_accepted: Array[String], during_
 		for oq in _overflow_buffer:
 			if QuizDedup.is_semantically_similar(question, oq.q):
 				return true
-		for rq in QuizDedup.tail_texts(recent_questions, QuizDedup.PRELOAD_ACCEPT_HISTORY_MAX):
+		for rq in QuizDedup.tail_texts(recent_questions, QuizDedup.SEMANTIC_HISTORY_MAX):
 			if QuizDedup.is_semantically_similar(question, rq):
 				return true
 		return false
-	return QuizDedup.is_similar_to_any(question, _collect_active_question_texts(false))
-
-
-func _try_force_accept_preload(quizzes: Array[QuizItem], batch_accepted: Array[String]) -> bool:
-	for q in quizzes:
-		if llm_mode == "ONLINE" and _is_offline_quiz_item(q):
-			continue
-		if q.q in batch_accepted:
-			continue
-		var dup_in_buffer := false
-		for bq in buffer:
-			if bq.q == q.q:
-				dup_in_buffer = true
-				break
-		if dup_in_buffer:
-			continue
-		buffer.append(q)
-		print("[BufferedProvider] Preload force-accepted: '%s'" % q.q.left(30))
+	var active_texts := _collect_active_question_texts(false)
+	if QuizDedup.is_strict_duplicate_to_any(question, active_texts):
 		return true
-	if quizzes.size() > 0:
-		var fallback: QuizItem = quizzes[0]
-		if not (llm_mode == "ONLINE" and _is_offline_quiz_item(fallback)):
-			buffer.append(fallback)
-			print("[BufferedProvider] Preload last-resort accept: '%s'" % fallback.q.left(30))
-			return true
-	return false
+	return QuizDedup.is_similar_to_any(
+		question, QuizDedup.tail_texts(active_texts, QuizDedup.SEMANTIC_HISTORY_MAX)
+	)
 
 
 func _on_fetch_partial(quizzes: Array[QuizItem]) -> void:
@@ -355,9 +356,13 @@ func _on_fetch_partial(quizzes: Array[QuizItem]) -> void:
 		return
 		
 	var accepted := false
+	var history_changed := false
 	var batch_accepted: Array[String] = []
 	var during_preload := _is_preloading()
 	for q in quizzes:
+		if current_mode == Constants.MODE_TEN \
+				and yielded_count + _preload_buffer_count() >= target_count:
+			break
 		if llm_mode == "ONLINE" and _is_offline_quiz_item(q):
 			print("[BufferedProvider] Rejected offline quiz in online mode: '%s'" % q.q.left(30))
 			continue
@@ -365,41 +370,30 @@ func _on_fetch_partial(quizzes: Array[QuizItem]) -> void:
 			print("[BufferedProvider] Dedup blocked: '%s'" % q.q.left(30))
 			continue
 		batch_accepted.append(q.q)
-		# バッファ投入時は cross-round 履歴を更新しない（end_round / submit_result で永続化）
+		# 採用した瞬間に予約履歴へ保存する。途中終了・クラッシュ後も再生成させない。
+		if llm_mode == "ONLINE" and _append_history_entry(q.q, q.genre):
+			history_changed = true
 		# 10問モード: 同一ジャンルが上限に達していたら控え(overflow)に回す
 		if current_mode == Constants.MODE_TEN and not q.genre.strip_edges().is_empty() \
 				and _genre_count_in_buffer(q.genre) >= GENRE_CAP_PER_ROUND:
 			_overflow_buffer.append(q)
+			accepted = true
 			print("[BufferedProvider] Genre cap reached for '%s', queued to overflow: '%s'" % [q.genre, q.q.left(20)])
 			continue
 		buffer.append(q)
 		accepted = true
+
+	if history_changed:
+		_schedule_history_save()
 	
 	if accepted and online_fetcher.has_method("reset_rate_limit"):
 		online_fetcher.reset_rate_limit()
 	
-	# プリロード中に全部弾かれた場合: リトライ → 履歴トリム → 強制受理
+	# 新規性を満たさない候補は絶対に採用せず、別単元・別形式で不足分だけ再生成する。
 	if not accepted and quizzes.size() > 0 and _needs_more_preload():
-		if _dedup_retry_count < DEDUP_RETRY_MAX and _preload_buffer_count() == 0:
-			_dedup_retry_count += 1
-			print("[BufferedProvider] All duplicates blocked, retry fetch (%d/%d)" % [_dedup_retry_count, DEDUP_RETRY_MAX])
-			_schedule_fetch(1.0)
-			return
-		if recent_history_entries.size() > 20 and _preload_buffer_count() == 0:
-			var trim_count := maxi(1, int(recent_history_entries.size() * 0.25))
-			for _i in range(trim_count):
-				if recent_history_entries.size() > 0:
-					recent_history_entries.pop_front()
-			_sync_recent_questions_from_entries()
-			print("[BufferedProvider] Trimmed %d oldest history entries after dedup exhaustion" % trim_count)
-			for q in quizzes:
-				if _should_block_quiz(q.q, batch_accepted, true):
-					continue
-				buffer.append(q)
-				accepted = true
-				break
-		if not accepted:
-			accepted = _try_force_accept_preload(quizzes, batch_accepted)
+		_dedup_retry_count += 1
+		print("[BufferedProvider] All candidates rejected by novelty gate; refilling missing questions (%d)" % _dedup_retry_count)
+		_schedule_fetch()
 
 func _on_fetch_completed(quizzes: Array[QuizItem]) -> void:
 	inflight = max(0, inflight - 1)
@@ -735,16 +729,26 @@ func _collect_active_question_texts(during_preload: bool = false) -> Array[Strin
 	return texts
 
 
-func _append_history_entry(question: String, genre: String) -> void:
+func _append_history_entry(question: String, genre: String) -> bool:
 	if question.is_empty():
-		return
-	for entry in recent_history_entries:
-		if QuizDedup.is_semantically_similar(question, QuizDedup.history_entry_text(entry)):
-			return
-	recent_history_entries.append(QuizDedup.make_history_entry(question, genre))
+		return false
+	if QuizDedup.is_strict_duplicate_to_any(question, recent_history_entries):
+		return false
+	if QuizDedup.is_similar_to_any(
+			question,
+			QuizDedup.tail_texts(recent_history_entries, QuizDedup.SEMANTIC_HISTORY_MAX)
+		):
+		return false
+	var history_entry := QuizDedup.make_history_entry(question, genre)
+	history_entry["subject"] = current_subject
+	history_entry["grade"] = current_grade
+	history_entry["difficulty"] = current_difficulty
+	history_entry["reserved_at"] = int(Time.get_unix_time_from_system())
+	recent_history_entries.append(history_entry)
 	while recent_history_entries.size() > CROSS_ROUND_HISTORY_MAX:
 		recent_history_entries.pop_front()
 	_sync_recent_questions_from_entries()
+	return true
 
 
 func _sync_recent_questions_from_entries() -> void:
@@ -796,3 +800,13 @@ func _save_cross_round_history() -> void:
 		f.store_string(JSON.stringify(save_data))
 		f.close()
 		print("[BufferedProvider] Saved %d cross-round history entries to disk" % save_data.size())
+
+
+func _schedule_history_save() -> void:
+	if _history_save_scheduled:
+		return
+	_history_save_scheduled = true
+	get_tree().create_timer(HISTORY_SAVE_DEBOUNCE_SEC).timeout.connect(func():
+		_history_save_scheduled = false
+		_save_cross_round_history()
+	, CONNECT_ONE_SHOT)

@@ -35,11 +35,11 @@ func _initialize() -> void:
 	)
 	# 複数ラウンド分の履歴上限
 	var entries: Array[Dictionary] = []
-	for i in range(310):
+	for i in range(1010):
 		entries.append(QuizDedup.make_history_entry("ユニーク問題%d" % i, "単元A"))
-	while entries.size() > 300:
+	while entries.size() > 1000:
 		entries.pop_front()
-	failures += _assert_true(entries.size() == 300, "cross-round 履歴300件上限")
+	failures += _assert_true(entries.size() == 1000, "cross-round 履歴1000件上限")
 	if failures == 0:
 		print("[BufferedDedupSim] ALL PASSED")
 		quit(0)

@@ -31,6 +31,7 @@ extends Control
 @onready var settings_btn: Button = %SettingsBtn
 @onready var api_status_label: RichTextLabel = $SettingsPanel/VBox/ApiStatusLabel
 @onready var vol_slider: HSlider = $SettingsPanel/VBox/VolBox/VolSlider
+var bgm_vol_slider: HSlider = null
 # speed_slider は廃止（壁速度は難易度から自動決定）
 @onready var res_option: OptionButton = %ResOption
 var graphics_quality_option: OptionButton = null
@@ -84,7 +85,8 @@ func _ready() -> void:
 	_reset_menu_visual_state()
 	SceneTransition.reveal_current()
 
-	vol_slider.value = AudioManager.sfx_volume
+	_setup_audio_settings()
+	AudioManager.set_music_context(AudioManager.MUSIC_CONTEXT_MENU)
 
 	res_option.item_selected.connect(_on_resolution_selected)
 	res_option.add_item("1280x720 (HD)", 0)
@@ -929,7 +931,46 @@ func _update_api_status_text() -> void:
 	api_status_label.text = text
 
 func _on_vol_slider_changed(value: float) -> void:
-	AudioManager.set_volume(value)
+	game_state.set_sfx_volume(value)
+
+func _on_bgm_vol_slider_changed(value: float) -> void:
+	game_state.set_bgm_volume(value)
+
+func _setup_audio_settings() -> void:
+	game_state.sfx_volume = AudioManager.sfx_volume
+	game_state.bgm_volume = AudioManager.bgm_volume
+	vol_slider.value = AudioManager.sfx_volume
+
+	var sfx_row := $SettingsPanel/VBox/VolBox as HBoxContainer
+	var sfx_label := sfx_row.get_node_or_null("Label") as Label
+	if sfx_label:
+		sfx_label.text = "効果音量:"
+
+	var settings_vbox := $SettingsPanel/VBox as VBoxContainer
+	var existing_slider := settings_vbox.get_node_or_null("BgmVolBox/BgmVolSlider") as HSlider
+	if existing_slider:
+		bgm_vol_slider = existing_slider
+		bgm_vol_slider.value = AudioManager.bgm_volume
+		return
+
+	var bgm_row := HBoxContainer.new()
+	bgm_row.name = "BgmVolBox"
+	bgm_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	var bgm_label := Label.new()
+	bgm_label.name = "Label"
+	bgm_label.text = "BGM音量:"
+	bgm_row.add_child(bgm_label)
+	bgm_vol_slider = HSlider.new()
+	bgm_vol_slider.name = "BgmVolSlider"
+	bgm_vol_slider.custom_minimum_size = Vector2(250.0, 0.0)
+	bgm_vol_slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	bgm_vol_slider.max_value = 1.0
+	bgm_vol_slider.step = 0.05
+	bgm_vol_slider.value = AudioManager.bgm_volume
+	bgm_vol_slider.value_changed.connect(_on_bgm_vol_slider_changed)
+	bgm_row.add_child(bgm_vol_slider)
+	settings_vbox.add_child(bgm_row)
+	settings_vbox.move_child(bgm_row, sfx_row.get_index())
 
 # _on_speed_slider_changed は廃止（壁速度は難易度から自動決定）
 

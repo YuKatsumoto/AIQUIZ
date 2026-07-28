@@ -106,7 +106,8 @@ func spawn_correct(pos: Vector3) -> void:
 	correct_particles.emitting = true
 
 func spawn_explosion(pos: Vector3) -> void:
-	explosion_particles.global_position = pos + Vector3(0, 2.0, 0)
+	# 呼び出し側から実際の身体中心が渡されるため、固定オフセットを足さない。
+	explosion_particles.global_position = pos
 	explosion_particles.restart()
 	explosion_particles.emitting = true
 

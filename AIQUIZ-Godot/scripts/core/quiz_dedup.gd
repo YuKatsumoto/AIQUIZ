@@ -5,9 +5,12 @@ extends RefCounted
 
 const SAME_ANSWER_CORE_SIMILARITY: float = 0.40
 const PROMPT_HISTORY_MAX: int = 30
-const BLOCKLIST_HISTORY_MAX: int = 80
-## プリロード中は cross-round 履歴のこの件数だけをセマンティック dedup 対象にする
-const PRELOAD_ACCEPT_HISTORY_MAX: int = 30
+const BLOCKLIST_HISTORY_MAX: int = 1000
+## 完全一致・数値差し替えテンプレートは保存している全履歴で拒否する。
+const PRELOAD_ACCEPT_HISTORY_MAX: int = 1000
+## 「毎回違う」を守るため、保存中の全履歴を意味レベルの重複判定対象にする。
+## 枯渇時も重複を許可せず、BufferedProvider が新しい候補を再生成する。
+const SEMANTIC_HISTORY_MAX: int = 1000
 
 
 static func tail_texts(candidates: Array, max_count: int) -> Array[String]:
@@ -23,12 +26,12 @@ static func tail_texts(candidates: Array, max_count: int) -> Array[String]:
 static func is_semantically_similar(q1: String, q2: String) -> bool:
 	if q1 == q2:
 		return true
-	if q1.similarity(q2) > 0.55:
+	if q1.similarity(q2) > 0.68:
 		return true
 	var core1 := extract_core_concept(q1)
 	var core2 := extract_core_concept(q2)
 	if not core1.is_empty() and not core2.is_empty():
-		if core1.similarity(core2) > 0.60:
+		if core1.similarity(core2) > 0.72:
 			return true
 	var kw1 := extract_keywords(q1)
 	var kw2 := extract_keywords(q2)
@@ -44,12 +47,21 @@ static func is_semantically_similar(q1: String, q2: String) -> bool:
 	var jaccard := float(intersection) / float(union_size)
 	if jaccard > 0.45:
 		return true
-	# 2語以上の内容語が共通（聞き方違いの同一概念）
-	var sig_shared := 0
-	for k in kw1:
-		if k.length() >= 2 and kw2.has(k):
-			sig_shared += 1
-	return sig_shared >= 2
+	# Compare only concept cores here. Raw question bigrams contain generic endings such as
+	# "どれですか" and caused unrelated questions to be rejected.
+	var core_bigrams1 := _extract_bigrams(core1)
+	var core_bigrams2 := _extract_bigrams(core2)
+	var shared_core_bigrams := 0
+	for bigram in core_bigrams1:
+		if core_bigrams2.has(bigram) and not _is_generic_core_bigram(bigram):
+			shared_core_bigrams += 1
+	# 「計算」「正しい」など同じ教科内で偶然2組だけ重なるケースを
+	# 同一問題扱いしない。短い方のコアに対する重複率も満たす近い言い換えだけを拒否する。
+	var shorter_core_size: int = mini(core_bigrams1.size(), core_bigrams2.size())
+	if shorter_core_size == 0:
+		return false
+	var core_overlap_ratio := float(shared_core_bigrams) / float(shorter_core_size)
+	return shared_core_bigrams >= 2 and core_overlap_ratio >= 0.45
 
 
 static func is_similar_to_any(question: String, candidates: Array) -> bool:
@@ -58,6 +70,30 @@ static func is_similar_to_any(question: String, candidates: Array) -> bool:
 		if text.is_empty():
 			continue
 		if is_semantically_similar(question, text):
+			return true
+	return false
+
+
+## 長期履歴向けの厳格判定。完全一致と、数字・記号・助詞だけを変えたテンプレートを拒否する。
+## 広い意味類似はここでは扱わず、SEMANTIC_HISTORY_MAX の短期窓で別に判定する。
+static func is_strict_duplicate(q1: String, q2: String) -> bool:
+	var normalized1 := q1.strip_edges().to_lower()
+	var normalized2 := q2.strip_edges().to_lower()
+	if normalized1 == normalized2:
+		return true
+	var core1 := extract_core_concept(normalized1)
+	var core2 := extract_core_concept(normalized2)
+	if core1.is_empty() or core2.is_empty():
+		return false
+	if core1 == core2:
+		return true
+	return core1.similarity(core2) > 0.88
+
+
+static func is_strict_duplicate_to_any(question: String, candidates: Array) -> bool:
+	for raw in candidates:
+		var text := history_entry_text(raw)
+		if not text.is_empty() and is_strict_duplicate(question, text):
 			return true
 	return false
 
@@ -139,3 +175,17 @@ static func extract_keywords(text: String) -> Dictionary:
 		if bigram.strip_edges().length() == 2:
 			keywords[bigram] = true
 	return keywords
+
+
+static func _extract_bigrams(text: String) -> Dictionary:
+	var bigrams := {}
+	for i in range(maxi(0, text.length() - 1)):
+		bigrams[text.substr(i, 2)] = true
+	return bigrams
+
+
+static func _is_generic_core_bigram(bigram: String) -> bool:
+	return bigram in [
+		"すか", "です", "ます", "正し", "しい", "どれ", "答え", "方法",
+		"大き", "小さ", "求め", "選び", "なる", "あり", "いる", "表す",
+	]

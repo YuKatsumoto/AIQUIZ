@@ -29,6 +29,7 @@ var _prev_player_y: float = 0.0
 var _prev_p2_y: float = 0.0
 var _ocean_attack_sharks: Dictionary = {}
 var _active_walls: Array[Node3D] = []
+var _retired_wall_indices: Dictionary = {}
 const MERGE_EFFECT_POOL_SIZE := 6
 const MERGE_SPARK_BASE_AMOUNT := 40
 var _merge_effect_pool: Array[Dictionary] = []
@@ -65,6 +66,7 @@ var _replay_mode: bool = false
 
 func _ready() -> void:
 	game_state = QuizManager.game_state
+	AudioManager.set_music_context(AudioManager.MUSIC_CONTEXT_GAMEPLAY)
 	GraphicsQuality.apply_text_viewport(get_viewport(), GameManager.graphics_quality)
 	quiz_wall_scene = preload("res://scenes/quiz_wall.tscn")
 
@@ -392,7 +394,7 @@ func _process(dt: float) -> void:
 
 	# Handle R key for restart (ESC is handled in _unhandled_input)
 	if game_state.game_state in [Constants.STATE_GAME_OVER, Constants.STATE_CLEAR]:
-		if Input.is_key_pressed(KEY_R) :
+		if Input.is_key_pressed(KEY_R) and game_state.is_wall_death_sequence_complete():
 			game_state.reset_to_menu()
 			get_tree().change_scene_to_file("res://ui/main_menu.tscn")
 
@@ -544,12 +546,46 @@ func _update_walls() -> void:
 		for wall: Node3D in _active_walls:
 			wall.queue_free()
 		_active_walls.clear()
+		_retired_wall_indices.clear()
 		return
 
 	var t := game_state.tuning
+
+	# 通過済み壁は、正解直後ではなくプレイヤーが実際に壁を抜けてから退場させる。
+	# 2Pでは生存している両者の通過を待つため、先行プレイヤーの画面だけで壁が早く消えない。
+	for wall: Node3D in _active_walls:
+		if not is_instance_valid(wall) or not wall.has_meta("wall_index"):
+			continue
+		var wall_index: int = wall.get_meta("wall_index") as int
+		var already_retiring: bool = (
+			wall.has_method("is_retiring_after_pass")
+			and bool(wall.call("is_retiring_after_pass"))
+		)
+		var p1_has_passed: bool = (
+			not game_state.p1_alive
+			or game_state.player_local_z > wall.position.z + 0.45
+		)
+		var p2_has_passed: bool = (
+			game_state.num_players < 2
+			or not game_state.p2_alive
+			or game_state.player2_local_z > wall.position.z + 0.45
+		)
+		var all_active_players_have_passed: bool = (
+			wall_index < game_state.current_wall_index
+			and p1_has_passed
+			and p2_has_passed
+		)
+		if all_active_players_have_passed and not already_retiring and wall.has_method("retire_after_player_pass"):
+			_retired_wall_indices[wall_index] = true
+			wall.call("retire_after_player_pass", 0.28)
+
 	var needed_indices: Array[int] = []
 	# Keep walls behind that haven't reached the cliff yet
 	var start_idx := maxi(0, game_state.current_wall_index - 3)
+	# 表示対象から十分に外れた番号は、エンドレスモードで増え続けないよう記録を破棄する。
+	for retired_key: Variant in _retired_wall_indices.keys():
+		if int(retired_key) < start_idx:
+			_retired_wall_indices.erase(retired_key)
 	# 固定問数モードでは target_count 以降の壁を生成しない
 	var max_wall_idx: int = -1
 	if game_state.mode == Constants.MODE_TEN or game_state.mode == Constants.MODE_TUTORIAL:
@@ -567,7 +603,11 @@ func _update_walls() -> void:
 	# Remove walls no longer needed
 	var to_remove: Array[Node3D] = []
 	for wall: Node3D in _active_walls:
-		if not wall.has_meta("wall_index") or wall.get_meta("wall_index") not in needed_indices:
+		var retirement_finished: bool = (
+			wall.has_method("is_retirement_finished")
+			and bool(wall.call("is_retirement_finished"))
+		)
+		if not wall.has_meta("wall_index") or wall.get_meta("wall_index") not in needed_indices or retirement_finished:
 			to_remove.append(wall)
 	for wall: Node3D in to_remove:
 		_active_walls.erase(wall)
@@ -587,7 +627,7 @@ func _update_walls() -> void:
 			existing_indices.append(wall.get_meta("wall_index") as int)
 
 	for idx: int in needed_indices:
-		if idx not in existing_indices:
+		if idx not in existing_indices and not _retired_wall_indices.has(idx):
 			var wz: float = t.wall_start_z + idx * t.wall_spacing
 			var wall_node: Node3D = quiz_wall_scene.instantiate()
 			wall_node.set_meta("wall_index", idx)
@@ -792,8 +832,10 @@ func _check_particles() -> void:
 		and game_state.player_y > StageConstants.OCEAN_ENTRY_Y
 	):
 		if particle_spawner.has_method("spawn_explosion"):
-			particle_spawner.spawn_explosion(
-				Vector3(game_state.player_x, game_state.player_y, game_state.player_local_z))
+			particle_spawner.spawn_explosion(_get_player_death_effect_position(
+				1,
+				Vector3(game_state.player_x, game_state.player_y, game_state.player_local_z)
+			))
 	_prev_go_timer = game_state.game_over_timer
 	
 	# Explosion particle spawn (P2: non-ocean deaths only)
@@ -803,8 +845,10 @@ func _check_particles() -> void:
 		and game_state.player2_y > StageConstants.OCEAN_ENTRY_Y
 	):
 		if particle_spawner.has_method("spawn_explosion"):
-			particle_spawner.spawn_explosion(
-				Vector3(game_state.player2_x, game_state.player2_y, game_state.player2_local_z))
+			particle_spawner.spawn_explosion(_get_player_death_effect_position(
+				2,
+				Vector3(game_state.player2_x, game_state.player2_y, game_state.player2_local_z)
+			))
 	_prev_p2_go_timer = game_state.player2_game_over_timer
 	_prev_player_y = game_state.player_y
 	_prev_p2_y = game_state.player2_y
@@ -817,7 +861,21 @@ func _check_particles() -> void:
 			var fw_z: float = game_state.goal_z - game_state.world_scroll_z if game_state.goal_z > 0 else 50.0
 			particle_spawner.spawn_fireworks(Vector3(0, 0, fw_z))
 
+
+func _get_player_death_effect_position(player_index: int, fallback: Vector3) -> Vector3:
+	var controller := player_node as PlayerController
+	if controller == null:
+		return fallback
+	return controller.get_death_presentation_position(player_index == 1)
+
+
 func _on_state_changed(new_state: String) -> void:
+	if new_state in [Constants.STATE_CLEAR, Constants.STATE_GAME_OVER]:
+		AudioManager.set_music_context(AudioManager.MUSIC_CONTEXT_RESULT)
+	elif new_state == Constants.STATE_MENU:
+		AudioManager.set_music_context(AudioManager.MUSIC_CONTEXT_MENU)
+	else:
+		AudioManager.set_music_context(AudioManager.MUSIC_CONTEXT_GAMEPLAY)
 	if new_state == Constants.STATE_CLEAR:
 		_fireworks_launched = false
 	elif new_state == Constants.STATE_PLAYING:
@@ -893,16 +951,10 @@ func _build_pause_menu() -> void:
 	bgm_slider.min_value = 0.0
 	bgm_slider.max_value = 1.0
 	bgm_slider.step = 0.05
-	bgm_slider.value = game_state.bgm_volume
+	bgm_slider.value = AudioManager.bgm_volume
 	bgm_slider.custom_minimum_size = Vector2(400, 40)
 	bgm_slider.value_changed.connect(func(val: float):
 		game_state.set_bgm_volume(val)
-		var bus_idx = AudioServer.get_bus_index("BGM")
-		if bus_idx >= 0:
-			AudioServer.set_bus_volume_db(bus_idx, linear_to_db(val) if val > 0 else -80.0)
-		else:
-			# Fallback if no BGM bus exists
-			pass
 	)
 	vbox.add_child(bgm_slider)
 	
@@ -916,17 +968,10 @@ func _build_pause_menu() -> void:
 	sfx_slider.min_value = 0.0
 	sfx_slider.max_value = 1.0
 	sfx_slider.step = 0.05
-	sfx_slider.value = game_state.sfx_volume
+	sfx_slider.value = AudioManager.sfx_volume
 	sfx_slider.custom_minimum_size = Vector2(400, 40)
 	sfx_slider.value_changed.connect(func(val: float):
 		game_state.set_sfx_volume(val)
-		var bus_idx = AudioServer.get_bus_index("SFX")
-		if bus_idx >= 0:
-			AudioServer.set_bus_volume_db(bus_idx, linear_to_db(val) if val > 0 else -80.0)
-		else:
-			# Fallback for SFX if using AudioManager
-			if AudioManager.has_method("set_volume"):
-				AudioManager.set_volume(val)
 	)
 	vbox.add_child(sfx_slider)
 	
@@ -946,6 +991,8 @@ func _build_pause_menu() -> void:
 	btn_title.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	btn_title.pressed.connect(func():
 		get_tree().paused = false
+		AudioManager.set_music_paused(false)
+		AudioManager.set_music_context(AudioManager.MUSIC_CONTEXT_MENU)
 		game_state.reset_to_menu()
 		get_tree().change_scene_to_file("res://ui/main_menu.tscn")
 	)
@@ -956,6 +1003,7 @@ func _toggle_pause() -> void:
 		return
 	var new_paused = !get_tree().paused
 	get_tree().paused = new_paused
+	AudioManager.set_music_paused(new_paused)
 	pause_menu.visible = new_paused
 	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 

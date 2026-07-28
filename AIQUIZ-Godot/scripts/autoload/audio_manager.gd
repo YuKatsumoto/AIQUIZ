@@ -1,25 +1,59 @@
 extends Node
 
+const BGM_PATH := "res://assets/audio/bgm/head_in_the_sand.ogg"
+const SETTINGS_PATH := "user://audio_settings.cfg"
+const MUSIC_CONTEXT_MENU: StringName = &"menu"
+const MUSIC_CONTEXT_GAMEPLAY: StringName = &"gameplay"
+const MUSIC_CONTEXT_PAUSED: StringName = &"paused"
+const MUSIC_CONTEXT_RESULT: StringName = &"result"
+
+const CONTEXT_VOLUME_DB := {
+	MUSIC_CONTEXT_MENU: -4.0,
+	MUSIC_CONTEXT_GAMEPLAY: 0.0,
+	MUSIC_CONTEXT_PAUSED: -10.0,
+	MUSIC_CONTEXT_RESULT: -4.0,
+}
+
 ## オーディオ管理 (Autoload)
 ## Python版 synth.py の generate_correct_sound / generate_explosion_sound に相当
 ## Godotでは AudioStreamPlayer + AudioStreamGenerator で合成音を生成
 
 var correct_player: AudioStreamPlayer
 var explosion_player: AudioStreamPlayer
+var bgm_player: AudioStreamPlayer
 var shark_rush_stream: AudioStreamWAV
 var shark_impact_stream: AudioStreamWAV
 
 var sfx_volume: float = 1.0
+var bgm_volume: float = 0.5
+var _music_context: StringName = MUSIC_CONTEXT_MENU
+var _context_before_pause: StringName = MUSIC_CONTEXT_MENU
+var _context_tween: Tween = null
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	_ensure_bus("BGM")
+	_ensure_bus("SFX")
+	_load_audio_settings()
+
+	bgm_player = AudioStreamPlayer.new()
+	bgm_player.name = "BGMPlayer"
+	bgm_player.bus = "BGM"
+	var bgm_stream: AudioStream = load(BGM_PATH) as AudioStream
+	if bgm_stream is AudioStreamOggVorbis:
+		(bgm_stream as AudioStreamOggVorbis).loop = true
+	bgm_player.stream = bgm_stream
+	bgm_player.volume_db = CONTEXT_VOLUME_DB[MUSIC_CONTEXT_MENU]
+	add_child(bgm_player)
+
 	correct_player = AudioStreamPlayer.new()
 	correct_player.name = "CorrectSFX"
-	correct_player.bus = "Master"
+	correct_player.bus = "SFX"
 	add_child(correct_player)
 
 	explosion_player = AudioStreamPlayer.new()
 	explosion_player.name = "ExplosionSFX"
-	explosion_player.bus = "Master"
+	explosion_player.bus = "SFX"
 	add_child(explosion_player)
 
 	# Generate audio samples
@@ -30,19 +64,88 @@ func _ready() -> void:
 
 	# Connect to game state
 	var game_state: QuizGameState = QuizManager.game_state
+	game_state.sfx_volume = sfx_volume
+	game_state.bgm_volume = bgm_volume
 	game_state.correct_answer.connect(play_correct)
 	game_state.wrong_answer.connect(func(_msg: String): play_explosion())
 
+	set_sfx_volume(sfx_volume, false)
+	set_bgm_volume(bgm_volume, false)
+	if bgm_player.stream != null:
+		bgm_player.play()
+
 func play_correct() -> void:
-	correct_player.volume_db = linear_to_db(sfx_volume)
 	correct_player.play()
 
 func play_explosion() -> void:
-	explosion_player.volume_db = linear_to_db(sfx_volume)
 	explosion_player.play()
 
 func set_volume(vol: float) -> void:
+	set_sfx_volume(vol)
+
+func set_sfx_volume(vol: float, save_setting: bool = true) -> void:
 	sfx_volume = clampf(vol, 0.0, 1.0)
+	_set_bus_linear_volume("SFX", sfx_volume)
+	if save_setting:
+		_save_audio_settings()
+
+func set_bgm_volume(vol: float, save_setting: bool = true) -> void:
+	bgm_volume = clampf(vol, 0.0, 1.0)
+	_set_bus_linear_volume("BGM", bgm_volume)
+	if save_setting:
+		_save_audio_settings()
+
+func set_music_context(context: StringName, fade_seconds: float = 0.4) -> void:
+	if context != MUSIC_CONTEXT_PAUSED:
+		_context_before_pause = context
+	_music_context = context
+	if not is_instance_valid(bgm_player):
+		return
+	var target_db: float = float(CONTEXT_VOLUME_DB.get(context, 0.0))
+	if is_instance_valid(_context_tween):
+		_context_tween.kill()
+	if fade_seconds <= 0.0:
+		bgm_player.volume_db = target_db
+		return
+	_context_tween = create_tween()
+	_context_tween.set_trans(Tween.TRANS_SINE)
+	_context_tween.set_ease(Tween.EASE_IN_OUT)
+	_context_tween.tween_property(bgm_player, "volume_db", target_db, fade_seconds)
+
+func set_music_paused(paused: bool) -> void:
+	if paused:
+		set_music_context(MUSIC_CONTEXT_PAUSED)
+	else:
+		set_music_context(_context_before_pause)
+
+func _ensure_bus(bus_name: String) -> void:
+	if AudioServer.get_bus_index(bus_name) >= 0:
+		return
+	var bus_index: int = AudioServer.bus_count
+	AudioServer.add_bus(bus_index)
+	AudioServer.set_bus_name(bus_index, bus_name)
+
+func _set_bus_linear_volume(bus_name: String, linear_volume: float) -> void:
+	var bus_index: int = AudioServer.get_bus_index(bus_name)
+	if bus_index < 0:
+		return
+	AudioServer.set_bus_volume_db(
+		bus_index,
+		linear_to_db(linear_volume) if linear_volume > 0.0 else -80.0
+	)
+
+func _load_audio_settings() -> void:
+	var config := ConfigFile.new()
+	if config.load(SETTINGS_PATH) != OK:
+		return
+	bgm_volume = clampf(float(config.get_value("audio", "bgm_volume", bgm_volume)), 0.0, 1.0)
+	sfx_volume = clampf(float(config.get_value("audio", "sfx_volume", sfx_volume)), 0.0, 1.0)
+
+func _save_audio_settings() -> void:
+	var config := ConfigFile.new()
+	config.set_value("audio", "bgm_volume", bgm_volume)
+	config.set_value("audio", "sfx_volume", sfx_volume)
+	config.save(SETTINGS_PATH)
 
 func get_shark_rush_stream() -> AudioStreamWAV:
 	return shark_rush_stream

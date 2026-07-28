@@ -399,9 +399,13 @@ func _process(dt: float) -> void:
 
 	if _preview_gs and not _customize_active:
 		_update_p2_remove_timer(dt)
+		var p1_body_start := Vector2(_preview_gs.player_x, _preview_gs.player_z)
+		var p2_body_start := Vector2(_preview_gs.player2_x, _preview_gs.player2_z)
 		_update_preview_actor_ai(dt)
 		if _is_local_2p_active():
 			_update_preview_actor2_ai(dt)
+			# 本編と同じ2Pカプセル判定で、メニュー背景のAI同士も重なり・すり抜けを防ぐ。
+			_preview_gs._resolve_two_player_body_collision(p1_body_start, p2_body_start)
 
 	if _preview_player and _preview_gs and not _customize_active:
 		_preview_gs._active_wall_speed = effective_speed
@@ -454,6 +458,7 @@ func _build_3d_scene() -> void:
 	_preview_gs.game_state = Constants.STATE_PLAYING
 	_preview_gs.num_players = 1
 	_preview_gs.p1_alive = true
+	_preview_gs.p1_wall_impact = false
 	_preview_gs.player_x = _pick_ai_dash_target_x(_p1_ai)
 	_preview_gs.player_y = 0.0
 	_preview_gs.player_z = 0.0
@@ -765,6 +770,7 @@ func _enable_preview_p2_drop_in() -> void:
 		return
 	_preview_gs.num_players = 2
 	_preview_gs.p2_alive = true
+	_preview_gs.p2_wall_impact = false
 	_preview_gs.player2_game_over_timer = 0.0
 	_preview_gs.p2_emote = 0
 	_preview_gs.p2_jump_trigger = false
@@ -823,6 +829,7 @@ func _begin_preview_p2_explode_removal() -> void:
 	if _preview_gs.num_players < 2 or not _preview_gs.p2_alive:
 		_apply_menu_player_count_to_gs()
 		return
+	_preview_gs.p2_wall_impact = false
 	_preview_gs.p2_alive = false
 	_preview_gs.player2_game_over_timer = 0.001
 	_p2_ai.ai_state = AI_STATE_DEAD
@@ -838,6 +845,7 @@ func _update_p2_remove_timer(dt: float) -> void:
 	_stop_survivor_taunt(false)
 	_preview_gs.player2_game_over_timer = 0.0
 	_preview_gs.p2_alive = true
+	_preview_gs.p2_wall_impact = false
 	_apply_menu_player_count_to_gs()
 	_clear_learning_commit(_p2_ai, PREVIEW_PLAYER2_X)
 
@@ -948,6 +956,13 @@ func _set_actor_alive(is_p1: bool, value: bool) -> void:
 		_preview_gs.p2_alive = value
 
 
+func _set_actor_wall_impact(is_p1: bool, value: bool) -> void:
+	if is_p1:
+		_preview_gs.p1_wall_impact = value
+	else:
+		_preview_gs.p2_wall_impact = value
+
+
 func _set_actor_game_over_timer(is_p1: bool, value: float) -> void:
 	if is_p1:
 		_preview_gs.game_over_timer = value
@@ -1051,6 +1066,12 @@ func _apply_preview_actor_facing(parts: Dictionary, bundle: MenuPreviewActorAISt
 	if not pelvis:
 		return
 	if bundle.ai_state == AI_STATE_TAUNT:
+		# 死亡時の論理座標ではなく、実際に飛んでいるラグドール／破片を追い続ける。
+		var pc := _preview_player as PlayerController
+		if pc:
+			var target_position := pc.get_death_presentation_position(not is_p1)
+			bundle.taunt_target_x = target_position.x
+			bundle.taunt_target_z = target_position.z
 		pelvis.rotation.y = _facing_y_toward(
 			_actor_x(is_p1),
 			_actor_local_z(is_p1),
@@ -1309,6 +1330,9 @@ func _update_actor_ai(dt: float, bundle: MenuPreviewActorAIState, is_p1: bool) -
 			_set_actor_moving_back(is_p1, false)
 			bundle.lane_shift_active = false
 			bundle.depth_shift_active = false
+			# リグ読込直後などに初回開始が失敗しても、死亡演出中は必ず再試行する。
+			if _actor_emote(is_p1) == EmoteData.EMOTE_NONE:
+				_start_taunt_emote(bundle, is_p1)
 			if _actor_y(is_p1) > 0.01 or _actor_vel_y(is_p1) != 0.0:
 				_set_actor_y(is_p1, PREVIEW_FLOOR_Y)
 				_set_actor_vel_y(is_p1, 0.0)
@@ -1977,6 +2001,9 @@ func _trigger_preview_death(reason: String, bundle: MenuPreviewActorAIState = nu
 	if is_p1:
 		if not _actor_alive(is_p1):
 			return
+		# 本編と同じ死亡原因フラグを渡し、壁衝突だけを即時ラグドールへ分岐させる。
+		# 海落下は従来の死亡演出を維持する。
+		_set_actor_wall_impact(true, reason == "crash")
 		_push_walls_away_from_player(_actor_local_z(is_p1))
 		_separate_blocking_wall_from_player()
 		_stop_ai_emote_if_needed(bundle, is_p1)
@@ -1993,6 +2020,7 @@ func _trigger_preview_death(reason: String, bundle: MenuPreviewActorAIState = nu
 	else:
 		if not _preview_gs.p2_alive:
 			return
+		_set_actor_wall_impact(false, reason == "crash")
 		_push_walls_away_from_player(_preview_gs.player2_local_z)
 		_separate_blocking_wall_from_player_p2()
 		_stop_ai_emote_if_needed_p2()
@@ -2011,7 +2039,10 @@ func _trigger_preview_death(reason: String, bundle: MenuPreviewActorAIState = nu
 	bundle.depth_shift_active = false
 	bundle.blocking_wall = null
 	_clear_pending_accident(bundle)
-	bundle.dead_end_t = _ai_time + randf_range(AI_DEAD_TO_RESPAWN_MIN, AI_DEAD_TO_RESPAWN_MAX)
+	var death_duration := randf_range(AI_DEAD_TO_RESPAWN_MIN, AI_DEAD_TO_RESPAWN_MAX)
+	if reason == "crash":
+		death_duration = maxf(death_duration, QuizGameState.WALL_DEATH_SEQUENCE_DURATION)
+	bundle.dead_end_t = _ai_time + death_duration
 	_begin_survivor_taunt(is_p1)
 
 
@@ -2023,6 +2054,7 @@ func _start_respawn(bundle: MenuPreviewActorAIState, is_p1: bool) -> void:
 	_schedule_death_shard_cleanup(is_p1)
 	_rebuild_preview_player()
 	bundle.ai_state = AI_STATE_RESPAWN
+	_set_actor_wall_impact(is_p1, false)
 	_set_actor_alive(is_p1, true)
 	_set_actor_game_over_timer(is_p1, 0.0)
 	_set_actor_emote(is_p1, 0)

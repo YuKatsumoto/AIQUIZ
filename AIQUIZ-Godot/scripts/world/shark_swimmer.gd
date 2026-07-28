@@ -214,7 +214,7 @@ func _setup_attack_effects() -> void:
 
 	_rush_audio = AudioStreamPlayer3D.new()
 	_rush_audio.name = "SharkRushSFX"
-	_rush_audio.bus = "Master"
+	_rush_audio.bus = "SFX"
 	_rush_audio.max_distance = 90.0
 	_rush_audio.unit_size = 12.0
 	_rush_audio.stream = AudioManager.get_shark_rush_stream()
@@ -222,7 +222,7 @@ func _setup_attack_effects() -> void:
 
 	_impact_audio = AudioStreamPlayer3D.new()
 	_impact_audio.name = "SharkImpactSFX"
-	_impact_audio.bus = "Master"
+	_impact_audio.bus = "SFX"
 	_impact_audio.max_distance = 100.0
 	_impact_audio.unit_size = 14.0
 	_impact_audio.stream = AudioManager.get_shark_impact_stream()

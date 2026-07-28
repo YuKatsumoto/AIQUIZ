@@ -15,6 +15,34 @@ func _initialize() -> void:
 		QuizDedup.is_semantically_similar("日本の首都は？", "三角形の内角の和は？"),
 		"unrelated topics should not match"
 	)
+	failures += _assert_false(
+		QuizDedup.is_semantically_similar(
+			"0.1を15個集めた数はどれですか。",
+			"コンパスで円をかくとき正しい方法はどれですか。"
+		),
+		"common Japanese wording must not make unrelated questions match"
+	)
+	failures += _assert_false(
+		QuizDedup.is_semantically_similar(
+			"あまりがわる数より大きくなってしまったとき、どうすればよいですか。",
+			"0.1を12個集めた数と、1.3では、どちらの方が大きいですか。"
+		),
+		"generic comparison wording must not merge different operations"
+	)
+	failures += _assert_false(
+		QuizDedup.is_semantically_similar(
+			"23÷5＝4あまり3 のたしかめ算として、正しい式はどれですか。",
+			"3年生の算数の教科書の重さを表すとき、もっともふさわしい単位はどれですか。"
+		),
+		"generic correctness wording must not merge different units"
+	)
+	failures += _assert_false(
+		QuizDedup.is_semantically_similar(
+			"筆算で、345+278の計算のとき、百の位に繰り上がる数はいくつ？",
+			"35÷4の計算をするとき、あまりはいくつになりますか。"
+		),
+		"two shared bigrams must not merge different calculation skills"
+	)
 	failures += _assert_true(
 		QuizDedup.is_duplicate_answer_concept("2×3は？", "4×5は？", "6", "6"),
 		"same answer similar concept"
@@ -30,6 +58,14 @@ func _initialize() -> void:
 	)
 	var core := QuizDedup.extract_core_concept("乾電池2個を使って豆電球を光らせるとき")
 	failures += _assert_false(core.contains("2"), "core concept strips digits")
+	failures += _assert_true(
+		QuizDedup.is_strict_duplicate("18本の鉛筆を3人で分けると？", "24本の鉛筆を4人で分けると？"),
+		"long-term template gate blocks number swaps"
+	)
+	failures += _assert_false(
+		QuizDedup.is_strict_duplicate("円の直径を求める問題", "円を使った模様の特徴を考える問題"),
+		"long-term template gate allows a different task in the same unit"
+	)
 	if failures == 0:
 		print("[QuizDedupTest] ALL PASSED")
 		quit(0)

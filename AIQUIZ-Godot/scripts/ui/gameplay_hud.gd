@@ -9,9 +9,16 @@ const OFFSCREEN_MARKER_PLAYER_HEIGHT := 1.35
 # Start warning when the trailing player is this close to the 2P scroll-out
 # death separation. The authoritative limit lives in QuizGameState.
 const OFFSCREEN_MARKER_SCROLL_WARNING_DISTANCE := 4.0
+const REAR_EDGE_WARNING_START_DISTANCE := 3.0
+const REAR_EDGE_WARNING_FULL_DISTANCE := 0.45
+const REAR_EDGE_WARNING_MIN_ALPHA := 0.05
+const REAR_EDGE_WARNING_MAX_ALPHA := 0.34
+const REAR_EDGE_WARNING_MIN_BLINK_SPEED := 4.5
+const REAR_EDGE_WARNING_MAX_BLINK_SPEED := 9.0
 
 @onready var flash_rect: ColorRect = $FlashRect
 var _shark_impact_flash: float = 0.0
+var _rear_edge_warning_time: float = 0.0
 
 ## ゲーム中HUD (3Dシーン上に重ねて表示)
 ## Python版 hud.py の _draw_play 部分に相当
@@ -308,6 +315,7 @@ func _process(_dt: float) -> void:
 	if not game_state:
 		return
 	_shark_impact_flash = maxf(0.0, _shark_impact_flash - _dt * 12.5)
+	_rear_edge_warning_time = fmod(_rear_edge_warning_time + _dt, TAU * 100.0)
 	_update_offscreen_player_markers(_dt)
 
 	if game_state.game_state == Constants.STATE_PRELOADING:
@@ -370,9 +378,42 @@ func play_shark_impact_flash() -> void:
 	_shark_impact_flash = 1.0
 
 
+func _rear_edge_warning_strength() -> float:
+	if (
+		game_state.num_players != 1
+		or game_state.game_state != Constants.STATE_PLAYING
+		or not game_state.p1_alive
+		or game_state.p1_waiting_for_shark
+	):
+		return 0.0
+	var clearance: float = game_state.player_local_z - game_state.FLOOR_BACK_Z
+	return clampf(
+		(REAR_EDGE_WARNING_START_DISTANCE - clearance)
+		/ (REAR_EDGE_WARNING_START_DISTANCE - REAR_EDGE_WARNING_FULL_DISTANCE),
+		0.0,
+		1.0
+	)
+
+
 func _update_flash() -> void:
+	var rear_edge_strength: float = _rear_edge_warning_strength()
 	if _shark_impact_flash > 0.0:
 		flash_rect.color = Color(0.72, 0.94, 1.0, _shark_impact_flash * 0.78)
+		flash_rect.visible = true
+	elif rear_edge_strength > 0.0:
+		var blink_speed: float = lerpf(
+			REAR_EDGE_WARNING_MIN_BLINK_SPEED,
+			REAR_EDGE_WARNING_MAX_BLINK_SPEED,
+			rear_edge_strength
+		)
+		var blink_wave: float = (sin(_rear_edge_warning_time * blink_speed) + 1.0) * 0.5
+		var blink: float = lerpf(0.35, 1.0, blink_wave)
+		var warning_alpha: float = lerpf(
+			REAR_EDGE_WARNING_MIN_ALPHA,
+			REAR_EDGE_WARNING_MAX_ALPHA,
+			rear_edge_strength
+		) * blink
+		flash_rect.color = Color(1.0, 0.035, 0.02, warning_alpha)
 		flash_rect.visible = true
 	elif game_state.correct_flash > 0.0:
 		flash_rect.color = Color(0.2, 1.0, 0.4, game_state.correct_flash * 0.4)
@@ -669,8 +710,14 @@ func _add_key_chip(
 
 func _show_game_over() -> void:
 	var is_clear := game_state.game_state == Constants.STATE_CLEAR
+	var result_reveal_delay := 4.0
+	if not is_clear and (game_state.p1_wall_impact or game_state.p2_wall_impact):
+		result_reveal_delay = maxf(result_reveal_delay, QuizGameState.WALL_DEATH_SEQUENCE_DURATION)
 
-	if not is_clear and _go_fade_timer < 4.0:
+	if not is_clear and (
+		_go_fade_timer < result_reveal_delay
+		or not game_state.is_wall_death_sequence_complete()
+	):
 		game_over_panel.visible = false
 		return
 
@@ -679,7 +726,7 @@ func _show_game_over() -> void:
 	go_message.get_parent().visible = false
 
 	if not is_clear:
-		var alpha := clampf((_go_fade_timer - 4.0) / 1.0, 0.0, 1.0)
+		var alpha := clampf((_go_fade_timer - result_reveal_delay) / 1.0, 0.0, 1.0)
 		game_over_panel.modulate.a = alpha
 	else:
 		game_over_panel.modulate.a = 1.0

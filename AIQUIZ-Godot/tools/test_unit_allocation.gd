@@ -10,7 +10,7 @@ func _initialize() -> void:
 	var fetcher = load("res://scripts/core/online_fetch.gd").new()
 	get_root().add_child(fetcher)
 
-	# ── 算数3年（6単元）を3バッチ×4問に割当 → 2単元ずつ・重複なし ──
+	# ── 算数3年（12単元）を3バッチ×4問に割当 → 4単元ずつ・重複なし ──
 	var batches = fetcher._allocate_units_to_batches("算数", 3, 3, 4)
 	failures += _assert_true(batches.size() == 3, "バッチ数=3")
 	var seen := {}
@@ -24,7 +24,7 @@ func _initialize() -> void:
 				dup_found = true
 			seen[u] = true
 	failures += _assert_false(dup_found, "算数3年: バッチ間で単元が重複しない")
-	failures += _assert_true(total_units == 6, "算数3年: 全6単元が使われる（実際: %d）" % total_units)
+	failures += _assert_true(total_units == 12, "算数3年: 全12単元が使われる（実際: %d）" % total_units)
 
 	# ── 理科5年（4単元）を3バッチに割当 → 全単元使用・重複なし ──
 	var batches2 = fetcher._allocate_units_to_batches("理科", 5, 3, 4)
@@ -54,6 +54,36 @@ func _initialize() -> void:
 	# ── compose_prompt: 通常モード（解説あり） ──
 	var prompt2 = fetcher.compose_prompt("算数", 3, "普通", 4, hist, false, units, false)
 	failures += _assert_true(prompt2.contains("50〜100文字程度"), "通常モード: 解説生成指示を含む")
+
+	# ── 共通新規性ゲート: ストリーミング/通常応答で同じ結果になる純ローカル判定 ──
+	var duplicate := QuizItem.create(
+		"4 + 6 は？", PackedStringArray(["10", "11"]), 0, "", "GEMINI_STREAM"
+	)
+	var novel := QuizItem.create(
+		"月は地球の衛星です。正しい？", PackedStringArray(["正しい", "誤り"]), 0, "", "GEMINI_STREAM"
+	)
+	var candidates: Array[QuizItem] = [duplicate, novel]
+	var gate_seen := {}
+	var answer_seen := {}
+	var filtered = fetcher._filter_unique_candidates(
+		candidates, ["3 + 5 は？"], ["3 + 5 は？"], gate_seen, answer_seen
+	)
+	failures += _assert_true(
+		filtered.size() == 1 and filtered[0].q == novel.q,
+		"共通新規性ゲート: 履歴類似だけを拒否"
+	)
+	var novel_rephrase := QuizItem.create(
+		"地球のまわりを回る衛星は月です。正しい？",
+		PackedStringArray(["正しい", "誤り"]), 0, "", "GEMINI_STREAM"
+	)
+	var second_batch: Array[QuizItem] = [novel_rephrase]
+	var filtered_again = fetcher._filter_unique_candidates(
+		second_batch, [], [], gate_seen, answer_seen
+	)
+	failures += _assert_true(
+		filtered_again.is_empty(),
+		"共通新規性ゲート: 並列バッチ間の言い換えを拒否"
+	)
 
 	if failures == 0:
 		print("[UnitAllocationTest] ALL PASSED")

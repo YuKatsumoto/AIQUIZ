@@ -43,6 +43,8 @@ const DOOR4_XS: Array[float] = [-5.8, -1.95, 1.95, 5.8]
 const WALL_EDGE_INSET: float = 0.10
 
 var _current_num_choices: int = 2
+var _retiring_after_pass: bool = false
+var _retirement_finished: bool = false
 
 func _ready() -> void:
 	_build_doors(2)
@@ -195,6 +197,53 @@ func set_labels_visible(is_visible: bool) -> void:
 	for label: Label3D in door_labels:
 		if is_instance_valid(label):
 			label.visible = is_visible
+
+
+## 1P用: プレイヤーが通過した壁を、文字を残さず短くフェード退場させる。
+func retire_after_player_pass(fade_duration: float = 0.28) -> void:
+	if _retiring_after_pass:
+		return
+	_retiring_after_pass = true
+	_retirement_finished = false
+	set_labels_visible(false)
+	if is_instance_valid(boss_label):
+		boss_label.visible = false
+	for sparks: CPUParticles3D in boss_sparks:
+		if is_instance_valid(sparks):
+			sparks.emitting = false
+			sparks.visible = false
+	for part: MeshInstance3D in wall_parts:
+		_fade_mesh_to_transparent(part, fade_duration)
+	for door: MeshInstance3D in doors:
+		_fade_mesh_to_transparent(door, fade_duration)
+	var finish_tween: Tween = create_tween()
+	finish_tween.tween_interval(fade_duration)
+	finish_tween.tween_callback(_mark_retirement_finished)
+
+
+func is_retiring_after_pass() -> bool:
+	return _retiring_after_pass
+
+
+func is_retirement_finished() -> bool:
+	return _retirement_finished
+
+
+func _fade_mesh_to_transparent(mesh_inst: MeshInstance3D, fade_duration: float) -> void:
+	if not is_instance_valid(mesh_inst):
+		return
+	var material: StandardMaterial3D = mesh_inst.material_override as StandardMaterial3D
+	if material == null:
+		return
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	var color: Color = material.albedo_color
+	var target_color := Color(color.r, color.g, color.b, 0.0)
+	var fade_tween: Tween = create_tween()
+	fade_tween.tween_property(material, "albedo_color", target_color, fade_duration)
+
+
+func _mark_retirement_finished() -> void:
+	_retirement_finished = true
 
 
 ## メニュー背景プレビュー用: 問題文と選択肢をカメラ側(+Z)の面に表示する (2択専用)

@@ -109,6 +109,7 @@ var flyover_total_walls: int = 10
 # --- Multiplayer ---
 var num_players: int = 1
 var p1_alive: bool = true
+var p1_wall_impact: bool = false
 var p1_waiting_for_shark: bool = false
 var p1_shark_killed: bool = false
 var p1_ocean_float_time: float = 0.0
@@ -122,6 +123,7 @@ var player2_score: int = 0
 var player2_vel_y: float = 0.0
 var player2_vel_z: float = 0.0
 var p2_alive: bool = true
+var p2_wall_impact: bool = false
 var p2_waiting_for_shark: bool = false
 var p2_shark_killed: bool = false
 var p2_ocean_float_time: float = 0.0
@@ -204,6 +206,12 @@ const FLOOR_BACK_Z: float = -12.5
 const FLOOR_PLAY_FRONT_Z: float = 139.5
 const FLOOR_RACE_FRONT_Z: float = 400.0
 const SCROLL_OUT_LIMIT: float = 14.0
+const PLAYER_BODY_RADIUS: float = 0.62
+const PLAYER_BODY_HEIGHT: float = 1.9
+const PLAYER_BODY_COLLISION_EPSILON: float = 0.0001
+const WALL_RAGDOLL_DURATION: float = 2.0
+const WALL_LIMB_SCATTER_DURATION: float = 2.0
+const WALL_DEATH_SEQUENCE_DURATION: float = WALL_RAGDOLL_DURATION + WALL_LIMB_SCATTER_DURATION
 
 
 func _init(quiz_provider: QuizProvider = null) -> void:
@@ -495,9 +503,11 @@ func back_from_settings() -> void:
 
 func set_sfx_volume(vol: float) -> void:
 	sfx_volume = clampf(vol, 0.0, 1.0)
+	AudioManager.set_sfx_volume(sfx_volume)
 
 func set_bgm_volume(vol: float) -> void:
 	bgm_volume = clampf(vol, 0.0, 1.0)
+	AudioManager.set_bgm_volume(bgm_volume)
 
 func update_grade(delta: int) -> void:
 	grade = clampi(grade + delta, 1, 6)
@@ -541,6 +551,7 @@ func start_game() -> void:
 	current_wall_index = 0
 	game_over_timer = 0.0
 	p1_alive = true
+	p1_wall_impact = false
 	p1_emote_lock_timer = 0.0
 	# Player 2 reset
 	player2_x = -6.0 if is_coop_mode() else -1.5
@@ -550,6 +561,7 @@ func start_game() -> void:
 	player2_vel_y = 0.0
 	player2_vel_z = 0.0
 	p2_alive = true
+	p2_wall_impact = false
 	p2_emote_lock_timer = 0.0
 	player2_game_over_timer = 0.0
 	goal_winner = 0
@@ -629,6 +641,7 @@ func start_tutorial(tutorial_players: int = 1) -> void:
 	current_wall_index = 0
 	game_over_timer = 0.0
 	p1_alive = true
+	p1_wall_impact = false
 	player2_x = -1.5 if num_players >= 2 else 0.0
 	player2_y = 0.0
 	player2_z = 0.0
@@ -636,6 +649,7 @@ func start_tutorial(tutorial_players: int = 1) -> void:
 	player2_vel_y = 0.0
 	player2_vel_z = 0.0
 	p2_alive = num_players >= 2
+	p2_wall_impact = false
 	player2_game_over_timer = 0.0
 	goal_winner = 0
 	current_streak = 0
@@ -756,6 +770,7 @@ func reset_to_menu() -> void:
 	camera_pitch = 0.0
 	game_over_timer = 0.0
 	p1_alive = true
+	p1_wall_impact = false
 	player2_x = 0.0
 	player2_y = 0.0
 	player2_z = 0.0
@@ -763,6 +778,7 @@ func reset_to_menu() -> void:
 	player2_vel_y = 0.0
 	player2_vel_z = 0.0
 	p2_alive = true
+	p2_wall_impact = false
 	p2_emote_lock_timer = 0.0
 	player2_game_over_timer = 0.0
 	rating_target_quiz = null
@@ -1060,6 +1076,8 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 		_update_tutorial_control_progress(axis_p1, axis_p2, jump_p1, jump_p2)
 	var world_speed := 0.0 if is_tutorial_basics() else _active_wall_speed
 	world_scroll_z += world_speed * dt
+	var p1_body_start := Vector2(player_x, player_z)
+	var p2_body_start := Vector2(player2_x, player2_z)
 
 	p1_moving_back = axis_p1.y < -0.1
 	p2_moving_back = axis_p2.y < -0.1
@@ -1139,6 +1157,7 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 			# Tick explosion timer for dead P2 while game continues
 			player2_game_over_timer += dt
 
+	_resolve_two_player_body_collision(p1_body_start, p2_body_start)
 	_sink_ocean_players(dt)
 
 	# スクロールアウト死 (画面外に取り残された場合の脱落)
@@ -1187,6 +1206,68 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 		if p2_hit: player2_z = wall_z - 0.4
 		resolve_collision(p1_hit, p2_hit)
 
+
+## 2Pの立ち姿をXZ平面のカプセルとして扱い、めり込みを等分して押し戻す。
+## 見た目だけのPlayerControllerではなく座標の権威側で解決するため、ローカル2Pと
+## ホスト権威のオンライン2Pで同じ結果になり、1Pには一切影響しない。
+func _resolve_two_player_body_collision(p1_start: Vector2, p2_start: Vector2) -> bool:
+	if (
+		num_players < 2
+		or not p1_alive
+		or not p2_alive
+		or p1_waiting_for_shark
+		or p2_waiting_for_shark
+		or absf(player_y - player2_y) >= PLAYER_BODY_HEIGHT
+	):
+		return false
+
+	var previous_separation := p2_start - p1_start
+	var separation := Vector2(player2_x - player_x, player2_z - player_z)
+	var relative_motion := separation - previous_separation
+	var minimum_distance := PLAYER_BODY_RADIUS * 2.0
+	var minimum_distance_squared := minimum_distance * minimum_distance
+	var epsilon_squared := PLAYER_BODY_COLLISION_EPSILON * PLAYER_BODY_COLLISION_EPSILON
+	var distance_squared := separation.length_squared()
+	var normal := Vector2.ZERO
+
+	# 大きなdtでも互いをすり抜けて左右が入れ替わらないよう、前フレームからの
+	# 相対移動線分とカプセル円の最初の接点も調べる。
+	var motion_squared := relative_motion.length_squared()
+	if previous_separation.length_squared() >= minimum_distance_squared and motion_squared > epsilon_squared:
+		var closest_t := clampf(-previous_separation.dot(relative_motion) / motion_squared, 0.0, 1.0)
+		var closest_separation := previous_separation + relative_motion * closest_t
+		if closest_separation.length_squared() < minimum_distance_squared:
+			var quadratic_b := 2.0 * previous_separation.dot(relative_motion)
+			var quadratic_c := previous_separation.length_squared() - minimum_distance_squared
+			var discriminant := quadratic_b * quadratic_b - 4.0 * motion_squared * quadratic_c
+			if discriminant >= 0.0:
+				var contact_t := clampf((-quadratic_b - sqrt(discriminant)) / (2.0 * motion_squared), 0.0, 1.0)
+				var contact_separation := previous_separation + relative_motion * contact_t
+				if contact_separation.length_squared() > epsilon_squared:
+					normal = contact_separation.normalized()
+
+	if normal == Vector2.ZERO:
+		if distance_squared >= minimum_distance_squared:
+			return false
+		if distance_squared > epsilon_squared:
+			normal = separation / sqrt(distance_squared)
+		elif previous_separation.length_squared() > epsilon_squared:
+			normal = previous_separation.normalized()
+		else:
+			# 完全に同位置から始まった場合もP1/P2を決定的な方向へ分離する。
+			normal = Vector2.LEFT
+
+	var center := Vector2(player_x + player2_x, player_z + player2_z) * 0.5
+	var half_separation := normal * (PLAYER_BODY_RADIUS + PLAYER_BODY_COLLISION_EPSILON)
+	var resolved_p1 := center - half_separation
+	var resolved_p2 := center + half_separation
+	player_x = resolved_p1.x
+	player_z = resolved_p1.y
+	player2_x = resolved_p2.x
+	player2_z = resolved_p2.y
+	return true
+
+
 func _update_correct(dt: float) -> void:
 	message_timer -= dt
 	# Tick explosion for dead players
@@ -1234,6 +1315,8 @@ func _start_athletic_race() -> void:
 	race_win_reason = ""
 	p1_alive = true
 	p2_alive = true
+	p1_wall_impact = false
+	p2_wall_impact = false
 	p1_waiting_for_shark = false
 	p2_waiting_for_shark = false
 	_bike_rules.reset(self)
@@ -1288,6 +1371,8 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 	p2_emote = emote_p2
 	p1_moving_back = axis_p1.y < -0.1
 	p2_moving_back = axis_p2.y < -0.1
+	var p1_body_start := Vector2(player_x, player_z)
+	var p2_body_start := Vector2(player2_x, player2_z)
 
 	# Player 1 movement
 	if p1_alive and not p1_waiting_for_shark:
@@ -1332,6 +1417,8 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 			_begin_ocean_shark_wait(2)
 	elif p2_alive and p2_waiting_for_shark:
 		_update_ocean_float(2, dt)
+
+	_resolve_two_player_body_collision(p1_body_start, p2_body_start)
 
 	# Tick explosion timers for dead players
 	if not p1_alive and game_over_timer > 0:
@@ -1555,6 +1642,7 @@ func _reset_tutorial_attempt(hint: String) -> void:
 	player_vel_z = 0.0
 	world_scroll_z = reset_z
 	p1_alive = true
+	p1_wall_impact = false
 	game_over_timer = 0.0
 	if num_players >= 2:
 		player2_x = -1.5
@@ -1562,6 +1650,7 @@ func _reset_tutorial_attempt(hint: String) -> void:
 		player2_z = reset_z
 		player2_vel_y = 0.0
 		p2_alive = true
+		p2_wall_impact = false
 		player2_game_over_timer = 0.0
 	else:
 		p2_alive = false
@@ -1739,6 +1828,7 @@ func _reset_tutorial_after_hazard(player_index: int) -> void:
 	player_vel_y = 0.0
 	player_vel_z = 0.0
 	p1_alive = true
+	p1_wall_impact = false
 	game_over_timer = 0.0
 	if num_players >= 2:
 		player2_x = -1.5
@@ -1747,6 +1837,7 @@ func _reset_tutorial_after_hazard(player_index: int) -> void:
 		player2_vel_y = 0.0
 		player2_vel_z = 0.0
 		p2_alive = true
+		p2_wall_impact = false
 		player2_game_over_timer = 0.0
 	else:
 		p2_alive = false
@@ -1767,6 +1858,7 @@ func complete_ocean_shark_attack(player_index: int) -> void:
 		p1_waiting_for_shark = false
 		p1_shark_killed = true
 		p1_alive = false
+		p1_wall_impact = false
 		player_y = StageConstants.OCEAN_FLOAT_Y
 		player_vel_y = 0.0
 		game_over_timer = 0.001
@@ -1774,6 +1866,7 @@ func complete_ocean_shark_attack(player_index: int) -> void:
 		p2_waiting_for_shark = false
 		p2_shark_killed = true
 		p2_alive = false
+		p2_wall_impact = false
 		player2_y = StageConstants.OCEAN_FLOAT_Y
 		player2_vel_y = 0.0
 		player2_game_over_timer = 0.001
@@ -1870,6 +1963,15 @@ func _process_dead_player_physics(dt: float) -> void:
 			if is2_on_floor:
 				player2_vel_z = 0.0
 
+
+## 壁衝突の「ラグドール -> 四肢分散」が終わるまでは結果画面や離脱を許可しない。
+func is_wall_death_sequence_complete() -> bool:
+	if p1_wall_impact and not p1_alive and game_over_timer < WALL_DEATH_SEQUENCE_DURATION:
+		return false
+	if p2_wall_impact and not p2_alive and player2_game_over_timer < WALL_DEATH_SEQUENCE_DURATION:
+		return false
+	return true
+
 func _fail_coop_immediately(msg: String) -> void:
 	if choice_locked:
 		return
@@ -1878,6 +1980,8 @@ func _fail_coop_immediately(msg: String) -> void:
 	p2_waiting_for_shark = false
 	p1_alive = false
 	p2_alive = false
+	p1_wall_impact = false
+	p2_wall_impact = false
 	game_over_timer = 0.001
 	player2_game_over_timer = 0.001
 	_register_coop_result(false)
@@ -1916,6 +2020,8 @@ func _resolve_coop_collision() -> void:
 	else:
 		p1_alive = false
 		p2_alive = false
+		p1_wall_impact = true
+		p2_wall_impact = true
 		game_over_timer = 0.001
 		player2_game_over_timer = 0.001
 		player_vel_y = JUMP_FORCE * 0.8
@@ -1948,6 +2054,7 @@ func resolve_collision(p1_hit: bool = false, p2_hit: bool = false) -> void:
 		if door < 0:
 			# 壁に衝突
 			p1_alive = false
+			p1_wall_impact = true
 			game_over_timer = 0.001
 			player_vel_y = JUMP_FORCE * 0.8
 			player_vel_z = -12.0
@@ -1970,6 +2077,7 @@ func resolve_collision(p1_hit: bool = false, p2_hit: bool = false) -> void:
 		else:
 			# 不正解ドア
 			p1_alive = false
+			p1_wall_impact = true
 			game_over_timer = 0.001
 			player_vel_y = JUMP_FORCE * 0.8
 			player_vel_z = -12.0
@@ -1986,6 +2094,7 @@ func resolve_collision(p1_hit: bool = false, p2_hit: bool = false) -> void:
 		var door2: int = _check_player_door(player2_x)
 		if door2 < 0:
 			p2_alive = false
+			p2_wall_impact = true
 			player2_game_over_timer = 0.001
 			player2_vel_y = JUMP_FORCE * 0.8
 			player2_vel_z = -12.0
@@ -1994,6 +2103,7 @@ func resolve_collision(p1_hit: bool = false, p2_hit: bool = false) -> void:
 			p2_correct = true
 		else:
 			p2_alive = false
+			p2_wall_impact = true
 			player2_game_over_timer = 0.001
 			player2_vel_y = JUMP_FORCE * 0.8
 			player2_vel_z = -12.0
@@ -2365,6 +2475,7 @@ func to_snapshot() -> Dictionary:
 		"p1z": player_z,
 		"p1vy": player_vel_y,
 		"p1a": p1_alive,
+		"p1wi": p1_wall_impact,
 		"p1sw": p1_waiting_for_shark,
 		"p1sk": p1_shark_killed,
 		"p1oft": p1_ocean_float_time,
@@ -2378,6 +2489,7 @@ func to_snapshot() -> Dictionary:
 		"p2z": player2_z,
 		"p2vy": player2_vel_y,
 		"p2a": p2_alive,
+		"p2wi": p2_wall_impact,
 		"p2sw": p2_waiting_for_shark,
 		"p2sk": p2_shark_killed,
 		"p2oft": p2_ocean_float_time,
@@ -2427,6 +2539,7 @@ func apply_snapshot(data: Dictionary) -> void:
 	player_z = data.get("p1z", player_z)
 	player_vel_y = data.get("p1vy", player_vel_y)
 	p1_alive = data.get("p1a", p1_alive)
+	p1_wall_impact = data.get("p1wi", p1_wall_impact)
 	p1_waiting_for_shark = data.get("p1sw", p1_waiting_for_shark)
 	p1_shark_killed = data.get("p1sk", p1_shark_killed)
 	p1_ocean_float_time = data.get("p1oft", p1_ocean_float_time)
@@ -2440,6 +2553,7 @@ func apply_snapshot(data: Dictionary) -> void:
 	player2_z = data.get("p2z", player2_z)
 	player2_vel_y = data.get("p2vy", player2_vel_y)
 	p2_alive = data.get("p2a", p2_alive)
+	p2_wall_impact = data.get("p2wi", p2_wall_impact)
 	p2_waiting_for_shark = data.get("p2sw", p2_waiting_for_shark)
 	p2_shark_killed = data.get("p2sk", p2_shark_killed)
 	p2_ocean_float_time = data.get("p2oft", p2_ocean_float_time)

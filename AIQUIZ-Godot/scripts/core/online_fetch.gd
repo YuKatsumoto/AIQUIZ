@@ -15,9 +15,11 @@ const UNIT_USAGE_PATH: String = "user://recent_unit_usage.json"
 ## プロキシ/API のレート制限（429）バックオフ
 var _rate_limit_until_ms: int = 0
 var _rate_limit_strikes: int = 0
-## 10問モードの同時ストリーム上限（429 回避のため 6→2 に削減）
-const TEN_PARALLEL: int = 2
-const TEN_BATCH_STAGGER_SEC: float = 1.0
+## 10問モードは6並列×7候補。全履歴との意味重複を捨てても一往復で10問を揃える。
+## 最初の10問だけを採用し、余剰候補は破棄する。1バッチ失敗時は不足分だけを補充する。
+const TEN_PARALLEL: int = 6
+const TEN_BATCH_SIZE: int = 4
+const TEN_BATCH_STAGGER_SEC: float = 0.35
 
 func extract_json_from_text(text: String) -> Variant:
 	text = text.strip_edges()
@@ -153,7 +155,10 @@ func get_temperature_for_difficulty(difficulty: String, retry_count: int = 0) ->
 	base += retry_count * 0.1
 	return clampf(base, 0.1, 1.2)
 
-func compose_prompt(subject: String, grade: int, difficulty: String, count: int, history: Array[String], is_coop: bool = false, forced_units: PackedStringArray = []) -> String:
+func compose_prompt(subject: String, grade: int, difficulty: String, count: int,
+		history: Array[String], is_coop: bool = false,
+		forced_units: PackedStringArray = [], defer_explanations: bool = false,
+		variation_focus: String = "") -> String:
 	var prompt := ""
 
 	# ── 基本条件 ──
@@ -166,24 +171,28 @@ func compose_prompt(subject: String, grade: int, difficulty: String, count: int,
 	prompt += "- 問題数: %d問\n" % count
 	prompt += "- 形式: 4択（推奨）または 2択\n"
 	prompt += "- 問題文(q)は50文字以内に収めること。長い文章題でも簡潔に書くこと\n"
-	prompt += "- 解説文(e)はなぜその答えになるかを小学生にもわかるよう丁寧に説明すること（50〜100文字程度）。計算過程や考え方の手順を含めること\n"
+	if defer_explanations:
+		prompt += "- 生成速度を優先するため解説文(e)は空文字列にすること。解説はゲーム側で後から補充する\n"
+	else:
+		prompt += "- 解説文(e)はなぜその答えになるかを小学生にもわかるよう丁寧に説明すること（50〜100文字程度）。計算過程や考え方の手順を含めること\n"
 	prompt += "- 選択肢(c)は各15文字以内に収めること\n"
 	prompt += "- 予測解答時間(t)を各問題に付けること。対象学年の生徒が問題を読んで答えるまでの秒数（小数第1位）\n"
 	prompt += "  目安: 即答=2.0, 標準=4.0, 思考問題=6.0, 難問=8.0\n"
 	prompt += "- ジャンル(g)を各問題に付けること。その問題が属する単元・ジャンルの短いラベル（例: つなぎ言葉、慣用句、面積、割合）。同じ単元の問題には必ず同じラベルを付けること\n\n"
+	if not variation_focus.is_empty():
+		prompt += "【このバッチ固有の出題アプローチ】\n"
+		prompt += variation_focus + "\n"
+		prompt += "単純な一問一答や数値差し替えではなく、このアプローチを問題の中心にすること。\n\n"
 
 	# ── 学年×教科別カリキュラムデータ（forced_units 指定時は担当単元に限定） ──
 	var curriculum := _get_curriculum(grade, subject, forced_units)
 	
-	# ── 案1: Few-Shot強化 — QuizOptimizer から JSON形式の例を注入 ──
+	# 過去の実問題を良問例として再注入すると、言い換え問題を誘発する。
+	# 悪問だけを禁止例として使い、良問の本文はプロンプトへ戻さない。
 	if QuizManager.quiz_optimizer != null:
 		var feedback = QuizManager.quiz_optimizer.get_feedback_examples_json(subject, grade, 5)
 		for b in feedback["bad"]:
 			curriculum["bad_examples"].append(b)
-		for g in feedback["good_json"]:
-			curriculum["good_json_examples"].append(g)
-		for g_text in feedback["good"]:
-			curriculum["examples"].append(g_text)
 			
 	prompt += "【小学%d年生・%sのカリキュラム情報】\n" % [grade, subject]
 	prompt += "＜学習単元＞ %s\n" % curriculum["topics"]
@@ -207,7 +216,9 @@ func compose_prompt(subject: String, grade: int, difficulty: String, count: int,
 			prompt += "→ %d問すべてを単元『%s』から出題すること。他の単元からは絶対に出題しないこと。\n" % [count, str(forced_units[0])]
 			prompt += "→ ただし%d問は互いに異なる観点・問い方にし、同じ知識の繰り返しにしないこと。\n" % count
 		else:
-			prompt += "→ 上記の単元からのみ出題し、他の単元からは絶対に出題しないこと。\n"
+			prompt += "→ %d問を上記%d単元へできるだけ均等に割り振ること。各単元から最低1問を出すこと。\n" % [count, forced_units.size()]
+			prompt += "→ 同じ単元から複数問出す場合も、問う知識・問題形式・場面設定を完全に変えること。\n"
+			prompt += "→ 上記以外の単元からは出題しないこと。\n"
 	elif curriculum.has("selected_unit_names") and curriculum["selected_unit_names"].size() > 0:
 		prompt += "＜★出題範囲（以下の単元から出題せよ）＞\n"
 		for uname in curriculum["selected_unit_names"]:
@@ -238,7 +249,7 @@ func compose_prompt(subject: String, grade: int, difficulty: String, count: int,
 		prompt += "- 「偶数はどれ？」「一番大きい数は？」「〇×〇＝？」のような低学年レベルの一問一答\n"
 	if grade >= 4:
 		prompt += "- 単純な九九・1桁の足し引き算・2桁同士の足し算のような%d年生には簡単すぎる問題\n" % grade
-	prompt += "- 同じ単元・パターンの問題ばかり出すこと（%d問すべて異なる単元から出題せよ）\n" % count
+	prompt += "- 同じ知識・公式・解法・問題パターンを2問以上で使うこと\n"
 	prompt += "- 正解が曖昧な問題や、複数の選択肢が正解になりうる問題\n"
 	prompt += "- 選択肢に「わからない」「どれでもない」を含めること\n"
 	prompt += "- 明らかなダミー選択肢（絶対にあり得ない数値や無関係な単語など、一目で間違いとわかるもの）を含めること\n"
@@ -275,7 +286,7 @@ func compose_prompt(subject: String, grade: int, difficulty: String, count: int,
 	prompt += "  (b) 数値・単語を変えただけの類似問題（例:「3+5は？」と「4+6は？」は同パターン）\n"
 	prompt += "  (c) 聞き方を変えただけの同じ知識を問う問題（例:「半径と直径の関係は？」と「直径は半径の何倍？」）\n"
 	prompt += "  (d) 同じ公式・概念を別の数値で問う問題（例:面積問題が2つ以上）\n"
-	prompt += "- %d問すべて『完全に異なる単元・トピック』から出題すること。同じ単元から2問以上出さないこと。\n" % count
+	prompt += "- 担当単元の割当を守りつつ、%d問すべてで問う知識・解法・問題形式を変えること。\n" % count
 	prompt += "- 計算問題・知識問題・思考問題をバランスよく混ぜること\n"
 	prompt += "- 正解の位置(a)を0〜3で均等に散らすこと（全部0や全部1にしない）\n"
 	prompt += "- 4択と2択を任意に混ぜて出題すること\n"
@@ -294,6 +305,7 @@ func compose_prompt(subject: String, grade: int, difficulty: String, count: int,
 				if not core.is_empty():
 					prompt += " [概念:%s]" % core.left(40)
 				prompt += "\n"
+	prompt += "【セルフ検証】出力直前に全問題と出題済みリストを比較し、数値・固有名詞だけを変えた問題や同じ知識の言い換えがあれば、別単元・別解法の問題に置き換えること。\n"
 	prompt += "\n"
 
 	# ── 協力モード用追加指示 ──
@@ -876,6 +888,60 @@ func reset_rate_limit() -> void:
 	_rate_limit_until_ms = 0
 
 
+func _filter_unique_candidates(items: Array[QuizItem], dedup_blocklist: Array,
+		semantic_blocklist: Array, unique_seen: Dictionary, answer_seen: Dictionary,
+		fallback_genre: String = "") -> Array[QuizItem]:
+	var candidates: Array[QuizItem] = []
+	var validator: QuizValidator = QuizManager.quiz_validator
+	if validator:
+		var rule_result := validator.validate_rules(items)
+		for valid_item: QuizItem in rule_result["valid"]:
+			candidates.append(valid_item)
+		if rule_result["reasons"].size() > 0:
+			print("[OnlineFetch] Rule validation removed %d items" % rule_result["reasons"].size())
+	else:
+		candidates.assign(items)
+
+	var unique_items: Array[QuizItem] = []
+	candidates.shuffle()
+	for q in candidates:
+		if unique_seen.has(q.q):
+			continue
+		if QuizDedup.is_strict_duplicate_to_any(q.q, dedup_blocklist):
+			print("[OnlineFetch] Dedup blocked (exact/template): '%s'" % q.q.left(30))
+			continue
+		if QuizDedup.is_similar_to_any(q.q, semantic_blocklist):
+			print("[OnlineFetch] Dedup blocked (recent semantic): '%s'" % q.q.left(30))
+			continue
+
+		var is_dup := false
+		for seen_q: String in unique_seen.keys():
+			if QuizDedup.is_semantically_similar(q.q, seen_q):
+				is_dup = true
+				print("[OnlineFetch] Dedup blocked (semantic): '%s' ≈ '%s'" % [q.q.left(30), seen_q.left(30)])
+				break
+		if is_dup:
+			continue
+
+		var correct_text := ""
+		if q.a >= 0 and q.a < q.c.size():
+			correct_text = q.c[q.a]
+		if not correct_text.is_empty() and answer_seen.has(correct_text):
+			var prev_q: String = answer_seen[correct_text]
+			if QuizDedup.is_duplicate_answer_concept(q.q, prev_q, correct_text, correct_text):
+				print("[OnlineFetch] Dedup blocked (same answer + similar concept): '%s' answer='%s'" % [q.q.left(30), correct_text])
+				continue
+
+		unique_seen[q.q] = true
+		if not correct_text.is_empty():
+			answer_seen[correct_text] = q.q
+		if q.genre.strip_edges().is_empty() and not fallback_genre.is_empty():
+			q.genre = fallback_genre
+		unique_items.append(q)
+
+	return unique_items
+
+
 func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count: int, history: Array[String], force_ten_mode: bool = false) -> void:
 	if is_rate_limited():
 		print("[OnlineFetch] Skipping fetch — rate limit backoff (%.0fs remaining)" % get_rate_limit_wait_sec())
@@ -883,61 +949,38 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 		return
 	# 10問モード: 4並列リクエスト（各バッチに異なる単元を割当て → セマンティックdedupで最終フィルタ）
 	# エンドレスモード: 5並列リクエストで速度最重視
-	var is_ten_mode := count >= 6 or force_ten_mode  # 6問以上、または強制フラグで10問モード扱い
+	var is_ten_mode := force_ten_mode
 	
 	var unique_seen := {}
 	var answer_seen := {}  # 正解テキスト → 問題文 のマップ（同じ正解の問題を検出）
 	var dedup_blocklist: Array = _collect_dedup_blocklist(subject, grade, difficulty, history)
+	var semantic_blocklist: Array[String] = QuizDedup.tail_texts(
+		history, QuizDedup.SEMANTIC_HISTORY_MAX
+	)
+	var prompt_blocklist: Array[String] = []
+	for text: String in QuizDedup.tail_texts(history, 15):
+		if text not in prompt_blocklist:
+			prompt_blocklist.append(text)
+	for text: String in QuizDedup.tail_texts(dedup_blocklist, 15):
+		if text not in prompt_blocklist:
+			prompt_blocklist.append(text)
 	
 	# 案5: 難易度に応じた temperature
 	var temperature := get_temperature_for_difficulty(difficulty)
+
+	# ストリーミング・通常応答の両方が必ず通る共通の新規性ゲート。
+	# Dictionary は参照共有されるため、並列バッチ間でも unique_seen / answer_seen が維持される。
+	var _filter_batch = func(items: Array[QuizItem], fallback_genre: String = "") -> Array[QuizItem]:
+		return _filter_unique_candidates(
+			items, dedup_blocklist, semantic_blocklist,
+			unique_seen, answer_seen, fallback_genre
+		)
 	
 	# ── 共通コールバック ──
 	var _make_on_complete = func(expected_ref: Array, completed_ref: Array, fallback_genre: String = "") -> Callable:
 		return func(items: Array[QuizItem]):
-			# 案2: ルールベースバリデーション（即時・無料）
+			var unique_items: Array[QuizItem] = _filter_batch.call(items, fallback_genre)
 			var validator: QuizValidator = QuizManager.quiz_validator
-			if validator:
-				var rule_result := validator.validate_rules(items)
-				items = rule_result["valid"]
-				if rule_result["reasons"].size() > 0:
-					print("[OnlineFetch] Rule validation removed %d items" % rule_result["reasons"].size())
-			
-			var unique_items: Array[QuizItem] = []
-			items.shuffle()
-			for q in items:
-				if unique_seen.has(q.q): continue
-				if QuizDedup.is_similar_to_any(q.q, dedup_blocklist):
-					print("[OnlineFetch] Dedup blocked (history/bad): '%s'" % q.q.left(30))
-					continue
-				# セマンティック重複チェック: 既に見た問題と内容レベルで比較
-				var is_dup := false
-				for seen_q: String in unique_seen.keys():
-					if QuizDedup.is_semantically_similar(q.q, seen_q):
-						is_dup = true
-						print("[OnlineFetch] Dedup blocked (semantic): '%s' ≈ '%s'" % [q.q.left(30), seen_q.left(30)])
-						break
-				if is_dup:
-					continue
-				# 正解テキストベースの重複チェック: 同じ正解 + 問題文も似ている → 重複
-				var correct_text := ""
-				if q.a >= 0 and q.a < q.c.size():
-					correct_text = q.c[q.a]
-				if not correct_text.is_empty() and answer_seen.has(correct_text):
-					var prev_q: String = answer_seen[correct_text]
-					if QuizDedup.is_duplicate_answer_concept(q.q, prev_q, correct_text, correct_text):
-						print("[OnlineFetch] Dedup blocked (same answer + similar concept): '%s' answer='%s'" % [q.q.left(30), correct_text])
-						continue
-				unique_seen[q.q] = true
-				if not correct_text.is_empty():
-					answer_seen[correct_text] = q.q
-				unique_items.append(q)
-				
-			# ジャンルタグが空の問題は、このバッチの担当単元で補完（出題順分散に使う）
-			if not fallback_genre.is_empty():
-				for q in unique_items:
-					if q.genre.strip_edges().is_empty():
-						q.genre = fallback_genre
 			
 			if unique_items.size() > 0:
 				# 速度優先: 先着バッチの結果を即座にバッファ投入
@@ -959,8 +1002,8 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 				fetch_completed.emit([] as Array[QuizItem])
 	
 	if is_ten_mode:
-		# ═══ 10問モード: 2並列 × 各5問（429 回避 + 十分な生成量）═══
-		var per_batch: int = 5
+		# ═══ 初回: 6並列 × 4候補 = 24候補から新規10問を先着採用 ═══
+		var per_batch: int = TEN_BATCH_SIZE
 		var expected_ref := [TEN_PARALLEL]
 		var completed_ref := [0]
 		
@@ -971,15 +1014,27 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 				fetch_completed.emit([] as Array[QuizItem])
 		)
 		
-		var batch_units: Array[PackedStringArray] = _allocate_units_to_batches(subject, grade, TEN_PARALLEL)
+		var batch_units: Array[PackedStringArray] = _allocate_units_to_batches(subject, grade, TEN_PARALLEL, per_batch)
 		_mark_units_used(subject, grade, batch_units)
+		var variation_focuses: Array[String] = [
+			"逆向きに考える問題、誤った考え方を見抜く問題、正しい手順や理由を選ぶ問題を中心にする。",
+			"二段階の日常場面、複数の条件や情報を組み合わせて判断する問題を中心にする。",
+			"比較・分類・規則性・成り立つ条件を考え、理由まで判断する問題を中心にする。",
+			"図や具体物を頭の中で操作し、結果を予想する問題や、条件から逆算する問題を中心にする。",
+		]
 		
 		for i in range(TEN_PARALLEL):
 			var batch_idx := i
 			var forced_units: PackedStringArray = batch_units[batch_idx]
-			var fallback_genre: String = forced_units[0] if forced_units.size() > 0 else ""
+			var fallback_genre: String = forced_units[0] if forced_units.size() == 1 else ""
 			var on_complete: Callable = _make_on_complete.call(expected_ref, completed_ref, fallback_genre)
-			var prompt := compose_prompt(subject, grade, difficulty, per_batch, history, QuizManager.game_state.is_coop_mode(), forced_units)
+			var prompt := compose_prompt(
+				subject, grade, difficulty, per_batch, prompt_blocklist,
+				QuizManager.game_state.is_coop_mode(), forced_units, true,
+				variation_focuses[batch_idx % variation_focuses.size()]
+			)
+			var partial_filter := func(items: Array[QuizItem]) -> Array[QuizItem]:
+				return _filter_batch.call(items, fallback_genre)
 			var proxy_msg := " (via AI Gateway)"
 			var launch := func():
 				if is_rate_limited():
@@ -988,7 +1043,7 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 					return
 				if is_streaming_available():
 					print("[OnlineFetch] 10-question mode - batch %d/%d: STREAMING %d questions%s" % [batch_idx + 1, TEN_PARALLEL, per_batch, proxy_msg])
-					_fetch_gemini_streaming(prompt, QUIZ_GENERATION_GEMINI_MODEL, temperature, on_complete)
+					_fetch_gemini_streaming(prompt, QUIZ_GENERATION_GEMINI_MODEL, temperature, on_complete, partial_filter)
 				else:
 					print("[OnlineFetch] 10-question mode - batch %d/%d: requesting %d questions%s" % [batch_idx + 1, TEN_PARALLEL, per_batch, proxy_msg])
 					_fetch_gemini_target(prompt, QUIZ_GENERATION_GEMINI_MODEL, temperature, on_complete)
@@ -1012,38 +1067,42 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 				fetch_completed.emit([] as Array[QuizItem])
 		)
 		
-		var batch_units: Array[PackedStringArray] = _allocate_units_to_batches(subject, grade, parallel_count)
+		var batch_units: Array[PackedStringArray] = _allocate_units_to_batches(subject, grade, parallel_count, per_call)
 		_mark_units_used(subject, grade, batch_units)
 		
-		var themes := [
-			"テーマA: 基礎的な用語や計算、単純な事実を問う問題",
-			"テーマB: 日常生活に関連した文章題や応用問題",
-			"テーマC: 図形、単位、文字、グラフなどの表現・概念を問う問題",
-			"テーマD: 少しひねった問題や、よくある間違いを誘う問題",
-			"テーマE: この学年の学習内容のうち、最も難易度が高い問題"
+		var themes: Array[String] = [
+			"既出の計算・用語問題を避け、逆向きの推論、誤り発見、理由選択の形式にする。",
+			"既出の文章題を避け、二段階の日常課題や複数条件から判断する形式にする。",
+			"既出の図形・単位問題を避け、比較、分類、規則性、成立条件を考える形式にする。",
 		]
 		
 		for i in range(parallel_count):
 			var forced_units: PackedStringArray = batch_units[i] if i < batch_units.size() else PackedStringArray()
-			var fallback_genre: String = forced_units[0] if forced_units.size() > 0 else ""
+			var fallback_genre: String = forced_units[0] if forced_units.size() == 1 else ""
 			var on_complete: Callable = _make_on_complete.call(expected_ref, completed_ref, fallback_genre)
-			var extra_history: Array[String] = history.duplicate()
-			extra_history.append("【バッチ制約: この生成では必ず『%s』の傾向を中心に出題し、他のバッチと内容が被るのを防いでください】" % themes[i % themes.size()])
-			var prompt := compose_prompt(subject, grade, difficulty, per_call, extra_history, QuizManager.game_state.is_coop_mode(), forced_units)
+			var partial_filter := func(items: Array[QuizItem]) -> Array[QuizItem]:
+				return _filter_batch.call(items, fallback_genre)
+			var prompt := compose_prompt(
+				subject, grade, difficulty, per_call, prompt_blocklist,
+				QuizManager.game_state.is_coop_mode(), forced_units, true,
+				themes[i % themes.size()]
+			)
 			var proxy_msg := " (via AI Gateway)"
 			if is_streaming_available():
 				print("[OnlineFetch] Endless mode - batch %d/%d: STREAMING %d questions%s" % [i+1, parallel_count, per_call, proxy_msg])
-				_fetch_gemini_streaming(prompt, QUIZ_GENERATION_ENDLESS_GEMINI_MODEL, temperature, on_complete)
+				_fetch_gemini_streaming(prompt, QUIZ_GENERATION_ENDLESS_GEMINI_MODEL, temperature, on_complete, partial_filter)
 			else:
 				print("[OnlineFetch] Endless mode - batch %d/%d: requesting %d questions%s" % [i+1, parallel_count, per_call, proxy_msg])
 				_fetch_gemini_target(prompt, QUIZ_GENERATION_ENDLESS_GEMINI_MODEL, temperature, on_complete)
 
-## CurriculumDB から全単元を取得し、batch_count 個のバッチに重複なく振り分ける
-## 各バッチに「担当単元（1単元）」を割り当てて返す。
-## 単元数 < バッチ数 でも巡回割当し、隣接バッチが同じ単元にならないようにする。
+## CurriculumDB から全単元を取得し、batch_count 個のバッチに重複なく振り分ける。
+## 1バッチに複数単元を割り当て、生成候補を単元間へ均等分散する。
 ## カリキュラムDBが無い教科・学年では空配列を返し、compose_prompt 側が汎用指示にフォールバックする。
-func _allocate_units_to_batches(subject: String, grade: int, batch_count: int) -> Array[PackedStringArray]:
+func _allocate_units_to_batches(subject: String, grade: int, batch_count: int,
+		questions_per_batch: int = 1) -> Array[PackedStringArray]:
 	var result: Array[PackedStringArray] = []
+	for _i in range(batch_count):
+		result.append(PackedStringArray())
 	
 	# CurriculumDB から全単元名を取得
 	var data := CurriculumDB.load_grade(subject, grade)
@@ -1056,16 +1115,15 @@ func _allocate_units_to_batches(subject: String, grade: int, batch_count: int) -
 	
 	if all_unit_names.is_empty():
 		# カリキュラムDB無し → 空の担当単元（compose_prompt が汎用指示にフォールバック）
-		for i in range(batch_count):
-			result.append(PackedStringArray())
 		print("[OnlineFetch] No CurriculumDB units for %s/%d, using generic prompt" % [subject, grade])
 		return result
 	
-	# 最近使っていない単元を優先（LRU）してから割当
+	# 最近使っていない単元を優先し、使える単元をバッチ間で重複なく分配する。
+	# 1バッチに複数単元を渡すことで「1単元から5問」の偏りをなくす。
 	all_unit_names = _sort_units_lru(subject, grade, all_unit_names)
-	for i in range(batch_count):
-		var primary: String = all_unit_names[i % all_unit_names.size()]
-		result.append(PackedStringArray([primary]))
+	var max_assignments := mini(all_unit_names.size(), batch_count * maxi(1, questions_per_batch))
+	for i in range(max_assignments):
+		result[i % batch_count].append(all_unit_names[i])
 	print("[OnlineFetch] Allocated %d units across %d batches from CurriculumDB (LRU)" % [all_unit_names.size(), batch_count])
 	
 	return result
@@ -1074,6 +1132,17 @@ func _allocate_units_to_batches(subject: String, grade: int, batch_count: int) -
 func _collect_dedup_blocklist(subject: String, grade: int, difficulty: String, history: Array) -> Array:
 	var blocklist: Array = QuizDedup.tail_texts(history, QuizDedup.BLOCKLIST_HISTORY_MAX)
 	if QuizManager.quiz_optimizer != null:
+		for item: Variant in QuizManager.quiz_optimizer.ratings.get("good", []):
+			if not item is Dictionary:
+				continue
+			var good_entry: Dictionary = item
+			if str(good_entry.get("subject", "")) != subject:
+				continue
+			if str(good_entry.get("grade", "")) != str(grade):
+				continue
+			var good_q := str(good_entry.get("q", ""))
+			if not good_q.is_empty():
+				blocklist.append(good_q)
 		for item: Variant in QuizManager.quiz_optimizer.ratings.get("bad", []):
 			if not item is Dictionary:
 				continue
@@ -1467,7 +1536,8 @@ func extract_complete_objects_from_stream(text: String, start_idx: int) -> Dicti
 ## 完成したJSONオブジェクトを1問ずつリアルタイムで callback に渡す
 ##
 ## callback: func(items: Array[QuizItem]) — 既存の on_complete と同じシグネチャ
-func _fetch_gemini_streaming(prompt: String, target_model: String, temperature: float, callback: Callable) -> void:
+func _fetch_gemini_streaming(prompt: String, target_model: String, temperature: float,
+		callback: Callable, partial_filter: Callable = Callable()) -> void:
 	var url := ApiStatusAutoload.gemini_endpoint(target_model, true)
 	if url.is_empty():
 		push_error("[OnlineFetch] PROXY_URL is not configured for streaming")
@@ -1510,14 +1580,9 @@ func _fetch_gemini_streaming(prompt: String, target_model: String, temperature: 
 			if item != null:
 				new_items.append(item)
 		
-		# ルールベースバリデーション（CPU処理のみ・高速）
-		if new_items.size() > 0:
-			var validator: QuizValidator = QuizManager.quiz_validator
-			if validator:
-				var rule_result := validator.validate_rules(new_items)
-				if rule_result["reasons"].size() > 0:
-					print("[OnlineFetch] Stream: rule validation removed %d items" % rule_result["reasons"].size())
-				new_items = rule_result["valid"]
+		# ストリーミングでも通常応答と同じ新規性ゲートを通す。
+		if new_items.size() > 0 and partial_filter.is_valid():
+			new_items = partial_filter.call(new_items)
 		
 		for item in new_items:
 			emitted_items.append(item)
@@ -1549,8 +1614,10 @@ func _fetch_gemini_streaming(prompt: String, target_model: String, temperature: 
 				var item := normalize_single(raw_dict, "GEMINI_STREAM")
 				if item != null:
 					final_items.append(item)
-					emitted_items.append(item)
+			if final_items.size() > 0 and partial_filter.is_valid():
+				final_items = partial_filter.call(final_items)
 			if final_items.size() > 0:
+				emitted_items.append_array(final_items)
 				fetch_partial.emit(final_items)
 		
 		print("[OnlineFetch] ✅ Stream completed. Total streamed: %d items" % emitted_items.size())
