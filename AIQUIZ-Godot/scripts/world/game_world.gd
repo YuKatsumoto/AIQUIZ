@@ -909,8 +909,14 @@ func _on_correct() -> void:
 		var answer_idx: int = game_state.current_quiz.a
 		for wall: Node3D in _active_walls:
 			if wall.has_meta("wall_index") and wall.get_meta("wall_index") == game_state.current_wall_index:
+				_retired_wall_indices[game_state.current_wall_index] = true
 				if wall.has_method("break_door"):
 					wall.break_door(answer_idx)
+				# 正解扉が壊れた瞬間から壁全体も退場させる。
+				# プレイヤーが完全に通過してから消すと、破砕演出との間に
+				# 壁だけが残って見えるため、同じタイミングで短くフェードする。
+				if wall.has_method("retire_after_player_pass"):
+					wall.retire_after_player_pass(0.28)
 	# Audio handled by AudioManager
 
 func _on_wrong(_msg: String) -> void:
