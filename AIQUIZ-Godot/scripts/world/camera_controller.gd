@@ -1,7 +1,5 @@
 extends Node3D
 
-const BIKE_RULES_SCRIPT = preload("res://scripts/core/bike_race_rules.gd")
-
 ## カメラ制御
 ## Python版 renderer.py の _camera() メソッドに相当
 ## 1P: 固定三人称追従視点
@@ -26,6 +24,8 @@ var _has_ocean_attack_focus: bool = false
 var _ocean_attack_camera_active: bool = false
 var _ocean_attack_intensity: float = 0.0
 var _ocean_attack_impact_timer: float = 0.0
+var _ghost_ride_wide_fov_requested: bool = false
+var _ghost_ride_fov_blend: float = 0.0
 
 const ENTRY_BLEND_DURATION := 0.95
 const PRELOAD_CAMERA_FOV := 66.0
@@ -33,6 +33,8 @@ const THIRD_PERSON_FOV := 50.0
 const THIRD_PERSON_DISTANCE := 5.6
 const THIRD_PERSON_FOCUS_HEIGHT := 1.0
 const THIRD_PERSON_BASE_HEIGHT := 2.0
+const GHOST_RIDE_2P_FOV := 62.0
+const GHOST_RIDE_FOV_BLEND_SPEED := 2.5
 
 func _ready() -> void:
 	if not camera:
@@ -62,6 +64,10 @@ func trigger_ocean_attack_impact() -> void:
 	_ocean_attack_impact_timer = 0.35
 
 
+func set_ghost_ride_wide_fov(enabled: bool) -> void:
+	_ghost_ride_wide_fov_requested = enabled
+
+
 func wait_for_entry_blend() -> void:
 	if not _entry_blend_active:
 		return
@@ -77,6 +83,11 @@ func update_camera(gs: QuizGameState, dt: float) -> void:
 
 	_time += dt
 	_ocean_attack_impact_timer = maxf(0.0, _ocean_attack_impact_timer - dt)
+	_ghost_ride_fov_blend = move_toward(
+		_ghost_ride_fov_blend,
+		1.0 if _ghost_ride_wide_fov_requested else 0.0,
+		GHOST_RIDE_FOV_BLEND_SPEED * dt
+	)
 	var bob: float = sin(_time * 1.2) * 0.04
 
 	var eye: Vector3
@@ -91,10 +102,6 @@ func update_camera(gs: QuizGameState, dt: float) -> void:
 	# === FLYOVER: 10問モードの壁全体俯瞰演出 ===
 	if gs.game_state == Constants.STATE_FLYOVER:
 		_update_flyover_camera(gs, dt)
-		return
-
-	if gs.game_state == Constants.STATE_ATHLETIC_RACE:
-		_update_bike_camera(gs, dt)
 		return
 
 	# 1Pではサメの到達後も、ゲームオーバー中はサメ追従カメラを維持する。
@@ -117,7 +124,7 @@ func update_camera(gs: QuizGameState, dt: float) -> void:
 
 	if gs.num_players >= 2:
 		# === 2-PLAYER: top-down view ===
-		fov = 50.0
+		fov = lerpf(50.0, GHOST_RIDE_2P_FOV, _ghost_ride_fov_blend)
 		var all_dead: bool = not gs.p1_alive and not gs.p2_alive
 		var z_focus: float = gs.player_local_z
 		if gs.p1_alive and gs.p2_alive:
@@ -204,54 +211,6 @@ func update_camera(gs: QuizGameState, dt: float) -> void:
 	camera.fov = fov
 	camera.global_position = eye
 	camera.look_at(target, Vector3.UP)
-
-
-func _update_bike_camera(gs: QuizGameState, dt: float) -> void:
-	var p1_z: float = gs.player_z - gs.world_scroll_z
-	var blend: float = 1.0 - exp(-dt * 5.6)
-	if gs.num_players < 2:
-		var focus_x: float = gs.player_x
-		var focus_z: float = p1_z
-		var recovery_separation: float = 0.0
-		if gs.bike_p1_recovery_state != BIKE_RULES_SCRIPT.RIDER_RIDING:
-			var bike_z: float = gs.bike_p1_bike_z - gs.world_scroll_z
-			focus_x = (gs.player_x + gs.bike_p1_bike_x) * 0.5
-			focus_z = (p1_z + bike_z) * 0.5
-			recovery_separation = Vector2(
-				gs.player_x - gs.bike_p1_bike_x,
-				p1_z - bike_z
-			).length()
-		var solo_follow_distance: float = 5.8 + minf(recovery_separation * 0.42, 3.2)
-		var solo_height: float = 3.65 + minf(recovery_separation * 0.20, 1.8)
-		var solo_look_ahead: float = (
-			2.0
-			if gs.bike_p1_recovery_state != BIKE_RULES_SCRIPT.RIDER_RIDING
-			else 4.4 + gs.bike_p1_speed * 0.24
-		)
-		var solo_target_eye := Vector3(
-			focus_x,
-			solo_height,
-			focus_z - solo_follow_distance
-		)
-		var solo_target_look := Vector3(focus_x, 0.05, focus_z + solo_look_ahead)
-		camera.global_position = camera.global_position.lerp(solo_target_eye, blend)
-		camera.fov = lerpf(camera.fov, 47.0 + minf(recovery_separation * 1.2, 7.0), blend)
-		camera.look_at(solo_target_look, Vector3.UP)
-		return
-
-	var p2_z: float = gs.player2_z - gs.world_scroll_z
-	var midpoint_z: float = (p1_z + p2_z) * 0.5
-	var midpoint_x: float = (gs.player_x + gs.player2_x) * 0.5
-	var gap: float = absf(p1_z - p2_z)
-	var lead_speed: float = maxf(gs.bike_p1_speed, gs.bike_p2_speed)
-	var height: float = 4.85 + minf(gap * 0.11, 4.4)
-	var follow_distance: float = 7.1 + minf(gap * 0.20, 7.2)
-	var look_ahead: float = 5.8 + lead_speed * 0.31
-	var target_eye := Vector3(midpoint_x * 0.45, height, midpoint_z - follow_distance)
-	var target_look := Vector3(midpoint_x * 0.62, 0.12, midpoint_z + look_ahead)
-	camera.global_position = camera.global_position.lerp(target_eye, blend)
-	camera.fov = lerpf(camera.fov, 49.0 + minf(gap * 0.48, 15.0), blend)
-	camera.look_at(target_look, Vector3.UP)
 
 
 ## フライオーバーカメラ演出 (2フェーズ)

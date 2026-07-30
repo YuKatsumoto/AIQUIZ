@@ -166,7 +166,6 @@ func _update_offscreen_player_markers(delta: float) -> void:
 			Constants.STATE_PLAYING,
 			Constants.STATE_CORRECT,
 			Constants.STATE_GOAL_RACE,
-			Constants.STATE_ATHLETIC_RACE,
 		]
 	)
 	if not marker_state_active:
@@ -335,19 +334,6 @@ func _process(_dt: float) -> void:
 		game_over_panel.visible = false
 		message_label.visible = false
 
-		_update_tutorial_overlay(_dt)
-		return
-	elif game_state.game_state == Constants.STATE_ATHLETIC_RACE:
-		preload_bg.visible = false
-		preload_panel.visible = false
-		question_panel.visible = false
-		score_label.visible = false
-		progress_bar.visible = false
-		game_over_panel.visible = false
-		history_panel.visible = false
-		message_label.visible = false
-		flash_rect.visible = false
-		_streak_label.visible = false
 		_update_tutorial_overlay(_dt)
 		return
 	else:

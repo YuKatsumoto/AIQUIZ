@@ -1,8 +1,6 @@
 extends RefCounted
 class_name QuizGameState
 
-const BIKE_RULES_SCRIPT = preload("res://scripts/core/bike_race_rules.gd")
-
 ## ゲーム状態管理クラス
 ## Python版 game_state.py の QuizGameState (638行) を移植
 
@@ -131,6 +129,10 @@ var p2_ocean_local_z: float = 0.0
 var p2_emote: int = 0
 var p1_moving_back: bool = false
 var p2_moving_back: bool = false
+var p1_external_velocity: Vector2 = Vector2.ZERO
+var p2_external_velocity: Vector2 = Vector2.ZERO
+var p1_external_control_lock: float = 0.0
+var p2_external_control_lock: float = 0.0
 ## 走行FBXの speed_scale 倍率（メニュープレビュー前進時など）
 var p1_run_anim_speed_mult: float = 1.0
 var p2_run_anim_speed_mult: float = 1.0
@@ -150,48 +152,6 @@ var player2_game_over_timer: float = 0.0
 var goal_z: float = 0.0
 var goal_winner: int = 0  # 0=未確定, 1=P1, 2=P2
 
-# --- Athletic Race / Phase 1: Mama-chari ---
-var race_phase: String = Constants.RACE_PHASE_BIKE
-var race_winner: int = 0
-var race_finished: bool = false
-var race_win_reason: String = ""
-var race_elapsed: float = 0.0
-var p1_finish_time: float = -1.0
-var p2_finish_time: float = -1.0
-var bike_start_z: float = 0.0
-var bike_finish_z: float = 0.0
-var bike_p1_speed: float = 0.0
-var bike_p2_speed: float = 0.0
-var bike_p1_stamina: float = 1.0
-var bike_p2_stamina: float = 1.0
-var bike_p1_steer: float = 0.0
-var bike_p2_steer: float = 0.0
-var bike_p1_wobble: float = 0.0
-var bike_p2_wobble: float = 0.0
-var bike_p1_fall_timer: float = 0.0
-var bike_p2_fall_timer: float = 0.0
-var bike_p1_invulnerable: float = 0.0
-var bike_p2_invulnerable: float = 0.0
-var bike_p1_checkpoint: int = 0
-var bike_p2_checkpoint: int = 0
-var bike_p1_slipstream: bool = false
-var bike_p2_slipstream: bool = false
-var bike_p1_boosting: bool = false
-var bike_p2_boosting: bool = false
-var bike_p1_start_delay: float = 0.0
-var bike_p2_start_delay: float = 0.0
-var bike_p1_recovery_state: String = "RIDING"
-var bike_p2_recovery_state: String = "RIDING"
-var bike_p1_bike_x: float = 0.0
-var bike_p2_bike_x: float = 0.0
-var bike_p1_bike_z: float = 0.0
-var bike_p2_bike_z: float = 0.0
-var bike_p1_crash_revision: int = 0
-var bike_p2_crash_revision: int = 0
-var bike_p1_crash_strength: float = 0.0
-var bike_p2_crash_strength: float = 0.0
-var _bike_rules: RefCounted
-
 var p1_jump_trigger: bool = false
 var p2_jump_trigger: bool = false
 
@@ -209,6 +169,7 @@ const SCROLL_OUT_LIMIT: float = 14.0
 const PLAYER_BODY_RADIUS: float = 0.62
 const PLAYER_BODY_HEIGHT: float = 1.9
 const PLAYER_BODY_COLLISION_EPSILON: float = 0.0001
+const EXTERNAL_IMPULSE_DECELERATION: float = 10.0
 const WALL_RAGDOLL_DURATION: float = 2.0
 const WALL_LIMB_SCATTER_DURATION: float = 2.0
 const WALL_DEATH_SEQUENCE_DURATION: float = WALL_RAGDOLL_DURATION + WALL_LIMB_SCATTER_DURATION
@@ -220,7 +181,6 @@ func _init(quiz_provider: QuizProvider = null) -> void:
 	else:
 		provider = QuizProvider.new()
 	tuning = GameTuning.new()
-	_bike_rules = BIKE_RULES_SCRIPT.new()
 	refresh_status_text()
 
 
@@ -271,47 +231,6 @@ func _reset_tutorial_v2_progress() -> void:
 	tutorial_p2_jump = false
 	tutorial_hazard_seen = false
 	tutorial_ui_revision += 1
-
-func _reset_athletic_state() -> void:
-	race_phase = Constants.RACE_PHASE_BIKE
-	race_winner = 0
-	race_finished = false
-	race_win_reason = ""
-	race_elapsed = 0.0
-	p1_finish_time = -1.0
-	p2_finish_time = -1.0
-	bike_start_z = 0.0
-	bike_finish_z = 0.0
-	bike_p1_speed = 0.0
-	bike_p2_speed = 0.0
-	bike_p1_stamina = 1.0
-	bike_p2_stamina = 1.0
-	bike_p1_fall_timer = 0.0
-	bike_p2_fall_timer = 0.0
-	bike_p1_invulnerable = 0.0
-	bike_p2_invulnerable = 0.0
-	bike_p1_checkpoint = 0
-	bike_p2_checkpoint = 0
-	bike_p1_slipstream = false
-	bike_p2_slipstream = false
-	bike_p1_boosting = false
-	bike_p2_boosting = false
-	bike_p1_steer = 0.0
-	bike_p2_steer = 0.0
-	bike_p1_wobble = 0.0
-	bike_p2_wobble = 0.0
-	bike_p1_start_delay = 0.0
-	bike_p2_start_delay = 0.0
-	bike_p1_recovery_state = BIKE_RULES_SCRIPT.RIDER_RIDING
-	bike_p2_recovery_state = BIKE_RULES_SCRIPT.RIDER_RIDING
-	bike_p1_bike_x = 0.0
-	bike_p2_bike_x = 0.0
-	bike_p1_bike_z = 0.0
-	bike_p2_bike_z = 0.0
-	bike_p1_crash_revision = 0
-	bike_p2_crash_revision = 0
-	bike_p1_crash_strength = 0.0
-	bike_p2_crash_strength = 0.0
 
 func register_tutorial_camera_look(relative: Vector2) -> void:
 	if not is_tutorial_basics() or num_players >= 2:
@@ -534,7 +453,7 @@ func cycle_difficulty(delta: int) -> void:
 
 func start_game() -> void:
 	_reset_ocean_shark_state()
-	_reset_athletic_state()
+	_reset_external_impulses()
 	if is_coop_mode():
 		num_players = 2
 	score = 0
@@ -615,6 +534,7 @@ func _should_rebuild_coop_quiz(quiz: QuizItem) -> bool:
 
 func start_tutorial(tutorial_players: int = 1) -> void:
 	_reset_ocean_shark_state()
+	_reset_external_impulses()
 	pre_tutorial_subject = subject
 	pre_tutorial_grade = grade
 	pre_tutorial_difficulty = difficulty
@@ -744,7 +664,7 @@ func _build_tutorial_quizzes() -> Array[QuizItem]:
 
 func reset_to_menu() -> void:
 	_reset_ocean_shark_state()
-	_reset_athletic_state()
+	_reset_external_impulses()
 	provider.end_round()
 	if mode == Constants.MODE_TUTORIAL:
 		subject = pre_tutorial_subject
@@ -803,7 +723,7 @@ func load_current_quiz() -> void:
 					else:
 						clear_game()
 				elif num_players >= 2 and mode == Constants.MODE_TEN:
-					_start_athletic_race()
+					_start_goal_race()
 				else:
 					clear_game()
 				return
@@ -959,10 +879,6 @@ func update(dt: float, axis_p1: Vector2 = Vector2.ZERO, axis_p2: Vector2 = Vecto
 		_update_goal_race(dt, axis_p1, axis_p2, jump_p1, jump_p2, emote_p1, emote_p2)
 		return
 
-	if game_state == Constants.STATE_ATHLETIC_RACE:
-		_update_athletic_race(dt, axis_p1, axis_p2, jump_p1, jump_p2)
-		return
-
 	if game_state == Constants.STATE_CORRECT:
 		_update_correct(dt)
 		return
@@ -1072,6 +988,12 @@ func _update_countdown(dt: float, emote_p1: int = 0, emote_p2: int = 0) -> void:
 
 func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: bool, jump_p2: bool, _emote_p1: int = 0, _emote_p2: int = 0) -> void:
 	play_time += dt
+	var p1_axis := Vector2.ZERO if p1_external_control_lock > 0.0 else axis_p1
+	var p2_axis := Vector2.ZERO if p2_external_control_lock > 0.0 else axis_p2
+	var p1_jump_allowed := jump_p1 and p1_external_control_lock <= 0.0
+	var p2_jump_allowed := jump_p2 and p2_external_control_lock <= 0.0
+	p1_external_control_lock = maxf(0.0, p1_external_control_lock - dt)
+	p2_external_control_lock = maxf(0.0, p2_external_control_lock - dt)
 	if is_tutorial_basics():
 		_update_tutorial_control_progress(axis_p1, axis_p2, jump_p1, jump_p2)
 	var world_speed := 0.0 if is_tutorial_basics() else _active_wall_speed
@@ -1079,27 +1001,30 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 	var p1_body_start := Vector2(player_x, player_z)
 	var p2_body_start := Vector2(player2_x, player2_z)
 
-	p1_moving_back = axis_p1.y < -0.1
-	p2_moving_back = axis_p2.y < -0.1
+	p1_moving_back = p1_axis.y < -0.1
+	p2_moving_back = p2_axis.y < -0.1
 
 	# Player 1 movement
 	if p1_alive and not p1_waiting_for_shark:
 		var yaw: float = 0.0
-		var move_x: float = axis_p1.x * cos(yaw) + axis_p1.y * sin(yaw)
-		var move_z: float = axis_p1.y * cos(yaw) - axis_p1.x * sin(yaw)
+		var move_x: float = p1_axis.x * cos(yaw) + p1_axis.y * sin(yaw)
+		var move_z: float = p1_axis.y * cos(yaw) - p1_axis.x * sin(yaw)
 
 		player_x += move_x * tuning.player_speed * dt
 		# Removed clamp to allow falling off sides
 
 		player_z += world_speed * dt # Carry forward with world scroll
 		player_z += move_z * tuning.player_speed * dt
+		player_x += p1_external_velocity.x * dt
+		player_z += p1_external_velocity.y * dt
+		p1_external_velocity = p1_external_velocity.move_toward(Vector2.ZERO, EXTERNAL_IMPULSE_DECELERATION * dt)
 
 		# Removed forward limit to allow running ahead
 		var loc1 := player_z - world_scroll_z
 
 		var is_on_floor = _is_on_track_floor(player_x, loc1, 1)
 
-		if jump_p1 and player_y <= 0.0 and is_on_floor:
+		if p1_jump_allowed and player_y <= 0.0 and is_on_floor:
 			p1_jump_trigger = true
 			player_vel_y = JUMP_FORCE
 
@@ -1123,18 +1048,21 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 
 	# Player 2 movement
 	if num_players >= 2 and p2_alive and not p2_waiting_for_shark:
-		player2_x += axis_p2.x * tuning.player_speed * dt
+		player2_x += p2_axis.x * tuning.player_speed * dt
 		# Removed clamp
 
 		player2_z += world_speed * dt
-		player2_z += axis_p2.y * tuning.player_speed * dt
+		player2_z += p2_axis.y * tuning.player_speed * dt
+		player2_x += p2_external_velocity.x * dt
+		player2_z += p2_external_velocity.y * dt
+		p2_external_velocity = p2_external_velocity.move_toward(Vector2.ZERO, EXTERNAL_IMPULSE_DECELERATION * dt)
 
 		# Removed forward limit
 		var loc2 := player2_z - world_scroll_z
 
 		var p2_is_on_floor = _is_on_track_floor(player2_x, loc2, 2)
 
-		if jump_p2 and player2_y <= 0.0 and p2_is_on_floor:
+		if p2_jump_allowed and player2_y <= 0.0 and p2_is_on_floor:
 			p2_jump_trigger = true
 			player2_vel_y = JUMP_FORCE
 
@@ -1302,53 +1230,6 @@ func _update_game_over(dt: float) -> void:
 			message_text = "GAME OVER\n\n%s" % msg
 
 
-# ---------- Athletic Race / Phase 1: Mama-chari ----------
-
-func _start_athletic_race() -> void:
-	var quiz_exit_z: float = tuning.wall_start_z + target_count * tuning.wall_spacing
-	bike_start_z = quiz_exit_z + 15.0
-	bike_finish_z = bike_start_z + BIKE_RULES_SCRIPT.COURSE_LENGTH
-	goal_z = bike_finish_z
-	goal_winner = 0
-	race_phase = Constants.RACE_PHASE_BIKE
-	race_finished = false
-	race_win_reason = ""
-	p1_alive = true
-	p2_alive = true
-	p1_wall_impact = false
-	p2_wall_impact = false
-	p1_waiting_for_shark = false
-	p2_waiting_for_shark = false
-	_bike_rules.reset(self)
-	game_state = Constants.STATE_ATHLETIC_RACE
-	message_text = "ママチャリ区間 START！ W/↑でこいで、Space/Ctrlでブースト"
-	refresh_status_text()
-	state_changed.emit(game_state)
-
-
-func _update_athletic_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, boost_p1: bool, boost_p2: bool) -> void:
-	if race_phase != Constants.RACE_PHASE_BIKE or race_finished:
-		return
-	play_time += dt
-	race_elapsed += dt
-	_bike_rules.step(self, dt, axis_p1, axis_p2, boost_p1, boost_p2)
-
-
-func apply_bike_hazard(player_index: int, severity: float) -> void:
-	_bike_rules.apply_hazard(self, player_index, severity)
-
-
-func complete_bike_phase(winner: int, reason: String) -> void:
-	if race_finished:
-		return
-	race_finished = true
-	race_winner = winner
-	goal_winner = winner
-	race_win_reason = reason
-	race_phase = Constants.RACE_PHASE_OBSTACLE_RUN
-	clear_game()
-
-
 # ---------- Goal Race (2P tutorial legacy) ----------
 
 func _start_goal_race() -> void:
@@ -1365,25 +1246,34 @@ func _start_goal_race() -> void:
 
 func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: bool, jump_p2: bool, emote_p1: int = 0, emote_p2: int = 0) -> void:
 	play_time += dt
+	var p1_axis := Vector2.ZERO if p1_external_control_lock > 0.0 else axis_p1
+	var p2_axis := Vector2.ZERO if p2_external_control_lock > 0.0 else axis_p2
+	var p1_jump_allowed := jump_p1 and p1_external_control_lock <= 0.0
+	var p2_jump_allowed := jump_p2 and p2_external_control_lock <= 0.0
+	p1_external_control_lock = maxf(0.0, p1_external_control_lock - dt)
+	p2_external_control_lock = maxf(0.0, p2_external_control_lock - dt)
 	# world_scroll_z += _active_wall_speed * dt  # ゴールの動きを止めるためスクロールを停止
 
 	p1_emote = emote_p1
 	p2_emote = emote_p2
-	p1_moving_back = axis_p1.y < -0.1
-	p2_moving_back = axis_p2.y < -0.1
+	p1_moving_back = p1_axis.y < -0.1
+	p2_moving_back = p2_axis.y < -0.1
 	var p1_body_start := Vector2(player_x, player_z)
 	var p2_body_start := Vector2(player2_x, player2_z)
 
 	# Player 1 movement
 	if p1_alive and not p1_waiting_for_shark:
-		player_x += axis_p1.x * tuning.player_speed * dt
+		player_x += p1_axis.x * tuning.player_speed * dt
 		player_z += _active_wall_speed * dt
-		player_z += axis_p1.y * tuning.player_speed * dt
+		player_z += p1_axis.y * tuning.player_speed * dt
+		player_x += p1_external_velocity.x * dt
+		player_z += p1_external_velocity.y * dt
+		p1_external_velocity = p1_external_velocity.move_toward(Vector2.ZERO, EXTERNAL_IMPULSE_DECELERATION * dt)
 
 		var loc1 := player_z - world_scroll_z
 		var is_on_floor = _is_on_track_floor(player_x, loc1, 1, FLOOR_RACE_FRONT_Z)
 
-		if jump_p1 and player_y <= 0.0 and is_on_floor:
+		if p1_jump_allowed and player_y <= 0.0 and is_on_floor:
 			p1_jump_trigger = true
 			player_vel_y = JUMP_FORCE
 		player_vel_y -= GRAVITY * dt
@@ -1398,14 +1288,17 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 
 	# Player 2 movement
 	if p2_alive and not p2_waiting_for_shark:
-		player2_x += axis_p2.x * tuning.player_speed * dt
+		player2_x += p2_axis.x * tuning.player_speed * dt
 		player2_z += _active_wall_speed * dt
-		player2_z += axis_p2.y * tuning.player_speed * dt
+		player2_z += p2_axis.y * tuning.player_speed * dt
+		player2_x += p2_external_velocity.x * dt
+		player2_z += p2_external_velocity.y * dt
+		p2_external_velocity = p2_external_velocity.move_toward(Vector2.ZERO, EXTERNAL_IMPULSE_DECELERATION * dt)
 
 		var loc2 := player2_z - world_scroll_z
 		var p2_is_on_floor = _is_on_track_floor(player2_x, loc2, 2, FLOOR_RACE_FRONT_Z)
 
-		if jump_p2 and player2_y <= 0.0 and p2_is_on_floor:
+		if p2_jump_allowed and player2_y <= 0.0 and p2_is_on_floor:
 			p2_jump_trigger = true
 			player2_vel_y = JUMP_FORCE
 		player2_vel_y -= GRAVITY * dt
@@ -1749,6 +1642,34 @@ func _coop_failure_message(p1_door: int, p2_door: int) -> String:
 		])
 	return "\n".join(lines)
 
+func apply_external_impulse(
+	player_index: int,
+	horizontal_velocity: Vector2,
+	vertical_velocity: float,
+	control_lock_seconds: float
+) -> void:
+	if player_index == 1:
+		if not p1_alive or p1_waiting_for_shark:
+			return
+		p1_external_velocity = horizontal_velocity.limit_length(18.0)
+		player_vel_y = maxf(player_vel_y, vertical_velocity)
+		p1_external_control_lock = maxf(p1_external_control_lock, control_lock_seconds)
+	else:
+		if not p2_alive or p2_waiting_for_shark:
+			return
+		p2_external_velocity = horizontal_velocity.limit_length(18.0)
+		player2_vel_y = maxf(player2_vel_y, vertical_velocity)
+		p2_external_control_lock = maxf(p2_external_control_lock, control_lock_seconds)
+	camera_shake = maxf(camera_shake, 0.45)
+
+
+func _reset_external_impulses() -> void:
+	p1_external_velocity = Vector2.ZERO
+	p2_external_velocity = Vector2.ZERO
+	p1_external_control_lock = 0.0
+	p2_external_control_lock = 0.0
+
+
 func _reset_ocean_shark_state() -> void:
 	p1_waiting_for_shark = false
 	p2_waiting_for_shark = false
@@ -1771,6 +1692,8 @@ func _begin_ocean_shark_wait(player_index: int) -> void:
 		player_y = StageConstants.OCEAN_FLOAT_Y
 		player_vel_y = 0.0
 		player_vel_z = 0.0
+		p1_external_velocity = Vector2.ZERO
+		p1_external_control_lock = 0.0
 		p1_moving_back = false
 		p1_jump_trigger = false
 	else:
@@ -1783,6 +1706,8 @@ func _begin_ocean_shark_wait(player_index: int) -> void:
 		player2_y = StageConstants.OCEAN_FLOAT_Y
 		player2_vel_y = 0.0
 		player2_vel_z = 0.0
+		p2_external_velocity = Vector2.ZERO
+		p2_external_control_lock = 0.0
 		p2_moving_back = false
 		p2_jump_trigger = false
 	_emit_player_entered_ocean(player_index)
@@ -2185,7 +2110,7 @@ func advance_after_correct() -> void:
 			quiz_list = provider.get_quizzes(subject, grade, difficulty,
 				Constants.MODE_ENDLESS, 3)
 		load_current_quiz()
-	if game_state not in [Constants.STATE_PRELOADING, Constants.STATE_WAITING_START, Constants.STATE_COUNTDOWN, Constants.STATE_CLEAR, Constants.STATE_GAME_OVER, Constants.STATE_GOAL_RACE, Constants.STATE_ATHLETIC_RACE]:
+	if game_state not in [Constants.STATE_PRELOADING, Constants.STATE_WAITING_START, Constants.STATE_COUNTDOWN, Constants.STATE_CLEAR, Constants.STATE_GAME_OVER, Constants.STATE_GOAL_RACE]:
 		game_state = Constants.STATE_PLAYING
 		message_text = ""
 		state_changed.emit(game_state)
@@ -2238,23 +2163,6 @@ func clear_game() -> void:
 			message_text = "COOP CLEAR!\n10 questions cleared together\nTeam Score: %d/10" % score
 		else:
 			message_text = "COOP CLEAR!\n2人で10問突破\n協力成功: %d/10" % score
-		correct_flash = 1.0
-		refresh_status_text()
-		game_cleared.emit(message_text)
-		state_changed.emit(game_state)
-		QuizManager.quiz_optimizer.evaluate_history(quiz_history, subject, grade, difficulty)
-		return
-	if race_win_reason.begins_with("BIKE_") or race_win_reason == "PHOTO_FINISH_SCORE_TIEBREAK":
-		var bike_winner_text: String
-		if race_winner == 1:
-			bike_winner_text = "P1 が先着！"
-		elif race_winner == 2:
-			bike_winner_text = "P2 が先着！"
-		else:
-			bike_winner_text = "写真判定でも同着！"
-		var p1_time_text: String = "%.2f秒" % p1_finish_time if p1_finish_time >= 0.0 else "未完走"
-		var p2_time_text: String = "%.2f秒" % p2_finish_time if p2_finish_time >= 0.0 else "未完走"
-		message_text = "ママチャリ区間 完走！\n%s\nP1 %s  P2 %s\n障害物ランは次フェーズで接続します" % [bike_winner_text, p1_time_text, p2_time_text]
 		correct_flash = 1.0
 		refresh_status_text()
 		game_cleared.emit(message_text)

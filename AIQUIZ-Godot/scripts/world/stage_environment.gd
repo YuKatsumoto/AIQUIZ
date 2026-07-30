@@ -503,24 +503,6 @@ func set_scroll_z(z: float) -> void:
 		_conveyor_return_material.set_shader_parameter("scroll_z", z)
 
 
-func set_conveyor_visuals_visible(value: bool) -> void:
-	## The bicycle road occupies the same stage footprint as the conveyor.
-	## Keep the collision active, but hide only conveyor meshes while racing.
-	var visuals: Array[MeshInstance3D] = [
-		floor_mesh,
-		_floor_rail_left,
-		_floor_rail_right,
-		_conveyor_roller_front,
-		_conveyor_roller_back,
-		_conveyor_return_belt,
-		_conveyor_side_frame_left,
-		_conveyor_side_frame_right,
-	]
-	for visual: MeshInstance3D in visuals:
-		if visual != null:
-			visual.visible = value
-
-
 func reset_scroll() -> void:
 	set_scroll_z(0.0)
 

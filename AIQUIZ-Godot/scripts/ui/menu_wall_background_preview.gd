@@ -38,6 +38,14 @@ const AI_STATE_TAUNT: int = 7
 
 const AI_ACTION_INTERVAL_MIN: float = 1.1
 const AI_ACTION_INTERVAL_MAX: float = 2.6
+## 2Pメニュープレビューでは行動の切り替え時刻をずらし、同時に同じ動きへ入るのを防ぐ。
+const AI_2P_P1_ACTION_INTERVAL_SCALE: float = 0.82
+const AI_2P_P2_ACTION_INTERVAL_SCALE: float = 1.18
+## 目標位置と走行アニメの個体差。ゲーム本編には影響せず、メニュープレビューだけに適用する。
+const AI_2P_TARGET_SEPARATION_X: float = 1.45
+const AI_2P_TARGET_SEPARATION_Z: float = 1.10
+const AI_2P_P1_RUN_ANIM_MULT: float = 0.92
+const AI_2P_P2_RUN_ANIM_MULT: float = 1.08
 const AI_WEIGHT_IDLE: float = 0.20
 const AI_WEIGHT_LANE_SHIFT: float = 0.22
 const AI_WEIGHT_STEP_FORWARD: float = 0.10
@@ -1202,7 +1210,7 @@ func _fill_preview_actor_emote_pool(bundle: MenuPreviewActorAIState, rig_ids: Ar
 func _reset_preview_ai_state() -> void:
 	_p1_ai.ai_state = AI_STATE_NORMAL
 	_ai_time = 0.0
-	_p1_ai.next_action_t = randf_range(0.7, 1.6)
+	_p1_ai.next_action_t = randf_range(0.55, 1.05)
 	_p1_ai.emote_end_t = 0.0
 	_p1_ai.dead_end_t = 0.0
 	_p1_ai.state_end_t = 0.0
@@ -1231,7 +1239,7 @@ func _reset_preview_ai_state() -> void:
 
 func _reset_preview_actor2_ai_state() -> void:
 	_p2_ai.ai_state = AI_STATE_NORMAL
-	_p2_ai.next_action_t = randf_range(0.7, 1.6)
+	_p2_ai.next_action_t = randf_range(1.35, 2.05)
 	_p2_ai.emote_end_t = 0.0
 	_p2_ai.dead_end_t = 0.0
 	_p2_ai.state_end_t = 0.0
@@ -1297,7 +1305,7 @@ func _update_actor_ai(dt: float, bundle: MenuPreviewActorAIState, is_p1: bool) -
 			_update_emote_timer(bundle, is_p1)
 			if _ai_time >= bundle.next_action_t:
 				_roll_next_action(bundle, is_p1)
-				bundle.next_action_t = _ai_time + randf_range(AI_ACTION_INTERVAL_MIN, AI_ACTION_INTERVAL_MAX)
+				bundle.next_action_t = _ai_time + _next_action_delay(is_p1)
 		AI_STATE_CRASH_RUNUP:
 			bundle.ai_state = AI_STATE_NORMAL
 		AI_STATE_KNOCKBACK:
@@ -1339,6 +1347,16 @@ func _update_actor_ai(dt: float, bundle: MenuPreviewActorAIState, is_p1: bool) -
 
 	if bundle.ai_state != AI_STATE_DEAD:
 		_enforce_floor_support(bundle, is_p1)
+
+
+func _next_action_delay(is_p1: bool) -> float:
+	var delay := randf_range(AI_ACTION_INTERVAL_MIN, AI_ACTION_INTERVAL_MAX)
+	if not _is_local_2p_active():
+		return delay
+	return delay * (
+		AI_2P_P1_ACTION_INTERVAL_SCALE if is_p1
+		else AI_2P_P2_ACTION_INTERVAL_SCALE
+	)
 
 
 func _is_past_belt_edge(is_p1: bool) -> bool:
@@ -1479,20 +1497,23 @@ func _update_preview_run_anim_speed_multipliers() -> void:
 func _run_anim_speed_mult_for_actor(bundle: MenuPreviewActorAIState, is_p1: bool) -> float:
 	if not _preview_gs or not _actor_alive(is_p1):
 		return 1.0
+	var identity_mult := 1.0
+	if _is_local_2p_active():
+		identity_mult = AI_2P_P1_RUN_ANIM_MULT if is_p1 else AI_2P_P2_RUN_ANIM_MULT
 	if bundle.is_emoting or bundle.ai_state != AI_STATE_NORMAL:
-		return 1.0
+		return identity_mult
 	if _actor_moving_back(is_p1):
-		return 1.0
+		return identity_mult
 	if bundle.depth_shift_active:
 		var cur := _actor_local_z(is_p1)
 		if bundle.target_local_z < cur - 0.03:
 			var depth_factor := bundle.depth_shift_speed / PREVIEW_RUN_ANIM_SPEED_BASE
 			return clampf(
-				PREVIEW_RUN_ANIM_SPEED_MULT * (0.9 + depth_factor * 0.1),
+				PREVIEW_RUN_ANIM_SPEED_MULT * (0.9 + depth_factor * 0.1) * identity_mult,
 				1.6,
 				2.8
 			)
-	return 1.0
+	return identity_mult
 
 
 func _sync_actor_moving_back_for_depth(bundle: MenuPreviewActorAIState, is_p1: bool) -> void:
@@ -1529,6 +1550,14 @@ func _start_ai_dash_move(is_acro: bool, bundle: MenuPreviewActorAIState, is_p1: 
 			min_x,
 			max_x
 		)
+	if _should_separate_2p_target(bundle):
+		var other := _p2_ai if is_p1 else _p1_ai
+		if absf(next_x - other.target_x) < AI_2P_TARGET_SEPARATION_X:
+			next_x = clampf(
+				other.target_x + (-AI_2P_TARGET_SEPARATION_X if is_p1 else AI_2P_TARGET_SEPARATION_X),
+				min_x,
+				max_x
+			)
 	bundle.target_x = next_x
 	var lane_shift_max := lerpf(AI_LANE_SHIFT_SPEED_MAX, 3.8, skill)
 	bundle.lane_shift_speed = randf_range(
@@ -1539,13 +1568,29 @@ func _start_ai_dash_move(is_acro: bool, bundle: MenuPreviewActorAIState, is_p1: 
 	var depth_hint := 0
 	if not is_acro and randf() < 0.72:
 		depth_hint = 1 if randf() < 0.5 else -1
-	bundle.target_local_z = _clamp_depth_target_z(_pick_depth_target_z(is_p1, depth_hint), bundle)
+	var next_z := _clamp_depth_target_z(_pick_depth_target_z(is_p1, depth_hint), bundle)
+	if _should_separate_2p_target(bundle):
+		var other := _p2_ai if is_p1 else _p1_ai
+		if absf(next_z - other.target_local_z) < AI_2P_TARGET_SEPARATION_Z:
+			next_z = _clamp_depth_target_z(
+				other.target_local_z + (-AI_2P_TARGET_SEPARATION_Z if is_p1 else AI_2P_TARGET_SEPARATION_Z),
+				bundle
+			)
+	bundle.target_local_z = next_z
 	bundle.depth_shift_speed = randf_range(
 		AI_DEPTH_SHIFT_SPEED_MIN + (0.7 if is_acro else 0.0),
 		AI_DEPTH_SHIFT_SPEED_MAX + (1.3 if is_acro else 0.0)
 	)
 	bundle.depth_shift_active = true
 	_sync_actor_moving_back_for_depth(bundle, is_p1)
+
+
+func _should_separate_2p_target(bundle: MenuPreviewActorAIState) -> bool:
+	return (
+		_is_local_2p_active()
+		and bundle.pending_accident == PENDING_ACCIDENT_NONE
+		and not _is_learning_commit_active(bundle)
+	)
 
 
 func _update_lane_shift(dt: float, bundle: MenuPreviewActorAIState, is_p1: bool) -> void:

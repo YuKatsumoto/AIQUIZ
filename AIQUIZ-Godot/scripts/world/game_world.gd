@@ -1,8 +1,6 @@
 extends Node3D
 
-const BIKE_COURSE_SCENE: PackedScene = preload("res://scenes/bike_course.tscn")
-const MAMA_CHARI_SCENE: PackedScene = preload("res://scenes/mama_chari.tscn")
-const RACE_HUD_SCRIPT = preload("res://scripts/ui/race_hud.gd")
+const GhostSharkRideControllerScript = preload("res://scripts/world/ghost_shark_ride_controller.gd")
 
 ## 3Dゲームワールド管理
 ## Python版 renderer.py の _draw_world + main_3d.py の入力処理に相当
@@ -28,6 +26,7 @@ var _prev_p2_go_timer: float = 0.0
 var _prev_player_y: float = 0.0
 var _prev_p2_y: float = 0.0
 var _ocean_attack_sharks: Dictionary = {}
+var _ghost_shark_ride_controller: Node3D = null
 var _active_walls: Array[Node3D] = []
 var _retired_wall_indices: Dictionary = {}
 const MERGE_EFFECT_POOL_SIZE := 6
@@ -45,10 +44,6 @@ var _pw_count: int = 0                    # 生成済み壁数
 var _pw_merge_started: Array[bool] = []   # 各壁のマージ開始フラグ
 var _pw_merge_timer: float = 0.0          # 壁間のディレイタイマー
 var _goal_line_node: Node3D = null
-var _bike_course: Node3D = null
-var _bike_p1: Node3D = null
-var _bike_p2: Node3D = null
-var _race_hud: CanvasLayer = null
 # ── スタートバリア壁（カウントダウン終了まで問題を隠す） ──
 var _start_barrier: Node3D = null
 var _barrier_exploded: bool = false
@@ -105,58 +100,23 @@ func _ready() -> void:
 		"include_floor_collision": true,
 		"include_sharks": true,
 	})
-	_setup_bike_phase_nodes()
 	_setup_ocean_shark_signals()
+	_ghost_shark_ride_controller = GhostSharkRideControllerScript.new()
+	_ghost_shark_ride_controller.name = "GhostSharkRideController"
+	add_child(_ghost_shark_ride_controller)
+	_ghost_shark_ride_controller.setup(
+		game_state,
+		stage_env,
+		player_node as PlayerController,
+		camera_controller,
+		particle_spawner
+	)
 	_warm_merge_effect_pool()
 
 	# Pause menu setup
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_build_pause_menu()
 	call_deferred("_reveal_after_transition")
-
-func _setup_bike_phase_nodes() -> void:
-	_bike_course = BIKE_COURSE_SCENE.instantiate() as Node3D
-	_bike_course.name = "BikeCourse"
-	_bike_course.visible = false
-	add_child(_bike_course)
-
-	_bike_p1 = MAMA_CHARI_SCENE.instantiate() as Node3D
-	_bike_p1.name = "MamaChariP1"
-	_bike_p1.visible = false
-	if _bike_p1.has_method("configure"):
-		_bike_p1.configure(1)
-	add_child(_bike_p1)
-
-	_bike_p2 = MAMA_CHARI_SCENE.instantiate() as Node3D
-	_bike_p2.name = "MamaChariP2"
-	_bike_p2.visible = false
-	if _bike_p2.has_method("configure"):
-		_bike_p2.configure(2)
-	add_child(_bike_p2)
-
-	_race_hud = RACE_HUD_SCRIPT.new() as CanvasLayer
-	_race_hud.name = "RaceHUD"
-	add_child(_race_hud)
-
-
-func _update_athletic_visuals(dt: float) -> void:
-	var bike_phase_active: bool = (
-		game_state.game_state == Constants.STATE_ATHLETIC_RACE
-		and game_state.race_phase == Constants.RACE_PHASE_BIKE
-	)
-	if stage_env != null:
-		# The hand-built road replaces the conveyor visually. Keeping both
-		# coplanar surfaces visible produces severe z-fighting.
-		stage_env.set_conveyor_visuals_visible(not bike_phase_active)
-	if _bike_course != null and _bike_course.has_method("update_from_state"):
-		_bike_course.update_from_state(game_state, dt)
-	if _bike_p1 != null and _bike_p1.has_method("update_from_state"):
-		_bike_p1.update_from_state(game_state, dt)
-	if _bike_p2 != null and _bike_p2.has_method("update_from_state"):
-		_bike_p2.update_from_state(game_state, dt)
-	if _race_hud != null and _race_hud.has_method("update_from_state"):
-		_race_hud.update_from_state(game_state, _bike_course, dt)
-
 
 func _setup_ocean_shark_signals() -> void:
 	if stage_env == null:
@@ -188,7 +148,7 @@ func _start_ocean_shark_attack(player_index: int, target_position: Vector3) -> v
 	if absf(target_position.x) >= StageConstants.FLOOR_HALF_WIDTH:
 		target_side = signf(target_position.x)
 	for shark: SharkSwimmer in stage_env.get_ocean_sharks():
-		if shark.is_attacking:
+		if not shark.is_available_for_ocean_attack():
 			continue
 		var shark_side: float = signf(shark.position.x)
 		var opposite_side_penalty: float = (
@@ -263,6 +223,8 @@ func _on_shark_attack_reached(player_index: int, shark: SharkSwimmer) -> void:
 	if assigned_shark != shark or not game_state.is_player_waiting_for_shark(player_index):
 		return
 	_ocean_attack_sharks.erase(player_index)
+	if _ghost_shark_ride_controller:
+		_ghost_shark_ride_controller.remember_ocean_death_shark(player_index, shark)
 
 	var attack_position: Vector3 = (
 		Vector3(game_state.player_x, game_state.player_y, game_state.player_local_z)
@@ -303,7 +265,7 @@ func _process(dt: float) -> void:
 	var jump_p2 := false
 	var emote_p1 := 0
 	var emote_p2 := 0
-	if game_state.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE, Constants.STATE_ATHLETIC_RACE, Constants.STATE_WAITING_START, Constants.STATE_FLYOVER, Constants.STATE_COUNTDOWN]:
+	if game_state.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE, Constants.STATE_WAITING_START, Constants.STATE_FLYOVER, Constants.STATE_COUNTDOWN]:
 		# --- ローカル入力収集 (P1 or クライアントの自分) ---
 		# P1 エモート: キー1,2,3 → スロットからエモートIDを取得
 		if Input.is_key_pressed(KEY_1) and game_state.p1_emote_slots.size() > 0: emote_p1 = game_state.p1_emote_slots[0]
@@ -357,6 +319,16 @@ func _process(dt: float) -> void:
 	# Update game state (host or offline only — client receives snapshots)
 	if not _is_client and not _replay_mode:
 		game_state.update(dt, axis_p1, axis_p2, jump_p1, jump_p2, emote_p1, emote_p2)
+	if _ghost_shark_ride_controller:
+		_ghost_shark_ride_controller.update_ghost_ride(
+			dt,
+			axis_p1,
+			axis_p2,
+			jump_p1,
+			jump_p2,
+			_is_online,
+			_replay_mode
+		)
 
 	# リプレイ記録
 	if _recorder and _recorder.is_recording:
@@ -383,7 +355,6 @@ func _process(dt: float) -> void:
 	_update_floor_conveyor()
 	_update_floor()
 	_update_flyover()
-	_update_athletic_visuals(dt)
 	_update_player(dt)
 	_update_walls()
 	_update_goal_line()
@@ -404,7 +375,7 @@ func _update_floor_conveyor() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.keycode == KEY_ESCAPE and event.is_pressed() and not event.is_echo():
-		if game_state and game_state.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE, Constants.STATE_ATHLETIC_RACE]:
+		if game_state and game_state.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]:
 			_toggle_pause()
 			
 	if event is InputEventKey or event is InputEventJoypadButton or event is InputEventMouseButton:
@@ -437,8 +408,6 @@ func _update_floor() -> void:
 		if game_state.num_players >= 2 and game_state.mode == Constants.MODE_TEN:
 			var goal_line_z: float = t.wall_start_z + game_state.target_count * t.wall_spacing + 15.0
 			floor_front = maxf(floor_front, goal_line_z + 20.0)
-	elif game_state.game_state == Constants.STATE_ATHLETIC_RACE:
-		floor_front = maxf(144.0 + floor_back, game_state.bike_finish_z + 25.0 - game_state.world_scroll_z)
 	elif game_state.game_state == Constants.STATE_GOAL_RACE:
 		# ゴールレース中: ゴールラインの先まで床を延長
 		floor_front = maxf(144.0 + floor_back, game_state.goal_z + 20.0 - game_state.world_scroll_z)
@@ -461,7 +430,7 @@ func _update_floor() -> void:
 	var floor_center_z: float = (floor_front + floor_back) / 2.0
 	stage_env.set_floor_geometry(floor_center_z, floor_length)
 
-func _update_player(dt: float) -> void:
+func _update_player(_dt: float) -> void:
 	if game_state.game_state in [Constants.STATE_MENU, Constants.STATE_PRELOADING]:
 		player_node.visible = false
 		_hats_applied = false
@@ -470,39 +439,9 @@ func _update_player(dt: float) -> void:
 	player_node.visible = true
 	var pc: PlayerController = player_node as PlayerController
 	if pc:
-		if game_state.game_state == Constants.STATE_ATHLETIC_RACE:
-			var p1_bike_lean: float = (
-				float(_bike_p1.get_visual_lean())
-				if _bike_p1 != null and _bike_p1.has_method("get_visual_lean")
-				else 0.0
-			)
-			var p2_bike_lean: float = (
-				float(_bike_p2.get_visual_lean())
-				if _bike_p2 != null and _bike_p2.has_method("get_visual_lean")
-				else 0.0
-			)
-			var p1_rider_physics: Dictionary = (
-				_bike_p1.get_rider_visual_transform()
-				if _bike_p1 != null and _bike_p1.has_method("get_rider_visual_transform")
-				else {"active": false}
-			)
-			var p2_rider_physics: Dictionary = (
-				_bike_p2.get_rider_visual_transform()
-				if _bike_p2 != null and _bike_p2.has_method("get_rider_visual_transform")
-				else {"active": false}
-			)
-			pc.update_bike_from_state(
-				game_state,
-				p1_bike_lean,
-				p2_bike_lean,
-				dt,
-				p1_rider_physics,
-				p2_rider_physics
-			)
-		else:
-			pc.update_from_state(game_state)
+		pc.update_from_state(game_state)
 
-		# Apply the same runner hats/cosmetics before and during the bike phase.
+		# Apply the runner hats/cosmetics.
 		if not _hats_applied:
 			pc.set_hat(1, game_state.p1_hat)
 			if game_state.num_players >= 2 and pc.p2_container != null:
@@ -542,7 +481,7 @@ func _clear_flyover_walls() -> void:
 
 func _update_walls() -> void:
 	# プリロード中・ゴールレース中・クリア後・メニュー・フライオーバー中は通常壁を全て非表示
-	if game_state.game_state in [Constants.STATE_MENU, Constants.STATE_FLYOVER, Constants.STATE_GOAL_RACE, Constants.STATE_ATHLETIC_RACE, Constants.STATE_CLEAR, Constants.STATE_PRELOADING, Constants.STATE_WAITING_START]:
+	if game_state.game_state in [Constants.STATE_MENU, Constants.STATE_FLYOVER, Constants.STATE_GOAL_RACE, Constants.STATE_CLEAR, Constants.STATE_PRELOADING, Constants.STATE_WAITING_START]:
 		for wall: Node3D in _active_walls:
 			wall.queue_free()
 		_active_walls.clear()
@@ -659,7 +598,6 @@ func _update_goal_line() -> void:
 	var should_show := (
 		game_state.num_players >= 2
 		and game_state.mode in [Constants.MODE_TEN, Constants.MODE_TUTORIAL]
-		and (game_state.race_win_reason.is_empty() or game_state.mode == Constants.MODE_TUTORIAL)
 		and game_state.game_state in [
 			Constants.STATE_GOAL_RACE,
 			Constants.STATE_FLYOVER,
@@ -870,6 +808,9 @@ func _get_player_death_effect_position(player_index: int, fallback: Vector3) -> 
 
 
 func _on_state_changed(new_state: String) -> void:
+	if new_state in [Constants.STATE_CLEAR, Constants.STATE_GAME_OVER, Constants.STATE_MENU]:
+		if _ghost_shark_ride_controller:
+			_ghost_shark_ride_controller.force_cleanup()
 	if new_state in [Constants.STATE_CLEAR, Constants.STATE_GAME_OVER]:
 		AudioManager.set_music_context(AudioManager.MUSIC_CONTEXT_RESULT)
 	elif new_state == Constants.STATE_MENU:

@@ -73,6 +73,7 @@ func _ready() -> void:
 	online_fetcher = OnlineFetch.new()
 	online_fetcher.fetch_completed.connect(_on_fetch_completed)
 	online_fetcher.fetch_partial.connect(_on_fetch_partial)
+	online_fetcher.explanations_ready.connect(_on_explanations_ready)
 	add_child(online_fetcher)
 	
 	ApiStatusAutoload.set_offline_count(offline_provider.total_count())
@@ -146,10 +147,10 @@ func begin_round(subject: String, grade: int, difficulty: String,
 	_answer_validation_done = false
 	_endless_empty_since_ms = 0
 
-	# オンラインモードでは通常オフライン緊急キャッシュを使わないが、
-	# エンドレスモードに限り、生成が遅延した際の一時補完用に緊急キャッシュを使う
+	# オフライン問題は直後の同期フェッチで取得できるため、開始時の緊急キャッシュ生成は不要。
+	# ここで過去履歴との意味比較を走らせると、準備画面を長時間ブロックしてしまう。
 	if _should_use_offline_quizzes():
-		_prepare_emergency_cache()
+		_emergency_cache.clear()
 	else:
 		_emergency_cache.clear()
 		buffer = _filter_online_only(buffer)
@@ -266,6 +267,9 @@ func _on_poll() -> void:
 	# 補充とは独立して、解説充填と正解検証のバックグラウンド処理を進める
 	_kick_explanation_batch()
 	_run_answer_validation_once()
+	# 失敗後の遅延フェッチを予約している間は、0.25秒タイマーから重複実行しない。
+	if _fetch_scheduled:
+		return
 
 	if not _worker_should_fill():
 		return
@@ -324,6 +328,23 @@ func _needs_more_preload() -> bool:
 
 
 func _should_block_quiz(question: String, batch_accepted: Array[String], during_preload: bool) -> bool:
+	# ローカルバンクでは過去ラウンド全体との意味類似判定を行わない。
+	# 計算問題など同じ書式の別問題まで全拒否され、同期補充が無限再試行になるため。
+	# 現在のラウンド内だけ厳密重複を防げば、同一問題の連続出題は回避できる。
+	if _should_use_offline_quizzes():
+		if QuizDedup.is_strict_duplicate_to_any(question, batch_accepted):
+			return true
+		for bq in buffer:
+			if QuizDedup.is_strict_duplicate(question, bq.q):
+				return true
+		for ph in play_history:
+			if QuizDedup.is_strict_duplicate(question, ph):
+				return true
+		for oq in _overflow_buffer:
+			if QuizDedup.is_strict_duplicate(question, oq.q):
+				return true
+		return false
+
 	if QuizDedup.is_similar_to_any(question, batch_accepted):
 		return true
 	if QuizDedup.is_strict_duplicate_to_any(question, recent_questions):
@@ -598,10 +619,6 @@ func _kick_explanation_batch() -> void:
 	_explanation_inflight = true
 	print("[BufferedProvider] Kicking explanation batch for %d quizzes" % need_explanation.size())
 	online_fetcher.fetch_explanations_batch(need_explanation, current_subject, current_grade)
-
-	# 完了時にフラグをリセット（シグナル接続）
-	if not online_fetcher.explanations_ready.is_connected(_on_explanations_ready):
-		online_fetcher.explanations_ready.connect(_on_explanations_ready)
 
 func _on_explanations_ready(quizzes: Array[QuizItem]) -> void:
 	_explanation_inflight = false

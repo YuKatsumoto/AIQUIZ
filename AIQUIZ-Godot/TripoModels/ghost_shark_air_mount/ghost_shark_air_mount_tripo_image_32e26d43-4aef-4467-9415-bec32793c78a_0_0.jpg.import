@@ -1,0 +1,44 @@
+[remap]
+
+importer="texture"
+type="CompressedTexture2D"
+uid="uid://dwq238kvbrm2l"
+path.s3tc="res://.godot/imported/ghost_shark_air_mount_tripo_image_32e26d43-4aef-4467-9415-bec32793c78a_0_0.jpg-8b3778fa2eaf092e57741117e9ccee1b.s3tc.ctex"
+metadata={
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
+}
+generator_parameters={
+"md5": "9418b771133e8e088b071264b1134667"
+}
+
+[deps]
+
+source_file="res://TripoModels/ghost_shark_air_mount/ghost_shark_air_mount_tripo_image_32e26d43-4aef-4467-9415-bec32793c78a_0_0.jpg"
+dest_files=["res://.godot/imported/ghost_shark_air_mount_tripo_image_32e26d43-4aef-4467-9415-bec32793c78a_0_0.jpg-8b3778fa2eaf092e57741117e9ccee1b.s3tc.ctex"]
+
+[params]
+
+compress/mode=2
+compress/high_quality=false
+compress/lossy_quality=0.7
+compress/uastc_level=0
+compress/rdo_quality_loss=0.0
+compress/hdr_compression=1
+compress/normal_map=0
+compress/channel_pack=0
+mipmaps/generate=true
+mipmaps/limit=-1
+roughness/mode=0
+roughness/src_normal=""
+process/channel_remap/red=0
+process/channel_remap/green=1
+process/channel_remap/blue=2
+process/channel_remap/alpha=3
+process/fix_alpha_border=true
+process/premult_alpha=false
+process/normal_map_invert_y=false
+process/hdr_as_srgb=false
+process/hdr_clamp_exposure=false
+process/size_limit=0
+detect_3d/compress_to=0

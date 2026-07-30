@@ -30,11 +30,6 @@ const WALL_RAGDOLL_SIDE_VELOCITY := 1.5
 const WALL_RAGDOLL_SPIN := Vector3(2.8, 0.7, 1.8)
 const RagdollBuilderScript = preload("res://scripts/world/ragdoll_builder.gd")
 const ActiveRagdollDriverScript = preload("res://scripts/world/active_ragdoll_driver.gd")
-const BIKE_RULES_SCRIPT = preload("res://scripts/core/bike_race_rules.gd")
-const BIKE_COURSE_SCRIPT = preload("res://scripts/world/bike_course.gd")
-const BIKE_RIDER_ROOT_OFFSET: float = 1.35
-const BIKE_PEDAL_TRAVEL_PER_TURN: float = 6.2
-const BIKE_STAND_BLEND_SPEED: float = 5.5
 # 物理駆動に置き換えるため非表示にする表示メッシュのキー
 const _RAGDOLL_HIDE_KEYS := [
 	"head", "l_upp_arm", "l_low_arm", "r_upp_arm", "r_low_arm",
@@ -85,8 +80,6 @@ var _p1_rig: AnimationRig = AnimationRig.new("P1")
 var _p2_rig: AnimationRig = AnimationRig.new("P2")
 
 var _time: float = 0.0
-var _p1_bike_stand_amount: float = 0.0
-var _p2_bike_stand_amount: float = 0.0
 const BASE_Y: float = -1.2
 var _rig_debug_counter: int = 0
 
@@ -784,375 +777,6 @@ func _process(dt: float) -> void:
 	if Input.is_key_pressed(KEY_W):
 		mult = 2.0
 	_run_phase += dt * 8.0 * (speed / 3.5) * mult
-
-func update_bike_from_state(
-	gs: QuizGameState,
-	p1_visual_lean: float = 0.0,
-	p2_visual_lean: float = 0.0,
-	dt: float = 1.0 / 60.0,
-	p1_rider_physics: Dictionary = {},
-	p2_rider_physics: Dictionary = {}
-) -> void:
-	# Reuse the exact runner characters (colors, hats and body proportions)
-	# instead of drawing a separate handmade rider on each bicycle.
-	update_from_state(gs)
-
-	var p1_relative_z: float = gs.player_z - gs.bike_start_z
-	var p2_relative_z: float = gs.player2_z - gs.bike_start_z
-	var p1_height: float = BIKE_COURSE_SCRIPT.get_course_height(p1_relative_z)
-	var p2_height: float = BIKE_COURSE_SCRIPT.get_course_height(p2_relative_z)
-	var p1_pitch: float = BIKE_COURSE_SCRIPT.get_course_pitch(p1_relative_z)
-	var p2_pitch: float = BIKE_COURSE_SCRIPT.get_course_pitch(p2_relative_z)
-	var p1_root_transform: Transform3D = _bike_rider_root_transform(
-		gs,
-		1,
-		p1_height,
-		p1_pitch,
-		p1_visual_lean,
-		p1_rider_physics
-	)
-	transform = p1_root_transform
-	# The invisible physics proxy drives this authored rider; never swap its appearance.
-	_set_parts_visible(p1_parts, true)
-
-	if gs.num_players >= 2 and p2_container != null:
-		var p2_root_transform: Transform3D = _bike_rider_root_transform(
-			gs,
-			2,
-			p2_height,
-			p2_pitch,
-			p2_visual_lean,
-			p2_rider_physics
-		)
-		p2_container.global_transform = p2_root_transform
-		_set_parts_visible(p2_parts, true)
-
-	var p1_stand_target: float = (
-		1.0
-		if (
-			gs.bike_p1_boosting
-			and gs.bike_p1_recovery_state == BIKE_RULES_SCRIPT.RIDER_RIDING
-		)
-		else 0.0
-	)
-	var p2_stand_target: float = (
-		1.0
-		if (
-			gs.bike_p2_boosting
-			and gs.bike_p2_recovery_state == BIKE_RULES_SCRIPT.RIDER_RIDING
-		)
-		else 0.0
-	)
-	_p1_bike_stand_amount = move_toward(
-		_p1_bike_stand_amount,
-		p1_stand_target,
-		BIKE_STAND_BLEND_SPEED * dt
-	)
-	_p2_bike_stand_amount = move_toward(
-		_p2_bike_stand_amount,
-		p2_stand_target,
-		BIKE_STAND_BLEND_SPEED * dt
-	)
-
-	# Pedalling is driven by travelled distance, so feet stop when the bike stops.
-	var p1_phase: float = p1_relative_z / BIKE_PEDAL_TRAVEL_PER_TURN * TAU
-	var p2_phase: float = p2_relative_z / BIKE_PEDAL_TRAVEL_PER_TURN * TAU + PI
-	if (
-		gs.bike_p1_recovery_state == BIKE_RULES_SCRIPT.RIDER_TUMBLING
-		and bool(p1_rider_physics.get("active", false))
-	):
-		_apply_bike_physics_ragdoll_pose(p1_parts, p1_rider_physics)
-	else:
-		_apply_bike_rider_pose(
-			p1_parts,
-			p1_phase,
-			p1_visual_lean,
-			0.0,
-			_p1_bike_stand_amount
-		)
-
-	if gs.num_players >= 2 and p2_container != null:
-		if (
-			gs.bike_p2_recovery_state == BIKE_RULES_SCRIPT.RIDER_TUMBLING
-			and bool(p2_rider_physics.get("active", false))
-		):
-			_apply_bike_physics_ragdoll_pose(p2_parts, p2_rider_physics)
-		else:
-			_apply_bike_rider_pose(
-				p2_parts,
-				p2_phase,
-				p2_visual_lean,
-				0.0,
-				_p2_bike_stand_amount
-			)
-
-
-func _bike_rider_root_transform(
-	gs: QuizGameState,
-	index: int,
-	course_height: float,
-	course_pitch: float,
-	visual_lean: float,
-	physics_pose: Dictionary
-) -> Transform3D:
-	var recovery_state: String = (
-		gs.bike_p1_recovery_state
-		if index == 1
-		else gs.bike_p2_recovery_state
-	)
-	if (
-		recovery_state == BIKE_RULES_SCRIPT.RIDER_TUMBLING
-		and bool(physics_pose.get("active", false))
-	):
-		return physics_pose.get("transform", Transform3D.IDENTITY) as Transform3D
-
-	var px: float = gs.player_x if index == 1 else gs.player2_x
-	var local_z: float = gs.player_local_z if index == 1 else gs.player2_local_z
-	var bike_origin := Vector3(
-		px,
-		BIKE_RULES_SCRIPT.COURSE_SURFACE_Y + course_height,
-		local_z
-	)
-	var saddle_offset := Vector3(0.0, BIKE_RIDER_ROOT_OFFSET, 0.0)
-	saddle_offset = saddle_offset.rotated(Vector3.BACK, visual_lean)
-	saddle_offset = saddle_offset.rotated(Vector3.RIGHT, course_pitch)
-	return Transform3D(
-		Basis(Vector3.RIGHT, course_pitch),
-		bike_origin + saddle_offset
-	)
-
-
-func get_bike_stand_amount(player_index: int) -> float:
-	return _p1_bike_stand_amount if player_index == 1 else _p2_bike_stand_amount
-
-
-func _apply_bike_rider_pose(
-	parts: Dictionary,
-	pedal_phase: float,
-	lean: float,
-	fall_amount: float,
-	stand_amount: float
-) -> void:
-	if parts.is_empty():
-		return
-	var pelvis: Node3D = parts.get("pelvis") as Node3D
-	var spine_node: Node3D = parts.get("spine") as Node3D
-	var neck_node: Node3D = parts.get("neck") as Node3D
-	var head: Node3D = parts.get("head_pivot") as Node3D
-	var l_shoulder: Node3D = parts.get("l_shoulder") as Node3D
-	var r_shoulder: Node3D = parts.get("r_shoulder") as Node3D
-	var l_elbow: Node3D = parts.get("l_elbow") as Node3D
-	var r_elbow: Node3D = parts.get("r_elbow") as Node3D
-	var l_wrist: Node3D = parts.get("l_wrist") as Node3D
-	var r_wrist: Node3D = parts.get("r_wrist") as Node3D
-	var l_hip: Node3D = parts.get("l_hip") as Node3D
-	var r_hip: Node3D = parts.get("r_hip") as Node3D
-	var l_knee: Node3D = parts.get("l_knee") as Node3D
-	var r_knee: Node3D = parts.get("r_knee") as Node3D
-	var l_ankle: Node3D = parts.get("l_ankle") as Node3D
-	var r_ankle: Node3D = parts.get("r_ankle") as Node3D
-	var l_toe: Node3D = parts.get("l_toe") as Node3D
-	var r_toe: Node3D = parts.get("r_toe") as Node3D
-	if pelvis == null or spine_node == null:
-		return
-
-	var riding_amount: float = 1.0 - fall_amount
-	var standing_amount: float = clampf(stand_amount, 0.0, 1.0) * riding_amount
-	var pedal: float = sin(pedal_phase) * riding_amount
-	var standing_sway: float = sin(pedal_phase) * standing_amount
-	var riding_pelvis_pitch: float = lerpf(-0.08, -0.18, standing_amount)
-	var riding_spine_pitch: float = lerpf(-0.38, -0.54, standing_amount)
-
-	# During boost the rider rises clearly off the saddle and shifts weight over
-	# each pedal. The upper body counter-sways while both hands stay planted.
-	pelvis.position = Vector3(
-		standing_sway * 0.10,
-		BASE_Y + 0.92 + absf(pedal) * 0.015 + standing_amount * 0.36,
-		lerpf(-0.05, -0.12, standing_amount)
-	)
-	pelvis.rotation = Vector3(
-		lerpf(riding_pelvis_pitch, 0.05, fall_amount),
-		0.0,
-		lean + standing_sway * 0.08
-	)
-	spine_node.rotation = Vector3(
-		lerpf(riding_spine_pitch, 0.08, fall_amount),
-		0.0,
-		-standing_sway * 0.14
-	)
-	neck_node.rotation = Vector3(
-		lerpf(lerpf(0.24, 0.34, standing_amount), -0.10, fall_amount),
-		0.0,
-		standing_sway * 0.07
-	)
-	head.rotation = Vector3(0.0, 0.0, -lean * 0.16 * fall_amount)
-
-	# Hands converge on the handlebar. Standing pedalling transfers weight
-	# through alternating elbows; during a fall the arms spread to brace.
-	var standing_shoulder_pitch: float = lerpf(-0.98, -1.12, standing_amount)
-	var standing_elbow: float = lerpf(0.62, 0.76, standing_amount)
-	l_shoulder.rotation = Vector3(
-		lerpf(standing_shoulder_pitch, -0.15, fall_amount),
-		0.0,
-		lerpf(lerpf(0.20, 0.12, standing_amount), -1.05, fall_amount)
-	)
-	r_shoulder.rotation = Vector3(
-		lerpf(standing_shoulder_pitch, -0.15, fall_amount),
-		0.0,
-		lerpf(lerpf(-0.20, -0.12, standing_amount), 1.05, fall_amount)
-	)
-	l_elbow.rotation = Vector3(
-		lerpf(standing_elbow - standing_sway * 0.09, 0.25, fall_amount),
-		0.0,
-		0.0
-	)
-	r_elbow.rotation = Vector3(
-		lerpf(standing_elbow + standing_sway * 0.09, 0.25, fall_amount),
-		0.0,
-		0.0
-	)
-	l_wrist.rotation = Vector3(lerpf(0.18, 0.10, standing_amount) * riding_amount, 0.0, 0.0)
-	r_wrist.rotation = Vector3(lerpf(0.18, 0.10, standing_amount) * riding_amount, 0.0, 0.0)
-
-	# Seated pedalling keeps both knees compact. Standing pedalling straightens
-	# the loaded leg, bends the rising leg and rocks the hips side to side.
-	var seated_l_hip: float = -0.86 + pedal * 0.24
-	var seated_r_hip: float = -0.86 - pedal * 0.24
-	var standing_l_hip: float = -0.56 + pedal * 0.42
-	var standing_r_hip: float = -0.56 - pedal * 0.42
-	var seated_l_knee: float = 1.42 - pedal * 0.24
-	var seated_r_knee: float = 1.42 + pedal * 0.24
-	var standing_l_knee: float = 0.76 - pedal * 0.46
-	var standing_r_knee: float = 0.76 + pedal * 0.46
-	var riding_l_hip: float = lerpf(seated_l_hip, standing_l_hip, standing_amount)
-	var riding_r_hip: float = lerpf(seated_r_hip, standing_r_hip, standing_amount)
-	var riding_l_knee: float = lerpf(seated_l_knee, standing_l_knee, standing_amount)
-	var riding_r_knee: float = lerpf(seated_r_knee, standing_r_knee, standing_amount)
-	var riding_l_ankle: float = lerpf(-0.58 + pedal * 0.10, -0.34 + pedal * 0.18, standing_amount)
-	var riding_r_ankle: float = lerpf(-0.58 - pedal * 0.10, -0.34 - pedal * 0.18, standing_amount)
-
-	# On impact the legs release from the pedals instead of continuing to cycle.
-	l_hip.rotation = Vector3(
-		lerpf(riding_l_hip, -0.25, fall_amount),
-		0.0,
-		lerpf(-0.05, -0.24, fall_amount)
-	)
-	r_hip.rotation = Vector3(
-		lerpf(riding_r_hip, 0.30, fall_amount),
-		0.0,
-		lerpf(0.05, 0.20, fall_amount)
-	)
-	l_knee.rotation = Vector3(lerpf(riding_l_knee, 0.35, fall_amount), 0.0, 0.0)
-	r_knee.rotation = Vector3(lerpf(riding_r_knee, 0.72, fall_amount), 0.0, 0.0)
-	l_ankle.rotation = Vector3(lerpf(riding_l_ankle, -0.12, fall_amount), 0.0, 0.0)
-	r_ankle.rotation = Vector3(lerpf(riding_r_ankle, 0.18, fall_amount), 0.0, 0.0)
-	l_toe.rotation = Vector3(lerpf(0.12, 0.04, standing_amount) * riding_amount, 0.0, 0.0)
-	r_toe.rotation = Vector3(lerpf(0.12, 0.04, standing_amount) * riding_amount, 0.0, 0.0)
-
-
-func _apply_bike_physics_ragdoll_pose(
-	parts: Dictionary,
-	physics_pose: Dictionary
-) -> void:
-	if parts.is_empty():
-		return
-	var pelvis: Node3D = parts.get("pelvis") as Node3D
-	var spine_node: Node3D = parts.get("spine") as Node3D
-	var neck_node: Node3D = parts.get("neck") as Node3D
-	var head: Node3D = parts.get("head_pivot") as Node3D
-	var l_shoulder: Node3D = parts.get("l_shoulder") as Node3D
-	var r_shoulder: Node3D = parts.get("r_shoulder") as Node3D
-	var l_elbow: Node3D = parts.get("l_elbow") as Node3D
-	var r_elbow: Node3D = parts.get("r_elbow") as Node3D
-	var l_wrist: Node3D = parts.get("l_wrist") as Node3D
-	var r_wrist: Node3D = parts.get("r_wrist") as Node3D
-	var l_hip: Node3D = parts.get("l_hip") as Node3D
-	var r_hip: Node3D = parts.get("r_hip") as Node3D
-	var l_knee: Node3D = parts.get("l_knee") as Node3D
-	var r_knee: Node3D = parts.get("r_knee") as Node3D
-	var l_ankle: Node3D = parts.get("l_ankle") as Node3D
-	var r_ankle: Node3D = parts.get("r_ankle") as Node3D
-	var l_toe: Node3D = parts.get("l_toe") as Node3D
-	var r_toe: Node3D = parts.get("r_toe") as Node3D
-	if (
-		pelvis == null or spine_node == null or neck_node == null or head == null
-		or l_shoulder == null or r_shoulder == null
-		or l_hip == null or r_hip == null
-	):
-		return
-
-	# The torso is already represented by the rider root transform. Transfer the
-	# invisible proxy bodies' relative rotations onto the original authored body.
-	pelvis.position = Vector3(0.0, BASE_Y + 0.9, 0.0)
-	pelvis.basis = Basis.IDENTITY
-	spine_node.basis = Basis.IDENTITY
-	neck_node.basis = Basis.IDENTITY
-	head.basis = physics_pose.get("head_basis", Basis.IDENTITY)
-	l_shoulder.basis = physics_pose.get("left_arm_basis", Basis.IDENTITY)
-	r_shoulder.basis = physics_pose.get("right_arm_basis", Basis.IDENTITY)
-	l_hip.basis = physics_pose.get("left_leg_basis", Basis.IDENTITY)
-	r_hip.basis = physics_pose.get("right_leg_basis", Basis.IDENTITY)
-
-	# Elbows, knees, wrists and ankles inherit the real proxy angular velocities.
-	# This keeps the original segmented character loose instead of locking it into
-	# the single rigid pose used by the old substitute model.
-	var l_arm_spin: Vector3 = physics_pose.get("left_arm_spin", Vector3.ZERO)
-	var r_arm_spin: Vector3 = physics_pose.get("right_arm_spin", Vector3.ZERO)
-	var l_leg_spin: Vector3 = physics_pose.get("left_leg_spin", Vector3.ZERO)
-	var r_leg_spin: Vector3 = physics_pose.get("right_leg_spin", Vector3.ZERO)
-	if l_elbow != null:
-		l_elbow.rotation = Vector3(
-			clampf(0.24 + absf(l_arm_spin.x) * 0.065, 0.18, 1.18),
-			clampf(l_arm_spin.y * 0.025, -0.28, 0.28),
-			clampf(l_arm_spin.z * 0.028, -0.34, 0.34)
-		)
-	if r_elbow != null:
-		r_elbow.rotation = Vector3(
-			clampf(0.24 + absf(r_arm_spin.x) * 0.065, 0.18, 1.18),
-			clampf(r_arm_spin.y * 0.025, -0.28, 0.28),
-			clampf(r_arm_spin.z * 0.028, -0.34, 0.34)
-		)
-	if l_wrist != null:
-		l_wrist.rotation = Vector3(
-			clampf(l_arm_spin.z * 0.035, -0.42, 0.42),
-			0.0,
-			clampf(-l_arm_spin.x * 0.025, -0.34, 0.34)
-		)
-	if r_wrist != null:
-		r_wrist.rotation = Vector3(
-			clampf(r_arm_spin.z * 0.035, -0.42, 0.42),
-			0.0,
-			clampf(-r_arm_spin.x * 0.025, -0.34, 0.34)
-		)
-	if l_knee != null:
-		l_knee.rotation = Vector3(
-			clampf(0.32 + absf(l_leg_spin.x) * 0.075, 0.20, 1.34),
-			0.0,
-			clampf(l_leg_spin.z * 0.018, -0.22, 0.22)
-		)
-	if r_knee != null:
-		r_knee.rotation = Vector3(
-			clampf(0.32 + absf(r_leg_spin.x) * 0.075, 0.20, 1.34),
-			0.0,
-			clampf(r_leg_spin.z * 0.018, -0.22, 0.22)
-		)
-	if l_ankle != null:
-		l_ankle.rotation = Vector3(
-			clampf(-l_leg_spin.z * 0.028, -0.45, 0.45),
-			0.0,
-			clampf(l_leg_spin.x * 0.018, -0.28, 0.28)
-		)
-	if r_ankle != null:
-		r_ankle.rotation = Vector3(
-			clampf(-r_leg_spin.z * 0.028, -0.45, 0.45),
-			0.0,
-			clampf(r_leg_spin.x * 0.018, -0.28, 0.28)
-		)
-	if l_toe != null:
-		l_toe.rotation = Vector3(0.08, 0.0, 0.0)
-	if r_toe != null:
-		r_toe.rotation = Vector3(0.08, 0.0, 0.0)
-
 
 func update_from_state(gs: QuizGameState) -> void:
 	var pz: float = gs.player_z
@@ -2235,6 +1859,109 @@ func _apply_skeleton_pose(parts: Dictionary, skeleton: Skeleton3D, bone_indices:
 func bind_to_skeleton(player_id: int, skeleton: Skeleton3D) -> void:
 	"""蠕梧婿莠呈鋤諤ｧ縺ｮ縺溘ａ縺ｮ繝繝溘・髢｢謨ｰ - 螳滄圀縺ｮ蜃ｦ逅・・_apply_skeleton_pose縺ｧ豈弱ヵ繝ｬ繝ｼ繝陦後≧"""
 	pass
+
+
+func create_ghost_rider_visual(player_index: int) -> Node3D:
+	var rider := Node3D.new()
+	rider.name = "GhostRiderP%d" % player_index
+	var parts := _build_player_skeleton(player_index == 1, rider)
+	var pelvis: Node3D = parts["pelvis"]
+	pelvis.position = Vector3(0.0, 0.50, 0.0)
+	pelvis.rotation_degrees = Vector3(8.0, 0.0, 0.0)
+	parts["spine"].rotation_degrees = Vector3(18.0, 0.0, 0.0)
+	parts["l_hip"].rotation_degrees = Vector3(66.0, 0.0, -12.0)
+	parts["r_hip"].rotation_degrees = Vector3(66.0, 0.0, 12.0)
+	parts["l_knee"].rotation_degrees = Vector3(-96.0, 0.0, 0.0)
+	parts["r_knee"].rotation_degrees = Vector3(-96.0, 0.0, 0.0)
+	parts["l_shoulder"].rotation_degrees = Vector3(72.0, 0.0, -18.0)
+	parts["r_shoulder"].rotation_degrees = Vector3(72.0, 0.0, 18.0)
+	parts["l_elbow"].rotation_degrees = Vector3(-42.0, 0.0, 0.0)
+	parts["r_elbow"].rotation_degrees = Vector3(-42.0, 0.0, 0.0)
+	rider.scale = Vector3.ONE * 0.92
+
+	var hat_id := _p1_hat_id if player_index == 1 else _p2_hat_id
+	if hat_id != HatData.HAT_NONE:
+		var hat_node := HatFactory.create_hat(hat_id)
+		if hat_node:
+			parts["hat_mount"].add_child(hat_node)
+			parts["hat_meshes"] = HatFactory.get_hat_meshes(hat_node)
+
+	var ghost_meshes: Array[MeshInstance3D] = []
+	for body_mesh: MeshInstance3D in parts["meshes"]:
+		ghost_meshes.append(body_mesh)
+	for hat_mesh: MeshInstance3D in parts["hat_meshes"]:
+		ghost_meshes.append(hat_mesh)
+	for mesh_instance in ghost_meshes:
+		_apply_ghost_material(mesh_instance)
+	_add_ghost_rider_aura(rider, player_index)
+	return rider
+
+
+func _apply_ghost_material(mesh_instance: MeshInstance3D) -> void:
+	if not mesh_instance:
+		return
+	var source_material: Material = mesh_instance.material_override
+	if source_material == null and mesh_instance.mesh and mesh_instance.mesh.get_surface_count() > 0:
+		source_material = mesh_instance.mesh.surface_get_material(0)
+	var material := StandardMaterial3D.new()
+	if source_material is StandardMaterial3D:
+		material = source_material.duplicate()
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.albedo_color.a = 0.48
+	material.emission_enabled = true
+	material.emission = Color(material.albedo_color.r, material.albedo_color.g, material.albedo_color.b, 1.0)
+	material.emission_energy_multiplier = 1.35
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_PER_PIXEL
+	mesh_instance.material_override = material
+	mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
+func _add_ghost_rider_aura(rider: Node3D, player_index: int) -> void:
+	var aura_color := (
+		Color(1.0, 0.48, 0.16, 0.74)
+		if player_index == 1
+		else Color(0.18, 0.68, 1.0, 0.74)
+	)
+	var aura := GPUParticles3D.new()
+	aura.name = "GhostAura"
+	aura.position = Vector3(0.0, 1.0, 0.0)
+	aura.amount = 18
+	aura.lifetime = 0.85
+	aura.randomness = 0.42
+	aura.visibility_aabb = AABB(Vector3(-1.2, -1.2, -1.2), Vector3(2.4, 3.0, 2.4))
+	var process_material := ParticleProcessMaterial.new()
+	process_material.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	process_material.emission_sphere_radius = 0.55
+	process_material.direction = Vector3.UP
+	process_material.spread = 32.0
+	process_material.initial_velocity_min = 0.18
+	process_material.initial_velocity_max = 0.55
+	process_material.gravity = Vector3(0.0, 0.35, 0.0)
+	process_material.scale_min = 0.55
+	process_material.scale_max = 1.25
+	aura.process_material = process_material
+	var mote_mesh := SphereMesh.new()
+	mote_mesh.radius = 0.028
+	mote_mesh.height = 0.075
+	var mote_material := StandardMaterial3D.new()
+	mote_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mote_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mote_material.albedo_color = aura_color
+	mote_material.emission_enabled = true
+	mote_material.emission = Color(aura_color.r, aura_color.g, aura_color.b, 1.0)
+	mote_material.emission_energy_multiplier = 1.8
+	mote_mesh.material = mote_material
+	aura.draw_pass_1 = mote_mesh
+	rider.add_child(aura)
+
+	var glow := OmniLight3D.new()
+	glow.name = "GhostGlow"
+	glow.position = Vector3(0.0, 1.0, 0.0)
+	glow.light_color = Color(aura_color.r, aura_color.g, aura_color.b, 1.0)
+	glow.light_energy = 0.45
+	glow.omni_range = 3.2
+	glow.shadow_enabled = false
+	rider.add_child(glow)
 
 # ============================================================
 # Hat Management

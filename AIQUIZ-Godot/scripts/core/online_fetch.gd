@@ -11,6 +11,7 @@ const QUIZ_GENERATION_ENDLESS_GEMINI_MODEL: String = "gemini-3.1-flash-lite"
 ## オンライン補助処理（検証・解説・評価など）
 const AUXILIARY_GEMINI_MODEL: String = "gemini-3.5-flash"
 const UNIT_USAGE_PATH: String = "user://recent_unit_usage.json"
+const EXPLANATION_UNAVAILABLE_TEXT: String = "解説を取得できませんでした。通信状態を確認してください。"
 
 ## プロキシ/API のレート制限（429）バックオフ
 var _rate_limit_until_ms: int = 0
@@ -1357,14 +1358,12 @@ func fetch_explanation(subject: String, grade: int, quiz_q: String, quiz_c: Pack
 ## 各QuizItem.eに結果を書き戻す。
 signal explanations_ready(quizzes: Array[QuizItem])
 
-func fetch_explanations_batch(quizzes: Array[QuizItem], subject: String, grade: int) -> void:
+func fetch_explanations_batch(quizzes: Array[QuizItem], _subject: String, grade: int) -> void:
 	# 解説が必要な（e が空の）クイズだけ抽出
 	var targets: Array[QuizItem] = []
-	var target_indices: Array[int] = []
 	for i in range(quizzes.size()):
 		if quizzes[i].e.strip_edges().is_empty() and quizzes[i].src != "OFFLINE":
 			targets.append(quizzes[i])
-			target_indices.append(i)
 	
 	if targets.is_empty():
 		return
@@ -1372,6 +1371,7 @@ func fetch_explanations_batch(quizzes: Array[QuizItem], subject: String, grade: 
 	var model := AUXILIARY_GEMINI_MODEL
 	var url := ApiStatusAutoload.gemini_endpoint(model)
 	if url.is_empty():
+		_complete_explanation_batch(targets, "API endpoint is not configured")
 		return
 	
 	# バッチプロンプトを構築
@@ -1402,16 +1402,19 @@ func fetch_explanations_batch(quizzes: Array[QuizItem], subject: String, grade: 
 	})
 	
 	var http := HTTPRequest.new()
+	http.set_meta("preserve_on_round_end", true)
 	add_child(http)
 	http.timeout = 25.0
 	
 	http.request_completed.connect(func(result: int, response_code: int, _h, b: PackedByteArray):
+		var response_parsed := false
 		if result == HTTPRequest.RESULT_SUCCESS and response_code == 200:
 			var json = JSON.parse_string(b.get_string_from_utf8())
-			if json is Dictionary and json.has("candidates"):
-				var text: String = json["candidates"][0]["content"]["parts"][0].get("text", "")
+			var text := _extract_first_gemini_text(json)
+			if not text.is_empty():
 				var res = extract_json_from_text(text)
 				if res is Array:
+					response_parsed = true
 					for item in res:
 						if item is Dictionary and item.has("id") and item.has("e"):
 							var idx = item["id"]
@@ -1421,20 +1424,64 @@ func fetch_explanations_batch(quizzes: Array[QuizItem], subject: String, grade: 
 								idx = int(idx)
 							if typeof(idx) == TYPE_INT and idx >= 0 and idx < targets.size():
 								targets[idx].e = str(item["e"]).strip_edges()
-					print("[OnlineFetch] Batch explanations filled: %d/%d" % [_count_filled(targets), targets.size()])
-					explanations_ready.emit(targets)
 				elif res is Dictionary and res.has("id") and res.has("e"):
+					response_parsed = true
 					# 単一オブジェクトで返された場合
 					var idx = res["id"]
 					if typeof(idx) == TYPE_FLOAT: idx = int(idx)
 					if typeof(idx) == TYPE_INT and idx >= 0 and idx < targets.size():
 						targets[idx].e = str(res["e"]).strip_edges()
-					explanations_ready.emit(targets)
 		else:
 			print("[OnlineFetch] Batch explanation request failed: result=%d code=%d" % [result, response_code])
+		if result == HTTPRequest.RESULT_SUCCESS and response_code == 200 and not response_parsed:
+			print("[OnlineFetch] Batch explanation response could not be parsed")
 		http.queue_free()
+		_complete_explanation_batch(targets)
 	)
-	http.request(url, ApiStatusAutoload.get_proxy_headers(), HTTPClient.METHOD_POST, body)
+	var request_error := http.request(
+		url,
+		ApiStatusAutoload.get_proxy_headers(),
+		HTTPClient.METHOD_POST,
+		body
+	)
+	if request_error != OK:
+		http.queue_free()
+		_complete_explanation_batch(targets, "request could not start (error=%d)" % request_error)
+
+
+func _complete_explanation_batch(targets: Array[QuizItem], failure_reason: String = "") -> void:
+	var fallback_count := 0
+	for quiz in targets:
+		if quiz.e.strip_edges().is_empty():
+			quiz.e = EXPLANATION_UNAVAILABLE_TEXT
+			fallback_count += 1
+	if not failure_reason.is_empty():
+		print("[OnlineFetch] Batch explanation unavailable: %s" % failure_reason)
+	print("[OnlineFetch] Batch explanations completed: %d/%d (fallback=%d)" % [
+		_count_filled(targets), targets.size(), fallback_count
+	])
+	explanations_ready.emit(targets)
+
+
+func _extract_first_gemini_text(response: Variant) -> String:
+	if not response is Dictionary:
+		return ""
+	var candidates: Variant = response.get("candidates", [])
+	if not candidates is Array or candidates.is_empty():
+		return ""
+	var candidate: Variant = candidates[0]
+	if not candidate is Dictionary:
+		return ""
+	var content: Variant = candidate.get("content", {})
+	if not content is Dictionary:
+		return ""
+	var parts: Variant = content.get("parts", [])
+	if not parts is Array or parts.is_empty():
+		return ""
+	var first_part: Variant = parts[0]
+	if not first_part is Dictionary:
+		return ""
+	return str(first_part.get("text", "")).strip_edges()
 
 func _count_filled(quizzes: Array[QuizItem]) -> int:
 	var count := 0
@@ -1640,12 +1687,14 @@ func is_streaming_available() -> bool:
 		return false
 	return ApiStatusAutoload.is_proxy_available()
 
-## 実行中のすべてのリクエスト（ストリーミング含む）をキャンセルし、ノードを破棄する。
-## ゲームオーバー時などにトークン消費を即座に止めるために使用する。
+## 実行中の問題生成リクエスト（ストリーミング含む）をキャンセルし、ノードを破棄する。
+## 結果画面で必要な解説リクエストは preserve_on_round_end メタデータで継続させる。
 func cancel_all() -> void:
 	print("[OnlineFetch] Cancelling all active requests...")
 	for child in get_children():
 		if child is HTTPRequest:
+			if bool(child.get_meta("preserve_on_round_end", false)):
+				continue
 			child.cancel_request()
 			child.queue_free()
 		elif child.has_method("cancel_request"):
