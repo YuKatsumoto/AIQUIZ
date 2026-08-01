@@ -28,6 +28,10 @@ enum AttackPhase {
 
 enum GhostRidePhase {
 	NONE,
+	RENDEZVOUS_ASCENT,
+	RENDEZVOUS,
+	MOUNTING,
+	DEPARTING,
 	ENTERING,
 	HOVER,
 	CHARGING,
@@ -48,12 +52,24 @@ const BITE_LUNGE_DURATION: float = 0.18
 const JAW_OPEN_DEGREES: float = 28.0
 const WAKE_OFFSET_SCALE: float = 4.35
 const GHOST_RIDE_SCALE_MULTIPLIER: float = 0.62
-const GHOST_ENTRY_DURATION: float = 1.2
+const GHOST_ENTRY_DURATION: float = 2.4
+const GHOST_RENDEZVOUS_ASCENT_DURATION: float = 1.65
+const GHOST_RENDEZVOUS_DEPTH: float = 3.6
+const GHOST_DEPARTURE_DURATION: float = 2.4
 const GHOST_ENTRY_START_SCALE: float = 0.74
 const GHOST_ENTRY_SCALE_PULSE: float = 0.18
 const GHOST_ENTRY_BREACH_PROGRESS: float = 0.40
 const GHOST_BREACH_RING_DURATION: float = 0.92
 const GHOST_AURA_COLOR: Color = Color(0.24, 0.86, 1.0, 1.0)
+const GHOST_MOUNT_SETTLE_DURATION: float = 0.90
+const GHOST_RIDER_SOCKET_YAW_CORRECTION: float = PI
+const GHOST_AIM_TURN_RESPONSE: float = 3.0
+const GHOST_RENDEZVOUS_ANIMATION_SPEED: float = 0.62
+const GHOST_MOUNT_ANIMATION_SPEED: float = 0.72
+const GHOST_HOVER_ANIMATION_SPEED: float = 0.82
+const SHARK_SWIM_ANIMATION := &"SharkSwim"
+const GHOST_RENDEZVOUS_ANIMATION := &"GhostRendezvousIdle"
+const GHOST_MOUNT_RECEIVE_ANIMATION := &"GhostMountReceive"
 
 var is_attacking: bool = false
 var is_ghost_ridden: bool = false
@@ -104,7 +120,16 @@ var _ghost_charge_speed: float = 0.0
 var _ghost_charge_distance: float = 0.0
 var _ghost_charge_max_distance: float = 0.0
 var _ghost_mount: Node3D = null
+var _ghost_mount_socket: Node3D = null
 var _ghost_mount_base_position: Vector3 = Vector3.ZERO
+var _ghost_rider: Node3D = null
+var _ghost_rider_settle_start: Transform3D = Transform3D.IDENTITY
+var _ghost_mount_settle_elapsed: float = 0.0
+var _ghost_rendezvous_start: Vector3 = Vector3.ZERO
+var _ghost_rendezvous_position: Vector3 = Vector3.ZERO
+var _ghost_rendezvous_elapsed: float = 0.0
+var _ghost_departure_control_a: Vector3 = Vector3.ZERO
+var _ghost_departure_control_b: Vector3 = Vector3.ZERO
 var _ghost_original_scale: Vector3 = Vector3.ONE
 var _ghost_base_scale: Vector3 = Vector3.ONE
 var _ghost_charge_tension: float = 0.0
@@ -158,8 +183,13 @@ func _process(delta: float) -> void:
 		_update_attack(delta)
 	else:
 		_update_ambient_swim(delta)
-	if is_ghost_ridden and _ghost_phase == GhostRidePhase.HOVER:
-		_update_ghost_aim_orientation()
+	if is_ghost_ridden and _ghost_phase in [
+		GhostRidePhase.RENDEZVOUS_ASCENT,
+		GhostRidePhase.RENDEZVOUS,
+		GhostRidePhase.MOUNTING,
+		GhostRidePhase.HOVER,
+	]:
+		_update_ghost_aim_orientation(delta)
 	else:
 		_update_orientation(delta)
 	_update_ghost_mount_bob()
@@ -189,32 +219,89 @@ func begin_attack(
 	return true
 
 
-func begin_ghost_ride(player_index: int, rider_visual: Node3D) -> bool:
-	if is_attacking or is_ghost_ridden or rider_visual == null:
+func prepare_ghost_rendezvous(
+	player_index: int,
+	rendezvous_position: Vector3,
+	aim_point: Vector3
+) -> bool:
+	if is_attacking or is_ghost_ridden:
 		return false
 	is_ghost_ridden = true
 	_ghost_original_scale = scale
 	_ghost_base_scale = _ghost_original_scale * GHOST_RIDE_SCALE_MULTIPLIER
-	scale = _ghost_base_scale * GHOST_ENTRY_START_SCALE
+	scale = _ghost_base_scale
 	_ghost_player_index = player_index
-	_ghost_phase = GhostRidePhase.ENTERING
-	_ghost_entry_start = position
-	_ghost_hover_target = position
-	_ghost_aim_point = position + Vector3.FORWARD
+	_ghost_phase = GhostRidePhase.RENDEZVOUS_ASCENT
+	_ghost_rendezvous_position = rendezvous_position
+	_ghost_rendezvous_start = rendezvous_position + Vector3.DOWN * GHOST_RENDEZVOUS_DEPTH
+	_ghost_rendezvous_elapsed = 0.0
+	_ghost_hover_target = rendezvous_position
+	_ghost_aim_point = aim_point
 	_ghost_entry_elapsed = 0.0
 	_ghost_entry_progress = 0.0
 	_ghost_breach_triggered = false
 	_ghost_charge_distance = 0.0
 	_ghost_charge_tension = 0.0
+	position = _ghost_rendezvous_start
+	_velocity = Vector3.ZERO
+	visible = true
+	_play_named_animation(
+		GHOST_RENDEZVOUS_ANIMATION,
+		true,
+		GHOST_RENDEZVOUS_ANIMATION_SPEED
+	)
+	return true
+
+
+func begin_ghost_ride(player_index: int, rider_visual: Node3D) -> bool:
+	if is_attacking or rider_visual == null:
+		return false
+	if not is_ghost_ridden:
+		if not prepare_ghost_rendezvous(player_index, position, position + Vector3.FORWARD):
+			return false
+	if _ghost_phase != GhostRidePhase.RENDEZVOUS or _ghost_player_index != player_index:
+		return false
+	_ghost_phase = GhostRidePhase.MOUNTING
+	_ghost_mount_settle_elapsed = 0.0
 	_ghost_mount = Node3D.new()
 	_ghost_mount.name = "GhostRiderMount"
 	add_child(_ghost_mount)
-	_ghost_mount_base_position = _calculate_ghost_mount_position()
-	_ghost_mount.position = _ghost_mount_base_position
-	_ghost_mount.scale = Vector3.ONE * GHOST_ENTRY_START_SCALE
-	_ghost_mount.add_child(rider_visual)
-	animation_player.speed_scale = 1.35
+	_ghost_mount_socket = model.find_child("GhostMountSocket", true, false) as Node3D
+	if _ghost_mount_socket != null:
+		var socket_local := global_transform.affine_inverse() * _ghost_mount_socket.global_transform
+		var corrected_socket_basis := (
+			socket_local.basis.orthonormalized()
+			* Basis.from_euler(Vector3(0.0, GHOST_RIDER_SOCKET_YAW_CORRECTION, 0.0))
+		)
+		_ghost_mount.transform = Transform3D(
+			corrected_socket_basis,
+			socket_local.origin
+		)
+		_ghost_mount_base_position = _ghost_mount.position
+	else:
+		_ghost_mount_base_position = _calculate_ghost_mount_position()
+		_ghost_mount.position = _ghost_mount_base_position
+	_ghost_mount.scale = Vector3.ONE
+	rider_visual.reparent(_ghost_mount, true)
+	_ghost_rider = rider_visual
+	_ghost_rider_settle_start = rider_visual.transform
+	_play_named_animation(
+		GHOST_MOUNT_RECEIVE_ANIMATION,
+		false,
+		GHOST_MOUNT_ANIMATION_SPEED
+	)
 	return true
+
+
+func get_ghost_mount_world_position() -> Vector3:
+	var authored_socket := model.find_child("GhostMountSocket", true, false) as Node3D
+	if authored_socket != null:
+		return authored_socket.global_position
+	return to_global(_calculate_ghost_mount_position())
+
+
+func get_ghost_rendezvous_mount_world_position() -> Vector3:
+	return get_ghost_mount_world_position() + (_ghost_rendezvous_position - position)
 
 
 func set_ghost_hover_target(target_position: Vector3, aim_point: Vector3) -> void:
@@ -269,7 +356,38 @@ func restart_ghost_hover(entry_position: Vector3, target_position: Vector3, aim_
 		_ghost_aura_particles.amount_ratio = 0.28
 	if _ghost_breach_ring != null:
 		_ghost_breach_ring.visible = false
-	animation_player.speed_scale = 1.35
+	_play_named_animation(GHOST_MOUNT_RECEIVE_ANIMATION, false, GHOST_MOUNT_ANIMATION_SPEED)
+
+
+func depart_ghost_rendezvous(target_position: Vector3, aim_point: Vector3) -> bool:
+	if not is_ghost_ridden or _ghost_phase != GhostRidePhase.MOUNTING:
+		return false
+	visible = true
+	_ghost_entry_start = position
+	_ghost_hover_target = target_position
+	_ghost_aim_point = aim_point
+	_ghost_entry_elapsed = 0.0
+	_ghost_entry_progress = 0.0
+	_ghost_charge_tension = 0.0
+	_attack_intensity = 0.08
+	_ghost_phase = GhostRidePhase.DEPARTING
+	scale = _ghost_base_scale
+	_velocity = Vector3.ZERO
+	var travel := target_position - _ghost_entry_start
+	_ghost_departure_control_a = (
+		_ghost_entry_start
+		+ travel * 0.28
+		+ Vector3.UP * 1.05
+	)
+	_ghost_departure_control_b = (
+		_ghost_entry_start
+		+ travel * 0.72
+		+ Vector3.UP * 1.65
+	)
+	if _ghost_aura_particles != null:
+		_ghost_aura_particles.emitting = true
+		_ghost_aura_particles.amount_ratio = 0.24
+	return true
 
 
 func end_ghost_ride() -> void:
@@ -288,7 +406,15 @@ func end_ghost_ride() -> void:
 	if _ghost_mount and is_instance_valid(_ghost_mount):
 		_ghost_mount.queue_free()
 	_ghost_mount = null
-	animation_player.speed_scale = 1.0
+	_ghost_mount_socket = null
+	_ghost_rider = null
+	_ghost_mount_settle_elapsed = 0.0
+	_ghost_rendezvous_start = Vector3.ZERO
+	_ghost_rendezvous_position = Vector3.ZERO
+	_ghost_rendezvous_elapsed = 0.0
+	_ghost_departure_control_a = Vector3.ZERO
+	_ghost_departure_control_b = Vector3.ZERO
+	_play_swim_animation()
 	if _ghost_aura_particles != null:
 		_ghost_aura_particles.emitting = false
 		_ghost_aura_particles.amount_ratio = 0.0
@@ -307,6 +433,33 @@ func is_available_for_ocean_attack() -> bool:
 
 func is_ghost_hovering() -> bool:
 	return is_ghost_ridden and _ghost_phase == GhostRidePhase.HOVER
+
+
+func is_ghost_rendezvous_ready() -> bool:
+	return is_ghost_ridden and _ghost_phase == GhostRidePhase.RENDEZVOUS
+
+
+func get_ghost_ride_debug_state() -> Dictionary:
+	return {
+		"phase": GhostRidePhase.keys()[_ghost_phase],
+		"position": global_position,
+		"velocity": _velocity,
+		"rendezvous": _ghost_rendezvous_position,
+		"ascent_elapsed": _ghost_rendezvous_elapsed,
+		"animation": String(animation_player.current_animation),
+		"animation_speed": animation_player.get_playing_speed(),
+	}
+
+
+func is_ghost_mounted() -> bool:
+	return (
+		is_ghost_ridden
+		and _ghost_phase not in [
+			GhostRidePhase.RENDEZVOUS_ASCENT,
+			GhostRidePhase.RENDEZVOUS,
+			GhostRidePhase.MOUNTING,
+		]
+	)
 
 
 func is_ghost_charging() -> bool:
@@ -630,8 +783,16 @@ func _create_ghost_breach_ring() -> MeshInstance3D:
 func _update_arcade_attack_effects(delta: float) -> void:
 	var ghost_charging := is_ghost_ridden and _ghost_phase == GhostRidePhase.CHARGING
 	var ghost_entering := is_ghost_ridden and _ghost_phase == GhostRidePhase.ENTERING
-	var arcade_active := is_attacking or ghost_charging or ghost_entering
-	if arcade_active:
+	var ghost_departing := is_ghost_ridden and _ghost_phase == GhostRidePhase.DEPARTING
+	var arcade_active := is_attacking or ghost_charging or ghost_entering or ghost_departing
+	var authored_mount_animation := is_ghost_ridden and _ghost_phase in [
+		GhostRidePhase.RENDEZVOUS_ASCENT,
+		GhostRidePhase.RENDEZVOUS,
+		GhostRidePhase.MOUNTING,
+		GhostRidePhase.DEPARTING,
+		GhostRidePhase.ENTERING,
+	]
+	if arcade_active and not authored_mount_animation:
 		animation_player.speed_scale = lerpf(1.75, 2.35, _attack_intensity)
 	if _wake_particles != null:
 		_wake_particles.emitting = arcade_active and _attack_intensity > 0.03
@@ -703,6 +864,8 @@ func _reset_arcade_attack_effects() -> void:
 
 
 func _play_swim_animation() -> void:
+	if _play_named_animation(SHARK_SWIM_ANIMATION, true, animation_speed):
+		return
 	var animation_names: PackedStringArray = animation_player.get_animation_list()
 	for animation_name: StringName in animation_names:
 		if animation_name == &"RESET":
@@ -719,28 +882,127 @@ func _play_swim_animation() -> void:
 	push_warning("Shark swimmer has no playable animation")
 
 
+func _play_named_animation(
+	preferred_name: StringName,
+	looped: bool,
+	speed: float
+) -> bool:
+	var resolved_name := StringName()
+	for animation_name: StringName in animation_player.get_animation_list():
+		var short_name := String(animation_name).get_file()
+		if animation_name == preferred_name or short_name == String(preferred_name):
+			resolved_name = animation_name
+			break
+	if resolved_name == StringName():
+		return false
+	var animation: Animation = animation_player.get_animation(resolved_name)
+	if animation == null:
+		return false
+	animation.loop_mode = Animation.LOOP_LINEAR if looped else Animation.LOOP_NONE
+	animation_player.play(resolved_name, -1.0, speed)
+	return true
+
+
 func _update_ghost_ride(delta: float) -> void:
 	match _ghost_phase:
+		GhostRidePhase.RENDEZVOUS_ASCENT:
+			_ghost_rendezvous_elapsed += delta
+			var ascent_progress := clampf(
+				_ghost_rendezvous_elapsed / GHOST_RENDEZVOUS_ASCENT_DURATION,
+				0.0,
+				1.0
+			)
+			var ascent_eased := smoothstep(0.0, 1.0, ascent_progress)
+			var ascent_previous := position
+			position = _ghost_rendezvous_start.lerp(
+				_ghost_rendezvous_position,
+				ascent_eased
+			)
+			_velocity = (position - ascent_previous) / maxf(delta, 0.0001)
+			_attack_intensity = move_toward(_attack_intensity, 0.18, delta * 0.65)
+			if (
+				not _ghost_breach_triggered
+				and ascent_previous.y < StageConstants.OCEAN_SURFACE_Y
+				and position.y >= StageConstants.OCEAN_SURFACE_Y
+			):
+				_trigger_ghost_breach()
+			if ascent_progress >= 1.0:
+				position = _ghost_rendezvous_position
+				_velocity = Vector3.ZERO
+				_attack_intensity = 0.08
+				_ghost_phase = GhostRidePhase.RENDEZVOUS
+		GhostRidePhase.RENDEZVOUS:
+			position = _ghost_rendezvous_position
+			_velocity = Vector3.ZERO
+			_attack_intensity = move_toward(_attack_intensity, 0.08, delta * 1.2)
+		GhostRidePhase.MOUNTING:
+			position = _ghost_rendezvous_position
+			_velocity = Vector3.ZERO
+			_ghost_mount_settle_elapsed += delta
+			if _ghost_rider != null and is_instance_valid(_ghost_rider):
+				var settle_progress := clampf(
+					_ghost_mount_settle_elapsed / GHOST_MOUNT_SETTLE_DURATION,
+					0.0,
+					1.0
+				)
+				var eased_settle := 1.0 - pow(1.0 - settle_progress, 3.0)
+				var mounted_transform := Transform3D(
+					Basis.from_scale(Vector3.ONE * 0.92),
+					Vector3.ZERO
+				)
+				_ghost_rider.transform = _ghost_rider_settle_start.interpolate_with(
+					mounted_transform,
+					eased_settle
+				)
+			_attack_intensity = move_toward(_attack_intensity, 0.16, delta * 1.8)
+		GhostRidePhase.DEPARTING:
+			if animation_player.current_animation == StringName():
+				_play_swim_animation()
+				animation_player.speed_scale = GHOST_HOVER_ANIMATION_SPEED
+			_ghost_entry_elapsed += delta
+			var departure_progress := clampf(
+				_ghost_entry_elapsed / GHOST_DEPARTURE_DURATION,
+				0.0,
+				1.0
+			)
+			var departure_eased := smoothstep(0.0, 1.0, departure_progress)
+			var departure_previous := position
+			position = _cubic_bezier(
+				_ghost_entry_start,
+				_ghost_departure_control_a,
+				_ghost_departure_control_b,
+				_ghost_hover_target,
+				departure_eased
+			)
+			_velocity = (position - departure_previous) / maxf(delta, 0.0001)
+			_ghost_entry_progress = departure_progress
+			_attack_intensity = 0.08 + sin(departure_progress * PI) * 0.12
+			if departure_progress >= 1.0:
+				position = _ghost_hover_target
+				_velocity = Vector3.ZERO
+				_ghost_entry_progress = 1.0
+				_ghost_phase = GhostRidePhase.HOVER
+				_play_swim_animation()
+				animation_player.speed_scale = GHOST_HOVER_ANIMATION_SPEED
 		GhostRidePhase.ENTERING:
 			_ghost_entry_elapsed += delta
 			var progress := clampf(_ghost_entry_elapsed / GHOST_ENTRY_DURATION, 0.0, 1.0)
-			var eased := smoothstep(0.0, 1.0, progress)
+			# Use one ease for the complete underwater-to-hover route.  Splitting
+			# this into separately eased underwater and breach legs made the shark
+			# visibly brake at the waterline before accelerating again.
+			var travel_weight := smoothstep(0.0, 1.0, progress)
 			var previous_position := position
-			if progress < GHOST_ENTRY_BREACH_PROGRESS:
-				var underwater_progress := smoothstep(
-					0.0,
-					1.0,
-					progress / GHOST_ENTRY_BREACH_PROGRESS
-				)
+			if travel_weight < GHOST_ENTRY_BREACH_PROGRESS:
+				var underwater_progress := travel_weight / GHOST_ENTRY_BREACH_PROGRESS
 				position = _ghost_entry_start.lerp(
 					_ghost_entry_breach_point,
 					underwater_progress
 				)
 			else:
-				var breach_progress := smoothstep(
-					0.0,
+				var breach_progress := inverse_lerp(
+					GHOST_ENTRY_BREACH_PROGRESS,
 					1.0,
-					inverse_lerp(GHOST_ENTRY_BREACH_PROGRESS, 1.0, progress)
+					travel_weight
 				)
 				position = _cubic_bezier(
 					_ghost_entry_breach_point,
@@ -750,9 +1012,11 @@ func _update_ghost_ride(delta: float) -> void:
 					breach_progress
 				)
 			_velocity = (position - previous_position) / maxf(delta, 0.0001)
-			_ghost_entry_progress = progress
-			var scale_pulse := sin(progress * PI) * GHOST_ENTRY_SCALE_PULSE
-			var scale_factor := lerpf(GHOST_ENTRY_START_SCALE, 1.0, eased) + scale_pulse
+			_ghost_entry_progress = travel_weight
+			var scale_pulse := sin(travel_weight * PI) * GHOST_ENTRY_SCALE_PULSE
+			var scale_factor := (
+				lerpf(GHOST_ENTRY_START_SCALE, 1.0, travel_weight) + scale_pulse
+			)
 			scale = _ghost_base_scale * scale_factor
 			_attack_intensity = 0.16 + sin(progress * PI) * 0.32
 			if (
@@ -766,13 +1030,18 @@ func _update_ghost_ride(delta: float) -> void:
 				scale = _ghost_base_scale
 				_ghost_entry_progress = 1.0
 				_ghost_phase = GhostRidePhase.HOVER
+				_play_swim_animation()
 		GhostRidePhase.HOVER:
 			var hover_position := _ghost_hover_target + Vector3.UP * sin(_swim_time * 2.1) * 0.12
 			var previous_position := position
 			position = position.move_toward(hover_position, 15.0 * delta)
 			_velocity = (position - previous_position) / maxf(delta, 0.0001)
 			_attack_intensity = move_toward(_attack_intensity, 0.0, delta * 2.0)
-			animation_player.speed_scale = lerpf(animation_player.speed_scale, 1.25, minf(1.0, delta * 3.0))
+			animation_player.speed_scale = lerpf(
+				animation_player.speed_scale,
+				GHOST_HOVER_ANIMATION_SPEED,
+				minf(1.0, delta * 2.0)
+			)
 		GhostRidePhase.CHARGING:
 			_ghost_charge_tension = move_toward(_ghost_charge_tension, 1.0, delta * 8.0)
 			var remaining := maxf(0.0, _ghost_charge_max_distance - _ghost_charge_distance)
@@ -797,11 +1066,14 @@ func _configure_ghost_entry_curve(entry_position: Vector3, target_position: Vect
 		StageConstants.OCEAN_SURFACE_Y - 0.85 - target_position.y,
 		-1.65
 	)
-	_ghost_entry_control_a = _ghost_entry_breach_point + Vector3(
-		-_ghost_entry_side * 2.15,
-		10.85,
-		1.25
+	# Match the incoming underwater velocity at the piece boundary so crossing
+	# the surface changes direction smoothly without pausing there.
+	var incoming_tangent := _ghost_entry_breach_point - entry_position
+	var tangent_scale := (
+		(1.0 - GHOST_ENTRY_BREACH_PROGRESS)
+		/ (3.0 * GHOST_ENTRY_BREACH_PROGRESS)
 	)
+	_ghost_entry_control_a = _ghost_entry_breach_point + incoming_tangent * tangent_scale
 	_ghost_entry_control_b = target_position + Vector3(
 		_ghost_entry_side * 1.30,
 		3.0,
@@ -864,32 +1136,54 @@ func _update_ghost_breach_effect(delta: float) -> void:
 		_ghost_breach_ring_elapsed = -1.0
 
 
-func _update_ghost_aim_orientation() -> void:
+func _update_ghost_aim_orientation(delta: float) -> void:
 	var flat_target := Vector3(_ghost_aim_point.x, position.y, _ghost_aim_point.z)
 	if position.distance_squared_to(flat_target) < 0.01:
 		return
-	quaternion = _quat_look_at(position, flat_target)
-	_bank = 0.0
-	model.rotation = Vector3(0.0, PI * 0.5, _bank)
+	var target_quaternion := _quat_look_at(position, flat_target)
+	var turn_blend := 1.0 - exp(-GHOST_AIM_TURN_RESPONSE * delta)
+	quaternion = quaternion.slerp(target_quaternion, turn_blend)
+	var settle_blend := 1.0 - exp(-5.0 * delta)
+	_bank = lerpf(_bank, 0.0, settle_blend)
+	model.rotation = Vector3(
+		lerp_angle(model.rotation.x, 0.0, settle_blend),
+		PI * 0.5,
+		_bank
+	)
 
 
 func _update_ghost_mount_bob() -> void:
 	if _ghost_mount == null or not is_instance_valid(_ghost_mount):
 		return
+	var base_basis := Basis.IDENTITY
+	var base_position := _ghost_mount_base_position
+	if _ghost_mount_socket != null and is_instance_valid(_ghost_mount_socket):
+		var socket_local := global_transform.affine_inverse() * _ghost_mount_socket.global_transform
+		base_basis = (
+			socket_local.basis.orthonormalized()
+			* Basis.from_euler(Vector3(0.0, GHOST_RIDER_SOCKET_YAW_CORRECTION, 0.0))
+		)
+		base_position = socket_local.origin
+		_ghost_mount_base_position = base_position
 	var bob_speed := lerpf(3.2, 5.8, _ghost_charge_tension)
 	var bob_amount := lerpf(0.055, 0.025, _ghost_charge_tension)
 	var bob := sin(_swim_time * bob_speed + float(_ghost_player_index)) * bob_amount
 	var entry_reveal := 1.0
 	if _ghost_phase == GhostRidePhase.ENTERING:
-		entry_reveal = smoothstep(0.08, 0.62, _ghost_entry_progress)
+		entry_reveal = clampf((_ghost_entry_progress - 0.08) / 0.54, 0.0, 1.0)
 	_ghost_mount.position = (
-		_ghost_mount_base_position
+		base_position
 		+ Vector3.UP * bob
 		+ Vector3(0.0, -0.04, -0.18) * _ghost_charge_tension
 	)
-	_ghost_mount.scale = Vector3.ONE * lerpf(GHOST_ENTRY_START_SCALE, 1.0, entry_reveal)
 	var entry_pitch := lerpf(18.0, 0.0, entry_reveal)
-	_ghost_mount.rotation.x = deg_to_rad(entry_pitch - 12.0 * _ghost_charge_tension)
+	var animated_basis := Basis.from_euler(
+		Vector3(deg_to_rad(entry_pitch - 12.0 * _ghost_charge_tension), 0.0, 0.0)
+	)
+	animated_basis = animated_basis.scaled(
+		Vector3.ONE * lerpf(GHOST_ENTRY_START_SCALE, 1.0, entry_reveal)
+	)
+	_ghost_mount.basis = base_basis * animated_basis
 
 
 func _calculate_ghost_mount_position() -> Vector3:

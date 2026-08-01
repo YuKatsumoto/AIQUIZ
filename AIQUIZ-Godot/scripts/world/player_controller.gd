@@ -30,6 +30,7 @@ const WALL_RAGDOLL_SIDE_VELOCITY := 1.5
 const WALL_RAGDOLL_SPIN := Vector3(2.8, 0.7, 1.8)
 const RagdollBuilderScript = preload("res://scripts/world/ragdoll_builder.gd")
 const ActiveRagdollDriverScript = preload("res://scripts/world/active_ragdoll_driver.gd")
+const GHOST_MOUNT_ANIMATION_PATH := "res://assets/animations/Ghost Shark Mount.fbx"
 # 物理駆動に置き換えるため非表示にする表示メッシュのキー
 const _RAGDOLL_HIDE_KEYS := [
 	"head", "l_upp_arm", "l_low_arm", "r_upp_arm", "r_low_arm",
@@ -78,6 +79,7 @@ const EXPLOSION_PHYSICS_BOUNCE: float = 0.32
 # Animation Rig (P1/P2蜈ｱ騾壹け繝ｩ繧ｹ縺ｧ邂｡逅・
 var _p1_rig: AnimationRig = AnimationRig.new("P1")
 var _p2_rig: AnimationRig = AnimationRig.new("P2")
+var _ghost_mount_rig_data: Dictionary = {}
 
 var _time: float = 0.0
 const BASE_Y: float = -1.2
@@ -93,6 +95,7 @@ func _ready() -> void:
 	# 遅延実行する(_ready 時点では原点のため、初フレームのアンカー瞬間移動を回避)。
 	var gs = QuizManager.game_state
 	_load_mixamo_rig(gs)
+	_load_ghost_mount_rig()
 
 
 ## 四肢物理ツリー+駆動器を生成する。
@@ -256,6 +259,30 @@ func _load_mixamo_rig(gs: QuizGameState) -> void:
 	if NetworkManager and NetworkManager.state == NetworkManager.State.IN_GAME:
 		p2_slots = NetworkManager.opponent_emote_slots
 	_apply_emote_rig_slots(p1_slots, p2_slots, loader)
+
+
+func _load_ghost_mount_rig() -> void:
+	_ghost_mount_rig_data.clear()
+	var loaded: Variant = _load_fbx_scene(
+		GHOST_MOUNT_ANIMATION_PATH,
+		"GhostMountHeroicPoseRig"
+	)
+	if not (loaded is Dictionary):
+		push_warning("Ghost mount animation could not be loaded")
+		return
+	_ghost_mount_rig_data = loaded
+	var animation_player := _ghost_mount_rig_data.get("anim_player") as AnimationPlayer
+	var animation_name := String(_ghost_mount_rig_data.get("anim_name", ""))
+	if animation_player == null or animation_name.is_empty():
+		_ghost_mount_rig_data.clear()
+		push_warning("Ghost mount animation has no playable action")
+		return
+	var animation: Animation = animation_player.get_animation(animation_name)
+	if animation != null:
+		animation.loop_mode = Animation.LOOP_NONE
+	animation_player.play(animation_name)
+	animation_player.seek(0.0, true)
+	animation_player.pause()
 
 
 func reload_emote_rigs(p1_slots: Array[int], p2_slots: Array[int]) -> void:
@@ -1865,19 +1892,9 @@ func create_ghost_rider_visual(player_index: int) -> Node3D:
 	var rider := Node3D.new()
 	rider.name = "GhostRiderP%d" % player_index
 	var parts := _build_player_skeleton(player_index == 1, rider)
-	var pelvis: Node3D = parts["pelvis"]
-	pelvis.position = Vector3(0.0, 0.50, 0.0)
-	pelvis.rotation_degrees = Vector3(8.0, 0.0, 0.0)
-	parts["spine"].rotation_degrees = Vector3(18.0, 0.0, 0.0)
-	parts["l_hip"].rotation_degrees = Vector3(66.0, 0.0, -12.0)
-	parts["r_hip"].rotation_degrees = Vector3(66.0, 0.0, 12.0)
-	parts["l_knee"].rotation_degrees = Vector3(-96.0, 0.0, 0.0)
-	parts["r_knee"].rotation_degrees = Vector3(-96.0, 0.0, 0.0)
-	parts["l_shoulder"].rotation_degrees = Vector3(72.0, 0.0, -18.0)
-	parts["r_shoulder"].rotation_degrees = Vector3(72.0, 0.0, 18.0)
-	parts["l_elbow"].rotation_degrees = Vector3(-42.0, 0.0, 0.0)
-	parts["r_elbow"].rotation_degrees = Vector3(-42.0, 0.0, 0.0)
+	rider.set_meta("ghost_mount_parts", parts)
 	rider.scale = Vector3.ONE * 0.92
+	apply_ghost_rider_mounted_pose(rider)
 
 	var hat_id := _p1_hat_id if player_index == 1 else _p2_hat_id
 	if hat_id != HatData.HAT_NONE:
@@ -1895,6 +1912,161 @@ func create_ghost_rider_visual(player_index: int) -> Node3D:
 		_apply_ghost_material(mesh_instance)
 	_add_ghost_rider_aura(rider, player_index)
 	return rider
+
+
+func apply_ghost_rider_mounted_pose(
+	rider: Node3D,
+	blend_weight: float = 1.0,
+	preserve_upper_body: bool = false
+) -> bool:
+	if rider == null or not is_instance_valid(rider):
+		return false
+	var parts_variant: Variant = rider.get_meta("ghost_mount_parts", {})
+	if not (parts_variant is Dictionary):
+		return false
+	var parts: Dictionary = parts_variant
+	var weight := clampf(blend_weight, 0.0, 1.0)
+	var pelvis := parts.get("pelvis") as Node3D
+	if pelvis == null:
+		return false
+	pelvis.position = pelvis.position.lerp(Vector3(0.0, 0.46, 0.05), weight)
+	_blend_ghost_rider_part_rotation(pelvis, Vector3.ZERO, weight)
+
+	var lower_body_targets: Dictionary = {
+		"l_hip": Vector3(58.0, 0.0, -28.0),
+		"r_hip": Vector3(58.0, 0.0, 28.0),
+		"l_knee": Vector3(-98.0, 0.0, 0.0),
+		"r_knee": Vector3(-98.0, 0.0, 0.0),
+		"l_ankle": Vector3(34.0, 0.0, 0.0),
+		"r_ankle": Vector3(34.0, 0.0, 0.0),
+		"l_toe": Vector3.ZERO,
+		"r_toe": Vector3.ZERO,
+	}
+	for part_name: String in lower_body_targets:
+		_blend_ghost_rider_part_rotation(
+			parts.get(part_name) as Node3D,
+			lower_body_targets[part_name],
+			weight
+		)
+
+	if not preserve_upper_body:
+		var upper_body_targets: Dictionary = {
+			"spine": Vector3(12.0, 0.0, 0.0),
+			"neck": Vector3(-5.0, 0.0, 0.0),
+			"head_pivot": Vector3.ZERO,
+			"l_shoulder": Vector3(68.0, 0.0, -10.0),
+			"r_shoulder": Vector3(68.0, 0.0, 10.0),
+			"l_elbow": Vector3(-58.0, 0.0, 0.0),
+			"r_elbow": Vector3(-58.0, 0.0, 0.0),
+			"l_wrist": Vector3.ZERO,
+			"r_wrist": Vector3.ZERO,
+		}
+		for part_name: String in upper_body_targets:
+			_blend_ghost_rider_part_rotation(
+				parts.get(part_name) as Node3D,
+				upper_body_targets[part_name],
+				weight
+			)
+	return true
+
+
+func _blend_ghost_rider_part_rotation(
+	part: Node3D,
+	target_degrees: Vector3,
+	weight: float
+) -> void:
+	if part == null:
+		return
+	var target_quaternion := Quaternion(
+		Basis.from_euler(Vector3(
+			deg_to_rad(target_degrees.x),
+			deg_to_rad(target_degrees.y),
+			deg_to_rad(target_degrees.z)
+		))
+	)
+	part.quaternion = part.quaternion.slerp(target_quaternion, weight)
+
+
+func sample_ghost_mount_pose(rider: Node3D, time_seconds: float) -> bool:
+	if rider == null or not is_instance_valid(rider) or _ghost_mount_rig_data.is_empty():
+		return false
+	var parts_variant: Variant = rider.get_meta("ghost_mount_parts", {})
+	if not (parts_variant is Dictionary):
+		return false
+	var parts: Dictionary = parts_variant
+	var skeleton := _ghost_mount_rig_data.get("skeleton") as Skeleton3D
+	var animation_player := _ghost_mount_rig_data.get("anim_player") as AnimationPlayer
+	var bone_indices_variant: Variant = _ghost_mount_rig_data.get("bone_indices", {})
+	var animation_name := String(_ghost_mount_rig_data.get("anim_name", ""))
+	if (
+		skeleton == null
+		or animation_player == null
+		or not (bone_indices_variant is Dictionary)
+		or animation_name.is_empty()
+	):
+		return false
+	var animation: Animation = animation_player.get_animation(animation_name)
+	if animation == null:
+		return false
+	if animation_player.current_animation != animation_name:
+		animation_player.play(animation_name)
+		animation_player.pause()
+	animation_player.seek(clampf(time_seconds, 0.0, animation.length), true)
+	_apply_skeleton_pose(parts, skeleton, bone_indices_variant, true)
+	return true
+
+
+func apply_ghost_rider_emote_pose(
+	rider: Node3D,
+	player_index: int,
+	emote_id: int
+) -> bool:
+	if rider == null or not is_instance_valid(rider) or emote_id <= 0:
+		return false
+	var parts_variant: Variant = rider.get_meta("ghost_mount_parts", {})
+	if not (parts_variant is Dictionary):
+		return false
+	var parts: Dictionary = parts_variant
+	var is_p2 := player_index == 2
+	var rig := _p2_rig if is_p2 else _p1_rig
+	var normalized_emote := EmoteData.normalize_emote_id(emote_id)
+	if rig.is_rigged and rig.select_animation(
+		0.0,
+		false,
+		normalized_emote,
+		false,
+		true,
+		false,
+		true
+	):
+		_apply_skeleton_pose(
+			parts,
+			rig.active_skeleton,
+			rig.active_bone_indices,
+			rig.mirror_x
+		)
+		return true
+	_animate_emote(parts, normalized_emote, is_p2)
+	return true
+
+
+func stop_ghost_rider_emote(rider: Node3D, player_index: int) -> void:
+	var rig := _p2_rig if player_index == 2 else _p1_rig
+	rig.reset_thriller_sequence()
+	rig.stop_all()
+	if rider != null and is_instance_valid(rider):
+		apply_ghost_rider_mounted_pose(rider)
+
+
+func get_ghost_mount_animation_length() -> float:
+	if _ghost_mount_rig_data.is_empty():
+		return 0.0
+	var animation_player := _ghost_mount_rig_data.get("anim_player") as AnimationPlayer
+	var animation_name := String(_ghost_mount_rig_data.get("anim_name", ""))
+	if animation_player == null or animation_name.is_empty():
+		return 0.0
+	var animation: Animation = animation_player.get_animation(animation_name)
+	return animation.length if animation != null else 0.0
 
 
 func _apply_ghost_material(mesh_instance: MeshInstance3D) -> void:

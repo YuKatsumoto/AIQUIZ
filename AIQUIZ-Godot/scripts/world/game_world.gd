@@ -178,6 +178,12 @@ func get_ocean_attack_shark_position(player_index: int) -> Variant:
 	var shark: SharkSwimmer = shark_variant as SharkSwimmer
 	if shark != null and is_instance_valid(shark):
 		return shark.global_position
+	if _ghost_shark_ride_controller != null:
+		var presentation: Dictionary = (
+			_ghost_shark_ride_controller.get_presentation_state(player_index)
+		)
+		if bool(presentation.get("active", false)):
+			return presentation.get("focus", null)
 	return null
 
 
@@ -186,7 +192,20 @@ func get_ocean_attack_shark_intensity(player_index: int) -> float:
 	var shark: SharkSwimmer = shark_variant as SharkSwimmer
 	if shark != null and is_instance_valid(shark):
 		return shark.get_attack_intensity()
+	if _ghost_shark_ride_controller != null:
+		var presentation: Dictionary = (
+			_ghost_shark_ride_controller.get_presentation_state(player_index)
+		)
+		if bool(presentation.get("active", false)):
+			var duration := maxf(float(presentation.get("duration", 4.0)), 0.001)
+			return clampf(float(presentation.get("elapsed", 0.0)) / duration, 0.0, 1.0)
 	return 0.0
+
+
+func get_ghost_shark_presentation(player_index: int) -> Dictionary:
+	if _ghost_shark_ride_controller == null:
+		return {"active": false}
+	return _ghost_shark_ride_controller.get_presentation_state(player_index)
 
 
 func _update_ocean_shark_attacks() -> void:
@@ -326,6 +345,8 @@ func _process(dt: float) -> void:
 			axis_p2,
 			jump_p1,
 			jump_p2,
+			emote_p1,
+			emote_p2,
 			_is_online,
 			_replay_mode
 		)

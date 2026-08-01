@@ -20,6 +20,7 @@ var _is_hiding: bool = false
 var _world_set: bool = false
 var _shark_impact_flash: float = 0.0
 var _impact_overlay: ColorRect = null
+var _ghost_follow_direction: Vector3 = Vector3.FORWARD
 
 const WIPE_W := 320
 const WIPE_H := 240
@@ -148,10 +149,27 @@ func _process(dt: float) -> void:
 					waiting_for_shark
 					or (current_timer > 0.0 and current_timer < 4.0)
 				)
+	var current_scene: Node = get_tree().current_scene
+	if current_scene != null and current_scene.has_method("get_ghost_shark_presentation"):
+		for player_index: int in [1, 2]:
+			var presentation: Dictionary = current_scene.get_ghost_shark_presentation(
+				player_index
+			)
+			if (
+				bool(presentation.get("active", false))
+				and bool(presentation.get("show_wipe", true))
+			):
+				var other_alive := (
+					game_state.p2_alive if player_index == 1 else game_state.p1_alive
+				)
+				if other_alive:
+					should_show = true
+					target_player = player_index
+					break
 
 
 	if should_show:
-		if not _active or _is_hiding:
+		if not _active or _is_hiding or _dead_player != target_player:
 			_start_wipe(target_player)
 	else:
 		_hide_wipe()
@@ -167,6 +185,7 @@ func _start_wipe(player: int) -> void:
 	_fade_in = 0.0
 	_fade_out = 0.0
 	_is_hiding = false
+	_ghost_follow_direction = Vector3.FORWARD
 	visible = true
 
 	# Share main viewport's World3D so the wipe camera sees the same scene
@@ -262,6 +281,13 @@ func _update_wipe_camera() -> void:
 	var has_shark: bool = false
 	var shark_intensity: float = 0.0
 	var current_scene: Node = get_tree().current_scene
+	if current_scene != null and current_scene.has_method("get_ghost_shark_presentation"):
+		var ghost_presentation: Dictionary = current_scene.get_ghost_shark_presentation(
+			_dead_player
+		)
+		if bool(ghost_presentation.get("active", false)):
+			_update_ghost_presentation_camera(player_position, ghost_presentation)
+			return
 	if current_scene != null and current_scene.has_method("get_ocean_attack_shark_position"):
 		var shark_position_variant: Variant = current_scene.get_ocean_attack_shark_position(_dead_player)
 		if shark_position_variant is Vector3:
@@ -289,5 +315,70 @@ func _update_wipe_camera() -> void:
 		cam_eye = pose.get("eye", cam_eye)
 		cam_target = pose.get("target", cam_target)
 
+	wipe_camera.global_position = cam_eye
+	wipe_camera.look_at(cam_target, Vector3.UP)
+
+
+func _update_ghost_presentation_camera(
+	death_position: Vector3,
+	presentation: Dictionary
+) -> void:
+	var duration := maxf(float(presentation.get("duration", 7.5)), 0.001)
+	var elapsed := clampf(float(presentation.get("elapsed", 0.0)), 0.0, duration)
+	var rider_position: Vector3 = presentation.get("rider_position", death_position)
+	var shark_position: Vector3 = presentation.get("shark_position", rider_position)
+	var travel_direction := shark_position - rider_position
+	travel_direction.y = 0.0
+	if travel_direction.length_squared() >= 0.001:
+		_ghost_follow_direction = travel_direction.normalized()
+	travel_direction = _ghost_follow_direction
+	var camera_side := Vector3(-travel_direction.z, 0.0, travel_direction.x)
+	var side_sign := signf(death_position.x)
+	if is_zero_approx(side_sign):
+		side_sign = 1.0 if _dead_player == 1 else -1.0
+	if camera_side.x * side_sign < 0.0:
+		camera_side = -camera_side
+
+	# Every shot is rooted at the live ghost rider. The offsets and FOV may change,
+	# but neither the camera position nor its look target drifts toward the shark.
+	var follow_target := rider_position + Vector3.UP * 0.45
+	var close_eye := rider_position + camera_side * 3.0 - travel_direction * 3.6 + Vector3.UP * 2.55
+	var reveal_eye := rider_position + camera_side * 5.4 - travel_direction * 1.2 + Vector3.UP * 2.85
+	var chase_eye := rider_position + camera_side * 5.8 - travel_direction * 1.4 + Vector3.UP * 3.30
+	var mount_eye := rider_position + camera_side * 5.8 - travel_direction * 0.8 + Vector3.UP * 3.15
+	var hero_eye := rider_position + camera_side * 5.0 + travel_direction * 1.7 + Vector3.UP * 2.75
+
+	var cam_eye: Vector3
+	var cam_target: Vector3
+	var fov: float
+	if elapsed < 0.8:
+		cam_eye = close_eye
+		cam_target = follow_target
+		fov = 44.0
+	elif elapsed < 1.8:
+		var blend_to_reveal := smoothstep(0.0, 1.0, (elapsed - 0.8) / 1.0)
+		cam_eye = close_eye.lerp(reveal_eye, blend_to_reveal)
+		cam_target = follow_target
+		fov = lerpf(44.0, 58.0, blend_to_reveal)
+	elif elapsed < 3.2:
+		var blend_to_chase := smoothstep(0.0, 1.0, (elapsed - 1.8) / 1.4)
+		cam_eye = reveal_eye.lerp(chase_eye, blend_to_chase)
+		cam_target = follow_target
+		fov = lerpf(58.0, 55.0, blend_to_chase)
+	elif elapsed < 4.2:
+		var blend_to_mount := smoothstep(0.0, 1.0, elapsed - 3.2)
+		cam_eye = chase_eye.lerp(mount_eye, blend_to_mount)
+		cam_target = follow_target
+		fov = lerpf(55.0, 50.0, blend_to_mount)
+	else:
+		var blend_to_hero := smoothstep(
+			0.0,
+			1.0,
+			(elapsed - 4.2) / maxf(0.001, duration - 4.2)
+		)
+		cam_eye = mount_eye.lerp(hero_eye, blend_to_hero)
+		cam_target = follow_target
+		fov = lerpf(50.0, 48.0, blend_to_hero)
+	wipe_camera.fov = fov
 	wipe_camera.global_position = cam_eye
 	wipe_camera.look_at(cam_target, Vector3.UP)
