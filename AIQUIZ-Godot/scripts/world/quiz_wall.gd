@@ -524,6 +524,23 @@ func break_door(door_index: int) -> void:
 				tween.tween_property(mesh_inst, "scale", Vector3.ZERO, 1.0).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 				tween.tween_callback(chunk.queue_free)
 
+func is_solid_frame_occluding_segment(segment_start: Vector3, segment_end: Vector3) -> bool:
+	# Answer doors are intentionally excluded so the x-ray silhouette cannot cover choices.
+	for part: MeshInstance3D in wall_parts:
+		if (
+			not is_instance_valid(part)
+			or part.mesh == null
+			or not part.is_visible_in_tree()
+		):
+			continue
+		var inverse_transform := part.global_transform.affine_inverse()
+		var local_start := inverse_transform * segment_start
+		var local_end := inverse_transform * segment_end
+		if part.get_aabb().intersects_segment(local_start, local_end) != null:
+			return true
+	return false
+
+
 func _create_box(half_extents: Vector3, color: Color) -> MeshInstance3D:
 	var mesh_inst := MeshInstance3D.new()
 	var box := BoxMesh.new()
@@ -541,6 +558,10 @@ func _create_box(half_extents: Vector3, color: Color) -> MeshInstance3D:
 func _create_label() -> Label3D:
 	var label := Label3D.new()
 	label.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+	# Keep the nearby answer text above the transparent shark pass while preserving depth
+	# testing, so choices on farther walls do not show through nearer walls.
+	label.render_priority = 20
+	label.outline_render_priority = 19
 	label.pixel_size = 0.008
 	label.width = 280.0
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

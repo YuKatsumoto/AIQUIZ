@@ -61,6 +61,9 @@ const GHOST_ENTRY_SCALE_PULSE: float = 0.18
 const GHOST_ENTRY_BREACH_PROGRESS: float = 0.40
 const GHOST_BREACH_RING_DURATION: float = 0.92
 const GHOST_AURA_COLOR: Color = Color(0.24, 0.86, 1.0, 1.0)
+const GHOST_SILHOUETTE_P1_COLOR: Color = Color(1.0, 0.48, 0.16, 0.68)
+const GHOST_SILHOUETTE_P2_COLOR: Color = Color(0.18, 0.68, 1.0, 0.68)
+const GHOST_SILHOUETTE_EMISSION_ENERGY: float = 2.2
 const GHOST_MOUNT_SETTLE_DURATION: float = 0.90
 const GHOST_RIDER_SOCKET_YAW_CORRECTION: float = PI
 const GHOST_AIM_TURN_RESPONSE: float = 3.0
@@ -133,6 +136,11 @@ var _ghost_departure_control_b: Vector3 = Vector3.ZERO
 var _ghost_original_scale: Vector3 = Vector3.ONE
 var _ghost_base_scale: Vector3 = Vector3.ONE
 var _ghost_charge_tension: float = 0.0
+var _ghost_silhouette_material: StandardMaterial3D = null
+var _ghost_silhouette_meshes: Array[MeshInstance3D] = []
+var _ghost_silhouette_original_overlays: Dictionary = {}
+var _ghost_silhouette_enabled: bool = false
+var _ghost_silhouette_wall_occluded: bool = false
 
 
 func _ready() -> void:
@@ -175,6 +183,98 @@ func _apply_underwater_visibility() -> void:
 			mesh_instance.set_surface_override_material(surface_index, visible_material)
 
 
+func _create_ghost_silhouette_material() -> StandardMaterial3D:
+	var silhouette_color := (
+		GHOST_SILHOUETTE_P1_COLOR
+		if _ghost_player_index == 1
+		else GHOST_SILHOUETTE_P2_COLOR
+	)
+	var silhouette_material := StandardMaterial3D.new()
+	silhouette_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	silhouette_material.albedo_color = silhouette_color
+	silhouette_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	silhouette_material.emission_enabled = true
+	silhouette_material.emission = Color(
+		silhouette_color.r,
+		silhouette_color.g,
+		silhouette_color.b,
+		1.0
+	)
+	silhouette_material.emission_energy_multiplier = GHOST_SILHOUETTE_EMISSION_ENERGY
+	silhouette_material.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	silhouette_material.depth_test = BaseMaterial3D.DEPTH_TEST_INVERTED
+	silhouette_material.disable_fog = true
+	silhouette_material.render_priority = 8
+	return silhouette_material
+
+
+func _register_ghost_silhouette_meshes(root: Node) -> void:
+	if root == null:
+		return
+	if _ghost_silhouette_material == null:
+		_ghost_silhouette_material = _create_ghost_silhouette_material()
+	var mesh_nodes: Array[Node] = root.find_children("*", "MeshInstance3D", true, false)
+	if root is MeshInstance3D:
+		mesh_nodes.push_front(root)
+	for mesh_node: Node in mesh_nodes:
+		var mesh_instance := mesh_node as MeshInstance3D
+		if mesh_instance == null or _ghost_silhouette_original_overlays.has(mesh_instance):
+			continue
+		_ghost_silhouette_meshes.append(mesh_instance)
+		_ghost_silhouette_original_overlays[mesh_instance] = mesh_instance.material_overlay
+		if _ghost_silhouette_enabled:
+			mesh_instance.material_overlay = _ghost_silhouette_material
+
+
+func _update_ghost_occlusion_silhouette() -> void:
+	# The inverted-depth pass can react to the shark's own overlapping geometry.
+	# Only attach it while a problem wall actually blocks the camera-to-shark ray.
+	var should_enable := (
+		is_ghost_ridden
+		and _ghost_silhouette_wall_occluded
+		and _ghost_phase in [
+			GhostRidePhase.RENDEZVOUS_ASCENT,
+			GhostRidePhase.RENDEZVOUS,
+			GhostRidePhase.MOUNTING,
+			GhostRidePhase.ENTERING,
+			GhostRidePhase.HOVER,
+			GhostRidePhase.CHARGING,
+		]
+	)
+	if should_enable == _ghost_silhouette_enabled:
+		return
+	_ghost_silhouette_enabled = should_enable
+	for mesh_instance: MeshInstance3D in _ghost_silhouette_meshes:
+		if not is_instance_valid(mesh_instance):
+			continue
+		mesh_instance.material_overlay = (
+			_ghost_silhouette_material
+			if should_enable
+			else _ghost_silhouette_original_overlays.get(mesh_instance) as Material
+		)
+
+
+func set_ghost_wall_occluded(is_occluded: bool) -> void:
+	if _ghost_silhouette_wall_occluded == is_occluded:
+		return
+	_ghost_silhouette_wall_occluded = is_occluded
+	_update_ghost_occlusion_silhouette()
+
+
+func _clear_ghost_occlusion_silhouette() -> void:
+	for mesh_instance: MeshInstance3D in _ghost_silhouette_meshes:
+		if not is_instance_valid(mesh_instance):
+			continue
+		mesh_instance.material_overlay = (
+			_ghost_silhouette_original_overlays.get(mesh_instance) as Material
+		)
+	_ghost_silhouette_meshes.clear()
+	_ghost_silhouette_original_overlays.clear()
+	_ghost_silhouette_material = null
+	_ghost_silhouette_enabled = false
+	_ghost_silhouette_wall_occluded = false
+
+
 func _process(delta: float) -> void:
 	_swim_time += delta
 	if is_ghost_ridden:
@@ -195,6 +295,7 @@ func _process(delta: float) -> void:
 	_update_ghost_mount_bob()
 	_update_arcade_attack_effects(delta)
 	_update_ghost_breach_effect(delta)
+	_update_ghost_occlusion_silhouette()
 
 
 func begin_attack(
@@ -231,6 +332,7 @@ func prepare_ghost_rendezvous(
 	_ghost_base_scale = _ghost_original_scale * GHOST_RIDE_SCALE_MULTIPLIER
 	scale = _ghost_base_scale
 	_ghost_player_index = player_index
+	_register_ghost_silhouette_meshes(model)
 	_ghost_phase = GhostRidePhase.RENDEZVOUS_ASCENT
 	_ghost_rendezvous_position = rendezvous_position
 	_ghost_rendezvous_start = rendezvous_position + Vector3.DOWN * GHOST_RENDEZVOUS_DEPTH
@@ -284,6 +386,7 @@ func begin_ghost_ride(player_index: int, rider_visual: Node3D) -> bool:
 	_ghost_mount.scale = Vector3.ONE
 	rider_visual.reparent(_ghost_mount, true)
 	_ghost_rider = rider_visual
+	_register_ghost_silhouette_meshes(_ghost_rider)
 	_ghost_rider_settle_start = rider_visual.transform
 	_play_named_animation(
 		GHOST_MOUNT_RECEIVE_ANIMATION,
@@ -393,6 +496,7 @@ func depart_ghost_rendezvous(target_position: Vector3, aim_point: Vector3) -> bo
 func end_ghost_ride() -> void:
 	if not is_ghost_ridden:
 		return
+	_clear_ghost_occlusion_silhouette()
 	is_ghost_ridden = false
 	scale = _ghost_original_scale
 	visible = true

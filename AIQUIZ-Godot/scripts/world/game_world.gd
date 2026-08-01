@@ -187,6 +187,42 @@ func get_ocean_attack_shark_position(player_index: int) -> Variant:
 	return null
 
 
+func is_problem_wall_occluding_segment(
+	segment_start: Vector3,
+	segment_end: Vector3
+) -> bool:
+	for wall: Node3D in _active_walls:
+		if not is_instance_valid(wall) or not wall.is_visible_in_tree():
+			continue
+		if (
+			wall.has_method("is_retiring_after_pass")
+			and bool(wall.call("is_retiring_after_pass"))
+		):
+			continue
+		if wall.has_method("is_solid_frame_occluding_segment"):
+			if bool(wall.call(
+				"is_solid_frame_occluding_segment",
+				segment_start,
+				segment_end
+			)):
+				return true
+			continue
+		for child: Node in wall.get_children():
+			var mesh_instance := child as MeshInstance3D
+			if (
+				mesh_instance == null
+				or mesh_instance.mesh == null
+				or not mesh_instance.is_visible_in_tree()
+			):
+				continue
+			var inverse_transform := mesh_instance.global_transform.affine_inverse()
+			var local_start := inverse_transform * segment_start
+			var local_end := inverse_transform * segment_end
+			if mesh_instance.get_aabb().intersects_segment(local_start, local_end) != null:
+				return true
+	return false
+
+
 func get_ocean_attack_shark_intensity(player_index: int) -> float:
 	var shark_variant: Variant = _ocean_attack_sharks.get(player_index)
 	var shark: SharkSwimmer = shark_variant as SharkSwimmer
@@ -744,10 +780,20 @@ func _update_camera(dt: float) -> void:
 		)
 	else:
 		var keep_dead_shark_focus: bool = (
-			game_state.num_players < 2
-			and game_state.p1_shark_killed
-			and not game_state.p1_alive
-			and game_state.game_state == Constants.STATE_GAME_OVER
+			game_state.game_state == Constants.STATE_GAME_OVER
+			and (
+				(
+					game_state.num_players < 2
+					and game_state.p1_shark_killed
+					and not game_state.p1_alive
+				)
+				or (
+					game_state.num_players >= 2
+					and not game_state.p1_alive
+					and not game_state.p2_alive
+					and (game_state.p1_shark_killed or game_state.p2_shark_killed)
+				)
+			)
 		)
 		camera_controller.clear_ocean_attack_focus(keep_dead_shark_focus)
 	camera_controller.update_camera(game_state, dt)

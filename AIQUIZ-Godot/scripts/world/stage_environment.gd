@@ -9,6 +9,7 @@ extends Node3D
 
 const CONVEYOR_FLOOR_SHADER: Shader = preload("res://shaders/conveyor_belt_floor.gdshader")
 const SHARK_SWIMMER_SCENE: PackedScene = preload("res://scenes/shark_swimmer.tscn")
+const SharkSwimmerScript = preload("res://scripts/world/shark_swimmer.gd")
 
 # --- 構成オプション ---
 var _scroll_sign: float = 1.0
@@ -305,32 +306,37 @@ func _setup_sharks() -> void:
 	var phases: Array[float]
 	var scales: Array[float]
 
+	# 回遊の Z 端をコンベア前後端に合わせる（手前側のローラー端まで届くようにする）。
+	var half_len: float = _floor_length * 0.5
+	var orbit_center_z: float = _floor_center_z
+	var orbit_z_radius: float = half_len
+
 	if _is_preview_environment:
-		# 奥側から画面手前まで、床の左側を大きく往復するメニュー用回遊ルート。
+		# 奥側から画面手前まで、床の左側をコンベア端まで大きく往復するメニュー用回遊ルート。
 		centers = [
-			Vector3(-17.0, StageConstants.OCEAN_SURFACE_Y + 0.55, -76.0),
+			Vector3(-17.0, StageConstants.OCEAN_SURFACE_Y + 0.55, orbit_center_z),
 		]
 		radii = [
-			Vector2(2.0, 56.0),
+			Vector2(2.0, orbit_z_radius),
 		]
 		speeds = [0.09]
 		phases = [0.25]
 		scales = [1.45]
 	else:
 		centers = [
-			Vector3(-18.0, StageConstants.OCEAN_SURFACE_Y - 0.42, 35.0),
-			Vector3(18.0, StageConstants.OCEAN_SURFACE_Y - 0.42, 35.0),
+			Vector3(-18.0, StageConstants.OCEAN_SURFACE_Y - 0.42, orbit_center_z),
+			Vector3(18.0, StageConstants.OCEAN_SURFACE_Y - 0.42, orbit_center_z),
 		]
 		radii = [
-			Vector2(2.3, 30.0),
-			Vector2(2.3, 30.0),
+			Vector2(2.3, orbit_z_radius),
+			Vector2(2.3, orbit_z_radius),
 		]
 		speeds = [0.24, 0.22]
 		phases = [0.0, PI]
 		scales = [1.25, 1.18]
 
 	for index: int in range(centers.size()):
-		var shark: SharkSwimmer = SHARK_SWIMMER_SCENE.instantiate() as SharkSwimmer
+		var shark: SharkSwimmerScript = SHARK_SWIMMER_SCENE.instantiate() as SharkSwimmerScript
 		if shark == null:
 			push_warning("Failed to instantiate ocean shark %d" % (index + 1))
 			continue
@@ -349,13 +355,13 @@ func _setup_sharks() -> void:
 		school.add_child(shark)
 
 
-func get_ocean_sharks() -> Array[SharkSwimmer]:
-	var sharks: Array[SharkSwimmer] = []
+func get_ocean_sharks() -> Array[SharkSwimmerScript]:
+	var sharks: Array[SharkSwimmerScript] = []
 	var school: Node3D = get_node_or_null("OceanSharks") as Node3D
 	if school == null:
 		return sharks
 	for child: Node in school.get_children():
-		var shark: SharkSwimmer = child as SharkSwimmer
+		var shark: SharkSwimmerScript = child as SharkSwimmerScript
 		if shark != null:
 			sharks.append(shark)
 	return sharks

@@ -1343,14 +1343,14 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 
 	# 両方死んだ場合
 	if not p1_alive and not p2_alive:
-		# スコアで勝敗を決定
-		if score > player2_score:
-			goal_winner = 1
-		elif player2_score > score:
-			goal_winner = 2
-		else:
-			goal_winner = 0
-		clear_game()
+		goal_winner = 0
+		var defeat_message := (
+			"全員がゴール前に脱落しました。"
+			if not use_english_ui
+			else "All players were eliminated before reaching the goal."
+		)
+		_game_over(defeat_message)
+		wrong_answer.emit(message_text)
 		return
 
 

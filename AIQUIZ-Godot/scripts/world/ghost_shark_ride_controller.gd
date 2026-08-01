@@ -1,6 +1,8 @@
 class_name GhostSharkRideController
 extends Node3D
 
+const SharkSwimmerScript = preload("res://scripts/world/shark_swimmer.gd")
+
 enum Phase {
 	INACTIVE,
 	DEATH_DELAY,
@@ -80,7 +82,7 @@ var _aim_origin: Vector3 = Vector3.ZERO
 var _fixed_hover_target: Vector3 = Vector3.ZERO
 var _hover_progress_offset_z: float = 0.0
 var _locked_direction: Vector3 = Vector3.ZERO
-var _shark: SharkSwimmer = null
+var _shark: SharkSwimmerScript = null
 var _preferred_ocean_sharks: Dictionary = {}
 var _previous_p1_alive: bool = true
 var _previous_p2_alive: bool = true
@@ -142,7 +144,7 @@ func setup(
 	_build_aim_visuals()
 
 
-func remember_ocean_death_shark(player_index: int, shark: SharkSwimmer) -> void:
+func remember_ocean_death_shark(player_index: int, shark: SharkSwimmerScript) -> void:
 	if shark and is_instance_valid(shark):
 		_preferred_ocean_sharks[player_index] = shark
 
@@ -180,6 +182,8 @@ func update_ghost_ride(
 				fire_released,
 				emote_input
 			)
+	# サメ移動・壁スクロール・カメラ更新の後に判定しないと透過切替が1フレーム遅れる。
+	call_deferred("_update_problem_wall_occlusion")
 	_update_hud_animation(delta)
 
 	_previous_fire_down = fire_down
@@ -737,17 +741,17 @@ func _start_ghost_ride() -> void:
 	_update_hud("海から接近中…")
 
 
-func _acquire_shark() -> SharkSwimmer:
+func _acquire_shark() -> SharkSwimmerScript:
 	var preferred_variant: Variant = _preferred_ocean_sharks.get(dead_player_index)
-	var preferred := preferred_variant as SharkSwimmer
+	var preferred := preferred_variant as SharkSwimmerScript
 	if preferred and is_instance_valid(preferred) and preferred.is_available_for_ocean_attack():
 		_preferred_ocean_sharks.erase(dead_player_index)
 		return preferred
 	if stage_environment == null:
 		return null
-	var selected: SharkSwimmer = null
+	var selected: SharkSwimmerScript = null
 	var best_distance := INF
-	for candidate: SharkSwimmer in stage_environment.get_ocean_sharks():
+	for candidate: SharkSwimmerScript in stage_environment.get_ocean_sharks():
 		if not candidate.is_available_for_ocean_attack():
 			continue
 		var candidate_distance := candidate.global_position.distance_squared_to(_death_position)
@@ -761,6 +765,68 @@ func _update_hover_target() -> void:
 	if _shark == null or not is_instance_valid(_shark):
 		return
 	_shark.set_ghost_hover_target(_fixed_hover_target, _current_aim_point())
+
+
+func _update_problem_wall_occlusion() -> void:
+	if _shark == null or not is_instance_valid(_shark):
+		return
+	var is_occluded := false
+	var world := get_parent()
+	if world != null and world.has_method("is_problem_wall_occluding_segment"):
+		var sample_points := _ghost_occlusion_sample_points()
+		for camera: Camera3D in _occlusion_cameras():
+			var cam_pos := camera.global_position
+			for sample: Vector3 in sample_points:
+				if bool(world.call(
+					"is_problem_wall_occluding_segment",
+					cam_pos,
+					sample
+				)):
+					is_occluded = true
+					break
+			if is_occluded:
+				break
+	_shark.set_ghost_wall_occluded(is_occluded)
+
+
+func _occlusion_cameras() -> Array[Camera3D]:
+	var cameras: Array[Camera3D] = []
+	if camera_controller != null:
+		var main_camera := camera_controller.get_node_or_null("Camera3D") as Camera3D
+		if main_camera != null:
+			cameras.append(main_camera)
+	var world := get_parent()
+	if world != null:
+		var wipe_camera := world.get_node_or_null(
+			"DeathWipeLayer/DeathWipe/SubViewport/WipeCamera"
+		) as Camera3D
+		if wipe_camera != null:
+			cameras.append(wipe_camera)
+	return cameras
+
+
+func _ghost_occlusion_sample_points() -> Array[Vector3]:
+	var origin := _shark.global_position
+	var forward := -_shark.global_basis.z
+	var right := _shark.global_basis.x
+	if forward.length_squared() < 0.0001:
+		forward = Vector3.FORWARD
+	else:
+		forward = forward.normalized()
+	if right.length_squared() < 0.0001:
+		right = Vector3.RIGHT
+	else:
+		right = right.normalized()
+	# 中心一点だと胴体が壁に入ってから透過するまで遅れて見えるため、
+	# サメの前後・左右・上部も同じフレームで判定する。
+	return [
+		origin + Vector3.UP * 0.35,
+		origin + forward * 1.35 + Vector3.UP * 0.25,
+		origin - forward * 1.35 + Vector3.UP * 0.25,
+		origin + right * 0.65 + Vector3.UP * 0.30,
+		origin - right * 0.65 + Vector3.UP * 0.30,
+		origin + Vector3.UP * 0.95,
+	]
 
 
 func _calculate_hover_target() -> Vector3:
@@ -961,6 +1027,10 @@ func _build_aim_visuals() -> void:
 	_aim_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_aim_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_aim_material.emission_enabled = true
+	_aim_material.no_depth_test = true
+	_aim_material.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	_aim_material.disable_fog = true
+	_aim_material.render_priority = 12
 
 	_aim_line = MeshInstance3D.new()
 	_aim_line.name = "GhostAimLine"
@@ -988,6 +1058,10 @@ func _build_aim_visuals() -> void:
 	_aim_outer_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_aim_outer_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_aim_outer_material.emission_enabled = true
+	_aim_outer_material.no_depth_test = true
+	_aim_outer_material.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	_aim_outer_material.disable_fog = true
+	_aim_outer_material.render_priority = 12
 	_aim_outer_ring = MeshInstance3D.new()
 	_aim_outer_ring.name = "GhostAimOuterRing"
 	var outer_ring_mesh := TorusMesh.new()
@@ -1204,11 +1278,11 @@ func _apply_player_aim_color() -> void:
 
 func _set_aim_color(color: Color) -> void:
 	if _aim_material:
-		_aim_material.albedo_color = Color(color.r, color.g, color.b, 0.84)
+		_aim_material.albedo_color = Color(color.r, color.g, color.b, 0.68)
 		_aim_material.emission = Color(color.r, color.g, color.b, 1.0)
 		_aim_material.emission_energy_multiplier = 2.1
 	if _aim_outer_material:
-		_aim_outer_material.albedo_color = Color(color.r, color.g, color.b, 0.42)
+		_aim_outer_material.albedo_color = Color(color.r, color.g, color.b, 0.30)
 		_aim_outer_material.emission = Color(color.r, color.g, color.b, 1.0)
 		_aim_outer_material.emission_energy_multiplier = 1.6
 
