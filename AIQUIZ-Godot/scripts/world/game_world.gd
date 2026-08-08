@@ -99,6 +99,7 @@ func _ready() -> void:
 		"include_back_roller": true,
 		"include_floor_collision": true,
 		"include_sharks": true,
+		"include_grandstands": true,
 	})
 	_setup_ocean_shark_signals()
 	_ghost_shark_ride_controller = GhostSharkRideControllerScript.new()
@@ -244,6 +245,12 @@ func get_ghost_shark_presentation(player_index: int) -> Dictionary:
 	return _ghost_shark_ride_controller.get_presentation_state(player_index)
 
 
+func has_player_death_exploded(player_index: int) -> bool:
+	if player_node == null or not player_node.has_method("has_player_death_exploded"):
+		return false
+	return bool(player_node.call("has_player_death_exploded", player_index))
+
+
 func _update_ocean_shark_attacks() -> void:
 	var player_count: int = maxi(1, game_state.num_players)
 	for player_index: int in range(1, player_count + 1):
@@ -386,7 +393,6 @@ func _process(dt: float) -> void:
 			_is_online,
 			_replay_mode
 		)
-
 	# リプレイ記録
 	if _recorder and _recorder.is_recording:
 		_recorder.capture(game_state)
@@ -429,6 +435,7 @@ func _process(dt: float) -> void:
 func _update_floor_conveyor() -> void:
 	if stage_env:
 		stage_env.set_scroll_z(game_state.world_scroll_z)
+
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.keycode == KEY_ESCAPE and event.is_pressed() and not event.is_echo():
@@ -763,6 +770,7 @@ func _update_camera(dt: float) -> void:
 		return
 
 	var focus_shark: SharkSwimmer = null
+	var focus_player_index: int = 0
 	var player_count: int = maxi(1, game_state.num_players)
 	for player_index: int in range(1, player_count + 1):
 		if not game_state.is_player_waiting_for_shark(player_index):
@@ -771,12 +779,14 @@ func _update_camera(dt: float) -> void:
 		var shark: SharkSwimmer = shark_variant as SharkSwimmer
 		if shark != null and is_instance_valid(shark):
 			focus_shark = shark
+			focus_player_index = player_index
 			break
 
 	if focus_shark != null:
 		camera_controller.set_ocean_attack_focus(
 			focus_shark.position,
-			focus_shark.get_attack_intensity()
+			focus_shark.get_attack_intensity(),
+			focus_player_index
 		)
 	else:
 		var keep_dead_shark_focus: bool = (

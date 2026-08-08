@@ -247,7 +247,7 @@ func set_customize_editing_player(_player_id: int) -> void:
 	pass
 
 
-func apply_actor_hat(player_id: int, hat_id: int) -> void:
+func apply_actor_hat(player_id: int, _hat_id: int) -> void:
 	if player_id == 1:
 		_applied_preview_p1_hat = -999
 	else:
@@ -414,7 +414,6 @@ func _process(dt: float) -> void:
 			_update_preview_actor2_ai(dt)
 			# 本編と同じ2Pカプセル判定で、メニュー背景のAI同士も重なり・すり抜けを防ぐ。
 			_preview_gs._resolve_two_player_body_collision(p1_body_start, p2_body_start)
-
 	if _preview_player and _preview_gs and not _customize_active:
 		_preview_gs._active_wall_speed = effective_speed
 		_update_preview_run_anim_speed_multipliers()
@@ -575,7 +574,7 @@ func _clear_pending_accident(bundle: MenuPreviewActorAIState) -> void:
 	bundle.crash_wall = null
 
 
-func _pick_accident_crash_x(bundle: MenuPreviewActorAIState) -> float:
+func _pick_accident_crash_x(_bundle: MenuPreviewActorAIState) -> float:
 	var roll := randf()
 	var target_x := 0.0
 	if roll < 0.35:
@@ -844,7 +843,7 @@ func _begin_preview_p2_explode_removal() -> void:
 	_p2_remove_deadline = _ai_time + 2.6
 
 
-func _update_p2_remove_timer(dt: float) -> void:
+func _update_p2_remove_timer(_dt: float) -> void:
 	if _p2_remove_deadline < 0.0:
 		return
 	if _ai_time < _p2_remove_deadline:
@@ -1037,12 +1036,12 @@ func _trigger_preview_door_pass(
 func _update_preview_wall_pass_completion(wall: Node3D) -> void:
 	if wall.get_meta("preview_door_broken", false):
 		return
-	var ready := false
+	var wall_ready := false
 	if _is_local_2p_active():
-		ready = wall.get_meta("preview_hit_p1", false) and wall.get_meta("preview_hit_p2", false)
+		wall_ready = wall.get_meta("preview_hit_p1", false) and wall.get_meta("preview_hit_p2", false)
 	else:
-		ready = wall.get_meta("preview_hit_p1", false)
-	if not ready:
+		wall_ready = wall.get_meta("preview_hit_p1", false)
+	if not wall_ready:
 		return
 	wall.set_meta("preview_door_broken", true)
 	_shatter_preview_wall_after_pass(wall)
@@ -1164,14 +1163,14 @@ func _update_preview_debris_near_camera() -> void:
 				if d_far_w > 48.0 or body.global_position.y < -14.0:
 					body.queue_free()
 					continue
-				var dist := body.global_position.distance_to(_preview_camera.global_position)
-				if dist <= FADE_START_DIST:
-					var t := clampf((dist - KILL_DIST) / maxf(0.001, FADE_START_DIST - KILL_DIST), 0.0, 1.0)
+				var debris_dist := body.global_position.distance_to(_preview_camera.global_position)
+				if debris_dist <= FADE_START_DIST:
+					var t := clampf((debris_dist - KILL_DIST) / maxf(0.001, FADE_START_DIST - KILL_DIST), 0.0, 1.0)
 					var visual_scale := maxf(SCALE_FLOOR, t)
 					for mesh_child in body.get_children():
 						if mesh_child is MeshInstance3D:
 							(mesh_child as MeshInstance3D).scale = Vector3.ONE * visual_scale
-				if dist <= KILL_DIST:
+				if debris_dist <= KILL_DIST:
 					body.queue_free()
 				continue
 			if body.global_position.y < -14.0:
@@ -1230,6 +1229,7 @@ func _reset_preview_ai_state() -> void:
 	_p1_ai.knockback_end_t = 0.0
 	_p1_ai.knockback_vel_x = 0.0
 	_p1_ai.knockback_vel_z = 0.0
+	_p1_ai.knockback_is_lethal = true
 	_clear_learning_commit(_p1_ai)
 	_conveyor_paused = false
 	_fill_preview_actor_emote_pool(_p1_ai, _preview_p1_rig_emote_ids)
@@ -1259,6 +1259,7 @@ func _reset_preview_actor2_ai_state() -> void:
 	_p2_ai.knockback_end_t = 0.0
 	_p2_ai.knockback_vel_x = 0.0
 	_p2_ai.knockback_vel_z = 0.0
+	_p2_ai.knockback_is_lethal = true
 	_clear_learning_commit(_p2_ai, PREVIEW_PLAYER2_X)
 	_fill_preview_actor_emote_pool(_p2_ai, _preview_p2_rig_emote_ids)
 	_p2_ai.last_emote = 0
@@ -1344,7 +1345,6 @@ func _update_actor_ai(dt: float, bundle: MenuPreviewActorAIState, is_p1: bool) -
 			if _actor_y(is_p1) > 0.01 or _actor_vel_y(is_p1) != 0.0:
 				_set_actor_y(is_p1, PREVIEW_FLOOR_Y)
 				_set_actor_vel_y(is_p1, 0.0)
-
 	if bundle.ai_state != AI_STATE_DEAD:
 		_enforce_floor_support(bundle, is_p1)
 
@@ -1458,7 +1458,16 @@ func _start_ai_lane_shift(bundle: MenuPreviewActorAIState, is_p1: bool) -> void:
 
 
 func _max_depth_z_for_bundle(bundle: MenuPreviewActorAIState = null) -> float:
-	if bundle != null and bundle.pending_accident == PENDING_ACCIDENT_OCEAN:
+	if (
+		bundle != null
+		and (
+			bundle.pending_accident == PENDING_ACCIDENT_OCEAN
+			or (
+				bundle.ai_state == AI_STATE_KNOCKBACK
+				and not bundle.knockback_is_lethal
+			)
+		)
+	):
 		return PREVIEW_OCEAN_DEPTH_MAX
 	return PREVIEW_BELT_Z_MAX
 
@@ -1639,7 +1648,7 @@ func _start_ai_jump(bundle: MenuPreviewActorAIState, is_p1: bool) -> bool:
 	return true
 
 
-func _update_ground_movement(dt: float, bundle: MenuPreviewActorAIState, is_p1: bool) -> void:
+func _update_ground_movement(dt: float, _bundle: MenuPreviewActorAIState, is_p1: bool) -> void:
 	if not _preview_gs:
 		return
 	_set_actor_vel_y(is_p1, _actor_vel_y(is_p1) - AI_GRAVITY * dt)
@@ -1906,8 +1915,8 @@ func _wall_available_for_accident(wall: Node3D, for_bundle: MenuPreviewActorAISt
 	if bool(wall.get_meta("preview_door_broken", false)):
 		return false
 	if wall.has_meta("preview_accident_owner"):
-		var owner = wall.get_meta("preview_accident_owner")
-		if owner != null and owner != for_bundle:
+		var accident_owner = wall.get_meta("preview_accident_owner")
+		if accident_owner != null and accident_owner != for_bundle:
 			return false
 	for bundle in [_p1_ai, _p2_ai]:
 		if bundle == for_bundle:
@@ -1990,6 +1999,7 @@ func _start_crash_knockback(
 		_separate_blocking_wall_from_player_p2()
 	_push_walls_away_from_player(_actor_local_z(is_p1))
 	bundle.ai_state = AI_STATE_KNOCKBACK
+	bundle.knockback_is_lethal = true
 	bundle.lane_shift_active = false
 	bundle.depth_shift_active = false
 	_stop_ai_emote_if_needed(bundle, is_p1)
@@ -2021,7 +2031,7 @@ func _update_knockback_motion(dt: float, bundle: MenuPreviewActorAIState, is_p1:
 	_set_actor_local_z(is_p1, clampf(
 		_actor_local_z(is_p1),
 		PREVIEW_BELT_Z_MIN - AI_KNOCKBACK_Z_BACK_PAD,
-		PREVIEW_BELT_Z_MAX
+		_max_depth_z_for_bundle(bundle)
 	))
 	_set_actor_vel_y(is_p1, _actor_vel_y(is_p1) - AI_GRAVITY * 1.1 * dt)
 	var next_y := _actor_y(is_p1) + _actor_vel_y(is_p1) * dt
@@ -2034,11 +2044,28 @@ func _update_knockback_motion(dt: float, bundle: MenuPreviewActorAIState, is_p1:
 			_set_actor_y(is_p1, PREVIEW_FLOOR_Y)
 			if _actor_vel_y(is_p1) < 0.0:
 				_set_actor_vel_y(is_p1, 0.0)
+	if not bundle.knockback_is_lethal and _is_past_belt_edge(is_p1):
+		bundle.ai_state = AI_STATE_NORMAL
+		bundle.pending_accident = PENDING_ACCIDENT_OCEAN
+		bundle.knockback_vel_x = 0.0
+		bundle.knockback_vel_z = 0.0
+		return
 	if _ai_time >= bundle.knockback_end_t:
-		_trigger_preview_death("crash", bundle, is_p1)
+		if bundle.knockback_is_lethal:
+			_trigger_preview_death("crash", bundle, is_p1)
+		else:
+			bundle.knockback_vel_x = 0.0
+			bundle.knockback_vel_z = 0.0
+			bundle.knockback_is_lethal = true
+			bundle.ai_state = AI_STATE_NORMAL
+			bundle.next_action_t = _ai_time + randf_range(0.35, 0.75)
 
 
-func _trigger_preview_death(reason: String, bundle: MenuPreviewActorAIState = null, is_p1: bool = true) -> void:
+func _trigger_preview_death(
+	reason: String,
+	bundle: MenuPreviewActorAIState = null,
+	is_p1: bool = true
+) -> void:
 	if bundle == null:
 		bundle = _p1_ai
 	if not _preview_gs:
@@ -2099,6 +2126,9 @@ func _start_respawn(bundle: MenuPreviewActorAIState, is_p1: bool) -> void:
 	_schedule_death_shard_cleanup(is_p1)
 	_rebuild_preview_player()
 	bundle.ai_state = AI_STATE_RESPAWN
+	bundle.knockback_is_lethal = true
+	bundle.knockback_vel_x = 0.0
+	bundle.knockback_vel_z = 0.0
 	_set_actor_wall_impact(is_p1, false)
 	_set_actor_alive(is_p1, true)
 	_set_actor_game_over_timer(is_p1, 0.0)

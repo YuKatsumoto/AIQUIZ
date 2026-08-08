@@ -9,7 +9,12 @@ extends Node3D
 
 const CONVEYOR_FLOOR_SHADER: Shader = preload("res://shaders/conveyor_belt_floor.gdshader")
 const SHARK_SWIMMER_SCENE: PackedScene = preload("res://scenes/shark_swimmer.tscn")
+const GRANDSTAND_SCENE_PATH: String = (
+	"res://assets/environment/grandstand/aiquiz_ocean_grandstand.glb"
+)
 const SharkSwimmerScript = preload("res://scripts/world/shark_swimmer.gd")
+const GRANDSTAND_BASE_LENGTH: float = 160.0
+const GRANDSTAND_SIDE_OFFSET: float = 32.0
 
 # --- 構成オプション ---
 var _scroll_sign: float = 1.0
@@ -18,6 +23,7 @@ var _include_back_roller: bool = true
 var _include_floor_collision: bool = true
 var _is_preview_environment: bool = false
 var _include_sharks: bool = false
+var _include_grandstands: bool = false
 
 # --- ノード参照 ---
 var floor_mesh: MeshInstance3D = null
@@ -43,7 +49,8 @@ var _floor_length: float = 144.0
 
 ## ステージを構築する。
 ## config キー: floor_center_z, floor_length, scroll_sign, return_scroll_sign,
-##              include_back_roller, include_floor_collision
+##              include_back_roller, include_floor_collision,
+##              is_preview, include_sharks, include_grandstands
 func build(config: Dictionary = {}) -> void:
 	_floor_center_z = float(config.get("floor_center_z", 0.0))
 	_floor_length = float(config.get("floor_length", 144.0))
@@ -53,12 +60,15 @@ func build(config: Dictionary = {}) -> void:
 	_include_floor_collision = bool(config.get("include_floor_collision", true))
 	_is_preview_environment = bool(config.get("is_preview", false))
 	_include_sharks = bool(config.get("include_sharks", false))
+	_include_grandstands = bool(config.get("include_grandstands", false))
 
 	_setup_environment()
 	_setup_lighting()
 	_setup_floor()
 	_setup_floor_conveyor()
 	_setup_ocean()
+	if _include_grandstands:
+		_setup_grandstands()
 	if _include_sharks:
 		_setup_sharks()
 
@@ -295,6 +305,48 @@ func _setup_ocean() -> void:
 	add_child(create_ocean_surface())
 
 
+func _setup_grandstands() -> void:
+	var container := Node3D.new()
+	container.name = "Grandstands"
+	container.position = Vector3(0.0, 0.0, _floor_center_z)
+	add_child(container)
+	if not ResourceLoader.exists(GRANDSTAND_SCENE_PATH):
+		push_warning("Ocean grandstand asset is unavailable: %s" % GRANDSTAND_SCENE_PATH)
+		return
+	var grandstand_resource := ResourceLoader.load(GRANDSTAND_SCENE_PATH)
+	if not grandstand_resource is PackedScene:
+		push_warning("Ocean grandstand is not a PackedScene: %s" % GRANDSTAND_SCENE_PATH)
+		return
+	var grandstand_scene := grandstand_resource as PackedScene
+
+	var side_offsets: Array[float] = [-GRANDSTAND_SIDE_OFFSET, GRANDSTAND_SIDE_OFFSET]
+	for side_x: float in side_offsets:
+		var stand := grandstand_scene.instantiate() as Node3D
+		if stand == null:
+			push_warning("Failed to instantiate ocean grandstand")
+			continue
+		stand.name = "GrandstandLeft" if side_x < 0.0 else "GrandstandRight"
+		stand.position = Vector3(side_x, 0.0, 0.0)
+		if side_x < 0.0:
+			stand.rotation = Vector3(0.0, PI, 0.0)
+		stand.process_mode = Node.PROCESS_MODE_DISABLED
+		container.add_child(stand)
+
+	_sync_grandstands_to_floor()
+
+
+func _sync_grandstands_to_floor() -> void:
+	var container := get_node_or_null("Grandstands") as Node3D
+	if container == null:
+		return
+	container.position.z = _floor_center_z
+	var longitudinal_scale := maxf(_floor_length / GRANDSTAND_BASE_LENGTH, 0.01)
+	for child: Node in container.get_children():
+		var stand := child as Node3D
+		if stand != null:
+			stand.scale = Vector3(1.0, 1.0, longitudinal_scale)
+
+
 func _setup_sharks() -> void:
 	var school: Node3D = Node3D.new()
 	school.name = "OceanSharks"
@@ -428,6 +480,7 @@ static func create_ocean_surface() -> MeshInstance3D:
 func set_floor_geometry(center_z: float, length: float) -> void:
 	_floor_center_z = center_z
 	_floor_length = length
+	_sync_grandstands_to_floor()
 	if not floor_mesh:
 		return
 	var box: BoxMesh = floor_mesh.mesh as BoxMesh

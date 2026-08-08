@@ -17,14 +17,16 @@ enum Phase {
 	COOLDOWN,
 }
 
-const DEATH_HOLD_SECONDS: float = 0.6
+const DEATH_HOLD_SECONDS: float = 0.55
 const DEATH_DELAY_SECONDS: float = 4.0
-const SOUL_RISE_SECONDS: float = 0.9
-const SOUL_FLIGHT_SECONDS: float = 2.7
+const SOUL_RISE_SECONDS: float = 0.85
+const SOUL_FLIGHT_SECONDS: float = 2.65
 const SOUL_TRAVEL_SECONDS: float = SOUL_RISE_SECONDS + SOUL_FLIGHT_SECONDS
-const MOUNTING_SECONDS: float = 0.9
-const ENTRY_SECONDS: float = 2.4
-const HEROIC_SEQUENCE_SECONDS: float = 7.5
+const MOUNTING_SECONDS: float = 0.85
+const ENTRY_SECONDS: float = 2.45
+const HEROIC_SEQUENCE_SECONDS: float = (
+	DEATH_HOLD_SECONDS + SOUL_TRAVEL_SECONDS + MOUNTING_SECONDS + ENTRY_SECONDS
+)
 const AIM_SPEED: float = 9.0
 const WINDUP_SECONDS: float = 0.34
 const CHARGE_BUILD_SECONDS: float = 0.5
@@ -46,19 +48,25 @@ const MIN_HIT_VERTICAL_SPEED: float = 4.5
 const MAX_HIT_VERTICAL_SPEED: float = 7.2
 const MIN_HIT_CONTROL_LOCK: float = 0.25
 const MAX_HIT_CONTROL_LOCK: float = 0.48
+const AIM_VISUAL_DARKEN_FACTOR: float = 0.82
 const AIM_SIDE_LIMIT: float = 8.0
 const AIM_BACK_LIMIT: float = 8.0
 const AIM_FORWARD_LIMIT: float = 12.0
 const CAMERA_EDGE_MARGIN: float = 0.12
-const HOVER_OUTSIDE_STAGE_OFFSET: float = 2.2
+const HOVER_OUTSIDE_STAGE_OFFSET: float = 0.9
 const ENTRY_SIDE_DISTANCE: float = 8.5
 const ENTRY_DEPTH_BELOW_SURFACE: float = 3.2
 const ENTRY_BACK_DISTANCE: float = 6.5
 const SOUL_RISE_HEIGHT: float = 1.35
-const SOUL_FLIGHT_SIDE_ARC: float = 2.4
-const SOUL_FLIGHT_LIFT: float = 2.8
-const RENDEZVOUS_SIDE_DISTANCE: float = 3.4
+const SOUL_FLIGHT_SIDE_ARC: float = 2.8
+const SOUL_FLIGHT_LIFT: float = 2.55
+const RENDEZVOUS_SIDE_DISTANCE: float = 3.0
 const RENDEZVOUS_BACK_DISTANCE: float = 2.4
+# Keep the whole shark body above the transparent ocean during mount so the
+# water depth buffer cannot punch a see-through cut through the mesh.
+const RENDEZVOUS_SURFACE_CLEARANCE: float = 2.35
+const SOUL_PRESENTATION_RENDER_LAYER: int = 20
+const STAGE_REVEAL_PROGRESS: float = 0.46
 const HUD_SLIDE_SECONDS: float = 0.55
 const HUD_PANEL_WIDTH: float = 320.0
 const HUD_PANEL_HEIGHT: float = 76.0
@@ -95,6 +103,7 @@ var _soul_control_b: Vector3 = Vector3.ZERO
 var _rendezvous_position: Vector3 = Vector3.ZERO
 var _presentation_focus: Vector3 = Vector3.ZERO
 var _rider: Node3D = null
+var _rider_revealed_to_main: bool = false
 var _hover_side: float = 1.0
 var _sweep_previous_position: Vector3 = Vector3.ZERO
 var _hit_this_charge: bool = false
@@ -111,7 +120,6 @@ var _result_text: String = ""
 var _player_color: Color = Color.WHITE
 var _ghost_emote_id: int = 0
 
-var _aim_line: MeshInstance3D = null
 var _aim_ring: MeshInstance3D = null
 var _aim_outer_ring: MeshInstance3D = null
 var _hud_layer: CanvasLayer = null
@@ -139,6 +147,9 @@ func setup(
 	player_controller = visual_controller
 	camera_controller = main_camera_controller
 	particle_spawner = effects
+	var main_camera := camera_controller.get_node_or_null("Camera3D") as Camera3D
+	if main_camera != null:
+		main_camera.set_cull_mask_value(SOUL_PRESENTATION_RENDER_LAYER, false)
 	_previous_p1_alive = game_state.p1_alive
 	_previous_p2_alive = game_state.p2_alive
 	_build_aim_visuals()
@@ -237,12 +248,15 @@ func get_presentation_state(player_index: int) -> Dictionary:
 		return {"active": false}
 	return {
 		"active": true,
-		"show_wipe": phase in [
-			Phase.DEATH_HOLD,
-			Phase.SOUL_RISE,
-			Phase.SOUL_FLIGHT,
-			Phase.MOUNTING,
-		],
+		"show_wipe": (
+			phase in [
+				Phase.DEATH_HOLD,
+				Phase.SOUL_RISE,
+				Phase.SOUL_FLIGHT,
+				Phase.MOUNTING,
+			]
+			or (phase == Phase.ENTERING and not _rider_revealed_to_main)
+		),
 		"phase": Phase.keys()[phase],
 		"elapsed": _sequence_elapsed,
 		"duration": HEROIC_SEQUENCE_SECONDS,
@@ -308,6 +322,8 @@ func _begin_death_delay(dead_index: int, survivor_index: int) -> void:
 		_cleanup_ghost_ride()
 		return
 	add_child(_rider)
+	_rider_revealed_to_main = false
+	_set_rider_presentation_only(true)
 	_soul_start_position = _death_position + Vector3.UP * 0.16
 	_soul_rise_position = (
 		_soul_start_position
@@ -318,11 +334,11 @@ func _begin_death_delay(dead_index: int, survivor_index: int) -> void:
 	var mount_target := _shark.get_ghost_rendezvous_mount_world_position()
 	_soul_control_a = (
 		_soul_rise_position
-		+ Vector3(_hover_side * SOUL_FLIGHT_SIDE_ARC, SOUL_FLIGHT_LIFT, 1.2)
+		+ Vector3(_hover_side * SOUL_FLIGHT_SIDE_ARC, SOUL_FLIGHT_LIFT, 2.35)
 	)
 	_soul_control_b = (
 		mount_target
-		+ Vector3(-_hover_side * 1.25, SOUL_FLIGHT_LIFT * 0.52, -1.35)
+		+ Vector3(-_hover_side * 1.05, SOUL_FLIGHT_LIFT * 0.46, -0.55)
 	)
 	_presentation_focus = _soul_start_position
 	player_controller.sample_ghost_mount_pose(_rider, 0.0)
@@ -396,6 +412,15 @@ func _update_active_phase(
 			_advance_heroic_sequence(delta)
 			_phase_timer -= delta
 			if _rider != null and is_instance_valid(_rider):
+				var mount_pose_progress := clampf(
+					1.0 - _phase_timer / MOUNTING_SECONDS,
+					0.0,
+					1.0
+				)
+				player_controller.apply_ghost_rider_mounted_pose(
+					_rider,
+					smoothstep(0.0, 0.78, mount_pose_progress)
+				)
 				_presentation_focus = _rider.global_position.lerp(
 					_shark.global_position,
 					0.38
@@ -410,6 +435,9 @@ func _update_active_phase(
 				_start_ghost_ride()
 		Phase.ENTERING:
 			_advance_heroic_sequence(delta)
+			# Once contact is complete, keep the rider planted on the seat and both
+			# hands on the grips while the shark performs its departure motion.
+			player_controller.apply_ghost_rider_mounted_pose(_rider)
 			_presentation_focus = _shark.global_position
 			_update_hover_target()
 			_phase_timer -= delta
@@ -418,13 +446,12 @@ func _update_active_phase(
 				0.0,
 				1.0
 			)
-			player_controller.apply_ghost_rider_mounted_pose(
-				_rider,
-				clampf((entry_pose_progress - 0.30) / 0.70, 0.0, 1.0)
-			)
+			if not _rider_revealed_to_main and entry_pose_progress >= STAGE_REVEAL_PROGRESS:
+				_rider_revealed_to_main = true
+				_set_rider_presentation_only(false)
 			if _phase_timer <= 0.0 and _shark and _shark.is_ghost_hovering():
 				phase = Phase.AIMING
-				player_controller.apply_ghost_rider_mounted_pose(_rider)
+				player_controller.apply_ghost_rider_mount_hold_pose(_rider)
 				_show_aim_visuals()
 				_start_hud_intro()
 		Phase.AIMING:
@@ -536,15 +563,16 @@ func _prepare_fixed_targets() -> void:
 func _update_progress_follow() -> void:
 	if survivor_player_index <= 0:
 		return
-	var survivor_progress_z := _player_position(survivor_player_index).z
-	_aim_origin.z = survivor_progress_z
-	_fixed_hover_target.z = survivor_progress_z + _hover_progress_offset_z
+	var survivor_position := _player_position(survivor_player_index)
+	_aim_origin.y = survivor_position.y + 0.85
+	_aim_origin.z = survivor_position.z
+	_fixed_hover_target.z = survivor_position.z + _hover_progress_offset_z
 
 
 func _calculate_rendezvous_position() -> Vector3:
 	return Vector3(
 		_fixed_hover_target.x + _hover_side * RENDEZVOUS_SIDE_DISTANCE,
-		StageConstants.OCEAN_SURFACE_Y + 0.55,
+		StageConstants.OCEAN_SURFACE_Y + RENDEZVOUS_SURFACE_CLEARANCE,
 		_fixed_hover_target.z - RENDEZVOUS_BACK_DISTANCE
 	)
 
@@ -562,11 +590,11 @@ func _begin_soul_rise() -> void:
 	var mount_target := _shark.get_ghost_rendezvous_mount_world_position()
 	_soul_control_a = (
 		_soul_rise_position
-		+ Vector3(_hover_side * SOUL_FLIGHT_SIDE_ARC, SOUL_FLIGHT_LIFT, 1.2)
+		+ Vector3(_hover_side * SOUL_FLIGHT_SIDE_ARC, SOUL_FLIGHT_LIFT, 2.35)
 	)
 	_soul_control_b = (
 		mount_target
-		+ Vector3(-_hover_side * 1.25, SOUL_FLIGHT_LIFT * 0.52, -1.35)
+		+ Vector3(-_hover_side * 1.05, SOUL_FLIGHT_LIFT * 0.46, -0.55)
 	)
 
 
@@ -579,7 +607,7 @@ func _update_soul_travel(delta: float) -> void:
 	# One curve owns the full extraction-to-contact trip.  The only ease points
 	# are the first lift-off and the final contact; SOUL_RISE -> SOUL_FLIGHT no
 	# longer creates a second stop/start pair.
-	var travel_weight := smoothstep(0.0, 1.0, travel_progress)
+	var travel_weight := _cinematic_travel_ease(travel_progress)
 	var mount_target := _shark.get_ghost_mount_world_position()
 	var soul_position := _cubic_bezier(
 		_soul_start_position,
@@ -600,7 +628,24 @@ func _update_soul_travel(delta: float) -> void:
 		_rider.global_position = soul_position
 		if soul_position.distance_squared_to(look_position) > 0.0001:
 			_rider.look_at(look_position, Vector3.UP)
-		_rider.rotation.z += sin(travel_progress * PI) * -_hover_side * 0.22
+		var launch_bank := sin(travel_progress * PI) * -_hover_side * 0.16
+		var contact_counter_bank := (
+			smoothstep(0.72, 1.0, travel_progress)
+			* _hover_side
+			* 0.09
+		)
+		_rider.rotation.z += launch_bank + contact_counter_bank
+		var extraction_scale := lerpf(
+			0.86,
+			1.0,
+			smoothstep(0.0, 0.22, travel_progress)
+		)
+		var mounted_scale := float(_rider.get_meta("ghost_mount_scale", 0.92))
+		_rider.scale = Vector3.ONE * mounted_scale * extraction_scale
+		# Become solid before contact so the translucent soul never overlaps the
+		# shark for a visible frame during the mount handoff.
+		if travel_progress >= 0.78:
+			player_controller.make_ghost_rider_opaque(_rider)
 		_presentation_focus = _rider.global_position
 	if _soul_travel_elapsed < SOUL_RISE_SECONDS:
 		phase = Phase.SOUL_RISE
@@ -619,6 +664,7 @@ func _begin_mounting() -> void:
 	if not _shark.is_ghost_rendezvous_ready():
 		_phase_timer = 0.0
 		return
+	player_controller.make_ghost_rider_opaque(_rider)
 	_rider.global_position = _shark.get_ghost_mount_world_position()
 	if not _shark.begin_ghost_ride(dead_player_index, _rider):
 		_cleanup_ghost_ride()
@@ -642,6 +688,26 @@ func _begin_authored_entry() -> void:
 	_clear_ghost_emote()
 
 
+func _cinematic_travel_ease(progress: float) -> float:
+	var clamped := clampf(progress, 0.0, 1.0)
+	# Quintic smoothstep keeps lift-off/contact velocity at zero while its steeper
+	# middle section gives the flight a readable acceleration instead of a drift.
+	return clamped * clamped * clamped * (
+		clamped * (clamped * 6.0 - 15.0) + 10.0
+	)
+
+
+func _set_rider_presentation_only(presentation_only: bool) -> void:
+	if _rider == null or not is_instance_valid(_rider):
+		return
+	for node: Node in _rider.find_children("*", "GeometryInstance3D", true, false):
+		var geometry := node as GeometryInstance3D
+		if geometry == null:
+			continue
+		geometry.set_layer_mask_value(1, not presentation_only)
+		geometry.set_layer_mask_value(SOUL_PRESENTATION_RENDER_LAYER, presentation_only)
+
+
 func _update_ghost_emote(emote_input: int, cancel: bool) -> void:
 	if _rider == null or not is_instance_valid(_rider):
 		return
@@ -651,7 +717,7 @@ func _update_ghost_emote(emote_input: int, cancel: bool) -> void:
 	if emote_input > 0:
 		_ghost_emote_id = EmoteData.normalize_emote_id(emote_input)
 	if _ghost_emote_id <= 0:
-		player_controller.apply_ghost_rider_mounted_pose(_rider)
+		player_controller.apply_ghost_rider_mount_hold_pose(_rider)
 		return
 	player_controller.apply_ghost_rider_emote_pose(
 		_rider,
@@ -709,6 +775,7 @@ func _start_ghost_ride() -> void:
 		_cleanup_ghost_ride()
 		return
 	var rider := player_controller.create_ghost_rider_visual(dead_player_index)
+	player_controller.make_ghost_rider_opaque(rider)
 	var survivor_position := _player_position(survivor_player_index)
 	_aim_origin = Vector3(survivor_position.x, survivor_position.y + 0.85, survivor_position.z)
 	var desired_hover_target := Vector3(
@@ -884,7 +951,21 @@ func _start_charge() -> void:
 	var charge_distance := lerpf(MIN_CHARGE_DISTANCE, MAX_CHARGE_DISTANCE, _last_charge_power)
 	if _perfect_charge:
 		charge_speed += 3.0
-	if _shark == null or not _shark.launch_ghost_charge(_locked_direction, charge_speed, charge_distance):
+	if _shark == null or not is_instance_valid(_shark):
+		_cleanup_ghost_ride()
+		return
+	# The survivor can progress during the windup. Commit the full 3D direction
+	# through the aim marker at launch so the dash dives onto the player instead
+	# of staying flat at hover height and sailing above them.
+	var aim_point := _current_aim_point()
+	_locked_direction = _shark.global_position.direction_to(aim_point)
+	if _locked_direction.length_squared() <= 0.001:
+		_cleanup_ghost_ride()
+		return
+	if Vector2(_locked_direction.x, _locked_direction.z).length_squared() <= 0.001:
+		_cleanup_ghost_ride()
+		return
+	if not _shark.launch_ghost_charge(_locked_direction, charge_speed, charge_distance):
 		_cleanup_ghost_ride()
 		return
 	phase = Phase.CHARGING
@@ -1027,22 +1108,10 @@ func _build_aim_visuals() -> void:
 	_aim_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_aim_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_aim_material.emission_enabled = true
-	_aim_material.no_depth_test = true
-	_aim_material.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	_aim_material.no_depth_test = false
+	_aim_material.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_OPAQUE_ONLY
 	_aim_material.disable_fog = true
 	_aim_material.render_priority = 12
-
-	_aim_line = MeshInstance3D.new()
-	_aim_line.name = "GhostAimLine"
-	var line_mesh := CylinderMesh.new()
-	line_mesh.height = 1.0
-	line_mesh.top_radius = 0.045
-	line_mesh.bottom_radius = 0.075
-	line_mesh.radial_segments = 8
-	_aim_line.mesh = line_mesh
-	_aim_line.material_override = _aim_material
-	_aim_line.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(_aim_line)
 
 	_aim_ring = MeshInstance3D.new()
 	_aim_ring.name = "GhostAimRing"
@@ -1058,8 +1127,8 @@ func _build_aim_visuals() -> void:
 	_aim_outer_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_aim_outer_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_aim_outer_material.emission_enabled = true
-	_aim_outer_material.no_depth_test = true
-	_aim_outer_material.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	_aim_outer_material.no_depth_test = false
+	_aim_outer_material.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_OPAQUE_ONLY
 	_aim_outer_material.disable_fog = true
 	_aim_outer_material.render_priority = 12
 	_aim_outer_ring = MeshInstance3D.new()
@@ -1197,8 +1266,6 @@ func _layout_hud(slide_weight: float) -> void:
 
 
 func _show_aim_visuals() -> void:
-	if _aim_line:
-		_aim_line.visible = true
 	if _aim_ring:
 		_aim_ring.visible = true
 	if _aim_outer_ring:
@@ -1214,8 +1281,6 @@ func _show_aim_visuals() -> void:
 
 
 func _hide_aim_visuals() -> void:
-	if _aim_line:
-		_aim_line.visible = false
 	if _aim_ring:
 		_aim_ring.visible = false
 	if _aim_outer_ring:
@@ -1226,21 +1291,12 @@ func _update_aim_visuals(blink: bool) -> void:
 	if _shark == null or not is_instance_valid(_shark):
 		return
 	var aim_point := _current_aim_point()
-	var start := _shark.global_position
-	var direction := aim_point - start
-	var distance := direction.length()
-	if distance < 0.01:
-		return
 	var visible_now := not blink or int(Time.get_ticks_msec() / 90.0) % 2 == 0
 	var display_power := _last_charge_power if phase == Phase.WINDUP else _charge_amount
 	var effect_color := _charge_feedback_color(display_power) if _charging_input or phase == Phase.WINDUP else _player_color
 	_set_aim_color(effect_color)
-	_aim_line.visible = visible_now
 	_aim_ring.visible = visible_now
 	_aim_outer_ring.visible = visible_now
-	_aim_line.global_position = start + direction * 0.5
-	var line_width := lerpf(0.9, 1.65, display_power)
-	_aim_line.global_basis = Basis(Quaternion(Vector3.UP, direction.normalized())) * Basis.from_scale(Vector3(line_width, distance, line_width))
 	_aim_ring.global_position = Vector3(aim_point.x, StageConstants.FLOOR_TOP_Y + 0.035, aim_point.z)
 	_aim_ring.rotation = Vector3.ZERO
 	var pulse := 1.0 + sin(Time.get_ticks_msec() * 0.012) * (0.04 + display_power * 0.07)
@@ -1277,13 +1333,19 @@ func _apply_player_aim_color() -> void:
 
 
 func _set_aim_color(color: Color) -> void:
+	var ring_color := Color(
+		color.r * AIM_VISUAL_DARKEN_FACTOR,
+		color.g * AIM_VISUAL_DARKEN_FACTOR,
+		color.b * AIM_VISUAL_DARKEN_FACTOR,
+		color.a
+	)
 	if _aim_material:
-		_aim_material.albedo_color = Color(color.r, color.g, color.b, 0.68)
-		_aim_material.emission = Color(color.r, color.g, color.b, 1.0)
+		_aim_material.albedo_color = Color(ring_color.r, ring_color.g, ring_color.b, 0.68)
+		_aim_material.emission = Color(ring_color.r, ring_color.g, ring_color.b, 1.0)
 		_aim_material.emission_energy_multiplier = 2.1
 	if _aim_outer_material:
-		_aim_outer_material.albedo_color = Color(color.r, color.g, color.b, 0.30)
-		_aim_outer_material.emission = Color(color.r, color.g, color.b, 1.0)
+		_aim_outer_material.albedo_color = Color(ring_color.r, ring_color.g, ring_color.b, 0.30)
+		_aim_outer_material.emission = Color(ring_color.r, ring_color.g, ring_color.b, 1.0)
 		_aim_outer_material.emission_energy_multiplier = 1.6
 
 
@@ -1307,6 +1369,7 @@ func _cleanup_ghost_ride() -> void:
 	if _rider != null and is_instance_valid(_rider):
 		_rider.queue_free()
 	_rider = null
+	_rider_revealed_to_main = false
 	_shark = null
 	phase = Phase.INACTIVE
 	dead_player_index = 0

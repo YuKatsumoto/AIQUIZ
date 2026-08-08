@@ -31,6 +31,10 @@ const WALL_RAGDOLL_SPIN := Vector3(2.8, 0.7, 1.8)
 const RagdollBuilderScript = preload("res://scripts/world/ragdoll_builder.gd")
 const ActiveRagdollDriverScript = preload("res://scripts/world/active_ragdoll_driver.gd")
 const GHOST_MOUNT_ANIMATION_PATH := "res://assets/animations/Ghost Shark Mount.fbx"
+const GHOST_RIDER_MOUNT_SCALE: float = 0.62
+const GHOST_RIDER_BIND_TRANSFORMS_META := &"ghost_mount_bind_transforms"
+const GHOST_RIDER_MOUNT_SCALE_META := &"ghost_mount_scale"
+const GHOST_RIDER_MOUNT_TRANSFORM_META := &"ghost_mount_target_transform"
 # 物理駆動に置き換えるため非表示にする表示メッシュのキー
 const _RAGDOLL_HIDE_KEYS := [
 	"head", "l_upp_arm", "l_low_arm", "r_upp_arm", "r_low_arm",
@@ -238,6 +242,14 @@ func get_death_presentation_position(is_p1: bool) -> Vector3:
 	if not is_p1 and p2_container != null and is_instance_valid(p2_container):
 		return p2_container.global_position
 	return global_position
+
+
+func has_player_death_exploded(player_index: int) -> bool:
+	if player_index == 1:
+		return _p1_exploding
+	if player_index == 2:
+		return _p2_exploding
+	return false
 
 
 func _exit_tree() -> void:
@@ -1893,7 +1905,20 @@ func create_ghost_rider_visual(player_index: int) -> Node3D:
 	rider.name = "GhostRiderP%d" % player_index
 	var parts := _build_player_skeleton(player_index == 1, rider)
 	rider.set_meta("ghost_mount_parts", parts)
-	rider.scale = Vector3.ONE * 0.92
+	var bind_transforms: Dictionary = {}
+	for part_name: Variant in parts:
+		var part_variant: Variant = parts[part_name]
+		if part_variant is Node3D:
+			var part := part_variant as Node3D
+			bind_transforms[part_name] = part.transform
+	rider.set_meta(GHOST_RIDER_BIND_TRANSFORMS_META, bind_transforms)
+	var mounted_transform := Transform3D(
+		Basis.from_scale(Vector3.ONE * GHOST_RIDER_MOUNT_SCALE),
+		Vector3.ZERO
+	)
+	rider.set_meta(GHOST_RIDER_MOUNT_SCALE_META, GHOST_RIDER_MOUNT_SCALE)
+	rider.set_meta(GHOST_RIDER_MOUNT_TRANSFORM_META, mounted_transform)
+	rider.transform = mounted_transform
 	apply_ghost_rider_mounted_pose(rider)
 
 	var hat_id := _p1_hat_id if player_index == 1 else _p2_hat_id
@@ -1926,17 +1951,46 @@ func apply_ghost_rider_mounted_pose(
 		return false
 	var parts: Dictionary = parts_variant
 	var weight := clampf(blend_weight, 0.0, 1.0)
+	var bind_transforms_variant: Variant = rider.get_meta(
+		GHOST_RIDER_BIND_TRANSFORMS_META,
+		{}
+	)
+	if bind_transforms_variant is Dictionary:
+		var bind_transforms: Dictionary = bind_transforms_variant
+		var lower_body_parts := {
+			"pelvis": true,
+			"l_hip": true,
+			"r_hip": true,
+			"l_knee": true,
+			"r_knee": true,
+			"l_ankle": true,
+			"r_ankle": true,
+			"l_toe": true,
+			"r_toe": true,
+		}
+		for part_name: Variant in bind_transforms:
+			if preserve_upper_body and not lower_body_parts.has(part_name):
+				continue
+			var part := parts.get(part_name) as Node3D
+			var bind_transform_variant: Variant = bind_transforms[part_name]
+			if part != null and bind_transform_variant is Transform3D:
+				part.transform = part.transform.interpolate_with(
+					bind_transform_variant as Transform3D,
+					weight
+				)
 	var pelvis := parts.get("pelvis") as Node3D
 	if pelvis == null:
 		return false
-	pelvis.position = pelvis.position.lerp(Vector3(0.0, 0.46, 0.05), weight)
+	# Put the bottom of the torso directly onto the fitted saddle seat.  The
+	# former positive Y target left the rider visibly floating above the shark.
+	pelvis.position = pelvis.position.lerp(Vector3(0.0, -0.25, 0.02), weight)
 	_blend_ghost_rider_part_rotation(pelvis, Vector3.ZERO, weight)
 
 	var lower_body_targets: Dictionary = {
-		"l_hip": Vector3(58.0, 0.0, -28.0),
-		"r_hip": Vector3(58.0, 0.0, 28.0),
-		"l_knee": Vector3(-98.0, 0.0, 0.0),
-		"r_knee": Vector3(-98.0, 0.0, 0.0),
+		"l_hip": Vector3(62.0, 0.0, -24.0),
+		"r_hip": Vector3(62.0, 0.0, 24.0),
+		"l_knee": Vector3(-92.0, 0.0, 0.0),
+		"r_knee": Vector3(-92.0, 0.0, 0.0),
 		"l_ankle": Vector3(34.0, 0.0, 0.0),
 		"r_ankle": Vector3(34.0, 0.0, 0.0),
 		"l_toe": Vector3.ZERO,
@@ -1951,15 +2005,17 @@ func apply_ghost_rider_mounted_pose(
 
 	if not preserve_upper_body:
 		var upper_body_targets: Dictionary = {
-			"spine": Vector3(12.0, 0.0, 0.0),
-			"neck": Vector3(-5.0, 0.0, 0.0),
+			"spine": Vector3(-18.0, 0.0, 0.0),
+			"neck": Vector3(14.0, 0.0, 0.0),
 			"head_pivot": Vector3.ZERO,
-			"l_shoulder": Vector3(68.0, 0.0, -10.0),
-			"r_shoulder": Vector3(68.0, 0.0, 10.0),
-			"l_elbow": Vector3(-58.0, 0.0, 0.0),
-			"r_elbow": Vector3(-58.0, 0.0, 0.0),
-			"l_wrist": Vector3.ZERO,
-			"r_wrist": Vector3.ZERO,
+			# These asymmetric targets follow the two animated grip centers rather
+			# than mirroring around the shark's undeformed bind pose.
+			"l_shoulder": Vector3(62.0, 0.0, 39.0),
+			"r_shoulder": Vector3(83.0, 0.0, -36.0),
+			"l_elbow": Vector3(-65.0, 0.0, -6.0),
+			"r_elbow": Vector3(-86.0, 0.0, -12.0),
+			"l_wrist": Vector3(0.0, 0.0, -8.0),
+			"r_wrist": Vector3(0.0, 0.0, 8.0),
 		}
 		for part_name: String in upper_body_targets:
 			_blend_ghost_rider_part_rotation(
@@ -1968,6 +2024,28 @@ func apply_ghost_rider_mounted_pose(
 				weight
 			)
 	return true
+
+
+func make_ghost_rider_opaque(rider: Node3D) -> void:
+	if rider == null or not is_instance_valid(rider):
+		return
+	for node: Node in rider.find_children("*", "MeshInstance3D", true, false):
+		var mesh_instance := node as MeshInstance3D
+		if mesh_instance == null:
+			continue
+		var material := mesh_instance.material_override as StandardMaterial3D
+		if material == null:
+			continue
+		material.transparency = BaseMaterial3D.TRANSPARENCY_DISABLED
+		var opaque_color := material.albedo_color
+		opaque_color.a = 1.0
+		material.albedo_color = opaque_color
+		material.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_OPAQUE_ONLY
+	# Soul motes look like the rider is still translucent after contact.
+	var aura := rider.find_child("GhostAura", true, false) as GPUParticles3D
+	if aura != null:
+		aura.emitting = false
+		aura.visible = false
 
 
 func _blend_ghost_rider_part_rotation(
@@ -2016,6 +2094,13 @@ func sample_ghost_mount_pose(rider: Node3D, time_seconds: float) -> bool:
 	return true
 
 
+func apply_ghost_rider_mount_hold_pose(rider: Node3D) -> bool:
+	# The imported clip supplies the approach only. Its global-basis mapping also
+	# carries rig scale into the procedural pivots, so the hold must restore the
+	# rider's bind transforms before applying the measured seat-and-grip pose.
+	return apply_ghost_rider_mounted_pose(rider)
+
+
 func apply_ghost_rider_emote_pose(
 	rider: Node3D,
 	player_index: int,
@@ -2055,7 +2140,7 @@ func stop_ghost_rider_emote(rider: Node3D, player_index: int) -> void:
 	rig.reset_thriller_sequence()
 	rig.stop_all()
 	if rider != null and is_instance_valid(rider):
-		apply_ghost_rider_mounted_pose(rider)
+		apply_ghost_rider_mount_hold_pose(rider)
 
 
 func get_ghost_mount_animation_length() -> float:

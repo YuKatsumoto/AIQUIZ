@@ -21,6 +21,7 @@ var _world_set: bool = false
 var _shark_impact_flash: float = 0.0
 var _impact_overlay: ColorRect = null
 var _ghost_follow_direction: Vector3 = Vector3.FORWARD
+var _explosion_hold_elapsed: float = 0.0
 
 const WIPE_W := 320
 const WIPE_H := 240
@@ -28,6 +29,8 @@ const BORDER := 4
 const WIPE_MARGIN_X := 24
 const WIPE_MARGIN_Y := 80  # bottom margin above progress-bar area
 const FADE_DURATION := 0.5
+const EXPLOSION_HOLD_DURATION := 1.25
+const SOUL_PRESENTATION_RENDER_LAYER := 20
 
 func _ready() -> void:
 	game_state = QuizManager.game_state
@@ -54,6 +57,7 @@ func _ready() -> void:
 	wipe_camera.fov = 50.0
 	wipe_camera.near = 0.1
 	wipe_camera.far = 160.0
+	wipe_camera.set_cull_mask_value(SOUL_PRESENTATION_RENDER_LAYER, true)
 
 	# Container size (viewport + border)
 	custom_minimum_size = Vector2(WIPE_W + BORDER * 2, WIPE_H + BORDER * 2)
@@ -123,6 +127,15 @@ func _process(dt: float) -> void:
 
 	var should_show: bool = false
 	var target_player: int = _dead_player
+	var current_scene: Node = get_tree().current_scene
+	var active_player_exploded := _has_player_death_exploded(
+		current_scene,
+		_dead_player
+	)
+	if _active and active_player_exploded:
+		_explosion_hold_elapsed += dt
+	elif not active_player_exploded:
+		_explosion_hold_elapsed = 0.0
 	if game_state.num_players >= 2:
 		var playing_states := [
 			Constants.STATE_PLAYING,
@@ -137,6 +150,10 @@ func _process(dt: float) -> void:
 				var other_player_alive: bool = (
 					game_state.p2_alive if _dead_player == 1 else game_state.p1_alive
 				)
+				var death_exploded := _has_player_death_exploded(
+					current_scene,
+					_dead_player
+				)
 				var waiting_for_shark: bool = game_state.is_player_waiting_for_shark(
 					_dead_player
 				)
@@ -145,19 +162,38 @@ func _process(dt: float) -> void:
 					if _dead_player == 1
 					else game_state.player2_game_over_timer
 				)
-				should_show = other_player_alive and (
-					waiting_for_shark
-					or (current_timer > 0.0 and current_timer < 4.0)
+				var holding_explosion := (
+					death_exploded
+					and _explosion_hold_elapsed < EXPLOSION_HOLD_DURATION
 				)
-	var current_scene: Node = get_tree().current_scene
+				should_show = other_player_alive and (
+					holding_explosion
+					or (
+						not death_exploded
+						and (
+							waiting_for_shark
+							or (current_timer > 0.0 and current_timer < 4.0)
+						)
+					)
+				)
 	if current_scene != null and current_scene.has_method("get_ghost_shark_presentation"):
 		for player_index: int in [1, 2]:
 			var presentation: Dictionary = current_scene.get_ghost_shark_presentation(
 				player_index
 			)
+			var player_exploded := _has_player_death_exploded(
+				current_scene,
+				player_index
+			)
+			var holding_explosion := (
+				player_exploded
+				and player_index == _dead_player
+				and _explosion_hold_elapsed < EXPLOSION_HOLD_DURATION
+			)
 			if (
 				bool(presentation.get("active", false))
 				and bool(presentation.get("show_wipe", true))
+				and (not player_exploded or holding_explosion)
 			):
 				var other_alive := (
 					game_state.p2_alive if player_index == 1 else game_state.p1_alive
@@ -185,6 +221,7 @@ func _start_wipe(player: int) -> void:
 	_fade_in = 0.0
 	_fade_out = 0.0
 	_is_hiding = false
+	_explosion_hold_elapsed = 0.0
 	_ghost_follow_direction = Vector3.FORWARD
 	visible = true
 
@@ -210,6 +247,16 @@ func _start_wipe(player: int) -> void:
 		label.text = "P2"
 		label.add_theme_color_override("font_color", Color(0.35, 0.75, 1.0))
 	skull_label.text = ""
+
+func _has_player_death_exploded(current_scene: Node, player_index: int) -> bool:
+	if (
+		player_index not in [1, 2]
+		or current_scene == null
+		or not current_scene.has_method("has_player_death_exploded")
+	):
+		return false
+	return bool(current_scene.call("has_player_death_exploded", player_index))
+
 
 func _hide_wipe() -> void:
 	if _active and not _is_hiding:

@@ -22,6 +22,7 @@ var _entry_blend_t: float = 0.0
 var _ocean_attack_focus: Vector3 = Vector3.ZERO
 var _has_ocean_attack_focus: bool = false
 var _ocean_attack_camera_active: bool = false
+var _ocean_attack_player_index: int = 1
 var _ocean_attack_intensity: float = 0.0
 var _ocean_attack_impact_timer: float = 0.0
 var _ghost_ride_wide_fov_requested: bool = false
@@ -47,9 +48,14 @@ func _ready() -> void:
 	camera.far = 500.0
 	_consume_transition_camera_pose()
 
-func set_ocean_attack_focus(shark_position: Vector3, attack_intensity: float = 0.0) -> void:
+func set_ocean_attack_focus(
+	shark_position: Vector3,
+	attack_intensity: float = 0.0,
+	player_index: int = 1
+) -> void:
 	_ocean_attack_focus = shark_position
 	_ocean_attack_intensity = clampf(attack_intensity, 0.0, 1.0)
+	_ocean_attack_player_index = clampi(player_index, 1, 2)
 	_has_ocean_attack_focus = true
 
 
@@ -105,8 +111,24 @@ func update_camera(gs: QuizGameState, dt: float) -> void:
 		return
 
 	# 1Pではサメの到達後も、ゲームオーバー中はサメ追従カメラを維持する。
-	# 2Pのサメ演出は DeathWipe の専用カメラだけで表示する。
-	var ocean_attack_active: bool = (
+	# 2Pは生存者がいる間だけ DeathWipe を使い、最後の1人が落ちたらメインカメラへ切り替える。
+	var final_coop_ocean_wait: bool = false
+	if gs.num_players >= 2:
+		if gs.p1_waiting_for_shark and not gs.p2_alive:
+			final_coop_ocean_wait = true
+			_ocean_attack_player_index = 1
+		elif gs.p2_waiting_for_shark and not gs.p1_alive:
+			final_coop_ocean_wait = true
+			_ocean_attack_player_index = 2
+	var final_coop_ocean_game_over: bool = (
+		gs.num_players >= 2
+		and not gs.p1_alive
+		and not gs.p2_alive
+		and gs.game_state == Constants.STATE_GAME_OVER
+		and (gs.p1_shark_killed or gs.p2_shark_killed)
+		and _ocean_attack_camera_active
+	)
+	var ocean_attack_active: bool = final_coop_ocean_wait or final_coop_ocean_game_over or (
 		gs.num_players < 2
 		and (
 			gs.p1_waiting_for_shark
@@ -271,7 +293,7 @@ func get_ocean_attack_camera_pose(
 
 func _update_ocean_attack_camera(gs: QuizGameState, dt: float) -> void:
 	var player_position: Vector3
-	if gs.num_players < 2 or gs.p1_waiting_for_shark:
+	if gs.num_players < 2 or _ocean_attack_player_index == 1:
 		player_position = Vector3(gs.player_x, gs.player_y + 0.65, gs.player_local_z)
 	else:
 		player_position = Vector3(gs.player2_x, gs.player2_y + 0.65, gs.player2_local_z)

@@ -62,15 +62,29 @@ void fragment() {
 		groove_wave = sin(belt_v * stripe_scale * 2.05);
 	}
 
-	float stripe = smoothstep(-stripe_softness, stripe_softness, stripe_wave);
+	// Filter the procedural bands by their screen-space footprint. This keeps
+	// the moving floor stable at distance instead of producing sub-pixel moire.
+	float stripe_phase = belt_v * stripe_scale;
+	float stripe_footprint = fwidth(stripe_phase);
+	float stripe_edge = max(stripe_softness, fwidth(stripe_wave));
+	float stripe = smoothstep(-stripe_edge, stripe_edge, stripe_wave);
+	float stripe_visibility = 1.0 - smoothstep(0.55, 1.8, stripe_footprint);
+	stripe = mix(0.5, stripe, stripe_visibility);
 
-	float groove = 0.5 + 0.5 * groove_wave;
+	float groove_phase = belt_v * stripe_scale * 2.05;
+	float groove_footprint = fwidth(groove_phase);
+	float groove_visibility = 1.0 - smoothstep(0.4, 1.5, groove_footprint);
+	float groove = mix(0.5, 0.5 + 0.5 * groove_wave, groove_visibility);
 
 	vec3 belt_col = mix(base_color.rgb, stripe_color.rgb, stripe);
 	belt_col *= mix(1.0 - groove_strength, 1.0, groove);
 
-	float fp = fract(belt_v * roller_freq);
-	float roller_line = exp(-fp * fp * roller_sharpness);
+	float roller_phase = belt_v * roller_freq;
+	float fp = fract(roller_phase);
+	float roller_distance = min(fp, 1.0 - fp);
+	float roller_line = exp(-roller_distance * roller_distance * roller_sharpness);
+	float roller_visibility = 1.0 - smoothstep(0.35, 1.1, fwidth(roller_phase));
+	roller_line *= roller_visibility;
 	belt_col *= mix(1.0 - roller_depth, 1.0, 1.0 - roller_line);
 
 	// 狭いガイドレール帯（色＋内側の影線で立体感）

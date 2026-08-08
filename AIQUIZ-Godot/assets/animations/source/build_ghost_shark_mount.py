@@ -13,7 +13,8 @@ import math
 from pathlib import Path
 
 import bpy
-from mathutils import Vector
+from mathutils import Matrix, Vector
+from mathutils.geometry import barycentric_transform
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -29,7 +30,9 @@ PREVIEW_DIR = ROOT / ".fennara" / "blender" / "ghost_shark_mount"
 FPS = 30
 FRAME_START = 1
 FRAME_END = 120
-PREVIEW_FRAMES = (1, 12, 30, 48, 72, 84, 102, 120)
+PREVIEW_FRAMES = (1, 14, 30, 44, 60, 66, 72, 82, 120)
+GODOT_PROCEDURAL_BASE_Y = -1.2
+SADDLE_PREFIX = "SharkSaddle_"
 
 
 def _remove_numbered_backup(blend_path: Path) -> None:
@@ -84,127 +87,115 @@ def _set_pose_key(
 
 
 def _heroic_poses() -> list[tuple[int, dict[str, tuple[float, float, float]], tuple[float, float, float]]]:
+    # One readable action per beat: wake -> launch -> flight -> reach -> impact
+    # -> settle.  The Mixamo hips translation is expressed in the imported
+    # bone's centimetre-like local space (local Y maps to Blender world Z).
+    # Contact keys compensate for Godot's procedural BASE_Y offset so the FBX
+    # hold lands at the verified seat height instead of popping or sinking.
     return [
         (1, {
-            "Hips": (10, -5, -5), "Spine": (12, 0, 0), "Spine1": (10, 0, 0),
-            "Spine2": (8, 0, 0), "Neck": (-8, 0, 0), "Head": (-10, 0, 0),
-            "LeftArm": (18, -8, -22), "RightArm": (12, 7, 18),
-            "LeftForeArm": (12, 8, -20), "RightForeArm": (18, -8, 22),
-            "LeftUpLeg": (-12, 3, -7), "RightUpLeg": (-8, -3, 6),
-            "LeftLeg": (15, 0, 0), "RightLeg": (10, 0, 0),
-        }, (0.0, 0.0, -0.08)),
-        (6, {
-            "Hips": (4, -8, -8), "Spine": (20, 0, 0), "Spine1": (18, 0, 0),
-            "Spine2": (14, 0, 0), "Neck": (-13, 0, 0), "Head": (-16, 4, 0),
-            "LeftShoulder": (0, 0, -10), "RightShoulder": (0, 0, 8),
-            "LeftArm": (28, -15, -30), "RightArm": (22, 12, 24),
-            "LeftForeArm": (26, 6, -28), "RightForeArm": (20, -4, 24),
-            "LeftUpLeg": (-18, 4, -10), "RightUpLeg": (-12, -4, 7),
-            "LeftLeg": (24, 0, 0), "RightLeg": (16, 0, 0),
-        }, (0.0, 0.0, 0.02)),
-        (12, {
-            "Hips": (-6, -10, -7), "Spine": (24, 0, 0), "Spine1": (20, 0, 0),
-            "Spine2": (16, 0, 0), "Neck": (-16, 0, 0), "Head": (-20, 6, 0),
-            "LeftArm": (34, -18, -34), "RightArm": (30, 14, 28),
-            "LeftForeArm": (34, 8, -30), "RightForeArm": (28, -6, 26),
-            "LeftHand": (-8, 10, 0), "RightHand": (-5, -8, 0),
-            "LeftUpLeg": (-22, 5, -12), "RightUpLeg": (-16, -5, 8),
-            "LeftLeg": (30, 0, 0), "RightLeg": (22, 0, 0),
-        }, (0.0, 0.0, 0.16)),
-        (18, {
-            "Hips": (-12, -7, -4), "Spine": (14, 0, 0), "Spine1": (10, 0, 0),
-            "Spine2": (6, 0, 0), "Neck": (-7, 0, 0), "Head": (-8, 3, 0),
-            "LeftArm": (45, -28, -40), "RightArm": (42, 24, 35),
-            "LeftForeArm": (28, 2, -20), "RightForeArm": (24, -2, 18),
-            "LeftUpLeg": (-12, 4, -8), "RightUpLeg": (-10, -4, 6),
-            "LeftLeg": (18, 0, 0), "RightLeg": (14, 0, 0),
-        }, (0.0, 0.0, 0.30)),
+            "Hips": (8, 0, 0), "Spine": (22, 0, 0), "Spine1": (18, 0, 0),
+            "Spine2": (12, 0, 0), "Neck": (-14, 0, 0), "Head": (-20, 3, 0),
+            "LeftArm": (64, -20, -32), "RightArm": (64, 20, 32),
+            "LeftForeArm": (26, 0, -14), "RightForeArm": (26, 0, 14),
+            "LeftUpLeg": (-12, 3, -5), "RightUpLeg": (-12, -3, 5),
+            "LeftLeg": (18, 0, 0), "RightLeg": (18, 0, 0),
+        }, (0.0, 0.0, 0.0)),
+        (14, {
+            "Hips": (4, 0, 0), "Spine": (10, 0, 0), "Spine1": (8, 0, 0),
+            "Spine2": (5, 0, 0), "Neck": (-5, 0, 0), "Head": (-7, 2, 0),
+            "LeftArm": (60, -24, -34), "RightArm": (60, 24, 34),
+            "LeftForeArm": (24, 0, -14), "RightForeArm": (24, 0, 14),
+            "LeftUpLeg": (-10, 3, -4), "RightUpLeg": (-10, -3, 4),
+            "LeftLeg": (16, 0, 0), "RightLeg": (16, 0, 0),
+        }, (0.0, 6.0, 0.0)),
         (30, {
-            "Hips": (-20, 0, 0), "Spine": (-4, 0, 0), "Spine1": (-8, 0, 0),
-            "Spine2": (-10, 0, 0), "Neck": (8, 0, 0), "Head": (10, 0, 0),
-            "LeftArm": (66, -38, -50), "RightArm": (62, 34, 46),
-            "LeftForeArm": (12, 0, -8), "RightForeArm": (10, 0, 8),
-            "LeftHand": (-12, 6, -5), "RightHand": (-12, -6, 5),
-            "LeftUpLeg": (8, 4, -5), "RightUpLeg": (5, -4, 4),
-            "LeftLeg": (8, 0, 0), "RightLeg": (5, 0, 0),
-        }, (0.0, 0.0, 0.42)),
-        (42, {
-            "Hips": (-28, 8, -6), "Spine": (-12, -4, 3), "Spine1": (-12, -4, 2),
-            "Spine2": (-10, -3, 1), "Neck": (12, 3, 0), "Head": (14, 6, -2),
-            "LeftArm": (78, -48, -55), "RightArm": (70, 42, 48),
-            "LeftForeArm": (6, 0, -5), "RightForeArm": (14, 2, 10),
-            "LeftHand": (-16, 8, -8), "RightHand": (-10, -8, 6),
-            "LeftUpLeg": (16, 6, -8), "RightUpLeg": (8, -5, 5),
-            "LeftLeg": (12, 0, 0), "RightLeg": (4, 0, 0),
-        }, (0.0, 0.0, 0.46)),
-        (56, {
-            "Hips": (-32, -7, 5), "Spine": (-15, 4, -3), "Spine1": (-14, 4, -2),
-            "Spine2": (-11, 3, -1), "Neck": (10, -4, 0), "Head": (11, -6, 2),
-            "LeftArm": (72, -42, -48), "RightArm": (80, 48, 55),
-            "LeftForeArm": (16, -2, -10), "RightForeArm": (7, 0, 5),
-            "LeftHand": (-10, 8, -5), "RightHand": (-17, -8, 8),
-            "LeftUpLeg": (10, 5, -5), "RightUpLeg": (18, -7, 9),
-            "LeftLeg": (5, 0, 0), "RightLeg": (14, 0, 0),
-        }, (0.0, 0.0, 0.44)),
+            "Hips": (20, 0, 0), "Spine": (14, 0, 0), "Spine1": (10, 0, 0),
+            "Spine2": (8, 0, 0), "Neck": (-8, 0, 0), "Head": (-5, 0, 0),
+            "LeftArm": (72, -30, -38), "RightArm": (72, 30, 38),
+            "LeftForeArm": (10, 0, -6), "RightForeArm": (10, 0, 6),
+            "LeftHand": (-8, 4, -4), "RightHand": (-8, -4, 4),
+            "LeftUpLeg": (-14, 3, 4), "RightUpLeg": (-14, -3, -4),
+            "LeftLeg": (18, 0, 0), "RightLeg": (18, 0, 0),
+        }, (0.0, 12.0, 0.0)),
+        (44, {
+            "Hips": (22, 0, 0), "Spine": (15, 0, 0), "Spine1": (11, 0, 0),
+            "Spine2": (8, 0, 0), "Neck": (-8, 0, 0), "Head": (-4, 0, 0),
+            "LeftArm": (82, -34, -42), "RightArm": (82, 34, 42),
+            "LeftForeArm": (12, 0, -7), "RightForeArm": (12, 0, 7),
+            "LeftHand": (-8, 4, -4), "RightHand": (-8, -4, 4),
+            "LeftUpLeg": (-10, 3, 5), "RightUpLeg": (-10, -3, -5),
+            "LeftLeg": (14, 0, 0), "RightLeg": (14, 0, 0),
+        }, (0.0, 14.0, 0.0)),
+        (54, {
+            "Hips": (20, 0, 0), "Spine": (14, 0, 0), "Spine1": (10, 0, 0),
+            "Spine2": (7, 0, 0), "Neck": (-7, 0, 0), "Head": (-3, 0, 0),
+            "LeftArm": (84, -35, -43), "RightArm": (80, 33, 41),
+            "LeftForeArm": (13, 0, -8), "RightForeArm": (10, 0, 6),
+            "LeftHand": (-7, 4, -4), "RightHand": (-7, -4, 4),
+            "LeftUpLeg": (-12, 3, 6), "RightUpLeg": (-9, -3, -5),
+            "LeftLeg": (16, 0, 0), "RightLeg": (13, 0, 0),
+        }, (0.0, 12.0, 0.0)),
+        (60, {
+            "Hips": (10, 0, 0), "Spine": (8, 0, 0), "Spine1": (6, 0, 0),
+            "Spine2": (4, 0, 0), "Neck": (-4, 0, 0), "Head": (-2, 0, 0),
+            "LeftArm": (68, -35, -40), "RightArm": (68, 35, 40),
+            "LeftForeArm": (26, 0, -10), "RightForeArm": (26, 0, 10),
+            "LeftHand": (-8, 4, -5), "RightHand": (-8, -4, 5),
+            "LeftUpLeg": (12, 4, 14), "RightUpLeg": (12, -4, -14),
+            "LeftLeg": (-28, 0, 0), "RightLeg": (-28, 0, 0),
+            "LeftFoot": (12, 0, 0), "RightFoot": (12, 0, 0),
+        }, (0.0, 6.0, 0.0)),
+        (66, {
+            "Hips": (4, 0, 0), "Spine": (6, 0, 0), "Spine1": (4, 0, 0),
+            "Spine2": (2, 0, 0), "Neck": (-3, 0, 0), "Head": (-2, 0, 0),
+            "LeftArm": (86, -41, -44), "RightArm": (86, 41, 44),
+            "LeftForeArm": (32, 0, -10), "RightForeArm": (32, 0, 10),
+            "LeftHand": (-8, 4, -5), "RightHand": (-8, -4, 5),
+            "LeftUpLeg": (45, 7, 32), "RightUpLeg": (45, -7, -32),
+            "LeftLeg": (-70, 0, 0), "RightLeg": (-70, 0, 0),
+            "LeftFoot": (24, 0, 0), "RightFoot": (24, 0, 0),
+        }, (0.0, 16.0, 0.0)),
         (72, {
-            "Hips": (-20, 0, 0), "Spine": (-8, 0, 0), "Spine1": (-10, 0, 0),
-            "Spine2": (-8, 0, 0), "Neck": (7, 0, 0), "Head": (8, 0, 0),
-            "LeftArm": (76, -44, -50), "RightArm": (76, 44, 50),
-            "LeftForeArm": (22, 0, -12), "RightForeArm": (22, 0, 12),
-            "LeftHand": (-18, 10, -8), "RightHand": (-18, -10, 8),
-            "LeftUpLeg": (22, 8, -12), "RightUpLeg": (18, -8, 12),
-            "LeftLeg": (30, 0, 0), "RightLeg": (24, 0, 0),
-        }, (0.0, 0.0, 0.34)),
-        (78, {
-            "Hips": (-10, 0, 0), "Spine": (2, 0, 0), "Spine1": (2, 0, 0),
-            "Spine2": (-3, 0, 0), "Neck": (5, 0, 0), "Head": (4, 0, 0),
-            "LeftArm": (58, -38, -42), "RightArm": (62, 38, 42),
-            "LeftForeArm": (44, 0, -20), "RightForeArm": (38, 0, 20),
-            "LeftHand": (-24, 12, -12), "RightHand": (-24, -12, 12),
-            "LeftUpLeg": (42, 20, -25), "RightUpLeg": (18, -12, 18),
-            "LeftLeg": (62, 0, 0), "RightLeg": (38, 0, 0),
-            "LeftFoot": (-20, 0, 0), "RightFoot": (-12, 0, 0),
-        }, (0.0, 0.0, 0.20)),
-        (84, {
-            "Hips": (6, 0, 0), "Spine": (12, 0, 0), "Spine1": (10, 0, 0),
-            "Spine2": (5, 0, 0), "Neck": (-3, 0, 0), "Head": (-5, 0, 0),
-            "LeftArm": (42, -30, -34), "RightArm": (46, 30, 34),
-            "LeftForeArm": (66, 0, -28), "RightForeArm": (62, 0, 28),
-            "LeftHand": (-28, 12, -16), "RightHand": (-28, -12, 16),
-            "LeftUpLeg": (62, 24, -32), "RightUpLeg": (58, -24, 32),
-            "LeftLeg": (82, 0, 0), "RightLeg": (78, 0, 0),
-            "LeftFoot": (-28, 0, 0), "RightFoot": (-28, 0, 0),
-        }, (0.0, 0.0, 0.02)),
-        (92, {
-            "Hips": (20, 0, 0), "Spine": (24, 0, 0), "Spine1": (20, 0, 0),
-            "Spine2": (12, 0, 0), "Neck": (-10, 0, 0), "Head": (-12, 0, 0),
-            "LeftArm": (32, -26, -30), "RightArm": (34, 26, 30),
-            "LeftForeArm": (74, 0, -30), "RightForeArm": (70, 0, 30),
-            "LeftHand": (-30, 12, -18), "RightHand": (-30, -12, 18),
-            "LeftUpLeg": (72, 26, -34), "RightUpLeg": (68, -26, 34),
-            "LeftLeg": (96, 0, 0), "RightLeg": (92, 0, 0),
-            "LeftFoot": (-34, 0, 0), "RightFoot": (-34, 0, 0),
-        }, (0.0, 0.0, -0.12)),
-        (106, {
-            "Hips": (8, 0, 0), "Spine": (8, 0, 0), "Spine1": (7, 0, 0),
-            "Spine2": (4, 0, 0), "Neck": (-2, 0, 0), "Head": (-3, 0, 0),
-            "LeftArm": (36, -27, -31), "RightArm": (36, 27, 31),
-            "LeftForeArm": (66, 0, -27), "RightForeArm": (66, 0, 27),
-            "LeftHand": (-26, 10, -15), "RightHand": (-26, -10, 15),
-            "LeftUpLeg": (64, 24, -32), "RightUpLeg": (64, -24, 32),
-            "LeftLeg": (88, 0, 0), "RightLeg": (88, 0, 0),
-            "LeftFoot": (-30, 0, 0), "RightFoot": (-30, 0, 0),
-        }, (0.0, 0.0, 0.00)),
+            "Hips": (12, 0, 0), "Spine": (15, 0, 0), "Spine1": (11, 0, 0),
+            "Spine2": (7, 0, 0), "Neck": (-10, 0, 0), "Head": (-12, 0, 0),
+            "LeftArm": (95, -46, -46), "RightArm": (95, 46, 46),
+            "LeftForeArm": (38, 0, -11), "RightForeArm": (38, 0, 11),
+            "LeftHand": (-10, 5, -6), "RightHand": (-10, -5, 6),
+            "LeftUpLeg": (58, 9, 44), "RightUpLeg": (58, -9, -44),
+            "LeftLeg": (-92, 0, 0), "RightLeg": (-92, 0, 0),
+            "LeftFoot": (34, 0, 0), "RightFoot": (34, 0, 0),
+        }, (0.0, 20.0, 0.0)),
+        (82, {
+            "Hips": (0, 0, 0), "Spine": (4, 0, 0), "Spine1": (3, 0, 0),
+            "Spine2": (1, 0, 0), "Neck": (-1, 0, 0), "Head": (1, 0, 0),
+            "LeftArm": (88, -43, -44), "RightArm": (88, 43, 44),
+            "LeftForeArm": (34, 0, -10), "RightForeArm": (34, 0, 10),
+            "LeftHand": (-8, 4, -5), "RightHand": (-8, -4, 5),
+            "LeftUpLeg": (55, 8, 40), "RightUpLeg": (55, -8, -40),
+            "LeftLeg": (-85, 0, 0), "RightLeg": (-85, 0, 0),
+            "LeftFoot": (30, 0, 0), "RightFoot": (30, 0, 0),
+        }, (0.0, 30.0, 0.0)),
+        (94, {
+            "Hips": (2, 0, 0), "Spine": (8, 0, 0), "Spine1": (4, 0, 0),
+            "Spine2": (0, 0, 0), "Neck": (-3, 0, 0), "Head": (0, 0, 0),
+            "LeftArm": (90, -45, -45), "RightArm": (90, 45, 45),
+            "LeftForeArm": (35, 0, -10), "RightForeArm": (35, 0, 10),
+            "LeftHand": (-8, 4, -5), "RightHand": (-8, -4, 5),
+            "LeftUpLeg": (55, 8, 42), "RightUpLeg": (55, -8, -42),
+            "LeftLeg": (-85, 0, 0), "RightLeg": (-85, 0, 0),
+            "LeftFoot": (30, 0, 0), "RightFoot": (30, 0, 0),
+        }, (0.0, 24.0, 0.0)),
         (120, {
-            "Hips": (3, 0, 0), "Spine": (-2, 0, 0), "Spine1": (-3, 0, 0),
-            "Spine2": (-5, 0, 0), "Neck": (4, 0, 0), "Head": (5, 0, 0),
-            "LeftArm": (38, -28, -32), "RightArm": (38, 28, 32),
-            "LeftForeArm": (62, 0, -25), "RightForeArm": (62, 0, 25),
-            "LeftHand": (-24, 10, -14), "RightHand": (-24, -10, 14),
-            "LeftUpLeg": (60, 23, -30), "RightUpLeg": (60, -23, 30),
-            "LeftLeg": (84, 0, 0), "RightLeg": (84, 0, 0),
-            "LeftFoot": (-28, 0, 0), "RightFoot": (-28, 0, 0),
-        }, (0.0, 0.0, 0.02)),
+            "Hips": (2, 0, 0), "Spine": (8, 0, 0), "Spine1": (4, 0, 0),
+            "Spine2": (0, 0, 0), "Neck": (-3, 0, 0), "Head": (0, 0, 0),
+            "LeftArm": (90, -45, -45), "RightArm": (90, 45, 45),
+            "LeftForeArm": (35, 0, -10), "RightForeArm": (35, 0, 10),
+            "LeftHand": (-8, 4, -5), "RightHand": (-8, -4, 5),
+            "LeftUpLeg": (55, 8, 42), "RightUpLeg": (55, -8, -42),
+            "LeftLeg": (-85, 0, 0), "RightLeg": (-85, 0, 0),
+            "LeftFoot": (30, 0, 0), "RightFoot": (30, 0, 0),
+        }, (0.0, 25.0, 0.0)),
     ]
 
 
@@ -227,15 +218,391 @@ def _set_bezier_interpolation(action: bpy.types.Action) -> None:
     for curve in curves:
         for point in curve.keyframe_points:
             point.interpolation = "BEZIER"
-            # AUTO keeps a continuous tangent through intermediate acting
-            # poses. AUTO_CLAMPED made every authored beat feel like a tiny
-            # arrival and restart once the clip was slowed down in Godot.
-            point.handle_left_type = "AUTO"
-            point.handle_right_type = "AUTO"
+            # Each key is an intentional silhouette.  Clamped handles retain
+            # smooth motion without overshooting into crossed limbs between
+            # the reach, impact, and seated poses.
+            point.handle_left_type = "AUTO_CLAMPED"
+            point.handle_right_type = "AUTO_CLAMPED"
 
 
 def _look_at(obj: bpy.types.Object, target: Vector) -> None:
     obj.rotation_euler = (target - obj.location).to_track_quat("-Z", "Y").to_euler()
+
+
+def _saddle_material(
+    name: str,
+    color: tuple[float, float, float, float],
+    metallic: float = 0.0,
+    roughness: float = 0.55,
+) -> bpy.types.Material:
+    material = bpy.data.materials.get(name)
+    if material is None:
+        material = bpy.data.materials.new(name)
+    material.diffuse_color = color
+    material.use_nodes = True
+    # Blender localizes default node names (for example, the Japanese UI calls
+    # this node "プリンシプルBSDF"), so identify it by type instead of name.
+    shader = next(
+        (node for node in material.node_tree.nodes if node.type == "BSDF_PRINCIPLED"),
+        None,
+    )
+    if shader is not None:
+        shader.inputs["Base Color"].default_value = color
+        shader.inputs["Metallic"].default_value = metallic
+        shader.inputs["Roughness"].default_value = roughness
+    return material
+
+
+def _finish_saddle_mesh(
+    obj: bpy.types.Object,
+    armature: bpy.types.Object,
+    source_mesh: bpy.types.Object,
+    material: bpy.types.Material,
+    bevel_width: float,
+    rigid_attachment: bool = True,
+    rigid_reference: tuple[float, float, float] | None = None,
+) -> bpy.types.Object:
+    """Bake a prop and copy the shark's local deformation weights onto it."""
+    bpy.ops.object.select_all(action="DESELECT")
+    obj.select_set(True)
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    if bevel_width > 0.0:
+        bevel = obj.modifiers.new("LowPolyBevel", "BEVEL")
+        bevel.width = bevel_width
+        bevel.segments = 2
+        bevel.limit_method = "ANGLE"
+        bpy.ops.object.modifier_apply(modifier=bevel.name)
+    for polygon in obj.data.polygons:
+        polygon.use_smooth = False
+    obj.data.materials.append(material)
+
+    source_groups = {group.index: group.name for group in source_mesh.vertex_groups}
+    deform_group_names = {bone.name for bone in armature.data.bones}
+    object_to_source = source_mesh.matrix_world.inverted() @ obj.matrix_world
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+
+    def surface_weights(point: Vector) -> dict[str, float]:
+        hit, closest, _normal, face_index = source_mesh.closest_point_on_mesh(
+            point, distance=100.0, depsgraph=depsgraph
+        )
+        if not hit:
+            return {}
+        polygon = source_mesh.data.polygons[face_index]
+        source_vertices = [source_mesh.data.vertices[index] for index in polygon.vertices]
+        if len(source_vertices) != 3:
+            raise RuntimeError("The shark attachment surface must be triangulated")
+        barycentric = barycentric_transform(
+            closest,
+            source_vertices[0].co, source_vertices[1].co, source_vertices[2].co,
+            Vector((1.0, 0.0, 0.0)), Vector((0.0, 1.0, 0.0)),
+            Vector((0.0, 0.0, 1.0)),
+        )
+        coefficients = [max(0.0, component) for component in barycentric]
+        coefficient_total = sum(coefficients)
+        if coefficient_total <= 0.0:
+            return {}
+        coefficients = [component / coefficient_total for component in coefficients]
+        weights: dict[str, float] = {}
+        for source_vertex, coefficient in zip(source_vertices, coefficients):
+            for membership in source_vertex.groups:
+                group_name = source_groups.get(membership.group)
+                if group_name in deform_group_names:
+                    weights[group_name] = (
+                        weights.get(group_name, 0.0) + membership.weight * coefficient
+                    )
+        weight_total = sum(weights.values())
+        if weight_total > 0.0:
+            weights = {name: weight / weight_total for name, weight in weights.items()}
+        return weights
+
+    shared_weights: dict[str, float] | None = None
+    if rigid_attachment:
+        if rigid_reference is None:
+            reference = sum((vertex.co for vertex in obj.data.vertices), Vector())
+            reference /= max(1, len(obj.data.vertices))
+            reference = object_to_source @ reference
+        else:
+            reference = source_mesh.matrix_world.inverted() @ Vector(rigid_reference)
+        shared_weights = surface_weights(reference)
+
+    destination_groups: dict[str, bpy.types.VertexGroup] = {}
+    for vertex in obj.data.vertices:
+        if shared_weights is None:
+            weights = surface_weights(object_to_source @ vertex.co)
+        else:
+            weights = shared_weights
+        for group_name, weight in weights.items():
+            if weight <= 0.0:
+                continue
+            group = destination_groups.get(group_name)
+            if group is None:
+                group = obj.vertex_groups.new(name=group_name)
+                destination_groups[group_name] = group
+            group.add([vertex.index], weight, "REPLACE")
+
+    if not destination_groups:
+        raise RuntimeError(f"Could not transfer shark deformation weights to {obj.name}")
+    obj.parent = armature
+    obj.matrix_parent_inverse = armature.matrix_world.inverted()
+    modifier = obj.modifiers.new("SharkBodyAttachment", "ARMATURE")
+    modifier.object = armature
+    obj["shark_saddle_accessory"] = True
+    return obj
+
+
+def _saddle_box(
+    name: str,
+    location: tuple[float, float, float],
+    dimensions: tuple[float, float, float],
+    armature: bpy.types.Object,
+    source_mesh: bpy.types.Object,
+    material: bpy.types.Material,
+    bevel_width: float,
+    rotation: tuple[float, float, float] = (0.0, 0.0, 0.0),
+) -> bpy.types.Object:
+    bpy.ops.mesh.primitive_cube_add(location=location, rotation=rotation)
+    obj = bpy.context.object
+    obj.name = name
+    obj.dimensions = dimensions
+    return _finish_saddle_mesh(obj, armature, source_mesh, material, bevel_width)
+
+
+def _shark_surface_z(
+    source_mesh: bpy.types.Object,
+    x: float,
+    y: float,
+) -> float:
+    """Raycast the rest-pose shark and return its upper surface in world space."""
+    inverse = source_mesh.matrix_world.inverted()
+    origin = inverse @ Vector((x, y, 2.5))
+    direction = (inverse.to_3x3() @ Vector((0.0, 0.0, -1.0))).normalized()
+    hit, location, _normal, _face = source_mesh.ray_cast(
+        origin, direction, depsgraph=bpy.context.evaluated_depsgraph_get()
+    )
+    if not hit:
+        raise RuntimeError(f"No shark surface below saddle sample ({x:.3f}, {y:.3f})")
+    return (source_mesh.matrix_world @ location).z
+
+
+def _saddle_conformed_layer(
+    name: str,
+    stations: list[tuple[float, float]],
+    surface_offset: float,
+    thickness: float,
+    armature: bpy.types.Object,
+    source_mesh: bpy.types.Object,
+    material: bpy.types.Material,
+    lateral_steps: int = 9,
+) -> bpy.types.Object:
+    """Build a layered saddle whose underside follows the shark vertex surface."""
+    if lateral_steps < 3:
+        raise ValueError("A conformed saddle layer needs at least three lateral samples")
+    x_count = len(stations)
+    layer_count = x_count * lateral_steps
+    vertices: list[tuple[float, float, float]] = []
+    for x, half_width in stations:
+        for lateral_index in range(lateral_steps):
+            factor = -1.0 + 2.0 * lateral_index / (lateral_steps - 1)
+            y = half_width * factor
+            surface_z = _shark_surface_z(source_mesh, x, y)
+            vertices.append((x, y, surface_z + surface_offset))
+    vertices += [(x, y, z + thickness) for x, y, z in vertices]
+
+    faces: list[tuple[int, ...]] = []
+    for x_index in range(x_count - 1):
+        for y_index in range(lateral_steps - 1):
+            a = x_index * lateral_steps + y_index
+            b = a + 1
+            c = a + lateral_steps + 1
+            d = a + lateral_steps
+            faces.append((d, c, b, a))
+            faces.append((a + layer_count, b + layer_count,
+                          c + layer_count, d + layer_count))
+    for x_index in range(x_count - 1):
+        left = x_index * lateral_steps
+        next_left = left + lateral_steps
+        faces.append((left, left + layer_count,
+                      next_left + layer_count, next_left))
+        right = left + lateral_steps - 1
+        next_right = right + lateral_steps
+        faces.append((next_right, next_right + layer_count,
+                      right + layer_count, right))
+    for y_index in range(lateral_steps - 1):
+        rear = y_index
+        faces.append((rear, rear + 1, rear + 1 + layer_count,
+                      rear + layer_count))
+        front = (x_count - 1) * lateral_steps + y_index
+        faces.append((front + 1, front, front + layer_count,
+                      front + 1 + layer_count))
+
+    mesh = bpy.data.meshes.new(f"{name}_Mesh")
+    mesh.from_pydata(vertices, [], faces)
+    mesh.update()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    return _finish_saddle_mesh(
+        obj, armature, source_mesh, material, 0.0, rigid_attachment=False
+    )
+
+
+def _saddle_bar(
+    name: str,
+    start: tuple[float, float, float],
+    end: tuple[float, float, float],
+    radius: float,
+    armature: bpy.types.Object,
+    source_mesh: bpy.types.Object,
+    material: bpy.types.Material,
+    vertices: int = 8,
+    rigid_reference: tuple[float, float, float] = (1.48, 0.0, 0.45),
+) -> bpy.types.Object:
+    point_a = Vector(start)
+    point_b = Vector(end)
+    direction = point_b - point_a
+    bpy.ops.mesh.primitive_cylinder_add(
+        vertices=vertices,
+        radius=radius,
+        depth=direction.length,
+        location=(point_a + point_b) * 0.5,
+    )
+    obj = bpy.context.object
+    obj.name = name
+    obj.rotation_mode = "QUATERNION"
+    obj.rotation_quaternion = direction.to_track_quat("Z", "Y")
+    return _finish_saddle_mesh(
+        obj, armature, source_mesh, material, 0.012,
+        rigid_attachment=True, rigid_reference=rigid_reference,
+    )
+
+
+def _build_shark_saddle(armature: bpy.types.Object) -> list[bpy.types.Object]:
+    """Create a compact saddle and reachable handlebar at GhostMountSocket."""
+    for obj in list(bpy.data.objects):
+        if obj.name.startswith(SADDLE_PREFIX) or obj.get("shark_saddle_accessory"):
+            bpy.data.objects.remove(obj, do_unlink=True)
+
+    source_mesh = max(
+        (
+            obj for obj in bpy.data.objects
+            if obj.type == "MESH" and not obj.name.startswith(SADDLE_PREFIX)
+            and any(modifier.type == "ARMATURE" for modifier in obj.modifiers)
+        ),
+        key=lambda obj: len(obj.data.vertices),
+    )
+    old_pose_position = armature.data.pose_position
+    armature.data.pose_position = "REST"
+    bpy.context.view_layer.update()
+
+    leather = _saddle_material(
+        "M_SharkSaddle_Leather", (0.16, 0.026, 0.008, 1.0), roughness=0.62
+    )
+    cushion = _saddle_material(
+        "M_SharkSaddle_Cushion", (0.34, 0.065, 0.014, 1.0), roughness=0.52
+    )
+    trim = _saddle_material(
+        "M_SharkSaddle_Trim", (0.72, 0.22, 0.025, 1.0), metallic=0.30, roughness=0.32
+    )
+    metal = _saddle_material(
+        "M_SharkSaddle_Metal", (0.035, 0.055, 0.075, 1.0), metallic=0.78, roughness=0.24
+    )
+    grip = _saddle_material(
+        "M_SharkSaddle_Grip", (0.12, 0.025, 0.012, 1.0), roughness=0.72
+    )
+
+    created: list[bpy.types.Object] = []
+    # Each layer is raycast onto the rest-pose shark mesh. The wide underlay
+    # wraps down both sides, while the rear edge begins after the dorsal fin.
+    created.append(_saddle_conformed_layer(
+        f"{SADDLE_PREFIX}Trim",
+        [(1.10, 0.28), (1.18, 0.48), (1.40, 0.56),
+         (1.62, 0.50), (1.78, 0.32)],
+        0.008, 0.035, armature, source_mesh, trim,
+    ))
+    created.append(_saddle_conformed_layer(
+        f"{SADDLE_PREFIX}Pad",
+        [(1.12, 0.25), (1.20, 0.44), (1.40, 0.50),
+         (1.60, 0.45), (1.74, 0.29)],
+        0.044, 0.070, armature, source_mesh, leather,
+    ))
+    created.append(_saddle_conformed_layer(
+        f"{SADDLE_PREFIX}Seat",
+        [(1.16, 0.17), (1.23, 0.30), (1.40, 0.34),
+         (1.55, 0.29), (1.64, 0.18)],
+        0.112, 0.055, armature, source_mesh, cushion,
+    ))
+    created.append(_saddle_box(
+        f"{SADDLE_PREFIX}Cantle", (1.105, 0.0, 0.675), (0.12, 0.50, 0.18),
+        armature, source_mesh, cushion, 0.050,
+        (0.0, math.radians(-10.0), 0.0),
+    ))
+
+    # The final rider-pose wrists are transformed back through the authored
+    # GhostMountSocket so both grip centers meet the palms in preview/runtime.
+    # The bar is intentionally slanted in shark bind space: the mount socket's
+    # orientation turns it into a level bar in the rider's local view.
+    created.append(_saddle_bar(
+        f"{SADDLE_PREFIX}HandlePost_L", (1.45, 0.28, 0.44), (1.49, 0.25, 0.70),
+        0.045, armature, source_mesh, metal,
+    ))
+    created.append(_saddle_bar(
+        f"{SADDLE_PREFIX}HandlePost_R", (1.47, -0.28, 0.44), (1.516, -0.17, 0.791),
+        0.045, armature, source_mesh, metal,
+    ))
+    created.append(_saddle_bar(
+        f"{SADDLE_PREFIX}HandleBar", (1.516, -0.17, 0.791), (1.49, 0.25, 0.70),
+        0.050, armature, source_mesh, metal,
+    ))
+    created.append(_saddle_bar(
+        f"{SADDLE_PREFIX}Grip_L", (1.49, 0.25, 0.70), (1.47, 0.42, 0.666),
+        0.078, armature, source_mesh, grip,
+    ))
+    created.append(_saddle_bar(
+        f"{SADDLE_PREFIX}Grip_R", (1.516, -0.17, 0.791), (1.528, -0.34, 0.825),
+        0.078, armature, source_mesh, grip,
+    ))
+    created.append(_saddle_bar(
+        f"{SADDLE_PREFIX}Collar_L", (1.492, 0.225, 0.705), (1.488, 0.275, 0.695),
+        0.072, armature, source_mesh, trim,
+    ))
+    created.append(_saddle_bar(
+        f"{SADDLE_PREFIX}Collar_R", (1.514, -0.145, 0.786), (1.518, -0.195, 0.796),
+        0.072, armature, source_mesh, trim,
+    ))
+    armature.data.pose_position = old_pose_position
+    bpy.context.view_layer.update()
+    return created
+
+
+def _add_shark_mount_preview() -> list[bpy.types.Object]:
+    """Align the shark to the rider using the same base offset as Godot."""
+    with bpy.data.libraries.load(str(SHARK_BLEND), link=False) as (source, target):
+        # Append the authored shark scene as one unit. Mesh names can change
+        # when the GLB is round-tripped (for example SK_Shark.001/Icosphere),
+        # while the armature and socket hierarchy remains authoritative.
+        target.objects = list(source.objects)
+    imported = [obj for obj in target.objects if obj is not None]
+    for obj in imported:
+        if not obj.users_collection:
+            bpy.context.scene.collection.objects.link(obj)
+    bpy.context.view_layer.update()
+    socket = next((obj for obj in imported if obj.name.startswith("GhostMountSocket")), None)
+    if socket is None:
+        raise RuntimeError("GhostMountSocket was not found in the shark preview GLB")
+
+    # Godot's procedural rider subtracts BASE_Y from imported bone heights.
+    # Raising only the preview shark by the inverse offset makes the Mixamo
+    # reference body show the same contact height without contaminating export.
+    socket_to_preview = (
+        Matrix.Translation(Vector((0.0, 0.0, -GODOT_PROCEDURAL_BASE_Y)))
+        @ socket.matrix_world.inverted()
+    )
+    for obj in imported:
+        if obj.parent is None:
+            obj.matrix_world = socket_to_preview @ obj.matrix_world
+        obj["ghost_mount_preview"] = True
+    bpy.context.view_layer.update()
+    return imported
 
 
 def _prepare_preview(armature: bpy.types.Object) -> None:
@@ -264,27 +631,39 @@ def _prepare_preview(armature: bpy.types.Object) -> None:
     fill.data.color = (1.0, 0.30, 0.12)
     _look_at(fill, Vector((0.0, 0.0, 1.0)))
 
-    bpy.ops.object.camera_add(location=(4.8, -7.5, 3.25))
+    bpy.ops.object.camera_add(location=(3.6, -5.4, 3.6))
     camera = bpy.context.object
     camera.data.lens = 58.0
-    _look_at(camera, Vector((0.0, 0.0, 1.05)))
+    _look_at(camera, Vector((0.0, 0.0, 1.25)))
     scene.camera = camera
 
-    bpy.ops.mesh.primitive_plane_add(size=18.0, location=(0.0, 0.0, 0.0))
-    plane = bpy.context.object
-    material = bpy.data.materials.new("PreviewFloor")
-    material.diffuse_color = (0.012, 0.025, 0.055, 1.0)
-    plane.data.materials.append(material)
+    shark_preview = _add_shark_mount_preview()
 
     PREVIEW_DIR.mkdir(parents=True, exist_ok=True)
     for frame in PREVIEW_FRAMES:
         scene.frame_set(frame)
+        # Frame 66 is the live controller's mount handoff, so review the
+        # straddle against the shark from that exact first-contact key onward.
+        show_shark = frame >= 66
+        for obj in shark_preview:
+            obj.hide_render = not show_shark
+        if show_shark:
+            camera.location = (3.6, -5.4, 3.6)
+            _look_at(camera, Vector((0.0, 0.0, 1.25)))
+        else:
+            camera.location = (3.4, -5.2, 2.5)
+            _look_at(camera, Vector((0.0, 0.0, 0.85)))
         scene.render.filepath = str(PREVIEW_DIR / f"heroic_{frame:03d}.png")
         bpy.ops.render.render(write_still=True)
+    for obj in shark_preview:
+        obj.hide_render = False
+    scene.frame_set(FRAME_END)
 
 
 def _build_character_action() -> None:
-    bpy.ops.wm.read_factory_settings(use_empty=True)
+    # Start from Blender's factory-empty scene without resetting persistent
+    # user preferences; this also works through the MCP safety sandbox.
+    bpy.ops.wm.read_homefile(use_empty=True, use_factory_startup=True)
     # Factory reset restores Blender's default numbered-backup preference.
     bpy.context.preferences.filepaths.save_version = 0
     bpy.ops.import_scene.fbx(filepath=str(Y_BOT_FBX))
@@ -333,7 +712,10 @@ def _key_shark_action(
     keys: list[tuple[int, dict[str, tuple[float, float, float]]]],
     frame_end: int,
 ) -> bpy.types.Action:
-    action = bpy.data.actions.get(name) or bpy.data.actions.new(name)
+    existing = bpy.data.actions.get(name)
+    if existing is not None:
+        bpy.data.actions.remove(existing, do_unlink=True)
+    action = bpy.data.actions.new(name)
     armature.animation_data_create()
     armature.animation_data.action = action
     for frame, rotations in keys:
@@ -365,19 +747,32 @@ def _build_shark_actions() -> None:
     armature.animation_data_create()
     if armature.animation_data.action is not None:
         armature.animation_data.action.name = "SharkSwim"
+    while armature.animation_data.nla_tracks:
+        armature.animation_data.nla_tracks.remove(armature.animation_data.nla_tracks[0])
 
     rendezvous = _key_shark_action(armature, "GhostRendezvousIdle", [
-        (1, {"body_01": (0, 0, -2), "body_02": (0, 0, 3), "tail_01": (0, 0, -6), "tail_02": (0, 0, 9), "tail_03": (0, 0, -12)}),
-        (16, {"body_01": (0, 0, 2), "body_02": (0, 0, -3), "tail_01": (0, 0, 6), "tail_02": (0, 0, -9), "tail_03": (0, 0, 12), "jaw": (0, 2, 0)}),
-        (30, {"body_01": (0, 0, -2), "body_02": (0, 0, 3), "tail_01": (0, 0, -6), "tail_02": (0, 0, 9), "tail_03": (0, 0, -12)}),
+        (1, {"body_01": (0, -1, -3), "body_02": (0, 1, 5), "tail_01": (0, 1, -10), "tail_02": (0, 0, 15), "tail_03": (0, 0, -20)}),
+        (10, {"root": (0, 2, 0), "body_01": (0, 2, 1), "body_02": (0, -2, -2), "tail_01": (0, -1, 5), "tail_02": (0, 0, -8), "tail_03": (0, 0, 11), "jaw": (0, 2, 0)}),
+        (20, {"root": (0, -2, 0), "body_01": (0, 1, 3), "body_02": (0, -1, -5), "tail_01": (0, -1, 10), "tail_02": (0, 0, -15), "tail_03": (0, 0, 20), "jaw": (0, 3, 0)}),
+        (30, {"body_01": (0, -1, -3), "body_02": (0, 1, 5), "tail_01": (0, 1, -10), "tail_02": (0, 0, 15), "tail_03": (0, 0, -20)}),
     ], 30)
     receive = _key_shark_action(armature, "GhostMountReceive", [
         (1, {"body_01": (0, 0, 0), "body_02": (0, 0, 0), "tail_01": (0, 0, 0), "tail_02": (0, 0, 0), "tail_03": (0, 0, 0), "jaw": (0, 0, 0)}),
-        (8, {"root": (0, 6, 0), "body_01": (0, -9, -3), "body_02": (0, -6, 5), "tail_01": (0, 4, -9), "tail_02": (0, 3, 14), "tail_03": (0, 2, -18), "jaw": (0, 9, 0)}),
-        (18, {"root": (0, -3, 0), "body_01": (0, 5, 2), "body_02": (0, 4, -3), "tail_01": (0, -3, 7), "tail_02": (0, -2, -10), "tail_03": (0, -2, 13), "jaw": (0, 3, 0)}),
-        (28, {"root": (0, 1, 0), "body_01": (0, -2, -1), "body_02": (0, -1, 2), "tail_01": (0, 2, -4), "tail_02": (0, 1, 6), "tail_03": (0, 1, -8), "jaw": (0, 1, 0)}),
+        (6, {"root": (0, 7, 0), "body_01": (0, -11, -4), "body_02": (0, -8, 7), "tail_01": (0, 5, -12), "tail_02": (0, 4, 18), "tail_03": (0, 2, -24), "jaw": (0, 7, 0)}),
+        (12, {"root": (0, -5, 0), "body_01": (0, 8, 4), "body_02": (0, 6, -6), "tail_01": (0, -5, 11), "tail_02": (0, -4, -16), "tail_03": (0, -2, 21), "jaw": (0, 10, 0)}),
+        (20, {"root": (0, 3, 0), "body_01": (0, -5, -2), "body_02": (0, -4, 4), "tail_01": (0, 3, -7), "tail_02": (0, 2, 11), "tail_03": (0, 1, -14), "jaw": (0, 3, 0)}),
+        (29, {"root": (0, -1, 0), "body_01": (0, 2, 1), "body_02": (0, 1, -2), "tail_01": (0, -1, 4), "tail_02": (0, -1, -6), "tail_03": (0, 0, 8), "jaw": (0, 1, 0)}),
         (36, {"root": (0, 0, 0), "body_01": (0, 0, 0), "body_02": (0, 0, 0), "tail_01": (0, 0, 0), "tail_02": (0, 0, 0), "tail_03": (0, 0, 0), "jaw": (0, 0, 0)}),
     ], 36)
+    departure = _key_shark_action(armature, "GhostDeparture", [
+        (1, {"root": (0, -4, 0), "body_01": (0, 8, 4), "body_02": (0, 6, -7), "tail_01": (0, -4, 13), "tail_02": (0, -3, -19), "tail_03": (0, -2, 25), "jaw": (0, 2, 0)}),
+        (7, {"root": (0, -8, 0), "body_01": (0, 12, 6), "body_02": (0, 9, -10), "tail_01": (0, -7, 18), "tail_02": (0, -5, -27), "tail_03": (0, -3, 34), "jaw": (0, 1, 0)}),
+        (14, {"root": (0, 9, 0), "body_01": (0, -14, -7), "body_02": (0, -10, 11), "tail_01": (0, 8, -20), "tail_02": (0, 6, 29), "tail_03": (0, 3, -37), "jaw": (0, 8, 0)}),
+        (24, {"root": (0, 3, 0), "body_01": (0, -5, -3), "body_02": (0, -4, 5), "tail_01": (0, 4, -11), "tail_02": (0, 3, 16), "tail_03": (0, 2, -21), "jaw": (0, 5, 0)}),
+        (38, {"root": (0, -2, 0), "body_01": (0, 3, 2), "body_02": (0, 2, -3), "tail_01": (0, -2, 8), "tail_02": (0, -2, -12), "tail_03": (0, -1, 16), "jaw": (0, 2, 0)}),
+        (54, {"body_01": (0, -2, -3), "body_02": (0, 2, 4), "tail_01": (0, 2, -9), "tail_02": (0, 1, 13), "tail_03": (0, 1, -18), "jaw": (0, 1, 0)}),
+        (66, {"body_01": (0, 0, 0), "body_02": (0, 0, 0), "tail_01": (0, 0, 0), "tail_02": (0, 0, 0), "tail_03": (0, 0, 0), "jaw": (0, 0, 0)}),
+    ], 66)
 
     # A named authored socket is exported as a normal node and replaces the
     # previous bounds-derived seat guess in Godot.
@@ -390,15 +785,20 @@ def _build_shark_actions() -> None:
     socket.parent = armature
     socket.parent_type = "BONE"
     socket.parent_bone = "body_01"
-    socket.location = (0.18, 0.0, 1.12)
+    # Seat the rider on the shoulder/back transition, just ahead of the main
+    # dorsal fin.  The previous local Y=0 placed the exported socket at X=2.0
+    # in shark space, visibly on top of the head/gills.
+    socket.location = (0.0, 0.75, 1.12)
     socket.rotation_euler = (0.0, 0.0, 0.0)
+
+    _build_shark_saddle(armature)
 
     # Put one action on each NLA track. Blender 5.1's glTF exporter otherwise
     # filters compatible-but-inactive actions too aggressively for this rig.
     armature.animation_data.action = None
     while armature.animation_data.nla_tracks:
         armature.animation_data.nla_tracks.remove(armature.animation_data.nla_tracks[0])
-    for action in (bpy.data.actions.get("SharkSwim"), rendezvous, receive):
+    for action in (bpy.data.actions.get("SharkSwim"), rendezvous, receive, departure):
         if action is None:
             continue
         track = armature.animation_data.nla_tracks.new()

@@ -26,6 +26,7 @@ var acro_seed: float = 0.0
 var knockback_end_t: float = 0.0
 var knockback_vel_x: float = 0.0
 var knockback_vel_z: float = 0.0
+var knockback_is_lethal: bool = true
 var door_learner: RefCounted
 var learn_approach_wall: Node3D = null
 var learn_intended_action: int = -1
