@@ -8,9 +8,10 @@ extends Node3D
 ## 壁・プレイヤー・演出は各レイヤー（MenuPreviewLayer / GamePlayLayer）が別に持つ。
 
 const CONVEYOR_FLOOR_SHADER: Shader = preload("res://shaders/conveyor_belt_floor.gdshader")
+const MOBILE_OCEAN_SHADER: Shader = preload("res://shaders/ocean_mobile.gdshader")
 const SHARK_SWIMMER_SCENE: PackedScene = preload("res://scenes/shark_swimmer.tscn")
-const GRANDSTAND_SCENE_PATH: String = (
-	"res://assets/environment/grandstand/aiquiz_ocean_grandstand.glb"
+const GRANDSTAND_SCENE: PackedScene = preload(
+	"res://assets/environment/grandstand/aiquiz_ocean_grandstand_optimized.glb"
 )
 const SharkSwimmerScript = preload("res://scripts/world/shark_swimmer.gd")
 const GRANDSTAND_BASE_LENGTH: float = 160.0
@@ -45,6 +46,8 @@ var _conveyor_side_frame_right: MeshInstance3D = null
 
 var _floor_center_z: float = 0.0
 var _floor_length: float = 144.0
+## 観客スタンドが最後に同期した床長。動的床の縮小では縮めない。
+var _grandstand_synced_length: float = 0.0
 
 
 ## ステージを構築する。
@@ -310,35 +313,47 @@ func _setup_grandstands() -> void:
 	container.name = "Grandstands"
 	container.position = Vector3(0.0, 0.0, _floor_center_z)
 	add_child(container)
-	if not ResourceLoader.exists(GRANDSTAND_SCENE_PATH):
-		push_warning("Ocean grandstand asset is unavailable: %s" % GRANDSTAND_SCENE_PATH)
-		return
-	var grandstand_resource := ResourceLoader.load(GRANDSTAND_SCENE_PATH)
-	if not grandstand_resource is PackedScene:
-		push_warning("Ocean grandstand is not a PackedScene: %s" % GRANDSTAND_SCENE_PATH)
-		return
-	var grandstand_scene := grandstand_resource as PackedScene
 
 	var side_offsets: Array[float] = [-GRANDSTAND_SIDE_OFFSET, GRANDSTAND_SIDE_OFFSET]
 	for side_x: float in side_offsets:
-		var stand := grandstand_scene.instantiate() as Node3D
+		var stand := GRANDSTAND_SCENE.instantiate() as Node3D
 		if stand == null:
-			push_warning("Failed to instantiate ocean grandstand")
+			push_warning("Failed to instantiate optimized ocean grandstand")
 			continue
 		stand.name = "GrandstandLeft" if side_x < 0.0 else "GrandstandRight"
 		stand.position = Vector3(side_x, 0.0, 0.0)
 		if side_x < 0.0:
 			stand.rotation = Vector3(0.0, PI, 0.0)
 		stand.process_mode = Node.PROCESS_MODE_DISABLED
+		_configure_grandstand_geometry(stand)
 		container.add_child(stand)
 
 	_sync_grandstands_to_floor()
+
+
+func _configure_grandstand_geometry(stand: Node3D) -> void:
+	var quality: String = GameManager.graphics_quality
+	var casts_shadows: bool = quality == GraphicsQuality.HIGH and not GraphicsQuality.is_mobile_target()
+	for node: Node in stand.find_children("*", "MeshInstance3D", true, false):
+		var mesh_instance := node as MeshInstance3D
+		mesh_instance.lod_bias = GraphicsQuality.grandstand_lod_bias(quality)
+		mesh_instance.cast_shadow = (
+			GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+			if casts_shadows
+			else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		)
+		mesh_instance.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 
 
 func _sync_grandstands_to_floor() -> void:
 	var container := get_node_or_null("Grandstands") as Node3D
 	if container == null:
 		return
+	# フライオーバー等で伸ばしたスタンドを、カウントダウン以降の短い動的床に合わせて
+	# 縮め直すと位置・スケールが跳ねるので、同期済み長さより短い更新は無視する。
+	if _grandstand_synced_length > 0.0 and _floor_length < _grandstand_synced_length:
+		return
+	_grandstand_synced_length = _floor_length
 	container.position.z = _floor_center_z
 	var longitudinal_scale := maxf(_floor_length / GRANDSTAND_BASE_LENGTH, 0.01)
 	for child: Node in container.get_children():
@@ -430,6 +445,8 @@ func get_floor_length() -> float:
 static func create_ocean_surface() -> MeshInstance3D:
 	var ocean_mesh := MeshInstance3D.new()
 	ocean_mesh.name = "Ocean"
+	ocean_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	ocean_mesh.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 	var plane := PlaneMesh.new()
 	plane.size = StageConstants.OCEAN_SIZE
 	var subdivisions: int = GraphicsQuality.ocean_subdivisions(GameManager.graphics_quality)
@@ -444,33 +461,40 @@ static func create_ocean_surface() -> MeshInstance3D:
 	)
 
 	var mat := ShaderMaterial.new()
-	mat.shader = StageConstants.OCEAN_SHADER
+	var use_lightweight_shader: bool = GraphicsQuality.uses_lightweight_ocean(
+		GameManager.graphics_quality
+	)
+	mat.shader = MOBILE_OCEAN_SHADER if use_lightweight_shader else StageConstants.OCEAN_SHADER
 
-	var noise1 := NoiseTexture2D.new()
-	var fnl1 := FastNoiseLite.new()
-	fnl1.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
-	fnl1.frequency = 0.01
-	fnl1.fractal_octaves = 4
-	fnl1.fractal_lacunarity = 2.0
-	fnl1.fractal_gain = 0.5
-	noise1.noise = fnl1
-	noise1.seamless = true
-	noise1.width = 512
-	noise1.height = 512
-	mat.set_shader_parameter("noise_tex", noise1)
+	if not use_lightweight_shader:
+		var noise_size: int = GraphicsQuality.ocean_noise_texture_size(
+			GameManager.graphics_quality
+		)
+		var noise1 := NoiseTexture2D.new()
+		var fnl1 := FastNoiseLite.new()
+		fnl1.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+		fnl1.frequency = 0.01
+		fnl1.fractal_octaves = 4
+		fnl1.fractal_lacunarity = 2.0
+		fnl1.fractal_gain = 0.5
+		noise1.noise = fnl1
+		noise1.seamless = true
+		noise1.width = noise_size
+		noise1.height = noise_size
+		mat.set_shader_parameter("noise_tex", noise1)
 
-	var noise2 := NoiseTexture2D.new()
-	var fnl2 := FastNoiseLite.new()
-	fnl2.noise_type = FastNoiseLite.TYPE_CELLULAR
-	fnl2.frequency = 0.015
-	fnl2.fractal_octaves = 3
-	fnl2.cellular_distance_function = FastNoiseLite.DISTANCE_EUCLIDEAN
-	fnl2.cellular_return_type = FastNoiseLite.RETURN_DISTANCE
-	noise2.noise = fnl2
-	noise2.seamless = true
-	noise2.width = 512
-	noise2.height = 512
-	mat.set_shader_parameter("noise_tex2", noise2)
+		var noise2 := NoiseTexture2D.new()
+		var fnl2 := FastNoiseLite.new()
+		fnl2.noise_type = FastNoiseLite.TYPE_CELLULAR
+		fnl2.frequency = 0.015
+		fnl2.fractal_octaves = 3
+		fnl2.cellular_distance_function = FastNoiseLite.DISTANCE_EUCLIDEAN
+		fnl2.cellular_return_type = FastNoiseLite.RETURN_DISTANCE
+		noise2.noise = fnl2
+		noise2.seamless = true
+		noise2.width = noise_size
+		noise2.height = noise_size
+		mat.set_shader_parameter("noise_tex2", noise2)
 
 	ocean_mesh.material_override = mat
 	return ocean_mesh

@@ -14,6 +14,10 @@ func normalize(value: String) -> String:
 	return value if value in VALID_QUALITIES else BALANCED
 
 
+func is_mobile_target() -> bool:
+	return OS.has_feature("mobile") or OS.has_feature("android") or OS.has_feature("ios")
+
+
 func display_name(value: String) -> String:
 	match normalize(value):
 		LOW:
@@ -25,13 +29,35 @@ func display_name(value: String) -> String:
 
 
 func ocean_subdivisions(value: String) -> int:
+	if is_mobile_target():
+		match normalize(value):
+			LOW:
+				return 20
+			HIGH:
+				return 48
+			_:
+				return 32
 	match normalize(value):
 		LOW:
-			return 64
+			return 48
 		HIGH:
-			return 200
-		_:
 			return 128
+		_:
+			return 80
+
+
+func uses_lightweight_ocean(value: String) -> bool:
+	return is_mobile_target() or normalize(value) == LOW
+
+
+func ocean_noise_texture_size(value: String) -> int:
+	match normalize(value):
+		LOW:
+			return 128
+		HIGH:
+			return 512
+		_:
+			return 256
 
 
 func particle_amount(base_amount: int, value: String) -> int:
@@ -41,34 +67,51 @@ func particle_amount(base_amount: int, value: String) -> int:
 			scale = 0.35
 		HIGH:
 			scale = 1.0
+	if is_mobile_target():
+		scale *= 0.65
 	return maxi(1, roundi(float(base_amount) * scale))
 
 
 func preview_shadow_enabled(value: String) -> bool:
-	return normalize(value) == HIGH
+	return not is_mobile_target() and normalize(value) == HIGH
 
 
 func gameplay_shadow_enabled(value: String) -> bool:
-	return normalize(value) != LOW
+	return not is_mobile_target() and normalize(value) != LOW
 
 
 func apply_text_viewport(viewport: Viewport, value: String) -> void:
 	if viewport == null:
 		return
 	var quality: String = normalize(value)
-	# High uses modest SSAA while the output is at most 1440p. At 4K, native
-	# rendering avoids multiplying an already large pixel budget.
-	viewport.scaling_3d_mode = Viewport.SCALING_3D_MODE_BILINEAR
-	viewport.scaling_3d_scale = (
-		HIGH_SUPERSAMPLING_SCALE
-		if quality == HIGH and _can_use_high_supersampling(viewport)
-		else 1.0
-	)
-	viewport.msaa_3d = Viewport.MSAA_4X if quality == HIGH else Viewport.MSAA_2X
+	if is_mobile_target():
+		viewport.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR
+		match quality:
+			LOW:
+				viewport.scaling_3d_scale = 0.55
+			HIGH:
+				viewport.scaling_3d_scale = 0.85
+			_:
+				viewport.scaling_3d_scale = 0.70
+		viewport.msaa_3d = Viewport.MSAA_2X if quality == HIGH else Viewport.MSAA_DISABLED
+	else:
+		match quality:
+			LOW:
+				viewport.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR
+				viewport.scaling_3d_scale = 0.70
+				viewport.msaa_3d = Viewport.MSAA_DISABLED
+			BALANCED:
+				viewport.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR
+				viewport.scaling_3d_scale = 0.85
+				viewport.msaa_3d = Viewport.MSAA_2X
+			_:
+				viewport.scaling_3d_mode = Viewport.SCALING_3D_MODE_BILINEAR
+				viewport.scaling_3d_scale = 1.0
+				viewport.msaa_3d = Viewport.MSAA_4X
 	viewport.msaa_2d = Viewport.MSAA_DISABLED
 	viewport.screen_space_aa = (
 		Viewport.SCREEN_SPACE_AA_FXAA
-		if quality == LOW
+		if quality == LOW or is_mobile_target()
 		else Viewport.SCREEN_SPACE_AA_SMAA
 	)
 	viewport.use_taa = false
@@ -82,27 +125,33 @@ func apply_character_preview(viewport: Viewport, value: String) -> void:
 	if viewport == null:
 		return
 	var quality: String = normalize(value)
-	match quality:
-		LOW:
-			viewport.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR
-			viewport.scaling_3d_scale = 0.59
-			viewport.msaa_3d = Viewport.MSAA_DISABLED
-			viewport.msaa_2d = Viewport.MSAA_DISABLED
-		HIGH:
-			viewport.scaling_3d_mode = Viewport.SCALING_3D_MODE_BILINEAR
-			viewport.scaling_3d_scale = (
-				HIGH_SUPERSAMPLING_SCALE if _can_use_high_supersampling(viewport) else 1.0
-			)
-			viewport.msaa_3d = Viewport.MSAA_4X
-			viewport.msaa_2d = Viewport.MSAA_2X
-		_:
-			viewport.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR
-			viewport.scaling_3d_scale = 0.77
-			viewport.msaa_3d = Viewport.MSAA_2X
-			viewport.msaa_2d = Viewport.MSAA_DISABLED
+	if is_mobile_target():
+		viewport.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR
+		viewport.scaling_3d_scale = 0.60 if quality == LOW else (0.85 if quality == HIGH else 0.72)
+		viewport.msaa_3d = Viewport.MSAA_2X if quality == HIGH else Viewport.MSAA_DISABLED
+		viewport.msaa_2d = Viewport.MSAA_DISABLED
+	else:
+		match quality:
+			LOW:
+				viewport.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR
+				viewport.scaling_3d_scale = 0.59
+				viewport.msaa_3d = Viewport.MSAA_DISABLED
+				viewport.msaa_2d = Viewport.MSAA_DISABLED
+			HIGH:
+				viewport.scaling_3d_mode = Viewport.SCALING_3D_MODE_BILINEAR
+				viewport.scaling_3d_scale = (
+					HIGH_SUPERSAMPLING_SCALE if _can_use_high_supersampling(viewport) else 1.0
+				)
+				viewport.msaa_3d = Viewport.MSAA_4X
+				viewport.msaa_2d = Viewport.MSAA_2X
+			_:
+				viewport.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR
+				viewport.scaling_3d_scale = 0.77
+				viewport.msaa_3d = Viewport.MSAA_2X
+				viewport.msaa_2d = Viewport.MSAA_DISABLED
 	viewport.screen_space_aa = (
 		Viewport.SCREEN_SPACE_AA_FXAA
-		if quality == LOW
+		if quality == LOW or is_mobile_target()
 		else Viewport.SCREEN_SPACE_AA_SMAA
 	)
 	viewport.use_taa = false
@@ -135,6 +184,21 @@ func directional_shadow_distance(value: String) -> float:
 
 
 func _apply_distance_quality(viewport: Viewport, quality: String) -> void:
+	if is_mobile_target():
+		match quality:
+			LOW:
+				viewport.mesh_lod_threshold = 2.0
+				viewport.anisotropic_filtering_level = Viewport.ANISOTROPY_2X
+				viewport.texture_mipmap_bias = 0.2
+			HIGH:
+				viewport.mesh_lod_threshold = 1.2
+				viewport.anisotropic_filtering_level = Viewport.ANISOTROPY_4X
+				viewport.texture_mipmap_bias = 0.0
+			_:
+				viewport.mesh_lod_threshold = 1.5
+				viewport.anisotropic_filtering_level = Viewport.ANISOTROPY_4X
+				viewport.texture_mipmap_bias = 0.1
+		return
 	match quality:
 		LOW:
 			viewport.mesh_lod_threshold = 1.5
@@ -152,7 +216,7 @@ func _apply_distance_quality(viewport: Viewport, quality: String) -> void:
 
 
 func _can_use_high_supersampling(viewport: Viewport) -> bool:
-	if OS.has_feature("mobile") or OS.has_feature("android") or OS.has_feature("ios"):
+	if is_mobile_target():
 		return false
 	var output_width: float = viewport.get_visible_rect().size.x
 	if viewport is Window:
@@ -164,7 +228,7 @@ func apply_environment(environment: Environment, value: String) -> void:
 	if environment == null:
 		return
 	var quality: String = normalize(value)
-	environment.glow_enabled = quality != LOW
+	environment.glow_enabled = quality != LOW and not is_mobile_target()
 	if quality == LOW:
 		return
 	environment.glow_intensity = 0.4 if quality == BALANCED else 0.5
