@@ -16,12 +16,17 @@ var current_score: int = 0
 var current_question_index: int = 0
 
 const USER_SETTINGS_PATH := "user://settings.json"
-const CURRENT_TUTORIAL_VERSION := 2
+const CURRENT_TUTORIAL_VERSION := 3
+const TUTORIAL_COURSE_SOLO := "SOLO"
+const TUTORIAL_COURSE_LOCAL_2P := "LOCAL_2P"
 
 var tutorial_completed: bool = false
 var tutorial_dismissed: bool = false
 var tutorial_completed_version: int = 0
 var tutorial_dismissed_version: int = 0
+var tutorial_prompt_seen_version: int = 0
+var tutorial_solo_completed: bool = false
+var tutorial_local_2p_completed: bool = false
 var graphics_quality: String = GraphicsQuality.BALANCED
 var _user_settings: Dictionary = {}
 
@@ -32,10 +37,7 @@ func _ready() -> void:
 	_start_dashboard_server()
 
 func should_show_tutorial_on_start() -> bool:
-	return (
-		tutorial_completed_version < CURRENT_TUTORIAL_VERSION
-		and tutorial_dismissed_version < CURRENT_TUTORIAL_VERSION
-	)
+	return tutorial_prompt_seen_version < CURRENT_TUTORIAL_VERSION
 
 func has_tutorial_update() -> bool:
 	return (
@@ -43,15 +45,41 @@ func has_tutorial_update() -> bool:
 		and tutorial_completed_version < CURRENT_TUTORIAL_VERSION
 	)
 
+func mark_tutorial_course_completed(course: String) -> void:
+	if course == TUTORIAL_COURSE_LOCAL_2P:
+		tutorial_local_2p_completed = true
+	else:
+		tutorial_solo_completed = true
+	tutorial_prompt_seen_version = CURRENT_TUTORIAL_VERSION
+	tutorial_dismissed_version = CURRENT_TUTORIAL_VERSION
+	tutorial_dismissed = true
+	tutorial_completed = tutorial_solo_completed and tutorial_local_2p_completed
+	if tutorial_completed:
+		tutorial_completed_version = CURRENT_TUTORIAL_VERSION
+	else:
+		tutorial_completed_version = mini(tutorial_completed_version, CURRENT_TUTORIAL_VERSION - 1)
+	_save_user_settings()
+
+
 func mark_tutorial_completed() -> void:
+	# Compatibility helper for older callers. V3 completion requires both course badges.
+	tutorial_solo_completed = true
+	tutorial_local_2p_completed = true
 	tutorial_completed = true
 	tutorial_dismissed = true
+	tutorial_prompt_seen_version = CURRENT_TUTORIAL_VERSION
 	tutorial_completed_version = CURRENT_TUTORIAL_VERSION
 	tutorial_dismissed_version = CURRENT_TUTORIAL_VERSION
 	_save_user_settings()
 
+
+func is_tutorial_course_completed(course: String) -> bool:
+	return tutorial_local_2p_completed if course == TUTORIAL_COURSE_LOCAL_2P else tutorial_solo_completed
+
+
 func dismiss_tutorial() -> void:
 	tutorial_dismissed = true
+	tutorial_prompt_seen_version = CURRENT_TUTORIAL_VERSION
 	tutorial_dismissed_version = CURRENT_TUTORIAL_VERSION
 	_save_user_settings()
 
@@ -60,6 +88,9 @@ func reset_tutorial_prompt() -> void:
 	tutorial_dismissed = false
 	tutorial_completed_version = 0
 	tutorial_dismissed_version = 0
+	tutorial_prompt_seen_version = 0
+	tutorial_solo_completed = false
+	tutorial_local_2p_completed = false
 	_save_user_settings()
 
 
@@ -91,8 +122,15 @@ func _load_user_settings() -> void:
 		"tutorial_dismissed_version",
 		1 if legacy_dismissed else 0
 	))
-	tutorial_completed = tutorial_completed_version >= CURRENT_TUTORIAL_VERSION
-	tutorial_dismissed = tutorial_dismissed_version >= CURRENT_TUTORIAL_VERSION
+	tutorial_prompt_seen_version = int(_user_settings.get(
+		"tutorial_prompt_seen_version",
+		tutorial_dismissed_version
+	))
+	var legacy_v3_complete := tutorial_completed_version >= CURRENT_TUTORIAL_VERSION
+	tutorial_solo_completed = bool(_user_settings.get("tutorial_solo_completed", legacy_v3_complete))
+	tutorial_local_2p_completed = bool(_user_settings.get("tutorial_local_2p_completed", legacy_v3_complete))
+	tutorial_completed = tutorial_solo_completed and tutorial_local_2p_completed
+	tutorial_dismissed = tutorial_prompt_seen_version >= CURRENT_TUTORIAL_VERSION
 	graphics_quality = GraphicsQuality.normalize(str(_user_settings.get("graphics_quality", GraphicsQuality.BALANCED)))
 
 func _save_user_settings() -> void:
@@ -100,6 +138,9 @@ func _save_user_settings() -> void:
 	_user_settings["tutorial_dismissed"] = tutorial_dismissed
 	_user_settings["tutorial_completed_version"] = tutorial_completed_version
 	_user_settings["tutorial_dismissed_version"] = tutorial_dismissed_version
+	_user_settings["tutorial_prompt_seen_version"] = tutorial_prompt_seen_version
+	_user_settings["tutorial_solo_completed"] = tutorial_solo_completed
+	_user_settings["tutorial_local_2p_completed"] = tutorial_local_2p_completed
 	_user_settings["graphics_quality"] = graphics_quality
 	var file := FileAccess.open(USER_SETTINGS_PATH, FileAccess.WRITE)
 	if file:

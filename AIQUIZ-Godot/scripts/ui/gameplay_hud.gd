@@ -1,6 +1,7 @@
 extends CanvasLayer
 
 const OFFSCREEN_PLAYER_MARKER_SCRIPT := preload("res://scripts/ui/offscreen_player_marker.gd")
+const TutorialOverlayScript := preload("res://scripts/ui/tutorial_overlay.gd")
 const OFFSCREEN_MARKER_EDGE_MARGIN := 78.0
 const OFFSCREEN_MARKER_NEAR_SCALE := 0.82
 const OFFSCREEN_MARKER_FAR_SCALE := 1.24
@@ -60,10 +61,8 @@ var _displayed_score: float = 0.0
 var _target_score: int = 0
 var _streak_label: Label = null
 var _confetti_fired: bool = false
-var _tutorial_panel: PanelContainer = null
-var _tutorial_title: Label = null
+var _tutorial_panel: Control = null
 var _tutorial_keys_box: HBoxContainer = null
-var _tutorial_key_signature: String = ""
 var _p1_offscreen_marker: Control = null
 var _p2_offscreen_marker: Control = null
 var _gameplay_camera: Camera3D = null
@@ -131,7 +130,10 @@ func _ready() -> void:
 		get_tree().change_scene_to_file("res://ui/main_menu.tscn")
 	)
 	btn_retry.pressed.connect(func():
-		game_state.start_game()
+		if game_state.mode == Constants.MODE_TUTORIAL:
+			game_state.restart_tutorial()
+		else:
+			game_state.start_game()
 		get_tree().change_scene_to_file("res://scenes/game_world.tscn")
 	)
 	btn_history.pressed.connect(func():
@@ -265,6 +267,9 @@ func _update_single_offscreen_marker(
 
 
 func _scroll_out_danger_ratio(player_index: int) -> float:
+	# Step 4 deliberately separates the players, so do not show a false death warning.
+	if not game_state.is_scroll_out_death_enabled():
+		return 0.0
 	var trailing_distance: float = (
 		game_state.player2_z - game_state.player_z
 		if player_index == 1
@@ -362,6 +367,10 @@ func _process(_dt: float) -> void:
 
 func play_shark_impact_flash() -> void:
 	_shark_impact_flash = 1.0
+
+
+func play_tutorial_completion_celebration() -> void:
+	_fire_confetti()
 
 
 func _rear_edge_warning_strength() -> float:
@@ -510,76 +519,15 @@ func _create_stats_panel() -> void:
 	game_over_panel.add_child(_stats_panel)
 
 func _create_tutorial_overlay() -> void:
-	_tutorial_panel = PanelContainer.new()
-	_tutorial_panel.visible = false
-	var style := StyleBoxFlat.new()
-	# --- より透過的な背景で3Dキャラクターが見えるように ---
-	style.bg_color = Color(0.02, 0.04, 0.10, 0.62)
-	style.border_color = Color(0.28, 0.46, 0.88, 0.55)
-	style.set_border_width_all(1)
-	style.corner_radius_top_left = 12
-	style.corner_radius_top_right = 12
-	style.corner_radius_bottom_left = 0
-	style.corner_radius_bottom_right = 0
-	style.content_margin_left = 18.0
-	style.content_margin_right = 18.0
-	style.content_margin_top = 8.0
-	style.content_margin_bottom = 10.0
-	_tutorial_panel.add_theme_stylebox_override("panel", style)
-	_tutorial_panel.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	_tutorial_panel = TutorialOverlayScript.new() as Control
+	_tutorial_panel.name = "TutorialOverlayV3"
 	add_child(_tutorial_panel)
-
-	var root := VBoxContainer.new()
-	root.add_theme_constant_override("separation", 4)
-	_tutorial_panel.add_child(root)
-
-	_tutorial_title = Label.new()
-	_tutorial_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_tutorial_title.add_theme_font_size_override("font_size", 18)
-	_tutorial_title.add_theme_color_override("font_color", Color(1.0, 0.90, 0.32))
-	# アウトライン追加（半透明背景でも文字が読めるように）
-	_tutorial_title.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
-	_tutorial_title.add_theme_constant_override("outline_size", 4)
-	root.add_child(_tutorial_title)
-
-	_tutorial_keys_box = HBoxContainer.new()
-	_tutorial_keys_box.alignment = BoxContainer.ALIGNMENT_CENTER
-	_tutorial_keys_box.add_theme_constant_override("separation", 14)
-	root.add_child(_tutorial_keys_box)
+	_tutorial_panel.call("setup", game_state)
 
 func _update_tutorial_overlay(dt: float = 0.0) -> void:
 	if not _tutorial_panel or not game_state:
 		return
-	var tutorial_visible := (
-		game_state.mode == Constants.MODE_TUTORIAL
-		and game_state.game_state in [
-			Constants.STATE_WAITING_START,
-			Constants.STATE_COUNTDOWN,
-			Constants.STATE_PLAYING,
-			Constants.STATE_GOAL_RACE,
-		]
-	)
-	if not tutorial_visible:
-		_tutorial_panel.visible = false
-		_tutorial_key_signature = ""
-		return
-
-	_tutorial_panel.visible = true
-	_tutorial_title.text = game_state.tutorial_instruction_text()
-	var is_2p := game_state.num_players >= 2
-	# --- パネルを画面最下部にコンパクト配置（キャラクターと重ならない） ---
-	_tutorial_panel.offset_left = 60.0
-	_tutorial_panel.offset_right = -60.0
-	_tutorial_panel.offset_top = -128.0 if is_2p else -108.0
-	_tutorial_panel.offset_bottom = 0.0
-
-	var signature := "%d:%s" % [
-		game_state.num_players,
-		game_state.tutorial_progress_signature(),
-	]
-	if signature != _tutorial_key_signature:
-		_tutorial_key_signature = signature
-		_rebuild_tutorial_keys()
+	_tutorial_panel.call("update_overlay", dt)
 
 func _rebuild_tutorial_keys() -> void:
 	if not _tutorial_keys_box:
@@ -772,6 +720,9 @@ func _build_result_card(is_clear: bool, explanation: String) -> void:
 	var is_2p: bool = game_state.num_players >= 2
 	var is_tutorial: bool = game_state.mode == Constants.MODE_TUTORIAL
 	var is_coop: bool = game_state.is_coop_mode()
+	if is_tutorial:
+		_build_tutorial_result(root_vbox, explanation)
+		return
 
 	# ─── Score animation ───
 	_score_anim_timer += 0.016
@@ -943,6 +894,83 @@ func _build_result_card(is_clear: bool, explanation: String) -> void:
 	else:
 		go_rate_box.visible = false
 
+
+func _build_tutorial_result(root: VBoxContainer, checklist_text: String) -> void:
+	btn_retry.text = "同じコースをもう一度"
+	btn_menu.text = "メニューへ"
+	btn_history.visible = false
+	go_rate_box.visible = false
+	var is_duo := game_state.get_tutorial_course() == GameManager.TUTORIAL_COURSE_LOCAL_2P
+	var course_title := Label.new()
+	course_title.text = "ローカル2Pコース COMPLETE" if is_duo else "1Pコース COMPLETE"
+	course_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	course_title.add_theme_font_size_override("font_size", 28)
+	course_title.add_theme_color_override("font_color", Color(1.0, 0.86, 0.22))
+	root.add_child(course_title)
+
+	var checklist := Label.new()
+	checklist.text = checklist_text
+	checklist.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	checklist.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	checklist.add_theme_font_size_override("font_size", 18)
+	checklist.add_theme_color_override("font_color", Color(0.82, 0.95, 0.88))
+	root.add_child(checklist)
+
+	_add_separator(root)
+	var badges := Label.new()
+	badges.text = "1P %s     ローカル2P %s" % [
+		"✓ 完了" if GameManager.tutorial_solo_completed else "未完了",
+		"✓ 完了" if GameManager.tutorial_local_2p_completed else "未完了",
+	]
+	badges.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	badges.add_theme_font_size_override("font_size", 17)
+	badges.add_theme_color_override("font_color", Color(0.58, 0.78, 1.0))
+	root.add_child(badges)
+
+	var recap_title := Label.new()
+	recap_title.text = "次に試せる遊び方"
+	recap_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	recap_title.add_theme_font_size_override("font_size", 17)
+	recap_title.add_theme_color_override("font_color", Color(0.72, 0.78, 0.90))
+	root.add_child(recap_title)
+	var recap := HBoxContainer.new()
+	recap.alignment = BoxContainer.ALIGNMENT_CENTER
+	recap.add_theme_constant_override("separation", 12)
+	root.add_child(recap)
+	_add_tutorial_recap_card(recap, "10問チャレンジ", "10問を走り切る")
+	_add_tutorial_recap_card(recap, "エンドレス", "オフライン問題で挑戦")
+	_add_tutorial_recap_card(recap, "カスタマイズ", "スキン・帽子・エモート")
+
+
+func _add_tutorial_recap_card(parent: HBoxContainer, title: String, detail: String) -> void:
+	var card := PanelContainer.new()
+	card.custom_minimum_size = Vector2(184.0, 72.0)
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.07, 0.11, 0.20, 0.92)
+	style.border_color = Color(0.25, 0.48, 0.84, 0.70)
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(9)
+	style.content_margin_left = 10.0
+	style.content_margin_right = 10.0
+	style.content_margin_top = 8.0
+	style.content_margin_bottom = 8.0
+	card.add_theme_stylebox_override("panel", style)
+	parent.add_child(card)
+	var box := VBoxContainer.new()
+	card.add_child(box)
+	var title_label := Label.new()
+	title_label.text = title
+	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title_label.add_theme_font_size_override("font_size", 16)
+	title_label.add_theme_color_override("font_color", Color(1.0, 0.86, 0.25))
+	box.add_child(title_label)
+	var detail_label := Label.new()
+	detail_label.text = detail
+	detail_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	detail_label.add_theme_font_size_override("font_size", 12)
+	detail_label.add_theme_color_override("font_color", Color(0.70, 0.76, 0.88))
+	box.add_child(detail_label)
+
 func _add_mini_stat(parent: HBoxContainer, title: String, value: String, color: Color) -> void:
 	"""統計ミニカード: タイトル + 値の縦並び"""
 	var col := VBoxContainer.new()
@@ -1008,7 +1036,14 @@ func _add_stat_row(grid: GridContainer, label_text: String, value_text: String, 
 
 
 func _update_question() -> void:
-	if game_state.current_quiz and game_state.game_state == Constants.STATE_PLAYING:
+	var tutorial_question_ready := true
+	if game_state.mode == Constants.MODE_TUTORIAL:
+		tutorial_question_ready = (
+			game_state.tutorial_flow != null
+			and game_state.tutorial_flow.is_quiz_step()
+			and not game_state.is_tutorial_presentation_locked()
+		)
+	if game_state.current_quiz and game_state.game_state == Constants.STATE_PLAYING and tutorial_question_ready:
 		question_panel.visible = true
 		if game_state.is_coop_mode() and game_state.current_quiz.has_coop_data():
 			var q_text := FractionFormatter.to_inline(game_state.current_quiz.q)
@@ -1021,37 +1056,29 @@ func _update_question() -> void:
 		question_panel.visible = false
 
 func _update_score() -> void:
+	if game_state.mode == Constants.MODE_TUTORIAL:
+		score_label.visible = false
+		return
 	if game_state.game_state in [Constants.STATE_PLAYING, Constants.STATE_CORRECT, Constants.STATE_GOAL_RACE]:
 		score_label.visible = true
 		if game_state.num_players >= 2:
 			if game_state.mode == Constants.MODE_TUTORIAL:
-				if game_state.is_tutorial_basics():
-					score_label.text = "2P 基本操作"
-				elif game_state.game_state == Constants.STATE_GOAL_RACE:
-					score_label.text = "2P GOAL  P1:%d  P2:%d" % [game_state.score, game_state.player2_score]
-				else:
-					score_label.text = "2Pクイズ %d/%d  P1:%d  P2:%d" % [
-						mini(game_state.current_index + 1, game_state.target_count),
-						game_state.target_count,
-						game_state.score,
-						game_state.player2_score,
-					]
+				var overlay_2p := game_state.get_tutorial_overlay_model()
+				score_label.text = "STEP %d/%d  P1:%d  P2:%d" % [
+					int(overlay_2p.get("step_number", 1)), int(overlay_2p.get("step_count", 1)),
+					game_state.score, game_state.player2_score,
+				]
 			elif game_state.is_coop_mode():
 				score_label.text = "協力: %d/%d" % [game_state.score, game_state.target_count]
 			else:
 				score_label.text = "P1: %d  P2: %d" % [game_state.score, game_state.player2_score]
 		else:
 			if game_state.mode == Constants.MODE_TUTORIAL:
-				if game_state.is_tutorial_basics():
-					score_label.text = "基本操作"
-				elif game_state.game_state == Constants.STATE_GOAL_RACE:
-					score_label.text = "GOAL"
-				else:
-					score_label.text = "クイズ練習: %d/%d  正解:%d" % [
-						mini(game_state.current_index + 1, game_state.target_count),
-						game_state.target_count,
-						game_state.score,
-					]
+				var overlay_1p := game_state.get_tutorial_overlay_model()
+				score_label.text = "STEP %d/%d  %s" % [
+					int(overlay_1p.get("step_number", 1)), int(overlay_1p.get("step_count", 1)),
+					str(overlay_1p.get("title", "チュートリアル")),
+				]
 			elif game_state.mode == Constants.MODE_TEN:
 				score_label.text = "正解: %d  問題: %d/10" % [game_state.score, game_state.current_index + 1]
 			else:

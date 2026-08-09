@@ -27,6 +27,10 @@ var _ocean_attack_intensity: float = 0.0
 var _ocean_attack_impact_timer: float = 0.0
 var _ghost_ride_wide_fov_requested: bool = false
 var _ghost_ride_fov_blend: float = 0.0
+var _tutorial_override_active: bool = false
+var _tutorial_override_eye: Vector3 = Vector3.ZERO
+var _tutorial_override_target: Vector3 = Vector3.ZERO
+var _tutorial_override_fov: float = 50.0
 
 const ENTRY_BLEND_DURATION := 0.95
 const PRELOAD_CAMERA_FOV := 66.0
@@ -36,6 +40,11 @@ const THIRD_PERSON_FOCUS_HEIGHT := 1.0
 const THIRD_PERSON_BASE_HEIGHT := 2.0
 const GHOST_RIDE_2P_FOV := 62.0
 const GHOST_RIDE_FOV_BLEND_SPEED := 2.5
+const TUTORIAL_GHOST_WALL_FOV_START_DISTANCE := 7.0
+const TUTORIAL_GHOST_WALL_FOV_FULL_DISTANCE := 18.0
+const TUTORIAL_GHOST_WALL_MAX_FOV := 68.0
+const TUTORIAL_GHOST_WALL_CAMERA_BACK_DISTANCE := 12.5
+const TUTORIAL_GHOST_WALL_CAMERA_LOOK_AHEAD := 5.0
 
 func _ready() -> void:
 	if not camera:
@@ -74,6 +83,41 @@ func set_ghost_ride_wide_fov(enabled: bool) -> void:
 	_ghost_ride_wide_fov_requested = enabled
 
 
+func set_tutorial_override_pose(eye: Vector3, target: Vector3, fov: float) -> void:
+	_tutorial_override_eye = eye
+	_tutorial_override_target = target
+	_tutorial_override_fov = clampf(fov, 38.0, 72.0)
+	_tutorial_override_active = true
+
+
+func clear_tutorial_override() -> void:
+	_tutorial_override_active = false
+
+
+func get_gameplay_pose(gs: QuizGameState) -> Dictionary:
+	if gs.num_players >= 2:
+		var z_focus: float = gs.player_local_z
+		if gs.p1_alive and gs.p2_alive:
+			z_focus = (gs.player_local_z + gs.player2_local_z) * 0.5
+		elif gs.p2_alive:
+			z_focus = gs.player2_local_z
+		return {
+			"eye": Vector3(0.0, 4.5, z_focus - 9.0),
+			"target": Vector3(0.0, 1.0, z_focus + 8.0),
+			"fov": lerpf(50.0, GHOST_RIDE_2P_FOV, _ghost_ride_fov_blend),
+		}
+	var focus := Vector3(
+		gs.player_x,
+		gs.player_y + THIRD_PERSON_FOCUS_HEIGHT,
+		gs.player_local_z
+	)
+	return {
+		"eye": focus - Vector3.BACK * THIRD_PERSON_DISTANCE + Vector3.UP * THIRD_PERSON_BASE_HEIGHT,
+		"target": focus + Vector3.BACK * 8.0,
+		"fov": THIRD_PERSON_FOV,
+	}
+
+
 func wait_for_entry_blend() -> void:
 	if not _entry_blend_active:
 		return
@@ -99,6 +143,12 @@ func update_camera(gs: QuizGameState, dt: float) -> void:
 	var eye: Vector3
 	var target: Vector3
 	var fov: float = 44.0
+	if _tutorial_override_active:
+		camera.h_offset = 0.0
+		camera.fov = _tutorial_override_fov
+		camera.global_position = _tutorial_override_eye
+		camera.look_at(_tutorial_override_target, Vector3.UP)
+		return
 
 	# === PRELOADING / WAITING_START: 俯瞰オービットカメラ ===
 	if gs.game_state in [Constants.STATE_PRELOADING, Constants.STATE_WAITING_START]:
@@ -147,6 +197,22 @@ func update_camera(gs: QuizGameState, dt: float) -> void:
 	if gs.num_players >= 2:
 		# === 2-PLAYER: top-down view ===
 		fov = lerpf(50.0, GHOST_RIDE_2P_FOV, _ghost_ride_fov_blend)
+		# Step 4 freezes P1 by design while P2 approaches the center wall. Widen the
+		# shared view as they separate so the waiting player remains readable.
+		var tutorial_ghost_wall_split: bool = (
+			gs.get_tutorial_step_id() == "p2_ghost_wall"
+			and gs.p1_alive
+			and gs.p2_alive
+		)
+		if tutorial_ghost_wall_split:
+			var player_separation := absf(gs.player_local_z - gs.player2_local_z)
+			var separation_ratio := clampf(
+				(player_separation - TUTORIAL_GHOST_WALL_FOV_START_DISTANCE)
+				/ (TUTORIAL_GHOST_WALL_FOV_FULL_DISTANCE - TUTORIAL_GHOST_WALL_FOV_START_DISTANCE),
+				0.0,
+				1.0
+			)
+			fov = maxf(fov, lerpf(50.0, TUTORIAL_GHOST_WALL_MAX_FOV, separation_ratio))
 		var all_dead: bool = not gs.p1_alive and not gs.p2_alive
 		var z_focus: float = gs.player_local_z
 		if gs.p1_alive and gs.p2_alive:
@@ -183,8 +249,22 @@ func update_camera(gs: QuizGameState, dt: float) -> void:
 				target_pz)
 		else:
 			_go_timer = 0.0
-			eye = Vector3(0.0, 4.5 + bob, z_focus - 9.0)
-			target = Vector3(0.0, 1.0, z_focus + 8.0)
+			if tutorial_ghost_wall_split:
+				# Pull back and aim nearer the midpoint; the normal camera looks farther
+				# ahead and would push stationary P1 below the bottom edge.
+				eye = Vector3(
+					0.0,
+					4.5 + bob,
+					z_focus - TUTORIAL_GHOST_WALL_CAMERA_BACK_DISTANCE
+				)
+				target = Vector3(
+					0.0,
+					1.0,
+					z_focus + TUTORIAL_GHOST_WALL_CAMERA_LOOK_AHEAD
+				)
+			else:
+				eye = Vector3(0.0, 4.5 + bob, z_focus - 9.0)
+				target = Vector3(0.0, 1.0, z_focus + 8.0)
 	else:
 		# === 1-PLAYER: fixed third-person follow view ===
 		fov = THIRD_PERSON_FOV

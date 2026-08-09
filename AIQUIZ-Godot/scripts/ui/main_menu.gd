@@ -1,5 +1,7 @@
 extends Control
 
+const TutorialCourseSelectorScript := preload("res://scripts/ui/tutorial_course_selector.gd")
+
 ## メインメニュー画面 (STAGE A: 最低限のUI)
 ## Python版 hud.py のメニュー部分に相当
 
@@ -39,14 +41,8 @@ var graphics_quality_option: OptionButton = null
 var game_state: QuizGameState
 var _tutorial_row: HBoxContainer = null
 var _tutorial_main_btn: Button = null
-var _tutorial_clip: Control = null
-var _tutorial_options: HBoxContainer = null
-var _tutorial_btn: Button = null
-var _tutorial_2p_btn: Button = null
-var _tutorial_expanded: bool = false
+var _tutorial_selector: Control = null
 
-const PICKER_HEIGHT := 52.0
-const PICKER_ANIM_DURATION := 0.18
 const SHOW_COOP_MODE := false
 const GAME_WORLD_SCENE: PackedScene = preload("res://scenes/game_world.tscn")
 const CUSTOMIZE_SETTINGS_SCENE: PackedScene = preload("res://ui/customize_settings.tscn")
@@ -115,6 +111,7 @@ func _ready() -> void:
 	_on_live_config_updated()
 
 	_ensure_tutorial_button()
+	_ensure_tutorial_selector()
 	_style_all_buttons()
 	
 	prev_grade_btn.pressed.connect(_on_prev_grade_pressed)
@@ -517,7 +514,7 @@ func _get_all_buttons(node: Node) -> Array[Button]:
 	return buttons
 
 func _ensure_tutorial_button() -> void:
-	if _tutorial_main_btn and _tutorial_btn and _tutorial_2p_btn:
+	if _tutorial_main_btn:
 		return
 	_tutorial_row = HBoxContainer.new()
 	_tutorial_row.name = "TutorialRow"
@@ -525,41 +522,38 @@ func _ensure_tutorial_button() -> void:
 	_tutorial_row.add_theme_constant_override("separation", 12)
 	mode_container.add_child(_tutorial_row)
 
-	# 単一の親ボタン。タップすると1人/2人プレイの選択肢が展開する
-	_tutorial_main_btn = _make_tutorial_button("TutorialMainBtn", _on_tutorial_toggle_pressed)
+	# 初回起動時と同じコース選択オーバーレイを開く
+	_tutorial_main_btn = Button.new()
+	_tutorial_main_btn.name = "TutorialMainBtn"
+	_tutorial_main_btn.custom_minimum_size = Vector2(260, 52)
+	_tutorial_main_btn.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	_tutorial_main_btn.add_theme_font_size_override("font_size", 18)
+	_tutorial_main_btn.pressed.connect(_on_tutorial_pressed)
 	_tutorial_row.add_child(_tutorial_main_btn)
 
-	# 選択肢は clip_contents つきのクリップ枠の中でスライドさせる。
-	# 枠は親ボタンの右隣に置かれ、枠からはみ出た部分（＝親ボタンに重なる領域）は
-	# 物理的に切り取られて描画されないため、親ボタンと絶対に重ならない。
-	_tutorial_clip = Control.new()
-	_tutorial_clip.name = "TutorialClip"
-	_tutorial_clip.clip_contents = true
-	_tutorial_clip.custom_minimum_size = Vector2(0, PICKER_HEIGHT)
-	_tutorial_clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_tutorial_row.add_child(_tutorial_clip)
 
-	# クリップ枠の中で一体スライドする選択肢グループ
-	_tutorial_options = HBoxContainer.new()
-	_tutorial_options.name = "TutorialOptions"
-	_tutorial_options.add_theme_constant_override("separation", 12)
-	_tutorial_clip.add_child(_tutorial_options)
+func _ensure_tutorial_selector() -> void:
+	if _tutorial_selector:
+		return
+	_tutorial_selector = TutorialCourseSelectorScript.new() as Control
+	_tutorial_selector.name = "TutorialCourseSelector"
+	add_child(_tutorial_selector)
+	_tutorial_selector.connect("course_selected", _on_tutorial_course_selected)
+	_tutorial_selector.connect("dismissed", _on_tutorial_selector_dismissed)
 
-	_tutorial_btn = _make_tutorial_button("TutorialBtn", _on_tutorial_pressed)
-	_tutorial_2p_btn = _make_tutorial_button("Tutorial2PBtn", _on_tutorial_2p_pressed)
-	_tutorial_options.add_child(_tutorial_btn)
-	_tutorial_options.add_child(_tutorial_2p_btn)
-	# 初期は折りたたみ（枠幅0＝完全にクリップされて非表示）
-	_tutorial_options.position = Vector2(-2000.0, 0.0)
 
-func _make_tutorial_button(node_name: String, pressed_callable: Callable) -> Button:
-	var btn := Button.new()
-	btn.name = node_name
-	btn.custom_minimum_size = Vector2(260, 52)
-	btn.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	btn.add_theme_font_size_override("font_size", 18)
-	btn.pressed.connect(pressed_callable)
-	return btn
+func _show_tutorial_selector() -> void:
+	if _tutorial_selector:
+		_tutorial_selector.call("show_selector")
+
+
+func _on_tutorial_course_selected(course: String) -> void:
+	GameManager.dismiss_tutorial()
+	_start_tutorial_game(course)
+
+
+func _on_tutorial_selector_dismissed() -> void:
+	GameManager.dismiss_tutorial()
 
 
 const GAME_SCENE := "res://scenes/game_world.tscn"
@@ -569,13 +563,12 @@ func _go_to_game() -> void:
 		return
 	_play_exit_and_change_scene(GAME_SCENE)
 
-func _start_tutorial_game(tutorial_players: int = 1) -> void:
-	game_state.start_tutorial(tutorial_players)
+func _start_tutorial_game(course: String = GameManager.TUTORIAL_COURSE_SOLO) -> void:
+	game_state.start_tutorial(course)
 	_go_to_game()
 
 func _start_first_run_tutorial() -> void:
-	GameManager.dismiss_tutorial()
-	_start_tutorial_game()
+	_show_tutorial_selector()
 
 func _update_ui() -> void:
 	if not game_state:
@@ -590,18 +583,11 @@ func _update_ui() -> void:
 	_update_step_indicator()
 	if _tutorial_main_btn:
 		_tutorial_main_btn.text = "チュートリアル"
-	if _tutorial_btn:
-		_tutorial_btn.text = "1人プレイ"
-	if _tutorial_2p_btn:
-		_tutorial_2p_btn.text = "2人プレイ"
 
 	var step_changed := game_state.menu_step != _prev_menu_step
 	if game_state.menu_step == Constants.MENU_STEP_MODE:
 		mode_container.visible = true
 		config_container.visible = false
-		# モード選択に戻ってきたらチュートリアルは折りたたみ状態に戻す
-		if step_changed:
-			_set_tutorial_expanded(false)
 		if step_changed and _entrance_done:
 			_play_entrance(mode_container, false)
 	elif game_state.menu_step == Constants.MENU_STEP_CONFIG:
@@ -728,61 +714,8 @@ func _on_players_toggle_pressed() -> void:
 func _on_customize_pressed() -> void:
 	_open_embedded_customize()
 
-func _on_tutorial_toggle_pressed() -> void:
-	_set_tutorial_expanded(not _tutorial_expanded)
-
-const TUTORIAL_SLIDE_DURATION := 0.24
-var _tutorial_tweens: Array[Tween] = []
-
-## チュートリアルボタンの展開/折りたたみを切り替える。
-## 展開時: 選択肢グループがクリップ枠の中を左（親ボタンの陰）から右へスライドして出てくる。
-## 折りたたみ時: その逆で、親ボタンの陰へ滑り込んで消える。
-## クリップ枠(clip_contents)が親ボタン側へのはみ出しを切り取るため、絶対に重ならない。
-func _set_tutorial_expanded(expanded: bool) -> void:
-	_tutorial_expanded = expanded
-	if not (_tutorial_main_btn and _tutorial_clip and _tutorial_options):
-		return
-	_kill_tutorial_tweens()
-	_animate_tutorial_slide(expanded)
-
-func _kill_tutorial_tweens() -> void:
-	for t in _tutorial_tweens:
-		if t and t.is_valid():
-			t.kill()
-	_tutorial_tweens.clear()
-
-func _animate_tutorial_slide(reveal: bool) -> void:
-	# レイアウト確定を待ってから選択肢グループの幅を取得する
-	await get_tree().process_frame
-	if _tutorial_expanded != reveal:
-		return
-	if not (is_instance_valid(_tutorial_clip) and is_instance_valid(_tutorial_options)):
-		return
-	var w: float = _tutorial_options.get_combined_minimum_size().x
-	_tutorial_options.size = Vector2(w, PICKER_HEIGHT)
-	var tw := create_tween()
-	_tutorial_tweens.append(tw)
-	tw.set_ease(Tween.EASE_OUT)
-	tw.set_trans(Tween.TRANS_CUBIC)
-	if reveal:
-		# 枠を確保し、左（クリップ外＝親ボタンの陰）から x=0 へスライドイン
-		_tutorial_clip.custom_minimum_size.x = w
-		if _tutorial_options.position.x < -w:
-			_tutorial_options.position.x = -w
-		tw.tween_property(_tutorial_options, "position:x", 0.0, TUTORIAL_SLIDE_DURATION)
-	else:
-		# 左（クリップ外）へスライドして消え、完了後に枠幅を0にして場所を空ける
-		tw.tween_property(_tutorial_options, "position:x", -w, TUTORIAL_SLIDE_DURATION)
-		tw.tween_callback(func() -> void:
-			if not _tutorial_expanded and is_instance_valid(_tutorial_clip):
-				_tutorial_clip.custom_minimum_size.x = 0.0
-		)
-
 func _on_tutorial_pressed() -> void:
-	_start_tutorial_game()
-
-func _on_tutorial_2p_pressed() -> void:
-	_start_tutorial_game(2)
+	_show_tutorial_selector()
 
 func _on_prev_grade_pressed() -> void:
 	game_state.grade -= 1

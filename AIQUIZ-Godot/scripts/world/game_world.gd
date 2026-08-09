@@ -1,6 +1,8 @@
 extends Node3D
 
 const GhostSharkRideControllerScript = preload("res://scripts/world/ghost_shark_ride_controller.gd")
+const TutorialPresentationDirectorScript = preload("res://scripts/world/tutorial_presentation_director.gd")
+const TutorialWorldGuidesScript = preload("res://scripts/world/tutorial_world_guides.gd")
 
 ## 3Dゲームワールド管理
 ## Python版 renderer.py の _draw_world + main_3d.py の入力処理に相当
@@ -27,6 +29,8 @@ var _prev_player_y: float = 0.0
 var _prev_p2_y: float = 0.0
 var _ocean_attack_sharks: Dictionary = {}
 var _ghost_shark_ride_controller: Node3D = null
+var _tutorial_presentation_director: Node = null
+var _tutorial_world_guides: Node3D = null
 var _active_walls: Array[Node3D] = []
 var _retired_wall_indices: Dictionary = {}
 const MERGE_EFFECT_POOL_SIZE := 6
@@ -112,6 +116,18 @@ func _ready() -> void:
 		camera_controller,
 		particle_spawner
 	)
+	_ghost_shark_ride_controller.aim_used.connect(_on_tutorial_ghost_aim_used)
+	_ghost_shark_ride_controller.charge_resolved.connect(_on_tutorial_ghost_charge_resolved)
+	game_state.tutorial_task_completed.connect(_on_tutorial_task_completed)
+	game_state.tutorial_presentation_requested.connect(_on_tutorial_presentation_requested)
+	_tutorial_presentation_director = TutorialPresentationDirectorScript.new()
+	_tutorial_presentation_director.name = "TutorialPresentationDirector"
+	add_child(_tutorial_presentation_director)
+	_tutorial_presentation_director.setup(game_state, camera_controller)
+	_tutorial_world_guides = TutorialWorldGuidesScript.new()
+	_tutorial_world_guides.name = "TutorialWorldGuides"
+	add_child(_tutorial_world_guides)
+	_tutorial_world_guides.setup(game_state)
 	_warm_merge_effect_pool()
 
 	# Pause menu setup
@@ -245,6 +261,60 @@ func get_ghost_shark_presentation(player_index: int) -> Dictionary:
 	return _ghost_shark_ride_controller.get_presentation_state(player_index)
 
 
+func is_ghost_shark_control_active(player_index: int) -> bool:
+	if _ghost_shark_ride_controller == null:
+		return false
+	return _ghost_shark_ride_controller.is_control_active_for_player(player_index)
+
+
+func is_ghost_charge_tutorial_active() -> bool:
+	return (
+		_ghost_shark_ride_controller != null
+		and _ghost_shark_ride_controller.is_charge_tutorial_active()
+	)
+
+
+func _on_tutorial_ghost_aim_used(player_index: int) -> void:
+	if game_state:
+		game_state.register_tutorial_ghost_aim(player_index)
+
+
+func _on_tutorial_ghost_charge_resolved(player_index: int, hit: bool, power: float) -> void:
+	if game_state == null:
+		return
+	if game_state.register_tutorial_ghost_charge(player_index, hit, power):
+		call_deferred("_finish_tutorial_ghost_practice")
+
+
+func _finish_tutorial_ghost_practice() -> void:
+	if _ghost_shark_ride_controller:
+		_ghost_shark_ride_controller.force_cleanup()
+	if game_state:
+		game_state.finish_tutorial_ghost_step()
+
+
+func _on_tutorial_task_completed(_player_index: int, _task_id: String) -> void:
+	if game_state and game_state.tutorial_flow and game_state.tutorial_flow.all_tasks_complete():
+		AudioManager.play_tutorial_complete()
+	else:
+		AudioManager.play_tutorial_task()
+
+
+func _on_tutorial_presentation_requested(presentation_id: String, _context: Dictionary) -> void:
+	if presentation_id != "completion_hero":
+		return
+	var celebration_z := (
+		game_state.goal_z - game_state.world_scroll_z
+		if game_state.goal_z > 0.0
+		else 36.0
+	)
+	if particle_spawner.has_method("spawn_fireworks"):
+		particle_spawner.spawn_fireworks(Vector3(0.0, 0.0, celebration_z))
+	var gameplay_hud: Node = get_node_or_null("GameplayHUD")
+	if gameplay_hud != null and gameplay_hud.has_method("play_tutorial_completion_celebration"):
+		gameplay_hud.call("play_tutorial_completion_celebration")
+
+
 func has_player_death_exploded(player_index: int) -> bool:
 	if player_node == null or not player_node.has_method("has_player_death_exploded"):
 		return false
@@ -373,6 +443,13 @@ func _process(dt: float) -> void:
 		axis_p1 = axis_p1.normalized()
 		if game_state.num_players >= 2:
 			axis_p2 = axis_p2.normalized()
+	if game_state.is_tutorial_presentation_locked():
+		axis_p1 = Vector2.ZERO
+		axis_p2 = Vector2.ZERO
+		jump_p1 = false
+		jump_p2 = false
+		emote_p1 = 0
+		emote_p2 = 0
 
 	# 1P uses a fixed third-person view, so gameplay never captures the mouse.
 	if Input.get_mouse_mode() == Input.MOUSE_MODE_CAPTURED:
@@ -422,6 +499,10 @@ func _process(dt: float) -> void:
 	_update_walls()
 	_update_goal_line()
 	_update_preview_walls(dt)
+	if _tutorial_presentation_director:
+		_tutorial_presentation_director.update(dt)
+	if _tutorial_world_guides:
+		_tutorial_world_guides.update(dt)
 	_update_camera(dt)
 	_check_particles()
 	_update_start_barrier()
@@ -439,13 +520,39 @@ func _update_floor_conveyor() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.keycode == KEY_ESCAPE and event.is_pressed() and not event.is_echo():
-		if game_state and game_state.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]:
+		if game_state and game_state.game_state in [
+			Constants.STATE_WAITING_START, Constants.STATE_COUNTDOWN,
+			Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE,
+		]:
 			_toggle_pause()
+		return
+	if (
+		event is InputEventKey
+		and event.keycode in [KEY_ENTER, KEY_KP_ENTER]
+		and event.is_pressed()
+		and not event.is_echo()
+		and _ghost_shark_ride_controller
+		and _ghost_shark_ride_controller.dismiss_charge_tutorial()
+	):
+		get_viewport().set_input_as_handled()
+		return
+	if (
+		event is InputEventKey
+		and event.keycode in [KEY_ENTER, KEY_KP_ENTER]
+		and event.is_pressed()
+		and not event.is_echo()
+		and _tutorial_presentation_director
+		and _tutorial_presentation_director.is_active()
+	):
+		_tutorial_presentation_director.skip()
+		get_viewport().set_input_as_handled()
+		return
 			
 	if event is InputEventKey or event is InputEventJoypadButton or event is InputEventMouseButton:
 		if event.is_pressed() and not event.is_echo():
 			if game_state and game_state.game_state == Constants.STATE_WAITING_START:
 				# カウントダウン壁が出現し終わるまで開始トリガーをブロック
+				# （チュートリアルも本編と同じフライオーバー→カウントダウン開始）
 				if not _barrier_spawned_for_session or _barrier_dropping:
 					return
 				if game_state.has_method("trigger_start"):
@@ -592,7 +699,11 @@ func _update_walls() -> void:
 	# 固定問数モードでは target_count 以降の壁を生成しない
 	var max_wall_idx: int = -1
 	if game_state.mode == Constants.MODE_TEN or game_state.mode == Constants.MODE_TUTORIAL:
-		max_wall_idx = game_state.target_count - 1  # 0-indexed: 壁0〜9まで
+		max_wall_idx = (
+			game_state.get_tutorial_wall_count() - 1
+			if game_state.mode == Constants.MODE_TUTORIAL
+			else game_state.target_count - 1
+		)
 	for i: int in range(MAX_VISIBLE_WALLS + 3):
 		var idx: int = start_idx + i
 		# 固定問数モードでは target_count 以降の壁をスキップ
@@ -658,10 +769,12 @@ func _update_wall_labels(wall_node: Node3D) -> void:
 		wall_node.set_quiz(game_state.current_quiz, game_state.num_choices)
 
 func _update_goal_line() -> void:
-	# Show the goal gate for 2P 10-question games and 2P tutorials.
+	# Show the goal gate for 2P 10-question games and both V3 tutorial courses.
 	var should_show := (
-		game_state.num_players >= 2
-		and game_state.mode in [Constants.MODE_TEN, Constants.MODE_TUTORIAL]
+		(
+			(game_state.num_players >= 2 and game_state.mode == Constants.MODE_TEN)
+			or game_state.mode == Constants.MODE_TUTORIAL
+		)
 		and game_state.game_state in [
 			Constants.STATE_GOAL_RACE,
 			Constants.STATE_FLYOVER,

@@ -20,15 +20,21 @@ const CONTEXT_VOLUME_DB := {
 
 var correct_player: AudioStreamPlayer
 var explosion_player: AudioStreamPlayer
+var tutorial_player: AudioStreamPlayer
 var bgm_player: AudioStreamPlayer
 var shark_rush_stream: AudioStreamWAV
 var shark_impact_stream: AudioStreamWAV
+var tutorial_step_stream: AudioStreamWAV
+var tutorial_task_stream: AudioStreamWAV
+var tutorial_complete_stream: AudioStreamWAV
+var tutorial_settle_stream: AudioStreamWAV
 
 var sfx_volume: float = 1.0
 var bgm_volume: float = 0.5
 var _music_context: StringName = MUSIC_CONTEXT_MENU
 var _context_before_pause: StringName = MUSIC_CONTEXT_MENU
 var _context_tween: Tween = null
+var _tutorial_ducked: bool = false
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -55,12 +61,17 @@ func _ready() -> void:
 	explosion_player.name = "ExplosionSFX"
 	explosion_player.bus = "SFX"
 	add_child(explosion_player)
+	tutorial_player = AudioStreamPlayer.new()
+	tutorial_player.name = "TutorialSFX"
+	tutorial_player.bus = "SFX"
+	add_child(tutorial_player)
 
 	# Generate audio samples
 	_generate_correct_sound()
 	_generate_explosion_sound()
 	_generate_shark_rush_sound()
 	_generate_shark_impact_sound()
+	_generate_tutorial_sounds()
 
 	# Connect to game state
 	var game_state: QuizGameState = QuizManager.game_state
@@ -79,6 +90,27 @@ func play_correct() -> void:
 
 func play_explosion() -> void:
 	explosion_player.play()
+
+
+func play_tutorial_step() -> void:
+	_play_tutorial_stream(tutorial_step_stream)
+
+
+func play_tutorial_task() -> void:
+	_play_tutorial_stream(tutorial_task_stream)
+
+
+func play_tutorial_complete() -> void:
+	_play_tutorial_stream(tutorial_complete_stream)
+
+
+func play_tutorial_settle() -> void:
+	_play_tutorial_stream(tutorial_settle_stream)
+
+
+func set_tutorial_ducked(ducked: bool, fade_seconds: float = 0.22) -> void:
+	_tutorial_ducked = ducked
+	_apply_music_target(fade_seconds)
 
 func set_volume(vol: float) -> void:
 	set_sfx_volume(vol)
@@ -101,7 +133,15 @@ func set_music_context(context: StringName, fade_seconds: float = 0.4) -> void:
 	_music_context = context
 	if not is_instance_valid(bgm_player):
 		return
-	var target_db: float = float(CONTEXT_VOLUME_DB.get(context, 0.0))
+	_apply_music_target(fade_seconds)
+
+
+func _apply_music_target(fade_seconds: float) -> void:
+	if not is_instance_valid(bgm_player):
+		return
+	var target_db: float = float(CONTEXT_VOLUME_DB.get(_music_context, 0.0))
+	if _tutorial_ducked:
+		target_db -= 6.0
 	if is_instance_valid(_context_tween):
 		_context_tween.kill()
 	if fade_seconds <= 0.0:
@@ -111,6 +151,13 @@ func set_music_context(context: StringName, fade_seconds: float = 0.4) -> void:
 	_context_tween.set_trans(Tween.TRANS_SINE)
 	_context_tween.set_ease(Tween.EASE_IN_OUT)
 	_context_tween.tween_property(bgm_player, "volume_db", target_db, fade_seconds)
+
+
+func _play_tutorial_stream(stream: AudioStreamWAV) -> void:
+	if tutorial_player == null or stream == null:
+		return
+	tutorial_player.stream = stream
+	tutorial_player.play()
 
 func set_music_paused(paused: bool) -> void:
 	if paused:
@@ -295,3 +342,37 @@ func _generate_shark_impact_sound() -> void:
 		data.encode_s16(i * 2, int(value * 32767.0))
 	stream.data = data
 	shark_impact_stream = stream
+
+
+func _generate_tutorial_sounds() -> void:
+	tutorial_step_stream = _make_tutorial_tone(420.0, 760.0, 0.24, 0.34)
+	tutorial_task_stream = _make_tutorial_tone(720.0, 980.0, 0.12, 0.28)
+	tutorial_complete_stream = _make_tutorial_tone(520.0, 1320.0, 0.38, 0.38)
+	tutorial_settle_stream = _make_tutorial_tone(880.0, 620.0, 0.14, 0.22)
+
+
+func _make_tutorial_tone(
+		start_frequency: float,
+		end_frequency: float,
+		duration: float,
+		amplitude: float) -> AudioStreamWAV:
+	var sample_rate := 22050
+	var sample_count := maxi(1, int(float(sample_rate) * duration))
+	var stream := AudioStreamWAV.new()
+	stream.format = AudioStreamWAV.FORMAT_16_BITS
+	stream.mix_rate = sample_rate
+	stream.stereo = false
+	var data := PackedByteArray()
+	data.resize(sample_count * 2)
+	var phase := 0.0
+	for index: int in range(sample_count):
+		var progress := float(index) / float(sample_count)
+		var frequency := lerpf(start_frequency, end_frequency, progress)
+		phase += TAU * frequency / float(sample_rate)
+		var attack := minf(1.0, progress * 18.0)
+		var release := pow(1.0 - progress, 2.2)
+		var harmonic := sin(phase * 2.0) * 0.18
+		var value := clampf((sin(phase) + harmonic) * amplitude * attack * release, -1.0, 1.0)
+		data.encode_s16(index * 2, int(value * 32767.0))
+	stream.data = data
+	return stream

@@ -1,6 +1,9 @@
 class_name GhostSharkRideController
 extends Node3D
 
+signal aim_used(player_index: int)
+signal charge_resolved(player_index: int, hit: bool, power: float)
+
 const SharkSwimmerScript = preload("res://scripts/world/shark_swimmer.gd")
 
 enum Phase {
@@ -15,6 +18,12 @@ enum Phase {
 	WINDUP,
 	CHARGING,
 	COOLDOWN,
+}
+
+enum ChargeTutorialDemoPhase {
+	BUILDING,
+	HOLDING,
+	RESETTING,
 }
 
 const DEATH_HOLD_SECONDS: float = 0.55
@@ -72,6 +81,20 @@ const HUD_PANEL_WIDTH: float = 320.0
 const HUD_PANEL_HEIGHT: float = 76.0
 const HUD_EDGE_MARGIN: float = 20.0
 const HUD_BOTTOM_MARGIN: float = 20.0
+const CHARGE_TUTORIAL_PANEL_SIZE := Vector2(780.0, 470.0)
+const CHARGE_TUTORIAL_BAR_HEIGHT: float = 42.0
+const CHARGE_TUTORIAL_HANDOFF_SECONDS: float = 0.55
+const CHARGE_TUTORIAL_DEMO_HOLD_SECONDS: float = 1.35
+const CHARGE_TUTORIAL_DEMO_RESET_SECONDS: float = 0.24
+const CHARGE_TUTORIAL_DEMO_WRAP_COUNT: int = 2
+const CHARGE_TUTORIAL_PERFECT_BLINK_HZ: float = 5.0
+const CHARGE_TUTORIAL_DEMO_TARGETS := [0.48, 0.83, 0.99, 0.75]
+const CHARGE_TUTORIAL_DEMO_LABELS := [
+	"早すぎる",
+	"PERFECT！",
+	"ためすぎ",
+	"PERFECT！",
+]
 
 var game_state: QuizGameState = null
 var stage_environment: StageEnvironment = null
@@ -131,6 +154,26 @@ var _charge_bar: ProgressBar = null
 var _charge_fill_style: StyleBoxFlat = null
 var _hud_slide_elapsed: float = 0.0
 var _hud_slide_active: bool = false
+var _charge_bar_home: Control = null
+var _charge_tutorial_overlay: Control = null
+var _charge_tutorial_dim: ColorRect = null
+var _charge_tutorial_panel: PanelContainer = null
+var _charge_tutorial_title: Label = null
+var _charge_tutorial_controls: Label = null
+var _charge_tutorial_result: Label = null
+var _charge_tutorial_bar_slot: Control = null
+var _charge_tutorial_active: bool = false
+var _charge_tutorial_handoff_active: bool = false
+var _charge_tutorial_elapsed: float = 0.0
+var _charge_tutorial_demo_phase: int = ChargeTutorialDemoPhase.BUILDING
+var _charge_tutorial_demo_index: int = 0
+var _charge_tutorial_demo_value: float = 0.0
+var _charge_tutorial_demo_travel: float = 0.0
+var _charge_tutorial_demo_phase_elapsed: float = 0.0
+var _charge_tutorial_handoff_elapsed: float = 0.0
+var _charge_tutorial_handoff_waiting_layout: bool = false
+var _charge_tutorial_handoff_from: Rect2 = Rect2()
+var _charge_tutorial_handoff_to: Rect2 = Rect2()
 var _aim_material: StandardMaterial3D = null
 var _aim_outer_material: StandardMaterial3D = null
 
@@ -241,6 +284,28 @@ func get_debug_state() -> Dictionary:
 
 func is_active_for_player(player_index: int) -> bool:
 	return phase != Phase.INACTIVE and dead_player_index == player_index
+
+
+## ゴーストシャークの操作（照準・チャージ）が可能なフェーズか。
+func is_control_active_for_player(player_index: int) -> bool:
+	return (
+		dead_player_index == player_index
+		and not is_charge_tutorial_active()
+		and phase in [Phase.AIMING, Phase.WINDUP, Phase.CHARGING, Phase.COOLDOWN]
+	)
+
+
+func is_charge_tutorial_active() -> bool:
+	return _charge_tutorial_active or _charge_tutorial_handoff_active
+
+
+func dismiss_charge_tutorial() -> bool:
+	if _charge_tutorial_handoff_active:
+		return true
+	if not _charge_tutorial_active:
+		return false
+	_start_charge_tutorial_handoff()
+	return true
 
 
 func get_presentation_state(player_index: int) -> Dictionary:
@@ -356,7 +421,10 @@ func _base_mode_is_eligible(is_online: bool, is_replay: bool) -> bool:
 	return (
 		game_state.num_players == 2
 		and not game_state.is_coop_mode()
-		and game_state.mode != Constants.MODE_TUTORIAL
+		and (
+			game_state.mode != Constants.MODE_TUTORIAL
+			or game_state.is_tutorial_ghost_practice()
+		)
 		and not is_online
 		and not is_replay
 	)
@@ -452,11 +520,25 @@ func _update_active_phase(
 			if _phase_timer <= 0.0 and _shark and _shark.is_ghost_hovering():
 				phase = Phase.AIMING
 				player_controller.apply_ghost_rider_mount_hold_pose(_rider)
-				_show_aim_visuals()
-				_start_hud_intro()
+				if _should_show_charge_tutorial():
+					_start_charge_tutorial()
+				else:
+					_show_aim_visuals()
+					_start_hud_intro()
 		Phase.AIMING:
+			if is_charge_tutorial_active():
+				if _charge_tutorial_handoff_active:
+					_update_charge_tutorial_handoff(delta)
+				else:
+					_update_charge_tutorial(delta)
+				_update_hover_target()
+				if _shark != null and is_instance_valid(_shark):
+					_presentation_focus = _shark.global_position
+				return
 			_update_ghost_emote(emote_input, fire_pressed)
 			var aim_axis := axis_p1 if dead_player_index == 1 else axis_p2
+			if aim_axis.length_squared() > 0.02:
+				aim_used.emit(dead_player_index)
 			_aim_offset.x = clampf(_aim_offset.x + aim_axis.x * AIM_SPEED * delta, -AIM_SIDE_LIMIT, AIM_SIDE_LIMIT)
 			_aim_offset.y = clampf(_aim_offset.y + aim_axis.y * AIM_SPEED * delta, -AIM_BACK_LIMIT, AIM_FORWARD_LIMIT)
 			_update_hover_target()
@@ -1070,6 +1152,7 @@ func _begin_cooldown() -> void:
 		_shark.visible = false
 	_set_meter(0.0, _player_color)
 	_update_hud("%s  /  再突進 %.1f 秒" % [_result_text, _phase_timer])
+	charge_resolved.emit(dead_player_index, _hit_this_charge, _last_charge_power)
 
 
 func _update_cooldown(delta: float) -> void:
@@ -1208,9 +1291,410 @@ func _build_aim_visuals() -> void:
 	_charge_fill_style.corner_radius_bottom_left = 6
 	_charge_fill_style.corner_radius_bottom_right = 6
 	_charge_bar.add_theme_stylebox_override("fill", _charge_fill_style)
-	vbox.add_child(_charge_bar)
+	# The same ProgressBar node is used in both the compact HUD and the tutorial
+	# close-up. These two slots only provide its two layouts.
+	_charge_bar_home = Control.new()
+	_charge_bar_home.name = "GhostChargeMeterHome"
+	_charge_bar_home.custom_minimum_size = Vector2(0.0, 13.0)
+	_charge_bar_home.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vbox.add_child(_charge_bar_home)
+	_charge_bar_home.add_child(_charge_bar)
+	_charge_bar.custom_minimum_size = Vector2.ZERO
+	_charge_bar.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_build_charge_tutorial_overlay()
 	_hide_aim_visuals()
 	_hud_panel.visible = false
+
+
+func _build_charge_tutorial_overlay() -> void:
+	_charge_tutorial_overlay = Control.new()
+	_charge_tutorial_overlay.name = "GhostChargeTutorialOverlay"
+	_charge_tutorial_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_charge_tutorial_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_charge_tutorial_overlay.visible = false
+	_hud_layer.add_child(_charge_tutorial_overlay)
+
+	_charge_tutorial_dim = ColorRect.new()
+	_charge_tutorial_dim.name = "DimBackground"
+	_charge_tutorial_dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_charge_tutorial_dim.color = Color(0.015, 0.025, 0.065, 0.84)
+	_charge_tutorial_dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_charge_tutorial_overlay.add_child(_charge_tutorial_dim)
+
+	_charge_tutorial_panel = PanelContainer.new()
+	_charge_tutorial_panel.name = "ChargeExplanationPanel"
+	_charge_tutorial_panel.set_anchors_preset(Control.PRESET_CENTER)
+	_charge_tutorial_panel.offset_left = -CHARGE_TUTORIAL_PANEL_SIZE.x * 0.5
+	_charge_tutorial_panel.offset_top = -CHARGE_TUTORIAL_PANEL_SIZE.y * 0.5
+	_charge_tutorial_panel.offset_right = CHARGE_TUTORIAL_PANEL_SIZE.x * 0.5
+	_charge_tutorial_panel.offset_bottom = CHARGE_TUTORIAL_PANEL_SIZE.y * 0.5
+	_charge_tutorial_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var panel_style := StyleBoxFlat.new()
+	panel_style.bg_color = Color(0.035, 0.07, 0.15, 0.98)
+	panel_style.border_color = Color(1.0, 0.86, 0.22, 0.96)
+	panel_style.set_border_width_all(3)
+	panel_style.corner_radius_top_left = 22
+	panel_style.corner_radius_top_right = 22
+	panel_style.corner_radius_bottom_left = 22
+	panel_style.corner_radius_bottom_right = 22
+	_charge_tutorial_panel.add_theme_stylebox_override("panel", panel_style)
+	_charge_tutorial_overlay.add_child(_charge_tutorial_panel)
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 34)
+	margin.add_theme_constant_override("margin_top", 26)
+	margin.add_theme_constant_override("margin_right", 34)
+	margin.add_theme_constant_override("margin_bottom", 24)
+	_charge_tutorial_panel.add_child(margin)
+	var content := VBoxContainer.new()
+	content.add_theme_constant_override("separation", 13)
+	margin.add_child(content)
+
+	_charge_tutorial_title = Label.new()
+	_charge_tutorial_title.name = "ChargeTutorialTitle"
+	_charge_tutorial_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_charge_tutorial_title.add_theme_font_size_override("font_size", 30)
+	_charge_tutorial_title.add_theme_color_override("font_color", Color(1.0, 0.88, 0.28))
+	_charge_tutorial_title.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.95))
+	_charge_tutorial_title.add_theme_constant_override("outline_size", 6)
+	content.add_child(_charge_tutorial_title)
+
+	var subtitle := Label.new()
+	subtitle.text = "チャージバーを見ながら、強力な突進を狙おう"
+	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	subtitle.add_theme_font_size_override("font_size", 19)
+	subtitle.add_theme_color_override("font_color", Color(0.88, 0.94, 1.0))
+	content.add_child(subtitle)
+
+	_charge_tutorial_bar_slot = Control.new()
+	_charge_tutorial_bar_slot.name = "EnlargedGhostChargeMeterSlot"
+	_charge_tutorial_bar_slot.custom_minimum_size = Vector2(0.0, CHARGE_TUTORIAL_BAR_HEIGHT)
+	_charge_tutorial_bar_slot.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content.add_child(_charge_tutorial_bar_slot)
+
+	var perfect_band := ColorRect.new()
+	perfect_band.name = "PerfectBand"
+	perfect_band.anchor_left = PERFECT_CHARGE_MIN
+	perfect_band.anchor_top = 0.0
+	perfect_band.anchor_right = PERFECT_CHARGE_MAX
+	perfect_band.anchor_bottom = 1.0
+	perfect_band.color = Color(1.0, 0.82, 0.12, 0.30)
+	perfect_band.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_charge_tutorial_bar_slot.add_child(perfect_band)
+	var perfect_label := Label.new()
+	perfect_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	perfect_label.text = "PERFECT"
+	perfect_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	perfect_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	perfect_label.add_theme_font_size_override("font_size", 15)
+	perfect_label.add_theme_color_override("font_color", Color(1.0, 0.92, 0.42))
+	perfect_label.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.95))
+	perfect_label.add_theme_constant_override("outline_size", 4)
+	perfect_band.add_child(perfect_label)
+
+	var scale_labels := HBoxContainer.new()
+	content.add_child(scale_labels)
+	for text_value: String in ["0%", "長押しでチャージ", "72〜94%でPERFECT", "100%"]:
+		var scale_label := Label.new()
+		scale_label.text = text_value
+		scale_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		scale_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		scale_label.add_theme_font_size_override("font_size", 15)
+		scale_label.add_theme_color_override(
+			"font_color",
+			Color(1.0, 0.86, 0.28) if text_value.contains("PERFECT") else Color(0.70, 0.80, 0.94)
+		)
+		scale_labels.add_child(scale_label)
+
+	_charge_tutorial_result = Label.new()
+	_charge_tutorial_result.name = "ChargeTutorialDemoResult"
+	_charge_tutorial_result.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_charge_tutorial_result.add_theme_font_size_override("font_size", 20)
+	_charge_tutorial_result.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.95))
+	_charge_tutorial_result.add_theme_constant_override("outline_size", 4)
+	content.add_child(_charge_tutorial_result)
+
+	_charge_tutorial_controls = Label.new()
+	_charge_tutorial_controls.name = "ChargeTutorialControls"
+	_charge_tutorial_controls.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_charge_tutorial_controls.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_charge_tutorial_controls.add_theme_font_size_override("font_size", 21)
+	_charge_tutorial_controls.add_theme_color_override("font_color", Color(0.94, 0.97, 1.0))
+	content.add_child(_charge_tutorial_controls)
+
+	var confirm := Label.new()
+	confirm.text = "[ ENTER ]  説明を閉じて操作開始"
+	confirm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	confirm.add_theme_font_size_override("font_size", 20)
+	confirm.add_theme_color_override("font_color", Color(1.0, 0.88, 0.24))
+	confirm.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.95))
+	confirm.add_theme_constant_override("outline_size", 4)
+	content.add_child(confirm)
+
+
+func _should_show_charge_tutorial() -> bool:
+	return (
+		game_state != null
+		and game_state.is_tutorial_ghost_practice()
+		and game_state.get_tutorial_ghost_player() == dead_player_index
+	)
+
+
+func _start_charge_tutorial() -> void:
+	if _charge_tutorial_overlay == null or _charge_tutorial_bar_slot == null:
+		_show_aim_visuals()
+		_start_hud_intro()
+		return
+	_attach_charge_bar_to_slot(_charge_tutorial_bar_slot)
+	_set_meter(0.0, _player_color)
+	_charge_tutorial_active = true
+	_charge_tutorial_handoff_active = false
+	_charge_tutorial_elapsed = 0.0
+	_charge_tutorial_demo_phase = ChargeTutorialDemoPhase.BUILDING
+	_charge_tutorial_demo_index = 0
+	_charge_tutorial_demo_value = 0.0
+	_charge_tutorial_demo_travel = 0.0
+	_charge_tutorial_demo_phase_elapsed = 0.0
+	_charge_tutorial_handoff_elapsed = 0.0
+	_charge_tutorial_handoff_waiting_layout = false
+	_charge_tutorial_overlay.visible = true
+	if _charge_tutorial_panel != null:
+		_charge_tutorial_panel.visible = true
+		_charge_tutorial_panel.modulate.a = 1.0
+	if _charge_tutorial_dim != null:
+		_charge_tutorial_dim.visible = true
+		_charge_tutorial_dim.modulate.a = 1.0
+	if _hud_panel != null:
+		_hud_panel.visible = false
+	_hide_aim_visuals()
+	_charge_tutorial_title.text = "GHOST RIDER · P%d  チャージ操作" % dead_player_index
+	var aim_keys := "WASD" if dead_player_index == 1 else "矢印キー"
+	var charge_keys := "SPACE" if dead_player_index == 1 else "CTRL / NUM0"
+	_charge_tutorial_controls.text = (
+		"① %sで照準を合わせる\n② %sを長押しして霊力をためる\n"
+		+ "③ 黄色のPERFECT帯で離すと、最も強い突進！"
+	) % [aim_keys, charge_keys]
+	_update_charge_tutorial(0.0)
+
+
+func _update_charge_tutorial(delta: float) -> void:
+	if not _charge_tutorial_active or _charge_bar == null:
+		return
+	_charge_tutorial_elapsed += delta
+	_charge_tutorial_demo_phase_elapsed += delta
+	var target: float = CHARGE_TUTORIAL_DEMO_TARGETS[_charge_tutorial_demo_index]
+	match _charge_tutorial_demo_phase:
+		ChargeTutorialDemoPhase.BUILDING:
+			var stop_travel: float = float(CHARGE_TUTORIAL_DEMO_WRAP_COUNT) + target
+			_charge_tutorial_demo_travel = minf(
+				stop_travel,
+				_charge_tutorial_demo_travel + delta / CHARGE_BUILD_SECONDS
+			)
+			_charge_tutorial_demo_value = fposmod(_charge_tutorial_demo_travel, 1.0)
+			if _charge_tutorial_demo_travel >= stop_travel:
+				_charge_tutorial_demo_value = target
+			_charge_bar.modulate = Color.WHITE
+			_set_meter(
+				_charge_tutorial_demo_value,
+				_charge_feedback_color(_charge_tutorial_demo_value)
+			)
+			_set_charge_tutorial_result("長押し中…", Color(0.76, 0.85, 0.98))
+			if _charge_tutorial_demo_travel >= stop_travel:
+				_charge_tutorial_demo_phase = ChargeTutorialDemoPhase.HOLDING
+				_charge_tutorial_demo_phase_elapsed = 0.0
+				_set_charge_tutorial_stop_result(target)
+		ChargeTutorialDemoPhase.HOLDING:
+			_set_meter(target, _charge_feedback_color(target))
+			_set_charge_tutorial_stop_result(target)
+			if _is_perfect_power(target):
+				var blink_step := int(
+					floor(_charge_tutorial_demo_phase_elapsed * CHARGE_TUTORIAL_PERFECT_BLINK_HZ * 2.0)
+				)
+				_charge_bar.modulate.a = 1.0 if blink_step % 2 == 0 else 0.28
+			else:
+				_charge_bar.modulate.a = 1.0
+			if _charge_tutorial_demo_phase_elapsed >= CHARGE_TUTORIAL_DEMO_HOLD_SECONDS:
+				_charge_tutorial_demo_phase = ChargeTutorialDemoPhase.RESETTING
+				_charge_tutorial_demo_phase_elapsed = 0.0
+				_charge_bar.modulate.a = 1.0
+		ChargeTutorialDemoPhase.RESETTING:
+			var fade := clampf(
+				_charge_tutorial_demo_phase_elapsed / CHARGE_TUTORIAL_DEMO_RESET_SECONDS,
+				0.0,
+				1.0
+			)
+			_charge_bar.modulate.a = 1.0 - fade
+			_set_charge_tutorial_result("", Color(0.65, 0.74, 0.88))
+			if _charge_tutorial_demo_phase_elapsed >= CHARGE_TUTORIAL_DEMO_RESET_SECONDS:
+				_charge_tutorial_demo_index = (
+					(_charge_tutorial_demo_index + 1) % CHARGE_TUTORIAL_DEMO_TARGETS.size()
+				)
+				_charge_tutorial_demo_phase = ChargeTutorialDemoPhase.BUILDING
+				_charge_tutorial_demo_phase_elapsed = 0.0
+				_charge_tutorial_demo_value = 0.0
+				_charge_tutorial_demo_travel = 0.0
+				_charge_bar.modulate = Color.WHITE
+				_set_meter(0.0, _player_color)
+
+
+func _set_charge_tutorial_stop_result(target: float) -> void:
+	var label_text: String = CHARGE_TUTORIAL_DEMO_LABELS[_charge_tutorial_demo_index]
+	var label_color := Color(0.72, 0.84, 1.0)
+	if _is_perfect_power(target):
+		label_color = Color(1.0, 0.88, 0.22)
+	elif target > PERFECT_CHARGE_MAX:
+		label_color = Color(1.0, 0.38, 0.42)
+	_set_charge_tutorial_result(label_text, label_color)
+
+
+func _set_charge_tutorial_result(label_text: String, color: Color) -> void:
+	if _charge_tutorial_result == null:
+		return
+	_charge_tutorial_result.text = label_text
+	_charge_tutorial_result.add_theme_color_override("font_color", color)
+
+
+func _attach_charge_bar_to_slot(slot: Control) -> void:
+	if _charge_bar == null or slot == null:
+		return
+	var current_parent := _charge_bar.get_parent()
+	if current_parent != slot:
+		if current_parent != null:
+			current_parent.remove_child(_charge_bar)
+		slot.add_child(_charge_bar)
+	# Keep the real meter behind the tutorial-only PERFECT marker.
+	slot.move_child(_charge_bar, 0)
+	_charge_bar.custom_minimum_size = Vector2.ZERO
+	_charge_bar.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+
+func _restore_charge_bar_home() -> void:
+	if _charge_bar == null or _charge_bar_home == null:
+		return
+	_attach_charge_bar_to_slot(_charge_bar_home)
+
+
+func _start_charge_tutorial_handoff() -> void:
+	if _charge_bar == null or _charge_bar_home == null or _charge_tutorial_overlay == null:
+		_charge_tutorial_active = false
+		_restore_charge_bar_home()
+		_show_aim_visuals()
+		_start_hud_intro()
+		return
+	_charge_tutorial_active = false
+	_charge_tutorial_handoff_active = true
+	_charge_tutorial_handoff_elapsed = 0.0
+	_charge_tutorial_handoff_waiting_layout = true
+
+	# 移動先となる本編HUDを最終位置に配置（まだ非表示）
+	_hud_slide_active = false
+	_hud_slide_elapsed = HUD_SLIDE_SECONDS
+	if _hud_panel != null:
+		_hud_panel.visible = true
+		_hud_panel.modulate.a = 0.0
+		_layout_hud(1.0)
+	_update_hud("")
+	# Container children receive their final sizes at the end of the frame. Keep
+	# the explanation visible until GhostChargeMeterHome has a real destination.
+	_charge_bar.modulate = Color.WHITE
+
+
+func _begin_charge_tutorial_handoff_motion() -> void:
+	_charge_tutorial_handoff_waiting_layout = false
+
+	# The animated object is the real GhostChargeMeter. The destination is its
+	# persistent home slot, so the final rectangle matches the compact HUD exactly.
+	_charge_tutorial_handoff_from = _charge_bar.get_global_rect()
+	_charge_tutorial_handoff_to = _charge_bar_home.get_global_rect()
+	var overlay_origin := _charge_tutorial_overlay.get_global_rect().position
+	var current_parent := _charge_bar.get_parent()
+	if current_parent != null:
+		current_parent.remove_child(_charge_bar)
+	_charge_tutorial_overlay.add_child(_charge_bar)
+	_charge_bar.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	_charge_bar.position = _charge_tutorial_handoff_from.position - overlay_origin
+	_charge_bar.size = _charge_tutorial_handoff_from.size
+	if _charge_tutorial_panel != null:
+		_charge_tutorial_panel.visible = false
+	_charge_bar.visible = true
+	_charge_bar.modulate = Color.WHITE
+	_apply_charge_tutorial_handoff(0.0)
+
+
+func _update_charge_tutorial_handoff(delta: float) -> void:
+	if not _charge_tutorial_handoff_active:
+		return
+	if _charge_tutorial_handoff_waiting_layout:
+		if _charge_bar_home == null or _charge_bar_home.size.x <= 0.0 or _charge_bar_home.size.y <= 0.0:
+			return
+		_begin_charge_tutorial_handoff_motion()
+		return
+	_charge_tutorial_handoff_elapsed = minf(
+		CHARGE_TUTORIAL_HANDOFF_SECONDS,
+		_charge_tutorial_handoff_elapsed + delta
+	)
+	var progress := clampf(
+		_charge_tutorial_handoff_elapsed / CHARGE_TUTORIAL_HANDOFF_SECONDS,
+		0.0,
+		1.0
+	)
+	var weight := 1.0 - pow(1.0 - progress, 3.0)
+	_apply_charge_tutorial_handoff(weight)
+	if _charge_tutorial_handoff_elapsed >= CHARGE_TUTORIAL_HANDOFF_SECONDS:
+		_finish_charge_tutorial_handoff()
+
+
+func _apply_charge_tutorial_handoff(weight: float) -> void:
+	if _charge_bar == null or _charge_tutorial_overlay == null:
+		return
+	var overlay_origin := _charge_tutorial_overlay.get_global_rect().position
+	var from_rect := _charge_tutorial_handoff_from
+	var to_rect := _charge_tutorial_handoff_to
+	var rect := Rect2(
+		from_rect.position.lerp(to_rect.position, weight),
+		from_rect.size.lerp(to_rect.size, weight)
+	)
+	_charge_bar.position = rect.position - overlay_origin
+	_charge_bar.size = rect.size
+	# The real bar stays fully visible while it shrinks directly into its HUD slot.
+	_charge_bar.modulate = Color.WHITE
+	if _charge_tutorial_dim != null:
+		_charge_tutorial_dim.modulate.a = 1.0 - weight
+	if _hud_panel != null:
+		_hud_panel.modulate.a = clampf((weight - 0.55) / 0.45, 0.0, 1.0)
+
+
+func _finish_charge_tutorial_handoff() -> void:
+	_charge_tutorial_handoff_active = false
+	_charge_tutorial_active = false
+	_charge_tutorial_elapsed = 0.0
+	_charge_tutorial_demo_phase = ChargeTutorialDemoPhase.BUILDING
+	_charge_tutorial_demo_index = 0
+	_charge_tutorial_demo_value = 0.0
+	_charge_tutorial_demo_travel = 0.0
+	_charge_tutorial_demo_phase_elapsed = 0.0
+	_charge_tutorial_handoff_elapsed = 0.0
+	_charge_tutorial_handoff_waiting_layout = false
+	_restore_charge_bar_home()
+	if _charge_bar != null:
+		_charge_bar.visible = true
+		_charge_bar.modulate = Color.WHITE
+	if _charge_tutorial_overlay != null:
+		_charge_tutorial_overlay.visible = false
+	if _charge_tutorial_panel != null:
+		_charge_tutorial_panel.visible = true
+		_charge_tutorial_panel.modulate.a = 1.0
+	if _charge_tutorial_dim != null:
+		_charge_tutorial_dim.modulate.a = 1.0
+	_show_aim_visuals()
+	if _hud_panel != null:
+		_hud_panel.visible = true
+		_hud_panel.modulate.a = 1.0
+		_hud_slide_active = false
+		_hud_slide_elapsed = HUD_SLIDE_SECONDS
+		_layout_hud(1.0)
+	_set_meter(0.0, _player_color)
+	_update_hud("")
 
 
 func _start_hud_intro() -> void:
@@ -1359,6 +1843,27 @@ func _set_meter(progress: float, color: Color) -> void:
 func _cleanup_ghost_ride() -> void:
 	_clear_ghost_emote()
 	_hide_aim_visuals()
+	_charge_tutorial_active = false
+	_charge_tutorial_handoff_active = false
+	_charge_tutorial_elapsed = 0.0
+	_charge_tutorial_demo_phase = ChargeTutorialDemoPhase.BUILDING
+	_charge_tutorial_demo_index = 0
+	_charge_tutorial_demo_value = 0.0
+	_charge_tutorial_demo_travel = 0.0
+	_charge_tutorial_demo_phase_elapsed = 0.0
+	_charge_tutorial_handoff_elapsed = 0.0
+	_charge_tutorial_handoff_waiting_layout = false
+	if _charge_tutorial_overlay != null:
+		_charge_tutorial_overlay.visible = false
+	_restore_charge_bar_home()
+	if _charge_bar != null:
+		_charge_bar.visible = true
+		_charge_bar.modulate = Color.WHITE
+	if _charge_tutorial_panel != null:
+		_charge_tutorial_panel.visible = true
+		_charge_tutorial_panel.modulate.a = 1.0
+	if _charge_tutorial_dim != null:
+		_charge_tutorial_dim.modulate.a = 1.0
 	if _hud_panel:
 		_hud_panel.visible = false
 		_hud_panel.modulate.a = 1.0
