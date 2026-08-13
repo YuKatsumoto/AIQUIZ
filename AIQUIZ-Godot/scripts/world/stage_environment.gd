@@ -14,6 +14,9 @@ const GRANDSTAND_SCENE: PackedScene = preload(
 	"res://assets/environment/grandstand/aiquiz_ocean_grandstand_optimized.glb"
 )
 const SharkSwimmerScript = preload("res://scripts/world/shark_swimmer.gd")
+const WeatherCycleScript = preload("res://scripts/world/weather_cycle.gd")
+const ConveyorEdgeLightsScript = preload("res://scripts/world/conveyor_edge_lights.gd")
+const AIQUIZ_STAGE_SKY_PATH := "res://assets/environment/sky/aiquiz_day_night_sky.tres"
 const GRANDSTAND_BASE_LENGTH: float = 160.0
 const GRANDSTAND_SIDE_OFFSET: float = 32.0
 
@@ -30,6 +33,8 @@ var _include_grandstands: bool = false
 var floor_mesh: MeshInstance3D = null
 var environment_node: WorldEnvironment = null
 var directional_light: DirectionalLight3D = null
+var weather_cycle: WeatherCycle = null
+var conveyor_edge_lights: ConveyorEdgeLights = null
 
 var _floor_belt_material: ShaderMaterial = null
 var _floor_collision_body: StaticBody3D = null
@@ -67,8 +72,10 @@ func build(config: Dictionary = {}) -> void:
 
 	_setup_environment()
 	_setup_lighting()
+	_setup_weather_cycle()
 	_setup_floor()
 	_setup_floor_conveyor()
+	_setup_conveyor_edge_lights()
 	_setup_ocean()
 	if _include_grandstands:
 		_setup_grandstands()
@@ -78,7 +85,25 @@ func build(config: Dictionary = {}) -> void:
 	set_floor_geometry(_floor_center_z, _floor_length)
 
 
-static func create_clear_day_sky() -> Sky:
+static func _graphics_quality() -> String:
+	var raw: Variant = GameManager.get("graphics_quality")
+	if typeof(raw) != TYPE_STRING or String(raw).is_empty():
+		return GraphicsQuality.BALANCED
+	return GraphicsQuality.normalize(String(raw))
+
+
+static func create_stage_sky() -> Sky:
+	if ResourceLoader.exists(AIQUIZ_STAGE_SKY_PATH):
+		var loaded: Resource = load(AIQUIZ_STAGE_SKY_PATH)
+		if loaded is Sky:
+			var sky: Sky = (loaded as Sky).duplicate(true) as Sky
+			sky.radiance_size = Sky.RADIANCE_SIZE_256
+			sky.process_mode = Sky.PROCESS_MODE_REALTIME
+			return sky
+	return _create_procedural_fallback_sky()
+
+
+static func _create_procedural_fallback_sky() -> Sky:
 	var sky_material: ProceduralSkyMaterial = ProceduralSkyMaterial.new()
 	sky_material.sky_top_color = Color(0.08, 0.32, 0.74)
 	sky_material.sky_horizon_color = Color(0.48, 0.76, 0.98)
@@ -98,9 +123,9 @@ static func create_clear_day_sky() -> Sky:
 	return sky
 
 
-static func configure_clear_day_environment(env: Environment) -> void:
+static func configure_stage_environment(env: Environment) -> void:
 	env.background_mode = Environment.BG_SKY
-	env.sky = create_clear_day_sky()
+	env.sky = create_stage_sky()
 	env.background_energy_multiplier = 1.0
 	env.ambient_light_color = Color(0.58, 0.68, 0.82)
 	env.ambient_light_energy = 1.0
@@ -113,7 +138,7 @@ static func configure_clear_day_environment(env: Environment) -> void:
 
 func _setup_environment() -> void:
 	var env := Environment.new()
-	configure_clear_day_environment(env)
+	configure_stage_environment(env)
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
 	env.tonemap_white = 6.0
 	env.glow_enabled = true
@@ -126,24 +151,46 @@ func _setup_environment() -> void:
 	env.set_glow_level(1, true)
 	env.set_glow_level(2, true)
 	env.set_glow_level(3, false)
-	GraphicsQuality.apply_environment(env, GameManager.graphics_quality)
+	GraphicsQuality.apply_environment(env, _graphics_quality())
 
 	environment_node = WorldEnvironment.new()
+	environment_node.name = "WorldEnvironment"
 	environment_node.environment = env
 	add_child(environment_node)
 
 
 func _setup_lighting() -> void:
 	directional_light = DirectionalLight3D.new()
+	directional_light.name = "DirectionalLight3D"
 	directional_light.rotation_degrees = Vector3(-50, -20, 0)
 	directional_light.light_color = Color(0.90, 0.92, 0.95)
 	directional_light.light_energy = 1.2
 	directional_light.shadow_enabled = (
-		GraphicsQuality.preview_shadow_enabled(GameManager.graphics_quality)
+		GraphicsQuality.preview_shadow_enabled(_graphics_quality())
 		if _is_preview_environment
-		else GraphicsQuality.gameplay_shadow_enabled(GameManager.graphics_quality)
+		else GraphicsQuality.gameplay_shadow_enabled(_graphics_quality())
 	)
 	add_child(directional_light)
+
+
+func _setup_weather_cycle() -> void:
+	var env: Environment = null
+	if environment_node != null:
+		env = environment_node.environment
+	weather_cycle = attach_weather_cycle(self, env, directional_light)
+
+
+static func attach_weather_cycle(
+		parent: Node,
+		env: Environment,
+		light: DirectionalLight3D,
+		node_name: String = "WeatherCycle"
+	) -> WeatherCycle:
+	var cycle: WeatherCycle = WeatherCycleScript.new() as WeatherCycle
+	cycle.name = node_name
+	parent.add_child(cycle)
+	cycle.setup(env, light)
+	return cycle
 
 
 func _setup_floor() -> void:
@@ -170,6 +217,18 @@ func _setup_floor_conveyor() -> void:
 	_setup_conveyor_loop_geometry()
 	if _include_floor_collision:
 		_setup_floor_collision()
+
+
+func _setup_conveyor_edge_lights() -> void:
+	conveyor_edge_lights = ConveyorEdgeLightsScript.new() as ConveyorEdgeLights
+	conveyor_edge_lights.name = "ConveyorEdgeLights"
+	add_child(conveyor_edge_lights)
+	conveyor_edge_lights.setup(
+		_floor_center_z,
+		_floor_length,
+		_floor_belt_material,
+		weather_cycle
+	)
 
 
 func _setup_floor_collision() -> void:
@@ -332,7 +391,7 @@ func _setup_grandstands() -> void:
 
 
 func _configure_grandstand_geometry(stand: Node3D) -> void:
-	var quality: String = GameManager.graphics_quality
+	var quality: String = _graphics_quality()
 	var casts_shadows: bool = quality == GraphicsQuality.HIGH and not GraphicsQuality.is_mobile_target()
 	for node: Node in stand.find_children("*", "MeshInstance3D", true, false):
 		var mesh_instance := node as MeshInstance3D
@@ -449,7 +508,7 @@ static func create_ocean_surface() -> MeshInstance3D:
 	ocean_mesh.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 	var plane := PlaneMesh.new()
 	plane.size = StageConstants.OCEAN_SIZE
-	var subdivisions: int = GraphicsQuality.ocean_subdivisions(GameManager.graphics_quality)
+	var subdivisions: int = GraphicsQuality.ocean_subdivisions(_graphics_quality())
 	plane.subdivide_width = subdivisions
 	plane.subdivide_depth = subdivisions
 	ocean_mesh.mesh = plane
@@ -462,13 +521,13 @@ static func create_ocean_surface() -> MeshInstance3D:
 
 	var mat := ShaderMaterial.new()
 	var use_lightweight_shader: bool = GraphicsQuality.uses_lightweight_ocean(
-		GameManager.graphics_quality
+		_graphics_quality()
 	)
 	mat.shader = MOBILE_OCEAN_SHADER if use_lightweight_shader else StageConstants.OCEAN_SHADER
 
 	if not use_lightweight_shader:
 		var noise_size: int = GraphicsQuality.ocean_noise_texture_size(
-			GameManager.graphics_quality
+			_graphics_quality()
 		)
 		var noise1 := NoiseTexture2D.new()
 		var fnl1 := FastNoiseLite.new()
@@ -517,6 +576,8 @@ func set_floor_geometry(center_z: float, length: float) -> void:
 			(col.shape as BoxShape3D).size = Vector3(StageConstants.FLOOR_WIDTH, 0.5, length)
 	_update_floor_rails()
 	_update_conveyor_loop_geometry()
+	if conveyor_edge_lights != null:
+		conveyor_edge_lights.set_geometry(_floor_center_z, _floor_length)
 
 
 func _update_floor_rails() -> void:

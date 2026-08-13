@@ -9,6 +9,7 @@ enum Section {
 
 const WALL_SCENE: PackedScene = preload("res://scenes/quiz_wall.tscn")
 const CONVEYOR_FLOOR_SHADER: Shader = preload("res://shaders/conveyor_belt_floor.gdshader")
+const ConveyorEdgeLightsScript = preload("res://scripts/world/conveyor_edge_lights.gd")
 const PLAYER_CONTROLLER_SCRIPT: Script = preload("res://scripts/world/player_controller.gd")
 const CustomizePreviewCameraSettingsScript = preload(
 	"res://scripts/ui/customize_preview_camera_settings.gd"
@@ -89,6 +90,8 @@ var _skin_front_spot: SpotLight3D
 var _preview_floor_material: ShaderMaterial
 var _conveyor_roller_front_material: ShaderMaterial
 var _conveyor_return_material: ShaderMaterial
+var _preview_weather_cycle: WeatherCycle
+var _conveyor_edge_lights: ConveyorEdgeLights
 var _preview_walls: Array[Node3D] = []
 var _merge_left_sils: Array[MeshInstance3D] = []
 var _merge_right_sils: Array[MeshInstance3D] = []
@@ -653,7 +656,7 @@ func _build_emote_panel() -> void:
 
 func _build_3d_preview() -> void:
 	var env := Environment.new()
-	StageEnvironment.configure_clear_day_environment(env)
+	StageEnvironment.configure_stage_environment(env)
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
 	env.tonemap_white = 6.0
 	GraphicsQuality.apply_environment(env, GameManager.graphics_quality)
@@ -666,6 +669,12 @@ func _build_3d_preview() -> void:
 	light.light_energy = 0.8
 	light.shadow_enabled = GraphicsQuality.preview_shadow_enabled(GameManager.graphics_quality)
 	_sub_viewport.add_child(light)
+	_preview_weather_cycle = StageEnvironment.attach_weather_cycle(
+		_sub_viewport,
+		env,
+		light,
+		"CustomizeWeatherCycle"
+	)
 
 	_skin_front_spot = SpotLight3D.new()
 	_skin_front_spot.name = "SkinFrontSpot"
@@ -698,6 +707,15 @@ func _build_3d_preview() -> void:
 
 	_setup_conveyor_extras()
 
+	_conveyor_edge_lights = ConveyorEdgeLightsScript.new() as ConveyorEdgeLights
+	_conveyor_edge_lights.name = "ConveyorEdgeLights"
+	_sub_viewport.add_child(_conveyor_edge_lights)
+	_conveyor_edge_lights.setup(
+		-64.0,
+		144.0,
+		_preview_floor_material,
+		_preview_weather_cycle
+	)
 	var start_z := 8.0 - WALL_SPACING * 2
 	for i in range(3):
 		_spawn_preview_wall(start_z + i * WALL_SPACING)

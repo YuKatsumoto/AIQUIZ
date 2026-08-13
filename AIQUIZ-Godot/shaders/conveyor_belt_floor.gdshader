@@ -25,10 +25,66 @@ uniform float roller_depth : hint_range(0.0, 0.55) = 0.22;
 uniform float roughness_val : hint_range(0.0, 1.0) = 0.78;
 uniform float metallic_val : hint_range(0.0, 1.0) = 0.12;
 uniform float rim_metallic_boost : hint_range(0.0, 0.5) = 0.18;
+uniform vec4 edge_light_color : source_color = vec4(1.0, 0.93, 0.78, 1.0);
+uniform float edge_light_sequence_time = -1.0;
+uniform float edge_light_spacing : hint_range(1.0, 16.0) = 10.0;
+uniform float edge_light_phase = 2.0;
+uniform float edge_light_side_x : hint_range(8.0, 12.5) = 11.86;
+uniform float edge_light_pool_intensity : hint_range(0.0, 4.0) = 1.15;
+uniform int edge_light_station_count = 0;
+uniform float edge_light_front_is_last : hint_range(0.0, 1.0) = 1.0;
+uniform float edge_light_station_delay : hint_range(0.05, 1.0) = 0.22;
+uniform float edge_light_side_delay : hint_range(0.0, 0.2) = 0.055;
 
 varying vec3 world_pos;
 varying vec3 world_normal;
 varying vec3 local_pos;
+
+float fluorescent_start_level(float local_time, float variant) {
+	float t = local_time;
+	float preheat_time = 0.065 + variant * 0.014;
+	if (t < preheat_time) { return 0.025; }
+	t -= preheat_time;
+	if (t < 0.038) { return 1.0; }
+	t -= 0.038;
+	float first_extinction = 0.052 + variant * 0.012;
+	if (t < first_extinction) { return 0.0; }
+	t -= first_extinction;
+	if (t < 0.028) { return 0.62; }
+	t -= 0.028;
+	if (t < 0.045) { return 0.0; }
+	t -= 0.045;
+	float chatter_time = 0.155 + variant * 0.032;
+	if (t < chatter_time) {
+		float chatter_step = floor(t / 0.032);
+		return mod(chatter_step, 2.0) < 0.5 ? 0.88 : 0.06;
+	}
+	t -= chatter_time;
+	if (variant >= 2.0 && t < 0.050) { return 0.0; }
+	if (variant >= 2.0) { t -= 0.050; }
+	if (t < 0.060) { return 0.72; }
+	return 1.0;
+}
+
+float fixture_level(float station_index, float side_index) {
+	if (edge_light_sequence_time < 0.0 || edge_light_station_count <= 0) {
+		return 0.0;
+	}
+	float station_order = mix(
+		station_index,
+		float(edge_light_station_count - 1) - station_index,
+		edge_light_front_is_last
+	);
+	float local_time = edge_light_sequence_time
+		- station_order * edge_light_station_delay
+		- side_index * edge_light_side_delay;
+	if (local_time < 0.0) { return 0.0; }
+	float marker_index = station_index * 2.0 + side_index;
+	float flicker_pattern = mod(marker_index * 37.0 + 17.0, 13.0);
+	if (flicker_pattern >= 2.0) { return 1.0; }
+	float variant = mod(marker_index * 13.0 + 5.0, 4.0);
+	return fluorescent_start_level(local_time, variant);
+}
 
 void vertex() {
 	local_pos = VERTEX;
@@ -113,8 +169,26 @@ void fragment() {
 	}
 	rim_meta = rim_band * top_mask * rim_metallic_boost;
 
+	float edge_pool = 0.0;
+	if (roller_mode < 0.5 && edge_light_sequence_time >= 0.0) {
+		float safe_spacing = max(edge_light_spacing, 0.001);
+		float station_cycle = (local_pos.z - edge_light_phase) / safe_spacing;
+		float station_index = floor(station_cycle + 0.5);
+		float station_distance = abs(fract(station_cycle + 0.5) - 0.5) * safe_spacing;
+		float edge_distance = abs(abs(local_pos.x) - edge_light_side_x);
+		float edge_falloff = exp(-pow(edge_distance / 0.95, 2.0));
+		float station_falloff = exp(-pow(station_distance / 1.25, 2.0));
+		float side_index = step(0.0, local_pos.x);
+		float light_level = 0.0;
+		if (station_index >= 0.0 && station_index < float(edge_light_station_count)) {
+			light_level = fixture_level(station_index, side_index);
+		}
+		edge_pool = edge_falloff * station_falloff * top_mask * light_level;
+		final_col += edge_light_color.rgb * edge_pool * 0.10;
+	}
+
 	ALBEDO = final_col;
 	ROUGHNESS = clamp(roughness_val - rim_meta * 0.25, 0.05, 1.0);
 	METALLIC = clamp(metallic_val + rim_meta, 0.0, 1.0);
-	EMISSION = vec3(0.0);
+	EMISSION = edge_light_color.rgb * edge_pool * edge_light_pool_intensity;
 }

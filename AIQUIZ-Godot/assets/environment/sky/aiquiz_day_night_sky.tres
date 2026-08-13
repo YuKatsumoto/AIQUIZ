@@ -1,0 +1,98 @@
+[gd_resource type="Sky" format=3 uid="uid://dfrcvdhec74ls"]
+
+[ext_resource type="Shader" uid="uid://c5wn0niu13y7a" path="res://assets/environment/sky/aiquiz_day_night_sky.gdshader" id="1_7nlg2"]
+
+[sub_resource type="Gradient" id="Gradient_fuw8q"]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_qvk03"]
+noise_type = 0
+seed = 4
+fractal_octaves = 6
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_x4m6p"]
+width = 1024
+height = 1024
+noise = SubResource("FastNoiseLite_qvk03")
+color_ramp = SubResource("Gradient_fuw8q")
+seamless = true
+seamless_blend_skirt = 0.2
+
+[sub_resource type="Gradient" id="Gradient_a0qpb"]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_2oiq1"]
+noise_type = 3
+fractal_octaves = 8
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_8a3x4"]
+width = 1024
+height = 1024
+noise = SubResource("FastNoiseLite_2oiq1")
+color_ramp = SubResource("Gradient_a0qpb")
+seamless = true
+seamless_blend_skirt = 0.4
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_1voo8"]
+noise_type = 2
+frequency = 0.05
+fractal_octaves = 1
+cellular_jitter = 0.8
+cellular_return_type = 6
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_xesy2"]
+width = 1024
+height = 1024
+noise = SubResource("FastNoiseLite_1voo8")
+seamless = true
+invert = true
+seamless_blend_skirt = 0.0
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_hed5d"]
+frequency = 0.001
+fractal_type = 2
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_10y5o"]
+noise = SubResource("FastNoiseLite_hed5d")
+seamless = true
+seamless_blend_skirt = 0.2
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_qud4s"]
+resource_name = "AIQUIZ Anime Day Night Sky Material"
+shader = ExtResource("1_7nlg2")
+shader_parameter/sky_day = Color(0.08, 0.48, 0.98, 1)
+shader_parameter/horizon_day = Color(0.64, 0.88, 1, 1)
+shader_parameter/horizon_sunset = Color(1, 0.42, 0.16, 1)
+shader_parameter/sky_sunset = Color(0.11, 0.24, 0.58, 1)
+shader_parameter/horizon_night = Color(0.075, 0.15, 0.34, 1)
+shader_parameter/sky_night = Color(0.018, 0.055, 0.16, 1)
+shader_parameter/day_night_mix = 1.0
+shader_parameter/use_directional_light = true
+shader_parameter/cycle_sun_direction = Vector3(-0.58, 0.58, -0.57)
+shader_parameter/horizon_exponent = 4.2
+shader_parameter/sunset_amount_exponent = 1.15
+shader_parameter/night_amount_exponent = 2.2
+shader_parameter/cloud_tex_01 = SubResource("NoiseTexture2D_x4m6p")
+shader_parameter/cloud_tex_02 = SubResource("NoiseTexture2D_8a3x4")
+shader_parameter/cloud_color = Color(0.98, 0.99, 1, 1)
+shader_parameter/cloud_twilight_color = Color(1, 0.63, 0.67, 1)
+shader_parameter/cloud_night_color = Color(0.36, 0.48, 0.78, 1)
+shader_parameter/cloud_shadow_color = Color(0.5, 0.66, 0.86, 1)
+shader_parameter/cloud_tiling = Vector2(1, 1)
+shader_parameter/wind_speed = Vector2(0.024, 0.012)
+shader_parameter/cloud_density = 0.44
+shader_parameter/cloud_depth = 0.22
+shader_parameter/cloud_shape_exponent = 0.92
+shader_parameter/cloud_occlude_exponent = 1.35
+shader_parameter/night_noise_01 = SubResource("NoiseTexture2D_xesy2")
+shader_parameter/night_noise_02 = SubResource("NoiseTexture2D_10y5o")
+shader_parameter/star_strength = 0.82
+shader_parameter/sun_scale = 0.003
+shader_parameter/sun_strength = 1.75
+shader_parameter/sun_color = Color(1, 0.84, 0.42, 1)
+shader_parameter/moon_scale = 0.007
+shader_parameter/moon_strength = 1.15
+shader_parameter/moon_color = Color(0.72, 0.84, 1, 1)
+
+[resource]
+resource_name = "AIQUIZ Anime Day Night Sky"
+sky_material = SubResource("ShaderMaterial_qud4s")
+process_mode = 3
