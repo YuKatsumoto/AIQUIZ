@@ -13,6 +13,7 @@ enum Phase {
 	SOUL_RISE,
 	SOUL_FLIGHT,
 	MOUNTING,
+	BEAM_REVEAL,
 	ENTERING,
 	AIMING,
 	WINDUP,
@@ -32,9 +33,14 @@ const SOUL_RISE_SECONDS: float = 0.85
 const SOUL_FLIGHT_SECONDS: float = 2.65
 const SOUL_TRAVEL_SECONDS: float = SOUL_RISE_SECONDS + SOUL_FLIGHT_SECONDS
 const MOUNTING_SECONDS: float = 0.85
+const POST_MOUNT_BEAM_REVEAL_SECONDS: float = 3.59
 const ENTRY_SECONDS: float = 2.45
 const HEROIC_SEQUENCE_SECONDS: float = (
-	DEATH_HOLD_SECONDS + SOUL_TRAVEL_SECONDS + MOUNTING_SECONDS + ENTRY_SECONDS
+	DEATH_HOLD_SECONDS
+	+ SOUL_TRAVEL_SECONDS
+	+ MOUNTING_SECONDS
+	+ POST_MOUNT_BEAM_REVEAL_SECONDS
+	+ ENTRY_SECONDS
 )
 const AIM_SPEED: float = 9.0
 const WINDUP_SECONDS: float = 0.34
@@ -71,10 +77,14 @@ const SOUL_FLIGHT_SIDE_ARC: float = 2.8
 const SOUL_FLIGHT_LIFT: float = 2.55
 const RENDEZVOUS_SIDE_DISTANCE: float = 3.0
 const RENDEZVOUS_BACK_DISTANCE: float = 2.4
+const RENDEZVOUS_REVEAL_DEPTH_OFFSET: float = 4.0
 # Keep the whole shark body above the transparent ocean during mount so the
 # water depth buffer cannot punch a see-through cut through the mesh.
 const RENDEZVOUS_SURFACE_CLEARANCE: float = 2.35
 const SOUL_PRESENTATION_RENDER_LAYER: int = 20
+const GHOST_MOUNT_BEAM_RENDER_LAYER: int = 19
+const GHOST_MOUNT_BEAM_LAUNCH_CAMERA_SHAKE: float = 1.15
+const GHOST_MOUNT_BEAM_SUSTAINED_CAMERA_SHAKE: float = 0.82
 const STAGE_REVEAL_PROGRESS: float = 0.46
 const HUD_SLIDE_SECONDS: float = 0.55
 const HUD_PANEL_WIDTH: float = 320.0
@@ -107,6 +117,10 @@ var dead_player_index: int = 0
 var survivor_player_index: int = 0
 var _phase_timer: float = 0.0
 var _sequence_elapsed: float = 0.0
+var _ghost_rendezvous_released: bool = false
+var _ghost_reveal_beams_started: bool = false
+var _presentation_follow_anchor_z: float = 0.0
+var _presentation_follow_initialized: bool = false
 var _soul_travel_elapsed: float = 0.0
 var _aim_offset: Vector2 = Vector2.ZERO
 var _aim_origin: Vector3 = Vector3.ZERO
@@ -193,6 +207,7 @@ func setup(
 	var main_camera := camera_controller.get_node_or_null("Camera3D") as Camera3D
 	if main_camera != null:
 		main_camera.set_cull_mask_value(SOUL_PRESENTATION_RENDER_LAYER, false)
+		main_camera.set_cull_mask_value(GHOST_MOUNT_BEAM_RENDER_LAYER, true)
 	_previous_p1_alive = game_state.p1_alive
 	_previous_p2_alive = game_state.p2_alive
 	_build_aim_visuals()
@@ -268,6 +283,8 @@ func get_debug_state() -> Dictionary:
 		"cooldown_duration": _current_cooldown_duration,
 		"phase_timer": _phase_timer,
 		"sequence_elapsed": _sequence_elapsed,
+		"ghost_rendezvous_released": _ghost_rendezvous_released,
+		"ghost_reveal_beams_started": _ghost_reveal_beams_started,
 		"hover_target": _calculate_hover_target() if survivor_player_index > 0 else Vector3.ZERO,
 		"aim_point": _current_aim_point() if survivor_player_index > 0 else Vector3.ZERO,
 		"shark_position": _shark.global_position if _shark and is_instance_valid(_shark) else Vector3.ZERO,
@@ -319,6 +336,7 @@ func get_presentation_state(player_index: int) -> Dictionary:
 				Phase.SOUL_RISE,
 				Phase.SOUL_FLIGHT,
 				Phase.MOUNTING,
+				Phase.BEAM_REVEAL,
 			]
 			or (phase == Phase.ENTERING and not _rider_revealed_to_main)
 		),
@@ -356,6 +374,8 @@ func _begin_death_delay(dead_index: int, survivor_index: int) -> void:
 	phase = Phase.DEATH_HOLD
 	_phase_timer = DEATH_HOLD_SECONDS
 	_sequence_elapsed = 0.0
+	_ghost_rendezvous_released = false
+	_ghost_reveal_beams_started = false
 	_previous_fire_down = false
 	_death_position = _death_presentation_position(dead_player_index)
 	_hover_side = signf(_death_position.x - _player_position(survivor_player_index).x)
@@ -373,6 +393,7 @@ func _begin_death_delay(dead_index: int, survivor_index: int) -> void:
 	if _shark == null:
 		_cleanup_ghost_ride()
 		return
+	_connect_shark_signals()
 	_rendezvous_position = _calculate_rendezvous_position()
 	if not _shark.prepare_ghost_rendezvous(
 		dead_player_index,
@@ -406,9 +427,9 @@ func _begin_death_delay(dead_index: int, survivor_index: int) -> void:
 		+ Vector3(-_hover_side * 1.05, SOUL_FLIGHT_LIFT * 0.46, -0.55)
 	)
 	_presentation_focus = _soul_start_position
+	_presentation_follow_anchor_z = _survivor_camera_anchor_z()
+	_presentation_follow_initialized = true
 	player_controller.sample_ghost_mount_pose(_rider, 0.0)
-	if not _shark.ghost_charge_finished.is_connected(_on_shark_charge_finished):
-		_shark.ghost_charge_finished.connect(_on_shark_charge_finished)
 	_set_meter(0.0, _player_color)
 	_hud_slide_elapsed = 0.0
 	_hud_slide_active = false
@@ -417,14 +438,34 @@ func _begin_death_delay(dead_index: int, survivor_index: int) -> void:
 		_hud_panel.modulate.a = 0.0
 
 
+func _try_release_ghost_rendezvous_after_wipe() -> void:
+	if (
+		_ghost_rendezvous_released
+		or _shark == null
+		or not is_instance_valid(_shark)
+		or phase not in [Phase.DEATH_HOLD, Phase.SOUL_RISE, Phase.SOUL_FLIGHT]
+	):
+		return
+	var death_wipe := get_parent().get_node_or_null("DeathWipeLayer/DeathWipe")
+	var wipe_is_settled := false
+	if death_wipe != null and death_wipe.has_method("is_settled_for_player"):
+		wipe_is_settled = bool(
+			death_wipe.call("is_settled_for_player", dead_player_index)
+		)
+	else:
+		# Non-UI test scenes still receive the same minimum entrance hold.
+		wipe_is_settled = _sequence_elapsed >= DEATH_HOLD_SECONDS
+	if not wipe_is_settled:
+		return
+	_ghost_rendezvous_released = _shark.start_ghost_rendezvous_ascent()
+
+
 func _base_mode_is_eligible(is_online: bool, is_replay: bool) -> bool:
 	return (
 		game_state.num_players == 2
 		and not game_state.is_coop_mode()
-		and (
-			game_state.mode != Constants.MODE_TUTORIAL
-			or game_state.is_tutorial_ghost_practice()
-		)
+		# チュートリアルでは搭乗を許すステップ（海・ゴースト練習・実戦・最終レース）だけ。
+		and game_state.allows_tutorial_ghost_ride()
 		and not is_online
 		and not is_replay
 	)
@@ -434,6 +475,10 @@ func _can_continue(is_online: bool, is_replay: bool) -> bool:
 	if not _base_mode_is_eligible(is_online, is_replay):
 		return false
 	if game_state.game_state not in [Constants.STATE_PLAYING, Constants.STATE_CORRECT, Constants.STATE_GOAL_RACE]:
+		return false
+	# 復活したプレイヤーがサメに乗り続けないよう、乗り手が生き返ったら畳む。
+	# チュートリアルの復活（最終レース前・全滅やり直し）がこの経路を通る。
+	if _is_player_alive(dead_player_index):
 		return false
 	if not _is_player_alive(survivor_player_index):
 		return false
@@ -451,6 +496,15 @@ func _update_active_phase(
 	fire_released: bool,
 	emote_input: int
 ) -> void:
+	if phase in [
+		Phase.DEATH_HOLD,
+		Phase.SOUL_RISE,
+		Phase.SOUL_FLIGHT,
+		Phase.MOUNTING,
+		Phase.BEAM_REVEAL,
+	]:
+		_update_heroic_camera_follow()
+	_try_release_ghost_rendezvous_after_wipe()
 	if phase in [
 		Phase.ENTERING,
 		Phase.AIMING,
@@ -493,7 +547,22 @@ func _update_active_phase(
 					_shark.global_position,
 					0.38
 				)
-			if _phase_timer <= 0.0:
+			if _phase_timer <= 0.0 and _shark.is_ghost_mount_settled():
+				_begin_post_mount_beam_reveal()
+		Phase.BEAM_REVEAL:
+			_advance_heroic_sequence(delta)
+			_phase_timer = maxf(0.0, _phase_timer - delta)
+			player_controller.apply_ghost_rider_mounted_pose(_rider)
+			_presentation_focus = _rider.global_position.lerp(
+				_shark.global_position,
+				0.38
+			)
+			if game_state != null and _shark.is_ghost_reveal_beam_firing():
+				game_state.camera_shake = maxf(
+					game_state.camera_shake,
+					GHOST_MOUNT_BEAM_SUSTAINED_CAMERA_SHAKE
+				)
+			if _shark.is_ghost_reveal_sequence_complete():
 				_begin_authored_entry()
 		Phase.DEATH_DELAY:
 			_phase_timer -= delta
@@ -651,11 +720,52 @@ func _update_progress_follow() -> void:
 	_fixed_hover_target.z = survivor_position.z + _hover_progress_offset_z
 
 
+func _survivor_camera_anchor_z() -> float:
+	if (
+		camera_controller != null
+		and game_state != null
+		and camera_controller.has_method("get_gameplay_pose")
+	):
+		var pose: Dictionary = camera_controller.call("get_gameplay_pose", game_state)
+		var target_variant: Variant = pose.get("target", Vector3.ZERO)
+		if target_variant is Vector3:
+			return (target_variant as Vector3).z
+	return _player_position(survivor_player_index).z
+
+
+func _update_heroic_camera_follow() -> void:
+	if survivor_player_index <= 0:
+		return
+	var current_anchor_z := _survivor_camera_anchor_z()
+	if not _presentation_follow_initialized:
+		_presentation_follow_anchor_z = current_anchor_z
+		_presentation_follow_initialized = true
+		return
+	var follow_delta_z := current_anchor_z - _presentation_follow_anchor_z
+	_presentation_follow_anchor_z = current_anchor_z
+	if absf(follow_delta_z) <= 0.0001:
+		return
+	var offset := Vector3(0.0, 0.0, follow_delta_z)
+	_death_position += offset
+	_soul_start_position += offset
+	_soul_rise_position += offset
+	_soul_control_a += offset
+	_soul_control_b += offset
+	_rendezvous_position += offset
+	_presentation_focus += offset
+	_aim_origin += offset
+	_fixed_hover_target += offset
+	if _shark != null and is_instance_valid(_shark):
+		_shark.translate_ghost_ride_presentation(offset)
+
+
 func _calculate_rendezvous_position() -> Vector3:
 	return Vector3(
 		_fixed_hover_target.x + _hover_side * RENDEZVOUS_SIDE_DISTANCE,
 		StageConstants.OCEAN_SURFACE_Y + RENDEZVOUS_SURFACE_CLEARANCE,
-		_fixed_hover_target.z - RENDEZVOUS_BACK_DISTANCE
+		_fixed_hover_target.z
+		- RENDEZVOUS_BACK_DISTANCE
+		+ RENDEZVOUS_REVEAL_DEPTH_OFFSET
 	)
 
 
@@ -753,6 +863,19 @@ func _begin_mounting() -> void:
 		return
 	phase = Phase.MOUNTING
 	_phase_timer = MOUNTING_SECONDS
+	_presentation_focus = _rider.global_position
+
+
+func _begin_post_mount_beam_reveal() -> void:
+	if _shark == null or _rider == null or not is_instance_valid(_rider):
+		_cleanup_ghost_ride()
+		return
+	player_controller.apply_ghost_rider_mounted_pose(_rider)
+	if not _shark.start_ghost_reveal_beams():
+		return
+	_ghost_reveal_beams_started = true
+	phase = Phase.BEAM_REVEAL
+	_phase_timer = POST_MOUNT_BEAM_REVEAL_SECONDS
 	_presentation_focus = _rider.global_position
 
 
@@ -878,8 +1001,7 @@ func _start_ghost_ride() -> void:
 		_shark = null
 		_cleanup_ghost_ride()
 		return
-	if not _shark.ghost_charge_finished.is_connected(_on_shark_charge_finished):
-		_shark.ghost_charge_finished.connect(_on_shark_charge_finished)
+	_connect_shark_signals()
 	_shark.restart_ghost_hover(
 		_calculate_entry_position(hover_target),
 		hover_target,
@@ -1127,6 +1249,24 @@ func _apply_charge_hit() -> void:
 
 func _on_shark_charge_finished() -> void:
 	_charge_finished_pending = true
+
+
+func _connect_shark_signals() -> void:
+	if _shark == null or not is_instance_valid(_shark):
+		return
+	if not _shark.ghost_charge_finished.is_connected(_on_shark_charge_finished):
+		_shark.ghost_charge_finished.connect(_on_shark_charge_finished)
+	if not _shark.ghost_mount_beam_fired.is_connected(_on_ghost_mount_beam_fired):
+		_shark.ghost_mount_beam_fired.connect(_on_ghost_mount_beam_fired)
+
+
+func _on_ghost_mount_beam_fired(_beam_index: int) -> void:
+	if game_state == null or phase != Phase.BEAM_REVEAL:
+		return
+	game_state.camera_shake = maxf(
+		game_state.camera_shake,
+		GHOST_MOUNT_BEAM_LAUNCH_CAMERA_SHAKE
+	)
 
 
 func _begin_cooldown() -> void:
@@ -1870,6 +2010,8 @@ func _cleanup_ghost_ride() -> void:
 	if _shark and is_instance_valid(_shark):
 		if _shark.ghost_charge_finished.is_connected(_on_shark_charge_finished):
 			_shark.ghost_charge_finished.disconnect(_on_shark_charge_finished)
+		if _shark.ghost_mount_beam_fired.is_connected(_on_ghost_mount_beam_fired):
+			_shark.ghost_mount_beam_fired.disconnect(_on_ghost_mount_beam_fired)
 		_shark.end_ghost_ride()
 	if _rider != null and is_instance_valid(_rider):
 		_rider.queue_free()
@@ -1881,6 +2023,10 @@ func _cleanup_ghost_ride() -> void:
 	survivor_player_index = 0
 	_phase_timer = 0.0
 	_sequence_elapsed = 0.0
+	_ghost_rendezvous_released = false
+	_ghost_reveal_beams_started = false
+	_presentation_follow_anchor_z = 0.0
+	_presentation_follow_initialized = false
 	_soul_travel_elapsed = 0.0
 	_hud_slide_elapsed = 0.0
 	_hud_slide_active = false

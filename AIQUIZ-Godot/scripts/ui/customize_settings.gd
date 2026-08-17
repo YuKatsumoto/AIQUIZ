@@ -1,11 +1,31 @@
 extends Control
 signal request_close
+signal tutorial_tour_completed
+signal tutorial_tour_aborted
 
 enum Section {
 	WALL_SPEED,
 	SKIN,
 	EMOTE,
 }
+
+const TUTORIAL_TOUR_STEPS := [
+	{
+		"title": "壁速度設定",
+		"body": "スライダーで壁と床の流れる速さを調整できます。自動モードに戻すボタンでAIが問題の回答時間に合った速さに調整してくれます。",
+		"image": preload("res://assets/ui/tutorial/customize_wall_speed.png"),
+	},
+	{
+		"title": "スキン設定",
+		"body": "プレイヤー1/2を切り替えて、それぞれの帽子を選べます。プレビューはマウスの右ドラッグで回転ホイールで拡大・縮小できます。",
+		"image": preload("res://assets/ui/tutorial/customize_skin_hat.png"),
+	},
+	{
+		"title": "エモート設定",
+		"body": "P1は1・2・3、P2は8・9・0キーにエモートを割り当てます。割り当てたエモートはゲームプレイ中に該当のキーを押して踊ることができます",
+		"image": preload("res://assets/ui/tutorial/customize_emote.png"),
+	},
+]
 
 const WALL_SCENE: PackedScene = preload("res://scenes/quiz_wall.tscn")
 const CONVEYOR_FLOOR_SHADER: Shader = preload("res://shaders/conveyor_belt_floor.gdshader")
@@ -122,15 +142,36 @@ var _section_title: Label
 var _wall_panel: VBoxContainer
 var _skin_panel: VBoxContainer
 var _emote_panel: VBoxContainer
+var _back_button: Button
+var _back_separator: HSeparator
+var _body_scroll: ScrollContainer
+
+var _tutorial_tour_panel: PanelContainer
+var _tutorial_tour_progress: Label
+var _tutorial_tour_title: Label
+var _tutorial_tour_body: Label
+var _tutorial_tour_dots: Label
+var _tutorial_tour_image: TextureRect
+var _tutorial_tour_back_button: Button
+var _tutorial_tour_next_button: Button
+var _tutorial_tour_overlay: Control
+var _tutorial_input_blocker: ColorRect
+var _tutorial_tour_active: bool = false
+var _tutorial_tour_index: int = 0
+var _tutorial_previous_mouse_mode: int = Input.MOUSE_MODE_VISIBLE
+var _tutorial_mouse_mode_saved: bool = false
 
 var _mode_label: Label
 var _speed_value_label: Label
 var _speed_slider: HSlider
+var _wall_reset_button: Button
 
 var _skin_player_label: Label
 var _skin_player_btn_p1: Button
 var _skin_player_btn_p2: Button
 var _hat_name_label: Label
+var _hat_prev_button: Button
+var _hat_next_button: Button
 var _hat_slide_active: bool = false
 var _hat_slide_t: float = 0.0
 var _hat_slide_dir: int = 0
@@ -281,7 +322,7 @@ func _process(dt: float) -> void:
 		_spawn_preview_wall(furthest_z - WALL_SPACING)
 
 	if _preview_player and _preview_gs:
-		if _active_section == Section.WALL_SPEED:
+		if _active_section == Section.WALL_SPEED and not _tutorial_tour_active:
 			_poll_preview_emote_inputs()
 		_preview_gs._active_wall_speed = _belt_visual_speed
 		_preview_player.update_from_state(_preview_gs)
@@ -330,6 +371,23 @@ func _process(dt: float) -> void:
 		_update_skin_preview_lighting()
 
 	_process_hat_slide(dt)
+
+
+func _input(event: InputEvent) -> void:
+	if not _tutorial_tour_active:
+		return
+	if event is InputEventKey:
+		var key_event := event as InputEventKey
+		if key_event.pressed and not key_event.echo:
+			match key_event.keycode:
+				KEY_LEFT:
+					_show_previous_tutorial_tour_page()
+				KEY_RIGHT, KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
+					_show_next_tutorial_tour_page()
+				KEY_ESCAPE:
+					_abort_tutorial_tour()
+		get_viewport().set_input_as_handled()
+
 
 func _build_ui() -> void:
 	if not embedded_mode:
@@ -408,16 +466,16 @@ func _build_ui() -> void:
 
 	outer_vbox.add_child(HSeparator.new())
 
-	var body_scroll := ScrollContainer.new()
-	body_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	body_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	body_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	outer_vbox.add_child(body_scroll)
+	_body_scroll = ScrollContainer.new()
+	_body_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_body_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_body_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	outer_vbox.add_child(_body_scroll)
 
 	var body_vbox := VBoxContainer.new()
 	body_vbox.add_theme_constant_override("separation", 12)
 	body_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	body_scroll.add_child(body_vbox)
+	_body_scroll.add_child(body_vbox)
 
 	_wall_panel = VBoxContainer.new()
 	_wall_panel.add_theme_constant_override("separation", 10)
@@ -434,15 +492,158 @@ func _build_ui() -> void:
 	body_vbox.add_child(_emote_panel)
 	_build_emote_panel()
 
-	outer_vbox.add_child(HSeparator.new())
-	var back_btn := Button.new()
-	back_btn.text = "✓ 決定して戻る"
-	back_btn.custom_minimum_size = Vector2(0, 52)
-	back_btn.pressed.connect(_on_back_pressed)
-	outer_vbox.add_child(back_btn)
+	_back_separator = HSeparator.new()
+	outer_vbox.add_child(_back_separator)
+	_back_button = Button.new()
+	_back_button.text = "✓ 決定して戻る"
+	_back_button.custom_minimum_size = Vector2(0, 52)
+	_back_button.pressed.connect(_on_back_pressed)
+	outer_vbox.add_child(_back_button)
 
-	_style_all_buttons()
 	_refresh_skin_player_button_styles()
+	_build_tutorial_tour_overlay()
+	_style_all_buttons()
+
+
+func _build_tutorial_tour_overlay() -> void:
+	_tutorial_tour_overlay = Control.new()
+	_tutorial_tour_overlay.name = "CustomizeTutorialOverlay"
+	_tutorial_tour_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_tutorial_tour_overlay.z_index = 180
+	_tutorial_tour_overlay.visible = false
+	add_child(_tutorial_tour_overlay)
+	_tutorial_tour_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	_tutorial_input_blocker = ColorRect.new()
+	_tutorial_input_blocker.name = "InputShield"
+	_tutorial_input_blocker.color = Color(0.005, 0.015, 0.04, 0.94)
+	_tutorial_input_blocker.mouse_filter = Control.MOUSE_FILTER_STOP
+	_tutorial_tour_overlay.add_child(_tutorial_input_blocker)
+	_tutorial_input_blocker.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	_tutorial_tour_panel = PanelContainer.new()
+	_tutorial_tour_panel.name = "CustomizeTutorialGuide"
+	_tutorial_tour_panel.set_anchors_preset(Control.PRESET_CENTER)
+	_tutorial_tour_panel.offset_left = -590.0
+	_tutorial_tour_panel.offset_top = -330.0
+	_tutorial_tour_panel.offset_right = 590.0
+	_tutorial_tour_panel.offset_bottom = 330.0
+	_tutorial_tour_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	_tutorial_tour_panel.z_index = 200
+	var guide_style := StyleBoxFlat.new()
+	guide_style.bg_color = Color(0.025, 0.055, 0.11, 0.995)
+	guide_style.border_color = Color(1.0, 0.80, 0.25, 0.96)
+	guide_style.set_border_width_all(2)
+	guide_style.set_corner_radius_all(18)
+	guide_style.shadow_color = Color(0.0, 0.0, 0.0, 0.42)
+	guide_style.shadow_size = 14
+	guide_style.content_margin_left = 22.0
+	guide_style.content_margin_right = 22.0
+	guide_style.content_margin_top = 20.0
+	guide_style.content_margin_bottom = 20.0
+	_tutorial_tour_panel.add_theme_stylebox_override("panel", guide_style)
+	_tutorial_tour_overlay.add_child(_tutorial_tour_panel)
+
+	var content_row := HBoxContainer.new()
+	content_row.name = "Content"
+	content_row.add_theme_constant_override("separation", 22)
+	_tutorial_tour_panel.add_child(content_row)
+
+	var image_frame := PanelContainer.new()
+	image_frame.name = "ImageFrame"
+	image_frame.custom_minimum_size = Vector2(800.0, 450.0)
+	image_frame.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	image_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var image_style := StyleBoxFlat.new()
+	image_style.bg_color = Color(0.008, 0.018, 0.038, 1.0)
+	image_style.border_color = Color(0.24, 0.48, 0.78, 0.86)
+	image_style.set_border_width_all(2)
+	image_style.set_corner_radius_all(12)
+	image_style.content_margin_left = 4.0
+	image_style.content_margin_right = 4.0
+	image_style.content_margin_top = 4.0
+	image_style.content_margin_bottom = 4.0
+	image_frame.add_theme_stylebox_override("panel", image_style)
+	content_row.add_child(image_frame)
+
+	_tutorial_tour_image = TextureRect.new()
+	_tutorial_tour_image.name = "PageImage"
+	_tutorial_tour_image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_tutorial_tour_image.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_tutorial_tour_image.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	_tutorial_tour_image.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	image_frame.add_child(_tutorial_tour_image)
+
+	var guide_box := VBoxContainer.new()
+	guide_box.name = "Guide"
+	guide_box.custom_minimum_size = Vector2(310.0, 0.0)
+	guide_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	guide_box.add_theme_constant_override("separation", 10)
+	content_row.add_child(guide_box)
+
+	_tutorial_tour_progress = Label.new()
+	_tutorial_tour_progress.add_theme_font_size_override("font_size", 14)
+	_tutorial_tour_progress.add_theme_color_override("font_color", Color(0.62, 0.72, 0.90))
+	_tutorial_tour_progress.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	guide_box.add_child(_tutorial_tour_progress)
+
+	_tutorial_tour_title = Label.new()
+	_tutorial_tour_title.add_theme_font_size_override("font_size", 30)
+	_tutorial_tour_title.add_theme_color_override("font_color", Color(1.0, 0.84, 0.28))
+	_tutorial_tour_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	guide_box.add_child(_tutorial_tour_title)
+
+	var separator := HSeparator.new()
+	separator.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	guide_box.add_child(separator)
+
+	_tutorial_tour_body = Label.new()
+	_tutorial_tour_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_tutorial_tour_body.add_theme_font_size_override("font_size", 18)
+	_tutorial_tour_body.add_theme_constant_override("line_spacing", 8)
+	_tutorial_tour_body.add_theme_color_override("font_color", Color(0.90, 0.93, 1.0))
+	_tutorial_tour_body.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	guide_box.add_child(_tutorial_tour_body)
+
+	var spacer := Control.new()
+	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	guide_box.add_child(spacer)
+
+	_tutorial_tour_dots = Label.new()
+	_tutorial_tour_dots.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_tutorial_tour_dots.add_theme_font_size_override("font_size", 16)
+	_tutorial_tour_dots.add_theme_color_override("font_color", Color(0.48, 0.70, 1.0))
+	_tutorial_tour_dots.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	guide_box.add_child(_tutorial_tour_dots)
+
+	var input_hint := Label.new()
+	input_hint.text = "← / →  または  Enter / Space　　Esc：中断"
+	input_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	input_hint.add_theme_font_size_override("font_size", 12)
+	input_hint.add_theme_color_override("font_color", Color(0.58, 0.68, 0.84))
+	input_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	guide_box.add_child(input_hint)
+
+	var button_row := HBoxContainer.new()
+	button_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	button_row.add_theme_constant_override("separation", 10)
+	guide_box.add_child(button_row)
+
+	_tutorial_tour_back_button = Button.new()
+	_tutorial_tour_back_button.name = "PreviousPage"
+	_tutorial_tour_back_button.text = "← 戻る"
+	_tutorial_tour_back_button.custom_minimum_size = Vector2(140.0, 48.0)
+	_tutorial_tour_back_button.pressed.connect(_show_previous_tutorial_tour_page)
+	button_row.add_child(_tutorial_tour_back_button)
+
+	_tutorial_tour_next_button = Button.new()
+	_tutorial_tour_next_button.name = "NextPage"
+	_tutorial_tour_next_button.text = "次へ →"
+	_tutorial_tour_next_button.custom_minimum_size = Vector2(160.0, 48.0)
+	_tutorial_tour_next_button.pressed.connect(_show_next_tutorial_tour_page)
+	button_row.add_child(_tutorial_tour_next_button)
+
 
 func _make_section_button(label: String, parent: Node, section: Section) -> Button:
 	var btn := Button.new()
@@ -471,10 +672,11 @@ func _build_wall_panel() -> void:
 	_speed_slider.value_changed.connect(_on_speed_changed)
 	_wall_panel.add_child(_speed_slider)
 
-	var reset_btn := Button.new()
-	reset_btn.text = "自動モードに戻す"
-	reset_btn.pressed.connect(_on_reset_pressed)
-	_wall_panel.add_child(reset_btn)
+	_wall_reset_button = Button.new()
+	_wall_reset_button.text = "自動モードに戻す"
+	_wall_reset_button.custom_minimum_size.y = 44.0
+	_wall_reset_button.pressed.connect(_on_reset_pressed)
+	_wall_panel.add_child(_wall_reset_button)
 
 	var emote_hint := Label.new()
 	emote_hint.text = "左プレビュー: キー 1・2・3（P1）  8・9・0（P2）でエモート  Spaceで停止"
@@ -512,10 +714,11 @@ func _build_skin_panel() -> void:
 	hat_row.add_theme_constant_override("separation", 8)
 	_skin_panel.add_child(hat_row)
 
-	var hat_prev := Button.new()
-	hat_prev.text = "◀"
-	hat_prev.pressed.connect(_on_hat_prev)
-	hat_row.add_child(hat_prev)
+	_hat_prev_button = Button.new()
+	_hat_prev_button.text = "◀"
+	_hat_prev_button.custom_minimum_size = Vector2(56.0, 46.0)
+	_hat_prev_button.pressed.connect(_on_hat_prev)
+	hat_row.add_child(_hat_prev_button)
 
 	_hat_name_label = Label.new()
 	_hat_name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -523,10 +726,11 @@ func _build_skin_panel() -> void:
 	_hat_name_label.add_theme_font_size_override("font_size", 18)
 	hat_row.add_child(_hat_name_label)
 
-	var hat_next := Button.new()
-	hat_next.text = "▶"
-	hat_next.pressed.connect(_on_hat_next)
-	hat_row.add_child(hat_next)
+	_hat_next_button = Button.new()
+	_hat_next_button.text = "▶"
+	_hat_next_button.custom_minimum_size = Vector2(56.0, 46.0)
+	_hat_next_button.pressed.connect(_on_hat_next)
+	hat_row.add_child(_hat_next_button)
 
 func _build_emote_panel() -> void:
 	var player_row := HBoxContainer.new()
@@ -578,7 +782,7 @@ func _build_emote_panel() -> void:
 		var key_lbl := Label.new()
 		key_lbl.name = "KeyLabel"
 		key_lbl.custom_minimum_size = Vector2(28, 0)
-		key_lbl.add_theme_font_size_override("font_size", 11)
+		key_lbl.add_theme_font_size_override("font_size", 13)
 		key_lbl.add_theme_color_override("font_color", Color(0.55, 0.60, 0.72))
 		key_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		key_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -589,7 +793,7 @@ func _build_emote_panel() -> void:
 		name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 		name_lbl.clip_text = true
-		name_lbl.add_theme_font_size_override("font_size", 11)
+		name_lbl.add_theme_font_size_override("font_size", 13)
 		name_lbl.add_theme_color_override("font_color", Color(0.88, 0.90, 0.96))
 		name_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		slot_hbox.add_child(name_lbl)
@@ -706,7 +910,6 @@ func _build_3d_preview() -> void:
 	_sub_viewport.add_child(ocean_mesh)
 
 	_setup_conveyor_extras()
-
 	_conveyor_edge_lights = ConveyorEdgeLightsScript.new() as ConveyorEdgeLights
 	_conveyor_edge_lights.name = "ConveyorEdgeLights"
 	_sub_viewport.add_child(_conveyor_edge_lights)
@@ -716,6 +919,7 @@ func _build_3d_preview() -> void:
 		_preview_floor_material,
 		_preview_weather_cycle
 	)
+
 	var start_z := 8.0 - WALL_SPACING * 2
 	for i in range(3):
 		_spawn_preview_wall(start_z + i * WALL_SPACING)
@@ -748,6 +952,106 @@ func _build_3d_preview() -> void:
 	_emote_preview_holder.visible = false
 	_sub_viewport.add_child(_emote_preview_holder)
 
+
+func begin_tutorial_tour() -> void:
+	if not embedded_mode or TUTORIAL_TOUR_STEPS.is_empty() or _tutorial_tour_active:
+		return
+	_tutorial_previous_mouse_mode = Input.get_mouse_mode()
+	_tutorial_mouse_mode_saved = true
+	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+	_tutorial_tour_active = true
+	_tutorial_tour_index = 0
+	_tutorial_tour_overlay.visible = true
+	_back_button.visible = false
+	_back_separator.visible = false
+	_set_tutorial_tour_page(0)
+	_refresh_section_button_states()
+
+
+func _set_tutorial_tour_page(step_index: int) -> void:
+	if not _tutorial_tour_active:
+		return
+	_tutorial_tour_index = clampi(step_index, 0, TUTORIAL_TOUR_STEPS.size() - 1)
+	var page: Dictionary = TUTORIAL_TOUR_STEPS[_tutorial_tour_index]
+	_tutorial_tour_progress.text = "カスタマイズ紹介  %d / %d" % [
+		_tutorial_tour_index + 1,
+		TUTORIAL_TOUR_STEPS.size(),
+	]
+	_tutorial_tour_title.text = str(page.get("title", "カスタマイズ"))
+	_tutorial_tour_body.text = str(page.get("body", ""))
+	_tutorial_tour_image.texture = page.get("image") as Texture2D
+
+	var dots := PackedStringArray()
+	for page_index: int in range(TUTORIAL_TOUR_STEPS.size()):
+		dots.append("●" if page_index == _tutorial_tour_index else "○")
+	_tutorial_tour_dots.text = "  ".join(dots)
+
+	_tutorial_tour_back_button.disabled = _tutorial_tour_index == 0
+	_tutorial_tour_next_button.text = (
+		"紹介を終える"
+		if _tutorial_tour_index == TUTORIAL_TOUR_STEPS.size() - 1
+		else "次へ →"
+	)
+	_tutorial_tour_next_button.call_deferred("grab_focus")
+
+
+func _show_previous_tutorial_tour_page() -> void:
+	if not _tutorial_tour_active or _tutorial_tour_index <= 0:
+		return
+	_set_tutorial_tour_page(_tutorial_tour_index - 1)
+
+
+func _show_next_tutorial_tour_page() -> void:
+	if not _tutorial_tour_active:
+		return
+	if _tutorial_tour_index >= TUTORIAL_TOUR_STEPS.size() - 1:
+		_finish_tutorial_tour(true)
+		return
+	_set_tutorial_tour_page(_tutorial_tour_index + 1)
+
+
+
+
+func _abort_tutorial_tour() -> void:
+	_finish_tutorial_tour(false)
+
+
+func _finish_tutorial_tour(completed: bool) -> void:
+	if not _tutorial_tour_active:
+		return
+	_cleanup_tutorial_tour()
+	if completed:
+		tutorial_tour_completed.emit()
+	else:
+		tutorial_tour_aborted.emit()
+
+
+func _cleanup_tutorial_tour() -> void:
+	# Signal-free cleanup is also used by external close/scene teardown paths.
+	_tutorial_tour_active = false
+	if _tutorial_tour_overlay and is_instance_valid(_tutorial_tour_overlay):
+		_tutorial_tour_overlay.visible = false
+	if _tutorial_tour_next_button and is_instance_valid(_tutorial_tour_next_button):
+		_tutorial_tour_next_button.release_focus()
+	_skin_cam_dragging = false
+	_emote_cam_dragging = false
+	_emote_cam_panning = false
+	if _back_button and is_instance_valid(_back_button):
+		_back_button.visible = true
+	if _back_separator and is_instance_valid(_back_separator):
+		_back_separator.visible = true
+	if _tutorial_mouse_mode_saved:
+		Input.set_mouse_mode(_tutorial_previous_mouse_mode)
+		_tutorial_mouse_mode_saved = false
+	if is_inside_tree():
+		_refresh_section_button_states()
+
+
+func _exit_tree() -> void:
+	if _tutorial_tour_active or _tutorial_mouse_mode_saved:
+		_cleanup_tutorial_tour()
+
+
 func _set_section(section: Section) -> void:
 	var prev_section := _active_section
 	if prev_section == Section.SKIN and section != Section.SKIN:
@@ -762,13 +1066,14 @@ func _set_section(section: Section) -> void:
 	_emote_panel.visible = section == Section.EMOTE
 
 	var target_height := 640.0
-	match section:
-		Section.WALL_SPEED:
-			target_height = 480.0
-		Section.SKIN:
-			target_height = 440.0
-		Section.EMOTE:
-			target_height = 640.0
+	if not _tutorial_tour_active:
+		match section:
+			Section.WALL_SPEED:
+				target_height = 480.0
+			Section.SKIN:
+				target_height = 440.0
+			Section.EMOTE:
+				target_height = 640.0
 
 	if is_inside_tree():
 		var tween = create_tween().set_parallel(true)
@@ -777,9 +1082,9 @@ func _set_section(section: Section) -> void:
 	else:
 		_settings_panel.custom_minimum_size.y = target_height
 
-	for key in _section_buttons.keys():
-		var btn: Button = _section_buttons[key]
-		btn.disabled = key == section
+	_refresh_section_button_states()
+	if _body_scroll:
+		_body_scroll.scroll_vertical = 0
 
 	if _preview_input_catcher:
 		_preview_input_catcher.mouse_filter = (
@@ -833,6 +1138,29 @@ func _set_section(section: Section) -> void:
 			_update_emote_panel_ui()
 			_highlight_grid_card_for_emote(_browsing_emote_id)
 			_refresh_emote_lane_previews()
+
+
+func _refresh_section_button_states() -> void:
+	var active_style := StyleBoxFlat.new()
+	active_style.bg_color = Color(0.12, 0.22, 0.30, 0.96)
+	active_style.border_color = Color(1.0, 0.80, 0.24, 0.98)
+	active_style.set_border_width_all(2)
+	active_style.set_corner_radius_all(10)
+	active_style.content_margin_left = 14.0
+	active_style.content_margin_right = 14.0
+	active_style.content_margin_top = 8.0
+	active_style.content_margin_bottom = 8.0
+	for key in _section_buttons.keys():
+		var btn: Button = _section_buttons[key]
+		var is_active: bool = key == _active_section
+		btn.disabled = is_active
+		if is_active:
+			btn.add_theme_stylebox_override("disabled", active_style.duplicate())
+			btn.add_theme_color_override("font_disabled_color", Color(1.0, 0.88, 0.42))
+		else:
+			btn.remove_theme_stylebox_override("disabled")
+			btn.remove_theme_color_override("font_disabled_color")
+
 
 func _preview_editing_lane_x() -> float:
 	return PREVIEW_PLAYER_P1_X if _editing_player == 1 else PREVIEW_PLAYER_P2_X
@@ -1081,7 +1409,7 @@ func _on_emote_preview_gui_input(event: InputEvent) -> void:
 
 func _refresh_all_labels() -> void:
 	var gs := QuizManager.game_state
-	_speed_slider.value = _preview_speed
+	_speed_slider.set_value_no_signal(_preview_speed)
 	_update_mode_label()
 	_update_speed_value()
 	_skin_player_label.text = "対象プレイヤー: P%d" % _editing_player
@@ -1123,7 +1451,9 @@ func _on_reset_pressed() -> void:
 	_preview_speed = AUTO_WALL_SPEED
 	if _active_section != Section.EMOTE:
 		_belt_visual_speed = _preview_speed
-	_speed_slider.value = _preview_speed
+	_speed_slider.set_value_no_signal(_preview_speed)
+	if embedded_mode and _menu_preview and _active_section == Section.WALL_SPEED:
+		_menu_preview.set_belt_speed(_preview_speed)
 	_update_mode_label()
 	_update_speed_value()
 
@@ -1673,20 +2003,27 @@ func _set_current_hat(hat_id: int) -> void:
 func _on_back_pressed() -> void:
 	if _back_to_menu_in_progress:
 		return
-	_back_to_menu_in_progress = true
-	_stop_preview_wall_speed_emotes()
 	if embedded_mode:
-		_is_open = false
-		_finish_hat_slide_immediate()
-		_cleanup_emote_preview()
-		if _cust_world_root:
-			_cust_world_root.visible = false
-		if _menu_preview:
-			_menu_preview.exit_customize_mode()
 		request_close.emit()
 		return
+	_back_to_menu_in_progress = true
+	_stop_preview_wall_speed_emotes()
 	_hold_customize_frame_before_scene_change()
 	get_tree().change_scene_to_file("res://ui/main_menu.tscn")
+
+
+func _prepare_embedded_close() -> void:
+	if _tutorial_tour_active:
+		_cleanup_tutorial_tour()
+	_back_to_menu_in_progress = true
+	_stop_preview_wall_speed_emotes()
+	_is_open = false
+	_finish_hat_slide_immediate()
+	_cleanup_emote_preview()
+	if _cust_world_root:
+		_cust_world_root.visible = false
+	if _menu_preview:
+		_menu_preview.exit_customize_mode()
 
 
 ## メニュー起動時に一度だけ呼ばれ、共有ワールドへカスタマイズ用キャラ等を事前構築する。

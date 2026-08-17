@@ -1,7 +1,9 @@
 extends CanvasLayer
 
 const OFFSCREEN_PLAYER_MARKER_SCRIPT := preload("res://scripts/ui/offscreen_player_marker.gd")
-const TutorialOverlayScript := preload("res://scripts/ui/tutorial_overlay.gd")
+const DuoTutorialOverlayScript := preload("res://scripts/ui/duo_tutorial_overlay.gd")
+const SoloTutorialOverlayScript := preload("res://scripts/ui/solo_tutorial_overlay.gd")
+const TutorialCompletionCardScript := preload("res://scripts/ui/tutorial_completion_card.gd")
 const OFFSCREEN_MARKER_EDGE_MARGIN := 78.0
 const OFFSCREEN_MARKER_NEAR_SCALE := 0.82
 const OFFSCREEN_MARKER_FAR_SCALE := 1.24
@@ -32,6 +34,8 @@ var _rear_edge_warning_time: float = 0.0
 
 @onready var preload_panel: Panel = $PreloadPanel
 @onready var preload_bg: ColorRect = $PreloadBackground
+@onready var pl_title: Label = $PreloadPanel/Title
+@onready var pl_subtitle: Label = $PreloadPanel/Subtitle
 @onready var pl_progress: ProgressBar = $PreloadPanel/ProgressBar
 @onready var pl_status: Label = $PreloadPanel/Status
 @onready var start_prompt_label: Label = $PreloadPanel/StartPromptLabel
@@ -62,7 +66,7 @@ var _target_score: int = 0
 var _streak_label: Label = null
 var _confetti_fired: bool = false
 var _tutorial_panel: Control = null
-var _tutorial_keys_box: HBoxContainer = null
+var _tutorial_completion_card: Control = null
 var _p1_offscreen_marker: Control = null
 var _p2_offscreen_marker: Control = null
 var _gameplay_camera: Camera3D = null
@@ -124,24 +128,39 @@ func _ready() -> void:
 		game_state.rate_last_question(false)
 		_show_feedback("× 悪い問題として評価しました")
 	)
-	btn_menu.pressed.connect(func():
-
-		game_state.reset_to_menu()
-		get_tree().change_scene_to_file("res://ui/main_menu.tscn")
-	)
-	btn_retry.pressed.connect(func():
-		if game_state.mode == Constants.MODE_TUTORIAL:
-			game_state.restart_tutorial()
-		else:
-			game_state.start_game()
-		get_tree().change_scene_to_file("res://scenes/game_world.tscn")
-	)
+	btn_menu.pressed.connect(_return_to_main_menu)
+	btn_retry.pressed.connect(_retry_game)
 	btn_history.pressed.connect(func():
 		_open_history()
 	)
 	history_back_btn.pressed.connect(func():
 		_close_history()
 	)
+
+
+## リザルトをワイプが覆い切るまで保持し、その後でメニュー状態へ戻す。
+func _return_to_main_menu() -> void:
+	if SceneTransition.is_transitioning():
+		return
+	await SceneTransition.fade_to_color_and_wait(Color.BLACK)
+	if not is_inside_tree():
+		return
+	game_state.reset_to_menu()
+	get_tree().change_scene_to_file("res://ui/main_menu.tscn")
+
+
+## リトライ時もリザルトをワイプが覆い切ってからゲーム状態を再初期化する。
+func _retry_game() -> void:
+	if SceneTransition.is_transitioning():
+		return
+	await SceneTransition.fade_to_color_and_wait(Color.BLACK)
+	if not is_inside_tree():
+		return
+	if game_state.mode == Constants.MODE_TUTORIAL:
+		game_state.restart_tutorial()
+	else:
+		game_state.start_game()
+	get_tree().change_scene_to_file("res://scenes/game_world.tscn")
 
 func _create_offscreen_player_markers() -> void:
 	var p1_marker: Control = OFFSCREEN_PLAYER_MARKER_SCRIPT.new() as Control
@@ -373,6 +392,46 @@ func play_tutorial_completion_celebration() -> void:
 	_fire_confetti()
 
 
+func show_solo_stage_tutorial_complete(duration: float = 3.2) -> void:
+	_show_tutorial_completion_card("SoloStageCompletionCard", {
+		"step": "1 / 2  STAGE CLEAR",
+		"title": "ステージチュートリアル完了！",
+		"body": "走る・ジャンプ・海の危険・3問のクイズを体験しました。",
+		"progress": "✓ ステージ実践　　次はカスタマイズ",
+		"footer": "自動でカスタマイズ紹介へ進みます",
+		"duration": duration,
+	})
+
+
+func show_duo_stage_tutorial_complete(duration: float = 3.4) -> void:
+	_show_tutorial_completion_card("DuoStageCompletionCard", {
+		"step": "LOCAL 2P  COURSE CLEAR",
+		"title": "ローカル2Pコース完了！",
+		"body": "2人の操作・海とゴーストシャーク・1人ずつの判定・最終レースを体験しました。",
+		"progress": "✓ ローカル2P実践　　次は本番の対戦へ",
+		"footer": "自動でリザルトへ進みます",
+		"duration": duration,
+		# 1Pはこの後シーンが切り替わるがローカル2Pは同じ画面でリザルトへ移るため、
+		# カード側で閉じないと結果画面が隠れたまま入力も通らなくなる。
+		"auto_dismiss": true,
+	})
+
+
+## コース完了カードは1P/2Pで文面だけが違う。生成と後片付けはここに集約する。
+func _show_tutorial_completion_card(card_name: String, config: Dictionary) -> void:
+	if _tutorial_completion_card and is_instance_valid(_tutorial_completion_card):
+		return
+	var card := TutorialCompletionCardScript.new() as Control
+	card.name = card_name
+	add_child(card)
+	_tutorial_completion_card = card
+	card.tree_exited.connect(func() -> void:
+		if _tutorial_completion_card == card:
+			_tutorial_completion_card = null
+	)
+	card.call("present", config)
+
+
 func _rear_edge_warning_strength() -> float:
 	if (
 		game_state.num_players != 1
@@ -460,7 +519,18 @@ func _show_waiting_start(dt: float) -> void:
 	progress_bar.visible = false
 	game_over_panel.visible = false
 
-	pl_status.text = "読み込み完了"
+	if game_state.mode == Constants.MODE_TUTORIAL:
+		var is_duo := game_state.get_tutorial_course() == GameManager.TUTORIAL_COURSE_LOCAL_2P
+		pl_title.text = "ローカル2Pチュートリアル" if is_duo else "1Pチュートリアル"
+		pl_subtitle.text = (
+			"2人の操作・クイズ・ゴースト・ゴールを順番に練習します"
+			if is_duo
+			else "操作・クイズ・危険からの復帰・ゴールを順番に練習します"
+		)
+	else:
+		pl_title.text = "問題を準備中..."
+		pl_subtitle.text = "しばらくお待ちください"
+	pl_status.text = "準備完了"
 	pl_progress.visible = false
 	start_prompt_label.visible = true
 	if game_state.mode == Constants.MODE_TUTORIAL:
@@ -518,9 +588,14 @@ func _create_stats_panel() -> void:
 	_stats_panel.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	game_over_panel.add_child(_stats_panel)
 
+## どちらも下部コーチバー1本。2Pはプレイヤー別チップを横一列にする。
 func _create_tutorial_overlay() -> void:
-	_tutorial_panel = TutorialOverlayScript.new() as Control
-	_tutorial_panel.name = "TutorialOverlayV3"
+	if game_state and game_state.is_duo_tutorial():
+		_tutorial_panel = DuoTutorialOverlayScript.new() as Control
+		_tutorial_panel.name = "DuoTutorialOverlay"
+	else:
+		_tutorial_panel = SoloTutorialOverlayScript.new() as Control
+		_tutorial_panel.name = "SoloTutorialOverlay"
 	add_child(_tutorial_panel)
 	_tutorial_panel.call("setup", game_state)
 
@@ -528,119 +603,6 @@ func _update_tutorial_overlay(dt: float = 0.0) -> void:
 	if not _tutorial_panel or not game_state:
 		return
 	_tutorial_panel.call("update_overlay", dt)
-
-func _rebuild_tutorial_keys() -> void:
-	if not _tutorial_keys_box:
-		return
-	for child in _tutorial_keys_box.get_children():
-		child.queue_free()
-
-	_add_tutorial_player_keys(
-		"P1",
-		game_state.tutorial_key_items(1),
-		Color(0.40, 0.66, 1.0)
-	)
-	if game_state.num_players >= 2:
-		_add_tutorial_player_keys(
-			"P2",
-			game_state.tutorial_key_items(2),
-			Color(0.35, 0.95, 0.64)
-		)
-
-func _add_tutorial_player_keys(
-		player_label: String,
-		items: Array[Dictionary],
-		accent: Color) -> void:
-	var block := VBoxContainer.new()
-	block.add_theme_constant_override("separation", 3)
-	block.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	_tutorial_keys_box.add_child(block)
-
-	var label := Label.new()
-	label.text = player_label
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.add_theme_font_size_override("font_size", 13)
-	label.add_theme_color_override("font_color", accent)
-	label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
-	label.add_theme_constant_override("outline_size", 2)
-	block.add_child(label)
-
-	var row := HBoxContainer.new()
-	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_theme_constant_override("separation", 5)
-	block.add_child(row)
-
-	for item: Dictionary in items:
-		_add_key_chip(
-			row,
-			str(item.get("key", "")),
-			str(item.get("caption", "")),
-			accent,
-			bool(item.get("done", false)),
-			bool(item.get("highlight", false))
-		)
-
-func _add_key_chip(
-		parent: HBoxContainer,
-		key_text: String,
-		caption: String,
-		accent: Color,
-		done: bool,
-		highlighted: bool) -> void:
-	var stack := VBoxContainer.new()
-	stack.add_theme_constant_override("separation", 1)
-	parent.add_child(stack)
-
-	var key_panel := PanelContainer.new()
-	var display_key := ("✓ " + key_text) if done else key_text
-	var width := clampf(float(display_key.length()) * 9.0 + 18.0, 40.0, 118.0)
-	key_panel.custom_minimum_size = Vector2(width, 28.0)
-	var style := StyleBoxFlat.new()
-	if done:
-		style.bg_color = Color(0.10, 0.38, 0.24, 0.90)
-		style.border_color = Color(0.36, 1.0, 0.58, 1.0)
-		style.set_border_width_all(2)
-	elif highlighted:
-		style.bg_color = Color(0.20, 0.26, 0.39, 0.90)
-		style.border_color = Color(1.0, 0.86, 0.22, 1.0)
-		style.set_border_width_all(2)
-	else:
-		style.bg_color = Color(0.08, 0.10, 0.17, 0.72)
-		style.border_color = accent.lerp(Color.WHITE, 0.15)
-		style.set_border_width_all(1)
-	style.set_corner_radius_all(5)
-	style.content_margin_left = 6.0
-	style.content_margin_right = 6.0
-	style.content_margin_top = 3.0
-	style.content_margin_bottom = 3.0
-	key_panel.add_theme_stylebox_override("panel", style)
-	stack.add_child(key_panel)
-
-	var key_label := Label.new()
-	key_label.text = display_key
-	key_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	key_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	key_label.add_theme_font_size_override("font_size", 14 if display_key.length() <= 8 else 12)
-	if done:
-		key_label.add_theme_color_override("font_color", Color(0.78, 1.0, 0.84))
-	elif highlighted:
-		key_label.add_theme_color_override("font_color", Color(1.0, 0.92, 0.45))
-	else:
-		key_label.add_theme_color_override("font_color", Color(0.92, 0.95, 1.0))
-	key_panel.add_child(key_label)
-
-	var caption_label := Label.new()
-	caption_label.text = caption
-	caption_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	caption_label.add_theme_font_size_override("font_size", 10)
-	if done:
-		caption_label.add_theme_color_override("font_color", Color(0.46, 1.0, 0.65))
-	elif highlighted:
-		caption_label.add_theme_color_override("font_color", Color(1.0, 0.88, 0.32))
-	else:
-		caption_label.add_theme_color_override("font_color", Color(0.58, 0.64, 0.78))
-	stack.add_child(caption_label)
-
 
 func _show_game_over() -> void:
 	var is_clear := game_state.game_state == Constants.STATE_CLEAR
@@ -1056,30 +1018,19 @@ func _update_question() -> void:
 		question_panel.visible = false
 
 func _update_score() -> void:
+	# チュートリアルの進行はコーチバー側で表示するため、スコア表示は出さない。
 	if game_state.mode == Constants.MODE_TUTORIAL:
 		score_label.visible = false
 		return
 	if game_state.game_state in [Constants.STATE_PLAYING, Constants.STATE_CORRECT, Constants.STATE_GOAL_RACE]:
 		score_label.visible = true
 		if game_state.num_players >= 2:
-			if game_state.mode == Constants.MODE_TUTORIAL:
-				var overlay_2p := game_state.get_tutorial_overlay_model()
-				score_label.text = "STEP %d/%d  P1:%d  P2:%d" % [
-					int(overlay_2p.get("step_number", 1)), int(overlay_2p.get("step_count", 1)),
-					game_state.score, game_state.player2_score,
-				]
-			elif game_state.is_coop_mode():
+			if game_state.is_coop_mode():
 				score_label.text = "協力: %d/%d" % [game_state.score, game_state.target_count]
 			else:
 				score_label.text = "P1: %d  P2: %d" % [game_state.score, game_state.player2_score]
 		else:
-			if game_state.mode == Constants.MODE_TUTORIAL:
-				var overlay_1p := game_state.get_tutorial_overlay_model()
-				score_label.text = "STEP %d/%d  %s" % [
-					int(overlay_1p.get("step_number", 1)), int(overlay_1p.get("step_count", 1)),
-					str(overlay_1p.get("title", "チュートリアル")),
-				]
-			elif game_state.mode == Constants.MODE_TEN:
+			if game_state.mode == Constants.MODE_TEN:
 				score_label.text = "正解: %d  問題: %d/10" % [game_state.score, game_state.current_index + 1]
 			else:
 				score_label.text = "正解: %d" % game_state.score

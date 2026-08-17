@@ -2,7 +2,8 @@ extends Node3D
 
 const GhostSharkRideControllerScript = preload("res://scripts/world/ghost_shark_ride_controller.gd")
 const TutorialPresentationDirectorScript = preload("res://scripts/world/tutorial_presentation_director.gd")
-const TutorialWorldGuidesScript = preload("res://scripts/world/tutorial_world_guides.gd")
+const DuoTutorialGuidesScript = preload("res://scripts/world/duo_tutorial_guides.gd")
+const SoloTutorialGuidesScript = preload("res://scripts/world/solo_tutorial_guides.gd")
 
 ## 3Dゲームワールド管理
 ## Python版 renderer.py の _draw_world + main_3d.py の入力処理に相当
@@ -31,6 +32,7 @@ var _ocean_attack_sharks: Dictionary = {}
 var _ghost_shark_ride_controller: Node3D = null
 var _tutorial_presentation_director: Node = null
 var _tutorial_world_guides: Node3D = null
+var _tutorial_customize_handoff_in_progress: bool = false
 var _active_walls: Array[Node3D] = []
 var _retired_wall_indices: Dictionary = {}
 const MERGE_EFFECT_POOL_SIZE := 6
@@ -40,13 +42,11 @@ var _flyover_walls: Array[Node3D] = []
 var _flyover_active: bool = false
 var _hats_applied: bool = false
 # ── プリロード中の3D構築アニメーション ──
-var _pw_walls: Array[Node3D] = []        # 完成壁
-var _pw_left: Array[Node3D] = []          # 左半分スライド壁
-var _pw_right: Array[Node3D] = []         # 右半分スライド壁
-var _pw_anims: Array[Dictionary] = []     # アニメ状態
-var _pw_count: int = 0                    # 生成済み壁数
-var _pw_merge_started: Array[bool] = []   # 各壁のマージ開始フラグ
-var _pw_merge_timer: float = 0.0          # 壁間のディレイタイマー
+var _pw_walls: Array[Node3D] = []       # 上空から着地する完成壁
+var _pw_anims: Array[Dictionary] = []   # 落下・着地アニメ状態
+var _pw_count: int = 0                  # 生成済み壁数
+var _pw_drop_started: Array[bool] = []  # 各壁の落下開始フラグ
+var _pw_drop_timer: float = 0.0         # 壁間のディレイタイマー
 var _goal_line_node: Node3D = null
 # ── スタートバリア壁（カウントダウン終了まで問題を隠す） ──
 var _start_barrier: Node3D = null
@@ -56,6 +56,10 @@ var _barrier_drop_timer: float = 0.0
 var _barrier_spawned_for_session: bool = false  # 1ゲームに1回だけ
 const MAX_VISIBLE_WALLS := 4
 const PREVIEW_WALLS_PER_FRAME := 1
+const PREVIEW_WALL_DROP_START_Y := 46.0
+const PREVIEW_WALL_DROP_INTERVAL := 0.16
+const PREVIEW_WALL_DROP_DURATION := 0.28
+const PREVIEW_WALL_SETTLE_DURATION := 0.14
 
 var pause_menu: CanvasLayer = null
 
@@ -120,12 +124,18 @@ func _ready() -> void:
 	_ghost_shark_ride_controller.charge_resolved.connect(_on_tutorial_ghost_charge_resolved)
 	game_state.tutorial_task_completed.connect(_on_tutorial_task_completed)
 	game_state.tutorial_presentation_requested.connect(_on_tutorial_presentation_requested)
+	game_state.tutorial_customize_handoff_requested.connect(_on_tutorial_customize_handoff_requested)
 	_tutorial_presentation_director = TutorialPresentationDirectorScript.new()
 	_tutorial_presentation_director.name = "TutorialPresentationDirector"
 	add_child(_tutorial_presentation_director)
 	_tutorial_presentation_director.setup(game_state, camera_controller)
-	_tutorial_world_guides = TutorialWorldGuidesScript.new()
-	_tutorial_world_guides.name = "TutorialWorldGuides"
+	# 1Pと2Pではガイドの見せ方が別物なので、コースごとに実装を切り替える。
+	if game_state.is_duo_tutorial():
+		_tutorial_world_guides = DuoTutorialGuidesScript.new()
+		_tutorial_world_guides.name = "DuoTutorialGuides"
+	else:
+		_tutorial_world_guides = SoloTutorialGuidesScript.new()
+		_tutorial_world_guides.name = "SoloTutorialGuides"
 	add_child(_tutorial_world_guides)
 	_tutorial_world_guides.setup(game_state)
 	_warm_merge_effect_pool()
@@ -300,9 +310,18 @@ func _on_tutorial_task_completed(_player_index: int, _task_id: String) -> void:
 		AudioManager.play_tutorial_task()
 
 
-func _on_tutorial_presentation_requested(presentation_id: String, _context: Dictionary) -> void:
-	if presentation_id != "completion_hero":
+func _on_tutorial_presentation_requested(presentation_id: String, context: Dictionary) -> void:
+	if presentation_id == "solo_stage_complete":
+		var stage_hud: Node = get_node_or_null("GameplayHUD")
+		if stage_hud != null and stage_hud.has_method("show_solo_stage_tutorial_complete"):
+			stage_hud.call(
+				"show_solo_stage_tutorial_complete",
+				float(context.get("duration", 3.2)),
+			)
 		return
+	if presentation_id != "duo_stage_complete":
+		return
+	# 2Pコースの締めは完了カードに花火と紙吹雪を重ねて祝う。
 	var celebration_z := (
 		game_state.goal_z - game_state.world_scroll_z
 		if game_state.goal_z > 0.0
@@ -311,8 +330,28 @@ func _on_tutorial_presentation_requested(presentation_id: String, _context: Dict
 	if particle_spawner.has_method("spawn_fireworks"):
 		particle_spawner.spawn_fireworks(Vector3(0.0, 0.0, celebration_z))
 	var gameplay_hud: Node = get_node_or_null("GameplayHUD")
-	if gameplay_hud != null and gameplay_hud.has_method("play_tutorial_completion_celebration"):
+	if gameplay_hud == null:
+		return
+	if gameplay_hud.has_method("show_duo_stage_tutorial_complete"):
+		gameplay_hud.call(
+			"show_duo_stage_tutorial_complete",
+			float(context.get("duration", 3.4)),
+		)
+	if gameplay_hud.has_method("play_tutorial_completion_celebration"):
 		gameplay_hud.call("play_tutorial_completion_celebration")
+
+
+func _on_tutorial_customize_handoff_requested() -> void:
+	if _tutorial_customize_handoff_in_progress:
+		return
+	_tutorial_customize_handoff_in_progress = true
+	call_deferred("_change_to_customize_tutorial_menu")
+
+
+func _change_to_customize_tutorial_menu() -> void:
+	await get_tree().process_frame
+	await SceneTransition.fade_to_color_and_wait(Color.BLACK)
+	get_tree().change_scene_to_file("res://ui/main_menu.tscn")
 
 
 func has_player_death_exploded(player_index: int) -> bool:
@@ -510,8 +549,18 @@ func _process(dt: float) -> void:
 	# Handle R key for restart (ESC is handled in _unhandled_input)
 	if game_state.game_state in [Constants.STATE_GAME_OVER, Constants.STATE_CLEAR]:
 		if Input.is_key_pressed(KEY_R) and game_state.is_wall_death_sequence_complete():
-			game_state.reset_to_menu()
-			get_tree().change_scene_to_file("res://ui/main_menu.tscn")
+			_return_to_main_menu_from_result()
+
+
+## キーボード操作でもボタンと同様、リザルトを覆ってから状態をリセットする。
+func _return_to_main_menu_from_result() -> void:
+	if SceneTransition.is_transitioning():
+		return
+	await SceneTransition.fade_to_color_and_wait(Color.BLACK)
+	if not is_inside_tree():
+		return
+	game_state.reset_to_menu()
+	get_tree().change_scene_to_file("res://ui/main_menu.tscn")
 
 func _update_floor_conveyor() -> void:
 	if stage_env:
@@ -519,6 +568,15 @@ func _update_floor_conveyor() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	# 完了カードの演出中はEnterスキップを受け付けない。カードを見せ切ってから
+	# リザルトへ送るので、ここで先に進まれると祝いの演出が飛ぶ。
+	if (
+		game_state
+		and game_state.get_tutorial_step_id() in ["stage_complete", "duo_complete"]
+		and game_state.is_tutorial_presentation_locked()
+	):
+		get_viewport().set_input_as_handled()
+		return
 	if event is InputEventKey and event.keycode == KEY_ESCAPE and event.is_pressed() and not event.is_echo():
 		if game_state and game_state.game_state in [
 			Constants.STATE_WAITING_START, Constants.STATE_COUNTDOWN,
@@ -659,6 +717,13 @@ func _update_walls() -> void:
 		_retired_wall_indices.clear()
 		return
 
+	# 操作練習ステップでは問題文のない空白ドアが前方に立たないよう、壁ごと出さない。
+	if game_state.are_tutorial_walls_hidden():
+		for wall: Node3D in _active_walls:
+			wall.queue_free()
+		_active_walls.clear()
+		return
+
 	var t := game_state.tuning
 
 	# 通過済み壁は、正解直後ではなくプレイヤーが実際に壁を抜けてから退場させる。
@@ -769,12 +834,11 @@ func _update_wall_labels(wall_node: Node3D) -> void:
 		wall_node.set_quiz(game_state.current_quiz, game_state.num_choices)
 
 func _update_goal_line() -> void:
-	# Show the goal gate for 2P 10-question games and both V3 tutorial courses.
-	var should_show := (
-		(
-			(game_state.num_players >= 2 and game_state.mode == Constants.MODE_TEN)
-			or game_state.mode == Constants.MODE_TUTORIAL
-		)
+	# Challenge flyovers may preview the finish. Tutorials reveal the goal only
+	# after the dedicated final step begins, so hazard instructions stay clear.
+	var challenge_goal_visible := (
+		game_state.num_players >= 2
+		and game_state.mode == Constants.MODE_TEN
 		and game_state.game_state in [
 			Constants.STATE_GOAL_RACE,
 			Constants.STATE_FLYOVER,
@@ -783,6 +847,11 @@ func _update_goal_line() -> void:
 			Constants.STATE_WAITING_START,
 		]
 	)
+	var tutorial_goal_visible := (
+		game_state.mode == Constants.MODE_TUTORIAL
+		and game_state.game_state in [Constants.STATE_GOAL_RACE, Constants.STATE_CLEAR]
+	)
+	var should_show := challenge_goal_visible or tutorial_goal_visible
 
 	if not should_show:
 		if _goal_line_node and is_instance_valid(_goal_line_node):
@@ -1127,11 +1196,13 @@ func _build_pause_menu() -> void:
 	btn_title.custom_minimum_size = Vector2(0, 60)
 	btn_title.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	btn_title.pressed.connect(func():
+		if SceneTransition.is_transitioning():
+			return
 		get_tree().paused = false
 		AudioManager.set_music_paused(false)
 		AudioManager.set_music_context(AudioManager.MUSIC_CONTEXT_MENU)
 		game_state.reset_to_menu()
-		get_tree().change_scene_to_file("res://ui/main_menu.tscn")
+		SceneTransition.change_scene("res://ui/main_menu.tscn")
 	)
 	vbox.add_child(btn_title)
 
@@ -1147,23 +1218,8 @@ func _toggle_pause() -> void:
 
 # ============================================================
 # プリロード中の3D構築アニメーション
-# 軽量シルエットが左右から爆速スライドイン → 合体＋火花エフェクト
+# 完成したクイズ壁が上空から1枚ずつ落下 → 着地衝撃エフェクト
 # ============================================================
-
-## 左右スライド用の軽量シルエットメッシュを生成
-func _create_slide_silhouette(wz: float, x_pos: float) -> MeshInstance3D:
-	var mi := MeshInstance3D.new()
-	var box := BoxMesh.new()
-	box.size = Vector3(8.0, 5.5, 0.4)  # 壁とほぼ同サイズ
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.3, 0.35, 0.5, 0.85)
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	box.material = mat
-	mi.mesh = box
-	mi.position = Vector3(x_pos, 2.75, wz)
-	mi.visible = false
-	return mi
 
 func _update_preview_walls(dt: float) -> void:
 	if game_state.game_state not in [Constants.STATE_PRELOADING, Constants.STATE_WAITING_START]:
@@ -1172,7 +1228,7 @@ func _update_preview_walls(dt: float) -> void:
 	var t := game_state.tuning
 	var quiz_count: int = game_state.quiz_list.size()
 
-	# ── 壁+シルエットの生成（クイズ到着に同期、奥から手前へ配置）──
+	# ── 壁の生成（クイズ到着に同期、奥から手前へ配置）──
 	# 到着N番目のクイズ → 位置 (total - 1 - N) に壁を生成
 	# これにより最初のクイズが最奥、最後のクイズが最手前に出現
 	var is_endless: bool = not game_state._is_fixed_count_mode()
@@ -1180,17 +1236,17 @@ func _update_preview_walls(dt: float) -> void:
 	var target_pw_count: int = total_expected if is_endless else quiz_count
 
 	# 10枚分のインスタンス化と問題文セットを同フレームに集中させない。
-	# 準備画面の裏で1枚ずつ分散し、合体演出の開始前に滑らかに組み立てる。
+	# 準備画面の裏で1枚ずつ分散し、落下演出の開始前に滑らかに組み立てる。
 	var walls_to_build: int = mini(PREVIEW_WALLS_PER_FRAME, target_pw_count - _pw_count)
 	for _build_index: int in range(walls_to_build):
 		# エンドレスは手前から奥へ、固定モードは逆マッピング（奥から手前へ）
 		var visual_idx: int = _pw_count if is_endless else (total_expected - 1 - _pw_count)
 		var wz: float = t.wall_start_z + visual_idx * t.wall_spacing
 
-		# 完成壁（合体後に表示）
+		# 完成壁を上空に待機させ、順番が来たら落下させる。
 		var wall_final: Node3D = quiz_wall_scene.instantiate()
 		wall_final.set_meta("wall_index", visual_idx)
-		wall_final.position = Vector3(0, 0, wz)
+		wall_final.position = Vector3(0, PREVIEW_WALL_DROP_START_Y, wz)
 		wall_final.visible = false
 		wall_container.add_child(wall_final)
 		_pw_walls.append(wall_final)
@@ -1200,36 +1256,25 @@ func _update_preview_walls(dt: float) -> void:
 		elif wall_final.has_method("set_quiz"):
 			wall_final.set_quiz(null, game_state.num_choices)
 
-		# 左右は軽量シルエット（BoxMesh）
-		var sil_l := _create_slide_silhouette(wz, -25.0)
-		sil_l.visible = false
-		wall_container.add_child(sil_l)
-		_pw_left.append(sil_l)
-
-		var sil_r := _create_slide_silhouette(wz, 25.0)
-		sil_r.visible = false
-		wall_container.add_child(sil_r)
-		_pw_right.append(sil_r)
-
-		# 新しい壁のアニメーション情報 — エンドレスモードなら即座に完了状態(phase 3)とする
+		# 新しい壁のアニメーション情報 — エンドレスは従来どおり即時配置する。
 		_pw_anims.append({
 			"phase": 3 if is_endless else 0,
 			"timer": 0.0,
 			"started": is_endless,
 		})
-		_pw_merge_started.append(is_endless)
+		_pw_drop_started.append(is_endless)
 		
 		if is_endless:
 			wall_final.visible = true
+			wall_final.position.y = 0.0
 			wall_final.scale = Vector3.ONE
 
 		_pw_count += 1
 
-	# ── マージアニメーション順次開始（0.15秒間隔）──
+	# ── 落下アニメーション順次開始 ──
 	# オフライン固定枚数モードでは、全壁の構築完了後に演出を開始する。
-	# 壁生成・ラベル初期化と火花・カメラ揺れを同じフレーム帯に重ねない。
+	# 壁生成・ラベル初期化と着地演出を同じフレーム帯に重ねない。
 	var is_offline: bool = QuizManager.provider.llm_mode == "OFFLINE"
-	var merge_interval: float = 0.15
 	var total_walls: int = _pw_anims.size()
 	var wall_set_ready: bool = is_endless or not is_offline or (
 		quiz_count >= game_state.target_count
@@ -1237,35 +1282,31 @@ func _update_preview_walls(dt: float) -> void:
 	)
 	if total_walls > 0 and wall_set_ready:
 		var all_started: bool = true
-		for ms: bool in _pw_merge_started:
-			if not ms:
+		for drop_started: bool in _pw_drop_started:
+			if not drop_started:
 				all_started = false
 				break
 		if not all_started:
-			_pw_merge_timer += dt
-			while _pw_merge_timer >= merge_interval:
+			_pw_drop_timer += dt
+			while _pw_drop_timer >= PREVIEW_WALL_DROP_INTERVAL:
 				# 配列順（0=最奥）でまだ開始していない壁を探す
 				var found_next: bool = false
 				for search_i: int in range(total_walls):
-					if not _pw_merge_started[search_i]:
-						_pw_merge_started[search_i] = true
+					if not _pw_drop_started[search_i]:
+						_pw_drop_started[search_i] = true
 						_pw_anims[search_i]["phase"] = 1
 						_pw_anims[search_i]["started"] = true
-						if search_i < _pw_left.size():
-							_pw_left[search_i].visible = true
-							_pw_right[search_i].visible = true
+						if search_i < _pw_walls.size():
+							_pw_walls[search_i].position.y = PREVIEW_WALL_DROP_START_Y
+							_pw_walls[search_i].scale = Vector3.ONE
+							_pw_walls[search_i].visible = true
 						found_next = true
 						break
 				if not found_next:
 					break
-				_pw_merge_timer -= merge_interval
+				_pw_drop_timer -= PREVIEW_WALL_DROP_INTERVAL
 
 	# アニメーション更新
-	var slide_duration: float = 0.125 # 常に最速
-	var flash_duration: float = 0.175
-	# 画面外（遠く）から飛んでくるように開始位置を拡張
-	const SLIDE_START_X: float = 150.0
-
 	for i: int in range(_pw_anims.size()):
 		var anim: Dictionary = _pw_anims[i]
 		if not anim["started"] or i >= _pw_walls.size():
@@ -1277,34 +1318,38 @@ func _update_preview_walls(dt: float) -> void:
 		anim["timer"] = t_val
 
 		if phase == 1:
-			var p: float = clampf(t_val / slide_duration, 0.0, 1.0)
-			# キレのあるイージング (EaseOutExpo風) に変更して超高速で飛んできて急ブレーキ
-			var eased: float = 1.0 - pow(1.0 - p, 5.0)
-			var x_offset: float = SLIDE_START_X * (1.0 - eased)
-			_pw_left[i].position.x = -x_offset
-			_pw_right[i].position.x = x_offset
+			var p: float = clampf(t_val / PREVIEW_WALL_DROP_DURATION, 0.0, 1.0)
+			# 画面上端から一気に突っ込み、地面直前でさらに加速する。
+			var eased: float = p * p
+			_pw_walls[i].position.y = lerpf(PREVIEW_WALL_DROP_START_Y, 0.0, eased)
 
 			if p >= 1.0:
 				anim["phase"] = 2
 				anim["timer"] = 0.0
-				_pw_left[i].visible = false
-				_pw_right[i].visible = false
-				_pw_walls[i].visible = true
-				_pw_walls[i].scale = Vector3(1.15, 1.15, 1.15)
+				_pw_walls[i].position.y = 0.0
+				_pw_walls[i].scale = Vector3(1.16, 0.78, 1.16)
 				_spawn_merge_sparks(_pw_walls[i].global_position)
 				
-				# カメラに近づくほど強い振動を発生させる (全体的に振動を強化)
-				var dist_z = absf(_pw_walls[i].global_position.z - camera_controller.global_position.z)
-				var shake_power = clampf(40.0 / maxf(1.0, dist_z), 0.2, 1.6)
+				# カメラに近い壁ほど着地の重さを少し強く見せる。
+				var dist_z: float = absf(
+					_pw_walls[i].global_position.z - camera_controller.global_position.z
+				)
+				var shake_power: float = clampf(44.0 / maxf(1.0, dist_z), 0.25, 1.45)
 				game_state.camera_shake = maxf(game_state.camera_shake, shake_power)
 
 		elif phase == 2:
-			var p: float = clampf(t_val / flash_duration, 0.0, 1.0)
-			var eased: float = 1.0 - pow(1.0 - p, 2.0)
-			var s: float = lerpf(1.15, 1.0, eased)
-			_pw_walls[i].scale = Vector3(s, s, s)
+			var p: float = clampf(t_val / PREVIEW_WALL_SETTLE_DURATION, 0.0, 1.0)
+			var eased: float = 1.0 - pow(1.0 - p, 3.0)
+			# 軽く跳ねるより、重い壁が一度潰れて戻る印象を優先。
+			_pw_walls[i].position.y = sin(p * PI) * 0.12 * (1.0 - p)
+			_pw_walls[i].scale = Vector3(
+				lerpf(1.16, 1.0, eased),
+				lerpf(0.78, 1.0, eased),
+				lerpf(1.16, 1.0, eased)
+			)
 			if p >= 1.0:
 				anim["phase"] = 3
+				_pw_walls[i].position.y = 0.0
 				_pw_walls[i].scale = Vector3.ONE
 
 	# ── 全壁のアニメ完了を検出 → バリア壁を落下開始 ──
@@ -1320,7 +1365,7 @@ func _update_preview_walls(dt: float) -> void:
 			_begin_barrier_drop()
 
 
-## 合体時の火花パーティクルを生成
+## 壁着地時の火花パーティクルを予熱する。
 func _warm_merge_effect_pool() -> void:
 	for effect_index: int in range(MERGE_EFFECT_POOL_SIZE):
 		_merge_effect_pool.append(_create_merge_effect(effect_index))
@@ -1408,17 +1453,11 @@ func _spawn_merge_sparks(pos: Vector3) -> void:
 func _clear_preview_walls() -> void:
 	for wall: Node3D in _pw_walls:
 		if is_instance_valid(wall): wall.queue_free()
-	for wall: Node3D in _pw_left:
-		if is_instance_valid(wall): wall.queue_free()
-	for wall: Node3D in _pw_right:
-		if is_instance_valid(wall): wall.queue_free()
 	_pw_walls.clear()
-	_pw_left.clear()
-	_pw_right.clear()
 	_pw_anims.clear()
 	_pw_count = 0
-	_pw_merge_started.clear()
-	_pw_merge_timer = 0.0
+	_pw_drop_started.clear()
+	_pw_drop_timer = 0.0
 
 # ============================================================
 # スタートバリア壁（プレビュー壁完了後に上からズドンと落下）

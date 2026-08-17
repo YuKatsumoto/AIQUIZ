@@ -30,7 +30,7 @@ uniform float edge_light_sequence_time = -1.0;
 uniform float edge_light_spacing : hint_range(1.0, 16.0) = 10.0;
 uniform float edge_light_phase = 2.0;
 uniform float edge_light_side_x : hint_range(8.0, 12.5) = 11.86;
-uniform float edge_light_pool_intensity : hint_range(0.0, 4.0) = 1.15;
+uniform float edge_light_pool_intensity : hint_range(0.0, 4.0) = 0.24;
 uniform int edge_light_station_count = 0;
 uniform float edge_light_front_is_last : hint_range(0.0, 1.0) = 1.0;
 uniform float edge_light_station_delay : hint_range(0.05, 1.0) = 0.22;
@@ -175,16 +175,21 @@ void fragment() {
 		float station_cycle = (local_pos.z - edge_light_phase) / safe_spacing;
 		float station_index = floor(station_cycle + 0.5);
 		float station_distance = abs(fract(station_cycle + 0.5) - 0.5) * safe_spacing;
-		float edge_distance = abs(abs(local_pos.x) - edge_light_side_x);
-		float edge_falloff = exp(-pow(edge_distance / 0.95, 2.0));
-		float station_falloff = exp(-pow(station_distance / 1.25, 2.0));
+		// Recess the pool slightly onto the belt and use two soft lobes. This
+		// avoids the flat, overexposed flashlight-cone shape at grazing angles.
+		float inward_distance = edge_light_side_x - abs(local_pos.x);
+		float belt_side_mask = smoothstep(-0.04, 0.16, inward_distance);
+		float pool_core = exp(-pow((inward_distance - 0.16) / 0.36, 2.0));
+		float pool_halo = exp(-pow((inward_distance - 0.28) / 0.62, 2.0));
+		float edge_falloff = mix(pool_halo, pool_core, 0.38) * belt_side_mask;
+		float station_falloff = exp(-pow(station_distance / 0.72, 2.0));
 		float side_index = step(0.0, local_pos.x);
 		float light_level = 0.0;
 		if (station_index >= 0.0 && station_index < float(edge_light_station_count)) {
 			light_level = fixture_level(station_index, side_index);
 		}
 		edge_pool = edge_falloff * station_falloff * top_mask * light_level;
-		final_col += edge_light_color.rgb * edge_pool * 0.10;
+		final_col += edge_light_color.rgb * edge_pool * 0.025;
 	}
 
 	ALBEDO = final_col;

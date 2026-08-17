@@ -1,12 +1,15 @@
 extends CanvasLayer
 
 ## シーン遷移アニメーション (Autoload)
-## フェード / ドア・ワイプ でシーン切り替えを管理する
+## ハーフトーンワイプ / フェード / ドア・ワイプ でシーン切り替えを管理する
+
+const T_CIRCLE_SCENE := preload("res://assets/TransitionKit/transitions/t_circle.tscn")
 
 var _overlay: ColorRect
 var _door_left: ColorRect
 var _door_right: ColorRect
 var _hold_texture_rect: TextureRect
+var _modular_rect: TransitionRect
 var _is_transitioning: bool = false
 var _active_style: String = ""
 var _door_seam_x: float = 0.0
@@ -18,6 +21,7 @@ var _start_camera_h_offset: float = 0.0
 var _has_start_camera_pose: bool = false
 
 const FADE_DURATION := 0.45
+const MODULAR_DURATION := 0.85
 const HOLD_TEXTURE_REVEAL_DURATION := 0.22
 const DOOR_DURATION := 0.5
 const ACCENT_BLUE := Color(0.18, 0.36, 0.62, 1.0)
@@ -51,9 +55,31 @@ func _ready() -> void:
 	_hold_texture_rect.stretch_mode = TextureRect.STRETCH_SCALE
 	add_child(_hold_texture_rect)
 
+	_setup_modular_wipe()
+
+func _setup_modular_wipe() -> void:
+	_modular_rect = T_CIRCLE_SCENE.instantiate() as TransitionRect
+	_modular_rect.name = "ModularWipe"
+	_modular_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_modular_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_modular_rect.visible = false
+
+	var gradient := Gradient.new()
+	var gradient_tex := GradientTexture2D.new()
+	gradient_tex.gradient = gradient
+	gradient_tex.fill_from = Vector2(0.0, 1.0)
+	gradient_tex.fill_to = Vector2(1.0, 0.0)
+
+	_modular_rect.gradient_texture = gradient_tex
+	_modular_rect.gradient_fixed = true
+	_modular_rect.shape_tiling = 16.0
+	_modular_rect.factor = 0.0
+	add_child(_modular_rect)
+
 ## シーン切替直前の画面を静止画として保持し、読み込み中の空白フレームを隠す
 func hold_image_texture(texture: Texture2D) -> void:
 	_hide_doors()
+	_hide_modular()
 	_overlay.color.a = 0.0
 	_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_hold_texture_rect.texture = texture
@@ -67,42 +93,42 @@ func hold_image_texture(texture: Texture2D) -> void:
 func hold_color(color: Color = GAME_BG_COLOR) -> void:
 	_clear_texture_hold()
 	_hide_doors()
+	_hide_modular()
 	_overlay.color = color
 	_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
 	_is_transitioning = true
 	_active_style = "fade"
 
-## シーン切り替え (フェードアウト → 切替 → フェードイン)
+## シーン切り替え (ハーフトーンワイプで覆う → 切替 → reveal_current で開示)
 func change_scene(path: String, fade_color: Color = Color.BLACK) -> void:
 	if _is_transitioning:
 		return
 	_clear_texture_hold()
+	_hide_doors()
 	_is_transitioning = true
-	_active_style = "fade"
-	_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	_active_style = "modular"
+	_prepare_modular_cover(fade_color)
 
 	var tween := create_tween()
 	tween.set_ease(Tween.EASE_IN)
 	tween.set_trans(Tween.TRANS_QUAD)
-	_overlay.color = Color(fade_color.r, fade_color.g, fade_color.b, 0.0)
-	tween.tween_property(_overlay, "color:a", 1.0, FADE_DURATION)
+	tween.tween_property(_modular_rect, "factor", 1.0, MODULAR_DURATION)
 	tween.tween_callback(func():
 		get_tree().change_scene_to_file(path)
 	)
 
-## 黒(指定色)へフェードアウトしてから完了。状態は fade のまま保持し、
-## 次シーンの reveal_current() でフェードインさせる (change_scene_to_packed 等と併用)
+## ハーフトーンワイプで画面を覆ってから完了。状態は modular のまま保持し、
+## 次シーンの reveal_current() で開示させる (change_scene_to_packed 等と併用)
 func fade_to_color_and_wait(fade_color: Color = Color.BLACK) -> void:
 	_clear_texture_hold()
 	_hide_doors()
 	_is_transitioning = true
-	_active_style = "fade"
-	_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
-	_overlay.color = Color(fade_color.r, fade_color.g, fade_color.b, _overlay.color.a)
+	_active_style = "modular"
+	_prepare_modular_cover(fade_color)
 	var tween := create_tween()
 	tween.set_ease(Tween.EASE_IN)
 	tween.set_trans(Tween.TRANS_QUAD)
-	tween.tween_property(_overlay, "color:a", 1.0, FADE_DURATION)
+	tween.tween_property(_modular_rect, "factor", 1.0, MODULAR_DURATION)
 	await tween.finished
 
 ## ドア・ワイプでシーン切り替え (左右パネルが seam から広がって画面を覆う)
@@ -110,6 +136,7 @@ func change_scene_doors(path: String, seam_x: float = -1.0, color: Color = ACCEN
 	if _is_transitioning:
 		return
 	_clear_texture_hold()
+	_hide_modular()
 	_is_transitioning = true
 	_active_style = "doors"
 	_door_color = color
@@ -145,11 +172,13 @@ func change_scene_doors(path: String, seam_x: float = -1.0, color: Color = ACCEN
 		get_tree().change_scene_to_file(path)
 	)
 
-## シーン読み込み後に遷移演出を解除 (fade / doors 両対応)
+## シーン読み込み後に遷移演出を解除 (modular / fade / doors 対応)
 func reveal_current(fade_color: Color = Color.BLACK) -> void:
 	if not _is_transitioning:
 		return
 	match _active_style:
+		"modular":
+			_reveal_modular()
 		"doors":
 			_reveal_doors()
 		"fade":
@@ -164,6 +193,35 @@ func fade_in_current(fade_color: Color = Color.BLACK) -> void:
 	if _overlay.color.a < 0.01 and not _is_transitioning:
 		return
 	reveal_current(fade_color)
+
+func _prepare_modular_cover(fade_color: Color = Color.BLACK) -> void:
+	_overlay.color.a = 0.0
+	_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_modular_rect.base_color = fade_color
+	_modular_rect.visible = true
+	_modular_rect.mouse_filter = Control.MOUSE_FILTER_STOP
+	_modular_rect.factor = 0.0
+
+func _reveal_modular() -> void:
+	_modular_rect.visible = true
+	_modular_rect.mouse_filter = Control.MOUSE_FILTER_STOP
+	_modular_rect.factor = 1.0
+	var tween := create_tween()
+	tween.set_ease(Tween.EASE_OUT)
+	tween.set_trans(Tween.TRANS_QUAD)
+	tween.tween_property(_modular_rect, "factor", 0.0, MODULAR_DURATION)
+	tween.tween_callback(func():
+		_hide_modular()
+		_is_transitioning = false
+		_active_style = ""
+	)
+
+func _hide_modular() -> void:
+	if _modular_rect == null:
+		return
+	_modular_rect.visible = false
+	_modular_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_modular_rect.factor = 0.0
 
 func _fade_in(fade_color: Color) -> void:
 	_overlay.color = Color(fade_color.r, fade_color.g, fade_color.b, 1.0)

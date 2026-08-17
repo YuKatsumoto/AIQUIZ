@@ -4,6 +4,7 @@ extends Node3D
 signal attack_reached(player_index: int)
 signal attack_phase_changed(player_index: int, attack_phase: int)
 signal ghost_charge_finished()
+signal ghost_mount_beam_fired(beam_index: int)
 
 ## AIQUIZ-UE から移植したサメを、通常時は滑らかに回遊させ、
 ## 落水時はステージを避ける経路でプレイヤーへ急行させる。
@@ -61,6 +62,53 @@ const GHOST_ENTRY_SCALE_PULSE: float = 0.18
 const GHOST_ENTRY_BREACH_PROGRESS: float = 0.40
 const GHOST_BREACH_RING_DURATION: float = 0.92
 const GHOST_AURA_COLOR: Color = Color(0.24, 0.86, 1.0, 1.0)
+const GHOST_MOUNT_BEAM_P1_SCENE: PackedScene = preload(
+	"res://assets/BinbunVFX/beam_vfx/effects/beam/beam_vfx_06.tscn"
+)
+const GHOST_MOUNT_BEAM_P2_SCENE: PackedScene = preload(
+	"res://assets/BinbunVFX/beam_vfx/effects/beam/beam_vfx_02.tscn"
+)
+const GHOST_MOUNT_BEAM_HEIGHT: float = 28.0
+const GHOST_MOUNT_BEAM_ROOT_ABOVE_OCEAN: float = 0.18
+const GHOST_MOUNT_BEAM_ASCENT_HEIGHT: float = 4.2
+const GHOST_MOUNT_BEAM_COUNT: int = 1
+const GHOST_MOUNT_BEAM_RENDER_LAYER: int = 19
+# One oversized vertical pillar fires while the mounted shark remains planted.
+# It closes completely, then the camera vibration is allowed to decay before
+# the shark begins its ascent.
+const GHOST_MOUNT_BEAM_RADIUS: float = 1.40
+const GHOST_MOUNT_BEAM_START_RADIUS: float = GHOST_MOUNT_BEAM_RADIUS * 1.5
+const GHOST_MOUNT_BEAM_START_DELAY: float = 0.20
+const GHOST_MOUNT_BEAM_OPEN_DURATION: float = 0.34
+const GHOST_MOUNT_BEAM_FORMATION_DURATION: float = (
+	GHOST_MOUNT_BEAM_START_DELAY
+	+ GHOST_MOUNT_BEAM_OPEN_DURATION
+)
+const GHOST_MOUNT_BEAM_POWER_HOLD: float = 1.05
+const GHOST_MOUNT_BEAM_CLOSE_DURATION: float = 0.24
+const GHOST_MOUNT_BEAM_VIBRATION_SETTLE: float = 0.36
+const GHOST_MOUNT_BEAM_SHUTDOWN_TIME: float = (
+	GHOST_MOUNT_BEAM_FORMATION_DURATION
+	+ GHOST_MOUNT_BEAM_POWER_HOLD
+)
+const GHOST_MOUNT_BEAM_OFF_TIME: float = (
+	GHOST_MOUNT_BEAM_SHUTDOWN_TIME
+	+ GHOST_MOUNT_BEAM_CLOSE_DURATION
+)
+const GHOST_MOUNT_BEAM_ASCENT_START_TIME: float = (
+	GHOST_MOUNT_BEAM_OFF_TIME
+	+ GHOST_MOUNT_BEAM_VIBRATION_SETTLE
+)
+const GHOST_MOUNT_BEAM_ASCENT_DURATION: float = 1.40
+const GHOST_MOUNT_BEAM_SEQUENCE_DURATION: float = (
+	GHOST_MOUNT_BEAM_ASCENT_START_TIME
+	+ GHOST_MOUNT_BEAM_ASCENT_DURATION
+)
+const GHOST_MOUNT_BEAM_ASCENT_EXIT_SPEED: float = (
+	GHOST_MOUNT_BEAM_ASCENT_HEIGHT * 1.22
+	/ GHOST_MOUNT_BEAM_ASCENT_DURATION
+)
+const GHOST_MOUNT_VERTICAL_TURN_END: float = 0.34
 # 問題壁越しのシルエットはプレイヤーテーマ色より少し暗くし、
 # 壁や問題文より前に出すぎないようにする。
 const GHOST_SILHOUETTE_P1_COLOR: Color = Color(0.779, 0.451, 0.164, 0.68)
@@ -135,6 +183,7 @@ var _ghost_mount_settle_elapsed: float = 0.0
 var _ghost_rendezvous_start: Vector3 = Vector3.ZERO
 var _ghost_rendezvous_position: Vector3 = Vector3.ZERO
 var _ghost_rendezvous_elapsed: float = 0.0
+var _ghost_rendezvous_ascent_started: bool = false
 var _ghost_departure_control_a: Vector3 = Vector3.ZERO
 var _ghost_departure_control_b: Vector3 = Vector3.ZERO
 var _ghost_original_scale: Vector3 = Vector3.ONE
@@ -145,6 +194,13 @@ var _ghost_silhouette_meshes: Array[MeshInstance3D] = []
 var _ghost_silhouette_original_overlays: Dictionary = {}
 var _ghost_silhouette_enabled: bool = false
 var _ghost_silhouette_wall_occluded: bool = false
+var _ghost_mount_beacons: Array[Node3D] = []
+var _ghost_mount_beam_sequence_started: bool = false
+var _ghost_mount_beam_shutdown_started: bool = false
+var _ghost_mount_beam_elapsed: float = 0.0
+var _ghost_mount_beam_ascent_start: Vector3 = Vector3.ZERO
+var _ghost_mount_beam_ascent_start_quaternion: Quaternion = Quaternion.IDENTITY
+var _ghost_mount_beam_cage_center: Vector3 = Vector3.ZERO
 
 
 func _ready() -> void:
@@ -293,9 +349,17 @@ func _process(delta: float) -> void:
 		_snap_to_ghost_aim_orientation()
 	elif is_ghost_ridden and _ghost_phase in [
 		GhostRidePhase.RENDEZVOUS_ASCENT,
-		GhostRidePhase.MOUNTING,
 		GhostRidePhase.HOVER,
 	]:
+		_update_ghost_aim_orientation(delta)
+	elif (
+		is_ghost_ridden
+		and _ghost_phase == GhostRidePhase.MOUNTING
+		and _ghost_mount_beam_sequence_started
+	):
+		# The post-mount beam ascent authors its own vertical orientation.
+		pass
+	elif is_ghost_ridden and _ghost_phase == GhostRidePhase.MOUNTING:
 		_update_ghost_aim_orientation(delta)
 	else:
 		_update_orientation(delta)
@@ -344,6 +408,7 @@ func prepare_ghost_rendezvous(
 	_ghost_rendezvous_position = rendezvous_position
 	_ghost_rendezvous_start = rendezvous_position + Vector3.DOWN * GHOST_RENDEZVOUS_DEPTH
 	_ghost_rendezvous_elapsed = 0.0
+	_ghost_rendezvous_ascent_started = false
 	_ghost_hover_target = rendezvous_position
 	_ghost_aim_point = aim_point
 	_ghost_entry_elapsed = 0.0
@@ -359,7 +424,27 @@ func prepare_ghost_rendezvous(
 		true,
 		GHOST_RENDEZVOUS_ANIMATION_SPEED
 	)
+	_ghost_mount_beam_sequence_started = false
+	_ghost_mount_beam_shutdown_started = false
+	_ghost_mount_beam_elapsed = 0.0
+	_ghost_mount_beam_ascent_start = Vector3.ZERO
+	_ghost_mount_beam_ascent_start_quaternion = Quaternion.IDENTITY
+	_ghost_mount_beam_cage_center = Vector3.ZERO
 	return true
+
+
+func start_ghost_rendezvous_ascent() -> bool:
+	if (
+		not is_ghost_ridden
+		or _ghost_phase != GhostRidePhase.RENDEZVOUS_ASCENT
+		or _ghost_rendezvous_ascent_started
+	):
+		return false
+	_ghost_rendezvous_ascent_started = true
+	_ghost_rendezvous_elapsed = 0.0
+	return true
+
+
 func begin_ghost_ride(player_index: int, rider_visual: Node3D) -> bool:
 	if is_attacking or rider_visual == null:
 		return false
@@ -401,6 +486,224 @@ func begin_ghost_ride(player_index: int, rider_visual: Node3D) -> bool:
 		GHOST_MOUNT_ANIMATION_SPEED
 	)
 	return true
+
+
+func start_ghost_reveal_beams() -> bool:
+	if (
+		not is_ghost_ridden
+		or _ghost_phase != GhostRidePhase.MOUNTING
+		or not is_ghost_mount_settled()
+		or _ghost_mount_beam_sequence_started
+	):
+		return false
+	_ghost_mount_beam_sequence_started = true
+	_ghost_mount_beam_shutdown_started = false
+	_ghost_mount_beam_elapsed = 0.0
+	_ghost_mount_beam_ascent_start = position
+	_ghost_mount_beam_ascent_start_quaternion = quaternion
+	_ghost_mount_beam_cage_center = (
+		get_ghost_mount_world_position()
+		+ Vector3.UP * GHOST_MOUNT_BEAM_ASCENT_HEIGHT * 0.82
+	)
+	_start_ghost_mount_beacon_sequence()
+	return true
+
+
+func is_ghost_mount_settled() -> bool:
+	return (
+		is_ghost_ridden
+		and _ghost_phase == GhostRidePhase.MOUNTING
+		and _ghost_rider != null
+		and is_instance_valid(_ghost_rider)
+		and _ghost_mount_settle_elapsed >= GHOST_MOUNT_SETTLE_DURATION
+	)
+
+
+func is_ghost_reveal_beam_formation_complete() -> bool:
+	return (
+		_ghost_mount_beam_sequence_started
+		and _ghost_mount_beam_elapsed >= GHOST_MOUNT_BEAM_FORMATION_DURATION
+	)
+
+
+func is_ghost_reveal_beam_firing() -> bool:
+	return (
+		_ghost_mount_beam_sequence_started
+		and _ghost_mount_beam_elapsed >= GHOST_MOUNT_BEAM_START_DELAY
+		and _ghost_mount_beam_elapsed < GHOST_MOUNT_BEAM_OFF_TIME
+	)
+
+
+func is_ghost_reveal_sequence_complete() -> bool:
+	return (
+		_ghost_mount_beam_sequence_started
+		and _ghost_mount_beam_elapsed >= GHOST_MOUNT_BEAM_SEQUENCE_DURATION
+	)
+
+
+func _start_ghost_mount_beacon_sequence() -> void:
+	_clear_ghost_mount_beacons()
+	var formation_center := get_ghost_mount_world_position()
+	var beam_origins := _get_ghost_mount_beacon_origins(formation_center)
+	for beam_index in range(mini(GHOST_MOUNT_BEAM_COUNT, beam_origins.size())):
+		var beam := _create_ghost_mount_beacon(
+			beam_index,
+			beam_origins[beam_index]
+		)
+		if beam == null:
+			continue
+		beam.set_meta("ghost_mount_beam_index", beam_index)
+		_ghost_mount_beacons.append(beam)
+		var beam_tween := create_tween().bind_node(beam)
+		beam_tween.tween_interval(GHOST_MOUNT_BEAM_START_DELAY)
+		beam_tween.tween_callback(
+			_emit_ghost_mount_beam_fired.bind(beam_index)
+		)
+		beam_tween.tween_property(
+			beam,
+			"open_amount",
+			1.0,
+			GHOST_MOUNT_BEAM_OPEN_DURATION
+		).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+
+func _emit_ghost_mount_beam_fired(beam_index: int) -> void:
+	ghost_mount_beam_fired.emit(beam_index)
+
+
+func _get_ghost_mount_beacon_origins(_formation_center: Vector3) -> Array[Vector3]:
+	# The pillar marks the exact vertical path used by the shark's post-beam
+	# ascent. Camera-relative presentation following keeps this axis on screen.
+	var ocean_center := global_position
+	ocean_center.y = (
+		StageConstants.OCEAN_SURFACE_Y
+		+ GHOST_MOUNT_BEAM_ROOT_ABOVE_OCEAN
+	)
+	return [ocean_center]
+
+
+func translate_ghost_ride_presentation(offset: Vector3) -> bool:
+	if not is_ghost_ridden or offset.is_zero_approx():
+		return false
+	position += offset
+	_ghost_rendezvous_start += offset
+	_ghost_rendezvous_position += offset
+	_ghost_hover_target += offset
+	_ghost_aim_point += offset
+	if _ghost_mount_beam_sequence_started:
+		_ghost_mount_beam_ascent_start += offset
+		_ghost_mount_beam_cage_center += offset
+		for beam: Node3D in _ghost_mount_beacons:
+			if beam != null and is_instance_valid(beam):
+				beam.global_position += offset
+	return true
+
+
+func _create_ghost_mount_beacon(beam_index: int, beam_origin: Vector3) -> Node3D:
+	var beam_scene := (
+		GHOST_MOUNT_BEAM_P1_SCENE
+		if _ghost_player_index == 1
+		else GHOST_MOUNT_BEAM_P2_SCENE
+	)
+	var beam := beam_scene.instantiate() as Node3D
+	if beam == null:
+		push_warning("Ghost mount beam scene could not be instantiated")
+		return null
+	beam.name = "GhostMountBeacon%02d" % (beam_index + 1)
+	# The purchased presets keep shared embedded meshes and materials. Localize
+	# only this gameplay instance before its controller enters the tree so the
+	# extreme in-game dimensions never leak back into the template showcase.
+	_localize_ghost_mount_beam_resources(beam)
+	add_child(beam)
+	_set_ghost_mount_beam_render_layer(beam)
+	beam.top_level = true
+	_set_ghost_mount_beacon_transform(beam, beam_index, beam_origin)
+	beam.set_meta(
+		"ghost_mount_beam_style",
+		&"beam_06" if _ghost_player_index == 1 else &"beam_02"
+	)
+	beam.set("beam_length", GHOST_MOUNT_BEAM_HEIGHT)
+	beam.set("beam_radius", GHOST_MOUNT_BEAM_RADIUS)
+	beam.set("start_radius", GHOST_MOUNT_BEAM_START_RADIUS)
+	beam.set("emission", 1.5) # 極太ビームだけ暗くする
+	# Preserve each purchased preset's authored emission, pulse, particles, noise,
+	# flares, and audio. Only the gameplay-required dimensions are overridden.
+	beam.set("open_amount", 0.0)
+	return beam
+
+
+func _localize_ghost_mount_beam_resources(node: Node) -> void:
+	if node is MeshInstance3D:
+		var mesh_instance := node as MeshInstance3D
+		if mesh_instance.mesh != null:
+			mesh_instance.mesh = mesh_instance.mesh.duplicate(true) as Mesh
+		if mesh_instance.material_override != null:
+			mesh_instance.material_override = (
+				mesh_instance.material_override.duplicate(true) as Material
+			)
+	elif node is GPUParticles3D:
+		var particles := node as GPUParticles3D
+		if particles.material_override != null:
+			particles.material_override = (
+				particles.material_override.duplicate(true) as Material
+			)
+		if particles.process_material != null:
+			particles.process_material = particles.process_material.duplicate(true)
+		if particles.draw_pass_1 != null:
+			particles.draw_pass_1 = particles.draw_pass_1.duplicate(true) as Mesh
+	for child: Node in node.get_children():
+		_localize_ghost_mount_beam_resources(child)
+
+
+func _set_ghost_mount_beacon_transform(
+	beam: Node3D,
+	_beam_index: int,
+	beam_origin: Vector3
+) -> void:
+	# Beam presets fire along local -Z. Forward is used as the roll reference so
+	# the firing vector can be exactly vertical without an up-vector singularity.
+	beam.global_transform = Transform3D(
+		Basis.looking_at(Vector3.UP, Vector3.FORWARD),
+		beam_origin
+	)
+
+
+func _set_ghost_mount_beam_render_layer(node: Node) -> void:
+	if node is VisualInstance3D:
+		var visual := node as VisualInstance3D
+		visual.layers = 0
+		visual.set_layer_mask_value(GHOST_MOUNT_BEAM_RENDER_LAYER, true)
+	for child: Node in node.get_children():
+		_set_ghost_mount_beam_render_layer(child)
+
+
+func _stop_ghost_mount_beacon_sequence() -> void:
+	var active_beams: Array[Node3D] = _ghost_mount_beacons.duplicate()
+	for beam in active_beams:
+		if beam == null or not is_instance_valid(beam):
+			_ghost_mount_beacons.erase(beam)
+			continue
+		var beam_tween := create_tween().bind_node(beam)
+		beam_tween.tween_property(
+			beam,
+			"open_amount",
+			0.0,
+			GHOST_MOUNT_BEAM_CLOSE_DURATION
+		).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		beam_tween.tween_callback(_finish_ghost_mount_beacon.bind(beam))
+
+
+func _clear_ghost_mount_beacons() -> void:
+	for beam in _ghost_mount_beacons:
+		if beam != null and is_instance_valid(beam):
+			beam.queue_free()
+	_ghost_mount_beacons.clear()
+
+
+func _finish_ghost_mount_beacon(beam: Node3D) -> void:
+	_ghost_mount_beacons.erase(beam)
+	if beam != null and is_instance_valid(beam):
+		beam.queue_free()
 
 
 func get_ghost_mount_world_position() -> Vector3:
@@ -497,12 +800,15 @@ func depart_ghost_rendezvous(
 	if _ghost_breach_ring != null:
 		_ghost_breach_ring.visible = false
 	scale = _ghost_base_scale
-	_velocity = Vector3.ZERO
 	var travel := target_position - _ghost_entry_start
+	# Preserve the upward beam-reveal velocity at the phase boundary. Starting
+	# both curves at zero made the shark visibly hang for one beat in mid-air.
+	var departure_handoff_velocity := (
+		Vector3.UP * GHOST_MOUNT_BEAM_ASCENT_EXIT_SPEED
+	)
 	_ghost_departure_control_a = (
 		_ghost_entry_start
-		+ travel * 0.16
-		+ Vector3.DOWN * 2.05
+		+ departure_handoff_velocity * (GHOST_DEPARTURE_DURATION / 3.0)
 	)
 	_ghost_departure_control_b = (
 		_ghost_entry_start
@@ -530,6 +836,14 @@ func end_ghost_ride() -> void:
 	_ghost_charge_tension = 0.0
 	_ghost_entry_progress = 0.0
 	_ghost_breach_triggered = false
+	_ghost_mount_beam_sequence_started = false
+	_ghost_mount_beam_shutdown_started = false
+	_ghost_mount_beam_elapsed = 0.0
+	_ghost_mount_beam_ascent_start = Vector3.ZERO
+	_ghost_mount_beam_ascent_start_quaternion = Quaternion.IDENTITY
+	_ghost_mount_beam_cage_center = Vector3.ZERO
+	_ghost_rendezvous_ascent_started = false
+	_clear_ghost_mount_beacons()
 	if _ghost_mount and is_instance_valid(_ghost_mount):
 		_ghost_mount.queue_free()
 	_ghost_mount = null
@@ -573,6 +887,14 @@ func get_ghost_ride_debug_state() -> Dictionary:
 		"velocity": _velocity,
 		"rendezvous": _ghost_rendezvous_position,
 		"ascent_elapsed": _ghost_rendezvous_elapsed,
+		"ascent_started": _ghost_rendezvous_ascent_started,
+		"beam_sequence_started": _ghost_mount_beam_sequence_started,
+		"beam_firing": is_ghost_reveal_beam_firing(),
+		"beam_shutdown_started": _ghost_mount_beam_shutdown_started,
+		"beam_count": _ghost_mount_beacons.size(),
+		"beam_elapsed": _ghost_mount_beam_elapsed,
+		"beam_formation_complete": is_ghost_reveal_beam_formation_complete(),
+		"beam_sequence_complete": is_ghost_reveal_sequence_complete(),
 		"animation": String(animation_player.current_animation),
 		"animation_speed": animation_player.get_playing_speed(),
 	}
@@ -581,11 +903,14 @@ func get_ghost_ride_debug_state() -> Dictionary:
 func is_ghost_mounted() -> bool:
 	return (
 		is_ghost_ridden
-		and _ghost_phase not in [
-			GhostRidePhase.RENDEZVOUS_ASCENT,
-			GhostRidePhase.RENDEZVOUS,
-			GhostRidePhase.MOUNTING,
-		]
+		and (
+			is_ghost_mount_settled()
+			or _ghost_phase not in [
+				GhostRidePhase.RENDEZVOUS_ASCENT,
+				GhostRidePhase.RENDEZVOUS,
+				GhostRidePhase.MOUNTING,
+			]
+		)
 	)
 
 
@@ -1031,8 +1356,15 @@ func _play_named_animation(
 
 
 func _update_ghost_ride(delta: float) -> void:
+	if _ghost_mount_beam_sequence_started:
+		_ghost_mount_beam_elapsed += delta
 	match _ghost_phase:
 		GhostRidePhase.RENDEZVOUS_ASCENT:
+			if not _ghost_rendezvous_ascent_started:
+				position = _ghost_rendezvous_start
+				_velocity = Vector3.ZERO
+				_attack_intensity = move_toward(_attack_intensity, 0.0, delta)
+				return
 			_ghost_rendezvous_elapsed += delta
 			var ascent_progress := clampf(
 				_ghost_rendezvous_elapsed / GHOST_RENDEZVOUS_ASCENT_DURATION,
@@ -1074,6 +1406,9 @@ func _update_ghost_ride(delta: float) -> void:
 			_velocity = (position - previous_position) / maxf(delta, 0.0001)
 			_attack_intensity = move_toward(_attack_intensity, 0.08, delta * 1.2)
 		GhostRidePhase.MOUNTING:
+			if _ghost_mount_beam_sequence_started:
+				_update_post_mount_beam_ascent(delta)
+				return
 			_ghost_mount_settle_elapsed += delta
 			var settle_progress := clampf(
 				_ghost_mount_settle_elapsed / GHOST_MOUNT_SETTLE_DURATION,
@@ -1115,7 +1450,13 @@ func _update_ghost_ride(delta: float) -> void:
 				0.0,
 				1.0
 			)
-			var departure_eased := smoothstep(0.0, 1.0, departure_progress)
+			# Unit slope at the start matches the inherited ascent velocity; zero
+			# slope at the end still lets the shark settle cleanly into hover.
+			var departure_eased := (
+				departure_progress
+				+ departure_progress * departure_progress
+				- departure_progress * departure_progress * departure_progress
+			)
 			var departure_previous := position
 			position = _cubic_bezier(
 				_ghost_entry_start,
@@ -1138,6 +1479,7 @@ func _update_ghost_ride(delta: float) -> void:
 				_velocity = Vector3.ZERO
 				_ghost_entry_progress = 1.0
 				_ghost_phase = GhostRidePhase.HOVER
+				_stop_ghost_mount_beacon_sequence()
 				_play_swim_animation()
 				animation_player.speed_scale = GHOST_HOVER_ANIMATION_SPEED
 		GhostRidePhase.ENTERING:
@@ -1211,6 +1553,59 @@ func _update_ghost_ride(delta: float) -> void:
 				ghost_charge_finished.emit()
 		GhostRidePhase.FINISHED:
 			_velocity = Vector3.ZERO
+
+
+func _update_post_mount_beam_ascent(delta: float) -> void:
+	if (
+		_ghost_mount_beam_elapsed >= GHOST_MOUNT_BEAM_SHUTDOWN_TIME
+		and not _ghost_mount_beam_shutdown_started
+	):
+		_ghost_mount_beam_shutdown_started = true
+		_stop_ghost_mount_beacon_sequence()
+	# Keep the shark planted for the complete firing and closing sequence. The
+	# extra settle window lets the sustained camera shake decay to zero before
+	# any upward movement begins.
+	if _ghost_mount_beam_elapsed < GHOST_MOUNT_BEAM_ASCENT_START_TIME:
+		position = _ghost_mount_beam_ascent_start
+		quaternion = _ghost_mount_beam_ascent_start_quaternion
+		_velocity = Vector3.ZERO
+		_attack_intensity = 0.16
+		return
+	var ascent_elapsed := (
+		_ghost_mount_beam_elapsed - GHOST_MOUNT_BEAM_ASCENT_START_TIME
+	)
+	var ascent_progress := clampf(
+		ascent_elapsed / GHOST_MOUNT_BEAM_ASCENT_DURATION,
+		0.0,
+		1.0
+	)
+	# Only after the beam and vibration have fully settled, turn upward and rise.
+	var vertical_turn := smoothstep(
+		0.0,
+		GHOST_MOUNT_VERTICAL_TURN_END,
+		ascent_progress
+	)
+	var vertical_quaternion := _quat_look_at(
+		_ghost_mount_beam_ascent_start,
+		_ghost_mount_beam_ascent_start + Vector3.UP
+	)
+	quaternion = _ghost_mount_beam_ascent_start_quaternion.slerp(
+		vertical_quaternion,
+		vertical_turn
+	)
+	_bank = 0.0
+	model.rotation = Vector3(0.0, PI * 0.5, 0.0)
+
+	# Ease into the lift, but retain upward velocity at the end so the following
+	# departure curve can continue without a mid-air stop.
+	var lift_progress := pow(ascent_progress, 1.22)
+	var previous_position := position
+	position = (
+		_ghost_mount_beam_ascent_start
+		+ Vector3.UP * GHOST_MOUNT_BEAM_ASCENT_HEIGHT * lift_progress
+	)
+	_velocity = (position - previous_position) / maxf(delta, 0.0001)
+	_attack_intensity = lerpf(0.16, 0.34, lift_progress)
 
 
 func _configure_ghost_entry_curve(entry_position: Vector3, target_position: Vector3) -> void:

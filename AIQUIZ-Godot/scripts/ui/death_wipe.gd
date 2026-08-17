@@ -31,6 +31,7 @@ const WIPE_MARGIN_Y := 80  # bottom margin above progress-bar area
 const FADE_DURATION := 0.5
 const EXPLOSION_HOLD_DURATION := 1.25
 const SOUL_PRESENTATION_RENDER_LAYER := 20
+const GHOST_MOUNT_BEAM_RENDER_LAYER := 19
 
 func _ready() -> void:
 	game_state = QuizManager.game_state
@@ -58,6 +59,9 @@ func _ready() -> void:
 	wipe_camera.near = 0.1
 	wipe_camera.far = 160.0
 	wipe_camera.set_cull_mask_value(SOUL_PRESENTATION_RENDER_LAYER, true)
+	# The survivor camera owns the beacon reveal. Keep it out of the wipe feed
+	# even after the wipe has reached its settled corner position.
+	wipe_camera.set_cull_mask_value(GHOST_MOUNT_BEAM_RENDER_LAYER, false)
 
 	# Container size (viewport + border)
 	custom_minimum_size = Vector2(WIPE_W + BORDER * 2, WIPE_H + BORDER * 2)
@@ -81,6 +85,16 @@ func play_shark_impact_flash(player_index: int) -> void:
 	if not _active or _dead_player != player_index:
 		return
 	_shark_impact_flash = 1.0
+
+
+func is_settled_for_player(player_index: int) -> bool:
+	return (
+		_active
+		and visible
+		and not _is_hiding
+		and _dead_player == player_index
+		and _fade_in >= 1.0
+	)
 
 
 func _setup_labels() -> void:

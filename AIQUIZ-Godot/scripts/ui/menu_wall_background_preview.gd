@@ -455,6 +455,7 @@ func _build_3d_scene() -> void:
 		"include_floor_collision": true,
 		"is_preview": true,
 		"include_sharks": true,
+		"include_grandstands": false,
 	})
 
 	var start_z := 8.0 - WALL_SPACING * 2

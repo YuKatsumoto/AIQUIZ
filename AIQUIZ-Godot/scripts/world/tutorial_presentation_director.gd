@@ -138,9 +138,6 @@ func _build_poses(presentation_id: String) -> Array[Dictionary]:
 			"target": camera.global_position - camera.global_basis.z * 12.0,
 			"fov": camera.fov,
 		}
-	if presentation_id == "completion_hero":
-		var completion_hold: Array[Dictionary] = [start]
-		return completion_hold
 	var p1 := _player_position(1)
 	var p2 := _player_position(2)
 	var center := p1 if game_state.num_players < 2 else (p1 + p2) * 0.5
@@ -152,6 +149,14 @@ func _build_poses(presentation_id: String) -> Array[Dictionary]:
 	match presentation_id:
 		"goal_sweep":
 			result.append(_pose(center + Vector3(0.0, 5.0, -8.0), Vector3(0.0, 1.2, goal_local_z), 55.0))
+		"wall_reveal":
+			# 前方の壁へ寄って2枚のドアを見せてから、通常視点へ戻す。
+			result.append(_pose(Vector3(0.0, 5.4, wall_z - 11.0), Vector3(0.0, 2.2, wall_z), 58.0))
+			result.append(_pose(Vector3(0.0, 3.6, wall_z - 6.5), Vector3(0.0, 1.9, wall_z), 52.0))
+		"solo_stage_complete", "duo_stage_complete":
+			# 完了カードが画面を覆うので、カメラは通常視点で保持する。
+			# ここで動かすとカード越しの背景だけが動いて落ち着かない。
+			result.append(normal)
 		_:
 			result.append(normal)
 	result.append(normal)

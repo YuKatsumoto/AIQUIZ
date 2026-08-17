@@ -25,8 +25,6 @@ var _ocean_attack_camera_active: bool = false
 var _ocean_attack_player_index: int = 1
 var _ocean_attack_intensity: float = 0.0
 var _ocean_attack_impact_timer: float = 0.0
-var _ghost_ride_wide_fov_requested: bool = false
-var _ghost_ride_fov_blend: float = 0.0
 var _tutorial_override_active: bool = false
 var _tutorial_override_eye: Vector3 = Vector3.ZERO
 var _tutorial_override_target: Vector3 = Vector3.ZERO
@@ -38,13 +36,13 @@ const THIRD_PERSON_FOV := 50.0
 const THIRD_PERSON_DISTANCE := 5.6
 const THIRD_PERSON_FOCUS_HEIGHT := 1.0
 const THIRD_PERSON_BASE_HEIGHT := 2.0
-const GHOST_RIDE_2P_FOV := 62.0
-const GHOST_RIDE_FOV_BLEND_SPEED := 2.5
-const TUTORIAL_GHOST_WALL_FOV_START_DISTANCE := 7.0
-const TUTORIAL_GHOST_WALL_FOV_FULL_DISTANCE := 18.0
-const TUTORIAL_GHOST_WALL_MAX_FOV := 68.0
-const TUTORIAL_GHOST_WALL_CAMERA_BACK_DISTANCE := 12.5
-const TUTORIAL_GHOST_WALL_CAMERA_LOOK_AHEAD := 5.0
+const SOLO_TUTORIAL_CAMERA_HEIGHT_OFFSET := -1.0
+const SOLO_TUTORIAL_CAMERA_TARGET_HEIGHT_OFFSET := -2.7
+const TUTORIAL_HAZARD_SPLIT_FOV_START_DISTANCE := 7.0
+const TUTORIAL_HAZARD_SPLIT_FOV_FULL_DISTANCE := 18.0
+const TUTORIAL_HAZARD_SPLIT_MAX_FOV := 68.0
+const TUTORIAL_HAZARD_SPLIT_CAMERA_BACK_DISTANCE := 12.5
+const TUTORIAL_HAZARD_SPLIT_CAMERA_LOOK_AHEAD := 5.0
 
 func _ready() -> void:
 	if not camera:
@@ -79,10 +77,6 @@ func trigger_ocean_attack_impact() -> void:
 	_ocean_attack_impact_timer = 0.35
 
 
-func set_ghost_ride_wide_fov(enabled: bool) -> void:
-	_ghost_ride_wide_fov_requested = enabled
-
-
 func set_tutorial_override_pose(eye: Vector3, target: Vector3, fov: float) -> void:
 	_tutorial_override_eye = eye
 	_tutorial_override_target = target
@@ -92,6 +86,19 @@ func set_tutorial_override_pose(eye: Vector3, target: Vector3, fov: float) -> vo
 
 func clear_tutorial_override() -> void:
 	_tutorial_override_active = false
+
+
+func _third_person_camera_height(gs: QuizGameState) -> float:
+	return THIRD_PERSON_BASE_HEIGHT + (
+		SOLO_TUTORIAL_CAMERA_HEIGHT_OFFSET if gs.is_solo_tutorial() else 0.0
+	)
+
+
+func _third_person_camera_target(gs: QuizGameState, focus: Vector3) -> Vector3:
+	var height_offset: float = (
+		SOLO_TUTORIAL_CAMERA_TARGET_HEIGHT_OFFSET if gs.is_solo_tutorial() else 0.0
+	)
+	return focus + Vector3.BACK * 8.0 + Vector3.UP * height_offset
 
 
 func get_gameplay_pose(gs: QuizGameState) -> Dictionary:
@@ -104,7 +111,7 @@ func get_gameplay_pose(gs: QuizGameState) -> Dictionary:
 		return {
 			"eye": Vector3(0.0, 4.5, z_focus - 9.0),
 			"target": Vector3(0.0, 1.0, z_focus + 8.0),
-			"fov": lerpf(50.0, GHOST_RIDE_2P_FOV, _ghost_ride_fov_blend),
+			"fov": 50.0,
 		}
 	var focus := Vector3(
 		gs.player_x,
@@ -112,8 +119,8 @@ func get_gameplay_pose(gs: QuizGameState) -> Dictionary:
 		gs.player_local_z
 	)
 	return {
-		"eye": focus - Vector3.BACK * THIRD_PERSON_DISTANCE + Vector3.UP * THIRD_PERSON_BASE_HEIGHT,
-		"target": focus + Vector3.BACK * 8.0,
+		"eye": focus - Vector3.BACK * THIRD_PERSON_DISTANCE + Vector3.UP * _third_person_camera_height(gs),
+		"target": _third_person_camera_target(gs, focus),
 		"fov": THIRD_PERSON_FOV,
 	}
 
@@ -133,11 +140,6 @@ func update_camera(gs: QuizGameState, dt: float) -> void:
 
 	_time += dt
 	_ocean_attack_impact_timer = maxf(0.0, _ocean_attack_impact_timer - dt)
-	_ghost_ride_fov_blend = move_toward(
-		_ghost_ride_fov_blend,
-		1.0 if _ghost_ride_wide_fov_requested else 0.0,
-		GHOST_RIDE_FOV_BLEND_SPEED * dt
-	)
 	var bob: float = sin(_time * 1.2) * 0.04
 
 	var eye: Vector3
@@ -196,23 +198,26 @@ func update_camera(gs: QuizGameState, dt: float) -> void:
 
 	if gs.num_players >= 2:
 		# === 2-PLAYER: top-down view ===
-		fov = lerpf(50.0, GHOST_RIDE_2P_FOV, _ghost_ride_fov_blend)
-		# Step 4 freezes P1 by design while P2 approaches the center wall. Widen the
-		# shared view as they separate so the waiting player remains readable.
-		var tutorial_ghost_wall_split: bool = (
-			gs.get_tutorial_step_id() == "p2_ghost_wall"
+		fov = 50.0
+		# 海やゴーストの練習ステップでは片方が待機し、2人が意図的に離れる。
+		# 離れるほど画角を広げ、待機側が画面外へ切れないようにする。
+		var tutorial_hazard_split: bool = (
+			gs.tutorial_splits_camera()
 			and gs.p1_alive
 			and gs.p2_alive
 		)
-		if tutorial_ghost_wall_split:
+		if tutorial_hazard_split:
 			var player_separation := absf(gs.player_local_z - gs.player2_local_z)
 			var separation_ratio := clampf(
-				(player_separation - TUTORIAL_GHOST_WALL_FOV_START_DISTANCE)
-				/ (TUTORIAL_GHOST_WALL_FOV_FULL_DISTANCE - TUTORIAL_GHOST_WALL_FOV_START_DISTANCE),
+				(player_separation - TUTORIAL_HAZARD_SPLIT_FOV_START_DISTANCE)
+				/ (
+					TUTORIAL_HAZARD_SPLIT_FOV_FULL_DISTANCE
+					- TUTORIAL_HAZARD_SPLIT_FOV_START_DISTANCE
+				),
 				0.0,
 				1.0
 			)
-			fov = maxf(fov, lerpf(50.0, TUTORIAL_GHOST_WALL_MAX_FOV, separation_ratio))
+			fov = maxf(fov, lerpf(50.0, TUTORIAL_HAZARD_SPLIT_MAX_FOV, separation_ratio))
 		var all_dead: bool = not gs.p1_alive and not gs.p2_alive
 		var z_focus: float = gs.player_local_z
 		if gs.p1_alive and gs.p2_alive:
@@ -249,18 +254,18 @@ func update_camera(gs: QuizGameState, dt: float) -> void:
 				target_pz)
 		else:
 			_go_timer = 0.0
-			if tutorial_ghost_wall_split:
+			if tutorial_hazard_split:
 				# Pull back and aim nearer the midpoint; the normal camera looks farther
-				# ahead and would push stationary P1 below the bottom edge.
+				# ahead and would push the stationary player below the bottom edge.
 				eye = Vector3(
 					0.0,
 					4.5 + bob,
-					z_focus - TUTORIAL_GHOST_WALL_CAMERA_BACK_DISTANCE
+					z_focus - TUTORIAL_HAZARD_SPLIT_CAMERA_BACK_DISTANCE
 				)
 				target = Vector3(
 					0.0,
 					1.0,
-					z_focus + TUTORIAL_GHOST_WALL_CAMERA_LOOK_AHEAD
+					z_focus + TUTORIAL_HAZARD_SPLIT_CAMERA_LOOK_AHEAD
 				)
 			else:
 				eye = Vector3(0.0, 4.5 + bob, z_focus - 9.0)
@@ -296,8 +301,8 @@ func update_camera(gs: QuizGameState, dt: float) -> void:
 				gs.player_local_z
 			)
 			eye = focus - Vector3.BACK * THIRD_PERSON_DISTANCE
-			eye += Vector3.UP * THIRD_PERSON_BASE_HEIGHT
-			target = focus + Vector3.BACK * 8.0
+			eye += Vector3.UP * _third_person_camera_height(gs)
+			target = _third_person_camera_target(gs, focus)
 
 	# Apply camera shake
 	if gs.camera_shake > 0.0:
@@ -434,8 +439,8 @@ func _update_flyover_camera(gs: QuizGameState, _dt: float) -> void:
 			gs.player_local_z
 		)
 		end_pos = focus - Vector3.BACK * THIRD_PERSON_DISTANCE
-		end_pos += Vector3.UP * THIRD_PERSON_BASE_HEIGHT
-		end_look = focus + Vector3.BACK * 8.0
+		end_pos += Vector3.UP * _third_person_camera_height(gs)
+		end_look = _third_person_camera_target(gs, focus)
 		end_fov = THIRD_PERSON_FOV
 
 	# --- キーポイント ---
@@ -495,8 +500,8 @@ func _update_preload_camera(gs: QuizGameState, _dt: float) -> void:
 			gs.player_local_z
 		)
 		end_pos = focus - Vector3.BACK * THIRD_PERSON_DISTANCE
-		end_pos += Vector3.UP * THIRD_PERSON_BASE_HEIGHT
-		end_look = focus + Vector3.BACK * 8.0
+		end_pos += Vector3.UP * _third_person_camera_height(gs)
+		end_look = _third_person_camera_target(gs, focus)
 
 	var pullback_distance := 14.0
 	var view_dir := (end_look - end_pos).normalized()

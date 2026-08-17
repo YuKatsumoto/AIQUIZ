@@ -8,7 +8,7 @@ const LIGHT_SPACING: float = 10.0
 const END_MARGIN: float = 2.0
 const MARKER_SIZE := Vector3(0.12, 0.06, 0.30)
 const WARM_WHITE_COLOR := Color(1.0, 0.93, 0.78)
-const MARKER_EMISSION_ENERGY: float = 3.2
+const MARKER_EMISSION_ENERGY: float = 2.0
 const LOCAL_LIGHT_COUNT: int = 8
 const LOCAL_LIGHT_STATIONS: int = 4
 
@@ -199,9 +199,9 @@ func _ensure_local_lights() -> void:
 		local_light.name = "WarmWhitePoolLight%02d" % (index + 1)
 		local_light.light_color = WARM_WHITE_COLOR
 		local_light.light_energy = 0.0
-		local_light.omni_range = 3.2
-		local_light.omni_attenuation = 1.5
-		local_light.light_specular = 0.2
+		local_light.omni_range = 1.75
+		local_light.omni_attenuation = 2.35
+		local_light.light_specular = 0.08
 		local_light.light_volumetric_fog_energy = 0.0
 		local_light.light_bake_mode = Light3D.BAKE_DISABLED
 		local_light.shadow_enabled = false
@@ -374,7 +374,7 @@ func _refresh_local_light_levels() -> void:
 		var marker_index: int = _local_light_marker_indices[light_index]
 		var level: float = _fixture_level(marker_index) if marker_index >= 0 else 0.0
 		var local_light: OmniLight3D = _local_lights[light_index]
-		local_light.light_energy = 0.70 * level
+		local_light.light_energy = 0.18 * level
 		local_light.visible = level > 0.001
 
 

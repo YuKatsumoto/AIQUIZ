@@ -97,7 +97,9 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	# ESCで閉じる
 	if event is InputEventKey and event.keycode == KEY_ESCAPE and event.is_pressed():
-		get_tree().change_scene_to_file("res://ui/main_menu.tscn")
+		if SceneTransition.is_transitioning():
+			return
+		SceneTransition.change_scene("res://ui/main_menu.tscn")
 
 	# スペースで再生/停止
 	if event is InputEventKey and event.keycode == KEY_SPACE and event.is_pressed() and not event.is_echo():

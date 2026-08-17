@@ -28,6 +28,8 @@ var _include_floor_collision: bool = true
 var _is_preview_environment: bool = false
 var _include_sharks: bool = false
 var _include_grandstands: bool = false
+var _include_left_grandstand: bool = true
+var _include_right_grandstand: bool = true
 
 # --- ノード参照 ---
 var floor_mesh: MeshInstance3D = null
@@ -58,7 +60,8 @@ var _grandstand_synced_length: float = 0.0
 ## ステージを構築する。
 ## config キー: floor_center_z, floor_length, scroll_sign, return_scroll_sign,
 ##              include_back_roller, include_floor_collision,
-##              is_preview, include_sharks, include_grandstands
+##              is_preview, include_sharks, include_grandstands,
+##              include_left_grandstand, include_right_grandstand
 func build(config: Dictionary = {}) -> void:
 	_floor_center_z = float(config.get("floor_center_z", 0.0))
 	_floor_length = float(config.get("floor_length", 144.0))
@@ -69,6 +72,8 @@ func build(config: Dictionary = {}) -> void:
 	_is_preview_environment = bool(config.get("is_preview", false))
 	_include_sharks = bool(config.get("include_sharks", false))
 	_include_grandstands = bool(config.get("include_grandstands", false))
+	_include_left_grandstand = bool(config.get("include_left_grandstand", true))
+	_include_right_grandstand = bool(config.get("include_right_grandstand", true))
 
 	_setup_environment()
 	_setup_lighting()
@@ -373,7 +378,11 @@ func _setup_grandstands() -> void:
 	container.position = Vector3(0.0, 0.0, _floor_center_z)
 	add_child(container)
 
-	var side_offsets: Array[float] = [-GRANDSTAND_SIDE_OFFSET, GRANDSTAND_SIDE_OFFSET]
+	var side_offsets: Array[float] = []
+	if _include_left_grandstand:
+		side_offsets.append(-GRANDSTAND_SIDE_OFFSET)
+	if _include_right_grandstand:
+		side_offsets.append(GRANDSTAND_SIDE_OFFSET)
 	for side_x: float in side_offsets:
 		var stand := GRANDSTAND_SCENE.instantiate() as Node3D
 		if stand == null:

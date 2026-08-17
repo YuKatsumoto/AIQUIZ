@@ -1,6 +1,7 @@
 extends Control
 
 const TutorialCourseSelectorScript := preload("res://scripts/ui/tutorial_course_selector.gd")
+const TutorialCompletionCardScript := preload("res://scripts/ui/tutorial_completion_card.gd")
 
 ## メインメニュー画面 (STAGE A: 最低限のUI)
 ## Python版 hud.py のメニュー部分に相当
@@ -62,12 +63,19 @@ var _menu_exit_in_progress: bool = false
 var _menu_exit_targets: Array[Control] = []
 var _embedded_customize: Control = null
 var _embedded_customize_open: bool = false
+var _pending_customize_tutorial_on_ready: bool = false
+var _embedded_customize_close_pending: bool = false
+var _tutorial_completion_card: Control = null
+var _customize_tutorial_completion_showing: bool = false
+var _tutorial_completion_previous_mouse_mode: int = Input.MOUSE_MODE_VISIBLE
+var _tutorial_completion_mouse_mode_saved: bool = false
 
 ## ステップインジケータの各ピル {sb: StyleBoxFlat, lbl: Label}
 var _step_pills: Array[Dictionary] = []
 
 func _ready() -> void:
 	game_state = QuizManager.game_state
+	_pending_customize_tutorial_on_ready = game_state.has_pending_solo_customize_tour()
 	_hide_coop_mode_if_disabled()
 	game_state.game_state = Constants.STATE_MENU
 	# 戻るボタン等からの遷移時に状態を保持するため、menu_stepの強制リセットを削除
@@ -79,7 +87,6 @@ func _ready() -> void:
 	_setup_menu_exit_targets()
 	_setup_embedded_customize()
 	_reset_menu_visual_state()
-	SceneTransition.reveal_current()
 
 	_setup_audio_settings()
 	AudioManager.set_music_context(AudioManager.MUSIC_CONTEXT_MENU)
@@ -122,10 +129,14 @@ func _ready() -> void:
 	next_diff_btn.pressed.connect(_on_next_diff_pressed)
 	
 	_update_ui()
-	_play_initial_entrance()
-	
-	if GameManager.should_show_tutorial_on_start():
-		call_deferred("_start_first_run_tutorial")
+	if _pending_customize_tutorial_on_ready:
+		_entrance_done = true
+		call_deferred("_begin_pending_customize_tutorial")
+	else:
+		SceneTransition.reveal_current()
+		_play_initial_entrance()
+		if GameManager.should_show_tutorial_on_start():
+			call_deferred("_start_first_run_tutorial")
 
 func _setup_live_background() -> void:
 	if not live_background or not live_viewport:
@@ -327,6 +338,10 @@ func _setup_embedded_customize() -> void:
 	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	if overlay.has_signal("request_close"):
 		overlay.connect("request_close", Callable(self, "_on_embedded_customize_close_requested"))
+	if overlay.has_signal("tutorial_tour_completed"):
+		overlay.connect("tutorial_tour_completed", Callable(self, "_on_customize_tutorial_completed"))
+	if overlay.has_signal("tutorial_tour_aborted"):
+		overlay.connect("tutorial_tour_aborted", Callable(self, "_on_customize_tutorial_aborted"))
 	add_child(overlay)
 	_embedded_customize = overlay
 	# 共有3Dワールド（メニュー背景）へカスタマイズ用キャラ等を事前構築し、開閉時のヒッチを防ぐ
@@ -364,9 +379,101 @@ func _open_embedded_customize() -> void:
 	)
 
 
-func _on_embedded_customize_close_requested() -> void:
-	if not _embedded_customize_open or _menu_exit_in_progress or not _embedded_customize:
+func _begin_pending_customize_tutorial() -> void:
+	if not game_state.has_pending_solo_customize_tour() or not _embedded_customize:
+		game_state.abort_solo_customize_tour()
+		SceneTransition.reveal_current()
 		return
+	_open_embedded_customize()
+	if _embedded_customize.has_method("begin_tutorial_tour"):
+		_embedded_customize.call("begin_tutorial_tour")
+	else:
+		game_state.abort_solo_customize_tour()
+	SceneTransition.reveal_current()
+
+
+func _on_customize_tutorial_completed() -> void:
+	if _customize_tutorial_completion_showing:
+		return
+	_customize_tutorial_completion_showing = true
+	_tutorial_completion_previous_mouse_mode = Input.get_mouse_mode()
+	_tutorial_completion_mouse_mode_saved = true
+	Input.set_mouse_mode(Input.MOUSE_MODE_HIDDEN)
+	var card := TutorialCompletionCardScript.new() as Control
+	card.name = "SoloTutorialCompletionCard"
+	add_child(card)
+	_tutorial_completion_card = card
+	card.tree_exited.connect(func() -> void:
+		if _tutorial_completion_card == card:
+			_tutorial_completion_card = null
+	)
+	card.connect(
+		"hold_completed",
+		Callable(self, "_on_customize_tutorial_completion_hold_finished"),
+		CONNECT_ONE_SHOT,
+	)
+	card.call("present", {
+		"step": "2 / 2  TUTORIAL COMPLETE",
+		"title": "1Pチュートリアル完了！",
+		"body": "ステージ操作とカスタマイズの紹介が完了しました。",
+		"progress": "✓ ステージ実践　　✓ カスタマイズ",
+		"footer": "まもなくメニューへ戻ります",
+		"duration": 3.8,
+	})
+	AudioManager.play_tutorial_complete()
+
+
+func _on_customize_tutorial_completion_hold_finished() -> void:
+	if not _customize_tutorial_completion_showing:
+		return
+	if not game_state.has_pending_solo_customize_tour():
+		_dismiss_customize_tutorial_completion_card()
+		return
+	# 完了カードを十分に見せた後で初めて保存する。閉じる処理より先に
+	# pending を解除し、通常の close が中断扱いにしないようにする。
+	game_state.complete_solo_customize_tour()
+	_on_embedded_customize_close_requested()
+	while _menu_exit_in_progress and is_inside_tree():
+		await get_tree().process_frame
+	if not is_inside_tree():
+		return
+	_dismiss_customize_tutorial_completion_card()
+
+
+func _dismiss_customize_tutorial_completion_card() -> void:
+	_customize_tutorial_completion_showing = false
+	if _tutorial_completion_card and is_instance_valid(_tutorial_completion_card):
+		_tutorial_completion_card.call("dismiss")
+	_restore_tutorial_completion_mouse_mode()
+
+
+func _restore_tutorial_completion_mouse_mode() -> void:
+	if not _tutorial_completion_mouse_mode_saved:
+		return
+	Input.set_mouse_mode(_tutorial_completion_previous_mouse_mode)
+	_tutorial_completion_mouse_mode_saved = false
+
+
+func _on_customize_tutorial_aborted() -> void:
+	game_state.abort_solo_customize_tour()
+	_on_embedded_customize_close_requested()
+
+
+func _on_embedded_customize_close_requested() -> void:
+	if not _embedded_customize_open or not _embedded_customize:
+		return
+	# 開くアニメーション直後の Esc / 戻る操作も失わない。
+	# 入口 Tween と3Dプレビューの初期化が終わるまで1本の待機処理にまとめる。
+	if _menu_exit_in_progress:
+		if not _embedded_customize_close_pending:
+			_embedded_customize_close_pending = true
+			call_deferred("_wait_for_embedded_customize_open_then_close")
+		return
+	_embedded_customize_close_pending = false
+	if _embedded_customize.has_method("_prepare_embedded_close"):
+		_embedded_customize.call("_prepare_embedded_close")
+	if game_state.has_pending_solo_customize_tour():
+		game_state.abort_solo_customize_tour()
 	_menu_exit_in_progress = true
 	_embedded_customize_open = false
 
@@ -389,6 +496,15 @@ func _on_embedded_customize_close_requested() -> void:
 	)
 
 
+func _wait_for_embedded_customize_open_then_close() -> void:
+	while _menu_exit_in_progress:
+		await get_tree().process_frame
+		if not is_inside_tree():
+			return
+	_embedded_customize_close_pending = false
+	_on_embedded_customize_close_requested()
+
+
 func _set_buttons_disabled_in(node: Node, disabled: bool) -> void:
 	if node is Button:
 		(node as Button).disabled = disabled
@@ -406,7 +522,6 @@ func _play_exit_and_change_scene(path: String) -> void:
 	tw.set_parallel(true)
 	tw.set_ease(Tween.EASE_IN_OUT)
 	tw.set_trans(Tween.TRANS_CUBIC)
-
 	for target in _menu_exit_targets:
 		if not target:
 			continue
@@ -414,7 +529,7 @@ func _play_exit_and_change_scene(path: String) -> void:
 		tw.tween_property(target, "position:x", base_pos.x + MENU_EXIT_OFFSET_X, MENU_EXIT_DURATION)
 		tw.tween_property(target, "modulate:a", 0.0, MENU_EXIT_DURATION * 0.9)
 
-	tw.chain().tween_callback(_begin_scene_change.bind(path))
+	_begin_scene_change(path)
 
 func _begin_scene_change(path: String) -> void:
 	await get_tree().process_frame
@@ -427,6 +542,11 @@ func _begin_scene_change(path: String) -> void:
 func _set_all_buttons_disabled(disabled: bool) -> void:
 	for btn: Button in _get_all_buttons(self):
 		btn.disabled = disabled
+
+
+func _exit_tree() -> void:
+	_restore_tutorial_completion_mouse_mode()
+
 
 func _notification(what: int) -> void:
 	if what != NOTIFICATION_VISIBILITY_CHANGED or not live_viewport:
@@ -547,8 +667,10 @@ func _show_tutorial_selector() -> void:
 		_tutorial_selector.call("show_selector")
 
 
+## コースを選んだだけでは「見た」扱いにしない。途中で抜けたときに初回プロンプトが
+## 二度と出なくなるため、既読化はクリア時（mark_tutorial_course_completed）か
+## 明示的な×（_on_tutorial_selector_dismissed）に任せる。
 func _on_tutorial_course_selected(course: String) -> void:
-	GameManager.dismiss_tutorial()
 	_start_tutorial_game(course)
 
 

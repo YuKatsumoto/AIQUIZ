@@ -145,7 +145,9 @@ func _build_ui() -> void:
 	# 戻るボタン
 	_back_btn = _create_btn("✕ 閉じる", 90, Color(0.7, 0.35, 0.35))
 	_back_btn.pressed.connect(func():
-		get_tree().change_scene_to_file("res://ui/main_menu.tscn")
+		if SceneTransition.is_transitioning():
+			return
+		SceneTransition.change_scene("res://ui/main_menu.tscn")
 	)
 	hbox.add_child(_back_btn)
 

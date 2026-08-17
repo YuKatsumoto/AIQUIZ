@@ -185,9 +185,9 @@ func start_game() -> void:
 	current_score = 0
 	current_question_index = 0
 	emit_signal("game_started")
-	get_tree().change_scene_to_file("res://scenes/game_world.tscn")
+	SceneTransition.change_scene("res://scenes/game_world.tscn")
 
 # NOTE: Result handling is done via game_state signals, not scene transitions.
 
 func back_to_menu() -> void:
-	get_tree().change_scene_to_file("res://ui/main_menu.tscn")
+	SceneTransition.change_scene("res://ui/main_menu.tscn")
