@@ -91,6 +91,10 @@ func _process(dt: float) -> void:
 func _update_orbit_camera() -> void:
 	if not _preview_camera:
 		return
+	var look := _cam_target
+	if _preview_player and is_instance_valid(_preview_player):
+		look.x += _preview_player.position.x
+		look.z += _preview_player.position.z
 	var yaw_rad := deg_to_rad(_cam_yaw)
 	var pitch_rad := deg_to_rad(clampf(_cam_pitch, -80.0, 80.0))
 	var offset := Vector3(
@@ -98,8 +102,8 @@ func _update_orbit_camera() -> void:
 		_cam_distance * sin(pitch_rad),
 		_cam_distance * cos(pitch_rad) * cos(yaw_rad)
 	)
-	_preview_camera.position = _cam_target + offset
-	_preview_camera.look_at(_cam_target, Vector3.UP)
+	_preview_camera.position = look + offset
+	_preview_camera.look_at(look, Vector3.UP)
 
 func _on_preview_gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
@@ -198,7 +202,7 @@ func _build_ui() -> void:
 	_preview_texture_rect.texture = _sub_viewport.get_texture()
 
 	_preview_help_label = Label.new()
-	_preview_help_label.text = "右ドラッグ: 回転  中ドラッグ/WASD: 移動  ホイール: ズーム"
+	_preview_help_label.text = "右ドラッグ: 回転  中ドラッグ/WASD: 移動  ホイール: ズーム  （カメラはキャラに追従）"
 	_preview_help_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_preview_help_label.add_theme_font_size_override("font_size", 11)
 	_preview_help_label.add_theme_color_override("font_color", Color(0.82, 0.86, 0.95, 0.78))

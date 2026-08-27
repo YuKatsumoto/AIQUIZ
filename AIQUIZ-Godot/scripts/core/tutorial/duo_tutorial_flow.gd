@@ -6,7 +6,7 @@ class_name DuoTutorialFlow
 ## 両クラスは QuizGameState から同じメソッド面で呼ばれるため、
 ## 片方にクエリを足したらもう片方にも同名で足すこと。
 ##
-## 学習順は1Pと同じ「操作 → 危険 → 回答 → 実践 → 決着」の9ステップ。
+## 学習順は1Pと同じ「操作 → 危険 → 回答 → 実践 → 決着 → カスタマイズ紹介」。
 ## 一度に提示する操作は各プレイヤー最大3つまでに抑え、海とゴーストシャークを
 ## 先に体験させてから誘導なしの実戦に入る。誘導なしの実戦だけは本編と同じ
 ## 個別判定で、間違えた側だけが本当に脱落してゴーストシャークへ回る。
@@ -141,9 +141,9 @@ func current_step_advances_after_presentation() -> bool:
 	return bool(current_step().get("auto_after_presentation", false))
 
 
-## 完了カードを見せ終えたら、勝者と個別スコアが並ぶリザルト画面へ送る。
+## 1Pと同じく、ゲーム内の完了演出では終わらせず、最終ステップ後にカスタマイズへ引き継ぐ。
 func should_clear_after_presentation() -> bool:
-	return true
+	return false
 
 
 # ---------- 入力 ----------
@@ -402,11 +402,11 @@ func starts_goal_race() -> bool:
 
 
 func starts_customize_tour() -> bool:
-	return false
+	return is_step("customize_tour")
 
 
 func is_final_step() -> bool:
-	return is_step("duo_complete")
+	return is_step("customize_tour")
 
 
 # ---------- ゴースト ----------
@@ -470,6 +470,7 @@ func clear_summary_lines() -> PackedStringArray:
 		"✓ コース外＝海とサメの危険",
 		"✓ 脱落後のゴーストシャークで反撃",
 		"✓ 1人ずつ判定される実戦と最終レース",
+		"✓ 壁速度・帽子・エモートのカスタマイズ",
 	])
 
 
@@ -618,7 +619,7 @@ func _build_steps() -> Array[Dictionary]:
 					{"id": "back", "key": "S", "caption": "後退"},
 				],
 				2: [
-					{"id": "jump", "key": "Ctrl / Num0", "caption": "ジャンプ"},
+					{"id": "jump", "key": "Ctrl", "caption": "ジャンプ"},
 					{"id": "forward", "key": "↑", "caption": "前進"},
 					{"id": "back", "key": "↓", "caption": "後退"},
 				],
@@ -666,7 +667,7 @@ func _build_steps() -> Array[Dictionary]:
 			"tasks": {
 				2: [
 					{"id": "aim", "key": "矢印", "caption": "照準移動"},
-					{"id": "charge", "key": "Ctrl / Num0", "caption": "長押し→離す"},
+					{"id": "charge", "key": "Ctrl", "caption": "長押し→離す"},
 					{"id": "hit", "key": "HIT", "caption": "P1へ命中"},
 				],
 			},
@@ -724,12 +725,21 @@ func _build_steps() -> Array[Dictionary]:
 		},
 		{
 			"id": "duo_complete",
-			"title": "ローカル2Pコース完了！",
-			"body": "2人の操作、海とゴーストシャーク、個別判定、最終レースを習得しました。",
-			"guide": GUIDE_COMPLETE,
+			"title": "ステージチュートリアル完了！",
+			"body": "実践クリア！ 続いてカスタマイズを紹介します。",
+			"guide": "",
 			"speed": 0.0,
-			"walls": true,
+			"walls": false,
 			"presentation": "duo_stage_complete",
-			"duration": 3.4,
+			"duration": 3.2,
+			"auto_after_presentation": true,
+		},
+		{
+			"id": "customize_tour",
+			"title": "カスタマイズを見てみよう",
+			"body": "最後に実際のカスタマイズ画面へ移動します。",
+			"guide": "",
+			"speed": 0.0,
+			"walls": false,
 		},
 	]

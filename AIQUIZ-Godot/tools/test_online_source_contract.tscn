@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource path="res://tools/test_online_source_contract.gd" type="Script" id="1"]
+
+[node name="OnlineSourceContractTest" type="Node"]
+script = ExtResource("1")

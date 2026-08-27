@@ -1,6 +1,8 @@
 extends RefCounted
 class_name EmoteBlockmanPreview
 
+const ToonPresets = preload("res://scripts/cosmetics/character_toon_presets.gd")
+
 ## エモートFBXの Skeleton を読み取り、ゲーム本体と同じブロック人形へポーズを転写するプレビュー用ヘルパー。
 const BASE_Y: float = -1.2
 
@@ -88,7 +90,12 @@ static func pick_best_emote_animation(ap: AnimationPlayer) -> String:
 	return best_name
 
 
-static func build_player_skeleton(is_p1: bool, parent_node: Node3D, hat_id: int) -> Dictionary:
+static func build_player_skeleton(
+	is_p1: bool,
+	parent_node: Node3D,
+	hat_id: int,
+	toon_preset: int = ToonPresets.STANDARD,
+) -> Dictionary:
 	var body_col: Color = PlayerController.P1_BODY if is_p1 else PlayerController.P2_BODY
 	var head_col: Color = PlayerController.P1_HEAD if is_p1 else PlayerController.P2_HEAD
 	var limb_col: Color = PlayerController.P1_LIMB if is_p1 else PlayerController.P2_LIMB
@@ -283,6 +290,14 @@ static func build_player_skeleton(is_p1: bool, parent_node: Node3D, hat_id: int)
 	r_toe_mesh.position = Vector3(0, -0.02, 0.04)
 	r_toe.add_child(r_toe_mesh)
 	parts["r_toe_mesh"] = r_toe_mesh
+	var character_meshes: Array[MeshInstance3D] = []
+	for part_value: Variant in parts.values():
+		var character_mesh := part_value as MeshInstance3D
+		if character_mesh != null:
+			character_meshes.append(character_mesh)
+	parts["meshes"] = character_meshes
+	parts["hat_meshes"] = []
+	ToonPresets.apply_to_parts(parts, toon_preset)
 
 	return parts
 
@@ -511,6 +526,7 @@ static func _create_box(half_extents: Vector3, color: Color) -> MeshInstance3D:
 	mat.roughness = 0.7
 	mat.metallic = 0.1
 	mesh_inst.material_override = mat
+	ToonPresets.remember_base_color(mesh_inst, color)
 	return mesh_inst
 
 

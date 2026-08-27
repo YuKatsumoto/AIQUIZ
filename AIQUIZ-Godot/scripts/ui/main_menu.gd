@@ -72,6 +72,7 @@ var _tutorial_completion_mouse_mode_saved: bool = false
 
 ## ステップインジケータの各ピル {sb: StyleBoxFlat, lbl: Label}
 var _step_pills: Array[Dictionary] = []
+var _step_indicator_bright_sky: bool = false
 
 func _ready() -> void:
 	game_state = QuizManager.game_state
@@ -202,7 +203,7 @@ func _spawn_menu_wall_preview() -> void:
 	live_viewport.add_child(_menu_wall_preview)
 	_sync_menu_wall_preview_players()
 
-## ④ タイトル強化: アクセントバー＋サブタイトルを追加
+## ④ タイトル強化: アクセントバーを追加
 func _enhance_title() -> void:
 	if not menu_vbox or not is_instance_valid(title_label):
 		return
@@ -218,14 +219,6 @@ func _enhance_title() -> void:
 	accent.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	menu_vbox.add_child(accent)
 	menu_vbox.move_child(accent, insert_idx)
-
-	var sub := Label.new()
-	sub.name = "SubtitleLabel"
-	sub.text = "AIで学んで走る、クイズランナー"
-	sub.add_theme_font_size_override("font_size", 15)
-	sub.add_theme_color_override("font_color", Color(0.74, 0.80, 0.90))
-	menu_vbox.add_child(sub)
-	menu_vbox.move_child(sub, insert_idx + 1)
 
 ## ③ 文字影: 背景に負けないようメニュー内ラベルへ影を付ける
 func _apply_menu_text_shadows() -> void:
@@ -285,22 +278,44 @@ func _setup_step_indicator() -> void:
 	menu_vbox.add_child(row)
 	menu_vbox.move_child(row, status_label.get_index())
 
+func _process(_delta: float) -> void:
+	var bright_sky := WeatherCycle.is_bright_sky()
+	if bright_sky == _step_indicator_bright_sky:
+		return
+	_update_step_indicator()
+
+
 func _update_step_indicator() -> void:
 	if _step_pills.is_empty() or not game_state:
 		return
 	var active := 1 if game_state.menu_step == Constants.MENU_STEP_CONFIG else 0
+	var bright_sky := WeatherCycle.is_bright_sky()
+	_step_indicator_bright_sky = bright_sky
 	for i in range(_step_pills.size()):
 		var sb: StyleBoxFlat = _step_pills[i]["sb"]
 		var lbl: Label = _step_pills[i]["lbl"]
 		if i == active:
 			sb.bg_color = Color(0.18, 0.43, 0.75, 0.95)
+			sb.set_border_width_all(0)
 			lbl.add_theme_color_override("font_color", Color(1, 1, 1))
+			lbl.add_theme_constant_override("outline_size", 0)
 		elif i < active:
 			sb.bg_color = Color(0.18, 0.43, 0.75, 0.40)
+			sb.set_border_width_all(0)
 			lbl.add_theme_color_override("font_color", Color(0.85, 0.90, 1.0))
+			lbl.add_theme_constant_override("outline_size", 0)
+		elif bright_sky:
+			sb.bg_color = Color(0.10, 0.18, 0.34, 0.88)
+			sb.border_color = Color(0.20, 0.34, 0.55, 1.0)
+			sb.set_border_width_all(2)
+			lbl.add_theme_color_override("font_color", Color(0.97, 0.98, 1.0))
+			lbl.add_theme_color_override("font_outline_color", Color(0.02, 0.05, 0.12, 0.78))
+			lbl.add_theme_constant_override("outline_size", 4)
 		else:
 			sb.bg_color = Color(1, 1, 1, 0.10)
+			sb.set_border_width_all(0)
 			lbl.add_theme_color_override("font_color", Color(0.70, 0.76, 0.86))
+			lbl.add_theme_constant_override("outline_size", 0)
 
 ## ② メニュー本体を半透明パネルで囲う（VBoxの背後に敷き、_processで追従）
 func _setup_menu_exit_targets() -> void:
@@ -412,10 +427,15 @@ func _on_customize_tutorial_completed() -> void:
 		Callable(self, "_on_customize_tutorial_completion_hold_finished"),
 		CONNECT_ONE_SHOT,
 	)
+	var is_duo := game_state.get_pending_customize_tour_course() == GameManager.TUTORIAL_COURSE_LOCAL_2P
 	card.call("present", {
 		"step": "2 / 2  TUTORIAL COMPLETE",
-		"title": "1Pチュートリアル完了！",
-		"body": "ステージ操作とカスタマイズの紹介が完了しました。",
+		"title": "ローカル2Pチュートリアル完了！" if is_duo else "1Pチュートリアル完了！",
+		"body": (
+			"2人プレイの操作とカスタマイズの紹介が完了しました。"
+			if is_duo
+			else "ステージ操作とカスタマイズの紹介が完了しました。"
+		),
 		"progress": "✓ ステージ実践　　✓ カスタマイズ",
 		"footer": "まもなくメニューへ戻ります",
 		"duration": 3.8,
@@ -511,7 +531,11 @@ func _set_buttons_disabled_in(node: Node, disabled: bool) -> void:
 	for child in node.get_children():
 		_set_buttons_disabled_in(child, disabled)
 
-func _play_exit_and_change_scene(path: String) -> void:
+func _play_exit_and_change_scene(
+	path: String,
+	start_standard_round: bool = false,
+	tutorial_course: String = ""
+) -> void:
 	if _menu_exit_in_progress:
 		return
 	_menu_exit_in_progress = true
@@ -529,11 +553,25 @@ func _play_exit_and_change_scene(path: String) -> void:
 		tw.tween_property(target, "position:x", base_pos.x + MENU_EXIT_OFFSET_X, MENU_EXIT_DURATION)
 		tw.tween_property(target, "modulate:a", 0.0, MENU_EXIT_DURATION * 0.9)
 
-	_begin_scene_change(path)
+	_begin_scene_change(path, start_standard_round, tutorial_course)
 
-func _begin_scene_change(path: String) -> void:
+
+## 現在画面を完全に黒で覆ってから、同期的な問題準備を実行する。
+## 重いオフライン問題処理をワイプの途中に重ねず、黒画面の裏へ隠す。
+func _begin_scene_change(
+	path: String,
+	start_standard_round: bool = false,
+	tutorial_course: String = ""
+) -> void:
 	await get_tree().process_frame
-	await SceneTransition.fade_to_color_and_wait(Color.BLACK)
+	var show_loading_character: bool = path.ends_with("game_world.tscn")
+	await SceneTransition.fade_to_color_and_wait(Color.BLACK, show_loading_character)
+	if not is_inside_tree():
+		return
+	if not tutorial_course.is_empty():
+		game_state.start_tutorial(tutorial_course)
+	elif start_standard_round:
+		game_state.start_game()
 	if path.ends_with("game_world.tscn"):
 		get_tree().change_scene_to_packed(GAME_WORLD_SCENE)
 	else:
@@ -680,14 +718,17 @@ func _on_tutorial_selector_dismissed() -> void:
 
 const GAME_SCENE := "res://scenes/game_world.tscn"
 
-func _go_to_game() -> void:
+func _go_to_game(
+	start_standard_round: bool = false,
+	tutorial_course: String = ""
+) -> void:
 	if _menu_exit_in_progress:
 		return
-	_play_exit_and_change_scene(GAME_SCENE)
+	_play_exit_and_change_scene(GAME_SCENE, start_standard_round, tutorial_course)
+
 
 func _start_tutorial_game(course: String = GameManager.TUTORIAL_COURSE_SOLO) -> void:
-	game_state.start_tutorial(course)
-	_go_to_game()
+	_go_to_game(false, course)
 
 func _start_first_run_tutorial() -> void:
 	_show_tutorial_selector()
@@ -938,8 +979,7 @@ func _on_start_pressed() -> void:
 		return
 	if game_state.mode == Constants.MODE_COOP:
 		game_state.num_players = 2
-	game_state.start_game()
-	_go_to_game()
+	_go_to_game(true)
 
 func _hide_coop_mode_if_disabled() -> void:
 	if SHOW_COOP_MODE or not game_state:

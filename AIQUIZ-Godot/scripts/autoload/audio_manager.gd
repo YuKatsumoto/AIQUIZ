@@ -20,6 +20,9 @@ const CONTEXT_VOLUME_DB := {
 
 var correct_player: AudioStreamPlayer
 var explosion_player: AudioStreamPlayer
+var result_roll_player: AudioStreamPlayer
+var result_lock_player: AudioStreamPlayer
+var result_explosion_player: AudioStreamPlayer
 var tutorial_player: AudioStreamPlayer
 var bgm_player: AudioStreamPlayer
 var shark_rush_stream: AudioStreamWAV
@@ -61,6 +64,9 @@ func _ready() -> void:
 	explosion_player.name = "ExplosionSFX"
 	explosion_player.bus = "SFX"
 	add_child(explosion_player)
+	result_roll_player = _create_sfx_player("ResultScoreRollSFX")
+	result_lock_player = _create_sfx_player("ResultScoreLockSFX")
+	result_explosion_player = _create_sfx_player("ResultCeremonyExplosionSFX")
 	tutorial_player = AudioStreamPlayer.new()
 	tutorial_player.name = "TutorialSFX"
 	tutorial_player.bus = "SFX"
@@ -69,6 +75,7 @@ func _ready() -> void:
 	# Generate audio samples
 	_generate_correct_sound()
 	_generate_explosion_sound()
+	_generate_result_ceremony_sounds()
 	_generate_shark_rush_sound()
 	_generate_shark_impact_sound()
 	_generate_tutorial_sounds()
@@ -90,6 +97,25 @@ func play_correct() -> void:
 
 func play_explosion() -> void:
 	explosion_player.play()
+
+
+func play_result_roll() -> void:
+	if result_roll_player != null:
+		result_roll_player.play()
+
+
+func play_result_lock() -> void:
+	if result_roll_player != null:
+		result_roll_player.stop()
+	if result_lock_player != null:
+		result_lock_player.play()
+
+
+func play_result_explosion(is_draw: bool = false) -> void:
+	if result_explosion_player == null:
+		return
+	result_explosion_player.volume_db = 2.5 if is_draw else 0.0
+	result_explosion_player.play()
 
 
 func play_tutorial_step() -> void:
@@ -171,6 +197,14 @@ func _ensure_bus(bus_name: String) -> void:
 	var bus_index: int = AudioServer.bus_count
 	AudioServer.add_bus(bus_index)
 	AudioServer.set_bus_name(bus_index, bus_name)
+
+
+func _create_sfx_player(player_name: String) -> AudioStreamPlayer:
+	var player := AudioStreamPlayer.new()
+	player.name = player_name
+	player.bus = "SFX"
+	add_child(player)
+	return player
 
 func _set_bus_linear_volume(bus_name: String, linear_volume: float) -> void:
 	var bus_index: int = AudioServer.get_bus_index(bus_name)
@@ -284,6 +318,75 @@ func _generate_explosion_sound() -> void:
 
 	stream.data = data
 	explosion_player.stream = stream
+
+
+func _generate_result_ceremony_sounds() -> void:
+	var sample_rate := 44100
+
+	# 2.4 seconds of a deterministic stepped trill. The alternating partials make
+	# the score roll readable without relying on an imported voice sample.
+	var roll_duration := 2.4
+	var roll_samples := int(sample_rate * roll_duration)
+	var roll_data := PackedByteArray()
+	roll_data.resize(roll_samples * 2)
+	for index: int in range(roll_samples):
+		var time := float(index) / float(sample_rate)
+		var step := int(time * 12.0)
+		var frequency := 520.0 + float(step % 5) * 72.0
+		var pulse_time := fposmod(time, 1.0 / 12.0)
+		var envelope := 1.0 - smoothstep(0.0, 1.0, pulse_time * 12.0)
+		var fade := smoothstep(0.0, 0.045, time) * smoothstep(0.0, 0.10, roll_duration - time)
+		var wave := (
+			sin(TAU * frequency * time) * 0.55
+			+ sin(TAU * frequency * 1.5 * time) * 0.24
+		) * envelope * fade
+		roll_data.encode_s16(index * 2, int(clampf(wave, -1.0, 1.0) * 32767.0))
+	var roll_stream := AudioStreamWAV.new()
+	roll_stream.format = AudioStreamWAV.FORMAT_16_BITS
+	roll_stream.mix_rate = sample_rate
+	roll_stream.stereo = false
+	roll_stream.data = roll_data
+	result_roll_player.stream = roll_stream
+
+	var lock_duration := 0.52
+	var lock_samples := int(sample_rate * lock_duration)
+	var lock_data := PackedByteArray()
+	lock_data.resize(lock_samples * 2)
+	for index: int in range(lock_samples):
+		var time := float(index) / float(sample_rate)
+		var envelope := exp(-time * 6.5)
+		var wave := (
+			sin(TAU * 880.0 * time)
+			+ sin(TAU * 1320.0 * time) * 0.52
+		) * envelope * 0.52
+		lock_data.encode_s16(index * 2, int(clampf(wave, -1.0, 1.0) * 32767.0))
+	var lock_stream := AudioStreamWAV.new()
+	lock_stream.format = AudioStreamWAV.FORMAT_16_BITS
+	lock_stream.mix_rate = sample_rate
+	lock_stream.stereo = false
+	lock_stream.data = lock_data
+	result_lock_player.stream = lock_stream
+
+	var impact_duration := 1.45
+	var impact_samples := int(sample_rate * impact_duration)
+	var impact_data := PackedByteArray()
+	impact_data.resize(impact_samples * 2)
+	var noise_state: int = 0x13579BDF
+	for index: int in range(impact_samples):
+		var time := float(index) / float(sample_rate)
+		noise_state = int((noise_state * 1103515245 + 12345) & 0x7fffffff)
+		var noise := float(noise_state) / 1073741824.0 - 1.0
+		var envelope := exp(-time * 3.4)
+		var boom := sin(TAU * (92.0 - time * 34.0) * time) * exp(-time * 4.4)
+		var crack := noise * exp(-time * 8.2)
+		var wave := (boom * 0.72 + crack * 0.58) * envelope
+		impact_data.encode_s16(index * 2, int(clampf(wave, -1.0, 1.0) * 32767.0))
+	var impact_stream := AudioStreamWAV.new()
+	impact_stream.format = AudioStreamWAV.FORMAT_16_BITS
+	impact_stream.mix_rate = sample_rate
+	impact_stream.stereo = false
+	impact_stream.data = impact_data
+	result_explosion_player.stream = impact_stream
 
 
 func _generate_shark_rush_sound() -> void:

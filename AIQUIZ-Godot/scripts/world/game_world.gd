@@ -1,9 +1,11 @@
 extends Node3D
 
 const GhostSharkRideControllerScript = preload("res://scripts/world/ghost_shark_ride_controller.gd")
+const ResultCeremonyDirectorScript = preload("res://scripts/world/result_ceremony_director.gd")
 const TutorialPresentationDirectorScript = preload("res://scripts/world/tutorial_presentation_director.gd")
 const DuoTutorialGuidesScript = preload("res://scripts/world/duo_tutorial_guides.gd")
 const SoloTutorialGuidesScript = preload("res://scripts/world/solo_tutorial_guides.gd")
+const HelicopterArrivalDirectorScript = preload("res://scripts/world/helicopter_arrival_director.gd")
 
 ## 3Dゲームワールド管理
 ## Python版 renderer.py の _draw_world + main_3d.py の入力処理に相当
@@ -30,8 +32,10 @@ var _prev_player_y: float = 0.0
 var _prev_p2_y: float = 0.0
 var _ocean_attack_sharks: Dictionary = {}
 var _ghost_shark_ride_controller: Node3D = null
+var _result_ceremony_director: Node3D = null
 var _tutorial_presentation_director: Node = null
 var _tutorial_world_guides: Node3D = null
+var _helicopter_arrival_director: Node = null
 var _tutorial_customize_handoff_in_progress: bool = false
 var _active_walls: Array[Node3D] = []
 var _retired_wall_indices: Dictionary = {}
@@ -60,14 +64,21 @@ const PREVIEW_WALL_DROP_START_Y := 46.0
 const PREVIEW_WALL_DROP_INTERVAL := 0.16
 const PREVIEW_WALL_DROP_DURATION := 0.28
 const PREVIEW_WALL_SETTLE_DURATION := 0.14
+const OFFLINE_TRANSITION_PREP_TIMEOUT_MSEC := 12000
+const WORLD_VISUAL_PREP_MIN_MSEC := 800
+const WORLD_VISUAL_PREP_RENDER_FRAMES := 2
 
 var pause_menu: CanvasLayer = null
+var _world_visual_prep_started_msec: int = 0
+var _world_visual_prepared: bool = false
+var _world_visual_prep_report: Dictionary = {}
 
 # ── リプレイ記録 ──
 var _recorder: ReplayRecorder = null
 var _replay_mode: bool = false
 
 func _ready() -> void:
+	_world_visual_prep_started_msec = Time.get_ticks_msec()
 	game_state = QuizManager.game_state
 	AudioManager.set_music_context(AudioManager.MUSIC_CONTEXT_GAMEPLAY)
 	GraphicsQuality.apply_text_viewport(get_viewport(), GameManager.graphics_quality)
@@ -94,6 +105,17 @@ func _ready() -> void:
 	_net_state = NetGameState.new()
 	add_child(_net_state)
 	_net_state.setup(game_state)
+	# Online and replay retain their existing presentation contract. Every local
+	# game mode shares this one director and the same product GLB.
+	if not _replay_mode and not _net_state.is_online:
+		_helicopter_arrival_director = HelicopterArrivalDirectorScript.new()
+		_helicopter_arrival_director.name = "HelicopterArrivalDirector"
+		add_child(_helicopter_arrival_director)
+		_helicopter_arrival_director.setup(
+			game_state,
+			player_node as PlayerController,
+			camera_controller
+		)
 
 	# Setup shared stage (environment / lighting / floor / conveyor / ocean)
 	stage_env = StageEnvironment.new()
@@ -122,6 +144,15 @@ func _ready() -> void:
 	)
 	_ghost_shark_ride_controller.aim_used.connect(_on_tutorial_ghost_aim_used)
 	_ghost_shark_ride_controller.charge_resolved.connect(_on_tutorial_ghost_charge_resolved)
+	_result_ceremony_director = ResultCeremonyDirectorScript.new()
+	_result_ceremony_director.name = "ResultCeremonyDirector"
+	add_child(_result_ceremony_director)
+	_result_ceremony_director.setup(
+		game_state,
+		player_node as PlayerController,
+		camera_controller,
+		_ghost_shark_ride_controller as GhostSharkRideController
+	)
 	game_state.tutorial_task_completed.connect(_on_tutorial_task_completed)
 	game_state.tutorial_presentation_requested.connect(_on_tutorial_presentation_requested)
 	game_state.tutorial_customize_handoff_requested.connect(_on_tutorial_customize_handoff_requested)
@@ -285,8 +316,8 @@ func is_ghost_charge_tutorial_active() -> bool:
 
 
 func _on_tutorial_ghost_aim_used(player_index: int) -> void:
-	if game_state:
-		game_state.register_tutorial_ghost_aim(player_index)
+	if game_state and game_state.register_tutorial_ghost_aim(player_index):
+		call_deferred("_finish_tutorial_ghost_practice")
 
 
 func _on_tutorial_ghost_charge_resolved(player_index: int, hit: bool, power: float) -> void:
@@ -335,7 +366,7 @@ func _on_tutorial_presentation_requested(presentation_id: String, context: Dicti
 	if gameplay_hud.has_method("show_duo_stage_tutorial_complete"):
 		gameplay_hud.call(
 			"show_duo_stage_tutorial_complete",
-			float(context.get("duration", 3.4)),
+			float(context.get("duration", 3.2)),
 		)
 	if gameplay_hud.has_method("play_tutorial_completion_celebration"):
 		gameplay_hud.call("play_tutorial_completion_celebration")
@@ -418,8 +449,231 @@ func _on_shark_attack_reached(player_index: int, shark: SharkSwimmer) -> void:
 	game_state.complete_ocean_shark_attack(player_index)
 
 
+## 重い表示系は黒画面内で予熱する。ヘリ投入が有効なときは準備画面を先に開示し、
+## 問題ロードと投入演出を並列化する。ヘリ資産がない場合は従来どおりロード完了を待つ。
 func _reveal_after_transition() -> void:
-	SceneTransition.reveal_current()
+	if not SceneTransition.is_transitioning():
+		return
+	await _prepare_world_visuals_under_cover()
+	if not is_inside_tree():
+		return
+	# A valid arrival presentation owns the visible preparation window, so quiz
+	# generation and wall construction may continue behind it. The game-state
+	# WAITING_START gate supplies "load ready" while the director supplies
+	# "helicopters exited"; start input therefore requires both. If the product
+	# GLB is absent or invalid, retain the established cover-first loading path.
+	var parallel_arrival_active := is_start_presentation_locked()
+	if _uses_offline_quiz_source() and not parallel_arrival_active:
+		var preparation_timed_out: bool = false
+		var deadline_msec: int = Time.get_ticks_msec() + OFFLINE_TRANSITION_PREP_TIMEOUT_MSEC
+		while is_inside_tree() and not _is_offline_transition_prepared():
+			if Time.get_ticks_msec() >= deadline_msec:
+				preparation_timed_out = true
+				push_warning(
+					"Offline transition preparation timed out after %.1f seconds "
+					+ "(state=%s, walls=%d, barrier_spawned=%s, barrier_dropping=%s)"
+					% [
+						OFFLINE_TRANSITION_PREP_TIMEOUT_MSEC / 1000.0,
+						game_state.game_state,
+						_pw_count,
+						str(_barrier_spawned_for_session),
+						str(_barrier_dropping),
+					]
+				)
+				break
+			await get_tree().process_frame
+		if not preparation_timed_out:
+			print(
+				"[GameWorld] Offline transition prepared under black cover: "
+				+ "state=%s walls=%d wall_drop_deferred=%s barrier_ready=%s"
+				% [
+					game_state.game_state,
+					_pw_count,
+					str(_should_defer_ten_wall_drop_until_reveal()),
+					str(_barrier_spawned_for_session and not _barrier_dropping),
+				]
+			)
+	elif parallel_arrival_active:
+		print("[GameWorld] Quiz preparation and helicopter arrival are running in parallel")
+	if is_inside_tree():
+		SceneTransition.reveal_current()
+
+
+## 問題生成やプレビュー壁の状態機械には触れず、表示系だけを黒画面中に準備する。
+## 実際のゲーム用ノードを2フレーム描画して、メッシュ転送とシェーダー生成も開示前に済ませる。
+func _prepare_world_visuals_under_cover() -> void:
+	var player_controller := player_node as PlayerController
+	if player_controller != null:
+		player_controller.prepare_for_loading(game_state)
+	var helicopter_prewarm_report: Dictionary = {}
+	if _helicopter_arrival_director != null:
+		helicopter_prewarm_report = _helicopter_arrival_director.begin_render_prewarm()
+	var portal_prewarm_report: Dictionary = {}
+	if _ghost_shark_ride_controller != null:
+		var prewarm_camera := camera_controller.get_node_or_null("Camera3D") as Camera3D
+		portal_prewarm_report = (
+			_ghost_shark_ride_controller.begin_return_portal_render_prewarm(prewarm_camera)
+		)
+	var result_prewarm_report: Dictionary = {}
+	if _result_ceremony_director != null:
+		result_prewarm_report = _result_ceremony_director.begin_render_prewarm()
+
+	var pipeline_compilations_before: int = RenderingServer.get_rendering_info(
+		RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_DRAW
+	)
+	for _render_frame: int in range(WORLD_VISUAL_PREP_RENDER_FRAMES):
+		if DisplayServer.get_name() == "headless":
+			await get_tree().process_frame
+		else:
+			await RenderingServer.frame_post_draw
+		if not is_inside_tree():
+			return
+	if _ghost_shark_ride_controller != null:
+		_ghost_shark_ride_controller.end_return_portal_render_prewarm()
+	if _result_ceremony_director != null:
+		_result_ceremony_director.end_render_prewarm()
+	if _helicopter_arrival_director != null:
+		_helicopter_arrival_director.end_render_prewarm()
+	# queue_freeした予熱ノードを、開示前に確実にツリーから取り除く。
+	await get_tree().process_frame
+	if not is_inside_tree():
+		return
+
+	var minimum_end_msec: int = _world_visual_prep_started_msec + WORLD_VISUAL_PREP_MIN_MSEC
+	while is_inside_tree() and Time.get_ticks_msec() < minimum_end_msec:
+		await get_tree().process_frame
+	if not is_inside_tree():
+		return
+
+	_world_visual_prep_report = _collect_world_visual_prep_report(player_controller)
+	_world_visual_prep_report["elapsed_msec"] = (
+		Time.get_ticks_msec() - _world_visual_prep_started_msec
+	)
+	_world_visual_prep_report["render_frames"] = WORLD_VISUAL_PREP_RENDER_FRAMES
+	_world_visual_prep_report["ghost_portal_prewarm"] = portal_prewarm_report
+	_world_visual_prep_report["result_ceremony_prewarm"] = result_prewarm_report
+	_world_visual_prep_report["helicopter_arrival_prewarm"] = helicopter_prewarm_report
+	if not bool(portal_prewarm_report.get("ready", false)):
+		_world_visual_prep_report["ready"] = false
+		var missing_variant: Variant = _world_visual_prep_report.get("missing", [])
+		if missing_variant is Array:
+			var missing_components: Array = missing_variant
+			missing_components.append("ghost_portal")
+	if not bool(result_prewarm_report.get("ready", false)):
+		_world_visual_prep_report["ready"] = false
+		var result_missing_variant: Variant = _world_visual_prep_report.get("missing", [])
+		if result_missing_variant is Array:
+			var result_missing_components: Array = result_missing_variant
+			result_missing_components.append("result_ceremony")
+	_world_visual_prep_report["draw_pipeline_compilations"] = max(
+		0,
+		RenderingServer.get_rendering_info(
+			RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_DRAW
+		) - pipeline_compilations_before
+	)
+	_world_visual_prepared = true
+	if not bool(_world_visual_prep_report.get("ready", false)):
+		push_warning(
+			"World visual preparation completed with missing components: %s"
+			% str(_world_visual_prep_report.get("missing", []))
+		)
+	print("[GameWorld] World visuals prepared under black cover: %s" % str(_world_visual_prep_report))
+
+
+func _collect_world_visual_prep_report(player_controller: PlayerController) -> Dictionary:
+	var grandstands := stage_env.get_node_or_null("Grandstands") as Node3D if stage_env else null
+	var grandstand_count: int = grandstands.get_child_count() if grandstands else 0
+	var shark_count: int = stage_env.get_ocean_sharks().size() if stage_env else 0
+	var stage_ready: bool = (
+		stage_env != null
+		and stage_env.floor_mesh != null
+		and stage_env.environment_node != null
+		and stage_env.directional_light != null
+		and stage_env.weather_cycle != null
+		and stage_env.conveyor_edge_lights != null
+		and stage_env.get_node_or_null("Ocean") != null
+		and grandstand_count == 2
+		and shark_count > 0
+	)
+	var player_ready: bool = (
+		player_controller != null
+		and not player_controller.p1_parts.is_empty()
+		and (
+			game_state.num_players < 2
+			or (
+				player_controller.p2_container != null
+				and not player_controller.p2_parts.is_empty()
+			)
+		)
+	)
+	var splash_pool_variant: Variant = particle_spawner.get("ocean_splash_pool")
+	var vfx_ready: bool = (
+		particle_spawner.get("correct_particles") != null
+		and particle_spawner.get("explosion_particles") != null
+		and splash_pool_variant is Array
+		and splash_pool_variant.size() >= 2
+		and _merge_effect_pool.size() >= MERGE_EFFECT_POOL_SIZE
+	)
+	var ui_ready: bool = get_node_or_null("GameplayHUD") != null and pause_menu != null
+	var missing: Array[String] = []
+	if not stage_ready:
+		missing.append("stage")
+	if not player_ready:
+		missing.append("players")
+	if not vfx_ready:
+		missing.append("vfx")
+	if not ui_ready:
+		missing.append("ui")
+	return {
+		"ready": missing.is_empty(),
+		"missing": missing,
+		"grandstands": grandstand_count,
+		"sharks": shark_count,
+		"players": game_state.num_players,
+		"merge_effects": _merge_effect_pool.size(),
+		"ui_ready": ui_ready,
+	}
+
+
+func _uses_offline_quiz_source() -> bool:
+	var buffered_provider := QuizManager.provider as BufferedQuizProvider
+	return buffered_provider != null and buffered_provider.llm_mode == "OFFLINE"
+
+
+func _should_defer_ten_wall_drop_until_reveal() -> bool:
+	return (
+		_uses_offline_quiz_source()
+		and game_state != null
+		and game_state.mode == Constants.MODE_TEN
+	)
+
+
+func _is_offline_transition_prepared() -> bool:
+	if game_state == null or game_state.game_state != Constants.STATE_WAITING_START:
+		return false
+	var expected_wall_count: int
+	if game_state._is_fixed_count_mode():
+		if game_state.quiz_list.size() < game_state.target_count:
+			return false
+		expected_wall_count = maxi(game_state.target_count, game_state.quiz_list.size())
+	else:
+		expected_wall_count = maxi(30, game_state.quiz_list.size())
+	if _pw_count < expected_wall_count or _pw_anims.size() < expected_wall_count:
+		return false
+	# 10問チャレンジは問題文設定までを黒画面内で済ませ、壁の落下演出は
+	# 開示ワイプが完全に終わってから見せる。ほかのモードは従来どおり
+	# バリアまで完成してから開示する。
+	if _should_defer_ten_wall_drop_until_reveal():
+		return true
+	for wall_index: int in range(expected_wall_count):
+		if int(_pw_anims[wall_index].get("phase", 0)) < 3:
+			return false
+	return (
+		_barrier_spawned_for_session
+		and not _barrier_dropping
+		and _start_barrier != null
+		and is_instance_valid(_start_barrier)
+	)
 
 func _process(dt: float) -> void:
 	if not game_state or get_tree().paused:
@@ -471,7 +725,7 @@ func _process(dt: float) -> void:
 			if Input.is_key_pressed(KEY_LEFT): axis_p2.x += 1.0
 			if Input.is_key_pressed(KEY_UP): axis_p2.y += 1.0
 			if Input.is_key_pressed(KEY_DOWN): axis_p2.y -= 1.0
-			jump_p2 = Input.is_key_pressed(KEY_CTRL) or Input.is_key_pressed(KEY_KP_0)
+			jump_p2 = Input.is_key_pressed(KEY_CTRL)
 		else:
 			# 1P: Arrow keys also work for P1
 			if Input.is_key_pressed(KEY_RIGHT): axis_p1.x -= 1.0
@@ -495,6 +749,7 @@ func _process(dt: float) -> void:
 		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 
 	# Update game state (host or offline only — client receives snapshots)
+	game_state.result_ceremony_enabled = not _is_online and not _replay_mode
 	if not _is_client and not _replay_mode:
 		game_state.update(dt, axis_p1, axis_p2, jump_p1, jump_p2, emote_p1, emote_p2)
 	if _ghost_shark_ride_controller:
@@ -535,6 +790,8 @@ func _process(dt: float) -> void:
 	_update_floor()
 	_update_flyover()
 	_update_player(dt)
+	if _result_ceremony_director:
+		_result_ceremony_director.update_result_ceremony(dt)
 	_update_walls()
 	_update_goal_line()
 	_update_preview_walls(dt)
@@ -586,7 +843,6 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if (
 		event is InputEventKey
-		and event.keycode in [KEY_ENTER, KEY_KP_ENTER]
 		and event.is_pressed()
 		and not event.is_echo()
 		and _ghost_shark_ride_controller
@@ -609,6 +865,12 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey or event is InputEventJoypadButton or event is InputEventMouseButton:
 		if event.is_pressed() and not event.is_echo():
 			if game_state and game_state.game_state == Constants.STATE_WAITING_START:
+				if is_start_presentation_locked():
+					get_viewport().set_input_as_handled()
+					return
+				if is_preload_construction_locked():
+					get_viewport().set_input_as_handled()
+					return
 				# カウントダウン壁が出現し終わるまで開始トリガーをブロック
 				# （チュートリアルも本編と同じフライオーバー→カウントダウン開始）
 				if not _barrier_spawned_for_session or _barrier_dropping:
@@ -621,7 +883,11 @@ func _update_floor() -> void:
 		return
 	var floor_front: float
 	var floor_back: float = game_state.FLOOR_BACK_Z
-	if game_state.game_state in [Constants.STATE_FLYOVER, Constants.STATE_PRELOADING, Constants.STATE_WAITING_START]:
+	if game_state.game_state in [
+		Constants.STATE_FLYOVER,
+		Constants.STATE_PRELOADING,
+		Constants.STATE_WAITING_START,
+	]:
 		# フライオーバー / プリロード中: 最後の壁(orゴールライン)まで床を延長
 		var t := game_state.tuning
 		var wall_count: int
@@ -637,9 +903,19 @@ func _update_floor() -> void:
 		if game_state.num_players >= 2 and game_state.mode == Constants.MODE_TEN:
 			var goal_line_z: float = t.wall_start_z + game_state.target_count * t.wall_spacing + 15.0
 			floor_front = maxf(floor_front, goal_line_z + 20.0)
-	elif game_state.game_state == Constants.STATE_GOAL_RACE:
+	elif (
+		game_state.game_state in [Constants.STATE_GOAL_RACE, Constants.STATE_RESULT_CEREMONY]
+		or (
+			game_state.game_state == Constants.STATE_CLEAR
+			and game_state.result_presentation_active
+		)
+	):
 		# ゴールレース中: ゴールラインの先まで床を延長
-		floor_front = maxf(144.0 + floor_back, game_state.goal_z + 20.0 - game_state.world_scroll_z)
+		var result_extension := 24.0 if game_state.result_presentation_active else 20.0
+		floor_front = maxf(
+			144.0 + floor_back,
+			game_state.goal_z + result_extension - game_state.world_scroll_z
+		)
 	else:
 		# 通常時: 最奥の壁、またはプレイヤーの位置に合わせて床を動的に延長
 		var t := game_state.tuning
@@ -655,18 +931,44 @@ func _update_floor() -> void:
 		floor_front = max_z_needed + 40.0 - game_state.world_scroll_z
 		floor_front = maxf(floor_front, 139.5) # 最低限の長さを保証
 
+	# ローカル通常2Pではゴール面をベルトコンベアの終端として扱う。
+	# ResultMeadow は goal_z + 2m から始まるため、ベルトと草原が重ならず
+	# 「ベルト終端 → ゴール → 草原」の順序が全フェーズで一定になる。
+	if game_state.uses_local_result_ceremony():
+		floor_front = _local_result_goal_z() - game_state.world_scroll_z
+
 	var floor_length: float = floor_front - floor_back
 	var floor_center_z: float = (floor_front + floor_back) / 2.0
 	stage_env.set_floor_geometry(floor_center_z, floor_length)
 
+
+func _local_result_goal_z() -> float:
+	if game_state.goal_z > 0.0:
+		return game_state.goal_z
+	var tuning := game_state.tuning
+	return tuning.wall_start_z + game_state.target_count * tuning.wall_spacing + 15.0
+
 func _update_player(_dt: float) -> void:
-	if game_state.game_state in [Constants.STATE_MENU, Constants.STATE_PRELOADING]:
+	var pc := player_node as PlayerController
+	if pc != null and pc.has_intro_arrival():
+		# The original meshes are hidden inside PlayerController; keeping the root
+		# active preserves hats/rig ownership while sibling ragdoll bodies simulate.
+		# Pending players stay hidden until their own helicopter drop begins.
+		player_node.visible = true
+		return
+	var hide_for_loading := (
+		game_state.game_state in [
+			Constants.STATE_PRELOADING,
+		]
+		and not game_state.uses_local_result_ceremony()
+	)
+	if game_state.game_state == Constants.STATE_MENU or hide_for_loading:
 		player_node.visible = false
 		_hats_applied = false
 		return
 
 	player_node.visible = true
-	var pc: PlayerController = player_node as PlayerController
+	pc = player_node as PlayerController
 	if pc:
 		pc.update_from_state(game_state)
 
@@ -676,6 +978,19 @@ func _update_player(_dt: float) -> void:
 			if game_state.num_players >= 2 and pc.p2_container != null:
 				pc.set_hat(2, game_state.p2_hat)
 			_hats_applied = true
+
+
+func is_start_presentation_locked() -> bool:
+	return (
+		_helicopter_arrival_director != null
+		and is_instance_valid(_helicopter_arrival_director)
+		and _helicopter_arrival_director.is_start_locked()
+	)
+
+
+func is_preload_construction_locked() -> bool:
+	return false
+
 
 func _update_flyover() -> void:
 	if game_state.game_state == Constants.STATE_FLYOVER:
@@ -710,7 +1025,15 @@ func _clear_flyover_walls() -> void:
 
 func _update_walls() -> void:
 	# プリロード中・ゴールレース中・クリア後・メニュー・フライオーバー中は通常壁を全て非表示
-	if game_state.game_state in [Constants.STATE_MENU, Constants.STATE_FLYOVER, Constants.STATE_GOAL_RACE, Constants.STATE_CLEAR, Constants.STATE_PRELOADING, Constants.STATE_WAITING_START]:
+	if game_state.game_state in [
+		Constants.STATE_MENU,
+		Constants.STATE_FLYOVER,
+		Constants.STATE_GOAL_RACE,
+		Constants.STATE_RESULT_CEREMONY,
+		Constants.STATE_CLEAR,
+		Constants.STATE_PRELOADING,
+		Constants.STATE_WAITING_START,
+	]:
 		for wall: Node3D in _active_walls:
 			wall.queue_free()
 		_active_walls.clear()
@@ -840,7 +1163,10 @@ func _update_goal_line() -> void:
 		game_state.num_players >= 2
 		and game_state.mode == Constants.MODE_TEN
 		and game_state.game_state in [
+			Constants.STATE_PRELOADING,
+			Constants.STATE_COUNTDOWN,
 			Constants.STATE_GOAL_RACE,
+			Constants.STATE_RESULT_CEREMONY,
 			Constants.STATE_FLYOVER,
 			Constants.STATE_PLAYING,
 			Constants.STATE_CLEAR,
@@ -931,6 +1257,13 @@ func _update_goal_line() -> void:
 		_goal_line_node.position = Vector3(0, 0, g_z)
 	else:
 		_goal_line_node.position = Vector3(0, 0, g_z - game_state.world_scroll_z)
+	# The gate establishes the first two ceremony shots, then leaves the result
+	# composition so the grass, players, score, and explosion remain the only
+	# focal layers. It is restored automatically when the phase resets/retries.
+	_goal_line_node.visible = not (
+		game_state.result_presentation_active
+		and game_state.result_ceremony_phase >= QuizGameState.ResultCeremonyPhase.SCORE_ROLL
+	)
 
 func _create_goal_box(box_size: Vector3, color: Color) -> MeshInstance3D:
 	var mesh_inst := MeshInstance3D.new()
@@ -1051,7 +1384,11 @@ func _check_particles() -> void:
 	_prev_p2_y = game_state.player2_y
 
 	# Fireworks on CLEAR state (花火演出)
-	if game_state.game_state == Constants.STATE_CLEAR and not _fireworks_launched:
+	if (
+		game_state.game_state == Constants.STATE_CLEAR
+		and not game_state.result_presentation_active
+		and not _fireworks_launched
+	):
 		_fireworks_launched = true
 		if particle_spawner.has_method("spawn_fireworks"):
 			# ゴールライン位置から花火を打ち上げ
@@ -1067,10 +1404,20 @@ func _get_player_death_effect_position(player_index: int, fallback: Vector3) -> 
 
 
 func _on_state_changed(new_state: String) -> void:
+	if (
+		_helicopter_arrival_director != null
+		and _helicopter_arrival_director.is_start_locked()
+		and new_state not in [Constants.STATE_PRELOADING, Constants.STATE_WAITING_START]
+	):
+		_helicopter_arrival_director.cancel()
 	if new_state in [Constants.STATE_CLEAR, Constants.STATE_GAME_OVER, Constants.STATE_MENU]:
 		if _ghost_shark_ride_controller:
 			_ghost_shark_ride_controller.force_cleanup()
-	if new_state in [Constants.STATE_CLEAR, Constants.STATE_GAME_OVER]:
+	if new_state in [
+		Constants.STATE_RESULT_CEREMONY,
+		Constants.STATE_CLEAR,
+		Constants.STATE_GAME_OVER,
+	]:
 		AudioManager.set_music_context(AudioManager.MUSIC_CONTEXT_RESULT)
 	elif new_state == Constants.STATE_MENU:
 		AudioManager.set_music_context(AudioManager.MUSIC_CONTEXT_MENU)
@@ -1086,9 +1433,14 @@ func _on_state_changed(new_state: String) -> void:
 			_explode_start_barrier()
 	elif new_state == Constants.STATE_MENU:
 		_fireworks_launched = false
+		if _result_ceremony_director:
+			_result_ceremony_director.force_cleanup()
 		_clear_preview_walls()
 		_remove_start_barrier()
 		_barrier_spawned_for_session = false
+	elif new_state == Constants.STATE_PRELOADING:
+		if _result_ceremony_director:
+			_result_ceremony_director.force_cleanup()
 	elif new_state == Constants.STATE_WAITING_START:
 		_clear_flyover_walls()
 		# バリアはプレビュー壁完了後に自動スポーンするので、ここでは何もしない
@@ -1280,6 +1632,10 @@ func _update_preview_walls(dt: float) -> void:
 		quiz_count >= game_state.target_count
 		and _pw_count >= game_state.target_count
 	)
+	# オフライン10問は開示アニメーションが完了するまで、構築済みの壁を
+	# 上空・非表示のまま待機させる。開示完了後のフレームから落下を始める。
+	if _should_defer_ten_wall_drop_until_reveal() and SceneTransition.is_transitioning():
+		wall_set_ready = false
 	if total_walls > 0 and wall_set_ready:
 		var all_started: bool = true
 		for drop_started: bool in _pw_drop_started:

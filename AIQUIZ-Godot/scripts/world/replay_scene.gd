@@ -1,5 +1,7 @@
 extends Node3D
 
+const ToonPresets = preload("res://scripts/cosmetics/character_toon_presets.gd")
+
 ## リプレイ再生専用シーン
 ## ゲームワールドを再利用し、入力を無効化してReplayPlayerから状態を注入する。
 
@@ -35,6 +37,8 @@ func _ready() -> void:
 	_game_state.target_count = meta.get("target_count", 10)
 	_game_state.p1_hat = meta.get("p1_hat", 0)
 	_game_state.p2_hat = meta.get("p2_hat", 0)
+	_game_state.p1_toon_preset = ToonPresets.normalize(int(meta.get("p1_toon_preset", 0)))
+	_game_state.p2_toon_preset = ToonPresets.normalize(int(meta.get("p2_toon_preset", 0)))
 	_game_state.game_state = Constants.STATE_PLAYING
 
 	# ReplayPlayer を設定
@@ -89,6 +93,11 @@ func _process(dt: float) -> void:
 			Vector3(_game_state.player2_x, _game_state.player2_y, _game_state.player2_z - scroll)
 		)
 		replay_camera_node.update_camera(dt)
+
+
+func _exit_tree() -> void:
+	if _game_state != null:
+		_game_state.is_replay = false
 
 func _unhandled_input(event: InputEvent) -> void:
 	# リプレイカメラへの入力転送

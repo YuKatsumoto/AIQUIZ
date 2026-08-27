@@ -1,6 +1,8 @@
 extends RefCounted
 class_name RagdollBuilder
 
+const ToonPresets = preload("res://scripts/cosmetics/character_toon_presets.gd")
+
 ## HFF風アクティブラグドール: 表示用スケルトン(Node3Dブロック階層)の静止ポーズ
 ## 大域変換から、物理駆動体(RigidBody3D群)を別ツリーに手続き生成する。
 ##
@@ -76,6 +78,7 @@ static func build(container: Node3D, pelvis: Node3D, parts: Dictionary, opts: Di
 	var debug: bool = opts.get("debug", true)
 	var limb_color: Color = opts.get("limb_color", Color(0.2, 0.9, 0.4, 0.5))
 	var head_color: Color = opts.get("head_color", limb_color)
+	var toon_preset: int = ToonPresets.normalize(int(opts.get("toon_preset", 0)))
 
 	# --- 体幹アンカー(キネマティック) ---
 	# pelvis に毎物理フレーム同期され、四肢ルートの接続元になる。
@@ -128,14 +131,16 @@ static func build(container: Node3D, pelvis: Node3D, parts: Dictionary, opts: Di
 		tbm.size = m["size"]
 		tmi.mesh = tbm
 		tmi.position = Vector3(0.0, m["y"], 0.0)
-		var tmat := StandardMaterial3D.new()
+		var tmat: Material
 		if debug:
-			tmat.albedo_color = Color(limb_color.r, limb_color.g, limb_color.b, 0.5)
-			tmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			var debug_torso_material := StandardMaterial3D.new()
+			debug_torso_material.albedo_color = Color(limb_color.r, limb_color.g, limb_color.b, 0.5)
+			debug_torso_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			debug_torso_material.roughness = 0.7
+			debug_torso_material.metallic = 0.1
+			tmat = debug_torso_material
 		else:
-			tmat.albedo_color = body_color
-		tmat.roughness = 0.7
-		tmat.metallic = 0.1
+			tmat = ToonPresets.create_material(toon_preset, body_color)
 		tmi.material_override = tmat
 		torso.add_child(tmi)
 	bodies["torso"] = torso
@@ -171,14 +176,17 @@ static func build(container: Node3D, pelvis: Node3D, parts: Dictionary, opts: Di
 		var bm := BoxMesh.new()
 		bm.size = spec["ext"] * 2.0
 		mi.mesh = bm
-		var mat := StandardMaterial3D.new()
 		var base_col: Color = head_color if str(spec["key"]) == "head" else limb_color
-		mat.albedo_color = base_col
-		mat.roughness = 0.7
-		mat.metallic = 0.1
+		var mat: Material
 		if debug:
-			mat.albedo_color = Color(base_col.r, base_col.g, base_col.b, 0.5)
-			mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			var debug_limb_material := StandardMaterial3D.new()
+			debug_limb_material.albedo_color = Color(base_col.r, base_col.g, base_col.b, 0.5)
+			debug_limb_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			debug_limb_material.roughness = 0.7
+			debug_limb_material.metallic = 0.1
+			mat = debug_limb_material
+		else:
+			mat = ToonPresets.create_material(toon_preset, base_col)
 		mi.material_override = mat
 		body.add_child(mi)
 

@@ -1,0 +1,44 @@
+[gd_resource type="ShaderMaterial" format=3 uid="uid://ct1u8bxs2vjlp"]
+
+[ext_resource type="Shader" uid="uid://cnayk0734c0af" path="res://assets/BinbunVFX/shared/shader/opaque.gdshader" id="1_7opgf"]
+[ext_resource type="Texture2D" uid="uid://brh44ewuar3o" path="res://assets/BinbunVFX/shared/texture/noise/cell/cell_manhattan_01.tres" id="2_vwyuc"]
+[ext_resource type="Texture2D" uid="uid://dr4gkemfsllyy" path="res://assets/BinbunVFX/shared/texture/gradient/up/up_01.tres" id="3_tcgoc"]
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_7opgf")
+shader_parameter/mask1_texture = ExtResource("2_vwyuc")
+shader_parameter/mask1_scroll = Vector2(-0.02, 0.1)
+shader_parameter/mask1_scale = Vector2(1, 1)
+shader_parameter/mask1_radial = false
+shader_parameter/use_mask2 = true
+shader_parameter/mask2_scroll = Vector2(0.1, 0.2)
+shader_parameter/mask2_scale = Vector2(1, 1)
+shader_parameter/mask2_strength = 0.3
+shader_parameter/mask2_blend_mode = 5
+shader_parameter/mask2_radial = false
+shader_parameter/use_mask3 = true
+shader_parameter/mask3_texture = ExtResource("3_tcgoc")
+shader_parameter/mask3_scroll = Vector2(0, 0)
+shader_parameter/mask3_scale = Vector2(1, 1)
+shader_parameter/mask3_strength = 0.55
+shader_parameter/mask3_blend_mode = 5
+shader_parameter/mask3_radial = false
+shader_parameter/primary_color = Color(0.8, 0.878431, 1, 1)
+shader_parameter/secondary_color = Color(0.411765, 0.752941, 1, 1)
+shader_parameter/tertiary_color = Color(0.176471, 0.431373, 1, 1)
+shader_parameter/use_tertiary = true
+shader_parameter/color_smoothness = 1.0
+shader_parameter/billboard = false
+shader_parameter/displacement_scale = 0.1
+shader_parameter/displacement_offset = 1.0
+shader_parameter/time_scale = 1.0
+shader_parameter/texture_scale = Vector2(1, 1)
+shader_parameter/uv_alignment = 0
+shader_parameter/emission_strength = 4.0
+shader_parameter/proximity_fade = false
+shader_parameter/proximity_fade_distance = 1.0
+shader_parameter/alpha_multiplier = 1.0
+shader_parameter/alpha_mode = 0
+shader_parameter/alpha_cutoff = 0.0
+shader_parameter/dither_cutoff = 0.86

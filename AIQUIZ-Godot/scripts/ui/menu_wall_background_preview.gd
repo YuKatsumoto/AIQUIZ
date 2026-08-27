@@ -146,7 +146,7 @@ var _p2_ai: MenuPreviewActorAIState
 ## 本物の問題を壁に載せるためのオフライン問題プロバイダ (API不要)
 var _quiz_provider: QuizProvider = null
 var _preview_subject_idx: int = 0
-var _menu_synced_player_count: int = 1
+var _menu_synced_player_count: int = 2
 var _p2_remove_deadline: float = -1.0
 var _preview_p1_rig_emote_ids: Array[int] = []
 var _preview_p2_rig_emote_ids: Array[int] = []
@@ -464,7 +464,7 @@ func _build_3d_scene() -> void:
 
 	_preview_gs = QuizGameState.new()
 	_preview_gs.game_state = Constants.STATE_PLAYING
-	_preview_gs.num_players = 1
+	_preview_gs.num_players = 2
 	_preview_gs.p1_alive = true
 	_preview_gs.p1_wall_impact = false
 	_preview_gs.player_x = _pick_ai_dash_target_x(_p1_ai)
@@ -476,9 +476,11 @@ func _build_3d_scene() -> void:
 	_preview_gs.p1_moving_back = false
 	_preview_gs.player_vel_y = 0.0
 	_preview_gs._active_wall_speed = _preview_speed
-	_menu_synced_player_count = 1
+	_menu_synced_player_count = 2
 	_apply_menu_player_count_to_gs()
 	_rebuild_preview_player()
+	if _menu_synced_player_count == 2:
+		_enable_preview_p2_drop_in()
 	_reset_preview_ai_state()
 
 

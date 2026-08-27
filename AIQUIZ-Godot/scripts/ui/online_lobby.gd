@@ -92,7 +92,8 @@ func _on_connection_succeeded(role: String) -> void:
 		NetworkManager.send_player_info(
 			"ゲスト",
 			game_state.p2_hat,
-			Array(game_state.p2_emote_slots)
+			Array(game_state.p2_emote_slots),
+			game_state.p2_toon_preset,
 		)
 
 
@@ -106,7 +107,8 @@ func _on_guest_joined() -> void:
 	NetworkManager.send_player_info(
 		"ホスト",
 		game_state.p1_hat,
-		Array(game_state.p1_emote_slots)
+		Array(game_state.p1_emote_slots),
+		game_state.p1_toon_preset,
 	)
 	waiting_label.text = "相手が参加しました！\nゲームを開始します..."
 
@@ -144,6 +146,21 @@ func _on_room_list_received(rooms: Array) -> void:
 
 func _on_game_start_received(data: Dictionary) -> void:
 	# ゲスト: ホストからのゲーム開始通知
+	if NetworkManager.is_host:
+		return
+	game_state.subject = str(data.get("subject", game_state.subject))
+	game_state.grade = int(data.get("grade", game_state.grade))
+	game_state.difficulty = str(data.get("difficulty", game_state.difficulty))
+	game_state.mode = str(data.get("mode", game_state.mode))
+	game_state.llm_mode = str(data.get("llm_mode", game_state.llm_mode))
+	game_state.quiz_list.clear()
+	game_state.current_quiz = null
+	game_state.game_state = Constants.STATE_PRELOADING
+	if game_state.provider is BufferedQuizProvider:
+		var buffered_provider := game_state.provider as BufferedQuizProvider
+		buffered_provider.current_mode = game_state.mode
+		buffered_provider.set_llm_mode(game_state.llm_mode)
+	game_state.provider.end_round()
 	_transition_to_game()
 
 
@@ -162,18 +179,23 @@ func _join_room(rid: String) -> void:
 
 func _start_online_game() -> void:
 	# ホスト: ゲーム設定を送信して開始
+	game_state.llm_mode = QuizManager.provider.llm_mode
 	NetworkManager.send_settings({
 		"subject": game_state.subject,
 		"grade": game_state.grade,
 		"difficulty": game_state.difficulty,
 		"mode": game_state.mode,
+		"llm_mode": game_state.llm_mode,
 	})
 	NetworkManager.send_game_start({
 		"subject": game_state.subject,
 		"grade": game_state.grade,
 		"difficulty": game_state.difficulty,
 		"mode": game_state.mode,
+		"llm_mode": game_state.llm_mode,
 	})
+	# ホストだけが問題生成を開始し、クライアントは検証済みデータの同期だけを受ける。
+	game_state.start_game()
 	NetworkManager.state = NetworkManager.State.IN_GAME
 	_transition_to_game()
 

@@ -3,8 +3,15 @@ extends Node3D
 
 signal aim_used(player_index: int)
 signal charge_resolved(player_index: int, hit: bool, power: float)
+signal result_rider_released(rider: Node3D)
 
 const SharkSwimmerScript = preload("res://scripts/world/shark_swimmer.gd")
+const GHOST_RETURN_PORTAL_P1_SCENE := preload(
+	"res://assets/BinbunVFX/portal_vfx/effects/portal/portal_vfx_01.tscn"
+)
+const GHOST_RETURN_PORTAL_P2_SCENE := preload(
+	"res://assets/BinbunVFX/portal_vfx/effects/portal/portal_vfx_04.tscn"
+)
 
 enum Phase {
 	INACTIVE,
@@ -85,6 +92,25 @@ const SOUL_PRESENTATION_RENDER_LAYER: int = 20
 const GHOST_MOUNT_BEAM_RENDER_LAYER: int = 19
 const GHOST_MOUNT_BEAM_LAUNCH_CAMERA_SHAKE: float = 1.15
 const GHOST_MOUNT_BEAM_SUSTAINED_CAMERA_SHAKE: float = 0.82
+const RETURN_PORTAL_SEQUENCE_SECONDS: float = 6.0
+const RETURN_PORTAL_SHARK_REVEAL_SECONDS: float = 1.15
+const RETURN_PORTAL_TAIL_CLEAR_HOLD_SECONDS: float = 0.70
+const RETURN_PORTAL_ANIMATION_SPEED: float = 0.72
+const RETURN_PORTAL_CLOSED_THRESHOLD: float = 0.02
+const RETURN_PORTAL_TAIL_DISTANCE: float = 2.25
+const RETURN_PORTAL_GRANDSTAND_OFFSET: float = 2.15
+const RETURN_PORTAL_VERTICAL_OFFSET: float = 0.0
+const RETURN_PORTAL_SHARK_START_DEPTH: float = 4.20
+const RETURN_PORTAL_SIZE := Vector2(5.2, 5.2)
+const RETURN_PORTAL_VIEW_YAW_DEGREES: float = 20.0
+const RETURN_PORTAL_TUNNEL_DEPTH: float = 1.75
+const RETURN_PORTAL_TUNNEL_MOUTH_RADIUS: float = 2.18
+const RETURN_PORTAL_TUNNEL_BACK_RADIUS: float = 1.58
+const RETURN_PORTAL_TUNNEL_RING_COUNT: int = 5
+const RETURN_PORTAL_TUNNEL_FLOW_SPEED: float = 0.32
+const RETURN_PORTAL_CROSSING_PROGRESS: float = 0.56
+const RETURN_PORTAL_CROSSING_FLASH_SECONDS: float = 0.62
+const RETURN_PORTAL_CROSSING_SHAKE: float = 0.30
 const STAGE_REVEAL_PROGRESS: float = 0.46
 const HUD_SLIDE_SECONDS: float = 0.55
 const HUD_PANEL_WIDTH: float = 320.0
@@ -156,6 +182,25 @@ var _current_cooldown_duration: float = MISS_COOLDOWN_SECONDS
 var _result_text: String = ""
 var _player_color: Color = Color.WHITE
 var _ghost_emote_id: int = 0
+var _return_portal: Node3D = null
+var _return_portal_elapsed: float = 0.0
+var _return_tail_clear_elapsed: float = 0.0
+var _return_portal_close_started: bool = false
+var _return_portal_surface_opaque: bool = false
+var _return_portal_exit_direction: Vector3 = Vector3.ZERO
+var _return_portal_depth_root: Node3D = null
+var _return_portal_depth_rings: Array[MeshInstance3D] = []
+var _return_portal_depth_light: OmniLight3D = null
+var _return_portal_crossing_pulsed: bool = false
+var _return_portal_crossing_flash_elapsed: float = -1.0
+var _return_animation_locked: bool = false
+var _result_departure_only: bool = false
+var _return_locked_hover_target: Vector3 = Vector3.ZERO
+var _return_locked_aim_point: Vector3 = Vector3.ZERO
+var _portal_prewarm_root: Node3D = null
+var _portal_prewarm_sharks: Array[SharkSwimmerScript] = []
+var _portal_prewarm_instances: Dictionary = {}
+var _return_portal_cache: Dictionary = {}
 
 var _aim_ring: MeshInstance3D = null
 var _aim_outer_ring: MeshInstance3D = null
@@ -261,10 +306,113 @@ func update_ghost_ride(
 
 
 func force_cleanup() -> void:
+	end_return_portal_render_prewarm()
 	_cleanup_ghost_ride()
 	if game_state:
 		_previous_p1_alive = game_state.p1_alive
 		_previous_p2_alive = game_state.p2_alive
+
+
+func begin_result_dismount(target_parent: Node) -> Node3D:
+	if dead_player_index not in [1, 2] or target_parent == null:
+		return null
+	var released := _rider
+	if released == null or not is_instance_valid(released):
+		released = player_controller.create_ghost_rider_visual(dead_player_index)
+		add_child(released)
+	var released_transform := released.global_transform
+	# Result characters belong to the gameplay camera again. Heroic soul travel
+	# temporarily isolates the rider on layer 20, which the main camera culls.
+	_set_rider_presentation_only(false)
+	released.reparent(target_parent, false)
+	released.global_transform = released_transform
+	released.scale = Vector3.ONE
+	player_controller.make_ghost_rider_translucent(released)
+	_rider = null
+	_clear_ghost_emote()
+	_hide_aim_visuals()
+	_result_departure_only = true
+	_result_text = "RESULT RETURN"
+	_hit_this_charge = false
+	if _shark != null and is_instance_valid(_shark):
+		_begin_cooldown()
+	else:
+		_cleanup_ghost_ride()
+	result_rider_released.emit(released)
+	return released
+
+
+## 購入済みのP1/P2ポータルと実際の海サメ用Stencil材質を、黒画面の裏で
+## カメラへ描画できる状態にする。ゲーム進行用の_return_portalやPhaseは触らない。
+func begin_return_portal_render_prewarm(prewarm_camera: Camera3D) -> Dictionary:
+	end_return_portal_render_prewarm()
+	var report := {
+		"ready": false,
+		"portals": 0,
+		"stencil_surfaces": 0,
+	}
+	if prewarm_camera == null or not is_instance_valid(prewarm_camera):
+		return report
+
+	_portal_prewarm_root = Node3D.new()
+	_portal_prewarm_root.name = "GhostReturnPortalPrewarm"
+	prewarm_camera.add_child(_portal_prewarm_root)
+
+	var portal_scenes: Array[PackedScene] = [
+		GHOST_RETURN_PORTAL_P1_SCENE,
+		GHOST_RETURN_PORTAL_P2_SCENE,
+	]
+	for portal_index: int in range(portal_scenes.size()):
+		var portal := portal_scenes[portal_index].instantiate() as Node3D
+		if portal == null:
+			continue
+		portal.name = "PortalP%d" % (portal_index + 1)
+		portal.visible = false
+		_portal_prewarm_root.add_child(portal)
+		portal.position = Vector3(-1.55 if portal_index == 0 else 1.55, 0.0, -5.2)
+		portal.set("size", RETURN_PORTAL_SIZE)
+		portal.set("portal_mode", 2)
+		_make_return_portal_surface_opaque_for(portal)
+		_build_return_portal_depth_for(portal)
+		portal.set("animation_speed", RETURN_PORTAL_ANIMATION_SPEED)
+		portal.set("open_amount", 1.0)
+		portal.visible = true
+		_portal_prewarm_instances[portal_index + 1] = portal
+		report["portals"] = int(report["portals"]) + 1
+
+	if stage_environment != null:
+		for shark: SharkSwimmerScript in stage_environment.get_ocean_sharks():
+			if shark == null or not is_instance_valid(shark):
+				continue
+			var surface_count: int = shark.begin_ghost_portal_render_prewarm()
+			if surface_count <= 0:
+				continue
+			_portal_prewarm_sharks.append(shark)
+			report["stencil_surfaces"] = int(report["stencil_surfaces"]) + surface_count
+
+	report["ready"] = (
+		int(report["portals"]) == portal_scenes.size()
+		and int(report["stencil_surfaces"]) > 0
+	)
+	return report
+
+
+func end_return_portal_render_prewarm() -> void:
+	for shark: SharkSwimmerScript in _portal_prewarm_sharks:
+		if shark != null and is_instance_valid(shark):
+			shark.end_ghost_portal_render_prewarm()
+	_portal_prewarm_sharks.clear()
+	for player_index_variant: Variant in _portal_prewarm_instances:
+		var player_index := int(player_index_variant)
+		var portal := _portal_prewarm_instances[player_index_variant] as Node3D
+		if portal == null or not is_instance_valid(portal):
+			continue
+		portal.reparent(self, false)
+		_cache_return_portal(player_index, portal)
+	_portal_prewarm_instances.clear()
+	if _portal_prewarm_root != null and is_instance_valid(_portal_prewarm_root):
+		_portal_prewarm_root.queue_free()
+	_portal_prewarm_root = null
 
 
 func get_debug_state() -> Dictionary:
@@ -292,6 +440,42 @@ func get_debug_state() -> Dictionary:
 		"rendezvous_position": _rendezvous_position,
 		"presentation_focus": _presentation_focus,
 		"ghost_emote": _ghost_emote_id,
+		"return_portal_active": _return_portal != null and is_instance_valid(_return_portal),
+		"return_portal_position": (
+			_return_portal.global_position
+			if _return_portal != null and is_instance_valid(_return_portal)
+			else Vector3.ZERO
+		),
+		"return_portal_elapsed": _return_portal_elapsed,
+		"return_tail_clear_elapsed": _return_tail_clear_elapsed,
+		"return_portal_close_started": _return_portal_close_started,
+		"return_portal_surface_opaque": _return_portal_surface_opaque,
+		"return_portal_open_amount": (
+			float(_return_portal.get("open_amount"))
+			if _return_portal != null and is_instance_valid(_return_portal)
+			else 0.0
+		),
+		"return_portal_tail_distance": RETURN_PORTAL_TAIL_DISTANCE,
+		"return_portal_exit_forward": (
+			_return_portal_exit_direction
+			if _return_portal_exit_direction.length_squared() > 0.0001
+			else Vector3.ZERO
+		),
+		"return_portal_forward": (
+			_return_portal.global_basis.z.normalized()
+			if _return_portal != null and is_instance_valid(_return_portal)
+			else Vector3.ZERO
+		),
+		"return_portal_path_alignment": _return_portal_path_alignment(),
+		"return_portal_view_angle_degrees": _return_portal_view_angle_degrees(),
+		"return_portal_tunnel_depth": RETURN_PORTAL_TUNNEL_DEPTH,
+		"return_portal_tunnel_ring_count": _return_portal_depth_rings.size(),
+		"return_portal_crossing_pulsed": _return_portal_crossing_pulsed,
+		"return_shark_revealed": _cooldown_entry_started,
+		"return_animation_locked": _return_animation_locked,
+		"return_locked_hover_target": _return_locked_hover_target,
+		"return_locked_aim_point": _return_locked_aim_point,
+		"return_portal_preset": "portal_vfx_01" if dead_player_index == 1 else "portal_vfx_04",
 		"hud_visible": _hud_panel != null and _hud_panel.visible,
 		"hud_position": _hud_panel.position if _hud_panel != null else Vector2.ZERO,
 		"hud_slide_progress": clampf(_hud_slide_elapsed / HUD_SLIDE_SECONDS, 0.0, 1.0),
@@ -474,7 +658,13 @@ func _base_mode_is_eligible(is_online: bool, is_replay: bool) -> bool:
 func _can_continue(is_online: bool, is_replay: bool) -> bool:
 	if not _base_mode_is_eligible(is_online, is_replay):
 		return false
-	if game_state.game_state not in [Constants.STATE_PLAYING, Constants.STATE_CORRECT, Constants.STATE_GOAL_RACE]:
+	if game_state.game_state not in [
+		Constants.STATE_PLAYING,
+		Constants.STATE_CORRECT,
+		Constants.STATE_GOAL_RACE,
+		Constants.STATE_RESULT_CEREMONY,
+		Constants.STATE_CLEAR,
+	]:
 		return false
 	# 復活したプレイヤーがサメに乗り続けないよう、乗り手が生き返ったら畳む。
 	# チュートリアルの復活（最終レース前・全滅やり直し）がこの経路を通る。
@@ -511,7 +701,7 @@ func _update_active_phase(
 		Phase.WINDUP,
 		Phase.CHARGING,
 		Phase.COOLDOWN,
-	]:
+	] and not (phase == Phase.COOLDOWN and _return_animation_locked):
 		_update_progress_follow()
 	match phase:
 		Phase.DEATH_HOLD:
@@ -627,7 +817,8 @@ func _update_active_phase(
 			if _charge_finished_pending:
 				_begin_cooldown()
 		Phase.COOLDOWN:
-			_update_ghost_emote(emote_input, false)
+			if not _result_departure_only:
+				_update_ghost_emote(emote_input, false)
 			_update_cooldown(delta)
 	if (
 		phase in [Phase.AIMING, Phase.WINDUP, Phase.CHARGING, Phase.COOLDOWN]
@@ -1035,7 +1226,13 @@ func _acquire_shark() -> SharkSwimmerScript:
 func _update_hover_target() -> void:
 	if _shark == null or not is_instance_valid(_shark):
 		return
-	_shark.set_ghost_hover_target(_fixed_hover_target, _current_aim_point())
+	var hover_target := (
+		_return_locked_hover_target if _return_animation_locked else _fixed_hover_target
+	)
+	var aim_point := (
+		_return_locked_aim_point if _return_animation_locked else _current_aim_point()
+	)
+	_shark.set_ghost_hover_target(hover_target, aim_point)
 
 
 func _update_problem_wall_occlusion() -> void:
@@ -1101,7 +1298,7 @@ func _ghost_occlusion_sample_points() -> Array[Vector3]:
 
 
 func _calculate_hover_target() -> Vector3:
-	return _fixed_hover_target
+	return _return_locked_hover_target if _return_animation_locked else _fixed_hover_target
 
 
 func _calculate_entry_position(hover_target: Vector3) -> Vector3:
@@ -1271,6 +1468,11 @@ func _on_ghost_mount_beam_fired(_beam_index: int) -> void:
 
 func _begin_cooldown() -> void:
 	phase = Phase.COOLDOWN
+	# 復帰演出中は生存プレイヤーの移動でポータル位置・通過経路・姿勢を
+	# 更新しない。攻撃終了時の構図をアニメーション完了まで保持する。
+	_return_animation_locked = true
+	_return_locked_hover_target = _fixed_hover_target
+	_return_locked_aim_point = _current_aim_point()
 	if _hit_this_charge:
 		_current_cooldown_duration = HIT_COOLDOWN_SECONDS
 		_current_cooldown_duration -= minf(4.0, float(_combo - 1)) * COMBO_COOLDOWN_STEP
@@ -1281,8 +1483,19 @@ func _begin_cooldown() -> void:
 		_combo = 0
 		_result_text = "MISS… HAUNT COMBO RESET"
 		_current_cooldown_duration = MISS_COOLDOWN_SECONDS
+	_current_cooldown_duration = maxf(
+		_current_cooldown_duration,
+		RETURN_PORTAL_SEQUENCE_SECONDS
+	)
 	_phase_timer = _current_cooldown_duration
 	_cooldown_entry_started = false
+	_return_portal_elapsed = 0.0
+	_return_tail_clear_elapsed = 0.0
+	_return_portal_close_started = false
+	_return_portal_exit_direction = Vector3.ZERO
+	_return_portal_crossing_pulsed = false
+	_return_portal_crossing_flash_elapsed = -1.0
+	_cleanup_return_portal()
 	_charge_finished_pending = false
 	_charging_input = false
 	_charge_amount = 0.0
@@ -1295,9 +1508,324 @@ func _begin_cooldown() -> void:
 	charge_resolved.emit(dead_player_index, _hit_this_charge, _last_charge_power)
 
 
+func _spawn_return_portal() -> void:
+	var cached_portal := _return_portal_cache.get(dead_player_index) as Node3D
+	var reused_prepared_portal := cached_portal != null and is_instance_valid(cached_portal)
+	if reused_prepared_portal:
+		_return_portal_cache.erase(dead_player_index)
+		_return_portal = cached_portal
+		_return_portal.process_mode = Node.PROCESS_MODE_INHERIT
+		_return_portal.transform = Transform3D.IDENTITY
+		_bind_return_portal_depth(_return_portal)
+	else:
+		var portal_scene: PackedScene = (
+			GHOST_RETURN_PORTAL_P1_SCENE
+			if dead_player_index == 1
+			else GHOST_RETURN_PORTAL_P2_SCENE
+		)
+		_return_portal = portal_scene.instantiate() as Node3D
+	if _return_portal == null:
+		push_warning("Ghost return portal preset could not be instantiated")
+		return
+	_return_portal.name = "GhostReturnPortalP%d" % dead_player_index
+	_return_portal.visible = false
+	if not reused_prepared_portal:
+		add_child(_return_portal)
+	_return_portal.set("size", RETURN_PORTAL_SIZE)
+	# The official pack's emergence demo relies on its stencil aperture: the
+	# rider and shark are visible through the opening before they clear its plane.
+	_return_portal.set("portal_mode", 2)
+	if not reused_prepared_portal:
+		_make_return_portal_surface_opaque()
+		_build_return_portal_depth()
+	_return_portal.set("animation_speed", RETURN_PORTAL_ANIMATION_SPEED)
+	_return_portal_exit_direction = _return_portal_exit_forward(_calculate_hover_target())
+	_update_return_portal_transform()
+	_return_portal.set("open_amount", 0.0)
+	_return_portal.visible = true
+	var portal_particles := _return_portal.get_node_or_null("GPUParticles3D") as GPUParticles3D
+	if portal_particles != null:
+		portal_particles.restart()
+	_return_portal.call("open")
+
+
+## Keep the purchased preset's stencil writer active, but render its central
+## aperture at full opacity. The glow ring and particles remain authored VFX.
+func _make_return_portal_surface_opaque() -> void:
+	if _return_portal == null or not is_instance_valid(_return_portal):
+		_return_portal_surface_opaque = false
+		return
+	_return_portal_surface_opaque = _make_return_portal_surface_opaque_for(_return_portal)
+
+
+func _make_return_portal_surface_opaque_for(portal: Node3D) -> bool:
+	if portal == null or not is_instance_valid(portal):
+		return false
+	var portal_mesh := portal.get_node_or_null("PortalMesh") as MeshInstance3D
+	if portal_mesh == null:
+		push_warning("Ghost return portal is missing PortalMesh")
+		return false
+	var source_material := portal_mesh.material_override as ShaderMaterial
+	if source_material == null:
+		push_warning("Ghost return portal PortalMesh is missing its shader material")
+		return false
+	var opaque_material := source_material.duplicate(true) as ShaderMaterial
+	if opaque_material == null:
+		push_warning("Ghost return portal material could not be localized")
+		return false
+	portal_mesh.material_override = opaque_material
+	opaque_material.set_shader_parameter("portal_mode", 0)
+	return int(opaque_material.get_shader_parameter("portal_mode")) == 0
+
+
+## Give the preset a physical interior: the authored opaque PortalMesh becomes
+## the rear wall, while a tapered shell and moving rings make its depth readable
+## from the gameplay camera. The purchased glow and particle nodes stay at the mouth.
+func _build_return_portal_depth() -> void:
+	_return_portal_depth_rings.clear()
+	_return_portal_depth_root = null
+	_return_portal_depth_light = null
+	if _return_portal == null or not is_instance_valid(_return_portal):
+		return
+	var depth_parts := _build_return_portal_depth_for(_return_portal)
+	_return_portal_depth_root = depth_parts.get("root") as Node3D
+	var rings_variant: Variant = depth_parts.get("rings", [])
+	if rings_variant is Array:
+		for ring_variant: Variant in rings_variant:
+			var ring := ring_variant as MeshInstance3D
+			if ring != null:
+				_return_portal_depth_rings.append(ring)
+	_return_portal_depth_light = depth_parts.get("light") as OmniLight3D
+	_update_return_portal_depth_effect(0.0)
+
+
+func _bind_return_portal_depth(portal: Node3D) -> void:
+	_return_portal_depth_rings.clear()
+	_return_portal_depth_root = portal.get_node_or_null("DepthInterior") as Node3D
+	_return_portal_depth_light = null
+	if _return_portal_depth_root != null:
+		for child: Node in _return_portal_depth_root.get_children():
+			if child is MeshInstance3D and child.name.begins_with("DepthRing"):
+				_return_portal_depth_rings.append(child as MeshInstance3D)
+			elif child is OmniLight3D and child.name == "CrossingFlash":
+				_return_portal_depth_light = child as OmniLight3D
+	var portal_mesh := portal.get_node_or_null("PortalMesh") as MeshInstance3D
+	var portal_material := (
+		portal_mesh.material_override as ShaderMaterial if portal_mesh != null else null
+	)
+	_return_portal_surface_opaque = (
+		portal_material != null
+		and int(portal_material.get_shader_parameter("portal_mode")) == 0
+	)
+
+
+func _build_return_portal_depth_for(portal: Node3D) -> Dictionary:
+	var depth_parts := {"root": null, "rings": [], "light": null}
+	if portal == null or not is_instance_valid(portal):
+		return depth_parts
+	var primary_variant: Variant = portal.get("primary_color")
+	var secondary_variant: Variant = portal.get("secondary_color")
+	var primary_color: Color = (
+		primary_variant if primary_variant is Color else _player_color
+	)
+	var secondary_color: Color = (
+		secondary_variant if secondary_variant is Color else _player_color.darkened(0.58)
+	)
+
+	var portal_mesh := portal.get_node_or_null("PortalMesh") as MeshInstance3D
+	if portal_mesh != null:
+		portal_mesh.position.z = -RETURN_PORTAL_TUNNEL_DEPTH + 0.025
+		portal_mesh.scale = Vector3(0.78, 0.78, 1.0)
+
+	var depth_root := Node3D.new()
+	depth_root.name = "DepthInterior"
+	portal.add_child(depth_root)
+
+	var tunnel_instance := MeshInstance3D.new()
+	tunnel_instance.name = "TaperedTunnel"
+	var tunnel_mesh := CylinderMesh.new()
+	tunnel_mesh.top_radius = RETURN_PORTAL_TUNNEL_MOUTH_RADIUS
+	tunnel_mesh.bottom_radius = RETURN_PORTAL_TUNNEL_BACK_RADIUS
+	tunnel_mesh.height = RETURN_PORTAL_TUNNEL_DEPTH
+	tunnel_mesh.radial_segments = 64
+	tunnel_mesh.rings = 8
+	tunnel_mesh.cap_top = false
+	tunnel_mesh.cap_bottom = true
+	tunnel_mesh.flip_faces = true
+	var tunnel_material := StandardMaterial3D.new()
+	tunnel_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	tunnel_material.albedo_color = secondary_color.darkened(0.76)
+	tunnel_material.emission_enabled = true
+	tunnel_material.emission = primary_color.darkened(0.62)
+	tunnel_material.emission_energy_multiplier = 0.72
+	tunnel_material.metallic_specular = 0.0
+	tunnel_material.disable_fog = true
+	tunnel_mesh.material = tunnel_material
+	tunnel_instance.mesh = tunnel_mesh
+	tunnel_instance.rotation_degrees.x = 90.0
+	tunnel_instance.position.z = -RETURN_PORTAL_TUNNEL_DEPTH * 0.5
+	tunnel_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	depth_root.add_child(tunnel_instance)
+
+	var depth_rings: Array[MeshInstance3D] = []
+	for ring_index: int in range(RETURN_PORTAL_TUNNEL_RING_COUNT):
+		var ring := MeshInstance3D.new()
+		ring.name = "DepthRing%02d" % (ring_index + 1)
+		var ring_mesh := TorusMesh.new()
+		ring_mesh.inner_radius = 0.94
+		ring_mesh.outer_radius = 1.0
+		ring_mesh.rings = 48
+		ring_mesh.ring_segments = 8
+		var ring_material := StandardMaterial3D.new()
+		ring_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		ring_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		var ring_mix := float(ring_index) / maxf(
+			1.0,
+			float(RETURN_PORTAL_TUNNEL_RING_COUNT - 1)
+		)
+		var ring_color := primary_color.lerp(secondary_color, ring_mix * 0.48)
+		ring_color.a = lerpf(0.88, 0.56, ring_mix)
+		ring_material.albedo_color = ring_color
+		ring_material.emission_enabled = true
+		ring_material.emission = ring_color
+		ring_material.emission_energy_multiplier = lerpf(2.25, 1.35, ring_mix)
+		ring_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+		ring_material.disable_fog = true
+		ring_mesh.material = ring_material
+		ring.mesh = ring_mesh
+		ring.rotation_degrees.x = 90.0
+		ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		var travel := float(ring_index) / maxf(1.0, float(RETURN_PORTAL_TUNNEL_RING_COUNT))
+		ring.position.z = lerpf(-RETURN_PORTAL_TUNNEL_DEPTH + 0.14, -0.08, travel)
+		var radius := lerpf(
+			RETURN_PORTAL_TUNNEL_BACK_RADIUS * 0.94,
+			RETURN_PORTAL_TUNNEL_MOUTH_RADIUS * 0.98,
+			travel
+		)
+		ring.scale = Vector3.ONE * radius
+		depth_root.add_child(ring)
+		depth_rings.append(ring)
+
+	var depth_light := OmniLight3D.new()
+	depth_light.name = "CrossingFlash"
+	depth_light.light_color = primary_color
+	depth_light.light_energy = 0.0
+	depth_light.omni_range = 5.4
+	depth_light.omni_attenuation = 2.1
+	depth_light.shadow_enabled = false
+	depth_light.position.z = -0.16
+	depth_root.add_child(depth_light)
+	depth_root.visible = true
+	depth_root.scale = Vector3.ONE
+	depth_parts["root"] = depth_root
+	depth_parts["rings"] = depth_rings
+	depth_parts["light"] = depth_light
+	return depth_parts
+
+
+func _update_return_portal_depth_effect(delta: float) -> void:
+	if (
+		_return_portal == null
+		or not is_instance_valid(_return_portal)
+		or _return_portal_depth_root == null
+		or not is_instance_valid(_return_portal_depth_root)
+	):
+		return
+	var open_amount := clampf(float(_return_portal.get("open_amount")), 0.0, 1.0)
+	var open_scale := smoothstep(0.02, 0.78, open_amount)
+	_return_portal_depth_root.visible = open_scale > 0.015
+	_return_portal_depth_root.scale = Vector3(open_scale, open_scale, 1.0)
+	var ring_count := _return_portal_depth_rings.size()
+	for ring_index: int in range(ring_count):
+		var ring := _return_portal_depth_rings[ring_index]
+		if not is_instance_valid(ring):
+			continue
+		var ring_phase := fposmod(
+			_return_portal_elapsed * RETURN_PORTAL_TUNNEL_FLOW_SPEED
+			+ float(ring_index) / maxf(1.0, float(ring_count)),
+			1.0
+		)
+		var travel := smoothstep(0.0, 1.0, ring_phase)
+		ring.position.z = lerpf(
+			-RETURN_PORTAL_TUNNEL_DEPTH + 0.14,
+			-0.08,
+			travel
+		)
+		var radius := lerpf(
+			RETURN_PORTAL_TUNNEL_BACK_RADIUS * 0.94,
+			RETURN_PORTAL_TUNNEL_MOUTH_RADIUS * 0.98,
+			travel
+		)
+		ring.scale = Vector3.ONE * radius
+
+	if (
+		_cooldown_entry_started
+		and not _return_portal_crossing_pulsed
+		and _shark != null
+		and is_instance_valid(_shark)
+		and _shark.has_method("get_ghost_ride_debug_state")
+	):
+		var shark_state: Dictionary = _shark.call("get_ghost_ride_debug_state")
+		if float(shark_state.get("portal_entry_progress", 0.0)) >= RETURN_PORTAL_CROSSING_PROGRESS:
+			_return_portal_crossing_pulsed = true
+			_return_portal_crossing_flash_elapsed = 0.0
+			if game_state != null:
+				game_state.camera_shake = maxf(
+					game_state.camera_shake,
+					RETURN_PORTAL_CROSSING_SHAKE
+				)
+
+	if _return_portal_crossing_flash_elapsed >= 0.0:
+		_return_portal_crossing_flash_elapsed += delta
+		var flash_progress := clampf(
+			_return_portal_crossing_flash_elapsed / RETURN_PORTAL_CROSSING_FLASH_SECONDS,
+			0.0,
+			1.0
+		)
+		if _return_portal_depth_light != null and is_instance_valid(_return_portal_depth_light):
+			_return_portal_depth_light.light_energy = sin(flash_progress * PI) * 3.2
+		if flash_progress >= 1.0:
+			_return_portal_crossing_flash_elapsed = -1.0
+	else:
+		if _return_portal_depth_light != null and is_instance_valid(_return_portal_depth_light):
+			_return_portal_depth_light.light_energy = 0.0
+
+
 func _update_cooldown(delta: float) -> void:
 	_phase_timer = maxf(0.0, _phase_timer - delta)
-	if not _cooldown_entry_started and _phase_timer <= ENTRY_SECONDS:
+	if _return_portal == null and _phase_timer <= RETURN_PORTAL_SEQUENCE_SECONDS:
+		_spawn_return_portal()
+	if _return_portal != null and is_instance_valid(_return_portal):
+		_return_portal_elapsed = minf(
+			RETURN_PORTAL_SEQUENCE_SECONDS,
+			_return_portal_elapsed + delta
+		)
+		# Spawn時に確定したポータル姿勢を復帰完了まで保持する。
+		# 生存プレイヤーやカメラが移動しても毎フレーム再計算しない。
+		_update_return_portal_depth_effect(delta)
+		if (
+			not _cooldown_entry_started
+			and _return_portal_elapsed >= RETURN_PORTAL_SHARK_REVEAL_SECONDS
+		):
+			_begin_shark_portal_reentry()
+		if (
+			_cooldown_entry_started
+			and _shark != null
+			and is_instance_valid(_shark)
+			and _shark.is_ghost_hovering()
+		):
+			_return_tail_clear_elapsed = minf(
+				RETURN_PORTAL_TAIL_CLEAR_HOLD_SECONDS,
+				_return_tail_clear_elapsed + delta
+			)
+		if (
+			not _return_portal_close_started
+			and _return_tail_clear_elapsed >= RETURN_PORTAL_TAIL_CLEAR_HOLD_SECONDS
+		):
+			_return_portal_close_started = true
+			_return_portal.call("close")
+	elif not _cooldown_entry_started and _phase_timer <= ENTRY_SECONDS:
+		# Keep the original authored return as a safe fallback if the preset fails.
 		_cooldown_entry_started = true
 		var hover_target := _calculate_hover_target()
 		var entry_position := _calculate_entry_position(hover_target)
@@ -1311,9 +1839,151 @@ func _update_cooldown(delta: float) -> void:
 	)
 	_set_meter(cooldown_progress, _player_color)
 	_update_hud("%s  /  再突進 %.1f 秒" % [_result_text, _phase_timer])
-	if _phase_timer <= 0.0 and _shark and _shark.is_ghost_hovering():
+	var portal_finished := _return_portal == null or not is_instance_valid(_return_portal)
+	if not portal_finished:
+		portal_finished = (
+			_return_portal_close_started
+			and float(_return_portal.get("open_amount")) <= RETURN_PORTAL_CLOSED_THRESHOLD
+		)
+	if (
+		_phase_timer <= 0.0
+		and _shark
+		and _shark.is_ghost_hovering()
+		and portal_finished
+	):
+		_cleanup_return_portal()
+		_return_animation_locked = false
+		if _result_departure_only:
+			_cleanup_ghost_ride()
+			return
+		_update_progress_follow()
+		_update_hover_target()
 		phase = Phase.AIMING
 		_show_aim_visuals()
+
+
+func _begin_shark_portal_reentry() -> void:
+	if _shark == null or not is_instance_valid(_shark):
+		return
+	_cooldown_entry_started = true
+	var hover_target := _calculate_hover_target()
+	var portal_center := (
+		_return_portal.global_position
+		if _return_portal != null and is_instance_valid(_return_portal)
+		else hover_target
+	)
+	var travel_forward := portal_center.direction_to(hover_target)
+	if travel_forward.length_squared() <= 0.0001:
+		travel_forward = _return_portal_exit_direction
+	var shark_start := portal_center - travel_forward * RETURN_PORTAL_SHARK_START_DEPTH
+	if _shark.has_method("restart_ghost_hover_through_portal"):
+		_shark.restart_ghost_hover_through_portal(
+			shark_start,
+			hover_target,
+			_return_locked_aim_point,
+			RETURN_PORTAL_CROSSING_PROGRESS
+		)
+	else:
+		_shark.restart_ghost_hover(shark_start, hover_target, _return_locked_aim_point)
+
+
+func _update_return_portal_transform() -> void:
+	if _return_portal == null or not is_instance_valid(_return_portal):
+		return
+	var hover_target := _calculate_hover_target()
+	if _return_portal_exit_direction.length_squared() <= 0.0001:
+		_return_portal_exit_direction = _return_portal_exit_forward(hover_target)
+	_return_portal.global_position = (
+		hover_target
+		+ Vector3.UP * RETURN_PORTAL_VERTICAL_OFFSET
+		+ Vector3.RIGHT * _hover_side * RETURN_PORTAL_GRANDSTAND_OFFSET
+		- _return_portal_exit_direction * RETURN_PORTAL_TAIL_DISTANCE
+	)
+	var travel_forward := _return_portal.global_position.direction_to(hover_target)
+	travel_forward.y = 0.0
+	if travel_forward.length_squared() > 0.0001:
+		travel_forward = travel_forward.normalized()
+		_return_portal_exit_direction = travel_forward
+		# The portal plane and shark route share one strictly horizontal normal.
+		# The mirrored yaw plus the outward offset keep the three-quarter view.
+		_return_portal.look_at(
+			_return_portal.global_position + travel_forward,
+			Vector3.UP,
+			true
+		)
+
+
+func _return_portal_exit_forward(hover_target: Vector3) -> Vector3:
+	var toward_camera := _portal_toward_camera(hover_target)
+	var mirror_sign := -1.0 if dead_player_index == 1 else 1.0
+	var exit_forward := toward_camera.rotated(
+		Vector3.UP,
+		deg_to_rad(RETURN_PORTAL_VIEW_YAW_DEGREES * mirror_sign)
+	)
+	exit_forward.y = 0.0
+	if exit_forward.length_squared() > 0.0001:
+		return exit_forward.normalized()
+	var toward_aim := _current_aim_point() - hover_target
+	toward_aim.y = 0.0
+	return toward_aim.normalized() if toward_aim.length_squared() > 0.0001 else Vector3.BACK
+
+
+func _portal_toward_camera(world_position: Vector3) -> Vector3:
+	if camera_controller != null:
+		var camera := camera_controller.get_node_or_null("Camera3D") as Camera3D
+		if camera != null:
+			var direction := camera.global_position - world_position
+			direction.y = 0.0
+			if direction.length_squared() > 0.0001:
+				return direction.normalized()
+	return Vector3.BACK
+
+
+func _return_portal_path_alignment() -> float:
+	if _return_portal == null or not is_instance_valid(_return_portal):
+		return 0.0
+	var travel_forward := _return_portal.global_position.direction_to(
+		_calculate_hover_target()
+	)
+	if travel_forward.length_squared() <= 0.0001:
+		return 0.0
+	return _return_portal.global_basis.z.normalized().dot(travel_forward)
+
+
+func _return_portal_view_angle_degrees() -> float:
+	if _return_portal == null or not is_instance_valid(_return_portal):
+		return 0.0
+	var toward_camera := _portal_toward_camera(_return_portal.global_position)
+	var portal_forward := _return_portal.global_basis.z.normalized()
+	return rad_to_deg(acos(clampf(portal_forward.dot(toward_camera), -1.0, 1.0)))
+
+
+func _cleanup_return_portal() -> void:
+	if _return_portal != null and is_instance_valid(_return_portal):
+		_cache_return_portal(dead_player_index, _return_portal)
+	_return_portal = null
+	_return_portal_surface_opaque = false
+	_return_portal_exit_direction = Vector3.ZERO
+	_return_portal_depth_root = null
+	_return_portal_depth_rings.clear()
+	_return_portal_depth_light = null
+	_return_portal_crossing_pulsed = false
+	_return_portal_crossing_flash_elapsed = -1.0
+
+
+func _cache_return_portal(player_index: int, portal: Node3D) -> void:
+	if portal == null or not is_instance_valid(portal):
+		return
+	var existing := _return_portal_cache.get(player_index) as Node3D
+	if existing != null and is_instance_valid(existing) and existing != portal:
+		portal.queue_free()
+		return
+	portal.name = "CachedGhostReturnPortalP%d" % player_index
+	portal.visible = false
+	portal.process_mode = Node.PROCESS_MODE_DISABLED
+	portal.transform = Transform3D.IDENTITY
+	portal.set("open_amount", 0.0)
+	_return_portal_cache[player_index] = portal
 
 
 func _player_position(player_index: int) -> Vector3:
@@ -1563,7 +2233,7 @@ func _build_charge_tutorial_overlay() -> void:
 	content.add_child(_charge_tutorial_controls)
 
 	var confirm := Label.new()
-	confirm.text = "[ ENTER ]  説明を閉じて操作開始"
+	confirm.text = "[ 任意のキー ]  説明を閉じて操作開始"
 	confirm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	confirm.add_theme_font_size_override("font_size", 20)
 	confirm.add_theme_color_override("font_color", Color(1.0, 0.88, 0.24))
@@ -1609,7 +2279,7 @@ func _start_charge_tutorial() -> void:
 	_hide_aim_visuals()
 	_charge_tutorial_title.text = "GHOST RIDER · P%d  チャージ操作" % dead_player_index
 	var aim_keys := "WASD" if dead_player_index == 1 else "矢印キー"
-	var charge_keys := "SPACE" if dead_player_index == 1 else "CTRL / NUM0"
+	var charge_keys := "SPACE" if dead_player_index == 1 else "CTRL"
 	_charge_tutorial_controls.text = (
 		"① %sで照準を合わせる\n② %sを長押しして霊力をためる\n"
 		+ "③ 黄色のPERFECT帯で離すと、最も強い突進！"
@@ -1933,6 +2603,9 @@ func _update_aim_visuals(blink: bool) -> void:
 func _update_hud(_status: String) -> void:
 	if _hud_panel == null:
 		return
+	if _result_departure_only:
+		_hud_panel.visible = false
+		return
 	if phase not in [Phase.AIMING, Phase.WINDUP, Phase.CHARGING, Phase.COOLDOWN]:
 		_hud_panel.visible = false
 		return
@@ -1942,7 +2615,7 @@ func _update_hud(_status: String) -> void:
 	_hud_controls.text = (
 		"WASD 照準  |  SPACE 長押し→離して発射"
 		if dead_player_index == 1
-		else "←↑↓→ 照準  |  CTRL/NUM0 長押し→離して発射"
+		else "←↑↓→ 照準  |  CTRL 長押し→離して発射"
 	)
 	_layout_hud(_hud_slide_weight())
 
@@ -2007,6 +2680,7 @@ func _cleanup_ghost_ride() -> void:
 	if _hud_panel:
 		_hud_panel.visible = false
 		_hud_panel.modulate.a = 1.0
+	_cleanup_return_portal()
 	if _shark and is_instance_valid(_shark):
 		if _shark.ghost_charge_finished.is_connected(_on_shark_charge_finished):
 			_shark.ghost_charge_finished.disconnect(_on_shark_charge_finished)
@@ -2054,4 +2728,12 @@ func _cleanup_ghost_ride() -> void:
 	_current_cooldown_duration = MISS_COOLDOWN_SECONDS
 	_result_text = ""
 	_ghost_emote_id = 0
+	_return_portal_elapsed = 0.0
+	_return_tail_clear_elapsed = 0.0
+	_return_portal_close_started = false
+	_return_portal_surface_opaque = false
+	_return_animation_locked = false
+	_result_departure_only = false
+	_return_locked_hover_target = Vector3.ZERO
+	_return_locked_aim_point = Vector3.ZERO
 	_preferred_ocean_sharks.clear()

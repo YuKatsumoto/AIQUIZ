@@ -1,5 +1,7 @@
 extends Node
 
+const ToonPresets = preload("res://scripts/cosmetics/character_toon_presets.gd")
+
 ## ネットワーク管理Autoload
 ## WebSocketリレーサーバーを介したオンライン対戦の接続管理
 
@@ -34,6 +36,7 @@ const MAX_RECONNECT := 3
 # 相手のプレイヤー情報
 var opponent_name: String = ""
 var opponent_hat: int = 0
+var opponent_toon_preset: int = ToonPresets.STANDARD
 var opponent_emote_slots: Array[int] = [1, 2, 3]
 
 
@@ -137,13 +140,19 @@ func send_event(event_name: String, data: Dictionary = {}) -> void:
 	send_message(data)
 
 
-func send_player_info(player_name: String, hat: int, emote_slots: Array[int]) -> void:
+func send_player_info(
+	player_name: String,
+	hat: int,
+	emote_slots: Array[int],
+	toon_preset: int = ToonPresets.STANDARD,
+) -> void:
 	"""プレイヤー情報を相手に送信"""
 	send_message({
 		"type": "player_info",
 		"name": player_name,
 		"hat": hat,
 		"emote_slots": emote_slots,
+		"toon_preset": ToonPresets.normalize(toon_preset),
 	})
 
 
@@ -168,6 +177,7 @@ func disconnect_from_relay() -> void:
 	_reconnect_attempts = 0
 	opponent_name = ""
 	opponent_hat = 0
+	opponent_toon_preset = ToonPresets.STANDARD
 	opponent_emote_slots = [1, 2, 3]
 
 
@@ -274,6 +284,7 @@ func _handle_message(raw: String) -> void:
 		"player_info":
 			opponent_name = msg.get("name", "")
 			opponent_hat = int(msg.get("hat", 0))
+			opponent_toon_preset = ToonPresets.normalize(int(msg.get("toon_preset", 0)))
 			var slots = msg.get("emote_slots", [1, 2, 3])
 			opponent_emote_slots.clear()
 			for s in slots:

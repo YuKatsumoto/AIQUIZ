@@ -1,0 +1,304 @@
+[gd_scene format=3 uid="uid://1hnfjqb3x811"]
+
+[ext_resource type="Texture2D" uid="uid://dq8jkeeag6vov" path="res://assets/BinbunVFX/shared/texture/placeholder.png" id="1_krmeb"]
+[ext_resource type="PackedScene" uid="uid://dackluf2q5fuy" path="res://assets/BinbunVFX/magic_orbs/effects/magic_orb_basic/magic_orb_basic_vfx_01.tscn" id="2_4egum"]
+[ext_resource type="PackedScene" uid="uid://n044c3by2vwx" path="res://assets/BinbunVFX/magic_orbs/effects/magic_orb_basic/magic_orb_basic_vfx_02.tscn" id="3_lxxrk"]
+[ext_resource type="PackedScene" uid="uid://b75p0m6xfifr6" path="res://assets/BinbunVFX/magic_orbs/effects/magic_orb_basic/magic_orb_basic_vfx_03.tscn" id="4_nu2ff"]
+[ext_resource type="PackedScene" uid="uid://b7br2f2hjyr2o" path="res://assets/BinbunVFX/magic_orbs/effects/magic_orb_basic/magic_orb_basic_vfx_04.tscn" id="5_qd70g"]
+[ext_resource type="PackedScene" uid="uid://n04pan77gujg" path="res://assets/BinbunVFX/magic_orbs/effects/magic_orb_basic/magic_orb_basic_vfx_05.tscn" id="6_4egum"]
+[ext_resource type="PackedScene" uid="uid://4ujqh46hpby2" path="res://assets/BinbunVFX/magic_orbs/effects/magic_orb_flare/magic_orb_flare_vfx_01.tscn" id="6_07hjo"]
+[ext_resource type="PackedScene" uid="uid://dbjiepxeonddr" path="res://assets/BinbunVFX/magic_orbs/effects/magic_orb_flare/magic_orb_flare_vfx_02.tscn" id="7_ms1t8"]
+[ext_resource type="PackedScene" uid="uid://ccmirwhho80ay" path="res://assets/BinbunVFX/magic_orbs/effects/magic_orb_flare/magic_orb_flare_vfx_03.tscn" id="8_5t0wb"]
+[ext_resource type="PackedScene" uid="uid://sllnqth24xt8" path="res://assets/BinbunVFX/magic_orbs/effects/magic_orb_flare/magic_orb_flare_vfx_04.tscn" id="9_pra23"]
+[ext_resource type="PackedScene" uid="uid://dkkaookyunbt3" path="res://assets/BinbunVFX/magic_orbs/effects/magic_orb_flash/magic_orb_flash_vfx_01.tscn" id="10_0qetu"]
+[ext_resource type="PackedScene" uid="uid://cap5tsq8op7y4" path="res://assets/BinbunVFX/magic_orbs/effects/magic_orb_flash/magic_orb_flash_vfx_03.tscn" id="11_g55il"]
+[ext_resource type="PackedScene" uid="uid://dahsrx5x2xnnr" path="res://assets/BinbunVFX/magic_orbs/effects/magic_orb_flare/magic_orb_flare_vfx_05.tscn" id="11_lxxrk"]
+[ext_resource type="PackedScene" uid="uid://djv4dd7q6rmni" path="res://assets/BinbunVFX/magic_orbs/effects/magic_orb_flash/magic_orb_flash_vfx_04.tscn" id="12_d773n"]
+[ext_resource type="PackedScene" uid="uid://dhsfnhe77cblj" path="res://assets/BinbunVFX/magic_orbs/effects/magic_orb_flash/magic_orb_flash_vfx_02.tscn" id="13_f4ecj"]
+[ext_resource type="PackedScene" uid="uid://b5bt32jcigrqa" path="res://assets/BinbunVFX/magic_orbs/effects/magic_orb_small/magic_orb_small_vfx_01.tscn" id="14_np5or"]
+[ext_resource type="PackedScene" uid="uid://b0yhsfcg8tlak" path="res://assets/BinbunVFX/magic_orbs/effects/magic_orb_small/magic_orb_small_vfx_02.tscn" id="15_uintv"]
+[ext_resource type="PackedScene" uid="uid://1cphq6j0idad" path="res://assets/BinbunVFX/magic_orbs/effects/magic_orb_small/magic_orb_small_vfx_03.tscn" id="16_ktjja"]
+[ext_resource type="PackedScene" uid="uid://bpebsbl130tq3" path="res://assets/BinbunVFX/magic_orbs/effects/magic_orb_flash/magic_orb_flash_vfx_05.tscn" id="16_nu2ff"]
+[ext_resource type="PackedScene" uid="uid://dlecwaopab3gt" path="res://assets/BinbunVFX/magic_orbs/effects/magic_orb_small/magic_orb_small_vfx_04.tscn" id="17_yotka"]
+[ext_resource type="PackedScene" uid="uid://clv3lkdcw877g" path="res://assets/BinbunVFX/magic_orbs/effects/magic_orb_big/magic_orb_big_vfx_01.tscn" id="18_fqyul"]
+[ext_resource type="PackedScene" uid="uid://dyjqxfowltm2y" path="res://assets/BinbunVFX/magic_orbs/effects/magic_orb_big/magic_orb_big_vfx_02.tscn" id="19_hwcss"]
+[ext_resource type="PackedScene" uid="uid://d2k5a78bhsqrr" path="res://assets/BinbunVFX/magic_orbs/effects/magic_orb_big/magic_orb_big_vfx_03.tscn" id="20_yn84f"]
+[ext_resource type="PackedScene" uid="uid://3fkaomocdp5g" path="res://assets/BinbunVFX/magic_orbs/effects/magic_orb_small/magic_orb_small_vfx_05.tscn" id="21_qd70g"]
+[ext_resource type="PackedScene" uid="uid://cnjvuhf58gqwp" path="res://assets/BinbunVFX/magic_orbs/effects/magic_orb_big/magic_orb_big_vfx_04.tscn" id="21_qfb63"]
+[ext_resource type="PackedScene" uid="uid://t2suvs6pqksj" path="res://assets/BinbunVFX/magic_orbs/effects/magic_orb_huge/magic_orb_huge_vfx_01.tscn" id="22_nnml1"]
+[ext_resource type="PackedScene" uid="uid://cq7u3nwp305j2" path="res://assets/BinbunVFX/magic_orbs/effects/magic_orb_huge/magic_orb_huge_vfx_02.tscn" id="23_mdbpe"]
+[ext_resource type="PackedScene" uid="uid://chvby3lqas1es" path="res://assets/BinbunVFX/magic_orbs/effects/magic_orb_huge/magic_orb_huge_vfx_03.tscn" id="24_4v8lr"]
+[ext_resource type="PackedScene" uid="uid://crftsxevxs1f4" path="res://assets/BinbunVFX/magic_orbs/effects/magic_orb_huge/magic_orb_huge_vfx_04.tscn" id="25_86xba"]
+[ext_resource type="PackedScene" uid="uid://rhv6vcv0r1up" path="res://assets/BinbunVFX/magic_orbs/effects/magic_orb_big/magic_orb_big_vfx_05.tscn" id="26_07hjo"]
+[ext_resource type="PackedScene" uid="uid://wdh3d5tcqny7" path="res://assets/BinbunVFX/magic_orbs/effects/magic_orb_huge/magic_orb_huge_vfx_05.tscn" id="31_ms1t8"]
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_7dm0k"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_h2yge"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_lquwl"]
+
+[sub_resource type="Sky" id="Sky_lquwl"]
+sky_material = SubResource("ProceduralSkyMaterial_lquwl")
+
+[sub_resource type="Environment" id="Environment_0xm2m"]
+background_mode = 2
+background_color = Color(0.266667, 0, 0, 1)
+background_energy_multiplier = 0.8
+sky = SubResource("Sky_lquwl")
+ambient_light_source = 3
+ambient_light_color = Color(1, 1, 1, 1)
+ambient_light_energy = 2.0
+ssao_enabled = true
+ssao_intensity = 4.0
+glow_enabled = true
+glow_normalized = true
+glow_intensity = 1.0
+glow_bloom = 0.05
+glow_map_strength = 0.0
+fog_enabled = true
+fog_light_color = Color(0, 0.0751667, 0.11, 1)
+fog_light_energy = 2.0
+fog_density = 0.02
+volumetric_fog_enabled = true
+volumetric_fog_density = 0.02
+volumetric_fog_albedo = Color(0.263949, 0.0869683, 0.248756, 1)
+volumetric_fog_emission_energy = 0.0
+adjustment_enabled = true
+adjustment_contrast = 1.1
+adjustment_saturation = 1.1
+
+[sub_resource type="CameraAttributesPractical" id="CameraAttributesPractical_0xm2m"]
+dof_blur_far_enabled = true
+dof_blur_far_distance = 30.0
+dof_blur_far_transition = 64.0
+dof_blur_near_transition = -1.0
+
+[sub_resource type="BoxMesh" id="BoxMesh_ig7tw"]
+size = Vector3(1000, 6, 1000)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_1bvp3"]
+albedo_color = Color(0.866489, 0.931253, 0.944994, 1)
+albedo_texture = ExtResource("1_krmeb")
+uv1_triplanar = true
+
+[node name="Node3D" type="Node3D" unique_id=765354862]
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=1376809842]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
+visible = false
+mesh = SubResource("CapsuleMesh_7dm0k")
+surface_material_override/0 = SubResource("ShaderMaterial_h2yge")
+
+[node name="Environment" type="Node3D" parent="." unique_id=1010557424]
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="Environment" unique_id=1418270618]
+transform = Transform3D(-0.5, -0.663414, -0.55667, -5.61943e-08, -0.642788, 0.766044, -0.866025, 0.383022, 0.321394, 0, 2.19112, 0)
+light_color = Color(1, 0.992157, 0.956863, 1)
+light_energy = 1.5
+shadow_enabled = true
+shadow_opacity = 0.5
+shadow_blur = 9.219
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="Environment" unique_id=526549737]
+environment = SubResource("Environment_0xm2m")
+camera_attributes = SubResource("CameraAttributesPractical_0xm2m")
+
+[node name="Ground" type="MeshInstance3D" parent="Environment" unique_id=119376933]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -3, 0)
+mesh = SubResource("BoxMesh_ig7tw")
+skeleton = NodePath("../..")
+surface_material_override/0 = SubResource("StandardMaterial3D_1bvp3")
+
+[node name="Lights" type="Node3D" parent="Environment" unique_id=507429137]
+
+[node name="SpotLight3D1" type="SpotLight3D" parent="Environment/Lights" unique_id=647336320]
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, 1, 0, -1, -4.37114e-08, 0, 10, 1)
+light_energy = 20.0
+spot_range = 18.188
+spot_angle = 40.0
+
+[node name="SpotLight3D2" type="SpotLight3D" parent="Environment/Lights" unique_id=1671119831]
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, 1, 0, -1, -4.37114e-08, 10, 10, 1)
+light_energy = 20.0
+spot_range = 18.188
+spot_angle = 40.0
+
+[node name="SpotLight3D3" type="SpotLight3D" parent="Environment/Lights" unique_id=1142056391]
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, 1, 0, -1, -4.37114e-08, 20, 10, 1)
+light_energy = 20.0
+spot_range = 18.188
+spot_angle = 40.0
+
+[node name="SpotLight3D4" type="SpotLight3D" parent="Environment/Lights" unique_id=802359422]
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, 1, 0, -1, -4.37114e-08, 0, 10, 9)
+light_energy = 20.0
+spot_range = 18.188
+spot_angle = 40.0
+
+[node name="SpotLight3D5" type="SpotLight3D" parent="Environment/Lights" unique_id=764987282]
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, 1, 0, -1, -4.37114e-08, 10, 10, 9)
+light_energy = 20.0
+spot_range = 18.188
+spot_angle = 40.0
+
+[node name="SpotLight3D6" type="SpotLight3D" parent="Environment/Lights" unique_id=1057359496]
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, 1, 0, -1, -4.37114e-08, 20, 10, 9)
+light_energy = 20.0
+spot_range = 18.188
+spot_angle = 40.0
+
+[node name="MainCamera" type="Camera3D" parent="." unique_id=358478183]
+transform = Transform3D(1, 0, 0, 0, 0.766045, 0.642788, 0, -0.642788, 0.766045, 12, 18, 24)
+current = true
+fov = 40.0
+
+[node name="Effects" type="Node3D" parent="." unique_id=761246176]
+visible = false
+
+[node name="Basic" type="Node3D" parent="Effects" unique_id=1185177699]
+
+[node name="MagicOrbBasicVFX_01" parent="Effects/Basic" unique_id=2099859365 instance=ExtResource("2_4egum")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 0)
+alpha_cutoff = 0.0
+dither_cutoff = 0.86
+
+[node name="MagicOrbBasicVFX_02" parent="Effects/Basic" unique_id=1085063144 instance=ExtResource("3_lxxrk")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 2, 0)
+
+[node name="MagicOrbBasicVFX_03" parent="Effects/Basic" unique_id=722086611 instance=ExtResource("4_nu2ff")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 2, 0)
+
+[node name="MagicOrbBasicVFX_04" parent="Effects/Basic" unique_id=916003882 instance=ExtResource("5_qd70g")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9, 2, 0)
+
+[node name="MagicOrbBasicVFX_05" parent="Effects/Basic" unique_id=1845845649 instance=ExtResource("6_4egum")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 2, 0)
+
+[node name="Flare" type="Node3D" parent="Effects" unique_id=1941751876]
+
+[node name="MagicOrbFlareVFX_01" parent="Effects/Flare" unique_id=1116148741 instance=ExtResource("6_07hjo")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 3)
+
+[node name="MagicOrbFlareVFX_02" parent="Effects/Flare" unique_id=732997421 instance=ExtResource("7_ms1t8")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 2, 3)
+
+[node name="MagicOrbFlareVFX_03" parent="Effects/Flare" unique_id=307781924 instance=ExtResource("8_5t0wb")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 2, 3)
+dither_cutoff = 1.0
+
+[node name="MagicOrbFlareVFX_04" parent="Effects/Flare" unique_id=214733561 instance=ExtResource("9_pra23")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9, 2, 3)
+
+[node name="MagicOrbFlareVFX_05" parent="Effects/Flare" unique_id=1179274598 instance=ExtResource("11_lxxrk")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 2, 3)
+preview = true
+
+[node name="Flash" type="Node3D" parent="Effects" unique_id=21253912]
+
+[node name="MagicOrbFlashVFX_01" parent="Effects/Flash" unique_id=774065143 instance=ExtResource("10_0qetu")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 6)
+
+[node name="MagicOrbFlashVFX_02" parent="Effects/Flash" unique_id=1091196298 instance=ExtResource("13_f4ecj")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.00243, 2.00164, 5.99865)
+alpha_cutoff = 0.31
+dither_cutoff = 0.91
+
+[node name="MagicOrbFlashVFX_03" parent="Effects/Flash" unique_id=656336940 instance=ExtResource("11_g55il")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 2, 6)
+
+[node name="MagicOrbFlashVFX_04" parent="Effects/Flash" unique_id=914328999 instance=ExtResource("12_d773n")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9, 2, 6)
+
+[node name="MagicOrbFlashVFX_05" parent="Effects/Flash" unique_id=2052795592 instance=ExtResource("16_nu2ff")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 2, 6)
+
+[node name="Small" type="Node3D" parent="Effects" unique_id=169321004]
+
+[node name="MagicOrbSmallVFX_01" parent="Effects/Small" unique_id=1086927381 instance=ExtResource("14_np5or")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 9)
+alpha_cutoff = 0.0
+dither_cutoff = 1.0
+
+[node name="MagicOrbSmallVFX_02" parent="Effects/Small" unique_id=1519022887 instance=ExtResource("15_uintv")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 2, 9)
+
+[node name="MagicOrbSmallVFX_03" parent="Effects/Small" unique_id=658414618 instance=ExtResource("16_ktjja")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 2, 9)
+
+[node name="MagicOrbSmallVFX_04" parent="Effects/Small" unique_id=215916652 instance=ExtResource("17_yotka")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9, 2, 9)
+
+[node name="MagicOrbSmallVFX_05" parent="Effects/Small" unique_id=2000049187 instance=ExtResource("21_qd70g")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 2, 9)
+preview = true
+
+[node name="Big" type="Node3D" parent="Effects" unique_id=1201089618]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 0)
+
+[node name="MagicOrbBigVFX_01" parent="Effects/Big" unique_id=486029618 instance=ExtResource("18_fqyul")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 13, 2, 6)
+proximity_fade_distance = 2.0
+
+[node name="MagicOrbBigVFX_02" parent="Effects/Big" unique_id=1097088082 instance=ExtResource("19_hwcss")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 17, 2, 6)
+
+[node name="MagicOrbBigVFX_03" parent="Effects/Big" unique_id=1247456446 instance=ExtResource("20_yn84f")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15, 2, 9)
+alpha_cutoff = 0.83
+
+[node name="MagicOrbBigVFX_04" parent="Effects/Big" unique_id=1990744599 instance=ExtResource("21_qfb63")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 19, 2, 9)
+light_color = Color(0.945098, 0.356863, 0, 1)
+
+[node name="MagicOrbBigVFX_05" parent="Effects/Big" unique_id=1326288316 instance=ExtResource("26_07hjo")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 21, 2, 6)
+preview = true
+
+[node name="Huge" type="Node3D" parent="Effects" unique_id=1177395143]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 0)
+
+[node name="MagicOrbHugeVFX_01" parent="Effects/Huge" unique_id=1648539616 instance=ExtResource("22_nnml1")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 13, 2, 0)
+
+[node name="MagicOrbHugeVFX_02" parent="Effects/Huge" unique_id=1654137354 instance=ExtResource("23_mdbpe")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 17, 2, 0)
+
+[node name="MagicOrbHugeVFX_03" parent="Effects/Huge" unique_id=750762669 instance=ExtResource("24_4v8lr")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15, 2, 3)
+
+[node name="MagicOrbHugeVFX_04" parent="Effects/Huge" unique_id=2092092124 instance=ExtResource("25_86xba")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 19, 2, 3)
+
+[node name="MagicOrbHugeVFX_05" parent="Effects/Huge" unique_id=1753382610 instance=ExtResource("31_ms1t8")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 21, 2, 0)
+preview = true
+
+[node name="Update" type="Node3D" parent="." unique_id=1923599879]
+
+[node name="MagicOrbBasicVFX_05" parent="Update" unique_id=1137742887 instance=ExtResource("6_4egum")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 4)
+
+[node name="MagicOrbFlareVFX_05" parent="Update" unique_id=614729331 instance=ExtResource("11_lxxrk")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 2, 4)
+preview = true
+
+[node name="MagicOrbFlashVFX_05" parent="Update" unique_id=321615697 instance=ExtResource("16_nu2ff")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 2, 4)
+
+[node name="MagicOrbSmallVFX_05" parent="Update" unique_id=892599497 instance=ExtResource("21_qd70g")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9, 2, 4)
+preview = true
+
+[node name="MagicOrbBigVFX_05" parent="Update" unique_id=790169683 instance=ExtResource("26_07hjo")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.5, 2, 0)
+preview = true
+
+[node name="MagicOrbHugeVFX_05" parent="Update" unique_id=94708082 instance=ExtResource("31_ms1t8")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, 2, 0)
+preview = true
+
+[node name="MainCamera" type="Camera3D" parent="Update" unique_id=1448656434]
+transform = Transform3D(1, 0, 0, 0, 0.766045, 0.642788, 0, -0.642788, 0.766045, 4.5, 10, 12)
+current = true
+fov = 40.0

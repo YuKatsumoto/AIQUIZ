@@ -8,7 +8,12 @@ signal night_amount_changed(value: float)
 const DAY_CYCLE_SECONDS: float = 900.0
 const START_DAY_PHASE: float = 0.12
 const DEBUG_TIME_SCALE: float = 60.0
+## Fallback used if the editable orbit control scene is invalid.
 const SUNRISE_DIR := Vector3(-0.82, 0.0, -0.57)
+## Open this scene and rotate SunOrbitControl directly in the 3D editor.
+const SUN_ORBIT_EDITOR_SCENE: PackedScene = preload(
+	"res://assets/environment/sky/day_night_sun_path.tscn"
+)
 
 const DAY_LIGHT_COLOR := Color(1.0, 0.96, 0.86)
 const TWILIGHT_LIGHT_COLOR := Color(1.0, 0.61, 0.39)
@@ -21,6 +26,8 @@ var environment: Environment = null
 var directional_light: DirectionalLight3D = null
 var moon_light: DirectionalLight3D = null
 var sky_material: ShaderMaterial = null
+## Rotation basis authored with SunOrbitControl in the 3D editor.
+var sun_orbit_basis: Basis = Basis.IDENTITY
 var day_phase: float = START_DAY_PHASE
 var night_amount: float = 0.0
 
@@ -31,6 +38,8 @@ static var _shared_clock_anchor_ticks_msec: int = 0
 static var _shared_clock_anchor_phase: float = START_DAY_PHASE
 static var _shared_time_scale: float = 1.0
 static var _debug_shortcut_down: bool = false
+static var _shared_orbit_basis: Basis = Basis.IDENTITY
+static var _shared_orbit_basis_ready: bool = false
 
 
 static func shared_day_phase() -> float:
@@ -43,6 +52,21 @@ static func shared_day_phase() -> float:
 		+ elapsed_seconds * _shared_time_scale / DAY_CYCLE_SECONDS,
 		1.0
 	)
+
+
+## 空が明るい日中か。メニューなど、昼空に溶けるUIの視認性切替に使う。
+static func is_bright_sky() -> bool:
+	return shared_day_amount() >= 0.42
+
+
+static func shared_day_amount() -> float:
+	return smoothstep(-0.16, 0.28, _shared_sun_elevation())
+
+
+static func _shared_sun_elevation() -> float:
+	var basis: Basis = _shared_sun_orbit_basis()
+	var angle: float = shared_day_phase() * TAU
+	return (basis.z * cos(angle) + basis.y * sin(angle)).normalized().y
 
 
 static func _ensure_shared_clock() -> void:
@@ -71,6 +95,7 @@ static func get_debug_time_scale() -> float:
 func setup(p_environment: Environment, p_light: DirectionalLight3D) -> void:
 	environment = p_environment
 	directional_light = p_light
+	sun_orbit_basis = _load_sun_orbit_basis()
 	sky_material = null
 	if environment != null and environment.sky != null:
 		sky_material = environment.sky.sky_material as ShaderMaterial
@@ -175,10 +200,41 @@ func _apply(p_day_phase: float) -> void:
 	night_amount_changed.emit(night_amount)
 
 
+static func _default_sun_orbit_basis() -> Basis:
+	var z_axis: Vector3 = SUNRISE_DIR.normalized()
+	var y_axis: Vector3 = Vector3.UP
+	var x_axis: Vector3 = y_axis.cross(z_axis).normalized()
+	return Basis(x_axis, y_axis, z_axis)
+
+
+static func _shared_sun_orbit_basis() -> Basis:
+	if _shared_orbit_basis_ready:
+		return _shared_orbit_basis
+	var orbit_root: Node = SUN_ORBIT_EDITOR_SCENE.instantiate()
+	var sun_control := orbit_root.get_node_or_null(^"SunOrbitControl") as DirectionalLight3D
+	if sun_control == null:
+		push_warning(
+			"[WeatherCycle] SunOrbitControl is missing; using the built-in orbit."
+		)
+		orbit_root.free()
+		_shared_orbit_basis = _default_sun_orbit_basis()
+	else:
+		_shared_orbit_basis = sun_control.basis.orthonormalized()
+		orbit_root.free()
+	_shared_orbit_basis_ready = true
+	return _shared_orbit_basis
+
+
+func _load_sun_orbit_basis() -> Basis:
+	return _shared_sun_orbit_basis()
+
+
 func _sun_direction(p_day_phase: float) -> Vector3:
-	var east: Vector3 = SUNRISE_DIR.normalized()
 	var angle: float = p_day_phase * TAU
-	return (east * cos(angle) + Vector3.UP * sin(angle)).normalized()
+	return (
+		sun_orbit_basis.z * cos(angle)
+		+ sun_orbit_basis.y * sin(angle)
+	).normalized()
 
 
 func _setup_moon_light() -> void:
@@ -197,7 +253,7 @@ func _aim_light(light: DirectionalLight3D, light_dir: Vector3) -> void:
 	var z_axis: Vector3 = light_dir
 	var up_ref: Vector3 = Vector3.UP
 	if absf(z_axis.dot(up_ref)) > 0.94:
-		up_ref = SUNRISE_DIR.normalized()
+		up_ref = sun_orbit_basis.z
 	var x_axis: Vector3 = up_ref.cross(z_axis)
 	if x_axis.length_squared() < 0.0001:
 		x_axis = Vector3.FORWARD.cross(z_axis)

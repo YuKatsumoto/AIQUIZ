@@ -1,0 +1,323 @@
+[gd_scene format=3 uid="uid://6ahepirhmjrm"]
+
+[ext_resource type="Texture2D" uid="uid://l7d36kr543fa" path="res://assets/BinbunVFX/shared/texture/placeholder.png" id="1_q83y6"]
+[ext_resource type="PackedScene" uid="uid://bkf5pwrtdiwuq" path="res://assets/BinbunVFX/beam_vfx/effects/beam/beam_vfx_01.tscn" id="2_q83y6"]
+[ext_resource type="PackedScene" uid="uid://d2cacc3l8ug3x" path="res://assets/BinbunVFX/beam_vfx/effects/beam/beam_vfx_02.tscn" id="3_ngqha"]
+[ext_resource type="PackedScene" uid="uid://gc2q7tib78gh" path="res://assets/BinbunVFX/beam_vfx/effects/beam/beam_vfx_03.tscn" id="4_08i3w"]
+[ext_resource type="PackedScene" uid="uid://cjd8s62hl0rkx" path="res://assets/BinbunVFX/beam_vfx/effects/beam/beam_vfx_04.tscn" id="5_f11ey"]
+[ext_resource type="PackedScene" uid="uid://bjrh1c1mgasmh" path="res://assets/BinbunVFX/beam_vfx/effects/beam/beam_vfx_05.tscn" id="6_s8xr2"]
+[ext_resource type="PackedScene" uid="uid://bq7ie6ti3k1pu" path="res://assets/BinbunVFX/beam_vfx/effects/beam/beam_vfx_06.tscn" id="7_xvryk"]
+[ext_resource type="PackedScene" uid="uid://ef51gxghgnmf" path="res://assets/BinbunVFX/beam_vfx/effects/laser/laser_vfx_01.tscn" id="8_u1tip"]
+[ext_resource type="PackedScene" uid="uid://d3tmdu73tcelh" path="res://assets/BinbunVFX/beam_vfx/effects/beam/beam_vfx_07.tscn" id="8_vgs3n"]
+[ext_resource type="PackedScene" uid="uid://ddkgtbkqyrkqg" path="res://assets/BinbunVFX/beam_vfx/effects/laser/laser_vfx_02.tscn" id="9_6lwch"]
+[ext_resource type="PackedScene" uid="uid://dr1o7s7m7c82g" path="res://assets/BinbunVFX/beam_vfx/effects/beam/beam_vfx_08.tscn" id="9_57erk"]
+[ext_resource type="PackedScene" uid="uid://cn7xutswnq611" path="res://assets/BinbunVFX/beam_vfx/effects/laser/laser_vfx_03.tscn" id="10_dnduk"]
+[ext_resource type="PackedScene" uid="uid://ke1g5awfw3aw" path="res://assets/BinbunVFX/beam_vfx/effects/laser/laser_vfx_04.tscn" id="11_f0cyr"]
+[ext_resource type="PackedScene" uid="uid://wxampt6hm3qr" path="res://assets/BinbunVFX/beam_vfx/effects/laser/laser_vfx_05.tscn" id="12_2segj"]
+[ext_resource type="PackedScene" uid="uid://ca5r8jx4tghrg" path="res://assets/BinbunVFX/beam_vfx/effects/laser/laser_vfx_06.tscn" id="13_l2cb1"]
+[ext_resource type="PackedScene" uid="uid://grq88ntwbc3h" path="res://assets/BinbunVFX/beam_vfx/effects/laser/laser_vfx_07.tscn" id="16_8iuhi"]
+[ext_resource type="PackedScene" uid="uid://dcidqfxqy0gyg" path="res://assets/BinbunVFX/beam_vfx/effects/laser/laser_vfx_08.tscn" id="17_4hggp"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_lquwl"]
+
+[sub_resource type="Sky" id="Sky_lquwl"]
+sky_material = SubResource("ProceduralSkyMaterial_lquwl")
+
+[sub_resource type="Environment" id="Environment_0xm2m"]
+background_mode = 2
+background_color = Color(0.266667, 0, 0, 1)
+background_energy_multiplier = 0.8
+sky = SubResource("Sky_lquwl")
+ambient_light_source = 3
+ambient_light_color = Color(1, 1, 1, 1)
+ambient_light_energy = 2.0
+ssao_enabled = true
+ssao_intensity = 4.0
+ssil_radius = 16.0
+sdfgi_enabled = true
+glow_enabled = true
+glow_normalized = true
+glow_intensity = 1.0
+glow_strength = 1.2
+glow_bloom = 0.05
+glow_map_strength = 0.0
+fog_enabled = true
+fog_light_color = Color(0.06, 0.06, 0.06, 1)
+volumetric_fog_enabled = true
+volumetric_fog_density = 0.01
+volumetric_fog_albedo = Color(0.27022192, 0.27022192, 0.27022186, 1)
+volumetric_fog_emission_energy = 0.0
+adjustment_contrast = 1.1
+adjustment_saturation = 1.1
+
+[sub_resource type="CameraAttributesPractical" id="CameraAttributesPractical_0xm2m"]
+dof_blur_far_distance = 30.0
+dof_blur_far_transition = 64.0
+dof_blur_near_transition = -1.0
+
+[sub_resource type="BoxMesh" id="BoxMesh_ig7tw"]
+size = Vector3(1000, 6, 1000)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_1bvp3"]
+albedo_color = Color(0.866489, 0.931253, 0.944994, 1)
+albedo_texture = ExtResource("1_q83y6")
+uv1_triplanar = true
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_xvryk"]
+size = Vector3(1000, 6, 1000)
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_gipqs"]
+noise_type = 0
+frequency = 0.0122
+fractal_octaves = 2
+cellular_distance_function = 2
+cellular_return_type = 6
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_s8xr2"]
+noise = SubResource("FastNoiseLite_gipqs")
+seamless = true
+seamless_blend_skirt = 0.4
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_jbdqw"]
+noise_type = 2
+frequency = 0.0122
+fractal_octaves = 2
+cellular_distance_function = 2
+cellular_jitter = 8.0
+cellular_return_type = 6
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_6v58n"]
+noise = SubResource("FastNoiseLite_jbdqw")
+seamless = true
+seamless_blend_skirt = 0.4
+
+[sub_resource type="Gradient" id="Gradient_mvbkm"]
+interpolation_mode = 2
+interpolation_color_space = 1
+offsets = PackedFloat32Array(0, 0.58441556)
+colors = PackedColorArray(1, 1, 1, 1, 0, 0, 0, 1)
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_aatwd"]
+noise_type = 2
+frequency = 0.02
+fractal_octaves = 1
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_uwclo"]
+noise = SubResource("FastNoiseLite_aatwd")
+color_ramp = SubResource("Gradient_mvbkm")
+seamless = true
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_y5km2"]
+fractal_type = 2
+fractal_octaves = 1
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_oxvwr"]
+noise = SubResource("FastNoiseLite_y5km2")
+seamless = true
+seamless_blend_skirt = 0.5
+
+[sub_resource type="Gradient" id="Gradient_m73gd"]
+interpolation_mode = 2
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_7f0p0"]
+noise_type = 2
+frequency = 0.02
+fractal_type = 0
+fractal_octaves = 1
+fractal_gain = 0.58
+fractal_ping_pong_strength = 3.0
+cellular_return_type = 0
+domain_warp_enabled = true
+domain_warp_amplitude = 100.0
+domain_warp_frequency = 0.02
+domain_warp_fractal_type = 0
+domain_warp_fractal_gain = 0.065
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_vy1hf"]
+noise = SubResource("FastNoiseLite_7f0p0")
+color_ramp = SubResource("Gradient_m73gd")
+seamless = true
+seamless_blend_skirt = 0.5
+
+[sub_resource type="Gradient" id="Gradient_il3ku"]
+offsets = PackedFloat32Array(0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1)
+colors = PackedColorArray(0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1)
+metadata/_snap_enabled = true
+metadata/_snap_count = 16
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_cxacr"]
+gradient = SubResource("Gradient_il3ku")
+fill_from = Vector2(0, 1)
+
+[node name="Node3D" type="Node3D" unique_id=530315702]
+
+[node name="Environment" type="Node3D" parent="." unique_id=649369530]
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="Environment" unique_id=1009373644]
+transform = Transform3D(-0.5, -0.663414, -0.55667, -5.61943e-08, -0.642788, 0.766044, -0.866025, 0.383022, 0.321394, 0, 2.19112, 0)
+light_color = Color(1, 0.992157, 0.956863, 1)
+light_energy = 1.5
+shadow_enabled = true
+shadow_opacity = 0.5
+shadow_blur = 9.219
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="Environment" unique_id=395185578]
+environment = SubResource("Environment_0xm2m")
+camera_attributes = SubResource("CameraAttributesPractical_0xm2m")
+
+[node name="StaticBody3D" type="StaticBody3D" parent="Environment" unique_id=321480532]
+
+[node name="Ground" type="MeshInstance3D" parent="Environment/StaticBody3D" unique_id=314877367]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -3, 0)
+mesh = SubResource("BoxMesh_ig7tw")
+skeleton = NodePath("../../..")
+surface_material_override/0 = SubResource("StandardMaterial3D_1bvp3")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Environment/StaticBody3D" unique_id=115248273]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -3, 0)
+shape = SubResource("BoxShape3D_xvryk")
+
+[node name="Lights" type="Node3D" parent="Environment" unique_id=1385239721]
+
+[node name="SpotLight3D1" type="SpotLight3D" parent="Environment/Lights" unique_id=828624614]
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, 1, 0, -1, -4.37114e-08, 0, 10, 1)
+light_energy = 20.0
+spot_range = 18.188
+spot_angle = 40.0
+
+[node name="SpotLight3D2" type="SpotLight3D" parent="Environment/Lights" unique_id=1356237734]
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, 1, 0, -1, -4.37114e-08, 10, 10, 1)
+light_energy = 20.0
+spot_range = 18.188
+spot_angle = 40.0
+
+[node name="SpotLight3D3" type="SpotLight3D" parent="Environment/Lights" unique_id=88428840]
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, 1, 0, -1, -4.37114e-08, 20, 10, 1)
+light_energy = 20.0
+spot_range = 18.188
+spot_angle = 40.0
+
+[node name="SpotLight3D4" type="SpotLight3D" parent="Environment/Lights" unique_id=1468852553]
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, 1, 0, -1, -4.37114e-08, 0, 10, 9)
+light_energy = 20.0
+spot_range = 18.188
+spot_angle = 40.0
+
+[node name="SpotLight3D5" type="SpotLight3D" parent="Environment/Lights" unique_id=1438402551]
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, 1, 0, -1, -4.37114e-08, 10, 10, 9)
+light_energy = 20.0
+spot_range = 18.188
+spot_angle = 40.0
+
+[node name="SpotLight3D6" type="SpotLight3D" parent="Environment/Lights" unique_id=1842409176]
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, 1, 0, -1, -4.37114e-08, 20, 10, 9)
+light_energy = 20.0
+spot_range = 18.188
+spot_angle = 40.0
+
+[node name="MainCamera" type="Camera3D" parent="." unique_id=2053262741]
+transform = Transform3D(0.86602527, 0.2832033, -0.4120633, 0, 0.82412666, 0.56640655, 0.49999994, -0.4905225, 0.71371454, -2.31, 15.8, 25.52)
+fov = 30.0
+
+[node name="Node3D" type="Node3D" parent="." unique_id=8658617]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9.4783745, -0.030346394, 1.6660707)
+
+[node name="Effects" type="Node3D" parent="." unique_id=2116927465]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 4)
+
+[node name="Beam" type="Node3D" parent="Effects" unique_id=1188315174]
+
+[node name="BeamVFX_01" parent="Effects/Beam" unique_id=2017559440 instance=ExtResource("2_q83y6")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
+noise_texture = SubResource("NoiseTexture2D_s8xr2")
+start_amount = 0
+volume_db = 0.0
+unit_size = 10.0
+max_db = 3.0
+pitch_scale = 1.0
+audio_playing = false
+audio_autoplay = false
+audio_stream_paused = false
+max_distance = 0.0
+audio_bus = &""
+
+[node name="BeamVFX_02" parent="Effects/Beam" unique_id=1901676396 instance=ExtResource("3_ngqha")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 1, 0)
+noise_texture = SubResource("NoiseTexture2D_6v58n")
+noise_twist = -4.11
+scroll_speed = Vector2(0, 2.445)
+audio_bus = &""
+
+[node name="BeamVFX_03" parent="Effects/Beam" unique_id=56647391 instance=ExtResource("4_08i3w")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 1, 0)
+primary_color = Color(1, 0.88235295, 0.60784316, 1)
+noise_texture = SubResource("NoiseTexture2D_uwclo")
+audio_bus = &""
+
+[node name="BeamVFX_04" parent="Effects/Beam" unique_id=831404249 instance=ExtResource("5_f11ey")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9, 1, 0)
+primary_color = Color(0.5803922, 1, 0.7019608, 1)
+secondary_color = Color(0, 0.7490196, 0.64705884, 1)
+audio_bus = &""
+
+[node name="BeamVFX_05" parent="Effects/Beam" unique_id=2119556875 instance=ExtResource("6_s8xr2")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 1, 0)
+primary_color = Color(1, 0.87058824, 0.8980392, 1)
+noise_texture = SubResource("NoiseTexture2D_oxvwr")
+max_distance = 10.0
+
+[node name="BeamVFX_06" parent="Effects/Beam" unique_id=1892544908 instance=ExtResource("7_xvryk")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15, 1, 0)
+audio_bus = &""
+
+[node name="BeamVFX_07" parent="Effects/Beam" unique_id=1678238585 instance=ExtResource("8_vgs3n")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 18, 1, 0)
+noise_texture = SubResource("NoiseTexture2D_vy1hf")
+unit_size = 20.0
+
+[node name="BeamVFX_08" parent="Effects/Beam" unique_id=1330178760 instance=ExtResource("9_57erk")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 21, 1, 0)
+secondary_color = Color(0.9764706, 0.6039216, 0.28627452, 1)
+tertiary_color = Color(0.44313726, 0.46666667, 0.627451, 1)
+audio_bus = &""
+
+[node name="Laser" type="Node3D" parent="Effects" unique_id=1228263800]
+
+[node name="LaserVFX_01" parent="Effects/Laser" unique_id=1300336780 instance=ExtResource("8_u1tip")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 6)
+noise_texture = SubResource("GradientTexture2D_cxacr")
+audio_bus = &""
+
+[node name="LaserVFX_02" parent="Effects/Laser" unique_id=1212029183 instance=ExtResource("9_6lwch")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 1, 6)
+noise_texture = SubResource("GradientTexture2D_cxacr")
+audio_bus = &""
+
+[node name="LaserVFX_03" parent="Effects/Laser" unique_id=968094713 instance=ExtResource("10_dnduk")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 1, 6)
+noise_texture = SubResource("GradientTexture2D_cxacr")
+audio_bus = &""
+
+[node name="LaserVFX_04" parent="Effects/Laser" unique_id=1404719460 instance=ExtResource("11_f0cyr")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9, 1, 6)
+audio_bus = &""
+
+[node name="LaserVFX_05" parent="Effects/Laser" unique_id=950751228 instance=ExtResource("12_2segj")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 1, 6)
+audio_bus = &""
+
+[node name="LaserVFX_06" parent="Effects/Laser" unique_id=1112815734 instance=ExtResource("13_l2cb1")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15, 1, 6)
+noise_texture = SubResource("GradientTexture2D_cxacr")
+audio_bus = &""
+
+[node name="LaserVFX_07" parent="Effects/Laser" unique_id=1138134125 instance=ExtResource("16_8iuhi")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 18, 1, 6)
+primary_color = Color(0.87058824, 1, 0.5764706, 1)
+secondary_color = Color(0.54509807, 0.79607844, 0, 1)
+tertiary_color = Color(0, 0.5764706, 0.24705882, 1)
+audio_bus = &""
+
+[node name="LaserVFX_08" parent="Effects/Laser" unique_id=540830981 instance=ExtResource("17_4hggp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 21, 1, 6)
+audio_bus = &""

@@ -1,0 +1,30 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="PackedScene" path="res://assets/BinbunVFX/beam_vfx/effects/base/base_beam_vfx.tscn" id="1_base"]
+
+[node name="GhostBeamStorm" instance=ExtResource("1_base")]
+primary_color = Color(0.95, 0.55, 0.2, 1)
+secondary_color = Color(0.954, 0.586, 0.264, 1)
+tertiary_color = Color(0.532, 0.308, 0.112, 1)
+emission = 2.2
+secondary_theme_white_mix = 0.08
+tertiary_theme_darkening = 0.44
+noise_twist = 5.5
+scroll_speed = Vector2(1.2, 8.5)
+beam_radius = 0.16
+start_radius = 0.184
+start_flare = 0.75
+edge_softness = 0.88
+core_enabled = false
+outer_enabled = true
+flare_1_enabled = true
+flare_2_enabled = true
+start_mesh_enabled = true
+body_particles_enabled = true
+pulse_strength = 0.18
+pulse_frequency = 21.0
+pulse_speed = 30.0
+start_amount = 48
+end_emitting = false
+beam_length = 28.0
+open_amount = 1.0

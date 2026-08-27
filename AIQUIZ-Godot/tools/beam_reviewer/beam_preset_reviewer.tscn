@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://dcwqvuchivvcg"]
+
+[ext_resource type="Script" uid="uid://b81nld5p3ppss" path="res://tools/beam_reviewer/beam_preset_reviewer.gd" id="1_bfs1p"]
+
+[node name="BeamPresetReviewer" type="Node3D" unique_id=1745315493]
+script = ExtResource("1_bfs1p")

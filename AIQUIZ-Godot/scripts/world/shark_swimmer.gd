@@ -25,6 +25,15 @@ enum AttackPhase {
 	APPROACH,
 	CHARGE,
 	BITE,
+	PORTAL_RESCUE,
+}
+
+enum AttackPortalPhase {
+	NONE,
+	OPENING,
+	ENTERING,
+	EXIT_OPENING,
+	EXITING,
 }
 
 enum GhostRidePhase {
@@ -34,6 +43,7 @@ enum GhostRidePhase {
 	MOUNTING,
 	DEPARTING,
 	ENTERING,
+	PORTAL_ENTERING,
 	HOVER,
 	CHARGING,
 	FINISHED,
@@ -49,11 +59,25 @@ const ATTACK_CRUISE_Y: float = StageConstants.OCEAN_SURFACE_Y - 0.22
 const VISIBILITY_EMISSION: Color = Color(0.10, 0.24, 0.30, 1.0)
 const VISIBILITY_EMISSION_ENERGY: float = 0.60
 const CHARGE_DISTANCE: float = 24.0
-const BITE_LUNGE_DURATION: float = 0.18
+const BITE_LUNGE_DURATION: float = 0.40
+const BITE_ANIMATION_BLEND_SECONDS: float = 0.06
+const OCEAN_ATTACK_STUCK_SECONDS: float = 1.40
+const OCEAN_ATTACK_PROGRESS_EPSILON: float = 0.50
+const OCEAN_ATTACK_MAX_PORTAL_RESCUES: int = 2
+const OCEAN_ATTACK_PORTAL_OPEN_SECONDS: float = 0.38
+const OCEAN_ATTACK_PORTAL_ENTER_SECONDS: float = 0.30
+const OCEAN_ATTACK_PORTAL_EXIT_OPEN_SECONDS: float = 0.46
+const OCEAN_ATTACK_PORTAL_EXIT_SECONDS: float = 0.62
+const OCEAN_ATTACK_PORTAL_CLOSE_SECONDS: float = 0.85
+const OCEAN_ATTACK_PORTAL_OUTWARD_DISTANCE: float = 7.4
+const OCEAN_ATTACK_PORTAL_DEPTH: float = 2.8
+const OCEAN_ATTACK_PORTAL_SIZE := Vector2(4.2, 4.2)
 const JAW_OPEN_DEGREES: float = 28.0
 const WAKE_OFFSET_SCALE: float = 4.35
 const GHOST_RIDE_SCALE_MULTIPLIER: float = 0.62
 const GHOST_ENTRY_DURATION: float = 2.4
+const GHOST_PORTAL_ENTRY_DURATION: float = 2.25
+const GHOST_PORTAL_ENTRY_START_SCALE: float = 1.0
 const GHOST_RENDEZVOUS_ASCENT_DURATION: float = 2.45
 const GHOST_RENDEZVOUS_DEPTH: float = 4.2
 const GHOST_DEPARTURE_DURATION: float = 2.45
@@ -67,6 +91,12 @@ const GHOST_MOUNT_BEAM_P1_SCENE: PackedScene = preload(
 )
 const GHOST_MOUNT_BEAM_P2_SCENE: PackedScene = preload(
 	"res://assets/BinbunVFX/beam_vfx/effects/beam/beam_vfx_02.tscn"
+)
+const OCEAN_ATTACK_PORTAL_P1_SCENE: PackedScene = preload(
+	"res://assets/BinbunVFX/portal_vfx/effects/portal/portal_vfx_01.tscn"
+)
+const OCEAN_ATTACK_PORTAL_P2_SCENE: PackedScene = preload(
+	"res://assets/BinbunVFX/portal_vfx/effects/portal/portal_vfx_04.tscn"
 )
 const GHOST_MOUNT_BEAM_HEIGHT: float = 28.0
 const GHOST_MOUNT_BEAM_ROOT_ABOVE_OCEAN: float = 0.18
@@ -122,6 +152,7 @@ const GHOST_RENDEZVOUS_ANIMATION_SPEED: float = 0.62
 const GHOST_MOUNT_ANIMATION_SPEED: float = 0.72
 const GHOST_HOVER_ANIMATION_SPEED: float = 0.82
 const SHARK_SWIM_ANIMATION := &"SharkSwim"
+const SHARK_BITE_ANIMATION := &"SharkBite"
 const GHOST_RENDEZVOUS_ANIMATION := &"GhostRendezvousIdle"
 const GHOST_MOUNT_RECEIVE_ANIMATION := &"GhostMountReceive"
 const GHOST_DEPARTURE_ANIMATION := &"GhostDeparture"
@@ -146,6 +177,22 @@ var _attack_phase: int = AttackPhase.AMBIENT
 var _attack_intensity: float = 0.0
 var _bite_timer: float = 0.0
 var _jaw_open_amount: float = 0.0
+var _attack_best_waypoint_distance: float = INF
+var _attack_stuck_elapsed: float = 0.0
+var _attack_portal_rescue_count: int = 0
+var _attack_portal_phase: int = AttackPortalPhase.NONE
+var _attack_portal_elapsed: float = 0.0
+var _attack_entry_portal: Node3D = null
+var _attack_exit_portal: Node3D = null
+var _attack_portal_source_start: Vector3 = Vector3.ZERO
+var _attack_portal_source_center: Vector3 = Vector3.ZERO
+var _attack_portal_source_forward: Vector3 = Vector3.ZERO
+var _attack_portal_exit_center: Vector3 = Vector3.ZERO
+var _attack_portal_exit_start: Vector3 = Vector3.ZERO
+var _attack_portal_exit_end: Vector3 = Vector3.ZERO
+var _attack_portal_exit_forward: Vector3 = Vector3.ZERO
+var _attack_portal_behind_direction: Vector3 = Vector3.ZERO
+var _attack_portal_base_scale: Vector3 = Vector3.ONE
 var _jaw_skeleton: Skeleton3D = null
 var _jaw_bone_index: int = -1
 var _jaw_rest_rotation: Quaternion = Quaternion.IDENTITY
@@ -194,6 +241,11 @@ var _ghost_silhouette_meshes: Array[MeshInstance3D] = []
 var _ghost_silhouette_original_overlays: Dictionary = {}
 var _ghost_silhouette_enabled: bool = false
 var _ghost_silhouette_wall_occluded: bool = false
+var _ghost_portal_stencil_originals: Dictionary = {}
+var _ghost_portal_stencil_material_cache: Dictionary = {}
+var _ghost_portal_stencil_active: bool = false
+var _ghost_portal_stencil_surface_count: int = 0
+var _ghost_portal_stencil_release_progress: float = 1.0
 var _ghost_mount_beacons: Array[Node3D] = []
 var _ghost_mount_beam_sequence_started: bool = false
 var _ghost_mount_beam_shutdown_started: bool = false
@@ -337,6 +389,115 @@ func _clear_ghost_occlusion_silhouette() -> void:
 	_ghost_silhouette_wall_occluded = false
 
 
+func _make_ghost_portal_stencil_material(
+	source_material: BaseMaterial3D
+) -> BaseMaterial3D:
+	var cached_material := (
+		_ghost_portal_stencil_material_cache.get(source_material) as BaseMaterial3D
+	)
+	if cached_material != null:
+		return cached_material
+	var stencil_material := source_material.duplicate() as BaseMaterial3D
+	if stencil_material == null:
+		return null
+	stencil_material.stencil_mode = BaseMaterial3D.STENCIL_MODE_CUSTOM
+	stencil_material.stencil_flags = BaseMaterial3D.STENCIL_FLAG_READ
+	stencil_material.stencil_compare = BaseMaterial3D.STENCIL_COMPARE_EQUAL
+	stencil_material.stencil_reference = 1
+	# Godot 4.6 requires stencil reads in the alpha queue. This material exists
+	# only while the shark passes through the aperture; its authored appearance
+	# is restored after the tail clears.
+	stencil_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	stencil_material.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	stencil_material.render_priority = maxi(stencil_material.render_priority, 1)
+	_ghost_portal_stencil_material_cache[source_material] = stencil_material
+	return stencil_material
+
+
+## Binbun Portal VFXのStencilモードに合わせ、通過中だけサメと騎乗者を開口内に描画する。
+func _set_ghost_portal_stencil_enabled(enabled: bool) -> void:
+	if enabled:
+		if not _ghost_portal_stencil_originals.is_empty():
+			return
+		_ghost_portal_stencil_surface_count = 0
+		for mesh_instance: MeshInstance3D in _ghost_silhouette_meshes:
+			if not is_instance_valid(mesh_instance):
+				continue
+			var original_entry: Dictionary = {
+				"material_override": mesh_instance.material_override,
+				"surface_overrides": [],
+			}
+			var source_override := mesh_instance.material_override as BaseMaterial3D
+			if source_override != null:
+				var stencil_override := _make_ghost_portal_stencil_material(source_override)
+				if stencil_override != null:
+					mesh_instance.material_override = stencil_override
+					_ghost_portal_stencil_surface_count += 1
+				_ghost_portal_stencil_originals[mesh_instance] = original_entry
+				continue
+			var original_surfaces: Array[Material] = []
+			var surface_count := mesh_instance.get_surface_override_material_count()
+			for surface_index: int in range(surface_count):
+				original_surfaces.append(
+					mesh_instance.get_surface_override_material(surface_index)
+				)
+				var source_material := (
+					mesh_instance.get_active_material(surface_index) as BaseMaterial3D
+				)
+				if source_material == null:
+					continue
+				var stencil_material := _make_ghost_portal_stencil_material(source_material)
+				if stencil_material == null:
+					continue
+				mesh_instance.set_surface_override_material(surface_index, stencil_material)
+				_ghost_portal_stencil_surface_count += 1
+			original_entry["surface_overrides"] = original_surfaces
+			_ghost_portal_stencil_originals[mesh_instance] = original_entry
+		_ghost_portal_stencil_active = _ghost_portal_stencil_surface_count > 0
+		return
+
+	for mesh_variant: Variant in _ghost_portal_stencil_originals:
+		var mesh_instance := mesh_variant as MeshInstance3D
+		if mesh_instance == null or not is_instance_valid(mesh_instance):
+			continue
+		var original_entry: Dictionary = _ghost_portal_stencil_originals[mesh_variant]
+		mesh_instance.material_override = original_entry.get("material_override") as Material
+		var surface_overrides_variant: Variant = original_entry.get("surface_overrides", [])
+		if not (surface_overrides_variant is Array):
+			continue
+		var surface_overrides: Array = surface_overrides_variant
+		var restore_count := mini(
+			surface_overrides.size(),
+			mesh_instance.get_surface_override_material_count()
+		)
+		for surface_index: int in range(restore_count):
+			mesh_instance.set_surface_override_material(
+				surface_index,
+				surface_overrides[surface_index] as Material
+			)
+	_ghost_portal_stencil_originals.clear()
+	_ghost_portal_stencil_active = false
+	_ghost_portal_stencil_surface_count = 0
+
+
+## 黒画面中に実際のサメ材質へポータル用Stencilパスを一度適用し、
+## 初回のポータル通過時に発生する材質生成・描画パイプライン生成を先に済ませる。
+## 移動・攻撃・ゴースト騎乗の状態は変更しない。
+func begin_ghost_portal_render_prewarm() -> int:
+	if is_attacking or is_ghost_ridden:
+		return 0
+	_register_ghost_silhouette_meshes(model)
+	_set_ghost_portal_stencil_enabled(true)
+	return _ghost_portal_stencil_surface_count
+
+
+func end_ghost_portal_render_prewarm() -> void:
+	if is_ghost_ridden:
+		return
+	_set_ghost_portal_stencil_enabled(false)
+	_clear_ghost_occlusion_silhouette()
+
+
 func _process(delta: float) -> void:
 	_swim_time += delta
 	if is_ghost_ridden:
@@ -377,6 +538,7 @@ func begin_attack(
 ) -> bool:
 	if is_attacking or is_ghost_ridden:
 		return false
+	_cleanup_attack_rescue_portals(true)
 	_attack_player_index = player_index
 	_floor_center_z = floor_center_z
 	_floor_length = floor_length
@@ -386,6 +548,10 @@ func begin_attack(
 	_bite_timer = 0.0
 	_attack_intensity = 0.0
 	_jaw_open_amount = 0.0
+	_attack_best_waypoint_distance = INF
+	_attack_stuck_elapsed = 0.0
+	_attack_portal_rescue_count = 0
+	_attack_portal_phase = AttackPortalPhase.NONE
 	_set_attack_phase(AttackPhase.APPROACH)
 	animation_player.speed_scale = 1.75
 	return true
@@ -754,6 +920,7 @@ func launch_ghost_charge(direction: Vector3, speed: float, max_distance: float) 
 func restart_ghost_hover(entry_position: Vector3, target_position: Vector3, aim_point: Vector3) -> void:
 	if not is_ghost_ridden:
 		return
+	_set_ghost_portal_stencil_enabled(false)
 	visible = true
 	position = entry_position
 	_ghost_entry_start = entry_position
@@ -775,6 +942,48 @@ func restart_ghost_hover(entry_position: Vector3, target_position: Vector3, aim_
 	if _ghost_breach_ring != null:
 		_ghost_breach_ring.visible = false
 	_play_named_animation(GHOST_DEPARTURE_ANIMATION, false, 0.96)
+
+
+## ポータルの奥から短く抜け、従来の海中再入場を使わず攻撃準備位置へ戻る。
+func restart_ghost_hover_through_portal(
+	entry_position: Vector3,
+	target_position: Vector3,
+	aim_point: Vector3,
+	stencil_release_progress: float = 1.0
+) -> void:
+	if not is_ghost_ridden:
+		return
+	visible = true
+	position = entry_position
+	_ghost_entry_start = entry_position
+	_ghost_hover_target = target_position
+	_ghost_aim_point = aim_point
+	_ghost_entry_elapsed = 0.0
+	_ghost_entry_progress = 0.0
+	_ghost_breach_triggered = false
+	_ghost_breach_ring_elapsed = -1.0
+	_ghost_phase = GhostRidePhase.PORTAL_ENTERING
+	_ghost_portal_stencil_release_progress = clampf(
+		stencil_release_progress,
+		0.0,
+		1.0
+	)
+	_update_ghost_occlusion_silhouette()
+	_set_ghost_portal_stencil_enabled(true)
+	_ghost_charge_tension = 0.0
+	_attack_intensity = 0.28
+	scale = _ghost_base_scale * GHOST_PORTAL_ENTRY_START_SCALE
+	_velocity = entry_position.direction_to(target_position) * 13.0
+	if _velocity.length_squared() > 0.001:
+		quaternion = _quat_look_at(position, target_position)
+	_bank = 0.0
+	model.rotation = Vector3(0.0, PI * 0.5, 0.0)
+	if _ghost_aura_particles != null:
+		_ghost_aura_particles.emitting = false
+		_ghost_aura_particles.amount_ratio = 0.0
+	if _ghost_breach_ring != null:
+		_ghost_breach_ring.visible = false
+	_play_swim_animation()
 
 
 func depart_ghost_rendezvous(
@@ -825,6 +1034,7 @@ func depart_ghost_rendezvous(
 func end_ghost_ride() -> void:
 	if not is_ghost_ridden:
 		return
+	_set_ghost_portal_stencil_enabled(false)
 	_clear_ghost_occlusion_silhouette()
 	is_ghost_ridden = false
 	scale = _ghost_original_scale
@@ -895,6 +1105,13 @@ func get_ghost_ride_debug_state() -> Dictionary:
 		"beam_elapsed": _ghost_mount_beam_elapsed,
 		"beam_formation_complete": is_ghost_reveal_beam_formation_complete(),
 		"beam_sequence_complete": is_ghost_reveal_sequence_complete(),
+		"portal_entry_progress": _ghost_entry_progress,
+		"portal_stencil_active": _ghost_portal_stencil_active,
+		"portal_stencil_surface_count": _ghost_portal_stencil_surface_count,
+		"portal_stencil_cache_size": _ghost_portal_stencil_material_cache.size(),
+		"portal_stencil_release_progress": _ghost_portal_stencil_release_progress,
+		"forward": -global_basis.z.normalized(),
+		"model_rotation": model.rotation,
 		"animation": String(animation_player.current_animation),
 		"animation_speed": animation_player.get_playing_speed(),
 	}
@@ -945,8 +1162,10 @@ func cancel_attack() -> void:
 	_attack_player_index = 0
 	_attack_waypoints.clear()
 	_attack_route_snapshot.clear()
+	_cleanup_attack_rescue_portals(true)
 	animation_player.speed_scale = 1.0
 	_reset_arcade_attack_effects()
+	_play_swim_animation(BITE_ANIMATION_BLEND_SECONDS)
 	_recenter_ambient_path()
 
 
@@ -968,6 +1187,51 @@ func get_attack_phase() -> int:
 
 func get_attack_intensity() -> float:
 	return _attack_intensity
+
+
+func get_ocean_attack_debug_state() -> Dictionary:
+	return {
+		"attacking": is_attacking,
+		"player": _attack_player_index,
+		"phase": AttackPhase.keys()[_attack_phase],
+		"route_kind": attack_route_kind,
+		"target": _attack_target,
+		"waypoint_count": _attack_waypoints.size(),
+		"stuck_elapsed": _attack_stuck_elapsed,
+		"portal_phase": AttackPortalPhase.keys()[_attack_portal_phase],
+		"portal_rescue_count": _attack_portal_rescue_count,
+		"entry_portal_active": (
+			_attack_entry_portal != null and is_instance_valid(_attack_entry_portal)
+		),
+		"exit_portal_active": (
+			_attack_exit_portal != null and is_instance_valid(_attack_exit_portal)
+		),
+		"entry_portal_open_amount": (
+			float(_attack_entry_portal.get("open_amount"))
+			if _attack_entry_portal != null and is_instance_valid(_attack_entry_portal)
+			else 0.0
+		),
+		"exit_portal_open_amount": (
+			float(_attack_exit_portal.get("open_amount"))
+			if _attack_exit_portal != null and is_instance_valid(_attack_exit_portal)
+			else 0.0
+		),
+		"exit_portal_position": (
+			_attack_exit_portal.global_position
+			if _attack_exit_portal != null and is_instance_valid(_attack_exit_portal)
+			else _attack_portal_exit_center
+		),
+		"exit_portal_forward": _attack_portal_exit_forward,
+		"exit_portal_behind_direction": _attack_portal_behind_direction,
+		"exit_portal_behind_alignment": (
+			_attack_target.direction_to(_attack_portal_exit_center).dot(
+				_attack_portal_behind_direction
+			)
+			if _attack_target.distance_squared_to(_attack_portal_exit_center) > 0.0001
+			else 0.0
+		),
+		"shark_visible": visible,
+	}
 
 
 func _set_attack_phase(next_phase: int) -> void:
@@ -1234,7 +1498,13 @@ func _create_ghost_breach_ring() -> MeshInstance3D:
 
 func _update_arcade_attack_effects(delta: float) -> void:
 	var ghost_charging := is_ghost_ridden and _ghost_phase == GhostRidePhase.CHARGING
-	var ghost_entering := is_ghost_ridden and _ghost_phase == GhostRidePhase.ENTERING
+	var portal_entering := (
+		is_ghost_ridden and _ghost_phase == GhostRidePhase.PORTAL_ENTERING
+	)
+	var ghost_entering := is_ghost_ridden and _ghost_phase in [
+		GhostRidePhase.ENTERING,
+		GhostRidePhase.PORTAL_ENTERING,
+	]
 	var ghost_departing := is_ghost_ridden and _ghost_phase == GhostRidePhase.DEPARTING
 	var arcade_active := is_attacking or ghost_charging or ghost_entering or ghost_departing
 	var authored_mount_animation := is_ghost_ridden and _ghost_phase in [
@@ -1243,20 +1513,33 @@ func _update_arcade_attack_effects(delta: float) -> void:
 		GhostRidePhase.MOUNTING,
 		GhostRidePhase.DEPARTING,
 		GhostRidePhase.ENTERING,
+		GhostRidePhase.PORTAL_ENTERING,
 	]
-	if arcade_active and not authored_mount_animation:
+	var authored_bite_animation := (
+		is_attacking and _attack_phase == AttackPhase.BITE
+	)
+	if authored_bite_animation:
+		# Match the 0.40-second authored clip to the gameplay bite timer.
+		animation_player.speed_scale = 1.0
+	elif arcade_active and not authored_mount_animation:
 		animation_player.speed_scale = lerpf(1.75, 2.35, _attack_intensity)
 	if _wake_particles != null:
-		_wake_particles.emitting = arcade_active and _attack_intensity > 0.03
+		_wake_particles.emitting = (
+			arcade_active and not portal_entering and _attack_intensity > 0.03
+		)
 		_wake_particles.amount_ratio = clampf(_attack_intensity, 0.0, 1.0)
 	if _surface_spray != null:
 		_surface_spray.position.y = StageConstants.OCEAN_SURFACE_Y - position.y + 0.12
 		_surface_spray.emitting = is_attacking and _attack_intensity > 0.16
 		_surface_spray.amount_ratio = clampf((_attack_intensity - 0.12) / 0.88, 0.0, 1.0)
 	if _ghost_aura_particles != null:
-		_ghost_aura_particles.emitting = is_ghost_ridden and _ghost_phase != GhostRidePhase.FINISHED
+		_ghost_aura_particles.emitting = (
+			is_ghost_ridden
+			and not portal_entering
+			and _ghost_phase != GhostRidePhase.FINISHED
+		)
 		var aura_target := 0.0
-		if is_ghost_ridden:
+		if is_ghost_ridden and not portal_entering:
 			aura_target = lerpf(0.34, 1.0, maxf(_attack_intensity, _ghost_charge_tension))
 		_ghost_aura_particles.amount_ratio = move_toward(
 			_ghost_aura_particles.amount_ratio,
@@ -1315,8 +1598,13 @@ func _reset_arcade_attack_effects() -> void:
 	_apply_jaw_pose()
 
 
-func _play_swim_animation() -> void:
-	if _play_named_animation(SHARK_SWIM_ANIMATION, true, animation_speed):
+func _play_swim_animation(blend_time: float = -1.0) -> void:
+	if _play_named_animation(
+		SHARK_SWIM_ANIMATION,
+		true,
+		animation_speed,
+		blend_time
+	):
 		return
 	var animation_names: PackedStringArray = animation_player.get_animation_list()
 	for animation_name: StringName in animation_names:
@@ -1326,7 +1614,7 @@ func _play_swim_animation() -> void:
 		if animation == null:
 			continue
 		animation.loop_mode = Animation.LOOP_LINEAR
-		animation_player.play(animation_name, -1.0, animation_speed)
+		animation_player.play(animation_name, blend_time, animation_speed)
 		if animation.length > 0.0:
 			var normalized_phase: float = fposmod(phase, TAU) / TAU
 			animation_player.seek(normalized_phase * animation.length, true)
@@ -1334,10 +1622,24 @@ func _play_swim_animation() -> void:
 	push_warning("Shark swimmer has no playable animation")
 
 
+func _play_bite_animation() -> void:
+	if _play_named_animation(
+		SHARK_BITE_ANIMATION,
+		false,
+		1.0,
+		BITE_ANIMATION_BLEND_SECONDS
+	):
+		return
+	# Keep the procedural jaw/lunge fallback if an older imported shark asset
+	# is temporarily present while the editor is reimporting the GLB.
+	push_warning("Shark swimmer has no SharkBite animation; using procedural bite")
+
+
 func _play_named_animation(
 	preferred_name: StringName,
 	looped: bool,
-	speed: float
+	speed: float,
+	blend_time: float = -1.0
 ) -> bool:
 	var resolved_name := StringName()
 	for animation_name: StringName in animation_player.get_animation_list():
@@ -1351,7 +1653,7 @@ func _play_named_animation(
 	if animation == null:
 		return false
 	animation.loop_mode = Animation.LOOP_LINEAR if looped else Animation.LOOP_NONE
-	animation_player.play(resolved_name, -1.0, speed)
+	animation_player.play(resolved_name, blend_time, speed)
 	return true
 
 
@@ -1482,6 +1784,40 @@ func _update_ghost_ride(delta: float) -> void:
 				_stop_ghost_mount_beacon_sequence()
 				_play_swim_animation()
 				animation_player.speed_scale = GHOST_HOVER_ANIMATION_SPEED
+		GhostRidePhase.PORTAL_ENTERING:
+			_ghost_entry_elapsed += delta
+			var progress := clampf(
+				_ghost_entry_elapsed / GHOST_PORTAL_ENTRY_DURATION,
+				0.0,
+				1.0
+			)
+			var travel_weight := smoothstep(0.0, 1.0, progress)
+			var previous_position := position
+			position = _ghost_entry_start.lerp(_ghost_hover_target, travel_weight)
+			_velocity = (position - previous_position) / maxf(delta, 0.0001)
+			_ghost_entry_progress = travel_weight
+			# Behind the mouth, the stencil reveals the shark only through the
+			# aperture. Once its center crosses the portal plane, restore the
+			# authored materials so the front half can exist outside the ring;
+			# the opaque tunnel keeps the remaining rear half physically occluded.
+			if (
+				_ghost_portal_stencil_active
+				and travel_weight >= _ghost_portal_stencil_release_progress
+			):
+				_set_ghost_portal_stencil_enabled(false)
+			# Keep authored scale constant. Apparent growth now comes from actual
+			# movement through the portal depth, matching the pack's demo.
+			scale = _ghost_base_scale
+			_attack_intensity = lerpf(0.28, 0.0, progress)
+			if progress >= 1.0:
+				position = _ghost_hover_target
+				scale = _ghost_base_scale
+				_velocity = Vector3.ZERO
+				_ghost_entry_progress = 1.0
+				_set_ghost_portal_stencil_enabled(false)
+				_ghost_phase = GhostRidePhase.HOVER
+				_update_ghost_occlusion_silhouette()
+				_play_swim_animation()
 		GhostRidePhase.ENTERING:
 			_ghost_entry_elapsed += delta
 			var progress := clampf(_ghost_entry_elapsed / GHOST_ENTRY_DURATION, 0.0, 1.0)
@@ -1793,6 +2129,9 @@ func _update_ambient_swim(delta: float) -> void:
 
 
 func _update_attack(delta: float) -> void:
+	if _attack_portal_phase != AttackPortalPhase.NONE:
+		_update_attack_portal_rescue(delta)
+		return
 	if _attack_waypoints.is_empty():
 		_finish_attack()
 		return
@@ -1800,6 +2139,8 @@ func _update_attack(delta: float) -> void:
 	var waypoint: Vector3 = _attack_waypoints[0]
 	var final_leg: bool = _attack_waypoints.size() == 1
 	var distance: float = position.distance_to(waypoint)
+	if _update_attack_stuck_watchdog(delta, waypoint, distance):
+		return
 
 	if final_leg and _attack_phase != AttackPhase.BITE:
 		var bite_start_distance: float = bite_distance + attack_speed * BITE_LUNGE_DURATION
@@ -1816,6 +2157,8 @@ func _update_attack(delta: float) -> void:
 			_bite_timer = 0.0
 			_attack_intensity = 1.0
 			_jaw_open_amount = 1.0
+			animation_player.speed_scale = 1.0
+			_play_bite_animation()
 	elif not final_leg:
 		_set_attack_phase(AttackPhase.APPROACH)
 		_attack_intensity = move_toward(_attack_intensity, 0.08, delta * 0.6)
@@ -1833,6 +2176,7 @@ func _update_attack(delta: float) -> void:
 			var next_direction: Vector3 = position.direction_to(_attack_waypoints[0])
 			var redirected_velocity: Vector3 = next_direction * attack_speed * 0.68
 			_velocity = _velocity.lerp(redirected_velocity, 0.82)
+		_reset_attack_stuck_watchdog()
 		return
 
 	var leg_speed: float = attack_speed if final_leg else attack_speed * 0.72
@@ -1872,10 +2216,297 @@ func _finish_attack() -> void:
 	attack_route_kind = "ambient"
 	_attack_player_index = 0
 	_attack_waypoints.clear()
+	_cleanup_attack_rescue_portals(false)
 	animation_player.speed_scale = 1.0
 	_reset_arcade_attack_effects()
+	_play_swim_animation(BITE_ANIMATION_BLEND_SECONDS)
 	_recenter_ambient_path()
 	attack_reached.emit(reached_player)
+
+
+## ステージ壁の接触補正で同じ場所に押し戻され続けた場合だけ、
+## 入口へ消えた後に落下キャラの背後で出口を開き、通常の噛みつきへ復帰させる。
+func _update_attack_stuck_watchdog(
+	delta: float,
+	waypoint: Vector3,
+	distance: float
+) -> bool:
+	if _attack_phase == AttackPhase.BITE:
+		_reset_attack_stuck_watchdog(distance)
+		return false
+	if distance + OCEAN_ATTACK_PROGRESS_EPSILON < _attack_best_waypoint_distance:
+		_attack_best_waypoint_distance = distance
+		_attack_stuck_elapsed = 0.0
+		return false
+	_attack_stuck_elapsed += delta
+	if (
+		_attack_stuck_elapsed < OCEAN_ATTACK_STUCK_SECONDS
+		or _attack_portal_rescue_count >= OCEAN_ATTACK_MAX_PORTAL_RESCUES
+	):
+		return false
+	_start_attack_portal_rescue(waypoint)
+	return _attack_portal_phase != AttackPortalPhase.NONE
+
+
+func _reset_attack_stuck_watchdog(distance: float = INF) -> void:
+	_attack_best_waypoint_distance = distance
+	_attack_stuck_elapsed = 0.0
+
+
+func _start_attack_portal_rescue(waypoint: Vector3) -> void:
+	var portal_parent := get_parent() as Node3D
+	if portal_parent == null:
+		_reset_attack_stuck_watchdog()
+		return
+	var source_forward := _velocity.normalized()
+	if source_forward.length_squared() <= 0.001:
+		source_forward = position.direction_to(waypoint)
+	source_forward.y = 0.0
+	if source_forward.length_squared() <= 0.001:
+		source_forward = Vector3.FORWARD
+	source_forward = source_forward.normalized()
+
+	# The edge-facing side is the fallen character's rear space: farther away
+	# from the stage than the character, with the exit aimed back at them.
+	var behind_direction := _attack_target_outward_normal(_attack_target)
+	var exit_forward := -behind_direction
+	var exit_center := (
+		_attack_target
+		+ behind_direction * OCEAN_ATTACK_PORTAL_OUTWARD_DISTANCE
+	)
+	exit_center.y = ATTACK_CRUISE_Y
+
+	# Only the entry exists at rescue start. The exit is created after the shark
+	# has completely disappeared into this portal.
+	_attack_entry_portal = _create_ocean_attack_portal(
+		portal_parent,
+		"OceanAttackEntryPortalP%d" % _attack_player_index
+	)
+	if _attack_entry_portal == null:
+		_cleanup_attack_rescue_portals(true)
+		_reset_attack_stuck_watchdog()
+		return
+
+	_attack_portal_source_start = global_position
+	_attack_portal_source_forward = source_forward
+	_attack_portal_source_center = global_position + source_forward * 2.7
+	_attack_portal_exit_center = exit_center
+	_attack_portal_exit_forward = exit_forward
+	_attack_portal_behind_direction = behind_direction
+	_attack_portal_exit_start = exit_center - exit_forward * OCEAN_ATTACK_PORTAL_DEPTH
+	_attack_portal_exit_end = exit_center + exit_forward * 2.35
+	_attack_portal_base_scale = scale
+	_place_ocean_attack_portal(
+		_attack_entry_portal,
+		_attack_portal_source_center,
+		source_forward
+	)
+	_attack_entry_portal.call("open")
+	_attack_portal_rescue_count += 1
+	_attack_portal_elapsed = 0.0
+	_attack_portal_phase = AttackPortalPhase.OPENING
+	attack_route_kind = "portal_rescue"
+	_set_attack_phase(AttackPhase.PORTAL_RESCUE)
+	_velocity = Vector3.ZERO
+	_attack_intensity = 0.32
+	_jaw_open_amount = 0.0
+	_reset_attack_stuck_watchdog()
+
+
+func _create_ocean_attack_portal(parent: Node3D, portal_name: String) -> Node3D:
+	var portal_scene := (
+		OCEAN_ATTACK_PORTAL_P1_SCENE
+		if _attack_player_index == 1
+		else OCEAN_ATTACK_PORTAL_P2_SCENE
+	)
+	var portal := portal_scene.instantiate() as Node3D
+	if portal == null:
+		return null
+	portal.name = portal_name
+	portal.visible = false
+	parent.add_child(portal)
+	portal.set("size", OCEAN_ATTACK_PORTAL_SIZE)
+	portal.set("portal_mode", 0)
+	portal.set("animation_speed", 1.25)
+	portal.set("open_amount", 0.0)
+	portal.visible = true
+	return portal
+
+
+func _place_ocean_attack_portal(
+	portal: Node3D,
+	portal_position: Vector3,
+	travel_forward: Vector3
+) -> void:
+	portal.global_position = portal_position
+	portal.look_at(portal_position + travel_forward, Vector3.UP, true)
+
+
+func _open_attack_exit_portal() -> bool:
+	var portal_parent := get_parent() as Node3D
+	if portal_parent == null:
+		return false
+	_attack_exit_portal = _create_ocean_attack_portal(
+		portal_parent,
+		"OceanAttackExitPortalP%d" % _attack_player_index
+	)
+	if _attack_exit_portal == null:
+		return false
+	_place_ocean_attack_portal(
+		_attack_exit_portal,
+		_attack_portal_exit_center,
+		_attack_portal_exit_forward
+	)
+	_attack_exit_portal.call("open")
+	return true
+
+
+func _update_attack_portal_rescue(delta: float) -> void:
+	_attack_portal_elapsed += delta
+	match _attack_portal_phase:
+		AttackPortalPhase.OPENING:
+			_attack_intensity = move_toward(_attack_intensity, 0.55, delta * 1.8)
+			if _attack_portal_elapsed >= OCEAN_ATTACK_PORTAL_OPEN_SECONDS:
+				_attack_portal_elapsed = 0.0
+				_attack_portal_phase = AttackPortalPhase.ENTERING
+		AttackPortalPhase.ENTERING:
+			var enter_progress := clampf(
+				_attack_portal_elapsed / OCEAN_ATTACK_PORTAL_ENTER_SECONDS,
+				0.0,
+				1.0
+			)
+			var previous_position := global_position
+			global_position = _attack_portal_source_start.lerp(
+				_attack_portal_source_center + _attack_portal_source_forward * 0.8,
+				smoothstep(0.0, 1.0, enter_progress)
+			)
+			_velocity = (global_position - previous_position) / maxf(delta, 0.0001)
+			scale = _attack_portal_base_scale * lerpf(1.0, 0.18, enter_progress)
+			if enter_progress >= 1.0:
+				# Finish the entry first. While the shark is hidden in transit,
+				# open a new portal behind the fallen character.
+				visible = false
+				if _attack_entry_portal != null and is_instance_valid(_attack_entry_portal):
+					_attack_entry_portal.call("close")
+				_attack_portal_elapsed = 0.0
+				if _open_attack_exit_portal():
+					_attack_portal_phase = AttackPortalPhase.EXIT_OPENING
+				else:
+					# If the VFX cannot be created, preserve the rescue gameplay
+					# contract by resuming the charge from the intended exit.
+					global_position = _attack_portal_exit_end
+					scale = _attack_portal_base_scale
+					visible = true
+					_finish_attack_portal_rescue()
+		AttackPortalPhase.EXIT_OPENING:
+			_attack_intensity = move_toward(_attack_intensity, 0.72, delta * 1.5)
+			if _attack_portal_elapsed >= OCEAN_ATTACK_PORTAL_EXIT_OPEN_SECONDS:
+				global_position = _attack_portal_exit_start
+				quaternion = _quat_look_at(
+					global_position,
+					global_position + _attack_portal_exit_forward
+				)
+				scale = _attack_portal_base_scale * 0.18
+				visible = true
+				_attack_portal_elapsed = 0.0
+				_attack_portal_phase = AttackPortalPhase.EXITING
+		AttackPortalPhase.EXITING:
+			var exit_progress := clampf(
+				_attack_portal_elapsed / OCEAN_ATTACK_PORTAL_EXIT_SECONDS,
+				0.0,
+				1.0
+			)
+			var previous_position := global_position
+			global_position = _attack_portal_exit_start.lerp(
+				_attack_portal_exit_end,
+				smoothstep(0.0, 1.0, exit_progress)
+			)
+			_velocity = (global_position - previous_position) / maxf(delta, 0.0001)
+			scale = _attack_portal_base_scale * lerpf(0.18, 1.0, exit_progress)
+			_attack_intensity = lerpf(0.55, 0.92, exit_progress)
+			_jaw_open_amount = smoothstep(0.35, 0.88, exit_progress)
+			if exit_progress >= 1.0:
+				_finish_attack_portal_rescue()
+
+
+func _finish_attack_portal_rescue() -> void:
+	global_position = _attack_portal_exit_end
+	scale = _attack_portal_base_scale
+	visible = true
+	_velocity = _attack_portal_exit_forward * attack_speed
+	_attack_portal_phase = AttackPortalPhase.NONE
+	_attack_portal_elapsed = 0.0
+	_attack_waypoints.clear()
+	_attack_route_snapshot.clear()
+	_append_attack_waypoint(_attack_target)
+	_set_attack_phase(AttackPhase.CHARGE)
+	_reset_attack_stuck_watchdog(global_position.distance_to(_attack_target))
+	_release_attack_rescue_portals()
+
+
+func _attack_target_outward_normal(target_position: Vector3) -> Vector3:
+	var half_length: float = _floor_length * 0.5
+	var min_z: float = _floor_center_z - half_length
+	var max_z: float = _floor_center_z + half_length
+	if target_position.x <= -StageConstants.FLOOR_HALF_WIDTH:
+		return Vector3.LEFT
+	if target_position.x >= StageConstants.FLOOR_HALF_WIDTH:
+		return Vector3.RIGHT
+	if target_position.z <= min_z:
+		return Vector3.BACK
+	if target_position.z >= max_z:
+		return Vector3.FORWARD
+	var distances := PackedFloat32Array([
+		absf(target_position.x + StageConstants.FLOOR_HALF_WIDTH),
+		absf(StageConstants.FLOOR_HALF_WIDTH - target_position.x),
+		absf(target_position.z - min_z),
+		absf(max_z - target_position.z),
+	])
+	var nearest_side := 0
+	for side_index: int in range(1, distances.size()):
+		if distances[side_index] < distances[nearest_side]:
+			nearest_side = side_index
+	return [Vector3.LEFT, Vector3.RIGHT, Vector3.BACK, Vector3.FORWARD][nearest_side]
+
+
+func _release_attack_rescue_portals() -> void:
+	for portal: Node3D in [_attack_entry_portal, _attack_exit_portal]:
+		if portal == null or not is_instance_valid(portal):
+			continue
+		portal.call("close")
+		var cleanup_tween := create_tween().bind_node(portal)
+		cleanup_tween.tween_interval(OCEAN_ATTACK_PORTAL_CLOSE_SECONDS)
+		cleanup_tween.tween_callback(portal.queue_free)
+	_attack_entry_portal = null
+	_attack_exit_portal = null
+
+
+func _cleanup_attack_rescue_portals(immediate: bool) -> void:
+	var had_active_rescue := (
+		_attack_portal_phase != AttackPortalPhase.NONE
+		or (_attack_entry_portal != null and is_instance_valid(_attack_entry_portal))
+		or (_attack_exit_portal != null and is_instance_valid(_attack_exit_portal))
+	)
+	for portal: Node3D in [_attack_entry_portal, _attack_exit_portal]:
+		if portal == null or not is_instance_valid(portal):
+			continue
+		if immediate:
+			portal.queue_free()
+		else:
+			portal.call("close")
+			var cleanup_tween := create_tween().bind_node(portal)
+			cleanup_tween.tween_interval(OCEAN_ATTACK_PORTAL_CLOSE_SECONDS)
+			cleanup_tween.tween_callback(portal.queue_free)
+	_attack_entry_portal = null
+	_attack_exit_portal = null
+	_attack_portal_phase = AttackPortalPhase.NONE
+	_attack_portal_elapsed = 0.0
+	_attack_portal_exit_center = Vector3.ZERO
+	_attack_portal_exit_forward = Vector3.ZERO
+	_attack_portal_behind_direction = Vector3.ZERO
+	if had_active_rescue:
+		scale = _attack_portal_base_scale
+		visible = true
 
 
 func _build_attack_route(from_position: Vector3, target_position: Vector3) -> void:
@@ -2088,11 +2719,26 @@ func _keep_clear_of_stage(candidate: Vector3, previous_position: Vector3) -> Vec
 func _update_orientation(delta: float) -> void:
 	if _velocity.length_squared() < 0.01:
 		return
+	var portal_entering := (
+		is_ghost_ridden and _ghost_phase == GhostRidePhase.PORTAL_ENTERING
+	)
 	var direction: Vector3 = _velocity.normalized()
+	if portal_entering:
+		direction.y = 0.0
+		if direction.length_squared() < 0.0001:
+			return
+		direction = direction.normalized()
 	var target_quaternion: Quaternion = _quat_look_at(
 		position,
 		position + direction
 	)
+	if portal_entering:
+		# The portal mouth, travel axis, and shark body must share one level
+		# orientation. Do not carry charge banking or pitch into the emergence.
+		quaternion = target_quaternion
+		_bank = 0.0
+		model.rotation = Vector3(0.0, PI * 0.5, 0.0)
+		return
 	var response: float = turn_response * (1.8 if is_attacking else 1.0)
 	quaternion = quaternion.slerp(target_quaternion, clampf(delta * response, 0.0, 1.0))
 

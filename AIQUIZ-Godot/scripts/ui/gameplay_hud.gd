@@ -4,6 +4,7 @@ const OFFSCREEN_PLAYER_MARKER_SCRIPT := preload("res://scripts/ui/offscreen_play
 const DuoTutorialOverlayScript := preload("res://scripts/ui/duo_tutorial_overlay.gd")
 const SoloTutorialOverlayScript := preload("res://scripts/ui/solo_tutorial_overlay.gd")
 const TutorialCompletionCardScript := preload("res://scripts/ui/tutorial_completion_card.gd")
+const ResultCeremonyOverlayScript := preload("res://scripts/ui/result_ceremony_overlay.gd")
 const OFFSCREEN_MARKER_EDGE_MARGIN := 78.0
 const OFFSCREEN_MARKER_NEAR_SCALE := 0.82
 const OFFSCREEN_MARKER_FAR_SCALE := 1.24
@@ -70,6 +71,7 @@ var _tutorial_completion_card: Control = null
 var _p1_offscreen_marker: Control = null
 var _p2_offscreen_marker: Control = null
 var _gameplay_camera: Camera3D = null
+var _result_ceremony_overlay: Control = null
 
 
 func _ready() -> void:
@@ -115,6 +117,7 @@ func _ready() -> void:
 
 	# Build the stats panel for game over (created once, updated per game)
 	_create_stats_panel()
+	_create_result_ceremony_overlay()
 	_create_tutorial_overlay()
 	_create_offscreen_player_markers()
 
@@ -153,7 +156,7 @@ func _return_to_main_menu() -> void:
 func _retry_game() -> void:
 	if SceneTransition.is_transitioning():
 		return
-	await SceneTransition.fade_to_color_and_wait(Color.BLACK)
+	await SceneTransition.fade_to_color_and_wait(Color.BLACK, true)
 	if not is_inside_tree():
 		return
 	if game_state.mode == Constants.MODE_TUTORIAL:
@@ -161,6 +164,19 @@ func _retry_game() -> void:
 	else:
 		game_state.start_game()
 	get_tree().change_scene_to_file("res://scenes/game_world.tscn")
+
+
+func _create_result_ceremony_overlay() -> void:
+	_result_ceremony_overlay = ResultCeremonyOverlayScript.new() as Control
+	_result_ceremony_overlay.name = "ResultCeremonyOverlay"
+	add_child(_result_ceremony_overlay)
+	_result_ceremony_overlay.setup(
+		game_state,
+		Callable(self, "_retry_game"),
+		Callable(self, "_open_history"),
+		Callable(self, "_return_to_main_menu")
+	)
+
 
 func _create_offscreen_player_markers() -> void:
 	var p1_marker: Control = OFFSCREEN_PLAYER_MARKER_SCRIPT.new() as Control
@@ -340,6 +356,8 @@ func _process(_dt: float) -> void:
 	_shark_impact_flash = maxf(0.0, _shark_impact_flash - _dt * 12.5)
 	_rear_edge_warning_time = fmod(_rear_edge_warning_time + _dt, TAU * 100.0)
 	_update_offscreen_player_markers(_dt)
+	if _result_ceremony_overlay != null:
+		_result_ceremony_overlay.update_overlay(_dt)
 
 	if game_state.game_state == Constants.STATE_PRELOADING:
 		_show_preloading(_dt)
@@ -363,6 +381,22 @@ func _process(_dt: float) -> void:
 	else:
 		preload_bg.visible = false
 		preload_panel.visible = false
+
+	var ceremony_active := (
+		game_state.result_presentation_active
+		and game_state.game_state in [Constants.STATE_RESULT_CEREMONY, Constants.STATE_CLEAR]
+	)
+	if ceremony_active:
+		question_panel.visible = false
+		score_label.visible = false
+		message_label.visible = false
+		progress_bar.visible = false
+		game_over_panel.visible = false
+		if _streak_label != null:
+			_streak_label.visible = false
+		_update_flash()
+		_update_tutorial_overlay(_dt)
+		return
 
 	if game_state.game_state in [Constants.STATE_GAME_OVER, Constants.STATE_CLEAR]:
 		_go_fade_timer += _dt
@@ -403,17 +437,14 @@ func show_solo_stage_tutorial_complete(duration: float = 3.2) -> void:
 	})
 
 
-func show_duo_stage_tutorial_complete(duration: float = 3.4) -> void:
+func show_duo_stage_tutorial_complete(duration: float = 3.2) -> void:
 	_show_tutorial_completion_card("DuoStageCompletionCard", {
-		"step": "LOCAL 2P  COURSE CLEAR",
-		"title": "ローカル2Pコース完了！",
+		"step": "1 / 2  STAGE CLEAR",
+		"title": "ステージチュートリアル完了！",
 		"body": "2人の操作・海とゴーストシャーク・1人ずつの判定・最終レースを体験しました。",
-		"progress": "✓ ローカル2P実践　　次は本番の対戦へ",
-		"footer": "自動でリザルトへ進みます",
+		"progress": "✓ ローカル2P実践　　次はカスタマイズ",
+		"footer": "自動でカスタマイズ紹介へ進みます",
 		"duration": duration,
-		# 1Pはこの後シーンが切り替わるがローカル2Pは同じ画面でリザルトへ移るため、
-		# カード側で閉じないと結果画面が隠れたまま入力も通らなくなる。
-		"auto_dismiss": true,
 	})
 
 
@@ -450,6 +481,12 @@ func _rear_edge_warning_strength() -> float:
 
 
 func _update_flash() -> void:
+	# The result ceremony owns its own explosion feedback. Suppress the legacy
+	# correct/wrong full-screen tint so the grass, characters, and compact result
+	# controls remain readable when STATE_CLEAR is entered.
+	if game_state.result_presentation_active:
+		flash_rect.visible = false
+		return
 	var rear_edge_strength: float = _rear_edge_warning_strength()
 	if _shark_impact_flash > 0.0:
 		flash_rect.color = Color(0.72, 0.94, 1.0, _shark_impact_flash * 0.78)
@@ -481,6 +518,7 @@ func _update_flash() -> void:
 var _displayed_progress: float = 0.0
 
 func _show_preloading(dt: float) -> void:
+	_apply_preload_stage_preview_layout()
 	preload_bg.visible = false
 	preload_panel.visible = true
 	question_panel.visible = false
@@ -489,28 +527,28 @@ func _show_preloading(dt: float) -> void:
 	progress_bar.visible = false
 	game_over_panel.visible = false
 	pl_progress.visible = true
+	pl_status.visible = true
 	start_prompt_label.visible = false
-
+	pl_title.text = "問題を準備中..."
+	pl_subtitle.text = "しばらくお待ちください"
+	pl_subtitle.visible = true
 	pl_status.text = game_state.status_text
 
 	var target: int = 1 if game_state.mode == Constants.MODE_ENDLESS else game_state.target_count
 	target = maxi(1, target)
 	var current: int = mini(game_state.quiz_list.size(), target)
-
 	pl_progress.max_value = float(target)
 	_displayed_progress = clampf(_displayed_progress, 0.0, float(current))
-
-	# スムーズな進行度アニメーション (実際の取得数にlerpで追いつかせる)
 	if current < target:
 		_displayed_progress = lerpf(_displayed_progress, float(current), dt * 10.0)
 	else:
-		# 完了時はキッチリ合わせる
 		_displayed_progress = float(target)
 
 	pl_progress.value = _displayed_progress
 
 var _blink_timer: float = 0.0
 func _show_waiting_start(dt: float) -> void:
+	_apply_preload_stage_preview_layout()
 	preload_bg.visible = false
 	preload_panel.visible = true
 	question_panel.visible = false
@@ -518,6 +556,8 @@ func _show_waiting_start(dt: float) -> void:
 	message_label.visible = false
 	progress_bar.visible = false
 	game_over_panel.visible = false
+	pl_status.visible = true
+	pl_subtitle.visible = true
 
 	if game_state.mode == Constants.MODE_TUTORIAL:
 		var is_duo := game_state.get_tutorial_course() == GameManager.TUTORIAL_COURSE_LOCAL_2P
@@ -530,6 +570,28 @@ func _show_waiting_start(dt: float) -> void:
 	else:
 		pl_title.text = "問題を準備中..."
 		pl_subtitle.text = "しばらくお待ちください"
+	var world := get_parent()
+	var arrival_locked := (
+		world != null
+		and world.has_method("is_start_presentation_locked")
+		and bool(world.call("is_start_presentation_locked"))
+	)
+	var construction_locked := (
+		world != null
+		and world.has_method("is_preload_construction_locked")
+		and bool(world.call("is_preload_construction_locked"))
+	)
+	if construction_locked:
+		pl_status.text = game_state.status_text
+		pl_progress.visible = false
+		start_prompt_label.visible = false
+		return
+	if arrival_locked:
+		pl_status.text = "Characters arriving..." if game_state.use_english_ui \
+			else "キャラクター到着中..."
+		pl_progress.visible = false
+		start_prompt_label.visible = false
+		return
 	pl_status.text = "準備完了"
 	pl_progress.visible = false
 	start_prompt_label.visible = true
@@ -540,6 +602,38 @@ func _show_waiting_start(dt: float) -> void:
 
 	_blink_timer += dt
 	start_prompt_label.modulate.a = 0.5 + 0.5 * sin(_blink_timer * 6.0)
+
+
+func _apply_preload_stage_preview_layout() -> void:
+	preload_panel.set_anchors_preset(Control.PRESET_CENTER)
+	preload_panel.offset_left = -300.0
+	preload_panel.offset_right = 300.0
+	preload_panel.offset_top = -120.0
+	preload_panel.offset_bottom = 120.0
+	pl_title.offset_left = -150.0
+	pl_title.offset_top = 20.0
+	pl_title.offset_right = 150.0
+	pl_title.offset_bottom = 90.0
+	pl_subtitle.offset_left = -150.0
+	pl_subtitle.offset_top = 75.0
+	pl_subtitle.offset_right = 150.0
+	pl_subtitle.offset_bottom = 100.0
+	pl_progress.offset_left = -200.0
+	pl_progress.offset_top = -80.0
+	pl_progress.offset_right = 200.0
+	pl_progress.offset_bottom = -60.0
+	pl_status.offset_left = -150.0
+	pl_status.offset_top = -45.0
+	pl_status.offset_right = 150.0
+	pl_status.offset_bottom = -15.0
+	start_prompt_label.offset_left = -200.0
+	start_prompt_label.offset_top = -100.0
+	start_prompt_label.offset_right = 200.0
+	start_prompt_label.offset_bottom = -60.0
+	pl_title.add_theme_font_size_override("font_size", 26)
+	pl_subtitle.add_theme_font_size_override("font_size", 18)
+	pl_status.add_theme_font_size_override("font_size", 16)
+	start_prompt_label.add_theme_font_size_override("font_size", 20)
 
 func _update_flyover_message() -> void:
 	message_label.visible = true
@@ -1008,12 +1102,12 @@ func _update_question() -> void:
 	if game_state.current_quiz and game_state.game_state == Constants.STATE_PLAYING and tutorial_question_ready:
 		question_panel.visible = true
 		if game_state.is_coop_mode() and game_state.current_quiz.has_coop_data():
-			var q_text := FractionFormatter.to_inline(game_state.current_quiz.q)
+			var q_text := FractionFormatter.format_question(game_state.current_quiz.q)
 			var p1_role := game_state.current_quiz.coop_p1_label
 			var p2_role := game_state.current_quiz.coop_p2_label
 			question_label.text = "%s\n%s / %s" % [q_text, p1_role, p2_role]
 		else:
-			question_label.text = FractionFormatter.to_inline(game_state.current_quiz.q)
+			question_label.text = FractionFormatter.format_question(game_state.current_quiz.q)
 	else:
 		question_panel.visible = false
 
@@ -1100,14 +1194,21 @@ func _open_history() -> void:
 		_history_built = true
 
 	game_over_panel.visible = false
+	if _result_ceremony_overlay != null:
+		_result_ceremony_overlay.set_suppressed(true)
 	history_panel.visible = true
 	history_panel.modulate.a = 1.0
 	history_panel.position.x = 0.0
 
 func _close_history() -> void:
 	history_panel.visible = false
-	game_over_panel.visible = true
-	game_over_panel.modulate.a = 1.0
+	if game_state.result_presentation_active:
+		game_over_panel.visible = false
+		if _result_ceremony_overlay != null:
+			_result_ceremony_overlay.set_suppressed(false)
+	else:
+		game_over_panel.visible = true
+		game_over_panel.modulate.a = 1.0
 
 func _build_history_items() -> void:
 	# Clear existing items
@@ -1166,7 +1267,7 @@ func _create_history_card(index: int, quiz: QuizItem, correct: bool, rated: Stri
 	else:
 		icon_color_tag = "Q%d  %s" % [index + 1, icon]
 	var question_text := quiz.coop_prompt if quiz.has_coop_data() and not quiz.coop_prompt.is_empty() else quiz.q
-	header.text = "%s  %s" % [icon_color_tag, FractionFormatter.to_inline(question_text)]
+	header.text = "%s  %s" % [icon_color_tag, FractionFormatter.format_question(question_text)]
 	header.add_theme_font_size_override("font_size", 20)
 	header.add_theme_color_override("font_color", Color(0.3, 1.0, 0.5) if correct else Color(1.0, 0.4, 0.3))
 	header.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

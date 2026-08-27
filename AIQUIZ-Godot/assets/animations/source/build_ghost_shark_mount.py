@@ -773,6 +773,16 @@ def _build_shark_actions() -> None:
         (54, {"body_01": (0, -2, -3), "body_02": (0, 2, 4), "tail_01": (0, 2, -9), "tail_02": (0, 1, 13), "tail_03": (0, 1, -18), "jaw": (0, 1, 0)}),
         (66, {"body_01": (0, 0, 0), "body_02": (0, 0, 0), "tail_01": (0, 0, 0), "tail_02": (0, 0, 0), "tail_03": (0, 0, 0), "jaw": (0, 0, 0)}),
     ], 66)
+    bite = _key_shark_action(armature, "SharkBite", [
+        # The game owns translation and hit timing.  This authored in-place
+        # clip supplies a readable anticipation, head snap, tail whip, and
+        # recoil while GDScript continues to drive the jaw bone precisely.
+        (1, {"root": (0, -5, 0), "body_01": (0, 9, 3), "body_02": (0, 6, -5), "tail_01": (0, -4, 10), "tail_02": (0, -3, -15), "tail_03": (0, -2, 20), "jaw": (0, 0, 0)}),
+        (3, {"root": (0, 8, 0), "body_01": (0, -14, -6), "body_02": (0, -10, 9), "tail_01": (0, 7, -17), "tail_02": (0, 5, 25), "tail_03": (0, 3, -32), "jaw": (0, 0, 0)}),
+        (6, {"root": (0, -11, 0), "body_01": (0, 17, 7), "body_02": (0, 12, -11), "tail_01": (0, -8, 21), "tail_02": (0, -6, -30), "tail_03": (0, -4, 38), "jaw": (0, 0, 0)}),
+        (9, {"root": (0, 5, 0), "body_01": (0, -8, -3), "body_02": (0, -6, 6), "tail_01": (0, 4, -12), "tail_02": (0, 3, 17), "tail_03": (0, 2, -22), "jaw": (0, 0, 0)}),
+        (12, {"root": (0, 0, 0), "body_01": (0, 0, 0), "body_02": (0, 0, 0), "tail_01": (0, 0, 0), "tail_02": (0, 0, 0), "tail_03": (0, 0, 0), "jaw": (0, 0, 0)}),
+    ], 12)
 
     # A named authored socket is exported as a normal node and replaces the
     # previous bounds-derived seat guess in Godot.
@@ -798,7 +808,9 @@ def _build_shark_actions() -> None:
     armature.animation_data.action = None
     while armature.animation_data.nla_tracks:
         armature.animation_data.nla_tracks.remove(armature.animation_data.nla_tracks[0])
-    for action in (bpy.data.actions.get("SharkSwim"), rendezvous, receive, departure):
+    for action in (
+        bpy.data.actions.get("SharkSwim"), rendezvous, receive, departure, bite
+    ):
         if action is None:
             continue
         track = armature.animation_data.nla_tracks.new()

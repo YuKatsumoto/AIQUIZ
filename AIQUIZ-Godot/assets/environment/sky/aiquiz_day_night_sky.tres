@@ -2,56 +2,56 @@
 
 [ext_resource type="Shader" uid="uid://c5wn0niu13y7a" path="res://assets/environment/sky/aiquiz_day_night_sky.gdshader" id="1_7nlg2"]
 
-[sub_resource type="Gradient" id="Gradient_fuw8q"]
+[sub_resource type="Gradient" id="Gradient_7nlg2"]
 
-[sub_resource type="FastNoiseLite" id="FastNoiseLite_qvk03"]
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_fuw8q"]
 noise_type = 0
 seed = 4
 fractal_octaves = 6
 
-[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_x4m6p"]
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_qvk03"]
 width = 1024
 height = 1024
-noise = SubResource("FastNoiseLite_qvk03")
-color_ramp = SubResource("Gradient_fuw8q")
+noise = SubResource("FastNoiseLite_fuw8q")
+color_ramp = SubResource("Gradient_7nlg2")
 seamless = true
 seamless_blend_skirt = 0.2
 
-[sub_resource type="Gradient" id="Gradient_a0qpb"]
+[sub_resource type="Gradient" id="Gradient_x4m6p"]
 
-[sub_resource type="FastNoiseLite" id="FastNoiseLite_2oiq1"]
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_a0qpb"]
 noise_type = 3
 fractal_octaves = 8
 
-[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_8a3x4"]
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_2oiq1"]
 width = 1024
 height = 1024
-noise = SubResource("FastNoiseLite_2oiq1")
-color_ramp = SubResource("Gradient_a0qpb")
+noise = SubResource("FastNoiseLite_a0qpb")
+color_ramp = SubResource("Gradient_x4m6p")
 seamless = true
 seamless_blend_skirt = 0.4
 
-[sub_resource type="FastNoiseLite" id="FastNoiseLite_1voo8"]
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_8a3x4"]
 noise_type = 2
 frequency = 0.05
 fractal_octaves = 1
 cellular_jitter = 0.8
 cellular_return_type = 6
 
-[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_xesy2"]
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_1voo8"]
 width = 1024
 height = 1024
-noise = SubResource("FastNoiseLite_1voo8")
+noise = SubResource("FastNoiseLite_8a3x4")
 seamless = true
 invert = true
 seamless_blend_skirt = 0.0
 
-[sub_resource type="FastNoiseLite" id="FastNoiseLite_hed5d"]
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_xesy2"]
 frequency = 0.001
 fractal_type = 2
 
-[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_10y5o"]
-noise = SubResource("FastNoiseLite_hed5d")
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_hed5d"]
+noise = SubResource("FastNoiseLite_xesy2")
 seamless = true
 seamless_blend_skirt = 0.2
 
@@ -70,8 +70,8 @@ shader_parameter/cycle_sun_direction = Vector3(-0.58, 0.58, -0.57)
 shader_parameter/horizon_exponent = 4.2
 shader_parameter/sunset_amount_exponent = 1.15
 shader_parameter/night_amount_exponent = 2.2
-shader_parameter/cloud_tex_01 = SubResource("NoiseTexture2D_x4m6p")
-shader_parameter/cloud_tex_02 = SubResource("NoiseTexture2D_8a3x4")
+shader_parameter/cloud_tex_01 = SubResource("NoiseTexture2D_qvk03")
+shader_parameter/cloud_tex_02 = SubResource("NoiseTexture2D_2oiq1")
 shader_parameter/cloud_color = Color(0.98, 0.99, 1, 1)
 shader_parameter/cloud_twilight_color = Color(1, 0.63, 0.67, 1)
 shader_parameter/cloud_night_color = Color(0.36, 0.48, 0.78, 1)
@@ -82,10 +82,10 @@ shader_parameter/cloud_density = 0.44
 shader_parameter/cloud_depth = 0.22
 shader_parameter/cloud_shape_exponent = 0.92
 shader_parameter/cloud_occlude_exponent = 1.35
-shader_parameter/night_noise_01 = SubResource("NoiseTexture2D_xesy2")
-shader_parameter/night_noise_02 = SubResource("NoiseTexture2D_10y5o")
+shader_parameter/night_noise_01 = SubResource("NoiseTexture2D_1voo8")
+shader_parameter/night_noise_02 = SubResource("NoiseTexture2D_hed5d")
 shader_parameter/star_strength = 0.82
-shader_parameter/sun_scale = 0.003
+shader_parameter/sun_scale = 0.0005
 shader_parameter/sun_strength = 1.75
 shader_parameter/sun_color = Color(1, 0.84, 0.42, 1)
 shader_parameter/moon_scale = 0.007

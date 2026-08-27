@@ -1,0 +1,220 @@
+[gd_scene format=3 uid="uid://d34q0e25eag87"]
+
+[ext_resource type="Script" uid="uid://tb7n6ybv43ch" path="res://assets/BinbunVFX/shared/script/vfx_controller.gd" id="1_f5fg6"]
+[ext_resource type="Material" uid="uid://dqbcsgbere8fx" path="res://assets/BinbunVFX/magic_areas/src/material/ripple_area/ripple_area_05/ripple_area_05_ripple_01.tres" id="1_p63k8"]
+[ext_resource type="Material" uid="uid://bpvubx2d2qm0k" path="res://assets/BinbunVFX/magic_areas/src/material/ripple_area/ripple_area_05/ripple_area_05_ripple_02.tres" id="2_p63k8"]
+[ext_resource type="Material" uid="uid://y1hqomna8hcr" path="res://assets/BinbunVFX/magic_areas/src/material/ripple_area/ripple_area_05/ripple_area_05_ripple_03.tres" id="3_p63k8"]
+[ext_resource type="Script" uid="uid://bdk8hhttligw" path="res://assets/BinbunVFX/shared/script/vfx_light.gd" id="4_uxbxn"]
+
+[sub_resource type="QuadMesh" id="QuadMesh_ubqrn"]
+size = Vector2(4, 4)
+subdivide_width = 32
+subdivide_depth = 32
+center_offset = Vector3(0, 0.01, 0)
+orientation = 1
+
+[sub_resource type="QuadMesh" id="QuadMesh_x5ono"]
+size = Vector2(3.5, 3.5)
+subdivide_width = 32
+subdivide_depth = 32
+center_offset = Vector3(0, 0.01, 0)
+orientation = 1
+
+[sub_resource type="QuadMesh" id="QuadMesh_r08r3"]
+size = Vector2(2.6, 2.6)
+subdivide_width = 32
+subdivide_depth = 32
+center_offset = Vector3(0, 0.01, 0)
+orientation = 1
+
+[sub_resource type="Animation" id="Animation_qr8v6"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Ripple_01:material_override:shader_parameter/alpha_multiplier")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [1.0]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("Ripple_02:material_override:shader_parameter/alpha_multiplier")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [1.0]
+}
+tracks/2/type = "value"
+tracks/2/imported = false
+tracks/2/enabled = true
+tracks/2/path = NodePath("Ripple_03:material_override:shader_parameter/alpha_multiplier")
+tracks/2/interp = 1
+tracks/2/loop_wrap = true
+tracks/2/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [0.3]
+}
+tracks/3/type = "value"
+tracks/3/imported = false
+tracks/3/enabled = true
+tracks/3/path = NodePath("Light:light_multiplier")
+tracks/3/interp = 1
+tracks/3/loop_wrap = true
+tracks/3/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [1.0]
+}
+
+[sub_resource type="Animation" id="Animation_i2ata"]
+resource_name = "main"
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Ripple_01:material_override:shader_parameter/alpha_multiplier")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [1.0]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("Ripple_02:material_override:shader_parameter/alpha_multiplier")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [1.0]
+}
+tracks/2/type = "value"
+tracks/2/imported = false
+tracks/2/enabled = true
+tracks/2/path = NodePath("Ripple_03:material_override:shader_parameter/alpha_multiplier")
+tracks/2/interp = 1
+tracks/2/loop_wrap = true
+tracks/2/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [0.3]
+}
+tracks/3/type = "value"
+tracks/3/imported = false
+tracks/3/enabled = true
+tracks/3/path = NodePath("Light:light_multiplier")
+tracks/3/interp = 1
+tracks/3/loop_wrap = true
+tracks/3/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [1.0]
+}
+
+[sub_resource type="Animation" id="Animation_24vvk"]
+resource_name = "oneshot"
+step = 0.05
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Ripple_01:material_override:shader_parameter/alpha_multiplier")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.6, 1),
+"transitions": PackedFloat32Array(1, 1, 1),
+"update": 0,
+"values": [0.0, 1.0, 0.0]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("Ripple_02:material_override:shader_parameter/alpha_multiplier")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0, 0.2, 1),
+"transitions": PackedFloat32Array(1, 1, 1),
+"update": 0,
+"values": [0.0, 1.0, 0.0]
+}
+tracks/2/type = "value"
+tracks/2/imported = false
+tracks/2/enabled = true
+tracks/2/path = NodePath("Ripple_03:material_override:shader_parameter/alpha_multiplier")
+tracks/2/interp = 1
+tracks/2/loop_wrap = true
+tracks/2/keys = {
+"times": PackedFloat32Array(0, 0.1, 1),
+"transitions": PackedFloat32Array(1, 1, 1),
+"update": 0,
+"values": [0.0, 1.0, 0.0]
+}
+tracks/3/type = "value"
+tracks/3/imported = false
+tracks/3/enabled = true
+tracks/3/path = NodePath("Light:light_multiplier")
+tracks/3/interp = 1
+tracks/3/loop_wrap = true
+tracks/3/keys = {
+"times": PackedFloat32Array(0, 0.3, 1),
+"transitions": PackedFloat32Array(1, 1, 1),
+"update": 0,
+"values": [0.0, 1.0, 0.0]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_4a6kr"]
+_data = {
+&"RESET": SubResource("Animation_qr8v6"),
+&"main": SubResource("Animation_i2ata"),
+&"oneshot": SubResource("Animation_24vvk")
+}
+
+[node name="RippleAreaVFX_05" type="Node3D" unique_id=713886188]
+script = ExtResource("1_f5fg6")
+local_coords = true
+primary_color = Color(0.69411767, 0.9882353, 0.70980394, 1)
+secondary_color = Color(0, 0.9490196, 0.078431375, 1)
+light_color = Color(0, 0.9490196, 0.078431375, 1)
+
+[node name="Ripple_01" type="MeshInstance3D" parent="." unique_id=1326428470]
+material_override = ExtResource("1_p63k8")
+mesh = SubResource("QuadMesh_ubqrn")
+
+[node name="Ripple_02" type="MeshInstance3D" parent="." unique_id=2021531082]
+material_override = ExtResource("2_p63k8")
+mesh = SubResource("QuadMesh_x5ono")
+
+[node name="Ripple_03" type="MeshInstance3D" parent="." unique_id=728334868]
+material_override = ExtResource("3_p63k8")
+mesh = SubResource("QuadMesh_r08r3")
+
+[node name="Light" type="OmniLight3D" parent="." unique_id=1262348729]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
+light_color = Color(0, 0.9490196, 0.078431375, 1)
+light_energy = 4.0
+omni_range = 16.0
+script = ExtResource("4_uxbxn")
+base_energy = 4.0
+metadata/_custom_type_script = "uid://bdk8hhttligw"
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=1531756532]
+libraries/ = SubResource("AnimationLibrary_4a6kr")

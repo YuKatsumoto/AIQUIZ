@@ -34,7 +34,7 @@ uniform sampler2D night_noise_02;
 uniform float star_strength : hint_range(0.0, 3.0, 0.05) = 1.0;
 
 group_uniforms Sun;
-uniform float sun_scale : hint_range(0.0005, 0.025, 0.0005) = 0.003;
+uniform float sun_scale : hint_range(0.00025, 0.01, 0.00025) = 0.0005;
 uniform float sun_strength : hint_range(0.0, 8.0, 0.05) = 1.75;
 uniform vec4 sun_color : source_color = vec4(1.0, 0.84, 0.42, 1.0);
 
@@ -115,9 +115,20 @@ void sky() {
 	float celestial_clear = pow(clamp(1.0 - cloud_value * 0.90, 0.08, 1.0), cloud_occlude_exponent);
 	float sun_dot = clamp(dot(EYEDIR, sun_dir), 0.0, 1.0);
 	float sun_disc = smoothstep(1.0 - sun_scale, 1.0 - sun_scale * 0.42, sun_dot);
-	float sun_glow = pow(sun_dot, 160.0) * 0.22;
-	float sun_visible = smoothstep(-0.08, 0.035, solar_elevation);
-	sky_color += sun_color.rgb * sun_strength * (sun_disc + sun_glow) * celestial_clear * sun_visible;
+	// Keep the stylized halo compact so the sun reads as a distant disc.
+	float sun_glow = pow(sun_dot, 360.0) * 0.12;
+	// The sun begins appearing only after its center reaches the horizon.
+	// Clip every solar pixel below the horizon so transparent water cannot reveal it.
+	float sun_center_visible = smoothstep(0.0, 0.025, solar_elevation);
+	float sun_above_horizon = smoothstep(0.0, 0.006, EYEDIR.y);
+	sky_color += (
+		sun_color.rgb
+		* sun_strength
+		* (sun_disc + sun_glow)
+		* celestial_clear
+		* sun_center_visible
+		* sun_above_horizon
+	);
 
 	vec3 moon_dir = -sun_dir;
 	float moon_dot = clamp(dot(EYEDIR, moon_dir), 0.0, 1.0);
