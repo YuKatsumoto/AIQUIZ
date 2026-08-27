@@ -29,7 +29,7 @@ const HISTORY_SAVE_DEBOUNCE_SEC: float = 0.2
 ## 10問プリロードの不足補充は1〜2候補だけでなく余裕を持って生成する。
 const TEN_PRELOAD_MIN_CANDIDATES: int = 6
 
-## オフラインの緊急キャッシュ — オンライン生成が間に合わない時の保険
+## オフラインモードで同期払い出しに使う緊急キャッシュ
 var _emergency_cache: Array[QuizItem] = []
 const EMERGENCY_CACHE_SIZE: int = 5
 
@@ -45,11 +45,6 @@ const EXPLANATION_KICK_MIN: int = 5
 ## 10問モードのプリロード完了後に1回だけ実行する正解一括検証
 var _answer_validation_done: bool = false
 
-## エンドレスモード(ONLINE)でバッファが空になり続けている開始時刻（0=空でない）
-var _endless_empty_since_ms: int = 0
-## この秒数だけオンライン生成を待っても間に合わなければオフライン問題で一時補完する
-const ENDLESS_OFFLINE_FALLBACK_DELAY_SEC: float = 1.5
-
 ## ── 出題ジャンル分散（10問モード） ──
 ## 1ラウンド内で同一ジャンルを出しすぎないための上限
 const GENRE_CAP_PER_ROUND: int = 2
@@ -62,6 +57,10 @@ var _fetch_scheduled: bool = false
 var _last_refetch_ms: int = 0
 var _history_save_scheduled: bool = false
 var _initial_ten_fetch_started: bool = false
+var generated_bank: GeneratedBank
+var _round_candidates_seen: int = 0
+var _round_candidates_blocked: int = 0
+var _quality_stats_logged: bool = false
 
 func _init() -> void:
 	super._init()
@@ -75,6 +74,7 @@ func _ready() -> void:
 	online_fetcher.fetch_partial.connect(_on_fetch_partial)
 	online_fetcher.explanations_ready.connect(_on_explanations_ready)
 	add_child(online_fetcher)
+	generated_bank = GeneratedBank.new()
 	
 	ApiStatusAutoload.set_offline_count(offline_provider.total_count())
 	
@@ -145,7 +145,9 @@ func begin_round(subject: String, grade: int, difficulty: String,
 	_explanation_requested_ids.clear()
 	_dispatched_items.clear()
 	_answer_validation_done = false
-	_endless_empty_since_ms = 0
+	_round_candidates_seen = 0
+	_round_candidates_blocked = 0
+	_quality_stats_logged = false
 
 	# オフライン問題は直後の同期フェッチで取得できるため、開始時の緊急キャッシュ生成は不要。
 	# ここで過去履歴との意味比較を走らせると、準備画面を長時間ブロックしてしまう。
@@ -160,10 +162,13 @@ func begin_round(subject: String, grade: int, difficulty: String,
 	if llm_mode == "ONLINE" and not _online_api_available():
 		print("[BufferedProvider] Online mode selected but PROXY_URL is not configured — waiting (no offline fallback)")
 	elif _should_use_offline_quizzes() or _online_api_available():
+		if llm_mode == "ONLINE":
+			_seed_from_generated_bank()
 		_fire_immediate_fetch()
 
 func end_round() -> void:
 	is_active_round = false
+	_store_leftovers_to_pool()
 	if is_instance_valid(online_fetcher) and online_fetcher.has_method("cancel_all"):
 		online_fetcher.cancel_all()
 	inflight = 0
@@ -183,7 +188,9 @@ func _flush_pending_explanations_on_end() -> void:
 		return
 	var pending: Array[QuizItem] = []
 	for q in _dispatched_items:
-		if q.e.strip_edges().is_empty() and q.src != "OFFLINE" and not _explanation_requested_ids.has(q.q):
+		if q.e.strip_edges().is_empty() \
+				and not _is_offline_quiz_item(q) \
+				and not _explanation_requested_ids.has(q.q):
 			pending.append(q)
 			_explanation_requested_ids[q.q] = true
 	if pending.is_empty():
@@ -220,7 +227,7 @@ func _worker_should_fill() -> bool:
 	if inflight >= max_inflight:
 		return false
 	if current_mode == Constants.MODE_TEN:
-		var have := yielded_count + buffer.size() + _overflow_buffer.size()
+		var have := yielded_count + buffer.size()
 		var needed := maxi(0, target_count - have)
 		if needed == 0:
 			return false
@@ -230,8 +237,8 @@ func _worker_should_fill() -> bool:
 		var pending := buffer.size() + inflight * 15
 		return pending < needed
 	var per_batch_estimate: int = 15  # 4バッチ×4問 − dedup ≈ 15問期待
-	var pending = buffer.size() + inflight * per_batch_estimate
-	return pending < _target_buffer_size()
+	var estimated_pending = buffer.size() + inflight * per_batch_estimate
+	return estimated_pending < _target_buffer_size()
 
 ## begin_round()から即座に呼ばれる高速初回フェッチ
 ## ポーリングタイマーの0.25秒待ちをスキップしてAPIリクエストを即発火
@@ -308,7 +315,7 @@ func _calculate_fetch_candidate_count() -> int:
 	if current_mode == Constants.MODE_ENDLESS:
 		# 目標バッファサイズを満たすための必要最小限のみをリクエスト (最小1)
 		return maxi(1, _target_buffer_size() - buffer.size())
-	var missing: int = target_count - yielded_count - buffer.size() - _overflow_buffer.size()
+	var missing: int = target_count - yielded_count - buffer.size()
 	if current_mode == Constants.MODE_TEN and _is_preloading():
 		return clampi(maxi(missing, TEN_PRELOAD_MIN_CANDIDATES), 2, 10)
 	return clampi(missing, 2, 10)
@@ -320,7 +327,9 @@ func _is_preloading() -> bool:
 
 
 func _preload_buffer_count() -> int:
-	return buffer.size() + _overflow_buffer.size()
+	# overflow はジャンル上限超過の控えであり、10問充足には数えない。
+	# 数えると同一ジャンルでプリロードが埋まって多様性要件が崩れる。
+	return buffer.size()
 
 
 func _needs_more_preload() -> bool:
@@ -345,14 +354,15 @@ func _should_block_quiz(question: String, batch_accepted: Array[String], during_
 				return true
 		return false
 
-	if QuizDedup.is_similar_to_any(question, batch_accepted):
+	var question_core := QuizDedup.extract_core_concept(question)
+	if QuizDedup.is_similar_to_any_with_core(question, question_core, batch_accepted):
 		return true
 	if QuizDedup.is_strict_duplicate_to_any(question, recent_questions):
 		return true
 	if during_preload:
 		# プリロード中: バッファ内・プレイ中 + 直近の cross-round 履歴（新鮮さ確保）を照合
 		for bq in buffer:
-			if QuizDedup.is_semantically_similar(question, bq.q):
+			if QuizDedup.is_semantically_similar_with_cores(question, question_core, bq.q, QuizDedup.extract_core_concept(bq.q)):
 				return true
 		for ph in play_history:
 			if QuizDedup.is_semantically_similar(question, ph):
@@ -360,9 +370,8 @@ func _should_block_quiz(question: String, batch_accepted: Array[String], during_
 		for oq in _overflow_buffer:
 			if QuizDedup.is_semantically_similar(question, oq.q):
 				return true
-		for rq in QuizDedup.tail_texts(recent_questions, QuizDedup.SEMANTIC_HISTORY_MAX):
-			if QuizDedup.is_semantically_similar(question, rq):
-				return true
+		if QuizDedup.is_similar_to_any_with_core(question, question_core, recent_history_entries):
+			return true
 		return false
 	var active_texts := _collect_active_question_texts(false)
 	if QuizDedup.is_strict_duplicate_to_any(question, active_texts):
@@ -375,41 +384,72 @@ func _should_block_quiz(question: String, batch_accepted: Array[String], during_
 func _on_fetch_partial(quizzes: Array[QuizItem]) -> void:
 	if quizzes.size() == 0:
 		return
-		
+
 	var accepted := false
 	var history_changed := false
 	var batch_accepted: Array[String] = []
 	var during_preload := _is_preloading()
+	var surplus: Array[QuizItem] = []
+	var adopted_units: Array[String] = []
+	var ordered: Array[QuizItem] = []
+	var rest: Array[QuizItem] = []
 	for q in quizzes:
+		if q == null:
+			continue
+		if q.genre.strip_edges().is_empty():
+			q.genre = "未分類"
+		if _genre_count_in_round(q.genre) == 0:
+			ordered.append(q)
+		else:
+			rest.append(q)
+	ordered.append_array(rest)
+
+	for q in ordered:
+		_round_candidates_seen += 1
 		if current_mode == Constants.MODE_TEN \
 				and yielded_count + _preload_buffer_count() >= target_count:
-			break
+			surplus.append(q)
+			continue
 		if llm_mode == "ONLINE" and _is_offline_quiz_item(q):
 			print("[BufferedProvider] Rejected offline quiz in online mode: '%s'" % q.q.left(30))
 			continue
 		if _should_block_quiz(q.q, batch_accepted, during_preload):
+			_round_candidates_blocked += 1
 			print("[BufferedProvider] Dedup blocked: '%s'" % q.q.left(30))
 			continue
 		batch_accepted.append(q.q)
-		# 採用した瞬間に予約履歴へ保存する。途中終了・クラッシュ後も再生成させない。
 		if llm_mode == "ONLINE" and _append_history_entry(q.q, q.genre):
 			history_changed = true
-		# 10問モード: 同一ジャンルが上限に達していたら控え(overflow)に回す
-		if current_mode == Constants.MODE_TEN and not q.genre.strip_edges().is_empty() \
-				and _genre_count_in_buffer(q.genre) >= GENRE_CAP_PER_ROUND:
-			_overflow_buffer.append(q)
-			accepted = true
-			print("[BufferedProvider] Genre cap reached for '%s', queued to overflow: '%s'" % [q.genre, q.q.left(20)])
+		if current_mode == Constants.MODE_TEN \
+				and _genre_count_in_round(q.genre) >= _effective_genre_cap():
+			# 上限超過はプールへ。枯渇時（cap緩和後）だけ overflow で本ラウンドを埋める。
+			if _dedup_retry_count >= 2 and _needs_more_preload():
+				_overflow_buffer.append(q)
+				accepted = true
+				print("[BufferedProvider] Genre cap relaxed for '%s', queued to overflow: '%s'" % [q.genre, q.q.left(20)])
+			else:
+				surplus.append(q)
+				print("[BufferedProvider] Genre cap reached for '%s', stored to pool: '%s'" % [q.genre, q.q.left(20)])
 			continue
 		buffer.append(q)
 		accepted = true
+		if not q.genre.is_empty() and q.genre not in adopted_units:
+			adopted_units.append(q.genre)
 
 	if history_changed:
 		_schedule_history_save()
-	
+	if adopted_units.size() > 0 and is_instance_valid(online_fetcher) \
+			and online_fetcher.has_method("record_adopted_units"):
+		online_fetcher.record_adopted_units(current_subject, current_grade, adopted_units)
+	if surplus.size() > 0 and llm_mode == "ONLINE" and generated_bank != null:
+		generated_bank.store_items(surplus, current_subject, current_grade, current_difficulty)
+
 	if accepted and online_fetcher.has_method("reset_rate_limit"):
 		online_fetcher.reset_rate_limit()
-	
+
+	if not _quality_stats_logged and not _needs_more_preload() and current_mode == Constants.MODE_TEN:
+		_log_round_quality_stats()
+
 	# 新規性を満たさない候補は絶対に採用せず、別単元・別形式で不足分だけ再生成する。
 	if not accepted and quizzes.size() > 0 and _needs_more_preload():
 		_dedup_retry_count += 1
@@ -439,13 +479,20 @@ func get_quizzes(_subject: String, _grade: int, _difficulty: String,
 
 	# バッファが足りない場合、ジャンル上限で控えに回した問題から補充する
 	if current_mode == Constants.MODE_TEN and out.size() < count:
+		var skipped: Array[QuizItem] = []
 		while _overflow_buffer.size() > 0 and out.size() < count:
 			var ov: QuizItem = _overflow_buffer.pop_front()
 			if llm_mode == "ONLINE" and _is_offline_quiz_item(ov):
 				continue
+			var played := _genre_count_in_played(ov.genre, out)
+			if played >= _effective_genre_cap() and _overflow_has_other_genre(ov.genre):
+				skipped.append(ov)
+				continue
 			_last_dispatched_genre = ov.genre
 			_track_dispatched_unexplained(ov)
 			out.append(ov)
+		for skipped_item in skipped:
+			_overflow_buffer.append(skipped_item)
 	
 	# バッファが空の場合の処理（10問・エンドレス共通）
 	if out.is_empty():
@@ -468,53 +515,54 @@ func get_quizzes(_subject: String, _grade: int, _difficulty: String,
 		else:
 			if inflight == 0 and _online_api_available():
 				_schedule_fetch()
-			if current_mode == Constants.MODE_ENDLESS:
-				# エンドレスモード: オンライン生成が遅延した場合のみオフラインで一時補完する
-				# （生成自体は止めず、バックグラウンドで継続する）
-				out = _endless_online_fallback(count)
-			else:
-				# 10問モード: 純粋なオンライン問題のみを維持するためフォールバックしない
-				print("[BufferedProvider] Online buffer empty, waiting for AI fetch (no offline fallback)")
+			# ONLINEはモードを問わず、オンライン問題が届くまで待機する。
+			# オフライン問題による一時補完は行わない。
+			print("[BufferedProvider] Online buffer empty, waiting for AI fetch (no offline fallback)")
 
-	if out.size() > 0:
-		_endless_empty_since_ms = 0
 	yielded_count += out.size()
-	return out
-
-
-## エンドレスモード(ONLINE)専用: バッファ空が一定時間続いたらオフライン問題で一時補完する。
-## オンライン生成は止めない（_schedule_fetch は呼び出し側で既に手配済み）。
-## 猶予時間内であれば空配列を返し、プレイヤーは通常どおり生成完了を待つ。
-func _endless_online_fallback(count: int) -> Array[QuizItem]:
-	var now := Time.get_ticks_msec()
-	if _endless_empty_since_ms == 0:
-		_endless_empty_since_ms = now
-	var elapsed_sec := float(now - _endless_empty_since_ms) / 1000.0
-	if elapsed_sec < ENDLESS_OFFLINE_FALLBACK_DELAY_SEC:
-		return []
-
-	var out: Array[QuizItem] = []
-	if _emergency_cache.is_empty():
-		_prepare_emergency_cache()
-	if _emergency_cache.size() > 0:
-		var needed := maxi(1, count)
-		for _i in range(mini(needed, _emergency_cache.size())):
-			var eq: QuizItem = _emergency_cache.pop_front()
-			eq.src = "OFFLINE_FALLBACK"
-			out.append(eq)
-		print("[BufferedProvider] Endless: online generation lagging (%.1fs) — filled %d from offline fallback" % [elapsed_sec, out.size()])
-		if _emergency_cache.size() < 3:
-			_prepare_emergency_cache()
 	return out
 
 
 ## バッファ内に同一ジャンルが何問あるか数える
 func _genre_count_in_buffer(genre: String) -> int:
+	return _genre_count_in_round(genre)
+
+
+func _genre_count_in_round(genre: String) -> int:
 	var n := 0
 	for q in buffer:
 		if q.genre == genre:
 			n += 1
+	for q in _dispatched_items:
+		if q.genre == genre:
+			n += 1
 	return n
+
+
+func _genre_count_in_played(genre: String, extra: Array[QuizItem]) -> int:
+	var n := 0
+	for q in _dispatched_items:
+		if q.genre == genre:
+			n += 1
+	for q in extra:
+		if q.genre == genre:
+			n += 1
+	return n
+
+
+func _overflow_has_other_genre(genre: String) -> bool:
+	for q in _overflow_buffer:
+		if q.genre != genre:
+			return true
+	return false
+
+
+func _effective_genre_cap() -> int:
+	if current_mode != Constants.MODE_TEN:
+		return GENRE_CAP_PER_ROUND
+	if _dedup_retry_count >= 2:
+		return GENRE_CAP_PER_ROUND + 1
+	return GENRE_CAP_PER_ROUND
 
 ## バッファを「連続して同じジャンルにならない」よう貪欲法で並べ替える。
 ## 最頻ジャンルを優先しつつ直前ジャンルを避けることで偏りを最小化する。
@@ -603,7 +651,9 @@ func _kick_explanation_batch() -> void:
 	for q in _dispatched_items:
 		candidates.append(q)
 	for q in candidates:
-		if q.e.strip_edges().is_empty() and q.src != "OFFLINE" and not _explanation_requested_ids.has(q.q):
+		if q.e.strip_edges().is_empty() \
+				and not _is_offline_quiz_item(q) \
+				and not _explanation_requested_ids.has(q.q):
 			need_explanation.append(q)
 
 	if need_explanation.is_empty():
@@ -668,13 +718,13 @@ func _run_answer_validation_once() -> void:
 
 	var targets: Array[QuizItem] = []
 	for q in buffer:
-		if not _is_offline_quiz_item(q):
+		if not _is_offline_quiz_item(q) and not q.validated:
 			targets.append(q)
 	for q in _overflow_buffer:
-		if not _is_offline_quiz_item(q):
+		if not _is_offline_quiz_item(q) and not q.validated:
 			targets.append(q)
 	for q in _dispatched_items:
-		if q not in targets:
+		if q not in targets and not q.validated:
 			targets.append(q)
 	if targets.is_empty():
 		return
@@ -683,6 +733,8 @@ func _run_answer_validation_once() -> void:
 	print("[BufferedProvider] Running one-shot answer validation for %d quizzes" % targets.size())
 	validator.validate_answers_llm(targets, current_subject, current_grade,
 		func(_valid_items: Array[QuizItem], invalid_reasons: Array[String]):
+			for item in _valid_items:
+				item.validated = true
 			if invalid_reasons.size() > 0:
 				print("[BufferedProvider] Answer validation flagged %d items:" % invalid_reasons.size())
 				for reason in invalid_reasons:
@@ -691,6 +743,81 @@ func _run_answer_validation_once() -> void:
 
 
 ## ── ラウンド間 問題履歴の永続化 ──
+
+func _seed_from_generated_bank() -> void:
+	if generated_bank == null or llm_mode != "ONLINE":
+		return
+	var candidates := generated_bank.take_items(current_subject, current_grade, current_difficulty)
+	if candidates.is_empty():
+		return
+	var ordered: Array[QuizItem] = []
+	var rest: Array[QuizItem] = []
+	for q in candidates:
+		if q.genre.strip_edges().is_empty():
+			q.genre = "未分類"
+		if _genre_count_in_round(q.genre) == 0:
+			ordered.append(q)
+		else:
+			rest.append(q)
+	ordered.append_array(rest)
+	var used: Array[String] = []
+	var batch_accepted: Array[String] = []
+	var adopted_units: Array[String] = []
+	for q in ordered:
+		if current_mode == Constants.MODE_TEN \
+				and yielded_count + _preload_buffer_count() >= target_count:
+			break
+		if _should_block_quiz(q.q, batch_accepted, true):
+			continue
+		if current_mode == Constants.MODE_TEN \
+				and _genre_count_in_round(q.genre) >= _effective_genre_cap():
+			continue
+		batch_accepted.append(q.q)
+		_append_history_entry(q.q, q.genre)
+		buffer.append(q)
+		used.append(q.q)
+		if not q.genre.is_empty() and q.genre not in adopted_units:
+			adopted_units.append(q.genre)
+	if used.size() > 0:
+		generated_bank.remove_questions(current_subject, current_grade, current_difficulty, used)
+		_schedule_history_save()
+		print("[BufferedProvider] Seeded %d quizzes from generated bank" % used.size())
+	if adopted_units.size() > 0 and is_instance_valid(online_fetcher) \
+			and online_fetcher.has_method("record_adopted_units"):
+		online_fetcher.record_adopted_units(current_subject, current_grade, adopted_units)
+
+
+func _store_leftovers_to_pool() -> void:
+	if llm_mode != "ONLINE" or generated_bank == null:
+		return
+	var leftovers: Array[QuizItem] = []
+	for q in buffer:
+		if not _is_offline_quiz_item(q):
+			leftovers.append(q)
+	for q in _overflow_buffer:
+		if not _is_offline_quiz_item(q):
+			leftovers.append(q)
+	if leftovers.is_empty():
+		return
+	generated_bank.store_items(leftovers, current_subject, current_grade, current_difficulty)
+
+
+func _log_round_quality_stats() -> void:
+	_quality_stats_logged = true
+	var genres := {}
+	var unlabeled := 0
+	var items: Array[QuizItem] = []
+	items.append_array(buffer)
+	items.append_array(_overflow_buffer)
+	items.append_array(_dispatched_items)
+	for q in items:
+		if q.genre.strip_edges().is_empty() or q.genre == "未分類":
+			unlabeled += 1
+		genres[q.genre] = true
+	print("[BufferedProvider] Round quality: items=%d genres=%d unlabeled=%d seen=%d blocked=%d" % [
+		items.size(), genres.size(), unlabeled, _round_candidates_seen, _round_candidates_blocked
+	])
+
 
 func _build_fetch_history() -> Array[String]:
 	var merged: Array[String] = []
@@ -706,6 +833,11 @@ func _build_fetch_history() -> Array[String]:
 	for oq in _overflow_buffer:
 		if oq.q not in merged:
 			merged.append(oq.q)
+	if generated_bank != null:
+		for pool_q: String in generated_bank.list_question_texts(
+				current_subject, current_grade, current_difficulty):
+			if pool_q not in merged:
+				merged.append(pool_q)
 	return QuizDedup.tail_texts(merged, QuizDedup.BLOCKLIST_HISTORY_MAX)
 
 
@@ -724,6 +856,11 @@ func _collect_active_question_texts(during_preload: bool = false) -> Array[Strin
 	for oq in _overflow_buffer:
 		if oq.q not in texts:
 			texts.append(oq.q)
+	if generated_bank != null:
+		for pool_q: String in generated_bank.list_question_texts(
+				current_subject, current_grade, current_difficulty):
+			if pool_q not in texts:
+				texts.append(pool_q)
 	if QuizManager.quiz_optimizer != null:
 		for item: Variant in QuizManager.quiz_optimizer.ratings.get("bad", []):
 			if not item is Dictionary:
@@ -766,7 +903,6 @@ func _append_history_entry(question: String, genre: String) -> bool:
 		recent_history_entries.pop_front()
 	_sync_recent_questions_from_entries()
 	return true
-
 
 func _sync_recent_questions_from_entries() -> void:
 	recent_questions.clear()

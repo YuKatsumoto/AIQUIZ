@@ -12,7 +12,8 @@ class_name QuizValidator
 signal validation_completed(valid: Array[QuizItem], invalid_reasons: Array[String])
 
 const MAX_RETRY: int = 2
-const FLASH_MODEL: String = "gemini-3.5-flash"
+const FLASH_MODEL: String = "gemini-3.6-flash"
+const THINKING_VALIDATION: String = "low"
 
 ## ルールベースのバリデーション（即時・無料）
 func validate_rules(items: Array[QuizItem]) -> Dictionary:
@@ -119,7 +120,11 @@ func validate_answers_llm(items: Array[QuizItem], subject: String, grade: int,
 	
 	var body := JSON.stringify({
 		"contents": [{"parts": [{"text": prompt}]}],
-		"generationConfig": {"temperature": 0.1, "responseMimeType": "application/json"}
+		"generationConfig": {
+			"temperature": 0.1,
+			"responseMimeType": "application/json",
+			"thinkingConfig": {"thinkingLevel": THINKING_VALIDATION}
+		}
 	})
 	
 	http.request_completed.connect(func(result: int, response_code: int, _h, b: PackedByteArray):
@@ -138,8 +143,10 @@ func validate_answers_llm(items: Array[QuizItem], subject: String, grade: int,
 					
 					if check == null:
 						# No validation result, pass through
+						item.validated = true
 						valid_items.append(item)
 					elif check.get("claimed_ok", true) and check.get("grade_ok", true):
+						item.validated = true
 						valid_items.append(item)
 					else:
 						var issue: String = check.get("issue", "不明な問題")
@@ -153,6 +160,7 @@ func validate_answers_llm(items: Array[QuizItem], subject: String, grade: int,
 							if correct_idx >= 0 and correct_idx < item.c.size():
 								# Fix the answer and include the item
 								item.a = correct_idx
+								item.validated = true
 								valid_items.append(item)
 								invalid_reasons[invalid_reasons.size() - 1] += "（正解を修正して採用）"
 								print("[QuizValidator] Fixed answer: %s → %d" % [item.q.left(30), correct_idx])

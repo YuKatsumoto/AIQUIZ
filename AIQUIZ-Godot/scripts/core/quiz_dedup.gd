@@ -4,7 +4,8 @@ extends RefCounted
 ## 問題文のセマンティック重複判定（online_fetch / buffered_provider 共通）
 
 const SAME_ANSWER_CORE_SIMILARITY: float = 0.40
-const PROMPT_HISTORY_MAX: int = 30
+const PROMPT_HISTORY_MAX: int = 60
+const PROMPT_FULLTEXT_MAX: int = 8
 const BLOCKLIST_HISTORY_MAX: int = 1000
 ## 完全一致・数値差し替えテンプレートは保存している全履歴で拒否する。
 const PRELOAD_ACCEPT_HISTORY_MAX: int = 1000
@@ -24,12 +25,16 @@ static func tail_texts(candidates: Array, max_count: int) -> Array[String]:
 
 
 static func is_semantically_similar(q1: String, q2: String) -> bool:
+	return is_semantically_similar_with_cores(
+		q1, extract_core_concept(q1), q2, extract_core_concept(q2)
+	)
+
+
+static func is_semantically_similar_with_cores(q1: String, core1: String, q2: String, core2: String) -> bool:
 	if q1 == q2:
 		return true
 	if q1.similarity(q2) > 0.68:
 		return true
-	var core1 := extract_core_concept(q1)
-	var core2 := extract_core_concept(q2)
 	if not core1.is_empty() and not core2.is_empty():
 		if core1.similarity(core2) > 0.72:
 			return true
@@ -65,11 +70,19 @@ static func is_semantically_similar(q1: String, q2: String) -> bool:
 
 
 static func is_similar_to_any(question: String, candidates: Array) -> bool:
+	var question_core := extract_core_concept(question)
+	return is_similar_to_any_with_core(question, question_core, candidates)
+
+
+static func is_similar_to_any_with_core(question: String, question_core: String, candidates: Array) -> bool:
 	for raw in candidates:
 		var text := history_entry_text(raw)
 		if text.is_empty():
 			continue
-		if is_semantically_similar(question, text):
+		var other_core := history_entry_core(raw)
+		if other_core.is_empty():
+			other_core = extract_core_concept(text)
+		if is_semantically_similar_with_cores(question, question_core, text, other_core):
 			return true
 	return false
 
@@ -109,6 +122,12 @@ static func history_entry_text(entry: Variant) -> String:
 		return entry as String
 	if entry is Dictionary:
 		return str((entry as Dictionary).get("q", ""))
+	return ""
+
+
+static func history_entry_core(entry: Variant) -> String:
+	if entry is Dictionary:
+		return str((entry as Dictionary).get("core", ""))
 	return ""
 
 

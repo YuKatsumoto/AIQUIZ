@@ -89,38 +89,139 @@ def get_gemini_client():
     return client
 
 
-def call_gemini(client, prompt, *, model="gemini-3-flash-preview", temperature=0.3, max_retries=3):
-    """Gemini APIを呼び出してJSON応答を取得"""
-    from google.genai import types
+def _batch_state_name(job) -> str:
+    state = getattr(job, "state", None)
+    return getattr(state, "name", str(state or ""))
+
+
+def _wait_for_batch_job(client, job, *, timeout_sec=3600, poll_sec=8):
+    name = job.name
+    started = time.time()
+    while True:
+        job = client.batches.get(name=name)
+        state = _batch_state_name(job)
+        if state == "JOB_STATE_SUCCEEDED":
+            return job
+        if state in ("JOB_STATE_FAILED", "JOB_STATE_CANCELLED", "JOB_STATE_EXPIRED"):
+            error = getattr(job, "error", None)
+            raise RuntimeError(f"Batch job {state}: {error}")
+        if time.time() - started > timeout_sec:
+            raise TimeoutError(f"Batch job timed out after {timeout_sec}s ({state})")
+        print(f"    [batch] {state} ...", flush=True)
+        time.sleep(poll_sec)
+
+
+def _parse_json_text(text):
+    text = (text or "").strip()
+    if text.startswith("```json"):
+        text = text[7:]
+    if text.startswith("```"):
+        text = text[3:]
+    if text.endswith("```"):
+        text = text[:-3]
+    return json.loads(text.strip())
+
+
+def _response_text(response) -> str:
+    if response is None:
+        return ""
+    text = getattr(response, "text", None)
+    if text:
+        return text
+    try:
+        return response.candidates[0].content.parts[0].text
+    except Exception:
+        return ""
+
+
+def _inlined_responses(job):
+    dest = getattr(job, "dest", None)
+    responses = getattr(dest, "inlined_responses", None) if dest is not None else None
+    if responses:
+        return list(responses)
+    return getattr(job, "inlined_responses", None) or []
+
+
+def call_gemini_batch(client, prompts, *, model="gemini-3-flash-preview", temperature=0.3, max_retries=3):
+    """複数プロンプトを1つの Batch ジョブで投げ、JSON 結果の配列を返す（50%オフ）。"""
+    if not prompts:
+        return []
+    if os.environ.get("USE_SYNC_GEMINI") == "1":
+        return [call_gemini(client, p, model=model, temperature=temperature, max_retries=max_retries) for p in prompts]
+
+    src = []
+    for prompt in prompts:
+        src.append({
+            "contents": [{"parts": [{"text": prompt}], "role": "user"}],
+            "config": {
+                "temperature": temperature,
+                "response_mime_type": "application/json",
+            },
+        })
 
     for attempt in range(max_retries):
         try:
-            response = client.models.generate_content(
+            job = client.batches.create(
                 model=model,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    temperature=temperature,
-                    response_mime_type="application/json",
-                ),
+                src=src,
+                config={"display_name": f"aiquiz-refine-{len(prompts)}"},
             )
-            text = response.text.strip()
-            # ```json ... ``` の除去
-            if text.startswith("```json"):
-                text = text[7:]
-            if text.startswith("```"):
-                text = text[3:]
-            if text.endswith("```"):
-                text = text[:-3]
-            return json.loads(text.strip())
+            print(f"    [batch] created {job.name} ({len(prompts)} requests)", flush=True)
+            job = _wait_for_batch_job(client, job)
+            results = []
+            inlined = _inlined_responses(job)
+            for item in inlined:
+                response = getattr(item, "response", item)
+                error = getattr(item, "error", None)
+                if error:
+                    results.append(None)
+                    continue
+                try:
+                    results.append(_parse_json_text(_response_text(response)))
+                except Exception:
+                    results.append(None)
+            if len(results) < len(prompts):
+                results.extend([None] * (len(prompts) - len(results)))
+            return results
         except Exception as e:
             if attempt < max_retries - 1:
                 wait = (attempt + 1) * 2
-                print(f"    [リトライ {attempt+1}/{max_retries}] {type(e).__name__}: {e}", flush=True)
+                print(f"    [batch リトライ {attempt+1}/{max_retries}] {type(e).__name__}: {e}", flush=True)
                 time.sleep(wait)
             else:
-                print(f"    [失敗] {type(e).__name__}: {e}", flush=True)
-                return None
-    return None
+                print(f"    [batch 失敗] {type(e).__name__}: {e}", flush=True)
+                return [None] * len(prompts)
+    return [None] * len(prompts)
+
+
+def call_gemini(client, prompt, *, model="gemini-3-flash-preview", temperature=0.3, max_retries=3):
+    """Gemini Batch API を1件で呼び出してJSON応答を取得（50%オフ）。USE_SYNC_GEMINI=1 で同期に戻せる。"""
+    from google.genai import types
+
+    if os.environ.get("USE_SYNC_GEMINI") == "1":
+        for attempt in range(max_retries):
+            try:
+                response = client.models.generate_content(
+                    model=model,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        temperature=temperature,
+                        response_mime_type="application/json",
+                    ),
+                )
+                return _parse_json_text(response.text)
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    wait = (attempt + 1) * 2
+                    print(f"    [リトライ {attempt+1}/{max_retries}] {type(e).__name__}: {e}", flush=True)
+                    time.sleep(wait)
+                else:
+                    print(f"    [失敗] {type(e).__name__}: {e}", flush=True)
+                    return None
+        return None
+
+    results = call_gemini_batch(client, [prompt], model=model, temperature=temperature, max_retries=max_retries)
+    return results[0] if results else None
 
 
 # ═══════════════════════════════════════════
@@ -214,14 +315,14 @@ def phase2_llm_audit(client, bank_data):
         for grade, questions in grades.items():
             audited_questions = []
 
-            # バッチ処理
+            # 学年分をまとめて Batch API に投げる
             total_batches = (len(questions) + AUDIT_BATCH_SIZE - 1) // AUDIT_BATCH_SIZE
+            prompts = []
+            batches = []
             for batch_idx, batch_start in enumerate(range(0, len(questions), AUDIT_BATCH_SIZE)):
                 batch = questions[batch_start:batch_start + AUDIT_BATCH_SIZE]
-                print(f"    [{subject} {grade}年] バッチ {batch_idx+1}/{total_batches} ({len(batch)}問)...", end="", flush=True)
                 indexed = [{"id": i, "q": q["q"], "c": q["c"], "a": q["a"],
                            "exp": q.get("exp", "")} for i, q in enumerate(batch)]
-
                 prompt = f"""あなたは小学生向けクイズの品質管理エキスパートです。
 以下は「{subject}」の「{grade}年生」向けのクイズです。
 
@@ -245,19 +346,20 @@ def phase2_llm_audit(client, bank_data):
 
 入力 ({len(batch)}問):
 {json.dumps(indexed, ensure_ascii=False)}"""
+                prompts.append(prompt)
+                batches.append(batch)
+                print(f"    [{subject} {grade}年] バッチ {batch_idx+1}/{total_batches} ({len(batch)}問) をキュー", flush=True)
 
-                result = call_gemini(client, prompt, temperature=0.1)
-                print(" OK", flush=True)
-                time.sleep(API_DELAY)
+            print(f"    [{subject} {grade}年] Batch API で {len(prompts)} 件を一括審査...", flush=True)
+            results = call_gemini_batch(client, prompts, temperature=0.1)
 
+            for batch, result in zip(batches, results):
                 if result is None:
-                    # API失敗時は全てPASS扱い
                     for q in batch:
                         q["_verdict"] = "PASS"
                         audited_questions.append(q)
                     continue
 
-                # 結果をマッピング
                 verdict_map = {}
                 if isinstance(result, list):
                     for item in result:
@@ -268,7 +370,7 @@ def phase2_llm_audit(client, bank_data):
                     verdict = verdict_map.get(i, "PASS")
                     if verdict == "FAIL":
                         total_fail += 1
-                        continue  # 除外
+                        continue
                     elif verdict == "NEEDS_REFINE":
                         total_refine += 1
                         q["_verdict"] = "NEEDS_REFINE"
@@ -304,9 +406,10 @@ def phase3_llm_refine(client, bank_data):
             refined_questions = []
 
             total_batches = (len(questions) + REFINE_BATCH_SIZE - 1) // REFINE_BATCH_SIZE
+            prompts = []
+            batches = []
             for batch_idx, batch_start in enumerate(range(0, len(questions), REFINE_BATCH_SIZE)):
                 batch = questions[batch_start:batch_start + REFINE_BATCH_SIZE]
-                print(f"    [{subject} {grade}年] リファイン {batch_idx+1}/{total_batches}...", end="", flush=True)
                 indexed = []
                 for i, q in enumerate(batch):
                     item = {"id": i, "q": q["q"], "c": q["c"], "a": q["a"],
@@ -338,13 +441,15 @@ def phase3_llm_refine(client, bank_data):
 
 入力 ({len(batch)}問):
 {json.dumps(indexed, ensure_ascii=False)}"""
+                prompts.append(prompt)
+                batches.append(batch)
+                print(f"    [{subject} {grade}年] リファイン {batch_idx+1}/{total_batches} をキュー", flush=True)
 
-                result = call_gemini(client, prompt, temperature=0.2)
-                print(" OK", flush=True)
-                time.sleep(API_DELAY)
+            print(f"    [{subject} {grade}年] Batch API で {len(prompts)} 件を一括リファイン...", flush=True)
+            results = call_gemini_batch(client, prompts, temperature=0.2)
 
+            for batch, result in zip(batches, results):
                 if result is None:
-                    # API失敗時はそのまま（tだけデフォルトで追加）
                     for q in batch:
                         if "t" not in q:
                             q["t"] = 4.0
@@ -352,7 +457,6 @@ def phase3_llm_refine(client, bank_data):
                         refined_questions.append(q)
                     continue
 
-                # 結果をマッピング
                 result_map = {}
                 if isinstance(result, list):
                     for item in result:
@@ -368,7 +472,6 @@ def phase3_llm_refine(client, bank_data):
                             "a": refined["a"],
                             "exp": refined.get("exp", orig_q.get("exp", "")),
                         }
-                        # t を安全にパース
                         t_val = refined.get("t", 4.0)
                         try:
                             t_val = float(t_val)
@@ -376,13 +479,10 @@ def phase3_llm_refine(client, bank_data):
                             t_val = 4.0
                         new_q["t"] = max(1.5, min(10.0, t_val))
                         total_t_added += 1
-
                         if orig_q.get("_verdict") == "NEEDS_REFINE":
                             total_refined += 1
-
                         refined_questions.append(new_q)
                     else:
-                        # パース失敗時はオリジナルにtだけ追加
                         orig_q.pop("_verdict", None)
                         if "t" not in orig_q:
                             orig_q["t"] = 4.0

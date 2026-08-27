@@ -62,6 +62,75 @@ function validateOpenAIBody(req, res, next) {
     next();
 }
 
+function extractUsageMetadata(payload) {
+    if (!payload || typeof payload !== 'object') {
+        return null;
+    }
+    const usage = payload.usageMetadata || payload.usage_metadata;
+    if (!usage || typeof usage !== 'object') {
+        return null;
+    }
+    return {
+        promptTokenCount: Number(usage.promptTokenCount || usage.prompt_token_count || 0),
+        candidatesTokenCount: Number(usage.candidatesTokenCount || usage.candidates_token_count || 0),
+        thoughtsTokenCount: Number(usage.thoughtsTokenCount || usage.thoughts_token_count || 0),
+        totalTokenCount: Number(usage.totalTokenCount || usage.total_token_count || 0),
+        cachedContentTokenCount: Number(usage.cachedContentTokenCount || usage.cached_content_token_count || 0)
+    };
+}
+
+function logGeminiUsage(kind, model, usage, extra) {
+    if (!usage) {
+        return;
+    }
+    console.log(JSON.stringify({
+        type: 'gemini_usage',
+        kind: kind,
+        model: model,
+        promptTokenCount: usage.promptTokenCount,
+        candidatesTokenCount: usage.candidatesTokenCount,
+        thoughtsTokenCount: usage.thoughtsTokenCount,
+        totalTokenCount: usage.totalTokenCount,
+        cachedContentTokenCount: usage.cachedContentTokenCount,
+        ts: new Date().toISOString(),
+        ...(extra || {})
+    }));
+}
+
+function extractUsageFromSseChunk(chunk, lastUsage) {
+    let usage = lastUsage;
+    const lines = String(chunk).split(/\r?\n/);
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith('data:')) {
+            if (trimmed.startsWith('{')) {
+                try {
+                    const parsed = JSON.parse(trimmed);
+                    const found = extractUsageMetadata(parsed);
+                    if (found) {
+                        usage = found;
+                    }
+                } catch (_ignored) {}
+            }
+            continue;
+        }
+        const jsonText = trimmed.slice(5).trim();
+        if (!jsonText || jsonText === '[DONE]') {
+            continue;
+        }
+        try {
+            const parsed = JSON.parse(jsonText);
+            const found = extractUsageMetadata(parsed);
+            if (found) {
+                usage = found;
+            }
+        } catch (_e) {
+            // 途中チャンクは不完全なことがあるので無視
+        }
+    }
+    return usage;
+}
+
 // ========================================
 // エンドポイント
 // ========================================
@@ -94,6 +163,14 @@ app.post('/gemini', authMiddleware, apiLimiter, validateGeminiBody, async (req, 
             body: req.body
         });
         const data = await response.text();
+        try {
+            const parsed = JSON.parse(data);
+            logGeminiUsage('generate', model, extractUsageMetadata(parsed), {
+                status: response.status
+            });
+        } catch (_e) {
+            // 非JSONエラー応答は計測対象外
+        }
         res.status(response.status).send(data);
     } catch (err) {
         res.status(500).send("Proxy Error: " + err.message);
@@ -130,16 +207,19 @@ app.post('/gemini-stream', authMiddleware, apiLimiter, validateGeminiBody, async
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
 
+        let lastUsage = null;
         try {
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
                 const chunk = decoder.decode(value, { stream: true });
+                lastUsage = extractUsageFromSseChunk(chunk, lastUsage);
                 res.write(chunk);
             }
         } catch (streamErr) {
             console.error('Stream pipe error:', streamErr.message);
         } finally {
+            logGeminiUsage('stream', model, lastUsage, { status: response.status });
             res.end();
         }
     } catch (err) {
