@@ -1,6 +1,8 @@
 class_name MenuWallBackgroundPreview
 extends Node
 
+signal game_start_departure_finished(success: bool)
+
 ## メインメニュー背景: カスタマイズ「壁速度」タブ／壁速度設定画面と同型の3Dプレビュー
 
 const WALL_SCENE: PackedScene = preload("res://scenes/quiz_wall.tscn")
@@ -9,8 +11,10 @@ const MenuPreviewCameraSettingsScript = preload("res://scripts/ui/menu_preview_c
 const MenuPreviewDoorLearnerScript = preload("res://scripts/ui/menu_preview_door_learner.gd")
 const MenuPreviewActorAIStateScript = preload("res://scripts/ui/menu_preview_actor_ai_state.gd")
 const PreviewWallMergeAnimatorScript = preload("res://scripts/ui/preview_wall_merge_animator.gd")
+const HelicopterArrivalDirectorScript = preload("res://scripts/world/helicopter_arrival_director.gd")
 
 const WALL_SPACING := 30.0
+const MENU_INTRO_WALL_START_Z := -72.0
 const PREVIEW_PLAYER_X: float = -3.5
 const PREVIEW_PLAYER2_X: float = 3.5
 const PREVIEW_DOOR_HALF_DEPTH_Z: float = 0.30
@@ -156,6 +160,11 @@ var _customize_active: bool = false
 var _customize_walls_hidden: bool = false
 ## カスタマイズ入場時のメニューカメラ姿勢（退場時に補間で復帰する）
 var _menu_cam_pose: Dictionary = {}
+var _menu_helicopter_intro: HelicopterArrivalDirector = null
+var _menu_intro_active := false
+var _menu_intro_requested_player_count := 2
+var _menu_start_departure: HelicopterArrivalDirector = null
+var _menu_start_departure_active := false
 
 
 func _ready() -> void:
@@ -174,6 +183,10 @@ func _ready() -> void:
 
 func get_camera() -> Camera3D:
 	return _preview_camera
+
+
+func get_stage_environment() -> StageEnvironment:
+	return _stage_env
 
 
 func apply_graphics_quality() -> void:
@@ -205,6 +218,7 @@ func get_shared_viewport() -> SubViewport:
 
 ## カスタマイズ画面に入る: メニューAIを停止・非表示にし、カメラ制御を譲る
 func enter_customize_mode() -> void:
+	_cancel_menu_helicopter_intro()
 	_customize_active = true
 	_set_customize_walls_hidden(false)
 	_resume_preview_conveyor()
@@ -334,6 +348,10 @@ func _process(dt: float) -> void:
 		return
 
 	_linger_time += dt
+	if _menu_intro_active or _menu_start_departure_active:
+		if _stage_env:
+			_stage_env.set_scroll_z(_preview_scroll_z)
+		return
 
 	var effective_speed := _get_effective_preview_speed()
 	var move_dist := effective_speed * dt
@@ -458,16 +476,12 @@ func _build_3d_scene() -> void:
 		"include_grandstands": false,
 	})
 
-	var start_z := 8.0 - WALL_SPACING * 2
-	for i in range(3):
-		_spawn_preview_wall(start_z + i * WALL_SPACING)
-
 	_preview_gs = QuizGameState.new()
 	_preview_gs.game_state = Constants.STATE_PLAYING
 	_preview_gs.num_players = 2
 	_preview_gs.p1_alive = true
 	_preview_gs.p1_wall_impact = false
-	_preview_gs.player_x = _pick_ai_dash_target_x(_p1_ai)
+	_preview_gs.player_x = PREVIEW_PLAYER_X
 	_preview_gs.player_y = 0.0
 	_preview_gs.player_z = 0.0
 	_preview_gs.world_scroll_z = 0.0
@@ -481,7 +495,158 @@ func _build_3d_scene() -> void:
 	_rebuild_preview_player()
 	if _menu_synced_player_count == 2:
 		_enable_preview_p2_drop_in()
+		_preview_gs.player2_x = PREVIEW_PLAYER2_X
+		_preview_gs.player2_y = 0.0
+		_preview_gs.player2_vel_y = 0.0
+		_set_actor_local_z(false, 0.0)
 	_reset_preview_ai_state()
+	if _preview_player and _preview_player.has_method("update_from_state"):
+		_preview_player.update_from_state(_preview_gs)
+	_sync_preview_player_cosmetics(true)
+	_begin_menu_helicopter_intro()
+
+
+func _begin_menu_helicopter_intro() -> void:
+	_menu_intro_active = true
+	if not _viewport or not _preview_gs or not _preview_player or not _preview_camera:
+		_finish_menu_helicopter_intro(false)
+		return
+	_menu_intro_requested_player_count = 2
+	_preview_scroll_z = 0.0
+	_preview_gs.world_scroll_z = 0.0
+	_pause_preview_conveyor()
+	if _stage_env:
+		_stage_env.reset_scroll()
+
+	_menu_helicopter_intro = HelicopterArrivalDirectorScript.new() as HelicopterArrivalDirector
+	_menu_helicopter_intro.name = "MenuHelicopterArrivalDirector"
+	_menu_helicopter_intro.presentation_finished.connect(_on_menu_helicopter_intro_finished)
+	_viewport.add_child(_menu_helicopter_intro)
+	_menu_helicopter_intro.setup_menu_preview(
+		_preview_gs,
+		_preview_player as PlayerController,
+		_preview_camera
+	)
+
+
+func _on_menu_helicopter_intro_finished(success: bool) -> void:
+	_finish_menu_helicopter_intro(success)
+
+
+func _finish_menu_helicopter_intro(_success: bool) -> void:
+	if not _menu_intro_active:
+		return
+	_menu_intro_active = false
+	_preview_scroll_z = 0.0
+	if _preview_gs:
+		_preview_gs.world_scroll_z = 0.0
+		_preview_gs.player_x = PREVIEW_PLAYER_X
+		_preview_gs.player_y = 0.0
+		_preview_gs.player_vel_y = 0.0
+		_set_actor_local_z(true, 0.0)
+		if _preview_gs.num_players >= 2:
+			_preview_gs.player2_x = PREVIEW_PLAYER2_X
+			_preview_gs.player2_y = 0.0
+			_preview_gs.player2_vel_y = 0.0
+			_set_actor_local_z(false, 0.0)
+	if _stage_env:
+		_stage_env.reset_scroll()
+	if _preview_walls.is_empty():
+		for wall_index: int in range(3):
+			_spawn_preview_wall(MENU_INTRO_WALL_START_Z + wall_index * WALL_SPACING)
+	_reset_preview_ai_state()
+	if _is_local_2p_active():
+		_reset_preview_actor2_ai_state()
+	_resume_preview_conveyor()
+	if _preview_player and _preview_gs:
+		_preview_player.visible = true
+		_preview_gs._active_wall_speed = _preview_speed
+		_preview_player.update_from_state(_preview_gs)
+		_sync_preview_player_cosmetics(true)
+	var requested_count := _menu_intro_requested_player_count
+	if requested_count != _menu_synced_player_count:
+		sync_menu_player_count(requested_count)
+
+
+func _cancel_menu_helicopter_intro() -> void:
+	if not _menu_intro_active:
+		return
+	if _menu_helicopter_intro != null and is_instance_valid(_menu_helicopter_intro):
+		_menu_helicopter_intro.cancel()
+	if _menu_intro_active:
+		_finish_menu_helicopter_intro(false)
+
+
+func begin_game_start_departure(player_count: int) -> bool:
+	if _menu_start_departure_active:
+		return false
+	_cancel_menu_helicopter_intro()
+	if not _viewport or not _preview_gs or not _preview_player or not _preview_camera:
+		return false
+	var count := clampi(player_count, 1, 2)
+	_menu_start_departure_active = true
+	_menu_synced_player_count = count
+	_preview_gs.num_players = count
+	_preview_gs.p1_emote = 0
+	_preview_gs.p1_jump_trigger = false
+	if count >= 2:
+		_preview_gs.p2_alive = true
+		_preview_gs.p2_emote = 0
+		_preview_gs.p2_jump_trigger = false
+	_pause_preview_conveyor()
+	_menu_start_departure = HelicopterArrivalDirectorScript.new() as HelicopterArrivalDirector
+	_menu_start_departure.name = "MenuHelicopterStartDepartureDirector"
+	_menu_start_departure.presentation_finished.connect(_on_game_start_departure_finished)
+	_viewport.add_child(_menu_start_departure)
+	_menu_start_departure.setup_menu_departure(
+		_preview_gs,
+		_preview_player as PlayerController,
+		_preview_camera,
+		count
+	)
+	return _menu_start_departure_active
+
+
+func is_game_start_departure_active() -> bool:
+	return _menu_start_departure_active
+
+
+func cancel_game_start_departure() -> void:
+	if not _menu_start_departure_active:
+		return
+	if _menu_start_departure != null and is_instance_valid(_menu_start_departure):
+		_menu_start_departure.cancel()
+	if _menu_start_departure_active:
+		_on_game_start_departure_finished(false)
+
+
+func _on_game_start_departure_finished(success: bool) -> void:
+	if not _menu_start_departure_active:
+		return
+	_menu_start_departure_active = false
+	if not success:
+		_reset_preview_ai_state()
+		if _is_local_2p_active():
+			_reset_preview_actor2_ai_state()
+		_resume_preview_conveyor()
+		if _preview_player and _preview_gs:
+			_preview_player.update_from_state(_preview_gs)
+			_sync_preview_player_cosmetics(true)
+	game_start_departure_finished.emit(success)
+
+
+func _exit_tree() -> void:
+	if _menu_start_departure != null and is_instance_valid(_menu_start_departure):
+		_menu_start_departure_active = false
+		if _menu_start_departure.presentation_finished.is_connected(_on_game_start_departure_finished):
+			_menu_start_departure.presentation_finished.disconnect(_on_game_start_departure_finished)
+		_menu_start_departure.cancel()
+	if _menu_helicopter_intro == null or not is_instance_valid(_menu_helicopter_intro):
+		return
+	_menu_intro_active = false
+	if _menu_helicopter_intro.presentation_finished.is_connected(_on_menu_helicopter_intro_finished):
+		_menu_helicopter_intro.presentation_finished.disconnect(_on_menu_helicopter_intro_finished)
+	_menu_helicopter_intro.cancel()
 
 
 func _pick_preview_quiz() -> QuizItem:
@@ -752,6 +917,12 @@ func _is_local_2p_active() -> bool:
 
 
 func sync_menu_player_count(count: int) -> void:
+	count = 2 if count == 2 else 1
+	if _menu_start_departure_active:
+		return
+	if _menu_intro_active:
+		_menu_intro_requested_player_count = count
+		return
 	if not _preview_gs:
 		return
 	var prev := _menu_synced_player_count

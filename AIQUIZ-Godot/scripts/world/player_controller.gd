@@ -39,6 +39,7 @@ const INTRO_SETTLE_SPEED := 0.45
 const INTRO_SETTLE_HOLD := 0.25
 const INTRO_GET_UP_DELAY := 2.00
 const INTRO_GET_UP_DURATION := 2.20
+const INTRO_READY_RUN_POSE_RATIO := 0.32
 const RagdollBuilderScript = preload("res://scripts/world/ragdoll_builder.gd")
 const ActiveRagdollDriverScript = preload("res://scripts/world/active_ragdoll_driver.gd")
 const GHOST_MOUNT_ANIMATION_PATH := "res://assets/animations/Ghost Shark Mount.fbx"
@@ -310,8 +311,8 @@ func begin_intro_drop(
 	return true
 
 
-## Freezes the ragdoll in its tumbled landing pose, then interpolates to the
-## standing pose at the authoritative start position.
+## Keeps the landed body physically limp, then interpolates to the standing
+## pose only when the authored get-up motion actually begins.
 func begin_intro_get_up(player_index: int, landing_target: Vector3) -> bool:
 	var ragdoll: Dictionary = _intro_ragdolls.get(player_index, {})
 	if ragdoll.is_empty():
@@ -320,15 +321,84 @@ func begin_intro_get_up(player_index: int, landing_target: Vector3) -> bool:
 	if bool(existing_recovery.get("active", false)):
 		return true
 
+	var rag: Dictionary = ragdoll.get("rag", {})
+	var bodies: Dictionary = rag.get("bodies", {})
+	var torso := bodies.get("torso") as RigidBody3D
+	if torso == null or not is_instance_valid(torso):
+		return false
+
+	# Do not freeze the landing pose.  Extra damping lets the body settle without
+	# taking control away from the ragdoll before the character starts standing.
+	for key: Variant in bodies:
+		if str(key) == "anchor":
+			continue
+		var body := bodies[key] as RigidBody3D
+		if body == null or not is_instance_valid(body):
+			continue
+		body.freeze = false
+		body.gravity_scale = 1.0
+		body.linear_damp = maxf(body.linear_damp, 1.35)
+		body.angular_damp = maxf(body.angular_damp, 1.65)
+
+	ragdoll["recovery"] = {
+		"active": true,
+		"complete": false,
+		"settle_elapsed": 0.0,
+		"delay": INTRO_GET_UP_DELAY,
+		"standing_started": false,
+		"standing_elapsed": 0.0,
+		"duration": INTRO_GET_UP_DURATION,
+		"landing_target": landing_target,
+		"starts": {},
+		"targets": {},
+	}
+	_intro_ragdolls[player_index] = ragdoll
+	return true
+
+
+func _apply_intro_ready_run_pose(player_index: int, parts: Dictionary) -> void:
+	if parts.is_empty():
+		return
+	var is_p1 := player_index == 1
+	var rig := _p1_rig if is_p1 else _p2_rig
+	if rig.is_rigged and rig.play_slot(AnimationRig.SLOT_RUN, true):
+		var run_player := rig.aps[AnimationRig.SLOT_RUN] as AnimationPlayer
+		var run_animation_name := String(rig.anim_names[AnimationRig.SLOT_RUN])
+		if run_player != null and not run_animation_name.is_empty():
+			var run_animation := run_player.get_animation(run_animation_name)
+			if run_animation != null:
+				run_player.seek(
+					run_animation.length * INTRO_READY_RUN_POSE_RATIO,
+					true,
+					true
+				)
+		_apply_skeleton_pose(
+			parts,
+			rig.active_skeleton,
+			rig.active_bone_indices,
+			rig.mirror_x
+		)
+		return
+	var fallback_phase := -0.85 if is_p1 else 0.85
+	_animate_skeleton(parts, 0.0, 0.0, true, fallback_phase, not is_p1, 0)
+
+
+func _start_intro_get_up_motion(
+	player_index: int,
+	ragdoll: Dictionary,
+	recovery: Dictionary
+) -> bool:
 	var is_p1 := player_index == 1
 	var parts: Dictionary = p1_parts if is_p1 else p2_parts
 	var pelvis := parts.get("pelvis") as Node3D
 	var rag: Dictionary = ragdoll.get("rag", {})
 	var bodies: Dictionary = rag.get("bodies", {})
 	var torso := bodies.get("torso") as RigidBody3D
-	if torso == null or pelvis == null or not is_instance_valid(torso) or not is_instance_valid(pelvis):
+	if pelvis == null or torso == null or not is_instance_valid(pelvis) or not is_instance_valid(torso):
 		return false
 
+	_apply_intro_ready_run_pose(player_index, parts)
+	var landing_target: Vector3 = recovery.get("landing_target", torso.global_position)
 	var target_offset := Vector3(
 		landing_target.x - pelvis.global_position.x,
 		0.0,
@@ -342,47 +412,24 @@ func begin_intro_get_up(player_index: int, landing_target: Vector3) -> bool:
 		var body := bodies[key] as RigidBody3D
 		if body == null or not is_instance_valid(body):
 			continue
+		var target_node := pelvis if str(key) == "torso" else parts.get(str(key)) as Node3D
+		if target_node == null or not is_instance_valid(target_node):
+			return false
+		starts[key] = body.global_transform
+		var target_transform := target_node.global_transform
+		target_transform.origin += target_offset
+		targets[key] = target_transform
 		body.linear_velocity = Vector3.ZERO
 		body.angular_velocity = Vector3.ZERO
 		body.gravity_scale = 0.0
 		body.sleeping = true
 		body.collision_layer = 0
 		body.collision_mask = 0
-		starts[key] = body.global_transform
 
-		var target_node := pelvis if str(key) == "torso" else parts.get(str(key)) as Node3D
-		if target_node == null or not is_instance_valid(target_node):
-			return false
-		var target_transform := target_node.global_transform
-		target_transform.origin += target_offset
-		targets[key] = target_transform
-
-	ragdoll["recovery"] = {
-		"active": true,
-		"complete": false,
-		"settle_elapsed": 0.0,
-		"delay": INTRO_GET_UP_DELAY,
-		"standing_started": false,
-		"standing_elapsed": 0.0,
-		"duration": INTRO_GET_UP_DURATION,
-		"landing_target": landing_target,
-		"starts": starts,
-		"targets": targets,
-	}
-	_intro_ragdolls[player_index] = ragdoll
-	return true
-
-
-func _start_intro_get_up_motion(
-	_player_index: int,
-	_ragdoll: Dictionary,
-	recovery: Dictionary
-) -> bool:
-	var starts: Dictionary = recovery.get("starts", {})
-	var targets: Dictionary = recovery.get("targets", {})
 	if starts.is_empty() or targets.is_empty():
 		return false
-
+	recovery["starts"] = starts
+	recovery["targets"] = targets
 	recovery["standing_started"] = true
 	recovery["standing_elapsed"] = 0.0
 	return true
@@ -646,6 +693,93 @@ func has_intro_arrival() -> bool:
 	return not _intro_pending_players.is_empty() or has_intro_drops()
 
 
+## Turns the visible menu runner into the same fully physical ragdoll used by
+## the helicopter drop, but starts it at the runner's current pelvis pose.
+func begin_intro_suction(player_index: int) -> bool:
+	if player_index not in [1, 2]:
+		return false
+	if _intro_ragdolls.has(player_index):
+		return true
+	var is_p1 := player_index == 1
+	var parts: Dictionary = p1_parts if is_p1 else p2_parts
+	var pelvis := parts.get("pelvis") as Node3D
+	if pelvis == null or not is_instance_valid(pelvis):
+		return false
+	return begin_intro_drop(player_index, pelvis.global_transform, Vector3.ZERO)
+
+
+## Pulls the complete jointed body toward the helicopter hatch.  Every body
+## remains simulated, so the limbs trail and tumble instead of becoming a
+## rigid kinematic bundle during the pickup.
+func update_intro_suction(
+	player_index: int,
+	target_position: Vector3,
+	progress: float,
+	delta: float
+) -> bool:
+	var ragdoll: Dictionary = _intro_ragdolls.get(player_index, {})
+	if ragdoll.is_empty():
+		return false
+	var rag: Dictionary = ragdoll.get("rag", {})
+	var bodies: Dictionary = rag.get("bodies", {})
+	var torso := bodies.get("torso") as RigidBody3D
+	if torso == null or not is_instance_valid(torso):
+		return false
+
+	var pickup_progress := clampf(progress, 0.0, 1.0)
+	var to_target := target_position - torso.global_position
+	var maximum_speed := lerpf(5.5, 17.0, pickup_progress)
+	var desired_velocity := to_target * lerpf(4.2, 8.5, pickup_progress)
+	if desired_velocity.length() > maximum_speed:
+		desired_velocity = desired_velocity.normalized() * maximum_speed
+	var blend_weight := clampf(delta * lerpf(4.0, 10.0, pickup_progress), 0.0, 1.0)
+	var swirl_phase := _time * 5.4 + float(player_index) * 1.7
+	var swirl := Vector3(cos(swirl_phase), 0.0, sin(swirl_phase)) * (
+		0.55 * sin(pickup_progress * PI)
+	)
+
+	for key: Variant in bodies:
+		if str(key) == "anchor":
+			continue
+		var body := bodies[key] as RigidBody3D
+		if body == null or not is_instance_valid(body):
+			continue
+		body.freeze = false
+		body.sleeping = false
+		body.gravity_scale = lerpf(0.72, 0.0, pickup_progress)
+		body.linear_damp = lerpf(0.45, 2.8, pickup_progress)
+		body.angular_damp = lerpf(0.35, 1.4, pickup_progress)
+		body.collision_layer = 0
+		body.collision_mask = 1 if pickup_progress < 0.10 else 0
+		var limb_scale := 0.45 if str(key) == "torso" else 1.0
+		body.linear_velocity = body.linear_velocity.lerp(
+			desired_velocity + swirl * limb_scale,
+			blend_weight
+		)
+		body.angular_velocity = body.angular_velocity.lerp(
+			Vector3(
+				sin(swirl_phase + float(str(key).hash() % 7)) * 2.2,
+				cos(swirl_phase * 0.73) * 1.5,
+				(-1.0 if player_index == 1 else 1.0) * 2.0,
+			) * (1.0 - pickup_progress * 0.55),
+			blend_weight * 0.55
+		)
+	return true
+
+
+func set_intro_ragdoll_visible(player_index: int, should_show: bool) -> void:
+	var ragdoll: Dictionary = _intro_ragdolls.get(player_index, {})
+	var container := ragdoll.get("container") as Node3D
+	if container != null and is_instance_valid(container):
+		container.visible = should_show
+
+
+## Successful menu extraction deliberately leaves the authoritative runners
+## hidden for the few frames before the black transition takes over.
+func complete_intro_extraction() -> void:
+	_cleanup_intro_drops(false)
+
+
 ## Builds and immediately releases the same physics trees while the transition
 ## cover is opaque, so first-use shapes, joints, meshes, and toon materials are warm.
 func prewarm_intro_drop_ragdolls(player_count: int) -> void:
@@ -668,16 +802,16 @@ func prewarm_intro_drop_ragdolls(player_count: int) -> void:
 ## Restores hats before freeing their temporary ragdoll parents, then snaps the
 ## hidden presentation bodies back to the authoritative game-state positions.
 func complete_intro_drops(gs: QuizGameState) -> void:
-	_cleanup_intro_drops()
+	_cleanup_intro_drops(true)
 	if gs != null:
 		update_from_state(gs)
 
 
 func cancel_intro_drops() -> void:
-	_cleanup_intro_drops()
+	_cleanup_intro_drops(true)
 
 
-func _cleanup_intro_drops() -> void:
+func _cleanup_intro_drops(restore_visuals: bool = true) -> void:
 	_intro_pending_players.clear()
 	for player_index: Variant in _intro_hat_restore.keys():
 		var restore: Dictionary = _intro_hat_restore[player_index]
@@ -686,19 +820,19 @@ func _cleanup_intro_drops() -> void:
 		if hat != null and is_instance_valid(hat) and original_parent != null and is_instance_valid(original_parent):
 			hat.reparent(original_parent, false)
 			hat.transform = restore.get("transform", Transform3D.IDENTITY)
-			hat.visible = bool(restore.get("visible", true))
+			hat.visible = bool(restore.get("visible", true)) if restore_visuals else false
 	_intro_hat_restore.clear()
 
 	for ragdoll: Dictionary in _intro_ragdolls.values():
 		_teardown_ragdoll(ragdoll)
 	_intro_ragdolls.clear()
-	_set_parts_visible(p1_parts, true)
-	_set_hat_visible(true, true)
-	_set_rig_scenes_visible(true, true)
+	_set_parts_visible(p1_parts, restore_visuals)
+	_set_hat_visible(true, restore_visuals)
+	_set_rig_scenes_visible(true, restore_visuals)
 	if not p2_parts.is_empty():
-		_set_parts_visible(p2_parts, true)
-		_set_hat_visible(false, true)
-		_set_rig_scenes_visible(false, true)
+		_set_parts_visible(p2_parts, restore_visuals)
+		_set_hat_visible(false, restore_visuals)
+		_set_rig_scenes_visible(false, restore_visuals)
 
 
 func _set_hat_visible(is_p1: bool, should_show: bool) -> void:

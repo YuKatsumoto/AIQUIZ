@@ -55,6 +55,7 @@ const ANIM_FADE_DURATION := 0.32
 const ANIM_STAGGER := 0.055
 const MENU_EXIT_DURATION := 0.34
 const MENU_EXIT_OFFSET_X := -520.0
+const MENU_HELICOPTER_EXIT_TIMEOUT_SEC := 4.6
 
 var _prev_menu_step: String = ""
 var _entrance_done: bool = false
@@ -553,7 +554,46 @@ func _play_exit_and_change_scene(
 		tw.tween_property(target, "position:x", base_pos.x + MENU_EXIT_OFFSET_X, MENU_EXIT_DURATION)
 		tw.tween_property(target, "modulate:a", 0.0, MENU_EXIT_DURATION * 0.9)
 
-	_begin_scene_change(path, start_standard_round, tutorial_course)
+	if start_standard_round and path.ends_with("game_world.tscn"):
+		_begin_scene_change_after_helicopter(path, start_standard_round, tutorial_course)
+	else:
+		_begin_scene_change(path, start_standard_round, tutorial_course)
+
+
+func _begin_scene_change_after_helicopter(
+	path: String,
+	start_standard_round: bool,
+	tutorial_course: String
+) -> void:
+	await get_tree().process_frame
+	if not is_inside_tree():
+		return
+	var departure_started := false
+	if _menu_wall_preview and _menu_wall_preview.has_method("begin_game_start_departure"):
+		departure_started = bool(_menu_wall_preview.call(
+			"begin_game_start_departure",
+			2 if game_state.num_players == 2 else 1
+		))
+	if departure_started:
+		var deadline_msec := Time.get_ticks_msec() + int(
+			MENU_HELICOPTER_EXIT_TIMEOUT_SEC * 1000.0
+		)
+		while (
+			is_inside_tree()
+			and _menu_wall_preview
+			and bool(_menu_wall_preview.call("is_game_start_departure_active"))
+			and Time.get_ticks_msec() < deadline_msec
+		):
+			await get_tree().process_frame
+		if (
+			is_inside_tree()
+			and _menu_wall_preview
+			and bool(_menu_wall_preview.call("is_game_start_departure_active"))
+		):
+			push_warning("Menu helicopter departure timed out; continuing scene transition")
+			_menu_wall_preview.call("cancel_game_start_departure")
+	if is_inside_tree():
+		await _begin_scene_change(path, start_standard_round, tutorial_course)
 
 
 ## 現在画面を完全に黒で覆ってから、同期的な問題準備を実行する。

@@ -30,6 +30,7 @@ const DOOR_COLORS_4 := [
 	Color(0.90, 0.15, 0.15),  # D - Red
 ]
 const WALL_COLOR := Color(0.50, 0.50, 0.50)
+const JAPANESE_FONT: Font = preload("res://resources/fonts/NotoSansJP-Regular.otf")
 ## 壁本体の物理的な最上端(Y座標)。メニュー背景プレビューの問題文はこの高さより
 ## 確実に上に留めるための基準として参照する。
 const WALL_TOP_Y: float = 4.05
@@ -574,10 +575,7 @@ func _create_label() -> Label3D:
 	label.text = ""
 	label.rotation.y = PI
 
-	# Load Japanese font
-	var font := load("res://resources/fonts/NotoSansJP-Regular.otf")
-	if font:
-		label.font = font
+	label.font = JAPANESE_FONT
 
 	return label
 

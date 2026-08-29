@@ -49,6 +49,7 @@ var _hats_applied: bool = false
 var _pw_walls: Array[Node3D] = []       # 上空から着地する完成壁
 var _pw_anims: Array[Dictionary] = []   # 落下・着地アニメ状態
 var _pw_count: int = 0                  # 生成済み壁数
+var _pw_configured_count: int = 0       # 問題文まで設定済みの壁数
 var _pw_drop_started: Array[bool] = []  # 各壁の落下開始フラグ
 var _pw_drop_timer: float = 0.0         # 壁間のディレイタイマー
 var _goal_line_node: Node3D = null
@@ -60,6 +61,8 @@ var _barrier_drop_timer: float = 0.0
 var _barrier_spawned_for_session: bool = false  # 1ゲームに1回だけ
 const MAX_VISIBLE_WALLS := 4
 const PREVIEW_WALLS_PER_FRAME := 1
+const PREVIEW_WALL_CONFIGS_PER_FRAME := 1
+const ONLINE_PREVIEW_WALL_PREWARM_FRAMES := 4
 const PREVIEW_WALL_DROP_START_Y := 46.0
 const PREVIEW_WALL_DROP_INTERVAL := 0.16
 const PREVIEW_WALL_DROP_DURATION := 0.28
@@ -1585,7 +1588,9 @@ func _update_preview_walls(dt: float) -> void:
 	# これにより最初のクイズが最奥、最後のクイズが最手前に出現
 	var is_endless: bool = not game_state._is_fixed_count_mode()
 	var total_expected: int = maxi(30 if is_endless else game_state.target_count, quiz_count)
-	var target_pw_count: int = total_expected if is_endless else quiz_count
+	# Build fixed-count walls before online questions arrive, then configure them
+	# separately so instancing, text upload, and impact never share one frame.
+	var target_pw_count: int = total_expected
 
 	# 10枚分のインスタンス化と問題文セットを同フレームに集中させない。
 	# 準備画面の裏で1枚ずつ分散し、落下演出の開始前に滑らかに組み立てる。
@@ -1603,16 +1608,23 @@ func _update_preview_walls(dt: float) -> void:
 		wall_container.add_child(wall_final)
 		_pw_walls.append(wall_final)
 
-		if _pw_count < game_state.quiz_list.size() and wall_final.has_method("set_quiz"):
-			wall_final.set_quiz(game_state.quiz_list[_pw_count], game_state.num_choices)
+		var preview_choices: int = game_state.num_choices
+		if (
+			is_endless
+			and _pw_count < game_state.quiz_list.size()
+			and wall_final.has_method("set_quiz")
+		):
+			wall_final.set_quiz(game_state.quiz_list[_pw_count], preview_choices)
 		elif wall_final.has_method("set_quiz"):
-			wall_final.set_quiz(null, game_state.num_choices)
+			wall_final.set_quiz(null, preview_choices)
 
 		# 新しい壁のアニメーション情報 — エンドレスは従来どおり即時配置する。
 		_pw_anims.append({
 			"phase": 3 if is_endless else 0,
 			"timer": 0.0,
 			"started": is_endless,
+			"configured": is_endless,
+			"ready_frame": Engine.get_process_frames(),
 		})
 		_pw_drop_started.append(is_endless)
 		
@@ -1622,6 +1634,27 @@ func _update_preview_walls(dt: float) -> void:
 			wall_final.scale = Vector3.ONE
 
 		_pw_count += 1
+
+	# Configure at most one prepared wall per frame. Online walls receive extra
+	# render warm-up frames before their drop animation is allowed to start.
+	var configs_remaining := PREVIEW_WALL_CONFIGS_PER_FRAME
+	while (
+		not is_endless
+		and configs_remaining > 0
+		and _pw_configured_count < quiz_count
+		and _pw_configured_count < _pw_walls.size()
+	):
+		var config_index := _pw_configured_count
+		var configured_wall: Node3D = _pw_walls[config_index]
+		if configured_wall.has_method("set_quiz"):
+			configured_wall.set_quiz(game_state.quiz_list[config_index], game_state.num_choices)
+		_pw_anims[config_index]["configured"] = true
+		_pw_anims[config_index]["ready_frame"] = (
+			Engine.get_process_frames()
+			+ (0 if QuizManager.provider.llm_mode == "OFFLINE" else ONLINE_PREVIEW_WALL_PREWARM_FRAMES)
+		)
+		_pw_configured_count += 1
+		configs_remaining -= 1
 
 	# ── 落下アニメーション順次開始 ──
 	# オフライン固定枚数モードでは、全壁の構築完了後に演出を開始する。
@@ -1643,12 +1676,21 @@ func _update_preview_walls(dt: float) -> void:
 				all_started = false
 				break
 		if not all_started:
-			_pw_drop_timer += dt
+			# Never spend accumulated wait time by starting multiple walls in one frame.
+			_pw_drop_timer = minf(
+				_pw_drop_timer + dt,
+				PREVIEW_WALL_DROP_INTERVAL
+			)
 			while _pw_drop_timer >= PREVIEW_WALL_DROP_INTERVAL:
 				# 配列順（0=最奥）でまだ開始していない壁を探す
 				var found_next: bool = false
 				for search_i: int in range(total_walls):
 					if not _pw_drop_started[search_i]:
+						var candidate: Dictionary = _pw_anims[search_i]
+						if not bool(candidate.get("configured", false)):
+							continue
+						if Engine.get_process_frames() < int(candidate.get("ready_frame", 0)):
+							continue
 						_pw_drop_started[search_i] = true
 						_pw_anims[search_i]["phase"] = 1
 						_pw_anims[search_i]["started"] = true
@@ -1812,6 +1854,7 @@ func _clear_preview_walls() -> void:
 	_pw_walls.clear()
 	_pw_anims.clear()
 	_pw_count = 0
+	_pw_configured_count = 0
 	_pw_drop_started.clear()
 	_pw_drop_timer = 0.0
 
