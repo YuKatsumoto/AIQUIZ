@@ -1,6 +1,6 @@
-[gd_resource type="ShaderMaterial" format=3]
+[gd_resource type="ShaderMaterial" format=3 uid="uid://hu4ddbcveqdf"]
 
-[ext_resource type="Shader" path="res://assets/BinbunMaterials/src/shader/stylized.gdshader" id="1_wgy2q"]
+[ext_resource type="Shader" uid="uid://bkb1f7plk6r1j" path="res://assets/BinbunMaterials/src/shader/stylized.gdshader" id="1_wgy2q"]
 
 [sub_resource type="Gradient" id="Gradient_ryguw"]
 

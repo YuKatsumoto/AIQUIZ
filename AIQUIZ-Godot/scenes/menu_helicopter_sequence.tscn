@@ -1,0 +1,631 @@
+[gd_scene format=3 uid="uid://d0x4w2ueqen2b"]
+
+[ext_resource type="Script" uid="uid://4deh6tca0t7a" path="res://scripts/ui/menu_helicopter_sequence_profile.gd" id="1_hf3go"]
+[ext_resource type="PackedScene" uid="uid://bdh11fdpgbuio" path="res://assets/vehicles/helicopter/helicopter_drop.glb" id="2_iitsd"]
+
+[sub_resource type="Curve3D" id="Curve3D_8p27q"]
+resource_local_to_scene = true
+bake_interval = 0.08
+_data = {
+"points": PackedVector3Array(0.11773491, 7.20376, 0.46871305, -0.11773491, -7.20376, -0.46871305, -15.181509, 12.701394, 12.90433, -2.1703072, -7.93017, 2.2140431, 0, 0, 0, 12.943192, 22.144083, -6.841975),
+"tilts": PackedFloat32Array(0, 0)
+}
+point_count = 2
+
+[sub_resource type="Curve3D" id="Curve3D_wu265"]
+resource_local_to_scene = true
+bake_interval = 0.08
+_data = {
+"points": PackedVector3Array(0, 0, 0, 0, 0, 0, 32.16222, 10.673926, 0.385487, -13.204969, -1.2043304, -1.1923451, 0, 0, 0, -14.655331, 12.70519, 3.674638),
+"tilts": PackedFloat32Array(0, 0)
+}
+point_count = 2
+
+[sub_resource type="Curve3D" id="Curve3D_hs5kc"]
+resource_local_to_scene = true
+bake_interval = 0.08
+_data = {
+"points": PackedVector3Array(0, 0, 0, -0.5, -4, 3, 1.5, 22, -7, -0.6, 1.1999998, 0, -0.55, 2.8000002, 0, 0, 10.2, 0, -0.5, -4, 2, 0, 0, 0, 1, 23, -7),
+"tilts": PackedFloat32Array(0, 0, 0)
+}
+point_count = 3
+
+[sub_resource type="Curve3D" id="Curve3D_5epc0"]
+resource_local_to_scene = true
+bake_interval = 0.08
+_data = {
+"points": PackedVector3Array(0, 0, 0, -2.5, -3.5, 2, 6.5, 22, -5, 0.6, 1.1999998, 0, 0.55, 2.8000002, 0, 0, 10.2, 0, -2, -4, 1, 0, 0, 0, 7, 23, -4),
+"tilts": PackedFloat32Array(0, 0, 0)
+}
+point_count = 3
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_raaym"]
+transparency = 1
+albedo_color = Color(0.14, 0.16, 0.2, 0.78)
+roughness = 0.8
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_iceyy"]
+size = Vector2(28, 24)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_cnq8o"]
+albedo_color = Color(0.95, 0.2, 0.16, 1)
+roughness = 0.8
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_c2pjy"]
+radius = 0.45
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_5doy0"]
+albedo_color = Color(0.15, 0.45, 1, 1)
+roughness = 0.8
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_ag1j0"]
+radius = 0.45
+
+[sub_resource type="Environment" id="Environment_3i4xs"]
+background_mode = 1
+background_color = Color(0.08, 0.1, 0.14, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.55, 0.6, 0.72, 1)
+ambient_light_energy = 0.8
+
+[sub_resource type="Animation" id="Animation_wyrmg"]
+length = 0.1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:p1_hatch")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [0.0]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath(".:p2_hatch")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [0.0]
+}
+tracks/2/type = "value"
+tracks/2/imported = false
+tracks/2/enabled = true
+tracks/2/path = NodePath(".:p1_action_progress")
+tracks/2/interp = 1
+tracks/2/loop_wrap = true
+tracks/2/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [0.0]
+}
+tracks/3/type = "value"
+tracks/3/imported = false
+tracks/3/enabled = true
+tracks/3/path = NodePath(".:p2_action_progress")
+tracks/3/interp = 1
+tracks/3/loop_wrap = true
+tracks/3/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [0.0]
+}
+tracks/4/type = "value"
+tracks/4/imported = false
+tracks/4/enabled = true
+tracks/4/path = NodePath(".:camera_fov_delta")
+tracks/4/interp = 1
+tracks/4/loop_wrap = true
+tracks/4/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [0.0]
+}
+tracks/5/type = "value"
+tracks/5/imported = false
+tracks/5/enabled = true
+tracks/5/path = NodePath(".:camera_tilt_deg")
+tracks/5/interp = 1
+tracks/5/loop_wrap = true
+tracks/5/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [0.0]
+}
+
+[sub_resource type="Animation" id="Animation_gxipu"]
+resource_name = "Main menu arrival — drag keys to retime"
+length = 10.95
+step = 0.05
+markers = [{
+"color": Color(1, 1, 1, 1),
+"name": &"HOVER",
+"time": 4.4
+}, {
+"color": Color(1, 1, 1, 1),
+"name": &"P1_DROP",
+"time": 5.15
+}, {
+"color": Color(1, 1, 1, 1),
+"name": &"P2_DROP",
+"time": 5.5
+}, {
+"color": Color(1, 1, 1, 1),
+"name": &"P1_EXIT",
+"time": 6.0
+}, {
+"color": Color(1, 1, 1, 1),
+"name": &"P2_EXIT",
+"time": 6.35
+}]
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("IntroP1Path/Follow:progress_ratio")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(-0.1, 4.4, 6, 10.6),
+"transitions": PackedFloat32Array(1, 1, 1, 1),
+"update": 0,
+"values": [0.0, 0.46637527796948086, 0.46637527796948086, 1.0]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("IntroP2Path/Follow:progress_ratio")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0, 4.4, 6.35, 10.95),
+"transitions": PackedFloat32Array(1, 1, 1, 1),
+"update": 0,
+"values": [0.0, 0.5107210828393721, 0.5107210828393721, 1.0]
+}
+tracks/2/type = "value"
+tracks/2/imported = false
+tracks/2/enabled = true
+tracks/2/path = NodePath(".:p1_hatch")
+tracks/2/interp = 1
+tracks/2/loop_wrap = true
+tracks/2/keys = {
+"times": PackedFloat32Array(0, 4.6, 5.05, 5.7, 6.2),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1),
+"update": 0,
+"values": [0.0, 0.0, 1.0, 1.0, 0.0]
+}
+tracks/3/type = "value"
+tracks/3/imported = false
+tracks/3/enabled = true
+tracks/3/path = NodePath(".:p2_hatch")
+tracks/3/interp = 1
+tracks/3/loop_wrap = true
+tracks/3/keys = {
+"times": PackedFloat32Array(0, 4.95, 5.4, 6.05, 6.55),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1),
+"update": 0,
+"values": [0.0, 0.0, 1.0, 1.0, 0.0]
+}
+tracks/4/type = "value"
+tracks/4/imported = false
+tracks/4/enabled = true
+tracks/4/path = NodePath(".:p1_action_progress")
+tracks/4/interp = 0
+tracks/4/loop_wrap = true
+tracks/4/keys = {
+"times": PackedFloat32Array(0, 5.15),
+"transitions": PackedFloat32Array(1, 1),
+"update": 1,
+"values": [0.0, 1.0]
+}
+tracks/5/type = "value"
+tracks/5/imported = false
+tracks/5/enabled = true
+tracks/5/path = NodePath(".:p2_action_progress")
+tracks/5/interp = 0
+tracks/5/loop_wrap = true
+tracks/5/keys = {
+"times": PackedFloat32Array(0, 5.5),
+"transitions": PackedFloat32Array(1, 1),
+"update": 1,
+"values": [0.0, 1.0]
+}
+tracks/6/type = "value"
+tracks/6/imported = false
+tracks/6/enabled = true
+tracks/6/path = NodePath(".:p1_bank_deg")
+tracks/6/interp = 1
+tracks/6/loop_wrap = true
+tracks/6/keys = {
+"times": PackedFloat32Array(0, 4.4, 8.3, 10.6),
+"transitions": PackedFloat32Array(1, 1, 1, 1),
+"update": 0,
+"values": [0.0, 0.0, 9.2, 0.0]
+}
+tracks/7/type = "value"
+tracks/7/imported = false
+tracks/7/enabled = true
+tracks/7/path = NodePath(".:p2_bank_deg")
+tracks/7/interp = 1
+tracks/7/loop_wrap = true
+tracks/7/keys = {
+"times": PackedFloat32Array(0, 2.2, 4.4, 8.65, 10.95),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1),
+"update": 0,
+"values": [0.0, -7.5, 0.0, -9.2, 0.0]
+}
+tracks/8/type = "value"
+tracks/8/imported = false
+tracks/8/enabled = true
+tracks/8/path = NodePath(".:p1_pitch_deg")
+tracks/8/interp = 1
+tracks/8/loop_wrap = true
+tracks/8/keys = {
+"times": PackedFloat32Array(0, 2.2, 4.4, 8.3, 10.6),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1),
+"update": 0,
+"values": [0.0, -2.0, 0.0, -6.0, 0.0]
+}
+tracks/9/type = "value"
+tracks/9/imported = false
+tracks/9/enabled = true
+tracks/9/path = NodePath(".:p2_pitch_deg")
+tracks/9/interp = 1
+tracks/9/loop_wrap = true
+tracks/9/keys = {
+"times": PackedFloat32Array(0, 2.2, 4.4, 8.65, 10.95),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1),
+"update": 0,
+"values": [0.0, -2.0, 0.0, -6.0, 0.0]
+}
+tracks/10/type = "value"
+tracks/10/imported = false
+tracks/10/enabled = true
+tracks/10/path = NodePath(".:camera_fov_delta")
+tracks/10/interp = 1
+tracks/10/loop_wrap = true
+tracks/10/keys = {
+"times": PackedFloat32Array(0, 7.8, 10.8),
+"transitions": PackedFloat32Array(1, 1, 1),
+"update": 0,
+"values": [7.5, 7.5, 0.0]
+}
+tracks/11/type = "value"
+tracks/11/imported = false
+tracks/11/enabled = true
+tracks/11/path = NodePath(".:camera_tilt_deg")
+tracks/11/interp = 1
+tracks/11/loop_wrap = true
+tracks/11/keys = {
+"times": PackedFloat32Array(0, 7.8, 10.8),
+"transitions": PackedFloat32Array(1, 1, 1),
+"update": 0,
+"values": [10.0, 10.0, 0.0]
+}
+tracks/12/type = "value"
+tracks/12/imported = false
+tracks/12/enabled = true
+tracks/12/path = NodePath(".:show_intro_preview")
+tracks/12/interp = 0
+tracks/12/loop_wrap = true
+tracks/12/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [true]
+}
+tracks/13/type = "value"
+tracks/13/imported = false
+tracks/13/enabled = true
+tracks/13/path = NodePath(".:show_pickup_preview")
+tracks/13/interp = 0
+tracks/13/loop_wrap = true
+tracks/13/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [false]
+}
+
+[sub_resource type="Animation" id="Animation_kfhho"]
+resource_name = "Start-button pickup — drag keys to retime"
+length = 2.76
+step = 0.02
+markers = [{
+"color": Color(1, 1, 1, 1),
+"name": &"HOVER",
+"time": 0.82
+}, {
+"color": Color(1, 1, 1, 1),
+"name": &"P1_SUCTION",
+"time": 1.02
+}, {
+"color": Color(1, 1, 1, 1),
+"name": &"P2_SUCTION",
+"time": 1.08
+}, {
+"color": Color(1, 1, 1, 1),
+"name": &"CLOSE_HATCH",
+"time": 1.82
+}, {
+"color": Color(1, 1, 1, 1),
+"name": &"EXIT",
+"time": 1.98
+}]
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("PickupP1Path/Follow:progress_ratio")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.82, 1.98, 2.76),
+"transitions": PackedFloat32Array(1, 1, 1, 1),
+"update": 0,
+"values": [0.0, 0.48516611842488466, 0.48516611842488466, 1.0]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("PickupP2Path/Follow:progress_ratio")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0, 0.82, 1.98, 2.76),
+"transitions": PackedFloat32Array(1, 1, 1, 1),
+"update": 0,
+"values": [0.0, 0.4868267205099735, 0.4868267205099735, 1.0]
+}
+tracks/2/type = "value"
+tracks/2/imported = false
+tracks/2/enabled = true
+tracks/2/path = NodePath(".:p1_hatch")
+tracks/2/interp = 1
+tracks/2/loop_wrap = true
+tracks/2/keys = {
+"times": PackedFloat32Array(0, 0.82, 1.02, 1.82, 1.98),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1),
+"update": 0,
+"values": [0.0, 0.0, 1.0, 1.0, 0.0]
+}
+tracks/3/type = "value"
+tracks/3/imported = false
+tracks/3/enabled = true
+tracks/3/path = NodePath(".:p2_hatch")
+tracks/3/interp = 1
+tracks/3/loop_wrap = true
+tracks/3/keys = {
+"times": PackedFloat32Array(0, 0.82, 1.02, 1.82, 1.98),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1),
+"update": 0,
+"values": [0.0, 0.0, 1.0, 1.0, 0.0]
+}
+tracks/4/type = "value"
+tracks/4/imported = false
+tracks/4/enabled = true
+tracks/4/path = NodePath(".:p1_action_progress")
+tracks/4/interp = 1
+tracks/4/loop_wrap = true
+tracks/4/keys = {
+"times": PackedFloat32Array(0, 1.02, 1.76, 2.76),
+"transitions": PackedFloat32Array(1, 1, 1, 1),
+"update": 0,
+"values": [0.0, 0.0, 1.0, 1.0]
+}
+tracks/5/type = "value"
+tracks/5/imported = false
+tracks/5/enabled = true
+tracks/5/path = NodePath(".:p2_action_progress")
+tracks/5/interp = 1
+tracks/5/loop_wrap = true
+tracks/5/keys = {
+"times": PackedFloat32Array(0, 1.08, 1.82, 2.76),
+"transitions": PackedFloat32Array(1, 1, 1, 1),
+"update": 0,
+"values": [0.0, 0.0, 1.0, 1.0]
+}
+tracks/6/type = "value"
+tracks/6/imported = false
+tracks/6/enabled = true
+tracks/6/path = NodePath(".:p1_bank_deg")
+tracks/6/interp = 1
+tracks/6/loop_wrap = true
+tracks/6/keys = {
+"times": PackedFloat32Array(0, 0.41, 0.82, 2.37, 2.76),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1),
+"update": 0,
+"values": [-2.0, -5.0, 0.0, -8.0, 0.0]
+}
+tracks/7/type = "value"
+tracks/7/imported = false
+tracks/7/enabled = true
+tracks/7/path = NodePath(".:p2_bank_deg")
+tracks/7/interp = 1
+tracks/7/loop_wrap = true
+tracks/7/keys = {
+"times": PackedFloat32Array(0, 0.41, 0.82, 2.37, 2.76),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1),
+"update": 0,
+"values": [2.0, 5.0, 0.0, 8.0, 0.0]
+}
+tracks/8/type = "value"
+tracks/8/imported = false
+tracks/8/enabled = true
+tracks/8/path = NodePath(".:p1_pitch_deg")
+tracks/8/interp = 1
+tracks/8/loop_wrap = true
+tracks/8/keys = {
+"times": PackedFloat32Array(0, 0.82, 2.37, 2.76),
+"transitions": PackedFloat32Array(1, 1, 1, 1),
+"update": 0,
+"values": [-3.0, 0.0, -7.0, 0.0]
+}
+tracks/9/type = "value"
+tracks/9/imported = false
+tracks/9/enabled = true
+tracks/9/path = NodePath(".:p2_pitch_deg")
+tracks/9/interp = 1
+tracks/9/loop_wrap = true
+tracks/9/keys = {
+"times": PackedFloat32Array(0, 0.82, 2.37, 2.76),
+"transitions": PackedFloat32Array(1, 1, 1, 1),
+"update": 0,
+"values": [-3.0, 0.0, -7.0, 0.0]
+}
+tracks/10/type = "value"
+tracks/10/imported = false
+tracks/10/enabled = true
+tracks/10/path = NodePath(".:camera_fov_delta")
+tracks/10/interp = 1
+tracks/10/loop_wrap = true
+tracks/10/keys = {
+"times": PackedFloat32Array(0, 2.76),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [4.0, 4.0]
+}
+tracks/11/type = "value"
+tracks/11/imported = false
+tracks/11/enabled = true
+tracks/11/path = NodePath(".:camera_tilt_deg")
+tracks/11/interp = 1
+tracks/11/loop_wrap = true
+tracks/11/keys = {
+"times": PackedFloat32Array(0, 2.76),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [5.0, 5.0]
+}
+tracks/12/type = "value"
+tracks/12/imported = false
+tracks/12/enabled = true
+tracks/12/path = NodePath(".:show_intro_preview")
+tracks/12/interp = 0
+tracks/12/loop_wrap = true
+tracks/12/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [false]
+}
+tracks/13/type = "value"
+tracks/13/imported = false
+tracks/13/enabled = true
+tracks/13/path = NodePath(".:show_pickup_preview")
+tracks/13/interp = 0
+tracks/13/loop_wrap = true
+tracks/13/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [true]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_t6rac"]
+_data = {
+&"RESET": SubResource("Animation_wyrmg"),
+&"intro_arrival": SubResource("Animation_gxipu"),
+&"start_pickup": SubResource("Animation_kfhho")
+}
+
+[node name="MenuHelicopterSequence" type="Node3D" unique_id=158834019]
+script = ExtResource("1_hf3go")
+
+[node name="IntroP1Path" type="Path3D" parent="." unique_id=422767593]
+transform = Transform3D(0.99947405, -0.002798462, 0.03230594, 0.0014426736, 0.99912006, 0.041916046, -0.032394815, -0.0418474, 0.9985987, -4.9765453, -0.82718873, -0.27362633)
+curve = SubResource("Curve3D_8p27q")
+debug_custom_color = Color(0.95, 0.2, 0.16, 1)
+
+[node name="Follow" type="PathFollow3D" parent="IntroP1Path" unique_id=2117068054]
+transform = Transform3D(0.9636157, -0.2452761, -0.104831494, 0.13676494, 0.11694404, 0.9835134, -0.22900735, -0.96223164, 0.14625241, -15.167155, 12.367351, 12.869119)
+progress = 0.33838528
+loop = false
+
+[node name="PreviewModel" parent="IntroP1Path/Follow" unique_id=2005487795 instance=ExtResource("2_iitsd")]
+transform = Transform3D(-0.37530786, 0.8952619, 0.24010473, -0.8766306, -0.4269866, 0.22181302, 0.30110222, -0.1272353, 0.9450654, 0, 0, 0)
+
+[node name="IntroP2Path" type="Path3D" parent="." unique_id=1672875205]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.5, -1.2, 0)
+curve = SubResource("Curve3D_wu265")
+debug_custom_color = Color(0.15, 0.45, 1, 1)
+
+[node name="Follow" type="PathFollow3D" parent="IntroP2Path" unique_id=174627405]
+transform = Transform3D(-0.034905873, 0.013756518, 0.99912333, -4.655768e-10, 0.9997286, -0.013764967, -0.9992089, -0.00048056387, -0.03490288, 32.16222, 10.673926, 0.385487)
+loop = false
+
+[node name="PreviewModel" parent="IntroP2Path/Follow" unique_id=252759098 instance=ExtResource("2_iitsd")]
+
+[node name="PickupP1Path" type="Path3D" parent="." unique_id=1127358232]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.5, -1.2, 0)
+curve = SubResource("Curve3D_hs5kc")
+debug_custom_color = Color(1, 0.55, 0.15, 1)
+
+[node name="Follow" type="PathFollow3D" parent="PickupP1Path" unique_id=1005284061]
+transform = Transform3D(-0.9863939, -0.13086647, 0.09950369, 0, 0.60525745, 0.7960298, -0.16439895, 0.785199, -0.5970223, 1.5, 22, -7)
+loop = false
+
+[node name="PreviewModel" parent="PickupP1Path/Follow" unique_id=1459482035 instance=ExtResource("2_iitsd")]
+visible = false
+
+[node name="PickupP2Path" type="Path3D" parent="." unique_id=1942965485]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.5, -1.2, 0)
+curve = SubResource("Curve3D_5epc0")
+debug_custom_color = Color(0.35, 0.85, 1, 1)
+
+[node name="Follow" type="PathFollow3D" parent="PickupP2Path" unique_id=1772440037]
+transform = Transform3D(-0.62469506, -0.5761757, 0.5270462, 2.980232e-08, 0.67494845, 0.73786485, -0.7808688, 0.46094057, -0.42163697, 6.5, 22, -5)
+loop = false
+
+[node name="PreviewModel" parent="PickupP2Path/Follow" unique_id=927416923 instance=ExtResource("2_iitsd")]
+visible = false
+
+[node name="EditorReference" type="Node3D" parent="." unique_id=2096062964]
+
+[node name="FloorReference" type="MeshInstance3D" parent="EditorReference" unique_id=2138847891]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1.23, 0)
+material_override = SubResource("StandardMaterial3D_raaym")
+mesh = SubResource("PlaneMesh_iceyy")
+
+[node name="P1Ground" type="MeshInstance3D" parent="EditorReference" unique_id=1274236158]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.5, -0.2, 0)
+material_override = SubResource("StandardMaterial3D_cnq8o")
+mesh = SubResource("CapsuleMesh_c2pjy")
+
+[node name="P2Ground" type="MeshInstance3D" parent="EditorReference" unique_id=748429852]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.5, -0.2, 0)
+material_override = SubResource("StandardMaterial3D_5doy0")
+mesh = SubResource("CapsuleMesh_ag1j0")
+
+[node name="EditingHint" type="Label3D" parent="EditorReference" unique_id=1675176562]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, -6)
+billboard = 1
+modulate = Color(0.95, 0.97, 1, 1)
+text = "Select a Path3D to drag its points/handles
+Scrub AnimationPlayer: intro_arrival / start_pickup"
+font_size = 48
+outline_size = 8
+
+[node name="PreviewCamera" type="Camera3D" parent="." unique_id=706823334]
+transform = Transform3D(0.94551855, 0.022710484, -0.32477507, 0, 0.9975641, 0.06975647, 0.32556814, -0.065956034, 0.94321537, -18, 6.1, 23.15)
+current = true
+fov = 45.0
+
+[node name="PreviewLight" type="DirectionalLight3D" parent="." unique_id=410940204]
+transform = Transform3D(0.88294756, 0.3488854, -0.3141378, 0, 0.66913056, 0.74314487, 0.46947157, -0.656158, 0.5908072, 0, 0, 0)
+light_energy = 1.15
+
+[node name="PreviewEnvironment" type="WorldEnvironment" parent="." unique_id=273127941]
+environment = SubResource("Environment_3i4xs")
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=519941526]
+libraries/ = SubResource("AnimationLibrary_t6rac")

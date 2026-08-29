@@ -4,6 +4,7 @@ class_name HelicopterArrivalDirector
 signal presentation_finished(success: bool)
 
 const HELICOPTER_GLB := "res://assets/vehicles/helicopter/helicopter_drop.glb"
+const MENU_FLIGHT_PROFILE_SCENE := preload("res://scenes/menu_helicopter_sequence.tscn")
 const APPROACH_DURATION := 4.40
 const HOVER_BEFORE_FIRST_DROP := 0.70
 const P2_DROP_DELAY := 0.30
@@ -83,6 +84,7 @@ var _menu_camera_base_position := Vector3.ZERO
 var _menu_camera_base_rotation := Vector3.ZERO
 var _menu_camera_base_fov := 37.5
 var _menu_camera_shake_remaining := 0.0
+var _menu_flight_profile: MenuHelicopterSequenceProfile = null
 var _presentation_finished_emitted := false
 
 
@@ -100,6 +102,16 @@ func setup(
 	if not ResourceLoader.exists(HELICOPTER_GLB):
 		_skip_missing_asset("%s has not been supplied yet" % HELICOPTER_GLB)
 		return
+	if _menu_preview_mode:
+		_menu_flight_profile = (
+			MENU_FLIGHT_PROFILE_SCENE.instantiate()
+			as MenuHelicopterSequenceProfile
+		)
+		if _menu_flight_profile == null:
+			_skip_missing_asset("the editable menu helicopter sequence could not be loaded")
+			return
+		add_child(_menu_flight_profile)
+		_menu_flight_profile.prepare_runtime()
 
 	var packed := ResourceLoader.load(HELICOPTER_GLB) as PackedScene
 	if packed == null:
@@ -197,12 +209,14 @@ func is_active() -> bool:
 func cancel() -> void:
 	if _cancelled:
 		return
+	var already_extracted := _phase == "complete"
 	_cancelled = true
 	_phase = "cancelled"
 	_start_locked = false
-	if _player_controller != null:
+	if _player_controller != null and not already_extracted:
 		_player_controller.cancel_intro_drops()
-	_reset_menu_camera()
+	if not already_extracted:
+		_reset_menu_camera()
 	_cleanup_helicopters(true)
 	set_process(false)
 	_emit_presentation_finished(false)
@@ -276,7 +290,50 @@ func _prepare_flight_paths() -> void:
 	_prepare_gameplay_flight_paths()
 
 
+func _prepare_authored_menu_paths(animation_name: StringName) -> bool:
+	if _menu_flight_profile == null or not is_instance_valid(_menu_flight_profile):
+		return false
+	for info: Dictionary in _helicopters:
+		var player_index := int(info.get("player_index", 1))
+		var ground := Vector3(
+			_game_state.player_x if player_index == 1 else _game_state.player2_x,
+			StageConstants.FLOOR_TOP_Y,
+			_game_state.player_local_z if player_index == 1 else _game_state.player2_local_z
+		)
+		_menu_flight_profile.set_player_ground(player_index, ground)
+		info["ground"] = ground
+		info["release"] = ground + Vector3.UP * MENU_RELEASE_HEIGHT
+		info["pickup_started"] = false
+		info["captured"] = false
+		info["ever_visible_in_frame"] = false
+		if animation_name == MenuHelicopterSequenceProfile.PICKUP_ANIMATION:
+			info["pickup_vfx"] = _create_menu_pickup_vfx(ground, player_index)
+		else:
+			info["downwash"] = _create_menu_downwash(ground, player_index)
+	if not _menu_flight_profile.select_runtime_animation(animation_name):
+		return false
+	for info: Dictionary in _helicopters:
+		var player_index := int(info.get("player_index", 1))
+		var state := _menu_flight_profile.get_player_state(player_index)
+		if state.is_empty():
+			return false
+		var holder := info.get("holder") as Node3D
+		_set_hatch_openness(info, float(state.get("hatch", 0.0)))
+		_set_flight_transform(
+			holder,
+			state.get("position", Vector3.ZERO),
+			state.get("direction", Vector3.FORWARD),
+			float(state.get("bank", 0.0)),
+			float(state.get("pitch", 0.0))
+		)
+		if holder != null:
+			info["last_position"] = holder.global_position
+	return true
+
+
 func _prepare_menu_departure_paths() -> void:
+	if _prepare_authored_menu_paths(MenuHelicopterSequenceProfile.PICKUP_ANIMATION):
+		return
 	if _menu_camera == null or _menu_camera.get_viewport() == null:
 		_prepare_gameplay_flight_paths()
 		return
@@ -405,6 +462,8 @@ func _prepare_gameplay_flight_paths() -> void:
 
 
 func _prepare_menu_flight_paths() -> void:
+	if _prepare_authored_menu_paths(MenuHelicopterSequenceProfile.INTRO_ANIMATION):
+		return
 	if _menu_camera == null or _menu_camera.get_viewport() == null:
 		_prepare_gameplay_flight_paths()
 		return
@@ -558,6 +617,8 @@ func _resolve_menu_offscreen_point(
 
 
 func _update_menu_departure_timeline(delta: float) -> void:
+	if _update_authored_menu_departure(delta):
+		return
 	var approach_progress := clampf(
 		_phase_elapsed / MENU_PICKUP_APPROACH_DURATION,
 		0.0,
@@ -702,13 +763,144 @@ func _complete_menu_departure() -> void:
 	_phase = "complete"
 	_player_controller.complete_intro_extraction()
 	_start_locked = false
-	_reset_menu_camera()
 	_cleanup_helicopters(false)
 	set_process(false)
 	_emit_presentation_finished(true)
 
 
+func _update_authored_menu_departure(delta: float) -> bool:
+	if _menu_flight_profile == null or not is_instance_valid(_menu_flight_profile):
+		return false
+	_menu_flight_profile.seek_runtime(_phase_elapsed)
+	var all_captured := true
+	for info: Dictionary in _helicopters:
+		var player_index := int(info.get("player_index", 1))
+		var state := _menu_flight_profile.get_player_state(player_index)
+		if state.is_empty():
+			_fail_safe("editable pickup path became unavailable")
+			return true
+		var holder := info.get("holder") as Node3D
+		_set_flight_transform(
+			holder,
+			state.get("position", Vector3.ZERO),
+			state.get("direction", Vector3.FORWARD),
+			float(state.get("bank", 0.0)),
+			float(state.get("pitch", 0.0))
+		)
+		_set_hatch_openness(info, float(state.get("hatch", 0.0)))
+
+		var suction_progress := clampf(
+			float(state.get("action_progress", 0.0)),
+			0.0,
+			1.0
+		)
+		if suction_progress > 0.0 and not bool(info.get("pickup_started", false)):
+			if not _player_controller.has_intro_arrival():
+				_player_controller.prepare_intro_arrival(_helicopters.size())
+			if not _player_controller.begin_intro_suction(player_index):
+				_fail_safe("menu pickup ragdoll could not be created")
+				return true
+			info["pickup_started"] = true
+
+		if bool(info.get("pickup_started", false)) and not bool(info.get("captured", false)):
+			var ground: Vector3 = info.get("ground", Vector3.ZERO)
+			var hatch_position := _hatch_release_position(info)
+			var eased_suction := smoothstep(0.0, 1.0, suction_progress)
+			var suction_target := _cubic_bezier(
+				ground + Vector3.UP * 0.75,
+				ground + Vector3.UP * 3.2,
+				hatch_position - Vector3.UP * 2.0,
+				hatch_position,
+				eased_suction
+			)
+			if not _player_controller.update_intro_suction(
+				player_index,
+				suction_target,
+				eased_suction,
+				delta
+			):
+				_fail_safe("menu pickup ragdoll physics became unavailable")
+				return true
+			_set_menu_pickup_vfx(info, sin(suction_progress * PI), hatch_position)
+			if suction_progress >= 1.0:
+				_player_controller.set_intro_ragdoll_visible(player_index, false)
+				info["captured"] = true
+		else:
+			_set_menu_pickup_vfx(info, 0.0, Vector3.ZERO)
+
+		all_captured = all_captured and bool(info.get("captured", false))
+		_update_menu_screen_evidence(info)
+		_remember_helicopter_velocity(info)
+
+	if (
+		all_captured
+		and _menu_flight_profile.is_runtime_finished()
+		and _all_menu_helicopters_fully_offscreen()
+	):
+		_complete_menu_departure()
+	return true
+
+
+func _update_authored_menu_arrival() -> bool:
+	if _menu_flight_profile == null or not is_instance_valid(_menu_flight_profile):
+		return false
+	_menu_flight_profile.seek_runtime(_phase_elapsed)
+	for info: Dictionary in _helicopters:
+		var player_index := int(info.get("player_index", 1))
+		var state := _menu_flight_profile.get_player_state(player_index)
+		if state.is_empty():
+			_fail_safe("editable arrival path became unavailable")
+			return true
+		var holder := info.get("holder") as Node3D
+		var flight_position: Vector3 = state.get("position", Vector3.ZERO)
+		_set_flight_transform(
+			holder,
+			flight_position,
+			state.get("direction", Vector3.FORWARD),
+			float(state.get("bank", 0.0)),
+			float(state.get("pitch", 0.0))
+		)
+		_set_hatch_openness(info, float(state.get("hatch", 0.0)))
+		var ground: Vector3 = info.get("ground", Vector3.ZERO)
+		_set_menu_downwash(
+			info,
+			flight_position.y - ground.y < 13.5
+			and not _menu_flight_profile.is_runtime_finished()
+		)
+		_update_menu_screen_evidence(info)
+		_remember_helicopter_velocity(info)
+		if (
+			float(state.get("action_progress", 0.0)) >= 1.0
+			and not bool(info.get("dropped", false))
+		):
+			info["drop_timeline"] = _phase_elapsed
+			_drop_player(info)
+		_update_landing_impact(info)
+
+	if not _menu_flight_profile.is_runtime_finished():
+		return true
+	var all_physics_valid := true
+	var all_recovered := true
+	for info: Dictionary in _helicopters:
+		if not bool(info.get("dropped", false)):
+			all_recovered = false
+			continue
+		var drop_state := _player_controller.get_intro_drop_state(int(info["player_index"]))
+		if not bool(drop_state.get("physics_valid", false)):
+			all_physics_valid = false
+			break
+		all_recovered = all_recovered and bool(drop_state.get("recovery_complete", false))
+	if not all_physics_valid:
+		_fail_safe("intro ragdoll physics became unavailable")
+		return true
+	if all_recovered and _all_menu_helicopters_fully_offscreen():
+		_complete_arrival()
+	return true
+
+
 func _update_timeline() -> void:
+	if _menu_preview_mode and _update_authored_menu_arrival():
+		return
 	var approach_duration := MENU_APPROACH_DURATION if _menu_preview_mode else APPROACH_DURATION
 	var hover_before_first_drop := (
 		MENU_HOVER_BEFORE_FIRST_DROP if _menu_preview_mode else HOVER_BEFORE_FIRST_DROP
@@ -1198,6 +1390,9 @@ func _cleanup_helicopters(immediate: bool) -> void:
 			impact.stop()
 			impact.queue_free()
 	_impact_players.clear()
+	if _menu_flight_profile != null and is_instance_valid(_menu_flight_profile):
+		_menu_flight_profile.queue_free()
+	_menu_flight_profile = null
 
 
 func _collect_helicopter_visual_points(holder: Node3D, model: Node3D) -> Array[Vector3]:
@@ -1547,8 +1742,19 @@ func _update_menu_camera(delta: float) -> void:
 		if _menu_departure_mode
 		else MENU_CAMERA_TILT_UP_DEG
 	)
+	var fov_delta := (
+		MENU_PICKUP_CAMERA_FOV_DELTA
+		if _menu_departure_mode
+		else MENU_CAMERA_WIDE_FOV_DELTA * (1.0 - _menu_camera_return_weight())
+	)
+	if _menu_flight_profile != null and is_instance_valid(_menu_flight_profile):
+		tilt_up = _menu_flight_profile.camera_tilt_deg
+		fov_delta = _menu_flight_profile.camera_fov_delta
+	elif not _menu_departure_mode:
+		tilt_up *= 1.0 - _menu_camera_return_weight()
+	_menu_camera.fov = _menu_camera_base_fov + fov_delta
 	var framing_rotation := _menu_camera_base_rotation + Vector3(
-		tilt_up * (1.0 - _menu_camera_return_weight()),
+		tilt_up,
 		0.0,
 		0.0
 	)

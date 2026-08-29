@@ -165,6 +165,8 @@ var _menu_intro_active := false
 var _menu_intro_requested_player_count := 2
 var _menu_start_departure: HelicopterArrivalDirector = null
 var _menu_start_departure_active := false
+## Keep the extracted runners hidden until the menu scene is replaced.
+var _menu_departure_hold := false
 
 
 func _ready() -> void:
@@ -348,7 +350,7 @@ func _process(dt: float) -> void:
 		return
 
 	_linger_time += dt
-	if _menu_intro_active or _menu_start_departure_active:
+	if _menu_intro_active or _menu_start_departure_active or _menu_departure_hold:
 		if _stage_env:
 			_stage_env.set_scroll_z(_preview_scroll_z)
 		return
@@ -580,6 +582,7 @@ func _cancel_menu_helicopter_intro() -> void:
 func begin_game_start_departure(player_count: int) -> bool:
 	if _menu_start_departure_active:
 		return false
+	_menu_departure_hold = false
 	_cancel_menu_helicopter_intro()
 	if not _viewport or not _preview_gs or not _preview_player or not _preview_camera:
 		return false
@@ -624,7 +627,12 @@ func _on_game_start_departure_finished(success: bool) -> void:
 	if not _menu_start_departure_active:
 		return
 	_menu_start_departure_active = false
-	if not success:
+	if success:
+		_menu_departure_hold = true
+		if _preview_player:
+			_preview_player.visible = false
+	else:
+		_menu_departure_hold = false
 		_reset_preview_ai_state()
 		if _is_local_2p_active():
 			_reset_preview_actor2_ai_state()
@@ -918,7 +926,7 @@ func _is_local_2p_active() -> bool:
 
 func sync_menu_player_count(count: int) -> void:
 	count = 2 if count == 2 else 1
-	if _menu_start_departure_active:
+	if _menu_start_departure_active or _menu_departure_hold:
 		return
 	if _menu_intro_active:
 		_menu_intro_requested_player_count = count
@@ -1259,6 +1267,9 @@ func _apply_preview_actor_facing(parts: Dictionary, bundle: MenuPreviewActorAISt
 			bundle.taunt_target_x,
 			bundle.taunt_target_z
 		)
+	elif bundle.is_emoting or _actor_emote(is_p1) != EmoteData.EMOTE_NONE:
+		# エモート中はヨーを固定せず、FBXの回転を残して壁向き(+PI)だけ合わせる。
+		pelvis.rotate_y(PI)
 	else:
 		pelvis.rotation.y = PI
 

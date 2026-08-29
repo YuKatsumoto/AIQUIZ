@@ -64,6 +64,8 @@ var _p2_driver: ActiveRagdollDriver = null
 var _intro_ragdolls: Dictionary = {}
 var _intro_hat_restore: Dictionary = {}
 var _intro_pending_players: Dictionary = {}
+## Menu extraction hides the standing runners until the scene leaves.
+var _intro_extracted := false
 
 # Hat state
 var _p1_hat_id: int = 0
@@ -221,6 +223,7 @@ func _teardown_ragdoll(ragdoll: Dictionary) -> void:
 ## The real player stays at its authoritative gameplay transform, but is hidden
 ## until complete_intro_drops() restores it.
 func prepare_intro_arrival(player_count: int) -> void:
+	_intro_extracted = false
 	_intro_pending_players.clear()
 	var count := clampi(player_count, 1, 2)
 	for player_index: int in range(1, count + 1):
@@ -690,7 +693,11 @@ func has_intro_drops() -> bool:
 
 
 func has_intro_arrival() -> bool:
-	return not _intro_pending_players.is_empty() or has_intro_drops()
+	return (
+		_intro_extracted
+		or not _intro_pending_players.is_empty()
+		or has_intro_drops()
+	)
 
 
 ## Turns the visible menu runner into the same fully physical ragdoll used by
@@ -778,6 +785,7 @@ func set_intro_ragdoll_visible(player_index: int, should_show: bool) -> void:
 ## hidden for the few frames before the black transition takes over.
 func complete_intro_extraction() -> void:
 	_cleanup_intro_drops(false)
+	_intro_extracted = true
 
 
 ## Builds and immediately releases the same physics trees while the transition
@@ -833,6 +841,8 @@ func _cleanup_intro_drops(restore_visuals: bool = true) -> void:
 		_set_parts_visible(p2_parts, restore_visuals)
 		_set_hat_visible(false, restore_visuals)
 		_set_rig_scenes_visible(false, restore_visuals)
+	if restore_visuals:
+		_intro_extracted = false
 
 
 func _set_hat_visible(is_p1: bool, should_show: bool) -> void:
@@ -1516,6 +1526,15 @@ func prepare_for_loading(gs: QuizGameState) -> void:
 	if gs.num_players >= 2:
 		set_hat(2, gs.p2_hat)
 		set_toon_preset(2, ToonPresets.resolve_player_preset(gs, 2))
+	if not has_intro_arrival():
+		return
+	var count := 2 if gs.num_players >= 2 else 1
+	for player_index: int in range(1, count + 1):
+		var is_p1 := player_index == 1
+		var parts: Dictionary = p1_parts if is_p1 else p2_parts
+		_set_parts_visible(parts, false)
+		_set_hat_visible(is_p1, false)
+		_set_rig_scenes_visible(is_p1, false)
 
 
 func _sync_player_model_count(gs: QuizGameState) -> void:
@@ -1542,6 +1561,8 @@ func _sync_player_model_count(gs: QuizGameState) -> void:
 
 
 func update_from_state(gs: QuizGameState) -> void:
+	if has_intro_arrival():
+		return
 	var pz: float = gs.player_z
 	var walk_phase: float = _run_phase
 	var mult := 1.0
