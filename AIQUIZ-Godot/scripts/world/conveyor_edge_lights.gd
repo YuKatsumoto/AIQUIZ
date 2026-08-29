@@ -11,6 +11,12 @@ const WARM_WHITE_COLOR := Color(1.0, 0.93, 0.78)
 const MARKER_EMISSION_ENERGY: float = 2.0
 const LOCAL_LIGHT_COUNT: int = 8
 const LOCAL_LIGHT_STATIONS: int = 4
+const FOCUS_STATION_COUNT: int = 2
+const FOCUS_SPOT_COUNT: int = 4
+const FOCUS_SPOT_ENERGY: float = 3.6
+const FOCUS_SPOT_RANGE: float = 28.0
+const FOCUS_SPOT_ANGLE: float = 42.0
+const FOCUS_Y_LIFT: float = 0.35
 
 # The sun is about 11 degrees below the horizon at phase 0.53. Lights remain
 # completely dark until this point, then the electrical start sequence begins.
@@ -36,6 +42,9 @@ var _marker_material: ShaderMaterial = null
 var _marker_instances: MultiMeshInstance3D = null
 var _local_lights: Array[OmniLight3D] = []
 var _local_light_marker_indices: Array[int] = []
+var _focus_enabled: bool = false
+var _focus_target: Vector3 = Vector3.ZERO
+var _focus_spots: Array[SpotLight3D] = []
 
 
 func setup(
@@ -49,6 +58,7 @@ func setup(
 	_weather_cycle = weather_cycle
 	_ensure_marker_instances()
 	_ensure_local_lights()
+	_ensure_focus_spots()
 	set_geometry(center_z, length)
 	if _weather_cycle != null:
 		var callback := Callable(self, "set_night_amount")
@@ -108,6 +118,21 @@ func get_flickering_marker_count() -> int:
 
 func get_sequence_elapsed() -> float:
 	return _sequence_elapsed
+
+
+func set_character_focus(enabled: bool, target: Vector3 = Vector3.ZERO) -> void:
+	_focus_enabled = enabled
+	_focus_target = target
+	_ensure_focus_spots()
+	_refresh_focus_spots()
+
+
+func get_character_focus_spot_count() -> int:
+	var active_count: int = 0
+	for focus_spot: SpotLight3D in _focus_spots:
+		if focus_spot.visible and focus_spot.light_energy > 0.0:
+			active_count += 1
+	return active_count
 
 
 func _process(delta: float) -> void:
@@ -214,6 +239,27 @@ func _ensure_local_lights() -> void:
 		_local_light_marker_indices.append(-1)
 
 
+func _ensure_focus_spots() -> void:
+	if not _focus_spots.is_empty():
+		return
+	for index: int in range(FOCUS_SPOT_COUNT):
+		var focus_spot := SpotLight3D.new()
+		focus_spot.name = "FrontCharacterFocusSpot%02d" % (index + 1)
+		focus_spot.light_color = WARM_WHITE_COLOR
+		focus_spot.light_energy = 0.0
+		focus_spot.spot_range = FOCUS_SPOT_RANGE
+		focus_spot.spot_angle = FOCUS_SPOT_ANGLE
+		focus_spot.spot_angle_attenuation = 0.55
+		focus_spot.spot_attenuation = 0.5
+		focus_spot.light_specular = 0.18
+		focus_spot.light_volumetric_fog_energy = 0.0
+		focus_spot.light_bake_mode = Light3D.BAKE_DISABLED
+		focus_spot.shadow_enabled = false
+		focus_spot.visible = false
+		add_child(focus_spot)
+		_focus_spots.append(focus_spot)
+
+
 func _rebuild_marker_transforms() -> void:
 	if _marker_instances == null or _marker_instances.multimesh == null:
 		return
@@ -259,6 +305,7 @@ func _refresh_lighting_visuals() -> void:
 			1.0 if _front_is_last_station else 0.0
 		)
 	_refresh_local_light_levels()
+	_refresh_focus_spots()
 
 
 func _update_marker_levels() -> void:
@@ -376,6 +423,41 @@ func _refresh_local_light_levels() -> void:
 		var local_light: OmniLight3D = _local_lights[light_index]
 		local_light.light_energy = 0.18 * level
 		local_light.visible = level > 0.001
+
+
+func _refresh_focus_spots() -> void:
+	if _focus_spots.is_empty():
+		return
+	if not _focus_enabled or _station_count <= 0:
+		for idle_spot: SpotLight3D in _focus_spots:
+			idle_spot.light_energy = 0.0
+			idle_spot.visible = false
+		return
+	var rail_x: float = _rail_x()
+	var spot_y: float = _marker_y() + FOCUS_Y_LIFT
+	var start_station: int = maxi(_station_count - FOCUS_STATION_COUNT, 0)
+	for spot_index: int in range(_focus_spots.size()):
+		var focus_spot: SpotLight3D = _focus_spots[spot_index]
+		var station_index: int = start_station + floori(float(spot_index) * 0.5)
+		var side_index: int = spot_index % 2
+		if station_index >= _station_count:
+			focus_spot.light_energy = 0.0
+			focus_spot.visible = false
+			continue
+		var marker_index: int = station_index * 2 + side_index
+		var energy: float = FOCUS_SPOT_ENERGY * _fixture_level(marker_index)
+		var side_sign: float = -1.0 if side_index == 0 else 1.0
+		focus_spot.position = Vector3(
+			rail_x * side_sign,
+			spot_y,
+			_first_station_z + float(station_index) * LIGHT_SPACING
+		)
+		if energy > 0.001 and focus_spot.is_inside_tree():
+			var origin: Vector3 = focus_spot.global_position
+			if origin.distance_squared_to(_focus_target) > 0.0001:
+				focus_spot.look_at(_focus_target, Vector3.UP)
+		focus_spot.light_energy = energy
+		focus_spot.visible = energy > 0.001
 
 
 func _camera_is_closer_to_last_station() -> bool:

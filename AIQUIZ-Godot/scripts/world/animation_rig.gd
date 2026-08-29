@@ -15,7 +15,7 @@ const SLOT_JUMP := 7
 
 const SLOT_EXTRA_EMOTE_FIRST := 8
 ## エモート一覧の全FBXを載せるための追加分（メモリと相談）
-const SLOT_EXTRA_EMOTE_COUNT := 14
+const SLOT_EXTRA_EMOTE_COUNT := 16
 const SLOT_COUNT := 8 + SLOT_EXTRA_EMOTE_COUNT
 
 const FBX_PATHS: Array[String] = [
@@ -27,7 +27,7 @@ const FBX_PATHS: Array[String] = [
 	"res://assets/animations/Drowning.fbx",
 	"res://assets/animations/Flair.fbx",
 	"res://assets/animations/Jumping.fbx",
-	"", "", "", "", "", "", "", "", "", "", "", "", "", "",
+	"", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "",
 ]
 
 const SLOT_NAMES: Array[String] = [
@@ -35,12 +35,13 @@ const SLOT_NAMES: Array[String] = [
 	"TreadingWater", "Drowning", "Flair", "Jump",
 	"Emote08", "Emote09", "Emote10", "Emote11", "Emote12", "Emote13", "Emote14",
 	"Emote15", "Emote16", "Emote17", "Emote18", "Emote19", "Emote20", "Emote21",
+	"Emote22", "Emote23",
 ]
 
 ## SLOT_MOONWALK はコア8枠のプレースホルダ（未使用）。エモート用は他スロットへ割当
 const EMOTE_RIG_SLOTS: Array[int] = [
 	SLOT_TAUNT, SLOT_GANGNAM, SLOT_SLIDE, SLOT_FLAIR,
-	8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+	8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
 ]
 
 # 各スロットのデータ (nullを許容するためVariant型の配列)
@@ -160,7 +161,7 @@ func _load_thriller_sequence_parts(loader: Callable) -> void:
 
 
 func _find_free_emote_slot() -> int:
-	for slot in range(SLOT_EXTRA_EMOTE_FIRST, SLOT_COUNT):
+	for slot in range(SLOT_EXTRA_EMOTE_FIRST, SLOT_EXTRA_EMOTE_FIRST + SLOT_EXTRA_EMOTE_COUNT):
 		if anim_names[slot] == "":
 			return slot
 	return -1

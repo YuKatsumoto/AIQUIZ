@@ -6,6 +6,7 @@ class_name QuizProvider
 
 var bank_path: String
 var bank: Dictionary = {}
+var external_bank_items: Array[Dictionary] = []
 
 func _init(path: String = "res://offline_bank.json") -> void:
 	bank_path = path
@@ -37,7 +38,16 @@ func total_count() -> int:
 			for grade_list: Variant in subj_data.values():
 				if grade_list is Array:
 					total += grade_list.size()
-	return total
+	var external_seen: Dictionary = {}
+	for item: Dictionary in external_bank_items:
+		var q_text := str(item.get("q", "")).strip_edges()
+		if not q_text.is_empty():
+			external_seen[q_text] = true
+	return total + external_seen.size()
+
+
+func set_external_items(items: Array[Dictionary]) -> void:
+	external_bank_items = items.duplicate(true)
 
 func begin_round(_subject: String, _grade: int, _difficulty: String,
 		_mode: String, _target_count: int) -> void:
@@ -98,7 +108,11 @@ func _normalize(raw: Variant) -> QuizItem:
 		for ci: Variant in ci_raw:
 			choice_imgs.append(str(ci))
 
-	return QuizItem.create(q_text, cleaned, a_int, e_text, src_text, img_text, choice_imgs)
+	var item := QuizItem.create(q_text, cleaned, a_int, e_text, src_text, img_text, choice_imgs)
+	item.genre = str(raw.get("genre", raw.get("g", ""))).strip_edges()
+	var estimated := float(raw.get("estimated_seconds", raw.get("t", 4.0)))
+	item.estimated_seconds = clampf(estimated, 1.5, 10.0)
+	return item
 
 # ---------- Estimated solving time (heuristic for offline) ----------
 
@@ -370,19 +384,121 @@ func _harden_distractors(item: QuizItem) -> QuizItem:
 
 	return QuizItem.create(item.q, new_choices, new_a, item.e, item.src, item.img, item.choice_img)
 
+
+## 2択問題を4択に拡張する。数値選択肢のみ生成できる。失敗時は元の QuizItem を返す。
+func expand_to_four_choices(item: QuizItem) -> QuizItem:
+	if item == null or item.c.size() >= 4:
+		return item
+	if item.c.size() != 2 or item.a < 0 or item.a > 1:
+		return item
+	var correct_text: String = item.c[item.a]
+	var wrong_text: String = item.c[1 - item.a]
+	if not _is_numeric_choice(correct_text):
+		return item
+	var extras := _numeric_near_misses(correct_text, PackedStringArray([correct_text, wrong_text]), 2)
+	if extras.size() < 2:
+		return item
+	var new_c := PackedStringArray([correct_text, wrong_text, extras[0], extras[1]])
+	for i: int in range(new_c.size() - 1, 0, -1):
+		var j: int = randi() % (i + 1)
+		var tmp: String = new_c[i]
+		new_c[i] = new_c[j]
+		new_c[j] = tmp
+	var new_a: int = 0
+	for i: int in range(new_c.size()):
+		if new_c[i] == correct_text:
+			new_a = i
+			break
+	var expanded: QuizItem = item.duplicate(true) as QuizItem
+	if expanded == null:
+		expanded = QuizItem.create(
+			item.q, new_c, new_a, item.e, item.src, item.img, item.choice_img, item.estimated_seconds
+		)
+		expanded.genre = item.genre
+		expanded.validated = item.validated
+		return expanded
+	expanded.c = new_c
+	expanded.a = new_a
+	expanded.estimated_seconds = clampf(item.estimated_seconds + 0.8, 1.5, 10.0)
+	return expanded
+
+
+func _numeric_near_misses(correct_text: String, banned: PackedStringArray, needed: int) -> PackedStringArray:
+	var correct_val: float = _extract_number(correct_text)
+	var unit: String = _extract_unit(correct_text)
+	var is_integer: bool = correct_text.strip_edges().replace(unit, "").strip_edges().is_valid_int()
+	var result: PackedStringArray = PackedStringArray()
+	var attempts := 0
+	while result.size() < needed and attempts < 60:
+		attempts += 1
+		var offset: float
+		if is_integer:
+			var range_options := [-3, -2, -1, 1, 2, 3]
+			if absf(correct_val) >= 20.0:
+				range_options.append_array([-5, -4, 4, 5])
+			offset = float(range_options.pick_random())
+		else:
+			offset = [-0.3, -0.2, -0.1, 0.1, 0.2, 0.3, 0.4, 0.5].pick_random()
+		var candidate: float = correct_val + offset
+		if candidate < 0.0:
+			continue
+		var text: String = ("%d%s" % [int(candidate), unit]) if is_integer else ("%s%s" % [str(candidate), unit])
+		var dup := false
+		for b: String in banned:
+			if b == text:
+				dup = true
+				break
+		if dup:
+			continue
+		for existing: String in result:
+			if existing == text:
+				dup = true
+				break
+		if dup:
+			continue
+		result.append(text)
+	return result
+
 # ---------- Fallback ----------
 
-func _fallback_question(subject: String, grade: int) -> QuizItem:
+func _fallback_question(subject: String, grade: int, four_choices: bool = false) -> QuizItem:
 	var a_val: int = randi_range(2, 20)
 	var b_val: int = randi_range(1, 10)
 	var ans: int = a_val + b_val
+	if four_choices:
+		var used: Dictionary = {ans: true}
+		var choices: Array[String] = [str(ans)]
+		var offsets := [-4, -3, -2, -1, 1, 2, 3, 4]
+		offsets.shuffle()
+		for offset: int in offsets:
+			var wrong_val: int = ans + offset
+			if wrong_val < 0 or used.has(wrong_val):
+				continue
+			used[wrong_val] = true
+			choices.append(str(wrong_val))
+			if choices.size() >= 4:
+				break
+		while choices.size() < 4:
+			var extra: int = ans + choices.size() + 1
+			if not used.has(extra):
+				used[extra] = true
+				choices.append(str(extra))
+		choices.shuffle()
+		var four_idx: int = choices.find(str(ans))
+		return QuizItem.create(
+			"[%s%d年] %d+%d はどれ？" % [subject, grade, a_val, b_val],
+			PackedStringArray(choices),
+			four_idx,
+			"%d+%d=%d" % [a_val, b_val, ans],
+			"FALLBACK"
+		)
 	var wrong: int = ans + [-2, -1, 1, 2].pick_random()
-	var choices: Array[String] = [str(ans), str(wrong)]
-	choices.shuffle()
-	var ans_idx: int = choices.find(str(ans))
+	var two_choices: Array[String] = [str(ans), str(wrong)]
+	two_choices.shuffle()
+	var ans_idx: int = two_choices.find(str(ans))
 	return QuizItem.create(
 		"[%s%d年] %d+%d はどちら？" % [subject, grade, a_val, b_val],
-		PackedStringArray(choices),
+		PackedStringArray(two_choices),
 		ans_idx,
 		"%d+%d=%d" % [a_val, b_val, ans],
 		"FALLBACK"
@@ -409,17 +525,35 @@ func get_quizzes(subject: String, grade: int, difficulty: String,
 				n.estimated_seconds = _estimate_seconds(n, subject, difficulty)
 				items.append(n)
 
-	if items.is_empty():
+	# Firebase cache items with the exact requested difficulty join the normal
+	# shuffled pool. Other difficulties remain a fallback for sparse categories.
+	var external_fallback: Array[QuizItem] = []
+	for raw: Dictionary in external_bank_items:
+		if str(raw.get("subject", "")) != subject or int(raw.get("grade", 0)) != grade:
+			continue
+		var n := _normalize(raw)
+		if n == null:
+			continue
+		n.src = "OFFLINE_FIREBASE"
+		if str(raw.get("difficulty", "")) == difficulty:
+			items.append(n)
+		else:
+			external_fallback.append(n)
+
+	if items.is_empty() and external_fallback.is_empty():
 		if mode == Constants.MODE_TEN:
 			var fallbacks: Array[QuizItem] = []
 			for i: int in range(maxi(1, count)):
-				fallbacks.append(_fallback_question(subject, grade))
+				fallbacks.append(_fallback_question(subject, grade, i == count - 1))
 			return fallbacks
 		var single: Array[QuizItem] = [_fallback_question(subject, grade)]
 		return single
 
 	var pool := _bucket_by_difficulty(items, subject, grade, difficulty)
 	pool.shuffle()
+	external_fallback.shuffle()
+	pool.append_array(external_fallback)
+	items.append_array(external_fallback)
 	if exclude_texts.size() > 0:
 		var filtered: Array[QuizItem] = []
 		for q_item: QuizItem in pool:
@@ -463,9 +597,9 @@ func get_quizzes(subject: String, grade: int, difficulty: String,
 				if uniq.size() >= count:
 					break
 		while uniq.size() < count:
-			uniq.append(_fallback_question(subject, grade))
+			uniq.append(_fallback_question(subject, grade, uniq.size() == count - 1))
 
-		# Make the hardest question the "Boss" (last question)
+		# Make the hardest question the "Boss" (last question), and keep it 4-choice.
 		if uniq.size() > 1:
 			var max_score := -100.0
 			var max_idx := -1
@@ -478,6 +612,17 @@ func get_quizzes(subject: String, grade: int, difficulty: String,
 				var hardest: QuizItem = uniq[max_idx]
 				uniq.remove_at(max_idx)
 				uniq.append(hardest)
+		if not uniq.is_empty():
+			var last_idx: int = uniq.size() - 1
+			if uniq[last_idx].c.size() < 4:
+				uniq[last_idx] = expand_to_four_choices(uniq[last_idx])
+			if uniq[last_idx].c.size() < 4:
+				for i: int in range(last_idx - 1, -1, -1):
+					if uniq[i].c.size() >= 4:
+						var swapped: QuizItem = uniq[last_idx]
+						uniq[last_idx] = uniq[i]
+						uniq[i] = swapped
+						break
 
 		return uniq
 

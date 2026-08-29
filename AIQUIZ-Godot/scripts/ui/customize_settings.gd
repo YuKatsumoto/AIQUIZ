@@ -345,32 +345,29 @@ func _process(dt: float) -> void:
 			var br: Node3D = entry.get("block_root", null)
 			if br == null or not is_instance_valid(br):
 				continue
-			if int(entry.get("preview_emote_id", EmoteData.EMOTE_NONE)) == EmoteData.EMOTE_NONE:
-				var sway_ph: float = float(entry.get("idle_sway_phase", 0.0))
-				br.rotation.y = sin(_emote_preview_time * 0.6 + sway_ph) * 0.5
-			else:
-				br.rotation.y = 0.0
-				var ap: AnimationPlayer = entry.get("ap", null)
-				var skel: Skeleton3D = entry.get("skel", null)
-				var parts: Dictionary = entry.get("parts", {})
-				var bones: Dictionary = entry.get("bones", {})
-				var rm: Dictionary = entry.get("rm", {})
-				var lx_lane: float = float(entry.get("lane_x", 0.0))
-				if (
-					ap
-					and ap.is_playing()
-					and skel
-					and not parts.is_empty()
-				):
-					EmoteBlockmanPreview.apply_skeleton_pose(
-						parts,
-						skel,
-						bones,
-						true,
-						br,
-						rm,
-						lx_lane,
-					)
+			br.rotation.y = 0.0
+			var ap: AnimationPlayer = entry.get("ap", null)
+			var skel: Skeleton3D = entry.get("skel", null)
+			var parts: Dictionary = entry.get("parts", {})
+			var bones: Dictionary = entry.get("bones", {})
+			var rm: Dictionary = entry.get("rm", {})
+			var lx_lane: float = float(entry.get("lane_x", 0.0))
+			if (
+				ap
+				and ap.is_playing()
+				and skel
+				and not parts.is_empty()
+			):
+				EmoteBlockmanPreview.apply_skeleton_pose(
+					parts,
+					skel,
+					bones,
+					true,
+					br,
+					rm,
+					lx_lane,
+				)
+		_update_emote_edge_focus()
 
 	if _preview_camera:
 		_apply_preview_camera_smoothing(dt)
@@ -733,11 +730,12 @@ func _set_focus_target(source: Control, property_name: StringName, target: Contr
 
 
 func _configure_emote_focus_navigation() -> void:
+	var grid_count := _emote_grid_btns.size()
 	if (
 		not _emote_player_btn_p1
 		or not _emote_player_btn_p2
 		or _emote_slot_btns.size() != 3
-		or _emote_grid_btns.size() != 15
+		or grid_count <= 0
 		or not _back_button
 	):
 		return
@@ -765,19 +763,22 @@ func _configure_emote_focus_navigation() -> void:
 		_set_focus_target(slot_btn, &"focus_neighbor_left", _emote_slot_btns[(i + 2) % 3])
 		_set_focus_target(slot_btn, &"focus_neighbor_right", _emote_slot_btns[(i + 1) % 3])
 		_set_focus_target(slot_btn, &"focus_neighbor_up", _emote_player_btn_p1 if i < 2 else _emote_player_btn_p2)
-		_set_focus_target(slot_btn, &"focus_neighbor_down", _emote_grid_btns[i])
+		var slot_down_idx := mini(i, grid_count - 1)
+		_set_focus_target(slot_btn, &"focus_neighbor_down", _emote_grid_btns[slot_down_idx])
 
-	for i in range(_emote_grid_btns.size()):
+	var last_row := floori(float(grid_count - 1) / 3.0)
+	for i in range(grid_count):
 		var card := _emote_grid_btns[i]
 		var row := floori(float(i) / 3.0)
 		var column := i % 3
 		var row_start := row * 3
-		_set_focus_target(card, &"focus_neighbor_left", _emote_grid_btns[row_start + (column + 2) % 3])
-		_set_focus_target(card, &"focus_neighbor_right", _emote_grid_btns[row_start + (column + 1) % 3])
-		_set_focus_target(card, &"focus_neighbor_up", _emote_grid_btns[i - 3] if row > 0 else _emote_slot_btns[column])
-		_set_focus_target(card, &"focus_neighbor_down", _emote_grid_btns[i + 3] if row < 4 else _back_button)
+		var row_len := mini(3, grid_count - row_start)
+		_set_focus_target(card, &"focus_neighbor_left", _emote_grid_btns[row_start + (column - 1 + row_len) % row_len])
+		_set_focus_target(card, &"focus_neighbor_right", _emote_grid_btns[row_start + (column + 1) % row_len])
+		_set_focus_target(card, &"focus_neighbor_up", _emote_grid_btns[i - 3] if row > 0 else _emote_slot_btns[mini(column, 2)])
+		_set_focus_target(card, &"focus_neighbor_down", _emote_grid_btns[i + 3] if row < last_row and (i + 3) < grid_count else _back_button)
 
-	_set_focus_target(_back_button, &"focus_neighbor_up", _emote_grid_btns[13])
+	_set_focus_target(_back_button, &"focus_neighbor_up", _emote_grid_btns[grid_count - 1])
 	_set_focus_target(_back_button, &"focus_neighbor_down", _emote_player_btn_p1)
 	_back_button.add_theme_stylebox_override("focus", _focus_ring_style(Color(1.0, 0.80, 0.24)))
 
@@ -1387,7 +1388,10 @@ func _set_section(section: Section) -> void:
 
 	match section:
 		Section.WALL_SPEED:
+			if _preview_gs:
+				_preview_gs.game_state = Constants.STATE_PLAYING
 			_set_skin_preview_lighting_active(false)
+			_clear_emote_edge_focus()
 			_section_title.visible = true
 			_section_title.text = "壁速度設定"
 			_cleanup_emote_preview()
@@ -1395,9 +1399,12 @@ func _set_section(section: Section) -> void:
 			if _preview_walls.is_empty():
 				_replenish_preview_walls_after_emote()
 		Section.SKIN:
+			if _preview_gs:
+				_preview_gs.game_state = Constants.STATE_COUNTDOWN
 			_configure_skin_focus_navigation()
 			_set_skin_preview_lighting_active(true)
 			_update_skin_preview_lighting()
+			_clear_emote_edge_focus()
 			_section_title.visible = true
 			_section_title.text = "スキン設定"
 			_explode_preview_walls_for_emote()
@@ -1419,6 +1426,7 @@ func _set_section(section: Section) -> void:
 			_preview_player.visible = false
 			_active_assign_slot_idx = 0
 			_sync_emote_selection_state(true)
+			_update_emote_edge_focus()
 
 
 func _refresh_section_button_states() -> void:
@@ -1473,6 +1481,35 @@ func _set_skin_preview_lighting_active(active: bool) -> void:
 		_preview_world_env.environment.ambient_light_color = (
 			Color(0.38, 0.40, 0.44) if active else Color(0.30, 0.32, 0.35)
 		)
+
+
+func _preview_edge_lights() -> ConveyorEdgeLights:
+	if embedded_mode and _menu_preview != null:
+		var stage: StageEnvironment = _menu_preview.get_stage_environment()
+		if stage != null:
+			return stage.conveyor_edge_lights
+	return _conveyor_edge_lights
+
+
+func _emote_focus_target() -> Vector3:
+	var block_root := _editing_emote_block_root()
+	if block_root != null:
+		return block_root.global_position + Vector3(0.0, 0.7, 0.0)
+	return Vector3(_preview_editing_lane_x(), 0.7, 0.0)
+
+
+func _update_emote_edge_focus() -> void:
+	var lights := _preview_edge_lights()
+	if lights == null:
+		return
+	lights.set_character_focus(true, _emote_focus_target())
+
+
+func _clear_emote_edge_focus() -> void:
+	var lights := _preview_edge_lights()
+	if lights == null:
+		return
+	lights.set_character_focus(false)
 
 
 func _snap_preview_camera_to_current_section() -> void:
@@ -2124,8 +2161,6 @@ func _spawn_lane_emote_preview(
 
 	emote_id = EmoteData.normalize_emote_id(emote_id)
 	entry.preview_emote_id = emote_id
-	entry.idle_sway_phase = 0.0 if is_p1 else PI
-
 	if emote_id == EmoteData.EMOTE_NONE:
 		block_root.rotation.y = 0.0
 		return entry
@@ -2468,6 +2503,7 @@ func _on_back_pressed() -> void:
 		return
 	_back_to_menu_in_progress = true
 	_stop_preview_wall_speed_emotes()
+	_clear_emote_edge_focus()
 	_hold_customize_frame_before_scene_change()
 	get_tree().change_scene_to_file("res://ui/main_menu.tscn")
 
@@ -2480,6 +2516,7 @@ func _prepare_embedded_close() -> void:
 	_is_open = false
 	_finish_hat_slide_immediate()
 	_cleanup_emote_preview()
+	_clear_emote_edge_focus()
 	if _cust_world_root:
 		_cust_world_root.visible = false
 	if _menu_preview:

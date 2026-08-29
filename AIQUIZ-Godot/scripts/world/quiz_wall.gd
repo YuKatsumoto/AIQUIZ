@@ -30,6 +30,7 @@ const DOOR_COLORS_4 := [
 	Color(0.90, 0.15, 0.15),  # D - Red
 ]
 const WALL_COLOR := Color(0.50, 0.50, 0.50)
+const BOSS_WALL_COLOR := Color(0.65, 0.15, 0.15)
 const JAPANESE_FONT: Font = preload("res://resources/fonts/NotoSansJP-Regular.otf")
 ## 壁本体の物理的な最上端(Y座標)。メニュー背景プレビューの問題文はこの高さより
 ## 確実に上に留めるための基準として参照する。
@@ -67,17 +68,18 @@ func _build_wall_around_doors(num_choices: int) -> void:
 	var door_bottom_y := -2.02
 	var wall_top_y := WALL_TOP_Y
 	var wall_bottom_y := -3.15
+	var wall_color := BOSS_WALL_COLOR if is_boss else WALL_COLOR
 
 	# 1. Top beam
 	var top_height := wall_top_y - door_top_y
-	var top_beam := _create_box(Vector3(total_width / 2.0, top_height / 2.0, 0.55), WALL_COLOR)
+	var top_beam := _create_box(Vector3(total_width / 2.0, top_height / 2.0, 0.55), wall_color)
 	top_beam.position = Vector3(0, door_top_y + top_height / 2.0, 0)
 	add_child(top_beam)
 	wall_parts.append(top_beam)
 
 	# 2. Bottom beam
 	var bottom_height := door_bottom_y - wall_bottom_y
-	var bottom_beam := _create_box(Vector3(total_width / 2.0, bottom_height / 2.0, 0.55), WALL_COLOR)
+	var bottom_beam := _create_box(Vector3(total_width / 2.0, bottom_height / 2.0, 0.55), wall_color)
 	bottom_beam.position = Vector3(0, wall_bottom_y + bottom_height / 2.0, 0)
 	add_child(bottom_beam)
 	wall_parts.append(bottom_beam)
@@ -104,7 +106,7 @@ func _build_wall_around_doors(num_choices: int) -> void:
 		
 		var pillar_width := door_left - current_x
 		if pillar_width > 0:
-			var pillar := _create_box(Vector3(pillar_width / 2.0, pillar_height / 2.0, 0.55), WALL_COLOR)
+			var pillar := _create_box(Vector3(pillar_width / 2.0, pillar_height / 2.0, 0.55), wall_color)
 			pillar.position = Vector3(current_x + pillar_width / 2.0, pillar_y, 0)
 			add_child(pillar)
 			wall_parts.append(pillar)
@@ -113,7 +115,7 @@ func _build_wall_around_doors(num_choices: int) -> void:
 	
 	var final_width := max_x - current_x
 	if final_width > 0:
-		var pillar := _create_box(Vector3(final_width / 2.0, pillar_height / 2.0, 0.55), WALL_COLOR)
+		var pillar := _create_box(Vector3(final_width / 2.0, pillar_height / 2.0, 0.55), wall_color)
 		pillar.position = Vector3(current_x + final_width / 2.0, pillar_y, 0)
 		add_child(pillar)
 		wall_parts.append(pillar)
@@ -331,7 +333,7 @@ func _clear_preview_labels() -> void:
 
 func set_is_boss(boss: bool) -> void:
 	is_boss = boss
-	var target_color = Color(0.65, 0.15, 0.15) if is_boss else WALL_COLOR
+	var target_color = BOSS_WALL_COLOR if is_boss else WALL_COLOR
 	for part in wall_parts:
 		if is_instance_valid(part) and part.material_override:
 			part.material_override.albedo_color = target_color

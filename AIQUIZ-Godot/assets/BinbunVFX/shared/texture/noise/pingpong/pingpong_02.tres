@@ -1,4 +1,4 @@
-[gd_resource type="NoiseTexture2D" format=3 uid="uid://bo6l2kv3bitgd"]
+[gd_resource type="NoiseTexture2D" load_steps=2 format=3 uid="uid://bo6l2kv3bitgd"]
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_br7ox"]
 noise_type = 0
@@ -7,6 +7,6 @@ fractal_type = 3
 fractal_octaves = 2
 
 [resource]
-noise = SubResource("FastNoiseLite_br7ox")
 seamless = true
 seamless_blend_skirt = 1.0
+noise = SubResource("FastNoiseLite_br7ox")

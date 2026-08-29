@@ -1168,24 +1168,24 @@ func _load_fbx_scene(path: String, node_name: String) -> Variant:
 	# 鬪ｨ繧､繝ｳ繝・ャ繧ｯ繧ｹ繧偵く繝｣繝・す繝･
 	var bone_indices := {}
 	var candidates: Dictionary = {
-		"hips": ["Hips", "mixamorig:Hips"],
-		"spine": ["Spine1", "mixamorig:Spine1", "Spine", "mixamorig:Spine"],
-		"neck": ["Neck", "mixamorig:Neck"],
-		"head": ["Head", "mixamorig:Head"],
-		"l_upper_arm": ["LeftUpperArm", "mixamorig:LeftArm"],
-		"l_lower_arm": ["LeftLowerArm", "mixamorig:LeftForeArm"],
-		"l_hand": ["LeftHand", "mixamorig:LeftHand"],
-		"r_upper_arm": ["RightUpperArm", "mixamorig:RightArm"],
-		"r_lower_arm": ["RightLowerArm", "mixamorig:RightForeArm"],
-		"r_hand": ["RightHand", "mixamorig:RightHand"],
-		"l_upper_leg": ["LeftUpperLeg", "mixamorig:LeftUpLeg"],
-		"l_lower_leg": ["LeftLowerLeg", "mixamorig:LeftLeg"],
-		"l_foot": ["LeftFoot", "mixamorig:LeftFoot"],
-		"l_toe": ["LeftToeBase", "mixamorig:LeftToeBase"],
-		"r_upper_leg": ["RightUpperLeg", "mixamorig:RightUpLeg"],
-		"r_lower_leg": ["RightLowerLeg", "mixamorig:RightLeg"],
-		"r_foot": ["RightFoot", "mixamorig:RightFoot"],
-		"r_toe": ["RightToeBase", "mixamorig:RightToeBase"],
+		"hips": ["Hips", "mixamorig:Hips", "mixamorig_Hips"],
+		"spine": ["Spine1", "mixamorig:Spine1", "Spine", "mixamorig:Spine", "mixamorig_Spine1", "mixamorig_Spine"],
+		"neck": ["Neck", "mixamorig:Neck", "mixamorig_Neck"],
+		"head": ["Head", "mixamorig:Head", "mixamorig_Head"],
+		"l_upper_arm": ["LeftUpperArm", "mixamorig:LeftArm", "mixamorig_LeftArm"],
+		"l_lower_arm": ["LeftLowerArm", "mixamorig:LeftForeArm", "mixamorig_LeftForeArm"],
+		"l_hand": ["LeftHand", "mixamorig:LeftHand", "mixamorig_LeftHand"],
+		"r_upper_arm": ["RightUpperArm", "mixamorig:RightArm", "mixamorig_RightArm"],
+		"r_lower_arm": ["RightLowerArm", "mixamorig:RightForeArm", "mixamorig_RightForeArm"],
+		"r_hand": ["RightHand", "mixamorig:RightHand", "mixamorig_RightHand"],
+		"l_upper_leg": ["LeftUpperLeg", "mixamorig:LeftUpLeg", "mixamorig_LeftUpLeg"],
+		"l_lower_leg": ["LeftLowerLeg", "mixamorig:LeftLeg", "mixamorig_LeftLeg"],
+		"l_foot": ["LeftFoot", "mixamorig:LeftFoot", "mixamorig_LeftFoot"],
+		"l_toe": ["LeftToeBase", "mixamorig:LeftToeBase", "mixamorig_LeftToeBase"],
+		"r_upper_leg": ["RightUpperLeg", "mixamorig:RightUpLeg", "mixamorig_RightUpLeg"],
+		"r_lower_leg": ["RightLowerLeg", "mixamorig:RightLeg", "mixamorig_RightLeg"],
+		"r_foot": ["RightFoot", "mixamorig:RightFoot", "mixamorig_RightFoot"],
+		"r_toe": ["RightToeBase", "mixamorig:RightToeBase", "mixamorig_RightToeBase"],
 		
 		# Fingers (Left)
 		"l_thumb_prox": ["LeftThumbMetacarpal", "mixamorig:LeftHandThumb1", "mixamorig_LeftHandThumb1", "LeftHandThumb1"],
@@ -2439,6 +2439,10 @@ func _animate_emote(parts: Dictionary, emote: int, is_p2: bool = false) -> void:
 			_emote_side_groove(t * 1.55, parts, 1.25)
 		EmoteData.EMOTE_RUNNING_MAN:
 			_emote_floss(t * 1.25, parts)
+		EmoteData.EMOTE_HOKEY_POKEY:
+			_emote_arm_wave(t * 1.05, parts, 0.95)
+		EmoteData.EMOTE_WAVE_HIP_HOP:
+			_emote_arm_wave(t * 1.2, parts, 1.1)
 		_:
 			_emote_floss(t, parts)
 

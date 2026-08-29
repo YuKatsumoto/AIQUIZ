@@ -4,12 +4,14 @@
   "description": "Secure proxy for AIQUIZ API calls",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "test": "node --test test/*.test.js",
+    "migrate:quiz-bank": "node migrate-ratings.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
-    "express": "^4.19.2",
-    "express-rate-limit": "^8.4.1",
-    "http-proxy-middleware": "^3.0.0"
+    "express": "^4.22.2",
+    "express-rate-limit": "^8.6.2",
+    "firebase-admin": "^14.3.0"
   }
 }

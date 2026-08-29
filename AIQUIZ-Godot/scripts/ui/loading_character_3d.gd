@@ -299,3 +299,52 @@ func _apply_player_visibility() -> void:
 		_p1_root.visible = _is_p1
 	if _p2_root != null:
 		_p2_root.visible = not _is_p1
+
+
+## LOADING文字の底辺を合わせるため、描画済みシルエットの下端をこのControl座標で返す。
+func get_visual_bottom_y() -> float:
+	_apply_current_pose()
+	if _sub_viewport == null or size.y <= 0.0:
+		return size.y
+	var viewport_texture := _sub_viewport.get_texture()
+	if viewport_texture != null:
+		var image: Image = viewport_texture.get_image()
+		if image != null and not image.is_empty():
+			var width: int = image.get_width()
+			var height: int = image.get_height()
+			var step_x: int = maxi(1, int(floor(float(width) / 80.0)))
+			for y: int in range(height - 1, -1, -1):
+				for x: int in range(0, width, step_x):
+					if image.get_pixel(x, y).a > 0.12:
+						return clampf(
+							(float(y) + 1.0) * size.y / float(height),
+							0.0,
+							size.y
+						)
+	return _get_aabb_visual_bottom_y()
+
+
+func _get_aabb_visual_bottom_y() -> float:
+	var player_root: Node3D = _p1_root if _is_p1 else _p2_root
+	if player_root == null or _camera == null or size.y <= 0.0:
+		return size.y
+	var merged_aabb := AABB()
+	var has_aabb: bool = false
+	for mesh_node: Node in player_root.find_children("*", "MeshInstance3D", true, false):
+		var mesh_inst := mesh_node as MeshInstance3D
+		if mesh_inst == null or not mesh_inst.visible:
+			continue
+		var mesh_aabb: AABB = mesh_inst.global_transform * mesh_inst.get_aabb()
+		if not has_aabb:
+			merged_aabb = mesh_aabb
+			has_aabb = true
+		else:
+			merged_aabb = merged_aabb.merge(mesh_aabb)
+	if not has_aabb:
+		return size.y
+	var lowest_viewport_y: float = 0.0
+	for corner_index: int in range(8):
+		var viewport_pos: Vector2 = _camera.unproject_position(merged_aabb.get_endpoint(corner_index))
+		lowest_viewport_y = maxf(lowest_viewport_y, viewport_pos.y)
+	var scale_y: float = size.y / float(PREVIEW_SIZE.y)
+	return clampf(lowest_viewport_y * scale_y, 0.0, size.y)

@@ -169,8 +169,8 @@ var is_replay: bool = false
 var p1_emote_selected: int = 0  # メニューで選択したデフォルトエモートID
 var p2_emote_selected: int = 0
 # エモートスロット: P1はキー1,2,3 / P2はキー8,9,0 にそれぞれエモートIDを割り当て
-var p1_emote_slots: Array[int] = [1, 5, 13]  # Step Hip Hop, Moonwalk, YMCA
-var p2_emote_slots: Array[int] = [2, 8, 17]  # Gangnam, Swing, Running Man
+var p1_emote_slots: Array[int] = [18, 19, 13]  # Hokey Pokey, Wave Hip Hop, YMCA
+var p2_emote_slots: Array[int] = [18, 19, 17]  # Hokey Pokey, Wave Hip Hop, Running Man
 
 var player2_game_over_timer: float = 0.0
 
@@ -193,7 +193,7 @@ const RESULT_EFFECT_DURATION: float = 2.4
 
 ## GameWorld owns this runtime gate so online hosts and replay playback keep the
 ## existing immediate-result contract without serializing ceremony-only state.
-var result_ceremony_enabled: bool = true
+var result_ceremony_enabled: bool = false
 var result_presentation_active: bool = false
 var result_ceremony_phase: int = ResultCeremonyPhase.NONE
 var result_ceremony_phase_elapsed: float = 0.0
@@ -268,15 +268,30 @@ func _install_tutorial_flow(selected_course: String) -> void:
 func is_coop_mode() -> bool:
 	return mode == Constants.MODE_COOP
 
+func is_boss_index(index: int) -> bool:
+	return mode == Constants.MODE_TEN and target_count > 0 and index == target_count - 1
+
+func num_choices_for_index(index: int) -> int:
+	if is_coop_mode():
+		return 2  # Coop uses 2 doors per player (4 total, but 2+2 split)
+	var quiz: QuizItem = null
+	if index == current_index:
+		quiz = current_quiz
+	elif index >= 0 and index < quiz_list.size():
+		quiz = quiz_list[index]
+	if is_boss_index(index):
+		if quiz and quiz.c.size() > 0 and quiz.c.size() < 4:
+			return quiz.c.size()
+		return 4
+	if difficulty == "難しい":
+		if quiz and quiz.c.size() > 0 and quiz.c.size() < 4:
+			return quiz.c.size()
+		return 4
+	return 2
+
 var num_choices: int:
 	get:
-		if is_coop_mode():
-			return 2  # Coop uses 2 doors per player (4 total, but 2+2 split)
-		if difficulty == "難しい":
-			if current_quiz and current_quiz.c.size() < 4:
-				return current_quiz.c.size()
-			return 4
-		return 2
+		return num_choices_for_index(current_index)
 
 var wall_z: float:
 	get:
@@ -636,6 +651,23 @@ func start_game() -> void:
 
 	var provider_mode := _provider_mode()
 	provider.begin_round(subject, grade, difficulty, provider_mode, count)
+	# オフラインは同期バンクで問題が揃うので、min_preload の0.35秒は待たない。
+	if llm_mode == "OFFLINE":
+		var missing := maxi(0, target_count - quiz_list.size())
+		if missing > 0:
+			quiz_list.append_array(
+				provider.get_quizzes(subject, grade, difficulty, provider_mode, missing)
+			)
+			_prepare_coop_quiz_list()
+			_ensure_boss_four_choices()
+		var quizzes_ready: bool = false
+		if _is_fixed_count_mode():
+			quizzes_ready = quiz_list.size() >= target_count
+		else:
+			quizzes_ready = quiz_list.size() >= 1
+		if quizzes_ready:
+			game_state = Constants.STATE_WAITING_START
+			load_current_quiz()
 	refresh_status_text()
 	state_changed.emit(game_state)
 
@@ -659,6 +691,32 @@ func _should_rebuild_coop_quiz(quiz: QuizItem) -> bool:
 		or quiz.coop_p2_label.contains("解答セット") \
 		or quiz.coop_p1_label.contains("ヒント") \
 		or quiz.coop_p2_label.contains("ヒント")
+
+
+func _ensure_boss_four_choices() -> void:
+	if mode != Constants.MODE_TEN or is_coop_mode():
+		return
+	if quiz_list.size() < target_count or target_count <= 0:
+		return
+	var last_idx: int = target_count - 1
+	var last_quiz: QuizItem = quiz_list[last_idx]
+	if last_quiz != null and last_quiz.c.size() >= 4:
+		return
+	if last_quiz != null and provider != null and provider.has_method("expand_to_four_choices"):
+		last_quiz = provider.expand_to_four_choices(last_quiz)
+		quiz_list[last_idx] = last_quiz
+		if last_quiz != null and last_quiz.c.size() >= 4:
+			return
+	for i: int in range(last_idx):
+		if i < current_index:
+			continue
+		if i == current_index and current_quiz != null:
+			continue
+		var candidate: QuizItem = quiz_list[i]
+		if candidate != null and candidate.c.size() >= 4:
+			quiz_list[last_idx] = candidate
+			quiz_list[i] = last_quiz
+			return
 
 func start_tutorial(course: String = GameManager.TUTORIAL_COURSE_SOLO) -> void:
 	_reset_ocean_shark_state()
@@ -969,9 +1027,14 @@ func load_current_quiz() -> void:
 			return
 		current_quiz = quiz_list[0]
 
+	if current_quiz and is_boss_index(current_index) and current_quiz.c.size() < 4:
+		if provider != null and provider.has_method("expand_to_four_choices"):
+			current_quiz = provider.expand_to_four_choices(current_quiz)
+
 	# Handle 4-to-2 conversion for offline quizzes or any quiz with too many choices.
 	# Coop keeps the original choices so each player can receive a different answer set.
-	if not is_coop_mode() and num_choices == 2 and current_quiz.c.size() > 2:
+	# 10問モードのボス（最終問）は4択のまま出す。
+	if not is_coop_mode() and not is_boss_index(current_index) and num_choices == 2 and current_quiz.c.size() > 2:
 		var correct_text: String = current_quiz.c[current_quiz.a]
 		var wrong_texts: PackedStringArray = []
 		for i: int in range(current_quiz.c.size()):
@@ -1134,6 +1197,7 @@ func _update_preloading(dt: float) -> void:
 		var new_quizzes := provider.get_quizzes(subject, grade, difficulty, _provider_mode(), missing)
 		quiz_list.append_array(new_quizzes)
 		_prepare_coop_quiz_list()
+		_ensure_boss_four_choices()
 
 	var ready: bool = false
 	# ゲーム開始前（current_index == 0）は全問揃うのを待つ
@@ -1153,6 +1217,7 @@ func _update_preloading(dt: float) -> void:
 
 	if ready and preload_wait_sec >= min_preload_sec:
 		print("[GameState] Preload complete: %d quizzes in %.1fs (mid_game=%s)" % [quiz_list.size(), preload_wait_sec, str(is_mid_game)])
+		_ensure_boss_four_choices()
 		if is_mid_game:
 			# 中盤: PLAYINGに復帰して次の問題を表示
 			game_state = Constants.STATE_PLAYING
@@ -1802,7 +1867,7 @@ func is_result_verdict_visible() -> bool:
 
 func get_result_winner_emote(player_index: int) -> int:
 	var slots: Array[int] = p1_emote_slots if player_index == 1 else p2_emote_slots
-	if not slots.is_empty() and slots[0] > 0 and slots[0] < 18:
+	if not slots.is_empty() and slots[0] > 0:
 		return slots[0]
 	return 7  # EmoteData.EMOTE_SILLY without coupling core state to cosmetics.
 
@@ -2970,6 +3035,7 @@ func advance_after_correct() -> void:
 			var new_quizzes := provider.get_quizzes(subject, grade, difficulty, _provider_mode(), missing)
 			quiz_list.append_array(new_quizzes)
 			_prepare_coop_quiz_list()
+			_ensure_boss_four_choices()
 		load_current_quiz()
 	else:
 		# 現在の問題を消費してローカルキューから除去

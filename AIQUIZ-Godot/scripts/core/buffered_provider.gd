@@ -68,6 +68,9 @@ func _init() -> void:
 func _ready() -> void:
 	offline_provider = QuizProvider.new("res://offline_bank.json")
 	add_child(offline_provider)
+	if QuizManager.firebase_quiz_cache != null:
+		offline_provider.set_external_items(QuizManager.firebase_quiz_cache.get_all_items())
+		QuizManager.firebase_quiz_cache.cache_updated.connect(_on_firebase_cache_updated)
 	
 	online_fetcher = OnlineFetch.new()
 	online_fetcher.fetch_completed.connect(_on_fetch_completed)
@@ -89,6 +92,13 @@ func _ready() -> void:
 
 func total_count() -> int:
 	return offline_provider.total_count()
+
+
+func _on_firebase_cache_updated(_total_count: int) -> void:
+	if offline_provider == null or QuizManager.firebase_quiz_cache == null:
+		return
+	offline_provider.set_external_items(QuizManager.firebase_quiz_cache.get_all_items())
+	ApiStatusAutoload.set_offline_count(offline_provider.total_count())
 
 func set_llm_mode(mode: String) -> void:
 	llm_mode = "ONLINE" if mode.to_upper() == "ONLINE" else "OFFLINE"
@@ -164,6 +174,10 @@ func begin_round(subject: String, grade: int, difficulty: String,
 	elif _should_use_offline_quizzes() or _online_api_available():
 		if llm_mode == "ONLINE":
 			_seed_from_generated_bank()
+		# オフライン10問はジャンル上限超過も初回から overflow へ回し、
+		# 黒画面中の補充待ちを短くする。
+		if _should_use_offline_quizzes() and current_mode == Constants.MODE_TEN:
+			_dedup_retry_count = 2
 		_fire_immediate_fetch()
 
 func end_round() -> void:
@@ -257,8 +271,10 @@ func _schedule_fetch(delay_sec: float = 0.0) -> void:
 		wait_sec = maxf(wait_sec, online_fetcher.get_rate_limit_wait_sec())
 	var now_ms := Time.get_ticks_msec()
 	var since_last_ms := now_ms - _last_refetch_ms
-	var min_wait_ms := int(MIN_REFETCH_INTERVAL_SEC * 1000.0)
-	if since_last_ms < min_wait_ms:
+	var min_wait_ms := 0
+	if not (_should_use_offline_quizzes() and _is_preloading()):
+		min_wait_ms = int(MIN_REFETCH_INTERVAL_SEC * 1000.0)
+	if min_wait_ms > 0 and since_last_ms < min_wait_ms:
 		wait_sec = maxf(wait_sec, float(min_wait_ms - since_last_ms) / 1000.0)
 	_fetch_scheduled = true
 	if wait_sec > 0.05:

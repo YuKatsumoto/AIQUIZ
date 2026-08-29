@@ -52,6 +52,7 @@ const LOADING_REST_LEFT := 28.0
 const LOADING_OFFSCREEN_LEFT := -220.0
 const LOADING_BOTTOM := 24.0
 const LOADING_HOLDER_SIZE := Vector2(88.0, 92.0)
+const LOADING_LABEL_GAP_X := 8.0
 const ACCENT_BLUE := Color(0.18, 0.36, 0.62, 1.0)
 const GAME_BG_COLOR := Color(0.82, 0.85, 0.90, 1.0)
 
@@ -128,12 +129,14 @@ func _setup_loading_character() -> void:
 	_loading_label.name = "LoadingLabel"
 	_loading_label.text = "LOADING..."
 	_loading_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_loading_label.position = Vector2(96.0, 56.0)
+	_loading_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_loading_label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
 	_loading_label.add_theme_font_size_override("font_size", 18)
 	_loading_label.add_theme_color_override("font_color", Color(0.78, 0.88, 1.0))
 	_loading_label.add_theme_color_override("font_outline_color", Color(0.04, 0.07, 0.12, 1.0))
 	_loading_label.add_theme_constant_override("outline_size", 4)
 	_loading_holder.add_child(_loading_label)
+	_align_loading_label_to_character()
 
 	# 3DモデルとFBXを画面遷移より前に準備し、ワイプ中の引っ掛かりを防ぐ。
 	_loading_character.call("set_player", true)
@@ -296,9 +299,36 @@ func _finish_loading_entry() -> void:
 	_loading_character.call("set_active", true)
 	_loading_holder.process_mode = Node.PROCESS_MODE_ALWAYS
 	_loading_holder.visible = true
+	if DisplayServer.get_name() != "headless":
+		await RenderingServer.frame_post_draw
+	if _loading_phase != LoadingCharacterPhase.ENTERING or not is_inside_tree():
+		return
+	_align_loading_label_to_character()
 	_loading_phase = LoadingCharacterPhase.WAITING
 	if _loading_reveal_requested:
 		_start_loading_exit()
+
+
+func _align_loading_label_to_character() -> void:
+	if _loading_label == null or _loading_character == null:
+		return
+	var font: Font = _loading_label.get_theme_font("font")
+	var font_size: int = 18
+	if font == null:
+		font = ThemeDB.fallback_font
+		font_size = ThemeDB.fallback_font_size
+	var ascent: float = font.get_ascent(font_size)
+	var character_bottom: float = LOADING_HOLDER_SIZE.y
+	if _loading_character.has_method("get_visual_bottom_y"):
+		character_bottom = float(_loading_character.call("get_visual_bottom_y"))
+	if character_bottom <= 1.0:
+		character_bottom = LOADING_HOLDER_SIZE.y
+	_loading_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	_loading_label.reset_size()
+	_loading_label.position = Vector2(
+		LOADING_HOLDER_SIZE.x + LOADING_LABEL_GAP_X,
+		character_bottom - ascent,
+	)
 
 
 func _start_loading_exit() -> void:

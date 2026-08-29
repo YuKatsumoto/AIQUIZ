@@ -61,13 +61,16 @@ var _barrier_drop_timer: float = 0.0
 var _barrier_spawned_for_session: bool = false  # 1ゲームに1回だけ
 const MAX_VISIBLE_WALLS := 4
 const PREVIEW_WALLS_PER_FRAME := 1
+const COVER_PREVIEW_WALLS_PER_FRAME := 2
 const PREVIEW_WALL_CONFIGS_PER_FRAME := 1
 const ONLINE_PREVIEW_WALL_PREWARM_FRAMES := 4
 const PREVIEW_WALL_DROP_START_Y := 46.0
 const PREVIEW_WALL_DROP_INTERVAL := 0.16
 const PREVIEW_WALL_DROP_DURATION := 0.28
 const PREVIEW_WALL_SETTLE_DURATION := 0.14
-const OFFLINE_TRANSITION_PREP_TIMEOUT_MSEC := 12000
+const OFFLINE_TRANSITION_PREP_TIMEOUT_MSEC := 20000
+const OFFLINE_QUIZ_WAIT_TIMEOUT_MSEC := 60000
+const OFFLINE_TRANSITION_SETTLE_FRAMES := 1
 const WORLD_VISUAL_PREP_MIN_MSEC := 800
 const WORLD_VISUAL_PREP_RENDER_FRAMES := 2
 
@@ -452,50 +455,21 @@ func _on_shark_attack_reached(player_index: int, shark: SharkSwimmer) -> void:
 	game_state.complete_ocean_shark_attack(player_index)
 
 
-## 重い表示系は黒画面内で予熱する。ヘリ投入が有効なときは準備画面を先に開示し、
-## 問題ロードと投入演出を並列化する。ヘリ資産がない場合は従来どおりロード完了を待つ。
+## 重い表示系は黒画面内で予熱する。オンラインでヘリ投入が有効なときは準備画面を先に開示し、
+## 問題ロードと投入演出を並列化する。オフラインは10問とステージ構築が完了してから開示する。
 func _reveal_after_transition() -> void:
 	if not SceneTransition.is_transitioning():
 		return
 	await _prepare_world_visuals_under_cover()
 	if not is_inside_tree():
 		return
-	# A valid arrival presentation owns the visible preparation window, so quiz
-	# generation and wall construction may continue behind it. The game-state
-	# WAITING_START gate supplies "load ready" while the director supplies
-	# "helicopters exited"; start input therefore requires both. If the product
-	# GLB is absent or invalid, retain the established cover-first loading path.
+	# Online helicopter arrival may own the visible preparation window so quiz
+	# generation continues behind it. Offline 10-question rounds must keep the
+	# black cover until every quiz and the world load are finished; wall drops
+	# still wait for the reveal wipe to complete.
 	var parallel_arrival_active := is_start_presentation_locked()
-	if _uses_offline_quiz_source() and not parallel_arrival_active:
-		var preparation_timed_out: bool = false
-		var deadline_msec: int = Time.get_ticks_msec() + OFFLINE_TRANSITION_PREP_TIMEOUT_MSEC
-		while is_inside_tree() and not _is_offline_transition_prepared():
-			if Time.get_ticks_msec() >= deadline_msec:
-				preparation_timed_out = true
-				push_warning(
-					"Offline transition preparation timed out after %.1f seconds "
-					+ "(state=%s, walls=%d, barrier_spawned=%s, barrier_dropping=%s)"
-					% [
-						OFFLINE_TRANSITION_PREP_TIMEOUT_MSEC / 1000.0,
-						game_state.game_state,
-						_pw_count,
-						str(_barrier_spawned_for_session),
-						str(_barrier_dropping),
-					]
-				)
-				break
-			await get_tree().process_frame
-		if not preparation_timed_out:
-			print(
-				"[GameWorld] Offline transition prepared under black cover: "
-				+ "state=%s walls=%d wall_drop_deferred=%s barrier_ready=%s"
-				% [
-					game_state.game_state,
-					_pw_count,
-					str(_should_defer_ten_wall_drop_until_reveal()),
-					str(_barrier_spawned_for_session and not _barrier_dropping),
-				]
-			)
+	if _uses_offline_quiz_source():
+		await _wait_for_offline_transition_ready()
 	elif parallel_arrival_active:
 		print("[GameWorld] Quiz preparation and helicopter arrival are running in parallel")
 	if is_inside_tree():
@@ -542,11 +516,13 @@ func _prepare_world_visuals_under_cover() -> void:
 	if not is_inside_tree():
 		return
 
-	var minimum_end_msec: int = _world_visual_prep_started_msec + WORLD_VISUAL_PREP_MIN_MSEC
-	while is_inside_tree() and Time.get_ticks_msec() < minimum_end_msec:
-		await get_tree().process_frame
-	if not is_inside_tree():
-		return
+	# オフラインは10問・壁の完了待ちがあるので、800msの下限パッドは重ねない。
+	if not _uses_offline_quiz_source():
+		var minimum_end_msec: int = _world_visual_prep_started_msec + WORLD_VISUAL_PREP_MIN_MSEC
+		while is_inside_tree() and Time.get_ticks_msec() < minimum_end_msec:
+			await get_tree().process_frame
+		if not is_inside_tree():
+			return
 
 	_world_visual_prep_report = _collect_world_visual_prep_report(player_controller)
 	_world_visual_prep_report["elapsed_msec"] = (
@@ -647,18 +623,98 @@ func _should_defer_ten_wall_drop_until_reveal() -> bool:
 	return (
 		_uses_offline_quiz_source()
 		and game_state != null
-		and game_state.mode == Constants.MODE_TEN
+		and game_state._is_fixed_count_mode()
 	)
+
+
+func _are_offline_quizzes_ready() -> bool:
+	if game_state == null:
+		return false
+	if game_state._is_fixed_count_mode():
+		if game_state.quiz_list.size() < game_state.target_count:
+			return false
+		for quiz_index: int in range(game_state.target_count):
+			var quiz: QuizItem = game_state.quiz_list[quiz_index]
+			if quiz == null or quiz.q.strip_edges().is_empty():
+				return false
+		return true
+	return game_state.quiz_list.size() >= 1
+
+
+func _wait_for_offline_transition_ready() -> void:
+	var quiz_deadline_msec: int = Time.get_ticks_msec() + OFFLINE_QUIZ_WAIT_TIMEOUT_MSEC
+	var prep_deadline_msec: int = -1
+	var preparation_timed_out: bool = false
+	while is_inside_tree() and not _is_offline_transition_prepared():
+		# 黒画面待ち中も壁を組み立てる。_process だけに頼ると
+		# 10枚目が残ったままタイムアウトすることがある。
+		_update_preview_walls(get_process_delta_time())
+		if _is_offline_transition_prepared():
+			break
+		var quizzes_ready: bool = _are_offline_quizzes_ready()
+		var now_msec: int = Time.get_ticks_msec()
+		if not quizzes_ready:
+			if now_msec >= quiz_deadline_msec:
+				preparation_timed_out = true
+				push_warning(
+					"Offline quiz wait timed out after %.1f seconds (state=%s, quizzes=%d/%d)"
+					% [
+						float(OFFLINE_QUIZ_WAIT_TIMEOUT_MSEC) / 1000.0,
+						str(game_state.game_state) if game_state else "none",
+						game_state.quiz_list.size() if game_state else 0,
+						game_state.target_count if game_state else 0,
+					]
+				)
+				break
+		else:
+			# 壁組み立ての時計は、10問が揃ってからだけ進める。
+			if prep_deadline_msec < 0:
+				prep_deadline_msec = now_msec + OFFLINE_TRANSITION_PREP_TIMEOUT_MSEC
+			elif now_msec >= prep_deadline_msec:
+				preparation_timed_out = true
+				push_warning(
+					"Offline transition preparation timed out after %.1f seconds (state=%s, walls=%d/%d, visual=%s, defer=%s)"
+					% [
+						float(OFFLINE_TRANSITION_PREP_TIMEOUT_MSEC) / 1000.0,
+						str(game_state.game_state),
+						_pw_count,
+						game_state.target_count,
+						str(_world_visual_prepared),
+						str(_should_defer_ten_wall_drop_until_reveal()),
+					]
+				)
+				break
+		await get_tree().process_frame
+	if not is_inside_tree():
+		return
+	for _settle_index: int in range(OFFLINE_TRANSITION_SETTLE_FRAMES):
+		if DisplayServer.get_name() == "headless":
+			await get_tree().process_frame
+		else:
+			await RenderingServer.frame_post_draw
+		if not is_inside_tree():
+			return
+	if not preparation_timed_out:
+		print(
+			"[GameWorld] Offline transition prepared under black cover: state=%s quizzes=%d walls=%d wall_drop_deferred=%s elapsed_msec=%d"
+			% [
+				str(game_state.game_state),
+				game_state.quiz_list.size(),
+				_pw_count,
+				str(_should_defer_ten_wall_drop_until_reveal()),
+				Time.get_ticks_msec() - _world_visual_prep_started_msec,
+			]
+		)
 
 
 func _is_offline_transition_prepared() -> bool:
 	if game_state == null or game_state.game_state != Constants.STATE_WAITING_START:
 		return false
+	if not _are_offline_quizzes_ready():
+		return false
 	var expected_wall_count: int
 	if game_state._is_fixed_count_mode():
-		if game_state.quiz_list.size() < game_state.target_count:
-			return false
-		expected_wall_count = maxi(game_state.target_count, game_state.quiz_list.size())
+		expected_wall_count = game_state.target_count
 	else:
 		expected_wall_count = maxi(30, game_state.quiz_list.size())
 	if _pw_count < expected_wall_count or _pw_anims.size() < expected_wall_count:
@@ -752,7 +808,7 @@ func _process(dt: float) -> void:
 		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 
 	# Update game state (host or offline only — client receives snapshots)
-	game_state.result_ceremony_enabled = not _is_online and not _replay_mode
+	game_state.result_ceremony_enabled = false
 	if not _is_client and not _replay_mode:
 		game_state.update(dt, axis_p1, axis_p2, jump_p1, jump_p2, emote_p1, emote_p2)
 	if _ghost_shark_ride_controller:
@@ -1010,8 +1066,13 @@ func _update_flyover() -> void:
 					wall_node.position = Vector3(0, 0, wz)
 					wall_container.add_child(wall_node)
 					_flyover_walls.append(wall_node)
+					var flyover_choices: int = game_state.num_choices_for_index(i)
 					if i < game_state.quiz_list.size() and wall_node.has_method("set_quiz"):
-						wall_node.set_quiz(game_state.quiz_list[i], game_state.num_choices)
+						wall_node.set_quiz(game_state.quiz_list[i], flyover_choices)
+					elif wall_node.has_method("set_quiz"):
+						wall_node.set_quiz(null, flyover_choices)
+					if wall_node.has_method("set_is_boss"):
+						wall_node.set_is_boss(game_state.is_boss_index(i))
 			# 全壁を可視化
 			for w: Node3D in _flyover_walls:
 				w.visible = true
@@ -1140,9 +1201,11 @@ func _update_walls() -> void:
 			wall_container.add_child(wall_node)
 			_active_walls.append(wall_node)
 
+			var wall_choices: int = game_state.num_choices_for_index(idx)
+			if wall_node.has_method("set_quiz"):
+				wall_node.set_quiz(null, wall_choices)
 			if wall_node.has_method("set_is_boss"):
-				var is_boss: bool = (idx == game_state.target_count - 1 and game_state.mode == Constants.MODE_TEN)
-				wall_node.set_is_boss(is_boss)
+				wall_node.set_is_boss(game_state.is_boss_index(idx))
 
 		# Also MUST update positions of existing walls because they slide!
 	for wall: Node3D in _active_walls:
@@ -1588,13 +1651,21 @@ func _update_preview_walls(dt: float) -> void:
 	# これにより最初のクイズが最奥、最後のクイズが最手前に出現
 	var is_endless: bool = not game_state._is_fixed_count_mode()
 	var total_expected: int = maxi(30 if is_endless else game_state.target_count, quiz_count)
-	# Build fixed-count walls before online questions arrive, then configure them
-	# separately so instancing, text upload, and impact never share one frame.
+	# 固定問数モードはオンライン問題の到着前から空の壁を分散構築する。
+	# 問題到着、壁生成、初回表示、着地VFXを別フレーム帯へ分けることで、
+	# 到着ごとのメインスレッド負荷が着地の瞬間へ集中しないようにする。
 	var target_pw_count: int = total_expected
 
 	# 10枚分のインスタンス化と問題文セットを同フレームに集中させない。
 	# 準備画面の裏で1枚ずつ分散し、落下演出の開始前に滑らかに組み立てる。
-	var walls_to_build: int = mini(PREVIEW_WALLS_PER_FRAME, target_pw_count - _pw_count)
+	# 黒画面中はスピナーが止まらない程度に2枚/フレームへ上げ、待ちを短縮する。
+	var walls_per_frame: int = PREVIEW_WALLS_PER_FRAME
+	if (
+		_should_defer_ten_wall_drop_until_reveal()
+		and SceneTransition.is_transitioning()
+	):
+		walls_per_frame = COVER_PREVIEW_WALLS_PER_FRAME
+	var walls_to_build: int = mini(walls_per_frame, target_pw_count - _pw_count)
 	for _build_index: int in range(walls_to_build):
 		# エンドレスは手前から奥へ、固定モードは逆マッピング（奥から手前へ）
 		var visual_idx: int = _pw_count if is_endless else (total_expected - 1 - _pw_count)
@@ -1608,7 +1679,7 @@ func _update_preview_walls(dt: float) -> void:
 		wall_container.add_child(wall_final)
 		_pw_walls.append(wall_final)
 
-		var preview_choices: int = game_state.num_choices
+		var preview_choices: int = game_state.num_choices_for_index(visual_idx)
 		if (
 			is_endless
 			and _pw_count < game_state.quiz_list.size()
@@ -1617,6 +1688,8 @@ func _update_preview_walls(dt: float) -> void:
 			wall_final.set_quiz(game_state.quiz_list[_pw_count], preview_choices)
 		elif wall_final.has_method("set_quiz"):
 			wall_final.set_quiz(null, preview_choices)
+		if wall_final.has_method("set_is_boss"):
+			wall_final.set_is_boss(game_state.is_boss_index(visual_idx))
 
 		# 新しい壁のアニメーション情報 — エンドレスは従来どおり即時配置する。
 		_pw_anims.append({
@@ -1635,8 +1708,8 @@ func _update_preview_walls(dt: float) -> void:
 
 		_pw_count += 1
 
-	# Configure at most one prepared wall per frame. Online walls receive extra
-	# render warm-up frames before their drop animation is allowed to start.
+	# 問題テキストの整形・Label3D更新も壁生成とは別フレームにする。
+	# オンラインではこの後さらに数フレーム置いてから落下を開始する。
 	var configs_remaining := PREVIEW_WALL_CONFIGS_PER_FRAME
 	while (
 		not is_endless
@@ -1646,8 +1719,10 @@ func _update_preview_walls(dt: float) -> void:
 	):
 		var config_index := _pw_configured_count
 		var configured_wall: Node3D = _pw_walls[config_index]
+		var configured_visual_index := int(configured_wall.get_meta("wall_index", config_index))
+		var configured_choices := game_state.num_choices_for_index(configured_visual_index)
 		if configured_wall.has_method("set_quiz"):
-			configured_wall.set_quiz(game_state.quiz_list[config_index], game_state.num_choices)
+			configured_wall.set_quiz(game_state.quiz_list[config_index], configured_choices)
 		_pw_anims[config_index]["configured"] = true
 		_pw_anims[config_index]["ready_frame"] = (
 			Engine.get_process_frames()
@@ -1676,7 +1751,7 @@ func _update_preview_walls(dt: float) -> void:
 				all_started = false
 				break
 		if not all_started:
-			# Never spend accumulated wait time by starting multiple walls in one frame.
+			# 到着待ち中に溜まった時間で複数枚を同一フレーム開始しない。
 			_pw_drop_timer = minf(
 				_pw_drop_timer + dt,
 				PREVIEW_WALL_DROP_INTERVAL

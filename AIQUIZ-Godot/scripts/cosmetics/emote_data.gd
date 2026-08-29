@@ -23,10 +23,12 @@ const EMOTE_HOUSE := 14
 const EMOTE_HIP_HOP_1 := 15
 const EMOTE_HEAD_SPINNING := 16
 const EMOTE_RUNNING_MAN := 17
+const EMOTE_HOKEY_POKEY := 18
+const EMOTE_WAVE_HIP_HOP := 19
 
-const EMOTE_COUNT := 18
+const EMOTE_COUNT := 20
 ## AnimationRig.EMOTE_RIG_SLOTS と同数（全ダンスFBXを同時ロードする上限）
-const MAX_EMOTES_ON_RIG := 18
+const MAX_EMOTES_ON_RIG := 20
 
 const THRILLER_PART_PATHS: Array[String] = [
 	"res://assets/animations/Thriller Part 1.fbx",
@@ -47,7 +49,7 @@ static func normalize_emote_id(emote_id: int) -> int:
 
 static func get_emote_list() -> Array[Dictionary]:
 	return [
-		{"id": EMOTE_NONE,          "name": "なし",               "icon": "—",  "desc": "微動だにしない強い意志"},
+		{"id": EMOTE_NONE,          "name": "なし",               "icon": "—",  "desc": "通常の立ち姿勢"},
 		{"id": EMOTE_STEP_HIP_HOP, "name": "ステップヒップホップ", "icon": "🕺", "desc": ""},
 		{"id": EMOTE_GANGNAM,      "name": "カンナムスタイル",         "icon": "🐴", "desc": ""},
 		{"id": EMOTE_SLIDE_HIP_HOP,"name": "スライドヒップホップ", "icon": "💃", "desc": ""},
@@ -67,6 +69,8 @@ static func get_emote_list() -> Array[Dictionary]:
 		{"id": EMOTE_HIP_HOP_1,    "name": "ヒップホップ2",        "icon": "🧢", "desc": ""},
 		{"id": EMOTE_HEAD_SPINNING,"name": "ヘッドスピン",         "icon": "🌀", "desc": "頭皮へのダメージは甚大"},
 		{"id": EMOTE_RUNNING_MAN,  "name": "ランニングマン",       "icon": "🏃‍♂️", "desc": ""},
+		{"id": EMOTE_HOKEY_POKEY,  "name": "ホーキーポーキー",     "icon": "🤲", "desc": ""},
+		{"id": EMOTE_WAVE_HIP_HOP, "name": "ウェーブヒップホップ", "icon": "🌊", "desc": ""},
 	]
 
 ## FBXパスのマッピング（IDからパスへ）
@@ -88,6 +92,8 @@ static func get_emote_fbx(emote_id: int) -> String:
 		EMOTE_HIP_HOP_1:     "res://assets/animations/Hip Hop Dancing (1).fbx",
 		EMOTE_HEAD_SPINNING: "res://assets/animations/Head Spinning.fbx",
 		EMOTE_RUNNING_MAN:   "res://assets/animations/Dancing Running Man.fbx",
+		EMOTE_HOKEY_POKEY:   "res://assets/animations/Hokey Pokey.fbx",
+		EMOTE_WAVE_HIP_HOP:  "res://assets/animations/Wave Hip Hop Dance.fbx",
 	}
 	return paths.get(id, "")
 

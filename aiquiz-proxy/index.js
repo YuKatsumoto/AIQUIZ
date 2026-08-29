@@ -1,8 +1,12 @@
 const express = require('express');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
+const { createQuizBankRouter } = require('./quiz-bank-service');
 
 const app = express();
+// Cloud Run terminates TLS one hop in front of the container. Trust exactly that
+// proxy so per-IP rate limiting uses the real client address.
+app.set('trust proxy', 1);
 app.use(cors());
 // すべてのリクエストボディをテキストとして受け取る
 app.use(express.text({ type: '*/*' }));
@@ -32,6 +36,9 @@ const apiLimiter = rateLimit({
     max: 30,             // 最大30リクエスト
     standardHeaders: true,
     legacyHeaders: false,
+    // Cloud Run also provides the standardized Forwarded header. req.ip is
+    // intentionally derived from X-Forwarded-For via trust proxy above.
+    validate: { forwardedHeader: false },
     message: { error: 'Too many requests. Please wait a moment.' }
 });
 
@@ -227,11 +234,23 @@ app.post('/gemini-stream', authMiddleware, apiLimiter, validateGeminiBody, async
     }
 });
 
+// ========================================
+// Firebase shared quiz bank
+// ========================================
+// Reads and writes stay behind the existing proxy authentication. The game never
+// receives Firebase Admin credentials and can keep using its last local snapshot
+// when this service is unreachable.
+app.use('/quiz-bank', authMiddleware, apiLimiter, createQuizBankRouter());
+
 app.get('/', (req, res) => {
-    res.send('AIQUIZ Proxy Server is running! (Secured v3)');
+    res.send('AIQUIZ Proxy Server is running! (Secured v4 + Quiz Bank)');
 });
 
 const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => {
-    console.log(`Proxy listening on port ${PORT} (secured)`);
-});
+if (require.main === module) {
+    app.listen(PORT, () => {
+        console.log(`Proxy listening on port ${PORT} (secured)`);
+    });
+}
+
+module.exports = { app, authMiddleware };

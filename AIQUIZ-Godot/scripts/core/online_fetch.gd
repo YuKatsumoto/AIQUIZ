@@ -175,7 +175,7 @@ func compose_prompt(subject: String, grade: int, difficulty: String, count: int,
 	prompt += "- 対象: 小学%d年生の%s\n" % [grade, subject]
 	prompt += "- 難易度: %s\n" % difficulty
 	prompt += "- 問題数: %d問\n" % count
-	prompt += "- 形式: 4択（推奨）または 2択\n"
+	prompt += "- 形式: 4択（推奨）または 2択。思考を要する問題は必ず4択にすること\n"
 	prompt += "- 問題文(q)は50文字以内に収めること。長い文章題でも簡潔に書くこと\n"
 	if defer_explanations:
 		prompt += "- 生成速度を優先するため解説文(e)は空文字列にすること。解説はゲーム側で後から補充する\n"
@@ -295,7 +295,7 @@ func compose_prompt(subject: String, grade: int, difficulty: String, count: int,
 	prompt += "- 担当単元の割当を守りつつ、%d問すべてで問う知識・解法・問題形式を変えること。\n" % count
 	prompt += "- 計算問題・知識問題・思考問題をバランスよく混ぜること\n"
 	prompt += "- 正解の位置(a)を0〜3で均等に散らすこと（全部0や全部1にしない）\n"
-	prompt += "- 4択と2択を任意に混ぜて出題すること\n"
+	prompt += "- 4択と2択を混ぜてよいが、4択を優先し、特に難しい問題は必ず4択にすること\n"
 	if history.size() > 0:
 		prompt += "- 【出題済みリスト】以下の問題は既に出題済みなので、同じ問題・類似の問題は絶対に出さないこと:\n"
 		var tail := QuizDedup.tail_texts(history, QuizDedup.PROMPT_HISTORY_MAX)
@@ -1032,10 +1032,17 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 	# ストリーミング・通常応答の両方が必ず通る共通の新規性ゲート。
 	# Dictionary は参照共有されるため、並列バッチ間でも unique_seen / answer_seen が維持される。
 	var _filter_batch = func(items: Array[QuizItem], batch_units: PackedStringArray = PackedStringArray()) -> Array[QuizItem]:
-		return _filter_unique_candidates(
+		var unique_items: Array[QuizItem] = _filter_unique_candidates(
 			items, dedup_blocklist, semantic_blocklist,
 			unique_seen, answer_seen, batch_units, subject
 		)
+		# Archive every structurally valid, deduplicated generated candidate before
+		# BufferedQuizProvider decides whether it fits this round's genre/novelty mix.
+		if not unique_items.is_empty() and QuizManager.firebase_quiz_cache != null:
+			QuizManager.firebase_quiz_cache.queue_candidates(
+				unique_items, subject, grade, difficulty
+			)
+		return unique_items
 	
 	# ── 共通コールバック ──
 	var _make_on_complete = func(expected_ref: Array, completed_ref: Array, batch_units: PackedStringArray = PackedStringArray()) -> Callable:

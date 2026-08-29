@@ -7,29 +7,39 @@ const ToonPresets = preload("res://scripts/cosmetics/character_toon_presets.gd")
 const BASE_Y: float = -1.2
 
 
+static func mixamo_bone_prefix(skeleton: Skeleton3D) -> String:
+	if skeleton == null:
+		return ""
+	for i in range(skeleton.get_bone_count()):
+		var bone_name := skeleton.get_bone_name(i)
+		if bone_name.ends_with("Hips") and bone_name.contains("mixamorig"):
+			return bone_name.substr(0, bone_name.length() - 4)
+	return ""
+
+
 static func map_mixamo_bones(skeleton: Skeleton3D) -> Dictionary:
 	var bone_indices := {}
 	if not skeleton:
 		return bone_indices
 	var candidates: Dictionary = {
-		"hips": ["Hips", "mixamorig:Hips"],
-		"spine": ["Spine1", "mixamorig:Spine1", "Spine", "mixamorig:Spine"],
-		"neck": ["Neck", "mixamorig:Neck"],
-		"head": ["Head", "mixamorig:Head"],
-		"l_upper_arm": ["LeftUpperArm", "mixamorig:LeftArm"],
-		"l_lower_arm": ["LeftLowerArm", "mixamorig:LeftForeArm"],
-		"l_hand": ["LeftHand", "mixamorig:LeftHand"],
-		"r_upper_arm": ["RightUpperArm", "mixamorig:RightArm"],
-		"r_lower_arm": ["RightLowerArm", "mixamorig:RightForeArm"],
-		"r_hand": ["RightHand", "mixamorig:RightHand"],
-		"l_upper_leg": ["LeftUpperLeg", "mixamorig:LeftUpLeg"],
-		"l_lower_leg": ["LeftLowerLeg", "mixamorig:LeftLeg"],
-		"l_foot": ["LeftFoot", "mixamorig:LeftFoot"],
-		"l_toe": ["LeftToeBase", "mixamorig:LeftToeBase"],
-		"r_upper_leg": ["RightUpperLeg", "mixamorig:RightUpLeg"],
-		"r_lower_leg": ["RightLowerLeg", "mixamorig:RightLeg"],
-		"r_foot": ["RightFoot", "mixamorig:RightFoot"],
-		"r_toe": ["RightToeBase", "mixamorig:RightToeBase"],
+		"hips": ["Hips", "mixamorig:Hips", "mixamorig_Hips"],
+		"spine": ["Spine1", "mixamorig:Spine1", "Spine", "mixamorig:Spine", "mixamorig_Spine1", "mixamorig_Spine"],
+		"neck": ["Neck", "mixamorig:Neck", "mixamorig_Neck"],
+		"head": ["Head", "mixamorig:Head", "mixamorig_Head"],
+		"l_upper_arm": ["LeftUpperArm", "mixamorig:LeftArm", "mixamorig_LeftArm"],
+		"l_lower_arm": ["LeftLowerArm", "mixamorig:LeftForeArm", "mixamorig_LeftForeArm"],
+		"l_hand": ["LeftHand", "mixamorig:LeftHand", "mixamorig_LeftHand"],
+		"r_upper_arm": ["RightUpperArm", "mixamorig:RightArm", "mixamorig_RightArm"],
+		"r_lower_arm": ["RightLowerArm", "mixamorig:RightForeArm", "mixamorig_RightForeArm"],
+		"r_hand": ["RightHand", "mixamorig:RightHand", "mixamorig_RightHand"],
+		"l_upper_leg": ["LeftUpperLeg", "mixamorig:LeftUpLeg", "mixamorig_LeftUpLeg"],
+		"l_lower_leg": ["LeftLowerLeg", "mixamorig:LeftLeg", "mixamorig_LeftLeg"],
+		"l_foot": ["LeftFoot", "mixamorig:LeftFoot", "mixamorig_LeftFoot"],
+		"l_toe": ["LeftToeBase", "mixamorig:LeftToeBase", "mixamorig_LeftToeBase"],
+		"r_upper_leg": ["RightUpperLeg", "mixamorig:RightUpLeg", "mixamorig_RightUpLeg"],
+		"r_lower_leg": ["RightLowerLeg", "mixamorig:RightLeg", "mixamorig_RightLeg"],
+		"r_foot": ["RightFoot", "mixamorig:RightFoot", "mixamorig_RightFoot"],
+		"r_toe": ["RightToeBase", "mixamorig:RightToeBase", "mixamorig_RightToeBase"],
 		"l_thumb_prox": ["LeftThumbMetacarpal", "mixamorig:LeftHandThumb1", "mixamorig_LeftHandThumb1", "LeftHandThumb1"],
 		"l_thumb_dist": ["LeftThumbProximal", "mixamorig:LeftHandThumb2", "mixamorig_LeftHandThumb2", "LeftHandThumb2"],
 		"l_index_prox": ["LeftIndexProximal", "mixamorig:LeftHandIndex1", "mixamorig_LeftHandIndex1", "LeftHandIndex1"],
@@ -59,9 +69,16 @@ static func map_mixamo_bones(skeleton: Skeleton3D) -> Dictionary:
 		"r_pinky_mid": ["RightLittleIntermediate", "mixamorig:RightHandPinky2", "mixamorig_RightHandPinky2", "RightHandPinky2"],
 		"r_pinky_dist": ["RightLittleDistal", "mixamorig:RightHandPinky3", "mixamorig_RightHandPinky3", "RightHandPinky3"],
 	}
+	var prefix := mixamo_bone_prefix(skeleton)
 	for key in candidates.keys():
 		for cand in candidates[key]:
 			var idx := skeleton.find_bone(cand)
+			if idx == -1 and not prefix.is_empty():
+				var cand_name := str(cand)
+				if cand_name.begins_with("mixamorig_"):
+					idx = skeleton.find_bone(prefix + cand_name.substr("mixamorig_".length()))
+				elif cand_name.begins_with("mixamorig:"):
+					idx = skeleton.find_bone(prefix + cand_name.substr("mixamorig:".length()))
 			if idx != -1:
 				bone_indices[key] = idx
 				break
