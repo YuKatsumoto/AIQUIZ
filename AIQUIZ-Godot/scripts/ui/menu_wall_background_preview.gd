@@ -505,7 +505,10 @@ func _build_3d_scene() -> void:
 	if _preview_player and _preview_player.has_method("update_from_state"):
 		_preview_player.update_from_state(_preview_gs)
 	_sync_preview_player_cosmetics(true)
-	_begin_menu_helicopter_intro()
+	# メニュー初回表示はキャラクターを配置済みの状態から始める。
+	# ヘリ到着・ラグドール降下を生成せず、通常のプレビューをすぐ動かす。
+	_menu_intro_active = true
+	_finish_menu_helicopter_intro(true)
 
 
 func _begin_menu_helicopter_intro() -> void:
@@ -590,13 +593,31 @@ func begin_game_start_departure(player_count: int) -> bool:
 	_menu_start_departure_active = true
 	_menu_synced_player_count = count
 	_preview_gs.num_players = count
+	# Always begin the cinematic from a readable, grounded runner pose.  The
+	# ambient menu AI may have been emoting, airborne, or recovering from an
+	# accident when Start was pressed; carrying that pose into the suction made
+	# the hand-off look like a pop rather than an intentional pickup.
+	_preview_gs.p1_alive = true
+	_preview_gs.p1_waiting_for_shark = false
+	_preview_gs.p1_wall_impact = false
+	_preview_gs.player_y = 0.0
+	_preview_gs.player_vel_y = 0.0
 	_preview_gs.p1_emote = 0
 	_preview_gs.p1_jump_trigger = false
 	if count >= 2:
 		_preview_gs.p2_alive = true
+		_preview_gs.p2_waiting_for_shark = false
+		_preview_gs.p2_wall_impact = false
+		_preview_gs.player2_y = 0.0
+		_preview_gs.player2_vel_y = 0.0
 		_preview_gs.p2_emote = 0
 		_preview_gs.p2_jump_trigger = false
 	_pause_preview_conveyor()
+	_preview_gs._active_wall_speed = 0.0
+	_preview_player.update_from_state(_preview_gs)
+	if _preview_player.has_method("prepare_intro_pickup_pose"):
+		_preview_player.call("prepare_intro_pickup_pose", count)
+	_force_preview_player_facing_away()
 	_menu_start_departure = HelicopterArrivalDirectorScript.new() as HelicopterArrivalDirector
 	_menu_start_departure.name = "MenuHelicopterStartDepartureDirector"
 	_menu_start_departure.presentation_finished.connect(_on_game_start_departure_finished)

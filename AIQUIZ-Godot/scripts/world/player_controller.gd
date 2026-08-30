@@ -40,6 +40,7 @@ const INTRO_SETTLE_HOLD := 0.25
 const INTRO_GET_UP_DELAY := 2.00
 const INTRO_GET_UP_DURATION := 2.20
 const INTRO_READY_RUN_POSE_RATIO := 0.32
+const INTRO_SUCTION_CAPTURE_DISTANCE := 1.05
 const RagdollBuilderScript = preload("res://scripts/world/ragdoll_builder.gd")
 const ActiveRagdollDriverScript = preload("res://scripts/world/active_ragdoll_driver.gd")
 const GHOST_MOUNT_ANIMATION_PATH := "res://assets/animations/Ghost Shark Mount.fbx"
@@ -64,6 +65,8 @@ var _p2_driver: ActiveRagdollDriver = null
 var _intro_ragdolls: Dictionary = {}
 var _intro_hat_restore: Dictionary = {}
 var _intro_pending_players: Dictionary = {}
+## Menu departure only: procedural player parts are posed against a live rope rung.
+var _intro_ladder_grabs: Dictionary = {}
 ## Menu extraction hides the standing runners until the scene leaves.
 var _intro_extracted := false
 
@@ -696,8 +699,236 @@ func has_intro_arrival() -> bool:
 	return (
 		_intro_extracted
 		or not _intro_pending_players.is_empty()
+		or not _intro_ladder_grabs.is_empty()
 		or has_intro_drops()
 	)
+
+
+## Locks the menu runners to a deliberate run-ready silhouette before the
+## helicopter arrives.  This prevents a random ambient emote from becoming the
+## first frame of the extraction ragdoll.
+func prepare_intro_pickup_pose(player_count: int) -> void:
+	var count := clampi(player_count, 1, 2)
+	for player_index: int in range(1, count + 1):
+		var parts: Dictionary = p1_parts if player_index == 1 else p2_parts
+		_apply_intro_ready_run_pose(player_index, parts)
+
+
+## Starts the CC0 reach motion without replacing the visible character with a
+## ragdoll. The final hand positions are solved against the actual physics rung.
+func begin_intro_ladder_grab(player_index: int) -> bool:
+	if player_index not in [1, 2]:
+		return false
+	if _intro_ladder_grabs.has(player_index):
+		return true
+	var parts: Dictionary = p1_parts if player_index == 1 else p2_parts
+	var pelvis := parts.get("pelvis") as Node3D
+	var rig := _p1_rig if player_index == 1 else _p2_rig
+	if pelvis == null or not is_instance_valid(pelvis):
+		return false
+	var source_ready := rig.play_slot(AnimationRig.SLOT_LADDER_GRAB, true)
+	_intro_ladder_grabs[player_index] = {
+		"start_transform": pelvis.global_transform,
+		"progress": 0.0,
+		"max_hand_error": INF,
+		"source_animation": "Interact" if source_ready else "procedural_fallback",
+		"source_ready": source_ready,
+	}
+	_set_parts_visible(parts, true)
+	_set_hat_visible(player_index == 1, true)
+	_set_rig_scenes_visible(player_index == 1, false)
+	return true
+
+
+## Drives the torso onto a moving rung, then analytically places both arms so
+## the wrists stay locked to the wood while the rope continues simulating.
+func update_intro_ladder_grab(
+	player_index: int,
+	grip_data: Dictionary,
+	progress: float,
+	_delta: float
+) -> bool:
+	if not _intro_ladder_grabs.has(player_index) or not bool(grip_data.get("valid", false)):
+		return false
+	var parts: Dictionary = p1_parts if player_index == 1 else p2_parts
+	var pelvis := parts.get("pelvis") as Node3D
+	if pelvis == null or not is_instance_valid(pelvis):
+		return false
+	var state: Dictionary = _intro_ladder_grabs[player_index]
+	var rig := _p1_rig if player_index == 1 else _p2_rig
+	var grab_progress := clampf(progress, 0.0, 1.0)
+	if bool(state.get("source_ready", false)):
+		var ap := rig.aps[AnimationRig.SLOT_LADDER_GRAB] as AnimationPlayer
+		var anim_name := String(rig.anim_names[AnimationRig.SLOT_LADDER_GRAB])
+		if ap != null and not anim_name.is_empty():
+			var animation := ap.get_animation(anim_name)
+			if animation != null:
+				# Use the anticipation and reach portion of the downloaded Interact clip;
+				# the final contact is held while analytical IK follows the physical rung.
+				var source_ratio := lerpf(0.06, 0.70, smoothstep(0.0, 0.82, grab_progress))
+				ap.seek(animation.length * source_ratio, true, true)
+				_apply_skeleton_pose(
+					parts,
+					rig.active_skeleton,
+					rig.active_bone_indices,
+					rig.mirror_x
+				)
+	else:
+		_apply_intro_ready_run_pose(player_index, parts)
+
+	var rung_center: Vector3 = grip_data.get("center", pelvis.global_position + Vector3.UP)
+	var horizontal: Vector3 = grip_data.get("horizontal", Vector3.RIGHT)
+	var forward: Vector3 = grip_data.get("forward", Vector3.FORWARD)
+	if horizontal.length_squared() <= 0.0001:
+		horizontal = Vector3.RIGHT
+	if forward.length_squared() <= 0.0001:
+		forward = Vector3.FORWARD
+	horizontal = horizontal.normalized()
+	forward = forward.normalized()
+	var target_basis := _intro_ladder_body_basis(horizontal, forward)
+	var target_origin := rung_center + Vector3.DOWN * 1.18 - forward * 0.12
+	var start_transform: Transform3D = state.get("start_transform", pelvis.global_transform)
+	var travel := smoothstep(0.0, 1.0, grab_progress)
+	var target_transform := Transform3D(target_basis, target_origin)
+	var posed_transform := start_transform.interpolate_with(target_transform, travel)
+	# A compact upward hop gives the reach physical intention; it settles exactly
+	# onto the rung before the helicopter loads the ladder.
+	posed_transform.origin += Vector3.UP * sin(grab_progress * PI) * 0.34
+	pelvis.global_transform = posed_transform
+	# Imported skeleton proportions differ from the procedural avatar. Re-anchor
+	# from the *rendered* shoulder midpoint so both 40 cm arms can truly reach the
+	# rung instead of merely pointing at it from an unreachable torso position.
+	var left_shoulder := parts.get("l_shoulder") as Node3D
+	var right_shoulder := parts.get("r_shoulder") as Node3D
+	if left_shoulder != null and right_shoulder != null:
+		var shoulder_midpoint := (left_shoulder.global_position + right_shoulder.global_position) * 0.5
+		var desired_shoulder_midpoint := rung_center + Vector3.DOWN * 0.30 - forward * 0.12
+		pelvis.global_position += (desired_shoulder_midpoint - shoulder_midpoint) * travel
+
+	var left_target: Vector3 = grip_data.get("left_hand", rung_center - horizontal * 0.42)
+	var right_target: Vector3 = grip_data.get("right_hand", rung_center + horizontal * 0.42)
+	var ik_weight := smoothstep(0.34, 0.82, grab_progress)
+	_solve_intro_ladder_arm(parts, true, left_target, horizontal, forward, ik_weight)
+	_solve_intro_ladder_arm(parts, false, right_target, horizontal, forward, ik_weight)
+	_apply_intro_ladder_secondary_pose(parts, grab_progress, forward)
+
+	var left_wrist := parts.get("l_wrist") as Node3D
+	var right_wrist := parts.get("r_wrist") as Node3D
+	var left_error := left_wrist.global_position.distance_to(left_target) if left_wrist != null else INF
+	var right_error := right_wrist.global_position.distance_to(right_target) if right_wrist != null else INF
+	state["progress"] = grab_progress
+	state["max_hand_error"] = maxf(left_error, right_error)
+	state["rung_position"] = rung_center
+	state["character_position"] = pelvis.global_position
+	_intro_ladder_grabs[player_index] = state
+	return true
+
+
+func get_intro_ladder_grab_state(player_index: int) -> Dictionary:
+	if not _intro_ladder_grabs.has(player_index):
+		return {"active": false}
+	var state: Dictionary = _intro_ladder_grabs[player_index]
+	return {
+		"active": true,
+		"progress": float(state.get("progress", 0.0)),
+		"max_hand_error": float(state.get("max_hand_error", INF)),
+		"source_animation": String(state.get("source_animation", "")),
+		"source_ready": bool(state.get("source_ready", false)),
+		"rung_position": state.get("rung_position", Vector3.ZERO),
+		"character_position": state.get("character_position", Vector3.ZERO),
+	}
+
+
+func _intro_ladder_body_basis(horizontal: Vector3, forward: Vector3) -> Basis:
+	var right := horizontal.normalized()
+	var back := -forward.normalized()
+	var up := back.cross(right)
+	if up.length_squared() <= 0.0001:
+		up = Vector3.UP
+	else:
+		up = up.normalized()
+	back = right.cross(up).normalized()
+	return Basis(right, up, back).orthonormalized()
+
+
+func _solve_intro_ladder_arm(
+	parts: Dictionary,
+	is_left: bool,
+	target: Vector3,
+	horizontal: Vector3,
+	forward: Vector3,
+	weight: float
+) -> void:
+	var prefix := "l_" if is_left else "r_"
+	var shoulder := parts.get(prefix + "shoulder") as Node3D
+	var elbow := parts.get(prefix + "elbow") as Node3D
+	var wrist := parts.get(prefix + "wrist") as Node3D
+	if shoulder == null or elbow == null or wrist == null:
+		return
+	var shoulder_position := shoulder.global_position
+	var reach := target - shoulder_position
+	var distance := clampf(reach.length(), 0.08, 0.785)
+	var direction := reach.normalized() if reach.length_squared() > 0.0001 else Vector3.UP
+	var half_distance := distance * 0.5
+	var bend_height := sqrt(maxf(0.40 * 0.40 - half_distance * half_distance, 0.0))
+	var bend_hint := forward + Vector3.DOWN * 0.18
+	bend_hint -= direction * bend_hint.dot(direction)
+	if bend_hint.length_squared() <= 0.0001:
+		bend_hint = horizontal
+	bend_hint = bend_hint.normalized()
+	var solved_elbow := shoulder_position + direction * half_distance + bend_hint * bend_height
+	var upper_direction := (solved_elbow - shoulder_position).normalized()
+	var lower_direction := (target - solved_elbow).normalized()
+	var shoulder_basis := _basis_with_negative_y(upper_direction, horizontal)
+	shoulder.global_basis = shoulder.global_basis.slerp(shoulder_basis, weight)
+	var elbow_basis := _basis_with_negative_y(lower_direction, horizontal)
+	elbow.global_basis = elbow.global_basis.slerp(elbow_basis, weight)
+	var hand_basis := _basis_with_negative_y(-forward, horizontal)
+	wrist.global_basis = wrist.global_basis.slerp(hand_basis, weight)
+
+
+func _basis_with_negative_y(direction: Vector3, reference_x: Vector3) -> Basis:
+	var y_axis := -direction.normalized()
+	var x_axis := reference_x - y_axis * reference_x.dot(y_axis)
+	if x_axis.length_squared() <= 0.0001:
+		x_axis = y_axis.cross(Vector3.FORWARD)
+	if x_axis.length_squared() <= 0.0001:
+		x_axis = Vector3.RIGHT
+	x_axis = x_axis.normalized()
+	var z_axis := x_axis.cross(y_axis).normalized()
+	x_axis = y_axis.cross(z_axis).normalized()
+	return Basis(x_axis, y_axis, z_axis).orthonormalized()
+
+
+func _apply_intro_ladder_secondary_pose(parts: Dictionary, progress: float, _forward: Vector3) -> void:
+	var contact := smoothstep(0.48, 0.90, progress)
+	var sway := sin(_time * 3.1) * 0.11 * contact
+	var spine := parts.get("spine") as Node3D
+	var neck := parts.get("neck") as Node3D
+	if spine != null:
+		spine.rotation.x = lerpf(spine.rotation.x, deg_to_rad(-12.0) + sway, contact)
+	if neck != null:
+		neck.rotation.x = lerpf(neck.rotation.x, deg_to_rad(9.0), contact)
+	for side_data: Array in [["l_", -1.0], ["r_", 1.0]]:
+		var prefix: String = side_data[0]
+		var side: float = side_data[1]
+		var hip := parts.get(prefix + "hip") as Node3D
+		var knee := parts.get(prefix + "knee") as Node3D
+		var ankle := parts.get(prefix + "ankle") as Node3D
+		if hip != null:
+			hip.rotation = hip.rotation.lerp(Vector3(deg_to_rad(18.0), 0.0, side * 0.11 + sway), contact)
+		if knee != null:
+			knee.rotation.x = lerpf(knee.rotation.x, deg_to_rad(-34.0), contact)
+		if ankle != null:
+			ankle.rotation.x = lerpf(ankle.rotation.x, deg_to_rad(14.0), contact)
+		for finger_name: String in ["index", "middle", "ring", "pinky"]:
+			for segment: String in ["prox", "mid", "dist"]:
+				var finger := parts.get(prefix + finger_name + "_" + segment) as Node3D
+				if finger != null:
+					finger.rotation.x = lerpf(finger.rotation.x, deg_to_rad(-72.0), contact)
+		var thumb := parts.get(prefix + "thumb_dist") as Node3D
+		if thumb != null:
+			thumb.rotation.x = lerpf(thumb.rotation.x, deg_to_rad(-48.0), contact)
 
 
 ## Turns the visible menu runner into the same fully physical ragdoll used by
@@ -735,14 +966,19 @@ func update_intro_suction(
 
 	var pickup_progress := clampf(progress, 0.0, 1.0)
 	var to_target := target_position - torso.global_position
-	var maximum_speed := lerpf(5.5, 17.0, pickup_progress)
-	var desired_velocity := to_target * lerpf(4.2, 8.5, pickup_progress)
+	# The first beat gently unweights the character, the middle carries the
+	# body, and the final beat brakes into the hatch.  A single ever-increasing
+	# speed made the old pickup read as a launch rather than suction.
+	var capture_brake := smoothstep(0.78, 1.0, pickup_progress)
+	var maximum_speed := lerpf(3.2, 13.5, smoothstep(0.0, 0.72, pickup_progress))
+	maximum_speed *= lerpf(1.0, 0.62, capture_brake)
+	var desired_velocity := to_target * lerpf(3.2, 7.6, pickup_progress)
 	if desired_velocity.length() > maximum_speed:
 		desired_velocity = desired_velocity.normalized() * maximum_speed
-	var blend_weight := clampf(delta * lerpf(4.0, 10.0, pickup_progress), 0.0, 1.0)
-	var swirl_phase := _time * 5.4 + float(player_index) * 1.7
-	var swirl := Vector3(cos(swirl_phase), 0.0, sin(swirl_phase)) * (
-		0.55 * sin(pickup_progress * PI)
+	var blend_weight := clampf(delta * lerpf(3.2, 8.5, pickup_progress), 0.0, 1.0)
+	var swirl_phase := _time * 4.6 + float(player_index) * 1.7
+	var swirl := Vector3(cos(swirl_phase), 0.18, sin(swirl_phase)) * (
+		0.40 * sin(pickup_progress * PI)
 	)
 
 	for key: Variant in bodies:
@@ -753,25 +989,46 @@ func update_intro_suction(
 			continue
 		body.freeze = false
 		body.sleeping = false
-		body.gravity_scale = lerpf(0.72, 0.0, pickup_progress)
-		body.linear_damp = lerpf(0.45, 2.8, pickup_progress)
-		body.angular_damp = lerpf(0.35, 1.4, pickup_progress)
+		body.gravity_scale = lerpf(0.82, 0.0, smoothstep(0.0, 0.48, pickup_progress))
+		body.linear_damp = lerpf(0.55, 3.4, pickup_progress)
+		body.angular_damp = lerpf(0.55, 2.2, pickup_progress)
 		body.collision_layer = 0
-		body.collision_mask = 1 if pickup_progress < 0.10 else 0
-		var limb_scale := 0.45 if str(key) == "torso" else 1.0
+		body.collision_mask = 1 if pickup_progress < 0.16 else 0
+		var is_torso := str(key) == "torso"
+		var swirl_scale := 0.35 if is_torso else 1.0
+		var follow_weight := blend_weight if is_torso else blend_weight * lerpf(
+			0.52,
+			0.92,
+			pickup_progress
+		)
 		body.linear_velocity = body.linear_velocity.lerp(
-			desired_velocity + swirl * limb_scale,
-			blend_weight
+			desired_velocity + swirl * swirl_scale,
+			follow_weight
 		)
 		body.angular_velocity = body.angular_velocity.lerp(
 			Vector3(
-				sin(swirl_phase + float(str(key).hash() % 7)) * 2.2,
-				cos(swirl_phase * 0.73) * 1.5,
-				(-1.0 if player_index == 1 else 1.0) * 2.0,
-			) * (1.0 - pickup_progress * 0.55),
-			blend_weight * 0.55
+				sin(swirl_phase + float(str(key).hash() % 7)) * 1.35,
+				cos(swirl_phase * 0.73) * 0.95,
+				(-1.0 if player_index == 1 else 1.0) * 1.20,
+			) * (1.0 - pickup_progress * 0.72),
+			follow_weight * 0.48
 		)
 	return true
+
+
+func get_intro_suction_state(player_index: int, target_position: Vector3) -> Dictionary:
+	var ragdoll: Dictionary = _intro_ragdolls.get(player_index, {})
+	var rag: Dictionary = ragdoll.get("rag", {})
+	var bodies: Dictionary = rag.get("bodies", {})
+	var torso := bodies.get("torso") as RigidBody3D
+	if torso == null or not is_instance_valid(torso):
+		return {"active": false, "distance": INF, "capturable": false}
+	var distance := torso.global_position.distance_to(target_position)
+	return {
+		"active": true,
+		"distance": distance,
+		"capturable": distance <= INTRO_SUCTION_CAPTURE_DISTANCE,
+	}
 
 
 func set_intro_ragdoll_visible(player_index: int, should_show: bool) -> void:
@@ -821,6 +1078,10 @@ func cancel_intro_drops() -> void:
 
 func _cleanup_intro_drops(restore_visuals: bool = true) -> void:
 	_intro_pending_players.clear()
+	if not _intro_ladder_grabs.is_empty():
+		_p1_rig.stop_all()
+		_p2_rig.stop_all()
+	_intro_ladder_grabs.clear()
 	for player_index: Variant in _intro_hat_restore.keys():
 		var restore: Dictionary = _intro_hat_restore[player_index]
 		var hat := restore.get("hat") as Node3D
@@ -1138,7 +1399,9 @@ func _load_fbx_scene(path: String, node_name: String) -> Variant:
 		node.queue_free()
 		return null
 	
-	# 譛繧ゅヨ繝ｩ繝・け謨ｰ縺ｮ螟壹＞繧｢繝九Γ繝ｼ繧ｷ繝ｧ繝ｳ縲√∪縺溘・ "mixamo_com" 繧呈ｭ｣隗｣縺ｨ縺吶ｋ
+	# Dedicated ladder rigs select the authored CC0 Interact clip. Other rigs keep
+	# the established Mixamo/highest-track selection contract.
+	var preferred_animation := "Interact" if node_name.ends_with("LadderGrabRig") else ""
 	var anim_name := ""
 	var max_tracks := -1
 	for lib_name in ap.get_animation_library_list():
@@ -1147,12 +1410,16 @@ func _load_fbx_scene(path: String, node_name: String) -> Variant:
 			var full: String = ("%s/%s" % [lib_name, a_name]) if not String(lib_name).is_empty() else String(a_name)
 			var anim = lib.get_animation(a_name)
 			var tracks_count = anim.get_track_count()
-			print("[RIG]   [", node_name, "] Anim: ", full, " (tracks: ", tracks_count, ", len: ", anim.length, ")")
+			if preferred_animation.is_empty() or String(a_name) == preferred_animation:
+				print("[RIG]   [", node_name, "] Anim: ", full, " (tracks: ", tracks_count, ", len: ", anim.length, ")")
 			
-			if "mixamo_com" in a_name:
+			if not preferred_animation.is_empty() and String(a_name) == preferred_animation:
+				anim_name = full
+				max_tracks = 10000
+			elif max_tracks < 10000 and "mixamo_com" in a_name:
 				anim_name = full
 				max_tracks = 9999 # 蠑ｷ蛻ｶ逧・↓譛蜆ｪ蜈・
-			elif tracks_count > max_tracks:
+			elif max_tracks < 9999 and tracks_count > max_tracks:
 				max_tracks = tracks_count
 				if anim_name == "" or not ("mixamo_com" in anim_name):
 					anim_name = full
@@ -1178,56 +1445,56 @@ func _load_fbx_scene(path: String, node_name: String) -> Variant:
 	# 鬪ｨ繧､繝ｳ繝・ャ繧ｯ繧ｹ繧偵く繝｣繝・す繝･
 	var bone_indices := {}
 	var candidates: Dictionary = {
-		"hips": ["Hips", "mixamorig:Hips", "mixamorig_Hips"],
-		"spine": ["Spine1", "mixamorig:Spine1", "Spine", "mixamorig:Spine", "mixamorig_Spine1", "mixamorig_Spine"],
-		"neck": ["Neck", "mixamorig:Neck", "mixamorig_Neck"],
+		"hips": ["Hips", "mixamorig:Hips", "mixamorig_Hips", "pelvis"],
+		"spine": ["Spine1", "mixamorig:Spine1", "Spine", "mixamorig:Spine", "mixamorig_Spine1", "mixamorig_Spine", "spine_02", "spine_01"],
+		"neck": ["Neck", "mixamorig:Neck", "mixamorig_Neck", "neck_01"],
 		"head": ["Head", "mixamorig:Head", "mixamorig_Head"],
-		"l_upper_arm": ["LeftUpperArm", "mixamorig:LeftArm", "mixamorig_LeftArm"],
-		"l_lower_arm": ["LeftLowerArm", "mixamorig:LeftForeArm", "mixamorig_LeftForeArm"],
-		"l_hand": ["LeftHand", "mixamorig:LeftHand", "mixamorig_LeftHand"],
-		"r_upper_arm": ["RightUpperArm", "mixamorig:RightArm", "mixamorig_RightArm"],
-		"r_lower_arm": ["RightLowerArm", "mixamorig:RightForeArm", "mixamorig_RightForeArm"],
-		"r_hand": ["RightHand", "mixamorig:RightHand", "mixamorig_RightHand"],
-		"l_upper_leg": ["LeftUpperLeg", "mixamorig:LeftUpLeg", "mixamorig_LeftUpLeg"],
-		"l_lower_leg": ["LeftLowerLeg", "mixamorig:LeftLeg", "mixamorig_LeftLeg"],
-		"l_foot": ["LeftFoot", "mixamorig:LeftFoot", "mixamorig_LeftFoot"],
-		"l_toe": ["LeftToeBase", "mixamorig:LeftToeBase", "mixamorig_LeftToeBase"],
-		"r_upper_leg": ["RightUpperLeg", "mixamorig:RightUpLeg", "mixamorig_RightUpLeg"],
-		"r_lower_leg": ["RightLowerLeg", "mixamorig:RightLeg", "mixamorig_RightLeg"],
-		"r_foot": ["RightFoot", "mixamorig:RightFoot", "mixamorig_RightFoot"],
-		"r_toe": ["RightToeBase", "mixamorig:RightToeBase", "mixamorig_RightToeBase"],
+		"l_upper_arm": ["LeftUpperArm", "mixamorig:LeftArm", "mixamorig_LeftArm", "upperarm_l"],
+		"l_lower_arm": ["LeftLowerArm", "mixamorig:LeftForeArm", "mixamorig_LeftForeArm", "lowerarm_l"],
+		"l_hand": ["LeftHand", "mixamorig:LeftHand", "mixamorig_LeftHand", "hand_l"],
+		"r_upper_arm": ["RightUpperArm", "mixamorig:RightArm", "mixamorig_RightArm", "upperarm_r"],
+		"r_lower_arm": ["RightLowerArm", "mixamorig:RightForeArm", "mixamorig_RightForeArm", "lowerarm_r"],
+		"r_hand": ["RightHand", "mixamorig:RightHand", "mixamorig_RightHand", "hand_r"],
+		"l_upper_leg": ["LeftUpperLeg", "mixamorig:LeftUpLeg", "mixamorig_LeftUpLeg", "thigh_l"],
+		"l_lower_leg": ["LeftLowerLeg", "mixamorig:LeftLeg", "mixamorig_LeftLeg", "calf_l"],
+		"l_foot": ["LeftFoot", "mixamorig:LeftFoot", "mixamorig_LeftFoot", "foot_l"],
+		"l_toe": ["LeftToeBase", "mixamorig:LeftToeBase", "mixamorig_LeftToeBase", "ball_l"],
+		"r_upper_leg": ["RightUpperLeg", "mixamorig:RightUpLeg", "mixamorig_RightUpLeg", "thigh_r"],
+		"r_lower_leg": ["RightLowerLeg", "mixamorig:RightLeg", "mixamorig_RightLeg", "calf_r"],
+		"r_foot": ["RightFoot", "mixamorig:RightFoot", "mixamorig_RightFoot", "foot_r"],
+		"r_toe": ["RightToeBase", "mixamorig:RightToeBase", "mixamorig_RightToeBase", "ball_r"],
 		
 		# Fingers (Left)
-		"l_thumb_prox": ["LeftThumbMetacarpal", "mixamorig:LeftHandThumb1", "mixamorig_LeftHandThumb1", "LeftHandThumb1"],
-		"l_thumb_dist": ["LeftThumbProximal", "mixamorig:LeftHandThumb2", "mixamorig_LeftHandThumb2", "LeftHandThumb2"],
-		"l_index_prox": ["LeftIndexProximal", "mixamorig:LeftHandIndex1", "mixamorig_LeftHandIndex1", "LeftHandIndex1"],
-		"l_index_mid": ["LeftIndexIntermediate", "mixamorig:LeftHandIndex2", "mixamorig_LeftHandIndex2", "LeftHandIndex2"],
-		"l_index_dist": ["LeftIndexDistal", "mixamorig:LeftHandIndex3", "mixamorig_LeftHandIndex3", "LeftHandIndex3"],
-		"l_middle_prox": ["LeftMiddleProximal", "mixamorig:LeftHandMiddle1", "mixamorig_LeftHandMiddle1", "LeftHandMiddle1"],
-		"l_middle_mid": ["LeftMiddleIntermediate", "mixamorig:LeftHandMiddle2", "mixamorig_LeftHandMiddle2", "LeftHandMiddle2"],
-		"l_middle_dist": ["LeftMiddleDistal", "mixamorig:LeftHandMiddle3", "mixamorig_LeftHandMiddle3", "LeftHandMiddle3"],
-		"l_ring_prox": ["LeftRingProximal", "mixamorig:LeftHandRing1", "mixamorig_LeftHandRing1", "LeftHandRing1"],
-		"l_ring_mid": ["LeftRingIntermediate", "mixamorig:LeftHandRing2", "mixamorig_LeftHandRing2", "LeftHandRing2"],
-		"l_ring_dist": ["LeftRingDistal", "mixamorig:LeftHandRing3", "mixamorig_LeftHandRing3", "LeftHandRing3"],
-		"l_pinky_prox": ["LeftLittleProximal", "mixamorig:LeftHandPinky1", "mixamorig_LeftHandPinky1", "LeftHandPinky1"],
-		"l_pinky_mid": ["LeftLittleIntermediate", "mixamorig:LeftHandPinky2", "mixamorig_LeftHandPinky2", "LeftHandPinky2"],
-		"l_pinky_dist": ["LeftLittleDistal", "mixamorig:LeftHandPinky3", "mixamorig_LeftHandPinky3", "LeftHandPinky3"],
+		"l_thumb_prox": ["LeftThumbMetacarpal", "mixamorig:LeftHandThumb1", "mixamorig_LeftHandThumb1", "LeftHandThumb1", "thumb_01_l"],
+		"l_thumb_dist": ["LeftThumbProximal", "mixamorig:LeftHandThumb2", "mixamorig_LeftHandThumb2", "LeftHandThumb2", "thumb_02_l"],
+		"l_index_prox": ["LeftIndexProximal", "mixamorig:LeftHandIndex1", "mixamorig_LeftHandIndex1", "LeftHandIndex1", "index_01_l"],
+		"l_index_mid": ["LeftIndexIntermediate", "mixamorig:LeftHandIndex2", "mixamorig_LeftHandIndex2", "LeftHandIndex2", "index_02_l"],
+		"l_index_dist": ["LeftIndexDistal", "mixamorig:LeftHandIndex3", "mixamorig_LeftHandIndex3", "LeftHandIndex3", "index_03_l"],
+		"l_middle_prox": ["LeftMiddleProximal", "mixamorig:LeftHandMiddle1", "mixamorig_LeftHandMiddle1", "LeftHandMiddle1", "middle_01_l"],
+		"l_middle_mid": ["LeftMiddleIntermediate", "mixamorig:LeftHandMiddle2", "mixamorig_LeftHandMiddle2", "LeftHandMiddle2", "middle_02_l"],
+		"l_middle_dist": ["LeftMiddleDistal", "mixamorig:LeftHandMiddle3", "mixamorig_LeftHandMiddle3", "LeftHandMiddle3", "middle_03_l"],
+		"l_ring_prox": ["LeftRingProximal", "mixamorig:LeftHandRing1", "mixamorig_LeftHandRing1", "LeftHandRing1", "ring_01_l"],
+		"l_ring_mid": ["LeftRingIntermediate", "mixamorig:LeftHandRing2", "mixamorig_LeftHandRing2", "LeftHandRing2", "ring_02_l"],
+		"l_ring_dist": ["LeftRingDistal", "mixamorig:LeftHandRing3", "mixamorig_LeftHandRing3", "LeftHandRing3", "ring_03_l"],
+		"l_pinky_prox": ["LeftLittleProximal", "mixamorig:LeftHandPinky1", "mixamorig_LeftHandPinky1", "LeftHandPinky1", "pinky_01_l"],
+		"l_pinky_mid": ["LeftLittleIntermediate", "mixamorig:LeftHandPinky2", "mixamorig_LeftHandPinky2", "LeftHandPinky2", "pinky_02_l"],
+		"l_pinky_dist": ["LeftLittleDistal", "mixamorig:LeftHandPinky3", "mixamorig_LeftHandPinky3", "LeftHandPinky3", "pinky_03_l"],
 		
 		# Fingers (Right)
-		"r_thumb_prox": ["RightThumbMetacarpal", "mixamorig:RightHandThumb1", "mixamorig_RightHandThumb1", "RightHandThumb1"],
-		"r_thumb_dist": ["RightThumbProximal", "mixamorig:RightHandThumb2", "mixamorig_RightHandThumb2", "RightHandThumb2"],
-		"r_index_prox": ["RightIndexProximal", "mixamorig:RightHandIndex1", "mixamorig_RightHandIndex1", "RightHandIndex1"],
-		"r_index_mid": ["RightIndexIntermediate", "mixamorig:RightHandIndex2", "mixamorig_RightHandIndex2", "RightHandIndex2"],
-		"r_index_dist": ["RightIndexDistal", "mixamorig:RightHandIndex3", "mixamorig_RightHandIndex3", "RightHandIndex3"],
-		"r_middle_prox": ["RightMiddleProximal", "mixamorig:RightHandMiddle1", "mixamorig_RightHandMiddle1", "RightHandMiddle1"],
-		"r_middle_mid": ["RightMiddleIntermediate", "mixamorig:RightHandMiddle2", "mixamorig_RightHandMiddle2", "RightHandMiddle2"],
-		"r_middle_dist": ["RightMiddleDistal", "mixamorig:RightHandMiddle3", "mixamorig_RightHandMiddle3", "RightHandMiddle3"],
-		"r_ring_prox": ["RightRingProximal", "mixamorig:RightHandRing1", "mixamorig_RightHandRing1", "RightHandRing1"],
-		"r_ring_mid": ["RightRingIntermediate", "mixamorig:RightHandRing2", "mixamorig_RightHandRing2", "RightHandRing2"],
-		"r_ring_dist": ["RightRingDistal", "mixamorig:RightHandRing3", "mixamorig_RightHandRing3", "RightHandRing3"],
-		"r_pinky_prox": ["RightLittleProximal", "mixamorig:RightHandPinky1", "mixamorig_RightHandPinky1", "RightHandPinky1"],
-		"r_pinky_mid": ["RightLittleIntermediate", "mixamorig:RightHandPinky2", "mixamorig_RightHandPinky2", "RightHandPinky2"],
-		"r_pinky_dist": ["RightLittleDistal", "mixamorig:RightHandPinky3", "mixamorig_RightHandPinky3", "RightHandPinky3"]
+		"r_thumb_prox": ["RightThumbMetacarpal", "mixamorig:RightHandThumb1", "mixamorig_RightHandThumb1", "RightHandThumb1", "thumb_01_r"],
+		"r_thumb_dist": ["RightThumbProximal", "mixamorig:RightHandThumb2", "mixamorig_RightHandThumb2", "RightHandThumb2", "thumb_02_r"],
+		"r_index_prox": ["RightIndexProximal", "mixamorig:RightHandIndex1", "mixamorig_RightHandIndex1", "RightHandIndex1", "index_01_r"],
+		"r_index_mid": ["RightIndexIntermediate", "mixamorig:RightHandIndex2", "mixamorig_RightHandIndex2", "RightHandIndex2", "index_02_r"],
+		"r_index_dist": ["RightIndexDistal", "mixamorig:RightHandIndex3", "mixamorig_RightHandIndex3", "RightHandIndex3", "index_03_r"],
+		"r_middle_prox": ["RightMiddleProximal", "mixamorig:RightHandMiddle1", "mixamorig_RightHandMiddle1", "RightHandMiddle1", "middle_01_r"],
+		"r_middle_mid": ["RightMiddleIntermediate", "mixamorig:RightHandMiddle2", "mixamorig_RightHandMiddle2", "RightHandMiddle2", "middle_02_r"],
+		"r_middle_dist": ["RightMiddleDistal", "mixamorig:RightHandMiddle3", "mixamorig_RightHandMiddle3", "RightHandMiddle3", "middle_03_r"],
+		"r_ring_prox": ["RightRingProximal", "mixamorig:RightHandRing1", "mixamorig_RightHandRing1", "RightHandRing1", "ring_01_r"],
+		"r_ring_mid": ["RightRingIntermediate", "mixamorig:RightHandRing2", "mixamorig_RightHandRing2", "RightHandRing2", "ring_02_r"],
+		"r_ring_dist": ["RightRingDistal", "mixamorig:RightHandRing3", "mixamorig_RightHandRing3", "RightHandRing3", "ring_03_r"],
+		"r_pinky_prox": ["RightLittleProximal", "mixamorig:RightHandPinky1", "mixamorig_RightHandPinky1", "RightHandPinky1", "pinky_01_r"],
+		"r_pinky_mid": ["RightLittleIntermediate", "mixamorig:RightHandPinky2", "mixamorig_RightHandPinky2", "RightHandPinky2", "pinky_02_r"],
+		"r_pinky_dist": ["RightLittleDistal", "mixamorig:RightHandPinky3", "mixamorig_RightHandPinky3", "RightHandPinky3", "pinky_03_r"]
 	}
 	for key in candidates.keys():
 		for cand in candidates[key]:
@@ -2046,6 +2313,11 @@ func _update_bobblehead(parts: Dictionary, is_p2: bool, is_playing: bool, phase:
 		return
 	var hat_m: Node3D = parts["hat_mount"]
 	var bobble: Dictionary = _p1_bobble if not is_p2 else _p2_bobble
+	var hat_id := _p2_hat_id if is_p2 else _p1_hat_id
+	if hat_id == HatData.HAT_BOUSI:
+		# キリンは分離した頭部だけが追従する。帽体・脚・胴体・首は揺らさない。
+		hat_m.rotation = Vector3.ZERO
+		return
 	
 	if bobble["active"]:
 		# 赤ベコモード: バネ物理で首を揺らす

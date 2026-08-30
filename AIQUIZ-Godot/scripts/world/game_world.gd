@@ -78,6 +78,10 @@ var pause_menu: CanvasLayer = null
 var _world_visual_prep_started_msec: int = 0
 var _world_visual_prepared: bool = false
 var _world_visual_prep_report: Dictionary = {}
+var _pw_render_prewarmed: bool = false
+var _wall_prewarm_root: Node3D = null
+var _barrier_prebuilt: bool = false
+var _barrier_landing_dust: CPUParticles3D = null
 
 # ── リプレイ記録 ──
 var _recorder: ReplayRecorder = null
@@ -486,14 +490,15 @@ func _prepare_world_visuals_under_cover() -> void:
 	if _helicopter_arrival_director != null:
 		helicopter_prewarm_report = _helicopter_arrival_director.begin_render_prewarm()
 	var portal_prewarm_report: Dictionary = {}
+	var prewarm_camera := camera_controller.get_node_or_null("Camera3D") as Camera3D
 	if _ghost_shark_ride_controller != null:
-		var prewarm_camera := camera_controller.get_node_or_null("Camera3D") as Camera3D
 		portal_prewarm_report = (
 			_ghost_shark_ride_controller.begin_return_portal_render_prewarm(prewarm_camera)
 		)
 	var result_prewarm_report: Dictionary = {}
 	if _result_ceremony_director != null:
 		result_prewarm_report = _result_ceremony_director.begin_render_prewarm()
+	var wall_prewarm_report: Dictionary = _begin_preview_wall_render_prewarm(prewarm_camera)
 
 	var pipeline_compilations_before: int = RenderingServer.get_rendering_info(
 		RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_DRAW
@@ -505,6 +510,7 @@ func _prepare_world_visuals_under_cover() -> void:
 			await RenderingServer.frame_post_draw
 		if not is_inside_tree():
 			return
+	_end_preview_wall_render_prewarm()
 	if _ghost_shark_ride_controller != null:
 		_ghost_shark_ride_controller.end_return_portal_render_prewarm()
 	if _result_ceremony_director != null:
@@ -532,6 +538,7 @@ func _prepare_world_visuals_under_cover() -> void:
 	_world_visual_prep_report["ghost_portal_prewarm"] = portal_prewarm_report
 	_world_visual_prep_report["result_ceremony_prewarm"] = result_prewarm_report
 	_world_visual_prep_report["helicopter_arrival_prewarm"] = helicopter_prewarm_report
+	_world_visual_prep_report["preview_wall_prewarm"] = wall_prewarm_report
 	if not bool(portal_prewarm_report.get("ready", false)):
 		_world_visual_prep_report["ready"] = false
 		var missing_variant: Variant = _world_visual_prep_report.get("missing", [])
@@ -544,6 +551,12 @@ func _prepare_world_visuals_under_cover() -> void:
 		if result_missing_variant is Array:
 			var result_missing_components: Array = result_missing_variant
 			result_missing_components.append("result_ceremony")
+	if not bool(wall_prewarm_report.get("ready", false)):
+		_world_visual_prep_report["ready"] = false
+		var wall_missing_variant: Variant = _world_visual_prep_report.get("missing", [])
+		if wall_missing_variant is Array:
+			var wall_missing_components: Array = wall_missing_variant
+			wall_missing_components.append("preview_walls")
 	_world_visual_prep_report["draw_pipeline_compilations"] = max(
 		0,
 		RenderingServer.get_rendering_info(
@@ -610,6 +623,9 @@ func _collect_world_visual_prep_report(player_controller: PlayerController) -> D
 		"sharks": shark_count,
 		"players": game_state.num_players,
 		"merge_effects": _merge_effect_pool.size(),
+		"preview_walls": _pw_count,
+		"preview_wall_prewarmed": _pw_render_prewarmed,
+		"barrier_prebuilt": _barrier_prebuilt,
 		"ui_ready": ui_ready,
 	}
 
@@ -1639,39 +1655,17 @@ func _toggle_pause() -> void:
 # 完成したクイズ壁が上空から1枚ずつ落下 → 着地衝撃エフェクト
 # ============================================================
 
-func _update_preview_walls(dt: float) -> void:
-	if game_state.game_state not in [Constants.STATE_PRELOADING, Constants.STATE_WAITING_START]:
+func _try_build_preview_walls(max_to_build: int) -> void:
+	if game_state == null or max_to_build <= 0 or quiz_wall_scene == null:
 		return
-
 	var t := game_state.tuning
 	var quiz_count: int = game_state.quiz_list.size()
-
-	# ── 壁の生成（クイズ到着に同期、奥から手前へ配置）──
-	# 到着N番目のクイズ → 位置 (total - 1 - N) に壁を生成
-	# これにより最初のクイズが最奥、最後のクイズが最手前に出現
 	var is_endless: bool = not game_state._is_fixed_count_mode()
 	var total_expected: int = maxi(30 if is_endless else game_state.target_count, quiz_count)
-	# 固定問数モードはオンライン問題の到着前から空の壁を分散構築する。
-	# 問題到着、壁生成、初回表示、着地VFXを別フレーム帯へ分けることで、
-	# 到着ごとのメインスレッド負荷が着地の瞬間へ集中しないようにする。
-	var target_pw_count: int = total_expected
-
-	# 10枚分のインスタンス化と問題文セットを同フレームに集中させない。
-	# 準備画面の裏で1枚ずつ分散し、落下演出の開始前に滑らかに組み立てる。
-	# 黒画面中はスピナーが止まらない程度に2枚/フレームへ上げ、待ちを短縮する。
-	var walls_per_frame: int = PREVIEW_WALLS_PER_FRAME
-	if (
-		_should_defer_ten_wall_drop_until_reveal()
-		and SceneTransition.is_transitioning()
-	):
-		walls_per_frame = COVER_PREVIEW_WALLS_PER_FRAME
-	var walls_to_build: int = mini(walls_per_frame, target_pw_count - _pw_count)
+	var walls_to_build: int = mini(max_to_build, total_expected - _pw_count)
 	for _build_index: int in range(walls_to_build):
-		# エンドレスは手前から奥へ、固定モードは逆マッピング（奥から手前へ）
 		var visual_idx: int = _pw_count if is_endless else (total_expected - 1 - _pw_count)
 		var wz: float = t.wall_start_z + visual_idx * t.wall_spacing
-
-		# 完成壁を上空に待機させ、順番が来たら落下させる。
 		var wall_final: Node3D = quiz_wall_scene.instantiate()
 		wall_final.set_meta("wall_index", visual_idx)
 		wall_final.position = Vector3(0, PREVIEW_WALL_DROP_START_Y, wz)
@@ -1691,7 +1685,6 @@ func _update_preview_walls(dt: float) -> void:
 		if wall_final.has_method("set_is_boss"):
 			wall_final.set_is_boss(game_state.is_boss_index(visual_idx))
 
-		# 新しい壁のアニメーション情報 — エンドレスは従来どおり即時配置する。
 		_pw_anims.append({
 			"phase": 3 if is_endless else 0,
 			"timer": 0.0,
@@ -1700,13 +1693,195 @@ func _update_preview_walls(dt: float) -> void:
 			"ready_frame": Engine.get_process_frames(),
 		})
 		_pw_drop_started.append(is_endless)
-		
+
 		if is_endless:
 			wall_final.visible = true
 			wall_final.position.y = 0.0
 			wall_final.scale = Vector3.ONE
 
 		_pw_count += 1
+
+
+func _ensure_fixed_count_preview_walls_built() -> void:
+	if game_state == null or not game_state._is_fixed_count_mode():
+		return
+	var remaining: int = game_state.target_count - _pw_count
+	if remaining > 0:
+		_try_build_preview_walls(remaining)
+
+
+func _make_prewarm_quiz(num_choices: int) -> QuizItem:
+	var choices := PackedStringArray(["正解", "不正解"])
+	if num_choices == 4:
+		choices = PackedStringArray(["あいうえお", "漢字分数", "カタカナ", "正解不正解"])
+	return QuizItem.create(
+		"あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをんアイウエオ漢字分数",
+		choices,
+		0,
+		"予熱",
+		"PREWARM"
+	)
+
+
+func _begin_preview_wall_render_prewarm(prewarm_camera: Camera3D) -> Dictionary:
+	var report := {
+		"ready": false,
+		"walls": 0,
+		"dummies": 0,
+		"barrier": false,
+		"merge_effects": 0,
+	}
+	_ensure_fixed_count_preview_walls_built()
+	_ensure_start_barrier_built()
+	_ensure_barrier_landing_dust()
+
+	_wall_prewarm_root = Node3D.new()
+	_wall_prewarm_root.name = "PreviewWallRenderPrewarm"
+	if prewarm_camera != null and is_instance_valid(prewarm_camera):
+		prewarm_camera.add_child(_wall_prewarm_root)
+	else:
+		add_child(_wall_prewarm_root)
+
+	var dummy_two: Node3D = quiz_wall_scene.instantiate() as Node3D
+	if dummy_two != null:
+		dummy_two.name = "PrewarmWallTwoChoice"
+		_wall_prewarm_root.add_child(dummy_two)
+		dummy_two.position = Vector3(-1.8, 0.0, -6.0)
+		dummy_two.visible = true
+		if dummy_two.has_method("set_quiz"):
+			dummy_two.set_quiz(_make_prewarm_quiz(2), 2)
+		report["dummies"] = int(report["dummies"]) + 1
+
+	var dummy_boss: Node3D = quiz_wall_scene.instantiate() as Node3D
+	if dummy_boss != null:
+		dummy_boss.name = "PrewarmWallBossFour"
+		_wall_prewarm_root.add_child(dummy_boss)
+		dummy_boss.position = Vector3(1.8, 0.0, -6.0)
+		dummy_boss.visible = true
+		if dummy_boss.has_method("set_quiz"):
+			dummy_boss.set_quiz(_make_prewarm_quiz(4), 4)
+		if dummy_boss.has_method("set_is_boss"):
+			dummy_boss.set_is_boss(true)
+		report["dummies"] = int(report["dummies"]) + 1
+
+	for wall_index: int in range(_pw_walls.size()):
+		if wall_index < _pw_drop_started.size() and _pw_drop_started[wall_index]:
+			continue
+		var wall: Node3D = _pw_walls[wall_index]
+		if wall == null or not is_instance_valid(wall):
+			continue
+		wall.position.y = 0.0
+		wall.scale = Vector3.ONE
+		wall.visible = true
+		report["walls"] = int(report["walls"]) + 1
+
+	if _start_barrier != null and is_instance_valid(_start_barrier):
+		var barrier_parent: Node = _start_barrier.get_parent()
+		if barrier_parent != _wall_prewarm_root:
+			_start_barrier.reparent(_wall_prewarm_root, false)
+		_start_barrier.position = Vector3(0.0, 0.0, -8.5)
+		_start_barrier.visible = true
+		var countdown_label := _start_barrier.get_node_or_null("QuestionLabel") as Label3D
+		if countdown_label != null:
+			countdown_label.text = "3"
+		var steam_l := _start_barrier.get_node_or_null("SteamL") as CPUParticles3D
+		var steam_r := _start_barrier.get_node_or_null("SteamR") as CPUParticles3D
+		if steam_l != null:
+			steam_l.emitting = true
+		if steam_r != null:
+			steam_r.emitting = true
+		report["barrier"] = true
+
+	var spark_origin := Vector3(0.0, 1.5, -5.0)
+	if prewarm_camera != null and is_instance_valid(prewarm_camera):
+		spark_origin = prewarm_camera.global_position - prewarm_camera.global_transform.basis.z * 5.0
+	_spawn_merge_sparks(spark_origin)
+	report["merge_effects"] = 1
+	if _barrier_landing_dust != null and is_instance_valid(_barrier_landing_dust):
+		_barrier_landing_dust.global_position = spark_origin + Vector3(0.0, -1.0, 0.0)
+		_barrier_landing_dust.restart()
+		_barrier_landing_dust.emitting = true
+
+	report["ready"] = (
+		int(report["dummies"]) >= 2
+		and bool(report["barrier"])
+		and (
+			game_state == null
+			or not game_state._is_fixed_count_mode()
+			or int(report["walls"]) >= game_state.target_count
+		)
+	)
+	return report
+
+
+func _end_preview_wall_render_prewarm() -> void:
+	for wall_index: int in range(_pw_walls.size()):
+		if wall_index < _pw_drop_started.size() and _pw_drop_started[wall_index]:
+			continue
+		var wall: Node3D = _pw_walls[wall_index]
+		if wall == null or not is_instance_valid(wall):
+			continue
+		wall.visible = false
+		wall.position.y = PREVIEW_WALL_DROP_START_Y
+		wall.scale = Vector3.ONE
+
+	for effect: Dictionary in _merge_effect_pool:
+		var pooled_sparks: CPUParticles3D = effect.get("sparks") as CPUParticles3D
+		var pooled_flash: CPUParticles3D = effect.get("flash") as CPUParticles3D
+		if pooled_sparks != null and is_instance_valid(pooled_sparks):
+			pooled_sparks.emitting = false
+		if pooled_flash != null and is_instance_valid(pooled_flash):
+			pooled_flash.emitting = false
+
+	if _barrier_landing_dust != null and is_instance_valid(_barrier_landing_dust):
+		_barrier_landing_dust.emitting = false
+
+	if _start_barrier != null and is_instance_valid(_start_barrier):
+		var countdown_label := _start_barrier.get_node_or_null("QuestionLabel") as Label3D
+		if countdown_label != null:
+			countdown_label.text = ""
+		var steam_l := _start_barrier.get_node_or_null("SteamL") as CPUParticles3D
+		var steam_r := _start_barrier.get_node_or_null("SteamR") as CPUParticles3D
+		if steam_l != null:
+			steam_l.emitting = false
+		if steam_r != null:
+			steam_r.emitting = false
+		if _start_barrier.get_parent() != wall_container:
+			_start_barrier.reparent(wall_container, false)
+		var barrier_z: float = game_state.tuning.wall_start_z - 7.0 if game_state else -7.0
+		_start_barrier.position = Vector3(0.0, BARRIER_DROP_HEIGHT, barrier_z)
+		_start_barrier.visible = false
+
+	if _wall_prewarm_root != null and is_instance_valid(_wall_prewarm_root):
+		_wall_prewarm_root.queue_free()
+	_wall_prewarm_root = null
+	_pw_render_prewarmed = true
+
+
+func _update_preview_walls(dt: float) -> void:
+	if game_state.game_state not in [Constants.STATE_PRELOADING, Constants.STATE_WAITING_START]:
+		return
+
+	var quiz_count: int = game_state.quiz_list.size()
+
+	# ── 壁の生成（クイズ到着に同期、奥から手前へ配置）──
+	# 到着N番目のクイズ → 位置 (total - 1 - N) に壁を生成
+	# これにより最初のクイズが最奥、最後のクイズが最手前に出現
+	var is_endless: bool = not game_state._is_fixed_count_mode()
+	# 固定問数モードはオンライン問題の到着前から空の壁を分散構築する。
+	# 問題到着、壁生成、初回表示、着地VFXを別フレーム帯へ分けることで、
+	# 到着ごとのメインスレッド負荷が着地の瞬間へ集中しないようにする。
+
+	# 10枚分のインスタンス化と問題文セットを同フレームに集中させない。
+	# 準備画面の裏で1枚ずつ分散し、落下演出の開始前に滑らかに組み立てる。
+	# 黒画面中はスピナーが止まらない程度に2枚/フレームへ上げ、待ちを短縮する。
+	var walls_per_frame: int = PREVIEW_WALLS_PER_FRAME
+	if (
+		_should_defer_ten_wall_drop_until_reveal()
+		and SceneTransition.is_transitioning()
+	):
+		walls_per_frame = COVER_PREVIEW_WALLS_PER_FRAME
+	_try_build_preview_walls(walls_per_frame)
 
 	# 問題テキストの整形・Label3D更新も壁生成とは別フレームにする。
 	# オンラインではこの後さらに数フレーム置いてから落下を開始する。
@@ -1743,6 +1918,8 @@ func _update_preview_walls(dt: float) -> void:
 	# オフライン10問は開示アニメーションが完了するまで、構築済みの壁を
 	# 上空・非表示のまま待機させる。開示完了後のフレームから落下を始める。
 	if _should_defer_ten_wall_drop_until_reveal() and SceneTransition.is_transitioning():
+		wall_set_ready = false
+	if _wall_prewarm_root != null and is_instance_valid(_wall_prewarm_root):
 		wall_set_ready = false
 	if total_walls > 0 and wall_set_ready:
 		var all_started: bool = true
@@ -1924,6 +2101,8 @@ func _spawn_merge_sparks(pos: Vector3) -> void:
 
 
 func _clear_preview_walls() -> void:
+	if _wall_prewarm_root != null and is_instance_valid(_wall_prewarm_root):
+		_end_preview_wall_render_prewarm()
 	for wall: Node3D in _pw_walls:
 		if is_instance_valid(wall): wall.queue_free()
 	_pw_walls.clear()
@@ -1942,16 +2121,70 @@ const BARRIER_COLOR := Color(0.12, 0.16, 0.28)
 const BARRIER_DROP_HEIGHT := 40.0
 const BARRIER_DROP_DURATION := 0.45
 
+func _ensure_start_barrier_built() -> void:
+	if _start_barrier != null and is_instance_valid(_start_barrier):
+		_barrier_prebuilt = true
+		return
+	_build_start_barrier_node()
+	_barrier_prebuilt = _start_barrier != null and is_instance_valid(_start_barrier)
+
+
+func _ensure_barrier_landing_dust() -> void:
+	if _barrier_landing_dust != null and is_instance_valid(_barrier_landing_dust):
+		return
+	var dust := CPUParticles3D.new()
+	dust.name = "BarrierLandingDust"
+	dust.emitting = false
+	dust.amount = GraphicsQuality.particle_amount(80, GameManager.graphics_quality)
+	dust.lifetime = 1.0
+	dust.one_shot = true
+	dust.explosiveness = 1.0
+	dust.randomness = 1.0
+	dust.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	dust.emission_box_extents = Vector3(16.0, 0.5, 1.0)
+	dust.spread = 180.0
+	dust.initial_velocity_min = 5.0
+	dust.initial_velocity_max = 15.0
+	dust.gravity = Vector3(0, -3.0, 0)
+	dust.scale_amount_min = 0.3
+	dust.scale_amount_max = 1.0
+	dust.color = Color(0.5, 0.5, 0.6, 0.5)
+	var dm := StandardMaterial3D.new()
+	dm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	dm.albedo_color = Color(0.6, 0.6, 0.7, 0.4)
+	dm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	dm.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	dm.billboard_keep_scale = true
+	var dq := QuadMesh.new()
+	dq.material = dm
+	dust.mesh = dq
+	wall_container.add_child(dust)
+	_barrier_landing_dust = dust
+
+
 func _begin_barrier_drop() -> void:
 	if _barrier_spawned_for_session:
 		return
 	_barrier_spawned_for_session = true
-	_remove_start_barrier()
 	_barrier_exploded = false
+	_ensure_start_barrier_built()
+	if _start_barrier == null or not is_instance_valid(_start_barrier):
+		return
+	if _start_barrier.get_parent() != wall_container:
+		_start_barrier.reparent(wall_container, false)
 	var barrier_z: float = game_state.tuning.wall_start_z - 7.0
+	_start_barrier.position = Vector3(0, BARRIER_DROP_HEIGHT, barrier_z)
+	_start_barrier.visible = true
+	_barrier_dropping = true
+	_barrier_drop_timer = 0.0
+
+
+func _build_start_barrier_node() -> void:
+	var barrier_z: float = game_state.tuning.wall_start_z - 7.0 if game_state else -7.0
 	_start_barrier = Node3D.new()
 	_start_barrier.name = "StartBarrier"
 	_start_barrier.position = Vector3(0, BARRIER_DROP_HEIGHT, barrier_z)
+	_start_barrier.visible = false
 	# 壁メッシュ
 	var mi := MeshInstance3D.new()
 	var bx := BoxMesh.new()
@@ -2056,10 +2289,10 @@ func _begin_barrier_drop() -> void:
 	steam_r.position = Vector3(16.0, 10.0, 0)
 	_start_barrier.add_child(steam_r)
 	wall_container.add_child(_start_barrier)
-	_barrier_dropping = true
-	_barrier_drop_timer = 0.0
 
 func _update_start_barrier() -> void:
+	if _wall_prewarm_root != null and is_instance_valid(_wall_prewarm_root):
+		return
 	if _barrier_dropping and _start_barrier and is_instance_valid(_start_barrier):
 		_barrier_drop_timer += get_process_delta_time()
 		var p: float = clampf(_barrier_drop_timer / BARRIER_DROP_DURATION, 0.0, 1.0)
@@ -2102,7 +2335,11 @@ func _update_start_barrier() -> void:
 					
 			else:
 				ql.text = ""
-				if game_state.game_state != Constants.STATE_WAITING_START:
+				if (
+					_barrier_spawned_for_session
+					and not _barrier_dropping
+					and game_state.game_state != Constants.STATE_WAITING_START
+				):
 					_start_barrier.position.x = 0
 					_start_barrier.position.y = 0
 				
@@ -2111,39 +2348,12 @@ func _update_start_barrier() -> void:
 				_remove_start_barrier()
 
 func _spawn_landing_impact(pos: Vector3) -> void:
-	var dust := CPUParticles3D.new()
-	dust.amount = GraphicsQuality.particle_amount(80, GameManager.graphics_quality)
-	dust.lifetime = 1.0
-	dust.one_shot = true
-	dust.explosiveness = 1.0
-	dust.randomness = 1.0
-	dust.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
-	dust.emission_box_extents = Vector3(16.0, 0.5, 1.0)
-	dust.spread = 180.0
-	dust.initial_velocity_min = 5.0
-	dust.initial_velocity_max = 15.0
-	dust.gravity = Vector3(0, -3.0, 0)
-	dust.scale_amount_min = 0.3
-	dust.scale_amount_max = 1.0
-	dust.color = Color(0.5, 0.5, 0.6, 0.5)
-	var dm := StandardMaterial3D.new()
-	dm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	dm.albedo_color = Color(0.6, 0.6, 0.7, 0.4)
-	dm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	dm.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
-	dm.billboard_keep_scale = true
-	var dq := QuadMesh.new()
-	dq.material = dm
-	dust.mesh = dq
-	dust.position = pos + Vector3(0, -BARRIER_SIZE.y * 0.5, 0)
-	dust.emitting = true
-	get_tree().current_scene.add_child(dust)
-	var ct := Timer.new()
-	ct.wait_time = 3.0
-	ct.one_shot = true
-	ct.autostart = true
-	dust.add_child(ct)
-	ct.timeout.connect(dust.queue_free)
+	_ensure_barrier_landing_dust()
+	if _barrier_landing_dust == null or not is_instance_valid(_barrier_landing_dust):
+		return
+	_barrier_landing_dust.global_position = pos + Vector3(0, -BARRIER_SIZE.y * 0.5, 0)
+	_barrier_landing_dust.restart()
+	_barrier_landing_dust.emitting = true
 
 func _explode_start_barrier() -> void:
 	_barrier_exploded = true
@@ -2302,3 +2512,4 @@ func _remove_start_barrier() -> void:
 	if _start_barrier and is_instance_valid(_start_barrier):
 		_start_barrier.queue_free()
 		_start_barrier = null
+	_barrier_prebuilt = false

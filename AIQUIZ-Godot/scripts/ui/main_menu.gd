@@ -55,7 +55,7 @@ const ANIM_FADE_DURATION := 0.32
 const ANIM_STAGGER := 0.055
 const MENU_EXIT_DURATION := 0.34
 const MENU_EXIT_OFFSET_X := -520.0
-const MENU_HELICOPTER_EXIT_TIMEOUT_SEC := 4.6
+const MENU_HELICOPTER_EXIT_TIMEOUT_SEC := 7.5
 
 var _prev_menu_step: String = ""
 var _entrance_done: bool = false

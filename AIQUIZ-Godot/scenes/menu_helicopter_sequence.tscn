@@ -25,7 +25,7 @@ point_count = 2
 resource_local_to_scene = true
 bake_interval = 0.08
 _data = {
-"points": PackedVector3Array(0, 0, 0, -0.5, -4, 3, 1.5, 22, -7, -0.6, 1.1999998, 0, -0.55, 2.8000002, 0, 0, 10.2, 0, -0.5, -4, 2, 0, 0, 0, 1, 23, -7),
+"points": PackedVector3Array(0, 0, 0, -0.5, -4, 3, 1.5, 22, -7, -0.6, 1.1999998, 0, -0.72, 1.7, -5.6, -2.45, 9.35, -0.15, -0.58, -5.8, 10.8, 0, 0, 0, -1.8, 24, -34),
 "tilts": PackedFloat32Array(0, 0, 0)
 }
 point_count = 3
@@ -34,7 +34,7 @@ point_count = 3
 resource_local_to_scene = true
 bake_interval = 0.08
 _data = {
-"points": PackedVector3Array(0, 0, 0, -2.5, -3.5, 2, 6.5, 22, -5, 0.6, 1.1999998, 0, 0.55, 2.8000002, 0, 0, 10.2, 0, -2, -4, 1, 0, 0, 0, 7, 23, -4),
+"points": PackedVector3Array(0, 0, 0, -2.5, -3.5, 2, 6.5, 22, -5, 0.6, 1.1999998, 0, 0.72, 1.7, -5.6, 2.45, 9.35, 0.15, 0.58, -5.8, 10.8, 0, 0, 0, 1.8, 24, -34),
 "tilts": PackedFloat32Array(0, 0, 0)
 }
 point_count = 3
@@ -339,85 +339,97 @@ tracks/13/keys = {
 
 [sub_resource type="Animation" id="Animation_kfhho"]
 resource_name = "Start-button pickup — drag keys to retime"
-length = 2.76
+length = 6.4
 step = 0.02
 markers = [{
 "color": Color(1, 1, 1, 1),
-"name": &"HOVER",
-"time": 0.82
+"name": &"APPROACH",
+"time": 0.0
 }, {
 "color": Color(1, 1, 1, 1),
-"name": &"P1_SUCTION",
-"time": 1.02
+"name": &"HOVER_SETTLE",
+"time": 1.3
 }, {
 "color": Color(1, 1, 1, 1),
-"name": &"P2_SUCTION",
-"time": 1.08
+"name": &"HATCH_OPEN",
+"time": 1.45
 }, {
 "color": Color(1, 1, 1, 1),
-"name": &"CLOSE_HATCH",
-"time": 1.82
+"name": &"LADDER_DEPLOY",
+"time": 1.5
 }, {
 "color": Color(1, 1, 1, 1),
-"name": &"EXIT",
-"time": 1.98
+"name": &"GRAB",
+"time": 2.25
+}, {
+"color": Color(1, 1, 1, 1),
+"name": &"TENSION",
+"time": 3.25
+}, {
+"color": Color(1, 1, 1, 1),
+"name": &"DEPART",
+"time": 3.45
+}, {
+"color": Color(1, 1, 1, 1),
+"name": &"OFFSCREEN",
+"time": 6.4
 }]
 tracks/0/type = "value"
 tracks/0/imported = false
 tracks/0/enabled = true
 tracks/0/path = NodePath("PickupP1Path/Follow:progress_ratio")
-tracks/0/interp = 1
+tracks/0/interp = 2
 tracks/0/loop_wrap = true
 tracks/0/keys = {
-"times": PackedFloat32Array(0, 0.82, 1.98, 2.76),
-"transitions": PackedFloat32Array(1, 1, 1, 1),
+"times": PackedFloat32Array(0, 1.3, 3.45, 3.8, 4.45, 5.35, 6.4),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1, 1, 1),
 "update": 0,
-"values": [0.0, 0.48516611842488466, 0.48516611842488466, 1.0]
+"values": [0.0, 0.28943512806300015, 0.28943512806300015, 0.30743512806300016, 0.49, 0.78, 1.0]
 }
 tracks/1/type = "value"
 tracks/1/imported = false
 tracks/1/enabled = true
 tracks/1/path = NodePath("PickupP2Path/Follow:progress_ratio")
-tracks/1/interp = 1
+tracks/1/interp = 2
 tracks/1/loop_wrap = true
 tracks/1/keys = {
-"times": PackedFloat32Array(0, 0.82, 1.98, 2.76),
-"transitions": PackedFloat32Array(1, 1, 1, 1),
+"times": PackedFloat32Array(0, 0.18, 1.48, 3.65, 4, 4.62, 5.45, 6.4),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1, 1, 1, 1),
 "update": 0,
-"values": [0.0, 0.4868267205099735, 0.4868267205099735, 1.0]
+"values": [0.0, 0.0, 0.27814794689184574, 0.27814794689184574, 0.29614794689184576, 0.5, 0.79, 1.0]
 }
 tracks/2/type = "value"
 tracks/2/imported = false
 tracks/2/enabled = true
 tracks/2/path = NodePath(".:p1_hatch")
-tracks/2/interp = 1
+tracks/2/interp = 2
 tracks/2/loop_wrap = true
 tracks/2/keys = {
-"times": PackedFloat32Array(0, 0.82, 1.02, 1.82, 1.98),
-"transitions": PackedFloat32Array(1, 1, 1, 1, 1),
+"times": PackedFloat32Array(0, 1.3, 1.72, 6.4),
+"transitions": PackedFloat32Array(1, 1, 1, 1),
 "update": 0,
-"values": [0.0, 0.0, 1.0, 1.0, 0.0]
+"values": [0.0, 0.0, 1.0, 1.0]
 }
 tracks/3/type = "value"
 tracks/3/imported = false
 tracks/3/enabled = true
 tracks/3/path = NodePath(".:p2_hatch")
-tracks/3/interp = 1
+tracks/3/interp = 2
 tracks/3/loop_wrap = true
 tracks/3/keys = {
-"times": PackedFloat32Array(0, 0.82, 1.02, 1.82, 1.98),
-"transitions": PackedFloat32Array(1, 1, 1, 1, 1),
+"times": PackedFloat32Array(0, 1.5, 1.92, 6.4),
+"transitions": PackedFloat32Array(1, 1, 1, 1),
 "update": 0,
-"values": [0.0, 0.0, 1.0, 1.0, 0.0]
+"values": [0.0, 0.0, 1.0, 1.0]
 }
 tracks/4/type = "value"
 tracks/4/imported = false
 tracks/4/enabled = true
 tracks/4/path = NodePath(".:p1_action_progress")
-tracks/4/interp = 1
+tracks/4/interp = 2
 tracks/4/loop_wrap = true
 tracks/4/keys = {
-"times": PackedFloat32Array(0, 1.02, 1.76, 2.76),
+"times": PackedFloat32Array(0, 2.25, 3.25, 6.4),
 "transitions": PackedFloat32Array(1, 1, 1, 1),
 "update": 0,
 "values": [0.0, 0.0, 1.0, 1.0]
@@ -426,10 +438,10 @@ tracks/5/type = "value"
 tracks/5/imported = false
 tracks/5/enabled = true
 tracks/5/path = NodePath(".:p2_action_progress")
-tracks/5/interp = 1
+tracks/5/interp = 2
 tracks/5/loop_wrap = true
 tracks/5/keys = {
-"times": PackedFloat32Array(0, 1.08, 1.82, 2.76),
+"times": PackedFloat32Array(0, 2.48, 3.48, 6.4),
 "transitions": PackedFloat32Array(1, 1, 1, 1),
 "update": 0,
 "values": [0.0, 0.0, 1.0, 1.0]
@@ -438,73 +450,73 @@ tracks/6/type = "value"
 tracks/6/imported = false
 tracks/6/enabled = true
 tracks/6/path = NodePath(".:p1_bank_deg")
-tracks/6/interp = 1
+tracks/6/interp = 2
 tracks/6/loop_wrap = true
 tracks/6/keys = {
-"times": PackedFloat32Array(0, 0.41, 0.82, 2.37, 2.76),
-"transitions": PackedFloat32Array(1, 1, 1, 1, 1),
+"times": PackedFloat32Array(0, 0.58, 1.08, 1.3, 3.45, 3.82, 4.3, 5.2, 6.4),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1, 1, 1, 1, 1),
 "update": 0,
-"values": [-2.0, -5.0, 0.0, -8.0, 0.0]
+"values": [-1.0, -6.2, 2.0, 0.0, 0.0, -3.0, -11.0, -6.5, 0.0]
 }
 tracks/7/type = "value"
 tracks/7/imported = false
 tracks/7/enabled = true
 tracks/7/path = NodePath(".:p2_bank_deg")
-tracks/7/interp = 1
+tracks/7/interp = 2
 tracks/7/loop_wrap = true
 tracks/7/keys = {
-"times": PackedFloat32Array(0, 0.41, 0.82, 2.37, 2.76),
-"transitions": PackedFloat32Array(1, 1, 1, 1, 1),
+"times": PackedFloat32Array(0, 0.18, 0.74, 1.28, 1.48, 3.65, 4.02, 4.48, 5.36, 6.4),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
 "update": 0,
-"values": [2.0, 5.0, 0.0, 8.0, 0.0]
+"values": [1.0, 1.0, 6.2, -2.0, 0.0, 0.0, 3.0, 11.0, 6.5, 0.0]
 }
 tracks/8/type = "value"
 tracks/8/imported = false
 tracks/8/enabled = true
 tracks/8/path = NodePath(".:p1_pitch_deg")
-tracks/8/interp = 1
+tracks/8/interp = 2
 tracks/8/loop_wrap = true
 tracks/8/keys = {
-"times": PackedFloat32Array(0, 0.82, 2.37, 2.76),
-"transitions": PackedFloat32Array(1, 1, 1, 1),
+"times": PackedFloat32Array(0, 0.72, 1.2, 1.3, 3.45, 4.1, 4.82, 5.62, 6.4),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1, 1, 1, 1, 1),
 "update": 0,
-"values": [-3.0, 0.0, -7.0, 0.0]
+"values": [-2.0, -4.0, 1.2, 0.0, 0.0, -4.0, -7.0, -3.5, 0.0]
 }
 tracks/9/type = "value"
 tracks/9/imported = false
 tracks/9/enabled = true
 tracks/9/path = NodePath(".:p2_pitch_deg")
-tracks/9/interp = 1
+tracks/9/interp = 2
 tracks/9/loop_wrap = true
 tracks/9/keys = {
-"times": PackedFloat32Array(0, 0.82, 2.37, 2.76),
-"transitions": PackedFloat32Array(1, 1, 1, 1),
+"times": PackedFloat32Array(0, 0.18, 0.9, 1.4, 1.48, 3.65, 4.28, 4.98, 5.78, 6.4),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
 "update": 0,
-"values": [-3.0, 0.0, -7.0, 0.0]
+"values": [-2.0, -2.0, -4.0, 1.2, 0.0, 0.0, -4.0, -7.0, -3.5, 0.0]
 }
 tracks/10/type = "value"
 tracks/10/imported = false
 tracks/10/enabled = true
 tracks/10/path = NodePath(".:camera_fov_delta")
-tracks/10/interp = 1
+tracks/10/interp = 2
 tracks/10/loop_wrap = true
 tracks/10/keys = {
-"times": PackedFloat32Array(0, 2.76),
-"transitions": PackedFloat32Array(1, 1),
+"times": PackedFloat32Array(0, 1.2, 1.85, 3.45, 4.4, 6.4),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1, 1),
 "update": 0,
-"values": [4.0, 4.0]
+"values": [5.5, 5.4, 5.8, 5.8, 7.2, 8.5]
 }
 tracks/11/type = "value"
 tracks/11/imported = false
 tracks/11/enabled = true
 tracks/11/path = NodePath(".:camera_tilt_deg")
-tracks/11/interp = 1
+tracks/11/interp = 2
 tracks/11/loop_wrap = true
 tracks/11/keys = {
-"times": PackedFloat32Array(0, 2.76),
-"transitions": PackedFloat32Array(1, 1),
+"times": PackedFloat32Array(0, 1.3, 3.5, 4.6, 6.4),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1),
 "update": 0,
-"values": [5.0, 5.0]
+"values": [7.0, 5.3, 5.3, 7.0, 8.0]
 }
 tracks/12/type = "value"
 tracks/12/imported = false
@@ -617,7 +629,6 @@ outline_size = 8
 
 [node name="PreviewCamera" type="Camera3D" parent="." unique_id=706823334]
 transform = Transform3D(0.94551855, 0.022710484, -0.32477507, 0, 0.9975641, 0.06975647, 0.32556814, -0.065956034, 0.94321537, -18, 6.1, 23.15)
-current = true
 fov = 45.0
 
 [node name="PreviewLight" type="DirectionalLight3D" parent="." unique_id=410940204]

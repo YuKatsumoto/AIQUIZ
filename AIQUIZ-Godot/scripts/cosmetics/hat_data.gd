@@ -39,7 +39,7 @@ static func get_hat_list() -> Array[Dictionary]:
 		{"id": HAT_PROPELLER, "name": "プロペラ帽",     "icon": "🌀", "desc": "ぶんぶん回る！"},
 		{"id": HAT_FOX,       "name": "キツネ帽",       "icon": "🦊", "desc": "コンコン！もふもふ"},
 		{"id": HAT_CHICKEN,   "name": "チキン",         "icon": "🐔", "desc": "コケコッコー！"},
-		{"id": HAT_BOUSI,     "name": "ぼうし",         "icon": "🧢", "desc": "おしゃれな帽子！"},
+		{"id": HAT_BOUSI,     "name": "キリン",         "icon": "🦒", "desc": "いつもプレイヤーを見つめるキリン"},
 		{"id": HAT_GRADUATION_CAP, "name": "卒業帽",     "icon": "🎓", "desc": "知識を極めた証！"},
 		{"id": HAT_PIRATE,    "name": "海賊帽",         "icon": "🏴‍☠️", "desc": "知識の海へ出航！"},
 	]

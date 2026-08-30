@@ -16,7 +16,9 @@ const SLOT_JUMP := 7
 const SLOT_EXTRA_EMOTE_FIRST := 8
 ## エモート一覧の全FBXを載せるための追加分（メモリと相談）
 const SLOT_EXTRA_EMOTE_COUNT := 16
-const SLOT_COUNT := 8 + SLOT_EXTRA_EMOTE_COUNT
+## CC0の掴まりモーション専用。エモート枠とは分離して選択契約を維持する。
+const SLOT_LADDER_GRAB := 24
+const SLOT_COUNT := 8 + SLOT_EXTRA_EMOTE_COUNT + 1
 
 const FBX_PATHS: Array[String] = [
 	"res://assets/animations/Y Bot@Step Hip Hop Dance.fbx",
@@ -28,6 +30,7 @@ const FBX_PATHS: Array[String] = [
 	"res://assets/animations/Flair.fbx",
 	"res://assets/animations/Jumping.fbx",
 	"", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "",
+	"res://assets/animations/cc0_quaternius/UAL1_Standard.glb",
 ]
 
 const SLOT_NAMES: Array[String] = [
@@ -35,7 +38,7 @@ const SLOT_NAMES: Array[String] = [
 	"TreadingWater", "Drowning", "Flair", "Jump",
 	"Emote08", "Emote09", "Emote10", "Emote11", "Emote12", "Emote13", "Emote14",
 	"Emote15", "Emote16", "Emote17", "Emote18", "Emote19", "Emote20", "Emote21",
-	"Emote22", "Emote23",
+	"Emote22", "Emote23", "LadderGrab",
 ]
 
 ## SLOT_MOONWALK はコア8枠のプレースホルダ（未使用）。エモート用は他スロットへ割当
@@ -109,7 +112,7 @@ func load_all(parent: Node3D, loader: Callable, emote_slots: Array[int] = []) ->
 			aps[i] = data["anim_player"]
 			bone_indices_list[i] = data["bone_indices"]
 			anim_names[i] = data["anim_name"]
-			if i == SLOT_JUMP:
+			if i == SLOT_JUMP or i == SLOT_LADDER_GRAB:
 				var anim = aps[i].get_animation(anim_names[i])
 				if anim:
 					anim.loop_mode = Animation.LOOP_NONE

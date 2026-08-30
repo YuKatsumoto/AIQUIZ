@@ -45,7 +45,7 @@ const HAT_TARGET_HEIGHTS := {
 	HatData.HAT_PROPELLER: 0.35,  # プロペラ帽
 	HatData.HAT_FOX:       0.85,  # キツネ帽（めり込まないようにさらに大きく）
 	HatData.HAT_CHICKEN:   0.70,  # ニワトリ（頭の上に乗るサイズ）
-	HatData.HAT_BOUSI:     0.95,  # ぼうし（頭幅に合わせて大きめ）
+	HatData.HAT_BOUSI:     0.70,  # キリン（頭幅に合わせて大きめ）
 	HatData.HAT_GRADUATION_CAP: 0.74, # 先細りの被り部下端を約0.58にし、四角い頭の角まで収める
 	HatData.HAT_PIRATE:    0.82,  # 赤いバンダナ外周を約0.60にし、内側へ頭全体を収める
 }
@@ -65,7 +65,7 @@ const HAT_Y_TWEAKS := {
 	HatData.HAT_PROPELLER: 0.0,
 	HatData.HAT_FOX:       -0.42,  # キツネ帽（すっぽり被せる）
 	HatData.HAT_CHICKEN:   -0.02,
-	HatData.HAT_BOUSI:     0.04,   # オレンジのキャップ底を頭頂に乗せる
+	HatData.HAT_BOUSI:     -0.02,  # キリンのオレンジ帽体を深く被せ、四角い頭の飛び出しを抑える
 	HatData.HAT_GRADUATION_CAP: -0.59, # 被り部が頭上部を約0.10包み、角板は頭上に保つ
 	HatData.HAT_PIRATE:    -0.45,  # 赤いバンダナ下端を頭頂へ合わせ、帽体底面を浮かせない
 }
@@ -92,7 +92,7 @@ const HAT_X_TWEAKS := {
 const HAT_Z_TWEAKS := {
 	HatData.HAT_CAP:       -0.08,  # ドームを頭の上へ
 	HatData.HAT_PROPELLER: -0.08,  # ドームを頭の上へ
-	HatData.HAT_BOUSI:     -0.08,  # ドームを頭の上へ
+	HatData.HAT_BOUSI:     -0.10,   # ドームを前へ寄せ、四角い頭の前端が帽体を突き抜けないようにする
 }
 
 # ボブルヘッド（赤ベコ）エフェクト対象の帽子
@@ -106,6 +106,9 @@ static func is_bobblehead(hat_id: int) -> bool:
 
 const PROPELLER_BLADE_Y_CUT := 2.0
 const PROPELLER_SPINNER_SCRIPT := preload("res://scripts/cosmetics/propeller_spinner.gd")
+const GIRAFFE_HEAD_TRACKER_SCRIPT := preload("res://scripts/cosmetics/giraffe_head_tracker.gd")
+const GIRAFFE_HEAD_CUT_MODEL_Y := 10.65
+const GIRAFFE_HEAD_PIVOT_MODEL := Vector3(-0.005696, 10.65, 1.08)
 
 # Poly Pizza CC BY 3.0 クレジット
 const HAT_CREDITS := {
@@ -188,8 +191,88 @@ static func create_hat(hat_id: int) -> Node3D:
 	
 	if hat_id == HatData.HAT_PROPELLER:
 		_setup_propeller_spin(model)
+	elif hat_id == HatData.HAT_BOUSI:
+		_setup_giraffe_head_tracking(model)
 	
 	return root
+
+
+static func _setup_giraffe_head_tracking(model: Node) -> void:
+	var source := model.get_node_or_null("円") as MeshInstance3D
+	if source == null or source.mesh == null:
+		push_warning("HatFactory: Giraffe source mesh was not found")
+		return
+	var split := _split_giraffe_mesh(source.mesh, source.transform)
+	var body_mesh := split.get("body") as ArrayMesh
+	var head_mesh := split.get("head") as ArrayMesh
+	if body_mesh == null or head_mesh == null:
+		push_warning("HatFactory: Giraffe head split failed")
+		return
+
+	var source_parent := source.get_parent() as Node3D
+	if source_parent == null:
+		return
+	var pivot_in_source := source.transform.affine_inverse() * GIRAFFE_HEAD_PIVOT_MODEL
+
+	source.name = "GiraffeBody"
+	source.mesh = body_mesh
+
+	var head_pivot := Node3D.new()
+	head_pivot.name = "GiraffeHeadPivot"
+	head_pivot.transform = Transform3D(
+		source.transform.basis,
+		source.transform * pivot_in_source,
+	)
+	source_parent.add_child(head_pivot)
+
+	var head := MeshInstance3D.new()
+	head.name = "GiraffeHead"
+	head.mesh = head_mesh
+	head.transform = Transform3D(Basis.IDENTITY, -pivot_in_source)
+	head.cast_shadow = source.cast_shadow
+	head.material_override = source.material_override
+	head_pivot.add_child(head)
+	head_pivot.set_script(GIRAFFE_HEAD_TRACKER_SCRIPT)
+
+
+static func _split_giraffe_mesh(src: Mesh, source_transform: Transform3D) -> Dictionary:
+	var body := ArrayMesh.new()
+	var head := ArrayMesh.new()
+	for surface_i: int in range(src.get_surface_count()):
+		var arrays: Array = src.surface_get_arrays(surface_i)
+		var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		var source_indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+		var body_indices := PackedInt32Array()
+		var head_indices := PackedInt32Array()
+		var uses_indices := not source_indices.is_empty()
+		var triangle_count := (
+			int(source_indices.size() / 3.0)
+			if uses_indices
+			else int(vertices.size() / 3.0)
+		)
+		for triangle_i: int in range(triangle_count):
+			var i0 := source_indices[triangle_i * 3] if uses_indices else triangle_i * 3
+			var i1 := source_indices[triangle_i * 3 + 1] if uses_indices else triangle_i * 3 + 1
+			var i2 := source_indices[triangle_i * 3 + 2] if uses_indices else triangle_i * 3 + 2
+			var centroid_y := (
+				(source_transform * vertices[i0]).y
+				+ (source_transform * vertices[i1]).y
+				+ (source_transform * vertices[i2]).y
+			) / 3.0
+			if centroid_y >= GIRAFFE_HEAD_CUT_MODEL_Y:
+				head_indices.append(i0)
+				head_indices.append(i1)
+				head_indices.append(i2)
+			else:
+				body_indices.append(i0)
+				body_indices.append(i1)
+				body_indices.append(i2)
+		var material: Material = src.surface_get_material(surface_i)
+		_add_mesh_surface(body, _rebuild_surface_arrays(arrays, body_indices), material)
+		_add_mesh_surface(head, _rebuild_surface_arrays(arrays, head_indices), material)
+	if body.get_surface_count() == 0 or head.get_surface_count() == 0:
+		return {}
+	return {"body": body, "head": head}
 
 
 static func _setup_propeller_spin(model: Node) -> void:
@@ -330,6 +413,7 @@ static func _rebuild_surface_arrays(src: Array, tri_indices: PackedInt32Array) -
 	dest[Mesh.ARRAY_INDEX] = new_indices
 	var copy_slots: Array[int] = [
 		Mesh.ARRAY_NORMAL,
+		Mesh.ARRAY_TANGENT,
 		Mesh.ARRAY_TEX_UV,
 		Mesh.ARRAY_COLOR,
 	]

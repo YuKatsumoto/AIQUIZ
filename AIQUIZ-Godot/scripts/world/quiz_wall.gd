@@ -48,6 +48,10 @@ var _current_num_choices: int = 2
 var _retiring_after_pass: bool = false
 var _retirement_finished: bool = false
 
+## 同じサイズ・色の箱はRIDを再利用し、枚ごとのGPUアップロードを避ける。
+static var _box_mesh_cache: Dictionary = {}
+static var _opaque_material_cache: Dictionary = {}
+
 func _ready() -> void:
 	_build_doors(2)
 
@@ -238,11 +242,13 @@ func _fade_mesh_to_transparent(mesh_inst: MeshInstance3D, fade_duration: float) 
 	var material: StandardMaterial3D = mesh_inst.material_override as StandardMaterial3D
 	if material == null:
 		return
-	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	var color: Color = material.albedo_color
+	var unique_material: StandardMaterial3D = material.duplicate() as StandardMaterial3D
+	mesh_inst.material_override = unique_material
+	unique_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	var color: Color = unique_material.albedo_color
 	var target_color := Color(color.r, color.g, color.b, 0.0)
 	var fade_tween: Tween = create_tween()
-	fade_tween.tween_property(material, "albedo_color", target_color, fade_duration)
+	fade_tween.tween_property(unique_material, "albedo_color", target_color, fade_duration)
 
 
 func _mark_retirement_finished() -> void:
@@ -335,8 +341,8 @@ func set_is_boss(boss: bool) -> void:
 	is_boss = boss
 	var target_color = BOSS_WALL_COLOR if is_boss else WALL_COLOR
 	for part in wall_parts:
-		if is_instance_valid(part) and part.material_override:
-			part.material_override.albedo_color = target_color
+		if is_instance_valid(part):
+			part.material_override = _shared_opaque_material(target_color)
 	
 	if is_boss and not is_instance_valid(boss_label):
 		boss_label = _create_label()
@@ -546,17 +552,33 @@ func is_solid_frame_occluding_segment(segment_start: Vector3, segment_end: Vecto
 
 func _create_box(half_extents: Vector3, color: Color) -> MeshInstance3D:
 	var mesh_inst := MeshInstance3D.new()
-	var box := BoxMesh.new()
-	box.size = half_extents * 2.0
-	mesh_inst.mesh = box
+	mesh_inst.mesh = _shared_box_mesh(half_extents * 2.0)
+	mesh_inst.material_override = _shared_opaque_material(color)
+	return mesh_inst
 
+
+static func _shared_box_mesh(size: Vector3) -> BoxMesh:
+	var key := "%0.4f_%0.4f_%0.4f" % [size.x, size.y, size.z]
+	var cached: BoxMesh = _box_mesh_cache.get(key) as BoxMesh
+	if cached != null:
+		return cached
+	var box := BoxMesh.new()
+	box.size = size
+	_box_mesh_cache[key] = box
+	return box
+
+
+static func _shared_opaque_material(color: Color) -> StandardMaterial3D:
+	var key := "%0.4f_%0.4f_%0.4f_%0.4f" % [color.r, color.g, color.b, color.a]
+	var cached: StandardMaterial3D = _opaque_material_cache.get(key) as StandardMaterial3D
+	if cached != null:
+		return cached
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = color
 	mat.roughness = 0.6
 	mat.metallic = 0.05
-	mesh_inst.material_override = mat
-
-	return mesh_inst
+	_opaque_material_cache[key] = mat
+	return mat
 
 func _create_label() -> Label3D:
 	var label := Label3D.new()

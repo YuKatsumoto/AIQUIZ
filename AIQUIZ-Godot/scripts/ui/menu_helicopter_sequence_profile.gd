@@ -62,13 +62,16 @@ func _start_standalone_preview() -> void:
 
 func prepare_runtime() -> void:
 	_runtime_mode = true
+	# Disable the editor preview camera before this instance can enter a live
+	# viewport. current=true would steal the menu camera, then clearing it
+	# hands the view to LiveCamera at the origin.
+	var preview_camera := get_node_or_null("PreviewCamera") as Camera3D
+	if preview_camera != null:
+		preview_camera.current = false
 	var editor_reference := get_node_or_null("EditorReference") as Node3D
 	if editor_reference != null:
 		editor_reference.visible = false
 	_apply_preview_visibility()
-	var preview_camera := get_node_or_null("PreviewCamera") as Camera3D
-	if preview_camera != null:
-		preview_camera.current = false
 	var preview_light := get_node_or_null("PreviewLight") as DirectionalLight3D
 	if preview_light != null:
 		preview_light.visible = false
