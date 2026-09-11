@@ -17,8 +17,18 @@ const SLOT_EXTRA_EMOTE_FIRST := 8
 ## エモート一覧の全FBXを載せるための追加分（メモリと相談）
 const SLOT_EXTRA_EMOTE_COUNT := 16
 ## CC0の掴まりモーション専用。エモート枠とは分離して選択契約を維持する。
+## 同GLBには機内待機・飛び降りクリップも含まれるので、UAL共有スロットとしても使う。
 const SLOT_LADDER_GRAB := 24
-const SLOT_COUNT := 8 + SLOT_EXTRA_EMOTE_COUNT + 1
+const SLOT_UAL := SLOT_LADDER_GRAB
+const SLOT_UAL2 := 25
+const SLOT_COUNT := 8 + SLOT_EXTRA_EMOTE_COUNT + 2
+
+const UAL_CABIN_IDLE := "Sitting_Idle_Loop"
+const UAL_INTERACT := "Interact"
+const UAL_JUMP_START := "Jump_Start"
+const UAL_JUMP_AIR := "Jump_Loop"
+const UAL_JUMP_LAND := "Jump_Land"
+const UAL_IDLE := "Idle_Loop"
 
 const FBX_PATHS: Array[String] = [
 	"res://assets/animations/Y Bot@Step Hip Hop Dance.fbx",
@@ -31,6 +41,7 @@ const FBX_PATHS: Array[String] = [
 	"res://assets/animations/Jumping.fbx",
 	"", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "",
 	"res://assets/animations/cc0_quaternius/UAL1_Standard.glb",
+	"res://assets/animations/cc0_quaternius/UAL2_Standard.glb",
 ]
 
 const SLOT_NAMES: Array[String] = [
@@ -38,7 +49,7 @@ const SLOT_NAMES: Array[String] = [
 	"TreadingWater", "Drowning", "Flair", "Jump",
 	"Emote08", "Emote09", "Emote10", "Emote11", "Emote12", "Emote13", "Emote14",
 	"Emote15", "Emote16", "Emote17", "Emote18", "Emote19", "Emote20", "Emote21",
-	"Emote22", "Emote23", "LadderGrab",
+	"Emote22", "Emote23", "LadderGrab", "Ual2",
 ]
 
 ## SLOT_MOONWALK はコア8枠のプレースホルダ（未使用）。エモート用は他スロットへ割当
@@ -290,6 +301,110 @@ func stop_all() -> void:
 		var ap = aps[i] as AnimationPlayer
 		if ap and ap.is_playing():
 			ap.stop()
+
+
+func resolve_ual_clip(clip_name: String, slot: int = SLOT_UAL) -> String:
+	if clip_name.is_empty() or slot < 0 or slot >= aps.size():
+		return ""
+	var ap := aps[slot] as AnimationPlayer
+	if ap == null:
+		return ""
+	var candidates: Array[String] = [clip_name]
+	if clip_name.ends_with("_Loop"):
+		candidates.append(clip_name.substr(0, clip_name.length() - 5))
+	else:
+		candidates.append(clip_name + "_Loop")
+	for candidate: String in candidates:
+		var found := _find_ual_clip_name(ap, candidate)
+		if not found.is_empty():
+			return found
+	return ""
+
+
+func _find_ual_clip_name(ap: AnimationPlayer, clip_name: String) -> String:
+	if ap.has_animation(clip_name):
+		return clip_name
+	for listed in ap.get_animation_list():
+		var listed_name := str(listed)
+		if listed_name == clip_name or listed_name.ends_with("/" + clip_name):
+			return listed_name
+	for lib_name: StringName in ap.get_animation_library_list():
+		var library := ap.get_animation_library(lib_name)
+		if library == null:
+			continue
+		for anim_name: StringName in library.get_animation_list():
+			if String(anim_name) != clip_name:
+				continue
+			if String(lib_name).is_empty():
+				return clip_name
+			return "%s/%s" % [String(lib_name), clip_name]
+	return ""
+
+
+func play_ual_clip(clip_name: String, force_restart: bool = false, slot: int = SLOT_UAL) -> bool:
+	if is_thriller_locked():
+		return false
+	var resolved := resolve_ual_clip(clip_name, slot)
+	if resolved.is_empty():
+		return false
+	var target_ap := aps[slot] as AnimationPlayer
+	if target_ap == null:
+		return false
+	for i in range(SLOT_COUNT):
+		var ap := aps[i] as AnimationPlayer
+		if ap and ap != target_ap and ap.is_playing():
+			ap.stop()
+	var animation := target_ap.get_animation(resolved)
+	if animation != null:
+		if (
+			clip_name == UAL_JUMP_START
+			or clip_name == UAL_JUMP_LAND
+		):
+			animation.loop_mode = Animation.LOOP_NONE
+		elif (
+			clip_name == UAL_CABIN_IDLE
+			or clip_name == UAL_JUMP_AIR
+			or clip_name == UAL_IDLE
+		):
+			animation.loop_mode = Animation.LOOP_LINEAR
+	if not target_ap.is_playing() or force_restart or target_ap.current_animation != resolved:
+		target_ap.play(resolved)
+	active_skeleton = skeletons[slot]
+	active_bone_indices = bone_indices_list[slot]
+	mirror_x = true
+	return active_skeleton != null
+
+
+func seek_ual_clip(clip_name: String, ratio: float, slot: int = SLOT_UAL) -> bool:
+	var resolved := resolve_ual_clip(clip_name, slot)
+	if resolved.is_empty():
+		return false
+	var ap := aps[slot] as AnimationPlayer
+	if ap == null:
+		return false
+	var animation := ap.get_animation(resolved)
+	if animation == null:
+		return false
+	if ap.current_animation != resolved:
+		ap.play(resolved)
+	ap.seek(animation.length * clampf(ratio, 0.0, 1.0), true, true)
+	active_skeleton = skeletons[slot]
+	active_bone_indices = bone_indices_list[slot]
+	mirror_x = true
+	return active_skeleton != null
+
+
+func get_ual_clip_length(clip_name: String, slot: int = SLOT_UAL) -> float:
+	var resolved := resolve_ual_clip(clip_name, slot)
+	if resolved.is_empty():
+		return 0.0
+	var ap := aps[slot] as AnimationPlayer
+	if ap == null:
+		return 0.0
+	var animation := ap.get_animation(resolved)
+	if animation == null:
+		return 0.0
+	return animation.length
 
 
 func select_animation(player_y: float, jump_trigger: bool, emote: int,

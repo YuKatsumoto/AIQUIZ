@@ -1,0 +1,39 @@
+[gd_scene load_steps=7 format=3 uid="uid://dfhtofm6r1jpm"]
+
+[ext_resource type="Shader" uid="uid://ovrd5ydp8p0q" path="res://assets/TransitionKit/src/shader/transition.gdshader" id="1_ro8hd"]
+[ext_resource type="Texture2D" uid="uid://c2kv7fc25scs1" path="res://assets/TransitionKit/src/texture/transition_shape/basic/square.tres" id="2_4hpfs"]
+[ext_resource type="Script" uid="uid://bo1i5j2m427bs" path="res://assets/TransitionKit/src/script/transition_rect.gd" id="3_b8k7e"]
+
+[sub_resource type="Gradient" id="Gradient_65my5"]
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_syjum"]
+gradient = SubResource("Gradient_65my5")
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_7mycd"]
+shader = ExtResource("1_ro8hd")
+shader_parameter/base_color = Color(0, 0, 0, 1)
+shader_parameter/node_resolution = Vector2(1152, 648)
+shader_parameter/factor = 0.5
+shader_parameter/width = 0.3
+shader_parameter/gradient_texture = SubResource("GradientTexture2D_syjum")
+shader_parameter/gradient_fixed = false
+shader_parameter/shape_texture = ExtResource("2_4hpfs")
+shader_parameter/shape_tiling = 32.0
+shader_parameter/shape_rotation = 45.0
+shader_parameter/shape_scroll = Vector2(-0.05, 0.05)
+shader_parameter/shape_feathering = 0.0
+shader_parameter/shape_treshold = 1.01
+
+[node name="TDiamond" type="ColorRect"]
+material = SubResource("ShaderMaterial_7mycd")
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("3_b8k7e")
+gradient_texture = SubResource("GradientTexture2D_syjum")
+shape_texture = ExtResource("2_4hpfs")
+shape_rotation = 45.0
+shape_scroll = Vector2(-0.05, 0.05)
+shape_treshold = 1.01

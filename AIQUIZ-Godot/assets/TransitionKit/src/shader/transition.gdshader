@@ -52,6 +52,6 @@ void fragment() {
 	shape_value = mix(shape_feathering * 0.5, 1.0 - shape_feathering * 0.5, shape_value);
 	float shaped_gradient = smoothstep(value - (shape_feathering * 0.5), value + (shape_feathering * 0.5), shape_treshold - shape_value);
 
-	COLOR.rgb = vec3(0.0);
-	COLOR.a = shaped_gradient;
+	COLOR.rgb = base_color.rgb;
+	COLOR.a = shaped_gradient * base_color.a;
 }

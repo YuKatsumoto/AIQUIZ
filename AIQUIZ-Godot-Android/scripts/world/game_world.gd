@@ -1,16 +1,24 @@
 extends Node3D
 
+const GhostSharkRideControllerScript = preload("res://scripts/world/ghost_shark_ride_controller.gd")
+const ResultCeremonyDirectorScript = preload("res://scripts/world/result_ceremony_director.gd")
+const TutorialPresentationDirectorScript = preload("res://scripts/world/tutorial_presentation_director.gd")
+const DuoTutorialGuidesScript = preload("res://scripts/world/duo_tutorial_guides.gd")
+const SoloTutorialGuidesScript = preload("res://scripts/world/solo_tutorial_guides.gd")
+const HelicopterArrivalDirectorScript = preload("res://scripts/world/helicopter_arrival_director.gd")
+const MobileCpuDriverScript = preload("res://scripts/mobile/mobile_cpu_driver.gd")
+
 ## 3Dゲームワールド管理
 ## Python版 renderer.py の _draw_world + main_3d.py の入力処理に相当
 
 @onready var camera_controller: Node3D = $CameraController
-@onready var floor_mesh: MeshInstance3D = $Floor
 @onready var player_node: Node3D = $Player
 @onready var wall_container: Node3D = $WallContainer
 @onready var particle_spawner: Node3D = $ParticleSpawner
-@onready var environment_node: WorldEnvironment = $WorldEnvironment
-@onready var directional_light: DirectionalLight3D = $DirectionalLight3D
-const CONVEYOR_FLOOR_SHADER: Shader = preload("res://shaders/conveyor_belt_floor.gdshader")
+@onready var stage_env: StageEnvironment = $StageEnvironment as StageEnvironment
+@onready var gameplay_hud: CanvasLayer = $GameplayHUD
+
+## 共有ステージ（床・コンベア・海・環境・照明）。メニュープレビューと同一の StageEnvironment。
 
 var game_state: QuizGameState
 var _net_state: NetGameState = null
@@ -22,18 +30,30 @@ var _prev_wrong_flash: float = 0.0
 var _prev_go_timer: float = 0.0
 var _fireworks_launched: bool = false
 var _prev_p2_go_timer: float = 0.0
+var _prev_player_y: float = 0.0
+var _prev_p2_y: float = 0.0
+var _ocean_attack_sharks: Dictionary = {}
+var _ghost_shark_ride_controller: Node3D = null
+var _result_ceremony_director: Node3D = null
+var _tutorial_presentation_director: Node = null
+var _tutorial_world_guides: Node3D = null
+var _helicopter_arrival_director: Node = null
+var _tutorial_customize_handoff_in_progress: bool = false
 var _active_walls: Array[Node3D] = []
+var _retired_wall_indices: Dictionary = {}
+const MERGE_EFFECT_POOL_SIZE := 6
+const MERGE_SPARK_BASE_AMOUNT := 40
+var _merge_effect_pool: Array[Dictionary] = []
 var _flyover_walls: Array[Node3D] = []
 var _flyover_active: bool = false
 var _hats_applied: bool = false
 # ── プリロード中の3D構築アニメーション ──
-var _pw_walls: Array[Node3D] = []        # 完成壁
-var _pw_left: Array[Node3D] = []          # 左半分スライド壁
-var _pw_right: Array[Node3D] = []         # 右半分スライド壁
-var _pw_anims: Array[Dictionary] = []     # アニメ状態
-var _pw_count: int = 0                    # 生成済み壁数
-var _pw_merge_started: Array[bool] = []   # 各壁のマージ開始フラグ
-var _pw_merge_timer: float = 0.0          # 壁間のディレイタイマー
+var _pw_walls: Array[Node3D] = []       # 上空から着地する完成壁
+var _pw_anims: Array[Dictionary] = []   # 落下・着地アニメ状態
+var _pw_count: int = 0                  # 生成済み壁数
+var _pw_configured_count: int = 0       # 問題文まで設定済みの壁数
+var _pw_drop_started: Array[bool] = []  # 各壁の落下開始フラグ
+var _pw_drop_timer: float = 0.0         # 壁間のディレイタイマー
 var _goal_line_node: Node3D = null
 # ── スタートバリア壁（カウントダウン終了まで問題を隠す） ──
 var _start_barrier: Node3D = null
@@ -42,59 +62,42 @@ var _barrier_dropping: bool = false
 var _barrier_drop_timer: float = 0.0
 var _barrier_spawned_for_session: bool = false  # 1ゲームに1回だけ
 const MAX_VISIBLE_WALLS := 4
-const BG_COLOR := Color(0.82, 0.85, 0.90)
-const FLOOR_COLOR := Color(0.35, 0.35, 0.35)
-const FLOOR_HALF_WIDTH: float = 12.0
-const FLOOR_TOP_Y: float = -1.2
-const FLOOR_RAIL_HEIGHT: float = 0.26
-const FLOOR_RAIL_WIDTH: float = 0.16
-const FLOOR_RAIL_INSET: float = 0.06
-const CONVEYOR_BELT_BASE_COLOR := Color(0.40, 0.41, 0.42, 1.0)
-const CONVEYOR_BELT_STRIPE_COLOR := Color(0.34, 0.345, 0.35, 1.0)
-const CONVEYOR_BELT_SIDE_COLOR := Color(0.33, 0.34, 0.35, 1.0)
-const CONVEYOR_ROLLER_RADIUS: float = 0.48
-const CONVEYOR_ROLLER_LENGTH: float = 23.4
-const CONVEYOR_RETURN_BELT_THICKNESS: float = 0.10
-const CONVEYOR_RETURN_BELT_GAP: float = 0.03
-const CONVEYOR_SIDE_FRAME_WIDTH: float = 0.24
-const CONVEYOR_SIDE_FRAME_HEIGHT: float = 1.05
-const CONVEYOR_SIDE_FRAME_OVERHANG: float = 1.2
-const CONVEYOR_SIDE_FRAME_TOP_CLEARANCE: float = 0.26
+const PREVIEW_WALLS_PER_FRAME := 1
+const COVER_PREVIEW_WALLS_PER_FRAME := 2
+const PREVIEW_WALL_CONFIGS_PER_FRAME := 1
+const ONLINE_PREVIEW_WALL_PREWARM_FRAMES := 4
+const PREVIEW_WALL_DROP_START_Y := 46.0
+const PREVIEW_WALL_DROP_INTERVAL := 0.16
+const PREVIEW_WALL_DROP_DURATION := 0.28
+const PREVIEW_WALL_SETTLE_DURATION := 0.14
+const OFFLINE_TRANSITION_PREP_TIMEOUT_MSEC := 20000
+const OFFLINE_QUIZ_WAIT_TIMEOUT_MSEC := 60000
+const OFFLINE_TRANSITION_SETTLE_FRAMES := 1
+const WORLD_VISUAL_PREP_MIN_MSEC := 800
+const WORLD_VISUAL_PREP_RENDER_FRAMES := 2
 
 var pause_menu: CanvasLayer = null
-@onready var gameplay_hud: CanvasLayer = $GameplayHUD
-var _mobile_emote_p1: int = 0
-var _floor_belt_material: ShaderMaterial = null
-var _floor_rail_left: MeshInstance3D = null
-var _floor_rail_right: MeshInstance3D = null
-var _conveyor_roller_front: MeshInstance3D = null
-var _conveyor_roller_back: MeshInstance3D = null
-var _conveyor_return_belt: MeshInstance3D = null
-var _conveyor_return_material: ShaderMaterial = null
-var _conveyor_roller_front_material: ShaderMaterial = null
-var _conveyor_roller_back_material: ShaderMaterial = null
-var _conveyor_side_frame_left: MeshInstance3D = null
-var _conveyor_side_frame_right: MeshInstance3D = null
-var _floor_collision_body: StaticBody3D = null
+var _world_visual_prep_started_msec: int = 0
+var _world_visual_prepared: bool = false
+var _world_visual_prep_report: Dictionary = {}
+var _pw_render_prewarmed: bool = false
+var _wall_prewarm_root: Node3D = null
+var _barrier_prebuilt: bool = false
+var _barrier_landing_dust: CPUParticles3D = null
 
 # ── リプレイ記録 ──
 var _recorder: ReplayRecorder = null
 var _replay_mode: bool = false
-
-# ── メニュー背景デモ (AIオートプレイ) ──
-var _demo_mode: bool = false
-var _demo_driver: DemoAIDriver = null
+var _mobile_controller: VirtualController = null
+var _mobile_cpu_driver: MobileCpuDriver = null
+var _mobile_emote_p1: int = 0
+var _last_cpu_input: Dictionary = {}
 
 func _ready() -> void:
-	_demo_mode = get_meta("demo_mode", false)
-	if _demo_mode:
-		# デモは共有stateに触れない専用stateをオフライン問題で回す
-		var demo_provider := QuizProvider.new()
-		add_child(demo_provider)  # Node継承のためツリーに載せて解放を保証
-		game_state = QuizGameState.new(demo_provider)
-		game_state.is_demo = true
-	else:
-		game_state = QuizManager.game_state
+	_world_visual_prep_started_msec = Time.get_ticks_msec()
+	game_state = QuizManager.game_state
+	AudioManager.set_music_context(AudioManager.MUSIC_CONTEXT_GAMEPLAY)
+	GraphicsQuality.apply_text_viewport(get_viewport(), GameManager.graphics_quality)
 	quiz_wall_scene = preload("res://scenes/quiz_wall.tscn")
 
 	# リプレイモードチェック
@@ -105,6 +108,7 @@ func _ready() -> void:
 	game_state.quiz_loaded.connect(_on_quiz_loaded)
 	game_state.correct_answer.connect(_on_correct)
 	game_state.wrong_answer.connect(_on_wrong)
+	game_state.player_entered_ocean.connect(_on_player_entered_ocean)
 
 	# リプレイ記録を開始（通常モードのみ）
 	# TODO: 一旦リプレイ機能を封印するため無効化
@@ -113,260 +117,694 @@ func _ready() -> void:
 		#_recorder = ReplayRecorder.new()
 		#_recorder.start_recording(game_state)
 
-	# Setup network sync layer (デモでは不要)
-	if not _demo_mode:
-		_net_state = NetGameState.new()
-		add_child(_net_state)
-		_net_state.setup(game_state)
+	# Setup network sync layer
+	_net_state = NetGameState.new()
+	add_child(_net_state)
+	_net_state.setup(game_state)
+	# Online and replay retain their existing presentation contract. Every local
+	# game mode shares this one director and the same product GLB.
+	if not _replay_mode and not _net_state.is_online:
+		_helicopter_arrival_director = HelicopterArrivalDirectorScript.new()
+		_helicopter_arrival_director.name = "HelicopterArrivalDirector"
+		add_child(_helicopter_arrival_director)
+		_helicopter_arrival_director.setup(
+			game_state,
+			player_node as PlayerController,
+			camera_controller
+		)
 
-	# Setup environment
-	_setup_environment()
-	_setup_lighting()
-	_setup_floor_conveyor()
-	_setup_magma()
-
-	if _demo_mode:
-		# HUD/DeathWipe は共有stateを掴んでいるためデモでは破棄
-		if gameplay_hud:
-			gameplay_hud.queue_free()
-			gameplay_hud = null
-		var death_wipe_layer := get_node_or_null("DeathWipeLayer")
-		if death_wipe_layer:
-			death_wipe_layer.queue_free()
-		set_process_unhandled_input(false)
-		camera_controller.demo_mode = true
-		_apply_demo_quality()
-		_demo_driver = DemoAIDriver.new()
-		_demo_driver.setup(game_state)
-		_demo_driver.restart_game()
-		return
+	# Setup shared stage (environment / lighting / floor / conveyor / ocean)
+	stage_env.build(stage_env.gameplay_build_config())
+	_setup_ocean_shark_signals()
+	_ghost_shark_ride_controller = GhostSharkRideControllerScript.new()
+	_ghost_shark_ride_controller.name = "GhostSharkRideController"
+	add_child(_ghost_shark_ride_controller)
+	_ghost_shark_ride_controller.setup(
+		game_state,
+		stage_env,
+		player_node as PlayerController,
+		camera_controller,
+		particle_spawner
+	)
+	_ghost_shark_ride_controller.aim_used.connect(_on_tutorial_ghost_aim_used)
+	_ghost_shark_ride_controller.charge_resolved.connect(_on_tutorial_ghost_charge_resolved)
+	_result_ceremony_director = ResultCeremonyDirectorScript.new()
+	_result_ceremony_director.name = "ResultCeremonyDirector"
+	add_child(_result_ceremony_director)
+	_result_ceremony_director.setup(
+		game_state,
+		player_node as PlayerController,
+		camera_controller,
+		_ghost_shark_ride_controller as GhostSharkRideController
+	)
+	game_state.tutorial_task_completed.connect(_on_tutorial_task_completed)
+	game_state.tutorial_presentation_requested.connect(_on_tutorial_presentation_requested)
+	game_state.tutorial_customize_handoff_requested.connect(_on_tutorial_customize_handoff_requested)
+	_tutorial_presentation_director = TutorialPresentationDirectorScript.new()
+	_tutorial_presentation_director.name = "TutorialPresentationDirector"
+	add_child(_tutorial_presentation_director)
+	_tutorial_presentation_director.setup(game_state, camera_controller)
+	# 1Pと2Pではガイドの見せ方が別物なので、コースごとに実装を切り替える。
+	if game_state.is_duo_tutorial():
+		_tutorial_world_guides = DuoTutorialGuidesScript.new()
+		_tutorial_world_guides.name = "DuoTutorialGuides"
+	else:
+		_tutorial_world_guides = SoloTutorialGuidesScript.new()
+		_tutorial_world_guides.name = "SoloTutorialGuides"
+	add_child(_tutorial_world_guides)
+	_tutorial_world_guides.setup(game_state)
+	_warm_merge_effect_pool()
+	_setup_mobile_runtime()
 
 	# Pause menu setup
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_build_pause_menu()
-
-	# バーチャルコントローラーのシグナル接続
-	if gameplay_hud and gameplay_hud.has_node("VirtualController"):
-		var vc = gameplay_hud.get_node("VirtualController")
-		if vc:
-			vc.pause_triggered.connect(_toggle_pause)
-			vc.emote_triggered.connect(func(emote_id: int):
-				print("[WORLD] Received mobile emote: %d" % emote_id)
-				_mobile_emote_p1 = emote_id
-			)
-			vc.swipe_left.connect(func():
-				game_state.handle_mobile_swipe(true)
-			)
-			vc.swipe_right.connect(func():
-				game_state.handle_mobile_swipe(false)
-			)
-
 	call_deferred("_reveal_after_transition")
 
+
+func _setup_mobile_runtime() -> void:
+	_mobile_cpu_driver = MobileCpuDriverScript.new(game_state) as MobileCpuDriver
+	if gameplay_hud != null and gameplay_hud.has_method("get_virtual_controller"):
+		_mobile_controller = gameplay_hud.call("get_virtual_controller") as VirtualController
+	if _mobile_controller == null:
+		return
+	_mobile_controller.set_cpu_enabled(_uses_local_cpu_p2())
+	_mobile_controller.pause_triggered.connect(_toggle_pause)
+	_mobile_controller.primary_action_triggered.connect(_on_mobile_primary_action)
+	_mobile_controller.emote_triggered.connect(func(emote_id: int) -> void:
+		_mobile_emote_p1 = emote_id
+	)
+
+
+func _uses_local_cpu_p2() -> bool:
+	return (
+		game_state != null
+		and game_state.num_players >= 2
+		and not _replay_mode
+		and (_net_state == null or not _net_state.is_online)
+	)
+
+
+func _on_mobile_primary_action() -> void:
+	if (
+		_ghost_shark_ride_controller != null
+		and _ghost_shark_ride_controller.dismiss_charge_tutorial()
+	):
+		return
+	if (
+		_tutorial_presentation_director != null
+		and _tutorial_presentation_director.is_active()
+	):
+		_tutorial_presentation_director.skip()
+		return
+	if game_state == null or game_state.game_state != Constants.STATE_WAITING_START:
+		return
+	if is_start_presentation_locked() or is_preload_construction_locked():
+		return
+	if not _barrier_spawned_for_session or _barrier_dropping:
+		return
+	game_state.trigger_start()
+
+
+func get_mobile_port_report() -> Dictionary:
+	return {
+		"mobile_profile": bool(ProjectSettings.get_setting("aiquiz/mobile/enabled", false)),
+		"controller": (
+			_mobile_controller.get_debug_report()
+			if _mobile_controller != null
+			else {"available": false}
+		),
+		"cpu_enabled": _uses_local_cpu_p2(),
+		"cpu": (
+			_mobile_cpu_driver.get_debug_report()
+			if _mobile_cpu_driver != null
+			else {"available": false}
+		),
+		"last_cpu_input": _last_cpu_input.duplicate(true),
+	}
+
+func _setup_ocean_shark_signals() -> void:
+	if stage_env == null:
+		return
+	for shark: SharkSwimmer in stage_env.get_ocean_sharks():
+		var callback: Callable = _on_shark_attack_reached.bind(shark)
+		if not shark.attack_reached.is_connected(callback):
+			shark.attack_reached.connect(callback)
+
+
+func _on_player_entered_ocean(player_index: int, local_position: Vector3) -> void:
+	if particle_spawner.has_method("spawn_ocean_splash"):
+		particle_spawner.spawn_ocean_splash(local_position)
+	_start_ocean_shark_attack(player_index, local_position)
+
+
+func _start_ocean_shark_attack(player_index: int, target_position: Vector3) -> void:
+	if stage_env == null:
+		return
+	var assigned_variant: Variant = _ocean_attack_sharks.get(player_index)
+	var assigned_shark: SharkSwimmer = assigned_variant as SharkSwimmer
+	if assigned_shark != null and is_instance_valid(assigned_shark):
+		assigned_shark.set_attack_target(target_position)
+		return
+
+	var selected_shark: SharkSwimmer = null
+	var best_score: float = INF
+	var target_side: float = 0.0
+	if absf(target_position.x) >= StageConstants.FLOOR_HALF_WIDTH:
+		target_side = signf(target_position.x)
+	for shark: SharkSwimmer in stage_env.get_ocean_sharks():
+		if not shark.is_available_for_ocean_attack():
+			continue
+		var shark_side: float = signf(shark.position.x)
+		var opposite_side_penalty: float = (
+			10000.0
+			if not is_zero_approx(target_side) and shark_side != target_side
+			else 0.0
+		)
+		var score: float = opposite_side_penalty + shark.position.distance_to(target_position)
+		if score < best_score:
+			best_score = score
+			selected_shark = shark
+
+	if selected_shark == null:
+		push_warning("No available shark for ocean attack on P%d" % player_index)
+		return
+	if selected_shark.begin_attack(
+		player_index,
+		target_position,
+		stage_env.get_floor_center_z(),
+		stage_env.get_floor_length()
+	):
+		_ocean_attack_sharks[player_index] = selected_shark
+
+
+func get_ocean_attack_shark_position(player_index: int) -> Variant:
+	var shark_variant: Variant = _ocean_attack_sharks.get(player_index)
+	var shark: SharkSwimmer = shark_variant as SharkSwimmer
+	if shark != null and is_instance_valid(shark):
+		return shark.global_position
+	if _ghost_shark_ride_controller != null:
+		var presentation: Dictionary = (
+			_ghost_shark_ride_controller.get_presentation_state(player_index)
+		)
+		if bool(presentation.get("active", false)):
+			return presentation.get("focus", null)
+	return null
+
+
+func is_problem_wall_occluding_segment(
+	segment_start: Vector3,
+	segment_end: Vector3
+) -> bool:
+	for wall: Node3D in _active_walls:
+		if not is_instance_valid(wall) or not wall.is_visible_in_tree():
+			continue
+		if (
+			wall.has_method("is_retiring_after_pass")
+			and bool(wall.call("is_retiring_after_pass"))
+		):
+			continue
+		if wall.has_method("is_solid_frame_occluding_segment"):
+			if bool(wall.call(
+				"is_solid_frame_occluding_segment",
+				segment_start,
+				segment_end
+			)):
+				return true
+			continue
+		for child: Node in wall.get_children():
+			var mesh_instance := child as MeshInstance3D
+			if (
+				mesh_instance == null
+				or mesh_instance.mesh == null
+				or not mesh_instance.is_visible_in_tree()
+			):
+				continue
+			var inverse_transform := mesh_instance.global_transform.affine_inverse()
+			var local_start := inverse_transform * segment_start
+			var local_end := inverse_transform * segment_end
+			if mesh_instance.get_aabb().intersects_segment(local_start, local_end) != null:
+				return true
+	return false
+
+
+func get_ocean_attack_shark_intensity(player_index: int) -> float:
+	var shark_variant: Variant = _ocean_attack_sharks.get(player_index)
+	var shark: SharkSwimmer = shark_variant as SharkSwimmer
+	if shark != null and is_instance_valid(shark):
+		return shark.get_attack_intensity()
+	if _ghost_shark_ride_controller != null:
+		var presentation: Dictionary = (
+			_ghost_shark_ride_controller.get_presentation_state(player_index)
+		)
+		if bool(presentation.get("active", false)):
+			var duration := maxf(float(presentation.get("duration", 4.0)), 0.001)
+			return clampf(float(presentation.get("elapsed", 0.0)) / duration, 0.0, 1.0)
+	return 0.0
+
+
+func get_ghost_shark_presentation(player_index: int) -> Dictionary:
+	if _ghost_shark_ride_controller == null:
+		return {"active": false}
+	return _ghost_shark_ride_controller.get_presentation_state(player_index)
+
+
+func is_ghost_shark_control_active(player_index: int) -> bool:
+	if _ghost_shark_ride_controller == null:
+		return false
+	return _ghost_shark_ride_controller.is_control_active_for_player(player_index)
+
+
+func is_ghost_charge_tutorial_active() -> bool:
+	return (
+		_ghost_shark_ride_controller != null
+		and _ghost_shark_ride_controller.is_charge_tutorial_active()
+	)
+
+
+func _on_tutorial_ghost_aim_used(player_index: int) -> void:
+	if game_state and game_state.register_tutorial_ghost_aim(player_index):
+		call_deferred("_finish_tutorial_ghost_practice")
+
+
+func _on_tutorial_ghost_charge_resolved(player_index: int, hit: bool, power: float) -> void:
+	if game_state == null:
+		return
+	if game_state.register_tutorial_ghost_charge(player_index, hit, power):
+		call_deferred("_finish_tutorial_ghost_practice")
+
+
+func _finish_tutorial_ghost_practice() -> void:
+	if _ghost_shark_ride_controller:
+		_ghost_shark_ride_controller.force_cleanup()
+	if game_state:
+		game_state.finish_tutorial_ghost_step()
+
+
+func _on_tutorial_task_completed(_player_index: int, _task_id: String) -> void:
+	if game_state and game_state.tutorial_flow and game_state.tutorial_flow.all_tasks_complete():
+		AudioManager.play_tutorial_complete()
+	else:
+		AudioManager.play_tutorial_task()
+
+
+func _on_tutorial_presentation_requested(presentation_id: String, context: Dictionary) -> void:
+	if presentation_id == "solo_stage_complete":
+		var stage_hud: Node = get_node_or_null("GameplayHUD")
+		if stage_hud != null and stage_hud.has_method("show_solo_stage_tutorial_complete"):
+			stage_hud.call(
+				"show_solo_stage_tutorial_complete",
+				float(context.get("duration", 3.2)),
+			)
+		return
+	if presentation_id != "duo_stage_complete":
+		return
+	# 2Pコースの締めは完了カードに花火と紙吹雪を重ねて祝う。
+	var celebration_z := (
+		game_state.goal_z - game_state.world_scroll_z
+		if game_state.goal_z > 0.0
+		else 36.0
+	)
+	if particle_spawner.has_method("spawn_fireworks"):
+		particle_spawner.spawn_fireworks(Vector3(0.0, 0.0, celebration_z))
+	var gameplay_hud: Node = get_node_or_null("GameplayHUD")
+	if gameplay_hud == null:
+		return
+	if gameplay_hud.has_method("show_duo_stage_tutorial_complete"):
+		gameplay_hud.call(
+			"show_duo_stage_tutorial_complete",
+			float(context.get("duration", 3.2)),
+		)
+	if gameplay_hud.has_method("play_tutorial_completion_celebration"):
+		gameplay_hud.call("play_tutorial_completion_celebration")
+
+
+func _on_tutorial_customize_handoff_requested() -> void:
+	if _tutorial_customize_handoff_in_progress:
+		return
+	_tutorial_customize_handoff_in_progress = true
+	call_deferred("_change_to_customize_tutorial_menu")
+
+
+func _change_to_customize_tutorial_menu() -> void:
+	await get_tree().process_frame
+	await SceneTransition.fade_to_color_and_wait(Color.BLACK)
+	get_tree().change_scene_to_file("res://ui/main_menu.tscn")
+
+
+func has_player_death_exploded(player_index: int) -> bool:
+	if player_node == null or not player_node.has_method("has_player_death_exploded"):
+		return false
+	return bool(player_node.call("has_player_death_exploded", player_index))
+
+
+func _update_ocean_shark_attacks() -> void:
+	var player_count: int = maxi(1, game_state.num_players)
+	for player_index: int in range(1, player_count + 1):
+		if game_state.is_player_waiting_for_shark(player_index):
+			var target_position: Vector3 = game_state.get_ocean_player_local_position(player_index)
+			if not _ocean_attack_sharks.has(player_index):
+				_start_ocean_shark_attack(player_index, target_position)
+			var shark_variant: Variant = _ocean_attack_sharks.get(player_index)
+			var shark: SharkSwimmer = shark_variant as SharkSwimmer
+			if shark != null and is_instance_valid(shark):
+				# Refresh the target every frame so the bite stays locked to the player.
+				shark.set_attack_target(target_position)
+		elif _ocean_attack_sharks.has(player_index):
+			var stale_variant: Variant = _ocean_attack_sharks.get(player_index)
+			var stale_shark: SharkSwimmer = stale_variant as SharkSwimmer
+			if stale_shark != null and is_instance_valid(stale_shark):
+				stale_shark.cancel_attack()
+			_ocean_attack_sharks.erase(player_index)
+
+
+func _on_shark_attack_reached(player_index: int, shark: SharkSwimmer) -> void:
+	var is_remote_client: bool = (
+		_net_state != null
+		and _net_state.is_online
+		and not NetworkManager.is_host
+	)
+	if is_remote_client:
+		return
+
+	var assigned_variant: Variant = _ocean_attack_sharks.get(player_index)
+	var assigned_shark: SharkSwimmer = assigned_variant as SharkSwimmer
+	if assigned_shark != shark or not game_state.is_player_waiting_for_shark(player_index):
+		return
+	_ocean_attack_sharks.erase(player_index)
+	if _ghost_shark_ride_controller:
+		_ghost_shark_ride_controller.remember_ocean_death_shark(player_index, shark)
+
+	var attack_position: Vector3 = (
+		Vector3(game_state.player_x, game_state.player_y, game_state.player_local_z)
+		if player_index == 1
+		else Vector3(game_state.player2_x, game_state.player2_y, game_state.player2_local_z)
+	)
+	var attack_forward: Vector3 = -shark.global_basis.z
+	if particle_spawner.has_method("spawn_shark_impact"):
+		particle_spawner.spawn_shark_impact(attack_position, attack_forward)
+	if camera_controller != null and camera_controller.has_method("trigger_ocean_attack_impact"):
+		camera_controller.trigger_ocean_attack_impact()
+	if game_state.num_players < 2:
+		var gameplay_hud: Node = get_node_or_null("GameplayHUD")
+		if gameplay_hud != null and gameplay_hud.has_method("play_shark_impact_flash"):
+			gameplay_hud.play_shark_impact_flash()
+	else:
+		var death_wipe: Node = get_node_or_null("DeathWipeLayer/DeathWipe")
+		if death_wipe != null and death_wipe.has_method("play_shark_impact_flash"):
+			death_wipe.play_shark_impact_flash(player_index)
+	game_state.complete_ocean_shark_attack(player_index)
+
+
+## 重い表示系は黒画面内で予熱する。オンラインでヘリ投入が有効なときは準備画面を先に開示し、
+## 問題ロードと投入演出を並列化する。オフラインは10問とステージ構築が完了してから開示する。
 func _reveal_after_transition() -> void:
-	SceneTransition.reveal_current()
+	if not SceneTransition.is_transitioning():
+		return
+	await _prepare_world_visuals_under_cover()
+	if not is_inside_tree():
+		return
+	# Online helicopter arrival may own the visible preparation window so quiz
+	# generation continues behind it. Offline 10-question rounds must keep the
+	# black cover until every quiz and the world load are finished; wall drops
+	# still wait for the reveal wipe to complete.
+	var parallel_arrival_active := is_start_presentation_locked()
+	if _uses_offline_quiz_source():
+		await _wait_for_offline_transition_ready()
+	elif parallel_arrival_active:
+		print("[GameWorld] Quiz preparation and helicopter arrival are running in parallel")
+	if is_inside_tree():
+		SceneTransition.reveal_current()
 
-const MAGMA_SHADER = """
-shader_type spatial;
-render_mode blend_mix, depth_draw_opaque, cull_back, diffuse_lambert;
 
-// --- Uniforms ---
-uniform vec3 deep_color : source_color = vec3(0.15, 0.02, 0.0);
-uniform vec3 mid_color : source_color = vec3(0.85, 0.18, 0.0);
-uniform vec3 hot_color : source_color = vec3(1.0, 0.65, 0.0);
-uniform vec3 white_hot : source_color = vec3(1.0, 0.95, 0.6);
-uniform float flow_speed : hint_range(0.0, 2.0) = 0.35;
-uniform float voronoi_scale : hint_range(1.0, 40.0) = 8.0;
-uniform float emission_intensity : hint_range(0.0, 8.0) = 1.5;
-uniform float wave_height : hint_range(0.0, 3.0) = 1.2;
-uniform float roughness_val : hint_range(0.0, 1.0) = 0.35;
-uniform sampler2D noise_tex;
-uniform sampler2D noise_tex2;
+## 問題生成やプレビュー壁の状態機械には触れず、表示系だけを黒画面中に準備する。
+## 実際のゲーム用ノードを2フレーム描画して、メッシュ転送とシェーダー生成も開示前に済ませる。
+func _prepare_world_visuals_under_cover() -> void:
+	var player_controller := player_node as PlayerController
+	if player_controller != null:
+		player_controller.prepare_for_loading(game_state)
+	var helicopter_prewarm_report: Dictionary = {}
+	if _helicopter_arrival_director != null:
+		helicopter_prewarm_report = _helicopter_arrival_director.begin_render_prewarm()
+	var portal_prewarm_report: Dictionary = {}
+	var prewarm_camera := camera_controller.get_node_or_null("Camera3D") as Camera3D
+	if _ghost_shark_ride_controller != null:
+		portal_prewarm_report = (
+			_ghost_shark_ride_controller.begin_return_portal_render_prewarm(prewarm_camera)
+		)
+	var result_prewarm_report: Dictionary = {}
+	if _result_ceremony_director != null:
+		result_prewarm_report = _result_ceremony_director.begin_render_prewarm()
+	var wall_prewarm_report: Dictionary = _begin_preview_wall_render_prewarm(prewarm_camera)
 
-varying float v_height;
-varying float v_flow;
+	var pipeline_compilations_before: int = RenderingServer.get_rendering_info(
+		RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_DRAW
+	)
+	for _render_frame: int in range(WORLD_VISUAL_PREP_RENDER_FRAMES):
+		if DisplayServer.get_name() == "headless":
+			await get_tree().process_frame
+		else:
+			await RenderingServer.frame_post_draw
+		if not is_inside_tree():
+			return
+	_end_preview_wall_render_prewarm()
+	if _ghost_shark_ride_controller != null:
+		_ghost_shark_ride_controller.end_return_portal_render_prewarm()
+	if _result_ceremony_director != null:
+		_result_ceremony_director.end_render_prewarm()
+	if _helicopter_arrival_director != null:
+		_helicopter_arrival_director.end_render_prewarm()
+	# queue_freeした予熱ノードを、開示前に確実にツリーから取り除く。
+	await get_tree().process_frame
+	if not is_inside_tree():
+		return
 
-// --- Voronoi ---
-vec2 random2D(vec2 p) {
-	return fract(sin(vec2(
-		dot(p, vec2(127.1, 311.7)),
-		dot(p, vec2(269.5, 183.3))
-	)) * 43758.5453);
-}
+	# オフラインは10問・壁の完了待ちがあるので、800msの下限パッドは重ねない。
+	if not _uses_offline_quiz_source():
+		var minimum_end_msec: int = _world_visual_prep_started_msec + WORLD_VISUAL_PREP_MIN_MSEC
+		while is_inside_tree() and Time.get_ticks_msec() < minimum_end_msec:
+			await get_tree().process_frame
+		if not is_inside_tree():
+			return
 
-float voronoi(vec2 pos, float t) {
-	vec2 p = floor(pos);
-	vec2 f = fract(pos);
-	float res = 0.0;
-	for (int j = -1; j <= 1; j++) {
-		for (int i = -1; i <= 1; i++) {
-			vec2 b = vec2(float(i), float(j));
-			vec2 pnt = random2D(p + b);
-			pnt = 0.5 + 0.5 * sin(t + 6.2831 * pnt);
-			vec2 r = vec2(b) - f + pnt;
-			float d = dot(r, r);
-			res += exp(-18.0 * d);
-		}
+	_world_visual_prep_report = _collect_world_visual_prep_report(player_controller)
+	_world_visual_prep_report["elapsed_msec"] = (
+		Time.get_ticks_msec() - _world_visual_prep_started_msec
+	)
+	_world_visual_prep_report["render_frames"] = WORLD_VISUAL_PREP_RENDER_FRAMES
+	_world_visual_prep_report["ghost_portal_prewarm"] = portal_prewarm_report
+	_world_visual_prep_report["result_ceremony_prewarm"] = result_prewarm_report
+	_world_visual_prep_report["helicopter_arrival_prewarm"] = helicopter_prewarm_report
+	_world_visual_prep_report["preview_wall_prewarm"] = wall_prewarm_report
+	if not bool(portal_prewarm_report.get("ready", false)):
+		_world_visual_prep_report["ready"] = false
+		var missing_variant: Variant = _world_visual_prep_report.get("missing", [])
+		if missing_variant is Array:
+			var missing_components: Array = missing_variant
+			missing_components.append("ghost_portal")
+	if not bool(result_prewarm_report.get("ready", false)):
+		_world_visual_prep_report["ready"] = false
+		var result_missing_variant: Variant = _world_visual_prep_report.get("missing", [])
+		if result_missing_variant is Array:
+			var result_missing_components: Array = result_missing_variant
+			result_missing_components.append("result_ceremony")
+	if not bool(wall_prewarm_report.get("ready", false)):
+		_world_visual_prep_report["ready"] = false
+		var wall_missing_variant: Variant = _world_visual_prep_report.get("missing", [])
+		if wall_missing_variant is Array:
+			var wall_missing_components: Array = wall_missing_variant
+			wall_missing_components.append("preview_walls")
+	_world_visual_prep_report["draw_pipeline_compilations"] = max(
+		0,
+		RenderingServer.get_rendering_info(
+			RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_DRAW
+		) - pipeline_compilations_before
+	)
+	_world_visual_prepared = true
+	if not bool(_world_visual_prep_report.get("ready", false)):
+		push_warning(
+			"World visual preparation completed with missing components: %s"
+			% str(_world_visual_prep_report.get("missing", []))
+		)
+	print("[GameWorld] World visuals prepared under black cover: %s" % str(_world_visual_prep_report))
+
+
+func _collect_world_visual_prep_report(player_controller: PlayerController) -> Dictionary:
+	var grandstand_count: int = stage_env.get_grandstand_count() if stage_env else 0
+	var shark_count: int = stage_env.get_ocean_sharks().size() if stage_env else 0
+	var stage_ready: bool = (
+		stage_env != null
+		and stage_env.floor_mesh != null
+		and stage_env.environment_node != null
+		and stage_env.directional_light != null
+		and stage_env.weather_cycle != null
+		and stage_env.conveyor_edge_lights != null
+		and stage_env.has_ocean_surface()
+		and grandstand_count == 2
+		and shark_count > 0
+	)
+	var player_ready: bool = (
+		player_controller != null
+		and not player_controller.p1_parts.is_empty()
+		and (
+			game_state.num_players < 2
+			or (
+				player_controller.p2_container != null
+				and not player_controller.p2_parts.is_empty()
+			)
+		)
+	)
+	var splash_pool_variant: Variant = particle_spawner.get("ocean_splash_pool")
+	var vfx_ready: bool = (
+		particle_spawner.get("correct_particles") != null
+		and particle_spawner.get("explosion_particles") != null
+		and splash_pool_variant is Array
+		and splash_pool_variant.size() >= 2
+		and _merge_effect_pool.size() >= MERGE_EFFECT_POOL_SIZE
+	)
+	var ui_ready: bool = get_node_or_null("GameplayHUD") != null and pause_menu != null
+	var missing: Array[String] = []
+	if not stage_ready:
+		missing.append("stage")
+	if not player_ready:
+		missing.append("players")
+	if not vfx_ready:
+		missing.append("vfx")
+	if not ui_ready:
+		missing.append("ui")
+	return {
+		"ready": missing.is_empty(),
+		"missing": missing,
+		"grandstands": grandstand_count,
+		"sharks": shark_count,
+		"players": game_state.num_players,
+		"merge_effects": _merge_effect_pool.size(),
+		"preview_walls": _pw_count,
+		"preview_wall_prewarmed": _pw_render_prewarmed,
+		"barrier_prebuilt": _barrier_prebuilt,
+		"ui_ready": ui_ready,
 	}
-	return clamp(-(1.0 / 18.0) * log(max(res, 1e-6)), 0.0, 1.0);
-}
 
-void vertex() {
-	float t = TIME * flow_speed;
 
-	// Sample noise for organic waves
-	vec2 uv1 = VERTEX.xz * 0.008 + vec2(t * 0.3, t * 0.2);
-	vec2 uv2 = VERTEX.xz * 0.015 + vec2(-t * 0.15, t * 0.25);
-	float n1 = texture(noise_tex, uv1).r;
-	float n2 = texture(noise_tex2, uv2).r;
+func _uses_offline_quiz_source() -> bool:
+	var buffered_provider := QuizManager.provider as BufferedQuizProvider
+	return buffered_provider != null and buffered_provider.llm_mode == "OFFLINE"
 
-	// Large slow waves
-	float wave1 = sin(VERTEX.x * 0.25 + TIME * 0.8) * cos(VERTEX.z * 0.2 + TIME * 0.6) * 0.6;
-	float wave2 = sin(VERTEX.x * 0.08 - TIME * 0.5) * sin(VERTEX.z * 0.12 + TIME * 0.3) * 0.8;
 
-	// Noise-driven displacement
-	float noise_disp = (n1 * 0.7 + n2 * 0.3) * wave_height;
+func _should_defer_ten_wall_drop_until_reveal() -> bool:
+	return (
+		_uses_offline_quiz_source()
+		and game_state != null
+		and game_state._is_fixed_count_mode()
+	)
 
-	// Bubbling hotspots
-	float bx = sin(VERTEX.x * 1.2 + TIME * 2.5);
-	float bz = cos(VERTEX.z * 1.2 - TIME * 2.0);
-	float bubbles = pow(abs(bx * bz), 8.0) * 0.6;
 
-	float total = wave1 + wave2 + noise_disp + bubbles;
-	VERTEX.y += total;
-	v_height = total;
-	v_flow = n1 * 0.6 + n2 * 0.4;
-}
+func _are_offline_quizzes_ready() -> bool:
+	if game_state == null:
+		return false
+	if game_state._is_fixed_count_mode():
+		if game_state.quiz_list.size() < game_state.target_count:
+			return false
+		for quiz_index: int in range(game_state.target_count):
+			var quiz: QuizItem = game_state.quiz_list[quiz_index]
+			if quiz == null or quiz.q.strip_edges().is_empty():
+				return false
+		return true
+	return game_state.quiz_list.size() >= 1
 
-void fragment() {
-	float t = TIME * flow_speed;
 
-	// Voronoi for crack patterns
-	vec2 uv_v = UV * voronoi_scale + vec2(t * 0.4, -t * 0.3);
-	float v1 = voronoi(uv_v, TIME * 2.0);
-	float v2 = voronoi(uv_v * 0.5 + vec2(5.0, 3.0), TIME * 1.5);
-	float cracks = v1 * 0.7 + v2 * 0.3;
+func _wait_for_offline_transition_ready() -> void:
+	var quiz_deadline_msec: int = Time.get_ticks_msec() + OFFLINE_QUIZ_WAIT_TIMEOUT_MSEC
+	var prep_deadline_msec: int = -1
+	var preparation_timed_out: bool = false
+	while is_inside_tree() and not _is_offline_transition_prepared():
+		# 黒画面待ち中も壁を組み立てる。_process だけに頼ると
+		# 10枚目が残ったままタイムアウトすることがある。
+		_update_preview_walls(get_process_delta_time())
+		if _is_offline_transition_prepared():
+			break
+		var quizzes_ready: bool = _are_offline_quizzes_ready()
+		var now_msec: int = Time.get_ticks_msec()
+		if not quizzes_ready:
+			if now_msec >= quiz_deadline_msec:
+				preparation_timed_out = true
+				push_warning(
+					"Offline quiz wait timed out after %.1f seconds (state=%s, quizzes=%d/%d)"
+					% [
+						float(OFFLINE_QUIZ_WAIT_TIMEOUT_MSEC) / 1000.0,
+						str(game_state.game_state) if game_state else "none",
+						game_state.quiz_list.size() if game_state else 0,
+						game_state.target_count if game_state else 0,
+					]
+				)
+				break
+		else:
+			# 壁組み立ての時計は、10問が揃ってからだけ進める。
+			if prep_deadline_msec < 0:
+				prep_deadline_msec = now_msec + OFFLINE_TRANSITION_PREP_TIMEOUT_MSEC
+			elif now_msec >= prep_deadline_msec:
+				preparation_timed_out = true
+				push_warning(
+					"Offline transition preparation timed out after %.1f seconds (state=%s, walls=%d/%d, visual=%s, defer=%s)"
+					% [
+						float(OFFLINE_TRANSITION_PREP_TIMEOUT_MSEC) / 1000.0,
+						str(game_state.game_state),
+						_pw_count,
+						game_state.target_count,
+						str(_world_visual_prepared),
+						str(_should_defer_ten_wall_drop_until_reveal()),
+					]
+				)
+				break
+		await get_tree().process_frame
+	if not is_inside_tree():
+		return
+	for _settle_index: int in range(OFFLINE_TRANSITION_SETTLE_FRAMES):
+		if DisplayServer.get_name() == "headless":
+			await get_tree().process_frame
+		else:
+			await RenderingServer.frame_post_draw
+		if not is_inside_tree():
+			return
+	if not preparation_timed_out:
+		print(
+			"[GameWorld] Offline transition prepared under black cover: state=%s quizzes=%d walls=%d wall_drop_deferred=%s elapsed_msec=%d"
+			% [
+				str(game_state.game_state),
+				game_state.quiz_list.size(),
+				_pw_count,
+				str(_should_defer_ten_wall_drop_until_reveal()),
+				Time.get_ticks_msec() - _world_visual_prep_started_msec,
+			]
+		)
 
-	// Flow noise for organic movement
-	vec2 fuv1 = UV * 3.0 + vec2(t * 0.6, t * 0.4);
-	vec2 fuv2 = UV * 5.0 + vec2(-t * 0.3, t * 0.5);
-	float fn1 = texture(noise_tex, fuv1).r;
-	float fn2 = texture(noise_tex2, fuv2).r;
-	float flow = fn1 * 0.6 + fn2 * 0.4;
 
-	// Combine: cracks reveal hot interior, surface is cooler crust
-	float heat = clamp(cracks * 1.2 + flow * 0.3 + v_height * 0.15, 0.0, 1.0);
-
-	// 4-stop color gradient: deep -> mid -> hot -> white-hot
-	vec3 col;
-	if (heat < 0.3) {
-		col = mix(deep_color, mid_color, heat / 0.3);
-	} else if (heat < 0.6) {
-		col = mix(mid_color, hot_color, (heat - 0.3) / 0.3);
-	} else {
-		col = mix(hot_color, white_hot, clamp((heat - 0.6) / 0.4, 0.0, 1.0));
-	}
-
-	// Pulsing glow on hotspots
-	float pulse = 1.0 + sin(TIME * 3.0) * 0.08;
-
-	ALBEDO = col;
-	EMISSION = col * emission_intensity * heat * pulse;
-	ROUGHNESS = roughness_val + (1.0 - heat) * 0.4;
-	METALLIC = 0.0;
-}
-"""
-
-func _setup_magma() -> void:
-	var magma_mesh := MeshInstance3D.new()
-	var plane := PlaneMesh.new()
-	plane.size = Vector2(800.0, 800.0)
-	# デモ(メニュー背景)では頂点数を落として負荷を下げる
-	var subdiv: int = 96 if _demo_mode else 200
-	plane.subdivide_width = subdiv
-	plane.subdivide_depth = subdiv
-	magma_mesh.mesh = plane
-	magma_mesh.position = Vector3(0, -10.0, 150.0)
-	magma_mesh.custom_aabb = AABB(Vector3(-400, -10, -400), Vector3(800, 20, 800))
-
-	var mat := ShaderMaterial.new()
-	mat.shader = Shader.new()
-	mat.shader.code = MAGMA_SHADER
-
-	# Procedural noise texture 1 (Perlin-like)
-	var noise1 := NoiseTexture2D.new()
-	var fnl1 := FastNoiseLite.new()
-	fnl1.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
-	fnl1.frequency = 0.01
-	fnl1.fractal_octaves = 4
-	fnl1.fractal_lacunarity = 2.0
-	fnl1.fractal_gain = 0.5
-	noise1.noise = fnl1
-	noise1.seamless = true
-	noise1.width = 512
-	noise1.height = 512
-	mat.set_shader_parameter("noise_tex", noise1)
-
-	# Procedural noise texture 2 (Cellular for cracks)
-	var noise2 := NoiseTexture2D.new()
-	var fnl2 := FastNoiseLite.new()
-	fnl2.noise_type = FastNoiseLite.TYPE_CELLULAR
-	fnl2.frequency = 0.015
-	fnl2.fractal_octaves = 3
-	fnl2.cellular_distance_function = FastNoiseLite.DISTANCE_EUCLIDEAN
-	fnl2.cellular_return_type = FastNoiseLite.RETURN_DISTANCE
-	noise2.noise = fnl2
-	noise2.seamless = true
-	noise2.width = 512
-	noise2.height = 512
-	mat.set_shader_parameter("noise_tex2", noise2)
-
-	magma_mesh.material_override = mat
-	add_child(magma_mesh)
-
-func _setup_environment() -> void:
-	var env := Environment.new()
-	env.background_mode = Environment.BG_COLOR
-	env.background_color = BG_COLOR
-	env.ambient_light_color = Color(0.30, 0.32, 0.35)
-	env.ambient_light_energy = 1.0
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-
-	# Fog
-	env.fog_enabled = true
-	env.fog_light_color = BG_COLOR
-	env.fog_density = 0.012
-	env.fog_aerial_perspective = 0.5
-
-	# Tonemap
-	env.tonemap_mode = Environment.TONE_MAPPER_ACES
-	env.tonemap_white = 6.0
-
-	# Glow (for magma emission bloom)
-	env.glow_enabled = true
-	env.glow_intensity = 0.5
-	env.glow_strength = 0.8
-	env.glow_bloom = 0.05
-	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_SOFTLIGHT
-	env.glow_hdr_threshold = 0.8
-	env.set_glow_level(0, true)
-	env.set_glow_level(1, true)
-	env.set_glow_level(2, true)
-	env.set_glow_level(3, false)
-
-	environment_node.environment = env
-
-func _setup_lighting() -> void:
-	directional_light.rotation_degrees = Vector3(-50, -20, 0)
-	directional_light.light_color = Color(0.90, 0.92, 0.95)
-	directional_light.light_energy = 1.2
-	directional_light.shadow_enabled = true
-
-func _apply_demo_quality() -> void:
-	# メニュー背景用の軽量化 (Android での発熱/FPS対策)
-	directional_light.shadow_enabled = false
-	if environment_node.environment:
-		environment_node.environment.glow_enabled = false
+func _is_offline_transition_prepared() -> bool:
+	if game_state == null or game_state.game_state != Constants.STATE_WAITING_START:
+		return false
+	if not _are_offline_quizzes_ready():
+		return false
+	var expected_wall_count: int
+	if game_state._is_fixed_count_mode():
+		expected_wall_count = game_state.target_count
+	else:
+		expected_wall_count = maxi(30, game_state.quiz_list.size())
+	if _pw_count < expected_wall_count or _pw_anims.size() < expected_wall_count:
+		return false
+	# 10問チャレンジは問題文設定までを黒画面内で済ませ、壁の落下演出は
+	# 開示ワイプが完全に終わってから見せる。ほかのモードは従来どおり
+	# バリアまで完成してから開示する。
+	if _should_defer_ten_wall_drop_until_reveal():
+		return true
+	for wall_index: int in range(expected_wall_count):
+		if int(_pw_anims[wall_index].get("phase", 0)) < 3:
+			return false
+	return (
+		_barrier_spawned_for_session
+		and not _barrier_dropping
+		and _start_barrier != null
+		and is_instance_valid(_start_barrier)
+	)
 
 func _process(dt: float) -> void:
 	if not game_state or get_tree().paused:
@@ -383,15 +821,7 @@ func _process(dt: float) -> void:
 	var jump_p2 := false
 	var emote_p1 := 0
 	var emote_p2 := 0
-	if _demo_mode:
-		# デモ: AIドライバーが入力を合成 (実入力は一切拾わない)
-		# ※ P制御の減衰を保つため normalize しない
-		if _demo_driver:
-			var demo_input: Dictionary = _demo_driver.compute(dt)
-			axis_p1 = demo_input["axis"]
-			jump_p1 = demo_input["jump"]
-			emote_p1 = demo_input["emote"]
-	elif game_state.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE, Constants.STATE_WAITING_START, Constants.STATE_FLYOVER, Constants.STATE_COUNTDOWN]:
+	if game_state.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE, Constants.STATE_WAITING_START, Constants.STATE_FLYOVER, Constants.STATE_COUNTDOWN]:
 		# --- ローカル入力収集 (P1 or クライアントの自分) ---
 		# P1 エモート: キー1,2,3 → スロットからエモートIDを取得
 		if Input.is_key_pressed(KEY_1) and game_state.p1_emote_slots.size() > 0: emote_p1 = game_state.p1_emote_slots[0]
@@ -405,15 +835,13 @@ func _process(dt: float) -> void:
 		if Input.is_key_pressed(KEY_S): axis_p1.y -= 1.0
 		jump_p1 = Input.is_key_pressed(KEY_SPACE)
 
-		# バーチャルコントローラー（タッチUI）の入力をマージ
-		var vc = null
-		if gameplay_hud and gameplay_hud.has_node("VirtualController"):
-			vc = gameplay_hud.get_node("VirtualController")
-		if vc and vc.visible:
-			var vc_axis = vc.get_joystick_axis()
-			if vc_axis.length_squared() > 0.01:
-				axis_p1 = vc_axis
-			if vc.is_jump_pressed():
+		# AndroidのP1入力。キーボード入力と同じQuizGameState入力へ合流させる。
+		if _mobile_controller != null and _mobile_controller.visible:
+			_mobile_controller.set_ghost_mode(is_ghost_shark_control_active(1))
+			var mobile_axis := _mobile_controller.get_joystick_axis()
+			if mobile_axis.length_squared() > 0.001:
+				axis_p1 = mobile_axis
+			if _mobile_controller.is_jump_pressed():
 				jump_p1 = true
 			if _mobile_emote_p1 > 0:
 				emote_p1 = _mobile_emote_p1
@@ -428,46 +856,60 @@ func _process(dt: float) -> void:
 			axis_p2 = _net_state.get_remote_axis()
 			jump_p2 = _net_state.get_remote_jump()
 			emote_p2 = _net_state.get_remote_emote()
-		# --- ローカル2P ---
+		# --- Android ローカル2P: P2は人間と同じ入力経路を使うCPU ---
 		elif game_state.num_players >= 2:
-			# P2 エモート: キー8,9,0 → スロットからエモートIDを取得
-			if (Input.is_key_pressed(KEY_8) or Input.is_key_pressed(KEY_KP_7)) and game_state.p2_emote_slots.size() > 0: emote_p2 = game_state.p2_emote_slots[0]
-			elif (Input.is_key_pressed(KEY_9) or Input.is_key_pressed(KEY_KP_8)) and game_state.p2_emote_slots.size() > 1: emote_p2 = game_state.p2_emote_slots[1]
-			elif (Input.is_key_pressed(KEY_0) or Input.is_key_pressed(KEY_KP_9)) and game_state.p2_emote_slots.size() > 2: emote_p2 = game_state.p2_emote_slots[2]
-			
-			# 2P: Arrow keys for P2
-			if Input.is_key_pressed(KEY_RIGHT): axis_p2.x -= 1.0
-			if Input.is_key_pressed(KEY_LEFT): axis_p2.x += 1.0
-			if Input.is_key_pressed(KEY_UP): axis_p2.y += 1.0
-			if Input.is_key_pressed(KEY_DOWN): axis_p2.y -= 1.0
-			jump_p2 = Input.is_key_pressed(KEY_CTRL) or Input.is_key_pressed(KEY_KP_0)
+			if _mobile_cpu_driver != null:
+				if (
+					is_ghost_charge_tutorial_active()
+					and _ghost_shark_ride_controller != null
+				):
+					# CPU操作では人間向けのP2操作説明で進行を止めない。
+					_ghost_shark_ride_controller.dismiss_charge_tutorial()
+				_last_cpu_input = _mobile_cpu_driver.compute(
+					dt,
+					is_ghost_shark_control_active(2)
+				)
+				axis_p2 = _last_cpu_input.get("axis", Vector2.ZERO) as Vector2
+				jump_p2 = bool(_last_cpu_input.get("jump", false))
+				emote_p2 = int(_last_cpu_input.get("emote", 0))
 		else:
 			# 1P: Arrow keys also work for P1
-			var arrow_axis := Vector2.ZERO
-			if Input.is_key_pressed(KEY_RIGHT): arrow_axis.x -= 1.0
-			if Input.is_key_pressed(KEY_LEFT): arrow_axis.x += 1.0
-			if Input.is_key_pressed(KEY_UP): arrow_axis.y += 1.0
-			if Input.is_key_pressed(KEY_DOWN): arrow_axis.y -= 1.0
-			if arrow_axis.length_squared() > 0.01:
-				axis_p1 = arrow_axis
+			if Input.is_key_pressed(KEY_RIGHT): axis_p1.x -= 1.0
+			if Input.is_key_pressed(KEY_LEFT): axis_p1.x += 1.0
+			if Input.is_key_pressed(KEY_UP): axis_p1.y += 1.0
+			if Input.is_key_pressed(KEY_DOWN): axis_p1.y -= 1.0
 
 		axis_p1 = axis_p1.normalized()
 		if game_state.num_players >= 2:
 			axis_p2 = axis_p2.normalized()
+	if game_state.is_tutorial_presentation_locked():
+		axis_p1 = Vector2.ZERO
+		axis_p2 = Vector2.ZERO
+		jump_p1 = false
+		jump_p2 = false
+		emote_p1 = 0
+		emote_p2 = 0
 
-	# Mouse look (1P only, not online and not replay, and not mobile)
-	var is_mobile := OS.has_feature("mobile")
-	if not is_mobile and not _replay_mode and not _demo_mode and game_state.game_state == Constants.STATE_PLAYING and game_state.num_players == 1 and not _is_online:
-		if Input.get_mouse_mode() != Input.MOUSE_MODE_CAPTURED:
-			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
-	else:
-		if Input.get_mouse_mode() == Input.MOUSE_MODE_CAPTURED:
-			Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+	# 1P uses a fixed third-person view, so gameplay never captures the mouse.
+	if Input.get_mouse_mode() == Input.MOUSE_MODE_CAPTURED:
+		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 
 	# Update game state (host or offline only — client receives snapshots)
+	game_state.result_ceremony_enabled = false
 	if not _is_client and not _replay_mode:
 		game_state.update(dt, axis_p1, axis_p2, jump_p1, jump_p2, emote_p1, emote_p2)
-
+	if _ghost_shark_ride_controller:
+		_ghost_shark_ride_controller.update_ghost_ride(
+			dt,
+			axis_p1,
+			axis_p2,
+			jump_p1,
+			jump_p2,
+			emote_p1,
+			emote_p2,
+			_is_online,
+			_replay_mode
+		)
 	# リプレイ記録
 	if _recorder and _recorder.is_recording:
 		_recorder.capture(game_state)
@@ -487,290 +929,115 @@ func _process(dt: float) -> void:
 	if _net_state:
 		_net_state.process_network(dt)
 
+	_update_ocean_shark_attacks()
+
 	# Update visuals
 	_update_floor_conveyor()
 	_update_floor()
 	_update_flyover()
-	_update_player()
+	_update_player(dt)
+	if _result_ceremony_director:
+		_result_ceremony_director.update_result_ceremony(dt)
 	_update_walls()
 	_update_goal_line()
 	_update_preview_walls(dt)
+	if _tutorial_presentation_director:
+		_tutorial_presentation_director.update(dt)
+	if _tutorial_world_guides:
+		_tutorial_world_guides.update(dt)
 	_update_camera(dt)
 	_check_particles()
 	_update_start_barrier()
 
 	# Handle R key for restart (ESC is handled in _unhandled_input)
-	if not _demo_mode and game_state.game_state in [Constants.STATE_GAME_OVER, Constants.STATE_CLEAR]:
-		if Input.is_key_pressed(KEY_R) :
-			game_state.reset_to_menu()
-			get_tree().change_scene_to_file("res://ui/main_menu.tscn")
+	if game_state.game_state in [Constants.STATE_GAME_OVER, Constants.STATE_CLEAR]:
+		if Input.is_key_pressed(KEY_R) and game_state.is_wall_death_sequence_complete():
+			_return_to_main_menu_from_result()
 
-func _setup_floor_conveyor() -> void:
-	if not floor_mesh:
-		return
-	_floor_belt_material = ShaderMaterial.new()
-	_floor_belt_material.shader = CONVEYOR_FLOOR_SHADER
-	_floor_belt_material.set_shader_parameter("scroll_z", 0.0)
-	_floor_belt_material.set_shader_parameter("scroll_sign", 1.0)
-	_floor_belt_material.set_shader_parameter("base_color", CONVEYOR_BELT_BASE_COLOR)
-	_floor_belt_material.set_shader_parameter("stripe_color", CONVEYOR_BELT_STRIPE_COLOR)
-	_floor_belt_material.set_shader_parameter("side_color", CONVEYOR_BELT_SIDE_COLOR)
-	floor_mesh.material_override = _floor_belt_material
-	_setup_floor_rails()
-	_setup_conveyor_loop_geometry()
-	_setup_floor_collision()
 
-func _setup_floor_collision() -> void:
-	if not floor_mesh:
+## キーボード操作でもボタンと同様、リザルトを覆ってから状態をリセットする。
+func _return_to_main_menu_from_result() -> void:
+	if SceneTransition.is_transitioning():
 		return
-	var floor_box: BoxMesh = floor_mesh.mesh as BoxMesh
-	if not floor_box:
+	await SceneTransition.fade_to_color_and_wait(Color.BLACK)
+	if not is_inside_tree():
 		return
-	_floor_collision_body = StaticBody3D.new()
-	_floor_collision_body.collision_layer = 1
-	_floor_collision_body.collision_mask = 0
-	var col := CollisionShape3D.new()
-	var shape := BoxShape3D.new()
-	shape.size = Vector3(floor_box.size.x, 0.5, floor_box.size.z)
-	col.shape = shape
-	_floor_collision_body.add_child(col)
-	# 床上面がFLOOR_TOP_Yに一致するように配置（floor_meshの子として相対座標）
-	_floor_collision_body.position = Vector3(0, -0.25, 0)
-	floor_mesh.add_child(_floor_collision_body)
+	game_state.reset_to_menu()
+	get_tree().change_scene_to_file("res://ui/main_menu.tscn")
 
 func _update_floor_conveyor() -> void:
-	if not _floor_belt_material:
-		return
-	_floor_belt_material.set_shader_parameter("scroll_z", game_state.world_scroll_z)
-	if _conveyor_roller_front_material:
-		_conveyor_roller_front_material.set_shader_parameter("scroll_z", game_state.world_scroll_z)
-	if _conveyor_roller_back_material:
-		_conveyor_roller_back_material.set_shader_parameter("scroll_z", game_state.world_scroll_z)
-	if _conveyor_return_material:
-		_conveyor_return_material.set_shader_parameter("scroll_z", game_state.world_scroll_z)
+	if stage_env:
+		stage_env.set_scroll_z(game_state.world_scroll_z)
 
-func _setup_floor_rails() -> void:
-	var rail_mesh := BoxMesh.new()
-	rail_mesh.size = Vector3(FLOOR_RAIL_WIDTH, FLOOR_RAIL_HEIGHT, 144.0)
-	var rail_mat := StandardMaterial3D.new()
-	rail_mat.albedo_color = Color(0.27, 0.275, 0.28)
-	rail_mat.roughness = 0.66
-	rail_mat.metallic = 0.22
-
-	_floor_rail_left = MeshInstance3D.new()
-	_floor_rail_left.mesh = rail_mesh
-	_floor_rail_left.material_override = rail_mat
-	add_child(_floor_rail_left)
-
-	_floor_rail_right = MeshInstance3D.new()
-	_floor_rail_right.mesh = rail_mesh
-	_floor_rail_right.material_override = rail_mat
-	add_child(_floor_rail_right)
-
-	_update_floor_rails()
-
-func _update_floor_rails() -> void:
-	if not _floor_rail_left or not _floor_rail_right or not floor_mesh:
-		return
-	var box_mesh: BoxMesh = floor_mesh.mesh as BoxMesh
-	if not box_mesh:
-		return
-	var floor_length: float = box_mesh.size.z
-	var rail_mesh_l := _floor_rail_left.mesh as BoxMesh
-	var rail_mesh_r := _floor_rail_right.mesh as BoxMesh
-	if rail_mesh_l:
-		rail_mesh_l.size = Vector3(FLOOR_RAIL_WIDTH, FLOOR_RAIL_HEIGHT, floor_length)
-	if rail_mesh_r:
-		rail_mesh_r.size = Vector3(FLOOR_RAIL_WIDTH, FLOOR_RAIL_HEIGHT, floor_length)
-
-	var rail_y: float = FLOOR_TOP_Y + FLOOR_RAIL_HEIGHT * 0.5
-	var rail_x: float = FLOOR_HALF_WIDTH - FLOOR_RAIL_WIDTH * 0.5 - FLOOR_RAIL_INSET
-	var floor_center_z: float = floor_mesh.position.z
-	_floor_rail_left.position = Vector3(-rail_x, rail_y, floor_center_z)
-	_floor_rail_right.position = Vector3(rail_x, rail_y, floor_center_z)
-
-func _setup_conveyor_loop_geometry() -> void:
-	var roller_mesh := CylinderMesh.new()
-	roller_mesh.top_radius = CONVEYOR_ROLLER_RADIUS
-	roller_mesh.bottom_radius = CONVEYOR_ROLLER_RADIUS
-	roller_mesh.height = CONVEYOR_ROLLER_LENGTH
-	roller_mesh.radial_segments = 64
-	roller_mesh.rings = 4
-
-	_conveyor_roller_front_material = ShaderMaterial.new()
-	_conveyor_roller_front_material.shader = CONVEYOR_FLOOR_SHADER
-	_conveyor_roller_front_material.set_shader_parameter("scroll_z", 0.0)
-	_conveyor_roller_front_material.set_shader_parameter("scroll_sign", 1.0)
-	_conveyor_roller_front_material.set_shader_parameter("roller_mode", 1.0)
-	_conveyor_roller_front_material.set_shader_parameter("roller_radius", CONVEYOR_ROLLER_RADIUS)
-	_conveyor_roller_front_material.set_shader_parameter("roller_contact_z", 0.0)
-	_conveyor_roller_front_material.set_shader_parameter("roller_arc_sign", -1.0)
-	_conveyor_roller_front_material.set_shader_parameter("base_color", CONVEYOR_BELT_BASE_COLOR)
-	_conveyor_roller_front_material.set_shader_parameter("stripe_color", CONVEYOR_BELT_STRIPE_COLOR)
-	_conveyor_roller_front_material.set_shader_parameter("side_color", CONVEYOR_BELT_SIDE_COLOR)
-	_conveyor_roller_front_material.set_shader_parameter("stripe_scale", 12.0)
-	_conveyor_roller_front_material.set_shader_parameter("stripe_softness", 0.08)
-	_conveyor_roller_front_material.set_shader_parameter("groove_strength", 0.12)
-	_conveyor_roller_front_material.set_shader_parameter("roller_depth", 0.0)
-	_conveyor_roller_front_material.set_shader_parameter("roughness_val", 0.72)
-	_conveyor_roller_front_material.set_shader_parameter("metallic_val", 0.16)
-
-	_conveyor_roller_back_material = ShaderMaterial.new()
-	_conveyor_roller_back_material.shader = CONVEYOR_FLOOR_SHADER
-	_conveyor_roller_back_material.set_shader_parameter("scroll_z", 0.0)
-	_conveyor_roller_back_material.set_shader_parameter("scroll_sign", 1.0)
-	_conveyor_roller_back_material.set_shader_parameter("roller_mode", 1.0)
-	_conveyor_roller_back_material.set_shader_parameter("roller_radius", CONVEYOR_ROLLER_RADIUS)
-	_conveyor_roller_back_material.set_shader_parameter("roller_contact_z", 0.0)
-	_conveyor_roller_back_material.set_shader_parameter("roller_arc_sign", 1.0)
-	_conveyor_roller_back_material.set_shader_parameter("base_color", CONVEYOR_BELT_BASE_COLOR)
-	_conveyor_roller_back_material.set_shader_parameter("stripe_color", CONVEYOR_BELT_STRIPE_COLOR)
-	_conveyor_roller_back_material.set_shader_parameter("side_color", CONVEYOR_BELT_SIDE_COLOR)
-	_conveyor_roller_back_material.set_shader_parameter("stripe_scale", 12.0)
-	_conveyor_roller_back_material.set_shader_parameter("stripe_softness", 0.08)
-	_conveyor_roller_back_material.set_shader_parameter("groove_strength", 0.12)
-	_conveyor_roller_back_material.set_shader_parameter("roller_depth", 0.0)
-	_conveyor_roller_back_material.set_shader_parameter("roughness_val", 0.72)
-	_conveyor_roller_back_material.set_shader_parameter("metallic_val", 0.16)
-
-	_conveyor_roller_front = MeshInstance3D.new()
-	_conveyor_roller_front.mesh = roller_mesh
-	_conveyor_roller_front.material_override = _conveyor_roller_front_material
-	_conveyor_roller_front.rotation = Vector3(0.0, 0.0, PI * 0.5)
-	var body_f := StaticBody3D.new()
-	body_f.collision_layer = 1
-	body_f.collision_mask = 0
-	var col_f := CollisionShape3D.new()
-	var shape_f := CylinderShape3D.new()
-	shape_f.radius = CONVEYOR_ROLLER_RADIUS
-	shape_f.height = CONVEYOR_ROLLER_LENGTH
-	col_f.shape = shape_f
-	body_f.add_child(col_f)
-	_conveyor_roller_front.add_child(body_f)
-	add_child(_conveyor_roller_front)
-
-	_conveyor_roller_back = MeshInstance3D.new()
-	_conveyor_roller_back.mesh = roller_mesh
-	_conveyor_roller_back.material_override = _conveyor_roller_back_material
-	_conveyor_roller_back.rotation = Vector3(0.0, 0.0, PI * 0.5)
-	var body_b := StaticBody3D.new()
-	body_b.collision_layer = 1
-	body_b.collision_mask = 0
-	var col_b := CollisionShape3D.new()
-	var shape_b := CylinderShape3D.new()
-	shape_b.radius = CONVEYOR_ROLLER_RADIUS
-	shape_b.height = CONVEYOR_ROLLER_LENGTH
-	col_b.shape = shape_b
-	body_b.add_child(col_b)
-	_conveyor_roller_back.add_child(body_b)
-	add_child(_conveyor_roller_back)
-
-	var return_mesh := BoxMesh.new()
-	return_mesh.size = Vector3(CONVEYOR_ROLLER_LENGTH, CONVEYOR_RETURN_BELT_THICKNESS, 8.0)
-	_conveyor_return_belt = MeshInstance3D.new()
-	_conveyor_return_belt.mesh = return_mesh
-	_conveyor_return_material = ShaderMaterial.new()
-	_conveyor_return_material.shader = CONVEYOR_FLOOR_SHADER
-	_conveyor_return_material.set_shader_parameter("scroll_z", 0.0)
-	_conveyor_return_material.set_shader_parameter("scroll_sign", -1.0)
-	_conveyor_return_material.set_shader_parameter("base_color", CONVEYOR_BELT_BASE_COLOR)
-	_conveyor_return_material.set_shader_parameter("stripe_color", CONVEYOR_BELT_STRIPE_COLOR)
-	_conveyor_return_material.set_shader_parameter("side_color", CONVEYOR_BELT_SIDE_COLOR)
-	_conveyor_return_material.set_shader_parameter("rim_inner_x", 12.0)
-	_conveyor_return_material.set_shader_parameter("rim_softness", 0.02)
-	_conveyor_return_belt.material_override = _conveyor_return_material
-	add_child(_conveyor_return_belt)
-
-	var side_frame_mesh := BoxMesh.new()
-	side_frame_mesh.size = Vector3(CONVEYOR_SIDE_FRAME_WIDTH, CONVEYOR_SIDE_FRAME_HEIGHT, 12.0)
-	var side_frame_mat := StandardMaterial3D.new()
-	side_frame_mat.albedo_color = Color(0.30, 0.31, 0.33)
-	side_frame_mat.roughness = 0.62
-	side_frame_mat.metallic = 0.16
-
-	_conveyor_side_frame_left = MeshInstance3D.new()
-	_conveyor_side_frame_left.mesh = side_frame_mesh
-	_conveyor_side_frame_left.material_override = side_frame_mat
-	add_child(_conveyor_side_frame_left)
-
-	_conveyor_side_frame_right = MeshInstance3D.new()
-	_conveyor_side_frame_right.mesh = side_frame_mesh
-	_conveyor_side_frame_right.material_override = side_frame_mat
-	add_child(_conveyor_side_frame_right)
-
-	_update_conveyor_loop_geometry()
-
-func _update_conveyor_loop_geometry() -> void:
-	if not floor_mesh:
-		return
-	var floor_box: BoxMesh = floor_mesh.mesh as BoxMesh
-	if not floor_box:
-		return
-
-	var floor_length: float = floor_box.size.z
-	var floor_center_z: float = floor_mesh.position.z
-	var half_len: float = floor_length * 0.5
-	var top_front_contact_z: float = floor_center_z + half_len
-	var top_back_contact_z: float = floor_center_z - half_len
-	# 実機風: ローラー中心は上面より下に置いて、ベルトが端で巻き取られる接線を作る
-	var roller_center_y: float = FLOOR_TOP_Y - CONVEYOR_ROLLER_RADIUS # 上端=ベルト面、半分を床に埋め込む
-	var front_z: float = floor_center_z + half_len
-	var back_z: float = floor_center_z - half_len
-
-	if _conveyor_roller_front:
-		_conveyor_roller_front.position = Vector3(0.0, roller_center_y, front_z)
-		if _conveyor_roller_front_material:
-			_conveyor_roller_front_material.set_shader_parameter("roller_contact_z", top_front_contact_z)
-	if _conveyor_roller_back:
-		_conveyor_roller_back.position = Vector3(0.0, roller_center_y, back_z)
-		if _conveyor_roller_back_material:
-			_conveyor_roller_back_material.set_shader_parameter("roller_contact_z", top_back_contact_z)
-
-	if _conveyor_return_belt:
-		var return_len: float = maxf(0.2, floor_length - 0.12)
-		var return_mesh: BoxMesh = _conveyor_return_belt.mesh as BoxMesh
-		if return_mesh:
-			return_mesh.size = Vector3(CONVEYOR_ROLLER_LENGTH, CONVEYOR_RETURN_BELT_THICKNESS, return_len)
-		var return_y: float = roller_center_y - CONVEYOR_ROLLER_RADIUS - CONVEYOR_RETURN_BELT_GAP - CONVEYOR_RETURN_BELT_THICKNESS * 0.5
-		_conveyor_return_belt.position = Vector3(0.0, return_y, floor_center_z)
-
-	var frame_len: float = floor_length + CONVEYOR_SIDE_FRAME_OVERHANG * 2.0
-	var frame_center_y: float = FLOOR_TOP_Y + CONVEYOR_SIDE_FRAME_TOP_CLEARANCE - CONVEYOR_SIDE_FRAME_HEIGHT * 0.5
-	var frame_x: float = FLOOR_HALF_WIDTH - CONVEYOR_SIDE_FRAME_WIDTH * 0.5
-	if _conveyor_side_frame_left:
-		var frame_mesh_l := _conveyor_side_frame_left.mesh as BoxMesh
-		if frame_mesh_l:
-			frame_mesh_l.size = Vector3(CONVEYOR_SIDE_FRAME_WIDTH, CONVEYOR_SIDE_FRAME_HEIGHT, frame_len)
-		_conveyor_side_frame_left.position = Vector3(-frame_x, frame_center_y, floor_center_z)
-	if _conveyor_side_frame_right:
-		var frame_mesh_r := _conveyor_side_frame_right.mesh as BoxMesh
-		if frame_mesh_r:
-			frame_mesh_r.size = Vector3(CONVEYOR_SIDE_FRAME_WIDTH, CONVEYOR_SIDE_FRAME_HEIGHT, frame_len)
-		_conveyor_side_frame_right.position = Vector3(frame_x, frame_center_y, floor_center_z)
 
 func _unhandled_input(event: InputEvent) -> void:
+	# 完了カードの演出中はEnterスキップを受け付けない。カードを見せ切ってから
+	# リザルトへ送るので、ここで先に進まれると祝いの演出が飛ぶ。
+	if (
+		game_state
+		and game_state.get_tutorial_step_id() in ["stage_complete", "duo_complete"]
+		and game_state.is_tutorial_presentation_locked()
+	):
+		get_viewport().set_input_as_handled()
+		return
 	if event is InputEventKey and event.keycode == KEY_ESCAPE and event.is_pressed() and not event.is_echo():
-		if game_state and game_state.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]:
+		if game_state and game_state.game_state in [
+			Constants.STATE_WAITING_START, Constants.STATE_COUNTDOWN,
+			Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE,
+		]:
 			_toggle_pause()
+		return
+	if (
+		event is InputEventKey
+		and event.is_pressed()
+		and not event.is_echo()
+		and _ghost_shark_ride_controller
+		and _ghost_shark_ride_controller.dismiss_charge_tutorial()
+	):
+		get_viewport().set_input_as_handled()
+		return
+	if (
+		event is InputEventKey
+		and event.keycode in [KEY_ENTER, KEY_KP_ENTER]
+		and event.is_pressed()
+		and not event.is_echo()
+		and _tutorial_presentation_director
+		and _tutorial_presentation_director.is_active()
+	):
+		_tutorial_presentation_director.skip()
+		get_viewport().set_input_as_handled()
+		return
 			
-	if event is InputEventMouseMotion:
-		if not _replay_mode and game_state and game_state.game_state == Constants.STATE_PLAYING \
-				and game_state.num_players == 1 and not get_tree().paused:
-			game_state.camera_yaw -= event.relative.x * 0.002
-			game_state.camera_pitch -= event.relative.y * 0.002
-			game_state.camera_pitch = clampf(game_state.camera_pitch,
-				-PI / 2.5, PI / 2.5)
-	elif event is InputEventKey or event is InputEventJoypadButton or event is InputEventMouseButton:
-		if event.is_pressed() and not event.is_echo():
-			if game_state and game_state.game_state == Constants.STATE_WAITING_START:
-				# カウントダウン壁が出現し終わるまで開始トリガーをブロック
-				if not _barrier_spawned_for_session or _barrier_dropping:
-					return
-				if game_state.has_method("trigger_start"):
-					game_state.trigger_start()
+	if (
+		event is InputEventKey
+		and event.keycode in [KEY_ENTER, KEY_KP_ENTER]
+		and event.is_pressed()
+		and not event.is_echo()
+	):
+		if game_state and game_state.game_state == Constants.STATE_WAITING_START:
+			if is_start_presentation_locked():
+				get_viewport().set_input_as_handled()
+				return
+			if is_preload_construction_locked():
+				get_viewport().set_input_as_handled()
+				return
+			# カウントダウン壁が出現し終わるまで開始トリガーをブロック
+			# （チュートリアルも本編と同じフライオーバー→カウントダウン開始）
+			if not _barrier_spawned_for_session or _barrier_dropping:
+				return
+			if game_state.has_method("trigger_start"):
+				game_state.trigger_start()
 
 func _update_floor() -> void:
-	if game_state.game_state in [Constants.STATE_FLYOVER, Constants.STATE_PRELOADING, Constants.STATE_WAITING_START]:
+	if not stage_env:
+		return
+	var floor_front: float
+	var floor_back: float = game_state.FLOOR_BACK_Z
+	if game_state.game_state in [
+		Constants.STATE_FLYOVER,
+		Constants.STATE_PRELOADING,
+		Constants.STATE_WAITING_START,
+	]:
 		# フライオーバー / プリロード中: 最後の壁(orゴールライン)まで床を延長
 		var t := game_state.tuning
 		var wall_count: int
@@ -781,28 +1048,24 @@ func _update_floor() -> void:
 		if game_state.game_state == Constants.STATE_FLYOVER:
 			wall_count = game_state.flyover_total_walls
 		var last_wall_z: float = t.wall_start_z + (wall_count - 1) * t.wall_spacing
-		var floor_front: float = last_wall_z + 30.0
+		floor_front = last_wall_z + 30.0
 		# 2P×10Qモード: ゴールラインまで延長
 		if game_state.num_players >= 2 and game_state.mode == Constants.MODE_TEN:
 			var goal_line_z: float = t.wall_start_z + game_state.target_count * t.wall_spacing + 15.0
 			floor_front = maxf(floor_front, goal_line_z + 20.0)
-		var floor_back: float = game_state.FLOOR_BACK_Z
-		var floor_length: float = floor_front - floor_back
-		var floor_center_z: float = (floor_front + floor_back) / 2.0
-		var box_mesh: BoxMesh = floor_mesh.mesh as BoxMesh
-		if box_mesh:
-			box_mesh.size = Vector3(24.0, 16.0, floor_length)
-		floor_mesh.position = Vector3(0, -9.2, floor_center_z)
-	elif game_state.game_state == Constants.STATE_GOAL_RACE:
+	elif (
+		game_state.game_state in [Constants.STATE_GOAL_RACE, Constants.STATE_RESULT_CEREMONY]
+		or (
+			game_state.game_state == Constants.STATE_CLEAR
+			and game_state.result_presentation_active
+		)
+	):
 		# ゴールレース中: ゴールラインの先まで床を延長
-		var floor_front: float = game_state.goal_z + 20.0 - game_state.world_scroll_z
-		var floor_back: float = game_state.FLOOR_BACK_Z
-		var floor_length: float = maxf(144.0, floor_front - floor_back)
-		var floor_center_z: float = (floor_front + floor_back) / 2.0
-		var box_mesh: BoxMesh = floor_mesh.mesh as BoxMesh
-		if box_mesh:
-			box_mesh.size = Vector3(24.0, 16.0, floor_length)
-		floor_mesh.position = Vector3(0, -9.2, floor_center_z)
+		var result_extension := 24.0 if game_state.result_presentation_active else 20.0
+		floor_front = maxf(
+			144.0 + floor_back,
+			game_state.goal_z + result_extension - game_state.world_scroll_z
+		)
 	else:
 		# 通常時: 最奥の壁、またはプレイヤーの位置に合わせて床を動的に延長
 		var t := game_state.tuning
@@ -815,36 +1078,69 @@ func _update_floor() -> void:
 			player_ahead_z = maxf(player_ahead_z, game_state.player2_z + 40.0)
 
 		var max_z_needed: float = maxf(furthest_wall_z, player_ahead_z)
-		var floor_front: float = max_z_needed + 40.0 - game_state.world_scroll_z
+		floor_front = max_z_needed + 40.0 - game_state.world_scroll_z
 		floor_front = maxf(floor_front, 139.5) # 最低限の長さを保証
 
-		var floor_back: float = game_state.FLOOR_BACK_Z
-		var floor_length: float = floor_front - floor_back
-		var floor_center_z: float = (floor_front + floor_back) / 2.0
-		var box_mesh: BoxMesh = floor_mesh.mesh as BoxMesh
-		if box_mesh:
-			box_mesh.size = Vector3(24.0, 16.0, floor_length)
-		floor_mesh.position = Vector3(0, -9.2, floor_center_z)
-	_update_floor_rails()
-	_update_conveyor_loop_geometry()
+	# ローカル通常2Pではゴール面をベルトコンベアの終端として扱う。
+	# ResultMeadow は goal_z + 2m から始まるため、ベルトと草原が重ならず
+	# 「ベルト終端 → ゴール → 草原」の順序が全フェーズで一定になる。
+	if game_state.uses_local_result_ceremony():
+		floor_front = _local_result_goal_z() - game_state.world_scroll_z
 
-func _update_player() -> void:
-	if game_state.game_state in [Constants.STATE_MENU, Constants.STATE_PRELOADING]:
+	var floor_length: float = floor_front - floor_back
+	var floor_center_z: float = (floor_front + floor_back) / 2.0
+	stage_env.set_floor_geometry(floor_center_z, floor_length)
+
+
+func _local_result_goal_z() -> float:
+	if game_state.goal_z > 0.0:
+		return game_state.goal_z
+	var tuning := game_state.tuning
+	return tuning.wall_start_z + game_state.target_count * tuning.wall_spacing + 15.0
+
+func _update_player(_dt: float) -> void:
+	var pc := player_node as PlayerController
+	if pc != null and pc.has_intro_arrival():
+		# The original meshes are hidden inside PlayerController; keeping the root
+		# active preserves hats/rig ownership while sibling ragdoll bodies simulate.
+		# Pending players stay hidden until their own helicopter drop begins.
+		player_node.visible = true
+		return
+	var hide_for_loading := (
+		game_state.game_state in [
+			Constants.STATE_PRELOADING,
+		]
+		and not game_state.uses_local_result_ceremony()
+	)
+	if game_state.game_state == Constants.STATE_MENU or hide_for_loading:
 		player_node.visible = false
 		_hats_applied = false
 		return
 
 	player_node.visible = true
-	var pc: PlayerController = player_node as PlayerController
+	pc = player_node as PlayerController
 	if pc:
 		pc.update_from_state(game_state)
-		
-		# Apply hats when game starts
+
+		# Apply the runner hats/cosmetics.
 		if not _hats_applied:
 			pc.set_hat(1, game_state.p1_hat)
 			if game_state.num_players >= 2 and pc.p2_container != null:
 				pc.set_hat(2, game_state.p2_hat)
 			_hats_applied = true
+
+
+func is_start_presentation_locked() -> bool:
+	return (
+		_helicopter_arrival_director != null
+		and is_instance_valid(_helicopter_arrival_director)
+		and _helicopter_arrival_director.is_start_locked()
+	)
+
+
+func is_preload_construction_locked() -> bool:
+	return false
+
 
 func _update_flyover() -> void:
 	if game_state.game_state == Constants.STATE_FLYOVER:
@@ -861,8 +1157,13 @@ func _update_flyover() -> void:
 					wall_node.position = Vector3(0, 0, wz)
 					wall_container.add_child(wall_node)
 					_flyover_walls.append(wall_node)
+					var flyover_choices: int = game_state.num_choices_for_index(i)
 					if i < game_state.quiz_list.size() and wall_node.has_method("set_quiz"):
-						wall_node.set_quiz(game_state.quiz_list[i], game_state.num_choices)
+						wall_node.set_quiz(game_state.quiz_list[i], flyover_choices)
+					elif wall_node.has_method("set_quiz"):
+						wall_node.set_quiz(null, flyover_choices)
+					if wall_node.has_method("set_is_boss"):
+						wall_node.set_is_boss(game_state.is_boss_index(i))
 			# 全壁を可視化
 			for w: Node3D in _flyover_walls:
 				w.visible = true
@@ -879,20 +1180,73 @@ func _clear_flyover_walls() -> void:
 
 func _update_walls() -> void:
 	# プリロード中・ゴールレース中・クリア後・メニュー・フライオーバー中は通常壁を全て非表示
-	if game_state.game_state in [Constants.STATE_MENU, Constants.STATE_FLYOVER, Constants.STATE_GOAL_RACE, Constants.STATE_CLEAR, Constants.STATE_PRELOADING, Constants.STATE_WAITING_START]:
+	if game_state.game_state in [
+		Constants.STATE_MENU,
+		Constants.STATE_FLYOVER,
+		Constants.STATE_GOAL_RACE,
+		Constants.STATE_RESULT_CEREMONY,
+		Constants.STATE_CLEAR,
+		Constants.STATE_PRELOADING,
+		Constants.STATE_WAITING_START,
+	]:
+		for wall: Node3D in _active_walls:
+			wall.queue_free()
+		_active_walls.clear()
+		_retired_wall_indices.clear()
+		return
+
+	# 操作練習ステップでは問題文のない空白ドアが前方に立たないよう、壁ごと出さない。
+	if game_state.are_tutorial_walls_hidden():
 		for wall: Node3D in _active_walls:
 			wall.queue_free()
 		_active_walls.clear()
 		return
 
 	var t := game_state.tuning
+
+	# 通過済み壁は、正解直後ではなくプレイヤーが実際に壁を抜けてから退場させる。
+	# 2Pでは生存している両者の通過を待つため、先行プレイヤーの画面だけで壁が早く消えない。
+	for wall: Node3D in _active_walls:
+		if not is_instance_valid(wall) or not wall.has_meta("wall_index"):
+			continue
+		var wall_index: int = wall.get_meta("wall_index") as int
+		var already_retiring: bool = (
+			wall.has_method("is_retiring_after_pass")
+			and bool(wall.call("is_retiring_after_pass"))
+		)
+		var p1_has_passed: bool = (
+			not game_state.p1_alive
+			or game_state.player_local_z > wall.position.z + 0.45
+		)
+		var p2_has_passed: bool = (
+			game_state.num_players < 2
+			or not game_state.p2_alive
+			or game_state.player2_local_z > wall.position.z + 0.45
+		)
+		var all_active_players_have_passed: bool = (
+			wall_index < game_state.current_wall_index
+			and p1_has_passed
+			and p2_has_passed
+		)
+		if all_active_players_have_passed and not already_retiring and wall.has_method("retire_after_player_pass"):
+			_retired_wall_indices[wall_index] = true
+			wall.call("retire_after_player_pass", 0.28)
+
 	var needed_indices: Array[int] = []
 	# Keep walls behind that haven't reached the cliff yet
 	var start_idx := maxi(0, game_state.current_wall_index - 3)
+	# 表示対象から十分に外れた番号は、エンドレスモードで増え続けないよう記録を破棄する。
+	for retired_key: Variant in _retired_wall_indices.keys():
+		if int(retired_key) < start_idx:
+			_retired_wall_indices.erase(retired_key)
 	# 固定問数モードでは target_count 以降の壁を生成しない
 	var max_wall_idx: int = -1
 	if game_state.mode == Constants.MODE_TEN or game_state.mode == Constants.MODE_TUTORIAL:
-		max_wall_idx = game_state.target_count - 1  # 0-indexed: 壁0〜9まで
+		max_wall_idx = (
+			game_state.get_tutorial_wall_count() - 1
+			if game_state.mode == Constants.MODE_TUTORIAL
+			else game_state.target_count - 1
+		)
 	for i: int in range(MAX_VISIBLE_WALLS + 3):
 		var idx: int = start_idx + i
 		# 固定問数モードでは target_count 以降の壁をスキップ
@@ -906,7 +1260,11 @@ func _update_walls() -> void:
 	# Remove walls no longer needed
 	var to_remove: Array[Node3D] = []
 	for wall: Node3D in _active_walls:
-		if not wall.has_meta("wall_index") or wall.get_meta("wall_index") not in needed_indices:
+		var retirement_finished: bool = (
+			wall.has_method("is_retirement_finished")
+			and bool(wall.call("is_retirement_finished"))
+		)
+		if not wall.has_meta("wall_index") or wall.get_meta("wall_index") not in needed_indices or retirement_finished:
 			to_remove.append(wall)
 	for wall: Node3D in to_remove:
 		_active_walls.erase(wall)
@@ -914,8 +1272,8 @@ func _update_walls() -> void:
 		var wz: float = t.wall_start_z + idx * t.wall_spacing
 		var local_z: float = wz - game_state.world_scroll_z
 		if local_z <= game_state.FLOOR_BACK_Z + 0.1:
-			if wall.has_method("collapse_into_magma"):
-				wall.collapse_into_magma()
+			if wall.has_method("shatter_wall"):
+				wall.shatter_wall()
 		wall.queue_free()
 
 
@@ -926,7 +1284,7 @@ func _update_walls() -> void:
 			existing_indices.append(wall.get_meta("wall_index") as int)
 
 	for idx: int in needed_indices:
-		if idx not in existing_indices:
+		if idx not in existing_indices and not _retired_wall_indices.has(idx):
 			var wz: float = t.wall_start_z + idx * t.wall_spacing
 			var wall_node: Node3D = quiz_wall_scene.instantiate()
 			wall_node.set_meta("wall_index", idx)
@@ -934,9 +1292,11 @@ func _update_walls() -> void:
 			wall_container.add_child(wall_node)
 			_active_walls.append(wall_node)
 
+			var wall_choices: int = game_state.num_choices_for_index(idx)
+			if wall_node.has_method("set_quiz"):
+				wall_node.set_quiz(null, wall_choices)
 			if wall_node.has_method("set_is_boss"):
-				var is_boss: bool = (idx == game_state.target_count - 1 and game_state.mode == Constants.MODE_TEN)
-				wall_node.set_is_boss(is_boss)
+				wall_node.set_is_boss(game_state.is_boss_index(idx))
 
 		# Also MUST update positions of existing walls because they slide!
 	for wall: Node3D in _active_walls:
@@ -954,18 +1314,27 @@ func _update_wall_labels(wall_node: Node3D) -> void:
 		wall_node.set_quiz(game_state.current_quiz, game_state.num_choices)
 
 func _update_goal_line() -> void:
-	# Only show goal line in 2P × 10Q mode during relevant states
-	var should_show := (
+	# Challenge flyovers may preview the finish. Tutorials reveal the goal only
+	# after the dedicated final step begins, so hazard instructions stay clear.
+	var challenge_goal_visible := (
 		game_state.num_players >= 2
 		and game_state.mode == Constants.MODE_TEN
 		and game_state.game_state in [
+			Constants.STATE_PRELOADING,
+			Constants.STATE_COUNTDOWN,
 			Constants.STATE_GOAL_RACE,
+			Constants.STATE_RESULT_CEREMONY,
 			Constants.STATE_FLYOVER,
 			Constants.STATE_PLAYING,
 			Constants.STATE_CLEAR,
 			Constants.STATE_WAITING_START,
 		]
 	)
+	var tutorial_goal_visible := (
+		game_state.mode == Constants.MODE_TUTORIAL
+		and game_state.game_state in [Constants.STATE_GOAL_RACE, Constants.STATE_CLEAR]
+	)
+	var should_show := challenge_goal_visible or tutorial_goal_visible
 
 	if not should_show:
 		if _goal_line_node and is_instance_valid(_goal_line_node):
@@ -993,31 +1362,38 @@ func _update_goal_line() -> void:
 		var pillar_color := Color(1.0, 0.85, 0.1)  # Gold
 		var bar_color := Color(1.0, 0.85, 0.1)
 
+		# ゴールの外端をベルト面の外端（幅24.0）に揃える。
+		const GOAL_PILLAR_WIDTH: float = 0.4
+		const GOAL_STRIPE_WIDTH: float = 0.5
+		var goal_width: float = StageConstants.FLOOR_WIDTH
+		var pillar_x: float = goal_width * 0.5 - GOAL_PILLAR_WIDTH * 0.5
+
 		# Left pillar (高さ5.0、中心をFLOOR_TOP_Y + 2.5に配置)
-		var left_pillar := _create_goal_box(Vector3(0.4, 5.0, 0.4), pillar_color)
-		left_pillar.position = Vector3(-7.0, FLOOR_TOP_Y + 2.5, 0)
+		var left_pillar := _create_goal_box(Vector3(GOAL_PILLAR_WIDTH, 5.0, 0.4), pillar_color)
+		left_pillar.position = Vector3(-pillar_x, FLOOR_TOP_Y + 2.5, 0)
 		_goal_line_node.add_child(left_pillar)
 
 		# Right pillar
-		var right_pillar := _create_goal_box(Vector3(0.4, 5.0, 0.4), pillar_color)
-		right_pillar.position = Vector3(7.0, FLOOR_TOP_Y + 2.5, 0)
+		var right_pillar := _create_goal_box(Vector3(GOAL_PILLAR_WIDTH, 5.0, 0.4), pillar_color)
+		right_pillar.position = Vector3(pillar_x, FLOOR_TOP_Y + 2.5, 0)
 		_goal_line_node.add_child(right_pillar)
 
 		# Crossbar (柱の上端に配置)
-		var crossbar := _create_goal_box(Vector3(14.4, 0.4, 0.4), bar_color)
+		var crossbar := _create_goal_box(Vector3(goal_width, 0.4, 0.4), bar_color)
 		crossbar.position = Vector3(0, FLOOR_TOP_Y + 5.0, 0)
 		_goal_line_node.add_child(crossbar)
 
 		# Ground line (checkerboard-style stripe — 床面に接着)
-		for i: int in range(28):
-			var stripe := _create_goal_box(Vector3(0.5, 0.05, 1.0),
+		var stripe_count: int = int(goal_width / GOAL_STRIPE_WIDTH)
+		for i: int in range(stripe_count):
+			var stripe := _create_goal_box(Vector3(GOAL_STRIPE_WIDTH, 0.05, 1.0),
 				Color.WHITE if i % 2 == 0 else Color(0.15, 0.15, 0.15))
-			stripe.position = Vector3(-6.75 + i * 0.5, FLOOR_TOP_Y + 0.03, 0)
+			stripe.position = Vector3(-goal_width * 0.5 + GOAL_STRIPE_WIDTH * 0.5 + i * GOAL_STRIPE_WIDTH, FLOOR_TOP_Y + 0.03, 0)
 			_goal_line_node.add_child(stripe)
 
 		# "GOAL" label (クロスバーのやや下に配置)
 		var goal_label := Label3D.new()
-		goal_label.text = "🏁 GOAL 🏁"
+		goal_label.text = "GOAL"
 		goal_label.font_size = 72
 		goal_label.pixel_size = 0.012
 		goal_label.billboard = BaseMaterial3D.BILLBOARD_DISABLED
@@ -1038,6 +1414,13 @@ func _update_goal_line() -> void:
 		_goal_line_node.position = Vector3(0, 0, g_z)
 	else:
 		_goal_line_node.position = Vector3(0, 0, g_z - game_state.world_scroll_z)
+	# The gate establishes the first two ceremony shots, then leaves the result
+	# composition so the grass, players, score, and explosion remain the only
+	# focal layers. It is restored automatically when the phase resets/retries.
+	_goal_line_node.visible = not (
+		game_state.result_presentation_active
+		and game_state.result_ceremony_phase >= QuizGameState.ResultCeremonyPhase.SCORE_ROLL
+	)
 
 func _create_goal_box(box_size: Vector3, color: Color) -> MeshInstance3D:
 	var mesh_inst := MeshInstance3D.new()
@@ -1055,8 +1438,47 @@ func _create_goal_box(box_size: Vector3, color: Color) -> MeshInstance3D:
 	return mesh_inst
 
 func _update_camera(dt: float) -> void:
-	if camera_controller.has_method("update_camera"):
-		camera_controller.update_camera(game_state, dt)
+	if not camera_controller or not camera_controller.has_method("update_camera"):
+		return
+
+	var focus_shark: SharkSwimmer = null
+	var focus_player_index: int = 0
+	var player_count: int = maxi(1, game_state.num_players)
+	for player_index: int in range(1, player_count + 1):
+		if not game_state.is_player_waiting_for_shark(player_index):
+			continue
+		var shark_variant: Variant = _ocean_attack_sharks.get(player_index)
+		var shark: SharkSwimmer = shark_variant as SharkSwimmer
+		if shark != null and is_instance_valid(shark):
+			focus_shark = shark
+			focus_player_index = player_index
+			break
+
+	if focus_shark != null:
+		camera_controller.set_ocean_attack_focus(
+			focus_shark.position,
+			focus_shark.get_attack_intensity(),
+			focus_player_index
+		)
+	else:
+		var keep_dead_shark_focus: bool = (
+			game_state.game_state == Constants.STATE_GAME_OVER
+			and (
+				(
+					game_state.num_players < 2
+					and game_state.p1_shark_killed
+					and not game_state.p1_alive
+				)
+				or (
+					game_state.num_players >= 2
+					and not game_state.p1_alive
+					and not game_state.p2_alive
+					and (game_state.p1_shark_killed or game_state.p2_shark_killed)
+				)
+			)
+		)
+		camera_controller.clear_ocean_attack_focus(keep_dead_shark_focus)
+	camera_controller.update_camera(game_state, dt)
 
 func _check_particles() -> void:
 	# Correct particle spawn
@@ -1066,29 +1488,98 @@ func _check_particles() -> void:
 				Vector3(game_state.player_x, game_state.player_y, game_state.player_local_z))
 	_prev_correct_flash = game_state.correct_flash
 
-	# Explosion particle spawn (P1)
-	if game_state.game_over_timer >= 2.0 and _prev_go_timer < 2.0:
+	# Ocean entry splash (position crossing keeps replay/network visuals deterministic)
+	if (
+		game_state.game_over_timer > 0.0
+		and game_state.player_y <= StageConstants.OCEAN_ENTRY_Y
+		and _prev_player_y > StageConstants.OCEAN_ENTRY_Y
+	):
+		if particle_spawner.has_method("spawn_ocean_splash"):
+			particle_spawner.spawn_ocean_splash(Vector3(
+				game_state.player_x,
+				StageConstants.OCEAN_SURFACE_Y,
+				game_state.player_local_z
+			))
+	if (
+		game_state.player2_game_over_timer > 0.0
+		and game_state.player2_y <= StageConstants.OCEAN_ENTRY_Y
+		and _prev_p2_y > StageConstants.OCEAN_ENTRY_Y
+	):
+		if particle_spawner.has_method("spawn_ocean_splash"):
+			particle_spawner.spawn_ocean_splash(Vector3(
+				game_state.player2_x,
+				StageConstants.OCEAN_SURFACE_Y,
+				game_state.player2_local_z
+			))
+
+	# Explosion particle spawn (P1: non-ocean deaths only)
+	if (
+		game_state.game_over_timer >= 2.0
+		and _prev_go_timer < 2.0
+		and game_state.player_y > StageConstants.OCEAN_ENTRY_Y
+	):
 		if particle_spawner.has_method("spawn_explosion"):
-			particle_spawner.spawn_explosion(
-				Vector3(game_state.player_x, game_state.player_y, game_state.player_local_z))
+			particle_spawner.spawn_explosion(_get_player_death_effect_position(
+				1,
+				Vector3(game_state.player_x, game_state.player_y, game_state.player_local_z)
+			))
 	_prev_go_timer = game_state.game_over_timer
 	
-	# Explosion particle spawn (P2)
-	if game_state.player2_game_over_timer >= 2.0 and _prev_p2_go_timer < 2.0:
+	# Explosion particle spawn (P2: non-ocean deaths only)
+	if (
+		game_state.player2_game_over_timer >= 2.0
+		and _prev_p2_go_timer < 2.0
+		and game_state.player2_y > StageConstants.OCEAN_ENTRY_Y
+	):
 		if particle_spawner.has_method("spawn_explosion"):
-			particle_spawner.spawn_explosion(
-				Vector3(game_state.player2_x, game_state.player2_y, game_state.player2_local_z))
+			particle_spawner.spawn_explosion(_get_player_death_effect_position(
+				2,
+				Vector3(game_state.player2_x, game_state.player2_y, game_state.player2_local_z)
+			))
 	_prev_p2_go_timer = game_state.player2_game_over_timer
+	_prev_player_y = game_state.player_y
+	_prev_p2_y = game_state.player2_y
 
 	# Fireworks on CLEAR state (花火演出)
-	if game_state.game_state == Constants.STATE_CLEAR and not _fireworks_launched:
+	if (
+		game_state.game_state == Constants.STATE_CLEAR
+		and not game_state.result_presentation_active
+		and not _fireworks_launched
+	):
 		_fireworks_launched = true
 		if particle_spawner.has_method("spawn_fireworks"):
 			# ゴールライン位置から花火を打ち上げ
 			var fw_z: float = game_state.goal_z - game_state.world_scroll_z if game_state.goal_z > 0 else 50.0
 			particle_spawner.spawn_fireworks(Vector3(0, 0, fw_z))
 
+
+func _get_player_death_effect_position(player_index: int, fallback: Vector3) -> Vector3:
+	var controller := player_node as PlayerController
+	if controller == null:
+		return fallback
+	return controller.get_death_presentation_position(player_index == 1)
+
+
 func _on_state_changed(new_state: String) -> void:
+	if (
+		_helicopter_arrival_director != null
+		and _helicopter_arrival_director.is_start_locked()
+		and new_state not in [Constants.STATE_PRELOADING, Constants.STATE_WAITING_START]
+	):
+		_helicopter_arrival_director.cancel()
+	if new_state in [Constants.STATE_CLEAR, Constants.STATE_GAME_OVER, Constants.STATE_MENU]:
+		if _ghost_shark_ride_controller:
+			_ghost_shark_ride_controller.force_cleanup()
+	if new_state in [
+		Constants.STATE_RESULT_CEREMONY,
+		Constants.STATE_CLEAR,
+		Constants.STATE_GAME_OVER,
+	]:
+		AudioManager.set_music_context(AudioManager.MUSIC_CONTEXT_RESULT)
+	elif new_state == Constants.STATE_MENU:
+		AudioManager.set_music_context(AudioManager.MUSIC_CONTEXT_MENU)
+	else:
+		AudioManager.set_music_context(AudioManager.MUSIC_CONTEXT_GAMEPLAY)
 	if new_state == Constants.STATE_CLEAR:
 		_fireworks_launched = false
 	elif new_state == Constants.STATE_PLAYING:
@@ -1099,20 +1590,14 @@ func _on_state_changed(new_state: String) -> void:
 			_explode_start_barrier()
 	elif new_state == Constants.STATE_MENU:
 		_fireworks_launched = false
+		if _result_ceremony_director:
+			_result_ceremony_director.force_cleanup()
 		_clear_preview_walls()
 		_remove_start_barrier()
 		_barrier_spawned_for_session = false
 	elif new_state == Constants.STATE_PRELOADING:
-		# デモの周回リスタート: シーンを再ロードしないため前ランの演出状態を手動リセット
-		# (通常プレイの中盤再プレロード current_index > 0 では何もしない)
-		if _demo_mode and game_state.current_index == 0:
-			_clear_flyover_walls()
-			_clear_preview_walls()
-			_remove_start_barrier()
-			_barrier_spawned_for_session = false
-			_barrier_exploded = false
-			_barrier_dropping = false
-			_barrier_drop_timer = 0.0
+		if _result_ceremony_director:
+			_result_ceremony_director.force_cleanup()
 	elif new_state == Constants.STATE_WAITING_START:
 		_clear_flyover_walls()
 		# バリアはプレビュー壁完了後に自動スポーンするので、ここでは何もしない
@@ -1133,8 +1618,14 @@ func _on_correct() -> void:
 		var answer_idx: int = game_state.current_quiz.a
 		for wall: Node3D in _active_walls:
 			if wall.has_meta("wall_index") and wall.get_meta("wall_index") == game_state.current_wall_index:
+				_retired_wall_indices[game_state.current_wall_index] = true
 				if wall.has_method("break_door"):
 					wall.break_door(answer_idx)
+				# 正解扉が壊れた瞬間から壁全体も退場させる。
+				# プレイヤーが完全に通過してから消すと、破砕演出との間に
+				# 壁だけが残って見えるため、同じタイミングで短くフェードする。
+				if wall.has_method("retire_after_player_pass"):
+					wall.retire_after_player_pass(0.28)
 	# Audio handled by AudioManager
 
 func _on_wrong(_msg: String) -> void:
@@ -1175,16 +1666,10 @@ func _build_pause_menu() -> void:
 	bgm_slider.min_value = 0.0
 	bgm_slider.max_value = 1.0
 	bgm_slider.step = 0.05
-	bgm_slider.value = game_state.bgm_volume
+	bgm_slider.value = AudioManager.bgm_volume
 	bgm_slider.custom_minimum_size = Vector2(400, 40)
 	bgm_slider.value_changed.connect(func(val: float):
 		game_state.set_bgm_volume(val)
-		var bus_idx = AudioServer.get_bus_index("BGM")
-		if bus_idx >= 0:
-			AudioServer.set_bus_volume_db(bus_idx, linear_to_db(val) if val > 0 else -80.0)
-		else:
-			# Fallback if no BGM bus exists
-			pass
 	)
 	vbox.add_child(bgm_slider)
 	
@@ -1198,17 +1683,10 @@ func _build_pause_menu() -> void:
 	sfx_slider.min_value = 0.0
 	sfx_slider.max_value = 1.0
 	sfx_slider.step = 0.05
-	sfx_slider.value = game_state.sfx_volume
+	sfx_slider.value = AudioManager.sfx_volume
 	sfx_slider.custom_minimum_size = Vector2(400, 40)
 	sfx_slider.value_changed.connect(func(val: float):
 		game_state.set_sfx_volume(val)
-		var bus_idx = AudioServer.get_bus_index("SFX")
-		if bus_idx >= 0:
-			AudioServer.set_bus_volume_db(bus_idx, linear_to_db(val) if val > 0 else -80.0)
-		else:
-			# Fallback for SFX if using AudioManager
-			if AudioManager.has_method("set_volume"):
-				AudioManager.set_volume(val)
 	)
 	vbox.add_child(sfx_slider)
 	
@@ -1227,9 +1705,13 @@ func _build_pause_menu() -> void:
 	btn_title.custom_minimum_size = Vector2(0, 60)
 	btn_title.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	btn_title.pressed.connect(func():
+		if SceneTransition.is_transitioning():
+			return
 		get_tree().paused = false
+		AudioManager.set_music_paused(false)
+		AudioManager.set_music_context(AudioManager.MUSIC_CONTEXT_MENU)
 		game_state.reset_to_menu()
-		get_tree().change_scene_to_file("res://ui/main_menu.tscn")
+		SceneTransition.change_scene("res://ui/main_menu.tscn")
 	)
 	vbox.add_child(btn_title)
 
@@ -1238,128 +1720,318 @@ func _toggle_pause() -> void:
 		return
 	var new_paused = !get_tree().paused
 	get_tree().paused = new_paused
+	AudioManager.set_music_paused(new_paused)
 	pause_menu.visible = new_paused
-	if new_paused:
-		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
-	else:
-		if game_state.num_players == 1 and not OS.has_feature("mobile"):
-			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 
 
 # ============================================================
 # プリロード中の3D構築アニメーション
-# 軽量シルエットが左右から爆速スライドイン → 合体＋火花エフェクト
+# 完成したクイズ壁が上空から1枚ずつ落下 → 着地衝撃エフェクト
 # ============================================================
 
-## 左右スライド用の軽量シルエットメッシュを生成
-func _create_slide_silhouette(wz: float, x_pos: float) -> MeshInstance3D:
-	var mi := MeshInstance3D.new()
-	var box := BoxMesh.new()
-	box.size = Vector3(8.0, 5.5, 0.4)  # 壁とほぼ同サイズ
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.3, 0.35, 0.5, 0.85)
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	box.material = mat
-	mi.mesh = box
-	mi.position = Vector3(x_pos, 2.75, wz)
-	mi.visible = false
-	return mi
+func _try_build_preview_walls(max_to_build: int) -> void:
+	if game_state == null or max_to_build <= 0 or quiz_wall_scene == null:
+		return
+	var t := game_state.tuning
+	var quiz_count: int = game_state.quiz_list.size()
+	var is_endless: bool = not game_state._is_fixed_count_mode()
+	var total_expected: int = maxi(30 if is_endless else game_state.target_count, quiz_count)
+	var walls_to_build: int = mini(max_to_build, total_expected - _pw_count)
+	for _build_index: int in range(walls_to_build):
+		var visual_idx: int = _pw_count if is_endless else (total_expected - 1 - _pw_count)
+		var wz: float = t.wall_start_z + visual_idx * t.wall_spacing
+		var wall_final: Node3D = quiz_wall_scene.instantiate()
+		wall_final.set_meta("wall_index", visual_idx)
+		wall_final.position = Vector3(0, PREVIEW_WALL_DROP_START_Y, wz)
+		wall_final.visible = false
+		wall_container.add_child(wall_final)
+		_pw_walls.append(wall_final)
+
+		var preview_choices: int = game_state.num_choices_for_index(visual_idx)
+		if (
+			is_endless
+			and _pw_count < game_state.quiz_list.size()
+			and wall_final.has_method("set_quiz")
+		):
+			wall_final.set_quiz(game_state.quiz_list[_pw_count], preview_choices)
+		elif wall_final.has_method("set_quiz"):
+			wall_final.set_quiz(null, preview_choices)
+		if wall_final.has_method("set_is_boss"):
+			wall_final.set_is_boss(game_state.is_boss_index(visual_idx))
+
+		_pw_anims.append({
+			"phase": 3 if is_endless else 0,
+			"timer": 0.0,
+			"started": is_endless,
+			"configured": is_endless,
+			"ready_frame": Engine.get_process_frames(),
+		})
+		_pw_drop_started.append(is_endless)
+
+		if is_endless:
+			wall_final.visible = true
+			wall_final.position.y = 0.0
+			wall_final.scale = Vector3.ONE
+
+		_pw_count += 1
+
+
+func _ensure_fixed_count_preview_walls_built() -> void:
+	if game_state == null or not game_state._is_fixed_count_mode():
+		return
+	var remaining: int = game_state.target_count - _pw_count
+	if remaining > 0:
+		_try_build_preview_walls(remaining)
+
+
+func _make_prewarm_quiz(num_choices: int) -> QuizItem:
+	var choices := PackedStringArray(["正解", "不正解"])
+	if num_choices == 4:
+		choices = PackedStringArray(["あいうえお", "漢字分数", "カタカナ", "正解不正解"])
+	return QuizItem.create(
+		"あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをんアイウエオ漢字分数",
+		choices,
+		0,
+		"予熱",
+		"PREWARM"
+	)
+
+
+func _begin_preview_wall_render_prewarm(prewarm_camera: Camera3D) -> Dictionary:
+	var report := {
+		"ready": false,
+		"walls": 0,
+		"dummies": 0,
+		"barrier": false,
+		"merge_effects": 0,
+	}
+	_ensure_fixed_count_preview_walls_built()
+	_ensure_start_barrier_built()
+	_ensure_barrier_landing_dust()
+
+	_wall_prewarm_root = Node3D.new()
+	_wall_prewarm_root.name = "PreviewWallRenderPrewarm"
+	if prewarm_camera != null and is_instance_valid(prewarm_camera):
+		prewarm_camera.add_child(_wall_prewarm_root)
+	else:
+		add_child(_wall_prewarm_root)
+
+	var dummy_two: Node3D = quiz_wall_scene.instantiate() as Node3D
+	if dummy_two != null:
+		dummy_two.name = "PrewarmWallTwoChoice"
+		_wall_prewarm_root.add_child(dummy_two)
+		dummy_two.position = Vector3(-1.8, 0.0, -6.0)
+		dummy_two.visible = true
+		if dummy_two.has_method("set_quiz"):
+			dummy_two.set_quiz(_make_prewarm_quiz(2), 2)
+		report["dummies"] = int(report["dummies"]) + 1
+
+	var dummy_boss: Node3D = quiz_wall_scene.instantiate() as Node3D
+	if dummy_boss != null:
+		dummy_boss.name = "PrewarmWallBossFour"
+		_wall_prewarm_root.add_child(dummy_boss)
+		dummy_boss.position = Vector3(1.8, 0.0, -6.0)
+		dummy_boss.visible = true
+		if dummy_boss.has_method("set_quiz"):
+			dummy_boss.set_quiz(_make_prewarm_quiz(4), 4)
+		if dummy_boss.has_method("set_is_boss"):
+			dummy_boss.set_is_boss(true)
+		report["dummies"] = int(report["dummies"]) + 1
+
+	for wall_index: int in range(_pw_walls.size()):
+		if wall_index < _pw_drop_started.size() and _pw_drop_started[wall_index]:
+			continue
+		var wall: Node3D = _pw_walls[wall_index]
+		if wall == null or not is_instance_valid(wall):
+			continue
+		wall.position.y = 0.0
+		wall.scale = Vector3.ONE
+		wall.visible = true
+		report["walls"] = int(report["walls"]) + 1
+
+	if _start_barrier != null and is_instance_valid(_start_barrier):
+		var barrier_parent: Node = _start_barrier.get_parent()
+		if barrier_parent != _wall_prewarm_root:
+			_start_barrier.reparent(_wall_prewarm_root, false)
+		_start_barrier.position = Vector3(0.0, 0.0, -8.5)
+		_start_barrier.visible = true
+		var countdown_label := _start_barrier.get_node_or_null("QuestionLabel") as Label3D
+		if countdown_label != null:
+			countdown_label.text = "3"
+		var steam_l := _start_barrier.get_node_or_null("SteamL") as CPUParticles3D
+		var steam_r := _start_barrier.get_node_or_null("SteamR") as CPUParticles3D
+		if steam_l != null:
+			steam_l.emitting = true
+		if steam_r != null:
+			steam_r.emitting = true
+		report["barrier"] = true
+
+	var spark_origin := Vector3(0.0, 1.5, -5.0)
+	if prewarm_camera != null and is_instance_valid(prewarm_camera):
+		spark_origin = prewarm_camera.global_position - prewarm_camera.global_transform.basis.z * 5.0
+	_spawn_merge_sparks(spark_origin)
+	report["merge_effects"] = 1
+	if _barrier_landing_dust != null and is_instance_valid(_barrier_landing_dust):
+		_barrier_landing_dust.global_position = spark_origin + Vector3(0.0, -1.0, 0.0)
+		_barrier_landing_dust.restart()
+		_barrier_landing_dust.emitting = true
+
+	report["ready"] = (
+		int(report["dummies"]) >= 2
+		and bool(report["barrier"])
+		and (
+			game_state == null
+			or not game_state._is_fixed_count_mode()
+			or int(report["walls"]) >= game_state.target_count
+		)
+	)
+	return report
+
+
+func _end_preview_wall_render_prewarm() -> void:
+	for wall_index: int in range(_pw_walls.size()):
+		if wall_index < _pw_drop_started.size() and _pw_drop_started[wall_index]:
+			continue
+		var wall: Node3D = _pw_walls[wall_index]
+		if wall == null or not is_instance_valid(wall):
+			continue
+		wall.visible = false
+		wall.position.y = PREVIEW_WALL_DROP_START_Y
+		wall.scale = Vector3.ONE
+
+	for effect: Dictionary in _merge_effect_pool:
+		var pooled_sparks: CPUParticles3D = effect.get("sparks") as CPUParticles3D
+		var pooled_flash: CPUParticles3D = effect.get("flash") as CPUParticles3D
+		if pooled_sparks != null and is_instance_valid(pooled_sparks):
+			pooled_sparks.emitting = false
+		if pooled_flash != null and is_instance_valid(pooled_flash):
+			pooled_flash.emitting = false
+
+	if _barrier_landing_dust != null and is_instance_valid(_barrier_landing_dust):
+		_barrier_landing_dust.emitting = false
+
+	if _start_barrier != null and is_instance_valid(_start_barrier):
+		var countdown_label := _start_barrier.get_node_or_null("QuestionLabel") as Label3D
+		if countdown_label != null:
+			countdown_label.text = ""
+		var steam_l := _start_barrier.get_node_or_null("SteamL") as CPUParticles3D
+		var steam_r := _start_barrier.get_node_or_null("SteamR") as CPUParticles3D
+		if steam_l != null:
+			steam_l.emitting = false
+		if steam_r != null:
+			steam_r.emitting = false
+		if _start_barrier.get_parent() != wall_container:
+			_start_barrier.reparent(wall_container, false)
+		var barrier_z: float = game_state.tuning.wall_start_z - 7.0 if game_state else -7.0
+		_start_barrier.position = Vector3(0.0, BARRIER_DROP_HEIGHT, barrier_z)
+		_start_barrier.visible = false
+
+	if _wall_prewarm_root != null and is_instance_valid(_wall_prewarm_root):
+		_wall_prewarm_root.queue_free()
+	_wall_prewarm_root = null
+	_pw_render_prewarmed = true
+
 
 func _update_preview_walls(dt: float) -> void:
 	if game_state.game_state not in [Constants.STATE_PRELOADING, Constants.STATE_WAITING_START]:
 		return
 
-	var t := game_state.tuning
 	var quiz_count: int = game_state.quiz_list.size()
 
-	# ── 壁+シルエットの生成（クイズ到着に同期、奥から手前へ配置）──
+	# ── 壁の生成（クイズ到着に同期、奥から手前へ配置）──
 	# 到着N番目のクイズ → 位置 (total - 1 - N) に壁を生成
 	# これにより最初のクイズが最奥、最後のクイズが最手前に出現
 	var is_endless: bool = not game_state._is_fixed_count_mode()
-	var total_expected: int = maxi(30 if is_endless else game_state.target_count, quiz_count)
-	var target_pw_count: int = total_expected if is_endless else quiz_count
+	# 固定問数モードはオンライン問題の到着前から空の壁を分散構築する。
+	# 問題到着、壁生成、初回表示、着地VFXを別フレーム帯へ分けることで、
+	# 到着ごとのメインスレッド負荷が着地の瞬間へ集中しないようにする。
 
-	# ── 壁+シルエットの生成（クイズ到着に同期、奥から手前へ配置）──
-	while _pw_count < target_pw_count:
-		# エンドレスは手前から奥へ、固定モードは逆マッピング（奥から手前へ）
-		var visual_idx: int = _pw_count if is_endless else (total_expected - 1 - _pw_count)
-		var wz: float = t.wall_start_z + visual_idx * t.wall_spacing
+	# 10枚分のインスタンス化と問題文セットを同フレームに集中させない。
+	# 準備画面の裏で1枚ずつ分散し、落下演出の開始前に滑らかに組み立てる。
+	# 黒画面中はスピナーが止まらない程度に2枚/フレームへ上げ、待ちを短縮する。
+	var walls_per_frame: int = PREVIEW_WALLS_PER_FRAME
+	if (
+		_should_defer_ten_wall_drop_until_reveal()
+		and SceneTransition.is_transitioning()
+	):
+		walls_per_frame = COVER_PREVIEW_WALLS_PER_FRAME
+	_try_build_preview_walls(walls_per_frame)
 
-		# 完成壁（合体後に表示）
-		var wall_final: Node3D = quiz_wall_scene.instantiate()
-		wall_final.set_meta("wall_index", visual_idx)
-		wall_final.position = Vector3(0, 0, wz)
-		wall_final.visible = false
-		wall_container.add_child(wall_final)
-		_pw_walls.append(wall_final)
+	# 問題テキストの整形・Label3D更新も壁生成とは別フレームにする。
+	# オンラインではこの後さらに数フレーム置いてから落下を開始する。
+	var configs_remaining := PREVIEW_WALL_CONFIGS_PER_FRAME
+	while (
+		not is_endless
+		and configs_remaining > 0
+		and _pw_configured_count < quiz_count
+		and _pw_configured_count < _pw_walls.size()
+	):
+		var config_index := _pw_configured_count
+		var configured_wall: Node3D = _pw_walls[config_index]
+		var configured_visual_index := int(configured_wall.get_meta("wall_index", config_index))
+		var configured_choices := game_state.num_choices_for_index(configured_visual_index)
+		if configured_wall.has_method("set_quiz"):
+			configured_wall.set_quiz(game_state.quiz_list[config_index], configured_choices)
+		_pw_anims[config_index]["configured"] = true
+		_pw_anims[config_index]["ready_frame"] = (
+			Engine.get_process_frames()
+			+ (0 if QuizManager.provider.llm_mode == "OFFLINE" else ONLINE_PREVIEW_WALL_PREWARM_FRAMES)
+		)
+		_pw_configured_count += 1
+		configs_remaining -= 1
 
-		if _pw_count < game_state.quiz_list.size() and wall_final.has_method("set_quiz"):
-			wall_final.set_quiz(game_state.quiz_list[_pw_count], game_state.num_choices)
-		elif wall_final.has_method("set_quiz"):
-			wall_final.set_quiz(null, game_state.num_choices)
-
-		# 左右は軽量シルエット（BoxMesh）
-		var sil_l := _create_slide_silhouette(wz, -25.0)
-		sil_l.visible = false
-		wall_container.add_child(sil_l)
-		_pw_left.append(sil_l)
-
-		var sil_r := _create_slide_silhouette(wz, 25.0)
-		sil_r.visible = false
-		wall_container.add_child(sil_r)
-		_pw_right.append(sil_r)
-
-		# 新しい壁のアニメーション情報 — エンドレスモードなら即座に完了状態(phase 3)とする
-		_pw_anims.append({
-			"phase": 3 if is_endless else 0,
-			"timer": 0.0,
-			"started": is_endless,
-		})
-		_pw_merge_started.append(is_endless)
-		
-		if is_endless:
-			wall_final.visible = true
-			wall_final.scale = Vector3.ONE
-
-		_pw_count += 1
-
-	# ── マージアニメーション順次開始（0.15秒間隔）──
-	# 配列順 = 奥→手前（逆マッピング済み）なので、index 0 から順に開始
+	# ── 落下アニメーション順次開始 ──
+	# オフライン固定枚数モードでは、全壁の構築完了後に演出を開始する。
+	# 壁生成・ラベル初期化と着地演出を同じフレーム帯に重ねない。
 	var is_offline: bool = QuizManager.provider.llm_mode == "OFFLINE"
-	var merge_interval: float = 0.15 # オンライン・オフライン問わず爆速で開始
 	var total_walls: int = _pw_anims.size()
-	if total_walls > 0:
+	var wall_set_ready: bool = is_endless or not is_offline or (
+		quiz_count >= game_state.target_count
+		and _pw_count >= game_state.target_count
+	)
+	# オフライン10問は開示アニメーションが完了するまで、構築済みの壁を
+	# 上空・非表示のまま待機させる。開示完了後のフレームから落下を始める。
+	if _should_defer_ten_wall_drop_until_reveal() and SceneTransition.is_transitioning():
+		wall_set_ready = false
+	if _wall_prewarm_root != null and is_instance_valid(_wall_prewarm_root):
+		wall_set_ready = false
+	if total_walls > 0 and wall_set_ready:
 		var all_started: bool = true
-		for ms: bool in _pw_merge_started:
-			if not ms:
+		for drop_started: bool in _pw_drop_started:
+			if not drop_started:
 				all_started = false
 				break
 		if not all_started:
-			_pw_merge_timer += dt
-			while _pw_merge_timer >= merge_interval:
+			# 到着待ち中に溜まった時間で複数枚を同一フレーム開始しない。
+			_pw_drop_timer = minf(
+				_pw_drop_timer + dt,
+				PREVIEW_WALL_DROP_INTERVAL
+			)
+			while _pw_drop_timer >= PREVIEW_WALL_DROP_INTERVAL:
 				# 配列順（0=最奥）でまだ開始していない壁を探す
 				var found_next: bool = false
 				for search_i: int in range(total_walls):
-					if not _pw_merge_started[search_i]:
-						_pw_merge_started[search_i] = true
+					if not _pw_drop_started[search_i]:
+						var candidate: Dictionary = _pw_anims[search_i]
+						if not bool(candidate.get("configured", false)):
+							continue
+						if Engine.get_process_frames() < int(candidate.get("ready_frame", 0)):
+							continue
+						_pw_drop_started[search_i] = true
 						_pw_anims[search_i]["phase"] = 1
 						_pw_anims[search_i]["started"] = true
-						if search_i < _pw_left.size():
-							_pw_left[search_i].visible = true
-							_pw_right[search_i].visible = true
+						if search_i < _pw_walls.size():
+							_pw_walls[search_i].position.y = PREVIEW_WALL_DROP_START_Y
+							_pw_walls[search_i].scale = Vector3.ONE
+							_pw_walls[search_i].visible = true
 						found_next = true
 						break
 				if not found_next:
 					break
-				_pw_merge_timer -= merge_interval
+				_pw_drop_timer -= PREVIEW_WALL_DROP_INTERVAL
 
 	# アニメーション更新
-	var slide_duration: float = 0.125 # 常に最速
-	var flash_duration: float = 0.175
-	# 画面外（遠く）から飛んでくるように開始位置を拡張
-	const SLIDE_START_X: float = 150.0
-
 	for i: int in range(_pw_anims.size()):
 		var anim: Dictionary = _pw_anims[i]
 		if not anim["started"] or i >= _pw_walls.size():
@@ -1371,34 +2043,38 @@ func _update_preview_walls(dt: float) -> void:
 		anim["timer"] = t_val
 
 		if phase == 1:
-			var p: float = clampf(t_val / slide_duration, 0.0, 1.0)
-			# キレのあるイージング (EaseOutExpo風) に変更して超高速で飛んできて急ブレーキ
-			var eased: float = 1.0 - pow(1.0 - p, 5.0)
-			var x_offset: float = SLIDE_START_X * (1.0 - eased)
-			_pw_left[i].position.x = -x_offset
-			_pw_right[i].position.x = x_offset
+			var p: float = clampf(t_val / PREVIEW_WALL_DROP_DURATION, 0.0, 1.0)
+			# 画面上端から一気に突っ込み、地面直前でさらに加速する。
+			var eased: float = p * p
+			_pw_walls[i].position.y = lerpf(PREVIEW_WALL_DROP_START_Y, 0.0, eased)
 
 			if p >= 1.0:
 				anim["phase"] = 2
 				anim["timer"] = 0.0
-				_pw_left[i].visible = false
-				_pw_right[i].visible = false
-				_pw_walls[i].visible = true
-				_pw_walls[i].scale = Vector3(1.15, 1.15, 1.15)
+				_pw_walls[i].position.y = 0.0
+				_pw_walls[i].scale = Vector3(1.16, 0.78, 1.16)
 				_spawn_merge_sparks(_pw_walls[i].global_position)
 				
-				# カメラに近づくほど強い振動を発生させる (全体的に振動を強化)
-				var dist_z = absf(_pw_walls[i].global_position.z - camera_controller.global_position.z)
-				var shake_power = clampf(40.0 / maxf(1.0, dist_z), 0.2, 1.6)
+				# カメラに近い壁ほど着地の重さを少し強く見せる。
+				var dist_z: float = absf(
+					_pw_walls[i].global_position.z - camera_controller.global_position.z
+				)
+				var shake_power: float = clampf(44.0 / maxf(1.0, dist_z), 0.25, 1.45)
 				game_state.camera_shake = maxf(game_state.camera_shake, shake_power)
 
 		elif phase == 2:
-			var p: float = clampf(t_val / flash_duration, 0.0, 1.0)
-			var eased: float = 1.0 - pow(1.0 - p, 2.0)
-			var s: float = lerpf(1.15, 1.0, eased)
-			_pw_walls[i].scale = Vector3(s, s, s)
+			var p: float = clampf(t_val / PREVIEW_WALL_SETTLE_DURATION, 0.0, 1.0)
+			var eased: float = 1.0 - pow(1.0 - p, 3.0)
+			# 軽く跳ねるより、重い壁が一度潰れて戻る印象を優先。
+			_pw_walls[i].position.y = sin(p * PI) * 0.12 * (1.0 - p)
+			_pw_walls[i].scale = Vector3(
+				lerpf(1.16, 1.0, eased),
+				lerpf(0.78, 1.0, eased),
+				lerpf(1.16, 1.0, eased)
+			)
 			if p >= 1.0:
 				anim["phase"] = 3
+				_pw_walls[i].position.y = 0.0
 				_pw_walls[i].scale = Vector3.ONE
 
 	# ── 全壁のアニメ完了を検出 → バリア壁を落下開始 ──
@@ -1414,24 +2090,27 @@ func _update_preview_walls(dt: float) -> void:
 			_begin_barrier_drop()
 
 
-## 合体時の火花パーティクルを生成
-func _spawn_merge_sparks(pos: Vector3) -> void:
-	# サイズを時間経過で縮小するカーブ
+## 壁着地時の火花パーティクルを予熱する。
+func _warm_merge_effect_pool() -> void:
+	for effect_index: int in range(MERGE_EFFECT_POOL_SIZE):
+		_merge_effect_pool.append(_create_merge_effect(effect_index))
+
+
+func _create_merge_effect(effect_index: int) -> Dictionary:
 	var curve := Curve.new()
 	curve.add_point(Vector2(0, 1.0))
 	curve.add_point(Vector2(1.0, 0.0))
 
-	# 1. 飛び散る火花 (Spark) - 抑えめに調整
 	var sparks := CPUParticles3D.new()
-	sparks.amount = 60
+	sparks.name = "MergeSparksPool%d" % effect_index
+	sparks.emitting = false
+	sparks.amount = GraphicsQuality.particle_amount(MERGE_SPARK_BASE_AMOUNT, GameManager.graphics_quality)
 	sparks.lifetime = 0.8
 	sparks.one_shot = true
 	sparks.explosiveness = 1.0
 	sparks.randomness = 1.0
-
 	sparks.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
 	sparks.emission_box_extents = Vector3(0.5, 2.0, 0.5)
-
 	sparks.direction = Vector3(0.0, 1.0, 0.0)
 	sparks.spread = 180.0
 	sparks.initial_velocity_min = 8.0
@@ -1439,73 +2118,74 @@ func _spawn_merge_sparks(pos: Vector3) -> void:
 	sparks.gravity = Vector3(0, -25.0, 0)
 	sparks.damping_min = 5.0
 	sparks.damping_max = 10.0
-
 	sparks.scale_amount_min = 1.0
 	sparks.scale_amount_max = 2.5
 	sparks.scale_amount_curve = curve
 
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
-	mat.albedo_color = Color(1.5, 1.0, 0.6, 1.0) # 抑えめの発光
-	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
-	mat.billboard_keep_scale = true
-
-	var mesh := QuadMesh.new()
-	mesh.material = mat
-	sparks.mesh = mesh
-
-	sparks.global_position = pos + Vector3(0, 2.5, 0)
+	var spark_mat := StandardMaterial3D.new()
+	spark_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	spark_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	spark_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	spark_mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	spark_mat.albedo_color = Color(1.5, 1.0, 0.6, 1.0)
+	spark_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	spark_mat.billboard_keep_scale = true
+	var spark_mesh := QuadMesh.new()
+	spark_mesh.material = spark_mat
+	sparks.mesh = spark_mesh
 	wall_container.add_child(sparks)
-	sparks.emitting = true
 
-	# 2. 中央の閃光 (Flash) - 抑えめに調整
 	var flash := CPUParticles3D.new()
-	flash.amount = 1
+	flash.name = "MergeFlashPool%d" % effect_index
+	flash.emitting = false
+	flash.amount = GraphicsQuality.particle_amount(1, GameManager.graphics_quality)
 	flash.lifetime = 0.25
 	flash.one_shot = true
 	flash.gravity = Vector3.ZERO
 	flash.scale_amount_min = 8.0
 	flash.scale_amount_max = 8.0
 	flash.scale_amount_curve = curve
-	
-	var mat_flash := StandardMaterial3D.new()
-	mat_flash.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat_flash.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat_flash.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	mat_flash.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
-	mat_flash.albedo_color = Color(1.2, 1.0, 0.8, 0.8)
-	mat_flash.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
-	
-	var mesh_flash := QuadMesh.new()
-	mesh_flash.material = mat_flash
-	flash.mesh = mesh_flash
-	flash.global_position = pos + Vector3(0, 2.5, 0)
+	var flash_mat := StandardMaterial3D.new()
+	flash_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	flash_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	flash_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	flash_mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	flash_mat.albedo_color = Color(1.2, 1.0, 0.8, 0.8)
+	flash_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	var flash_mesh := QuadMesh.new()
+	flash_mesh.material = flash_mat
+	flash.mesh = flash_mesh
 	wall_container.add_child(flash)
-	flash.emitting = true
 
-	# クリーンアップ
-	var tw := create_tween()
-	tw.tween_callback(sparks.queue_free).set_delay(2.5)
-	tw.tween_callback(flash.queue_free).set_delay(2.0)
+	return {"sparks": sparks, "flash": flash}
+
+
+func _spawn_merge_sparks(pos: Vector3) -> void:
+	for effect: Dictionary in _merge_effect_pool:
+		var pooled_sparks: CPUParticles3D = effect.get("sparks") as CPUParticles3D
+		var pooled_flash: CPUParticles3D = effect.get("flash") as CPUParticles3D
+		if pooled_sparks and pooled_flash and not pooled_sparks.emitting:
+			pooled_sparks.global_position = pos + Vector3(0, 2.5, 0)
+			pooled_flash.global_position = pos + Vector3(0, 2.5, 0)
+			pooled_sparks.restart()
+			pooled_flash.restart()
+			pooled_sparks.emitting = true
+			pooled_flash.emitting = true
+			return
+
 
 
 func _clear_preview_walls() -> void:
+	if _wall_prewarm_root != null and is_instance_valid(_wall_prewarm_root):
+		_end_preview_wall_render_prewarm()
 	for wall: Node3D in _pw_walls:
 		if is_instance_valid(wall): wall.queue_free()
-	for wall: Node3D in _pw_left:
-		if is_instance_valid(wall): wall.queue_free()
-	for wall: Node3D in _pw_right:
-		if is_instance_valid(wall): wall.queue_free()
 	_pw_walls.clear()
-	_pw_left.clear()
-	_pw_right.clear()
 	_pw_anims.clear()
 	_pw_count = 0
-	_pw_merge_started.clear()
-	_pw_merge_timer = 0.0
+	_pw_configured_count = 0
+	_pw_drop_started.clear()
+	_pw_drop_timer = 0.0
 
 # ============================================================
 # スタートバリア壁（プレビュー壁完了後に上からズドンと落下）
@@ -1516,16 +2196,70 @@ const BARRIER_COLOR := Color(0.12, 0.16, 0.28)
 const BARRIER_DROP_HEIGHT := 40.0
 const BARRIER_DROP_DURATION := 0.45
 
+func _ensure_start_barrier_built() -> void:
+	if _start_barrier != null and is_instance_valid(_start_barrier):
+		_barrier_prebuilt = true
+		return
+	_build_start_barrier_node()
+	_barrier_prebuilt = _start_barrier != null and is_instance_valid(_start_barrier)
+
+
+func _ensure_barrier_landing_dust() -> void:
+	if _barrier_landing_dust != null and is_instance_valid(_barrier_landing_dust):
+		return
+	var dust := CPUParticles3D.new()
+	dust.name = "BarrierLandingDust"
+	dust.emitting = false
+	dust.amount = GraphicsQuality.particle_amount(80, GameManager.graphics_quality)
+	dust.lifetime = 1.0
+	dust.one_shot = true
+	dust.explosiveness = 1.0
+	dust.randomness = 1.0
+	dust.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	dust.emission_box_extents = Vector3(16.0, 0.5, 1.0)
+	dust.spread = 180.0
+	dust.initial_velocity_min = 5.0
+	dust.initial_velocity_max = 15.0
+	dust.gravity = Vector3(0, -3.0, 0)
+	dust.scale_amount_min = 0.3
+	dust.scale_amount_max = 1.0
+	dust.color = Color(0.5, 0.5, 0.6, 0.5)
+	var dm := StandardMaterial3D.new()
+	dm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	dm.albedo_color = Color(0.6, 0.6, 0.7, 0.4)
+	dm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	dm.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	dm.billboard_keep_scale = true
+	var dq := QuadMesh.new()
+	dq.material = dm
+	dust.mesh = dq
+	wall_container.add_child(dust)
+	_barrier_landing_dust = dust
+
+
 func _begin_barrier_drop() -> void:
 	if _barrier_spawned_for_session:
 		return
 	_barrier_spawned_for_session = true
-	_remove_start_barrier()
 	_barrier_exploded = false
+	_ensure_start_barrier_built()
+	if _start_barrier == null or not is_instance_valid(_start_barrier):
+		return
+	if _start_barrier.get_parent() != wall_container:
+		_start_barrier.reparent(wall_container, false)
 	var barrier_z: float = game_state.tuning.wall_start_z - 7.0
+	_start_barrier.position = Vector3(0, BARRIER_DROP_HEIGHT, barrier_z)
+	_start_barrier.visible = true
+	_barrier_dropping = true
+	_barrier_drop_timer = 0.0
+
+
+func _build_start_barrier_node() -> void:
+	var barrier_z: float = game_state.tuning.wall_start_z - 7.0 if game_state else -7.0
 	_start_barrier = Node3D.new()
 	_start_barrier.name = "StartBarrier"
 	_start_barrier.position = Vector3(0, BARRIER_DROP_HEIGHT, barrier_z)
+	_start_barrier.visible = false
 	# 壁メッシュ
 	var mi := MeshInstance3D.new()
 	var bx := BoxMesh.new()
@@ -1560,7 +2294,7 @@ func _begin_barrier_drop() -> void:
 	_start_barrier.add_child(ql)
 	# 待機パーティクル
 	var sp := CPUParticles3D.new()
-	sp.amount = 50
+	sp.amount = GraphicsQuality.particle_amount(50, GameManager.graphics_quality)
 	sp.lifetime = 1.2
 	sp.randomness = 1.0
 	sp.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
@@ -1596,7 +2330,7 @@ func _begin_barrier_drop() -> void:
 	var steam_l := CPUParticles3D.new()
 	steam_l.name = "SteamL"
 	steam_l.emitting = false
-	steam_l.amount = 120
+	steam_l.amount = GraphicsQuality.particle_amount(120, GameManager.graphics_quality)
 	steam_l.lifetime = 1.5
 	steam_l.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
 	steam_l.emission_box_extents = Vector3(0.5, 10.0, 1.0)
@@ -1615,7 +2349,7 @@ func _begin_barrier_drop() -> void:
 	var steam_r := CPUParticles3D.new()
 	steam_r.name = "SteamR"
 	steam_r.emitting = false
-	steam_r.amount = 120
+	steam_r.amount = GraphicsQuality.particle_amount(120, GameManager.graphics_quality)
 	steam_r.lifetime = 1.5
 	steam_r.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
 	steam_r.emission_box_extents = Vector3(0.5, 10.0, 1.0)
@@ -1630,10 +2364,10 @@ func _begin_barrier_drop() -> void:
 	steam_r.position = Vector3(16.0, 10.0, 0)
 	_start_barrier.add_child(steam_r)
 	wall_container.add_child(_start_barrier)
-	_barrier_dropping = true
-	_barrier_drop_timer = 0.0
 
 func _update_start_barrier() -> void:
+	if _wall_prewarm_root != null and is_instance_valid(_wall_prewarm_root):
+		return
 	if _barrier_dropping and _start_barrier and is_instance_valid(_start_barrier):
 		_barrier_drop_timer += get_process_delta_time()
 		var p: float = clampf(_barrier_drop_timer / BARRIER_DROP_DURATION, 0.0, 1.0)
@@ -1676,7 +2410,11 @@ func _update_start_barrier() -> void:
 					
 			else:
 				ql.text = ""
-				if game_state.game_state != Constants.STATE_WAITING_START:
+				if (
+					_barrier_spawned_for_session
+					and not _barrier_dropping
+					and game_state.game_state != Constants.STATE_WAITING_START
+				):
 					_start_barrier.position.x = 0
 					_start_barrier.position.y = 0
 				
@@ -1685,40 +2423,12 @@ func _update_start_barrier() -> void:
 				_remove_start_barrier()
 
 func _spawn_landing_impact(pos: Vector3) -> void:
-	var dust := CPUParticles3D.new()
-	dust.amount = 80
-	dust.lifetime = 1.0
-	dust.one_shot = true
-	dust.explosiveness = 1.0
-	dust.randomness = 1.0
-	dust.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
-	dust.emission_box_extents = Vector3(16.0, 0.5, 1.0)
-	dust.spread = 180.0
-	dust.initial_velocity_min = 5.0
-	dust.initial_velocity_max = 15.0
-	dust.gravity = Vector3(0, -3.0, 0)
-	dust.scale_amount_min = 0.3
-	dust.scale_amount_max = 1.0
-	dust.color = Color(0.5, 0.5, 0.6, 0.5)
-	var dm := StandardMaterial3D.new()
-	dm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	dm.albedo_color = Color(0.6, 0.6, 0.7, 0.4)
-	dm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	dm.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
-	dm.billboard_keep_scale = true
-	var dq := QuadMesh.new()
-	dq.material = dm
-	dust.mesh = dq
-	dust.position = pos + Vector3(0, -BARRIER_SIZE.y * 0.5, 0)
-	dust.emitting = true
-	# 自ノード配下に生成 (通常時は current_scene == self。デモでは SubViewport 内に収める)
-	add_child(dust)
-	var ct := Timer.new()
-	ct.wait_time = 3.0
-	ct.one_shot = true
-	ct.autostart = true
-	dust.add_child(ct)
-	ct.timeout.connect(dust.queue_free)
+	_ensure_barrier_landing_dust()
+	if _barrier_landing_dust == null or not is_instance_valid(_barrier_landing_dust):
+		return
+	_barrier_landing_dust.global_position = pos + Vector3(0, -BARRIER_SIZE.y * 0.5, 0)
+	_barrier_landing_dust.restart()
+	_barrier_landing_dust.emitting = true
 
 func _explode_start_barrier() -> void:
 	_barrier_exploded = true
@@ -1753,7 +2463,7 @@ func _explode_start_barrier() -> void:
 			chunk.add_child(cmi)
 			var ox: float = (cx - (cx_n - 1) * 0.5) * cs.x + randf_range(-0.5, 0.5)
 			var oy: float = (cy - (cy_n - 1) * 0.5) * cs.y + randf_range(-0.5, 0.5)
-			add_child(chunk)
+			get_tree().current_scene.add_child(chunk)
 			chunk.global_position = bpos + Vector3(ox, oy, 0)
 			# キャラの爆散と同じような散り方（左右に分かれて上に跳ねる）
 			var sx := 1.0 if ox >= 0 else -1.0
@@ -1782,9 +2492,9 @@ func _explode_start_barrier() -> void:
 	ct.timeout.connect(_remove_start_barrier)
 
 func _spawn_mega_explosion(pos: Vector3) -> void:
-	var sr: Node = self
+	var sr := get_tree().current_scene
 	var flash := CPUParticles3D.new()
-	flash.amount = 200
+	flash.amount = GraphicsQuality.particle_amount(200, GameManager.graphics_quality)
 	flash.lifetime = 0.6
 	flash.one_shot = true
 	flash.explosiveness = 1.0
@@ -1810,7 +2520,7 @@ func _spawn_mega_explosion(pos: Vector3) -> void:
 	flash.emitting = true
 	sr.add_child(flash)
 	var sparks := CPUParticles3D.new()
-	sparks.amount = 250
+	sparks.amount = GraphicsQuality.particle_amount(250, GameManager.graphics_quality)
 	sparks.lifetime = 1.5
 	sparks.one_shot = true
 	sparks.explosiveness = 0.98
@@ -1836,7 +2546,7 @@ func _spawn_mega_explosion(pos: Vector3) -> void:
 	sparks.emitting = true
 	sr.add_child(sparks)
 	var smoke := CPUParticles3D.new()
-	smoke.amount = 60
+	smoke.amount = GraphicsQuality.particle_amount(60, GameManager.graphics_quality)
 	smoke.lifetime = 2.0
 	smoke.one_shot = true
 	smoke.explosiveness = 0.9
@@ -1877,3 +2587,4 @@ func _remove_start_barrier() -> void:
 	if _start_barrier and is_instance_valid(_start_barrier):
 		_start_barrier.queue_free()
 		_start_barrier = null
+	_barrier_prebuilt = false

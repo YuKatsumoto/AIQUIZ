@@ -4,14 +4,14 @@ extends RefCounted
 ## 問題文のセマンティック重複判定（online_fetch / buffered_provider 共通）
 
 const SAME_ANSWER_CORE_SIMILARITY: float = 0.40
-const PROMPT_HISTORY_MAX: int = 60
+const PROMPT_HISTORY_MAX: int = 20
 const PROMPT_FULLTEXT_MAX: int = 8
+## 長期履歴は問題文の一致だけを拒否し、同じ単元を永久に出題禁止にしない。
 const BLOCKLIST_HISTORY_MAX: int = 1000
-## 完全一致・数値差し替えテンプレートは保存している全履歴で拒否する。
 const PRELOAD_ACCEPT_HISTORY_MAX: int = 1000
-## 「毎回違う」を守るため、保存中の全履歴を意味レベルの重複判定対象にする。
-## 枯渇時も重複を許可せず、BufferedProvider が新しい候補を再生成する。
-const SEMANTIC_HISTORY_MAX: int = 1000
+## 同じ教科・学年・難易度の直近2ラウンド分は、数値違い・言い換えも拒否する。
+## 現在のラウンド内の類似判定は、この窓とは別に全問へ適用する。
+const SEMANTIC_HISTORY_MAX: int = 20
 
 
 static func tail_texts(candidates: Array, max_count: int) -> Array[String]:
@@ -22,6 +22,25 @@ static func tail_texts(candidates: Array, max_count: int) -> Array[String]:
 		if not text.is_empty() and text not in texts:
 			texts.append(text)
 	return texts
+
+
+## 数値や演算子を残した一致キー。長期履歴を O(1) で照合する。
+static func exact_key(question: String) -> String:
+	var key := question.to_lower().replace("　", " ") \
+		.replace("\n", " ").replace("\r", " ").replace("\t", " ")
+	while key.contains("  "):
+		key = key.replace("  ", " ")
+	# 英語の単語間の空白は保持する（"a long" と "along" を同じ問題にしない）。
+	return key.replace("？", "").replace("?", "").replace("。", "").strip_edges()
+
+
+static func make_exact_index(candidates: Array) -> Dictionary:
+	var keys := {}
+	for raw in candidates:
+		var text := history_entry_text(raw)
+		if not text.is_empty():
+			keys[exact_key(text)] = true
+	return keys
 
 
 static func is_semantically_similar(q1: String, q2: String) -> bool:
@@ -87,8 +106,8 @@ static func is_similar_to_any_with_core(question: String, question_core: String,
 	return false
 
 
-## 長期履歴向けの厳格判定。完全一致と、数字・記号・助詞だけを変えたテンプレートを拒否する。
-## 広い意味類似はここでは扱わず、SEMANTIC_HISTORY_MAX の短期窓で別に判定する。
+## 直近履歴・品質NG向けの判定。完全一致と、数字・記号・助詞だけを変えたテンプレートを拒否する。
+## 長期の出題履歴には make_exact_index を使い、広い意味類似は短期窓で別に判定する。
 static func is_strict_duplicate(q1: String, q2: String) -> bool:
 	var normalized1 := q1.strip_edges().to_lower()
 	var normalized2 := q2.strip_edges().to_lower()

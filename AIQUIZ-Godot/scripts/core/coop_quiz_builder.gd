@@ -61,6 +61,8 @@ static func _combo_role_name(subject: String) -> String:
 			return "条件カード"
 		"社会":
 			return "手がかりカード"
+		"英語":
+			return "英語カード"
 		_:
 			return "根拠カード"
 
@@ -129,6 +131,11 @@ static func _make_correct_combo_card(base: QuizItem, subject: String, grade: int
 			if not clue.is_empty():
 				return _shorten("手がかり: " + clue, MAX_CARD_LEN)
 			return _shorten("関係: %s" % _best_reason_text(base, grade), MAX_CARD_LEN)
+		"英語":
+			var phrase := _extract_quoted_text(base.q)
+			if not phrase.is_empty():
+				return _shorten("表現: " + phrase, MAX_CARD_LEN)
+			return _shorten("英文: %s" % _best_reason_text(base, grade), MAX_CARD_LEN)
 		_:
 			return _shorten("根拠: %s" % _best_reason_text(base, grade), MAX_CARD_LEN)
 
@@ -150,6 +157,9 @@ static func _make_wrong_combo_card(base: QuizItem, subject: String,
 		"社会":
 			candidates.append("時代を混同する")
 			candidates.append("場所を取り違える")
+		"英語":
+			candidates.append("意味を取り違える")
+			candidates.append("語順を取り違える")
 		_:
 			candidates.append("一部だけを見る")
 			candidates.append("似た答えを選ぶ")

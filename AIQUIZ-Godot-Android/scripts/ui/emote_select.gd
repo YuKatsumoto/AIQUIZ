@@ -33,14 +33,12 @@ var _cam_panning: bool = false
 var _cam_last_mouse: Vector2 = Vector2.ZERO
 var _svc_node: Control  # 繝槭え繧ｹ繧､繝吶Φ繝育畑蜿ら・
 var _preview_texture_rect: TextureRect
-var _touch_points: Dictionary = {}
-var _last_pinch_dist: float = 0.0
 
 # --- UI nodes ---
 var _slot_labels: Array[Label] = []  # 繧ｹ繝ｭ繝・ヨ陦ｨ遉ｺ繝ｩ繝吶Ν [3縺､]
 var _emote_name_label: Label
 var _emote_desc_label: Label
-var _preview_help_label: Label
+var _preview_help_label: KeyHintRow
 var _player_toggle_btn: Button
 var _back_btn: Button
 var _emote_grid: GridContainer  # 繧ｨ繝｢繝ｼ繝医げ繝ｪ繝・ラ
@@ -93,6 +91,10 @@ func _process(dt: float) -> void:
 func _update_orbit_camera() -> void:
 	if not _preview_camera:
 		return
+	var look := _cam_target
+	if _preview_player and is_instance_valid(_preview_player):
+		look.x += _preview_player.position.x
+		look.z += _preview_player.position.z
 	var yaw_rad := deg_to_rad(_cam_yaw)
 	var pitch_rad := deg_to_rad(clampf(_cam_pitch, -80.0, 80.0))
 	var offset := Vector3(
@@ -100,8 +102,8 @@ func _update_orbit_camera() -> void:
 		_cam_distance * sin(pitch_rad),
 		_cam_distance * cos(pitch_rad) * cos(yaw_rad)
 	)
-	_preview_camera.position = _cam_target + offset
-	_preview_camera.look_at(_cam_target, Vector3.UP)
+	_preview_camera.position = look + offset
+	_preview_camera.look_at(look, Vector3.UP)
 
 func _on_preview_gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
@@ -127,39 +129,6 @@ func _on_preview_gui_input(event: InputEvent) -> void:
 			var right := Vector3(cos(yaw_rad), 0, -sin(yaw_rad))
 			_cam_target += right * mm.relative.x * -0.005
 			_cam_target.y += mm.relative.y * 0.005
-	elif event is InputEventScreenTouch:
-		var st := event as InputEventScreenTouch
-		if st.pressed:
-			_touch_points[st.index] = st.position
-		else:
-			_touch_points.erase(st.index)
-			if _touch_points.is_empty():
-				_last_pinch_dist = 0.0
-				_cam_dragging = false
-		
-		if _touch_points.size() == 1:
-			_cam_dragging = true
-			_cam_last_mouse = st.position
-		else:
-			_cam_dragging = false
-			if _touch_points.size() == 2:
-				var keys = _touch_points.keys()
-				_last_pinch_dist = _touch_points[keys[0]].distance_to(_touch_points[keys[1]])
-	elif event is InputEventScreenDrag:
-		var sd := event as InputEventScreenDrag
-		_touch_points[sd.index] = sd.position
-		
-		if _touch_points.size() == 1:
-			_cam_yaw -= sd.relative.x * 0.25
-			_cam_pitch -= sd.relative.y * 0.25
-			_cam_pitch = clampf(_cam_pitch, -80.0, 80.0)
-		elif _touch_points.size() == 2:
-			var keys = _touch_points.keys()
-			var current_dist: float = _touch_points[keys[0]].distance_to(_touch_points[keys[1]])
-			if _last_pinch_dist > 0.0:
-				var diff := current_dist - _last_pinch_dist
-				_cam_distance = clampf(_cam_distance - diff * 0.015, 1.5, 12.0)
-			_last_pinch_dist = current_dist
 
 func _build_ui() -> void:
 	# 笏笏 閭梧勹 笏笏
@@ -195,7 +164,7 @@ func _build_ui() -> void:
 	preview_panel.add_child(preview_vbox)
 
 	var preview_title := Label.new()
-	preview_title.text = "💃 ダンスプレビュー"
+	preview_title.text = "ダンスプレビュー"
 	preview_title.add_theme_font_size_override("font_size", 20)
 	preview_title.add_theme_color_override("font_color", Color(0.7, 0.75, 0.85))
 	preview_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -226,24 +195,23 @@ func _build_ui() -> void:
 	preview_stage.add_child(_preview_texture_rect)
 
 	_sub_viewport = SubViewport.new()
-	_sub_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	_sub_viewport.render_target_update_mode = SubViewport.UPDATE_WHEN_VISIBLE
 	_sub_viewport.transparent_bg = false
 	_apply_ultra_preview_quality(_sub_viewport, PREVIEW_SIZE)
 	preview_stage.add_child(_sub_viewport)
 	_preview_texture_rect.texture = _sub_viewport.get_texture()
 
-	_preview_help_label = Label.new()
-	_preview_help_label.text = "右ドラッグ: 回転  中ドラッグ/WASD: 移動  ホイール: ズーム"
-	_preview_help_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_preview_help_label.add_theme_font_size_override("font_size", 11)
-	_preview_help_label.add_theme_color_override("font_color", Color(0.82, 0.86, 0.95, 0.78))
-	_preview_help_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.70))
-	_preview_help_label.add_theme_constant_override("shadow_offset_x", 1)
-	_preview_help_label.add_theme_constant_override("shadow_offset_y", 1)
+	_preview_help_label = KeyHintRow.new()
+	_preview_help_label.alignment = BoxContainer.ALIGNMENT_BEGIN
+	_preview_help_label.add_theme_constant_override("separation", 4)
+	var help_ink := Color(0.82, 0.86, 0.95, 0.78)
+	_preview_help_label.add_text("右ドラッグ: 回転  中ドラッグ/", help_ink, 11)
+	_preview_help_label.add_spec("WASD", KeycapChip.DEFAULT_ACCENT, KeycapChip.SizeClass.TINY)
+	_preview_help_label.add_text(": 移動  ホイール: ズーム", help_ink, 11)
 	_preview_help_label.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	_preview_help_label.offset_left = 12.0
-	_preview_help_label.offset_top = -26.0
-	_preview_help_label.offset_right = 520.0
+	_preview_help_label.offset_top = -32.0
+	_preview_help_label.offset_right = 640.0
 	_preview_help_label.offset_bottom = -8.0
 	preview_stage.add_child(_preview_help_label)
 
@@ -273,7 +241,7 @@ func _build_ui() -> void:
 
 	# タイトル
 	var title := Label.new()
-	title.text = "💃 エモート設定"
+	title.text = "エモート設定"
 	title.add_theme_font_size_override("font_size", 28)
 	title.add_theme_color_override("font_color", Color(1.0, 0.88, 0.25))
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -304,13 +272,8 @@ func _build_ui() -> void:
 		slot_hbox.add_theme_constant_override("separation", 8)
 		settings_vbox.add_child(slot_hbox)
 
-		# キー表示
-		var key_label := Label.new()
-		key_label.add_theme_font_size_override("font_size", 16)
-		key_label.add_theme_color_override("font_color", Color(0.6, 0.65, 0.75))
-		key_label.custom_minimum_size = Vector2(60, 0)
-		key_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		slot_hbox.add_child(key_label)
+		var key_chip := KeycapChip.create(SLOT_KEYS_P1[i], KeycapChip.DEFAULT_ACCENT, KeycapChip.SizeClass.NORMAL)
+		slot_hbox.add_child(key_chip)
 
 		# ◀ ボタン
 		var left_btn := Button.new()
@@ -342,7 +305,7 @@ func _build_ui() -> void:
 
 	# エモートグリッド（Mixamo風カタログ）
 	var grid_title := Label.new()
-	grid_title.text = "🔍 エモート一覧"
+	grid_title.text = "エモート一覧"
 	grid_title.add_theme_font_size_override("font_size", 16)
 	grid_title.add_theme_color_override("font_color", Color(0.7, 0.75, 0.85))
 	grid_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -372,7 +335,6 @@ func _build_ui() -> void:
 		card.add_theme_font_size_override("font_size", 13)
 		card.text = "%s\n%s" % [eicon, ename]
 		card.clip_text = true
-		card.mouse_filter = Control.MOUSE_FILTER_PASS
 
 		var card_style := StyleBoxFlat.new()
 		card_style.bg_color = Color(0.12, 0.13, 0.19)
@@ -399,7 +361,7 @@ func _build_ui() -> void:
 
 	# 戻るボタン
 	_back_btn = Button.new()
-	_back_btn.text = "❌ 決定して戻る"
+	_back_btn.text = "決定して戻る"
 	_back_btn.custom_minimum_size = Vector2(0, 52)
 	_back_btn.add_theme_font_size_override("font_size", 18)
 	_back_btn.pressed.connect(_on_back_pressed)
@@ -418,6 +380,7 @@ func _build_3d_preview() -> void:
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
 	env.tonemap_white = 6.0
 	env.fog_enabled = false
+	GraphicsQuality.apply_environment(env, GameManager.graphics_quality)
 	var world_env := WorldEnvironment.new()
 	world_env.environment = env
 	_sub_viewport.add_child(world_env)
@@ -438,7 +401,7 @@ func _build_3d_preview() -> void:
 	key_light.rotation_degrees = Vector3(-40, -30, 0)
 	key_light.light_color = Color(0.95, 0.93, 0.90)
 	key_light.light_energy = 1.8
-	key_light.shadow_enabled = true
+	key_light.shadow_enabled = GraphicsQuality.preview_shadow_enabled(GameManager.graphics_quality)
 	_sub_viewport.add_child(key_light)
 
 	var fill := DirectionalLight3D.new()
@@ -493,11 +456,7 @@ func _build_3d_preview() -> void:
 
 func _apply_ultra_preview_quality(viewport: SubViewport, viewport_size: Vector2i) -> void:
 	viewport.size = viewport_size
-	viewport.msaa_3d = Viewport.MSAA_8X
-	viewport.msaa_2d = Viewport.MSAA_4X
-	viewport.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
-	viewport.use_taa = true
-	viewport.use_debanding = true
+	GraphicsQuality.apply_character_preview(viewport, GameManager.graphics_quality)
 
 func _update_preview_viewport_size() -> void:
 	if not _sub_viewport or not _svc_node:
@@ -690,11 +649,8 @@ func _on_slot_change(slot_idx: int, direction: int) -> void:
 
 	if _editing_player == 1:
 		game_state.p1_emote_slots = slots
-		GameManager.p1_emote_slots = slots.duplicate()
 	else:
 		game_state.p2_emote_slots = slots
-		GameManager.p2_emote_slots = slots.duplicate()
-	GameManager._save_user_settings()
 
 	_update_all()
 	_preview_emote(next_id)
@@ -748,10 +704,10 @@ func _update_all() -> void:
 	# 繝励Ξ繧､繝､繝ｼ蛻・崛繝懊ち繝ｳ
 	var p_col: Color
 	if _editing_player == 1:
-		_player_toggle_btn.text = "👤 P1 設定中 (➡ P2に切替)"
+		_player_toggle_btn.text = "P1 設定中 (P2に切替)"
 		p_col = Color(0.95, 0.55, 0.20)
 	else:
-		_player_toggle_btn.text = "👤 P2 設定中 (➡ P1に切替)"
+		_player_toggle_btn.text = "P2 設定中 (P1に切替)"
 		p_col = Color(0.20, 0.65, 0.90)
 	_player_toggle_btn.add_theme_color_override("font_color", p_col)
 
@@ -765,9 +721,9 @@ func _update_all() -> void:
 		# キーラベルを更新
 		var slot_hbox := _slot_labels[i].get_parent()
 		if slot_hbox and slot_hbox.get_child_count() > 0:
-			var key_label := slot_hbox.get_child(0) as Label
-			if key_label:
-				key_label.text = "[ %s ]" % keys[i]
+			var key_chip := slot_hbox.get_child(0) as KeycapChip
+			if key_chip:
+				key_chip.configure(keys[i], p_col, KeycapChip.SizeClass.NORMAL)
 
 func _on_back_pressed() -> void:
 	get_tree().change_scene_to_file("res://ui/main_menu.tscn")

@@ -42,6 +42,8 @@ var difficulty: String = "普通"
 var mode: String = Constants.MODE_TEN
 var llm_mode: String = "ONLINE"
 var menu_step: String = Constants.MENU_STEP_MODE
+var config_step: String = Constants.CONFIG_STEP_SUBJECT
+var config_selection_complete: bool = false
 
 # --- Pre-Tutorial State Backup ---
 var pre_tutorial_subject: String = "算数"
@@ -273,19 +275,8 @@ func is_boss_index(index: int) -> bool:
 
 func num_choices_for_index(index: int) -> int:
 	if is_coop_mode():
-		return 2  # Coop uses 2 doors per player (4 total, but 2+2 split)
-	var quiz: QuizItem = null
-	if index == current_index:
-		quiz = current_quiz
-	elif index >= 0 and index < quiz_list.size():
-		quiz = quiz_list[index]
-	if is_boss_index(index):
-		if quiz and quiz.c.size() > 0 and quiz.c.size() < 4:
-			return quiz.c.size()
-		return 4
-	if difficulty == "難しい":
-		if quiz and quiz.c.size() > 0 and quiz.c.size() < 4:
-			return quiz.c.size()
+		return 2  # Two doors per player, preserving the cooperative 2+2 layout.
+	if is_boss_index(index) or difficulty == "難しい":
 		return 4
 	return 2
 
@@ -524,7 +515,72 @@ func _commit_fall_if_unsupported(
 func select_mode_and_continue(selected_mode: String) -> void:
 	if selected_mode in [Constants.MODE_TEN, Constants.MODE_ENDLESS, Constants.MODE_COOP]:
 		mode = selected_mode
+	if config_selection_complete and is_config_selection_valid():
+		config_step = Constants.CONFIG_STEP_SUMMARY
+	else:
+		config_selection_complete = false
+		config_step = Constants.CONFIG_STEP_SUBJECT
 	menu_step = Constants.MENU_STEP_CONFIG
+	refresh_status_text()
+
+
+func is_config_selection_valid() -> bool:
+	return (
+		subject in Constants.SUBJECTS
+		and Constants.is_grade_supported(subject, grade)
+		and difficulty in Constants.DIFFICULTY_LEVELS
+	)
+
+
+func select_config_subject(selected_subject: String) -> bool:
+	if selected_subject not in Constants.SUBJECTS:
+		return false
+	subject = selected_subject
+	grade = Constants.normalize_grade_for_subject(subject, grade)
+	config_selection_complete = false
+	config_step = Constants.CONFIG_STEP_GRADE
+	refresh_status_text()
+	return true
+
+
+func select_config_grade(selected_grade: int) -> bool:
+	if not Constants.is_grade_supported(subject, selected_grade):
+		return false
+	grade = selected_grade
+	config_selection_complete = false
+	config_step = Constants.CONFIG_STEP_DIFFICULTY
+	refresh_status_text()
+	return true
+
+
+func select_config_difficulty(selected_difficulty: String) -> bool:
+	if selected_difficulty not in Constants.DIFFICULTY_LEVELS:
+		return false
+	difficulty = selected_difficulty
+	config_selection_complete = true
+	config_step = Constants.CONFIG_STEP_SUMMARY
+	refresh_status_text()
+	return true
+
+
+func back_config_step() -> bool:
+	match config_step:
+		Constants.CONFIG_STEP_GRADE:
+			config_step = Constants.CONFIG_STEP_SUBJECT
+		Constants.CONFIG_STEP_DIFFICULTY:
+			config_step = Constants.CONFIG_STEP_GRADE
+		Constants.CONFIG_STEP_SUMMARY:
+			config_step = Constants.CONFIG_STEP_DIFFICULTY
+		_:
+			return false
+	config_selection_complete = false
+	refresh_status_text()
+	return true
+
+
+func reset_config_selection() -> void:
+	config_selection_complete = false
+	config_step = Constants.CONFIG_STEP_SUBJECT
 	refresh_status_text()
 
 func back_to_mode_select() -> void:
@@ -550,7 +606,7 @@ func set_bgm_volume(vol: float) -> void:
 	AudioManager.set_bgm_volume(bgm_volume)
 
 func update_grade(delta: int) -> void:
-	grade = clampi(grade + delta, 1, 6)
+	grade = Constants.cycle_grade_for_subject(subject, grade, delta)
 	refresh_status_text()
 
 func cycle_subject(delta: int) -> void:
@@ -558,6 +614,7 @@ func cycle_subject(delta: int) -> void:
 	if idx < 0:
 		idx = 0
 	subject = Constants.SUBJECTS[(idx + delta) % Constants.SUBJECTS.size()]
+	grade = Constants.normalize_grade_for_subject(subject, grade)
 	refresh_status_text()
 
 func cycle_difficulty(delta: int) -> void:
@@ -659,7 +716,7 @@ func start_game() -> void:
 				provider.get_quizzes(subject, grade, difficulty, provider_mode, missing)
 			)
 			_prepare_coop_quiz_list()
-			_ensure_boss_four_choices()
+			_prepare_quiz_choices()
 		var quizzes_ready: bool = false
 		if _is_fixed_count_mode():
 			quizzes_ready = quiz_list.size() >= target_count
@@ -693,30 +750,16 @@ func _should_rebuild_coop_quiz(quiz: QuizItem) -> bool:
 		or quiz.coop_p2_label.contains("ヒント")
 
 
-func _ensure_boss_four_choices() -> void:
-	if mode != Constants.MODE_TEN or is_coop_mode():
+func _prepare_quiz_choices() -> void:
+	if is_coop_mode() or _is_tutorial_mode() or provider == null:
 		return
-	if quiz_list.size() < target_count or target_count <= 0:
-		return
-	var last_idx: int = target_count - 1
-	var last_quiz: QuizItem = quiz_list[last_idx]
-	if last_quiz != null and last_quiz.c.size() >= 4:
-		return
-	if last_quiz != null and provider != null and provider.has_method("expand_to_four_choices"):
-		last_quiz = provider.expand_to_four_choices(last_quiz)
-		quiz_list[last_idx] = last_quiz
-		if last_quiz != null and last_quiz.c.size() >= 4:
-			return
-	for i: int in range(last_idx):
-		if i < current_index:
+	for i: int in range(quiz_list.size()):
+		if _is_fixed_count_mode() and i < current_index:
 			continue
-		if i == current_index and current_quiz != null:
-			continue
-		var candidate: QuizItem = quiz_list[i]
-		if candidate != null and candidate.c.size() >= 4:
-			quiz_list[last_idx] = candidate
-			quiz_list[i] = last_quiz
-			return
+		var quiz_index := i if _is_fixed_count_mode() else current_index + i
+		var prepared := provider.prepare_choice_count(quiz_list[i], num_choices_for_index(quiz_index))
+		if prepared != null:
+			quiz_list[i] = prepared
 
 func start_tutorial(course: String = GameManager.TUTORIAL_COURSE_SOLO) -> void:
 	_reset_ocean_shark_state()
@@ -1027,34 +1070,17 @@ func load_current_quiz() -> void:
 			return
 		current_quiz = quiz_list[0]
 
-	if current_quiz and is_boss_index(current_index) and current_quiz.c.size() < 4:
-		if provider != null and provider.has_method("expand_to_four_choices"):
-			current_quiz = provider.expand_to_four_choices(current_quiz)
-
-	# Handle 4-to-2 conversion for offline quizzes or any quiz with too many choices.
-	# Coop keeps the original choices so each player can receive a different answer set.
-	# 10問モードのボス（最終問）は4択のまま出す。
-	if not is_coop_mode() and not is_boss_index(current_index) and num_choices == 2 and current_quiz.c.size() > 2:
-		var correct_text: String = current_quiz.c[current_quiz.a]
-		var wrong_texts: PackedStringArray = []
-		for i: int in range(current_quiz.c.size()):
-			if i != current_quiz.a:
-				wrong_texts.append(current_quiz.c[i])
-
-		# Pick one random wrong answer
-		var chosen_wrong: String = wrong_texts[randi() % wrong_texts.size()]
-
-		var new_c := PackedStringArray([correct_text, chosen_wrong])
-		# Shuffle them
-		if randf() > 0.5:
-			new_c = PackedStringArray([chosen_wrong, correct_text])
-
-		var new_a: int = 0 if new_c[0] == correct_text else 1
-
-		current_quiz = QuizItem.create(
-			current_quiz.q, new_c, new_a, current_quiz.e, current_quiz.src,
-			current_quiz.img, current_quiz.choice_img
-		)
+	# Normalize every queued wall before previews or gameplay can display it.
+	_prepare_quiz_choices()
+	current_quiz = quiz_list[current_index] if _is_fixed_count_mode() else quiz_list[0]
+	if not is_coop_mode() and not _is_tutorial_mode() and current_quiz.c.size() != num_choices:
+		# Reject unusable data rather than showing blank doors or hiding the answer.
+		quiz_list.remove_at(current_index if _is_fixed_count_mode() else 0)
+		current_quiz = null
+		game_state = Constants.STATE_PRELOADING
+		preload_wait_sec = 0.0
+		state_changed.emit(game_state)
+		return
 
 	if is_coop_mode() and current_quiz and _should_rebuild_coop_quiz(current_quiz):
 		current_quiz = CoopQuizBuilder.build_coop_quiz(current_quiz, subject, grade, current_index)
@@ -1197,16 +1223,18 @@ func _update_preloading(dt: float) -> void:
 		var new_quizzes := provider.get_quizzes(subject, grade, difficulty, _provider_mode(), missing)
 		quiz_list.append_array(new_quizzes)
 		_prepare_coop_quiz_list()
-		_ensure_boss_four_choices()
+		_prepare_quiz_choices()
 
 	var ready: bool = false
 	# ゲーム開始前（current_index == 0）は全問揃うのを待つ
 	# ゲーム中の再プレロード（current_index > 0）は次の1問があれば即再開
 	var is_mid_game: bool = current_index > 0
 
+	var has_next_quiz := quiz_list.size() > current_index if _is_fixed_count_mode() else not quiz_list.is_empty()
 	if is_mid_game:
-		# 中盤プレロード: 次の問題が1つでもあればすぐ再開
-		if quiz_list.size() > current_index:
+		# Endless stores only its remaining queue, so the absolute question index
+		# must not be used as an offset into that queue.
+		if has_next_quiz:
 			ready = true
 	else:
 		# 初期プレロード: 全問揃うのが理想
@@ -1217,7 +1245,7 @@ func _update_preloading(dt: float) -> void:
 
 	if ready and preload_wait_sec >= min_preload_sec:
 		print("[GameState] Preload complete: %d quizzes in %.1fs (mid_game=%s)" % [quiz_list.size(), preload_wait_sec, str(is_mid_game)])
-		_ensure_boss_four_choices()
+		_prepare_quiz_choices()
 		if is_mid_game:
 			# 中盤: PLAYINGに復帰して次の問題を表示
 			game_state = Constants.STATE_PLAYING
@@ -1227,7 +1255,7 @@ func _update_preloading(dt: float) -> void:
 			game_state = Constants.STATE_WAITING_START
 			load_current_quiz()
 			state_changed.emit(game_state)
-	elif not ready and preload_wait_sec >= 2.5 and not _is_fixed_count_mode() and quiz_list.size() > current_index:
+	elif not ready and preload_wait_sec >= 2.5 and not _is_fixed_count_mode() and has_next_quiz:
 		# タイムアウト: エンドレス等では全問揃わなくても一部があれば開始（2.5秒で打ち切り）
 		print("[GameState] Preload timeout (%.1fs): starting with %d/%d quizzes" % [preload_wait_sec, quiz_list.size(), target_count])
 		if is_mid_game:
@@ -3035,7 +3063,7 @@ func advance_after_correct() -> void:
 			var new_quizzes := provider.get_quizzes(subject, grade, difficulty, _provider_mode(), missing)
 			quiz_list.append_array(new_quizzes)
 			_prepare_coop_quiz_list()
-			_ensure_boss_four_choices()
+			_prepare_quiz_choices()
 		load_current_quiz()
 	else:
 		# 現在の問題を消費してローカルキューから除去

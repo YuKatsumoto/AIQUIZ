@@ -16,6 +16,7 @@ var remote_p2_emote: int = 0
 # スナップショット送信間隔
 const SNAPSHOT_INTERVAL := 0.05  # 20Hz
 var _snapshot_timer: float = 0.0
+var _sent_quiz_count: int = 0
 
 
 func _ready() -> void:
@@ -32,6 +33,7 @@ func setup(gs: QuizGameState) -> void:
 	"""game_worldから呼ばれる初期化"""
 	game_state = gs
 	is_online = NetworkManager.state == NetworkManager.State.IN_GAME
+	_sent_quiz_count = 0
 
 
 func process_network(dt: float) -> void:
@@ -40,6 +42,7 @@ func process_network(dt: float) -> void:
 		return
 
 	if NetworkManager.is_host:
+		_sync_online_quizzes()
 		_snapshot_timer += dt
 		if _snapshot_timer >= SNAPSHOT_INTERVAL:
 			_snapshot_timer = 0.0
@@ -56,11 +59,15 @@ func _send_snapshot() -> void:
 
 # ---------- Host: クイズデータ送信 ----------
 
-func send_quiz_to_client(quiz: QuizItem) -> void:
+func send_quiz_to_client(quiz: QuizItem, quiz_index: int = -1) -> void:
 	"""ホスト: 新しいクイズデータをクライアントに送信"""
 	if not is_online or not NetworkManager.is_host:
 		return
+	if quiz == null or not _is_online_quiz_source(quiz.src):
+		push_error("Refusing to send offline/unknown quiz in online mode")
+		return
 	var quiz_data := {
+		"index": quiz_index,
 		"q": quiz.q,
 		"c": Array(quiz.c),
 		"a": quiz.a,
@@ -69,6 +76,23 @@ func send_quiz_to_client(quiz: QuizItem) -> void:
 		"est": quiz.estimated_seconds,
 	}
 	NetworkManager.send_quiz(quiz_data)
+
+
+func _sync_online_quizzes() -> void:
+	if game_state == null:
+		return
+	if game_state.quiz_list.size() < _sent_quiz_count:
+		_sent_quiz_count = 0
+	while _sent_quiz_count < game_state.quiz_list.size():
+		var quiz := game_state.quiz_list[_sent_quiz_count]
+		send_quiz_to_client(quiz, _sent_quiz_count)
+		_sent_quiz_count += 1
+
+
+func _is_online_quiz_source(source: String) -> bool:
+	var normalized := source.strip_edges().to_upper()
+	return not normalized.is_empty() \
+		and not normalized.begins_with("OFFLINE")
 
 
 # ---------- Host: ゲームイベント送信 ----------
@@ -113,6 +137,18 @@ func _on_snapshot_received(data: Dictionary) -> void:
 	"""クライアント: ホストからのスナップショットを適用"""
 	if game_state and not NetworkManager.is_host:
 		game_state.apply_snapshot(data)
+		_sync_client_current_quiz()
+
+
+func _sync_client_current_quiz() -> void:
+	var index := game_state.current_index
+	if index < 0 or index >= game_state.quiz_list.size():
+		return
+	var quiz: QuizItem = game_state.quiz_list[index]
+	if quiz == null or game_state.current_quiz == quiz:
+		return
+	game_state.current_quiz = quiz
+	game_state.quiz_loaded.emit(quiz)
 
 
 func _on_input_received(data: Dictionary) -> void:
@@ -129,20 +165,34 @@ func _on_input_received(data: Dictionary) -> void:
 func _on_quiz_received(data: Dictionary) -> void:
 	"""クライアント: ホストからのクイズデータを受信"""
 	if not NetworkManager.is_host and game_state:
+		var source := str(data.get("src", ""))
+		if not _is_online_quiz_source(source):
+			push_warning("Rejected offline/unknown network quiz (src=%s)" % source)
+			return
 		var quiz := QuizItem.create(
 			data.get("q", ""),
 			PackedStringArray(data.get("c", [])),
 			int(data.get("a", 0)),
 			data.get("e", ""),
-			"ONLINE",
+			source,
 			"",
 			PackedStringArray(),
 			float(data.get("est", 4.0))
 		)
-		# クライアントのクイズリストに追加
-		game_state.quiz_list.append(quiz)
-		game_state.current_quiz = quiz
-		game_state.quiz_loaded.emit(quiz)
+		var validator: QuizValidator = QuizManager.quiz_validator
+		var validation := validator.validate_rules([quiz]) if validator != null else {"valid": [quiz]}
+		if (validation.get("valid", []) as Array).is_empty() or quiz.e.strip_edges().is_empty():
+			push_warning("Rejected invalid network quiz payload")
+			return
+		var quiz_index := int(data.get("index", game_state.quiz_list.size()))
+		if quiz_index < 0:
+			return
+		while game_state.quiz_list.size() <= quiz_index:
+			game_state.quiz_list.append(null)
+		game_state.quiz_list[quiz_index] = quiz
+		if quiz_index == game_state.current_index:
+			game_state.current_quiz = quiz
+			game_state.quiz_loaded.emit(quiz)
 
 
 func _on_event_received(data: Dictionary) -> void:

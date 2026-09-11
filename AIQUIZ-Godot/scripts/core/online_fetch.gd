@@ -19,8 +19,8 @@ const EXPLANATION_UNAVAILABLE_TEXT: String = "解説を取得できませんで�
 ## プロキシ/API のレート制限（429）バックオフ
 var _rate_limit_until_ms: int = 0
 var _rate_limit_strikes: int = 0
-## 10問モードは6並列×7候補。全履歴との意味重複を捨てても一往復で10問を揃える。
-## 最初の10問だけを採用し、余剰候補は破棄する。1バッチ失敗時は不足分だけを補充する。
+## 10問モードは6並列×4候補。先着10問を採用し、余剰候補はプールへ保存する。
+## 長期履歴との一致と、直近・ラウンド内の意味重複を除き、不足分だけ補充する。
 const TEN_PARALLEL: int = 6
 const TEN_BATCH_SIZE: int = 4
 const TEN_BATCH_STAGGER_SEC: float = 0.35
@@ -175,7 +175,7 @@ func compose_prompt(subject: String, grade: int, difficulty: String, count: int,
 	prompt += "- 対象: 小学%d年生の%s\n" % [grade, subject]
 	prompt += "- 難易度: %s\n" % difficulty
 	prompt += "- 問題数: %d問\n" % count
-	prompt += "- 形式: 4択（推奨）または 2択。思考を要する問題は必ず4択にすること\n"
+	prompt += "- 形式: 必ず重複のない4択。2択表示への変換はゲーム側が難易度と出題位置に合わせて行うため、元データには正解1つと自然な誤答3つを含めること\n"
 	prompt += "- 問題文(q)は50文字以内に収めること。長い文章題でも簡潔に書くこと\n"
 	if defer_explanations:
 		prompt += "- 生成速度を優先するため解説文(e)は空文字列にすること。解説はゲーム側で後から補充する\n"
@@ -185,6 +185,17 @@ func compose_prompt(subject: String, grade: int, difficulty: String, count: int,
 	prompt += "- 予測解答時間(t)を各問題に付けること。対象学年の生徒が問題を読んで答えるまでの秒数（小数第1位）\n"
 	prompt += "  目安: 即答=2.0, 標準=4.0, 思考問題=6.0, 難問=8.0\n"
 	prompt += "- ジャンル(g)を各問題に付けること。その問題が属する単元・ジャンルの短いラベル（例: つなぎ言葉、慣用句、面積、割合）。同じ単元の問題には必ず同じラベルを付けること\n\n"
+	if subject == "英語":
+		prompt += "【英語の出題言語と媒体】\n"
+		prompt += "- このゲームは文字だけで解くため、音声を聞かなければ解けない発音・聞き取り問題は禁止\n"
+		prompt += "- 正解の英単語・英文では、大文字小文字、アポストロフィ、単語間の空白を正しく保つこと\n"
+		prompt += "- 解説(e)は日本語で、正解表現の意味と使う場面を簡潔に説明すること\n"
+		if grade <= 4:
+			prompt += "- 3・4年生は問題の指示を日本語にし、英語は短い単語・定型表現・一往復の会話までにすること\n"
+			prompt += "- 文法用語を使わず、場面と意味から選べる問題にすること\n\n"
+		else:
+			prompt += "- 5・6年生は日本語の指示と短い英文・二往復以内の会話を混ぜ、読む力も問うこと\n"
+			prompt += "- 中学校で扱う高度な文法知識を前提にせず、小学校の表現範囲に限定すること\n\n"
 	if not variation_focus.is_empty():
 		prompt += "【このバッチ固有の出題アプローチ】\n"
 		prompt += variation_focus + "\n"
@@ -295,7 +306,7 @@ func compose_prompt(subject: String, grade: int, difficulty: String, count: int,
 	prompt += "- 担当単元の割当を守りつつ、%d問すべてで問う知識・解法・問題形式を変えること。\n" % count
 	prompt += "- 計算問題・知識問題・思考問題をバランスよく混ぜること\n"
 	prompt += "- 正解の位置(a)を0〜3で均等に散らすこと（全部0や全部1にしない）\n"
-	prompt += "- 4択と2択を混ぜてよいが、4択を優先し、特に難しい問題は必ず4択にすること\n"
+	prompt += "- 全問を必ず4択で生成すること。2択の混在は不可。表示時の選択肢数はゲーム側が制御する\n"
 	if history.size() > 0:
 		prompt += "- 【出題済みリスト】以下の問題は既に出題済みなので、同じ問題・類似の問題は絶対に出さないこと:\n"
 		var tail := QuizDedup.tail_texts(history, QuizDedup.PROMPT_HISTORY_MAX)
@@ -318,7 +329,7 @@ func compose_prompt(subject: String, grade: int, difficulty: String, count: int,
 	if is_coop:
 		prompt += "【協力モード（コンボ回答 + 役割交代）追加指示 - 厳守】\n"
 		prompt += "この問題は2人協力モードで出題され、片方が式・根拠・条件カード、もう片方が答えカードを選びます。役割は問題ごとに交代します。\n"
-		prompt += "ゲーム側でカード化しやすいよう、選択肢(c)は可能な限り4択にし、誤答は短く自然で紛らわしいものにしてください。\n"
+		prompt += "ゲーム側でカード化しやすいよう、選択肢(c)は必ず4択にし、誤答は短く自然で紛らわしいものにしてください。\n"
 		prompt += "解説(e)は根拠カードに使うため、正解につながる理由を小学生にもわかるよう丁寧に書いてください。\n"
 		prompt += "問題文(q)と正解(c)は以下の教科ルールに従ってください:\n"
 		match subject:
@@ -334,6 +345,9 @@ func compose_prompt(subject: String, grade: int, difficulty: String, count: int,
 			"社会":
 				prompt += "- 歴史の人物や出来事、地理の地名、用語などを問うこと。\n"
 				prompt += "- 問題文(q)の手がかりとなるキーワードは必ず「」で囲むこと。\n"
+			"英語":
+				prompt += "- 問う英単語・英文または対応する日本語表現を必ず「」で囲むこと。\n"
+				prompt += "- 正解(c)は、その表現の自然な意味・返答・英語表現のいずれか一つにすること。\n"
 			_:
 				prompt += "- 問題文(q)の最も重要なキーワードや条件は、必ず「」で囲んで強調すること。\n"
 		prompt += "- ※出力フォーマットは通常のJSON（q, c, a, e）のままです。\n\n"
@@ -750,6 +764,9 @@ func _compose_easy_instructions(grade: int, subject: String, curriculum: Diction
 		"社会":
 			p += "- 基本的な地名・人名・施設名の確認問題を出すこと\n"
 			p += "- 教科書の太字になっている重要語句から出題すること\n"
+		"英語":
+			p += "- 挨拶、身近な物、数、色、曜日などの基本語句と短い定型表現を中心にすること\n"
+			p += "- 日本語と英語の一対一対応だけに偏らず、使う場面も確認すること\n"
 	p += "\n"
 	return p
 
@@ -793,6 +810,9 @@ func _compose_normal_instructions(grade: int, subject: String, curriculum: Dicti
 		"社会":
 			p += "- 単なる地名暗記ではなく「なぜ・どのように」を問う問題も含めること\n"
 			p += "- 地理・産業・くらし・歴史を満遍なく出すこと\n"
+		"英語":
+			p += "- 短い会話の自然な返答、空欄補充、語順、文の意味をバランスよく問うこと\n"
+			p += "- 対象学年で扱う表現を、学校・家庭・買い物・道案内などの場面で使わせること\n"
 	p += "\n"
 	return p
 
@@ -865,6 +885,10 @@ func _compose_hard_instructions(grade: int, subject: String, curriculum: Diction
 			p += "- 「なぜ〇〇な地域で△△が盛んか」のような因果推論\n"
 			p += "- 歴史上の出来事の順序・因果関係を問う問題\n"
 			p += "- グラフや資料の読み取りを想定した問題\n"
+		"英語":
+			p += "- 短い会話や2文以内の文脈から、目的に合う自然な表現を選ぶ問題\n"
+			p += "- 語順や代名詞、時を表す語など複数の手がかりを組み合わせる問題\n"
+			p += "- 難しさは長文や中学校文法ではなく、場面判断と表現の使い分けで出すこと\n"
 	p += "\n＜選択肢のルール（最重要）＞\n"
 	p += "- 不正解の選択肢は、正解と非常に似た値・表現にすること\n"
 	p += "- 計算問題：よくある計算ミスの結果を誤答にすること（例：繰り上がり忘れ、÷と×の取り違え）\n"
@@ -896,7 +920,8 @@ func reset_rate_limit() -> void:
 
 func _filter_unique_candidates(items: Array[QuizItem], dedup_blocklist: Array,
 		semantic_blocklist: Array, unique_seen: Dictionary, answer_seen: Dictionary,
-		forced_units: PackedStringArray = PackedStringArray(), subject: String = "") -> Array[QuizItem]:
+		forced_units: PackedStringArray = PackedStringArray(), subject: String = "",
+		exact_blocklist: Dictionary = {}) -> Array[QuizItem]:
 	var candidates: Array[QuizItem] = []
 	var validator: QuizValidator = QuizManager.quiz_validator
 	if validator:
@@ -912,6 +937,9 @@ func _filter_unique_candidates(items: Array[QuizItem], dedup_blocklist: Array,
 	candidates.shuffle()
 	for q in candidates:
 		if unique_seen.has(q.q):
+			continue
+		if exact_blocklist.has(QuizDedup.exact_key(q.q)):
+			print("[OnlineFetch] Dedup blocked (exact history): '%s'" % q.q.left(30))
 			continue
 		if QuizDedup.is_strict_duplicate_to_any(q.q, dedup_blocklist):
 			print("[OnlineFetch] Dedup blocked (exact/template): '%s'" % q.q.left(30))
@@ -1015,16 +1043,16 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 	var unique_seen := {}
 	var answer_seen := {}  # 正解テキスト → 問題文 のマップ（同じ正解の問題を検出）
 	var dedup_blocklist: Array = _collect_dedup_blocklist(subject, grade, difficulty, history)
+	var exact_blocklist := _collect_exact_blocklist(subject, grade, history)
 	var semantic_blocklist: Array[String] = QuizDedup.tail_texts(
 		history, QuizDedup.SEMANTIC_HISTORY_MAX
 	)
-	var prompt_blocklist: Array[String] = []
-	for text: String in QuizDedup.tail_texts(history, QuizDedup.PROMPT_HISTORY_MAX):
-		if text not in prompt_blocklist:
-			prompt_blocklist.append(text)
-	for text: String in QuizDedup.tail_texts(dedup_blocklist, QuizDedup.PROMPT_HISTORY_MAX):
-		if text not in prompt_blocklist:
-			prompt_blocklist.append(text)
+	# プロンプトと意味判定は同じ直近窓を使う。古い評価履歴で直近履歴を押し出さない。
+	var prompt_blocklist := QuizDedup.tail_texts(semantic_blocklist, QuizDedup.PROMPT_HISTORY_MAX)
+	var generation_stats := {"candidates": 0, "accepted": 0, "started_ms": Time.get_ticks_msec()}
+	print("[OnlineFetch] Novelty history: exact=%d recent=%d" % [
+		exact_blocklist.size(), semantic_blocklist.size()
+	])
 	
 	# 案5: 難易度に応じた temperature
 	var temperature := get_temperature_for_difficulty(difficulty)
@@ -1032,10 +1060,12 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 	# ストリーミング・通常応答の両方が必ず通る共通の新規性ゲート。
 	# Dictionary は参照共有されるため、並列バッチ間でも unique_seen / answer_seen が維持される。
 	var _filter_batch = func(items: Array[QuizItem], batch_units: PackedStringArray = PackedStringArray()) -> Array[QuizItem]:
+		generation_stats["candidates"] += items.size()
 		var unique_items: Array[QuizItem] = _filter_unique_candidates(
 			items, dedup_blocklist, semantic_blocklist,
-			unique_seen, answer_seen, batch_units, subject
+			unique_seen, answer_seen, batch_units, subject, exact_blocklist
 		)
+		generation_stats["accepted"] += unique_items.size()
 		# Archive every structurally valid, deduplicated generated candidate before
 		# BufferedQuizProvider decides whether it fits this round's genre/novelty mix.
 		if not unique_items.is_empty() and QuizManager.firebase_quiz_cache != null:
@@ -1073,7 +1103,11 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 						)
 			
 			completed_ref[0] += 1
-			if completed_ref[0] >= expected_ref[0]:
+			if completed_ref[0] == expected_ref[0]:
+				print("[OnlineFetch] Generation batch: candidates=%d accepted=%d elapsed=%.2fs" % [
+					generation_stats["candidates"], generation_stats["accepted"],
+					float(Time.get_ticks_msec() - int(generation_stats["started_ms"])) / 1000.0
+				])
 				fetch_completed.emit([] as Array[QuizItem])
 	
 	if is_ten_mode:
@@ -1200,8 +1234,9 @@ func _allocate_units_to_batches(subject: String, grade: int, batch_count: int,
 	return result
 
 
-func _collect_dedup_blocklist(subject: String, grade: int, difficulty: String, history: Array) -> Array:
-	var blocklist: Array = QuizDedup.tail_texts(history, QuizDedup.BLOCKLIST_HISTORY_MAX)
+func _collect_exact_blocklist(subject: String, grade: int, history: Array) -> Dictionary:
+	var blocklist := QuizDedup.make_exact_index(history)
+	# 評価済み良問もその問題文の再出題だけを防ぐ。同じ単元全体を禁止しない。
 	if QuizManager.quiz_optimizer != null:
 		for item: Variant in QuizManager.quiz_optimizer.ratings.get("good", []):
 			if not item is Dictionary:
@@ -1213,7 +1248,14 @@ func _collect_dedup_blocklist(subject: String, grade: int, difficulty: String, h
 				continue
 			var good_q := str(good_entry.get("q", ""))
 			if not good_q.is_empty():
-				blocklist.append(good_q)
+				blocklist[QuizDedup.exact_key(good_q)] = true
+	return blocklist
+
+
+func _collect_dedup_blocklist(subject: String, grade: int, difficulty: String, history: Array) -> Array:
+	# 数値違い・言い換えを拒否するのは直近窓と、明示的な品質NGだけ。
+	var blocklist: Array = QuizDedup.tail_texts(history, QuizDedup.SEMANTIC_HISTORY_MAX)
+	if QuizManager.quiz_optimizer != null:
 		for item: Variant in QuizManager.quiz_optimizer.ratings.get("bad", []):
 			if not item is Dictionary:
 				continue
@@ -1324,7 +1366,7 @@ func _fetch_gemini_target(prompt: String, target_model: String, temperature: flo
 				"c": {
 					"type": "ARRAY",
 					"items": {"type": "STRING"},
-					"description": "選択肢 (2個または4個、各15文字以内)"
+					"description": "選択肢 (必ず重複のない4個、各15文字以内)"
 				},
 				"a": {"type": "INTEGER", "description": "正解インデックス (0始まり)"},
 				"e": {"type": "STRING", "description": "解説 (空文字列でも可)"},

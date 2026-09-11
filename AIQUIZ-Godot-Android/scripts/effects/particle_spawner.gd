@@ -6,17 +6,21 @@ extends Node3D
 
 var correct_particles: GPUParticles3D
 var explosion_particles: GPUParticles3D
+var ocean_splash_pool: Array[GPUParticles3D] = []
+var _ocean_splash_cursor: int = 0
 
 func _ready() -> void:
 	_create_correct_particles()
 	_create_explosion_particles()
+	for i: int in range(2):
+		_create_ocean_splash_particles()
 
 func _create_correct_particles() -> void:
 	correct_particles = GPUParticles3D.new()
 	correct_particles.name = "CorrectParticles"
 	correct_particles.emitting = false
 	correct_particles.one_shot = true
-	correct_particles.amount = 100
+	correct_particles.amount = GraphicsQuality.particle_amount(100, GameManager.graphics_quality)
 	correct_particles.lifetime = 2.0
 	correct_particles.explosiveness = 1.0
 	correct_particles.visibility_aabb = AABB(Vector3(-15, -5, -15), Vector3(30, 20, 30))
@@ -54,7 +58,7 @@ func _create_explosion_particles() -> void:
 	explosion_particles.name = "ExplosionParticles"
 	explosion_particles.emitting = false
 	explosion_particles.one_shot = true
-	explosion_particles.amount = 250
+	explosion_particles.amount = GraphicsQuality.particle_amount(250, GameManager.graphics_quality)
 	explosion_particles.lifetime = 2.5
 	explosion_particles.explosiveness = 1.0
 	explosion_particles.visibility_aabb = AABB(Vector3(-20, -5, -20), Vector3(40, 25, 40))
@@ -102,9 +106,161 @@ func spawn_correct(pos: Vector3) -> void:
 	correct_particles.emitting = true
 
 func spawn_explosion(pos: Vector3) -> void:
-	explosion_particles.global_position = pos + Vector3(0, 2.0, 0)
+	# 呼び出し側から実際の身体中心が渡されるため、固定オフセットを足さない。
+	explosion_particles.global_position = pos
 	explosion_particles.restart()
 	explosion_particles.emitting = true
+
+func _create_ocean_splash_particles() -> void:
+	var splash: GPUParticles3D = GPUParticles3D.new()
+	splash.name = "OceanSplash"
+	splash.emitting = false
+	splash.one_shot = true
+	splash.amount = GraphicsQuality.particle_amount(96, GameManager.graphics_quality)
+	splash.lifetime = 1.35
+	splash.explosiveness = 0.96
+	splash.randomness = 0.35
+	splash.local_coords = false
+	splash.visibility_aabb = AABB(Vector3(-6.0, -2.0, -6.0), Vector3(12.0, 12.0, 12.0))
+
+	var mat: ParticleProcessMaterial = ParticleProcessMaterial.new()
+	mat.direction = Vector3.UP
+	mat.spread = 66.0
+	mat.initial_velocity_min = 4.5
+	mat.initial_velocity_max = 11.0
+	mat.gravity = Vector3(0.0, -13.0, 0.0)
+	mat.damping_min = 0.4
+	mat.damping_max = 1.2
+	mat.scale_min = 0.08
+	mat.scale_max = 0.28
+	mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	mat.emission_sphere_radius = 0.85
+
+	var color_ramp: Gradient = Gradient.new()
+	color_ramp.set_color(0, Color(0.82, 0.98, 1.0, 1.0))
+	color_ramp.set_color(1, Color(0.05, 0.42, 0.72, 0.0))
+	color_ramp.add_point(0.28, Color(0.28, 0.78, 0.95, 0.92))
+	var color_tex: GradientTexture1D = GradientTexture1D.new()
+	color_tex.gradient = color_ramp
+	mat.color_ramp = color_tex
+	splash.process_material = mat
+
+	var droplet_mesh: SphereMesh = SphereMesh.new()
+	droplet_mesh.radius = 0.055
+	droplet_mesh.height = 0.22
+	var droplet_mat: StandardMaterial3D = StandardMaterial3D.new()
+	droplet_mat.albedo_color = Color(0.55, 0.9, 1.0, 0.88)
+	droplet_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	droplet_mat.vertex_color_use_as_albedo = true
+	droplet_mat.roughness = 0.16
+	droplet_mesh.material = droplet_mat
+	splash.draw_pass_1 = droplet_mesh
+
+	add_child(splash)
+	ocean_splash_pool.append(splash)
+
+
+func spawn_ocean_splash(pos: Vector3) -> void:
+	if ocean_splash_pool.is_empty():
+		return
+	var splash: GPUParticles3D = ocean_splash_pool[_ocean_splash_cursor]
+	_ocean_splash_cursor = (_ocean_splash_cursor + 1) % ocean_splash_pool.size()
+	splash.global_position = pos
+	splash.restart()
+	splash.emitting = true
+
+
+func spawn_shark_impact(pos: Vector3, attack_forward: Vector3 = Vector3.FORWARD) -> void:
+	var column: GPUParticles3D = _create_shark_water_column()
+	column.name = "SharkImpactColumn"
+	var horizontal_forward: Vector3 = Vector3(attack_forward.x, 0.0, attack_forward.z)
+	if horizontal_forward.length_squared() > 0.001:
+		column.rotation.y = atan2(horizontal_forward.x, horizontal_forward.z)
+	add_child(column, true)
+	column.global_position = Vector3(pos.x, StageConstants.OCEAN_SURFACE_Y, pos.z)
+	column.restart()
+	column.emitting = true
+
+	var shock_ring: MeshInstance3D = _create_shark_shock_ring()
+	shock_ring.name = "SharkImpactRing"
+	add_child(shock_ring, true)
+	shock_ring.global_position = Vector3(pos.x, StageConstants.OCEAN_SURFACE_Y + 0.06, pos.z)
+	var ring_tween: Tween = create_tween()
+	ring_tween.set_parallel(true)
+	ring_tween.tween_property(shock_ring, "scale", Vector3(5.4, 0.18, 5.4), 0.52).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	ring_tween.tween_property(shock_ring, "transparency", 1.0, 0.52).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	ring_tween.finished.connect(shock_ring.queue_free)
+
+	var cleanup_timer: SceneTreeTimer = get_tree().create_timer(2.4)
+	cleanup_timer.timeout.connect(func() -> void:
+		if is_instance_valid(column):
+			column.queue_free()
+	)
+
+
+func _create_shark_water_column() -> GPUParticles3D:
+	var particles: GPUParticles3D = GPUParticles3D.new()
+	particles.emitting = false
+	particles.one_shot = true
+	particles.amount = GraphicsQuality.particle_amount(190, GameManager.graphics_quality)
+	particles.lifetime = 1.25
+	particles.explosiveness = 0.96
+	particles.randomness = 0.38
+	particles.local_coords = false
+	particles.visibility_aabb = AABB(Vector3(-9.0, -3.0, -9.0), Vector3(18.0, 20.0, 18.0))
+
+	var process_material: ParticleProcessMaterial = ParticleProcessMaterial.new()
+	process_material.direction = Vector3.UP
+	process_material.spread = 62.0
+	process_material.initial_velocity_min = 7.5
+	process_material.initial_velocity_max = 17.0
+	process_material.gravity = Vector3(0.0, -18.0, 0.0)
+	process_material.damping_min = 0.35
+	process_material.damping_max = 1.4
+	process_material.scale_min = 0.10
+	process_material.scale_max = 0.42
+	process_material.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	process_material.emission_box_extents = Vector3(1.45, 0.20, 1.45)
+	var color_ramp: Gradient = Gradient.new()
+	color_ramp.set_color(0, Color(1.0, 1.0, 1.0, 1.0))
+	color_ramp.add_point(0.24, Color(0.62, 0.92, 1.0, 0.98))
+	color_ramp.set_color(1, Color(0.04, 0.36, 0.68, 0.0))
+	var color_texture: GradientTexture1D = GradientTexture1D.new()
+	color_texture.gradient = color_ramp
+	process_material.color_ramp = color_texture
+	particles.process_material = process_material
+
+	var droplet_mesh: SphereMesh = SphereMesh.new()
+	droplet_mesh.radius = 0.075
+	droplet_mesh.height = 0.32
+	var droplet_material: StandardMaterial3D = StandardMaterial3D.new()
+	droplet_material.albedo_color = Color(0.78, 0.96, 1.0, 0.92)
+	droplet_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	droplet_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	droplet_mesh.material = droplet_material
+	particles.draw_pass_1 = droplet_mesh
+	return particles
+
+
+func _create_shark_shock_ring() -> MeshInstance3D:
+	var ring_instance: MeshInstance3D = MeshInstance3D.new()
+	var ring_mesh: TorusMesh = TorusMesh.new()
+	ring_mesh.inner_radius = 0.92
+	ring_mesh.outer_radius = 1.08
+	ring_mesh.rings = 48
+	ring_mesh.ring_segments = 8
+	var ring_material: StandardMaterial3D = StandardMaterial3D.new()
+	ring_material.albedo_color = Color(0.78, 0.96, 1.0, 0.92)
+	ring_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	ring_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	ring_material.emission_enabled = true
+	ring_material.emission = Color(0.36, 0.82, 1.0)
+	ring_material.emission_energy_multiplier = 1.35
+	ring_mesh.material = ring_material
+	ring_instance.mesh = ring_mesh
+	ring_instance.scale = Vector3(0.48, 0.18, 0.48)
+	return ring_instance
+
 
 # ---------- Fireworks ----------
 
@@ -146,7 +302,7 @@ func _launch_single_firework(pos: Vector3, color: Color, height: float) -> void:
 	var trail := GPUParticles3D.new()
 	trail.emitting = false
 	trail.one_shot = true
-	trail.amount = 30
+	trail.amount = GraphicsQuality.particle_amount(30, GameManager.graphics_quality)
 	trail.lifetime = 0.8
 	trail.explosiveness = 0.9
 
@@ -182,8 +338,8 @@ func _launch_single_firework(pos: Vector3, color: Color, height: float) -> void:
 	trail.draw_pass_1 = trail_mesh
 
 	trail.visibility_aabb = AABB(Vector3(-5, -2, -5), Vector3(10, 20, 10))
-	trail.global_position = pos
 	add_child(trail)
+	trail.global_position = pos
 	trail.restart()
 	trail.emitting = true
 
@@ -204,7 +360,7 @@ func _spawn_firework_burst(pos: Vector3, color: Color) -> void:
 	var burst := GPUParticles3D.new()
 	burst.emitting = false
 	burst.one_shot = true
-	burst.amount = 200
+	burst.amount = GraphicsQuality.particle_amount(200, GameManager.graphics_quality)
 	burst.lifetime = 2.5
 	burst.explosiveness = 1.0
 
@@ -256,8 +412,8 @@ func _spawn_firework_burst(pos: Vector3, color: Color) -> void:
 	burst.draw_pass_1 = sphere
 
 	burst.visibility_aabb = AABB(Vector3(-20, -15, -20), Vector3(40, 30, 40))
-	burst.global_position = pos
 	add_child(burst)
+	burst.global_position = pos
 	burst.restart()
 	burst.emitting = true
 

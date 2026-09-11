@@ -1,0 +1,76 @@
+{
+  "grade": 6,
+  "subject": "英語",
+  "keywords": "日課,過去の経験,学校行事,思い出,将来の夢,国と文化,動物と環境,短い会話,語順",
+  "bad_examples": [
+    "現在完了・関係代名詞・受動態を前提にする問題",
+    "長い英文を速読させる問題",
+    "音声だけで判断する発音・聞き取り問題"
+  ],
+  "units": [
+    {
+      "name": "一日の生活",
+      "key_concepts": ["I usually ...", "時刻と日課"],
+      "typical_mistakes": ["動作と時刻の順を取り違える"],
+      "sample_questions": [
+        {"q": "「I usually walk to school.」の意味は？", "c": ["たいてい歩いて登校", "昨日歩いて登校", "学校まで走りたい", "学校では歩かない"], "a": 0, "e": "usually は「たいてい」を表します。"}
+      ]
+    },
+    {
+      "name": "過去の経験",
+      "key_concepts": ["went, saw, ate, enjoyed", "昨日や休日の出来事"],
+      "typical_mistakes": ["現在の習慣と過去の出来事を混同する"],
+      "sample_questions": [
+        {"q": "「I went to Kyoto.」の意味は？", "c": ["京都へ行きました", "京都へ行きます", "京都に行きたい", "京都から来ました"], "a": 0, "e": "went は go の過去を表す言葉です。"}
+      ]
+    },
+    {
+      "name": "学校行事と思い出",
+      "key_concepts": ["sports day, school trip", "My best memory is ..."],
+      "typical_mistakes": ["行事名と場所を取り違える"],
+      "sample_questions": [
+        {"q": "「My best memory is our trip.」の意味は？", "c": ["一番の思い出は旅行", "次の予定は旅行", "旅行を忘れました", "旅行が苦手です"], "a": 0, "e": "best memory は「一番の思い出」です。"}
+      ]
+    },
+    {
+      "name": "将来の夢",
+      "key_concepts": ["I want to be ...", "職業と理由"],
+      "typical_mistakes": ["want to be と現在の職業を混同する"],
+      "sample_questions": [
+        {"q": "「I want to be a vet.」の意味は？", "c": ["獣医になりたい", "獣医に会いたい", "獣医ではない", "獣医を手伝った"], "a": 0, "e": "want to be は「〜になりたい」です。"}
+      ]
+    },
+    {
+      "name": "世界の国と文化",
+      "key_concepts": ["国・名所・食文化", "Where do you want to go?"],
+      "typical_mistakes": ["国と名所の組み合わせを取り違える"],
+      "sample_questions": [
+        {"q": "「Where do you want to go?」への返事は？", "c": ["I want to go to Italy.", "I can speak Italy.", "Italy is hungry.", "At seven."], "a": 0, "e": "行きたい場所は I want to go to ... で答えます。"}
+      ]
+    },
+    {
+      "name": "動物と環境",
+      "key_concepts": ["live, eat, save, protect", "生息地とできること"],
+      "typical_mistakes": ["動物の特徴と保護行動を混同する"],
+      "sample_questions": [
+        {"q": "「We can protect sea turtles.」の意味は？", "c": ["ウミガメを守れる", "ウミガメを食べる", "海で泳げない", "カメを見ました"], "a": 0, "e": "protect は「守る」という意味です。"}
+      ]
+    },
+    {
+      "name": "短い会話の読解",
+      "key_concepts": ["質問に対応する返答", "二つの手がかりから判断"],
+      "typical_mistakes": ["一語だけを見て返答を決める"],
+      "sample_questions": [
+        {"q": "A: Why do you like summer? B: ___", "c": ["I can swim.", "It's Monday.", "At the station.", "Two books."], "a": 0, "e": "理由を聞かれ、夏にできることを答えています。"}
+      ]
+    },
+    {
+      "name": "語順と文の組み立て",
+      "key_concepts": ["主語・動作・目的語の順", "疑問文の語順"],
+      "typical_mistakes": ["日本語と同じ語順に並べる"],
+      "sample_questions": [
+        {"q": "「私は音楽が好きです」の正しい語順は？", "c": ["I like music.", "I music like.", "Like I music.", "Music like I."], "a": 0, "e": "英語では I, like, music の順に並べます。"}
+      ]
+    }
+  ]
+}

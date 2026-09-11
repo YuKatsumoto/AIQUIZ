@@ -1,3 +1,4 @@
+
 extends Control
 
 ## 壁速度設定画面
@@ -13,6 +14,8 @@ var _preview_scroll_z: float = 0.0
 var _preview_floor_material: ShaderMaterial
 var _conveyor_roller_front_material: ShaderMaterial
 var _conveyor_return_material: ShaderMaterial
+var _preview_weather_cycle: WeatherCycle
+var _conveyor_edge_lights: ConveyorEdgeLights
 
 # --- UI nodes ---
 var _speed_slider: HSlider
@@ -28,6 +31,7 @@ var _preview_speed: float = 5.0
 const WALL_SPACING := 30.0
 const WALL_START_Z := 22.0
 const CONVEYOR_FLOOR_SHADER: Shader = preload("res://shaders/conveyor_belt_floor.gdshader")
+const ConveyorEdgeLightsScript = preload("res://scripts/world/conveyor_edge_lights.gd")
 
 # --- Preview Player ---
 const PLAYER_CONTROLLER_SCRIPT: Script = preload("res://scripts/world/player_controller.gd")
@@ -95,14 +99,17 @@ func _process(dt: float) -> void:
 		if _preview_gs:
 			player_z = _preview_gs.player_local_z
 		var door_leading_z: float = wall.position.z + PREVIEW_DOOR_HALF_DEPTH_Z
-		if door_leading_z >= player_z and not wall.get_meta("preview_door_broken", false):
+		if (
+			MenuWallBackgroundPreview.wall_front_touches_player(door_leading_z, player_z)
+			and not wall.get_meta("preview_door_broken", false)
+		):
 			if wall.has_method("break_door"):
 				wall.break_door(PREVIEW_RED_DOOR_INDEX)
 			wall.set_meta("preview_door_broken", true)
 		
-		# 崖 (Z=8.0) に到達したら、壁を物理パーツ化してマグマへ落とす
+		# 崖 (Z=8.0) に到達したら、壁を粉々に破砕する（扉通過時と同じ shatter_wall 演出）
 		if wall.position.z >= 8.0:
-			_drop_wall_into_magma(wall)
+			_drop_wall_into_ocean(wall)
 			wall.queue_free()
 			_preview_walls.remove_at(i)
 			
@@ -128,11 +135,13 @@ func _process(dt: float) -> void:
 	# カメラ付近の破片は縮小して消す（視界を塞がないため）
 	_update_preview_debris_near_camera()
 
-func _drop_wall_into_magma(wall: Node3D) -> void:
+func _drop_wall_into_ocean(wall: Node3D) -> void:
 	if not wall or not is_instance_valid(wall):
 		return
-	if wall.has_method("collapse_into_magma"):
-		wall.collapse_into_magma()
+	# 壁は position.z 増加方向(奥→手前=カメラ側)へ進むため、+Z がキャラクターから
+	# 遠ざかる向き(手前へ抜けていく方向)。既存の break_door 演出と同じ向き。
+	if wall.has_method("shatter_wall"):
+		wall.shatter_wall(1.0)
 
 func _force_preview_player_facing_away() -> void:
 	var pc := _preview_player as PlayerController
@@ -220,9 +229,9 @@ func _build_ui() -> void:
 	
 	_sub_viewport = SubViewport.new()
 	_sub_viewport.size = Vector2i(1280, 720)
-	_sub_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	_sub_viewport.render_target_update_mode = SubViewport.UPDATE_WHEN_VISIBLE
 	_sub_viewport.transparent_bg = false
-	_sub_viewport.msaa_3d = Viewport.MSAA_4X
+	GraphicsQuality.apply_text_viewport(_sub_viewport, GameManager.graphics_quality)
 	svc.add_child(_sub_viewport)
 	
 	# ── UIオーバーレイ（フロートパネル） ──
@@ -265,7 +274,7 @@ func _build_ui() -> void:
 	
 	# タイトル
 	var title := Label.new()
-	title.text = "⚡ 壁速度設定"
+	title.text = "壁速度設定"
 	title.add_theme_font_size_override("font_size", 32)
 	title.add_theme_color_override("font_color", Color(1.0, 0.88, 0.25))
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -347,14 +356,14 @@ func _build_ui() -> void:
 	settings_vbox.add_child(range_hbox)
 	
 	var slow_label := Label.new()
-	slow_label.text = "🐢 遅い"
+	slow_label.text = "遅い"
 	slow_label.add_theme_font_size_override("font_size", 14)
 	slow_label.add_theme_color_override("font_color", Color(0.6, 0.65, 0.75))
 	slow_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	range_hbox.add_child(slow_label)
 	
 	var fast_label := Label.new()
-	fast_label.text = "🐇 速い"
+	fast_label.text = "速い"
 	fast_label.add_theme_font_size_override("font_size", 14)
 	fast_label.add_theme_color_override("font_color", Color(0.6, 0.65, 0.75))
 	fast_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
@@ -373,18 +382,21 @@ func _build_ui() -> void:
 	
 	# リセット（自動モード）ボタン
 	_reset_btn = Button.new()
-	_reset_btn.text = "🔄 自動モードに戻す"
+	_reset_btn.text = "自動モードに戻す"
 	_reset_btn.custom_minimum_size = Vector2(0, 44)
 	_reset_btn.add_theme_font_size_override("font_size", 16)
 	_reset_btn.pressed.connect(_on_reset_pressed)
 	btn_vbox.add_child(_reset_btn)
 
-	var emote_hint := Label.new()
-	emote_hint.text = "左プレビュー: キー 1・2・3 でエモート  Spaceで停止"
-	emote_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	emote_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	emote_hint.add_theme_font_size_override("font_size", 11)
-	emote_hint.add_theme_color_override("font_color", Color(0.55, 0.60, 0.72))
+	var emote_hint := KeyHintRow.new()
+	emote_hint.name = "EmoteHint"
+	emote_hint.add_theme_constant_override("separation", 4)
+	var hint_ink := Color(0.55, 0.60, 0.72)
+	emote_hint.add_text("左プレビュー: ", hint_ink, 11)
+	emote_hint.add_spec("1 / 2 / 3", KeycapChip.DEFAULT_ACCENT, KeycapChip.SizeClass.TINY)
+	emote_hint.add_text("でエモート  ", hint_ink, 11)
+	emote_hint.add_spec("Space", KeycapChip.DEFAULT_ACCENT, KeycapChip.SizeClass.TINY)
+	emote_hint.add_text("で停止", hint_ink, 11)
 	btn_vbox.add_child(emote_hint)
 	
 	# 戻るボタン
@@ -445,19 +457,8 @@ func _build_3d_preview() -> void:
 	# ── 3Dシーンを SubViewport 内に構築 ──
 	
 	# 環境設定 (本番環境に合わせる)
-	var bg_color := Color(0.82, 0.85, 0.90)
 	var env := Environment.new()
-	env.background_mode = Environment.BG_COLOR
-	env.background_color = bg_color
-	env.ambient_light_color = Color(0.30, 0.32, 0.35)
-	env.ambient_light_energy = 1.0
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	
-	# Fog
-	env.fog_enabled = true
-	env.fog_light_color = bg_color
-	env.fog_density = 0.002
-	env.fog_aerial_perspective = 0.5
+	StageEnvironment.configure_stage_environment(env)
 
 	# Tonemap
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
@@ -473,6 +474,7 @@ func _build_3d_preview() -> void:
 	env.set_glow_level(1, true)
 	env.set_glow_level(2, true)
 	env.set_glow_level(3, false)
+	GraphicsQuality.apply_environment(env, GameManager.graphics_quality)
 	
 	var world_env := WorldEnvironment.new()
 	world_env.environment = env
@@ -482,8 +484,14 @@ func _build_3d_preview() -> void:
 	var light := DirectionalLight3D.new()
 	light.rotation_degrees = Vector3(-50, -20, 0)
 	light.light_energy = 0.8
-	light.shadow_enabled = true
+	light.shadow_enabled = GraphicsQuality.preview_shadow_enabled(GameManager.graphics_quality)
 	_sub_viewport.add_child(light)
+	_preview_weather_cycle = StageEnvironment.attach_weather_cycle(
+		_sub_viewport,
+		env,
+		light,
+		"WallSpeedWeatherCycle"
+	)
 	
 	# カメラ（プレイヤー視点に近い角度）
 	_preview_camera = Camera3D.new()
@@ -507,54 +515,21 @@ func _build_3d_preview() -> void:
 	_preview_floor.position = Vector3(0, -9.2, -64.0)
 	_sub_viewport.add_child(_preview_floor)
 	
-	# マグマの追加
-	var GameWorldScript := preload("res://scripts/world/game_world.gd")
-	var magma_mesh := MeshInstance3D.new()
-	var plane := PlaneMesh.new()
-	plane.size = Vector2(800.0, 800.0)
-	plane.subdivide_width = 200
-	plane.subdivide_depth = 200
-	magma_mesh.mesh = plane
-	magma_mesh.position = Vector3(0, -10.0, 150.0)
-	magma_mesh.custom_aabb = AABB(Vector3(-400, -10, -400), Vector3(800, 20, 800))
-	
-	var mmat := ShaderMaterial.new()
-	mmat.shader = Shader.new()
-	mmat.shader.code = GameWorldScript.MAGMA_SHADER
-	
-	# Procedural noise texture 1 (Perlin-like)
-	var noise1 := NoiseTexture2D.new()
-	var fnl1 := FastNoiseLite.new()
-	fnl1.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
-	fnl1.frequency = 0.01
-	fnl1.fractal_octaves = 4
-	fnl1.fractal_lacunarity = 2.0
-	fnl1.fractal_gain = 0.5
-	noise1.noise = fnl1
-	noise1.seamless = true
-	noise1.width = 512
-	noise1.height = 512
-	mmat.set_shader_parameter("noise_tex", noise1)
-	
-	# Procedural noise texture 2 (Cellular for cracks)
-	var noise2 := NoiseTexture2D.new()
-	var fnl2 := FastNoiseLite.new()
-	fnl2.noise_type = FastNoiseLite.TYPE_CELLULAR
-	fnl2.frequency = 0.015
-	fnl2.fractal_octaves = 3
-	fnl2.cellular_distance_function = FastNoiseLite.DISTANCE_EUCLIDEAN
-	fnl2.cellular_return_type = FastNoiseLite.RETURN_DISTANCE
-	noise2.noise = fnl2
-	noise2.seamless = true
-	noise2.width = 512
-	noise2.height = 512
-	mmat.set_shader_parameter("noise_tex2", noise2)
-	
-	magma_mesh.material_override = mmat
-	_sub_viewport.add_child(magma_mesh)
+	# 全画面で共通の海面を使用
+	var ocean_mesh: MeshInstance3D = StageEnvironment.create_ocean_surface()
+	_sub_viewport.add_child(ocean_mesh)
 	
 	# コンベアのレールやローラーを追加
 	_setup_conveyor_extras()
+	_conveyor_edge_lights = ConveyorEdgeLightsScript.new() as ConveyorEdgeLights
+	_conveyor_edge_lights.name = "ConveyorEdgeLights"
+	_sub_viewport.add_child(_conveyor_edge_lights)
+	_conveyor_edge_lights.setup(
+		-64.0,
+		144.0,
+		_preview_floor_material,
+		_preview_weather_cycle
+	)
 	
 	# プレビュー用の壁を初期配置（3枚）
 	var start_z := 8.0 - WALL_SPACING * 2
@@ -724,10 +699,10 @@ func _setup_conveyor_extras() -> void:
 func _update_mode_label() -> void:
 	var game_state := QuizManager.game_state
 	if game_state.tuning.wall_speed_override > 0:
-		_mode_label.text = "📌 手動モード（固定速度）"
+		_mode_label.text = "手動モード（固定速度）"
 		_mode_label.add_theme_color_override("font_color", Color(1.0, 0.7, 0.3))
 	else:
-		_mode_label.text = "🤖 自動モード（AI解答時間から算出）"
+		_mode_label.text = "自動モード（AI解答時間から算出）"
 		_mode_label.add_theme_color_override("font_color", Color(0.4, 0.75, 1.0))
 
 func _update_speed_display() -> void:

@@ -1,0 +1,76 @@
+{
+  "grade": 4,
+  "subject": "英語",
+  "keywords": "天気,曜日,時刻,小文字,つづり,日課,学校,場所,買い物,短い会話",
+  "bad_examples": [
+    "文法用語だけを暗記させる問題",
+    "音声だけで区別する発音問題",
+    "過去形や未来表現を詳しく説明させる問題"
+  ],
+  "units": [
+    {
+      "name": "天気と季節",
+      "key_concepts": ["sunny, rainy, cloudy, snowy", "How's the weather?"],
+      "typical_mistakes": ["weather を曜日の質問と混同する"],
+      "sample_questions": [
+        {"q": "「How's the weather?」への返事は？", "c": ["It's sunny.", "It's Monday.", "It's seven.", "It's a dog."], "a": 0, "e": "天気を聞かれたので It's sunny. と答えます。"}
+      ]
+    },
+    {
+      "name": "曜日と予定",
+      "key_concepts": ["Monday から Sunday", "What day is it?"],
+      "typical_mistakes": ["Tuesday と Thursday を混同する"],
+      "sample_questions": [
+        {"q": "「What day is it?」で尋ねているのは？", "c": ["曜日", "時刻", "天気", "場所"], "a": 0, "e": "What day は曜日を尋ねる表現です。"}
+      ]
+    },
+    {
+      "name": "時刻と日課",
+      "key_concepts": ["What time is it?", "get up, eat, go to bed"],
+      "typical_mistakes": ["時刻と年齢の答え方を混同する"],
+      "sample_questions": [
+        {"q": "7時に起きることを表す英文は？", "c": ["I get up at seven.", "I sleep at seven.", "I am seven.", "I have seven."], "a": 0, "e": "get up は起きる、at seven は7時にです。"}
+      ]
+    },
+    {
+      "name": "アルファベット小文字とつづり",
+      "key_concepts": ["大文字と小文字の対応", "短い単語のつづり"],
+      "typical_mistakes": ["b と d、p と q を混同する"],
+      "sample_questions": [
+        {"q": "大文字「Q」に対応する小文字は？", "c": ["p", "q", "g", "d"], "a": 1, "e": "Q の小文字は q です。"}
+      ]
+    },
+    {
+      "name": "学校と持ち物",
+      "key_concepts": ["school, classroom, library", "Do you have ...?"],
+      "typical_mistakes": ["have と like を混同する"],
+      "sample_questions": [
+        {"q": "「Do you have a pen?」の意味は？", "c": ["ペンを持ってる？", "ペンが好き？", "ペンはどこ？", "ペンを使う？"], "a": 0, "e": "Do you have ...? は持っているかを尋ねます。"}
+      ]
+    },
+    {
+      "name": "場所と道案内",
+      "key_concepts": ["go straight, turn right, turn left", "park, station, school"],
+      "typical_mistakes": ["right と left を取り違える"],
+      "sample_questions": [
+        {"q": "「Turn left.」の意味は？", "c": ["左に曲がって", "右に曲がって", "まっすぐ進んで", "ここで止まって"], "a": 0, "e": "left は左、turn は曲がるです。"}
+      ]
+    },
+    {
+      "name": "買い物と数",
+      "key_concepts": ["How many ...?", "数字20から100", "... please."],
+      "typical_mistakes": ["thirteen と thirty を混同する"],
+      "sample_questions": [
+        {"q": "りんごを2個ほしいときの自然な英語は？", "c": ["Two apples, please.", "Two apple is.", "I am two apples.", "Apple two like."], "a": 0, "e": "数と品物の後に please を付けて頼めます。"}
+      ]
+    },
+    {
+      "name": "短い会話と返答",
+      "key_concepts": ["相手の質問に合う返答", "Yes, I do. / No, I don't."],
+      "typical_mistakes": ["質問と関係のない定型文を選ぶ"],
+      "sample_questions": [
+        {"q": "「Do you like music?」への返事は？", "c": ["Yes, I do.", "Yes, I am.", "It's music.", "At eight."], "a": 0, "e": "Do you ...? には Yes, I do. と答えられます。"}
+      ]
+    }
+  ]
+}

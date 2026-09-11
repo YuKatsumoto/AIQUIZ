@@ -1,0 +1,217 @@
+[gd_scene format=3 uid="uid://dahsrx5x2xnnr"]
+
+[ext_resource type="Material" uid="uid://dly5iewu10kl8" path="res://assets/BinbunVFX/magic_orbs/src/material/magic_orb_flare/magic_orb_flare_05/magic_orb_flare_05_flare.tres" id="1_ey4h5"]
+[ext_resource type="Script" uid="uid://tb7n6ybv43ch" path="res://assets/BinbunVFX/shared/script/vfx_controller.gd" id="1_jj3so"]
+[ext_resource type="Material" uid="uid://din803o3k0pb3" path="res://assets/BinbunVFX/magic_orbs/src/material/magic_orb_flare/magic_orb_flare_05/magic_orb_flare_05_glow.tres" id="2_ey4h5"]
+[ext_resource type="Material" uid="uid://ctbbuv76i1jqf" path="res://assets/BinbunVFX/magic_orbs/src/material/magic_orb_flare/magic_orb_flare_05/magic_orb_flare_05_inner.tres" id="3_jj3so"]
+[ext_resource type="Script" uid="uid://bdk8hhttligw" path="res://assets/BinbunVFX/shared/script/vfx_light.gd" id="5_hxmky"]
+
+[sub_resource type="QuadMesh" id="QuadMesh_pif6d"]
+size = Vector2(1.6, 1.6)
+subdivide_width = 32
+subdivide_depth = 32
+
+[sub_resource type="QuadMesh" id="QuadMesh_qusda"]
+size = Vector2(1.3, 1.3)
+subdivide_width = 32
+subdivide_depth = 32
+
+[sub_resource type="SphereMesh" id="SphereMesh_812m8"]
+radius = 0.3
+height = 0.6
+radial_segments = 32
+rings = 16
+
+[sub_resource type="Animation" id="Animation_dxcwh"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Inner:material_override:shader_parameter/alpha_multiplier")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [1.0]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("Light:light_multiplier")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [1.0]
+}
+tracks/2/type = "value"
+tracks/2/imported = false
+tracks/2/enabled = true
+tracks/2/path = NodePath("Flare:material_override:shader_parameter/alpha_multiplier")
+tracks/2/interp = 1
+tracks/2/loop_wrap = true
+tracks/2/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [1.0]
+}
+tracks/3/type = "value"
+tracks/3/imported = false
+tracks/3/enabled = true
+tracks/3/path = NodePath("Glow:material_override:shader_parameter/alpha_multiplier")
+tracks/3/interp = 1
+tracks/3/loop_wrap = true
+tracks/3/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [1.0]
+}
+
+[sub_resource type="Animation" id="Animation_jerf1"]
+resource_name = "main"
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Inner:material_override:shader_parameter/alpha_multiplier")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [1.0]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("Light:light_multiplier")
+tracks/1/interp = 2
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0, 0.5, 1),
+"transitions": PackedFloat32Array(1, 1, 1),
+"update": 0,
+"values": [1.0, 0.7, 1.0]
+}
+tracks/2/type = "value"
+tracks/2/imported = false
+tracks/2/enabled = true
+tracks/2/path = NodePath("Flare:material_override:shader_parameter/alpha_multiplier")
+tracks/2/interp = 1
+tracks/2/loop_wrap = true
+tracks/2/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [1.0]
+}
+tracks/3/type = "value"
+tracks/3/imported = false
+tracks/3/enabled = true
+tracks/3/path = NodePath("Glow:material_override:shader_parameter/alpha_multiplier")
+tracks/3/interp = 1
+tracks/3/loop_wrap = true
+tracks/3/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [1.0]
+}
+
+[sub_resource type="Animation" id="Animation_ilkfj"]
+resource_name = "oneshot"
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Inner:material_override:shader_parameter/alpha_multiplier")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.2, 1),
+"transitions": PackedFloat32Array(1, 0.4, 1),
+"update": 0,
+"values": [0.0, 1.0, 0.0]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("Light:light_multiplier")
+tracks/1/interp = 2
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0, 0.2, 1),
+"transitions": PackedFloat32Array(1, 1, 1),
+"update": 0,
+"values": [0.0, 1.0, 0.0]
+}
+tracks/2/type = "value"
+tracks/2/imported = false
+tracks/2/enabled = true
+tracks/2/path = NodePath("Flare:material_override:shader_parameter/alpha_multiplier")
+tracks/2/interp = 2
+tracks/2/loop_wrap = true
+tracks/2/keys = {
+"times": PackedFloat32Array(0, 0.2, 1),
+"transitions": PackedFloat32Array(1, 1, 1),
+"update": 0,
+"values": [0.0, 1.0, 0.0]
+}
+tracks/3/type = "value"
+tracks/3/imported = false
+tracks/3/enabled = true
+tracks/3/path = NodePath("Glow:material_override:shader_parameter/alpha_multiplier")
+tracks/3/interp = 2
+tracks/3/loop_wrap = true
+tracks/3/keys = {
+"times": PackedFloat32Array(0, 0.2, 1),
+"transitions": PackedFloat32Array(1, 1, 1),
+"update": 0,
+"values": [0.0, 1.0, 0.0]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_oawqk"]
+_data = {
+&"RESET": SubResource("Animation_dxcwh"),
+&"main": SubResource("Animation_jerf1"),
+&"oneshot": SubResource("Animation_ilkfj")
+}
+
+[node name="MagicOrbFlareVFX_05" type="Node3D" unique_id=1179274598]
+script = ExtResource("1_jj3so")
+preview = false
+primary_color = Color(0.79695, 0.99, 0.693, 1)
+secondary_color = Color(0, 0.95, 0.047499955, 1)
+tertiary_color = Color(0.8183969, 0.9999997, 0.8297035, 1)
+light_color = Color(0, 0.9490196, 0.047058824, 1)
+
+[node name="Flare" type="MeshInstance3D" parent="." unique_id=1458824523]
+sorting_offset = -1.0
+material_override = ExtResource("1_ey4h5")
+cast_shadow = 0
+mesh = SubResource("QuadMesh_pif6d")
+
+[node name="Glow" type="MeshInstance3D" parent="." unique_id=125631772]
+sorting_offset = 0.2
+material_override = ExtResource("2_ey4h5")
+cast_shadow = 0
+mesh = SubResource("QuadMesh_qusda")
+
+[node name="Inner" type="MeshInstance3D" parent="." unique_id=1683378643]
+material_override = ExtResource("3_jj3so")
+mesh = SubResource("SphereMesh_812m8")
+
+[node name="Light" type="OmniLight3D" parent="." unique_id=1689371911]
+light_color = Color(0, 0.9490196, 0.047058824, 1)
+light_energy = 4.0
+script = ExtResource("5_hxmky")
+base_energy = 4.0
+metadata/_custom_type_script = "uid://bdk8hhttligw"
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=1113095924]
+libraries/ = SubResource("AnimationLibrary_oawqk")

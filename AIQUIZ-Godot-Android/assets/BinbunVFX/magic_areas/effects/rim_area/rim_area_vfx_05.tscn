@@ -1,0 +1,151 @@
+[gd_scene format=3 uid="uid://ckoqcgcsvqmq"]
+
+[ext_resource type="Material" uid="uid://bbnaxuxhpc33c" path="res://assets/BinbunVFX/magic_areas/src/material/rim_area/rim_area_05/rim_area_05_ground.tres" id="1_5ai0x"]
+[ext_resource type="Script" uid="uid://tb7n6ybv43ch" path="res://assets/BinbunVFX/shared/script/vfx_controller.gd" id="1_rs0ub"]
+[ext_resource type="Material" uid="uid://bon5fsofcyc64" path="res://assets/BinbunVFX/magic_areas/src/material/rim_area/rim_area_05/rim_area_05_glow.tres" id="2_rs0ub"]
+[ext_resource type="Material" uid="uid://bs3j4ni7hx5la" path="res://assets/BinbunVFX/magic_areas/src/material/rim_area/rim_area_05/rim_area_05_extraglow.tres" id="3_5ai0x"]
+[ext_resource type="Material" uid="uid://drj7s8b8y242x" path="res://assets/BinbunVFX/magic_areas/src/material/rim_area/rim_area_05/rim_area_05_upward.tres" id="4_rs0ub"]
+[ext_resource type="Script" uid="uid://bdk8hhttligw" path="res://assets/BinbunVFX/shared/script/vfx_light.gd" id="5_pin8h"]
+
+[sub_resource type="QuadMesh" id="QuadMesh_5al3w"]
+size = Vector2(3.4, 3.4)
+subdivide_width = 32
+subdivide_depth = 32
+center_offset = Vector3(0, 0.01, 0)
+orientation = 1
+
+[sub_resource type="QuadMesh" id="QuadMesh_gqmsi"]
+size = Vector2(6, 6)
+subdivide_width = 32
+subdivide_depth = 32
+center_offset = Vector3(0, 0.01, 0)
+orientation = 1
+
+[sub_resource type="QuadMesh" id="QuadMesh_ie8so"]
+size = Vector2(5, 5)
+subdivide_width = 32
+subdivide_depth = 32
+center_offset = Vector3(0, 0.01, 0)
+orientation = 1
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_pegna"]
+top_radius = 1.6
+bottom_radius = 1.25
+height = 1.4
+radial_segments = 32
+cap_top = false
+cap_bottom = false
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_hu7nh"]
+flip_faces = true
+top_radius = 1.4
+bottom_radius = 1.2
+height = 1.8
+radial_segments = 32
+cap_top = false
+cap_bottom = false
+
+[sub_resource type="Animation" id="Animation_84g1k"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Light:light_multiplier")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [0.99989]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("ExtraGlow:material_override:shader_parameter/alpha_multiplier")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [1.0]
+}
+
+[sub_resource type="Animation" id="Animation_haugx"]
+resource_name = "main"
+length = 1.2
+step = 0.05
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Light:light_multiplier")
+tracks/0/interp = 2
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.8, 1.2),
+"transitions": PackedFloat32Array(1, 1, 1),
+"update": 0,
+"values": [0.99989, 0.6, 0.99989]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("ExtraGlow:material_override:shader_parameter/alpha_multiplier")
+tracks/1/interp = 2
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0, 0.4, 1.2),
+"transitions": PackedFloat32Array(1, 1, 1),
+"update": 0,
+"values": [1.0, 0.6, 1.0]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_300fy"]
+_data = {
+&"RESET": SubResource("Animation_84g1k"),
+&"main": SubResource("Animation_haugx")
+}
+
+[node name="RimAreaVFX_05" type="Node3D" unique_id=274045112]
+script = ExtResource("1_rs0ub")
+local_coords = true
+primary_color = Color(0.69411767, 0.9882353, 0.70980394, 1)
+secondary_color = Color(0, 0.9490196, 0.078431375, 1)
+light_color = Color(0, 0.9490196, 0.078431375, 1)
+
+[node name="Ground" type="MeshInstance3D" parent="." unique_id=2056761833]
+material_override = ExtResource("1_5ai0x")
+mesh = SubResource("QuadMesh_5al3w")
+
+[node name="Glow" type="MeshInstance3D" parent="." unique_id=1409131661]
+material_override = ExtResource("2_rs0ub")
+mesh = SubResource("QuadMesh_gqmsi")
+
+[node name="ExtraGlow" type="MeshInstance3D" parent="." unique_id=331978712]
+material_override = ExtResource("3_5ai0x")
+mesh = SubResource("QuadMesh_ie8so")
+
+[node name="Upward_01" type="MeshInstance3D" parent="." unique_id=1930924592]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.7, 0)
+material_override = ExtResource("4_rs0ub")
+mesh = SubResource("CylinderMesh_pegna")
+
+[node name="Upward_02" type="MeshInstance3D" parent="." unique_id=706724388]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
+material_override = ExtResource("4_rs0ub")
+mesh = SubResource("CylinderMesh_hu7nh")
+
+[node name="Light" type="OmniLight3D" parent="." unique_id=840854865]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
+light_color = Color(0, 0.9490196, 0.078431375, 1)
+light_energy = 3.99956
+omni_range = 10.0
+omni_attenuation = 0.5
+script = ExtResource("5_pin8h")
+base_energy = 4.0
+light_multiplier = 0.99989
+metadata/_custom_type_script = "uid://bdk8hhttligw"
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=1179520215]
+libraries/ = SubResource("AnimationLibrary_300fy")

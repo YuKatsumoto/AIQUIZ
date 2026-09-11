@@ -133,6 +133,7 @@ var _viewport: SubViewport
 var _preview_camera: Camera3D
 var _stage_env: StageEnvironment = null
 var _preview_walls: Array[Node3D] = []
+var _menu_pickup_retracted_walls: Array[Dictionary] = []
 var _wall_merge: PreviewWallMergeAnimator = null
 var _preview_scroll_z: float = 0.0
 var _preview_speed: float = AUTO_WALL_SPEED
@@ -510,7 +511,6 @@ func _build_3d_scene() -> void:
 	_menu_intro_active = true
 	_finish_menu_helicopter_intro(true)
 
-
 func _begin_menu_helicopter_intro() -> void:
 	_menu_intro_active = true
 	if not _viewport or not _preview_gs or not _preview_player or not _preview_camera:
@@ -628,11 +628,37 @@ func begin_game_start_departure(player_count: int) -> bool:
 		_preview_camera,
 		count
 	)
+	_clear_game_start_pickup_area(_menu_start_departure.get_menu_pickup_clearance_z())
 	return _menu_start_departure_active
+
+
+func _clear_game_start_pickup_area(back_z: float) -> void:
+	# Retract only walls in the pickup corridor before anyone begins running.
+	# Lower them into the floor instead of sweeping a wall through an actor.
+	var front_z := maxf(_preview_gs.player_local_z, _preview_gs.player2_local_z) + 2.0
+	for wall: Node3D in _preview_walls:
+		if not is_instance_valid(wall) or not wall.visible:
+			continue
+		if wall.position.z <= back_z or wall.position.z >= front_z:
+			continue
+		var retract := create_tween()
+		_menu_pickup_retracted_walls.append({
+			"wall": wall, "position": wall.position, "tween": retract,
+			"collision_processed": wall.get_meta("preview_collision_processed", false),
+		})
+		wall.set_meta("preview_collision_processed", true)
+		retract.tween_property(wall, "position:y", StageConstants.FLOOR_TOP_Y - 8.0, 0.35)
+		retract.tween_callback(wall.hide)
 
 
 func is_game_start_departure_active() -> bool:
 	return _menu_start_departure_active
+
+
+func is_ready_for_scene_cover(cover_duration: float = -1.0) -> bool:
+	if _menu_start_departure != null and is_instance_valid(_menu_start_departure):
+		return _menu_start_departure.is_ready_for_scene_cover(cover_duration)
+	return not _menu_start_departure_active
 
 
 func cancel_game_start_departure() -> void:
@@ -654,6 +680,15 @@ func _on_game_start_departure_finished(success: bool) -> void:
 			_preview_player.visible = false
 	else:
 		_menu_departure_hold = false
+		for entry: Dictionary in _menu_pickup_retracted_walls:
+			var retract := entry["tween"] as Tween
+			if retract != null and retract.is_valid():
+				retract.kill()
+			var wall := entry["wall"] as Node3D
+			if is_instance_valid(wall):
+				wall.position = entry["position"]
+				wall.visible = true
+				wall.set_meta("preview_collision_processed", entry["collision_processed"])
 		_reset_preview_ai_state()
 		if _is_local_2p_active():
 			_reset_preview_actor2_ai_state()
@@ -661,6 +696,7 @@ func _on_game_start_departure_finished(success: bool) -> void:
 		if _preview_player and _preview_gs:
 			_preview_player.update_from_state(_preview_gs)
 			_sync_preview_player_cosmetics(true)
+	_menu_pickup_retracted_walls.clear()
 	game_start_departure_finished.emit(success)
 
 
@@ -684,7 +720,8 @@ func _pick_preview_quiz() -> QuizItem:
 		return null
 	_preview_subject_idx = (_preview_subject_idx + 1) % Constants.SUBJECTS.size()
 	var subject: String = Constants.SUBJECTS[_preview_subject_idx]
-	var grade: int = randi_range(1, 6)
+	var subject_grades := Constants.grades_for_subject(subject)
+	var grade: int = subject_grades.pick_random()
 	var got: Array[QuizItem] = _quiz_provider.get_quizzes(
 		subject, grade, "普通", Constants.MODE_ENDLESS, 1)
 	if got.is_empty() or got[0] == null:

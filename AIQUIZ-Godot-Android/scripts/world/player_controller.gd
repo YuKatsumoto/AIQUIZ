@@ -1,6 +1,8 @@
 extends Node3D
 class_name PlayerController
 
+const ToonPresets = preload("res://scripts/cosmetics/character_toon_presets.gd")
+
 ## 繝悶Ο繝・け莠ｺ髢薙・繝ｬ繧､繝､繝ｼ (髢｢遽莉倥″髫主ｱ､繝｢繝・Ν)
 ## Python迚・renderer.py 縺ｮ _draw_player_alive / _draw_player_exploding 縺ｫ逶ｸ蠖・
 
@@ -17,19 +19,103 @@ var p1_parts := {}
 var p2_parts := {}
 var p2_container: Node3D
 
+# --- HFF風アクティブラグドール (Phase2) ---
+# 四肢を物理ボディ化し、_animate_skeleton が動かす表示ピボットを目標として
+# PDトルクで半追従させる。表示用の四肢メッシュは隠し、物理ボディが見える四肢
+# として振る舞う(体幹はキネマのまま=Phase6で物理化予定)。
+# 通常走行中のアクティブラグドールは無効。壁衝突死では同じ物理骨格をその瞬間だけ生成し、
+# 受動ラグドールとして吹き飛ばす。
+const USE_ACTIVE_RAGDOLL := false
+const WALL_RAGDOLL_GAME_VELOCITY := Vector3(0.0, 7.0, -11.0)
+const WALL_RAGDOLL_PREVIEW_VELOCITY := Vector3(0.0, 6.0, 8.0)
+const WALL_RAGDOLL_SIDE_VELOCITY := 2.2
+const WALL_RAGDOLL_SPIN := Vector3(5.5, 1.5, 3.3)
+const INTRO_LANDED_TORSO_HEIGHT := 1.20
+const INTRO_DROP_LINEAR_DAMP := 0.08
+const INTRO_DROP_ANGULAR_DAMP := 0.05
+const INTRO_DROP_FRICTION := 0.55
+const INTRO_DROP_RESTITUTION := 0.08
+const INTRO_SETTLE_SPEED := 0.45
+const INTRO_SETTLE_HOLD := 0.25
+const INTRO_GET_UP_DELAY := 2.00
+const INTRO_GET_UP_DURATION := 2.20
+const INTRO_LADDER_STAND_DELAY := 0.0
+const INTRO_LADDER_STAND_DURATION := 0.20
+const INTRO_LADDER_JUMP_MAX_SECONDS := 4.00
+const INTRO_LADDER_JUMP_ANGULAR_DAMP := 6.0
+const INTRO_LADDER_LAND_LINEAR_DAMP := 10.0
+const INTRO_LADDER_LAND_ANGULAR_DAMP := 14.0
+const INTRO_LADDER_MAX_SPIN := 5.5
+const INTRO_SLIDE_SPEED := 6.5
+const INTRO_SLIDE_TURN_SECONDS := 0.55
+const INTRO_SLIDE_START_TRAVEL := 0.18
+const INTRO_SLIDE_FOOT_CLEARANCE := -0.12
+const INTRO_READY_RUN_POSE_RATIO := 0.32
+const INTRO_SUCTION_CAPTURE_DISTANCE := 1.05
+const INTRO_PELVIS_HEIGHT := 0.9
+const INTRO_JUMP_START_SECONDS := 0.18
+const INTRO_JUMP_LAND_SECONDS := 0.32
+const INTRO_LAND_BLEND := 0.35
+const INTRO_JUMP_GRAVITY := 9.8
+const INTRO_CABIN_POSE_KEYS := [
+	"pelvis", "spine", "neck", "head_pivot",
+	"l_shoulder", "r_shoulder", "l_elbow", "r_elbow",
+	"l_wrist", "r_wrist", "l_hip", "r_hip", "l_knee", "r_knee",
+	"l_ankle", "r_ankle", "l_toe", "r_toe",
+]
+const RagdollBuilderScript = preload("res://scripts/world/ragdoll_builder.gd")
+const ActiveRagdollDriverScript = preload("res://scripts/world/active_ragdoll_driver.gd")
+const GHOST_MOUNT_ANIMATION_PATH := "res://assets/animations/Ghost Shark Mount.fbx"
+const GHOST_RIDER_MOUNT_SCALE: float = 0.62
+const GHOST_RIDER_BIND_TRANSFORMS_META := &"ghost_mount_bind_transforms"
+const GHOST_RIDER_MOUNT_SCALE_META := &"ghost_mount_scale"
+const GHOST_RIDER_MOUNT_TRANSFORM_META := &"ghost_mount_target_transform"
+# 物理駆動に置き換えるため非表示にする表示メッシュのキー
+const _RAGDOLL_HIDE_KEYS := [
+	"head", "l_upp_arm", "l_low_arm", "r_upp_arm", "r_low_arm",
+	"l_thigh", "l_calf", "l_foot", "r_thigh", "r_calf", "r_foot",
+	"l_toe_mesh", "r_toe_mesh", "l_hand", "r_hand",
+	"lower_torso", "upper_torso",  # Phase6: 体幹も物理体化したため表示メッシュを隠す
+]
+var _p1_ragdoll: Dictionary = {}
+var _p2_ragdoll: Dictionary = {}
+var _p1_driver: ActiveRagdollDriver = null
+var _p2_driver: ActiveRagdollDriver = null
+
+# Arrival ragdolls are deliberately separate from the one-hit death presentation.
+# They are short-lived and never participate in alive/dead state restoration.
+var _intro_ragdolls: Dictionary = {}
+var _intro_hat_restore: Dictionary = {}
+var _intro_pending_players: Dictionary = {}
+## Menu departure only: procedural player parts are posed against a live rope rung.
+var _intro_ladder_grabs: Dictionary = {}
+## Gameplay arrival: visible cabin sit without a ragdoll.
+var _intro_cabin_rides: Dictionary = {}
+## Gameplay arrival: scripted ladder jump onto the start mark.
+var _intro_jumps: Dictionary = {}
+var _intro_slides: Dictionary = {}
+## Menu extraction hides the standing runners until the scene leaves.
+var _intro_extracted := false
+
 # Hat state
 var _p1_hat_id: int = 0
 var _p2_hat_id: int = 0
 var _p1_hat_node: Node3D = null
 var _p2_hat_node: Node3D = null
+var _p1_toon_preset_id: int = -1
+var _p2_toon_preset_id: int = -1
 
 var _p1_exploding: bool = false
 var _p2_exploding: bool = false
+var _p1_result_exploded: bool = false
+var _p2_result_exploded: bool = false
+var _p1_result_explosion_elapsed: float = 0.0
+var _p2_result_explosion_elapsed: float = 0.0
 var _p1_explosion_bodies: Array[RigidBody3D] = []
 var _p2_explosion_bodies: Array[RigidBody3D] = []
 
 const EXPLOSION_DEBRIS_LIFETIME: float = 4.5
-const EXPLOSION_MAGMA_SURFACE_Y: float = -9.2
+const EXPLOSION_SINK_SURFACE_Y: float = StageConstants.OCEAN_SURFACE_Y
 const EXPLOSION_KILL_Y: float = -14.0
 const EXPLOSION_MIN_COLLISION_SIZE: float = 0.10
 const EXPLOSION_IMPULSE_X_MIN: float = 5.5
@@ -38,6 +124,13 @@ const EXPLOSION_IMPULSE_Y_MIN: float = 9.0
 const EXPLOSION_IMPULSE_Y_MAX: float = 20.0
 const EXPLOSION_IMPULSE_Z_MIN: float = -9.0
 const EXPLOSION_IMPULSE_Z_MAX: float = 9.0
+const WALL_EXPLOSION_BACKWARD_Z_MIN: float = 2.4
+const WALL_EXPLOSION_BACKWARD_Z_MAX: float = 5.8
+const WALL_EXPLOSION_SIDE_SPEED_MIN: float = 2.4
+const WALL_EXPLOSION_SIDE_SPEED_MAX: float = 5.2
+const WALL_EXPLOSION_UP_SPEED_MIN: float = 4.0
+const WALL_EXPLOSION_UP_SPEED_MAX: float = 7.0
+const WALL_EXPLOSION_SPIN_MAX: float = 5.5
 const EXPLOSION_TORQUE_MIN: float = -22.0
 const EXPLOSION_TORQUE_MAX: float = 22.0
 const EXPLOSION_PHYSICS_FRICTION: float = 0.62
@@ -46,6 +139,7 @@ const EXPLOSION_PHYSICS_BOUNCE: float = 0.32
 # Animation Rig (P1/P2蜈ｱ騾壹け繝ｩ繧ｹ縺ｧ邂｡逅・
 var _p1_rig: AnimationRig = AnimationRig.new("P1")
 var _p2_rig: AnimationRig = AnimationRig.new("P2")
+var _ghost_mount_rig_data: Dictionary = {}
 
 var _time: float = 0.0
 const BASE_Y: float = -1.2
@@ -57,8 +151,2181 @@ var _p2_bobble: Dictionary = {"active": false, "vel_x": 0.0, "vel_z": 0.0, "angl
 
 func _ready() -> void:
 	p1_parts = _build_player_skeleton(true, self)
+	# ラグドール生成は _process で self.position が実プレイヤー位置へ設定された後に
+	# 遅延実行する(_ready 時点では原点のため、初フレームのアンカー瞬間移動を回避)。
 	var gs = QuizManager.game_state
 	_load_mixamo_rig(gs)
+	_load_ghost_mount_rig()
+
+
+## 四肢物理ツリー+駆動器を生成する。
+## 物理ボディは「移動するプレイヤーノード」の子にできない(物理が親変換と競合)。
+## 静止した親(このコントローラの親)の下に別ツリーで生成し、キネマアンカーを
+## pelvis のワールド変換へ毎物理フレーム同期して四肢を追従させる。
+func _setup_ragdoll(parts: Dictionary, is_p1: bool) -> Dictionary:
+	var host: Node = get_parent()
+	if host == null:
+		host = self
+	var container := Node3D.new()
+	container.name = "RagdollLimbsP1" if is_p1 else "RagdollLimbsP2"
+	host.add_child(container)
+
+	var limb_col: Color = P1_LIMB if is_p1 else P2_LIMB
+	var head_col: Color = P1_HEAD if is_p1 else P2_HEAD
+	var body_col: Color = P1_BODY if is_p1 else P2_BODY
+	var rag: Dictionary = RagdollBuilderScript.build(container, parts["pelvis"], parts, {
+		"debug": false, "limb_color": limb_col, "head_color": head_col, "torso_color": body_col,
+		"toon_preset": _p1_toon_preset_id if is_p1 else _p2_toon_preset_id,
+	})
+
+	# 物理駆動に置き換える表示メッシュを非表示にする(体幹は表示のまま)
+	for key in _RAGDOLL_HIDE_KEYS:
+		var n = parts.get(key)
+		if n and is_instance_valid(n):
+			n.visible = false
+
+	var driver: ActiveRagdollDriver = ActiveRagdollDriverScript.new()
+	driver.name = "ActiveRagdollDriverP1" if is_p1 else "ActiveRagdollDriverP2"
+	driver.process_physics_priority = 10   # 目標アニメ(_process)の後に駆動
+	container.add_child(driver)
+	driver.setup(rag, parts, parts["pelvis"])
+
+	return {"rag": rag, "driver": driver, "container": container}
+
+
+## HFF: 死亡時の脱力。駆動を止め、全身(通常 gravity_scale=0 の体幹を含む)を
+## 自重で崩れ落とす。爆発デブリではなくグニャっと崩れる HFF らしい死に方。
+func _go_limp(ragdoll: Dictionary) -> void:
+	var driver = ragdoll.get("driver")
+	if driver and is_instance_valid(driver):
+		driver.enabled = false
+	var rag: Dictionary = ragdoll.get("rag", {})
+	var rag_bodies: Dictionary = rag.get("bodies", {})
+	for key in rag_bodies:
+		var b = rag_bodies[key]
+		if key != "anchor" and b is RigidBody3D and is_instance_valid(b):
+			b.gravity_scale = 1.0   # 体幹(0だった)も含め全身を自重落下させる
+			b.can_sleep = true       # 崩れて静止したらスリープ(負荷低減)
+
+
+## 壁へ走り込んだ勢いを保ったまま、全身を後方・上方へ吹き飛ばす。
+## 全ボディを同じ初速にそろえ、ジョイント経由でインパルスが重複増幅しないようにする。
+func _launch_wall_ragdoll(ragdoll: Dictionary, is_p1: bool) -> void:
+	_go_limp(ragdoll)
+	var rag: Dictionary = ragdoll.get("rag", {})
+	var rag_bodies: Dictionary = rag.get("bodies", {})
+	var torso: RigidBody3D = rag_bodies.get("torso") as RigidBody3D
+	var side_sign := 1.0 if (torso != null and torso.global_position.x >= 0.0) else -1.0
+	if torso == null or absf(torso.global_position.x) < 0.05:
+		side_sign = -1.0 if is_p1 else 1.0
+	# メニューは壁が -Z 側から流れてくるため、コース前方が本編と逆向きになる。
+	var launch_velocity := (
+		WALL_RAGDOLL_PREVIEW_VELOCITY
+		if _is_preview_subviewport()
+		else WALL_RAGDOLL_GAME_VELOCITY
+	)
+	launch_velocity.x = WALL_RAGDOLL_SIDE_VELOCITY * side_sign
+	for key: Variant in rag_bodies:
+		if str(key) == "anchor":
+			continue
+		var body: RigidBody3D = rag_bodies[key] as RigidBody3D
+		if body == null or not is_instance_valid(body):
+			continue
+		body.sleeping = false
+		body.linear_velocity = launch_velocity
+		var spin_sign := -1.0 if (str(key).hash() & 1) == 0 else 1.0
+		body.angular_velocity = Vector3(
+			WALL_RAGDOLL_SPIN.x * spin_sign,
+			WALL_RAGDOLL_SPIN.y * side_sign,
+			WALL_RAGDOLL_SPIN.z * side_sign * spin_sign
+		)
+
+
+## ラグドールツリーを破棄する(別親に置いているため明示的に解放)。
+func _teardown_ragdoll(ragdoll: Dictionary) -> void:
+	if ragdoll.has("container"):
+		var c = ragdoll["container"]
+		if is_instance_valid(c):
+			c.queue_free()
+
+
+## Creates the short-lived arrival ragdoll at the helicopter release transform.
+## The real player stays at its authoritative gameplay transform, but is hidden
+## until complete_intro_drops() restores it.
+func prepare_intro_arrival(player_count: int) -> void:
+	_intro_extracted = false
+	_intro_pending_players.clear()
+	var count := clampi(player_count, 1, 2)
+	for player_index: int in range(1, count + 1):
+		_intro_pending_players[player_index] = true
+		var is_p1 := player_index == 1
+		var parts: Dictionary = p1_parts if is_p1 else p2_parts
+		_set_parts_visible(parts, false)
+		_set_hat_visible(is_p1, false)
+		_set_rig_scenes_visible(is_p1, false)
+
+
+## Builds the actual drop ragdoll inside the aircraft in a compact crouch.  Every
+## body and joint is held in aircraft-local space until begin_intro_drop() releases
+## this same instance, so the passenger never swaps to a separate prop.
+func begin_intro_cabin_wait(player_index: int, cabin_transform: Transform3D) -> bool:
+	if player_index not in [1, 2] or _intro_ragdolls.has(player_index):
+		return false
+	var is_p1 := player_index == 1
+	var parts: Dictionary = p1_parts if is_p1 else p2_parts
+	var root: Node3D = self if is_p1 else p2_container
+	var pelvis := parts.get("pelvis") as Node3D
+	if root == null or pelvis == null or not is_instance_valid(root) or not is_instance_valid(pelvis):
+		return false
+
+	var original_root_transform := root.global_transform
+	var original_pose := _capture_intro_pose(parts)
+	_apply_intro_cabin_crouch_pose(parts)
+	var pelvis_from_root := root.global_transform.affine_inverse() * pelvis.global_transform
+	root.global_transform = cabin_transform * pelvis_from_root.affine_inverse()
+	var ragdoll := _setup_ragdoll(parts, is_p1)
+	root.global_transform = original_root_transform
+	_restore_intro_pose(parts, original_pose)
+	if ragdoll.is_empty():
+		return false
+
+	_disable_intro_driver(ragdoll)
+	var rag: Dictionary = ragdoll.get("rag", {})
+	var bodies: Dictionary = rag.get("bodies", {})
+	var joints: Dictionary = rag.get("joints", {})
+	_arrange_intro_cabin_head(rag, cabin_transform)
+	var body_local_transforms := {}
+	var joint_local_transforms := {}
+	var collision_layers := {}
+	var collision_masks := {}
+	for key: Variant in bodies:
+		var body := bodies[key] as RigidBody3D
+		if body == null or not is_instance_valid(body):
+			continue
+		body_local_transforms[key] = cabin_transform.affine_inverse() * body.global_transform
+		collision_layers[key] = body.collision_layer
+		collision_masks[key] = body.collision_mask
+		body.freeze = true
+		body.freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
+		body.gravity_scale = 0.0
+		body.collision_layer = 0
+		body.collision_mask = 0
+		body.linear_velocity = Vector3.ZERO
+		body.angular_velocity = Vector3.ZERO
+	for key: Variant in joints:
+		var joint := joints[key] as Joint3D
+		if joint != null and is_instance_valid(joint):
+			joint_local_transforms[key] = cabin_transform.affine_inverse() * joint.global_transform
+
+	_attach_intro_hat(player_index, ragdoll, is_p1)
+	_set_parts_visible(parts, false)
+	_set_rig_scenes_visible(is_p1, false)
+	_intro_pending_players.erase(player_index)
+	ragdoll["cabin_wait"] = {
+		"active": true,
+		"body_local_transforms": body_local_transforms,
+		"joint_local_transforms": joint_local_transforms,
+		"collision_layers": collision_layers,
+		"collision_masks": collision_masks,
+		"last_transform": cabin_transform,
+	}
+	_intro_ragdolls[player_index] = ragdoll
+	return true
+
+
+func _arrange_intro_cabin_head(rag: Dictionary, cabin_transform: Transform3D) -> void:
+	# From below, an upright crouch collapses into the underside of the torso. Pull
+	# the real simulated parts toward the hatch by a small, keyed depth so the head,
+	# folded arms and knees read as one crouched passenger. Nothing here is a prop:
+	# these same bodies and joints are unfrozen at the authored release beat.
+	var bodies: Dictionary = rag.get("bodies", {})
+	var joints: Dictionary = rag.get("joints", {})
+	for body_key: Variant in bodies:
+		if str(body_key) == "anchor":
+			continue
+		var body := bodies[body_key] as RigidBody3D
+		if body == null or not is_instance_valid(body):
+			continue
+		var local_transform := cabin_transform.affine_inverse() * body.global_transform
+		var key := str(body_key)
+		local_transform.origin.y = (
+			0.35 if key == "torso"
+			else -0.10 if key == "head" or key.ends_with("hand") or key.ends_with("foot")
+			else -0.05
+		)
+		body.global_transform = cabin_transform * local_transform
+	for joint_key: Variant in joints:
+		var joint := joints[joint_key] as Joint3D
+		if joint == null or not is_instance_valid(joint):
+			continue
+		var local_transform := cabin_transform.affine_inverse() * joint.global_transform
+		local_transform.origin.y = -0.02
+		joint.global_transform = cabin_transform * local_transform
+	var head := bodies.get("head") as RigidBody3D
+	if head != null and is_instance_valid(head):
+		var head_transform := head.global_transform
+		# Let the crouched passenger peek down through the opening. The head remains
+		# attached to the same neck joint and is only 12 cm past the exterior skin.
+		head_transform.origin = cabin_transform * Vector3(0.0, -0.22, 0.0)
+		head.global_transform = head_transform
+		_add_intro_cabin_face(head, cabin_transform)
+	var neck_joint := joints.get("head") as Joint3D
+	if neck_joint != null and is_instance_valid(neck_joint):
+		var neck_transform := neck_joint.global_transform
+		neck_transform.origin = cabin_transform * Vector3(0.0, -0.05, 0.04)
+		neck_joint.global_transform = neck_transform
+
+
+func _add_intro_cabin_face(head: RigidBody3D, cabin_transform: Transform3D) -> void:
+	if head.get_node_or_null("CabinFaceDetails") != null:
+		return
+	var face := Node3D.new()
+	face.name = "CabinFaceDetails"
+	head.add_child(face)
+	face.global_transform = Transform3D(
+		cabin_transform.basis.orthonormalized(),
+		head.global_position - cabin_transform.basis.y.normalized() * 0.225
+	)
+	var face_material := StandardMaterial3D.new()
+	face_material.albedo_color = Color(0.025, 0.045, 0.075)
+	face_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	for eye_x: float in [-0.075, 0.075]:
+		var eye := MeshInstance3D.new()
+		var eye_mesh := BoxMesh.new()
+		eye_mesh.size = Vector3(0.055, 0.018, 0.055)
+		eye.mesh = eye_mesh
+		eye.material_override = face_material
+		eye.position = Vector3(eye_x, 0.0, 0.045)
+		face.add_child(eye)
+	var mouth := MeshInstance3D.new()
+	var mouth_mesh := BoxMesh.new()
+	mouth_mesh.size = Vector3(0.12, 0.018, 0.026)
+	mouth.mesh = mouth_mesh
+	mouth.material_override = face_material
+	mouth.position = Vector3(0.0, 0.0, -0.055)
+	face.add_child(mouth)
+
+
+func update_intro_cabin_wait(player_index: int, cabin_transform: Transform3D) -> bool:
+	var ragdoll: Dictionary = _intro_ragdolls.get(player_index, {})
+	var cabin_wait: Dictionary = ragdoll.get("cabin_wait", {})
+	if ragdoll.is_empty() or not bool(cabin_wait.get("active", false)):
+		return false
+	var rag: Dictionary = ragdoll.get("rag", {})
+	var bodies: Dictionary = rag.get("bodies", {})
+	var joints: Dictionary = rag.get("joints", {})
+	var body_local_transforms: Dictionary = cabin_wait.get("body_local_transforms", {})
+	for key: Variant in body_local_transforms:
+		var body := bodies.get(key) as RigidBody3D
+		if body == null or not is_instance_valid(body):
+			continue
+		body.global_transform = cabin_transform * body_local_transforms[key]
+		body.linear_velocity = Vector3.ZERO
+		body.angular_velocity = Vector3.ZERO
+	var joint_local_transforms: Dictionary = cabin_wait.get("joint_local_transforms", {})
+	for key: Variant in joint_local_transforms:
+		var joint := joints.get(key) as Joint3D
+		if joint != null and is_instance_valid(joint):
+			joint.global_transform = cabin_transform * joint_local_transforms[key]
+	cabin_wait["last_transform"] = cabin_transform
+	ragdoll["cabin_wait"] = cabin_wait
+	_intro_ragdolls[player_index] = ragdoll
+	return true
+
+
+func begin_intro_drop(
+	player_index: int,
+	release_transform: Transform3D,
+	inherited_velocity: Vector3 = Vector3.ZERO
+) -> bool:
+	if player_index not in [1, 2]:
+		return false
+	if _intro_ragdolls.has(player_index):
+		return _release_intro_cabin_wait(player_index, inherited_velocity)
+	var is_p1 := player_index == 1
+	var parts: Dictionary = p1_parts if is_p1 else p2_parts
+	var root: Node3D = self if is_p1 else p2_container
+	var pelvis := parts.get("pelvis") as Node3D
+	if root == null or pelvis == null or not is_instance_valid(root) or not is_instance_valid(pelvis):
+		return false
+
+	# Build at the release point without changing the authoritative runner transform.
+	var original_root_transform := root.global_transform
+	var pelvis_from_root := root.global_transform.affine_inverse() * pelvis.global_transform
+	root.global_transform = release_transform * pelvis_from_root.affine_inverse()
+	var ragdoll := _setup_ragdoll(parts, is_p1)
+	root.global_transform = original_root_transform
+	if ragdoll.is_empty():
+		return false
+
+	_configure_intro_drop_ragdoll(ragdoll, inherited_velocity)
+	_attach_intro_hat(player_index, ragdoll, is_p1)
+
+	_set_parts_visible(parts, false)
+	_set_rig_scenes_visible(is_p1, false)
+	_intro_pending_players.erase(player_index)
+	ragdoll["drop"] = {
+		"was_airborne": false,
+		"floor_contacted": false,
+		"settled": false,
+		"settle_hold": 0.0,
+		"peak_downward_speed": 0.0,
+	}
+	_intro_ragdolls[player_index] = ragdoll
+	return true
+
+
+func _release_intro_cabin_wait(player_index: int, inherited_velocity: Vector3) -> bool:
+	var ragdoll: Dictionary = _intro_ragdolls.get(player_index, {})
+	var cabin_wait: Dictionary = ragdoll.get("cabin_wait", {})
+	if ragdoll.is_empty() or not bool(cabin_wait.get("active", false)):
+		return false
+	cabin_wait["active"] = false
+	ragdoll["cabin_wait"] = cabin_wait
+	_configure_intro_drop_ragdoll(ragdoll, inherited_velocity, cabin_wait)
+	ragdoll["drop"] = {
+		"was_airborne": false,
+		"floor_contacted": false,
+		"settled": false,
+		"settle_hold": 0.0,
+		"peak_downward_speed": 0.0,
+	}
+	_intro_ragdolls[player_index] = ragdoll
+	return true
+
+
+func _configure_intro_drop_ragdoll(
+	ragdoll: Dictionary,
+	inherited_velocity: Vector3,
+	cabin_wait: Dictionary = {}
+) -> void:
+	_go_limp(ragdoll)
+	_disable_intro_driver(ragdoll)
+	var rag: Dictionary = ragdoll.get("rag", {})
+	var bodies: Dictionary = rag.get("bodies", {})
+	var collision_layers: Dictionary = cabin_wait.get("collision_layers", {})
+	var collision_masks: Dictionary = cabin_wait.get("collision_masks", {})
+	var intro_anchor := bodies.get("anchor") as RigidBody3D
+	if intro_anchor != null and is_instance_valid(intro_anchor):
+		intro_anchor.freeze = true
+		intro_anchor.freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
+	var intro_physics_material := PhysicsMaterial.new()
+	intro_physics_material.friction = INTRO_DROP_FRICTION
+	intro_physics_material.bounce = INTRO_DROP_RESTITUTION
+	for key: Variant in bodies:
+		if str(key) == "anchor":
+			continue
+		var body := bodies[key] as RigidBody3D
+		if body == null or not is_instance_valid(body):
+			continue
+		body.freeze = false
+		body.sleeping = false
+		body.gravity_scale = 1.0
+		body.collision_layer = int(collision_layers.get(key, 2))
+		body.collision_mask = int(collision_masks.get(key, 1))
+		body.continuous_cd = true
+		body.contact_monitor = true
+		body.max_contacts_reported = 8
+		body.physics_material_override = intro_physics_material
+		body.linear_damp = INTRO_DROP_LINEAR_DAMP
+		body.angular_damp = INTRO_DROP_ANGULAR_DAMP
+		# Same world velocity on every body: the ragdoll was at rest in the aircraft.
+		body.linear_velocity = inherited_velocity
+		body.angular_velocity = Vector3.ZERO
+
+
+func _disable_intro_driver(ragdoll: Dictionary) -> void:
+	var intro_driver: ActiveRagdollDriver = ragdoll.get("driver") as ActiveRagdollDriver
+	if intro_driver != null and is_instance_valid(intro_driver):
+		intro_driver.enabled = false
+		intro_driver.set_physics_process(false)
+
+
+func _attach_intro_hat(player_index: int, ragdoll: Dictionary, is_p1: bool) -> void:
+	if _intro_hat_restore.has(player_index):
+		return
+	var rag: Dictionary = ragdoll.get("rag", {})
+	var bodies: Dictionary = rag.get("bodies", {})
+	var hat: Node3D = _p1_hat_node if is_p1 else _p2_hat_node
+	var head_body := bodies.get("head") as RigidBody3D
+	if hat == null or not is_instance_valid(hat) or head_body == null:
+		return
+	_intro_hat_restore[player_index] = {
+		"hat": hat,
+		"parent": hat.get_parent(),
+		"transform": hat.transform,
+		"visible": hat.visible,
+	}
+	hat.reparent(head_body, true)
+	hat.visible = true
+
+
+func _capture_intro_pose(parts: Dictionary) -> Dictionary:
+	var pose := {}
+	for key: String in INTRO_CABIN_POSE_KEYS:
+		var node := parts.get(key) as Node3D
+		if node != null and is_instance_valid(node):
+			pose[key] = node.transform
+	return pose
+
+
+func _restore_intro_pose(parts: Dictionary, pose: Dictionary) -> void:
+	for key: Variant in pose:
+		var node := parts.get(key) as Node3D
+		if node != null and is_instance_valid(node):
+			node.transform = pose[key]
+
+
+func _apply_intro_cabin_crouch_pose(parts: Dictionary) -> void:
+	for key: String in INTRO_CABIN_POSE_KEYS:
+		var node := parts.get(key) as Node3D
+		if node != null and is_instance_valid(node):
+			node.rotation = Vector3.ZERO
+	var pelvis := parts.get("pelvis") as Node3D
+	if pelvis != null:
+		pelvis.position = Vector3(0.0, BASE_Y + 0.9, 0.0)
+	var spine := parts.get("spine") as Node3D
+	if spine != null:
+		spine.rotation.x = deg_to_rad(65.0)
+	var neck := parts.get("neck") as Node3D
+	if neck != null:
+		neck.rotation.x = deg_to_rad(-45.0)
+	var head := parts.get("head_pivot") as Node3D
+	if head != null:
+		head.rotation.x = deg_to_rad(-8.0)
+	for prefix: String in ["l_", "r_"]:
+		var shoulder := parts.get(prefix + "shoulder") as Node3D
+		var elbow := parts.get(prefix + "elbow") as Node3D
+		var wrist := parts.get(prefix + "wrist") as Node3D
+		var hip := parts.get(prefix + "hip") as Node3D
+		var knee := parts.get(prefix + "knee") as Node3D
+		var ankle := parts.get(prefix + "ankle") as Node3D
+		if shoulder != null:
+			shoulder.rotation.x = deg_to_rad(-48.0)
+		if elbow != null:
+			elbow.rotation.x = deg_to_rad(-92.0)
+		if wrist != null:
+			wrist.rotation.x = deg_to_rad(18.0)
+		if hip != null:
+			hip.rotation.x = deg_to_rad(-115.0)
+		if knee != null:
+			knee.rotation.x = deg_to_rad(150.0)
+		if ankle != null:
+			ankle.rotation.x = deg_to_rad(-35.0)
+
+
+## Keeps the landed body physically limp, then interpolates to the standing
+## pose only when the authored get-up motion actually begins.
+func begin_intro_get_up(
+	player_index: int,
+	landing_target: Vector3,
+	style: String = ""
+) -> bool:
+	var ragdoll: Dictionary = _intro_ragdolls.get(player_index, {})
+	if ragdoll.is_empty():
+		return false
+	var existing_recovery: Dictionary = ragdoll.get("recovery", {})
+	if bool(existing_recovery.get("active", false)):
+		return true
+
+	var rag: Dictionary = ragdoll.get("rag", {})
+	var bodies: Dictionary = rag.get("bodies", {})
+	var torso := bodies.get("torso") as RigidBody3D
+	if torso == null or not is_instance_valid(torso):
+		return false
+
+	var is_clean := style == "clean"
+	if is_clean:
+		_calm_intro_ragdoll(
+			ragdoll,
+			INTRO_LADDER_LAND_LINEAR_DAMP,
+			INTRO_LADDER_LAND_ANGULAR_DAMP,
+			true
+		)
+		_intro_ragdolls[player_index] = ragdoll
+		_restore_intro_runner_visuals(player_index)
+		var did_slide := _begin_intro_slide(player_index)
+		ragdoll["recovery"] = {
+			"active": true,
+			"complete": not did_slide,
+			"style": style,
+			"settle_elapsed": 0.0,
+			"delay": 0.0,
+			"standing_started": true,
+			"standing_elapsed": 0.0 if did_slide else 1.0,
+			"duration": INTRO_LADDER_STAND_DURATION,
+			"landing_target": landing_target,
+			"starts": {},
+			"targets": {},
+		}
+		_intro_ragdolls[player_index] = ragdoll
+		return true
+
+	# Menu limp get-up stays on the ragdoll. Extra damping lets the heap settle
+	# before the authored creepy interpolation takes over.
+	for key: Variant in bodies:
+		if str(key) == "anchor":
+			continue
+		var body := bodies[key] as RigidBody3D
+		if body == null or not is_instance_valid(body):
+			continue
+		body.freeze = false
+		body.gravity_scale = 1.0
+		body.linear_damp = maxf(body.linear_damp, 1.35)
+		body.angular_damp = maxf(body.angular_damp, 1.65)
+
+	ragdoll["recovery"] = {
+		"active": true,
+		"complete": false,
+		"style": style,
+		"settle_elapsed": 0.0,
+		"delay": INTRO_GET_UP_DELAY,
+		"standing_started": false,
+		"standing_elapsed": 0.0,
+		"duration": INTRO_GET_UP_DURATION,
+		"landing_target": landing_target,
+		"starts": {},
+		"targets": {},
+	}
+	_intro_ragdolls[player_index] = ragdoll
+	return true
+
+
+func _restore_intro_runner_visuals(player_index: int) -> void:
+	var is_p1 := player_index == 1
+	var parts: Dictionary = p1_parts if is_p1 else p2_parts
+	if _intro_hat_restore.has(player_index):
+		var restore: Dictionary = _intro_hat_restore[player_index]
+		var hat := restore.get("hat") as Node3D
+		var original_parent := restore.get("parent") as Node
+		if hat != null and is_instance_valid(hat) and original_parent != null and is_instance_valid(original_parent):
+			hat.reparent(original_parent, false)
+			hat.transform = restore.get("transform", Transform3D.IDENTITY)
+			hat.visible = bool(restore.get("visible", true))
+		_intro_hat_restore.erase(player_index)
+	_set_parts_visible(parts, true)
+	_set_hat_visible(is_p1, true)
+	_set_rig_scenes_visible(is_p1, false)
+	var ragdoll: Dictionary = _intro_ragdolls.get(player_index, {})
+	var container := ragdoll.get("container") as Node3D
+	if container != null and is_instance_valid(container):
+		container.visible = false
+
+
+func _snap_intro_ready_stance(player_index: int, landing: Vector3) -> void:
+	var parts: Dictionary = p1_parts if player_index == 1 else p2_parts
+	if parts.is_empty():
+		return
+	var is_p1 := player_index == 1
+	# Mixamo global-basis copy leaves hang-IK leftovers looking like a crumpled
+	# heap. Reset every authored joint to the planted run silhouette instead.
+	_animate_skeleton(parts, 0.0, 0.0, true, 0.0, not is_p1, 0)
+	var pelvis := parts.get("pelvis") as Node3D
+	if pelvis != null and is_instance_valid(pelvis):
+		pelvis.global_position = landing
+
+
+func _begin_intro_slide(player_index: int) -> bool:
+	var jump: Dictionary = _intro_jumps.get(player_index, {})
+	if jump.is_empty():
+		return false
+	var rig := _p1_rig if player_index == 1 else _p2_rig
+	if rig.resolve_ual_clip(AnimationRig.UAL2_SLIDE_START, AnimationRig.SLOT_UAL2).is_empty():
+		_snap_intro_ready_stance(
+			player_index,
+			jump.get("stand_landing", jump.get("landing", Vector3.ZERO))
+		)
+		return false
+	var from_pos: Vector3 = jump.get("landing", Vector3.ZERO)
+	var to_pos: Vector3 = jump.get("stand_landing", from_pos)
+	var inward_x := to_pos.x - from_pos.x
+	if is_zero_approx(inward_x):
+		inward_x = 1.0
+	# UAL2 slide is feet-first. Mixamo -Z is the face, so +X travel uses +PI/2
+	# (looking back toward the ocean) and the extended legs lead inward.
+	var facing_yaw := atan2(signf(inward_x), 0.0)
+	var start_len := maxf(
+		rig.get_ual_clip_length(AnimationRig.UAL2_SLIDE_START, AnimationRig.SLOT_UAL2),
+		0.35
+	)
+	var exit_len := maxf(
+		rig.get_ual_clip_length(AnimationRig.UAL2_SLIDE_EXIT, AnimationRig.SLOT_UAL2),
+		0.35
+	)
+	_intro_slides[player_index] = {
+		"phase": "start",
+		"elapsed": 0.0,
+		"from": from_pos,
+		"to": to_pos,
+		"position": from_pos,
+		"facing_yaw": facing_yaw,
+		"start_length": start_len,
+		"exit_length": exit_len,
+		"turn_length": INTRO_SLIDE_TURN_SECONDS,
+	}
+	rig.play_ual_clip(AnimationRig.UAL2_SLIDE_START, true, AnimationRig.SLOT_UAL2)
+	_apply_intro_slide_pose(player_index, from_pos, facing_yaw, AnimationRig.UAL2_SLIDE_START, 0.0)
+	return true
+
+
+func _apply_intro_slide_pose(
+	player_index: int,
+	world_position: Vector3,
+	facing_yaw: float,
+	clip_name: String,
+	ratio: float
+) -> void:
+	var parts: Dictionary = p1_parts if player_index == 1 else p2_parts
+	var rig := _p1_rig if player_index == 1 else _p2_rig
+	var played := false
+	if ratio < 0.0:
+		played = rig.play_ual_clip(clip_name, false, AnimationRig.SLOT_UAL2)
+	else:
+		played = rig.seek_ual_clip(clip_name, ratio, AnimationRig.SLOT_UAL2)
+	if played and rig.active_skeleton != null:
+		_apply_skeleton_pose(
+			parts,
+			rig.active_skeleton,
+			rig.active_bone_indices,
+			rig.mirror_x
+		)
+	else:
+		_animate_skeleton(parts, 0.0, 0.0, true, 0.0, player_index != 1, 0)
+	var pelvis := parts.get("pelvis") as Node3D
+	if pelvis == null or not is_instance_valid(pelvis):
+		return
+	var anim_basis := pelvis.basis
+	var posed_y := pelvis.global_position.y
+	pelvis.global_position = Vector3(world_position.x, posed_y, world_position.z)
+	pelvis.basis = Basis(Vector3.UP, facing_yaw) * anim_basis
+	_plant_intro_slide_on_floor(parts)
+
+
+func _plant_intro_slide_on_floor(parts: Dictionary) -> void:
+	var pelvis := parts.get("pelvis") as Node3D
+	if pelvis == null or not is_instance_valid(pelvis):
+		return
+	var lowest := _lowest_intro_slide_mesh_y(parts)
+	if not is_finite(lowest):
+		return
+	var desired := StageConstants.FLOOR_TOP_Y + INTRO_SLIDE_FOOT_CLEARANCE
+	pelvis.global_position.y += desired - lowest
+
+
+func _lowest_intro_slide_mesh_y(parts: Dictionary) -> float:
+	var lowest := INF
+	for key: String in ["lower_torso", "l_thigh", "r_thigh"]:
+		var mesh_instance := parts.get(key) as MeshInstance3D
+		if mesh_instance == null or not is_instance_valid(mesh_instance):
+			continue
+		var aabb := mesh_instance.get_aabb()
+		var xf := mesh_instance.global_transform
+		for corner_index: int in range(8):
+			lowest = minf(lowest, (xf * aabb.get_endpoint(corner_index)).y)
+	return lowest
+
+
+func _update_intro_slide(player_index: int, delta: float) -> bool:
+	if not _intro_slides.has(player_index):
+		return true
+	var slide: Dictionary = _intro_slides[player_index]
+	var from_pos: Vector3 = slide.get("from", Vector3.ZERO)
+	var to_pos: Vector3 = slide.get("to", from_pos)
+	var facing_yaw := float(slide.get("facing_yaw", 0.0))
+	var slide_pos: Vector3 = slide.get("position", from_pos)
+	var phase := str(slide.get("phase", "start"))
+	var elapsed := float(slide.get("elapsed", 0.0)) + delta
+	slide["elapsed"] = elapsed
+	var start_len := maxf(float(slide.get("start_length", 0.83)), 0.2)
+	var exit_len := maxf(float(slide.get("exit_length", 0.5)), 0.2)
+	var turn_len := maxf(float(slide.get("turn_length", INTRO_SLIDE_TURN_SECONDS)), 0.2)
+	var total_distance := absf(to_pos.x - from_pos.x)
+	var toward := signf(to_pos.x - from_pos.x)
+	if is_zero_approx(toward):
+		toward = 1.0
+	var current_yaw := facing_yaw
+
+	match phase:
+		"start":
+			var start_t := clampf(elapsed / start_len, 0.0, 1.0)
+			var start_travel := total_distance * INTRO_SLIDE_START_TRAVEL * smoothstep(0.0, 1.0, start_t)
+			slide_pos = from_pos
+			slide_pos.x = from_pos.x + toward * start_travel
+			_apply_intro_slide_pose(
+				player_index,
+				slide_pos,
+				facing_yaw,
+				AnimationRig.UAL2_SLIDE_START,
+				-1.0
+			)
+			if start_t >= 1.0:
+				slide["phase"] = "loop"
+				slide["elapsed"] = 0.0
+				var rig := _p1_rig if player_index == 1 else _p2_rig
+				rig.play_ual_clip(AnimationRig.UAL2_SLIDE_LOOP, true, AnimationRig.SLOT_UAL2)
+		"loop":
+			slide_pos.x = move_toward(slide_pos.x, to_pos.x, INTRO_SLIDE_SPEED * delta)
+			slide_pos.y = to_pos.y
+			slide_pos.z = to_pos.z
+			_apply_intro_slide_pose(
+				player_index,
+				slide_pos,
+				facing_yaw,
+				AnimationRig.UAL2_SLIDE_LOOP,
+				-1.0
+			)
+			var remaining := absf(to_pos.x - slide_pos.x)
+			var exit_cover := minf(remaining, INTRO_SLIDE_SPEED * exit_len * 0.45)
+			if remaining <= maxf(exit_cover, 0.08):
+				slide["phase"] = "exit"
+				slide["elapsed"] = 0.0
+				slide["exit_from"] = slide_pos
+				var rig_exit := _p1_rig if player_index == 1 else _p2_rig
+				rig_exit.play_ual_clip(AnimationRig.UAL2_SLIDE_EXIT, true, AnimationRig.SLOT_UAL2)
+		"exit":
+			var exit_t := clampf(elapsed / exit_len, 0.0, 1.0)
+			var exit_from: Vector3 = slide.get("exit_from", slide_pos)
+			slide_pos = exit_from.lerp(to_pos, smoothstep(0.0, 1.0, exit_t))
+			_apply_intro_slide_pose(
+				player_index,
+				slide_pos,
+				facing_yaw,
+				AnimationRig.UAL2_SLIDE_EXIT,
+				-1.0
+			)
+			if exit_t >= 1.0:
+				slide["phase"] = "turn"
+				slide["elapsed"] = 0.0
+				slide_pos = to_pos
+		"turn":
+			var turn_t := clampf(elapsed / turn_len, 0.0, 1.0)
+			current_yaw = lerp_angle(facing_yaw, 0.0, smoothstep(0.0, 1.0, turn_t))
+			slide_pos = to_pos
+			_apply_intro_slide_pose(
+				player_index,
+				slide_pos,
+				current_yaw,
+				AnimationRig.UAL2_SLIDE_EXIT,
+				1.0
+			)
+			if turn_t >= 1.0:
+				_snap_intro_ready_stance(player_index, to_pos)
+				_intro_slides.erase(player_index)
+				return true
+		_:
+			_intro_slides.erase(player_index)
+			return true
+
+	slide["position"] = slide_pos
+	slide["current_yaw"] = current_yaw
+	_intro_slides[player_index] = slide
+	if _intro_jumps.has(player_index):
+		var jump: Dictionary = _intro_jumps[player_index]
+		jump["position"] = slide_pos
+		_intro_jumps[player_index] = jump
+	return false
+
+
+func _apply_intro_ready_run_pose(player_index: int, parts: Dictionary) -> void:
+	if parts.is_empty():
+		return
+	var is_p1 := player_index == 1
+	var rig := _p1_rig if is_p1 else _p2_rig
+	if rig.is_rigged and rig.play_slot(AnimationRig.SLOT_RUN, true):
+		var run_player := rig.aps[AnimationRig.SLOT_RUN] as AnimationPlayer
+		var run_animation_name := String(rig.anim_names[AnimationRig.SLOT_RUN])
+		if run_player != null and not run_animation_name.is_empty():
+			var run_animation := run_player.get_animation(run_animation_name)
+			if run_animation != null:
+				run_player.seek(
+					run_animation.length * INTRO_READY_RUN_POSE_RATIO,
+					true,
+					true
+				)
+		_apply_skeleton_pose(
+			parts,
+			rig.active_skeleton,
+			rig.active_bone_indices,
+			rig.mirror_x
+		)
+		return
+	var fallback_phase := -0.85 if is_p1 else 0.85
+	_animate_skeleton(parts, 0.0, 0.0, true, fallback_phase, not is_p1, 0)
+
+
+func _capture_intro_ragdoll_transforms(ragdoll: Dictionary) -> Dictionary:
+	var captured: Dictionary = {}
+	var rag: Dictionary = ragdoll.get("rag", {})
+	var bodies: Dictionary = rag.get("bodies", {})
+	for key: Variant in bodies:
+		if str(key) == "anchor":
+			continue
+		var body := bodies[key] as RigidBody3D
+		if body == null or not is_instance_valid(body):
+			continue
+		captured[key] = body.global_transform
+	return captured
+
+
+func _calm_intro_ragdoll(
+	ragdoll: Dictionary,
+	linear_damp: float,
+	angular_damp: float,
+	freeze_bodies: bool
+) -> void:
+	var rag: Dictionary = ragdoll.get("rag", {})
+	var bodies: Dictionary = rag.get("bodies", {})
+	if freeze_bodies:
+		_disconnect_intro_joints(ragdoll)
+		for key: Variant in bodies:
+			if str(key) == "anchor":
+				continue
+			var freeze_body := bodies[key] as RigidBody3D
+			if freeze_body == null or not is_instance_valid(freeze_body):
+				continue
+			freeze_body.freeze = true
+			freeze_body.freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
+	for key: Variant in bodies:
+		if str(key) == "anchor":
+			continue
+		var body := bodies[key] as RigidBody3D
+		if body == null or not is_instance_valid(body):
+			continue
+		body.linear_velocity = Vector3.ZERO
+		body.angular_velocity = Vector3.ZERO
+		body.linear_damp = linear_damp
+		body.angular_damp = angular_damp
+		body.gravity_scale = 0.0 if freeze_bodies else 1.0
+		var material := body.physics_material_override
+		if material != null:
+			var landed_material := material.duplicate() as PhysicsMaterial
+			if landed_material != null:
+				landed_material.bounce = 0.0
+				landed_material.friction = 1.0
+				body.physics_material_override = landed_material
+		if freeze_bodies:
+			body.sleeping = true
+		else:
+			body.freeze = false
+			body.sleeping = false
+
+
+func _disconnect_intro_joints(ragdoll: Dictionary) -> void:
+	var rag: Dictionary = ragdoll.get("rag", {})
+	var joints: Dictionary = rag.get("joints", {})
+	for key: Variant in joints:
+		var joint := joints[key] as Joint3D
+		if joint == null or not is_instance_valid(joint):
+			continue
+		joint.node_a = NodePath()
+		joint.node_b = NodePath()
+
+
+func _dampen_intro_landing_impact(ragdoll: Dictionary) -> void:
+	var rag: Dictionary = ragdoll.get("rag", {})
+	var bodies: Dictionary = rag.get("bodies", {})
+	for key: Variant in bodies:
+		if str(key) == "anchor":
+			continue
+		var body := bodies[key] as RigidBody3D
+		if body == null or not is_instance_valid(body):
+			continue
+		body.angular_velocity = Vector3.ZERO
+		body.linear_velocity *= 0.22
+		body.linear_damp = maxf(body.linear_damp, 4.5)
+		body.angular_damp = maxf(body.angular_damp, 10.0)
+		var material := body.physics_material_override
+		if material != null:
+			var landed_material := material.duplicate() as PhysicsMaterial
+			if landed_material != null:
+				landed_material.bounce = 0.0
+				landed_material.friction = 1.0
+				body.physics_material_override = landed_material
+
+
+func _limit_intro_ragdoll_spin(ragdoll: Dictionary, max_spin: float) -> void:
+	var rag: Dictionary = ragdoll.get("rag", {})
+	var bodies: Dictionary = rag.get("bodies", {})
+	for key: Variant in bodies:
+		if str(key) == "anchor":
+			continue
+		var body := bodies[key] as RigidBody3D
+		if body == null or not is_instance_valid(body):
+			continue
+		if body.angular_velocity.length() > max_spin:
+			body.angular_velocity = body.angular_velocity.limit_length(max_spin)
+
+
+func _start_intro_get_up_motion(
+	player_index: int,
+	ragdoll: Dictionary,
+	recovery: Dictionary
+) -> bool:
+	var is_p1 := player_index == 1
+	var parts: Dictionary = p1_parts if is_p1 else p2_parts
+	var pelvis := parts.get("pelvis") as Node3D
+	var rag: Dictionary = ragdoll.get("rag", {})
+	var bodies: Dictionary = rag.get("bodies", {})
+	var torso := bodies.get("torso") as RigidBody3D
+	if pelvis == null or torso == null or not is_instance_valid(pelvis) or not is_instance_valid(torso):
+		return false
+
+	var landing_target: Vector3 = recovery.get("landing_target", torso.global_position)
+	_snap_intro_ready_stance(
+		player_index,
+		Vector3(
+			landing_target.x,
+			landing_target.y + INTRO_PELVIS_HEIGHT,
+			landing_target.z
+		)
+	)
+	var target_offset := Vector3(
+		landing_target.x - pelvis.global_position.x,
+		0.0,
+		landing_target.z - pelvis.global_position.z
+	)
+	var starts: Dictionary = recovery.get("starts", {})
+	var targets: Dictionary = {}
+	var keep_starts := not starts.is_empty()
+	for key: Variant in bodies:
+		if str(key) == "anchor":
+			continue
+		var body := bodies[key] as RigidBody3D
+		if body == null or not is_instance_valid(body):
+			continue
+		var target_node := pelvis if str(key) == "torso" else parts.get(str(key)) as Node3D
+		if target_node == null or not is_instance_valid(target_node):
+			return false
+		if not keep_starts:
+			starts[key] = body.global_transform
+		var target_transform := target_node.global_transform
+		target_transform.origin += target_offset
+		targets[key] = target_transform
+		body.linear_velocity = Vector3.ZERO
+		body.angular_velocity = Vector3.ZERO
+		body.gravity_scale = 0.0
+		body.sleeping = true
+		body.collision_layer = 0
+		body.collision_mask = 0
+		if str(recovery.get("style", "")) == "clean":
+			body.freeze = true
+			body.freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
+
+	if starts.is_empty() or targets.is_empty():
+		return false
+	recovery["starts"] = starts
+	recovery["targets"] = targets
+	recovery["standing_started"] = true
+	recovery["standing_elapsed"] = 0.0
+	return true
+
+
+func _intro_creepy_body_progress(body_key: String, progress: float) -> float:
+	match body_key:
+		"torso":
+			return smoothstep(0.08, 0.78, progress)
+		"head":
+			# Keep the head limp, then make it catch up in one late snap.
+			return smoothstep(0.54, 0.71, progress)
+		"l_thigh", "r_thigh":
+			return smoothstep(0.16, 0.76, progress)
+		"l_calf", "r_calf":
+			return smoothstep(0.24, 0.83, progress)
+		"l_foot", "r_foot":
+			return smoothstep(0.12, 0.68, progress)
+		"l_upp_arm", "r_upp_arm":
+			return smoothstep(0.30, 0.86, progress)
+		"l_low_arm", "r_low_arm":
+			return smoothstep(0.42, 0.93, progress)
+		"l_hand", "r_hand":
+			return smoothstep(0.55, 0.98, progress)
+	return smoothstep(0.20, 0.90, progress)
+
+
+func _intro_creepy_body_transform(
+	body_key: String,
+	start_transform: Transform3D,
+	target_transform: Transform3D,
+	progress: float,
+	player_index: int
+) -> Transform3D:
+	var body_progress := _intro_creepy_body_progress(body_key, progress)
+	var result := start_transform.interpolate_with(target_transform, body_progress)
+	var player_side := -1.0 if player_index == 1 else 1.0
+	var limb_side := -1.0 if body_key.begins_with("l_") else 1.0
+
+	# A short involuntary tremor breaks the dead-still hold before the body rises.
+	var twitch_envelope := 1.0 - smoothstep(0.0, 0.22, progress)
+	var twitch := sin(progress * TAU * 7.0) * twitch_envelope
+	var twitch_amount := 0.045 if body_key == "torso" else 0.085
+	result.basis = Basis(Vector3.FORWARD, twitch * twitch_amount * limb_side) * result.basis
+
+	if body_key == "torso":
+		# The chest arches up first while turning slightly away from the camera.
+		var arch_time := clampf((progress - 0.08) / 0.72, 0.0, 1.0)
+		var arch := sin(arch_time * PI)
+		result.origin += Vector3.UP * (0.34 * arch)
+		result.basis = Basis(Vector3.UP, player_side * 0.30 * arch) * result.basis
+		result.basis = Basis(Vector3.RIGHT, -0.22 * arch) * result.basis
+	elif body_key == "head":
+		# The head remains behind the torso, overshoots, then locks forward.
+		var snap_time := clampf((progress - 0.53) / 0.34, 0.0, 1.0)
+		var snap_arc := sin(snap_time * PI)
+		result.origin += Vector3.UP * (0.12 * snap_arc)
+		result.basis = Basis(Vector3.UP, player_side * 0.58 * snap_arc) * result.basis
+		result.basis = Basis(Vector3.FORWARD, player_side * 0.24 * snap_arc) * result.basis
+	elif body_key.contains("arm") or body_key.contains("hand"):
+		# Arms hang after the torso, then reel inward with uneven spasms.
+		var arm_time := clampf((progress - 0.28) / 0.70, 0.0, 1.0)
+		var arm_arc := sin(arm_time * PI)
+		var arm_spasm := sin(arm_time * TAU * 2.0) * (1.0 - arm_time)
+		result.origin += Vector3.UP * (0.10 * arm_arc)
+		result.basis = Basis(
+			Vector3.FORWARD,
+			limb_side * (0.32 * arm_arc + 0.12 * arm_spasm)
+		) * result.basis
+	elif body_key.contains("thigh") or body_key.contains("calf"):
+		# Legs plant asymmetrically before the upper body finishes straightening.
+		var leg_time := clampf((progress - 0.12) / 0.72, 0.0, 1.0)
+		var leg_arc := sin(leg_time * PI)
+		result.basis = Basis(Vector3.FORWARD, limb_side * 0.16 * leg_arc) * result.basis
+
+	return result
+
+
+func _update_intro_drop_physics(delta: float) -> void:
+	for player_index: Variant in _intro_ragdolls.keys():
+		var ragdoll: Dictionary = _intro_ragdolls.get(player_index, {})
+		var recovery: Dictionary = ragdoll.get("recovery", {})
+		if bool(recovery.get("active", false)):
+			continue
+		var drop: Dictionary = ragdoll.get("drop", {})
+		if drop.is_empty():
+			continue
+		var rag: Dictionary = ragdoll.get("rag", {})
+		var bodies: Dictionary = rag.get("bodies", {})
+		var torso := bodies.get("torso") as RigidBody3D
+		if torso == null or not is_instance_valid(torso):
+			continue
+
+		var maximum_body_speed := 0.0
+		var contacting_floor := false
+		for key: Variant in bodies:
+			if str(key) == "anchor":
+				continue
+			var body := bodies[key] as RigidBody3D
+			if body == null or not is_instance_valid(body):
+				continue
+			maximum_body_speed = maxf(maximum_body_speed, body.linear_velocity.length())
+			if not body.freeze and body.contact_monitor and body.get_contact_count() > 0:
+				contacting_floor = true
+
+		var downward_speed := maxf(-torso.linear_velocity.y, 0.0)
+		drop["peak_downward_speed"] = maxf(
+			float(drop.get("peak_downward_speed", 0.0)),
+			downward_speed
+		)
+		var height_above_floor := torso.global_position.y - StageConstants.FLOOR_TOP_Y
+		if height_above_floor > INTRO_LANDED_TORSO_HEIGHT or downward_speed > 1.0:
+			drop["was_airborne"] = true
+		var near_floor := height_above_floor <= INTRO_LANDED_TORSO_HEIGHT + 0.35
+		if bool(drop.get("was_airborne", false)):
+			if contacting_floor or (near_floor and downward_speed < 2.0):
+				drop["floor_contacted"] = true
+		if bool(drop.get("floor_contacted", false)) and not bool(drop.get("impact_calmed", false)):
+			if _intro_jumps.has(player_index):
+				var jump_state: Dictionary = _intro_jumps[player_index]
+				var impact: Vector3 = jump_state.get("landing", torso.global_position)
+				impact.x = torso.global_position.x
+				impact.z = torso.global_position.z
+				jump_state["landing"] = impact
+				if begin_intro_get_up(
+					int(player_index),
+					jump_state.get("ground", Vector3.ZERO),
+					"clean"
+				):
+					jump_state["stand_started"] = true
+					jump_state["floor_contacted"] = true
+					_intro_jumps[player_index] = jump_state
+			else:
+				_dampen_intro_landing_impact(ragdoll)
+			drop["impact_calmed"] = true
+		if height_above_floor > INTRO_LANDED_TORSO_HEIGHT + 1.25:
+			drop["settled"] = false
+			drop["settle_hold"] = 0.0
+
+		var holding_still := (
+			bool(drop.get("floor_contacted", false))
+			and near_floor
+			and maximum_body_speed <= INTRO_SETTLE_SPEED
+		)
+		if holding_still:
+			drop["settle_hold"] = float(drop.get("settle_hold", 0.0)) + delta
+		else:
+			drop["settle_hold"] = 0.0
+		if (
+			not bool(drop.get("settled", false))
+			and float(drop.get("settle_hold", 0.0)) >= INTRO_SETTLE_HOLD
+		):
+			drop["settled"] = true
+		ragdoll["drop"] = drop
+		_intro_ragdolls[player_index] = ragdoll
+
+
+func _update_intro_get_ups(delta: float) -> void:
+	_update_intro_drop_physics(delta)
+	for player_index: Variant in _intro_ragdolls.keys():
+		var ragdoll: Dictionary = _intro_ragdolls.get(player_index, {})
+		var recovery: Dictionary = ragdoll.get("recovery", {})
+		if not bool(recovery.get("active", false)) or bool(recovery.get("complete", false)):
+			continue
+		if not bool(recovery.get("standing_started", false)):
+			var settle_elapsed := float(recovery.get("settle_elapsed", 0.0)) + delta
+			recovery["settle_elapsed"] = settle_elapsed
+			var hold_starts: Dictionary = recovery.get("starts", {})
+			var hold_rag: Dictionary = ragdoll.get("rag", {})
+			var hold_bodies: Dictionary = hold_rag.get("bodies", {})
+			for key: Variant in hold_starts:
+				var hold_body := hold_bodies.get(key) as RigidBody3D
+				if hold_body == null or not is_instance_valid(hold_body):
+					continue
+				hold_body.linear_velocity = Vector3.ZERO
+				hold_body.angular_velocity = Vector3.ZERO
+				hold_body.global_transform = hold_starts[key]
+			var delay := maxf(float(recovery.get("delay", INTRO_GET_UP_DELAY)), 0.0)
+			if settle_elapsed >= delay:
+				if str(recovery.get("style", "")) == "clean":
+					var landing_target: Vector3 = recovery.get("landing_target", Vector3.ZERO)
+					_snap_intro_ready_stance(
+						int(player_index),
+						Vector3(
+							landing_target.x,
+							landing_target.y + INTRO_PELVIS_HEIGHT,
+							landing_target.z
+						)
+					)
+					_restore_intro_runner_visuals(int(player_index))
+					recovery["standing_started"] = true
+					recovery["complete"] = true
+					ragdoll["recovery"] = recovery
+					_intro_ragdolls[player_index] = ragdoll
+					continue
+				if not _start_intro_get_up_motion(int(player_index), ragdoll, recovery):
+					continue
+			ragdoll["recovery"] = recovery
+			_intro_ragdolls[player_index] = ragdoll
+			continue
+
+		if str(recovery.get("style", "")) == "clean":
+			if _update_intro_slide(int(player_index), delta):
+				recovery["complete"] = true
+			ragdoll["recovery"] = recovery
+			_intro_ragdolls[player_index] = ragdoll
+			continue
+
+		var elapsed := float(recovery.get("standing_elapsed", 0.0)) + delta
+		var duration := maxf(float(recovery.get("duration", INTRO_GET_UP_DURATION)), 0.01)
+		var progress := clampf(elapsed / duration, 0.0, 1.0)
+		var starts: Dictionary = recovery.get("starts", {})
+		var targets: Dictionary = recovery.get("targets", {})
+		var rag: Dictionary = ragdoll.get("rag", {})
+		var bodies: Dictionary = rag.get("bodies", {})
+		for key: Variant in starts:
+			var body := bodies.get(key) as RigidBody3D
+			if body == null or not is_instance_valid(body) or not targets.has(key):
+				continue
+			var start_transform: Transform3D = starts[key]
+			var target_transform: Transform3D = targets[key]
+			if str(recovery.get("style", "")) == "clean":
+				body.global_transform = start_transform.interpolate_with(
+					target_transform,
+					smoothstep(0.0, 1.0, progress)
+				)
+			else:
+				body.global_transform = _intro_creepy_body_transform(
+					str(key),
+					start_transform,
+					target_transform,
+					progress,
+					int(player_index)
+				)
+
+		recovery["standing_elapsed"] = elapsed
+		if progress >= 1.0:
+			recovery["complete"] = true
+			for key: Variant in targets:
+				var body := bodies.get(key) as RigidBody3D
+				if body != null and is_instance_valid(body):
+					body.global_transform = targets[key]
+		ragdoll["recovery"] = recovery
+		_intro_ragdolls[player_index] = ragdoll
+
+
+## Returns physics evidence used by HelicopterArrivalDirector and runtime probes.
+func get_intro_drop_state(player_index: int) -> Dictionary:
+	var ragdoll: Dictionary = _intro_ragdolls.get(player_index, {})
+	if ragdoll.is_empty():
+		return {"active": false}
+	var rag: Dictionary = ragdoll.get("rag", {})
+	var bodies: Dictionary = rag.get("bodies", {})
+	var torso := bodies.get("torso") as RigidBody3D
+	if torso == null or not is_instance_valid(torso):
+		return {"active": true, "physics_valid": false}
+	var recovery: Dictionary = ragdoll.get("recovery", {})
+	var drop: Dictionary = ragdoll.get("drop", {})
+	var cabin_wait: Dictionary = ragdoll.get("cabin_wait", {})
+	var container := ragdoll.get("container") as Node3D
+	var all_bodies_frozen := true
+	var maximum_body_speed := 0.0
+	var maximum_angular_speed := 0.0
+	for key: Variant in bodies:
+		if str(key) == "anchor":
+			continue
+		var body := bodies[key] as RigidBody3D
+		if body == null or not is_instance_valid(body):
+			continue
+		all_bodies_frozen = all_bodies_frozen and (
+			body.freeze or is_zero_approx(body.gravity_scale)
+		)
+		var body_speed := 0.0 if body.freeze else body.linear_velocity.length()
+		var body_spin := 0.0 if body.freeze else body.angular_velocity.length()
+		maximum_body_speed = maxf(maximum_body_speed, body_speed)
+		maximum_angular_speed = maxf(maximum_angular_speed, body_spin)
+	var recovery_duration := maxf(
+		float(recovery.get("duration", INTRO_GET_UP_DURATION)),
+		0.01
+	)
+	var floor_contacted := bool(drop.get("floor_contacted", false))
+	return {
+		"active": true,
+		"physics_valid": true,
+		"cabin_waiting": bool(cabin_wait.get("active", false)),
+		"container_instance_id": container.get_instance_id() if container != null else 0,
+		"position": torso.global_position,
+		"linear_velocity": torso.linear_velocity,
+		"speed": torso.linear_velocity.length(),
+		"maximum_body_speed": maximum_body_speed,
+		"maximum_angular_speed": maximum_angular_speed,
+		"all_bodies_frozen": all_bodies_frozen,
+		"sleeping": torso.sleeping,
+		"was_airborne": bool(drop.get("was_airborne", false)),
+		"floor_contacted": floor_contacted,
+		"landed": floor_contacted or bool(recovery.get("active", false)),
+		"settled": bool(drop.get("settled", false)) or bool(recovery.get("active", false)),
+		"peak_downward_speed": float(drop.get("peak_downward_speed", 0.0)),
+		"recovering": bool(recovery.get("active", false)),
+		"settle_elapsed": float(recovery.get("settle_elapsed", 0.0)),
+		"get_up_delay": float(recovery.get("delay", INTRO_GET_UP_DELAY)),
+		"standing_started": bool(recovery.get("standing_started", false)),
+		"recovery_progress": clampf(
+			float(recovery.get("standing_elapsed", 0.0)) / recovery_duration,
+			0.0,
+			1.0
+		),
+		"recovery_complete": bool(recovery.get("complete", false)),
+	}
+
+
+func has_intro_drops() -> bool:
+	return not _intro_ragdolls.is_empty()
+
+
+func has_intro_arrival() -> bool:
+	return (
+		_intro_extracted
+		or not _intro_pending_players.is_empty()
+		or not _intro_ladder_grabs.is_empty()
+		or not _intro_cabin_rides.is_empty()
+		or not _intro_jumps.is_empty()
+		or not _intro_slides.is_empty()
+		or has_intro_drops()
+	)
+
+
+## Sits the visible procedural runner inside the helicopter without creating a
+## ragdoll. Parts stay hidden until the hatch opens.
+func begin_intro_cabin_ride(player_index: int, cabin_transform: Transform3D) -> bool:
+	if player_index not in [1, 2]:
+		return false
+	if _intro_cabin_rides.has(player_index):
+		return update_intro_cabin_ride(player_index, cabin_transform, false)
+	var parts: Dictionary = p1_parts if player_index == 1 else p2_parts
+	var pelvis := parts.get("pelvis") as Node3D
+	if pelvis == null or not is_instance_valid(pelvis):
+		return false
+	_intro_cabin_rides[player_index] = {
+		"visible": false,
+		"clip": AnimationRig.UAL_CABIN_IDLE,
+	}
+	_set_parts_visible(parts, false)
+	_set_hat_visible(player_index == 1, false)
+	_set_rig_scenes_visible(player_index == 1, false)
+	return update_intro_cabin_ride(player_index, cabin_transform, false)
+
+
+func update_intro_cabin_ride(
+	player_index: int,
+	cabin_transform: Transform3D,
+	should_show: bool
+) -> bool:
+	if not _intro_cabin_rides.has(player_index):
+		return false
+	var parts: Dictionary = p1_parts if player_index == 1 else p2_parts
+	var pelvis := parts.get("pelvis") as Node3D
+	if pelvis == null or not is_instance_valid(pelvis):
+		return false
+	var posed := _apply_intro_ual_pose(player_index, AnimationRig.UAL_CABIN_IDLE, -1.0)
+	if not posed:
+		_apply_intro_ready_run_pose(player_index, parts)
+	pelvis.global_transform = cabin_transform
+	var state: Dictionary = _intro_cabin_rides[player_index]
+	state["visible"] = should_show
+	_intro_cabin_rides[player_index] = state
+	_set_parts_visible(parts, should_show)
+	_set_hat_visible(player_index == 1, should_show)
+	_set_rig_scenes_visible(player_index == 1, false)
+	return true
+
+
+func begin_intro_ladder_hang(player_index: int) -> bool:
+	if _intro_cabin_rides.has(player_index):
+		_intro_cabin_rides.erase(player_index)
+	return begin_intro_ladder_grab(player_index)
+
+
+func update_intro_ladder_hang(
+	player_index: int,
+	grip_data: Dictionary,
+	reach_progress: float,
+	swing_angle: float,
+	delta: float
+) -> bool:
+	if not update_intro_ladder_grab(player_index, grip_data, reach_progress, delta):
+		return false
+	var parts: Dictionary = p1_parts if player_index == 1 else p2_parts
+	var pelvis := parts.get("pelvis") as Node3D
+	if pelvis == null or not is_instance_valid(pelvis):
+		return false
+	var inward: Vector3 = grip_data.get("inward", Vector3.ZERO)
+	if inward.length_squared() <= 0.0001:
+		inward = -Vector3(grip_data.get("forward", Vector3.FORWARD))
+		inward.y = 0.0
+	if inward.length_squared() <= 0.0001:
+		inward = Vector3.RIGHT
+	else:
+		inward = inward.normalized()
+	var axis := Vector3.UP.cross(inward)
+	if axis.length_squared() <= 0.0001:
+		axis = Vector3.FORWARD
+	else:
+		axis = axis.normalized()
+	if absf(swing_angle) > 0.0001:
+		var grip_center: Vector3 = grip_data.get("center", pelvis.global_position)
+		var offset := pelvis.global_position - grip_center
+		pelvis.global_position = grip_center + offset.rotated(axis, swing_angle)
+		pelvis.global_basis = Basis(axis, swing_angle) * pelvis.global_basis
+		_apply_intro_ladder_swing_legs(parts, swing_angle)
+		var horizontal: Vector3 = grip_data.get("horizontal", Vector3.RIGHT)
+		var forward: Vector3 = grip_data.get("forward", Vector3.FORWARD)
+		var left_target: Vector3 = grip_data.get("left_hand", grip_center - horizontal * 0.42)
+		var right_target: Vector3 = grip_data.get("right_hand", grip_center + horizontal * 0.42)
+		_solve_intro_ladder_arm(parts, true, left_target, horizontal, forward, 1.0)
+		_solve_intro_ladder_arm(parts, false, right_target, horizontal, forward, 1.0)
+	var grab_state: Dictionary = _intro_ladder_grabs.get(player_index, {})
+	var previous_position: Vector3 = grab_state.get("character_position", pelvis.global_position)
+	if delta > 0.0001:
+		grab_state["swing_velocity"] = (pelvis.global_position - previous_position) / delta
+	grab_state["swing_angle"] = swing_angle
+	grab_state["character_position"] = pelvis.global_position
+	_intro_ladder_grabs[player_index] = grab_state
+	return true
+
+
+func _apply_intro_ladder_swing_legs(parts: Dictionary, swing_angle: float) -> void:
+	var kick := sin(swing_angle) * 0.42
+	for side_data: Array in [["l_", 1.0], ["r_", -0.72]]:
+		var prefix: String = side_data[0]
+		var kick_scale: float = side_data[1]
+		var hip := parts.get(prefix + "hip") as Node3D
+		var knee := parts.get(prefix + "knee") as Node3D
+		if hip != null:
+			hip.rotation.x += kick * kick_scale
+		if knee != null:
+			knee.rotation.x += -kick * 0.55 * kick_scale
+
+
+func begin_intro_ladder_jump(
+	player_index: int,
+	launch_velocity: Vector3,
+	ground_target: Vector3,
+	flight_duration: float,
+	stand_target: Vector3 = Vector3.INF
+) -> bool:
+	if player_index not in [1, 2]:
+		return false
+	var parts: Dictionary = p1_parts if player_index == 1 else p2_parts
+	var pelvis := parts.get("pelvis") as Node3D
+	if pelvis == null or not is_instance_valid(pelvis):
+		return false
+	var origin := pelvis.global_position
+	var release_transform := pelvis.global_transform
+	var landing := Vector3(
+		ground_target.x,
+		ground_target.y + INTRO_PELVIS_HEIGHT,
+		ground_target.z
+	)
+	var stand_ground := stand_target if stand_target.is_finite() else ground_target
+	var stand_landing := Vector3(
+		stand_ground.x,
+		stand_ground.y + INTRO_PELVIS_HEIGHT,
+		stand_ground.z
+	)
+	var duration := maxf(flight_duration, 0.08)
+	_intro_ladder_grabs.erase(player_index)
+	_intro_cabin_rides.erase(player_index)
+	if not begin_intro_drop(player_index, release_transform, launch_velocity):
+		return false
+	_prepare_ladder_jump_ragdoll(player_index)
+	_intro_jumps[player_index] = {
+		"origin": origin,
+		"landing": landing,
+		"ground": stand_ground,
+		"stand_landing": stand_landing,
+		"velocity": launch_velocity,
+		"duration": duration,
+		"elapsed": 0.0,
+		"landed": false,
+		"floor_contacted": false,
+		"stand_started": false,
+		"physical": true,
+		"clip": "physical_ragdoll",
+		"used_clips": [],
+		"source_ready": true,
+		"position": origin,
+	}
+	return true
+
+
+func _prepare_ladder_jump_ragdoll(player_index: int) -> void:
+	var ragdoll: Dictionary = _intro_ragdolls.get(player_index, {})
+	var rag: Dictionary = ragdoll.get("rag", {})
+	var bodies: Dictionary = rag.get("bodies", {})
+	for key: Variant in bodies:
+		if str(key) == "anchor":
+			continue
+		var body := bodies[key] as RigidBody3D
+		if body == null or not is_instance_valid(body):
+			continue
+		body.linear_damp = 0.0
+		body.angular_damp = INTRO_LADDER_JUMP_ANGULAR_DAMP
+		body.gravity_scale = 1.0
+		body.continuous_cd = true
+		var material := body.physics_material_override
+		if material != null:
+			var jump_material := material.duplicate() as PhysicsMaterial
+			if jump_material != null:
+				jump_material.bounce = 0.0
+				jump_material.friction = 0.95
+				body.physics_material_override = jump_material
+
+
+func update_intro_ladder_jump(player_index: int, delta: float) -> Dictionary:
+	if not _intro_jumps.has(player_index):
+		return {"active": false, "landed": false, "progress": 0.0, "physical": true}
+	var state: Dictionary = _intro_jumps[player_index]
+	var elapsed := float(state.get("elapsed", 0.0)) + delta
+	state["elapsed"] = elapsed
+	var duration := maxf(float(state.get("duration", 0.7)), 0.08)
+	var drop := get_intro_drop_state(player_index)
+	if not bool(drop.get("active", false)) or not bool(drop.get("physics_valid", false)):
+		_intro_jumps[player_index] = state
+		return {
+			"active": false,
+			"landed": false,
+			"progress": 0.0,
+			"physical": true,
+		}
+	var torso_position: Vector3 = drop.get("position", state.get("position", Vector3.ZERO))
+	state["position"] = torso_position
+	if not bool(drop.get("floor_contacted", false)):
+		_limit_intro_ragdoll_spin(
+			_intro_ragdolls.get(player_index, {}),
+			INTRO_LADDER_MAX_SPIN
+		)
+	if torso_position.y < StageConstants.FLOOR_TOP_Y - 2.5:
+		_intro_jumps[player_index] = state
+		return {
+			"active": false,
+			"landed": false,
+			"progress": 0.0,
+			"physical": true,
+			"position": torso_position,
+		}
+	if elapsed > INTRO_LADDER_JUMP_MAX_SECONDS and not bool(state.get("landed", false)) and not bool(state.get("floor_contacted", false)):
+		_intro_jumps[player_index] = state
+		return {
+			"active": false,
+			"landed": false,
+			"progress": 1.0,
+			"physical": true,
+			"position": torso_position,
+		}
+	if bool(drop.get("floor_contacted", false)):
+		state["floor_contacted"] = true
+		if not bool(state.get("stand_started", false)):
+			var impact: Vector3 = state.get("landing", Vector3.ZERO)
+			impact.x = torso_position.x
+			impact.z = torso_position.z
+			state["landing"] = impact
+			if begin_intro_get_up(player_index, state.get("ground", Vector3.ZERO), "clean"):
+				state["stand_started"] = true
+			else:
+				_intro_jumps[player_index] = state
+				return {
+					"active": false,
+					"landed": false,
+					"progress": 0.0,
+					"physical": true,
+					"position": torso_position,
+				}
+	if bool(state.get("stand_started", false)):
+		var parts: Dictionary = p1_parts if player_index == 1 else p2_parts
+		var pelvis := parts.get("pelvis") as Node3D
+		if pelvis != null and is_instance_valid(pelvis):
+			state["position"] = pelvis.global_position
+	if bool(drop.get("recovery_complete", false)):
+		state["landed"] = true
+	_intro_jumps[player_index] = state
+	var slide: Dictionary = _intro_slides.get(player_index, {})
+	return {
+		"active": true,
+		"landed": bool(state.get("landed", false)),
+		"floor_contacted": bool(state.get("floor_contacted", false)),
+		"physical": true,
+		"progress": clampf(elapsed / duration, 0.0, 1.0),
+		"position": state.get("position", torso_position),
+		"clip": "physical_ragdoll",
+		"slide_phase": str(slide.get("phase", "")),
+		"facing_yaw": float(slide.get("current_yaw", slide.get("facing_yaw", 0.0))),
+	}
+
+
+func complete_intro_ladder_landing(player_index: int, _gs: QuizGameState = null) -> bool:
+	if not _intro_jumps.has(player_index):
+		return true
+	var jump: Dictionary = _intro_jumps[player_index]
+	var landing: Vector3 = jump.get("stand_landing", jump.get("landing", Vector3.ZERO))
+	_snap_intro_ready_stance(player_index, landing)
+	_intro_jumps.erase(player_index)
+	_intro_slides.erase(player_index)
+	_intro_pending_players.erase(player_index)
+	return true
+
+
+func get_intro_jump_state(player_index: int) -> Dictionary:
+	if not _intro_jumps.has(player_index):
+		return {"active": false}
+	var state: Dictionary = _intro_jumps[player_index]
+	var slide: Dictionary = _intro_slides.get(player_index, {})
+	return {
+		"active": true,
+		"physical": true,
+		"progress": clampf(
+			float(state.get("elapsed", 0.0)) / maxf(float(state.get("duration", 0.7)), 0.08),
+			0.0,
+			1.0
+		),
+		"landed": bool(state.get("landed", false)),
+		"floor_contacted": bool(state.get("floor_contacted", false)),
+		"clip": String(state.get("clip", "physical_ragdoll")),
+		"used_clips": state.get("used_clips", []),
+		"position": state.get("position", Vector3.ZERO),
+		"origin": state.get("origin", Vector3.ZERO),
+		"landing": state.get("landing", Vector3.ZERO),
+		"velocity": state.get("velocity", Vector3.ZERO),
+		"source_ready": bool(state.get("source_ready", false)),
+		"slide_phase": str(slide.get("phase", "")),
+		"facing_yaw": float(slide.get("current_yaw", slide.get("facing_yaw", 0.0))),
+		"stand_landing": state.get("stand_landing", state.get("landing", Vector3.ZERO)),
+	}
+
+
+func _apply_intro_ual_pose(player_index: int, clip_name: String, ratio: float) -> bool:
+	var parts: Dictionary = p1_parts if player_index == 1 else p2_parts
+	var rig := _p1_rig if player_index == 1 else _p2_rig
+	var played := false
+	if ratio < 0.0:
+		played = rig.play_ual_clip(clip_name, false)
+	else:
+		played = rig.seek_ual_clip(clip_name, ratio)
+	if not played or rig.active_skeleton == null:
+		return false
+	_apply_skeleton_pose(
+		parts,
+		rig.active_skeleton,
+		rig.active_bone_indices,
+		rig.mirror_x
+	)
+	return true
+
+
+func cancel_intro_arrival() -> void:
+	_intro_cabin_rides.clear()
+	_intro_jumps.clear()
+	_intro_slides.clear()
+
+
+func prewarm_intro_ladder_clips(player_count: int) -> void:
+	var count := clampi(player_count, 1, 2)
+	var clips: Array[String] = [
+		AnimationRig.UAL_CABIN_IDLE,
+		AnimationRig.UAL_INTERACT,
+		AnimationRig.UAL_JUMP_START,
+		AnimationRig.UAL_JUMP_AIR,
+		AnimationRig.UAL_JUMP_LAND,
+	]
+	var ual2_clips: Array[String] = [
+		AnimationRig.UAL2_SLIDE_START,
+		AnimationRig.UAL2_SLIDE_LOOP,
+		AnimationRig.UAL2_SLIDE_EXIT,
+	]
+	for player_index: int in range(1, count + 1):
+		var is_p1 := player_index == 1
+		var parts: Dictionary = p1_parts if is_p1 else p2_parts
+		var rig := _p1_rig if is_p1 else _p2_rig
+		for clip_name: String in clips:
+			rig.seek_ual_clip(clip_name, 0.0)
+		for clip_name: String in ual2_clips:
+			rig.seek_ual_clip(clip_name, 0.0, AnimationRig.SLOT_UAL2)
+		if rig.active_skeleton != null:
+			_apply_skeleton_pose(
+				parts,
+				rig.active_skeleton,
+				rig.active_bone_indices,
+				rig.mirror_x
+			)
+		var should_show := not _intro_pending_players.has(player_index)
+		_set_parts_visible(parts, should_show)
+		_set_hat_visible(is_p1, should_show)
+		_set_rig_scenes_visible(is_p1, false)
+
+
+## Locks the menu runners to a deliberate run-ready silhouette before the
+## helicopter arrives.  This prevents a random ambient emote from becoming the
+## first frame of the extraction ragdoll.
+func prepare_intro_pickup_pose(player_count: int) -> void:
+	var count := clampi(player_count, 1, 2)
+	for player_index: int in range(1, count + 1):
+		var parts: Dictionary = p1_parts if player_index == 1 else p2_parts
+		_apply_intro_ready_run_pose(player_index, parts)
+
+
+## Starts the CC0 reach motion without replacing the visible character with a
+## ragdoll. The final hand positions are solved against the actual physics rung.
+func begin_intro_ladder_grab(player_index: int) -> bool:
+	if player_index not in [1, 2]:
+		return false
+	if _intro_ladder_grabs.has(player_index):
+		return true
+	var parts: Dictionary = p1_parts if player_index == 1 else p2_parts
+	var pelvis := parts.get("pelvis") as Node3D
+	var rig := _p1_rig if player_index == 1 else _p2_rig
+	if pelvis == null or not is_instance_valid(pelvis):
+		return false
+	var source_ready := rig.play_slot(AnimationRig.SLOT_LADDER_GRAB, true)
+	_intro_ladder_grabs[player_index] = {
+		"start_transform": pelvis.global_transform,
+		"progress": 0.0,
+		"max_hand_error": INF,
+		"source_animation": "Interact" if source_ready else "procedural_fallback",
+		"source_ready": source_ready,
+	}
+	_set_parts_visible(parts, true)
+	_set_hat_visible(player_index == 1, true)
+	_set_rig_scenes_visible(player_index == 1, false)
+	return true
+
+
+## Drives the torso onto a moving rung, then analytically places both arms so
+## the wrists stay locked to the wood while the rope continues simulating.
+func update_intro_ladder_grab(
+	player_index: int,
+	grip_data: Dictionary,
+	progress: float,
+	_delta: float
+) -> bool:
+	if not _intro_ladder_grabs.has(player_index) or not bool(grip_data.get("valid", false)):
+		return false
+	var parts: Dictionary = p1_parts if player_index == 1 else p2_parts
+	var pelvis := parts.get("pelvis") as Node3D
+	if pelvis == null or not is_instance_valid(pelvis):
+		return false
+	var state: Dictionary = _intro_ladder_grabs[player_index]
+	var rig := _p1_rig if player_index == 1 else _p2_rig
+	var grab_progress := clampf(progress, 0.0, 1.0)
+	if bool(state.get("source_ready", false)):
+		var ap := rig.aps[AnimationRig.SLOT_LADDER_GRAB] as AnimationPlayer
+		var anim_name := String(rig.anim_names[AnimationRig.SLOT_LADDER_GRAB])
+		if ap != null and not anim_name.is_empty():
+			var animation := ap.get_animation(anim_name)
+			if animation != null:
+				# Use the anticipation and reach portion of the downloaded Interact clip;
+				# the final contact is held while analytical IK follows the physical rung.
+				var source_ratio := lerpf(0.06, 0.70, smoothstep(0.0, 0.82, grab_progress))
+				ap.seek(animation.length * source_ratio, true, true)
+				_apply_skeleton_pose(
+					parts,
+					rig.active_skeleton,
+					rig.active_bone_indices,
+					rig.mirror_x
+				)
+	else:
+		_apply_intro_ready_run_pose(player_index, parts)
+
+	var rung_center: Vector3 = grip_data.get("center", pelvis.global_position + Vector3.UP)
+	var horizontal: Vector3 = grip_data.get("horizontal", Vector3.RIGHT)
+	var forward: Vector3 = grip_data.get("forward", Vector3.FORWARD)
+	if horizontal.length_squared() <= 0.0001:
+		horizontal = Vector3.RIGHT
+	if forward.length_squared() <= 0.0001:
+		forward = Vector3.FORWARD
+	horizontal = horizontal.normalized()
+	forward = forward.normalized()
+	var target_basis := _intro_ladder_body_basis(horizontal, forward)
+	var target_origin := rung_center + Vector3.DOWN * 1.18 - forward * 0.12
+	var start_transform: Transform3D = state.get("start_transform", pelvis.global_transform)
+	var travel := smoothstep(0.0, 1.0, grab_progress)
+	var target_transform := Transform3D(target_basis, target_origin)
+	var posed_transform := start_transform.interpolate_with(target_transform, travel)
+	# A compact upward hop gives the reach physical intention; it settles exactly
+	# onto the rung before the helicopter loads the ladder.
+	posed_transform.origin += Vector3.UP * sin(grab_progress * PI) * 0.34
+	pelvis.global_transform = posed_transform
+	# Imported skeleton proportions differ from the procedural avatar. Re-anchor
+	# from the *rendered* shoulder midpoint so both 40 cm arms can truly reach the
+	# rung instead of merely pointing at it from an unreachable torso position.
+	var left_shoulder := parts.get("l_shoulder") as Node3D
+	var right_shoulder := parts.get("r_shoulder") as Node3D
+	if left_shoulder != null and right_shoulder != null:
+		var shoulder_midpoint := (left_shoulder.global_position + right_shoulder.global_position) * 0.5
+		var desired_shoulder_midpoint := rung_center + Vector3.DOWN * 0.30 - forward * 0.12
+		pelvis.global_position += (desired_shoulder_midpoint - shoulder_midpoint) * travel
+
+	var left_target: Vector3 = grip_data.get("left_hand", rung_center - horizontal * 0.42)
+	var right_target: Vector3 = grip_data.get("right_hand", rung_center + horizontal * 0.42)
+	var ik_weight := smoothstep(0.34, 0.82, grab_progress)
+	_solve_intro_ladder_arm(parts, true, left_target, horizontal, forward, ik_weight)
+	_solve_intro_ladder_arm(parts, false, right_target, horizontal, forward, ik_weight)
+	_apply_intro_ladder_secondary_pose(parts, grab_progress, forward)
+
+	var left_wrist := parts.get("l_wrist") as Node3D
+	var right_wrist := parts.get("r_wrist") as Node3D
+	var left_error := left_wrist.global_position.distance_to(left_target) if left_wrist != null else INF
+	var right_error := right_wrist.global_position.distance_to(right_target) if right_wrist != null else INF
+	state["progress"] = grab_progress
+	state["max_hand_error"] = maxf(left_error, right_error)
+	state["rung_position"] = rung_center
+	state["character_position"] = pelvis.global_position
+	_intro_ladder_grabs[player_index] = state
+	return true
+
+
+func get_intro_ladder_grab_state(player_index: int) -> Dictionary:
+	if not _intro_ladder_grabs.has(player_index):
+		return {"active": false}
+	var state: Dictionary = _intro_ladder_grabs[player_index]
+	return {
+		"active": true,
+		"progress": float(state.get("progress", 0.0)),
+		"max_hand_error": float(state.get("max_hand_error", INF)),
+		"source_animation": String(state.get("source_animation", "")),
+		"source_ready": bool(state.get("source_ready", false)),
+		"rung_position": state.get("rung_position", Vector3.ZERO),
+		"character_position": state.get("character_position", Vector3.ZERO),
+	}
+
+
+func _intro_ladder_body_basis(horizontal: Vector3, forward: Vector3) -> Basis:
+	var right := horizontal.normalized()
+	var back := -forward.normalized()
+	var up := back.cross(right)
+	if up.length_squared() <= 0.0001:
+		up = Vector3.UP
+	else:
+		up = up.normalized()
+	back = right.cross(up).normalized()
+	return Basis(right, up, back).orthonormalized()
+
+
+func _solve_intro_ladder_arm(
+	parts: Dictionary,
+	is_left: bool,
+	target: Vector3,
+	horizontal: Vector3,
+	forward: Vector3,
+	weight: float
+) -> void:
+	var prefix := "l_" if is_left else "r_"
+	var shoulder := parts.get(prefix + "shoulder") as Node3D
+	var elbow := parts.get(prefix + "elbow") as Node3D
+	var wrist := parts.get(prefix + "wrist") as Node3D
+	if shoulder == null or elbow == null or wrist == null:
+		return
+	var shoulder_position := shoulder.global_position
+	var reach := target - shoulder_position
+	var distance := clampf(reach.length(), 0.08, 0.785)
+	var direction := reach.normalized() if reach.length_squared() > 0.0001 else Vector3.UP
+	var half_distance := distance * 0.5
+	var bend_height := sqrt(maxf(0.40 * 0.40 - half_distance * half_distance, 0.0))
+	var bend_hint := forward + Vector3.DOWN * 0.18
+	bend_hint -= direction * bend_hint.dot(direction)
+	if bend_hint.length_squared() <= 0.0001:
+		bend_hint = horizontal
+	bend_hint = bend_hint.normalized()
+	var solved_elbow := shoulder_position + direction * half_distance + bend_hint * bend_height
+	var upper_direction := (solved_elbow - shoulder_position).normalized()
+	var lower_direction := (target - solved_elbow).normalized()
+	var shoulder_basis := _basis_with_negative_y(upper_direction, horizontal)
+	shoulder.global_basis = shoulder.global_basis.slerp(shoulder_basis, weight)
+	var elbow_basis := _basis_with_negative_y(lower_direction, horizontal)
+	elbow.global_basis = elbow.global_basis.slerp(elbow_basis, weight)
+	var hand_basis := _basis_with_negative_y(-forward, horizontal)
+	wrist.global_basis = wrist.global_basis.slerp(hand_basis, weight)
+
+
+func _basis_with_negative_y(direction: Vector3, reference_x: Vector3) -> Basis:
+	var y_axis := -direction.normalized()
+	var x_axis := reference_x - y_axis * reference_x.dot(y_axis)
+	if x_axis.length_squared() <= 0.0001:
+		x_axis = y_axis.cross(Vector3.FORWARD)
+	if x_axis.length_squared() <= 0.0001:
+		x_axis = Vector3.RIGHT
+	x_axis = x_axis.normalized()
+	var z_axis := x_axis.cross(y_axis).normalized()
+	x_axis = y_axis.cross(z_axis).normalized()
+	return Basis(x_axis, y_axis, z_axis).orthonormalized()
+
+
+func _apply_intro_ladder_secondary_pose(parts: Dictionary, progress: float, _forward: Vector3) -> void:
+	var contact := smoothstep(0.48, 0.90, progress)
+	var sway := sin(_time * 3.1) * 0.11 * contact
+	var spine := parts.get("spine") as Node3D
+	var neck := parts.get("neck") as Node3D
+	if spine != null:
+		spine.rotation.x = lerpf(spine.rotation.x, deg_to_rad(-12.0) + sway, contact)
+	if neck != null:
+		neck.rotation.x = lerpf(neck.rotation.x, deg_to_rad(9.0), contact)
+	for side_data: Array in [["l_", -1.0], ["r_", 1.0]]:
+		var prefix: String = side_data[0]
+		var side: float = side_data[1]
+		var hip := parts.get(prefix + "hip") as Node3D
+		var knee := parts.get(prefix + "knee") as Node3D
+		var ankle := parts.get(prefix + "ankle") as Node3D
+		if hip != null:
+			hip.rotation = hip.rotation.lerp(Vector3(deg_to_rad(18.0), 0.0, side * 0.11 + sway), contact)
+		if knee != null:
+			knee.rotation.x = lerpf(knee.rotation.x, deg_to_rad(-34.0), contact)
+		if ankle != null:
+			ankle.rotation.x = lerpf(ankle.rotation.x, deg_to_rad(14.0), contact)
+		for finger_name: String in ["index", "middle", "ring", "pinky"]:
+			for segment: String in ["prox", "mid", "dist"]:
+				var finger := parts.get(prefix + finger_name + "_" + segment) as Node3D
+				if finger != null:
+					finger.rotation.x = lerpf(finger.rotation.x, deg_to_rad(-72.0), contact)
+		var thumb := parts.get(prefix + "thumb_dist") as Node3D
+		if thumb != null:
+			thumb.rotation.x = lerpf(thumb.rotation.x, deg_to_rad(-48.0), contact)
+
+
+## Turns the visible menu runner into the same fully physical ragdoll used by
+## the helicopter drop, but starts it at the runner's current pelvis pose.
+func begin_intro_suction(player_index: int) -> bool:
+	if player_index not in [1, 2]:
+		return false
+	if _intro_ragdolls.has(player_index):
+		return true
+	var is_p1 := player_index == 1
+	var parts: Dictionary = p1_parts if is_p1 else p2_parts
+	var pelvis := parts.get("pelvis") as Node3D
+	if pelvis == null or not is_instance_valid(pelvis):
+		return false
+	return begin_intro_drop(player_index, pelvis.global_transform, Vector3.ZERO)
+
+
+## Pulls the complete jointed body toward the helicopter hatch.  Every body
+## remains simulated, so the limbs trail and tumble instead of becoming a
+## rigid kinematic bundle during the pickup.
+func update_intro_suction(
+	player_index: int,
+	target_position: Vector3,
+	progress: float,
+	delta: float
+) -> bool:
+	var ragdoll: Dictionary = _intro_ragdolls.get(player_index, {})
+	if ragdoll.is_empty():
+		return false
+	var rag: Dictionary = ragdoll.get("rag", {})
+	var bodies: Dictionary = rag.get("bodies", {})
+	var torso := bodies.get("torso") as RigidBody3D
+	if torso == null or not is_instance_valid(torso):
+		return false
+
+	var pickup_progress := clampf(progress, 0.0, 1.0)
+	var to_target := target_position - torso.global_position
+	# The first beat gently unweights the character, the middle carries the
+	# body, and the final beat brakes into the hatch.  A single ever-increasing
+	# speed made the old pickup read as a launch rather than suction.
+	var capture_brake := smoothstep(0.78, 1.0, pickup_progress)
+	var maximum_speed := lerpf(3.2, 13.5, smoothstep(0.0, 0.72, pickup_progress))
+	maximum_speed *= lerpf(1.0, 0.62, capture_brake)
+	var desired_velocity := to_target * lerpf(3.2, 7.6, pickup_progress)
+	if desired_velocity.length() > maximum_speed:
+		desired_velocity = desired_velocity.normalized() * maximum_speed
+	var blend_weight := clampf(delta * lerpf(3.2, 8.5, pickup_progress), 0.0, 1.0)
+	var swirl_phase := _time * 4.6 + float(player_index) * 1.7
+	var swirl := Vector3(cos(swirl_phase), 0.18, sin(swirl_phase)) * (
+		0.40 * sin(pickup_progress * PI)
+	)
+
+	for key: Variant in bodies:
+		if str(key) == "anchor":
+			continue
+		var body := bodies[key] as RigidBody3D
+		if body == null or not is_instance_valid(body):
+			continue
+		body.freeze = false
+		body.sleeping = false
+		body.gravity_scale = lerpf(0.82, 0.0, smoothstep(0.0, 0.48, pickup_progress))
+		body.linear_damp = lerpf(0.55, 3.4, pickup_progress)
+		body.angular_damp = lerpf(0.55, 2.2, pickup_progress)
+		body.collision_layer = 0
+		body.collision_mask = 1 if pickup_progress < 0.16 else 0
+		var is_torso := str(key) == "torso"
+		var swirl_scale := 0.35 if is_torso else 1.0
+		var follow_weight := blend_weight if is_torso else blend_weight * lerpf(
+			0.52,
+			0.92,
+			pickup_progress
+		)
+		body.linear_velocity = body.linear_velocity.lerp(
+			desired_velocity + swirl * swirl_scale,
+			follow_weight
+		)
+		body.angular_velocity = body.angular_velocity.lerp(
+			Vector3(
+				sin(swirl_phase + float(str(key).hash() % 7)) * 1.35,
+				cos(swirl_phase * 0.73) * 0.95,
+				(-1.0 if player_index == 1 else 1.0) * 1.20,
+			) * (1.0 - pickup_progress * 0.72),
+			follow_weight * 0.48
+		)
+	return true
+
+
+func get_intro_suction_state(player_index: int, target_position: Vector3) -> Dictionary:
+	var ragdoll: Dictionary = _intro_ragdolls.get(player_index, {})
+	var rag: Dictionary = ragdoll.get("rag", {})
+	var bodies: Dictionary = rag.get("bodies", {})
+	var torso := bodies.get("torso") as RigidBody3D
+	if torso == null or not is_instance_valid(torso):
+		return {"active": false, "distance": INF, "capturable": false}
+	var distance := torso.global_position.distance_to(target_position)
+	return {
+		"active": true,
+		"distance": distance,
+		"capturable": distance <= INTRO_SUCTION_CAPTURE_DISTANCE,
+	}
+
+
+func set_intro_ragdoll_visible(player_index: int, should_show: bool) -> void:
+	var ragdoll: Dictionary = _intro_ragdolls.get(player_index, {})
+	var container := ragdoll.get("container") as Node3D
+	if container != null and is_instance_valid(container):
+		container.visible = should_show
+
+
+## Successful menu extraction deliberately leaves the authoritative runners
+## hidden for the few frames before the black transition takes over.
+func complete_intro_extraction() -> void:
+	_cleanup_intro_drops(false)
+	_intro_extracted = true
+
+
+## Builds and immediately releases the same physics trees while the transition
+## cover is opaque, so first-use shapes, joints, meshes, and toon materials are warm.
+func prewarm_intro_drop_ragdolls(player_count: int) -> void:
+	if has_intro_drops():
+		return
+	var count := clampi(player_count, 1, 2)
+	for player_index: int in range(1, count + 1):
+		var is_p1 := player_index == 1
+		var parts: Dictionary = p1_parts if is_p1 else p2_parts
+		if parts.is_empty() or parts.get("pelvis") == null:
+			continue
+		var ragdoll := _setup_ragdoll(parts, is_p1)
+		_teardown_ragdoll(ragdoll)
+		var should_show := not _intro_pending_players.has(player_index)
+		_set_parts_visible(parts, should_show)
+		_set_hat_visible(is_p1, should_show)
+		_set_rig_scenes_visible(is_p1, should_show)
+
+
+## Restores hats before freeing their temporary ragdoll parents, then snaps the
+## hidden presentation bodies back to the authoritative game-state positions.
+func complete_intro_drops(gs: QuizGameState) -> void:
+	_cleanup_intro_drops(true)
+	if gs != null:
+		update_from_state(gs)
+
+
+func cancel_intro_drops() -> void:
+	cancel_intro_arrival()
+	_cleanup_intro_drops(true)
+
+
+func _cleanup_intro_drops(restore_visuals: bool = true) -> void:
+	_intro_pending_players.clear()
+	_intro_cabin_rides.clear()
+	_intro_jumps.clear()
+	_intro_slides.clear()
+	if not _intro_ladder_grabs.is_empty():
+		_p1_rig.stop_all()
+		_p2_rig.stop_all()
+	_intro_ladder_grabs.clear()
+	for player_index: Variant in _intro_hat_restore.keys():
+		var restore: Dictionary = _intro_hat_restore[player_index]
+		var hat := restore.get("hat") as Node3D
+		var original_parent := restore.get("parent") as Node
+		if hat != null and is_instance_valid(hat) and original_parent != null and is_instance_valid(original_parent):
+			hat.reparent(original_parent, false)
+			hat.transform = restore.get("transform", Transform3D.IDENTITY)
+			hat.visible = bool(restore.get("visible", true)) if restore_visuals else false
+	_intro_hat_restore.clear()
+
+	for ragdoll: Dictionary in _intro_ragdolls.values():
+		_teardown_ragdoll(ragdoll)
+	_intro_ragdolls.clear()
+	_set_parts_visible(p1_parts, restore_visuals)
+	_set_hat_visible(true, restore_visuals)
+	_set_rig_scenes_visible(true, restore_visuals)
+	if not p2_parts.is_empty():
+		_set_parts_visible(p2_parts, restore_visuals)
+		_set_hat_visible(false, restore_visuals)
+		_set_rig_scenes_visible(false, restore_visuals)
+	if restore_visuals:
+		_intro_extracted = false
+
+
+func _set_hat_visible(is_p1: bool, should_show: bool) -> void:
+	var hat: Node3D = _p1_hat_node if is_p1 else _p2_hat_node
+	if hat != null and is_instance_valid(hat):
+		hat.visible = should_show
+
+
+## 吹き飛んだラグドールの現在姿勢をそのまま四肢分散の開始位置へ引き継ぐ。
+func _init_wall_ragdoll_explosion(ragdoll: Dictionary, fallback_parts: Dictionary, is_p1: bool) -> void:
+	var ragdoll_meshes: Array[MeshInstance3D] = []
+	var container: Node = ragdoll.get("container") as Node
+	if container != null and is_instance_valid(container):
+		for node: Node in container.find_children("*", "MeshInstance3D", true, false):
+			var mesh := node as MeshInstance3D
+			if mesh != null and mesh.visible:
+				ragdoll_meshes.append(mesh)
+
+	if ragdoll_meshes.is_empty():
+		_init_explosion(fallback_parts, is_p1, true)
+	else:
+		_init_explosion({"meshes": ragdoll_meshes}, is_p1, true)
+	_teardown_ragdoll(ragdoll)
+
+
+## 死亡演出で現在見えている身体の中心を返す。
+## 壁ラグドール中は胴体、四肢分散後は全破片の重心を優先する。
+func get_death_presentation_position(is_p1: bool) -> Vector3:
+	var ragdoll: Dictionary = _p1_ragdoll if is_p1 else _p2_ragdoll
+	var rag: Dictionary = ragdoll.get("rag", {})
+	var rag_bodies: Dictionary = rag.get("bodies", {})
+	var torso := rag_bodies.get("torso") as RigidBody3D
+	if torso != null and is_instance_valid(torso):
+		return torso.global_position
+
+	var explosion_bodies := _p1_explosion_bodies if is_p1 else _p2_explosion_bodies
+	var center := Vector3.ZERO
+	var body_count := 0
+	for body: RigidBody3D in explosion_bodies:
+		if body != null and is_instance_valid(body):
+			center += body.global_position
+			body_count += 1
+	if body_count > 0:
+		return center / float(body_count)
+
+	var parts: Dictionary = p1_parts if is_p1 else p2_parts
+	var pelvis := parts.get("pelvis") as Node3D
+	if pelvis != null and is_instance_valid(pelvis):
+		return pelvis.global_position
+	if not is_p1 and p2_container != null and is_instance_valid(p2_container):
+		return p2_container.global_position
+	return global_position
+
+
+func has_player_death_exploded(player_index: int) -> bool:
+	if player_index == 1:
+		return _p1_exploding
+	if player_index == 2:
+		return _p2_exploding
+	return false
+
+
+func play_result_explosion(player_index: int) -> void:
+	var is_p1 := player_index == 1
+	if not is_p1 and player_index != 2:
+		return
+	if (is_p1 and _p1_result_exploded) or (not is_p1 and _p2_result_exploded):
+		return
+	var parts: Dictionary = p1_parts if is_p1 else p2_parts
+	if parts.is_empty():
+		return
+	if is_p1:
+		_p1_result_exploded = true
+		_p1_result_explosion_elapsed = 0.0
+		_p1_exploding = true
+	else:
+		_p2_result_exploded = true
+		_p2_result_explosion_elapsed = 0.0
+		_p2_exploding = true
+	_init_explosion(parts, is_p1, true)
+	_set_parts_visible(parts, false)
+	_set_hat_visible(is_p1, false)
+	_set_rig_scenes_visible(is_p1, false)
+
+
+func reset_result_presentation() -> void:
+	_p1_result_exploded = false
+	_p2_result_exploded = false
+	_p1_result_explosion_elapsed = 0.0
+	_p2_result_explosion_elapsed = 0.0
+	_p1_exploding = false
+	_p2_exploding = false
+	_clear_explosion_bodies(true)
+	_clear_explosion_bodies(false)
+	_set_parts_visible(p1_parts, true)
+	_set_hat_visible(true, true)
+	_set_rig_scenes_visible(true, true)
+	if not p2_parts.is_empty():
+		_set_parts_visible(p2_parts, true)
+		_set_hat_visible(false, true)
+		_set_rig_scenes_visible(false, true)
+
+
+func _exit_tree() -> void:
+	# 爆発デブリは get_parent() 配下(別ツリー)に生成されるため、明示解放しないと
+	# このノード破棄時に孤児として残存リークする。
+	_clear_explosion_bodies(true)
+	_clear_explosion_bodies(false)
+	cancel_intro_drops()
+	_teardown_ragdoll(_p1_ragdoll)
+	_teardown_ragdoll(_p2_ragdoll)
+
 
 func _load_mixamo_rig(gs: QuizGameState) -> void:
 	var loader := Callable(self, "_load_fbx_scene")
@@ -67,11 +2334,134 @@ func _load_mixamo_rig(gs: QuizGameState) -> void:
 	if gs:
 		p1_slots = gs.p1_emote_slots
 		p2_slots = gs.p2_emote_slots
-		
 	if NetworkManager and NetworkManager.state == NetworkManager.State.IN_GAME:
 		p2_slots = NetworkManager.opponent_emote_slots
+	_apply_emote_rig_slots(p1_slots, p2_slots, loader)
 
-	print("[RIG] _load_mixamo_rig - p1_slots: %s, p2_slots: %s" % [str(p1_slots), str(p2_slots)])
+
+func _load_ghost_mount_rig() -> void:
+	_ghost_mount_rig_data.clear()
+	var loaded: Variant = _load_fbx_scene(
+		GHOST_MOUNT_ANIMATION_PATH,
+		"GhostMountHeroicPoseRig"
+	)
+	if not (loaded is Dictionary):
+		push_warning("Ghost mount animation could not be loaded")
+		return
+	_ghost_mount_rig_data = loaded
+	var animation_player := _ghost_mount_rig_data.get("anim_player") as AnimationPlayer
+	var animation_name := String(_ghost_mount_rig_data.get("anim_name", ""))
+	if animation_player == null or animation_name.is_empty():
+		_ghost_mount_rig_data.clear()
+		push_warning("Ghost mount animation has no playable action")
+		return
+	var animation: Animation = animation_player.get_animation(animation_name)
+	if animation != null:
+		animation.loop_mode = Animation.LOOP_NONE
+	animation_player.play(animation_name)
+	animation_player.seek(0.0, true)
+	animation_player.pause()
+
+
+func reload_emote_rigs(p1_slots: Array[int], p2_slots: Array[int]) -> void:
+	_clear_rig_scene_nodes()
+	_p1_rig = AnimationRig.new("P1")
+	_p2_rig = AnimationRig.new("P2")
+	_apply_emote_rig_slots(p1_slots, p2_slots, Callable(self, "_load_fbx_scene"))
+
+
+func _is_emote_locked(gs: QuizGameState, is_p2: bool) -> bool:
+	return gs.p2_emote_lock_timer > 0.0 if is_p2 else gs.p1_emote_lock_timer > 0.0
+
+
+func start_thriller_sequence(is_p2: bool) -> void:
+	var rig := _p2_rig if is_p2 else _p1_rig
+	rig.start_thriller_sequence()
+
+
+func reset_thriller_sequence(is_p2: bool) -> void:
+	var rig := _p2_rig if is_p2 else _p1_rig
+	rig.reset_thriller_sequence()
+
+
+func get_loaded_emote_ids(is_p2: bool) -> Array[int]:
+	var rig := _p2_rig if is_p2 else _p1_rig
+	return rig.loaded_emotes.duplicate()
+
+
+func ensure_emote_playback(is_p2: bool, emote_id: int) -> void:
+	var rig := _p2_rig if is_p2 else _p1_rig
+	if not rig.is_rigged:
+		return
+	var norm := EmoteData.normalize_emote_id(emote_id)
+	if EmoteData.is_thriller_emote(norm):
+		if not rig.is_thriller_locked():
+			rig.start_thriller_sequence()
+		return
+	var idx := rig.loaded_emotes.find(norm)
+	if idx < 0 or idx >= AnimationRig.EMOTE_RIG_SLOTS.size():
+		return
+	rig.play_slot(AnimationRig.EMOTE_RIG_SLOTS[idx], true)
+
+
+func _clear_rig_scene_nodes() -> void:
+	for child in get_children():
+		var n := str(child.name)
+		if n.begins_with("P1") or n.begins_with("P2"):
+			child.queue_free()
+
+
+func _apply_p1_rig_animation_fallback(gs: QuizGameState, is_active: bool, walk_phase: float, speed_ratio: float) -> void:
+	var emote_lock := _is_emote_locked(gs, false)
+	if emote_lock and gs.p1_emote > 0:
+		if _p1_rig.select_animation(
+			gs.player_y, false, gs.p1_emote, false, is_active, false, true
+		):
+			_apply_skeleton_pose(p1_parts, _p1_rig.active_skeleton, _p1_rig.active_bone_indices, _p1_rig.mirror_x)
+		else:
+			_animate_emote(p1_parts, gs.p1_emote, false)
+		return
+	if (gs.player_y > 0.01 or gs.p1_jump_trigger) and not (emote_lock and gs.p1_emote > 0):
+		_animate_skeleton(p1_parts, gs.player_y, gs.player_vel_y, is_active, walk_phase, false, 0)
+		return
+	if _p1_rig.select_animation(
+		gs.player_y, gs.p1_jump_trigger, gs.p1_emote if emote_lock else 0,
+		gs.p1_moving_back, is_active, _p1_rig.is_jump_playing(), emote_lock
+	):
+		_apply_skeleton_pose(p1_parts, _p1_rig.active_skeleton, _p1_rig.active_bone_indices, _p1_rig.mirror_x)
+		var run_ap := _p1_rig.aps[AnimationRig.SLOT_RUN] as AnimationPlayer
+		if run_ap and run_ap.is_playing():
+			run_ap.speed_scale = clampf(speed_ratio * gs.p1_run_anim_speed_mult, 0.3, 6.0)
+	else:
+		_animate_skeleton(p1_parts, gs.player_y, gs.player_vel_y, is_active, walk_phase, false, 0)
+
+
+func _apply_p2_rig_animation_fallback(gs: QuizGameState, is_active: bool, walk_phase: float, speed_ratio: float) -> void:
+	var emote_lock := _is_emote_locked(gs, true)
+	if emote_lock and gs.p2_emote > 0:
+		if _p2_rig.select_animation(
+			gs.player2_y, false, gs.p2_emote, false, is_active, false, true
+		):
+			_apply_skeleton_pose(p2_parts, _p2_rig.active_skeleton, _p2_rig.active_bone_indices, _p2_rig.mirror_x)
+		else:
+			_animate_emote(p2_parts, gs.p2_emote, true)
+		return
+	if (gs.player2_y > 0.01 or gs.p2_jump_trigger) and not (emote_lock and gs.p2_emote > 0):
+		_animate_skeleton(p2_parts, gs.player2_y, gs.player2_vel_y, is_active, walk_phase * 1.1, true, 0)
+		return
+	if _p2_rig.select_animation(
+		gs.player2_y, gs.p2_jump_trigger, gs.p2_emote if emote_lock else 0,
+		gs.p2_moving_back, is_active, _p2_rig.is_jump_playing(), emote_lock
+	):
+		_apply_skeleton_pose(p2_parts, _p2_rig.active_skeleton, _p2_rig.active_bone_indices, _p2_rig.mirror_x)
+		var run_ap := _p2_rig.aps[AnimationRig.SLOT_RUN] as AnimationPlayer
+		if run_ap and run_ap.is_playing():
+			run_ap.speed_scale = clampf(speed_ratio * gs.p2_run_anim_speed_mult, 0.3, 6.0)
+	else:
+		_animate_skeleton(p2_parts, gs.player2_y, gs.player2_vel_y, is_active, walk_phase * 1.1, true, 0)
+
+
+func _apply_emote_rig_slots(p1_slots: Array[int], p2_slots: Array[int], loader: Callable) -> void:
 	_p1_rig.load_all(self, loader, p1_slots)
 	_p2_rig.load_all(self, loader, p2_slots)
 	if _p1_rig.is_rigged or _p2_rig.is_rigged:
@@ -119,21 +2509,31 @@ func _load_fbx_scene(path: String, node_name: String) -> Variant:
 		node.queue_free()
 		return null
 	
-	# 譛繧ゅヨ繝ｩ繝・け謨ｰ縺ｮ螟壹＞繧｢繝九Γ繝ｼ繧ｷ繝ｧ繝ｳ縲√∪縺溘・ "mixamo_com" 繧呈ｭ｣隗｣縺ｨ縺吶ｋ
+	# Dedicated ladder rigs select the authored CC0 Interact clip. Other rigs keep
+	# the established Mixamo/highest-track selection contract.
+	var preferred_animation := ""
+	if node_name.ends_with("LadderGrabRig"):
+		preferred_animation = "Interact"
+	elif node_name.ends_with("Ual2Rig"):
+		preferred_animation = "Slide_Start"
 	var anim_name := ""
 	var max_tracks := -1
 	for lib_name in ap.get_animation_library_list():
 		var lib = ap.get_animation_library(lib_name)
 		for a_name in lib.get_animation_list():
-			var full = lib_name + "/" + a_name if lib_name != "" else a_name
+			var full: String = ("%s/%s" % [lib_name, a_name]) if not String(lib_name).is_empty() else String(a_name)
 			var anim = lib.get_animation(a_name)
 			var tracks_count = anim.get_track_count()
-			print("[RIG]   [", node_name, "] Anim: ", full, " (tracks: ", tracks_count, ", len: ", anim.length, ")")
+			if preferred_animation.is_empty() or String(a_name) == preferred_animation:
+				print("[RIG]   [", node_name, "] Anim: ", full, " (tracks: ", tracks_count, ", len: ", anim.length, ")")
 			
-			if "mixamo_com" in a_name:
+			if not preferred_animation.is_empty() and String(a_name) == preferred_animation:
+				anim_name = full
+				max_tracks = 10000
+			elif max_tracks < 10000 and "mixamo_com" in a_name:
 				anim_name = full
 				max_tracks = 9999 # 蠑ｷ蛻ｶ逧・↓譛蜆ｪ蜈・
-			elif tracks_count > max_tracks:
+			elif max_tracks < 9999 and tracks_count > max_tracks:
 				max_tracks = tracks_count
 				if anim_name == "" or not ("mixamo_com" in anim_name):
 					anim_name = full
@@ -159,56 +2559,56 @@ func _load_fbx_scene(path: String, node_name: String) -> Variant:
 	# 鬪ｨ繧､繝ｳ繝・ャ繧ｯ繧ｹ繧偵く繝｣繝・す繝･
 	var bone_indices := {}
 	var candidates: Dictionary = {
-		"hips": ["Hips", "mixamorig:Hips"],
-		"spine": ["Spine1", "mixamorig:Spine1", "Spine", "mixamorig:Spine"],
-		"neck": ["Neck", "mixamorig:Neck"],
-		"head": ["Head", "mixamorig:Head"],
-		"l_upper_arm": ["LeftUpperArm", "mixamorig:LeftArm"],
-		"l_lower_arm": ["LeftLowerArm", "mixamorig:LeftForeArm"],
-		"l_hand": ["LeftHand", "mixamorig:LeftHand"],
-		"r_upper_arm": ["RightUpperArm", "mixamorig:RightArm"],
-		"r_lower_arm": ["RightLowerArm", "mixamorig:RightForeArm"],
-		"r_hand": ["RightHand", "mixamorig:RightHand"],
-		"l_upper_leg": ["LeftUpperLeg", "mixamorig:LeftUpLeg"],
-		"l_lower_leg": ["LeftLowerLeg", "mixamorig:LeftLeg"],
-		"l_foot": ["LeftFoot", "mixamorig:LeftFoot"],
-		"l_toe": ["LeftToeBase", "mixamorig:LeftToeBase"],
-		"r_upper_leg": ["RightUpperLeg", "mixamorig:RightUpLeg"],
-		"r_lower_leg": ["RightLowerLeg", "mixamorig:RightLeg"],
-		"r_foot": ["RightFoot", "mixamorig:RightFoot"],
-		"r_toe": ["RightToeBase", "mixamorig:RightToeBase"],
+		"hips": ["Hips", "mixamorig:Hips", "mixamorig_Hips", "pelvis"],
+		"spine": ["Spine1", "mixamorig:Spine1", "Spine", "mixamorig:Spine", "mixamorig_Spine1", "mixamorig_Spine", "spine_02", "spine_01"],
+		"neck": ["Neck", "mixamorig:Neck", "mixamorig_Neck", "neck_01"],
+		"head": ["Head", "mixamorig:Head", "mixamorig_Head"],
+		"l_upper_arm": ["LeftUpperArm", "mixamorig:LeftArm", "mixamorig_LeftArm", "upperarm_l"],
+		"l_lower_arm": ["LeftLowerArm", "mixamorig:LeftForeArm", "mixamorig_LeftForeArm", "lowerarm_l"],
+		"l_hand": ["LeftHand", "mixamorig:LeftHand", "mixamorig_LeftHand", "hand_l"],
+		"r_upper_arm": ["RightUpperArm", "mixamorig:RightArm", "mixamorig_RightArm", "upperarm_r"],
+		"r_lower_arm": ["RightLowerArm", "mixamorig:RightForeArm", "mixamorig_RightForeArm", "lowerarm_r"],
+		"r_hand": ["RightHand", "mixamorig:RightHand", "mixamorig_RightHand", "hand_r"],
+		"l_upper_leg": ["LeftUpperLeg", "mixamorig:LeftUpLeg", "mixamorig_LeftUpLeg", "thigh_l"],
+		"l_lower_leg": ["LeftLowerLeg", "mixamorig:LeftLeg", "mixamorig_LeftLeg", "calf_l"],
+		"l_foot": ["LeftFoot", "mixamorig:LeftFoot", "mixamorig_LeftFoot", "foot_l"],
+		"l_toe": ["LeftToeBase", "mixamorig:LeftToeBase", "mixamorig_LeftToeBase", "ball_l"],
+		"r_upper_leg": ["RightUpperLeg", "mixamorig:RightUpLeg", "mixamorig_RightUpLeg", "thigh_r"],
+		"r_lower_leg": ["RightLowerLeg", "mixamorig:RightLeg", "mixamorig_RightLeg", "calf_r"],
+		"r_foot": ["RightFoot", "mixamorig:RightFoot", "mixamorig_RightFoot", "foot_r"],
+		"r_toe": ["RightToeBase", "mixamorig:RightToeBase", "mixamorig_RightToeBase", "ball_r"],
 		
 		# Fingers (Left)
-		"l_thumb_prox": ["LeftThumbMetacarpal", "mixamorig:LeftHandThumb1", "mixamorig_LeftHandThumb1", "LeftHandThumb1"],
-		"l_thumb_dist": ["LeftThumbProximal", "mixamorig:LeftHandThumb2", "mixamorig_LeftHandThumb2", "LeftHandThumb2"],
-		"l_index_prox": ["LeftIndexProximal", "mixamorig:LeftHandIndex1", "mixamorig_LeftHandIndex1", "LeftHandIndex1"],
-		"l_index_mid": ["LeftIndexIntermediate", "mixamorig:LeftHandIndex2", "mixamorig_LeftHandIndex2", "LeftHandIndex2"],
-		"l_index_dist": ["LeftIndexDistal", "mixamorig:LeftHandIndex3", "mixamorig_LeftHandIndex3", "LeftHandIndex3"],
-		"l_middle_prox": ["LeftMiddleProximal", "mixamorig:LeftHandMiddle1", "mixamorig_LeftHandMiddle1", "LeftHandMiddle1"],
-		"l_middle_mid": ["LeftMiddleIntermediate", "mixamorig:LeftHandMiddle2", "mixamorig_LeftHandMiddle2", "LeftHandMiddle2"],
-		"l_middle_dist": ["LeftMiddleDistal", "mixamorig:LeftHandMiddle3", "mixamorig_LeftHandMiddle3", "LeftHandMiddle3"],
-		"l_ring_prox": ["LeftRingProximal", "mixamorig:LeftHandRing1", "mixamorig_LeftHandRing1", "LeftHandRing1"],
-		"l_ring_mid": ["LeftRingIntermediate", "mixamorig:LeftHandRing2", "mixamorig_LeftHandRing2", "LeftHandRing2"],
-		"l_ring_dist": ["LeftRingDistal", "mixamorig:LeftHandRing3", "mixamorig_LeftHandRing3", "LeftHandRing3"],
-		"l_pinky_prox": ["LeftLittleProximal", "mixamorig:LeftHandPinky1", "mixamorig_LeftHandPinky1", "LeftHandPinky1"],
-		"l_pinky_mid": ["LeftLittleIntermediate", "mixamorig:LeftHandPinky2", "mixamorig_LeftHandPinky2", "LeftHandPinky2"],
-		"l_pinky_dist": ["LeftLittleDistal", "mixamorig:LeftHandPinky3", "mixamorig_LeftHandPinky3", "LeftHandPinky3"],
+		"l_thumb_prox": ["LeftThumbMetacarpal", "mixamorig:LeftHandThumb1", "mixamorig_LeftHandThumb1", "LeftHandThumb1", "thumb_01_l"],
+		"l_thumb_dist": ["LeftThumbProximal", "mixamorig:LeftHandThumb2", "mixamorig_LeftHandThumb2", "LeftHandThumb2", "thumb_02_l"],
+		"l_index_prox": ["LeftIndexProximal", "mixamorig:LeftHandIndex1", "mixamorig_LeftHandIndex1", "LeftHandIndex1", "index_01_l"],
+		"l_index_mid": ["LeftIndexIntermediate", "mixamorig:LeftHandIndex2", "mixamorig_LeftHandIndex2", "LeftHandIndex2", "index_02_l"],
+		"l_index_dist": ["LeftIndexDistal", "mixamorig:LeftHandIndex3", "mixamorig_LeftHandIndex3", "LeftHandIndex3", "index_03_l"],
+		"l_middle_prox": ["LeftMiddleProximal", "mixamorig:LeftHandMiddle1", "mixamorig_LeftHandMiddle1", "LeftHandMiddle1", "middle_01_l"],
+		"l_middle_mid": ["LeftMiddleIntermediate", "mixamorig:LeftHandMiddle2", "mixamorig_LeftHandMiddle2", "LeftHandMiddle2", "middle_02_l"],
+		"l_middle_dist": ["LeftMiddleDistal", "mixamorig:LeftHandMiddle3", "mixamorig_LeftHandMiddle3", "LeftHandMiddle3", "middle_03_l"],
+		"l_ring_prox": ["LeftRingProximal", "mixamorig:LeftHandRing1", "mixamorig_LeftHandRing1", "LeftHandRing1", "ring_01_l"],
+		"l_ring_mid": ["LeftRingIntermediate", "mixamorig:LeftHandRing2", "mixamorig_LeftHandRing2", "LeftHandRing2", "ring_02_l"],
+		"l_ring_dist": ["LeftRingDistal", "mixamorig:LeftHandRing3", "mixamorig_LeftHandRing3", "LeftHandRing3", "ring_03_l"],
+		"l_pinky_prox": ["LeftLittleProximal", "mixamorig:LeftHandPinky1", "mixamorig_LeftHandPinky1", "LeftHandPinky1", "pinky_01_l"],
+		"l_pinky_mid": ["LeftLittleIntermediate", "mixamorig:LeftHandPinky2", "mixamorig_LeftHandPinky2", "LeftHandPinky2", "pinky_02_l"],
+		"l_pinky_dist": ["LeftLittleDistal", "mixamorig:LeftHandPinky3", "mixamorig_LeftHandPinky3", "LeftHandPinky3", "pinky_03_l"],
 		
 		# Fingers (Right)
-		"r_thumb_prox": ["RightThumbMetacarpal", "mixamorig:RightHandThumb1", "mixamorig_RightHandThumb1", "RightHandThumb1"],
-		"r_thumb_dist": ["RightThumbProximal", "mixamorig:RightHandThumb2", "mixamorig_RightHandThumb2", "RightHandThumb2"],
-		"r_index_prox": ["RightIndexProximal", "mixamorig:RightHandIndex1", "mixamorig_RightHandIndex1", "RightHandIndex1"],
-		"r_index_mid": ["RightIndexIntermediate", "mixamorig:RightHandIndex2", "mixamorig_RightHandIndex2", "RightHandIndex2"],
-		"r_index_dist": ["RightIndexDistal", "mixamorig:RightHandIndex3", "mixamorig_RightHandIndex3", "RightHandIndex3"],
-		"r_middle_prox": ["RightMiddleProximal", "mixamorig:RightHandMiddle1", "mixamorig_RightHandMiddle1", "RightHandMiddle1"],
-		"r_middle_mid": ["RightMiddleIntermediate", "mixamorig:RightHandMiddle2", "mixamorig_RightHandMiddle2", "RightHandMiddle2"],
-		"r_middle_dist": ["RightMiddleDistal", "mixamorig:RightHandMiddle3", "mixamorig_RightHandMiddle3", "RightHandMiddle3"],
-		"r_ring_prox": ["RightRingProximal", "mixamorig:RightHandRing1", "mixamorig_RightHandRing1", "RightHandRing1"],
-		"r_ring_mid": ["RightRingIntermediate", "mixamorig:RightHandRing2", "mixamorig_RightHandRing2", "RightHandRing2"],
-		"r_ring_dist": ["RightRingDistal", "mixamorig:RightHandRing3", "mixamorig_RightHandRing3", "RightHandRing3"],
-		"r_pinky_prox": ["RightLittleProximal", "mixamorig:RightHandPinky1", "mixamorig_RightHandPinky1", "RightHandPinky1"],
-		"r_pinky_mid": ["RightLittleIntermediate", "mixamorig:RightHandPinky2", "mixamorig_RightHandPinky2", "RightHandPinky2"],
-		"r_pinky_dist": ["RightLittleDistal", "mixamorig:RightHandPinky3", "mixamorig_RightHandPinky3", "RightHandPinky3"]
+		"r_thumb_prox": ["RightThumbMetacarpal", "mixamorig:RightHandThumb1", "mixamorig_RightHandThumb1", "RightHandThumb1", "thumb_01_r"],
+		"r_thumb_dist": ["RightThumbProximal", "mixamorig:RightHandThumb2", "mixamorig_RightHandThumb2", "RightHandThumb2", "thumb_02_r"],
+		"r_index_prox": ["RightIndexProximal", "mixamorig:RightHandIndex1", "mixamorig_RightHandIndex1", "RightHandIndex1", "index_01_r"],
+		"r_index_mid": ["RightIndexIntermediate", "mixamorig:RightHandIndex2", "mixamorig_RightHandIndex2", "RightHandIndex2", "index_02_r"],
+		"r_index_dist": ["RightIndexDistal", "mixamorig:RightHandIndex3", "mixamorig_RightHandIndex3", "RightHandIndex3", "index_03_r"],
+		"r_middle_prox": ["RightMiddleProximal", "mixamorig:RightHandMiddle1", "mixamorig_RightHandMiddle1", "RightHandMiddle1", "middle_01_r"],
+		"r_middle_mid": ["RightMiddleIntermediate", "mixamorig:RightHandMiddle2", "mixamorig_RightHandMiddle2", "RightHandMiddle2", "middle_02_r"],
+		"r_middle_dist": ["RightMiddleDistal", "mixamorig:RightHandMiddle3", "mixamorig_RightHandMiddle3", "RightHandMiddle3", "middle_03_r"],
+		"r_ring_prox": ["RightRingProximal", "mixamorig:RightHandRing1", "mixamorig_RightHandRing1", "RightHandRing1", "ring_01_r"],
+		"r_ring_mid": ["RightRingIntermediate", "mixamorig:RightHandRing2", "mixamorig_RightHandRing2", "RightHandRing2", "ring_02_r"],
+		"r_ring_dist": ["RightRingDistal", "mixamorig:RightHandRing3", "mixamorig_RightHandRing3", "RightHandRing3", "ring_03_r"],
+		"r_pinky_prox": ["RightLittleProximal", "mixamorig:RightHandPinky1", "mixamorig_RightHandPinky1", "RightHandPinky1", "pinky_01_r"],
+		"r_pinky_mid": ["RightLittleIntermediate", "mixamorig:RightHandPinky2", "mixamorig_RightHandPinky2", "RightHandPinky2", "pinky_02_r"],
+		"r_pinky_dist": ["RightLittleDistal", "mixamorig:RightHandPinky3", "mixamorig_RightHandPinky3", "RightHandPinky3", "pinky_03_r"]
 	}
 	for key in candidates.keys():
 		for cand in candidates[key]:
@@ -216,7 +2616,20 @@ func _load_fbx_scene(path: String, node_name: String) -> Variant:
 			if idx != -1:
 				bone_indices[key] = idx
 				break
-	print("[RIG]   [", node_name, "] Mapped ", bone_indices.size(), "/18 bones")
+		if bone_indices.has(key):
+			continue
+		# Mixamo can number its namespace (for example mixamorig7_Hips).
+		# Match the stable bone-name suffix so separately exported FBX clips retarget correctly.
+		for cand in candidates[key]:
+			var suffix: String = String(cand).replace("mixamorig:", "").replace("mixamorig_", "")
+			for bone_idx: int in range(skeleton.get_bone_count()):
+				var bone_name: String = skeleton.get_bone_name(bone_idx)
+				if bone_name == suffix or bone_name.ends_with(":" + suffix) or bone_name.ends_with("_" + suffix):
+					bone_indices[key] = bone_idx
+					break
+			if bone_indices.has(key):
+				break
+	print("[RIG]   [", node_name, "] Mapped ", bone_indices.size(), "/", candidates.size(), " bones")
 	
 	return {
 		"node": node,
@@ -466,6 +2879,7 @@ func _create_box(half_extents: Vector3, color: Color) -> MeshInstance3D:
 	mat.roughness = 0.7
 	mat.metallic = 0.1
 	mesh_inst.material_override = mat
+	ToonPresets.remember_base_color(mesh_inst, color)
 
 	return mesh_inst
 
@@ -473,55 +2887,192 @@ var _run_phase: float = 0.0
 
 func _process(dt: float) -> void:
 	_time += dt
+	_update_intro_get_ups(dt)
 	var gs = QuizManager.game_state
 	var speed: float = gs._active_wall_speed if gs else 3.5
-	_run_phase += dt * 8.0 * (speed / 3.5)
+	var mult := 1.0
+	if Input.is_key_pressed(KEY_W):
+		mult = 2.0
+	_run_phase += dt * 8.0 * (speed / 3.5) * mult
 
-func update_from_state(gs: QuizGameState) -> void:
-	var pz: float = gs.player_z
-	var walk_phase: float = _run_phase
-	var speed_ratio: float = clampf(gs._active_wall_speed / 3.5, 0.3, 3.0)
 
+## 黒画面中にプレイヤー表示モデルと選択中の帽子を実体化する。
+## ゲーム状態やアニメーションは進めず、初回表示時の生成負荷だけを前倒しする。
+func prepare_for_loading(gs: QuizGameState) -> void:
+	if gs == null:
+		return
+	_sync_player_model_count(gs)
+	set_hat(1, gs.p1_hat)
+	set_toon_preset(1, ToonPresets.resolve_player_preset(gs, 1))
+	if gs.num_players >= 2:
+		set_hat(2, gs.p2_hat)
+		set_toon_preset(2, ToonPresets.resolve_player_preset(gs, 2))
+	if not has_intro_arrival():
+		return
+	var count := 2 if gs.num_players >= 2 else 1
+	for player_index: int in range(1, count + 1):
+		var is_p1 := player_index == 1
+		var parts: Dictionary = p1_parts if is_p1 else p2_parts
+		_set_parts_visible(parts, false)
+		_set_hat_visible(is_p1, false)
+		_set_rig_scenes_visible(is_p1, false)
+
+
+func _sync_player_model_count(gs: QuizGameState) -> void:
 	# Ensure P2 is created if needed
 	if gs.num_players >= 2 and p2_container == null:
 		p2_container = Node3D.new()
 		p2_container.name = "Player2"
 		add_child(p2_container)
 		p2_parts = _build_player_skeleton(false, p2_container)
+		_p2_toon_preset_id = -1
+		# P2ラグドールは p2_container.position 確定後に遅延生成する
 	if gs.num_players < 2 and p2_container != null:
+		# 爆発デブリは別親(get_parent())に在り container 解放では消えないので明示解放。
+		# _p2_exploding を残すと再エントリ時に二度目の爆発が初期化されない不具合になる。
+		_p2_exploding = false
+		_clear_explosion_bodies(false)
+		_teardown_ragdoll(_p2_ragdoll)
+		_p2_ragdoll = {}
+		_p2_driver = null
 		p2_container.queue_free()
 		p2_container = null
 		p2_parts.clear()
+		_p2_toon_preset_id = -1
+
+
+func update_from_state(gs: QuizGameState) -> void:
+	if has_intro_arrival():
+		return
+	var pz: float = gs.player_z
+	var walk_phase: float = _run_phase
+	var mult := 1.0
+	if Input.is_key_pressed(KEY_W):
+		mult = 2.0
+	var speed_ratio: float = clampf((gs._active_wall_speed / 3.5) * mult, 0.3, 6.0)
+
+	_sync_player_model_count(gs)
+	var desired_p1_toon := ToonPresets.resolve_player_preset(gs, 1)
+	if desired_p1_toon != _p1_toon_preset_id:
+		set_toon_preset(1, desired_p1_toon)
+	if gs.num_players >= 2:
+		var desired_p2_toon := ToonPresets.resolve_player_preset(gs, 2)
+		if desired_p2_toon != _p2_toon_preset_id:
+			set_toon_preset(2, desired_p2_toon)
 
 	# --- Player 1 ---
 	position = Vector3(gs.player_x, gs.player_y, gs.player_local_z)
-	
+	rotation.y = 0.0
+	# The 1P avatar stays visible because normal solo play now uses a third-person camera.
+	var p1_visual_hidden: bool = false
+
+	# P1ラグドールは位置確定後の初回に生成(アンカー瞬間移動を回避)。
+	# メニュープレビュー(SubViewport)では不要な物理負荷になるので生成しない
+	# (表示メッシュも隠さないため、プレビューはブロック四肢のまま正しく描画される)。
+	if USE_ACTIVE_RAGDOLL and not p1_visual_hidden and not _is_preview_subviewport() and _p1_ragdoll.is_empty() and not p1_parts.is_empty():
+		_p1_ragdoll = _setup_ragdoll(p1_parts, true)
+		_p1_driver = _p1_ragdoll.get("driver")
+
 	if gs.p1_alive:
-		if _p1_exploding or not _p1_explosion_bodies.is_empty():
+		if not _p1_result_exploded and (
+			_p1_exploding or not _p1_explosion_bodies.is_empty() or not _p1_ragdoll.is_empty()
+		):
 			_p1_exploding = false
 			_clear_explosion_bodies(true)
 			_set_rig_scenes_visible(true, true)
-		_set_parts_visible(p1_parts, true)
-		if not _p1_rig.is_rigged:
-			var p1_is_playing := gs.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]
-			_animate_skeleton(p1_parts, gs.player_y, gs.player_vel_y, p1_is_playing, walk_phase, false, gs.p1_emote)
+			_set_hat_visible(true, true)
+			# 脱力崩壊したラグドールを破棄→次フレームで直立状態に再生成(復活)
+			if not _p1_ragdoll.is_empty():
+				_teardown_ragdoll(_p1_ragdoll)
+				_p1_ragdoll = {}
+				_p1_driver = null
+		_set_parts_visible(p1_parts, not p1_visual_hidden)
+		if p1_visual_hidden:
+			pass
+		elif gs.p1_waiting_for_shark:
+			var p1_float_pose_applied: bool = false
+			if _p1_rig.is_rigged and _p1_rig.play_slot(AnimationRig.SLOT_TREADING_WATER):
+				p1_float_pose_applied = true
+				_apply_skeleton_pose(
+					p1_parts,
+					_p1_rig.active_skeleton,
+					_p1_rig.active_bone_indices,
+					_p1_rig.mirror_x
+				)
+			if not p1_float_pose_applied:
+				_animate_struggle(p1_parts, gs.p1_ocean_float_time)
+		elif not _p1_rig.is_rigged:
+			var p1_is_playing := gs.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE] or (
+				gs.game_state == Constants.STATE_RESULT_CEREMONY
+				and gs.result_ceremony_phase == QuizGameState.ResultCeremonyPhase.MEADOW_RUN
+			)
+			_animate_skeleton(p1_parts, gs.player_y, gs.player_vel_y, p1_is_playing, walk_phase, false, 0)
 		else:
-			var is_active := gs.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]
+			var is_active := gs.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE] or (
+				gs.game_state == Constants.STATE_RESULT_CEREMONY
+				and gs.result_ceremony_phase == QuizGameState.ResultCeremonyPhase.MEADOW_RUN
+			)
+			var p1_emote_lock := _is_emote_locked(gs, false)
 			var apply_rig := _p1_rig.select_animation(
 				gs.player_y, gs.p1_jump_trigger, gs.p1_emote,
-				gs.p1_moving_back, is_active, _p1_rig.is_jump_playing())
+				gs.p1_moving_back, is_active, _p1_rig.is_jump_playing(), p1_emote_lock)
 			
 			if apply_rig:
 				_apply_skeleton_pose(p1_parts, _p1_rig.active_skeleton, _p1_rig.active_bone_indices, _p1_rig.mirror_x)
-				var run_ap := _p1_rig.aps[1] as AnimationPlayer # SLOT_RUN
+				var run_ap := _p1_rig.aps[AnimationRig.SLOT_RUN] as AnimationPlayer
 				if run_ap and run_ap.is_playing():
-					run_ap.speed_scale = speed_ratio
+					run_ap.speed_scale = clampf(
+						speed_ratio * gs.p1_run_anim_speed_mult,
+						0.3,
+						6.0
+					)
+			elif p1_emote_lock and gs.p1_emote > 0:
+				if _p1_rig.select_animation(
+					gs.player_y, false, gs.p1_emote, false, is_active, false, true
+				):
+					_apply_skeleton_pose(p1_parts, _p1_rig.active_skeleton, _p1_rig.active_bone_indices, _p1_rig.mirror_x)
+				elif not _p1_rig.is_rigged:
+					_animate_emote(p1_parts, gs.p1_emote, false)
 			else:
-				_animate_skeleton(p1_parts, gs.player_y, gs.player_vel_y, false, walk_phase, false, 0)
+				_apply_p1_rig_animation_fallback(gs, is_active, walk_phase, speed_ratio)
 			# FBXリグモードでもボブルヘッドを更新
 			_update_bobblehead(p1_parts, false, is_active, walk_phase)
+		if _p1_result_exploded:
+			_p1_result_explosion_elapsed += get_process_delta_time()
+			_set_parts_visible(p1_parts, false)
+			_set_hat_visible(true, false)
+			_set_rig_scenes_visible(true, false)
+			_update_explosion(true, _p1_result_explosion_elapsed)
 	elif gs.game_over_timer > 0:
-		if gs.game_over_timer < 2.0:
+		if gs.p1_shark_killed:
+			if not _p1_exploding:
+				_p1_exploding = true
+				_init_explosion(p1_parts, true)
+			_set_parts_visible(p1_parts, false)
+			if not _p1_explosion_bodies.is_empty():
+				_update_explosion(
+					true,
+					gs.game_over_timer,
+					true,
+					gs.is_coop_mode(),
+					-global_position.x
+				)
+		elif gs.p1_wall_impact:
+			if gs.game_over_timer < QuizGameState.WALL_RAGDOLL_DURATION:
+				if _p1_ragdoll.is_empty():
+					_p1_ragdoll = _setup_ragdoll(p1_parts, true)
+					_p1_driver = _p1_ragdoll.get("driver")
+					_launch_wall_ragdoll(_p1_ragdoll, true)
+			elif not _p1_exploding:
+				_p1_exploding = true
+				_init_wall_ragdoll_explosion(_p1_ragdoll, p1_parts, true)
+				_p1_ragdoll = {}
+				_p1_driver = null
+			_set_hat_visible(true, false)
+			_set_parts_visible(p1_parts, false)
+			if not _p1_explosion_bodies.is_empty():
+				_update_explosion(true, gs.game_over_timer - QuizGameState.WALL_RAGDOLL_DURATION)
+		elif gs.game_over_timer < 2.0:
 			_set_parts_visible(p1_parts, true)
 			var apply_rig := false
 			if _p1_rig.is_rigged and _p1_rig.play_slot(AnimationRig.SLOT_DROWNING):
@@ -535,46 +3086,130 @@ func update_from_state(gs: QuizGameState) -> void:
 				else:
 					_animate_struggle(p1_parts, gs.game_over_timer)
 		else:
-			if not _p1_exploding:
+			if not _p1_exploding and gs.player_y > StageConstants.OCEAN_ENTRY_Y:
 				_p1_exploding = true
-				_init_explosion(p1_parts, true)
+				# HFF: 死亡時は脱力崩壊。駆動を止め全身を重力で崩す。ラグドール非生成時
+				# (プレビュー等)のみ従来の爆発にフォールバック。復活時にラグドールを
+				# 破棄し再生成して直立復帰する(下の alive 分岐)。
+				if USE_ACTIVE_RAGDOLL and not _p1_ragdoll.is_empty():
+					_go_limp(_p1_ragdoll)
+				else:
+					_init_explosion(p1_parts, true)
 			_set_parts_visible(p1_parts, false)
 			if not _p1_explosion_bodies.is_empty():
-				var is_magma := gs.player_y < -1.0
-				_update_explosion(true, gs.game_over_timer - 2.0, is_magma, gs.is_coop_mode(), -global_position.x)
+				var sink_debris: bool = gs.player_y <= StageConstants.OCEAN_ENTRY_Y
+				_update_explosion(true, gs.game_over_timer - 2.0, sink_debris, gs.is_coop_mode(), -global_position.x)
 	else:
 		_set_parts_visible(p1_parts, false)
 
 	# --- Player 2 ---
 	if gs.num_players >= 2 and p2_container:
 		p2_container.position = Vector3(gs.player2_x - gs.player_x, gs.player2_y - gs.player_y, gs.player2_local_z - gs.player_local_z)
-		
+
+		# P2ラグドールは位置確定後の初回に生成(アンカー瞬間移動を回避)。
+		# プレビュー(SubViewport)では生成しない(P1と同様)。
+		if USE_ACTIVE_RAGDOLL and not _is_preview_subviewport() and _p2_ragdoll.is_empty() and not p2_parts.is_empty():
+			_p2_ragdoll = _setup_ragdoll(p2_parts, false)
+			_p2_driver = _p2_ragdoll.get("driver")
+
 		if gs.p2_alive:
-			if _p2_exploding or not _p2_explosion_bodies.is_empty():
+			if not _p2_result_exploded and (
+				_p2_exploding or not _p2_explosion_bodies.is_empty() or not _p2_ragdoll.is_empty()
+			):
 				_p2_exploding = false
 				_clear_explosion_bodies(false)
 				_set_rig_scenes_visible(false, true)
+				_set_hat_visible(false, true)
+				# 脱力崩壊したラグドールを破棄→次フレームで直立状態に再生成(復活)
+				if not _p2_ragdoll.is_empty():
+					_teardown_ragdoll(_p2_ragdoll)
+					_p2_ragdoll = {}
+					_p2_driver = null
 			_set_parts_visible(p2_parts, true)
-			if not _p2_rig.is_rigged:
-				var p2_is_playing := gs.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]
-				_animate_skeleton(p2_parts, gs.player2_y, gs.player2_vel_y, p2_is_playing, walk_phase * 1.1, true, gs.p2_emote)
+			if gs.p2_waiting_for_shark:
+				var p2_float_pose_applied: bool = false
+				if _p2_rig.is_rigged and _p2_rig.play_slot(AnimationRig.SLOT_TREADING_WATER):
+					p2_float_pose_applied = true
+					_apply_skeleton_pose(
+						p2_parts,
+						_p2_rig.active_skeleton,
+						_p2_rig.active_bone_indices,
+						_p2_rig.mirror_x
+					)
+				if not p2_float_pose_applied:
+					_animate_struggle(p2_parts, gs.p2_ocean_float_time)
+			elif not _p2_rig.is_rigged:
+				var p2_is_playing := gs.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE] or (
+					gs.game_state == Constants.STATE_RESULT_CEREMONY
+					and gs.result_ceremony_phase == QuizGameState.ResultCeremonyPhase.MEADOW_RUN
+				)
+				_animate_skeleton(p2_parts, gs.player2_y, gs.player2_vel_y, p2_is_playing, walk_phase * 1.1, true, 0)
 			else:
-				var is_active := gs.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]
+				var is_active := gs.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE] or (
+					gs.game_state == Constants.STATE_RESULT_CEREMONY
+					and gs.result_ceremony_phase == QuizGameState.ResultCeremonyPhase.MEADOW_RUN
+				)
+				var p2_emote_lock := _is_emote_locked(gs, true)
 				var apply_rig := _p2_rig.select_animation(
 					gs.player2_y, gs.p2_jump_trigger, gs.p2_emote,
-					gs.p2_moving_back, is_active, _p2_rig.is_jump_playing())
+					gs.p2_moving_back, is_active, _p2_rig.is_jump_playing(), p2_emote_lock)
 				
 				if apply_rig:
 					_apply_skeleton_pose(p2_parts, _p2_rig.active_skeleton, _p2_rig.active_bone_indices, _p2_rig.mirror_x)
-					var run_ap := _p2_rig.aps[1] as AnimationPlayer # SLOT_RUN
+					var run_ap := _p2_rig.aps[AnimationRig.SLOT_RUN] as AnimationPlayer
 					if run_ap and run_ap.is_playing():
-						run_ap.speed_scale = speed_ratio
+						run_ap.speed_scale = clampf(
+							speed_ratio * gs.p2_run_anim_speed_mult,
+							0.3,
+							6.0
+						)
+				elif p2_emote_lock and gs.p2_emote > 0:
+					if _p2_rig.select_animation(
+						gs.player2_y, false, gs.p2_emote, false, is_active, false, true
+					):
+						_apply_skeleton_pose(p2_parts, _p2_rig.active_skeleton, _p2_rig.active_bone_indices, _p2_rig.mirror_x)
+					elif not _p2_rig.is_rigged:
+						_animate_emote(p2_parts, gs.p2_emote, true)
 				else:
-					_animate_skeleton(p2_parts, gs.player2_y, gs.player2_vel_y, false, walk_phase * 1.1, true, 0)
+					_apply_p2_rig_animation_fallback(gs, is_active, walk_phase, speed_ratio)
 				# FBXリグモードでもボブルヘッドを更新
 				_update_bobblehead(p2_parts, true, is_active, walk_phase * 1.1)
+			if _p2_result_exploded:
+				_p2_result_explosion_elapsed += get_process_delta_time()
+				_set_parts_visible(p2_parts, false)
+				_set_hat_visible(false, false)
+				_set_rig_scenes_visible(false, false)
+				_update_explosion(false, _p2_result_explosion_elapsed)
 		elif gs.player2_game_over_timer > 0:
-			if gs.player2_game_over_timer < 2.0:
+			if gs.p2_shark_killed:
+				if not _p2_exploding:
+					_p2_exploding = true
+					_init_explosion(p2_parts, false)
+				_set_parts_visible(p2_parts, false)
+				if not _p2_explosion_bodies.is_empty():
+					_update_explosion(
+						false,
+						gs.player2_game_over_timer,
+						true,
+						gs.is_coop_mode(),
+						-global_position.x
+					)
+			elif gs.p2_wall_impact:
+				if gs.player2_game_over_timer < QuizGameState.WALL_RAGDOLL_DURATION:
+					if _p2_ragdoll.is_empty():
+						_p2_ragdoll = _setup_ragdoll(p2_parts, false)
+						_p2_driver = _p2_ragdoll.get("driver")
+						_launch_wall_ragdoll(_p2_ragdoll, false)
+				elif not _p2_exploding:
+					_p2_exploding = true
+					_init_wall_ragdoll_explosion(_p2_ragdoll, p2_parts, false)
+					_p2_ragdoll = {}
+					_p2_driver = null
+				_set_hat_visible(false, false)
+				_set_parts_visible(p2_parts, false)
+				if not _p2_explosion_bodies.is_empty():
+					_update_explosion(false, gs.player2_game_over_timer - QuizGameState.WALL_RAGDOLL_DURATION)
+			elif gs.player2_game_over_timer < 2.0:
 				_set_parts_visible(p2_parts, true)
 				var apply_rig := false
 				if _p2_rig.is_rigged and _p2_rig.play_slot(AnimationRig.SLOT_DROWNING):
@@ -587,34 +3222,62 @@ func update_from_state(gs: QuizGameState) -> void:
 					else:
 						_animate_struggle(p2_parts, gs.player2_game_over_timer)
 			else:
-				if not _p2_exploding:
+				if not _p2_exploding and gs.player2_y > StageConstants.OCEAN_ENTRY_Y:
 					_p2_exploding = true
-					_init_explosion(p2_parts, false)
+					# HFF: 死亡時は脱力崩壊(P1と同様)。復活時に破棄→再生成で直立復帰。
+					if USE_ACTIVE_RAGDOLL and not _p2_ragdoll.is_empty():
+						_go_limp(_p2_ragdoll)
+					else:
+						_init_explosion(p2_parts, false)
 				_set_parts_visible(p2_parts, false)
 				if not _p2_explosion_bodies.is_empty():
-					var is_magma := gs.player2_y < -1.0
-					_update_explosion(false, gs.player2_game_over_timer - 2.0, is_magma, gs.is_coop_mode(), -global_position.x)
+					var sink_debris: bool = gs.player2_y <= StageConstants.OCEAN_ENTRY_Y
+					_update_explosion(false, gs.player2_game_over_timer - 2.0, sink_debris, gs.is_coop_mode(), -global_position.x)
 		else:
 			_set_parts_visible(p2_parts, false)
 
-	# 1P: only show player body during game over explosion, flyover, menu, or replay
+	_apply_result_camera_facing(gs)
+
+	# The solo player root must remain visible for the third-person camera.
+	# Individual meshes still control death/explosion visibility above.
 	if gs.num_players == 1:
-		if gs.is_demo:
-			# メニュー背景デモは三人称視点なので常に表示
-			visible = true
-		elif gs.game_state == Constants.STATE_GAME_OVER and gs.game_over_timer > 0:
-			visible = true
-		elif gs.game_state == Constants.STATE_FLYOVER:
-			visible = true
-		elif gs.game_state in [Constants.STATE_PLAYING, Constants.STATE_CORRECT, Constants.STATE_PRELOADING]:
-			visible = false
-		else:
-			visible = false
+		visible = true
+
+
+func _apply_result_camera_facing(gs: QuizGameState) -> void:
+	if not (
+		gs.result_presentation_active
+		and gs.game_state in [Constants.STATE_RESULT_CEREMONY, Constants.STATE_CLEAR]
+		and gs.result_ceremony_phase >= QuizGameState.ResultCeremonyPhase.SCORE_ROLL
+	):
+		return
+	var p1_pelvis := p1_parts.get("pelvis") as Node3D
+	if p1_pelvis != null:
+		p1_pelvis.rotation.y = wrapf(p1_pelvis.rotation.y + PI, -PI, PI)
+	var p2_pelvis := p2_parts.get("pelvis") as Node3D
+	if p2_pelvis != null:
+		p2_pelvis.rotation.y = wrapf(p2_pelvis.rotation.y + PI, -PI, PI)
 
 func _set_parts_visible(parts: Dictionary, vis: bool) -> void:
 	if not parts or not parts.has("meshes"): return
+	# ラグドール有効時は、物理体に置換した表示メッシュ(_RAGDOLL_HIDE_KEYS)を
+	# 表示要求時も隠したままにする。これをしないと毎フレームの再表示で表示メッシュ
+	# (=目標ゴースト)が物理体と二重に描画され、揺れた瞬間に分離して見える。
+	var hidden := {}
+	if vis and USE_ACTIVE_RAGDOLL:
+		var rag_active: bool = (not _p1_ragdoll.is_empty()) if parts == p1_parts else (not _p2_ragdoll.is_empty())
+		if rag_active:
+			for k in _RAGDOLL_HIDE_KEYS:
+				var n = parts.get(k)
+				if n: hidden[n] = true
+	# Hands are Node3D roots containing several MeshInstance3D children. Restoring
+	# only the child meshes leaves the hidden parent in place after a ragdoll ends.
+	for key: String in _RAGDOLL_HIDE_KEYS:
+		var part_root := parts.get(key) as Node3D
+		if part_root != null and not part_root is MeshInstance3D:
+			part_root.visible = vis and not hidden.has(part_root)
 	for mesh: MeshInstance3D in parts["meshes"]:
-		if mesh: mesh.visible = vis
+		if mesh: mesh.visible = vis and not hidden.has(mesh)
 
 
 
@@ -660,7 +3323,7 @@ func _animate_skeleton(parts: Dictionary, py: float, vy: float, is_playing: bool
 	r_toe.rotation = Vector3.ZERO
 	
 	if py < -1.0:
-		# Flail 窶・falling into magma
+		# Flail 窶・falling into the ocean
 		var flail := sin(_time * 25.0) * PI * 0.4
 		l_hip.rotation.x = flail
 		r_hip.rotation.x = -flail
@@ -764,6 +3427,11 @@ func _update_bobblehead(parts: Dictionary, is_p2: bool, is_playing: bool, phase:
 		return
 	var hat_m: Node3D = parts["hat_mount"]
 	var bobble: Dictionary = _p1_bobble if not is_p2 else _p2_bobble
+	var hat_id := _p2_hat_id if is_p2 else _p1_hat_id
+	if hat_id == HatData.HAT_BOUSI:
+		# キリンは分離した頭部だけが追従する。帽体・脚・胴体・首は揺らさない。
+		hat_m.rotation = Vector3.ZERO
+		return
 	
 	if bobble["active"]:
 		# 赤ベコモード: バネ物理で首を揺らす
@@ -981,7 +3649,7 @@ func _mesh_box_size(mesh_inst: MeshInstance3D) -> Vector3:
 	return size.max(Vector3.ONE * EXPLOSION_MIN_COLLISION_SIZE)
 
 
-func _init_explosion(parts: Dictionary, is_p1: bool) -> void:
+func _init_explosion(parts: Dictionary, is_p1: bool, force_non_forward: bool = false) -> void:
 	if not parts or not parts.has("meshes"):
 		return
 	_hide_rig_scenes(is_p1)
@@ -1041,10 +3709,18 @@ func _init_explosion(parts: Dictionary, is_p1: bool) -> void:
 		spawn_root.add_child(piece)
 		piece.global_transform = gt
 
+		var impulse_z := randf_range(EXPLOSION_IMPULSE_Z_MIN, EXPLOSION_IMPULSE_Z_MAX)
+		if force_non_forward:
+			# メニューは前方=-Z、本編は前方=+Z。どちらも必ず逆側へ分散させる。
+			var backward_z_sign := 1.0 if is_preview else -1.0
+			impulse_z = backward_z_sign * randf_range(
+				WALL_EXPLOSION_BACKWARD_Z_MIN,
+				WALL_EXPLOSION_BACKWARD_Z_MAX
+			)
 		var impulse := Vector3(
 			sx * randf_range(EXPLOSION_IMPULSE_X_MIN, EXPLOSION_IMPULSE_X_MAX),
 			randf_range(EXPLOSION_IMPULSE_Y_MIN, EXPLOSION_IMPULSE_Y_MAX),
-			randf_range(EXPLOSION_IMPULSE_Z_MIN, EXPLOSION_IMPULSE_Z_MAX)
+			impulse_z
 		)
 		# X/Z 回転を強めにして着地後も転がりやすくする
 		var torque := Vector3(
@@ -1057,17 +3733,31 @@ func _init_explosion(parts: Dictionary, is_p1: bool) -> void:
 			piece.gravity_scale = 2.3
 			piece.linear_damp = 0.06
 			piece.angular_damp = 0.05
-			impulse *= 1.45
-			torque *= 1.35
 
-		piece.apply_central_impulse(impulse)
-		piece.apply_torque_impulse(torque)
-		# 初速の回転を与えて床での転がりを強調
-		piece.angular_velocity = Vector3(
-			randf_range(-14.0, 14.0),
-			randf_range(-4.0, 4.0),
-			randf_range(-14.0, 14.0)
-		)
+		if force_non_forward:
+			# 壁衝突は質量に左右されない控えめな速度指定にし、画面外へ消えにくくする。
+			piece.linear_velocity = Vector3(
+				sx * randf_range(WALL_EXPLOSION_SIDE_SPEED_MIN, WALL_EXPLOSION_SIDE_SPEED_MAX),
+				randf_range(WALL_EXPLOSION_UP_SPEED_MIN, WALL_EXPLOSION_UP_SPEED_MAX),
+				impulse_z
+			)
+			piece.angular_velocity = Vector3(
+				randf_range(-WALL_EXPLOSION_SPIN_MAX, WALL_EXPLOSION_SPIN_MAX),
+				randf_range(-WALL_EXPLOSION_SPIN_MAX * 0.35, WALL_EXPLOSION_SPIN_MAX * 0.35),
+				randf_range(-WALL_EXPLOSION_SPIN_MAX, WALL_EXPLOSION_SPIN_MAX)
+			)
+		else:
+			if is_preview:
+				impulse *= 1.45
+				torque *= 1.35
+			piece.apply_central_impulse(impulse)
+			piece.apply_torque_impulse(torque)
+			# 初速の回転を与えて床での転がりを強調
+			piece.angular_velocity = Vector3(
+				randf_range(-14.0, 14.0),
+				randf_range(-4.0, 4.0),
+				randf_range(-14.0, 14.0)
+			)
 		bodies.append(piece)
 
 	if is_p1:
@@ -1083,11 +3773,11 @@ func _hide_rig_scenes(is_p1: bool) -> void:
 func _update_explosion(
 		is_p1: bool,
 		timer: float,
-		is_magma: bool = false,
+		sink_debris: bool = false,
 		fall_to_groove: bool = false,
 		groove_local_x: float = 0.0) -> void:
 	var bodies := _p1_explosion_bodies if is_p1 else _p2_explosion_bodies
-	var should_sink := is_magma or fall_to_groove
+	var should_sink := sink_debris or fall_to_groove
 	var i := bodies.size() - 1
 	while i >= 0:
 		var body := bodies[i]
@@ -1107,8 +3797,8 @@ func _update_explosion(
 			var dx := target_x - body.global_position.x
 			body.apply_central_force(Vector3(dx * 12.0, 0.0, 0.0))
 
-		if should_sink and body.global_position.y < EXPLOSION_MAGMA_SURFACE_Y:
-			var depth := EXPLOSION_MAGMA_SURFACE_Y - body.global_position.y
+		if should_sink and body.global_position.y < EXPLOSION_SINK_SURFACE_Y:
+			var depth := EXPLOSION_SINK_SURFACE_Y - body.global_position.y
 			var bscale: Vector3 = body.get_meta("base_scale", Vector3.ONE)
 			var shrink := maxf(0.0, 1.0 - depth * 0.1)
 			for child in body.get_children():
@@ -1127,17 +3817,41 @@ func _update_explosion(
 # ============================================================
 
 func _animate_emote(parts: Dictionary, emote: int, is_p2: bool = false) -> void:
+	var norm := EmoteData.normalize_emote_id(emote)
+	if norm == EmoteData.EMOTE_NONE:
+		return
 	var t := _time
-	var slots = _p2_rig.loaded_emotes if is_p2 else _p1_rig.loaded_emotes
-	var idx = slots.find(emote)
-	if idx == 0:
-		_emote_floss(t, parts) # Step Hip Hop fallback
-	elif idx == 1:
-		_emote_floss(t * 0.85, parts) # Gangnam fallback
-	elif idx == 2:
-		_emote_floss(t * 1.15, parts) # Slide Hip Hop fallback
-	else:
-		_emote_floss(t * 1.0, parts) # Default fallback
+	match norm:
+		EmoteData.EMOTE_GANGNAM:
+			_emote_floss(t * 0.82, parts)
+		EmoteData.EMOTE_SLIDE_HIP_HOP:
+			_emote_floss(t * 1.18, parts)
+		EmoteData.EMOTE_MOONWALK:
+			_emote_side_groove(t * 0.9, parts, -1.0)
+		EmoteData.EMOTE_FLAIR:
+			_emote_arm_wave(t * 1.25, parts, 1.15)
+		EmoteData.EMOTE_HIP_HOP, EmoteData.EMOTE_HIP_HOP_1:
+			_emote_side_groove(t * 1.05, parts, 1.0)
+		EmoteData.EMOTE_SILLY:
+			_emote_arm_wave(t * 1.35, parts, 0.75)
+		EmoteData.EMOTE_SWING:
+			_emote_side_groove(t * 0.75, parts, -0.85)
+		EmoteData.EMOTE_THRILLER:
+			_emote_arm_wave(t * 0.95, parts, 1.35)
+		EmoteData.EMOTE_YMCA:
+			_emote_arm_wave(t * 1.1, parts, 1.0)
+		EmoteData.EMOTE_HOUSE:
+			_emote_floss(t * 1.4, parts)
+		EmoteData.EMOTE_HEAD_SPINNING:
+			_emote_side_groove(t * 1.55, parts, 1.25)
+		EmoteData.EMOTE_RUNNING_MAN:
+			_emote_floss(t * 1.25, parts)
+		EmoteData.EMOTE_HOKEY_POKEY:
+			_emote_arm_wave(t * 1.05, parts, 0.95)
+		EmoteData.EMOTE_WAVE_HIP_HOP:
+			_emote_arm_wave(t * 1.2, parts, 1.1)
+		_:
+			_emote_floss(t, parts)
 
 
 # --- Emote 1: Floss Dance ---
@@ -1199,6 +3913,46 @@ func _emote_floss(t: float, parts: Dictionary) -> void:
 	l_knee.rotation.x = abs(leg_phase) * 0.2
 	r_hip.rotation.x = -leg_phase * 0.15
 	r_knee.rotation.x = abs(-leg_phase) * 0.2
+
+
+func _emote_side_groove(t: float, parts: Dictionary, sway_sign: float) -> void:
+	var pelvis: Node3D = parts["pelvis"]
+	var spine_node: Node3D = parts["spine"]
+	var head: Node3D = parts["head_pivot"]
+	var l_shoulder: Node3D = parts["l_shoulder"]
+	var r_shoulder: Node3D = parts["r_shoulder"]
+	var l_hip: Node3D = parts["l_hip"]
+	var r_hip: Node3D = parts["r_hip"]
+	var phase := t * 7.5
+	var sway := sin(phase) * 0.55 * sway_sign
+	pelvis.position.y = BASE_Y + 0.9 + abs(sin(phase * 2.0)) * 0.1
+	pelvis.rotation.y = sway
+	spine_node.rotation.y = -sway * 0.35
+	head.rotation.y = sway * 0.2
+	l_shoulder.rotation.z = sway * 0.55
+	r_shoulder.rotation.z = -sway * 0.55
+	l_hip.rotation.x = sin(phase + 0.4) * 0.22
+	r_hip.rotation.x = -sin(phase + 0.4) * 0.22
+
+
+func _emote_arm_wave(t: float, parts: Dictionary, amp: float) -> void:
+	var pelvis: Node3D = parts["pelvis"]
+	var spine_node: Node3D = parts["spine"]
+	var head: Node3D = parts["head_pivot"]
+	var l_shoulder: Node3D = parts["l_shoulder"]
+	var r_shoulder: Node3D = parts["r_shoulder"]
+	var l_elbow: Node3D = parts["l_elbow"]
+	var r_elbow: Node3D = parts["r_elbow"]
+	var phase := t * 6.0
+	var wave := sin(phase) * amp
+	pelvis.position.y = BASE_Y + 0.9 + abs(cos(phase)) * 0.07
+	pelvis.rotation.y = sin(phase * 0.5) * 0.25
+	spine_node.rotation.x = -0.06
+	head.rotation.x = sin(phase * 2.0) * 0.08
+	l_shoulder.rotation.x = -0.4 + wave * 0.35
+	r_shoulder.rotation.x = -0.4 - wave * 0.35
+	l_elbow.rotation.x = -0.55 + abs(wave) * 0.25
+	r_elbow.rotation.x = -0.55 + abs(wave) * 0.25
 
 
 # --- Emote 2: Kazotsky Kick (Squat Dance) ---
@@ -1321,15 +4075,399 @@ func bind_to_skeleton(player_id: int, skeleton: Skeleton3D) -> void:
 	"""蠕梧婿莠呈鋤諤ｧ縺ｮ縺溘ａ縺ｮ繝繝溘・髢｢謨ｰ - 螳滄圀縺ｮ蜃ｦ逅・・_apply_skeleton_pose縺ｧ豈弱ヵ繝ｬ繝ｼ繝陦後≧"""
 	pass
 
+
+func create_ghost_rider_visual(player_index: int) -> Node3D:
+	var rider := Node3D.new()
+	rider.name = "GhostRiderP%d" % player_index
+	var parts := _build_player_skeleton(player_index == 1, rider)
+	rider.set_meta("ghost_mount_parts", parts)
+	var bind_transforms: Dictionary = {}
+	for part_name: Variant in parts:
+		var part_variant: Variant = parts[part_name]
+		if part_variant is Node3D:
+			var part := part_variant as Node3D
+			bind_transforms[part_name] = part.transform
+	rider.set_meta(GHOST_RIDER_BIND_TRANSFORMS_META, bind_transforms)
+	var mounted_transform := Transform3D(
+		Basis.from_scale(Vector3.ONE * GHOST_RIDER_MOUNT_SCALE),
+		Vector3.ZERO
+	)
+	rider.set_meta(GHOST_RIDER_MOUNT_SCALE_META, GHOST_RIDER_MOUNT_SCALE)
+	rider.set_meta(GHOST_RIDER_MOUNT_TRANSFORM_META, mounted_transform)
+	rider.transform = mounted_transform
+	apply_ghost_rider_mounted_pose(rider)
+
+	var hat_id := _p1_hat_id if player_index == 1 else _p2_hat_id
+	if hat_id != HatData.HAT_NONE:
+		var hat_node := HatFactory.create_hat(hat_id)
+		if hat_node:
+			parts["hat_mount"].add_child(hat_node)
+			parts["hat_meshes"] = HatFactory.get_hat_meshes(hat_node)
+
+	var ghost_meshes: Array[MeshInstance3D] = []
+	for body_mesh: MeshInstance3D in parts["meshes"]:
+		ghost_meshes.append(body_mesh)
+	for hat_mesh: MeshInstance3D in parts["hat_meshes"]:
+		ghost_meshes.append(hat_mesh)
+	for mesh_instance in ghost_meshes:
+		_apply_ghost_material(mesh_instance)
+	_add_ghost_rider_aura(rider, player_index)
+	return rider
+
+
+func apply_ghost_rider_mounted_pose(
+	rider: Node3D,
+	blend_weight: float = 1.0,
+	preserve_upper_body: bool = false
+) -> bool:
+	if rider == null or not is_instance_valid(rider):
+		return false
+	var parts_variant: Variant = rider.get_meta("ghost_mount_parts", {})
+	if not (parts_variant is Dictionary):
+		return false
+	var parts: Dictionary = parts_variant
+	var weight := clampf(blend_weight, 0.0, 1.0)
+	var bind_transforms_variant: Variant = rider.get_meta(
+		GHOST_RIDER_BIND_TRANSFORMS_META,
+		{}
+	)
+	if bind_transforms_variant is Dictionary:
+		var bind_transforms: Dictionary = bind_transforms_variant
+		var lower_body_parts := {
+			"pelvis": true,
+			"l_hip": true,
+			"r_hip": true,
+			"l_knee": true,
+			"r_knee": true,
+			"l_ankle": true,
+			"r_ankle": true,
+			"l_toe": true,
+			"r_toe": true,
+		}
+		for part_name: Variant in bind_transforms:
+			if preserve_upper_body and not lower_body_parts.has(part_name):
+				continue
+			var part := parts.get(part_name) as Node3D
+			var bind_transform_variant: Variant = bind_transforms[part_name]
+			if part != null and bind_transform_variant is Transform3D:
+				part.transform = part.transform.interpolate_with(
+					bind_transform_variant as Transform3D,
+					weight
+				)
+	var pelvis := parts.get("pelvis") as Node3D
+	if pelvis == null:
+		return false
+	# Put the bottom of the torso directly onto the fitted saddle seat.  The
+	# former positive Y target left the rider visibly floating above the shark.
+	pelvis.position = pelvis.position.lerp(Vector3(0.0, -0.25, 0.02), weight)
+	_blend_ghost_rider_part_rotation(pelvis, Vector3.ZERO, weight)
+
+	var lower_body_targets: Dictionary = {
+		"l_hip": Vector3(62.0, 0.0, -24.0),
+		"r_hip": Vector3(62.0, 0.0, 24.0),
+		"l_knee": Vector3(-92.0, 0.0, 0.0),
+		"r_knee": Vector3(-92.0, 0.0, 0.0),
+		"l_ankle": Vector3(34.0, 0.0, 0.0),
+		"r_ankle": Vector3(34.0, 0.0, 0.0),
+		"l_toe": Vector3.ZERO,
+		"r_toe": Vector3.ZERO,
+	}
+	for part_name: String in lower_body_targets:
+		_blend_ghost_rider_part_rotation(
+			parts.get(part_name) as Node3D,
+			lower_body_targets[part_name],
+			weight
+		)
+
+	if not preserve_upper_body:
+		var upper_body_targets: Dictionary = {
+			"spine": Vector3(-18.0, 0.0, 0.0),
+			"neck": Vector3(14.0, 0.0, 0.0),
+			"head_pivot": Vector3.ZERO,
+			# These asymmetric targets follow the two animated grip centers rather
+			# than mirroring around the shark's undeformed bind pose.
+			"l_shoulder": Vector3(62.0, 0.0, 39.0),
+			"r_shoulder": Vector3(83.0, 0.0, -36.0),
+			"l_elbow": Vector3(-65.0, 0.0, -6.0),
+			"r_elbow": Vector3(-86.0, 0.0, -12.0),
+			"l_wrist": Vector3(0.0, 0.0, -8.0),
+			"r_wrist": Vector3(0.0, 0.0, 8.0),
+		}
+		for part_name: String in upper_body_targets:
+			_blend_ghost_rider_part_rotation(
+				parts.get(part_name) as Node3D,
+				upper_body_targets[part_name],
+				weight
+			)
+	return true
+
+
+func make_ghost_rider_opaque(rider: Node3D) -> void:
+	if rider == null or not is_instance_valid(rider):
+		return
+	for node: Node in rider.find_children("*", "MeshInstance3D", true, false):
+		var mesh_instance := node as MeshInstance3D
+		if mesh_instance == null:
+			continue
+		var material := mesh_instance.material_override as StandardMaterial3D
+		if material == null:
+			continue
+		material.transparency = BaseMaterial3D.TRANSPARENCY_DISABLED
+		var opaque_color := material.albedo_color
+		opaque_color.a = 1.0
+		material.albedo_color = opaque_color
+		material.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_OPAQUE_ONLY
+	# Soul motes look like the rider is still translucent after contact.
+	var aura := rider.find_child("GhostAura", true, false) as GPUParticles3D
+	if aura != null:
+		aura.emitting = false
+		aura.visible = false
+
+
+func make_ghost_rider_translucent(rider: Node3D) -> void:
+	if rider == null or not is_instance_valid(rider):
+		return
+	for node: Node in rider.find_children("*", "MeshInstance3D", true, false):
+		var mesh_instance := node as MeshInstance3D
+		if mesh_instance != null:
+			_apply_ghost_material(mesh_instance)
+	var aura := rider.find_child("GhostAura", true, false) as GPUParticles3D
+	if aura != null:
+		aura.visible = true
+		aura.emitting = true
+
+
+func apply_ghost_rider_result_pose(
+	rider: Node3D,
+	player_index: int,
+	moving: bool,
+	time_seconds: float
+) -> bool:
+	if rider == null or not is_instance_valid(rider):
+		return false
+	var parts_variant: Variant = rider.get_meta("ghost_mount_parts", {})
+	if not (parts_variant is Dictionary):
+		return false
+	var parts: Dictionary = parts_variant
+	var bind_transforms_variant: Variant = rider.get_meta(GHOST_RIDER_BIND_TRANSFORMS_META, {})
+	if bind_transforms_variant is Dictionary:
+		for part_name: Variant in bind_transforms_variant:
+			var part := parts.get(part_name) as Node3D
+			var bind_transform_variant: Variant = bind_transforms_variant[part_name]
+			if part != null and bind_transform_variant is Transform3D:
+				part.transform = bind_transform_variant as Transform3D
+	_animate_skeleton(
+		parts,
+		0.0,
+		0.0,
+		moving,
+		time_seconds * 5.5,
+		player_index == 2,
+		0
+	)
+	return true
+
+
+func _blend_ghost_rider_part_rotation(
+	part: Node3D,
+	target_degrees: Vector3,
+	weight: float
+) -> void:
+	if part == null:
+		return
+	var target_quaternion := Quaternion(
+		Basis.from_euler(Vector3(
+			deg_to_rad(target_degrees.x),
+			deg_to_rad(target_degrees.y),
+			deg_to_rad(target_degrees.z)
+		))
+	)
+	part.quaternion = part.quaternion.slerp(target_quaternion, weight)
+
+
+func sample_ghost_mount_pose(rider: Node3D, time_seconds: float) -> bool:
+	if rider == null or not is_instance_valid(rider) or _ghost_mount_rig_data.is_empty():
+		return false
+	var parts_variant: Variant = rider.get_meta("ghost_mount_parts", {})
+	if not (parts_variant is Dictionary):
+		return false
+	var parts: Dictionary = parts_variant
+	var skeleton := _ghost_mount_rig_data.get("skeleton") as Skeleton3D
+	var animation_player := _ghost_mount_rig_data.get("anim_player") as AnimationPlayer
+	var bone_indices_variant: Variant = _ghost_mount_rig_data.get("bone_indices", {})
+	var animation_name := String(_ghost_mount_rig_data.get("anim_name", ""))
+	if (
+		skeleton == null
+		or animation_player == null
+		or not (bone_indices_variant is Dictionary)
+		or animation_name.is_empty()
+	):
+		return false
+	var animation: Animation = animation_player.get_animation(animation_name)
+	if animation == null:
+		return false
+	if animation_player.current_animation != animation_name:
+		animation_player.play(animation_name)
+		animation_player.pause()
+	animation_player.seek(clampf(time_seconds, 0.0, animation.length), true)
+	_apply_skeleton_pose(parts, skeleton, bone_indices_variant, true)
+	return true
+
+
+func apply_ghost_rider_mount_hold_pose(rider: Node3D) -> bool:
+	# The imported clip supplies the approach only. Its global-basis mapping also
+	# carries rig scale into the procedural pivots, so the hold must restore the
+	# rider's bind transforms before applying the measured seat-and-grip pose.
+	return apply_ghost_rider_mounted_pose(rider)
+
+
+func apply_ghost_rider_emote_pose(
+	rider: Node3D,
+	player_index: int,
+	emote_id: int
+) -> bool:
+	if rider == null or not is_instance_valid(rider) or emote_id <= 0:
+		return false
+	var parts_variant: Variant = rider.get_meta("ghost_mount_parts", {})
+	if not (parts_variant is Dictionary):
+		return false
+	var parts: Dictionary = parts_variant
+	var is_p2 := player_index == 2
+	var rig := _p2_rig if is_p2 else _p1_rig
+	var normalized_emote := EmoteData.normalize_emote_id(emote_id)
+	if rig.is_rigged and rig.select_animation(
+		0.0,
+		false,
+		normalized_emote,
+		false,
+		true,
+		false,
+		true
+	):
+		_apply_skeleton_pose(
+			parts,
+			rig.active_skeleton,
+			rig.active_bone_indices,
+			rig.mirror_x
+		)
+		return true
+	_animate_emote(parts, normalized_emote, is_p2)
+	return true
+
+
+func stop_ghost_rider_emote(rider: Node3D, player_index: int) -> void:
+	var rig := _p2_rig if player_index == 2 else _p1_rig
+	rig.reset_thriller_sequence()
+	rig.stop_all()
+	if rider != null and is_instance_valid(rider):
+		apply_ghost_rider_mount_hold_pose(rider)
+
+
+func get_ghost_mount_animation_length() -> float:
+	if _ghost_mount_rig_data.is_empty():
+		return 0.0
+	var animation_player := _ghost_mount_rig_data.get("anim_player") as AnimationPlayer
+	var animation_name := String(_ghost_mount_rig_data.get("anim_name", ""))
+	if animation_player == null or animation_name.is_empty():
+		return 0.0
+	var animation: Animation = animation_player.get_animation(animation_name)
+	return animation.length if animation != null else 0.0
+
+
+func _apply_ghost_material(mesh_instance: MeshInstance3D) -> void:
+	if not mesh_instance:
+		return
+	var source_material: Material = mesh_instance.material_override
+	if source_material == null and mesh_instance.mesh and mesh_instance.mesh.get_surface_count() > 0:
+		source_material = mesh_instance.mesh.surface_get_material(0)
+	var material := StandardMaterial3D.new()
+	if source_material is StandardMaterial3D:
+		material = source_material.duplicate()
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.albedo_color.a = 0.62
+	material.emission_enabled = true
+	material.emission = Color(material.albedo_color.r, material.albedo_color.g, material.albedo_color.b, 1.0)
+	material.emission_energy_multiplier = 1.75
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_PER_PIXEL
+	material.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_ALWAYS
+	mesh_instance.material_override = material
+	mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
+func _add_ghost_rider_aura(rider: Node3D, player_index: int) -> void:
+	var aura_color := (
+		Color(1.0, 0.48, 0.16, 0.74)
+		if player_index == 1
+		else Color(0.18, 0.68, 1.0, 0.74)
+	)
+	var aura := GPUParticles3D.new()
+	aura.name = "GhostAura"
+	aura.position = Vector3(0.0, 1.0, 0.0)
+	aura.amount = 18
+	aura.lifetime = 0.85
+	aura.randomness = 0.42
+	aura.visibility_aabb = AABB(Vector3(-1.2, -1.2, -1.2), Vector3(2.4, 3.0, 2.4))
+	var process_material := ParticleProcessMaterial.new()
+	process_material.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	process_material.emission_sphere_radius = 0.55
+	process_material.direction = Vector3.UP
+	process_material.spread = 32.0
+	process_material.initial_velocity_min = 0.18
+	process_material.initial_velocity_max = 0.55
+	process_material.gravity = Vector3(0.0, 0.35, 0.0)
+	process_material.scale_min = 0.55
+	process_material.scale_max = 1.25
+	aura.process_material = process_material
+	var mote_mesh := SphereMesh.new()
+	mote_mesh.radius = 0.028
+	mote_mesh.height = 0.075
+	var mote_material := StandardMaterial3D.new()
+	mote_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mote_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mote_material.albedo_color = aura_color
+	mote_material.emission_enabled = true
+	mote_material.emission = Color(aura_color.r, aura_color.g, aura_color.b, 1.0)
+	mote_material.emission_energy_multiplier = 1.8
+	mote_mesh.material = mote_material
+	aura.draw_pass_1 = mote_mesh
+	rider.add_child(aura)
+
+	var glow := OmniLight3D.new()
+	glow.name = "GhostGlow"
+	glow.position = Vector3(0.0, 1.0, 0.0)
+	glow.light_color = Color(aura_color.r, aura_color.g, aura_color.b, 1.0)
+	glow.light_energy = 0.45
+	glow.omni_range = 3.2
+	glow.shadow_enabled = false
+	rider.add_child(glow)
+
 # ============================================================
 # Hat Management
 # ============================================================
 
+func set_toon_preset(player_id: int, preset_id: int) -> void:
+	var normalized := ToonPresets.normalize(preset_id)
+	if player_id == 1:
+		ToonPresets.apply_to_parts(p1_parts, normalized)
+		_p1_toon_preset_id = normalized
+	elif player_id == 2 and not p2_parts.is_empty():
+		ToonPresets.apply_to_parts(p2_parts, normalized)
+		_p2_toon_preset_id = normalized
+
+
 func set_hat(player_id: int, hat_id: int) -> void:
 	"""Set a hat for the specified player (1 or 2)."""
 	if player_id == 1:
+		if _p1_hat_id == hat_id and (
+			hat_id == HatData.HAT_NONE or is_instance_valid(_p1_hat_node)
+		):
+			return
 		_set_hat_for_parts(p1_parts, hat_id, true)
 	elif player_id == 2 and p2_parts and p2_parts.has("hat_mount"):
+		if _p2_hat_id == hat_id and (
+			hat_id == HatData.HAT_NONE or is_instance_valid(_p2_hat_node)
+		):
+			return
 		_set_hat_for_parts(p2_parts, hat_id, false)
 
 func _set_hat_for_parts(parts: Dictionary, hat_id: int, is_p1: bool) -> void:

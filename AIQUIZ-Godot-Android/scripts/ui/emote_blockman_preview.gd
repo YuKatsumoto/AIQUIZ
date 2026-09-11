@@ -1,8 +1,20 @@
 extends RefCounted
 class_name EmoteBlockmanPreview
 
+const ToonPresets = preload("res://scripts/cosmetics/character_toon_presets.gd")
+
 ## エモートFBXの Skeleton を読み取り、ゲーム本体と同じブロック人形へポーズを転写するプレビュー用ヘルパー。
 const BASE_Y: float = -1.2
+
+
+static func mixamo_bone_prefix(skeleton: Skeleton3D) -> String:
+	if skeleton == null:
+		return ""
+	for i in range(skeleton.get_bone_count()):
+		var bone_name := skeleton.get_bone_name(i)
+		if bone_name.ends_with("Hips") and bone_name.contains("mixamorig"):
+			return bone_name.substr(0, bone_name.length() - 4)
+	return ""
 
 
 static func map_mixamo_bones(skeleton: Skeleton3D) -> Dictionary:
@@ -10,24 +22,24 @@ static func map_mixamo_bones(skeleton: Skeleton3D) -> Dictionary:
 	if not skeleton:
 		return bone_indices
 	var candidates: Dictionary = {
-		"hips": ["Hips", "mixamorig:Hips"],
-		"spine": ["Spine1", "mixamorig:Spine1", "Spine", "mixamorig:Spine"],
-		"neck": ["Neck", "mixamorig:Neck"],
-		"head": ["Head", "mixamorig:Head"],
-		"l_upper_arm": ["LeftUpperArm", "mixamorig:LeftArm"],
-		"l_lower_arm": ["LeftLowerArm", "mixamorig:LeftForeArm"],
-		"l_hand": ["LeftHand", "mixamorig:LeftHand"],
-		"r_upper_arm": ["RightUpperArm", "mixamorig:RightArm"],
-		"r_lower_arm": ["RightLowerArm", "mixamorig:RightForeArm"],
-		"r_hand": ["RightHand", "mixamorig:RightHand"],
-		"l_upper_leg": ["LeftUpperLeg", "mixamorig:LeftUpLeg"],
-		"l_lower_leg": ["LeftLowerLeg", "mixamorig:LeftLeg"],
-		"l_foot": ["LeftFoot", "mixamorig:LeftFoot"],
-		"l_toe": ["LeftToeBase", "mixamorig:LeftToeBase"],
-		"r_upper_leg": ["RightUpperLeg", "mixamorig:RightUpLeg"],
-		"r_lower_leg": ["RightLowerLeg", "mixamorig:RightLeg"],
-		"r_foot": ["RightFoot", "mixamorig:RightFoot"],
-		"r_toe": ["RightToeBase", "mixamorig:RightToeBase"],
+		"hips": ["Hips", "mixamorig:Hips", "mixamorig_Hips"],
+		"spine": ["Spine1", "mixamorig:Spine1", "Spine", "mixamorig:Spine", "mixamorig_Spine1", "mixamorig_Spine"],
+		"neck": ["Neck", "mixamorig:Neck", "mixamorig_Neck"],
+		"head": ["Head", "mixamorig:Head", "mixamorig_Head"],
+		"l_upper_arm": ["LeftUpperArm", "mixamorig:LeftArm", "mixamorig_LeftArm"],
+		"l_lower_arm": ["LeftLowerArm", "mixamorig:LeftForeArm", "mixamorig_LeftForeArm"],
+		"l_hand": ["LeftHand", "mixamorig:LeftHand", "mixamorig_LeftHand"],
+		"r_upper_arm": ["RightUpperArm", "mixamorig:RightArm", "mixamorig_RightArm"],
+		"r_lower_arm": ["RightLowerArm", "mixamorig:RightForeArm", "mixamorig_RightForeArm"],
+		"r_hand": ["RightHand", "mixamorig:RightHand", "mixamorig_RightHand"],
+		"l_upper_leg": ["LeftUpperLeg", "mixamorig:LeftUpLeg", "mixamorig_LeftUpLeg"],
+		"l_lower_leg": ["LeftLowerLeg", "mixamorig:LeftLeg", "mixamorig_LeftLeg"],
+		"l_foot": ["LeftFoot", "mixamorig:LeftFoot", "mixamorig_LeftFoot"],
+		"l_toe": ["LeftToeBase", "mixamorig:LeftToeBase", "mixamorig_LeftToeBase"],
+		"r_upper_leg": ["RightUpperLeg", "mixamorig:RightUpLeg", "mixamorig_RightUpLeg"],
+		"r_lower_leg": ["RightLowerLeg", "mixamorig:RightLeg", "mixamorig_RightLeg"],
+		"r_foot": ["RightFoot", "mixamorig:RightFoot", "mixamorig_RightFoot"],
+		"r_toe": ["RightToeBase", "mixamorig:RightToeBase", "mixamorig_RightToeBase"],
 		"l_thumb_prox": ["LeftThumbMetacarpal", "mixamorig:LeftHandThumb1", "mixamorig_LeftHandThumb1", "LeftHandThumb1"],
 		"l_thumb_dist": ["LeftThumbProximal", "mixamorig:LeftHandThumb2", "mixamorig_LeftHandThumb2", "LeftHandThumb2"],
 		"l_index_prox": ["LeftIndexProximal", "mixamorig:LeftHandIndex1", "mixamorig_LeftHandIndex1", "LeftHandIndex1"],
@@ -57,16 +69,50 @@ static func map_mixamo_bones(skeleton: Skeleton3D) -> Dictionary:
 		"r_pinky_mid": ["RightLittleIntermediate", "mixamorig:RightHandPinky2", "mixamorig_RightHandPinky2", "RightHandPinky2"],
 		"r_pinky_dist": ["RightLittleDistal", "mixamorig:RightHandPinky3", "mixamorig_RightHandPinky3", "RightHandPinky3"],
 	}
+	var prefix := mixamo_bone_prefix(skeleton)
 	for key in candidates.keys():
 		for cand in candidates[key]:
 			var idx := skeleton.find_bone(cand)
+			if idx == -1 and not prefix.is_empty():
+				var cand_name := str(cand)
+				if cand_name.begins_with("mixamorig_"):
+					idx = skeleton.find_bone(prefix + cand_name.substr("mixamorig_".length()))
+				elif cand_name.begins_with("mixamorig:"):
+					idx = skeleton.find_bone(prefix + cand_name.substr("mixamorig:".length()))
 			if idx != -1:
 				bone_indices[key] = idx
 				break
 	return bone_indices
 
 
-static func build_player_skeleton(is_p1: bool, parent_node: Node3D, hat_id: int) -> Dictionary:
+## エモートFBXの AnimationPlayer から「踊り本体」のアニメ名を選ぶ。
+## mixamo_com を最優先、無ければトラック数最大のものを採用。
+static func pick_best_emote_animation(ap: AnimationPlayer) -> String:
+	if not ap:
+		return ""
+	var best_name := ""
+	var best_tracks := -1
+	for lib_name in ap.get_animation_library_list():
+		var lib: AnimationLibrary = ap.get_animation_library(lib_name)
+		for a_name in lib.get_animation_list():
+			var full: String = str(lib_name) + "/" + str(a_name) if str(lib_name) != "" else str(a_name)
+			var anim: Animation = lib.get_animation(a_name)
+			if "mixamo_com" in a_name:
+				best_name = full
+				best_tracks = 9999
+			elif anim.get_track_count() > best_tracks:
+				best_tracks = anim.get_track_count()
+				if not ("mixamo_com" in best_name):
+					best_name = full
+	return best_name
+
+
+static func build_player_skeleton(
+	is_p1: bool,
+	parent_node: Node3D,
+	hat_id: int,
+	toon_preset: int = ToonPresets.STANDARD,
+) -> Dictionary:
 	var body_col: Color = PlayerController.P1_BODY if is_p1 else PlayerController.P2_BODY
 	var head_col: Color = PlayerController.P1_HEAD if is_p1 else PlayerController.P2_HEAD
 	var limb_col: Color = PlayerController.P1_LIMB if is_p1 else PlayerController.P2_LIMB
@@ -261,6 +307,14 @@ static func build_player_skeleton(is_p1: bool, parent_node: Node3D, hat_id: int)
 	r_toe_mesh.position = Vector3(0, -0.02, 0.04)
 	r_toe.add_child(r_toe_mesh)
 	parts["r_toe_mesh"] = r_toe_mesh
+	var character_meshes: Array[MeshInstance3D] = []
+	for part_value: Variant in parts.values():
+		var character_mesh := part_value as MeshInstance3D
+		if character_mesh != null:
+			character_meshes.append(character_mesh)
+	parts["meshes"] = character_meshes
+	parts["hat_meshes"] = []
+	ToonPresets.apply_to_parts(parts, toon_preset)
 
 	return parts
 
@@ -489,6 +543,7 @@ static func _create_box(half_extents: Vector3, color: Color) -> MeshInstance3D:
 	mat.roughness = 0.7
 	mat.metallic = 0.1
 	mesh_inst.material_override = mat
+	ToonPresets.remember_base_color(mesh_inst, color)
 	return mesh_inst
 
 

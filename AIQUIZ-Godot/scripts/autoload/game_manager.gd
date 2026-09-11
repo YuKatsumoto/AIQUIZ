@@ -34,7 +34,6 @@ func _ready() -> void:
 	print("GameManager initialized.")
 	_load_user_settings()
 	_load_env()
-	_start_dashboard_server()
 
 func should_show_tutorial_on_start() -> bool:
 	return tutorial_prompt_seen_version < CURRENT_TUTORIAL_VERSION
@@ -146,14 +145,6 @@ func _save_user_settings() -> void:
 	if file:
 		file.store_string(JSON.stringify(_user_settings, "  "))
 		file.close()
-
-func _start_dashboard_server() -> void:
-	if OS.has_feature("windows"):
-		var dash_dir := ProjectSettings.globalize_path("res://../aiquiz-dashboard")
-		if DirAccess.dir_exists_absolute(dash_dir):
-			# open_consoleフラグをfalseにしてcmd経由で実行することで、完全にバックグラウンド(非表示)で動作させる
-			var args = ["/c", "cd /d \"" + dash_dir + "\" && npm run dev"]
-			OS.create_process("cmd.exe", args, false)
 
 func _load_env() -> void:
 	# .envファイルの簡易パース

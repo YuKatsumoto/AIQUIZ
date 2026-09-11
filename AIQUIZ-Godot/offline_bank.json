@@ -73230,5 +73230,7815 @@
         "t": 3.0
       }
     ]
+  },
+  "英語": {
+    "3": [
+      {
+        "q": "【基本】「こんにちは」を表す英語は？",
+        "c": [
+          "Hello.",
+          "Thank you.",
+          "Goodbye.",
+          "Good morning."
+        ],
+        "a": 0,
+        "exp": "こんにちは は Hello. と表します。",
+        "src": "OFFLINE",
+        "g": "挨拶"
+      },
+      {
+        "q": "【基本】「ありがとう」を表す英語は？",
+        "c": [
+          "Goodbye.",
+          "Thank you.",
+          "Good morning.",
+          "Good night."
+        ],
+        "a": 1,
+        "exp": "ありがとう は Thank you. と表します。",
+        "src": "OFFLINE",
+        "g": "挨拶"
+      },
+      {
+        "q": "【基本】「さようなら」を表す英語は？",
+        "c": [
+          "Good morning.",
+          "Good night.",
+          "Goodbye.",
+          "Hello."
+        ],
+        "a": 2,
+        "exp": "さようなら は Goodbye. と表します。",
+        "src": "OFFLINE",
+        "g": "挨拶"
+      },
+      {
+        "q": "【基本】「おはよう」を表す英語は？",
+        "c": [
+          "Good night.",
+          "Hello.",
+          "Thank you.",
+          "Good morning."
+        ],
+        "a": 3,
+        "exp": "おはよう は Good morning. と表します。",
+        "src": "OFFLINE",
+        "g": "挨拶"
+      },
+      {
+        "q": "【基本】「おやすみ」を表す英語は？",
+        "c": [
+          "Good night.",
+          "Hello.",
+          "Thank you.",
+          "Goodbye."
+        ],
+        "a": 0,
+        "exp": "おやすみ は Good night. と表します。",
+        "src": "OFFLINE",
+        "g": "挨拶"
+      },
+      {
+        "q": "【基本】「赤」を表す英語は？",
+        "c": [
+          "blue",
+          "red",
+          "yellow",
+          "green"
+        ],
+        "a": 1,
+        "exp": "赤 は red と表します。",
+        "src": "OFFLINE",
+        "g": "色"
+      },
+      {
+        "q": "【基本】「青」を表す英語は？",
+        "c": [
+          "yellow",
+          "green",
+          "blue",
+          "red"
+        ],
+        "a": 2,
+        "exp": "青 は blue と表します。",
+        "src": "OFFLINE",
+        "g": "色"
+      },
+      {
+        "q": "【基本】「黄色」を表す英語は？",
+        "c": [
+          "green",
+          "red",
+          "blue",
+          "yellow"
+        ],
+        "a": 3,
+        "exp": "黄色 は yellow と表します。",
+        "src": "OFFLINE",
+        "g": "色"
+      },
+      {
+        "q": "【基本】「緑」を表す英語は？",
+        "c": [
+          "green",
+          "red",
+          "blue",
+          "yellow"
+        ],
+        "a": 0,
+        "exp": "緑 は green と表します。",
+        "src": "OFFLINE",
+        "g": "色"
+      },
+      {
+        "q": "【基本】「犬」を表す英語は？",
+        "c": [
+          "cat",
+          "dog",
+          "bird",
+          "rabbit"
+        ],
+        "a": 1,
+        "exp": "犬 は dog と表します。",
+        "src": "OFFLINE",
+        "g": "動物"
+      },
+      {
+        "q": "【基本】「猫」を表す英語は？",
+        "c": [
+          "bird",
+          "rabbit",
+          "cat",
+          "dog"
+        ],
+        "a": 2,
+        "exp": "猫 は cat と表します。",
+        "src": "OFFLINE",
+        "g": "動物"
+      },
+      {
+        "q": "【基本】「鳥」を表す英語は？",
+        "c": [
+          "rabbit",
+          "dog",
+          "cat",
+          "bird"
+        ],
+        "a": 3,
+        "exp": "鳥 は bird と表します。",
+        "src": "OFFLINE",
+        "g": "動物"
+      },
+      {
+        "q": "【基本】「うさぎ」を表す英語は？",
+        "c": [
+          "rabbit",
+          "dog",
+          "cat",
+          "bird"
+        ],
+        "a": 0,
+        "exp": "うさぎ は rabbit と表します。",
+        "src": "OFFLINE",
+        "g": "動物"
+      },
+      {
+        "q": "【基本】「1」を表す英語は？",
+        "c": [
+          "five",
+          "one",
+          "ten",
+          "twenty"
+        ],
+        "a": 1,
+        "exp": "1 は one と表します。",
+        "src": "OFFLINE",
+        "g": "数"
+      },
+      {
+        "q": "【基本】「5」を表す英語は？",
+        "c": [
+          "ten",
+          "twenty",
+          "five",
+          "one"
+        ],
+        "a": 2,
+        "exp": "5 は five と表します。",
+        "src": "OFFLINE",
+        "g": "数"
+      },
+      {
+        "q": "【基本】「10」を表す英語は？",
+        "c": [
+          "twenty",
+          "one",
+          "five",
+          "ten"
+        ],
+        "a": 3,
+        "exp": "10 は ten と表します。",
+        "src": "OFFLINE",
+        "g": "数"
+      },
+      {
+        "q": "【基本】「20」を表す英語は？",
+        "c": [
+          "twenty",
+          "one",
+          "five",
+          "ten"
+        ],
+        "a": 0,
+        "exp": "20 は twenty と表します。",
+        "src": "OFFLINE",
+        "g": "数"
+      },
+      {
+        "q": "【基本】「丸」を表す英語は？",
+        "c": [
+          "triangle",
+          "circle",
+          "star",
+          "square"
+        ],
+        "a": 1,
+        "exp": "丸 は circle と表します。",
+        "src": "OFFLINE",
+        "g": "形"
+      },
+      {
+        "q": "【基本】「三角」を表す英語は？",
+        "c": [
+          "star",
+          "square",
+          "triangle",
+          "circle"
+        ],
+        "a": 2,
+        "exp": "三角 は triangle と表します。",
+        "src": "OFFLINE",
+        "g": "形"
+      },
+      {
+        "q": "【基本】「星」を表す英語は？",
+        "c": [
+          "square",
+          "circle",
+          "triangle",
+          "star"
+        ],
+        "a": 3,
+        "exp": "星 は star と表します。",
+        "src": "OFFLINE",
+        "g": "形"
+      },
+      {
+        "q": "【基本】「四角」を表す英語は？",
+        "c": [
+          "square",
+          "circle",
+          "triangle",
+          "star"
+        ],
+        "a": 0,
+        "exp": "四角 は square と表します。",
+        "src": "OFFLINE",
+        "g": "形"
+      },
+      {
+        "q": "【標準】「How are you?」への自然な返事は？",
+        "c": [
+          "It's a pen.",
+          "I'm fine.",
+          "At seven.",
+          "Good night."
+        ],
+        "a": 1,
+        "exp": "気分を聞かれたので I'm fine. と答えます。",
+        "src": "OFFLINE",
+        "g": "挨拶"
+      },
+      {
+        "q": "【標準】「Thank you.」への自然な返事は？",
+        "c": [
+          "Good morning.",
+          "I'm hungry.",
+          "You're welcome.",
+          "See you."
+        ],
+        "a": 2,
+        "exp": "お礼には You're welcome. と返せます。",
+        "src": "OFFLINE",
+        "g": "挨拶"
+      },
+      {
+        "q": "【標準】朝8時に友達へ言う挨拶は？",
+        "c": [
+          "Good night.",
+          "Goodbye.",
+          "I'm sorry.",
+          "Good morning."
+        ],
+        "a": 3,
+        "exp": "朝に会ったときは Good morning. を使います。",
+        "src": "OFFLINE",
+        "g": "挨拶"
+      },
+      {
+        "q": "【標準】寝る前に家族へ言う挨拶は？",
+        "c": [
+          "Good night.",
+          "Hello.",
+          "Good afternoon.",
+          "Thank you."
+        ],
+        "a": 0,
+        "exp": "寝る前の挨拶は Good night. です。",
+        "src": "OFFLINE",
+        "g": "挨拶"
+      },
+      {
+        "q": "【標準】「How many apples?」で尋ねているのは？",
+        "c": [
+          "りんごの色",
+          "りんごの数",
+          "りんごの味",
+          "りんごの持ち主"
+        ],
+        "a": 1,
+        "exp": "How many は数を尋ねる表現です。",
+        "src": "OFFLINE",
+        "g": "数"
+      },
+      {
+        "q": "【標準】りんごが3個あるときの答えは？",
+        "c": [
+          "Five apples.",
+          "Ten apples.",
+          "Three apples.",
+          "One apple."
+        ],
+        "a": 2,
+        "exp": "3個なので Three apples. と答えます。",
+        "src": "OFFLINE",
+        "g": "数"
+      },
+      {
+        "q": "【標準】「twelve」が表す数は？",
+        "c": [
+          "2",
+          "20",
+          "10",
+          "12"
+        ],
+        "a": 3,
+        "exp": "twelve は12を表します。",
+        "src": "OFFLINE",
+        "g": "数"
+      },
+      {
+        "q": "【標準】「eight」の次の数を英語で表すと？",
+        "c": [
+          "nine",
+          "seven",
+          "ten",
+          "five"
+        ],
+        "a": 0,
+        "exp": "8の次は9なので nine です。",
+        "src": "OFFLINE",
+        "g": "数"
+      },
+      {
+        "q": "【標準】「青い星」を表す組み合わせは？",
+        "c": [
+          "red star",
+          "blue star",
+          "blue circle",
+          "green triangle"
+        ],
+        "a": 1,
+        "exp": "blue は青、star は星です。",
+        "src": "OFFLINE",
+        "g": "色と形"
+      },
+      {
+        "q": "【標準】「yellow circle」の意味は？",
+        "c": [
+          "青い丸",
+          "黄色い三角",
+          "黄色い丸",
+          "緑の星"
+        ],
+        "a": 2,
+        "exp": "yellow は黄色、circle は丸です。",
+        "src": "OFFLINE",
+        "g": "色と形"
+      },
+      {
+        "q": "【標準】赤い三角を表す英語は？",
+        "c": [
+          "red circle",
+          "blue triangle",
+          "yellow star",
+          "red triangle"
+        ],
+        "a": 3,
+        "exp": "red と triangle を組み合わせます。",
+        "src": "OFFLINE",
+        "g": "色と形"
+      },
+      {
+        "q": "【標準】「I like soccer.」の意味は？",
+        "c": [
+          "サッカーが好き",
+          "サッカーを持つ",
+          "サッカーを教える",
+          "サッカーが苦手"
+        ],
+        "a": 0,
+        "exp": "I like ... は「…が好き」です。",
+        "src": "OFFLINE",
+        "g": "好きなもの"
+      },
+      {
+        "q": "【標準】「Do you like cats?」への肯定の返事は？",
+        "c": [
+          "Yes, I am.",
+          "Yes, I do.",
+          "It's a cat.",
+          "At home."
+        ],
+        "a": 1,
+        "exp": "Do you ...? には Yes, I do. と答えられます。",
+        "src": "OFFLINE",
+        "g": "好きなもの"
+      },
+      {
+        "q": "【標準】犬が好きだと伝える英文は？",
+        "c": [
+          "I am a dog.",
+          "I have like.",
+          "I like dogs.",
+          "Dogs like I."
+        ],
+        "a": 2,
+        "exp": "I like の後に好きなものを置きます。",
+        "src": "OFFLINE",
+        "g": "好きなもの"
+      },
+      {
+        "q": "【標準】本を指して「What's this?」と聞かれたら？",
+        "c": [
+          "I like books.",
+          "Open the door.",
+          "I'm a book.",
+          "It's a book."
+        ],
+        "a": 3,
+        "exp": "物の名前は It's a book. と答えられます。",
+        "src": "OFFLINE",
+        "g": "身近な物"
+      },
+      {
+        "q": "【標準】「Open your book.」の意味は？",
+        "c": [
+          "本を開いて",
+          "本を閉じて",
+          "立って",
+          "座って"
+        ],
+        "a": 0,
+        "exp": "open は「開く」を表します。",
+        "src": "OFFLINE",
+        "g": "身近な物"
+      },
+      {
+        "q": "【標準】「Stand up.」の意味は？",
+        "c": [
+          "座って",
+          "立って",
+          "走って",
+          "本を開いて"
+        ],
+        "a": 1,
+        "exp": "stand up は「立つ」です。",
+        "src": "OFFLINE",
+        "g": "身近な物"
+      },
+      {
+        "q": "【標準】「I'm hungry.」の意味は？",
+        "c": [
+          "うれしい",
+          "つかれた",
+          "おなかがすいた",
+          "かなしい"
+        ],
+        "a": 2,
+        "exp": "hungry は「おなかがすいた」です。",
+        "src": "OFFLINE",
+        "g": "気分"
+      },
+      {
+        "q": "【標準】うれしい気分を表す英語は？",
+        "c": [
+          "I'm sad.",
+          "I'm tired.",
+          "I'm hungry.",
+          "I'm happy."
+        ],
+        "a": 3,
+        "exp": "happy は「うれしい」を表します。",
+        "src": "OFFLINE",
+        "g": "気分"
+      },
+      {
+        "q": "【応用】会話「Hello!」「___」に合う返事は？",
+        "c": [
+          "Hello!",
+          "Good night.",
+          "Ten.",
+          "A pencil."
+        ],
+        "a": 0,
+        "exp": "同じ挨拶 Hello! を返すと自然です。",
+        "src": "OFFLINE",
+        "g": "会話"
+      },
+      {
+        "q": "【応用】会話「Thank you.」「___」に合う返事は？",
+        "c": [
+          "I'm ten.",
+          "You're welcome.",
+          "It's blue.",
+          "Good night."
+        ],
+        "a": 1,
+        "exp": "お礼への自然な返事は You're welcome. です。",
+        "src": "OFFLINE",
+        "g": "会話"
+      },
+      {
+        "q": "【応用】会話「Do you like blue?」「___」の肯定は？",
+        "c": [
+          "Yes, it is.",
+          "I'm blue.",
+          "Yes, I do.",
+          "Blue, please."
+        ],
+        "a": 2,
+        "exp": "好みの質問への肯定は Yes, I do. です。",
+        "src": "OFFLINE",
+        "g": "会話"
+      },
+      {
+        "q": "【応用】会話「What's this?」「___」本を答えるには？",
+        "c": [
+          "I book this.",
+          "Yes, I do.",
+          "Three books?",
+          "It's a book."
+        ],
+        "a": 3,
+        "exp": "物を答えるときは It's a book. が自然です。",
+        "src": "OFFLINE",
+        "g": "会話"
+      },
+      {
+        "q": "【応用】会話「How many cats?」「___」10匹なら？",
+        "c": [
+          "Ten cats.",
+          "Cat is ten.",
+          "I like ten.",
+          "Ten colors."
+        ],
+        "a": 0,
+        "exp": "数と動物名を Ten cats. の順で言います。",
+        "src": "OFFLINE",
+        "g": "会話"
+      },
+      {
+        "q": "【応用】朝に先生と会った場面で最も自然なのは？",
+        "c": [
+          "Good night.",
+          "Good morning.",
+          "Goodbye.",
+          "I'm hungry."
+        ],
+        "a": 1,
+        "exp": "朝の出会いでは Good morning. が自然です。",
+        "src": "OFFLINE",
+        "g": "文脈"
+      },
+      {
+        "q": "【応用】プレゼントを受け取った場面で言う言葉は？",
+        "c": [
+          "I'm sorry.",
+          "Good night.",
+          "Thank you.",
+          "How many?"
+        ],
+        "a": 2,
+        "exp": "感謝を伝えるので Thank you. を使います。",
+        "src": "OFFLINE",
+        "g": "文脈"
+      },
+      {
+        "q": "【応用】水がほしい人が言いそうなのは？",
+        "c": [
+          "I'm happy.",
+          "I'm a bird.",
+          "It's Monday.",
+          "I'm thirsty."
+        ],
+        "a": 3,
+        "exp": "thirsty は「のどがかわいた」です。",
+        "src": "OFFLINE",
+        "g": "文脈"
+      },
+      {
+        "q": "【応用】食べ物がほしい人が言いそうなのは？",
+        "c": [
+          "I'm hungry.",
+          "I'm blue.",
+          "I'm ten.",
+          "Goodbye."
+        ],
+        "a": 0,
+        "exp": "hungry は空腹を表します。",
+        "src": "OFFLINE",
+        "g": "文脈"
+      },
+      {
+        "q": "【応用】「I like red.」の人が選びそうな色は？",
+        "c": [
+          "blue",
+          "red",
+          "green",
+          "yellow"
+        ],
+        "a": 1,
+        "exp": "文中で好きだと言っている色は red です。",
+        "src": "OFFLINE",
+        "g": "文脈"
+      },
+      {
+        "q": "【応用】「私は犬が好き」の正しい語順は？",
+        "c": [
+          "I dogs like.",
+          "Like dogs I.",
+          "I like dogs.",
+          "Dogs I like."
+        ],
+        "a": 2,
+        "exp": "英語では I, like, dogs の順です。",
+        "src": "OFFLINE",
+        "g": "語順"
+      },
+      {
+        "q": "【応用】「これはペンです」の正しい英文は？",
+        "c": [
+          "A pen it's.",
+          "Pen is I.",
+          "This pen like.",
+          "It's a pen."
+        ],
+        "a": 3,
+        "exp": "物の名前は It's a pen. と表せます。",
+        "src": "OFFLINE",
+        "g": "語順"
+      },
+      {
+        "q": "【応用】「青い丸」を表す正しい語順は？",
+        "c": [
+          "blue circle",
+          "circle blue",
+          "blue triangle",
+          "red circle"
+        ],
+        "a": 0,
+        "exp": "英語では色を形の前に置きます。",
+        "src": "OFFLINE",
+        "g": "語順"
+      },
+      {
+        "q": "【応用】「5匹の猫」を表す正しい語順は？",
+        "c": [
+          "cats five",
+          "five cats",
+          "five dogs",
+          "cat five"
+        ],
+        "a": 1,
+        "exp": "英語では数を名詞の前に置きます。",
+        "src": "OFFLINE",
+        "g": "語順"
+      },
+      {
+        "q": "【応用】「私は幸せです」の正しい英文は？",
+        "c": [
+          "Happy I'm.",
+          "I happy like.",
+          "I'm happy.",
+          "It's happy me."
+        ],
+        "a": 2,
+        "exp": "I'm happy. で自分の気分を伝えます。",
+        "src": "OFFLINE",
+        "g": "語順"
+      },
+      {
+        "q": "【応用】並び「A, B, __, D」に入る文字は？",
+        "c": [
+          "E",
+          "G",
+          "P",
+          "C"
+        ],
+        "a": 3,
+        "exp": "A, B, C, D の順です。",
+        "src": "OFFLINE",
+        "g": "文字"
+      },
+      {
+        "q": "【応用】並び「F, G, __, I」に入る文字は？",
+        "c": [
+          "H",
+          "E",
+          "J",
+          "K"
+        ],
+        "a": 0,
+        "exp": "F, G, H, I の順です。",
+        "src": "OFFLINE",
+        "g": "文字"
+      },
+      {
+        "q": "【応用】「DOG」の最初の文字は？",
+        "c": [
+          "O",
+          "D",
+          "G",
+          "B"
+        ],
+        "a": 1,
+        "exp": "DOG は D から始まります。",
+        "src": "OFFLINE",
+        "g": "文字"
+      },
+      {
+        "q": "【応用】「CAT」の最後の文字は？",
+        "c": [
+          "C",
+          "A",
+          "T",
+          "D"
+        ],
+        "a": 2,
+        "exp": "CAT の最後は T です。",
+        "src": "OFFLINE",
+        "g": "文字"
+      },
+      {
+        "q": "【応用】「RED」と同じ最初の文字の単語は？",
+        "c": [
+          "dog",
+          "cat",
+          "blue",
+          "rabbit"
+        ],
+        "a": 3,
+        "exp": "RED と rabbit はどちらも R で始まります。",
+        "src": "OFFLINE",
+        "g": "文字"
+      },
+      {
+        "q": "【標準】大文字の並び「L, M, __」に入る文字は？",
+        "c": [
+          "N",
+          "K",
+          "O",
+          "P"
+        ],
+        "a": 0,
+        "exp": "L, M, N の順です。",
+        "src": "OFFLINE",
+        "g": "文字"
+      },
+      {
+        "q": "【基本】「りんご」を表す英語は？",
+        "c": [
+          "banana",
+          "apple",
+          "milk",
+          "juice"
+        ],
+        "a": 1,
+        "exp": "りんご は apple と表します。",
+        "src": "OFFLINE",
+        "g": "食べ物"
+      },
+      {
+        "q": "【基本】「バナナ」を表す英語は？",
+        "c": [
+          "milk",
+          "juice",
+          "banana",
+          "rice"
+        ],
+        "a": 2,
+        "exp": "バナナ は banana と表します。",
+        "src": "OFFLINE",
+        "g": "食べ物"
+      },
+      {
+        "q": "【基本】「牛乳」を表す英語は？",
+        "c": [
+          "juice",
+          "rice",
+          "cake",
+          "milk"
+        ],
+        "a": 3,
+        "exp": "牛乳 は milk と表します。",
+        "src": "OFFLINE",
+        "g": "食べ物"
+      },
+      {
+        "q": "【基本】「ジュース」を表す英語は？",
+        "c": [
+          "juice",
+          "rice",
+          "cake",
+          "apple"
+        ],
+        "a": 0,
+        "exp": "ジュース は juice と表します。",
+        "src": "OFFLINE",
+        "g": "食べ物"
+      },
+      {
+        "q": "【基本】「ごはん」を表す英語は？",
+        "c": [
+          "cake",
+          "rice",
+          "apple",
+          "banana"
+        ],
+        "a": 1,
+        "exp": "ごはん は rice と表します。",
+        "src": "OFFLINE",
+        "g": "食べ物"
+      },
+      {
+        "q": "【基本】「ケーキ」を表す英語は？",
+        "c": [
+          "apple",
+          "banana",
+          "cake",
+          "milk"
+        ],
+        "a": 2,
+        "exp": "ケーキ は cake と表します。",
+        "src": "OFFLINE",
+        "g": "食べ物"
+      },
+      {
+        "q": "【基本】「ペン」を表す英語は？",
+        "c": [
+          "pencil",
+          "book",
+          "eraser",
+          "pen"
+        ],
+        "a": 3,
+        "exp": "ペン は pen と表します。",
+        "src": "OFFLINE",
+        "g": "教室"
+      },
+      {
+        "q": "【基本】「鉛筆」を表す英語は？",
+        "c": [
+          "pencil",
+          "book",
+          "eraser",
+          "ruler"
+        ],
+        "a": 0,
+        "exp": "鉛筆 は pencil と表します。",
+        "src": "OFFLINE",
+        "g": "教室"
+      },
+      {
+        "q": "【基本】「本」を表す英語は？",
+        "c": [
+          "eraser",
+          "book",
+          "ruler",
+          "desk"
+        ],
+        "a": 1,
+        "exp": "本 は book と表します。",
+        "src": "OFFLINE",
+        "g": "教室"
+      },
+      {
+        "q": "【基本】「消しゴム」を表す英語は？",
+        "c": [
+          "ruler",
+          "desk",
+          "eraser",
+          "pen"
+        ],
+        "a": 2,
+        "exp": "消しゴム は eraser と表します。",
+        "src": "OFFLINE",
+        "g": "教室"
+      },
+      {
+        "q": "【基本】「定規」を表す英語は？",
+        "c": [
+          "desk",
+          "pen",
+          "pencil",
+          "ruler"
+        ],
+        "a": 3,
+        "exp": "定規 は ruler と表します。",
+        "src": "OFFLINE",
+        "g": "教室"
+      },
+      {
+        "q": "【基本】「机」を表す英語は？",
+        "c": [
+          "desk",
+          "pen",
+          "pencil",
+          "book"
+        ],
+        "a": 0,
+        "exp": "机 は desk と表します。",
+        "src": "OFFLINE",
+        "g": "教室"
+      },
+      {
+        "q": "【基本】「頭」を表す英語は？",
+        "c": [
+          "eye",
+          "head",
+          "ear",
+          "hand"
+        ],
+        "a": 1,
+        "exp": "頭 は head と表します。",
+        "src": "OFFLINE",
+        "g": "体"
+      },
+      {
+        "q": "【基本】「目」を表す英語は？",
+        "c": [
+          "ear",
+          "hand",
+          "eye",
+          "leg"
+        ],
+        "a": 2,
+        "exp": "目 は eye と表します。",
+        "src": "OFFLINE",
+        "g": "体"
+      },
+      {
+        "q": "【基本】「耳」を表す英語は？",
+        "c": [
+          "hand",
+          "leg",
+          "head",
+          "ear"
+        ],
+        "a": 3,
+        "exp": "耳 は ear と表します。",
+        "src": "OFFLINE",
+        "g": "体"
+      },
+      {
+        "q": "【基本】「手」を表す英語は？",
+        "c": [
+          "hand",
+          "leg",
+          "head",
+          "eye"
+        ],
+        "a": 0,
+        "exp": "手 は hand と表します。",
+        "src": "OFFLINE",
+        "g": "体"
+      },
+      {
+        "q": "【基本】「足」を表す英語は？",
+        "c": [
+          "head",
+          "leg",
+          "eye",
+          "ear"
+        ],
+        "a": 1,
+        "exp": "足 は leg と表します。",
+        "src": "OFFLINE",
+        "g": "体"
+      },
+      {
+        "q": "【基本】「手をたたく」を表す英語は？",
+        "c": [
+          "turn",
+          "touch",
+          "clap",
+          "point"
+        ],
+        "a": 2,
+        "exp": "手をたたく は clap と表します。",
+        "src": "OFFLINE",
+        "g": "動作"
+      },
+      {
+        "q": "【基本】「向きを変える」を表す英語は？",
+        "c": [
+          "touch",
+          "point",
+          "stop",
+          "turn"
+        ],
+        "a": 3,
+        "exp": "向きを変える は turn と表します。",
+        "src": "OFFLINE",
+        "g": "動作"
+      },
+      {
+        "q": "【基本】「さわる」を表す英語は？",
+        "c": [
+          "touch",
+          "point",
+          "stop",
+          "start"
+        ],
+        "a": 0,
+        "exp": "さわる は touch と表します。",
+        "src": "OFFLINE",
+        "g": "動作"
+      },
+      {
+        "q": "【基本】「指さす」を表す英語は？",
+        "c": [
+          "stop",
+          "point",
+          "start",
+          "clap"
+        ],
+        "a": 1,
+        "exp": "指さす は point と表します。",
+        "src": "OFFLINE",
+        "g": "動作"
+      },
+      {
+        "q": "【基本】「止まる」を表す英語は？",
+        "c": [
+          "start",
+          "clap",
+          "stop",
+          "turn"
+        ],
+        "a": 2,
+        "exp": "止まる は stop と表します。",
+        "src": "OFFLINE",
+        "g": "動作"
+      },
+      {
+        "q": "【基本】「始める」を表す英語は？",
+        "c": [
+          "clap",
+          "turn",
+          "touch",
+          "start"
+        ],
+        "a": 3,
+        "exp": "始める は start と表します。",
+        "src": "OFFLINE",
+        "g": "動作"
+      },
+      {
+        "q": "【基本】大文字「A」に合う小文字は？",
+        "c": [
+          "a",
+          "b",
+          "d",
+          "g"
+        ],
+        "a": 0,
+        "exp": "大文字 A の小文字は a です。",
+        "src": "OFFLINE",
+        "g": "文字"
+      },
+      {
+        "q": "【基本】大文字「B」に合う小文字は？",
+        "c": [
+          "d",
+          "b",
+          "g",
+          "p"
+        ],
+        "a": 1,
+        "exp": "大文字 B の小文字は b です。",
+        "src": "OFFLINE",
+        "g": "文字"
+      },
+      {
+        "q": "【基本】大文字「D」に合う小文字は？",
+        "c": [
+          "g",
+          "p",
+          "d",
+          "r"
+        ],
+        "a": 2,
+        "exp": "大文字 D の小文字は d です。",
+        "src": "OFFLINE",
+        "g": "文字"
+      },
+      {
+        "q": "【基本】大文字「G」に合う小文字は？",
+        "c": [
+          "p",
+          "r",
+          "a",
+          "g"
+        ],
+        "a": 3,
+        "exp": "大文字 G の小文字は g です。",
+        "src": "OFFLINE",
+        "g": "文字"
+      },
+      {
+        "q": "【基本】大文字「P」に合う小文字は？",
+        "c": [
+          "p",
+          "r",
+          "a",
+          "b"
+        ],
+        "a": 0,
+        "exp": "大文字 P の小文字は p です。",
+        "src": "OFFLINE",
+        "g": "文字"
+      },
+      {
+        "q": "【基本】大文字「R」に合う小文字は？",
+        "c": [
+          "a",
+          "r",
+          "b",
+          "d"
+        ],
+        "a": 1,
+        "exp": "大文字 R の小文字は r です。",
+        "src": "OFFLINE",
+        "g": "文字"
+      },
+      {
+        "q": "【標準】「Good afternoon.」の意味は？",
+        "c": [
+          "またね",
+          "はじめまして",
+          "こんにちは",
+          "ごめんなさい"
+        ],
+        "a": 2,
+        "exp": "Good afternoon. は「こんにちは」という意味です。",
+        "src": "OFFLINE",
+        "g": "挨拶"
+      },
+      {
+        "q": "【標準】「See you.」の意味は？",
+        "c": [
+          "はじめまして",
+          "ごめんなさい",
+          "すみません",
+          "またね"
+        ],
+        "a": 3,
+        "exp": "See you. は「またね」という意味です。",
+        "src": "OFFLINE",
+        "g": "挨拶"
+      },
+      {
+        "q": "【標準】「Nice to meet you.」の意味は？",
+        "c": [
+          "はじめまして",
+          "ごめんなさい",
+          "すみません",
+          "こんにちは"
+        ],
+        "a": 0,
+        "exp": "Nice to meet you. は「はじめまして」という意味です。",
+        "src": "OFFLINE",
+        "g": "挨拶"
+      },
+      {
+        "q": "【標準】「I'm sorry.」の意味は？",
+        "c": [
+          "すみません",
+          "ごめんなさい",
+          "こんにちは",
+          "またね"
+        ],
+        "a": 1,
+        "exp": "I'm sorry. は「ごめんなさい」という意味です。",
+        "src": "OFFLINE",
+        "g": "挨拶"
+      },
+      {
+        "q": "【標準】「Excuse me.」の意味は？",
+        "c": [
+          "こんにちは",
+          "またね",
+          "すみません",
+          "はじめまして"
+        ],
+        "a": 2,
+        "exp": "Excuse me. は「すみません」という意味です。",
+        "src": "OFFLINE",
+        "g": "挨拶"
+      },
+      {
+        "q": "【標準】英語の「eleven」はどの数？",
+        "c": [
+          "13",
+          "14",
+          "15",
+          "11"
+        ],
+        "a": 3,
+        "exp": "eleven は 11 を表します。",
+        "src": "OFFLINE",
+        "g": "数"
+      },
+      {
+        "q": "【標準】英語の「thirteen」はどの数？",
+        "c": [
+          "13",
+          "14",
+          "15",
+          "18"
+        ],
+        "a": 0,
+        "exp": "thirteen は 13 を表します。",
+        "src": "OFFLINE",
+        "g": "数"
+      },
+      {
+        "q": "【標準】英語の「fourteen」はどの数？",
+        "c": [
+          "15",
+          "14",
+          "18",
+          "11"
+        ],
+        "a": 1,
+        "exp": "fourteen は 14 を表します。",
+        "src": "OFFLINE",
+        "g": "数"
+      },
+      {
+        "q": "【標準】英語の「fifteen」はどの数？",
+        "c": [
+          "18",
+          "11",
+          "15",
+          "13"
+        ],
+        "a": 2,
+        "exp": "fifteen は 15 を表します。",
+        "src": "OFFLINE",
+        "g": "数"
+      },
+      {
+        "q": "【標準】英語の「eighteen」はどの数？",
+        "c": [
+          "11",
+          "13",
+          "14",
+          "18"
+        ],
+        "a": 3,
+        "exp": "eighteen は 18 を表します。",
+        "src": "OFFLINE",
+        "g": "数"
+      },
+      {
+        "q": "【標準】「I'm sad.」の意味は？",
+        "c": [
+          "かなしい",
+          "つかれた",
+          "のどがかわいた",
+          "ねむい"
+        ],
+        "a": 0,
+        "exp": "I'm sad. は「かなしい」という意味です。",
+        "src": "OFFLINE",
+        "g": "気分"
+      },
+      {
+        "q": "【標準】「I'm tired.」の意味は？",
+        "c": [
+          "のどがかわいた",
+          "つかれた",
+          "ねむい",
+          "とても元気"
+        ],
+        "a": 1,
+        "exp": "I'm tired. は「つかれた」という意味です。",
+        "src": "OFFLINE",
+        "g": "気分"
+      },
+      {
+        "q": "【標準】「I'm thirsty.」の意味は？",
+        "c": [
+          "ねむい",
+          "とても元気",
+          "のどがかわいた",
+          "かなしい"
+        ],
+        "a": 2,
+        "exp": "I'm thirsty. は「のどがかわいた」という意味です。",
+        "src": "OFFLINE",
+        "g": "気分"
+      },
+      {
+        "q": "【標準】「I'm sleepy.」の意味は？",
+        "c": [
+          "とても元気",
+          "かなしい",
+          "つかれた",
+          "ねむい"
+        ],
+        "a": 3,
+        "exp": "I'm sleepy. は「ねむい」という意味です。",
+        "src": "OFFLINE",
+        "g": "気分"
+      },
+      {
+        "q": "【標準】「I'm great.」の意味は？",
+        "c": [
+          "とても元気",
+          "かなしい",
+          "つかれた",
+          "のどがかわいた"
+        ],
+        "a": 0,
+        "exp": "I'm great. は「とても元気」という意味です。",
+        "src": "OFFLINE",
+        "g": "気分"
+      },
+      {
+        "q": "【標準】先生の「Sit down.」の指示は？",
+        "c": [
+          "本を閉じて",
+          "座って",
+          "聞いて",
+          "私を見て"
+        ],
+        "a": 1,
+        "exp": "Sit down. は「座って」という指示です。",
+        "src": "OFFLINE",
+        "g": "教室"
+      },
+      {
+        "q": "【標準】先生の「Close your book.」の指示は？",
+        "c": [
+          "聞いて",
+          "私を見て",
+          "本を閉じて",
+          "手を挙げて"
+        ],
+        "a": 2,
+        "exp": "Close your book. は「本を閉じて」という指示です。",
+        "src": "OFFLINE",
+        "g": "教室"
+      },
+      {
+        "q": "【標準】先生の「Listen.」の指示は？",
+        "c": [
+          "私を見て",
+          "手を挙げて",
+          "座って",
+          "聞いて"
+        ],
+        "a": 3,
+        "exp": "Listen. は「聞いて」という指示です。",
+        "src": "OFFLINE",
+        "g": "教室"
+      },
+      {
+        "q": "【標準】先生の「Look at me.」の指示は？",
+        "c": [
+          "私を見て",
+          "手を挙げて",
+          "座って",
+          "本を閉じて"
+        ],
+        "a": 0,
+        "exp": "Look at me. は「私を見て」という指示です。",
+        "src": "OFFLINE",
+        "g": "教室"
+      },
+      {
+        "q": "【標準】先生の「Raise your hand.」の指示は？",
+        "c": [
+          "座って",
+          "手を挙げて",
+          "本を閉じて",
+          "聞いて"
+        ],
+        "a": 1,
+        "exp": "Raise your hand. は「手を挙げて」という指示です。",
+        "src": "OFFLINE",
+        "g": "教室"
+      },
+      {
+        "q": "【標準】「I like apples.」で好きなものは？",
+        "c": [
+          "音楽",
+          "うさぎ",
+          "りんご",
+          "緑"
+        ],
+        "a": 2,
+        "exp": "文では りんご が好きだと言っています。",
+        "src": "OFFLINE",
+        "g": "好きなもの"
+      },
+      {
+        "q": "【標準】「I like music.」で好きなものは？",
+        "c": [
+          "うさぎ",
+          "緑",
+          "水泳",
+          "音楽"
+        ],
+        "a": 3,
+        "exp": "文では 音楽 が好きだと言っています。",
+        "src": "OFFLINE",
+        "g": "好きなもの"
+      },
+      {
+        "q": "【標準】「I like rabbits.」で好きなものは？",
+        "c": [
+          "うさぎ",
+          "緑",
+          "水泳",
+          "りんご"
+        ],
+        "a": 0,
+        "exp": "文では うさぎ が好きだと言っています。",
+        "src": "OFFLINE",
+        "g": "好きなもの"
+      },
+      {
+        "q": "【標準】「I like green.」で好きなものは？",
+        "c": [
+          "水泳",
+          "緑",
+          "りんご",
+          "音楽"
+        ],
+        "a": 1,
+        "exp": "文では 緑 が好きだと言っています。",
+        "src": "OFFLINE",
+        "g": "好きなもの"
+      },
+      {
+        "q": "【標準】「I like swimming.」で好きなものは？",
+        "c": [
+          "りんご",
+          "音楽",
+          "水泳",
+          "うさぎ"
+        ],
+        "a": 2,
+        "exp": "文では 水泳 が好きだと言っています。",
+        "src": "OFFLINE",
+        "g": "好きなもの"
+      },
+      {
+        "q": "【標準】「green square」の意味は？",
+        "c": [
+          "赤い丸",
+          "黄色い星",
+          "青い三角",
+          "緑の四角"
+        ],
+        "a": 3,
+        "exp": "green square は「緑の四角」を表します。",
+        "src": "OFFLINE",
+        "g": "色と形"
+      },
+      {
+        "q": "【標準】「red circle」の意味は？",
+        "c": [
+          "赤い丸",
+          "黄色い星",
+          "青い三角",
+          "桃色のハート"
+        ],
+        "a": 0,
+        "exp": "red circle は「赤い丸」を表します。",
+        "src": "OFFLINE",
+        "g": "色と形"
+      },
+      {
+        "q": "【標準】「yellow star」の意味は？",
+        "c": [
+          "青い三角",
+          "黄色い星",
+          "桃色のハート",
+          "緑の四角"
+        ],
+        "a": 1,
+        "exp": "yellow star は「黄色い星」を表します。",
+        "src": "OFFLINE",
+        "g": "色と形"
+      },
+      {
+        "q": "【標準】「blue triangle」の意味は？",
+        "c": [
+          "桃色のハート",
+          "緑の四角",
+          "青い三角",
+          "赤い丸"
+        ],
+        "a": 2,
+        "exp": "blue triangle は「青い三角」を表します。",
+        "src": "OFFLINE",
+        "g": "色と形"
+      },
+      {
+        "q": "【標準】「pink heart」の意味は？",
+        "c": [
+          "緑の四角",
+          "赤い丸",
+          "黄色い星",
+          "桃色のハート"
+        ],
+        "a": 3,
+        "exp": "pink heart は「桃色のハート」を表します。",
+        "src": "OFFLINE",
+        "g": "色と形"
+      },
+      {
+        "q": "【応用】会話「Good morning!」に合う返事は？",
+        "c": [
+          "Good morning!",
+          "I'm great.",
+          "Yes, I do.",
+          "It's an eraser."
+        ],
+        "a": 0,
+        "exp": "Good morning! への自然な返事は Good morning! です。",
+        "src": "OFFLINE",
+        "g": "会話"
+      },
+      {
+        "q": "【応用】会話「How are you?」に合う返事は？",
+        "c": [
+          "Yes, I do.",
+          "I'm great.",
+          "It's an eraser.",
+          "Four pencils."
+        ],
+        "a": 1,
+        "exp": "How are you? への自然な返事は I'm great. です。",
+        "src": "OFFLINE",
+        "g": "会話"
+      },
+      {
+        "q": "【応用】会話「Do you like dogs?」に合う返事は？",
+        "c": [
+          "It's an eraser.",
+          "Four pencils.",
+          "Yes, I do.",
+          "Good morning!"
+        ],
+        "a": 2,
+        "exp": "Do you like dogs? への自然な返事は Yes, I do. です。",
+        "src": "OFFLINE",
+        "g": "会話"
+      },
+      {
+        "q": "【応用】会話「What's this?」に合う返事は？",
+        "c": [
+          "Four pencils.",
+          "Good morning!",
+          "I'm great.",
+          "It's an eraser."
+        ],
+        "a": 3,
+        "exp": "What's this? への自然な返事は It's an eraser. です。",
+        "src": "OFFLINE",
+        "g": "会話"
+      },
+      {
+        "q": "【応用】会話「How many pencils?」に合う返事は？",
+        "c": [
+          "Four pencils.",
+          "Good morning!",
+          "I'm great.",
+          "Yes, I do."
+        ],
+        "a": 0,
+        "exp": "How many pencils? への自然な返事は Four pencils. です。",
+        "src": "OFFLINE",
+        "g": "会話"
+      },
+      {
+        "q": "【応用】友達と別れるときに言う言葉は？",
+        "c": [
+          "I'm sorry.",
+          "See you.",
+          "Nice to meet you.",
+          "Thank you."
+        ],
+        "a": 1,
+        "exp": "この場面では See you. が自然です。",
+        "src": "OFFLINE",
+        "g": "場面"
+      },
+      {
+        "q": "【応用】間違えてあやまるときに言う言葉は？",
+        "c": [
+          "Nice to meet you.",
+          "Thank you.",
+          "I'm sorry.",
+          "Good night."
+        ],
+        "a": 2,
+        "exp": "この場面では I'm sorry. が自然です。",
+        "src": "OFFLINE",
+        "g": "場面"
+      },
+      {
+        "q": "【応用】初めて会うときに言う言葉は？",
+        "c": [
+          "Thank you.",
+          "Good night.",
+          "See you.",
+          "Nice to meet you."
+        ],
+        "a": 3,
+        "exp": "この場面では Nice to meet you. が自然です。",
+        "src": "OFFLINE",
+        "g": "場面"
+      },
+      {
+        "q": "【応用】助けてもらったときに言う言葉は？",
+        "c": [
+          "Thank you.",
+          "Good night.",
+          "See you.",
+          "I'm sorry."
+        ],
+        "a": 0,
+        "exp": "この場面では Thank you. が自然です。",
+        "src": "OFFLINE",
+        "g": "場面"
+      },
+      {
+        "q": "【応用】夜、寝る前に挨拶するときに言う言葉は？",
+        "c": [
+          "See you.",
+          "Good night.",
+          "I'm sorry.",
+          "Nice to meet you."
+        ],
+        "a": 1,
+        "exp": "この場面では Good night. が自然です。",
+        "src": "OFFLINE",
+        "g": "場面"
+      },
+      {
+        "q": "【応用】「私は猫が好きです」を表す正しい英文は？",
+        "c": [
+          "It's a ruler.",
+          "I'm hungry.",
+          "I like cats.",
+          "I'm ten."
+        ],
+        "a": 2,
+        "exp": "正しい表し方は I like cats. です。",
+        "src": "OFFLINE",
+        "g": "語順"
+      },
+      {
+        "q": "【応用】「これは定規です」を表す正しい英文は？",
+        "c": [
+          "I'm hungry.",
+          "I'm ten.",
+          "Five apples.",
+          "It's a ruler."
+        ],
+        "a": 3,
+        "exp": "正しい表し方は It's a ruler. です。",
+        "src": "OFFLINE",
+        "g": "語順"
+      },
+      {
+        "q": "【応用】「私はおなかがすいています」を表す正しい英文は？",
+        "c": [
+          "I'm hungry.",
+          "I'm ten.",
+          "Five apples.",
+          "I like cats."
+        ],
+        "a": 0,
+        "exp": "正しい表し方は I'm hungry. です。",
+        "src": "OFFLINE",
+        "g": "語順"
+      },
+      {
+        "q": "【応用】「私は10歳です」を表す正しい英文は？",
+        "c": [
+          "Five apples.",
+          "I'm ten.",
+          "I like cats.",
+          "It's a ruler."
+        ],
+        "a": 1,
+        "exp": "正しい表し方は I'm ten. です。",
+        "src": "OFFLINE",
+        "g": "語順"
+      },
+      {
+        "q": "【応用】「5個のりんご」を表す正しい英文は？",
+        "c": [
+          "I like cats.",
+          "It's a ruler.",
+          "Five apples.",
+          "I'm hungry."
+        ],
+        "a": 2,
+        "exp": "正しい表し方は Five apples. です。",
+        "src": "OFFLINE",
+        "g": "語順"
+      },
+      {
+        "q": "【応用】文「I like red apples.」から分かることは？",
+        "c": [
+          "猫を2匹飼っている",
+          "9歳である",
+          "これは青いペン",
+          "赤いりんごが好き"
+        ],
+        "a": 3,
+        "exp": "文から「赤いりんごが好き」と分かります。",
+        "src": "OFFLINE",
+        "g": "読み取り"
+      },
+      {
+        "q": "【応用】文「I have two cats.」から分かることは？",
+        "c": [
+          "猫を2匹飼っている",
+          "9歳である",
+          "これは青いペン",
+          "跳ぶことができる"
+        ],
+        "a": 0,
+        "exp": "文から「猫を2匹飼っている」と分かります。",
+        "src": "OFFLINE",
+        "g": "読み取り"
+      },
+      {
+        "q": "【応用】文「I'm nine years old.」から分かることは？",
+        "c": [
+          "これは青いペン",
+          "9歳である",
+          "跳ぶことができる",
+          "赤いりんごが好き"
+        ],
+        "a": 1,
+        "exp": "文から「9歳である」と分かります。",
+        "src": "OFFLINE",
+        "g": "読み取り"
+      },
+      {
+        "q": "【応用】文「This is a blue pen.」から分かることは？",
+        "c": [
+          "跳ぶことができる",
+          "赤いりんごが好き",
+          "これは青いペン",
+          "猫を2匹飼っている"
+        ],
+        "a": 2,
+        "exp": "文から「これは青いペン」と分かります。",
+        "src": "OFFLINE",
+        "g": "読み取り"
+      },
+      {
+        "q": "【応用】文「I can jump.」から分かることは？",
+        "c": [
+          "赤いりんごが好き",
+          "猫を2匹飼っている",
+          "9歳である",
+          "跳ぶことができる"
+        ],
+        "a": 3,
+        "exp": "文から「跳ぶことができる」と分かります。",
+        "src": "OFFLINE",
+        "g": "読み取り"
+      },
+      {
+        "q": "【応用】A, C, E, __に入る文字は？",
+        "c": [
+          "G",
+          "H",
+          "P",
+          "U"
+        ],
+        "a": 0,
+        "exp": "文字の並びから G が入ります。",
+        "src": "OFFLINE",
+        "g": "文字"
+      },
+      {
+        "q": "【応用】B, D, F, __に入る文字は？",
+        "c": [
+          "P",
+          "H",
+          "U",
+          "Z"
+        ],
+        "a": 1,
+        "exp": "文字の並びから H が入ります。",
+        "src": "OFFLINE",
+        "g": "文字"
+      },
+      {
+        "q": "【応用】M, N, O, __に入る文字は？",
+        "c": [
+          "U",
+          "Z",
+          "P",
+          "G"
+        ],
+        "a": 2,
+        "exp": "文字の並びから P が入ります。",
+        "src": "OFFLINE",
+        "g": "文字"
+      },
+      {
+        "q": "【応用】R, S, T, __に入る文字は？",
+        "c": [
+          "Z",
+          "G",
+          "H",
+          "U"
+        ],
+        "a": 3,
+        "exp": "文字の並びから U が入ります。",
+        "src": "OFFLINE",
+        "g": "文字"
+      },
+      {
+        "q": "【応用】W, X, Y, __に入る文字は？",
+        "c": [
+          "Z",
+          "G",
+          "H",
+          "P"
+        ],
+        "a": 0,
+        "exp": "文字の並びから Z が入ります。",
+        "src": "OFFLINE",
+        "g": "文字"
+      },
+      {
+        "q": "【応用】3匹の犬を表す組み合わせは？",
+        "c": [
+          "two books",
+          "three dogs",
+          "green star",
+          "yellow circle"
+        ],
+        "a": 1,
+        "exp": "3匹の犬 は three dogs と表します。",
+        "src": "OFFLINE",
+        "g": "組み合わせ"
+      },
+      {
+        "q": "【応用】2冊の本を表す組み合わせは？",
+        "c": [
+          "green star",
+          "yellow circle",
+          "two books",
+          "four pencils"
+        ],
+        "a": 2,
+        "exp": "2冊の本 は two books と表します。",
+        "src": "OFFLINE",
+        "g": "組み合わせ"
+      },
+      {
+        "q": "【応用】緑の星を表す組み合わせは？",
+        "c": [
+          "yellow circle",
+          "four pencils",
+          "three dogs",
+          "green star"
+        ],
+        "a": 3,
+        "exp": "緑の星 は green star と表します。",
+        "src": "OFFLINE",
+        "g": "組み合わせ"
+      },
+      {
+        "q": "【応用】黄色い丸を表す組み合わせは？",
+        "c": [
+          "yellow circle",
+          "four pencils",
+          "three dogs",
+          "two books"
+        ],
+        "a": 0,
+        "exp": "黄色い丸 は yellow circle と表します。",
+        "src": "OFFLINE",
+        "g": "組み合わせ"
+      },
+      {
+        "q": "【応用】4本の鉛筆を表す組み合わせは？",
+        "c": [
+          "three dogs",
+          "four pencils",
+          "two books",
+          "green star"
+        ],
+        "a": 1,
+        "exp": "4本の鉛筆 は four pencils と表します。",
+        "src": "OFFLINE",
+        "g": "組み合わせ"
+      }
+    ],
+    "4": [
+      {
+        "q": "【基本】「晴れ」を表す英語は？",
+        "c": [
+          "sunny",
+          "rainy",
+          "cloudy",
+          "snowy"
+        ],
+        "a": 0,
+        "exp": "晴れ は sunny と表します。",
+        "src": "OFFLINE",
+        "g": "天気"
+      },
+      {
+        "q": "【基本】「雨」を表す英語は？",
+        "c": [
+          "cloudy",
+          "rainy",
+          "snowy",
+          "windy"
+        ],
+        "a": 1,
+        "exp": "雨 は rainy と表します。",
+        "src": "OFFLINE",
+        "g": "天気"
+      },
+      {
+        "q": "【基本】「くもり」を表す英語は？",
+        "c": [
+          "snowy",
+          "windy",
+          "cloudy",
+          "sunny"
+        ],
+        "a": 2,
+        "exp": "くもり は cloudy と表します。",
+        "src": "OFFLINE",
+        "g": "天気"
+      },
+      {
+        "q": "【基本】「雪」を表す英語は？",
+        "c": [
+          "windy",
+          "sunny",
+          "rainy",
+          "snowy"
+        ],
+        "a": 3,
+        "exp": "雪 は snowy と表します。",
+        "src": "OFFLINE",
+        "g": "天気"
+      },
+      {
+        "q": "【基本】「風が強い」を表す英語は？",
+        "c": [
+          "windy",
+          "sunny",
+          "rainy",
+          "cloudy"
+        ],
+        "a": 0,
+        "exp": "風が強い は windy と表します。",
+        "src": "OFFLINE",
+        "g": "天気"
+      },
+      {
+        "q": "【基本】「月曜日」を表す英語は？",
+        "c": [
+          "Tuesday",
+          "Monday",
+          "Friday",
+          "Saturday"
+        ],
+        "a": 1,
+        "exp": "月曜日 は Monday と表します。",
+        "src": "OFFLINE",
+        "g": "曜日"
+      },
+      {
+        "q": "【基本】「火曜日」を表す英語は？",
+        "c": [
+          "Friday",
+          "Saturday",
+          "Tuesday",
+          "Sunday"
+        ],
+        "a": 2,
+        "exp": "火曜日 は Tuesday と表します。",
+        "src": "OFFLINE",
+        "g": "曜日"
+      },
+      {
+        "q": "【基本】「金曜日」を表す英語は？",
+        "c": [
+          "Saturday",
+          "Sunday",
+          "Monday",
+          "Friday"
+        ],
+        "a": 3,
+        "exp": "金曜日 は Friday と表します。",
+        "src": "OFFLINE",
+        "g": "曜日"
+      },
+      {
+        "q": "【基本】「土曜日」を表す英語は？",
+        "c": [
+          "Saturday",
+          "Sunday",
+          "Monday",
+          "Tuesday"
+        ],
+        "a": 0,
+        "exp": "土曜日 は Saturday と表します。",
+        "src": "OFFLINE",
+        "g": "曜日"
+      },
+      {
+        "q": "【基本】「日曜日」を表す英語は？",
+        "c": [
+          "Monday",
+          "Sunday",
+          "Tuesday",
+          "Friday"
+        ],
+        "a": 1,
+        "exp": "日曜日 は Sunday と表します。",
+        "src": "OFFLINE",
+        "g": "曜日"
+      },
+      {
+        "q": "【基本】「起きる」を表す英語は？",
+        "c": [
+          "eat breakfast",
+          "go to school",
+          "get up",
+          "go home"
+        ],
+        "a": 2,
+        "exp": "起きる は get up と表します。",
+        "src": "OFFLINE",
+        "g": "日課"
+      },
+      {
+        "q": "【基本】「朝食を食べる」を表す英語は？",
+        "c": [
+          "go to school",
+          "go home",
+          "go to bed",
+          "eat breakfast"
+        ],
+        "a": 3,
+        "exp": "朝食を食べる は eat breakfast と表します。",
+        "src": "OFFLINE",
+        "g": "日課"
+      },
+      {
+        "q": "【基本】「学校へ行く」を表す英語は？",
+        "c": [
+          "go to school",
+          "go home",
+          "go to bed",
+          "get up"
+        ],
+        "a": 0,
+        "exp": "学校へ行く は go to school と表します。",
+        "src": "OFFLINE",
+        "g": "日課"
+      },
+      {
+        "q": "【基本】「家へ帰る」を表す英語は？",
+        "c": [
+          "go to bed",
+          "go home",
+          "get up",
+          "eat breakfast"
+        ],
+        "a": 1,
+        "exp": "家へ帰る は go home と表します。",
+        "src": "OFFLINE",
+        "g": "日課"
+      },
+      {
+        "q": "【基本】「寝る」を表す英語は？",
+        "c": [
+          "get up",
+          "eat breakfast",
+          "go to bed",
+          "go to school"
+        ],
+        "a": 2,
+        "exp": "寝る は go to bed と表します。",
+        "src": "OFFLINE",
+        "g": "日課"
+      },
+      {
+        "q": "【基本】「図書館」を表す英語は？",
+        "c": [
+          "park",
+          "station",
+          "right",
+          "library"
+        ],
+        "a": 3,
+        "exp": "図書館 は library と表します。",
+        "src": "OFFLINE",
+        "g": "場所"
+      },
+      {
+        "q": "【基本】「公園」を表す英語は？",
+        "c": [
+          "park",
+          "station",
+          "right",
+          "left"
+        ],
+        "a": 0,
+        "exp": "公園 は park と表します。",
+        "src": "OFFLINE",
+        "g": "場所"
+      },
+      {
+        "q": "【基本】「駅」を表す英語は？",
+        "c": [
+          "right",
+          "station",
+          "left",
+          "library"
+        ],
+        "a": 1,
+        "exp": "駅 は station と表します。",
+        "src": "OFFLINE",
+        "g": "場所"
+      },
+      {
+        "q": "【基本】「右」を表す英語は？",
+        "c": [
+          "left",
+          "library",
+          "right",
+          "park"
+        ],
+        "a": 2,
+        "exp": "右 は right と表します。",
+        "src": "OFFLINE",
+        "g": "場所"
+      },
+      {
+        "q": "【基本】「左」を表す英語は？",
+        "c": [
+          "library",
+          "park",
+          "station",
+          "left"
+        ],
+        "a": 3,
+        "exp": "左 は left と表します。",
+        "src": "OFFLINE",
+        "g": "場所"
+      },
+      {
+        "q": "【標準】「How's the weather?」への返事は？",
+        "c": [
+          "It's sunny.",
+          "It's Monday.",
+          "It's seven.",
+          "It's a pen."
+        ],
+        "a": 0,
+        "exp": "天気を聞かれたので It's sunny. と答えます。",
+        "src": "OFFLINE",
+        "g": "天気"
+      },
+      {
+        "q": "【標準】雨の日を表す英文は？",
+        "c": [
+          "It's sunny.",
+          "It's rainy.",
+          "It's windy.",
+          "It's Sunday."
+        ],
+        "a": 1,
+        "exp": "rainy は雨の天気を表します。",
+        "src": "OFFLINE",
+        "g": "天気"
+      },
+      {
+        "q": "【標準】「It's cloudy.」の意味は？",
+        "c": [
+          "晴れです",
+          "雪です",
+          "くもりです",
+          "火曜日です"
+        ],
+        "a": 2,
+        "exp": "cloudy は「くもり」です。",
+        "src": "OFFLINE",
+        "g": "天気"
+      },
+      {
+        "q": "【標準】「What day is it?」で尋ねているのは？",
+        "c": [
+          "時刻",
+          "天気",
+          "場所",
+          "曜日"
+        ],
+        "a": 3,
+        "exp": "What day は曜日を尋ねます。",
+        "src": "OFFLINE",
+        "g": "曜日"
+      },
+      {
+        "q": "【標準】「今日は金曜日です」を表す英文は？",
+        "c": [
+          "It's Friday.",
+          "It's five.",
+          "It's rainy.",
+          "I like Friday."
+        ],
+        "a": 0,
+        "exp": "曜日は It's Friday. のように答えます。",
+        "src": "OFFLINE",
+        "g": "曜日"
+      },
+      {
+        "q": "【標準】Monday の2日後は何曜日？",
+        "c": [
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Sunday"
+        ],
+        "a": 1,
+        "exp": "月曜日の2日後は水曜日です。",
+        "src": "OFFLINE",
+        "g": "曜日"
+      },
+      {
+        "q": "【標準】「What time is it?」で尋ねているのは？",
+        "c": [
+          "曜日",
+          "年齢",
+          "時刻",
+          "天気"
+        ],
+        "a": 2,
+        "exp": "What time は時刻を尋ねます。",
+        "src": "OFFLINE",
+        "g": "時刻"
+      },
+      {
+        "q": "【標準】「It's seven.」が時刻を表すなら何時？",
+        "c": [
+          "5時",
+          "10時",
+          "12時",
+          "7時"
+        ],
+        "a": 3,
+        "exp": "seven は7を表します。",
+        "src": "OFFLINE",
+        "g": "時刻"
+      },
+      {
+        "q": "【標準】7時に起きることを表す英文は？",
+        "c": [
+          "I get up at seven.",
+          "I go home at seven.",
+          "I am seven.",
+          "Seven gets up."
+        ],
+        "a": 0,
+        "exp": "get up は起きる、at seven は7時にです。",
+        "src": "OFFLINE",
+        "g": "時刻"
+      },
+      {
+        "q": "【標準】「Do you have a pen?」の意味は？",
+        "c": [
+          "ペンが好き？",
+          "ペンを持ってる？",
+          "ペンはどこ？",
+          "ペンを使う？"
+        ],
+        "a": 1,
+        "exp": "Do you have ...? は持っているかを尋ねます。",
+        "src": "OFFLINE",
+        "g": "学校"
+      },
+      {
+        "q": "【標準】ペンを持っているときの返事は？",
+        "c": [
+          "No, I don't.",
+          "It's a pen.",
+          "Yes, I do.",
+          "I am a pen."
+        ],
+        "a": 2,
+        "exp": "持っているので Yes, I do. と答えます。",
+        "src": "OFFLINE",
+        "g": "学校"
+      },
+      {
+        "q": "【標準】本を持っていないときの返事は？",
+        "c": [
+          "Yes, I do.",
+          "I like books.",
+          "Open the book.",
+          "No, I don't."
+        ],
+        "a": 3,
+        "exp": "持っていないので No, I don't. です。",
+        "src": "OFFLINE",
+        "g": "学校"
+      },
+      {
+        "q": "【標準】「Turn right.」の意味は？",
+        "c": [
+          "右に曲がって",
+          "左に曲がって",
+          "まっすぐ進んで",
+          "ここで止まって"
+        ],
+        "a": 0,
+        "exp": "right は右、turn は曲がるです。",
+        "src": "OFFLINE",
+        "g": "道案内"
+      },
+      {
+        "q": "【標準】「Go straight.」の意味は？",
+        "c": [
+          "右に曲がって",
+          "まっすぐ進んで",
+          "左に曲がって",
+          "駅へ戻って"
+        ],
+        "a": 1,
+        "exp": "go straight は「まっすぐ進む」です。",
+        "src": "OFFLINE",
+        "g": "道案内"
+      },
+      {
+        "q": "【標準】図書館の場所を尋ねる英文は？",
+        "c": [
+          "What is the library?",
+          "How many libraries?",
+          "Where is the library?",
+          "Do you like books?"
+        ],
+        "a": 2,
+        "exp": "場所は Where is ...? で尋ねます。",
+        "src": "OFFLINE",
+        "g": "道案内"
+      },
+      {
+        "q": "【標準】りんごを2個頼む自然な英語は？",
+        "c": [
+          "Two apple is.",
+          "I am two apples.",
+          "Apple two like.",
+          "Two apples, please."
+        ],
+        "a": 3,
+        "exp": "数と品物の後に please を付けて頼めます。",
+        "src": "OFFLINE",
+        "g": "買い物"
+      },
+      {
+        "q": "【標準】店員の「How many apples?」で聞かれているのは？",
+        "c": [
+          "ほしいりんごの数",
+          "好きな色",
+          "行きたい場所",
+          "今日の天気"
+        ],
+        "a": 0,
+        "exp": "How many apples? は、ほしいりんごの数を尋ねています。",
+        "src": "OFFLINE",
+        "g": "買い物"
+      },
+      {
+        "q": "【標準】30を表す英語は？",
+        "c": [
+          "thirteen",
+          "thirty",
+          "twenty",
+          "three"
+        ],
+        "a": 1,
+        "exp": "30 は thirty です。",
+        "src": "OFFLINE",
+        "g": "買い物"
+      },
+      {
+        "q": "【標準】大文字「Q」に対応する小文字は？",
+        "c": [
+          "p",
+          "g",
+          "q",
+          "d"
+        ],
+        "a": 2,
+        "exp": "Q の小文字は q です。",
+        "src": "OFFLINE",
+        "g": "文字"
+      },
+      {
+        "q": "【標準】小文字「b」に対応する大文字は？",
+        "c": [
+          "D",
+          "P",
+          "Q",
+          "B"
+        ],
+        "a": 3,
+        "exp": "b の大文字は B です。",
+        "src": "OFFLINE",
+        "g": "文字"
+      },
+      {
+        "q": "【応用】会話「How's the weather?」「___」晴れなら？",
+        "c": [
+          "It's sunny.",
+          "It's Sunday.",
+          "At seven.",
+          "In the park."
+        ],
+        "a": 0,
+        "exp": "晴れなので It's sunny. と答えます。",
+        "src": "OFFLINE",
+        "g": "会話"
+      },
+      {
+        "q": "【応用】会話「What day is it?」「___」月曜なら？",
+        "c": [
+          "It's sunny.",
+          "It's Monday.",
+          "It's one.",
+          "I like Monday."
+        ],
+        "a": 1,
+        "exp": "曜日は It's Monday. と答えます。",
+        "src": "OFFLINE",
+        "g": "会話"
+      },
+      {
+        "q": "【応用】会話「What time is it?」「___」8時なら？",
+        "c": [
+          "It's Friday.",
+          "Eight books.",
+          "It's eight.",
+          "I am eight."
+        ],
+        "a": 2,
+        "exp": "時刻は It's eight. と答えられます。",
+        "src": "OFFLINE",
+        "g": "会話"
+      },
+      {
+        "q": "【応用】会話「Do you have a ruler?」「___」肯定は？",
+        "c": [
+          "Yes, I am.",
+          "It's a ruler.",
+          "At school.",
+          "Yes, I do."
+        ],
+        "a": 3,
+        "exp": "Do you ...? への肯定は Yes, I do. です。",
+        "src": "OFFLINE",
+        "g": "会話"
+      },
+      {
+        "q": "【応用】会話「Where is the park?」「___」に合う返事は？",
+        "c": [
+          "Go straight.",
+          "It's rainy.",
+          "I like parks.",
+          "Three parks."
+        ],
+        "a": 0,
+        "exp": "場所を聞かれたので道案内が合います。",
+        "src": "OFFLINE",
+        "g": "会話"
+      },
+      {
+        "q": "【応用】雨で傘が必要な日の天気は？",
+        "c": [
+          "sunny",
+          "rainy",
+          "cloudy",
+          "windy"
+        ],
+        "a": 1,
+        "exp": "雨の日は rainy です。",
+        "src": "OFFLINE",
+        "g": "文脈"
+      },
+      {
+        "q": "【応用】木の葉が強く揺れている日の天気は？",
+        "c": [
+          "snowy",
+          "sunny",
+          "windy",
+          "cloudy"
+        ],
+        "a": 2,
+        "exp": "風が強い様子は windy です。",
+        "src": "OFFLINE",
+        "g": "文脈"
+      },
+      {
+        "q": "【応用】朝7時に起き、8時に登校。get up は何時？",
+        "c": [
+          "at eight",
+          "on Monday",
+          "in the park",
+          "at seven"
+        ],
+        "a": 3,
+        "exp": "起きる時刻は7時です。",
+        "src": "OFFLINE",
+        "g": "文脈"
+      },
+      {
+        "q": "【応用】今日はMonday。明日は何曜日？",
+        "c": [
+          "Tuesday",
+          "Sunday",
+          "Wednesday",
+          "Friday"
+        ],
+        "a": 0,
+        "exp": "月曜日の次は火曜日です。",
+        "src": "OFFLINE",
+        "g": "文脈"
+      },
+      {
+        "q": "【応用】左に曲がった後まっすぐ進む指示は？",
+        "c": [
+          "Turn right. Stop.",
+          "Turn left. Go straight.",
+          "Go home. Sit down.",
+          "It's left and sunny."
+        ],
+        "a": 1,
+        "exp": "左へ曲がり、その後まっすぐ進む順です。",
+        "src": "OFFLINE",
+        "g": "文脈"
+      },
+      {
+        "q": "【応用】「私は7時に寝ます」の正しい英文は？",
+        "c": [
+          "I seven bed go.",
+          "At bed I seven.",
+          "I go to bed at seven.",
+          "I am seven beds."
+        ],
+        "a": 2,
+        "exp": "I, go to bed, at seven の順です。",
+        "src": "OFFLINE",
+        "g": "語順"
+      },
+      {
+        "q": "【応用】「図書館はどこ？」の正しい英文は？",
+        "c": [
+          "Where the library is?",
+          "What library where?",
+          "Library is how many?",
+          "Where is the library?"
+        ],
+        "a": 3,
+        "exp": "場所は Where is ...? の語順で尋ねます。",
+        "src": "OFFLINE",
+        "g": "語順"
+      },
+      {
+        "q": "【応用】「今日は火曜日です」の正しい英文は？",
+        "c": [
+          "It's Tuesday.",
+          "Tuesday it are.",
+          "I Tuesday am.",
+          "Tuesday likes it."
+        ],
+        "a": 0,
+        "exp": "曜日は It's Tuesday. と表します。",
+        "src": "OFFLINE",
+        "g": "語順"
+      },
+      {
+        "q": "【応用】「ペンを持っています」の正しい英文は？",
+        "c": [
+          "I pen have a.",
+          "I have a pen.",
+          "Have pen I.",
+          "I am a pen."
+        ],
+        "a": 1,
+        "exp": "I, have, a pen の順です。",
+        "src": "OFFLINE",
+        "g": "語順"
+      },
+      {
+        "q": "【応用】「右に曲がって」の正しい語順は？",
+        "c": [
+          "Right turn is.",
+          "Go right turn.",
+          "Turn right.",
+          "Right is turn."
+        ],
+        "a": 2,
+        "exp": "命令は Turn right. の順です。",
+        "src": "OFFLINE",
+        "g": "語順"
+      },
+      {
+        "q": "【応用】文「It's snowy. I have a coat.」季節は？",
+        "c": [
+          "春",
+          "夏",
+          "秋",
+          "冬"
+        ],
+        "a": 3,
+        "exp": "雪とコートが手がかりなので冬です。",
+        "src": "OFFLINE",
+        "g": "読み取り"
+      },
+      {
+        "q": "【応用】文「I go to bed at nine.」9時にすることは？",
+        "c": [
+          "寝る",
+          "起きる",
+          "登校する",
+          "帰宅する"
+        ],
+        "a": 0,
+        "exp": "go to bed は寝ることです。",
+        "src": "OFFLINE",
+        "g": "読み取り"
+      },
+      {
+        "q": "【応用】文「I have two pencils.」持っている数は？",
+        "c": [
+          "1本",
+          "2本",
+          "3本",
+          "20本"
+        ],
+        "a": 1,
+        "exp": "two は2を表します。",
+        "src": "OFFLINE",
+        "g": "読み取り"
+      },
+      {
+        "q": "【応用】文「The park is on your left.」公園はどちら？",
+        "c": [
+          "右",
+          "前",
+          "左",
+          "後ろ"
+        ],
+        "a": 2,
+        "exp": "on your left は「あなたの左」です。",
+        "src": "OFFLINE",
+        "g": "読み取り"
+      },
+      {
+        "q": "【応用】文「Sunday is sunny.」正しい組み合わせは？",
+        "c": [
+          "月曜・雨",
+          "日曜・雪",
+          "土曜・晴れ",
+          "日曜・晴れ"
+        ],
+        "a": 3,
+        "exp": "Sunday は日曜、sunny は晴れです。",
+        "src": "OFFLINE",
+        "g": "読み取り"
+      },
+      {
+        "q": "【基本】「ノート」を表す英語は？",
+        "c": [
+          "notebook",
+          "bag",
+          "scissors",
+          "glue"
+        ],
+        "a": 0,
+        "exp": "ノート の答えは notebook です。",
+        "src": "OFFLINE",
+        "g": "学校"
+      },
+      {
+        "q": "【基本】「かばん」を表す英語は？",
+        "c": [
+          "scissors",
+          "bag",
+          "glue",
+          "board"
+        ],
+        "a": 1,
+        "exp": "かばん の答えは bag です。",
+        "src": "OFFLINE",
+        "g": "学校"
+      },
+      {
+        "q": "【基本】「はさみ」を表す英語は？",
+        "c": [
+          "glue",
+          "board",
+          "scissors",
+          "classroom"
+        ],
+        "a": 2,
+        "exp": "はさみ の答えは scissors です。",
+        "src": "OFFLINE",
+        "g": "学校"
+      },
+      {
+        "q": "【基本】「のり」を表す英語は？",
+        "c": [
+          "board",
+          "classroom",
+          "notebook",
+          "glue"
+        ],
+        "a": 3,
+        "exp": "のり の答えは glue です。",
+        "src": "OFFLINE",
+        "g": "学校"
+      },
+      {
+        "q": "【基本】「黒板」を表す英語は？",
+        "c": [
+          "board",
+          "classroom",
+          "notebook",
+          "bag"
+        ],
+        "a": 0,
+        "exp": "黒板 の答えは board です。",
+        "src": "OFFLINE",
+        "g": "学校"
+      },
+      {
+        "q": "【基本】「教室」を表す英語は？",
+        "c": [
+          "notebook",
+          "classroom",
+          "bag",
+          "scissors"
+        ],
+        "a": 1,
+        "exp": "教室 の答えは classroom です。",
+        "src": "OFFLINE",
+        "g": "学校"
+      },
+      {
+        "q": "【基本】英語の「twenty」はどの数？",
+        "c": [
+          "30",
+          "40",
+          "20",
+          "50"
+        ],
+        "a": 2,
+        "exp": "twenty の答えは 20 です。",
+        "src": "OFFLINE",
+        "g": "時刻"
+      },
+      {
+        "q": "【基本】英語の「thirty」はどの数？",
+        "c": [
+          "40",
+          "50",
+          "60",
+          "30"
+        ],
+        "a": 3,
+        "exp": "thirty の答えは 30 です。",
+        "src": "OFFLINE",
+        "g": "時刻"
+      },
+      {
+        "q": "【基本】英語の「forty」はどの数？",
+        "c": [
+          "40",
+          "50",
+          "60",
+          "90"
+        ],
+        "a": 0,
+        "exp": "forty の答えは 40 です。",
+        "src": "OFFLINE",
+        "g": "時刻"
+      },
+      {
+        "q": "【基本】英語の「fifty」はどの数？",
+        "c": [
+          "60",
+          "50",
+          "90",
+          "20"
+        ],
+        "a": 1,
+        "exp": "fifty の答えは 50 です。",
+        "src": "OFFLINE",
+        "g": "時刻"
+      },
+      {
+        "q": "【基本】英語の「sixty」はどの数？",
+        "c": [
+          "90",
+          "20",
+          "60",
+          "30"
+        ],
+        "a": 2,
+        "exp": "sixty の答えは 60 です。",
+        "src": "OFFLINE",
+        "g": "時刻"
+      },
+      {
+        "q": "【基本】英語の「ninety」はどの数？",
+        "c": [
+          "20",
+          "30",
+          "40",
+          "90"
+        ],
+        "a": 3,
+        "exp": "ninety の答えは 90 です。",
+        "src": "OFFLINE",
+        "g": "時刻"
+      },
+      {
+        "q": "【基本】日課の「昼食を食べる」を表す英語は？",
+        "c": [
+          "eat lunch",
+          "do homework",
+          "watch TV",
+          "take a bath"
+        ],
+        "a": 0,
+        "exp": "昼食を食べる の答えは eat lunch です。",
+        "src": "OFFLINE",
+        "g": "日課"
+      },
+      {
+        "q": "【基本】日課の「宿題をする」を表す英語は？",
+        "c": [
+          "watch TV",
+          "do homework",
+          "take a bath",
+          "brush my teeth"
+        ],
+        "a": 1,
+        "exp": "宿題をする の答えは do homework です。",
+        "src": "OFFLINE",
+        "g": "日課"
+      },
+      {
+        "q": "【基本】日課の「テレビを見る」を表す英語は？",
+        "c": [
+          "take a bath",
+          "brush my teeth",
+          "watch TV",
+          "clean my room"
+        ],
+        "a": 2,
+        "exp": "テレビを見る の答えは watch TV です。",
+        "src": "OFFLINE",
+        "g": "日課"
+      },
+      {
+        "q": "【基本】日課の「お風呂に入る」を表す英語は？",
+        "c": [
+          "brush my teeth",
+          "clean my room",
+          "eat lunch",
+          "take a bath"
+        ],
+        "a": 3,
+        "exp": "お風呂に入る の答えは take a bath です。",
+        "src": "OFFLINE",
+        "g": "日課"
+      },
+      {
+        "q": "【基本】日課の「歯をみがく」を表す英語は？",
+        "c": [
+          "brush my teeth",
+          "clean my room",
+          "eat lunch",
+          "do homework"
+        ],
+        "a": 0,
+        "exp": "歯をみがく の答えは brush my teeth です。",
+        "src": "OFFLINE",
+        "g": "日課"
+      },
+      {
+        "q": "【基本】日課の「部屋を掃除する」を表す英語は？",
+        "c": [
+          "eat lunch",
+          "clean my room",
+          "do homework",
+          "watch TV"
+        ],
+        "a": 1,
+        "exp": "部屋を掃除する の答えは clean my room です。",
+        "src": "OFFLINE",
+        "g": "日課"
+      },
+      {
+        "q": "【基本】「病院」を表す英語は？",
+        "c": [
+          "school",
+          "store",
+          "hospital",
+          "zoo"
+        ],
+        "a": 2,
+        "exp": "病院 の答えは hospital です。",
+        "src": "OFFLINE",
+        "g": "町"
+      },
+      {
+        "q": "【基本】「学校」を表す英語は？",
+        "c": [
+          "store",
+          "zoo",
+          "post office",
+          "school"
+        ],
+        "a": 3,
+        "exp": "学校 の答えは school です。",
+        "src": "OFFLINE",
+        "g": "町"
+      },
+      {
+        "q": "【基本】「店」を表す英語は？",
+        "c": [
+          "store",
+          "zoo",
+          "post office",
+          "police box"
+        ],
+        "a": 0,
+        "exp": "店 の答えは store です。",
+        "src": "OFFLINE",
+        "g": "町"
+      },
+      {
+        "q": "【基本】「動物園」を表す英語は？",
+        "c": [
+          "post office",
+          "zoo",
+          "police box",
+          "hospital"
+        ],
+        "a": 1,
+        "exp": "動物園 の答えは zoo です。",
+        "src": "OFFLINE",
+        "g": "町"
+      },
+      {
+        "q": "【基本】「郵便局」を表す英語は？",
+        "c": [
+          "police box",
+          "hospital",
+          "post office",
+          "school"
+        ],
+        "a": 2,
+        "exp": "郵便局 の答えは post office です。",
+        "src": "OFFLINE",
+        "g": "町"
+      },
+      {
+        "q": "【基本】「交番」を表す英語は？",
+        "c": [
+          "hospital",
+          "school",
+          "store",
+          "police box"
+        ],
+        "a": 3,
+        "exp": "交番 の答えは police box です。",
+        "src": "OFFLINE",
+        "g": "町"
+      },
+      {
+        "q": "【基本】大文字「E」に合う小文字は？",
+        "c": [
+          "e",
+          "h",
+          "j",
+          "q"
+        ],
+        "a": 0,
+        "exp": "E の答えは e です。",
+        "src": "OFFLINE",
+        "g": "文字"
+      },
+      {
+        "q": "【基本】大文字「H」に合う小文字は？",
+        "c": [
+          "j",
+          "h",
+          "q",
+          "t"
+        ],
+        "a": 1,
+        "exp": "H の答えは h です。",
+        "src": "OFFLINE",
+        "g": "文字"
+      },
+      {
+        "q": "【基本】大文字「J」に合う小文字は？",
+        "c": [
+          "q",
+          "t",
+          "j",
+          "y"
+        ],
+        "a": 2,
+        "exp": "J の答えは j です。",
+        "src": "OFFLINE",
+        "g": "文字"
+      },
+      {
+        "q": "【基本】大文字「Q」に合う小文字は？",
+        "c": [
+          "t",
+          "y",
+          "e",
+          "q"
+        ],
+        "a": 3,
+        "exp": "Q の答えは q です。",
+        "src": "OFFLINE",
+        "g": "文字"
+      },
+      {
+        "q": "【基本】大文字「T」に合う小文字は？",
+        "c": [
+          "t",
+          "y",
+          "e",
+          "h"
+        ],
+        "a": 0,
+        "exp": "T の答えは t です。",
+        "src": "OFFLINE",
+        "g": "文字"
+      },
+      {
+        "q": "【基本】大文字「Y」に合う小文字は？",
+        "c": [
+          "e",
+          "y",
+          "h",
+          "j"
+        ],
+        "a": 1,
+        "exp": "Y の答えは y です。",
+        "src": "OFFLINE",
+        "g": "文字"
+      },
+      {
+        "q": "【標準】「It's windy.」の意味は？",
+        "c": [
+          "雪です",
+          "暑いです",
+          "風が強い",
+          "寒いです"
+        ],
+        "a": 2,
+        "exp": "答えは「風が強い」です。",
+        "src": "OFFLINE",
+        "g": "天気"
+      },
+      {
+        "q": "【標準】「It's snowy.」の意味は？",
+        "c": [
+          "暑いです",
+          "寒いです",
+          "暖かいです",
+          "雪です"
+        ],
+        "a": 3,
+        "exp": "答えは「雪です」です。",
+        "src": "OFFLINE",
+        "g": "天気"
+      },
+      {
+        "q": "【標準】「It's hot.」の意味は？",
+        "c": [
+          "暑いです",
+          "寒いです",
+          "暖かいです",
+          "風が強い"
+        ],
+        "a": 0,
+        "exp": "答えは「暑いです」です。",
+        "src": "OFFLINE",
+        "g": "天気"
+      },
+      {
+        "q": "【標準】「It's cold.」の意味は？",
+        "c": [
+          "暖かいです",
+          "寒いです",
+          "風が強い",
+          "雪です"
+        ],
+        "a": 1,
+        "exp": "答えは「寒いです」です。",
+        "src": "OFFLINE",
+        "g": "天気"
+      },
+      {
+        "q": "【標準】「It's warm.」の意味は？",
+        "c": [
+          "風が強い",
+          "雪です",
+          "暖かいです",
+          "暑いです"
+        ],
+        "a": 2,
+        "exp": "答えは「暖かいです」です。",
+        "src": "OFFLINE",
+        "g": "天気"
+      },
+      {
+        "q": "【標準】Tuesdayの次の曜日は？",
+        "c": [
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Wednesday"
+        ],
+        "a": 3,
+        "exp": "答えは「Wednesday」です。",
+        "src": "OFFLINE",
+        "g": "曜日"
+      },
+      {
+        "q": "【標準】Wednesdayの次の曜日は？",
+        "c": [
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday"
+        ],
+        "a": 0,
+        "exp": "答えは「Thursday」です。",
+        "src": "OFFLINE",
+        "g": "曜日"
+      },
+      {
+        "q": "【標準】Thursdayの次の曜日は？",
+        "c": [
+          "Saturday",
+          "Friday",
+          "Sunday",
+          "Wednesday"
+        ],
+        "a": 1,
+        "exp": "答えは「Friday」です。",
+        "src": "OFFLINE",
+        "g": "曜日"
+      },
+      {
+        "q": "【標準】Fridayの次の曜日は？",
+        "c": [
+          "Sunday",
+          "Wednesday",
+          "Saturday",
+          "Thursday"
+        ],
+        "a": 2,
+        "exp": "答えは「Saturday」です。",
+        "src": "OFFLINE",
+        "g": "曜日"
+      },
+      {
+        "q": "【標準】Saturdayの次の曜日は？",
+        "c": [
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Sunday"
+        ],
+        "a": 3,
+        "exp": "答えは「Sunday」です。",
+        "src": "OFFLINE",
+        "g": "曜日"
+      },
+      {
+        "q": "【標準】「I get up at six.」の意味は？",
+        "c": [
+          "6時に起きる",
+          "12時に昼食",
+          "4時に帰宅",
+          "8時に入浴"
+        ],
+        "a": 0,
+        "exp": "答えは「6時に起きる」です。",
+        "src": "OFFLINE",
+        "g": "時刻"
+      },
+      {
+        "q": "【標準】「I eat lunch at twelve.」の意味は？",
+        "c": [
+          "4時に帰宅",
+          "12時に昼食",
+          "8時に入浴",
+          "9時に寝る"
+        ],
+        "a": 1,
+        "exp": "答えは「12時に昼食」です。",
+        "src": "OFFLINE",
+        "g": "時刻"
+      },
+      {
+        "q": "【標準】「I go home at four.」の意味は？",
+        "c": [
+          "8時に入浴",
+          "9時に寝る",
+          "4時に帰宅",
+          "6時に起きる"
+        ],
+        "a": 2,
+        "exp": "答えは「4時に帰宅」です。",
+        "src": "OFFLINE",
+        "g": "時刻"
+      },
+      {
+        "q": "【標準】「I take a bath at eight.」の意味は？",
+        "c": [
+          "9時に寝る",
+          "6時に起きる",
+          "12時に昼食",
+          "8時に入浴"
+        ],
+        "a": 3,
+        "exp": "答えは「8時に入浴」です。",
+        "src": "OFFLINE",
+        "g": "時刻"
+      },
+      {
+        "q": "【標準】「I go to bed at nine.」の意味は？",
+        "c": [
+          "9時に寝る",
+          "6時に起きる",
+          "12時に昼食",
+          "4時に帰宅"
+        ],
+        "a": 0,
+        "exp": "答えは「9時に寝る」です。",
+        "src": "OFFLINE",
+        "g": "時刻"
+      },
+      {
+        "q": "【標準】道案内の「Turn left.」の意味は？",
+        "c": [
+          "まっすぐ進む",
+          "左に曲がる",
+          "ここで止まる",
+          "右側にある"
+        ],
+        "a": 1,
+        "exp": "答えは「左に曲がる」です。",
+        "src": "OFFLINE",
+        "g": "道案内"
+      },
+      {
+        "q": "【標準】道案内の「Go straight.」の意味は？",
+        "c": [
+          "ここで止まる",
+          "右側にある",
+          "まっすぐ進む",
+          "道を渡る"
+        ],
+        "a": 2,
+        "exp": "答えは「まっすぐ進む」です。",
+        "src": "OFFLINE",
+        "g": "道案内"
+      },
+      {
+        "q": "【標準】道案内の「Stop here.」の意味は？",
+        "c": [
+          "右側にある",
+          "道を渡る",
+          "左に曲がる",
+          "ここで止まる"
+        ],
+        "a": 3,
+        "exp": "答えは「ここで止まる」です。",
+        "src": "OFFLINE",
+        "g": "道案内"
+      },
+      {
+        "q": "【標準】道案内の「It's on your right.」の意味は？",
+        "c": [
+          "右側にある",
+          "道を渡る",
+          "左に曲がる",
+          "まっすぐ進む"
+        ],
+        "a": 0,
+        "exp": "答えは「右側にある」です。",
+        "src": "OFFLINE",
+        "g": "道案内"
+      },
+      {
+        "q": "【標準】道案内の「Cross the street.」の意味は？",
+        "c": [
+          "左に曲がる",
+          "道を渡る",
+          "まっすぐ進む",
+          "ここで止まる"
+        ],
+        "a": 1,
+        "exp": "答えは「道を渡る」です。",
+        "src": "OFFLINE",
+        "g": "道案内"
+      },
+      {
+        "q": "【標準】「I have a notebook.」から分かることは？",
+        "c": [
+          "定規を2本持つ",
+          "ペンを持たない",
+          "ノートを持つ",
+          "赤いかばんを持つ"
+        ],
+        "a": 2,
+        "exp": "答えは「ノートを持つ」です。",
+        "src": "OFFLINE",
+        "g": "持ち物"
+      },
+      {
+        "q": "【標準】「I have two rulers.」から分かることは？",
+        "c": [
+          "ペンを持たない",
+          "赤いかばんを持つ",
+          "はさみを持たない",
+          "定規を2本持つ"
+        ],
+        "a": 3,
+        "exp": "答えは「定規を2本持つ」です。",
+        "src": "OFFLINE",
+        "g": "持ち物"
+      },
+      {
+        "q": "【標準】「I don't have a pen.」から分かることは？",
+        "c": [
+          "ペンを持たない",
+          "赤いかばんを持つ",
+          "はさみを持たない",
+          "ノートを持つ"
+        ],
+        "a": 0,
+        "exp": "答えは「ペンを持たない」です。",
+        "src": "OFFLINE",
+        "g": "持ち物"
+      },
+      {
+        "q": "【標準】「I have a red bag.」から分かることは？",
+        "c": [
+          "はさみを持たない",
+          "赤いかばんを持つ",
+          "ノートを持つ",
+          "定規を2本持つ"
+        ],
+        "a": 1,
+        "exp": "答えは「赤いかばんを持つ」です。",
+        "src": "OFFLINE",
+        "g": "持ち物"
+      },
+      {
+        "q": "【標準】「I don't have scissors.」から分かることは？",
+        "c": [
+          "ノートを持つ",
+          "定規を2本持つ",
+          "はさみを持たない",
+          "ペンを持たない"
+        ],
+        "a": 2,
+        "exp": "答えは「はさみを持たない」です。",
+        "src": "OFFLINE",
+        "g": "持ち物"
+      },
+      {
+        "q": "【標準】店で「Ten apples, please.」の意味は？",
+        "c": [
+          "ほしい数を質問",
+          "これをください",
+          "ケーキを2個",
+          "りんごを10個"
+        ],
+        "a": 3,
+        "exp": "答えは「りんごを10個」です。",
+        "src": "OFFLINE",
+        "g": "買い物"
+      },
+      {
+        "q": "【標準】店で「How many do you want?」の意味は？",
+        "c": [
+          "ほしい数を質問",
+          "これをください",
+          "ケーキを2個",
+          "どうもありがとう"
+        ],
+        "a": 0,
+        "exp": "答えは「ほしい数を質問」です。",
+        "src": "OFFLINE",
+        "g": "買い物"
+      },
+      {
+        "q": "【標準】店で「This one, please.」の意味は？",
+        "c": [
+          "ケーキを2個",
+          "これをください",
+          "どうもありがとう",
+          "りんごを10個"
+        ],
+        "a": 1,
+        "exp": "答えは「これをください」です。",
+        "src": "OFFLINE",
+        "g": "買い物"
+      },
+      {
+        "q": "【標準】店で「Two cakes, please.」の意味は？",
+        "c": [
+          "どうもありがとう",
+          "りんごを10個",
+          "ケーキを2個",
+          "ほしい数を質問"
+        ],
+        "a": 2,
+        "exp": "答えは「ケーキを2個」です。",
+        "src": "OFFLINE",
+        "g": "買い物"
+      },
+      {
+        "q": "【標準】店で「Thank you very much.」の意味は？",
+        "c": [
+          "りんごを10個",
+          "ほしい数を質問",
+          "これをください",
+          "どうもありがとう"
+        ],
+        "a": 3,
+        "exp": "答えは「どうもありがとう」です。",
+        "src": "OFFLINE",
+        "g": "買い物"
+      },
+      {
+        "q": "【応用】会話「What day is it?」に合う返事は？",
+        "c": [
+          "It's Thursday.",
+          "It's nine.",
+          "It's cloudy.",
+          "No, I don't."
+        ],
+        "a": 0,
+        "exp": "文から「It's Thursday.」と分かります。",
+        "src": "OFFLINE",
+        "g": "会話"
+      },
+      {
+        "q": "【応用】会話「What time is it?」に合う返事は？",
+        "c": [
+          "It's cloudy.",
+          "It's nine.",
+          "No, I don't.",
+          "Turn left."
+        ],
+        "a": 1,
+        "exp": "文から「It's nine.」と分かります。",
+        "src": "OFFLINE",
+        "g": "会話"
+      },
+      {
+        "q": "【応用】会話「How's the weather?」に合う返事は？",
+        "c": [
+          "No, I don't.",
+          "Turn left.",
+          "It's cloudy.",
+          "It's Thursday."
+        ],
+        "a": 2,
+        "exp": "文から「It's cloudy.」と分かります。",
+        "src": "OFFLINE",
+        "g": "会話"
+      },
+      {
+        "q": "【応用】会話「Do you have a pen?」に合う返事は？",
+        "c": [
+          "Turn left.",
+          "It's Thursday.",
+          "It's nine.",
+          "No, I don't."
+        ],
+        "a": 3,
+        "exp": "文から「No, I don't.」と分かります。",
+        "src": "OFFLINE",
+        "g": "会話"
+      },
+      {
+        "q": "【応用】会話「Where is the zoo?」に合う返事は？",
+        "c": [
+          "Turn left.",
+          "It's Thursday.",
+          "It's nine.",
+          "It's cloudy."
+        ],
+        "a": 0,
+        "exp": "文から「Turn left.」と分かります。",
+        "src": "OFFLINE",
+        "g": "会話"
+      },
+      {
+        "q": "【応用】文「I have math on Monday.」の授業は？",
+        "c": [
+          "火曜に図工",
+          "月曜に算数",
+          "金曜に音楽",
+          "木曜に体育"
+        ],
+        "a": 1,
+        "exp": "文から「月曜に算数」と分かります。",
+        "src": "OFFLINE",
+        "g": "時間割"
+      },
+      {
+        "q": "【応用】文「I have art on Tuesday.」の授業は？",
+        "c": [
+          "金曜に音楽",
+          "木曜に体育",
+          "火曜に図工",
+          "今日は理科"
+        ],
+        "a": 2,
+        "exp": "文から「火曜に図工」と分かります。",
+        "src": "OFFLINE",
+        "g": "時間割"
+      },
+      {
+        "q": "【応用】文「I have music on Friday.」の授業は？",
+        "c": [
+          "木曜に体育",
+          "今日は理科",
+          "月曜に算数",
+          "金曜に音楽"
+        ],
+        "a": 3,
+        "exp": "文から「金曜に音楽」と分かります。",
+        "src": "OFFLINE",
+        "g": "時間割"
+      },
+      {
+        "q": "【応用】文「I have P.E. on Thursday.」の授業は？",
+        "c": [
+          "木曜に体育",
+          "今日は理科",
+          "月曜に算数",
+          "火曜に図工"
+        ],
+        "a": 0,
+        "exp": "文から「木曜に体育」と分かります。",
+        "src": "OFFLINE",
+        "g": "時間割"
+      },
+      {
+        "q": "【応用】文「I have science today.」の授業は？",
+        "c": [
+          "月曜に算数",
+          "今日は理科",
+          "火曜に図工",
+          "金曜に音楽"
+        ],
+        "a": 1,
+        "exp": "文から「今日は理科」と分かります。",
+        "src": "OFFLINE",
+        "g": "時間割"
+      },
+      {
+        "q": "【応用】道案内「The park is on your left.」の内容は？",
+        "c": [
+          "右に駅",
+          "正面に学校",
+          "左に公園",
+          "店で左折"
+        ],
+        "a": 2,
+        "exp": "文から「左に公園」と分かります。",
+        "src": "OFFLINE",
+        "g": "道案内"
+      },
+      {
+        "q": "【応用】道案内「The station is on your right.」の内容は？",
+        "c": [
+          "正面に学校",
+          "店で左折",
+          "病院で右折",
+          "右に駅"
+        ],
+        "a": 3,
+        "exp": "文から「右に駅」と分かります。",
+        "src": "OFFLINE",
+        "g": "道案内"
+      },
+      {
+        "q": "【応用】道案内「The school is straight ahead.」の内容は？",
+        "c": [
+          "正面に学校",
+          "店で左折",
+          "病院で右折",
+          "左に公園"
+        ],
+        "a": 0,
+        "exp": "文から「正面に学校」と分かります。",
+        "src": "OFFLINE",
+        "g": "道案内"
+      },
+      {
+        "q": "【応用】道案内「Turn left at the store.」の内容は？",
+        "c": [
+          "病院で右折",
+          "店で左折",
+          "左に公園",
+          "右に駅"
+        ],
+        "a": 1,
+        "exp": "文から「店で左折」と分かります。",
+        "src": "OFFLINE",
+        "g": "道案内"
+      },
+      {
+        "q": "【応用】道案内「Turn right at the hospital.」の内容は？",
+        "c": [
+          "左に公園",
+          "右に駅",
+          "病院で右折",
+          "正面に学校"
+        ],
+        "a": 2,
+        "exp": "文から「病院で右折」と分かります。",
+        "src": "OFFLINE",
+        "g": "道案内"
+      },
+      {
+        "q": "【応用】文「I get up, then eat breakfast.」で先にすることは？",
+        "c": [
+          "昼食",
+          "帰宅",
+          "入浴",
+          "起きる"
+        ],
+        "a": 3,
+        "exp": "文から「起きる」と分かります。",
+        "src": "OFFLINE",
+        "g": "日課"
+      },
+      {
+        "q": "【応用】文「I eat lunch, then play.」で先にすることは？",
+        "c": [
+          "昼食",
+          "帰宅",
+          "入浴",
+          "歯みがき"
+        ],
+        "a": 0,
+        "exp": "文から「昼食」と分かります。",
+        "src": "OFFLINE",
+        "g": "日課"
+      },
+      {
+        "q": "【応用】文「I go home, then read.」で先にすることは？",
+        "c": [
+          "入浴",
+          "帰宅",
+          "歯みがき",
+          "起きる"
+        ],
+        "a": 1,
+        "exp": "文から「帰宅」と分かります。",
+        "src": "OFFLINE",
+        "g": "日課"
+      },
+      {
+        "q": "【応用】文「I bathe, then go to bed.」で先にすることは？",
+        "c": [
+          "歯みがき",
+          "起きる",
+          "入浴",
+          "昼食"
+        ],
+        "a": 2,
+        "exp": "文から「入浴」と分かります。",
+        "src": "OFFLINE",
+        "g": "日課"
+      },
+      {
+        "q": "【応用】文「I brush my teeth, then sleep.」で先にすることは？",
+        "c": [
+          "起きる",
+          "昼食",
+          "帰宅",
+          "歯みがき"
+        ],
+        "a": 3,
+        "exp": "文から「歯みがき」と分かります。",
+        "src": "OFFLINE",
+        "g": "日課"
+      },
+      {
+        "q": "【応用】BOOKを小文字で正しく書いたものは？",
+        "c": [
+          "book",
+          "pencil",
+          "monday",
+          "sunny"
+        ],
+        "a": 0,
+        "exp": "文から「book」と分かります。",
+        "src": "OFFLINE",
+        "g": "文字"
+      },
+      {
+        "q": "【応用】PENCILを小文字で正しく書いたものは？",
+        "c": [
+          "monday",
+          "pencil",
+          "sunny",
+          "library"
+        ],
+        "a": 1,
+        "exp": "文から「pencil」と分かります。",
+        "src": "OFFLINE",
+        "g": "文字"
+      },
+      {
+        "q": "【応用】MONDAYを小文字で正しく書いたものは？",
+        "c": [
+          "sunny",
+          "library",
+          "monday",
+          "book"
+        ],
+        "a": 2,
+        "exp": "文から「monday」と分かります。",
+        "src": "OFFLINE",
+        "g": "文字"
+      },
+      {
+        "q": "【応用】SUNNYを小文字で正しく書いたものは？",
+        "c": [
+          "library",
+          "book",
+          "pencil",
+          "sunny"
+        ],
+        "a": 3,
+        "exp": "文から「sunny」と分かります。",
+        "src": "OFFLINE",
+        "g": "文字"
+      },
+      {
+        "q": "【応用】LIBRARYを小文字で正しく書いたものは？",
+        "c": [
+          "library",
+          "book",
+          "pencil",
+          "monday"
+        ],
+        "a": 0,
+        "exp": "文から「library」と分かります。",
+        "src": "OFFLINE",
+        "g": "文字"
+      },
+      {
+        "q": "【応用】文「It's rainy. I have an umbrella.」から分かることは？",
+        "c": [
+          "日曜に公園へ行く",
+          "傘を持っている",
+          "毎日7時に起きる",
+          "赤鉛筆を3本持つ"
+        ],
+        "a": 1,
+        "exp": "文から「傘を持っている」と分かります。",
+        "src": "OFFLINE",
+        "g": "読み取り"
+      },
+      {
+        "q": "【応用】文「It's Sunday. I go to the park.」から分かることは？",
+        "c": [
+          "毎日7時に起きる",
+          "赤鉛筆を3本持つ",
+          "日曜に公園へ行く",
+          "図書館は右側"
+        ],
+        "a": 2,
+        "exp": "文から「日曜に公園へ行く」と分かります。",
+        "src": "OFFLINE",
+        "g": "読み取り"
+      },
+      {
+        "q": "【応用】文「I get up at seven every day.」から分かることは？",
+        "c": [
+          "赤鉛筆を3本持つ",
+          "図書館は右側",
+          "傘を持っている",
+          "毎日7時に起きる"
+        ],
+        "a": 3,
+        "exp": "文から「毎日7時に起きる」と分かります。",
+        "src": "OFFLINE",
+        "g": "読み取り"
+      },
+      {
+        "q": "【応用】文「I have three red pencils.」から分かることは？",
+        "c": [
+          "赤鉛筆を3本持つ",
+          "図書館は右側",
+          "傘を持っている",
+          "日曜に公園へ行く"
+        ],
+        "a": 0,
+        "exp": "文から「赤鉛筆を3本持つ」と分かります。",
+        "src": "OFFLINE",
+        "g": "読み取り"
+      },
+      {
+        "q": "【応用】文「The library is on my right.」から分かることは？",
+        "c": [
+          "傘を持っている",
+          "図書館は右側",
+          "日曜に公園へ行く",
+          "毎日7時に起きる"
+        ],
+        "a": 1,
+        "exp": "文から「図書館は右側」と分かります。",
+        "src": "OFFLINE",
+        "g": "読み取り"
+      }
+    ],
+    "5": [
+      {
+        "q": "【基本】「1月」を表す英語は？",
+        "c": [
+          "January",
+          "February",
+          "April",
+          "August"
+        ],
+        "a": 0,
+        "exp": "1月 は January と表します。",
+        "src": "OFFLINE",
+        "g": "月"
+      },
+      {
+        "q": "【基本】「2月」を表す英語は？",
+        "c": [
+          "April",
+          "February",
+          "August",
+          "December"
+        ],
+        "a": 1,
+        "exp": "2月 は February と表します。",
+        "src": "OFFLINE",
+        "g": "月"
+      },
+      {
+        "q": "【基本】「4月」を表す英語は？",
+        "c": [
+          "August",
+          "December",
+          "April",
+          "January"
+        ],
+        "a": 2,
+        "exp": "4月 は April と表します。",
+        "src": "OFFLINE",
+        "g": "月"
+      },
+      {
+        "q": "【基本】「8月」を表す英語は？",
+        "c": [
+          "December",
+          "January",
+          "February",
+          "August"
+        ],
+        "a": 3,
+        "exp": "8月 は August と表します。",
+        "src": "OFFLINE",
+        "g": "月"
+      },
+      {
+        "q": "【基本】「12月」を表す英語は？",
+        "c": [
+          "December",
+          "January",
+          "February",
+          "April"
+        ],
+        "a": 0,
+        "exp": "12月 は December と表します。",
+        "src": "OFFLINE",
+        "g": "月"
+      },
+      {
+        "q": "【基本】「算数」を表す英語は？",
+        "c": [
+          "science",
+          "math",
+          "music",
+          "art"
+        ],
+        "a": 1,
+        "exp": "算数 は math と表します。",
+        "src": "OFFLINE",
+        "g": "教科"
+      },
+      {
+        "q": "【基本】「理科」を表す英語は？",
+        "c": [
+          "music",
+          "art",
+          "science",
+          "P.E."
+        ],
+        "a": 2,
+        "exp": "理科 は science と表します。",
+        "src": "OFFLINE",
+        "g": "教科"
+      },
+      {
+        "q": "【基本】「音楽」を表す英語は？",
+        "c": [
+          "art",
+          "P.E.",
+          "math",
+          "music"
+        ],
+        "a": 3,
+        "exp": "音楽 は music と表します。",
+        "src": "OFFLINE",
+        "g": "教科"
+      },
+      {
+        "q": "【基本】「図工」を表す英語は？",
+        "c": [
+          "art",
+          "P.E.",
+          "math",
+          "science"
+        ],
+        "a": 0,
+        "exp": "図工 は art と表します。",
+        "src": "OFFLINE",
+        "g": "教科"
+      },
+      {
+        "q": "【基本】「体育」を表す英語は？",
+        "c": [
+          "math",
+          "P.E.",
+          "science",
+          "music"
+        ],
+        "a": 1,
+        "exp": "体育 は P.E. と表します。",
+        "src": "OFFLINE",
+        "g": "教科"
+      },
+      {
+        "q": "【基本】「日本」を表す英語は？",
+        "c": [
+          "Canada",
+          "India",
+          "Japan",
+          "Brazil"
+        ],
+        "a": 2,
+        "exp": "日本 は Japan と表します。",
+        "src": "OFFLINE",
+        "g": "国"
+      },
+      {
+        "q": "【基本】「カナダ」を表す英語は？",
+        "c": [
+          "India",
+          "Brazil",
+          "Australia",
+          "Canada"
+        ],
+        "a": 3,
+        "exp": "カナダ は Canada と表します。",
+        "src": "OFFLINE",
+        "g": "国"
+      },
+      {
+        "q": "【基本】「インド」を表す英語は？",
+        "c": [
+          "India",
+          "Brazil",
+          "Australia",
+          "Japan"
+        ],
+        "a": 0,
+        "exp": "インド は India と表します。",
+        "src": "OFFLINE",
+        "g": "国"
+      },
+      {
+        "q": "【基本】「ブラジル」を表す英語は？",
+        "c": [
+          "Australia",
+          "Brazil",
+          "Japan",
+          "Canada"
+        ],
+        "a": 1,
+        "exp": "ブラジル は Brazil と表します。",
+        "src": "OFFLINE",
+        "g": "国"
+      },
+      {
+        "q": "【基本】「オーストラリア」を表す英語は？",
+        "c": [
+          "Japan",
+          "Canada",
+          "Australia",
+          "India"
+        ],
+        "a": 2,
+        "exp": "オーストラリア は Australia と表します。",
+        "src": "OFFLINE",
+        "g": "国"
+      },
+      {
+        "q": "【基本】「泳ぐ」を表す英語は？",
+        "c": [
+          "cook",
+          "dance",
+          "sing",
+          "swim"
+        ],
+        "a": 3,
+        "exp": "泳ぐ は swim と表します。",
+        "src": "OFFLINE",
+        "g": "できること"
+      },
+      {
+        "q": "【基本】「料理する」を表す英語は？",
+        "c": [
+          "cook",
+          "dance",
+          "sing",
+          "play the piano"
+        ],
+        "a": 0,
+        "exp": "料理する は cook と表します。",
+        "src": "OFFLINE",
+        "g": "できること"
+      },
+      {
+        "q": "【基本】「踊る」を表す英語は？",
+        "c": [
+          "sing",
+          "dance",
+          "play the piano",
+          "swim"
+        ],
+        "a": 1,
+        "exp": "踊る は dance と表します。",
+        "src": "OFFLINE",
+        "g": "できること"
+      },
+      {
+        "q": "【基本】「歌う」を表す英語は？",
+        "c": [
+          "play the piano",
+          "swim",
+          "sing",
+          "cook"
+        ],
+        "a": 2,
+        "exp": "歌う は sing と表します。",
+        "src": "OFFLINE",
+        "g": "できること"
+      },
+      {
+        "q": "【基本】「ピアノを弾く」を表す英語は？",
+        "c": [
+          "swim",
+          "cook",
+          "dance",
+          "play the piano"
+        ],
+        "a": 3,
+        "exp": "ピアノを弾く は play the piano と表します。",
+        "src": "OFFLINE",
+        "g": "できること"
+      },
+      {
+        "q": "【標準】「What's your name?」への自然な返事は？",
+        "c": [
+          "I'm Ken.",
+          "I'm ten.",
+          "I'm from Japan.",
+          "I'm fine."
+        ],
+        "a": 0,
+        "exp": "名前を聞かれたので I'm Ken. と答えます。",
+        "src": "OFFLINE",
+        "g": "自己紹介"
+      },
+      {
+        "q": "【標準】「Where are you from?」への返事は？",
+        "c": [
+          "I'm twelve.",
+          "I'm from Japan.",
+          "I like Japan.",
+          "It's Japan."
+        ],
+        "a": 1,
+        "exp": "出身地は I'm from ... で答えます。",
+        "src": "OFFLINE",
+        "g": "自己紹介"
+      },
+      {
+        "q": "【標準】名前のつづりを尋ねる英文は？",
+        "c": [
+          "Where do you live?",
+          "How old are you?",
+          "How do you spell it?",
+          "What time is it?"
+        ],
+        "a": 2,
+        "exp": "つづりは How do you spell it? と尋ねます。",
+        "src": "OFFLINE",
+        "g": "自己紹介"
+      },
+      {
+        "q": "【標準】「How old are you?」で尋ねているのは？",
+        "c": [
+          "名前",
+          "出身地",
+          "誕生日",
+          "年齢"
+        ],
+        "a": 3,
+        "exp": "How old は年齢を尋ねます。",
+        "src": "OFFLINE",
+        "g": "自己紹介"
+      },
+      {
+        "q": "【標準】「When is your birthday?」で尋ねているのは？",
+        "c": [
+          "誕生日",
+          "年齢",
+          "曜日",
+          "出身地"
+        ],
+        "a": 0,
+        "exp": "When は「いつ」を尋ねます。",
+        "src": "OFFLINE",
+        "g": "誕生日"
+      },
+      {
+        "q": "【標準】誕生日が5月なら使う月名は？",
+        "c": [
+          "March",
+          "May",
+          "June",
+          "July"
+        ],
+        "a": 1,
+        "exp": "5月は May です。",
+        "src": "OFFLINE",
+        "g": "誕生日"
+      },
+      {
+        "q": "【標準】「My birthday is in June.」の意味は？",
+        "c": [
+          "誕生日は7月",
+          "6月が好き",
+          "誕生日は6月",
+          "6歳です"
+        ],
+        "a": 2,
+        "exp": "June は6月を表します。",
+        "src": "OFFLINE",
+        "g": "誕生日"
+      },
+      {
+        "q": "【標準】October の次の月は？",
+        "c": [
+          "September",
+          "December",
+          "August",
+          "November"
+        ],
+        "a": 3,
+        "exp": "10月の次は11月です。",
+        "src": "OFFLINE",
+        "g": "誕生日"
+      },
+      {
+        "q": "【標準】「What do you have today?」で尋ねているのは？",
+        "c": [
+          "今日の授業",
+          "今日の天気",
+          "今日の昼食",
+          "今日の日付"
+        ],
+        "a": 0,
+        "exp": "have はここでは授業があることを表します。",
+        "src": "OFFLINE",
+        "g": "時間割"
+      },
+      {
+        "q": "【標準】「I have science.」の意味は？",
+        "c": [
+          "理科が好きです",
+          "理科があります",
+          "理科室です",
+          "理科を教えます"
+        ],
+        "a": 1,
+        "exp": "have science は理科の授業があることです。",
+        "src": "OFFLINE",
+        "g": "時間割"
+      },
+      {
+        "q": "【標準】月曜に音楽があることを表す英文は？",
+        "c": [
+          "I like Monday music.",
+          "Monday is music.",
+          "I have music on Monday.",
+          "Music has Monday."
+        ],
+        "a": 2,
+        "exp": "曜日の前に on を置き、I have music on Monday. と表します。",
+        "src": "OFFLINE",
+        "g": "時間割"
+      },
+      {
+        "q": "【標準】「What's your favorite subject?」で聞くのは？",
+        "c": [
+          "得意な運動",
+          "好きな曜日",
+          "将来の夢",
+          "好きな教科"
+        ],
+        "a": 3,
+        "exp": "favorite subject は好きな教科です。",
+        "src": "OFFLINE",
+        "g": "時間割"
+      },
+      {
+        "q": "【標準】「I can swim.」の意味は？",
+        "c": [
+          "私は泳げます",
+          "私は泳ぎました",
+          "私は泳ぎたい",
+          "私は泳ぎません"
+        ],
+        "a": 0,
+        "exp": "can は「できる」を表します。",
+        "src": "OFFLINE",
+        "g": "できること"
+      },
+      {
+        "q": "【標準】「Can you cook?」への肯定の返事は？",
+        "c": [
+          "Yes, I do.",
+          "Yes, I can.",
+          "Yes, I am.",
+          "It's cooking."
+        ],
+        "a": 1,
+        "exp": "Can you ...? には Yes, I can. と答えます。",
+        "src": "OFFLINE",
+        "g": "できること"
+      },
+      {
+        "q": "【標準】ピアノを弾けないことを表す英文は？",
+        "c": [
+          "I can play the piano.",
+          "I don't like the piano.",
+          "I can't play the piano.",
+          "I have a piano."
+        ],
+        "a": 2,
+        "exp": "can't は「できない」を表し、楽器のピアノには the を付けます。",
+        "src": "OFFLINE",
+        "g": "できること"
+      },
+      {
+        "q": "【標準】「What can you do?」への自然な返事は？",
+        "c": [
+          "I'm from Japan.",
+          "It's sunny.",
+          "On Monday.",
+          "I can dance."
+        ],
+        "a": 3,
+        "exp": "できることを I can ... で答えます。",
+        "src": "OFFLINE",
+        "g": "できること"
+      },
+      {
+        "q": "【標準】「What do you want?」への自然な返事は？",
+        "c": [
+          "I want a ball.",
+          "I am a ball.",
+          "I can ball.",
+          "It's Monday."
+        ],
+        "a": 0,
+        "exp": "欲しい物は I want ... で答えます。",
+        "src": "OFFLINE",
+        "g": "欲しい物と場所"
+      },
+      {
+        "q": "【標準】「Where is the library?」で尋ねているのは？",
+        "c": [
+          "図書館の数",
+          "図書館の場所",
+          "図書館の時間",
+          "図書館の本"
+        ],
+        "a": 1,
+        "exp": "Where は場所を尋ねます。",
+        "src": "OFFLINE",
+        "g": "欲しい物と場所"
+      },
+      {
+        "q": "【標準】机の下にある本を表す英文は？",
+        "c": [
+          "It's on the desk.",
+          "I read under books.",
+          "It's under the desk.",
+          "The desk is a book."
+        ],
+        "a": 2,
+        "exp": "under the desk は「机の下に」を表します。",
+        "src": "OFFLINE",
+        "g": "欲しい物と場所"
+      },
+      {
+        "q": "【標準】店でピザを頼む自然な表現は？",
+        "c": [
+          "I am pizza.",
+          "Pizza can I.",
+          "I went pizza.",
+          "I'd like pizza."
+        ],
+        "a": 3,
+        "exp": "I'd like ... は丁寧な注文表現です。",
+        "src": "OFFLINE",
+        "g": "欲しい物と場所"
+      },
+      {
+        "q": "【応用】会話「Where are you from?」「___」に合う返事は？",
+        "c": [
+          "I'm from Canada.",
+          "I'm eleven.",
+          "I can swim.",
+          "It's in Canada."
+        ],
+        "a": 0,
+        "exp": "出身地を聞かれたので国を答えます。",
+        "src": "OFFLINE",
+        "g": "会話"
+      },
+      {
+        "q": "【応用】会話「When is your birthday?」「___」に合う返事は？",
+        "c": [
+          "I'm April.",
+          "In April.",
+          "It's Tuesday.",
+          "I like birthdays."
+        ],
+        "a": 1,
+        "exp": "誕生月は In April. と答えられます。",
+        "src": "OFFLINE",
+        "g": "会話"
+      },
+      {
+        "q": "【応用】会話「Can you dance?」「___」否定の返事は？",
+        "c": [
+          "No, I don't.",
+          "No, I'm not.",
+          "No, I can't.",
+          "I dance no."
+        ],
+        "a": 2,
+        "exp": "Can you ...? の否定は No, I can't. です。",
+        "src": "OFFLINE",
+        "g": "会話"
+      },
+      {
+        "q": "【応用】会話「What do you want?」「___」に合う返事は？",
+        "c": [
+          "I am a cap.",
+          "I can cap.",
+          "At the shop.",
+          "I want a cap."
+        ],
+        "a": 3,
+        "exp": "欲しい物を I want ... で答えます。",
+        "src": "OFFLINE",
+        "g": "会話"
+      },
+      {
+        "q": "【応用】会話「What subject do you like?」「___」理科なら？",
+        "c": [
+          "Science.",
+          "Sunday.",
+          "Sunny.",
+          "September."
+        ],
+        "a": 0,
+        "exp": "好きな教科を聞かれたので Science. と答えます。",
+        "src": "OFFLINE",
+        "g": "会話"
+      },
+      {
+        "q": "【応用】文「I can cook, but I can't swim.」できるのは？",
+        "c": [
+          "水泳",
+          "料理",
+          "料理と水泳",
+          "どちらも不可"
+        ],
+        "a": 1,
+        "exp": "can cook とあるので料理ができます。",
+        "src": "OFFLINE",
+        "g": "文脈"
+      },
+      {
+        "q": "【応用】文「I have math on Friday.」授業はいつ？",
+        "c": [
+          "月曜日",
+          "5月",
+          "金曜日",
+          "毎日"
+        ],
+        "a": 2,
+        "exp": "Friday は金曜日です。",
+        "src": "OFFLINE",
+        "g": "文脈"
+      },
+      {
+        "q": "【応用】文「My birthday is in August.」誕生月は？",
+        "c": [
+          "4月",
+          "10月",
+          "12月",
+          "8月"
+        ],
+        "a": 3,
+        "exp": "August は8月です。",
+        "src": "OFFLINE",
+        "g": "文脈"
+      },
+      {
+        "q": "【応用】文「The ball is under the desk.」ボールはどこ？",
+        "c": [
+          "机の下",
+          "机の上",
+          "机の横",
+          "かばんの中"
+        ],
+        "a": 0,
+        "exp": "under the desk は机の下です。",
+        "src": "OFFLINE",
+        "g": "文脈"
+      },
+      {
+        "q": "【応用】文「I want juice, not milk.」欲しい物は？",
+        "c": [
+          "牛乳",
+          "ジュース",
+          "水",
+          "お茶"
+        ],
+        "a": 1,
+        "exp": "not milk とあり、欲しいのは juice です。",
+        "src": "OFFLINE",
+        "g": "文脈"
+      },
+      {
+        "q": "【応用】「私はカナダ出身です」の正しい英文は？",
+        "c": [
+          "I'm Canada from.",
+          "From Canada I.",
+          "I'm from Canada.",
+          "Canada is me."
+        ],
+        "a": 2,
+        "exp": "I'm from の後に国名を置きます。",
+        "src": "OFFLINE",
+        "g": "語順"
+      },
+      {
+        "q": "【応用】「あなたは泳げますか」の正しい英文は？",
+        "c": [
+          "Can swim you?",
+          "Do can you swim?",
+          "Swim you are?",
+          "Can you swim?"
+        ],
+        "a": 3,
+        "exp": "質問では Can を文の先頭に置きます。",
+        "src": "OFFLINE",
+        "g": "語順"
+      },
+      {
+        "q": "【応用】「誕生日はいつ？」の正しい英文は？",
+        "c": [
+          "When is your birthday?",
+          "Where your birthday?",
+          "What birthday is?",
+          "How many birthday?"
+        ],
+        "a": 0,
+        "exp": "時を尋ねる When を先頭に置きます。",
+        "src": "OFFLINE",
+        "g": "語順"
+      },
+      {
+        "q": "【応用】「私は赤い帽子がほしい」の正しい英文は？",
+        "c": [
+          "I red want cap.",
+          "I want a red cap.",
+          "Want cap red I.",
+          "I am a red cap."
+        ],
+        "a": 1,
+        "exp": "I want の後に欲しい物を置きます。",
+        "src": "OFFLINE",
+        "g": "語順"
+      },
+      {
+        "q": "【応用】「本は机の上です」の正しい英文は？",
+        "c": [
+          "It's under the desk.",
+          "On desk it the.",
+          "It's on the desk.",
+          "I have on desk."
+        ],
+        "a": 2,
+        "exp": "on the desk は「机の上に」を表します。",
+        "src": "OFFLINE",
+        "g": "語順"
+      },
+      {
+        "q": "【応用】文「I'm Aya. I'm from Japan.」出身国は？",
+        "c": [
+          "カナダ",
+          "インド",
+          "不明",
+          "日本"
+        ],
+        "a": 3,
+        "exp": "from Japan が出身国を示します。",
+        "src": "OFFLINE",
+        "g": "読み取り"
+      },
+      {
+        "q": "【応用】文「Art is on Tuesday. Music is on Friday.」金曜は？",
+        "c": [
+          "音楽",
+          "図工",
+          "算数",
+          "理科"
+        ],
+        "a": 0,
+        "exp": "Music is on Friday. とあるので金曜は音楽です。",
+        "src": "OFFLINE",
+        "g": "読み取り"
+      },
+      {
+        "q": "【応用】文「Ken can sing and dance.」できることは？",
+        "c": [
+          "料理と水泳",
+          "歌とダンス",
+          "歌だけ",
+          "ダンスだけ"
+        ],
+        "a": 1,
+        "exp": "sing and dance の両方ができます。",
+        "src": "OFFLINE",
+        "g": "読み取り"
+      },
+      {
+        "q": "【応用】文「Go straight. Turn left.」最初にすることは？",
+        "c": [
+          "左に曲がる",
+          "右に曲がる",
+          "まっすぐ進む",
+          "止まる"
+        ],
+        "a": 2,
+        "exp": "最初の指示は Go straight. です。",
+        "src": "OFFLINE",
+        "g": "読み取り"
+      },
+      {
+        "q": "【応用】文「I'd like two apples.」注文した数は？",
+        "c": [
+          "1個",
+          "3個",
+          "12個",
+          "2個"
+        ],
+        "a": 3,
+        "exp": "two は2を表します。",
+        "src": "OFFLINE",
+        "g": "読み取り"
+      },
+      {
+        "q": "【基本】「3月」を表す英語は？",
+        "c": [
+          "March",
+          "May",
+          "June",
+          "July"
+        ],
+        "a": 0,
+        "exp": "3月 は March と表します。",
+        "src": "OFFLINE",
+        "g": "月"
+      },
+      {
+        "q": "【基本】「5月」を表す英語は？",
+        "c": [
+          "June",
+          "May",
+          "July",
+          "September"
+        ],
+        "a": 1,
+        "exp": "5月 は May と表します。",
+        "src": "OFFLINE",
+        "g": "月"
+      },
+      {
+        "q": "【基本】「6月」を表す英語は？",
+        "c": [
+          "July",
+          "September",
+          "June",
+          "October"
+        ],
+        "a": 2,
+        "exp": "6月 は June と表します。",
+        "src": "OFFLINE",
+        "g": "月"
+      },
+      {
+        "q": "【基本】「7月」を表す英語は？",
+        "c": [
+          "September",
+          "October",
+          "November",
+          "July"
+        ],
+        "a": 3,
+        "exp": "7月 は July と表します。",
+        "src": "OFFLINE",
+        "g": "月"
+      },
+      {
+        "q": "【基本】「9月」を表す英語は？",
+        "c": [
+          "September",
+          "October",
+          "November",
+          "March"
+        ],
+        "a": 0,
+        "exp": "9月 は September と表します。",
+        "src": "OFFLINE",
+        "g": "月"
+      },
+      {
+        "q": "【基本】「10月」を表す英語は？",
+        "c": [
+          "November",
+          "October",
+          "March",
+          "May"
+        ],
+        "a": 1,
+        "exp": "10月 は October と表します。",
+        "src": "OFFLINE",
+        "g": "月"
+      },
+      {
+        "q": "【基本】「11月」を表す英語は？",
+        "c": [
+          "March",
+          "May",
+          "November",
+          "June"
+        ],
+        "a": 2,
+        "exp": "11月 は November と表します。",
+        "src": "OFFLINE",
+        "g": "月"
+      },
+      {
+        "q": "【基本】「英語」を表す英語は？",
+        "c": [
+          "Japanese",
+          "social studies",
+          "home economics",
+          "English"
+        ],
+        "a": 3,
+        "exp": "英語 は English と表します。",
+        "src": "OFFLINE",
+        "g": "教科"
+      },
+      {
+        "q": "【基本】「国語」を表す英語は？",
+        "c": [
+          "Japanese",
+          "social studies",
+          "home economics",
+          "moral education"
+        ],
+        "a": 0,
+        "exp": "国語 は Japanese と表します。",
+        "src": "OFFLINE",
+        "g": "教科"
+      },
+      {
+        "q": "【基本】「社会」を表す英語は？",
+        "c": [
+          "home economics",
+          "social studies",
+          "moral education",
+          "integrated studies"
+        ],
+        "a": 1,
+        "exp": "社会 は social studies と表します。",
+        "src": "OFFLINE",
+        "g": "教科"
+      },
+      {
+        "q": "【基本】「家庭科」を表す英語は？",
+        "c": [
+          "moral education",
+          "integrated studies",
+          "home economics",
+          "English"
+        ],
+        "a": 2,
+        "exp": "家庭科 は home economics と表します。",
+        "src": "OFFLINE",
+        "g": "教科"
+      },
+      {
+        "q": "【基本】「道徳」を表す英語は？",
+        "c": [
+          "integrated studies",
+          "English",
+          "Japanese",
+          "moral education"
+        ],
+        "a": 3,
+        "exp": "道徳 は moral education と表します。",
+        "src": "OFFLINE",
+        "g": "教科"
+      },
+      {
+        "q": "【基本】「総合」を表す英語は？",
+        "c": [
+          "integrated studies",
+          "English",
+          "Japanese",
+          "social studies"
+        ],
+        "a": 0,
+        "exp": "総合 は integrated studies と表します。",
+        "src": "OFFLINE",
+        "g": "教科"
+      },
+      {
+        "q": "【基本】国名「アメリカ」を表す英語は？",
+        "c": [
+          "the U.K.",
+          "the U.S.",
+          "France",
+          "Italy"
+        ],
+        "a": 1,
+        "exp": "アメリカ は the U.S. と表します。",
+        "src": "OFFLINE",
+        "g": "国"
+      },
+      {
+        "q": "【基本】国名「イギリス」を表す英語は？",
+        "c": [
+          "France",
+          "Italy",
+          "the U.K.",
+          "China"
+        ],
+        "a": 2,
+        "exp": "イギリス は the U.K. と表します。",
+        "src": "OFFLINE",
+        "g": "国"
+      },
+      {
+        "q": "【基本】国名「フランス」を表す英語は？",
+        "c": [
+          "Italy",
+          "China",
+          "Korea",
+          "France"
+        ],
+        "a": 3,
+        "exp": "フランス は France と表します。",
+        "src": "OFFLINE",
+        "g": "国"
+      },
+      {
+        "q": "【基本】国名「イタリア」を表す英語は？",
+        "c": [
+          "Italy",
+          "China",
+          "Korea",
+          "the U.S."
+        ],
+        "a": 0,
+        "exp": "イタリア は Italy と表します。",
+        "src": "OFFLINE",
+        "g": "国"
+      },
+      {
+        "q": "【基本】国名「中国」を表す英語は？",
+        "c": [
+          "Korea",
+          "China",
+          "the U.S.",
+          "the U.K."
+        ],
+        "a": 1,
+        "exp": "中国 は China と表します。",
+        "src": "OFFLINE",
+        "g": "国"
+      },
+      {
+        "q": "【基本】国名「韓国」を表す英語は？",
+        "c": [
+          "the U.S.",
+          "the U.K.",
+          "Korea",
+          "France"
+        ],
+        "a": 2,
+        "exp": "韓国 は Korea と表します。",
+        "src": "OFFLINE",
+        "g": "国"
+      },
+      {
+        "q": "【基本】活動「絵を描く」を表す英語は？",
+        "c": [
+          "play soccer",
+          "read books",
+          "run fast",
+          "draw pictures"
+        ],
+        "a": 3,
+        "exp": "絵を描く は draw pictures と表します。",
+        "src": "OFFLINE",
+        "g": "活動"
+      },
+      {
+        "q": "【基本】活動「サッカーをする」を表す英語は？",
+        "c": [
+          "play soccer",
+          "read books",
+          "run fast",
+          "ride a bike"
+        ],
+        "a": 0,
+        "exp": "サッカーをする は play soccer と表します。",
+        "src": "OFFLINE",
+        "g": "活動"
+      },
+      {
+        "q": "【基本】活動「本を読む」を表す英語は？",
+        "c": [
+          "run fast",
+          "read books",
+          "ride a bike",
+          "speak English"
+        ],
+        "a": 1,
+        "exp": "本を読む は read books と表します。",
+        "src": "OFFLINE",
+        "g": "活動"
+      },
+      {
+        "q": "【基本】活動「速く走る」を表す英語は？",
+        "c": [
+          "ride a bike",
+          "speak English",
+          "run fast",
+          "draw pictures"
+        ],
+        "a": 2,
+        "exp": "速く走る は run fast と表します。",
+        "src": "OFFLINE",
+        "g": "活動"
+      },
+      {
+        "q": "【基本】活動「自転車に乗る」を表す英語は？",
+        "c": [
+          "speak English",
+          "draw pictures",
+          "play soccer",
+          "ride a bike"
+        ],
+        "a": 3,
+        "exp": "自転車に乗る は ride a bike と表します。",
+        "src": "OFFLINE",
+        "g": "活動"
+      },
+      {
+        "q": "【基本】活動「英語を話す」を表す英語は？",
+        "c": [
+          "speak English",
+          "draw pictures",
+          "play soccer",
+          "read books"
+        ],
+        "a": 0,
+        "exp": "英語を話す は speak English と表します。",
+        "src": "OFFLINE",
+        "g": "活動"
+      },
+      {
+        "q": "【基本】「〜の中」を表す英語は？",
+        "c": [
+          "on",
+          "in",
+          "under",
+          "by"
+        ],
+        "a": 1,
+        "exp": "〜の中 は in と表します。",
+        "src": "OFFLINE",
+        "g": "位置"
+      },
+      {
+        "q": "【基本】「〜の上」を表す英語は？",
+        "c": [
+          "under",
+          "by",
+          "on",
+          "in front of"
+        ],
+        "a": 2,
+        "exp": "〜の上 は on と表します。",
+        "src": "OFFLINE",
+        "g": "位置"
+      },
+      {
+        "q": "【基本】「〜の下」を表す英語は？",
+        "c": [
+          "by",
+          "in front of",
+          "in",
+          "under"
+        ],
+        "a": 3,
+        "exp": "〜の下 は under と表します。",
+        "src": "OFFLINE",
+        "g": "位置"
+      },
+      {
+        "q": "【基本】「〜のそば」を表す英語は？",
+        "c": [
+          "by",
+          "in front of",
+          "in",
+          "on"
+        ],
+        "a": 0,
+        "exp": "〜のそば は by と表します。",
+        "src": "OFFLINE",
+        "g": "位置"
+      },
+      {
+        "q": "【基本】「〜の前」を表す英語は？",
+        "c": [
+          "in",
+          "in front of",
+          "on",
+          "under"
+        ],
+        "a": 1,
+        "exp": "〜の前 は in front of と表します。",
+        "src": "OFFLINE",
+        "g": "位置"
+      },
+      {
+        "q": "【標準】「My birthday is in May.」の意味は？",
+        "c": [
+          "7月3日です",
+          "元日は1月",
+          "誕生日は5月",
+          "クリスマスは12月"
+        ],
+        "a": 2,
+        "exp": "答えは「誕生日は5月」です。",
+        "src": "OFFLINE",
+        "g": "日付"
+      },
+      {
+        "q": "【標準】「It's on July third.」の意味は？",
+        "c": [
+          "元日は1月",
+          "クリスマスは12月",
+          "誕生日は明日",
+          "7月3日です"
+        ],
+        "a": 3,
+        "exp": "答えは「7月3日です」です。",
+        "src": "OFFLINE",
+        "g": "日付"
+      },
+      {
+        "q": "【標準】「New Year's Day is in January.」の意味は？",
+        "c": [
+          "元日は1月",
+          "クリスマスは12月",
+          "誕生日は明日",
+          "誕生日は5月"
+        ],
+        "a": 0,
+        "exp": "答えは「元日は1月」です。",
+        "src": "OFFLINE",
+        "g": "日付"
+      },
+      {
+        "q": "【標準】「Christmas is in December.」の意味は？",
+        "c": [
+          "誕生日は明日",
+          "クリスマスは12月",
+          "誕生日は5月",
+          "7月3日です"
+        ],
+        "a": 1,
+        "exp": "答えは「クリスマスは12月」です。",
+        "src": "OFFLINE",
+        "g": "日付"
+      },
+      {
+        "q": "【標準】「My birthday is tomorrow.」の意味は？",
+        "c": [
+          "誕生日は5月",
+          "7月3日です",
+          "誕生日は明日",
+          "元日は1月"
+        ],
+        "a": 2,
+        "exp": "答えは「誕生日は明日」です。",
+        "src": "OFFLINE",
+        "g": "日付"
+      },
+      {
+        "q": "【標準】「I have English on Monday.」から分かることは？",
+        "c": [
+          "火曜に体育",
+          "図工が一番好き",
+          "音楽の後に算数",
+          "月曜に英語"
+        ],
+        "a": 3,
+        "exp": "答えは「月曜に英語」です。",
+        "src": "OFFLINE",
+        "g": "時間割"
+      },
+      {
+        "q": "【標準】「We have P.E. on Tuesday.」から分かることは？",
+        "c": [
+          "火曜に体育",
+          "図工が一番好き",
+          "音楽の後に算数",
+          "今日は理科なし"
+        ],
+        "a": 0,
+        "exp": "答えは「火曜に体育」です。",
+        "src": "OFFLINE",
+        "g": "時間割"
+      },
+      {
+        "q": "【標準】「Art is my favorite subject.」から分かることは？",
+        "c": [
+          "音楽の後に算数",
+          "図工が一番好き",
+          "今日は理科なし",
+          "月曜に英語"
+        ],
+        "a": 1,
+        "exp": "答えは「図工が一番好き」です。",
+        "src": "OFFLINE",
+        "g": "時間割"
+      },
+      {
+        "q": "【標準】「I have math after music.」から分かることは？",
+        "c": [
+          "今日は理科なし",
+          "月曜に英語",
+          "音楽の後に算数",
+          "火曜に体育"
+        ],
+        "a": 2,
+        "exp": "答えは「音楽の後に算数」です。",
+        "src": "OFFLINE",
+        "g": "時間割"
+      },
+      {
+        "q": "【標準】「We don't have science today.」から分かることは？",
+        "c": [
+          "月曜に英語",
+          "火曜に体育",
+          "図工が一番好き",
+          "今日は理科なし"
+        ],
+        "a": 3,
+        "exp": "答えは「今日は理科なし」です。",
+        "src": "OFFLINE",
+        "g": "時間割"
+      },
+      {
+        "q": "【標準】「I can swim well.」の意味は？",
+        "c": [
+          "上手に泳げる",
+          "料理できない",
+          "テニスできる？",
+          "彼女は歌える"
+        ],
+        "a": 0,
+        "exp": "答えは「上手に泳げる」です。",
+        "src": "OFFLINE",
+        "g": "できること"
+      },
+      {
+        "q": "【標準】「I can't cook.」の意味は？",
+        "c": [
+          "テニスできる？",
+          "料理できない",
+          "彼女は歌える",
+          "彼は速く走れる"
+        ],
+        "a": 1,
+        "exp": "答えは「料理できない」です。",
+        "src": "OFFLINE",
+        "g": "できること"
+      },
+      {
+        "q": "【標準】「Can you play tennis?」の意味は？",
+        "c": [
+          "彼女は歌える",
+          "彼は速く走れる",
+          "テニスできる？",
+          "上手に泳げる"
+        ],
+        "a": 2,
+        "exp": "答えは「テニスできる？」です。",
+        "src": "OFFLINE",
+        "g": "できること"
+      },
+      {
+        "q": "【標準】「She can sing.」の意味は？",
+        "c": [
+          "彼は速く走れる",
+          "上手に泳げる",
+          "料理できない",
+          "彼女は歌える"
+        ],
+        "a": 3,
+        "exp": "答えは「彼女は歌える」です。",
+        "src": "OFFLINE",
+        "g": "できること"
+      },
+      {
+        "q": "【標準】「He can run fast.」の意味は？",
+        "c": [
+          "彼は速く走れる",
+          "上手に泳げる",
+          "料理できない",
+          "テニスできる？"
+        ],
+        "a": 0,
+        "exp": "答えは「彼は速く走れる」です。",
+        "src": "OFFLINE",
+        "g": "できること"
+      },
+      {
+        "q": "【標準】「I want a blue cap.」の意味は？",
+        "c": [
+          "サッカーをしたい",
+          "青い帽子がほしい",
+          "何がほしい？",
+          "水がほしい"
+        ],
+        "a": 1,
+        "exp": "答えは「青い帽子がほしい」です。",
+        "src": "OFFLINE",
+        "g": "ほしいもの"
+      },
+      {
+        "q": "【標準】「I want to play soccer.」の意味は？",
+        "c": [
+          "何がほしい？",
+          "水がほしい",
+          "サッカーをしたい",
+          "カナダを訪れたい"
+        ],
+        "a": 2,
+        "exp": "答えは「サッカーをしたい」です。",
+        "src": "OFFLINE",
+        "g": "ほしいもの"
+      },
+      {
+        "q": "【標準】「What do you want?」の意味は？",
+        "c": [
+          "水がほしい",
+          "カナダを訪れたい",
+          "青い帽子がほしい",
+          "何がほしい？"
+        ],
+        "a": 3,
+        "exp": "答えは「何がほしい？」です。",
+        "src": "OFFLINE",
+        "g": "ほしいもの"
+      },
+      {
+        "q": "【標準】「I want some water.」の意味は？",
+        "c": [
+          "水がほしい",
+          "カナダを訪れたい",
+          "青い帽子がほしい",
+          "サッカーをしたい"
+        ],
+        "a": 0,
+        "exp": "答えは「水がほしい」です。",
+        "src": "OFFLINE",
+        "g": "ほしいもの"
+      },
+      {
+        "q": "【標準】「I want to visit Canada.」の意味は？",
+        "c": [
+          "青い帽子がほしい",
+          "カナダを訪れたい",
+          "サッカーをしたい",
+          "何がほしい？"
+        ],
+        "a": 1,
+        "exp": "答えは「カナダを訪れたい」です。",
+        "src": "OFFLINE",
+        "g": "ほしいもの"
+      },
+      {
+        "q": "【標準】「I'm from France.」の出身国は？",
+        "c": [
+          "インド",
+          "オーストラリア",
+          "フランス",
+          "ブラジル"
+        ],
+        "a": 2,
+        "exp": "答えは「フランス」です。",
+        "src": "OFFLINE",
+        "g": "国"
+      },
+      {
+        "q": "【標準】「I'm from India.」の出身国は？",
+        "c": [
+          "オーストラリア",
+          "ブラジル",
+          "カナダ",
+          "インド"
+        ],
+        "a": 3,
+        "exp": "答えは「インド」です。",
+        "src": "OFFLINE",
+        "g": "国"
+      },
+      {
+        "q": "【標準】「I'm from Australia.」の出身国は？",
+        "c": [
+          "オーストラリア",
+          "ブラジル",
+          "カナダ",
+          "フランス"
+        ],
+        "a": 0,
+        "exp": "答えは「オーストラリア」です。",
+        "src": "OFFLINE",
+        "g": "国"
+      },
+      {
+        "q": "【標準】「I'm from Brazil.」の出身国は？",
+        "c": [
+          "カナダ",
+          "ブラジル",
+          "フランス",
+          "インド"
+        ],
+        "a": 1,
+        "exp": "答えは「ブラジル」です。",
+        "src": "OFFLINE",
+        "g": "国"
+      },
+      {
+        "q": "【標準】「I'm from Canada.」の出身国は？",
+        "c": [
+          "フランス",
+          "インド",
+          "カナダ",
+          "オーストラリア"
+        ],
+        "a": 2,
+        "exp": "答えは「カナダ」です。",
+        "src": "OFFLINE",
+        "g": "国"
+      },
+      {
+        "q": "【標準】「The ball is under the desk.」の位置は？",
+        "c": [
+          "箱の中",
+          "机の上",
+          "学校のそば",
+          "机の下"
+        ],
+        "a": 3,
+        "exp": "答えは「机の下」です。",
+        "src": "OFFLINE",
+        "g": "位置"
+      },
+      {
+        "q": "【標準】「The cat is in the box.」の位置は？",
+        "c": [
+          "箱の中",
+          "机の上",
+          "学校のそば",
+          "私たちの前"
+        ],
+        "a": 0,
+        "exp": "答えは「箱の中」です。",
+        "src": "OFFLINE",
+        "g": "位置"
+      },
+      {
+        "q": "【標準】「The book is on the table.」の位置は？",
+        "c": [
+          "学校のそば",
+          "机の上",
+          "私たちの前",
+          "机の下"
+        ],
+        "a": 1,
+        "exp": "答えは「机の上」です。",
+        "src": "OFFLINE",
+        "g": "位置"
+      },
+      {
+        "q": "【標準】「The park is by the school.」の位置は？",
+        "c": [
+          "私たちの前",
+          "机の下",
+          "学校のそば",
+          "箱の中"
+        ],
+        "a": 2,
+        "exp": "答えは「学校のそば」です。",
+        "src": "OFFLINE",
+        "g": "位置"
+      },
+      {
+        "q": "【標準】「The bus is in front of us.」の位置は？",
+        "c": [
+          "机の下",
+          "箱の中",
+          "机の上",
+          "私たちの前"
+        ],
+        "a": 3,
+        "exp": "答えは「私たちの前」です。",
+        "src": "OFFLINE",
+        "g": "位置"
+      },
+      {
+        "q": "【応用】会話「When is your birthday?」に合う返事は？",
+        "c": [
+          "It's in April.",
+          "I like science.",
+          "Yes, I can.",
+          "I want a ruler."
+        ],
+        "a": 0,
+        "exp": "答えは「It's in April.」です。",
+        "src": "OFFLINE",
+        "g": "会話"
+      },
+      {
+        "q": "【応用】会話「What subject do you like?」に合う返事は？",
+        "c": [
+          "Yes, I can.",
+          "I like science.",
+          "I want a ruler.",
+          "I'm from Japan."
+        ],
+        "a": 1,
+        "exp": "答えは「I like science.」です。",
+        "src": "OFFLINE",
+        "g": "会話"
+      },
+      {
+        "q": "【応用】会話「Can you cook?」に合う返事は？",
+        "c": [
+          "I want a ruler.",
+          "I'm from Japan.",
+          "Yes, I can.",
+          "It's in April."
+        ],
+        "a": 2,
+        "exp": "答えは「Yes, I can.」です。",
+        "src": "OFFLINE",
+        "g": "会話"
+      },
+      {
+        "q": "【応用】会話「What do you want?」に合う返事は？",
+        "c": [
+          "I'm from Japan.",
+          "It's in April.",
+          "I like science.",
+          "I want a ruler."
+        ],
+        "a": 3,
+        "exp": "答えは「I want a ruler.」です。",
+        "src": "OFFLINE",
+        "g": "会話"
+      },
+      {
+        "q": "【応用】会話「Where are you from?」に合う返事は？",
+        "c": [
+          "I'm from Japan.",
+          "It's in April.",
+          "I like science.",
+          "Yes, I can."
+        ],
+        "a": 0,
+        "exp": "答えは「I'm from Japan.」です。",
+        "src": "OFFLINE",
+        "g": "会話"
+      },
+      {
+        "q": "【応用】文「Math, then music.」で最初の授業は？",
+        "c": [
+          "理科",
+          "算数",
+          "英語",
+          "国語"
+        ],
+        "a": 1,
+        "exp": "答えは「算数」です。",
+        "src": "OFFLINE",
+        "g": "時間割"
+      },
+      {
+        "q": "【応用】文「Science, then art.」で最初の授業は？",
+        "c": [
+          "英語",
+          "国語",
+          "理科",
+          "図工"
+        ],
+        "a": 2,
+        "exp": "答えは「理科」です。",
+        "src": "OFFLINE",
+        "g": "時間割"
+      },
+      {
+        "q": "【応用】文「English, then P.E.」で最初の授業は？",
+        "c": [
+          "国語",
+          "図工",
+          "算数",
+          "英語"
+        ],
+        "a": 3,
+        "exp": "答えは「英語」です。",
+        "src": "OFFLINE",
+        "g": "時間割"
+      },
+      {
+        "q": "【応用】文「Japanese, then math.」で最初の授業は？",
+        "c": [
+          "国語",
+          "図工",
+          "算数",
+          "理科"
+        ],
+        "a": 0,
+        "exp": "答えは「国語」です。",
+        "src": "OFFLINE",
+        "g": "時間割"
+      },
+      {
+        "q": "【応用】文「Art, then social studies.」で最初の授業は？",
+        "c": [
+          "算数",
+          "図工",
+          "理科",
+          "英語"
+        ],
+        "a": 1,
+        "exp": "答えは「図工」です。",
+        "src": "OFFLINE",
+        "g": "時間割"
+      },
+      {
+        "q": "【応用】文「I can swim, but I can't dive.」から分かることは？",
+        "c": [
+          "マイは料理できる",
+          "ケンは自転車不可",
+          "泳げる",
+          "私たちは英語を話せる"
+        ],
+        "a": 2,
+        "exp": "答えは「泳げる」です。",
+        "src": "OFFLINE",
+        "g": "できること"
+      },
+      {
+        "q": "【応用】文「Mai can cook curry.」から分かることは？",
+        "c": [
+          "ケンは自転車不可",
+          "私たちは英語を話せる",
+          "彼女はピアノを弾ける",
+          "マイは料理できる"
+        ],
+        "a": 3,
+        "exp": "答えは「マイは料理できる」です。",
+        "src": "OFFLINE",
+        "g": "できること"
+      },
+      {
+        "q": "【応用】文「Ken can't ride a bike.」から分かることは？",
+        "c": [
+          "ケンは自転車不可",
+          "私たちは英語を話せる",
+          "彼女はピアノを弾ける",
+          "泳げる"
+        ],
+        "a": 0,
+        "exp": "答えは「ケンは自転車不可」です。",
+        "src": "OFFLINE",
+        "g": "できること"
+      },
+      {
+        "q": "【応用】文「We can speak English.」から分かることは？",
+        "c": [
+          "彼女はピアノを弾ける",
+          "私たちは英語を話せる",
+          "泳げる",
+          "マイは料理できる"
+        ],
+        "a": 1,
+        "exp": "答えは「私たちは英語を話せる」です。",
+        "src": "OFFLINE",
+        "g": "できること"
+      },
+      {
+        "q": "【応用】文「She can play the piano.」から分かることは？",
+        "c": [
+          "泳げる",
+          "マイは料理できる",
+          "彼女はピアノを弾ける",
+          "ケンは自転車不可"
+        ],
+        "a": 2,
+        "exp": "答えは「彼女はピアノを弾ける」です。",
+        "src": "OFFLINE",
+        "g": "できること"
+      },
+      {
+        "q": "【応用】文「I want to see koalas in Australia.」で行きたい国は？",
+        "c": [
+          "フランス",
+          "インド",
+          "カナダ",
+          "オーストラリア"
+        ],
+        "a": 3,
+        "exp": "答えは「オーストラリア」です。",
+        "src": "OFFLINE",
+        "g": "旅行"
+      },
+      {
+        "q": "【応用】文「I want to see the Eiffel Tower.」で行きたい国は？",
+        "c": [
+          "フランス",
+          "インド",
+          "カナダ",
+          "イタリア"
+        ],
+        "a": 0,
+        "exp": "答えは「フランス」です。",
+        "src": "OFFLINE",
+        "g": "旅行"
+      },
+      {
+        "q": "【応用】文「I want to eat curry in India.」で行きたい国は？",
+        "c": [
+          "カナダ",
+          "インド",
+          "イタリア",
+          "オーストラリア"
+        ],
+        "a": 1,
+        "exp": "答えは「インド」です。",
+        "src": "OFFLINE",
+        "g": "旅行"
+      },
+      {
+        "q": "【応用】文「I want maple leaves in Canada.」で行きたい国は？",
+        "c": [
+          "イタリア",
+          "オーストラリア",
+          "カナダ",
+          "フランス"
+        ],
+        "a": 2,
+        "exp": "答えは「カナダ」です。",
+        "src": "OFFLINE",
+        "g": "旅行"
+      },
+      {
+        "q": "【応用】文「I want to visit Rome in Italy.」で行きたい国は？",
+        "c": [
+          "オーストラリア",
+          "フランス",
+          "インド",
+          "イタリア"
+        ],
+        "a": 3,
+        "exp": "答えは「イタリア」です。",
+        "src": "OFFLINE",
+        "g": "旅行"
+      },
+      {
+        "q": "【応用】「私は理科が好きです」の正しい英文は？",
+        "c": [
+          "I like science.",
+          "I can swim well.",
+          "I want red shoes.",
+          "It's in August."
+        ],
+        "a": 0,
+        "exp": "答えは「I like science.」です。",
+        "src": "OFFLINE",
+        "g": "語順"
+      },
+      {
+        "q": "【応用】「私は上手に泳げます」の正しい英文は？",
+        "c": [
+          "I want red shoes.",
+          "I can swim well.",
+          "It's in August.",
+          "It's under the desk."
+        ],
+        "a": 1,
+        "exp": "答えは「I can swim well.」です。",
+        "src": "OFFLINE",
+        "g": "語順"
+      },
+      {
+        "q": "【応用】「赤い靴がほしいです」の正しい英文は？",
+        "c": [
+          "It's in August.",
+          "It's under the desk.",
+          "I want red shoes.",
+          "I like science."
+        ],
+        "a": 2,
+        "exp": "答えは「I want red shoes.」です。",
+        "src": "OFFLINE",
+        "g": "語順"
+      },
+      {
+        "q": "【応用】「誕生日は8月です」の正しい英文は？",
+        "c": [
+          "It's under the desk.",
+          "I like science.",
+          "I can swim well.",
+          "It's in August."
+        ],
+        "a": 3,
+        "exp": "答えは「It's in August.」です。",
+        "src": "OFFLINE",
+        "g": "語順"
+      },
+      {
+        "q": "【応用】「本は机の下です」の正しい英文は？",
+        "c": [
+          "It's under the desk.",
+          "I like science.",
+          "I can swim well.",
+          "I want red shoes."
+        ],
+        "a": 0,
+        "exp": "答えは「It's under the desk.」です。",
+        "src": "OFFLINE",
+        "g": "語順"
+      },
+      {
+        "q": "【応用】文「Go straight to the library.」に出てくる場所は？",
+        "c": [
+          "駅",
+          "図書館",
+          "公園",
+          "学校"
+        ],
+        "a": 1,
+        "exp": "答えは「図書館」です。",
+        "src": "OFFLINE",
+        "g": "道案内"
+      },
+      {
+        "q": "【応用】文「Turn left at the station.」に出てくる場所は？",
+        "c": [
+          "公園",
+          "学校",
+          "駅",
+          "郵便局"
+        ],
+        "a": 2,
+        "exp": "答えは「駅」です。",
+        "src": "OFFLINE",
+        "g": "道案内"
+      },
+      {
+        "q": "【応用】文「The park is by the hospital.」に出てくる場所は？",
+        "c": [
+          "学校",
+          "郵便局",
+          "図書館",
+          "公園"
+        ],
+        "a": 3,
+        "exp": "答えは「公園」です。",
+        "src": "OFFLINE",
+        "g": "道案内"
+      },
+      {
+        "q": "【応用】文「The school is on your right.」に出てくる場所は？",
+        "c": [
+          "学校",
+          "郵便局",
+          "図書館",
+          "駅"
+        ],
+        "a": 0,
+        "exp": "答えは「学校」です。",
+        "src": "OFFLINE",
+        "g": "道案内"
+      },
+      {
+        "q": "【応用】文「The post office is ahead.」に出てくる場所は？",
+        "c": [
+          "図書館",
+          "郵便局",
+          "駅",
+          "公園"
+        ],
+        "a": 1,
+        "exp": "答えは「郵便局」です。",
+        "src": "OFFLINE",
+        "g": "道案内"
+      }
+    ],
+    "6": [
+      {
+        "q": "【基本】「行った」を表す英語は？",
+        "c": [
+          "went",
+          "ate",
+          "saw",
+          "enjoyed"
+        ],
+        "a": 0,
+        "exp": "行った は went と表します。",
+        "src": "OFFLINE",
+        "g": "過去"
+      },
+      {
+        "q": "【基本】「食べた」を表す英語は？",
+        "c": [
+          "saw",
+          "ate",
+          "enjoyed",
+          "visited"
+        ],
+        "a": 1,
+        "exp": "食べた は ate と表します。",
+        "src": "OFFLINE",
+        "g": "過去"
+      },
+      {
+        "q": "【基本】「見た」を表す英語は？",
+        "c": [
+          "enjoyed",
+          "visited",
+          "saw",
+          "went"
+        ],
+        "a": 2,
+        "exp": "見た は saw と表します。",
+        "src": "OFFLINE",
+        "g": "過去"
+      },
+      {
+        "q": "【基本】「楽しんだ」を表す英語は？",
+        "c": [
+          "visited",
+          "went",
+          "ate",
+          "enjoyed"
+        ],
+        "a": 3,
+        "exp": "楽しんだ は enjoyed と表します。",
+        "src": "OFFLINE",
+        "g": "過去"
+      },
+      {
+        "q": "【基本】「訪れた」を表す英語は？",
+        "c": [
+          "visited",
+          "went",
+          "ate",
+          "saw"
+        ],
+        "a": 0,
+        "exp": "訪れた は visited と表します。",
+        "src": "OFFLINE",
+        "g": "過去"
+      },
+      {
+        "q": "【基本】「医者」を表す英語は？",
+        "c": [
+          "teacher",
+          "doctor",
+          "vet",
+          "cook"
+        ],
+        "a": 1,
+        "exp": "医者 は doctor と表します。",
+        "src": "OFFLINE",
+        "g": "職業"
+      },
+      {
+        "q": "【基本】「教師」を表す英語は？",
+        "c": [
+          "vet",
+          "cook",
+          "teacher",
+          "astronaut"
+        ],
+        "a": 2,
+        "exp": "教師 は teacher と表します。",
+        "src": "OFFLINE",
+        "g": "職業"
+      },
+      {
+        "q": "【基本】「獣医」を表す英語は？",
+        "c": [
+          "cook",
+          "astronaut",
+          "doctor",
+          "vet"
+        ],
+        "a": 3,
+        "exp": "獣医 は vet と表します。",
+        "src": "OFFLINE",
+        "g": "職業"
+      },
+      {
+        "q": "【基本】「料理人」を表す英語は？",
+        "c": [
+          "cook",
+          "astronaut",
+          "doctor",
+          "teacher"
+        ],
+        "a": 0,
+        "exp": "料理人 は cook と表します。",
+        "src": "OFFLINE",
+        "g": "職業"
+      },
+      {
+        "q": "【基本】「宇宙飛行士」を表す英語は？",
+        "c": [
+          "doctor",
+          "astronaut",
+          "teacher",
+          "vet"
+        ],
+        "a": 1,
+        "exp": "宇宙飛行士 は astronaut と表します。",
+        "src": "OFFLINE",
+        "g": "職業"
+      },
+      {
+        "q": "【基本】「フランス」を表す英語は？",
+        "c": [
+          "Egypt",
+          "China",
+          "France",
+          "Italy"
+        ],
+        "a": 2,
+        "exp": "フランス は France と表します。",
+        "src": "OFFLINE",
+        "g": "世界"
+      },
+      {
+        "q": "【基本】「エジプト」を表す英語は？",
+        "c": [
+          "China",
+          "Italy",
+          "the USA",
+          "Egypt"
+        ],
+        "a": 3,
+        "exp": "エジプト は Egypt と表します。",
+        "src": "OFFLINE",
+        "g": "世界"
+      },
+      {
+        "q": "【基本】「中国」を表す英語は？",
+        "c": [
+          "China",
+          "Italy",
+          "the USA",
+          "France"
+        ],
+        "a": 0,
+        "exp": "中国 は China と表します。",
+        "src": "OFFLINE",
+        "g": "世界"
+      },
+      {
+        "q": "【基本】「イタリア」を表す英語は？",
+        "c": [
+          "the USA",
+          "Italy",
+          "France",
+          "Egypt"
+        ],
+        "a": 1,
+        "exp": "イタリア は Italy と表します。",
+        "src": "OFFLINE",
+        "g": "世界"
+      },
+      {
+        "q": "【基本】「アメリカ」を表す英語は？",
+        "c": [
+          "France",
+          "Egypt",
+          "the USA",
+          "China"
+        ],
+        "a": 2,
+        "exp": "アメリカ は the USA と表します。",
+        "src": "OFFLINE",
+        "g": "世界"
+      },
+      {
+        "q": "【基本】「地球」を表す英語は？",
+        "c": [
+          "ocean",
+          "forest",
+          "river",
+          "Earth"
+        ],
+        "a": 3,
+        "exp": "地球 は Earth と表します。",
+        "src": "OFFLINE",
+        "g": "環境"
+      },
+      {
+        "q": "【基本】「海」を表す英語は？",
+        "c": [
+          "ocean",
+          "forest",
+          "river",
+          "endangered"
+        ],
+        "a": 0,
+        "exp": "海 は ocean と表します。",
+        "src": "OFFLINE",
+        "g": "環境"
+      },
+      {
+        "q": "【基本】「森」を表す英語は？",
+        "c": [
+          "river",
+          "forest",
+          "endangered",
+          "Earth"
+        ],
+        "a": 1,
+        "exp": "森 は forest と表します。",
+        "src": "OFFLINE",
+        "g": "環境"
+      },
+      {
+        "q": "【基本】「川」を表す英語は？",
+        "c": [
+          "endangered",
+          "Earth",
+          "river",
+          "ocean"
+        ],
+        "a": 2,
+        "exp": "川 は river と表します。",
+        "src": "OFFLINE",
+        "g": "環境"
+      },
+      {
+        "q": "【基本】「絶滅の危機」を表す英語は？",
+        "c": [
+          "Earth",
+          "ocean",
+          "forest",
+          "endangered"
+        ],
+        "a": 3,
+        "exp": "絶滅の危機 は endangered と表します。",
+        "src": "OFFLINE",
+        "g": "環境"
+      },
+      {
+        "q": "【標準】「I went to Kyoto.」の意味は？",
+        "c": [
+          "京都へ行きました",
+          "京都へ行きます",
+          "京都へ行きたい",
+          "京都から来ました"
+        ],
+        "a": 0,
+        "exp": "went は go の過去を表します。",
+        "src": "OFFLINE",
+        "g": "過去"
+      },
+      {
+        "q": "【標準】「I ate curry.」の意味は？",
+        "c": [
+          "カレーを作る",
+          "カレーを食べた",
+          "カレーがほしい",
+          "カレーが嫌い"
+        ],
+        "a": 1,
+        "exp": "ate は eat の過去を表します。",
+        "src": "OFFLINE",
+        "g": "過去"
+      },
+      {
+        "q": "【標準】「We saw a big bird.」の意味は？",
+        "c": [
+          "大きな鳥を飼う",
+          "大きな鳥になった",
+          "大きな鳥を見た",
+          "鳥が見えない"
+        ],
+        "a": 2,
+        "exp": "saw は see の過去を表します。",
+        "src": "OFFLINE",
+        "g": "過去"
+      },
+      {
+        "q": "【標準】「I enjoyed the trip.」の意味は？",
+        "c": [
+          "旅行を計画する",
+          "旅行を中止した",
+          "旅行へ行きたい",
+          "旅行を楽しんだ"
+        ],
+        "a": 3,
+        "exp": "enjoyed は「楽しんだ」です。",
+        "src": "OFFLINE",
+        "g": "過去"
+      },
+      {
+        "q": "【標準】昨日したことを表す文はどれ？",
+        "c": [
+          "I played soccer.",
+          "I play soccer.",
+          "I can play soccer.",
+          "I like soccer."
+        ],
+        "a": 0,
+        "exp": "played は過去の出来事を表します。",
+        "src": "OFFLINE",
+        "g": "過去"
+      },
+      {
+        "q": "【標準】「I want to be a vet.」の意味は？",
+        "c": [
+          "獣医に会いたい",
+          "獣医になりたい",
+          "獣医ではない",
+          "獣医を手伝った"
+        ],
+        "a": 1,
+        "exp": "want to be は「〜になりたい」です。",
+        "src": "OFFLINE",
+        "g": "将来"
+      },
+      {
+        "q": "【標準】将来の夢を尋ねる英文は？",
+        "c": [
+          "Where did you go?",
+          "What time is it?",
+          "What do you want to be?",
+          "Can you swim?"
+        ],
+        "a": 2,
+        "exp": "want to be を使って将来の夢を尋ねます。",
+        "src": "OFFLINE",
+        "g": "将来"
+      },
+      {
+        "q": "【標準】教師になりたいことを表す英文は？",
+        "c": [
+          "I am a teacher now.",
+          "I saw a teacher.",
+          "I teach want.",
+          "I want to be a teacher."
+        ],
+        "a": 3,
+        "exp": "I want to be の後に職業を置きます。",
+        "src": "OFFLINE",
+        "g": "将来"
+      },
+      {
+        "q": "【標準】「Why?」と理由を聞かれた返事に合うのは？",
+        "c": [
+          "I like helping people.",
+          "At seven.",
+          "In August.",
+          "Three books."
+        ],
+        "a": 0,
+        "exp": "Why? には理由を答えます。",
+        "src": "OFFLINE",
+        "g": "将来"
+      },
+      {
+        "q": "【標準】「My dream is to cook.」の意味は？",
+        "c": [
+          "昨日料理をした",
+          "夢は料理をすること",
+          "料理が食べたい",
+          "料理人に会った"
+        ],
+        "a": 1,
+        "exp": "dream は将来の夢を表します。",
+        "src": "OFFLINE",
+        "g": "将来"
+      },
+      {
+        "q": "【標準】「I want to visit Italy.」の意味は？",
+        "c": [
+          "イタリア出身です",
+          "イタリアに住んだ",
+          "イタリアを訪れたい",
+          "イタリアが嫌い"
+        ],
+        "a": 2,
+        "exp": "want to visit は「訪れたい」です。",
+        "src": "OFFLINE",
+        "g": "世界と文化"
+      },
+      {
+        "q": "【標準】エジプトを表す英語は？",
+        "c": [
+          "India",
+          "Italy",
+          "Brazil",
+          "Egypt"
+        ],
+        "a": 3,
+        "exp": "エジプトは Egypt と表します。",
+        "src": "OFFLINE",
+        "g": "世界と文化"
+      },
+      {
+        "q": "【標準】「Where do you want to go?」で尋ねるのは？",
+        "c": [
+          "行きたい場所",
+          "住んでいる場所",
+          "昨日いた場所",
+          "生まれた場所"
+        ],
+        "a": 0,
+        "exp": "want to go は行きたい場所を表します。",
+        "src": "OFFLINE",
+        "g": "世界と文化"
+      },
+      {
+        "q": "【標準】「You can see the Eiffel Tower.」国は？",
+        "c": [
+          "Italy",
+          "France",
+          "Egypt",
+          "Canada"
+        ],
+        "a": 1,
+        "exp": "エッフェル塔がある国はフランスです。",
+        "src": "OFFLINE",
+        "g": "世界と文化"
+      },
+      {
+        "q": "【標準】「I like Chinese food.」で好きなものは？",
+        "c": [
+          "中国語",
+          "中国の音楽",
+          "中国料理",
+          "中国の学校"
+        ],
+        "a": 2,
+        "exp": "Chinese food は中国料理です。",
+        "src": "OFFLINE",
+        "g": "世界と文化"
+      },
+      {
+        "q": "【標準】「I usually walk to school.」の意味は？",
+        "c": [
+          "昨日歩いて登校",
+          "学校まで走りたい",
+          "学校では歩かない",
+          "たいてい歩いて登校"
+        ],
+        "a": 3,
+        "exp": "usually は「たいてい」を表します。",
+        "src": "OFFLINE",
+        "g": "生活と環境"
+      },
+      {
+        "q": "【標準】「Save the animals.」の意味は？",
+        "c": [
+          "動物を守ろう",
+          "動物を数えよう",
+          "動物を見た",
+          "動物を描こう"
+        ],
+        "a": 0,
+        "exp": "save はここでは「守る」です。",
+        "src": "OFFLINE",
+        "g": "生活と環境"
+      },
+      {
+        "q": "【標準】「Don't waste water.」の意味は？",
+        "c": [
+          "水を飲まないで",
+          "水を無駄にしないで",
+          "水を運んで",
+          "川で泳いで"
+        ],
+        "a": 1,
+        "exp": "waste water は水を無駄にすることです。",
+        "src": "OFFLINE",
+        "g": "生活と環境"
+      },
+      {
+        "q": "【標準】「The panda is endangered.」の意味は？",
+        "c": [
+          "パンダは元気",
+          "パンダは大きい",
+          "パンダは絶滅の危機",
+          "パンダは泳げる"
+        ],
+        "a": 2,
+        "exp": "endangered は絶滅の危機にあることです。",
+        "src": "OFFLINE",
+        "g": "生活と環境"
+      },
+      {
+        "q": "【標準】地球を守る行動として自然な英文は？",
+        "c": [
+          "Let's waste water.",
+          "Let's cut all trees.",
+          "Let's drop trash.",
+          "Let's recycle."
+        ],
+        "a": 3,
+        "exp": "recycle は資源を再利用することです。",
+        "src": "OFFLINE",
+        "g": "生活と環境"
+      },
+      {
+        "q": "【応用】会話「Where did you go?」「___」に合う返事は？",
+        "c": [
+          "I went to Nara.",
+          "I go every day.",
+          "I can go.",
+          "I like Nara."
+        ],
+        "a": 0,
+        "exp": "過去の場所を I went to ... で答えます。",
+        "src": "OFFLINE",
+        "g": "会話"
+      },
+      {
+        "q": "【応用】会話「What did you eat?」「___」に合う返事は？",
+        "c": [
+          "I eat at seven.",
+          "I ate sushi.",
+          "I want sushi.",
+          "Sushi is Japan."
+        ],
+        "a": 1,
+        "exp": "過去に食べた物を I ate ... で答えます。",
+        "src": "OFFLINE",
+        "g": "会話"
+      },
+      {
+        "q": "【応用】会話「What do you want to be?」「___」に合う返事は？",
+        "c": [
+          "I ate with a cook.",
+          "I can cook rice.",
+          "I want to be a cook.",
+          "Cook is my lunch."
+        ],
+        "a": 2,
+        "exp": "将来の夢を I want to be ... で答えます。",
+        "src": "OFFLINE",
+        "g": "会話"
+      },
+      {
+        "q": "【応用】会話「Why do you like it?」「___」に合う返事は？",
+        "c": [
+          "At the park.",
+          "Last Sunday.",
+          "Three times.",
+          "Because it's fun."
+        ],
+        "a": 3,
+        "exp": "Why には because を使って理由を答えられます。",
+        "src": "OFFLINE",
+        "g": "会話"
+      },
+      {
+        "q": "【応用】会話「How was your trip?」「___」に合う返事は？",
+        "c": [
+          "It was great.",
+          "It's next week.",
+          "I go by bus.",
+          "In Canada."
+        ],
+        "a": 0,
+        "exp": "過去の感想には It was ... が合います。",
+        "src": "OFFLINE",
+        "g": "会話"
+      },
+      {
+        "q": "【応用】文「I went to the zoo and saw pandas.」見たのは？",
+        "c": [
+          "鳥",
+          "パンダ",
+          "ライオン",
+          "魚"
+        ],
+        "a": 1,
+        "exp": "saw pandas と書かれています。",
+        "src": "OFFLINE",
+        "g": "文脈"
+      },
+      {
+        "q": "【応用】文「I ate pizza, but I didn't eat salad.」食べたのは？",
+        "c": [
+          "サラダ",
+          "両方",
+          "ピザ",
+          "どちらもなし"
+        ],
+        "a": 2,
+        "exp": "ate pizza とあり、salad は食べていません。",
+        "src": "OFFLINE",
+        "g": "文脈"
+      },
+      {
+        "q": "【応用】文「I want to be a vet. I love animals.」夢は？",
+        "c": [
+          "医者",
+          "教師",
+          "料理人",
+          "獣医"
+        ],
+        "a": 3,
+        "exp": "want to be a vet が将来の夢です。",
+        "src": "OFFLINE",
+        "g": "文脈"
+      },
+      {
+        "q": "【応用】文「I visited France and saw a tower.」訪問国は？",
+        "c": [
+          "フランス",
+          "イタリア",
+          "インド",
+          "日本"
+        ],
+        "a": 0,
+        "exp": "visited France と書かれています。",
+        "src": "OFFLINE",
+        "g": "文脈"
+      },
+      {
+        "q": "【応用】文「I recycle cans every week.」していることは？",
+        "c": [
+          "水の節約",
+          "缶の再利用",
+          "植樹",
+          "ごみ拾い"
+        ],
+        "a": 1,
+        "exp": "recycle cans は缶を再利用することです。",
+        "src": "OFFLINE",
+        "g": "文脈"
+      },
+      {
+        "q": "【応用】「私は京都へ行きました」の正しい英文は？",
+        "c": [
+          "I go to Kyoto.",
+          "Went Kyoto I to.",
+          "I went to Kyoto.",
+          "I want Kyoto."
+        ],
+        "a": 2,
+        "exp": "過去の移動は I went to ... と表します。",
+        "src": "OFFLINE",
+        "g": "語順"
+      },
+      {
+        "q": "【応用】「何を食べましたか」の正しい英文は？",
+        "c": [
+          "What do you ate?",
+          "Did what you ate?",
+          "Where did you eat?",
+          "What did you eat?"
+        ],
+        "a": 3,
+        "exp": "過去の質問は What did you eat? の語順です。",
+        "src": "OFFLINE",
+        "g": "語順"
+      },
+      {
+        "q": "【応用】「医者になりたい」の正しい英文は？",
+        "c": [
+          "I want to be a doctor.",
+          "I want be doctor.",
+          "I am want a doctor.",
+          "Doctor wants me."
+        ],
+        "a": 0,
+        "exp": "want to be の後に職業を置きます。",
+        "src": "OFFLINE",
+        "g": "語順"
+      },
+      {
+        "q": "【応用】「旅行は楽しかった」の正しい英文は？",
+        "c": [
+          "The trip is tomorrow.",
+          "The trip was fun.",
+          "Was trip the fun.",
+          "I fun the trip."
+        ],
+        "a": 1,
+        "exp": "過去の感想は was を使って表せます。",
+        "src": "OFFLINE",
+        "g": "語順"
+      },
+      {
+        "q": "【応用】「動物を守ろう」の正しい英文は？",
+        "c": [
+          "Let's animals save.",
+          "Save let's animals.",
+          "Let's save animals.",
+          "Animals are let's."
+        ],
+        "a": 2,
+        "exp": "Let's の後に動作を表す語を置きます。",
+        "src": "OFFLINE",
+        "g": "語順"
+      },
+      {
+        "q": "【応用】文「Last Sunday, I played tennis.」いつした？",
+        "c": [
+          "今週の月曜日",
+          "来週の日曜日",
+          "毎週土曜日",
+          "先週の日曜日"
+        ],
+        "a": 3,
+        "exp": "Last Sunday は先週の日曜日です。",
+        "src": "OFFLINE",
+        "g": "読み取り"
+      },
+      {
+        "q": "【応用】文「Mika saw dolphins in Australia.」場所は？",
+        "c": [
+          "オーストラリア",
+          "日本",
+          "カナダ",
+          "イタリア"
+        ],
+        "a": 0,
+        "exp": "in Australia が場所を示します。",
+        "src": "OFFLINE",
+        "g": "読み取り"
+      },
+      {
+        "q": "【応用】文「Ken wants to teach children.」向く職業は？",
+        "c": [
+          "獣医",
+          "教師",
+          "料理人",
+          "宇宙飛行士"
+        ],
+        "a": 1,
+        "exp": "children に教える職業は教師です。",
+        "src": "OFFLINE",
+        "g": "読み取り"
+      },
+      {
+        "q": "【応用】文「Use both sides of paper.」環境に良い理由は？",
+        "c": [
+          "水を増やせる",
+          "空気を暖める",
+          "紙を節約できる",
+          "動物を数える"
+        ],
+        "a": 2,
+        "exp": "紙の両面を使うと使用量を減らせます。",
+        "src": "OFFLINE",
+        "g": "読み取り"
+      },
+      {
+        "q": "【応用】文「I got up at six, then ate breakfast.」先は？",
+        "c": [
+          "朝食を食べた",
+          "登校した",
+          "寝た",
+          "起きた"
+        ],
+        "a": 3,
+        "exp": "then の前に get up が書かれています。",
+        "src": "OFFLINE",
+        "g": "読み取り"
+      },
+      {
+        "q": "【基本】「go」の過去形は？",
+        "c": [
+          "went",
+          "ate",
+          "saw",
+          "had"
+        ],
+        "a": 0,
+        "exp": "go は went と表します。",
+        "src": "OFFLINE",
+        "g": "過去形"
+      },
+      {
+        "q": "【基本】「eat」の過去形は？",
+        "c": [
+          "saw",
+          "ate",
+          "had",
+          "was"
+        ],
+        "a": 1,
+        "exp": "eat は ate と表します。",
+        "src": "OFFLINE",
+        "g": "過去形"
+      },
+      {
+        "q": "【基本】「see」の過去形は？",
+        "c": [
+          "had",
+          "was",
+          "saw",
+          "were"
+        ],
+        "a": 2,
+        "exp": "see は saw と表します。",
+        "src": "OFFLINE",
+        "g": "過去形"
+      },
+      {
+        "q": "【基本】「have」の過去形は？",
+        "c": [
+          "was",
+          "were",
+          "played",
+          "had"
+        ],
+        "a": 3,
+        "exp": "have は had と表します。",
+        "src": "OFFLINE",
+        "g": "過去形"
+      },
+      {
+        "q": "【基本】「is」の過去形は？",
+        "c": [
+          "was",
+          "were",
+          "played",
+          "visited"
+        ],
+        "a": 0,
+        "exp": "is は was と表します。",
+        "src": "OFFLINE",
+        "g": "過去形"
+      },
+      {
+        "q": "【基本】「are」の過去形は？",
+        "c": [
+          "played",
+          "were",
+          "visited",
+          "went"
+        ],
+        "a": 1,
+        "exp": "are は were と表します。",
+        "src": "OFFLINE",
+        "g": "過去形"
+      },
+      {
+        "q": "【基本】「play」の過去形は？",
+        "c": [
+          "visited",
+          "went",
+          "played",
+          "ate"
+        ],
+        "a": 2,
+        "exp": "play は played と表します。",
+        "src": "OFFLINE",
+        "g": "過去形"
+      },
+      {
+        "q": "【基本】「visit」の過去形は？",
+        "c": [
+          "went",
+          "ate",
+          "saw",
+          "visited"
+        ],
+        "a": 3,
+        "exp": "visit は visited と表します。",
+        "src": "OFFLINE",
+        "g": "過去形"
+      },
+      {
+        "q": "【基本】職業「看護師」を表す英語は？",
+        "c": [
+          "nurse",
+          "firefighter",
+          "pilot",
+          "scientist"
+        ],
+        "a": 0,
+        "exp": "看護師 は nurse と表します。",
+        "src": "OFFLINE",
+        "g": "職業"
+      },
+      {
+        "q": "【基本】職業「消防士」を表す英語は？",
+        "c": [
+          "pilot",
+          "firefighter",
+          "scientist",
+          "artist"
+        ],
+        "a": 1,
+        "exp": "消防士 は firefighter と表します。",
+        "src": "OFFLINE",
+        "g": "職業"
+      },
+      {
+        "q": "【基本】職業「パイロット」を表す英語は？",
+        "c": [
+          "scientist",
+          "artist",
+          "pilot",
+          "farmer"
+        ],
+        "a": 2,
+        "exp": "パイロット は pilot と表します。",
+        "src": "OFFLINE",
+        "g": "職業"
+      },
+      {
+        "q": "【基本】職業「科学者」を表す英語は？",
+        "c": [
+          "artist",
+          "farmer",
+          "police officer",
+          "scientist"
+        ],
+        "a": 3,
+        "exp": "科学者 は scientist と表します。",
+        "src": "OFFLINE",
+        "g": "職業"
+      },
+      {
+        "q": "【基本】職業「芸術家」を表す英語は？",
+        "c": [
+          "artist",
+          "farmer",
+          "police officer",
+          "singer"
+        ],
+        "a": 0,
+        "exp": "芸術家 は artist と表します。",
+        "src": "OFFLINE",
+        "g": "職業"
+      },
+      {
+        "q": "【基本】職業「農家」を表す英語は？",
+        "c": [
+          "police officer",
+          "farmer",
+          "singer",
+          "nurse"
+        ],
+        "a": 1,
+        "exp": "農家 は farmer と表します。",
+        "src": "OFFLINE",
+        "g": "職業"
+      },
+      {
+        "q": "【基本】職業「警察官」を表す英語は？",
+        "c": [
+          "singer",
+          "nurse",
+          "police officer",
+          "firefighter"
+        ],
+        "a": 2,
+        "exp": "警察官 は police officer と表します。",
+        "src": "OFFLINE",
+        "g": "職業"
+      },
+      {
+        "q": "【基本】職業「歌手」を表す英語は？",
+        "c": [
+          "nurse",
+          "firefighter",
+          "pilot",
+          "singer"
+        ],
+        "a": 3,
+        "exp": "歌手 は singer と表します。",
+        "src": "OFFLINE",
+        "g": "職業"
+      },
+      {
+        "q": "【基本】国名「スペイン」を表す英語は？",
+        "c": [
+          "Spain",
+          "Germany",
+          "Mexico",
+          "Thailand"
+        ],
+        "a": 0,
+        "exp": "スペイン は Spain と表します。",
+        "src": "OFFLINE",
+        "g": "世界"
+      },
+      {
+        "q": "【基本】国名「ドイツ」を表す英語は？",
+        "c": [
+          "Mexico",
+          "Germany",
+          "Thailand",
+          "Singapore"
+        ],
+        "a": 1,
+        "exp": "ドイツ は Germany と表します。",
+        "src": "OFFLINE",
+        "g": "世界"
+      },
+      {
+        "q": "【基本】国名「メキシコ」を表す英語は？",
+        "c": [
+          "Thailand",
+          "Singapore",
+          "Mexico",
+          "New Zealand"
+        ],
+        "a": 2,
+        "exp": "メキシコ は Mexico と表します。",
+        "src": "OFFLINE",
+        "g": "世界"
+      },
+      {
+        "q": "【基本】国名「タイ」を表す英語は？",
+        "c": [
+          "Singapore",
+          "New Zealand",
+          "South Africa",
+          "Thailand"
+        ],
+        "a": 3,
+        "exp": "タイ は Thailand と表します。",
+        "src": "OFFLINE",
+        "g": "世界"
+      },
+      {
+        "q": "【基本】国名「シンガポール」を表す英語は？",
+        "c": [
+          "Singapore",
+          "New Zealand",
+          "South Africa",
+          "Spain"
+        ],
+        "a": 0,
+        "exp": "シンガポール は Singapore と表します。",
+        "src": "OFFLINE",
+        "g": "世界"
+      },
+      {
+        "q": "【基本】国名「ニュージーランド」を表す英語は？",
+        "c": [
+          "South Africa",
+          "New Zealand",
+          "Spain",
+          "Germany"
+        ],
+        "a": 1,
+        "exp": "ニュージーランド は New Zealand と表します。",
+        "src": "OFFLINE",
+        "g": "世界"
+      },
+      {
+        "q": "【基本】国名「南アフリカ」を表す英語は？",
+        "c": [
+          "Spain",
+          "Germany",
+          "South Africa",
+          "Mexico"
+        ],
+        "a": 2,
+        "exp": "南アフリカ は South Africa と表します。",
+        "src": "OFFLINE",
+        "g": "世界"
+      },
+      {
+        "q": "【基本】環境の語「再利用する」を表す英語は？",
+        "c": [
+          "recycle",
+          "save",
+          "trash",
+          "reuse"
+        ],
+        "a": 3,
+        "exp": "再利用する は reuse と表します。",
+        "src": "OFFLINE",
+        "g": "環境"
+      },
+      {
+        "q": "【基本】環境の語「資源を再生する」を表す英語は？",
+        "c": [
+          "recycle",
+          "save",
+          "trash",
+          "nature"
+        ],
+        "a": 0,
+        "exp": "資源を再生する は recycle と表します。",
+        "src": "OFFLINE",
+        "g": "環境"
+      },
+      {
+        "q": "【基本】環境の語「節約する」を表す英語は？",
+        "c": [
+          "trash",
+          "save",
+          "nature",
+          "electricity"
+        ],
+        "a": 1,
+        "exp": "節約する は save と表します。",
+        "src": "OFFLINE",
+        "g": "環境"
+      },
+      {
+        "q": "【基本】環境の語「ごみ」を表す英語は？",
+        "c": [
+          "nature",
+          "electricity",
+          "trash",
+          "pollution"
+        ],
+        "a": 2,
+        "exp": "ごみ は trash と表します。",
+        "src": "OFFLINE",
+        "g": "環境"
+      },
+      {
+        "q": "【基本】環境の語「自然」を表す英語は？",
+        "c": [
+          "electricity",
+          "pollution",
+          "reuse",
+          "nature"
+        ],
+        "a": 3,
+        "exp": "自然 は nature と表します。",
+        "src": "OFFLINE",
+        "g": "環境"
+      },
+      {
+        "q": "【基本】環境の語「電気」を表す英語は？",
+        "c": [
+          "electricity",
+          "pollution",
+          "reuse",
+          "recycle"
+        ],
+        "a": 0,
+        "exp": "電気 は electricity と表します。",
+        "src": "OFFLINE",
+        "g": "環境"
+      },
+      {
+        "q": "【基本】環境の語「汚染」を表す英語は？",
+        "c": [
+          "reuse",
+          "pollution",
+          "recycle",
+          "save"
+        ],
+        "a": 1,
+        "exp": "汚染 は pollution と表します。",
+        "src": "OFFLINE",
+        "g": "環境"
+      },
+      {
+        "q": "【標準】「I visited Osaka.」の意味は？",
+        "c": [
+          "野球をした",
+          "彼女はイルカを見た",
+          "大阪を訪れた",
+          "彼は麺を食べた"
+        ],
+        "a": 2,
+        "exp": "答えは「大阪を訪れた」です。",
+        "src": "OFFLINE",
+        "g": "過去"
+      },
+      {
+        "q": "【標準】「We played baseball.」の意味は？",
+        "c": [
+          "彼女はイルカを見た",
+          "彼は麺を食べた",
+          "楽しく過ごした",
+          "野球をした"
+        ],
+        "a": 3,
+        "exp": "答えは「野球をした」です。",
+        "src": "OFFLINE",
+        "g": "過去"
+      },
+      {
+        "q": "【標準】「She saw a dolphin.」の意味は？",
+        "c": [
+          "彼女はイルカを見た",
+          "彼は麺を食べた",
+          "楽しく過ごした",
+          "大阪を訪れた"
+        ],
+        "a": 0,
+        "exp": "答えは「彼女はイルカを見た」です。",
+        "src": "OFFLINE",
+        "g": "過去"
+      },
+      {
+        "q": "【標準】「He ate noodles.」の意味は？",
+        "c": [
+          "楽しく過ごした",
+          "彼は麺を食べた",
+          "大阪を訪れた",
+          "野球をした"
+        ],
+        "a": 1,
+        "exp": "答えは「彼は麺を食べた」です。",
+        "src": "OFFLINE",
+        "g": "過去"
+      },
+      {
+        "q": "【標準】「They had a good time.」の意味は？",
+        "c": [
+          "大阪を訪れた",
+          "野球をした",
+          "楽しく過ごした",
+          "彼女はイルカを見た"
+        ],
+        "a": 2,
+        "exp": "答えは「楽しく過ごした」です。",
+        "src": "OFFLINE",
+        "g": "過去"
+      },
+      {
+        "q": "【標準】「I want to help sick people.」の将来の夢は？",
+        "c": [
+          "教師",
+          "料理人",
+          "獣医",
+          "医者"
+        ],
+        "a": 3,
+        "exp": "答えは「医者」です。",
+        "src": "OFFLINE",
+        "g": "将来"
+      },
+      {
+        "q": "【標準】「I want to teach children.」の将来の夢は？",
+        "c": [
+          "教師",
+          "料理人",
+          "獣医",
+          "宇宙飛行士"
+        ],
+        "a": 0,
+        "exp": "答えは「教師」です。",
+        "src": "OFFLINE",
+        "g": "将来"
+      },
+      {
+        "q": "【標準】「I want to cook at a restaurant.」の将来の夢は？",
+        "c": [
+          "獣医",
+          "料理人",
+          "宇宙飛行士",
+          "医者"
+        ],
+        "a": 1,
+        "exp": "答えは「料理人」です。",
+        "src": "OFFLINE",
+        "g": "将来"
+      },
+      {
+        "q": "【標準】「I want to help animals.」の将来の夢は？",
+        "c": [
+          "宇宙飛行士",
+          "医者",
+          "獣医",
+          "教師"
+        ],
+        "a": 2,
+        "exp": "答えは「獣医」です。",
+        "src": "OFFLINE",
+        "g": "将来"
+      },
+      {
+        "q": "【標準】「I want to travel in space.」の将来の夢は？",
+        "c": [
+          "医者",
+          "教師",
+          "料理人",
+          "宇宙飛行士"
+        ],
+        "a": 3,
+        "exp": "答えは「宇宙飛行士」です。",
+        "src": "OFFLINE",
+        "g": "将来"
+      },
+      {
+        "q": "【標準】「Because it's exciting.」で示す理由は？",
+        "c": [
+          "わくわくするから",
+          "動物が好きだから",
+          "人助けが好きだから",
+          "美しいから"
+        ],
+        "a": 0,
+        "exp": "答えは「わくわくするから」です。",
+        "src": "OFFLINE",
+        "g": "理由"
+      },
+      {
+        "q": "【標準】「Because I love animals.」で示す理由は？",
+        "c": [
+          "人助けが好きだから",
+          "動物が好きだから",
+          "美しいから",
+          "料理が楽しいから"
+        ],
+        "a": 1,
+        "exp": "答えは「動物が好きだから」です。",
+        "src": "OFFLINE",
+        "g": "理由"
+      },
+      {
+        "q": "【標準】「Because I like helping people.」で示す理由は？",
+        "c": [
+          "美しいから",
+          "料理が楽しいから",
+          "人助けが好きだから",
+          "わくわくするから"
+        ],
+        "a": 2,
+        "exp": "答えは「人助けが好きだから」です。",
+        "src": "OFFLINE",
+        "g": "理由"
+      },
+      {
+        "q": "【標準】「Because it's beautiful.」で示す理由は？",
+        "c": [
+          "料理が楽しいから",
+          "わくわくするから",
+          "動物が好きだから",
+          "美しいから"
+        ],
+        "a": 3,
+        "exp": "答えは「美しいから」です。",
+        "src": "OFFLINE",
+        "g": "理由"
+      },
+      {
+        "q": "【標準】「Because I enjoy cooking.」で示す理由は？",
+        "c": [
+          "料理が楽しいから",
+          "わくわくするから",
+          "動物が好きだから",
+          "人助けが好きだから"
+        ],
+        "a": 0,
+        "exp": "答えは「料理が楽しいから」です。",
+        "src": "OFFLINE",
+        "g": "理由"
+      },
+      {
+        "q": "【標準】「I went to Okinawa last summer.」から分かることは？",
+        "c": [
+          "8月に花火を見た",
+          "昨夏に沖縄へ行った",
+          "昨日サッカーをした",
+          "修学旅行を楽しんだ"
+        ],
+        "a": 1,
+        "exp": "答えは「昨夏に沖縄へ行った」です。",
+        "src": "OFFLINE",
+        "g": "思い出"
+      },
+      {
+        "q": "【標準】「We saw fireworks in August.」から分かることは？",
+        "c": [
+          "昨日サッカーをした",
+          "修学旅行を楽しんだ",
+          "8月に花火を見た",
+          "東京で寿司を食べた"
+        ],
+        "a": 2,
+        "exp": "答えは「8月に花火を見た」です。",
+        "src": "OFFLINE",
+        "g": "思い出"
+      },
+      {
+        "q": "【標準】「I played soccer yesterday.」から分かることは？",
+        "c": [
+          "修学旅行を楽しんだ",
+          "東京で寿司を食べた",
+          "昨夏に沖縄へ行った",
+          "昨日サッカーをした"
+        ],
+        "a": 3,
+        "exp": "答えは「昨日サッカーをした」です。",
+        "src": "OFFLINE",
+        "g": "思い出"
+      },
+      {
+        "q": "【標準】「She enjoyed the school trip.」から分かることは？",
+        "c": [
+          "修学旅行を楽しんだ",
+          "東京で寿司を食べた",
+          "昨夏に沖縄へ行った",
+          "8月に花火を見た"
+        ],
+        "a": 0,
+        "exp": "答えは「修学旅行を楽しんだ」です。",
+        "src": "OFFLINE",
+        "g": "思い出"
+      },
+      {
+        "q": "【標準】「He ate sushi in Tokyo.」から分かることは？",
+        "c": [
+          "昨夏に沖縄へ行った",
+          "東京で寿司を食べた",
+          "8月に花火を見た",
+          "昨日サッカーをした"
+        ],
+        "a": 1,
+        "exp": "答えは「東京で寿司を食べた」です。",
+        "src": "OFFLINE",
+        "g": "思い出"
+      },
+      {
+        "q": "【標準】「Turn off the lights.」の意味は？",
+        "c": [
+          "水を減らそう",
+          "ごみを拾おう",
+          "電気を消そう",
+          "森を守ろう"
+        ],
+        "a": 2,
+        "exp": "答えは「電気を消そう」です。",
+        "src": "OFFLINE",
+        "g": "環境"
+      },
+      {
+        "q": "【標準】「Use less water.」の意味は？",
+        "c": [
+          "ごみを拾おう",
+          "森を守ろう",
+          "この袋を再利用",
+          "水を減らそう"
+        ],
+        "a": 3,
+        "exp": "答えは「水を減らそう」です。",
+        "src": "OFFLINE",
+        "g": "環境"
+      },
+      {
+        "q": "【標準】「Pick up trash.」の意味は？",
+        "c": [
+          "ごみを拾おう",
+          "森を守ろう",
+          "この袋を再利用",
+          "電気を消そう"
+        ],
+        "a": 0,
+        "exp": "答えは「ごみを拾おう」です。",
+        "src": "OFFLINE",
+        "g": "環境"
+      },
+      {
+        "q": "【標準】「Protect the forests.」の意味は？",
+        "c": [
+          "この袋を再利用",
+          "森を守ろう",
+          "電気を消そう",
+          "水を減らそう"
+        ],
+        "a": 1,
+        "exp": "答えは「森を守ろう」です。",
+        "src": "OFFLINE",
+        "g": "環境"
+      },
+      {
+        "q": "【標準】「Reuse this bag.」の意味は？",
+        "c": [
+          "電気を消そう",
+          "水を減らそう",
+          "この袋を再利用",
+          "ごみを拾おう"
+        ],
+        "a": 2,
+        "exp": "答えは「この袋を再利用」です。",
+        "src": "OFFLINE",
+        "g": "環境"
+      },
+      {
+        "q": "【標準】文「I ate lunch, then played soccer.」で先にしたことは？",
+        "c": [
+          "奈良訪問",
+          "起床",
+          "勉強",
+          "昼食"
+        ],
+        "a": 3,
+        "exp": "答えは「昼食」です。",
+        "src": "OFFLINE",
+        "g": "順序"
+      },
+      {
+        "q": "【標準】文「We visited Nara, then Kyoto.」で先にしたことは？",
+        "c": [
+          "奈良訪問",
+          "起床",
+          "勉強",
+          "夕食"
+        ],
+        "a": 0,
+        "exp": "答えは「奈良訪問」です。",
+        "src": "OFFLINE",
+        "g": "順序"
+      },
+      {
+        "q": "【標準】文「She got up and made breakfast.」で先にしたことは？",
+        "c": [
+          "勉強",
+          "起床",
+          "夕食",
+          "昼食"
+        ],
+        "a": 1,
+        "exp": "答えは「起床」です。",
+        "src": "OFFLINE",
+        "g": "順序"
+      },
+      {
+        "q": "【標準】文「He studied, then watched TV.」で先にしたことは？",
+        "c": [
+          "夕食",
+          "昼食",
+          "勉強",
+          "奈良訪問"
+        ],
+        "a": 2,
+        "exp": "答えは「勉強」です。",
+        "src": "OFFLINE",
+        "g": "順序"
+      },
+      {
+        "q": "【標準】文「I saw a movie after dinner.」で先にしたことは？",
+        "c": [
+          "昼食",
+          "奈良訪問",
+          "起床",
+          "夕食"
+        ],
+        "a": 3,
+        "exp": "答えは「夕食」です。",
+        "src": "OFFLINE",
+        "g": "順序"
+      },
+      {
+        "q": "【応用】会話「What did you see?」に合う返事は？",
+        "c": [
+          "I saw a tiger.",
+          "I went to Kobe.",
+          "It was exciting.",
+          "I want to be a vet."
+        ],
+        "a": 0,
+        "exp": "正しい答えは I saw a tiger. です。",
+        "src": "OFFLINE",
+        "g": "会話"
+      },
+      {
+        "q": "【応用】会話「Where did you go?」に合う返事は？",
+        "c": [
+          "It was exciting.",
+          "I went to Kobe.",
+          "I want to be a vet.",
+          "Because they're cute."
+        ],
+        "a": 1,
+        "exp": "正しい答えは I went to Kobe. です。",
+        "src": "OFFLINE",
+        "g": "会話"
+      },
+      {
+        "q": "【応用】会話「How was the festival?」に合う返事は？",
+        "c": [
+          "I want to be a vet.",
+          "Because they're cute.",
+          "It was exciting.",
+          "I saw a tiger."
+        ],
+        "a": 2,
+        "exp": "正しい答えは It was exciting. です。",
+        "src": "OFFLINE",
+        "g": "会話"
+      },
+      {
+        "q": "【応用】会話「What do you want to be?」に合う返事は？",
+        "c": [
+          "Because they're cute.",
+          "I saw a tiger.",
+          "I went to Kobe.",
+          "I want to be a vet."
+        ],
+        "a": 3,
+        "exp": "正しい答えは I want to be a vet. です。",
+        "src": "OFFLINE",
+        "g": "会話"
+      },
+      {
+        "q": "【応用】会話「Why do you like pandas?」に合う返事は？",
+        "c": [
+          "Because they're cute.",
+          "I saw a tiger.",
+          "I went to Kobe.",
+          "It was exciting."
+        ],
+        "a": 0,
+        "exp": "正しい答えは Because they're cute. です。",
+        "src": "OFFLINE",
+        "g": "会話"
+      },
+      {
+        "q": "【応用】文「Last year, I visited Canada.」から分かることは？",
+        "c": [
+          "ピザだけ食べた",
+          "昨年カナダを訪問",
+          "熊を2頭見た",
+          "短いが楽しい旅行"
+        ],
+        "a": 1,
+        "exp": "正しい答えは 昨年カナダを訪問 です。",
+        "src": "OFFLINE",
+        "g": "読み取り"
+      },
+      {
+        "q": "【応用】文「I ate pizza, but not salad.」から分かることは？",
+        "c": [
+          "熊を2頭見た",
+          "短いが楽しい旅行",
+          "ピザだけ食べた",
+          "昨日テニスなし"
+        ],
+        "a": 2,
+        "exp": "正しい答えは ピザだけ食べた です。",
+        "src": "OFFLINE",
+        "g": "読み取り"
+      },
+      {
+        "q": "【応用】文「We saw two bears in the zoo.」から分かることは？",
+        "c": [
+          "短いが楽しい旅行",
+          "昨日テニスなし",
+          "昨年カナダを訪問",
+          "熊を2頭見た"
+        ],
+        "a": 3,
+        "exp": "正しい答えは 熊を2頭見た です。",
+        "src": "OFFLINE",
+        "g": "読み取り"
+      },
+      {
+        "q": "【応用】文「My trip was short but fun.」から分かることは？",
+        "c": [
+          "短いが楽しい旅行",
+          "昨日テニスなし",
+          "昨年カナダを訪問",
+          "ピザだけ食べた"
+        ],
+        "a": 0,
+        "exp": "正しい答えは 短いが楽しい旅行 です。",
+        "src": "OFFLINE",
+        "g": "読み取り"
+      },
+      {
+        "q": "【応用】文「I didn't play tennis yesterday.」から分かることは？",
+        "c": [
+          "昨年カナダを訪問",
+          "昨日テニスなし",
+          "ピザだけ食べた",
+          "熊を2頭見た"
+        ],
+        "a": 1,
+        "exp": "正しい答えは 昨日テニスなし です。",
+        "src": "OFFLINE",
+        "g": "読み取り"
+      },
+      {
+        "q": "【応用】文「I want to make sick people well.」に合う職業は？",
+        "c": [
+          "農家",
+          "教師",
+          "医者",
+          "歌手"
+        ],
+        "a": 2,
+        "exp": "正しい答えは 医者 です。",
+        "src": "OFFLINE",
+        "g": "夢"
+      },
+      {
+        "q": "【応用】文「I want to grow vegetables.」に合う職業は？",
+        "c": [
+          "教師",
+          "歌手",
+          "警察官",
+          "農家"
+        ],
+        "a": 3,
+        "exp": "正しい答えは 農家 です。",
+        "src": "OFFLINE",
+        "g": "夢"
+      },
+      {
+        "q": "【応用】文「I want to teach math.」に合う職業は？",
+        "c": [
+          "教師",
+          "歌手",
+          "警察官",
+          "医者"
+        ],
+        "a": 0,
+        "exp": "正しい答えは 教師 です。",
+        "src": "OFFLINE",
+        "g": "夢"
+      },
+      {
+        "q": "【応用】文「I want to sing on stage.」に合う職業は？",
+        "c": [
+          "警察官",
+          "歌手",
+          "医者",
+          "農家"
+        ],
+        "a": 1,
+        "exp": "正しい答えは 歌手 です。",
+        "src": "OFFLINE",
+        "g": "夢"
+      },
+      {
+        "q": "【応用】文「I want to keep people safe.」に合う職業は？",
+        "c": [
+          "医者",
+          "農家",
+          "警察官",
+          "教師"
+        ],
+        "a": 2,
+        "exp": "正しい答えは 警察官 です。",
+        "src": "OFFLINE",
+        "g": "夢"
+      },
+      {
+        "q": "【応用】文「I saw pyramids in Egypt.」の国は？",
+        "c": [
+          "イタリア",
+          "オーストラリア",
+          "フランス",
+          "エジプト"
+        ],
+        "a": 3,
+        "exp": "正しい答えは エジプト です。",
+        "src": "OFFLINE",
+        "g": "世界"
+      },
+      {
+        "q": "【応用】文「I ate pasta in Italy.」の国は？",
+        "c": [
+          "イタリア",
+          "オーストラリア",
+          "フランス",
+          "インド"
+        ],
+        "a": 0,
+        "exp": "正しい答えは イタリア です。",
+        "src": "OFFLINE",
+        "g": "世界"
+      },
+      {
+        "q": "【応用】文「I saw koalas in Australia.」の国は？",
+        "c": [
+          "フランス",
+          "オーストラリア",
+          "インド",
+          "エジプト"
+        ],
+        "a": 1,
+        "exp": "正しい答えは オーストラリア です。",
+        "src": "OFFLINE",
+        "g": "世界"
+      },
+      {
+        "q": "【応用】文「I visited the Louvre in France.」の国は？",
+        "c": [
+          "インド",
+          "エジプト",
+          "フランス",
+          "イタリア"
+        ],
+        "a": 2,
+        "exp": "正しい答えは フランス です。",
+        "src": "OFFLINE",
+        "g": "世界"
+      },
+      {
+        "q": "【応用】文「I saw the Taj Mahal in India.」の国は？",
+        "c": [
+          "エジプト",
+          "イタリア",
+          "オーストラリア",
+          "インド"
+        ],
+        "a": 3,
+        "exp": "正しい答えは インド です。",
+        "src": "OFFLINE",
+        "g": "世界"
+      },
+      {
+        "q": "【応用】紙を節約するための行動は？",
+        "c": [
+          "Use both sides.",
+          "Turn off lights.",
+          "Turn off the tap.",
+          "Pick up trash."
+        ],
+        "a": 0,
+        "exp": "正しい答えは Use both sides. です。",
+        "src": "OFFLINE",
+        "g": "環境"
+      },
+      {
+        "q": "【応用】電気を節約するための行動は？",
+        "c": [
+          "Turn off the tap.",
+          "Turn off lights.",
+          "Pick up trash.",
+          "Use it again."
+        ],
+        "a": 1,
+        "exp": "正しい答えは Turn off lights. です。",
+        "src": "OFFLINE",
+        "g": "環境"
+      },
+      {
+        "q": "【応用】水を節約するための行動は？",
+        "c": [
+          "Pick up trash.",
+          "Use it again.",
+          "Turn off the tap.",
+          "Use both sides."
+        ],
+        "a": 2,
+        "exp": "正しい答えは Turn off the tap. です。",
+        "src": "OFFLINE",
+        "g": "環境"
+      },
+      {
+        "q": "【応用】町をきれいにするための行動は？",
+        "c": [
+          "Use it again.",
+          "Use both sides.",
+          "Turn off lights.",
+          "Pick up trash."
+        ],
+        "a": 3,
+        "exp": "正しい答えは Pick up trash. です。",
+        "src": "OFFLINE",
+        "g": "環境"
+      },
+      {
+        "q": "【応用】物を再利用するための行動は？",
+        "c": [
+          "Use it again.",
+          "Use both sides.",
+          "Turn off lights.",
+          "Turn off the tap."
+        ],
+        "a": 0,
+        "exp": "正しい答えは Use it again. です。",
+        "src": "OFFLINE",
+        "g": "環境"
+      },
+      {
+        "q": "【応用】「京都へ行きました」の正しい英文は？",
+        "c": [
+          "What did you see?",
+          "I went to Kyoto.",
+          "I want to be a teacher.",
+          "The trip was great."
+        ],
+        "a": 1,
+        "exp": "正しい答えは I went to Kyoto. です。",
+        "src": "OFFLINE",
+        "g": "語順"
+      },
+      {
+        "q": "【応用】「何を見ましたか」の正しい英文は？",
+        "c": [
+          "I want to be a teacher.",
+          "The trip was great.",
+          "What did you see?",
+          "Why do you like it?"
+        ],
+        "a": 2,
+        "exp": "正しい答えは What did you see? です。",
+        "src": "OFFLINE",
+        "g": "語順"
+      },
+      {
+        "q": "【応用】「教師になりたいです」の正しい英文は？",
+        "c": [
+          "The trip was great.",
+          "Why do you like it?",
+          "I went to Kyoto.",
+          "I want to be a teacher."
+        ],
+        "a": 3,
+        "exp": "正しい答えは I want to be a teacher. です。",
+        "src": "OFFLINE",
+        "g": "語順"
+      },
+      {
+        "q": "【応用】「旅行はすばらしかった」の正しい英文は？",
+        "c": [
+          "The trip was great.",
+          "Why do you like it?",
+          "I went to Kyoto.",
+          "What did you see?"
+        ],
+        "a": 0,
+        "exp": "正しい答えは The trip was great. です。",
+        "src": "OFFLINE",
+        "g": "語順"
+      },
+      {
+        "q": "【応用】「なぜそれが好きですか」の正しい英文は？",
+        "c": [
+          "I went to Kyoto.",
+          "Why do you like it?",
+          "What did you see?",
+          "I want to be a teacher."
+        ],
+        "a": 1,
+        "exp": "正しい答えは Why do you like it? です。",
+        "src": "OFFLINE",
+        "g": "語順"
+      }
+    ]
   }
 }

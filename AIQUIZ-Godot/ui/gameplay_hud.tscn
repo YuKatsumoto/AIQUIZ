@@ -181,7 +181,7 @@ grow_horizontal = 2
 grow_vertical = 0
 theme_override_colors/font_color = Color(1, 1, 0.5, 1)
 theme_override_font_sizes/font_size = 20
-text = "[ 任意のキーを押してスタート ]"
+text = "[ Enterを押してスタート ]"
 horizontal_alignment = 1
 
 [node name="GameOverPanel" type="Panel" parent="." unique_id=1069912834]

@@ -1,0 +1,76 @@
+{
+  "grade": 5,
+  "subject": "英語",
+  "keywords": "自己紹介,名前のつづり,誕生日,月日,教科,時間割,できること,欲しい物,国と文化,注文,道案内",
+  "bad_examples": [
+    "現在完了・受動態など中学校文法を必要とする問題",
+    "音声なしでは判断できないアクセント問題",
+    "例外的なつづりだけを問う難問"
+  ],
+  "units": [
+    {
+      "name": "自己紹介と名前",
+      "key_concepts": ["My name is ...", "How do you spell ...?"],
+      "typical_mistakes": ["名前と出身地の答えを取り違える"],
+      "sample_questions": [
+        {"q": "「What's your name?」への自然な返事は？", "c": ["I'm Ken.", "I'm ten.", "I'm from Japan.", "I'm fine."], "a": 0, "e": "名前を聞かれたので I'm Ken. と答えます。"}
+      ]
+    },
+    {
+      "name": "誕生日と月日",
+      "key_concepts": ["January から December", "When is your birthday?"],
+      "typical_mistakes": ["月名と曜日を混同する"],
+      "sample_questions": [
+        {"q": "「When is your birthday?」で尋ねているのは？", "c": ["誕生日", "年齢", "名前", "出身地"], "a": 0, "e": "When は「いつ」を尋ねる言葉です。"}
+      ]
+    },
+    {
+      "name": "教科と時間割",
+      "key_concepts": ["math, science, music, art", "What do you have on ...?"],
+      "typical_mistakes": ["教科名と曜日名を取り違える"],
+      "sample_questions": [
+        {"q": "「火曜日に理科があります」を表す英文は？", "c": ["I have science on Tuesday.", "I like Tuesday.", "Science is blue.", "Tuesday has me."], "a": 0, "e": "曜日の前に on を置き、I have science on Tuesday. と表します。"}
+      ]
+    },
+    {
+      "name": "できること",
+      "key_concepts": ["I can ...", "Can you ...?"],
+      "typical_mistakes": ["can の後を過去形にする"],
+      "sample_questions": [
+        {"q": "「I can swim.」の意味は？", "c": ["私は泳げます", "私は泳ぎました", "私は泳ぎたい", "私は泳ぎません"], "a": 0, "e": "can は「できる」を表します。"}
+      ]
+    },
+    {
+      "name": "好きな物と欲しい物",
+      "key_concepts": ["I like ...", "I want ...", "What do you want?"],
+      "typical_mistakes": ["like と want を取り違える"],
+      "sample_questions": [
+        {"q": "「What do you want?」への自然な返事は？", "c": ["I want a ball.", "I am a ball.", "I play want.", "It's Monday."], "a": 0, "e": "欲しい物は I want ... で答えます。"}
+      ]
+    },
+    {
+      "name": "国と文化",
+      "key_concepts": ["国名と出身地", "I want to visit ..."],
+      "typical_mistakes": ["国名と都市名を混同する"],
+      "sample_questions": [
+        {"q": "「I want to visit Canada.」の意味は？", "c": ["カナダを訪れたい", "カナダ出身です", "カナダが見える", "カナダに住んだ"], "a": 0, "e": "want to visit は「訪れたい」です。"}
+      ]
+    },
+    {
+      "name": "食事と注文",
+      "key_concepts": ["What would you like?", "I'd like ..."],
+      "typical_mistakes": ["注文と好みの質問を混同する"],
+      "sample_questions": [
+        {"q": "店で「I'd like pizza.」と言う意味は？", "c": ["ピザをください", "ピザを作ります", "ピザがありません", "ピザは高いです"], "a": 0, "e": "I'd like ... は丁寧に欲しい物を伝える表現です。"}
+      ]
+    },
+    {
+      "name": "場所と位置",
+      "key_concepts": ["Where is ...?", "in, on, under, by"],
+      "typical_mistakes": ["on と under を取り違える"],
+      "sample_questions": [
+        {"q": "机の下にある本を表す英文は？", "c": ["It's under the desk.", "It's on the desk.", "It is a desk.", "I have a desk."], "a": 0, "e": "under the desk は「机の下に」を表します。"}
+      ]
+    }
+  ]
+}

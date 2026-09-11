@@ -130,7 +130,7 @@ func _build_ui() -> void:
 	hbox.add_child(spacer)
 
 	# カメラモードボタン
-	_camera_btn = _create_btn("🎥 フリー", 120, Color(0.5, 0.5, 0.7))
+	_camera_btn = _create_btn("フリー", 120, Color(0.5, 0.5, 0.7))
 	_camera_btn.pressed.connect(func():
 		if replay_camera:
 			replay_camera.cycle_mode()
@@ -138,20 +138,22 @@ func _build_ui() -> void:
 	hbox.add_child(_camera_btn)
 
 	# 共有ボタン
-	_share_btn = _create_btn("📤 共有", 80, Color(0.6, 0.5, 0.8))
+	_share_btn = _create_btn("共有", 80, Color(0.6, 0.5, 0.8))
 	_share_btn.pressed.connect(_on_share_pressed)
 	hbox.add_child(_share_btn)
 
 	# 戻るボタン
 	_back_btn = _create_btn("✕ 閉じる", 90, Color(0.7, 0.35, 0.35))
 	_back_btn.pressed.connect(func():
-		get_tree().change_scene_to_file("res://ui/main_menu.tscn")
+		if SceneTransition.is_transitioning():
+			return
+		SceneTransition.change_scene("res://ui/main_menu.tscn")
 	)
 	hbox.add_child(_back_btn)
 
 	# 上部: REPLAY 表示
 	var replay_badge := Label.new()
-	replay_badge.text = "🎬 REPLAY"
+	replay_badge.text = "REPLAY"
 	replay_badge.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	replay_badge.offset_left = 20.0
 	replay_badge.offset_top = 16.0
@@ -182,14 +184,19 @@ func _build_ui() -> void:
 	_score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	add_child(_score_label)
 
-	# 操作ヒント
-	var hint := Label.new()
-	hint.text = "右ドラッグ: 回転  WASD: 移動  ホイール: ズーム"
+	var hint := KeyHintRow.new()
+	hint.name = "CameraHint"
+	hint.alignment = BoxContainer.ALIGNMENT_BEGIN
+	hint.add_theme_constant_override("separation", 5)
+	var hint_ink := Color(0.5, 0.55, 0.65)
+	hint.add_text("右ドラッグ: 回転  ", hint_ink, 12)
+	hint.add_spec("WASD", KeycapChip.DEFAULT_ACCENT, KeycapChip.SizeClass.TINY)
+	hint.add_text(" 移動  ホイール: ズーム", hint_ink, 12)
 	hint.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	hint.offset_left = 20.0
 	hint.offset_top = 48.0
-	hint.add_theme_font_size_override("font_size", 12)
-	hint.add_theme_color_override("font_color", Color(0.5, 0.55, 0.65))
+	hint.offset_right = 520.0
+	hint.offset_bottom = 76.0
 	add_child(hint)
 
 func _create_btn(text: String, width: float, accent: Color) -> Button:
@@ -245,5 +252,5 @@ func _on_share_pressed() -> void:
 		var tree := get_tree()
 		if tree:
 			tree.create_timer(3.0).timeout.connect(func():
-				_share_btn.text = "📤 共有"
+				_share_btn.text = "共有"
 			)

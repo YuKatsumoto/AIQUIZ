@@ -1,3 +1,4 @@
+@tool
 class_name StageEnvironment
 extends Node3D
 
@@ -16,9 +17,65 @@ const GRANDSTAND_SCENE: PackedScene = preload(
 const SharkSwimmerScript = preload("res://scripts/world/shark_swimmer.gd")
 const WeatherCycleScript = preload("res://scripts/world/weather_cycle.gd")
 const ConveyorEdgeLightsScript = preload("res://scripts/world/conveyor_edge_lights.gd")
+const GrandstandCrowdScript = preload("res://scripts/world/grandstand_crowd.gd")
 const AIQUIZ_STAGE_SKY_PATH := "res://assets/environment/sky/aiquiz_day_night_sky.tres"
 const GRANDSTAND_BASE_LENGTH: float = 160.0
 const GRANDSTAND_SIDE_OFFSET: float = 32.0
+const GENERATED_STAGE_META: StringName = &"stage_environment_generated"
+
+@export_category("Stage Layout")
+@export var layout_floor_center_z: float = 4.0:
+	set(value):
+		layout_floor_center_z = value
+		_queue_editor_preview_rebuild()
+@export_range(16.0, 512.0, 1.0, "or_greater") var layout_floor_length: float = 160.0:
+	set(value):
+		layout_floor_length = value
+		_queue_editor_preview_rebuild()
+@export var layout_include_back_roller: bool = true:
+	set(value):
+		layout_include_back_roller = value
+		_queue_editor_preview_rebuild()
+@export var layout_include_floor_collision: bool = true:
+	set(value):
+		layout_include_floor_collision = value
+		_queue_editor_preview_rebuild()
+@export var layout_include_sharks: bool = true:
+	set(value):
+		layout_include_sharks = value
+		_queue_editor_preview_rebuild()
+@export var layout_include_grandstands: bool = true:
+	set(value):
+		layout_include_grandstands = value
+		_queue_editor_preview_rebuild()
+@export var layout_include_left_grandstand: bool = true:
+	set(value):
+		layout_include_left_grandstand = value
+		_queue_editor_preview_rebuild()
+@export var layout_include_right_grandstand: bool = true:
+	set(value):
+		layout_include_right_grandstand = value
+		_queue_editor_preview_rebuild()
+@export_range(12.0, 80.0, 0.5, "or_greater") var layout_grandstand_side_offset: float = 32.0:
+	set(value):
+		layout_grandstand_side_offset = value
+		_queue_editor_preview_rebuild()
+
+@export_category("Spectators")
+@export var layout_include_spectators: bool = true:
+	set(value):
+		layout_include_spectators = value
+		_queue_editor_preview_rebuild()
+@export_range(0.0, 1.0, 0.05) var layout_spectator_density: float = 0.85:
+	set(value):
+		layout_spectator_density = value
+		_queue_editor_preview_rebuild()
+
+@export_category("3D Editor Preview")
+@export var editor_preview_enabled: bool = true:
+	set(value):
+		editor_preview_enabled = value
+		_queue_editor_preview_rebuild()
 
 # --- 構成オプション ---
 var _scroll_sign: float = 1.0
@@ -30,6 +87,9 @@ var _include_sharks: bool = false
 var _include_grandstands: bool = false
 var _include_left_grandstand: bool = true
 var _include_right_grandstand: bool = true
+var _grandstand_side_offset: float = GRANDSTAND_SIDE_OFFSET
+var _include_spectators: bool = true
+var _spectator_density: float = 0.85
 
 # --- ノード参照 ---
 var floor_mesh: MeshInstance3D = null
@@ -37,6 +97,9 @@ var environment_node: WorldEnvironment = null
 var directional_light: DirectionalLight3D = null
 var weather_cycle: WeatherCycle = null
 var conveyor_edge_lights: ConveyorEdgeLights = null
+var _ocean_surface: MeshInstance3D = null
+var _grandstands_container: Node3D = null
+var _shark_school: Node3D = null
 
 var _floor_belt_material: ShaderMaterial = null
 var _floor_collision_body: StaticBody3D = null
@@ -55,6 +118,81 @@ var _floor_center_z: float = 0.0
 var _floor_length: float = 144.0
 ## 観客スタンドが最後に同期した床長。動的床の縮小では縮めない。
 var _grandstand_synced_length: float = 0.0
+var _editor_preview_rebuild_queued: bool = false
+
+
+func _ready() -> void:
+	if Engine.is_editor_hint():
+		_queue_editor_preview_rebuild()
+
+
+func gameplay_build_config() -> Dictionary:
+	return {
+		"floor_center_z": layout_floor_center_z,
+		"floor_length": layout_floor_length,
+		"scroll_sign": 1.0,
+		"return_scroll_sign": -1.0,
+		"include_back_roller": layout_include_back_roller,
+		"include_floor_collision": layout_include_floor_collision,
+		"include_sharks": layout_include_sharks,
+		"include_grandstands": layout_include_grandstands,
+		"include_left_grandstand": layout_include_left_grandstand,
+		"include_right_grandstand": layout_include_right_grandstand,
+		"grandstand_side_offset": layout_grandstand_side_offset,
+		"include_spectators": layout_include_spectators,
+		"spectator_density": layout_spectator_density,
+	}
+
+
+func _queue_editor_preview_rebuild() -> void:
+	if not Engine.is_editor_hint() or not is_inside_tree():
+		return
+	if _editor_preview_rebuild_queued:
+		return
+	_editor_preview_rebuild_queued = true
+	call_deferred("_rebuild_editor_preview")
+
+
+func _rebuild_editor_preview() -> void:
+	_editor_preview_rebuild_queued = false
+	if not Engine.is_editor_hint() or not is_inside_tree():
+		return
+	_clear_built_stage()
+	if editor_preview_enabled:
+		build(gameplay_build_config())
+
+
+func _add_generated_stage_child(node: Node) -> void:
+	node.set_meta(GENERATED_STAGE_META, true)
+	add_child(node)
+
+
+func _clear_built_stage() -> void:
+	for child: Node in get_children():
+		if bool(child.get_meta(GENERATED_STAGE_META, false)):
+			remove_child(child)
+			child.free()
+	environment_node = null
+	directional_light = null
+	weather_cycle = null
+	floor_mesh = null
+	conveyor_edge_lights = null
+	_ocean_surface = null
+	_grandstands_container = null
+	_shark_school = null
+	_floor_belt_material = null
+	_floor_collision_body = null
+	_floor_rail_left = null
+	_floor_rail_right = null
+	_conveyor_roller_front = null
+	_conveyor_roller_back = null
+	_conveyor_return_belt = null
+	_conveyor_side_frame_left = null
+	_conveyor_side_frame_right = null
+	_conveyor_return_material = null
+	_conveyor_roller_front_material = null
+	_conveyor_roller_back_material = null
+	_grandstand_synced_length = 0.0
 
 
 ## ステージを構築する。
@@ -63,6 +201,7 @@ var _grandstand_synced_length: float = 0.0
 ##              is_preview, include_sharks, include_grandstands,
 ##              include_left_grandstand, include_right_grandstand
 func build(config: Dictionary = {}) -> void:
+	_clear_built_stage()
 	_floor_center_z = float(config.get("floor_center_z", 0.0))
 	_floor_length = float(config.get("floor_length", 144.0))
 	_scroll_sign = float(config.get("scroll_sign", 1.0))
@@ -74,6 +213,9 @@ func build(config: Dictionary = {}) -> void:
 	_include_grandstands = bool(config.get("include_grandstands", false))
 	_include_left_grandstand = bool(config.get("include_left_grandstand", true))
 	_include_right_grandstand = bool(config.get("include_right_grandstand", true))
+	_grandstand_side_offset = float(config.get("grandstand_side_offset", GRANDSTAND_SIDE_OFFSET))
+	_include_spectators = bool(config.get("include_spectators", true))
+	_spectator_density = clampf(float(config.get("spectator_density", 0.85)), 0.0, 1.0)
 
 	_setup_environment()
 	_setup_lighting()
@@ -161,7 +303,7 @@ func _setup_environment() -> void:
 	environment_node = WorldEnvironment.new()
 	environment_node.name = "WorldEnvironment"
 	environment_node.environment = env
-	add_child(environment_node)
+	_add_generated_stage_child(environment_node)
 
 
 func _setup_lighting() -> void:
@@ -175,7 +317,7 @@ func _setup_lighting() -> void:
 		if _is_preview_environment
 		else GraphicsQuality.gameplay_shadow_enabled(_graphics_quality())
 	)
-	add_child(directional_light)
+	_add_generated_stage_child(directional_light)
 
 
 func _setup_weather_cycle() -> void:
@@ -183,6 +325,7 @@ func _setup_weather_cycle() -> void:
 	if environment_node != null:
 		env = environment_node.environment
 	weather_cycle = attach_weather_cycle(self, env, directional_light)
+	weather_cycle.set_meta(GENERATED_STAGE_META, true)
 
 
 static func attach_weather_cycle(
@@ -204,7 +347,7 @@ func _setup_floor() -> void:
 	var box := BoxMesh.new()
 	box.size = Vector3(StageConstants.FLOOR_WIDTH, StageConstants.FLOOR_THICKNESS, _floor_length)
 	floor_mesh.mesh = box
-	add_child(floor_mesh)
+	_add_generated_stage_child(floor_mesh)
 
 
 func _setup_floor_conveyor() -> void:
@@ -227,7 +370,7 @@ func _setup_floor_conveyor() -> void:
 func _setup_conveyor_edge_lights() -> void:
 	conveyor_edge_lights = ConveyorEdgeLightsScript.new() as ConveyorEdgeLights
 	conveyor_edge_lights.name = "ConveyorEdgeLights"
-	add_child(conveyor_edge_lights)
+	_add_generated_stage_child(conveyor_edge_lights)
 	conveyor_edge_lights.setup(
 		_floor_center_z,
 		_floor_length,
@@ -266,14 +409,16 @@ func _setup_floor_rails() -> void:
 	rail_mat.metallic = 0.22
 
 	_floor_rail_left = MeshInstance3D.new()
+	_floor_rail_left.name = "FloorRailLeft"
 	_floor_rail_left.mesh = rail_mesh
 	_floor_rail_left.material_override = rail_mat
-	add_child(_floor_rail_left)
+	_add_generated_stage_child(_floor_rail_left)
 
 	_floor_rail_right = MeshInstance3D.new()
+	_floor_rail_right.name = "FloorRailRight"
 	_floor_rail_right.mesh = rail_mesh
 	_floor_rail_right.material_override = rail_mat
-	add_child(_floor_rail_right)
+	_add_generated_stage_child(_floor_rail_right)
 
 
 func _setup_conveyor_loop_geometry() -> void:
@@ -288,16 +433,19 @@ func _setup_conveyor_loop_geometry() -> void:
 	# （本編 scroll_sign=+1 → 前 -1 / 後 +1、メニュー scroll_sign=-1 → 前 +1 / 後 -1）
 	_conveyor_roller_front_material = _make_roller_material(-_scroll_sign)
 	_conveyor_roller_front = _make_roller(roller_mesh, _conveyor_roller_front_material)
-	add_child(_conveyor_roller_front)
+	_conveyor_roller_front.name = "ConveyorRollerFront"
+	_add_generated_stage_child(_conveyor_roller_front)
 
 	if _include_back_roller:
 		_conveyor_roller_back_material = _make_roller_material(_scroll_sign)
 		_conveyor_roller_back = _make_roller(roller_mesh, _conveyor_roller_back_material)
-		add_child(_conveyor_roller_back)
+		_conveyor_roller_back.name = "ConveyorRollerBack"
+		_add_generated_stage_child(_conveyor_roller_back)
 
 	var return_mesh := BoxMesh.new()
 	return_mesh.size = Vector3(StageConstants.CONVEYOR_ROLLER_LENGTH, StageConstants.CONVEYOR_RETURN_BELT_THICKNESS, 8.0)
 	_conveyor_return_belt = MeshInstance3D.new()
+	_conveyor_return_belt.name = "ConveyorReturnBelt"
 	_conveyor_return_belt.mesh = return_mesh
 	_conveyor_return_material = ShaderMaterial.new()
 	_conveyor_return_material.shader = CONVEYOR_FLOOR_SHADER
@@ -309,7 +457,7 @@ func _setup_conveyor_loop_geometry() -> void:
 	_conveyor_return_material.set_shader_parameter("rim_inner_x", 12.0)
 	_conveyor_return_material.set_shader_parameter("rim_softness", 0.02)
 	_conveyor_return_belt.material_override = _conveyor_return_material
-	add_child(_conveyor_return_belt)
+	_add_generated_stage_child(_conveyor_return_belt)
 
 	var side_frame_mesh := BoxMesh.new()
 	side_frame_mesh.size = Vector3(StageConstants.CONVEYOR_SIDE_FRAME_WIDTH, StageConstants.CONVEYOR_SIDE_FRAME_HEIGHT, _floor_length)
@@ -319,16 +467,16 @@ func _setup_conveyor_loop_geometry() -> void:
 	side_frame_mat.metallic = 0.16
 
 	_conveyor_side_frame_left = MeshInstance3D.new()
+	_conveyor_side_frame_left.name = "ConveyorSideFrameLeft"
 	_conveyor_side_frame_left.mesh = side_frame_mesh
 	_conveyor_side_frame_left.material_override = side_frame_mat
-	add_child(_conveyor_side_frame_left)
+	_add_generated_stage_child(_conveyor_side_frame_left)
 
 	_conveyor_side_frame_right = MeshInstance3D.new()
+	_conveyor_side_frame_right.name = "ConveyorSideFrameRight"
 	_conveyor_side_frame_right.mesh = side_frame_mesh
 	_conveyor_side_frame_right.material_override = side_frame_mat
-	add_child(_conveyor_side_frame_right)
-
-
+	_add_generated_stage_child(_conveyor_side_frame_right)
 func _make_roller_material(arc_sign: float) -> ShaderMaterial:
 	var mat := ShaderMaterial.new()
 	mat.shader = CONVEYOR_FLOOR_SHADER
@@ -369,20 +517,22 @@ func _make_roller(roller_mesh: CylinderMesh, mat: ShaderMaterial) -> MeshInstanc
 
 
 func _setup_ocean() -> void:
-	add_child(create_ocean_surface())
+	_ocean_surface = create_ocean_surface()
+	_add_generated_stage_child(_ocean_surface)
 
 
 func _setup_grandstands() -> void:
 	var container := Node3D.new()
 	container.name = "Grandstands"
 	container.position = Vector3(0.0, 0.0, _floor_center_z)
-	add_child(container)
+	_grandstands_container = container
+	_add_generated_stage_child(container)
 
 	var side_offsets: Array[float] = []
 	if _include_left_grandstand:
-		side_offsets.append(-GRANDSTAND_SIDE_OFFSET)
+		side_offsets.append(-_grandstand_side_offset)
 	if _include_right_grandstand:
-		side_offsets.append(GRANDSTAND_SIDE_OFFSET)
+		side_offsets.append(_grandstand_side_offset)
 	for side_x: float in side_offsets:
 		var stand := GRANDSTAND_SCENE.instantiate() as Node3D
 		if stand == null:
@@ -395,6 +545,11 @@ func _setup_grandstands() -> void:
 		stand.process_mode = Node.PROCESS_MODE_DISABLED
 		_configure_grandstand_geometry(stand)
 		container.add_child(stand)
+		if _include_spectators and _spectator_density > 0.0:
+			var crowd := GrandstandCrowdScript.new()
+			crowd.name = "Spectators"
+			stand.add_child(crowd)
+			crowd.build(_spectator_density, 1729 if side_x < 0.0 else 7919)
 
 	_sync_grandstands_to_floor()
 
@@ -414,7 +569,7 @@ func _configure_grandstand_geometry(stand: Node3D) -> void:
 
 
 func _sync_grandstands_to_floor() -> void:
-	var container := get_node_or_null("Grandstands") as Node3D
+	var container: Node3D = _grandstands_container
 	if container == null:
 		return
 	# フライオーバー等で伸ばしたスタンドを、カウントダウン以降の短い動的床に合わせて
@@ -428,12 +583,16 @@ func _sync_grandstands_to_floor() -> void:
 		var stand := child as Node3D
 		if stand != null:
 			stand.scale = Vector3(1.0, 1.0, longitudinal_scale)
+			var crowd: Node = stand.get_node_or_null("Spectators")
+			if crowd != null:
+				crowd.sync_length_scale(longitudinal_scale)
 
 
 func _setup_sharks() -> void:
 	var school: Node3D = Node3D.new()
 	school.name = "OceanSharks"
-	add_child(school)
+	_shark_school = school
+	_add_generated_stage_child(school)
 
 	var centers: Array[Vector3]
 	var radii: Array[Vector2]
@@ -492,7 +651,7 @@ func _setup_sharks() -> void:
 
 func get_ocean_sharks() -> Array[SharkSwimmerScript]:
 	var sharks: Array[SharkSwimmerScript] = []
-	var school: Node3D = get_node_or_null("OceanSharks") as Node3D
+	var school: Node3D = _shark_school
 	if school == null:
 		return sharks
 	for child: Node in school.get_children():
@@ -500,6 +659,14 @@ func get_ocean_sharks() -> Array[SharkSwimmerScript]:
 		if shark != null:
 			sharks.append(shark)
 	return sharks
+
+
+func get_grandstand_count() -> int:
+	return _grandstands_container.get_child_count() if _grandstands_container != null else 0
+
+
+func has_ocean_surface() -> bool:
+	return _ocean_surface != null and is_instance_valid(_ocean_surface)
 
 
 func get_floor_center_z() -> float:

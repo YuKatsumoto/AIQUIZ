@@ -39,8 +39,30 @@ const INTRO_SETTLE_SPEED := 0.45
 const INTRO_SETTLE_HOLD := 0.25
 const INTRO_GET_UP_DELAY := 2.00
 const INTRO_GET_UP_DURATION := 2.20
+const INTRO_LADDER_STAND_DELAY := 0.0
+const INTRO_LADDER_STAND_DURATION := 0.20
+const INTRO_LADDER_JUMP_MAX_SECONDS := 4.00
+const INTRO_LADDER_JUMP_ANGULAR_DAMP := 6.0
+const INTRO_LADDER_LAND_LINEAR_DAMP := 10.0
+const INTRO_LADDER_LAND_ANGULAR_DAMP := 14.0
+const INTRO_LADDER_MAX_SPIN := 5.5
+const INTRO_STAND_FOOT_CLEARANCE := 0.02
 const INTRO_READY_RUN_POSE_RATIO := 0.32
+const INTRO_PICKUP_RUN_SPEED := 8.0
+const INTRO_PICKUP_RUN_ANIM_RATE := 1.55
+const INTRO_PICKUP_JUMP_DISTANCE := 1.45
 const INTRO_SUCTION_CAPTURE_DISTANCE := 1.05
+const INTRO_PELVIS_HEIGHT := 0.9
+const INTRO_JUMP_START_SECONDS := 0.18
+const INTRO_JUMP_LAND_SECONDS := 0.32
+const INTRO_LAND_BLEND := 0.35
+const INTRO_JUMP_GRAVITY := 9.8
+const INTRO_CABIN_POSE_KEYS := [
+	"pelvis", "spine", "neck", "head_pivot",
+	"l_shoulder", "r_shoulder", "l_elbow", "r_elbow",
+	"l_wrist", "r_wrist", "l_hip", "r_hip", "l_knee", "r_knee",
+	"l_ankle", "r_ankle", "l_toe", "r_toe",
+]
 const RagdollBuilderScript = preload("res://scripts/world/ragdoll_builder.gd")
 const ActiveRagdollDriverScript = preload("res://scripts/world/active_ragdoll_driver.gd")
 const GHOST_MOUNT_ANIMATION_PATH := "res://assets/animations/Ghost Shark Mount.fbx"
@@ -67,6 +89,12 @@ var _intro_hat_restore: Dictionary = {}
 var _intro_pending_players: Dictionary = {}
 ## Menu departure only: procedural player parts are posed against a live rope rung.
 var _intro_ladder_grabs: Dictionary = {}
+var _intro_pickup_approaches: Dictionary = {}
+## Gameplay arrival: visible cabin sit without a ragdoll.
+var _intro_cabin_rides: Dictionary = {}
+## Gameplay arrival: scripted ladder jump onto the start mark.
+var _intro_jumps: Dictionary = {}
+var _intro_jump_lands: Dictionary = {}
 ## Menu extraction hides the standing runners until the scene leaves.
 var _intro_extracted := false
 
@@ -238,13 +266,183 @@ func prepare_intro_arrival(player_count: int) -> void:
 		_set_rig_scenes_visible(is_p1, false)
 
 
+## Builds the actual drop ragdoll inside the aircraft in a compact crouch.  Every
+## body and joint is held in aircraft-local space until begin_intro_drop() releases
+## this same instance, so the passenger never swaps to a separate prop.
+func begin_intro_cabin_wait(player_index: int, cabin_transform: Transform3D) -> bool:
+	if player_index not in [1, 2] or _intro_ragdolls.has(player_index):
+		return false
+	var is_p1 := player_index == 1
+	var parts: Dictionary = p1_parts if is_p1 else p2_parts
+	var root: Node3D = self if is_p1 else p2_container
+	var pelvis := parts.get("pelvis") as Node3D
+	if root == null or pelvis == null or not is_instance_valid(root) or not is_instance_valid(pelvis):
+		return false
+
+	var original_root_transform := root.global_transform
+	var original_pose := _capture_intro_pose(parts)
+	_apply_intro_cabin_crouch_pose(parts)
+	var pelvis_from_root := root.global_transform.affine_inverse() * pelvis.global_transform
+	root.global_transform = cabin_transform * pelvis_from_root.affine_inverse()
+	var ragdoll := _setup_ragdoll(parts, is_p1)
+	root.global_transform = original_root_transform
+	_restore_intro_pose(parts, original_pose)
+	if ragdoll.is_empty():
+		return false
+
+	_disable_intro_driver(ragdoll)
+	var rag: Dictionary = ragdoll.get("rag", {})
+	var bodies: Dictionary = rag.get("bodies", {})
+	var joints: Dictionary = rag.get("joints", {})
+	_arrange_intro_cabin_head(rag, cabin_transform)
+	var body_local_transforms := {}
+	var joint_local_transforms := {}
+	var collision_layers := {}
+	var collision_masks := {}
+	for key: Variant in bodies:
+		var body := bodies[key] as RigidBody3D
+		if body == null or not is_instance_valid(body):
+			continue
+		body_local_transforms[key] = cabin_transform.affine_inverse() * body.global_transform
+		collision_layers[key] = body.collision_layer
+		collision_masks[key] = body.collision_mask
+		body.freeze = true
+		body.freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
+		body.gravity_scale = 0.0
+		body.collision_layer = 0
+		body.collision_mask = 0
+		body.linear_velocity = Vector3.ZERO
+		body.angular_velocity = Vector3.ZERO
+	for key: Variant in joints:
+		var joint := joints[key] as Joint3D
+		if joint != null and is_instance_valid(joint):
+			joint_local_transforms[key] = cabin_transform.affine_inverse() * joint.global_transform
+
+	_attach_intro_hat(player_index, ragdoll, is_p1)
+	_set_parts_visible(parts, false)
+	_set_rig_scenes_visible(is_p1, false)
+	_intro_pending_players.erase(player_index)
+	ragdoll["cabin_wait"] = {
+		"active": true,
+		"body_local_transforms": body_local_transforms,
+		"joint_local_transforms": joint_local_transforms,
+		"collision_layers": collision_layers,
+		"collision_masks": collision_masks,
+		"last_transform": cabin_transform,
+	}
+	_intro_ragdolls[player_index] = ragdoll
+	return true
+
+
+func _arrange_intro_cabin_head(rag: Dictionary, cabin_transform: Transform3D) -> void:
+	# From below, an upright crouch collapses into the underside of the torso. Pull
+	# the real simulated parts toward the hatch by a small, keyed depth so the head,
+	# folded arms and knees read as one crouched passenger. Nothing here is a prop:
+	# these same bodies and joints are unfrozen at the authored release beat.
+	var bodies: Dictionary = rag.get("bodies", {})
+	var joints: Dictionary = rag.get("joints", {})
+	for body_key: Variant in bodies:
+		if str(body_key) == "anchor":
+			continue
+		var body := bodies[body_key] as RigidBody3D
+		if body == null or not is_instance_valid(body):
+			continue
+		var local_transform := cabin_transform.affine_inverse() * body.global_transform
+		var key := str(body_key)
+		local_transform.origin.y = (
+			0.35 if key == "torso"
+			else -0.10 if key == "head" or key.ends_with("hand") or key.ends_with("foot")
+			else -0.05
+		)
+		body.global_transform = cabin_transform * local_transform
+	for joint_key: Variant in joints:
+		var joint := joints[joint_key] as Joint3D
+		if joint == null or not is_instance_valid(joint):
+			continue
+		var local_transform := cabin_transform.affine_inverse() * joint.global_transform
+		local_transform.origin.y = -0.02
+		joint.global_transform = cabin_transform * local_transform
+	var head := bodies.get("head") as RigidBody3D
+	if head != null and is_instance_valid(head):
+		var head_transform := head.global_transform
+		# Let the crouched passenger peek down through the opening. The head remains
+		# attached to the same neck joint and is only 12 cm past the exterior skin.
+		head_transform.origin = cabin_transform * Vector3(0.0, -0.22, 0.0)
+		head.global_transform = head_transform
+		_add_intro_cabin_face(head, cabin_transform)
+	var neck_joint := joints.get("head") as Joint3D
+	if neck_joint != null and is_instance_valid(neck_joint):
+		var neck_transform := neck_joint.global_transform
+		neck_transform.origin = cabin_transform * Vector3(0.0, -0.05, 0.04)
+		neck_joint.global_transform = neck_transform
+
+
+func _add_intro_cabin_face(head: RigidBody3D, cabin_transform: Transform3D) -> void:
+	if head.get_node_or_null("CabinFaceDetails") != null:
+		return
+	var face := Node3D.new()
+	face.name = "CabinFaceDetails"
+	head.add_child(face)
+	face.global_transform = Transform3D(
+		cabin_transform.basis.orthonormalized(),
+		head.global_position - cabin_transform.basis.y.normalized() * 0.225
+	)
+	var face_material := StandardMaterial3D.new()
+	face_material.albedo_color = Color(0.025, 0.045, 0.075)
+	face_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	for eye_x: float in [-0.075, 0.075]:
+		var eye := MeshInstance3D.new()
+		var eye_mesh := BoxMesh.new()
+		eye_mesh.size = Vector3(0.055, 0.018, 0.055)
+		eye.mesh = eye_mesh
+		eye.material_override = face_material
+		eye.position = Vector3(eye_x, 0.0, 0.045)
+		face.add_child(eye)
+	var mouth := MeshInstance3D.new()
+	var mouth_mesh := BoxMesh.new()
+	mouth_mesh.size = Vector3(0.12, 0.018, 0.026)
+	mouth.mesh = mouth_mesh
+	mouth.material_override = face_material
+	mouth.position = Vector3(0.0, 0.0, -0.055)
+	face.add_child(mouth)
+
+
+func update_intro_cabin_wait(player_index: int, cabin_transform: Transform3D) -> bool:
+	var ragdoll: Dictionary = _intro_ragdolls.get(player_index, {})
+	var cabin_wait: Dictionary = ragdoll.get("cabin_wait", {})
+	if ragdoll.is_empty() or not bool(cabin_wait.get("active", false)):
+		return false
+	var rag: Dictionary = ragdoll.get("rag", {})
+	var bodies: Dictionary = rag.get("bodies", {})
+	var joints: Dictionary = rag.get("joints", {})
+	var body_local_transforms: Dictionary = cabin_wait.get("body_local_transforms", {})
+	for key: Variant in body_local_transforms:
+		var body := bodies.get(key) as RigidBody3D
+		if body == null or not is_instance_valid(body):
+			continue
+		body.global_transform = cabin_transform * body_local_transforms[key]
+		body.linear_velocity = Vector3.ZERO
+		body.angular_velocity = Vector3.ZERO
+	var joint_local_transforms: Dictionary = cabin_wait.get("joint_local_transforms", {})
+	for key: Variant in joint_local_transforms:
+		var joint := joints.get(key) as Joint3D
+		if joint != null and is_instance_valid(joint):
+			joint.global_transform = cabin_transform * joint_local_transforms[key]
+	cabin_wait["last_transform"] = cabin_transform
+	ragdoll["cabin_wait"] = cabin_wait
+	_intro_ragdolls[player_index] = ragdoll
+	return true
+
+
 func begin_intro_drop(
 	player_index: int,
 	release_transform: Transform3D,
 	inherited_velocity: Vector3 = Vector3.ZERO
 ) -> bool:
-	if player_index not in [1, 2] or _intro_ragdolls.has(player_index):
+	if player_index not in [1, 2]:
 		return false
+	if _intro_ragdolls.has(player_index):
+		return _release_intro_cabin_wait(player_index, inherited_velocity)
 	var is_p1 := player_index == 1
 	var parts: Dictionary = p1_parts if is_p1 else p2_parts
 	var root: Node3D = self if is_p1 else p2_container
@@ -261,47 +459,8 @@ func begin_intro_drop(
 	if ragdoll.is_empty():
 		return false
 
-	_go_limp(ragdoll)
-	var intro_driver: ActiveRagdollDriver = ragdoll.get("driver") as ActiveRagdollDriver
-	if intro_driver != null and is_instance_valid(intro_driver):
-		intro_driver.enabled = false
-		intro_driver.set_physics_process(false)
-	var rag: Dictionary = ragdoll.get("rag", {})
-	var bodies: Dictionary = rag.get("bodies", {})
-	var intro_anchor := bodies.get("anchor") as RigidBody3D
-	if intro_anchor != null and is_instance_valid(intro_anchor):
-		intro_anchor.freeze = true
-		intro_anchor.freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
-	var intro_physics_material := PhysicsMaterial.new()
-	intro_physics_material.friction = INTRO_DROP_FRICTION
-	intro_physics_material.bounce = INTRO_DROP_RESTITUTION
-	for key: Variant in bodies:
-		if str(key) == "anchor":
-			continue
-		var body := bodies[key] as RigidBody3D
-		if body == null or not is_instance_valid(body):
-			continue
-		body.sleeping = false
-		body.continuous_cd = true
-		body.contact_monitor = true
-		body.max_contacts_reported = 8
-		body.physics_material_override = intro_physics_material
-		body.linear_damp = INTRO_DROP_LINEAR_DAMP
-		body.angular_damp = INTRO_DROP_ANGULAR_DAMP
-		# Same world velocity on every body: the ragdoll was at rest in the aircraft.
-		body.linear_velocity = inherited_velocity
-		body.angular_velocity = Vector3.ZERO
-
-	var hat: Node3D = _p1_hat_node if is_p1 else _p2_hat_node
-	var head_body := bodies.get("head") as RigidBody3D
-	if hat != null and is_instance_valid(hat) and head_body != null:
-		_intro_hat_restore[player_index] = {
-			"hat": hat,
-			"parent": hat.get_parent(),
-			"transform": hat.transform,
-			"visible": hat.visible,
-		}
-		hat.reparent(head_body, true)
+	_configure_intro_drop_ragdoll(ragdoll, inherited_velocity)
+	_attach_intro_hat(player_index, ragdoll, is_p1)
 
 	_set_parts_visible(parts, false)
 	_set_rig_scenes_visible(is_p1, false)
@@ -317,9 +476,187 @@ func begin_intro_drop(
 	return true
 
 
+func _release_intro_cabin_wait(player_index: int, inherited_velocity: Vector3) -> bool:
+	var ragdoll: Dictionary = _intro_ragdolls.get(player_index, {})
+	var cabin_wait: Dictionary = ragdoll.get("cabin_wait", {})
+	if ragdoll.is_empty() or not bool(cabin_wait.get("active", false)):
+		return false
+	cabin_wait["active"] = false
+	ragdoll["cabin_wait"] = cabin_wait
+	_configure_intro_drop_ragdoll(ragdoll, inherited_velocity, cabin_wait)
+	ragdoll["drop"] = {
+		"was_airborne": false,
+		"floor_contacted": false,
+		"settled": false,
+		"settle_hold": 0.0,
+		"peak_downward_speed": 0.0,
+	}
+	_intro_ragdolls[player_index] = ragdoll
+	return true
+
+
+func _configure_intro_drop_ragdoll(
+	ragdoll: Dictionary,
+	inherited_velocity: Vector3,
+	cabin_wait: Dictionary = {}
+) -> void:
+	_go_limp(ragdoll)
+	_disable_intro_driver(ragdoll)
+	var rag: Dictionary = ragdoll.get("rag", {})
+	var bodies: Dictionary = rag.get("bodies", {})
+	var collision_layers: Dictionary = cabin_wait.get("collision_layers", {})
+	var collision_masks: Dictionary = cabin_wait.get("collision_masks", {})
+	var intro_anchor := bodies.get("anchor") as RigidBody3D
+	if intro_anchor != null and is_instance_valid(intro_anchor):
+		intro_anchor.freeze = true
+		intro_anchor.freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
+	var intro_physics_material := PhysicsMaterial.new()
+	intro_physics_material.friction = INTRO_DROP_FRICTION
+	intro_physics_material.bounce = INTRO_DROP_RESTITUTION
+	for key: Variant in bodies:
+		if str(key) == "anchor":
+			continue
+		var body := bodies[key] as RigidBody3D
+		if body == null or not is_instance_valid(body):
+			continue
+		body.freeze = false
+		body.sleeping = false
+		body.gravity_scale = 1.0
+		body.collision_layer = int(collision_layers.get(key, 2))
+		body.collision_mask = int(collision_masks.get(key, 1))
+		body.continuous_cd = true
+		body.contact_monitor = true
+		body.max_contacts_reported = 8
+		body.physics_material_override = intro_physics_material
+		body.linear_damp = INTRO_DROP_LINEAR_DAMP
+		body.angular_damp = INTRO_DROP_ANGULAR_DAMP
+		# Same world velocity on every body: the ragdoll was at rest in the aircraft.
+		body.linear_velocity = inherited_velocity
+		body.angular_velocity = Vector3.ZERO
+
+
+func _disable_intro_driver(ragdoll: Dictionary) -> void:
+	var intro_driver: ActiveRagdollDriver = ragdoll.get("driver") as ActiveRagdollDriver
+	if intro_driver != null and is_instance_valid(intro_driver):
+		intro_driver.enabled = false
+		intro_driver.set_physics_process(false)
+
+
+func _attach_intro_hat(player_index: int, ragdoll: Dictionary, is_p1: bool) -> void:
+	if _intro_hat_restore.has(player_index):
+		return
+	var rag: Dictionary = ragdoll.get("rag", {})
+	var bodies: Dictionary = rag.get("bodies", {})
+	var hat: Node3D = _p1_hat_node if is_p1 else _p2_hat_node
+	var head_body := bodies.get("head") as RigidBody3D
+	if hat == null or not is_instance_valid(hat) or head_body == null:
+		return
+	_intro_hat_restore[player_index] = {
+		"hat": hat,
+		"parent": hat.get_parent(),
+		"transform": hat.transform,
+		"visible": hat.visible,
+	}
+	hat.reparent(head_body, true)
+	hat.visible = true
+
+
+func _capture_intro_pose(parts: Dictionary) -> Dictionary:
+	var pose := {}
+	for key: String in INTRO_CABIN_POSE_KEYS:
+		var node := parts.get(key) as Node3D
+		if node != null and is_instance_valid(node):
+			pose[key] = node.transform
+	return pose
+
+
+func _restore_intro_pose(parts: Dictionary, pose: Dictionary) -> void:
+	for key: Variant in pose:
+		var node := parts.get(key) as Node3D
+		if node != null and is_instance_valid(node):
+			node.transform = pose[key]
+
+
+func _apply_intro_cabin_sit_pose(parts: Dictionary) -> void:
+	for key: String in INTRO_CABIN_POSE_KEYS:
+		var node := parts.get(key) as Node3D
+		if node != null and is_instance_valid(node):
+			node.rotation = Vector3.ZERO
+	var pelvis := parts.get("pelvis") as Node3D
+	if pelvis != null:
+		pelvis.position = Vector3(0.0, BASE_Y + 0.55, 0.0)
+	var spine := parts.get("spine") as Node3D
+	if spine != null:
+		spine.rotation.x = deg_to_rad(12.0)
+	var neck := parts.get("neck") as Node3D
+	if neck != null:
+		neck.rotation.x = deg_to_rad(-6.0)
+	for prefix: String in ["l_", "r_"]:
+		var shoulder := parts.get(prefix + "shoulder") as Node3D
+		var elbow := parts.get(prefix + "elbow") as Node3D
+		var wrist := parts.get(prefix + "wrist") as Node3D
+		var hip := parts.get(prefix + "hip") as Node3D
+		var knee := parts.get(prefix + "knee") as Node3D
+		var ankle := parts.get(prefix + "ankle") as Node3D
+		if shoulder != null:
+			shoulder.rotation.x = deg_to_rad(-22.0)
+		if elbow != null:
+			elbow.rotation.x = deg_to_rad(-48.0)
+		if wrist != null:
+			wrist.rotation.x = deg_to_rad(10.0)
+		if hip != null:
+			hip.rotation.x = deg_to_rad(-82.0)
+		if knee != null:
+			knee.rotation.x = deg_to_rad(86.0)
+		if ankle != null:
+			ankle.rotation.x = deg_to_rad(-8.0)
+
+
+func _apply_intro_cabin_crouch_pose(parts: Dictionary) -> void:
+	for key: String in INTRO_CABIN_POSE_KEYS:
+		var node := parts.get(key) as Node3D
+		if node != null and is_instance_valid(node):
+			node.rotation = Vector3.ZERO
+	var pelvis := parts.get("pelvis") as Node3D
+	if pelvis != null:
+		pelvis.position = Vector3(0.0, BASE_Y + 0.9, 0.0)
+	var spine := parts.get("spine") as Node3D
+	if spine != null:
+		spine.rotation.x = deg_to_rad(65.0)
+	var neck := parts.get("neck") as Node3D
+	if neck != null:
+		neck.rotation.x = deg_to_rad(-45.0)
+	var head := parts.get("head_pivot") as Node3D
+	if head != null:
+		head.rotation.x = deg_to_rad(-8.0)
+	for prefix: String in ["l_", "r_"]:
+		var shoulder := parts.get(prefix + "shoulder") as Node3D
+		var elbow := parts.get(prefix + "elbow") as Node3D
+		var wrist := parts.get(prefix + "wrist") as Node3D
+		var hip := parts.get(prefix + "hip") as Node3D
+		var knee := parts.get(prefix + "knee") as Node3D
+		var ankle := parts.get(prefix + "ankle") as Node3D
+		if shoulder != null:
+			shoulder.rotation.x = deg_to_rad(-48.0)
+		if elbow != null:
+			elbow.rotation.x = deg_to_rad(-92.0)
+		if wrist != null:
+			wrist.rotation.x = deg_to_rad(18.0)
+		if hip != null:
+			hip.rotation.x = deg_to_rad(-115.0)
+		if knee != null:
+			knee.rotation.x = deg_to_rad(150.0)
+		if ankle != null:
+			ankle.rotation.x = deg_to_rad(-35.0)
+
+
 ## Keeps the landed body physically limp, then interpolates to the standing
 ## pose only when the authored get-up motion actually begins.
-func begin_intro_get_up(player_index: int, landing_target: Vector3) -> bool:
+func begin_intro_get_up(
+	player_index: int,
+	landing_target: Vector3,
+	style: String = ""
+) -> bool:
 	var ragdoll: Dictionary = _intro_ragdolls.get(player_index, {})
 	if ragdoll.is_empty():
 		return false
@@ -333,8 +670,35 @@ func begin_intro_get_up(player_index: int, landing_target: Vector3) -> bool:
 	if torso == null or not is_instance_valid(torso):
 		return false
 
-	# Do not freeze the landing pose.  Extra damping lets the body settle without
-	# taking control away from the ragdoll before the character starts standing.
+	var is_clean := style == "clean"
+	if is_clean:
+		_calm_intro_ragdoll(
+			ragdoll,
+			INTRO_LADDER_LAND_LINEAR_DAMP,
+			INTRO_LADDER_LAND_ANGULAR_DAMP,
+			true
+		)
+		_intro_ragdolls[player_index] = ragdoll
+		_restore_intro_runner_visuals(player_index)
+		var did_land := _begin_intro_jump_land(player_index)
+		ragdoll["recovery"] = {
+			"active": true,
+			"complete": not did_land,
+			"style": style,
+			"settle_elapsed": 0.0,
+			"delay": 0.0,
+			"standing_started": true,
+			"standing_elapsed": 0.0 if did_land else 1.0,
+			"duration": INTRO_LADDER_STAND_DURATION,
+			"landing_target": landing_target,
+			"starts": {},
+			"targets": {},
+		}
+		_intro_ragdolls[player_index] = ragdoll
+		return true
+
+	# Menu limp get-up stays on the ragdoll. Extra damping lets the heap settle
+	# before the authored creepy interpolation takes over.
 	for key: Variant in bodies:
 		if str(key) == "anchor":
 			continue
@@ -349,6 +713,7 @@ func begin_intro_get_up(player_index: int, landing_target: Vector3) -> bool:
 	ragdoll["recovery"] = {
 		"active": true,
 		"complete": false,
+		"style": style,
 		"settle_elapsed": 0.0,
 		"delay": INTRO_GET_UP_DELAY,
 		"standing_started": false,
@@ -362,7 +727,180 @@ func begin_intro_get_up(player_index: int, landing_target: Vector3) -> bool:
 	return true
 
 
-func _apply_intro_ready_run_pose(player_index: int, parts: Dictionary) -> void:
+func _restore_intro_runner_visuals(player_index: int) -> void:
+	var is_p1 := player_index == 1
+	var parts: Dictionary = p1_parts if is_p1 else p2_parts
+	if _intro_hat_restore.has(player_index):
+		var restore: Dictionary = _intro_hat_restore[player_index]
+		var hat := restore.get("hat") as Node3D
+		var original_parent := restore.get("parent") as Node
+		if hat != null and is_instance_valid(hat) and original_parent != null and is_instance_valid(original_parent):
+			hat.reparent(original_parent, false)
+			hat.transform = restore.get("transform", Transform3D.IDENTITY)
+			hat.visible = bool(restore.get("visible", true))
+		_intro_hat_restore.erase(player_index)
+	_set_parts_visible(parts, true)
+	_set_hat_visible(is_p1, true)
+	_set_rig_scenes_visible(is_p1, false)
+	var ragdoll: Dictionary = _intro_ragdolls.get(player_index, {})
+	var container := ragdoll.get("container") as Node3D
+	if container != null and is_instance_valid(container):
+		container.visible = false
+
+
+func _snap_intro_ready_stance(player_index: int, landing: Vector3) -> void:
+	var parts: Dictionary = p1_parts if player_index == 1 else p2_parts
+	if parts.is_empty():
+		return
+	var is_p1 := player_index == 1
+	# Mixamo global-basis copy leaves hang-IK leftovers looking like a crumpled
+	# heap. Reset every authored joint to the planted run silhouette instead.
+	_animate_skeleton(parts, 0.0, 0.0, true, 0.0, not is_p1, 0)
+	var pelvis := parts.get("pelvis") as Node3D
+	if pelvis != null and is_instance_valid(pelvis):
+		pelvis.global_position = landing
+
+
+func _begin_intro_jump_land(player_index: int) -> bool:
+	var jump: Dictionary = _intro_jumps.get(player_index, {})
+	if jump.is_empty():
+		return false
+	var from_pos: Vector3 = jump.get("landing", Vector3.ZERO)
+	var to_pos: Vector3 = jump.get("stand_landing", from_pos)
+	var rig := _p1_rig if player_index == 1 else _p2_rig
+	if rig.resolve_ual_clip(AnimationRig.UAL_JUMP_LAND).is_empty():
+		_snap_intro_ready_stance(player_index, to_pos)
+		return false
+	var land_len := maxf(rig.get_ual_clip_length(AnimationRig.UAL_JUMP_LAND), 0.35)
+	var from_yaw := _intro_contact_yaw(player_index, 0.0)
+	_intro_jump_lands[player_index] = {
+		"elapsed": 0.0,
+		"length": land_len,
+		"from_yaw": from_yaw,
+		"from": from_pos,
+		"to": to_pos,
+		"position": from_pos,
+		"current_yaw": from_yaw,
+	}
+	rig.play_ual_clip(AnimationRig.UAL_JUMP_LAND, true)
+	_apply_intro_jump_land_pose(player_index, from_pos, from_yaw, 0.0)
+	jump["clip"] = AnimationRig.UAL_JUMP_LAND
+	_intro_jumps[player_index] = jump
+	return true
+
+
+func _intro_contact_yaw(player_index: int, facing_yaw: float) -> float:
+	var ragdoll: Dictionary = _intro_ragdolls.get(player_index, {})
+	var rag: Dictionary = ragdoll.get("rag", {})
+	var bodies: Dictionary = rag.get("bodies", {})
+	var torso := bodies.get("torso") as RigidBody3D
+	if torso == null or not is_instance_valid(torso):
+		return facing_yaw
+	var forward := -torso.global_basis.z
+	forward.y = 0.0
+	if forward.length_squared() <= 0.01:
+		return facing_yaw
+	forward = forward.normalized()
+	return atan2(-forward.x, -forward.z)
+
+
+func _apply_intro_jump_land_pose(
+	player_index: int,
+	world_position: Vector3,
+	facing_yaw: float,
+	ratio: float
+) -> void:
+	var parts: Dictionary = p1_parts if player_index == 1 else p2_parts
+	var rig := _p1_rig if player_index == 1 else _p2_rig
+	var played := rig.seek_ual_clip(AnimationRig.UAL_JUMP_LAND, ratio)
+	if played and rig.active_skeleton != null:
+		_apply_skeleton_pose(
+			parts,
+			rig.active_skeleton,
+			rig.active_bone_indices,
+			rig.mirror_x
+		)
+	else:
+		var idle_played := rig.seek_ual_clip(AnimationRig.UAL_IDLE, 0.0)
+		if idle_played and rig.active_skeleton != null:
+			_apply_skeleton_pose(
+				parts,
+				rig.active_skeleton,
+				rig.active_bone_indices,
+				rig.mirror_x
+			)
+		else:
+			_animate_skeleton(parts, 0.0, 0.0, false, 0.0, player_index != 1, 0)
+	var pelvis := parts.get("pelvis") as Node3D
+	if pelvis == null or not is_instance_valid(pelvis):
+		return
+	var anim_basis := pelvis.basis
+	var posed_y := pelvis.global_position.y
+	pelvis.global_position = Vector3(world_position.x, posed_y, world_position.z)
+	pelvis.basis = Basis(Vector3.UP, facing_yaw) * anim_basis
+	_plant_intro_feet_on_floor(parts)
+
+
+func _plant_intro_feet_on_floor(parts: Dictionary) -> void:
+	var pelvis := parts.get("pelvis") as Node3D
+	if pelvis == null or not is_instance_valid(pelvis):
+		return
+	var lowest := _lowest_intro_foot_mesh_y(parts)
+	if not is_finite(lowest):
+		return
+	var desired := StageConstants.FLOOR_TOP_Y + INTRO_STAND_FOOT_CLEARANCE
+	pelvis.global_position.y += desired - lowest
+
+
+func _lowest_intro_mesh_y(parts: Dictionary, keys: Array[String]) -> float:
+	var lowest := INF
+	for key: String in keys:
+		var mesh_instance := parts.get(key) as MeshInstance3D
+		if mesh_instance == null or not is_instance_valid(mesh_instance):
+			continue
+		var aabb := mesh_instance.get_aabb()
+		var xf := mesh_instance.global_transform
+		for corner_index: int in range(8):
+			lowest = minf(lowest, (xf * aabb.get_endpoint(corner_index)).y)
+	return lowest
+
+
+func _lowest_intro_foot_mesh_y(parts: Dictionary) -> float:
+	return _lowest_intro_mesh_y(
+		parts,
+		["l_foot", "r_foot", "l_toe_mesh", "r_toe_mesh", "l_calf", "r_calf"]
+	)
+
+
+func _update_intro_jump_land(player_index: int, delta: float) -> bool:
+	if not _intro_jump_lands.has(player_index):
+		return true
+	var land: Dictionary = _intro_jump_lands[player_index]
+	var elapsed := float(land.get("elapsed", 0.0)) + delta
+	var length := maxf(float(land.get("length", 0.5)), 0.2)
+	var land_t := clampf(elapsed / length, 0.0, 1.0)
+	var from_yaw := float(land.get("from_yaw", 0.0))
+	var current_yaw := lerp_angle(from_yaw, 0.0, smoothstep(0.0, 1.0, land_t))
+	var from_pos: Vector3 = land.get("from", Vector3.ZERO)
+	var to_pos: Vector3 = land.get("to", from_pos)
+	var land_pos := from_pos.lerp(to_pos, smoothstep(0.0, 1.0, land_t))
+	_apply_intro_jump_land_pose(player_index, land_pos, current_yaw, land_t)
+	if land_t >= 1.0:
+		_snap_intro_ready_stance(player_index, to_pos)
+		_intro_jump_lands.erase(player_index)
+		return true
+	land["elapsed"] = elapsed
+	land["current_yaw"] = current_yaw
+	land["position"] = land_pos
+	_intro_jump_lands[player_index] = land
+	if _intro_jumps.has(player_index):
+		var jump: Dictionary = _intro_jumps[player_index]
+		jump["position"] = land_pos
+		_intro_jumps[player_index] = jump
+	return false
+
+
+func _apply_intro_ready_run_pose(player_index: int, parts: Dictionary, elapsed: float = 0.0) -> void:
 	if parts.is_empty():
 		return
 	var is_p1 := player_index == 1
@@ -374,7 +912,7 @@ func _apply_intro_ready_run_pose(player_index: int, parts: Dictionary) -> void:
 			var run_animation := run_player.get_animation(run_animation_name)
 			if run_animation != null:
 				run_player.seek(
-					run_animation.length * INTRO_READY_RUN_POSE_RATIO,
+					fposmod(run_animation.length * INTRO_READY_RUN_POSE_RATIO + elapsed * INTRO_PICKUP_RUN_ANIM_RATE, run_animation.length),
 					true,
 					true
 				)
@@ -385,8 +923,111 @@ func _apply_intro_ready_run_pose(player_index: int, parts: Dictionary) -> void:
 			rig.mirror_x
 		)
 		return
-	var fallback_phase := -0.85 if is_p1 else 0.85
+	var fallback_phase := (-0.85 if is_p1 else 0.85) + elapsed * 8.0 * INTRO_PICKUP_RUN_ANIM_RATE
 	_animate_skeleton(parts, 0.0, 0.0, true, fallback_phase, not is_p1, 0)
+
+
+func _capture_intro_ragdoll_transforms(ragdoll: Dictionary) -> Dictionary:
+	var captured: Dictionary = {}
+	var rag: Dictionary = ragdoll.get("rag", {})
+	var bodies: Dictionary = rag.get("bodies", {})
+	for key: Variant in bodies:
+		if str(key) == "anchor":
+			continue
+		var body := bodies[key] as RigidBody3D
+		if body == null or not is_instance_valid(body):
+			continue
+		captured[key] = body.global_transform
+	return captured
+
+
+func _calm_intro_ragdoll(
+	ragdoll: Dictionary,
+	linear_damp: float,
+	angular_damp: float,
+	freeze_bodies: bool
+) -> void:
+	var rag: Dictionary = ragdoll.get("rag", {})
+	var bodies: Dictionary = rag.get("bodies", {})
+	if freeze_bodies:
+		_disconnect_intro_joints(ragdoll)
+		for key: Variant in bodies:
+			if str(key) == "anchor":
+				continue
+			var freeze_body := bodies[key] as RigidBody3D
+			if freeze_body == null or not is_instance_valid(freeze_body):
+				continue
+			freeze_body.freeze = true
+			freeze_body.freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
+	for key: Variant in bodies:
+		if str(key) == "anchor":
+			continue
+		var body := bodies[key] as RigidBody3D
+		if body == null or not is_instance_valid(body):
+			continue
+		body.linear_velocity = Vector3.ZERO
+		body.angular_velocity = Vector3.ZERO
+		body.linear_damp = linear_damp
+		body.angular_damp = angular_damp
+		body.gravity_scale = 0.0 if freeze_bodies else 1.0
+		var material := body.physics_material_override
+		if material != null:
+			var landed_material := material.duplicate() as PhysicsMaterial
+			if landed_material != null:
+				landed_material.bounce = 0.0
+				landed_material.friction = 1.0
+				body.physics_material_override = landed_material
+		if freeze_bodies:
+			body.sleeping = true
+		else:
+			body.freeze = false
+			body.sleeping = false
+
+
+func _disconnect_intro_joints(ragdoll: Dictionary) -> void:
+	var rag: Dictionary = ragdoll.get("rag", {})
+	var joints: Dictionary = rag.get("joints", {})
+	for key: Variant in joints:
+		var joint := joints[key] as Joint3D
+		if joint == null or not is_instance_valid(joint):
+			continue
+		joint.node_a = NodePath()
+		joint.node_b = NodePath()
+
+
+func _dampen_intro_landing_impact(ragdoll: Dictionary) -> void:
+	var rag: Dictionary = ragdoll.get("rag", {})
+	var bodies: Dictionary = rag.get("bodies", {})
+	for key: Variant in bodies:
+		if str(key) == "anchor":
+			continue
+		var body := bodies[key] as RigidBody3D
+		if body == null or not is_instance_valid(body):
+			continue
+		body.angular_velocity = Vector3.ZERO
+		body.linear_velocity *= 0.22
+		body.linear_damp = maxf(body.linear_damp, 4.5)
+		body.angular_damp = maxf(body.angular_damp, 10.0)
+		var material := body.physics_material_override
+		if material != null:
+			var landed_material := material.duplicate() as PhysicsMaterial
+			if landed_material != null:
+				landed_material.bounce = 0.0
+				landed_material.friction = 1.0
+				body.physics_material_override = landed_material
+
+
+func _limit_intro_ragdoll_spin(ragdoll: Dictionary, max_spin: float) -> void:
+	var rag: Dictionary = ragdoll.get("rag", {})
+	var bodies: Dictionary = rag.get("bodies", {})
+	for key: Variant in bodies:
+		if str(key) == "anchor":
+			continue
+		var body := bodies[key] as RigidBody3D
+		if body == null or not is_instance_valid(body):
+			continue
+		if body.angular_velocity.length() > max_spin:
+			body.angular_velocity = body.angular_velocity.limit_length(max_spin)
 
 
 func _start_intro_get_up_motion(
@@ -403,15 +1044,23 @@ func _start_intro_get_up_motion(
 	if pelvis == null or torso == null or not is_instance_valid(pelvis) or not is_instance_valid(torso):
 		return false
 
-	_apply_intro_ready_run_pose(player_index, parts)
 	var landing_target: Vector3 = recovery.get("landing_target", torso.global_position)
+	_snap_intro_ready_stance(
+		player_index,
+		Vector3(
+			landing_target.x,
+			landing_target.y + INTRO_PELVIS_HEIGHT,
+			landing_target.z
+		)
+	)
 	var target_offset := Vector3(
 		landing_target.x - pelvis.global_position.x,
 		0.0,
 		landing_target.z - pelvis.global_position.z
 	)
-	var starts: Dictionary = {}
+	var starts: Dictionary = recovery.get("starts", {})
 	var targets: Dictionary = {}
+	var keep_starts := not starts.is_empty()
 	for key: Variant in bodies:
 		if str(key) == "anchor":
 			continue
@@ -421,7 +1070,8 @@ func _start_intro_get_up_motion(
 		var target_node := pelvis if str(key) == "torso" else parts.get(str(key)) as Node3D
 		if target_node == null or not is_instance_valid(target_node):
 			return false
-		starts[key] = body.global_transform
+		if not keep_starts:
+			starts[key] = body.global_transform
 		var target_transform := target_node.global_transform
 		target_transform.origin += target_offset
 		targets[key] = target_transform
@@ -431,6 +1081,9 @@ func _start_intro_get_up_motion(
 		body.sleeping = true
 		body.collision_layer = 0
 		body.collision_mask = 0
+		if str(recovery.get("style", "")) == "clean":
+			body.freeze = true
+			body.freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
 
 	if starts.is_empty() or targets.is_empty():
 		return false
@@ -553,6 +1206,24 @@ func _update_intro_drop_physics(delta: float) -> void:
 		if bool(drop.get("was_airborne", false)):
 			if contacting_floor or (near_floor and downward_speed < 2.0):
 				drop["floor_contacted"] = true
+		if bool(drop.get("floor_contacted", false)) and not bool(drop.get("impact_calmed", false)):
+			if _intro_jumps.has(player_index):
+				var jump_state: Dictionary = _intro_jumps[player_index]
+				var impact: Vector3 = jump_state.get("landing", torso.global_position)
+				impact.x = torso.global_position.x
+				impact.z = torso.global_position.z
+				jump_state["landing"] = impact
+				if begin_intro_get_up(
+					int(player_index),
+					jump_state.get("ground", Vector3.ZERO),
+					"clean"
+				):
+					jump_state["stand_started"] = true
+					jump_state["floor_contacted"] = true
+					_intro_jumps[player_index] = jump_state
+			else:
+				_dampen_intro_landing_impact(ragdoll)
+			drop["impact_calmed"] = true
 		if height_above_floor > INTRO_LANDED_TORSO_HEIGHT + 1.25:
 			drop["settled"] = false
 			drop["settle_hold"] = 0.0
@@ -597,8 +1268,31 @@ func _update_intro_get_ups(delta: float) -> void:
 				hold_body.global_transform = hold_starts[key]
 			var delay := maxf(float(recovery.get("delay", INTRO_GET_UP_DELAY)), 0.0)
 			if settle_elapsed >= delay:
+				if str(recovery.get("style", "")) == "clean":
+					var landing_target: Vector3 = recovery.get("landing_target", Vector3.ZERO)
+					_snap_intro_ready_stance(
+						int(player_index),
+						Vector3(
+							landing_target.x,
+							landing_target.y + INTRO_PELVIS_HEIGHT,
+							landing_target.z
+						)
+					)
+					_restore_intro_runner_visuals(int(player_index))
+					recovery["standing_started"] = true
+					recovery["complete"] = true
+					ragdoll["recovery"] = recovery
+					_intro_ragdolls[player_index] = ragdoll
+					continue
 				if not _start_intro_get_up_motion(int(player_index), ragdoll, recovery):
 					continue
+			ragdoll["recovery"] = recovery
+			_intro_ragdolls[player_index] = ragdoll
+			continue
+
+		if str(recovery.get("style", "")) == "clean":
+			if _update_intro_jump_land(int(player_index), delta):
+				recovery["complete"] = true
 			ragdoll["recovery"] = recovery
 			_intro_ragdolls[player_index] = ragdoll
 			continue
@@ -616,13 +1310,19 @@ func _update_intro_get_ups(delta: float) -> void:
 				continue
 			var start_transform: Transform3D = starts[key]
 			var target_transform: Transform3D = targets[key]
-			body.global_transform = _intro_creepy_body_transform(
-				str(key),
-				start_transform,
-				target_transform,
-				progress,
-				int(player_index)
-			)
+			if str(recovery.get("style", "")) == "clean":
+				body.global_transform = start_transform.interpolate_with(
+					target_transform,
+					smoothstep(0.0, 1.0, progress)
+				)
+			else:
+				body.global_transform = _intro_creepy_body_transform(
+					str(key),
+					start_transform,
+					target_transform,
+					progress,
+					int(player_index)
+				)
 
 		recovery["standing_elapsed"] = elapsed
 		if progress >= 1.0:
@@ -647,8 +1347,11 @@ func get_intro_drop_state(player_index: int) -> Dictionary:
 		return {"active": true, "physics_valid": false}
 	var recovery: Dictionary = ragdoll.get("recovery", {})
 	var drop: Dictionary = ragdoll.get("drop", {})
+	var cabin_wait: Dictionary = ragdoll.get("cabin_wait", {})
+	var container := ragdoll.get("container") as Node3D
 	var all_bodies_frozen := true
 	var maximum_body_speed := 0.0
+	var maximum_angular_speed := 0.0
 	for key: Variant in bodies:
 		if str(key) == "anchor":
 			continue
@@ -658,7 +1361,10 @@ func get_intro_drop_state(player_index: int) -> Dictionary:
 		all_bodies_frozen = all_bodies_frozen and (
 			body.freeze or is_zero_approx(body.gravity_scale)
 		)
-		maximum_body_speed = maxf(maximum_body_speed, body.linear_velocity.length())
+		var body_speed := 0.0 if body.freeze else body.linear_velocity.length()
+		var body_spin := 0.0 if body.freeze else body.angular_velocity.length()
+		maximum_body_speed = maxf(maximum_body_speed, body_speed)
+		maximum_angular_speed = maxf(maximum_angular_speed, body_spin)
 	var recovery_duration := maxf(
 		float(recovery.get("duration", INTRO_GET_UP_DURATION)),
 		0.01
@@ -667,10 +1373,13 @@ func get_intro_drop_state(player_index: int) -> Dictionary:
 	return {
 		"active": true,
 		"physics_valid": true,
+		"cabin_waiting": bool(cabin_wait.get("active", false)),
+		"container_instance_id": container.get_instance_id() if container != null else 0,
 		"position": torso.global_position,
 		"linear_velocity": torso.linear_velocity,
 		"speed": torso.linear_velocity.length(),
 		"maximum_body_speed": maximum_body_speed,
+		"maximum_angular_speed": maximum_angular_speed,
 		"all_bodies_frozen": all_bodies_frozen,
 		"sleeping": torso.sleeping,
 		"was_airborne": bool(drop.get("was_airborne", false)),
@@ -700,8 +1409,420 @@ func has_intro_arrival() -> bool:
 		_intro_extracted
 		or not _intro_pending_players.is_empty()
 		or not _intro_ladder_grabs.is_empty()
+		or not _intro_pickup_approaches.is_empty()
+		or not _intro_cabin_rides.is_empty()
+		or not _intro_jumps.is_empty()
+		or not _intro_jump_lands.is_empty()
 		or has_intro_drops()
 	)
+
+
+## Sits the visible procedural runner inside the helicopter without creating a
+## ragdoll. The passenger is shown from the moment the aircraft appears.
+func begin_intro_cabin_ride(player_index: int, cabin_transform: Transform3D) -> bool:
+	if player_index not in [1, 2]:
+		return false
+	if _intro_cabin_rides.has(player_index):
+		return update_intro_cabin_ride(player_index, cabin_transform, true)
+	var parts: Dictionary = p1_parts if player_index == 1 else p2_parts
+	var pelvis := parts.get("pelvis") as Node3D
+	if pelvis == null or not is_instance_valid(pelvis):
+		return false
+	_intro_cabin_rides[player_index] = {
+		"visible": true,
+		"clip": AnimationRig.UAL_CABIN_IDLE,
+	}
+	_intro_pending_players.erase(player_index)
+	return update_intro_cabin_ride(player_index, cabin_transform, true)
+
+
+func update_intro_cabin_ride(
+	player_index: int,
+	cabin_transform: Transform3D,
+	should_show: bool
+) -> bool:
+	if not _intro_cabin_rides.has(player_index):
+		return false
+	var parts: Dictionary = p1_parts if player_index == 1 else p2_parts
+	var pelvis := parts.get("pelvis") as Node3D
+	if pelvis == null or not is_instance_valid(pelvis):
+		return false
+	_apply_intro_cabin_sit_pose(parts)
+	pelvis.global_transform = cabin_transform
+	var state: Dictionary = _intro_cabin_rides[player_index]
+	state["visible"] = should_show
+	_intro_cabin_rides[player_index] = state
+	_set_parts_visible(parts, should_show)
+	_set_hat_visible(player_index == 1, should_show)
+	_set_rig_scenes_visible(player_index == 1, false)
+	return true
+
+
+## Blend the actual hanging body into the cabin without replacing or hiding it.
+func begin_intro_cabin_boarding(player_index: int, cabin_transform: Transform3D) -> bool:
+	if player_index not in [1, 2]:
+		return false
+	var parts: Dictionary = p1_parts if player_index == 1 else p2_parts
+	var pelvis := parts.get("pelvis") as Node3D
+	if pelvis == null:
+		return false
+	var pose: Dictionary = {}
+	for key: String in INTRO_CABIN_POSE_KEYS:
+		var joint := parts.get(key) as Node3D
+		if joint != null:
+			pose[key] = joint.quaternion
+	_intro_cabin_rides[player_index] = {
+		"visible": true,
+		"boarding_start": cabin_transform.affine_inverse() * pelvis.global_transform,
+		"boarding_pose": pose,
+	}
+	_intro_ladder_grabs.erase(player_index)
+	return true
+
+
+func update_intro_cabin_boarding(
+	player_index: int, cabin_transform: Transform3D, progress: float
+) -> bool:
+	if not _intro_cabin_rides.has(player_index):
+		return false
+	var state: Dictionary = _intro_cabin_rides[player_index]
+	var parts: Dictionary = p1_parts if player_index == 1 else p2_parts
+	var pelvis := parts.get("pelvis") as Node3D
+	if pelvis == null:
+		return false
+	var blend := smoothstep(0.0, 1.0, clampf(progress, 0.0, 1.0))
+	var pose: Dictionary = state.get("boarding_pose", {})
+	_apply_intro_cabin_sit_pose(parts)
+	for key: String in pose:
+		var joint := parts.get(key) as Node3D
+		if joint != null and joint != pelvis:
+			var from: Quaternion = pose[key]
+			joint.quaternion = from.slerp(joint.quaternion, blend)
+	var relative: Transform3D = state.get("boarding_start", Transform3D.IDENTITY)
+	pelvis.global_transform = cabin_transform * relative.interpolate_with(Transform3D.IDENTITY, blend)
+	_set_parts_visible(parts, true)
+	_set_hat_visible(player_index == 1, true)
+	_set_rig_scenes_visible(player_index == 1, false)
+	return true
+
+
+func begin_intro_ladder_hang(player_index: int) -> bool:
+	if _intro_cabin_rides.has(player_index):
+		_intro_cabin_rides.erase(player_index)
+	return begin_intro_ladder_grab(player_index)
+
+
+func update_intro_ladder_hang(
+	player_index: int,
+	grip_data: Dictionary,
+	reach_progress: float,
+	swing_angle: float,
+	delta: float
+) -> bool:
+	if not update_intro_ladder_grab(player_index, grip_data, reach_progress, delta):
+		return false
+	var parts: Dictionary = p1_parts if player_index == 1 else p2_parts
+	var pelvis := parts.get("pelvis") as Node3D
+	if pelvis == null or not is_instance_valid(pelvis):
+		return false
+	var inward: Vector3 = grip_data.get("inward", Vector3.ZERO)
+	if inward.length_squared() <= 0.0001:
+		inward = -Vector3(grip_data.get("forward", Vector3.FORWARD))
+		inward.y = 0.0
+	if inward.length_squared() <= 0.0001:
+		inward = Vector3.RIGHT
+	else:
+		inward = inward.normalized()
+	var axis := Vector3.UP.cross(inward)
+	if axis.length_squared() <= 0.0001:
+		axis = Vector3.FORWARD
+	else:
+		axis = axis.normalized()
+	if absf(swing_angle) > 0.0001:
+		var grip_center: Vector3 = grip_data.get("center", pelvis.global_position)
+		var offset := pelvis.global_position - grip_center
+		pelvis.global_position = grip_center + offset.rotated(axis, swing_angle)
+		pelvis.global_basis = Basis(axis, swing_angle) * pelvis.global_basis
+		_apply_intro_ladder_swing_legs(parts, swing_angle)
+		var horizontal: Vector3 = grip_data.get("horizontal", Vector3.RIGHT)
+		var forward: Vector3 = grip_data.get("forward", Vector3.FORWARD)
+		var left_target: Vector3 = grip_data.get("left_hand", grip_center - horizontal * 0.42)
+		var right_target: Vector3 = grip_data.get("right_hand", grip_center + horizontal * 0.42)
+		_solve_intro_ladder_arm(parts, true, left_target, horizontal, forward, 1.0)
+		_solve_intro_ladder_arm(parts, false, right_target, horizontal, forward, 1.0)
+	var grab_state: Dictionary = _intro_ladder_grabs.get(player_index, {})
+	var previous_position: Vector3 = grab_state.get("character_position", pelvis.global_position)
+	if delta > 0.0001:
+		grab_state["swing_velocity"] = (pelvis.global_position - previous_position) / delta
+	grab_state["swing_angle"] = swing_angle
+	grab_state["character_position"] = pelvis.global_position
+	_intro_ladder_grabs[player_index] = grab_state
+	return true
+
+
+func _apply_intro_ladder_swing_legs(parts: Dictionary, swing_angle: float) -> void:
+	var kick := sin(swing_angle) * 0.42
+	for side_data: Array in [["l_", 1.0], ["r_", -0.72]]:
+		var prefix: String = side_data[0]
+		var kick_scale: float = side_data[1]
+		var hip := parts.get(prefix + "hip") as Node3D
+		var knee := parts.get(prefix + "knee") as Node3D
+		if hip != null:
+			hip.rotation.x += kick * kick_scale
+		if knee != null:
+			knee.rotation.x += -kick * 0.55 * kick_scale
+
+
+func begin_intro_ladder_jump(
+	player_index: int,
+	launch_velocity: Vector3,
+	ground_target: Vector3,
+	flight_duration: float,
+	stand_target: Vector3 = Vector3.INF
+) -> bool:
+	if player_index not in [1, 2]:
+		return false
+	var parts: Dictionary = p1_parts if player_index == 1 else p2_parts
+	var pelvis := parts.get("pelvis") as Node3D
+	if pelvis == null or not is_instance_valid(pelvis):
+		return false
+	var origin := pelvis.global_position
+	var release_transform := pelvis.global_transform
+	var landing := Vector3(
+		ground_target.x,
+		ground_target.y + INTRO_PELVIS_HEIGHT,
+		ground_target.z
+	)
+	var stand_ground := stand_target if stand_target.is_finite() else ground_target
+	var stand_landing := Vector3(
+		stand_ground.x,
+		stand_ground.y + INTRO_PELVIS_HEIGHT,
+		stand_ground.z
+	)
+	var duration := maxf(flight_duration, 0.08)
+	_intro_ladder_grabs.erase(player_index)
+	_intro_cabin_rides.erase(player_index)
+	if not begin_intro_drop(player_index, release_transform, launch_velocity):
+		return false
+	_prepare_ladder_jump_ragdoll(player_index)
+	_intro_jumps[player_index] = {
+		"origin": origin,
+		"landing": landing,
+		"ground": stand_ground,
+		"stand_landing": stand_landing,
+		"velocity": launch_velocity,
+		"duration": duration,
+		"elapsed": 0.0,
+		"landed": false,
+		"floor_contacted": false,
+		"stand_started": false,
+		"physical": true,
+		"clip": "physical_ragdoll",
+		"used_clips": [],
+		"source_ready": true,
+		"position": origin,
+	}
+	return true
+
+
+func _prepare_ladder_jump_ragdoll(player_index: int) -> void:
+	var ragdoll: Dictionary = _intro_ragdolls.get(player_index, {})
+	var rag: Dictionary = ragdoll.get("rag", {})
+	var bodies: Dictionary = rag.get("bodies", {})
+	for key: Variant in bodies:
+		if str(key) == "anchor":
+			continue
+		var body := bodies[key] as RigidBody3D
+		if body == null or not is_instance_valid(body):
+			continue
+		body.linear_damp = 0.0
+		body.angular_damp = INTRO_LADDER_JUMP_ANGULAR_DAMP
+		body.gravity_scale = 1.0
+		body.continuous_cd = true
+		var material := body.physics_material_override
+		if material != null:
+			var jump_material := material.duplicate() as PhysicsMaterial
+			if jump_material != null:
+				jump_material.bounce = 0.0
+				jump_material.friction = 0.95
+				body.physics_material_override = jump_material
+
+
+func update_intro_ladder_jump(player_index: int, delta: float) -> Dictionary:
+	if not _intro_jumps.has(player_index):
+		return {"active": false, "landed": false, "progress": 0.0, "physical": true}
+	var state: Dictionary = _intro_jumps[player_index]
+	var elapsed := float(state.get("elapsed", 0.0)) + delta
+	state["elapsed"] = elapsed
+	var duration := maxf(float(state.get("duration", 0.7)), 0.08)
+	var drop := get_intro_drop_state(player_index)
+	if not bool(drop.get("active", false)) or not bool(drop.get("physics_valid", false)):
+		_intro_jumps[player_index] = state
+		return {
+			"active": false,
+			"landed": false,
+			"progress": 0.0,
+			"physical": true,
+		}
+	var torso_position: Vector3 = drop.get("position", state.get("position", Vector3.ZERO))
+	state["position"] = torso_position
+	if not bool(drop.get("floor_contacted", false)):
+		_limit_intro_ragdoll_spin(
+			_intro_ragdolls.get(player_index, {}),
+			INTRO_LADDER_MAX_SPIN
+		)
+	if torso_position.y < StageConstants.FLOOR_TOP_Y - 2.5:
+		_intro_jumps[player_index] = state
+		return {
+			"active": false,
+			"landed": false,
+			"progress": 0.0,
+			"physical": true,
+			"position": torso_position,
+		}
+	if elapsed > INTRO_LADDER_JUMP_MAX_SECONDS and not bool(state.get("landed", false)) and not bool(state.get("floor_contacted", false)):
+		_intro_jumps[player_index] = state
+		return {
+			"active": false,
+			"landed": false,
+			"progress": 1.0,
+			"physical": true,
+			"position": torso_position,
+		}
+	if bool(drop.get("floor_contacted", false)):
+		state["floor_contacted"] = true
+		if not bool(state.get("stand_started", false)):
+			var impact: Vector3 = state.get("landing", Vector3.ZERO)
+			impact.x = torso_position.x
+			impact.z = torso_position.z
+			state["landing"] = impact
+			if begin_intro_get_up(player_index, state.get("ground", Vector3.ZERO), "clean"):
+				state["stand_started"] = true
+			else:
+				_intro_jumps[player_index] = state
+				return {
+					"active": false,
+					"landed": false,
+					"progress": 0.0,
+					"physical": true,
+					"position": torso_position,
+				}
+	if bool(state.get("stand_started", false)):
+		var parts: Dictionary = p1_parts if player_index == 1 else p2_parts
+		var pelvis := parts.get("pelvis") as Node3D
+		if pelvis != null and is_instance_valid(pelvis):
+			state["position"] = pelvis.global_position
+	if bool(drop.get("recovery_complete", false)):
+		state["landed"] = true
+	_intro_jumps[player_index] = state
+	var land: Dictionary = _intro_jump_lands.get(player_index, {})
+	var land_phase := "jump_land" if not land.is_empty() else ""
+	return {
+		"active": true,
+		"landed": bool(state.get("landed", false)),
+		"floor_contacted": bool(state.get("floor_contacted", false)),
+		"physical": true,
+		"progress": clampf(elapsed / duration, 0.0, 1.0),
+		"position": state.get("position", torso_position),
+		"clip": String(state.get("clip", "physical_ragdoll")),
+		"land_phase": land_phase,
+		"facing_yaw": float(land.get("current_yaw", 0.0)),
+	}
+
+
+func complete_intro_ladder_landing(player_index: int, _gs: QuizGameState = null) -> bool:
+	if not _intro_jumps.has(player_index):
+		return true
+	var jump: Dictionary = _intro_jumps[player_index]
+	var landing: Vector3 = jump.get("stand_landing", jump.get("landing", Vector3.ZERO))
+	_snap_intro_ready_stance(player_index, landing)
+	_intro_jumps.erase(player_index)
+	_intro_jump_lands.erase(player_index)
+	_intro_pending_players.erase(player_index)
+	return true
+
+
+func get_intro_jump_state(player_index: int) -> Dictionary:
+	if not _intro_jumps.has(player_index):
+		return {"active": false}
+	var state: Dictionary = _intro_jumps[player_index]
+	var land: Dictionary = _intro_jump_lands.get(player_index, {})
+	var land_phase := "jump_land" if not land.is_empty() else ""
+	return {
+		"active": true,
+		"physical": true,
+		"progress": clampf(
+			float(state.get("elapsed", 0.0)) / maxf(float(state.get("duration", 0.7)), 0.08),
+			0.0,
+			1.0
+		),
+		"landed": bool(state.get("landed", false)),
+		"floor_contacted": bool(state.get("floor_contacted", false)),
+		"clip": String(state.get("clip", "physical_ragdoll")),
+		"used_clips": state.get("used_clips", []),
+		"position": state.get("position", Vector3.ZERO),
+		"origin": state.get("origin", Vector3.ZERO),
+		"landing": state.get("landing", Vector3.ZERO),
+		"velocity": state.get("velocity", Vector3.ZERO),
+		"source_ready": bool(state.get("source_ready", false)),
+		"land_phase": land_phase,
+		"facing_yaw": float(land.get("current_yaw", 0.0)),
+		"stand_landing": state.get("stand_landing", state.get("landing", Vector3.ZERO)),
+	}
+
+
+func _apply_intro_ual_pose(player_index: int, clip_name: String, ratio: float) -> bool:
+	var parts: Dictionary = p1_parts if player_index == 1 else p2_parts
+	var rig := _p1_rig if player_index == 1 else _p2_rig
+	var played := false
+	if ratio < 0.0:
+		played = rig.play_ual_clip(clip_name, false)
+	else:
+		played = rig.seek_ual_clip(clip_name, ratio)
+	if not played or rig.active_skeleton == null:
+		return false
+	_apply_skeleton_pose(
+		parts,
+		rig.active_skeleton,
+		rig.active_bone_indices,
+		rig.mirror_x
+	)
+	return true
+
+
+func cancel_intro_arrival() -> void:
+	_intro_cabin_rides.clear()
+	_intro_jumps.clear()
+	_intro_jump_lands.clear()
+
+
+func prewarm_intro_ladder_clips(player_count: int) -> void:
+	var count := clampi(player_count, 1, 2)
+	var clips: Array[String] = [
+		AnimationRig.UAL_CABIN_IDLE,
+		AnimationRig.UAL_INTERACT,
+		AnimationRig.UAL_JUMP_START,
+		AnimationRig.UAL_JUMP_AIR,
+		AnimationRig.UAL_JUMP_LAND,
+		AnimationRig.UAL_IDLE,
+	]
+	for player_index: int in range(1, count + 1):
+		var is_p1 := player_index == 1
+		var parts: Dictionary = p1_parts if is_p1 else p2_parts
+		var rig := _p1_rig if is_p1 else _p2_rig
+		for clip_name: String in clips:
+			rig.seek_ual_clip(clip_name, 0.0)
+		if rig.active_skeleton != null:
+			_apply_skeleton_pose(
+				parts,
+				rig.active_skeleton,
+				rig.active_bone_indices,
+				rig.mirror_x
+			)
+		var should_show := not _intro_pending_players.has(player_index)
+		_set_parts_visible(parts, should_show)
+		_set_hat_visible(is_p1, should_show)
+		_set_rig_scenes_visible(is_p1, false)
 
 
 ## Locks the menu runners to a deliberate run-ready silhouette before the
@@ -711,12 +1832,91 @@ func prepare_intro_pickup_pose(player_count: int) -> void:
 	var count := clampi(player_count, 1, 2)
 	for player_index: int in range(1, count + 1):
 		var parts: Dictionary = p1_parts if player_index == 1 else p2_parts
-		_apply_intro_ready_run_pose(player_index, parts)
+		# Wait on both feet until the rope has reached its hanging length.
+		_animate_skeleton(parts, 0.0, 0.0, false, 0.0, player_index == 2, 0)
+
+
+## Move the existing avatar across the floor while playing its normal run cycle.
+## The destination is the authored hover point, not an instantaneous rung snap.
+func update_intro_pickup_approach(player_index: int, ground_target: Vector3, delta: float) -> bool:
+	var parts: Dictionary = p1_parts if player_index == 1 else p2_parts
+	var pelvis := parts.get("pelvis") as Node3D
+	if pelvis == null or not is_instance_valid(pelvis):
+		return false
+	if not _intro_pickup_approaches.has(player_index):
+		var destination := Vector3(ground_target.x, pelvis.global_position.y, ground_target.z)
+		var run_direction := (destination - pelvis.global_position).normalized()
+		var total_distance := pelvis.global_position.distance_to(destination)
+		var jump_distance := minf(INTRO_PICKUP_JUMP_DISTANCE, total_distance * 0.40)
+		destination -= run_direction * jump_distance
+		var distance := pelvis.global_position.distance_to(destination)
+		var run_duration := maxf(0.38, distance / (INTRO_PICKUP_RUN_SPEED * 0.875))
+		_intro_pickup_approaches[player_index] = {
+			"start_transform": pelvis.global_transform,
+			"start_pose": _capture_intro_pose(parts),
+			"target": destination,
+			"distance": distance,
+			"duration": run_duration,
+			"takeoff_velocity": run_direction * distance / (run_duration * 0.875),
+			"jump_distance": jump_distance,
+			"elapsed": 0.0,
+			"progress": 0.0,
+		}
+		_set_parts_visible(parts, true)
+		_set_rig_scenes_visible(player_index == 1, false)
+	var state: Dictionary = _intro_pickup_approaches[player_index]
+	var elapsed := float(state["elapsed"])
+	var duration := float(state["duration"])
+	var progress := clampf(elapsed / duration, 0.0, 1.0)
+	var start: Transform3D = state["start_transform"]
+	var target: Vector3 = state["target"]
+	_apply_intro_ready_run_pose(player_index, parts, minf(elapsed, duration))
+	var running_pose := _capture_intro_pose(parts)
+	# Keep the last stride moving into takeoff; do not settle into an idle pose.
+	var enter := smoothstep(0.0, 0.12, elapsed)
+	var start_pose: Dictionary = state["start_pose"]
+	for key: String in INTRO_CABIN_POSE_KEYS:
+		var part := parts.get(key) as Node3D
+		if part != null and running_pose.has(key) and start_pose.has(key):
+			var running: Transform3D = running_pose[key]
+			var original: Transform3D = start_pose[key]
+			part.transform = original.interpolate_with(running, enter)
+	var direction := target - start.origin
+	var facing := start.basis
+	if direction.length_squared() > 0.001:
+		# The avatar's face points along local +Z.
+		facing = Basis(Vector3.UP, atan2(direction.x, direction.z))
+	var turn := smoothstep(0.0, 0.22, elapsed)
+	# Accelerate over the first quarter, then maintain the takeoff speed.
+	var travel := progress * progress / (2.0 * 0.25 * 0.875) if progress < 0.25 else (progress - 0.125) / 0.875
+	pelvis.global_transform = Transform3D(
+		Basis(start.basis.get_rotation_quaternion().slerp(facing.get_rotation_quaternion(), turn)),
+		start.origin.lerp(target, travel)
+	)
+	state["elapsed"] = elapsed + maxf(delta, 0.0)
+	state["progress"] = progress
+	state["character_position"] = pelvis.global_position
+	return progress >= 1.0
+
+
+func get_intro_pickup_approach_state(player_index: int) -> Dictionary:
+	if not _intro_pickup_approaches.has(player_index):
+		return {"active": false}
+	var state: Dictionary = _intro_pickup_approaches[player_index]
+	return {
+		"active": true,
+		"progress": state["progress"],
+		"distance": state["distance"],
+		"duration": state["duration"],
+		"takeoff_velocity": state["takeoff_velocity"],
+		"jump_distance": state["jump_distance"],
+		"character_position": state.get("character_position", Vector3.ZERO),
+	}
 
 
 ## Starts the CC0 reach motion without replacing the visible character with a
 ## ragdoll. The final hand positions are solved against the actual physics rung.
-func begin_intro_ladder_grab(player_index: int) -> bool:
+func begin_intro_ladder_grab(player_index: int, jump_duration: float = 0.62) -> bool:
 	if player_index not in [1, 2]:
 		return false
 	if _intro_ladder_grabs.has(player_index):
@@ -727,12 +1927,17 @@ func begin_intro_ladder_grab(player_index: int) -> bool:
 	if pelvis == null or not is_instance_valid(pelvis):
 		return false
 	var source_ready := rig.play_slot(AnimationRig.SLOT_LADDER_GRAB, true)
+	var approach: Dictionary = _intro_pickup_approaches.get(player_index, {})
 	_intro_ladder_grabs[player_index] = {
 		"start_transform": pelvis.global_transform,
+		"start_pose": _capture_intro_pose(parts),
 		"progress": 0.0,
 		"max_hand_error": INF,
 		"source_animation": "Interact" if source_ready else "procedural_fallback",
 		"source_ready": source_ready,
+		"running_jump": not approach.is_empty(),
+		"jump_duration": jump_duration,
+		"takeoff_velocity": approach.get("takeoff_velocity", Vector3.ZERO),
 	}
 	_set_parts_visible(parts, true)
 	_set_hat_visible(player_index == 1, true)
@@ -776,6 +1981,29 @@ func update_intro_ladder_grab(
 	else:
 		_apply_intro_ready_run_pose(player_index, parts)
 
+	# Start at the actual final walking pose, including the first frame of reach.
+	var start_pose: Dictionary = state.get("start_pose", {})
+	var pose_blend := smoothstep(0.0, 0.25, grab_progress)
+	for key: String in INTRO_CABIN_POSE_KEYS:
+		var part := parts.get(key) as Node3D
+		if part != null and start_pose.has(key):
+			var original: Transform3D = start_pose[key]
+			part.transform = original.interpolate_with(part.transform, pose_blend)
+
+	if bool(state.get("running_jump", false)):
+		# Carry a bent leading knee and trailing leg through the rising jump.
+		var tuck := sin(grab_progress * PI) * (1.0 - smoothstep(0.64, 0.92, grab_progress))
+		for leg: Array in [["l_", -42.0, -68.0], ["r_", 18.0, -42.0]]:
+			var hip := parts.get(str(leg[0]) + "hip") as Node3D
+			var knee := parts.get(str(leg[0]) + "knee") as Node3D
+			if hip != null:
+				hip.rotation.x = lerpf(hip.rotation.x, deg_to_rad(float(leg[1])), tuck)
+			if knee != null:
+				knee.rotation.x = lerpf(knee.rotation.x, deg_to_rad(float(leg[2])), tuck)
+
+	# Secondary spine/neck motion must precede the hand solve; changing the
+	# spine after IK moves both shoulders and pulls the wrists off the rung.
+	_apply_intro_ladder_secondary_pose(parts, grab_progress, Vector3.FORWARD)
 	var rung_center: Vector3 = grip_data.get("center", pelvis.global_position + Vector3.UP)
 	var horizontal: Vector3 = grip_data.get("horizontal", Vector3.RIGHT)
 	var forward: Vector3 = grip_data.get("forward", Vector3.FORWARD)
@@ -803,14 +2031,26 @@ func update_intro_ladder_grab(
 	if left_shoulder != null and right_shoulder != null:
 		var shoulder_midpoint := (left_shoulder.global_position + right_shoulder.global_position) * 0.5
 		var desired_shoulder_midpoint := rung_center + Vector3.DOWN * 0.30 - forward * 0.12
-		pelvis.global_position += (desired_shoulder_midpoint - shoulder_midpoint) * travel
+		if bool(state.get("running_jump", false)):
+			# Use the rendered shoulders to resolve the endpoint, then carry the
+			# run velocity into a forward jump with no stop or positional snap.
+			var shoulder_offset := pelvis.global_basis.inverse() * (shoulder_midpoint - pelvis.global_position)
+			var landing := desired_shoulder_midpoint - target_basis * shoulder_offset
+			var tangent: Vector3 = state.get("takeoff_velocity", Vector3.ZERO) * float(state["jump_duration"])
+			var horizontal_distance := Vector2(landing.x - start_transform.origin.x, landing.z - start_transform.origin.z).length()
+			tangent = tangent.limit_length(horizontal_distance * 2.4)
+			var t := grab_progress
+			var jump_origin := start_transform.origin * (2.0*t*t*t - 3.0*t*t + 1.0) + tangent * (t*t*t - 2.0*t*t + t) + landing * (-2.0*t*t*t + 3.0*t*t)
+			jump_origin.y = lerpf(start_transform.origin.y, landing.y, t) + 4.0*t*(1.0-t)*0.62
+			pelvis.global_position = jump_origin
+		else:
+			pelvis.global_position += (desired_shoulder_midpoint - shoulder_midpoint) * travel
 
 	var left_target: Vector3 = grip_data.get("left_hand", rung_center - horizontal * 0.42)
 	var right_target: Vector3 = grip_data.get("right_hand", rung_center + horizontal * 0.42)
 	var ik_weight := smoothstep(0.34, 0.82, grab_progress)
 	_solve_intro_ladder_arm(parts, true, left_target, horizontal, forward, ik_weight)
 	_solve_intro_ladder_arm(parts, false, right_target, horizontal, forward, ik_weight)
-	_apply_intro_ladder_secondary_pose(parts, grab_progress, forward)
 
 	var left_wrist := parts.get("l_wrist") as Node3D
 	var right_wrist := parts.get("r_wrist") as Node3D
@@ -880,11 +2120,11 @@ func _solve_intro_ladder_arm(
 	var upper_direction := (solved_elbow - shoulder_position).normalized()
 	var lower_direction := (target - solved_elbow).normalized()
 	var shoulder_basis := _basis_with_negative_y(upper_direction, horizontal)
-	shoulder.global_basis = shoulder.global_basis.slerp(shoulder_basis, weight)
+	shoulder.global_basis = Basis(shoulder.global_basis.get_rotation_quaternion().slerp(shoulder_basis.get_rotation_quaternion(), weight))
 	var elbow_basis := _basis_with_negative_y(lower_direction, horizontal)
-	elbow.global_basis = elbow.global_basis.slerp(elbow_basis, weight)
+	elbow.global_basis = Basis(elbow.global_basis.get_rotation_quaternion().slerp(elbow_basis.get_rotation_quaternion(), weight))
 	var hand_basis := _basis_with_negative_y(-forward, horizontal)
-	wrist.global_basis = wrist.global_basis.slerp(hand_basis, weight)
+	wrist.global_basis = Basis(wrist.global_basis.get_rotation_quaternion().slerp(hand_basis.get_rotation_quaternion(), weight))
 
 
 func _basis_with_negative_y(direction: Vector3, reference_x: Vector3) -> Basis:
@@ -1073,15 +2313,20 @@ func complete_intro_drops(gs: QuizGameState) -> void:
 
 
 func cancel_intro_drops() -> void:
+	cancel_intro_arrival()
 	_cleanup_intro_drops(true)
 
 
 func _cleanup_intro_drops(restore_visuals: bool = true) -> void:
 	_intro_pending_players.clear()
+	_intro_cabin_rides.clear()
+	_intro_jumps.clear()
+	_intro_jump_lands.clear()
 	if not _intro_ladder_grabs.is_empty():
 		_p1_rig.stop_all()
 		_p2_rig.stop_all()
 	_intro_ladder_grabs.clear()
+	_intro_pickup_approaches.clear()
 	for player_index: Variant in _intro_hat_restore.keys():
 		var restore: Dictionary = _intro_hat_restore[player_index]
 		var hat := restore.get("hat") as Node3D
@@ -1401,7 +2646,11 @@ func _load_fbx_scene(path: String, node_name: String) -> Variant:
 	
 	# Dedicated ladder rigs select the authored CC0 Interact clip. Other rigs keep
 	# the established Mixamo/highest-track selection contract.
-	var preferred_animation := "Interact" if node_name.ends_with("LadderGrabRig") else ""
+	var preferred_animation := ""
+	if node_name.ends_with("LadderGrabRig"):
+		preferred_animation = "Interact"
+	elif node_name.ends_with("Ual2Rig"):
+		preferred_animation = "Slide_Start"
 	var anim_name := ""
 	var max_tracks := -1
 	for lib_name in ap.get_animation_library_list():

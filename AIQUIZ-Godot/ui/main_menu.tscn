@@ -1,6 +1,10 @@
 [gd_scene format=3 uid="uid://dm4k7xr5qat2w"]
 
 [ext_resource type="Script" uid="uid://cwqgcjlg0spa8" path="res://scripts/ui/main_menu.gd" id="1_main_menu"]
+[ext_resource type="Script" uid="uid://bxl23bmmkgof8" path="res://scripts/ui/menu_metal_button.gd" id="2_0dkrt"]
+[ext_resource type="FontFile" uid="uid://53kaneepfgm4" path="res://resources/fonts/NotoSansJP-Bold.otf" id="2_8uxxo"]
+[ext_resource type="Script" uid="uid://drn7lxs7a1fph" path="res://scripts/ui/menu_config_conveyor.gd" id="3_wk0pr"]
+[ext_resource type="Script" uid="uid://borcxfg5ny6oo" path="res://scripts/ui/menu_config_value.gd" id="4_8uxxo"]
 
 [node name="MainMenu" type="Control" unique_id=551830427]
 layout_mode = 3
@@ -98,6 +102,7 @@ custom_minimum_size = Vector2(260, 80)
 layout_mode = 2
 theme_override_font_sizes/font_size = 22
 text = "10問チャレンジ"
+script = ExtResource("2_0dkrt")
 
 [node name="EndlessBtn" type="Button" parent="VBoxContainer/ModeContainer/ModeButtons" unique_id=1323797647]
 unique_name_in_owner = true
@@ -105,6 +110,7 @@ custom_minimum_size = Vector2(260, 80)
 layout_mode = 2
 theme_override_font_sizes/font_size = 22
 text = "エンドレス"
+script = ExtResource("2_0dkrt")
 
 [node name="ConfigContainer" type="VBoxContainer" parent="VBoxContainer" unique_id=1617737661]
 visible = false
@@ -112,96 +118,267 @@ layout_mode = 2
 theme_override_constants/separation = 10
 
 [node name="ConfigTitle" type="Label" parent="VBoxContainer/ConfigContainer" unique_id=1521038102]
+unique_name_in_owner = true
 layout_mode = 2
+size_flags_vertical = 1
 theme_override_colors/font_color = Color(0.94, 0.96, 1, 1)
 theme_override_font_sizes/font_size = 18
 text = "設定"
 
-[node name="SubjectCarousel" type="HBoxContainer" parent="VBoxContainer/ConfigContainer" unique_id=1533131670]
-layout_mode = 2
-theme_override_constants/separation = 16
-
-[node name="PrevSubjectBtn" type="Button" parent="VBoxContainer/ConfigContainer/SubjectCarousel" unique_id=472162521]
+[node name="MenuConfigConveyor" type="PanelContainer" parent="VBoxContainer/ConfigContainer" unique_id=1468713104]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(60, 44)
+custom_minimum_size = Vector2(372, 180)
+layout_mode = 2
+size_flags_horizontal = 0
+mouse_filter = 1
+accessibility_description = "教科、学年、難易度を選ぶ一体型コンベア"
+script = ExtResource("3_wk0pr")
+
+[node name="ContentMargin" type="MarginContainer" parent="VBoxContainer/ConfigContainer/MenuConfigConveyor" unique_id=793360721]
+layout_mode = 2
+theme_override_constants/margin_left = 6
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_right = 6
+theme_override_constants/margin_bottom = 6
+
+[node name="ConveyorRows" type="VBoxContainer" parent="VBoxContainer/ConfigContainer/MenuConfigConveyor/ContentMargin" unique_id=1914960689]
+custom_minimum_size = Vector2(360, 168)
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="SubjectLane" type="Control" parent="VBoxContainer/ConfigContainer/MenuConfigConveyor/ContentMargin/ConveyorRows" unique_id=1788747387]
+custom_minimum_size = Vector2(360, 52)
+layout_mode = 2
+mouse_filter = 2
+
+[node name="SubjectCarousel" type="HBoxContainer" parent="VBoxContainer/ConfigContainer/MenuConfigConveyor/ContentMargin/ConveyorRows/SubjectLane" unique_id=369097731]
+unique_name_in_owner = true
+layout_mode = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/separation = 6
+
+[node name="PrevSubjectBtn" type="Button" parent="VBoxContainer/ConfigContainer/MenuConfigConveyor/ContentMargin/ConveyorRows/SubjectLane/SubjectCarousel" unique_id=789655714]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(60, 52)
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
 text = "◀"
+script = ExtResource("2_0dkrt")
+compact = true
+arrow_button = true
 
-[node name="CurrentSubjectLabel" type="Label" parent="VBoxContainer/ConfigContainer/SubjectCarousel" unique_id=408463611]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(200, 44)
+[node name="教科BeltWindow" type="Control" parent="VBoxContainer/ConfigContainer/MenuConfigConveyor/ContentMargin/ConveyorRows/SubjectLane/SubjectCarousel" unique_id=335836069]
+clip_contents = true
+custom_minimum_size = Vector2(228, 52)
 layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="SubjectValueSlot" type="Control" parent="VBoxContainer/ConfigContainer/MenuConfigConveyor/ContentMargin/ConveyorRows/SubjectLane/SubjectCarousel/教科BeltWindow" unique_id=662202508]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(176, 44)
+anchors_preset = 0
+anchor_left = 0.5
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -88.0
+offset_top = 4.0
+offset_right = 88.0
+offset_bottom = -4.0
+size_flags_horizontal = 3
+mouse_filter = 2
+accessibility_name = "教科の選択値"
+script = ExtResource("4_8uxxo")
+face_color = Color(0.14117648, 0.32156864, 0.6039216, 1)
+border_color = Color(0.4, 0.52156866, 0.72156864, 1)
+
+[node name="CurrentSubjectLabel" type="Label" parent="VBoxContainer/ConfigContainer/MenuConfigConveyor/ContentMargin/ConveyorRows/SubjectLane/SubjectCarousel/教科BeltWindow/SubjectValueSlot" unique_id=241511141]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(140, 44)
+layout_mode = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(0.95686275, 0.96862745, 0.98039216, 1)
+theme_override_colors/font_shadow_color = Color(0.02, 0.03, 0.05, 0.55)
+theme_override_constants/shadow_offset_x = 1
+theme_override_constants/shadow_offset_y = 2
+theme_override_constants/outline_size = 0
+theme_override_constants/shadow_outline_size = 0
+theme_override_fonts/font = ExtResource("2_8uxxo")
 theme_override_font_sizes/font_size = 22
 text = "算数"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="NextSubjectBtn" type="Button" parent="VBoxContainer/ConfigContainer/SubjectCarousel" unique_id=1554910861]
+[node name="NextSubjectBtn" type="Button" parent="VBoxContainer/ConfigContainer/MenuConfigConveyor/ContentMargin/ConveyorRows/SubjectLane/SubjectCarousel" unique_id=1553129055]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(60, 44)
+custom_minimum_size = Vector2(60, 52)
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
 text = "▶"
+script = ExtResource("2_0dkrt")
+compact = true
+arrow_button = true
 
-[node name="GradeCarousel" type="HBoxContainer" parent="VBoxContainer/ConfigContainer" unique_id=1050008582]
+[node name="GradeLane" type="Control" parent="VBoxContainer/ConfigContainer/MenuConfigConveyor/ContentMargin/ConveyorRows" unique_id=577562040]
+custom_minimum_size = Vector2(360, 52)
 layout_mode = 2
-theme_override_constants/separation = 16
+mouse_filter = 2
 
-[node name="PrevGradeBtn" type="Button" parent="VBoxContainer/ConfigContainer/GradeCarousel" unique_id=741421687]
+[node name="GradeCarousel" type="HBoxContainer" parent="VBoxContainer/ConfigContainer/MenuConfigConveyor/ContentMargin/ConveyorRows/GradeLane" unique_id=444809151]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(60, 44)
+layout_mode = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/separation = 6
+
+[node name="PrevGradeBtn" type="Button" parent="VBoxContainer/ConfigContainer/MenuConfigConveyor/ContentMargin/ConveyorRows/GradeLane/GradeCarousel" unique_id=1326207216]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(60, 52)
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
 text = "◀"
+script = ExtResource("2_0dkrt")
+compact = true
+arrow_button = true
 
-[node name="CurrentGradeLabel" type="Label" parent="VBoxContainer/ConfigContainer/GradeCarousel" unique_id=275495682]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(200, 44)
+[node name="学年BeltWindow" type="Control" parent="VBoxContainer/ConfigContainer/MenuConfigConveyor/ContentMargin/ConveyorRows/GradeLane/GradeCarousel" unique_id=1022391996]
+clip_contents = true
+custom_minimum_size = Vector2(228, 52)
 layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="GradeValueSlot" type="Control" parent="VBoxContainer/ConfigContainer/MenuConfigConveyor/ContentMargin/ConveyorRows/GradeLane/GradeCarousel/学年BeltWindow" unique_id=2109499675]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(176, 44)
+anchors_preset = 0
+anchor_left = 0.5
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -88.0
+offset_top = 4.0
+offset_right = 88.0
+offset_bottom = -4.0
+size_flags_horizontal = 3
+mouse_filter = 2
+accessibility_name = "学年の選択値"
+script = ExtResource("4_8uxxo")
+
+[node name="CurrentGradeLabel" type="Label" parent="VBoxContainer/ConfigContainer/MenuConfigConveyor/ContentMargin/ConveyorRows/GradeLane/GradeCarousel/学年BeltWindow/GradeValueSlot" unique_id=2028552325]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(140, 44)
+layout_mode = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(0.95686275, 0.96862745, 0.98039216, 1)
+theme_override_colors/font_shadow_color = Color(0.02, 0.03, 0.05, 0.55)
+theme_override_constants/shadow_offset_x = 1
+theme_override_constants/shadow_offset_y = 2
+theme_override_constants/outline_size = 0
+theme_override_constants/shadow_outline_size = 0
+theme_override_fonts/font = ExtResource("2_8uxxo")
 theme_override_font_sizes/font_size = 22
 text = "3年生"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="NextGradeBtn" type="Button" parent="VBoxContainer/ConfigContainer/GradeCarousel" unique_id=1093296396]
+[node name="NextGradeBtn" type="Button" parent="VBoxContainer/ConfigContainer/MenuConfigConveyor/ContentMargin/ConveyorRows/GradeLane/GradeCarousel" unique_id=409026814]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(60, 44)
+custom_minimum_size = Vector2(60, 52)
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
 text = "▶"
+script = ExtResource("2_0dkrt")
+compact = true
+arrow_button = true
 
-[node name="DiffCarousel" type="HBoxContainer" parent="VBoxContainer/ConfigContainer" unique_id=1782683493]
+[node name="DifficultyLane" type="Control" parent="VBoxContainer/ConfigContainer/MenuConfigConveyor/ContentMargin/ConveyorRows" unique_id=1372964254]
+custom_minimum_size = Vector2(360, 52)
 layout_mode = 2
-theme_override_constants/separation = 16
+mouse_filter = 2
 
-[node name="PrevDiffBtn" type="Button" parent="VBoxContainer/ConfigContainer/DiffCarousel" unique_id=417652173]
+[node name="DiffCarousel" type="HBoxContainer" parent="VBoxContainer/ConfigContainer/MenuConfigConveyor/ContentMargin/ConveyorRows/DifficultyLane" unique_id=1975515927]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(60, 44)
+layout_mode = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/separation = 6
+
+[node name="PrevDiffBtn" type="Button" parent="VBoxContainer/ConfigContainer/MenuConfigConveyor/ContentMargin/ConveyorRows/DifficultyLane/DiffCarousel" unique_id=1317640584]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(60, 52)
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
 text = "◀"
+script = ExtResource("2_0dkrt")
+compact = true
+arrow_button = true
 
-[node name="CurrentDiffLabel" type="Label" parent="VBoxContainer/ConfigContainer/DiffCarousel" unique_id=1622618868]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(200, 44)
+[node name="難易度BeltWindow" type="Control" parent="VBoxContainer/ConfigContainer/MenuConfigConveyor/ContentMargin/ConveyorRows/DifficultyLane/DiffCarousel" unique_id=1842698550]
+clip_contents = true
+custom_minimum_size = Vector2(228, 52)
 layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="DifficultyValueSlot" type="Control" parent="VBoxContainer/ConfigContainer/MenuConfigConveyor/ContentMargin/ConveyorRows/DifficultyLane/DiffCarousel/難易度BeltWindow" unique_id=1624154179]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(176, 44)
+anchors_preset = 0
+anchor_left = 0.5
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -88.0
+offset_top = 4.0
+offset_right = 88.0
+offset_bottom = -4.0
+size_flags_horizontal = 3
+mouse_filter = 2
+accessibility_name = "難易度の選択値"
+script = ExtResource("4_8uxxo")
+
+[node name="CurrentDiffLabel" type="Label" parent="VBoxContainer/ConfigContainer/MenuConfigConveyor/ContentMargin/ConveyorRows/DifficultyLane/DiffCarousel/難易度BeltWindow/DifficultyValueSlot" unique_id=1710426542]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(140, 44)
+layout_mode = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(0.95686275, 0.96862745, 0.98039216, 1)
+theme_override_colors/font_shadow_color = Color(0.02, 0.03, 0.05, 0.55)
+theme_override_constants/shadow_offset_x = 1
+theme_override_constants/shadow_offset_y = 2
+theme_override_constants/outline_size = 0
+theme_override_constants/shadow_outline_size = 0
+theme_override_fonts/font = ExtResource("2_8uxxo")
 theme_override_font_sizes/font_size = 22
 text = "普通"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="NextDiffBtn" type="Button" parent="VBoxContainer/ConfigContainer/DiffCarousel" unique_id=2059028243]
+[node name="NextDiffBtn" type="Button" parent="VBoxContainer/ConfigContainer/MenuConfigConveyor/ContentMargin/ConveyorRows/DifficultyLane/DiffCarousel" unique_id=1909192467]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(60, 44)
+custom_minimum_size = Vector2(60, 52)
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
 text = "▶"
+script = ExtResource("2_0dkrt")
+compact = true
+arrow_button = true
 
 [node name="OptionsSep" type="HSeparator" parent="VBoxContainer/ConfigContainer" unique_id=515917005]
+unique_name_in_owner = true
 layout_mode = 2
 
 [node name="SettingsRows" type="VBoxContainer" parent="VBoxContainer/ConfigContainer" unique_id=1096878584]
+unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 12
 
@@ -214,26 +391,36 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 44)
 layout_mode = 2
 size_flags_horizontal = 3
+size_flags_stretch_ratio = 1.3
 theme_override_font_sizes/font_size = 18
 text = "出題: OFFLINE (内蔵問題)"
+script = ExtResource("2_0dkrt")
+compact = true
 
 [node name="PlayersToggleBtn" type="Button" parent="VBoxContainer/ConfigContainer/SettingsRows/Row1" unique_id=1489732854]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 44)
 layout_mode = 2
 size_flags_horizontal = 3
+size_flags_stretch_ratio = 0.85
 theme_override_font_sizes/font_size = 18
 text = "2人プレイ"
+script = ExtResource("2_0dkrt")
+compact = true
 
 [node name="CustomizeBtn" type="Button" parent="VBoxContainer/ConfigContainer/SettingsRows/Row1" unique_id=422108296]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 44)
 layout_mode = 2
 size_flags_horizontal = 3
+size_flags_stretch_ratio = 0.85
 theme_override_font_sizes/font_size = 18
 text = "カスタマイズ"
+script = ExtResource("2_0dkrt")
+compact = true
 
 [node name="ConfigBtnRow" type="HBoxContainer" parent="VBoxContainer/ConfigContainer" unique_id=443929402]
+unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 16
 
@@ -243,6 +430,8 @@ custom_minimum_size = Vector2(160, 44)
 layout_mode = 2
 theme_override_font_sizes/font_size = 18
 text = "戻る"
+script = ExtResource("2_0dkrt")
+compact = true
 
 [node name="StartButton" type="Button" parent="VBoxContainer/ConfigContainer/ConfigBtnRow" unique_id=558107480]
 unique_name_in_owner = true
@@ -250,6 +439,9 @@ custom_minimum_size = Vector2(260, 56)
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
 text = "ゲーム開始"
+script = ExtResource("2_0dkrt")
+featured = true
+compact = true
 
 [node name="StatusLabel" type="Label" parent="VBoxContainer" unique_id=852552093]
 layout_mode = 2
@@ -273,6 +465,8 @@ grow_horizontal = 0
 grow_vertical = 0
 theme_override_font_sizes/font_size = 16
 text = "設定 / API状態"
+script = ExtResource("2_0dkrt")
+compact = true
 
 [node name="SettingsPanel" type="Panel" parent="." unique_id=1356014644]
 unique_name_in_owner = true

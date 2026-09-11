@@ -18,5 +18,5 @@ func toggle_pause() -> void:
 	if new_paused:
 		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 	else:
-		if game_state.num_players == 1 and not OS.has_feature("mobile"):
+		if game_state.num_players == 1:
 			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)

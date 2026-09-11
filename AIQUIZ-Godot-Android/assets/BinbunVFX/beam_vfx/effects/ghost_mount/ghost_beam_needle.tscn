@@ -1,0 +1,30 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="PackedScene" path="res://assets/BinbunVFX/beam_vfx/effects/base/base_beam_vfx.tscn" id="1_base"]
+
+[node name="GhostBeamNeedle" instance=ExtResource("1_base")]
+primary_color = Color(0.95, 0.55, 0.2, 1)
+secondary_color = Color(0.96, 0.64, 0.36, 1)
+tertiary_color = Color(0.475, 0.275, 0.1, 1)
+emission = 1.9
+secondary_theme_white_mix = 0.2
+tertiary_theme_darkening = 0.5
+noise_twist = 0.18
+scroll_speed = Vector2(0, 9.5)
+beam_radius = 0.06
+start_radius = 0.11
+start_flare = 0.2
+edge_softness = 0.3
+core_enabled = true
+outer_enabled = false
+flare_1_enabled = true
+flare_2_enabled = false
+start_mesh_enabled = true
+body_particles_enabled = true
+pulse_strength = 0.08
+pulse_frequency = 38.0
+pulse_speed = 42.0
+start_amount = 8
+end_emitting = false
+beam_length = 28.0
+open_amount = 1.0

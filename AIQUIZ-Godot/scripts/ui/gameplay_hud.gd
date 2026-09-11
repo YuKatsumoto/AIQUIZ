@@ -40,6 +40,8 @@ var _rear_edge_warning_time: float = 0.0
 @onready var pl_progress: ProgressBar = $PreloadPanel/ProgressBar
 @onready var pl_status: Label = $PreloadPanel/Status
 @onready var start_prompt_label: Label = $PreloadPanel/StartPromptLabel
+var _start_prompt_row: KeyHintRow = null
+var _start_prompt_kind: String = ""
 
 @onready var game_over_panel: Panel = $GameOverPanel
 @onready var go_title: Label = $GameOverPanel/Title
@@ -81,6 +83,7 @@ func _ready() -> void:
 	preload_panel.visible = false
 	game_over_panel.visible = false
 	history_panel.visible = false
+	_ensure_start_prompt_row()
 
 	# プリロード用プログレスバーのスタイル設定（ダーク背景で見えるように）
 	var pl_bg_style := StyleBoxFlat.new()
@@ -528,7 +531,7 @@ func _show_preloading(dt: float) -> void:
 	game_over_panel.visible = false
 	pl_progress.visible = true
 	pl_status.visible = true
-	start_prompt_label.visible = false
+	_set_start_prompt_visible(false)
 	pl_title.text = "問題を準備中..."
 	pl_subtitle.text = "しばらくお待ちください"
 	pl_subtitle.visible = true
@@ -584,24 +587,23 @@ func _show_waiting_start(dt: float) -> void:
 	if construction_locked:
 		pl_status.text = game_state.status_text
 		pl_progress.visible = false
-		start_prompt_label.visible = false
+		_set_start_prompt_visible(false)
 		return
 	if arrival_locked:
 		pl_status.text = "Characters arriving..." if game_state.use_english_ui \
 			else "キャラクター到着中..."
 		pl_progress.visible = false
-		start_prompt_label.visible = false
+		_set_start_prompt_visible(false)
 		return
-	pl_status.text = "準備完了"
+	if game_state.mode != Constants.MODE_TUTORIAL:
+		pl_title.text = "Ready!" if game_state.use_english_ui else "準備完了！"
+		pl_subtitle.text = "Press Enter to begin" if game_state.use_english_ui else "Enterキーでスタート"
+	pl_status.text = "Ready" if game_state.use_english_ui else "準備完了"
 	pl_progress.visible = false
-	start_prompt_label.visible = true
-	if game_state.mode == Constants.MODE_TUTORIAL:
-		start_prompt_label.text = "[ 任意のキーでチュートリアル開始 ]"
-	else:
-		start_prompt_label.text = "[ 任意のキーを押してスタート ]"
-
+	_refresh_start_prompt(game_state.mode == Constants.MODE_TUTORIAL)
 	_blink_timer += dt
-	start_prompt_label.modulate.a = 0.5 + 0.5 * sin(_blink_timer * 6.0)
+	if _start_prompt_row != null:
+		_start_prompt_row.modulate.a = 0.5 + 0.5 * sin(_blink_timer * 6.0)
 
 
 func _apply_preload_stage_preview_layout() -> void:
@@ -626,14 +628,52 @@ func _apply_preload_stage_preview_layout() -> void:
 	pl_status.offset_top = -45.0
 	pl_status.offset_right = 150.0
 	pl_status.offset_bottom = -15.0
-	start_prompt_label.offset_left = -200.0
-	start_prompt_label.offset_top = -100.0
-	start_prompt_label.offset_right = 200.0
-	start_prompt_label.offset_bottom = -60.0
+	_layout_start_prompt_row()
 	pl_title.add_theme_font_size_override("font_size", 26)
 	pl_subtitle.add_theme_font_size_override("font_size", 18)
 	pl_status.add_theme_font_size_override("font_size", 16)
-	start_prompt_label.add_theme_font_size_override("font_size", 20)
+
+
+func _ensure_start_prompt_row() -> void:
+	if _start_prompt_row != null:
+		return
+	start_prompt_label.visible = false
+	_start_prompt_row = KeyHintRow.new()
+	_start_prompt_row.name = "StartPromptRow"
+	_start_prompt_row.visible = false
+	start_prompt_label.add_sibling(_start_prompt_row)
+	_layout_start_prompt_row()
+
+
+func _layout_start_prompt_row() -> void:
+	if _start_prompt_row == null:
+		return
+	_start_prompt_row.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_start_prompt_row.offset_left = -280.0
+	_start_prompt_row.offset_top = -104.0
+	_start_prompt_row.offset_right = 280.0
+	_start_prompt_row.offset_bottom = -58.0
+
+
+func _set_start_prompt_visible(visible_now: bool) -> void:
+	_ensure_start_prompt_row()
+	start_prompt_label.visible = false
+	_start_prompt_row.visible = visible_now
+
+
+func _refresh_start_prompt(is_tutorial: bool) -> void:
+	_ensure_start_prompt_row()
+	var kind := "tutorial" if is_tutorial else "start"
+	if _start_prompt_kind != kind:
+		_start_prompt_kind = kind
+		_start_prompt_row.reset()
+		_start_prompt_row.add_spec("Enter", KeycapChip.DEFAULT_ACCENT, KeycapChip.SizeClass.NORMAL)
+		_start_prompt_row.add_text(
+			"でチュートリアル開始" if is_tutorial else "を押してスタート",
+			Color(1.0, 1.0, 0.5, 1.0),
+			20
+		)
+	_set_start_prompt_visible(true)
 
 func _update_flyover_message() -> void:
 	message_label.visible = true

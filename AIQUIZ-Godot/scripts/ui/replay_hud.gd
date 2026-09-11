@@ -184,14 +184,19 @@ func _build_ui() -> void:
 	_score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	add_child(_score_label)
 
-	# 操作ヒント
-	var hint := Label.new()
-	hint.text = "右ドラッグ: 回転  WASD: 移動  ホイール: ズーム"
+	var hint := KeyHintRow.new()
+	hint.name = "CameraHint"
+	hint.alignment = BoxContainer.ALIGNMENT_BEGIN
+	hint.add_theme_constant_override("separation", 5)
+	var hint_ink := Color(0.5, 0.55, 0.65)
+	hint.add_text("右ドラッグ: 回転  ", hint_ink, 12)
+	hint.add_spec("WASD", KeycapChip.DEFAULT_ACCENT, KeycapChip.SizeClass.TINY)
+	hint.add_text(" 移動  ホイール: ズーム", hint_ink, 12)
 	hint.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	hint.offset_left = 20.0
 	hint.offset_top = 48.0
-	hint.add_theme_font_size_override("font_size", 12)
-	hint.add_theme_color_override("font_color", Color(0.5, 0.55, 0.65))
+	hint.offset_right = 520.0
+	hint.offset_bottom = 76.0
 	add_child(hint)
 
 func _create_btn(text: String, width: float, accent: Color) -> Button:

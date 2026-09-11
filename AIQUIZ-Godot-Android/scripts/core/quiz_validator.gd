@@ -12,7 +12,8 @@ class_name QuizValidator
 signal validation_completed(valid: Array[QuizItem], invalid_reasons: Array[String])
 
 const MAX_RETRY: int = 2
-const FLASH_MODEL: String = "gemini-3-flash-preview"
+const FLASH_MODEL: String = "gemini-3.6-flash"
+const THINKING_VALIDATION: String = "low"
 
 ## ルールベースのバリデーション（即時・無料）
 func validate_rules(items: Array[QuizItem]) -> Dictionary:
@@ -22,7 +23,17 @@ func validate_rules(items: Array[QuizItem]) -> Dictionary:
 	
 	for item in items:
 		var issues: PackedStringArray = []
-		
+
+		# 文字化けチェック（UTF-8デコード失敗による置換文字 U+FFFD を含む問題は破棄）
+		if _has_mojibake(item.q):
+			issues.append("問題文に文字化け(�)を含む")
+		for i in range(item.c.size()):
+			if _has_mojibake(item.c[i]):
+				issues.append("選択肢%dに文字化け(�)を含む" % i)
+		if _has_mojibake(item.e):
+			# 解説の文字化けは問題本体を捨てず解説だけクリアする
+			item.e = ""
+
 		# 問題文の文字数チェック
 		if item.q.length() > 60:
 			issues.append("問題文が%d文字（60文字超過）" % item.q.length())
@@ -64,6 +75,11 @@ func validate_rules(items: Array[QuizItem]) -> Dictionary:
 	return {"valid": valid, "invalid": invalid, "reasons": reasons}
 
 
+## 文字化け（UTF-8置換文字 U+FFFD = "�"）を含むかどうか
+func _has_mojibake(text: String) -> bool:
+	return text.contains("�")
+
+
 ## LLMベースの正解検証（Flash で独立に解かせる）
 func validate_answers_llm(items: Array[QuizItem], subject: String, grade: int,
 		callback: Callable) -> void:
@@ -71,19 +87,10 @@ func validate_answers_llm(items: Array[QuizItem], subject: String, grade: int,
 		callback.call(items, [])
 		return
 	
-	var proxy := ApiStatusAutoload.get_env("PROXY_URL")
-	var url: String
-	if not proxy.is_empty():
-		url = proxy + "/gemini?model=" + FLASH_MODEL
-	else:
-		var key := ApiStatusAutoload.get_env("GOOGLE_API_KEY")
-		if key.is_empty():
-			key = ApiStatusAutoload.get_env("GEMINI_API_KEY")
-		if key.is_empty():
-			# Can't validate without API key, pass all through
-			callback.call(items, [])
-			return
-		url = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s" % [FLASH_MODEL, key]
+	var url := ApiStatusAutoload.gemini_endpoint(FLASH_MODEL)
+	if url.is_empty():
+		callback.call(items, [])
+		return
 	
 	# Build the verification prompt
 	var quiz_data := []
@@ -113,7 +120,11 @@ func validate_answers_llm(items: Array[QuizItem], subject: String, grade: int,
 	
 	var body := JSON.stringify({
 		"contents": [{"parts": [{"text": prompt}]}],
-		"generationConfig": {"temperature": 0.1, "responseMimeType": "application/json"}
+		"generationConfig": {
+			"temperature": 0.1,
+			"responseMimeType": "application/json",
+			"thinkingConfig": {"thinkingLevel": THINKING_VALIDATION}
+		}
 	})
 	
 	http.request_completed.connect(func(result: int, response_code: int, _h, b: PackedByteArray):
@@ -132,8 +143,10 @@ func validate_answers_llm(items: Array[QuizItem], subject: String, grade: int,
 					
 					if check == null:
 						# No validation result, pass through
+						item.validated = true
 						valid_items.append(item)
 					elif check.get("claimed_ok", true) and check.get("grade_ok", true):
+						item.validated = true
 						valid_items.append(item)
 					else:
 						var issue: String = check.get("issue", "不明な問題")
@@ -147,6 +160,7 @@ func validate_answers_llm(items: Array[QuizItem], subject: String, grade: int,
 							if correct_idx >= 0 and correct_idx < item.c.size():
 								# Fix the answer and include the item
 								item.a = correct_idx
+								item.validated = true
 								valid_items.append(item)
 								invalid_reasons[invalid_reasons.size() - 1] += "（正解を修正して採用）"
 								print("[QuizValidator] Fixed answer: %s → %d" % [item.q.left(30), correct_idx])
@@ -158,7 +172,7 @@ func validate_answers_llm(items: Array[QuizItem], subject: String, grade: int,
 		http.queue_free()
 		callback.call(valid_items, invalid_reasons)
 	)
-	http.request(url, ApiStatusAutoload.get_proxy_headers() if not proxy.is_empty() else ["Content-Type: application/json"], HTTPClient.METHOD_POST, body)
+	http.request(url, ApiStatusAutoload.get_proxy_headers(), HTTPClient.METHOD_POST, body)
 
 
 func _parse_validation_results(text: String) -> Array:

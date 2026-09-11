@@ -1,6 +1,10 @@
 extends RefCounted
 class_name QuizGameState
 
+const DuoTutorialFlowScript = preload("res://scripts/core/tutorial/duo_tutorial_flow.gd")
+const SoloTutorialFlowScript = preload("res://scripts/core/tutorial/solo_tutorial_flow.gd")
+const ToonPresets = preload("res://scripts/cosmetics/character_toon_presets.gd")
+
 ## ゲーム状態管理クラス
 ## Python版 game_state.py の QuizGameState (638行) を移植
 
@@ -9,6 +13,23 @@ signal quiz_loaded(quiz: QuizItem)
 signal correct_answer
 signal wrong_answer(message: String)
 signal game_cleared(message: String)
+signal player_entered_ocean(player_index: int, local_position: Vector3)
+signal player_scrolled_out(player_index: int)
+signal tutorial_presentation_requested(presentation_id: String, context: Dictionary)
+signal tutorial_presentation_finished(presentation_id: String)
+signal tutorial_task_completed(player_index: int, task_id: String)
+signal tutorial_customize_handoff_requested
+signal result_ceremony_phase_changed(phase: int)
+
+enum ResultCeremonyPhase {
+	NONE,
+	ASSEMBLE,
+	MEADOW_RUN,
+	SCORE_ROLL,
+	VERDICT,
+	EFFECT,
+	INTERACTIVE,
+}
 
 var provider: QuizProvider
 var use_english_ui: bool = false
@@ -21,8 +42,6 @@ var difficulty: String = "普通"
 var mode: String = Constants.MODE_TEN
 var llm_mode: String = "ONLINE"
 var menu_step: String = Constants.MENU_STEP_MODE
-# メニュー背景のアトラクトデモ用: 分析送信などプレイヤー由来の副作用を止める
-var is_demo: bool = false
 
 # --- Pre-Tutorial State Backup ---
 var pre_tutorial_subject: String = "算数"
@@ -30,6 +49,22 @@ var pre_tutorial_grade: int = 3
 var pre_tutorial_difficulty: String = "普通"
 var pre_tutorial_mode: String = Constants.MODE_TEN
 var pre_tutorial_llm_mode: String = "ONLINE"
+var pre_tutorial_num_players: int = 2
+var _tutorial_backup_valid: bool = false
+
+# --- Tutorial ---
+## 海に落ちてサメに襲われた後、安全な位置へ戻すまでに見せる演出の長さ。
+## 壁への激突（WALL_DEATH_SEQUENCE_DURATION）より短くして間延びを避ける。
+const TUTORIAL_OCEAN_RECOVERY_DURATION := 2.4
+
+var tutorial_ui_revision: int = 0
+## 1Pは SoloTutorialFlow、ローカル2Pは DuoTutorialFlow。同じメソッド面を持つ。
+var tutorial_flow: RefCounted = null
+## 死亡演出やミスからの復帰先。クイズ中は現在の壁の手前、それ以外はステップ開始位置。
+var _tutorial_safe_z: float = 0.0
+## 実践終了後、メニュー内カスタマイズツアーへ引き継ぐセッション内フラグ。
+var _pending_solo_customize_tour: bool = false
+var _pending_customize_tour_course: String = ""
 
 # --- Player 1 ---
 var score: int = 0
@@ -48,9 +83,6 @@ var player_vel_y: float = 0.0
 var player_vel_z: float = 0.0
 var world_scroll_z: float = 0.0
 var current_wall_index: int = 0
-var target_player_x: float = 0.0
-var mobile_lane_mode: bool = false
-
 
 var message_text: String = ""
 var status_text: String = ""
@@ -92,8 +124,16 @@ var flyover_duration: float = 3.8  # フライオーバー全体の秒数 (ド�
 var flyover_total_walls: int = 10
 
 # --- Multiplayer ---
-var num_players: int = 1
+var num_players: int = 2
 var p1_alive: bool = true
+var p1_wall_impact: bool = false
+## 地面にいるプレイヤーが有効な床を外れたら、リセットまで落下を確定する。
+## 入力で床範囲へ戻っても空中から再接地させないための履歴フラグ。
+var p1_fall_committed: bool = false
+var p1_waiting_for_shark: bool = false
+var p1_shark_killed: bool = false
+var p1_ocean_float_time: float = 0.0
+var p1_ocean_local_z: float = 0.0
 var p1_emote: int = 0
 
 var player2_x: float = 0.0
@@ -103,24 +143,71 @@ var player2_score: int = 0
 var player2_vel_y: float = 0.0
 var player2_vel_z: float = 0.0
 var p2_alive: bool = true
+var p2_wall_impact: bool = false
+var p2_fall_committed: bool = false
+var p2_waiting_for_shark: bool = false
+var p2_shark_killed: bool = false
+var p2_ocean_float_time: float = 0.0
+var p2_ocean_local_z: float = 0.0
 var p2_emote: int = 0
 var p1_moving_back: bool = false
 var p2_moving_back: bool = false
+var p1_external_velocity: Vector2 = Vector2.ZERO
+var p2_external_velocity: Vector2 = Vector2.ZERO
+var p1_external_control_lock: float = 0.0
+var p2_external_control_lock: float = 0.0
+## 走行FBXの speed_scale 倍率（メニュープレビュー前進時など）
+var p1_run_anim_speed_mult: float = 1.0
+var p2_run_anim_speed_mult: float = 1.0
 var p1_emote_lock_timer: float = 0.0
 var p2_emote_lock_timer: float = 0.0
 var p1_hat: int = 0
 var p2_hat: int = 0
+var p1_toon_preset: int = ToonPresets.STANDARD
+var p2_toon_preset: int = ToonPresets.STANDARD
+var is_replay: bool = false
 var p1_emote_selected: int = 0  # メニューで選択したデフォルトエモートID
 var p2_emote_selected: int = 0
 # エモートスロット: P1はキー1,2,3 / P2はキー8,9,0 にそれぞれエモートIDを割り当て
-var p1_emote_slots: Array[int] = [1, 2, 3]  # デフォルト: Step Hip Hop, Gangnam, Slide
-var p2_emote_slots: Array[int] = [1, 2, 3]
+var p1_emote_slots: Array[int] = [18, 19, 13]  # Hokey Pokey, Wave Hip Hop, YMCA
+var p2_emote_slots: Array[int] = [18, 19, 17]  # Hokey Pokey, Wave Hip Hop, Running Man
 
 var player2_game_over_timer: float = 0.0
 
 # --- Goal Race (2P 10問モード) ---
 var goal_z: float = 0.0
 var goal_winner: int = 0  # 0=未確定, 1=P1, 2=P2
+
+# --- Local 2P result ceremony ---
+const RESULT_GOAL_WAIT_OFFSET: float = 1.8
+const RESULT_MEADOW_ENTRY_OFFSET: float = 2.0
+const RESULT_MEADOW_FINISH_OFFSET: float = 13.0
+const RESULT_PLAYER_X: float = 2.2
+const RESULT_ASSEMBLE_LIVING_DURATION: float = 0.6
+const RESULT_ASSEMBLE_GHOST_DURATION: float = 1.5
+const RESULT_MEADOW_RUN_DURATION: float = 2.6
+const RESULT_SCORE_ROLL_DURATION: float = 2.4
+const RESULT_VERDICT_DURATION: float = 1.0
+const RESULT_VERDICT_REVEAL_DELAY: float = 0.55
+const RESULT_EFFECT_DURATION: float = 2.4
+
+## GameWorld owns this runtime gate so online hosts and replay playback keep the
+## existing immediate-result contract without serializing ceremony-only state.
+var result_ceremony_enabled: bool = false
+var result_presentation_active: bool = false
+var result_ceremony_phase: int = ResultCeremonyPhase.NONE
+var result_ceremony_phase_elapsed: float = 0.0
+var result_ceremony_elapsed: float = 0.0
+var goal_reached_mask: int = 0
+var result_winner: int = 0  # 0=draw, 1=P1, 2=P2
+var result_ghost_mask: int = 0
+var result_p1_score: int = 0
+var result_p2_score: int = 0
+var result_p1_position: Vector3 = Vector3.ZERO
+var result_p2_position: Vector3 = Vector3.ZERO
+var _result_p1_start_position: Vector3 = Vector3.ZERO
+var _result_p2_start_position: Vector3 = Vector3.ZERO
+var _result_round_closed: bool = false
 
 var p1_jump_trigger: bool = false
 var p2_jump_trigger: bool = false
@@ -131,10 +218,19 @@ var _active_wall_speed: float = 6.0
 # --- Physics Constants ---
 const GRAVITY: float = 18.0
 const JUMP_FORCE: float = 7.0
+const PROPELLER_DESCENT_GRAVITY_SCALE: float = 0.65
 const FLOOR_HALF_WIDTH: float = 12.0
 const FLOOR_BACK_Z: float = -12.5
 const FLOOR_PLAY_FRONT_Z: float = 139.5
 const FLOOR_RACE_FRONT_Z: float = 400.0
+const SCROLL_OUT_LIMIT: float = 14.0
+const PLAYER_BODY_RADIUS: float = 0.62
+const PLAYER_BODY_HEIGHT: float = 1.9
+const PLAYER_BODY_COLLISION_EPSILON: float = 0.0001
+const EXTERNAL_IMPULSE_DECELERATION: float = 10.0
+const WALL_RAGDOLL_DURATION: float = 2.0
+const WALL_LIMB_SCATTER_DURATION: float = 2.0
+const WALL_DEATH_SEQUENCE_DURATION: float = WALL_RAGDOLL_DURATION + WALL_LIMB_SCATTER_DURATION
 
 
 func _init(quiz_provider: QuizProvider = null) -> void:
@@ -143,12 +239,28 @@ func _init(quiz_provider: QuizProvider = null) -> void:
 	else:
 		provider = QuizProvider.new()
 	tuning = GameTuning.new()
+	_install_tutorial_flow(GameManager.TUTORIAL_COURSE_SOLO)
 	refresh_status_text()
 
-	# GameManagerからエモート設定をロード
-	p1_emote_slots = GameManager.p1_emote_slots.duplicate()
-	p2_emote_slots = GameManager.p2_emote_slots.duplicate()
 
+## コースに対応したフロー実装へ差し替える。1Pと2Pは別クラスだが、
+## QuizGameState からは同じメソッド面で呼ばれる。
+func _install_tutorial_flow(selected_course: String) -> void:
+	var wants_duo := selected_course == GameManager.TUTORIAL_COURSE_LOCAL_2P
+	if tutorial_flow != null:
+		var already_duo: bool = tutorial_flow.get_script() == DuoTutorialFlowScript
+		if already_duo == wants_duo:
+			return
+		tutorial_flow.presentation_requested.disconnect(_on_tutorial_presentation_requested)
+		tutorial_flow.presentation_finished.disconnect(_on_tutorial_presentation_finished)
+		tutorial_flow.task_completed.disconnect(_on_tutorial_task_completed)
+	if wants_duo:
+		tutorial_flow = DuoTutorialFlowScript.new()
+	else:
+		tutorial_flow = SoloTutorialFlowScript.new()
+	tutorial_flow.presentation_requested.connect(_on_tutorial_presentation_requested)
+	tutorial_flow.presentation_finished.connect(_on_tutorial_presentation_finished)
+	tutorial_flow.task_completed.connect(_on_tutorial_task_completed)
 
 
 # ---------- Properties ----------
@@ -156,15 +268,30 @@ func _init(quiz_provider: QuizProvider = null) -> void:
 func is_coop_mode() -> bool:
 	return mode == Constants.MODE_COOP
 
+func is_boss_index(index: int) -> bool:
+	return mode == Constants.MODE_TEN and target_count > 0 and index == target_count - 1
+
+func num_choices_for_index(index: int) -> int:
+	if is_coop_mode():
+		return 2  # Coop uses 2 doors per player (4 total, but 2+2 split)
+	var quiz: QuizItem = null
+	if index == current_index:
+		quiz = current_quiz
+	elif index >= 0 and index < quiz_list.size():
+		quiz = quiz_list[index]
+	if is_boss_index(index):
+		if quiz and quiz.c.size() > 0 and quiz.c.size() < 4:
+			return quiz.c.size()
+		return 4
+	if difficulty == "難しい":
+		if quiz and quiz.c.size() > 0 and quiz.c.size() < 4:
+			return quiz.c.size()
+		return 4
+	return 2
+
 var num_choices: int:
 	get:
-		if is_coop_mode():
-			return 2  # Coop uses 2 doors per player (4 total, but 2+2 split)
-		if difficulty == "難しい":
-			if current_quiz and current_quiz.c.size() < 4:
-				return current_quiz.c.size()
-			return 4
-		return 2
+		return num_choices_for_index(current_index)
 
 var wall_z: float:
 	get:
@@ -184,6 +311,175 @@ func _is_fixed_count_mode() -> bool:
 func _is_tutorial_mode() -> bool:
 	return mode == Constants.MODE_TUTORIAL
 
+func is_solo_tutorial() -> bool:
+	return (
+		_is_tutorial_mode()
+		and tutorial_flow != null
+		and tutorial_flow.get_script() == SoloTutorialFlowScript
+	)
+
+
+func is_duo_tutorial() -> bool:
+	return (
+		_is_tutorial_mode()
+		and tutorial_flow != null
+		and tutorial_flow.get_script() == DuoTutorialFlowScript
+	)
+
+
+## 脱落したプレイヤーがゴーストシャークに乗れる状況か。
+## チュートリアル中は指定ステップだけ許可し、それ以外は乗せない。
+func allows_tutorial_ghost_ride() -> bool:
+	if not _is_tutorial_mode():
+		return true
+	return tutorial_flow != null and tutorial_flow.allows_ghost_ride()
+
+
+## 2人が意図的に離れるステップでは、待機側が画面外へ切れないようカメラを引く。
+func tutorial_splits_camera() -> bool:
+	return (
+		_is_tutorial_mode()
+		and tutorial_flow != null
+		and tutorial_flow.splits_camera_for_hazard()
+	)
+
+
+func get_tutorial_course() -> String:
+	return tutorial_flow.course if tutorial_flow != null else GameManager.TUTORIAL_COURSE_SOLO
+
+
+func get_tutorial_step_id() -> String:
+	return tutorial_flow.current_step_id() if tutorial_flow != null else ""
+
+
+func has_pending_solo_customize_tour() -> bool:
+	return _pending_solo_customize_tour
+
+
+func get_pending_customize_tour_course() -> String:
+	if not _pending_solo_customize_tour:
+		return ""
+	if _pending_customize_tour_course.is_empty():
+		return GameManager.TUTORIAL_COURSE_SOLO
+	return _pending_customize_tour_course
+
+
+func complete_solo_customize_tour() -> void:
+	if not _pending_solo_customize_tour:
+		return
+	var course := get_pending_customize_tour_course()
+	_pending_solo_customize_tour = false
+	_pending_customize_tour_course = ""
+	GameManager.mark_tutorial_course_completed(course)
+	tutorial_ui_revision += 1
+
+
+func abort_solo_customize_tour() -> void:
+	if not _pending_solo_customize_tour:
+		return
+	_pending_solo_customize_tour = false
+	_pending_customize_tour_course = ""
+	tutorial_ui_revision += 1
+
+
+## 誘導されたステップでは片方だけが前進するので、通常の2P分断ルールを止める。
+func is_scroll_out_death_enabled() -> bool:
+	return not (
+		_is_tutorial_mode()
+		and tutorial_flow != null
+		and tutorial_flow.blocks_scroll_out_death()
+	)
+
+
+func get_tutorial_overlay_model() -> Dictionary:
+	if not _is_tutorial_mode() or tutorial_flow == null:
+		return {"visible": false}
+	return tutorial_flow.get_overlay_model()
+
+
+func is_tutorial_presentation_locked() -> bool:
+	return _is_tutorial_mode() and tutorial_flow != null and tutorial_flow.presentation_locked
+
+
+func is_tutorial_ghost_practice() -> bool:
+	return _is_tutorial_mode() and tutorial_flow != null and tutorial_flow.is_ghost_practice()
+
+
+func get_tutorial_ghost_player() -> int:
+	return tutorial_flow.designated_ghost_player() if is_tutorial_ghost_practice() else 0
+
+
+func get_tutorial_wall_count() -> int:
+	if not _is_tutorial_mode() or tutorial_flow == null:
+		return target_count
+	return tutorial_flow.wall_count()
+
+
+## 現在のステップで壁を出さないなら true。空の走路で操作だけを教えたいときに使う。
+func are_tutorial_walls_hidden() -> bool:
+	return _is_tutorial_mode() and tutorial_flow != null and tutorial_flow.walls_hidden()
+
+
+func complete_tutorial_presentation(presentation_id: String = "") -> void:
+	if not _is_tutorial_mode() or tutorial_flow == null:
+		return
+	var auto_advance: bool = tutorial_flow.current_step_advances_after_presentation()
+	if not tutorial_flow.finish_presentation(presentation_id):
+		return
+	tutorial_ui_revision += 1
+	if auto_advance:
+		_advance_tutorial_step()
+		return
+	if tutorial_flow.is_final_step() and tutorial_flow.should_clear_after_presentation():
+		clear_game()
+
+
+func register_tutorial_ghost_aim(player_index: int) -> bool:
+	if not is_tutorial_ghost_practice() or player_index != get_tutorial_ghost_player():
+		return false
+	var task_completed: bool = tutorial_flow.complete_task(player_index, "aim")
+	return task_completed and tutorial_flow.all_tasks_complete()
+
+
+func register_tutorial_ghost_charge(player_index: int, hit: bool, _power: float) -> bool:
+	if not is_tutorial_ghost_practice() or player_index != get_tutorial_ghost_player():
+		return false
+	tutorial_flow.complete_task(player_index, "charge")
+	if hit:
+		tutorial_flow.complete_task(player_index, "hit")
+	return tutorial_flow.all_tasks_complete()
+
+
+## ゴーストシャーク練習を終えた後の後片付け。脱落していたプレイヤーを復活させ、
+## 次のステップ（クイズなら問題の用意まで）へ進める。
+func finish_tutorial_ghost_step() -> void:
+	if not is_tutorial_ghost_practice() or not tutorial_flow.all_tasks_complete():
+		return
+	_reset_tutorial_players_for_step(false)
+	if not tutorial_flow.advance_step():
+		return
+	tutorial_ui_revision += 1
+	game_state = Constants.STATE_PLAYING
+	if tutorial_flow.is_quiz_step():
+		_prepare_tutorial_quiz_step()
+	message_text = ""
+	choice_locked = false
+	refresh_status_text()
+	state_changed.emit(game_state)
+
+
+func _on_tutorial_presentation_requested(presentation_id: String, context: Dictionary) -> void:
+	tutorial_presentation_requested.emit(presentation_id, context)
+
+
+func _on_tutorial_presentation_finished(presentation_id: String) -> void:
+	tutorial_presentation_finished.emit(presentation_id)
+
+
+func _on_tutorial_task_completed(player_index: int, task_id: String) -> void:
+	tutorial_ui_revision += 1
+	tutorial_task_completed.emit(player_index, task_id)
+
 func _provider_mode() -> String:
 	return Constants.MODE_TEN if is_coop_mode() else mode
 
@@ -199,6 +495,27 @@ func _is_on_track_floor(x_pos: float, local_z: float, player_num: int, front_z: 
 			return x_pos >= tuning.coop_lane_gap_half_width
 		if player_num == 2:
 			return x_pos <= -tuning.coop_lane_gap_half_width
+	return true
+
+
+## 床を外れた後の落下を不可逆にする。ジャンプ中（y > 0）は確定させないので、
+## 正規のジャンプで縁を越えて床へ戻る動きは維持する。
+func _commit_fall_if_unsupported(
+	player_num: int,
+	x_pos: float,
+	y_pos: float,
+	local_z: float,
+	front_z: float = -1.0
+) -> bool:
+	var already_committed := p1_fall_committed if player_num == 1 else p2_fall_committed
+	if already_committed:
+		return true
+	if y_pos > 0.0 or _is_on_track_floor(x_pos, local_z, player_num, front_z):
+		return false
+	if player_num == 1:
+		p1_fall_committed = true
+	else:
+		p2_fall_committed = true
 	return true
 
 
@@ -226,9 +543,11 @@ func back_from_settings() -> void:
 
 func set_sfx_volume(vol: float) -> void:
 	sfx_volume = clampf(vol, 0.0, 1.0)
+	AudioManager.set_sfx_volume(sfx_volume)
 
 func set_bgm_volume(vol: float) -> void:
 	bgm_volume = clampf(vol, 0.0, 1.0)
+	AudioManager.set_bgm_volume(bgm_volume)
 
 func update_grade(delta: int) -> void:
 	grade = clampi(grade + delta, 1, 6)
@@ -254,6 +573,16 @@ func cycle_difficulty(delta: int) -> void:
 # ---------- Game lifecycle ----------
 
 func start_game() -> void:
+	is_replay = false
+	# Retry must begin as an independent round even if the previous scene or
+	# provider stopped partway through its shutdown.
+	if provider is BufferedQuizProvider:
+		var buffered_provider := provider as BufferedQuizProvider
+		if buffered_provider.is_active_round:
+			buffered_provider.end_round()
+		llm_mode = buffered_provider.llm_mode
+	_reset_ocean_shark_state()
+	_reset_external_impulses()
 	if is_coop_mode():
 		num_players = 2
 	score = 0
@@ -270,6 +599,8 @@ func start_game() -> void:
 	current_wall_index = 0
 	game_over_timer = 0.0
 	p1_alive = true
+	p1_wall_impact = false
+	p1_fall_committed = false
 	p1_emote_lock_timer = 0.0
 	# Player 2 reset
 	player2_x = -6.0 if is_coop_mode() else -1.5
@@ -279,9 +610,22 @@ func start_game() -> void:
 	player2_vel_y = 0.0
 	player2_vel_z = 0.0
 	p2_alive = true
+	p2_wall_impact = false
+	p2_fall_committed = false
 	p2_emote_lock_timer = 0.0
 	player2_game_over_timer = 0.0
+	# Goal-race and result gates are session-local. A tutorial or prior result
+	# must never leak its finish position or locked quiz into a retry.
+	goal_z = 0.0
 	goal_winner = 0
+	_reset_result_ceremony_state()
+	current_quiz = null
+	choice_locked = false
+	message_timer = 0.0
+	countdown_timer = 0.0
+	flyover_timer = 0.0
+	rating_target_quiz = null
+	rating_feedback = ""
 
 	# Streak & stats reset
 	current_streak = 0
@@ -298,17 +642,35 @@ func start_game() -> void:
 	var count: int = 10 if _is_fixed_count_mode() else 1
 	target_count = count
 
-	var provider_mode := _provider_mode()
-	provider.begin_round(subject, grade, difficulty, provider_mode, count)
-
 	# オンライン時は AI 応答を待つ（緊急オフラインキャッシュで先埋めしない）
 	quiz_list.clear()
 	_prepare_coop_quiz_list()
 	message_text = ""
 	game_state = Constants.STATE_PRELOADING
 	preload_wait_sec = 0.0
+
+	var provider_mode := _provider_mode()
+	provider.begin_round(subject, grade, difficulty, provider_mode, count)
+	# オフラインは同期バンクで問題が揃うので、min_preload の0.35秒は待たない。
+	if llm_mode == "OFFLINE":
+		var missing := maxi(0, target_count - quiz_list.size())
+		if missing > 0:
+			quiz_list.append_array(
+				provider.get_quizzes(subject, grade, difficulty, provider_mode, missing)
+			)
+			_prepare_coop_quiz_list()
+			_ensure_boss_four_choices()
+		var quizzes_ready: bool = false
+		if _is_fixed_count_mode():
+			quizzes_ready = quiz_list.size() >= target_count
+		else:
+			quizzes_ready = quiz_list.size() >= 1
+		if quizzes_ready:
+			game_state = Constants.STATE_WAITING_START
+			load_current_quiz()
 	refresh_status_text()
 	state_changed.emit(game_state)
+
 
 func _prepare_coop_quiz_list() -> void:
 	if not is_coop_mode():
@@ -330,19 +692,58 @@ func _should_rebuild_coop_quiz(quiz: QuizItem) -> bool:
 		or quiz.coop_p1_label.contains("ヒント") \
 		or quiz.coop_p2_label.contains("ヒント")
 
-func start_tutorial(tutorial_players: int = 1) -> void:
-	pre_tutorial_subject = subject
-	pre_tutorial_grade = grade
-	pre_tutorial_difficulty = difficulty
-	pre_tutorial_mode = mode
-	pre_tutorial_llm_mode = llm_mode
+
+func _ensure_boss_four_choices() -> void:
+	if mode != Constants.MODE_TEN or is_coop_mode():
+		return
+	if quiz_list.size() < target_count or target_count <= 0:
+		return
+	var last_idx: int = target_count - 1
+	var last_quiz: QuizItem = quiz_list[last_idx]
+	if last_quiz != null and last_quiz.c.size() >= 4:
+		return
+	if last_quiz != null and provider != null and provider.has_method("expand_to_four_choices"):
+		last_quiz = provider.expand_to_four_choices(last_quiz)
+		quiz_list[last_idx] = last_quiz
+		if last_quiz != null and last_quiz.c.size() >= 4:
+			return
+	for i: int in range(last_idx):
+		if i < current_index:
+			continue
+		if i == current_index and current_quiz != null:
+			continue
+		var candidate: QuizItem = quiz_list[i]
+		if candidate != null and candidate.c.size() >= 4:
+			quiz_list[last_idx] = candidate
+			quiz_list[i] = last_quiz
+			return
+
+func start_tutorial(course: String = GameManager.TUTORIAL_COURSE_SOLO) -> void:
+	_reset_ocean_shark_state()
+	_reset_external_impulses()
+	_pending_solo_customize_tour = false
+	_pending_customize_tour_course = ""
+	if not _tutorial_backup_valid:
+		pre_tutorial_subject = subject
+		pre_tutorial_grade = grade
+		pre_tutorial_difficulty = difficulty
+		pre_tutorial_mode = mode
+		pre_tutorial_llm_mode = llm_mode
+		pre_tutorial_num_players = num_players
+		_tutorial_backup_valid = true
 
 	mode = Constants.MODE_TUTORIAL
 	llm_mode = "OFFLINE"
 	subject = "チュートリアル"
 	grade = 3
 	difficulty = "普通"
-	num_players = clampi(tutorial_players, 1, 2)
+	var selected_course: String = (
+		GameManager.TUTORIAL_COURSE_LOCAL_2P
+		if course == GameManager.TUTORIAL_COURSE_LOCAL_2P
+		else GameManager.TUTORIAL_COURSE_SOLO
+	)
+	_install_tutorial_flow(selected_course)
+	num_players = 2 if selected_course == GameManager.TUTORIAL_COURSE_LOCAL_2P else 1
 	score = 0
 	current_index = 0
 	quiz_history.clear()
@@ -357,6 +758,8 @@ func start_tutorial(tutorial_players: int = 1) -> void:
 	current_wall_index = 0
 	game_over_timer = 0.0
 	p1_alive = true
+	p1_wall_impact = false
+	p1_fall_committed = false
 	player2_x = -1.5 if num_players >= 2 else 0.0
 	player2_y = 0.0
 	player2_z = 0.0
@@ -364,8 +767,11 @@ func start_tutorial(tutorial_players: int = 1) -> void:
 	player2_vel_y = 0.0
 	player2_vel_z = 0.0
 	p2_alive = num_players >= 2
+	p2_wall_impact = false
+	p2_fall_committed = false
 	player2_game_over_timer = 0.0
 	goal_winner = 0
+	_reset_result_ceremony_state()
 	current_streak = 0
 	max_streak = 0
 	play_time = 0.0
@@ -378,82 +784,159 @@ func start_tutorial(tutorial_players: int = 1) -> void:
 	choice_locked = false
 	message_text = ""
 	status_text = ""
-	target_count = 3
-	quiz_list = _build_tutorial_quizzes()
+	_tutorial_safe_z = 0.0
+	tutorial_ui_revision += 1
+	tutorial_flow.start(selected_course)
+	target_count = tutorial_flow.target_quiz_count()
+	quiz_list = tutorial_flow.build_quiz_items()
 	_active_wall_speed = 3.8
 	game_state = Constants.STATE_WAITING_START
 	load_current_quiz()
 	refresh_status_text()
 	state_changed.emit(game_state)
 
-func _build_tutorial_quizzes() -> Array[QuizItem]:
+
+func restart_tutorial() -> void:
+	var course := get_tutorial_course()
+	start_tutorial(course)
+
+func _advance_tutorial_step() -> void:
+	if not _is_tutorial_mode() or tutorial_flow == null:
+		return
+	var previous_was_quiz: bool = tutorial_flow.is_quiz_step()
+	if not tutorial_flow.advance_step():
+		return
+	tutorial_ui_revision += 1
+	if tutorial_flow.starts_customize_tour():
+		_begin_solo_customize_handoff()
+		return
+	if tutorial_flow.starts_goal_race():
+		_start_goal_race()
+		return
+	# 完了ステップでは必ずゴールレースから抜ける。抜けないと完了演出の裏で
+	# ゴール判定と物理が動き続けてしまう。
+	game_state = Constants.STATE_PLAYING
+	if tutorial_flow.is_final_step():
+		choice_locked = true
+		current_quiz = null
+		_tutorial_safe_z = world_scroll_z
+		message_text = "コース完了！"
+		refresh_status_text()
+		state_changed.emit(game_state)
+		return
+	if tutorial_flow.is_quiz_step():
+		_prepare_tutorial_quiz_step(not previous_was_quiz)
+	else:
+		current_quiz = null
+		_tutorial_safe_z = world_scroll_z
+	choice_locked = false
+	message_text = ""
+	refresh_status_text()
+	state_changed.emit(game_state)
+
+
+func _begin_solo_customize_handoff() -> void:
+	if tutorial_flow == null or not tutorial_flow.starts_customize_tour():
+		return
+	if not is_solo_tutorial() and not is_duo_tutorial():
+		return
+	_pending_solo_customize_tour = true
+	_pending_customize_tour_course = get_tutorial_course()
+	reset_to_menu()
+	tutorial_customize_handoff_requested.emit()
+
+
+## 座標・生死・演出タイマーをステップ開始状態へ戻す。1Pと2Pの共通土台。
+func _reset_tutorial_stage(reset_z: float) -> void:
+	_reset_ocean_shark_state()
+	_reset_external_impulses()
+	world_scroll_z = reset_z
+	player_x = 1.5 if num_players >= 2 else 0.0
+	player_y = 0.0
+	player_z = reset_z
+	player_vel_y = 0.0
+	player_vel_z = 0.0
+	p1_alive = true
+	p1_wall_impact = false
+	p1_fall_committed = false
+	game_over_timer = 0.0
+	p1_emote = 0
 	if num_players >= 2:
-		return [
-			QuizItem.create(
-				"2人練習1: 2人で左ドアへ",
-				PackedStringArray(["左", "右"]),
-				0,
-				"P1はA、P2は←で左へ移動します。2人とも左ドアを抜けましょう。",
-				"TUTORIAL",
-				"",
-				PackedStringArray(),
-				7.0
-			),
-			QuizItem.create(
-				"2人練習2: 2人で右ドアへ",
-				PackedStringArray(["左", "右"]),
-				1,
-				"P1はD、P2は→で右へ移動します。今度は2人とも右ドアです。",
-				"TUTORIAL",
-				"",
-				PackedStringArray(),
-				7.0
-			),
-			QuizItem.create(
-				"2人練習3: 正解ドアを一緒に抜けよう",
-				PackedStringArray(["協力して進む", "止まる"]),
-				0,
-				"2人とも正解ドアを抜けると、壁が壊れてクリアできます。",
-				"TUTORIAL",
-				"",
-				PackedStringArray(),
-				7.0
-			)
-		]
-	return [
-		QuizItem.create(
-			"練習1: 2 + 3 = ?",
-			PackedStringArray(["5", "6"]),
-			0,
-			"2に3を足すと5です。左のドアへ移動して抜けましょう。",
-			"TUTORIAL",
-			"",
-			PackedStringArray(),
-			7.0
-		),
-		QuizItem.create(
-			"練習2: 右のドアに入ってみよう",
-			PackedStringArray(["左", "右"]),
-			1,
-			"今度は右側のドアを選ぶ練習です。",
-			"TUTORIAL",
-			"",
-			PackedStringArray(),
-			7.0
-		),
-		QuizItem.create(
-			"練習3: 正解ドアを通るとどうなる？",
-			PackedStringArray(["次へ進める", "ゲームが止まる"]),
-			0,
-			"正解ドアを抜けると壁が壊れて次へ進めます。",
-			"TUTORIAL",
-			"",
-			PackedStringArray(),
-			7.0
-		)
-	]
+		player2_x = -1.5
+		player2_y = 0.0
+		player2_z = reset_z
+		player2_vel_y = 0.0
+		player2_vel_z = 0.0
+		p2_alive = true
+		p2_wall_impact = false
+		p2_fall_committed = false
+		player2_game_over_timer = 0.0
+		p2_emote = 0
+	else:
+		p2_alive = false
+	choice_locked = false
+	_tutorial_safe_z = reset_z
+
+
+## やり直しの戻り先。クイズ中は現在の壁の手前、それ以外はステップ開始位置が入っている。
+func _tutorial_reset_z() -> float:
+	return _tutorial_safe_z
+
+
+func _reset_tutorial_players_at(reset_z: float) -> void:
+	_reset_tutorial_stage(reset_z)
+	camera_shake = 0.0
+
+
+func _reset_tutorial_players_for_step(move_past_wall: bool = false) -> void:
+	if move_past_wall:
+		current_wall_index += 1
+	_reset_tutorial_players_at(float(current_wall_index) * tuning.wall_spacing)
+
+
+func _prepare_tutorial_quiz_step(reset_players: bool = true) -> void:
+	var quiz_index: int = tutorial_flow.quiz_index() if tutorial_flow != null else current_index
+	if quiz_index < 0:
+		current_quiz = null
+		return
+	current_index = quiz_index
+	if reset_players:
+		current_wall_index = quiz_index
+		_reset_tutorial_players_at(float(current_wall_index) * tuning.wall_spacing)
+	_tutorial_safe_z = float(current_wall_index) * tuning.wall_spacing
+	current_quiz = quiz_list[quiz_index] if quiz_index < quiz_list.size() else null
+	if current_quiz:
+		_quiz_shown_time = Time.get_ticks_msec()
+		quiz_loaded.emit(current_quiz)
+
+
+func _complete_tutorial_quiz_step() -> void:
+	if not _is_tutorial_mode() or tutorial_flow == null or not tutorial_flow.is_quiz_step():
+		return
+	current_wall_index += 1
+	current_index += 1
+	current_quiz = null
+	if p1_alive:
+		game_over_timer = 0.0
+	if p2_alive or num_players < 2:
+		player2_game_over_timer = 0.0
+	# 1問のステップと複数問のステップがある。残っているなら同じステップ内で次へ。
+	if not tutorial_flow.on_quiz_cleared():
+		_prepare_tutorial_quiz_step(false)
+		tutorial_ui_revision += 1
+		game_state = Constants.STATE_PLAYING
+		choice_locked = false
+		message_text = ""
+		refresh_status_text()
+		state_changed.emit(game_state)
+		return
+	_advance_tutorial_step()
 
 func reset_to_menu() -> void:
+	is_replay = false
+	_reset_result_ceremony_state()
+	_reset_ocean_shark_state()
+	_reset_external_impulses()
 	provider.end_round()
 	if mode == Constants.MODE_TUTORIAL:
 		subject = pre_tutorial_subject
@@ -461,6 +944,8 @@ func reset_to_menu() -> void:
 		difficulty = pre_tutorial_difficulty
 		mode = pre_tutorial_mode
 		llm_mode = pre_tutorial_llm_mode
+		num_players = pre_tutorial_num_players
+		_tutorial_backup_valid = false
 
 	game_state = Constants.STATE_MENU
 	menu_step = Constants.MENU_STEP_MODE
@@ -479,6 +964,8 @@ func reset_to_menu() -> void:
 	camera_pitch = 0.0
 	game_over_timer = 0.0
 	p1_alive = true
+	p1_wall_impact = false
+	p1_fall_committed = false
 	player2_x = 0.0
 	player2_y = 0.0
 	player2_z = 0.0
@@ -486,6 +973,8 @@ func reset_to_menu() -> void:
 	player2_vel_y = 0.0
 	player2_vel_z = 0.0
 	p2_alive = true
+	p2_wall_impact = false
+	p2_fall_committed = false
 	p2_emote_lock_timer = 0.0
 	player2_game_over_timer = 0.0
 	rating_target_quiz = null
@@ -498,10 +987,17 @@ func reset_to_menu() -> void:
 # ---------- Quiz loading ----------
 
 func load_current_quiz() -> void:
+	if _is_tutorial_mode() and current_index >= quiz_list.size():
+		current_quiz = null
+		choice_locked = false
+		message_text = ""
+		refresh_status_text()
+		return
 	if _is_fixed_count_mode():
 		if current_index >= quiz_list.size():
 			if current_index >= target_count:
-				# 2P: ゴールラインまでのレースへ移行
+				# チュートリアルは冒頭で早期returnするのでここには来ない。
+				# 進行は _advance_tutorial_step が持つ。
 				if num_players >= 2 and mode == Constants.MODE_TEN:
 					_start_goal_race()
 				else:
@@ -531,9 +1027,14 @@ func load_current_quiz() -> void:
 			return
 		current_quiz = quiz_list[0]
 
+	if current_quiz and is_boss_index(current_index) and current_quiz.c.size() < 4:
+		if provider != null and provider.has_method("expand_to_four_choices"):
+			current_quiz = provider.expand_to_four_choices(current_quiz)
+
 	# Handle 4-to-2 conversion for offline quizzes or any quiz with too many choices.
 	# Coop keeps the original choices so each player can receive a different answer set.
-	if not is_coop_mode() and num_choices == 2 and current_quiz.c.size() > 2:
+	# 10問モードのボス（最終問）は4択のまま出す。
+	if not is_coop_mode() and not is_boss_index(current_index) and num_choices == 2 and current_quiz.c.size() > 2:
 		var correct_text: String = current_quiz.c[current_quiz.a]
 		var wrong_texts: PackedStringArray = []
 		for i: int in range(current_quiz.c.size()):
@@ -620,6 +1121,20 @@ func update(dt: float, axis_p1: Vector2 = Vector2.ZERO, axis_p2: Vector2 = Vecto
 
 	if game_state == Constants.STATE_MENU:
 		return
+	if _is_tutorial_mode() and tutorial_flow != null:
+		tutorial_flow.tick(dt)
+		if tutorial_flow.consume_input_gate(
+			axis_p1, axis_p2, jump_p1, jump_p2, emote_p1, emote_p2
+		):
+			# 演出ロック中と中立入力待ちは操作を止めるが、死亡演出だけは進め続ける。
+			# ここで全部止めるとラグドールが空中で固まる。
+			if not p1_alive and game_over_timer > 0.0:
+				game_over_timer += dt
+			if num_players >= 2 and not p2_alive and player2_game_over_timer > 0.0:
+				player2_game_over_timer += dt
+			_process_dead_player_physics(dt)
+			_sink_ocean_players(dt)
+			return
 
 	p1_jump_trigger = false
 	p2_jump_trigger = false
@@ -659,6 +1174,10 @@ func update(dt: float, axis_p1: Vector2 = Vector2.ZERO, axis_p2: Vector2 = Vecto
 		_update_goal_race(dt, axis_p1, axis_p2, jump_p1, jump_p2, emote_p1, emote_p2)
 		return
 
+	if game_state == Constants.STATE_RESULT_CEREMONY:
+		_update_result_ceremony(dt)
+		return
+
 	if game_state == Constants.STATE_CORRECT:
 		_update_correct(dt)
 		return
@@ -678,6 +1197,7 @@ func _update_preloading(dt: float) -> void:
 		var new_quizzes := provider.get_quizzes(subject, grade, difficulty, _provider_mode(), missing)
 		quiz_list.append_array(new_quizzes)
 		_prepare_coop_quiz_list()
+		_ensure_boss_four_choices()
 
 	var ready: bool = false
 	# ゲーム開始前（current_index == 0）は全問揃うのを待つ
@@ -697,6 +1217,7 @@ func _update_preloading(dt: float) -> void:
 
 	if ready and preload_wait_sec >= min_preload_sec:
 		print("[GameState] Preload complete: %d quizzes in %.1fs (mid_game=%s)" % [quiz_list.size(), preload_wait_sec, str(is_mid_game)])
+		_ensure_boss_four_choices()
 		if is_mid_game:
 			# 中盤: PLAYINGに復帰して次の問題を表示
 			game_state = Constants.STATE_PLAYING
@@ -733,17 +1254,18 @@ func _update_waiting_start(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p
 func trigger_start() -> void:
 	if game_state == Constants.STATE_WAITING_START:
 		if _is_tutorial_mode():
+			# Tutorials begin with their first instruction instead of the normal
+			# challenge-mode course flyover.
 			game_state = Constants.STATE_COUNTDOWN
-			countdown_timer = 3.99
+			countdown_timer = 3.0
 			state_changed.emit(game_state)
 			return
-
 		game_state = Constants.STATE_FLYOVER
 		flyover_timer = 0.0
 
 		if _is_fixed_count_mode():
-			# 10問モード: 全壁を見せる
-			flyover_total_walls = target_count
+			# 10問 / チュートリアル: 全壁を見せる
+			flyover_total_walls = maxi(target_count, 1)
 			flyover_duration = 3.8
 		else:
 			# エンドレスモード: 見えなくなるくらい遠くまで壁を並べる
@@ -763,126 +1285,186 @@ func _update_countdown(dt: float, emote_p1: int = 0, emote_p2: int = 0) -> void:
 	countdown_timer -= dt
 	if countdown_timer <= 0:
 		game_state = Constants.STATE_PLAYING
+		_begin_tutorial_gameplay_after_countdown()
 		state_changed.emit(game_state)
 
 
-func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: bool, jump_p2: bool, emote_p1: int = 0, emote_p2: int = 0) -> void:
-	play_time += dt
-	world_scroll_z += _active_wall_speed * dt
+## 本編と同じ開始演出の直後から操作練習に入れるよう、導入ステップを飛ばす。
+func _begin_tutorial_gameplay_after_countdown() -> void:
+	if not _is_tutorial_mode() or tutorial_flow == null:
+		return
+	if tutorial_flow.advances_after_countdown():
+		tutorial_flow.advance_step()
+		tutorial_ui_revision += 1
+	message_text = ""
 
-	p1_moving_back = axis_p1.y < -0.1
-	p2_moving_back = axis_p2.y < -0.1
+
+func _jump_gravity(hat_id: int, pos_y: float, vel_y: float) -> float:
+	if hat_id == HatData.HAT_PROPELLER and pos_y > 0.0 and vel_y < 0.0:
+		return GRAVITY * PROPELLER_DESCENT_GRAVITY_SCALE
+	return GRAVITY
+
+
+func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: bool, jump_p2: bool, _emote_p1: int = 0, _emote_p2: int = 0) -> void:
+	play_time += dt
+	var p1_axis := Vector2.ZERO if p1_external_control_lock > 0.0 else axis_p1
+	var p2_axis := Vector2.ZERO if p2_external_control_lock > 0.0 else axis_p2
+	var p1_jump_allowed := jump_p1 and p1_external_control_lock <= 0.0
+	var p2_jump_allowed := jump_p2 and p2_external_control_lock <= 0.0
+	p1_external_control_lock = maxf(0.0, p1_external_control_lock - dt)
+	p2_external_control_lock = maxf(0.0, p2_external_control_lock - dt)
+	if (
+		_is_tutorial_mode()
+		and tutorial_flow != null
+		and tutorial_flow.is_input_practice_step()
+		and tutorial_flow.update_input_practice(
+			axis_p1, axis_p2, jump_p1, jump_p2, _emote_p1, _emote_p2, dt
+		)
+	):
+		if tutorial_flow.is_final_step():
+			clear_game()
+			return
+		if tutorial_flow.resets_players_on_advance():
+			_reset_tutorial_players_for_step(false)
+		_advance_tutorial_step()
+		return
+	if _update_tutorial_special_step(dt):
+		return
+	var world_speed := _active_wall_speed
+	if _is_tutorial_mode() and tutorial_flow != null:
+		world_speed *= tutorial_flow.world_speed_scale()
+	if is_tutorial_ghost_practice():
+		var ghost_player: int = get_tutorial_ghost_player()
+		if ghost_player == 1:
+			p2_axis = Vector2.ZERO
+			p2_jump_allowed = false
+		else:
+			p1_axis = Vector2.ZERO
+			p1_jump_allowed = false
+	world_scroll_z += world_speed * dt
+	var p1_body_start := Vector2(player_x, player_z)
+	var p2_body_start := Vector2(player2_x, player2_z)
+
+	p1_moving_back = p1_axis.y < -0.1
+	p2_moving_back = p2_axis.y < -0.1
 
 	# Player 1 movement
-	if p1_alive:
-		var yaw: float = camera_yaw if num_players == 1 else 0.0
-		var move_x: float = axis_p1.x * cos(yaw) + axis_p1.y * sin(yaw)
-		var move_z: float = axis_p1.y * cos(yaw) - axis_p1.x * sin(yaw)
+	if p1_alive and not p1_waiting_for_shark:
+		# 入力を適用する前にも確認し、前フレームで崖を越えたプレイヤーが
+		# 1フレームの横移動だけで床範囲へ戻る抜け道を塞ぐ。
+		_commit_fall_if_unsupported(1, player_x, player_y, player_z - world_scroll_z)
+		var yaw: float = 0.0
+		var move_x: float = p1_axis.x * cos(yaw) + p1_axis.y * sin(yaw)
+		var move_z: float = p1_axis.y * cos(yaw) - p1_axis.x * sin(yaw)
 
-		if mobile_lane_mode:
-			player_x = lerpf(player_x, target_player_x, dt * 12.0)
-		else:
-			player_x += move_x * tuning.player_speed * dt
-
-		if abs(axis_p1.x) > 0.1:
-			mobile_lane_mode = false
-
+		player_x += move_x * tuning.player_speed * dt
 		# Removed clamp to allow falling off sides
 
-		player_z += _active_wall_speed * dt # Carry forward with world scroll
+		player_z += world_speed * dt # Carry forward with world scroll
 		player_z += move_z * tuning.player_speed * dt
+		player_x += p1_external_velocity.x * dt
+		player_z += p1_external_velocity.y * dt
+		p1_external_velocity = p1_external_velocity.move_toward(Vector2.ZERO, EXTERNAL_IMPULSE_DECELERATION * dt)
 
 		# Removed forward limit to allow running ahead
 		var loc1 := player_z - world_scroll_z
 
-		var is_on_floor = _is_on_track_floor(player_x, loc1, 1)
+		var is_on_floor := (
+			not _commit_fall_if_unsupported(1, player_x, player_y, loc1)
+			and _is_on_track_floor(player_x, loc1, 1)
+		)
 
-		if jump_p1 and player_y <= 0.0 and is_on_floor:
+		if p1_jump_allowed and player_y <= 0.0 and is_on_floor:
 			p1_jump_trigger = true
 			player_vel_y = JUMP_FORCE
 
-		player_vel_y -= GRAVITY * dt
+		player_vel_y -= _jump_gravity(p1_hat, player_y, player_vel_y) * dt
 		player_y += player_vel_y * dt
+		if _commit_fall_if_unsupported(1, player_x, player_y, loc1):
+			is_on_floor = false
 
 		if player_y <= 0.0 and is_on_floor:
 			player_y = 0.0
 			player_vel_y = 0.0
 
-		if player_y < -8.0:
+		if player_y < StageConstants.OCEAN_ENTRY_Y:
+			if _is_tutorial_mode() and not _is_expected_tutorial_ocean_entry(1):
+				_reset_tutorial_attempt("今は海の練習ではありません。安全な位置からこのステップをやり直します。")
+				tutorial_flow.restart_current_step(false)
+				return
 			if _is_tutorial_mode():
-				if num_players >= 2:
-					_reset_tutorial_attempt("P1が床から落ちました。2人ともスタート位置へ戻して、同じ壁でもう一度練習しましょう。")
-				else:
-					_reset_tutorial_attempt("床から落ちました。中央に戻して、同じ壁でもう一度練習しましょう。")
-				return
-			if is_coop_mode():
-				_fail_coop_immediately("P1が落下しました。協力失敗です。")
-				return
-			player_y = -8.0
-			player_vel_y = 0.0
-			p1_alive = false
-			game_over_timer = 0.001
-			if num_players == 1 or not p2_alive:
-				if current_quiz and not choice_locked:
-					choice_locked = true
-					provider.submit_result(current_quiz, false)
-					quiz_history.append({"quiz": current_quiz, "correct": false, "rated": ""})
-				_game_over("マグマに落ちてしまった！" if not use_english_ui else "Fell into magma!")
-				wrong_answer.emit(message_text)
+				message_text = "海に落ちました！ サメが近づいてきます。"
+				tutorial_flow.set_hint(message_text, 4.0)
+				tutorial_ui_revision += 1
+			_begin_ocean_shark_wait(1)
+	elif p1_alive and p1_waiting_for_shark:
+		_update_ocean_float(1, dt)
 	elif game_over_timer > 0.0:
 		# Tick explosion timer for dead P1 while game continues (2P)
 		game_over_timer += dt
 
 	# Player 2 movement
-	if num_players >= 2 and p2_alive:
-		player2_x += axis_p2.x * tuning.player_speed * dt
+	if num_players >= 2 and p2_alive and not p2_waiting_for_shark:
+		_commit_fall_if_unsupported(2, player2_x, player2_y, player2_z - world_scroll_z)
+		player2_x += p2_axis.x * tuning.player_speed * dt
 		# Removed clamp
 
-		player2_z += _active_wall_speed * dt
-		player2_z += axis_p2.y * tuning.player_speed * dt
+		player2_z += world_speed * dt
+		player2_z += p2_axis.y * tuning.player_speed * dt
+		player2_x += p2_external_velocity.x * dt
+		player2_z += p2_external_velocity.y * dt
+		p2_external_velocity = p2_external_velocity.move_toward(Vector2.ZERO, EXTERNAL_IMPULSE_DECELERATION * dt)
 
 		# Removed forward limit
 		var loc2 := player2_z - world_scroll_z
 
-		var p2_is_on_floor = _is_on_track_floor(player2_x, loc2, 2)
+		var p2_is_on_floor := (
+			not _commit_fall_if_unsupported(2, player2_x, player2_y, loc2)
+			and _is_on_track_floor(player2_x, loc2, 2)
+		)
 
-		if jump_p2 and player2_y <= 0.0 and p2_is_on_floor:
+		if p2_jump_allowed and player2_y <= 0.0 and p2_is_on_floor:
 			p2_jump_trigger = true
 			player2_vel_y = JUMP_FORCE
 
-		player2_vel_y -= GRAVITY * dt
+		player2_vel_y -= _jump_gravity(p2_hat, player2_y, player2_vel_y) * dt
 		player2_y += player2_vel_y * dt
+		if _commit_fall_if_unsupported(2, player2_x, player2_y, loc2):
+			p2_is_on_floor = false
 
 		if player2_y <= 0.0 and p2_is_on_floor:
 			player2_y = 0.0
 			player2_vel_y = 0.0
 
-		if player2_y < -8.0:
+		if player2_y < StageConstants.OCEAN_ENTRY_Y:
+			if _is_tutorial_mode() and not _is_expected_tutorial_ocean_entry(2):
+				_reset_tutorial_attempt("今はP2が海へ落ちるステップではありません。安全な位置からやり直します。")
+				tutorial_flow.restart_current_step(false)
+				return
 			if _is_tutorial_mode():
-				_reset_tutorial_attempt("P2が床から落ちました。2人ともスタート位置へ戻して、同じ壁でもう一度練習しましょう。")
-				return
-			if is_coop_mode():
-				_fail_coop_immediately("P2が落下しました。協力失敗です。")
-				return
-			player2_y = -8.0
-			player2_vel_y = 0.0
-			p2_alive = false
-			player2_game_over_timer = 0.001
-			if not p1_alive:
-				if current_quiz and not choice_locked:
-					choice_locked = true
-					provider.submit_result(current_quiz, false)
-					quiz_history.append({"quiz": current_quiz, "correct": false, "rated": ""})
-				_game_over("マグマに落ちてしまった！" if not use_english_ui else "Fell into magma!")
-				wrong_answer.emit(message_text)
+				message_text = "P2は海でサメを待機中です。P1のメイン画面は継続し、右下のDeathWipeで演出を確認できます。"
+				tutorial_ui_revision += 1
+			_begin_ocean_shark_wait(2)
+	elif num_players >= 2 and p2_alive and p2_waiting_for_shark:
+		_update_ocean_float(2, dt)
 	elif num_players >= 2 and not p2_alive:
 		if player2_game_over_timer > 0.0:
 			# Tick explosion timer for dead P2 while game continues
 			player2_game_over_timer += dt
 
+	_resolve_two_player_body_collision(p1_body_start, p2_body_start)
+	_resolve_all_cliff_body_collisions()
+	_sink_ocean_players(dt)
+
 	# スクロールアウト死 (画面外に取り残された場合の脱落)
-	if num_players >= 2 and p1_alive and p2_alive:
-		const SCROLL_OUT_LIMIT: float = 14.0
+	if (
+		num_players >= 2
+		and p1_alive
+		and p2_alive
+		and not p1_waiting_for_shark
+		and not p2_waiting_for_shark
+		and is_scroll_out_death_enabled()
+	):
 		if player_z - player2_z > SCROLL_OUT_LIMIT:
 			# P2 が遅れて画面外に消えた
 			if _is_tutorial_mode():
@@ -893,6 +1475,7 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 				return
 			p2_alive = false
 			player2_game_over_timer = 0.001
+			player_scrolled_out.emit(2)
 		elif player2_z - player_z > SCROLL_OUT_LIMIT:
 			# P1 が遅れて画面外に消えた
 			if _is_tutorial_mode():
@@ -903,16 +1486,289 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 				return
 			p1_alive = false
 			game_over_timer = 0.001
+			player_scrolled_out.emit(1)
 
 	# Check collisions with wall
-	var p1_hit: bool = p1_alive and player_z >= wall_z - 0.4
-	var p2_hit: bool = num_players >= 2 and p2_alive and player2_z >= wall_z - 0.4
+	# 壁を出さない操作練習ステップでは、見えない壁との衝突判定も止める。
+	if are_tutorial_walls_hidden():
+		return
+	# コース外へ落下中のプレイヤーは、壁の横を通過しているだけなので
+	# クイズ壁との衝突にしない。ここで壁死扱いにすると alive が先に false になり、
+	# 後続の落水検知とサメ襲撃が開始されなくなる。
+	var p1_hit: bool = (
+		p1_alive
+		and not p1_waiting_for_shark
+		and _is_on_track_floor(player_x, player_z - world_scroll_z, 1)
+		and player_z >= wall_z - 0.4
+	)
+	var p2_hit: bool = (
+		num_players >= 2
+		and p2_alive
+		and not p2_waiting_for_shark
+		and _is_on_track_floor(player2_x, player2_z - world_scroll_z, 2)
+		and player2_z >= wall_z - 0.4
+	)
 
 	if p1_hit or p2_hit:
 		# Prevent clipping through
 		if p1_hit: player_z = wall_z - 0.4
 		if p2_hit: player2_z = wall_z - 0.4
 		resolve_collision(p1_hit, p2_hit)
+
+
+func _is_expected_tutorial_ocean_entry(player_index: int) -> bool:
+	if not _is_tutorial_mode() or tutorial_flow == null:
+		return true
+	return tutorial_flow.allows_ocean_entry(player_index)
+
+
+func _update_tutorial_special_step(dt: float) -> bool:
+	if not _is_tutorial_mode() or tutorial_flow == null:
+		return false
+	# 海やミスによる死亡演出は最後まで見せてから復帰させる。
+	if tutorial_flow.is_awaiting_death_recovery():
+		game_over_timer += dt
+		_process_dead_player_physics(dt)
+		_sink_ocean_players(dt)
+		if game_over_timer >= tutorial_flow.death_recovery_duration():
+			_recover_tutorial_from_death()
+		return true
+	if tutorial_flow.is_ghost_practice():
+		var ghost_player: int = tutorial_flow.designated_ghost_player()
+		var ghost_alive: bool = p1_alive if ghost_player == 1 else p2_alive
+		var survivor_index: int = 2 if ghost_player == 1 else 1
+		var survivor_alive: bool = p2_alive if ghost_player == 1 else p1_alive
+		if not survivor_alive:
+			# 標的側が落ちてもゴーストの練習は続けたいので、標的だけを復帰させる。
+			# ステップ全体をやり直すとゴースト側も復活してしまい、練習が始められない。
+			_revive_tutorial_player(survivor_index)
+			var hint := "P%dを復帰させました。ゴーストシャークの練習を続けましょう。" % survivor_index
+			message_text = hint
+			tutorial_flow.set_hint(hint, 3.0)
+			tutorial_ui_revision += 1
+			refresh_status_text()
+			state_changed.emit(game_state)
+			return true
+		if not ghost_alive:
+			_process_dead_player_physics(dt)
+	return false
+
+
+## 片方のプレイヤーだけを安全な位置へ復帰させる。相手の脱落状態は保つ。
+func _revive_tutorial_player(player_index: int) -> void:
+	var reset_z := _tutorial_reset_z()
+	if player_index == 1:
+		p1_waiting_for_shark = false
+		p1_shark_killed = false
+		p1_ocean_float_time = 0.0
+		p1_external_velocity = Vector2.ZERO
+		p1_external_control_lock = 0.0
+		player_x = 1.5
+		player_y = 0.0
+		player_z = reset_z
+		player_vel_y = 0.0
+		player_vel_z = 0.0
+		p1_alive = true
+		p1_wall_impact = false
+		p1_fall_committed = false
+		game_over_timer = 0.0
+		p1_emote = 0
+		return
+	p2_waiting_for_shark = false
+	p2_shark_killed = false
+	p2_ocean_float_time = 0.0
+	p2_external_velocity = Vector2.ZERO
+	p2_external_control_lock = 0.0
+	player2_x = -1.5
+	player2_y = 0.0
+	player2_z = reset_z
+	player2_vel_y = 0.0
+	player2_vel_z = 0.0
+	p2_alive = true
+	p2_wall_impact = false
+	p2_fall_committed = false
+	player2_game_over_timer = 0.0
+	p2_emote = 0
+
+
+## 死亡演出を最後まで見せ終えた後の復帰。同じ問題を再挑戦させるか、次のステップへ進む。
+func _recover_tutorial_from_death() -> void:
+	var outcome: Dictionary = tutorial_flow.finish_death_recovery()
+	var retry: bool = bool(outcome.get("retry", false))
+	_reset_tutorial_stage(_tutorial_reset_z())
+	correct_flash = 0.0 if retry else 1.0
+	wrong_flash = 0.0
+	camera_shake = 0.16
+	message_text = str(outcome.get("message", ""))
+	tutorial_flow.set_hint(message_text, 3.2)
+	tutorial_ui_revision += 1
+	if not retry:
+		_advance_tutorial_step()
+		return
+	if tutorial_flow.is_quiz_step():
+		_prepare_tutorial_quiz_step(false)
+	refresh_status_text()
+	state_changed.emit(game_state)
+
+
+## 2Pの立ち姿をXZ平面のカプセルとして扱い、めり込みを等分して押し戻す。
+## 見た目だけのPlayerControllerではなく座標の権威側で解決するため、ローカル2Pと
+## ホスト権威のオンライン2Pで同じ結果になり、1Pには一切影響しない。
+func _resolve_two_player_body_collision(p1_start: Vector2, p2_start: Vector2) -> bool:
+	if (
+		num_players < 2
+		or not p1_alive
+		or not p2_alive
+		or p1_waiting_for_shark
+		or p2_waiting_for_shark
+		or absf(player_y - player2_y) >= PLAYER_BODY_HEIGHT
+	):
+		return false
+
+	var previous_separation := p2_start - p1_start
+	var separation := Vector2(player2_x - player_x, player2_z - player_z)
+	var relative_motion := separation - previous_separation
+	var minimum_distance := PLAYER_BODY_RADIUS * 2.0
+	var minimum_distance_squared := minimum_distance * minimum_distance
+	var epsilon_squared := PLAYER_BODY_COLLISION_EPSILON * PLAYER_BODY_COLLISION_EPSILON
+	var distance_squared := separation.length_squared()
+	var normal := Vector2.ZERO
+
+	# 大きなdtでも互いをすり抜けて左右が入れ替わらないよう、前フレームからの
+	# 相対移動線分とカプセル円の最初の接点も調べる。
+	var motion_squared := relative_motion.length_squared()
+	if previous_separation.length_squared() >= minimum_distance_squared and motion_squared > epsilon_squared:
+		var closest_t := clampf(-previous_separation.dot(relative_motion) / motion_squared, 0.0, 1.0)
+		var closest_separation := previous_separation + relative_motion * closest_t
+		if closest_separation.length_squared() < minimum_distance_squared:
+			var quadratic_b := 2.0 * previous_separation.dot(relative_motion)
+			var quadratic_c := previous_separation.length_squared() - minimum_distance_squared
+			var discriminant := quadratic_b * quadratic_b - 4.0 * motion_squared * quadratic_c
+			if discriminant >= 0.0:
+				var contact_t := clampf((-quadratic_b - sqrt(discriminant)) / (2.0 * motion_squared), 0.0, 1.0)
+				var contact_separation := previous_separation + relative_motion * contact_t
+				if contact_separation.length_squared() > epsilon_squared:
+					normal = contact_separation.normalized()
+
+	if normal == Vector2.ZERO:
+		if distance_squared >= minimum_distance_squared:
+			return false
+		if distance_squared > epsilon_squared:
+			normal = separation / sqrt(distance_squared)
+		elif previous_separation.length_squared() > epsilon_squared:
+			normal = previous_separation.normalized()
+		else:
+			# 完全に同位置から始まった場合もP1/P2を決定的な方向へ分離する。
+			normal = Vector2.LEFT
+
+	var center := Vector2(player_x + player2_x, player_z + player2_z) * 0.5
+	var half_separation := normal * (PLAYER_BODY_RADIUS + PLAYER_BODY_COLLISION_EPSILON)
+	var resolved_p1 := center - half_separation
+	var resolved_p2 := center + half_separation
+	player_x = resolved_p1.x
+	player_z = resolved_p1.y
+	player2_x = resolved_p2.x
+	player2_z = resolved_p2.y
+	return true
+
+
+## 落下確定後、体のカプセルがコンベア床（崖）の直方体へ食い込まないようXZで押し出す。
+## 床上面より上（接地・ジャンプ）では側面判定しないので、縁を越えて着地し直す動きは残す。
+func _resolve_all_cliff_body_collisions(front_z: float = -1.0) -> void:
+	_resolve_cliff_body_collision(1, front_z)
+	if num_players >= 2:
+		_resolve_cliff_body_collision(2, front_z)
+
+
+func _resolve_cliff_body_collision(player_num: int, front_z: float = -1.0) -> void:
+	var is_p1 := player_num == 1
+	var waiting := p1_waiting_for_shark if is_p1 else p2_waiting_for_shark
+	var committed := p1_fall_committed if is_p1 else p2_fall_committed
+	if not waiting and not committed:
+		return
+	var y_pos := player_y if is_p1 else player2_y
+	if y_pos >= 0.0:
+		return
+
+	var x_pos := player_x if is_p1 else player2_x
+	var z_pos := player_z if is_p1 else player2_z
+	var local_z := z_pos - world_scroll_z
+	var floor_min := Vector2(-FLOOR_HALF_WIDTH, FLOOR_BACK_Z)
+	var floor_max := Vector2(FLOOR_HALF_WIDTH, INF)
+	if front_z > 0.0:
+		floor_max.y = front_z
+	if is_coop_mode():
+		if player_num == 1:
+			floor_min.x = tuning.coop_lane_gap_half_width
+		else:
+			floor_max.x = -tuning.coop_lane_gap_half_width
+
+	var resolved := _separate_circle_from_rect(
+		Vector2(x_pos, local_z),
+		PLAYER_BODY_RADIUS,
+		floor_min,
+		floor_max
+	)
+	if is_p1:
+		player_x = resolved.x
+		player_z = world_scroll_z + resolved.y
+	else:
+		player2_x = resolved.x
+		player2_z = world_scroll_z + resolved.y
+
+
+func _separate_circle_from_rect(
+	center: Vector2,
+	radius: float,
+	rect_min: Vector2,
+	rect_max: Vector2
+) -> Vector2:
+	var inside := (
+		center.x > rect_min.x
+		and center.x < rect_max.x
+		and center.y > rect_min.y
+		and center.y < rect_max.y
+	)
+	if inside:
+		return _push_out_of_rect(center, radius, rect_min, rect_max)
+
+	var closest := Vector2(
+		clampf(center.x, rect_min.x, rect_max.x),
+		clampf(center.y, rect_min.y, rect_max.y)
+	)
+	var delta := center - closest
+	var dist_sq := delta.length_squared()
+	var min_dist := radius + PLAYER_BODY_COLLISION_EPSILON
+	if dist_sq >= min_dist * min_dist:
+		return center
+	if dist_sq <= PLAYER_BODY_COLLISION_EPSILON * PLAYER_BODY_COLLISION_EPSILON:
+		return _push_out_of_rect(center, radius, rect_min, rect_max)
+	var dist := sqrt(dist_sq)
+	return closest + delta * (min_dist / dist)
+
+
+func _push_out_of_rect(
+	center: Vector2,
+	radius: float,
+	rect_min: Vector2,
+	rect_max: Vector2
+) -> Vector2:
+	var to_min_x := center.x - rect_min.x
+	var to_max_x := rect_max.x - center.x
+	var to_min_z := center.y - rect_min.y
+	var to_max_z := rect_max.y - center.y
+	var best := to_min_x
+	var resolved := Vector2(rect_min.x - radius, center.y)
+	if to_max_x < best:
+		best = to_max_x
+		resolved = Vector2(rect_max.x + radius, center.y)
+	if to_min_z < best:
+		best = to_min_z
+		resolved = Vector2(center.x, rect_min.y - radius)
+	if to_max_z < best:
+		resolved = Vector2(center.x, rect_max.y + radius)
+	return resolved
+
 
 func _update_correct(dt: float) -> void:
 	message_timer -= dt
@@ -921,6 +1777,7 @@ func _update_correct(dt: float) -> void:
 		game_over_timer += dt
 	if num_players >= 2 and not p2_alive and player2_game_over_timer > 0:
 		player2_game_over_timer += dt
+	_sink_ocean_players(dt)
 	if message_timer <= 0:
 		advance_after_correct()
 
@@ -930,6 +1787,7 @@ func _update_game_over(dt: float) -> void:
 		player2_game_over_timer += dt
 
 	_process_dead_player_physics(dt)
+	_sink_ocean_players(dt)
 
 	# Update message with async explanation
 	if current_quiz:
@@ -946,70 +1804,206 @@ func _update_game_over(dt: float) -> void:
 			message_text = "GAME OVER\n\n%s" % msg
 
 
-# ---------- Goal Race (2P 10問モード) ----------
+# ---------- Local 2P result ceremony ----------
+
+func _reset_result_ceremony_state() -> void:
+	result_presentation_active = false
+	result_ceremony_phase = ResultCeremonyPhase.NONE
+	result_ceremony_phase_elapsed = 0.0
+	result_ceremony_elapsed = 0.0
+	goal_reached_mask = 0
+	result_winner = 0
+	result_ghost_mask = 0
+	result_p1_score = 0
+	result_p2_score = 0
+	result_p1_position = Vector3.ZERO
+	result_p2_position = Vector3.ZERO
+	_result_p1_start_position = Vector3.ZERO
+	_result_p2_start_position = Vector3.ZERO
+	_result_round_closed = false
+	p1_emote_lock_timer = 0.0
+	p2_emote_lock_timer = 0.0
+	p1_run_anim_speed_mult = 1.0
+	p2_run_anim_speed_mult = 1.0
+
+
+func uses_local_result_ceremony() -> bool:
+	return (
+		result_ceremony_enabled
+		and not is_replay
+		and num_players == 2
+		and mode == Constants.MODE_TEN
+		and not is_coop_mode()
+		and not _is_tutorial_mode()
+	)
+
+
+func has_player_reached_goal(player_index: int) -> bool:
+	var bit: int = 1 if player_index == 1 else 2
+	return (goal_reached_mask & bit) != 0
+
+
+func get_result_player_local_position(player_index: int) -> Vector3:
+	var result_position := result_p1_position if player_index == 1 else result_p2_position
+	return Vector3(result_position.x, result_position.y, result_position.z - world_scroll_z)
+
+
+func get_result_phase_progress() -> float:
+	var duration := _result_phase_duration(result_ceremony_phase)
+	if duration <= 0.0:
+		return 1.0
+	return clampf(result_ceremony_phase_elapsed / duration, 0.0, 1.0)
+
+
+func is_result_verdict_visible() -> bool:
+	return (
+		result_ceremony_phase > ResultCeremonyPhase.VERDICT
+		or (
+			result_ceremony_phase == ResultCeremonyPhase.VERDICT
+			and result_ceremony_phase_elapsed >= RESULT_VERDICT_REVEAL_DELAY
+		)
+	)
+
+
+func get_result_winner_emote(player_index: int) -> int:
+	var slots: Array[int] = p1_emote_slots if player_index == 1 else p2_emote_slots
+	if not slots.is_empty() and slots[0] > 0:
+		return slots[0]
+	return 7  # EmoteData.EMOTE_SILLY without coupling core state to cosmetics.
+
+
+func _result_phase_duration(phase: int) -> float:
+	match phase:
+		ResultCeremonyPhase.ASSEMBLE:
+			return (
+				RESULT_ASSEMBLE_GHOST_DURATION
+				if result_ghost_mask != 0
+				else RESULT_ASSEMBLE_LIVING_DURATION
+			)
+		ResultCeremonyPhase.MEADOW_RUN:
+			return RESULT_MEADOW_RUN_DURATION
+		ResultCeremonyPhase.SCORE_ROLL:
+			return RESULT_SCORE_ROLL_DURATION
+		ResultCeremonyPhase.VERDICT:
+			return RESULT_VERDICT_DURATION
+		ResultCeremonyPhase.EFFECT:
+			return RESULT_EFFECT_DURATION
+		_:
+			return 0.0
+
+
+# ---------- Goal Race (2P tutorial legacy) ----------
 
 func _start_goal_race() -> void:
+	var revived_players := false
+	if _is_tutorial_mode() and tutorial_flow != null and tutorial_flow.revives_players():
+		# 実戦で脱落したプレイヤーもレースには参加させる。
+		revived_players = not p1_alive or (num_players >= 2 and not p2_alive)
+		_reset_tutorial_stage(world_scroll_z)
 	# ゴールラインは最後の壁の先に配置
 	goal_z = tuning.wall_start_z + target_count * tuning.wall_spacing + 15.0
+	if _is_tutorial_mode():
+		goal_z = maxf(goal_z, world_scroll_z + 28.0)
+	_reset_result_ceremony_state()
 	goal_winner = 0
+	if _is_tutorial_mode():
+		_tutorial_safe_z = world_scroll_z
+		tutorial_ui_revision += 1
 	game_state = Constants.STATE_GOAL_RACE
 	message_text = "GOAL へ走れ！" if not use_english_ui else "Race to the GOAL!"
+	if revived_players:
+		message_text = "脱落したプレイヤーも復活！ GOAL へ走れ！"
+		if tutorial_flow != null:
+			tutorial_flow.set_hint(message_text, 3.0)
+	refresh_status_text()
 	state_changed.emit(game_state)
 
 func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: bool, jump_p2: bool, emote_p1: int = 0, emote_p2: int = 0) -> void:
 	play_time += dt
+	var p1_axis := Vector2.ZERO if p1_external_control_lock > 0.0 else axis_p1
+	var p2_axis := Vector2.ZERO if p2_external_control_lock > 0.0 else axis_p2
+	var p1_jump_allowed := jump_p1 and p1_external_control_lock <= 0.0
+	var p2_jump_allowed := jump_p2 and p2_external_control_lock <= 0.0
+	p1_external_control_lock = maxf(0.0, p1_external_control_lock - dt)
+	p2_external_control_lock = maxf(0.0, p2_external_control_lock - dt)
 	# world_scroll_z += _active_wall_speed * dt  # ゴールの動きを止めるためスクロールを停止
 
 	p1_emote = emote_p1
 	p2_emote = emote_p2
-	p1_moving_back = axis_p1.y < -0.1
-	p2_moving_back = axis_p2.y < -0.1
+	p1_moving_back = p1_axis.y < -0.1
+	p2_moving_back = p2_axis.y < -0.1
+	var p1_body_start := Vector2(player_x, player_z)
+	var p2_body_start := Vector2(player2_x, player2_z)
 
 	# Player 1 movement
-	if p1_alive:
-		player_x += axis_p1.x * tuning.player_speed * dt
+	if p1_alive and not p1_waiting_for_shark and not has_player_reached_goal(1):
+		_commit_fall_if_unsupported(
+			1, player_x, player_y, player_z - world_scroll_z, FLOOR_RACE_FRONT_Z
+		)
+		player_x += p1_axis.x * tuning.player_speed * dt
 		player_z += _active_wall_speed * dt
-		player_z += axis_p1.y * tuning.player_speed * dt
+		player_z += p1_axis.y * tuning.player_speed * dt
+		player_x += p1_external_velocity.x * dt
+		player_z += p1_external_velocity.y * dt
+		p1_external_velocity = p1_external_velocity.move_toward(Vector2.ZERO, EXTERNAL_IMPULSE_DECELERATION * dt)
 
 		var loc1 := player_z - world_scroll_z
-		var is_on_floor = _is_on_track_floor(player_x, loc1, 1, FLOOR_RACE_FRONT_Z)
+		var is_on_floor := (
+			not _commit_fall_if_unsupported(1, player_x, player_y, loc1, FLOOR_RACE_FRONT_Z)
+			and _is_on_track_floor(player_x, loc1, 1, FLOOR_RACE_FRONT_Z)
+		)
 
-		if jump_p1 and player_y <= 0.0 and is_on_floor:
+		if p1_jump_allowed and player_y <= 0.0 and is_on_floor:
 			p1_jump_trigger = true
 			player_vel_y = JUMP_FORCE
-		player_vel_y -= GRAVITY * dt
+		player_vel_y -= _jump_gravity(p1_hat, player_y, player_vel_y) * dt
 		player_y += player_vel_y * dt
+		if _commit_fall_if_unsupported(1, player_x, player_y, loc1, FLOOR_RACE_FRONT_Z):
+			is_on_floor = false
 		if player_y <= 0.0 and is_on_floor:
 			player_y = 0.0
 			player_vel_y = 0.0
-		if player_y < -8.0:
-			player_y = -8.0
-			player_vel_y = 0.0
-			p1_alive = false
-			game_over_timer = 0.001
+		if player_y < StageConstants.OCEAN_ENTRY_Y:
+			_begin_ocean_shark_wait(1)
+	elif p1_alive and p1_waiting_for_shark and not has_player_reached_goal(1):
+		_update_ocean_float(1, dt)
 
 	# Player 2 movement
-	if p2_alive:
-		player2_x += axis_p2.x * tuning.player_speed * dt
+	if p2_alive and not p2_waiting_for_shark and not has_player_reached_goal(2):
+		_commit_fall_if_unsupported(
+			2, player2_x, player2_y, player2_z - world_scroll_z, FLOOR_RACE_FRONT_Z
+		)
+		player2_x += p2_axis.x * tuning.player_speed * dt
 		player2_z += _active_wall_speed * dt
-		player2_z += axis_p2.y * tuning.player_speed * dt
+		player2_z += p2_axis.y * tuning.player_speed * dt
+		player2_x += p2_external_velocity.x * dt
+		player2_z += p2_external_velocity.y * dt
+		p2_external_velocity = p2_external_velocity.move_toward(Vector2.ZERO, EXTERNAL_IMPULSE_DECELERATION * dt)
 
 		var loc2 := player2_z - world_scroll_z
-		var p2_is_on_floor = _is_on_track_floor(player2_x, loc2, 2, FLOOR_RACE_FRONT_Z)
+		var p2_is_on_floor := (
+			not _commit_fall_if_unsupported(2, player2_x, player2_y, loc2, FLOOR_RACE_FRONT_Z)
+			and _is_on_track_floor(player2_x, loc2, 2, FLOOR_RACE_FRONT_Z)
+		)
 
-		if jump_p2 and player2_y <= 0.0 and p2_is_on_floor:
+		if p2_jump_allowed and player2_y <= 0.0 and p2_is_on_floor:
 			p2_jump_trigger = true
 			player2_vel_y = JUMP_FORCE
-		player2_vel_y -= GRAVITY * dt
+		player2_vel_y -= _jump_gravity(p2_hat, player2_y, player2_vel_y) * dt
 		player2_y += player2_vel_y * dt
+		if _commit_fall_if_unsupported(2, player2_x, player2_y, loc2, FLOOR_RACE_FRONT_Z):
+			p2_is_on_floor = false
 		if player2_y <= 0.0 and p2_is_on_floor:
 			player2_y = 0.0
 			player2_vel_y = 0.0
-		if player2_y < -8.0:
-			player2_y = -8.0
-			player2_vel_y = 0.0
-			p2_alive = false
-			player2_game_over_timer = 0.001
+		if player2_y < StageConstants.OCEAN_ENTRY_Y:
+			_begin_ocean_shark_wait(2)
+	elif p2_alive and p2_waiting_for_shark and not has_player_reached_goal(2):
+		_update_ocean_float(2, dt)
+
+	if goal_reached_mask == 0:
+		_resolve_two_player_body_collision(p1_body_start, p2_body_start)
+	_resolve_all_cliff_body_collisions(FLOOR_RACE_FRONT_Z)
 
 	# Tick explosion timers for dead players
 	if not p1_alive and game_over_timer > 0:
@@ -1017,11 +2011,41 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 	if not p2_alive and player2_game_over_timer > 0:
 		player2_game_over_timer += dt
 
-	# ゴール判定
-	var p1_reached := p1_alive and player_z >= goal_z
-	var p2_reached := p2_alive and player2_z >= goal_z
+	_sink_ocean_players(dt)
 
-	if p1_reached or p2_reached:
+	# ゴール判定
+	var p1_reached := (
+		p1_alive
+		and not p1_waiting_for_shark
+		and not has_player_reached_goal(1)
+		and player_z >= goal_z
+	)
+	var p2_reached := (
+		p2_alive
+		and not p2_waiting_for_shark
+		and not has_player_reached_goal(2)
+		and player2_z >= goal_z
+	)
+
+	if uses_local_result_ceremony():
+		if p1_reached:
+			goal_reached_mask |= 1
+		if p2_reached:
+			goal_reached_mask |= 2
+		_hold_goal_finisher(1)
+		_hold_goal_finisher(2)
+		if p1_reached or p2_reached:
+			message_text = _goal_wait_message()
+			refresh_status_text()
+		var ceremony_ready: bool = (
+			(p1_alive and p2_alive and goal_reached_mask == 3)
+			or (p1_alive and not p2_alive and has_player_reached_goal(1))
+			or (p2_alive and not p1_alive and has_player_reached_goal(2))
+		)
+		if ceremony_ready:
+			_begin_result_ceremony()
+			return
+	elif p1_reached or p2_reached:
 		if p1_reached and p2_reached:
 			# 同時ゴール — スコアで勝敗を決定
 			if score > player2_score:
@@ -1034,20 +2058,182 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 			goal_winner = 1
 		else:
 			goal_winner = 2
+		if _is_tutorial_mode() and tutorial_flow != null and tutorial_flow.starts_goal_race():
+			if p1_reached:
+				tutorial_flow.complete_task(1, "goal")
+			if p2_reached:
+				tutorial_flow.complete_task(2, "goal")
+			_advance_tutorial_step()
+			return
 		clear_game()
 		return
 
 	# 両方死んだ場合
 	if not p1_alive and not p2_alive:
-		# スコアで勝敗を決定
-		if score > player2_score:
-			goal_winner = 1
-		elif player2_score > score:
-			goal_winner = 2
-		else:
-			goal_winner = 0
-		clear_game()
+		goal_winner = 0
+		if _is_tutorial_mode() and tutorial_flow != null:
+			# チュートリアルのレースは失敗で終わらせず、2人を復活させて再スタートする。
+			_reset_tutorial_attempt("2人ともゴール前に脱落しました。もう一度レースします。")
+			return
+		var defeat_message := (
+			"全員がゴール前に脱落しました。"
+			if not use_english_ui
+			else "All players were eliminated before reaching the goal."
+		)
+		_game_over(defeat_message)
+		wrong_answer.emit(message_text)
 		return
+
+
+func _hold_goal_finisher(player_index: int) -> void:
+	if not has_player_reached_goal(player_index):
+		return
+	if player_index == 1:
+		player_z = goal_z + RESULT_GOAL_WAIT_OFFSET
+		player_y = 0.0
+		player_vel_y = 0.0
+		player_vel_z = 0.0
+		p1_fall_committed = false
+		p1_waiting_for_shark = false
+		p1_external_velocity = Vector2.ZERO
+		p1_moving_back = false
+		p1_emote = 0
+	else:
+		player2_z = goal_z + RESULT_GOAL_WAIT_OFFSET
+		player2_y = 0.0
+		player2_vel_y = 0.0
+		player2_vel_z = 0.0
+		p2_fall_committed = false
+		p2_waiting_for_shark = false
+		p2_external_velocity = Vector2.ZERO
+		p2_moving_back = false
+		p2_emote = 0
+
+
+func _goal_wait_message() -> String:
+	if goal_reached_mask == 3:
+		return "二人ともゴール！ 草原へ進みます…"
+	if goal_reached_mask == 1:
+		return "P1 ゴール！ P2を待っています…"
+	if goal_reached_mask == 2:
+		return "P2 ゴール！ P1を待っています…"
+	return "GOAL へ走れ！"
+
+
+func _begin_result_ceremony() -> void:
+	result_presentation_active = true
+	result_ghost_mask = (0 if p1_alive else 1) | (0 if p2_alive else 2)
+	result_p1_score = score
+	result_p2_score = player2_score
+	if result_p1_score > result_p2_score:
+		result_winner = 1
+	elif result_p2_score > result_p1_score:
+		result_winner = 2
+	else:
+		result_winner = 0
+	goal_winner = result_winner
+
+	# Ocean attack ownership ends here. The visual controller retains the ghost
+	# rider and shark only long enough to perform the result dismount/departure.
+	p1_waiting_for_shark = false
+	p2_waiting_for_shark = false
+	p1_external_velocity = Vector2.ZERO
+	p2_external_velocity = Vector2.ZERO
+	p1_external_control_lock = 0.0
+	p2_external_control_lock = 0.0
+	p1_emote = 0
+	p2_emote = 0
+
+	_result_p1_start_position = (
+		Vector3(player_x, 0.0, player_z)
+		if p1_alive
+		else Vector3(RESULT_PLAYER_X, 0.18, goal_z + RESULT_GOAL_WAIT_OFFSET)
+	)
+	_result_p2_start_position = (
+		Vector3(player2_x, 0.0, player2_z)
+		if p2_alive
+		else Vector3(-RESULT_PLAYER_X, 0.18, goal_z + RESULT_GOAL_WAIT_OFFSET)
+	)
+	result_p1_position = _result_p1_start_position
+	result_p2_position = _result_p2_start_position
+	result_ceremony_elapsed = 0.0
+	if not _result_round_closed:
+		provider.end_round()
+		_result_round_closed = true
+	game_state = Constants.STATE_RESULT_CEREMONY
+	message_text = "二人で草原へ…"
+	_set_result_ceremony_phase(ResultCeremonyPhase.ASSEMBLE)
+	refresh_status_text()
+	state_changed.emit(game_state)
+
+
+func _set_result_ceremony_phase(phase: int) -> void:
+	result_ceremony_phase = phase
+	result_ceremony_phase_elapsed = 0.0
+	result_ceremony_phase_changed.emit(phase)
+
+
+func _update_result_ceremony(dt: float) -> void:
+	if not result_presentation_active:
+		return
+	result_ceremony_elapsed += dt
+	result_ceremony_phase_elapsed += dt
+	var progress := get_result_phase_progress()
+	var eased := smoothstep(0.0, 1.0, progress)
+	var p1_entry := Vector3(RESULT_PLAYER_X, 0.0, goal_z + RESULT_MEADOW_ENTRY_OFFSET)
+	var p2_entry := Vector3(-RESULT_PLAYER_X, 0.0, goal_z + RESULT_MEADOW_ENTRY_OFFSET)
+	var p1_finish := Vector3(RESULT_PLAYER_X, 0.0, goal_z + RESULT_MEADOW_FINISH_OFFSET)
+	var p2_finish := Vector3(-RESULT_PLAYER_X, 0.0, goal_z + RESULT_MEADOW_FINISH_OFFSET)
+
+	match result_ceremony_phase:
+		ResultCeremonyPhase.ASSEMBLE:
+			result_p1_position = _result_p1_start_position.lerp(p1_entry, eased)
+			result_p2_position = _result_p2_start_position.lerp(p2_entry, eased)
+		ResultCeremonyPhase.MEADOW_RUN:
+			result_p1_position = p1_entry.lerp(p1_finish, eased)
+			result_p2_position = p2_entry.lerp(p2_finish, eased)
+		_:
+			result_p1_position = p1_finish
+			result_p2_position = p2_finish
+	_apply_result_positions()
+
+	var duration := _result_phase_duration(result_ceremony_phase)
+	if duration <= 0.0 or result_ceremony_phase_elapsed < duration:
+		return
+	match result_ceremony_phase:
+		ResultCeremonyPhase.ASSEMBLE:
+			_set_result_ceremony_phase(ResultCeremonyPhase.MEADOW_RUN)
+		ResultCeremonyPhase.MEADOW_RUN:
+			_set_result_ceremony_phase(ResultCeremonyPhase.SCORE_ROLL)
+		ResultCeremonyPhase.SCORE_ROLL:
+			_set_result_ceremony_phase(ResultCeremonyPhase.VERDICT)
+		ResultCeremonyPhase.VERDICT:
+			_set_result_ceremony_phase(ResultCeremonyPhase.EFFECT)
+		ResultCeremonyPhase.EFFECT:
+			_set_result_ceremony_phase(ResultCeremonyPhase.INTERACTIVE)
+			clear_game()
+
+
+func _apply_result_positions() -> void:
+	var running := result_ceremony_phase == ResultCeremonyPhase.MEADOW_RUN
+	if p1_alive:
+		player_x = result_p1_position.x
+		player_y = result_p1_position.y
+		player_z = result_p1_position.z
+		player_vel_y = 0.0
+		player_vel_z = 0.0
+		p1_moving_back = false
+	if p2_alive:
+		player2_x = result_p2_position.x
+		player2_y = result_p2_position.y
+		player2_z = result_p2_position.z
+		player2_vel_y = 0.0
+		player2_vel_z = 0.0
+		p2_moving_back = false
+	# The animation controller treats RESULT_CEREMONY as an active locomotion
+	# state only during this phase; this flag is also useful to runtime probes.
+	p1_run_anim_speed_mult = 1.0 if running else 0.0
+	p2_run_anim_speed_mult = 1.0 if running else 0.0
 
 
 # ---------- Collision ----------
@@ -1106,94 +2292,179 @@ func _resolve_tutorial_collision() -> void:
 	if num_players >= 2:
 		_resolve_tutorial_collision_2p()
 		return
-
-	choice_locked = true
-	var door := _check_player_door(player_x)
-	if door == current_quiz.a:
-		score += 1
-		current_streak += 1
-		max_streak = maxi(max_streak, current_streak)
-		total_answered += 1
-		recent_results.append(true)
-		if recent_results.size() > 12:
-			recent_results.remove_at(0)
-		quiz_history.append({"quiz": current_quiz, "correct": true, "rated": "tutorial"})
-		correct_flash = 1.0
-		camera_shake = 0.18
-		message_text = _tutorial_correct_message()
-		correct_answer.emit()
-		advance_after_correct()
+	if not tutorial_flow.is_quiz_step() or current_quiz == null:
+		_reset_tutorial_attempt("このステップの案内に沿って進みましょう。")
 		return
 
-	total_answered += 1
-	total_wrong += 1
-	current_streak = 0
-	recent_results.append(false)
-	if recent_results.size() > 12:
-		recent_results.remove_at(0)
+	var door := _check_player_door(player_x)
+	if door == current_quiz.a:
+		choice_locked = true
+		score += 1
+		tutorial_flow.complete_task(1, "answer")
+		correct_flash = 1.0
+		camera_shake = 0.18
+		message_text = "正解！"
+		correct_answer.emit()
+		_complete_tutorial_quiz_step()
+		return
 
-	var hint := ""
+	var hint := _tutorial_miss_hint(door, current_quiz.a)
+	# 誘導ありの問題では優しくやり直させ、誘導なしの実戦だけ本編と同じ結末を見せる。
+	if not tutorial_flow.punishes_mistakes():
+		_reset_tutorial_attempt(hint)
+		return
+	choice_locked = true
+	p1_alive = false
+	p1_wall_impact = true
+	game_over_timer = 0.001
+	player_vel_y = JUMP_FORCE * 0.8
+	player_vel_z = -12.0
+	camera_shake = 0.35
+	message_text = hint
+	tutorial_flow.set_hint(hint, WALL_DEATH_SEQUENCE_DURATION)
+	tutorial_flow.begin_death_recovery(WALL_DEATH_SEQUENCE_DURATION, true)
+	tutorial_ui_revision += 1
+	wrong_answer.emit(message_text)
+
+
+func _tutorial_miss_hint(door: int, answer: int) -> String:
+	if door == -2:
+		return "ドアの境目でぶつかりました。どちらかのドアの中央をねらいましょう。"
 	if door < 0:
-		hint = "ドアから外れて壁にぶつかりました。ドアの中央をねらって、もう一度進みましょう。"
-	else:
-		var labels := ["左", "右"]
-		var correct_label: String = "正解"
-		if current_quiz.a >= 0 and current_quiz.a < labels.size():
-			correct_label = labels[current_quiz.a]
-		hint = "そのドアは不正解です。今回は %s のドアをねらってみましょう。" % correct_label
-	_reset_tutorial_attempt(hint)
+		return "ドアを外して壁に激突しました。正解は%sのドアでした。" % _tutorial_answer_label(answer)
+	return "不正解のドアでした。正解は%sのドアです。" % _tutorial_answer_label(answer)
 
 func _resolve_tutorial_collision_2p() -> void:
-	var p1_at_wall := p1_alive and player_z >= wall_z - 0.4
-	var p2_at_wall := p2_alive and player2_z >= wall_z - 0.4
+	var p1_at_wall := p1_alive and not p1_waiting_for_shark and player_z >= wall_z - 0.4
+	var p2_at_wall := p2_alive and not p2_waiting_for_shark and player2_z >= wall_z - 0.4
+	if not tutorial_flow.is_quiz_step() or current_quiz == null:
+		# 壁を使わないステップで壁に触れてしまった場合は、案内の位置へ戻す。
+		_reset_tutorial_attempt("このステップの案内に沿って進みましょう。")
+		tutorial_flow.restart_current_step(false)
+		return
+	if tutorial_flow.requires_both_correct():
+		_resolve_tutorial_guided_wall_2p(p1_at_wall, p2_at_wall)
+		return
+	_resolve_tutorial_free_wall_2p(p1_at_wall, p2_at_wall)
+
+
+## 誘導ありの問題。2人が揃って正解したときだけ通過させ、ミスは優しくやり直す。
+func _resolve_tutorial_guided_wall_2p(p1_at_wall: bool, p2_at_wall: bool) -> void:
 	if not (p1_at_wall and p2_at_wall):
 		choice_locked = false
 		if p1_at_wall:
-			message_text = "P1はドア前で待機中です。P2も同じドアへ進みましょう。"
+			message_text = "P1はドアに到着。P2も光るドアへ進みましょう。"
 		elif p2_at_wall:
-			message_text = "P2はドア前で待機中です。P1も同じドアへ進みましょう。"
+			message_text = "P2はドアに到着。P1も光るドアへ進みましょう。"
 		return
 
 	choice_locked = true
+	var answer := current_quiz.a
 	var p1_door := _check_player_door(player_x)
 	var p2_door := _check_player_door(player2_x)
-	var answer := current_quiz.a
-	var p1_correct := p1_door == answer
-	var p2_correct := p2_door == answer
-	if p1_correct and p2_correct:
-		score += 1
-		player2_score += 1
-		current_streak += 1
-		max_streak = maxi(max_streak, current_streak)
-		total_answered += 1
-		recent_results.append(true)
-		if recent_results.size() > 12:
-			recent_results.remove_at(0)
-		quiz_history.append({"quiz": current_quiz, "correct": true, "rated": "tutorial"})
-		correct_flash = 1.0
-		camera_shake = 0.18
-		message_text = _tutorial_correct_message()
-		correct_answer.emit()
-		advance_after_correct()
+	if p1_door != answer or p2_door != answer:
+		var misses: Array[String] = []
+		for miss_text: String in [
+			_tutorial_player_miss_text("P1", p1_door, answer),
+			_tutorial_player_miss_text("P2", p2_door, answer),
+		]:
+			if not miss_text.is_empty():
+				misses.append(miss_text)
+		var hint := " / ".join(misses)
+		hint += " 正解は%sドアです。2人とももう一度選びましょう。" % _tutorial_answer_label(answer)
+		_reset_tutorial_attempt(hint)
 		return
 
-	total_answered += 1
-	total_wrong += 1
-	current_streak = 0
-	recent_results.append(false)
-	if recent_results.size() > 12:
-		recent_results.remove_at(0)
+	score += 1
+	player2_score += 1
+	tutorial_flow.complete_task(1, "answer")
+	tutorial_flow.complete_task(2, "answer")
+	correct_flash = 1.0
+	camera_shake = 0.18
+	message_text = "2人とも正解！ P1・P2それぞれに得点が入りました。"
+	correct_answer.emit()
+	_complete_tutorial_quiz_step()
 
+
+## 誘導なしの実戦。本編と同じ個別判定で、間違えた側だけが本当に脱落して
+## ゴーストシャークへ回り、正解した側は止まらず次の問題へ進む。
+func _resolve_tutorial_free_wall_2p(p1_at_wall: bool, p2_at_wall: bool) -> void:
+	if not (p1_at_wall or p2_at_wall):
+		return
+	var answer := current_quiz.a
+	var p1_correct := false
+	var p2_correct := false
 	var misses: Array[String] = []
-	if not p1_correct:
-		misses.append(_tutorial_player_miss_text("P1", p1_door, answer))
-	if not p2_correct:
-		misses.append(_tutorial_player_miss_text("P2", p2_door, answer))
-	var hint := misses[0]
-	if misses.size() > 1:
-		hint += " / " + misses[1]
-	hint += " 今回は %s ドアを2人で抜けましょう。" % _tutorial_answer_label(answer)
-	_reset_tutorial_attempt(hint)
+
+	if p1_at_wall:
+		var p1_door := _check_player_door(player_x)
+		if p1_door == answer:
+			p1_correct = true
+			score += 1
+			tutorial_flow.complete_task(1, "answer")
+		else:
+			_apply_tutorial_wall_death(1)
+			misses.append(_tutorial_player_miss_text("P1", p1_door, answer))
+	if p2_at_wall:
+		var p2_door := _check_player_door(player2_x)
+		if p2_door == answer:
+			p2_correct = true
+			player2_score += 1
+			tutorial_flow.complete_task(2, "answer")
+		else:
+			_apply_tutorial_wall_death(2)
+			misses.append(_tutorial_player_miss_text("P2", p2_door, answer))
+
+	var miss_summary := " / ".join(misses)
+	if p1_correct or p2_correct:
+		choice_locked = true
+		correct_flash = 1.0
+		camera_shake = 0.18
+		var correct_label := (
+			"2人とも正解！"
+			if p1_correct and p2_correct
+			else "P%d正解！ %s" % [1 if p1_correct else 2, miss_summary]
+		)
+		message_text = correct_label.strip_edges()
+		tutorial_flow.set_hint(message_text, 3.0)
+		tutorial_ui_revision += 1
+		correct_answer.emit()
+		_complete_tutorial_quiz_step()
+		return
+
+	if not p1_alive and not p2_alive:
+		# 2人とも脱落したときだけ、激突演出を見せ切ってから同じ問題をやり直す。
+		choice_locked = true
+		message_text = "2人とも不正解。正解は%sのドアでした。" % _tutorial_answer_label(answer)
+		tutorial_flow.set_hint(message_text, WALL_DEATH_SEQUENCE_DURATION)
+		tutorial_flow.begin_death_recovery(WALL_DEATH_SEQUENCE_DURATION, true)
+		tutorial_ui_revision += 1
+		wrong_answer.emit(message_text)
+		return
+
+	# 片方だけが脱落。残ったプレイヤーの回答を待つので、判定は閉じない。
+	choice_locked = false
+	message_text = "%s 残ったプレイヤーは自分でドアを選びましょう。" % miss_summary
+	tutorial_flow.set_hint(message_text, 3.4)
+	tutorial_ui_revision += 1
+	wrong_answer.emit(message_text)
+
+
+## 本編と同じ壁激突の脱落処理。ラグドールとゴーストシャークはこの状態から始まる。
+func _apply_tutorial_wall_death(player_index: int) -> void:
+	camera_shake = 0.35
+	if player_index == 1:
+		p1_alive = false
+		p1_wall_impact = true
+		game_over_timer = 0.001
+		player_vel_y = JUMP_FORCE * 0.8
+		player_vel_z = -12.0
+		return
+	p2_alive = false
+	p2_wall_impact = true
+	player2_game_over_timer = 0.001
+	player2_vel_y = JUMP_FORCE * 0.8
+	player2_vel_z = -12.0
 
 func _tutorial_player_miss_text(player_label: String, door: int, answer: int) -> String:
 	if door == -2:
@@ -1210,44 +2481,17 @@ func _tutorial_answer_label(answer: int) -> String:
 		return labels[answer]
 	return "正解"
 
+## やり直し。死亡演出を挟まずに安全な位置へ戻す軽いリセット。
 func _reset_tutorial_attempt(hint: String) -> void:
-	var reset_z := float(current_wall_index) * tuning.wall_spacing
-	player_x = 1.5 if num_players >= 2 else 0.0
-	player_y = 0.0
-	player_z = reset_z
-	player_vel_y = 0.0
-	player_vel_z = 0.0
-	world_scroll_z = reset_z
-	p1_alive = true
-	game_over_timer = 0.0
-	if num_players >= 2:
-		player2_x = -1.5
-		player2_y = 0.0
-		player2_z = reset_z
-		player2_vel_y = 0.0
-		p2_alive = true
-		player2_game_over_timer = 0.0
-	else:
-		p2_alive = false
-	choice_locked = false
+	_reset_tutorial_stage(_tutorial_reset_z())
 	wrong_flash = 1.0
 	camera_shake = 0.16
 	message_text = hint
+	if tutorial_flow != null:
+		tutorial_flow.set_hint(hint)
+	tutorial_ui_revision += 1
 	refresh_status_text()
 	state_changed.emit(game_state)
-
-func _tutorial_correct_message() -> String:
-	if num_players >= 2:
-		if current_index == 0:
-			return "2人とも左ドアを抜けました。次は右ドアを練習します。"
-		if current_index == 1:
-			return "いい連携です。最後は問題を読んで同じ正解ドアへ進みましょう。"
-		return "2人プレイ チュートリアル完了！"
-	if current_index == 0:
-		return "正解！ ドアを抜けられました。次は右のドアを練習します。"
-	if current_index == 1:
-		return "いい感じです。最後は本番に近い問題を抜けましょう。"
-	return "チュートリアル完了！"
 
 func _coop_wait_message(p1_at_wall: bool, p2_at_wall: bool) -> String:
 	if p1_at_wall and not p2_at_wall:
@@ -1324,15 +2568,237 @@ func _coop_failure_message(p1_door: int, p2_door: int) -> String:
 		])
 	return "\n".join(lines)
 
+func apply_external_impulse(
+	player_index: int,
+	horizontal_velocity: Vector2,
+	vertical_velocity: float,
+	control_lock_seconds: float
+) -> void:
+	if player_index == 1:
+		if not p1_alive or p1_waiting_for_shark:
+			return
+		p1_external_velocity = horizontal_velocity.limit_length(18.0)
+		player_vel_y = maxf(player_vel_y, vertical_velocity)
+		p1_external_control_lock = maxf(p1_external_control_lock, control_lock_seconds)
+	else:
+		if not p2_alive or p2_waiting_for_shark:
+			return
+		p2_external_velocity = horizontal_velocity.limit_length(18.0)
+		player2_vel_y = maxf(player2_vel_y, vertical_velocity)
+		p2_external_control_lock = maxf(p2_external_control_lock, control_lock_seconds)
+	camera_shake = maxf(camera_shake, 0.45)
+
+
+func _reset_external_impulses() -> void:
+	p1_external_velocity = Vector2.ZERO
+	p2_external_velocity = Vector2.ZERO
+	p1_external_control_lock = 0.0
+	p2_external_control_lock = 0.0
+
+
+func _reset_ocean_shark_state() -> void:
+	p1_waiting_for_shark = false
+	p2_waiting_for_shark = false
+	p1_shark_killed = false
+	p2_shark_killed = false
+	p1_ocean_float_time = 0.0
+	p2_ocean_float_time = 0.0
+	p1_ocean_local_z = 0.0
+	p2_ocean_local_z = 0.0
+
+
+func _begin_ocean_shark_wait(player_index: int) -> void:
+	if player_index == 1:
+		if p1_waiting_for_shark or not p1_alive:
+			return
+		p1_waiting_for_shark = true
+		p1_shark_killed = false
+		p1_ocean_float_time = 0.0
+		p1_ocean_local_z = player_local_z
+		player_y = StageConstants.OCEAN_FLOAT_Y
+		player_vel_y = 0.0
+		player_vel_z = 0.0
+		p1_external_velocity = Vector2.ZERO
+		p1_external_control_lock = 0.0
+		p1_moving_back = false
+		p1_jump_trigger = false
+	else:
+		if p2_waiting_for_shark or not p2_alive:
+			return
+		p2_waiting_for_shark = true
+		p2_shark_killed = false
+		p2_ocean_float_time = 0.0
+		p2_ocean_local_z = player2_local_z
+		player2_y = StageConstants.OCEAN_FLOAT_Y
+		player2_vel_y = 0.0
+		player2_vel_z = 0.0
+		p2_external_velocity = Vector2.ZERO
+		p2_external_control_lock = 0.0
+		p2_moving_back = false
+		p2_jump_trigger = false
+	_emit_player_entered_ocean(player_index)
+
+
+func _update_ocean_float(player_index: int, dt: float) -> void:
+	if player_index == 1:
+		p1_ocean_float_time += dt
+		player_y = StageConstants.OCEAN_FLOAT_Y + sin(p1_ocean_float_time * 2.35) * 0.12
+		player_z = world_scroll_z + p1_ocean_local_z
+		player_vel_y = 0.0
+		player_vel_z = 0.0
+		p1_moving_back = false
+		p1_jump_trigger = false
+	else:
+		p2_ocean_float_time += dt
+		player2_y = StageConstants.OCEAN_FLOAT_Y + sin(p2_ocean_float_time * 2.35 + 1.1) * 0.12
+		player2_z = world_scroll_z + p2_ocean_local_z
+		player2_vel_y = 0.0
+		player2_vel_z = 0.0
+		p2_moving_back = false
+		p2_jump_trigger = false
+
+
+func is_player_waiting_for_shark(player_index: int) -> bool:
+	return p1_waiting_for_shark if player_index == 1 else p2_waiting_for_shark
+
+
+func get_ocean_player_local_position(player_index: int) -> Vector3:
+	if player_index == 1:
+		return Vector3(player_x, StageConstants.OCEAN_SURFACE_Y, p1_ocean_local_z)
+	return Vector3(player2_x, StageConstants.OCEAN_SURFACE_Y, p2_ocean_local_z)
+
+
+func complete_ocean_shark_attack(player_index: int) -> void:
+	if not is_player_waiting_for_shark(player_index):
+		return
+
+	if player_index == 1:
+		p1_waiting_for_shark = false
+		p1_shark_killed = true
+		p1_alive = false
+		p1_wall_impact = false
+		player_y = StageConstants.OCEAN_FLOAT_Y
+		player_vel_y = 0.0
+		game_over_timer = 0.001
+	else:
+		p2_waiting_for_shark = false
+		p2_shark_killed = true
+		p2_alive = false
+		p2_wall_impact = false
+		player2_y = StageConstants.OCEAN_FLOAT_Y
+		player2_vel_y = 0.0
+		player2_game_over_timer = 0.001
+
+	camera_shake = 0.75
+	if _is_tutorial_mode():
+		tutorial_ui_revision += 1
+		if (
+			is_tutorial_ghost_practice()
+			and tutorial_flow.designated_hazard_player() == player_index
+			and tutorial_flow.designated_ghost_player() == player_index
+		):
+			message_text = "サメ演出完了。魂がゴーストシャークへ移るまで待ちましょう。"
+			refresh_status_text()
+			state_changed.emit(game_state)
+			return
+		if (
+			tutorial_flow.is_ocean_hazard_step()
+			and tutorial_flow.designated_hazard_player() == player_index
+		):
+			tutorial_flow.complete_task(player_index, "ocean")
+			if tutorial_flow.hands_off_to_ghost_after_hazard():
+				# 復活させず、そのままゴーストシャークの練習ステップへ引き継ぐ。
+				message_text = "サメに襲われて脱落。ここからはゴーストシャークで反撃します。"
+				tutorial_flow.set_hint(message_text, 4.0)
+				_advance_tutorial_step()
+				return
+			# 壁への激突と同じく、サメ演出も最後まで見せてから復帰させる。
+			tutorial_flow.begin_death_recovery(TUTORIAL_OCEAN_RECOVERY_DURATION, false)
+			message_text = "サメに襲われました。コースの外は危険です。"
+			tutorial_flow.set_hint(message_text, TUTORIAL_OCEAN_RECOVERY_DURATION)
+			refresh_status_text()
+			state_changed.emit(game_state)
+			return
+		if tutorial_flow.punishes_mistakes() or tutorial_flow.starts_goal_race():
+			# 実戦と最終レースでは本編と同じ結末。全滅時のやり直しは
+			# 実戦は死亡復帰、最終レースは _update_goal_race 側で扱う。
+			var all_defeated: bool = not p1_alive and (num_players < 2 or not p2_alive)
+			if all_defeated and tutorial_flow.punishes_mistakes():
+				message_text = "2人とも脱落しました。もう一度挑戦しましょう。"
+				tutorial_flow.set_hint(message_text, WALL_DEATH_SEQUENCE_DURATION)
+				tutorial_flow.begin_death_recovery(WALL_DEATH_SEQUENCE_DURATION, true)
+			else:
+				message_text = "P%dが海でサメに襲われました。" % player_index
+				tutorial_flow.set_hint(message_text, 3.4)
+			refresh_status_text()
+			state_changed.emit(game_state)
+			return
+		_reset_tutorial_attempt("海の練習を安全な位置からやり直します。")
+		return
+	# 片方が先にサメに倒されても、もう片方の海上・サメ襲撃演出を完走させる。
+	# 両者が倒れた後だけ、協力プレイの失敗処理へ進む。
+	if is_coop_mode() and not p1_alive and not p2_alive:
+		var coop_message: String = (
+			"P%dがサメに襲われました。協力失敗です。" % player_index
+			if not use_english_ui
+			else "P%d was caught by a shark. Co-op failed." % player_index
+		)
+		_fail_coop_immediately(coop_message)
+		return
+
+	var all_players_defeated: bool = (
+		not p1_alive
+		and (num_players < 2 or not p2_alive)
+	)
+	if not all_players_defeated:
+		return
+
+	if current_quiz and not choice_locked:
+		choice_locked = true
+		provider.submit_result(current_quiz, false)
+		quiz_history.append({"quiz": current_quiz, "correct": false, "rated": ""})
+	var message: String = (
+		"海でサメに襲われた！"
+		if not use_english_ui
+		else "A shark caught you in the ocean!"
+	)
+	_game_over(message)
+	wrong_answer.emit(message_text)
+
+
+func _sink_ocean_players(dt: float) -> void:
+	if p1_shark_killed:
+		player_y = StageConstants.OCEAN_FLOAT_Y
+		player_vel_y = 0.0
+	elif not p1_alive and game_over_timer > 0.0 and player_y <= StageConstants.OCEAN_ENTRY_Y:
+		player_y = move_toward(player_y, StageConstants.OCEAN_SINK_Y, StageConstants.OCEAN_SINK_SPEED * dt)
+		player_vel_y = 0.0
+	if p2_shark_killed:
+		player2_y = StageConstants.OCEAN_FLOAT_Y
+		player2_vel_y = 0.0
+	elif num_players >= 2 and not p2_alive and player2_game_over_timer > 0.0 and player2_y <= StageConstants.OCEAN_ENTRY_Y:
+		player2_y = move_toward(player2_y, StageConstants.OCEAN_SINK_Y, StageConstants.OCEAN_SINK_SPEED * dt)
+		player2_vel_y = 0.0
+
+
+func _emit_player_entered_ocean(player_index: int) -> void:
+	var local_position: Vector3
+	if player_index == 1:
+		local_position = Vector3(player_x, StageConstants.OCEAN_SURFACE_Y, player_local_z)
+	else:
+		local_position = Vector3(player2_x, StageConstants.OCEAN_SURFACE_Y, player2_local_z)
+	player_entered_ocean.emit(player_index, local_position)
+
+
 func _process_dead_player_physics(dt: float) -> void:
-	if not p1_alive and game_over_timer > 0.0 and game_over_timer < 2.5:
+	if not p1_alive and game_over_timer > 0.0 and game_over_timer < 2.5 and player_y > StageConstants.OCEAN_ENTRY_Y:
 		player_vel_y -= GRAVITY * dt
 		player_y += player_vel_y * dt
 		player_vel_z = move_toward(player_vel_z, 0.0, dt * 15.0)
 		player_z += player_vel_z * dt
 		var local_z = player_z - world_scroll_z
 		var is_on_floor = local_z >= FLOOR_BACK_Z and abs(player_x) <= FLOOR_HALF_WIDTH
-		var limit_y = 0.0 if is_on_floor else -8.0
+		var limit_y: float = 0.0 if is_on_floor else StageConstants.OCEAN_ENTRY_Y
 		
 		if player_y <= limit_y and player_vel_y < 0.0:
 			player_y = limit_y
@@ -1340,14 +2806,14 @@ func _process_dead_player_physics(dt: float) -> void:
 			if is_on_floor:
 				player_vel_z = 0.0
 			
-	if num_players >= 2 and not p2_alive and player2_game_over_timer > 0.0 and player2_game_over_timer < 2.5:
+	if num_players >= 2 and not p2_alive and player2_game_over_timer > 0.0 and player2_game_over_timer < 2.5 and player2_y > StageConstants.OCEAN_ENTRY_Y:
 		player2_vel_y -= GRAVITY * dt
 		player2_y += player2_vel_y * dt
 		player2_vel_z = move_toward(player2_vel_z, 0.0, dt * 15.0)
 		player2_z += player2_vel_z * dt
 		var local2_z = player2_z - world_scroll_z
 		var is2_on_floor = local2_z >= FLOOR_BACK_Z and abs(player2_x) <= FLOOR_HALF_WIDTH
-		var limit2_y = 0.0 if is2_on_floor else -8.0
+		var limit2_y: float = 0.0 if is2_on_floor else StageConstants.OCEAN_ENTRY_Y
 		
 		if player2_y <= limit2_y and player2_vel_y < 0.0:
 			player2_y = limit2_y
@@ -1355,12 +2821,25 @@ func _process_dead_player_physics(dt: float) -> void:
 			if is2_on_floor:
 				player2_vel_z = 0.0
 
+
+## 壁衝突の「ラグドール -> 四肢分散」が終わるまでは結果画面や離脱を許可しない。
+func is_wall_death_sequence_complete() -> bool:
+	if p1_wall_impact and not p1_alive and game_over_timer < WALL_DEATH_SEQUENCE_DURATION:
+		return false
+	if p2_wall_impact and not p2_alive and player2_game_over_timer < WALL_DEATH_SEQUENCE_DURATION:
+		return false
+	return true
+
 func _fail_coop_immediately(msg: String) -> void:
 	if choice_locked:
 		return
 	choice_locked = true
+	p1_waiting_for_shark = false
+	p2_waiting_for_shark = false
 	p1_alive = false
 	p2_alive = false
+	p1_wall_impact = false
+	p2_wall_impact = false
 	game_over_timer = 0.001
 	player2_game_over_timer = 0.001
 	_register_coop_result(false)
@@ -1399,6 +2878,8 @@ func _resolve_coop_collision() -> void:
 	else:
 		p1_alive = false
 		p2_alive = false
+		p1_wall_impact = true
+		p2_wall_impact = true
 		game_over_timer = 0.001
 		player2_game_over_timer = 0.001
 		player_vel_y = JUMP_FORCE * 0.8
@@ -1409,10 +2890,12 @@ func _resolve_coop_collision() -> void:
 		wrong_answer.emit(message_text)
 
 func resolve_collision(p1_hit: bool = false, p2_hit: bool = false) -> void:
-	if not current_quiz or choice_locked:
+	if choice_locked:
 		return
 	if _is_tutorial_mode():
 		_resolve_tutorial_collision()
+		return
+	if not current_quiz:
 		return
 	if is_coop_mode():
 		_resolve_coop_collision()
@@ -1431,6 +2914,7 @@ func resolve_collision(p1_hit: bool = false, p2_hit: bool = false) -> void:
 		if door < 0:
 			# 壁に衝突
 			p1_alive = false
+			p1_wall_impact = true
 			game_over_timer = 0.001
 			player_vel_y = JUMP_FORCE * 0.8
 			player_vel_z = -12.0
@@ -1453,6 +2937,7 @@ func resolve_collision(p1_hit: bool = false, p2_hit: bool = false) -> void:
 		else:
 			# 不正解ドア
 			p1_alive = false
+			p1_wall_impact = true
 			game_over_timer = 0.001
 			player_vel_y = JUMP_FORCE * 0.8
 			player_vel_z = -12.0
@@ -1469,6 +2954,7 @@ func resolve_collision(p1_hit: bool = false, p2_hit: bool = false) -> void:
 		var door2: int = _check_player_door(player2_x)
 		if door2 < 0:
 			p2_alive = false
+			p2_wall_impact = true
 			player2_game_over_timer = 0.001
 			player2_vel_y = JUMP_FORCE * 0.8
 			player2_vel_z = -12.0
@@ -1477,6 +2963,7 @@ func resolve_collision(p1_hit: bool = false, p2_hit: bool = false) -> void:
 			p2_correct = true
 		else:
 			p2_alive = false
+			p2_wall_impact = true
 			player2_game_over_timer = 0.001
 			player2_vel_y = JUMP_FORCE * 0.8
 			player2_vel_z = -12.0
@@ -1503,7 +2990,7 @@ func resolve_collision(p1_hit: bool = false, p2_hit: bool = false) -> void:
 			if recent_response_times.size() > 5:
 				recent_response_times.pop_front()
 
-			if QuizManager.player_analytics != null and not is_demo:
+			if QuizManager.player_analytics != null:
 				var chosen_door: int = _check_player_door(player_x) if p1_hit or not p1_correct else current_quiz.a
 				QuizManager.player_analytics.record(
 					current_quiz, response_time, any_correct, chosen_door,
@@ -1548,6 +3035,7 @@ func advance_after_correct() -> void:
 			var new_quizzes := provider.get_quizzes(subject, grade, difficulty, _provider_mode(), missing)
 			quiz_list.append_array(new_quizzes)
 			_prepare_coop_quiz_list()
+			_ensure_boss_four_choices()
 		load_current_quiz()
 	else:
 		# 現在の問題を消費してローカルキューから除去
@@ -1591,17 +3079,19 @@ func _game_over(msg: String) -> void:
 
 func clear_game() -> void:
 	game_state = Constants.STATE_CLEAR
-	provider.end_round()
+	if not _result_round_closed:
+		provider.end_round()
+		_result_round_closed = true
 	rating_target_quiz = current_quiz
 	rating_feedback = ""
 	if _is_tutorial_mode():
 		rating_target_quiz = null
-		if num_players >= 2:
-			message_text = "TUTORIAL CLEAR!\n2人で3つの壁を抜けました\nメニューからいつでも復習できます"
-		else:
-			message_text = "TUTORIAL CLEAR!\n3つの壁を抜けました\nメニューからいつでも復習できます"
+		var summary := PackedStringArray(["TUTORIAL CLEAR!"])
+		if tutorial_flow != null:
+			summary.append_array(tutorial_flow.clear_summary_lines())
+		message_text = "\n".join(summary)
 		correct_flash = 1.0
-		GameManager.mark_tutorial_completed()
+		GameManager.mark_tutorial_course_completed(get_tutorial_course())
 		refresh_status_text()
 		game_cleared.emit(message_text)
 		state_changed.emit(game_state)
@@ -1705,6 +3195,9 @@ func choices_text() -> PackedStringArray:
 	])
 
 func refresh_status_text() -> void:
+	if game_state == Constants.STATE_RESULT_CEREMONY:
+		status_text = "結果発表中…"
+		return
 	if game_state in [Constants.STATE_GAME_OVER, Constants.STATE_CLEAR]:
 		if _is_tutorial_mode():
 			status_text = "チュートリアル完了  |  [R] でメニューへ戻る"
@@ -1766,13 +3259,17 @@ func refresh_status_text() -> void:
 
 	# Playing state
 	if _is_tutorial_mode():
-		var progress_tutorial := "%d/%d" % [mini(current_index + 1, target_count), target_count]
+		var overlay := get_tutorial_overlay_model()
+		var phase_label := str(overlay.get("title", "チュートリアル"))
+		var progress_label := "%d/%d" % [
+			int(overlay.get("step_number", 1)), int(overlay.get("step_count", 1))
+		]
 		if num_players >= 2:
-			status_text = "2P 3Dチュートリアル  進行:%s  P1:%d  P2:%d" % [
-				progress_tutorial, score, player2_score
+			status_text = "2P チュートリアル  %s  %s  P1:%d  P2:%d" % [
+				progress_label, phase_label, score, player2_score
 			]
 		else:
-			status_text = "3Dチュートリアル  進行:%s  正解:%d" % [progress_tutorial, score]
+			status_text = "チュートリアル  %s  %s" % [progress_label, phase_label]
 		return
 
 	if use_english_ui:
@@ -1791,79 +3288,6 @@ func refresh_status_text() -> void:
 			subject, grade, difficulty, mode_label, progress, score_name, score
 		]
 
-func tutorial_instruction_text() -> String:
-	if not _is_tutorial_mode():
-		return ""
-	if game_state == Constants.STATE_WAITING_START:
-		if num_players >= 2:
-			return "2人プレイ チュートリアル: 同じ正解ドアを抜ける練習"
-		return "3Dチュートリアル: 実際に壁を抜ける練習"
-	if game_state == Constants.STATE_COUNTDOWN:
-		if num_players >= 2:
-			var is_mobile := OS.has_feature("mobile")
-			return "左右スワイプでレーン移動、ボタンでジャンプします" if is_mobile else "P1はWASD、P2は矢印キーで動きます"
-		return "カウントダウン後、壁が近づいてきます"
-	if game_state == Constants.STATE_PLAYING:
-		var is_mobile := OS.has_feature("mobile")
-		if num_players >= 2:
-			match current_index:
-				0:
-					return "練習1: 左右スワイプで左ドアへ" if is_mobile else "練習1: P1はA、P2は←で左ドアへ"
-				1:
-					return "練習2: 左右スワイプで右ドアへ" if is_mobile else "練習2: P1はD、P2は→で右ドアへ"
-				_:
-					return "練習3: 2人で問題を読んで正解ドアへ"
-		else:
-			match current_index:
-				0:
-					return "練習1: 左スワイプで左の正解ドアへ移動" if is_mobile else "練習1: A / ← で左の正解ドアへ移動"
-				1:
-					return "練習2: 右スワイプで右の正解ドアへ移動" if is_mobile else "練習2: D / → で右の正解ドアへ移動"
-				_:
-					return "練習3: 問題を読んで正解ドアへ移動"
-	if game_state == Constants.STATE_CLEAR:
-		if num_players >= 2:
-			return "2人プレイ チュートリアル完了"
-		return "チュートリアル完了"
-	return ""
-
-func tutorial_detail_text() -> String:
-	if not _is_tutorial_mode():
-		return ""
-	var is_mobile := OS.has_feature("mobile")
-	if game_state == Constants.STATE_WAITING_START:
-		if num_players >= 2:
-			return "画面タップで開始です。" if is_mobile else "任意のキーで開始です。上のガイドでエモートキーと設定方法も確認できます。"
-		return "画面タップで3秒後に練習開始です。" if is_mobile else "任意のキーを押すと、3秒後に練習開始です。上のガイドでエモートキーと設定方法も確認できます。"
-	if game_state == Constants.STATE_COUNTDOWN:
-		if num_players >= 2:
-			return "上スワイプまたはJUMPボタンでジャンプ。エモートはボタンで出せます。" if is_mobile else "P1はSpace、P2はCtrlまたはNum0でジャンプ。エモートはP1:1/2/3、P2:8/9/0です。"
-		return "問題文は画面上、答えはドアに表示されます。ジャンプは上スワイプかJUMPボタン。" if is_mobile else "問題文は画面上、答えは壁のドアに表示されます。エモートは1/2/3で出せます。"
-	if game_state == Constants.STATE_PLAYING:
-		if not message_text.is_empty() and (wrong_flash > 0.0 or num_players >= 2):
-			return message_text
-		if num_players >= 2:
-			match current_index:
-				0:
-					return "左のドアに入ります。左スワイプで左に寄りましょう。" if is_mobile else "左のドアに2人とも入ります。P1はA、P2は←を押して寄りましょう。"
-				1:
-					return "今度は右のドアです。右スワイプで右に寄りましょう。" if is_mobile else "今度は右のドアです. P1はD、P2は→で右へ寄りましょう。"
-				_:
-					return "壁の表示を見て、2人とも同じ正解ドアを抜けましょう。"
-		else:
-			match current_index:
-				0:
-					return "2 + 3 の答え「5」は左ドアです。左スワイプで左へ寄って壁を抜けましょう。" if is_mobile else "2 + 3 の答え「5」は左ドアです。左へ寄って壁を抜けましょう。"
-				1:
-					return "今度は右側のドアを選びます。右スワイプで右へ移動して通過しましょう。" if is_mobile else "今度は右側のドアを選びます。右へ移動して通過しましょう。"
-				_:
-					return "正解ドアを抜けると壁が壊れ、次へ進めることを確認しましょう。"
-	if game_state == Constants.STATE_CLEAR:
-		if num_players >= 2:
-			return "メニューに戻って、2人プレイの10問チャレンジにも挑戦できます。"
-		return "メニューに戻って、10問チャレンジやエンドレスに挑戦できます。"
-	return ""
-
 # ===========================================================================
 # Network snapshot serialization (used by net_game_state.gd)
 # ===========================================================================
@@ -1877,6 +3301,12 @@ func to_snapshot() -> Dictionary:
 		"p1z": player_z,
 		"p1vy": player_vel_y,
 		"p1a": p1_alive,
+		"p1wi": p1_wall_impact,
+		"p1fc": p1_fall_committed,
+		"p1sw": p1_waiting_for_shark,
+		"p1sk": p1_shark_killed,
+		"p1oft": p1_ocean_float_time,
+		"p1olz": p1_ocean_local_z,
 		"p1e": p1_emote,
 		"p1mb": p1_moving_back,
 		"s1": score,
@@ -1886,6 +3316,12 @@ func to_snapshot() -> Dictionary:
 		"p2z": player2_z,
 		"p2vy": player2_vel_y,
 		"p2a": p2_alive,
+		"p2wi": p2_wall_impact,
+		"p2fc": p2_fall_committed,
+		"p2sw": p2_waiting_for_shark,
+		"p2sk": p2_shark_killed,
+		"p2oft": p2_ocean_float_time,
+		"p2olz": p2_ocean_local_z,
 		"p2e": p2_emote,
 		"p2mb": p2_moving_back,
 		"s2": player2_score,
@@ -1931,6 +3367,12 @@ func apply_snapshot(data: Dictionary) -> void:
 	player_z = data.get("p1z", player_z)
 	player_vel_y = data.get("p1vy", player_vel_y)
 	p1_alive = data.get("p1a", p1_alive)
+	p1_wall_impact = data.get("p1wi", p1_wall_impact)
+	p1_fall_committed = data.get("p1fc", p1_fall_committed)
+	p1_waiting_for_shark = data.get("p1sw", p1_waiting_for_shark)
+	p1_shark_killed = data.get("p1sk", p1_shark_killed)
+	p1_ocean_float_time = data.get("p1oft", p1_ocean_float_time)
+	p1_ocean_local_z = data.get("p1olz", p1_ocean_local_z)
 	p1_emote = data.get("p1e", p1_emote)
 	p1_moving_back = data.get("p1mb", p1_moving_back)
 	score = int(data.get("s1", score))
@@ -1940,6 +3382,12 @@ func apply_snapshot(data: Dictionary) -> void:
 	player2_z = data.get("p2z", player2_z)
 	player2_vel_y = data.get("p2vy", player2_vel_y)
 	p2_alive = data.get("p2a", p2_alive)
+	p2_wall_impact = data.get("p2wi", p2_wall_impact)
+	p2_fall_committed = data.get("p2fc", p2_fall_committed)
+	p2_waiting_for_shark = data.get("p2sw", p2_waiting_for_shark)
+	p2_shark_killed = data.get("p2sk", p2_shark_killed)
+	p2_ocean_float_time = data.get("p2oft", p2_ocean_float_time)
+	p2_ocean_local_z = data.get("p2olz", p2_ocean_local_z)
 	p2_emote = data.get("p2e", p2_emote)
 	p2_moving_back = data.get("p2mb", p2_moving_back)
 	player2_score = int(data.get("s2", player2_score))
@@ -1948,8 +3396,12 @@ func apply_snapshot(data: Dictionary) -> void:
 	current_wall_index = int(data.get("wi", current_wall_index))
 	current_index = int(data.get("ci", current_index))
 	var new_state: String = data.get("gs", game_state)
+	# 旧クライアント由来の専用エラー状態も画面へ出さず、オンライン待機へ戻す。
+	if new_state == "ONLINE_QUIZ_ERROR":
+		new_state = Constants.STATE_PRELOADING
 	if new_state != game_state:
 		game_state = new_state
+		refresh_status_text()
 		state_changed.emit(new_state)
 	# Effects
 	correct_flash = data.get("cf", correct_flash)
@@ -1977,48 +3429,3 @@ func apply_snapshot(data: Dictionary) -> void:
 	# Jump triggers
 	p1_jump_trigger = data.get("p1j", p1_jump_trigger)
 	p2_jump_trigger = data.get("p2j", p2_jump_trigger)
-
-func _get_available_lanes(is_p1: bool) -> Array[float]:
-	var lanes: Array[float] = []
-	if is_coop_mode():
-		if is_p1:
-			for x in tuning.coop_p1_door_xs:
-				lanes.append(x)
-		else:
-			for x in tuning.coop_p2_door_xs:
-				lanes.append(x)
-	elif num_choices == 4:
-		for x in tuning.door4_xs:
-			lanes.append(x)
-	else:
-		lanes.append(tuning.left_door_x)
-		lanes.append(tuning.right_door_x)
-	
-	lanes.sort()
-	return lanes
-
-func handle_mobile_swipe(is_left: bool) -> void:
-	mobile_lane_mode = true
-	var lanes: Array[float] = _get_available_lanes(true)
-	if lanes.is_empty():
-		return
-		
-	# Find closest lane index to current player_x
-	var closest_idx: int = 0
-	var min_dist: float = 99999.0
-	for i in range(lanes.size()):
-		var dist: float = abs(player_x - lanes[i])
-		if dist < min_dist:
-			min_dist = dist
-			closest_idx = i
-			
-	# Left swipe -> move left (increase X)
-	# Right swipe -> move right (decrease X)
-	var next_idx: int = closest_idx
-	if is_left:
-		next_idx = mini(closest_idx + 1, lanes.size() - 1)
-	else:
-		next_idx = maxi(closest_idx - 1, 0)
-		
-	target_player_x = lanes[next_idx]
-

@@ -65,10 +65,10 @@ func cycle_mode() -> void:
 
 func get_mode_label() -> String:
 	match current_mode:
-		Mode.FREE: return "🎥 フリーカメラ"
-		Mode.FOLLOW_P1: return "👤 P1追従"
-		Mode.FOLLOW_P2: return "👤 P2追従"
-		Mode.OVERHEAD: return "🔭 俯瞰"
+		Mode.FREE: return "フリーカメラ"
+		Mode.FOLLOW_P1: return "P1追従"
+		Mode.FOLLOW_P2: return "P2追従"
+		Mode.OVERHEAD: return "俯瞰"
 	return ""
 
 func update_targets(p1: Vector3, p2: Vector3) -> void:

@@ -56,11 +56,15 @@ var _body: String = ""
 
 var _accumulated_text: String = ""
 var _line_buffer: String = ""  # SSE行の途中バッファ
+var _byte_buffer: PackedByteArray = PackedByteArray()  # UTF-8デコード途中の生バイトバッファ
 
 var _start_time: float = 0.0
 var _last_chunk_time: float = 0.0
 
 var _is_proxy: bool = false  # プロキシ経由かどうか
+var _http_ok: bool = false
+## 最後に受信した HTTP ステータス（429 判定などに使用）
+var response_code: int = 0
 
 
 ## ── パブリックメソッド ──
@@ -90,6 +94,7 @@ func start_stream(url: String, headers: PackedStringArray, body: String) -> void
 
 	_accumulated_text = ""
 	_line_buffer = ""
+	_byte_buffer = PackedByteArray()
 	_start_time = Time.get_ticks_msec() / 1000.0
 	_last_chunk_time = _start_time
 
@@ -184,11 +189,12 @@ func _handle_requesting(status: int, _now: float) -> void:
 		HTTPClient.STATUS_BODY:
 			# レスポンスのヘッダーを受信し、ボディ受信開始
 			var resp_code := _http.get_response_code()
+			response_code = resp_code
+			_http_ok = resp_code == 200
 			print("[%d] [GeminiStreamClient] Response code: %d" % [Time.get_ticks_msec(), resp_code])
-			if resp_code != 200:
+			if not _http_ok:
 				push_error("[GeminiStreamClient] Non-200 response: %d" % resp_code)
-				# ボディを読んでエラー内容を出力してから終了
-				_state = State.BODY  # ボディを読みきってからfinish
+				_state = State.BODY  # ボディを読みきってから finish
 				return
 			_last_chunk_time = _now
 			_state = State.BODY
@@ -205,8 +211,10 @@ func _handle_headers(status: int, _now: float) -> void:
 	match status:
 		HTTPClient.STATUS_BODY:
 			var resp_code := _http.get_response_code()
+			response_code = resp_code
+			_http_ok = resp_code == 200
 			print("[%d] [GeminiStreamClient] Response code (headers): %d" % [Time.get_ticks_msec(), resp_code])
-			if resp_code != 200:
+			if not _http_ok:
 				push_error("[GeminiStreamClient] Non-200 response: %d" % resp_code)
 			_last_chunk_time = _now
 			_state = State.BODY
@@ -227,8 +235,12 @@ func _handle_body(status: int, now: float) -> void:
 		var chunk := _http.read_response_body_chunk()
 		if chunk.size() > 0:
 			_last_chunk_time = now
-			var chunk_str := chunk.get_string_from_utf8()
-			_process_sse_chunk(chunk_str)
+			# 生バイトをバッファに追加し、完全なUTF-8シーケンスだけをデコードする。
+			# マルチバイト文字（日本語など）がチャンク境界で分断されても
+			# 途中で �(U+FFFD) にデコードされるのを防ぐ。
+			var chunk_str := _decode_utf8_streaming(chunk)
+			if not chunk_str.is_empty():
+				_process_sse_chunk(chunk_str)
 		else:
 			# チャンクがまだ来ていない → アイドルタイムアウトをチェック
 			if now - _last_chunk_time > MAX_IDLE_SECONDS:
@@ -239,12 +251,64 @@ func _handle_body(status: int, now: float) -> void:
 	# ボディ読み取り完了の判定
 	if status == HTTPClient.STATUS_CONNECTED or status == HTTPClient.STATUS_DISCONNECTED:
 		# 接続が閉じられた（レスポンス完了）
-		# 残りのバッファを処理
+		# バイトバッファに残った分をデコード（末尾に不完全バイトが残っていれば置換文字になるが、
+		# 正常終了時は完全なUTF-8で終わるため通常は空か完全なテキスト）
+		if _byte_buffer.size() > 0:
+			var tail := _byte_buffer.get_string_from_utf8()
+			_byte_buffer = PackedByteArray()
+			if not tail.is_empty():
+				_process_sse_chunk(tail)
+		# 残りの行バッファを処理
 		if not _line_buffer.is_empty():
 			_process_sse_line(_line_buffer)
 			_line_buffer = ""
 		print("[%d] [GeminiStreamClient] Stream completed. Total text length: %d" % [Time.get_ticks_msec(), _accumulated_text.length()])
-		_finish(true)
+		var ok := _http_ok and not _accumulated_text.is_empty()
+		_finish(ok)
+
+
+## ── UTF-8 ストリーミングデコード ──
+
+## 生バイトチャンクを内部バッファに追加し、完全なUTF-8シーケンスまでをデコードして返す。
+## 末尾に途中で切れたマルチバイト文字が残っていれば、それはバッファに保持し
+## 次回のチャンクと連結してからデコードする（文字化け �(U+FFFD) の防止）。
+func _decode_utf8_streaming(new_bytes: PackedByteArray) -> String:
+	_byte_buffer.append_array(new_bytes)
+	var size := _byte_buffer.size()
+	if size == 0:
+		return ""
+
+	# 末尾から最大4バイトを調べ、不完全なマルチバイト列の開始位置を探す
+	var split := size
+	var scanned := 0
+	var i := size - 1
+	while i >= 0 and scanned < 4:
+		var b := _byte_buffer[i]
+		if b < 0x80:
+			# ASCII単独バイト → 末尾は完全。全体をデコード可能
+			break
+		elif b >= 0xC0:
+			# マルチバイトの先頭バイト → 必要バイト数を判定
+			var expected := 2
+			if b >= 0xF0:
+				expected = 4
+			elif b >= 0xE0:
+				expected = 3
+			var have := size - i
+			if have < expected:
+				# シーケンスが未完成 → この位置以降を次回に持ち越す
+				split = i
+			break
+		# 継続バイト(0x80-0xBF) → さらに前方の先頭バイトを探す
+		i -= 1
+		scanned += 1
+
+	if split <= 0:
+		return ""
+
+	var decodable := _byte_buffer.slice(0, split)
+	_byte_buffer = _byte_buffer.slice(split)
+	return decodable.get_string_from_utf8()
 
 
 ## ── SSEパース ──

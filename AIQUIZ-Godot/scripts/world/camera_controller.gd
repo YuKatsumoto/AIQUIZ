@@ -31,6 +31,8 @@ var _tutorial_override_target: Vector3 = Vector3.ZERO
 var _tutorial_override_fov: float = 50.0
 var _result_camera_active: bool = false
 var _result_camera_phase: int = QuizGameState.ResultCeremonyPhase.NONE
+var _rear_back_ready: bool = false
+var _smoothed_rear_back: float = 9.0
 
 const ENTRY_BLEND_DURATION := 0.95
 const PRELOAD_CAMERA_FOV := 66.0
@@ -45,6 +47,15 @@ const TUTORIAL_HAZARD_SPLIT_FOV_FULL_DISTANCE := 18.0
 const TUTORIAL_HAZARD_SPLIT_MAX_FOV := 68.0
 const TUTORIAL_HAZARD_SPLIT_CAMERA_BACK_DISTANCE := 12.5
 const TUTORIAL_HAZARD_SPLIT_CAMERA_LOOK_AHEAD := 5.0
+const TWO_PLAYER_FOV := 50.0
+const TWO_PLAYER_EYE_Y := 4.5
+const TWO_PLAYER_LOOK_Y := 1.0
+const TWO_PLAYER_LOOK_AHEAD := 8.0
+const TWO_PLAYER_CAMERA_BACK := 9.0
+const TWO_PLAYER_REAR_PULL_START_DISTANCE := 3.5
+const TWO_PLAYER_REAR_PULL_FULL_DISTANCE := 0.5
+const TWO_PLAYER_REAR_MAX_BACK := 13.0
+const TWO_PLAYER_REAR_BLEND_SPEED := 1.2
 
 func _ready() -> void:
 	if not camera:
@@ -110,10 +121,15 @@ func get_gameplay_pose(gs: QuizGameState) -> Dictionary:
 			z_focus = (gs.player_local_z + gs.player2_local_z) * 0.5
 		elif gs.p2_alive:
 			z_focus = gs.player2_local_z
+		var back := _two_player_rear_back_distance(gs)
 		return {
-			"eye": Vector3(0.0, 4.5, z_focus - 9.0),
-			"target": Vector3(0.0, 1.0, z_focus + 8.0),
-			"fov": 50.0,
+			"eye": Vector3(0.0, TWO_PLAYER_EYE_Y, z_focus - back),
+			"target": Vector3(
+				0.0,
+				TWO_PLAYER_LOOK_Y,
+				z_focus + TWO_PLAYER_LOOK_AHEAD
+			),
+			"fov": TWO_PLAYER_FOV,
 		}
 	var focus := Vector3(
 		gs.player_x,
@@ -125,6 +141,69 @@ func get_gameplay_pose(gs: QuizGameState) -> Dictionary:
 		"target": _third_person_camera_target(gs, focus),
 		"fov": THIRD_PERSON_FOV,
 	}
+
+
+## 2Pでうしろのコンベアローラー端へ近づくほどカメラを後ろへ離し、落下が読めるようにする。
+func _two_player_rear_pull_ratio(gs: QuizGameState) -> float:
+	var clearance := _two_player_rear_clearance(gs)
+	var span := TWO_PLAYER_REAR_PULL_START_DISTANCE - TWO_PLAYER_REAR_PULL_FULL_DISTANCE
+	var ratio := 0.0
+	if span > 0.0001:
+		ratio = clampf(
+			(TWO_PLAYER_REAR_PULL_START_DISTANCE - clearance) / span,
+			0.0,
+			1.0
+		)
+	return ratio
+
+
+func _two_player_rear_back_distance(gs: QuizGameState) -> float:
+	return lerpf(TWO_PLAYER_CAMERA_BACK, TWO_PLAYER_REAR_MAX_BACK, _two_player_rear_pull_ratio(gs))
+
+
+func _update_smoothed_rear_back(gs: QuizGameState, dt: float) -> float:
+	var target_back := _two_player_rear_back_distance(gs)
+	if not _rear_back_ready:
+		_smoothed_rear_back = target_back
+		_rear_back_ready = true
+		return _smoothed_rear_back
+	if dt > 0.0:
+		var follow := 1.0 - exp(-TWO_PLAYER_REAR_BLEND_SPEED * dt)
+		_smoothed_rear_back = lerpf(_smoothed_rear_back, target_back, follow)
+	return _smoothed_rear_back
+
+
+func _two_player_gameplay_fov(gs: QuizGameState) -> float:
+	if not (
+		gs.tutorial_splits_camera()
+		and gs.p1_alive
+		and gs.p2_alive
+	):
+		return TWO_PLAYER_FOV
+	var player_separation := absf(gs.player_local_z - gs.player2_local_z)
+	var separation_span := (
+		TUTORIAL_HAZARD_SPLIT_FOV_FULL_DISTANCE
+		- TUTORIAL_HAZARD_SPLIT_FOV_START_DISTANCE
+	)
+	var separation_ratio := 0.0
+	if separation_span > 0.0001:
+		separation_ratio = clampf(
+			(player_separation - TUTORIAL_HAZARD_SPLIT_FOV_START_DISTANCE) / separation_span,
+			0.0,
+			1.0
+		)
+	return lerpf(TWO_PLAYER_FOV, TUTORIAL_HAZARD_SPLIT_MAX_FOV, separation_ratio)
+
+
+func _two_player_rear_clearance(gs: QuizGameState) -> float:
+	var clearance := INF
+	if gs.p1_alive and not gs.p1_waiting_for_shark:
+		clearance = minf(clearance, gs.player_local_z - StageConstants.FLOOR_BACK_Z)
+	if gs.p2_alive and not gs.p2_waiting_for_shark:
+		clearance = minf(clearance, gs.player2_local_z - StageConstants.FLOOR_BACK_Z)
+	if not is_finite(clearance):
+		return TWO_PLAYER_REAR_PULL_START_DISTANCE
+	return clearance
 
 
 func wait_for_entry_blend() -> void:
@@ -221,7 +300,7 @@ func update_camera(gs: QuizGameState, dt: float) -> void:
 
 	if gs.num_players >= 2:
 		# === 2-PLAYER: top-down view ===
-		fov = 50.0
+		fov = TWO_PLAYER_FOV
 		# 海やゴーストの練習ステップでは片方が待機し、2人が意図的に離れる。
 		# 離れるほど画角を広げ、待機側が画面外へ切れないようにする。
 		var tutorial_hazard_split: bool = (
@@ -229,18 +308,6 @@ func update_camera(gs: QuizGameState, dt: float) -> void:
 			and gs.p1_alive
 			and gs.p2_alive
 		)
-		if tutorial_hazard_split:
-			var player_separation := absf(gs.player_local_z - gs.player2_local_z)
-			var separation_ratio := clampf(
-				(player_separation - TUTORIAL_HAZARD_SPLIT_FOV_START_DISTANCE)
-				/ (
-					TUTORIAL_HAZARD_SPLIT_FOV_FULL_DISTANCE
-					- TUTORIAL_HAZARD_SPLIT_FOV_START_DISTANCE
-				),
-				0.0,
-				1.0
-			)
-			fov = maxf(fov, lerpf(50.0, TUTORIAL_HAZARD_SPLIT_MAX_FOV, separation_ratio))
 		var all_dead: bool = not gs.p1_alive and not gs.p2_alive
 		var z_focus: float = gs.player_local_z
 		if gs.p1_alive and gs.p2_alive:
@@ -277,6 +344,7 @@ func update_camera(gs: QuizGameState, dt: float) -> void:
 				target_pz)
 		else:
 			_go_timer = 0.0
+			fov = _two_player_gameplay_fov(gs)
 			if tutorial_hazard_split:
 				# Pull back and aim nearer the midpoint; the normal camera looks farther
 				# ahead and would push the stationary player below the bottom edge.
@@ -291,8 +359,13 @@ func update_camera(gs: QuizGameState, dt: float) -> void:
 					z_focus + TUTORIAL_HAZARD_SPLIT_CAMERA_LOOK_AHEAD
 				)
 			else:
-				eye = Vector3(0.0, 4.5 + bob, z_focus - 9.0)
-				target = Vector3(0.0, 1.0, z_focus + 8.0)
+				var back := _update_smoothed_rear_back(gs, dt)
+				eye = Vector3(0.0, TWO_PLAYER_EYE_Y + bob, z_focus - back)
+				target = Vector3(
+					0.0,
+					TWO_PLAYER_LOOK_Y,
+					z_focus + TWO_PLAYER_LOOK_AHEAD
+				)
 	else:
 		# === 1-PLAYER: fixed third-person follow view ===
 		fov = THIRD_PERSON_FOV
@@ -521,7 +594,7 @@ func _update_flyover_camera(gs: QuizGameState, _dt: float) -> void:
 			z_focus = gs.player2_local_z
 		end_pos = Vector3(0.0, 4.5, z_focus - 9.0)
 		end_look = Vector3(0.0, 1.0, z_focus + 8.0)
-		end_fov = 50.0
+		end_fov = TWO_PLAYER_FOV
 	else:
 		# 1P: 通常プレイと同じ三人称追従視点
 		var focus: Vector3 = Vector3(

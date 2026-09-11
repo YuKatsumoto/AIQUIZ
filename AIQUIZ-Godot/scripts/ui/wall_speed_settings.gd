@@ -388,12 +388,15 @@ func _build_ui() -> void:
 	_reset_btn.pressed.connect(_on_reset_pressed)
 	btn_vbox.add_child(_reset_btn)
 
-	var emote_hint := Label.new()
-	emote_hint.text = "左プレビュー: キー 1・2・3 でエモート  Spaceで停止"
-	emote_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	emote_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	emote_hint.add_theme_font_size_override("font_size", 11)
-	emote_hint.add_theme_color_override("font_color", Color(0.55, 0.60, 0.72))
+	var emote_hint := KeyHintRow.new()
+	emote_hint.name = "EmoteHint"
+	emote_hint.add_theme_constant_override("separation", 4)
+	var hint_ink := Color(0.55, 0.60, 0.72)
+	emote_hint.add_text("左プレビュー: ", hint_ink, 11)
+	emote_hint.add_spec("1 / 2 / 3", KeycapChip.DEFAULT_ACCENT, KeycapChip.SizeClass.TINY)
+	emote_hint.add_text("でエモート  ", hint_ink, 11)
+	emote_hint.add_spec("Space", KeycapChip.DEFAULT_ACCENT, KeycapChip.SizeClass.TINY)
+	emote_hint.add_text("で停止", hint_ink, 11)
 	btn_vbox.add_child(emote_hint)
 	
 	# 戻るボタン

@@ -38,7 +38,7 @@ var _preview_texture_rect: TextureRect
 var _slot_labels: Array[Label] = []  # 繧ｹ繝ｭ繝・ヨ陦ｨ遉ｺ繝ｩ繝吶Ν [3縺､]
 var _emote_name_label: Label
 var _emote_desc_label: Label
-var _preview_help_label: Label
+var _preview_help_label: KeyHintRow
 var _player_toggle_btn: Button
 var _back_btn: Button
 var _emote_grid: GridContainer  # 繧ｨ繝｢繝ｼ繝医げ繝ｪ繝・ラ
@@ -201,18 +201,17 @@ func _build_ui() -> void:
 	preview_stage.add_child(_sub_viewport)
 	_preview_texture_rect.texture = _sub_viewport.get_texture()
 
-	_preview_help_label = Label.new()
-	_preview_help_label.text = "右ドラッグ: 回転  中ドラッグ/WASD: 移動  ホイール: ズーム  （カメラはキャラに追従）"
-	_preview_help_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_preview_help_label.add_theme_font_size_override("font_size", 11)
-	_preview_help_label.add_theme_color_override("font_color", Color(0.82, 0.86, 0.95, 0.78))
-	_preview_help_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.70))
-	_preview_help_label.add_theme_constant_override("shadow_offset_x", 1)
-	_preview_help_label.add_theme_constant_override("shadow_offset_y", 1)
+	_preview_help_label = KeyHintRow.new()
+	_preview_help_label.alignment = BoxContainer.ALIGNMENT_BEGIN
+	_preview_help_label.add_theme_constant_override("separation", 4)
+	var help_ink := Color(0.82, 0.86, 0.95, 0.78)
+	_preview_help_label.add_text("右ドラッグ: 回転  中ドラッグ/", help_ink, 11)
+	_preview_help_label.add_spec("WASD", KeycapChip.DEFAULT_ACCENT, KeycapChip.SizeClass.TINY)
+	_preview_help_label.add_text(": 移動  ホイール: ズーム", help_ink, 11)
 	_preview_help_label.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	_preview_help_label.offset_left = 12.0
-	_preview_help_label.offset_top = -26.0
-	_preview_help_label.offset_right = 520.0
+	_preview_help_label.offset_top = -32.0
+	_preview_help_label.offset_right = 640.0
 	_preview_help_label.offset_bottom = -8.0
 	preview_stage.add_child(_preview_help_label)
 
@@ -273,13 +272,8 @@ func _build_ui() -> void:
 		slot_hbox.add_theme_constant_override("separation", 8)
 		settings_vbox.add_child(slot_hbox)
 
-		# キー表示
-		var key_label := Label.new()
-		key_label.add_theme_font_size_override("font_size", 16)
-		key_label.add_theme_color_override("font_color", Color(0.6, 0.65, 0.75))
-		key_label.custom_minimum_size = Vector2(60, 0)
-		key_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		slot_hbox.add_child(key_label)
+		var key_chip := KeycapChip.create(SLOT_KEYS_P1[i], KeycapChip.DEFAULT_ACCENT, KeycapChip.SizeClass.NORMAL)
+		slot_hbox.add_child(key_chip)
 
 		# ◀ ボタン
 		var left_btn := Button.new()
@@ -727,9 +721,9 @@ func _update_all() -> void:
 		# キーラベルを更新
 		var slot_hbox := _slot_labels[i].get_parent()
 		if slot_hbox and slot_hbox.get_child_count() > 0:
-			var key_label := slot_hbox.get_child(0) as Label
-			if key_label:
-				key_label.text = "[ %s ]" % keys[i]
+			var key_chip := slot_hbox.get_child(0) as KeycapChip
+			if key_chip:
+				key_chip.configure(keys[i], p_col, KeycapChip.SizeClass.NORMAL)
 
 func _on_back_pressed() -> void:
 	get_tree().change_scene_to_file("res://ui/main_menu.tscn")

@@ -1,0 +1,338 @@
+[gd_scene format=3 uid="uid://1hnfjqb3x811"]
+
+[ext_resource type="Texture2D" uid="uid://dq8jkeeag6vov" path="res://assets/BinbunVFX/shared/texture/placeholder.png" id="1_qrqti"]
+[ext_resource type="PackedScene" uid="uid://td17dkkecdok" path="res://assets/BinbunVFX/magic_areas/effects/basic_area/basic_area_vfx_01.tscn" id="2_0eef2"]
+[ext_resource type="PackedScene" uid="uid://nr4xbh8t1n2d" path="res://assets/BinbunVFX/magic_areas/effects/basic_area/basic_area_vfx_02.tscn" id="3_qhfgs"]
+[ext_resource type="PackedScene" uid="uid://brmnvx02xgur8" path="res://assets/BinbunVFX/magic_areas/effects/basic_area/basic_area_vfx_03.tscn" id="4_hivr6"]
+[ext_resource type="PackedScene" uid="uid://cocrrn7wicpsd" path="res://assets/BinbunVFX/magic_areas/effects/basic_area/basic_area_vfx_04.tscn" id="5_u3efi"]
+[ext_resource type="PackedScene" uid="uid://btadyv2e2g17h" path="res://assets/BinbunVFX/magic_areas/effects/basic_area/basic_area_vfx_05.tscn" id="6_0eef2"]
+[ext_resource type="PackedScene" uid="uid://cn6egnpwess45" path="res://assets/BinbunVFX/magic_areas/effects/rim_area/rim_area_vfx_01.tscn" id="6_cceyr"]
+[ext_resource type="PackedScene" uid="uid://douw4khr83wp0" path="res://assets/BinbunVFX/magic_areas/effects/rim_area/rim_area_vfx_02.tscn" id="7_nhhjd"]
+[ext_resource type="PackedScene" uid="uid://b3u7kcd374bnv" path="res://assets/BinbunVFX/magic_areas/effects/rim_area/rim_area_vfx_03.tscn" id="8_nbwjw"]
+[ext_resource type="PackedScene" uid="uid://bb22iem3wms10" path="res://assets/BinbunVFX/magic_areas/effects/rim_area/rim_area_vfx_04.tscn" id="9_7chdh"]
+[ext_resource type="PackedScene" uid="uid://bhjuo0rcw7itg" path="res://assets/BinbunVFX/magic_areas/effects/ripple_area/ripple_area_vfx_01.tscn" id="10_5p6q7"]
+[ext_resource type="PackedScene" uid="uid://dhhws0v0enxvm" path="res://assets/BinbunVFX/magic_areas/effects/ripple_area/ripple_area_vfx_02.tscn" id="11_76gph"]
+[ext_resource type="PackedScene" uid="uid://ckoqcgcsvqmq" path="res://assets/BinbunVFX/magic_areas/effects/rim_area/rim_area_vfx_05.tscn" id="11_qhfgs"]
+[ext_resource type="PackedScene" uid="uid://cwkk7xp1hda5f" path="res://assets/BinbunVFX/magic_areas/effects/ripple_area/ripple_area_vfx_03.tscn" id="12_vlbxu"]
+[ext_resource type="PackedScene" uid="uid://bmyya02fe0xca" path="res://assets/BinbunVFX/magic_areas/effects/ripple_area/ripple_area_vfx_04.tscn" id="13_vqpmm"]
+[ext_resource type="PackedScene" uid="uid://cpg32d003wnr3" path="res://assets/BinbunVFX/magic_areas/effects/pulse_area/pulse_area_vfx_01.tscn" id="14_umiyk"]
+[ext_resource type="PackedScene" uid="uid://bcbva2i24t33v" path="res://assets/BinbunVFX/magic_areas/effects/pulse_area/pulse_area_vfx_02.tscn" id="15_jjtpj"]
+[ext_resource type="PackedScene" uid="uid://d34q0e25eag87" path="res://assets/BinbunVFX/magic_areas/effects/ripple_area/ripple_area_vfx_05.tscn" id="16_hivr6"]
+[ext_resource type="PackedScene" uid="uid://j8p3424kofod" path="res://assets/BinbunVFX/magic_areas/effects/pulse_area/pulse_area_vfx_03.tscn" id="16_wrej7"]
+[ext_resource type="PackedScene" uid="uid://c3vt8iy21j1w8" path="res://assets/BinbunVFX/magic_areas/effects/pulse_area/pulse_area_vfx_04.tscn" id="17_3v3sa"]
+[ext_resource type="PackedScene" uid="uid://liir4wdh77ot" path="res://assets/BinbunVFX/magic_areas/effects/pillar_area/pillar_area_vfx_01.tscn" id="18_qgi2g"]
+[ext_resource type="PackedScene" uid="uid://d0umfhi8g2c0s" path="res://assets/BinbunVFX/magic_areas/effects/pillar_area/pillar_area_vfx_02.tscn" id="19_od1kw"]
+[ext_resource type="PackedScene" uid="uid://c3kkjw3cbrusd" path="res://assets/BinbunVFX/magic_areas/effects/pillar_area/pillar_area_vfx_03.tscn" id="20_ry1py"]
+[ext_resource type="PackedScene" uid="uid://jrkuewgdq1wy" path="res://assets/BinbunVFX/magic_areas/effects/pillar_area/pillar_area_vfx_04.tscn" id="21_mavyk"]
+[ext_resource type="PackedScene" uid="uid://cg7fjws14ep6e" path="res://assets/BinbunVFX/magic_areas/effects/pulse_area/pulse_area_vfx_05.tscn" id="21_u3efi"]
+[ext_resource type="PackedScene" uid="uid://cfa8qh4442h1u" path="res://assets/BinbunVFX/magic_areas/effects/lift_area/lift_area_vfx_01.tscn" id="22_iyccy"]
+[ext_resource type="PackedScene" uid="uid://c2ev7my1hdmcc" path="res://assets/BinbunVFX/magic_areas/effects/lift_area/lift_area_vfx_02.tscn" id="23_8ov4d"]
+[ext_resource type="PackedScene" uid="uid://clb4kcvkf03dg" path="res://assets/BinbunVFX/magic_areas/effects/lift_area/lift_area_vfx_03.tscn" id="24_d0y4s"]
+[ext_resource type="PackedScene" uid="uid://bog5oub0r0bea" path="res://assets/BinbunVFX/magic_areas/effects/lift_area/lift_area_vfx_04.tscn" id="25_qhujh"]
+[ext_resource type="PackedScene" uid="uid://b40yi52iejgp1" path="res://assets/BinbunVFX/magic_areas/effects/pillar_area/pillar_area_vfx_05.tscn" id="26_cceyr"]
+[ext_resource type="PackedScene" uid="uid://dd7yx3fyi5jb2" path="res://assets/BinbunVFX/magic_areas/effects/lift_area/lift_area_vfx_05.tscn" id="31_nhhjd"]
+
+[sub_resource type="Shader" id="Shader_0xm2m"]
+code = "// NOTE: Shader automatically converted from Godot Engine 4.4.1.stable's StandardMaterial3D.
+
+shader_type spatial;
+render_mode blend_mix, depth_draw_opaque, cull_back, diffuse_burley, specular_schlick_ggx;
+
+uniform vec4 albedo : source_color;
+uniform sampler2D texture_albedo : source_color, filter_linear_mipmap, repeat_enable;
+uniform float proximity_fade_distance : hint_range(0.0, 4096.0, 0.01);
+uniform ivec2 albedo_texture_size;
+uniform float point_size : hint_range(0.1, 128.0, 0.1);
+
+uniform float roughness : hint_range(0.0, 1.0);
+uniform sampler2D texture_metallic : hint_default_white, filter_linear_mipmap, repeat_enable;
+uniform vec4 metallic_texture_channel;
+uniform sampler2D texture_roughness : hint_roughness_r, filter_linear_mipmap, repeat_enable;
+
+uniform float specular : hint_range(0.0, 1.0, 0.01);
+uniform float metallic : hint_range(0.0, 1.0, 0.01);
+uniform sampler2D depth_texture : hint_depth_texture, repeat_disable, filter_nearest;
+
+uniform vec3 uv1_scale;
+uniform vec3 uv1_offset;
+uniform vec3 uv2_scale;
+uniform vec3 uv2_offset;
+
+void vertex() {
+	UV = UV * uv1_scale.xy + uv1_offset.xy;
+}
+
+void fragment() {
+	vec2 base_uv = UV;
+
+	vec4 albedo_tex = texture(texture_albedo, base_uv);
+	ALBEDO = albedo.rgb * albedo_tex.rgb;
+
+	float metallic_tex = dot(texture(texture_metallic, base_uv), metallic_texture_channel);
+	METALLIC = metallic_tex * metallic;
+	SPECULAR = specular;
+
+	vec4 roughness_texture_channel = vec4(1.0, 0.0, 0.0, 0.0);
+	float roughness_tex = dot(texture(texture_roughness, base_uv), roughness_texture_channel);
+	ROUGHNESS = roughness_tex * roughness;
+	ALPHA *= albedo.a * albedo_tex.a;
+
+	// Proximity Fade: Enabled
+	float proximity_depth_tex = textureLod(depth_texture, SCREEN_UV, 0.0).r;
+	vec4 proximity_view_pos = INV_PROJECTION_MATRIX * vec4(SCREEN_UV * 2.0 - 1.0, proximity_depth_tex, 1.0);
+	proximity_view_pos.xyz /= proximity_view_pos.w;
+	ALPHA *= clamp(1.0 - smoothstep(proximity_view_pos.z + proximity_fade_distance, proximity_view_pos.z, VERTEX.z), 0.0, 1.0);
+}
+"
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_1bvp3"]
+render_priority = 0
+shader = SubResource("Shader_0xm2m")
+shader_parameter/albedo = Color(1, 1, 1, 1)
+shader_parameter/proximity_fade_distance = 1.0
+shader_parameter/albedo_texture_size = Vector2i(0, 0)
+shader_parameter/point_size = 1.0
+shader_parameter/roughness = 1.0
+shader_parameter/metallic_texture_channel = Vector4(1, 0, 0, 0)
+shader_parameter/specular = 0.5
+shader_parameter/metallic = 0.0
+shader_parameter/uv1_scale = Vector3(1, 1, 1)
+shader_parameter/uv1_offset = Vector3(0, 0, 0)
+shader_parameter/uv2_scale = Vector3(1, 1, 1)
+shader_parameter/uv2_offset = Vector3(0, 0, 0)
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_7dm0k"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_h2yge"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_lquwl"]
+
+[sub_resource type="Sky" id="Sky_lquwl"]
+sky_material = SubResource("ProceduralSkyMaterial_lquwl")
+
+[sub_resource type="Environment" id="Environment_0xm2m"]
+background_mode = 2
+background_color = Color(0.266667, 0, 0, 1)
+background_energy_multiplier = 0.8
+sky = SubResource("Sky_lquwl")
+ambient_light_source = 3
+ambient_light_color = Color(1, 1, 1, 1)
+ambient_light_energy = 2.0
+ssao_enabled = true
+ssao_intensity = 4.0
+glow_enabled = true
+glow_normalized = true
+glow_intensity = 0.1
+glow_bloom = 0.05
+glow_map_strength = 0.0
+fog_enabled = true
+fog_light_color = Color(0.103704, 0.0893711, 0.0801331, 1)
+fog_light_energy = 2.0
+fog_density = 0.02
+volumetric_fog_enabled = true
+volumetric_fog_density = 0.005
+volumetric_fog_albedo = Color(0.82, 0.573453, 0.4838, 1)
+volumetric_fog_emission_energy = 0.0
+adjustment_enabled = true
+adjustment_contrast = 1.1
+adjustment_saturation = 1.1
+
+[sub_resource type="CameraAttributesPractical" id="CameraAttributesPractical_0xm2m"]
+dof_blur_far_enabled = true
+dof_blur_far_distance = 30.0
+dof_blur_far_transition = 64.0
+dof_blur_near_transition = -1.0
+
+[sub_resource type="BoxMesh" id="BoxMesh_ig7tw"]
+size = Vector3(1000, 6, 1000)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_1bvp3"]
+albedo_color = Color(0.866489, 0.931253, 0.944994, 1)
+albedo_texture = ExtResource("1_qrqti")
+uv1_triplanar = true
+
+[node name="Node3D" type="Node3D" unique_id=206181168]
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=597341059]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
+visible = false
+material_override = SubResource("ShaderMaterial_1bvp3")
+mesh = SubResource("CapsuleMesh_7dm0k")
+surface_material_override/0 = SubResource("ShaderMaterial_h2yge")
+
+[node name="Environment" type="Node3D" parent="." unique_id=1694748750]
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="Environment" unique_id=745799801]
+transform = Transform3D(-0.5, -0.663414, -0.55667, -5.61943e-08, -0.642788, 0.766044, -0.866025, 0.383022, 0.321394, 0, 2.19112, 0)
+light_color = Color(1, 0.992157, 0.956863, 1)
+light_energy = 1.5
+shadow_enabled = true
+shadow_opacity = 0.5
+shadow_blur = 9.219
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="Environment" unique_id=502999764]
+environment = SubResource("Environment_0xm2m")
+camera_attributes = SubResource("CameraAttributesPractical_0xm2m")
+
+[node name="Ground" type="MeshInstance3D" parent="Environment" unique_id=1715749622]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -3, 0)
+mesh = SubResource("BoxMesh_ig7tw")
+skeleton = NodePath("../..")
+surface_material_override/0 = SubResource("StandardMaterial3D_1bvp3")
+
+[node name="Lights" type="Node3D" parent="Environment" unique_id=156249341]
+
+[node name="SpotLight3D1" type="SpotLight3D" parent="Environment/Lights" unique_id=207078801]
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, 1, 0, -1, -4.37114e-08, 0, 10, 1)
+light_energy = 20.0
+spot_range = 18.188
+spot_angle = 40.0
+
+[node name="SpotLight3D2" type="SpotLight3D" parent="Environment/Lights" unique_id=1498954386]
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, 1, 0, -1, -4.37114e-08, 10, 10, 1)
+light_energy = 20.0
+spot_range = 18.188
+spot_angle = 40.0
+
+[node name="SpotLight3D3" type="SpotLight3D" parent="Environment/Lights" unique_id=454385157]
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, 1, 0, -1, -4.37114e-08, 20, 10, 1)
+light_energy = 20.0
+spot_range = 18.188
+spot_angle = 40.0
+
+[node name="SpotLight3D4" type="SpotLight3D" parent="Environment/Lights" unique_id=227692850]
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, 1, 0, -1, -4.37114e-08, 0, 10, 9)
+light_energy = 20.0
+spot_range = 18.188
+spot_angle = 40.0
+
+[node name="SpotLight3D5" type="SpotLight3D" parent="Environment/Lights" unique_id=39142921]
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, 1, 0, -1, -4.37114e-08, 10, 10, 9)
+light_energy = 20.0
+spot_range = 18.188
+spot_angle = 40.0
+
+[node name="SpotLight3D6" type="SpotLight3D" parent="Environment/Lights" unique_id=1138755334]
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, 1, 0, -1, -4.37114e-08, 20, 10, 9)
+light_energy = 20.0
+spot_range = 18.188
+spot_angle = 40.0
+
+[node name="MainCamera" type="Camera3D" parent="." unique_id=1463801461]
+transform = Transform3D(1, 0, 0, 0, 0.819152, 0.573577, 0, -0.573577, 0.819152, 12, 17, 34)
+fov = 40.0
+
+[node name="Effects" type="Node3D" parent="." unique_id=1520674689]
+
+[node name="Basic" type="Node3D" parent="Effects" unique_id=2038978522]
+
+[node name="BasicAreaVFX_01" parent="Effects/Basic" unique_id=763975324 instance=ExtResource("2_0eef2")]
+
+[node name="BasicAreaVFX_02" parent="Effects/Basic" unique_id=1231825341 instance=ExtResource("3_qhfgs")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, 0)
+
+[node name="BasicAreaVFX_03" parent="Effects/Basic" unique_id=421505956 instance=ExtResource("4_hivr6")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 0, 0)
+
+[node name="BasicAreaVFX_04" parent="Effects/Basic" unique_id=28898423 instance=ExtResource("5_u3efi")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0, 0)
+
+[node name="BasicAreaVFX_05" parent="Effects/Basic" unique_id=959513186 instance=ExtResource("6_0eef2")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, 0, 0)
+
+[node name="Rim" type="Node3D" parent="Effects" unique_id=1274768524]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1.5)
+
+[node name="RimAreaVFX_01" parent="Effects/Rim" unique_id=872063680 instance=ExtResource("6_cceyr")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 4)
+primary_color = Color(1, 1, 1, 1)
+
+[node name="RimAreaVFX_02" parent="Effects/Rim" unique_id=334866037 instance=ExtResource("7_nhhjd")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, 4)
+
+[node name="RimAreaVFX_03" parent="Effects/Rim" unique_id=694846782 instance=ExtResource("8_nbwjw")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 0, 4)
+
+[node name="RimAreaVFX_04" parent="Effects/Rim" unique_id=866560681 instance=ExtResource("9_7chdh")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0, 4)
+
+[node name="RimAreaVFX_05" parent="Effects/Rim" unique_id=274045112 instance=ExtResource("11_qhfgs")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, 0, 4)
+
+[node name="Ripple" type="Node3D" parent="Effects" unique_id=1581750385]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 2.5)
+
+[node name="RippleAreaVFX_01" parent="Effects/Ripple" unique_id=338932351 instance=ExtResource("10_5p6q7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 8)
+primary_color = Color(0, 0.865229, 0.830306, 1)
+secondary_color = Color(0.0223307, 0.196411, 0.417647, 1)
+light_enable = false
+light_color = Color(0, 0.866667, 0.831373, 1)
+light_energy = 0.0
+
+[node name="RippleAreaVFX_02" parent="Effects/Ripple" unique_id=1852547270 instance=ExtResource("11_76gph")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, 8)
+
+[node name="RippleAreaVFX_03" parent="Effects/Ripple" unique_id=640814725 instance=ExtResource("12_vlbxu")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 0, 8)
+
+[node name="RippleAreaVFX_04" parent="Effects/Ripple" unique_id=388016538 instance=ExtResource("13_vqpmm")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0, 8)
+
+[node name="RippleAreaVFX_05" parent="Effects/Ripple" unique_id=713886188 instance=ExtResource("16_hivr6")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, 0, 8)
+
+[node name="Pulse" type="Node3D" parent="Effects" unique_id=1780210104]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 4)
+
+[node name="PulseAreaVFX_01" parent="Effects/Pulse" unique_id=300067531 instance=ExtResource("14_umiyk")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 12)
+
+[node name="PulseAreaVFX_02" parent="Effects/Pulse" unique_id=1110823486 instance=ExtResource("15_jjtpj")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, 12)
+
+[node name="PulseAreaVFX_03" parent="Effects/Pulse" unique_id=1471317274 instance=ExtResource("16_wrej7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 0, 12)
+
+[node name="PulseAreaVFX_04" parent="Effects/Pulse" unique_id=661926636 instance=ExtResource("17_3v3sa")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0, 12)
+
+[node name="PulseAreaVFX_05" parent="Effects/Pulse" unique_id=55993773 instance=ExtResource("21_u3efi")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, 0, 12)
+
+[node name="Pillar" type="Node3D" parent="Effects" unique_id=1105703806]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, 0)
+
+[node name="PillarAreaVFX_01" parent="Effects/Pillar" unique_id=446631632 instance=ExtResource("18_qgi2g")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, 0, 0)
+
+[node name="PillarAreaVFX_02" parent="Effects/Pillar" unique_id=365717136 instance=ExtResource("19_od1kw")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, 0, 4)
+
+[node name="PillarAreaVFX_03" parent="Effects/Pillar" unique_id=764810570 instance=ExtResource("20_ry1py")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, 0, 8)
+
+[node name="PillarAreaVFX_04" parent="Effects/Pillar" unique_id=1930748771 instance=ExtResource("21_mavyk")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, 0, 12)
+
+[node name="PillarAreaVFX_05" parent="Effects/Pillar" unique_id=562881986 instance=ExtResource("26_cceyr")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, 0, 16)
+
+[node name="Lift" type="Node3D" parent="Effects" unique_id=1272282920]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, 0)
+
+[node name="LiftAreaVFX_01" parent="Effects/Lift" unique_id=1589336046 instance=ExtResource("22_iyccy")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 0, 0)
+
+[node name="LiftAreaVFX_02" parent="Effects/Lift" unique_id=2062601125 instance=ExtResource("23_8ov4d")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 0, 4)
+
+[node name="LiftAreaVFX_03" parent="Effects/Lift" unique_id=1520304537 instance=ExtResource("24_d0y4s")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 0, 8)
+
+[node name="LiftAreaVFX_04" parent="Effects/Lift" unique_id=1086521008 instance=ExtResource("25_qhujh")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 0, 12)
+
+[node name="LiftAreaVFX_05" parent="Effects/Lift" unique_id=570215413 instance=ExtResource("31_nhhjd")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 0, 16)
+preview = true

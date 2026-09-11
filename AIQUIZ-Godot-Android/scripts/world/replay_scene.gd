@@ -1,5 +1,7 @@
 extends Node3D
 
+const ToonPresets = preload("res://scripts/cosmetics/character_toon_presets.gd")
+
 ## リプレイ再生専用シーン
 ## ゲームワールドを再利用し、入力を無効化してReplayPlayerから状態を注入する。
 
@@ -12,11 +14,15 @@ var _game_world_scene: PackedScene
 var _game_world: Node3D
 
 func _ready() -> void:
-	# QuizManager から recorder を取得
-	var recorder: ReplayRecorder = QuizManager.get_meta("last_replay", null)
+	# QuizManager から recorder を取得。直接起動時はメタデータが無いので安全にメニューへ戻す。
+	var recorder: ReplayRecorder = null
+	if QuizManager.has_meta("last_replay"):
+		var replay_candidate: Variant = QuizManager.get_meta("last_replay")
+		if replay_candidate is ReplayRecorder:
+			recorder = replay_candidate
 	if recorder == null or recorder.frame_count == 0:
-		push_error("[ReplayScene] No replay data found")
-		get_tree().change_scene_to_file("res://ui/main_menu.tscn")
+		push_warning("[ReplayScene] No replay data found; returning to main menu")
+		get_tree().call_deferred("change_scene_to_file", "res://ui/main_menu.tscn")
 		return
 
 	# ゲーム状態を初期化（リプレイ用のダミー状態）
@@ -31,6 +37,8 @@ func _ready() -> void:
 	_game_state.target_count = meta.get("target_count", 10)
 	_game_state.p1_hat = meta.get("p1_hat", 0)
 	_game_state.p2_hat = meta.get("p2_hat", 0)
+	_game_state.p1_toon_preset = ToonPresets.normalize(int(meta.get("p1_toon_preset", 0)))
+	_game_state.p2_toon_preset = ToonPresets.normalize(int(meta.get("p2_toon_preset", 0)))
 	_game_state.game_state = Constants.STATE_PLAYING
 
 	# ReplayPlayer を設定
@@ -86,6 +94,11 @@ func _process(dt: float) -> void:
 		)
 		replay_camera_node.update_camera(dt)
 
+
+func _exit_tree() -> void:
+	if _game_state != null:
+		_game_state.is_replay = false
+
 func _unhandled_input(event: InputEvent) -> void:
 	# リプレイカメラへの入力転送
 	if replay_camera_node:
@@ -93,7 +106,9 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	# ESCで閉じる
 	if event is InputEventKey and event.keycode == KEY_ESCAPE and event.is_pressed():
-		get_tree().change_scene_to_file("res://ui/main_menu.tscn")
+		if SceneTransition.is_transitioning():
+			return
+		SceneTransition.change_scene("res://ui/main_menu.tscn")
 
 	# スペースで再生/停止
 	if event is InputEventKey and event.keycode == KEY_SPACE and event.is_pressed() and not event.is_echo():

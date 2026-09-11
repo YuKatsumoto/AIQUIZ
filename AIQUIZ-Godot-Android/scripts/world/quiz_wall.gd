@@ -11,6 +11,11 @@ var is_boss: bool = false
 var boss_label: Label3D = null
 var boss_sparks: Array[CPUParticles3D] = []
 
+# メニュー背景プレビュー用: カメラ側(+Z)を向いた問題文・選択肢ラベル
+# (通常の door_labels はプレイヤー側(-Z)向きでメニューカメラからは見えない)
+var preview_question_label: Label3D = null
+var preview_choice_labels: Array[Label3D] = []
+
 
 
 # Door colors
@@ -25,13 +30,27 @@ const DOOR_COLORS_4 := [
 	Color(0.90, 0.15, 0.15),  # D - Red
 ]
 const WALL_COLOR := Color(0.50, 0.50, 0.50)
+const BOSS_WALL_COLOR := Color(0.65, 0.15, 0.15)
+const JAPANESE_FONT: Font = preload("res://resources/fonts/NotoSansJP-Regular.otf")
+## 壁本体の物理的な最上端(Y座標)。メニュー背景プレビューの問題文はこの高さより
+## 確実に上に留めるための基準として参照する。
+const WALL_TOP_Y: float = 4.05
 
 # Door positions from tuning
 const LEFT_DOOR_X: float = 3.5
 const RIGHT_DOOR_X: float = -3.5
 const DOOR4_XS: Array[float] = [-5.8, -1.95, 1.95, 5.8]
 
+## 問題の壁はコンベア床端より各側をわずかに内側へ収める。
+const WALL_EDGE_INSET: float = 0.10
+
 var _current_num_choices: int = 2
+var _retiring_after_pass: bool = false
+var _retirement_finished: bool = false
+
+## 同じサイズ・色の箱はRIDを再利用し、枚ごとのGPUアップロードを避ける。
+static var _box_mesh_cache: Dictionary = {}
+static var _opaque_material_cache: Dictionary = {}
 
 func _ready() -> void:
 	_build_doors(2)
@@ -46,24 +65,25 @@ func _build_wall_around_doors(num_choices: int) -> void:
 	wall_parts.clear()
 
 	# Wall dimensions (matching original single box)
-	var total_width := 24.0
-	var min_x := -12.0
-	var max_x := 12.0
+	var total_width: float = StageConstants.FLOOR_WIDTH - WALL_EDGE_INSET * 2.0
+	var min_x: float = -total_width * 0.5
+	var max_x: float = total_width * 0.5
 	var door_top_y := 2.38
 	var door_bottom_y := -2.02
-	var wall_top_y := 4.05
+	var wall_top_y := WALL_TOP_Y
 	var wall_bottom_y := -3.15
+	var wall_color := BOSS_WALL_COLOR if is_boss else WALL_COLOR
 
 	# 1. Top beam
 	var top_height := wall_top_y - door_top_y
-	var top_beam := _create_box(Vector3(total_width / 2.0, top_height / 2.0, 0.55), WALL_COLOR)
+	var top_beam := _create_box(Vector3(total_width / 2.0, top_height / 2.0, 0.55), wall_color)
 	top_beam.position = Vector3(0, door_top_y + top_height / 2.0, 0)
 	add_child(top_beam)
 	wall_parts.append(top_beam)
 
 	# 2. Bottom beam
 	var bottom_height := door_bottom_y - wall_bottom_y
-	var bottom_beam := _create_box(Vector3(total_width / 2.0, bottom_height / 2.0, 0.55), WALL_COLOR)
+	var bottom_beam := _create_box(Vector3(total_width / 2.0, bottom_height / 2.0, 0.55), wall_color)
 	bottom_beam.position = Vector3(0, wall_bottom_y + bottom_height / 2.0, 0)
 	add_child(bottom_beam)
 	wall_parts.append(bottom_beam)
@@ -90,7 +110,7 @@ func _build_wall_around_doors(num_choices: int) -> void:
 		
 		var pillar_width := door_left - current_x
 		if pillar_width > 0:
-			var pillar := _create_box(Vector3(pillar_width / 2.0, pillar_height / 2.0, 0.55), WALL_COLOR)
+			var pillar := _create_box(Vector3(pillar_width / 2.0, pillar_height / 2.0, 0.55), wall_color)
 			pillar.position = Vector3(current_x + pillar_width / 2.0, pillar_y, 0)
 			add_child(pillar)
 			wall_parts.append(pillar)
@@ -99,7 +119,7 @@ func _build_wall_around_doors(num_choices: int) -> void:
 	
 	var final_width := max_x - current_x
 	if final_width > 0:
-		var pillar := _create_box(Vector3(final_width / 2.0, pillar_height / 2.0, 0.55), WALL_COLOR)
+		var pillar := _create_box(Vector3(final_width / 2.0, pillar_height / 2.0, 0.55), wall_color)
 		pillar.position = Vector3(current_x + final_width / 2.0, pillar_y, 0)
 		add_child(pillar)
 		wall_parts.append(pillar)
@@ -186,12 +206,143 @@ func set_labels_visible(is_visible: bool) -> void:
 			label.visible = is_visible
 
 
+## 1P用: プレイヤーが通過した壁を、文字を残さず短くフェード退場させる。
+func retire_after_player_pass(fade_duration: float = 0.28) -> void:
+	if _retiring_after_pass:
+		return
+	_retiring_after_pass = true
+	_retirement_finished = false
+	set_labels_visible(false)
+	if is_instance_valid(boss_label):
+		boss_label.visible = false
+	for sparks: CPUParticles3D in boss_sparks:
+		if is_instance_valid(sparks):
+			sparks.emitting = false
+			sparks.visible = false
+	for part: MeshInstance3D in wall_parts:
+		_fade_mesh_to_transparent(part, fade_duration)
+	for door: MeshInstance3D in doors:
+		_fade_mesh_to_transparent(door, fade_duration)
+	var finish_tween: Tween = create_tween()
+	finish_tween.tween_interval(fade_duration)
+	finish_tween.tween_callback(_mark_retirement_finished)
+
+
+func is_retiring_after_pass() -> bool:
+	return _retiring_after_pass
+
+
+func is_retirement_finished() -> bool:
+	return _retirement_finished
+
+
+func _fade_mesh_to_transparent(mesh_inst: MeshInstance3D, fade_duration: float) -> void:
+	if not is_instance_valid(mesh_inst):
+		return
+	var material: StandardMaterial3D = mesh_inst.material_override as StandardMaterial3D
+	if material == null:
+		return
+	var unique_material: StandardMaterial3D = material.duplicate() as StandardMaterial3D
+	mesh_inst.material_override = unique_material
+	unique_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	var color: Color = unique_material.albedo_color
+	var target_color := Color(color.r, color.g, color.b, 0.0)
+	var fade_tween: Tween = create_tween()
+	fade_tween.tween_property(unique_material, "albedo_color", target_color, fade_duration)
+
+
+func _mark_retirement_finished() -> void:
+	_retirement_finished = true
+
+
+## メニュー背景プレビュー用: 問題文と選択肢をカメラ側(+Z)の面に表示する (2択専用)
+func set_preview_labels(quiz: QuizItem) -> void:
+	_clear_preview_labels()
+	if not quiz or quiz.q.is_empty():
+		return
+
+	preview_question_label = _create_label()
+	preview_question_label.rotation.y = 0.0
+	# Y座標は _fit_question_label_to_two_lines 内で壁と衝突しない位置に決定する
+	preview_question_label.position = Vector3(0, 0, 0.65)
+	preview_question_label.width = 640.0
+	# 遠景で塗りと輪郭が競合しないよう、細めの濃紺アウトラインでコントラストを保つ
+	preview_question_label.outline_modulate = Color(0.02, 0.05, 0.08, 0.95)
+	preview_question_label.outline_size = 8
+	var question_text: String = FractionFormatter.to_inline(quiz.q) if FractionFormatter.has_fraction(quiz.q) else quiz.q
+	add_child(preview_question_label)
+	_fit_question_label_to_two_lines(preview_question_label, question_text)
+
+	var door_xs := [LEFT_DOOR_X, RIGHT_DOOR_X]
+	for i: int in range(mini(2, quiz.c.size())):
+		var lbl := _create_label()
+		lbl.rotation.y = 0.0
+		lbl.position = Vector3(door_xs[i], 0.18, 0.65)
+		lbl.width = 200.0
+		lbl.font_size = 64
+		lbl.outline_modulate = Color(0.02, 0.05, 0.08, 0.95)
+		lbl.outline_size = 8
+		lbl.text = FractionFormatter.format_choice(quiz.c[i])
+		add_child(lbl)
+		preview_choice_labels.append(lbl)
+
+
+const QUESTION_LABEL_MAX_LINES := 2
+## 1行でも2行でも常にこの大きさで表示する（行数によって縮小しない）
+const QUESTION_LABEL_FONT_SIZE := 64
+## 壁の最上端(WALL_TOP_Y)から問題文の下端までの最低クリアランス
+const QUESTION_LABEL_WALL_CLEARANCE := 0.5
+## 横幅の初期値・拡張刻み・上限（壁全幅24mに対して十分小さく、省略せず全文表示するために広げる）
+const QUESTION_LABEL_BASE_WIDTH := 640.0
+const QUESTION_LABEL_WIDTH_STEP := 80.0
+const QUESTION_LABEL_MAX_WIDTH := 1600.0
+
+## 問題文ラベルは1行・2行のどちらでも同じ文字サイズで表示し、省略はしない。
+## 2行に収まらない場合は横幅を段階的に広げて全文を表示する（上限に達したらそこで止める）。
+## 縦位置は「下端」を壁の最上端より確実に上の固定位置にアンカーし、行数が増えても
+## 上方向にしか伸びないようにすることで、絶対に壁と重ならないようにする。
+func _fit_question_label_to_two_lines(label: Label3D, text: String) -> void:
+	if not label:
+		return
+	var font: Font = label.font if label.font else ThemeDB.fallback_font
+	var break_flags := TextServer.BREAK_MANDATORY | TextServer.BREAK_WORD_BOUND | TextServer.BREAK_ADAPTIVE
+	var font_size := QUESTION_LABEL_FONT_SIZE
+	label.font_size = font_size
+	label.text = text
+
+	var width := QUESTION_LABEL_BASE_WIDTH
+	while width < QUESTION_LABEL_MAX_WIDTH and _measure_line_count(text, font, font_size, width, break_flags) > QUESTION_LABEL_MAX_LINES:
+		width = minf(width + QUESTION_LABEL_WIDTH_STEP, QUESTION_LABEL_MAX_WIDTH)
+	label.width = width
+
+	# 下端を壁の最上端より確実に上へ固定し、行数が増えても壁側(下方向)へは伸びないようにする
+	label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	label.position.y = WALL_TOP_Y + QUESTION_LABEL_WALL_CLEARANCE
+
+func _measure_line_count(text: String, font: Font, font_size: int, width: float, break_flags: int) -> int:
+	var tp := TextParagraph.new()
+	tp.width = width
+	tp.break_flags = break_flags
+	tp.add_string(text, font, font_size)
+	return maxi(1, tp.get_line_count())
+
+
+func _clear_preview_labels() -> void:
+	if is_instance_valid(preview_question_label):
+		preview_question_label.queue_free()
+	preview_question_label = null
+	for lbl: Label3D in preview_choice_labels:
+		if is_instance_valid(lbl):
+			lbl.queue_free()
+	preview_choice_labels.clear()
+
+
 func set_is_boss(boss: bool) -> void:
 	is_boss = boss
-	var target_color = Color(0.65, 0.15, 0.15) if is_boss else WALL_COLOR
+	var target_color = BOSS_WALL_COLOR if is_boss else WALL_COLOR
 	for part in wall_parts:
-		if is_instance_valid(part) and part.material_override:
-			part.material_override.albedo_color = target_color
+		if is_instance_valid(part):
+			part.material_override = _shared_opaque_material(target_color)
 	
 	if is_boss and not is_instance_valid(boss_label):
 		boss_label = _create_label()
@@ -222,7 +373,7 @@ func set_is_boss(boss: bool) -> void:
 
 func _create_boss_sparks(pos_x: float) -> CPUParticles3D:
 	var sparks := CPUParticles3D.new()
-	sparks.amount = 60
+	sparks.amount = GraphicsQuality.particle_amount(60, GameManager.graphics_quality)
 	sparks.lifetime = 0.8
 	sparks.explosiveness = 0.05
 	sparks.randomness = 1.0
@@ -259,6 +410,15 @@ func break_door(door_index: int) -> void:
 	if door_index < 0 or door_index >= doors.size():
 		return
 	var door := doors[door_index]
+	if not door.visible:
+		return
+	# global_position はツリー内でのみ有効。ツリー外で読むと identity を返し
+	# !is_inside_tree() エラーを毎回吐くため、ツリー外なら破砕をスキップする。
+	if not door.is_inside_tree():
+		return
+	var parent := get_parent()
+	if parent == null:
+		return
 	var door_color: Color = Color.WHITE
 	if door.material_override:
 		door_color = door.material_override.albedo_color
@@ -269,6 +429,8 @@ func break_door(door_index: int) -> void:
 	door.visible = false
 	if door_index < door_labels.size():
 		door_labels[door_index].visible = false
+	if door_index < preview_choice_labels.size() and is_instance_valid(preview_choice_labels[door_index]):
+		preview_choice_labels[door_index].visible = false
 
 	# Hide boss label if it exists
 	if is_instance_valid(boss_label):
@@ -280,8 +442,10 @@ func break_door(door_index: int) -> void:
 			sp.emitting = false
 
 	# Spawn debris chunks — fine fragmentation
-	var chunks_x := 4
-	var chunks_y := 5
+	var vp := door.get_viewport()
+	var is_preview_subviewport := vp is SubViewport
+	var chunks_x := 2 if is_preview_subviewport else 4
+	var chunks_y := 2 if is_preview_subviewport else 5
 	var chunk_size := Vector3(door_size.x / chunks_x, door_size.y / chunks_y, door_size.z)
 
 	for cx: int in range(chunks_x):
@@ -318,12 +482,11 @@ func break_door(door_index: int) -> void:
 			chunk.collision_layer = 0
 			chunk.collision_mask = 1
 
-			# ツリー追加後に global_position を設定 (先に設定すると is_inside_tree エラー)
-			get_parent().add_child(chunk)
+			# 先にツリーへ追加してから global_position を設定する。
+			# ツリー外で global_position を書くと get_global_transform() が
+			# identity を返し !is_inside_tree() エラーを毎回吐く。
+			parent.add_child(chunk)
 			chunk.global_position = door_pos + Vector3(offset_x, offset_y, 0)
-
-			var vp := chunk.get_viewport()
-			var is_preview_subviewport := vp is SubViewport
 
 			if is_preview_subviewport:
 				# 扉欠片だけ強めに弾け、短いTweenで縮小消滅（カメラ縮小処理とは別）
@@ -370,23 +533,60 @@ func break_door(door_index: int) -> void:
 				tween.tween_property(mesh_inst, "scale", Vector3.ZERO, 1.0).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 				tween.tween_callback(chunk.queue_free)
 
+func is_solid_frame_occluding_segment(segment_start: Vector3, segment_end: Vector3) -> bool:
+	# Answer doors are intentionally excluded so the x-ray silhouette cannot cover choices.
+	for part: MeshInstance3D in wall_parts:
+		if (
+			not is_instance_valid(part)
+			or part.mesh == null
+			or not part.is_visible_in_tree()
+		):
+			continue
+		var inverse_transform := part.global_transform.affine_inverse()
+		var local_start := inverse_transform * segment_start
+		var local_end := inverse_transform * segment_end
+		if part.get_aabb().intersects_segment(local_start, local_end) != null:
+			return true
+	return false
+
+
 func _create_box(half_extents: Vector3, color: Color) -> MeshInstance3D:
 	var mesh_inst := MeshInstance3D.new()
-	var box := BoxMesh.new()
-	box.size = half_extents * 2.0
-	mesh_inst.mesh = box
+	mesh_inst.mesh = _shared_box_mesh(half_extents * 2.0)
+	mesh_inst.material_override = _shared_opaque_material(color)
+	return mesh_inst
 
+
+static func _shared_box_mesh(size: Vector3) -> BoxMesh:
+	var key := "%0.4f_%0.4f_%0.4f" % [size.x, size.y, size.z]
+	var cached: BoxMesh = _box_mesh_cache.get(key) as BoxMesh
+	if cached != null:
+		return cached
+	var box := BoxMesh.new()
+	box.size = size
+	_box_mesh_cache[key] = box
+	return box
+
+
+static func _shared_opaque_material(color: Color) -> StandardMaterial3D:
+	var key := "%0.4f_%0.4f_%0.4f_%0.4f" % [color.r, color.g, color.b, color.a]
+	var cached: StandardMaterial3D = _opaque_material_cache.get(key) as StandardMaterial3D
+	if cached != null:
+		return cached
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = color
 	mat.roughness = 0.6
 	mat.metallic = 0.05
-	mesh_inst.material_override = mat
-
-	return mesh_inst
+	_opaque_material_cache[key] = mat
+	return mat
 
 func _create_label() -> Label3D:
 	var label := Label3D.new()
 	label.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+	# Keep the nearby answer text above the transparent shark pass while preserving depth
+	# testing, so choices on farther walls do not show through nearer walls.
+	label.render_priority = 20
+	label.outline_render_priority = 19
 	label.pixel_size = 0.008
 	label.width = 280.0
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -399,10 +599,7 @@ func _create_label() -> Label3D:
 	label.text = ""
 	label.rotation.y = PI
 
-	# Load Japanese font
-	var font := load("res://resources/fonts/NotoSansJP-Regular.otf")
-	if font:
-		label.font = font
+	label.font = JAPANESE_FONT
 
 	return label
 
@@ -420,6 +617,11 @@ func shatter_wall(direction_z: float = -1.0) -> void:
 			label.visible = false
 	if is_instance_valid(boss_label):
 		boss_label.visible = false
+	if is_instance_valid(preview_question_label):
+		preview_question_label.visible = false
+	for plbl in preview_choice_labels:
+		if is_instance_valid(plbl):
+			plbl.visible = false
 
 func _shatter_mesh(mesh_inst: MeshInstance3D, direction_z: float) -> void:
 	if not is_instance_valid(mesh_inst): return
@@ -430,9 +632,15 @@ func _shatter_mesh(mesh_inst: MeshInstance3D, direction_z: float) -> void:
 	if mesh_inst.material_override and mesh_inst.material_override is StandardMaterial3D:
 		base_color = (mesh_inst.material_override as StandardMaterial3D).albedo_color
 		
+	# global_position はツリー内でのみ有効。ツリー外で読むと identity を返し
+	# !is_inside_tree() エラーを毎回吐くため、ツリー外なら破砕をスキップする。
+	if not mesh_inst.is_inside_tree(): return
+	var parent := get_parent()
+	if parent == null: return
+
 	var size := box.size
 	var pos := mesh_inst.global_position
-	
+
 	var chunks_x := maxi(1, ceili(size.x / 1.5))
 	var chunks_y := maxi(1, ceili(size.y / 1.5))
 	var chunk_size := Vector3(size.x / chunks_x, size.y / chunks_y, size.z)
@@ -466,102 +674,54 @@ func _shatter_mesh(mesh_inst: MeshInstance3D, direction_z: float) -> void:
 			var offset_x: float = (cx - (chunks_x - 1) * 0.5) * chunk_size.x
 			var offset_y: float = (cy - (chunks_y - 1) * 0.5) * chunk_size.y
 
-			get_parent().add_child(chunk)
+			# 先にツリーへ追加してから global_position を設定する。
+			# ツリー外で global_position を書くと get_global_transform() が
+			# identity を返し !is_inside_tree() エラーを毎回吐く。
+			parent.add_child(chunk)
 			chunk.global_position = pos + Vector3(offset_x, offset_y, 0)
 			
-			# 進行方向（direction_z）へ爆散させる
-			var impulse_x: float = (randf() - 0.5) * 30.0 # 左右への強い散らばり
-			var impulse_y: float = randf_range(5.0, 25.0) # 上方向への強い吹き飛ばし
-			var impulse_z: float = randf_range(10.0, 40.0) * direction_z # 指定方向へ大きく飛ばす
-			
-			var impulse := Vector3(impulse_x, impulse_y, impulse_z)
-			chunk.apply_central_impulse(impulse)
-			chunk.apply_torque_impulse(Vector3(
-				(randf() - 0.5) * 40.0,
-				(randf() - 0.5) * 40.0,
-				(randf() - 0.5) * 40.0
-			))
-			
-			# 縮小しながら消滅する演出
-			var tween := chunk.create_tween()
-			tween.tween_interval(1.5)
-			tween.tween_property(cmi, "scale", Vector3.ZERO, 1.0).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
-			tween.tween_callback(chunk.queue_free)
+			var vp := chunk.get_viewport()
+			var is_preview_subviewport := vp is SubViewport
+			if is_preview_subviewport:
+				chunk.set_meta("preview_door_shard", true)
+				chunk.mass = 1.1
+				chunk.gravity_scale = 2.2
+				chunk.linear_damp = 0.12
+				chunk.angular_damp = 0.16
+				chunk.apply_central_impulse(
+					Vector3(
+						randf_range(-2.8, 2.8),
+						randf_range(0.5, 3.4),
+						randf_range(12.0, 24.0) * direction_z,
+					)
+				)
+				chunk.apply_torque_impulse(
+					Vector3(
+						randf_range(-4.0, 4.0),
+						randf_range(-3.0, 3.0),
+						randf_range(-4.0, 4.0),
+					)
+				)
+				var vanish_tw := chunk.create_tween()
+				vanish_tw.tween_interval(0.25)
+				vanish_tw.tween_property(cmi, "scale", Vector3.ZERO, 0.38).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+				vanish_tw.tween_callback(chunk.queue_free)
+			else:
+				# 進行方向（direction_z）へ爆散させる
+				var impulse_x: float = (randf() - 0.5) * 30.0 # 左右への強い散らばり
+				var impulse_y: float = randf_range(5.0, 25.0) # 上方向への強い吹き飛ばし
+				var impulse_z: float = randf_range(10.0, 40.0) * direction_z # 指定方向へ大きく飛ばす
 
-const MAGMA_DEBRIS_MASS: float = 3.2
-const MAGMA_DEBRIS_GRAVITY_SCALE: float = 2.4
-const MAGMA_DEBRIS_LINEAR_DAMP: float = 0.28
-const MAGMA_DEBRIS_ANGULAR_DAMP: float = 0.38
-const MAGMA_DEBRIS_IMP_X: float = 0.36
-const MAGMA_DEBRIS_IMP_Y: float = 0.48
-const MAGMA_DEBRIS_IMP_Z_MIN: float = 1.85
-const MAGMA_DEBRIS_IMP_Z_MAX: float = 3.85
-const MAGMA_DEBRIS_TORQUE: float = 0.52
-const MAGMA_DEBRIS_LIFETIME_SEC: float = 5.0
+				var impulse := Vector3(impulse_x, impulse_y, impulse_z)
+				chunk.apply_central_impulse(impulse)
+				chunk.apply_torque_impulse(Vector3(
+					(randf() - 0.5) * 40.0,
+					(randf() - 0.5) * 40.0,
+					(randf() - 0.5) * 40.0
+				))
 
-## 崖に到達した壁を、扉破壊の爆散(shatter_wall)とは別の
-## 静かな「ボトッ」落下でマグマへ崩す。実ゲーム・各種プレビュー共通の見た目。
-func collapse_into_magma() -> void:
-	for part in wall_parts:
-		if is_instance_valid(part) and part.visible:
-			_drop_mesh_into_magma(part)
-			part.visible = false
-	for door in doors:
-		if is_instance_valid(door) and door.visible:
-			_drop_mesh_into_magma(door)
-			door.visible = false
-	for label in door_labels:
-		if is_instance_valid(label):
-			label.visible = false
-	if is_instance_valid(boss_label):
-		boss_label.visible = false
-
-func _drop_mesh_into_magma(mesh_inst: MeshInstance3D) -> void:
-	if not mesh_inst.is_inside_tree(): return
-	var box := mesh_inst.mesh as BoxMesh
-	if not box: return
-	var parent := get_parent()
-	if parent == null: return
-
-	var piece := RigidBody3D.new()
-	piece.mass = MAGMA_DEBRIS_MASS
-	piece.gravity_scale = MAGMA_DEBRIS_GRAVITY_SCALE
-	piece.linear_damp = MAGMA_DEBRIS_LINEAR_DAMP
-	piece.angular_damp = MAGMA_DEBRIS_ANGULAR_DAMP
-	piece.collision_layer = 0
-	piece.collision_mask = 1
-
-	var col := CollisionShape3D.new()
-	var shape := BoxShape3D.new()
-	shape.size = box.size
-	col.shape = shape
-	piece.add_child(col)
-
-	var cmi := MeshInstance3D.new()
-	var cbox := BoxMesh.new()
-	cbox.size = box.size
-	cmi.mesh = cbox
-	if mesh_inst.material_override:
-		cmi.material_override = mesh_inst.material_override.duplicate()
-	piece.add_child(cmi)
-
-	parent.add_child(piece)
-	piece.global_transform = mesh_inst.global_transform
-
-	piece.apply_central_impulse(Vector3(
-		randf_range(-MAGMA_DEBRIS_IMP_X, MAGMA_DEBRIS_IMP_X),
-		randf_range(0.0, MAGMA_DEBRIS_IMP_Y),
-		randf_range(MAGMA_DEBRIS_IMP_Z_MIN, MAGMA_DEBRIS_IMP_Z_MAX),
-	))
-	piece.apply_torque_impulse(Vector3(
-		randf_range(-MAGMA_DEBRIS_TORQUE, MAGMA_DEBRIS_TORQUE),
-		randf_range(-MAGMA_DEBRIS_TORQUE * 0.62, MAGMA_DEBRIS_TORQUE * 0.62),
-		randf_range(-MAGMA_DEBRIS_TORQUE, MAGMA_DEBRIS_TORQUE),
-	))
-
-	var tw := piece.create_tween()
-	tw.tween_interval(MAGMA_DEBRIS_LIFETIME_SEC)
-	tw.tween_callback(func() -> void:
-		if is_instance_valid(piece):
-			piece.queue_free()
-	)
+				# 縮小しながら消滅する演出
+				var tween := chunk.create_tween()
+				tween.tween_interval(1.5)
+				tween.tween_property(cmi, "scale", Vector3.ZERO, 1.0).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+				tween.tween_callback(chunk.queue_free)

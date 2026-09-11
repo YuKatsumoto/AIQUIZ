@@ -1,6 +1,8 @@
 extends RefCounted
 class_name ReplayRecorder
 
+const ToonPresets = preload("res://scripts/cosmetics/character_toon_presets.gd")
+
 ## リプレイ記録クラス
 ## ゲーム中にフレームごとの状態スナップショットを記録し、
 ## ファイルへの保存・読込・共有エクスポートに対応する。
@@ -34,13 +36,13 @@ var _recorded_walls: Dictionary = {}
 const STATE_IDS := {
 	"MENU": 0, "PRELOADING": 1, "WAITING_START": 2, "FLYOVER": 3,
 	"COUNTDOWN": 4, "PLAYING": 5, "CORRECT": 6, "GAME_OVER": 7,
-	"CLEAR": 8, "GOAL_RACE": 9
+	"CLEAR": 8, "GOAL_RACE": 9, "ONLINE_QUIZ_ERROR": 10
 }
 
 const ID_TO_STATE := {
 	0: "MENU", 1: "PRELOADING", 2: "WAITING_START", 3: "FLYOVER",
 	4: "COUNTDOWN", 5: "PLAYING", 6: "CORRECT", 7: "GAME_OVER",
-	8: "CLEAR", 9: "GOAL_RACE"
+	8: "CLEAR", 9: "GOAL_RACE", 10: "ONLINE_QUIZ_ERROR"
 }
 
 func start_recording(gs: QuizGameState) -> void:
@@ -60,8 +62,10 @@ func start_recording(gs: QuizGameState) -> void:
 		"target_count": gs.target_count,
 		"p1_hat": gs.p1_hat,
 		"p2_hat": gs.p2_hat,
+		"p1_toon_preset": ToonPresets.normalize(gs.p1_toon_preset),
+		"p2_toon_preset": ToonPresets.normalize(gs.p2_toon_preset),
 		"timestamp": int(Time.get_unix_time_from_system()),
-		"version": 1,
+		"version": 2,
 	}
 
 func stop_recording(gs: QuizGameState) -> void:

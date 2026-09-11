@@ -142,6 +142,14 @@ func _estimate_seconds(item: QuizItem, subject: String, difficulty: String) -> f
 		# 漢字の読み問題は速い
 		if "読み" in item.q:
 			base -= 0.5
+	elif subject == "英語":
+		# 英文は日本語より読み取りに時間がかかるため、複数語の文だけ少し加算する。
+		var latin_word_regex := RegEx.new()
+		latin_word_regex.compile("[A-Za-z]+(?:'[A-Za-z]+)?")
+		var english_text := "%s %s" % [item.q, " ".join(item.c)]
+		var english_word_count := latin_word_regex.search_all(english_text).size()
+		if english_word_count >= 4:
+			base += minf(1.2, float(english_word_count - 3) * 0.15)
 	
 	# 4択は2択より+0.8秒
 	if item.c.size() == 4:
@@ -206,6 +214,14 @@ func _complexity_score(item: QuizItem, subject: String, grade: int) -> float:
 		for token: String in ["歴史", "公民", "憲法", "三権分立", "貿易", "工業", "農業", "地層", "気候"]:
 			if token in text:
 				score += 0.8
+	elif subject == "英語":
+		for token: String in ["会話", "語順", "空欄", "文脈", "自然な", "答え方", "過去", "将来", "理由"]:
+			if token in text:
+				score += 0.7
+		if "【基本】" in q_text:
+			score -= 1.0
+		elif "【応用】" in q_text:
+			score += 1.0
 
 	score -= maxf(0.0, float(grade - 1)) * 0.08
 	return score
@@ -286,8 +302,8 @@ func _extract_unit(text: String) -> String:
 
 func _harden_distractors(item: QuizItem) -> QuizItem:
 	## Replace obviously wrong choices with more plausible near-miss values
-	if item.c.size() < 4:
-		return item  # Only process 4-choice questions
+	if item.c.size() < 4 or not item.choice_img.is_empty():
+		return item  # Image choices must retain their original labels and order.
 
 	var correct_text: String = item.c[item.a]
 
@@ -382,7 +398,10 @@ func _harden_distractors(item: QuizItem) -> QuizItem:
 		else:
 			new_choices.append("%s%s" % [str(v), unit])
 
-	return QuizItem.create(item.q, new_choices, new_a, item.e, item.src, item.img, item.choice_img)
+	var hardened := item.duplicate(true) as QuizItem
+	hardened.c = new_choices
+	hardened.a = new_a
+	return hardened
 
 
 ## 2択問題を4択に拡張する。数値選択肢のみ生成できる。失敗時は元の QuizItem を返す。
@@ -459,6 +478,52 @@ func _numeric_near_misses(correct_text: String, banned: PackedStringArray, neede
 		result.append(text)
 	return result
 
+## Prepare a copy with the exact door count while retaining the answer and images.
+## Text-only binary questions cannot safely invent two extra distractors.
+func prepare_choice_count(item: QuizItem, expected: int) -> QuizItem:
+	if item == null or item.a < 0 or item.a >= item.c.size():
+		return null
+	if item.c.size() not in [2, 4] or expected not in [2, 4]:
+		return null
+	var seen: Dictionary = {}
+	for choice: String in item.c:
+		var key := choice.strip_edges()
+		if key.is_empty() or seen.has(key):
+			return null
+		seen[key] = true
+	if item.c.size() == expected:
+		return item
+	if expected == 4:
+		if not item.choice_img.is_empty():
+			return null
+		var expanded := expand_to_four_choices(item)
+		return expanded if expanded != null and expanded.c.size() == 4 else null
+	var wrong_indices: Array[int] = []
+	for i: int in range(item.c.size()):
+		if i != item.a:
+			wrong_indices.append(i)
+	var indices: Array[int] = [item.a, wrong_indices.pick_random()]
+	indices.shuffle()
+	var result := item.duplicate(true) as QuizItem
+	result.c = PackedStringArray()
+	result.choice_img = PackedStringArray()
+	for source_index: int in indices:
+		result.c.append(item.c[source_index])
+		if not item.choice_img.is_empty():
+			result.choice_img.append(item.choice_img[source_index] if source_index < item.choice_img.size() else "")
+	result.a = indices.find(item.a)
+	return result
+
+
+func _four_choice_pool(items: Array[QuizItem]) -> Array[QuizItem]:
+	var result: Array[QuizItem] = []
+	for item: QuizItem in items:
+		var prepared := prepare_choice_count(item, 4)
+		if prepared != null:
+			result.append(prepared)
+	return result
+
+
 # ---------- Fallback ----------
 
 func _fallback_question(subject: String, grade: int, four_choices: bool = false) -> QuizItem:
@@ -508,6 +573,8 @@ func _fallback_question(subject: String, grade: int, four_choices: bool = false)
 
 func get_quizzes(subject: String, grade: int, difficulty: String,
 		mode: String, count: int, exclude_texts: Array[String] = []) -> Array[QuizItem]:
+	# オフラインバンクは有限。同じ書式の計算問題を残し、問題文の一致だけを高速に除外する。
+	var excluded := QuizDedup.make_exact_index(exclude_texts)
 	var grade_str := str(grade)
 	var subj_data: Variant = bank.get(subject, {})
 	var raw_items_data: Variant
@@ -540,13 +607,20 @@ func get_quizzes(subject: String, grade: int, difficulty: String,
 		else:
 			external_fallback.append(n)
 
+	# Keep canonical four-choice candidates for hard rounds and the final boss.
+	# Reduce normal/easy questions only after their final position is known.
+	var require_four := difficulty == "難しい" or mode == Constants.MODE_TEN
+	if require_four:
+		items = _four_choice_pool(items)
+		external_fallback = _four_choice_pool(external_fallback)
+
 	if items.is_empty() and external_fallback.is_empty():
 		if mode == Constants.MODE_TEN:
 			var fallbacks: Array[QuizItem] = []
 			for i: int in range(maxi(1, count)):
-				fallbacks.append(_fallback_question(subject, grade, i == count - 1))
+				fallbacks.append(_fallback_question(subject, grade, require_four or i == count - 1))
 			return fallbacks
-		var single: Array[QuizItem] = [_fallback_question(subject, grade)]
+		var single: Array[QuizItem] = [_fallback_question(subject, grade, require_four)]
 		return single
 
 	var pool := _bucket_by_difficulty(items, subject, grade, difficulty)
@@ -557,7 +631,7 @@ func get_quizzes(subject: String, grade: int, difficulty: String,
 	if exclude_texts.size() > 0:
 		var filtered: Array[QuizItem] = []
 		for q_item: QuizItem in pool:
-			if QuizDedup.is_similar_to_any(q_item.q, exclude_texts):
+			if excluded.has(QuizDedup.exact_key(q_item.q)):
 				continue
 			filtered.append(q_item)
 		if not filtered.is_empty():
@@ -576,7 +650,7 @@ func get_quizzes(subject: String, grade: int, difficulty: String,
 		for q_item: QuizItem in pool:
 			if q_item.q in seen:
 				continue
-			if QuizDedup.is_similar_to_any(q_item.q, exclude_texts):
+			if excluded.has(QuizDedup.exact_key(q_item.q)):
 				continue
 			seen[q_item.q] = true
 			uniq.append(q_item)
@@ -587,7 +661,7 @@ func get_quizzes(subject: String, grade: int, difficulty: String,
 			for q_item: QuizItem in items:
 				if q_item.q in seen:
 					continue
-				if QuizDedup.is_similar_to_any(q_item.q, exclude_texts):
+				if excluded.has(QuizDedup.exact_key(q_item.q)):
 					continue
 				seen[q_item.q] = true
 				if difficulty == "難しい":
@@ -597,7 +671,7 @@ func get_quizzes(subject: String, grade: int, difficulty: String,
 				if uniq.size() >= count:
 					break
 		while uniq.size() < count:
-			uniq.append(_fallback_question(subject, grade, uniq.size() == count - 1))
+			uniq.append(_fallback_question(subject, grade, require_four or uniq.size() == count - 1))
 
 		# Make the hardest question the "Boss" (last question), and keep it 4-choice.
 		if uniq.size() > 1:
@@ -630,5 +704,5 @@ func get_quizzes(subject: String, grade: int, difficulty: String,
 	if pool.size() > 0:
 		result.append(pool.pick_random())
 	else:
-		result.append(_fallback_question(subject, grade))
+		result.append(_fallback_question(subject, grade, require_four))
 	return result

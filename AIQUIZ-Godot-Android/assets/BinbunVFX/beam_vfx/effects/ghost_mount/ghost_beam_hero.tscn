@@ -1,0 +1,25 @@
+[gd_scene format=3 uid="uid://ca8x6pqs0udhw"]
+
+[ext_resource type="PackedScene" uid="uid://btcogoplyr4iq" path="res://assets/BinbunVFX/beam_vfx/effects/base/base_beam_vfx.tscn" id="1_base"]
+
+[node name="GhostBeamHero" unique_id=1551837672 instance=ExtResource("1_base")]
+primary_color = Color(0.01, 0.55, 1, 1)
+secondary_color = Color(0.38, 0.93, 1, 1)
+tertiary_color = Color(0.02, 0.08, 0.95, 1)
+emission = 1.25
+secondary_theme_white_mix = 0.72
+tertiary_theme_darkening = 0.72
+noise_twist = 2.8
+scroll_speed = Vector2(0.35, 5.2)
+beam_radius = 0.32
+start_radius = 0.95
+start_flare = 0.45
+edge_softness = 0.78
+flare_1_enabled = false
+flare_2_enabled = false
+pulse_strength = 0.12
+pulse_frequency = 19.0
+pulse_speed = 8.4
+start_amount = 88
+end_amount = 34
+beam_length = 28.0

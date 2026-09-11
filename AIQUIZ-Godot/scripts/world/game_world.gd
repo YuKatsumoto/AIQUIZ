@@ -14,9 +14,9 @@ const HelicopterArrivalDirectorScript = preload("res://scripts/world/helicopter_
 @onready var player_node: Node3D = $Player
 @onready var wall_container: Node3D = $WallContainer
 @onready var particle_spawner: Node3D = $ParticleSpawner
+@onready var stage_env: StageEnvironment = $StageEnvironment as StageEnvironment
 
 ## 共有ステージ（床・コンベア・海・環境・照明）。メニュープレビューと同一の StageEnvironment。
-var stage_env: StageEnvironment = null
 
 var game_state: QuizGameState
 var _net_state: NetGameState = null
@@ -128,19 +128,7 @@ func _ready() -> void:
 		)
 
 	# Setup shared stage (environment / lighting / floor / conveyor / ocean)
-	stage_env = StageEnvironment.new()
-	stage_env.name = "StageEnvironment"
-	add_child(stage_env)
-	stage_env.build({
-		"floor_center_z": 4.0,
-		"floor_length": 160.0,
-		"scroll_sign": 1.0,
-		"return_scroll_sign": -1.0,
-		"include_back_roller": true,
-		"include_floor_collision": true,
-		"include_sharks": true,
-		"include_grandstands": true,
-	})
+	stage_env.build(stage_env.gameplay_build_config())
 	_setup_ocean_shark_signals()
 	_ghost_shark_ride_controller = GhostSharkRideControllerScript.new()
 	_ghost_shark_ride_controller.name = "GhostSharkRideController"
@@ -573,8 +561,7 @@ func _prepare_world_visuals_under_cover() -> void:
 
 
 func _collect_world_visual_prep_report(player_controller: PlayerController) -> Dictionary:
-	var grandstands := stage_env.get_node_or_null("Grandstands") as Node3D if stage_env else null
-	var grandstand_count: int = grandstands.get_child_count() if grandstands else 0
+	var grandstand_count: int = stage_env.get_grandstand_count() if stage_env else 0
 	var shark_count: int = stage_env.get_ocean_sharks().size() if stage_env else 0
 	var stage_ready: bool = (
 		stage_env != null
@@ -583,7 +570,7 @@ func _collect_world_visual_prep_report(player_controller: PlayerController) -> D
 		and stage_env.directional_light != null
 		and stage_env.weather_cycle != null
 		and stage_env.conveyor_edge_lights != null
-		and stage_env.get_node_or_null("Ocean") != null
+		and stage_env.has_ocean_surface()
 		and grandstand_count == 2
 		and shark_count > 0
 	)
@@ -937,21 +924,25 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 			
-	if event is InputEventKey or event is InputEventJoypadButton or event is InputEventMouseButton:
-		if event.is_pressed() and not event.is_echo():
-			if game_state and game_state.game_state == Constants.STATE_WAITING_START:
-				if is_start_presentation_locked():
-					get_viewport().set_input_as_handled()
-					return
-				if is_preload_construction_locked():
-					get_viewport().set_input_as_handled()
-					return
-				# カウントダウン壁が出現し終わるまで開始トリガーをブロック
-				# （チュートリアルも本編と同じフライオーバー→カウントダウン開始）
-				if not _barrier_spawned_for_session or _barrier_dropping:
-					return
-				if game_state.has_method("trigger_start"):
-					game_state.trigger_start()
+	if (
+		event is InputEventKey
+		and event.keycode in [KEY_ENTER, KEY_KP_ENTER]
+		and event.is_pressed()
+		and not event.is_echo()
+	):
+		if game_state and game_state.game_state == Constants.STATE_WAITING_START:
+			if is_start_presentation_locked():
+				get_viewport().set_input_as_handled()
+				return
+			if is_preload_construction_locked():
+				get_viewport().set_input_as_handled()
+				return
+			# カウントダウン壁が出現し終わるまで開始トリガーをブロック
+			# （チュートリアルも本編と同じフライオーバー→カウントダウン開始）
+			if not _barrier_spawned_for_session or _barrier_dropping:
+				return
+			if game_state.has_method("trigger_start"):
+				game_state.trigger_start()
 
 func _update_floor() -> void:
 	if not stage_env:
@@ -1849,8 +1840,14 @@ func _end_preview_wall_render_prewarm() -> void:
 		if _start_barrier.get_parent() != wall_container:
 			_start_barrier.reparent(wall_container, false)
 		var barrier_z: float = game_state.tuning.wall_start_z - 7.0 if game_state else -7.0
-		_start_barrier.position = Vector3(0.0, BARRIER_DROP_HEIGHT, barrier_z)
-		_start_barrier.visible = false
+		# Endless previews can finish and drop this wall before render prewarm.
+		# Restore its live state instead of hiding an already-spawned barrier.
+		var barrier_y := BARRIER_DROP_HEIGHT
+		if _barrier_spawned_for_session:
+			var drop_progress := clampf(_barrier_drop_timer / BARRIER_DROP_DURATION, 0.0, 1.0)
+			barrier_y = lerpf(BARRIER_DROP_HEIGHT, 0.0, drop_progress * drop_progress) if _barrier_dropping else 0.0
+		_start_barrier.position = Vector3(0.0, barrier_y, barrier_z)
+		_start_barrier.visible = _barrier_spawned_for_session and not _barrier_exploded
 
 	if _wall_prewarm_root != null and is_instance_valid(_wall_prewarm_root):
 		_wall_prewarm_root.queue_free()

@@ -8,8 +8,13 @@ var ratings: Dictionary = {
 	"bad": []
 }
 
+var _eval_round_counter: int = 0
 var _eval_queue: Array[Dictionary] = []
 var _is_evaluating: bool = false
+const EVAL_EVERY_N_ROUNDS: int = 4
+const MIN_ITEMS_FOR_EVAL: int = 5
+const EVALUATION_GEMINI_MODEL: String = "gemini-3.5-flash-lite"
+const THINKING_EVALUATION: String = "minimal"
 
 func _ready() -> void:
 	_load_ratings()
@@ -34,10 +39,23 @@ func _save_ratings() -> void:
 		f.store_string(JSON.stringify(ratings, "  "))
 
 func evaluate_history(history: Array[Dictionary], subject: String, grade: int, difficulty: String) -> void:
+	var unrated := 0
+	for entry in history:
+		var q: QuizItem = entry.get("quiz")
+		if not q:
+			continue
+		if entry.get("rated", "") == "" and (q.src == "GEMINI" or q.src == "OPENAI" or q.src == "GEMINI_STREAM" or q.src == "GEMINI_POOL"):
+			unrated += 1
+	if unrated < MIN_ITEMS_FOR_EVAL:
+		return
+	_eval_round_counter += 1
+	if (_eval_round_counter % EVAL_EVERY_N_ROUNDS) != 1:
+		print("[QuizOptimizer] Skipping evaluation (round %d, every %d)" % [_eval_round_counter, EVAL_EVERY_N_ROUNDS])
+		return
 	for entry in history:
 		var q: QuizItem = entry.get("quiz")
 		if not q: continue
-		if entry.get("rated", "") == "" and (q.src == "GEMINI" or q.src == "OPENAI" or q.src == "GEMINI_STREAM"):
+		if entry.get("rated", "") == "" and (q.src == "GEMINI" or q.src == "OPENAI" or q.src == "GEMINI_STREAM" or q.src == "GEMINI_POOL"):
 			entry["rated"] = "queued"
 			entry["_eval_ctx"] = {"subject": subject, "grade": grade, "difficulty": difficulty}
 			entry["_retry_count"] = 0
@@ -89,19 +107,11 @@ func _process_next_batch() -> void:
 	_fetch_evaluation(prompt, to_evaluate, subject, grade, difficulty)
 
 func _fetch_evaluation(prompt: String, to_evaluate: Array[Dictionary], subject: String, grade: int, difficulty: String) -> void:
-	var target_model := "gemini-3.1-pro-preview"
+	var target_model := EVALUATION_GEMINI_MODEL
 	
-	var proxy := ApiStatusAutoload.get_env("PROXY_URL")
-	var url: String
-	if not proxy.is_empty():
-		url = proxy + "/gemini?model=" + target_model
-	else:
-		var key := ApiStatusAutoload.get_env("GOOGLE_API_KEY")
-		if key.is_empty():
-			key = ApiStatusAutoload.get_env("GEMINI_API_KEY")
-		if key.is_empty():
-			return
-		url = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s" % [target_model, key]
+	var url := ApiStatusAutoload.gemini_endpoint(target_model)
+	if url.is_empty():
+		return
 	
 	var http := HTTPRequest.new()
 	add_child(http)
@@ -109,7 +119,11 @@ func _fetch_evaluation(prompt: String, to_evaluate: Array[Dictionary], subject: 
 	
 	var body := JSON.stringify({
 		"contents": [{"parts": [{"text": prompt}]}],
-		"generationConfig": {"temperature": 0.2, "responseMimeType": "application/json"}
+		"generationConfig": {
+			"temperature": 0.2,
+			"responseMimeType": "application/json",
+			"thinkingConfig": {"thinkingLevel": THINKING_EVALUATION}
+		}
 	})
 	
 	http.request_completed.connect(func(result: int, response_code: int, _h, b: PackedByteArray):
@@ -140,7 +154,7 @@ func _fetch_evaluation(prompt: String, to_evaluate: Array[Dictionary], subject: 
 		else:
 			_process_next_batch()
 	)
-	http.request(url, ApiStatusAutoload.get_proxy_headers() if not proxy.is_empty() else ["Content-Type: application/json"], HTTPClient.METHOD_POST, body)
+	http.request(url, ApiStatusAutoload.get_proxy_headers(), HTTPClient.METHOD_POST, body)
 
 func _extract_json_array(text: String) -> Variant:
 	text = text.strip_edges()

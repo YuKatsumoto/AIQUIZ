@@ -55,6 +55,30 @@ func _initialize() -> void:
 	var prompt2 = fetcher.compose_prompt("算数", 3, "普通", 4, hist, false, units, false)
 	failures += _assert_true(prompt2.contains("50〜100文字程度"), "通常モード: 解説生成指示を含む")
 
+	# ── 英語3〜6年: 単元割当と段階式の出題言語 ──
+	var english_batches = fetcher._allocate_units_to_batches("英語", 3, 4, 2)
+	failures += _assert_true(english_batches.size() == 4, "英語3年: 4バッチを割り当てる")
+	var english_seen := {}
+	var english_duplicate := false
+	for english_batch in english_batches:
+		for english_unit in english_batch:
+			if english_seen.has(english_unit):
+				english_duplicate = true
+			english_seen[english_unit] = true
+	failures += _assert_false(english_duplicate, "英語3年: バッチ間で単元が重複しない")
+	failures += _assert_true(english_seen.size() == 8, "英語3年: 全8単元を使う")
+	var english_units: PackedStringArray = PackedStringArray(english_batches[0])
+	var english_prompt_3 = fetcher.compose_prompt(
+		"英語", 3, "普通", 4, [] as Array[String], false, english_units, false
+	)
+	failures += _assert_true(english_prompt_3.contains("問題の指示を日本語"), "英語3年: 日本語補助中心")
+	failures += _assert_true(english_prompt_3.contains("音声を聞かなければ解けない"), "英語3年: 音声依存を禁止")
+	var english_prompt_6 = fetcher.compose_prompt(
+		"英語", 6, "難しい", 4, [] as Array[String], false, PackedStringArray(), false
+	)
+	failures += _assert_true(english_prompt_6.contains("短い英文・二往復以内の会話"), "英語6年: 短い英文を使用")
+	failures += _assert_true(english_prompt_6.contains("中学校文法ではなく"), "英語6年: 難易度の上限を明示")
+
 	# ── 共通新規性ゲート: ストリーミング/通常応答で同じ結果になる純ローカル判定 ──
 	var duplicate := QuizItem.create(
 		"4 + 6 は？", PackedStringArray(["10", "11"]), 0, "", "GEMINI_STREAM"

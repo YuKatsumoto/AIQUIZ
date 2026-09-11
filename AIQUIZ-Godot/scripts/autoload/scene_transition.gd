@@ -101,7 +101,8 @@ func _setup_modular_wipe() -> void:
 	gradient_tex.fill_to = MODULAR_GRADIENT_TO
 
 	_modular_rect.gradient_texture = gradient_tex
-	_modular_rect.gradient_fixed = true
+	# 画面の縦横比でY成分を圧縮せず、左下→右上の対角線をそのまま使う。
+	_modular_rect.gradient_fixed = false
 	_modular_rect.width = MODULAR_WIPE_WIDTH
 	_modular_rect.shape_tiling = 16.0
 	_modular_rect.factor = 0.0
@@ -526,3 +527,28 @@ func consume_start_camera_pose() -> Dictionary:
 ## 遷移中かどうか
 func is_transitioning() -> bool:
 	return _is_transitioning
+
+
+func get_cover_factor() -> float:
+	if not _is_transitioning:
+		return 0.0
+	match _active_style:
+		"modular":
+			if _modular_rect == null:
+				return 0.0
+			return _modular_rect.factor
+		"fade":
+			return _overlay.color.a
+		"doors":
+			var viewport_size := get_viewport().get_visible_rect().size
+			if viewport_size.x <= 0.001:
+				return 0.0
+			return clampf((_door_left.size.x + _door_right.size.x) / viewport_size.x, 0.0, 1.0)
+		"texture_hold":
+			return _hold_texture_rect.modulate.a if _hold_texture_rect.visible else 0.0
+		_:
+			return 0.0
+
+
+func is_fully_covered() -> bool:
+	return is_transitioning() and get_cover_factor() >= 0.999

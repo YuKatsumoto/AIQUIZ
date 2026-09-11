@@ -17,12 +17,12 @@ const TUTORIAL_TOUR_STEPS := [
 	},
 	{
 		"title": "スキン設定",
-		"body": "プレイヤー1/2を切り替えて、それぞれの帽子とシェーダーを選べます。球体プレビューは左右キーでも選択できます。キャラクタープレビューは右ドラッグで回転、ホイールで拡大・縮小できます。",
+		"body": "プレイヤー1/2を切り替えて、それぞれの帽子を選べます。キャラクタープレビューは右ドラッグで回転、ホイールで拡大・縮小できます。",
 		"image": preload("res://assets/ui/tutorial/customize_skin_hat.png"),
 	},
 	{
 		"title": "エモート設定",
-		"body": "プレイヤーを選び、設定したいキーのスロットを選んでから、一覧のエモートを押します。P1は1・2・3、P2は8・9・0キーでゲーム中に踊れます。",
+		"body": "プレイヤーを選び、設定したいキーのスロットを選んでから、一覧のエモートを押します。ゲーム中は下のキーで踊れます。",
 		"image": preload("res://assets/ui/tutorial/customize_emote.png"),
 	},
 ]
@@ -35,6 +35,7 @@ const CustomizePreviewCameraSettingsScript = preload(
 	"res://scripts/ui/customize_preview_camera_settings.gd"
 )
 const EmoteDancer2DScript = preload("res://scripts/ui/emote_dancer_2d.gd")
+const ThinkingGaugeSliderScript: Script = preload("res://scripts/ui/thinking_gauge_slider.gd")
 const ToonPresets = preload("res://scripts/cosmetics/character_toon_presets.gd")
 const WALL_SPACING := 30.0
 ## 左レーンP1（壁速度プレビューと同じオフセット）／右レーンP2は対称配置
@@ -154,6 +155,7 @@ var _tutorial_tour_progress: Label
 var _tutorial_tour_title: Label
 var _tutorial_tour_body: Label
 var _tutorial_tour_dots: Label
+var _tutorial_tour_key_legend: KeyHintRow
 var _tutorial_tour_image: TextureRect
 var _tutorial_tour_back_button: Button
 var _tutorial_tour_next_button: Button
@@ -175,9 +177,6 @@ var _skin_player_btn_p2: Button
 var _hat_name_label: Label
 var _hat_prev_button: Button
 var _hat_next_button: Button
-var _toon_preset_buttons: Array[Button] = []
-var _toon_preview_viewport: SubViewport
-var _toon_preview_meshes: Array[MeshInstance3D] = []
 var _hat_slide_active: bool = false
 var _hat_slide_t: float = 0.0
 var _hat_slide_dir: int = 0
@@ -379,32 +378,17 @@ func _process(dt: float) -> void:
 
 
 func _input(event: InputEvent) -> void:
-	if _tutorial_tour_active and event is InputEventKey:
-		var key_event := event as InputEventKey
-		if key_event.pressed and not key_event.echo:
-			match key_event.keycode:
-				KEY_LEFT:
-					_show_previous_tutorial_tour_page()
-				KEY_RIGHT, KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
-					_show_next_tutorial_tour_page()
-				KEY_ESCAPE:
-					_abort_tutorial_tour()
-		get_viewport().set_input_as_handled()
+	if not _tutorial_tour_active or not event is InputEventKey:
 		return
-	if _tutorial_tour_active or _active_section != Section.SKIN or not event is InputEventKey:
-		return
-	var skin_key := event as InputEventKey
-	var event_keycode := skin_key.keycode if skin_key.keycode != 0 else skin_key.physical_keycode
-	if not skin_key.pressed or skin_key.echo or event_keycode not in [KEY_LEFT, KEY_RIGHT]:
-		return
-	var focused := get_viewport().gui_get_focus_owner()
-	var focused_index := _toon_preset_buttons.find(focused)
-	if focused_index < 0:
-		return
-	var direction := -1 if event_keycode == KEY_LEFT else 1
-	var next_index := (focused_index + direction + _toon_preset_buttons.size()) % _toon_preset_buttons.size()
-	_toon_preset_buttons[next_index].grab_focus()
-	_set_current_toon_preset(next_index)
+	var key_event := event as InputEventKey
+	if key_event.pressed and not key_event.echo:
+		match key_event.keycode:
+			KEY_LEFT:
+				_show_previous_tutorial_tour_page()
+			KEY_RIGHT, KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
+				_show_next_tutorial_tour_page()
+			KEY_ESCAPE:
+				_abort_tutorial_tour()
 	get_viewport().set_input_as_handled()
 
 
@@ -520,7 +504,6 @@ func _build_ui() -> void:
 	outer_vbox.add_child(_back_button)
 
 	_refresh_skin_player_button_styles()
-	_refresh_toon_preset_button_styles()
 	_build_tutorial_tour_overlay()
 	_style_all_buttons()
 	_configure_emote_focus_navigation()
@@ -626,6 +609,13 @@ func _build_tutorial_tour_overlay() -> void:
 	_tutorial_tour_body.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	guide_box.add_child(_tutorial_tour_body)
 
+	_tutorial_tour_key_legend = KeyHintRow.new()
+	_tutorial_tour_key_legend.name = "EmoteKeyLegend"
+	_tutorial_tour_key_legend.alignment = BoxContainer.ALIGNMENT_CENTER
+	_tutorial_tour_key_legend.add_theme_constant_override("separation", 6)
+	_tutorial_tour_key_legend.visible = false
+	guide_box.add_child(_tutorial_tour_key_legend)
+
 	var spacer := Control.new()
 	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -638,12 +628,15 @@ func _build_tutorial_tour_overlay() -> void:
 	_tutorial_tour_dots.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	guide_box.add_child(_tutorial_tour_dots)
 
-	var input_hint := Label.new()
-	input_hint.text = "← / →  または  Enter / Space　　Esc：中断"
-	input_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	input_hint.add_theme_font_size_override("font_size", 12)
-	input_hint.add_theme_color_override("font_color", Color(0.58, 0.68, 0.84))
-	input_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var input_hint := KeyHintRow.new()
+	input_hint.name = "TourInputHint"
+	input_hint.add_theme_constant_override("separation", 5)
+	input_hint.add_spec("← / →", KeycapChip.DEFAULT_ACCENT, KeycapChip.SizeClass.TINY)
+	input_hint.add_text("または", Color(0.58, 0.68, 0.84), 12)
+	input_hint.add_spec("Enter", KeycapChip.DEFAULT_ACCENT, KeycapChip.SizeClass.TINY)
+	input_hint.add_spec("Space", KeycapChip.DEFAULT_ACCENT, KeycapChip.SizeClass.TINY)
+	input_hint.add_spec("Esc", KeycapChip.DEFAULT_ACCENT, KeycapChip.SizeClass.TINY)
+	input_hint.add_text("中断", Color(0.58, 0.68, 0.84), 12)
 	guide_box.add_child(input_hint)
 
 	var button_row := HBoxContainer.new()
@@ -674,40 +667,6 @@ func _make_section_button(label: String, parent: Node, section: Section) -> Butt
 	btn.pressed.connect(func() -> void: _set_section(section))
 	parent.add_child(btn)
 	return btn
-
-
-func _keycap_style(_accent: Color, compact: bool) -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	# 明るい天面と厚い右・下辺で、俯瞰したキーボードの成形キーを表現する。
-	style.bg_color = Color(0.90, 0.915, 0.93, 1.0)
-	style.border_color = Color(0.49, 0.52, 0.57, 1.0)
-	style.border_width_left = 1
-	style.border_width_top = 1
-	style.border_width_right = 2 if compact else 3
-	style.border_width_bottom = 3 if compact else 4
-	style.set_corner_radius_all(3 if compact else 4)
-	style.corner_detail = 5
-	style.content_margin_left = 4.0 if compact else 7.0
-	style.content_margin_right = 5.0 if compact else 8.0
-	style.content_margin_top = 0.0
-	style.content_margin_bottom = 3.0
-	style.shadow_color = Color(0.005, 0.008, 0.014, 0.88)
-	style.shadow_size = 2 if compact else 3
-	style.shadow_offset = Vector2(2.0, 3.0 if compact else 4.0)
-	return style
-
-
-func _style_keycap_label(label: Label, accent: Color, compact: bool) -> void:
-	label.custom_minimum_size = Vector2(21.0, 19.0) if compact else Vector2(32.0, 24.0)
-	label.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	label.add_theme_font_size_override("font_size", 10 if compact else 13)
-	label.add_theme_color_override("font_color", accent.darkened(0.38))
-	label.add_theme_color_override("font_shadow_color", Color(1.0, 1.0, 1.0, 0.72))
-	label.add_theme_constant_override("shadow_offset_x", -1)
-	label.add_theme_constant_override("shadow_offset_y", -1)
-	label.add_theme_stylebox_override("normal", _keycap_style(accent, compact))
 
 
 func _focus_ring_style(accent: Color) -> StyleBoxFlat:
@@ -789,7 +748,6 @@ func _configure_skin_focus_navigation() -> void:
 		or not _skin_player_btn_p2
 		or not _hat_prev_button
 		or not _hat_next_button
-		or _toon_preset_buttons.size() != ToonPresets.COUNT
 		or not _back_button
 	):
 		return
@@ -798,9 +756,8 @@ func _configure_skin_focus_navigation() -> void:
 		_skin_player_btn_p2,
 		_hat_prev_button,
 		_hat_next_button,
+		_back_button,
 	]
-	tab_order.append_array(_toon_preset_buttons)
-	tab_order.append(_back_button)
 	for index: int in range(tab_order.size()):
 		_set_focus_target(tab_order[index], &"focus_previous", tab_order[(index - 1 + tab_order.size()) % tab_order.size()])
 		_set_focus_target(tab_order[index], &"focus_next", tab_order[(index + 1) % tab_order.size()])
@@ -812,17 +769,10 @@ func _configure_skin_focus_navigation() -> void:
 	_set_focus_target(_skin_player_btn_p2, &"focus_neighbor_right", _skin_player_btn_p1)
 	_set_focus_target(_skin_player_btn_p2, &"focus_neighbor_down", _hat_next_button)
 	_set_focus_target(_hat_prev_button, &"focus_neighbor_up", _skin_player_btn_p1)
-	_set_focus_target(_hat_prev_button, &"focus_neighbor_down", _toon_preset_buttons[0])
+	_set_focus_target(_hat_prev_button, &"focus_neighbor_down", _back_button)
 	_set_focus_target(_hat_next_button, &"focus_neighbor_up", _skin_player_btn_p2)
-	_set_focus_target(_hat_next_button, &"focus_neighbor_down", _toon_preset_buttons[ToonPresets.COUNT - 1])
-	for preset_index: int in range(_toon_preset_buttons.size()):
-		var card := _toon_preset_buttons[preset_index]
-		_set_focus_target(card, &"focus_neighbor_left", _toon_preset_buttons[(preset_index - 1 + ToonPresets.COUNT) % ToonPresets.COUNT])
-		_set_focus_target(card, &"focus_neighbor_right", _toon_preset_buttons[(preset_index + 1) % ToonPresets.COUNT])
-		_set_focus_target(card, &"focus_neighbor_up", _hat_prev_button if preset_index < 3 else _hat_next_button)
-		_set_focus_target(card, &"focus_neighbor_down", _back_button)
-	var selected_index := _get_current_toon_preset()
-	_set_focus_target(_back_button, &"focus_neighbor_up", _toon_preset_buttons[selected_index])
+	_set_focus_target(_hat_next_button, &"focus_neighbor_down", _back_button)
+	_set_focus_target(_back_button, &"focus_neighbor_up", _hat_prev_button)
 	_set_focus_target(_back_button, &"focus_neighbor_down", _skin_player_btn_p1)
 	_back_button.add_theme_stylebox_override("focus", _focus_ring_style(Color(1.0, 0.80, 0.24)))
 
@@ -838,7 +788,9 @@ func _build_wall_panel() -> void:
 	_speed_value_label.add_theme_font_size_override("font_size", 42)
 	_wall_panel.add_child(_speed_value_label)
 
-	_speed_slider = HSlider.new()
+	_speed_slider = ThinkingGaugeSliderScript.new() as HSlider
+	_speed_slider.name = "WallSpeedThinkingGauge"
+	_speed_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_speed_slider.min_value = 1.0
 	_speed_slider.max_value = 10.0
 	_speed_slider.step = 0.1
@@ -897,115 +849,6 @@ func _build_skin_panel() -> void:
 	_hat_next_button.pressed.connect(_on_hat_next)
 	hat_row.add_child(_hat_next_button)
 
-	var toon_label := Label.new()
-	toon_label.text = "シェーダー"
-	toon_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	toon_label.add_theme_font_size_override("font_size", 15)
-	toon_label.add_theme_color_override("font_color", Color(0.78, 0.84, 0.94))
-	_skin_panel.add_child(toon_label)
-
-	_setup_toon_preview_viewport()
-	var toon_row := HBoxContainer.new()
-	toon_row.name = "ToonPresetRow"
-	toon_row.add_theme_constant_override("separation", 5)
-	_skin_panel.add_child(toon_row)
-	var catalog := ToonPresets.get_catalog()
-	for preset_index: int in range(catalog.size()):
-		var preset: Dictionary = catalog[preset_index]
-		var preset_id := int(preset["id"])
-		var card := Button.new()
-		card.name = "ToonPreset%d" % preset_id
-		card.custom_minimum_size = Vector2(64.0, 76.0)
-		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		card.focus_mode = Control.FOCUS_ALL
-		card.clip_contents = true
-		card.tooltip_text = str(preset["name"])
-		card.set_meta(&"toon_preset_id", preset_id)
-		card.pressed.connect(_set_current_toon_preset.bind(preset_id))
-		toon_row.add_child(card)
-
-		var card_content := VBoxContainer.new()
-		card_content.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		card_content.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		card_content.add_theme_constant_override("separation", 0)
-		card.add_child(card_content)
-		var preview := TextureRect.new()
-		preview.name = "SpherePreview"
-		preview.custom_minimum_size = Vector2(0.0, 52.0)
-		preview.size_flags_vertical = Control.SIZE_EXPAND_FILL
-		preview.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		preview.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		preview.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
-		var atlas := AtlasTexture.new()
-		atlas.atlas = _toon_preview_viewport.get_texture()
-		atlas.region = Rect2(float(preset_index * 128), 0.0, 128.0, 128.0)
-		preview.texture = atlas
-		card_content.add_child(preview)
-		var name_label := Label.new()
-		name_label.text = str(preset["name"])
-		name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		name_label.add_theme_font_size_override("font_size", 11)
-		name_label.add_theme_color_override("font_color", Color(0.92, 0.94, 1.0))
-		name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		card_content.add_child(name_label)
-		_toon_preset_buttons.append(card)
-
-
-func _setup_toon_preview_viewport() -> void:
-	_toon_preview_viewport = SubViewport.new()
-	_toon_preview_viewport.name = "ToonPresetPreviewViewport"
-	_toon_preview_viewport.size = Vector2i(768, 128)
-	_toon_preview_viewport.transparent_bg = true
-	_toon_preview_viewport.own_world_3d = true
-	_toon_preview_viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
-	add_child(_toon_preview_viewport)
-
-	var environment := Environment.new()
-	environment.background_mode = Environment.BG_COLOR
-	environment.background_color = Color(0.0, 0.0, 0.0, 0.0)
-	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	environment.ambient_light_color = Color(0.45, 0.48, 0.56)
-	environment.ambient_light_energy = 0.9
-	var world_environment := WorldEnvironment.new()
-	world_environment.environment = environment
-	_toon_preview_viewport.add_child(world_environment)
-
-	var camera := Camera3D.new()
-	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
-	camera.size = 1.72
-	camera.position = Vector3(0.0, 0.0, 5.0)
-	_toon_preview_viewport.add_child(camera)
-	camera.look_at(Vector3.ZERO, Vector3.UP)
-	camera.current = true
-
-	var key_light := DirectionalLight3D.new()
-	key_light.rotation_degrees = Vector3(-38.0, -34.0, 0.0)
-	key_light.light_color = Color(1.0, 0.94, 0.86)
-	key_light.light_energy = 1.35
-	key_light.shadow_enabled = false
-	_toon_preview_viewport.add_child(key_light)
-	var fill_light := DirectionalLight3D.new()
-	fill_light.rotation_degrees = Vector3(15.0, 142.0, 0.0)
-	fill_light.light_color = Color(0.58, 0.70, 1.0)
-	fill_light.light_energy = 0.52
-	_toon_preview_viewport.add_child(fill_light)
-
-	for preset_id: int in range(ToonPresets.COUNT):
-		var sphere := MeshInstance3D.new()
-		sphere.name = "PresetSphere%d" % preset_id
-		var sphere_mesh := SphereMesh.new()
-		sphere_mesh.radius = 0.58
-		sphere_mesh.height = 1.16
-		sphere_mesh.radial_segments = 48
-		sphere_mesh.rings = 24
-		sphere.mesh = sphere_mesh
-		# 128x128 の各 AtlasTexture 枠の中心と、正投影カメラの1枠分（1.72m）を一致させる。
-		sphere.position = Vector3((float(preset_id) - 2.5) * 1.72, 0.0, 0.0)
-		_toon_preview_viewport.add_child(sphere)
-		_toon_preview_meshes.append(sphere)
-	_update_toon_preview_materials()
-
 func _build_emote_panel() -> void:
 	var player_row := HBoxContainer.new()
 	player_row.add_theme_constant_override("separation", 8)
@@ -1035,28 +878,27 @@ func _build_emote_panel() -> void:
 	_emote_slot_btns.clear()
 	for i in range(3):
 		var slot_btn := Button.new()
-		slot_btn.custom_minimum_size = Vector2(0, 52)
+		slot_btn.custom_minimum_size = Vector2(0, 78)
 		slot_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		slot_btn.focus_mode = Control.FOCUS_ALL
+		slot_btn.clip_contents = false
 		slot_btn.set_meta("slot_idx", i)
 		var slot_idx := i
 		slot_btn.pressed.connect(func() -> void: _set_active_assign_slot(slot_idx))
 
 		var slot_vbox := VBoxContainer.new()
 		slot_vbox.set_anchors_preset(Control.PRESET_FULL_RECT)
-		slot_vbox.offset_left = 5.0
-		slot_vbox.offset_top = 3.0
-		slot_vbox.offset_right = -5.0
-		slot_vbox.offset_bottom = -3.0
+		slot_vbox.offset_left = 4.0
+		slot_vbox.offset_top = 2.0
+		slot_vbox.offset_right = -4.0
+		slot_vbox.offset_bottom = -2.0
 		slot_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
-		slot_vbox.add_theme_constant_override("separation", 0)
+		slot_vbox.add_theme_constant_override("separation", 2)
 		slot_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		slot_btn.add_child(slot_vbox)
 
-		var key_lbl := Label.new()
+		var key_lbl := KeycapChip.create("1", PlayerController.P1_BODY, KeycapChip.SizeClass.SMALL)
 		key_lbl.name = "KeyLabel"
-		_style_keycap_label(key_lbl, PlayerController.P1_BODY, false)
-		key_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		slot_vbox.add_child(key_lbl)
 
 		var name_lbl := Label.new()
@@ -1120,11 +962,9 @@ func _build_emote_panel() -> void:
 		card_row.add_child(key_badge_row)
 
 		for badge_idx in range(3):
-			var key_badge := Label.new()
+			var key_badge := KeycapChip.create("1", PlayerController.P1_BODY, KeycapChip.SizeClass.TINY)
 			key_badge.name = "KeyBadge%d" % badge_idx
-			_style_keycap_label(key_badge, PlayerController.P1_BODY, true)
 			key_badge.visible = false
-			key_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			key_badge_row.add_child(key_badge)
 
 		card.pressed.connect(_on_grid_emote_selected.bind(eid, card))
@@ -1256,6 +1096,7 @@ func _set_tutorial_tour_page(step_index: int) -> void:
 	_tutorial_tour_title.text = str(page.get("title", "カスタマイズ"))
 	_tutorial_tour_body.text = str(page.get("body", ""))
 	_tutorial_tour_image.texture = page.get("image") as Texture2D
+	_refresh_tutorial_tour_key_legend()
 
 	var dots := PackedStringArray()
 	for page_index: int in range(TUTORIAL_TOUR_STEPS.size()):
@@ -1269,6 +1110,21 @@ func _set_tutorial_tour_page(step_index: int) -> void:
 		else "次へ →"
 	)
 	_tutorial_tour_next_button.call_deferred("grab_focus")
+
+
+func _refresh_tutorial_tour_key_legend() -> void:
+	if _tutorial_tour_key_legend == null:
+		return
+	var show_emote_keys := _tutorial_tour_index == 2
+	_tutorial_tour_key_legend.visible = show_emote_keys
+	if not show_emote_keys:
+		return
+	_tutorial_tour_key_legend.reset()
+	_tutorial_tour_key_legend.add_player_tag("P1", PlayerController.P1_BODY, 13)
+	_tutorial_tour_key_legend.add_spec("1 / 2 / 3", PlayerController.P1_BODY, KeycapChip.SizeClass.SMALL)
+	_tutorial_tour_key_legend.add_text("  ", Color.WHITE, 12)
+	_tutorial_tour_key_legend.add_player_tag("P2", PlayerController.P2_BODY, 13)
+	_tutorial_tour_key_legend.add_spec("8 / 9 / 0", PlayerController.P2_BODY, KeycapChip.SizeClass.SMALL)
 
 
 func _show_previous_tutorial_tour_page() -> void:
@@ -1348,7 +1204,7 @@ func _set_section(section: Section) -> void:
 			Section.WALL_SPEED:
 				target_height = 480.0
 			Section.SKIN:
-				target_height = 520.0
+				target_height = 420.0
 			Section.EMOTE:
 				target_height = 640.0
 
@@ -1412,7 +1268,6 @@ func _set_section(section: Section) -> void:
 			_preview_player.visible = true
 			_sync_preview_hat()
 			_sync_preview_toon_presets()
-			_update_toon_preview_materials()
 			_reset_skin_orbit_default()
 		Section.EMOTE:
 			_configure_emote_focus_navigation()
@@ -1755,7 +1610,6 @@ func _refresh_all_labels() -> void:
 	_hat_name_label.text = HatData.get_hat_name(_get_current_hat())
 	_update_emote_panel_ui()
 	_refresh_skin_player_button_styles()
-	_refresh_toon_preset_button_styles()
 	_refresh_emote_player_button_styles()
 
 	if gs and _preview_player and _preview_player.has_method("set_hat") and not _hat_slide_active:
@@ -1806,7 +1660,6 @@ func _set_skin_editing_player(which: int) -> void:
 	_finish_hat_slide_immediate()
 	_editing_player = which
 	_refresh_all_labels()
-	_update_toon_preview_materials()
 	if _active_section == Section.SKIN:
 		_update_skin_preview_lighting()
 		_sync_skin_orbit_lane_x()
@@ -1837,47 +1690,6 @@ func _refresh_skin_player_button_styles() -> void:
 		return
 	_player_accent_btn_theme(_skin_player_btn_p1, PlayerController.P1_BODY, _editing_player == 1)
 	_player_accent_btn_theme(_skin_player_btn_p2, PlayerController.P2_BODY, _editing_player == 2)
-
-
-func _toon_preset_card_style(accent: Color, selected: bool) -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.055, 0.075, 0.11, 0.96)
-	style.border_color = accent.lightened(0.16) if selected else Color(0.30, 0.35, 0.46, 0.82)
-	style.set_border_width_all(3 if selected else 1)
-	style.set_corner_radius_all(9)
-	style.content_margin_left = 3.0
-	style.content_margin_right = 3.0
-	style.content_margin_top = 2.0
-	style.content_margin_bottom = 2.0
-	return style
-
-
-func _refresh_toon_preset_button_styles() -> void:
-	if _toon_preset_buttons.size() != ToonPresets.COUNT:
-		return
-	var selected_id := _get_current_toon_preset()
-	var accent := PlayerController.P1_BODY if _editing_player == 1 else PlayerController.P2_BODY
-	for preset_id: int in range(_toon_preset_buttons.size()):
-		var card := _toon_preset_buttons[preset_id]
-		var style := _toon_preset_card_style(accent, preset_id == selected_id)
-		var hover := style.duplicate() as StyleBoxFlat
-		hover.bg_color = Color(0.09, 0.13, 0.18, 0.98)
-		hover.border_color = accent.lightened(0.30)
-		card.add_theme_stylebox_override("normal", style)
-		card.add_theme_stylebox_override("hover", hover)
-		card.add_theme_stylebox_override("pressed", style.duplicate())
-		card.add_theme_stylebox_override("focus", _focus_ring_style(Color(1.0, 0.80, 0.24)))
-	if _active_section == Section.SKIN:
-		_configure_skin_focus_navigation()
-
-
-func _update_toon_preview_materials() -> void:
-	if not _toon_preview_viewport or _toon_preview_meshes.size() != ToonPresets.COUNT:
-		return
-	var accent := PlayerController.P1_BODY if _editing_player == 1 else PlayerController.P2_BODY
-	for preset_id: int in range(_toon_preview_meshes.size()):
-		_toon_preview_meshes[preset_id].material_override = ToonPresets.create_material(preset_id, accent)
-	_toon_preview_viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
 
 
 func _refresh_emote_player_button_styles() -> void:
@@ -1971,8 +1783,8 @@ func _slot_card_style(selected: bool, accent: Color) -> StyleBoxFlat:
 	style.set_corner_radius_all(10)
 	style.content_margin_left = 6.0
 	style.content_margin_right = 6.0
-	style.content_margin_top = 5.0
-	style.content_margin_bottom = 5.0
+	style.content_margin_top = 6.0
+	style.content_margin_bottom = 8.0
 	return style
 
 
@@ -2054,13 +1866,12 @@ func _refresh_emote_grid_cards() -> void:
 				)
 			if key_badge_row:
 				for badge_idx in range(3):
-					var key_badge := key_badge_row.get_node_or_null("KeyBadge%d" % badge_idx) as Label
+					var key_badge := key_badge_row.get_node_or_null("KeyBadge%d" % badge_idx) as KeycapChip
 					if not key_badge:
 						continue
 					key_badge.visible = badge_idx < assigned_keys.size()
 					if key_badge.visible:
-						key_badge.text = assigned_keys[badge_idx]
-						_style_keycap_label(key_badge, accent, true)
+						key_badge.configure(assigned_keys[badge_idx], accent, KeycapChip.SizeClass.TINY)
 		if is_active:
 			_selected_grid_btn = card
 
@@ -2090,11 +1901,10 @@ func _update_emote_panel_ui() -> void:
 		var entry := _emote_catalog_entry(emote_id)
 		var slot_vbox := slot_btn.get_child(0) as VBoxContainer
 		if slot_vbox:
-			var key_label := slot_vbox.get_node_or_null("KeyLabel") as Label
+			var key_label := slot_vbox.get_node_or_null("KeyLabel") as KeycapChip
 			var name_label := slot_vbox.get_node_or_null("NameLabel") as Label
 			if key_label:
-				key_label.text = keys[i]
-				_style_keycap_label(key_label, accent, false)
+				key_label.configure(keys[i], accent, KeycapChip.SizeClass.SMALL)
 			if name_label:
 				name_label.text = str(entry.get("name", "なし"))
 
@@ -2240,17 +2050,16 @@ func _refresh_emote_lane_previews() -> void:
 	_cleanup_emote_lane_previews()
 	var gm := QuizManager.game_state
 	var lane_infos: Array[Dictionary] = [
-		{"lane_x": PREVIEW_PLAYER_P1_X, "is_p1": true, "hat": gm.p1_hat, "toon": gm.p1_toon_preset},
-		{"lane_x": PREVIEW_PLAYER_P2_X, "is_p1": false, "hat": gm.p2_hat, "toon": gm.p2_toon_preset},
+		{"lane_x": PREVIEW_PLAYER_P1_X, "is_p1": true, "hat": gm.p1_hat},
+		{"lane_x": PREVIEW_PLAYER_P2_X, "is_p1": false, "hat": gm.p2_hat},
 	]
 
 	for lane_info in lane_infos:
 		var lx: float = float(lane_info["lane_x"])
 		var lane_p1: bool = bool(lane_info["is_p1"])
 		var hid: int = int(lane_info["hat"])
-		var toon_id: int = ToonPresets.normalize(int(lane_info["toon"]))
 		var eid := _lane_preview_emote_id_for_player(lane_p1, gm)
-		var e := _spawn_lane_emote_preview(eid, lx, lane_p1, hid, toon_id)
+		var e := _spawn_lane_emote_preview(eid, lx, lane_p1, hid, ToonPresets.STANDARD)
 		_emote_lane_previews.append(e)
 
 
@@ -2276,17 +2085,12 @@ func _sync_preview_hat_for_player(player_id: int) -> void:
 
 
 func _sync_preview_toon_presets() -> void:
-	var gs := QuizManager.game_state
-	if gs == null:
-		return
-	var p1_preset := ToonPresets.normalize(gs.p1_toon_preset)
-	var p2_preset := ToonPresets.normalize(gs.p2_toon_preset)
 	if _preview_gs:
-		_preview_gs.p1_toon_preset = p1_preset
-		_preview_gs.p2_toon_preset = p2_preset
+		_preview_gs.p1_toon_preset = ToonPresets.STANDARD
+		_preview_gs.p2_toon_preset = ToonPresets.STANDARD
 	if _preview_player and _preview_player.has_method("set_toon_preset"):
-		_preview_player.set_toon_preset(1, p1_preset)
-		_preview_player.set_toon_preset(2, p2_preset)
+		_preview_player.set_toon_preset(1, ToonPresets.STANDARD)
+		_preview_player.set_toon_preset(2, ToonPresets.STANDARD)
 
 
 func _apply_hat_change_animated(new_hat_id: int, direction: int) -> void:
@@ -2465,28 +2269,6 @@ func _finish_hat_slide_immediate() -> void:
 func _get_current_hat() -> int:
 	var gs := QuizManager.game_state
 	return gs.p1_hat if _editing_player == 1 else gs.p2_hat
-
-func _get_current_toon_preset() -> int:
-	var gs := QuizManager.game_state
-	if gs == null:
-		return ToonPresets.STANDARD
-	return ToonPresets.normalize(gs.p1_toon_preset if _editing_player == 1 else gs.p2_toon_preset)
-
-
-func _set_current_toon_preset(preset_id: int) -> void:
-	var gs := QuizManager.game_state
-	if gs == null:
-		return
-	var normalized := ToonPresets.normalize(preset_id)
-	if _editing_player == 1:
-		gs.p1_toon_preset = normalized
-	else:
-		gs.p2_toon_preset = normalized
-	_sync_preview_toon_presets()
-	_refresh_toon_preset_button_styles()
-	if _active_section == Section.EMOTE:
-		_refresh_emote_lane_previews()
-
 
 func _set_current_hat(hat_id: int) -> void:
 	var gs := QuizManager.game_state
@@ -3098,8 +2880,6 @@ func _style_all_buttons() -> void:
 		if btn == _skin_player_btn_p1 or btn == _skin_player_btn_p2:
 			continue
 		if btn == _emote_player_btn_p1 or btn == _emote_player_btn_p2:
-			continue
-		if btn in _toon_preset_buttons:
 			continue
 		if btn in _emote_slot_btns:
 			continue

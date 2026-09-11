@@ -1,0 +1,76 @@
+{
+  "grade": 3,
+  "subject": "英語",
+  "keywords": "挨拶,気分,数1-20,色,形,大文字,好きなもの,身近な物",
+  "bad_examples": [
+    "三単現や時制などの文法用語を答えさせる問題",
+    "音声を聞かなければ正解できない発音・聞き取り問題",
+    "中学校範囲の長文読解"
+  ],
+  "units": [
+    {
+      "name": "挨拶と返事",
+      "key_concepts": ["Hello. と Goodbye.", "Thank you. への自然な返事"],
+      "typical_mistakes": ["朝と夜の挨拶を取り違える"],
+      "sample_questions": [
+        {"q": "友達に朝会ったときの英語は？", "c": ["Good morning.", "Good night.", "Goodbye.", "I'm sorry."], "a": 0, "e": "朝の挨拶には Good morning. を使います。"}
+      ]
+    },
+    {
+      "name": "気分と体調",
+      "key_concepts": ["happy, sad, hungry, tired", "How are you? への返答"],
+      "typical_mistakes": ["hungry と tired を混同する"],
+      "sample_questions": [
+        {"q": "「How are you?」への自然な返事は？", "c": ["I'm fine.", "It's a pen.", "Good night.", "Ten, please."], "a": 0, "e": "How are you? は気分を尋ねる表現です。"}
+      ]
+    },
+    {
+      "name": "数1から20",
+      "key_concepts": ["one から twenty", "How many ...?"],
+      "typical_mistakes": ["twelve と twenty を取り違える"],
+      "sample_questions": [
+        {"q": "「How many apples?」で尋ねているのは？", "c": ["りんごの数", "りんごの色", "りんごの味", "りんごの持ち主"], "a": 0, "e": "How many は数を尋ねる表現です。"}
+      ]
+    },
+    {
+      "name": "色と形",
+      "key_concepts": ["red, blue, yellow, green", "circle, square, triangle"],
+      "typical_mistakes": ["blue と green を混同する"],
+      "sample_questions": [
+        {"q": "「黄色い星」を表す組み合わせは？", "c": ["yellow star", "blue circle", "red square", "green triangle"], "a": 0, "e": "yellow は黄色、star は星です。"}
+      ]
+    },
+    {
+      "name": "アルファベット大文字",
+      "key_concepts": ["A から Z の大文字", "文字の並び"],
+      "typical_mistakes": ["形が似た E と F を混同する"],
+      "sample_questions": [
+        {"q": "大文字の「G」の次の文字は？", "c": ["F", "H", "I", "J"], "a": 1, "e": "アルファベットは F, G, H の順です。"}
+      ]
+    },
+    {
+      "name": "好きなもの",
+      "key_concepts": ["I like ...", "Do you like ...?"],
+      "typical_mistakes": ["like を「持っている」と誤解する"],
+      "sample_questions": [
+        {"q": "「I like soccer.」の意味は？", "c": ["サッカーが好き", "サッカーを持つ", "サッカーが苦手", "サッカーを教える"], "a": 0, "e": "I like ... は「私は…が好き」です。"}
+      ]
+    },
+    {
+      "name": "動物と食べ物",
+      "key_concepts": ["身近な動物の英語", "果物と食べ物の英語"],
+      "typical_mistakes": ["dog と duck のつづりを混同する"],
+      "sample_questions": [
+        {"q": "「うさぎ」を表す英語は？", "c": ["rabbit", "turtle", "bird", "fish"], "a": 0, "e": "うさぎは rabbit と言います。"}
+      ]
+    },
+    {
+      "name": "身近な物と簡単な指示",
+      "key_concepts": ["book, pencil, desk, chair", "What's this?"],
+      "typical_mistakes": ["物の名前と動作の言葉を混同する"],
+      "sample_questions": [
+        {"q": "本を指して「What's this?」と聞かれたら？", "c": ["It's a book.", "I like books.", "Open the door.", "I'm happy."], "a": 0, "e": "物の名前は It's a book. のように答えます。"}
+      ]
+    }
+  ]
+}

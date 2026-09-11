@@ -1,6 +1,7 @@
 extends Control
 
 const TutorialCourseSelectorScript := preload("res://scripts/ui/tutorial_course_selector.gd")
+const MenuMetalButtonScript := preload("res://scripts/ui/menu_metal_button.gd")
 const TutorialCompletionCardScript := preload("res://scripts/ui/tutorial_completion_card.gd")
 
 ## メインメニュー画面 (STAGE A: 最低限のUI)
@@ -15,6 +16,7 @@ const TutorialCompletionCardScript := preload("res://scripts/ui/tutorial_complet
 @onready var announcement_label: RichTextLabel = %AnnouncementLabel
 @onready var mode_container: VBoxContainer = $VBoxContainer/ModeContainer
 @onready var config_container: VBoxContainer = $VBoxContainer/ConfigContainer
+@onready var config_conveyor: MenuConfigConveyor = %MenuConfigConveyor
 @onready var start_button: Button = $VBoxContainer/ConfigContainer/ConfigBtnRow/StartButton
 @onready var status_label: Label = $VBoxContainer/StatusLabel
 @onready var prev_grade_btn: Button = %PrevGradeBtn
@@ -55,7 +57,7 @@ const ANIM_FADE_DURATION := 0.32
 const ANIM_STAGGER := 0.055
 const MENU_EXIT_DURATION := 0.34
 const MENU_EXIT_OFFSET_X := -520.0
-const MENU_HELICOPTER_EXIT_TIMEOUT_SEC := 7.5
+const MENU_HELICOPTER_EXIT_TIMEOUT_SEC := 12.0
 
 var _prev_menu_step: String = ""
 var _entrance_done: bool = false
@@ -122,14 +124,13 @@ func _ready() -> void:
 	_ensure_tutorial_button()
 	_ensure_tutorial_selector()
 	_style_all_buttons()
-	
 	prev_grade_btn.pressed.connect(_on_prev_grade_pressed)
 	next_grade_btn.pressed.connect(_on_next_grade_pressed)
 	prev_subject_btn.pressed.connect(_on_prev_subject_pressed)
 	next_subject_btn.pressed.connect(_on_next_subject_pressed)
 	prev_diff_btn.pressed.connect(_on_prev_diff_pressed)
 	next_diff_btn.pressed.connect(_on_next_diff_pressed)
-	
+
 	_update_ui()
 	if _pending_customize_tutorial_on_ready:
 		_entrance_done = true
@@ -514,6 +515,7 @@ func _on_embedded_customize_close_requested() -> void:
 		_embedded_customize.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_set_all_buttons_disabled(false)
 		_menu_exit_in_progress = false
+		_update_ui()
 	)
 
 
@@ -542,22 +544,94 @@ func _play_exit_and_change_scene(
 	_menu_exit_in_progress = true
 	_set_all_buttons_disabled(true)
 	settings_panel.visible = false
-
-	var tw := create_tween()
-	tw.set_parallel(true)
-	tw.set_ease(Tween.EASE_IN_OUT)
-	tw.set_trans(Tween.TRANS_CUBIC)
+	if start_standard_round and path.ends_with("game_world.tscn"):
+		await _play_start_ui_departure()
+		if is_inside_tree():
+			_begin_scene_change_after_helicopter(path, start_standard_round, tutorial_course)
+		return
+	var tw := create_tween().set_parallel(true)
+	tw.set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_CUBIC)
 	for target in _menu_exit_targets:
 		if not target:
 			continue
 		var base_pos: Variant = target.get_meta("base_position", target.position)
 		tw.tween_property(target, "position:x", base_pos.x + MENU_EXIT_OFFSET_X, MENU_EXIT_DURATION)
 		tw.tween_property(target, "modulate:a", 0.0, MENU_EXIT_DURATION * 0.9)
+	_begin_scene_change(path, start_standard_round, tutorial_course)
 
-	if start_standard_round and path.ends_with("game_world.tscn"):
-		_begin_scene_change_after_helicopter(path, start_standard_round, tutorial_course)
+
+func _play_start_ui_departure() -> void:
+	var row := menu_vbox.get_node_or_null("StepIndicator") as HBoxContainer
+	var cover := Control.new()
+	cover.name = "StartStepCover"
+	cover.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cover.clip_contents = true
+	add_child(cover)
+	if row != null and row.get_child_count() == 3:
+		var first := row.get_child(0) as Control
+		var last := row.get_child(2) as Control
+		var bounds := first.get_global_rect().merge(last.get_global_rect()).grow(2.0)
+		cover.position = bounds.position - global_position
+		cover.size = bounds.size
 	else:
-		_begin_scene_change(path, start_standard_round, tutorial_course)
+		cover.position = menu_vbox.position
+		cover.size = Vector2(240.0, 32.0)
+	var half_width := cover.size.x * 0.5
+	var shutters: Array[Panel] = []
+	for side: int in range(2):
+		var shutter := Panel.new()
+		shutter.name = "LeftShutter" if side == 0 else "RightShutter"
+		shutter.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		shutter.size = Vector2(half_width + 1.0, cover.size.y)
+		shutter.position.x = -half_width - 1.0 if side == 0 else cover.size.x
+		var style := StyleBoxFlat.new()
+		style.bg_color = Color("#203b56")
+		style.border_color = Color("#8de2e9")
+		style.set_border_width_all(2)
+		style.corner_radius_top_left = 12 if side == 0 else 0
+		style.corner_radius_bottom_left = 12 if side == 0 else 0
+		style.corner_radius_top_right = 12 if side == 1 else 0
+		style.corner_radius_bottom_right = 12 if side == 1 else 0
+		style.border_width_right = 0 if side == 0 else 2
+		style.border_width_left = 2 if side == 0 else 0
+		shutter.add_theme_stylebox_override("panel", style)
+		cover.add_child(shutter)
+		shutters.append(shutter)
+	var go := Label.new()
+	go.name = "LetsGo"
+	go.text = "LETS'GO"
+	go.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	go.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	go.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	go.add_theme_font_size_override("font_size", 19)
+	go.add_theme_color_override("font_color", Color("#fff29f"))
+	cover.add_child(go)
+	go.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	go.visible = false
+	cover.set_meta("phase", "covering")
+	var close := create_tween().set_parallel(true)
+	close.tween_property(shutters[0], "position:x", 0.0, 0.14).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	close.tween_property(shutters[1], "position:x", half_width, 0.14).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	await close.finished
+	if row != null:
+		row.modulate.a = 0.0
+	cover.set_meta("phase", "blinking")
+	go.visible = true
+	var blink := create_tween()
+	for pulse: int in range(2):
+		blink.tween_property(go, "modulate:a", 0.15, 0.05)
+		blink.tween_property(go, "modulate:a", 1.0, 0.05)
+	await blink.finished
+	cover.set_meta("phase", "lowering")
+	var drop := create_tween().set_parallel(true)
+	var travel_y := get_viewport_rect().size.y + 80.0
+	for target: Control in _menu_exit_targets:
+		if not is_instance_valid(target):
+			continue
+		drop.tween_property(target, "position:y", target.position.y + travel_y, 0.22).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	drop.tween_property(cover, "position:y", cover.position.y + travel_y, 0.22).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	await drop.finished
+	cover.queue_free()
 
 
 func _begin_scene_change_after_helicopter(
@@ -582,6 +656,7 @@ func _begin_scene_change_after_helicopter(
 			is_inside_tree()
 			and _menu_wall_preview
 			and bool(_menu_wall_preview.call("is_game_start_departure_active"))
+			and not bool(_menu_wall_preview.call("is_ready_for_scene_cover"))
 			and Time.get_ticks_msec() < deadline_msec
 		):
 			await get_tree().process_frame
@@ -589,6 +664,7 @@ func _begin_scene_change_after_helicopter(
 			is_inside_tree()
 			and _menu_wall_preview
 			and bool(_menu_wall_preview.call("is_game_start_departure_active"))
+			and not bool(_menu_wall_preview.call("is_ready_for_scene_cover"))
 		):
 			push_warning("Menu helicopter departure timed out; continuing scene transition")
 			_menu_wall_preview.call("cancel_game_start_departure")
@@ -674,12 +750,17 @@ func _style_all_buttons() -> void:
 	# 全ボタンを再帰的に取得してスタイル適用
 	var all_buttons := _get_all_buttons(self)
 	for btn: Button in all_buttons:
+		if btn is MenuMetalButton:
+			continue
 		btn.add_theme_stylebox_override("normal", normal_style.duplicate())
 		btn.add_theme_stylebox_override("hover", hover_style.duplicate())
 		btn.add_theme_stylebox_override("pressed", pressed_style.duplicate())
 		btn.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 		btn.add_theme_color_override("font_color", Color(0.82, 0.85, 0.92))
 		btn.add_theme_color_override("font_hover_color", Color(0.95, 0.97, 1.0))
+
+	if start_button is MenuMetalButton:
+		return
 
 	# スタートボタンにアクセントカラー
 	var start_normal := StyleBoxFlat.new()
@@ -711,6 +792,7 @@ func _get_all_buttons(node: Node) -> Array[Button]:
 		buttons.append_array(_get_all_buttons(child))
 	return buttons
 
+
 func _ensure_tutorial_button() -> void:
 	if _tutorial_main_btn:
 		return
@@ -721,7 +803,8 @@ func _ensure_tutorial_button() -> void:
 	mode_container.add_child(_tutorial_row)
 
 	# 初回起動時と同じコース選択オーバーレイを開く
-	_tutorial_main_btn = Button.new()
+	_tutorial_main_btn = MenuMetalButtonScript.new()
+	(_tutorial_main_btn as MenuMetalButton).compact = true
 	_tutorial_main_btn.name = "TutorialMainBtn"
 	_tutorial_main_btn.custom_minimum_size = Vector2(260, 52)
 	_tutorial_main_btn.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
@@ -799,7 +882,6 @@ func _update_ui() -> void:
 		if step_changed and _entrance_done:
 			_play_entrance(config_container, true)
 
-		# Update config labels
 		_update_grade_carousel()
 		_update_diff_carousel()
 		_update_subject_carousel()
@@ -851,7 +933,6 @@ func _on_endless_pressed() -> void:
 	_update_ui()
 
 
-
 func _on_back_pressed() -> void:
 	game_state.back_to_mode_select()
 	_update_ui()
@@ -866,6 +947,10 @@ func _on_llm_toggle_pressed() -> void:
 func _set_llm_toggle_locked_style(locked: bool) -> void:
 	## エンドレスモードでオフライン固定のとき、ボタンをグレーアウトして操作不可を明示する
 	if not llm_toggle_btn:
+		return
+	if llm_toggle_btn is MenuMetalButton:
+		(llm_toggle_btn as MenuMetalButton).refresh_style()
+		llm_toggle_btn.modulate = Color(1, 1, 1, 0.85 if locked else 1.0)
 		return
 	if locked:
 		var disabled_style := StyleBoxFlat.new()
@@ -921,104 +1006,95 @@ func _on_tutorial_pressed() -> void:
 	_show_tutorial_selector()
 
 func _on_prev_grade_pressed() -> void:
-	game_state.grade -= 1
-	if game_state.grade < 1: game_state.grade = 6
-	game_state.refresh_status_text()
-	_update_ui()
+	_request_config_shift(&"grade", -1)
 
 func _on_next_grade_pressed() -> void:
-	game_state.grade += 1
-	if game_state.grade > 6: game_state.grade = 1
-	game_state.refresh_status_text()
-	_update_ui()
+	_request_config_shift(&"grade", 1)
 
 func _on_prev_diff_pressed() -> void:
-	var diffs = Constants.DIFFICULTY_LEVELS
-	var current_idx = diffs.find(game_state.difficulty)
-	if current_idx == -1: current_idx = 0
-	var prev_idx = (current_idx - 1 + diffs.size()) % diffs.size()
-	game_state.difficulty = diffs[prev_idx]
-	game_state.refresh_status_text()
-	_update_ui()
+	_request_config_shift(&"difficulty", -1)
 
 func _on_next_diff_pressed() -> void:
-	var diffs = Constants.DIFFICULTY_LEVELS
-	var current_idx = diffs.find(game_state.difficulty)
-	if current_idx == -1: current_idx = 0
-	var next_idx = (current_idx + 1) % diffs.size()
-	game_state.difficulty = diffs[next_idx]
-	game_state.refresh_status_text()
-	_update_ui()
+	_request_config_shift(&"difficulty", 1)
 
 func _on_prev_subject_pressed() -> void:
-	var current_idx = Constants.SUBJECTS.find(game_state.subject)
-	if current_idx == -1: current_idx = 0
-	var prev_idx = (current_idx - 1 + Constants.SUBJECTS.size()) % Constants.SUBJECTS.size()
-	game_state.subject = Constants.SUBJECTS[prev_idx]
-	game_state.refresh_status_text()
-	_update_ui()
+	_request_config_shift(&"subject", -1)
 
 func _on_next_subject_pressed() -> void:
-	var current_idx = Constants.SUBJECTS.find(game_state.subject)
-	if current_idx == -1: current_idx = 0
-	var next_idx = (current_idx + 1) % Constants.SUBJECTS.size()
-	game_state.subject = Constants.SUBJECTS[next_idx]
-	game_state.refresh_status_text()
+	_request_config_shift(&"subject", 1)
+
+
+func _request_config_shift(row_key: StringName, direction: int) -> void:
+	var commit: Callable = Callable(self, "_commit_config_shift").bind(row_key, direction)
+	if config_conveyor != null:
+		config_conveyor.request_shift(row_key, direction, commit)
+		return
+	_commit_config_shift(row_key, direction)
+
+
+func _commit_config_shift(row_key: StringName, direction: int) -> void:
+	match row_key:
+		&"subject":
+			game_state.cycle_subject(direction)
+		&"grade":
+			game_state.update_grade(direction)
+		&"difficulty":
+			game_state.cycle_difficulty(direction)
 	_update_ui()
 
 func _update_grade_carousel() -> void:
 	current_grade_label.text = "%d年生" % game_state.grade
-	var normal := StyleBoxFlat.new()
-	normal.bg_color = Color(0.12, 0.14, 0.20)
-	normal.border_color = Color(0.25, 0.30, 0.40)
-	normal.set_border_width_all(2)
-	normal.set_corner_radius_all(10)
-	current_grade_label.add_theme_stylebox_override("normal", normal)
+	_style_config_value_label(current_grade_label, Color("#f3f7fa"))
 
 func _update_diff_carousel() -> void:
 	current_diff_label.text = "%s" % game_state.difficulty
-	var normal := StyleBoxFlat.new()
-	normal.bg_color = Color(0.12, 0.14, 0.20)
-	normal.border_color = Color(0.25, 0.30, 0.40)
-	normal.set_border_width_all(2)
-	normal.set_corner_radius_all(10)
-	current_diff_label.add_theme_stylebox_override("normal", normal)
+	_style_config_value_label(current_diff_label, Color("#f3f7fa"))
 
 func _update_subject_carousel() -> void:
-	var colors = {
+	var colors := {
 		"算数": {"icon": "算数", "color": Color(0.15, 0.40, 0.80)},
 		"理科": {"icon": "理科", "color": Color(0.15, 0.70, 0.35)},
 		"国語": {"icon": "国語", "color": Color(0.85, 0.25, 0.30)},
-		"社会": {"icon": "社会", "color": Color(0.85, 0.60, 0.15)}
+		"社会": {"icon": "社会", "color": Color(0.85, 0.60, 0.15)},
+		"英語": {"icon": "英語", "color": Color(0.50, 0.28, 0.78)},
 	}
-	
-	var sub = game_state.subject
-	if not colors.has(sub): sub = "算数"
-	
-	var info = colors[sub]
+	var sub := game_state.subject
+	if not colors.has(sub):
+		sub = "算数"
+	var info: Dictionary = colors[sub]
 	current_subject_label.text = info["icon"]
-	
-	var normal := StyleBoxFlat.new()
-	normal.bg_color = info["color"].darkened(0.2)
-	normal.border_color = info["color"].lightened(0.2)
-	normal.set_border_width_all(2)
-	normal.set_corner_radius_all(10)
-	
-	current_subject_label.add_theme_stylebox_override("normal", normal)
+	_style_config_value_label(current_subject_label, (info["color"] as Color).lightened(0.34))
+
+
+func _style_config_value_label(label: Label, color: Color) -> void:
+	label.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
+	label.add_theme_color_override("font_color", color)
+	label.add_theme_color_override("font_shadow_color", Color.TRANSPARENT)
+	label.add_theme_constant_override("shadow_offset_x", 0)
+	label.add_theme_constant_override("shadow_offset_y", 0)
+	label.add_theme_constant_override("shadow_outline_size", 0)
+	label.add_theme_constant_override("outline_size", 0)
+	if config_conveyor != null:
+		config_conveyor.refresh_value_style()
 
 
 
 func _on_start_pressed() -> void:
 	if _menu_exit_in_progress:
 		return
+	if config_conveyor != null and config_conveyor.is_moving():
+		return
+
 	_hide_coop_mode_if_disabled()
-	if game_state.num_players == 3:
+	var open_online_lobby: bool = game_state.num_players == 3
+	if game_state.mode == Constants.MODE_COOP:
+		game_state.num_players = 2
+
+	if open_online_lobby:
 		# オンライン対戦: ロビー画面へ
 		game_state.num_players = 2  # 実際のプレイは2人
 		get_tree().change_scene_to_file("res://ui/online_lobby.tscn")
 		return
-	if game_state.mode == Constants.MODE_COOP:
-		game_state.num_players = 2
 	_go_to_game(true)
 
 func _hide_coop_mode_if_disabled() -> void:

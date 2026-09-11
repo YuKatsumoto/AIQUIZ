@@ -2,6 +2,7 @@ extends Node
 
 signal game_started
 signal game_over(is_cleared: bool)
+signal graphics_quality_changed(quality: String)
 
 # ゲーム全体の設定
 var is_2p_mode: bool = false
@@ -14,15 +15,19 @@ var questions_to_clear: int = 10
 var current_score: int = 0
 var current_question_index: int = 0
 
-# エモートスロットの設定
-var p1_emote_slots: Array[int] = [1, 2, 3]
-var p2_emote_slots: Array[int] = [1, 2, 3]
-
-
 const USER_SETTINGS_PATH := "user://settings.json"
+const CURRENT_TUTORIAL_VERSION := 3
+const TUTORIAL_COURSE_SOLO := "SOLO"
+const TUTORIAL_COURSE_LOCAL_2P := "LOCAL_2P"
 
 var tutorial_completed: bool = false
 var tutorial_dismissed: bool = false
+var tutorial_completed_version: int = 0
+var tutorial_dismissed_version: int = 0
+var tutorial_prompt_seen_version: int = 0
+var tutorial_solo_completed: bool = false
+var tutorial_local_2p_completed: bool = false
+var graphics_quality: String = GraphicsQuality.BALANCED
 var _user_settings: Dictionary = {}
 
 func _ready() -> void:
@@ -32,21 +37,71 @@ func _ready() -> void:
 	_start_dashboard_server()
 
 func should_show_tutorial_on_start() -> bool:
-	return not tutorial_completed and not tutorial_dismissed
+	return tutorial_prompt_seen_version < CURRENT_TUTORIAL_VERSION
+
+func has_tutorial_update() -> bool:
+	return (
+		tutorial_completed_version > 0
+		and tutorial_completed_version < CURRENT_TUTORIAL_VERSION
+	)
+
+func mark_tutorial_course_completed(course: String) -> void:
+	if course == TUTORIAL_COURSE_LOCAL_2P:
+		tutorial_local_2p_completed = true
+	else:
+		tutorial_solo_completed = true
+	tutorial_prompt_seen_version = CURRENT_TUTORIAL_VERSION
+	tutorial_dismissed_version = CURRENT_TUTORIAL_VERSION
+	tutorial_dismissed = true
+	tutorial_completed = tutorial_solo_completed and tutorial_local_2p_completed
+	if tutorial_completed:
+		tutorial_completed_version = CURRENT_TUTORIAL_VERSION
+	else:
+		tutorial_completed_version = mini(tutorial_completed_version, CURRENT_TUTORIAL_VERSION - 1)
+	_save_user_settings()
+
 
 func mark_tutorial_completed() -> void:
+	# Compatibility helper for older callers. V3 completion requires both course badges.
+	tutorial_solo_completed = true
+	tutorial_local_2p_completed = true
 	tutorial_completed = true
 	tutorial_dismissed = true
+	tutorial_prompt_seen_version = CURRENT_TUTORIAL_VERSION
+	tutorial_completed_version = CURRENT_TUTORIAL_VERSION
+	tutorial_dismissed_version = CURRENT_TUTORIAL_VERSION
 	_save_user_settings()
+
+
+func is_tutorial_course_completed(course: String) -> bool:
+	return tutorial_local_2p_completed if course == TUTORIAL_COURSE_LOCAL_2P else tutorial_solo_completed
+
 
 func dismiss_tutorial() -> void:
 	tutorial_dismissed = true
+	tutorial_prompt_seen_version = CURRENT_TUTORIAL_VERSION
+	tutorial_dismissed_version = CURRENT_TUTORIAL_VERSION
 	_save_user_settings()
 
 func reset_tutorial_prompt() -> void:
 	tutorial_completed = false
 	tutorial_dismissed = false
+	tutorial_completed_version = 0
+	tutorial_dismissed_version = 0
+	tutorial_prompt_seen_version = 0
+	tutorial_solo_completed = false
+	tutorial_local_2p_completed = false
 	_save_user_settings()
+
+
+func set_graphics_quality(value: String) -> void:
+	var normalized: String = GraphicsQuality.normalize(value)
+	if graphics_quality == normalized:
+		return
+	graphics_quality = normalized
+	_save_user_settings()
+	graphics_quality_changed.emit(graphics_quality)
+
 
 func _load_user_settings() -> void:
 	_user_settings.clear()
@@ -57,29 +112,36 @@ func _load_user_settings() -> void:
 			if parsed is Dictionary:
 				_user_settings = parsed
 			file.close()
-	tutorial_completed = bool(_user_settings.get("tutorial_completed", false))
-	tutorial_dismissed = bool(_user_settings.get("tutorial_dismissed", false))
-	
-	if _user_settings.has("p1_emote_slots"):
-		var slots = _user_settings["p1_emote_slots"]
-		if slots is Array:
-			p1_emote_slots.clear()
-			for s in slots:
-				p1_emote_slots.append(int(s))
-	if _user_settings.has("p2_emote_slots"):
-		var slots = _user_settings["p2_emote_slots"]
-		if slots is Array:
-			p2_emote_slots.clear()
-			for s in slots:
-				p2_emote_slots.append(int(s))
-
+	var legacy_completed := bool(_user_settings.get("tutorial_completed", false))
+	var legacy_dismissed := bool(_user_settings.get("tutorial_dismissed", false))
+	tutorial_completed_version = int(_user_settings.get(
+		"tutorial_completed_version",
+		1 if legacy_completed else 0
+	))
+	tutorial_dismissed_version = int(_user_settings.get(
+		"tutorial_dismissed_version",
+		1 if legacy_dismissed else 0
+	))
+	tutorial_prompt_seen_version = int(_user_settings.get(
+		"tutorial_prompt_seen_version",
+		tutorial_dismissed_version
+	))
+	var legacy_v3_complete := tutorial_completed_version >= CURRENT_TUTORIAL_VERSION
+	tutorial_solo_completed = bool(_user_settings.get("tutorial_solo_completed", legacy_v3_complete))
+	tutorial_local_2p_completed = bool(_user_settings.get("tutorial_local_2p_completed", legacy_v3_complete))
+	tutorial_completed = tutorial_solo_completed and tutorial_local_2p_completed
+	tutorial_dismissed = tutorial_prompt_seen_version >= CURRENT_TUTORIAL_VERSION
+	graphics_quality = GraphicsQuality.normalize(str(_user_settings.get("graphics_quality", GraphicsQuality.BALANCED)))
 
 func _save_user_settings() -> void:
 	_user_settings["tutorial_completed"] = tutorial_completed
 	_user_settings["tutorial_dismissed"] = tutorial_dismissed
-	_user_settings["p1_emote_slots"] = p1_emote_slots
-	_user_settings["p2_emote_slots"] = p2_emote_slots
-
+	_user_settings["tutorial_completed_version"] = tutorial_completed_version
+	_user_settings["tutorial_dismissed_version"] = tutorial_dismissed_version
+	_user_settings["tutorial_prompt_seen_version"] = tutorial_prompt_seen_version
+	_user_settings["tutorial_solo_completed"] = tutorial_solo_completed
+	_user_settings["tutorial_local_2p_completed"] = tutorial_local_2p_completed
+	_user_settings["graphics_quality"] = graphics_quality
 	var file := FileAccess.open(USER_SETTINGS_PATH, FileAccess.WRITE)
 	if file:
 		file.store_string(JSON.stringify(_user_settings, "  "))
@@ -123,9 +185,9 @@ func start_game() -> void:
 	current_score = 0
 	current_question_index = 0
 	emit_signal("game_started")
-	get_tree().change_scene_to_file("res://scenes/game_world.tscn")
+	SceneTransition.change_scene("res://scenes/game_world.tscn")
 
 # NOTE: Result handling is done via game_state signals, not scene transitions.
 
 func back_to_menu() -> void:
-	get_tree().change_scene_to_file("res://ui/main_menu.tscn")
+	SceneTransition.change_scene("res://ui/main_menu.tscn")
