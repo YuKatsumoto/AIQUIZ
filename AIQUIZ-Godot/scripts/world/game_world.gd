@@ -193,6 +193,9 @@ func _ready() -> void:
 	# game mode shares this one director and the same product GLB.
 	# Retry skips the drop so players spawn on the belt immediately.
 	var skip_helicopter_arrival := game_state.consume_skip_start_helicopter_arrival()
+	if game_state.uses_saw_chase() and not _replay_mode:
+		_saw_controller.configure_entrance(false, not skip_helicopter_arrival)
+		camera_controller.saw_dock_framing = _saw_controller.dock.framing_weight()
 	if not _replay_mode and not _net_state.is_online and not skip_helicopter_arrival:
 		_helicopter_arrival_director = HelicopterArrivalDirectorScript.new()
 		_helicopter_arrival_director.name = "HelicopterArrivalDirector"
@@ -933,7 +936,17 @@ func _process(dt: float) -> void:
 	# Update visuals
 	_update_floor_conveyor()
 	_update_floor()
-	_saw_controller.update_visual(game_state)
+	var players_landed: bool = _helicopter_arrival_director == null or _helicopter_arrival_director.have_players_touched_down()
+	var entrance_running: bool = _helicopter_arrival_director == null or _helicopter_arrival_director.has_started_arrival() or not _helicopter_arrival_director.is_start_locked()
+	# Natural helicopter completion must not truncate the now-stationary lift cycle.
+	# Explicit gameplay/arrival skips still place the saw immediately.
+	var arrival_skipped: bool = (
+		(_saw_controller.dock != null and _saw_controller.dock.elapsed == 0.0)
+		or game_state.game_state in [Constants.STATE_FLYOVER, Constants.STATE_COUNTDOWN, Constants.STATE_PLAYING]
+	)
+	if _helicopter_arrival_director != null and not _helicopter_arrival_director.is_start_locked() and arrival_skipped:
+		_saw_controller.finish_entrance()
+	_saw_controller.update_visual(game_state, dt, players_landed, entrance_running)
 	_update_flyover()
 	_update_player(dt)
 	if _result_ceremony_director:
@@ -1470,6 +1483,7 @@ func _create_goal_box(box_size: Vector3, color: Color) -> MeshInstance3D:
 func _update_camera(dt: float) -> void:
 	if not camera_controller or not camera_controller.has_method("update_camera"):
 		return
+	camera_controller.saw_dock_framing = _saw_controller.dock.framing_weight() if _saw_controller != null and _saw_controller.dock != null else 0.0
 	var question_points := PackedVector3Array()
 	if is_instance_valid(_question_framing_wall):
 		question_points = _question_framing_wall.get_gameplay_framing_points()

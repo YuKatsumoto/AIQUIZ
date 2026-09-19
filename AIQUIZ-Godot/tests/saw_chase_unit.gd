@@ -8,6 +8,43 @@ func fixture(players := 2, mode := Constants.MODE_TEN) -> QuizGameState:
 func run() -> void:
 	var analytics = QuizManager.player_analytics
 	QuizManager.player_analytics = null
+	var spin_state := fixture()
+	var spin_controller := SawChaseController.new()
+	spin_state.game_state = Constants.STATE_PRELOADING
+	spin_controller.advance_landing_spin(spin_state, 5.0, false)
+	check(spin_controller.spin_time(spin_state) == 0.0, "airborne arrival leaves blades stopped")
+	var last_speed := 0.0
+	for step: int in range(1, 40):
+		var elapsed := step * 0.1
+		var speed := (SawChaseController.accelerated_spin_time(elapsed) - SawChaseController.accelerated_spin_time(elapsed - 0.001)) / 0.001
+		check(speed >= last_speed and speed <= 1.001, "landing acceleration %d" % step)
+		last_speed = speed
+	spin_controller.advance_landing_spin(spin_state, 0.5, true)
+	check(spin_controller.spin_time(spin_state) > 0.0 and spin_state.saw.elapsed == 0.0, "landing starts spin during preload without starting pursuit")
+	var before_countdown := spin_controller.spin_time(spin_state)
+	spin_state.game_state = Constants.STATE_COUNTDOWN
+	check(is_equal_approx(before_countdown, spin_controller.spin_time(spin_state)), "countdown does not restart rotation")
+	spin_state.game_state = Constants.STATE_PLAYING
+	check(is_equal_approx(before_countdown, spin_controller.spin_time(spin_state)), "play continues the landing spin")
+	spin_state.saw.elapsed = 2.0
+	spin_controller.advance_landing_spin(spin_state, 0.1, true)
+	spin_state.saw.reset()
+	spin_state.game_state = Constants.STATE_PRELOADING
+	spin_controller.advance_landing_spin(spin_state, 0.0, false)
+	check(spin_controller.spin_time(spin_state) == 0.0, "retry resets the landing spin clock")
+	spin_controller.free()
+	var arrival := HelicopterArrivalDirector.new()
+	arrival._start_locked = true
+	check(not arrival.have_players_touched_down(), "arrival is not landed before passengers exist")
+	arrival._helicopters.append({"impact_played":true})
+	arrival._helicopters.append({"impact_played":false})
+	check(not arrival.have_players_touched_down(), "P1 landing alone does not start shared blades")
+	arrival._helicopters[1].impact_played = true
+	check(arrival.have_players_touched_down(), "both floor contacts start shared blades")
+	arrival._helicopters.clear()
+	arrival._start_locked = false
+	check(arrival.have_players_touched_down(), "skip places passengers on stage and permits spin")
+	arrival.free()
 	for fps: int in [24, 30, 60, 120]:
 		var saw := SawChaseState.new()
 		for frame: int in range(fps * 3):
@@ -108,7 +145,7 @@ func run() -> void:
 		check(gap.saw.elapsed == time_before, "freeze outside PLAYING: " + state)
 	gap.start_game()
 	check(gap.saw.local_z == SawChaseState.INITIAL_Z and gap.saw.elapsed == 0 and not gap.p1_saw_killed, "retry resets saw")
-	check(not gap.is_saw_visible(), "initial preload keeps saw hidden")
+	check(gap.is_saw_visible(), "initial preload displays stationary saw")
 	for mode: String in [Constants.MODE_TEN, Constants.MODE_ENDLESS, Constants.MODE_COOP, Constants.MODE_TUTORIAL]:
 		for count: int in [1, 2]:
 			var gs := fixture(count, mode)

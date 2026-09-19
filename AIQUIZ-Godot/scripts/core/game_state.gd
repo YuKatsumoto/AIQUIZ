@@ -618,7 +618,7 @@ func uses_saw_chase() -> bool:
 
 func is_saw_visible() -> bool:
 	var active: bool = uses_saw_chase() or is_replay and saw.enabled
-	return active and (game_state in [Constants.STATE_COUNTDOWN, Constants.STATE_PLAYING, Constants.STATE_CORRECT, Constants.STATE_GAME_OVER, "ONLINE_QUIZ_ERROR"] or game_state == Constants.STATE_PRELOADING and saw.elapsed > 0.0)
+	return active and game_state in [Constants.STATE_PRELOADING, Constants.STATE_WAITING_START, Constants.STATE_FLYOVER, Constants.STATE_COUNTDOWN, Constants.STATE_PLAYING, Constants.STATE_CORRECT, Constants.STATE_GAME_OVER, "ONLINE_QUIZ_ERROR"]
 
 func _reset_saw_chase() -> void:
 	saw.reset()

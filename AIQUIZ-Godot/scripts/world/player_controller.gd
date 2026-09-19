@@ -219,6 +219,15 @@ func _go_limp(ragdoll: Dictionary) -> void:
 ## 全ボディを同じ初速にそろえ、ジョイント経由でインパルスが重複増幅しないようにする。
 func _launch_wall_ragdoll(ragdoll: Dictionary, is_p1: bool, saw_hit := false) -> void:
 	_go_limp(ragdoll)
+	if saw_hit:
+		_disable_intro_driver(ragdoll)
+		(ragdoll.container as Node3D).process_mode = Node.PROCESS_MODE_PAUSABLE
+		var catch_driver := SawCatchRagdoll.new()
+		catch_driver.name = "SawCatch"
+		(ragdoll.container as Node3D).add_child(catch_driver)
+		catch_driver.setup(ragdoll.rag, get_parent().get_node_or_null("SawChaseController") as SawChaseController)
+		ragdoll["saw_catch"] = catch_driver
+		return
 	var rag: Dictionary = ragdoll.get("rag", {})
 	var rag_bodies: Dictionary = rag.get("bodies", {})
 	var torso: RigidBody3D = rag_bodies.get("torso") as RigidBody3D
@@ -231,8 +240,6 @@ func _launch_wall_ragdoll(ragdoll: Dictionary, is_p1: bool, saw_hit := false) ->
 		if _is_preview_subviewport()
 		else WALL_RAGDOLL_GAME_VELOCITY
 	)
-	if saw_hit:
-		launch_velocity = Vector3(0.0, 7.0, 8.0)
 	launch_velocity.x = WALL_RAGDOLL_SIDE_VELOCITY * side_sign
 	for key: Variant in rag_bodies:
 		if str(key) == "anchor":
@@ -2479,8 +2486,53 @@ func _set_hat_visible(is_p1: bool, should_show: bool) -> void:
 		hat.visible = should_show
 
 
+## Keep the caught physical body through staged separation and debris cleanup.
+func _update_saw_death(is_p1: bool, timer: float) -> void:
+	var parts := p1_parts if is_p1 else p2_parts
+	var ragdoll := _p1_ragdoll if is_p1 else _p2_ragdoll
+	var exploding := _p1_exploding if is_p1 else _p2_exploding
+	if not exploding:
+		if ragdoll.is_empty():
+			ragdoll = _setup_ragdoll(parts, is_p1)
+			_launch_wall_ragdoll(ragdoll, is_p1, true)
+			if is_p1: _p1_ragdoll = ragdoll
+			else: _p2_ragdoll = ragdoll
+		var catch_driver := ragdoll.get("saw_catch") as SawCatchRagdoll
+		if catch_driver != null and catch_driver.finished:
+			_clear_explosion_bodies(is_p1)
+			var debris: Array[RigidBody3D] = []
+			for key: String in ragdoll.rag.bodies:
+				if key == "anchor": continue
+				var body := ragdoll.rag.bodies[key] as RigidBody3D
+				# Retain the exact physical transforms, shapes and current velocities.
+				body.reparent(_get_explosion_spawn_root(), true)
+				body.process_mode = Node.PROCESS_MODE_PAUSABLE
+				body.set_meta("player_death_shard", true)
+				body.set_meta("preview_death_shard_p1", is_p1)
+				debris.append(body)
+			_teardown_ragdoll(ragdoll)
+			if is_p1:
+				_p1_ragdoll = {}
+				_p1_driver = null
+				_p1_exploding = true
+				_p1_explosion_bodies = debris
+			else:
+				_p2_ragdoll = {}
+				_p2_driver = null
+				_p2_exploding = true
+				_p2_explosion_bodies = debris
+	_set_parts_visible(parts, false)
+	_set_hat_visible(is_p1, false)
+	_hide_rig_scenes(is_p1)
+	_update_explosion(is_p1, maxf(0.0, timer - SawChaseState.CUT_SCATTER_DELAY))
+
+
 ## 吹き飛んだラグドールの現在姿勢をそのまま四肢分散の開始位置へ引き継ぐ。
 func _init_wall_ragdoll_explosion(ragdoll: Dictionary, fallback_parts: Dictionary, is_p1: bool) -> void:
+	var saw_hit := false
+	for body: Variant in ragdoll.get("rag", {}).get("bodies", {}).values():
+		if body is RigidBody3D and body.collision_mask & SawChaseState.WALL_COLLISION_LAYER:
+			saw_hit = true
 	var ragdoll_meshes: Array[MeshInstance3D] = []
 	var container: Node = ragdoll.get("container") as Node
 	if container != null and is_instance_valid(container):
@@ -2493,6 +2545,9 @@ func _init_wall_ragdoll_explosion(ragdoll: Dictionary, fallback_parts: Dictionar
 		_init_explosion(fallback_parts, is_p1, true)
 	else:
 		_init_explosion({"meshes": ragdoll_meshes}, is_p1, true)
+	if saw_hit:
+		for piece: RigidBody3D in (_p1_explosion_bodies if is_p1 else _p2_explosion_bodies):
+			piece.collision_mask |= SawChaseState.WALL_COLLISION_LAYER
 	_teardown_ragdoll(ragdoll)
 
 
@@ -3413,8 +3468,11 @@ func update_from_state(gs: QuizGameState) -> void:
 					gs.is_coop_mode(),
 					-global_position.x
 				)
-		elif gs.p1_wall_impact or gs.p1_saw_killed:
-			if gs.game_over_timer < QuizGameState.WALL_RAGDOLL_DURATION:
+		elif gs.p1_saw_killed:
+			_update_saw_death(true, gs.game_over_timer)
+		elif gs.p1_wall_impact:
+			var scatter_delay := QuizGameState.WALL_RAGDOLL_DURATION
+			if gs.game_over_timer < scatter_delay:
 				if _p1_ragdoll.is_empty():
 					_p1_ragdoll = _setup_ragdoll(p1_parts, true)
 					_p1_driver = _p1_ragdoll.get("driver")
@@ -3427,7 +3485,7 @@ func update_from_state(gs: QuizGameState) -> void:
 			_set_hat_visible(true, false)
 			_set_parts_visible(p1_parts, false)
 			if not _p1_explosion_bodies.is_empty():
-				_update_explosion(true, gs.game_over_timer - QuizGameState.WALL_RAGDOLL_DURATION)
+				_update_explosion(true, gs.game_over_timer - scatter_delay)
 		elif gs.game_over_timer < 2.0:
 			_set_parts_visible(p1_parts, true)
 			var apply_rig := false
@@ -3549,8 +3607,11 @@ func update_from_state(gs: QuizGameState) -> void:
 						gs.is_coop_mode(),
 						-global_position.x
 					)
-			elif gs.p2_wall_impact or gs.p2_saw_killed:
-				if gs.player2_game_over_timer < QuizGameState.WALL_RAGDOLL_DURATION:
+			elif gs.p2_saw_killed:
+				_update_saw_death(false, gs.player2_game_over_timer)
+			elif gs.p2_wall_impact:
+				var scatter_delay := QuizGameState.WALL_RAGDOLL_DURATION
+				if gs.player2_game_over_timer < scatter_delay:
 					if _p2_ragdoll.is_empty():
 						_p2_ragdoll = _setup_ragdoll(p2_parts, false)
 						_p2_driver = _p2_ragdoll.get("driver")
@@ -3563,7 +3624,7 @@ func update_from_state(gs: QuizGameState) -> void:
 				_set_hat_visible(false, false)
 				_set_parts_visible(p2_parts, false)
 				if not _p2_explosion_bodies.is_empty():
-					_update_explosion(false, gs.player2_game_over_timer - QuizGameState.WALL_RAGDOLL_DURATION)
+					_update_explosion(false, gs.player2_game_over_timer - scatter_delay)
 			elif gs.player2_game_over_timer < 2.0:
 				_set_parts_visible(p2_parts, true)
 				var apply_rig := false

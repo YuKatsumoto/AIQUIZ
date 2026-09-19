@@ -365,7 +365,9 @@ func _process(_dt: float) -> void:
 	if not game_state:
 		return
 	_shark_impact_flash = maxf(0.0, _shark_impact_flash - _dt * 12.5)
-	_rear_edge_warning_time = fmod(_rear_edge_warning_time + _dt, TAU * 100.0)
+	# Integrate frequency: multiplying total time by changing proximity jumps phase.
+	var warning_speed := lerpf(REAR_EDGE_WARNING_MIN_BLINK_SPEED, REAR_EDGE_WARNING_MAX_BLINK_SPEED, _rear_edge_warning_strength())
+	_rear_edge_warning_time = fposmod(_rear_edge_warning_time + _dt * warning_speed, TAU)
 	_update_offscreen_player_markers(_dt)
 	if _result_ceremony_overlay != null:
 		_result_ceremony_overlay.update_overlay(_dt)
@@ -502,12 +504,7 @@ func _update_flash() -> void:
 		flash_rect.color = Color(0.72, 0.94, 1.0, _shark_impact_flash * 0.78)
 		flash_rect.visible = true
 	elif rear_edge_strength > 0.0:
-		var blink_speed: float = lerpf(
-			REAR_EDGE_WARNING_MIN_BLINK_SPEED,
-			REAR_EDGE_WARNING_MAX_BLINK_SPEED,
-			rear_edge_strength
-		)
-		var blink_wave: float = (sin(_rear_edge_warning_time * blink_speed) + 1.0) * 0.5
+		var blink_wave: float = (sin(_rear_edge_warning_time) + 1.0) * 0.5
 		var blink: float = lerpf(0.35, 1.0, blink_wave)
 		var warning_alpha: float = lerpf(
 			REAR_EDGE_WARNING_MIN_ALPHA,

@@ -21,6 +21,38 @@ var _gameplay_question_panel: MeshInstance3D = null
 var _gameplay_question_border: MeshInstance3D = null
 var _gameplay_question_text: String = ""
 var _shattered: bool = false
+var _saw_collision_shapes: Dictionary = {}
+
+func _physics_process(_dt: float) -> void:
+	# Only saw-launched bodies opt into this layer. Match each visible solid so
+	# broken doors stay open and retired walls never leave an invisible barrier.
+	for mesh: MeshInstance3D in wall_parts + doors:
+		if not is_instance_valid(mesh) or mesh.is_queued_for_deletion():
+			continue
+		if not _saw_collision_shapes.has(mesh.get_instance_id()):
+			var body := AnimatableBody3D.new()
+			body.name = "SawBodyCollision"
+			body.collision_layer = SawChaseState.WALL_COLLISION_LAYER
+			body.collision_mask = 0
+			body.sync_to_physics = false
+			mesh.add_child(body)
+			var collision := CollisionShape3D.new()
+			var box := BoxShape3D.new()
+			box.size = mesh.get_aabb().size
+			collision.shape = box
+			collision.position = mesh.get_aabb().get_center()
+			body.add_child(collision)
+			_saw_collision_shapes[mesh.get_instance_id()] = collision
+		var shape: CollisionShape3D = _saw_collision_shapes[mesh.get_instance_id()]
+		var size := mesh.get_aabb().size
+		if (shape.shape as BoxShape3D).size != size:
+			(shape.shape as BoxShape3D).size = size
+		var disabled := not mesh.is_visible_in_tree() or _retiring_after_pass or _shattered
+		if shape.disabled != disabled:
+			shape.disabled = disabled
+	for id: int in _saw_collision_shapes.keys():
+		if not is_instance_valid(_saw_collision_shapes[id]):
+			_saw_collision_shapes.erase(id)
 
 
 

@@ -125,6 +125,7 @@ const PREVIEW_BELT_EDGE_RUSH_SPEED: float = 4.2
 
 ## 壁速度タブ基準から少し引いて左寄せ（UIが右側のため）
 const PREVIEW_CAM_POS := Vector3(-18.0, 6.1, 23.15)
+const PREVIEW_VESSEL_CAM_POS := Vector3(-21.791, 9.003, 34.159)
 const PREVIEW_CAM_ROT_DEG := Vector3(-14.0, -19.0, 0.0)
 const PREVIEW_CAM_FOV := 37.5
 const PREVIEW_CAM_H_OFFSET := 0.05
@@ -132,6 +133,8 @@ const PREVIEW_CAM_H_OFFSET := 0.05
 var _viewport: SubViewport
 var _preview_camera: Camera3D
 var _stage_env: StageEnvironment = null
+var _preview_saw: SawChaseController
+var _vessel_camera_owned := false
 var _preview_walls: Array[Node3D] = []
 var _menu_pickup_retracted_walls: Array[Dictionary] = []
 var _wall_merge: PreviewWallMergeAnimator = null
@@ -298,6 +301,8 @@ func _start_camera_return_to_menu() -> void:
 	if not _preview_camera:
 		return
 	var d := _menu_cam_pose if not _menu_cam_pose.is_empty() else MenuPreviewCameraSettingsScript.code_default_settings()
+	if _preview_saw != null and _preview_saw.dock != null:
+		d["position"] = PREVIEW_CAM_POS.lerp(PREVIEW_VESSEL_CAM_POS, _preview_saw.dock.menu_framing_weight())
 	var tw := create_tween()
 	tw.set_ease(Tween.EASE_IN_OUT)
 	tw.set_trans(Tween.TRANS_CUBIC)
@@ -339,6 +344,14 @@ static func wall_front_touches_player(door_leading_z: float, player_local_z: flo
 func _process(dt: float) -> void:
 	if not _viewport:
 		return
+	if _preview_saw != null:
+		var container := _viewport.get_parent() as CanvasItem
+		var presented := (container == null or container.is_visible_in_tree()) and not SceneTransition.is_transitioning() and not _customize_walls_hidden
+		if presented:
+			QuizManager.set_meta("saw_dock_menu_seen", true)
+		_preview_saw.update_preview(dt if presented else 0.0)
+		_preview_saw.visible = not _customize_walls_hidden
+		_apply_vessel_camera_return()
 
 	_linger_time += dt
 	if _menu_intro_active or _menu_start_departure_active or _menu_departure_hold:
@@ -457,6 +470,11 @@ func _build_3d_scene() -> void:
 
 	_stage_env = StageEnvironment.new()
 	_viewport.add_child(_stage_env)
+	_preview_saw = SawChaseController.new()
+	_preview_saw.name = "MenuSawCarriage"
+	_viewport.add_child(_preview_saw)
+	_preview_saw.configure_entrance(true, not QuizManager.has_meta("saw_dock_menu_seen"))
+	_apply_vessel_camera_return()
 	_stage_env.build({
 		"floor_center_z": -64.0,
 		"floor_length": 144.0,
@@ -2526,3 +2544,18 @@ func _separate_blocking_wall_from_player_p2() -> void:
 
 func _stop_ai_emote_if_needed_p2() -> void:
 	_stop_ai_emote_if_needed(_p2_ai, false)
+
+
+func _apply_vessel_camera_return() -> void:
+	if _preview_camera == null or _preview_saw == null or _preview_saw.dock == null:
+		return
+	if _customize_active or _menu_start_departure_active or _menu_departure_hold:
+		_vessel_camera_owned = false
+		return
+	var weight := _preview_saw.dock.menu_framing_weight()
+	if weight > 0.0:
+		_preview_camera.position = PREVIEW_CAM_POS.lerp(PREVIEW_VESSEL_CAM_POS, weight)
+		_vessel_camera_owned = true
+	elif _vessel_camera_owned:
+		_preview_camera.position = PREVIEW_CAM_POS
+		_vessel_camera_owned = false

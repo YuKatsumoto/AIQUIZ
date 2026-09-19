@@ -5,7 +5,10 @@ class_name SawChaseState
 const BLADE_RADIUS := 1.45
 const BLADE_PITCH := 3.0
 const INITIAL_Z := -10.85
-const BLADE_RPM := 18.0
+const BLADE_RPM := 90.0
+const SPINUP_SECONDS := 3.99
+const WALL_COLLISION_LAYER := 16
+const CUT_SCATTER_DELAY := 1.15
 const WHEEL_RADIUS := 0.18
 var enabled := false
 var local_z := INITIAL_Z

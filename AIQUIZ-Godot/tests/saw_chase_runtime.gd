@@ -50,13 +50,13 @@ func run(ctx: Variant) -> void:
 	var skeleton: Skeleton3D = world._saw_controller.skeleton
 	var bone: int = skeleton.find_bone("Spin_01")
 	for fps: int in [24,30,60,120]:
-		gs.saw.elapsed = 0.2
+		gs.saw.elapsed = 5.0
 		world._saw_controller.update_visual(gs)
 		var before := skeleton.get_bone_pose_rotation(bone)
 		gs.saw.elapsed += 1.0 / fps
 		world._saw_controller.update_visual(gs)
 		var after := skeleton.get_bone_pose_rotation(bone)
-		check(absf(before.angle_to(after) - TAU * 0.3 / fps) < 0.001, "imported blade rotation 18rpm at %dfps" % fps)
+		check(absf(before.angle_to(after) - TAU * SawChaseState.BLADE_RPM / 60.0 / fps) < 0.001, "imported blade rotation 90rpm at %dfps" % fps)
 	var wheel: int = skeleton.find_bone("Roll_01")
 	gs.saw.wheel_distance = 0.18 * PI / 2
 	world._saw_controller.update_visual(gs)

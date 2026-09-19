@@ -36,6 +36,7 @@ var _smoothed_rear_back: float = 9.0
 var _question_framing_points := PackedVector3Array()
 var _question_pitch: float = 0.0
 var _question_back: float = 0.0
+var saw_dock_framing: float = 0.0
 
 const QUESTION_SCREEN_MARGIN := 0.08
 const QUESTION_FRAMING_FOLLOW := 8.0
@@ -750,10 +751,12 @@ func _update_preload_camera(gs: QuizGameState, _dt: float) -> void:
 		end_pos += Vector3.UP * _third_person_camera_height(gs)
 		end_look = _third_person_camera_target(gs, focus)
 
-	var pullback_distance := 14.0
+	# Keep the original preparation shot. A small lift/backward offset gives
+	# the rail handoff room without a separate wide shot of the vessel.
+	var vessel_weight := clampf(saw_dock_framing, 0.0, 1.0)
 	var view_dir := (end_look - end_pos).normalized()
-	var target_eye := end_pos - view_dir * pullback_distance
-	var target_look := end_look - view_dir * pullback_distance
+	var target_eye := end_pos - view_dir * (14.0 + 1.5 * vessel_weight) + Vector3.UP * (0.5 * vessel_weight)
+	var target_look := end_look - view_dir * 14.0
 	var target_quat := _quat_look_at(target_eye, target_look)
 	var eye := target_eye
 	var look_at_pos := target_look

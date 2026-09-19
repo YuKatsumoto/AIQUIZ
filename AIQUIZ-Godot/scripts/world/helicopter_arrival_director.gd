@@ -3,6 +3,21 @@ class_name HelicopterArrivalDirector
 
 signal presentation_finished(success: bool)
 
+## Read-only timing hook for stage machinery; excludes hidden render prewarm.
+func has_started_arrival() -> bool:
+	return _phase == "arrival" and not _prewarm_visible
+
+## Floor contact, before the landing hold/get-up or aircraft departure finishes.
+func have_players_touched_down() -> bool:
+	if not _start_locked:
+		return true # Skip/fail-safe also places the players on the stage.
+	if _helicopters.is_empty():
+		return false
+	for info: Dictionary in _helicopters:
+		if not bool(info.get("impact_played", false)):
+			return false
+	return true
+
 const HELICOPTER_GLB := "res://assets/vehicles/helicopter/helicopter_drop.glb"
 const GODOT_PLUSH_GLB := "res://assets/characters/godot_plush/godot_plush_model.glb"
 const GODOT_PLUSH_ALBEDO := "res://assets/characters/godot_plush/godot_plush_albedo.png"
