@@ -97,6 +97,12 @@ func apply_to_game_state(gs: QuizGameState) -> void:
 	if frame.is_empty():
 		return
 
+	gs.saw.enabled = bool(frame.get("saw_enabled", false))
+	gs.saw.local_z = float(frame.get("saw_z", SawChaseState.INITIAL_Z))
+	gs.saw.elapsed = float(frame.get("saw_time", 0.0))
+	gs.saw.wheel_distance = float(frame.get("saw_travel", 0.0))
+	gs.p1_saw_killed = bool(frame.get("saw_killed1", false))
+	gs.p2_saw_killed = bool(frame.get("saw_killed2", false))
 	gs.hp_state_available = bool(frame.get("hp_available", false))
 	if gs.uses_hp() and int(frame["wall_idx"]) == gs.current_wall_index + 1:
 		gs.question_completed.emit(gs.current_wall_index, int(frame["score"]) > gs.score or int(frame["p2_score"]) > gs.player2_score)

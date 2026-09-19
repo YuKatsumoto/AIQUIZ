@@ -90,6 +90,7 @@ var _barrier_landing_dust: CPUParticles3D = null
 # ── リプレイ記録 ──
 var _recorder: ReplayRecorder = null
 var _replay_mode: bool = false
+var _saw_controller: Node3D
 var _push_key_events: Array[Dictionary] = []
 var _push_resync := true
 var _push_focus_lost := false
@@ -127,6 +128,7 @@ func _notification(what: int) -> void:
 func _exit_tree() -> void:
 	if game_state != null:
 		game_state.local_push.reset()
+		game_state.saw_transport_enabled = false
 
 func _feed_push_input(dt: float) -> void:
 	game_state.local_push_transport_enabled = not _replay_mode and not (_net_state and _net_state.is_online)
@@ -179,6 +181,12 @@ func _ready() -> void:
 	add_child(_net_state)
 	_net_state.setup(game_state)
 	game_state.local_push_transport_enabled = not _replay_mode and not _net_state.is_online
+	game_state.saw_transport_enabled = not _replay_mode and not _net_state.is_online
+	if not _replay_mode:
+		game_state.saw.enabled = game_state.uses_saw_chase()
+	_saw_controller = preload("res://scripts/world/saw_chase_controller.gd").new()
+	_saw_controller.name = "SawChaseController"
+	add_child(_saw_controller)
 	game_state.local_push.reset()
 	game_state.local_push_event.connect(_on_local_push_event)
 	# Online and replay retain their existing presentation contract. Every local
@@ -925,6 +933,7 @@ func _process(dt: float) -> void:
 	# Update visuals
 	_update_floor_conveyor()
 	_update_floor()
+	_saw_controller.update_visual(game_state)
 	_update_flyover()
 	_update_player(dt)
 	if _result_ceremony_director:

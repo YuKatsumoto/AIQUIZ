@@ -40,6 +40,7 @@ var _floor_material: ShaderMaterial = null
 var _weather_cycle: WeatherCycle = null
 var _marker_material: ShaderMaterial = null
 var _marker_instances: MultiMeshInstance3D = null
+var _bracket_instances: MultiMeshInstance3D = null
 var _local_lights: Array[OmniLight3D] = []
 var _local_light_marker_indices: Array[int] = []
 var _focus_enabled: bool = false
@@ -214,6 +215,18 @@ func _ensure_marker_instances() -> void:
 	marker_multimesh.use_custom_data = true
 	marker_multimesh.mesh = marker_mesh
 	_marker_instances.multimesh = marker_multimesh
+	var bracket_mesh := BoxMesh.new()
+	bracket_mesh.size = Vector3(0.68, 0.04, 0.34)
+	var bracket_material := StandardMaterial3D.new()
+	bracket_material.albedo_color = Color(0.12, 0.14, 0.17)
+	bracket_material.metallic = 0.7
+	bracket_mesh.material = bracket_material
+	_bracket_instances = MultiMeshInstance3D.new()
+	_bracket_instances.name = "OutboardLightBrackets"
+	_bracket_instances.multimesh = MultiMesh.new()
+	_bracket_instances.multimesh.transform_format = MultiMesh.TRANSFORM_3D
+	_bracket_instances.multimesh.mesh = bracket_mesh
+	add_child(_bracket_instances)
 
 
 func _ensure_local_lights() -> void:
@@ -265,10 +278,13 @@ func _rebuild_marker_transforms() -> void:
 		return
 	var marker_multimesh: MultiMesh = _marker_instances.multimesh
 	marker_multimesh.instance_count = _station_count * 2
+	_bracket_instances.multimesh.instance_count = _station_count * 2
 	var rail_x: float = _rail_x()
 	var marker_y: float = _marker_y()
 	for station_index: int in range(_station_count):
 		var station_z: float = _first_station_z + float(station_index) * LIGHT_SPACING
+		for side: int in range(2):
+			_bracket_instances.multimesh.set_instance_transform(station_index * 2 + side, Transform3D(Basis.IDENTITY, Vector3((-1.0 if side == 0 else 1.0) * 12.22, StageConstants.FLOOR_TOP_Y + 0.06, station_z)))
 		marker_multimesh.set_instance_transform(
 			station_index * 2,
 			Transform3D(Basis.IDENTITY, Vector3(-rail_x, marker_y, station_z))
@@ -476,17 +492,14 @@ func _camera_local_z() -> float:
 
 
 func _rail_x() -> float:
-	return (
-		StageConstants.FLOOR_HALF_WIDTH
-		- StageConstants.FLOOR_RAIL_WIDTH * 0.5
-		- StageConstants.FLOOR_RAIL_INSET
-	)
+	# Keep lamps outside the moving bogies; supports are part of the marker mesh.
+	return ConveyorRails.LIGHT_X
 
 
 func _marker_y() -> float:
 	return (
 		StageConstants.FLOOR_TOP_Y
-		+ StageConstants.FLOOR_RAIL_HEIGHT
+		+ 0.08
 		+ MARKER_SIZE.y * 0.5
 		+ 0.01
 	)

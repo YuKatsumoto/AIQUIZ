@@ -88,6 +88,14 @@ signal wrong_answer(message: String)
 signal game_cleared(message: String)
 signal player_entered_ocean(player_index: int, local_position: Vector3)
 signal player_scrolled_out(player_index: int)
+signal player_caught_by_saw(player_index: int)
+
+# GameWorld explicitly enables this only for local sessions.
+var saw_transport_enabled := false
+var saw = preload("res://scripts/core/saw_chase_state.gd").new()
+var p1_saw_killed := false
+var p2_saw_killed := false
+
 signal tutorial_presentation_requested(presentation_id: String, context: Dictionary)
 signal tutorial_presentation_finished(presentation_id: String)
 signal tutorial_task_completed(player_index: int, task_id: String)
@@ -598,12 +606,95 @@ func abort_solo_customize_tour() -> void:
 
 ## 誘導されたステップでは片方だけが前進するので、通常の2P分断ルールを止める。
 func is_scroll_out_death_enabled() -> bool:
-	return not (
+	return not uses_saw_chase() and not (
 		_is_tutorial_mode()
 		and tutorial_flow != null
 		and tutorial_flow.blocks_scroll_out_death()
 	)
 
+
+func uses_saw_chase() -> bool:
+	return saw_transport_enabled and not is_replay and num_players == 2 and mode in [Constants.MODE_TEN, Constants.MODE_ENDLESS]
+
+func is_saw_visible() -> bool:
+	var active: bool = uses_saw_chase() or is_replay and saw.enabled
+	return active and (game_state in [Constants.STATE_COUNTDOWN, Constants.STATE_PLAYING, Constants.STATE_CORRECT, Constants.STATE_GAME_OVER, "ONLINE_QUIZ_ERROR"] or game_state == Constants.STATE_PRELOADING and saw.elapsed > 0.0)
+
+func _reset_saw_chase() -> void:
+	saw.reset()
+	p1_saw_killed = false
+	p2_saw_killed = false
+
+func _saw_player_eligible(index: int) -> bool:
+	return (p1_alive and not p1_fall_committed and not p1_waiting_for_shark) if index == 1 else (p2_alive and not p2_fall_committed and not p2_waiting_for_shark)
+
+func get_saw_clearance(index: int) -> float:
+	if not is_saw_visible() or not _saw_player_eligible(index):
+		return INF
+	var point := Vector2(player_x, player_local_z) if index == 1 else Vector2(player2_x, player2_local_z)
+	return saw.clearance(point, PLAYER_BODY_RADIUS)
+
+func get_saw_danger_ratio(index: int) -> float:
+	if game_state != Constants.STATE_PLAYING or saw.elapsed < tuning.saw_grace_seconds:
+		return 0.0
+	return clampf(1.0 - get_saw_clearance(index) / maxf(tuning.saw_warning_distance, 0.01), 0.0, 1.0)
+
+func _update_saw_chase(dt: float, start1: Vector2, start2: Vector2) -> void:
+	if not uses_saw_chase():
+		return
+	var leader := -INF
+	for index in [1, 2]:
+		if _saw_player_eligible(index):
+			leader = maxf(leader, player_local_z if index == 1 else player2_local_z)
+	var previous_z: float = saw.local_z
+	saw.advance(dt, leader, tuning.saw_follow_distance, tuning.saw_max_speed, tuning.saw_grace_seconds)
+	if saw.elapsed <= tuning.saw_grace_seconds:
+		return
+	# Only the part of a frame after grace expires may cause contact.
+	var active_fraction := clampf((saw.elapsed - tuning.saw_grace_seconds) / maxf(dt, 0.000001), 0.0, 1.0)
+	var hit_mask := 0
+	for index in [1, 2]:
+		if not _saw_player_eligible(index):
+			continue
+		var finish := Vector2(player_x, player_local_z) if index == 1 else Vector2(player2_x, player2_local_z)
+		var start := start1 if index == 1 else start2
+		start = finish.lerp(start, active_fraction)
+		if saw.swept_contact(start, finish, previous_z, PLAYER_BODY_RADIUS):
+			hit_mask |= 1 << (index - 1)
+	# Commit both flags before callbacks so a same-frame double hit is deterministic.
+	for index in [1, 2]:
+		if hit_mask & (1 << (index - 1)) == 0:
+			continue
+		if index == 1:
+			p1_alive = false
+			p1_saw_killed = true
+			p1_wall_impact = false
+			p1_damage_time = 0.0
+			p1_external_velocity = Vector2.ZERO
+			game_over_timer = 0.001
+			player_vel_y = 7.0
+			player_vel_z = 8.0
+		else:
+			p2_alive = false
+			p2_saw_killed = true
+			p2_wall_impact = false
+			p2_damage_time = 0.0
+			p2_external_velocity = Vector2.ZERO
+			player2_game_over_timer = 0.001
+			player2_vel_y = 7.0
+			player2_vel_z = 8.0
+	for index in [1, 2]:
+		if hit_mask & (1 << (index - 1)):
+			_set_player_hp(index, 0)
+			player_caught_by_saw.emit(index)
+	if hit_mask == 0:
+		return
+	camera_shake = maxf(camera_shake, 0.25)
+	if not p1_alive and not p2_alive:
+		choice_locked = true
+		_game_over("連結刃に追いつかれた！" if not use_english_ui else "Caught by the saws!")
+		return
+	_try_finish_hp_question()
 
 func get_tutorial_overlay_model() -> Dictionary:
 	if not _is_tutorial_mode() or tutorial_flow == null:
@@ -865,6 +956,7 @@ func consume_skip_start_helicopter_arrival() -> bool:
 
 
 func start_game() -> void:
+	_reset_saw_chase()
 	is_replay = false
 	_reset_health()
 	skip_start_helicopter_arrival = false
@@ -1003,6 +1095,7 @@ func _prepare_quiz_choices() -> void:
 			quiz_list[i] = prepared
 
 func start_tutorial(course: String = GameManager.TUTORIAL_COURSE_SOLO) -> void:
+	_reset_saw_chase()
 	_reset_health()
 	skip_start_helicopter_arrival = false
 	_reset_ocean_shark_state()
@@ -1219,6 +1312,7 @@ func _complete_tutorial_quiz_step() -> void:
 	_advance_tutorial_step()
 
 func reset_to_menu() -> void:
+	_reset_saw_chase()
 	_reset_health()
 	is_replay = false
 	skip_start_helicopter_arrival = false
@@ -1622,6 +1716,8 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 		else:
 			p1_axis = Vector2.ZERO
 			p1_jump_allowed = false
+	var saw_start1 := Vector2(player_x, player_local_z)
+	var saw_start2 := Vector2(player2_x, player2_local_z)
 	world_scroll_z += world_speed * dt
 	var p1_body_start := Vector2(player_x, player_z)
 	var p2_body_start := Vector2(player2_x, player2_z)
@@ -1738,6 +1834,10 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 	_flush_local_push_events()
 	_resolve_all_cliff_body_collisions()
 	_sink_ocean_players(dt)
+
+	_update_saw_chase(dt, saw_start1, saw_start2)
+	if game_state != Constants.STATE_PLAYING:
+		return
 
 	# スクロールアウト死 (画面外に取り残された場合の脱落)
 	if (
@@ -3136,9 +3236,9 @@ func _process_dead_player_physics(dt: float) -> void:
 
 ## 壁衝突の「ラグドール -> 四肢分散」が終わるまでは結果画面や離脱を許可しない。
 func is_wall_death_sequence_complete() -> bool:
-	if p1_wall_impact and not p1_alive and game_over_timer < WALL_DEATH_SEQUENCE_DURATION:
+	if (p1_wall_impact or p1_saw_killed) and not p1_alive and game_over_timer < WALL_DEATH_SEQUENCE_DURATION:
 		return false
-	if p2_wall_impact and not p2_alive and player2_game_over_timer < WALL_DEATH_SEQUENCE_DURATION:
+	if (p2_wall_impact or p2_saw_killed) and not p2_alive and player2_game_over_timer < WALL_DEATH_SEQUENCE_DURATION:
 		return false
 	return true
 

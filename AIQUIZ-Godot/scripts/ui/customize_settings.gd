@@ -2850,22 +2850,10 @@ func _setup_conveyor_extras() -> void:
 	return_belt.position = Vector3(0.0, roller_center_y - CONVEYOR_ROLLER_RADIUS, front_z - 4.0)
 	_sub_viewport.add_child(return_belt)
 
-	var rail_mesh := BoxMesh.new()
-	rail_mesh.size = Vector3(FLOOR_RAIL_WIDTH, FLOOR_RAIL_HEIGHT, floor_length)
-	var rail_mat := StandardMaterial3D.new()
-	rail_mat.albedo_color = Color(0.27, 0.275, 0.28)
-	var rail_y := FLOOR_TOP_Y + FLOOR_RAIL_HEIGHT * 0.5
-	var rail_x := FLOOR_HALF_WIDTH - FLOOR_RAIL_WIDTH * 0.5 - FLOOR_RAIL_INSET
-	var rail_l := MeshInstance3D.new()
-	rail_l.mesh = rail_mesh
-	rail_l.material_override = rail_mat
-	rail_l.position = Vector3(-rail_x, rail_y, floor_center_z)
-	_sub_viewport.add_child(rail_l)
-	var rail_r := MeshInstance3D.new()
-	rail_r.mesh = rail_mesh
-	rail_r.material_override = rail_mat
-	rail_r.position = Vector3(rail_x, rail_y, floor_center_z)
-	_sub_viewport.add_child(rail_r)
+	var rails := preload("res://scripts/world/conveyor_rails.gd").new()
+	rails.name = "ConveyorRunningRails"
+	_sub_viewport.add_child(rails)
+	rails.build(floor_center_z, floor_length, FLOOR_TOP_Y)
 
 func _style_all_buttons() -> void:
 	var normal_style := StyleBoxFlat.new()

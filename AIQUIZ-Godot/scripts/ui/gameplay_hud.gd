@@ -311,6 +311,8 @@ func _update_single_offscreen_marker(
 
 
 func _scroll_out_danger_ratio(player_index: int) -> float:
+	if game_state.is_saw_visible():
+		return game_state.get_saw_danger_ratio(player_index)
 	# Step 4 deliberately separates the players, so do not show a false death warning.
 	if not game_state.is_scroll_out_death_enabled():
 		return 0.0
@@ -470,6 +472,8 @@ func _show_tutorial_completion_card(card_name: String, config: Dictionary) -> vo
 
 
 func _rear_edge_warning_strength() -> float:
+	if game_state.is_saw_visible():
+		return maxf(game_state.get_saw_danger_ratio(1), game_state.get_saw_danger_ratio(2))
 	if (
 		game_state.num_players != 1
 		or game_state.game_state != Constants.STATE_PLAYING

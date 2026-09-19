@@ -31,7 +31,7 @@ const CONVEYOR_RETURN_BELT_GAP: float = 0.03
 const CONVEYOR_SIDE_FRAME_WIDTH: float = 0.24
 const CONVEYOR_SIDE_FRAME_HEIGHT: float = 1.05
 const CONVEYOR_SIDE_FRAME_OVERHANG: float = 1.2
-const CONVEYOR_SIDE_FRAME_TOP_CLEARANCE: float = 0.26
+const CONVEYOR_SIDE_FRAME_TOP_CLEARANCE: float = 0.08
 
 const OCEAN_SHADER: Shader = preload("res://shaders/ocean.gdshader")
 

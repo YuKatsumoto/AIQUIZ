@@ -217,7 +217,7 @@ func _go_limp(ragdoll: Dictionary) -> void:
 
 ## 壁へ走り込んだ勢いを保ったまま、全身を後方・上方へ吹き飛ばす。
 ## 全ボディを同じ初速にそろえ、ジョイント経由でインパルスが重複増幅しないようにする。
-func _launch_wall_ragdoll(ragdoll: Dictionary, is_p1: bool) -> void:
+func _launch_wall_ragdoll(ragdoll: Dictionary, is_p1: bool, saw_hit := false) -> void:
 	_go_limp(ragdoll)
 	var rag: Dictionary = ragdoll.get("rag", {})
 	var rag_bodies: Dictionary = rag.get("bodies", {})
@@ -231,6 +231,8 @@ func _launch_wall_ragdoll(ragdoll: Dictionary, is_p1: bool) -> void:
 		if _is_preview_subviewport()
 		else WALL_RAGDOLL_GAME_VELOCITY
 	)
+	if saw_hit:
+		launch_velocity = Vector3(0.0, 7.0, 8.0)
 	launch_velocity.x = WALL_RAGDOLL_SIDE_VELOCITY * side_sign
 	for key: Variant in rag_bodies:
 		if str(key) == "anchor":
@@ -3411,12 +3413,12 @@ func update_from_state(gs: QuizGameState) -> void:
 					gs.is_coop_mode(),
 					-global_position.x
 				)
-		elif gs.p1_wall_impact:
+		elif gs.p1_wall_impact or gs.p1_saw_killed:
 			if gs.game_over_timer < QuizGameState.WALL_RAGDOLL_DURATION:
 				if _p1_ragdoll.is_empty():
 					_p1_ragdoll = _setup_ragdoll(p1_parts, true)
 					_p1_driver = _p1_ragdoll.get("driver")
-					_launch_wall_ragdoll(_p1_ragdoll, true)
+					_launch_wall_ragdoll(_p1_ragdoll, true, gs.p1_saw_killed)
 			elif not _p1_exploding:
 				_p1_exploding = true
 				_init_wall_ragdoll_explosion(_p1_ragdoll, p1_parts, true)
@@ -3547,12 +3549,12 @@ func update_from_state(gs: QuizGameState) -> void:
 						gs.is_coop_mode(),
 						-global_position.x
 					)
-			elif gs.p2_wall_impact:
+			elif gs.p2_wall_impact or gs.p2_saw_killed:
 				if gs.player2_game_over_timer < QuizGameState.WALL_RAGDOLL_DURATION:
 					if _p2_ragdoll.is_empty():
 						_p2_ragdoll = _setup_ragdoll(p2_parts, false)
 						_p2_driver = _p2_ragdoll.get("driver")
-						_launch_wall_ragdoll(_p2_ragdoll, false)
+						_launch_wall_ragdoll(_p2_ragdoll, false, gs.p2_saw_killed)
 				elif not _p2_exploding:
 					_p2_exploding = true
 					_init_wall_ragdoll_explosion(_p2_ragdoll, p2_parts, false)

@@ -3,10 +3,11 @@ extends Node
 
 signal night_amount_changed(value: float)
 
-## Shared, sunny day/night presentation for every stage viewport.
-## The phase is derived from engine uptime so scene changes never reset the sky.
+## Shared, sunny daytime presentation for every stage viewport.
+## Phase stays locked at midday so scene changes and session length never shift the sky.
 const DAY_CYCLE_SECONDS: float = 900.0
-const START_DAY_PHASE: float = 0.12
+const START_DAY_PHASE: float = 0.25
+const LOCK_DAYTIME: bool = true
 const DEBUG_TIME_SCALE: float = 60.0
 ## Fallback used if the editable orbit control scene is invalid.
 const SUNRISE_DIR := Vector3(-0.82, 0.0, -0.57)
@@ -43,6 +44,8 @@ static var _shared_orbit_basis_ready: bool = false
 
 
 static func shared_day_phase() -> float:
+	if LOCK_DAYTIME:
+		return START_DAY_PHASE
 	_ensure_shared_clock()
 	var elapsed_seconds: float = (
 		float(Time.get_ticks_msec() - _shared_clock_anchor_ticks_msec) / 1000.0
@@ -130,7 +133,7 @@ func _process(_delta: float) -> void:
 
 
 func _poll_debug_time_shortcut() -> void:
-	if not OS.is_debug_build():
+	if LOCK_DAYTIME or not OS.is_debug_build():
 		return
 	var shortcut_down: bool = (
 		(

@@ -45,6 +45,8 @@ func _ready() -> void:
 		and not game_state.player_scrolled_out.is_connected(_on_player_scrolled_out)
 	):
 		game_state.player_scrolled_out.connect(_on_player_scrolled_out)
+	if game_state and not game_state.player_caught_by_saw.is_connected(_on_player_scrolled_out):
+		game_state.player_caught_by_saw.connect(_on_player_scrolled_out)
 	visible = false
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 

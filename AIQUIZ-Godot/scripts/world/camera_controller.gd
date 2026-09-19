@@ -437,12 +437,17 @@ func set_question_framing_points(points: PackedVector3Array) -> void:
 ## Preserve the normal FOV and yaw. Tilt only by the overflow angle, then
 ## retreat along the view direction until glyphs and living players fit.
 func _frame_question(gs: QuizGameState, eye: Vector3, target: Vector3, fov: float, dt: float) -> PackedVector3Array:
-	if _question_framing_points.is_empty() and is_zero_approx(_question_pitch) and is_zero_approx(_question_back):
+	var frame_saw := gs.is_saw_visible() and maxf(gs.get_saw_danger_ratio(1), gs.get_saw_danger_ratio(2)) > 0.0
+	if not frame_saw and _question_framing_points.is_empty() and is_zero_approx(_question_pitch) and is_zero_approx(_question_back):
 		return PackedVector3Array([eye, target])
 	var follow := 1.0 - exp(-QUESTION_FRAMING_FOLLOW * maxf(dt, 0.0))
 	var points := _question_framing_points.duplicate()
 	if gs.game_state != Constants.STATE_PLAYING:
 		points.clear()
+	if frame_saw:
+		var bounds := AABB(Vector3(-12.25, StageConstants.FLOOR_TOP_Y, gs.saw.local_z - 1.7), Vector3(24.5, 0.65, 3.4))
+		for corner: int in range(8):
+			points.append(bounds.get_endpoint(corner))
 	if not points.is_empty():
 		if gs.p1_alive:
 			_append_player_framing_points(points, Vector3(gs.player_x, gs.player_y, gs.player_local_z))

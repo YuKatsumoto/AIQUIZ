@@ -113,6 +113,7 @@ var _shark_school: Node3D = null
 
 var _floor_belt_material: ShaderMaterial = null
 var _floor_collision_body: StaticBody3D = null
+var _running_rails: ConveyorRails = null
 var _floor_rail_left: MeshInstance3D = null
 var _floor_rail_right: MeshInstance3D = null
 var _conveyor_roller_front: MeshInstance3D = null
@@ -192,6 +193,7 @@ func _clear_built_stage() -> void:
 	_grandstands_container = null
 	_waterfront = null
 	_shark_school = null
+	_running_rails = null
 	_floor_belt_material = null
 	_floor_collision_body = null
 	_floor_rail_left = null
@@ -449,24 +451,12 @@ func _setup_floor_collision() -> void:
 
 
 func _setup_floor_rails() -> void:
-	var rail_mesh := BoxMesh.new()
-	rail_mesh.size = Vector3(StageConstants.FLOOR_RAIL_WIDTH, StageConstants.FLOOR_RAIL_HEIGHT, _floor_length)
-	var rail_mat := StandardMaterial3D.new()
-	rail_mat.albedo_color = Color(0.27, 0.275, 0.28)
-	rail_mat.roughness = 0.66
-	rail_mat.metallic = 0.22
-
-	_floor_rail_left = MeshInstance3D.new()
-	_floor_rail_left.name = "FloorRailLeft"
-	_floor_rail_left.mesh = rail_mesh
-	_floor_rail_left.material_override = rail_mat
-	_add_generated_stage_child(_floor_rail_left)
-
-	_floor_rail_right = MeshInstance3D.new()
-	_floor_rail_right.name = "FloorRailRight"
-	_floor_rail_right.mesh = rail_mesh
-	_floor_rail_right.material_override = rail_mat
-	_add_generated_stage_child(_floor_rail_right)
+	_running_rails = preload("res://scripts/world/conveyor_rails.gd").new()
+	_running_rails.name = "ConveyorRunningRails"
+	_add_generated_stage_child(_running_rails)
+	_running_rails.build(_floor_center_z, _floor_length, StageConstants.FLOOR_TOP_Y)
+	_floor_rail_left = _running_rails.left_head
+	_floor_rail_right = _running_rails.right_head
 
 
 func _setup_conveyor_loop_geometry() -> void:
@@ -821,18 +811,8 @@ func set_floor_geometry(center_z: float, length: float) -> void:
 
 
 func _update_floor_rails() -> void:
-	if not _floor_rail_left or not _floor_rail_right:
-		return
-	var rail_l := _floor_rail_left.mesh as BoxMesh
-	var rail_r := _floor_rail_right.mesh as BoxMesh
-	if rail_l:
-		rail_l.size = Vector3(StageConstants.FLOOR_RAIL_WIDTH, StageConstants.FLOOR_RAIL_HEIGHT, _floor_length)
-	if rail_r:
-		rail_r.size = Vector3(StageConstants.FLOOR_RAIL_WIDTH, StageConstants.FLOOR_RAIL_HEIGHT, _floor_length)
-	var rail_y: float = StageConstants.FLOOR_TOP_Y + StageConstants.FLOOR_RAIL_HEIGHT * 0.5
-	var rail_x: float = StageConstants.FLOOR_HALF_WIDTH - StageConstants.FLOOR_RAIL_WIDTH * 0.5 - StageConstants.FLOOR_RAIL_INSET
-	_floor_rail_left.position = Vector3(-rail_x, rail_y, _floor_center_z)
-	_floor_rail_right.position = Vector3(rail_x, rail_y, _floor_center_z)
+	if is_instance_valid(_running_rails):
+		_running_rails.set_geometry(_floor_center_z, _floor_length, StageConstants.FLOOR_TOP_Y)
 
 
 func _update_conveyor_loop_geometry() -> void:

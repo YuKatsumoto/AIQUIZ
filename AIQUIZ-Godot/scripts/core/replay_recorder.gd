@@ -17,7 +17,9 @@ const MAX_REPLAYS := 20  # 保存できる最大リプレイ数
 ## [13] scroll_z, [14] wall_idx, [15] score, [16] p2_score,
 ## [17] state_id, [18] correct_flash, [19] wrong_flash,
 ## [20] go_timer, [21] p2_go_timer, [22] p1_jump, [23] p2_jump
-const FIELDS_PER_FRAME := 28
+## [24-27] hp1, hp2, hurt1, hurt2 (v3)
+## [28-33] saw_enabled, saw_z, saw_time, saw_travel, saw_killed1, saw_killed2 (v4)
+const FIELDS_PER_FRAME := 34
 var fields_per_frame := FIELDS_PER_FRAME
 
 var frames: PackedFloat32Array = PackedFloat32Array()
@@ -67,7 +69,7 @@ func start_recording(gs: QuizGameState) -> void:
 		"p1_toon_preset": ToonPresets.normalize(gs.p1_toon_preset),
 		"p2_toon_preset": ToonPresets.normalize(gs.p2_toon_preset),
 		"timestamp": int(Time.get_unix_time_from_system()),
-		"version": 3,
+		"version": 4,
 		"hp_enabled": gs.uses_hp(),
 	}
 
@@ -129,6 +131,12 @@ func capture(gs: QuizGameState) -> void:
 	frames[offset + 25] = gs.p2_hp
 	frames[offset + 26] = gs.p1_damage_time
 	frames[offset + 27] = gs.p2_damage_time
+	frames[offset + 28] = 1.0 if gs.saw.enabled else 0.0
+	frames[offset + 29] = gs.saw.local_z
+	frames[offset + 30] = gs.saw.elapsed
+	frames[offset + 31] = gs.saw.wheel_distance
+	frames[offset + 32] = 1.0 if gs.p1_saw_killed else 0.0
+	frames[offset + 33] = 1.0 if gs.p2_saw_killed else 0.0
 
 	frame_count += 1
 
@@ -165,6 +173,12 @@ func get_frame(index: int) -> Dictionary:
 		"hp2": int(frames[o + 25]) if fields_per_frame >= 28 else 3,
 		"hurt1": frames[o + 26] if fields_per_frame >= 28 else 0.0,
 		"hurt2": frames[o + 27] if fields_per_frame >= 28 else 0.0,
+		"saw_enabled": fields_per_frame >= 34 and frames[o + 28] > 0.5,
+		"saw_z": frames[o + 29] if fields_per_frame >= 34 else SawChaseState.INITIAL_Z,
+		"saw_time": frames[o + 30] if fields_per_frame >= 34 else 0.0,
+		"saw_travel": frames[o + 31] if fields_per_frame >= 34 else 0.0,
+		"saw_killed1": fields_per_frame >= 34 and frames[o + 32] > 0.5,
+		"saw_killed2": fields_per_frame >= 34 and frames[o + 33] > 0.5,
 	}
 
 func get_frame_time(index: int) -> float:
@@ -215,7 +229,7 @@ func get_interpolated_frame(t: float) -> Dictionary:
 		var v1 = f1[key]
 		if key in ["hurt1", "hurt2"] and float(v1) > float(v0):
 			result[key] = v0 if alpha < 1.0 else v1
-		elif key in ["hp1", "hp2"]:
+		elif key in ["hp1", "hp2", "saw_enabled", "saw_killed1", "saw_killed2", "p1_alive", "p2_alive", "state"]:
 			result[key] = v0 if alpha < 1.0 else v1
 		elif v0 is float and v1 is float:
 			result[key] = lerpf(v0 as float, v1 as float, alpha)
@@ -279,7 +293,7 @@ func load_from_file(path: String) -> bool:
 	meta = data.get("meta", {})
 	frame_count = int(data.get("frame_count", 0))
 	fields_per_frame = int(data.get("fields_per_frame", 24))
-	if fields_per_frame not in [24, 28] or frame_count < 0:
+	if fields_per_frame not in [24, 28, 34] or frame_count < 0:
 		return false
 
 	# quiz_snapshots のキーを int に復元
@@ -324,7 +338,7 @@ func import_from_string(json_str: String) -> bool:
 	meta = data.get("meta", {})
 	frame_count = int(data.get("frame_count", 0))
 	fields_per_frame = int(data.get("fields_per_frame", 24))
-	if fields_per_frame not in [24, 28] or frame_count < 0:
+	if fields_per_frame not in [24, 28, 34] or frame_count < 0:
 		return false
 	quiz_snapshots.clear()
 	var raw_quiz: Dictionary = data.get("quiz", {})

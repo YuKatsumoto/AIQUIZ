@@ -31,6 +31,7 @@ SceneTransition="*res://scripts/autoload/scene_transition.gd"
 NetworkManager="*res://scripts/autoload/network_manager.gd"
 GraphicsQuality="*res://scripts/core/graphics_quality.gd"
 _mcp_game_helper="*res://addons/godot_ai/runtime/game_helper.gd"
+_fennara_game_capture="*res://addons/fennara/runtime/game_capture_helper.gd"
 
 [display]
 

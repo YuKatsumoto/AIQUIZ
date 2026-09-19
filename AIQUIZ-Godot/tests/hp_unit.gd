@@ -227,7 +227,7 @@ func _sync_replay() -> void:
 	var legacy := PackedFloat32Array()
 	for frame in range(2):
 		for field in range(24):
-			legacy.append(recorder.frames[frame * 28 + field])
+			legacy.append(recorder.frames[frame * recorder.fields_per_frame + field])
 	var old := JSON.parse_string(recorder.export_for_sharing()) as Dictionary
 	old.meta.version = 2
 	old.meta.erase("hp_enabled")

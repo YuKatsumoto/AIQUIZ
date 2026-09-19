@@ -33,3 +33,9 @@ var hit_z: float = -6.0
 var correct_hold_sec: float = 1.05
 
 
+
+# Local 2P saw pursuit; independent of quiz wall speed.
+var saw_follow_distance := 14.0
+var saw_max_speed := 10.0
+var saw_grace_seconds := 2.0
+var saw_warning_distance := 6.0
