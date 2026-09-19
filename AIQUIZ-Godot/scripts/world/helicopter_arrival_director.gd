@@ -85,20 +85,21 @@ const MENU_BOOST_SPEED := 78.0
 const MENU_BOOST_PITCH := deg_to_rad(-7.0)
 const MENU_BOOST_DIRECTION := Vector3(0.0, 0.10, -1.0)
 const GP_APPROACH_DURATION := 2.65
-const GP_OCEAN_STOP := 0.28
-const GP_LADDER_DEPLOY := 0.80
-const GP_LADDER_EXIT := 0.90
+const PASS_SPEED := 1.5
+const GP_LOWER_DURATION := 1.75
+const GP_EXIT_ACCEL_TIME := 2.8
+const GP_EXIT_SPEED := 20.0
+const GP_EXIT_MIN_TIME := 3.0
 const GP_SWING_DURATION := 0.72
 const GP_SWING_CYCLES := 0.125
 const GP_SWING_AMPLITUDE_DEG := 24.0
-const GP_LAUNCH_DURATION := 0.15
 const GP_FLIGHT_DURATION := 1.70
 const GP_LAND_HOLD := 0.55
 const GP_HOVER_ALTITUDE := 11.40
 const GP_OCEAN_OUTSET := 4.50
+const GP_SOLO_OCEAN_OUTSET := 1.50
 const GP_P2_DELAY := 0.25
 const GP_PASSENGER_SEAT_LOCAL := Vector3(0.0, 0.10, -0.42)
-const GP_STOP_SPEED := 0.15
 const GP_HATCH_KEEP_OPEN := 1.0
 
 var _game_state: QuizGameState = null
@@ -129,6 +130,8 @@ var _menu_launch_charge_elapsed := 0.0
 var _menu_launch_elapsed := 0.0
 var _menu_boost_started := false
 var _presentation_finished_emitted := false
+var _preparing_menu_departure := false
+var _menu_departure_prepared := false
 
 
 func setup(
@@ -141,6 +144,23 @@ func setup(
 	_camera_controller = camera_controller
 	if _game_state == null or _player_controller == null or _camera_controller == null:
 		_skip_missing_asset("arrival dependencies are unavailable")
+		return
+	if _menu_departure_prepared:
+		_menu_departure_prepared = false
+		# Player count and camera may have changed while the menu was open.
+		while _helicopters.size() > _requested_helicopter_count:
+			var unused: Dictionary = _helicopters.pop_back()
+			for key: String in ["rope_ladder", "downwash", "holder"]:
+				var node := unused.get(key) as Node
+				if is_instance_valid(node):
+					node.queue_free()
+		visible = true
+		process_mode = Node.PROCESS_MODE_INHERIT
+		_restore_menu_camera()
+		_start_locked = true
+		_phase = "waiting_camera"
+		set_process(true)
+		call_deferred("_begin_after_reveal_and_camera")
 		return
 	if not ResourceLoader.exists(HELICOPTER_GLB):
 		_skip_missing_asset("%s has not been supplied yet" % HELICOPTER_GLB)
@@ -179,6 +199,8 @@ func setup(
 
 	if not _menu_departure_mode:
 		_player_controller.prepare_intro_arrival(helicopter_count)
+	if _preparing_menu_departure:
+		return
 	_start_locked = true
 	_phase = "waiting_camera"
 	set_process(true)
@@ -216,6 +238,28 @@ func setup_menu_departure(
 		_menu_camera_base_rotation = _menu_camera.rotation_degrees
 		_menu_camera_base_fov = _menu_camera.fov
 	setup(game_state, player_controller, camera)
+
+
+## Build the extraction scene before the menu is revealed. In particular, the
+## editable flight profile instantiates a large reference hierarchy; doing that
+## on Start blocks the main thread even when its resources are already cached.
+## Keep the prepared shot hidden, silent, and paused until the actual click.
+func prepare_menu_departure(
+	game_state: QuizGameState,
+	player_controller: PlayerController,
+	camera: Camera3D
+) -> void:
+	_preparing_menu_departure = true
+	setup_menu_departure(game_state, player_controller, camera, 2)
+	_preparing_menu_departure = false
+	if _cancelled or _helicopters.is_empty():
+		return
+	_prepare_flight_paths()
+	_reset_menu_camera()
+	_menu_departure_prepared = true
+	visible = false
+	process_mode = Node.PROCESS_MODE_DISABLED
+	set_process(false)
 
 
 func get_menu_pickup_clearance_z() -> float:
@@ -288,6 +332,14 @@ func _menu_departure_remaining() -> float:
 
 func _is_scene_cover_complete() -> bool:
 	return SceneTransition.is_fully_covered()
+
+
+func skip_menu_departure() -> void:
+	if not _menu_departure_mode:
+		return
+	if _phase in ["complete", "cancelled"]:
+		return
+	_complete_menu_departure()
 
 
 func cancel() -> void:
@@ -408,6 +460,7 @@ func _prepare_intro_cabin_ride_passengers() -> bool:
 			return false
 		info["gp_phase"] = "approach"
 		info["gp_phase_elapsed"] = 0.0
+		info["flight_elapsed"] = -(GP_P2_DELAY if player_index == 2 else 0.0)
 		info["jumped"] = false
 		info["landed"] = false
 		info["hanging"] = false
@@ -478,7 +531,7 @@ func _prepare_authored_menu_paths(animation_name: StringName) -> bool:
 		info["pickup_started"] = false
 		info["captured"] = false
 		info["ever_visible_in_frame"] = false
-		info["downwash"] = _create_menu_downwash(ground, player_index)
+		_prepare_menu_downwash(info, ground, player_index)
 	_menu_pickup_path_time = 0.0
 	if not _menu_flight_profile.select_runtime_animation(animation_name):
 		return false
@@ -573,7 +626,7 @@ func _prepare_menu_departure_paths() -> void:
 		info["pickup_started"] = false
 		info["captured"] = false
 		info["ever_visible_in_frame"] = false
-		info["downwash"] = _create_menu_downwash(ground, player_index)
+		_prepare_menu_downwash(info, ground, player_index)
 		var holder := info.get("holder") as Node3D
 		_set_hatch_openness(info, 0.0)
 		_set_flight_transform(holder, start, facing, 0.0, deg_to_rad(-3.0))
@@ -600,6 +653,11 @@ func _create_rope_ladder(info: Dictionary) -> void:
 		ladder.deploy_throw_speed = 9.5
 		ladder.deploy_damping = 0.994
 		ladder.deploy_recoil_scale = 0.18
+	elif not _menu_preview_mode:
+		ladder.deploy_throw_speed = 3.8
+		ladder.deploy_lateral_scale = 0.18
+		ladder.deploy_recoil_scale = 0.12
+		ladder.inherit_carrier_velocity = true
 	add_child(ladder)
 	ladder.configure(mount, player_index)
 	info["rope_ladder_mount"] = mount
@@ -629,13 +687,17 @@ func _prepare_gameplay_flight_paths() -> void:
 			player_side = player_pair_side if player_index == 1 else -player_pair_side
 			center_x = player_pair_center_x
 		var hover_ocean := Vector3(
-			center_x + player_side * (StageConstants.FLOOR_HALF_WIDTH + GP_OCEAN_OUTSET),
+			center_x + player_side * (StageConstants.FLOOR_HALF_WIDTH + (GP_OCEAN_OUTSET if is_pair else GP_SOLO_OCEAN_OUTSET)),
 			ground.y + GP_HOVER_ALTITUDE,
 			ground.z
 		)
-		var start := hover_ocean + Vector3(player_side * 18.0, 4.5, 0.0)
-		var exit := hover_ocean + Vector3(player_side * OFFSCREEN_DISTANCE, EXIT_RISE_HEIGHT, 0.0)
+		# Two depth lanes keep the rotor discs clear as the aircraft cross on screen.
+		hover_ocean.z += 8.0 if is_pair and player_index == 2 else -1.0
+		hover_ocean.y += 1.2 if is_pair and player_index == 2 else 0.0
 		var inward := Vector3(-player_side, 0.0, 0.0)
+		var pass_direction := Vector3(-player_side, 0.0, 0.16).normalized()
+		var start := hover_ocean - pass_direction * 20.0 + Vector3.UP * 3.5
+		var exit := hover_ocean + pass_direction * 80.0 + Vector3.UP * 16.0
 		var approach_direction := (hover_ocean - start).normalized()
 		info["ground"] = ground
 		info["release"] = hover_ocean
@@ -643,7 +705,7 @@ func _prepare_gameplay_flight_paths() -> void:
 		info["hover_ocean"] = hover_ocean
 		info["start"] = start
 		info["exit"] = exit
-		info["direction"] = inward
+		info["direction"] = pass_direction
 		info["approach_direction"] = approach_direction
 		info["ocean_side_drop"] = true
 		info["player_side"] = player_side
@@ -654,15 +716,12 @@ func _prepare_gameplay_flight_paths() -> void:
 		info["jumped"] = false
 		info["landed"] = false
 		info["hanging"] = false
-		info["approach_c1"] = start.lerp(hover_ocean, 0.35)
-		info["approach_c2"] = start.lerp(hover_ocean, 0.78)
-		info["exit_c1"] = hover_ocean.lerp(exit, 0.28)
-		info["exit_c2"] = hover_ocean.lerp(exit, 0.72)
 		var holder := info.get("holder") as Node3D
 		_set_hatch_openness(info, 0.0)
 		_set_flight_transform(holder, start, approach_direction, 0.10 * -player_side, 0.0)
 		if holder != null:
 			info["last_position"] = holder.global_position
+		_create_rope_ladder(info)
 
 
 func _prepare_menu_flight_paths() -> void:
@@ -929,7 +988,8 @@ func _complete_menu_departure() -> void:
 	if _phase == "complete":
 		return
 	_phase = "complete"
-	_player_controller.complete_intro_extraction()
+	if _player_controller != null:
+		_player_controller.complete_intro_extraction()
 	_start_locked = false
 	_cleanup_helicopters(false)
 	set_process(false)
@@ -1372,15 +1432,15 @@ func _update_gameplay_ladder_timeline() -> void:
 		all_ready = all_ready and landed and land_hold >= GP_LAND_HOLD
 		var departed := (
 			str(info.get("gp_phase", "")) == "depart"
-			and float(info.get("gp_phase_elapsed", 0.0)) >= DEPART_DURATION
+			and float(info.get("gp_phase_elapsed", 0.0)) >= GP_EXIT_MIN_TIME
+			and _screen_bounds_fully_outside(_helicopter_screen_bounds(info), 0.10)
 		)
 		all_departed = all_departed and departed
 	if all_ready and _start_locked:
-		# Once both players have actually landed, gameplay can start while the
-		# helicopters continue their normal-speed exit in the background.
+		# Unlock start after the hold so HUD can show Ready, but keep the UAL
+		# idle presentation until the course actually begins.
 		for info: Dictionary in _helicopters:
 			_player_controller.complete_intro_ladder_landing(int(info.get("player_index", 1)), _game_state)
-		_player_controller.complete_intro_drops(_game_state)
 		_start_locked = false
 		_emit_presentation_finished(true)
 	if all_ready and all_departed:
@@ -1396,12 +1456,8 @@ func _gp_phase_timeout(phase: String) -> float:
 	match phase:
 		"approach":
 			return GP_APPROACH_DURATION * 2.5
-		"ocean_stop":
-			return (GP_OCEAN_STOP + GP_P2_DELAY) * 2.5
-		"ladder_deploy":
-			return GP_LADDER_DEPLOY * 3.5
-		"ladder_exit":
-			return GP_LADDER_EXIT * 2.5
+		"lowering":
+			return GP_LOWER_DURATION * 3.5
 		"swing":
 			return GP_SWING_DURATION * 2.5
 		"depart":
@@ -1410,18 +1466,10 @@ func _gp_phase_timeout(phase: String) -> float:
 			return 8.0
 
 
-func _helicopter_speed(info: Dictionary) -> float:
-	return Vector3(info.get("world_velocity", Vector3.ZERO)).length()
-
-
 func _solve_launch_velocity(origin: Vector3, landing: Vector3, duration: float) -> Vector3:
 	var flight_time := maxf(duration, 0.08)
 	var gravity := Vector3(0.0, -9.8, 0.0)
 	return (landing - origin - gravity * (0.5 * flight_time * flight_time)) / flight_time
-
-
-func _gameplay_hover_bob(player_index: int) -> Vector3:
-	return Vector3.UP * (sin((_total_elapsed + player_index * 0.37) * 2.8) * 0.045)
 
 
 func _update_intro_cabin_ride_passenger(info: Dictionary, should_show: bool) -> void:
@@ -1456,6 +1504,7 @@ func _update_gameplay_ladder_actor(
 		info["hanging"] = true
 	var grip_data := ladder.get_grip_data()
 	grip_data["inward"] = info.get("inward_direction", Vector3.ZERO)
+	grip_data["carrier_transform"] = (info["holder"] as Node3D).global_transform
 	if not _player_controller.update_intro_ladder_hang(
 		player_index,
 		grip_data,
@@ -1529,135 +1578,106 @@ func _update_gameplay_jump(info: Dictionary, delta: float) -> bool:
 	return true
 
 
+## The integral of a quintic velocity blend. Its acceleration is zero at both
+## ends, so braking, the low pass and departure share the same smooth join.
+func _flight_ramp_integral(time: float, duration: float) -> float:
+	var u := clampf(time / duration, 0.0, 1.0)
+	return duration * (2.5 * pow(u, 4.0) - 3.0 * pow(u, 5.0) + pow(u, 6.0)) + maxf(time - duration, 0.0)
+
+
+func _flight_ramp(time: float, duration: float) -> float:
+	var u := clampf(time / duration, 0.0, 1.0)
+	return u * u * u * (10.0 + u * (-15.0 + 6.0 * u))
+
+
+func _sample_gameplay_approach(info: Dictionary, time: float) -> Dictionary:
+	var start: Vector3 = info["start"]
+	var pass_origin: Vector3 = info["hover_ocean"]
+	var direction: Vector3 = info["direction"]
+	if time >= GP_APPROACH_DURATION:
+		return {"position": pass_origin + direction * PASS_SPEED * (time - GP_APPROACH_DURATION), "velocity": direction * PASS_SPEED}
+	var distance := Vector2(start.x - pass_origin.x, start.z - pass_origin.z).length()
+	var initial_speed := 2.0 * distance / GP_APPROACH_DURATION - PASS_SPEED
+	var ramp := _flight_ramp(time, GP_APPROACH_DURATION)
+	var travel := initial_speed * time + (PASS_SPEED - initial_speed) * _flight_ramp_integral(time, GP_APPROACH_DURATION)
+	var position_now := start + direction * travel
+	position_now.y = lerpf(start.y, pass_origin.y, ramp)
+	return {"position": position_now, "velocity": direction * lerpf(initial_speed, PASS_SPEED, ramp)}
+
+
 func _update_gameplay_helicopter(info: Dictionary, delta: float) -> bool:
 	var player_index := int(info.get("player_index", 1))
 	var phase := str(info.get("gp_phase", "approach"))
 	var elapsed := float(info.get("gp_phase_elapsed", 0.0)) + delta
 	info["gp_phase_elapsed"] = elapsed
+	info["flight_elapsed"] = float(info.get("flight_elapsed", 0.0)) + delta
 	if elapsed > _gp_phase_timeout(phase):
-		_fail_safe("P%d gameplay phase %s exceeded %.1f seconds" % [
-			player_index,
-			phase,
-			_gp_phase_timeout(phase),
-		])
+		_fail_safe("P%d gameplay phase %s exceeded %.1f seconds" % [player_index, phase, _gp_phase_timeout(phase)])
 		return false
-
 	var holder := info.get("holder") as Node3D
-	var start: Vector3 = info.get("start", Vector3.ZERO)
-	var hover_ocean: Vector3 = info.get("hover_ocean", info.get("hover", Vector3.ZERO))
-	var exit: Vector3 = info.get("exit", start)
-	var direction: Vector3 = info.get("direction", Vector3.FORWARD)
+	var pass_direction: Vector3 = info["direction"]
+	var flight_time := float(info["flight_elapsed"])
 	var player_side := float(info.get("player_side", -1.0))
-	var bob := _gameplay_hover_bob(player_index)
+	# Aircraft time never waits for the passenger or the other helicopter.
+	if phase == "depart":
+		var initial_velocity := pass_direction * PASS_SPEED
+		var exit_velocity: Vector3 = info["depart_velocity"]
+		var ramp := _flight_ramp(elapsed, GP_EXIT_ACCEL_TIME)
+		var position_now: Vector3 = info["depart_origin"] + initial_velocity * elapsed + (exit_velocity - initial_velocity) * _flight_ramp_integral(elapsed, GP_EXIT_ACCEL_TIME)
+		_set_flight_transform(holder, position_now, initial_velocity.lerp(exit_velocity, ramp), 0.0, 0.0)
+	else:
+		var flight := _sample_gameplay_approach(info, flight_time)
+		_set_flight_transform(holder, flight["position"], flight["velocity"], 0.0, 0.0)
+
+	# Trigger from the actual rendered camera bounds, including the rotor tips.
+	# This also works for the different solo/pair camera framing.
+	if phase == "approach":
+		_set_hatch_openness(info, smoothstep(0.0, HATCH_OPEN_DURATION, flight_time + GP_P2_DELAY))
+		_update_intro_cabin_ride_passenger(info, true)
+		if _screen_bounds_intersects_frame(_helicopter_screen_bounds(info)):
+			info["entered_frame_at"] = _phase_elapsed
+			info["lowering_started_at"] = _phase_elapsed
+			_set_gp_phase(info, "lowering")
+			phase = "lowering"
+			elapsed = 0.0
 
 	match phase:
 		"approach":
-			var approach_t := clampf(elapsed / GP_APPROACH_DURATION, 0.0, 1.0)
-			# Enter already in flight and brake continuously to a hover.
-			var eased := 2.0 * approach_t - 2.0 * pow(approach_t, 3.0) + pow(approach_t, 4.0)
-			var approach_pos := _cubic_bezier(
-				start,
-				info.get("approach_c1", start.lerp(hover_ocean, 0.35)),
-				info.get("approach_c2", start.lerp(hover_ocean, 0.78)),
-				hover_ocean,
-				eased
-			)
-			var approach_dir := _cubic_bezier_tangent(
-				start,
-				info.get("approach_c1", start.lerp(hover_ocean, 0.35)),
-				info.get("approach_c2", start.lerp(hover_ocean, 0.78)),
-				hover_ocean,
-				eased
-			)
-			# Open during braking so the cabin is ready as the helicopter settles.
-			_set_hatch_openness(info, smoothstep(GP_APPROACH_DURATION - HATCH_OPEN_DURATION, GP_APPROACH_DURATION, elapsed))
-			_set_flight_transform(
-				holder,
-				approach_pos,
-				approach_dir,
-				0.10 * -player_side * sin(approach_t * PI),
-				-deg_to_rad(2.0) * sin(approach_t * PI)
-			)
-			_update_intro_cabin_ride_passenger(info, true)
-			if approach_t >= 1.0:
-				_set_gp_phase(info, "ocean_stop")
-		"ocean_stop":
-			_set_flight_transform(holder, hover_ocean + bob, direction, 0.0, 0.0)
-			_set_hatch_openness(info, 1.0)
-			_update_intro_cabin_ride_passenger(info, true)
-			var stop_duration := GP_OCEAN_STOP + (GP_P2_DELAY if player_index == 2 else 0.0)
-			if elapsed >= stop_duration:
-				info["ocean_stop_speed"] = _helicopter_speed(info)
-				_set_gp_phase(info, "ladder_deploy")
-		"ladder_deploy":
-			_set_flight_transform(holder, hover_ocean + bob, direction, 0.0, 0.0)
+			pass
+		"lowering":
 			_set_hatch_openness(info, GP_HATCH_KEEP_OPEN)
-			_create_rope_ladder(info)
 			var ladder := info.get("rope_ladder") as PhysicalRopeLadder
-			if ladder == null or not is_instance_valid(ladder):
-				_fail_safe("P%d rope ladder could not be created" % player_index)
-				return false
-			ladder.set_deploy_progress(clampf(elapsed / GP_LADDER_DEPLOY, 0.0, 1.0))
-			_update_intro_cabin_ride_passenger(info, true)
-			if elapsed >= GP_LADDER_DEPLOY * 0.55 and ladder.is_fully_deployed():
-				_set_gp_phase(info, "ladder_exit")
-		"ladder_exit":
-			_set_flight_transform(holder, hover_ocean + bob, direction, 0.0, 0.0)
-			_set_hatch_openness(info, GP_HATCH_KEEP_OPEN)
-			var reach := clampf(elapsed / GP_LADDER_EXIT, 0.0, 1.0)
+			ladder.set_deploy_progress(maxf(0.04, elapsed / GP_LOWER_DURATION))
+			var reach := clampf(elapsed / GP_LOWER_DURATION, 0.0, 1.0)
 			if not _update_gameplay_ladder_actor(info, reach, 0.0, delta):
 				return false
-			if reach >= 1.0:
-				var ready_ladder := info.get("rope_ladder") as PhysicalRopeLadder
-				if ready_ladder != null:
-					ready_ladder.set_payload_active(true)
+			if reach >= 1.0 and ladder.is_fully_deployed():
+				ladder.set_payload_active(true)
 				_set_gp_phase(info, "swing")
 		"swing":
-			_set_flight_transform(holder, hover_ocean + bob * 0.25, direction, 0.0, 0.0)
 			_set_hatch_openness(info, GP_HATCH_KEEP_OPEN)
 			var swing_t := clampf(elapsed / GP_SWING_DURATION, 0.0, 1.0)
 			var envelope := smoothstep(0.0, 0.18, swing_t)
-			var swing_phase := swing_t * (TAU * GP_SWING_CYCLES + PI * 0.25)
-			var swing_angle := -deg_to_rad(GP_SWING_AMPLITUDE_DEG) * sin(swing_phase) * envelope
-			_set_ladder_mount_sway(info, swing_angle * 0.28)
+			var swing_angle := deg_to_rad(GP_SWING_AMPLITUDE_DEG) * envelope * sin(swing_t * TAU * GP_SWING_CYCLES)
 			if not _update_gameplay_ladder_actor(info, 1.0, swing_angle, delta):
 				return false
-			if swing_t >= 1.0:
-				info["swing_hover_speed"] = _helicopter_speed(info)
+			if swing_t >= 1.0 and flight_time >= GP_APPROACH_DURATION:
 				if not _launch_gameplay_jump(info):
 					return false
+				info["depart_origin"] = holder.global_position
+				# Maintain the incoming horizontal heading. P2 rises into a deeper lane;
+				# the rotor discs stay separated while their screen paths cross.
+				info["depart_velocity"] = Vector3(-player_side * GP_EXIT_SPEED, 3.4 if player_index == 2 else 2.2, 5.0 if player_index == 2 else 2.5)
+				info["released_at"] = _phase_elapsed
 				_set_gp_phase(info, "depart")
 		"depart":
-			var depart_t := clampf(elapsed / DEPART_DURATION, 0.0, 1.0)
-			var eased_depart := smoothstep(0.0, 1.0, depart_t)
-			var depart_pos := _cubic_bezier(
-				hover_ocean,
-				info.get("exit_c1", hover_ocean.lerp(exit, 0.28)),
-				info.get("exit_c2", hover_ocean.lerp(exit, 0.72)),
-				exit,
-				eased_depart
-			)
-			var depart_dir := _cubic_bezier_tangent(
-				hover_ocean,
-				info.get("exit_c1", hover_ocean.lerp(exit, 0.28)),
-				info.get("exit_c2", hover_ocean.lerp(exit, 0.72)),
-				exit,
-				eased_depart
-			)
-			var hatch_close := 1.0 - smoothstep(0.18, 0.18 + HATCH_CLOSE_DURATION, elapsed)
-			_set_hatch_openness(info, hatch_close)
-			_set_flight_transform(
-				holder,
-				depart_pos,
-				depart_dir,
-				0.16 * -player_side * sin(depart_t * PI),
-				DEPART_CLIMB_PITCH * sin(depart_t * PI)
-			)
+			var ladder := info.get("rope_ladder") as PhysicalRopeLadder
+			ladder.set_winch_progress(smoothstep(0.18, 1.55, elapsed))
+			_set_hatch_openness(info, 1.0 - smoothstep(1.55, 1.55 + HATCH_CLOSE_DURATION, elapsed))
 			_set_ladder_mount_sway(info, 0.0)
 		_:
 			_fail_safe("P%d entered unknown gameplay phase %s" % [player_index, phase])
 			return false
-
 	_remember_helicopter_velocity(info)
 	return _update_gameplay_jump(info, delta)
 
@@ -1740,13 +1760,14 @@ func _complete_arrival() -> void:
 		return
 	_phase = "complete"
 	if _player_controller != null and _start_locked:
-		if not _menu_preview_mode:
+		if _menu_preview_mode:
+			_player_controller.complete_intro_drops(_game_state)
+		else:
 			for info: Dictionary in _helicopters:
 				_player_controller.complete_intro_ladder_landing(
 					int(info.get("player_index", 1)),
 					_game_state
 				)
-		_player_controller.complete_intro_drops(_game_state)
 	_start_locked = false
 	_reset_menu_camera()
 	_cleanup_helicopters(false)
@@ -2042,7 +2063,8 @@ func _set_flight_transform(
 	var horizontal_accel := Vector3(acceleration.x, 0.0, acceleration.z)
 	var drag_compensation := Vector3(velocity.x, 0.0, velocity.z) * 0.10
 	var thrust_up := Vector3.UP * maxf(9.81 + acceleration.y, 5.0)
-	thrust_up += (horizontal_accel + drag_compensation).limit_length(8.0)
+	var tilt_limit := 8.0 if _menu_preview_mode else 3.5
+	thrust_up += (horizontal_accel + drag_compensation).limit_length(tilt_limit)
 	thrust_up = thrust_up.normalized()
 	var right := heading.cross(thrust_up).normalized()
 	var target_basis := Basis(right, thrust_up, right.cross(thrust_up)).orthonormalized()
@@ -2199,13 +2221,14 @@ func _collect_helicopter_visual_points(holder: Node3D, model: Node3D) -> Array[V
 
 
 func _helicopter_screen_bounds(info: Dictionary) -> Dictionary:
-	if _menu_camera == null or _menu_camera.get_viewport() == null:
+	var camera := _menu_camera if _menu_preview_mode else get_viewport().get_camera_3d()
+	if camera == null or camera.get_viewport() == null:
 		return {}
 	var holder := info.get("holder") as Node3D
 	var points: Array = info.get("visual_points", [])
 	if holder == null or points.is_empty():
 		return {}
-	var viewport_size := _menu_camera.get_viewport().get_visible_rect().size
+	var viewport_size := camera.get_viewport().get_visible_rect().size
 	if viewport_size.x <= 1.0 or viewport_size.y <= 1.0:
 		return {}
 	var minimum := Vector2(INF, INF)
@@ -2214,9 +2237,9 @@ func _helicopter_screen_bounds(info: Dictionary) -> Dictionary:
 	for local_point_variant: Variant in points:
 		var local_point: Vector3 = local_point_variant
 		var world_point := holder.global_transform * local_point
-		if _menu_camera.is_position_behind(world_point):
+		if camera.is_position_behind(world_point):
 			continue
-		var normalized := _menu_camera.unproject_position(world_point) / viewport_size
+		var normalized := camera.unproject_position(world_point) / viewport_size
 		minimum.x = minf(minimum.x, normalized.x)
 		minimum.y = minf(minimum.y, normalized.y)
 		maximum.x = maxf(maximum.x, normalized.x)
@@ -2306,6 +2329,14 @@ func _cubic_bezier_tangent(
 	if tangent.length_squared() <= 0.0001:
 		tangent = d - a
 	return tangent.normalized()
+
+
+func _prepare_menu_downwash(info: Dictionary, ground: Vector3, player_index: int) -> void:
+	var particles := info.get("downwash") as GPUParticles3D
+	if is_instance_valid(particles):
+		particles.position = ground + Vector3.UP * 0.12
+	else:
+		info["downwash"] = _create_menu_downwash(ground, player_index)
 
 
 func _create_menu_downwash(ground: Vector3, player_index: int) -> GPUParticles3D:

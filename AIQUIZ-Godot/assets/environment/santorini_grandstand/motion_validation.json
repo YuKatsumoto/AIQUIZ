@@ -1,0 +1,10 @@
+{
+	"camera_fixed": true,
+	"changed_image_bytes": 170143,
+	"elapsed_ms": 1083,
+	"environment_fixed": true,
+	"passed": true,
+	"renderer": "Forward+",
+	"scope": "Isolated imported stand and crowd shader motion; main gameplay is separate.",
+	"spectators": 508
+}

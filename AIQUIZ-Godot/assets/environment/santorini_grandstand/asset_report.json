@@ -1,0 +1,47 @@
+{
+  "seat_count": 584,
+  "rows": 4,
+  "base_length_m": 160.0,
+  "triangles": 91096,
+  "export_mesh_objects": 1,
+  "editable_source_sections": 8,
+  "shared_materials": 13,
+  "export_surfaces": 13,
+  "godot_bounds": {
+    "min": [
+      -0.8,
+      -10.0,
+      -80.4
+    ],
+    "max": [
+      8.4374,
+      4.2,
+      80.4
+    ]
+  },
+  "seat_grid": {
+    "front_x": 1.15,
+    "row_pitch": 1.25,
+    "seat_top": 0.865,
+    "row_rise": 0.4,
+    "seat_edge": 77.5,
+    "seat_pitch": 0.92,
+    "aisles": [
+      -60.0,
+      -40.0,
+      -20.0,
+      0.0,
+      20.0,
+      40.0,
+      60.0
+    ],
+    "aisle_clearance": 1.49
+  },
+  "pergolas": {
+    "count": 3,
+    "length_each": 6.15,
+    "total_longitudinal_coverage_fraction": 0.11531250000000001
+  },
+  "external_assets": [],
+  "render_note": "Blender asset review only; actual Godot gameplay acceptance is separate."
+}

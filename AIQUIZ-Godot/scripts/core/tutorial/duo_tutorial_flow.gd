@@ -495,6 +495,14 @@ func get_overlay_model() -> Dictionary:
 	var sub_label := ""
 	if indices.size() > 1:
 		sub_label = "問題 %d / %d" % [mini(_quiz_cursor + 1, indices.size()), indices.size()]
+	var hint := _hint_text
+	if is_step("duo_push"):
+		if not _push_task_done(1, "brace"):
+			hint = "2人で相手方向を押し続けて踏ん張ろう。\nジャンプでは相手を越えられません。"
+		elif not _push_task_done(1, "push"):
+			hint = "P2は押し続け、P1は同じキーを離して押し直すと一押し。\nジャンプでは相手を越えられません。"
+		elif not _push_task_done(2, "push"):
+			hint = "P1は押し続け、今度はP2が同じキーを離して押し直すと一押し。\nジャンプでは相手を越えられません。"
 	return {
 		# 完了カードが画面全体を使うので、コーチバーは隠して
 		# 使えない Enter スキップ行を出さないようにする。
@@ -506,7 +514,7 @@ func get_overlay_model() -> Dictionary:
 		"step_count": _steps.size(),
 		"title": str(step.get("title", "チュートリアル")),
 		"body": str(step.get("body", "")),
-		"hint": _hint_text,
+		"hint": hint,
 		"sub_label": sub_label,
 		"presentation_locked": presentation_locked,
 		"awaiting_neutral_input": awaiting_neutral_input,
@@ -583,6 +591,24 @@ func _update_player_controls(player_index: int, axis: Vector2, jump: bool, emote
 		complete_task(player_index, "emote")
 
 
+func on_local_push_event(event: Dictionary) -> void:
+	if not is_step("duo_push") or awaiting_neutral_input or presentation_locked:
+		return
+	if event.kind == "stalemate":
+		complete_task(1, "brace")
+		complete_task(2, "brace")
+	elif event.kind == "hit" and _push_task_done(1, "brace"):
+		if event.player == 1:
+			complete_task(1, "push")
+		elif _push_task_done(1, "push"):
+			complete_task(2, "push")
+
+func _push_task_done(player: int, id: String) -> bool:
+	for task: Dictionary in _tasks.get(player, []):
+		if task.id == id:
+			return task.get("done", false)
+	return false
+
 func _build_steps() -> Array[Dictionary]:
 	return [
 		{
@@ -605,9 +631,22 @@ func _build_steps() -> Array[Dictionary]:
 			},
 		},
 		{
+			"id": "duo_push",
+			"title": "肩で押し合おう",
+			"body": "まず2人で相手の方向を押し続けて踏ん張ります。次にP1、P2の順に、同じキーを離して押し直すと肩で一押し！ ジャンプでは相手を越えられません。",
+			"guide": GUIDE_LANE,
+			"speed": 0.55,
+			"walls": false,
+			"input_practice": true,
+			"tasks": {
+				1: [{"id": "brace", "key": "A / D", "caption": "2人で踏ん張る"}, {"id": "push", "key": "離す→押す", "caption": "先にP1が一押し"}],
+				2: [{"id": "brace", "key": "← / →", "caption": "2人で踏ん張る"}, {"id": "push", "key": "離す→押す", "caption": "次にP2が一押し"}],
+			},
+		},
+		{
 			"id": "duo_air",
 			"title": "ジャンプと前後の微調整",
-			"body": "ジャンプで飛び越え、前後で走る速さを微調整できます。離れすぎると画面外に取り残されます。",
+			"body": "自動前進に加えて、前後に動いて壁に向かうタイミングを調整できます。離れすぎると画面外に取り残されます。",
 			"guide": GUIDE_AIR,
 			"speed": 0.55,
 			"walls": false,

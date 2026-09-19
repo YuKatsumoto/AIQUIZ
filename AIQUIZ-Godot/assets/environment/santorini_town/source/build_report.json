@@ -1,0 +1,5372 @@
+{
+  "seed": 9132026,
+  "blender": "5.1.2",
+  "units": "metres",
+  "local_sea_level": 0,
+  "godot_root_y": -9.2,
+  "open_course_direction": "+Z",
+  "minimum_scenery_abs_x_where_z_above_minus150": 76.3499984741211,
+  "godot_local_bounds": {
+    "min": [
+      -234.58677673339844,
+      -5.0,
+      -349.0
+    ],
+    "max": [
+      246.0,
+      42.85940170288086,
+      678.7000122070312
+    ]
+  },
+  "rear_waterfront_godot_z": -212,
+  "districts": 13,
+  "export_meshes": 39,
+  "triangles": 1488788,
+  "materials": 6,
+  "authoring_materials": 22,
+  "export_surfaces": 104,
+  "vertex_color_palette": true,
+  "counts": {
+    "houses": 361,
+    "churches": 3,
+    "windmills": 1,
+    "stairs": 137,
+    "pergolas": 69,
+    "trees": 319,
+    "boats": 6,
+    "terraces": 32
+  },
+  "external_assets": [],
+  "additional_cost": 0,
+  "layout": [
+    {
+      "name": "Rear_1",
+      "godot_origin": [
+        -130,
+        0,
+        -221
+      ],
+      "blender_angle": 0,
+      "theme": "village",
+      "houses": 22,
+      "building_sites": [
+        {
+          "local": [
+            -32.67,
+            10.19,
+            5.8
+          ],
+          "foundation_height": 1.8,
+          "size": [
+            8.47,
+            6.38,
+            6.0
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            -20.16,
+            9.75,
+            6.35
+          ],
+          "foundation_height": 2.35,
+          "size": [
+            11.44,
+            5.7,
+            5.5
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            16.21,
+            14.98,
+            5.8
+          ],
+          "foundation_height": 1.8,
+          "size": [
+            11.72,
+            12.07,
+            6
+          ],
+          "variant": 5
+        },
+        {
+          "local": [
+            26.72,
+            15.4,
+            6.35
+          ],
+          "foundation_height": 2.35,
+          "size": [
+            9.08,
+            10.04,
+            6
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            50.57,
+            13.34,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.51,
+            10.91,
+            6
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            -45.24,
+            32.85,
+            11.8
+          ],
+          "foundation_height": 1.8,
+          "size": [
+            11.26,
+            11.15,
+            8.7
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            -31.06,
+            28.82,
+            12.35
+          ],
+          "foundation_height": 2.35,
+          "size": [
+            9.42,
+            12.89,
+            5.5
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            -19.05,
+            26.89,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.54,
+            12.28,
+            8.7
+          ],
+          "variant": 5
+        },
+        {
+          "local": [
+            17.01,
+            35.63,
+            12.35
+          ],
+          "foundation_height": 2.35,
+          "size": [
+            9.85,
+            10.12,
+            6.0
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            29.89,
+            37.11,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.37,
+            12.63,
+            8.7
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            55.11,
+            42.75,
+            11.8
+          ],
+          "foundation_height": 1.8,
+          "size": [
+            10.76,
+            12.19,
+            6.0
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            -34.04,
+            53.78,
+            17.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.63,
+            10.49,
+            8.7
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            -19.73,
+            57.92,
+            18.8
+          ],
+          "foundation_height": 1.8,
+          "size": [
+            8.98,
+            10.38,
+            5.5
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            13.83,
+            64.9,
+            17.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.01,
+            11.15,
+            6.0
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            29.14,
+            65.45,
+            18.8
+          ],
+          "foundation_height": 1.8,
+          "size": [
+            11.76,
+            12.02,
+            4.7
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            50.33,
+            71.01,
+            19.35
+          ],
+          "foundation_height": 2.35,
+          "size": [
+            11.7,
+            10.96,
+            8.7
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            -43.06,
+            81.55,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.45,
+            11.65,
+            4.7
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            -31.45,
+            86.23,
+            29.8
+          ],
+          "foundation_height": 1.8,
+          "size": [
+            10.24,
+            11.43,
+            6.0
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            -17.97,
+            90.86,
+            30.35
+          ],
+          "foundation_height": 2.35,
+          "size": [
+            9.97,
+            12.36,
+            5.5
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            18.13,
+            96.41,
+            29.8
+          ],
+          "foundation_height": 1.8,
+          "size": [
+            10.44,
+            12.58,
+            7.9
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            30.07,
+            96.89,
+            30.35
+          ],
+          "foundation_height": 2.35,
+          "size": [
+            10.83,
+            12.2,
+            8.7
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            52.34,
+            99.98,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.9,
+            10.83,
+            8.7
+          ],
+          "variant": 6
+        }
+      ],
+      "width": 136,
+      "inland_depth": 115,
+      "terrace_heights": [
+        4.0,
+        10.0,
+        17.0,
+        28.0
+      ]
+    },
+    {
+      "name": "Rear_2",
+      "godot_origin": [
+        0,
+        0,
+        -221
+      ],
+      "blender_angle": 0,
+      "theme": "village",
+      "houses": 22,
+      "building_sites": [
+        {
+          "local": [
+            -34.65,
+            12.57,
+            5.8
+          ],
+          "foundation_height": 1.8,
+          "size": [
+            10.66,
+            11.14,
+            6.0
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            -22.33,
+            14.59,
+            6.35
+          ],
+          "foundation_height": 2.35,
+          "size": [
+            9.09,
+            12.55,
+            6.0
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            14.02,
+            13.91,
+            5.8
+          ],
+          "foundation_height": 1.8,
+          "size": [
+            10.99,
+            12.96,
+            5.5
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            26.37,
+            14.25,
+            6.35
+          ],
+          "foundation_height": 2.35,
+          "size": [
+            11.14,
+            11.14,
+            6
+          ],
+          "variant": 5
+        },
+        {
+          "local": [
+            50.85,
+            11.69,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.78,
+            9.38,
+            5.5
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            -44.48,
+            31.89,
+            11.8
+          ],
+          "foundation_height": 1.8,
+          "size": [
+            10.67,
+            11.02,
+            4.7
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            -31.34,
+            34.21,
+            12.35
+          ],
+          "foundation_height": 2.35,
+          "size": [
+            9.73,
+            12.18,
+            8.7
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            -18.44,
+            40.74,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.88,
+            12.84,
+            7.9
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            16.82,
+            44.58,
+            12.35
+          ],
+          "foundation_height": 2.35,
+          "size": [
+            8.68,
+            10.73,
+            4.7
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            29.76,
+            38.25,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.21,
+            10.35,
+            7.9
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            54.17,
+            30.84,
+            11.8
+          ],
+          "foundation_height": 1.8,
+          "size": [
+            10.8,
+            12.26,
+            4.7
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            -33.25,
+            65.71,
+            19.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.24,
+            12.5,
+            7.9
+          ],
+          "variant": 5
+        },
+        {
+          "local": [
+            -21.58,
+            71.72,
+            20.8
+          ],
+          "foundation_height": 1.8,
+          "size": [
+            11.53,
+            11.84,
+            8.7
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            16.02,
+            64.57,
+            19.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.73,
+            11.96,
+            8.7
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            28.2,
+            59.24,
+            20.8
+          ],
+          "foundation_height": 1.8,
+          "size": [
+            11.62,
+            12.71,
+            7.9
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            50.12,
+            56.18,
+            21.35
+          ],
+          "foundation_height": 2.35,
+          "size": [
+            11.28,
+            12.76,
+            7.9
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            -43.22,
+            95.12,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.07,
+            11.37,
+            5.5
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            -31.54,
+            101.14,
+            29.8
+          ],
+          "foundation_height": 1.8,
+          "size": [
+            10.02,
+            11.51,
+            8.7
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            -18.85,
+            102.4,
+            30.35
+          ],
+          "foundation_height": 2.35,
+          "size": [
+            11.52,
+            10.64,
+            4.7
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            16.32,
+            87.07,
+            29.8
+          ],
+          "foundation_height": 1.8,
+          "size": [
+            9.63,
+            12.04,
+            8.7
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            31.33,
+            83.42,
+            30.35
+          ],
+          "foundation_height": 2.35,
+          "size": [
+            9.86,
+            10.21,
+            7.9
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            52.95,
+            86.55,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.33,
+            10.46,
+            6.0
+          ],
+          "variant": 2
+        }
+      ],
+      "width": 136,
+      "inland_depth": 115,
+      "terrace_heights": [
+        4.0,
+        10.0,
+        19.0,
+        28.0
+      ]
+    },
+    {
+      "name": "Rear_3",
+      "godot_origin": [
+        130,
+        0,
+        -221
+      ],
+      "blender_angle": 0,
+      "theme": "church",
+      "houses": 21,
+      "building_sites": [
+        {
+          "local": [
+            -32.99,
+            14.57,
+            5.8
+          ],
+          "foundation_height": 1.8,
+          "size": [
+            10.76,
+            12.65,
+            4.7
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            -22.04,
+            13.65,
+            6.35
+          ],
+          "foundation_height": 2.35,
+          "size": [
+            9.57,
+            10.75,
+            5.5
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            15.91,
+            11.7,
+            5.8
+          ],
+          "foundation_height": 1.8,
+          "size": [
+            9.07,
+            9.4,
+            6
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            29.2,
+            10.12,
+            6.35
+          ],
+          "foundation_height": 2.35,
+          "size": [
+            9.47,
+            6.24,
+            6
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            50.79,
+            11.53,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.69,
+            9.06,
+            6
+          ],
+          "variant": 5
+        },
+        {
+          "local": [
+            -45.5,
+            42.61,
+            11.8
+          ],
+          "foundation_height": 1.8,
+          "size": [
+            8.66,
+            12.34,
+            6.0
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            -29.91,
+            39.55,
+            12.35
+          ],
+          "foundation_height": 2.35,
+          "size": [
+            9.29,
+            10.3,
+            4.7
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            -18.81,
+            36.78,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.07,
+            12.91,
+            4.7
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            17.28,
+            32.33,
+            12.35
+          ],
+          "foundation_height": 2.35,
+          "size": [
+            8.48,
+            11.16,
+            6.0
+          ],
+          "variant": 5
+        },
+        {
+          "local": [
+            30.44,
+            29.19,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.77,
+            10.65,
+            4.7
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            53.83,
+            33.93,
+            11.8
+          ],
+          "foundation_height": 1.8,
+          "size": [
+            11.56,
+            11.6,
+            4.7
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            -33.79,
+            61.99,
+            21.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.66,
+            12.75,
+            8.7
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            -21.46,
+            61.0,
+            22.8
+          ],
+          "foundation_height": 1.8,
+          "size": [
+            10.37,
+            12.78,
+            6.0
+          ],
+          "variant": 5
+        },
+        {
+          "local": [
+            27.96,
+            56.3,
+            22.8
+          ],
+          "foundation_height": 1.8,
+          "size": [
+            10.53,
+            11.35,
+            7.9
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            52.05,
+            65.94,
+            23.35
+          ],
+          "foundation_height": 2.35,
+          "size": [
+            10.12,
+            11.71,
+            4.7
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            -44.79,
+            87.49,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.33,
+            12.93,
+            8.7
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            -29.73,
+            87.26,
+            29.8
+          ],
+          "foundation_height": 1.8,
+          "size": [
+            10.44,
+            10.38,
+            4.7
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            -18.83,
+            88.02,
+            30.35
+          ],
+          "foundation_height": 2.35,
+          "size": [
+            10.51,
+            11.56,
+            5.5
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            18.37,
+            85.22,
+            29.8
+          ],
+          "foundation_height": 1.8,
+          "size": [
+            10.3,
+            12.45,
+            4.7
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            30.03,
+            90.93,
+            30.35
+          ],
+          "foundation_height": 2.35,
+          "size": [
+            9.72,
+            11.21,
+            4.7
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            52.34,
+            101.86,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.08,
+            10.42,
+            5.5
+          ],
+          "variant": 4
+        }
+      ],
+      "width": 136,
+      "inland_depth": 115,
+      "terrace_heights": [
+        4.0,
+        10.0,
+        21.0,
+        28.0
+      ]
+    },
+    {
+      "name": "West_1",
+      "godot_origin": [
+        -98.79264507596052,
+        0,
+        -108
+      ],
+      "blender_angle": 1.5707963267948966,
+      "theme": "village",
+      "houses": 30,
+      "building_sites": [
+        {
+          "local": [
+            -49.3,
+            15.14,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.74,
+            11.14,
+            5.5
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            -32.97,
+            14.88,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.7,
+            11.47,
+            4.7
+          ],
+          "variant": 5
+        },
+        {
+          "local": [
+            -17.57,
+            14.03,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.95,
+            12.64,
+            4.7
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            17.14,
+            15.16,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.71,
+            11.31,
+            6
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            34.68,
+            14.24,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.85,
+            10.1,
+            4.7
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            51.34,
+            13.19,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.95,
+            12.12,
+            6
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            68.24,
+            12.34,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.69,
+            10.67,
+            6.0
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            -66.3,
+            34.93,
+            12.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.55,
+            10.65,
+            6.0
+          ],
+          "variant": 5
+        },
+        {
+          "local": [
+            -49.8,
+            36.02,
+            12.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.81,
+            10.17,
+            6.0
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            -34.66,
+            38.74,
+            12.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.08,
+            11.63,
+            7.9
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            -17.29,
+            39.88,
+            12.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.53,
+            10.43,
+            5.5
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            15.35,
+            41.8,
+            12.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.6,
+            11.4,
+            7.9
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            33.04,
+            39.14,
+            12.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.15,
+            10.07,
+            7.9
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            51.66,
+            35.63,
+            12.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.26,
+            10.14,
+            4.7
+          ],
+          "variant": 5
+        },
+        {
+          "local": [
+            67.02,
+            34.24,
+            12.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.66,
+            11.61,
+            5.5
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            -50.32,
+            64.76,
+            17.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.28,
+            10.32,
+            4.7
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            -34.46,
+            66.08,
+            17.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.7,
+            11.81,
+            8.7
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            -18.16,
+            68.11,
+            17.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.76,
+            11.49,
+            5.5
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            18.3,
+            63.97,
+            17.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.08,
+            11.5,
+            8.7
+          ],
+          "variant": 5
+        },
+        {
+          "local": [
+            32.44,
+            61.7,
+            17.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.54,
+            12.84,
+            8.7
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            52.0,
+            57.83,
+            17.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.07,
+            12.22,
+            8.7
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            69.14,
+            58.89,
+            17.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.56,
+            10.59,
+            4.7
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            -68.85,
+            92.54,
+            30.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.96,
+            10.5,
+            8.7
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            -49.97,
+            94.06,
+            30.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.62,
+            10.77,
+            7.9
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            -34.08,
+            97.22,
+            30.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.02,
+            11.81,
+            7.9
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            -16.9,
+            95.74,
+            30.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.72,
+            12.34,
+            4.7
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            17.44,
+            87.54,
+            30.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.95,
+            10.02,
+            4.7
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            33.64,
+            87.25,
+            30.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.42,
+            11.8,
+            5.5
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            49.41,
+            88.32,
+            30.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.31,
+            10.69,
+            7.9
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            68.83,
+            89.26,
+            30.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.83,
+            11.79,
+            5.5
+          ],
+          "variant": 3
+        }
+      ],
+      "width": 174,
+      "inland_depth": 115,
+      "terrace_heights": [
+        4.0,
+        12.0,
+        17.0,
+        30.0
+      ]
+    },
+    {
+      "name": "West_2",
+      "godot_origin": [
+        -106.58678045449761,
+        0,
+        65
+      ],
+      "blender_angle": 1.5707963267948966,
+      "theme": "village",
+      "houses": 30,
+      "building_sites": [
+        {
+          "local": [
+            -49.17,
+            12.77,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.71,
+            11.54,
+            6.0
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            -33.93,
+            11.94,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.23,
+            9.88,
+            6.0
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            -15.3,
+            12.41,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.99,
+            10.81,
+            6.0
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            15.95,
+            13.79,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.48,
+            10.56,
+            6
+          ],
+          "variant": 5
+        },
+        {
+          "local": [
+            33.04,
+            15.46,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.41,
+            10.25,
+            6
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            51.03,
+            14.7,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.85,
+            12.71,
+            6
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            66.21,
+            13.78,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.87,
+            11.49,
+            6.0
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            -68.65,
+            38.36,
+            12.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.78,
+            11.94,
+            5.5
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            -49.13,
+            33.96,
+            12.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.42,
+            11.15,
+            4.7
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            -35.18,
+            32.61,
+            12.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.35,
+            11.64,
+            6.0
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            -18.34,
+            32.07,
+            12.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.2,
+            12.48,
+            5.5
+          ],
+          "variant": 5
+        },
+        {
+          "local": [
+            15.79,
+            37.15,
+            12.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.97,
+            11.77,
+            8.7
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            34.8,
+            37.72,
+            12.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.18,
+            11.65,
+            6.0
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            51.89,
+            37.67,
+            12.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.0,
+            10.2,
+            7.9
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            67.63,
+            39.62,
+            12.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.71,
+            10.19,
+            7.9
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            -50.68,
+            59.11,
+            21.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.28,
+            12.13,
+            6.0
+          ],
+          "variant": 5
+        },
+        {
+          "local": [
+            -33.95,
+            59.98,
+            21.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.07,
+            12.34,
+            5.5
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            -15.87,
+            61.98,
+            21.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.25,
+            12.89,
+            6.0
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            16.21,
+            64.6,
+            21.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.89,
+            10.1,
+            8.7
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            33.46,
+            63.73,
+            21.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.15,
+            11.44,
+            5.5
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            49.44,
+            64.76,
+            21.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.1,
+            12.72,
+            7.9
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            66.44,
+            67.02,
+            21.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.15,
+            12.9,
+            6.0
+          ],
+          "variant": 5
+        },
+        {
+          "local": [
+            -68.96,
+            86.16,
+            30.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.05,
+            11.55,
+            4.7
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            -52.13,
+            85.91,
+            30.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.63,
+            12.92,
+            5.5
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            -34.29,
+            90.19,
+            30.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.54,
+            10.35,
+            5.5
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            -17.98,
+            92.14,
+            30.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.45,
+            12.52,
+            5.5
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            15.75,
+            93.5,
+            30.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.59,
+            11.56,
+            4.7
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            34.96,
+            94.76,
+            30.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.04,
+            12.88,
+            6.0
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            52.08,
+            95.27,
+            30.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.14,
+            10.84,
+            6.0
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            67.5,
+            94.77,
+            30.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.69,
+            10.97,
+            7.9
+          ],
+          "variant": 0
+        }
+      ],
+      "width": 174,
+      "inland_depth": 115,
+      "terrace_heights": [
+        4.0,
+        12.0,
+        21.0,
+        30.0
+      ]
+    },
+    {
+      "name": "West_3",
+      "godot_origin": [
+        -105.57750685910732,
+        0,
+        238
+      ],
+      "blender_angle": 1.5707963267948966,
+      "theme": "church",
+      "houses": 28,
+      "building_sites": [
+        {
+          "local": [
+            -50.92,
+            14.34,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.56,
+            12.62,
+            6
+          ],
+          "variant": 5
+        },
+        {
+          "local": [
+            -35.09,
+            13.34,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.03,
+            10.91,
+            5.5
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            -15.52,
+            14.61,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.44,
+            11.3,
+            6
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            16.14,
+            14.3,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.69,
+            12.18,
+            6
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            33.95,
+            13.83,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.1,
+            12.48,
+            6
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            51.14,
+            11.96,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.43,
+            9.92,
+            5.5
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            68.26,
+            11.77,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.85,
+            9.53,
+            4.7
+          ],
+          "variant": 5
+        },
+        {
+          "local": [
+            -66.73,
+            38.6,
+            12.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.96,
+            10.65,
+            8.7
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            -51.42,
+            38.84,
+            12.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.82,
+            10.12,
+            4.7
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            -32.63,
+            40.26,
+            12.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.02,
+            12.07,
+            4.7
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            -16.66,
+            41.24,
+            12.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.8,
+            12.76,
+            7.9
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            15.66,
+            39.98,
+            12.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.3,
+            12.06,
+            7.9
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            33.75,
+            36.32,
+            12.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.44,
+            12.83,
+            6.0
+          ],
+          "variant": 5
+        },
+        {
+          "local": [
+            51.46,
+            32.28,
+            12.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.55,
+            12.43,
+            6.0
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            67.86,
+            31.54,
+            12.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.46,
+            11.03,
+            5.5
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            -50.36,
+            65.88,
+            20.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.15,
+            11.41,
+            7.9
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            -33.13,
+            66.31,
+            20.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.66,
+            11.61,
+            6.0
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            34.03,
+            58.21,
+            20.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.46,
+            12.2,
+            5.5
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            49.47,
+            58.52,
+            20.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.61,
+            11.22,
+            7.9
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            68.97,
+            60.4,
+            20.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.48,
+            11.77,
+            6.0
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            -67.61,
+            93.09,
+            30.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.11,
+            10.96,
+            4.7
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            -50.88,
+            95.07,
+            30.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.42,
+            10.84,
+            7.9
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            -32.2,
+            93.06,
+            30.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.79,
+            12.48,
+            6.0
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            -16.26,
+            93.18,
+            30.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.39,
+            11.49,
+            7.9
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            17.29,
+            86.64,
+            30.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.01,
+            10.82,
+            5.5
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            34.31,
+            86.81,
+            30.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.05,
+            10.92,
+            7.9
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            49.2,
+            87.83,
+            30.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.31,
+            11.75,
+            7.9
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            66.37,
+            92.45,
+            30.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.1,
+            12.91,
+            5.5
+          ],
+          "variant": 4
+        }
+      ],
+      "width": 174,
+      "inland_depth": 115,
+      "terrace_heights": [
+        4.0,
+        12.0,
+        20.0,
+        30.0
+      ]
+    },
+    {
+      "name": "West_4",
+      "godot_origin": [
+        -98.24198963055242,
+        0,
+        411
+      ],
+      "blender_angle": 1.5707963267948966,
+      "theme": "village",
+      "houses": 31,
+      "building_sites": [
+        {
+          "local": [
+            -52.1,
+            12.01,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.05,
+            10.02,
+            6
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            -34.97,
+            11.6,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.83,
+            9.2,
+            4.7
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            -18.0,
+            12.69,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.59,
+            11.37,
+            6
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            -1.48,
+            13.71,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.7,
+            12.96,
+            4.7
+          ],
+          "variant": 5
+        },
+        {
+          "local": [
+            16.96,
+            13.99,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.75,
+            10.32,
+            6
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            34.22,
+            15.31,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.42,
+            10.19,
+            6
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            49.31,
+            15.0,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.66,
+            10.14,
+            6
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            68.57,
+            14.6,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.45,
+            12.15,
+            6.0
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            -67.79,
+            35.15,
+            12.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.15,
+            11.0,
+            6.0
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            -49.75,
+            33.23,
+            12.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.79,
+            10.35,
+            5.5
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            -33.33,
+            31.16,
+            12.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.66,
+            12.96,
+            6.0
+          ],
+          "variant": 5
+        },
+        {
+          "local": [
+            -18.37,
+            34.57,
+            12.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.48,
+            10.66,
+            5.5
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            18.06,
+            40.28,
+            12.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.81,
+            12.69,
+            7.9
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            33.43,
+            40.41,
+            12.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.08,
+            10.43,
+            4.7
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            50.66,
+            39.52,
+            12.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.43,
+            11.23,
+            5.5
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            68.55,
+            40.71,
+            12.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.74,
+            10.27,
+            8.7
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            -50.97,
+            57.04,
+            19.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.28,
+            10.15,
+            5.5
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            -34.22,
+            59.53,
+            19.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.68,
+            12.87,
+            4.7
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            -15.52,
+            63.87,
+            19.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.41,
+            12.01,
+            8.7
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            15.75,
+            66.11,
+            19.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.24,
+            12.56,
+            6.0
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            35.05,
+            66.54,
+            19.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.72,
+            12.25,
+            6.0
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            52.27,
+            65.02,
+            19.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.79,
+            12.8,
+            8.7
+          ],
+          "variant": 5
+        },
+        {
+          "local": [
+            66.09,
+            65.79,
+            19.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.28,
+            10.85,
+            6.0
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            -67.83,
+            86.42,
+            30.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.67,
+            10.66,
+            4.7
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            -50.32,
+            88.29,
+            30.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.81,
+            12.57,
+            6.0
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            -32.47,
+            92.77,
+            30.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.94,
+            12.99,
+            7.9
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            -17.24,
+            94.99,
+            30.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.33,
+            10.95,
+            8.7
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            17.31,
+            94.69,
+            30.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.1,
+            11.94,
+            8.7
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            34.23,
+            92.5,
+            30.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.46,
+            11.8,
+            6.0
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            51.07,
+            93.5,
+            30.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.57,
+            10.48,
+            8.7
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            66.67,
+            92.67,
+            30.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.83,
+            10.34,
+            6.0
+          ],
+          "variant": 1
+        }
+      ],
+      "width": 174,
+      "inland_depth": 115,
+      "terrace_heights": [
+        4.0,
+        12.0,
+        19.0,
+        30.0
+      ]
+    },
+    {
+      "name": "West_5",
+      "godot_origin": [
+        -102.58455298591252,
+        0,
+        584
+      ],
+      "blender_angle": 1.5707963267948966,
+      "theme": "village",
+      "houses": 31,
+      "building_sites": [
+        {
+          "local": [
+            -49.07,
+            13.99,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.78,
+            10.36,
+            6
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            -32.94,
+            14.67,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.59,
+            10.85,
+            5.5
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            -18.16,
+            13.88,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.34,
+            10.18,
+            6.0
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            -1.32,
+            14.72,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.08,
+            10.96,
+            5.5
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            17.46,
+            13.69,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.92,
+            10.64,
+            4.7
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            34.7,
+            12.46,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.15,
+            10.91,
+            6
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            50.13,
+            11.65,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.8,
+            9.3,
+            6
+          ],
+          "variant": 5
+        },
+        {
+          "local": [
+            67.24,
+            12.15,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.05,
+            10.31,
+            6
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            -68.53,
+            41.41,
+            12.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.68,
+            11.69,
+            6.0
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            -49.55,
+            39.1,
+            12.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.09,
+            11.18,
+            5.5
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            -34.26,
+            38.26,
+            12.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.8,
+            10.01,
+            4.7
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            -16.43,
+            39.63,
+            12.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.52,
+            11.16,
+            7.9
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            18.21,
+            35.71,
+            12.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.17,
+            10.21,
+            5.5
+          ],
+          "variant": 5
+        },
+        {
+          "local": [
+            34.4,
+            33.73,
+            12.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.69,
+            11.86,
+            6.0
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            49.18,
+            31.66,
+            12.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.37,
+            10.32,
+            6.0
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            67.3,
+            32.47,
+            12.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.55,
+            11.41,
+            7.9
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            -51.99,
+            65.72,
+            18.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.54,
+            12.13,
+            5.5
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            -33.02,
+            65.01,
+            18.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.7,
+            12.02,
+            7.9
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            -16.09,
+            64.61,
+            18.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.97,
+            11.92,
+            4.7
+          ],
+          "variant": 5
+        },
+        {
+          "local": [
+            15.72,
+            59.85,
+            18.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.08,
+            12.24,
+            7.9
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            35.33,
+            57.55,
+            18.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.69,
+            10.63,
+            8.7
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            50.42,
+            60.27,
+            18.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.4,
+            12.53,
+            6.0
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            67.87,
+            63.84,
+            18.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.09,
+            12.23,
+            5.5
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            -68.81,
+            92.78,
+            30.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.34,
+            12.43,
+            8.7
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            -51.91,
+            92.02,
+            30.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.03,
+            10.92,
+            8.7
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            -32.52,
+            90.38,
+            30.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.13,
+            12.84,
+            8.7
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            -16.61,
+            90.26,
+            30.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.3,
+            10.75,
+            8.7
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            16.77,
+            85.64,
+            30.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.98,
+            11.68,
+            7.9
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            32.96,
+            88.54,
+            30.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.03,
+            10.89,
+            7.9
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            51.97,
+            90.97,
+            30.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.55,
+            11.95,
+            5.5
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            67.15,
+            93.8,
+            30.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.05,
+            10.14,
+            7.9
+          ],
+          "variant": 2
+        }
+      ],
+      "width": 174,
+      "inland_depth": 115,
+      "terrace_heights": [
+        4.0,
+        12.0,
+        18.0,
+        30.0
+      ]
+    },
+    {
+      "name": "East_1",
+      "godot_origin": [
+        118.0,
+        0,
+        -108
+      ],
+      "blender_angle": -1.5707963267948966,
+      "theme": "harbor",
+      "houses": 28,
+      "building_sites": [
+        {
+          "local": [
+            -68.1,
+            12.99,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.36,
+            11.98,
+            6
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            -52.06,
+            13.07,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.81,
+            11.67,
+            4.7
+          ],
+          "variant": 5
+        },
+        {
+          "local": [
+            -35.19,
+            14.2,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.48,
+            10.61,
+            6.0
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            32.61,
+            14.2,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.88,
+            11.04,
+            5.5
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            49.91,
+            15.1,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.07,
+            10.43,
+            4.7
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            -66.12,
+            34.22,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.76,
+            11.82,
+            8.7
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            -49.08,
+            34.19,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.91,
+            10.32,
+            6.0
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            -32.5,
+            36.95,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.34,
+            12.94,
+            6.0
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            -18.23,
+            38.52,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.47,
+            10.45,
+            4.7
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            17.36,
+            42.98,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.67,
+            11.3,
+            8.7
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            33.81,
+            40.41,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.64,
+            11.29,
+            5.5
+          ],
+          "variant": 5
+        },
+        {
+          "local": [
+            50.02,
+            36.76,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.88,
+            11.55,
+            4.7
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            66.81,
+            35.86,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.15,
+            10.51,
+            8.7
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            -66.91,
+            60.27,
+            21.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.71,
+            10.64,
+            4.7
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            -49.13,
+            62.72,
+            21.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.69,
+            11.06,
+            4.7
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            -32.58,
+            66.08,
+            21.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.72,
+            11.0,
+            4.7
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            -15.43,
+            68.47,
+            21.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.6,
+            10.28,
+            5.5
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            16.54,
+            65.27,
+            21.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.24,
+            12.26,
+            4.7
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            35.19,
+            61.12,
+            21.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.73,
+            10.05,
+            6.0
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            50.82,
+            59.74,
+            21.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.07,
+            11.54,
+            5.5
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            -67.86,
+            92.24,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.38,
+            12.02,
+            7.9
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            -49.49,
+            94.46,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.33,
+            10.26,
+            7.9
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            -33.28,
+            96.21,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.35,
+            12.43,
+            6.0
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            -17.86,
+            96.52,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.11,
+            12.96,
+            8.7
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            15.56,
+            89.88,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.91,
+            12.42,
+            6.0
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            35.28,
+            87.71,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.46,
+            10.28,
+            7.9
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            49.7,
+            87.19,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.77,
+            12.8,
+            7.9
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            66.4,
+            88.89,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.51,
+            10.55,
+            5.5
+          ],
+          "variant": 4
+        }
+      ],
+      "width": 174,
+      "inland_depth": 115,
+      "terrace_heights": [
+        4.0,
+        10.0,
+        21.0,
+        28.0
+      ]
+    },
+    {
+      "name": "East_2",
+      "godot_origin": [
+        104.67494075077953,
+        0,
+        65
+      ],
+      "blender_angle": -1.5707963267948966,
+      "theme": "village",
+      "houses": 31,
+      "building_sites": [
+        {
+          "local": [
+            -51.43,
+            15.2,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.12,
+            11.0,
+            6.0
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            -34.06,
+            12.63,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.77,
+            11.27,
+            4.7
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            -16.94,
+            12.63,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.49,
+            11.0,
+            4.7
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            16.41,
+            14.75,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.65,
+            10.39,
+            5.5
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            32.47,
+            14.38,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.44,
+            11.29,
+            6
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            50.33,
+            13.56,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.92,
+            12.53,
+            6
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            67.12,
+            15.17,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.53,
+            11.38,
+            5.5
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            -69.09,
+            40.04,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.45,
+            12.92,
+            5.5
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            -49.33,
+            36.29,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.19,
+            12.13,
+            6.0
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            -32.63,
+            33.77,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.86,
+            11.3,
+            7.9
+          ],
+          "variant": 5
+        },
+        {
+          "local": [
+            -15.36,
+            32.83,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.36,
+            10.49,
+            4.7
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            -1.55,
+            34.21,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.51,
+            12.07,
+            8.7
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            15.97,
+            35.77,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.97,
+            10.41,
+            5.5
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            33.51,
+            36.62,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.05,
+            12.7,
+            4.7
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            49.95,
+            36.74,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.02,
+            10.84,
+            6.0
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            67.35,
+            37.46,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.74,
+            12.61,
+            8.7
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            -49.67,
+            58.28,
+            20.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.03,
+            10.89,
+            4.7
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            -32.57,
+            59.16,
+            20.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.98,
+            11.5,
+            7.9
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            -15.79,
+            61.53,
+            20.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.17,
+            12.88,
+            5.5
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            17.73,
+            62.51,
+            20.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.51,
+            12.79,
+            8.7
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            32.34,
+            63.27,
+            20.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.08,
+            12.7,
+            5.5
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            50.35,
+            64.24,
+            20.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.08,
+            12.75,
+            5.5
+          ],
+          "variant": 5
+        },
+        {
+          "local": [
+            67.68,
+            67.27,
+            20.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.82,
+            11.9,
+            6.0
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            -66.8,
+            86.54,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.73,
+            12.84,
+            6.0
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            -51.7,
+            86.76,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.79,
+            11.51,
+            8.7
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            -34.82,
+            87.69,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.73,
+            12.91,
+            5.5
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            -16.74,
+            90.05,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.49,
+            10.77,
+            8.7
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            17.17,
+            92.2,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.64,
+            10.23,
+            6.0
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            32.9,
+            93.1,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.79,
+            11.9,
+            8.7
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            51.72,
+            94.57,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.92,
+            10.91,
+            4.7
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            68.48,
+            97.21,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.9,
+            11.35,
+            7.9
+          ],
+          "variant": 1
+        }
+      ],
+      "width": 174,
+      "inland_depth": 115,
+      "terrace_heights": [
+        4.0,
+        10.0,
+        20.0,
+        28.0
+      ]
+    },
+    {
+      "name": "East_3",
+      "godot_origin": [
+        98.03154498183268,
+        0,
+        238
+      ],
+      "blender_angle": -1.5707963267948966,
+      "theme": "windmill",
+      "houses": 27,
+      "building_sites": [
+        {
+          "local": [
+            -49.79,
+            14.04,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.01,
+            11.39,
+            6
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            -34.97,
+            14.53,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.36,
+            11.92,
+            6
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            -15.84,
+            14.89,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.55,
+            11.18,
+            6
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            17.48,
+            13.72,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.1,
+            10.22,
+            4.7
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            34.47,
+            13.41,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.56,
+            11.39,
+            6
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            50.81,
+            12.68,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.74,
+            11.35,
+            6
+          ],
+          "variant": 5
+        },
+        {
+          "local": [
+            67.62,
+            12.02,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.26,
+            10.04,
+            4.7
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            -66.15,
+            36.37,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.06,
+            12.32,
+            8.7
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            -50.6,
+            36.48,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.75,
+            10.19,
+            4.7
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            17.26,
+            40.71,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.71,
+            10.65,
+            8.7
+          ],
+          "variant": 5
+        },
+        {
+          "local": [
+            33.0,
+            37.4,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.32,
+            12.79,
+            8.7
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            -51.77,
+            66.05,
+            19.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.41,
+            12.83,
+            4.7
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            -32.52,
+            67.0,
+            19.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.6,
+            10.3,
+            5.5
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            -17.63,
+            69.08,
+            19.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.76,
+            10.28,
+            8.7
+          ],
+          "variant": 5
+        },
+        {
+          "local": [
+            17.72,
+            63.3,
+            19.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.37,
+            10.24,
+            8.7
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            33.49,
+            59.39,
+            19.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.28,
+            11.28,
+            7.9
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            49.44,
+            59.26,
+            19.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.73,
+            12.69,
+            4.7
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            66.12,
+            59.1,
+            19.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.23,
+            10.63,
+            6.0
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            -69.13,
+            93.25,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.64,
+            12.79,
+            8.7
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            -49.35,
+            94.45,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.91,
+            10.05,
+            8.7
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            -32.99,
+            94.63,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.89,
+            10.6,
+            8.7
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            -17.5,
+            94.25,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.75,
+            10.05,
+            5.5
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            -1.42,
+            90.67,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.74,
+            11.44,
+            4.7
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            17.48,
+            86.12,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.96,
+            12.19,
+            8.7
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            35.1,
+            86.24,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.54,
+            11.44,
+            7.9
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            49.64,
+            88.38,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.97,
+            11.74,
+            8.7
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            66.23,
+            90.47,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.45,
+            10.49,
+            6.0
+          ],
+          "variant": 2
+        }
+      ],
+      "width": 174,
+      "inland_depth": 115,
+      "terrace_heights": [
+        4.0,
+        10.0,
+        19.0,
+        28.0
+      ]
+    },
+    {
+      "name": "East_4",
+      "godot_origin": [
+        118.0,
+        0,
+        411
+      ],
+      "blender_angle": -1.5707963267948966,
+      "theme": "harbor",
+      "houses": 28,
+      "building_sites": [
+        {
+          "local": [
+            -68.63,
+            13.56,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.32,
+            11.72,
+            6
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            -49.49,
+            12.37,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.13,
+            10.74,
+            6.0
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            -35.13,
+            11.71,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.58,
+            9.43,
+            6
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            34.26,
+            14.44,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.72,
+            11.63,
+            4.7
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            -68.26,
+            36.6,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.26,
+            12.92,
+            4.7
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            -49.58,
+            33.21,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.5,
+            10.8,
+            5.5
+          ],
+          "variant": 5
+        },
+        {
+          "local": [
+            -34.87,
+            32.29,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.26,
+            10.96,
+            6.0
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            -15.67,
+            33.15,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.92,
+            11.86,
+            8.7
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            -1.35,
+            34.89,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.85,
+            10.64,
+            5.5
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            16.49,
+            38.03,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.99,
+            11.45,
+            5.5
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            33.85,
+            38.08,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.62,
+            11.45,
+            8.7
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            49.93,
+            39.32,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.41,
+            10.1,
+            5.5
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            68.94,
+            39.98,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.76,
+            12.51,
+            5.5
+          ],
+          "variant": 5
+        },
+        {
+          "local": [
+            -66.49,
+            58.68,
+            18.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.48,
+            11.68,
+            6.0
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            -52.25,
+            58.46,
+            18.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.91,
+            10.29,
+            7.9
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            -34.4,
+            59.71,
+            18.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.54,
+            11.91,
+            6.0
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            -16.36,
+            62.19,
+            18.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.26,
+            10.75,
+            7.9
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            15.91,
+            64.74,
+            18.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.43,
+            11.19,
+            7.9
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            32.91,
+            64.52,
+            18.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.27,
+            12.15,
+            7.9
+          ],
+          "variant": 5
+        },
+        {
+          "local": [
+            49.4,
+            66.71,
+            18.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.96,
+            12.93,
+            4.7
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            -67.53,
+            85.95,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.38,
+            11.54,
+            5.5
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            -51.44,
+            86.85,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.34,
+            11.61,
+            7.9
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            -34.07,
+            90.63,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.47,
+            10.79,
+            6.0
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            -18.04,
+            92.79,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.33,
+            10.08,
+            5.5
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            15.85,
+            94.24,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.24,
+            10.45,
+            5.5
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            34.33,
+            94.6,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.04,
+            12.93,
+            5.5
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            50.76,
+            95.13,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.54,
+            10.68,
+            6.0
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            67.74,
+            95.32,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.52,
+            10.79,
+            7.9
+          ],
+          "variant": 2
+        }
+      ],
+      "width": 174,
+      "inland_depth": 115,
+      "terrace_heights": [
+        4.0,
+        10.0,
+        18.0,
+        28.0
+      ]
+    },
+    {
+      "name": "East_5",
+      "godot_origin": [
+        107.70365278339887,
+        0,
+        584
+      ],
+      "blender_angle": -1.5707963267948966,
+      "theme": "village",
+      "houses": 32,
+      "building_sites": [
+        {
+          "local": [
+            -51.66,
+            14.36,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.58,
+            10.59,
+            5.5
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            -32.36,
+            14.61,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.64,
+            10.78,
+            6.0
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            -16.25,
+            15.06,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.64,
+            11.02,
+            6.0
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            16.88,
+            13.46,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.98,
+            11.21,
+            5.5
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            32.21,
+            13.36,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.17,
+            12.36,
+            6
+          ],
+          "variant": 5
+        },
+        {
+          "local": [
+            49.13,
+            11.82,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.85,
+            9.63,
+            6.0
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            68.31,
+            11.82,
+            4.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.14,
+            9.63,
+            6
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            -68.86,
+            39.03,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.99,
+            11.78,
+            4.7
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            -50.47,
+            38.99,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.04,
+            12.54,
+            6.0
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            -33.48,
+            39.06,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.64,
+            12.03,
+            5.5
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            -16.64,
+            40.9,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.43,
+            10.77,
+            6.0
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            -1.46,
+            41.37,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.7,
+            11.47,
+            7.9
+          ],
+          "variant": 5
+        },
+        {
+          "local": [
+            16.01,
+            38.91,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.92,
+            10.12,
+            4.7
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            33.25,
+            34.8,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.56,
+            12.72,
+            4.7
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            50.49,
+            32.02,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.26,
+            11.7,
+            5.5
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            66.86,
+            31.72,
+            10.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.51,
+            10.61,
+            5.5
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            -49.48,
+            65.92,
+            17.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.26,
+            11.98,
+            8.7
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            -33.25,
+            64.92,
+            17.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.71,
+            11.42,
+            4.7
+          ],
+          "variant": 5
+        },
+        {
+          "local": [
+            -16.92,
+            65.04,
+            17.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.77,
+            11.81,
+            5.5
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            15.6,
+            61.85,
+            17.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.07,
+            10.3,
+            5.5
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            32.79,
+            58.76,
+            17.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.49,
+            11.84,
+            6.0
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            52.18,
+            57.67,
+            17.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            11.08,
+            11.62,
+            5.5
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            68.61,
+            61.92,
+            17.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.35,
+            10.27,
+            6.0
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            -68.88,
+            93.6,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.54,
+            11.76,
+            8.7
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            -50.1,
+            92.7,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.07,
+            10.1,
+            6.0
+          ],
+          "variant": 6
+        },
+        {
+          "local": [
+            -32.44,
+            93.57,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.09,
+            12.28,
+            6.0
+          ],
+          "variant": 0
+        },
+        {
+          "local": [
+            -18.44,
+            90.98,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.6,
+            12.56,
+            6.0
+          ],
+          "variant": 1
+        },
+        {
+          "local": [
+            -1.14,
+            89.18,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.87,
+            12.86,
+            6.0
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            17.33,
+            86.23,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.63,
+            11.99,
+            8.7
+          ],
+          "variant": 3
+        },
+        {
+          "local": [
+            33.4,
+            87.2,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            10.78,
+            12.43,
+            8.7
+          ],
+          "variant": 4
+        },
+        {
+          "local": [
+            51.77,
+            90.04,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            9.9,
+            12.4,
+            8.7
+          ],
+          "variant": 2
+        },
+        {
+          "local": [
+            66.18,
+            93.19,
+            28.0
+          ],
+          "foundation_height": 0.0,
+          "size": [
+            8.95,
+            10.92,
+            4.7
+          ],
+          "variant": 6
+        }
+      ],
+      "width": 174,
+      "inland_depth": 115,
+      "terrace_heights": [
+        4.0,
+        10.0,
+        17.0,
+        28.0
+      ]
+    }
+  ],
+  "editable_source": "source/aiquiz_santorini_town.blend",
+  "deterministic_builder": "source/build_santorini_town.py"
+}

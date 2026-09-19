@@ -4,6 +4,79 @@ class_name QuizGameState
 const DuoTutorialFlowScript = preload("res://scripts/core/tutorial/duo_tutorial_flow.gd")
 const SoloTutorialFlowScript = preload("res://scripts/core/tutorial/solo_tutorial_flow.gd")
 const ToonPresets = preload("res://scripts/cosmetics/character_toon_presets.gd")
+const LocalPushDuelScript = preload("res://scripts/core/local_push_duel.gd")
+
+signal health_changed(player_index: int, previous_hp: int, hp: int)
+signal question_completed(wall_index: int, correct: bool)
+
+const MAX_HP := 3
+const DAMAGE_STUN_DURATION := 0.35
+const DAMAGE_FLASH_DURATION := 0.6
+var p1_hp := MAX_HP
+var p2_hp := MAX_HP
+var p1_damage_time := 0.0
+var p2_damage_time := 0.0
+var hp_state_available := true
+var hp_questions_completed := 0
+var _hp_evaluated_mask := 0
+var _hp_correct_mask := 0
+var _hp_chosen_door := -1
+var _hp_evaluated_wall := -1
+
+signal local_push_event(event: Dictionary)
+var local_push = LocalPushDuelScript.new()
+## GameWorld sets the transport gate; no changes to online snapshots or replay data.
+var local_push_transport_enabled := true
+
+func uses_local_push() -> bool:
+	return local_push_transport_enabled and not is_replay and num_players == 2 and mode in [Constants.MODE_TEN, Constants.MODE_ENDLESS, Constants.MODE_TUTORIAL] and game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE] and goal_reached_mask == 0
+
+func submit_local_push_key(player: int, direction: int, pressed: bool, offset := 0.0, echo := false) -> void:
+	if uses_local_push() and not is_damage_stunned(player):
+		local_push.queue_key(player, direction, pressed, offset, echo)
+
+func suspend_local_push(key_masks: Array = [0, 0]) -> void:
+	local_push.suspend(key_masks)
+
+func get_local_push_pose(player: int) -> Dictionary:
+	if not uses_local_push():
+		return {}
+	if (player == 1 and (not p1_alive or p1_fall_committed or p1_waiting_for_shark)) or (player == 2 and (not p2_alive or p2_fall_committed or p2_waiting_for_shark)):
+		return {}
+	return local_push.presentation(player)
+
+func _advance_local_push(dt: float, axes: Vector2, jumps: Array) -> bool:
+	if not uses_local_push():
+		return false
+	var front := FLOOR_RACE_FRONT_Z if game_state == Constants.STATE_GOAL_RACE else FLOOR_PLAY_FRONT_Z
+	_commit_fall_if_unsupported(1, player_x, player_y, player_z - world_scroll_z, front)
+	_commit_fall_if_unsupported(2, player2_x, player2_y, player2_z - world_scroll_z, front)
+	var valid := [p1_alive and not p1_fall_committed and not p1_waiting_for_shark and not is_damage_stunned(1),
+		p2_alive and not p2_fall_committed and not p2_waiting_for_shark and not is_damage_stunned(2)]
+	var positions: Vector2 = local_push.advance(dt, Vector2(player_x, player2_x), player2_z - player_z,
+		valid, [player_y <= 0.0 and not jumps[0], player2_y <= 0.0 and not jumps[1]], axes, tuning.player_speed,
+		absf(player_y - player2_y) < PLAYER_BODY_HEIGHT)
+	# Fallen/dead players retain their existing movement path.
+	if valid[0]:
+		player_x = positions.x
+	if valid[1]:
+		player2_x = positions.y
+	return true
+
+func _flush_local_push_events() -> void:
+	for event: Dictionary in local_push.events:
+		var effect_y := StageConstants.FLOOR_TOP_Y + 1.55 + minf(player_y, player2_y)
+		event["position"] = Vector3(event.x, effect_y, (player_z + player2_z) * 0.5 - world_scroll_z)
+		event["feet"] = []
+		if player_y <= 0.0 and p1_alive and not p1_fall_committed:
+			event.feet.append(Vector3(player_x, StageConstants.FLOOR_TOP_Y + 0.07, player_z - world_scroll_z))
+		if player2_y <= 0.0 and p2_alive and not p2_fall_committed:
+			event.feet.append(Vector3(player2_x, StageConstants.FLOOR_TOP_Y + 0.07, player2_z - world_scroll_z))
+		event["age"] = maxf(0.0, local_push.time - float(event.time))
+		local_push_event.emit(event)
+		if is_duo_tutorial() and tutorial_flow.has_method("on_local_push_event"):
+			tutorial_flow.on_local_push_event(event)
+	local_push.events.clear()
 
 ## ゲーム状態管理クラス
 ## Python版 game_state.py の QuizGameState (638行) を移植
@@ -168,6 +241,8 @@ var p2_hat: int = 0
 var p1_toon_preset: int = ToonPresets.STANDARD
 var p2_toon_preset: int = ToonPresets.STANDARD
 var is_replay: bool = false
+## リトライ開始時だけ本編のヘリ降下を省略する。game_world が消費する。
+var skip_start_helicopter_arrival: bool = false
 var p1_emote_selected: int = 0  # メニューで選択したデフォルトエモートID
 var p2_emote_selected: int = 0
 # エモートスロット: P1はキー1,2,3 / P2はキー8,9,0 にそれぞれエモートIDを割り当て
@@ -215,11 +290,13 @@ var p1_jump_trigger: bool = false
 var p2_jump_trigger: bool = false
 
 # --- Dynamic wall speed ---
-var _active_wall_speed: float = 6.0
+var _active_wall_speed: float = GameTuning.WALL_SPEED_AUTO_DEFAULT
 
 # --- Physics Constants ---
 const GRAVITY: float = 18.0
 const JUMP_FORCE: float = 7.0
+# Clear the other player's full body during a 2P jump; solo keeps its original arc.
+const TWO_PLAYER_JUMP_FORCE: float = 9.5
 const PROPELLER_DESCENT_GRAVITY_SCALE: float = 0.65
 const FLOOR_HALF_WIDTH: float = 12.0
 const FLOOR_BACK_Z: float = -12.5
@@ -266,6 +343,152 @@ func _install_tutorial_flow(selected_course: String) -> void:
 
 
 # ---------- Properties ----------
+
+## HP is authoritative game state; renderers never decide damage or recovery.
+func uses_hp() -> bool:
+	return hp_state_available and mode in [Constants.MODE_TEN, Constants.MODE_ENDLESS]
+
+func get_player_hp(player_index: int) -> int:
+	return p1_hp if player_index == 1 else p2_hp
+
+func get_damage_time(player_index: int) -> float:
+	return p1_damage_time if player_index == 1 else p2_damage_time
+
+func is_damage_stunned(player_index: int) -> bool:
+	return uses_hp() and get_damage_time(player_index) > DAMAGE_FLASH_DURATION - DAMAGE_STUN_DURATION
+
+func _set_player_hp(player_index: int, value: int) -> void:
+	var previous := get_player_hp(player_index)
+	value = clampi(value, 0, MAX_HP)
+	if player_index == 1:
+		p1_hp = value
+	else:
+		p2_hp = value
+	if previous != value:
+		health_changed.emit(player_index, previous, value)
+
+func _reset_health() -> void:
+	hp_state_available = true
+	_set_player_hp(1, MAX_HP)
+	_set_player_hp(2, MAX_HP)
+	p1_damage_time = 0.0
+	p2_damage_time = 0.0
+	hp_questions_completed = 0
+	_hp_evaluated_wall = -1
+	_hp_evaluated_mask = 0
+	_hp_correct_mask = 0
+
+func _tick_health(dt: float) -> void:
+	var active := uses_hp() and game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]
+	p1_damage_time = maxf(0.0, p1_damage_time - dt) if active and p1_alive and not p1_fall_committed and not p1_waiting_for_shark else 0.0
+	p2_damage_time = maxf(0.0, p2_damage_time - dt) if active and p2_alive and not p2_fall_committed and not p2_waiting_for_shark else 0.0
+
+func _hp_answerable(player_index: int) -> bool:
+	if player_index == 1:
+		return p1_alive and not p1_fall_committed and not p1_waiting_for_shark
+	return num_players >= 2 and p2_alive and not p2_fall_committed and not p2_waiting_for_shark
+
+func _apply_hp_wall_damage(player_index: int) -> void:
+	_set_player_hp(player_index, get_player_hp(player_index) - 1)
+	if get_player_hp(player_index) > 0:
+		if player_index == 1:
+			p1_damage_time = DAMAGE_FLASH_DURATION
+			p1_emote = 0
+		else:
+			p2_damage_time = DAMAGE_FLASH_DURATION
+			p2_emote = 0
+		camera_shake = maxf(camera_shake, 0.36)
+		return
+	# Only a fatal hit enters the existing ragdoll / ghost handoff.
+	if player_index == 1:
+		p1_alive = false
+		p1_wall_impact = true
+		p1_damage_time = 0.0
+		game_over_timer = 0.001
+		player_vel_y = JUMP_FORCE * 0.8
+		player_vel_z = -12.0
+	else:
+		p2_alive = false
+		p2_wall_impact = true
+		p2_damage_time = 0.0
+		player2_game_over_timer = 0.001
+		player2_vel_y = JUMP_FORCE * 0.8
+		player2_vel_z = -12.0
+
+func _resolve_hp_collision(p1_hit: bool, p2_hit: bool) -> void:
+	if _hp_evaluated_wall != current_wall_index:
+		_hp_evaluated_wall = current_wall_index
+		_hp_evaluated_mask = 0
+		_hp_correct_mask = 0
+		_hp_chosen_door = -1
+	for player_index in range(1, num_players + 1):
+		var bit := 1 << (player_index - 1)
+		var hit := p1_hit if player_index == 1 else p2_hit
+		if not hit or not _hp_answerable(player_index) or (_hp_evaluated_mask & bit) != 0:
+			continue
+		_hp_evaluated_mask |= bit
+		var door := _check_player_door(player_x if player_index == 1 else player2_x)
+		var correct := door == current_quiz.a
+		if player_index == 1:
+			_hp_chosen_door = door
+			total_answered += 1
+			recent_results.append(correct)
+			if recent_results.size() > 12:
+				recent_results.remove_at(0)
+			if correct:
+				score += 1
+				current_streak += 1
+				max_streak = maxi(max_streak, current_streak)
+			else:
+				current_streak = 0
+				total_wrong += 1
+		elif correct:
+			player2_score += 1
+		if correct:
+			_hp_correct_mask |= bit
+		else:
+			_apply_hp_wall_damage(player_index)
+	_try_finish_hp_question()
+
+func _try_finish_hp_question() -> void:
+	if not uses_hp() or choice_locked or current_quiz == null or game_state != Constants.STATE_PLAYING:
+		return
+	if _hp_evaluated_wall != current_wall_index or _hp_evaluated_mask == 0:
+		return
+	var answerable_mask := (1 if _hp_answerable(1) else 0) | (2 if _hp_answerable(2) else 0)
+	var any_correct := _hp_correct_mask != 0
+	if not any_correct and (answerable_mask & ~_hp_evaluated_mask) != 0:
+		return
+	# Finish any outstanding ocean attack before the existing all-dead ending.
+	if answerable_mask == 0 and (p1_waiting_for_shark or p1_fall_committed and p1_alive or num_players >= 2 and (p2_waiting_for_shark or p2_fall_committed and p2_alive)):
+		return
+	choice_locked = true
+	var completed_wall := current_wall_index
+	provider.submit_result(current_quiz, any_correct)
+	quiz_history.append({"quiz": current_quiz, "correct": any_correct, "rated": ""})
+	var response_time := (Time.get_ticks_msec() - _quiz_shown_time) / 1000.0
+	recent_response_times.append(response_time)
+	if recent_response_times.size() > 5:
+		recent_response_times.pop_front()
+	if QuizManager.player_analytics != null:
+		QuizManager.player_analytics.record(current_quiz, response_time, any_correct, _hp_chosen_door, subject, grade, difficulty)
+	QuizManager.quiz_optimizer.evaluate_history(quiz_history, subject, grade, difficulty)
+	if any_correct:
+		correct_flash = 1.0
+		camera_shake = maxf(camera_shake, 0.22)
+		correct_answer.emit()
+	if p1_alive or num_players >= 2 and p2_alive:
+		question_completed.emit(completed_wall, any_correct)
+		hp_questions_completed += 1
+		if mode == Constants.MODE_ENDLESS and hp_questions_completed % 10 == 0:
+			for player_index in range(1, num_players + 1):
+				if _hp_answerable(player_index):
+					_set_player_hp(player_index, get_player_hp(player_index) + 1)
+		advance_after_correct()
+	else:
+		var answer_label := String.chr(65 + current_quiz.a) if num_choices == 4 else (("Left" if current_quiz.a == 0 else "Right") if use_english_ui else ("左" if current_quiz.a == 0 else "右"))
+		_game_over(("Wrong! Answer was %s" if use_english_ui else "不正解！ 正解は %s") % answer_label)
+		wrong_answer.emit(message_text)
 
 func is_coop_mode() -> bool:
 	return mode == Constants.MODE_COOP
@@ -385,7 +608,13 @@ func is_scroll_out_death_enabled() -> bool:
 func get_tutorial_overlay_model() -> Dictionary:
 	if not _is_tutorial_mode() or tutorial_flow == null:
 		return {"visible": false}
-	return tutorial_flow.get_overlay_model()
+	var model: Dictionary = tutorial_flow.get_overlay_model()
+	if is_duo_tutorial() and tutorial_flow.current_step_id() == "duo_push":
+		for row: Dictionary in model.get("players", []):
+			for task: Dictionary in row.get("tasks", []):
+				if task.id in ["brace", "push"]:
+					task.key = ("D" if player_x > player2_x else "A") if row.player == 1 else ("←" if player_x > player2_x else "→")
+	return model
 
 
 func is_tutorial_presentation_locked() -> bool:
@@ -629,8 +858,16 @@ func cycle_difficulty(delta: int) -> void:
 
 # ---------- Game lifecycle ----------
 
+func consume_skip_start_helicopter_arrival() -> bool:
+	var skip := skip_start_helicopter_arrival
+	skip_start_helicopter_arrival = false
+	return skip
+
+
 func start_game() -> void:
 	is_replay = false
+	_reset_health()
+	skip_start_helicopter_arrival = false
 	# Retry must begin as an independent round even if the previous scene or
 	# provider stopped partway through its shutdown.
 	if provider is BufferedQuizProvider:
@@ -693,9 +930,13 @@ func start_game() -> void:
 	recent_response_times.clear()
 	# Dynamic wall speed reset（手動オーバーライドがあればそれを使用）
 	if tuning.wall_speed_override > 0:
-		_active_wall_speed = tuning.wall_speed_override
+		_active_wall_speed = clampf(
+			tuning.wall_speed_override,
+			tuning.wall_speed_min,
+			tuning.wall_speed_max
+		)
 	else:
-		_active_wall_speed = 28.0 / (4.0 + 3.5)  # VISIBLE_DISTANCE / (default_est + buffer)
+		_active_wall_speed = GameTuning.WALL_SPEED_AUTO_DEFAULT
 	var count: int = 10 if _is_fixed_count_mode() else 1
 	target_count = count
 
@@ -762,6 +1003,8 @@ func _prepare_quiz_choices() -> void:
 			quiz_list[i] = prepared
 
 func start_tutorial(course: String = GameManager.TUTORIAL_COURSE_SOLO) -> void:
+	_reset_health()
+	skip_start_helicopter_arrival = false
 	_reset_ocean_shark_state()
 	_reset_external_impulses()
 	_pending_solo_customize_tour = false
@@ -976,7 +1219,9 @@ func _complete_tutorial_quiz_step() -> void:
 	_advance_tutorial_step()
 
 func reset_to_menu() -> void:
+	_reset_health()
 	is_replay = false
+	skip_start_helicopter_arrival = false
 	_reset_result_ceremony_state()
 	_reset_ocean_shark_state()
 	_reset_external_impulses()
@@ -1108,7 +1353,11 @@ func _recalc_wall_speed() -> void:
 
 	# --- 手動オーバーライドモード ---
 	if tuning.wall_speed_override > 0:
-		_active_wall_speed = tuning.wall_speed_override
+		_active_wall_speed = clampf(
+			tuning.wall_speed_override,
+			tuning.wall_speed_min,
+			tuning.wall_speed_max
+		)
 		return
 
 	# --- AI予測解答時間を取得 ---
@@ -1118,7 +1367,7 @@ func _recalc_wall_speed() -> void:
 
 	# --- 壁が見えてからプレイヤーに到達するまでの距離 ---
 	const VISIBLE_DISTANCE: float = 28.0  # wall_start_z(22) - hit_z(-6)
-	const MOVE_BUFFER: float = 3.5        # ドアまで移動する余白（秒）
+	const MOVE_BUFFER: float = 28.0 / GameTuning.WALL_SPEED_AUTO_DEFAULT - 4.0  # 基準速度2.9に合わせる
 
 	var target_time: float = est_sec + MOVE_BUFFER
 	var base_speed: float = VISIBLE_DISTANCE / target_time
@@ -1141,6 +1390,9 @@ func _recalc_wall_speed() -> void:
 # ---------- Frame update ----------
 
 func update(dt: float, axis_p1: Vector2 = Vector2.ZERO, axis_p2: Vector2 = Vector2.ZERO, jump_p1: bool = false, jump_p2: bool = false, emote_p1: int = 0, emote_p2: int = 0) -> void:
+	_tick_health(dt)
+	if not uses_local_push():
+		local_push.reset()
 	correct_flash = maxf(0.0, correct_flash - dt * 1.5)
 	wrong_flash = maxf(0.0, wrong_flash - dt * 1.2)
 	camera_shake = maxf(0.0, camera_shake - dt * 2.8)
@@ -1152,6 +1404,7 @@ func update(dt: float, axis_p1: Vector2 = Vector2.ZERO, axis_p2: Vector2 = Vecto
 		if tutorial_flow.consume_input_gate(
 			axis_p1, axis_p2, jump_p1, jump_p2, emote_p1, emote_p2
 		):
+			local_push.suspend()
 			# 演出ロック中と中立入力待ちは操作を止めるが、死亡演出だけは進め続ける。
 			# ここで全部止めるとラグドールが空中で固まる。
 			if not p1_alive and game_over_timer > 0.0:
@@ -1169,12 +1422,12 @@ func update(dt: float, axis_p1: Vector2 = Vector2.ZERO, axis_p2: Vector2 = Vecto
 	if jump_p1:
 		p1_emote = 0
 	elif emote_p1 > 0 and p1_alive and player_vel_y == 0.0:
-		p1_emote = emote_p1
+		p1_emote = 0 if is_damage_stunned(1) else emote_p1
 
 	if jump_p2:
 		p2_emote = 0
 	elif emote_p2 > 0 and p2_alive and player2_vel_y == 0.0:
-		p2_emote = emote_p2
+		p2_emote = 0 if is_damage_stunned(2) else emote_p2
 
 	if game_state == Constants.STATE_PRELOADING:
 		_update_preloading(dt)
@@ -1335,10 +1588,10 @@ func _jump_gravity(hat_id: int, pos_y: float, vel_y: float) -> float:
 
 func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: bool, jump_p2: bool, _emote_p1: int = 0, _emote_p2: int = 0) -> void:
 	play_time += dt
-	var p1_axis := Vector2.ZERO if p1_external_control_lock > 0.0 else axis_p1
-	var p2_axis := Vector2.ZERO if p2_external_control_lock > 0.0 else axis_p2
-	var p1_jump_allowed := jump_p1 and p1_external_control_lock <= 0.0
-	var p2_jump_allowed := jump_p2 and p2_external_control_lock <= 0.0
+	var p1_axis := Vector2.ZERO if p1_external_control_lock > 0.0 or is_damage_stunned(1) else axis_p1
+	var p2_axis := Vector2.ZERO if p2_external_control_lock > 0.0 or is_damage_stunned(2) else axis_p2
+	var p1_jump_allowed := jump_p1 and p1_external_control_lock <= 0.0 and not is_damage_stunned(1)
+	var p2_jump_allowed := jump_p2 and p2_external_control_lock <= 0.0 and not is_damage_stunned(2)
 	p1_external_control_lock = maxf(0.0, p1_external_control_lock - dt)
 	p2_external_control_lock = maxf(0.0, p2_external_control_lock - dt)
 	if (
@@ -1372,6 +1625,11 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 	world_scroll_z += world_speed * dt
 	var p1_body_start := Vector2(player_x, player_z)
 	var p2_body_start := Vector2(player2_x, player2_z)
+	if _advance_local_push(dt, Vector2(p1_axis.x, p2_axis.x), [p1_jump_allowed, p2_jump_allowed]):
+		if p1_alive and not p1_fall_committed and not p1_waiting_for_shark:
+			p1_axis.x = 0.0
+		if p2_alive and not p2_fall_committed and not p2_waiting_for_shark:
+			p2_axis.x = 0.0
 
 	p1_moving_back = p1_axis.y < -0.1
 	p2_moving_back = p2_axis.y < -0.1
@@ -1381,15 +1639,11 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 		# 入力を適用する前にも確認し、前フレームで崖を越えたプレイヤーが
 		# 1フレームの横移動だけで床範囲へ戻る抜け道を塞ぐ。
 		_commit_fall_if_unsupported(1, player_x, player_y, player_z - world_scroll_z)
-		var yaw: float = 0.0
-		var move_x: float = p1_axis.x * cos(yaw) + p1_axis.y * sin(yaw)
-		var move_z: float = p1_axis.y * cos(yaw) - p1_axis.x * sin(yaw)
-
-		player_x += move_x * tuning.player_speed * dt
+		player_x += p1_axis.x * tuning.player_speed * dt
 		# Removed clamp to allow falling off sides
 
 		player_z += world_speed * dt # Carry forward with world scroll
-		player_z += move_z * tuning.player_speed * dt
+		player_z += p1_axis.y * tuning.player_speed * dt
 		player_x += p1_external_velocity.x * dt
 		player_z += p1_external_velocity.y * dt
 		p1_external_velocity = p1_external_velocity.move_toward(Vector2.ZERO, EXTERNAL_IMPULSE_DECELERATION * dt)
@@ -1404,7 +1658,7 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 
 		if p1_jump_allowed and player_y <= 0.0 and is_on_floor:
 			p1_jump_trigger = true
-			player_vel_y = JUMP_FORCE
+			player_vel_y = TWO_PLAYER_JUMP_FORCE if num_players >= 2 else JUMP_FORCE
 
 		player_vel_y -= _jump_gravity(p1_hat, player_y, player_vel_y) * dt
 		player_y += player_vel_y * dt
@@ -1453,7 +1707,7 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 
 		if p2_jump_allowed and player2_y <= 0.0 and p2_is_on_floor:
 			p2_jump_trigger = true
-			player2_vel_y = JUMP_FORCE
+			player2_vel_y = TWO_PLAYER_JUMP_FORCE if num_players >= 2 else JUMP_FORCE
 
 		player2_vel_y -= _jump_gravity(p2_hat, player2_y, player2_vel_y) * dt
 		player2_y += player2_vel_y * dt
@@ -1481,6 +1735,7 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 			player2_game_over_timer += dt
 
 	_resolve_two_player_body_collision(p1_body_start, p2_body_start)
+	_flush_local_push_events()
 	_resolve_all_cliff_body_collisions()
 	_sink_ocean_players(dt)
 
@@ -1502,6 +1757,9 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 				_fail_coop_immediately("P2が画面外に取り残されました。協力失敗です。")
 				return
 			p2_alive = false
+			if uses_hp():
+				_set_player_hp(2, 0)
+				p2_damage_time = 0.0
 			player2_game_over_timer = 0.001
 			player_scrolled_out.emit(2)
 		elif player2_z - player_z > SCROLL_OUT_LIMIT:
@@ -1513,6 +1771,9 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 				_fail_coop_immediately("P1が画面外に取り残されました。協力失敗です。")
 				return
 			p1_alive = false
+			if uses_hp():
+				_set_player_hp(1, 0)
+				p1_damage_time = 0.0
 			game_over_timer = 0.001
 			player_scrolled_out.emit(1)
 
@@ -1542,6 +1803,7 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 		if p1_hit: player_z = wall_z - 0.4
 		if p2_hit: player2_z = wall_z - 0.4
 		resolve_collision(p1_hit, p2_hit)
+	_try_finish_hp_question()
 
 
 func _is_expected_tutorial_ocean_entry(player_index: int) -> bool:
@@ -1643,6 +1905,15 @@ func _recover_tutorial_from_death() -> void:
 ## 見た目だけのPlayerControllerではなく座標の権威側で解決するため、ローカル2Pと
 ## ホスト権威のオンライン2Pで同じ結果になり、1Pには一切影響しない。
 func _resolve_two_player_body_collision(p1_start: Vector2, p2_start: Vector2) -> bool:
+	if uses_local_push():
+		if not p1_alive or not p2_alive or p1_fall_committed or p2_fall_committed or p1_waiting_for_shark or p2_waiting_for_shark:
+			return false
+		var resolved: Vector2 = local_push.resolve(Vector2(player_x, player2_x), player2_z - player_z,
+			absf(player_y - player2_y) < PLAYER_BODY_HEIGHT)
+		var changed := resolved != Vector2(player_x, player2_x)
+		player_x = resolved.x
+		player2_x = resolved.y
+		return changed
 	if (
 		num_players < 2
 		or not p1_alive
@@ -1948,20 +2219,25 @@ func _start_goal_race() -> void:
 
 func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: bool, jump_p2: bool, emote_p1: int = 0, emote_p2: int = 0) -> void:
 	play_time += dt
-	var p1_axis := Vector2.ZERO if p1_external_control_lock > 0.0 else axis_p1
-	var p2_axis := Vector2.ZERO if p2_external_control_lock > 0.0 else axis_p2
-	var p1_jump_allowed := jump_p1 and p1_external_control_lock <= 0.0
-	var p2_jump_allowed := jump_p2 and p2_external_control_lock <= 0.0
+	var p1_axis := Vector2.ZERO if p1_external_control_lock > 0.0 or is_damage_stunned(1) else axis_p1
+	var p2_axis := Vector2.ZERO if p2_external_control_lock > 0.0 or is_damage_stunned(2) else axis_p2
+	var p1_jump_allowed := jump_p1 and p1_external_control_lock <= 0.0 and not is_damage_stunned(1)
+	var p2_jump_allowed := jump_p2 and p2_external_control_lock <= 0.0 and not is_damage_stunned(2)
 	p1_external_control_lock = maxf(0.0, p1_external_control_lock - dt)
 	p2_external_control_lock = maxf(0.0, p2_external_control_lock - dt)
 	# world_scroll_z += _active_wall_speed * dt  # ゴールの動きを止めるためスクロールを停止
 
-	p1_emote = emote_p1
-	p2_emote = emote_p2
+	p1_emote = 0 if is_damage_stunned(1) else emote_p1
+	p2_emote = 0 if is_damage_stunned(2) else emote_p2
 	p1_moving_back = p1_axis.y < -0.1
 	p2_moving_back = p2_axis.y < -0.1
 	var p1_body_start := Vector2(player_x, player_z)
 	var p2_body_start := Vector2(player2_x, player2_z)
+	if _advance_local_push(dt, Vector2(p1_axis.x, p2_axis.x), [p1_jump_allowed, p2_jump_allowed]):
+		if p1_alive and not p1_fall_committed and not p1_waiting_for_shark:
+			p1_axis.x = 0.0
+		if p2_alive and not p2_fall_committed and not p2_waiting_for_shark:
+			p2_axis.x = 0.0
 
 	# Player 1 movement
 	if p1_alive and not p1_waiting_for_shark and not has_player_reached_goal(1):
@@ -1983,7 +2259,7 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 
 		if p1_jump_allowed and player_y <= 0.0 and is_on_floor:
 			p1_jump_trigger = true
-			player_vel_y = JUMP_FORCE
+			player_vel_y = TWO_PLAYER_JUMP_FORCE if num_players >= 2 else JUMP_FORCE
 		player_vel_y -= _jump_gravity(p1_hat, player_y, player_vel_y) * dt
 		player_y += player_vel_y * dt
 		if _commit_fall_if_unsupported(1, player_x, player_y, loc1, FLOOR_RACE_FRONT_Z):
@@ -2016,7 +2292,7 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 
 		if p2_jump_allowed and player2_y <= 0.0 and p2_is_on_floor:
 			p2_jump_trigger = true
-			player2_vel_y = JUMP_FORCE
+			player2_vel_y = TWO_PLAYER_JUMP_FORCE if num_players >= 2 else JUMP_FORCE
 		player2_vel_y -= _jump_gravity(p2_hat, player2_y, player2_vel_y) * dt
 		player2_y += player2_vel_y * dt
 		if _commit_fall_if_unsupported(2, player2_x, player2_y, loc2, FLOOR_RACE_FRONT_Z):
@@ -2031,6 +2307,7 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 
 	if goal_reached_mask == 0:
 		_resolve_two_player_body_collision(p1_body_start, p2_body_start)
+	_flush_local_push_events()
 	_resolve_all_cliff_body_collisions(FLOOR_RACE_FRONT_Z)
 
 	# Tick explosion timers for dead players
@@ -2618,6 +2895,7 @@ func apply_external_impulse(
 
 
 func _reset_external_impulses() -> void:
+	local_push.reset()
 	p1_external_velocity = Vector2.ZERO
 	p2_external_velocity = Vector2.ZERO
 	p1_external_control_lock = 0.0
@@ -2699,6 +2977,12 @@ func get_ocean_player_local_position(player_index: int) -> Vector3:
 func complete_ocean_shark_attack(player_index: int) -> void:
 	if not is_player_waiting_for_shark(player_index):
 		return
+	if uses_hp():
+		_set_player_hp(player_index, 0)
+		if player_index == 1:
+			p1_damage_time = 0.0
+		else:
+			p2_damage_time = 0.0
 
 	if player_index == 1:
 		p1_waiting_for_shark = false
@@ -2927,6 +3211,9 @@ func resolve_collision(p1_hit: bool = false, p2_hit: bool = false) -> void:
 		return
 	if is_coop_mode():
 		_resolve_coop_collision()
+		return
+	if uses_hp():
+		_resolve_hp_collision(p1_hit, p2_hit)
 		return
 
 	var answer: int = current_quiz.a
@@ -3323,6 +3610,13 @@ func refresh_status_text() -> void:
 func to_snapshot() -> Dictionary:
 	"""ホスト側: 現在のゲーム状態をDictionaryにシリアライズ (クライアントに送信用)"""
 	return {
+		"hp_version": 1,
+		"hp_enabled": uses_hp(),
+		"hp1": p1_hp,
+		"hp2": p2_hp,
+		"hurt1": p1_damage_time,
+		"hurt2": p2_damage_time,
+		"hp_completed": hp_questions_completed,
 		# Player 1
 		"p1x": player_x,
 		"p1y": player_y,
@@ -3389,6 +3683,12 @@ func to_snapshot() -> Dictionary:
 
 func apply_snapshot(data: Dictionary) -> void:
 	"""クライアント側: 受信したスナップショットをローカル状態に適用"""
+	hp_state_available = bool(data.get("hp_enabled", false)) and int(data.get("hp_version", 0)) >= 1
+	_set_player_hp(1, int(data.get("hp1", MAX_HP)))
+	_set_player_hp(2, int(data.get("hp2", MAX_HP)))
+	p1_damage_time = float(data.get("hurt1", 0.0))
+	p2_damage_time = float(data.get("hurt2", 0.0))
+	hp_questions_completed = int(data.get("hp_completed", 0))
 	# Player 1
 	player_x = data.get("p1x", player_x)
 	player_y = data.get("p1y", player_y)

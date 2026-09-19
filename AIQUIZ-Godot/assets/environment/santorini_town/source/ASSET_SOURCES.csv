@@ -1,0 +1,8 @@
+asset,authoring_method,external_source,license_or_ownership,modifications,cost
+Cycladic dwelling library,Original deterministic Blender geometry,None,Project authored geometry,Seven roof and compound types with editable parameters,0
+Church bell gables and windmill,Original deterministic Blender geometry,None,Project authored geometry,Arches domes nave and sail geometry,0
+Cliff terrain and irregular stone paths,Original deterministic Blender geometry,None,Project authored geometry,Stepped terrain and connected stair flights designed around game cameras,0
+Harbor piers and boats,Original deterministic Blender geometry,None,Project authored geometry,Sea datum and protected course corridor verified during build,0
+Gardens pergolas furniture and lanterns,Original deterministic Blender geometry,None,Project authored geometry,Olive cypress pots blossom clusters and blue cafe chairs,0
+Shared material palette,Original Blender Principled materials,None,Project authored color values,No texture photographs or third party shaders embedded,0
+Reference photographs,Visual research only,See docs/santorini_visual_references.md,Not redistributed and not included in game assets,Shapes and composition informed original geometry,0

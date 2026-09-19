@@ -30,7 +30,7 @@ const PREVIEW_WALL_SHATTER_DIR_Z: float = 1.0
 ## キャラと壁が重ならないよう確保する Z 方向の最小クリアランス
 const PREVIEW_WALL_PLAYER_CLEAR_Z: float = 5.5
 const PREVIEW_WALL_PUSH_BACK_Z: float = 6.5
-const AUTO_WALL_SPEED: float = 28.0 / (4.0 + 5.0)
+const AUTO_WALL_SPEED: float = GameTuning.WALL_SPEED_AUTO_DEFAULT
 const AI_STATE_NORMAL: int = 0
 const AI_STATE_CRASH_RUNUP: int = 1
 const AI_STATE_KNOCKBACK: int = 2
@@ -181,6 +181,7 @@ func _ready() -> void:
 	set_process(false)
 	_resolve_preview_speed()
 	_build_3d_scene()
+	_prepare_game_start_departure()
 	set_process(true)
 
 
@@ -195,23 +196,8 @@ func get_stage_environment() -> StageEnvironment:
 func apply_graphics_quality() -> void:
 	if _viewport:
 		GraphicsQuality.apply_text_viewport(_viewport, GameManager.graphics_quality)
-	if not _stage_env:
-		return
-	if _stage_env.environment_node and _stage_env.environment_node.environment:
-		GraphicsQuality.apply_environment(
-			_stage_env.environment_node.environment,
-			GameManager.graphics_quality
-		)
-	if _stage_env.directional_light:
-		_stage_env.directional_light.shadow_enabled = GraphicsQuality.preview_shadow_enabled(
-			GameManager.graphics_quality
-		)
-	var ocean: MeshInstance3D = _stage_env.get_node_or_null("Ocean") as MeshInstance3D
-	if ocean and ocean.mesh is PlaneMesh:
-		var subdivisions: int = GraphicsQuality.ocean_subdivisions(GameManager.graphics_quality)
-		var plane: PlaneMesh = ocean.mesh as PlaneMesh
-		plane.subdivide_width = subdivisions
-		plane.subdivide_depth = subdivisions
+	if _stage_env:
+		_stage_env.apply_graphics_quality(GameManager.graphics_quality)
 
 
 ## カスタマイズUIがキャラ・スキン照明・エモートを載せる共有 SubViewport
@@ -324,7 +310,11 @@ func _start_camera_return_to_menu() -> void:
 func _resolve_preview_speed() -> void:
 	var tuning := QuizManager.game_state.tuning
 	if tuning.wall_speed_override > 0.0:
-		_preview_speed = tuning.wall_speed_override
+		_preview_speed = clampf(
+			tuning.wall_speed_override,
+			GameTuning.WALL_SPEED_SLIDER_MIN,
+			GameTuning.WALL_SPEED_SLIDER_MAX
+		)
 	else:
 		_preview_speed = AUTO_WALL_SPEED
 
@@ -477,6 +467,7 @@ func _build_3d_scene() -> void:
 		"is_preview": true,
 		"include_sharks": true,
 		"include_grandstands": false,
+		"include_harbor_city": false,
 	})
 
 	_preview_gs = QuizGameState.new()
@@ -582,6 +573,18 @@ func _cancel_menu_helicopter_intro() -> void:
 		_finish_menu_helicopter_intro(false)
 
 
+func _prepare_game_start_departure() -> void:
+	if not _viewport or not _preview_gs or not _preview_player or not _preview_camera:
+		return
+	_menu_start_departure = HelicopterArrivalDirectorScript.new() as HelicopterArrivalDirector
+	_menu_start_departure.name = "MenuHelicopterStartDepartureDirector"
+	_menu_start_departure.presentation_finished.connect(_on_game_start_departure_finished)
+	_viewport.add_child(_menu_start_departure)
+	_menu_start_departure.prepare_menu_departure(
+		_preview_gs, _preview_player as PlayerController, _preview_camera
+	)
+
+
 func begin_game_start_departure(player_count: int) -> bool:
 	if _menu_start_departure_active:
 		return false
@@ -618,10 +621,10 @@ func begin_game_start_departure(player_count: int) -> bool:
 	if _preview_player.has_method("prepare_intro_pickup_pose"):
 		_preview_player.call("prepare_intro_pickup_pose", count)
 	_force_preview_player_facing_away()
-	_menu_start_departure = HelicopterArrivalDirectorScript.new() as HelicopterArrivalDirector
-	_menu_start_departure.name = "MenuHelicopterStartDepartureDirector"
-	_menu_start_departure.presentation_finished.connect(_on_game_start_departure_finished)
-	_viewport.add_child(_menu_start_departure)
+	if not is_instance_valid(_menu_start_departure) or _menu_start_departure._cancelled:
+		if is_instance_valid(_menu_start_departure):
+			_menu_start_departure.queue_free()
+		_prepare_game_start_departure()
 	_menu_start_departure.setup_menu_departure(
 		_preview_gs,
 		_preview_player as PlayerController,
@@ -659,6 +662,15 @@ func is_ready_for_scene_cover(cover_duration: float = -1.0) -> bool:
 	if _menu_start_departure != null and is_instance_valid(_menu_start_departure):
 		return _menu_start_departure.is_ready_for_scene_cover(cover_duration)
 	return not _menu_start_departure_active
+
+
+func skip_game_start_departure() -> void:
+	if not _menu_start_departure_active:
+		return
+	if _menu_start_departure != null and is_instance_valid(_menu_start_departure):
+		_menu_start_departure.skip_menu_departure()
+		return
+	cancel_game_start_departure()
 
 
 func cancel_game_start_departure() -> void:

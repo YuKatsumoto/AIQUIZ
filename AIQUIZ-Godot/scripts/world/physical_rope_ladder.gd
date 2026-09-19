@@ -55,6 +55,8 @@ const ROPE_MID_SAG := 5.4
 var deploy_throw_speed := ROPE_THROW_SPEED
 var deploy_damping := ROPE_DAMPING
 var deploy_recoil_scale := 1.0
+var deploy_lateral_scale := 1.0
+var inherit_carrier_velocity := false
 
 var _attachment: Node3D = null
 var _player_index := 1
@@ -799,12 +801,14 @@ func _init_verlet_sim() -> void:
 	_sim_right = _connected_side_points(1.0)
 	_prev_left = _sim_left.duplicate()
 	_prev_right = _sim_right.duplicate()
-	var throw: Vector3 = Vector3.DOWN * deploy_throw_speed + (forward * side + right * 0.35) * ROPE_THROW_SIDE
-	var right_throw: Vector3 = throw + right * 0.85 - forward * 0.45
+	var throw: Vector3 = Vector3.DOWN * deploy_throw_speed + (forward * side + right * 0.35) * ROPE_THROW_SIDE * deploy_lateral_scale
+	var right_throw: Vector3 = throw + (right * 0.85 - forward * 0.45) * deploy_lateral_scale
+	# A coil released from a moving cabin already carries the aircraft velocity.
+	var inherited_velocity := _top_velocity if inherit_carrier_velocity else Vector3.ZERO
 	for point_index: int in range(1, _sim_left.size()):
 		var depth := float(point_index) / float(maxi(_sim_left.size() - 1, 1))
-		_prev_left[point_index] = _sim_left[point_index] - throw * depth * dt
-		_prev_right[point_index] = _sim_right[point_index] - right_throw * depth * dt
+		_prev_left[point_index] = _sim_left[point_index] - (throw * depth + inherited_velocity) * dt
+		_prev_right[point_index] = _sim_right[point_index] - (right_throw * depth + inherited_velocity) * dt
 	_sim_ready = true
 	_did_taut_snap = false
 

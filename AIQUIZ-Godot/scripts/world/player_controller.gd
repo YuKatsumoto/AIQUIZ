@@ -56,6 +56,7 @@ const INTRO_PELVIS_HEIGHT := 0.9
 const INTRO_JUMP_START_SECONDS := 0.18
 const INTRO_JUMP_LAND_SECONDS := 0.32
 const INTRO_LAND_BLEND := 0.35
+const INTRO_IDLE_BLEND := 0.15
 const INTRO_JUMP_GRAVITY := 9.8
 const INTRO_CABIN_POSE_KEYS := [
 	"pelvis", "spine", "neck", "head_pivot",
@@ -95,8 +96,13 @@ var _intro_cabin_rides: Dictionary = {}
 ## Gameplay arrival: scripted ladder jump onto the start mark.
 var _intro_jumps: Dictionary = {}
 var _intro_jump_lands: Dictionary = {}
+## Gameplay arrival: UAL Idle_Loop hold after Jump_Land until the course starts.
+var _intro_idles: Dictionary = {}
 ## Menu extraction hides the standing runners until the scene leaves.
 var _intro_extracted := false
+## True once a helicopter arrival has shown the runner. Survives intro cleanup
+## so PRELOADING cannot hide the character after landing.
+var _intro_revealed := false
 
 # Hat state
 var _p1_hat_id: int = 0
@@ -255,6 +261,8 @@ func _teardown_ragdoll(ragdoll: Dictionary) -> void:
 ## until complete_intro_drops() restores it.
 func prepare_intro_arrival(player_count: int) -> void:
 	_intro_extracted = false
+	_intro_revealed = false
+	_intro_idles.clear()
 	_intro_pending_players.clear()
 	var count := clampi(player_count, 1, 2)
 	for player_index: int in range(1, count + 1):
@@ -742,6 +750,7 @@ func _restore_intro_runner_visuals(player_index: int) -> void:
 	_set_parts_visible(parts, true)
 	_set_hat_visible(is_p1, true)
 	_set_rig_scenes_visible(is_p1, false)
+	_intro_revealed = true
 	var ragdoll: Dictionary = _intro_ragdolls.get(player_index, {})
 	var container := ragdoll.get("container") as Node3D
 	if container != null and is_instance_valid(container):
@@ -769,7 +778,8 @@ func _begin_intro_jump_land(player_index: int) -> bool:
 	var to_pos: Vector3 = jump.get("stand_landing", from_pos)
 	var rig := _p1_rig if player_index == 1 else _p2_rig
 	if rig.resolve_ual_clip(AnimationRig.UAL_JUMP_LAND).is_empty():
-		_snap_intro_ready_stance(player_index, to_pos)
+		if not _begin_intro_idle(player_index, to_pos):
+			_snap_intro_ready_stance(player_index, to_pos)
 		return false
 	var land_len := maxf(rig.get_ual_clip_length(AnimationRig.UAL_JUMP_LAND), 0.35)
 	var from_yaw := _intro_contact_yaw(player_index, 0.0)
@@ -886,7 +896,8 @@ func _update_intro_jump_land(player_index: int, delta: float) -> bool:
 	var land_pos := from_pos.lerp(to_pos, smoothstep(0.0, 1.0, land_t))
 	_apply_intro_jump_land_pose(player_index, land_pos, current_yaw, land_t)
 	if land_t >= 1.0:
-		_snap_intro_ready_stance(player_index, to_pos)
+		if not _begin_intro_idle(player_index, to_pos):
+			_snap_intro_ready_stance(player_index, to_pos)
 		_intro_jump_lands.erase(player_index)
 		return true
 	land["elapsed"] = elapsed
@@ -898,6 +909,74 @@ func _update_intro_jump_land(player_index: int, delta: float) -> bool:
 		jump["position"] = land_pos
 		_intro_jumps[player_index] = jump
 	return false
+
+
+func _begin_intro_idle(player_index: int, landing: Vector3) -> bool:
+	var parts: Dictionary = p1_parts if player_index == 1 else p2_parts
+	if parts.is_empty():
+		return false
+	var rig := _p1_rig if player_index == 1 else _p2_rig
+	if rig.resolve_ual_clip(AnimationRig.UAL_IDLE).is_empty():
+		return false
+	var already_idle := _intro_idles.has(player_index)
+	_intro_idles[player_index] = {
+		"position": landing,
+		"facing_yaw": 0.0,
+	}
+	_intro_revealed = true
+	if _intro_jumps.has(player_index):
+		var jump: Dictionary = _intro_jumps[player_index]
+		jump["clip"] = AnimationRig.UAL_IDLE
+		jump["position"] = landing
+		_intro_jumps[player_index] = jump
+	var is_p1 := player_index == 1
+	_set_parts_visible(parts, true)
+	_set_hat_visible(is_p1, true)
+	_set_rig_scenes_visible(is_p1, false)
+	_apply_intro_idle_pose(player_index, not already_idle)
+	return true
+
+
+func _apply_intro_idle_pose(player_index: int, restart: bool) -> void:
+	var idle: Dictionary = _intro_idles.get(player_index, {})
+	if idle.is_empty():
+		return
+	var parts: Dictionary = p1_parts if player_index == 1 else p2_parts
+	var rig := _p1_rig if player_index == 1 else _p2_rig
+	var world_position: Vector3 = idle.get("position", Vector3.ZERO)
+	var facing_yaw := float(idle.get("facing_yaw", 0.0))
+	var played := false
+	if restart:
+		played = rig.play_ual_clip(
+			AnimationRig.UAL_IDLE,
+			true,
+			AnimationRig.SLOT_UAL,
+			INTRO_IDLE_BLEND
+		)
+		if played and rig.active_skeleton != null:
+			_apply_skeleton_pose(
+				parts,
+				rig.active_skeleton,
+				rig.active_bone_indices,
+				rig.mirror_x
+			)
+	else:
+		played = _apply_intro_ual_pose(player_index, AnimationRig.UAL_IDLE, -1.0)
+	if not played:
+		_animate_skeleton(parts, 0.0, 0.0, false, 0.0, player_index != 1, 0)
+	var pelvis := parts.get("pelvis") as Node3D
+	if pelvis == null or not is_instance_valid(pelvis):
+		return
+	var anim_basis := pelvis.basis
+	var posed_y := pelvis.global_position.y
+	pelvis.global_position = Vector3(world_position.x, posed_y, world_position.z)
+	pelvis.basis = Basis(Vector3.UP, facing_yaw) * anim_basis
+	_plant_intro_feet_on_floor(parts)
+
+
+func _update_intro_idles(_delta: float) -> void:
+	for player_index: Variant in _intro_idles.keys():
+		_apply_intro_idle_pose(int(player_index), false)
 
 
 func _apply_intro_ready_run_pose(player_index: int, parts: Dictionary, elapsed: float = 0.0) -> void:
@@ -1413,8 +1492,18 @@ func has_intro_arrival() -> bool:
 		or not _intro_cabin_rides.is_empty()
 		or not _intro_jumps.is_empty()
 		or not _intro_jump_lands.is_empty()
+		or not _intro_idles.is_empty()
 		or has_intro_drops()
 	)
+
+
+func has_intro_revealed() -> bool:
+	return _intro_revealed or has_intro_arrival()
+
+
+## リトライなどヘリ降下を省略する開始で、ベルト上のランナーをすぐ見せる。
+func reveal_without_intro_arrival() -> void:
+	_intro_revealed = true
 
 
 ## Sits the visible procedural runner inside the helicopter without creating a
@@ -1433,6 +1522,7 @@ func begin_intro_cabin_ride(player_index: int, cabin_transform: Transform3D) -> 
 		"clip": AnimationRig.UAL_CABIN_IDLE,
 	}
 	_intro_pending_players.erase(player_index)
+	_intro_revealed = true
 	return update_intro_cabin_ride(player_index, cabin_transform, true)
 
 
@@ -1716,7 +1806,11 @@ func update_intro_ladder_jump(player_index: int, delta: float) -> Dictionary:
 		state["landed"] = true
 	_intro_jumps[player_index] = state
 	var land: Dictionary = _intro_jump_lands.get(player_index, {})
-	var land_phase := "jump_land" if not land.is_empty() else ""
+	var idle: Dictionary = _intro_idles.get(player_index, {})
+	var land_phase := (
+		"jump_land" if not land.is_empty()
+		else ("idle" if not idle.is_empty() else "")
+	)
 	return {
 		"active": true,
 		"landed": bool(state.get("landed", false)),
@@ -1726,28 +1820,41 @@ func update_intro_ladder_jump(player_index: int, delta: float) -> Dictionary:
 		"position": state.get("position", torso_position),
 		"clip": String(state.get("clip", "physical_ragdoll")),
 		"land_phase": land_phase,
-		"facing_yaw": float(land.get("current_yaw", 0.0)),
+		"facing_yaw": float(land.get("current_yaw", idle.get("facing_yaw", 0.0))),
 	}
 
 
 func complete_intro_ladder_landing(player_index: int, _gs: QuizGameState = null) -> bool:
-	if not _intro_jumps.has(player_index):
+	if not _intro_jumps.has(player_index) and not _intro_idles.has(player_index):
 		return true
-	var jump: Dictionary = _intro_jumps[player_index]
-	var landing: Vector3 = jump.get("stand_landing", jump.get("landing", Vector3.ZERO))
-	_snap_intro_ready_stance(player_index, landing)
-	_intro_jumps.erase(player_index)
+	var landing: Vector3 = Vector3.ZERO
+	if _intro_jumps.has(player_index):
+		var jump: Dictionary = _intro_jumps[player_index]
+		landing = jump.get("stand_landing", jump.get("landing", Vector3.ZERO))
+	else:
+		var idle: Dictionary = _intro_idles[player_index]
+		landing = idle.get("position", Vector3.ZERO)
+	if not _begin_intro_idle(player_index, landing):
+		_snap_intro_ready_stance(player_index, landing)
 	_intro_jump_lands.erase(player_index)
 	_intro_pending_players.erase(player_index)
 	return true
 
 
 func get_intro_jump_state(player_index: int) -> Dictionary:
-	if not _intro_jumps.has(player_index):
+	if not _intro_jumps.has(player_index) and not _intro_idles.has(player_index):
 		return {"active": false}
-	var state: Dictionary = _intro_jumps[player_index]
+	var state: Dictionary = _intro_jumps.get(player_index, {})
+	var idle: Dictionary = _intro_idles.get(player_index, {})
 	var land: Dictionary = _intro_jump_lands.get(player_index, {})
-	var land_phase := "jump_land" if not land.is_empty() else ""
+	var land_phase := (
+		"jump_land" if not land.is_empty()
+		else ("idle" if not idle.is_empty() else "")
+	)
+	var clip_name := String(state.get("clip", "physical_ragdoll"))
+	if land_phase == "idle":
+		clip_name = AnimationRig.UAL_IDLE
+	var idle_position: Vector3 = idle.get("position", Vector3.ZERO)
 	return {
 		"active": true,
 		"physical": true,
@@ -1756,18 +1863,18 @@ func get_intro_jump_state(player_index: int) -> Dictionary:
 			0.0,
 			1.0
 		),
-		"landed": bool(state.get("landed", false)),
-		"floor_contacted": bool(state.get("floor_contacted", false)),
-		"clip": String(state.get("clip", "physical_ragdoll")),
+		"landed": bool(state.get("landed", false)) or land_phase == "idle",
+		"floor_contacted": bool(state.get("floor_contacted", false)) or land_phase == "idle",
+		"clip": clip_name,
 		"used_clips": state.get("used_clips", []),
-		"position": state.get("position", Vector3.ZERO),
+		"position": state.get("position", idle_position),
 		"origin": state.get("origin", Vector3.ZERO),
-		"landing": state.get("landing", Vector3.ZERO),
+		"landing": state.get("landing", idle_position),
 		"velocity": state.get("velocity", Vector3.ZERO),
 		"source_ready": bool(state.get("source_ready", false)),
 		"land_phase": land_phase,
-		"facing_yaw": float(land.get("current_yaw", 0.0)),
-		"stand_landing": state.get("stand_landing", state.get("landing", Vector3.ZERO)),
+		"facing_yaw": float(land.get("current_yaw", idle.get("facing_yaw", 0.0))),
+		"stand_landing": state.get("stand_landing", state.get("landing", idle_position)),
 	}
 
 
@@ -1794,6 +1901,7 @@ func cancel_intro_arrival() -> void:
 	_intro_cabin_rides.clear()
 	_intro_jumps.clear()
 	_intro_jump_lands.clear()
+	_intro_idles.clear()
 
 
 func prewarm_intro_ladder_clips(player_count: int) -> void:
@@ -2016,12 +2124,19 @@ func update_intro_ladder_grab(
 	var target_basis := _intro_ladder_body_basis(horizontal, forward)
 	var target_origin := rung_center + Vector3.DOWN * 1.18 - forward * 0.12
 	var start_transform: Transform3D = state.get("start_transform", pelvis.global_transform)
+	var cabin_descent := grip_data.has("carrier_transform") and not bool(state.get("running_jump", false))
+	if cabin_descent:
+		var carrier: Transform3D = grip_data["carrier_transform"]
+		if not state.has("cabin_start_relative"):
+			state["cabin_start_relative"] = carrier.affine_inverse() * start_transform
+		start_transform = carrier * Transform3D(state["cabin_start_relative"])
 	var travel := smoothstep(0.0, 1.0, grab_progress)
 	var target_transform := Transform3D(target_basis, target_origin)
 	var posed_transform := start_transform.interpolate_with(target_transform, travel)
 	# A compact upward hop gives the reach physical intention; it settles exactly
 	# onto the rung before the helicopter loads the ladder.
-	posed_transform.origin += Vector3.UP * sin(grab_progress * PI) * 0.34
+	if not cabin_descent:
+		posed_transform.origin += Vector3.UP * sin(grab_progress * PI) * 0.34
 	pelvis.global_transform = posed_transform
 	# Imported skeleton proportions differ from the procedural avatar. Re-anchor
 	# from the *rendered* shoulder midpoint so both 40 cm arms can truly reach the
@@ -2043,6 +2158,10 @@ func update_intro_ladder_grab(
 			var jump_origin := start_transform.origin * (2.0*t*t*t - 3.0*t*t + 1.0) + tangent * (t*t*t - 2.0*t*t + t) + landing * (-2.0*t*t*t + 3.0*t*t)
 			jump_origin.y = lerpf(start_transform.origin.y, landing.y, t) + 4.0*t*(1.0-t)*0.62
 			pelvis.global_position = jump_origin
+		elif cabin_descent:
+			var shoulder_offset := pelvis.global_basis.inverse() * (shoulder_midpoint - pelvis.global_position)
+			var landing := desired_shoulder_midpoint - target_basis * shoulder_offset
+			pelvis.global_position = start_transform.origin.lerp(landing, travel)
 		else:
 			pelvis.global_position += (desired_shoulder_midpoint - shoulder_midpoint) * travel
 
@@ -2322,6 +2441,7 @@ func _cleanup_intro_drops(restore_visuals: bool = true) -> void:
 	_intro_cabin_rides.clear()
 	_intro_jumps.clear()
 	_intro_jump_lands.clear()
+	_intro_idles.clear()
 	if not _intro_ladder_grabs.is_empty():
 		_p1_rig.stop_all()
 		_p2_rig.stop_all()
@@ -3023,6 +3143,7 @@ var _run_phase: float = 0.0
 func _process(dt: float) -> void:
 	_time += dt
 	_update_intro_get_ups(dt)
+	_update_intro_idles(dt)
 	var gs = QuizManager.game_state
 	var speed: float = gs._active_wall_speed if gs else 3.5
 	var mult := 1.0
@@ -3034,6 +3155,7 @@ func _process(dt: float) -> void:
 ## 黒画面中にプレイヤー表示モデルと選択中の帽子を実体化する。
 ## ゲーム状態やアニメーションは進めず、初回表示時の生成負荷だけを前倒しする。
 func prepare_for_loading(gs: QuizGameState) -> void:
+	_restore_health_pose()
 	if gs == null:
 		return
 	_sync_player_model_count(gs)
@@ -3076,9 +3198,107 @@ func _sync_player_model_count(gs: QuizGameState) -> void:
 		_p2_toon_preset_id = -1
 
 
+var _health_pose_restore: Array[Dictionary] = []
+var _health_mesh_restore: Array[Dictionary] = []
+const WALL_RECOIL_DISTANCE := 1.2
+const WALL_RECOIL_PEAK_TIME := 0.14
+const WALL_RECOIL_CLIP := "Hit_Chest"
+
+func _restore_health_pose() -> void:
+	for saved: Dictionary in _health_pose_restore:
+		if is_instance_valid(saved.node):
+			saved.node.transform = saved.transform
+	_health_pose_restore.clear()
+	for saved: Dictionary in _health_mesh_restore:
+		if is_instance_valid(saved.node):
+			saved.node.transparency = saved.transparency
+	_health_mesh_restore.clear()
+
+func _apply_health_pose(gs: QuizGameState, parts: Dictionary, player_index: int) -> void:
+	var alive := gs.p1_alive if player_index == 1 else gs.p2_alive
+	var remaining := gs.get_damage_time(player_index)
+	var falling := gs.p1_fall_committed or gs.p1_waiting_for_shark if player_index == 1 else gs.p2_fall_committed or gs.p2_waiting_for_shark
+	if not gs.uses_hp() or not alive or falling or remaining <= 0.0 or gs.game_state not in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]:
+		return
+	var elapsed := QuizGameState.DAMAGE_FLASH_DURATION - remaining
+	_apply_wall_recoil(parts, _p1_rig if player_index == 1 else _p2_rig, elapsed)
+	var fade := 0.58 if int(elapsed / 0.075) % 2 == 0 else 0.0
+	for mesh: MeshInstance3D in parts.get("meshes", []):
+		if not is_instance_valid(mesh):
+			continue
+		_health_mesh_restore.append({"node": mesh, "transparency": mesh.transparency})
+		mesh.transparency = maxf(mesh.transparency, fade)
+
+func _apply_wall_recoil(parts: Dictionary, rig: AnimationRig, elapsed: float) -> void:
+	# Restore this overlay before the next base pose, including interruption/death.
+	var base_pose: Array[Dictionary] = []
+	for value: Variant in parts.values():
+		if value is Node3D:
+			base_pose.append({"node": value, "transform": value.transform})
+	_health_pose_restore.append_array(base_pose)
+	var duration := QuizGameState.DAMAGE_FLASH_DURATION
+	var weight := smoothstep(0.0, 0.045, elapsed) * (1.0 - smoothstep(duration - 0.18, duration, elapsed))
+	if rig.seek_ual_clip(WALL_RECOIL_CLIP, elapsed / duration, AnimationRig.SLOT_UAL):
+		_apply_skeleton_pose(parts, rig.active_skeleton, rig.active_bone_indices, rig.mirror_x)
+		for saved: Dictionary in base_pose:
+			var node: Node3D = saved.node
+			node.transform = (saved.transform as Transform3D).interpolate_with(node.transform, weight)
+	else:
+		var spine := parts.get("spine") as Node3D
+		if spine != null:
+			spine.global_basis = Basis(Vector3.RIGHT, deg_to_rad(-26.0) * weight) * spine.global_basis
+	# Only the struck avatar's visual root moves. P2 is parented beneath P1's
+	# controller, so moving that controller would incorrectly recoil both players.
+	# Authoritative movement, wall evaluation, push collisions and camera stay intact.
+	var pelvis := parts.get("pelvis") as Node3D
+	if pelvis != null:
+		var retreat := smoothstep(0.0, WALL_RECOIL_PEAK_TIME, elapsed)
+		var recovery := 1.0 - smoothstep(WALL_RECOIL_PEAK_TIME, duration, elapsed)
+		pelvis.global_position += Vector3.FORWARD * WALL_RECOIL_DISTANCE * retreat * recovery
+
+var _push_pose_restore: Array[Dictionary] = []
+
+func _restore_push_pose() -> void:
+	for saved: Dictionary in _push_pose_restore:
+		if is_instance_valid(saved.node):
+			saved.node.transform = saved.transform
+	_push_pose_restore.clear()
+
+## Add contact/recoil after the base animation so dances keep playing under the lean.
+func _apply_push_pose(parts: Dictionary, pose: Dictionary) -> void:
+	if pose.is_empty() or not pose.get("active", false):
+		return
+	for key: String in ["pelvis", "spine", "l_shoulder", "r_shoulder", "l_elbow", "r_elbow"]:
+		var node: Node3D = parts.get(key)
+		if node != null:
+			_push_pose_restore.append({"node": node, "transform": node.transform})
+	var spine: Node3D = parts.get("spine")
+	if spine != null:
+		spine.global_basis = Basis(Vector3.FORWARD, deg_to_rad(float(pose.lean))) * spine.global_basis
+	var weight: float = pose.brace if pose.grounded else 0.0
+	var pelvis: Node3D = parts.get("pelvis")
+	if pelvis != null:
+		pelvis.position.y -= float(pose.get("hip_drop", 0.035 * weight))
+	var shoulder_drive: float = pose.get("shoulder", 0.0)
+	for side: String in ["l", "r"]:
+		var shoulder: Node3D = parts.get(side + "_shoulder")
+		var elbow: Node3D = parts.get(side + "_elbow")
+		if shoulder != null:
+			shoulder.rotation.x *= 1.0 - 0.7 * weight
+			shoulder.rotation.z += deg_to_rad(6.0 if side == "l" else -6.0) * weight
+			# World-space shoulder drive mirrors correctly even when the rig turns.
+			shoulder.global_position += Vector3(float(pose.direction) * 0.075 * shoulder_drive, 0.025 * absf(shoulder_drive), 0.0)
+		if elbow != null:
+			elbow.rotation.x += deg_to_rad(-12.0) * weight
+			elbow.rotation.x += deg_to_rad(-8.0) * absf(shoulder_drive)
+
 func update_from_state(gs: QuizGameState) -> void:
+	_restore_health_pose()
+	_restore_push_pose()
 	if has_intro_arrival():
 		return
+	var push1: Dictionary = gs.get_local_push_pose(1)
+	var push2: Dictionary = gs.get_local_push_pose(2) if gs.num_players >= 2 else {}
 	var pz: float = gs.player_z
 	var walk_phase: float = _run_phase
 	var mult := 1.0
@@ -3141,7 +3361,7 @@ func update_from_state(gs: QuizGameState) -> void:
 				gs.game_state == Constants.STATE_RESULT_CEREMONY
 				and gs.result_ceremony_phase == QuizGameState.ResultCeremonyPhase.MEADOW_RUN
 			)
-			_animate_skeleton(p1_parts, gs.player_y, gs.player_vel_y, p1_is_playing, walk_phase, false, 0)
+			_animate_skeleton(p1_parts, gs.player_y, gs.player_vel_y, p1_is_playing, walk_phase, false, gs.p1_emote)
 		else:
 			var is_active := gs.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE] or (
 				gs.game_state == Constants.STATE_RESULT_CEREMONY
@@ -3172,6 +3392,7 @@ func update_from_state(gs: QuizGameState) -> void:
 				_apply_p1_rig_animation_fallback(gs, is_active, walk_phase, speed_ratio)
 			# FBXリグモードでもボブルヘッドを更新
 			_update_bobblehead(p1_parts, false, is_active, walk_phase)
+		_apply_push_pose(p1_parts, push1)
 		if _p1_result_exploded:
 			_p1_result_explosion_elapsed += get_process_delta_time()
 			_set_parts_visible(p1_parts, false)
@@ -3180,9 +3401,7 @@ func update_from_state(gs: QuizGameState) -> void:
 			_update_explosion(true, _p1_result_explosion_elapsed)
 	elif gs.game_over_timer > 0:
 		if gs.p1_shark_killed:
-			if not _p1_exploding:
-				_p1_exploding = true
-				_init_explosion(p1_parts, true)
+			begin_ocean_shark_explosion(1)
 			_set_parts_visible(p1_parts, false)
 			if not _p1_explosion_bodies.is_empty():
 				_update_explosion(
@@ -3278,7 +3497,7 @@ func update_from_state(gs: QuizGameState) -> void:
 					gs.game_state == Constants.STATE_RESULT_CEREMONY
 					and gs.result_ceremony_phase == QuizGameState.ResultCeremonyPhase.MEADOW_RUN
 				)
-				_animate_skeleton(p2_parts, gs.player2_y, gs.player2_vel_y, p2_is_playing, walk_phase * 1.1, true, 0)
+				_animate_skeleton(p2_parts, gs.player2_y, gs.player2_vel_y, p2_is_playing, walk_phase * 1.1, true, gs.p2_emote)
 			else:
 				var is_active := gs.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE] or (
 					gs.game_state == Constants.STATE_RESULT_CEREMONY
@@ -3309,6 +3528,7 @@ func update_from_state(gs: QuizGameState) -> void:
 					_apply_p2_rig_animation_fallback(gs, is_active, walk_phase, speed_ratio)
 				# FBXリグモードでもボブルヘッドを更新
 				_update_bobblehead(p2_parts, true, is_active, walk_phase * 1.1)
+			_apply_push_pose(p2_parts, push2)
 			if _p2_result_exploded:
 				_p2_result_explosion_elapsed += get_process_delta_time()
 				_set_parts_visible(p2_parts, false)
@@ -3317,9 +3537,7 @@ func update_from_state(gs: QuizGameState) -> void:
 				_update_explosion(false, _p2_result_explosion_elapsed)
 		elif gs.player2_game_over_timer > 0:
 			if gs.p2_shark_killed:
-				if not _p2_exploding:
-					_p2_exploding = true
-					_init_explosion(p2_parts, false)
+				begin_ocean_shark_explosion(2)
 				_set_parts_visible(p2_parts, false)
 				if not _p2_explosion_bodies.is_empty():
 					_update_explosion(
@@ -3371,6 +3589,9 @@ func update_from_state(gs: QuizGameState) -> void:
 		else:
 			_set_parts_visible(p2_parts, false)
 
+	_apply_health_pose(gs, p1_parts, 1)
+	if gs.num_players >= 2:
+		_apply_health_pose(gs, p2_parts, 2)
 	_apply_result_camera_facing(gs)
 
 	# The solo player root must remain visible for the third-person camera.
@@ -3782,6 +4003,23 @@ func _mesh_box_size(mesh_inst: MeshInstance3D) -> Vector3:
 	var box := mesh_inst.mesh as BoxMesh
 	var size := box.size if box else Vector3(0.18, 0.18, 0.18)
 	return size.max(Vector3.ONE * EXPLOSION_MIN_COLLISION_SIZE)
+
+
+## Called in the shark contact signal, so the visible body breaks apart in
+## that same frame even when the world already updated the player this tick.
+func begin_ocean_shark_explosion(player_index: int) -> void:
+	var is_p1 := player_index == 1
+	if (_p1_exploding if is_p1 else _p2_exploding):
+		return
+	var parts := p1_parts if is_p1 else p2_parts
+	if parts.is_empty():
+		return
+	if is_p1:
+		_p1_exploding = true
+	else:
+		_p2_exploding = true
+	_init_explosion(parts, is_p1)
+	_set_parts_visible(parts, false)
 
 
 func _init_explosion(parts: Dictionary, is_p1: bool, force_non_forward: bool = false) -> void:

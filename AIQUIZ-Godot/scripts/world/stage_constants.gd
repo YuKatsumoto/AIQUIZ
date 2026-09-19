@@ -9,10 +9,12 @@ const FLOOR_COLOR := Color(0.35, 0.35, 0.35)
 
 ## 床上面の Y。プレイヤー・壁・ゴール等の Y 基準。
 const FLOOR_TOP_Y: float = -1.2
-## 床ボックス（厚み16）の中心 Y。上面が FLOOR_TOP_Y に来るよう -9.2。
-const FLOOR_CENTER_Y: float = -9.2
+## 水面下120mの海底まで土台を延長。床上面・当たり判定の高さは固定。
+const OCEAN_DEPTH: float = 120.0
+const SEABED_Y: float = OCEAN_SURFACE_Y - OCEAN_DEPTH
+const FLOOR_CENTER_Y: float = (FLOOR_TOP_Y + SEABED_Y) * 0.5
 const FLOOR_WIDTH: float = 24.0
-const FLOOR_THICKNESS: float = 16.0
+const FLOOR_THICKNESS: float = FLOOR_TOP_Y - SEABED_Y
 const FLOOR_HALF_WIDTH: float = 12.0
 
 const FLOOR_RAIL_HEIGHT: float = 0.26

@@ -59,7 +59,7 @@ const CAM_TAB_TRANSITION_SMOOTH_RATE: float = 4.6
 const PREVIEW_DOOR_HALF_DEPTH_Z: float = 0.30
 const PREVIEW_BLUE_DOOR_INDEX: int = 0
 const PREVIEW_RED_DOOR_INDEX: int = 1
-const AUTO_WALL_SPEED: float = 28.0 / (4.0 + 5.0)
+const AUTO_WALL_SPEED: float = GameTuning.WALL_SPEED_AUTO_DEFAULT
 ## エモートタブ時にベルト表示速度が 0 に近づく時間感（小さいほど早く減速）
 const BELT_VISUAL_RAMP_TAU_SEC: float = 1.25
 ## game_world の「次の問題を準備中」壁合体プレビューに合わせたパラメータ
@@ -230,7 +230,12 @@ var _wall_speed_cam_settings: Dictionary = {}
 func _ready() -> void:
 	var game_state := QuizManager.game_state
 	if game_state.tuning.wall_speed_override > 0.0:
-		_preview_speed = game_state.tuning.wall_speed_override
+		_preview_speed = clampf(
+			game_state.tuning.wall_speed_override,
+			GameTuning.WALL_SPEED_SLIDER_MIN,
+			GameTuning.WALL_SPEED_SLIDER_MAX
+		)
+		game_state.tuning.wall_speed_override = _preview_speed
 	_belt_visual_speed = _preview_speed
 
 	_build_ui()
@@ -791,8 +796,8 @@ func _build_wall_panel() -> void:
 	_speed_slider = ThinkingGaugeSliderScript.new() as HSlider
 	_speed_slider.name = "WallSpeedThinkingGauge"
 	_speed_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_speed_slider.min_value = 1.0
-	_speed_slider.max_value = 10.0
+	_speed_slider.min_value = GameTuning.WALL_SPEED_SLIDER_MIN
+	_speed_slider.max_value = GameTuning.WALL_SPEED_SLIDER_MAX
 	_speed_slider.step = 0.1
 	_speed_slider.value_changed.connect(_on_speed_changed)
 	_wall_panel.add_child(_speed_slider)
@@ -1627,7 +1632,8 @@ func _update_mode_label() -> void:
 
 func _update_speed_value() -> void:
 	_speed_value_label.text = "%.1f" % _preview_speed
-	var t: float = (_preview_speed - 2.0) / 8.0
+	var span: float = GameTuning.WALL_SPEED_SLIDER_MAX - GameTuning.WALL_SPEED_SLIDER_MIN
+	var t: float = (_preview_speed - GameTuning.WALL_SPEED_SLIDER_MIN) / span
 	var col := Color(0.3, 1.0, 0.5).lerp(Color(1.0, 0.3, 0.2), t)
 	_speed_value_label.add_theme_color_override("font_color", col)
 

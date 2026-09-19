@@ -33,8 +33,19 @@ func setup(gs: QuizGameState) -> void:
 	"""game_worldから呼ばれる初期化"""
 	game_state = gs
 	is_online = NetworkManager.state == NetworkManager.State.IN_GAME
+	if not gs.question_completed.is_connected(_send_question_completed):
+		gs.question_completed.connect(_send_question_completed)
+	if not gs.health_changed.is_connected(_send_health_changed):
+		gs.health_changed.connect(_send_health_changed)
 	_sent_quiz_count = 0
 
+
+func _send_question_completed(wall_index: int, correct: bool) -> void:
+	send_game_event("question_completed", {"wall_index": wall_index, "correct": correct})
+
+func _send_health_changed(player_index: int, _previous: int, hp: int) -> void:
+	# Reliable events retain a damage -> heal pair occurring between snapshots.
+	send_game_event("health_changed", {"player": player_index, "hp": hp})
 
 func process_network(dt: float) -> void:
 	"""game_world._process()から呼ばれるネットワーク処理"""
@@ -199,6 +210,15 @@ func _on_event_received(data: Dictionary) -> void:
 	"""クライアント: ホストからのゲームイベントを受信"""
 	var event_name: String = data.get("event", "")
 	match event_name:
+		"health_changed":
+			var player_index := int(data.get("player", 0))
+			if game_state != null and not NetworkManager.is_host and player_index in [1, 2]:
+				game_state._set_player_hp(player_index, int(data.get("hp", game_state.get_player_hp(player_index))))
+		"question_completed":
+			if game_state != null and not NetworkManager.is_host:
+				if bool(data.get("correct", false)):
+					game_state.correct_answer.emit()
+				game_state.question_completed.emit(int(data.get("wall_index", -1)), bool(data.get("correct", false)))
 		"correct":
 			game_state.correct_answer.emit()
 		"wrong":

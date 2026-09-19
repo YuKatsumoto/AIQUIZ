@@ -27,7 +27,7 @@ var _mode_label: Label
 
 # --- State ---
 var _wall_scene: PackedScene
-var _preview_speed: float = 5.0
+var _preview_speed: float = GameTuning.WALL_SPEED_AUTO_DEFAULT
 const WALL_SPACING := 30.0
 const WALL_START_Z := 22.0
 const CONVEYOR_FLOOR_SHADER: Shader = preload("res://shaders/conveyor_belt_floor.gdshader")
@@ -63,10 +63,15 @@ func _ready() -> void:
 	var game_state := QuizManager.game_state
 	# 現在の速度設定を読み取り
 	if game_state.tuning.wall_speed_override > 0:
-		_preview_speed = game_state.tuning.wall_speed_override
+		_preview_speed = clampf(
+			game_state.tuning.wall_speed_override,
+			GameTuning.WALL_SPEED_SLIDER_MIN,
+			GameTuning.WALL_SPEED_SLIDER_MAX
+		)
+		game_state.tuning.wall_speed_override = _preview_speed
 	else:
 		# 「自動」モードの場合、デフォルト速度を使用
-		_preview_speed = 28.0 / (4.0 + 5.0)  # ≈ 3.11（MOVE_BUFFER=5.0に合わせた自動モード基準速度）
+		_preview_speed = GameTuning.WALL_SPEED_AUTO_DEFAULT
 	
 	_build_ui()
 	_build_3d_preview()
@@ -331,8 +336,8 @@ func _build_ui() -> void:
 	
 	# スライダー
 	_speed_slider = HSlider.new()
-	_speed_slider.min_value = 1.0
-	_speed_slider.max_value = 10.0
+	_speed_slider.min_value = GameTuning.WALL_SPEED_SLIDER_MIN
+	_speed_slider.max_value = GameTuning.WALL_SPEED_SLIDER_MAX
 	_speed_slider.step = 0.1
 	_speed_slider.value = _preview_speed
 	_speed_slider.custom_minimum_size = Vector2(0, 36)
@@ -709,7 +714,8 @@ func _update_speed_display() -> void:
 	_speed_value_label.text = "%.1f" % _preview_speed
 	
 	# 速度に応じて色を変える
-	var t: float = (_preview_speed - 2.0) / 8.0  # 0.0 ~ 1.0
+	var span: float = GameTuning.WALL_SPEED_SLIDER_MAX - GameTuning.WALL_SPEED_SLIDER_MIN
+	var t: float = (_preview_speed - GameTuning.WALL_SPEED_SLIDER_MIN) / span
 	var col := Color(0.3, 1.0, 0.5).lerp(Color(1.0, 0.3, 0.2), t)
 	_speed_value_label.add_theme_color_override("font_color", col)
 
@@ -728,7 +734,7 @@ func _on_reset_pressed() -> void:
 	game_state.tuning.wall_speed_override = 0.0
 	
 	# デフォルト速度を再計算
-	_preview_speed = 28.0 / (4.0 + 5.0)  # MOVE_BUFFER=5.0に合わせた自動モード基準速度
+	_preview_speed = GameTuning.WALL_SPEED_AUTO_DEFAULT
 	_speed_slider.value = _preview_speed
 	_update_speed_display()
 	_update_mode_label()

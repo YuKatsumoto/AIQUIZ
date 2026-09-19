@@ -206,6 +206,7 @@ var _aim_ring: MeshInstance3D = null
 var _aim_outer_ring: MeshInstance3D = null
 var _hud_layer: CanvasLayer = null
 var _hud_panel: PanelContainer = null
+var _hud_status_card: Control = null
 var _hud_title: Label = null
 var _hud_combo: Label = null
 var _hud_controls: KeyHintRow = null
@@ -2504,6 +2505,7 @@ func _start_hud_intro() -> void:
 
 
 func _update_hud_animation(delta: float) -> void:
+	_sync_hud_host()
 	if _hud_panel == null or not _hud_panel.visible or phase == Phase.INACTIVE:
 		return
 	if _hud_slide_active:
@@ -2522,6 +2524,13 @@ func _hud_slide_weight() -> float:
 
 func _layout_hud(slide_weight: float) -> void:
 	if _hud_panel == null:
+		return
+	_sync_hud_host()
+	if is_instance_valid(_hud_status_card):
+		var slot := _hud_status_card.get_node("AnimatedSurface/GhostRideSlot") as Control
+		_hud_panel.position = Vector2.ZERO
+		_hud_panel.size = slot.size
+		_hud_panel.modulate.a = slide_weight
 		return
 	var viewport_size := get_viewport().get_visible_rect().size
 	var panel_width := minf(
@@ -2544,6 +2553,30 @@ func _layout_hud(slide_weight: float) -> void:
 	)
 	_hud_panel.size = Vector2(panel_width, HUD_PANEL_HEIGHT)
 	_hud_panel.modulate.a = slide_weight
+
+## Keep the original controls and live meter, including the tutorial handoff.
+## Only their host changes: the eliminated player's existing HP/score card.
+func _sync_hud_host() -> void:
+	if _hud_panel == null:
+		return
+	var target_card: Control = null
+	var health := get_parent().get_node_or_null("GameplayHUD/PlayerHealthHUD")
+	if health != null and health.has_method("get_ghost_hud_card"):
+		target_card = health.call("get_ghost_hud_card", dead_player_index) as Control
+	if _hud_status_card != target_card:
+		if is_instance_valid(_hud_status_card):
+			_hud_status_card.call("set_ghost_hud_active", false)
+		_hud_status_card = target_card
+		var host: Node = _hud_layer
+		if is_instance_valid(_hud_status_card):
+			host = _hud_status_card.get_node("AnimatedSurface/GhostRideSlot")
+		if _hud_panel.get_parent() != host:
+			_hud_panel.reparent(host, false)
+	if is_instance_valid(_hud_status_card):
+		var show_controls := _hud_panel.visible and not _result_departure_only and phase in [Phase.AIMING, Phase.WINDUP, Phase.CHARGING, Phase.COOLDOWN]
+		_hud_status_card.call("set_ghost_hud_active", show_controls)
+	_hud_title.add_theme_font_size_override("font_size", 14 if target_card != null else 18)
+	_hud_combo.add_theme_font_size_override("font_size", 14 if target_card != null else 18)
 
 
 func _show_aim_visuals() -> void:
@@ -2597,7 +2630,8 @@ func _update_hud(_status: String) -> void:
 		_hud_panel.visible = false
 		return
 	_hud_panel.visible = true
-	_hud_title.text = "GHOST RIDER · P%d" % dead_player_index
+	_sync_hud_host()
+	_hud_title.text = "GHOST RIDER" if is_instance_valid(_hud_status_card) else "GHOST RIDER · P%d" % dead_player_index
 	_hud_combo.text = "HAUNT x%d" % _combo if _combo > 0 else ""
 	_refresh_hud_controls()
 	_layout_hud(_hud_slide_weight())

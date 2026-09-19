@@ -1,0 +1,227 @@
+{
+  "blender": "5.1.2",
+  "units": "metres",
+  "sea_level": 0,
+  "land_top": 4.15,
+  "width": 2960,
+  "depth": 3550,
+  "open_direction_godot": "+Z (course forward)",
+  "minimum_shore_distance_from_course_axis": 1220,
+  "districts": 23,
+  "buildings": 368,
+  "export_meshes": 13,
+  "triangles": 349718,
+  "source_meshes": 415,
+  "trees": 1564,
+  "external_assets": [],
+  "additional_cost": 0,
+  "layout": [
+    {
+      "side": "Rear",
+      "district": 1,
+      "godot_centre": [
+        -1200,
+        0,
+        -1370
+      ]
+    },
+    {
+      "side": "Rear",
+      "district": 2,
+      "godot_centre": [
+        -800,
+        0,
+        -1370
+      ]
+    },
+    {
+      "side": "Rear",
+      "district": 3,
+      "godot_centre": [
+        -400,
+        0,
+        -1370
+      ]
+    },
+    {
+      "side": "Rear",
+      "district": 4,
+      "godot_centre": [
+        0,
+        0,
+        -1370
+      ]
+    },
+    {
+      "side": "Rear",
+      "district": 5,
+      "godot_centre": [
+        400,
+        0,
+        -1370
+      ]
+    },
+    {
+      "side": "Rear",
+      "district": 6,
+      "godot_centre": [
+        800,
+        0,
+        -1370
+      ]
+    },
+    {
+      "side": "Rear",
+      "district": 7,
+      "godot_centre": [
+        1200,
+        0,
+        -1370
+      ]
+    },
+    {
+      "side": "Left",
+      "district": 1,
+      "godot_centre": [
+        -1350,
+        0,
+        -950
+      ]
+    },
+    {
+      "side": "Left",
+      "district": 2,
+      "godot_centre": [
+        -1350,
+        0,
+        -550
+      ]
+    },
+    {
+      "side": "Left",
+      "district": 3,
+      "godot_centre": [
+        -1350,
+        0,
+        -150
+      ]
+    },
+    {
+      "side": "Left",
+      "district": 4,
+      "godot_centre": [
+        -1350,
+        0,
+        250
+      ]
+    },
+    {
+      "side": "Left",
+      "district": 5,
+      "godot_centre": [
+        -1350,
+        0,
+        650
+      ]
+    },
+    {
+      "side": "Left",
+      "district": 6,
+      "godot_centre": [
+        -1350,
+        0,
+        1050
+      ]
+    },
+    {
+      "side": "Left",
+      "district": 7,
+      "godot_centre": [
+        -1350,
+        0,
+        1450
+      ]
+    },
+    {
+      "side": "Left",
+      "district": 8,
+      "godot_centre": [
+        -1350,
+        0,
+        1850
+      ]
+    },
+    {
+      "side": "Right",
+      "district": 1,
+      "godot_centre": [
+        1350,
+        0,
+        -950
+      ]
+    },
+    {
+      "side": "Right",
+      "district": 2,
+      "godot_centre": [
+        1350,
+        0,
+        -550
+      ]
+    },
+    {
+      "side": "Right",
+      "district": 3,
+      "godot_centre": [
+        1350,
+        0,
+        -150
+      ]
+    },
+    {
+      "side": "Right",
+      "district": 4,
+      "godot_centre": [
+        1350,
+        0,
+        250
+      ]
+    },
+    {
+      "side": "Right",
+      "district": 5,
+      "godot_centre": [
+        1350,
+        0,
+        650
+      ]
+    },
+    {
+      "side": "Right",
+      "district": 6,
+      "godot_centre": [
+        1350,
+        0,
+        1050
+      ]
+    },
+    {
+      "side": "Right",
+      "district": 7,
+      "godot_centre": [
+        1350,
+        0,
+        1450
+      ]
+    },
+    {
+      "side": "Right",
+      "district": 8,
+      "godot_centre": [
+        1350,
+        0,
+        1850
+      ]
+    }
+  ]
+}

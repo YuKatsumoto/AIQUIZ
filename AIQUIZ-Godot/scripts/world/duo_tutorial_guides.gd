@@ -290,6 +290,8 @@ func _pending_direction_yaw(player_index: int, pending_task: String, guide: Stri
 		# 近い方の端へ誘導する。左右どちらから落ちてもよい。
 		return PI * 0.5 if _player_position(player_index).x >= 0.0 else -PI * 0.5
 	match pending_task:
+		"brace", "push":
+			return PI * 0.5 if _player_position(3 - player_index).x > _player_position(player_index).x else -PI * 0.5
 		"left":
 			return PI * 0.5
 		"right":

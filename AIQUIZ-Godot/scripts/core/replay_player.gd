@@ -97,6 +97,13 @@ func apply_to_game_state(gs: QuizGameState) -> void:
 	if frame.is_empty():
 		return
 
+	gs.hp_state_available = bool(frame.get("hp_available", false))
+	if gs.uses_hp() and int(frame["wall_idx"]) == gs.current_wall_index + 1:
+		gs.question_completed.emit(gs.current_wall_index, int(frame["score"]) > gs.score or int(frame["p2_score"]) > gs.player2_score)
+	gs._set_player_hp(1, int(frame.get("hp1", 3)))
+	gs._set_player_hp(2, int(frame.get("hp2", 3)))
+	gs.p1_damage_time = float(frame.get("hurt1", 0.0))
+	gs.p2_damage_time = float(frame.get("hurt2", 0.0))
 	gs.player_x = frame["p1_x"]
 	gs.player_y = frame["p1_y"]
 	gs.player_z = frame["p1_z"]

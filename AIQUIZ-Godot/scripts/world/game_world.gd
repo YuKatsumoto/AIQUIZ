@@ -39,6 +39,10 @@ var _helicopter_arrival_director: Node = null
 var _tutorial_customize_handoff_in_progress: bool = false
 var _active_walls: Array[Node3D] = []
 var _retired_wall_indices: Dictionary = {}
+var _question_framing_wall: Node3D = null
+var _display_question_quiz: QuizItem = null
+var _display_question_source: String = ""
+var _display_question_text: String = ""
 const MERGE_EFFECT_POOL_SIZE := 6
 const MERGE_SPARK_BASE_AMOUNT := 40
 var _merge_effect_pool: Array[Dictionary] = []
@@ -86,6 +90,64 @@ var _barrier_landing_dust: CPUParticles3D = null
 # ── リプレイ記録 ──
 var _recorder: ReplayRecorder = null
 var _replay_mode: bool = false
+var _push_key_events: Array[Dictionary] = []
+var _push_resync := true
+var _push_focus_lost := false
+var _push_active_last := false
+
+func _push_key_masks() -> Array:
+	return [(1 if Input.is_key_pressed(KEY_A) else 0) | (2 if Input.is_key_pressed(KEY_D) else 0),
+		(1 if Input.is_key_pressed(KEY_LEFT) else 0) | (2 if Input.is_key_pressed(KEY_RIGHT) else 0)]
+
+func _input(event: InputEvent) -> void:
+	if not event is InputEventKey or event.echo or game_state == null:
+		return
+	if get_tree().paused or _push_focus_lost or not game_state.uses_local_push():
+		return
+	var key: int = event.keycode if event.keycode != 0 else event.physical_keycode
+	var mapping := {KEY_A: [1, 1], KEY_D: [1, -1], KEY_LEFT: [2, 1], KEY_RIGHT: [2, -1]}
+	if mapping.has(key):
+		_push_key_events.append({"player": mapping[key][0], "direction": mapping[key][1],
+			"pressed": event.pressed, "usec": Time.get_ticks_usec()})
+
+func _clear_push_input() -> void:
+	_push_key_events.clear()
+	_push_resync = true
+	if game_state != null:
+		game_state.suspend_local_push(_push_key_masks())
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		_push_focus_lost = true
+		_clear_push_input()
+	elif what == NOTIFICATION_APPLICATION_FOCUS_IN:
+		_push_focus_lost = false
+		_clear_push_input()
+
+func _exit_tree() -> void:
+	if game_state != null:
+		game_state.local_push.reset()
+
+func _feed_push_input(dt: float) -> void:
+	game_state.local_push_transport_enabled = not _replay_mode and not (_net_state and _net_state.is_online)
+	var active: bool = game_state.uses_local_push()
+	if active and not _push_active_last:
+		_push_resync = true
+	_push_active_last = active
+	if _push_resync or _push_focus_lost or not game_state.uses_local_push() or game_state.is_tutorial_presentation_locked():
+		game_state.suspend_local_push(_push_key_masks())
+		_push_key_events.clear()
+		_push_resync = false
+		return
+	var frame_start := Time.get_ticks_usec() - int(dt * 1000000.0)
+	for event: Dictionary in _push_key_events:
+		var offset := clampf(float(int(event.usec) - frame_start) / 1000000.0, 0.0, dt)
+		game_state.submit_local_push_key(event.player, event.direction, event.pressed, offset)
+	_push_key_events.clear()
+
+func _on_local_push_event(event: Dictionary) -> void:
+	if event.kind in ["contact", "hit", "clash"]:
+		particle_spawner.spawn_local_push(event)
 
 func _ready() -> void:
 	_world_visual_prep_started_msec = Time.get_ticks_msec()
@@ -102,6 +164,7 @@ func _ready() -> void:
 	game_state.quiz_loaded.connect(_on_quiz_loaded)
 	game_state.correct_answer.connect(_on_correct)
 	game_state.wrong_answer.connect(_on_wrong)
+	game_state.question_completed.connect(_on_question_completed)
 	game_state.player_entered_ocean.connect(_on_player_entered_ocean)
 
 	# リプレイ記録を開始（通常モードのみ）
@@ -115,9 +178,14 @@ func _ready() -> void:
 	_net_state = NetGameState.new()
 	add_child(_net_state)
 	_net_state.setup(game_state)
+	game_state.local_push_transport_enabled = not _replay_mode and not _net_state.is_online
+	game_state.local_push.reset()
+	game_state.local_push_event.connect(_on_local_push_event)
 	# Online and replay retain their existing presentation contract. Every local
 	# game mode shares this one director and the same product GLB.
-	if not _replay_mode and not _net_state.is_online:
+	# Retry skips the drop so players spawn on the belt immediately.
+	var skip_helicopter_arrival := game_state.consume_skip_start_helicopter_arrival()
+	if not _replay_mode and not _net_state.is_online and not skip_helicopter_arrival:
 		_helicopter_arrival_director = HelicopterArrivalDirectorScript.new()
 		_helicopter_arrival_director.name = "HelicopterArrivalDirector"
 		add_child(_helicopter_arrival_director)
@@ -126,6 +194,10 @@ func _ready() -> void:
 			player_node as PlayerController,
 			camera_controller
 		)
+	elif skip_helicopter_arrival:
+		var skip_pc := player_node as PlayerController
+		if skip_pc != null:
+			skip_pc.reveal_without_intro_arrival()
 
 	# Setup shared stage (environment / lighting / floor / conveyor / ocean)
 	stage_env.build(stage_env.gameplay_build_config())
@@ -445,6 +517,8 @@ func _on_shark_attack_reached(player_index: int, shark: SharkSwimmer) -> void:
 		if death_wipe != null and death_wipe.has_method("play_shark_impact_flash"):
 			death_wipe.play_shark_impact_flash(player_index)
 	game_state.complete_ocean_shark_attack(player_index)
+	if player_node is PlayerController:
+		player_node.begin_ocean_shark_explosion(player_index)
 
 
 ## 重い表示系は黒画面内で予熱する。オンラインでヘリ投入が有効なときは準備画面を先に開示し、
@@ -813,6 +887,7 @@ func _process(dt: float) -> void:
 	# Update game state (host or offline only — client receives snapshots)
 	game_state.result_ceremony_enabled = false
 	if not _is_client and not _replay_mode:
+		_feed_push_input(dt)
 		game_state.update(dt, axis_p1, axis_p2, jump_p1, jump_p2, emote_p1, emote_p2)
 	if _ghost_shark_ride_controller:
 		_ghost_shark_ride_controller.update_ghost_ride(
@@ -861,6 +936,7 @@ func _process(dt: float) -> void:
 		_tutorial_presentation_director.update(dt)
 	if _tutorial_world_guides:
 		_tutorial_world_guides.update(dt)
+	_update_wall_question()
 	_update_camera(dt)
 	_check_particles()
 	_update_start_barrier()
@@ -1027,6 +1103,7 @@ func _update_player(_dt: float) -> void:
 			Constants.STATE_PRELOADING,
 		]
 		and not game_state.uses_local_result_ceremony()
+		and (pc == null or not pc.has_intro_revealed())
 	)
 	if game_state.game_state == Constants.STATE_MENU or hide_for_loading:
 		player_node.visible = false
@@ -1226,8 +1303,36 @@ func _update_walls() -> void:
 				_update_wall_labels(wall)
 
 func _update_wall_labels(wall_node: Node3D) -> void:
+	if game_state.current_quiz != null:
+		wall_node.set_meta("hp_answer", game_state.current_quiz.a)
 	if wall_node.has_method("set_quiz"):
 		wall_node.set_quiz(game_state.current_quiz, game_state.num_choices)
+
+
+func _update_wall_question() -> void:
+	_question_framing_wall = null
+	var show_question := game_state.game_state == Constants.STATE_PLAYING and game_state.current_quiz != null
+	if game_state.mode == Constants.MODE_TUTORIAL:
+		show_question = show_question and game_state.tutorial_flow != null and game_state.tutorial_flow.is_quiz_step() and not game_state.is_tutorial_presentation_locked()
+	if show_question:
+		var quiz := game_state.current_quiz
+		var source := quiz.q
+		if game_state.is_coop_mode() and quiz.has_coop_data():
+			source += "\n%s / %s" % [quiz.coop_p1_label, quiz.coop_p2_label]
+		if quiz != _display_question_quiz or source != _display_question_source:
+			_display_question_quiz = quiz
+			_display_question_source = source
+			_display_question_text = FractionFormatter.format_question(quiz.q)
+			if game_state.is_coop_mode() and quiz.has_coop_data():
+				_display_question_text += "\n%s / %s" % [quiz.coop_p1_label, quiz.coop_p2_label]
+	for wall: Node3D in _active_walls:
+		if not is_instance_valid(wall):
+			continue
+		if show_question and int(wall.get_meta("wall_index", -1)) == game_state.current_wall_index:
+			wall.set_gameplay_question(_display_question_text, true)
+			_question_framing_wall = wall
+		else:
+			wall.set_gameplay_question_visible(false)
 
 func _update_goal_line() -> void:
 	# Challenge flyovers may preview the finish. Tutorials reveal the goal only
@@ -1356,6 +1461,10 @@ func _create_goal_box(box_size: Vector3, color: Color) -> MeshInstance3D:
 func _update_camera(dt: float) -> void:
 	if not camera_controller or not camera_controller.has_method("update_camera"):
 		return
+	var question_points := PackedVector3Array()
+	if is_instance_valid(_question_framing_wall):
+		question_points = _question_framing_wall.get_gameplay_framing_points()
+	camera_controller.set_question_framing_points(question_points)
 
 	var focus_shark: SharkSwimmer = null
 	var focus_player_index: int = 0
@@ -1476,6 +1585,12 @@ func _get_player_death_effect_position(player_index: int, fallback: Vector3) -> 
 	return controller.get_death_presentation_position(player_index == 1)
 
 
+func _finish_intro_arrival_for_gameplay() -> void:
+	var pc := player_node as PlayerController
+	if pc != null and pc.has_intro_arrival():
+		pc.complete_intro_drops(game_state)
+
+
 func _on_state_changed(new_state: String) -> void:
 	if (
 		_helicopter_arrival_director != null
@@ -1483,6 +1598,8 @@ func _on_state_changed(new_state: String) -> void:
 		and new_state not in [Constants.STATE_PRELOADING, Constants.STATE_WAITING_START]
 	):
 		_helicopter_arrival_director.cancel()
+	if new_state in [Constants.STATE_FLYOVER, Constants.STATE_COUNTDOWN, Constants.STATE_PLAYING]:
+		_finish_intro_arrival_for_gameplay()
 	if new_state in [Constants.STATE_CLEAR, Constants.STATE_GAME_OVER, Constants.STATE_MENU]:
 		if _ghost_shark_ride_controller:
 			_ghost_shark_ride_controller.force_cleanup()
@@ -1530,6 +1647,8 @@ func _on_quiz_loaded(quiz: QuizItem) -> void:
 			
 
 func _on_correct() -> void:
+	if game_state.uses_hp():
+		return  # HP rounds retire the explicitly completed wall on every peer.
 	if game_state.current_quiz:
 		var answer_idx: int = game_state.current_quiz.a
 		for wall: Node3D in _active_walls:
@@ -1543,6 +1662,17 @@ func _on_correct() -> void:
 				if wall.has_method("retire_after_player_pass"):
 					wall.retire_after_player_pass(0.28)
 	# Audio handled by AudioManager
+
+func _on_question_completed(wall_index: int, correct: bool) -> void:
+	if _retired_wall_indices.has(wall_index):
+		return
+	for wall: Node3D in _active_walls:
+		if wall.get_meta("wall_index", -1) == wall_index:
+			_retired_wall_indices[wall_index] = true
+			if correct and wall.has_method("break_door"):
+				wall.break_door(int(wall.get_meta("hp_answer", 0)))
+			if wall.has_method("retire_after_player_pass"):
+				wall.retire_after_player_pass(0.28)
 
 func _on_wrong(_msg: String) -> void:
 	pass  # Audio handled by AudioManager
@@ -1635,6 +1765,7 @@ func _toggle_pause() -> void:
 	if not pause_menu:
 		return
 	var new_paused = !get_tree().paused
+	_clear_push_input()
 	get_tree().paused = new_paused
 	AudioManager.set_music_paused(new_paused)
 	pause_menu.visible = new_paused

@@ -1,0 +1,13 @@
+{
+  "passed": true,
+  "glb_sha256": "b4444654b3bd80d6c1e8982b1ce203611784d88e9fa7063fc46227206c530eda",
+  "glb_bytes": 77803624,
+  "export_meshes": 39,
+  "export_materials": 6,
+  "export_surfaces": 104,
+  "export_triangles": 1488788,
+  "normalized_rgba8_color_accessors": 104,
+  "roundtrip_render_mean_absolute_linear_rgba_difference": 7.014797301962972e-05,
+  "roundtrip_render_99th_percentile_difference": 0.003921568393707275,
+  "validation_scope": "GLB structure and independent Blender GLB import/render; Godot gameplay evidence is separate"
+}

@@ -454,7 +454,7 @@ func set_hint(text: String, seconds: float = HINT_SECONDS) -> void:
 
 func clear_summary_lines() -> PackedStringArray:
 	return PackedStringArray([
-		"✓ 走りながらの左右移動とジャンプ",
+		"✓ 走りながらの前後左右移動とジャンプ",
 		"✓ コース外＝海とサメの危険",
 		"✓ 誘導ありと誘導なしのクイズ",
 		"✓ 壁速度・帽子・エモートのカスタマイズ",
@@ -558,7 +558,7 @@ func _build_steps() -> Array[Dictionary]:
 		{
 			"id": "air_control",
 			"title": "ジャンプと前後の微調整",
-			"body": "ジャンプで飛び越え、前後で走る速さを微調整できます。",
+			"body": "自動前進に加えて、前後に動いて壁に向かうタイミングを調整できます。ジャンプも試しましょう。",
 			"guide": GUIDE_AIR,
 			"speed": 0.55,
 			"walls": false,

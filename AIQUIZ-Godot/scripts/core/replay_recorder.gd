@@ -17,7 +17,8 @@ const MAX_REPLAYS := 20  # 保存できる最大リプレイ数
 ## [13] scroll_z, [14] wall_idx, [15] score, [16] p2_score,
 ## [17] state_id, [18] correct_flash, [19] wrong_flash,
 ## [20] go_timer, [21] p2_go_timer, [22] p1_jump, [23] p2_jump
-const FIELDS_PER_FRAME := 24
+const FIELDS_PER_FRAME := 28
+var fields_per_frame := FIELDS_PER_FRAME
 
 var frames: PackedFloat32Array = PackedFloat32Array()
 var frame_count: int = 0
@@ -47,6 +48,7 @@ const ID_TO_STATE := {
 
 func start_recording(gs: QuizGameState) -> void:
 	frames.clear()
+	fields_per_frame = FIELDS_PER_FRAME
 	frame_count = 0
 	quiz_snapshots.clear()
 	_recorded_walls.clear()
@@ -65,7 +67,8 @@ func start_recording(gs: QuizGameState) -> void:
 		"p1_toon_preset": ToonPresets.normalize(gs.p1_toon_preset),
 		"p2_toon_preset": ToonPresets.normalize(gs.p2_toon_preset),
 		"timestamp": int(Time.get_unix_time_from_system()),
-		"version": 2,
+		"version": 3,
+		"hp_enabled": gs.uses_hp(),
 	}
 
 func stop_recording(gs: QuizGameState) -> void:
@@ -95,7 +98,7 @@ func capture(gs: QuizGameState) -> void:
 	# フレームデータをパック
 	var state_id: float = float(STATE_IDS.get(gs.game_state, 0))
 
-	var offset := frame_count * FIELDS_PER_FRAME
+	var offset := frame_count * fields_per_frame
 	frames.resize(offset + FIELDS_PER_FRAME)
 
 	frames[offset + 0] = gs.play_time
@@ -122,6 +125,10 @@ func capture(gs: QuizGameState) -> void:
 	frames[offset + 21] = gs.player2_game_over_timer
 	frames[offset + 22] = 1.0 if gs.p1_jump_trigger else 0.0
 	frames[offset + 23] = 1.0 if gs.p2_jump_trigger else 0.0
+	frames[offset + 24] = gs.p1_hp
+	frames[offset + 25] = gs.p2_hp
+	frames[offset + 26] = gs.p1_damage_time
+	frames[offset + 27] = gs.p2_damage_time
 
 	frame_count += 1
 
@@ -131,7 +138,7 @@ func capture(gs: QuizGameState) -> void:
 func get_frame(index: int) -> Dictionary:
 	if index < 0 or index >= frame_count:
 		return {}
-	var o := index * FIELDS_PER_FRAME
+	var o := index * fields_per_frame
 	return {
 		"t": frames[o + 0],
 		"p1_x": frames[o + 1], "p1_y": frames[o + 2], "p1_z": frames[o + 3],
@@ -153,17 +160,22 @@ func get_frame(index: int) -> Dictionary:
 		"p2_go_timer": frames[o + 21],
 		"p1_jump": frames[o + 22] > 0.5,
 		"p2_jump": frames[o + 23] > 0.5,
+		"hp_available": fields_per_frame >= 28 and bool(meta.get("hp_enabled", false)),
+		"hp1": int(frames[o + 24]) if fields_per_frame >= 28 else 3,
+		"hp2": int(frames[o + 25]) if fields_per_frame >= 28 else 3,
+		"hurt1": frames[o + 26] if fields_per_frame >= 28 else 0.0,
+		"hurt2": frames[o + 27] if fields_per_frame >= 28 else 0.0,
 	}
 
 func get_frame_time(index: int) -> float:
 	if index < 0 or index >= frame_count:
 		return 0.0
-	return frames[index * FIELDS_PER_FRAME]
+	return frames[index * fields_per_frame]
 
 func get_duration() -> float:
 	if frame_count == 0:
 		return 0.0
-	return frames[(frame_count - 1) * FIELDS_PER_FRAME]
+	return frames[(frame_count - 1) * fields_per_frame]
 
 ## 指定時間に最も近いフレームインデックスを二分探索で取得
 func find_frame_at_time(t: float) -> int:
@@ -201,7 +213,11 @@ func get_interpolated_frame(t: float) -> Dictionary:
 	for key in f1:
 		var v0 = f0[key]
 		var v1 = f1[key]
-		if v0 is float and v1 is float:
+		if key in ["hurt1", "hurt2"] and float(v1) > float(v0):
+			result[key] = v0 if alpha < 1.0 else v1
+		elif key in ["hp1", "hp2"]:
+			result[key] = v0 if alpha < 1.0 else v1
+		elif v0 is float and v1 is float:
 			result[key] = lerpf(v0 as float, v1 as float, alpha)
 		else:
 			result[key] = v1
@@ -227,7 +243,7 @@ func save_to_file(filename: String = "") -> String:
 		"meta": meta,
 		"quiz": quiz_snapshots,
 		"frame_count": frame_count,
-		"fields_per_frame": FIELDS_PER_FRAME,
+		"fields_per_frame": fields_per_frame,
 		"frames_base64": Marshalls.raw_to_base64(frames.to_byte_array()),
 	}
 
@@ -261,7 +277,10 @@ func load_from_file(path: String) -> bool:
 		return false
 
 	meta = data.get("meta", {})
-	frame_count = data.get("frame_count", 0)
+	frame_count = int(data.get("frame_count", 0))
+	fields_per_frame = int(data.get("fields_per_frame", 24))
+	if fields_per_frame not in [24, 28] or frame_count < 0:
+		return false
 
 	# quiz_snapshots のキーを int に復元
 	quiz_snapshots.clear()
@@ -277,6 +296,8 @@ func load_from_file(path: String) -> bool:
 		frames.clear()
 		frame_count = 0
 
+	if frames.size() != frame_count * fields_per_frame:
+		return false
 	is_recording = false
 	print("[ReplayRecorder] Loaded: %s (%d frames, %.1fs)" % [path, frame_count, get_duration()])
 	return true
@@ -287,7 +308,7 @@ func export_for_sharing() -> String:
 		"meta": meta,
 		"quiz": quiz_snapshots,
 		"frame_count": frame_count,
-		"fields_per_frame": FIELDS_PER_FRAME,
+		"fields_per_frame": fields_per_frame,
 		"frames_base64": Marshalls.raw_to_base64(frames.to_byte_array()),
 	}
 	return JSON.stringify(data)
@@ -301,7 +322,10 @@ func import_from_string(json_str: String) -> bool:
 	if not data is Dictionary:
 		return false
 	meta = data.get("meta", {})
-	frame_count = data.get("frame_count", 0)
+	frame_count = int(data.get("frame_count", 0))
+	fields_per_frame = int(data.get("fields_per_frame", 24))
+	if fields_per_frame not in [24, 28] or frame_count < 0:
+		return false
 	quiz_snapshots.clear()
 	var raw_quiz: Dictionary = data.get("quiz", {})
 	for key in raw_quiz:
@@ -312,6 +336,8 @@ func import_from_string(json_str: String) -> bool:
 	else:
 		frames.clear()
 		frame_count = 0
+	if frames.size() != frame_count * fields_per_frame:
+		return false
 	is_recording = false
 	return true
 

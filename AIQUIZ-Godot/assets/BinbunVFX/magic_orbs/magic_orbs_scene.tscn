@@ -1,4 +1,4 @@
-[gd_scene format=3 uid="uid://1hnfjqb3x811"]
+[gd_scene format=3 uid="uid://dibs3xtlnfky0"]
 
 [ext_resource type="Texture2D" uid="uid://dq8jkeeag6vov" path="res://assets/BinbunVFX/shared/texture/placeholder.png" id="1_krmeb"]
 [ext_resource type="PackedScene" uid="uid://dackluf2q5fuy" path="res://assets/BinbunVFX/magic_orbs/effects/magic_orb_basic/magic_orb_basic_vfx_01.tscn" id="2_4egum"]

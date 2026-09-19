@@ -8,19 +8,22 @@ extends Node3D
 ##
 ## 壁・プレイヤー・演出は各レイヤー（MenuPreviewLayer / GamePlayLayer）が別に持つ。
 
+const QualityRules = preload("res://scripts/core/graphics_quality.gd")
 const CONVEYOR_FLOOR_SHADER: Shader = preload("res://shaders/conveyor_belt_floor.gdshader")
 const MOBILE_OCEAN_SHADER: Shader = preload("res://shaders/ocean_mobile.gdshader")
 const SHARK_SWIMMER_SCENE: PackedScene = preload("res://scenes/shark_swimmer.tscn")
 const GRANDSTAND_SCENE: PackedScene = preload(
-	"res://assets/environment/grandstand/aiquiz_ocean_grandstand_optimized.glb"
+	"res://assets/environment/santorini_waterfront/santorini_open_terrace_grounded.glb"
 )
 const SharkSwimmerScript = preload("res://scripts/world/shark_swimmer.gd")
 const WeatherCycleScript = preload("res://scripts/world/weather_cycle.gd")
 const ConveyorEdgeLightsScript = preload("res://scripts/world/conveyor_edge_lights.gd")
 const GrandstandCrowdScript = preload("res://scripts/world/grandstand_crowd.gd")
+const HarborCityBackdropScript = preload("res://scripts/world/harbor_city_backdrop.gd")
+const WaterfrontScript = preload("res://scripts/world/santorini_waterfront.gd")
 const AIQUIZ_STAGE_SKY_PATH := "res://assets/environment/sky/aiquiz_day_night_sky.tres"
 const GRANDSTAND_BASE_LENGTH: float = 160.0
-const GRANDSTAND_SIDE_OFFSET: float = 32.0
+const GRANDSTAND_SIDE_OFFSET: float = 28.0
 const GENERATED_STAGE_META: StringName = &"stage_environment_generated"
 
 @export_category("Stage Layout")
@@ -56,9 +59,15 @@ const GENERATED_STAGE_META: StringName = &"stage_environment_generated"
 	set(value):
 		layout_include_right_grandstand = value
 		_queue_editor_preview_rebuild()
-@export_range(12.0, 80.0, 0.5, "or_greater") var layout_grandstand_side_offset: float = 32.0:
+@export_range(12.0, 80.0, 0.5, "or_greater") var layout_grandstand_side_offset: float = 28.0:
 	set(value):
 		layout_grandstand_side_offset = value
+		_queue_editor_preview_rebuild()
+
+# Town source/assets remain available; enable this to restore the Santorini backdrop.
+@export var layout_include_harbor_city: bool = false:
+	set(value):
+		layout_include_harbor_city = value
 		_queue_editor_preview_rebuild()
 
 @export_category("Spectators")
@@ -99,6 +108,7 @@ var weather_cycle: WeatherCycle = null
 var conveyor_edge_lights: ConveyorEdgeLights = null
 var _ocean_surface: MeshInstance3D = null
 var _grandstands_container: Node3D = null
+var _waterfront: Node3D = null
 var _shark_school: Node3D = null
 
 var _floor_belt_material: ShaderMaterial = null
@@ -141,6 +151,7 @@ func gameplay_build_config() -> Dictionary:
 		"grandstand_side_offset": layout_grandstand_side_offset,
 		"include_spectators": layout_include_spectators,
 		"spectator_density": layout_spectator_density,
+		"include_harbor_city": layout_include_harbor_city,
 	}
 
 
@@ -179,6 +190,7 @@ func _clear_built_stage() -> void:
 	conveyor_edge_lights = null
 	_ocean_surface = null
 	_grandstands_container = null
+	_waterfront = null
 	_shark_school = null
 	_floor_belt_material = null
 	_floor_collision_body = null
@@ -199,7 +211,8 @@ func _clear_built_stage() -> void:
 ## config キー: floor_center_z, floor_length, scroll_sign, return_scroll_sign,
 ##              include_back_roller, include_floor_collision,
 ##              is_preview, include_sharks, include_grandstands,
-##              include_left_grandstand, include_right_grandstand
+##              include_left_grandstand, include_right_grandstand,
+##              include_harbor_city (default false; retained town data can be re-enabled)
 func build(config: Dictionary = {}) -> void:
 	_clear_built_stage()
 	_floor_center_z = float(config.get("floor_center_z", 0.0))
@@ -216,6 +229,7 @@ func build(config: Dictionary = {}) -> void:
 	_grandstand_side_offset = float(config.get("grandstand_side_offset", GRANDSTAND_SIDE_OFFSET))
 	_include_spectators = bool(config.get("include_spectators", true))
 	_spectator_density = clampf(float(config.get("spectator_density", 0.85)), 0.0, 1.0)
+	var include_harbor_city: bool = config.get("include_harbor_city", layout_include_harbor_city) != false
 
 	_setup_environment()
 	_setup_lighting()
@@ -224,8 +238,15 @@ func build(config: Dictionary = {}) -> void:
 	_setup_floor_conveyor()
 	_setup_conveyor_edge_lights()
 	_setup_ocean()
+	if include_harbor_city:
+		_setup_harbor_city()
 	if _include_grandstands:
 		_setup_grandstands()
+	if include_harbor_city or _include_grandstands:
+		_waterfront = WaterfrontScript.new()
+		_waterfront.name = "WaterfrontInfrastructure"
+		_add_generated_stage_child(_waterfront)
+		_waterfront.setup(_grandstands_container, include_harbor_city, _graphics_quality())
 	if _include_sharks:
 		_setup_sharks()
 
@@ -235,8 +256,8 @@ func build(config: Dictionary = {}) -> void:
 static func _graphics_quality() -> String:
 	var raw: Variant = GameManager.get("graphics_quality")
 	if typeof(raw) != TYPE_STRING or String(raw).is_empty():
-		return GraphicsQuality.BALANCED
-	return GraphicsQuality.normalize(String(raw))
+		return QualityRules.BALANCED
+	return QualityRules.normalize(String(raw))
 
 
 static func create_stage_sky() -> Sky:
@@ -298,12 +319,38 @@ func _setup_environment() -> void:
 	env.set_glow_level(1, true)
 	env.set_glow_level(2, true)
 	env.set_glow_level(3, false)
-	GraphicsQuality.apply_environment(env, _graphics_quality())
+	QualityRules.apply_environment(env, _graphics_quality())
 
 	environment_node = WorldEnvironment.new()
 	environment_node.name = "WorldEnvironment"
 	environment_node.environment = env
 	_add_generated_stage_child(environment_node)
+
+
+func apply_graphics_quality(quality: String = "") -> void:
+	var q: String = QualityRules.normalize(quality) if not quality.is_empty() else _graphics_quality()
+	if environment_node != null and environment_node.environment != null:
+		QualityRules.apply_environment(environment_node.environment, q)
+	if directional_light != null:
+		directional_light.directional_shadow_max_distance = QualityRules.directional_shadow_distance(q)
+		directional_light.shadow_enabled = (
+			QualityRules.preview_shadow_enabled(q)
+			if _is_preview_environment
+			else QualityRules.gameplay_shadow_enabled(q)
+		)
+	if _ocean_surface != null and is_instance_valid(_ocean_surface):
+		configure_ocean_surface(_ocean_surface, q)
+	var town := get_node_or_null("HarborCityBackdrop")
+	if town != null:
+		town.apply_graphics_quality(q)
+	if is_instance_valid(_waterfront):
+		_waterfront.apply_graphics_quality(q)
+	if _grandstands_container == null:
+		return
+	for child: Node in _grandstands_container.get_children():
+		var stand := child as Node3D
+		if stand != null:
+			_configure_grandstand_geometry(stand)
 
 
 func _setup_lighting() -> void:
@@ -312,10 +359,11 @@ func _setup_lighting() -> void:
 	directional_light.rotation_degrees = Vector3(-50, -20, 0)
 	directional_light.light_color = Color(0.90, 0.92, 0.95)
 	directional_light.light_energy = 1.2
+	directional_light.directional_shadow_max_distance = QualityRules.directional_shadow_distance(_graphics_quality())
 	directional_light.shadow_enabled = (
-		GraphicsQuality.preview_shadow_enabled(_graphics_quality())
+		QualityRules.preview_shadow_enabled(_graphics_quality())
 		if _is_preview_environment
-		else GraphicsQuality.gameplay_shadow_enabled(_graphics_quality())
+		else QualityRules.gameplay_shadow_enabled(_graphics_quality())
 	)
 	_add_generated_stage_child(directional_light)
 
@@ -521,6 +569,13 @@ func _setup_ocean() -> void:
 	_add_generated_stage_child(_ocean_surface)
 
 
+func _setup_harbor_city() -> void:
+	var city := HarborCityBackdropScript.new()
+	city.name = "HarborCityBackdrop"
+	_add_generated_stage_child(city)
+	city.build(weather_cycle, _graphics_quality())
+
+
 func _setup_grandstands() -> void:
 	var container := Node3D.new()
 	container.name = "Grandstands"
@@ -543,6 +598,7 @@ func _setup_grandstands() -> void:
 		if side_x < 0.0:
 			stand.rotation = Vector3(0.0, PI, 0.0)
 		stand.process_mode = Node.PROCESS_MODE_DISABLED
+		WaterfrontScript.extend_stand_supports(stand)
 		_configure_grandstand_geometry(stand)
 		container.add_child(stand)
 		if _include_spectators and _spectator_density > 0.0:
@@ -556,10 +612,10 @@ func _setup_grandstands() -> void:
 
 func _configure_grandstand_geometry(stand: Node3D) -> void:
 	var quality: String = _graphics_quality()
-	var casts_shadows: bool = quality == GraphicsQuality.HIGH and not GraphicsQuality.is_mobile_target()
+	var casts_shadows: bool = quality == QualityRules.HIGH and not QualityRules.is_mobile_target()
 	for node: Node in stand.find_children("*", "MeshInstance3D", true, false):
 		var mesh_instance := node as MeshInstance3D
-		mesh_instance.lod_bias = GraphicsQuality.grandstand_lod_bias(quality)
+		mesh_instance.lod_bias = QualityRules.grandstand_lod_bias(quality)
 		mesh_instance.cast_shadow = (
 			GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 			if casts_shadows
@@ -586,6 +642,8 @@ func _sync_grandstands_to_floor() -> void:
 			var crowd: Node = stand.get_node_or_null("Spectators")
 			if crowd != null:
 				crowd.sync_length_scale(longitudinal_scale)
+	if is_instance_valid(_waterfront):
+		_waterfront.sync_to_stands(container)
 
 
 func _setup_sharks() -> void:
@@ -645,6 +703,7 @@ func _setup_sharks() -> void:
 		shark.phase = phases[index]
 		shark.animation_speed = 0.92 + float(index) * 0.08
 		shark.model_scale = scales[index]
+		shark.ocean_surface = _ocean_surface
 		shark.bite_distance = maxf(shark.bite_distance, shark.model_scale * 4.0)
 		school.add_child(shark)
 
@@ -680,14 +739,24 @@ func get_floor_length() -> float:
 static func create_ocean_surface() -> MeshInstance3D:
 	var ocean_mesh := MeshInstance3D.new()
 	ocean_mesh.name = "Ocean"
+	configure_ocean_surface(ocean_mesh, _graphics_quality())
+	return ocean_mesh
+
+
+static func configure_ocean_surface(ocean_mesh: MeshInstance3D, quality: String = "") -> void:
+	if ocean_mesh == null:
+		return
+	var q: String = QualityRules.normalize(quality) if not quality.is_empty() else _graphics_quality()
 	ocean_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	ocean_mesh.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
-	var plane := PlaneMesh.new()
+	var plane := ocean_mesh.mesh as PlaneMesh
+	if plane == null:
+		plane = PlaneMesh.new()
+		ocean_mesh.mesh = plane
 	plane.size = StageConstants.OCEAN_SIZE
-	var subdivisions: int = GraphicsQuality.ocean_subdivisions(_graphics_quality())
+	var subdivisions: int = QualityRules.ocean_subdivisions(q)
 	plane.subdivide_width = subdivisions
 	plane.subdivide_depth = subdivisions
-	ocean_mesh.mesh = plane
 	ocean_mesh.position = Vector3(0.0, StageConstants.OCEAN_SURFACE_Y, StageConstants.OCEAN_CENTER_Z)
 	var ocean_half_size: Vector2 = StageConstants.OCEAN_SIZE * 0.5
 	ocean_mesh.custom_aabb = AABB(
@@ -696,15 +765,11 @@ static func create_ocean_surface() -> MeshInstance3D:
 	)
 
 	var mat := ShaderMaterial.new()
-	var use_lightweight_shader: bool = GraphicsQuality.uses_lightweight_ocean(
-		_graphics_quality()
-	)
+	var use_lightweight_shader: bool = QualityRules.uses_lightweight_ocean(q)
 	mat.shader = MOBILE_OCEAN_SHADER if use_lightweight_shader else StageConstants.OCEAN_SHADER
 
 	if not use_lightweight_shader:
-		var noise_size: int = GraphicsQuality.ocean_noise_texture_size(
-			_graphics_quality()
-		)
+		var noise_size: int = QualityRules.ocean_noise_texture_size(q)
 		var noise1 := NoiseTexture2D.new()
 		var fnl1 := FastNoiseLite.new()
 		fnl1.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
@@ -732,7 +797,6 @@ static func create_ocean_surface() -> MeshInstance3D:
 		mat.set_shader_parameter("noise_tex2", noise2)
 
 	ocean_mesh.material_override = mat
-	return ocean_mesh
 
 
 ## 床ボックスのサイズ・位置と、それに追従するレール／ローラー／サイドフレームを更新する。

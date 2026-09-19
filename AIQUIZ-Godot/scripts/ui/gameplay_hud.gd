@@ -27,8 +27,6 @@ var _rear_edge_warning_time: float = 0.0
 ## ゲーム中HUD (3Dシーン上に重ねて表示)
 ## Python版 hud.py の _draw_play 部分に相当
 
-@onready var question_label: Label = $QuestionPanel/QuestionLabel
-@onready var question_panel: PanelContainer = $QuestionPanel
 @onready var score_label: Label = $ScoreLabel
 @onready var message_label: Label = $MessageLabel
 @onready var progress_bar: ProgressBar = $ProgressBar
@@ -58,6 +56,7 @@ var _start_prompt_kind: String = ""
 @onready var history_back_btn: Button = $HistoryPanel/HeaderBar/BackBtn
 @onready var history_list: VBoxContainer = $HistoryPanel/ScrollContainer/HistoryList
 
+var _health_hud: Control
 var game_state: QuizGameState
 var _go_fade_timer: float = 0.0
 var _history_built: bool = false
@@ -78,6 +77,10 @@ var _result_ceremony_overlay: Control = null
 
 func _ready() -> void:
 	game_state = QuizManager.game_state
+	_health_hud = preload("res://scripts/ui/player_health_hud.gd").new()
+	_health_hud.name = "PlayerHealthHUD"
+	_health_hud.setup(game_state)
+	add_child(_health_hud)
 	message_label.visible = false
 	preload_bg.visible = false
 	preload_panel.visible = false
@@ -166,6 +169,7 @@ func _retry_game() -> void:
 		game_state.restart_tutorial()
 	else:
 		game_state.start_game()
+	game_state.skip_start_helicopter_arrival = true
 	get_tree().change_scene_to_file("res://scenes/game_world.tscn")
 
 
@@ -294,6 +298,8 @@ func _update_single_offscreen_marker(
 		OFFSCREEN_MARKER_FAR_SCALE,
 		distance_ratio
 	)
+	if _health_hud != null and game_state.num_players == 2 and game_state.uses_hp():
+		marker_center = _health_hud.reserve_marker_center(marker_center, 60.0 * OFFSCREEN_MARKER_FAR_SCALE)
 	marker.call(
 		"set_marker_state",
 		marker_center,
@@ -373,7 +379,6 @@ func _process(_dt: float) -> void:
 	elif game_state.game_state == Constants.STATE_FLYOVER:
 		preload_bg.visible = false
 		preload_panel.visible = false
-		question_panel.visible = false
 		score_label.visible = false
 		progress_bar.visible = false
 		game_over_panel.visible = false
@@ -390,7 +395,6 @@ func _process(_dt: float) -> void:
 		and game_state.game_state in [Constants.STATE_RESULT_CEREMONY, Constants.STATE_CLEAR]
 	)
 	if ceremony_active:
-		question_panel.visible = false
 		score_label.visible = false
 		message_label.visible = false
 		progress_bar.visible = false
@@ -413,7 +417,6 @@ func _process(_dt: float) -> void:
 		history_panel.visible = false
 		_history_built = false
 
-	_update_question()
 	_update_score()
 	_update_message()
 	_update_progress()
@@ -524,7 +527,6 @@ func _show_preloading(dt: float) -> void:
 	_apply_preload_stage_preview_layout()
 	preload_bg.visible = false
 	preload_panel.visible = true
-	question_panel.visible = false
 	score_label.visible = false
 	message_label.visible = false
 	progress_bar.visible = false
@@ -554,7 +556,6 @@ func _show_waiting_start(dt: float) -> void:
 	_apply_preload_stage_preview_layout()
 	preload_bg.visible = false
 	preload_panel.visible = true
-	question_panel.visible = false
 	score_label.visible = false
 	message_label.visible = false
 	progress_bar.visible = false
@@ -1131,27 +1132,11 @@ func _add_stat_row(grid: GridContainer, label_text: String, value_text: String, 
 	grid.add_child(val)
 
 
-func _update_question() -> void:
-	var tutorial_question_ready := true
-	if game_state.mode == Constants.MODE_TUTORIAL:
-		tutorial_question_ready = (
-			game_state.tutorial_flow != null
-			and game_state.tutorial_flow.is_quiz_step()
-			and not game_state.is_tutorial_presentation_locked()
-		)
-	if game_state.current_quiz and game_state.game_state == Constants.STATE_PLAYING and tutorial_question_ready:
-		question_panel.visible = true
-		if game_state.is_coop_mode() and game_state.current_quiz.has_coop_data():
-			var q_text := FractionFormatter.format_question(game_state.current_quiz.q)
-			var p1_role := game_state.current_quiz.coop_p1_label
-			var p2_role := game_state.current_quiz.coop_p2_label
-			question_label.text = "%s\n%s / %s" % [q_text, p1_role, p2_role]
-		else:
-			question_label.text = FractionFormatter.format_question(game_state.current_quiz.q)
-	else:
-		question_panel.visible = false
-
 func _update_score() -> void:
+	# Normal 2P scores live directly above each player's HP in the corner cards.
+	if game_state.num_players == 2 and game_state.uses_hp():
+		score_label.visible = false
+		return
 	# チュートリアルの進行はコーチバー側で表示するため、スコア表示は出さない。
 	if game_state.mode == Constants.MODE_TUTORIAL:
 		score_label.visible = false

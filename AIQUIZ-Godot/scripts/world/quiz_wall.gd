@@ -16,6 +16,12 @@ var boss_sparks: Array[CPUParticles3D] = []
 var preview_question_label: Label3D = null
 var preview_choice_labels: Array[Label3D] = []
 
+var gameplay_question_label: Label3D = null
+var _gameplay_question_panel: MeshInstance3D = null
+var _gameplay_question_border: MeshInstance3D = null
+var _gameplay_question_text: String = ""
+var _shattered: bool = false
+
 
 
 # Door colors
@@ -32,9 +38,11 @@ const DOOR_COLORS_4 := [
 const WALL_COLOR := Color(0.50, 0.50, 0.50)
 const BOSS_WALL_COLOR := Color(0.65, 0.15, 0.15)
 const JAPANESE_FONT: Font = preload("res://resources/fonts/NotoSansJP-Regular.otf")
-## 壁本体の物理的な最上端(Y座標)。メニュー背景プレビューの問題文はこの高さより
-## 確実に上に留めるための基準として参照する。
-const WALL_TOP_Y: float = 4.05
+## 問題文の実寸に合わせ、上端に小さな余白だけ残す。
+var wall_top_y: float = 4.05
+const QUESTION_TOP_MARGIN: float = 0.180
+const DOOR_TOP_Y: float = 2.38
+const QUESTION_DOOR_GAP: float = 0.18
 
 # Door positions from tuning
 const LEFT_DOOR_X: float = 3.5
@@ -53,6 +61,7 @@ static var _box_mesh_cache: Dictionary = {}
 static var _opaque_material_cache: Dictionary = {}
 
 func _ready() -> void:
+	wall_top_y = _minimum_wall_top_y()
 	_build_doors(2)
 
 
@@ -68,9 +77,8 @@ func _build_wall_around_doors(num_choices: int) -> void:
 	var total_width: float = StageConstants.FLOOR_WIDTH - WALL_EDGE_INSET * 2.0
 	var min_x: float = -total_width * 0.5
 	var max_x: float = total_width * 0.5
-	var door_top_y := 2.38
+	var door_top_y := DOOR_TOP_Y
 	var door_bottom_y := -2.02
-	var wall_top_y := WALL_TOP_Y
 	var wall_bottom_y := -3.15
 	var wall_color := BOSS_WALL_COLOR if is_boss else WALL_COLOR
 
@@ -204,6 +212,122 @@ func set_labels_visible(is_visible: bool) -> void:
 	for label: Label3D in door_labels:
 		if is_instance_valid(label):
 			label.visible = is_visible
+	if not is_visible:
+		set_gameplay_question_visible(false)
+
+
+## Gameplay faces -Z; the menu keeps its independent +Z labels.
+## Called repeatedly by GameWorld, so shaping only runs when the text changes.
+func set_gameplay_question(text: String, is_visible: bool) -> void:
+	if text.is_empty():
+		set_gameplay_question_visible(false)
+		return
+	if not is_instance_valid(gameplay_question_label):
+		gameplay_question_label = _create_label()
+		gameplay_question_label.name = "GameplayQuestion"
+		gameplay_question_label.position.z = -0.65
+		gameplay_question_label.outline_modulate = Color(0.02, 0.05, 0.08, 0.95)
+		add_child(gameplay_question_label)
+	if text != _gameplay_question_text:
+		_gameplay_question_text = text
+		_fit_question_label_to_two_lines(gameplay_question_label, text)
+		# Label3D redraws its glyph mesh in the deferred queue after text changes.
+		_update_gameplay_question_panel.call_deferred()
+	set_gameplay_question_visible(is_visible)
+
+
+func set_gameplay_question_visible(is_visible: bool) -> void:
+	if is_instance_valid(gameplay_question_label):
+		gameplay_question_label.visible = is_visible and not _retiring_after_pass and not _shattered
+
+
+## A solid gray backing keeps the sky and scenery out of the question text.
+## Child meshes inherit the label's orientation, visibility and retirement.
+func _update_gameplay_question_panel() -> void:
+	if not is_instance_valid(_gameplay_question_panel):
+		_gameplay_question_border = _create_question_panel_quad("QuestionBorder", Color(0.60, 0.60, 0.60))
+		_gameplay_question_panel = _create_question_panel_quad("QuestionBackground", Color(0.35, 0.35, 0.35))
+	var glyph_bounds := gameplay_question_label.get_aabb()
+	var center := glyph_bounds.get_center()
+	var padding := Vector2(0.28, 0.18)
+	var panel_size := Vector2(glyph_bounds.size.x, glyph_bounds.size.y) + padding * 2.0
+	(_gameplay_question_panel.mesh as QuadMesh).size = panel_size
+	(_gameplay_question_border.mesh as QuadMesh).size = panel_size + Vector2.ONE * 0.05
+	# Negative local Z is behind the text, on both the -Z and +Z wall faces.
+	_gameplay_question_panel.position = Vector3(center.x, center.y, -0.035)
+	_gameplay_question_border.position = Vector3(center.x, center.y, -0.045)
+	# Anchor the visible panel edge just above the door, independent of line count.
+	gameplay_question_label.position.y = DOOR_TOP_Y + QUESTION_DOOR_GAP - glyph_bounds.position.y + padding.y + 0.025
+	_update_question_wall_height()
+
+
+func _minimum_wall_top_y() -> float:
+	# Reserve two lines at the actual question font size, plus the existing panel padding/border.
+	var two_line_height := JAPANESE_FONT.get_height(QUESTION_LABEL_FONT_SIZE) * 0.008 * 2.0
+	return DOOR_TOP_Y + QUESTION_DOOR_GAP + two_line_height + 0.41 + QUESTION_TOP_MARGIN
+
+
+func _update_question_wall_height() -> void:
+	if wall_parts.is_empty() or not is_instance_valid(wall_parts[0]):
+		return
+	var minimum_content_top := _minimum_wall_top_y() - QUESTION_TOP_MARGIN
+	var content_top := minimum_content_top
+	if is_instance_valid(_gameplay_question_border):
+		var panel_bounds: AABB = (gameplay_question_label.transform * _gameplay_question_border.transform) * _gameplay_question_border.get_aabb()
+		content_top = panel_bounds.end.y
+	elif is_instance_valid(preview_question_label):
+		var text_bounds := preview_question_label.transform * preview_question_label.get_aabb()
+		content_top = text_bounds.end.y + preview_question_label.outline_size * preview_question_label.pixel_size
+	content_top = maxf(content_top, minimum_content_top)
+	if is_boss and is_instance_valid(boss_label):
+		var heading_bounds := boss_label.get_aabb().grow(boss_label.outline_size * boss_label.pixel_size)
+		boss_label.position.y = content_top + QUESTION_TOP_MARGIN - heading_bounds.position.y
+		content_top = boss_label.position.y + heading_bounds.end.y
+	wall_top_y = content_top + QUESTION_TOP_MARGIN
+	var beam := wall_parts[0]
+	var beam_size := (beam.mesh as BoxMesh).size
+	beam_size.y = wall_top_y - DOOR_TOP_Y
+	# Shared cached meshes are immutable; other walls keep their own height.
+	beam.mesh = _shared_box_mesh(beam_size)
+	beam.position.y = DOOR_TOP_Y + beam_size.y * 0.5
+
+
+func _create_question_panel_quad(node_name: String, color: Color) -> MeshInstance3D:
+	var panel := MeshInstance3D.new()
+	panel.name = node_name
+	panel.mesh = QuadMesh.new()
+	panel.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.albedo_color = color
+	material.disable_fog = true
+	panel.material_override = material
+	gameplay_question_label.add_child(panel)
+	return panel
+
+
+## Actual glyph bounds, including the outline, for camera framing.
+func get_gameplay_framing_points() -> PackedVector3Array:
+	var points := PackedVector3Array()
+	if not is_instance_valid(gameplay_question_label) or not gameplay_question_label.is_visible_in_tree():
+		return points
+	_append_label_framing_points(points, gameplay_question_label)
+	if is_instance_valid(boss_label) and boss_label.is_visible_in_tree():
+		_append_label_framing_points(points, boss_label)
+	if is_instance_valid(_gameplay_question_border):
+		var panel_bounds := _gameplay_question_border.get_aabb()
+		for corner: int in range(8):
+			points.append(_gameplay_question_border.global_transform * panel_bounds.get_endpoint(corner))
+	for label: Label3D in door_labels:
+		if is_instance_valid(label) and label.is_visible_in_tree():
+			_append_label_framing_points(points, label)
+	return points
+
+
+func _append_label_framing_points(points: PackedVector3Array, label: Label3D) -> void:
+	var bounds := label.get_aabb().grow(label.outline_size * label.pixel_size)
+	for corner: int in range(8):
+		points.append(label.global_transform * bounds.get_endpoint(corner))
 
 
 ## 1P用: プレイヤーが通過した壁を、文字を残さず短くフェード退場させる。
@@ -263,7 +387,7 @@ func set_preview_labels(quiz: QuizItem) -> void:
 
 	preview_question_label = _create_label()
 	preview_question_label.rotation.y = 0.0
-	# Y座標は _fit_question_label_to_two_lines 内で壁と衝突しない位置に決定する
+	# 問題文はゲームと同じく扉のすぐ上の壁面に表示する
 	preview_question_label.position = Vector3(0, 0, 0.65)
 	preview_question_label.width = 640.0
 	# 遠景で塗りと輪郭が競合しないよう、細めの濃紺アウトラインでコントラストを保つ
@@ -272,6 +396,7 @@ func set_preview_labels(quiz: QuizItem) -> void:
 	var question_text: String = FractionFormatter.to_inline(quiz.q) if FractionFormatter.has_fraction(quiz.q) else quiz.q
 	add_child(preview_question_label)
 	_fit_question_label_to_two_lines(preview_question_label, question_text)
+	_update_question_wall_height.call_deferred()
 
 	var door_xs := [LEFT_DOOR_X, RIGHT_DOOR_X]
 	for i: int in range(mini(2, quiz.c.size())):
@@ -290,8 +415,8 @@ func set_preview_labels(quiz: QuizItem) -> void:
 const QUESTION_LABEL_MAX_LINES := 2
 ## 1行でも2行でも常にこの大きさで表示する（行数によって縮小しない）
 const QUESTION_LABEL_FONT_SIZE := 64
-## 壁の最上端(WALL_TOP_Y)から問題文の下端までの最低クリアランス
-const QUESTION_LABEL_WALL_CLEARANCE := 0.5
+## 扉から文字の下端までの余白（ゲームでは背景パネルの実寸でも補正する）
+const QUESTION_LABEL_DOOR_CLEARANCE := 0.45
 ## 横幅の初期値・拡張刻み・上限（壁全幅24mに対して十分小さく、省略せず全文表示するために広げる）
 const QUESTION_LABEL_BASE_WIDTH := 640.0
 const QUESTION_LABEL_WIDTH_STEP := 80.0
@@ -299,8 +424,7 @@ const QUESTION_LABEL_MAX_WIDTH := 1600.0
 
 ## 問題文ラベルは1行・2行のどちらでも同じ文字サイズで表示し、省略はしない。
 ## 2行に収まらない場合は横幅を段階的に広げて全文を表示する（上限に達したらそこで止める）。
-## 縦位置は「下端」を壁の最上端より確実に上の固定位置にアンカーし、行数が増えても
-## 上方向にしか伸びないようにすることで、絶対に壁と重ならないようにする。
+## 下端を扉の上端へ固定し、行数が増えたら壁面の上方向へ伸ばす。
 func _fit_question_label_to_two_lines(label: Label3D, text: String) -> void:
 	if not label:
 		return
@@ -315,9 +439,9 @@ func _fit_question_label_to_two_lines(label: Label3D, text: String) -> void:
 		width = minf(width + QUESTION_LABEL_WIDTH_STEP, QUESTION_LABEL_MAX_WIDTH)
 	label.width = width
 
-	# 下端を壁の最上端より確実に上へ固定し、行数が増えても壁側(下方向)へは伸びないようにする
+	# 行数によらず、問題文を扉のすぐ上に揃える。
 	label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
-	label.position.y = WALL_TOP_Y + QUESTION_LABEL_WALL_CLEARANCE
+	label.position.y = DOOR_TOP_Y + QUESTION_LABEL_DOOR_CLEARANCE
 
 func _measure_line_count(text: String, font: Font, font_size: int, width: float, break_flags: int) -> int:
 	var tp := TextParagraph.new()
@@ -351,7 +475,8 @@ func set_is_boss(boss: bool) -> void:
 		boss_label.modulate = Color(1.0, 0.4, 0.4)
 		boss_label.outline_modulate = Color(0.1, 0.1, 0.1)
 		boss_label.outline_size = 12
-		boss_label.position = Vector3(0, 4.8, 0)
+		boss_label.position = Vector3(0, wall_top_y - 0.55, -0.65)
+		boss_label.width = QUESTION_LABEL_BASE_WIDTH
 		add_child(boss_label)
 		
 		# ボス壁のサイドに火花エフェクトを追加
@@ -370,6 +495,7 @@ func set_is_boss(boss: bool) -> void:
 			if is_instance_valid(sp):
 				sp.queue_free()
 		boss_sparks.clear()
+	_update_question_wall_height.call_deferred()
 
 func _create_boss_sparks(pos_x: float) -> CPUParticles3D:
 	var sparks := CPUParticles3D.new()
@@ -604,6 +730,8 @@ func _create_label() -> Label3D:
 	return label
 
 func shatter_wall(direction_z: float = -1.0) -> void:
+	_shattered = true
+	set_gameplay_question_visible(false)
 	for part in wall_parts:
 		if is_instance_valid(part) and part.visible:
 			_shatter_mesh(part, direction_z)

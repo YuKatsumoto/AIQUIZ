@@ -19,6 +19,8 @@ signal ghost_mount_beam_fired(beam_index: int)
 @export var attack_acceleration: float = 62.0
 @export var turn_response: float = 5.5
 @export var bite_distance: float = 4.8
+var ocean_surface: MeshInstance3D = null
+var _surface_wake: MeshInstance3D = null
 
 enum AttackPhase {
 	AMBIENT,
@@ -61,6 +63,10 @@ const VISIBILITY_EMISSION_ENERGY: float = 0.60
 const CHARGE_DISTANCE: float = 24.0
 const BITE_LUNGE_DURATION: float = 0.40
 const BITE_ANIMATION_BLEND_SECONDS: float = 0.06
+# The authored mesh faces +X. Contact follows its animated head, not its origin.
+const OCEAN_ATTACK_HEAD_POINT := Vector3(4.50, -0.32, 0.0)
+const OCEAN_ATTACK_CONTACT_RADIUS: float = 0.85
+const OCEAN_ATTACK_CONTACT_HEIGHT: float = 0.75
 const OCEAN_ATTACK_STUCK_SECONDS: float = 1.40
 const OCEAN_ATTACK_PROGRESS_EPSILON: float = 0.50
 const OCEAN_ATTACK_MAX_PORTAL_RESCUES: int = 2
@@ -72,7 +78,6 @@ const OCEAN_ATTACK_PORTAL_CLOSE_SECONDS: float = 0.85
 const OCEAN_ATTACK_PORTAL_OUTWARD_DISTANCE: float = 7.4
 const OCEAN_ATTACK_PORTAL_DEPTH: float = 2.8
 const OCEAN_ATTACK_PORTAL_SIZE := Vector2(4.2, 4.2)
-const JAW_OPEN_DEGREES: float = 28.0
 const WAKE_OFFSET_SCALE: float = 4.35
 const GHOST_RIDE_SCALE_MULTIPLIER: float = 0.62
 const GHOST_ENTRY_DURATION: float = 2.4
@@ -166,9 +171,14 @@ var _angle: float = 0.0
 var _swim_time: float = 0.0
 var _velocity: Vector3 = Vector3.ZERO
 var _bank: float = 0.0
+var _locomotion: SkeletonModifier3D
+var _swim_yaw_rate: float = 0.0
+var _stroke_speed: float = 1.0
 
 var _attack_player_index: int = 0
 var _attack_target: Vector3 = Vector3.ZERO
+var _attack_contact_target: Vector3 = Vector3.ZERO
+var _last_attack_contact: Dictionary = {}
 var _attack_waypoints: Array[Vector3] = []
 var _attack_route_snapshot: PackedVector3Array = PackedVector3Array()
 var _floor_center_z: float = StageConstants.GAME_FLOOR_CENTER_Z
@@ -176,7 +186,6 @@ var _floor_length: float = StageConstants.GAME_FLOOR_LENGTH
 var _attack_phase: int = AttackPhase.AMBIENT
 var _attack_intensity: float = 0.0
 var _bite_timer: float = 0.0
-var _jaw_open_amount: float = 0.0
 var _attack_best_waypoint_distance: float = INF
 var _attack_stuck_elapsed: float = 0.0
 var _attack_portal_rescue_count: int = 0
@@ -195,6 +204,7 @@ var _attack_portal_behind_direction: Vector3 = Vector3.ZERO
 var _attack_portal_base_scale: Vector3 = Vector3.ONE
 var _jaw_skeleton: Skeleton3D = null
 var _jaw_bone_index: int = -1
+var _head_bone_index: int = -1
 var _jaw_rest_rotation: Quaternion = Quaternion.IDENTITY
 var _wake_particles: GPUParticles3D = null
 var _surface_spray: GPUParticles3D = null
@@ -261,7 +271,16 @@ func _ready() -> void:
 	model.scale = Vector3.ONE * model_scale
 	_apply_underwater_visibility()
 	_setup_jaw_rig()
+	if _jaw_skeleton != null:
+		_locomotion = preload("res://scripts/world/shark_locomotion_modifier.gd").new()
+		_locomotion.name = "SharkLocomotion"
+		_jaw_skeleton.add_child(_locomotion)
 	_setup_attack_effects()
+	if is_instance_valid(ocean_surface) and not GraphicsQuality.is_mobile_target():
+		_surface_wake = preload("res://scripts/world/shark_surface_wake.gd").new()
+		_surface_wake.name = "SurfaceWake"
+		_surface_wake.set("surface", ocean_surface)
+		add_child(_surface_wake)
 	# 元モデルは +X 向き。ルートノードの -Z 前方へ合わせる。
 	model.rotation = Vector3(0.0, PI * 0.5, 0.0)
 	_play_swim_animation()
@@ -499,6 +518,7 @@ func end_ghost_portal_render_prewarm() -> void:
 
 
 func _process(delta: float) -> void:
+	var previous_forward := -basis.z
 	_swim_time += delta
 	if is_ghost_ridden:
 		_update_ghost_ride(delta)
@@ -526,8 +546,58 @@ func _process(delta: float) -> void:
 		_update_orientation(delta)
 	_update_ghost_mount_bob()
 	_update_arcade_attack_effects(delta)
+	_update_swim_locomotion(delta, previous_forward)
+	_update_ocean_attack_contact()
 	_update_ghost_breach_effect(delta)
 	_update_ghost_occlusion_silhouette()
+	_update_surface_wake(delta)
+
+
+func _update_surface_wake(delta: float) -> void:
+	if not is_instance_valid(_surface_wake) or not is_instance_valid(ocean_surface):
+		return
+	var enabled := not is_ghost_ridden and _attack_phase != AttackPhase.PORTAL_RESCUE
+	if not enabled:
+		_surface_wake.call("clear_trail")
+	var depth := ocean_surface.global_position.y - global_position.y
+	var strength := smoothstep(-1.0 * model_scale, -0.25 * model_scale, depth) \
+		* (1.0 - smoothstep(1.3 * model_scale, 1.65 * model_scale, depth))
+	_surface_wake.call("update_trail", delta, model.to_global(Vector3(-0.35, 0.0, 0.0)),
+		-global_basis.z, _velocity.length(), strength, enabled)
+
+
+func _update_swim_locomotion(delta: float, previous_forward: Vector3) -> void:
+	if _locomotion == null or delta <= 0.0:
+		return
+	var current_forward := -basis.z
+	previous_forward.y = 0.0
+	current_forward.y = 0.0
+	var yaw_rate := 0.0
+	if previous_forward.length_squared() > 0.01 and current_forward.length_squared() > 0.01:
+		yaw_rate = previous_forward.signed_angle_to(current_forward, Vector3.UP) / delta
+	_swim_yaw_rate = lerpf(_swim_yaw_rate, clampf(yaw_rate, -1.8, 1.8), 1.0 - exp(-6.0 * delta))
+	var swimming := String(animation_player.current_animation).get_file() == "SharkSwim"
+	_locomotion.set("swim_active", swimming)
+	if not swimming:
+		_locomotion.set("turn", 0.0)
+		return
+	var speed := _velocity.length()
+	var body_length := maxf(0.1, 9.1368 * model_scale)
+	# Curvature, not a repeating left/right clip, controls the turn. A long
+	# shark on a tight arc bends more than one following a broad arc.
+	var turn_target := clampf(_swim_yaw_rate * body_length / maxf(speed, body_length * 0.6), -1.0, 1.0)
+	if is_ghost_ridden and _ghost_phase == GhostRidePhase.PORTAL_ENTERING:
+		turn_target = 0.0
+	_locomotion.set("turn", lerpf(float(_locomotion.get("turn")), turn_target, 1.0 - exp(-5.0 * delta)))
+	var effort := clampf(speed / body_length, 0.0, 3.0)
+	var gliding := not is_attacking and not is_ghost_ridden and _velocity.y < -0.12 and absf(turn_target) < 0.15
+	var gain_target := 0.38 if gliding else lerpf(0.85, 1.1, clampf(effort / 2.0, 0.0, 1.0))
+	_locomotion.set("stroke_gain", lerpf(float(_locomotion.get("stroke_gain")), gain_target, 1.0 - exp(-3.0 * delta)))
+	var cadence := clampf(0.68 + effort * 0.30, 0.72, 1.8)
+	if gliding:
+		cadence *= 0.8
+	_stroke_speed = lerpf(_stroke_speed, cadence, 1.0 - exp(-2.5 * delta))
+	animation_player.speed_scale = _stroke_speed
 
 
 func begin_attack(
@@ -540,14 +610,15 @@ func begin_attack(
 		return false
 	_cleanup_attack_rescue_portals(true)
 	_attack_player_index = player_index
+	_last_attack_contact.clear()
 	_floor_center_z = floor_center_z
 	_floor_length = floor_length
+	_attack_contact_target = target_position + Vector3.UP * OCEAN_ATTACK_CONTACT_HEIGHT
 	_attack_target = _safe_attack_target(target_position)
 	_build_attack_route(position, _attack_target)
 	is_attacking = true
 	_bite_timer = 0.0
 	_attack_intensity = 0.0
-	_jaw_open_amount = 0.0
 	_attack_best_waypoint_distance = INF
 	_attack_stuck_elapsed = 0.0
 	_attack_portal_rescue_count = 0
@@ -1146,6 +1217,7 @@ func play_ghost_impact() -> void:
 func set_attack_target(target_position: Vector3) -> void:
 	if not is_attacking:
 		return
+	_attack_contact_target = target_position + Vector3.UP * OCEAN_ATTACK_CONTACT_HEIGHT
 	_attack_target = _safe_attack_target(target_position)
 	if not _attack_waypoints.is_empty():
 		_attack_waypoints[_attack_waypoints.size() - 1] = _attack_target
@@ -1196,6 +1268,8 @@ func get_ocean_attack_debug_state() -> Dictionary:
 		"phase": AttackPhase.keys()[_attack_phase],
 		"route_kind": attack_route_kind,
 		"target": _attack_target,
+		"contact_target": _attack_contact_target,
+		"last_contact": _last_attack_contact.duplicate(),
 		"waypoint_count": _attack_waypoints.size(),
 		"stuck_elapsed": _attack_stuck_elapsed,
 		"portal_phase": AttackPortalPhase.keys()[_attack_portal_phase],
@@ -1246,6 +1320,7 @@ func _setup_jaw_rig() -> void:
 	if _jaw_skeleton == null:
 		push_warning("Shark jaw rig could not find Skeleton3D")
 		return
+	_head_bone_index = _jaw_skeleton.find_bone("head")
 	_jaw_bone_index = _jaw_skeleton.find_bone("jaw")
 	if _jaw_bone_index < 0:
 		push_warning("Shark model has no jaw bone; attack will use body lunge only")
@@ -1556,14 +1631,9 @@ func _update_arcade_attack_effects(delta: float) -> void:
 		elif _rush_audio.playing:
 			_rush_audio.stop()
 
-	var bite_progress: float = (
-		clampf(_bite_timer / BITE_LUNGE_DURATION, 0.0, 1.0)
-		if _attack_phase == AttackPhase.BITE
-		else 0.0
-	)
-	var lunge_curve: float = sin(bite_progress * PI)
-	model.position = Vector3(0.0, lunge_curve * 0.12, -lunge_curve * 0.78 * model_scale)
-	model.rotation.x -= lunge_curve * 0.11
+	# Root travel owns the attack distance. A second visual translation used to
+	# push the head through the target before the timer reported a hit.
+	model.position = Vector3.ZERO
 	_apply_jaw_pose()
 	if not arcade_active:
 		_attack_intensity = move_toward(_attack_intensity, 0.0, delta * 5.0)
@@ -1572,20 +1642,13 @@ func _update_arcade_attack_effects(delta: float) -> void:
 func _apply_jaw_pose() -> void:
 	if _jaw_skeleton == null or _jaw_bone_index < 0:
 		return
-	var open_rotation: Quaternion = Quaternion(
-		Vector3.FORWARD,
-		deg_to_rad(JAW_OPEN_DEGREES * _jaw_open_amount)
-	)
-	_jaw_skeleton.set_bone_pose_rotation(
-		_jaw_bone_index,
-		_jaw_rest_rotation * open_rotation
-	)
+	# Mouth opening is disabled for every clip and attack phase.
+	_jaw_skeleton.set_bone_pose_rotation(_jaw_bone_index, _jaw_rest_rotation)
 
 
 func _reset_arcade_attack_effects() -> void:
 	_attack_intensity = 0.0
 	_bite_timer = 0.0
-	_jaw_open_amount = 0.0
 	model.position = Vector3.ZERO
 	if _wake_particles != null:
 		_wake_particles.emitting = false
@@ -1630,7 +1693,7 @@ func _play_bite_animation() -> void:
 		BITE_ANIMATION_BLEND_SECONDS
 	):
 		return
-	# Keep the procedural jaw/lunge fallback if an older imported shark asset
+	# Keep the body lunge fallback if an older imported shark asset
 	# is temporarily present while the editor is reimporting the GLB.
 	push_warning("Shark swimmer has no SharkBite animation; using procedural bite")
 
@@ -2133,8 +2196,7 @@ func _update_attack(delta: float) -> void:
 		_update_attack_portal_rescue(delta)
 		return
 	if _attack_waypoints.is_empty():
-		_finish_attack()
-		return
+		_append_attack_waypoint(_attack_target)
 
 	var waypoint: Vector3 = _attack_waypoints[0]
 	var final_leg: bool = _attack_waypoints.size() == 1
@@ -2151,21 +2213,18 @@ func _update_attack(delta: float) -> void:
 				0.18,
 				0.92
 			)
-			_jaw_open_amount = smoothstep(0.12, 0.82, _attack_intensity)
 		if distance <= bite_start_distance:
 			_set_attack_phase(AttackPhase.BITE)
 			_bite_timer = 0.0
 			_attack_intensity = 1.0
-			_jaw_open_amount = 1.0
 			animation_player.speed_scale = 1.0
 			_play_bite_animation()
 	elif not final_leg:
 		_set_attack_phase(AttackPhase.APPROACH)
 		_attack_intensity = move_toward(_attack_intensity, 0.08, delta * 0.6)
-		_jaw_open_amount = move_toward(_jaw_open_amount, 0.0, delta * 4.0)
 
 	if _attack_phase == AttackPhase.BITE:
-		_update_bite_lunge(delta, waypoint)
+		_update_bite_lunge(delta)
 		return
 
 	var arrival_distance: float = maxf(1.0, attack_speed * delta * 0.8)
@@ -2188,26 +2247,52 @@ func _update_attack(delta: float) -> void:
 	position = _keep_clear_of_stage(candidate, previous_position)
 
 
-func _update_bite_lunge(delta: float, waypoint: Vector3) -> void:
+func _update_bite_lunge(delta: float) -> void:
 	_bite_timer += delta
-	var bite_progress: float = clampf(_bite_timer / BITE_LUNGE_DURATION, 0.0, 1.0)
-	var direction: Vector3 = position.direction_to(waypoint)
-	var remaining_travel: float = maxf(position.distance_to(waypoint) - bite_distance, 0.0)
-	var travel: float = minf(remaining_travel, attack_speed * 1.08 * delta)
-	if direction.length_squared() > 0.001 and travel > 0.0:
-		var previous_position: Vector3 = position
-		position = _keep_clear_of_stage(position + direction * travel, previous_position)
+	# The route endpoint keeps the body clear of the stage. The final strike
+	# aims at the character itself, including its visible floating body height.
+	var direction := position.direction_to(_attack_contact_target)
+	var stop_distance := OCEAN_ATTACK_HEAD_POINT.x * model_scale + 0.5
+	var remaining_travel := maxf(position.distance_to(_attack_contact_target) - stop_distance, 0.0)
+	var travel := minf(remaining_travel, attack_speed * 1.08 * delta)
+	if direction.length_squared() > 0.001:
 		_velocity = direction * attack_speed * 1.08
+		if travel > 0.0:
+			position = _keep_clear_of_stage(position + direction * travel, position)
 	_attack_intensity = 1.0
-	_jaw_open_amount = 1.0 - smoothstep(0.22, 0.88, bite_progress)
-	if _bite_timer >= BITE_LUNGE_DURATION:
-		_finish_attack()
+
+
+func get_ocean_attack_head_position() -> Vector3:
+	if _jaw_skeleton != null and _head_bone_index >= 0:
+		var skin_pose := (
+			_jaw_skeleton.get_bone_global_pose(_head_bone_index)
+			* _jaw_skeleton.get_bone_global_rest(_head_bone_index).affine_inverse()
+		)
+		return _jaw_skeleton.to_global(skin_pose * OCEAN_ATTACK_HEAD_POINT)
+	return model.to_global(OCEAN_ATTACK_HEAD_POINT)
+
+
+func _update_ocean_attack_contact() -> void:
+	if not is_attacking or _attack_phase != AttackPhase.BITE:
+		return
+	var target_world := get_parent_node_3d().to_global(_attack_contact_target)
+	var head_world := get_ocean_attack_head_position()
+	if head_world.distance_to(target_world) > OCEAN_ATTACK_CONTACT_RADIUS:
+		return
+	_last_attack_contact = {
+		"head": head_world, "target": target_world,
+		"distance": head_world.distance_to(target_world), "bite_time": _bite_timer,
+	}
+	_finish_attack()
 
 
 func _finish_attack() -> void:
 	if not is_attacking:
 		return
 	var reached_player: int = _attack_player_index
+	# Absorb the strike at contact. Carrying full rush speed into the ambient
+	# path moved the belly over the character while the first debris separated.
+	_velocity *= 0.12
 	if _impact_audio != null:
 		_impact_audio.pitch_scale = randf_range(0.96, 1.05)
 		_impact_audio.play()
@@ -2231,7 +2316,7 @@ func _update_attack_stuck_watchdog(
 	waypoint: Vector3,
 	distance: float
 ) -> bool:
-	if _attack_phase == AttackPhase.BITE:
+	if _attack_phase == AttackPhase.BITE and _bite_timer < BITE_LUNGE_DURATION:
 		_reset_attack_stuck_watchdog(distance)
 		return false
 	if distance + OCEAN_ATTACK_PROGRESS_EPSILON < _attack_best_waypoint_distance:
@@ -2309,7 +2394,6 @@ func _start_attack_portal_rescue(waypoint: Vector3) -> void:
 	_set_attack_phase(AttackPhase.PORTAL_RESCUE)
 	_velocity = Vector3.ZERO
 	_attack_intensity = 0.32
-	_jaw_open_amount = 0.0
 	_reset_attack_stuck_watchdog()
 
 
@@ -2424,7 +2508,6 @@ func _update_attack_portal_rescue(delta: float) -> void:
 			_velocity = (global_position - previous_position) / maxf(delta, 0.0001)
 			scale = _attack_portal_base_scale * lerpf(0.18, 1.0, exit_progress)
 			_attack_intensity = lerpf(0.55, 0.92, exit_progress)
-			_jaw_open_amount = smoothstep(0.35, 0.88, exit_progress)
 			if exit_progress >= 1.0:
 				_finish_attack_portal_rescue()
 
@@ -2453,9 +2536,9 @@ func _attack_target_outward_normal(target_position: Vector3) -> Vector3:
 	if target_position.x >= StageConstants.FLOOR_HALF_WIDTH:
 		return Vector3.RIGHT
 	if target_position.z <= min_z:
-		return Vector3.BACK
+		return Vector3.FORWARD # -Z: outside the rear cliff.
 	if target_position.z >= max_z:
-		return Vector3.FORWARD
+		return Vector3.BACK # +Z: outside the front cliff.
 	var distances := PackedFloat32Array([
 		absf(target_position.x + StageConstants.FLOOR_HALF_WIDTH),
 		absf(StageConstants.FLOOR_HALF_WIDTH - target_position.x),
@@ -2466,7 +2549,7 @@ func _attack_target_outward_normal(target_position: Vector3) -> Vector3:
 	for side_index: int in range(1, distances.size()):
 		if distances[side_index] < distances[nearest_side]:
 			nearest_side = side_index
-	return [Vector3.LEFT, Vector3.RIGHT, Vector3.BACK, Vector3.FORWARD][nearest_side]
+	return [Vector3.LEFT, Vector3.RIGHT, Vector3.FORWARD, Vector3.BACK][nearest_side]
 
 
 func _release_attack_rescue_portals() -> void:
@@ -2740,17 +2823,19 @@ func _update_orientation(delta: float) -> void:
 		model.rotation = Vector3(0.0, PI * 0.5, 0.0)
 		return
 	var response: float = turn_response * (1.8 if is_attacking else 1.0)
-	quaternion = quaternion.slerp(target_quaternion, clampf(delta * response, 0.0, 1.0))
+	quaternion = quaternion.slerp(target_quaternion, 1.0 - exp(-delta * response))
 
 	var current_forward: Vector3 = -basis.z
 	var turn_amount: float = current_forward.cross(direction).y
 	var target_bank: float = clampf(-turn_amount * 0.7, -0.42, 0.42)
+	if not is_ghost_ridden:
+		target_bank = clampf(_swim_yaw_rate * 0.08, -0.12, 0.12)
 	if is_ghost_ridden and _ghost_phase in [
 		GhostRidePhase.ENTERING,
 		GhostRidePhase.DEPARTING,
 	]:
 		target_bank += _ghost_entry_side * sin(_ghost_entry_progress * PI) * 0.16
-	_bank = lerpf(_bank, target_bank, clampf(delta * 4.0, 0.0, 1.0))
+	_bank = lerpf(_bank, target_bank, 1.0 - exp(-4.0 * delta))
 	var body_pitch: float = clampf(-direction.y * 0.18, -0.16, 0.16)
 	if is_ghost_ridden and _ghost_phase in [
 		GhostRidePhase.ENTERING,
@@ -2758,6 +2843,10 @@ func _update_orientation(delta: float) -> void:
 	]:
 		body_pitch -= sin(_ghost_entry_progress * PI) * 0.11
 	model.rotation = Vector3(body_pitch, PI * 0.5, _bank)
+	if not is_ghost_ridden:
+		# Heading already supplies pitch. Roll gently about the travel axis;
+		# rolling about the imported model's Z axis instead pitches its nose.
+		model.quaternion = Quaternion(Vector3.BACK, _bank) * Quaternion(Vector3.UP, PI * 0.5)
 func _quat_look_at(origin: Vector3, look_target: Vector3) -> Quaternion:
 	var direction: Vector3 = origin.direction_to(look_target)
 	if direction.length_squared() < 1e-8:

@@ -1,10 +1,10 @@
 shader_type spatial;
-render_mode depth_draw_opaque, cull_back, diffuse_burley, specular_disabled;
+render_mode depth_draw_opaque, cull_back, diffuse_burley, specular_disabled, ambient_light_disabled;
 
-// Opaque, texture-free ocean for mobile and the default balanced preset.
-// It avoids transparent overdraw and runtime-generated noise texture sampling.
-uniform vec3 deep_color : source_color = vec3(0.012, 0.20, 0.29);
-uniform vec3 mid_color : source_color = vec3(0.02, 0.48, 0.61);
+// Opaque, texture-free ocean for mobile. Ambient/sky IBL is disabled so the
+// water stays teal instead of washing out to the horizon color.
+uniform vec3 deep_color : source_color = vec3(0.012, 0.18, 0.25);
+uniform vec3 mid_color : source_color = vec3(0.02, 0.42, 0.54);
 uniform vec3 crest_color : source_color = vec3(0.24, 0.78, 0.82);
 uniform float wave_speed : hint_range(0.0, 2.0) = 0.42;
 uniform float wave_height : hint_range(0.0, 2.0) = 0.42;
@@ -44,9 +44,13 @@ void fragment() {
 	float crest_mask = smoothstep(0.45, 0.95, crest);
 	vec3 water_color = mix(deep_color, mid_color, 0.38 + flow * 0.30);
 	water_color = mix(water_color, crest_color, crest_mask * 0.22);
+	float fresnel = pow(1.0 - clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0), 2.8);
+	water_color = mix(water_color, deep_color, fresnel * 0.55);
 
 	ALBEDO = water_color;
-	ROUGHNESS = 0.88;
+	ROUGHNESS = 0.92;
 	METALLIC = 0.0;
 	SPECULAR = 0.0;
+	AMBIENT_LIGHT = water_color * 0.22;
+	EMISSION = water_color * 0.10;
 }

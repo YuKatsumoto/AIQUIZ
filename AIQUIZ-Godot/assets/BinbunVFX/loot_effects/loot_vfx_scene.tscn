@@ -1,6 +1,6 @@
-[gd_scene format=3 uid="uid://6ahepirhmjrm"]
+[gd_scene format=3 uid="uid://cb2sr37ibf0yt"]
 
-[ext_resource type="Texture2D" uid="uid://l7d36kr543fa" path="res://assets/BinbunVFX/shared/texture/placeholder.png" id="1_u411l"]
+[ext_resource type="Texture2D" uid="uid://dq8jkeeag6vov" path="res://assets/BinbunVFX/shared/texture/placeholder.png" id="1_u411l"]
 [ext_resource type="PackedScene" uid="uid://66kjelr6ky7q" path="res://assets/BinbunVFX/loot_effects/effects/floating/loot_vfx_legendary.tscn" id="2_g32xi"]
 [ext_resource type="PackedScene" uid="uid://dwb4dwkpud3x4" path="res://assets/BinbunVFX/loot_effects/effects/floating/loot_vfx_epic.tscn" id="3_bvdip"]
 [ext_resource type="PackedScene" uid="uid://cvy3jhncal1qp" path="res://assets/BinbunVFX/loot_effects/effects/floating/loot_vfx_rare.tscn" id="4_wkrhn"]

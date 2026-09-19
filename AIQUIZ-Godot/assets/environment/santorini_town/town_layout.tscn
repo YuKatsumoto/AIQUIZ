@@ -1,0 +1,11 @@
+[gd_scene format=3 uid="uid://b107i4dr3ocsp"]
+
+[ext_resource type="PackedScene" uid="uid://cosnb3s40506m" path="res://assets/environment/santorini_town/aiquiz_santorini_town.glb" id="1_j67of"]
+[ext_resource type="Script" uid="uid://ch40k06w78l0s" path="res://scripts/world/santorini_vertex_palette.gd" id="1_jw6or"]
+
+[node name="SantoriniTown" type="Node3D" unique_id=1353723419]
+script = ExtResource("1_jw6or")
+
+[node name="Districts" parent="." unique_id=1050897215 instance=ExtResource("1_j67of")]
+
+[editable path="Districts"]

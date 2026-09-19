@@ -1,0 +1,32 @@
+{
+	"checks": [
+		"seeded rebuild",
+		"four rows",
+		"seat heights",
+		"aisle clearance",
+		"scaled seat alignment",
+		"body proportions",
+		"course facing on both sides",
+		"batch bounds",
+		"three poses",
+		"eight clothing colors"
+	],
+	"display_server": "Windows",
+	"failures": [],
+	"inspected_scaled_placements": 3009,
+	"passed": true,
+	"scope": "Isolated graphical structural runtime; rendered gameplay and animation evidence are separate.",
+	"seeds": [
+		1729,
+		7919
+	],
+	"spectators_per_side": [
+		495,
+		508
+	],
+	"tested_length_scales": [
+		0.5,
+		1.0,
+		2.5
+	]
+}

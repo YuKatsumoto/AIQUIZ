@@ -14,25 +14,6 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="QuestionPanel" type="PanelContainer" parent="." unique_id=660114905]
-anchors_preset = 5
-anchor_left = 0.5
-anchor_right = 0.5
-offset_left = -300.0
-offset_top = 16.0
-offset_right = 300.0
-offset_bottom = 100.0
-grow_horizontal = 2
-
-[node name="QuestionLabel" type="Label" parent="QuestionPanel" unique_id=1570662667]
-custom_minimum_size = Vector2(1, 0)
-layout_mode = 2
-theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_font_sizes/font_size = 22
-horizontal_alignment = 1
-vertical_alignment = 1
-autowrap_mode = 1
-
 [node name="ScoreLabel" type="Label" parent="." unique_id=1394401247]
 anchors_preset = 1
 anchor_left = 1.0

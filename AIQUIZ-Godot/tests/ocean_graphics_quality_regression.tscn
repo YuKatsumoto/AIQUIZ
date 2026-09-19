@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://tests/ocean_graphics_quality_regression.gd" id="1_ocean_quality"]
+
+[node name="OceanGraphicsQualityRegression" type="Node"]
+script = ExtResource("1_ocean_quality")

@@ -72,12 +72,15 @@ var _tutorial_completion_card: Control = null
 var _customize_tutorial_completion_showing: bool = false
 var _tutorial_completion_previous_mouse_mode: int = Input.MOUSE_MODE_VISIBLE
 var _tutorial_completion_mouse_mode_saved: bool = false
+var _heli_skip_hint: Control = null
+var _heli_departure_skippable: bool = false
 
 ## ステップインジケータの各ピル {sb: StyleBoxFlat, lbl: Label}
 var _step_pills: Array[Dictionary] = []
 var _step_indicator_bright_sky: bool = false
 
 func _ready() -> void:
+	GraphicsQuality.reset_window_3d_quality(get_viewport())
 	game_state = QuizManager.game_state
 	_pending_customize_tutorial_on_ready = game_state.has_pending_solo_customize_tour()
 	_hide_coop_mode_if_disabled()
@@ -85,6 +88,7 @@ func _ready() -> void:
 	# 戻るボタン等からの遷移時に状態を保持するため、menu_stepの強制リセットを削除
 	settings_panel.visible = false
 	_setup_live_background()
+	_setup_helicopter_skip_hint()
 	_enhance_title()
 	_apply_menu_text_shadows()
 	_setup_step_indicator()
@@ -155,6 +159,82 @@ func _setup_live_background() -> void:
 	# 固定解像度のままだと大画面で引き伸ばされてボケるため、実サイズに追従させる。
 	_update_live_viewport_quality()
 	get_window().size_changed.connect(_update_live_viewport_quality)
+
+
+func _setup_helicopter_skip_hint() -> void:
+	if _heli_skip_hint != null:
+		return
+	var panel := PanelContainer.new()
+	panel.name = "HelicopterSkipHint"
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.visible = false
+	panel.z_index = 40
+	panel.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	panel.offset_left = 0.0
+	panel.offset_top = 0.0
+	panel.offset_right = -24.0
+	panel.offset_bottom = -20.0
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.05, 0.07, 0.12, 0.72)
+	style.set_corner_radius_all(10)
+	style.set_content_margin_all(8)
+	style.content_margin_left = 12
+	style.content_margin_right = 12
+	panel.add_theme_stylebox_override("panel", style)
+	var row := KeyHintRow.new()
+	row.name = "HintRow"
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	row.add_theme_constant_override("separation", 8)
+	row.add_spec("Space", KeycapChip.DEFAULT_ACCENT, KeycapChip.SizeClass.NORMAL)
+	row.add_text(
+		"to skip" if game_state != null and game_state.use_english_ui else "でスキップ",
+		Color(0.94, 0.96, 1.0, 1.0),
+		18,
+		true
+	)
+	panel.add_child(row)
+	add_child(panel)
+	panel.reset_size()
+	_heli_skip_hint = panel
+
+
+func _set_helicopter_skip_hint_visible(visible_now: bool) -> void:
+	_heli_departure_skippable = visible_now
+	if _heli_skip_hint != null:
+		_heli_skip_hint.visible = visible_now
+		if visible_now:
+			_heli_skip_hint.reset_size()
+
+
+func _is_space_skip_event(event: InputEvent) -> bool:
+	var key := event as InputEventKey
+	return (
+		key != null
+		and key.pressed
+		and not key.echo
+		and key.keycode == KEY_SPACE
+	)
+
+
+func _skip_menu_helicopter_departure() -> void:
+	if not _heli_departure_skippable:
+		return
+	if _menu_wall_preview != null and _menu_wall_preview.has_method("skip_game_start_departure"):
+		_menu_wall_preview.call("skip_game_start_departure")
+	_set_helicopter_skip_hint_visible(false)
+
+
+func _input(event: InputEvent) -> void:
+	if not _heli_departure_skippable:
+		return
+	if not _is_space_skip_event(event):
+		return
+	_skip_menu_helicopter_departure()
+	get_viewport().set_input_as_handled()
+
 
 ## 実際のウィンドウ/モニター解像度に応じて LiveViewport の描画解像度とスーパーサンプリング倍率を決める。
 ## 本プロジェクトの stretch mode (canvas_items, 基準1280x720) では Control のサイズは常に論理座標のままで、
@@ -649,9 +729,11 @@ func _begin_scene_change_after_helicopter(
 			2 if game_state.num_players == 2 else 1
 		))
 	if departure_started:
+		_set_helicopter_skip_hint_visible(true)
 		var deadline_msec := Time.get_ticks_msec() + int(
 			MENU_HELICOPTER_EXIT_TIMEOUT_SEC * 1000.0
 		)
+		var space_was_down := Input.is_physical_key_pressed(KEY_SPACE)
 		while (
 			is_inside_tree()
 			and _menu_wall_preview
@@ -659,6 +741,11 @@ func _begin_scene_change_after_helicopter(
 			and not bool(_menu_wall_preview.call("is_ready_for_scene_cover"))
 			and Time.get_ticks_msec() < deadline_msec
 		):
+			var space_down := Input.is_physical_key_pressed(KEY_SPACE)
+			if space_down and not space_was_down:
+				_skip_menu_helicopter_departure()
+				break
+			space_was_down = space_down
 			await get_tree().process_frame
 		if (
 			is_inside_tree()
@@ -668,6 +755,7 @@ func _begin_scene_change_after_helicopter(
 		):
 			push_warning("Menu helicopter departure timed out; continuing scene transition")
 			_menu_wall_preview.call("cancel_game_start_departure")
+		_set_helicopter_skip_hint_visible(false)
 	if is_inside_tree():
 		await _begin_scene_change(path, start_standard_round, tutorial_course)
 

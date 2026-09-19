@@ -8,8 +8,15 @@ var correct_particles: GPUParticles3D
 var explosion_particles: GPUParticles3D
 var ocean_splash_pool: Array[GPUParticles3D] = []
 var _ocean_splash_cursor: int = 0
+var local_push_effects: Node3D
+
+func spawn_local_push(event: Dictionary) -> void:
+	local_push_effects.spawn(event)
 
 func _ready() -> void:
+	local_push_effects = preload("res://scripts/effects/local_push_effects.gd").new()
+	local_push_effects.name = "LocalPushEffects"
+	add_child(local_push_effects)
 	_create_correct_particles()
 	_create_explosion_particles()
 	for i: int in range(2):

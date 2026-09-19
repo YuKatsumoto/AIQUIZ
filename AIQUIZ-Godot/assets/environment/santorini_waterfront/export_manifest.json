@@ -1,0 +1,32 @@
+[
+  {
+    "file": "access_stair.glb",
+    "bytes": 209088,
+    "sha256": "7c818b688ffda8ebe34d02dbdd16b1da71d92756c7852dfb12b39ec004c2f2ef"
+  },
+  {
+    "file": "gate_filler.glb",
+    "bytes": 60100,
+    "sha256": "d860023a03b63b4dcf19e19193175e55622f562508e6a4ee210cafe9798bbd5a"
+  },
+  {
+    "file": "pier_bay.glb",
+    "bytes": 96152,
+    "sha256": "847f69d6c7eeab56c05443e522343ebad39aad2f1a92da698341e794be150fda"
+  },
+  {
+    "file": "quay_gateway.glb",
+    "bytes": 91824,
+    "sha256": "25296659e7b67b85d264fa4f8afcbce39ff6789d839bea1b1db60fda421c8ce2"
+  },
+  {
+    "file": "santorini_open_terrace_grounded.glb",
+    "bytes": 5037104,
+    "sha256": "a1b6b39127984dd9fa30f8025fdfa1766430df36176d1d5420ef4d66ca3e6b94"
+  },
+  {
+    "file": "waterfront_foundations.glb",
+    "bytes": 93836,
+    "sha256": "adbce8de8126ec25080a909360a36519d4f2ee33cd35815043badeb7d6cf7969"
+  }
+]

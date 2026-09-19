@@ -33,6 +33,12 @@ var _result_camera_active: bool = false
 var _result_camera_phase: int = QuizGameState.ResultCeremonyPhase.NONE
 var _rear_back_ready: bool = false
 var _smoothed_rear_back: float = 9.0
+var _question_framing_points := PackedVector3Array()
+var _question_pitch: float = 0.0
+var _question_back: float = 0.0
+
+const QUESTION_SCREEN_MARGIN := 0.08
+const QUESTION_FRAMING_FOLLOW := 8.0
 
 const ENTRY_BLEND_DURATION := 0.95
 const PRELOAD_CAMERA_FOV := 66.0
@@ -65,7 +71,8 @@ func _ready() -> void:
 	camera.current = true
 	camera.fov = 44.0
 	camera.near = 0.1
-	camera.far = 500.0
+	# Include the Blender-authored harbor islands across the open water.
+	camera.far = 5000.0
 	_consume_transition_camera_pose()
 
 func set_ocean_attack_focus(
@@ -213,6 +220,9 @@ func wait_for_entry_blend() -> void:
 		await get_tree().process_frame
 
 func update_camera(gs: QuizGameState, dt: float) -> void:
+	if gs.game_state not in [Constants.STATE_PLAYING, Constants.STATE_CORRECT] or _tutorial_override_active or _ocean_attack_camera_active:
+		_question_pitch = 0.0
+		_question_back = 0.0
 	# フライオーバー→カウントダウン遷移時にbobタイマーをリセット
 	# (bobが途中の位相だとカメラのY座標がジャンプするため)
 	if _prev_state == Constants.STATE_FLYOVER and gs.game_state != Constants.STATE_FLYOVER:
@@ -400,6 +410,10 @@ func update_camera(gs: QuizGameState, dt: float) -> void:
 			eye += Vector3.UP * _third_person_camera_height(gs)
 			target = _third_person_camera_target(gs, focus)
 
+	var question_pose := _frame_question(gs, eye, target, fov, dt)
+	eye = question_pose[0]
+	target = question_pose[1]
+
 	# Apply camera shake
 	if gs.camera_shake > 0.0:
 		var shake_ox: float = (randf() - 0.5) * gs.camera_shake
@@ -414,6 +428,70 @@ func update_camera(gs: QuizGameState, dt: float) -> void:
 	camera.fov = fov
 	camera.global_position = eye
 	camera.look_at(target, Vector3.UP)
+
+
+func set_question_framing_points(points: PackedVector3Array) -> void:
+	_question_framing_points = points
+
+
+## Preserve the normal FOV and yaw. Tilt only by the overflow angle, then
+## retreat along the view direction until glyphs and living players fit.
+func _frame_question(gs: QuizGameState, eye: Vector3, target: Vector3, fov: float, dt: float) -> PackedVector3Array:
+	if _question_framing_points.is_empty() and is_zero_approx(_question_pitch) and is_zero_approx(_question_back):
+		return PackedVector3Array([eye, target])
+	var follow := 1.0 - exp(-QUESTION_FRAMING_FOLLOW * maxf(dt, 0.0))
+	var points := _question_framing_points.duplicate()
+	if gs.game_state != Constants.STATE_PLAYING:
+		points.clear()
+	if not points.is_empty():
+		if gs.p1_alive:
+			_append_player_framing_points(points, Vector3(gs.player_x, gs.player_y, gs.player_local_z))
+		if gs.num_players >= 2 and gs.p2_alive:
+			_append_player_framing_points(points, Vector3(gs.player2_x, gs.player2_y, gs.player2_local_z))
+	var direction := (target - eye).normalized()
+	var distance := eye.distance_to(target)
+	var view_basis := Basis.looking_at(direction, Vector3.UP)
+	var viewport_size := camera.get_viewport().get_visible_rect().size
+	var aspect := viewport_size.x / maxf(viewport_size.y, 1.0)
+	var tan_y := tan(deg_to_rad(fov) * 0.5)
+	if camera.keep_aspect == Camera3D.KEEP_WIDTH:
+		tan_y /= aspect
+	var safe_y := tan_y * (1.0 - QUESTION_SCREEN_MARGIN * 2.0)
+	var safe_x := safe_y * aspect
+	var angle_limit := atan(safe_y)
+	var min_angle := INF
+	var max_angle := -INF
+	for point: Vector3 in points:
+		var relative := point - eye
+		var angle := atan2(relative.dot(view_basis.y), relative.dot(direction))
+		min_angle = minf(min_angle, angle)
+		max_angle = maxf(max_angle, angle)
+	var desired_pitch := 0.0
+	if not points.is_empty():
+		var lower := max_angle - angle_limit
+		var upper := min_angle + angle_limit
+		desired_pitch = clampf(0.0, lower, upper) if lower <= upper else (lower + upper) * 0.5
+	_question_pitch = lerpf(_question_pitch, desired_pitch, follow)
+	direction = direction.rotated(view_basis.x, _question_pitch)
+	view_basis = Basis.looking_at(direction, Vector3.UP)
+	var required_back := 0.0
+	for point: Vector3 in points:
+		var relative := point - eye
+		var depth := relative.dot(direction)
+		required_back = maxf(required_back, absf(relative.dot(view_basis.x)) / safe_x - depth)
+		required_back = maxf(required_back, absf(relative.dot(view_basis.y)) / safe_y - depth)
+		required_back = maxf(required_back, camera.near + 0.1 - depth)
+	# A small lead-in buffer permits smooth following without crossing the 8%
+	# safety inset. Release the correction gradually when the next wall is far.
+	var desired_back := required_back + (0.35 if required_back > 0.0 else 0.0)
+	_question_back = maxf(required_back, lerpf(_question_back, desired_back, follow))
+	return PackedVector3Array([eye - direction * _question_back, eye + direction * distance])
+
+
+func _append_player_framing_points(points: PackedVector3Array, feet: Vector3) -> void:
+	var bounds := AABB(feet + Vector3(-0.65, -0.1, -0.4), Vector3(1.3, 2.9, 0.8))
+	for corner: int in range(8):
+		points.append(bounds.get_endpoint(corner))
 
 
 func _update_result_ceremony_camera(gs: QuizGameState, dt: float) -> void:

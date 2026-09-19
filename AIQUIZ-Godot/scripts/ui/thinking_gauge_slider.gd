@@ -131,7 +131,8 @@ func _value_ratio() -> float:
 
 func _fill_color_for_value(speed_value: float) -> Color:
 	# 数字表示と同じ補間式にして、数値とバーの色を常に一致させる。
-	var color_ratio := (speed_value - 2.0) / 8.0
+	var span := max_value - min_value
+	var color_ratio := 0.0 if is_zero_approx(span) else (speed_value - min_value) / span
 	return Color(0.3, 1.0, 0.5).lerp(Color(1.0, 0.3, 0.2), color_ratio)
 
 

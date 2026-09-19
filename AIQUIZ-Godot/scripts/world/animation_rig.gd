@@ -341,7 +341,12 @@ func _find_ual_clip_name(ap: AnimationPlayer, clip_name: String) -> String:
 	return ""
 
 
-func play_ual_clip(clip_name: String, force_restart: bool = false, slot: int = SLOT_UAL) -> bool:
+func play_ual_clip(
+	clip_name: String,
+	force_restart: bool = false,
+	slot: int = SLOT_UAL,
+	custom_blend: float = -1.0
+) -> bool:
 	if is_thriller_locked():
 		return false
 	var resolved := resolve_ual_clip(clip_name, slot)
@@ -368,7 +373,10 @@ func play_ual_clip(clip_name: String, force_restart: bool = false, slot: int = S
 		):
 			animation.loop_mode = Animation.LOOP_LINEAR
 	if not target_ap.is_playing() or force_restart or target_ap.current_animation != resolved:
-		target_ap.play(resolved)
+		if custom_blend >= 0.0:
+			target_ap.play(resolved, custom_blend)
+		else:
+			target_ap.play(resolved)
 	active_skeleton = skeletons[slot]
 	active_bone_indices = bone_indices_list[slot]
 	mirror_x = true

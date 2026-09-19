@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://6ahepirhmjrm"]
 
-[ext_resource type="Texture2D" uid="uid://l7d36kr543fa" path="res://assets/BinbunVFX/shared/texture/placeholder.png" id="1_q83y6"]
+[ext_resource type="Texture2D" uid="uid://dq8jkeeag6vov" path="res://assets/BinbunVFX/shared/texture/placeholder.png" id="1_q83y6"]
 [ext_resource type="PackedScene" uid="uid://bkf5pwrtdiwuq" path="res://assets/BinbunVFX/beam_vfx/effects/beam/beam_vfx_01.tscn" id="2_q83y6"]
 [ext_resource type="PackedScene" uid="uid://d2cacc3l8ug3x" path="res://assets/BinbunVFX/beam_vfx/effects/beam/beam_vfx_02.tscn" id="3_ngqha"]
 [ext_resource type="PackedScene" uid="uid://gc2q7tib78gh" path="res://assets/BinbunVFX/beam_vfx/effects/beam/beam_vfx_03.tscn" id="4_08i3w"]

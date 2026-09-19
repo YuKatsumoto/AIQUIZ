@@ -10,6 +10,9 @@ class_name FirebaseQuizCache
 
 signal cache_updated(total_count: int)
 
+# Godot decoded the old NUL hash separators as U+FFFD. Keep the same
+# separator so existing cache keys and evaluation IDs remain compatible.
+const HASH_SEPARATOR: String = "\uFFFD"
 const CACHE_VERSION: int = 1
 const CACHE_PATH: String = "user://firebase_quiz_cache_v1.json"
 const CACHE_TEMP_PATH: String = "user://firebase_quiz_cache_v1.tmp"
@@ -87,9 +90,9 @@ func queue_evaluation(quiz: QuizItem, good: bool, subject: String, grade: int,
 		return
 	payload["good"] = good
 	payload["reason"] = reason.left(500)
-	var event_seed := "%s\u0000%s\u0000%d" % [
-		_local_question_key(payload), str(good), int(Time.get_unix_time_from_system())
-	]
+	var event_seed := HASH_SEPARATOR.join([
+		_local_question_key(payload), str(good), str(int(Time.get_unix_time_from_system()))
+	])
 	var event_id := _sha256_hex(event_seed)
 	payload["event_id"] = event_id
 	_evaluation_outbox[event_id] = payload
@@ -311,11 +314,11 @@ func _is_online_source(source: String) -> bool:
 
 
 func _local_question_key(payload: Dictionary) -> String:
-	return _sha256_hex("%s\u0000%d\u0000%s" % [
+	return _sha256_hex(HASH_SEPARATOR.join([
 		str(payload.get("subject", "")),
-		int(payload.get("grade", 0)),
+		str(int(payload.get("grade", 0))),
 		_normalize_text(str(payload.get("q", ""))),
-	])
+	]))
 
 
 func _normalize_text(text: String) -> String:

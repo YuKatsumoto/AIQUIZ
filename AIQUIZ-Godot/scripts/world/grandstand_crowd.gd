@@ -1,29 +1,38 @@
 @tool
 extends Node3D
 
-## Seated block-style spectators, batched by pose and seating section.
-## Seat coordinates mirror assets/environment/grandstand/source/build_grandstand.py.
+## Seated block-style spectators, with rare hats and independently timed dances.
+## Bodies and hats remain batched by seating section.
+## Seat coordinates mirror santorini_grandstand/source/build_santorini_grandstand.py.
 ## Each instance faces the course; the enclosing stand mirrors the opposite side.
 const CROWD_SHADER: Shader = preload("res://shaders/grandstand_crowd.gdshader")
-const ROW_COUNT: int = 10
-const ROW_FRONT: float = 1.35
-const ROW_PITCH: float = 1.17
-const ROW_RISE: float = 0.72
+const ROW_COUNT: int = 4
+const ROW_FRONT: float = 1.15
+const ROW_PITCH: float = 1.25
+const ROW_RISE: float = 0.40
 const SEAT_EDGE: float = 77.5
 const SEAT_PITCH: float = 0.92
-const SEAT_TOP: float = 0.45 + 0.48 + 0.065
+const SEAT_TOP: float = 0.32 + 0.50 + 0.045
 const AISLES: Array[float] = [-60.0, -40.0, -20.0, 0.0, 20.0, 40.0, 60.0]
-const AISLE_CLEARANCE: float = 1.05 + 0.44
+const AISLE_CLEARANCE: float = 1.10 + 0.39
 const POSE_COUNT: int = 3
 const SECTION_COUNT: int = 8
+const HAT_CHANCE: float = 0.08
+const EMOTE_CHANCE: float = 0.06
+const HAT_STYLE_COUNT: int = 3
 const SHIRT_COLORS: Array[Color] = [
 	Color("#ef6958"), Color("#f0b541"), Color("#54b7d0"), Color("#9873c5"),
 	Color("#61b887"), Color("#ec8bab"), Color("#e9e3ce"), Color("#5379b7"),
 ]
+const MESH_REVISION: int = 5
 static var _pose_meshes: Array[ArrayMesh] = []
+static var _hat_meshes: Array[ArrayMesh] = []
 static var _material: ShaderMaterial = null
+static var _built_revision: int = 0
 
 var spectator_count: int = 0
+var hat_count: int = 0
+var emote_count: int = 0
 var _batches: Array[Dictionary] = []
 var _length_scale: float = -1.0
 
@@ -34,13 +43,21 @@ func build(density: float, crowd_seed: int) -> void:
 		child.free()
 	_batches.clear()
 	spectator_count = 0
+	hat_count = 0
+	emote_count = 0
 	_length_scale = -1.0
 	if density <= 0.0:
 		return
 	_ensure_meshes()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = crowd_seed
+	# Separate stream preserves the established seat, clothing and skin choices.
+	var variety_rng := RandomNumberGenerator.new()
+	variety_rng.seed = crowd_seed + 104729
 	var groups: Array[Array] = []
+	var hat_groups: Array[Array] = []
+	for _index: int in range(SECTION_COUNT * HAT_STYLE_COUNT):
+		hat_groups.append([])
 	for _index: int in range(SECTION_COUNT * POSE_COUNT):
 		groups.append([])
 	for row: int in range(ROW_COUNT):
@@ -57,35 +74,53 @@ func build(density: float, crowd_seed: int) -> void:
 			var pose: int = 0 if pose_roll < 0.60 else (1 if pose_roll < 0.88 else 2)
 			var section: int = clampi(int((seat_z + 80.0) / 20.0), 0, SECTION_COUNT - 1)
 			var seat := Vector3(ROW_FRONT + float(row) * ROW_PITCH, SEAT_TOP + float(row) * ROW_RISE, seat_z)
-			groups[section * POSE_COUNT + pose].append({
+			var person := {
 				"transform": Transform3D(Basis(Vector3.UP, -PI * 0.5), seat),
 				"color": SHIRT_COLORS[rng.randi_range(0, SHIRT_COLORS.size() - 1)],
 				"custom": Color(rng.randf(), rng.randf(), rng.randf(), rng.randf_range(0.91, 1.09)),
-			})
+			}
+			if variety_rng.randf() < EMOTE_CHANCE:
+				# Values >= 2 mark occasional dancers; the fractional speed is retained.
+				person["custom"].g += 2.0
+				emote_count += 1
+			groups[section * POSE_COUNT + pose].append(person)
+			if variety_rng.randf() < HAT_CHANCE:
+				var style: int = variety_rng.randi_range(0, HAT_STYLE_COUNT - 1)
+				hat_groups[section * HAT_STYLE_COUNT + style].append(person)
+				hat_count += 1
 			spectator_count += 1
 	for group_index: int in range(groups.size()):
 		var people: Array = groups[group_index]
 		if people.is_empty():
 			continue
 		var pose: int = group_index % POSE_COUNT
-		var batch := MultiMeshInstance3D.new()
-		batch.name = "Section%02dPose%d" % [floori(float(group_index) / float(POSE_COUNT)) + 1, pose]
-		var instances := MultiMesh.new()
-		instances.transform_format = MultiMesh.TRANSFORM_3D
-		instances.use_colors = true
-		instances.use_custom_data = true
-		instances.mesh = _pose_meshes[pose]
-		instances.instance_count = people.size()
-		batch.multimesh = instances
-		batch.material_override = _material
-		batch.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		batch.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
-		add_child(batch)
-		for person_index: int in range(people.size()):
-			instances.set_instance_color(person_index, people[person_index]["color"])
-			instances.set_instance_custom_data(person_index, people[person_index]["custom"])
-		_batches.append({"node": batch, "people": people})
+		_add_batch("Section%02dPose%d" % [floori(float(group_index) / float(POSE_COUNT)) + 1, pose], _pose_meshes[pose], people)
+	for group_index: int in range(hat_groups.size()):
+		var people: Array = hat_groups[group_index]
+		if not people.is_empty():
+			var style: int = group_index % HAT_STYLE_COUNT
+			_add_batch("Section%02dHat%d" % [floori(float(group_index) / float(HAT_STYLE_COUNT)) + 1, style], _hat_meshes[style], people)
 	sync_length_scale(1.0)
+
+
+func _add_batch(batch_name: String, mesh: ArrayMesh, people: Array) -> void:
+	var batch := MultiMeshInstance3D.new()
+	batch.name = batch_name
+	var instances := MultiMesh.new()
+	instances.transform_format = MultiMesh.TRANSFORM_3D
+	instances.use_colors = true
+	instances.use_custom_data = true
+	instances.mesh = mesh
+	instances.instance_count = people.size()
+	batch.multimesh = instances
+	batch.material_override = _material
+	batch.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	batch.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+	add_child(batch)
+	for person_index: int in range(people.size()):
+		instances.set_instance_color(person_index, people[person_index]["color"])
+		instances.set_instance_custom_data(person_index, people[person_index]["custom"])
+	_batches.append({"node": batch, "people": people})
 
 
 func sync_length_scale(longitudinal_scale: float) -> void:
@@ -107,7 +142,7 @@ func sync_length_scale(longitudinal_scale: float) -> void:
 			var body_bounds: AABB = placed * batch.multimesh.mesh.get_aabb()
 			bounds = body_bounds if person_index == 0 else bounds.merge(body_bounds)
 		# Include shader-driven arm motion and individual upper-body height.
-		batch.custom_aabb = bounds.grow(maxf(0.3, 0.3 / safe_scale))
+		batch.custom_aabb = bounds.grow(maxf(0.55, 0.55 / safe_scale))
 
 
 static func _is_aisle(seat_z: float) -> bool:
@@ -118,12 +153,17 @@ static func _is_aisle(seat_z: float) -> bool:
 
 
 static func _ensure_meshes() -> void:
-	if not _pose_meshes.is_empty():
+	if not _pose_meshes.is_empty() and _built_revision == MESH_REVISION:
 		return
+	_pose_meshes.clear()
+	_hat_meshes.clear()
 	_material = ShaderMaterial.new()
 	_material.shader = CROWD_SHADER
 	for pose: int in range(POSE_COUNT):
 		_pose_meshes.append(_create_spectator_mesh(pose))
+	for style: int in range(HAT_STYLE_COUNT):
+		_hat_meshes.append(_create_hat_mesh(style))
+	_built_revision = MESH_REVISION
 
 
 static func _create_spectator_mesh(pose: int) -> ArrayMesh:
@@ -134,12 +174,15 @@ static func _create_spectator_mesh(pose: int) -> ArrayMesh:
 	_box(surface, Vector3(0.0, 0.325, 0.0), Vector3(0.40, 0.44, 0.25), 0.0, true)
 	_box(surface, Vector3(0.0, 0.575, 0.0), Vector3(0.13, 0.10, 0.14), 1.0, true)
 	_box(surface, Vector3(0.0, 0.77, 0.0), Vector3(0.30, 0.32, 0.28), 1.0, true)
-	_box(surface, Vector3(0.0, 0.92, -0.005), Vector3(0.315, 0.09, 0.29), 2.0, true)
-	_box(surface, Vector3(0.0, 0.81, -0.13), Vector3(0.31, 0.22, 0.045), 2.0, true)
+	# Cap covers the crown. A separate forehead slab sits just in front of the
+	# face so bangs stay visible without sharing a depth plane with skin.
+	_box(surface, Vector3(0.0, 0.92, -0.02), Vector3(0.322, 0.09, 0.24), 2.0, true)
+	_box(surface, Vector3(0.0, 0.82, -0.175), Vector3(0.31, 0.20, 0.05), 2.0, true)
+	_box(surface, Vector3(0.0, 0.878, 0.182), Vector3(0.312, 0.116, 0.054), 2.0, true)
 	if pose == 1:
-		_box(surface, Vector3(0.0, 0.68, -0.15), Vector3(0.30, 0.28, 0.055), 2.0, true)
+		_box(surface, Vector3(0.0, 0.68, -0.185), Vector3(0.30, 0.28, 0.06), 2.0, true)
 	else:
-		_box(surface, Vector3(-0.105, 0.865, 0.137), Vector3(0.10, 0.08, 0.04), 2.0, true)
+		_box(surface, Vector3(-0.09, 0.835, 0.196), Vector3(0.15, 0.09, 0.04), 2.0, true)
 	for side: float in [-1.0, 1.0]:
 		_box(surface, Vector3(side * 0.068, 0.782, 0.145), Vector3(0.031, 0.045, 0.018), 5.0, true)
 		_box(surface, Vector3(side * 0.105, 0.065, 0.20), Vector3(0.16, 0.18, 0.40), 3.0)
@@ -152,12 +195,33 @@ static func _create_spectator_mesh(pose: int) -> ArrayMesh:
 		if raised:
 			elbow = Vector3(side * 0.32, 0.67, 0.04)
 			hand = Vector3(side * 0.30, 0.94, 0.09)
-		var arm_tag := Vector2(1.0 if raised else 0.0, shoulder.x)
+		var arm_tag := Vector2(1.0 if raised else 2.0, shoulder.x)
 		_limb(surface, shoulder, shoulder.lerp(elbow, 0.62), 0.15, 0.0, arm_tag)
 		_limb(surface, shoulder.lerp(elbow, 0.54), elbow, 0.12, 1.0, arm_tag)
 		_limb(surface, elbow, hand, 0.11, 1.0, arm_tag)
 		_box(surface, hand, Vector3(0.13, 0.14, 0.115), 1.0, true, arm_tag)
 	_box(surface, Vector3(0.0, 0.689, 0.146), Vector3(0.068, 0.019, 0.014), 5.0, true)
+	surface.index()
+	return surface.commit()
+
+
+static func _create_hat_mesh(style: int) -> ArrayMesh:
+	var surface := SurfaceTool.new()
+	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+	# All pieces share the head's upper-body deformation, including during dances.
+	if style == 0: # Baseball cap with a forward brim.
+		_box(surface, Vector3(0, 0.99, -0.01), Vector3(0.35, 0.15, 0.33), 6.0, true)
+		_box(surface, Vector3(0, 0.94, 0.21), Vector3(0.37, 0.035, 0.22), 6.0, true)
+	elif style == 1: # Top hat with contrasting band.
+		_box(surface, Vector3(0, 0.97, 0), Vector3(0.44, 0.05, 0.40), 5.0, true)
+		_box(surface, Vector3(0, 1.13, 0), Vector3(0.30, 0.28, 0.28), 5.0, true)
+		_box(surface, Vector3(0, 1.035, 0), Vector3(0.31, 0.06, 0.29), 6.0, true)
+	else: # Gold crown, five visible points.
+		_box(surface, Vector3(0, 0.99, 0), Vector3(0.35, 0.10, 0.32), 7.0, true)
+		for x: float in [-0.14, 0.0, 0.14]:
+			_box(surface, Vector3(x, 1.075, 0.135), Vector3(0.065, 0.13, 0.06), 7.0, true)
+		for x: float in [-0.14, 0.14]:
+			_box(surface, Vector3(x, 1.075, -0.13), Vector3(0.065, 0.13, 0.06), 7.0, true)
 	surface.index()
 	return surface.commit()
 

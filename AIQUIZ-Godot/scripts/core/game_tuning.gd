@@ -3,13 +3,19 @@ class_name GameTuning
 
 ## ゲームのチューニングパラメータ (Python版 GameTuning 相当)
 
+## 壁速度スライダー／本編クランプで共有する範囲（設定画面の下限・上限）
+const WALL_SPEED_SLIDER_MIN: float = 0.5
+const WALL_SPEED_SLIDER_MAX: float = 10.0
+## 自動モードの基準速度。可視距離28 ÷ (予測4秒 + バッファ約5.66秒)
+const WALL_SPEED_AUTO_DEFAULT: float = 2.9
+
 var player_speed: float = 7.6
 var min_x: float = -6.5
 var max_x: float = 6.5
 var wall_start_z: float = 22.0
 # 壁速度はAI予測解答時間から自動計算。クランプ定数のみ保持。
-var wall_speed_min: float = 1.0
-var wall_speed_max: float = 8.0
+var wall_speed_min: float = WALL_SPEED_SLIDER_MIN
+var wall_speed_max: float = WALL_SPEED_SLIDER_MAX
 var wall_speed_override: float = 0.0  # 0 = 自動モード, >0 = 手動固定速度
 var wall_spacing: float = 30.0
 var door_half_width: float = 1.8
