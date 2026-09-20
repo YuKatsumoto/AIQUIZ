@@ -19,7 +19,7 @@ func run() -> void:
 		for frame in range(fps * 18 + 1):
 			var time: float = float(frame) / fps
 			var p := SawDockPresentation.pose_at(time)
-			check(float(p.lift) <= 0.0001 or float(p.cover) >= 0.9999, "cover/lift interlock")
+			check(float(p.cover)==1.0 and float(p.shutter_speed)==0.0, "no shutter motion throughout lift sequence")
 			if float(p.travel) > 0.0001 and float(p.travel) < 4.7999:
 				check(float(p.lift) >= .9999 and float(p.lock) >= .9999, "transfer before rail lock")
 				check(absf(float(p.ship_offset)) < .0001 and absf(float(p.speed)) < .0001, "ship moves during transfer")

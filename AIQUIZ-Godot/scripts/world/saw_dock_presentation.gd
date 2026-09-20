@@ -56,7 +56,7 @@ static func pose_at(time: float) -> Dictionary:
 	var bridge := ease_between(time, RAISE_END, 4.40) * (1.0 - ease_between(time, 6.30, 6.50))
 	return {
 		"lift": ease_between(time, RAISE_START, RAISE_END) * (1.0 - ease_between(time, LOWER_START, LOWER_END)),
-		"cover": ease_between(time, 1.45, 2.30),
+		"cover": 1.0, # Retained pose field: the lift bay is permanently open.
 		"lock": ease_between(time, 4.25, TRANSFER_START) * (1.0 - ease_between(time, READY_TIME, 6.30)),
 		"bridge": bridge,
 		"travel": TRAVEL * ease_between(time, TRANSFER_START, READY_TIME),
@@ -64,7 +64,7 @@ static func pose_at(time: float) -> Dictionary:
 		"speed": 2.0 * APPROACH_DISTANCE / DOCKED_TIME * (1.0 - 3.0 * u * u + 2.0 * u * u * u) - DEPARTURE_DISTANCE * ease_speed(time, DEPARTURE_START, FINISH_TIME),
 		"rock": (1.0 - ease_between(time, 1.65, DOCKED_TIME)) + ease_between(time, DEPARTURE_START, 9.75),
 		"hydraulic_speed": ease_speed(time, RAISE_START, RAISE_END) + ease_speed(time, LOWER_START, LOWER_END),
-		"shutter_speed": ease_speed(time, 1.45, 2.30),
+		"shutter_speed": 0.0,
 	}
 
 static func shutter_pose(index: int, amount: float) -> Vector3:
@@ -85,8 +85,9 @@ func setup(preview: bool, play_entrance: bool) -> void:
 	add_child(machinery)
 	ship = machinery.find_child("VSL_ROOT", true, false) as Node3D
 	lift = machinery.find_child("VSL_LIFT", true, false) as Node3D
-	for i in range(24):
-		slats.append(machinery.find_child("VSL_SLAT_%02d" % i, true, false) as Node3D)
+	# Remove the complete shutter assembly, including its rolled-up slats.
+	var cover := machinery.find_child("VSL_COVER",true,false) as Node3D
+	if cover != null: cover.free()
 	for side in ["L", "R"]:
 		rods.append(machinery.find_child("VSL_ROD_" + side, true, false) as Node3D)
 		locks.append(machinery.find_child("VSL_LOCK_" + side, true, false) as Node3D)
@@ -168,10 +169,6 @@ func apply_pose() -> void:
 	ship.position = Vector3(0.0, 0.055 * sin(elapsed * 1.7) * float(p.rock), -float(p.ship_offset))
 	ship.rotation = Vector3(0.002 * sin(elapsed * 1.3) * float(p.rock), 0.0, 0.0018 * sin(elapsed * 1.1) * float(p.rock))
 	lift.position.y = -LIFT_HEIGHT * (1.0 - float(p.lift))
-	for i in slats.size():
-		var s := shutter_pose(i, float(p.cover))
-		slats[i].position = Vector3(0.0, s.y, -s.x)
-		slats[i].rotation.x = s.z
 	for i in rods.size():
 		rods[i].scale.y = 0.12 + LIFT_HEIGHT * float(p.lift)
 		locks[i].position.x = (-1.0 if i == 0 else 1.0) * (12.44 - 0.25 * float(p.lock))
@@ -189,7 +186,7 @@ func update_audio(active: bool, spin_speed: float, blade_origin: Vector3 = Vecto
 	if blade_origin.is_finite(): _spindle.global_position = blade_origin
 	var ship_active := active and not has_departed()
 	var p := pose_at(elapsed)
-	var mechanism_speed := maxf(float(p.hydraulic_speed), float(p.shutter_speed) * 0.35)
+	var mechanism_speed := float(p.hydraulic_speed)
 	var mechanism_moving := ship_active and mechanism_speed > 0.002
 	_loop(_servo, mechanism_moving)
 	_servo.pitch_scale = 0.7 + minf(mechanism_speed * 0.32, 0.55)

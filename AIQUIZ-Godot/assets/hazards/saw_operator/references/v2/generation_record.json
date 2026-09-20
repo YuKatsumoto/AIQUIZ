@@ -1,0 +1,82 @@
+{
+  "version": 2,
+  "date": "2026-09-20",
+  "purpose": "操縦盤再制作：全体配置・操作部詳細・着席側面",
+  "higgsfield": {
+    "requested": {
+      "model": "gpt_image_2",
+      "resolution": "2k",
+      "quality": "high",
+      "aspect_ratio": "16:9",
+      "count": 1,
+      "prompt": "Engineering product reference, refined compact operator station for an existing eight-disc circular saw carriage. 1.64 by 1.74 metre low flat deck attached at carriage left end, facing right along the blade row, no perimeter railings or roof. A small blue Godot plush mascot with mitten hands and short legs seated in a dark cushion seat. Two precision heavy-equipment side consoles: left bidirectional travel joystick and rocker pedal, right raise/hold/lower blade joystick and pedal. Machined silver gimbal bearings, recessed gated slots with neutral marks, concentric rubber bellows, bolted bezels, two analog instruments, start button, covered toggle, rotary dial, restrained yellow trim, charcoal housing, cables and maintenance panels. No modification of mascot body proportions. High-end realistic editable-model reference, three-quarter studio view, entire station and attachment to long saw row visible."
+    },
+    "estimate": {
+      "unit_credits": 6.5,
+      "total_for_three": 19.5
+    },
+    "attempts": 1,
+    "status": "rejected_before_job",
+    "error": "Requires basic plan or higher",
+    "job_id": null,
+    "actual_charge": null,
+    "charge_note": "生成ジョブは作成されず、請求額は取得できていない。見積もりを実費として記載しない。"
+  },
+  "fallback": {
+    "provider": "OpenAI built-in image_gen.imagegen",
+    "authorization": "利用可能な別の画像生成機能で作成して続行（ユーザー了承）",
+    "actual_model_id": null,
+    "cost": null,
+    "settings_note": "ツールはpromptと参考画像のみ受け付ける。内部モデル、解像度指定、品質指定、請求額は返さない。",
+    "results": [
+      {
+        "file": "01_layout.png",
+        "source_image": "exec-7f5c3320-2090-4715-8fd1-ef9ee072bab5.png",
+        "brief": "現行GLBの寸法と姿勢を参照。低いデッキを台車の左端へ接続し、短い手足のゴドーくんが右を向く全体配置。銀色金具、暗色コンソール、控えめな黄色。",
+        "sha256": "c783a7e19c87d00334ce54107cf091d167192d8899e2ab1dc4525ba5d7a64bf3",
+        "dimensions": [
+          1495,
+          1052
+        ]
+      },
+      {
+        "file": "02_controls.png",
+        "source_image": "exec-54d29351-d78f-4fe9-9d2c-27cacfdfcce9.png",
+        "brief": "同一デザインの接写。左右独立レバー、F/N/RとUP/HOLD/DNの溝、ゴムブーツ、軸受、指標、計器、スイッチ、配線、整備ハッチ。",
+        "sha256": "e9df1432aed22f06bfdd1b13cfe662d67676863f61b4767b5d75b5eccb4daab0",
+        "dimensions": [
+          1495,
+          1052
+        ]
+      },
+      {
+        "file": "03_seated_side.png",
+        "source_image": "exec-c9a3555f-956b-43ae-a344-001ba31ece30.png",
+        "brief": "同一デザインの着席側面。既存の短い手足を維持してグリップとペダルを届く位置に配置。黄色外周柵なし。",
+        "sha256": "3a1f1c5553eab3f0c628f3e957bc21773f3fb145453f8e30947a5074784191a5",
+        "dimensions": [
+          1495,
+          1052
+        ]
+      }
+    ],
+    "brief_note": "briefは制作意図の要約。完全な送信プロンプトの再現ではない。"
+  },
+  "implementation": {
+    "matched": [
+      "charcoal metal console housings",
+      "machined slots and gimbal bearings",
+      "rubber bellows and grips",
+      "bolted gauges and service panels",
+      "independent travel and lift controls",
+      "cable clamps",
+      "no perimeter railing"
+    ],
+    "engineering_adjustments": [
+      "元のキャラクターの形状・リグを保ち、参考画像より操作部を近づける",
+      "計器面を座席の操縦者へ向ける",
+      "元台車の可動域と船内寸法を優先し、既存支持部と伸縮機構へ合わせる"
+    ],
+    "editable_source": "../../source/saw_operator.blend"
+  }
+}

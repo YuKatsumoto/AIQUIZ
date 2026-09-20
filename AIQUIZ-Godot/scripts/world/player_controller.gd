@@ -225,7 +225,9 @@ func _launch_wall_ragdoll(ragdoll: Dictionary, is_p1: bool, saw_hit := false) ->
 		var catch_driver := SawCatchRagdoll.new()
 		catch_driver.name = "SawCatch"
 		(ragdoll.container as Node3D).add_child(catch_driver)
-		catch_driver.setup(ragdoll.rag, get_parent().get_node_or_null("SawChaseController") as SawChaseController)
+		var carriage := get_parent().get_node_or_null("SawChaseController") as SawChaseController
+		if carriage==null:carriage=get_parent().get_node_or_null("MenuSawCarriage") as SawChaseController
+		catch_driver.setup(ragdoll.rag, carriage)
 		ragdoll["saw_catch"] = catch_driver
 		return
 	var rag: Dictionary = ragdoll.get("rag", {})

@@ -2,6 +2,8 @@ extends Node3D
 class_name HelicopterArrivalDirector
 
 signal presentation_finished(success: bool)
+signal menu_boost_launched
+var menu_launch_ready: Callable
 
 ## Read-only timing hook for stage machinery; excludes hidden render prewarm.
 func has_started_arrival() -> bool:
@@ -1016,6 +1018,8 @@ func _update_authored_menu_departure(delta: float) -> bool:
 		return false
 	var everyone_gripped := _all_menu_players_captured()
 	var launch_ready := everyone_gripped
+	if menu_launch_ready.is_valid():
+		launch_ready = launch_ready and bool(menu_launch_ready.call())
 	for info: Dictionary in _helicopters:
 		var delay := MENU_LADDER_P2_DELAY if int(info.get("player_index", 1)) == 2 else 0.0
 		launch_ready = launch_ready and float(info.get("pickup_path_time", 0.0)) >= MENU_LADDER_DEPART_PATH_TIME + delay
@@ -1028,6 +1032,7 @@ func _update_authored_menu_departure(delta: float) -> bool:
 			_menu_boost_started = true
 			_menu_launch_elapsed = 0.0
 			_menu_camera_shake_remaining = MENU_CAMERA_SHAKE_DURATION
+			menu_boost_launched.emit()
 	var charge := clampf(_menu_launch_charge_elapsed / MENU_BOOST_CHARGE_DURATION, 0.0, 1.0)
 	_menu_pickup_path_time = _menu_flight_profile.get_runtime_duration()
 	var all_captured := true

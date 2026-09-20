@@ -101,6 +101,19 @@ func apply_to_game_state(gs: QuizGameState) -> void:
 	gs.saw.local_z = float(frame.get("saw_z", SawChaseState.INITIAL_Z))
 	gs.saw.elapsed = float(frame.get("saw_time", 0.0))
 	gs.saw.wheel_distance = float(frame.get("saw_travel", 0.0))
+	# Presentation-only velocity from recorded travel: independent of seek order.
+	var before_time := maxf(0.0,current_time-0.05)
+	var after_time := minf(recorder.get_duration(),current_time+0.05)
+	var before := recorder.get_interpolated_frame(before_time)
+	var after := recorder.get_interpolated_frame(after_time)
+	var saw_interval := float(after.get("saw_time",0.0))-float(before.get("saw_time",0.0))
+	var saw_speed := 0.0
+	if saw_interval > 0.000001:
+		saw_speed = maxf(0.0,(float(after.get("saw_travel",0.0))-float(before.get("saw_travel",0.0)))/saw_interval)
+	gs.set_meta("saw_operator_speed",saw_speed)
+	var lift_now := _saw_lifts_at(current_time)
+	gs.set_meta("saw_operator_lift",_saw_operator_lift_at(current_time))
+	gs.set_meta("saw_replay_lifts",lift_now)
 	gs.p1_saw_killed = bool(frame.get("saw_killed1", false))
 	gs.p2_saw_killed = bool(frame.get("saw_killed2", false))
 	gs.hp_state_available = bool(frame.get("hp_available", false))
@@ -148,6 +161,56 @@ func apply_to_game_state(gs: QuizGameState) -> void:
 			gs.current_quiz = QuizItem.create(
 				qd["q"], choices, qd["a"], qd["e"], "REPLAY"
 			)
+
+func _raw_saw_operator_lift(time: float) -> Dictionary:
+	var before_time := maxf(0.0,time-.05)
+	var after_time := minf(recorder.get_duration(),time+.05)
+	var before := _saw_lifts_at(before_time)
+	var after := _saw_lifts_at(after_time)
+	var now := _saw_lifts_at(time)
+	var selected := 7 # Physical left in the gameplay carriage frame.
+	var max_change := -1.0
+	for i in range(7,-1,-1):
+		var change := absf(after[i]-before[i])
+		if change>max_change+.00001:
+			max_change=change;selected=i
+		elif change<.00001 and max_change<.00001 and now[i]>now[selected]:selected=i
+	return {"height":now[selected],"speed":(after[selected]-before[selected])/maxf(after_time-before_time,.00001)}
+
+func _saw_operator_lift_at(time: float) -> Dictionary:
+	# Reconstruct the short lever transition from history, never the last seek.
+	var start := maxf(0.0,time-.24)
+	var value := _raw_saw_operator_lift(start)
+	var speed := clampf(float(value.speed),-6.0,6.0)
+	var step := (time-start)/12.0
+	for i in range(1,13):
+		value=_raw_saw_operator_lift(start+i*step)
+		speed=move_toward(speed,clampf(float(value.speed),-6.0,6.0),50.0*step)
+	value.speed=speed
+	return value
+
+func _saw_lifts_at(time: float) -> PackedFloat32Array:
+	var frame := recorder.get_interpolated_frame(time)
+	var heights := PackedFloat32Array();heights.resize(8)
+	for index in [1,2]:
+		if index>int(recorder.meta.get("num_players",2)):continue
+		var prefix := "p1_" if index==1 else "p2_"
+		var killed := bool(frame.get("saw_killed%d"%index,false))
+		if not killed and not bool(frame.get(prefix+"alive",false)):continue
+		var timer := float(frame.get("go_timer" if index==1 else "p2_go_timer",0.0))
+		var pose := recorder.get_interpolated_frame(maxf(0.0,time-timer)) if killed else frame
+		var x := float(pose.get(prefix+"x",0.0))
+		var y := float(pose.get(prefix+"y",0.0))
+		var z := float(pose.get(prefix+"z",0.0))-float(pose.get("scroll_z",0.0))
+		var saw_z := float(pose.get("saw_z",SawChaseState.INITIAL_Z))
+		var fade := 1.0-smoothstep(SawChaseState.CUT_SCATTER_DELAY,SawChaseState.CUT_SCATTER_DELAY+.6,timer) if killed else 1.0
+		for i in 8:
+			var dx := x-(i-3.5)*SawChaseState.BLADE_PITCH
+			var radius := SawChaseState.BLADE_RADIUS+QuizGameState.PLAYER_BODY_RADIUS
+			if absf(dx)>radius or y<=.05:continue
+			var clearance := Vector2(dx,z-saw_z).length()-radius
+			heights[i]=maxf(heights[i],(y+.9)*(1.0-smoothstep(0.0,4.0,clearance))*fade)
+	return heights
 
 func get_time_label() -> String:
 	var cur_min := int(current_time) / 60

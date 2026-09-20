@@ -193,8 +193,10 @@ func _ready() -> void:
 	# game mode shares this one director and the same product GLB.
 	# Retry skips the drop so players spawn on the belt immediately.
 	var skip_helicopter_arrival := game_state.consume_skip_start_helicopter_arrival()
+	var chair_arriving := SeatLaunchPresentation.consume_handoff(game_state, _net_state.is_online, skip_helicopter_arrival)
 	if game_state.uses_saw_chase() and not _replay_mode:
 		_saw_controller.configure_entrance(false, not skip_helicopter_arrival)
+		if chair_arriving: _saw_controller.prepare_operator_arrival()
 		camera_controller.saw_dock_framing = _saw_controller.dock.framing_weight()
 	if not _replay_mode and not _net_state.is_online and not skip_helicopter_arrival:
 		_helicopter_arrival_director = HelicopterArrivalDirectorScript.new()
@@ -1146,6 +1148,7 @@ func _update_player(_dt: float) -> void:
 
 
 func is_start_presentation_locked() -> bool:
+	if _saw_controller != null and _saw_controller.operator_arriving(): return true
 	return (
 		_helicopter_arrival_director != null
 		and is_instance_valid(_helicopter_arrival_director)

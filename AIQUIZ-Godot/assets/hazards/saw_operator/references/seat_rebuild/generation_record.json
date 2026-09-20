@@ -1,0 +1,20 @@
+{
+  "date": "2026-09-20",
+  "purpose": "Chair-only transfer, lap belt, nozzles and fixed socket reference",
+  "higgsfield": {
+    "model": "gpt_image_2",
+    "quality": "high",
+    "resolution": "2k",
+    "aspect_ratio": "16:9",
+    "estimate_credits": 6.5,
+    "status": "rejected_before_job",
+    "error": "Requires basic plan or higher"
+  },
+  "fallback": {
+    "tool": "built-in imagegen",
+    "internal_model": null,
+    "billed_cost": null,
+    "path": "chair_only_reference.png",
+    "prompt": "Use case: stylized-concept. Asset type: Blender engineering reference sheet for this existing industrial game chair. Input image is a style/identity reference ONLY. Produce a new clean two-view engineering concept on grey studio background: in large view the SAME compact black padded CHAIR and short-limbed BLUE GODOT PLUSH alone are lifted one metre directly above their fixed pedestal. All twin control consoles, levers, foot pedals and the metal foot deck stay clearly below, stationary, entirely separate from the flying chair. Preserve existing chair cushion/backrest shape, yellow piping, mascot face and proportions. Add one bright yellow horizontal LAP BELT wrapping low across the belly from occupant's LEFT hip reel to a RIGHT HIP black receiver with silver tongue and red release. NO shoulder strap; NO central buckle. Add two compact hollow rocket nozzle bells under the cushion, at its rear left and right edges, flanking the fixed central pedestal, fitting within chair width. Nozzles belong to chair, never deck. Second close rear/underside view shows open nozzles and a small mating socket. No flames obscuring engineering, no labels/text, no extra flying platform, no attached control panels, no redesign of mascot. Crisp detailed native-looking game prop, restrained machined metal, rubber and fabric."
+  }
+}

@@ -71,6 +71,7 @@ const AI_ACCIDENT_CRASH_RATIO: float = 0.45
 const PENDING_ACCIDENT_NONE: int = 0
 const PENDING_ACCIDENT_WALL: int = 1
 const PENDING_ACCIDENT_OCEAN: int = 2
+const PENDING_ACCIDENT_SAW: int = 3
 const AI_ACCIDENT_COOLDOWN_MIN: float = 7.5
 const AI_ACCIDENT_COOLDOWN_MAX: float = 12.0
 
@@ -134,6 +135,16 @@ var _viewport: SubViewport
 var _preview_camera: Camera3D
 var _stage_env: StageEnvironment = null
 var _preview_saw: SawChaseController
+var _menu_saw := MenuSawChaseState.new()
+var _saw_accident_owner := 0
+const SAW_INITIAL_GRACE := 20.0
+const SAW_TRIAL_INTERVAL := 10.0
+const SAW_ACCIDENT_CHANCE := .15
+const SAW_NEAR_MISS_CHANCE := .25
+var _saw_accident_cooldown := SAW_INITIAL_GRACE
+var _saw_next_trial := SAW_INITIAL_GRACE
+var _saw_near_miss := false
+var _saw_events: Array[Dictionary] = []
 var _vessel_camera_owned := false
 var _preview_walls: Array[Node3D] = []
 var _menu_pickup_retracted_walls: Array[Dictionary] = []
@@ -171,6 +182,7 @@ var _menu_start_departure: HelicopterArrivalDirector = null
 var _menu_start_departure_active := false
 ## Keep the extracted runners hidden until the menu scene is replaced.
 var _menu_departure_hold := false
+var _seat_departure_requested := false
 
 
 func _ready() -> void:
@@ -349,9 +361,18 @@ func _process(dt: float) -> void:
 		var presented := (container == null or container.is_visible_in_tree()) and not SceneTransition.is_transitioning() and not _customize_walls_hidden
 		if presented:
 			QuizManager.set_meta("saw_dock_menu_seen", true)
-		_preview_saw.update_preview(dt if presented else 0.0)
+		var saw_running := presented and not _customize_active and not _menu_start_departure_active and not _menu_departure_hold
+		# An early Start lets the existing dock finish moving before the buckle.
+		# Never teleport the whole station into place to show the new effect.
+		var seat_waiting_dock := _seat_departure_requested and _menu_start_departure_active and _preview_saw.dock != null and not _preview_saw.dock.is_deployed()
+		saw_running = saw_running or (presented and seat_waiting_dock)
+		_preview_saw.update_preview(dt if saw_running else 0.0)
+		if _seat_departure_requested and _menu_start_departure_active and not seat_waiting_dock:
+			var transfer := _preview_saw.operator_seat.seat_transfer
+			if transfer.phase == SeatLaunchPresentation.Phase.IDLE: transfer.begin_buckle()
 		_preview_saw.visible = not _customize_walls_hidden
 		_apply_vessel_camera_return()
+		if not presented:return
 
 	_linger_time += dt
 	if _menu_intro_active or _menu_start_departure_active or _menu_departure_hold:
@@ -433,11 +454,14 @@ func _process(dt: float) -> void:
 		_update_p2_remove_timer(dt)
 		var p1_body_start := Vector2(_preview_gs.player_x, _preview_gs.player_z)
 		var p2_body_start := Vector2(_preview_gs.player2_x, _preview_gs.player2_z)
+		var saw_start1 := Vector2(_actor_x(true),_actor_local_z(true))
+		var saw_start2 := Vector2(_actor_x(false),_actor_local_z(false))
 		_update_preview_actor_ai(dt)
 		if _is_local_2p_active():
 			_update_preview_actor2_ai(dt)
 			# 本編と同じ2Pカプセル判定で、メニュー背景のAI同士も重なり・すり抜けを防ぐ。
 			_preview_gs._resolve_two_player_body_collision(p1_body_start, p2_body_start)
+		_update_menu_saw(dt,saw_start1,saw_start2)
 	if _preview_player and _preview_gs and not _customize_active:
 		_preview_gs._active_wall_speed = effective_speed
 		_update_preview_run_anim_speed_multipliers()
@@ -451,6 +475,119 @@ func _process(dt: float) -> void:
 	_update_preview_debris_near_camera()
 	_update_death_shard_cleanup()
 
+
+func _update_menu_saw(dt: float, start1: Vector2, start2: Vector2) -> void:
+	if _preview_saw==null:return
+	if _saw_accident_owner==2 and not _is_local_2p_active():
+		_clear_pending_accident(_p2_ai);_saw_accident_owner=0
+	if _saw_accident_owner!=0:
+		var owner := _p1_ai if _saw_accident_owner==1 else _p2_ai
+		if owner.pending_accident!=PENDING_ACCIDENT_SAW:_saw_accident_owner=0
+	var ready := (_preview_saw.dock==null or _preview_saw.dock.is_deployed()) and _preview_saw._preview_elapsed>=SawChaseState.SPINUP_SECONDS
+	var leader := INF
+	var rear := -INF
+	var landed := true
+	for index: int in [1,2]:
+		var active := index==1 or _is_local_2p_active()
+		var is_p1 := index==1
+		if active and _actor_alive(is_p1) and (_p1_ai if is_p1 else _p2_ai).ai_state!=AI_STATE_RESPAWN:
+			leader=minf(leader,_actor_local_z(is_p1))
+			rear=maxf(rear,_actor_local_z(is_p1))
+		if active and _menu_saw.victim_mask & (1<<(index-1)):
+			landed=landed and _actor_alive(is_p1) and _actor_y(is_p1)<=.01
+	var old_phase := _menu_saw.phase
+	_menu_saw.advance(dt,ready,leader,landed,rear)
+	if old_phase!=MenuSawChaseState.Phase.GRACE and _menu_saw.phase==MenuSawChaseState.Phase.GRACE:
+		# Start the shared rest period after the victims have landed, not at death.
+		_saw_accident_cooldown=_ai_time+randf_range(45.0,60.0)
+		_saw_next_trial=_saw_accident_cooldown
+	_update_saw_accident_trial()
+	var mask := 0
+	if ready:
+		for index: int in [1,2]:
+			var is_p1 := index==1
+			var bundle := _p1_ai if is_p1 else _p2_ai
+			if index==2 and not _is_local_2p_active():continue
+			if not _actor_alive(is_p1) or bundle.ai_state in [AI_STATE_RESPAWN,AI_STATE_OCEAN_FALL]:continue
+			if ( _preview_gs.p1_waiting_for_shark if is_p1 else _preview_gs.p2_waiting_for_shark):continue
+			if _menu_saw.hit(start1 if is_p1 else start2,Vector2(_actor_x(is_p1),_actor_local_z(is_p1))):mask|=1<<(index-1)
+	if mask:
+		_menu_saw.catch_players(mask)
+		_saw_accident_cooldown=INF # Released only after the return and landing.
+		_saw_events.append({"event":"catch","time":_ai_time,"mask":mask,"z":_menu_saw.local_z})
+		for index: int in [1,2]:
+			if mask & (1<<(index-1)):_trigger_preview_death("saw",_p1_ai if index==1 else _p2_ai,index==1)
+	if old_phase!=_menu_saw.phase:
+		_saw_events.append({"event":"phase","time":_ai_time,"phase":_menu_saw.phase,"z":_menu_saw.local_z})
+	while _saw_events.size()>64:_saw_events.pop_front()
+	_preview_gs.saw.enabled=ready
+	_preview_gs.saw.local_z=_menu_saw.local_z
+	_preview_gs.saw.wheel_distance=_menu_saw.travel
+	_preview_saw.apply_menu_chase(_preview_gs,_menu_saw,dt)
+
+func _update_saw_accident_trial() -> void:
+	if _menu_saw.phase!=MenuSawChaseState.Phase.CHASING or _ai_time<_saw_next_trial or _ai_time<_saw_accident_cooldown:return
+	_saw_next_trial=_ai_time+SAW_TRIAL_INTERVAL
+	if _saw_accident_owner!=0:return
+	var roll := randf()
+	if roll>=SAW_ACCIDENT_CHANCE+SAW_NEAR_MISS_CHANCE:return
+	var near_miss := roll>=SAW_ACCIDENT_CHANCE
+	var order: Array[int]=[1,2]
+	if randf()<.5:order.reverse()
+	for index in order:
+		if index==2 and not _is_local_2p_active():continue
+		if _start_saw_accident(_p1_ai if index==1 else _p2_ai,index==1,near_miss):break
+
+func _saw_safe_depth() -> float:
+	return _menu_saw.local_z-SawChaseState.BLADE_RADIUS-QuizGameState.PLAYER_BODY_RADIUS-MenuSawChaseState.SAFE_GAP
+
+func _escape_from_saw(bundle: MenuPreviewActorAIState, is_p1: bool) -> void:
+	_clear_pending_accident(bundle)
+	_clear_learning_commit(bundle)
+	if _saw_accident_owner==(1 if is_p1 else 2):_saw_accident_owner=0
+	bundle.target_local_z=maxf(PREVIEW_BELT_Z_MIN,_saw_safe_depth()-.8)
+	bundle.depth_shift_speed=4.2
+	bundle.depth_shift_active=true
+	bundle.next_action_t=maxf(bundle.next_action_t,_ai_time+1.0)
+	_set_actor_moving_back(is_p1,false)
+
+func _avoid_saw(bundle: MenuPreviewActorAIState, is_p1: bool) -> void:
+	if bundle.pending_accident==PENDING_ACCIDENT_SAW or bundle.is_emoting or _is_past_belt_edge(is_p1):return
+	if _actor_local_z(is_p1)>=_saw_safe_depth()-.12:
+		# This also interrupts an ocean run-up whose rearward path is blocked by the saw.
+		_escape_from_saw(bundle,is_p1)
+
+func _start_saw_accident(bundle: MenuPreviewActorAIState, is_p1: bool, near_miss: bool=false) -> bool:
+	if _menu_saw.phase!=MenuSawChaseState.Phase.CHASING or _saw_accident_owner!=0 or _ai_time<_saw_accident_cooldown:return false
+	if bundle.pending_accident!=PENDING_ACCIDENT_NONE or bundle.ai_state!=AI_STATE_NORMAL or bundle.is_emoting or not _actor_alive(is_p1):return false
+	var target := _menu_saw.local_z-SawChaseState.BLADE_RADIUS-QuizGameState.PLAYER_BODY_RADIUS+.35
+	if near_miss:target=_saw_safe_depth()
+	if target>PREVIEW_BELT_Z_MAX or target<=_actor_local_z(is_p1)+.4:return false
+	_clear_learning_commit(bundle)
+	bundle.pending_accident=PENDING_ACCIDENT_SAW
+	bundle.lane_shift_active=false
+	bundle.depth_shift_active=true
+	bundle.target_local_z=target
+	bundle.depth_shift_speed=2.4
+	_saw_accident_owner=1 if is_p1 else 2
+	_saw_near_miss=near_miss
+	_saw_events.append({"event":"near_miss_start" if near_miss else "accident_start","time":_ai_time,"player":_saw_accident_owner})
+	bundle.state_end_t=_ai_time+6.0
+	return true
+
+func _update_pending_saw_accident(bundle: MenuPreviewActorAIState, is_p1: bool) -> void:
+	if bundle.pending_accident!=PENDING_ACCIDENT_SAW:return
+	if _saw_near_miss and _actor_local_z(is_p1)>=_saw_safe_depth()-.12:
+		_saw_events.append({"event":"near_miss_escape","time":_ai_time,"player":1 if is_p1 else 2})
+		_escape_from_saw(bundle,is_p1)
+		return
+	if _menu_saw.phase!=MenuSawChaseState.Phase.CHASING or _ai_time>=bundle.state_end_t:
+		_clear_pending_accident(bundle);_saw_accident_owner=0
+		_saw_accident_cooldown=maxf(_saw_accident_cooldown,_ai_time+5.0)
+		return
+	bundle.target_local_z=minf(PREVIEW_BELT_Z_MAX,_saw_safe_depth() if _saw_near_miss else _menu_saw.local_z-SawChaseState.BLADE_RADIUS-QuizGameState.PLAYER_BODY_RADIUS+.35)
+	bundle.depth_shift_active=true
+	_set_actor_moving_back(is_p1,true)
 
 func _build_3d_scene() -> void:
 	if not _viewport:
@@ -597,6 +734,7 @@ func _prepare_game_start_departure() -> void:
 	_menu_start_departure = HelicopterArrivalDirectorScript.new() as HelicopterArrivalDirector
 	_menu_start_departure.name = "MenuHelicopterStartDepartureDirector"
 	_menu_start_departure.presentation_finished.connect(_on_game_start_departure_finished)
+	_menu_start_departure.menu_boost_launched.connect(_launch_operator_chair)
 	_viewport.add_child(_menu_start_departure)
 	_menu_start_departure.prepare_menu_departure(
 		_preview_gs, _preview_player as PlayerController, _preview_camera
@@ -607,6 +745,8 @@ func begin_game_start_departure(player_count: int) -> bool:
 	if _menu_start_departure_active:
 		return false
 	_menu_departure_hold = false
+	SeatLaunchPresentation.clear_handoff()
+	_seat_departure_requested = SeatLaunchPresentation.eligible(QuizManager.game_state, NetworkManager.state == NetworkManager.State.IN_GAME)
 	_cancel_menu_helicopter_intro()
 	if not _viewport or not _preview_gs or not _preview_player or not _preview_camera:
 		return false
@@ -614,6 +754,12 @@ func begin_game_start_departure(player_count: int) -> bool:
 	_menu_start_departure_active = true
 	_menu_synced_player_count = count
 	_preview_gs.num_players = count
+	_menu_saw.reset()
+	_saw_accident_owner=0
+	_preview_gs.p1_saw_killed=false
+	_preview_gs.p2_saw_killed=false
+	_clear_pending_accident(_p1_ai)
+	_clear_pending_accident(_p2_ai)
 	# Always begin the cinematic from a readable, grounded runner pose.  The
 	# ambient menu AI may have been emoting, airborne, or recovering from an
 	# accident when Start was pressed; carrying that pose into the suction made
@@ -649,6 +795,7 @@ func begin_game_start_departure(player_count: int) -> bool:
 		_preview_camera,
 		count
 	)
+	_menu_start_departure.menu_launch_ready = _operator_chair_ready if _seat_departure_requested else Callable()
 	_clear_game_start_pickup_area(_menu_start_departure.get_menu_pickup_clearance_z())
 	return _menu_start_departure_active
 
@@ -685,6 +832,7 @@ func is_ready_for_scene_cover(cover_duration: float = -1.0) -> bool:
 func skip_game_start_departure() -> void:
 	if not _menu_start_departure_active:
 		return
+	if _seat_departure_requested: _preview_saw.operator_seat.seat_transfer.skip_departure()
 	if _menu_start_departure != null and is_instance_valid(_menu_start_departure):
 		_menu_start_departure.skip_menu_departure()
 		return
@@ -710,6 +858,9 @@ func _on_game_start_departure_finished(success: bool) -> void:
 			_preview_player.visible = false
 	else:
 		_menu_departure_hold = false
+		if _seat_departure_requested: _preview_saw.operator_seat.seat_transfer.reset()
+		_seat_departure_requested = false
+		SeatLaunchPresentation.clear_handoff()
 		for entry: Dictionary in _menu_pickup_retracted_walls:
 			var retract := entry["tween"] as Tween
 			if retract != null and retract.is_valid():
@@ -730,7 +881,22 @@ func _on_game_start_departure_finished(success: bool) -> void:
 	game_start_departure_finished.emit(success)
 
 
+func _operator_chair_ready() -> bool:
+	return not _seat_departure_requested or _preview_saw.operator_seat.seat_transfer.is_buckled()
+
+
+func _launch_operator_chair() -> void:
+	if _seat_departure_requested: _preview_saw.operator_seat.seat_transfer.launch()
+
+
 func _exit_tree() -> void:
+	if _seat_departure_requested and _preview_saw != null and is_instance_valid(_preview_saw.operator_seat):
+		# The existing wipe can finish just before the helicopter emits completion.
+		# Preserve that covered handoff; an uncovered mid-flight exit is cancellation.
+		var transfer := _preview_saw.operator_seat.seat_transfer
+		var covered_flight := SceneTransition.is_fully_covered() and transfer.phase in [SeatLaunchPresentation.Phase.LAUNCHING, SeatLaunchPresentation.Phase.AWAY]
+		if not _menu_departure_hold and not covered_flight:
+			SeatLaunchPresentation.clear_handoff()
 	if _menu_start_departure != null and is_instance_valid(_menu_start_departure):
 		_menu_start_departure_active = false
 		if _menu_start_departure.presentation_finished.is_connected(_on_game_start_departure_finished):
@@ -1562,6 +1728,7 @@ func _update_actor_ai(dt: float, bundle: MenuPreviewActorAIState, is_p1: bool) -
 
 	match bundle.ai_state:
 		AI_STATE_NORMAL:
+			_avoid_saw(bundle,is_p1)
 			if bundle.pending_accident == PENDING_ACCIDENT_NONE:
 				_update_door_learning_approach(bundle, is_p1)
 			_update_lane_shift(dt, bundle, is_p1)
@@ -1570,6 +1737,7 @@ func _update_actor_ai(dt: float, bundle: MenuPreviewActorAIState, is_p1: bool) -
 			_update_ground_movement(dt, bundle, is_p1)
 			_update_pending_accident_wall(dt, bundle, is_p1)
 			_update_pending_accident_ocean(dt, bundle, is_p1)
+			_update_pending_saw_accident(bundle,is_p1)
 			if (
 				bundle.pending_accident == PENDING_ACCIDENT_NONE
 				and not bundle.lane_shift_active
@@ -1599,7 +1767,7 @@ func _update_actor_ai(dt: float, bundle: MenuPreviewActorAIState, is_p1: bool) -
 					StageConstants.OCEAN_SINK_SPEED * dt
 				))
 				_set_actor_vel_y(is_p1, 0.0)
-			if _ai_time >= bundle.dead_end_t:
+			if _ai_time >= bundle.dead_end_t and _menu_saw.can_respawn(1 if is_p1 else 2):
 				_start_respawn(bundle, is_p1)
 		AI_STATE_RESPAWN:
 			_stop_ai_emote_if_needed(bundle, is_p1)
@@ -1731,17 +1899,12 @@ func _start_ai_lane_shift(bundle: MenuPreviewActorAIState, is_p1: bool) -> void:
 
 
 func _max_depth_z_for_bundle(bundle: MenuPreviewActorAIState = null) -> float:
-	if (
-		bundle != null
-		and (
-			bundle.pending_accident == PENDING_ACCIDENT_OCEAN
-			or (
-				bundle.ai_state == AI_STATE_KNOCKBACK
-				and not bundle.knockback_is_lethal
-			)
-		)
-	):
+	# Preserve an ocean fall already outside the belt; only its blocked run-up is stopped.
+	if bundle!=null and bundle.pending_accident==PENDING_ACCIDENT_OCEAN and _preview_gs!=null and _is_past_belt_edge(bundle==_p1_ai):
 		return PREVIEW_OCEAN_DEPTH_MAX
+	if bundle==null or bundle.pending_accident!=PENDING_ACCIDENT_SAW:
+		return minf(PREVIEW_BELT_Z_MAX,_saw_safe_depth())
+	if _saw_near_miss:return minf(PREVIEW_BELT_Z_MAX,_saw_safe_depth())
 	return PREVIEW_BELT_Z_MAX
 
 
@@ -1894,7 +2057,8 @@ func _update_depth_shift(dt: float, bundle: MenuPreviewActorAIState, is_p1: bool
 	bundle.target_local_z = _clamp_depth_target_z(bundle.target_local_z, bundle)
 	var before_z := _actor_local_z(is_p1)
 	var next_z := move_toward(before_z, bundle.target_local_z, bundle.depth_shift_speed * dt)
-	next_z = _clamp_depth_target_z(next_z, bundle)
+	# An actor already outside the safe range walks forward instead of snapping.
+	next_z = clampf(next_z,PREVIEW_BELT_Z_MIN,maxf(before_z,_max_depth_z_for_bundle(bundle)))
 	_set_actor_local_z(is_p1, next_z)
 	var reached := absf(next_z - bundle.target_local_z) <= 0.04
 	var stuck := not reached and absf(next_z - before_z) < 0.0005
@@ -2343,6 +2507,10 @@ func _trigger_preview_death(
 		bundle = _p1_ai
 	if not _preview_gs:
 		return
+	if reason=="saw":
+		if is_p1:_preview_gs.p1_saw_killed=true
+		else:_preview_gs.p2_saw_killed=true
+	if _saw_accident_owner==(1 if is_p1 else 2):_saw_accident_owner=0
 	if is_p1:
 		if not _actor_alive(is_p1):
 			return
@@ -2403,6 +2571,8 @@ func _start_respawn(bundle: MenuPreviewActorAIState, is_p1: bool) -> void:
 	bundle.knockback_vel_x = 0.0
 	bundle.knockback_vel_z = 0.0
 	_set_actor_wall_impact(is_p1, false)
+	if is_p1:_preview_gs.p1_saw_killed=false
+	else:_preview_gs.p2_saw_killed=false
 	_set_actor_alive(is_p1, true)
 	_set_actor_game_over_timer(is_p1, 0.0)
 	_set_actor_emote(is_p1, 0)
@@ -2495,12 +2665,13 @@ func _pick_safe_respawn_local_z() -> float:
 	var best_clearance := -INF
 	for _i in range(10):
 		var trial_z := randf_range(PREVIEW_BELT_Z_MIN * 0.35, PREVIEW_BELT_Z_MAX * 0.55)
+		trial_z=minf(trial_z,_menu_saw.local_z-SawChaseState.BLADE_RADIUS-QuizGameState.PLAYER_BODY_RADIUS-1.0)
 		var clearance := _min_wall_front_gap(trial_z)
 		if clearance > best_clearance:
 			best_clearance = clearance
 			best_z = trial_z
 	if best_clearance < PREVIEW_WALL_PLAYER_CLEAR_Z * 0.55:
-		return 0.0
+		return minf(0.0,_menu_saw.local_z-SawChaseState.BLADE_RADIUS-QuizGameState.PLAYER_BODY_RADIUS-1.0)
 	return best_z
 
 
