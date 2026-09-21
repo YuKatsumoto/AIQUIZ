@@ -1,0 +1,62 @@
+[
+  {
+    "key": "A",
+    "start": 12,
+    "peak": 17,
+    "release": 35
+  },
+  {
+    "key": "D",
+    "start": 44,
+    "peak": 49,
+    "release": 67
+  },
+  {
+    "key": "W",
+    "start": 76,
+    "peak": 81,
+    "release": 99
+  },
+  {
+    "key": "S",
+    "start": 108,
+    "peak": 113,
+    "release": 131
+  },
+  {
+    "key": "SPACE",
+    "start": 140,
+    "peak": 145,
+    "release": 163
+  },
+  {
+    "key": "LEFT",
+    "start": 172,
+    "peak": 177,
+    "release": 195
+  },
+  {
+    "key": "RIGHT",
+    "start": 204,
+    "peak": 209,
+    "release": 227
+  },
+  {
+    "key": "UP",
+    "start": 236,
+    "peak": 241,
+    "release": 259
+  },
+  {
+    "key": "DOWN",
+    "start": 268,
+    "peak": 273,
+    "release": 291
+  },
+  {
+    "key": "RCTRL",
+    "start": 300,
+    "peak": 305,
+    "release": 323
+  }
+]

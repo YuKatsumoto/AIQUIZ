@@ -153,8 +153,10 @@ func _update_operator(gs: QuizGameState, dt: float, menu: bool=false, drive_over
 			drive = clampf(float(gs.get_meta("saw_operator_speed",0.0)) / maxf(gs.tuning.saw_max_speed,.01),0.0,1.0)
 		_operator_distance = gs.saw.wheel_distance
 		_operator_elapsed = gs.saw.elapsed
+		if gs.saw.stopping and not gs.is_replay:
+			drive = clampf(gs.saw.velocity / maxf(gs.tuning.saw_max_speed, .01), 0.0, 1.0)
 		# Result/pause keeps contact and lever positions exactly as the machine stops.
-		if not gs.is_replay and gs.game_state in [Constants.STATE_GAME_OVER,Constants.STATE_CORRECT,"ONLINE_QUIZ_ERROR"] and not operator_seat.last_sample.is_empty(): return
+		if not gs.is_replay and not gs.saw.stopping and gs.game_state in [Constants.STATE_GAME_OVER,Constants.STATE_CORRECT,"ONLINE_QUIZ_ERROR"] and not operator_seat.last_sample.is_empty(): return
 		if not gs.is_replay and dt<=0.0 and is_equal_approx(float(operator_seat.last_sample.get("spin",-1.0)),spin):return
 	var lift := 0.0
 	var rate := 0.0
@@ -288,5 +290,8 @@ func update_visual(gs: QuizGameState, dt: float = 0.0, players_landed: bool = fa
 			dt, entrance_running and (dock == null or dock.is_deployed()),
 			gs.game_state in [Constants.STATE_FLYOVER, Constants.STATE_COUNTDOWN, Constants.STATE_PLAYING])
 	if dock != null:
-		var active := entrance_running and dt > 0.0 and gs.game_state in [Constants.STATE_PRELOADING, Constants.STATE_WAITING_START, Constants.STATE_FLYOVER, Constants.STATE_COUNTDOWN, Constants.STATE_PLAYING]
-		dock.update_audio(active, smoothstep(0.0, SawChaseState.SPINUP_SECONDS, _landing_spin_elapsed + gs.saw.elapsed), global_position)
+		var coasting: bool = not gs.is_replay and gs.saw.stopping and gs.saw.stop_speed_ratio() > 0.0
+		var active := entrance_running and dt > 0.0 and (coasting or gs.game_state in [Constants.STATE_PRELOADING, Constants.STATE_WAITING_START, Constants.STATE_FLYOVER, Constants.STATE_COUNTDOWN, Constants.STATE_PLAYING])
+		var speed := smoothstep(0.0, SawChaseState.SPINUP_SECONDS, _landing_spin_elapsed + gs.saw.elapsed)
+		if not gs.is_replay: speed *= gs.saw.stop_speed_ratio()
+		dock.update_audio(active, speed, global_position)

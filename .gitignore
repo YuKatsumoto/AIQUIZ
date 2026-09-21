@@ -34,6 +34,8 @@ AIQUIZ-Godot-Android/.godot/
 *.log
 *.txt
 node_modules/
+__pycache__/
+*.py[cod]
 
 # Stray debug / generated artifacts (not project sources)
 /screen.png

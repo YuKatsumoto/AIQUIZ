@@ -197,6 +197,7 @@ func _ready() -> void:
 	_resolve_preview_speed()
 	_build_3d_scene()
 	_prepare_game_start_departure()
+	_preview_player.apply_waiting_pose(_preview_gs.num_players, PI)
 	set_process(true)
 
 
@@ -372,7 +373,11 @@ func _process(dt: float) -> void:
 			if transfer.phase == SeatLaunchPresentation.Phase.IDLE: transfer.begin_buckle()
 		_preview_saw.visible = not _customize_walls_hidden
 		_apply_vessel_camera_return()
-		if not presented:return
+		if not presented:
+			# The reveal pauses preview AI, but its visible actors still need a pose.
+			if not _customize_active and not _menu_start_departure_active and not _menu_departure_hold:
+				_preview_player.apply_waiting_pose(_preview_gs.num_players, PI)
+			return
 
 	_linger_time += dt
 	if _menu_intro_active or _menu_start_departure_active or _menu_departure_hold:
@@ -783,8 +788,7 @@ func begin_game_start_departure(player_count: int) -> bool:
 	_preview_gs._active_wall_speed = 0.0
 	_preview_player.update_from_state(_preview_gs)
 	if _preview_player.has_method("prepare_intro_pickup_pose"):
-		_preview_player.call("prepare_intro_pickup_pose", count)
-	_force_preview_player_facing_away()
+		_preview_player.call("prepare_intro_pickup_pose", count, PI)
 	if not is_instance_valid(_menu_start_departure) or _menu_start_departure._cancelled:
 		if is_instance_valid(_menu_start_departure):
 			_menu_start_departure.queue_free()

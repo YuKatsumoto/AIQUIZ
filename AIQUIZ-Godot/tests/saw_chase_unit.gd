@@ -101,7 +101,8 @@ func run() -> void:
 	var grace := fixture()
 	grace.saw.local_z = 0
 	grace._update_saw_chase(1.0, Vector2(-2,0), Vector2(2,0))
-	check(grace.p1_alive and grace.p2_alive and grace.saw.local_z == 0, "initial grace prevents kill and travel")
+	check(not grace.p1_alive and not grace.p2_alive and grace.saw.local_z == 0, "initial grace delays travel but contact kills")
+	_start_and_stop_cases()
 	var excluded := fixture()
 	excluded.saw.elapsed = 3
 	excluded.saw.local_z = 0
@@ -168,6 +169,41 @@ func run() -> void:
 	FileAccess.open("res://artifacts/chip_saw/verification/unit.json", FileAccess.WRITE).store_string(JSON.stringify({"passed":failures.is_empty(),"checks":checks,"failures":failures}, "\t"))
 	print("SAW_UNIT ", checks, " checks; failures: ", failures)
 	get_tree().quit(0 if failures.is_empty() else 1)
+
+func _start_and_stop_cases() -> void:
+	for fps: int in [24, 30, 60, 120]:
+		var dt := 1.0 / fps
+		for first: int in [1, 2]:
+			var gs := fixture()
+			gs.game_state = Constants.STATE_COUNTDOWN
+			gs.countdown_timer = dt * 0.5
+			gs.update(dt)
+			check(gs.game_state == Constants.STATE_PLAYING, "countdown enters play")
+			for frame in range(fps * 2):
+				gs.update(dt, Vector2(0, -1) if first == 1 else Vector2.ZERO, Vector2(0, -1) if first == 2 else Vector2.ZERO)
+				if gs.p1_saw_killed or gs.p2_saw_killed: break
+			check((gs.p1_saw_killed if first == 1 else gs.p2_saw_killed) and gs.saw.elapsed < gs.tuning.saw_grace_seconds, "P%d retreats into saw during grace at %d FPS" % [first, fps])
+			check((gs.p2_alive if first == 1 else gs.p1_alive) and not gs.saw.stopping, "survivor keeps saw active")
+			check(is_equal_approx(gs.saw.local_z, SawChaseState.INITIAL_Z), "pursuit grace retained")
+		var stopped := fixture()
+		stopped.saw.advance(3.0, 100.0, 14.0, 10.0)
+		var start_z: float = stopped.saw.local_z
+		var start_spin: float = stopped.saw.elapsed
+		var start_travel: float = stopped.saw.wheel_distance
+		stopped.p1_alive = false
+		stopped.p2_alive = false
+		stopped._game_over("stop regression")
+		var previous_speed := 10.0
+		for frame in range(fps * 3):
+			stopped.update(dt)
+			check(stopped.saw.velocity <= previous_speed + 0.00001 and stopped.saw.velocity >= 0.0, "coast speed decreases %d/%d" % [fps, frame])
+			if frame == 0: check(stopped.saw.velocity > 9.9, "no abrupt stop on final death")
+			previous_speed = stopped.saw.velocity
+		check(is_equal_approx(stopped.saw.local_z - start_z, 10.0), "FPS-independent stopping distance")
+		check(is_equal_approx(stopped.saw.wheel_distance - start_travel, 10.0), "wheel roll matches coast travel")
+		check(is_equal_approx(stopped.saw.elapsed - start_spin, 1.0) and stopped.saw.velocity == 0.0, "spin and travel fully stop after two seconds")
+		stopped.start_game()
+		check(not stopped.saw.stopping and stopped.saw.velocity == 0.0 and stopped.saw.stop_elapsed == 0.0, "retry clears coast state")
 
 func _replay_cases() -> void:
 	var gs := fixture()

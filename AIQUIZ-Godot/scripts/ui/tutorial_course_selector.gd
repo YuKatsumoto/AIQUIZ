@@ -68,13 +68,13 @@ func _build_selector() -> void:
 	eyebrow.add_theme_color_override("font_color", Color(0.52, 0.68, 0.94))
 	root.add_child(eyebrow)
 	var title := Label.new()
-	title.text = "体験するコースを選んでください"
+	title.text = "チュートリアルのコースを選択"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 30)
 	title.add_theme_color_override("font_color", Color(1.0, 0.88, 0.24))
 	root.add_child(title)
 	var description := Label.new()
-	description.text = "短いカメラ演出と実際の操作で、最新版のゲーム内容を順番に学びます。"
+	description.text = "操作方法とゲームのルールを、実際にプレイしながら確認できます。"
 	description.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	description.add_theme_font_size_override("font_size", 16)
 	description.add_theme_color_override("font_color", Color(0.80, 0.86, 0.96))
@@ -107,7 +107,7 @@ func _build_selector() -> void:
 	_duo_badge = duo.get_node("Content/Badge") as Label
 
 	var later := Button.new()
-	later.text = "あとで"
+	later.text = "後で確認"
 	later.custom_minimum_size = Vector2(180.0, 42.0)
 	later.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	later.add_theme_font_size_override("font_size", 17)
@@ -172,7 +172,7 @@ func _create_course_card(
 	time.add_theme_color_override("font_color", Color(0.55, 0.68, 0.86))
 	content.add_child(time)
 	var start := Button.new()
-	start.text = "このコースを始める"
+	start.text = "このコースを開始"
 	start.custom_minimum_size.y = 42.0
 	start.add_theme_font_size_override("font_size", 17)
 	start.pressed.connect(func() -> void:

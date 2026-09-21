@@ -52,7 +52,41 @@ func unit() -> void:
 	check(t.flight_root.is_ancestor_of(op.skeleton),"mascot belongs to flying chair")
 	check(not t.flight_root.is_ancestor_of(op.controls.OP_Pedal_L),"pedals stay on fixed station")
 	check(not t.flight_root.is_ancestor_of(op.controls.OP_Lever_R),"consoles stay on fixed station")
-	check(t.webbing.mesh.get_blend_shape_count()==4,"belt extension morphs exported")
+	check(t.harness.straps.size()==2 and t.harness.tips.size()==2,"two physical shoulder belts")
+	check(not t.kit.find_child("SL_LapWebbing",true,false).visible,"old lap belt hidden")
+	for amount in [0.0, .25, .5, .75, 1.0]:
+		t._set_belt(amount)
+		for i in 2:
+			var side := 1.0 if i==0 else -1.0
+			var tip: Node3D = t.harness.tips[i]
+			check(tip.position.distance_to(t.harness.point(side,amount,1.0))<.0001,"metal tip follows paid out ribbon %.2f/%d"%[amount,i])
+			if amount==1.0:
+				check(tip.position.distance_to(t.harness.receivers[i].position)<.0001,"each tongue reaches seat base lock %d"%i)
+			if amount==0.0:
+				check(not t.harness.straps[i].visible and tip.position.y>2.1,"retracted into seat top %d"%i)
+	t._set_belt(0.0)
+	var rope = t.harness.ropes[0]
+	var physics_samples := {}
+	for rate in [30,60,120]:
+		rope.reset()
+		for frame in range(rate + 1): rope.seek(float(frame) / rate)
+		physics_samples[rate] = rope.points.duplicate()
+		check(rope.points[rope.COUNT].z > .25,"physical throw passes in front of head at %d"%rate)
+	check(physics_samples[30] == physics_samples[60] and physics_samples[60] == physics_samples[120],"Verlet physics matches at 30 60 120 fps")
+	rope.seek(1.1)
+	var unperturbed: PackedVector3Array = rope.points.duplicate()
+	rope.reset();rope.seek(1.0)
+	rope.kick(12,Vector3(0,2.0,1.0));rope.seek(1.1)
+	check(rope.points[12].distance_to(unperturbed[12]) > .005,"external impulse changes free belt trajectory")
+	check(rope.points[18].distance_to(unperturbed[18]) > .0005,"impulse propagates through linked belt segments")
+	rope.reset();rope.seek(1.94)
+	check(not rope.locked,"free tip remains physical until latch")
+	rope.seek(1.95)
+	check(rope.locked and rope.lock_distance < .025,"receiver spring seats tongue before locking without large snap")
+	check(rope.points[rope.COUNT].distance_to(rope.rest[rope.COUNT]) < .0001,"physical tongue pinned at seat lock")
+	rope.seek(2.6)
+	check(rope.points == rope.rest,"winch settles entire belt onto fitted body support")
+	t._set_belt(0.0)
 	check(op.station.find_children("OP_SeatFlightRoot","Node3D",true,false).size()==1 and op.station.find_children("*","Skeleton3D",true,false).size()==1,"one chair and one mascot only")
 	t.begin_buckle();t.set_process(false);t.launch()
 	check(t.phase==t.Phase.BUCKLING and not QuizManager.has_meta(SeatLaunchPresentation.HANDOFF),"ignition refuses unfastened belt")

@@ -1,6 +1,7 @@
 extends Control
 
 const TutorialCourseSelectorScript := preload("res://scripts/ui/tutorial_course_selector.gd")
+const TutorialKeyboardIntroScript := preload("res://scripts/ui/tutorial_keyboard_intro.gd")
 const MenuMetalButtonScript := preload("res://scripts/ui/menu_metal_button.gd")
 const TutorialCompletionCardScript := preload("res://scripts/ui/tutorial_completion_card.gd")
 
@@ -45,6 +46,7 @@ var game_state: QuizGameState
 var _tutorial_row: HBoxContainer = null
 var _tutorial_main_btn: Button = null
 var _tutorial_selector: Control = null
+var _tutorial_keyboard_intro: Control = null
 
 const SHOW_COOP_MODE := false
 const GAME_WORLD_SCENE: PackedScene = preload("res://scenes/game_world.tscn")
@@ -74,6 +76,7 @@ var _tutorial_completion_previous_mouse_mode: int = Input.MOUSE_MODE_VISIBLE
 var _tutorial_completion_mouse_mode_saved: bool = false
 var _heli_skip_hint: Control = null
 var _heli_departure_skippable: bool = false
+var _heli_departure_skip_requested: bool = false
 
 ## ステップインジケータの各ピル {sb: StyleBoxFlat, lbl: Label}
 var _step_pills: Array[Dictionary] = []
@@ -97,7 +100,6 @@ func _ready() -> void:
 	_reset_menu_visual_state()
 
 	_setup_audio_settings()
-	AudioManager.set_music_context(AudioManager.MUSIC_CONTEXT_MENU)
 
 	res_option.item_selected.connect(_on_resolution_selected)
 	res_option.add_item("1280x720 (HD)", 0)
@@ -136,6 +138,11 @@ func _ready() -> void:
 	next_diff_btn.pressed.connect(_on_next_diff_pressed)
 
 	_update_ui()
+	# The boot cover stays up through the menu's first real rendered frames.
+	# Delay entrance/tutorial actions until preparation has actually finished.
+	if GameManager.startup_loading:
+		await GameManager.startup_finished
+	AudioManager.set_music_context(AudioManager.MUSIC_CONTEXT_MENU)
 	if _pending_customize_tutorial_on_ready:
 		_entrance_done = true
 		call_deferred("_begin_pending_customize_tutorial")
@@ -222,8 +229,8 @@ func _is_space_skip_event(event: InputEvent) -> bool:
 func _skip_menu_helicopter_departure() -> void:
 	if not _heli_departure_skippable:
 		return
-	if _menu_wall_preview != null and _menu_wall_preview.has_method("skip_game_start_departure"):
-		_menu_wall_preview.call("skip_game_start_departure")
+	# Start covering now, but keep the live departure running beneath the wipe.
+	_heli_departure_skip_requested = true
 	_set_helicopter_skip_hint_visible(false)
 
 
@@ -512,7 +519,7 @@ func _on_customize_tutorial_completed() -> void:
 	var is_duo := game_state.get_pending_customize_tour_course() == GameManager.TUTORIAL_COURSE_LOCAL_2P
 	card.call("present", {
 		"step": "2 / 2  TUTORIAL COMPLETE",
-		"title": "ローカル2Pチュートリアル完了！" if is_duo else "1Pチュートリアル完了！",
+		"title": "ローカル2Pチュートリアル完了" if is_duo else "1Pチュートリアル完了",
 		"body": (
 			"2人プレイの操作とカスタマイズの紹介が完了しました。"
 			if is_duo
@@ -723,6 +730,7 @@ func _begin_scene_change_after_helicopter(
 	if not is_inside_tree():
 		return
 	var departure_started := false
+	_heli_departure_skip_requested = false
 	if _menu_wall_preview and _menu_wall_preview.has_method("begin_game_start_departure"):
 		departure_started = bool(_menu_wall_preview.call(
 			"begin_game_start_departure",
@@ -737,6 +745,7 @@ func _begin_scene_change_after_helicopter(
 		while (
 			is_inside_tree()
 			and _menu_wall_preview
+			and not _heli_departure_skip_requested
 			and bool(_menu_wall_preview.call("is_game_start_departure_active"))
 			and not bool(_menu_wall_preview.call("is_ready_for_scene_cover"))
 			and Time.get_ticks_msec() < deadline_msec
@@ -750,6 +759,7 @@ func _begin_scene_change_after_helicopter(
 		if (
 			is_inside_tree()
 			and _menu_wall_preview
+			and not _heli_departure_skip_requested
 			and bool(_menu_wall_preview.call("is_game_start_departure_active"))
 			and not bool(_menu_wall_preview.call("is_ready_for_scene_cover"))
 		):
@@ -772,6 +782,10 @@ func _begin_scene_change(
 	await SceneTransition.fade_to_color_and_wait(Color.BLACK, show_loading_character)
 	if not is_inside_tree():
 		return
+	if _heli_departure_skip_requested:
+		_heli_departure_skip_requested = false
+		if _menu_wall_preview != null and _menu_wall_preview.has_method("skip_game_start_departure"):
+			_menu_wall_preview.call("skip_game_start_departure")
 	if not tutorial_course.is_empty():
 		game_state.start_tutorial(tutorial_course)
 	elif start_standard_round:
@@ -839,6 +853,10 @@ func _style_all_buttons() -> void:
 	var all_buttons := _get_all_buttons(self)
 	for btn: Button in all_buttons:
 		if btn is MenuMetalButton:
+			continue
+		# Dedicated tutorial views own all states, including their focus colors.
+		# Keep the traversal itself intact: transition locking also uses it.
+		if _tutorial_keyboard_intro and _tutorial_keyboard_intro.is_ancestor_of(btn):
 			continue
 		btn.add_theme_stylebox_override("normal", normal_style.duplicate())
 		btn.add_theme_stylebox_override("hover", hover_style.duplicate())
@@ -909,6 +927,11 @@ func _ensure_tutorial_selector() -> void:
 	add_child(_tutorial_selector)
 	_tutorial_selector.connect("course_selected", _on_tutorial_course_selected)
 	_tutorial_selector.connect("dismissed", _on_tutorial_selector_dismissed)
+	_tutorial_keyboard_intro = TutorialKeyboardIntroScript.new()
+	_tutorial_keyboard_intro.name = "TutorialKeyboardIntro"
+	add_child(_tutorial_keyboard_intro)
+	_tutorial_keyboard_intro.connect("completed", _on_tutorial_keyboard_completed)
+	_tutorial_keyboard_intro.connect("cancelled", _show_tutorial_selector)
 
 
 func _show_tutorial_selector() -> void:
@@ -939,6 +962,12 @@ func _go_to_game(
 
 
 func _start_tutorial_game(course: String = GameManager.TUTORIAL_COURSE_SOLO) -> void:
+	if _menu_exit_in_progress:
+		return
+	_tutorial_keyboard_intro.call("show_intro", course)
+
+
+func _on_tutorial_keyboard_completed(course: String) -> void:
 	_go_to_game(false, course)
 
 func _start_first_run_tutorial() -> void:

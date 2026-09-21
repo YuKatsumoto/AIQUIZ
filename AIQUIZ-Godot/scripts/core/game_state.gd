@@ -635,7 +635,7 @@ func get_saw_clearance(index: int) -> float:
 	return saw.clearance(point, PLAYER_BODY_RADIUS)
 
 func get_saw_danger_ratio(index: int) -> float:
-	if game_state != Constants.STATE_PLAYING or saw.elapsed < tuning.saw_grace_seconds:
+	if game_state != Constants.STATE_PLAYING:
 		return 0.0
 	return clampf(1.0 - get_saw_clearance(index) / maxf(tuning.saw_warning_distance, 0.01), 0.0, 1.0)
 
@@ -648,17 +648,13 @@ func _update_saw_chase(dt: float, start1: Vector2, start2: Vector2) -> void:
 			leader = maxf(leader, player_local_z if index == 1 else player2_local_z)
 	var previous_z: float = saw.local_z
 	saw.advance(dt, leader, tuning.saw_follow_distance, tuning.saw_max_speed, tuning.saw_grace_seconds)
-	if saw.elapsed <= tuning.saw_grace_seconds:
-		return
-	# Only the part of a frame after grace expires may cause contact.
-	var active_fraction := clampf((saw.elapsed - tuning.saw_grace_seconds) / maxf(dt, 0.000001), 0.0, 1.0)
+	# Grace delays pursuit only; a player can touch the blades from the first frame.
 	var hit_mask := 0
 	for index in [1, 2]:
 		if not _saw_player_eligible(index):
 			continue
 		var finish := Vector2(player_x, player_local_z) if index == 1 else Vector2(player2_x, player2_local_z)
 		var start := start1 if index == 1 else start2
-		start = finish.lerp(start, active_fraction)
 		if saw.swept_contact(start, finish, previous_z, PLAYER_BODY_RADIUS):
 			hit_mask |= 1 << (index - 1)
 	# Commit both flags before callbacks so a same-frame double hit is deterministic.
@@ -1268,7 +1264,7 @@ func _advance_tutorial_step() -> void:
 		choice_locked = true
 		current_quiz = null
 		_tutorial_safe_z = world_scroll_z
-		message_text = "コース完了！"
+		message_text = "コース完了"
 		refresh_status_text()
 		state_changed.emit(game_state)
 		return
@@ -1840,7 +1836,7 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 				tutorial_flow.restart_current_step(false)
 				return
 			if _is_tutorial_mode():
-				message_text = "海に落ちました！ サメが近づいてきます。"
+				message_text = "海に落ちました。サメが接近しています。"
 				tutorial_flow.set_hint(message_text, 4.0)
 				tutorial_ui_revision += 1
 			_begin_ocean_shark_wait(1)
@@ -2001,7 +1997,7 @@ func _update_tutorial_special_step(dt: float) -> bool:
 			# 標的側が落ちてもゴーストの練習は続けたいので、標的だけを復帰させる。
 			# ステップ全体をやり直すとゴースト側も復活してしまい、練習が始められない。
 			_revive_tutorial_player(survivor_index)
-			var hint := "P%dを復帰させました。ゴーストシャークの練習を続けましょう。" % survivor_index
+			var hint := "P%dが復帰しました。ゴーストシャークの操作を続けてください。" % survivor_index
 			message_text = hint
 			tutorial_flow.set_hint(hint, 3.0)
 			tutorial_ui_revision += 1
@@ -2249,6 +2245,9 @@ func _update_correct(dt: float) -> void:
 		advance_after_correct()
 
 func _update_game_over(dt: float) -> void:
+	if uses_saw_chase() and not p1_alive and not p2_alive:
+		saw.begin_stop()
+		saw.advance_stop(dt)
 	game_over_timer += dt
 	if num_players >= 2 and not p2_alive:
 		player2_game_over_timer += dt
@@ -2379,7 +2378,7 @@ func _start_goal_race() -> void:
 	game_state = Constants.STATE_GOAL_RACE
 	message_text = "GOAL へ走れ！" if not use_english_ui else "Race to the GOAL!"
 	if revived_players:
-		message_text = "脱落したプレイヤーも復活！ GOAL へ走れ！"
+		message_text = "脱落したプレイヤーも復帰します。ゴールへ向かってください。"
 		if tutorial_flow != null:
 			tutorial_flow.set_hint(message_text, 3.0)
 	refresh_status_text()
@@ -2766,7 +2765,7 @@ func _resolve_tutorial_collision() -> void:
 		_resolve_tutorial_collision_2p()
 		return
 	if not tutorial_flow.is_quiz_step() or current_quiz == null:
-		_reset_tutorial_attempt("このステップの案内に沿って進みましょう。")
+		_reset_tutorial_attempt("画面の案内に従って操作してください。")
 		return
 
 	var door := _check_player_door(player_x)
@@ -2802,7 +2801,7 @@ func _resolve_tutorial_collision() -> void:
 
 func _tutorial_miss_hint(door: int, answer: int) -> String:
 	if door == -2:
-		return "ドアの境目でぶつかりました。どちらかのドアの中央をねらいましょう。"
+		return "ドアの境目に衝突しました。ドアの中央を通過してください。"
 	if door < 0:
 		return "ドアを外して壁に激突しました。正解は%sのドアでした。" % _tutorial_answer_label(answer)
 	return "不正解のドアでした。正解は%sのドアです。" % _tutorial_answer_label(answer)
@@ -2812,7 +2811,7 @@ func _resolve_tutorial_collision_2p() -> void:
 	var p2_at_wall := p2_alive and not p2_waiting_for_shark and player2_z >= wall_z - 0.4
 	if not tutorial_flow.is_quiz_step() or current_quiz == null:
 		# 壁を使わないステップで壁に触れてしまった場合は、案内の位置へ戻す。
-		_reset_tutorial_attempt("このステップの案内に沿って進みましょう。")
+		_reset_tutorial_attempt("画面の案内に従って操作してください。")
 		tutorial_flow.restart_current_step(false)
 		return
 	if tutorial_flow.requires_both_correct():
@@ -2826,9 +2825,9 @@ func _resolve_tutorial_guided_wall_2p(p1_at_wall: bool, p2_at_wall: bool) -> voi
 	if not (p1_at_wall and p2_at_wall):
 		choice_locked = false
 		if p1_at_wall:
-			message_text = "P1はドアに到着。P2も光るドアへ進みましょう。"
+			message_text = "P1はドアに到着しました。P2も点灯したドアへ進んでください。"
 		elif p2_at_wall:
-			message_text = "P2はドアに到着。P1も光るドアへ進みましょう。"
+			message_text = "P2はドアに到着しました。P1も点灯したドアへ進んでください。"
 		return
 
 	choice_locked = true
@@ -2844,7 +2843,7 @@ func _resolve_tutorial_guided_wall_2p(p1_at_wall: bool, p2_at_wall: bool) -> voi
 			if not miss_text.is_empty():
 				misses.append(miss_text)
 		var hint := " / ".join(misses)
-		hint += " 正解は%sドアです。2人とももう一度選びましょう。" % _tutorial_answer_label(answer)
+		hint += " 正解は%sのドアです。2人とも選び直してください。" % _tutorial_answer_label(answer)
 		_reset_tutorial_attempt(hint)
 		return
 
@@ -2854,7 +2853,7 @@ func _resolve_tutorial_guided_wall_2p(p1_at_wall: bool, p2_at_wall: bool) -> voi
 	tutorial_flow.complete_task(2, "answer")
 	correct_flash = 1.0
 	camera_shake = 0.18
-	message_text = "2人とも正解！ P1・P2それぞれに得点が入りました。"
+	message_text = "2人とも正解です。各プレイヤーに得点が加算されました。"
 	correct_answer.emit()
 	_complete_tutorial_quiz_step()
 
@@ -2894,9 +2893,9 @@ func _resolve_tutorial_free_wall_2p(p1_at_wall: bool, p2_at_wall: bool) -> void:
 		correct_flash = 1.0
 		camera_shake = 0.18
 		var correct_label := (
-			"2人とも正解！"
+			"2人とも正解です。"
 			if p1_correct and p2_correct
-			else "P%d正解！ %s" % [1 if p1_correct else 2, miss_summary]
+			else "P%dが正解しました。 %s" % [1 if p1_correct else 2, miss_summary]
 		)
 		message_text = correct_label.strip_edges()
 		tutorial_flow.set_hint(message_text, 3.0)
@@ -2917,7 +2916,7 @@ func _resolve_tutorial_free_wall_2p(p1_at_wall: bool, p2_at_wall: bool) -> void:
 
 	# 片方だけが脱落。残ったプレイヤーの回答を待つので、判定は閉じない。
 	choice_locked = false
-	message_text = "%s 残ったプレイヤーは自分でドアを選びましょう。" % miss_summary
+	message_text = "%s 残ったプレイヤーは回答のドアを選んでください。" % miss_summary
 	tutorial_flow.set_hint(message_text, 3.4)
 	tutorial_ui_revision += 1
 	wrong_answer.emit(message_text)
@@ -3177,7 +3176,7 @@ func complete_ocean_shark_attack(player_index: int) -> void:
 			and tutorial_flow.designated_hazard_player() == player_index
 			and tutorial_flow.designated_ghost_player() == player_index
 		):
-			message_text = "サメ演出完了。魂がゴーストシャークへ移るまで待ちましょう。"
+			message_text = "ゴーストシャークへの移行が完了するまでお待ちください。"
 			refresh_status_text()
 			state_changed.emit(game_state)
 			return
@@ -3204,7 +3203,7 @@ func complete_ocean_shark_attack(player_index: int) -> void:
 			# 実戦は死亡復帰、最終レースは _update_goal_race 側で扱う。
 			var all_defeated: bool = not p1_alive and (num_players < 2 or not p2_alive)
 			if all_defeated and tutorial_flow.punishes_mistakes():
-				message_text = "2人とも脱落しました。もう一度挑戦しましょう。"
+				message_text = "2人とも脱落しました。同じ問題をやり直します。"
 				tutorial_flow.set_hint(message_text, WALL_DEATH_SEQUENCE_DURATION)
 				tutorial_flow.begin_death_recovery(WALL_DEATH_SEQUENCE_DURATION, true)
 			else:
@@ -3538,6 +3537,8 @@ func advance_after_correct() -> void:
 # ---------- Game over / clear ----------
 
 func _game_over(msg: String) -> void:
+	if uses_saw_chase() and not p1_alive and not p2_alive:
+		saw.begin_stop()
 	game_state = Constants.STATE_GAME_OVER
 	provider.end_round()
 	rating_target_quiz = current_quiz

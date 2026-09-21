@@ -36,10 +36,19 @@ var _smoothed_rear_back: float = 9.0
 var _question_framing_points := PackedVector3Array()
 var _question_pitch: float = 0.0
 var _question_back: float = 0.0
+var _saw_back: float = 0.0
 var saw_dock_framing: float = 0.0
+var _final_death_player: int = 0
+var _final_death_focus := Vector3.ZERO
+var _final_death_exploded: bool = false
 
 const QUESTION_SCREEN_MARGIN := 0.08
 const QUESTION_FRAMING_FOLLOW := 8.0
+const SAW_FRAMING_FOLLOW := 2.5
+const SAW_FRAMING_MAX_SPEED := 10.0
+const SAW_FRAMING_START_DISTANCE := 8.0
+const SAW_FRAMING_FULL_DISTANCE := 4.0
+const SAW_SCREEN_SIDE_MARGIN := 0.01
 
 const ENTRY_BLEND_DURATION := 0.95
 const PRELOAD_CAMERA_FOV := 66.0
@@ -107,6 +116,18 @@ func set_tutorial_override_pose(eye: Vector3, target: Vector3, fov: float) -> vo
 
 func clear_tutorial_override() -> void:
 	_tutorial_override_active = false
+
+
+## Track the physical body until it bursts, then hold the explosion location.
+func set_final_death_focus(player_index: int, focus: Vector3, exploded: bool) -> void:
+	if player_index == 0:
+		_final_death_player = 0
+		_final_death_exploded = false
+		return
+	if player_index != _final_death_player or not _final_death_exploded:
+		_final_death_focus = focus
+	_final_death_player = player_index
+	_final_death_exploded = exploded
 
 
 func _third_person_camera_height(gs: QuizGameState) -> float:
@@ -224,6 +245,7 @@ func update_camera(gs: QuizGameState, dt: float) -> void:
 	if gs.game_state not in [Constants.STATE_PLAYING, Constants.STATE_CORRECT] or _tutorial_override_active or _ocean_attack_camera_active:
 		_question_pitch = 0.0
 		_question_back = 0.0
+		_saw_back = 0.0
 	# フライオーバー→カウントダウン遷移時にbobタイマーをリセット
 	# (bobが途中の位相だとカメラのY座標がジャンプするため)
 	if _prev_state == Constants.STATE_FLYOVER and gs.game_state != Constants.STATE_FLYOVER:
@@ -287,6 +309,7 @@ func update_camera(gs: QuizGameState, dt: float) -> void:
 			_ocean_attack_player_index = 2
 	var final_coop_ocean_game_over: bool = (
 		gs.num_players >= 2
+		and _final_death_player == 0
 		and not gs.p1_alive
 		and not gs.p2_alive
 		and gs.game_state == Constants.STATE_GAME_OVER
@@ -344,6 +367,12 @@ func update_camera(gs: QuizGameState, dt: float) -> void:
 				target_px = gs.player2_x
 				target_py = gs.player2_y
 				target_pz = gs.player2_local_z
+			if _final_death_player != 0:
+				target_px = _final_death_focus.x
+				target_py = _final_death_focus.y - 0.5
+				target_pz = _final_death_focus.z
+				# Leave room for the whole tumbling body even on the first frame.
+				dist = maxf(dist, THIRD_PERSON_DISTANCE)
 
 			eye = Vector3(
 				target_px + sx,
@@ -414,6 +443,9 @@ func update_camera(gs: QuizGameState, dt: float) -> void:
 	var question_pose := _frame_question(gs, eye, target, fov, dt)
 	eye = question_pose[0]
 	target = question_pose[1]
+	var saw_pose := _frame_saw(gs, eye, target, fov, dt)
+	eye = saw_pose[0]
+	target = saw_pose[1]
 
 	# Apply camera shake
 	if gs.camera_shake > 0.0:
@@ -438,17 +470,12 @@ func set_question_framing_points(points: PackedVector3Array) -> void:
 ## Preserve the normal FOV and yaw. Tilt only by the overflow angle, then
 ## retreat along the view direction until glyphs and living players fit.
 func _frame_question(gs: QuizGameState, eye: Vector3, target: Vector3, fov: float, dt: float) -> PackedVector3Array:
-	var frame_saw := gs.is_saw_visible() and maxf(gs.get_saw_danger_ratio(1), gs.get_saw_danger_ratio(2)) > 0.0
-	if not frame_saw and _question_framing_points.is_empty() and is_zero_approx(_question_pitch) and is_zero_approx(_question_back):
+	if _question_framing_points.is_empty() and is_zero_approx(_question_pitch) and is_zero_approx(_question_back):
 		return PackedVector3Array([eye, target])
 	var follow := 1.0 - exp(-QUESTION_FRAMING_FOLLOW * maxf(dt, 0.0))
 	var points := _question_framing_points.duplicate()
 	if gs.game_state != Constants.STATE_PLAYING:
 		points.clear()
-	if frame_saw:
-		var bounds := AABB(Vector3(-12.25, StageConstants.FLOOR_TOP_Y, gs.saw.local_z - 1.7), Vector3(24.5, 0.65, 3.4))
-		for corner: int in range(8):
-			points.append(bounds.get_endpoint(corner))
 	if not points.is_empty():
 		if gs.p1_alive:
 			_append_player_framing_points(points, Vector3(gs.player_x, gs.player_y, gs.player_local_z))
@@ -492,6 +519,62 @@ func _frame_question(gs: QuizGameState, eye: Vector3, target: Vector3, fov: floa
 	var desired_back := required_back + (0.35 if required_back > 0.0 else 0.0)
 	_question_back = maxf(required_back, lerpf(_question_back, desired_back, follow))
 	return PackedVector3Array([eye - direction * _question_back, eye + direction * distance])
+
+
+## Keep the question camera's height. Begin easing out before the warning
+## threshold, then fit the whole carriage by retreating horizontally only.
+func _frame_saw(gs: QuizGameState, eye: Vector3, target: Vector3, fov: float, dt: float) -> PackedVector3Array:
+	if gs.num_players != 2 or gs.game_state not in [Constants.STATE_PLAYING, Constants.STATE_CORRECT]:
+		_saw_back = 0.0
+		return PackedVector3Array([eye, target])
+	var desired_back := 0.0
+	var retreat := (target - eye) * Vector3(1.0, 0.0, 1.0)
+	retreat = retreat.normalized()
+	var clearance := minf(gs.get_saw_clearance(1), gs.get_saw_clearance(2))
+	var weight := 1.0 - smoothstep(SAW_FRAMING_FULL_DISTANCE, SAW_FRAMING_START_DISTANCE, clearance)
+	if gs.is_saw_visible() and weight > 0.0:
+		var points := _question_framing_points.duplicate() if gs.game_state == Constants.STATE_PLAYING else PackedVector3Array()
+		var saw_points_start := points.size()
+		var bounds := AABB(Vector3(-12.25, StageConstants.FLOOR_TOP_Y, gs.saw.local_z - 1.7), Vector3(24.5, 0.65, 3.4))
+		for corner: int in range(8):
+			points.append(bounds.get_endpoint(corner))
+		if gs.p1_alive:
+			_append_player_framing_points(points, Vector3(gs.player_x, gs.player_y, gs.player_local_z))
+		if gs.p2_alive:
+			_append_player_framing_points(points, Vector3(gs.player2_x, gs.player2_y, gs.player2_local_z))
+		var viewport_size := camera.get_viewport().get_visible_rect().size
+		var aspect := viewport_size.x / maxf(viewport_size.y, 1.0)
+		var safe_y := tan(deg_to_rad(fov) * 0.5) * (1.0 - QUESTION_SCREEN_MARGIN * 2.0)
+		if camera.keep_aspect == Camera3D.KEEP_WIDTH:
+			safe_y /= aspect
+		var safe_x := safe_y * aspect
+		# The wide carriage should nearly touch the sides; keep the larger
+		# question/player inset only for their own framing points.
+		var saw_safe_x := safe_x * (1.0 - SAW_SCREEN_SIDE_MARGIN * 2.0) / (1.0 - QUESTION_SCREEN_MARGIN * 2.0)
+		# Looking at the existing target flattens the view as we retreat.
+		# Solve the smallest horizontal distance that fits the measured points.
+		var lower := 0.0
+		var upper := 80.0
+		for iteration: int in range(14):
+			var back := (lower + upper) * 0.5
+			var candidate := eye - retreat * back
+			var view := Basis.looking_at(target - candidate, Vector3.UP)
+			var fits := true
+			for point_index: int in range(points.size()):
+				var relative := points[point_index] - candidate
+				var depth := -relative.dot(view.z)
+				var horizontal_limit := saw_safe_x if point_index >= saw_points_start and point_index < saw_points_start + 8 else safe_x
+				if depth < camera.near + 0.1 or absf(relative.dot(view.x)) > depth * horizontal_limit or absf(relative.dot(view.y)) > depth * safe_y:
+					fits = false
+					break
+			if fits:
+				upper = back
+			else:
+				lower = back
+		desired_back = (upper + 0.05) * weight
+	var follow := 1.0 - exp(-SAW_FRAMING_FOLLOW * maxf(dt, 0.0))
+	_saw_back = move_toward(_saw_back, lerpf(_saw_back, desired_back, follow), SAW_FRAMING_MAX_SPEED * maxf(dt, 0.0))
+	return PackedVector3Array([eye - retreat * _saw_back, target])
 
 
 func _append_player_framing_points(points: PackedVector3Array, feet: Vector3) -> void:

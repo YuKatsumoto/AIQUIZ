@@ -437,9 +437,9 @@ func finish_death_recovery() -> Dictionary:
 	_death_recovery_retry = false
 	revision += 1
 	var message := (
-		"もう一度チャレンジ！ 問題を読んで正しいドアをねらいましょう。"
+		"同じ問題をやり直します。問題を確認し、正解のドアを選んでください。"
 		if retry
-		else "危険を体験できました。ここからは本番と同じ流れです。"
+		else "海に落ちた場合の動作を確認しました。次のステップに進みます。"
 	)
 	return {"retry": retry, "message": message}
 
@@ -455,7 +455,7 @@ func set_hint(text: String, seconds: float = HINT_SECONDS) -> void:
 func clear_summary_lines() -> PackedStringArray:
 	return PackedStringArray([
 		"✓ 走りながらの前後左右移動とジャンプ",
-		"✓ コース外＝海とサメの危険",
+		"✓ コース外への落下とサメによる脱落",
 		"✓ 誘導ありと誘導なしのクイズ",
 		"✓ 壁速度・帽子・エモートのカスタマイズ",
 	])
@@ -544,21 +544,21 @@ func _build_steps() -> Array[Dictionary]:
 	return [
 		{
 			"id": "run_lane",
-			"title": "まずは走ってみよう",
-			"body": "キャラクターは自動で前に進みます。左右に動いてコースの幅をつかみましょう。",
+			"title": "移動の基本",
+			"body": "キャラクターは自動で前進します。左右のキーを押して移動を確認してください。",
 			"guide": GUIDE_LANE,
 			"speed": 0.55,
 			"walls": false,
 			"input_practice": true,
 			"tasks": [
-				{"id": "left", "key": "A / ←", "caption": "左へ動く"},
-				{"id": "right", "key": "D / →", "caption": "右へ動く"},
+				{"id": "left", "key": "A / ←", "caption": "左移動"},
+				{"id": "right", "key": "D / →", "caption": "右移動"},
 			],
 		},
 		{
 			"id": "air_control",
-			"title": "ジャンプと前後の微調整",
-			"body": "自動前進に加えて、前後に動いて壁に向かうタイミングを調整できます。ジャンプも試しましょう。",
+			"title": "ジャンプと前後移動",
+			"body": "前後移動で壁に到達するタイミングを調整できます。前進・後退・ジャンプをそれぞれ確認してください。",
 			"guide": GUIDE_AIR,
 			"speed": 0.55,
 			"walls": false,
@@ -571,8 +571,8 @@ func _build_steps() -> Array[Dictionary]:
 		},
 		{
 			"id": "ocean_lesson",
-			"title": "コースの外は海",
-			"body": "左右の端から外へ出てみましょう。海に落ちるとサメに襲われます。",
+			"title": "コース外への落下",
+			"body": "左右いずれかの端からコース外へ移動してください。海に落ちるとサメに襲われます。",
 			"guide": GUIDE_OCEAN,
 			"speed": 0.0,
 			"walls": false,
@@ -582,8 +582,8 @@ func _build_steps() -> Array[Dictionary]:
 		},
 		{
 			"id": "guided_wall",
-			"title": "最初の問題",
-			"body": "光っているドアが正解です。問題を読んで、そのドアを通り抜けましょう。",
+			"title": "クイズの回答方法",
+			"body": "この問題では正解のドアが点灯します。問題を確認し、点灯したドアを通過してください。",
 			"guide": GUIDE_GUIDED_DOOR,
 			"speed": 1.0,
 			"walls": true,
@@ -593,13 +593,13 @@ func _build_steps() -> Array[Dictionary]:
 			"presentation": "wall_reveal",
 			"duration": 0.9,
 			"tasks": [
-				{"id": "answer", "key": "A / D", "caption": "光るドアへ"},
+				{"id": "answer", "key": "A / D", "caption": "点灯したドアへ"},
 			],
 		},
 		{
 			"id": "free_wall",
-			"title": "自分で選ぶ",
-			"body": "ここからは光りません。自分で解いてみましょう。違えたドアや壁にぶつかると一発でアウトです",
+			"title": "誘導なしで回答",
+			"body": "ここからは正解のドアが点灯しません。問題を解いてドアを選んでください。不正解のドアや壁に衝突すると脱落します。",
 			"guide": GUIDE_FREE_DOOR,
 			"speed": 1.0,
 			"walls": true,
@@ -607,13 +607,13 @@ func _build_steps() -> Array[Dictionary]:
 			"highlight_answer": -1,
 			"punish_mistakes": true,
 			"tasks": [
-				{"id": "answer", "key": "A / D", "caption": "自分で答える"},
+				{"id": "answer", "key": "A / D", "caption": "回答を選択"},
 			],
 		},
 		{
 			"id": "stage_complete",
-			"title": "ステージチュートリアル完了！",
-			"body": "実践問題クリア！。続いてカスタマイズを紹介します。",
+			"title": "ステージチュートリアル完了",
+			"body": "実践問題をクリアしました。続いてカスタマイズを紹介します。",
 			"guide": "",
 			"speed": 0.0,
 			"walls": false,
@@ -623,7 +623,7 @@ func _build_steps() -> Array[Dictionary]:
 		},
 		{
 			"id": "customize_tour",
-			"title": "カスタマイズを見てみよう",
+			"title": "カスタマイズの紹介",
 			"body": "最後に実際のカスタマイズ画面へ移動します。",
 			"guide": "",
 			"speed": 0.0,

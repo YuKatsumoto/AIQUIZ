@@ -21,7 +21,8 @@ const SLOT_EXTRA_EMOTE_COUNT := 16
 const SLOT_LADDER_GRAB := 24
 const SLOT_UAL := SLOT_LADDER_GRAB
 const SLOT_UAL2 := 25
-const SLOT_COUNT := 8 + SLOT_EXTRA_EMOTE_COUNT + 2
+const SLOT_FALLING_IDLE := 26
+const SLOT_COUNT := 8 + SLOT_EXTRA_EMOTE_COUNT + 3
 
 const UAL_CABIN_IDLE := "Sitting_Idle_Loop"
 const UAL_INTERACT := "Interact"
@@ -42,6 +43,7 @@ const FBX_PATHS: Array[String] = [
 	"", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "",
 	"res://assets/animations/cc0_quaternius/UAL1_Standard.glb",
 	"res://assets/animations/cc0_quaternius/UAL2_Standard.glb",
+	"res://assets/animations/Falling Idle.fbx",
 ]
 
 const SLOT_NAMES: Array[String] = [
@@ -49,7 +51,7 @@ const SLOT_NAMES: Array[String] = [
 	"TreadingWater", "Drowning", "Flair", "Jump",
 	"Emote08", "Emote09", "Emote10", "Emote11", "Emote12", "Emote13", "Emote14",
 	"Emote15", "Emote16", "Emote17", "Emote18", "Emote19", "Emote20", "Emote21",
-	"Emote22", "Emote23", "LadderGrab", "Ual2",
+	"Emote22", "Emote23", "LadderGrab", "Ual2", "FallingIdle",
 ]
 
 ## SLOT_MOONWALK はコア8枠のプレースホルダ（未使用）。エモート用は他スロットへ割当
@@ -69,6 +71,7 @@ var active_skeleton: Skeleton3D = null
 var active_bone_indices: Dictionary = {}
 var mirror_x: bool = false
 var is_rigged: bool = false
+var use_rest_pose: bool = false
 var loaded_emotes: Array[int] = [1, 2, 3]
 var thriller_part_slots: Array[int] = []
 var thriller_part_idx: int = 0
@@ -303,6 +306,25 @@ func stop_all() -> void:
 			ap.stop()
 
 
+## Arrival-only loop, sampled by elapsed time with an independent P1/P2 clock.
+func seek_falling_idle(elapsed: float) -> bool:
+	var ap := aps[SLOT_FALLING_IDLE] as AnimationPlayer
+	var clip: String = anim_names[SLOT_FALLING_IDLE]
+	if ap == null or clip.is_empty() or skeletons[SLOT_FALLING_IDLE] == null:
+		return false
+	var animation := ap.get_animation(clip)
+	if animation == null or animation.length <= 0.0:
+		return false
+	if ap.current_animation != clip:
+		ap.play(clip)
+	ap.seek(fposmod(elapsed, animation.length), true, true)
+	ap.pause()
+	active_skeleton = skeletons[SLOT_FALLING_IDLE]
+	active_bone_indices = bone_indices_list[SLOT_FALLING_IDLE]
+	mirror_x = true
+	return true
+
+
 func resolve_ual_clip(clip_name: String, slot: int = SLOT_UAL) -> String:
 	if clip_name.is_empty() or slot < 0 or slot >= aps.size():
 		return ""
@@ -377,6 +399,9 @@ func play_ual_clip(
 			target_ap.play(resolved, custom_blend)
 		else:
 			target_ap.play(resolved)
+		# The caller copies bone transforms immediately, including during a wipe.
+		# Evaluate the first pose now instead of exposing the imported rest pose.
+		target_ap.advance(0.0)
 	active_skeleton = skeletons[slot]
 	active_bone_indices = bone_indices_list[slot]
 	mirror_x = true
@@ -455,6 +480,8 @@ func select_animation(player_y: float, jump_trigger: bool, emote: int,
 	if is_active_state:
 		return play_slot(SLOT_RUN)
 
+	if not use_rest_pose:
+		return play_ual_clip(UAL_IDLE)
 	stop_all()
 	return false
 

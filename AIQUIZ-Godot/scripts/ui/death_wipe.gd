@@ -229,7 +229,29 @@ func _process(dt: float) -> void:
 	if _active:
 		_update_wipe(dt)
 
+## Initialize the real render target while covered, without starting a death.
+func begin_render_prewarm(world: World3D, source_camera: Camera3D) -> void:
+	sub_viewport.world_3d = world
+	_world_set = true
+	wipe_camera.environment = source_camera.environment
+	wipe_camera.global_transform = source_camera.global_transform
+	wipe_camera.current = true
+	visible = true
+	label.text = "P1 / P2"
+	sub_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+
+
+func end_render_prewarm() -> void:
+	visible = false
+	# Keep the camera selected; the hidden parent already stops viewport draws.
+	# Clearing current here would leave the first real death feed blank.
+	label.text = ""
+	sub_viewport.render_target_update_mode = SubViewport.UPDATE_WHEN_PARENT_VISIBLE
+	# Keep world_3d attached; clearing it during rendering can invalidate RIDs.
+
+
 func _start_wipe(player: int) -> void:
+	wipe_camera.make_current()
 	_active = true
 	_dead_player = player
 	_timer = 0.0

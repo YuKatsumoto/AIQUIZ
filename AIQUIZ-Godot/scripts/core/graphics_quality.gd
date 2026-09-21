@@ -165,7 +165,9 @@ static func apply_character_preview(viewport: Viewport, value: String) -> void:
 		else Viewport.SCREEN_SPACE_AA_SMAA
 	)
 	viewport.use_taa = false
-	viewport.use_debanding = quality == HIGH
+	# Same atlas hazard as apply_text_viewport: toggling debanding on any
+	# SubViewport can make sibling LOADING labels and other UI glyphs render black.
+	viewport.use_debanding = false
 	_apply_distance_quality(viewport, quality)
 
 

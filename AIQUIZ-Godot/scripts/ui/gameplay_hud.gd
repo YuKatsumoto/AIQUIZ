@@ -439,7 +439,7 @@ func play_tutorial_completion_celebration() -> void:
 func show_solo_stage_tutorial_complete(duration: float = 3.2) -> void:
 	_show_tutorial_completion_card("SoloStageCompletionCard", {
 		"step": "1 / 2  STAGE CLEAR",
-		"title": "ステージチュートリアル完了！",
+		"title": "ステージチュートリアル完了",
 		"body": "走る・ジャンプ・海の危険・3問のクイズを体験しました。",
 		"progress": "✓ ステージ実践　　次はカスタマイズ",
 		"footer": "自動でカスタマイズ紹介へ進みます",
@@ -450,7 +450,7 @@ func show_solo_stage_tutorial_complete(duration: float = 3.2) -> void:
 func show_duo_stage_tutorial_complete(duration: float = 3.2) -> void:
 	_show_tutorial_completion_card("DuoStageCompletionCard", {
 		"step": "1 / 2  STAGE CLEAR",
-		"title": "ステージチュートリアル完了！",
+		"title": "ステージチュートリアル完了",
 		"body": "2人の操作・海とゴーストシャーク・1人ずつの判定・最終レースを体験しました。",
 		"progress": "✓ ローカル2P実践　　次はカスタマイズ",
 		"footer": "自動でカスタマイズ紹介へ進みます",

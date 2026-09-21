@@ -3,6 +3,12 @@ extends Node
 signal game_started
 signal game_over(is_cleared: bool)
 signal graphics_quality_changed(quality: String)
+signal startup_finished
+
+## Session-only cache: never persist a 'warmed' flag across GPU/driver changes.
+var startup_loading: bool = false
+var startup_resources: Array[Resource] = []
+var startup_report: Dictionary = {}
 
 # ゲーム全体の設定
 var is_2p_mode: bool = false
@@ -16,7 +22,7 @@ var current_score: int = 0
 var current_question_index: int = 0
 
 const USER_SETTINGS_PATH := "user://settings.json"
-const CURRENT_TUTORIAL_VERSION := 3
+const CURRENT_TUTORIAL_VERSION := 4
 const TUTORIAL_COURSE_SOLO := "SOLO"
 const TUTORIAL_COURSE_LOCAL_2P := "LOCAL_2P"
 
@@ -125,7 +131,7 @@ func _load_user_settings() -> void:
 		"tutorial_prompt_seen_version",
 		tutorial_dismissed_version
 	))
-	var legacy_v3_complete := tutorial_completed_version >= CURRENT_TUTORIAL_VERSION
+	var legacy_v3_complete := tutorial_completed_version >= 3
 	tutorial_solo_completed = bool(_user_settings.get("tutorial_solo_completed", legacy_v3_complete))
 	tutorial_local_2p_completed = bool(_user_settings.get("tutorial_local_2p_completed", legacy_v3_complete))
 	tutorial_completed = tutorial_solo_completed and tutorial_local_2p_completed

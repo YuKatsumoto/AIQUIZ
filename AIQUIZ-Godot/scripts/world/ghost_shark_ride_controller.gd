@@ -126,9 +126,9 @@ const CHARGE_TUTORIAL_DEMO_WRAP_COUNT: int = 2
 const CHARGE_TUTORIAL_PERFECT_BLINK_HZ: float = 5.0
 const CHARGE_TUTORIAL_DEMO_TARGETS := [0.48, 0.83, 0.99, 0.75]
 const CHARGE_TUTORIAL_DEMO_LABELS := [
-	"早すぎる",
+	"チャージ不足",
 	"PERFECT！",
-	"ためすぎ",
+	"チャージ超過",
 	"PERFECT！",
 ]
 
@@ -2168,7 +2168,7 @@ func _build_charge_tutorial_overlay() -> void:
 	content.add_child(_charge_tutorial_title)
 
 	var subtitle := Label.new()
-	subtitle.text = "チャージバーを見ながら、強力な突進を狙おう"
+	subtitle.text = "チャージバーの位置によって突進の強さが変わります"
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	subtitle.add_theme_font_size_override("font_size", 19)
 	subtitle.add_theme_color_override("font_color", Color(0.88, 0.94, 1.0))
@@ -2675,10 +2675,10 @@ func _fill_charge_tutorial_controls() -> void:
 	var charge := KeyHintRow.new()
 	charge.add_text("② ", ink, 20, true)
 	charge.add_spec("Space" if dead_player_index == 1 else "Ctrl", accent, KeycapChip.SizeClass.NORMAL)
-	charge.add_text("を長押しして霊力をためる", ink, 20, true)
+	charge.add_text("を長押ししてチャージ", ink, 20, true)
 	_charge_tutorial_controls.add_child(charge)
 	var perfect := KeyHintRow.new()
-	perfect.add_text("③ 黄色のPERFECT帯で離すと、最も強い突進！", ink, 20, true)
+	perfect.add_text("③ 黄色のPERFECT帯で離すと最大強度で突進", ink, 20, true)
 	_charge_tutorial_controls.add_child(perfect)
 
 

@@ -121,7 +121,7 @@ func _ready() -> void:
 
 func present(config: Dictionary) -> void:
 	_step_label.text = str(config.get("step", ""))
-	_title_label.text = str(config.get("title", "チュートリアル完了！"))
+	_title_label.text = str(config.get("title", "チュートリアル完了"))
 	_body_label.text = str(config.get("body", ""))
 	_progress_label.text = str(config.get("progress", ""))
 	_footer_label.text = str(config.get("footer", "自動で次へ進みます"))

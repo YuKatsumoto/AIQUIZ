@@ -58,6 +58,8 @@ const INTRO_JUMP_LAND_SECONDS := 0.32
 const INTRO_LAND_BLEND := 0.35
 const INTRO_IDLE_BLEND := 0.15
 const INTRO_JUMP_GRAVITY := 9.8
+const INTRO_FALL_BLEND_SECONDS := 0.15
+const INTRO_FALL_LAND_BLEND_SECONDS := 0.12
 const INTRO_CABIN_POSE_KEYS := [
 	"pelvis", "spine", "neck", "head_pivot",
 	"l_shoulder", "r_shoulder", "l_elbow", "r_elbow",
@@ -98,6 +100,7 @@ var _intro_jumps: Dictionary = {}
 var _intro_jump_lands: Dictionary = {}
 ## Gameplay arrival: UAL Idle_Loop hold after Jump_Land until the course starts.
 var _intro_idles: Dictionary = {}
+var use_skin_preview_rest_pose: bool = false
 ## Menu extraction hides the standing runners until the scene leaves.
 var _intro_extracted := false
 ## True once a helicopter arrival has shown the runner. Survives intro cleanup
@@ -794,6 +797,11 @@ func _begin_intro_jump_land(player_index: int) -> bool:
 		return false
 	var land_len := maxf(rig.get_ual_clip_length(AnimationRig.UAL_JUMP_LAND), 0.35)
 	var from_yaw := _intro_contact_yaw(player_index, 0.0)
+	var fall_pose: Dictionary = {}
+	if bool(jump.get("animated_fall", false)):
+		var parts: Dictionary = p1_parts if player_index == 1 else p2_parts
+		fall_pose = _capture_intro_pose(parts)
+		from_yaw = float(jump.get("facing_yaw", from_yaw))
 	_intro_jump_lands[player_index] = {
 		"elapsed": 0.0,
 		"length": land_len,
@@ -802,6 +810,7 @@ func _begin_intro_jump_land(player_index: int) -> bool:
 		"to": to_pos,
 		"position": from_pos,
 		"current_yaw": from_yaw,
+		"fall_pose": fall_pose,
 	}
 	rig.play_ual_clip(AnimationRig.UAL_JUMP_LAND, true)
 	_apply_intro_jump_land_pose(player_index, from_pos, from_yaw, 0.0)
@@ -859,6 +868,10 @@ func _apply_intro_jump_land_pose(
 	var posed_y := pelvis.global_position.y
 	pelvis.global_position = Vector3(world_position.x, posed_y, world_position.z)
 	pelvis.basis = Basis(Vector3.UP, facing_yaw) * anim_basis
+	var land: Dictionary = _intro_jump_lands.get(player_index, {})
+	_blend_intro_fall_pose(parts, land.get("fall_pose", {}), smoothstep(
+		0.0, INTRO_FALL_LAND_BLEND_SECONDS, ratio * float(land.get("length", 0.0))
+	))
 	_plant_intro_feet_on_floor(parts)
 
 
@@ -922,7 +935,7 @@ func _update_intro_jump_land(player_index: int, delta: float) -> bool:
 	return false
 
 
-func _begin_intro_idle(player_index: int, landing: Vector3) -> bool:
+func _begin_intro_idle(player_index: int, landing: Vector3, facing_yaw: float = 0.0) -> bool:
 	var parts: Dictionary = p1_parts if player_index == 1 else p2_parts
 	if parts.is_empty():
 		return false
@@ -932,7 +945,7 @@ func _begin_intro_idle(player_index: int, landing: Vector3) -> bool:
 	var already_idle := _intro_idles.has(player_index)
 	_intro_idles[player_index] = {
 		"position": landing,
-		"facing_yaw": 0.0,
+		"facing_yaw": facing_yaw,
 	}
 	_intro_revealed = true
 	if _intro_jumps.has(player_index):
@@ -1689,6 +1702,7 @@ func begin_intro_ladder_jump(
 		return false
 	var origin := pelvis.global_position
 	var release_transform := pelvis.global_transform
+	var release_pose := _capture_intro_pose(parts)
 	var landing := Vector3(
 		ground_target.x,
 		ground_target.y + INTRO_PELVIS_HEIGHT,
@@ -1722,8 +1736,45 @@ func begin_intro_ladder_jump(
 		"used_clips": [],
 		"source_ready": true,
 		"position": origin,
+		"release_pose": release_pose,
+		"facing_yaw": atan2(release_transform.basis.z.x, release_transform.basis.z.z),
+		"animated_fall": false,
 	}
+	_apply_intro_falling_idle(player_index, _intro_jumps[player_index], origin)
 	return true
+
+
+## Keep the existing ragdoll trajectory and floor contacts authoritative; only
+## its visible counterpart changes pose. Hats follow the animated head.
+func _apply_intro_falling_idle(player_index: int, state: Dictionary, position_on_path: Vector3) -> void:
+	var rig := _p1_rig if player_index == 1 else _p2_rig
+	var elapsed := float(state.get("elapsed", 0.0))
+	if not rig.seek_falling_idle(elapsed):
+		return
+	var parts: Dictionary = p1_parts if player_index == 1 else p2_parts
+	_apply_skeleton_pose(parts, rig.active_skeleton, rig.active_bone_indices, rig.mirror_x)
+	var pelvis := parts.get("pelvis") as Node3D
+	pelvis.global_basis = Basis(Vector3.UP, float(state.get("facing_yaw", 0.0))) * pelvis.global_basis
+	_blend_intro_fall_pose(parts, state.get("release_pose", {}), smoothstep(
+		0.0, INTRO_FALL_BLEND_SECONDS, elapsed
+	))
+	# Ignore FBX root translation: the physical torso owns the complete flight path.
+	pelvis.global_position = position_on_path
+	if not bool(state.get("animated_fall", false)):
+		_restore_intro_runner_visuals(player_index)
+		state["animated_fall"] = true
+		state["clip"] = "Falling Idle"
+		state["used_clips"] = ["Falling Idle"]
+
+
+func _blend_intro_fall_pose(parts: Dictionary, from_pose: Dictionary, weight: float) -> void:
+	for key: String in INTRO_CABIN_POSE_KEYS:
+		var part := parts.get(key) as Node3D
+		if part == null or not from_pose.has(key):
+			continue
+		var from: Transform3D = from_pose[key]
+		# Root position belongs to the flight path / existing foot planting.
+		part.basis = from.basis.slerp(part.basis, weight)
 
 
 func _prepare_ladder_jump_ragdoll(player_index: int) -> void:
@@ -1768,6 +1819,7 @@ func update_intro_ladder_jump(player_index: int, delta: float) -> Dictionary:
 	var torso_position: Vector3 = drop.get("position", state.get("position", Vector3.ZERO))
 	state["position"] = torso_position
 	if not bool(drop.get("floor_contacted", false)):
+		_apply_intro_falling_idle(player_index, state, torso_position)
 		_limit_intro_ragdoll_spin(
 			_intro_ragdolls.get(player_index, {}),
 			INTRO_LADDER_MAX_SPIN
@@ -1878,6 +1930,7 @@ func get_intro_jump_state(player_index: int) -> Dictionary:
 		"floor_contacted": bool(state.get("floor_contacted", false)) or land_phase == "idle",
 		"clip": clip_name,
 		"used_clips": state.get("used_clips", []),
+		"animated_fall": bool(state.get("animated_fall", false)),
 		"position": state.get("position", idle_position),
 		"origin": state.get("origin", Vector3.ZERO),
 		"landing": state.get("landing", idle_position),
@@ -1929,6 +1982,7 @@ func prewarm_intro_ladder_clips(player_count: int) -> void:
 		var is_p1 := player_index == 1
 		var parts: Dictionary = p1_parts if is_p1 else p2_parts
 		var rig := _p1_rig if is_p1 else _p2_rig
+		rig.seek_falling_idle(0.0)
 		for clip_name: String in clips:
 			rig.seek_ual_clip(clip_name, 0.0)
 		if rig.active_skeleton != null:
@@ -1944,15 +1998,34 @@ func prewarm_intro_ladder_clips(player_count: int) -> void:
 		_set_rig_scenes_visible(is_p1, false)
 
 
-## Locks the menu runners to a deliberate run-ready silhouette before the
-## helicopter arrives.  This prevents a random ambient emote from becoming the
-## first frame of the extraction ragdoll.
-func prepare_intro_pickup_pose(player_count: int) -> void:
+## Use the same waiting loop as quiz preparation without taking movement ownership.
+func apply_waiting_pose(player_count: int, facing_yaw: float = 0.0) -> void:
+	for player_index: int in range(1, clampi(player_count, 1, 2) + 1):
+		var parts: Dictionary = p1_parts if player_index == 1 else p2_parts
+		if parts.is_empty():
+			continue
+		if not _apply_intro_ual_pose(player_index, AnimationRig.UAL_IDLE, -1.0):
+			_animate_skeleton(parts, 0.0, 0.0, false, 0.0, player_index == 2, 0)
+		# Rotate the complete sampled pose; replacing its Euler yaw loses the
+		# authored hip turn and a one-off menu rotation is overwritten next frame.
+		var pelvis := parts.get("pelvis") as Node3D
+		if pelvis != null:
+			pelvis.basis = Basis(Vector3.UP, facing_yaw) * pelvis.basis
+		_plant_intro_feet_on_floor(parts)
+		_set_rig_scenes_visible(player_index == 1, false)
+
+
+## Keep the quiz-preparation idle moving until the helicopter is ready for pickup.
+func prepare_intro_pickup_pose(player_count: int, facing_yaw: float = 0.0) -> void:
 	var count := clampi(player_count, 1, 2)
 	for player_index: int in range(1, count + 1):
 		var parts: Dictionary = p1_parts if player_index == 1 else p2_parts
-		# Wait on both feet until the rope has reached its hanging length.
-		_animate_skeleton(parts, 0.0, 0.0, false, 0.0, player_index == 2, 0)
+		if parts.is_empty():
+			continue
+		var rig := _p1_rig if player_index == 1 else _p2_rig
+		rig.reset_thriller_sequence()
+		var pelvis := parts.get("pelvis") as Node3D
+		_begin_intro_idle(player_index, pelvis.global_position, facing_yaw)
 
 
 ## Move the existing avatar across the floor while playing its normal run cycle.
@@ -1963,6 +2036,7 @@ func update_intro_pickup_approach(player_index: int, ground_target: Vector3, del
 	if pelvis == null or not is_instance_valid(pelvis):
 		return false
 	if not _intro_pickup_approaches.has(player_index):
+		_intro_idles.erase(player_index)
 		var destination := Vector3(ground_target.x, pelvis.global_position.y, ground_target.z)
 		var run_direction := (destination - pelvis.global_position).normalized()
 		var total_distance := pelvis.global_position.distance_to(destination)
@@ -3354,6 +3428,8 @@ func _apply_push_pose(parts: Dictionary, pose: Dictionary) -> void:
 func update_from_state(gs: QuizGameState) -> void:
 	_restore_health_pose()
 	_restore_push_pose()
+	_p1_rig.use_rest_pose = use_skin_preview_rest_pose
+	_p2_rig.use_rest_pose = use_skin_preview_rest_pose
 	if has_intro_arrival():
 		return
 	var push1: Dictionary = gs.get_local_push_pose(1)
@@ -4113,36 +4189,7 @@ func _init_explosion(parts: Dictionary, is_p1: bool, force_non_forward: bool = f
 		var gx := gt.origin.x - global_position.x
 		var sx := 1.0 if gx >= 0.0 else -1.0
 
-		var piece := RigidBody3D.new()
-		piece.mass = randf_range(0.22, 0.45)
-		piece.gravity_scale = 2.0
-		piece.linear_damp = 0.05
-		piece.angular_damp = 0.06
-		piece.continuous_cd = true
-		piece.collision_layer = 0
-		piece.collision_mask = 1
-		var phys_mat := PhysicsMaterial.new()
-		phys_mat.friction = EXPLOSION_PHYSICS_FRICTION
-		phys_mat.bounce = EXPLOSION_PHYSICS_BOUNCE
-		piece.physics_material_override = phys_mat
-		piece.set_meta("player_death_shard", true)
-		piece.set_meta("preview_death_shard_p1", is_p1)
-		piece.set_meta("base_scale", mesh.scale)
-		piece.set_meta("groove_offset", randf_range(-0.42, 0.42))
-
-		var col := CollisionShape3D.new()
-		var shape := BoxShape3D.new()
-		shape.size = _mesh_box_size(mesh)
-		col.shape = shape
-		piece.add_child(col)
-
-		var visual := MeshInstance3D.new()
-		if mesh.mesh:
-			visual.mesh = mesh.mesh
-		if mesh.material_override:
-			visual.material_override = mesh.material_override
-		visual.scale = mesh.scale
-		piece.add_child(visual)
+		var piece := _create_explosion_piece(mesh, is_p1)
 
 		spawn_root.add_child(piece)
 		piece.global_transform = gt
@@ -4202,6 +4249,67 @@ func _init_explosion(parts: Dictionary, is_p1: bool, force_non_forward: bool = f
 		_p1_explosion_bodies = bodies
 	else:
 		_p2_explosion_bodies = bodies
+
+
+## Shared by the real death path and covered first-use rendering.
+func _create_explosion_piece(mesh: MeshInstance3D, is_p1: bool) -> RigidBody3D:
+	var piece := RigidBody3D.new()
+	piece.mass = randf_range(0.22, 0.45)
+	piece.gravity_scale = 2.0
+	piece.linear_damp = 0.05
+	piece.angular_damp = 0.06
+	piece.continuous_cd = true
+	piece.collision_layer = 0
+	piece.collision_mask = 1
+	var phys_mat := PhysicsMaterial.new()
+	phys_mat.friction = EXPLOSION_PHYSICS_FRICTION
+	phys_mat.bounce = EXPLOSION_PHYSICS_BOUNCE
+	piece.physics_material_override = phys_mat
+	piece.set_meta("player_death_shard", true)
+	piece.set_meta("preview_death_shard_p1", is_p1)
+	piece.set_meta("base_scale", mesh.scale)
+	piece.set_meta("groove_offset", randf_range(-0.42, 0.42))
+
+	var col := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = _mesh_box_size(mesh)
+	col.shape = shape
+	piece.add_child(col)
+
+	var visual := MeshInstance3D.new()
+	if mesh.mesh:
+		visual.mesh = mesh.mesh
+	if mesh.material_override:
+		visual.material_override = mesh.material_override
+	visual.scale = mesh.scale
+	piece.add_child(visual)
+	return piece
+
+
+## Render the exact death mesh/material combinations without killing a player,
+## hiding the live rig, emitting signals, or enabling any physics collisions.
+func begin_death_render_prewarm(camera: Camera3D) -> Node3D:
+	var holder := Node3D.new()
+	holder.name = "DeathPiecesPrewarm"
+	camera.add_child(holder)
+	for player_index: int in range(2):
+		var parts: Dictionary = p1_parts if player_index == 0 else p2_parts
+		var meshes: Array = parts.get("meshes", []).duplicate()
+		meshes.append_array(parts.get("hat_meshes", []))
+		for index: int in range(meshes.size()):
+			var mesh := meshes[index] as MeshInstance3D
+			if not is_instance_valid(mesh):
+				continue
+			var piece := _create_explosion_piece(mesh, player_index == 0)
+			piece.freeze = true
+			piece.collision_mask = 0
+			holder.add_child(piece)
+			piece.position = Vector3(
+				(index % 8 - 4) * 0.35,
+				floorf(float(index) / 8.0) * 0.4 - 0.5,
+				-5.0 - player_index
+			)
+	return holder
 
 
 func _hide_rig_scenes(is_p1: bool) -> void:

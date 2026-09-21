@@ -574,6 +574,10 @@ func _prepare_world_visuals_under_cover() -> void:
 	if _result_ceremony_director != null:
 		result_prewarm_report = _result_ceremony_director.begin_render_prewarm()
 	var wall_prewarm_report: Dictionary = _begin_preview_wall_render_prewarm(prewarm_camera)
+	var death_pieces: Node3D = player_controller.begin_death_render_prewarm(prewarm_camera)
+	var death_wipe: Node = get_node_or_null("DeathWipeLayer/DeathWipe")
+	if death_wipe != null:
+		death_wipe.begin_render_prewarm(get_viewport().world_3d, prewarm_camera)
 
 	var pipeline_compilations_before: int = RenderingServer.get_rendering_info(
 		RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_DRAW
@@ -585,6 +589,9 @@ func _prepare_world_visuals_under_cover() -> void:
 			await RenderingServer.frame_post_draw
 		if not is_inside_tree():
 			return
+	if death_wipe != null:
+		death_wipe.end_render_prewarm()
+	death_pieces.queue_free()
 	_end_preview_wall_render_prewarm()
 	if _ghost_shark_ride_controller != null:
 		_ghost_shark_ride_controller.end_return_portal_render_prewarm()
@@ -614,6 +621,7 @@ func _prepare_world_visuals_under_cover() -> void:
 	_world_visual_prep_report["result_ceremony_prewarm"] = result_prewarm_report
 	_world_visual_prep_report["helicopter_arrival_prewarm"] = helicopter_prewarm_report
 	_world_visual_prep_report["preview_wall_prewarm"] = wall_prewarm_report
+	_world_visual_prep_report["death_effects_prewarmed"] = true
 	if not bool(portal_prewarm_report.get("ready", false)):
 		_world_visual_prep_report["ready"] = false
 		var missing_variant: Variant = _world_visual_prep_report.get("missing", [])
@@ -1435,6 +1443,27 @@ func _update_camera(dt: float) -> void:
 	if is_instance_valid(_question_framing_wall):
 		question_points = _question_framing_wall.get_gameplay_framing_points()
 	camera_controller.set_question_framing_points(question_points)
+	var death_player := 0
+	var death_focus := Vector3.ZERO
+	var death_exploded := false
+	var controller := player_node as PlayerController
+	if (
+		controller != null
+		and game_state.num_players >= 2
+		and game_state.game_state == Constants.STATE_GAME_OVER
+		and not game_state.p1_alive
+		and not game_state.p2_alive
+	):
+		var last_player := 2 if game_state.player2_game_over_timer < game_state.game_over_timer else 1
+		var has_physical_death := (
+			(game_state.p1_wall_impact or game_state.p1_saw_killed) if last_player == 1
+			else (game_state.p2_wall_impact or game_state.p2_saw_killed)
+		)
+		if has_physical_death:
+			death_player = last_player
+			death_focus = controller.get_death_presentation_position(last_player == 1)
+			death_exploded = controller.has_player_death_exploded(last_player)
+	camera_controller.set_final_death_focus(death_player, death_focus, death_exploded)
 
 	var focus_shark: SharkSwimmer = null
 	var focus_player_index: int = 0

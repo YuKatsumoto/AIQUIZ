@@ -12,7 +12,7 @@ enum Section {
 const TUTORIAL_TOUR_STEPS := [
 	{
 		"title": "壁速度設定",
-		"body": "スライダーで壁と床の流れる速さを調整できます。自動モードに戻すボタンでAIが問題の回答時間に合った速さに調整してくれます。",
+		"body": "スライダーで壁と床の移動速度を調整できます。「自動モードに戻す」を選ぶと、問題の回答時間に応じた速度に切り替わります。",
 		"image": preload("res://assets/ui/tutorial/customize_wall_speed.png"),
 	},
 	{
@@ -22,7 +22,7 @@ const TUTORIAL_TOUR_STEPS := [
 	},
 	{
 		"title": "エモート設定",
-		"body": "プレイヤーを選び、設定したいキーのスロットを選んでから、一覧のエモートを押します。ゲーム中は下のキーで踊れます。",
+		"body": "プレイヤーと割り当て先のスロットを選び、一覧からエモートを設定します。ゲーム中は下の数字キーで再生できます。",
 		"image": preload("res://assets/ui/tutorial/customize_emote.png"),
 	},
 ]
@@ -337,6 +337,7 @@ func _process(dt: float) -> void:
 		if _active_section == Section.WALL_SPEED and not _tutorial_tour_active:
 			_poll_preview_emote_inputs()
 		_preview_gs._active_wall_speed = _belt_visual_speed
+		_preview_player.use_skin_preview_rest_pose = _active_section == Section.SKIN
 		_preview_player.update_from_state(_preview_gs)
 		_preview_player.visible = _active_section != Section.EMOTE
 		_force_preview_player_facing_away()

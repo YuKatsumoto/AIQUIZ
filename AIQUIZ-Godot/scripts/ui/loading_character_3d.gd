@@ -8,6 +8,9 @@ const ToonPresets = preload("res://scripts/cosmetics/character_toon_presets.gd")
 
 const PREVIEW_SIZE := Vector2i(600, 624)
 
+## Startup can choose Flair without changing the established transition dance.
+@export var emote_id: int = EmoteData.EMOTE_HEAD_SPINNING
+
 var _sub_viewport: SubViewport
 var _output_rect: TextureRect
 var _camera: Camera3D
@@ -54,6 +57,8 @@ func _setup_viewport() -> void:
 	GraphicsQuality.apply_character_preview(_sub_viewport, GraphicsQuality.HIGH)
 	# このViewportは3D専用。不要な2D MSAAを切り、実行時警告と余分な負荷を避ける。
 	_sub_viewport.msaa_2d = Viewport.MSAA_DISABLED
+	# Debanding here poisons the shared font atlas used by LOADING labels.
+	_sub_viewport.use_debanding = false
 	add_child(_sub_viewport)
 
 	# SubViewportContainer の stretch は内部解像度を表示サイズへ戻してしまうため、
@@ -144,19 +149,19 @@ func _rebuild_player(is_p1: bool, hat_id: int, toon_preset: int) -> void:
 
 
 func _setup_head_spin_animation() -> void:
-	var fbx_path: String = EmoteData.get_emote_fbx(EmoteData.EMOTE_HEAD_SPINNING)
+	var fbx_path: String = EmoteData.get_emote_fbx(emote_id)
 	if fbx_path.is_empty() or not ResourceLoader.exists(fbx_path):
-		push_warning("Head-spin loading animation asset is unavailable")
+		push_warning("Loading animation asset is unavailable: %s" % fbx_path)
 		return
 	var packed_scene := load(fbx_path) as PackedScene
 	if packed_scene == null:
-		push_warning("Head-spin loading animation could not be loaded")
+		push_warning("Loading animation could not be loaded: %s" % fbx_path)
 		return
 
 	_fbx_node = packed_scene.instantiate() as Node3D
 	if _fbx_node == null:
 		return
-	_fbx_node.name = "HeadSpinAnimationRig"
+	_fbx_node.name = "HeadSpinAnimationRig" if emote_id == EmoteData.EMOTE_HEAD_SPINNING else "LoadingAnimationRig"
 	_sub_viewport.add_child(_fbx_node)
 	for mesh_node: Node in _fbx_node.find_children("*", "MeshInstance3D", true, false):
 		(mesh_node as MeshInstance3D).hide()

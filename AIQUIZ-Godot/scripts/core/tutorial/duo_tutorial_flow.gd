@@ -449,9 +449,9 @@ func finish_death_recovery() -> Dictionary:
 	_death_recovery_retry = false
 	revision += 1
 	var message := (
-		"2人とも脱落しました。もう一度同じ問題に挑戦しましょう。"
+		"2人とも脱落しました。同じ問題をやり直します。"
 		if retry
-		else "危険を体験できました。ここからは本番と同じ流れです。"
+		else "海に落ちた場合の動作を確認しました。次のステップに進みます。"
 	)
 	return {"retry": retry, "message": message}
 
@@ -467,7 +467,7 @@ func set_hint(text: String, seconds: float = HINT_SECONDS) -> void:
 func clear_summary_lines() -> PackedStringArray:
 	return PackedStringArray([
 		"✓ 2人分の移動・ジャンプ・エモート",
-		"✓ コース外＝海とサメの危険",
+		"✓ コース外への落下とサメによる脱落",
 		"✓ 脱落後のゴーストシャークで反撃",
 		"✓ 1人ずつ判定される実戦と最終レース",
 		"✓ 壁速度・帽子・エモートのカスタマイズ",
@@ -498,11 +498,11 @@ func get_overlay_model() -> Dictionary:
 	var hint := _hint_text
 	if is_step("duo_push"):
 		if not _push_task_done(1, "brace"):
-			hint = "2人で相手方向を押し続けて踏ん張ろう。\nジャンプでは相手を越えられません。"
+			hint = "2人とも相手方向のキーを押し続けてください。\nジャンプでは相手を越えられません。"
 		elif not _push_task_done(1, "push"):
-			hint = "P2は押し続け、P1は同じキーを離して押し直すと一押し。\nジャンプでは相手を越えられません。"
+			hint = "P2は押し続け、P1はキーを一度離して押し直すと相手を押せます。\nジャンプでは相手を越えられません。"
 		elif not _push_task_done(2, "push"):
-			hint = "P1は押し続け、今度はP2が同じキーを離して押し直すと一押し。\nジャンプでは相手を越えられません。"
+			hint = "P1は押し続け、P2はキーを一度離して押し直すと相手を押せます。\nジャンプでは相手を越えられません。"
 	return {
 		# 完了カードが画面全体を使うので、コーチバーは隠して
 		# 使えない Enter スキップ行を出さないようにする。
@@ -613,39 +613,39 @@ func _build_steps() -> Array[Dictionary]:
 	return [
 		{
 			"id": "duo_run",
-			"title": "2人で走ってみよう",
-			"body": "P1はオレンジ、P2はシアン。左右に動いてコースの幅をつかみましょう。ぶつかると押し合います。",
+			"title": "2人プレイの基本操作",
+			"body": "P1はオレンジ、P2は水色です。それぞれ左右移動を確認してください。接触すると押し合いになります。",
 			"guide": GUIDE_LANE,
 			"speed": 0.55,
 			"walls": false,
 			"input_practice": true,
 			"tasks": {
 				1: [
-					{"id": "left", "key": "A", "caption": "左へ動く"},
-					{"id": "right", "key": "D", "caption": "右へ動く"},
+					{"id": "left", "key": "A", "caption": "左移動"},
+					{"id": "right", "key": "D", "caption": "右移動"},
 				],
 				2: [
-					{"id": "left", "key": "←", "caption": "左へ動く"},
-					{"id": "right", "key": "→", "caption": "右へ動く"},
+					{"id": "left", "key": "←", "caption": "左移動"},
+					{"id": "right", "key": "→", "caption": "右移動"},
 				],
 			},
 		},
 		{
 			"id": "duo_push",
-			"title": "肩で押し合おう",
-			"body": "まず2人で相手の方向を押し続けて踏ん張ります。次にP1、P2の順に、同じキーを離して押し直すと肩で一押し！ ジャンプでは相手を越えられません。",
+			"title": "押し合いの操作",
+			"body": "2人とも相手方向のキーを押し続けてください。P1、P2の順にキーを一度離して押し直すと相手を押せます。ジャンプでは相手を越えられません。",
 			"guide": GUIDE_LANE,
 			"speed": 0.55,
 			"walls": false,
 			"input_practice": true,
 			"tasks": {
-				1: [{"id": "brace", "key": "A / D", "caption": "2人で踏ん張る"}, {"id": "push", "key": "離す→押す", "caption": "先にP1が一押し"}],
-				2: [{"id": "brace", "key": "← / →", "caption": "2人で踏ん張る"}, {"id": "push", "key": "離す→押す", "caption": "次にP2が一押し"}],
+				1: [{"id": "brace", "key": "A / D", "caption": "2人で踏ん張る"}, {"id": "push", "key": "離す→押す", "caption": "P1から押す"}],
+				2: [{"id": "brace", "key": "← / →", "caption": "2人で踏ん張る"}, {"id": "push", "key": "離す→押す", "caption": "P2から押す"}],
 			},
 		},
 		{
 			"id": "duo_air",
-			"title": "ジャンプと前後の微調整",
+			"title": "ジャンプと前後移動",
 			"body": "自動前進に加えて、前後に動いて壁に向かうタイミングを調整できます。離れすぎると画面外に取り残されます。",
 			"guide": GUIDE_AIR,
 			"speed": 0.55,
@@ -666,8 +666,8 @@ func _build_steps() -> Array[Dictionary]:
 		},
 		{
 			"id": "duo_emote",
-			"title": "エモートで煽ろう",
-			"body": "エモートは相手を挑発するアクションです。2人とも1つ出してみましょう。",
+			"title": "エモートの操作",
+			"body": "数字キーでエモートを再生できます。各プレイヤーで1つずつ再生してください。",
 			"guide": GUIDE_EMOTE,
 			"speed": 0.4,
 			"walls": false,
@@ -679,8 +679,8 @@ func _build_steps() -> Array[Dictionary]:
 		},
 		{
 			"id": "duo_ocean",
-			"title": "コースの外は海",
-			"body": "P2だけコースの外へ出てみましょう。海に落ちるとサメに襲われて脱落します。",
+			"title": "コース外への落下",
+			"body": "P2はコース外へ移動してください。海に落ちるとサメに襲われて脱落します。",
 			"guide": GUIDE_OCEAN,
 			"speed": 0.0,
 			"walls": false,
@@ -695,7 +695,7 @@ func _build_steps() -> Array[Dictionary]:
 		{
 			"id": "duo_ghost",
 			"title": "ゴーストシャークで反撃",
-			"body": "脱落したP2はゴーストシャークに乗れます。照準を合わせ、長押しで溜めてP1へ突進しましょう。",
+			"body": "脱落したP2はゴーストシャークを操作できます。照準をP1に合わせ、Ctrlを長押しして離すと突進します。",
 			"guide": GUIDE_GHOST,
 			"speed": 0.0,
 			"walls": false,
@@ -713,8 +713,8 @@ func _build_steps() -> Array[Dictionary]:
 		},
 		{
 			"id": "duo_guided_wall",
-			"title": "最初の問題",
-			"body": "光っているドアが正解です。2人とも同じドアを通り抜けましょう。得点はP1・P2別々に入ります。",
+			"title": "クイズの回答方法",
+			"body": "この問題では正解のドアが点灯します。2人ともそのドアを通過してください。得点はプレイヤーごとに加算されます。",
 			"guide": GUIDE_GUIDED_DOOR,
 			"speed": 1.0,
 			"walls": true,
@@ -725,14 +725,14 @@ func _build_steps() -> Array[Dictionary]:
 			"presentation": "wall_reveal",
 			"duration": 0.9,
 			"tasks": {
-				1: [{"id": "answer", "key": "A / D", "caption": "光るドアへ"}],
-				2: [{"id": "answer", "key": "← / →", "caption": "光るドアへ"}],
+				1: [{"id": "answer", "key": "A / D", "caption": "点灯したドアへ"}],
+				2: [{"id": "answer", "key": "← / →", "caption": "点灯したドアへ"}],
 			},
 		},
 		{
 			"id": "duo_free_wall",
-			"title": "自分で選ぶ",
-			"body": "ここからは光りません。判定は1人ずつ。間違えた側だけ脱落し、正解した側はそのまま走り続けます。",
+			"title": "誘導なしで回答",
+			"body": "ここからは正解のドアが点灯しません。判定はプレイヤーごとに行われ、不正解のプレイヤーのみ脱落します。",
 			"guide": GUIDE_FREE_DOOR,
 			"speed": 1.0,
 			"walls": true,
@@ -742,8 +742,8 @@ func _build_steps() -> Array[Dictionary]:
 			"allow_scroll_out": true,
 			"ghost_ride": true,
 			"tasks": {
-				1: [{"id": "answer", "key": "A / D", "caption": "自分で答える"}],
-				2: [{"id": "answer", "key": "← / →", "caption": "自分で答える"}],
+				1: [{"id": "answer", "key": "A / D", "caption": "回答を選択"}],
+				2: [{"id": "answer", "key": "← / →", "caption": "回答を選択"}],
 			},
 		},
 		{
@@ -764,8 +764,8 @@ func _build_steps() -> Array[Dictionary]:
 		},
 		{
 			"id": "duo_complete",
-			"title": "ステージチュートリアル完了！",
-			"body": "実践クリア！ 続いてカスタマイズを紹介します。",
+			"title": "ステージチュートリアル完了",
+			"body": "実践コースをクリアしました。続いてカスタマイズを紹介します。",
 			"guide": "",
 			"speed": 0.0,
 			"walls": false,
@@ -775,7 +775,7 @@ func _build_steps() -> Array[Dictionary]:
 		},
 		{
 			"id": "customize_tour",
-			"title": "カスタマイズを見てみよう",
+			"title": "カスタマイズの紹介",
 			"body": "最後に実際のカスタマイズ画面へ移動します。",
 			"guide": "",
 			"speed": 0.0,

@@ -4,6 +4,7 @@ class_name SeatLaunchPresentation
 ## Owns only the exported chair root and the mascot pose. The station keeps moving
 ## with its dock; this presentation never takes the camera or gameplay controls.
 const EffectsScript := preload("res://scripts/world/seat_launch_effects.gd")
+const HarnessScript := preload("res://scripts/world/seat_launch_harness.gd")
 const HANDOFF := &"chair_transfer_pending"
 const BELT_SECONDS := 2.6
 const LATCH_TIME := 1.95
@@ -25,8 +26,7 @@ var operator: Node3D
 var flight_root: Node3D
 var socket: Node3D
 var kit: Node3D
-var webbing: MeshInstance3D
-var tongue: Node3D
+var harness: Node3D
 var effects: SeatLaunchEffects
 var flight_rest := Transform3D.IDENTITY
 var applying_base := false
@@ -47,9 +47,6 @@ static func consume_handoff(gs: QuizGameState, online: bool, retry: bool) -> boo
 	clear_handoff()
 	return pending and eligible(gs, online) and not retry
 
-static func belt_tip(extension: float) -> Vector3:
-	return Vector3(.345 - .690 * extension, 1.465, -.10 + .247 * sin(PI * extension))
-
 static func launch_height(time: float) -> float:
 	# Gentle lift-off followed by a rocket-like accelerating climb.
 	return 2.0 * time + 10.0 * time * time + 7.0 * time * time * time
@@ -58,13 +55,25 @@ static func landing_height(time: float) -> float:
 	var u := clampf(time / LAND_SECONDS, 0.0, 1.0)
 	return ARRIVAL_HEIGHT * (1.0 - u) * (1.0 - u) * (1.0 + .3 * u)
 
+static func belt_ease(start: float, end: float, time: float) -> float:
+	# Zero velocity AND acceleration at both ends prevents a mechanical jerk
+	# when the ribbon begins paying out, locks, tightens, or retracts.
+	var u := clampf((time - start) / (end - start), 0.0, 1.0)
+	return u * u * u * (u * (u * 6.0 - 15.0) + 10.0)
+
 func setup(seat: Node3D) -> void:
 	operator = seat
 	flight_root = operator.station.find_child("OP_SeatFlightRoot", true, false) as Node3D
 	socket = operator.station.find_child("OP_SeatSocket", true, false) as Node3D
 	kit = flight_root.find_child("SL_Kit", true, false) as Node3D
-	webbing = kit.find_child("SL_LapWebbing", true, false) as MeshInstance3D
-	tongue = kit.find_child("SL_Tongue", true, false) as Node3D
+	# The original lap assembly stays in the source asset; replace its runtime
+	# presentation without touching the artist's Blender work in progress.
+	for key in ["SL_LapWebbing", "SL_Tongue", "SL_Reel", "SL_Receiver"]:
+		(kit.find_child(key, true, false) as Node3D).hide()
+	harness = HarnessScript.new()
+	harness.name = "TwinShoulderHarness"
+	kit.add_child(harness)
+	harness.setup()
 	flight_rest = flight_root.transform
 	effects = EffectsScript.new()
 	effects.name = "ChairRocketEffects"
@@ -77,7 +86,7 @@ func setup(seat: Node3D) -> void:
 	_click.unit_size = 12.0
 	_click.volume_db = -5.0
 	kit.add_child(_click)
-	_click.position = Vector3(-.36, 1.465, -.09)
+	_click.position = Vector3(0.0, 1.34, .07)
 	_jet = AudioStreamPlayer3D.new()
 	_jet.bus = "SFX"
 	_jet.stream = preload("res://assets/hazards/saw_operator/chair_rocket.wav")
@@ -226,9 +235,9 @@ func _apply_pose() -> void:
 	var buckle_time := BELT_SECONDS
 	if phase == Phase.BUCKLING:
 		buckle_time = elapsed
-		extension = smoothstep(.35, LATCH_TIME, elapsed)
+		extension = belt_ease(.30, 1.12, elapsed)
 	elif phase == Phase.UNBUCKLING:
-		extension = 1.0 - smoothstep(.18, .75, elapsed)
+		extension = 1.0 - belt_ease(.12, .90, elapsed)
 	height = launch_height(elapsed) if phase == Phase.LAUNCHING else (landing_height(elapsed) if phase == Phase.LANDING else 0.0)
 	if phase == Phase.SETTLING:
 		height = -.035 * sin(PI * clampf(elapsed / SETTLE_SECONDS, 0.0, 1.0))
@@ -239,8 +248,6 @@ func _apply_pose() -> void:
 		_pose_buckle(buckle_time)
 	else:
 		_pose_flight(1.0 - smoothstep(.65, 1.0, elapsed) if phase == Phase.UNBUCKLING else 1.0)
-		if phase == Phase.UNBUCKLING and elapsed < .65:
-			operator.pose_belt_hand("R", kit.to_global(belt_tip(extension)), 1.0)
 	flight_root.transform = flight_rest
 	flight_root.position.y += height
 	operator.skeleton.force_update_all_bone_transforms()
@@ -248,23 +255,24 @@ func _apply_pose() -> void:
 
 func _set_belt(amount: float) -> void:
 	belt_extension = clampf(amount, 0.0, 1.0)
-	var f := belt_extension * 4.0
-	for i in 4:
-		webbing.set_blend_shape_value(i, maxf(0.0, 1.0 - absf(f - float(i))))
-	tongue.position = belt_tip(belt_extension)
+	# Most slack closes progressively as the tongue descends. The remaining
+	# bow settles after docking instead of snapping the entire belt at once.
+	var tension := .65 * belt_ease(.75, LATCH_TIME, elapsed) + .35 * belt_ease(LATCH_TIME, BELT_SECONDS - .10, elapsed) if phase == Phase.BUCKLING else 1.0
+	var simulation_time := elapsed if phase == Phase.BUCKLING else (BELT_SECONDS if phase == Phase.ARMED else -1.0)
+	harness.set_extension(belt_extension, tension, simulation_time)
 
 func _pose_buckle(time: float) -> void:
-	var tip := kit.to_global(belt_tip(belt_extension))
-	var middle := kit.to_global(belt_tip(.5))
-	# A continuous single strap, passed between the plush's short hands.
-	var left_weight := smoothstep(0.0, .35, time) * (1.0 - smoothstep(1.10, 1.50, time))
-	var right_weight := smoothstep(.65, 1.05, time) * (1.0 - smoothstep(2.05, 2.60, time))
+	# Clear both flight paths first, then bring the hands to the lap after lock.
+	var clear_weight := smoothstep(0.0, .30, time)
+	var settle := smoothstep(LATCH_TIME + .15, BELT_SECONDS, time)
 	for side in ["L", "R"]:
+		var sign_x := 1.0 if side == "L" else -1.0
 		var grip: Vector3 = operator._control("OP_GripContact_" + side).global_position
-		var target := tip if side == "L" or time >= 1.05 else middle
-		var weight := left_weight if side == "L" else right_weight
-		operator.pose_belt_hand(side, grip.lerp(target, weight), weight)
-	_pose_flight(smoothstep(2.05, BELT_SECONDS, time))
+		var clear: Vector3 = kit.to_global(Vector3(sign_x * .62, 1.60, .13))
+		var lap: Vector3 = kit.to_global(Vector3(sign_x * .26, 1.52, .17))
+		operator.pose_belt_hand(side, grip.lerp(clear, clear_weight).lerp(lap, settle), clear_weight)
+		var foot: Vector3 = operator._control("OP_FootContact_" + side).global_position
+		operator._pose_leg(side, foot.lerp(kit.to_global(Vector3(sign_x * .18, 1.15, .42)), settle))
 
 func _pose_flight(weight: float) -> void:
 	if weight <= 0.0: return
