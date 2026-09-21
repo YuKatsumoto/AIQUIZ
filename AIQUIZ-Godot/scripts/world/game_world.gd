@@ -63,7 +63,7 @@ var _barrier_exploded: bool = false
 var _barrier_dropping: bool = false
 var _barrier_drop_timer: float = 0.0
 var _barrier_spawned_for_session: bool = false  # 1ゲームに1回だけ
-const MAX_VISIBLE_WALLS := 4
+const MAX_VISIBLE_WALLS := preload("res://scripts/core/game_state.gd").MAX_VISIBLE_WALLS
 const PREVIEW_WALLS_PER_FRAME := 1
 const COVER_PREVIEW_WALLS_PER_FRAME := 2
 const PREVIEW_WALL_CONFIGS_PER_FRAME := 1
@@ -1047,72 +1047,16 @@ func _unhandled_input(event: InputEvent) -> void:
 func _update_floor() -> void:
 	if not stage_env:
 		return
-	var floor_front: float
+	var floor_front: float = game_state.get_floor_front_z()
 	var floor_back: float = game_state.FLOOR_BACK_Z
-	if game_state.game_state in [
-		Constants.STATE_FLYOVER,
-		Constants.STATE_PRELOADING,
-		Constants.STATE_WAITING_START,
-	]:
-		# フライオーバー / プリロード中: 最後の壁(orゴールライン)まで床を延長
-		var t := game_state.tuning
-		var wall_count: int
-		if not game_state._is_fixed_count_mode():
-			wall_count = 30
-		else:
-			wall_count = game_state.target_count if game_state.target_count > 0 else 10
-		if game_state.game_state == Constants.STATE_FLYOVER:
-			wall_count = game_state.flyover_total_walls
-		var last_wall_z: float = t.wall_start_z + (wall_count - 1) * t.wall_spacing
-		floor_front = last_wall_z + 30.0
-		# 2P×10Qモード: ゴールラインまで延長
-		if game_state.num_players >= 2 and game_state.mode == Constants.MODE_TEN:
-			var goal_line_z: float = t.wall_start_z + game_state.target_count * t.wall_spacing + 15.0
-			floor_front = maxf(floor_front, goal_line_z + 20.0)
-	elif (
-		game_state.game_state in [Constants.STATE_GOAL_RACE, Constants.STATE_RESULT_CEREMONY]
-		or (
-			game_state.game_state == Constants.STATE_CLEAR
-			and game_state.result_presentation_active
-		)
-	):
-		# ゴールレース中: ゴールラインの先まで床を延長
-		var result_extension := 24.0 if game_state.result_presentation_active else 20.0
-		floor_front = maxf(
-			144.0 + floor_back,
-			game_state.goal_z + result_extension - game_state.world_scroll_z
-		)
-	else:
-		# 通常時: 最奥の壁、またはプレイヤーの位置に合わせて床を動的に延長
-		var t := game_state.tuning
-		var max_wall_idx: int = game_state.current_wall_index + MAX_VISIBLE_WALLS
-		if game_state.mode == Constants.MODE_TEN or game_state.mode == Constants.MODE_TUTORIAL:
-			max_wall_idx = mini(max_wall_idx, game_state.target_count)
-		var furthest_wall_z: float = t.wall_start_z + max_wall_idx * t.wall_spacing
-		var player_ahead_z: float = game_state.player_z + 40.0
-		if game_state.num_players >= 2:
-			player_ahead_z = maxf(player_ahead_z, game_state.player2_z + 40.0)
-
-		var max_z_needed: float = maxf(furthest_wall_z, player_ahead_z)
-		floor_front = max_z_needed + 40.0 - game_state.world_scroll_z
-		floor_front = maxf(floor_front, 139.5) # 最低限の長さを保証
-
-	# ローカル通常2Pではゴール面をベルトコンベアの終端として扱う。
-	# ResultMeadow は goal_z + 2m から始まるため、ベルトと草原が重ならず
-	# 「ベルト終端 → ゴール → 草原」の順序が全フェーズで一定になる。
-	if game_state.uses_local_result_ceremony():
-		floor_front = _local_result_goal_z() - game_state.world_scroll_z
-
 	var floor_length: float = floor_front - floor_back
 	var floor_center_z: float = (floor_front + floor_back) / 2.0
 	stage_env.set_floor_geometry(floor_center_z, floor_length)
 
 
 func _local_result_goal_z() -> float:
-	if game_state.goal_z > 0.0:
-		return game_state.goal_z
-	var tuning := game_state.tuning
-	return tuning.wall_start_z + game_state.target_count * tuning.wall_spacing + 15.0
+	return game_state.get_local_result_goal_z()
+
 
 func _update_player(_dt: float) -> void:
 	var pc := player_node as PlayerController

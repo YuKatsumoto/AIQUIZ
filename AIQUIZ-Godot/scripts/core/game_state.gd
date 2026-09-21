@@ -48,7 +48,7 @@ func get_local_push_pose(player: int) -> Dictionary:
 func _advance_local_push(dt: float, axes: Vector2, jumps: Array) -> bool:
 	if not uses_local_push():
 		return false
-	var front := FLOOR_RACE_FRONT_Z if game_state == Constants.STATE_GOAL_RACE else FLOOR_PLAY_FRONT_Z
+	var front := get_floor_front_z()
 	_commit_fall_if_unsupported(1, player_x, player_y, player_z - world_scroll_z, front)
 	_commit_fall_if_unsupported(2, player2_x, player2_y, player2_z - world_scroll_z, front)
 	var valid := [p1_alive and not p1_fall_committed and not p1_waiting_for_shark and not is_damage_stunned(1),
@@ -308,8 +308,8 @@ const TWO_PLAYER_JUMP_FORCE: float = 9.5
 const PROPELLER_DESCENT_GRAVITY_SCALE: float = 0.65
 const FLOOR_HALF_WIDTH: float = 12.0
 const FLOOR_BACK_Z: float = -12.5
-const FLOOR_PLAY_FRONT_Z: float = 139.5
-const FLOOR_RACE_FRONT_Z: float = 400.0
+const MIN_PLAY_FLOOR_FRONT_Z: float = 139.5
+const MAX_VISIBLE_WALLS: int = 4
 const SCROLL_OUT_LIMIT: float = 14.0
 const PLAYER_BODY_RADIUS: float = 0.62
 const PLAYER_BODY_HEIGHT: float = 1.9
@@ -794,10 +794,79 @@ func _on_tutorial_task_completed(player_index: int, task_id: String) -> void:
 func _provider_mode() -> String:
 	return Constants.MODE_TEN if is_coop_mode() else mode
 
+## Shared by support/contact checks and GameWorld's rendered conveyor.
+## The normal course extends ahead of players; 139.5 is a minimum, not an edge.
+func get_floor_front_z() -> float:
+	var floor_front: float
+	var floor_back: float = FLOOR_BACK_Z
+	if game_state in [
+		Constants.STATE_FLYOVER,
+		Constants.STATE_PRELOADING,
+		Constants.STATE_WAITING_START,
+	]:
+		# フライオーバー / プリロード中: 最後の壁(orゴールライン)まで床を延長
+		var t := tuning
+		var wall_count: int
+		if not _is_fixed_count_mode():
+			wall_count = 30
+		else:
+			wall_count = target_count if target_count > 0 else 10
+		if game_state == Constants.STATE_FLYOVER:
+			wall_count = flyover_total_walls
+		var last_wall_z: float = t.wall_start_z + (wall_count - 1) * t.wall_spacing
+		floor_front = last_wall_z + 30.0
+		# 2P×10Qモード: ゴールラインまで延長
+		if num_players >= 2 and mode == Constants.MODE_TEN:
+			var goal_line_z: float = t.wall_start_z + target_count * t.wall_spacing + 15.0
+			floor_front = maxf(floor_front, goal_line_z + 20.0)
+	elif (
+		game_state in [Constants.STATE_GOAL_RACE, Constants.STATE_RESULT_CEREMONY]
+		or (
+			game_state == Constants.STATE_CLEAR
+			and result_presentation_active
+		)
+	):
+		# ゴールレース中: ゴールラインの先まで床を延長
+		var result_extension := 24.0 if result_presentation_active else 20.0
+		floor_front = maxf(
+			144.0 + floor_back,
+			goal_z + result_extension - world_scroll_z
+		)
+	else:
+		# 通常時: 最奥の壁、またはプレイヤーの位置に合わせて床を動的に延長
+		var t := tuning
+		var max_wall_idx: int = current_wall_index + MAX_VISIBLE_WALLS
+		if mode == Constants.MODE_TEN or mode == Constants.MODE_TUTORIAL:
+			max_wall_idx = mini(max_wall_idx, target_count)
+		var furthest_wall_z: float = t.wall_start_z + max_wall_idx * t.wall_spacing
+		var player_ahead_z: float = player_z + 40.0
+		if num_players >= 2:
+			player_ahead_z = maxf(player_ahead_z, player2_z + 40.0)
+
+		var max_z_needed: float = maxf(furthest_wall_z, player_ahead_z)
+		floor_front = max_z_needed + 40.0 - world_scroll_z
+		floor_front = maxf(floor_front, MIN_PLAY_FLOOR_FRONT_Z) # 最低限の長さを保証
+
+	# ローカル通常2Pではゴール面をベルトコンベアの終端として扱う。
+	# ResultMeadow は goal_z + 2m から始まるため、ベルトと草原が重ならず
+	# 「ベルト終端 → ゴール → 草原」の順序が全フェーズで一定になる。
+	if uses_local_result_ceremony():
+		floor_front = get_local_result_goal_z() - world_scroll_z
+
+	return floor_front
+
+
+func get_local_result_goal_z() -> float:
+	if goal_z > 0.0:
+		return goal_z
+	return tuning.wall_start_z + target_count * tuning.wall_spacing + 15.0
+
+
 func _is_on_track_floor(x_pos: float, local_z: float, player_num: int, front_z: float = -1.0) -> bool:
 	if local_z < FLOOR_BACK_Z:
 		return false
-	if front_z > 0.0 and local_z > front_z:
+	var floor_front := get_floor_front_z() if front_z < 0.0 else front_z
+	if local_z > floor_front:
 		return false
 	if absf(x_pos) > FLOOR_HALF_WIDTH:
 		return false
@@ -2093,9 +2162,8 @@ func _resolve_cliff_body_collision(player_num: int, front_z: float = -1.0) -> vo
 	var z_pos := player_z if is_p1 else player2_z
 	var local_z := z_pos - world_scroll_z
 	var floor_min := Vector2(-FLOOR_HALF_WIDTH, FLOOR_BACK_Z)
-	var floor_max := Vector2(FLOOR_HALF_WIDTH, INF)
-	if front_z > 0.0:
-		floor_max.y = front_z
+	var floor_front := get_floor_front_z() if front_z < 0.0 else front_z
+	var floor_max := Vector2(FLOOR_HALF_WIDTH, floor_front)
 	if is_coop_mode():
 		if player_num == 1:
 			floor_min.x = tuning.coop_lane_gap_half_width
@@ -2342,7 +2410,7 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 	# Player 1 movement
 	if p1_alive and not p1_waiting_for_shark and not has_player_reached_goal(1):
 		_commit_fall_if_unsupported(
-			1, player_x, player_y, player_z - world_scroll_z, FLOOR_RACE_FRONT_Z
+			1, player_x, player_y, player_z - world_scroll_z, get_floor_front_z()
 		)
 		player_x += p1_axis.x * tuning.player_speed * dt
 		player_z += _active_wall_speed * dt
@@ -2353,8 +2421,8 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 
 		var loc1 := player_z - world_scroll_z
 		var is_on_floor := (
-			not _commit_fall_if_unsupported(1, player_x, player_y, loc1, FLOOR_RACE_FRONT_Z)
-			and _is_on_track_floor(player_x, loc1, 1, FLOOR_RACE_FRONT_Z)
+			not _commit_fall_if_unsupported(1, player_x, player_y, loc1, get_floor_front_z())
+			and _is_on_track_floor(player_x, loc1, 1, get_floor_front_z())
 		)
 
 		if p1_jump_allowed and player_y <= 0.0 and is_on_floor:
@@ -2362,7 +2430,7 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 			player_vel_y = TWO_PLAYER_JUMP_FORCE if num_players >= 2 else JUMP_FORCE
 		player_vel_y -= _jump_gravity(p1_hat, player_y, player_vel_y) * dt
 		player_y += player_vel_y * dt
-		if _commit_fall_if_unsupported(1, player_x, player_y, loc1, FLOOR_RACE_FRONT_Z):
+		if _commit_fall_if_unsupported(1, player_x, player_y, loc1, get_floor_front_z()):
 			is_on_floor = false
 		if player_y <= 0.0 and is_on_floor:
 			player_y = 0.0
@@ -2375,7 +2443,7 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 	# Player 2 movement
 	if p2_alive and not p2_waiting_for_shark and not has_player_reached_goal(2):
 		_commit_fall_if_unsupported(
-			2, player2_x, player2_y, player2_z - world_scroll_z, FLOOR_RACE_FRONT_Z
+			2, player2_x, player2_y, player2_z - world_scroll_z, get_floor_front_z()
 		)
 		player2_x += p2_axis.x * tuning.player_speed * dt
 		player2_z += _active_wall_speed * dt
@@ -2386,8 +2454,8 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 
 		var loc2 := player2_z - world_scroll_z
 		var p2_is_on_floor := (
-			not _commit_fall_if_unsupported(2, player2_x, player2_y, loc2, FLOOR_RACE_FRONT_Z)
-			and _is_on_track_floor(player2_x, loc2, 2, FLOOR_RACE_FRONT_Z)
+			not _commit_fall_if_unsupported(2, player2_x, player2_y, loc2, get_floor_front_z())
+			and _is_on_track_floor(player2_x, loc2, 2, get_floor_front_z())
 		)
 
 		if p2_jump_allowed and player2_y <= 0.0 and p2_is_on_floor:
@@ -2395,7 +2463,7 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 			player2_vel_y = TWO_PLAYER_JUMP_FORCE if num_players >= 2 else JUMP_FORCE
 		player2_vel_y -= _jump_gravity(p2_hat, player2_y, player2_vel_y) * dt
 		player2_y += player2_vel_y * dt
-		if _commit_fall_if_unsupported(2, player2_x, player2_y, loc2, FLOOR_RACE_FRONT_Z):
+		if _commit_fall_if_unsupported(2, player2_x, player2_y, loc2, get_floor_front_z()):
 			p2_is_on_floor = false
 		if player2_y <= 0.0 and p2_is_on_floor:
 			player2_y = 0.0
@@ -2408,7 +2476,7 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 	if goal_reached_mask == 0:
 		_resolve_two_player_body_collision(p1_body_start, p2_body_start)
 	_flush_local_push_events()
-	_resolve_all_cliff_body_collisions(FLOOR_RACE_FRONT_Z)
+	_resolve_all_cliff_body_collisions(get_floor_front_z())
 
 	# Tick explosion timers for dead players
 	if not p1_alive and game_over_timer > 0:
