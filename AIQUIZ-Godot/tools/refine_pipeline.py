@@ -25,7 +25,7 @@ from collections import Counter
 # ── パス解決 ──
 PROJECT_ROOT = Path(__file__).parent.parent
 BANK_PATH = PROJECT_ROOT / "offline_bank.json"
-OUTPUT_PATH = PROJECT_ROOT / "offline_bank_v2.json"
+OUTPUT_PATH = PROJECT_ROOT / "offline_bank.json"
 PROGRESS_PATH = PROJECT_ROOT / "offline_bank_refining.json"
 
 # ── 設定 ──
