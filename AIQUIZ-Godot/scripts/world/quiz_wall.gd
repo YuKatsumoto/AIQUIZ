@@ -20,6 +20,13 @@ var gameplay_question_label: Label3D = null
 var _gameplay_question_panel: MeshInstance3D = null
 var _gameplay_question_border: MeshInstance3D = null
 var _gameplay_question_text: String = ""
+## 背景パネル付きラベル原点から、パネル下端を扉上へ揃えるための局所オフセット。
+var _gameplay_question_anchor_offset: float = 0.0
+## 2Pでカメラが離れたときの問題文・選択肢の拡大率。
+var _text_scale: float = 1.0
+var _scaled_beam_mesh: BoxMesh = null
+## 文字拡大でボス見出しが押し上げられた量 (等倍レイアウトの枠取り用)。
+var _boss_scale_lift: float = 0.0
 var _shattered: bool = false
 var _saw_collision_shapes: Dictionary = {}
 
@@ -187,6 +194,7 @@ func _build_doors(num_choices: int) -> void:
 			label.position = Vector3(DOOR4_XS[i], 0.18, -0.65)
 			label.pixel_size = 0.006
 			label.width = 240.0
+			label.scale = Vector3.ONE * _text_scale
 			add_child(label)
 			door_labels.append(label)
 	else:
@@ -198,6 +206,7 @@ func _build_doors(num_choices: int) -> void:
 
 		var left_label := _create_label()
 		left_label.position = Vector3(LEFT_DOOR_X, 0.18, -0.65)
+		left_label.scale = Vector3.ONE * _text_scale
 		add_child(left_label)
 		door_labels.append(left_label)
 
@@ -209,6 +218,7 @@ func _build_doors(num_choices: int) -> void:
 
 		var right_label := _create_label()
 		right_label.position = Vector3(RIGHT_DOOR_X, 0.18, -0.65)
+		right_label.scale = Vector3.ONE * _text_scale
 		add_child(right_label)
 		door_labels.append(right_label)
 
@@ -259,6 +269,7 @@ func set_gameplay_question(text: String, is_visible: bool) -> void:
 		gameplay_question_label.name = "GameplayQuestion"
 		gameplay_question_label.position.z = -0.65
 		gameplay_question_label.outline_modulate = Color(0.02, 0.05, 0.08, 0.95)
+		gameplay_question_label.scale = Vector3.ONE * _text_scale
 		add_child(gameplay_question_label)
 	if text != _gameplay_question_text:
 		_gameplay_question_text = text
@@ -288,9 +299,31 @@ func _update_gameplay_question_panel() -> void:
 	# Negative local Z is behind the text, on both the -Z and +Z wall faces.
 	_gameplay_question_panel.position = Vector3(center.x, center.y, -0.035)
 	_gameplay_question_border.position = Vector3(center.x, center.y, -0.045)
-	# Anchor the visible panel edge just above the door, independent of line count.
-	gameplay_question_label.position.y = DOOR_TOP_Y + QUESTION_DOOR_GAP - glyph_bounds.position.y + padding.y + 0.025
+	_gameplay_question_anchor_offset = -glyph_bounds.position.y + padding.y + 0.025
+	_apply_gameplay_question_anchor()
+
+
+## Anchor the visible panel edge just above the door, independent of line count
+## and of the 2P text scale (the panel is a child and scales with the label).
+func _apply_gameplay_question_anchor() -> void:
+	gameplay_question_label.position.y = DOOR_TOP_Y + QUESTION_DOOR_GAP + _gameplay_question_anchor_offset * _text_scale
 	_update_question_wall_height()
+
+
+## 2P: カメラが離れた分だけ問題文と選択肢を中心基準で拡大する。1Pや通常距離では 1.0。
+func set_text_scale(text_scale: float) -> void:
+	text_scale = maxf(text_scale, 1.0)
+	if text_scale == _text_scale or (text_scale > 1.0 and absf(text_scale - _text_scale) < 0.002):
+		return
+	_text_scale = text_scale
+	for label: Label3D in door_labels:
+		if is_instance_valid(label):
+			label.scale = Vector3.ONE * _text_scale
+	if not is_instance_valid(gameplay_question_label):
+		return
+	gameplay_question_label.scale = Vector3.ONE * _text_scale
+	if is_instance_valid(_gameplay_question_panel):
+		_apply_gameplay_question_anchor()
 
 
 func _minimum_wall_top_y() -> float:
@@ -302,7 +335,11 @@ func _minimum_wall_top_y() -> float:
 func _update_question_wall_height() -> void:
 	if wall_parts.is_empty() or not is_instance_valid(wall_parts[0]):
 		return
-	var minimum_content_top := _minimum_wall_top_y() - QUESTION_TOP_MARGIN
+	# The panel bottom stays on this line, so everything above it scales linearly.
+	var question_floor := DOOR_TOP_Y + QUESTION_DOOR_GAP
+	# Keep the two-line reserve at the current text scale so one- and two-line
+	# questions still share the wall height while 2P text is enlarged.
+	var minimum_content_top := question_floor + (_minimum_wall_top_y() - QUESTION_TOP_MARGIN - question_floor) * _text_scale
 	var content_top := minimum_content_top
 	if is_instance_valid(_gameplay_question_border):
 		var panel_bounds: AABB = (gameplay_question_label.transform * _gameplay_question_border.transform) * _gameplay_question_border.get_aabb()
@@ -311,16 +348,27 @@ func _update_question_wall_height() -> void:
 		var text_bounds := preview_question_label.transform * preview_question_label.get_aabb()
 		content_top = text_bounds.end.y + preview_question_label.outline_size * preview_question_label.pixel_size
 	content_top = maxf(content_top, minimum_content_top)
+	_boss_scale_lift = 0.0
 	if is_boss and is_instance_valid(boss_label):
 		var heading_bounds := boss_label.get_aabb().grow(boss_label.outline_size * boss_label.pixel_size)
 		boss_label.position.y = content_top + QUESTION_TOP_MARGIN - heading_bounds.position.y
+		var base_content_top := question_floor + (content_top - question_floor) / _text_scale
+		_boss_scale_lift = content_top - base_content_top
 		content_top = boss_label.position.y + heading_bounds.end.y
 	wall_top_y = content_top + QUESTION_TOP_MARGIN
 	var beam := wall_parts[0]
 	var beam_size := (beam.mesh as BoxMesh).size
 	beam_size.y = wall_top_y - DOOR_TOP_Y
-	# Shared cached meshes are immutable; other walls keep their own height.
-	beam.mesh = _shared_box_mesh(beam_size)
+	if _text_scale > 1.0:
+		# The 2P text scale eases every frame; resize a wall-owned box instead of
+		# filling the shared cache with one mesh per intermediate height.
+		if beam.mesh != _scaled_beam_mesh:
+			_scaled_beam_mesh = BoxMesh.new()
+			beam.mesh = _scaled_beam_mesh
+		_scaled_beam_mesh.size = beam_size
+	else:
+		# Shared cached meshes are immutable; other walls keep their own height.
+		beam.mesh = _shared_box_mesh(beam_size)
 	beam.position.y = DOOR_TOP_Y + beam_size.y * 0.5
 
 
@@ -339,27 +387,44 @@ func _create_question_panel_quad(node_name: String, color: Color) -> MeshInstanc
 
 
 ## Actual glyph bounds, including the outline, for camera framing.
-func get_gameplay_framing_points() -> PackedVector3Array:
+## at_base_scale: the same layout without the 2P text scale. The saw retreat
+## uses it so enlarged text never feeds back into a larger camera pull-back.
+func get_gameplay_framing_points(at_base_scale: bool = false) -> PackedVector3Array:
 	var points := PackedVector3Array()
 	if not is_instance_valid(gameplay_question_label) or not gameplay_question_label.is_visible_in_tree():
 		return points
-	_append_label_framing_points(points, gameplay_question_label)
+	var question_xform := _framing_transform(gameplay_question_label, at_base_scale)
+	_append_label_framing_points(points, gameplay_question_label, question_xform)
 	if is_instance_valid(boss_label) and boss_label.is_visible_in_tree():
-		_append_label_framing_points(points, boss_label)
+		_append_label_framing_points(points, boss_label, _framing_transform(boss_label, at_base_scale))
 	if is_instance_valid(_gameplay_question_border):
 		var panel_bounds := _gameplay_question_border.get_aabb()
+		var panel_xform := question_xform * _gameplay_question_border.transform
 		for corner: int in range(8):
-			points.append(_gameplay_question_border.global_transform * panel_bounds.get_endpoint(corner))
+			points.append(panel_xform * panel_bounds.get_endpoint(corner))
 	for label: Label3D in door_labels:
 		if is_instance_valid(label) and label.is_visible_in_tree():
-			_append_label_framing_points(points, label)
+			_append_label_framing_points(points, label, _framing_transform(label, at_base_scale))
 	return points
 
 
-func _append_label_framing_points(points: PackedVector3Array, label: Label3D) -> void:
+func _framing_transform(node: Node3D, at_base_scale: bool) -> Transform3D:
+	if not at_base_scale or _text_scale == 1.0:
+		return node.global_transform
+	var local := node.transform
+	if node == boss_label:
+		local.origin.y -= _boss_scale_lift
+	else:
+		local.basis = local.basis.scaled(Vector3.ONE / _text_scale)
+		if node == gameplay_question_label and is_instance_valid(_gameplay_question_panel):
+			local.origin.y = DOOR_TOP_Y + QUESTION_DOOR_GAP + _gameplay_question_anchor_offset
+	return global_transform * local
+
+
+func _append_label_framing_points(points: PackedVector3Array, label: Label3D, xform: Transform3D) -> void:
 	var bounds := label.get_aabb().grow(label.outline_size * label.pixel_size)
 	for corner: int in range(8):
-		points.append(label.global_transform * bounds.get_endpoint(corner))
+		points.append(xform * bounds.get_endpoint(corner))
 
 
 ## 1P用: プレイヤーが通過した壁を、文字を残さず短くフェード退場させる。

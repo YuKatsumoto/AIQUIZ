@@ -38,6 +38,8 @@ var _result_shake_time := 0.0
 var _rear_back_ready: bool = false
 var _smoothed_rear_back: float = 9.0
 var _question_framing_points := PackedVector3Array()
+## Same text at its unscaled 2P size; the saw retreat fits these instead.
+var _saw_question_framing_points := PackedVector3Array()
 var _question_pitch: float = 0.0
 var _question_back: float = 0.0
 var _saw_back: float = 0.0
@@ -45,7 +47,14 @@ var saw_dock_framing: float = 0.0
 var _final_death_player: int = 0
 var _final_death_focus := Vector3.ZERO
 var _final_death_exploded: bool = false
+var _wall_text_scale_active: bool = false
+var _wall_text_base_eye := Vector3.ZERO
+var _wall_text_pulled_eye := Vector3.ZERO
+var _wall_text_fov: float = TWO_PLAYER_FOV
 
+## 2Pでカメラが基準位置から離れた分だけ壁の文字を拡大する上限。
+## 2択の選択肢が扉幅(3.6m)に、長い問題文が壁幅に収まる大きさに抑える。
+const WALL_TEXT_MAX_SCALE := 1.5
 const QUESTION_SCREEN_MARGIN := 0.08
 const QUESTION_FRAMING_FOLLOW := 8.0
 const SAW_FRAMING_FOLLOW := 2.5
@@ -246,6 +255,7 @@ func wait_for_entry_blend() -> void:
 		await get_tree().process_frame
 
 func update_camera(gs: QuizGameState, dt: float) -> void:
+	_wall_text_scale_active = false
 	if gs.game_state not in [Constants.STATE_PLAYING, Constants.STATE_CORRECT] or _tutorial_override_active or _ocean_attack_camera_active:
 		_question_pitch = 0.0
 		_question_back = 0.0
@@ -444,10 +454,12 @@ func update_camera(gs: QuizGameState, dt: float) -> void:
 			eye += Vector3.UP * _third_person_camera_height(gs)
 			target = _third_person_camera_target(gs, focus)
 
+	var framing_start_eye := eye
 	var question_pose := _frame_question(gs, eye, target, fov, dt)
 	eye = question_pose[0]
 	target = question_pose[1]
 	var saw_pose := _frame_saw(gs, eye, target, fov, dt)
+	_update_wall_text_scale_pose(gs, framing_start_eye + (saw_pose[0] - eye), fov)
 	eye = saw_pose[0]
 	target = saw_pose[1]
 
@@ -467,8 +479,47 @@ func update_camera(gs: QuizGameState, dt: float) -> void:
 	camera.look_at(target, Vector3.UP)
 
 
-func set_question_framing_points(points: PackedVector3Array) -> void:
+## 問題文フレーミングによる後退は含めない。文字の拡大がさらに後退を呼ぶ循環を避けるため、
+## 後方ローラー端への引きとノコギリ回避の後退だけを「離れた量」として記録する。
+func _update_wall_text_scale_pose(gs: QuizGameState, pulled_eye: Vector3, fov: float) -> void:
+	_wall_text_scale_active = (
+		gs.num_players >= 2
+		and gs.game_state in [Constants.STATE_PLAYING, Constants.STATE_CORRECT]
+		and (gs.p1_alive or gs.p2_alive)
+	)
+	if not _wall_text_scale_active:
+		return
+	var z_focus: float = gs.player_local_z
+	if gs.p1_alive and gs.p2_alive:
+		z_focus = (gs.player_local_z + gs.player2_local_z) * 0.5
+	elif gs.p2_alive:
+		z_focus = gs.player2_local_z
+	_wall_text_base_eye = Vector3(0.0, TWO_PLAYER_EYE_Y, z_focus - TWO_PLAYER_CAMERA_BACK)
+	# Rear pull and saw retreat are horizontal; drop the idle bob so it does not
+	# ripple through the text size.
+	_wall_text_pulled_eye = Vector3(pulled_eye.x, TWO_PLAYER_EYE_Y, pulled_eye.z)
+	_wall_text_fov = fov
+
+
+## 基準の2Pカメラから見たときと同じ見かけの大きさになる倍率 (1.0〜WALL_TEXT_MAX_SCALE)。
+func get_wall_text_scale(world_point: Vector3) -> float:
+	if not _wall_text_scale_active:
+		return 1.0
+	var base_distance := _wall_text_base_eye.distance_to(world_point)
+	if base_distance < 0.001:
+		return WALL_TEXT_MAX_SCALE
+	var ratio := (
+		_wall_text_pulled_eye.distance_to(world_point) * tan(deg_to_rad(_wall_text_fov) * 0.5)
+	) / (base_distance * tan(deg_to_rad(TWO_PLAYER_FOV) * 0.5))
+	return clampf(ratio, 1.0, WALL_TEXT_MAX_SCALE)
+
+
+func set_question_framing_points(
+	points: PackedVector3Array,
+	base_scale_points: PackedVector3Array = PackedVector3Array()
+) -> void:
 	_question_framing_points = points
+	_saw_question_framing_points = points if base_scale_points.is_empty() else base_scale_points
 
 
 ## Preserve the normal FOV and yaw. Tilt only by the overflow angle, then
@@ -537,7 +588,7 @@ func _frame_saw(gs: QuizGameState, eye: Vector3, target: Vector3, fov: float, dt
 	var clearance := minf(gs.get_saw_clearance(1), gs.get_saw_clearance(2))
 	var weight := 1.0 - smoothstep(SAW_FRAMING_FULL_DISTANCE, SAW_FRAMING_START_DISTANCE, clearance)
 	if gs.is_saw_visible() and weight > 0.0:
-		var points := _question_framing_points.duplicate() if gs.game_state == Constants.STATE_PLAYING else PackedVector3Array()
+		var points := _saw_question_framing_points.duplicate() if gs.game_state == Constants.STATE_PLAYING else PackedVector3Array()
 		var saw_points_start := points.size()
 		var bounds := AABB(Vector3(-12.25, StageConstants.FLOOR_TOP_Y, gs.saw.local_z - 1.7), Vector3(24.5, 0.65, 3.4))
 		for corner: int in range(8):

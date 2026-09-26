@@ -1468,9 +1468,11 @@ func _update_camera(dt: float) -> void:
 		return
 	camera_controller.saw_dock_framing = _saw_controller.dock.framing_weight() if _saw_controller != null and _saw_controller.dock != null else 0.0
 	var question_points := PackedVector3Array()
+	var base_scale_question_points := PackedVector3Array()
 	if is_instance_valid(_question_framing_wall):
 		question_points = _question_framing_wall.get_gameplay_framing_points()
-	camera_controller.set_question_framing_points(question_points)
+		base_scale_question_points = _question_framing_wall.get_gameplay_framing_points(true)
+	camera_controller.set_question_framing_points(question_points, base_scale_question_points)
 	var death_player := 0
 	var death_focus := Vector3.ZERO
 	var death_exploded := false
@@ -1531,6 +1533,18 @@ func _update_camera(dt: float) -> void:
 		)
 		camera_controller.clear_ocean_attack_focus(keep_dead_shark_focus)
 	camera_controller.update_camera(game_state, dt)
+	_update_wall_text_scale()
+
+
+## 2Pでカメラが後ろへ離れた分、壁の問題文と選択肢を大きくして読みやすさを保つ。
+func _update_wall_text_scale() -> void:
+	for wall: Node3D in _active_walls:
+		if not is_instance_valid(wall) or not wall.has_method("set_text_scale"):
+			continue
+		var text_scale := 1.0
+		if int(wall.get_meta("wall_index", -1)) == game_state.current_wall_index:
+			text_scale = camera_controller.get_wall_text_scale(wall.global_position)
+		wall.set_text_scale(text_scale)
 
 func _check_particles() -> void:
 	# Correct particle spawn

@@ -140,11 +140,11 @@ func _text_and_camera_cases(players: int) -> void:
 		await _render_frames(35)
 		_validate(phase)
 		if i == 0:
-			one_line_top = _world._question_framing_wall.wall_top_y
+			one_line_top = _base_scale_wall_top(_world._question_framing_wall)
 		if i == 1:
-			_check(_world._question_framing_wall.wall_top_y > one_line_top, "long text expands wall")
+			_check(_base_scale_wall_top(_world._question_framing_wall) > one_line_top, "long text expands wall")
 		if i == 5:
-			_check(absf(_world._question_framing_wall.wall_top_y - one_line_top) < 0.01, "one and two lines share the same wall height")
+			_check(absf(_base_scale_wall_top(_world._question_framing_wall) - one_line_top) < 0.01, "one and two lines share the same wall height")
 		if i in [0, 1, 3, 5]:
 			await _capture(phase)
 	# Close approach and lateral motion, with no teleports between samples.
@@ -297,6 +297,12 @@ func _render_frames(count: int) -> void:
 		await get_tree().process_frame
 
 
+## Wall height as laid out at 1x text, so cases sampled at different 2P
+## camera distances (and text scales) stay comparable.
+func _base_scale_wall_top(wall: Node3D) -> float:
+	return 2.56 + (wall.wall_top_y - 0.18 - 2.56) / wall._text_scale + 0.18
+
+
 func _visible_questions() -> int:
 	var count := 0
 	for wall: Node3D in _world._active_walls:
@@ -321,7 +327,8 @@ func _validate(label: String, record: bool = true) -> void:
 	_check(glyph_bounds.position.y > 2.38 and panel_bounds.end.y < wall.wall_top_y, label + " question inside wall")
 	var beam: MeshInstance3D = wall.wall_parts[0]
 	var actual_top: float = (beam.transform * beam.get_aabb()).end.y
-	var content_top := maxf(panel_bounds.end.y, 4.474)
+	# The two-line reserve grows with the 2P camera-distance text scale.
+	var content_top := maxf(panel_bounds.end.y, 2.56 + (4.474 - 2.56) * wall._text_scale)
 	if wall.is_boss:
 		var heading: Label3D = wall.boss_label
 		content_top = (heading.transform * heading.get_aabb().grow(heading.outline_size * heading.pixel_size)).end.y
