@@ -1,0 +1,146 @@
+{
+ "fps": 30,
+ "clips": {
+  "SPEC_Anticipate": {
+   "frames": 16,
+   "seconds": 0.5333,
+   "loop": true
+  },
+  "SPEC_Cheer": {
+   "frames": 24,
+   "seconds": 0.8,
+   "loop": true
+  },
+  "SPEC_Clap": {
+   "frames": 16,
+   "seconds": 0.5333,
+   "loop": true
+  },
+  "SPEC_DanceBounce": {
+   "frames": 30,
+   "seconds": 1.0,
+   "loop": true
+  },
+  "SPEC_Dance_Gangnam": {
+   "frames": 480,
+   "seconds": 16.0,
+   "loop": true
+  },
+  "SPEC_Dance_HokeyPokey": {
+   "frames": 480,
+   "seconds": 16.0,
+   "loop": true
+  },
+  "SPEC_Dance_RunningMan": {
+   "frames": 480,
+   "seconds": 16.0,
+   "loop": true
+  },
+  "SPEC_Dance_Silly": {
+   "frames": 229,
+   "seconds": 7.6333,
+   "loop": true
+  },
+  "SPEC_Dance_Swing": {
+   "frames": 311,
+   "seconds": 10.3667,
+   "loop": true
+  },
+  "SPEC_Dance_WaveHipHop": {
+   "frames": 480,
+   "seconds": 16.0,
+   "loop": true
+  },
+  "SPEC_Dance_YMCA": {
+   "frames": 270,
+   "seconds": 9.0,
+   "loop": true
+  },
+  "SPEC_Despair": {
+   "frames": 60,
+   "seconds": 2.0,
+   "loop": true
+  },
+  "SPEC_FoldArms": {
+   "frames": 75,
+   "seconds": 2.5,
+   "loop": true
+  },
+  "SPEC_HoldUp": {
+   "frames": 38,
+   "seconds": 1.2667,
+   "loop": true
+  },
+  "SPEC_Idle": {
+   "frames": 75,
+   "seconds": 2.5,
+   "loop": true
+  },
+  "SPEC_Nod": {
+   "frames": 75,
+   "seconds": 2.5,
+   "loop": true
+  },
+  "SPEC_Phone": {
+   "frames": 88,
+   "seconds": 2.9333,
+   "loop": true
+  },
+  "SPEC_PointLaugh": {
+   "frames": 24,
+   "seconds": 0.8,
+   "loop": true
+  },
+  "SPEC_Rage": {
+   "frames": 20,
+   "seconds": 0.6667,
+   "loop": true
+  },
+  "SPEC_ShakeHead": {
+   "frames": 75,
+   "seconds": 2.5,
+   "loop": true
+  },
+  "SPEC_Shout": {
+   "frames": 75,
+   "seconds": 2.5,
+   "loop": true
+  },
+  "SPEC_SignUp": {
+   "frames": 24,
+   "seconds": 0.8,
+   "loop": true
+  },
+  "SPEC_Talk": {
+   "frames": 88,
+   "seconds": 2.9333,
+   "loop": true
+  },
+  "SPEC_Throw": {
+   "frames": 40,
+   "seconds": 1.3333,
+   "loop": false,
+   "release": 0.3
+  },
+  "SPEC_Wave": {
+   "frames": 30,
+   "seconds": 1.0,
+   "loop": true
+  }
+ },
+ "roles": {
+  "skin": 0,
+  "shirt": 1,
+  "pants": 2,
+  "hair": 3,
+  "shoes": 4,
+  "dark": 5,
+  "accent": 6,
+  "white": 7,
+  "blush": 8,
+  "egg": 9,
+  "carton": 10,
+  "wood": 11
+ },
+ "role_count": 16
+}

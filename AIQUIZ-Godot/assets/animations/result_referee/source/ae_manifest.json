@@ -1,0 +1,15 @@
+{
+  "comps": {
+    "P1": 325,
+    "P2": 404,
+    "DRAW": 483
+  },
+  "cards": {
+    "Referee_v2_P1_P1_Card": 341,
+    "Referee_v2_P1_P2_Card": 369,
+    "Referee_v2_P2_P1_Card": 420,
+    "Referee_v2_P2_P2_Card": 448,
+    "Referee_v2_DRAW_P1_Card": 499,
+    "Referee_v2_DRAW_P2_Card": 527
+  }
+}

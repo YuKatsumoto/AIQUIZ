@@ -18,7 +18,8 @@ func run() -> void:
 		var height:=2*(smoothstep(10.5,11.5,t)-smoothstep(12.5,13.5,t))
 		var before:=2*(smoothstep(10.5,11.5,t-.01)-smoothstep(12.5,13.5,t-.01))
 		var after:=2*(smoothstep(10.5,11.5,t+.01)-smoothstep(12.5,13.5,t+.01))
-		op.apply_sample(script.sample(t,spin,drive,height,t>=6.2,(after-before)/.02))
+		# Waiting look-around runs on its own clock until the start freezes it.
+		op.apply_sample(script.sample(t,spin,drive,height,t>=6.2,(after-before)/.02,minf(t,6.2)))
 		var bones: Dictionary={}
 		for key in op.bones:bones[key]=matrix(op.skeleton.get_bone_global_pose(op.bones[key]))
 		var controls: Dictionary={}

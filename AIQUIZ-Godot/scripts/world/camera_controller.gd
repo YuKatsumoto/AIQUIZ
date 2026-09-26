@@ -31,6 +31,10 @@ var _tutorial_override_target: Vector3 = Vector3.ZERO
 var _tutorial_override_fov: float = 50.0
 var _result_camera_active: bool = false
 var _result_camera_phase: int = QuizGameState.ResultCeremonyPhase.NONE
+var _result_winner_start_eye := Vector3.ZERO
+var _result_winner_start_rotation := Quaternion.IDENTITY
+var _result_winner_start_fov := 44.0
+var _result_shake_time := 0.0
 var _rear_back_ready: bool = false
 var _smoothed_rear_back: float = 9.0
 var _question_framing_points := PackedVector3Array()
@@ -585,70 +589,40 @@ func _append_player_framing_points(points: PackedVector3Array, feet: Vector3) ->
 
 func _update_result_ceremony_camera(gs: QuizGameState, dt: float) -> void:
 	var phase := gs.result_ceremony_phase
-	var p1 := gs.get_result_player_local_position(1)
-	var p2 := gs.get_result_player_local_position(2)
-	var midpoint := (p1 + p2) * 0.5
-	var goal_local_z := gs.goal_z - gs.world_scroll_z
-	var phase_progress := gs.get_result_phase_progress()
-	var target_eye: Vector3
-	var target_look: Vector3
-	var target_fov: float
-	match phase:
-		QuizGameState.ResultCeremonyPhase.ASSEMBLE:
-			# Establish the finish line at a readable diagonal while keeping both
-			# full bodies large enough to understand the hand-off at a glance.
-			target_eye = Vector3(4.6, 3.25, goal_local_z - 5.9)
-			target_look = Vector3(0.0, 0.72, goal_local_z + 1.9)
-			target_fov = 45.0
-		QuizGameState.ResultCeremonyPhase.MEADOW_RUN:
-			# Low rear tracking shot: the gate falls behind camera and the moving
-			# silhouettes stay dominant against the grass instead of the stadium.
-			var meadow_camera_z := maxf(goal_local_z + 1.15, midpoint.z - 4.85)
-			target_eye = Vector3(-0.30, 1.92, meadow_camera_z)
-			target_look = Vector3(0.0, 0.76, midpoint.z + 3.15)
-			target_fov = 43.0
-		QuizGameState.ResultCeremonyPhase.SCORE_ROLL:
-			# The result camera sits close to eye level and off-axis enough to show
-			# both full bodies, while a restrained push-in builds anticipation.
-			var score_push := smoothstep(0.0, 1.0, phase_progress)
-			target_eye = Vector3(
-				lerpf(2.90, 2.55, score_push),
-				lerpf(2.42, 2.18, score_push),
-				midpoint.z - lerpf(6.10, 5.55, score_push)
-			)
-			target_look = Vector3(0.0, 0.82, midpoint.z + 0.08)
-			target_fov = lerpf(44.0, 42.0, score_push)
-		QuizGameState.ResultCeremonyPhase.VERDICT, QuizGameState.ResultCeremonyPhase.EFFECT:
-			# Hold a tighter hero composition through the verdict and blast. This
-			# crop excludes the oversized reverse side of the GOAL sign.
-			target_eye = Vector3(2.45, 2.16, midpoint.z - 5.38)
-			target_look = Vector3(0.0, 0.80, midpoint.z + 0.08)
-			target_fov = 42.0
-		_:
-			# Ease back only after the effects so the compact controls gain breathing
-			# room without abandoning the winner and the meadow.
-			target_eye = Vector3(2.60, 2.22, midpoint.z - 5.58)
-			target_look = Vector3(0.0, 0.82, midpoint.z + 0.10)
-			target_fov = 43.0
-
+	# The Blender camera that composed the Score Tower Finale owns the whole shot.
+	# It is symmetric until the verdict, then favours the winner; a P2 win mirrors
+	# stage and camera together. After the last key it holds the final frame.
+	var draw := gs.result_winner == 0
+	var sample := ResultFinaleMotion.sample_camera(draw, minf(gs.result_ceremony_elapsed, ResultFinaleMotion.end_time()))
+	var local_pose: Transform3D = sample.transform
+	var mirror := Vector3(-1, 1, 1) if gs.result_winner == 2 else Vector3.ONE
+	var stage_basis := Basis(Vector3.UP, PI).scaled(mirror)
+	var stage_origin := ResultCeremonyDirector.stage_origin(gs)
+	var target_eye := stage_origin + stage_basis * local_pose.origin
+	var forward := -(stage_basis * local_pose.basis.z).normalized()
+	var up := (stage_basis * local_pose.basis.y).normalized()
+	var target_rotation := Basis.looking_at(forward, up).get_rotation_quaternion()
+	var target_fov: float = sample.fov
+	# The verdict slam shakes the lens briefly (decays in QuizGameState).
+	if gs.camera_shake > 0.001:
+		_result_shake_time += maxf(dt, 0.0)
+		var amount := gs.camera_shake * 0.06
+		target_eye += Vector3(sin(_result_shake_time * 57.0), cos(_result_shake_time * 43.0), 0.0) * amount
+	# Preserve horizontal composition on 4:3 screens, including tall hats.
+	var aspect := get_viewport().get_visible_rect().size.aspect()
+	target_fov = rad_to_deg(2.0 * atan(tan(deg_to_rad(target_fov) * 0.5) * maxf(1.0, (16.0 / 9.0) / aspect)))
 	if not _result_camera_active:
+		_result_winner_start_eye = camera.global_position
+		_result_winner_start_rotation = camera.global_basis.get_rotation_quaternion()
+		_result_winner_start_fov = camera.fov
 		_result_camera_active = true
-		_result_camera_phase = phase
-	elif phase != _result_camera_phase:
-		_result_camera_phase = phase
-	var blend_speed := 7.4 if phase != QuizGameState.ResultCeremonyPhase.EFFECT else 8.4
-	var blend := 1.0 - exp(-dt * blend_speed)
-	camera.h_offset = lerpf(camera.h_offset, 0.0, blend)
-	camera.fov = lerpf(camera.fov, target_fov, blend)
-	var shake := maxf(0.0, gs.camera_shake)
-	var shake_offset := Vector3(
-		sin(_time * 47.0),
-		sin(_time * 59.0 + 0.8),
-		sin(_time * 41.0 + 1.7)
-	) * shake * 0.16
-	camera.global_position = camera.global_position.lerp(target_eye, blend) + shake_offset
-	var desired_quat := _quat_look_at(camera.global_position, target_look)
-	camera.quaternion = camera.quaternion.slerp(desired_quat, blend)
+	_result_camera_phase = phase
+	var entry := smoothstep(0.0, QuizGameState.RESULT_ASSEMBLE_DURATION, gs.result_ceremony_elapsed)
+	var eye := _result_winner_start_eye.lerp(target_eye, entry)
+	var rotation := _result_winner_start_rotation.slerp(target_rotation, entry)
+	camera.global_transform = Transform3D(Basis(rotation), eye)
+	camera.fov = lerpf(_result_winner_start_fov, target_fov, entry)
+	camera.h_offset = 0.0
 
 
 ## フライオーバーカメラ演出 (2フェーズ)

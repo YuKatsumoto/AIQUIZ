@@ -7,6 +7,7 @@ signal game_start_departure_finished(success: bool)
 
 const WALL_SCENE: PackedScene = preload("res://scenes/quiz_wall.tscn")
 const PLAYER_CONTROLLER_SCRIPT: Script = preload("res://scripts/world/player_controller.gd")
+const LocalPushEffectsScript = preload("res://scripts/effects/local_push_effects.gd")
 const MenuPreviewCameraSettingsScript = preload("res://scripts/ui/menu_preview_camera_settings.gd")
 const MenuPreviewDoorLearnerScript = preload("res://scripts/ui/menu_preview_door_learner.gd")
 const MenuPreviewActorAIStateScript = preload("res://scripts/ui/menu_preview_actor_ai_state.gd")
@@ -154,6 +155,7 @@ var _preview_speed: float = AUTO_WALL_SPEED
 var _conveyor_paused: bool = false
 var _preview_player: Node3D
 var _preview_gs: QuizGameState
+var _menu_push_next_t := [0.0, 0.0]
 var _ai_time: float = 0.0
 var _linger_time: float = 0.0
 var _p1_death_shard_clear_t: float = -1.0
@@ -224,6 +226,7 @@ func get_shared_viewport() -> SubViewport:
 ## カスタマイズ画面に入る: メニューAIを停止・非表示にし、カメラ制御を譲る
 func enter_customize_mode() -> void:
 	_cancel_menu_helicopter_intro()
+	_reset_menu_push()
 	_customize_active = true
 	_set_customize_walls_hidden(false)
 	_resume_preview_conveyor()
@@ -464,8 +467,12 @@ func _process(dt: float) -> void:
 		_update_preview_actor_ai(dt)
 		if _is_local_2p_active():
 			_update_preview_actor2_ai(dt)
+			_update_menu_push(dt, p1_body_start, p2_body_start)
 			# 本編と同じ2Pカプセル判定で、メニュー背景のAI同士も重なり・すり抜けを防ぐ。
 			_preview_gs._resolve_two_player_body_collision(p1_body_start, p2_body_start)
+			_preview_gs._flush_local_push_events()
+		elif _preview_gs.local_push.time > 0.0:
+			_reset_menu_push()
 		_update_menu_saw(dt,saw_start1,saw_start2)
 	if _preview_player and _preview_gs and not _customize_active:
 		_preview_gs._active_wall_speed = effective_speed
@@ -479,6 +486,59 @@ func _process(dt: float) -> void:
 
 	_update_preview_debris_near_camera()
 	_update_death_shard_cleanup()
+
+
+func _reset_menu_push() -> void:
+	if _preview_gs:
+		_preview_gs.local_push.reset()
+	_menu_push_next_t = [randf_range(0.3, 0.7), randf_range(0.3, 0.7)]
+
+
+func _menu_push_actor_valid(bundle: MenuPreviewActorAIState, is_p1: bool) -> bool:
+	return (
+		_actor_alive(is_p1)
+		and bundle.ai_state in [AI_STATE_NORMAL, AI_STATE_ACROBATICS]
+		and bundle.pending_accident == PENDING_ACCIDENT_NONE
+		and not _is_past_belt_edge(is_p1)
+	)
+
+
+func _update_menu_push(dt: float, p1_start: Vector2, p2_start: Vector2) -> void:
+	if dt <= 0.0:
+		return
+	var duel = _preview_gs.local_push
+	var valid := [_menu_push_actor_valid(_p1_ai, true), _menu_push_actor_valid(_p2_ai, false)]
+	var grounded := [_actor_y(true) <= 0.001, _actor_y(false) <= 0.001]
+	var starts := Vector2(p1_start.x, p2_start.x)
+	# AI has already chosen its X/Z movement. Feed that X velocity through the
+	# gameplay solver once, so held pressure and shoulder hits own the result.
+	var velocity := (Vector2(_actor_x(true), _actor_x(false)) - starts) / dt
+	for i in range(2):
+		var direction := int(signf(velocity[i])) if valid[i] else 0
+		for key_direction in [-1, 1]:
+			var bit := 1 if key_direction > 0 else 2
+			var was_down: bool = (int(duel.held[i]) & bit) != 0
+			if was_down != (direction == key_direction):
+				duel.queue_key(i + 1, key_direction, direction == key_direction)
+		# Deliberate release/repress uses the same windup/cooldown as real input.
+		# Independent reaction times let either actor win or occasionally clash.
+		if not duel.contact or duel.stalemate < duel.STALEMATE_TIME:
+			_menu_push_next_t[i] = duel.time + randf_range(0.3, 0.7)
+		elif valid[i] and grounded[i] and direction == int(duel.pose_direction[i]) and duel.time >= _menu_push_next_t[i]:
+			duel.queue_key(i + 1, direction, false)
+			duel.queue_key(i + 1, direction, true)
+			_menu_push_next_t[i] = duel.time + randf_range(0.7, 1.3)
+	var positions: Vector2 = duel.advance(dt, starts,
+		_actor_local_z(false) - _actor_local_z(true), valid, grounded, velocity, 1.0,
+		absf(_actor_y(true) - _actor_y(false)) < QuizGameState.PLAYER_BODY_HEIGHT)
+	for i in range(2):
+		if valid[i]:
+			_set_actor_x(i == 0, positions[i])
+	if duel.contact:
+		if _p1_ai.is_emoting:
+			_stop_ai_emote_if_needed(_p1_ai, true)
+		if _p2_ai.is_emoting:
+			_stop_ai_emote_if_needed(_p2_ai, false)
 
 
 func _update_menu_saw(dt: float, start1: Vector2, start2: Vector2) -> void:
@@ -631,6 +691,13 @@ func _build_3d_scene() -> void:
 	})
 
 	_preview_gs = QuizGameState.new()
+	var push_effects := LocalPushEffectsScript.new()
+	push_effects.name = "MenuPushEffects"
+	_viewport.add_child(push_effects)
+	_preview_gs.local_push_event.connect(func(event: Dictionary) -> void:
+		if event.kind in ["hit", "clash"]:
+			push_effects.spawn(event)
+	)
 	_preview_gs.game_state = Constants.STATE_PLAYING
 	_preview_gs.num_players = 2
 	_preview_gs.p1_alive = true
@@ -747,6 +814,7 @@ func _prepare_game_start_departure() -> void:
 
 
 func begin_game_start_departure(player_count: int) -> bool:
+	_reset_menu_push()
 	if _menu_start_departure_active:
 		return false
 	_menu_departure_hold = false
@@ -1194,6 +1262,7 @@ func sync_menu_player_count(count: int) -> void:
 	var prev := _menu_synced_player_count
 	if prev == count:
 		return
+	_reset_menu_push()
 	_menu_synced_player_count = count
 	if count == 2 and prev != 2:
 		_enable_preview_p2_drop_in()

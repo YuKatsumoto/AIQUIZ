@@ -105,10 +105,11 @@ signal result_ceremony_phase_changed(phase: int)
 enum ResultCeremonyPhase {
 	NONE,
 	ASSEMBLE,
-	MEADOW_RUN,
+	WALK,
 	SCORE_ROLL,
 	VERDICT,
 	EFFECT,
+	WINNER,
 	INTERACTIVE,
 }
 
@@ -263,18 +264,24 @@ var player2_game_over_timer: float = 0.0
 var goal_z: float = 0.0
 var goal_winner: int = 0  # 0=未確定, 1=P1, 2=P2
 
-# --- Local 2P result ceremony ---
-const RESULT_GOAL_WAIT_OFFSET: float = 1.8
-const RESULT_MEADOW_ENTRY_OFFSET: float = 2.0
-const RESULT_MEADOW_FINISH_OFFSET: float = 13.0
+# --- Local 2P result ceremony: Score Tower Finale (assets/result_finale) ---
+# Real seconds from the moment both players stand at the goal. The Blender/After
+# Effects beats in finale_motion.json and hud_motion.json use the same clock.
+const RESULT_GOAL_WAIT_OFFSET: float = 0.5
+const RESULT_WALK_ENTRY_OFFSET: float = 0.7
+const RESULT_WALK_FINISH_OFFSET: float = 3.7
 const RESULT_PLAYER_X: float = 2.2
-const RESULT_ASSEMBLE_LIVING_DURATION: float = 0.6
-const RESULT_ASSEMBLE_GHOST_DURATION: float = 1.5
-const RESULT_MEADOW_RUN_DURATION: float = 2.6
-const RESULT_SCORE_ROLL_DURATION: float = 2.4
-const RESULT_VERDICT_DURATION: float = 1.0
-const RESULT_VERDICT_REVEAL_DELAY: float = 0.55
-const RESULT_EFFECT_DURATION: float = 2.4
+const RESULT_ASSEMBLE_DURATION: float = 0.4    # 0.0-0.4 gameplay camera hands over
+const RESULT_WALK_DURATION: float = 1.6        # 0.4-2.0 walk onto the tower pads
+const RESULT_SCORE_ROLL_DURATION: float = 4.3  # 2.0-6.3 formula, then the towers climb
+const RESULT_VERDICT_DURATION: float = 0.6     # 6.3-6.9 hush before the verdict
+const RESULT_EFFECT_DURATION: float = 0.9      # 6.9-7.8 verdict, confetti, crown drop
+const RESULT_WINNER_DURATION: float = 3.4      # 7.8-11.2 celebration, loser's tower sinks
+const RESULT_DRAW_WINNER_DURATION: float = 3.4
+const RESULT_VERDICT_REVEAL_DELAY: float = 0.0
+const RESULT_VERDICT_TIME: float = 6.9
+const RESULT_TOTAL_DURATION: float = 11.2
+const RESULT_DRAW_TOTAL_DURATION: float = 11.2
 
 ## GameWorld owns this runtime gate so online hosts and replay playback keep the
 ## existing immediate-result contract without serializing ceremony-only state.
@@ -286,6 +293,11 @@ var result_ceremony_elapsed: float = 0.0
 var goal_reached_mask: int = 0
 var result_winner: int = 0  # 0=draw, 1=P1, 2=P2
 var result_ghost_mask: int = 0
+var result_p1_correct_count: int = 0
+var result_p2_correct_count: int = 0
+var result_p1_hp: int = 0
+var result_p2_hp: int = 0
+# These are the frozen products, never the mutable quiz-correct counters.
 var result_p1_score: int = 0
 var result_p2_score: int = 0
 var result_p1_position: Vector3 = Vector3.ZERO
@@ -842,12 +854,6 @@ func get_floor_front_z() -> float:
 		var max_z_needed: float = maxf(furthest_wall_z, player_ahead_z)
 		floor_front = max_z_needed + 40.0 - world_scroll_z
 		floor_front = maxf(floor_front, MIN_PLAY_FLOOR_FRONT_Z) # 最低限の長さを保証
-
-	# ローカル通常2Pではゴール面をベルトコンベアの終端として扱う。
-	# ResultMeadow は goal_z + 2m から始まるため、ベルトと草原が重ならず
-	# 「ベルト終端 → ゴール → 草原」の順序が全フェーズで一定になる。
-	if uses_local_result_ceremony():
-		floor_front = get_local_result_goal_z() - world_scroll_z
 
 	return floor_front
 
@@ -1577,6 +1583,11 @@ func update(dt: float, axis_p1: Vector2 = Vector2.ZERO, axis_p2: Vector2 = Vecto
 	p1_jump_trigger = false
 	p2_jump_trigger = false
 
+	if result_presentation_active and game_state in [Constants.STATE_RESULT_CEREMONY, Constants.STATE_CLEAR]:
+		if game_state == Constants.STATE_RESULT_CEREMONY:
+			_update_result_ceremony(dt)
+		return
+
 	# Emote logic: Loop until jump. Can move while emoting.
 	if jump_p1:
 		p1_emote = 0
@@ -2280,6 +2291,10 @@ func _reset_result_ceremony_state() -> void:
 	goal_reached_mask = 0
 	result_winner = 0
 	result_ghost_mask = 0
+	result_p1_correct_count = 0
+	result_p2_correct_count = 0
+	result_p1_hp = 0
+	result_p2_hp = 0
 	result_p1_score = 0
 	result_p2_score = 0
 	result_p1_position = Vector3.ZERO
@@ -2341,19 +2356,17 @@ func get_result_winner_emote(player_index: int) -> int:
 func _result_phase_duration(phase: int) -> float:
 	match phase:
 		ResultCeremonyPhase.ASSEMBLE:
-			return (
-				RESULT_ASSEMBLE_GHOST_DURATION
-				if result_ghost_mask != 0
-				else RESULT_ASSEMBLE_LIVING_DURATION
-			)
-		ResultCeremonyPhase.MEADOW_RUN:
-			return RESULT_MEADOW_RUN_DURATION
+			return RESULT_ASSEMBLE_DURATION
+		ResultCeremonyPhase.WALK:
+			return RESULT_WALK_DURATION
 		ResultCeremonyPhase.SCORE_ROLL:
 			return RESULT_SCORE_ROLL_DURATION
 		ResultCeremonyPhase.VERDICT:
 			return RESULT_VERDICT_DURATION
 		ResultCeremonyPhase.EFFECT:
 			return RESULT_EFFECT_DURATION
+		ResultCeremonyPhase.WINNER:
+			return RESULT_DRAW_WINNER_DURATION if result_winner == 0 else RESULT_WINNER_DURATION
 		_:
 			return 0.0
 
@@ -2489,35 +2502,37 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 	var p1_reached := (
 		p1_alive
 		and not p1_waiting_for_shark
+		and (not uses_local_result_ceremony() or not p1_fall_committed)
 		and not has_player_reached_goal(1)
 		and player_z >= goal_z
 	)
 	var p2_reached := (
 		p2_alive
 		and not p2_waiting_for_shark
+		and (not uses_local_result_ceremony() or not p2_fall_committed)
 		and not has_player_reached_goal(2)
 		and player2_z >= goal_z
 	)
 
-	if uses_local_result_ceremony():
+	if uses_local_result_ceremony() and p1_alive and p2_alive:
 		if p1_reached:
-			goal_reached_mask |= 1
+			_record_result_finisher(1)
 		if p2_reached:
-			goal_reached_mask |= 2
-		_hold_goal_finisher(1)
-		_hold_goal_finisher(2)
+			_record_result_finisher(2)
+		_hold_goal_finisher(1, 0.0 if p1_reached else dt)
+		_hold_goal_finisher(2, 0.0 if p2_reached else dt)
 		if p1_reached or p2_reached:
 			message_text = _goal_wait_message()
 			refresh_status_text()
-		var ceremony_ready: bool = (
-			(p1_alive and p2_alive and goal_reached_mask == 3)
-			or (p1_alive and not p2_alive and has_player_reached_goal(1))
-			or (p2_alive and not p1_alive and has_player_reached_goal(2))
-		)
+		var ceremony_ready := goal_reached_mask == 3 and player_y <= 0.0 and player2_y <= 0.0
 		if ceremony_ready:
 			_begin_result_ceremony()
 			return
-	elif p1_reached or p2_reached:
+	elif p1_reached or p2_reached or (p1_alive and has_player_reached_goal(1)) or (p2_alive and has_player_reached_goal(2)):
+		# If the other player falls while a finisher waits, retain the legacy
+		# sole-survivor result, without reviving anyone for the ceremony.
+		p1_reached = p1_reached or (p1_alive and has_player_reached_goal(1))
+		p2_reached = p2_reached or (p2_alive and has_player_reached_goal(2))
 		if p1_reached and p2_reached:
 			# 同時ゴール — スコアで勝敗を決定
 			if score > player2_score:
@@ -2557,13 +2572,30 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 		return
 
 
-func _hold_goal_finisher(player_index: int) -> void:
+func _record_result_finisher(player_index: int) -> void:
+	if has_player_reached_goal(player_index):
+		return
+	goal_reached_mask |= 1 if player_index == 1 else 2
+	if player_index == 1:
+		result_p1_correct_count = score
+		result_p1_hp = get_player_hp(1)
+		result_p1_score = result_p1_correct_count * result_p1_hp
+	else:
+		result_p2_correct_count = player2_score
+		result_p2_hp = get_player_hp(2)
+		result_p2_score = result_p2_correct_count * result_p2_hp
+
+
+func _hold_goal_finisher(player_index: int, dt: float) -> void:
 	if not has_player_reached_goal(player_index):
 		return
 	if player_index == 1:
-		player_z = goal_z + RESULT_GOAL_WAIT_OFFSET
-		player_y = 0.0
-		player_vel_y = 0.0
+		player_z = move_toward(player_z, goal_z + RESULT_GOAL_WAIT_OFFSET, 2.0 * dt)
+		if player_y > 0.0:
+			player_vel_y -= _jump_gravity(p1_hat, player_y, player_vel_y) * dt
+			player_y = maxf(0.0, player_y + player_vel_y * dt)
+		if player_y <= 0.0:
+			player_vel_y = 0.0
 		player_vel_z = 0.0
 		p1_fall_committed = false
 		p1_waiting_for_shark = false
@@ -2571,9 +2603,12 @@ func _hold_goal_finisher(player_index: int) -> void:
 		p1_moving_back = false
 		p1_emote = 0
 	else:
-		player2_z = goal_z + RESULT_GOAL_WAIT_OFFSET
-		player2_y = 0.0
-		player2_vel_y = 0.0
+		player2_z = move_toward(player2_z, goal_z + RESULT_GOAL_WAIT_OFFSET, 2.0 * dt)
+		if player2_y > 0.0:
+			player2_vel_y -= _jump_gravity(p2_hat, player2_y, player2_vel_y) * dt
+			player2_y = maxf(0.0, player2_y + player2_vel_y * dt)
+		if player2_y <= 0.0:
+			player2_vel_y = 0.0
 		player2_vel_z = 0.0
 		p2_fall_committed = false
 		p2_waiting_for_shark = false
@@ -2584,19 +2619,19 @@ func _hold_goal_finisher(player_index: int) -> void:
 
 func _goal_wait_message() -> String:
 	if goal_reached_mask == 3:
-		return "二人ともゴール！ 草原へ進みます…"
+		return "Both finished!" if use_english_ui else "二人ともゴール！"
 	if goal_reached_mask == 1:
-		return "P1 ゴール！ P2を待っています…"
+		return "P1 finished! Waiting for P2..." if use_english_ui else "P1 ゴール！ P2を待っています…"
 	if goal_reached_mask == 2:
-		return "P2 ゴール！ P1を待っています…"
+		return "P2 finished! Waiting for P1..." if use_english_ui else "P2 ゴール！ P1を待っています…"
 	return "GOAL へ走れ！"
 
 
 func _begin_result_ceremony() -> void:
+	if result_presentation_active or not uses_local_result_ceremony() or not (p1_alive and p2_alive) or goal_reached_mask != 3:
+		return
 	result_presentation_active = true
-	result_ghost_mask = (0 if p1_alive else 1) | (0 if p2_alive else 2)
-	result_p1_score = score
-	result_p2_score = player2_score
+	result_ghost_mask = 0
 	if result_p1_score > result_p2_score:
 		result_winner = 1
 	elif result_p2_score > result_p1_score:
@@ -2605,8 +2640,7 @@ func _begin_result_ceremony() -> void:
 		result_winner = 0
 	goal_winner = result_winner
 
-	# Ocean attack ownership ends here. The visual controller retains the ghost
-	# rider and shark only long enough to perform the result dismount/departure.
+	# The ceremony is presentation only. Both living players retain their HP.
 	p1_waiting_for_shark = false
 	p2_waiting_for_shark = false
 	p1_external_velocity = Vector2.ZERO
@@ -2616,16 +2650,8 @@ func _begin_result_ceremony() -> void:
 	p1_emote = 0
 	p2_emote = 0
 
-	_result_p1_start_position = (
-		Vector3(player_x, 0.0, player_z)
-		if p1_alive
-		else Vector3(RESULT_PLAYER_X, 0.18, goal_z + RESULT_GOAL_WAIT_OFFSET)
-	)
-	_result_p2_start_position = (
-		Vector3(player2_x, 0.0, player2_z)
-		if p2_alive
-		else Vector3(-RESULT_PLAYER_X, 0.18, goal_z + RESULT_GOAL_WAIT_OFFSET)
-	)
+	_result_p1_start_position = Vector3(player_x, 0.0, player_z)
+	_result_p2_start_position = Vector3(player2_x, 0.0, player2_z)
 	result_p1_position = _result_p1_start_position
 	result_p2_position = _result_p2_start_position
 	result_ceremony_elapsed = 0.0
@@ -2633,10 +2659,14 @@ func _begin_result_ceremony() -> void:
 		provider.end_round()
 		_result_round_closed = true
 	game_state = Constants.STATE_RESULT_CEREMONY
-	message_text = "二人で草原へ…"
+	message_text = "Score announcement!" if use_english_ui else "これから得点発表！"
 	_set_result_ceremony_phase(ResultCeremonyPhase.ASSEMBLE)
 	refresh_status_text()
 	state_changed.emit(game_state)
+
+
+func get_result_ceremony_total_duration() -> float:
+	return RESULT_DRAW_TOTAL_DURATION if result_winner == 0 else RESULT_TOTAL_DURATION
 
 
 func _set_result_ceremony_phase(phase: int) -> void:
@@ -2648,20 +2678,35 @@ func _set_result_ceremony_phase(phase: int) -> void:
 func _update_result_ceremony(dt: float) -> void:
 	if not result_presentation_active:
 		return
-	result_ceremony_elapsed += dt
-	result_ceremony_phase_elapsed += dt
+	# Carry time across boundaries; do not lose one frame per phase. Signals
+	# deliver each crossed boundary, including after a long render frame.
+	var remaining := maxf(0.0, dt)
+	while remaining > 0.0000001 and result_ceremony_phase < ResultCeremonyPhase.INTERACTIVE:
+		var duration := _result_phase_duration(result_ceremony_phase)
+		var step := minf(remaining, maxf(0.0, duration - result_ceremony_phase_elapsed))
+		result_ceremony_elapsed += step
+		result_ceremony_phase_elapsed += step
+		remaining -= step
+		_update_result_positions()
+		if result_ceremony_phase_elapsed >= duration - 0.0000001:
+			_set_result_ceremony_phase(result_ceremony_phase + 1)
+			if result_ceremony_phase == ResultCeremonyPhase.INTERACTIVE:
+				clear_game()
+
+
+func _update_result_positions() -> void:
 	var progress := get_result_phase_progress()
 	var eased := smoothstep(0.0, 1.0, progress)
-	var p1_entry := Vector3(RESULT_PLAYER_X, 0.0, goal_z + RESULT_MEADOW_ENTRY_OFFSET)
-	var p2_entry := Vector3(-RESULT_PLAYER_X, 0.0, goal_z + RESULT_MEADOW_ENTRY_OFFSET)
-	var p1_finish := Vector3(RESULT_PLAYER_X, 0.0, goal_z + RESULT_MEADOW_FINISH_OFFSET)
-	var p2_finish := Vector3(-RESULT_PLAYER_X, 0.0, goal_z + RESULT_MEADOW_FINISH_OFFSET)
+	var p1_entry := Vector3(RESULT_PLAYER_X, 0.0, goal_z + RESULT_WALK_ENTRY_OFFSET)
+	var p2_entry := Vector3(-RESULT_PLAYER_X, 0.0, goal_z + RESULT_WALK_ENTRY_OFFSET)
+	var p1_finish := Vector3(RESULT_PLAYER_X, 0.0, goal_z + RESULT_WALK_FINISH_OFFSET)
+	var p2_finish := Vector3(-RESULT_PLAYER_X, 0.0, goal_z + RESULT_WALK_FINISH_OFFSET)
 
 	match result_ceremony_phase:
 		ResultCeremonyPhase.ASSEMBLE:
 			result_p1_position = _result_p1_start_position.lerp(p1_entry, eased)
 			result_p2_position = _result_p2_start_position.lerp(p2_entry, eased)
-		ResultCeremonyPhase.MEADOW_RUN:
+		ResultCeremonyPhase.WALK:
 			result_p1_position = p1_entry.lerp(p1_finish, eased)
 			result_p2_position = p2_entry.lerp(p2_finish, eased)
 		_:
@@ -2669,25 +2714,8 @@ func _update_result_ceremony(dt: float) -> void:
 			result_p2_position = p2_finish
 	_apply_result_positions()
 
-	var duration := _result_phase_duration(result_ceremony_phase)
-	if duration <= 0.0 or result_ceremony_phase_elapsed < duration:
-		return
-	match result_ceremony_phase:
-		ResultCeremonyPhase.ASSEMBLE:
-			_set_result_ceremony_phase(ResultCeremonyPhase.MEADOW_RUN)
-		ResultCeremonyPhase.MEADOW_RUN:
-			_set_result_ceremony_phase(ResultCeremonyPhase.SCORE_ROLL)
-		ResultCeremonyPhase.SCORE_ROLL:
-			_set_result_ceremony_phase(ResultCeremonyPhase.VERDICT)
-		ResultCeremonyPhase.VERDICT:
-			_set_result_ceremony_phase(ResultCeremonyPhase.EFFECT)
-		ResultCeremonyPhase.EFFECT:
-			_set_result_ceremony_phase(ResultCeremonyPhase.INTERACTIVE)
-			clear_game()
-
-
 func _apply_result_positions() -> void:
-	var running := result_ceremony_phase == ResultCeremonyPhase.MEADOW_RUN
+	var running := result_ceremony_phase in [ResultCeremonyPhase.ASSEMBLE, ResultCeremonyPhase.WALK]
 	if p1_alive:
 		player_x = result_p1_position.x
 		player_y = result_p1_position.y
@@ -2704,8 +2732,8 @@ func _apply_result_positions() -> void:
 		p2_moving_back = false
 	# The animation controller treats RESULT_CEREMONY as an active locomotion
 	# state only during this phase; this flag is also useful to runtime probes.
-	p1_run_anim_speed_mult = 1.0 if running else 0.0
-	p2_run_anim_speed_mult = 1.0 if running else 0.0
+	p1_run_anim_speed_mult = 0.45 if running else 0.0
+	p2_run_anim_speed_mult = 0.45 if running else 0.0
 
 
 # ---------- Collision ----------
@@ -3591,7 +3619,10 @@ func clear_game() -> void:
 		state_changed.emit(game_state)
 		QuizManager.quiz_optimizer.evaluate_history(quiz_history, subject, grade, difficulty)
 		return
-	if num_players >= 2:
+	if result_presentation_active:
+		var verdict := ("DRAW!" if use_english_ui else "引き分け！") if result_winner == 0 else (("P%d WINS!" if use_english_ui else "P%d の勝ち！") % result_winner)
+		message_text = "%s\nP1: %d × %d = %d\nP2: %d × %d = %d" % [verdict, result_p1_correct_count, result_p1_hp, result_p1_score, result_p2_correct_count, result_p2_hp, result_p2_score]
+	elif num_players >= 2:
 		var winner_text: String
 		if goal_winner == 1:
 			winner_text = "🏆 P1 WIN!" if use_english_ui else "🏆 P1 の勝ち！"

@@ -70,6 +70,17 @@ func ignite() -> void:
 		particles.emitting = true
 	set_process(true)
 
+## Render the jet once during the loading prewarm so ignition never compiles
+## the fire materials mid-flight.
+func set_prewarm(active: bool) -> void:
+	if ignited:
+		return
+	visible = active
+	for particles: GPUParticles3D in _particles:
+		particles.emitting = active
+		if active:
+			particles.restart()
+
 func _process(delta: float) -> void:
 	_elapsed += delta
 	var pulse := 1.0 + sin(_elapsed * 49.0) * 0.12

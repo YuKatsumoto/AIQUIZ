@@ -228,6 +228,10 @@ func advance_departure(dt: float) -> void:
 
 func _apply_pose() -> void:
 	if _base_sample.is_empty(): _base_sample = operator.last_sample.duplicate(true)
+	# Operating sway hands over to the fitted belt/flight poses and returns on release.
+	if phase == Phase.BUCKLING: operator.body_weight = 1.0 - smoothstep(0.0, .30, elapsed)
+	elif phase == Phase.UNBUCKLING: operator.body_weight = smoothstep(.65, 1.0, elapsed)
+	else: operator.body_weight = 0.0
 	applying_base = true
 	operator.apply_sample(_base_sample)
 	applying_base = false

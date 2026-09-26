@@ -19,6 +19,7 @@ var operator_seat: SawOperatorPresentation
 var _operator_distance := 0.0
 var _operator_elapsed := 0.0
 var _operator_lifts: Array[float] = []
+var _operator_idle := 0.0 # Waiting clock for the pre-start look-around; frozen once the start begins.
 var _menu_chase: MenuSawChaseState
 
 func configure_entrance(preview: bool, animate: bool) -> void:
@@ -143,6 +144,7 @@ func _update_operator(gs: QuizGameState, dt: float, menu: bool=false, drive_over
 		if gs.saw.elapsed < _operator_elapsed:
 			operator_seat.reset_pose()
 			_operator_lifts.clear()
+			_operator_idle = 0.0
 			_operator_distance = gs.saw.wheel_distance
 		var time_step: float = gs.saw.elapsed - _operator_elapsed
 		if time_step > .000001:
@@ -183,7 +185,8 @@ func _update_operator(gs: QuizGameState, dt: float, menu: bool=false, drive_over
 		rate=move_toward(float(operator_seat.last_sample.lift_motion)*6.0,clampf(rate,-6.0,6.0),50.0*dt)
 	_operator_lifts=heights
 	if is_finite(drive_override):drive=drive_override
-	operator_seat.apply_sample(SawOperatorPresentation.sample(entry,spin,drive,lift,deployed,rate))
+	if spin<=0.0 and dt>0.0:_operator_idle+=dt
+	operator_seat.apply_sample(SawOperatorPresentation.sample(entry,spin,drive,lift,deployed,rate,_operator_idle))
 
 func _apply_spin(seconds: float, wheel_distance: float) -> void:
 	if animation != null and not spin_clip.is_empty():

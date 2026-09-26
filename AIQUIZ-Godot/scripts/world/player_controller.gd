@@ -3479,6 +3479,8 @@ func update_from_state(gs: QuizGameState) -> void:
 		_set_parts_visible(p1_parts, not p1_visual_hidden)
 		if p1_visual_hidden:
 			pass
+		elif _apply_result_locomotion(gs, 1, p1_parts, _p1_rig):
+			pass
 		elif gs.p1_waiting_for_shark:
 			var p1_float_pose_applied: bool = false
 			if _p1_rig.is_rigged and _p1_rig.play_slot(AnimationRig.SLOT_TREADING_WATER):
@@ -3494,13 +3496,13 @@ func update_from_state(gs: QuizGameState) -> void:
 		elif not _p1_rig.is_rigged:
 			var p1_is_playing := gs.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE] or (
 				gs.game_state == Constants.STATE_RESULT_CEREMONY
-				and gs.result_ceremony_phase == QuizGameState.ResultCeremonyPhase.MEADOW_RUN
+				and gs.result_ceremony_phase == QuizGameState.ResultCeremonyPhase.WALK
 			)
 			_animate_skeleton(p1_parts, gs.player_y, gs.player_vel_y, p1_is_playing, walk_phase, false, gs.p1_emote)
 		else:
 			var is_active := gs.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE] or (
 				gs.game_state == Constants.STATE_RESULT_CEREMONY
-				and gs.result_ceremony_phase == QuizGameState.ResultCeremonyPhase.MEADOW_RUN
+				and gs.result_ceremony_phase == QuizGameState.ResultCeremonyPhase.WALK
 			)
 			var p1_emote_lock := _is_emote_locked(gs, false)
 			var apply_rig := _p1_rig.select_animation(
@@ -3618,7 +3620,9 @@ func update_from_state(gs: QuizGameState) -> void:
 					_p2_ragdoll = {}
 					_p2_driver = null
 			_set_parts_visible(p2_parts, true)
-			if gs.p2_waiting_for_shark:
+			if _apply_result_locomotion(gs, 2, p2_parts, _p2_rig):
+				pass
+			elif gs.p2_waiting_for_shark:
 				var p2_float_pose_applied: bool = false
 				if _p2_rig.is_rigged and _p2_rig.play_slot(AnimationRig.SLOT_TREADING_WATER):
 					p2_float_pose_applied = true
@@ -3633,13 +3637,13 @@ func update_from_state(gs: QuizGameState) -> void:
 			elif not _p2_rig.is_rigged:
 				var p2_is_playing := gs.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE] or (
 					gs.game_state == Constants.STATE_RESULT_CEREMONY
-					and gs.result_ceremony_phase == QuizGameState.ResultCeremonyPhase.MEADOW_RUN
+					and gs.result_ceremony_phase == QuizGameState.ResultCeremonyPhase.WALK
 				)
 				_animate_skeleton(p2_parts, gs.player2_y, gs.player2_vel_y, p2_is_playing, walk_phase * 1.1, true, gs.p2_emote)
 			else:
 				var is_active := gs.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE] or (
 					gs.game_state == Constants.STATE_RESULT_CEREMONY
-					and gs.result_ceremony_phase == QuizGameState.ResultCeremonyPhase.MEADOW_RUN
+					and gs.result_ceremony_phase == QuizGameState.ResultCeremonyPhase.WALK
 				)
 				var p2_emote_lock := _is_emote_locked(gs, true)
 				var apply_rig := _p2_rig.select_animation(
@@ -3739,6 +3743,24 @@ func update_from_state(gs: QuizGameState) -> void:
 	# Individual meshes still control death/explosion visibility above.
 	if gs.num_players == 1:
 		visible = true
+
+
+func _apply_result_locomotion(gs: QuizGameState, player_index: int, parts: Dictionary, rig: AnimationRig) -> bool:
+	var walking := gs.result_presentation_active and gs.result_ceremony_phase in [
+		QuizGameState.ResultCeremonyPhase.ASSEMBLE, QuizGameState.ResultCeremonyPhase.WALK]
+	var waiting := gs.game_state == Constants.STATE_GOAL_RACE and gs.has_player_reached_goal(player_index)
+	var height := gs.player_y if player_index == 1 else gs.player2_y
+	if not walking and not (waiting and height <= 0.0):
+		return false
+	var clip := "Walk_Loop" if walking else AnimationRig.UAL_IDLE
+	if not rig.is_rigged or not rig.play_ual_clip(clip):
+		_animate_skeleton(parts, 0.0, 0.0, walking, _run_phase * 0.45, player_index == 2, 0)
+		return true
+	var ap := rig.aps[AnimationRig.SLOT_UAL] as AnimationPlayer
+	if ap != null:
+		ap.speed_scale = 1.0
+	_apply_skeleton_pose(parts, rig.active_skeleton, rig.active_bone_indices, rig.mirror_x)
+	return true
 
 
 func _apply_result_camera_facing(gs: QuizGameState) -> void:

@@ -99,7 +99,12 @@ func run() -> void:
 			next_capture = 0.0
 			last_sequence = sequence
 		if is_instance_valid(director) and director._phase == "complete" and sequence == "dropoff":
-			check(arrival_completed, "unlocked only after landing, before offscreen cleanup")
+			# The jet exit can clear the frame in the same tick the landing hold unlocks.
+			if not arrival_completed and not director.is_start_locked():
+				arrival_completed = true
+				for n in range(1, players + 1):
+					arrival_completed = arrival_completed and bool((metrics.get("dropoff_%d" % n, {}) as Dictionary).get("landed", false))
+			check(arrival_completed,"unlocked only after landing, before offscreen cleanup")
 			break
 		if is_instance_valid(director) and director._phase in ["arrival", "departure_pickup"]:
 			sample_director(director, sequence)

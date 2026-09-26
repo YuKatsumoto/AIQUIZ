@@ -2,6 +2,7 @@ extends Node
 
 var failures: Array[String] = []
 var checks := 0
+var operating := {}
 func check(ok: bool, label: String) -> void:
 	checks += 1
 	if not ok and not failures.has(label):failures.append(label)
@@ -42,6 +43,7 @@ func run() -> void:
 			for error in op.contact_errors.values():check(float(error)<.01,"signed travel/lift control contact")
 	op.apply_sample(SawOperatorPresentation.sample(7,5,0,2,true,0))
 	check(absf(op.controls.OP_Lever_R.rotation.x)<.001,"height hold returns lift lever to neutral")
+	operating_pass(op)
 	# Compare actual mesh vertices against the full vertical blade sweep.
 	op.rotation=Vector3(0,SawOperatorPresentation.FACING_YAW,0)
 	op.position=SawOperatorPresentation.MOUNT
@@ -144,7 +146,59 @@ func run() -> void:
 			gs.is_replay=false;gs.num_players=count;gs.mode=mode
 			saw.update_visual(gs)
 			check(saw.visible==(count==2 and mode in [Constants.MODE_TEN,Constants.MODE_ENDLESS]),"mode visibility %s/%d"%[mode,count])
-	var report:Dictionary={"passed":failures.is_empty(),"checks":checks,"failures":failures,"max_contact_error":max_error,"worst_contact":worst,"max_hand_step_30fps":max_step,"blade_clearance":clearance,"fps_samples":fps_samples}
+	var report:Dictionary={"passed":failures.is_empty(),"checks":checks,"failures":failures,"max_contact_error":max_error,"worst_contact":worst,"max_hand_step_30fps":max_step,"blade_clearance":clearance,"fps_samples":fps_samples,"operating_pass":operating}
 	FileAccess.open("res://artifacts/saw_operator/acceptance.json",FileAccess.WRITE).store_string(JSON.stringify(report,"\t"))
 	print("OPERATOR_ACCEPTANCE ",JSON.stringify(report))
 	get_tree().quit(0 if failures.is_empty() else 1)
+
+## The operator keeps working while the saw runs: corrections, checks and body motion.
+func operating_pass(op: SawOperatorPresentation) -> void:
+	var head_key: int = op.bones["DEF-head"]
+	var hips_key: int = op.bones["DEF-hips"]
+	var lever := Vector2(INF,-INF)
+	var head_yaw := Vector2(INF,-INF)
+	var hips_moved := 0.0
+	var max_turn := 0.0
+	var max_error := 0.0
+	var max_step := 0.0
+	var tap_seen := false
+	var previous_head := Basis()
+	var previous_hand := Vector3.ZERO
+	# Waiting look-around, then a start that continues from the frozen idle clock.
+	var frames: Array[Dictionary] = []
+	for i in range(30*9): frames.append(SawOperatorPresentation.sample(7,0,0,1,true,0,i/30.0))
+	for i in range(30*23): frames.append(SawOperatorPresentation.sample(7,i/30.0,smoothstep(3.3,4.0,i/30.0),1,true,0,9.0 if i<9 else 0.0))
+	for i in frames.size():
+		var value: Dictionary = frames[i]
+		op.apply_sample(value)
+		for error in op.contact_errors.values(): max_error = maxf(max_error,float(error))
+		var head := op.skeleton.get_bone_global_pose(head_key).basis.orthonormalized()
+		var hand := op.skeleton.get_bone_global_pose(op.bones["DEF-hand.R"]).origin
+		if i > 0:
+			var turn := (previous_head.inverse()*head).get_rotation_quaternion().get_angle()
+			if turn > max_turn:
+				max_turn = turn
+				operating.worst_head_frame = {"spin":value.spin,"idle":value.idle}
+			max_step = maxf(max_step,previous_hand.distance_to(hand))
+		previous_head = head
+		previous_hand = hand
+		var yaw := atan2(head.z.x,head.z.z)
+		head_yaw = Vector2(minf(head_yaw.x,yaw),maxf(head_yaw.y,yaw))
+		hips_moved = maxf(hips_moved,(op.skeleton.get_bone_global_pose(hips_key).basis.orthonormalized()*op.skeleton.get_bone_global_rest(hips_key).basis.orthonormalized().inverse()).get_rotation_quaternion().get_angle())
+		if float(value.spin) > 4.0:
+			var angle: float = op.controls.OP_Lever_L.rotation.x
+			lever = Vector2(minf(lever.x,angle),maxf(lever.y,angle))
+		if float(value.get("tap",0.0)) > .99:
+			tap_seen = true
+			check(absf(op.controls.OP_Lever_R.rotation.x)<.001,"dial check leaves held lift lever neutral")
+			check(float(op.contact_errors.hand_R)<.01,"running dial check reaches the dial")
+	operating.merge({"lever_range":lever.y-lever.x,"head_yaw_range":head_yaw.y-head_yaw.x,"body_turn_max":hips_moved,"max_head_turn_per_frame":max_turn,"max_contact_error":max_error,"max_hand_step":max_step},true)
+	check(lever.y-lever.x > .03,"travel lever keeps correcting at steady speed")
+	check(head_yaw.y-head_yaw.x > .3,"head checks gauges and track")
+	check(hips_moved > .03,"whole plush body leans with the controls")
+	check(tap_seen,"right hand trims the dial while running")
+	check(max_error < .01,"operating pass keeps control contacts below 1cm")
+	check(max_turn < .06,"head motion continuous at 30fps")
+	check(max_step < .075,"hand motion continuous through waiting, start and checks")
+	# Idle clock only drives the waiting pose: replays and held frames stay unaffected.
+	check(SawOperatorPresentation.sample(7,5,1,1,true,0,3.0)==SawOperatorPresentation.sample(7,5,1,1,true,0,0.0),"idle clock ignored once running")

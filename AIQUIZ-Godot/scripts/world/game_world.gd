@@ -57,6 +57,9 @@ var _pw_configured_count: int = 0       # 問題文まで設定済みの壁数
 var _pw_drop_started: Array[bool] = []  # 各壁の落下開始フラグ
 var _pw_drop_timer: float = 0.0         # 壁間のディレイタイマー
 var _goal_line_node: Node3D = null
+var _goal_stand: GoalStand = null
+var _goal_waiting_referee: Node3D = null
+var _goal_waiting_animation: AnimationPlayer = null
 # ── スタートバリア壁（カウントダウン終了まで問題を隠す） ──
 var _start_barrier: Node3D = null
 var _barrier_exploded: bool = false
@@ -182,6 +185,7 @@ func _ready() -> void:
 	_net_state.setup(game_state)
 	game_state.local_push_transport_enabled = not _replay_mode and not _net_state.is_online
 	game_state.saw_transport_enabled = not _replay_mode and not _net_state.is_online
+	game_state.result_ceremony_enabled = not _replay_mode and not _net_state.is_online
 	if not _replay_mode:
 		game_state.saw.enabled = game_state.uses_saw_chase()
 	_saw_controller = preload("res://scripts/world/saw_chase_controller.gd").new()
@@ -906,7 +910,7 @@ func _process(dt: float) -> void:
 		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 
 	# Update game state (host or offline only — client receives snapshots)
-	game_state.result_ceremony_enabled = false
+	game_state.result_ceremony_enabled = not _is_online and not _replay_mode
 	if not _is_client and not _replay_mode:
 		_feed_push_input(dt)
 		game_state.update(dt, axis_p1, axis_p2, jump_p1, jump_p2, emote_p1, emote_p2)
@@ -963,6 +967,9 @@ func _process(dt: float) -> void:
 		_result_ceremony_director.update_result_ceremony(dt)
 	_update_walls()
 	_update_goal_line()
+	if is_instance_valid(_goal_stand):
+		_goal_stand.update_stand(dt, game_state, _result_ceremony_director,
+			camera_controller.get_node_or_null("Camera3D") as Camera3D)
 	_update_preview_walls(dt)
 	if _tutorial_presentation_director:
 		_tutorial_presentation_director.update(dt)
@@ -1078,7 +1085,6 @@ func _update_player(_dt: float) -> void:
 		game_state.game_state in [
 			Constants.STATE_PRELOADING,
 		]
-		and not game_state.uses_local_result_ceremony()
 		and (pc == null or not pc.has_intro_revealed())
 	)
 	if game_state.game_state == Constants.STATE_MENU or hide_for_loading:
@@ -1338,6 +1344,11 @@ func _update_goal_line() -> void:
 		if _goal_line_node and is_instance_valid(_goal_line_node):
 			_goal_line_node.queue_free()
 			_goal_line_node = null
+			_goal_waiting_referee = null
+			_goal_waiting_animation = null
+		if is_instance_valid(_goal_stand):
+			_goal_stand.queue_free()
+		_goal_stand = null
 		return
 
 	# Calculate goal Z position
@@ -1406,18 +1417,35 @@ func _update_goal_line() -> void:
 		if font:
 			goal_label.font = font
 		_goal_line_node.add_child(goal_label)
+	if game_state.uses_local_result_ceremony() and not is_instance_valid(_goal_waiting_referee):
+		# The finale referee waits behind the finishing marks with his checkered flag.
+		# Same scene and placement as the ceremony stage, so the hand-over is seamless.
+		var waiting_rig := ResultFinaleReferee.create(_goal_line_node, "GoalWaitingReferee")
+		_goal_waiting_referee = waiting_rig.root
+		_goal_waiting_animation = waiting_rig.animation
+		_goal_waiting_referee.position = Vector3(0.0, -1.2, QuizGameState.RESULT_WALK_FINISH_OFFSET)
+		_goal_waiting_referee.rotation.y = PI
 
 	# Update position relative to world scroll
 	if game_state.game_state == Constants.STATE_FLYOVER:
 		_goal_line_node.position = Vector3(0, 0, g_z)
 	else:
 		_goal_line_node.position = Vector3(0, 0, g_z - game_state.world_scroll_z)
-	# The gate establishes the first two ceremony shots, then leaves the result
-	# composition so the grass, players, score, and explosion remain the only
-	# focal layers. It is restored automatically when the phase resets/retries.
+	# The finish grandstand stands in the sea just past the end of the conveyor.
+	if not is_instance_valid(_goal_stand):
+		_goal_stand = GoalStand.new()
+		add_child(_goal_stand)
+		_goal_stand.setup(GameManager.graphics_quality)
+	_goal_stand.position = _goal_line_node.position + Vector3(0.0, StageConstants.FLOOR_TOP_Y, GoalStand.GOAL_OFFSET)
+	if is_instance_valid(_goal_waiting_referee):
+		_goal_waiting_referee.visible = game_state.uses_local_result_ceremony() and not game_state.result_presentation_active
+		if _goal_waiting_referee.visible:
+			ResultFinaleReferee.pose_idle(_goal_waiting_animation, float(Time.get_ticks_msec()) / 1000.0)
+	# The gate would pass in front of the finale camera while the players walk to
+	# the tower pads. Only the gate hides; the conveyor and stadium stay put.
 	_goal_line_node.visible = not (
 		game_state.result_presentation_active
-		and game_state.result_ceremony_phase >= QuizGameState.ResultCeremonyPhase.SCORE_ROLL
+		and game_state.result_ceremony_elapsed >= QuizGameState.RESULT_ASSEMBLE_DURATION
 	)
 
 func _create_goal_box(box_size: Vector3, color: Color) -> MeshInstance3D:

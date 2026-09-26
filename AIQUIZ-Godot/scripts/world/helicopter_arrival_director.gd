@@ -104,9 +104,13 @@ const MENU_BOOST_DIRECTION := Vector3(0.0, 0.10, -1.0)
 const GP_APPROACH_DURATION := 2.65
 const PASS_SPEED := 1.5
 const GP_LOWER_DURATION := 1.75
-const GP_EXIT_ACCEL_TIME := 2.8
 const GP_EXIT_SPEED := 20.0
-const GP_EXIT_MIN_TIME := 3.0
+## Drop-off departures: brake, spool up, then leave on the tail jet.
+const DROP_BOOST_CHARGE_DURATION := 1.80
+const DROP_BOOST_ACCEL_TIME := 0.60
+const DROP_BOOST_SPEED := 64.0
+const MENU_DROP_BOOST_DELAY := 0.95
+const GP_EXIT_MIN_TIME := DROP_BOOST_CHARGE_DURATION + 0.6
 const GP_SWING_DURATION := 0.72
 const GP_SWING_CYCLES := 0.125
 const GP_SWING_AMPLITUDE_DEG := 24.0
@@ -293,6 +297,9 @@ func begin_render_prewarm() -> Dictionary:
 		var holder := info.get("holder") as Node3D
 		if holder != null:
 			holder.visible = true
+		var exhaust := info.get("boost_exhaust") as HelicopterBoostExhaust
+		if exhaust != null:
+			exhaust.set_prewarm(true)
 	if _player_controller != null:
 		if _menu_preview_mode:
 			_player_controller.prewarm_intro_drop_ragdolls(_helicopters.size())
@@ -304,6 +311,10 @@ func begin_render_prewarm() -> Dictionary:
 
 func end_render_prewarm() -> void:
 	_prewarm_visible = false
+	for info: Dictionary in _helicopters:
+		var exhaust := info.get("boost_exhaust") as HelicopterBoostExhaust
+		if exhaust != null and is_instance_valid(exhaust):
+			exhaust.set_prewarm(false)
 	if _phase == "waiting_camera":
 		for info: Dictionary in _helicopters:
 			var holder := info.get("holder") as Node3D
@@ -1206,13 +1217,36 @@ func _update_authored_menu_arrival() -> bool:
 			return true
 		var holder := info.get("holder") as Node3D
 		var flight_position: Vector3 = state.get("position", Vector3.ZERO)
-		_set_flight_transform(
-			holder,
-			flight_position,
-			state.get("direction", Vector3.FORWARD),
-			float(state.get("bank", 0.0)),
-			float(state.get("pitch", 0.0))
-		)
+		if (
+			bool(info.get("dropped", false))
+			and not info.has("drop_boost_elapsed")
+			and _phase_elapsed - float(info.get("drop_timeline", _phase_elapsed)) >= MENU_DROP_BOOST_DELAY
+		):
+			var boost_heading := _menu_level_flight_direction(state.get("direction", Vector3.FORWARD))
+			boost_heading.y = 0.0
+			if _menu_camera != null:
+				# Never fire the jet toward the lens; peel off sideways and away.
+				var away := -_menu_camera.global_basis.z
+				away.y = 0.0
+				away = away.normalized()
+				var toward_lens := minf(boost_heading.dot(away), 0.0)
+				boost_heading = boost_heading - away * toward_lens + away * 0.35
+			_begin_drop_boost(
+				info,
+				info.get("world_velocity", Vector3.ZERO),
+				boost_heading.normalized() + Vector3.UP * 0.14
+			)
+		if info.has("drop_boost_elapsed"):
+			_update_drop_boost(info, get_process_delta_time())
+			flight_position = holder.global_position
+		else:
+			_set_flight_transform(
+				holder,
+				flight_position,
+				state.get("direction", Vector3.FORWARD),
+				float(state.get("bank", 0.0)),
+				float(state.get("pitch", 0.0))
+			)
 		_update_intro_cabin_wait_passenger(info)
 		_set_hatch_openness(info, float(state.get("hatch", 0.0)))
 		var ground: Vector3 = info.get("ground", Vector3.ZERO)
@@ -1220,6 +1254,7 @@ func _update_authored_menu_arrival() -> bool:
 			info,
 			flight_position.y - ground.y < 13.5
 			and not _menu_flight_profile.is_runtime_finished()
+			and float(info.get("drop_boost_elapsed", 0.0)) < DROP_BOOST_CHARGE_DURATION + 0.35
 		)
 		_update_menu_screen_evidence(info)
 		_remember_helicopter_velocity(info)
@@ -1640,11 +1675,7 @@ func _update_gameplay_helicopter(info: Dictionary, delta: float) -> bool:
 	var player_side := float(info.get("player_side", -1.0))
 	# Aircraft time never waits for the passenger or the other helicopter.
 	if phase == "depart":
-		var initial_velocity := pass_direction * PASS_SPEED
-		var exit_velocity: Vector3 = info["depart_velocity"]
-		var ramp := _flight_ramp(elapsed, GP_EXIT_ACCEL_TIME)
-		var position_now: Vector3 = info["depart_origin"] + initial_velocity * elapsed + (exit_velocity - initial_velocity) * _flight_ramp_integral(elapsed, GP_EXIT_ACCEL_TIME)
-		_set_flight_transform(holder, position_now, initial_velocity.lerp(exit_velocity, ramp), 0.0, 0.0)
+		_update_drop_boost(info, delta)
 	else:
 		var flight := _sample_gameplay_approach(info, flight_time)
 		_set_flight_transform(holder, flight["position"], flight["velocity"], 0.0, 0.0)
@@ -1684,22 +1715,85 @@ func _update_gameplay_helicopter(info: Dictionary, delta: float) -> bool:
 			if swing_t >= 1.0 and flight_time >= GP_APPROACH_DURATION:
 				if not _launch_gameplay_jump(info):
 					return false
-				info["depart_origin"] = holder.global_position
 				# Maintain the incoming horizontal heading. P2 rises into a deeper lane;
 				# the rotor discs stay separated while their screen paths cross.
-				info["depart_velocity"] = Vector3(-player_side * GP_EXIT_SPEED, 3.4 if player_index == 2 else 2.2, 5.0 if player_index == 2 else 2.5)
+				var depart_velocity := Vector3(-player_side * GP_EXIT_SPEED, 3.4 if player_index == 2 else 2.2, 5.0 if player_index == 2 else 2.5)
+				_begin_drop_boost(info, pass_direction * PASS_SPEED, depart_velocity)
 				info["released_at"] = _phase_elapsed
 				_set_gp_phase(info, "depart")
 		"depart":
 			var ladder := info.get("rope_ladder") as PhysicalRopeLadder
-			ladder.set_winch_progress(smoothstep(0.18, 1.55, elapsed))
-			_set_hatch_openness(info, 1.0 - smoothstep(1.55, 1.55 + HATCH_CLOSE_DURATION, elapsed))
+			# Reel the rope in before ignition so it never trails the jet.
+			ladder.set_winch_progress(smoothstep(0.0, DROP_BOOST_CHARGE_DURATION * 0.95, elapsed))
+			_set_hatch_openness(info, 1.0 - smoothstep(0.45, 0.45 + HATCH_CLOSE_DURATION, elapsed))
 			_set_ladder_mount_sway(info, 0.0)
 		_:
 			_fail_safe("P%d entered unknown gameplay phase %s" % [player_index, phase])
 			return false
 	_remember_helicopter_velocity(info)
 	return _update_gameplay_jump(info, delta)
+
+
+func _begin_drop_boost(info: Dictionary, drift_velocity: Vector3, boost_direction: Vector3) -> void:
+	var holder := info.get("holder") as Node3D
+	info["drop_boost_elapsed"] = 0.0
+	info["drop_boost_origin"] = holder.global_position
+	info["drop_boost_drift"] = drift_velocity
+	info["drop_boost_direction"] = boost_direction.normalized()
+	info["drop_boost_charge_rotation"] = holder.global_basis.get_rotation_quaternion()
+
+
+## Slows down while the engine spools, then fires the tail jet along one
+## straight line. The nose points down that line so the flame trails behind it.
+func _update_drop_boost(info: Dictionary, delta: float) -> void:
+	var holder := info.get("holder") as Node3D
+	if holder == null or not is_instance_valid(holder):
+		return
+	var t := float(info.get("drop_boost_elapsed", 0.0)) + delta
+	info["drop_boost_elapsed"] = t
+	var direction: Vector3 = info["drop_boost_direction"]
+	var drift: Vector3 = info["drop_boost_drift"]
+	# Drift eases down to 30% while charging, then keeps that residue under the jet.
+	var charge_t := minf(t, DROP_BOOST_CHARGE_DURATION)
+	var position_now: Vector3 = info["drop_boost_origin"]
+	position_now += drift * (charge_t - 0.35 * charge_t * charge_t / DROP_BOOST_CHARGE_DURATION)
+	position_now += drift * 0.3 * maxf(t - DROP_BOOST_CHARGE_DURATION, 0.0)
+	var boost_rotation := Basis.looking_at(direction, Vector3.UP).get_rotation_quaternion()
+	var model := info.get("model") as Node3D
+	var rest_position: Vector3 = info.get("model_rest_position", Vector3.ZERO)
+	var rotor_audio := info.get("audio") as AudioStreamPlayer3D
+	var base_pitch := 0.96 if int(info.get("player_index", 1)) == 1 else 1.04
+	var rotation_now: Quaternion
+	if t < DROP_BOOST_CHARGE_DURATION:
+		var charge := t / DROP_BOOST_CHARGE_DURATION
+		var from_rotation: Quaternion = info["drop_boost_charge_rotation"]
+		rotation_now = from_rotation.slerp(boost_rotation, smoothstep(0.0, 1.0, charge))
+		info["rotor_speed_factor"] = 1.0 + charge * 0.55
+		if model != null:
+			var shake_phase := _total_elapsed * 145.0 + int(info.get("player_index", 1)) * 1.7
+			model.position = rest_position + Vector3(sin(shake_phase), sin(shake_phase * 1.31) * 0.7, cos(shake_phase * 0.93) * 0.4) * (0.018 + 0.070 * charge)
+		if rotor_audio != null:
+			rotor_audio.pitch_scale = base_pitch * (1.0 + 0.4 * charge)
+			rotor_audio.volume_db = lerpf(-18.0, -12.0, charge)
+	else:
+		var boost_t := t - DROP_BOOST_CHARGE_DURATION
+		var accelerating := minf(boost_t, DROP_BOOST_ACCEL_TIME)
+		var distance := 0.5 * DROP_BOOST_SPEED / DROP_BOOST_ACCEL_TIME * accelerating * accelerating
+		distance += DROP_BOOST_SPEED * maxf(boost_t - DROP_BOOST_ACCEL_TIME, 0.0)
+		position_now += direction * distance
+		rotation_now = boost_rotation
+		info["rotor_speed_factor"] = 1.8
+		if model != null:
+			model.position = rest_position
+		if rotor_audio != null:
+			rotor_audio.pitch_scale = base_pitch * 1.65
+			rotor_audio.volume_db = -10.0
+		var exhaust := info.get("boost_exhaust") as HelicopterBoostExhaust
+		if exhaust != null and not exhaust.ignited:
+			exhaust.ignite()
+			if _menu_preview_mode:
+				_menu_camera_shake_remaining = MENU_CAMERA_SHAKE_DURATION
+	holder.global_transform = Transform3D(Basis(rotation_now), position_now)
 
 
 func _drop_player(info: Dictionary) -> void:
@@ -1875,13 +1969,12 @@ func _instantiate_helicopter(packed: PackedScene, player_index: int) -> Dictiona
 	audio.max_distance = 48.0
 	audio.attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE
 	holder.add_child(audio)
-	var exhaust: HelicopterBoostExhaust = null
-	if _menu_departure_mode:
-		exhaust = BoostExhaustScript.new() as HelicopterBoostExhaust
-		exhaust.name = "TailBoostExhaust"
-		model.add_child(exhaust)
-		var tail_local := model.to_local(tail_rotor.global_position)
-		exhaust.position = Vector3(0.0, tail_local.y, tail_local.z + 0.35)
+	# Every aircraft leaves on the tail jet, whether it drops off or picks up.
+	var exhaust := BoostExhaustScript.new() as HelicopterBoostExhaust
+	exhaust.name = "TailBoostExhaust"
+	model.add_child(exhaust)
+	var tail_local := model.to_local(tail_rotor.global_position)
+	exhaust.position = Vector3(0.0, tail_local.y, tail_local.z + 0.35)
 	var visual_points := _collect_helicopter_visual_points(holder, model)
 	holder.visible = false
 	return {

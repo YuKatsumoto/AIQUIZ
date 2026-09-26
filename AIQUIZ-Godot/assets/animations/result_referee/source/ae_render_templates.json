@@ -1,0 +1,31 @@
+{
+  "ok": true,
+  "renderTemplates": [
+    "DV 設定",
+    "ドラフト設定",
+    "マルチマシン設定",
+    "最良設定",
+    "現在の設定",
+    "_HIDDEN X-Factor"
+  ],
+  "outputTemplates": [
+    "AIFF 48 kHz",
+    "H.264 - レンダリング設定を一致 - 15 Mbps",
+    "H.264 - レンダリング設定を一致 - 40 Mbps",
+    "H.264 - レンダリング設定を一致 - 5 Mbps",
+    "Photoshop",
+    "TIFF シーケンス (アルファ付き)",
+    "アルファのみ",
+    "アルファ付き高品質",
+    "高品質",
+    "マルチマシンシーケンス",
+    "ロスレス圧縮",
+    "ロスレス圧縮（アルファ付き）",
+    "_HIDDEN X-Factor 16",
+    "_HIDDEN X-Factor 16 Premul",
+    "_HIDDEN X-Factor 32",
+    "_HIDDEN X-Factor 32 Premul",
+    "_HIDDEN X-Factor 8",
+    "_HIDDEN X-Factor 8 Premul"
+  ]
+}
