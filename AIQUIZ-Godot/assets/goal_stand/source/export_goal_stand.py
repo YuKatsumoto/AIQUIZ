@@ -1,6 +1,6 @@
 """Export the Goal Stand GLBs and the clip metadata Godot reads.
 
-goal_stand.glb             GS_Stand (banner texture embedded)
+goal_stand.glb             GS_Stand + GS_Scoreboard (header / sponsor / steel textures embedded)
 goal_stand_spectator.glb   RIG_Spectator + SPEC_Body_* + GSP_* hand props, SPEC_* clips
 goal_stand_props.glb       loose GSP_EggProjectile / GSP_ShellShard
 goal_stand_clips.json      clip lengths, loop flags, throw release time
@@ -81,8 +81,7 @@ def export_spectator():
 
 
 def export_stand():
-    stand = bpy.data.objects["GS_Stand"]
-    _select([stand])
+    _select([bpy.data.objects["GS_Stand"], bpy.data.objects["GS_Scoreboard"]])
     _gltf(G.OUT + "/goal_stand.glb", export_animations=False, export_skins=False, export_image_format="JPEG",
           export_jpeg_quality=88)
 

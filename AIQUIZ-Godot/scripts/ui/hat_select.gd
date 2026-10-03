@@ -353,25 +353,25 @@ func _update_emote_preview(is_p1: bool) -> void:
 
 # --- Hat button handlers ---
 func _on_p1_hat_left_pressed() -> void:
-	_p1_hat_id = (_p1_hat_id - 1 + HatData.HAT_COUNT) % HatData.HAT_COUNT
+	_p1_hat_id = HatData.step_hat(_p1_hat_id, -1)
 	game_state.p1_hat = _p1_hat_id
 	_update_labels()
 	_update_preview_hats()
 
 func _on_p1_hat_right_pressed() -> void:
-	_p1_hat_id = (_p1_hat_id + 1) % HatData.HAT_COUNT
+	_p1_hat_id = HatData.step_hat(_p1_hat_id, 1)
 	game_state.p1_hat = _p1_hat_id
 	_update_labels()
 	_update_preview_hats()
 
 func _on_p2_hat_left_pressed() -> void:
-	_p2_hat_id = (_p2_hat_id - 1 + HatData.HAT_COUNT) % HatData.HAT_COUNT
+	_p2_hat_id = HatData.step_hat(_p2_hat_id, -1)
 	game_state.p2_hat = _p2_hat_id
 	_update_labels()
 	_update_preview_hats()
 
 func _on_p2_hat_right_pressed() -> void:
-	_p2_hat_id = (_p2_hat_id + 1) % HatData.HAT_COUNT
+	_p2_hat_id = HatData.step_hat(_p2_hat_id, 1)
 	game_state.p2_hat = _p2_hat_id
 	_update_labels()
 	_update_preview_hats()

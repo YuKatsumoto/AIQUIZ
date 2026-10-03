@@ -5,7 +5,6 @@ class_name ConveyorRails
 ## Shared, non-colliding running rails for every conveyor presentation.
 const CENTER_X := 11.86
 const TOP_HEIGHT := 0.26
-const LIGHT_X := 12.48
 var left_head: MeshInstance3D
 var right_head: MeshInstance3D
 var _long_parts: Array[MeshInstance3D] = []

@@ -408,6 +408,84 @@ func prepare_choice_count(item: QuizItem, expected: int) -> QuizItem:
 	return prepared
 
 
+## 2Pサドンデス（docs/sudden_death_underground.md 第4章）：オンライン生成のときだけ、6列＋予備の
+## 新しい問題をバッファを通さずに生成し、正解を検証してから on_done(Array[QuizItem]) へ渡す。
+## on_progress(届いた数, 欲しい数) は候補が届くたび。オフライン・API未設定・待機中は false を返す。
+const SUDDEN_DEATH_FOCUS := "【サドンデス用・最優先】走りながら一瞬で読める問題にする。問題文は30文字以内、選択肢は各8文字以内、予測解答時間(t)は4.5秒以下。計算は一段階まで。図や画像を前提にしない。"
+const SUDDEN_DEATH_VALIDATION_TIMEOUT := 12.0
+
+func request_sudden_death_quizzes(count: int, exclude_texts: Array[String], on_progress: Callable,
+		on_done: Callable) -> bool:
+	if llm_mode != "ONLINE" or not _online_api_available() or not is_instance_valid(online_fetcher):
+		return false
+	if online_fetcher.has_method("is_rate_limited") and online_fetcher.is_rate_limited():
+		return false
+	var history := _build_fetch_history()
+	for text: String in exclude_texts:
+		if text not in history:
+			history.append(text)
+	var received: Array[QuizItem] = []
+	var subject := current_subject
+	var grade := current_grade
+	online_fetcher.fetch_quiz_set(subject, grade, current_difficulty, count, history, SUDDEN_DEATH_FOCUS,
+		func(items: Array[QuizItem]) -> void:
+			for item: QuizItem in items:
+				if item != null and not _is_offline_quiz_item(item):
+					received.append(item)
+			on_progress.call(received.size(), count),
+		func() -> void:
+			_validate_sudden_death_quizzes(received, subject, grade, on_done))
+	return true
+
+
+## The sudden death decides the match: check every answer before it is used. A slow or
+## failed check passes the items through (as the main round does).
+func _validate_sudden_death_quizzes(items: Array[QuizItem], subject: String, grade: int, on_done: Callable) -> void:
+	var validator: QuizValidator = QuizManager.quiz_validator
+	if items.is_empty() or validator == null:
+		on_done.call(items)
+		return
+	var state := {"done": false}
+	var finish := func(valid: Array[QuizItem]) -> void:
+		if bool(state["done"]):
+			return
+		state["done"] = true
+		on_done.call(valid)
+	get_tree().create_timer(SUDDEN_DEATH_VALIDATION_TIMEOUT).timeout.connect(func() -> void:
+		finish.call(items))
+	# The checker sometimes "fixes" a correct answer. The sudden death decides the match,
+	# so a question whose answer it disputes is dropped, never re-keyed.
+	var claimed := {}
+	for item: QuizItem in items:
+		claimed[item] = item.a
+	validator.validate_answers_llm(items, subject, grade,
+		func(valid_items: Array[QuizItem], invalid_reasons: Array[String]) -> void:
+			for reason: String in invalid_reasons:
+				print("[BufferedProvider] Sudden death validation: %s" % reason)
+			var agreed: Array[QuizItem] = []
+			for item: QuizItem in valid_items:
+				if claimed.has(item) and int(claimed[item]) == item.a:
+					agreed.append(item)
+				elif claimed.has(item):
+					item.a = int(claimed[item])
+					print("[BufferedProvider] Sudden death: dropped a disputed answer: '%s'" % item.q.left(30))
+			finish.call(agreed))
+
+
+## 2Pサドンデス用。このラウンドで使わなかった生成済みの候補を取り出す。
+## end_round() の前に呼ぶ。オンライン中にオフライン問題が混ざっていれば除く。
+## 10問は払い出し済みなので補充の通信は起きない。解説の後追い生成にも登録しない。
+func take_round_leftovers(max_count: int) -> Array[QuizItem]:
+	var out: Array[QuizItem] = []
+	for source: Array[QuizItem] in [buffer, _overflow_buffer]:
+		while source.size() > 0 and out.size() < max_count:
+			var item: QuizItem = source.pop_front()
+			if item == null or (llm_mode == "ONLINE" and _is_offline_quiz_item(item)):
+				continue
+			out.append(item)
+	return out
+
+
 func _on_fetch_partial(quizzes: Array[QuizItem]) -> void:
 	if quizzes.size() == 0:
 		return

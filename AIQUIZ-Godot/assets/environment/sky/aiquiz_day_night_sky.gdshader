@@ -22,6 +22,8 @@ uniform vec4 cloud_twilight_color : source_color = vec4(1.0, 0.63, 0.67, 1.0);
 uniform vec4 cloud_night_color : source_color = vec4(0.36, 0.48, 0.78, 1.0);
 uniform vec4 cloud_shadow_color : source_color = vec4(0.50, 0.66, 0.86, 1.0);
 uniform vec2 cloud_tiling = vec2(1.0, 1.0);
+// Lower values flatten the cloud layer: bigger clouds overhead, smaller near the horizon.
+uniform float cloud_dome_curve : hint_range(0.1, 1.5, 0.01) = 0.45;
 uniform vec2 wind_speed = vec2(0.024, 0.012);
 uniform float cloud_density : hint_range(0.05, 1.0, 0.01) = 0.54;
 uniform float cloud_depth : hint_range(0.0, 4.0, 0.05) = 0.35;
@@ -86,8 +88,11 @@ void sky() {
 	float cloud_detail = 0.0;
 	if (EYEDIR.y > 0.005) {
 		vec2 wind = wind_speed * TIME * 0.08;
-		vec2 uv_01 = sphere_uv * vec2(3.4, 1.7) * cloud_tiling + wind;
-		vec2 uv_02 = sphere_uv * vec2(6.1, 3.05) * cloud_tiling - wind * 0.54;
+		// Project onto a curved cloud layer instead of lat/long UVs, which pinch every
+		// texture column into the zenith and leave a seam where the azimuth wraps.
+		vec2 cloud_plane = EYEDIR.xz / (EYEDIR.y + cloud_dome_curve);
+		vec2 uv_01 = cloud_plane * 0.70 * cloud_tiling + wind;
+		vec2 uv_02 = cloud_plane * 1.25 * cloud_tiling - wind * 0.54;
 		float height_01 = remap_cloud(texture(cloud_tex_01, uv_01).r);
 		float height_02 = remap_cloud(texture(cloud_tex_02, uv_02).r);
 		vec2 depth_offset = vec2(0.025, 0.012) * height_01 * cloud_depth;

@@ -1,0 +1,499 @@
+{
+  "git_head": "c3f3943699347997edf35d633e9df305d2516d94",
+  "sources": {
+    "scripts/world/stage_constants.gd": {
+      "sha256": "b2d3a04f20e3095a0e044ca9a6f541d546327d66fa06dd499ffaa815ef863e2e",
+      "uncommitted_change": false
+    },
+    "scripts/world/conveyor_rails.gd": {
+      "sha256": "91bdb83a884841a869e5761a509db86b428627c33b395e288e04531b731bf8d0",
+      "uncommitted_change": true
+    },
+    "scripts/world/santorini_terrace_stand.gd": {
+      "sha256": "4cc056090e1b9baf8966432281dec647d979d1e512abb122c208bcef41f1ed9c",
+      "uncommitted_change": true
+    },
+    "scripts/world/goal_stand/goal_stand.gd": {
+      "sha256": "0e93cdbc1ed3c3a910be1a439c8fb1a5bc4eb4b7a7146a577ecbb10b76d5fd42",
+      "uncommitted_change": true
+    },
+    "scripts/world/camera_controller.gd": {
+      "sha256": "054eeec1f92383802cf059f087512087f1e96f2461d1effecd32709b82247445",
+      "uncommitted_change": true
+    },
+    "scripts/world/helicopter_arrival_director.gd": {
+      "sha256": "827d69da6e9c18ba9cff105bc9571f721213ff314c18639f46b3b6546bbf90a8",
+      "uncommitted_change": false
+    },
+    "scripts/world/ghost_shark_ride_controller.gd": {
+      "sha256": "190d6a412ca28bc97dc5df7a2f3734aa4916d8935be07ab15f8a463c5f8d2aa5",
+      "uncommitted_change": true
+    },
+    "scripts/core/game_state.gd": {
+      "sha256": "b6fdea27353768279e8daa10ab5abb39cfd49dd00ff90d5f05eeb70a2869b89f",
+      "uncommitted_change": true
+    },
+    "assets/environment/santorini_grandstand/source/build_santorini_grandstand.py": {
+      "sha256": "9b66e06f0f23c50592d6dba52f24672a8e309f8b89f7b3da3df461c0fc6edf3e",
+      "uncommitted_change": false
+    },
+    "assets/environment/santorini_grandstand/source/build_terrace_modules.py": {
+      "sha256": "826f79e1f352161628942b5b8a92442bdaad8903784552fe4472c964c632be2d",
+      "uncommitted_change": true
+    },
+    "assets/goal_stand/source/build_scoreboard.py": {
+      "sha256": "1d19b6f744ed8d43f0f2b9abf055ae634bf5fb6a13917bb4dbb21eaaa51575ac",
+      "uncommitted_change": true
+    },
+    "assets/goal_stand/goal_stand_layout.json": {
+      "sha256": "c770197b870f6e696cc3e4063f2556ea20e40a89725f9488dd5d88ddac169a52",
+      "uncommitted_change": true
+    },
+    "assets/environment/santorini_grandstand/santorini_terrace_modules.json": {
+      "sha256": "b4eebf51b3f5d2d2d092637da502b8dfe8bb6a08a27dc4c2004b88b5cb50d820",
+      "uncommitted_change": true
+    }
+  },
+  "constants": {
+    "scripts/world/stage_constants.gd": {
+      "FLOOR_TOP_Y": {
+        "value": -1.2,
+        "line": 11
+      },
+      "OCEAN_DEPTH": {
+        "value": 120.0,
+        "line": 13
+      },
+      "FLOOR_WIDTH": {
+        "value": 24.0,
+        "line": 16
+      },
+      "FLOOR_HALF_WIDTH": {
+        "value": 12.0,
+        "line": 18
+      },
+      "FLOOR_RAIL_HEIGHT": {
+        "value": 0.26,
+        "line": 20
+      },
+      "FLOOR_RAIL_WIDTH": {
+        "value": 0.16,
+        "line": 21
+      },
+      "FLOOR_RAIL_INSET": {
+        "value": 0.06,
+        "line": 22
+      },
+      "CONVEYOR_ROLLER_RADIUS": {
+        "value": 0.48,
+        "line": 27
+      },
+      "CONVEYOR_ROLLER_LENGTH": {
+        "value": 23.4,
+        "line": 28
+      },
+      "CONVEYOR_SIDE_FRAME_WIDTH": {
+        "value": 0.24,
+        "line": 31
+      },
+      "CONVEYOR_SIDE_FRAME_HEIGHT": {
+        "value": 1.05,
+        "line": 32
+      },
+      "CONVEYOR_SIDE_FRAME_OVERHANG": {
+        "value": 1.2,
+        "line": 33
+      },
+      "CONVEYOR_SIDE_FRAME_TOP_CLEARANCE": {
+        "value": 0.08,
+        "line": 34
+      },
+      "OCEAN_SURFACE_Y": {
+        "value": -9.2,
+        "line": 39
+      },
+      "OCEAN_ENTRY_Y": {
+        "value": -8.0,
+        "line": 40
+      },
+      "OCEAN_SINK_Y": {
+        "value": -11.8,
+        "line": 42
+      },
+      "OCEAN_CENTER_Z": {
+        "value": 150.0,
+        "line": 44
+      },
+      "FLOOR_BACK_Z": {
+        "value": -12.5,
+        "line": 48
+      },
+      "WALL_START_Z": {
+        "value": 22.0,
+        "line": 51
+      },
+      "WALL_SPACING": {
+        "value": 30.0,
+        "line": 52
+      }
+    },
+    "scripts/world/conveyor_rails.gd": {
+      "CENTER_X": {
+        "value": 11.86,
+        "line": 6
+      },
+      "TOP_HEIGHT": {
+        "value": 0.26,
+        "line": 7
+      }
+    },
+    "scripts/world/santorini_terrace_stand.gd": {
+      "BLOCK_LENGTH": {
+        "value": 20.0,
+        "line": 17
+      },
+      "MIN_BLOCKS": {
+        "value": 2,
+        "line": 18
+      },
+      "PERGOLA_EVERY": {
+        "value": 3,
+        "line": 19
+      }
+    },
+    "scripts/world/goal_stand/goal_stand.gd": {
+      "GOAL_OFFSET": {
+        "value": 25.8,
+        "line": 26
+      },
+      "SPACING": {
+        "value": 0.92,
+        "line": 27
+      },
+      "P1_COLOR": {
+        "value": {
+          "Color": [
+            0.95,
+            0.55,
+            0.2
+          ]
+        },
+        "line": 36
+      },
+      "P2_COLOR": {
+        "value": {
+          "Color": [
+            0.2,
+            0.65,
+            0.9
+          ]
+        },
+        "line": 37
+      }
+    },
+    "scripts/world/camera_controller.gd": {
+      "PRELOAD_CAMERA_FOV": {
+        "value": 66.0,
+        "line": 70
+      },
+      "THIRD_PERSON_FOV": {
+        "value": 50.0,
+        "line": 71
+      },
+      "THIRD_PERSON_DISTANCE": {
+        "value": 5.6,
+        "line": 72
+      },
+      "THIRD_PERSON_FOCUS_HEIGHT": {
+        "value": 1.0,
+        "line": 73
+      },
+      "THIRD_PERSON_BASE_HEIGHT": {
+        "value": 2.0,
+        "line": 74
+      },
+      "TWO_PLAYER_FOV": {
+        "value": 50.0,
+        "line": 82
+      },
+      "TWO_PLAYER_EYE_Y": {
+        "value": 4.5,
+        "line": 83
+      },
+      "TWO_PLAYER_LOOK_Y": {
+        "value": 1.0,
+        "line": 84
+      },
+      "TWO_PLAYER_LOOK_AHEAD": {
+        "value": 8.0,
+        "line": 85
+      },
+      "TWO_PLAYER_CAMERA_BACK": {
+        "value": 9.0,
+        "line": 86
+      },
+      "TWO_PLAYER_REAR_MAX_BACK": {
+        "value": 13.0,
+        "line": 89
+      }
+    },
+    "scripts/world/helicopter_arrival_director.gd": {
+      "RELEASE_HEIGHT": {
+        "value": 8.0,
+        "line": 39
+      },
+      "HELICOPTER_ABOVE_RELEASE": {
+        "value": 1.25,
+        "line": 40
+      },
+      "OFFSCREEN_DISTANCE": {
+        "value": 28.0,
+        "line": 41
+      },
+      "EXIT_RISE_HEIGHT": {
+        "value": 16.0,
+        "line": 42
+      },
+      "OCEAN_SIDE_HOVER_HEIGHT": {
+        "value": 7.6,
+        "line": 43
+      },
+      "OCEAN_SIDE_APPROACH_RISE": {
+        "value": 7.0,
+        "line": 44
+      }
+    },
+    "scripts/world/ghost_shark_ride_controller.gd": {
+      "HOVER_OUTSIDE_STAGE_OFFSET": {
+        "value": 0.9,
+        "line": 78
+      }
+    },
+    "scripts/core/game_state.gd": {
+      "RESULT_WALK_FINISH_OFFSET": {
+        "value": 3.7,
+        "line": 276
+      },
+      "MIN_PLAY_FLOOR_FRONT_Z": {
+        "value": 139.5,
+        "line": 346
+      }
+    },
+    "assets/environment/santorini_grandstand/source/build_santorini_grandstand.py": {
+      "ROW_COUNT": {
+        "value": 4,
+        "line": 25
+      },
+      "ROW_FRONT": {
+        "value": 1.15,
+        "line": 25
+      },
+      "ROW_PITCH": {
+        "value": 1.25,
+        "line": 25
+      },
+      "ROW_RISE": {
+        "value": 0.4,
+        "line": 25
+      },
+      "ROW_BASE": {
+        "value": 0.32,
+        "line": 26
+      },
+      "SEAT_OFFSET": {
+        "value": 0.545,
+        "line": 26
+      },
+      "SEAT_PITCH": {
+        "value": 0.92,
+        "line": 27
+      },
+      "AISLE_HALF_WIDTH": {
+        "value": 1.1,
+        "line": 29
+      },
+      "AISLE_CLEARANCE": {
+        "value": 1.49,
+        "line": 29
+      },
+      "FRONT_X": {
+        "value": -0.8,
+        "line": 30
+      },
+      "BACK_X": {
+        "value": 8.4,
+        "line": 30
+      }
+    },
+    "assets/environment/santorini_grandstand/source/build_terrace_modules.py": {
+      "BLOCK_LENGTH": {
+        "value": 20.0,
+        "line": 38
+      },
+      "GROUND_DROP": {
+        "value": 7.2,
+        "line": 39
+      },
+      "SEATS_PER_ROW": {
+        "value": 19,
+        "line": 40
+      }
+    },
+    "assets/goal_stand/source/build_scoreboard.py": {
+      "BACK_TOP": {
+        "value": 3.2,
+        "line": 28
+      },
+      "DECK_FOOT": {
+        "value": -1.8,
+        "line": 29
+      },
+      "DEPTH": {
+        "value": 1.0,
+        "line": 31
+      },
+      "SCREEN_W": {
+        "value": 11.2,
+        "line": 32
+      },
+      "SCREEN_H": {
+        "value": 4.8,
+        "line": 32
+      },
+      "BEZEL": {
+        "value": 0.3,
+        "line": 33
+      },
+      "CAB_BOTTOM": {
+        "value": 3.25,
+        "line": 35
+      },
+      "SIGN_W": {
+        "value": 4.6,
+        "line": 39
+      },
+      "SIGN_H": {
+        "value": 1.85,
+        "line": 39
+      },
+      "PILASTER": {
+        "value": 0.42,
+        "line": 40
+      },
+      "LEG_X": {
+        "value": 4.1,
+        "line": 41
+      }
+    }
+  },
+  "json": {
+    "goal_stand_layout": {
+      "width": 26.0,
+      "tiers": [
+        {
+          "floor_z": 0.35,
+          "stand_y": 0.72,
+          "bench_y": 1.37,
+          "spans": [
+            [
+              -12.8,
+              -6.55
+            ],
+            [
+              -5.45,
+              5.45
+            ],
+            [
+              6.55,
+              12.8
+            ]
+          ]
+        },
+        {
+          "floor_z": 0.9,
+          "stand_y": 2.0700000000000003,
+          "bench_y": 2.7199999999999998,
+          "spans": [
+            [
+              -12.8,
+              -6.55
+            ],
+            [
+              -5.45,
+              5.45
+            ],
+            [
+              6.55,
+              12.8
+            ]
+          ]
+        },
+        {
+          "floor_z": 1.4500000000000002,
+          "stand_y": 3.42,
+          "bench_y": 4.07,
+          "spans": [
+            [
+              -12.8,
+              -6.55
+            ],
+            [
+              -5.45,
+              5.45
+            ],
+            [
+              6.55,
+              12.8
+            ]
+          ]
+        }
+      ],
+      "aisles": [
+        -6.0,
+        6.0
+      ],
+      "aisle_width": 1.1,
+      "front_y": 0.0,
+      "back_y": 4.65,
+      "parapet_top": 0.9099999999999999,
+      "back_top": 3.2,
+      "flags": {
+        "p1_x": -12.55,
+        "p2_x": 12.55
+      },
+      "water_z": -8.0,
+      "scoreboard": {
+        "screen_width": 11.2,
+        "screen_height": 4.8,
+        "screen_z": 3.55,
+        "screen_y": 4.664999999999999,
+        "top": 11.770000000000001,
+        "width": 12.639999999999999
+      }
+    },
+    "terrace_modules": {
+      "block_length": 20.0,
+      "seat_rows": 4,
+      "bay_seats": 76,
+      "bay_aisle_z": [
+        -10.0
+      ],
+      "row_front_x": [
+        1.15,
+        2.4,
+        3.65,
+        4.9
+      ],
+      "row_cushion_top": [
+        0.865,
+        1.265,
+        1.665,
+        2.065
+      ],
+      "seat_z_range": [
+        -8.28,
+        8.28
+      ]
+    }
+  }
+}

@@ -1,0 +1,40 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://shaders/sudden_death/cistern_surface.gdshader" id="1_d4yhc"]
+[ext_resource type="Texture2D" path="res://assets/environment/underground_temple/textures/steel_albedo.png" id="2_hx6d4"]
+[ext_resource type="Texture2D" path="res://assets/environment/underground_temple/textures/cistern_bay_c_light.png" id="3_jq4ej"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/cistern_generated/textures/macro_noise.res" id="4_63fwf"]
+[ext_resource type="Texture2D" path="res://assets/environment/underground_temple/textures/steel_normal.png" id="5_v0h76"]
+[ext_resource type="Texture2D" path="res://assets/environment/underground_temple/textures/steel_orm.png" id="6_ik84a"]
+
+[resource]
+resource_name = "CIS_SteelPaint"
+render_priority = 0
+shader = ExtResource("1_d4yhc")
+shader_parameter/opening_color = null
+shader_parameter/opening_strength = null
+shader_parameter/ambient_color = null
+shader_parameter/ambient_level = null
+shader_parameter/white_balance = Vector3(0.81204945, 1.0465903, 1.3167658)
+shader_parameter/albedo_tex = ExtResource("2_hx6d4")
+shader_parameter/normal_tex = ExtResource("5_v0h76")
+shader_parameter/orm_tex = ExtResource("6_ik84a")
+shader_parameter/light_tex = ExtResource("3_jq4ej")
+shader_parameter/macro_noise = ExtResource("4_63fwf")
+shader_parameter/albedo_color = Color(1, 1, 1, 1)
+shader_parameter/uv_scale = 1.0
+shader_parameter/detail_scale = 1.0
+shader_parameter/detail_strength = null
+shader_parameter/roughness_scale = 1.0
+shader_parameter/metallic_value = 1.0
+shader_parameter/normal_strength = null
+shader_parameter/light_max = 0.690259
+shader_parameter/light_scale = 1.5
+shader_parameter/light_gamma = null
+shader_parameter/cavity_strength = null
+shader_parameter/macro_strength = 0.1
+shader_parameter/relight = null
+shader_parameter/seepage = 0.1
+shader_parameter/glint_strength = null
+shader_parameter/debug_view = null
+shader_parameter/glint_color = null

@@ -1,0 +1,1710 @@
+{
+  "units": "metres, Godot axes (Y up, flood flows toward +Z); module floor at y = 0 (Godot places modules at y = SuddenDeathLayout.FLOOR_Y)",
+  "contract": "docs/sudden_death_m3_interface.md",
+  "hall": {
+    "half_width": 45.0,
+    "ceiling_y": 18.0,
+    "slab_top_y": 19.0,
+    "corridor_half_width": 11.9,
+    "bay_length": 15.0,
+    "pillar_x": [
+      12.9,
+      25.8,
+      38.7
+    ],
+    "pillar_size": [
+      2.0,
+      18.0,
+      7.0
+    ],
+    "pillar_local_z": [
+      0.0,
+      7.0
+    ],
+    "pillar_chamfer": 0.06,
+    "cold_joints_y": [
+      3.75,
+      7.5,
+      11.25,
+      15.0
+    ],
+    "kicker_y": 0.15,
+    "transverse_beam": {
+      "z": [
+        2.9,
+        4.1
+      ],
+      "bottom_y": 16.0,
+      "haunch": [
+        1.0,
+        0.5
+      ]
+    },
+    "longitudinal_beam": {
+      "bottom_y": 16.5,
+      "haunch": [
+        0.5,
+        0.5
+      ]
+    },
+    "drain_channels_abs_x": [
+      10.4,
+      10.8
+    ],
+    "drain_channel_depth": 0.35,
+    "corridor_railing_abs_x": 12.9,
+    "flood_mount": {
+      "abs_x": 11.9,
+      "y": 7.0,
+      "z": 3.5
+    },
+    "opening": {
+      "center": [
+        0.0,
+        0.0
+      ],
+      "radius": 7.0,
+      "rim_y": [
+        18.0,
+        19.0
+      ]
+    },
+    "waterline_y": 1.5
+  },
+  "uv0_metres_per_unit": {
+    "CIS_Concrete": 3.75,
+    "CIS_Floor": 3.75,
+    "CIS_SteelPaint": 1.0,
+    "CIS_Galvanized": 1.0,
+    "CIS_Grate": 0.5,
+    "CIS_Hazard": 1.0,
+    "CIS_Interior": 3.75,
+    "note": "concrete/floor tiles are 3.75 m (= 15 m / 4: seamless across modules; 4 x 2 form panels of 0.9375 x 1.875 m)"
+  },
+  "lightmap_encoding": {
+    "uv": "UV2 (glTF TEXCOORD_1), per module, non-overlapping",
+    "rgb": "pow(texel, 2.2) * light_max = E * grime, E = Cycles diffuse bake (direct + indirect, white Lambertian, scene-linear, review exposure 0, AgX)",
+    "alpha": "ambient occlusion (1 m)",
+    "note": "the per-module dirt (waterline band, runoff streaks, efflorescence, rust runs, ceiling damp) is multiplied into RGB; sample without source_color"
+  },
+  "vertex_color": {
+    "CIS_Floor": "COLOR_0: R puddle potential, G damp, B silt (see README recipe with floor_wet.png)",
+    "CIS_SteelPaint": "COLOR_0: paint tint (multiply albedo.rgb where albedo.a = 1)",
+    "other": "white"
+  },
+  "review_grading": {
+    "view_transform": "AgX",
+    "exposure": 0.0,
+    "white_balance_kelvin": 5000.0
+  },
+  "modules": {
+    "cistern_bay_a": {
+      "file": "cistern_bay_a.glb",
+      "placement": "bay: module-local z -7.5..7.5, place at world z = 15 k (k = -1..13, k != 0), y = FLOOR_Y",
+      "triangles": {
+        "CIS_Shell": 2146,
+        "CIS_Floor": 5916,
+        "CIS_Steel": 2500,
+        "CIS_Galv": 7316,
+        "CIS_Grate": 4,
+        "CIS_FloodLens": 4,
+        "CIS_AmberLens": 672
+      },
+      "triangles_total": 18558,
+      "lights": [
+        {
+          "node": "CIS_Light_Amber_0",
+          "kind": "Amber",
+          "position": [
+            -24.67,
+            3.0,
+            3.5
+          ],
+          "direction": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 70.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Amber_1",
+          "kind": "Amber",
+          "position": [
+            24.67,
+            3.0,
+            3.5
+          ],
+          "direction": [
+            -1.0,
+            0.0,
+            0.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 70.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Amber_2",
+          "kind": "Amber",
+          "position": [
+            -37.57,
+            3.0,
+            3.5
+          ],
+          "direction": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 70.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Amber_3",
+          "kind": "Amber",
+          "position": [
+            37.57,
+            3.0,
+            3.5
+          ],
+          "direction": [
+            -1.0,
+            0.0,
+            0.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 70.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Amber_4",
+          "kind": "Amber",
+          "position": [
+            -44.87,
+            3.4,
+            -3.75
+          ],
+          "direction": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 70.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Amber_5",
+          "kind": "Amber",
+          "position": [
+            44.87,
+            3.4,
+            -3.75
+          ],
+          "direction": [
+            -1.0,
+            0.0,
+            0.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 70.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Flood_0",
+          "kind": "Flood",
+          "position": [
+            -11.512,
+            6.9524,
+            3.5
+          ],
+          "direction": [
+            0.8797,
+            -0.4755,
+            0.0
+          ],
+          "kelvin": 5000.0,
+          "color_linear": [
+            1.0,
+            0.7759,
+            0.6167
+          ],
+          "blender_power_w": 2600.0,
+          "blender_spot_size_deg": 118.0,
+          "blender_spot_blend": 0.45,
+          "type": "SpotLight3D",
+          "godot_energy": 6.0,
+          "range": 30.0,
+          "spot_angle_deg": 58.0,
+          "spot_attenuation": 0.9
+        },
+        {
+          "node": "CIS_Light_Flood_1",
+          "kind": "Flood",
+          "position": [
+            11.512,
+            6.9524,
+            3.5
+          ],
+          "direction": [
+            -0.8797,
+            -0.4755,
+            0.0
+          ],
+          "kelvin": 5000.0,
+          "color_linear": [
+            1.0,
+            0.7759,
+            0.6167
+          ],
+          "blender_power_w": 2600.0,
+          "blender_spot_size_deg": 118.0,
+          "blender_spot_blend": 0.45,
+          "type": "SpotLight3D",
+          "godot_energy": 6.0,
+          "range": 30.0,
+          "spot_angle_deg": 58.0,
+          "spot_attenuation": 0.9
+        }
+      ],
+      "lightmap": "textures/cistern_bay_a_light.png",
+      "light_max": 0.710705,
+      "lightmap_size": 2048,
+      "light_clipped_fraction": 0.00165
+    },
+    "cistern_bay_opening": {
+      "file": "cistern_bay_opening.glb",
+      "placement": "bay k = 0: place at world z = 0, y = FLOOR_Y",
+      "triangles": {
+        "CIS_Shell": 2504,
+        "CIS_Floor": 5916,
+        "CIS_Steel": 4440,
+        "CIS_Galv": 7300,
+        "CIS_Grate": 4,
+        "CIS_FloodLens": 4,
+        "CIS_AmberLens": 672,
+        "CIS_Hazard": 192
+      },
+      "triangles_total": 21032,
+      "lights": [
+        {
+          "node": "CIS_Light_Amber_0",
+          "kind": "Amber",
+          "position": [
+            -24.67,
+            3.0,
+            3.5
+          ],
+          "direction": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 70.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Amber_1",
+          "kind": "Amber",
+          "position": [
+            24.67,
+            3.0,
+            3.5
+          ],
+          "direction": [
+            -1.0,
+            0.0,
+            0.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 70.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Amber_2",
+          "kind": "Amber",
+          "position": [
+            -37.57,
+            3.0,
+            3.5
+          ],
+          "direction": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 70.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Amber_3",
+          "kind": "Amber",
+          "position": [
+            37.57,
+            3.0,
+            3.5
+          ],
+          "direction": [
+            -1.0,
+            0.0,
+            0.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 70.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Amber_4",
+          "kind": "Amber",
+          "position": [
+            -44.87,
+            3.4,
+            -3.75
+          ],
+          "direction": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 70.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Amber_5",
+          "kind": "Amber",
+          "position": [
+            44.87,
+            3.4,
+            -3.75
+          ],
+          "direction": [
+            -1.0,
+            0.0,
+            0.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 70.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Flood_0",
+          "kind": "Flood",
+          "position": [
+            -11.512,
+            6.9524,
+            3.5
+          ],
+          "direction": [
+            0.8797,
+            -0.4755,
+            0.0
+          ],
+          "kelvin": 5000.0,
+          "color_linear": [
+            1.0,
+            0.7759,
+            0.6167
+          ],
+          "blender_power_w": 2600.0,
+          "blender_spot_size_deg": 118.0,
+          "blender_spot_blend": 0.45,
+          "type": "SpotLight3D",
+          "godot_energy": 6.0,
+          "range": 30.0,
+          "spot_angle_deg": 58.0,
+          "spot_attenuation": 0.9
+        },
+        {
+          "node": "CIS_Light_Flood_1",
+          "kind": "Flood",
+          "position": [
+            11.512,
+            6.9524,
+            3.5
+          ],
+          "direction": [
+            -0.8797,
+            -0.4755,
+            0.0
+          ],
+          "kelvin": 5000.0,
+          "color_linear": [
+            1.0,
+            0.7759,
+            0.6167
+          ],
+          "blender_power_w": 2600.0,
+          "blender_spot_size_deg": 118.0,
+          "blender_spot_blend": 0.45,
+          "type": "SpotLight3D",
+          "godot_energy": 6.0,
+          "range": 30.0,
+          "spot_angle_deg": 58.0,
+          "spot_attenuation": 0.9
+        }
+      ],
+      "lightmap": "textures/cistern_bay_opening_light.png",
+      "light_max": 0.680884,
+      "lightmap_size": 2048,
+      "light_clipped_fraction": 0.00174
+    },
+    "cistern_end_upstream": {
+      "file": "cistern_end_upstream.glb",
+      "placement": "authored in world z (-30.6..-22.5, tunnel to -45): place at origin (z = 0), y = FLOOR_Y",
+      "triangles": {
+        "CIS_Shell": 6232,
+        "CIS_Floor": 3136,
+        "CIS_Steel": 3622,
+        "CIS_Galv": 5452,
+        "CIS_Grate": 84,
+        "CIS_FloodLens": 14,
+        "CIS_AmberLens": 1344,
+        "CIS_WindowGlass": 6,
+        "CIS_Interior": 66,
+        "CIS_Void": 24,
+        "CIS_InflowGate_Steel": 720,
+        "CIS_InflowGate_Hazard": 4
+      },
+      "triangles_total": 20704,
+      "lights": [
+        {
+          "node": "CIS_Light_Amber_0",
+          "kind": "Amber",
+          "position": [
+            -4.2175,
+            7.435,
+            -36.0
+          ],
+          "direction": [
+            0.866,
+            -0.5,
+            0.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 14.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Amber_1",
+          "kind": "Amber",
+          "position": [
+            4.2175,
+            7.435,
+            -36.0
+          ],
+          "direction": [
+            -0.866,
+            -0.5,
+            0.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 14.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Amber_10",
+          "kind": "Amber",
+          "position": [
+            -44.87,
+            3.4,
+            -26.25
+          ],
+          "direction": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 70.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Amber_11",
+          "kind": "Amber",
+          "position": [
+            44.87,
+            3.4,
+            -26.25
+          ],
+          "direction": [
+            -1.0,
+            0.0,
+            0.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 70.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Amber_2",
+          "kind": "Amber",
+          "position": [
+            -4.2175,
+            7.435,
+            -42.0
+          ],
+          "direction": [
+            0.866,
+            -0.5,
+            0.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 14.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Amber_3",
+          "kind": "Amber",
+          "position": [
+            4.2175,
+            7.435,
+            -42.0
+          ],
+          "direction": [
+            -0.866,
+            -0.5,
+            0.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 14.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Amber_4",
+          "kind": "Amber",
+          "position": [
+            21.0,
+            10.75,
+            -29.87
+          ],
+          "direction": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 70.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Amber_5",
+          "kind": "Amber",
+          "position": [
+            33.0,
+            2.6,
+            -29.87
+          ],
+          "direction": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 70.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Amber_6",
+          "kind": "Amber",
+          "position": [
+            -8.2,
+            3.0,
+            -29.87
+          ],
+          "direction": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 70.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Amber_7",
+          "kind": "Amber",
+          "position": [
+            -24.0,
+            3.4,
+            -29.87
+          ],
+          "direction": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 70.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Amber_8",
+          "kind": "Amber",
+          "position": [
+            -38.0,
+            3.4,
+            -29.87
+          ],
+          "direction": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 70.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Amber_9",
+          "kind": "Amber",
+          "position": [
+            40.0,
+            3.4,
+            -29.87
+          ],
+          "direction": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 70.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Flood_0",
+          "kind": "Flood",
+          "position": [
+            -8.5431,
+            12.427,
+            -29.6621
+          ],
+          "direction": [
+            0.5691,
+            -0.7296,
+            0.3794
+          ],
+          "kelvin": 5000.0,
+          "color_linear": [
+            1.0,
+            0.7759,
+            0.6167
+          ],
+          "blender_power_w": 1500.0,
+          "blender_spot_size_deg": 118.0,
+          "blender_spot_blend": 0.45,
+          "type": "SpotLight3D",
+          "godot_energy": 6.0,
+          "range": 30.0,
+          "spot_angle_deg": 58.0,
+          "spot_attenuation": 0.9
+        },
+        {
+          "node": "CIS_Light_Flood_1",
+          "kind": "Flood",
+          "position": [
+            8.5431,
+            12.427,
+            -29.6621
+          ],
+          "direction": [
+            -0.5691,
+            -0.7296,
+            0.3794
+          ],
+          "kelvin": 5000.0,
+          "color_linear": [
+            1.0,
+            0.7759,
+            0.6167
+          ],
+          "blender_power_w": 1500.0,
+          "blender_spot_size_deg": 118.0,
+          "blender_spot_blend": 0.45,
+          "type": "SpotLight3D",
+          "godot_energy": 6.0,
+          "range": 30.0,
+          "spot_angle_deg": 58.0,
+          "spot_attenuation": 0.9
+        },
+        {
+          "node": "CIS_Light_Window_0",
+          "kind": "Window",
+          "position": [
+            15.2,
+            9.7,
+            -29.95
+          ],
+          "direction": [
+            -0.0,
+            -0.3304,
+            0.9439
+          ],
+          "kelvin": 3600.0,
+          "type": "SpotLight3D",
+          "godot_energy": 2.5,
+          "range": 10.0,
+          "spot_angle_deg": 70.0,
+          "spot_attenuation": 1.0
+        },
+        {
+          "node": "CIS_Light_Window_1",
+          "kind": "Window",
+          "position": [
+            17.0,
+            9.7,
+            -29.95
+          ],
+          "direction": [
+            -0.0,
+            -0.3304,
+            0.9439
+          ],
+          "kelvin": 3600.0,
+          "type": "SpotLight3D",
+          "godot_energy": 2.5,
+          "range": 10.0,
+          "spot_angle_deg": 70.0,
+          "spot_attenuation": 1.0
+        },
+        {
+          "node": "CIS_Light_Window_2",
+          "kind": "Window",
+          "position": [
+            18.8,
+            9.7,
+            -29.95
+          ],
+          "direction": [
+            -0.0,
+            -0.3304,
+            0.9439
+          ],
+          "kelvin": 3600.0,
+          "type": "SpotLight3D",
+          "godot_energy": 2.5,
+          "range": 10.0,
+          "spot_angle_deg": 70.0,
+          "spot_attenuation": 1.0
+        }
+      ],
+      "lightmap": "textures/cistern_end_upstream_light.png",
+      "light_max": 5.273985,
+      "lightmap_size": 2048,
+      "light_clipped_fraction": 0.00241,
+      "moving_nodes": {
+        "CIS_InflowGate": {
+          "origin": [
+            0.0,
+            0.0,
+            -29.59
+          ]
+        }
+      }
+    },
+    "cistern_end_downstream": {
+      "file": "cistern_end_downstream.glb",
+      "placement": "authored in world z (202.5..211.2): place at origin (z = 0), y = FLOOR_Y",
+      "triangles": {
+        "CIS_Shell": 1906,
+        "CIS_Floor": 3148,
+        "CIS_Steel": 8126,
+        "CIS_Galv": 5252,
+        "CIS_Grate": 16,
+        "CIS_FloodLens": 4,
+        "CIS_AmberLens": 1120,
+        "CIS_Hazard": 18,
+        "CIS_Sign": 2,
+        "CIS_Void": 16,
+        "CIS_Hatch_L_Steel": 408,
+        "CIS_Hatch_R_Steel": 408
+      },
+      "triangles_total": 20424,
+      "lights": [
+        {
+          "node": "CIS_Light_Amber_0",
+          "kind": "Amber",
+          "position": [
+            -3.5,
+            8.05,
+            209.87
+          ],
+          "direction": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 70.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Amber_1",
+          "kind": "Amber",
+          "position": [
+            3.5,
+            8.05,
+            209.87
+          ],
+          "direction": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 70.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Amber_2",
+          "kind": "Amber",
+          "position": [
+            -8.5,
+            3.6,
+            209.87
+          ],
+          "direction": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 70.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Amber_3",
+          "kind": "Amber",
+          "position": [
+            8.5,
+            3.6,
+            209.87
+          ],
+          "direction": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 70.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Amber_4",
+          "kind": "Amber",
+          "position": [
+            -19.5,
+            4.6,
+            209.87
+          ],
+          "direction": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 70.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Amber_5",
+          "kind": "Amber",
+          "position": [
+            19.5,
+            4.6,
+            209.87
+          ],
+          "direction": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 70.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Amber_6",
+          "kind": "Amber",
+          "position": [
+            -32.5,
+            4.6,
+            209.87
+          ],
+          "direction": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 70.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Amber_7",
+          "kind": "Amber",
+          "position": [
+            32.5,
+            4.6,
+            209.87
+          ],
+          "direction": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 70.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Amber_8",
+          "kind": "Amber",
+          "position": [
+            -44.87,
+            3.4,
+            206.25
+          ],
+          "direction": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 70.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Amber_9",
+          "kind": "Amber",
+          "position": [
+            44.87,
+            3.4,
+            206.25
+          ],
+          "direction": [
+            -1.0,
+            0.0,
+            0.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 70.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Flood_0",
+          "kind": "Flood",
+          "position": [
+            -9.5487,
+            12.9223,
+            209.6635
+          ],
+          "direction": [
+            0.5128,
+            -0.777,
+            -0.3652
+          ],
+          "kelvin": 5000.0,
+          "color_linear": [
+            1.0,
+            0.7759,
+            0.6167
+          ],
+          "blender_power_w": 2400.0,
+          "blender_spot_size_deg": 118.0,
+          "blender_spot_blend": 0.45,
+          "type": "SpotLight3D",
+          "godot_energy": 6.0,
+          "range": 30.0,
+          "spot_angle_deg": 58.0,
+          "spot_attenuation": 0.9
+        },
+        {
+          "node": "CIS_Light_Flood_1",
+          "kind": "Flood",
+          "position": [
+            9.5487,
+            12.9223,
+            209.6635
+          ],
+          "direction": [
+            -0.5128,
+            -0.777,
+            -0.3652
+          ],
+          "kelvin": 5000.0,
+          "color_linear": [
+            1.0,
+            0.7759,
+            0.6167
+          ],
+          "blender_power_w": 2400.0,
+          "blender_spot_size_deg": 118.0,
+          "blender_spot_blend": 0.45,
+          "type": "SpotLight3D",
+          "godot_energy": 6.0,
+          "range": 30.0,
+          "spot_angle_deg": 58.0,
+          "spot_attenuation": 0.9
+        }
+      ],
+      "lightmap": "textures/cistern_end_downstream_light.png",
+      "light_max": 2.194187,
+      "lightmap_size": 2048,
+      "light_clipped_fraction": 0.00278,
+      "moving_nodes": {
+        "CIS_Hatch_L": {
+          "origin": [
+            -4.05,
+            6.0,
+            210.0
+          ]
+        },
+        "CIS_Hatch_R": {
+          "origin": [
+            4.05,
+            6.0,
+            210.0
+          ]
+        }
+      }
+    },
+    "cistern_bay_b": {
+      "file": "cistern_bay_b.glb",
+      "placement": "bay: module-local z -7.5..7.5, place at world z = 15 k (k = -1..13, k != 0), y = FLOOR_Y",
+      "triangles": {
+        "CIS_Shell": 2146,
+        "CIS_Floor": 5916,
+        "CIS_Steel": 3760,
+        "CIS_Galv": 7924,
+        "CIS_Grate": 4,
+        "CIS_FloodLens": 4,
+        "CIS_AmberLens": 560
+      },
+      "triangles_total": 20314,
+      "lights": [
+        {
+          "node": "CIS_Light_Amber_0",
+          "kind": "Amber",
+          "position": [
+            -24.67,
+            3.0,
+            3.5
+          ],
+          "direction": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 70.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Amber_1",
+          "kind": "Amber",
+          "position": [
+            24.67,
+            3.0,
+            3.5
+          ],
+          "direction": [
+            -1.0,
+            0.0,
+            0.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 70.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Amber_2",
+          "kind": "Amber",
+          "position": [
+            -37.57,
+            3.0,
+            3.5
+          ],
+          "direction": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 70.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Amber_3",
+          "kind": "Amber",
+          "position": [
+            37.57,
+            3.0,
+            3.5
+          ],
+          "direction": [
+            -1.0,
+            0.0,
+            0.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 70.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Amber_4",
+          "kind": "Amber",
+          "position": [
+            -44.87,
+            3.4,
+            -3.75
+          ],
+          "direction": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 70.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Flood_0",
+          "kind": "Flood",
+          "position": [
+            -11.512,
+            6.9524,
+            3.5
+          ],
+          "direction": [
+            0.8797,
+            -0.4755,
+            0.0
+          ],
+          "kelvin": 5000.0,
+          "color_linear": [
+            1.0,
+            0.7759,
+            0.6167
+          ],
+          "blender_power_w": 2600.0,
+          "blender_spot_size_deg": 118.0,
+          "blender_spot_blend": 0.45,
+          "type": "SpotLight3D",
+          "godot_energy": 6.0,
+          "range": 30.0,
+          "spot_angle_deg": 58.0,
+          "spot_attenuation": 0.9
+        },
+        {
+          "node": "CIS_Light_Flood_1",
+          "kind": "Flood",
+          "position": [
+            11.512,
+            6.9524,
+            3.5
+          ],
+          "direction": [
+            -0.8797,
+            -0.4755,
+            0.0
+          ],
+          "kelvin": 5000.0,
+          "color_linear": [
+            1.0,
+            0.7759,
+            0.6167
+          ],
+          "blender_power_w": 2600.0,
+          "blender_spot_size_deg": 118.0,
+          "blender_spot_blend": 0.45,
+          "type": "SpotLight3D",
+          "godot_energy": 6.0,
+          "range": 30.0,
+          "spot_angle_deg": 58.0,
+          "spot_attenuation": 0.9
+        }
+      ],
+      "lightmap": "textures/cistern_bay_b_light.png",
+      "light_max": 0.653543,
+      "lightmap_size": 2048,
+      "light_clipped_fraction": 0.0015
+    },
+    "cistern_bay_c": {
+      "file": "cistern_bay_c.glb",
+      "placement": "bay: module-local z -7.5..7.5, place at world z = 15 k (k = -1..13, k != 0), y = FLOOR_Y",
+      "triangles": {
+        "CIS_Shell": 2314,
+        "CIS_Floor": 5916,
+        "CIS_Steel": 2808,
+        "CIS_Galv": 7300,
+        "CIS_Grate": 4,
+        "CIS_FloodLens": 4,
+        "CIS_AmberLens": 560
+      },
+      "triangles_total": 18906,
+      "lights": [
+        {
+          "node": "CIS_Light_Amber_0",
+          "kind": "Amber",
+          "position": [
+            -24.67,
+            3.0,
+            3.5
+          ],
+          "direction": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 70.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Amber_1",
+          "kind": "Amber",
+          "position": [
+            24.67,
+            3.0,
+            3.5
+          ],
+          "direction": [
+            -1.0,
+            0.0,
+            0.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 70.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Amber_2",
+          "kind": "Amber",
+          "position": [
+            37.57,
+            3.0,
+            3.5
+          ],
+          "direction": [
+            -1.0,
+            0.0,
+            0.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 70.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Amber_3",
+          "kind": "Amber",
+          "position": [
+            -44.87,
+            3.4,
+            -3.75
+          ],
+          "direction": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 70.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Amber_4",
+          "kind": "Amber",
+          "position": [
+            44.87,
+            3.4,
+            -3.75
+          ],
+          "direction": [
+            -1.0,
+            0.0,
+            0.0
+          ],
+          "kelvin": 2000.0,
+          "color_linear": [
+            1.0,
+            0.2496,
+            0.0044
+          ],
+          "blender_power_w": 70.0,
+          "type": "OmniLight3D",
+          "godot_energy": 1.2,
+          "range": 9.0
+        },
+        {
+          "node": "CIS_Light_Flood_0",
+          "kind": "Flood",
+          "position": [
+            -11.512,
+            6.9524,
+            3.5
+          ],
+          "direction": [
+            0.8797,
+            -0.4755,
+            0.0
+          ],
+          "kelvin": 5000.0,
+          "color_linear": [
+            1.0,
+            0.7759,
+            0.6167
+          ],
+          "blender_power_w": 2600.0,
+          "blender_spot_size_deg": 118.0,
+          "blender_spot_blend": 0.45,
+          "type": "SpotLight3D",
+          "godot_energy": 6.0,
+          "range": 30.0,
+          "spot_angle_deg": 58.0,
+          "spot_attenuation": 0.9
+        },
+        {
+          "node": "CIS_Light_Flood_1",
+          "kind": "Flood",
+          "position": [
+            11.512,
+            6.9524,
+            3.5
+          ],
+          "direction": [
+            -0.8797,
+            -0.4755,
+            0.0
+          ],
+          "kelvin": 5000.0,
+          "color_linear": [
+            1.0,
+            0.7759,
+            0.6167
+          ],
+          "blender_power_w": 2600.0,
+          "blender_spot_size_deg": 118.0,
+          "blender_spot_blend": 0.45,
+          "type": "SpotLight3D",
+          "godot_energy": 6.0,
+          "range": 30.0,
+          "spot_angle_deg": 58.0,
+          "spot_attenuation": 0.9
+        }
+      ],
+      "lightmap": "textures/cistern_bay_c_light.png",
+      "light_max": 0.690259,
+      "lightmap_size": 2048,
+      "light_clipped_fraction": 0.00188
+    }
+  }
+}

@@ -68,6 +68,8 @@ const STATE_GAME_OVER = "GAME_OVER"
 const STATE_CLEAR = "CLEAR"
 const STATE_GOAL_RACE = "GOAL_RACE"
 const STATE_RESULT_CEREMONY = "RESULT_CEREMONY"
+## ローカル2P「10問」の引き分けから入る地下神殿のサドンデス（docs/sudden_death_underground.md）。
+const STATE_SUDDEN_DEATH = "SUDDEN_DEATH"
 
 const MENU_STEP_MODE = "MODE_SELECT"
 const MENU_STEP_CONFIG = "CONFIG_SELECT"

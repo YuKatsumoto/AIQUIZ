@@ -8,6 +8,8 @@ const LocalPushDuelScript = preload("res://scripts/core/local_push_duel.gd")
 
 signal health_changed(player_index: int, previous_hp: int, hp: int)
 signal question_completed(wall_index: int, correct: bool)
+## 2P only. winner_mask: 0 = nobody, 1 = P1, 2 = P2, 3 = both in the same frame.
+signal question_winner_decided(question_index: int, winner_mask: int)
 
 const MAX_HP := 3
 const DAMAGE_STUN_DURATION := 0.35
@@ -22,6 +24,8 @@ var _hp_evaluated_mask := 0
 var _hp_correct_mask := 0
 var _hp_chosen_door := -1
 var _hp_evaluated_wall := -1
+## Per question index: the winner mask above, -1 while unplayed (goal stand scoreboard).
+var question_winners := PackedInt32Array()
 
 signal local_push_event(event: Dictionary)
 var local_push = LocalPushDuelScript.new()
@@ -29,7 +33,12 @@ var local_push = LocalPushDuelScript.new()
 var local_push_transport_enabled := true
 
 func uses_local_push() -> bool:
-	return local_push_transport_enabled and not is_replay and num_players == 2 and mode in [Constants.MODE_TEN, Constants.MODE_ENDLESS, Constants.MODE_TUTORIAL] and game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE] and goal_reached_mask == 0
+	if not local_push_transport_enabled or is_replay or num_players != 2:
+		return false
+	# Underground the two stand on their own lift towers: nobody pushes.
+	if game_state == Constants.STATE_SUDDEN_DEATH:
+		return false
+	return mode in [Constants.MODE_TEN, Constants.MODE_ENDLESS, Constants.MODE_TUTORIAL] and game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE] and goal_reached_mask == 0
 
 func submit_local_push_key(player: int, direction: int, pressed: bool, offset := 0.0, echo := false) -> void:
 	if uses_local_push() and not is_damage_stunned(player):
@@ -282,6 +291,17 @@ const RESULT_VERDICT_REVEAL_DELAY: float = 0.0
 const RESULT_VERDICT_TIME: float = 6.9
 const RESULT_TOTAL_DURATION: float = 11.2
 const RESULT_DRAW_TOTAL_DURATION: float = 11.2
+# A dead player joins the finale as a ghost. The soul leaves once the death is
+# readable, then leaps onto its own finishing lane before the Blender clock starts.
+const RESULT_GHOST_DEATH_HOLD: float = 2.0
+const RESULT_GHOST_ARRIVAL_DURATION: float = 1.4
+# Both eliminated: hold on the last death, then wipe to the finale at the goal.
+const RESULT_ELIMINATION_HOLD: float = 3.0
+const RESULT_ELIMINATION_GOAL_AHEAD: float = 24.0
+
+## Both players are out; GameWorld wipes the screen and then calls
+## begin_elimination_result_ceremony() under the cover.
+signal result_transition_requested
 
 ## GameWorld owns this runtime gate so online hosts and replay playback keep the
 ## existing immediate-result contract without serializing ceremony-only state.
@@ -292,19 +312,104 @@ var result_ceremony_phase_elapsed: float = 0.0
 var result_ceremony_elapsed: float = 0.0
 var goal_reached_mask: int = 0
 var result_winner: int = 0  # 0=draw, 1=P1, 2=P2
+## Bit 1 = P1, bit 2 = P2: that player takes part in the finale as a ghost.
 var result_ghost_mask: int = 0
 var result_p1_correct_count: int = 0
 var result_p2_correct_count: int = 0
 var result_p1_hp: int = 0
 var result_p2_hp: int = 0
-# These are the frozen products, never the mutable quiz-correct counters.
+# These are the frozen totals in half points (see result_half_points), never the
+# mutable quiz-correct counters. Halves keep the tower rules in whole numbers.
 var result_p1_score: int = 0
 var result_p2_score: int = 0
+var result_ghost_arrival_player: int = 0
+var result_ghost_arrival_elapsed: float = 0.0
+var result_from_elimination: bool = false
+var elimination_result_pending: bool = false
+var _elimination_result_ready: bool = false
+var _elimination_hold_elapsed: float = 0.0
 var result_p1_position: Vector3 = Vector3.ZERO
 var result_p2_position: Vector3 = Vector3.ZERO
 var _result_p1_start_position: Vector3 = Vector3.ZERO
 var _result_p2_start_position: Vector3 = Vector3.ZERO
 var _result_round_closed: bool = false
+
+# --- Local 2P sudden death: 早押し水没リフト (docs/sudden_death_underground.md) ---
+## The draw finale branches here instead of looping the dance: the referee whistles,
+## the towers sink (9.0-10.4), the floor irises open (10.4-11.0) and at
+## SUDDEN_DEATH_DESCENT_TIME the ceremony clock holds while SuddenDeathDirector takes
+## the deck down the shaft (docs/sudden_death_underground.md 2.1, 第5章).
+const SUDDEN_DEATH_BRANCH_TIME: float = 8.4
+const SUDDEN_DEATH_SINK_TIME: float = 9.0
+const SUDDEN_DEATH_IRIS_TIME: float = 10.4
+const SUDDEN_DEATH_DESCENT_TIME: float = 11.0
+## Both runners start on their own score-tower pad on the deck (SuddenDeathLayout.PAD_X).
+const SUDDEN_DEATH_START_X: float = 2.2
+## A failed or timed-out descent comes back up and ends as the plain draw from here.
+const SUDDEN_DEATH_ABORT_RESUME_TIME: float = 10.0
+## Values the surface finale needs back after the sudden death.
+const SUDDEN_DEATH_SURFACE_FIELDS: Array[String] = [
+	"world_scroll_z", "_active_wall_speed", "result_ghost_mask",
+	"player_x", "player_y", "player_z", "player_vel_y", "player_vel_z",
+	"player2_x", "player2_y", "player2_z", "player2_vel_y", "player2_vel_z",
+	"p1_alive", "p2_alive", "p1_wall_impact", "p2_wall_impact", "p1_saw_killed", "p2_saw_killed",
+	"p1_shark_killed", "p2_shark_killed", "p1_fall_committed", "p2_fall_committed",
+	"p1_waiting_for_shark", "p2_waiting_for_shark", "game_over_timer", "player2_game_over_timer",
+	"p1_emote", "p2_emote", "message_text",
+]
+## GameWorld covers the screen, then calls begin_sudden_death() (entering) or
+## end_sudden_death() (leaving) under the cover.
+signal sudden_death_transition_requested(entering: bool)
+signal sudden_death_event(event: Dictionary)
+var sudden_death_enabled: bool = true
+var sudden_death: SuddenDeathState = null
+var sudden_death_pending: bool = false
+var sudden_death_winner: int = 0
+var sudden_death_decided_by: String = ""
+## Questions asked in the sudden death (1-). 0 = none played.
+var sudden_death_question_count: int = 0
+var p1_flood_caught: bool = false
+var p2_flood_caught: bool = false
+var _sudden_death_questions: Array[QuizItem] = []
+var _sudden_death_requested: bool = false
+var _sudden_death_exit_requested: bool = false
+var _sudden_death_saved: Dictionary = {}
+## This frame's buzz and answer presses (submit_sudden_death_key), handed to SuddenDeathState.step().
+var _sudden_death_input := {}
+## Presentation only (SuddenDeathDirector): extra height of each runner's avatar
+## (x = P1, y = P2) while they ride the elevator deck or stand on their lift tower. The rules never read it.
+var sudden_death_lift := Vector2.ZERO
+## Presentation only: which way both avatars face underground (radians about +Y; PI = toward the
+## upstream end, where the referee reads the questions and the duel camera stands).
+var sudden_death_facing: float = 0.0
+## The director moves the runners itself (deck rides, pickup after the decision).
+var sudden_death_presentation_lock: bool = false
+## Bit 1 = P1, bit 2 = P2: that avatar plays the run while the director moves it.
+var sudden_death_walk_mask: int = 0
+## After coming back up, the ceremony waits at the verdict while the director
+## regrows the winner's tower and blasts the loser out of the drain.
+var result_return_hold: bool = false
+## 0..1: how far the returning towers have grown back (ResultFinaleStage).
+var result_return_regrow: float = 1.0
+## The descent failed or timed out: the round ended as the plain draw.
+var sudden_death_aborted: bool = false
+## Online quiz generation (docs 第4章): when the deck starts down the shaft (11.0 s) new
+## questions are generated for the sudden death; the descent keeps going (with the
+## match-start preparing panel) until this has finished. The questions collected at 0 s
+## (leftovers, offline, arithmetic) fill whatever it does not deliver.
+const SUDDEN_DEATH_GENERATION_COUNT: int = 10
+const SUDDEN_DEATH_GENERATION_LIMIT_MSEC: int = 45000
+## "" = not generating (offline, unavailable), "generating", "done", "failed".
+var sudden_death_generation: String = ""
+var sudden_death_generation_received: int = 0
+## Questions that are freshly generated (0-8).
+var sudden_death_generated_count: int = 0
+var _sudden_death_generation_token: int = 0
+var _sudden_death_generation_started_msec: int = 0
+## Presentation (SuddenDeathDirector): the descent is waiting for its preparation, so
+## GameplayHUD shows the same "問題を準備中..." panel as the match start. "" = hidden,
+## "questions" = generating the questions, "stage" = the cistern is still loading.
+var sudden_death_preparing_panel: String = ""
 
 var p1_jump_trigger: bool = false
 var p2_jump_trigger: bool = false
@@ -397,9 +502,29 @@ func _reset_health() -> void:
 	_hp_evaluated_wall = -1
 	_hp_evaluated_mask = 0
 	_hp_correct_mask = 0
+	question_winners = PackedInt32Array()
+
+func get_question_winner(index: int) -> int:
+	return question_winners[index] if index >= 0 and index < question_winners.size() else -1
+
+## Host, online client and replay all record through here; a repeat is ignored.
+func record_question_winner(index: int, winner_mask: int) -> void:
+	if index < 0 or get_question_winner(index) >= 0:
+		return
+	while question_winners.size() <= index:
+		question_winners.append(-1)
+	question_winners[index] = winner_mask & 3
+	question_winner_decided.emit(index, winner_mask & 3)
+
+## Players whose door was judged at the current wall (1 = P1, 2 = P2): everyone who
+## faced the question, right or wrong. Valid while question_winner_decided is emitted.
+func get_question_evaluated_mask() -> int:
+	return _hp_evaluated_mask
 
 func _tick_health(dt: float) -> void:
-	var active := uses_hp() and game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]
+	# Underground a sinking lift flinches its rider the same way (no HP is taken).
+	var active := (uses_hp() and game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]) \
+		or game_state == Constants.STATE_SUDDEN_DEATH
 	p1_damage_time = maxf(0.0, p1_damage_time - dt) if active and p1_alive and not p1_fall_committed and not p1_waiting_for_shark else 0.0
 	p2_damage_time = maxf(0.0, p2_damage_time - dt) if active and p2_alive and not p2_fall_committed and not p2_waiting_for_shark else 0.0
 
@@ -497,6 +622,8 @@ func _try_finish_hp_question() -> void:
 		correct_flash = 1.0
 		camera_shake = maxf(camera_shake, 0.22)
 		correct_answer.emit()
+	if num_players >= 2:
+		record_question_winner(current_index, _hp_correct_mask)
 	if p1_alive or num_players >= 2 and p2_alive:
 		question_completed.emit(completed_wall, any_correct)
 		hp_questions_completed += 1
@@ -507,7 +634,7 @@ func _try_finish_hp_question() -> void:
 		advance_after_correct()
 	else:
 		var answer_label := String.chr(65 + current_quiz.a) if num_choices == 4 else (("Left" if current_quiz.a == 0 else "Right") if use_english_ui else ("左" if current_quiz.a == 0 else "右"))
-		_game_over(("Wrong! Answer was %s" if use_english_ui else "不正解！ 正解は %s") % answer_label)
+		_end_round_all_eliminated(("Wrong! Answer was %s" if use_english_ui else "不正解！ 正解は %s") % answer_label)
 		wrong_answer.emit(message_text)
 
 func is_coop_mode() -> bool:
@@ -700,7 +827,7 @@ func _update_saw_chase(dt: float, start1: Vector2, start2: Vector2) -> void:
 	camera_shake = maxf(camera_shake, 0.25)
 	if not p1_alive and not p2_alive:
 		choice_locked = true
-		_game_over("連結刃に追いつかれた！" if not use_english_ui else "Caught by the saws!")
+		_end_round_all_eliminated("連結刃に追いつかれた！" if not use_english_ui else "Caught by the saws!")
 		return
 	_try_finish_hp_question()
 
@@ -1561,6 +1688,8 @@ func update(dt: float, axis_p1: Vector2 = Vector2.ZERO, axis_p2: Vector2 = Vecto
 	correct_flash = maxf(0.0, correct_flash - dt * 1.5)
 	wrong_flash = maxf(0.0, wrong_flash - dt * 1.2)
 	camera_shake = maxf(0.0, camera_shake - dt * 2.8)
+	if sudden_death_generation == "generating":
+		_poll_sudden_death_generation()
 
 	if game_state == Constants.STATE_MENU:
 		return
@@ -1582,6 +1711,10 @@ func update(dt: float, axis_p1: Vector2 = Vector2.ZERO, axis_p2: Vector2 = Vecto
 
 	p1_jump_trigger = false
 	p2_jump_trigger = false
+
+	if game_state == Constants.STATE_SUDDEN_DEATH:
+		_update_sudden_death(dt)
+		return
 
 	if result_presentation_active and game_state in [Constants.STATE_RESULT_CEREMONY, Constants.STATE_CLEAR]:
 		if game_state == Constants.STATE_RESULT_CEREMONY:
@@ -2266,6 +2399,18 @@ func _update_game_over(dt: float) -> void:
 	_process_dead_player_physics(dt)
 	_sink_ocean_players(dt)
 
+	if elimination_result_pending:
+		# No GAME OVER card: hold on the last death, then hand over to the finale.
+		_elimination_hold_elapsed += dt
+		if (
+			not _elimination_result_ready
+			and _elimination_hold_elapsed >= RESULT_ELIMINATION_HOLD
+			and is_wall_death_sequence_complete()
+		):
+			_elimination_result_ready = true
+			result_transition_requested.emit()
+		return
+
 	# Update message with async explanation
 	if current_quiz:
 		var explain: String
@@ -2302,10 +2447,17 @@ func _reset_result_ceremony_state() -> void:
 	_result_p1_start_position = Vector3.ZERO
 	_result_p2_start_position = Vector3.ZERO
 	_result_round_closed = false
+	result_ghost_arrival_player = 0
+	result_ghost_arrival_elapsed = 0.0
+	result_from_elimination = false
+	elimination_result_pending = false
+	_elimination_result_ready = false
+	_elimination_hold_elapsed = 0.0
 	p1_emote_lock_timer = 0.0
 	p2_emote_lock_timer = 0.0
 	p1_run_anim_speed_mult = 1.0
 	p2_run_anim_speed_mult = 1.0
+	_reset_sudden_death_state()
 
 
 func uses_local_result_ceremony() -> bool:
@@ -2351,6 +2503,111 @@ func get_result_winner_emote(player_index: int) -> int:
 	if not slots.is_empty() and slots[0] > 0:
 		return slots[0]
 	return 7  # EmoteData.EMOTE_SILLY without coupling core state to cosmetics.
+
+
+## Result points in halves. A living finalist scores correct × (HP + 0.5); an
+## eliminated one scores its correct answers only. 27 means 13.5.
+static func result_half_points(correct: int, hp: int, alive: bool) -> int:
+	if not alive:
+		return maxi(correct, 0) * 2
+	return maxi(correct, 0) * (2 * maxi(hp, 0) + 1)
+
+
+## Half points as text: 27 -> "13.5", 18 -> "9". With always_decimal every
+## value keeps one decimal ("9.0"), so a counter never changes its format.
+static func format_result_points(half_points: int, always_decimal := false) -> String:
+	var magnitude := maxi(half_points, 0)
+	if (magnitude & 1) == 1:
+		return "%d.5" % (magnitude >> 1)
+	return ("%d.0" if always_decimal else "%d") % (magnitude >> 1)
+
+
+## HP factor shown on a living finalist's card once the survival bonus lands.
+static func format_result_hp_factor(hp: int) -> String:
+	return "%d.5" % maxi(hp, 0)
+
+
+func is_result_ghost(player_index: int) -> bool:
+	return (result_ghost_mask & (1 if player_index == 1 else 2)) != 0
+
+
+func get_result_formula_text(player_index: int) -> String:
+	var correct := result_p1_correct_count if player_index == 1 else result_p2_correct_count
+	var hp := result_p1_hp if player_index == 1 else result_p2_hp
+	var total := format_result_points(result_p1_score if player_index == 1 else result_p2_score)
+	if is_result_ghost(player_index):
+		return ("P%d: %d (OUT) = %s" if use_english_ui else "P%d: %d (脱落) = %s") % [player_index, correct, total]
+	return "P%d: %d × %s = %s" % [player_index, correct, format_result_hp_factor(hp), total]
+
+
+## 0 → 1 while the ghost leaps from its shark (or soul) onto its finishing lane.
+func get_result_ghost_arrival_progress(player_index: int) -> float:
+	if result_ghost_arrival_player != player_index:
+		return 1.0 if is_result_ghost(player_index) else 0.0
+	return clampf(result_ghost_arrival_elapsed / RESULT_GHOST_ARRIVAL_DURATION, 0.0, 1.0)
+
+
+func get_result_ghost_landing_local_position(player_index: int) -> Vector3:
+	var landing := _result_ghost_start_position(player_index)
+	return Vector3(landing.x, landing.y, landing.z - world_scroll_z)
+
+
+func is_elimination_result_pending() -> bool:
+	return elimination_result_pending
+
+
+func is_elimination_result_ready() -> bool:
+	return elimination_result_pending and _elimination_result_ready
+
+
+func _result_ghost_start_position(player_index: int) -> Vector3:
+	var lane_x := RESULT_PLAYER_X if player_index == 1 else -RESULT_PLAYER_X
+	return Vector3(lane_x, 0.0, get_local_result_goal_z() + RESULT_GOAL_WAIT_OFFSET)
+
+
+func _result_death_clock(player_index: int) -> float:
+	var clock := game_over_timer if player_index == 1 else player2_game_over_timer
+	# A death that never started its clock must not block the finale.
+	return INF if clock <= 0.0 else clock
+
+
+func _record_result_ghost(player_index: int) -> void:
+	result_ghost_mask |= 1 if player_index == 1 else 2
+	if player_index == 1:
+		result_p1_correct_count = score
+		result_p1_hp = 0
+		result_p1_score = result_half_points(score, 0, false)
+	else:
+		result_p2_correct_count = player2_score
+		result_p2_hp = 0
+		result_p2_score = result_half_points(player2_score, 0, false)
+
+
+func _begin_result_ghost_arrival(player_index: int) -> void:
+	_record_result_ghost(player_index)
+	result_ghost_arrival_player = player_index
+	result_ghost_arrival_elapsed = 0.0
+
+
+## Living finalists must stand at the goal; ghosts must have finished landing.
+func _local_result_participants_ready() -> bool:
+	if goal_reached_mask == 0 and result_ghost_mask == 0:
+		return false
+	for player_index in [1, 2]:
+		var alive := p1_alive if player_index == 1 else p2_alive
+		if alive:
+			if not has_player_reached_goal(player_index):
+				return false
+			if (player_y if player_index == 1 else player2_y) > 0.0:
+				return false
+		elif not is_result_ghost(player_index):
+			return false
+		elif (
+			result_ghost_arrival_player == player_index
+			and result_ghost_arrival_elapsed < RESULT_GHOST_ARRIVAL_DURATION
+		):
+			return false
+	return true
 
 
 func _result_phase_duration(phase: int) -> float:
@@ -2514,19 +2771,8 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 		and player2_z >= goal_z
 	)
 
-	if uses_local_result_ceremony() and p1_alive and p2_alive:
-		if p1_reached:
-			_record_result_finisher(1)
-		if p2_reached:
-			_record_result_finisher(2)
-		_hold_goal_finisher(1, 0.0 if p1_reached else dt)
-		_hold_goal_finisher(2, 0.0 if p2_reached else dt)
-		if p1_reached or p2_reached:
-			message_text = _goal_wait_message()
-			refresh_status_text()
-		var ceremony_ready := goal_reached_mask == 3 and player_y <= 0.0 and player2_y <= 0.0
-		if ceremony_ready:
-			_begin_result_ceremony()
+	if uses_local_result_ceremony():
+		if _update_local_result_goal(dt, p1_reached, p2_reached):
 			return
 	elif p1_reached or p2_reached or (p1_alive and has_player_reached_goal(1)) or (p2_alive and has_player_reached_goal(2)):
 		# If the other player falls while a finisher waits, retain the legacy
@@ -2567,9 +2813,46 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 			if not use_english_ui
 			else "All players were eliminated before reaching the goal."
 		)
-		_game_over(defeat_message)
+		_end_round_all_eliminated(defeat_message)
 		wrong_answer.emit(message_text)
 		return
+
+
+## Local 2P ten-question finish. Every finalist reaches the podium: living
+## players by crossing the line, eliminated ones as a ghost leaping off the shark
+## (or straight from the soul if the death happened while the other waited).
+func _update_local_result_goal(dt: float, p1_reached: bool, p2_reached: bool) -> bool:
+	if p1_reached:
+		_record_result_finisher(1)
+	if p2_reached:
+		_record_result_finisher(2)
+	_hold_goal_finisher(1, 0.0 if p1_reached else dt)
+	_hold_goal_finisher(2, 0.0 if p2_reached else dt)
+	if not p1_alive and not p2_alive:
+		return false
+	var message_changed := p1_reached or p2_reached
+	if result_ghost_arrival_player != 0:
+		result_ghost_arrival_elapsed = minf(
+			RESULT_GHOST_ARRIVAL_DURATION, result_ghost_arrival_elapsed + dt
+		)
+	elif goal_reached_mask != 0:
+		for player_index in [1, 2]:
+			var alive := p1_alive if player_index == 1 else p2_alive
+			if (
+				not alive
+				and not is_result_ghost(player_index)
+				and _result_death_clock(player_index) >= RESULT_GHOST_DEATH_HOLD
+			):
+				_begin_result_ghost_arrival(player_index)
+				message_changed = true
+				break
+	if message_changed:
+		message_text = _goal_wait_message()
+		refresh_status_text()
+	if _local_result_participants_ready():
+		_begin_result_ceremony()
+		return result_presentation_active
+	return false
 
 
 func _record_result_finisher(player_index: int) -> void:
@@ -2579,11 +2862,11 @@ func _record_result_finisher(player_index: int) -> void:
 	if player_index == 1:
 		result_p1_correct_count = score
 		result_p1_hp = get_player_hp(1)
-		result_p1_score = result_p1_correct_count * result_p1_hp
+		result_p1_score = result_half_points(result_p1_correct_count, result_p1_hp, true)
 	else:
 		result_p2_correct_count = player2_score
 		result_p2_hp = get_player_hp(2)
-		result_p2_score = result_p2_correct_count * result_p2_hp
+		result_p2_score = result_half_points(result_p2_correct_count, result_p2_hp, true)
 
 
 func _hold_goal_finisher(player_index: int, dt: float) -> void:
@@ -2618,6 +2901,10 @@ func _hold_goal_finisher(player_index: int, dt: float) -> void:
 
 
 func _goal_wait_message() -> String:
+	if result_ghost_arrival_player != 0:
+		return (
+			"P%d's ghost heads to the podium..." if use_english_ui else "P%d の魂が表彰台へ…"
+		) % result_ghost_arrival_player
 	if goal_reached_mask == 3:
 		return "Both finished!" if use_english_ui else "二人ともゴール！"
 	if goal_reached_mask == 1:
@@ -2628,10 +2915,9 @@ func _goal_wait_message() -> String:
 
 
 func _begin_result_ceremony() -> void:
-	if result_presentation_active or not uses_local_result_ceremony() or not (p1_alive and p2_alive) or goal_reached_mask != 3:
+	if result_presentation_active or not uses_local_result_ceremony() or not _local_result_participants_ready():
 		return
 	result_presentation_active = true
-	result_ghost_mask = 0
 	if result_p1_score > result_p2_score:
 		result_winner = 1
 	elif result_p2_score > result_p1_score:
@@ -2639,6 +2925,8 @@ func _begin_result_ceremony() -> void:
 	else:
 		result_winner = 0
 	goal_winner = result_winner
+	if result_winner == 0 and uses_sudden_death():
+		_prepare_sudden_death()
 
 	# The ceremony is presentation only. Both living players retain their HP.
 	p1_waiting_for_shark = false
@@ -2650,12 +2938,18 @@ func _begin_result_ceremony() -> void:
 	p1_emote = 0
 	p2_emote = 0
 
-	_result_p1_start_position = Vector3(player_x, 0.0, player_z)
-	_result_p2_start_position = Vector3(player2_x, 0.0, player2_z)
+	# Ghosts start where they landed on their own lane; the living where they stand.
+	_result_p1_start_position = (
+		_result_ghost_start_position(1) if is_result_ghost(1) else Vector3(player_x, 0.0, player_z)
+	)
+	_result_p2_start_position = (
+		_result_ghost_start_position(2) if is_result_ghost(2) else Vector3(player2_x, 0.0, player2_z)
+	)
 	result_p1_position = _result_p1_start_position
 	result_p2_position = _result_p2_start_position
 	result_ceremony_elapsed = 0.0
-	if not _result_round_closed:
+	# The sudden death still draws from this round's leftovers.
+	if not _result_round_closed and not sudden_death_pending:
 		provider.end_round()
 		_result_round_closed = true
 	game_state = Constants.STATE_RESULT_CEREMONY
@@ -2680,7 +2974,20 @@ func _update_result_ceremony(dt: float) -> void:
 		return
 	# Carry time across boundaries; do not lose one frame per phase. Signals
 	# deliver each crossed boundary, including after a long render frame.
+	if result_return_hold:
+		return
 	var remaining := maxf(0.0, dt)
+	if sudden_death_pending:
+		# A draw branches: the clock holds at the descent while the director takes
+		# both runners down the shaft (begin_sudden_death() on the way down).
+		remaining = minf(remaining, maxf(0.0, SUDDEN_DEATH_DESCENT_TIME - result_ceremony_elapsed))
+		if result_ceremony_elapsed >= SUDDEN_DEATH_DESCENT_TIME - 0.0000001:
+			if not _sudden_death_requested:
+				_sudden_death_requested = true
+				# The questions are generated on the way down (docs 第4章).
+				_start_sudden_death_generation()
+				sudden_death_transition_requested.emit(true)
+			return
 	while remaining > 0.0000001 and result_ceremony_phase < ResultCeremonyPhase.INTERACTIVE:
 		var duration := _result_phase_duration(result_ceremony_phase)
 		var step := minf(remaining, maxf(0.0, duration - result_ceremony_phase_elapsed))
@@ -2734,6 +3041,468 @@ func _apply_result_positions() -> void:
 	# state only during this phase; this flag is also useful to runtime probes.
 	p1_run_anim_speed_mult = 0.45 if running else 0.0
 	p2_run_anim_speed_mult = 0.45 if running else 0.0
+
+
+# ---------- Local 2P sudden death: 早押し水没リフト ----------
+# docs/sudden_death_underground.md. A draw in the ten-question finale stops at
+# SUDDEN_DEATH_DESCENT_TIME; the director takes the deck down the shaft and calls
+# begin_sudden_death() on the way. The rules live in SuddenDeathState; this class
+# hands it the buzz and answer keys (submit_sudden_death_key) and sends the loser
+# into the water. Nobody runs underground: the director stands both on their lift
+# towers (sudden_death_lift) in world coordinates (world_scroll_z stays 0).
+# end_sudden_death() puts the surface back and replays the verdict (6.9 s onward)
+# with the winner.
+
+## Answer keys underground: P1 A/W/S/D, P2 ←/↑/↓/→ (SUDDEN_DEATH_KEY_*). Which choice a key
+## picks depends on the number of choices (sudden_death_choice_for_key).
+const SUDDEN_DEATH_KEY_LEFT: int = 0
+const SUDDEN_DEATH_KEY_UP: int = 1
+const SUDDEN_DEATH_KEY_DOWN: int = 2
+const SUDDEN_DEATH_KEY_RIGHT: int = 3
+## Choice index -> key, by the number of choices. 2: ← →, 3: ← ↑ →, 4: ← ↑ ↓ →
+## (the choices read left to right as A, B, C, D on screen).
+const SUDDEN_DEATH_CHOICE_KEYS := {
+	2: [SUDDEN_DEATH_KEY_LEFT, SUDDEN_DEATH_KEY_RIGHT],
+	3: [SUDDEN_DEATH_KEY_LEFT, SUDDEN_DEATH_KEY_UP, SUDDEN_DEATH_KEY_RIGHT],
+	4: [SUDDEN_DEATH_KEY_LEFT, SUDDEN_DEATH_KEY_UP, SUDDEN_DEATH_KEY_DOWN, SUDDEN_DEATH_KEY_RIGHT],
+}
+
+func uses_sudden_death() -> bool:
+	return sudden_death_enabled and uses_local_result_ceremony()
+
+
+func is_sudden_death_running() -> bool:
+	return game_state == Constants.STATE_SUDDEN_DEATH and sudden_death != null and sudden_death.is_running()
+
+
+## Avatar runs: only while the director walks the runner (deck walk-off, onto the lift, pickup).
+func is_sudden_death_runner_active(player_index: int) -> bool:
+	if game_state != Constants.STATE_SUDDEN_DEATH:
+		return false
+	return (sudden_death_walk_mask & (1 if player_index == 1 else 2)) != 0
+
+
+func is_flood_caught(player_index: int) -> bool:
+	return p1_flood_caught if player_index == 1 else p2_flood_caught
+
+
+## The choice an answer key picks for [param choice_count] choices (-1: that key is not used).
+static func sudden_death_choice_for_key(key: int, choice_count: int) -> int:
+	var keys: Array = SUDDEN_DEATH_CHOICE_KEYS.get(clampi(choice_count, 2, 4), [])
+	return keys.find(key)
+
+
+## The answer key of choice [param choice] (-1 when out of range).
+static func sudden_death_key_for_choice(choice: int, choice_count: int) -> int:
+	var keys: Array = SUDDEN_DEATH_CHOICE_KEYS.get(clampi(choice_count, 2, 4), [])
+	return int(keys[choice]) if choice >= 0 and choice < keys.size() else -1
+
+
+func _reset_sudden_death_state() -> void:
+	sudden_death = null
+	sudden_death_pending = false
+	sudden_death_winner = 0
+	sudden_death_decided_by = ""
+	sudden_death_question_count = 0
+	p1_flood_caught = false
+	p2_flood_caught = false
+	sudden_death_lift = Vector2.ZERO
+	sudden_death_facing = 0.0
+	sudden_death_presentation_lock = false
+	sudden_death_walk_mask = 0
+	result_return_hold = false
+	result_return_regrow = 1.0
+	sudden_death_aborted = false
+	_sudden_death_generation_token += 1
+	sudden_death_generation = ""
+	sudden_death_generation_received = 0
+	sudden_death_generated_count = 0
+	sudden_death_preparing_panel = ""
+	_sudden_death_questions.clear()
+	_sudden_death_requested = false
+	_sudden_death_exit_requested = false
+	_sudden_death_saved.clear()
+	_sudden_death_input.clear()
+
+
+func _prepare_sudden_death() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	_sudden_death_questions = SuddenDeathQuestions.collect(
+		provider, subject, grade, difficulty, quiz_list, SuddenDeathTuning.new(), rng)
+	sudden_death_pending = _sudden_death_questions.size() == SuddenDeathTuning.QUESTION_COUNT
+	_sudden_death_requested = false
+	_sudden_death_exit_requested = false
+	if not sudden_death_pending:
+		push_warning("[SuddenDeath] No questions available; the draw ends as before.")
+
+
+## Online generation only, as the deck starts down: ask the provider for fresh questions. The
+## collected ones stay as the fallback; begin_sudden_death() runs before they arrive.
+func _start_sudden_death_generation() -> void:
+	_sudden_death_generation_token += 1
+	var token := _sudden_death_generation_token
+	sudden_death_generation = "generating"
+	sudden_death_generation_received = 0
+	sudden_death_generated_count = 0
+	_sudden_death_generation_started_msec = Time.get_ticks_msec()
+	var exclude: Array[String] = []
+	for quiz: QuizItem in quiz_list:
+		if quiz != null:
+			exclude.append(quiz.q)
+	var started := provider != null and provider.request_sudden_death_quizzes(SUDDEN_DEATH_GENERATION_COUNT, exclude,
+		func(received: int, _wanted: int) -> void:
+			if token == _sudden_death_generation_token:
+				sudden_death_generation_received = received,
+		func(items: Array[QuizItem]) -> void:
+			if token == _sudden_death_generation_token:
+				_finish_sudden_death_generation(items))
+	if not started and token == _sudden_death_generation_token and sudden_death_generation == "generating":
+		sudden_death_generation = ""
+
+
+func _finish_sudden_death_generation(items: Array[QuizItem]) -> void:
+	_sudden_death_generation_token += 1
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	var assembled := SuddenDeathQuestions.assemble(items, _sudden_death_questions, quiz_list, SuddenDeathTuning.new(), rng)
+	sudden_death_generated_count = int(assembled.generated)
+	sudden_death_generation = "done" if sudden_death_generated_count > 0 else "failed"
+	var questions: Array[QuizItem] = []
+	questions.assign(assembled.questions)
+	_sudden_death_questions = questions
+	# Underground already: swap them in while the rules still wait (no question is shown yet).
+	if sudden_death != null and sudden_death.phase == SuddenDeathState.Phase.INTRO:
+		sudden_death.quizzes = questions.duplicate()
+	print("[SuddenDeath] Generated %d of %d questions (%d received)" % [
+		sudden_death_generated_count, SuddenDeathTuning.QUESTION_COUNT, items.size()])
+
+
+## The provider never answered: carry on with the collected questions.
+func _poll_sudden_death_generation() -> void:
+	if Time.get_ticks_msec() - _sudden_death_generation_started_msec < SUDDEN_DEATH_GENERATION_LIMIT_MSEC:
+		return
+	_sudden_death_generation_token += 1
+	sudden_death_generation = "failed"
+	push_warning("[SuddenDeath] Question generation timed out; using the collected questions.")
+
+
+## The descent may land (docs 第4章, 第5章): no online generation is still running.
+func is_sudden_death_question_ready() -> bool:
+	return sudden_death_generation != "generating"
+
+
+func sudden_death_question_progress() -> float:
+	if is_sudden_death_question_ready():
+		return 1.0
+	return clampf(0.9 * float(sudden_death_generation_received) / float(SUDDEN_DEATH_GENERATION_COUNT), 0.0, 0.9)
+
+
+## Called by SuddenDeathDirector on the way down the shaft (at the cut to the
+## cruise shot), once the draw finale has reached the descent. The rules wait in
+## SuddenDeathState.Phase.INTRO until start_sudden_death_countdown().
+## Returns false when there is nothing to start.
+func begin_sudden_death() -> bool:
+	if not sudden_death_pending or game_state != Constants.STATE_RESULT_CEREMONY:
+		return false
+	_sudden_death_saved.clear()
+	for field: String in SUDDEN_DEATH_SURFACE_FIELDS:
+		_sudden_death_saved[field] = get(field)
+	sudden_death = SuddenDeathState.new()
+	result_presentation_active = false
+	result_ghost_mask = 0
+	world_scroll_z = 0.0
+	for player_index in [1, 2]:
+		_revive_for_sudden_death(player_index)
+	player_x = SUDDEN_DEATH_START_X
+	player2_x = -SUDDEN_DEATH_START_X
+	player_z = 0.0
+	player2_z = 0.0
+	sudden_death.setup(_sudden_death_questions, true)
+	# Past the collected questions the arithmetic generator keeps the duel going.
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	sudden_death.extra_question = func() -> QuizItem:
+		return SuddenDeathQuestions.fallback(provider, subject, grade, rng)
+	_active_wall_speed = 0.0
+	_sudden_death_input.clear()
+	sudden_death_facing = 0.0
+	sudden_death_presentation_lock = true
+	local_push.reset()
+	game_state = Constants.STATE_SUDDEN_DEATH
+	message_text = ""
+	choice_locked = false
+	refresh_status_text()
+	state_changed.emit(game_state)
+	return true
+
+
+## Ghosts and the living all go underground, whole and without carried-over state.
+func _revive_for_sudden_death(player_index: int) -> void:
+	if player_index == 1:
+		p1_alive = true
+		p1_wall_impact = false
+		p1_saw_killed = false
+		p1_shark_killed = false
+		p1_fall_committed = false
+		p1_waiting_for_shark = false
+		p1_flood_caught = false
+		p1_ocean_float_time = 0.0
+		p1_damage_time = 0.0
+		p1_external_velocity = Vector2.ZERO
+		p1_external_control_lock = 0.0
+		p1_emote = 0
+		p1_emote_lock_timer = 0.0
+		p1_moving_back = false
+		p1_run_anim_speed_mult = 1.0
+		game_over_timer = 0.0
+		player_y = 0.0
+		player_vel_y = 0.0
+		player_vel_z = 0.0
+	else:
+		p2_alive = true
+		p2_wall_impact = false
+		p2_saw_killed = false
+		p2_shark_killed = false
+		p2_fall_committed = false
+		p2_waiting_for_shark = false
+		p2_flood_caught = false
+		p2_ocean_float_time = 0.0
+		p2_damage_time = 0.0
+		p2_external_velocity = Vector2.ZERO
+		p2_external_control_lock = 0.0
+		p2_emote = 0
+		p2_emote_lock_timer = 0.0
+		p2_moving_back = false
+		p2_run_anim_speed_mult = 1.0
+		player2_game_over_timer = 0.0
+		player2_y = 0.0
+		player2_vel_y = 0.0
+		player2_vel_z = 0.0
+
+
+## Landing and intro done (docs 2.2): 3-2-1, then the first question.
+func start_sudden_death_countdown() -> void:
+	if sudden_death == null or sudden_death.phase != SuddenDeathState.Phase.INTRO:
+		return
+	sudden_death_presentation_lock = false
+	_sudden_death_input.clear()
+	sudden_death.start_countdown()
+	for event: Dictionary in sudden_death.events:
+		sudden_death_event.emit(event)
+	sudden_death.events.clear()
+
+
+## Presentation only: the director parks a runner (deck pad, lift tower, pickup walk).
+func place_sudden_death_runner(player_index: int, x: float, z: float, y := 0.0) -> void:
+	if player_index == 1:
+		player_x = x
+		player_y = y
+		player_z = z
+		player_vel_y = 0.0
+		player_vel_z = 0.0
+	else:
+		player2_x = x
+		player2_y = y
+		player2_z = z
+		player2_vel_y = 0.0
+		player2_vel_z = 0.0
+
+
+## GameWorld, before update(): one key press of [param player_index] underground, [param offset]
+## seconds into this frame. [param kind] "buzz" (the jump key) or "answer" with [param key]
+## (SUDDEN_DEATH_KEY_*). Only the first press of each kind in a frame counts; held keys never repeat.
+func submit_sudden_death_key(player_index: int, kind: String, key := -1, offset := 0.0) -> void:
+	if game_state != Constants.STATE_SUDDEN_DEATH or sudden_death == null or sudden_death_presentation_lock:
+		return
+	if player_index < 1 or player_index > 2:
+		return
+	var slot := player_index - 1
+	if _sudden_death_input.is_empty():
+		_sudden_death_input = {"buzz": [-1.0, -1.0], "choice": [-1, -1], "choice_offset": [0.0, 0.0]}
+	if kind == "buzz":
+		var buzzes: Array = _sudden_death_input.buzz
+		if float(buzzes[slot]) < 0.0:
+			buzzes[slot] = maxf(offset, 0.0)
+	elif kind == "answer":
+		var choices: Array = _sudden_death_input.choice
+		var choice := sudden_death_choice_for_key(key, sudden_death.current_choices())
+		if choice >= 0 and int(choices[slot]) < 0:
+			choices[slot] = choice
+			(_sudden_death_input.choice_offset as Array)[slot] = maxf(offset, 0.0)
+
+
+func _update_sudden_death(dt: float) -> void:
+	var sd := sudden_death
+	if sd == null:
+		return
+	_active_wall_speed = 0.0
+	var input := _sudden_death_input
+	_sudden_death_input = {}
+	sd.step(dt, input)
+	for player_index in [1, 2]:
+		if sd.caught[player_index - 1] and not is_flood_caught(player_index):
+			_sweep_runner_away(player_index)
+	if not p1_alive and game_over_timer > 0.0:
+		game_over_timer += dt
+	if not p2_alive and player2_game_over_timer > 0.0:
+		player2_game_over_timer += dt
+	_process_dead_player_physics(dt)
+	for event: Dictionary in sd.events:
+		_on_sudden_death_rule_event(event)
+		sudden_death_event.emit(event)
+	sd.events.clear()
+	if sd.finished and not _sudden_death_exit_requested:
+		_sudden_death_exit_requested = true
+		sudden_death_transition_requested.emit(false)
+
+
+## The rider of a sinking lift flinches (the HP hit reaction, no HP is taken).
+func _on_sudden_death_rule_event(event: Dictionary) -> void:
+	if str(event.get("kind", "")) != "sink" or str(event.get("reason", "")) == "timeout":
+		return
+	if int(event.get("player", 0)) == 1:
+		p1_damage_time = DAMAGE_FLASH_DURATION
+	else:
+		p2_damage_time = DAMAGE_FLASH_DURATION
+	camera_shake = maxf(camera_shake, 0.22)
+
+
+## The loser's lift goes under: the body falls into the current (the wall-impact ragdoll, kept
+## whole; FloodTumble carries it downstream and takes it under).
+func _sweep_runner_away(player_index: int) -> void:
+	if player_index == 1:
+		p1_alive = false
+		p1_flood_caught = true
+		p1_wall_impact = true
+		game_over_timer = 0.001
+		player_vel_y = 2.0
+		player_vel_z = 2.5
+	else:
+		p2_alive = false
+		p2_flood_caught = true
+		p2_wall_impact = true
+		player2_game_over_timer = 0.001
+		player2_vel_y = 2.0
+		player2_vel_z = 2.5
+	camera_shake = maxf(camera_shake, 0.3)
+
+
+## Called by SuddenDeathDirector at the cut back to the surface. Puts the surface
+## back and replays the verdict onward with the winner. With `hold` the ceremony
+## waits at the verdict until release_result_return_hold() (the winner's tower
+## grows back and the loser comes out of the drain first, docs 2.3).
+func end_sudden_death(hold := false) -> bool:
+	if game_state != Constants.STATE_SUDDEN_DEATH or sudden_death == null:
+		return false
+	sudden_death_winner = sudden_death.winner
+	sudden_death_decided_by = sudden_death.decided_by
+	sudden_death_question_count = sudden_death.question_index + 1
+	for field: String in _sudden_death_saved:
+		set(field, _sudden_death_saved[field])
+	p1_flood_caught = false
+	p2_flood_caught = false
+	sudden_death_pending = false
+	sudden_death = null
+	sudden_death_lift = Vector2.ZERO
+	sudden_death_facing = 0.0
+	sudden_death_presentation_lock = false
+	sudden_death_walk_mask = 0
+	_sudden_death_input.clear()
+	local_push.reset()
+	result_winner = sudden_death_winner
+	goal_winner = result_winner
+	result_presentation_active = true
+	result_return_hold = hold
+	result_return_regrow = 0.0 if hold else 1.0
+	game_state = Constants.STATE_RESULT_CEREMONY
+	result_ceremony_elapsed = RESULT_VERDICT_TIME
+	_set_result_ceremony_phase(ResultCeremonyPhase.EFFECT)
+	_update_result_positions()
+	if not _result_round_closed:
+		provider.end_round()
+		_result_round_closed = true
+	refresh_status_text()
+	state_changed.emit(game_state)
+	return true
+
+
+func release_result_return_hold() -> void:
+	result_return_hold = false
+	result_return_regrow = 1.0
+
+
+## The descent failed or ran past its time limit (docs 5.2): the deck comes back
+## up and the round ends as the plain draw. Works before or after
+## begin_sudden_death(). With `hold` the towers grow back before the controls.
+func abort_sudden_death(hold := true) -> bool:
+	if not sudden_death_pending and game_state != Constants.STATE_SUDDEN_DEATH:
+		return false
+	if game_state == Constants.STATE_SUDDEN_DEATH:
+		for field: String in _sudden_death_saved:
+			set(field, _sudden_death_saved[field])
+	sudden_death_aborted = true
+	_sudden_death_generation_token += 1
+	if sudden_death_generation == "generating":
+		sudden_death_generation = "failed"
+	sudden_death_pending = false
+	sudden_death = null
+	sudden_death_winner = 0
+	sudden_death_decided_by = ""
+	sudden_death_question_count = 0
+	p1_flood_caught = false
+	p2_flood_caught = false
+	sudden_death_lift = Vector2.ZERO
+	sudden_death_facing = 0.0
+	sudden_death_presentation_lock = false
+	sudden_death_walk_mask = 0
+	_sudden_death_input.clear()
+	local_push.reset()
+	result_winner = 0
+	goal_winner = 0
+	result_presentation_active = true
+	result_return_hold = hold
+	result_return_regrow = 0.0 if hold else 1.0
+	game_state = Constants.STATE_RESULT_CEREMONY
+	result_ceremony_elapsed = SUDDEN_DEATH_ABORT_RESUME_TIME
+	_set_result_ceremony_phase(ResultCeremonyPhase.WINNER)
+	result_ceremony_phase_elapsed = SUDDEN_DEATH_ABORT_RESUME_TIME - (RESULT_VERDICT_TIME + RESULT_EFFECT_DURATION)
+	_update_result_positions()
+	if not _result_round_closed:
+		provider.end_round()
+		_result_round_closed = true
+	refresh_status_text()
+	state_changed.emit(game_state)
+	return true
+
+
+## Debug builds only (GameWorld F9): finish a local 2P ten-question round now as
+## a draw with both runners at the goal, to rehearse the finale and sudden death.
+func debug_force_draw_finish() -> bool:
+	if not uses_local_result_ceremony() or result_presentation_active:
+		return false
+	if game_state not in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]:
+		return false
+	for player_index in [1, 2]:
+		_revive_for_sudden_death(player_index)
+	var hp := maxi(1, mini(p1_hp, p2_hp))
+	p1_hp = hp
+	p2_hp = hp
+	var correct := maxi(1, maxi(score, player2_score))
+	score = correct
+	player2_score = correct
+	goal_z = get_local_result_goal_z()
+	world_scroll_z = maxf(world_scroll_z, goal_z - RESULT_ELIMINATION_GOAL_AHEAD)
+	player_x = RESULT_PLAYER_X
+	player2_x = -RESULT_PLAYER_X
+	player_z = goal_z + RESULT_GOAL_WAIT_OFFSET
+	player2_z = player_z
+	result_ghost_mask = 0
+	goal_reached_mask = 0
+	_record_result_finisher(1)
+	_record_result_finisher(2)
+	_begin_result_ceremony()
+	return result_presentation_active
 
 
 # ---------- Collision ----------
@@ -3269,7 +4038,7 @@ func complete_ocean_shark_attack(player_index: int) -> void:
 		if not use_english_ui
 		else "A shark caught you in the ocean!"
 	)
-	_game_over(message)
+	_end_round_all_eliminated(message)
 	wrong_answer.emit(message_text)
 
 
@@ -3331,6 +4100,9 @@ func _process_dead_player_physics(dt: float) -> void:
 
 ## 壁衝突の「ラグドール -> 四肢分散」が終わるまでは結果画面や離脱を許可しない。
 func is_wall_death_sequence_complete() -> bool:
+	# Ghost finalists keep their death clocks frozen once the finale owns them.
+	if result_presentation_active:
+		return true
 	if (p1_wall_impact or p1_saw_killed) and not p1_alive and game_over_timer < WALL_DEATH_SEQUENCE_DURATION:
 		return false
 	if (p2_wall_impact or p2_saw_killed) and not p2_alive and player2_game_over_timer < WALL_DEATH_SEQUENCE_DURATION:
@@ -3526,9 +4298,9 @@ func resolve_collision(p1_hit: bool = false, p2_hit: bool = false) -> void:
 				else:
 					ans_label = "左" if answer == 0 else "右"
 			if use_english_ui:
-				_game_over("Wrong! Answer was %s" % ans_label)
+				_end_round_all_eliminated("Wrong! Answer was %s" % ans_label)
 			else:
-				_game_over("不正解！ 正解は %s" % ans_label)
+				_end_round_all_eliminated("不正解！ 正解は %s" % ans_label)
 			wrong_answer.emit(message_text)
 
 func advance_after_correct() -> void:
@@ -3563,6 +4335,58 @@ func advance_after_correct() -> void:
 
 
 # ---------- Game over / clear ----------
+
+## Every "all players are out" ending passes through here. The local 2P
+## ten-question finale replaces the GAME OVER card with the verdict ceremony:
+## the deaths play out, GameWorld wipes the screen and the ghosts meet on the
+## podium (begin_elimination_result_ceremony).
+func _end_round_all_eliminated(msg: String) -> void:
+	if not uses_local_result_ceremony():
+		_game_over(msg)
+		return
+	if elimination_result_pending or result_presentation_active:
+		return
+	if uses_saw_chase():
+		saw.begin_stop()
+	game_state = Constants.STATE_GAME_OVER
+	result_ghost_arrival_player = 0
+	result_ghost_arrival_elapsed = 0.0
+	elimination_result_pending = true
+	_elimination_result_ready = false
+	_elimination_hold_elapsed = 0.0
+	if not _result_round_closed:
+		provider.end_round()
+		_result_round_closed = true
+	rating_target_quiz = current_quiz
+	rating_feedback = ""
+	game_over_base_msg = msg
+	message_text = "%s\n%s" % [msg, "Results coming up..." if use_english_ui else "結果発表へ…"]
+	wrong_flash = 1.0
+	camera_shake = 0.35
+	refresh_status_text()
+	state_changed.emit(game_state)
+	QuizManager.quiz_optimizer.evaluate_history(quiz_history, subject, grade, difficulty)
+
+
+## Called under the screen cover once is_elimination_result_ready(). Moves the
+## round to the finish line and starts the finale with both players as ghosts.
+func begin_elimination_result_ceremony() -> bool:
+	if not elimination_result_pending or result_presentation_active:
+		return false
+	elimination_result_pending = false
+	_elimination_result_ready = false
+	if goal_z <= 0.0:
+		goal_z = get_local_result_goal_z()
+	world_scroll_z = maxf(world_scroll_z, goal_z - RESULT_ELIMINATION_GOAL_AHEAD)
+	goal_reached_mask = 0
+	result_ghost_arrival_player = 0
+	result_ghost_arrival_elapsed = 0.0
+	_record_result_ghost(1)
+	_record_result_ghost(2)
+	result_from_elimination = true
+	_begin_result_ceremony()
+	return result_presentation_active
+
 
 func _game_over(msg: String) -> void:
 	if uses_saw_chase() and not p1_alive and not p2_alive:
@@ -3621,7 +4445,9 @@ func clear_game() -> void:
 		return
 	if result_presentation_active:
 		var verdict := ("DRAW!" if use_english_ui else "引き分け！") if result_winner == 0 else (("P%d WINS!" if use_english_ui else "P%d の勝ち！") % result_winner)
-		message_text = "%s\nP1: %d × %d = %d\nP2: %d × %d = %d" % [verdict, result_p1_correct_count, result_p1_hp, result_p1_score, result_p2_correct_count, result_p2_hp, result_p2_score]
+		if sudden_death_winner > 0:
+			verdict = ("P%d WINS THE SUDDEN DEATH!" if use_english_ui else "サドンデスで P%d の勝ち！") % sudden_death_winner
+		message_text = "%s\n%s\n%s" % [verdict, get_result_formula_text(1), get_result_formula_text(2)]
 	elif num_players >= 2:
 		var winner_text: String
 		if goal_winner == 1:
@@ -3712,6 +4538,9 @@ func choices_text() -> PackedStringArray:
 func refresh_status_text() -> void:
 	if game_state == Constants.STATE_RESULT_CEREMONY:
 		status_text = "結果発表中…"
+		return
+	if elimination_result_pending:
+		status_text = "Results coming up..." if use_english_ui else "結果発表へ…"
 		return
 	if game_state in [Constants.STATE_GAME_OVER, Constants.STATE_CLEAR]:
 		if _is_tutorial_mode():

@@ -101,6 +101,7 @@ func _key(key: Key, pressed: bool, echo := false) -> void:
 	var event := InputEventKey.new()
 	event.keycode = key
 	event.physical_keycode = key
+	event.location = KEY_LOCATION_RIGHT if key == KEY_CTRL else KEY_LOCATION_UNSPECIFIED
 	event.pressed = pressed
 	event.echo = echo
 	Input.parse_input_event(event)

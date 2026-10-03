@@ -1,8 +1,7 @@
 """Key the Higgsfield-generated sprites (flat magenta/green backgrounds) to alpha.
 
 Input:  source/generated/*_raw.png  (Higgsfield z_image / seedream_5_0_flash)
-Output: ../textures/egg_splat.png   (runtime sprite, RGBA)
-        textures/sign_*.png            (opaque boards, embedded by Blender into the GLB)
+Output: textures/sign_*.png            (opaque boards, embedded by Blender into the GLB)
 Run from the project root:  python assets/goal_stand/source/key_generated.py
 """
 from pathlib import Path
@@ -68,7 +67,6 @@ def key_board(name, out_name, screen="magenta", width=512):
 
 
 if __name__ == "__main__":
-    print(key("egg_splat_raw.png", "egg_splat.png"))
     for raw, out, screen in [("sign_p1_raw.png", "sign_p1.png", "magenta"),
                              ("sign_p2_raw.png", "sign_p2.png", "magenta"),
                              ("sign_boo_raw.png", "sign_boo.png", "green")]:

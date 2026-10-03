@@ -315,6 +315,26 @@ func force_cleanup() -> void:
 		_previous_p2_alive = game_state.p2_alive
 
 
+## Hands the dead player's ghost to the result finale. Uses the live rider (or
+## the soul still on its way to the shark) when a ride is running for that
+## player; otherwise a fresh ghost rises from the body.
+func release_result_ghost(player_index: int, target_parent: Node) -> Node3D:
+	if target_parent == null or player_controller == null:
+		return null
+	if is_active_for_player(player_index):
+		return begin_result_dismount(target_parent)
+	var ghost := player_controller.create_ghost_rider_visual(player_index)
+	if ghost == null:
+		return null
+	target_parent.add_child(ghost)
+	ghost.global_position = _death_presentation_position(player_index) + Vector3.UP * 0.16
+	ghost.set_meta("result_release_scale", ghost.transform.basis.get_scale().x)
+	ghost.scale = Vector3.ONE
+	player_controller.make_ghost_rider_translucent(ghost)
+	result_rider_released.emit(ghost)
+	return ghost
+
+
 func begin_result_dismount(target_parent: Node) -> Node3D:
 	if dead_player_index not in [1, 2] or target_parent == null:
 		return null
@@ -328,18 +348,16 @@ func begin_result_dismount(target_parent: Node) -> Node3D:
 	_set_rider_presentation_only(false)
 	released.reparent(target_parent, false)
 	released.global_transform = released_transform
+	# The finale grows the ghost back from its riding size during the leap.
+	released.set_meta("result_release_scale", released_transform.basis.get_scale().x)
 	released.scale = Vector3.ONE
 	player_controller.make_ghost_rider_translucent(released)
 	_rider = null
-	_clear_ghost_emote()
-	_hide_aim_visuals()
-	_result_departure_only = true
-	_result_text = "RESULT RETURN"
-	_hit_this_charge = false
-	if _shark != null and is_instance_valid(_shark):
-		_begin_cooldown()
-	else:
-		_cleanup_ghost_ride()
+	# The shark must not come back through a return portal beside the podium.
+	var shark := _shark
+	_cleanup_ghost_ride()
+	if shark != null and is_instance_valid(shark):
+		shark.retire_after_result_dismount()
 	result_rider_released.emit(released)
 	return released
 
@@ -2655,6 +2673,7 @@ func _refresh_hud_controls() -> void:
 		_hud_controls.add_spec("矢印", accent, KeycapChip.SizeClass.TINY)
 		_hud_controls.add_text("照準", hint, 12, true)
 		_hud_controls.add_text(" | ", hint, 12, true)
+		_hud_controls.add_text("右", hint, 12, true)
 		_hud_controls.add_spec("Ctrl", accent, KeycapChip.SizeClass.TINY)
 	_hud_controls.add_text("長押し→離して発射", hint, 12, true)
 
@@ -2674,6 +2693,8 @@ func _fill_charge_tutorial_controls() -> void:
 	_charge_tutorial_controls.add_child(aim)
 	var charge := KeyHintRow.new()
 	charge.add_text("② ", ink, 20, true)
+	if dead_player_index != 1:
+		charge.add_text("右", ink, 20, true)
 	charge.add_spec("Space" if dead_player_index == 1 else "Ctrl", accent, KeycapChip.SizeClass.NORMAL)
 	charge.add_text("を長押ししてチャージ", ink, 20, true)
 	_charge_tutorial_controls.add_child(charge)

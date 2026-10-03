@@ -38,6 +38,8 @@ def build_all(export=True):
     report["ual"] = run("bake_ual.py")["result"]
     report["props"] = run("build_props.py")["result"]
     report["stand"] = run("build_stand.py")["result"]
+    report["scoreboard"] = run("build_scoreboard.py")["result"]
     if export:
         report["export"] = run("export_goal_stand.py")["result"]
+        report["egg_contents"] = run("build_egg_contents.py")["result"]
     return report

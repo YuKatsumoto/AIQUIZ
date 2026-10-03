@@ -58,6 +58,7 @@ const STAGE_CLEARANCE: float = 2.8
 const UNDER_STAGE_CLEARANCE: float = 2.6
 const ROUTE_SAMPLE_COUNT: int = 40
 const ATTACK_CRUISE_Y: float = StageConstants.OCEAN_SURFACE_Y - 0.22
+const RESULT_RETIRE_DIVE_SPEED: float = 9.0
 const VISIBILITY_EMISSION: Color = Color(0.10, 0.24, 0.30, 1.0)
 const VISIBILITY_EMISSION_ENERGY: float = 0.60
 const CHARGE_DISTANCE: float = 24.0
@@ -167,6 +168,7 @@ var is_ghost_ridden: bool = false
 var attack_route_kind: String = "ambient"
 
 var _center: Vector3 = Vector3.ZERO
+var _ambient_home_center: Vector3 = Vector3.ZERO
 var _angle: float = 0.0
 var _swim_time: float = 0.0
 var _velocity: Vector3 = Vector3.ZERO
@@ -267,6 +269,7 @@ var _ghost_mount_beam_cage_center: Vector3 = Vector3.ZERO
 
 func _ready() -> void:
 	_center = position
+	_ambient_home_center = _center
 	_angle = fposmod(phase, TAU)
 	model.scale = Vector3.ONE * model_scale
 	_apply_underwater_visibility()
@@ -1149,6 +1152,14 @@ func end_ghost_ride() -> void:
 	_recenter_ambient_path()
 
 
+## The rider leapt onto the result podium. Dive straight back under and resume
+## the home orbit instead of re-entering through a return portal by the stage.
+func retire_after_result_dismount() -> void:
+	end_ghost_ride()
+	_center = _ambient_home_center
+	_velocity = Vector3(_velocity.x * 0.35, -RESULT_RETIRE_DIVE_SPEED, _velocity.z * 0.35)
+
+
 func is_available_for_ocean_attack() -> bool:
 	return not is_attacking and not is_ghost_ridden
 
@@ -1402,6 +1413,9 @@ func _create_wake_particles() -> GPUParticles3D:
 	var bubble_mesh: SphereMesh = SphereMesh.new()
 	bubble_mesh.radius = 0.07
 	bubble_mesh.height = 0.14
+	# Default spheres are 4096 triangles per particle; 12x6 reads the same at droplet size.
+	bubble_mesh.radial_segments = 12
+	bubble_mesh.rings = 6
 	var bubble_material: StandardMaterial3D = StandardMaterial3D.new()
 	bubble_material.albedo_color = Color(0.74, 0.94, 1.0, 0.78)
 	bubble_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -1444,6 +1458,8 @@ func _create_surface_spray() -> GPUParticles3D:
 	var droplet_mesh: SphereMesh = SphereMesh.new()
 	droplet_mesh.radius = 0.055
 	droplet_mesh.height = 0.22
+	droplet_mesh.radial_segments = 12
+	droplet_mesh.rings = 6
 	var droplet_material: StandardMaterial3D = StandardMaterial3D.new()
 	droplet_material.albedo_color = Color(0.82, 0.97, 1.0, 0.88)
 	droplet_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -1490,6 +1506,8 @@ func _create_ghost_breach_particles() -> GPUParticles3D:
 	var droplet_mesh := SphereMesh.new()
 	droplet_mesh.radius = 0.065
 	droplet_mesh.height = 0.30
+	droplet_mesh.radial_segments = 12
+	droplet_mesh.rings = 6
 	var droplet_material := StandardMaterial3D.new()
 	droplet_material.albedo_color = Color(0.82, 0.98, 1.0, 0.92)
 	droplet_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -1535,6 +1553,8 @@ func _create_ghost_aura_particles() -> GPUParticles3D:
 	var mote_mesh := SphereMesh.new()
 	mote_mesh.radius = 0.055
 	mote_mesh.height = 0.11
+	mote_mesh.radial_segments = 12
+	mote_mesh.rings = 6
 	var mote_material := StandardMaterial3D.new()
 	mote_material.albedo_color = Color(0.42, 0.94, 1.0, 0.78)
 	mote_material.emission_enabled = true

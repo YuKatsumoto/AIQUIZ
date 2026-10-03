@@ -215,7 +215,32 @@ function buildCard(f, index) {
     keys(l, "Opacity", [[t, 0, 1, 1], [t + 0.06, 100, 60, 1]]);
     keys(l, "Scale", [[t, [40, 40], 1, 60], [t + 0.12, [114, 114], 60, 40], [t + 0.26, [100, 100], 75, 1]]);
   }
+  buildHpBonus(c, hp);
   return c;
+}
+
+// Survival bonus: a gold "+0.5" chip rises under the HP value, then flies into it
+// (merge 3.92: Godot switches "2" -> "2.5", the value re-pops, a gold ring expands).
+// Same layers and keys as add_hp_bonus.jsx, which patches an existing project in place.
+function buildHpBonus(c, hp) {
+  var merge = 3.92;
+  var at = [262, 122];
+  var rest = [262, 154];
+  keys(hp, "Scale", [[merge, [100, 100], 1, 60], [merge + 0.08, [120, 120], 60, 40], [merge + 0.22, [100, 100], 75, 1]]);
+  var ring = ellipseLayer(c, "HpBonusRing", 44, at, null, GOLD, 4);
+  var chip = rectLayer(c, "HpBonusChip", 68, 30, 15, rest, GOLD, 100, INK, 2);
+  var label = textLayer(c, "HpBonusText", "+0.5", 22, INK, rest, null, 0, 0);
+  var pieces = [chip, label];
+  for (var i = 0; i < pieces.length; i++) {
+    var l = pieces[i];
+    keys(l, "Opacity", [[3.50, 0, 1, 1], [3.56, 100, 60, 1], [3.84, 100, 1, 60], [merge, 0, 60, 1]]);
+    keys(l, "Position", [[3.50, [rest[0], rest[1] + 12], 1, 80], [3.70, rest, 75, 1], [3.80, rest, 1, 70], [merge, [at[0], at[1] + 2], 80, 1]]);
+    keys(l, "Scale", [[3.50, [40, 40], 1, 60], [3.62, [112, 112], 60, 40], [3.74, [100, 100], 75, 1],
+                      [3.80, [100, 100], 1, 60], [merge, [55, 55], 60, 1]]);
+  }
+  keys(ring, "Opacity", [[merge - 0.02, 0, 1, 1], [merge, 100, 60, 1], [merge + 0.32, 0, 40, 1]]);
+  keys(ring, "Scale", [[merge - 0.02, [60, 60], 1, 85], [merge + 0.32, [320, 320], 80, 1]]);
+  ring.moveAfter(hp);
 }
 
 function buildWinTag(f) {

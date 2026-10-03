@@ -515,6 +515,33 @@ func prepare_choice_count(item: QuizItem, expected: int) -> QuizItem:
 	return result
 
 
+## 2Pサドンデス用。指定の教科・学年のオフライン問題を、難易度の帯に絞って返す。
+## 選択肢の数は元のまま（列の数への縮小は SuddenDeathQuestions が行う）。通信しない。
+## 2Pサドンデスの問題を新しく生成する（オンライン生成のプロバイダーだけ）。生成しないなら false。
+## on_progress(届いた数, 欲しい数)、on_done(Array[QuizItem]) は BufferedQuizProvider を参照。
+func request_sudden_death_quizzes(_count: int, _exclude_texts: Array[String], _on_progress: Callable,
+		_on_done: Callable) -> bool:
+	return false
+
+
+func offline_candidates(subject: String, grade: int, difficulty: String) -> Array[QuizItem]:
+	var items: Array[QuizItem] = []
+	var subj_data: Variant = bank.get(subject, {})
+	var raw_items: Variant = (subj_data as Dictionary).get(str(grade), []) if subj_data is Dictionary else []
+	if raw_items is Array:
+		for raw: Variant in raw_items:
+			var item := _normalize(raw)
+			if item != null:
+				item.estimated_seconds = _estimate_seconds(item, subject, difficulty)
+				items.append(item)
+	return _bucket_by_difficulty(items, subject, grade, difficulty)
+
+
+## 2Pサドンデス用。問題が尽きたときの算数の自動生成（4択）。
+func fallback_question(subject: String, grade: int) -> QuizItem:
+	return _fallback_question(subject, grade, true)
+
+
 func _four_choice_pool(items: Array[QuizItem]) -> Array[QuizItem]:
 	var result: Array[QuizItem] = []
 	for item: QuizItem in items:

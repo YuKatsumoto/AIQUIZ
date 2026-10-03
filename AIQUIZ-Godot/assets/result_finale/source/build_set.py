@@ -404,6 +404,45 @@ def attach_flag(flag):
     flag.matrix_world = Matrix.Translation(head + axis * 0.02) @ basis.to_4x4()
 
 
+def mirror_flag(flag, prefix="PRP_FlagL"):
+    """The same flag in the left hand, so nothing tells the winner before the verdict.
+
+    An exact X mirror of the right flag in rig space, measured at the rest pose and
+    parented to DEF-hand.L (linked mesh data, children keep their locals). Idempotent.
+    """
+    rig = bpy.data.objects["RIG_Referee"]
+    for name in (prefix, prefix + "Knob", prefix + "Cloth"):
+        old = bpy.data.objects.get(name)
+        if old is not None:
+            bpy.data.objects.remove(old, do_unlink=True)
+    pose_position = rig.data.pose_position
+    rig.data.pose_position = 'REST'
+    bpy.context.view_layer.update()
+    try:
+        in_rig = rig.matrix_world.inverted() @ flag.matrix_world
+        mirrored = Matrix.Diagonal((-1.0, 1.0, 1.0, 1.0)) @ in_rig
+        left = bpy.data.objects.new(prefix, flag.data)
+        for coll in flag.users_collection:
+            coll.objects.link(left)
+        left.parent = rig
+        left.parent_type = 'BONE'
+        left.parent_bone = "DEF-hand.L"
+        left.matrix_parent_inverse = Matrix.Identity(4)
+        bpy.context.view_layer.update()
+        left.matrix_world = rig.matrix_world @ mirrored
+        for child in flag.children:
+            part = bpy.data.objects.new(child.name.replace("PRP_Flag", prefix, 1), child.data)
+            for coll in child.users_collection:
+                coll.objects.link(part)
+            part.parent = left
+            part.matrix_parent_inverse = child.matrix_parent_inverse.copy()
+            part.matrix_basis = child.matrix_basis.copy()
+    finally:
+        rig.data.pose_position = pose_position
+        bpy.context.view_layer.update()
+    return left
+
+
 # ---------------------------------------------------------------- preview env
 
 def build_env(coll, M):
@@ -451,6 +490,7 @@ def build_all():
     cloud.location = (2.2, 0.0, 3.2)
     flag = build_flag(set_coll, M)
     attach_flag(flag)
+    mirror_flag(flag)
     build_env(set_coll, M)
     build_lights(light_coll)
     bpy.context.view_layer.update()

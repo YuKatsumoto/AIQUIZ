@@ -2,7 +2,7 @@ extends Node
 var errors: Array[String]=[]
 var checks: Dictionary={}
 var records: Array[Dictionary]=[]
-const OUT:="res://artifacts/saw_operator/v2_menu/"
+const OUT:="res://artifacts/saw_operator/v3/menu_chase/"
 func _ready() -> void:call_deferred("run")
 func run() -> void:
 	Engine.max_fps=60

@@ -1,0 +1,16 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://shaders/sudden_death/cistern_lamp.gdshader" id="1_muin0"]
+
+[resource]
+resource_name = "CIS_LampLensAmber"
+render_priority = 0
+shader = ExtResource("1_muin0")
+shader_parameter/opening_color = null
+shader_parameter/opening_strength = null
+shader_parameter/ambient_color = null
+shader_parameter/ambient_level = null
+shader_parameter/white_balance = Vector3(0.81204945, 1.0465903, 1.3167658)
+shader_parameter/lens_color = Color(1, 0.5367385, 0.054525774, 1)
+shader_parameter/energy = 10.0
+shader_parameter/off_level = null

@@ -695,7 +695,7 @@ func _build_steps() -> Array[Dictionary]:
 		{
 			"id": "duo_ghost",
 			"title": "ゴーストシャークで反撃",
-			"body": "脱落したP2はゴーストシャークを操作できます。照準をP1に合わせ、Ctrlを長押しして離すと突進します。",
+			"body": "脱落したP2はゴーストシャークを操作できます。照準をP1に合わせ、右Ctrlを長押しして離すと突進します。",
 			"guide": GUIDE_GHOST,
 			"speed": 0.0,
 			"walls": false,

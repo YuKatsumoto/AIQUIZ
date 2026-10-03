@@ -12,6 +12,9 @@ const MUTED := Color("a9b9cd")
 const CYCLE_SECONDS := 3.6
 
 var show_footnote := true
+## false: static key map only. No demonstration ring, finger or automatic presses;
+## real key input is still highlighted.
+var show_demo := true
 var _keys: Array[Dictionary] = []
 var _key_by_id: Dictionary = {}
 var _highlights: Dictionary = {}
@@ -188,7 +191,7 @@ func set_demonstration_override(state: Dictionary) -> void:
 
 func get_action_state() -> Dictionary:
 	var live := _input_grace > 0.0
-	var task: Dictionary = _last_actual_task if live else _focus
+	var task: Dictionary = _last_actual_task if live else (_focus if show_demo else {})
 	var key := _last_actual_key if live else _demo_key_id()
 	var task_id := str(task.get("id", ""))
 	var caption := str(task.get("caption", ""))
@@ -254,7 +257,7 @@ func _is_actual_key_down(key: Dictionary) -> bool:
 	if key_id == "CtrlL":
 		return _ctrl_left_down and Input.is_key_pressed(KEY_CTRL)
 	if key_id == "CtrlR":
-		return Input.is_key_pressed(KEY_CTRL) and (_ctrl_right_down or not _ctrl_left_down)
+		return _ctrl_right_down and Input.is_key_pressed(KEY_CTRL)
 	var code: int = int(key.get("code", 0))
 	if code == 0:
 		return false
@@ -286,8 +289,8 @@ func _task_key_ids(task: Dictionary) -> Array[String]:
 		match token.to_lower():
 			"space", "スペース", "spc": token = "Space"
 			"ctrl", "control":
+				# The game only reads the right Ctrl key (P2 jump / ghost shark charge).
 				out.append("CtrlR")
-				out.append("CtrlL")
 				continue
 			"left": token = "←"
 			"right": token = "→"
@@ -300,6 +303,8 @@ func _task_key_ids(task: Dictionary) -> Array[String]:
 
 
 func _demo_key_id() -> String:
+	if not show_demo:
+		return ""
 	var key_ids := _task_key_ids(_focus)
 	if key_ids.is_empty():
 		return ""
@@ -327,7 +332,7 @@ func _demo_phase() -> float:
 
 
 func _demo_is_pressed() -> bool:
-	if _focus.is_empty() or _reduced_motion:
+	if _focus.is_empty() or _reduced_motion or not show_demo:
 		return false
 	if _demonstration_override.has("pressed"):
 		return bool(_demonstration_override["pressed"])
@@ -417,7 +422,7 @@ func _draw() -> void:
 		_draw_demo_hand(demo_key)
 	var footnote := "表示されたキーを押して操作を確認できます。"
 	if _highlights.has("CtrlR"):
-		footnote = "Ctrl は左右どちらでも使えます。"
+		footnote = "右Ctrlキーを使います（左Ctrlでは反応しません）。"
 	elif _duo and (_highlights.has("8") or _highlights.has("9")):
 		footnote = "数字キーで再生します。P2はテンキー7・8・9にも対応。"
 	elif not _duo and (_highlights.has("←") or _highlights.has("↑")):
@@ -444,6 +449,8 @@ func _header_text() -> String:
 		return "操作完了"
 	if _focus.is_empty():
 		return "操作を継続"
+	if not show_demo:
+		return "キー配置"
 	if _reduced_motion:
 		return "表示されたキーを入力"
 	if _demo_is_pressed():

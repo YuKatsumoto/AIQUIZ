@@ -43,8 +43,9 @@ func setup(parent: Node3D, selected: int) -> void:
 			"duration": clip_duration, "origin": skeleton.get_bone_global_pose(bones.hips).origin})
 		duration += clip_duration
 
-func apply(root: Node3D, parts: Dictionary, camera: Camera3D, elapsed: float, floor_y: float) -> void:
-	if clips.is_empty() or elapsed <= START: return
+## `fade` (0..1) scales the dance out again (the sudden death whistle stops it).
+func apply(root: Node3D, parts: Dictionary, camera: Camera3D, elapsed: float, floor_y: float, fade := 1.0) -> void:
+	if clips.is_empty() or elapsed <= START or fade <= 0.0: return
 	sample_time = fposmod(dance_clock(elapsed), duration)
 	var local_time := sample_time
 	var clip: Dictionary = clips.back()
@@ -55,7 +56,7 @@ func apply(root: Node3D, parts: Dictionary, camera: Camera3D, elapsed: float, fl
 	var skeleton: Skeleton3D = clip.skeleton
 	(clip.ap as AnimationPlayer).seek(local_time, true)
 	skeleton.force_update_all_bone_transforms()
-	var weight := smoothstep(START, BLEND_END, elapsed)
+	var weight := smoothstep(START, BLEND_END, elapsed) * clampf(fade, 0.0, 1.0)
 	var carrier := root.global_transform
 	var before := {}
 	for key: Variant in parts:

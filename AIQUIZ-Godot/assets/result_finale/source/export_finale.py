@@ -4,7 +4,8 @@ Outputs (res://assets/result_finale/):
   score_tower.glb     one tower (Collar + Lift/Platform/Column/Cannons, muzzle markers)
   crown.glb           crown with balls and gems, origin on the head
   rain_cloud.glb      cloud with face and PRP_CloudRain emitter marker
-  referee_finale.glb  Godot plush rig + flag, animations "FinaleWin" and "FinaleDraw"
+  referee_finale.glb  Godot plush rig + a flag in each hand, animations "FinaleWin",
+                      "FinaleWinP2" (winner at +X, played unmirrored) and "FinaleDraw"
   finale_motion.json  sampled player joints, fists, tower curves, crown, cloud, cameras
 
 Coordinates: Blender Z-up -> Godot Y-up. Joint/prop locals use Ci @ M @ C; cameras
@@ -164,15 +165,17 @@ def export_referee():
     s = bpy.data.scenes[SCENE]
     rig = bpy.data.objects["RIG_Referee"]
     plush = bpy.data.objects["HERO_GodotPlush"]
-    flag_parts = [bpy.data.objects[n] for n in ("PRP_Flag", "PRP_FlagKnob", "PRP_FlagCloth")]
+    # A flag in each hand (build_set.mirror_flag).
+    flag_parts = [bpy.data.objects[prefix + part] for prefix in ("PRP_Flag", "PRP_FlagL")
+                  for part in ("", "Knob", "Cloth")]
     win_action = bpy.data.actions["REF_FinaleWin"]
-    draw_action = bpy.data.actions["REF_FinaleDraw"]
+    clips = [(name, bpy.data.actions["REF_" + name]) for name in ("FinaleWin", "FinaleWinP2", "FinaleDraw")]
     rig.animation_data.action = win_action
-    # NLA tracks make both actions exportable as named glTF animations.
+    # NLA tracks make every action exportable as a named glTF animation.
     ad = rig.animation_data
     for tr in list(ad.nla_tracks):
         ad.nla_tracks.remove(tr)
-    for name, act in (("FinaleWin", win_action), ("FinaleDraw", draw_action)):
+    for name, act in clips:
         tr = ad.nla_tracks.new()
         tr.name = name
         strip = tr.strips.new(name, 0, act)

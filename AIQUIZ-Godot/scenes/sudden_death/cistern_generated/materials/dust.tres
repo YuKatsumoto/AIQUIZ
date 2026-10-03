@@ -1,0 +1,16 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://shaders/sudden_death/cistern_dust.gdshader" id="1_m8qv3"]
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_m8qv3")
+shader_parameter/opening_color = null
+shader_parameter/opening_strength = null
+shader_parameter/ambient_color = null
+shader_parameter/ambient_level = null
+shader_parameter/white_balance = null
+shader_parameter/dust_color = null
+shader_parameter/dust_energy = null
+shader_parameter/near_fade = null
+shader_parameter/far_fade = null

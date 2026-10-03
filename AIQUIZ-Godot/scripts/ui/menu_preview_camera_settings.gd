@@ -13,7 +13,7 @@ static func default_settings() -> Dictionary:
 static func code_default_settings() -> Dictionary:
 	return {
 		"position": MenuWallBackgroundPreview.PREVIEW_CAM_POS,
-		"rotation_degrees": MenuWallBackgroundPreview.PREVIEW_CAM_ROT_DEG,
+		"rotation_degrees": MenuWallBackgroundPreview.menu_camera_rotation_degrees(),
 		"fov": MenuWallBackgroundPreview.PREVIEW_CAM_FOV,
 		"h_offset": MenuWallBackgroundPreview.PREVIEW_CAM_H_OFFSET,
 	}

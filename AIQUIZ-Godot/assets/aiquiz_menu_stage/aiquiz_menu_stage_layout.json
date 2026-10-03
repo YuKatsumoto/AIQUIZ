@@ -1,0 +1,189 @@
+{
+ "note": "メニューのワールド（Godot）座標。GLB はこの座標で作ってあるので原点に置くだけ。街（aiquiz_menu_city.glb、街のローカル座標）は city の位置・向きで置く。",
+ "glb": "res://assets/aiquiz_menu_stage/aiquiz_menu_stage.glb",
+ "stage_meshes": [
+  "AMS_LaunchDeck",
+  "AMS_Backdrop",
+  "AMS_LedScreen",
+  "AMS_Sign",
+  "AMS_DeckTowers",
+  "AMS_Palms",
+  "AMS_PalmLeaves",
+  "AMS_Pennants"
+ ],
+ "stage_note": "2026-09-30：走路の脇の白い丸杭・奥の歩道・ガラスの手すり・琥珀の灯・照明塔と、発進デッキから走路への橋を外した（ディスプレイのステージだけ）。ベルトの箱の側面の白い外装（AMS_PierFascia）はビルダーの KEEP_PIER_FASCIA で戻せる（そのとき stage_meshes に入る）",
+ "camera": {
+  "position": [
+   -18.0,
+   6.1,
+   23.15
+  ],
+  "rotation_degrees": [
+   -7.0,
+   -19.0,
+   0.0
+  ],
+  "fov": 37.5,
+  "old_rotation_degrees": [
+   -14.0,
+   -19.0,
+   0.0
+  ]
+ },
+ "city": {
+  "glb": "res://assets/aiquiz_menu_stage/aiquiz_menu_city.glb",
+  "made_from": "スタジアムの遠景の AQS_BG_City の複製から手前の低い箱・護岸・並木を除き（AMS_City）、岸辺の街（AMS_City*）と観覧車（AMS_FerrisWheelStand・AMS_FerrisWheelRim・AMS_FerrisGondola_00〜23）を足したもの",
+  "position": [
+   404.618,
+   -9.2,
+   -883.158
+  ],
+  "yaw_deg": 155.0,
+  "bearing_from_camera_deg": 25.0,
+  "distance_from_camera": 1100.0,
+  "waterfront": {
+   "wheel_center_local": [
+    -40.0,
+    234.0,
+    40.5
+   ],
+   "wheel_radius": 30.0,
+   "wheel_axle_local": [
+    -40.0,
+    234.0,
+    40.5
+   ],
+   "wheel_axis_local": [
+    0.0,
+    1.0,
+    0.0
+   ],
+   "wheel_hang_radius": 30.0,
+   "wheel_gondolas": 24,
+   "wheel_nodes": {
+    "stand": "AMS_FerrisWheelStand",
+    "rim": "AMS_FerrisWheelRim",
+    "gondola_prefix": "AMS_FerrisGondola_"
+   },
+   "wheel_note": "Blender の街のローカル（x, y, z）。Godot の街のローカルでは (x, z, -y)。輪（原点＝軸の中心）を軸まわりに回し、ゴンドラ（原点＝吊り点、止まっている姿勢で軸から半径 wheel_hang_radius）は向きを変えずに原点を輪と同じだけ回す。軸の向き（+y）は輪の正面・メニューのカメラの側",
+   "quay_y_local": 252.0,
+   "ground_z_local": 4.5,
+   "buildings": 145,
+   "boats": 49
+  }
+ },
+ "launch_deck": {
+  "center": [
+   30.0,
+   -1.1199999999999999,
+   -34.0
+  ],
+  "radius": 12.0,
+  "yaw_deg": -40.027,
+  "pads": {
+   "P1": [
+    25.035,
+    -1.12,
+    -34.775
+   ],
+   "P2": [
+    31.621,
+    -1.12,
+    -29.244
+   ]
+  }
+ },
+ "sign_center": [
+  35.274,
+  8.13,
+  -40.279
+ ],
+ "led_center": [
+  35.274,
+  2.68,
+  -40.279
+ ],
+ "led_size": [
+  10.4,
+  4.7
+ ],
+ "sign_size": [
+  13.0,
+  3.4
+ ],
+ "tower_tops": [
+  [
+   25.05,
+   11.28,
+   -45.21
+  ],
+  [
+   41.896,
+   11.28,
+   -31.06
+  ]
+ ],
+ "keep_clear": {
+  "belt": {
+   "x": [
+    -12.0,
+    12.0
+   ],
+   "z": [
+    -136.0,
+    8.0
+   ],
+   "note": "ベルトの上と側枠には何も置かない"
+  },
+  "runway_sides": {
+   "abs_x": 16.0,
+   "z": [
+    -136.0,
+    8.0
+   ],
+   "note": "走路の脇（|x| < 16）には外装（AMS_PierFascia、戻したときだけ）のほかに何も置かない"
+  },
+  "saw_zone": {
+   "z": [
+    -12.0,
+    14.0
+   ],
+   "stowed_blades_abs_x": [
+    13.95,
+    16.8
+   ],
+   "note": "のこぎりの台車・操縦席のデッキ・収納した刃が動く所。外装は操縦席のデッキの下（y ≤ -2.30）だけ"
+  },
+  "helicopter": {
+   "pickups": [
+    [
+     -1.5,
+     -1.2,
+     -4.0
+    ],
+    [
+     -8.0,
+     -1.2,
+     -4.0
+    ],
+    [
+     4.0,
+     -1.2,
+     -4.0
+    ]
+   ],
+   "hover_height": 10.2,
+   "rotor_radius": 5.2
+  }
+ },
+ "materials": {
+  "AQS_Painted": "頂点色（ゲームの共有材質 aiquiz_stadium_materials.gd に差し替え）",
+  "AMS_Lamp": "昼も光る灯（頂点色を発光）",
+  "AMS_Glass": "ガラスの手すり（半透明）",
+  "AMS_LedScreen": "LED（Godot で shaders/aiquiz_menu_led.gdshader に差し替え、UV 0..1）",
+  "AMS_Sign": "看板（画像、少し発光）",
+  "AMS_Paving": "舗装（画像×頂点色、平面投影の UV：3m で 1 周期）",
+  "AMS_Pennant": "旗・吹き流し（Godot で揺れのシェーダー、UV2.x = 重み）",
+  "AMS_Foliage": "ヤシの葉（Godot で揺れのシェーダー、UV2.x = 重み）"
+ }
+}

@@ -15,6 +15,12 @@ uniform sampler2D depth_texture : hint_depth_texture, repeat_disable, filter_nea
 uniform float depth_absorption : hint_range(0.01, 0.3) = 0.08;
 uniform sampler2D noise_tex;
 uniform sampler2D noise_tex2;
+#ifdef SHAFT_HOLE
+// Sudden death shaft (StageEnvironment.set_shaft_hole compiles this variant only while the hole
+// is open): (centre x, centre z, radius, active). Water inside the circle is cut away.
+uniform vec4 shaft_hole = vec4(0.0);
+varying vec2 v_world_xz;
+#endif
 
 varying float v_crest;
 varying float v_flow;
@@ -42,9 +48,20 @@ void vertex() {
 	VERTEX.y += displacement;
 	v_crest = displacement / max(wave_height, 0.001);
 	v_flow = noise_a * 0.65 + noise_b * 0.35;
+#ifdef SHAFT_HOLE
+	v_world_xz = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xz;
+#endif
 }
 
 void fragment() {
+#ifdef SHAFT_HOLE
+	if (shaft_hole.w > 0.5) {
+		vec2 hole_offset = v_world_xz - shaft_hole.xy;
+		if (dot(hole_offset, hole_offset) < shaft_hole.z * shaft_hole.z) {
+			discard;
+		}
+	}
+#endif
 	float t = TIME * wave_speed;
 	vec2 flow_uv_a = UV * 7.0 + vec2(t * 0.038, -t * 0.026);
 	vec2 flow_uv_b = UV * 11.0 + vec2(-t * 0.031, t * 0.043);

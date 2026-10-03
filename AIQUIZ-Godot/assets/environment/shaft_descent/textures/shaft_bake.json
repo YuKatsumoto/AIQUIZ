@@ -1,0 +1,24 @@
+{
+  "generator": "assets/environment/shaft_descent/source/bake_shaft.py",
+  "wall_texture_size": [
+    8192,
+    1024
+  ],
+  "light_texture_size": [
+    2048,
+    512
+  ],
+  "wall_v_length_m": 5.060307756402823,
+  "light_encoding": "value = (irradiance / light_max) ^ (1 / 2.2)",
+  "light_max": 5.443997383117676,
+  "lamp_C": 1.7169986963272095,
+  "light_max_over_C": 3.1706473596996894,
+  "indirect_share": 0.27313947677612305,
+  "lamp_power_w": 60.0,
+  "stats": {
+    "tone_mean": 0.2954587936401367,
+    "wet_mean": 0.02281060814857483,
+    "effl_mean": 0.00830500666052103,
+    "rust_mean": 0.0055611757561564445
+  }
+}

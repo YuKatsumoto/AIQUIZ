@@ -1,0 +1,48 @@
+{
+	"built": "2026-10-03T00:00:48",
+	"lut": "res://scenes/sudden_death/cistern_generated/textures/grade_lut.res",
+	"modules": {
+		"cistern_bay_a": {
+			"anchors": 15,
+			"light": "res://assets/environment/underground_temple/textures/cistern_bay_a_light.png",
+			"light_max": 0.710705,
+			"real": true,
+			"source": "res://assets/environment/underground_temple/cistern_bay_a.glb"
+		},
+		"cistern_bay_b": {
+			"anchors": 14,
+			"light": "res://assets/environment/underground_temple/textures/cistern_bay_b_light.png",
+			"light_max": 0.653543,
+			"real": true,
+			"source": "res://assets/environment/underground_temple/cistern_bay_b.glb"
+		},
+		"cistern_bay_c": {
+			"anchors": 14,
+			"light": "res://assets/environment/underground_temple/textures/cistern_bay_c_light.png",
+			"light_max": 0.690259,
+			"real": true,
+			"source": "res://assets/environment/underground_temple/cistern_bay_c.glb"
+		},
+		"cistern_bay_opening": {
+			"anchors": 16,
+			"light": "res://assets/environment/underground_temple/textures/cistern_bay_opening_light.png",
+			"light_max": 0.680884,
+			"real": true,
+			"source": "res://assets/environment/underground_temple/cistern_bay_opening.glb"
+		},
+		"cistern_end_downstream": {
+			"anchors": 26,
+			"light": "res://assets/environment/underground_temple/textures/cistern_end_downstream_light.png",
+			"light_max": 2.194187,
+			"real": true,
+			"source": "res://assets/environment/underground_temple/cistern_end_downstream.glb"
+		},
+		"cistern_end_upstream": {
+			"anchors": 30,
+			"light": "res://assets/environment/underground_temple/textures/cistern_end_upstream_light.png",
+			"light_max": 5.273985,
+			"real": true,
+			"source": "res://assets/environment/underground_temple/cistern_end_upstream.glb"
+		}
+	}
+}

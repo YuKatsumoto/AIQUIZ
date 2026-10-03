@@ -1,0 +1,28 @@
+{
+  "note": "AIQUIZ STADIUM の色見本（16色以内）。master_sample は原本の照明込みの色（切り抜きを目視確認して色条件付きの中央値で採取）、albedo は頂点色に使う想定の素の色（設計判断）。far 系は霧が強制オフのため、かすみを色に焼き込む値。",
+  "source_image": "master/aiquiz_stadium_master_v1.png",
+  "swatches": {
+    "white_paint":      {"master_sample": "#fdf2e9", "albedo": "#ece9e2", "use": "桟橋・スタンド・杭・ブース・灯台の白塗装"},
+    "cobalt_trim":      {"master_sample": "#3863a3", "albedo": "#2f5fa8", "use": "走路の縁石と縁の帯、手すりの笠木"},
+    "booth_panel_blue": {"master_sample": "#1b4a90", "albedo": "#1e4e96", "use": "ブースの青パネル"},
+    "step_grey":        {"master_sample": "#c3b4bb", "albedo": "#cfd3d8", "use": "観客席の段・通路"},
+    "mast_wood":        {"master_sample": "#76524b", "albedo": "#7a5a3c", "use": "マスト・ヤード"},
+    "sail_cloth":       {"master_sample": "#ebe6e4", "albedo": "#f2eee6", "use": "帆（両面）"},
+    "sail_shade_ref":   {"master_sample": "#a1a8a6", "albedo": null, "use": "参考：帆の影側の見え方（塗らない）"},
+    "sign_navy":        {"master_sample": "#435c77", "albedo": "#3b5068", "use": "灯台の看板パネル"},
+    "steel_grey":       {"master_sample": "#78858d", "albedo": "#7c8a94", "use": "ゲートのトラス・看板の支持金具"},
+    "lantern_warm":     {"master_sample": "#f1e2c4", "albedo": "#ffe6b0", "use": "灯室の発光（emission）"},
+    "sea_shallow_ref":  {"master_sample": "#59bbcf", "albedo": null, "use": "参考：海（既存の ocean.gdshader が描く）"},
+    "sea_far_ref":      {"master_sample": "#b7eaf8", "albedo": null, "use": "参考：水平線付近の海"},
+    "island_green":     {"master_sample": "#90bbb3", "albedo": "#5e9e5a", "use": "島の緑（遠い島はかすみ色へ寄せる）"},
+    "island_sand":      {"master_sample": "#f9ebd3", "albedo": "#eadbb8", "use": "島の砂浜・灯台の土台の岩"},
+    "skyline_haze":     {"master_sample": "#def2f8", "albedo": "#cfe3ee", "use": "遠景ビル群（かすみ込み）"},
+    "sky_top_ref":      {"master_sample": "#8dcff5", "albedo": null, "use": "参考：空（既存の空シェーダー）"}
+  },
+  "team_reference": {
+    "P1_orange": "#f28c33 (goal_stand.gd P1_SHIRTS[0]) — ワールド +X、ゲーム画面の左。構造には塗らず観客が担う",
+    "P2_blue": "#33a6e6 (goal_stand.gd P2_SHIRTS[0]) — ワールド −X、画面の右",
+    "master_orange_sample": "#df6018",
+    "master_blue_sample": "#144fa3"
+  }
+}

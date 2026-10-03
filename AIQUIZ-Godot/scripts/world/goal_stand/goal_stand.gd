@@ -4,16 +4,21 @@ extends Node3D
 ## Finish-line grandstand at the far end of the conveyor (assets/goal_stand, built
 ## in Blender through the Higgsfield connector). Three standing tiers of block
 ## spectators react to the finish: team fans cheer or despair, hotheads pelt the
-## loser with eggs, party people dance the game's own emotes, sign holders flip
-## their boards to "ブーー！" when their player loses.
+## loser with eggs, party people dance the game's own emotes, and three sign
+## holders standing side by side flip their boards to "OH" "MY" "GOT" when their
+## player loses.
 ##
 ## Blender builds the stand facing -Y (glTF +Z); this node turns it PI so the crowd
 ## looks back down the conveyor. Spectators live in the same stand space.
+## The structure is AIQUIZ STADIUM's harbour bridge house (aiquiz_stadium_goal_stand.glb:
+## same tiers, aisles and GS_ScoreboardScreen LED face as the original goal_stand.glb).
 
-const STAND_SCENE: PackedScene = preload("res://assets/goal_stand/goal_stand.glb")
+const STAND_SCENE: PackedScene = preload("res://assets/aiquiz_stadium/aiquiz_stadium_goal_stand.glb")
+const StadiumMaterials = preload("res://scripts/world/aiquiz_stadium/aiquiz_stadium_materials.gd")
 const SPECTATOR_SCENE: PackedScene = preload("res://assets/goal_stand/goal_stand_spectator.glb")
 const PROPS_SCENE: PackedScene = preload("res://assets/goal_stand/goal_stand_props.glb")
 const SPECTATOR_SHADER: Shader = preload("res://shaders/goal_stand_spectator.gdshader")
+const LED_SHADER: Shader = preload("res://shaders/goal_stand_scoreboard_led.gdshader")
 const Motion = preload("res://scripts/world/result_finale/result_finale_motion.gd")
 const QualityRules = preload("res://scripts/core/graphics_quality.gd")
 const LAYOUT_PATH := "res://assets/goal_stand/goal_stand_layout.json"
@@ -25,14 +30,26 @@ const GOAL_OFFSET := 25.8
 const SPACING := 0.92
 const SPAWN_PER_FRAME := 6
 const ACTIVE_DISTANCE := 170.0
+## After the result screen opens (STATE_CLEAR) the match is written to the history; the
+## scoreboard waits for that, but no longer than this (no reel, or a slow disk).
+const PROGRAMME_WAIT_MAX := 6.0
 const FULL_RATE_DISTANCE := 70.0
-const FAR_STEP := 1.0 / 15.0
-const LOW_STEP := 1.0 / 30.0
+## Crowd poses run at 30 Hz up close and 10 Hz down the course, skinned in
+## staggered groups so each frame only updates part of the stand.
+const NEAR_STEP := 1.0 / 30.0
+const FAR_STEP := 1.0 / 10.0
+const ANIM_GROUPS := 3
 const EGG_BUDGET := 18
 const EGG_SPEED := 19.0
 const MISS_CHANCE := 0.25
 const P1_COLOR := Color(0.95, 0.55, 0.20)
 const P2_COLOR := Color(0.20, 0.65, 0.90)
+## Boards the losing side's sign row flips to, left to right on screen.
+const WORD_SIGNS: Array[Texture2D] = [
+	preload("res://assets/goal_stand/goal_stand_spectator_sign_oh.png"),
+	preload("res://assets/goal_stand/goal_stand_spectator_sign_my.png"),
+	preload("res://assets/goal_stand/goal_stand_spectator_sign_got.png"),
+]
 
 enum Kind { FAN, HOTHEAD, DANCER, SIGN, FLAG, FOAM }
 
@@ -41,8 +58,9 @@ const DANCES: Array[StringName] = [&"SPEC_Dance_YMCA", &"SPEC_Dance_Gangnam", &"
 	&"SPEC_Dance_HokeyPokey", &"SPEC_Dance_RunningMan", &"SPEC_Dance_WaveHipHop", &"SPEC_Dance_Swing",
 	&"SPEC_DanceBounce"]
 const HAIRS: Array[String] = ["Short", "Long", "Cap", "Afro", "Bald", "Bun", "Headband"]
-const SKINS: Array[Color] = [Color("#f2c9a5"), Color("#e8b48c"), Color("#d69a6e"), Color("#b97a50"),
-	Color("#8d5a3a"), Color("#f6d5bd")]
+## Fair skin tones only; shared with the side stands (SeatedSpectatorKit).
+const SKINS: Array[Color] = [Color("#f2c9a5"), Color("#f6d5bd"), Color("#f8dcc8"), Color("#eec1a0"),
+	Color("#f4cfb4"), Color("#fae3d3")]
 const HAIR_COLORS: Array[Color] = [Color("#2b1d14"), Color("#3b2a1e"), Color("#5a3a22"), Color("#8a5a2b"),
 	Color("#c99a4a"), Color("#1a1a1a")]
 const PANTS: Array[Color] = [Color("#2e3a55"), Color("#3b5b8c"), Color("#222222"), Color("#8b7b5a"), Color("#555a60")]
@@ -80,21 +98,26 @@ class Spectator:
 	var released := false
 	var next_throw := 0.0
 	var boo_sign := false
+	var word := -1
 
 
 var spectators: Array[Spectator] = []
 var eggs: GoalStandEggs
+var scoreboard: GoalStandScoreboard
 var quality := "balanced"
 
 var _layout := {}
 var _clips := {}
 var _material: ShaderMaterial
+var _word_materials: Array[Material] = []
 var _crowd: Node3D
 var _structure: Node3D
 var _slots: Array[Dictionary] = []
 var _rng := RandomNumberGenerator.new()
 var _clock := 0.0
-var _anim_accumulator := 0.0
+## Seconds the result screen (STATE_CLEAR of the finale) has been open.
+var _clear_age := 0.0
+var _anim_accumulators := PackedFloat32Array([0.0, NEAR_STEP / 3.0, NEAR_STEP * 2.0 / 3.0])
 var _mood := {"key": "idle"}
 var _burst_team := 0
 var _burst_until := -1.0
@@ -102,6 +125,10 @@ var _last_mask := 0
 var _egg_budget := EGG_BUDGET
 var _cues := {}
 var _update_usec := 0.0
+## The crowd already started over for the verdict that came back from the sudden death.
+var _sudden_death_refreshed := false
+## The director's egg target was there last frame.
+var _target_armed := false
 
 
 func setup(graphics_quality: String, crowd_seed: int = 0x51AD) -> void:
@@ -116,11 +143,13 @@ func setup(graphics_quality: String, crowd_seed: int = 0x51AD) -> void:
 	_structure = STAND_SCENE.instantiate() as Node3D
 	_structure.name = "Structure"
 	add_child(_structure)
-	var shadows := quality == QualityRules.HIGH and not QualityRules.is_mobile_target()
+	StadiumMaterials.apply(_structure)
+	var shadows := QualityRules.is_at_least(quality, QualityRules.HIGH) and not QualityRules.is_mobile_target()
 	for node: Node in _structure.find_children("*", "MeshInstance3D", true, false):
 		var mesh := node as MeshInstance3D
 		mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadows else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		mesh.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+	_install_scoreboard()
 	_crowd = Node3D.new()
 	_crowd.name = "Crowd"
 	add_child(_crowd)
@@ -130,8 +159,40 @@ func setup(graphics_quality: String, crowd_seed: int = 0x51AD) -> void:
 	props.free()
 	eggs = GoalStandEggs.new()
 	add_child(eggs)
-	eggs.setup(egg_mesh, shard_mesh, _material, crowd_seed + 7)
+	eggs.setup(egg_mesh, shard_mesh, _material, crowd_seed + 7, quality)
 	_plan_crowd()
+
+
+## The LED face of the scoreboard cabinet (GS_Scoreboard in goal_stand.glb) shows
+## the board's SubViewport through the LED shader.
+func _install_scoreboard() -> void:
+	scoreboard = GoalStandScoreboard.new()
+	add_child(scoreboard)
+	scoreboard.setup()
+	var material := ShaderMaterial.new()
+	material.resource_name = "GS_Scoreboard"
+	material.shader = LED_SHADER
+	material.set_shader_parameter("board", scoreboard.get_texture())
+	var level := 1
+	for mip: Texture2D in scoreboard.get_mip_textures():
+		material.set_shader_parameter("board_mip%d" % level, mip)
+		level += 1
+	for node: Node in _structure.find_children("*", "MeshInstance3D", true, false):
+		var mesh := node as MeshInstance3D
+		for surface in range(mesh.get_surface_override_material_count()):
+			var original := mesh.mesh.surface_get_material(surface)
+			if original != null and original.resource_name == "GS_ScoreboardScreen":
+				mesh.set_surface_override_material(surface, material)
+
+
+func scoreboard_installed() -> bool:
+	for node: Node in _structure.find_children("*", "MeshInstance3D", true, false):
+		var mesh := node as MeshInstance3D
+		for surface in range(mesh.get_surface_override_material_count()):
+			var material := mesh.get_surface_override_material(surface)
+			if material != null and material.resource_name == "GS_Scoreboard":
+				return true
+	return false
 
 
 static func _read_json(path: String) -> Dictionary:
@@ -140,7 +201,7 @@ static func _read_json(path: String) -> Dictionary:
 
 
 func density() -> float:
-	return 1.0 if quality == QualityRules.HIGH else (0.9 if quality == QualityRules.BALANCED else 0.62)
+	return 1.0 if QualityRules.is_at_least(quality, QualityRules.HIGH) else (0.9 if quality == QualityRules.BALANCED else 0.62)
 
 
 ## Blender stand space (x, y, z) -> this node's local space.
@@ -177,7 +238,7 @@ func _plan_crowd() -> void:
 		var front := side.filter(func(i: int) -> bool: return int(_slots[i].row) <= 1)
 		var back := side.filter(func(i: int) -> bool: return int(_slots[i].row) >= 1)
 		_assign(front, Kind.HOTHEAD, 3, team)
-		_assign(back, Kind.SIGN, 2, team)
+		_assign_sign_row(back, team)
 		_assign(side, Kind.FLAG, 2, team)
 		_assign(side, Kind.FOAM, 2, team)
 		_assign(side, Kind.DANCER, 5, 0)
@@ -187,8 +248,9 @@ func _plan_crowd() -> void:
 			var majority := team_for_side(float(slot.x))
 			var roll := _rng.randf()
 			slot.team = 0 if roll < 0.10 else (majority if roll < 0.82 else 3 - majority)
-		# Hotheads always appear so the verdict has egg throwers at every quality.
-		if slot.kind == Kind.HOTHEAD:
+		# Hotheads always appear so the verdict has egg throwers at every quality,
+		# and the sign row always spells the whole phrase.
+		if slot.kind == Kind.HOTHEAD or slot.kind == Kind.SIGN:
 			slot.keep = true
 
 
@@ -200,6 +262,29 @@ func _assign(candidates: Array, kind: int, amount: int, team: int) -> void:
 		var pick: int = free.pop_at(_rng.randi_range(0, free.size() - 1))
 		_slots[pick].kind = kind
 		_slots[pick].team = team
+
+
+## Three neighbours on one tier hold the signs; on a loss their boards read
+## "OH" "MY" "GOT". Screen left is stand-local -X (the stand is turned around).
+func _assign_sign_row(candidates: Array, team: int) -> void:
+	var runs: Array = []
+	for i: int in candidates:
+		var row := [i, i + 1, i + 2]
+		var free := true
+		for j: int in row:
+			# Consecutive slots on one span of one tier are neighbours.
+			free = free and j < _slots.size() and candidates.has(j) and not _slots[j].has("kind") \
+				and int(_slots[j].row) == int(_slots[i].row) \
+				and absf(float(_slots[j].x) - float(_slots[i].x)) <= SPACING * (j - i) * 1.5
+		if free:
+			runs.append(row)
+	if runs.is_empty():
+		return
+	var pick: Array = runs[_rng.randi_range(0, runs.size() - 1)]
+	for word in range(pick.size()):
+		_slots[pick[word]].kind = Kind.SIGN
+		_slots[pick[word]].team = team
+		_slots[pick[word]].word = word
 
 
 ## Spawns a few spectators per call so the stand never hitches a frame.
@@ -221,6 +306,7 @@ func _spawn(slot: Dictionary) -> Spectator:
 	s.kind = int(slot.kind)
 	s.team = int(slot.team)
 	s.row = int(slot.row)
+	s.word = int(slot.get("word", -1))
 	s.root = Node3D.new()
 	s.root.name = "Spectator%02d" % spectators.size()
 	s.root.position = slot.position
@@ -256,7 +342,13 @@ func _spawn(slot: Dictionary) -> Spectator:
 		if not String(mesh.name).begins_with("GSP_Sign") or String(mesh.name).begins_with("GSP_SignStick"):
 			mesh.material_override = _material
 			s.shaded.append(mesh)
+		else:
+			_sharpen_sign(mesh)
+	if s.word >= 0 and s.props.has("GSP_SignBoo"):
+		var board := s.props["GSP_SignBoo"] as MeshInstance3D
+		board.material_override = _word_material(board, s.word)
 	s.body = s.props["SPEC_Body_" + s.hair]
+	s.body.mesh = SeatedSpectatorKit.fixed_body(s.body.mesh, s.body.skin)
 	_set_visible(s, "GSP_Egg", false)
 	_set_visible(s, "GSP_SignBoo", false)
 	_set_visible(s, "GSP_SignStickBoo", false)
@@ -267,6 +359,27 @@ func _spawn(slot: Dictionary) -> Spectator:
 	s.ap.seek(_rng.randf_range(0.0, s.ap.current_animation_length), true)
 	s.next_change = _clock + _rng.randf_range(3.0, 9.0)
 	return s
+
+
+## Sign lettering is read at a slant from the lanes. The imported picture material
+## is shared, so switching it to anisotropic filtering once covers every board.
+static func _sharpen_sign(board: MeshInstance3D) -> void:
+	if board.mesh == null:
+		return
+	var picture := board.mesh.surface_get_material(0) as BaseMaterial3D
+	if picture != null:
+		picture.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+
+
+## The flip-side board keeps the imported sign material; only its picture changes.
+func _word_material(board: MeshInstance3D, word: int) -> Material:
+	if _word_materials.is_empty():
+		var source := board.mesh.surface_get_material(0)
+		for texture: Texture2D in WORD_SIGNS:
+			var material := (source.duplicate() if source is BaseMaterial3D else StandardMaterial3D.new()) as BaseMaterial3D
+			material.albedo_texture = texture
+			_word_materials.append(material)
+	return _word_materials[word]
 
 
 func _pick_hair(s: Spectator) -> String:
@@ -333,49 +446,72 @@ func _clip_length(clip: StringName) -> float:
 # ------------------------------------------------------------------ per frame
 
 ## `director` is the ResultCeremonyDirector (egg target and ceremony clock).
-func update_stand(delta: float, state: QuizGameState, director: Node, camera: Camera3D) -> void:
+## `reel_ready` is true when the match just played is on disk (MatchReel.is_ready, or
+## there is no reel): the scoreboard then hands over to the AIQUIZ VISION programme.
+func update_stand(delta: float, state: QuizGameState, director: Node, camera: Camera3D,
+		reel_ready: bool = true) -> void:
 	var started_usec := Time.get_ticks_usec()
-	_update(delta, state, director, camera)
+	_update(delta, state, director, camera, reel_ready)
 	_update_usec = lerpf(_update_usec, float(Time.get_ticks_usec() - started_usec), 0.1)
 
 
-func _update(delta: float, state: QuizGameState, director: Node, camera: Camera3D) -> void:
+func _update(delta: float, state: QuizGameState, director: Node, camera: Camera3D, reel_ready: bool) -> void:
 	_clock += delta
 	_spawn_some(SPAWN_PER_FRAME)
 	if state == null:
 		return
 	var distance := camera.global_position.distance_to(global_position) if is_instance_valid(camera) else 0.0
 	var mood := _read_mood(state, director)
+	# The board shows the winner's cut-in from the moment the verdict "WIN" is out.
+	var verdict_winner := int(mood.get("winner", 0)) if mood.key == "verdict" else -1
+	# Only the local finale (result_presentation_active) plays the programme: online,
+	# tutorial and replay clears keep the cut-in.
+	var on_result_screen := state.result_presentation_active and state.game_state == Constants.STATE_CLEAR
+	_clear_age = _clear_age + delta if on_result_screen else 0.0
+	var programme_ready := on_result_screen and (reel_ready or _clear_age > PROGRAMME_WAIT_MAX)
+	scoreboard.sync(state, _clock, distance <= ACTIVE_DISTANCE, verdict_winner, programme_ready)
 	_track_arrivals(state)
 	if distance > ACTIVE_DISTANCE and not state.result_presentation_active:
 		# A few hundred metres down the course the crowd is a frozen backdrop.
 		_mood = mood
 		return
+	_refresh_after_sudden_death(state, mood)
 	var target := _egg_target(director) if bool(mood.get("eggs", false)) else null
+	_arm_waiting_throwers(is_instance_valid(target))
 	var focus := _focus_point(state, target)
 	for s: Spectator in spectators:
 		_react(s, mood, target)
 		_face(s, focus, target, delta)
 		_update_anger(s, delta)
 	_update_sounds(mood, state, distance)
-	# Animation cost scales with distance (and LOW quality poses at 30 Hz);
-	# far away the crowd freezes in pose.
-	var step := 0.0
+	# Animation cost scales with distance; far away the crowd freezes in pose.
 	if distance <= ACTIVE_DISTANCE:
-		var interval := FAR_STEP if distance > FULL_RATE_DISTANCE else (LOW_STEP if quality == QualityRules.LOW else 0.0)
-		_anim_accumulator += delta
-		if _anim_accumulator >= interval:
-			step = _anim_accumulator
-			_anim_accumulator = 0.0
-	if step > 0.0:
-		for s: Spectator in spectators:
-			s.ap.advance(step)
+		var interval := FAR_STEP if distance > FULL_RATE_DISTANCE else NEAR_STEP
+		for group: int in range(ANIM_GROUPS):
+			_anim_accumulators[group] += delta
+			if _anim_accumulators[group] < interval:
+				continue
+			var step := _anim_accumulators[group]
+			_anim_accumulators[group] = 0.0
+			for index: int in range(group, spectators.size(), ANIM_GROUPS):
+				spectators[index].ap.advance(step)
 	for impact: Dictionary in eggs.update(delta, camera):
 		if is_instance_valid(AudioManager) and AudioManager.has_method("play_crowd_cue"):
 			AudioManager.play_crowd_cue(&"egg_splat", -3.0 if impact.hit else -8.0, _rng.randf_range(0.88, 1.15))
 	if String(_mood.get("key", "")) == "verdict" and mood.key != "verdict":
 		_reset_reactions()
 	_mood = mood
+
+
+## What the side stands should do right now (GrandstandCrowd.follow_reaction):
+## cheer with a player's fans when that player reaches the goal, and follow the
+## verdict (winner 0 = draw, everyone cheers).
+func side_crowd_reaction() -> Dictionary:
+	if _clock < _burst_until:
+		return {"amount": 1.0, "team": _burst_team, "verdict": false}
+	if String(_mood.get("key", "")) == "verdict":
+		return {"amount": 1.0, "team": int(_mood.get("winner", 0)), "verdict": true}
+	return {"amount": 0.0}
 
 
 func _read_mood(state: QuizGameState, director: Node) -> Dictionary:
@@ -435,7 +571,7 @@ func _react(s: Spectator, mood: Dictionary, target: Node3D) -> void:
 		s.queued_at = _clock + _rng.randf_range(0.04, 0.5)
 		s.throw_started = -1.0
 		if key.begins_with("verdict"):
-			_on_verdict(s, int(mood.get("winner", 0)), target)
+			_on_verdict(s, int(mood.get("winner", 0)), bool(mood.get("eggs", false)))
 	if s.queued != &"" and _clock >= s.queued_at:
 		_play(s, s.queued, 0.3)
 		s.queued = &""
@@ -498,19 +634,49 @@ func _choose(s: Spectator, key: String) -> StringName:
 	return s.idle_clip
 
 
-func _on_verdict(s: Spectator, winner: int, target: Node3D) -> void:
+## `eggs`: the finale's verdict, where hotheads throw. They wait for the director's
+## egg target (it can take a moment, e.g. back from the sudden death) before the first.
+func _on_verdict(s: Spectator, winner: int, eggs: bool) -> void:
 	var lost := winner != 0 and s.team != 0 and s.team != winner
 	if s.kind == Kind.SIGN and lost and not s.boo_sign:
-		# The fan's board flips over: "ブーー！"
+		# The fan's board flips over: "OH" "MY" "GOT" along the sign row.
 		s.boo_sign = true
 		var key := "P1" if s.team == 1 else "P2"
 		_set_visible(s, "GSP_Sign" + key, false)
 		_set_visible(s, "GSP_SignStick" + key, false)
 		_set_visible(s, "GSP_SignBoo", true)
 		_set_visible(s, "GSP_SignStickBoo", true)
-	if s.kind == Kind.HOTHEAD and (lost or winner == 0) and is_instance_valid(target):
+	if s.kind == Kind.HOTHEAD and (lost or winner == 0) and eggs:
 		s.throws_left = 3 if winner != 0 else 2
 		s.next_throw = _clock + _rng.randf_range(0.5, 1.6)
+
+
+## Hotheads that had their verdict before the egg target existed start throwing,
+## staggered, from the moment it shows up.
+func _arm_waiting_throwers(armed: bool) -> void:
+	if armed and not _target_armed:
+		for s: Spectator in spectators:
+			if s.kind == Kind.HOTHEAD and s.throws_left > 0 and s.throw_started < 0.0:
+				s.next_throw = maxf(s.next_throw, _clock + _rng.randf_range(0.4, 1.3))
+	_target_armed = armed
+
+
+## Back from the sudden death the verdict is out again, now with a winner
+## (docs/sudden_death_underground.md 2.3): the crowd starts over as for a fresh
+## verdict. Boards flip back, the egg budget is restocked and old eggs cleared, the
+## cheer and boo are cued again, and every spectator reacts to the new verdict.
+func _refresh_after_sudden_death(state: QuizGameState, mood: Dictionary) -> void:
+	if state.sudden_death_winner <= 0:
+		_sudden_death_refreshed = false
+		return
+	if _sudden_death_refreshed or String(mood.key) != "verdict" or not state.result_presentation_active:
+		return
+	_sudden_death_refreshed = true
+	_reset_reactions()
+	_cues.clear()
+	for s: Spectator in spectators:
+		s.mood = ""
+		s.queued = &""
 
 
 func _update_thrower(s: Spectator, target: Node3D) -> void:
@@ -633,14 +799,20 @@ func get_debug_snapshot() -> Dictionary:
 	var kinds := {}
 	var clips := {}
 	var boo_signs := 0
+	var words := []
 	var angry := 0
 	for s: Spectator in spectators:
 		kinds[Kind.keys()[s.kind]] = int(kinds.get(Kind.keys()[s.kind], 0)) + 1
 		clips[String(s.clip)] = int(clips.get(String(s.clip), 0)) + 1
 		boo_signs += 1 if s.boo_sign else 0
+		if s.word >= 0:
+			words.append({"team": s.team, "word": s.word, "row": s.row, "world": s.root.global_position, "flipped": s.boo_sign})
 		angry += 1 if s.anger > 0.5 else 0
 	return {"spectators": spectators.size(), "pending": _slots.size(), "kinds": kinds, "clips": clips,
 		"mood": _mood.get("key", ""), "eggs_launched": eggs.launched if eggs else 0,
 		"eggs_hit": eggs.hits if eggs else 0, "eggs_missed": eggs.misses if eggs else 0,
-		"eggs_in_flight": eggs.in_flight() if eggs else 0, "boo_signs": boo_signs, "angry": angry,
-		"world": global_position, "update_usec": _update_usec}
+		"eggs_in_flight": eggs.in_flight() if eggs else 0, "egg_debris": eggs.active_counts() if eggs else {}, "boo_signs": boo_signs, "word_signs": words, "angry": angry,
+		"world": global_position, "update_usec": _update_usec,
+		"scoreboard": {"marks": Array(scoreboard.marks), "totals": scoreboard.totals(), "cutin": scoreboard.cutin_player,
+			"programme": scoreboard.is_programme_started(), "programme_playing": scoreboard.is_programme_playing(),
+			"segment": str(scoreboard.programme_segment().get("comp", ""))}}

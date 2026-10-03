@@ -1,0 +1,14 @@
+[remap]
+
+importer="glsl"
+type="RDShaderFile"
+uid="uid://bh6oa317cit1x"
+path="res://.godot/imported/cistern_flow.glsl-f871f344fce509a3bbc69747627e5d42.res"
+
+[deps]
+
+source_file="res://shaders/sudden_death/cistern_flow.glsl"
+dest_files=["res://.godot/imported/cistern_flow.glsl-f871f344fce509a3bbc69747627e5d42.res"]
+
+[params]
+

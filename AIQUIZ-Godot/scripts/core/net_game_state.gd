@@ -37,11 +37,16 @@ func setup(gs: QuizGameState) -> void:
 		gs.question_completed.connect(_send_question_completed)
 	if not gs.health_changed.is_connected(_send_health_changed):
 		gs.health_changed.connect(_send_health_changed)
+	if not gs.question_winner_decided.is_connected(_send_question_winner):
+		gs.question_winner_decided.connect(_send_question_winner)
 	_sent_quiz_count = 0
 
 
 func _send_question_completed(wall_index: int, correct: bool) -> void:
 	send_game_event("question_completed", {"wall_index": wall_index, "correct": correct})
+
+func _send_question_winner(question_index: int, winner_mask: int) -> void:
+	send_game_event("question_winner", {"index": question_index, "mask": winner_mask})
 
 func _send_health_changed(player_index: int, _previous: int, hp: int) -> void:
 	# Reliable events retain a damage -> heal pair occurring between snapshots.
@@ -214,6 +219,9 @@ func _on_event_received(data: Dictionary) -> void:
 			var player_index := int(data.get("player", 0))
 			if game_state != null and not NetworkManager.is_host and player_index in [1, 2]:
 				game_state._set_player_hp(player_index, int(data.get("hp", game_state.get_player_hp(player_index))))
+		"question_winner":
+			if game_state != null and not NetworkManager.is_host:
+				game_state.record_question_winner(int(data.get("index", -1)), int(data.get("mask", 0)))
 		"question_completed":
 			if game_state != null and not NetworkManager.is_host:
 				if bool(data.get("correct", false)):

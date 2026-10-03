@@ -1,0 +1,1038 @@
+[gd_scene format=3]
+
+[ext_resource type="Material" path="res://scenes/sudden_death/cistern_generated/materials/fog_ground.tres" id="1_ng6ec"]
+[ext_resource type="Material" path="res://scenes/sudden_death/cistern_generated/materials/fog_column.tres" id="2_8ki4a"]
+[ext_resource type="Material" path="res://scenes/sudden_death/cistern_generated/materials/fog_tunnel.tres" id="3_0ige2"]
+
+[node name="CisternLights" type="Node3D" unique_id=731868596]
+
+[node name="Row00" type="Node3D" parent="." unique_id=2047473990]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -11.5)
+
+[node name="LampL0" type="SpotLight3D" parent="Row00" unique_id=1680839179]
+transform = Transform3D(5.9604645e-08, 0.4755171, -0.8797065, -1.4901161e-08, 0.8797065, 0.4755171, 1, -1.4901161e-08, 5.9604645e-08, -11.512029, 5.752448, 0)
+light_color = Color(0.81204945, 0.81204945, 0.81204945, 1)
+light_energy = 6.0
+light_volumetric_fog_energy = 0.7
+light_cull_mask = 1047551
+spot_range = 30.0
+spot_attenuation = 0.9
+spot_angle = 58.0
+spot_angle_attenuation = 1.4
+
+[node name="LampR1" type="SpotLight3D" parent="Row00" unique_id=289526353]
+transform = Transform3D(5.9604645e-08, -0.4755171, 0.8797065, 1.4901161e-08, 0.8797065, 0.4755171, -1, -1.4901161e-08, 5.9604645e-08, 11.512029, 5.752448, 0)
+light_color = Color(0.81204945, 0.81204945, 0.81204945, 1)
+light_energy = 6.0
+light_volumetric_fog_energy = 0.7
+light_cull_mask = 1047551
+spot_range = 30.0
+spot_attenuation = 0.9
+spot_angle = 58.0
+spot_angle_attenuation = 1.4
+
+[node name="Halo_CIS_Light_Amber_0" type="OmniLight3D" parent="Row00" unique_id=1822611974]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24.67, 1.8, 0)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="Halo_CIS_Light_Amber_1" type="OmniLight3D" parent="Row00" unique_id=1885029967]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24.67, 1.8, 0)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="EndHalo_CIS_Light_Amber_0" type="OmniLight3D" parent="Row00" unique_id=1823875914]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.217544, 6.2349997, -24.5)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="EndHalo_CIS_Light_Amber_1" type="OmniLight3D" parent="Row00" unique_id=90407840]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.217544, 6.2349997, -24.5)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="EndHalo_CIS_Light_Amber_2" type="OmniLight3D" parent="Row00" unique_id=46609943]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.217544, 6.2349997, -30.5)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="EndHalo_CIS_Light_Amber_3" type="OmniLight3D" parent="Row00" unique_id=371986333]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.217544, 6.2349997, -30.5)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="EndHalo_CIS_Light_Amber_4" type="OmniLight3D" parent="Row00" unique_id=1520762683]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 21, 9.55, -18.37)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="EndHalo_CIS_Light_Amber_5" type="OmniLight3D" parent="Row00" unique_id=742487564]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 33, 1.3999999, -18.37)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="EndHalo_CIS_Light_Amber_6" type="OmniLight3D" parent="Row00" unique_id=1478007908]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.2, 1.8, -18.37)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="EndHalo_CIS_Light_Amber_7" type="OmniLight3D" parent="Row00" unique_id=1277197762]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24, 2.2, -18.37)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="EndHalo_CIS_Light_Amber_8" type="OmniLight3D" parent="Row00" unique_id=1555388836]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -38, 2.2, -18.37)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="EndHalo_CIS_Light_Amber_9" type="OmniLight3D" parent="Row00" unique_id=1859296952]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 40, 2.2, -18.37)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="EndHalo_CIS_Light_Amber_10" type="OmniLight3D" parent="Row00" unique_id=1108735932]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -44.87, 2.2, -14.75)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="EndHalo_CIS_Light_Amber_11" type="OmniLight3D" parent="Row00" unique_id=1655531808]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 44.87, 2.2, -14.75)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="Window_CIS_Light_Window_0" type="OmniLight3D" parent="Row00" unique_id=887537024]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15.2, 8.5, -18.45)
+light_color = Color(0.81204945, 0.81634045, 0.6847182, 1)
+light_energy = 2.5
+light_volumetric_fog_energy = 0.6
+light_cull_mask = 1047551
+omni_range = 10.0
+omni_attenuation = 1.2
+
+[node name="Window_CIS_Light_Window_1" type="OmniLight3D" parent="Row00" unique_id=774816816]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 17, 8.5, -18.45)
+light_color = Color(0.81204945, 0.81634045, 0.6847182, 1)
+light_energy = 2.5
+light_volumetric_fog_energy = 0.6
+light_cull_mask = 1047551
+omni_range = 10.0
+omni_attenuation = 1.2
+
+[node name="Window_CIS_Light_Window_2" type="OmniLight3D" parent="Row00" unique_id=1030590880]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 18.8, 8.5, -18.45)
+light_color = Color(0.81204945, 0.81634045, 0.6847182, 1)
+light_energy = 2.5
+light_volumetric_fog_energy = 0.6
+light_cull_mask = 1047551
+omni_range = 10.0
+omni_attenuation = 1.2
+
+[node name="Row01" type="Node3D" parent="." unique_id=461787650]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 3.5)
+
+[node name="LampL0" type="SpotLight3D" parent="Row01" unique_id=626413041]
+transform = Transform3D(5.9604645e-08, 0.4755171, -0.8797065, -1.4901161e-08, 0.8797065, 0.4755171, 1, -1.4901161e-08, 5.9604645e-08, -11.512029, 5.752448, 0)
+light_color = Color(0.81204945, 0.81204945, 0.81204945, 1)
+light_energy = 6.0
+light_volumetric_fog_energy = 0.7
+light_cull_mask = 1047551
+spot_range = 30.0
+spot_attenuation = 0.9
+spot_angle = 58.0
+spot_angle_attenuation = 1.4
+
+[node name="LampR1" type="SpotLight3D" parent="Row01" unique_id=1869192059]
+transform = Transform3D(5.9604645e-08, -0.4755171, 0.8797065, 1.4901161e-08, 0.8797065, 0.4755171, -1, -1.4901161e-08, 5.9604645e-08, 11.512029, 5.752448, 0)
+light_color = Color(0.81204945, 0.81204945, 0.81204945, 1)
+light_energy = 6.0
+light_volumetric_fog_energy = 0.7
+light_cull_mask = 1047551
+spot_range = 30.0
+spot_attenuation = 0.9
+spot_angle = 58.0
+spot_angle_attenuation = 1.4
+
+[node name="Halo_CIS_Light_Amber_0" type="OmniLight3D" parent="Row01" unique_id=336835610]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24.67, 1.8, 0)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="Halo_CIS_Light_Amber_1" type="OmniLight3D" parent="Row01" unique_id=1943553141]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24.67, 1.8, 0)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="Row02" type="Node3D" parent="." unique_id=207182848]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 18.5)
+
+[node name="LampL0" type="SpotLight3D" parent="Row02" unique_id=130391188]
+transform = Transform3D(5.9604645e-08, 0.4755171, -0.8797065, -1.4901161e-08, 0.8797065, 0.4755171, 1, -1.4901161e-08, 5.9604645e-08, -11.512029, 5.752448, 0)
+light_color = Color(0.81204945, 0.81204945, 0.81204945, 1)
+light_energy = 6.0
+light_volumetric_fog_energy = 0.7
+light_cull_mask = 1047551
+spot_range = 30.0
+spot_attenuation = 0.9
+spot_angle = 58.0
+spot_angle_attenuation = 1.4
+
+[node name="LampR1" type="SpotLight3D" parent="Row02" unique_id=1747846944]
+transform = Transform3D(5.9604645e-08, -0.4755171, 0.8797065, 1.4901161e-08, 0.8797065, 0.4755171, -1, -1.4901161e-08, 5.9604645e-08, 11.512029, 5.752448, 0)
+light_color = Color(0.81204945, 0.81204945, 0.81204945, 1)
+light_energy = 6.0
+light_volumetric_fog_energy = 0.7
+light_cull_mask = 1047551
+spot_range = 30.0
+spot_attenuation = 0.9
+spot_angle = 58.0
+spot_angle_attenuation = 1.4
+
+[node name="Halo_CIS_Light_Amber_0" type="OmniLight3D" parent="Row02" unique_id=1084230245]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24.67, 1.8, 0)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="Halo_CIS_Light_Amber_1" type="OmniLight3D" parent="Row02" unique_id=1440864320]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24.67, 1.8, 0)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="Row03" type="Node3D" parent="." unique_id=95846096]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 33.5)
+
+[node name="LampL0" type="SpotLight3D" parent="Row03" unique_id=1651557749]
+transform = Transform3D(5.9604645e-08, 0.4755171, -0.8797065, -1.4901161e-08, 0.8797065, 0.4755171, 1, -1.4901161e-08, 5.9604645e-08, -11.512029, 5.752448, 0)
+light_color = Color(0.81204945, 0.81204945, 0.81204945, 1)
+light_energy = 6.0
+light_volumetric_fog_energy = 0.7
+light_cull_mask = 1047551
+spot_range = 30.0
+spot_attenuation = 0.9
+spot_angle = 58.0
+spot_angle_attenuation = 1.4
+
+[node name="LampR1" type="SpotLight3D" parent="Row03" unique_id=634512193]
+transform = Transform3D(5.9604645e-08, -0.4755171, 0.8797065, 1.4901161e-08, 0.8797065, 0.4755171, -1, -1.4901161e-08, 5.9604645e-08, 11.512029, 5.752448, 0)
+light_color = Color(0.81204945, 0.81204945, 0.81204945, 1)
+light_energy = 6.0
+light_volumetric_fog_energy = 0.7
+light_cull_mask = 1047551
+spot_range = 30.0
+spot_attenuation = 0.9
+spot_angle = 58.0
+spot_angle_attenuation = 1.4
+
+[node name="Halo_CIS_Light_Amber_0" type="OmniLight3D" parent="Row03" unique_id=276659778]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24.67, 1.8, 0)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="Halo_CIS_Light_Amber_1" type="OmniLight3D" parent="Row03" unique_id=1395597579]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24.67, 1.8, 0)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="Row04" type="Node3D" parent="." unique_id=1757083620]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 48.5)
+
+[node name="LampL0" type="SpotLight3D" parent="Row04" unique_id=26330748]
+transform = Transform3D(5.9604645e-08, 0.4755171, -0.8797065, -1.4901161e-08, 0.8797065, 0.4755171, 1, -1.4901161e-08, 5.9604645e-08, -11.512029, 5.752448, 0)
+light_color = Color(0.81204945, 0.81204945, 0.81204945, 1)
+light_energy = 6.0
+light_volumetric_fog_energy = 0.7
+light_cull_mask = 1047551
+spot_range = 30.0
+spot_attenuation = 0.9
+spot_angle = 58.0
+spot_angle_attenuation = 1.4
+
+[node name="LampR1" type="SpotLight3D" parent="Row04" unique_id=1434077865]
+transform = Transform3D(5.9604645e-08, -0.4755171, 0.8797065, 1.4901161e-08, 0.8797065, 0.4755171, -1, -1.4901161e-08, 5.9604645e-08, 11.512029, 5.752448, 0)
+light_color = Color(0.81204945, 0.81204945, 0.81204945, 1)
+light_energy = 6.0
+light_volumetric_fog_energy = 0.7
+light_cull_mask = 1047551
+spot_range = 30.0
+spot_attenuation = 0.9
+spot_angle = 58.0
+spot_angle_attenuation = 1.4
+
+[node name="Halo_CIS_Light_Amber_0" type="OmniLight3D" parent="Row04" unique_id=1575147664]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24.67, 1.8, 0)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="Halo_CIS_Light_Amber_1" type="OmniLight3D" parent="Row04" unique_id=2103074951]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24.67, 1.8, 0)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="Row05" type="Node3D" parent="." unique_id=1269675336]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 63.5)
+
+[node name="LampL0" type="SpotLight3D" parent="Row05" unique_id=914036635]
+transform = Transform3D(5.9604645e-08, 0.4755171, -0.8797065, -1.4901161e-08, 0.8797065, 0.4755171, 1, -1.4901161e-08, 5.9604645e-08, -11.512029, 5.752448, 0)
+light_color = Color(0.81204945, 0.81204945, 0.81204945, 1)
+light_energy = 6.0
+light_volumetric_fog_energy = 0.7
+light_cull_mask = 1047551
+spot_range = 30.0
+spot_attenuation = 0.9
+spot_angle = 58.0
+spot_angle_attenuation = 1.4
+
+[node name="LampR1" type="SpotLight3D" parent="Row05" unique_id=526750445]
+transform = Transform3D(5.9604645e-08, -0.4755171, 0.8797065, 1.4901161e-08, 0.8797065, 0.4755171, -1, -1.4901161e-08, 5.9604645e-08, 11.512029, 5.752448, 0)
+light_color = Color(0.81204945, 0.81204945, 0.81204945, 1)
+light_energy = 6.0
+light_volumetric_fog_energy = 0.7
+light_cull_mask = 1047551
+spot_range = 30.0
+spot_attenuation = 0.9
+spot_angle = 58.0
+spot_angle_attenuation = 1.4
+
+[node name="Halo_CIS_Light_Amber_0" type="OmniLight3D" parent="Row05" unique_id=983581962]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24.67, 1.8, 0)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="Halo_CIS_Light_Amber_1" type="OmniLight3D" parent="Row05" unique_id=1484780629]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24.67, 1.8, 0)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="Row06" type="Node3D" parent="." unique_id=736492053]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 78.5)
+
+[node name="LampL0" type="SpotLight3D" parent="Row06" unique_id=796986708]
+transform = Transform3D(5.9604645e-08, 0.4755171, -0.8797065, -1.4901161e-08, 0.8797065, 0.4755171, 1, -1.4901161e-08, 5.9604645e-08, -11.512029, 5.752448, 0)
+light_color = Color(0.81204945, 0.81204945, 0.81204945, 1)
+light_energy = 6.0
+light_volumetric_fog_energy = 0.7
+light_cull_mask = 1047551
+spot_range = 30.0
+spot_attenuation = 0.9
+spot_angle = 58.0
+spot_angle_attenuation = 1.4
+
+[node name="LampR1" type="SpotLight3D" parent="Row06" unique_id=1935019219]
+transform = Transform3D(5.9604645e-08, -0.4755171, 0.8797065, 1.4901161e-08, 0.8797065, 0.4755171, -1, -1.4901161e-08, 5.9604645e-08, 11.512029, 5.752448, 0)
+light_color = Color(0.81204945, 0.81204945, 0.81204945, 1)
+light_energy = 6.0
+light_volumetric_fog_energy = 0.7
+light_cull_mask = 1047551
+spot_range = 30.0
+spot_attenuation = 0.9
+spot_angle = 58.0
+spot_angle_attenuation = 1.4
+
+[node name="Halo_CIS_Light_Amber_0" type="OmniLight3D" parent="Row06" unique_id=22585443]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24.67, 1.8, 0)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="Halo_CIS_Light_Amber_1" type="OmniLight3D" parent="Row06" unique_id=180887143]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24.67, 1.8, 0)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="Row07" type="Node3D" parent="." unique_id=1358781777]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 93.5)
+
+[node name="LampL0" type="SpotLight3D" parent="Row07" unique_id=920509520]
+transform = Transform3D(5.9604645e-08, 0.4755171, -0.8797065, -1.4901161e-08, 0.8797065, 0.4755171, 1, -1.4901161e-08, 5.9604645e-08, -11.512029, 5.752448, 0)
+light_color = Color(0.81204945, 0.81204945, 0.81204945, 1)
+light_energy = 6.0
+light_volumetric_fog_energy = 0.7
+light_cull_mask = 1047551
+spot_range = 30.0
+spot_attenuation = 0.9
+spot_angle = 58.0
+spot_angle_attenuation = 1.4
+
+[node name="LampR1" type="SpotLight3D" parent="Row07" unique_id=552762731]
+transform = Transform3D(5.9604645e-08, -0.4755171, 0.8797065, 1.4901161e-08, 0.8797065, 0.4755171, -1, -1.4901161e-08, 5.9604645e-08, 11.512029, 5.752448, 0)
+light_color = Color(0.81204945, 0.81204945, 0.81204945, 1)
+light_energy = 6.0
+light_volumetric_fog_energy = 0.7
+light_cull_mask = 1047551
+spot_range = 30.0
+spot_attenuation = 0.9
+spot_angle = 58.0
+spot_angle_attenuation = 1.4
+
+[node name="Halo_CIS_Light_Amber_0" type="OmniLight3D" parent="Row07" unique_id=1795522039]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24.67, 1.8, 0)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="Halo_CIS_Light_Amber_1" type="OmniLight3D" parent="Row07" unique_id=1758852106]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24.67, 1.8, 0)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="Row08" type="Node3D" parent="." unique_id=98764198]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 108.5)
+
+[node name="LampL0" type="SpotLight3D" parent="Row08" unique_id=15896169]
+transform = Transform3D(5.9604645e-08, 0.4755171, -0.8797065, -1.4901161e-08, 0.8797065, 0.4755171, 1, -1.4901161e-08, 5.9604645e-08, -11.512029, 5.752448, 0)
+light_color = Color(0.81204945, 0.81204945, 0.81204945, 1)
+light_energy = 6.0
+light_volumetric_fog_energy = 0.7
+light_cull_mask = 1047551
+spot_range = 30.0
+spot_attenuation = 0.9
+spot_angle = 58.0
+spot_angle_attenuation = 1.4
+
+[node name="LampR1" type="SpotLight3D" parent="Row08" unique_id=1229783529]
+transform = Transform3D(5.9604645e-08, -0.4755171, 0.8797065, 1.4901161e-08, 0.8797065, 0.4755171, -1, -1.4901161e-08, 5.9604645e-08, 11.512029, 5.752448, 0)
+light_color = Color(0.81204945, 0.81204945, 0.81204945, 1)
+light_energy = 6.0
+light_volumetric_fog_energy = 0.7
+light_cull_mask = 1047551
+spot_range = 30.0
+spot_attenuation = 0.9
+spot_angle = 58.0
+spot_angle_attenuation = 1.4
+
+[node name="Halo_CIS_Light_Amber_0" type="OmniLight3D" parent="Row08" unique_id=1909214453]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24.67, 1.8, 0)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="Halo_CIS_Light_Amber_1" type="OmniLight3D" parent="Row08" unique_id=1739020625]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24.67, 1.8, 0)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="Row09" type="Node3D" parent="." unique_id=1933867122]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 123.5)
+
+[node name="LampL0" type="SpotLight3D" parent="Row09" unique_id=1142279892]
+transform = Transform3D(5.9604645e-08, 0.4755171, -0.8797065, -1.4901161e-08, 0.8797065, 0.4755171, 1, -1.4901161e-08, 5.9604645e-08, -11.512029, 5.752448, 0)
+light_color = Color(0.81204945, 0.81204945, 0.81204945, 1)
+light_energy = 6.0
+light_volumetric_fog_energy = 0.7
+light_cull_mask = 1047551
+spot_range = 30.0
+spot_attenuation = 0.9
+spot_angle = 58.0
+spot_angle_attenuation = 1.4
+
+[node name="LampR1" type="SpotLight3D" parent="Row09" unique_id=595254795]
+transform = Transform3D(5.9604645e-08, -0.4755171, 0.8797065, 1.4901161e-08, 0.8797065, 0.4755171, -1, -1.4901161e-08, 5.9604645e-08, 11.512029, 5.752448, 0)
+light_color = Color(0.81204945, 0.81204945, 0.81204945, 1)
+light_energy = 6.0
+light_volumetric_fog_energy = 0.7
+light_cull_mask = 1047551
+spot_range = 30.0
+spot_attenuation = 0.9
+spot_angle = 58.0
+spot_angle_attenuation = 1.4
+
+[node name="Halo_CIS_Light_Amber_0" type="OmniLight3D" parent="Row09" unique_id=1207934319]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24.67, 1.8, 0)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="Halo_CIS_Light_Amber_1" type="OmniLight3D" parent="Row09" unique_id=1186074332]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24.67, 1.8, 0)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="Row10" type="Node3D" parent="." unique_id=526681658]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 138.5)
+
+[node name="LampL0" type="SpotLight3D" parent="Row10" unique_id=227423455]
+transform = Transform3D(5.9604645e-08, 0.4755171, -0.8797065, -1.4901161e-08, 0.8797065, 0.4755171, 1, -1.4901161e-08, 5.9604645e-08, -11.512029, 5.752448, 0)
+light_color = Color(0.81204945, 0.81204945, 0.81204945, 1)
+light_energy = 6.0
+light_volumetric_fog_energy = 0.7
+light_cull_mask = 1047551
+spot_range = 30.0
+spot_attenuation = 0.9
+spot_angle = 58.0
+spot_angle_attenuation = 1.4
+
+[node name="LampR1" type="SpotLight3D" parent="Row10" unique_id=818497043]
+transform = Transform3D(5.9604645e-08, -0.4755171, 0.8797065, 1.4901161e-08, 0.8797065, 0.4755171, -1, -1.4901161e-08, 5.9604645e-08, 11.512029, 5.752448, 0)
+light_color = Color(0.81204945, 0.81204945, 0.81204945, 1)
+light_energy = 6.0
+light_volumetric_fog_energy = 0.7
+light_cull_mask = 1047551
+spot_range = 30.0
+spot_attenuation = 0.9
+spot_angle = 58.0
+spot_angle_attenuation = 1.4
+
+[node name="Halo_CIS_Light_Amber_0" type="OmniLight3D" parent="Row10" unique_id=389433663]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24.67, 1.8, 0)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="Halo_CIS_Light_Amber_1" type="OmniLight3D" parent="Row10" unique_id=474987789]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24.67, 1.8, 0)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="Row11" type="Node3D" parent="." unique_id=715354335]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 153.5)
+
+[node name="LampL0" type="SpotLight3D" parent="Row11" unique_id=1977823161]
+transform = Transform3D(5.9604645e-08, 0.4755171, -0.8797065, -1.4901161e-08, 0.8797065, 0.4755171, 1, -1.4901161e-08, 5.9604645e-08, -11.512029, 5.752448, 0)
+light_color = Color(0.81204945, 0.81204945, 0.81204945, 1)
+light_energy = 6.0
+light_volumetric_fog_energy = 0.7
+light_cull_mask = 1047551
+spot_range = 30.0
+spot_attenuation = 0.9
+spot_angle = 58.0
+spot_angle_attenuation = 1.4
+
+[node name="LampR1" type="SpotLight3D" parent="Row11" unique_id=965626323]
+transform = Transform3D(5.9604645e-08, -0.4755171, 0.8797065, 1.4901161e-08, 0.8797065, 0.4755171, -1, -1.4901161e-08, 5.9604645e-08, 11.512029, 5.752448, 0)
+light_color = Color(0.81204945, 0.81204945, 0.81204945, 1)
+light_energy = 6.0
+light_volumetric_fog_energy = 0.7
+light_cull_mask = 1047551
+spot_range = 30.0
+spot_attenuation = 0.9
+spot_angle = 58.0
+spot_angle_attenuation = 1.4
+
+[node name="Halo_CIS_Light_Amber_0" type="OmniLight3D" parent="Row11" unique_id=994239314]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24.67, 1.8, 0)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="Halo_CIS_Light_Amber_1" type="OmniLight3D" parent="Row11" unique_id=138222902]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24.67, 1.8, 0)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="Row12" type="Node3D" parent="." unique_id=618842593]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 168.5)
+
+[node name="LampL0" type="SpotLight3D" parent="Row12" unique_id=628645764]
+transform = Transform3D(5.9604645e-08, 0.4755171, -0.8797065, -1.4901161e-08, 0.8797065, 0.4755171, 1, -1.4901161e-08, 5.9604645e-08, -11.512029, 5.752448, 0)
+light_color = Color(0.81204945, 0.81204945, 0.81204945, 1)
+light_energy = 6.0
+light_volumetric_fog_energy = 0.7
+light_cull_mask = 1047551
+spot_range = 30.0
+spot_attenuation = 0.9
+spot_angle = 58.0
+spot_angle_attenuation = 1.4
+
+[node name="LampR1" type="SpotLight3D" parent="Row12" unique_id=1510483767]
+transform = Transform3D(5.9604645e-08, -0.4755171, 0.8797065, 1.4901161e-08, 0.8797065, 0.4755171, -1, -1.4901161e-08, 5.9604645e-08, 11.512029, 5.752448, 0)
+light_color = Color(0.81204945, 0.81204945, 0.81204945, 1)
+light_energy = 6.0
+light_volumetric_fog_energy = 0.7
+light_cull_mask = 1047551
+spot_range = 30.0
+spot_attenuation = 0.9
+spot_angle = 58.0
+spot_angle_attenuation = 1.4
+
+[node name="Halo_CIS_Light_Amber_0" type="OmniLight3D" parent="Row12" unique_id=819311031]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24.67, 1.8, 0)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="Halo_CIS_Light_Amber_1" type="OmniLight3D" parent="Row12" unique_id=242233387]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24.67, 1.8, 0)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="Row13" type="Node3D" parent="." unique_id=1654391862]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 183.5)
+
+[node name="LampL0" type="SpotLight3D" parent="Row13" unique_id=1390889406]
+transform = Transform3D(5.9604645e-08, 0.4755171, -0.8797065, -1.4901161e-08, 0.8797065, 0.4755171, 1, -1.4901161e-08, 5.9604645e-08, -11.512029, 5.752448, 0)
+light_color = Color(0.81204945, 0.81204945, 0.81204945, 1)
+light_energy = 6.0
+light_volumetric_fog_energy = 0.7
+light_cull_mask = 1047551
+spot_range = 30.0
+spot_attenuation = 0.9
+spot_angle = 58.0
+spot_angle_attenuation = 1.4
+
+[node name="LampR1" type="SpotLight3D" parent="Row13" unique_id=205218613]
+transform = Transform3D(5.9604645e-08, -0.4755171, 0.8797065, 1.4901161e-08, 0.8797065, 0.4755171, -1, -1.4901161e-08, 5.9604645e-08, 11.512029, 5.752448, 0)
+light_color = Color(0.81204945, 0.81204945, 0.81204945, 1)
+light_energy = 6.0
+light_volumetric_fog_energy = 0.7
+light_cull_mask = 1047551
+spot_range = 30.0
+spot_attenuation = 0.9
+spot_angle = 58.0
+spot_angle_attenuation = 1.4
+
+[node name="Halo_CIS_Light_Amber_0" type="OmniLight3D" parent="Row13" unique_id=1555639780]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24.67, 1.8, 0)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="Halo_CIS_Light_Amber_1" type="OmniLight3D" parent="Row13" unique_id=1084392123]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24.67, 1.8, 0)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="Row14" type="Node3D" parent="." unique_id=492179684]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 198.5)
+
+[node name="LampL0" type="SpotLight3D" parent="Row14" unique_id=966459682]
+transform = Transform3D(5.9604645e-08, 0.4755171, -0.8797065, -1.4901161e-08, 0.8797065, 0.4755171, 1, -1.4901161e-08, 5.9604645e-08, -11.512029, 5.752448, 0)
+light_color = Color(0.81204945, 0.81204945, 0.81204945, 1)
+light_energy = 6.0
+light_volumetric_fog_energy = 0.7
+light_cull_mask = 1047551
+spot_range = 30.0
+spot_attenuation = 0.9
+spot_angle = 58.0
+spot_angle_attenuation = 1.4
+
+[node name="LampR1" type="SpotLight3D" parent="Row14" unique_id=1953849699]
+transform = Transform3D(5.9604645e-08, -0.4755171, 0.8797065, 1.4901161e-08, 0.8797065, 0.4755171, -1, -1.4901161e-08, 5.9604645e-08, 11.512029, 5.752448, 0)
+light_color = Color(0.81204945, 0.81204945, 0.81204945, 1)
+light_energy = 6.0
+light_volumetric_fog_energy = 0.7
+light_cull_mask = 1047551
+spot_range = 30.0
+spot_attenuation = 0.9
+spot_angle = 58.0
+spot_angle_attenuation = 1.4
+
+[node name="Halo_CIS_Light_Amber_0" type="OmniLight3D" parent="Row14" unique_id=1723866739]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24.67, 1.8, 0)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="Halo_CIS_Light_Amber_1" type="OmniLight3D" parent="Row14" unique_id=1330027743]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24.67, 1.8, 0)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="EndHalo_CIS_Light_Amber_0" type="OmniLight3D" parent="Row14" unique_id=1761892128]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.5, 6.8500004, 11.369995)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="EndHalo_CIS_Light_Amber_1" type="OmniLight3D" parent="Row14" unique_id=1808977538]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.5, 6.8500004, 11.369995)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="EndHalo_CIS_Light_Amber_2" type="OmniLight3D" parent="Row14" unique_id=1251151911]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.5, 2.3999999, 11.369995)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="EndHalo_CIS_Light_Amber_3" type="OmniLight3D" parent="Row14" unique_id=2027706979]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.5, 2.3999999, 11.369995)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="EndHalo_CIS_Light_Amber_4" type="OmniLight3D" parent="Row14" unique_id=1825941122]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -19.5, 3.3999999, 11.369995)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="EndHalo_CIS_Light_Amber_5" type="OmniLight3D" parent="Row14" unique_id=281326723]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 19.5, 3.3999999, 11.369995)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="EndHalo_CIS_Light_Amber_6" type="OmniLight3D" parent="Row14" unique_id=1036825396]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -32.5, 3.3999999, 11.369995)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="EndHalo_CIS_Light_Amber_7" type="OmniLight3D" parent="Row14" unique_id=1491319541]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 32.5, 3.3999999, 11.369995)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="EndHalo_CIS_Light_Amber_8" type="OmniLight3D" parent="Row14" unique_id=434699901]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -44.87, 2.2, 7.75)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="EndHalo_CIS_Light_Amber_9" type="OmniLight3D" parent="Row14" unique_id=919490450]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 44.87, 2.2, 7.75)
+light_color = Color(0.81204945, 0.26122895, 0.0057937694, 1)
+light_energy = 0.8
+light_volumetric_fog_energy = 3.0
+light_specular = 0.0
+light_cull_mask = 0
+omni_range = 3.5
+omni_attenuation = 2.0
+
+[node name="Probes" type="Node3D" parent="." unique_id=191462199]
+
+[node name="Probe0" type="ReflectionProbe" parent="Probes" unique_id=1428581351]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 8.3, -15)
+blend_distance = 2.0
+size = Vector3(90.5, 19, 32)
+origin_offset = Vector3(0, -7, 0)
+box_projection = true
+interior = true
+cull_mask = 1024
+mesh_lod_threshold = 4.0
+ambient_mode = 0
+
+[node name="Probe1" type="ReflectionProbe" parent="Probes" unique_id=739893035]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 8.3, 15)
+blend_distance = 2.0
+size = Vector3(90.5, 19, 32)
+origin_offset = Vector3(0, -7, 0)
+box_projection = true
+interior = true
+cull_mask = 1024
+mesh_lod_threshold = 4.0
+ambient_mode = 0
+
+[node name="Probe2" type="ReflectionProbe" parent="Probes" unique_id=1250332224]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 8.3, 45)
+blend_distance = 2.0
+size = Vector3(90.5, 19, 32)
+origin_offset = Vector3(0, -7, 0)
+box_projection = true
+interior = true
+cull_mask = 1024
+mesh_lod_threshold = 4.0
+ambient_mode = 0
+
+[node name="Probe3" type="ReflectionProbe" parent="Probes" unique_id=1229660965]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 8.3, 75)
+blend_distance = 2.0
+size = Vector3(90.5, 19, 32)
+origin_offset = Vector3(0, -7, 0)
+box_projection = true
+interior = true
+cull_mask = 1024
+mesh_lod_threshold = 4.0
+ambient_mode = 0
+
+[node name="Probe4" type="ReflectionProbe" parent="Probes" unique_id=5276798]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 8.3, 105)
+blend_distance = 2.0
+size = Vector3(90.5, 19, 32)
+origin_offset = Vector3(0, -7, 0)
+box_projection = true
+interior = true
+cull_mask = 1024
+mesh_lod_threshold = 4.0
+ambient_mode = 0
+
+[node name="Probe5" type="ReflectionProbe" parent="Probes" unique_id=1661001584]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 8.3, 135)
+blend_distance = 2.0
+size = Vector3(90.5, 19, 32)
+origin_offset = Vector3(0, -7, 0)
+box_projection = true
+interior = true
+cull_mask = 1024
+mesh_lod_threshold = 4.0
+ambient_mode = 0
+
+[node name="Probe6" type="ReflectionProbe" parent="Probes" unique_id=62614704]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 8.3, 165)
+blend_distance = 2.0
+size = Vector3(90.5, 19, 32)
+origin_offset = Vector3(0, -7, 0)
+box_projection = true
+interior = true
+cull_mask = 1024
+mesh_lod_threshold = 4.0
+ambient_mode = 0
+
+[node name="Probe7" type="ReflectionProbe" parent="Probes" unique_id=1853023312]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 8.3, 195)
+blend_distance = 2.0
+size = Vector3(90.5, 19, 32)
+origin_offset = Vector3(0, -7, 0)
+box_projection = true
+interior = true
+cull_mask = 1024
+mesh_lod_threshold = 4.0
+ambient_mode = 0
+
+[node name="Fog" type="Node3D" parent="." unique_id=1050708164]
+
+[node name="GroundMist" type="FogVolume" parent="Fog" unique_id=1676589839]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.8, 90)
+size = Vector3(90, 2.4, 240)
+material = ExtResource("1_ng6ec")
+
+[node name="ShaftColumn" type="FogVolume" parent="Fog" unique_id=397965582]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 7.8, 0)
+size = Vector3(15, 18, 15)
+shape = 2
+material = ExtResource("2_8ki4a")
+
+[node name="TunnelBreath" type="FogVolume" parent="Fog" unique_id=1932495434]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.3, -29)
+size = Vector3(14, 9, 14)
+shape = 0
+material = ExtResource("3_0ige2")

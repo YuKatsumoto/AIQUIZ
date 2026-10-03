@@ -1,0 +1,42 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://shaders/sudden_death/cistern_surface.gdshader" id="1_4fvap"]
+[ext_resource type="Texture2D" path="res://assets/environment/underground_temple/textures/concrete_albedo.png" id="2_0mdyg"]
+[ext_resource type="Texture2D" path="res://assets/environment/underground_temple/textures/detail_normal.png" id="3_dwh6c"]
+[ext_resource type="Texture2D" path="res://assets/environment/underground_temple/textures/cistern_bay_a_light.png" id="4_clrff"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/cistern_generated/textures/macro_noise.res" id="5_10kn0"]
+[ext_resource type="Texture2D" path="res://assets/environment/underground_temple/textures/concrete_normal.png" id="6_ds885"]
+[ext_resource type="Texture2D" path="res://assets/environment/underground_temple/textures/concrete_orm.png" id="7_ep0ss"]
+
+[resource]
+resource_name = "CIS_Concrete"
+render_priority = 0
+shader = ExtResource("1_4fvap")
+shader_parameter/opening_color = null
+shader_parameter/opening_strength = null
+shader_parameter/ambient_color = null
+shader_parameter/ambient_level = null
+shader_parameter/white_balance = Vector3(0.81204945, 1.0465903, 1.3167658)
+shader_parameter/albedo_tex = ExtResource("2_0mdyg")
+shader_parameter/normal_tex = ExtResource("6_ds885")
+shader_parameter/orm_tex = ExtResource("7_ep0ss")
+shader_parameter/detail_normal_tex = ExtResource("3_dwh6c")
+shader_parameter/light_tex = ExtResource("4_clrff")
+shader_parameter/macro_noise = ExtResource("5_10kn0")
+shader_parameter/albedo_color = Color(1, 1, 1, 1)
+shader_parameter/uv_scale = 1.0
+shader_parameter/detail_scale = 3.75
+shader_parameter/detail_strength = null
+shader_parameter/roughness_scale = 1.0
+shader_parameter/metallic_value = 1.0
+shader_parameter/normal_strength = null
+shader_parameter/light_max = 0.710705
+shader_parameter/light_scale = 1.5
+shader_parameter/light_gamma = null
+shader_parameter/cavity_strength = null
+shader_parameter/macro_strength = null
+shader_parameter/relight = null
+shader_parameter/seepage = 0.3
+shader_parameter/glint_strength = null
+shader_parameter/debug_view = null
+shader_parameter/glint_color = null

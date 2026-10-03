@@ -34,11 +34,21 @@ var tutorial_prompt_seen_version: int = 0
 var tutorial_solo_completed: bool = false
 var tutorial_local_2p_completed: bool = false
 var graphics_quality: String = GraphicsQuality.BALANCED
+## ローカル2P「10問」の引き分けを地下神殿のサドンデスで決着させる（既定オン、
+## docs/sudden_death_underground.md 第1章）。メインメニューが試合開始の直前に
+## QuizGameState.sudden_death_enabled へ渡す。
+var sudden_death_enabled: bool = true
+## Tests point the settings file somewhere else (never the player's own).
+var settings_path: String = USER_SETTINGS_PATH
 var _user_settings: Dictionary = {}
 
 func _ready() -> void:
 	print("GameManager initialized.")
+	# メニュー LED の戦績とハイライトのリプレイは起動のたびにリセットする。
+	MatchHistory.clear()
+	HighlightStore.clear()
 	_load_user_settings()
+	GraphicsQuality.apply_rendering_server(graphics_quality)
 	_load_env()
 
 func should_show_tutorial_on_start() -> bool:
@@ -105,13 +115,33 @@ func set_graphics_quality(value: String) -> void:
 		return
 	graphics_quality = normalized
 	_save_user_settings()
+	GraphicsQuality.apply_rendering_server(graphics_quality)
 	graphics_quality_changed.emit(graphics_quality)
+
+
+## 設定画面のサドンデスのオン／オフ。保存し、進行中のゲーム状態にもすぐ反映する。
+func set_sudden_death_enabled(value: bool) -> void:
+	var changed := sudden_death_enabled != value
+	sudden_death_enabled = value
+	_push_sudden_death_setting()
+	if changed:
+		_save_user_settings()
+
+
+## Hands the setting to the long-lived QuizGameState (QuizManager.game_state).
+func _push_sudden_death_setting() -> void:
+	var quiz_manager := get_node_or_null("/root/QuizManager")
+	if quiz_manager == null:
+		return
+	var state: Variant = quiz_manager.get("game_state")
+	if state is QuizGameState:
+		(state as QuizGameState).sudden_death_enabled = sudden_death_enabled
 
 
 func _load_user_settings() -> void:
 	_user_settings.clear()
-	if FileAccess.file_exists(USER_SETTINGS_PATH):
-		var file := FileAccess.open(USER_SETTINGS_PATH, FileAccess.READ)
+	if FileAccess.file_exists(settings_path):
+		var file := FileAccess.open(settings_path, FileAccess.READ)
 		if file:
 			var parsed = JSON.parse_string(file.get_as_text())
 			if parsed is Dictionary:
@@ -137,6 +167,7 @@ func _load_user_settings() -> void:
 	tutorial_completed = tutorial_solo_completed and tutorial_local_2p_completed
 	tutorial_dismissed = tutorial_prompt_seen_version >= CURRENT_TUTORIAL_VERSION
 	graphics_quality = GraphicsQuality.normalize(str(_user_settings.get("graphics_quality", GraphicsQuality.BALANCED)))
+	sudden_death_enabled = bool(_user_settings.get("sudden_death_enabled", true))
 
 func _save_user_settings() -> void:
 	_user_settings["tutorial_completed"] = tutorial_completed
@@ -147,7 +178,8 @@ func _save_user_settings() -> void:
 	_user_settings["tutorial_solo_completed"] = tutorial_solo_completed
 	_user_settings["tutorial_local_2p_completed"] = tutorial_local_2p_completed
 	_user_settings["graphics_quality"] = graphics_quality
-	var file := FileAccess.open(USER_SETTINGS_PATH, FileAccess.WRITE)
+	_user_settings["sudden_death_enabled"] = sudden_death_enabled
+	var file := FileAccess.open(settings_path, FileAccess.WRITE)
 	if file:
 		file.store_string(JSON.stringify(_user_settings, "  "))
 		file.close()

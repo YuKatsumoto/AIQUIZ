@@ -1,0 +1,1118 @@
+[gd_scene format=3]
+
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/cistern_generated/decals/number_1-3.res" id="1_ov56u"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/cistern_generated/decals/number_1-4.res" id="2_cqm6o"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/cistern_generated/decals/rust.res" id="3_lhwyd"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/cistern_generated/decals/efflorescence.res" id="4_dnrdf"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/cistern_generated/decals/stain.res" id="5_jq57y"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/cistern_generated/decals/number_2-3.res" id="6_nprra"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/cistern_generated/decals/number_2-4.res" id="7_4phrp"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/cistern_generated/decals/number_3-3.res" id="8_a52rc"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/cistern_generated/decals/number_3-4.res" id="9_r7gy5"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/cistern_generated/decals/number_4-3.res" id="10_af0qc"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/cistern_generated/decals/number_4-4.res" id="11_8u5am"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/cistern_generated/decals/number_5-3.res" id="12_yqpsm"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/cistern_generated/decals/number_5-4.res" id="13_mranp"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/cistern_generated/decals/number_6-3.res" id="14_rp08t"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/cistern_generated/decals/number_6-4.res" id="15_nrxjw"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/cistern_generated/decals/number_7-3.res" id="16_xrrwg"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/cistern_generated/decals/number_7-4.res" id="17_jam7k"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/cistern_generated/decals/number_8-3.res" id="18_b3y16"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/cistern_generated/decals/number_8-4.res" id="19_014fy"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/cistern_generated/decals/number_9-3.res" id="20_jrgqm"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/cistern_generated/decals/number_9-4.res" id="21_esjib"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/cistern_generated/decals/number_10-3.res" id="22_1l6yc"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/cistern_generated/decals/number_10-4.res" id="23_nv0om"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/cistern_generated/decals/number_11-3.res" id="24_teo70"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/cistern_generated/decals/number_11-4.res" id="25_6lwej"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/cistern_generated/decals/number_12-3.res" id="26_kh13f"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/cistern_generated/decals/number_12-4.res" id="27_vum6q"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/cistern_generated/decals/number_13-3.res" id="28_32wci"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/cistern_generated/decals/number_13-4.res" id="29_gh7lo"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/cistern_generated/decals/number_14-3.res" id="30_8ohnc"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/cistern_generated/decals/number_14-4.res" id="31_daojr"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/cistern_generated/decals/number_15-3.res" id="32_v8s80"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/cistern_generated/decals/number_15-4.res" id="33_45ky3"]
+[ext_resource type="Material" path="res://scenes/sudden_death/cistern_generated/materials/dust_process.tres" id="34_ic7ah"]
+[ext_resource type="Material" path="res://scenes/sudden_death/cistern_generated/materials/dust.tres" id="35_37sa3"]
+
+[sub_resource type="QuadMesh" id="QuadMesh_lehgr"]
+material = ExtResource("35_37sa3")
+size = Vector2(0.022, 0.022)
+
+[node name="CisternDressing" type="Node3D" unique_id=1247866427]
+
+[node name="Decals" type="Node3D" parent="." unique_id=219590375]
+
+[node name="Number_1-3" type="Decal" parent="Decals" unique_id=1616352614]
+transform = Transform3D(0, 1, 0, 0, 0, -1, -1, 0, 0, -11.9, 1.4, -13.3)
+size = Vector3(1.5, 0.6, 0.75)
+texture_albedo = ExtResource("1_ov56u")
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Number_1-4" type="Decal" parent="Decals" unique_id=1312025244]
+transform = Transform3D(0, -1, 0, 0, 0, -1, 1, 0, 0, 11.9, 1.4, -13.3)
+size = Vector3(1.5, 0.6, 0.75)
+texture_albedo = ExtResource("2_cqm6o")
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Rust" type="Decal" parent="Decals" unique_id=1653927458]
+transform = Transform3D(0, -1, 0, 0, 0, -1, 1, 0, 0, 11.9, 4.2, -11.728819)
+size = Vector3(0.9606293, 0.6, 3.178188)
+texture_albedo = ExtResource("3_lhwyd")
+modulate = Color(1, 1, 1, 0.81759536)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Efflorescence" type="Decal" parent="Decals" unique_id=353336288]
+transform = Transform3D(0, 1, 0, 0, 0, -1, -1, 0, 0, -37.7, 12.8, -10.842611)
+size = Vector3(1.2702382, 0.6, 6.241027)
+texture_albedo = ExtResource("4_dnrdf")
+modulate = Color(1, 1, 1, 0.86195767)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Stain" type="Decal" parent="Decals" unique_id=2036027311]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -12.9, -0.1, -15)
+size = Vector3(1.7874644, 0.6, 2.2)
+texture_albedo = ExtResource("5_jq57y")
+modulate = Color(1, 1, 1, 0.5034049)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Number_2-3" type="Decal" parent="Decals" unique_id=1883147838]
+transform = Transform3D(0, 1, 0, 0, 0, -1, -1, 0, 0, -11.9, 1.4, 1.7)
+size = Vector3(1.5, 0.6, 0.75)
+texture_albedo = ExtResource("6_nprra")
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Number_2-4" type="Decal" parent="Decals" unique_id=110565148]
+transform = Transform3D(0, -1, 0, 0, 0, -1, 1, 0, 0, 11.9, 1.4, 1.7)
+size = Vector3(1.5, 0.6, 0.75)
+texture_albedo = ExtResource("7_4phrp")
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Rust2" type="Decal" parent="Decals" unique_id=1333673014]
+transform = Transform3D(0, 1, 0, 0, 0, -1, -1, 0, 0, -11.9, 4.2, 3.5286696)
+size = Vector3(0.7072526, 0.6, 2.6757631)
+texture_albedo = ExtResource("3_lhwyd")
+modulate = Color(1, 1, 1, 0.88153577)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Rust3" type="Decal" parent="Decals" unique_id=1969764212]
+transform = Transform3D(0, -1, 0, 0, 0, -1, 1, 0, 0, 11.9, 4.2, 3.3384464)
+size = Vector3(0.74125624, 0.6, 2.7205074)
+texture_albedo = ExtResource("3_lhwyd")
+modulate = Color(1, 1, 1, 0.8828048)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Efflorescence2" type="Decal" parent="Decals" unique_id=959624739]
+transform = Transform3D(0, -1, 0, 0, 0, -1, 1, 0, 0, 37.7, 12.8, 3.3014534)
+size = Vector3(1.6383069, 0.6, 5.91393)
+texture_albedo = ExtResource("4_dnrdf")
+modulate = Color(1, 1, 1, 0.60136944)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Stain2" type="Decal" parent="Decals" unique_id=714805008]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -12.9, -0.1, 0)
+size = Vector3(1.805587, 0.6, 2.2)
+texture_albedo = ExtResource("5_jq57y")
+modulate = Color(1, 1, 1, 0.7152136)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Number_3-3" type="Decal" parent="Decals" unique_id=1612026739]
+transform = Transform3D(0, 1, 0, 0, 0, -1, -1, 0, 0, -11.9, 1.4, 16.7)
+size = Vector3(1.5, 0.6, 0.75)
+texture_albedo = ExtResource("8_a52rc")
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Number_3-4" type="Decal" parent="Decals" unique_id=1071761200]
+transform = Transform3D(0, -1, 0, 0, 0, -1, 1, 0, 0, 11.9, 1.4, 16.7)
+size = Vector3(1.5, 0.6, 0.75)
+texture_albedo = ExtResource("9_r7gy5")
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Rust4" type="Decal" parent="Decals" unique_id=875361089]
+transform = Transform3D(0, 1, 0, 0, 0, -1, -1, 0, 0, -11.9, 4.2, 18.10129)
+size = Vector3(0.79691076, 0.6, 3.524563)
+texture_albedo = ExtResource("3_lhwyd")
+modulate = Color(1, 1, 1, 0.8301891)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Rust5" type="Decal" parent="Decals" unique_id=645317490]
+transform = Transform3D(0, -1, 0, 0, 0, -1, 1, 0, 0, 11.9, 4.2, 18.789597)
+size = Vector3(0.78777575, 0.6, 2.9231486)
+texture_albedo = ExtResource("3_lhwyd")
+modulate = Color(1, 1, 1, 0.83830404)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Efflorescence3" type="Decal" parent="Decals" unique_id=2120949797]
+transform = Transform3D(0, 1, 0, 0, 0, -1, -1, 0, 0, -37.7, 12.8, 19.298504)
+size = Vector3(1.3672471, 0.6, 4.7359576)
+texture_albedo = ExtResource("4_dnrdf")
+modulate = Color(1, 1, 1, 0.650877)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Stain3" type="Decal" parent="Decals" unique_id=387140070]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 12.9, -0.1, 15)
+size = Vector3(1.4849855, 0.6, 2.2)
+texture_albedo = ExtResource("5_jq57y")
+modulate = Color(1, 1, 1, 0.67780167)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Number_4-3" type="Decal" parent="Decals" unique_id=322286440]
+transform = Transform3D(0, 1, 0, 0, 0, -1, -1, 0, 0, -11.9, 1.4, 31.7)
+size = Vector3(1.5, 0.6, 0.75)
+texture_albedo = ExtResource("10_af0qc")
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Number_4-4" type="Decal" parent="Decals" unique_id=972285110]
+transform = Transform3D(0, -1, 0, 0, 0, -1, 1, 0, 0, 11.9, 1.4, 31.7)
+size = Vector3(1.5, 0.6, 0.75)
+texture_albedo = ExtResource("11_8u5am")
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Rust6" type="Decal" parent="Decals" unique_id=1516658485]
+transform = Transform3D(0, 1, 0, 0, 0, -1, -1, 0, 0, -11.9, 4.2, 33.566486)
+size = Vector3(0.9894135, 0.6, 2.82012)
+texture_albedo = ExtResource("3_lhwyd")
+modulate = Color(1, 1, 1, 0.7157713)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Rust7" type="Decal" parent="Decals" unique_id=1824086455]
+transform = Transform3D(0, -1, 0, 0, 0, -1, 1, 0, 0, 11.9, 4.2, 33.83297)
+size = Vector3(0.806139, 0.6, 3.5865264)
+texture_albedo = ExtResource("3_lhwyd")
+modulate = Color(1, 1, 1, 0.8440357)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Efflorescence4" type="Decal" parent="Decals" unique_id=1461522762]
+transform = Transform3D(0, -1, 0, 0, 0, -1, 1, 0, 0, 37.7, 12.8, 35.337124)
+size = Vector3(2.1268268, 0.6, 5.575649)
+texture_albedo = ExtResource("4_dnrdf")
+modulate = Color(1, 1, 1, 0.63945884)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Stain4" type="Decal" parent="Decals" unique_id=1803272136]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 12.9, -0.1, 30)
+size = Vector3(1.4411108, 0.6, 2.2)
+texture_albedo = ExtResource("5_jq57y")
+modulate = Color(1, 1, 1, 0.73811626)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Number_5-3" type="Decal" parent="Decals" unique_id=107476389]
+transform = Transform3D(0, 1, 0, 0, 0, -1, -1, 0, 0, -11.9, 1.4, 46.7)
+size = Vector3(1.5, 0.6, 0.75)
+texture_albedo = ExtResource("12_yqpsm")
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Number_5-4" type="Decal" parent="Decals" unique_id=787030460]
+transform = Transform3D(0, -1, 0, 0, 0, -1, 1, 0, 0, 11.9, 1.4, 46.7)
+size = Vector3(1.5, 0.6, 0.75)
+texture_albedo = ExtResource("13_mranp")
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Rust8" type="Decal" parent="Decals" unique_id=1566703285]
+transform = Transform3D(0, 1, 0, 0, 0, -1, -1, 0, 0, -11.9, 4.2, 48.70366)
+size = Vector3(0.7183346, 0.6, 2.767783)
+texture_albedo = ExtResource("3_lhwyd")
+modulate = Color(1, 1, 1, 0.62042063)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Rust9" type="Decal" parent="Decals" unique_id=650025508]
+transform = Transform3D(0, -1, 0, 0, 0, -1, 1, 0, 0, 11.9, 4.2, 48.64304)
+size = Vector3(0.6758801, 0.6, 2.74937)
+texture_albedo = ExtResource("3_lhwyd")
+modulate = Color(1, 1, 1, 0.75326943)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Efflorescence5" type="Decal" parent="Decals" unique_id=2144220697]
+transform = Transform3D(0, 1, 0, 0, 0, -1, -1, 0, 0, -37.7, 12.8, 47.5895)
+size = Vector3(1.7922101, 0.6, 5.7023187)
+texture_albedo = ExtResource("4_dnrdf")
+modulate = Color(1, 1, 1, 0.730764)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Stain5" type="Decal" parent="Decals" unique_id=1033419043]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -12.9, -0.1, 45)
+size = Vector3(1.4239243, 0.6, 2.2)
+texture_albedo = ExtResource("5_jq57y")
+modulate = Color(1, 1, 1, 0.7848228)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Number_6-3" type="Decal" parent="Decals" unique_id=1511057488]
+transform = Transform3D(0, 1, 0, 0, 0, -1, -1, 0, 0, -11.9, 1.4, 61.7)
+size = Vector3(1.5, 0.6, 0.75)
+texture_albedo = ExtResource("14_rp08t")
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Number_6-4" type="Decal" parent="Decals" unique_id=1754323752]
+transform = Transform3D(0, -1, 0, 0, 0, -1, 1, 0, 0, 11.9, 1.4, 61.7)
+size = Vector3(1.5, 0.6, 0.75)
+texture_albedo = ExtResource("15_nrxjw")
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Rust10" type="Decal" parent="Decals" unique_id=1698675433]
+transform = Transform3D(0, -1, 0, 0, 0, -1, 1, 0, 0, 11.9, 4.2, 63.50886)
+size = Vector3(0.84557146, 0.6, 3.2127638)
+texture_albedo = ExtResource("3_lhwyd")
+modulate = Color(1, 1, 1, 0.8656754)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Efflorescence6" type="Decal" parent="Decals" unique_id=1915314535]
+transform = Transform3D(0, 1, 0, 0, 0, -1, -1, 0, 0, -37.7, 12.8, 63.496124)
+size = Vector3(1.7569706, 0.6, 6.7997723)
+texture_albedo = ExtResource("4_dnrdf")
+modulate = Color(1, 1, 1, 0.7667463)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Stain6" type="Decal" parent="Decals" unique_id=1897896583]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 12.9, -0.1, 60)
+size = Vector3(1.4423877, 0.6, 2.2)
+texture_albedo = ExtResource("5_jq57y")
+modulate = Color(1, 1, 1, 0.5129797)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Number_7-3" type="Decal" parent="Decals" unique_id=1885974627]
+transform = Transform3D(0, 1, 0, 0, 0, -1, -1, 0, 0, -11.9, 1.4, 76.7)
+size = Vector3(1.5, 0.6, 0.75)
+texture_albedo = ExtResource("16_xrrwg")
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Number_7-4" type="Decal" parent="Decals" unique_id=335072014]
+transform = Transform3D(0, -1, 0, 0, 0, -1, 1, 0, 0, 11.9, 1.4, 76.7)
+size = Vector3(1.5, 0.6, 0.75)
+texture_albedo = ExtResource("17_jam7k")
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Rust11" type="Decal" parent="Decals" unique_id=1778921021]
+transform = Transform3D(0, -1, 0, 0, 0, -1, 1, 0, 0, 11.9, 4.2, 78.23559)
+size = Vector3(0.94768226, 0.6, 3.0225048)
+texture_albedo = ExtResource("3_lhwyd")
+modulate = Color(1, 1, 1, 0.7806879)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Efflorescence7" type="Decal" parent="Decals" unique_id=220720577]
+transform = Transform3D(0, -1, 0, 0, 0, -1, 1, 0, 0, 24.8, 12.8, 80.2355)
+size = Vector3(1.6995587, 0.6, 5.9798794)
+texture_albedo = ExtResource("4_dnrdf")
+modulate = Color(1, 1, 1, 0.59112424)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Stain7" type="Decal" parent="Decals" unique_id=1547190115]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 12.9, -0.1, 75)
+size = Vector3(1.5036762, 0.6, 2.2)
+texture_albedo = ExtResource("5_jq57y")
+modulate = Color(1, 1, 1, 0.6548312)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Number_8-3" type="Decal" parent="Decals" unique_id=1507075887]
+transform = Transform3D(0, 1, 0, 0, 0, -1, -1, 0, 0, -11.9, 1.4, 91.7)
+size = Vector3(1.5, 0.6, 0.75)
+texture_albedo = ExtResource("18_b3y16")
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Number_8-4" type="Decal" parent="Decals" unique_id=878411817]
+transform = Transform3D(0, -1, 0, 0, 0, -1, 1, 0, 0, 11.9, 1.4, 91.7)
+size = Vector3(1.5, 0.6, 0.75)
+texture_albedo = ExtResource("19_014fy")
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Rust12" type="Decal" parent="Decals" unique_id=437338752]
+transform = Transform3D(0, 1, 0, 0, 0, -1, -1, 0, 0, -11.9, 4.2, 93.82952)
+size = Vector3(0.725236, 0.6, 3.2706966)
+texture_albedo = ExtResource("3_lhwyd")
+modulate = Color(1, 1, 1, 0.6016023)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Efflorescence8" type="Decal" parent="Decals" unique_id=1790761858]
+transform = Transform3D(0, -1, 0, 0, 0, -1, 1, 0, 0, 24.8, 12.8, 95.19617)
+size = Vector3(1.7276527, 0.6, 4.6608534)
+texture_albedo = ExtResource("4_dnrdf")
+modulate = Color(1, 1, 1, 0.87703896)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Stain8" type="Decal" parent="Decals" unique_id=1925261588]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -12.9, -0.1, 90)
+size = Vector3(1.746182, 0.6, 2.2)
+texture_albedo = ExtResource("5_jq57y")
+modulate = Color(1, 1, 1, 0.6127107)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Number_9-3" type="Decal" parent="Decals" unique_id=516044090]
+transform = Transform3D(0, 1, 0, 0, 0, -1, -1, 0, 0, -11.9, 1.4, 106.7)
+size = Vector3(1.5, 0.6, 0.75)
+texture_albedo = ExtResource("20_jrgqm")
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Number_9-4" type="Decal" parent="Decals" unique_id=878067186]
+transform = Transform3D(0, -1, 0, 0, 0, -1, 1, 0, 0, 11.9, 1.4, 106.7)
+size = Vector3(1.5, 0.6, 0.75)
+texture_albedo = ExtResource("21_esjib")
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Rust13" type="Decal" parent="Decals" unique_id=861945294]
+transform = Transform3D(0, 1, 0, 0, 0, -1, -1, 0, 0, -11.9, 4.2, 108.74552)
+size = Vector3(0.9828744, 0.6, 3.1002998)
+texture_albedo = ExtResource("3_lhwyd")
+modulate = Color(1, 1, 1, 0.71228)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Rust14" type="Decal" parent="Decals" unique_id=1826874099]
+transform = Transform3D(0, -1, 0, 0, 0, -1, 1, 0, 0, 11.9, 4.2, 108.58275)
+size = Vector3(0.76093864, 0.6, 2.7249715)
+texture_albedo = ExtResource("3_lhwyd")
+modulate = Color(1, 1, 1, 0.76509094)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Efflorescence9" type="Decal" parent="Decals" unique_id=9135860]
+transform = Transform3D(0, 1, 0, 0, 0, -1, -1, 0, 0, -37.7, 12.8, 108.48705)
+size = Vector3(1.522216, 0.6, 5.835453)
+texture_albedo = ExtResource("4_dnrdf")
+modulate = Color(1, 1, 1, 0.6883395)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Stain9" type="Decal" parent="Decals" unique_id=2094694847]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 12.9, -0.1, 105)
+size = Vector3(1.8581276, 0.6, 2.2)
+texture_albedo = ExtResource("5_jq57y")
+modulate = Color(1, 1, 1, 0.7084917)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Number_10-3" type="Decal" parent="Decals" unique_id=80393716]
+transform = Transform3D(0, 1, 0, 0, 0, -1, -1, 0, 0, -11.9, 1.4, 121.7)
+size = Vector3(1.5, 0.6, 0.75)
+texture_albedo = ExtResource("22_1l6yc")
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Number_10-4" type="Decal" parent="Decals" unique_id=1614602393]
+transform = Transform3D(0, -1, 0, 0, 0, -1, 1, 0, 0, 11.9, 1.4, 121.7)
+size = Vector3(1.5, 0.6, 0.75)
+texture_albedo = ExtResource("23_nv0om")
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Rust15" type="Decal" parent="Decals" unique_id=937897214]
+transform = Transform3D(0, 1, 0, 0, 0, -1, -1, 0, 0, -11.9, 4.2, 123.319565)
+size = Vector3(0.65446395, 0.6, 2.908675)
+texture_albedo = ExtResource("3_lhwyd")
+modulate = Color(1, 1, 1, 0.62339497)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Rust16" type="Decal" parent="Decals" unique_id=1620574812]
+transform = Transform3D(0, -1, 0, 0, 0, -1, 1, 0, 0, 11.9, 4.2, 123.34437)
+size = Vector3(0.9334928, 0.6, 3.5043356)
+texture_albedo = ExtResource("3_lhwyd")
+modulate = Color(1, 1, 1, 0.8488737)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Efflorescence10" type="Decal" parent="Decals" unique_id=231631431]
+transform = Transform3D(0, 1, 0, 0, 0, -1, -1, 0, 0, -37.7, 12.8, 124.049484)
+size = Vector3(2.1702042, 0.6, 6.1229134)
+texture_albedo = ExtResource("4_dnrdf")
+modulate = Color(1, 1, 1, 0.6701349)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Stain10" type="Decal" parent="Decals" unique_id=134022953]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -12.9, -0.1, 120)
+size = Vector3(1.4651592, 0.6, 2.2)
+texture_albedo = ExtResource("5_jq57y")
+modulate = Color(1, 1, 1, 0.5773661)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Number_11-3" type="Decal" parent="Decals" unique_id=1084527417]
+transform = Transform3D(0, 1, 0, 0, 0, -1, -1, 0, 0, -11.9, 1.4, 136.7)
+size = Vector3(1.5, 0.6, 0.75)
+texture_albedo = ExtResource("24_teo70")
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Number_11-4" type="Decal" parent="Decals" unique_id=35333702]
+transform = Transform3D(0, -1, 0, 0, 0, -1, 1, 0, 0, 11.9, 1.4, 136.7)
+size = Vector3(1.5, 0.6, 0.75)
+texture_albedo = ExtResource("25_6lwej")
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Rust17" type="Decal" parent="Decals" unique_id=628416112]
+transform = Transform3D(0, -1, 0, 0, 0, -1, 1, 0, 0, 11.9, 4.2, 138.7168)
+size = Vector3(0.7801067, 0.6, 3.1334314)
+texture_albedo = ExtResource("3_lhwyd")
+modulate = Color(1, 1, 1, 0.77344084)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Efflorescence11" type="Decal" parent="Decals" unique_id=324601456]
+transform = Transform3D(0, 1, 0, 0, 0, -1, -1, 0, 0, -24.8, 12.8, 138.87646)
+size = Vector3(2.0311365, 0.6, 6.674603)
+texture_albedo = ExtResource("4_dnrdf")
+modulate = Color(1, 1, 1, 0.71487707)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Stain11" type="Decal" parent="Decals" unique_id=551359793]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 12.9, -0.1, 135)
+size = Vector3(1.8432305, 0.6, 2.2)
+texture_albedo = ExtResource("5_jq57y")
+modulate = Color(1, 1, 1, 0.69694847)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Number_12-3" type="Decal" parent="Decals" unique_id=1988880543]
+transform = Transform3D(0, 1, 0, 0, 0, -1, -1, 0, 0, -11.9, 1.4, 151.7)
+size = Vector3(1.5, 0.6, 0.75)
+texture_albedo = ExtResource("26_kh13f")
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Number_12-4" type="Decal" parent="Decals" unique_id=2063371506]
+transform = Transform3D(0, -1, 0, 0, 0, -1, 1, 0, 0, 11.9, 1.4, 151.7)
+size = Vector3(1.5, 0.6, 0.75)
+texture_albedo = ExtResource("27_vum6q")
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Rust18" type="Decal" parent="Decals" unique_id=427125937]
+transform = Transform3D(0, 1, 0, 0, 0, -1, -1, 0, 0, -11.9, 4.2, 153.52226)
+size = Vector3(0.9534878, 0.6, 2.635023)
+texture_albedo = ExtResource("3_lhwyd")
+modulate = Color(1, 1, 1, 0.7156565)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Rust19" type="Decal" parent="Decals" unique_id=777223233]
+transform = Transform3D(0, -1, 0, 0, 0, -1, 1, 0, 0, 11.9, 4.2, 153.44096)
+size = Vector3(0.63310874, 0.6, 3.1755064)
+texture_albedo = ExtResource("3_lhwyd")
+modulate = Color(1, 1, 1, 0.66723067)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Efflorescence12" type="Decal" parent="Decals" unique_id=438470679]
+transform = Transform3D(0, 1, 0, 0, 0, -1, -1, 0, 0, -24.8, 12.8, 152.06673)
+size = Vector3(2.1677568, 0.6, 5.4938464)
+texture_albedo = ExtResource("4_dnrdf")
+modulate = Color(1, 1, 1, 0.5949815)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Stain12" type="Decal" parent="Decals" unique_id=2107136850]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 12.9, -0.1, 150)
+size = Vector3(1.6935796, 0.6, 2.2)
+texture_albedo = ExtResource("5_jq57y")
+modulate = Color(1, 1, 1, 0.6042164)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Number_13-3" type="Decal" parent="Decals" unique_id=2098628889]
+transform = Transform3D(0, 1, 0, 0, 0, -1, -1, 0, 0, -11.9, 1.4, 166.7)
+size = Vector3(1.5, 0.6, 0.75)
+texture_albedo = ExtResource("28_32wci")
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Number_13-4" type="Decal" parent="Decals" unique_id=504157994]
+transform = Transform3D(0, -1, 0, 0, 0, -1, 1, 0, 0, 11.9, 1.4, 166.7)
+size = Vector3(1.5, 0.6, 0.75)
+texture_albedo = ExtResource("29_gh7lo")
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Rust20" type="Decal" parent="Decals" unique_id=402948364]
+transform = Transform3D(0, 1, 0, 0, 0, -1, -1, 0, 0, -11.9, 4.2, 168.72562)
+size = Vector3(0.77771986, 0.6, 2.6311436)
+texture_albedo = ExtResource("3_lhwyd")
+modulate = Color(1, 1, 1, 0.7796833)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Efflorescence13" type="Decal" parent="Decals" unique_id=2055598068]
+transform = Transform3D(0, 1, 0, 0, 0, -1, -1, 0, 0, -37.7, 12.8, 166.99217)
+size = Vector3(1.2813903, 0.6, 6.2589273)
+texture_albedo = ExtResource("4_dnrdf")
+modulate = Color(1, 1, 1, 0.7435191)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Stain13" type="Decal" parent="Decals" unique_id=199908755]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -12.9, -0.1, 165)
+size = Vector3(1.8347616, 0.6, 2.2)
+texture_albedo = ExtResource("5_jq57y")
+modulate = Color(1, 1, 1, 0.517319)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Number_14-3" type="Decal" parent="Decals" unique_id=808946618]
+transform = Transform3D(0, 1, 0, 0, 0, -1, -1, 0, 0, -11.9, 1.4, 181.7)
+size = Vector3(1.5, 0.6, 0.75)
+texture_albedo = ExtResource("30_8ohnc")
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Number_14-4" type="Decal" parent="Decals" unique_id=1759608072]
+transform = Transform3D(0, -1, 0, 0, 0, -1, 1, 0, 0, 11.9, 1.4, 181.7)
+size = Vector3(1.5, 0.6, 0.75)
+texture_albedo = ExtResource("31_daojr")
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Rust21" type="Decal" parent="Decals" unique_id=1032945138]
+transform = Transform3D(0, 1, 0, 0, 0, -1, -1, 0, 0, -11.9, 4.2, 183.63081)
+size = Vector3(0.9645927, 0.6, 2.90911)
+texture_albedo = ExtResource("3_lhwyd")
+modulate = Color(1, 1, 1, 0.7209144)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Rust22" type="Decal" parent="Decals" unique_id=2140961850]
+transform = Transform3D(0, -1, 0, 0, 0, -1, 1, 0, 0, 11.9, 4.2, 183.11798)
+size = Vector3(0.79526716, 0.6, 3.441587)
+texture_albedo = ExtResource("3_lhwyd")
+modulate = Color(1, 1, 1, 0.7224533)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Efflorescence14" type="Decal" parent="Decals" unique_id=311728432]
+transform = Transform3D(0, -1, 0, 0, 0, -1, 1, 0, 0, 24.8, 12.8, 183.35669)
+size = Vector3(2.120757, 0.6, 5.5459595)
+texture_albedo = ExtResource("4_dnrdf")
+modulate = Color(1, 1, 1, 0.87069035)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Stain14" type="Decal" parent="Decals" unique_id=66154738]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 12.9, -0.1, 180)
+size = Vector3(1.5626967, 0.6, 2.2)
+texture_albedo = ExtResource("5_jq57y")
+modulate = Color(1, 1, 1, 0.52417135)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Number_15-3" type="Decal" parent="Decals" unique_id=1530234286]
+transform = Transform3D(0, 1, 0, 0, 0, -1, -1, 0, 0, -11.9, 1.4, 196.7)
+size = Vector3(1.5, 0.6, 0.75)
+texture_albedo = ExtResource("32_v8s80")
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Number_15-4" type="Decal" parent="Decals" unique_id=153285349]
+transform = Transform3D(0, -1, 0, 0, 0, -1, 1, 0, 0, 11.9, 1.4, 196.7)
+size = Vector3(1.5, 0.6, 0.75)
+texture_albedo = ExtResource("33_45ky3")
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Rust23" type="Decal" parent="Decals" unique_id=688746490]
+transform = Transform3D(0, 1, 0, 0, 0, -1, -1, 0, 0, -11.9, 4.2, 198.63596)
+size = Vector3(0.7885211, 0.6, 3.4514515)
+texture_albedo = ExtResource("3_lhwyd")
+modulate = Color(1, 1, 1, 0.7020303)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Rust24" type="Decal" parent="Decals" unique_id=1020520765]
+transform = Transform3D(0, -1, 0, 0, 0, -1, 1, 0, 0, 11.9, 4.2, 198.38654)
+size = Vector3(0.8117286, 0.6, 3.3104525)
+texture_albedo = ExtResource("3_lhwyd")
+modulate = Color(1, 1, 1, 0.76377213)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Efflorescence15" type="Decal" parent="Decals" unique_id=873737500]
+transform = Transform3D(0, 1, 0, 0, 0, -1, -1, 0, 0, -24.8, 12.8, 199.40498)
+size = Vector3(1.4256241, 0.6, 5.8572564)
+texture_albedo = ExtResource("4_dnrdf")
+modulate = Color(1, 1, 1, 0.7201835)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Stain15" type="Decal" parent="Decals" unique_id=1617580672]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -12.9, -0.1, 195)
+size = Vector3(1.6852559, 0.6, 2.2)
+texture_albedo = ExtResource("5_jq57y")
+modulate = Color(1, 1, 1, 0.7532561)
+normal_fade = 0.5
+upper_fade = 0.2
+lower_fade = 0.2
+distance_fade_enabled = true
+distance_fade_begin = 90.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Dust" type="GPUParticles3D" parent="." unique_id=87277194]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5.3, 90)
+cast_shadow = 0
+amount = 2400
+lifetime = 14.0
+preprocess = 14.0
+randomness = 0.6
+visibility_aabb = AABB(-14, -7, -122, 28, 14, 244)
+process_material = ExtResource("34_ic7ah")
+draw_pass_1 = SubResource("QuadMesh_lehgr")

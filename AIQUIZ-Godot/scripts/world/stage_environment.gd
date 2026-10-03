@@ -12,18 +12,19 @@ const QualityRules = preload("res://scripts/core/graphics_quality.gd")
 const CONVEYOR_FLOOR_SHADER: Shader = preload("res://shaders/conveyor_belt_floor.gdshader")
 const MOBILE_OCEAN_SHADER: Shader = preload("res://shaders/ocean_mobile.gdshader")
 const SHARK_SWIMMER_SCENE: PackedScene = preload("res://scenes/shark_swimmer.tscn")
-const GRANDSTAND_SCENE: PackedScene = preload(
-	"res://assets/environment/santorini_waterfront/santorini_open_terrace_grounded.glb"
-)
 const SharkSwimmerScript = preload("res://scripts/world/shark_swimmer.gd")
 const WeatherCycleScript = preload("res://scripts/world/weather_cycle.gd")
-const ConveyorEdgeLightsScript = preload("res://scripts/world/conveyor_edge_lights.gd")
-const GrandstandCrowdScript = preload("res://scripts/world/grandstand_crowd.gd")
+const TerraceStandScript = preload("res://scripts/world/santorini_terrace_stand.gd")
+const AiquizStandScript = preload("res://scripts/world/aiquiz_stadium/aiquiz_stadium_stand.gd")
+const AiquizBackdropScript = preload("res://scripts/world/aiquiz_stadium/aiquiz_stadium_backdrop.gd")
 const HarborCityBackdropScript = preload("res://scripts/world/harbor_city_backdrop.gd")
 const WaterfrontScript = preload("res://scripts/world/santorini_waterfront.gd")
 const AIQUIZ_STAGE_SKY_PATH := "res://assets/environment/sky/aiquiz_day_night_sky.tres"
-const GRANDSTAND_BASE_LENGTH: float = 160.0
 const GRANDSTAND_SIDE_OFFSET: float = 28.0
+## Side stands and scenery. "aiquiz": AIQUIZ STADIUM (sails, lighthouse, islands,
+## skyline; assets/aiquiz_stadium). "santorini": the previous terrace stands.
+const STADIUM_AIQUIZ := "aiquiz"
+const STADIUM_SANTORINI := "santorini"
 const GENERATED_STAGE_META: StringName = &"stage_environment_generated"
 
 @export_category("Stage Layout")
@@ -64,6 +65,11 @@ const GENERATED_STAGE_META: StringName = &"stage_environment_generated"
 		layout_grandstand_side_offset = value
 		_queue_editor_preview_rebuild()
 
+@export_enum("aiquiz", "santorini") var layout_stadium_style: String = STADIUM_AIQUIZ:
+	set(value):
+		layout_stadium_style = value
+		_queue_editor_preview_rebuild()
+
 # Town source/assets remain available; enable this to restore the Santorini backdrop.
 @export var layout_include_harbor_city: bool = false:
 	set(value):
@@ -99,16 +105,17 @@ var _include_right_grandstand: bool = true
 var _grandstand_side_offset: float = GRANDSTAND_SIDE_OFFSET
 var _include_spectators: bool = true
 var _spectator_density: float = 0.85
+var _stadium_style: String = STADIUM_AIQUIZ
 
 # --- ノード参照 ---
 var floor_mesh: MeshInstance3D = null
 var environment_node: WorldEnvironment = null
 var directional_light: DirectionalLight3D = null
 var weather_cycle: WeatherCycle = null
-var conveyor_edge_lights: ConveyorEdgeLights = null
 var _ocean_surface: MeshInstance3D = null
 var _grandstands_container: Node3D = null
 var _waterfront: Node3D = null
+var _stadium_backdrop: Node3D = null
 var _shark_school: Node3D = null
 
 var _floor_belt_material: ShaderMaterial = null
@@ -125,9 +132,22 @@ var _conveyor_roller_back_material: ShaderMaterial = null
 var _conveyor_side_frame_left: MeshInstance3D = null
 var _conveyor_side_frame_right: MeshInstance3D = null
 
+## Sudden death shaft hole (set_shaft_hole). Kept across rebuilds and quality changes.
+const SHAFT_HOLE_PARAM: StringName = &"shaft_hole"
+const SHAFT_BASE_SHADER_META: StringName = &"shaft_hole_base_shader"
+## Base shader -> the same code compiled with SHAFT_HOLE (see _shaft_hole_variant).
+static var _shaft_hole_variants: Dictionary = {}
+var _shaft_hole_center: Vector3 = Vector3.ZERO
+var _shaft_hole_radius: float = 0.0
+var _shaft_hole_active: bool = false
+## Stage pieces hidden while the hole is open: wholly below the floor top inside the cylinder.
+var _shaft_hidden_nodes: Array[GeometryInstance3D] = []
+## Pieces inside the cylinder that also rise above the floor top (left visible; debug only).
+var _shaft_crossing_nodes: Array[String] = []
+
 var _floor_center_z: float = 0.0
 var _floor_length: float = 144.0
-## 観客スタンドが最後に同期した床長。動的床の縮小では縮めない。
+## 観客スタンドが最後に同期した床長。動的床の縮小ではブロックを減らさない。
 var _grandstand_synced_length: float = 0.0
 var _editor_preview_rebuild_queued: bool = false
 
@@ -153,6 +173,7 @@ func gameplay_build_config() -> Dictionary:
 		"include_spectators": layout_include_spectators,
 		"spectator_density": layout_spectator_density,
 		"include_harbor_city": layout_include_harbor_city,
+		"stadium_style": layout_stadium_style,
 	}
 
 
@@ -188,10 +209,10 @@ func _clear_built_stage() -> void:
 	directional_light = null
 	weather_cycle = null
 	floor_mesh = null
-	conveyor_edge_lights = null
 	_ocean_surface = null
 	_grandstands_container = null
 	_waterfront = null
+	_stadium_backdrop = null
 	_shark_school = null
 	_running_rails = null
 	_floor_belt_material = null
@@ -207,6 +228,8 @@ func _clear_built_stage() -> void:
 	_conveyor_roller_front_material = null
 	_conveyor_roller_back_material = null
 	_grandstand_synced_length = 0.0
+	_shaft_hidden_nodes.clear()
+	_shaft_crossing_nodes.clear()
 
 
 ## ステージを構築する。
@@ -214,7 +237,10 @@ func _clear_built_stage() -> void:
 ##              include_back_roller, include_floor_collision,
 ##              is_preview, include_sharks, include_grandstands,
 ##              include_left_grandstand, include_right_grandstand,
-##              include_harbor_city (default false; retained town data can be re-enabled)
+##              include_harbor_city (default false; retained town data can be re-enabled),
+##              include_stadium_scenery (default true; false builds no lighthouse,
+##              islands, skyline or sailboats, e.g. in the menu, whose camera can turn
+##              round to face them)
 func build(config: Dictionary = {}) -> void:
 	_clear_built_stage()
 	_floor_center_z = float(config.get("floor_center_z", 0.0))
@@ -232,13 +258,15 @@ func build(config: Dictionary = {}) -> void:
 	_include_spectators = bool(config.get("include_spectators", true))
 	_spectator_density = clampf(float(config.get("spectator_density", 0.85)), 0.0, 1.0)
 	var include_harbor_city: bool = config.get("include_harbor_city", layout_include_harbor_city) != false
+	_stadium_style = String(config.get("stadium_style", layout_stadium_style))
+	if _stadium_style != STADIUM_SANTORINI:
+		_stadium_style = STADIUM_AIQUIZ
 
 	_setup_environment()
 	_setup_lighting()
 	_setup_weather_cycle()
 	_setup_floor()
 	_setup_floor_conveyor()
-	_setup_conveyor_edge_lights()
 	_setup_ocean()
 	if include_harbor_city:
 		_setup_harbor_city()
@@ -248,11 +276,17 @@ func build(config: Dictionary = {}) -> void:
 		_waterfront = WaterfrontScript.new()
 		_waterfront.name = "WaterfrontInfrastructure"
 		_add_generated_stage_child(_waterfront)
-		_waterfront.setup(_grandstands_container, include_harbor_city, _graphics_quality())
+		# AIQUIZ STADIUM keeps the seabed but not the Santorini quay stairs and bays.
+		var routed_stands: Node3D = _grandstands_container if _stadium_style == STADIUM_SANTORINI else null
+		_waterfront.setup(routed_stands, include_harbor_city, _graphics_quality())
+	if _stadium_style == STADIUM_AIQUIZ:
+		_setup_stadium_backdrop(bool(config.get("include_stadium_scenery", true)))
 	if _include_sharks:
 		_setup_sharks()
 
 	set_floor_geometry(_floor_center_z, _floor_length)
+	if _shaft_hole_active:
+		_apply_shaft_hole()
 
 
 static func _graphics_quality() -> String:
@@ -334,7 +368,7 @@ func apply_graphics_quality(quality: String = "") -> void:
 	if environment_node != null and environment_node.environment != null:
 		QualityRules.apply_environment(environment_node.environment, q)
 	if directional_light != null:
-		directional_light.directional_shadow_max_distance = QualityRules.directional_shadow_distance(q)
+		QualityRules.configure_directional_shadow(directional_light, q)
 		directional_light.shadow_enabled = (
 			QualityRules.preview_shadow_enabled(q)
 			if _is_preview_environment
@@ -342,6 +376,8 @@ func apply_graphics_quality(quality: String = "") -> void:
 		)
 	if _ocean_surface != null and is_instance_valid(_ocean_surface):
 		configure_ocean_surface(_ocean_surface, q)
+		# The ocean gets a fresh material (desktop or mobile shader); carry the shaft hole over.
+		_apply_shaft_hole_materials()
 	var town := get_node_or_null("HarborCityBackdrop")
 	if town != null:
 		town.apply_graphics_quality(q)
@@ -361,7 +397,7 @@ func _setup_lighting() -> void:
 	directional_light.rotation_degrees = Vector3(-50, -20, 0)
 	directional_light.light_color = Color(0.90, 0.92, 0.95)
 	directional_light.light_energy = 1.2
-	directional_light.directional_shadow_max_distance = QualityRules.directional_shadow_distance(_graphics_quality())
+	QualityRules.configure_directional_shadow(directional_light, _graphics_quality())
 	directional_light.shadow_enabled = (
 		QualityRules.preview_shadow_enabled(_graphics_quality())
 		if _is_preview_environment
@@ -415,18 +451,6 @@ func _setup_floor_conveyor() -> void:
 	_setup_conveyor_loop_geometry()
 	if _include_floor_collision:
 		_setup_floor_collision()
-
-
-func _setup_conveyor_edge_lights() -> void:
-	conveyor_edge_lights = ConveyorEdgeLightsScript.new() as ConveyorEdgeLights
-	conveyor_edge_lights.name = "ConveyorEdgeLights"
-	_add_generated_stage_child(conveyor_edge_lights)
-	conveyor_edge_lights.setup(
-		_floor_center_z,
-		_floor_length,
-		_floor_belt_material,
-		weather_cycle
-	)
 
 
 func _setup_floor_collision() -> void:
@@ -566,10 +590,22 @@ func _setup_harbor_city() -> void:
 	city.build(weather_cycle, _graphics_quality())
 
 
+func _stand_script() -> GDScript:
+	return AiquizStandScript if _stadium_style == STADIUM_AIQUIZ else TerraceStandScript
+
+
+## Lighthouse, islands, skyline and sailboats; also drives the stadium's night glow.
+func _setup_stadium_backdrop(show_scenery: bool = true) -> void:
+	_stadium_backdrop = AiquizBackdropScript.new()
+	_stadium_backdrop.name = "StadiumBackdrop"
+	_add_generated_stage_child(_stadium_backdrop)
+	_stadium_backdrop.build(weather_cycle, _graphics_quality(), show_scenery)
+
+
 func _setup_grandstands() -> void:
 	var container := Node3D.new()
 	container.name = "Grandstands"
-	container.position = Vector3(0.0, 0.0, _floor_center_z)
+	container.position = Vector3(0.0, 0.0, _floor_center_z - _floor_length * 0.5)
 	_grandstands_container = container
 	_add_generated_stage_child(container)
 
@@ -578,31 +614,20 @@ func _setup_grandstands() -> void:
 		side_offsets.append(-_grandstand_side_offset)
 	if _include_right_grandstand:
 		side_offsets.append(_grandstand_side_offset)
+	var density: float = _spectator_density if _include_spectators else 0.0
 	for side_x: float in side_offsets:
-		var stand := GRANDSTAND_SCENE.instantiate() as Node3D
-		if stand == null:
-			push_warning("Failed to instantiate optimized ocean grandstand")
-			continue
-		stand.name = "GrandstandLeft" if side_x < 0.0 else "GrandstandRight"
-		stand.position = Vector3(side_x, 0.0, 0.0)
-		if side_x < 0.0:
-			stand.rotation = Vector3(0.0, PI, 0.0)
-		stand.process_mode = Node.PROCESS_MODE_DISABLED
-		WaterfrontScript.extend_stand_supports(stand)
-		_configure_grandstand_geometry(stand)
+		var stand: Node3D = _stand_script().new()
 		container.add_child(stand)
-		if _include_spectators and _spectator_density > 0.0:
-			var crowd := GrandstandCrowdScript.new()
-			crowd.name = "Spectators"
-			stand.add_child(crowd)
-			crowd.build(_spectator_density, 1729 if side_x < 0.0 else 7919)
+		stand.setup(signf(side_x), density, 1729 if side_x < 0.0 else 7919)
+		stand.position = Vector3(side_x, 0.0, 0.0)
+		stand.process_mode = Node.PROCESS_MODE_DISABLED
 
 	_sync_grandstands_to_floor()
 
 
 func _configure_grandstand_geometry(stand: Node3D) -> void:
 	var quality: String = _graphics_quality()
-	var casts_shadows: bool = quality == QualityRules.HIGH and not QualityRules.is_mobile_target()
+	var casts_shadows: bool = QualityRules.is_at_least(quality, QualityRules.HIGH) and not QualityRules.is_mobile_target()
 	for node: Node in stand.find_children("*", "MeshInstance3D", true, false):
 		var mesh_instance := node as MeshInstance3D
 		mesh_instance.lod_bias = QualityRules.grandstand_lod_bias(quality)
@@ -618,21 +643,18 @@ func _sync_grandstands_to_floor() -> void:
 	var container: Node3D = _grandstands_container
 	if container == null:
 		return
-	# フライオーバー等で伸ばしたスタンドを、カウントダウン以降の短い動的床に合わせて
-	# 縮め直すと位置・スケールが跳ねるので、同期済み長さより短い更新は無視する。
+	# スタンドは 20 m のブロックを床の後端から前方へ並べる。床が伸びたらブロックを足し、
+	# カウントダウン以降の短い動的床では減らさない（位置が跳ねないようにする）。
 	if _grandstand_synced_length > 0.0 and _floor_length < _grandstand_synced_length:
 		return
 	_grandstand_synced_length = _floor_length
-	container.position.z = _floor_center_z
-	var longitudinal_scale := maxf(_floor_length / GRANDSTAND_BASE_LENGTH, 0.01)
+	container.position.z = _floor_center_z - _floor_length * 0.5
+	var blocks: int = _stand_script().blocks_for_length(_floor_length)
 	for child: Node in container.get_children():
-		var stand := child as Node3D
-		if stand != null:
-			stand.scale = Vector3(1.0, 1.0, longitudinal_scale)
-			var crowd: Node = stand.get_node_or_null("Spectators")
-			if crowd != null:
-				crowd.sync_length_scale(longitudinal_scale)
-	if is_instance_valid(_waterfront):
+		if child.has_method("ensure_blocks") and child.ensure_blocks(blocks):
+			_configure_grandstand_geometry(child as Node3D)
+	if is_instance_valid(_waterfront) and _stadium_style == STADIUM_SANTORINI:
+		# Routes are keyed on the stand layout, so an unchanged stand is a no-op.
 		_waterfront.sync_to_stands(container)
 
 
@@ -726,6 +748,189 @@ func get_floor_length() -> float:
 	return _floor_length
 
 
+## A round hole in the surface stage for the sudden death shaft: floor, ocean (both shader variants) and every
+## stage piece that would show inside the cylinder (centre.xz, radius) below the floor top are cut away or hidden.
+## While the hole is open, the pier box (floor), conveyor return belt, rollers and ocean run a variant of their
+## shader compiled with SHAFT_HOLE that discards fragments inside the circle (all faces, so the pier's inside never
+## shows; the shaft wall does). Other stage meshes that sit wholly below the floor top and whose triangles reach
+## into the circle (the seabed) are hidden. Inactive, every material is back on its original shader with no hole
+## parameter and nothing is hidden: the stage renders exactly as before, at no extra cost.
+func set_shaft_hole(center: Vector3, radius: float, active: bool) -> void:
+	_shaft_hole_center = center
+	_shaft_hole_radius = maxf(radius, 0.0)
+	_shaft_hole_active = active and _shaft_hole_radius > 0.0
+	_apply_shaft_hole()
+
+
+## Optional: compiles the SHAFT_HOLE shader variants ahead of set_shaft_hole() (e.g. when the draw is detected),
+## so opening the hole does not stall on shader compilation.
+func prepare_shaft_hole() -> void:
+	for entry: Array in _shaft_hole_material_entries():
+		var variant: Shader = _shaft_hole_variant(_shaft_hole_base_shader(entry[1] as ShaderMaterial))
+		# Waits for the rendering server to parse and compile it now rather than when the hole opens.
+		variant.get_shader_uniform_list()
+
+
+func get_shaft_hole_debug() -> Dictionary:
+	var materials: Array[Dictionary] = []
+	for entry: Array in _shaft_hole_material_entries():
+		var material := entry[1] as ShaderMaterial
+		materials.append({
+			"name": String(entry[0]),
+			"variant": material.has_meta(SHAFT_BASE_SHADER_META),
+			"shader": String(_shaft_hole_base_shader(material).resource_path),
+			"value": material.get_shader_parameter(SHAFT_HOLE_PARAM),
+		})
+	var hidden: Array[String] = []
+	for node: GeometryInstance3D in _shaft_hidden_nodes:
+		if is_instance_valid(node):
+			hidden.append(String(get_path_to(node)))
+	return {
+		"active": _shaft_hole_active,
+		"center": _shaft_hole_center,
+		"radius": _shaft_hole_radius,
+		"floor_top_y": StageConstants.FLOOR_TOP_Y,
+		"cut_materials": materials,
+		"hidden": hidden,
+		"crossing": _shaft_crossing_nodes.duplicate(),
+	}
+
+
+## [label, ShaderMaterial] for every material that cuts the hole in its fragment shader.
+func _shaft_hole_material_entries() -> Array[Array]:
+	var entries: Array[Array] = []
+	var candidates: Array = [
+		["floor", _floor_belt_material],
+		["return_belt", _conveyor_return_material],
+		["roller_front", _conveyor_roller_front_material],
+		["roller_back", _conveyor_roller_back_material],
+	]
+	if has_ocean_surface():
+		candidates.append(["ocean", _ocean_surface.material_override])
+	for candidate: Array in candidates:
+		var material := candidate[1] as ShaderMaterial
+		if material != null and material.shader != null:
+			entries.append([candidate[0], material])
+	return entries
+
+
+static func _shaft_hole_base_shader(material: ShaderMaterial) -> Shader:
+	if material.has_meta(SHAFT_BASE_SHADER_META):
+		return material.get_meta(SHAFT_BASE_SHADER_META) as Shader
+	return material.shader
+
+
+## The same shader compiled with SHAFT_HOLE defined (one per base shader, shared by all stages).
+static func _shaft_hole_variant(base: Shader) -> Shader:
+	if _shaft_hole_variants.has(base):
+		return _shaft_hole_variants[base] as Shader
+	var variant := Shader.new()
+	variant.code = base.code.replace("shader_type spatial;", "shader_type spatial;
+#define SHAFT_HOLE")
+	_shaft_hole_variants[base] = variant
+	return variant
+
+
+func _apply_shaft_hole() -> void:
+	_apply_shaft_hole_materials()
+	_restore_shaft_hidden()
+	if _shaft_hole_active:
+		_hide_shaft_pieces()
+
+
+## Swaps each cutting material onto its SHAFT_HOLE variant (active) or back to the original shader with the
+## hole parameter removed (inactive). Shader swaps keep the materials' other parameters.
+func _apply_shaft_hole_materials() -> void:
+	var value := Vector4(_shaft_hole_center.x, _shaft_hole_center.z, _shaft_hole_radius, 1.0)
+	for entry: Array in _shaft_hole_material_entries():
+		var material := entry[1] as ShaderMaterial
+		if _shaft_hole_active:
+			if not material.has_meta(SHAFT_BASE_SHADER_META):
+				var base: Shader = material.shader
+				material.set_meta(SHAFT_BASE_SHADER_META, base)
+				material.shader = _shaft_hole_variant(base)
+			material.set_shader_parameter(SHAFT_HOLE_PARAM, value)
+		elif material.has_meta(SHAFT_BASE_SHADER_META):
+			material.shader = material.get_meta(SHAFT_BASE_SHADER_META) as Shader
+			material.remove_meta(SHAFT_BASE_SHADER_META)
+			material.set_shader_parameter(SHAFT_HOLE_PARAM, null)
+
+
+func _restore_shaft_hidden() -> void:
+	for node: GeometryInstance3D in _shaft_hidden_nodes:
+		if is_instance_valid(node):
+			node.visible = true
+	_shaft_hidden_nodes.clear()
+	_shaft_crossing_nodes.clear()
+
+
+## Hides the stage meshes that reach into the shaft cylinder but lie wholly below the floor top: they are only
+## ever seen through the water from above (the seabed, 120 m down), so hiding them changes nothing up there.
+## Meshes that also rise above the floor are left alone and listed in the debug snapshot.
+func _hide_shaft_pieces() -> void:
+	var cut_nodes: Array[Node] = [floor_mesh, _ocean_surface, _conveyor_return_belt,
+		_conveyor_roller_front, _conveyor_roller_back]
+	var top_y: float = StageConstants.FLOOR_TOP_Y
+	var center := Vector2(_shaft_hole_center.x, _shaft_hole_center.z)
+	for node: Node in find_children("*", "GeometryInstance3D", true, false):
+		var geometry := node as GeometryInstance3D
+		if geometry in cut_nodes or not geometry.is_visible_in_tree():
+			continue
+		var bounds: AABB = geometry.global_transform * geometry.get_aabb()
+		if bounds.position.y >= top_y or not _aabb_reaches_disc(bounds, center, _shaft_hole_radius):
+			continue
+		# A big bounding box is not enough: the far-sea backdrop is a ring 1.8 km out whose box covers
+		# everything. Check the triangles themselves.
+		var mesh_instance := geometry as MeshInstance3D
+		if mesh_instance != null and not _mesh_reaches_disc(mesh_instance, center, _shaft_hole_radius):
+			continue
+		if bounds.end.y <= top_y + 0.02:
+			geometry.visible = false
+			_shaft_hidden_nodes.append(geometry)
+		else:
+			_shaft_crossing_nodes.append(String(get_path_to(geometry)))
+
+
+static func _aabb_reaches_disc(bounds: AABB, center: Vector2, radius: float) -> bool:
+	var nearest := Vector2(
+		clampf(center.x, bounds.position.x, bounds.end.x),
+		clampf(center.y, bounds.position.z, bounds.end.z)
+	)
+	return nearest.distance_squared_to(center) < radius * radius
+
+
+## True when any triangle of the mesh overlaps the disc in plan view (very dense meshes count as overlapping).
+static func _mesh_reaches_disc(mesh_instance: MeshInstance3D, center: Vector2, radius: float) -> bool:
+	if mesh_instance.mesh == null:
+		return false
+	var faces: PackedVector3Array = mesh_instance.mesh.get_faces()
+	if faces.size() > 150000:
+		return true
+	var xform: Transform3D = mesh_instance.global_transform
+	var radius_sq: float = radius * radius
+	for i in range(0, faces.size() - 2, 3):
+		var a3: Vector3 = xform * faces[i]
+		var b3: Vector3 = xform * faces[i + 1]
+		var c3: Vector3 = xform * faces[i + 2]
+		var a := Vector2(a3.x, a3.z)
+		var b := Vector2(b3.x, b3.z)
+		var c := Vector2(c3.x, c3.z)
+		var d1: float = (b - a).cross(center - a)
+		var d2: float = (c - b).cross(center - b)
+		var d3: float = (a - c).cross(center - c)
+		var has_negative: bool = d1 < 0.0 or d2 < 0.0 or d3 < 0.0
+		var has_positive: bool = d1 > 0.0 or d2 > 0.0 or d3 > 0.0
+		if not (has_negative and has_positive):
+			return true
+		for edge: Array in [[a, b], [b, c], [c, a]]:
+			var p: Vector2 = edge[0]
+			var q: Vector2 = edge[1]
+			var closest: Vector2 = Geometry2D.get_closest_point_to_segment(center, p, q)
+			if closest.distance_squared_to(center) < radius_sq:
+				return true
+	return false
+
+
 static func create_ocean_surface() -> MeshInstance3D:
 	var ocean_mesh := MeshInstance3D.new()
 	ocean_mesh.name = "Ocean"
@@ -806,8 +1011,6 @@ func set_floor_geometry(center_z: float, length: float) -> void:
 			(col.shape as BoxShape3D).size = Vector3(StageConstants.FLOOR_WIDTH, 0.5, length)
 	_update_floor_rails()
 	_update_conveyor_loop_geometry()
-	if conveyor_edge_lights != null:
-		conveyor_edge_lights.set_geometry(_floor_center_z, _floor_length)
 
 
 func _update_floor_rails() -> void:

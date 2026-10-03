@@ -1,0 +1,64 @@
+{
+  "P01_runway_side_elev": {
+    "image": "P01/P01_runway_side_elev.png",
+    "pixels": [
+      2752,
+      1536
+    ],
+    "px_per_m": 59.826,
+    "aspect_scale_x": 1.4333,
+    "aspect_scale_y": 1.4222,
+    "measured_water_row": 1437,
+    "predicted_water_row": 1432.9,
+    "water_row_error_m": 0.07
+  },
+  "P01_end_elev": {
+    "image": "P01/P01_end_elev.png",
+    "pixels": [
+      2400,
+      1792
+    ],
+    "px_per_m": 92.308,
+    "aspect_scale_x": 1.6667,
+    "aspect_scale_y": 1.6593,
+    "measured_water_row": null,
+    "predicted_water_row": 1879.3
+  },
+  "P04_section": {
+    "image": "P04/P04_section.png",
+    "pixels": [
+      2752,
+      1536
+    ],
+    "px_per_m": 86.0,
+    "aspect_scale_x": 1.4333,
+    "aspect_scale_y": 1.4222,
+    "measured_water_row": 1229,
+    "predicted_water_row": 1169.1,
+    "water_row_error_m": 0.702
+  },
+  "P05_front_elev": {
+    "image": "P05/P05_front_elev.png",
+    "pixels": [
+      1696,
+      2528
+    ],
+    "px_per_m": 21.2,
+    "aspect_scale_x": 1.5704,
+    "aspect_scale_y": 1.5605,
+    "measured_water_row": 2096
+  },
+  "P07_goal_stand_B_front_elev": {
+    "image": "P07/P07_goal_stand_B_front_elev.png",
+    "pixels": [
+      2752,
+      1536
+    ],
+    "px_per_m": 86.0,
+    "aspect_scale_x": 1.4333,
+    "aspect_scale_y": 1.4222,
+    "measured_water_row": 1497,
+    "predicted_water_row": 1894.4,
+    "water_row_error_m": -4.657
+  }
+}

@@ -45,10 +45,13 @@ func snapshot(stage: Node, viewport: Viewport, tag: String) -> Dictionary:
 	var stands := stage.get_node_or_null("Grandstands")
 	if stands != null:
 		for stand: Node3D in stands.get_children():
-			var node := stand.find_children("*", "MeshInstance3D", true, false)[0] as MeshInstance3D
-			var bounds := node.global_transform * node.get_aabb()
+			# Stands are rows of 20 m terrace blocks; the pergola blocks set the top.
+			var bounds := AABB()
+			for block: MeshInstance3D in stand.find_children("*", "MeshInstance3D", true, false):
+				var block_bounds := block.global_transform * block.get_aabb()
+				bounds = block_bounds if bounds.size == Vector3.ZERO else bounds.merge(block_bounds)
 			var crowd := stand.get_node("Spectators")
-			result.stands.append({"name":str(stand.name), "bottom":bounds.position.y, "top":bounds.end.y, "people":crowd.spectator_count, "hats":crowd.hat_count, "dancers":crowd.emote_count})
+			result.stands.append({"name":str(stand.name), "bottom":bounds.position.y, "top":bounds.end.y, "blocks":stand.block_count, "people":crowd.spectator_count, "fans":crowd.fan_count, "dancers":crowd.emote_count})
 			if absf(bounds.position.y - StageConstants.SEABED_Y) > 0.002 or absf(bounds.end.y - 4.2) > 0.002:
 				result.errors.append("Stand support/deck height mismatch")
 	await _capture(viewport, tag)
@@ -58,7 +61,7 @@ func snapshot(stage: Node, viewport: Viewport, tag: String) -> Dictionary:
 
 
 func check_import_preservation() -> Dictionary:
-	var packed := load("res://assets/environment/santorini_waterfront/santorini_open_terrace_grounded.glb") as PackedScene
+	var packed := load("res://assets/environment/santorini_grandstand/santorini_terrace_modules.glb") as PackedScene
 	var original := packed.instantiate() as Node3D
 	var extended := packed.instantiate() as Node3D
 	load("res://scripts/world/santorini_waterfront.gd").extend_stand_supports(extended)

@@ -7,7 +7,7 @@ func _ready() -> void:
 
 func capture(label: String) -> void:
 	await RenderingServer.frame_post_draw
-	get_viewport().get_texture().get_image().save_png("res://artifacts/saw_operator/"+label+".png")
+	get_viewport().get_texture().get_image().save_png("res://artifacts/saw_operator/v3/lifecycle_"+label+".png")
 
 func ready_world() -> void:
 	for i in range(1200):
@@ -75,6 +75,6 @@ func finish() -> void:
 	for key in checks:
 		if not checks[key]:errors.append(key)
 	var report:={"passed":errors.is_empty(),"errors":errors,"checks":checks}
-	FileAccess.open("res://artifacts/saw_operator/lifecycle.json",FileAccess.WRITE).store_string(JSON.stringify(report,"\t"))
+	FileAccess.open("res://artifacts/saw_operator/v3/lifecycle.json",FileAccess.WRITE).store_string(JSON.stringify(report,"\t"))
 	print("OPERATOR_LIFECYCLE ",JSON.stringify(report))
 	get_tree().quit(0 if errors.is_empty() else 1)

@@ -50,7 +50,7 @@ func apply_graphics_quality(quality: String) -> void:
 	var q := QualityRules.normalize(quality)
 	var shadows := q != QualityRules.LOW and not QualityRules.is_mobile_target()
 	for mesh_instance: MeshInstance3D in _town_meshes:
-		mesh_instance.lod_bias = 1.0 if q == QualityRules.HIGH else (0.7 if q == QualityRules.BALANCED else 0.45)
+		mesh_instance.lod_bias = 1.35 if q == QualityRules.ULTRA else (1.0 if q == QualityRules.HIGH else (0.7 if q == QualityRules.BALANCED else 0.45))
 		mesh_instance.cast_shadow = (
 			GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 			if shadows else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF

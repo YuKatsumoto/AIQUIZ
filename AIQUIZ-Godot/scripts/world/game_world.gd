@@ -6,6 +6,9 @@ const TutorialPresentationDirectorScript = preload("res://scripts/world/tutorial
 const DuoTutorialGuidesScript = preload("res://scripts/world/duo_tutorial_guides.gd")
 const SoloTutorialGuidesScript = preload("res://scripts/world/solo_tutorial_guides.gd")
 const HelicopterArrivalDirectorScript = preload("res://scripts/world/helicopter_arrival_director.gd")
+const GrandstandCrowdScript = preload("res://scripts/world/grandstand_crowd.gd")
+const AiquizStadiumMaterials = preload("res://scripts/world/aiquiz_stadium/aiquiz_stadium_materials.gd")
+const AIQUIZ_GOAL_GATE_SCENE: PackedScene = preload("res://assets/aiquiz_stadium/aiquiz_stadium_goal_gate.glb")
 
 ## 3Dゲームワールド管理
 ## Python版 renderer.py の _draw_world + main_3d.py の入力処理に相当
@@ -33,6 +36,7 @@ var _prev_p2_y: float = 0.0
 var _ocean_attack_sharks: Dictionary = {}
 var _ghost_shark_ride_controller: Node3D = null
 var _result_ceremony_director: Node3D = null
+var _elimination_transition_running := false
 var _tutorial_presentation_director: Node = null
 var _tutorial_world_guides: Node3D = null
 var _helicopter_arrival_director: Node = null
@@ -93,18 +97,42 @@ var _barrier_landing_dust: CPUParticles3D = null
 # ── リプレイ記録 ──
 var _recorder: ReplayRecorder = null
 var _replay_mode: bool = false
+## Match record and highlight clips for the LED programme on the goal stand scoreboard (MatchReel).
+var _match_reel: MatchReel = null
 var _saw_controller: Node3D
+## Local 2P sudden death underground (docs/sudden_death_underground.md).
+var _sudden_death_director: SuddenDeathDirector = null
 var _push_key_events: Array[Dictionary] = []
+## Underground buzzer duel: this frame's key presses {"player", "kind" ("buzz" / "answer"), "key", "usec"}.
+var _sudden_death_keys: Array[Dictionary] = []
+## Answer keys underground: P1 A/W/S/D, P2 arrows (QuizGameState.SUDDEN_DEATH_KEY_*).
+const SUDDEN_DEATH_ANSWER_KEYS := {
+	KEY_A: [1, QuizGameState.SUDDEN_DEATH_KEY_LEFT], KEY_W: [1, QuizGameState.SUDDEN_DEATH_KEY_UP],
+	KEY_S: [1, QuizGameState.SUDDEN_DEATH_KEY_DOWN], KEY_D: [1, QuizGameState.SUDDEN_DEATH_KEY_RIGHT],
+	KEY_LEFT: [2, QuizGameState.SUDDEN_DEATH_KEY_LEFT], KEY_UP: [2, QuizGameState.SUDDEN_DEATH_KEY_UP],
+	KEY_DOWN: [2, QuizGameState.SUDDEN_DEATH_KEY_DOWN], KEY_RIGHT: [2, QuizGameState.SUDDEN_DEATH_KEY_RIGHT],
+}
 var _push_resync := true
 var _push_focus_lost := false
 var _push_active_last := false
+## P2のジャンプ／ゴーストシャークのチャージは右Ctrl専用。Godotのキー状態は左右を区別しないため、
+## キーイベントのlocationで右Ctrlの押下を追跡する。
+var _right_ctrl_down := false
+
+func _is_right_ctrl_pressed() -> bool:
+	return _right_ctrl_down and Input.is_key_pressed(KEY_CTRL)
 
 func _push_key_masks() -> Array:
 	return [(1 if Input.is_key_pressed(KEY_A) else 0) | (2 if Input.is_key_pressed(KEY_D) else 0),
 		(1 if Input.is_key_pressed(KEY_LEFT) else 0) | (2 if Input.is_key_pressed(KEY_RIGHT) else 0)]
 
 func _input(event: InputEvent) -> void:
+	if event is InputEventKey and (event.keycode == KEY_CTRL or event.physical_keycode == KEY_CTRL) 			and event.location == KEY_LOCATION_RIGHT:
+		_right_ctrl_down = event.pressed
 	if not event is InputEventKey or event.echo or game_state == null:
+		return
+	if game_state.game_state == Constants.STATE_SUDDEN_DEATH:
+		_record_sudden_death_key(event as InputEventKey)
 		return
 	if get_tree().paused or _push_focus_lost or not game_state.uses_local_push():
 		return
@@ -114,6 +142,36 @@ func _input(event: InputEvent) -> void:
 		_push_key_events.append({"player": mapping[key][0], "direction": mapping[key][1],
 			"pressed": event.pressed, "usec": Time.get_ticks_usec()})
 
+## The buzzer duel underground: P1 buzzes with Space and answers with A/W/S/D, P2 with right Ctrl and the
+## arrows. Only presses count (held keys never repeat), each with the moment it came in.
+func _record_sudden_death_key(event: InputEventKey) -> void:
+	if not event.pressed or get_tree().paused:
+		return
+	var key: int = event.keycode if event.keycode != 0 else event.physical_keycode
+	var entry := {}
+	if key == KEY_SPACE:
+		entry = {"player": 1, "kind": "buzz", "key": -1}
+	elif key == KEY_CTRL and event.location == KEY_LOCATION_RIGHT:
+		entry = {"player": 2, "kind": "buzz", "key": -1}
+	elif SUDDEN_DEATH_ANSWER_KEYS.has(key):
+		var mapping: Array = SUDDEN_DEATH_ANSWER_KEYS[key]
+		entry = {"player": mapping[0], "kind": "answer", "key": mapping[1]}
+	if not entry.is_empty():
+		entry["usec"] = Time.get_ticks_usec()
+		_sudden_death_keys.append(entry)
+
+
+func _feed_sudden_death_input(dt: float) -> void:
+	if game_state.game_state != Constants.STATE_SUDDEN_DEATH:
+		_sudden_death_keys.clear()
+		return
+	var frame_start := Time.get_ticks_usec() - int(dt * 1000000.0)
+	for entry: Dictionary in _sudden_death_keys:
+		var offset := clampf(float(int(entry.usec) - frame_start) / 1000000.0, 0.0, dt)
+		game_state.submit_sudden_death_key(int(entry.player), str(entry.kind), int(entry.key), offset)
+	_sudden_death_keys.clear()
+
+
 func _clear_push_input() -> void:
 	_push_key_events.clear()
 	_push_resync = true
@@ -121,6 +179,8 @@ func _clear_push_input() -> void:
 		game_state.suspend_local_push(_push_key_masks())
 
 func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_APPLICATION_FOCUS_IN:
+		_right_ctrl_down = false
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
 		_push_focus_lost = true
 		_clear_push_input()
@@ -154,11 +214,16 @@ func _on_local_push_event(event: Dictionary) -> void:
 	if event.kind in ["contact", "hit", "clash"]:
 		particle_spawner.spawn_local_push(event)
 
+func _on_window_size_changed() -> void:
+	GraphicsQuality.apply_text_viewport(get_viewport(), GameManager.graphics_quality)
+
 func _ready() -> void:
 	_world_visual_prep_started_msec = Time.get_ticks_msec()
 	game_state = QuizManager.game_state
 	AudioManager.set_music_context(AudioManager.MUSIC_CONTEXT_GAMEPLAY)
 	GraphicsQuality.apply_text_viewport(get_viewport(), GameManager.graphics_quality)
+	# 最高画質の超解像倍率はウィンドウ解像度から決まるため、リサイズに追従する。
+	get_window().size_changed.connect(_on_window_size_changed)
 	quiz_wall_scene = preload("res://scenes/quiz_wall.tscn")
 
 	# リプレイモードチェック
@@ -183,6 +248,13 @@ func _ready() -> void:
 	_net_state = NetGameState.new()
 	add_child(_net_state)
 	_net_state.setup(game_state)
+	# ゴール掲示板の LED 番組（ハイライトと戦績）のための記録。テストのハーネス（スクリプトの
+	# SceneTree）は保存先を差し替えたときだけ記録し、プレイヤーの戦績に書かない。
+	var harness := get_tree().get_script() != null and MatchHistory.path_override.is_empty()
+	if not _replay_mode and not harness and game_state.mode != Constants.MODE_TUTORIAL:
+		_match_reel = MatchReel.new()
+		add_child(_match_reel)
+		_match_reel.setup(game_state, GameManager.graphics_quality, _net_state.is_online, NetworkManager.is_host)
 	game_state.local_push_transport_enabled = not _replay_mode and not _net_state.is_online
 	game_state.saw_transport_enabled = not _replay_mode and not _net_state.is_online
 	game_state.result_ceremony_enabled = not _replay_mode and not _net_state.is_online
@@ -229,6 +301,8 @@ func _ready() -> void:
 		camera_controller,
 		particle_spawner
 	)
+	if _match_reel != null:
+		_match_reel.watch_ghost_rides(_ghost_shark_ride_controller)
 	_ghost_shark_ride_controller.aim_used.connect(_on_tutorial_ghost_aim_used)
 	_ghost_shark_ride_controller.charge_resolved.connect(_on_tutorial_ghost_charge_resolved)
 	_result_ceremony_director = ResultCeremonyDirectorScript.new()
@@ -240,6 +314,12 @@ func _ready() -> void:
 		camera_controller,
 		_ghost_shark_ride_controller as GhostSharkRideController
 	)
+	_sudden_death_director = SuddenDeathDirector.new()
+	add_child(_sudden_death_director)
+	_sudden_death_director.setup(game_state, camera_controller, _result_ceremony_director as ResultCeremonyDirector,
+		player_node as PlayerController, stage_env, _set_surface_visible)
+	game_state.sudden_death_transition_requested.connect(_sudden_death_director.on_transition_requested)
+	game_state.sudden_death_event.connect(_sudden_death_director.on_event)
 	game_state.tutorial_task_completed.connect(_on_tutorial_task_completed)
 	game_state.tutorial_presentation_requested.connect(_on_tutorial_presentation_requested)
 	game_state.tutorial_customize_handoff_requested.connect(_on_tutorial_customize_handoff_requested)
@@ -577,6 +657,8 @@ func _prepare_world_visuals_under_cover() -> void:
 	var result_prewarm_report: Dictionary = {}
 	if _result_ceremony_director != null:
 		result_prewarm_report = _result_ceremony_director.begin_render_prewarm()
+	# The sudden death shaft is small: built and drawn once with the match (docs 5.5).
+	var sudden_death_prewarm_report: Dictionary = _sudden_death_director.begin_render_prewarm(prewarm_camera)
 	var wall_prewarm_report: Dictionary = _begin_preview_wall_render_prewarm(prewarm_camera)
 	var death_pieces: Node3D = player_controller.begin_death_render_prewarm(prewarm_camera)
 	var death_wipe: Node = get_node_or_null("DeathWipeLayer/DeathWipe")
@@ -601,6 +683,7 @@ func _prepare_world_visuals_under_cover() -> void:
 		_ghost_shark_ride_controller.end_return_portal_render_prewarm()
 	if _result_ceremony_director != null:
 		_result_ceremony_director.end_render_prewarm()
+	_sudden_death_director.end_render_prewarm()
 	if _helicopter_arrival_director != null:
 		_helicopter_arrival_director.end_render_prewarm()
 	# queue_freeした予熱ノードを、開示前に確実にツリーから取り除く。
@@ -623,6 +706,7 @@ func _prepare_world_visuals_under_cover() -> void:
 	_world_visual_prep_report["render_frames"] = WORLD_VISUAL_PREP_RENDER_FRAMES
 	_world_visual_prep_report["ghost_portal_prewarm"] = portal_prewarm_report
 	_world_visual_prep_report["result_ceremony_prewarm"] = result_prewarm_report
+	_world_visual_prep_report["sudden_death_prewarm"] = sudden_death_prewarm_report
 	_world_visual_prep_report["helicopter_arrival_prewarm"] = helicopter_prewarm_report
 	_world_visual_prep_report["preview_wall_prewarm"] = wall_prewarm_report
 	_world_visual_prep_report["death_effects_prewarmed"] = true
@@ -668,7 +752,6 @@ func _collect_world_visual_prep_report(player_controller: PlayerController) -> D
 		and stage_env.environment_node != null
 		and stage_env.directional_light != null
 		and stage_env.weather_cycle != null
-		and stage_env.conveyor_edge_lights != null
 		and stage_env.has_ocean_surface()
 		and grandstand_count == 2
 		and shark_count > 0
@@ -851,7 +934,7 @@ func _process(dt: float) -> void:
 	var jump_p2 := false
 	var emote_p1 := 0
 	var emote_p2 := 0
-	if game_state.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE, Constants.STATE_WAITING_START, Constants.STATE_FLYOVER, Constants.STATE_COUNTDOWN]:
+	if game_state.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE, Constants.STATE_WAITING_START, Constants.STATE_FLYOVER, Constants.STATE_COUNTDOWN, Constants.STATE_SUDDEN_DEATH]:
 		# --- ローカル入力収集 (P1 or クライアントの自分) ---
 		# P1 エモート: キー1,2,3 → スロットからエモートIDを取得
 		if Input.is_key_pressed(KEY_1) and game_state.p1_emote_slots.size() > 0: emote_p1 = game_state.p1_emote_slots[0]
@@ -886,7 +969,7 @@ func _process(dt: float) -> void:
 			if Input.is_key_pressed(KEY_LEFT): axis_p2.x += 1.0
 			if Input.is_key_pressed(KEY_UP): axis_p2.y += 1.0
 			if Input.is_key_pressed(KEY_DOWN): axis_p2.y -= 1.0
-			jump_p2 = Input.is_key_pressed(KEY_CTRL)
+			jump_p2 = _is_right_ctrl_pressed()
 		else:
 			# 1P: Arrow keys also work for P1
 			if Input.is_key_pressed(KEY_RIGHT): axis_p1.x -= 1.0
@@ -913,7 +996,11 @@ func _process(dt: float) -> void:
 	game_state.result_ceremony_enabled = not _is_online and not _replay_mode
 	if not _is_client and not _replay_mode:
 		_feed_push_input(dt)
+		_feed_sudden_death_input(dt)
 		game_state.update(dt, axis_p1, axis_p2, jump_p1, jump_p2, emote_p1, emote_p2)
+	if game_state.game_state == Constants.STATE_SUDDEN_DEATH:
+		_process_sudden_death(dt)
+		return
 	if _ghost_shark_ride_controller:
 		_ghost_shark_ride_controller.update_ghost_ride(
 			dt,
@@ -962,14 +1049,22 @@ func _process(dt: float) -> void:
 		_saw_controller.finish_entrance()
 	_saw_controller.update_visual(game_state, dt, players_landed, entrance_running)
 	_update_flyover()
+	# The sudden death director runs first: it moves the deck, the finale stage drop
+	# and the runners' lift, and sets this frame's lens.
+	_sudden_death_director.process_frame(dt)
 	_update_player(dt)
 	if _result_ceremony_director:
 		_result_ceremony_director.update_result_ceremony(dt)
 	_update_walls()
 	_update_goal_line()
 	if is_instance_valid(_goal_stand):
+		# The scoreboard plays the programme (highlights, records) once the match is saved.
 		_goal_stand.update_stand(dt, game_state, _result_ceremony_director,
-			camera_controller.get_node_or_null("Camera3D") as Camera3D)
+			camera_controller.get_node_or_null("Camera3D") as Camera3D,
+			_match_reel == null or _match_reel.is_ready())
+	# Side stand fans mirror the goal crowd's cheers and verdict.
+	GrandstandCrowdScript.follow_reaction(
+		_goal_stand.side_crowd_reaction() if is_instance_valid(_goal_stand) else {}, dt)
 	_update_preview_walls(dt)
 	if _tutorial_presentation_director:
 		_tutorial_presentation_director.update(dt)
@@ -979,11 +1074,66 @@ func _process(dt: float) -> void:
 	_update_camera(dt)
 	_check_particles()
 	_update_start_barrier()
+	if game_state.is_elimination_result_ready() and not _elimination_transition_running:
+		_run_elimination_result_transition()
 
 	# Handle R key for restart (ESC is handled in _unhandled_input)
 	if game_state.game_state in [Constants.STATE_GAME_OVER, Constants.STATE_CLEAR]:
-		if Input.is_key_pressed(KEY_R) and game_state.is_wall_death_sequence_complete():
+		if (
+			Input.is_key_pressed(KEY_R)
+			and game_state.is_wall_death_sequence_complete()
+			and not game_state.is_elimination_result_pending()
+		):
 			_return_to_main_menu_from_result()
+
+
+## Both local players are out: wipe the screen, move the round to the finish line
+## under the cover and open on the verdict ceremony with both ghosts.
+func _run_elimination_result_transition() -> void:
+	if SceneTransition.is_transitioning():
+		return
+	_elimination_transition_running = true
+	await SceneTransition.fade_to_color_and_wait(Color.BLACK)
+	if is_inside_tree() and game_state.begin_elimination_result_ceremony():
+		# Let walls retire, ghosts spawn, the goal stand and the finale camera settle.
+		for _frame in range(3):
+			await get_tree().process_frame
+	if is_inside_tree():
+		SceneTransition.reveal_current()
+	_elimination_transition_running = false
+
+
+## Underground only the director (shaft, cistern, HUD), the runners, the result
+## director (which clears the surface podium) and the camera update; the surface
+## waits as it was. No screen cover: the director cuts between shots instead.
+func _process_sudden_death(dt: float) -> void:
+	_sudden_death_director.process_frame(dt)
+	_update_player(dt)
+	if _result_ceremony_director:
+		_result_ceremony_director.update_result_ceremony(dt)
+	_update_camera(dt)
+
+
+func _set_surface_visible(surface_visible: bool) -> void:
+	for node: Node3D in [stage_env, _goal_line_node, _goal_stand, _saw_controller, wall_container, _start_barrier]:
+		if is_instance_valid(node):
+			node.visible = surface_visible
+
+
+## Debug builds: F9 ends a local 2P ten-question round as a draw at the goal.
+func _debug_force_draw_finish() -> void:
+	if SceneTransition.is_transitioning() or not game_state.uses_local_result_ceremony():
+		return
+	if game_state.game_state not in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]:
+		return
+	await SceneTransition.fade_to_color_and_wait(Color.BLACK)
+	if not is_inside_tree():
+		return
+	game_state.debug_force_draw_finish()
+	for _frame in range(3):
+		await get_tree().process_frame
+	if is_inside_tree():
+		SceneTransition.reveal_current()
 
 
 ## キーボード操作でもボタンと同様、リザルトを覆ってから状態をリセットする。
@@ -1014,9 +1164,19 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.keycode == KEY_ESCAPE and event.is_pressed() and not event.is_echo():
 		if game_state and game_state.game_state in [
 			Constants.STATE_WAITING_START, Constants.STATE_COUNTDOWN,
-			Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE,
+			Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE, Constants.STATE_SUDDEN_DEATH,
 		]:
 			_toggle_pause()
+		return
+	if (
+		event is InputEventKey
+		and event.keycode == KEY_F9
+		and event.is_pressed()
+		and not event.is_echo()
+		and OS.is_debug_build()
+	):
+		_debug_force_draw_finish()
+		get_viewport().set_input_as_handled()
 		return
 	if (
 		event is InputEventKey
@@ -1038,7 +1198,18 @@ func _unhandled_input(event: InputEvent) -> void:
 		_tutorial_presentation_director.skip()
 		get_viewport().set_input_as_handled()
 		return
-			
+	# サドンデスのルールカードはEnterで閉じ、そこから流入とカウントダウンが始まる。
+	if (
+		event is InputEventKey
+		and event.keycode in [KEY_ENTER, KEY_KP_ENTER]
+		and event.is_pressed()
+		and not event.is_echo()
+		and _sudden_death_director
+		and _sudden_death_director.confirm_rules()
+	):
+		get_viewport().set_input_as_handled()
+		return
+
 	if (
 		event is InputEventKey
 		and event.keycode in [KEY_ENTER, KEY_KP_ENTER]
@@ -1323,16 +1494,20 @@ func _update_goal_line() -> void:
 	var challenge_goal_visible := (
 		game_state.num_players >= 2
 		and game_state.mode == Constants.MODE_TEN
-		and game_state.game_state in [
-			Constants.STATE_PRELOADING,
-			Constants.STATE_COUNTDOWN,
-			Constants.STATE_GOAL_RACE,
-			Constants.STATE_RESULT_CEREMONY,
-			Constants.STATE_FLYOVER,
-			Constants.STATE_PLAYING,
-			Constants.STATE_CLEAR,
-			Constants.STATE_WAITING_START,
-		]
+		and (
+			# Kept through the elimination hold: the finale opens right here.
+			game_state.is_elimination_result_pending()
+			or game_state.game_state in [
+				Constants.STATE_PRELOADING,
+				Constants.STATE_COUNTDOWN,
+				Constants.STATE_GOAL_RACE,
+				Constants.STATE_RESULT_CEREMONY,
+				Constants.STATE_FLYOVER,
+				Constants.STATE_PLAYING,
+				Constants.STATE_CLEAR,
+				Constants.STATE_WAITING_START,
+			]
+		)
 	)
 	var tutorial_goal_visible := (
 		game_state.mode == Constants.MODE_TUTORIAL
@@ -1365,32 +1540,17 @@ func _update_goal_line() -> void:
 		_goal_line_node.name = "GoalLine"
 		add_child(_goal_line_node)
 
-		# --- Goal gate: two pillars + crossbar ---
+		# --- Goal gate: AIQUIZ STADIUM's truss gate with the GOAL board ---
 		# 床のトップ面は Y = -9.2 + 8.0 = -1.2 なので、それに合わせて配置
 		const FLOOR_TOP_Y: float = -1.2
-		var pillar_color := Color(1.0, 0.85, 0.1)  # Gold
-		var bar_color := Color(1.0, 0.85, 0.1)
-
-		# ゴールの外端をベルト面の外端（幅24.0）に揃える。
-		const GOAL_PILLAR_WIDTH: float = 0.4
 		const GOAL_STRIPE_WIDTH: float = 0.5
 		var goal_width: float = StageConstants.FLOOR_WIDTH
-		var pillar_x: float = goal_width * 0.5 - GOAL_PILLAR_WIDTH * 0.5
-
-		# Left pillar (高さ5.0、中心をFLOOR_TOP_Y + 2.5に配置)
-		var left_pillar := _create_goal_box(Vector3(GOAL_PILLAR_WIDTH, 5.0, 0.4), pillar_color)
-		left_pillar.position = Vector3(-pillar_x, FLOOR_TOP_Y + 2.5, 0)
-		_goal_line_node.add_child(left_pillar)
-
-		# Right pillar
-		var right_pillar := _create_goal_box(Vector3(GOAL_PILLAR_WIDTH, 5.0, 0.4), pillar_color)
-		right_pillar.position = Vector3(pillar_x, FLOOR_TOP_Y + 2.5, 0)
-		_goal_line_node.add_child(right_pillar)
-
-		# Crossbar (柱の上端に配置)
-		var crossbar := _create_goal_box(Vector3(goal_width, 0.4, 0.4), bar_color)
-		crossbar.position = Vector3(0, FLOOR_TOP_Y + 5.0, 0)
-		_goal_line_node.add_child(crossbar)
+		# 柱はベルトの外端（±12.0）の内側、梁の下 5.0m。GOAL の文字は看板の画像（表裏とも読める向き）。
+		var gate := AIQUIZ_GOAL_GATE_SCENE.instantiate() as Node3D
+		gate.name = "StadiumGoalGate"
+		gate.position = Vector3(0.0, FLOOR_TOP_Y, 0.0)
+		AiquizStadiumMaterials.apply(gate)
+		_goal_line_node.add_child(gate)
 
 		# Ground line (checkerboard-style stripe — 床面に接着)
 		var stripe_count: int = int(goal_width / GOAL_STRIPE_WIDTH)
@@ -1400,23 +1560,6 @@ func _update_goal_line() -> void:
 			stripe.position = Vector3(-goal_width * 0.5 + GOAL_STRIPE_WIDTH * 0.5 + i * GOAL_STRIPE_WIDTH, FLOOR_TOP_Y + 0.03, 0)
 			_goal_line_node.add_child(stripe)
 
-		# "GOAL" label (クロスバーのやや下に配置)
-		var goal_label := Label3D.new()
-		goal_label.text = "GOAL"
-		goal_label.font_size = 72
-		goal_label.pixel_size = 0.012
-		goal_label.billboard = BaseMaterial3D.BILLBOARD_DISABLED
-		goal_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		goal_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		goal_label.modulate = Color(1.0, 0.95, 0.3)
-		goal_label.outline_modulate = Color(0.1, 0.05, 0.0, 1.0)
-		goal_label.outline_size = 10
-		goal_label.position = Vector3(0, FLOOR_TOP_Y + 3.8, -0.3)
-		goal_label.rotation.y = PI
-		var font := load("res://resources/fonts/NotoSansJP-Regular.otf")
-		if font:
-			goal_label.font = font
-		_goal_line_node.add_child(goal_label)
 	if game_state.uses_local_result_ceremony() and not is_instance_valid(_goal_waiting_referee):
 		# The finale referee waits behind the finishing marks with his checkered flag.
 		# Same scene and placement as the ceremony stage, so the hand-over is seamless.
@@ -1536,15 +1679,15 @@ func _update_camera(dt: float) -> void:
 	_update_wall_text_scale()
 
 
-## 2Pでカメラが後ろへ離れた分、壁の問題文と選択肢を大きくして読みやすさを保つ。
+## 2Pでカメラが後ろへ離れたら、壁の問題文と選択肢を拡大表示へ切り替えて読みやすさを保つ。
 func _update_wall_text_scale() -> void:
 	for wall: Node3D in _active_walls:
-		if not is_instance_valid(wall) or not wall.has_method("set_text_scale"):
+		if not is_instance_valid(wall) or not wall.has_method("set_text_enlarged"):
 			continue
-		var text_scale := 1.0
+		var enlarged := false
 		if int(wall.get_meta("wall_index", -1)) == game_state.current_wall_index:
-			text_scale = camera_controller.get_wall_text_scale(wall.global_position)
-		wall.set_text_scale(text_scale)
+			enlarged = camera_controller.should_enlarge_wall_text(wall.global_position, wall.is_text_enlarged())
+		wall.set_text_enlarged(enlarged)
 
 func _check_particles() -> void:
 	# Correct particle spawn
@@ -1633,6 +1776,8 @@ func _finish_intro_arrival_for_gameplay() -> void:
 
 
 func _on_state_changed(new_state: String) -> void:
+	if _match_reel != null:
+		_match_reel.notify_state(new_state)
 	if (
 		_helicopter_arrival_director != null
 		and _helicopter_arrival_director.is_start_locked()
@@ -1644,7 +1789,9 @@ func _on_state_changed(new_state: String) -> void:
 	if new_state in [Constants.STATE_CLEAR, Constants.STATE_GAME_OVER, Constants.STATE_MENU]:
 		if _ghost_shark_ride_controller:
 			_ghost_shark_ride_controller.force_cleanup()
-	if new_state in [
+	if new_state == Constants.STATE_SUDDEN_DEATH:
+		AudioManager.set_music_context(AudioManager.MUSIC_CONTEXT_SUDDEN_DEATH)
+	elif new_state in [
 		Constants.STATE_RESULT_CEREMONY,
 		Constants.STATE_CLEAR,
 		Constants.STATE_GAME_OVER,

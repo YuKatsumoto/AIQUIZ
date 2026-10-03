@@ -1,0 +1,302 @@
+{
+ "tool": "Codex CLI 0.155.0-alpha（ChatGPT Pro、組み込みの image_gen）。tools/codex_image.sh で 1 枚ずつ生成（--ephemeral、一時フォルダ）",
+ "date": "2026-09-28〜29",
+ "rounds": [
+  {
+   "round": 1,
+   "purpose": "方向を探る（4 案、同時に生成）",
+   "refs": [
+    "concepts/ref_style_board.png（ゲームの画面から作った見本：A 街、B スタジアムの意匠とキャラ、C キャラとヘリ、D 看板、E ロゴ）"
+   ],
+   "images": [
+    {
+     "file": "concepts/r1_A_harbor_launch_deck.png",
+     "prompt": "prompts_src/r1_A.txt",
+     "result": "採用（ユーザーが選択）",
+     "sha256": "7bfabbb6eddf4c5d58fb563d48fab29926c952944859085f14af3f6210067507",
+     "size": [
+      1672,
+      941
+     ]
+    },
+    {
+     "file": "concepts/r1_B_rooftop_helipad.png",
+     "prompt": "prompts_src/r1_B.txt",
+     "result": "不採用（着陸灯・吹き流しの考えだけ A へ）",
+     "sha256": "1816d0dfcb42e07da9c440a5f70e3069934b9504c1b00e3cf197aeb9574afa10",
+     "size": [
+      1672,
+      941
+     ]
+    },
+    {
+     "file": "concepts/r1_C_floating_barge.png",
+     "prompt": "prompts_src/r1_C.txt",
+     "result": "不採用（電球の紐・旗の考えだけ A へ）",
+     "sha256": "455ef142117eca2a306ccf0d07a745f895173210070523e85d55d9d125b91838",
+     "size": [
+      1672,
+      941
+     ]
+    },
+    {
+     "file": "concepts/r1_D_sail_bandshell.png",
+     "prompt": "prompts_src/r1_D.txt",
+     "result": "不採用（帆の屋根はヘリの回収の上空をふさぐ）",
+     "sha256": "e8e80c0c55f9016a6242b2456b547cfd2542fff5eef868ace61a26c07acd169e",
+     "size": [
+      1672,
+      941
+     ]
+    }
+   ]
+  },
+  {
+   "round": 2,
+   "purpose": "本物の街を背にした原本（ゲームのカメラの下絵に塗る）",
+   "refs": [
+    "concepts/guide_r2_round_deck.png（Blender：実際の街 AQS_BG_City と仮置きの箱）",
+    "concepts/r1_A_harbor_launch_deck.png"
+   ],
+   "images": [
+    {
+     "file": "concepts/r2_master_round_deck.png",
+     "prompt": "prompts_src/r2_master.txt",
+     "result": "意匠の原本として採用（丸いデッキ・背景の壁・スピーカー塔・LED・看板・照明塔・ヤシ・旗・琥珀の灯）。配置はユーザーの「コンベアのデモを続ける」で作り直し",
+     "sha256": "0197afe86851f8e8782548e25a659aa68106dc88c24004177dec6077ef144c60",
+     "size": [
+      1672,
+      941
+     ]
+    }
+   ]
+  },
+  {
+   "round": 3,
+   "purpose": "メニューのデモ（コンベア）を残したまま、どこに何を置くか（3 案）",
+   "refs": [
+    "concepts/guide_r3_menu_camera.png（Blender：ゲームのメニューのカメラ、ベルト・壁・キャラの仮置き、街）",
+    "concepts/r2_master_round_deck.png"
+   ],
+   "images": [
+    {
+     "file": "concepts/r3_v1_deck_beside_runway.png",
+     "prompt": "prompts_src/r3_v1.txt",
+     "result": "採用：走路の右に発進デッキ、走路は白い桟橋",
+     "sha256": "83177ebd353c0683fad25d62249695ffd6f94f8d83fd4d7cc29ba1a5a6a45f5c",
+     "size": [
+      1672,
+      941
+     ]
+    },
+    {
+     "file": "concepts/r3_v2_start_gate.png",
+     "prompt": "prompts_src/r3_v2.txt",
+     "result": "不採用：走路をまたぐ門はヘリの回収後のブースト（-Z へ高さ 13〜22m）と重なる。看板も UI の下に入る",
+     "sha256": "c6aa5f3bc0b60744d4f611f2cb42742dd9cb263288f245f4ff2395291eaf0bf7",
+     "size": [
+      1672,
+      941
+     ]
+    },
+    {
+     "file": "concepts/r3_v3_free.png",
+     "prompt": "prompts_src/r3_v3.txt",
+     "result": "一部採用：ガラスの手すり・縁の琥珀の灯。背景を走路の奥に置く案は、実際のカメラではベルトの奥が UI の下に来るので不採用",
+     "sha256": "5b11ba2a0602eca32868d5488de6493f9b3f8c7be1631c5d606ac63567d7fa67",
+     "size": [
+      1672,
+      941
+     ]
+    }
+   ]
+  },
+  {
+   "round": 4,
+   "purpose": "Blender の途中のレンダーに細部を描き足してもらう（形は変えない）",
+   "refs": [
+    "artifacts/aiquiz_menu_stage/blender/cam_deck.png / cam_menu.png（1 回目の組み立て）",
+    "原本（r2 / r3_v1）"
+   ],
+   "images": [
+    {
+     "file": "concepts/r4_deck_detail_paintover.png",
+     "prompt": "prompts_src/r4_deck_polish.txt",
+     "result": "採用した細部：スピーカーのコーンと縁、床の正方形の舗装と目地、帯の継ぎ目、ヤシの葉を増やす、レンズを暖かく光らせる",
+     "sha256": "f65ee6c37e12fabfd04ae624ed0e639ce67fdc458955b1388c0bc1212530f751",
+     "size": [
+      1672,
+      941
+     ]
+    },
+    {
+     "file": "concepts/r4_menu_detail_paintover.png",
+     "prompt": "prompts_src/r4_menu_polish.txt",
+     "result": "参考（桟橋の杭の水際・琥珀の灯の光り方）。杭の泡はゲームの海の波（±0.52m）と合わないので作らない",
+     "sha256": "68ddd2d07998e619a519f8fc9c5b69a217b9564cfea638e6aee733f0cab7de3d",
+     "size": [
+      1672,
+      941
+     ]
+    }
+   ]
+  },
+  {
+   "round": 5,
+   "purpose": "ビル群の手前（岸辺の街）の作り直し：本物の街を写した下絵の、窓のない低い箱・平らな護岸・丸い木の列だけを港町に描き替えてもらう（高層ビルはそのまま）",
+   "refs": [
+    "concepts/guide_r5_waterfront_A.png / guide_r5_waterfront_B.png（Blender で AQS_BG_City を海の上 400m から写した下絵）",
+    "原本（r2_master_round_deck）"
+   ],
+   "images": [
+    {
+     "file": "concepts/r5_waterfront_A.png",
+     "prompt": "prompts_src/r5_waterfront_A.txt",
+     "result": "採用：フェリーターミナル（波の屋根・時計塔）とフェリー、防波堤の赤白の灯台、浮き桟橋のマリーナ、1 階が店のパステルの家と瓦屋根、バルコニーの帯の集合住宅、ヤシと丸い木、白い手すり",
+     "sha256": "b2429cf4aa5a71675456d8cea2dcdef4a2ddd4338640a45664052d3d5aabb3a6",
+     "size": [
+      2048,
+      768
+     ]
+    },
+    {
+     "file": "concepts/r5_waterfront_B.png",
+     "prompt": "prompts_src/r5_waterfront_B.txt",
+     "result": "採用：観覧車（白い輪と色のゴンドラ）、アーチ窓 3 連の市場ホール、護岸の階段、コバルトの帯の笠石、縞の日よけ、縦の旗と小旗、黒い街灯",
+     "sha256": "16e3923da76b78c28447aa753258073c5387beaefeebd63b0fbbdcd60bde6183",
+     "size": [
+      1774,
+      887
+     ]
+    }
+   ]
+  },
+  {
+   "round": 6,
+   "purpose": "ゲームの実画面（メニューのカメラの位置から望遠）への仕上げの描き足し（形は変えない）",
+   "refs": [
+    "concepts/guide_r6_ingame_center.png / guide_r6_ingame_left.png（Godot の実画面）",
+    "r5_waterfront_B / r5_waterfront_A"
+   ],
+   "images": [
+    {
+     "file": "concepts/r6_ingame_polish_center.png",
+     "prompt": "prompts_src/r6_ingame_polish_center.txt",
+     "result": "採用：パステルを濃く・隣り合う色を変える、屋上テラスの鉢植えのヤシと植栽とパラソル、市場と店の前のカフェのパラソルの列、手すり沿いの花のプランター、大きめのランタン、石積みの目地、鎧戸と窓の花箱",
+     "sha256": "6a14e67b5136fd011bc729cadefa6caf3c259cfd59e8f9bd2df37da5a4303023",
+     "size": [
+      1672,
+      941
+     ]
+    },
+    {
+     "file": "concepts/r6_ingame_polish_left.png",
+     "prompt": "prompts_src/r6_ingame_polish_left.txt",
+     "result": "採用：屋上と通りの糸杉、桟橋の太い杭と白い頭、ターミナルの前の鉢植えの列。不採用：水面の映り込み（ゲームの海のシェーダーの範囲）",
+     "sha256": "8e69339fe920dc4c7b6620be8798d54d7b2b33f572ae1cac2fa6823ff81f98c9",
+     "size": [
+      1672,
+      941
+     ]
+    }
+   ]
+  },
+  {
+   "round": 7,
+   "purpose": "街並みの建物の型を増やす（窓の格子がそろいすぎて単調、というユーザーの指摘）。Web で調べたアパート・マンションの外観の型をプロンプトに渡し、見本帳と実画面の描き替えを作ってもらう",
+   "refs": [
+    "concepts/guide_r7_ingame_center.png（Godot の実画面）",
+    "r6_ingame_polish_left / r6_ingame_polish_center"
+   ],
+   "web_references": "PROMPTS.md の「参考にした Web の資料」",
+   "images": [
+    {
+     "file": "concepts/r7_building_catalogue.png",
+     "prompt": "prompts_src/r7_building_catalogue.txt",
+     "result": "採用：12 の型の見本帳（地中海の家、運河の家の 3 種の破風、横ラインのマンション、縦ラインのタイル張り、外廊下と外階段のアパート、ロッジアの市松、不規則な窓、色の箱のバルコニー、出窓、角の丸い横連窓、段々テラス、色のフィンのホテル）。ams_waterfront.py の型と make_textures.py の外壁の画像の手本",
+     "sha256": "8ae8aeb2c4ae2b852ba7e1459cb47f7c94a7972015d1f07bd7e954f406321a87",
+     "size": [
+      1448,
+      1086
+     ]
+    },
+    {
+     "file": "concepts/r7_street_variety.png",
+     "prompt": "prompts_src/r7_street_variety.txt",
+     "result": "採用：隣り合う建物で型・色・高さ・窓の割り付けを変える並べ方、屋上の緑、運河の家を地中海の家のあいだに挟む",
+     "sha256": "861a00330204460cc38791f46a7ba9778e3c0b7b5147ebffd0f15cbd88cfffbb",
+     "size": [
+      1672,
+      941
+     ]
+    }
+   ]
+  }
+ ],
+ "guides": [
+  {
+   "file": "concepts/ref_style_board.png",
+   "sha256": "c95d44bd10b00017a91c6dd125775b4a2b161b4fdf7dba6e321a1b04d9c03da6",
+   "size": [
+    2048,
+    1152
+   ]
+  },
+  {
+   "file": "concepts/guide_r2_round_deck.png",
+   "sha256": "0d360d7d0c5dbf2f616868e955f371c4b84ac8aa9fcf1da57d2e2a3e5d9a851d",
+   "size": [
+    1920,
+    1080
+   ]
+  },
+  {
+   "file": "concepts/guide_r3_menu_camera.png",
+   "sha256": "b87c7a5b81c9fff100eed15057e4d9d4ffed39c616ec3c8c47e7cfd73672fff7",
+   "size": [
+    1920,
+    1080
+   ]
+  },
+  {
+   "file": "concepts/guide_r5_waterfront_A.png",
+   "sha256": "9ae94a08ca503071460903183e13e8d8dd55ab10473976e019f9ba2fe2ac4c0c",
+   "size": [
+    1536,
+    1024
+   ]
+  },
+  {
+   "file": "concepts/guide_r5_waterfront_B.png",
+   "sha256": "6ba10d088569b907afdab37c0e16e56afe369fb198a9807b59aaf2cdb09486f5",
+   "size": [
+    1536,
+    1024
+   ]
+  },
+  {
+   "file": "concepts/guide_r6_ingame_center.png",
+   "sha256": "8ea2f8e10c085c6ff76858c57abdafb88f83bf539b47723426535cf465f0ccfc",
+   "size": [
+    1920,
+    1080
+   ]
+  },
+  {
+   "file": "concepts/guide_r6_ingame_left.png",
+   "sha256": "6045a204da0559c201a1dd52a1a182fbe2c8432d9146d1db369f75dc3b38b98f",
+   "size": [
+    1920,
+    1080
+   ]
+  },
+  {
+   "file": "concepts/guide_r7_ingame_center.png",
+   "sha256": "f37b9659c0d6e3a0e0c2b5f6fdd15fccf3ca057bba93f80875354ba6b56a0552",
+   "size": [
+    1920,
+    1080
+   ]
+  }
+ ]
+}

@@ -1,0 +1,987 @@
+{
+  "version": 1,
+  "purpose": "AIQUIZ STADIUM 原本 v1 から Blender 精密制作用の参照画像をそろえる（参照画像と寸法表の段階）",
+  "project": {
+    "higgsfield_project": "264e3cac-30e6-47b8-a4fb-3a7e0be1b2c7",
+    "model_default": "nano_banana_pro"
+  },
+  "master": {
+    "job_id": "b34835af-abae-42bc-babe-dcac08d266ec",
+    "file": "master/aiquiz_stadium_master_v1.png"
+  },
+  "uploads": {
+    "guides/guide_2p_clean.png": "920af245-9877-4e57-bacb-0c1583eebde6",
+    "guides/guide_1p_clean.png": "6b694132-a9b0-4d23-a9f8-17aadc3b2a37",
+    "guides/guide_preload_clean.png": "969720fe-7bc2-4b41-b343-351ebb16e12c",
+    "guides/guide_goal_clean.png": "b0068eb9-3099-49cf-9c12-034116721d81",
+    "guides/guide_ocean_clean.png": "013ac5a9-d8cf-4862-8c26-16cbe2be202b",
+    "guides/underlay_P01_stand_anchor.png": "a0da3474-9269-431e-9ed6-796f1b40c125",
+    "guides/underlay_P04_runway_anchor.png": "1047e8c0-cb80-4d45-bd4c-614c487e504e",
+    "guides/underlay_P05_lighthouse_anchor.png": "c75b997a-2ef1-4128-b54d-c35de18705a2",
+    "guides/underlay_P06_gate_anchor.png": "7aa43c78-74fb-4f92-bff9-c27caba93ff9",
+    "guides/underlay_P07_goal_stand_anchor.png": "07ee08c9-163f-45d0-8da2-e484faedd4df",
+    "guides/underlay_X01_cross_section.png": "b2cf4aec-9889-4e0a-9e5e-4cfcefa0e13b",
+    "guides/underlay_P01_runway_side_elev.png": "72ebebdf-f617-46b8-8727-caae0771ed3f",
+    "guides/underlay_P01_end_elev.png": "4b91be5c-067a-4516-973c-90451001d12a",
+    "guides/underlay_P01_top.png": "ea03925a-1999-42c9-90b9-7c8519b7d0bf",
+    "guides/underlay_P04_section.png": "e6e18fe0-998f-449b-867b-d4d588170a5a",
+    "guides/underlay_P05_front_elev.png": "52990f5e-f767-496b-877e-9488822ab7aa",
+    "guides/underlay_P06_front_elev.png": "4fdac0a5-c059-485f-952b-27c80c92ca73",
+    "guides/underlay_P07_front_elev.png": "d3389ee3-caa3-4817-a1ff-153283498907",
+    "guides/underlay_P07_section.png": "17baf1de-f3b7-42d5-8a5f-f3246122ba26",
+    "guides/ref_master_lighthouse_crop.png": "17989e94-20d3-49a1-b9f0-d0ad7ce6f720",
+    "guides/ref_master_background_sheet.png": "f6e87415-296a-499f-8df5-6260b1e49597",
+    "guides/ref_master_skyline_crop.png": "44352053-dcbb-4d20-a1d5-10ebcd2d85e0"
+  },
+  "entries": [
+    {
+      "id": "V01",
+      "name": "V01b_2p_camera",
+      "job_id": "5d0e9530-89de-4fdb-99ce-edeedf1971a0",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JJgQycECFPzoL6sxxsCZO3u49w/hf_20260927_120213_5d0e9530-89de-4fdb-99ce-edeedf1971a0.png",
+      "model": "nano_banana_pro",
+      "params": {
+        "aspect_ratio": "16:9",
+        "resolution": "2k"
+      },
+      "refs": {
+        "design": "b34835af-abae-42bc-babe-dcac08d266ec (master)",
+        "layout": "920af245-9877-4e57-bacb-0c1583eebde6 (guides/guide_2p_clean.png)"
+      },
+      "estimate_credits": 2,
+      "status": "accepted_look_only",
+      "file_raw": "artifacts/aiquiz_stadium/reference_r1/V01/V01b_2p_camera.png",
+      "file": "reference/V01/V01b_2p_camera.jpg",
+      "sha256_raw": "325abcea987cb4cad921f203e1b346929ad898c0d8bc77d1ea727d465d9a1c3e",
+      "pixels": [
+        2752,
+        1536
+      ],
+      "reason": "見た目は良いがカメラが原本寄り（走路が細く見える）、灯台が2本、FINISH表記。寸法には使わない"
+    },
+    {
+      "id": "V01",
+      "name": "V01b_2p_camera_guidefirst",
+      "job_id": "ac3212d4-f965-47f5-8354-a2f6b7924400",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JJgQycECFPzoL6sxxsCZO3u49w/hf_20260927_120607_ac3212d4-f965-47f5-8354-a2f6b7924400.png",
+      "model": "nano_banana_pro",
+      "params": {
+        "aspect_ratio": "16:9",
+        "resolution": "2k",
+        "reference_order": "guide first, master second"
+      },
+      "refs": {
+        "layout": "920af245-9877-4e57-bacb-0c1583eebde6 (guides/guide_2p_clean.png)",
+        "design": "b34835af-abae-42bc-babe-dcac08d266ec (master)"
+      },
+      "estimate_credits": 2,
+      "status": "accepted_layout",
+      "note": "retry of V01b with the guide as image 1 to test camera lock",
+      "file_raw": "artifacts/aiquiz_stadium/reference_r1/V01/V01b_2p_camera_guidefirst.png",
+      "file": "reference/V01/V01b_2p_camera_guidefirst.jpg",
+      "sha256_raw": "6e3549ec02ed3391df94ab765e6ba0dce44c34e5e1f9a99b42a34d9a1aef3f50",
+      "pixels": [
+        2752,
+        1536
+      ],
+      "reason": "ガイドを1枚目にするとカメラ・配置がほぼ一致（地平線 約27%）。ただしスタンド前面を背の高い欄干と解釈、走路上に存在しない小物が出た。以後の部位シートはこの順序（下敷き→デザイン参照）を採用"
+    },
+    {
+      "id": "V01",
+      "name": "V01a_1p_camera",
+      "job_id": "56f4c005-956b-4193-9d68-7f44d0501f79",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JJgQycECFPzoL6sxxsCZO3u49w/hf_20260927_120212_56f4c005-956b-4193-9d68-7f44d0501f79.png",
+      "model": "nano_banana_pro",
+      "params": {
+        "aspect_ratio": "16:9",
+        "resolution": "2k",
+        "reference_order": "master first, guide second"
+      },
+      "refs": {
+        "design": "b34835af-abae-42bc-babe-dcac08d266ec (master)",
+        "layout": "6b694132-a9b0-4d23-a9f8-17aadc3b2a37 (guides/guide_1p_clean.png)"
+      },
+      "estimate_credits": 2,
+      "status": "accepted",
+      "file_raw": "artifacts/aiquiz_stadium/reference_r1/V01/V01a_1p_camera.png",
+      "file": "reference/V01/V01a_1p_camera.jpg",
+      "sha256_raw": "1ca46bd49e68d2143af81c7e47568852397184e0b0e200d777f2532cab4b3438",
+      "pixels": [
+        2752,
+        1536
+      ],
+      "reason": "ゲーム視点の見た目確認用。チーム色の左右・低い縁石・ブース/マスト/帆の20mリズム・灯台1本・左の遠景ビル群が指示どおり。カメラ高さは実機よりやや高め（寸法には使わない）"
+    },
+    {
+      "id": "P04",
+      "name": "P04_runway_anchor",
+      "job_id": "5637b62b-f0c8-47a4-809b-0c087849aa14",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JJgQycECFPzoL6sxxsCZO3u49w/hf_20260927_121337_5637b62b-f0c8-47a4-809b-0c087849aa14.png",
+      "model": "nano_banana_pro",
+      "params": {
+        "aspect_ratio": "16:9",
+        "resolution": "2k",
+        "reference_order": "underlay, V01a, master"
+      },
+      "refs": {
+        "layout": "1047e8c0-cb80-4d45-bd4c-614c487e504e (guides/underlay_P04_runway_anchor.png)",
+        "design": [
+          "56f4c005-956b-4193-9d68-7f44d0501f79 (V01a)",
+          "b34835af-abae-42bc-babe-dcac08d266ec (master)"
+        ]
+      },
+      "estimate_credits": 2,
+      "status": "accepted",
+      "file_raw": "artifacts/aiquiz_stadium/reference_r1/P04/P04_runway_anchor.png",
+      "file": "reference/P04/P04_runway_anchor.jpg",
+      "sha256_raw": "8786762f43d223d12cbf08a40c8210d7e8eca8f57fc4d0b7f3db5bb9a2dc2770",
+      "pixels": [
+        2752,
+        1536
+      ],
+      "reason": "下敷きどおりの 3/4。白いスラットが走路を横断、低い縁石（コバルトの溝形）、灰色の側枠、10m ごとの杭と X 筋交い。縁石が溝形に見える点は正投影で確認"
+    },
+    {
+      "id": "P01",
+      "name": "P01_stand_anchor",
+      "job_id": "fc77c34f-3bc6-48d8-ba56-e481be1fae95",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JJgQycECFPzoL6sxxsCZO3u49w/hf_20260927_121337_fc77c34f-3bc6-48d8-ba56-e481be1fae95.png",
+      "model": "nano_banana_pro",
+      "params": {
+        "aspect_ratio": "16:9",
+        "resolution": "2k",
+        "reference_order": "underlay, V01a, master"
+      },
+      "refs": {
+        "layout": "a0da3474-9269-431e-9ed6-796f1b40c125 (guides/underlay_P01_stand_anchor.png)",
+        "design": [
+          "56f4c005-956b-4193-9d68-7f44d0501f79 (V01a)",
+          "b34835af-abae-42bc-babe-dcac08d266ec (master)"
+        ]
+      },
+      "estimate_credits": 2,
+      "status": "rejected",
+      "file_raw": "artifacts/aiquiz_stadium/reference_r1/P01/P01_stand_anchor.png",
+      "file": "reference/P01/P01_stand_anchor.jpg",
+      "sha256_raw": "0a41079efb5e84b49831ea3260d408e9f28217f1713707530e9a07c24cb52f00",
+      "pixels": [
+        2752,
+        1536
+      ],
+      "reason": "座席が4列しかない（指定は6段）。カメラが下敷きの 3/4 から正面寄りに変わった。帆がコース方向の縦の面になり、原本の座席を覆う日よけの角度と違う。ブース・マスト・通路の数は正しい"
+    },
+    {
+      "id": "P06",
+      "name": "P06_gate_anchor",
+      "job_id": "8bd91301-1086-4452-8a4a-aaa4a7502fd5",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JJgQycECFPzoL6sxxsCZO3u49w/hf_20260927_121541_8bd91301-1086-4452-8a4a-aaa4a7502fd5.png",
+      "model": "nano_banana_pro",
+      "params": {
+        "aspect_ratio": "16:9",
+        "resolution": "2k",
+        "reference_order": "underlay, V01a, master"
+      },
+      "refs": {
+        "layout": "7aa43c78-74fb-4f92-bff9-c27caba93ff9 (guides/underlay_P06_gate_anchor.png)",
+        "design": [
+          "56f4c005-956b-4193-9d68-7f44d0501f79 (V01a)",
+          "b34835af-abae-42bc-babe-dcac08d266ec (master)"
+        ]
+      },
+      "estimate_credits": 2,
+      "status": "rejected",
+      "file_raw": "artifacts/aiquiz_stadium/reference_r1/P06/P06_gate_anchor.png",
+      "file": "reference/P06/P06_gate_anchor.jpg",
+      "sha256_raw": "991d3b559c7be40994944cb58fba023a993dfb1c142da958505679aeaf4a9b70",
+      "pixels": [
+        2752,
+        1536
+      ],
+      "reason": "原本の背景（観客席・灯台・海・島）が混入し、無地背景でない。ゲートが片側の柱と梁の一部しか描かれていない。対策：原本を参照から外し、合格済みの P04 アンカーを画風参照にする"
+    },
+    {
+      "id": "P01",
+      "name": "P01_stand_anchor_r2",
+      "job_id": "64a41760-e193-4de6-9bf9-5c7041a28fdf",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JJgQycECFPzoL6sxxsCZO3u49w/hf_20260927_121808_64a41760-e193-4de6-9bf9-5c7041a28fdf.png",
+      "model": "nano_banana_pro",
+      "params": {
+        "aspect_ratio": "16:9",
+        "resolution": "2k",
+        "reference_order": "underlay, V01a, master"
+      },
+      "refs": {
+        "layout": "a0da3474-9269-431e-9ed6-796f1b40c125 (guides/underlay_P01_stand_anchor.png)",
+        "design": [
+          "56f4c005-956b-4193-9d68-7f44d0501f79 (V01a)",
+          "b34835af-abae-42bc-babe-dcac08d266ec (master)"
+        ]
+      },
+      "estimate_credits": 2,
+      "status": "accepted_design",
+      "note": "retry: exactly six rows, keep 3/4 camera, awning sails",
+      "file_raw": "artifacts/aiquiz_stadium/reference_r1/P01/P01_stand_anchor_r2.png",
+      "file": "reference/P01/P01_stand_anchor_r2.jpg",
+      "sha256_raw": "e077da6a46e6f5472de3b868d4c012f7e8a14c9e1eaa19e875eeeea3c8e575b4",
+      "pixels": [
+        2752,
+        1536
+      ],
+      "reason": "カメラは下敷きどおりの 3/4。帆は原本どおり座席を覆う日よけ型、白いバケットシート、青い笠木の前手すり、ブース・マスト各2、ブロック継ぎ目に通路の切れ目。座席列の数は 5〜6 で判別しにくい（作り直し上限に達したため、段数は寸法表の 6 段を正とする）。2つ目のブースが青パネルなしの箱になった点は設計判断で揃える"
+    },
+    {
+      "id": "P05",
+      "name": "P05_lighthouse_anchor",
+      "job_id": "df82592f-f567-4240-964c-aa0787c27440",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JJgQycECFPzoL6sxxsCZO3u49w/hf_20260927_122046_df82592f-f567-4240-964c-aa0787c27440.png",
+      "model": "nano_banana_pro",
+      "params": {
+        "aspect_ratio": "16:9",
+        "resolution": "2k",
+        "reference_order": "underlay, master"
+      },
+      "refs": {
+        "layout": "c75b997a-2ef1-4128-b54d-c35de18705a2 (guides/underlay_P05_lighthouse_anchor.png)",
+        "design": [
+          "b34835af-abae-42bc-babe-dcac08d266ec (master)"
+        ]
+      },
+      "estimate_credits": 2,
+      "status": "rejected",
+      "file_raw": "artifacts/aiquiz_stadium/reference_r1/P05/P05_lighthouse_anchor.png",
+      "file": "reference/P05/P05_lighthouse_anchor.jpg",
+      "sha256_raw": "992d190554e5d85b11eb28b58e28dc9d18cbce4716c4e2f5d4a6512872b0261d",
+      "pixels": [
+        2752,
+        1536
+      ],
+      "reason": "原本の構図がほぼそのまま再現され、下敷きの灯台単体が描かれなかった（砂の小島だけ追加）。対策：原本全体を参照から外し、原本の灯台部分の切り抜きと合格済みアンカー（画風・背景）を使う"
+    },
+    {
+      "id": "P06",
+      "name": "P06_gate_anchor_r2",
+      "job_id": "fd26b521-2649-497b-9165-dff272a0360e",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JJgQycECFPzoL6sxxsCZO3u49w/hf_20260927_122143_fd26b521-2649-497b-9165-dff272a0360e.png",
+      "model": "nano_banana_pro",
+      "params": {
+        "aspect_ratio": "16:9",
+        "resolution": "2k",
+        "reference_order": "underlay, P04 anchor (style)"
+      },
+      "refs": {
+        "layout": "7aa43c78-74fb-4f92-bff9-c27caba93ff9 (guides/underlay_P06_gate_anchor.png)",
+        "design": [
+          "5637b62b-f0c8-47a4-809b-0c087849aa14 (P04 anchor)"
+        ]
+      },
+      "estimate_credits": 2,
+      "status": "accepted_design",
+      "note": "retry without the master to stop scene leakage",
+      "file_raw": "artifacts/aiquiz_stadium/reference_r1/P06/P06_gate_anchor_r2.png",
+      "file": "reference/P06/P06_gate_anchor_r2.jpg",
+      "sha256_raw": "96febd629c37711232631db8c84db9bd6f114db5becb3c9d81a41a24f47095a4",
+      "pixels": [
+        2752,
+        1536
+      ],
+      "reason": "背景の混入なし、両柱がそろった完全なゲート。格子トラスの柱・梁、柱のコバルト帯、白枠の無地の紺看板、柱頭の投光器。ただし柱が走路の外側の台座から立ち、高さも約12m相当で下敷き（柱は走路端 ±11.8、高さ 5m）と違う。寸法はゲーム定数を正とし、デザインの手がかりとして採用"
+    },
+    {
+      "id": "P07",
+      "name": "P07_goal_stand_A_sail_pavilion",
+      "job_id": "0084c32f-c465-4eed-a80a-7012dd4fb7dd",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JJgQycECFPzoL6sxxsCZO3u49w/hf_20260927_122339_0084c32f-c465-4eed-a80a-7012dd4fb7dd.png",
+      "model": "nano_banana_pro",
+      "params": {
+        "aspect_ratio": "16:9",
+        "resolution": "2k",
+        "reference_order": "underlay, P01 anchor r2, P04 anchor"
+      },
+      "refs": {
+        "layout": "07ee08c9-163f-45d0-8da2-e484faedd4df (guides/underlay_P07_goal_stand_anchor.png)",
+        "design": [
+          "64a41760-e193-4de6-9bf9-5c7041a28fdf (P01 r2)",
+          "5637b62b-f0c8-47a4-809b-0c087849aa14 (P04)"
+        ]
+      },
+      "estimate_credits": 2,
+      "status": "accepted_design_option",
+      "file_raw": "artifacts/aiquiz_stadium/reference_r1/P07/P07_goal_stand_A_sail_pavilion.png",
+      "file": "reference/P07/P07_goal_stand_A_sail_pavilion.jpg",
+      "sha256_raw": "ac87ee3a0759f44797261f316897f9483cfbbd927c2c00246f361b58ca0bc7b2",
+      "pixels": [
+        2752,
+        1536
+      ],
+      "reason": "A案（帆のパビリオン）。角丸の白枠の LED 掲示板と上部の紺ヘッダー、脚1本、左オレンジ・右青の旗、各段のコバルトの手すり、帆2枚。ただし形は P01 の観客席に引っぱられ、幅26m・3段・通路±6m になっていない。案が選ばれたら下敷きで正投影を作り寸法を合わせる"
+    },
+    {
+      "id": "P05",
+      "name": "P05_lighthouse_anchor_r2",
+      "job_id": "da02ce00-4927-4ee3-be5d-206c77c4d6f4",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JJgQycECFPzoL6sxxsCZO3u49w/hf_20260927_122453_da02ce00-4927-4ee3-be5d-206c77c4d6f4.png",
+      "model": "nano_banana_pro",
+      "params": {
+        "aspect_ratio": "16:9",
+        "resolution": "2k",
+        "reference_order": "underlay, master lighthouse crop, P04 anchor"
+      },
+      "refs": {
+        "layout": "c75b997a-2ef1-4128-b54d-c35de18705a2 (guides/underlay_P05_lighthouse_anchor.png)",
+        "design": [
+          "17989e94-20d3-49a1-b9f0-d0ad7ce6f720 (guides/ref_master_lighthouse_crop.png)",
+          "5637b62b-f0c8-47a4-809b-0c087849aa14 (P04)"
+        ]
+      },
+      "estimate_credits": 2,
+      "status": "accepted",
+      "file_raw": "artifacts/aiquiz_stadium/reference_r1/P05/P05_lighthouse_anchor_r2.png",
+      "file": "reference/P05/P05_lighthouse_anchor_r2.jpg",
+      "sha256_raw": "0189b61784889f5b1e106490a20d30a2ff72fb082cfe7aef44e895b78ccfc02d",
+      "pixels": [
+        2752,
+        1536
+      ],
+      "reason": "下敷きの比率どおりの単体。白い円塔と小窓、手すり付き回廊、暖色に光る灯室と灰色ドーム、白枠の無地の紺看板、白い三角トラスの支持金具、岩の小島・砂浜・ヤシ・短い桟橋、縮尺人形。原本の灯台の意匠と一致"
+    },
+    {
+      "id": "P07",
+      "name": "P07_goal_stand_B_bridge_house",
+      "job_id": "94a66a3f-20e6-4027-9600-3dce7d6d50a9",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JJgQycECFPzoL6sxxsCZO3u49w/hf_20260927_122629_94a66a3f-20e6-4027-9600-3dce7d6d50a9.png",
+      "model": "nano_banana_pro",
+      "params": {
+        "aspect_ratio": "16:9",
+        "resolution": "2k",
+        "reference_order": "underlay, P01 anchor r2, P04 anchor"
+      },
+      "refs": {
+        "layout": "07ee08c9-163f-45d0-8da2-e484faedd4df (guides/underlay_P07_goal_stand_anchor.png)",
+        "design": [
+          "64a41760-e193-4de6-9bf9-5c7041a28fdf (P01 r2)",
+          "5637b62b-f0c8-47a4-809b-0c087849aa14 (P04)"
+        ]
+      },
+      "estimate_credits": 2,
+      "status": "accepted_design_option",
+      "file_raw": "artifacts/aiquiz_stadium/reference_r1/P07/P07_goal_stand_B_bridge_house.png",
+      "file": "reference/P07/P07_goal_stand_B_bridge_house.jpg",
+      "sha256_raw": "261bb0cc6987ddfc1a34f37de787da8da73fa1476b95788b1d5078acd385a92c",
+      "pixels": [
+        2752,
+        1536
+      ],
+      "reason": "B案（港の操舵室）。丸窓とコバルト帯の白い操舵室に無地の LED 掲示板と紺ヘッダー、見張り台付きマストに左オレンジ・右青の旗、中央区画を覆う帆1枚、各段のコバルト手すり、杭。形はA案より下敷き（26m・3段）に近いが、掲示板が右寄りで非対称（ゲームでは x=0 中央）。案が選ばれたら下敷きで正投影を作り寸法を合わせる"
+    },
+    {
+      "id": "P08",
+      "name": "P08_islands_strip",
+      "job_id": "36fa44d1-59ca-439f-88a6-0cf5932a5e90",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JJgQycECFPzoL6sxxsCZO3u49w/hf_20260927_122751_36fa44d1-59ca-439f-88a6-0cf5932a5e90.png",
+      "model": "nano_banana_pro",
+      "params": {
+        "aspect_ratio": "21:9",
+        "resolution": "2k",
+        "reference_order": "master background crops, P05 anchor r2 (style)"
+      },
+      "refs": {
+        "design": [
+          "f6e87415-296a-499f-8df5-6260b1e49597 (guides/ref_master_background_sheet.png)",
+          "da02ce00-4927-4ee3-be5d-206c77c4d6f4 (P05 r2)"
+        ]
+      },
+      "estimate_credits": 2,
+      "status": "accepted",
+      "file_raw": "artifacts/aiquiz_stadium/reference_r1/P08/P08_islands_strip.png",
+      "file": "reference/P08/P08_islands_strip.jpg",
+      "sha256_raw": "05b2455eb8019d07bda9cf8073c6cfc283c88cb513843271304fca5896faaef7",
+      "pixels": [
+        3168,
+        1344
+      ],
+      "reason": "水線上に3島を横並びにした側面立面。緑の丸い丘・灰紫の岩ドーム・ヤシ・砂浜・海中の岩（左）、小島（中）、切り立った岩峰（右）。原本より高さ比が大きいので、寸法表で高さを原本の見た目（横長の低い島）に合わせて縮める"
+    },
+    {
+      "id": "P08",
+      "name": "P08_sailboats_strip",
+      "job_id": "d8475d1e-3a6b-4e5a-aa0b-93613c1f0810",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JJgQycECFPzoL6sxxsCZO3u49w/hf_20260927_122916_d8475d1e-3a6b-4e5a-aa0b-93613c1f0810.png",
+      "model": "nano_banana_pro",
+      "params": {
+        "aspect_ratio": "21:9",
+        "resolution": "2k",
+        "reference_order": "master background crops, P05 anchor r2 (style)"
+      },
+      "refs": {
+        "design": [
+          "f6e87415-296a-499f-8df5-6260b1e49597 (guides/ref_master_background_sheet.png)",
+          "da02ce00-4927-4ee3-be5d-206c77c4d6f4 (P05 r2)"
+        ]
+      },
+      "estimate_credits": 2,
+      "status": "accepted",
+      "file_raw": "artifacts/aiquiz_stadium/reference_r1/P08/P08_sailboats_strip.png",
+      "file": "reference/P08/P08_sailboats_strip.jpg",
+      "sha256_raw": "10f2925c7e63eb8182acaaddd279be1cf6587a9c8dba04f42ddc4022a7c31888",
+      "pixels": [
+        3168,
+        1344
+      ],
+      "reason": "水線上の3艇の側面立面（青い帆・橙の帆・白い帆の小型スループ、キール付き）。船首は指示（左）と逆の右向きだが、背景小物で向きは配置で決めるため反転せず採用。水面下のキールは Blender では省略可"
+    },
+    {
+      "id": "P08",
+      "name": "P08_skyline_strip",
+      "job_id": "c8cf6a5a-20aa-4705-98c0-e4e2720f128d",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JJgQycECFPzoL6sxxsCZO3u49w/hf_20260927_123008_c8cf6a5a-20aa-4705-98c0-e4e2720f128d.png",
+      "model": "nano_banana_pro",
+      "params": {
+        "aspect_ratio": "21:9",
+        "resolution": "2k",
+        "reference_order": "master background crops, P05 anchor r2 (style)"
+      },
+      "refs": {
+        "design": [
+          "f6e87415-296a-499f-8df5-6260b1e49597 (guides/ref_master_background_sheet.png)",
+          "da02ce00-4927-4ee3-be5d-206c77c4d6f4 (P05 r2)"
+        ]
+      },
+      "estimate_credits": 2,
+      "status": "rejected",
+      "file_raw": "artifacts/aiquiz_stadium/reference_r1/P08/P08_skyline_strip.png",
+      "file": "reference/P08/P08_skyline_strip.jpg",
+      "sha256_raw": "42304f045abfda3d3523eae6aa2d7a353d5bba5358ccfe40d7cb9a5feef499de",
+      "pixels": [
+        3168,
+        1344
+      ],
+      "reason": "参照シートの切り抜き（島・ヨット）がぼやけて貼り合わされたような画像になり、ビル群が描かれていない。対策：ビル群だけの切り抜きを参照にし、画風は合格した島の横並び図を使う"
+    },
+    {
+      "id": "P02",
+      "name": "P02_mast_sail_anchor",
+      "job_id": "7e61b972-bc21-4107-81fb-2970fe900c50",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JJgQycECFPzoL6sxxsCZO3u49w/hf_20260927_123128_7e61b972-bc21-4107-81fb-2970fe900c50.png",
+      "model": "nano_banana_pro",
+      "params": {
+        "aspect_ratio": "4:3",
+        "resolution": "2k",
+        "reference_order": "P01 anchor r2"
+      },
+      "refs": {
+        "design": [
+          "64a41760-e193-4de6-9bf9-5c7041a28fdf (P01 r2)"
+        ]
+      },
+      "estimate_credits": 2,
+      "status": "accepted",
+      "file_raw": "artifacts/aiquiz_stadium/reference_r1/P02/P02_mast_sail_anchor.png",
+      "file": "reference/P02/P02_mast_sail_anchor.jpg",
+      "sha256_raw": "b7b786053691608928788c9e8b4763692e3517ef9c3f534eaf45b0ff7fe92221",
+      "pixels": [
+        2400,
+        1792
+      ],
+      "reason": "マスト1本・帆1枚・ブース1つの単位を拡大。角丸ブースと青パネル、八角のマストとヤード、甲板の金具へ伸びる索具、マスト頂部から前端の2本の支柱へ張る日よけ型の帆、上2段の座席段、縮尺人形。索具は6本で多め（ローポリでは4本以下に間引く）"
+    },
+    {
+      "id": "P03",
+      "name": "P03_end_cap_anchor",
+      "job_id": "08e7d3de-a7ce-4a7e-a230-a8d7a49092ff",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JJgQycECFPzoL6sxxsCZO3u49w/hf_20260927_123222_08e7d3de-a7ce-4a7e-a230-a8d7a49092ff.png",
+      "model": "nano_banana_pro",
+      "params": {
+        "aspect_ratio": "16:9",
+        "resolution": "2k",
+        "reference_order": "P01 anchor r2"
+      },
+      "refs": {
+        "design": [
+          "64a41760-e193-4de6-9bf9-5c7041a28fdf (P01 r2)"
+        ]
+      },
+      "estimate_credits": 2,
+      "status": "accepted",
+      "note": "one end-cap design used mirrored for both the start and the goal end",
+      "file_raw": "artifacts/aiquiz_stadium/reference_r1/P03/P03_end_cap_anchor.png",
+      "file": "reference/P03/P03_end_cap_anchor.jpg",
+      "sha256_raw": "025128401d136e95153471f97a0c58c4d3a9ab1ab9e53a85cdab649dd1a6dc9e",
+      "pixels": [
+        2752,
+        1536
+      ],
+      "reason": "端部ブロック。段で下がる端壁、コバルト屋根と白旗の見張り塔、海側の船着き場へ下りる白い階段。他は P01 と同じリズム。スタート側・ゴール側とも、この設計を左右反転して使う（生成は1枚に節約）"
+    },
+    {
+      "id": "P08",
+      "name": "P08_skyline_strip_r2",
+      "job_id": "d1cd284b-6a42-4965-80de-b083db937a02",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JJgQycECFPzoL6sxxsCZO3u49w/hf_20260927_123328_d1cd284b-6a42-4965-80de-b083db937a02.png",
+      "model": "nano_banana_pro",
+      "params": {
+        "aspect_ratio": "21:9",
+        "resolution": "2k",
+        "reference_order": "master skyline crop, P08 islands strip (style)"
+      },
+      "refs": {
+        "design": [
+          "44352053-dcbb-4d20-a1d5-10ebcd2d85e0 (guides/ref_master_skyline_crop.png)",
+          "36fa44d1-59ca-439f-88a6-0cf5932a5e90 (P08 islands)"
+        ]
+      },
+      "estimate_credits": 2,
+      "status": "accepted",
+      "file_raw": "artifacts/aiquiz_stadium/reference_r1/P08/P08_skyline_strip_r2.png",
+      "file": "reference/P08/P08_skyline_strip_r2.jpg",
+      "sha256_raw": "59f8b6a59dc168a62afc1be485880c6867eedf9c7b9617d9405f09d07d83254a",
+      "pixels": [
+        3168,
+        1344
+      ],
+      "reason": "水線上のビル群を側面立面で。斜め頂部の最高層・尖塔付きの塔・床の横帯・低層部。淡い青灰で遠景用の単純な形"
+    },
+    {
+      "id": "P01",
+      "name": "P01_runway_side_elev",
+      "job_id": "1310d6a0-91d6-4806-b1df-1889fdd6acb2",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JJgQycECFPzoL6sxxsCZO3u49w/hf_20260927_124129_1310d6a0-91d6-4806-b1df-1889fdd6acb2.png",
+      "model": "nano_banana_pro",
+      "params": {
+        "aspect_ratio": "16:9",
+        "resolution": "2k",
+        "reference_order": "ortho underlay, P01 anchor r2"
+      },
+      "refs": {
+        "layout": "72ebebdf-f617-46b8-8727-caae0771ed3f (guides/underlay_P01_runway_side_elev.png, 41.739 px/m at 1920 wide)",
+        "design": [
+          "64a41760-e193-4de6-9bf9-5c7041a28fdf (P01 r2)"
+        ]
+      },
+      "estimate_credits": 2,
+      "status": "accepted",
+      "orthographic": true,
+      "file_raw": "artifacts/aiquiz_stadium/reference_r1/P01/P01_runway_side_elev.png",
+      "file": "reference/P01/P01_runway_side_elev.jpg",
+      "sha256_raw": "b1b8e8411b4196c9adeb28115973a8ed9d4f5886a5434baa52d52b5b7c9f477b",
+      "pixels": [
+        2752,
+        1536
+      ],
+      "reason": "正投影（平行線の収束なし）。2ブロック・ブース2（青パネルは正面の扉状）・マスト2（上下2本のヤード）・日よけ帆・索具・杭・通路の切れ目・縮尺人形・水線。寸法の実測に使う"
+    },
+    {
+      "id": "X01",
+      "name": "X01_cross_section",
+      "job_id": "309e60b5-f9cd-48c4-ac6f-d07f9740249b",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JJgQycECFPzoL6sxxsCZO3u49w/hf_20260927_124128_309e60b5-f9cd-48c4-ac6f-d07f9740249b.png",
+      "model": "nano_banana_pro",
+      "params": {
+        "aspect_ratio": "21:9",
+        "resolution": "2k",
+        "reference_order": "ortho underlay, P01 anchor r2, P04 anchor"
+      },
+      "refs": {
+        "layout": "b2cf4aec-9889-4e0a-9e5e-4cfcefa0e13b (guides/underlay_X01_cross_section.png, 27.391 px/m at 2520 wide)",
+        "design": [
+          "64a41760-e193-4de6-9bf9-5c7041a28fdf (P01 r2)",
+          "5637b62b-f0c8-47a4-809b-0c087849aa14 (P04)"
+        ]
+      },
+      "estimate_credits": 2,
+      "status": "rejected",
+      "orthographic": true,
+      "file_raw": "artifacts/aiquiz_stadium/reference_r1/X01/X01_cross_section.png",
+      "file": "reference/X01/X01_cross_section.jpg",
+      "sha256_raw": "8ef3405dc6a0d1059894a70a29bc5d17e10a9050e709b030c106d58f4bc0edc2",
+      "pixels": [
+        3168,
+        1344
+      ],
+      "reason": "配置（左右のスタンド・中央の走路・水線）は合うが、正投影でなく上から覗き込む斜め投影（走路上面やスタンドの段が見える）。帆も船の帆のような縦の面になり、日よけの傾きが出ていない。対策：3/4 のアンカーを参照から外し、正投影の P01 立面だけを画風参照にする"
+    },
+    {
+      "id": "P01",
+      "name": "P01_top",
+      "job_id": "bce2a7fe-89af-4a5d-984e-16c8eb836b7e",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JJgQycECFPzoL6sxxsCZO3u49w/hf_20260927_124410_bce2a7fe-89af-4a5d-984e-16c8eb836b7e.png",
+      "model": "nano_banana_pro",
+      "params": {
+        "aspect_ratio": "16:9",
+        "resolution": "2k",
+        "reference_order": "ortho underlay, P01 anchor r2"
+      },
+      "refs": {
+        "layout": "ea03925a-1999-42c9-90b9-7c8519b7d0bf (guides/underlay_P01_top.png, 41.739 px/m at 1920 wide)",
+        "design": [
+          "64a41760-e193-4de6-9bf9-5c7041a28fdf (P01 r2)"
+        ]
+      },
+      "estimate_credits": 2,
+      "status": "accepted_with_notes",
+      "orthographic": true,
+      "file_raw": "artifacts/aiquiz_stadium/reference_r1/P01/P01_top.png",
+      "file": "reference/P01/P01_top.jpg",
+      "sha256_raw": "c1554e70d313ea8e5de8631c74042e735071fa95f99233516de4a8c5a48830c6",
+      "pixels": [
+        2752,
+        1536
+      ],
+      "reason": "真上からの正投影。前手すり（コバルト）、座席列、ブロック継ぎ目の通路、マストと帆の三角形の張り出し（前端近くまで座席を覆う）が読める。ただし座席列が7〜8に増え、継ぎ目にもう1つ角丸ブースが出た（ブロックあたり1つの指定と違う）。帆の平面形状と張り出し位置の参考に使い、数は寸法表を正とする"
+    },
+    {
+      "id": "P01",
+      "name": "P01_end_elev",
+      "job_id": "d4f57313-7d68-4dbf-8cc5-e2d1d83c6f04",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JJgQycECFPzoL6sxxsCZO3u49w/hf_20260927_124314_d4f57313-7d68-4dbf-8cc5-e2d1d83c6f04.png",
+      "model": "nano_banana_pro",
+      "params": {
+        "aspect_ratio": "4:3",
+        "resolution": "2k",
+        "reference_order": "ortho underlay, P02 anchor, P01 anchor r2"
+      },
+      "refs": {
+        "layout": "4b91be5c-067a-4516-973c-90451001d12a (guides/underlay_P01_end_elev.png, 55.385 px/m at 1440 wide)",
+        "design": [
+          "7e61b972-bc21-4107-81fb-2970fe900c50 (P02)",
+          "64a41760-e193-4de6-9bf9-5c7041a28fdf (P01 r2)"
+        ]
+      },
+      "estimate_credits": 2,
+      "status": "accepted",
+      "orthographic": true,
+      "file_raw": "artifacts/aiquiz_stadium/reference_r1/P01/P01_end_elev.png",
+      "file": "reference/P01/P01_end_elev.jpg",
+      "sha256_raw": "fb2c63717b8cc33f4f6658edec1c7eaacfa15cd4befcdb9b3a2c2d52d4822c2c",
+      "pixels": [
+        2400,
+        1792
+      ],
+      "reason": "端から見た段の断面。6段の座席、後方通路のブース、ブースから立つマストとヤード、マスト頂部から前手すりの支柱まで斜めに張る帆（端面で線状）、前手すりのコバルト笠木、杭4本、水線、縮尺人形。杭と座席にわずかに遠近が残るので、縮尺は人形と踏面6段で較正する"
+    },
+    {
+      "id": "X01",
+      "name": "X01_cross_section_r2",
+      "job_id": "76ef154e-7cbe-498b-b667-73c5c6c7075b",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JJgQycECFPzoL6sxxsCZO3u49w/hf_20260927_124532_76ef154e-7cbe-498b-b667-73c5c6c7075b.png",
+      "model": "nano_banana_pro",
+      "params": {
+        "aspect_ratio": "21:9",
+        "resolution": "2k",
+        "reference_order": "ortho underlay, P01 runway-side elevation (ortho style)"
+      },
+      "refs": {
+        "layout": "b2cf4aec-9889-4e0a-9e5e-4cfcefa0e13b (guides/underlay_X01_cross_section.png, 27.391 px/m at 2520 wide)",
+        "design": [
+          "1310d6a0-91d6-4806-b1df-1889fdd6acb2 (P01 runway-side elevation)"
+        ]
+      },
+      "estimate_credits": 2,
+      "status": "accepted_with_notes",
+      "orthographic": true,
+      "file_raw": "artifacts/aiquiz_stadium/reference_r1/X01/X01_cross_section_r2.png",
+      "file": "reference/X01/X01_cross_section_r2.jpg",
+      "sha256_raw": "c9ef99db9abcfb3d289069ad96bed526e33de533b79eab400b0f2ba26c32b2b0",
+      "pixels": [
+        3168,
+        1344
+      ],
+      "reason": "真横からの正投影の断面になった（上面が見えない）。左右のスタンド・水路・中央の走路（両端の低い縁石）・杭・水線の配置が読める。ただし座席段が約11段に増え（指定は6段）、帆はマスト脇の三角形＋前方へ張る索具として描かれた。全体の配置と高さの比較に使い、段数と帆の形は寸法表と P01 端面を正とする"
+    },
+    {
+      "id": "P04",
+      "name": "P04_section",
+      "job_id": "fb66cfbb-8545-45e6-81e5-fd263d243db1",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JJgQycECFPzoL6sxxsCZO3u49w/hf_20260927_124648_fb66cfbb-8545-45e6-81e5-fd263d243db1.png",
+      "model": "nano_banana_pro",
+      "params": {
+        "aspect_ratio": "16:9",
+        "resolution": "2k",
+        "reference_order": "ortho underlay, P01 runway-side elevation (ortho style), P04 anchor"
+      },
+      "refs": {
+        "layout": "e6e18fe0-998f-449b-867b-d4d588170a5a (guides/underlay_P04_section.png, 60 px/m at 1920 wide)",
+        "design": [
+          "1310d6a0-91d6-4806-b1df-1889fdd6acb2 (P01 elevation)",
+          "5637b62b-f0c8-47a4-809b-0c087849aa14 (P04)"
+        ]
+      },
+      "estimate_credits": 2,
+      "status": "accepted_with_notes",
+      "orthographic": true,
+      "file_raw": "artifacts/aiquiz_stadium/reference_r1/P04/P04_section.png",
+      "file": "reference/P04/P04_section.jpg",
+      "sha256_raw": "06d254fb155a792a4de636660da013354b2aabb9e8b5ad2c7b86f5097f15f51b",
+      "pixels": [
+        2752,
+        1536
+      ],
+      "reason": "平行投影の断面。デッキ端の低いコバルト縁石、厚い灰色の側桁（3分割のパネル）、横梁、4本の杭列とX筋交い、水線。縮尺人形が約4m相当と大きすぎるため、縮尺は走路幅24mで較正する"
+    },
+    {
+      "id": "P05",
+      "name": "P05_front_elev",
+      "job_id": "b1c151b7-c502-4954-ab40-9faa14086594",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JJgQycECFPzoL6sxxsCZO3u49w/hf_20260927_124743_b1c151b7-c502-4954-ab40-9faa14086594.png",
+      "model": "nano_banana_pro",
+      "params": {
+        "aspect_ratio": "2:3",
+        "resolution": "2k",
+        "reference_order": "ortho underlay, P05 anchor r2"
+      },
+      "refs": {
+        "layout": "52990f5e-f767-496b-877e-9488822ab7aa (guides/underlay_P05_front_elev.png, 13.5 px/m at 1080 wide)",
+        "design": [
+          "da02ce00-4927-4ee3-be5d-206c77c4d6f4 (P05 r2)"
+        ]
+      },
+      "estimate_credits": 2,
+      "status": "accepted",
+      "orthographic": true,
+      "file_raw": "artifacts/aiquiz_stadium/reference_r1/P05/P05_front_elev.png",
+      "file": "reference/P05/P05_front_elev.jpg",
+      "sha256_raw": "ecd7bbe48aeb9a3aafb3a92787709f7183c7be451459c91de1be208404ab6adf",
+      "pixels": [
+        1696,
+        2528
+      ],
+      "reason": "灯台の正面正投影。岩の小島・ヤシ・短い桟橋・台座・扉・小窓2・テーパーの円塔・白い三角トラスの支持金具・白枠の無地の紺看板（2.5:1）・回廊と手すり・暖色の灯室・灰色ドーム。下敷きの比率と一致"
+    },
+    {
+      "id": "P07",
+      "name": "P07_goal_stand_B_front_elev",
+      "job_id": "518a46b4-decf-424c-86f1-5e5ed542be82",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JJgQycECFPzoL6sxxsCZO3u49w/hf_20260927_125018_518a46b4-decf-424c-86f1-5e5ed542be82.png",
+      "model": "nano_banana_pro",
+      "params": {
+        "aspect_ratio": "16:9",
+        "resolution": "2k",
+        "reference_order": "ortho underlay, P07 B anchor"
+      },
+      "refs": {
+        "layout": "d3389ee3-caa3-4817-a1ff-153283498907 (guides/underlay_P07_front_elev.png, 60 px/m at 1920 wide)",
+        "design": [
+          "94a66a3f-20e6-4027-9600-3dce7d6d50a9 (P07 B)"
+        ]
+      },
+      "estimate_credits": 2,
+      "status": "accepted",
+      "orthographic": true,
+      "file_raw": "artifacts/aiquiz_stadium/reference_r1/P07/P07_goal_stand_B_front_elev.png",
+      "file": "reference/P07/P07_goal_stand_B_front_elev.jpg",
+      "sha256_raw": "2f1b017e339a36e7dee74a103fb9f272012cafb4e876a7329aa9440b89283a73",
+      "pixels": [
+        2752,
+        1536
+      ],
+      "reason": "B案の正面正投影。中央・左右対称。丸窓とコバルト帯の操舵室、中央の無地 LED 掲示板と紺ヘッダー、両脇の窓付き塔、見張り台付きマストと2本のヤード、左オレンジ・右青の旗、中央区画を覆うテント状の帆、3段の立見とコバルト手すり、前面の欄干、杭と水線、縮尺人形"
+    },
+    {
+      "id": "P06",
+      "name": "P06_front_elev",
+      "job_id": "871d102f-a3aa-4132-b808-39797e0d2167",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JJgQycECFPzoL6sxxsCZO3u49w/hf_20260927_125018_871d102f-a3aa-4132-b808-39797e0d2167.png",
+      "model": "nano_banana_pro",
+      "params": {
+        "aspect_ratio": "16:9",
+        "resolution": "2k",
+        "reference_order": "ortho underlay, P06 anchor r2"
+      },
+      "refs": {
+        "layout": "4fdac0a5-c059-485f-952b-27c80c92ca73 (guides/underlay_P06_front_elev.png, 64 px/m at 1920 wide)",
+        "design": [
+          "fd26b521-2649-497b-9165-dff272a0360e (P06 r2)"
+        ]
+      },
+      "estimate_credits": 2,
+      "status": "rejected",
+      "orthographic": true,
+      "file_raw": "artifacts/aiquiz_stadium/reference_r1/P06/P06_front_elev.png",
+      "file": "reference/P06/P06_front_elev.jpg",
+      "sha256_raw": "0650b7c9ac524889ec5b0709057311f251284598721700f173cb878d0913f07c",
+      "pixels": [
+        2752,
+        1536
+      ],
+      "reason": "3/4 のアンカー画像と正面の下敷きが半透明で重ね合わされた合成画像になった。対策：3/4 のアンカーを参照から外し、正投影で合格した P07 正面図を画風参照にして、ゲートの意匠は文章で指定する"
+    },
+    {
+      "id": "V04",
+      "name": "V04_goal_2p_camera",
+      "job_id": "542508ad-e309-4afc-b47f-99975c555196",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JJgQycECFPzoL6sxxsCZO3u49w/hf_20260927_125235_542508ad-e309-4afc-b47f-99975c555196.png",
+      "model": "nano_banana_pro",
+      "params": {
+        "aspect_ratio": "16:9",
+        "resolution": "2k",
+        "reference_order": "goal guide, V01a, P07 B, P06 r2"
+      },
+      "refs": {
+        "layout": "b0068eb9-3099-49cf-9c12-034116721d81 (guides/guide_goal_clean.png)",
+        "design": [
+          "56f4c005-956b-4193-9d68-7f44d0501f79 (V01a)",
+          "94a66a3f-20e6-4027-9600-3dce7d6d50a9 (P07 B)",
+          "fd26b521-2649-497b-9165-dff272a0360e (P06 r2)"
+        ]
+      },
+      "estimate_credits": 2,
+      "status": "accepted_look_only",
+      "file_raw": "artifacts/aiquiz_stadium/reference_r1/V04/V04_goal_2p_camera.png",
+      "file": "reference/V04/V04_goal_2p_camera.jpg",
+      "sha256_raw": "002d05ede96e12385ea0764b3282bea86abd3b7c35923fcbbbe9bf0ddfeca8d9",
+      "pixels": [
+        2752,
+        1536
+      ],
+      "reason": "ゴール前の見た目の参考として良好（B案のゴール観客席・両チームの応援・GOAL ゲート・側面スタンド）。ただしカメラが実機より高く、ゲートまでの距離も短い。灯台が描かれず、ゴール観客席の真後ろ（走路の軸上）に置くと隠れることが分かった → 灯台の置き場所は軸から外した小島を有力候補にする"
+    },
+    {
+      "id": "V06",
+      "name": "V06_water_lane",
+      "job_id": "fbe32f98-d9ca-4ac7-bfbe-c601d0cfb8ea",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JJgQycECFPzoL6sxxsCZO3u49w/hf_20260927_125328_fbe32f98-d9ca-4ac7-bfbe-c601d0cfb8ea.png",
+      "model": "nano_banana_pro",
+      "params": {
+        "aspect_ratio": "16:9",
+        "resolution": "2k",
+        "reference_order": "water-lane guide, V01a, P04 anchor"
+      },
+      "refs": {
+        "layout": "013ac5a9-d8cf-4862-8c26-16cbe2be202b (guides/guide_ocean_clean.png)",
+        "design": [
+          "56f4c005-956b-4193-9d68-7f44d0501f79 (V01a)",
+          "5637b62b-f0c8-47a4-809b-0c087849aa14 (P04)"
+        ]
+      },
+      "estimate_credits": 2,
+      "status": "accepted_look_only",
+      "file_raw": "artifacts/aiquiz_stadium/reference_r1/V06/V06_water_lane.png",
+      "file": "reference/V06/V06_water_lane.jpg",
+      "sha256_raw": "8a3209d9b62ed9f4cebd90ae3304acca2811c013c63614b5d385e3d4c2a6c842",
+      "pixels": [
+        2752,
+        1536
+      ],
+      "reason": "水路から見た構造の参考。走路下の杭の組（横梁とX筋交い）、スタンドの杭列、透ける水中の杭、水路のサメ、灰色の側桁と低い縁石。カメラは下絵より高め（寸法には使わない）"
+    },
+    {
+      "id": "P06",
+      "name": "P06_front_elev_r2",
+      "job_id": "391062d6-698d-4c0d-8bc8-f197e968729b",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JJgQycECFPzoL6sxxsCZO3u49w/hf_20260927_125504_391062d6-698d-4c0d-8bc8-f197e968729b.png",
+      "model": "nano_banana_pro",
+      "params": {
+        "aspect_ratio": "16:9",
+        "resolution": "2k",
+        "reference_order": "ortho underlay, P07 B front elevation (ortho style)"
+      },
+      "refs": {
+        "layout": "4fdac0a5-c059-485f-952b-27c80c92ca73 (guides/underlay_P06_front_elev.png, 64 px/m at 1920 wide)",
+        "design": [
+          "518a46b4-decf-424c-86f1-5e5ed542be82 (P07 B front elevation)"
+        ]
+      },
+      "estimate_credits": 2,
+      "status": "accepted_design",
+      "orthographic": true,
+      "file_raw": "artifacts/aiquiz_stadium/reference_r1/P06/P06_front_elev_r2.png",
+      "file": "reference/P06/P06_front_elev_r2.jpg",
+      "sha256_raw": "f880a5bbfb272430557ba3a2183847dfe09b3f06b1e10a2bb1231083a044cfdf",
+      "pixels": [
+        2752,
+        1536
+      ],
+      "reason": "平らな正投影で左右対称。X 筋交いの格子トラス柱と梁、柱のコバルト帯、白い台座、柱頭の投光器、中央の白枠の無地の紺看板、デッキの低い縁石と灰色の側桁。ただし柱がデッキの外側に立ち、高さも約14m相当（指定は柱 ±11.8m・高さ約5m）。作り直しの上限に達したため、意匠だけ採用し、寸法はゲーム定数で決める"
+    },
+    {
+      "id": "V01",
+      "name": "V01a_1p_camera_dusk",
+      "job_id": "17dee7c1-83e1-4eaa-a94b-1850dc4b20e2",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JJgQycECFPzoL6sxxsCZO3u49w/hf_20260927_125556_17dee7c1-83e1-4eaa-a94b-1850dc4b20e2.png",
+      "model": "nano_banana_pro",
+      "params": {
+        "aspect_ratio": "16:9",
+        "resolution": "2k",
+        "reference_order": "V01a"
+      },
+      "refs": {
+        "design": [
+          "56f4c005-956b-4193-9d68-7f44d0501f79 (V01a)"
+        ]
+      },
+      "estimate_credits": 2,
+      "status": "accepted",
+      "note": "time-of-day edit of V01a (the approved look image) instead of V01b",
+      "file_raw": "artifacts/aiquiz_stadium/reference_r1/V01/V01a_1p_camera_dusk.png",
+      "file": "reference/V01/V01a_1p_camera_dusk.jpg",
+      "sha256_raw": "8175674db307ab42d68e4c7da249fcc813b4e06a658b420b64afaa6b452525e3",
+      "pixels": [
+        2752,
+        1536
+      ],
+      "reason": "V01a の構図のまま夕暮れに。光る部位の手がかり：灯台の灯と光の筋、マスト頂部のランプ、ブースの青パネルが画面のように発光、スタンド前手すりの暖色の帯、遠景ビル群の窓の灯"
+    },
+    {
+      "id": "P09",
+      "name": "P09_details",
+      "job_id": "6dbe6447-71f3-426e-b53d-0692ca7f58ab",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JJgQycECFPzoL6sxxsCZO3u49w/hf_20260927_125718_6dbe6447-71f3-426e-b53d-0692ca7f58ab.png",
+      "model": "nano_banana_pro",
+      "params": {
+        "aspect_ratio": "16:9",
+        "resolution": "2k",
+        "reference_order": "P01 r2, P02, P04"
+      },
+      "refs": {
+        "design": [
+          "64a41760-e193-4de6-9bf9-5c7041a28fdf (P01 r2)",
+          "7e61b972-bc21-4107-81fb-2970fe900c50 (P02)",
+          "5637b62b-f0c8-47a4-809b-0c087849aa14 (P04)"
+        ]
+      },
+      "estimate_credits": 2,
+      "status": "accepted_with_notes",
+      "file_raw": "artifacts/aiquiz_stadium/reference_r1/P09/P09_details.png",
+      "file": "reference/P09/P09_details.jpg",
+      "sha256_raw": "aaf4dd3067c8bb14237fe375c711f124a01f49d93ec5e00d0fb6cc2695ecd5e1",
+      "pixels": [
+        2752,
+        1536
+      ],
+      "reason": "細部6種（走路の縁、スタンド前手すり、座席3つ、通路階段と手すり、ブースと青パネル、マスト根元と帆の角の支柱・索具金具）。ただし走路の縁石が約1mの青い壁として描かれ、指定の高さ0.3m以下と違う（縁石はゲーム定数 上端+0.26m を正とする）"
+    },
+    {
+      "id": "V01",
+      "name": "V01a_1p_camera_night",
+      "job_id": "cf57339c-642b-44eb-ae49-22cc25496796",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JJgQycECFPzoL6sxxsCZO3u49w/hf_20260927_125907_cf57339c-642b-44eb-ae49-22cc25496796.png",
+      "model": "nano_banana_pro",
+      "params": {
+        "aspect_ratio": "16:9",
+        "resolution": "2k",
+        "reference_order": "V01a"
+      },
+      "refs": {
+        "design": [
+          "56f4c005-956b-4193-9d68-7f44d0501f79 (V01a)"
+        ]
+      },
+      "estimate_credits": 2,
+      "status": "accepted",
+      "file_raw": "artifacts/aiquiz_stadium/reference_r1/V01/V01a_1p_camera_night.png",
+      "file": "reference/V01/V01a_1p_camera_night.jpg",
+      "sha256_raw": "bbf5ebb232dee77e87fce7cda5717050ca8b075c225ee5acd0198120e06dd2b8",
+      "pixels": [
+        2752,
+        1536
+      ],
+      "reason": "V01a の構図のまま夜に。光る部位：灯台の灯と回転する光の筋、マスト頂部のランプ、下から照らされた帆、ブースの発光パネル、スタンド前手すりの暖色の帯、走路の縁の白い足元灯、遠景ビル群の窓の灯"
+    }
+  ],
+  "charges": {
+    "balance_before": 248.75,
+    "balance_after": 182.75,
+    "actual_total_credits": 66.0,
+    "jobs": 33,
+    "note": "実費は Higgsfield 残高の差（生成前 248.75 → 生成後 182.75）。1枚あたりの見積 2 クレジット × 33 枚と一致。上限 85 の範囲内"
+  }
+}

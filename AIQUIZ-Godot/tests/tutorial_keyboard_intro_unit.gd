@@ -36,7 +36,8 @@ func _run() -> void:
 	_intro._process(1.2)
 	await _shot("solo_overview")
 	_intro._process(3.6)
-	_check(_intro.get_evidence().keyboard.demo_key == "D" and _all_labels_visible(), "Only the finger demo changes focus while every label stays visible")
+	_check(_intro.get_evidence().keyboard.demo_key.is_empty() and not _intro.get_evidence().animated_demo and _all_labels_visible(), "No automatic demonstration moves focus while every label stays visible")
+	_check(_intro.get_evidence().keyboard.header == "キー配置" and _intro.get_evidence().demo_focus.is_empty(), "Idle keyboard shows the static key map without a focused action")
 	_send_key(KEY_RIGHT, true)
 	await process_frame
 	_intro._process(0.05)
@@ -50,24 +51,19 @@ func _run() -> void:
 	_check(_intro.is_active() and _completed.is_empty() and _intro.get_evidence().demo_focus == "P1:jump", "Space practice highlights jump and cannot activate the focused start button")
 	_send_key(KEY_SPACE, false)
 	await process_frame
-	_intro._pause.button_pressed = true
-	_intro._toggle_pause()
 	_intro._process(4.0)
-	_check(_intro.get_evidence().paused and not _intro.get_evidence().keyboard.state.pressed, "Static mode stops simulated key presses")
+	_check(not _intro.get_evidence().keyboard.state.pressed and not _intro.get_evidence().keyboard.state.live, "No simulated key press is ever drawn")
 	_send_key(KEY_W, true)
 	await process_frame
 	_intro._process(0.05)
-	_check(_intro.get_evidence().keyboard.state.live and _intro.get_evidence().demo_focus == "P1:forward_back", "Real input remains visible while the demonstration is stopped")
+	_check(_intro.get_evidence().keyboard.state.live and _intro.get_evidence().demo_focus == "P1:forward_back", "Real input highlights its own action card")
 	_send_key(KEY_W, false)
 	await process_frame
-	_intro._replay_demo()
 	_intro._process(1.2)
-	_check(not _intro.get_evidence().paused and _intro.get_evidence().keyboard.demo_key == "A", "Replay resumes from the first action without hiding any operations")
-	_intro._process(1.5)
-	_check(not _intro.get_evidence().keyboard.state.pressed and _intro.get_evidence().keyboard.header == "操作例：離す", "The demonstration includes a distinct release phase")
+	_check(_intro.get_evidence().demo_focus.is_empty() and _all_labels_visible(), "Releasing the key returns to the static map without hiding any operations")
 	await _shot("solo_release")
 	_intro._process(120.0)
-	_check(_intro.is_active() and _completed.is_empty() and _all_labels_visible(), "Demonstration time never navigates, hides labels, or starts practice")
+	_check(_intro.is_active() and _completed.is_empty() and _all_labels_visible(), "Elapsed time never navigates, hides labels, or starts practice")
 	_send_key(KEY_ENTER, true)
 	await process_frame
 	_send_key(KEY_ENTER, false)
@@ -77,13 +73,13 @@ func _run() -> void:
 	_intro.set_process(false)
 	_check(_intro.get_evidence().page_count == 1 and _intro.get_evidence().players == ["P1", "P2"], "Duo shows both players on the same single screen")
 	_check(_intro.get_evidence().shown_actions == ["P1:left_right", "P1:forward_back", "P1:jump", "P1:emote", "P2:left_right", "P2:forward_back", "P2:jump", "P2:emote"], "All eight duo operations appear together")
-	_check(_all_labels_visible() and _has_keys(["A", "D", "W", "S", "Space", "1", "2", "3", "←", "→", "↑", "↓", "CtrlL", "CtrlR", "8", "9", "0"]), "Duo highlights the complete P1 and P2 physical key sets")
+	_check(_all_labels_visible() and _has_keys(["A", "D", "W", "S", "Space", "1", "2", "3", "←", "→", "↑", "↓", "CtrlR", "8", "9", "0"]) and "CtrlL" not in _intro.get_evidence().keyboard.highlighted_keys, "Duo highlights the complete P1 and P2 physical key sets with right Ctrl only")
 	_intro._process(1.2)
 	await _shot("duo_overview")
 	_send_key(KEY_CTRL, true, KEY_LOCATION_RIGHT)
 	await process_frame
 	_intro._process(0.05)
-	_check("CtrlR" in _intro.get_evidence().keyboard.actual_keys and _intro.get_evidence().demo_focus == "P2:jump", "P2 live Ctrl immediately highlights P2 jump during the P1 demonstration")
+	_check("CtrlR" in _intro.get_evidence().keyboard.actual_keys and _intro.get_evidence().demo_focus == "P2:jump", "P2 live Ctrl immediately highlights P2 jump while idle")
 	await _shot("duo_actual_ctrl")
 	_send_key(KEY_CTRL, false, KEY_LOCATION_RIGHT)
 	await process_frame
@@ -99,9 +95,8 @@ func _run() -> void:
 	_check(_intro.get_evidence().keyboard.state.key == "8" and _intro.get_evidence().demo_focus == "P2:emote", "P2 keypad aliases still match their actual actions")
 	_send_key(KEY_KP_7, false)
 	await process_frame
-	_intro._replay_demo()
 	_intro._process(12.0 * 3.6 + 1.2)
-	_check(_intro.get_evidence().keyboard.demo_key == "CtrlR" and _all_labels_visible(), "The automatic demonstration reaches P2 while all eight labels stay visible")
+	_check(_intro.get_evidence().keyboard.demo_key.is_empty() and _all_labels_visible(), "Duo stays static over time while all eight labels remain visible")
 	await _shot("duo_ctrl_demo")
 	root.size = Vector2i(960, 540)
 	await process_frame
@@ -126,6 +121,7 @@ func _run() -> void:
 	_check(not _intro.is_active() and _cancel_count == 2, "The visible course-selection button cancels without starting practice")
 	_check(_find_character_demo(_intro) == null and not _intro.get_evidence().uses_character_demo, "The overview contains no character action demo")
 	_check(not _intro.has_method("_go_next") and not _intro.has_method("_go_back"), "The former page navigation has been removed")
+	_check(not _intro.has_method("_replay_demo") and not _intro.has_method("_toggle_pause"), "The animation replay and pause controls have been removed")
 	var report := {"passed": _failures.is_empty(), "checks": _checks, "failures": _failures, "captures": _captures, "presentation": "single_screen_all_controls"}
 	var output := ProjectSettings.globalize_path("res://artifacts/tutorial_keyboard_intro")
 	DirAccess.make_dir_recursive_absolute(output)

@@ -6,12 +6,15 @@ const MUSIC_CONTEXT_MENU: StringName = &"menu"
 const MUSIC_CONTEXT_GAMEPLAY: StringName = &"gameplay"
 const MUSIC_CONTEXT_PAUSED: StringName = &"paused"
 const MUSIC_CONTEXT_RESULT: StringName = &"result"
+## 2P sudden death (docs/sudden_death_underground.md 9): BGM 10 dB under gameplay.
+const MUSIC_CONTEXT_SUDDEN_DEATH: StringName = &"sudden_death"
 
 const CONTEXT_VOLUME_DB := {
 	MUSIC_CONTEXT_MENU: -4.0,
 	MUSIC_CONTEXT_GAMEPLAY: 0.0,
 	MUSIC_CONTEXT_PAUSED: -10.0,
 	MUSIC_CONTEXT_RESULT: -4.0,
+	MUSIC_CONTEXT_SUDDEN_DEATH: -10.0,
 }
 
 ## Goal stand crowd (assets/goal_stand): procedural beds mixed with Higgsfield voices.
@@ -41,7 +44,6 @@ var result_hero_impact: AudioStream
 var result_hero_swish: AudioStream
 var result_verdict_impact: AudioStream
 var result_cue_players: Array[AudioStreamPlayer] = []
-var result_rain_player: AudioStreamPlayer
 var crowd_players: Array[AudioStreamPlayer] = []
 var _crowd_streams: Dictionary = {}
 var _crowd_index: int = 0
@@ -96,8 +98,6 @@ func _ready() -> void:
 	result_accent_player.volume_db = -5.0
 	for index in range(4):
 		result_cue_players.append(_create_sfx_player("ResultFinaleCue%d" % index))
-	result_rain_player = _create_sfx_player("ResultFinaleRain")
-	result_rain_player.volume_db = -15.0
 	for index in range(5):
 		crowd_players.append(_create_sfx_player("GoalStandCrowd%d" % index))
 	result_hero_impact = load("res://assets/audio/sfx/result_toon/hero_impact.ogg")
@@ -166,7 +166,7 @@ func play_result_victory(is_draw: bool = false) -> void:
 
 func stop_result_sounds() -> void:
 	var players: Array = [result_roll_player, result_lock_player, result_explosion_player, result_victory_player,
-		result_accent_player, result_rain_player]
+		result_accent_player]
 	players.append_array(result_cue_players)
 	players.append_array(crowd_players)
 	for player in players:
@@ -203,11 +203,6 @@ func play_crowd_cue(cue: StringName, volume_db: float = 0.0, pitch: float = 1.0)
 	player.volume_db = volume_db
 	player.pitch_scale = pitch
 	player.play()
-
-
-func start_result_rain() -> void:
-	if is_instance_valid(result_rain_player) and not result_rain_player.playing:
-		result_rain_player.play()
 
 
 func play_result_accent(cue: StringName) -> void:
@@ -621,18 +616,6 @@ func _generate_finale_sounds() -> void:
 		var brass := sin(sad_phase) * 0.6 + sin(sad_phase * 2.0) * 0.28 + sin(sad_phase * 3.0) * 0.16 + sin(sad_phase * 4.0) * 0.08
 		sad[i] = brass * envelope * 0.42
 	_result_cues[&"sad"] = _finale_wav(sad, rate)
-
-	# Rain loop: soft filtered noise with sparse droplets (seamless 1 s loop).
-	var rain := PackedFloat32Array()
-	rain.resize(rate)
-	var rain_low := 0.0
-	for i in range(rain.size()):
-		rain_low += (rng.randf_range(-1.0, 1.0) - rain_low) * 0.12
-		var drip := 0.0
-		if rng.randf() < 0.0006:
-			drip = 0.6
-		rain[i] = rain_low * 0.55 + drip * rng.randf_range(-1.0, 1.0)
-	result_rain_player.stream = _finale_wav(rain, rate, true)
 
 
 func _generate_shark_rush_sound() -> void:

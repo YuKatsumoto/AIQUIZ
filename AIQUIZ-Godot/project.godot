@@ -64,6 +64,10 @@ move_right={
 
 limits/tcp/connect_timeout_seconds=3
 
+[rendering]
+
+reflections/reflection_atlas/reflection_count=16
+
 [shader_globals]
 
 psx_affine_strength={
@@ -98,7 +102,19 @@ psx_precision_z={
 "type": "float",
 "value": 512.0
 }
+cistern_row_light={
+"type": "sampler2D",
+"value": ""
+}
+cistern_row_grid={
+"type": "vec4",
+"value": Vector4(-15, 15, 15, 0)
+}
+cistern_wet_z={
+"type": "float",
+"value": -1000.0
+}
 
 [tripo_bridge]
 
-last_cleanup="2026-09-24T17:31:10"
+last_cleanup="2026-10-02T18:12:10"

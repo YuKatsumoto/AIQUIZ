@@ -1200,6 +1200,70 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 				print("[OnlineFetch] Endless mode - batch %d/%d: requesting %d questions%s" % [i+1, parallel_count, per_call, proxy_msg])
 				_fetch_gemini_target(prompt, QUIZ_GENERATION_ENDLESS_GEMINI_MODEL, temperature, on_complete)
 
+## 2Pサドンデス（docs/sudden_death_underground.md 第4章）用の専用生成。プロバイダーの
+## バッファ（fetch_partial / fetch_completed）を通さず、本編と同じ新規性ゲートを通った候補を
+## on_items(Array[QuizItem]) へ届くたびに渡し、全バッチの完了か timeout_sec で on_done() を1回呼ぶ。
+func fetch_quiz_set(subject: String, grade: int, difficulty: String, count: int, history: Array[String],
+		variation_focus: String, on_items: Callable, on_done: Callable, parallel: int = 3,
+		timeout_sec: float = 30.0) -> void:
+	var state := {"completed": 0, "done": false}
+	var finish := func() -> void:
+		if bool(state["done"]):
+			return
+		state["done"] = true
+		on_done.call()
+	if is_rate_limited():
+		print("[OnlineFetch] Sudden death set skipped — rate limit backoff")
+		finish.call_deferred()
+		return
+	var unique_seen := {}
+	var answer_seen := {}
+	var dedup_blocklist: Array = _collect_dedup_blocklist(subject, grade, difficulty, history)
+	var exact_blocklist := _collect_exact_blocklist(subject, grade, history)
+	var semantic_blocklist: Array[String] = QuizDedup.tail_texts(history, QuizDedup.SEMANTIC_HISTORY_MAX)
+	var prompt_blocklist := QuizDedup.tail_texts(semantic_blocklist, QuizDedup.PROMPT_HISTORY_MAX)
+	var temperature := get_temperature_for_difficulty(difficulty)
+	var batches := clampi(parallel, 1, 4)
+	var per_call := maxi(1, ceili(float(count) / float(batches)))
+	var batch_units: Array[PackedStringArray] = _allocate_units_to_batches(subject, grade, batches, per_call)
+	var filter := func(items: Array, units: PackedStringArray) -> Array[QuizItem]:
+		var typed: Array[QuizItem] = []
+		for item: Variant in items:
+			if item is QuizItem:
+				typed.append(item)
+		var unique_items: Array[QuizItem] = _filter_unique_candidates(
+			typed, dedup_blocklist, semantic_blocklist, unique_seen, answer_seen, units, subject, exact_blocklist)
+		if not unique_items.is_empty() and QuizManager.firebase_quiz_cache != null:
+			QuizManager.firebase_quiz_cache.queue_candidates(unique_items, subject, grade, difficulty)
+		return unique_items
+	get_tree().create_timer(timeout_sec).timeout.connect(func() -> void:
+		if not bool(state["done"]):
+			print("[OnlineFetch] Sudden death set timed out after %.0fs" % timeout_sec)
+			finish.call()
+	)
+	for index in range(batches):
+		var units: PackedStringArray = batch_units[index] if index < batch_units.size() else PackedStringArray()
+		var on_complete := func(items: Array) -> void:
+			# Streaming already delivered its items through the sink; the plain request lands here.
+			var unique_items: Array[QuizItem] = filter.call(items, units)
+			if not unique_items.is_empty() and not bool(state["done"]):
+				on_items.call(unique_items)
+			state["completed"] = int(state["completed"]) + 1
+			if int(state["completed"]) >= batches:
+				finish.call()
+		var partial_filter := func(items: Array[QuizItem]) -> Array[QuizItem]:
+			return filter.call(items, units)
+		var sink := func(items: Array[QuizItem]) -> void:
+			if not bool(state["done"]):
+				on_items.call(items)
+		var prompt := compose_prompt(subject, grade, difficulty, per_call, prompt_blocklist, false, units, true, variation_focus)
+		print("[OnlineFetch] Sudden death set - batch %d/%d: %d questions" % [index + 1, batches, per_call])
+		if is_streaming_available():
+			_fetch_gemini_streaming(prompt, QUIZ_GENERATION_GEMINI_MODEL, temperature, on_complete, partial_filter, sink)
+		else:
+			_fetch_gemini_target(prompt, QUIZ_GENERATION_GEMINI_MODEL, temperature, on_complete)
+
+
 ## CurriculumDB から全単元を取得し、batch_count 個のバッチに重複なく振り分ける。
 ## 1バッチに複数単元を割り当て、生成候補を単元間へ均等分散する。
 ## カリキュラムDBが無い教科・学年では空配列を返し、compose_prompt 側が汎用指示にフォールバックする。
@@ -1706,8 +1770,9 @@ func extract_complete_objects_from_stream(text: String, start_idx: int) -> Dicti
 ## 完成したJSONオブジェクトを1問ずつリアルタイムで callback に渡す
 ##
 ## callback: func(items: Array[QuizItem]) — 既存の on_complete と同じシグネチャ
+## partial_sink: 渡すと途中の採用候補を fetch_partial ではなくこちらへ送る（サドンデスの専用生成）。
 func _fetch_gemini_streaming(prompt: String, target_model: String, temperature: float,
-		callback: Callable, partial_filter: Callable = Callable()) -> void:
+		callback: Callable, partial_filter: Callable = Callable(), partial_sink: Callable = Callable()) -> void:
 	var url := ApiStatusAutoload.gemini_endpoint(target_model, true)
 	if url.is_empty():
 		push_error("[OnlineFetch] PROXY_URL is not configured for streaming")
@@ -1761,7 +1826,10 @@ func _fetch_gemini_streaming(prompt: String, target_model: String, temperature: 
 		
 		# 新しい問題が抽出できたら即座に fetch_partial で通知
 		if new_items.size() > 0:
-			fetch_partial.emit(new_items)
+			if partial_sink.is_valid():
+				partial_sink.call(new_items)
+			else:
+				fetch_partial.emit(new_items)
 	)
 	
 	# ── ストリーム完了時 ──
@@ -1789,7 +1857,10 @@ func _fetch_gemini_streaming(prompt: String, target_model: String, temperature: 
 				final_items = partial_filter.call(final_items)
 			if final_items.size() > 0:
 				emitted_items.append_array(final_items)
-				fetch_partial.emit(final_items)
+				if partial_sink.is_valid():
+					partial_sink.call(final_items)
+				else:
+					fetch_partial.emit(final_items)
 		
 		print("[OnlineFetch] ✅ Stream completed. Total streamed: %d items" % emitted_items.size())
 		# callback を呼んで fetch_completed のカウンタを進める（空配列を渡す — 問題はfetch_partialで既に送信済み）

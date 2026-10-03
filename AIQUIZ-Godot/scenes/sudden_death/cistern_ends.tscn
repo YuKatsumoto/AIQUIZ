@@ -1,0 +1,56 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://assets/environment/underground_temple/cistern_end_upstream.glb" id="1_b827a"]
+[ext_resource type="Material" path="res://scenes/sudden_death/cistern_generated/materials/cistern_end_upstream__cis_concrete.tres" id="2_v8jai"]
+[ext_resource type="Material" path="res://scenes/sudden_death/cistern_generated/materials/cistern_end_upstream__cis_floor.tres" id="3_i2ih5"]
+[ext_resource type="Material" path="res://scenes/sudden_death/cistern_generated/materials/cistern_end_upstream__cis_steel_paint.tres" id="4_g5hab"]
+[ext_resource type="Material" path="res://scenes/sudden_death/cistern_generated/materials/cistern_end_upstream__cis_galvanized.tres" id="5_eovgi"]
+[ext_resource type="Material" path="res://scenes/sudden_death/cistern_generated/materials/cistern_end_upstream__cis_grate.tres" id="6_byp3h"]
+[ext_resource type="Material" path="res://scenes/sudden_death/cistern_generated/materials/cistern_end_upstream__cis_lamp_lens.tres" id="7_rko28"]
+[ext_resource type="Material" path="res://scenes/sudden_death/cistern_generated/materials/cistern_end_upstream__cis_sign.tres" id="8_vl5h1"]
+[ext_resource type="Material" path="res://scenes/sudden_death/cistern_generated/materials/cistern_end_upstream__cis_lamp_lens_amber.tres" id="9_nrrtm"]
+[ext_resource type="Material" path="res://scenes/sudden_death/cistern_generated/materials/cistern_end_upstream__cis_window_glass.tres" id="10_vn7iq"]
+[ext_resource type="Material" path="res://scenes/sudden_death/cistern_generated/materials/cistern_end_upstream__cis_interior.tres" id="11_d0d64"]
+[ext_resource type="Material" path="res://scenes/sudden_death/cistern_generated/materials/cistern_end_upstream__cis_void.tres" id="12_a0rgc"]
+[ext_resource type="Material" path="res://scenes/sudden_death/cistern_generated/materials/cistern_end_upstream__cis_hazard.tres" id="13_wfyu4"]
+[ext_resource type="PackedScene" path="res://assets/environment/underground_temple/cistern_end_downstream.glb" id="14_tf7q4"]
+[ext_resource type="Material" path="res://scenes/sudden_death/cistern_generated/materials/cistern_end_downstream__cis_concrete.tres" id="15_f7snm"]
+[ext_resource type="Material" path="res://scenes/sudden_death/cistern_generated/materials/cistern_end_downstream__cis_floor.tres" id="16_6u4wf"]
+[ext_resource type="Material" path="res://scenes/sudden_death/cistern_generated/materials/cistern_end_downstream__cis_steel_paint.tres" id="17_1f2py"]
+[ext_resource type="Material" path="res://scenes/sudden_death/cistern_generated/materials/cistern_end_downstream__cis_galvanized.tres" id="18_sjvww"]
+[ext_resource type="Material" path="res://scenes/sudden_death/cistern_generated/materials/cistern_end_downstream__cis_grate.tres" id="19_mm0tb"]
+[ext_resource type="Material" path="res://scenes/sudden_death/cistern_generated/materials/cistern_end_downstream__cis_lamp_lens.tres" id="20_56kct"]
+[ext_resource type="Material" path="res://scenes/sudden_death/cistern_generated/materials/cistern_end_downstream__cis_sign.tres" id="21_2wej5"]
+[ext_resource type="Material" path="res://scenes/sudden_death/cistern_generated/materials/cistern_end_downstream__cis_lamp_lens_amber.tres" id="22_134us"]
+[ext_resource type="Material" path="res://scenes/sudden_death/cistern_generated/materials/cistern_end_downstream__cis_hazard.tres" id="23_bbk8o"]
+[ext_resource type="Material" path="res://scenes/sudden_death/cistern_generated/materials/cistern_end_downstream__cis_void.tres" id="24_uhoo3"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_kcml6"]
+size = Vector3(90, 18, 1)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_dgc68"]
+size = Vector3(90, 18, 1)
+
+[node name="CisternEnds" type="Node3D" unique_id=2146409440]
+
+[node name="EndUpstream" parent="." unique_id=1384346176 instance=ExtResource("1_b827a")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1.2, 0)
+metadata/cistern_module = "cistern_end_upstream"
+metadata/cistern_materials = [["CIS_Concrete", ExtResource("2_v8jai")], ["CIS_Floor", ExtResource("3_i2ih5")], ["CIS_SteelPaint", ExtResource("4_g5hab")], ["CIS_Galvanized", ExtResource("5_eovgi")], ["CIS_Grate", ExtResource("6_byp3h")], ["CIS_LampLens", ExtResource("7_rko28")], ["CIS_Sign", ExtResource("8_vl5h1")], ["CIS_LampLensAmber", ExtResource("9_nrrtm")], ["CIS_WindowGlass", ExtResource("10_vn7iq")], ["CIS_Interior", ExtResource("11_d0d64")], ["CIS_Void", ExtResource("12_a0rgc")], ["CIS_Hazard", ExtResource("13_wfyu4")]]
+
+[node name="EndDownstream" parent="." unique_id=328676048 instance=ExtResource("14_tf7q4")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1.2, 0)
+metadata/cistern_module = "cistern_end_downstream"
+metadata/cistern_materials = [["CIS_Concrete", ExtResource("15_f7snm")], ["CIS_Floor", ExtResource("16_6u4wf")], ["CIS_SteelPaint", ExtResource("17_1f2py")], ["CIS_Galvanized", ExtResource("18_sjvww")], ["CIS_Grate", ExtResource("19_mm0tb")], ["CIS_LampLens", ExtResource("20_56kct")], ["CIS_Sign", ExtResource("21_2wej5")], ["CIS_LampLensAmber", ExtResource("22_134us")], ["CIS_Hazard", ExtResource("23_bbk8o")], ["CIS_Void", ExtResource("24_uhoo3")]]
+
+[node name="WallCollision" type="StaticBody3D" parent="." unique_id=1833368488]
+collision_layer = 16
+collision_mask = 0
+
+[node name="UpstreamWall" type="CollisionShape3D" parent="WallCollision" unique_id=1325816423]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 7.8, -30.5)
+shape = SubResource("BoxShape3D_kcml6")
+
+[node name="DownstreamWall" type="CollisionShape3D" parent="WallCollision" unique_id=1350312119]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 7.8, 210.5)
+shape = SubResource("BoxShape3D_dgc68")

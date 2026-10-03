@@ -1,0 +1,66 @@
+{
+  "note": "参照画像から目視で読み取った目印の画素座標（すべて原寸 PNG の画素、artifacts/aiquiz_stadium/reference_r1/）。読み取りは make_grid_crops.py の方眼と画素定規を重ねた画像で行った。measure.py がこれを較正して寸法にする。",
+  "P01_runway_side_elev": {
+    "image": "P01/P01_runway_side_elev.png",
+    "calibration": "下敷きの縮尺（横 59.83 px/m、縦 59.36 px/m、画像中心 = コース z 20m・Y 2.0m）。水線の検出行で縦を、2本のマストの間隔（20m）で横を検算",
+    "water_row": 1437,
+    "mast_x": [777, 1975],
+    "mast_top_y": 170,
+    "mast_width_px": 20,
+    "upper_yard_y": 297,
+    "upper_yard_x": [643, 913],
+    "sail_foot_y": 565,
+    "sail_foot_x": [362, 1195],
+    "booth_x": [680, 875],
+    "booth_y": [680, 873],
+    "booth_panel_x": [708, 848],
+    "booth_panel_top_y": 712,
+    "seat_centers_x": [337, 390, 442, 495, 548, 601]
+  },
+  "P01_end_elev": {
+    "image": "P01/P01_end_elev.png",
+    "calibration": "縦横を別々に：横＝マスト軸から前手すりまで（設計 10.1m）、縦＝前の通路から後方通路まで（設計 2.5m）",
+    "mast_axis_x": 908,
+    "front_rail_x": 1812,
+    "front_walkway_y": 1158,
+    "rear_platform_y": 976,
+    "mast_top_y": 86,
+    "yard_y": 252,
+    "yard_x": [648, 1170],
+    "sail_corner": [1596, 750],
+    "figure_y": [778, 964]
+  },
+  "P05_front_elev": {
+    "image": "P05/P05_front_elev.png",
+    "calibration": "看板の紺色の面の幅 W を基準にした比率（灯台の絶対寸法は置き場所から決める設計値）",
+    "sign_inner_x": [394, 1308],
+    "sign_inner_y": [682, 1054],
+    "sign_outer_x": [370, 1330],
+    "sign_outer_y": [659, 1077],
+    "gallery_floor_y": 621,
+    "lantern_y": [379, 518],
+    "lantern_x": [764, 937],
+    "dome_top_y": 240,
+    "tower_width_top_px": 189,
+    "tower_width_low_px": 242,
+    "plinth_width_px": 306,
+    "islet_x": [253, 1462],
+    "islet_top_y": 1856,
+    "water_row": 2096
+  },
+  "P07_goal_stand_B_front_elev": {
+    "image": "P07/P07_goal_stand_B_front_elev.png",
+    "calibration": "比率のみ（縦が大きく圧縮されているため絶対寸法には使わない。寸法は goal_stand_layout.json を正とする）",
+    "deck_x": [292, 2460],
+    "led_x": [1108, 1644],
+    "led_y": [502, 777],
+    "house_x": [571, 2181],
+    "portholes_per_side": 4,
+    "flags_x": [1094, 1672]
+  },
+  "V01b_2p_camera_guidefirst": {
+    "image": "V01/V01b_2p_camera_guidefirst.png",
+    "note": "ゲームの 2P カメラで描いたガイドに対する再投影の検算用。最寄りの左右マスト頂部（生成画像）",
+    "nearest_mast_tops": [[399, 227], [2353, 227]]
+  }
+}

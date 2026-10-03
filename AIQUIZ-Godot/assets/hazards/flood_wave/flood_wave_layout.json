@@ -1,0 +1,30 @@
+{
+ "units": "Godot metres, y up, z = direction of travel; toe of the front at z = 0 on the floor",
+ "columns": 229,
+ "rows": 72,
+ "vertices": 16488,
+ "triangles": 32376,
+ "frames": 48,
+ "loop_seconds": 2.0,
+ "vat_width": 4096,
+ "vat_rows_per_frame": 5,
+ "vat_height": 240,
+ "uv1": "x = (index % vat_width + 0.5) / vat_width, y = (index // vat_width + 0.5) / 8",
+ "vat_pos": "RGBA half: position xyz (metres), a = foam 0..1; frame f occupies rows f * rows_per_frame .. from the top",
+ "vat_nrm": "RGBA8: normal * 0.5 + 0.5",
+ "crest_height": 3.4,
+ "water_depth": 1.2,
+ "back_z": -9.0,
+ "half_width": 45.0,
+ "corridor_half_width": 12.0,
+ "bounds_min": [
+  -45.061,
+  0.0,
+  -9.0
+ ],
+ "bounds_max": [
+  45.056,
+  3.647,
+  2.006
+ ]
+}

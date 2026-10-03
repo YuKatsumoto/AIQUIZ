@@ -18,6 +18,10 @@ const P2_LIMB := Color(0.15, 0.55, 0.80)
 var p1_parts := {}
 var p2_parts := {}
 var p2_container: Node3D
+## Sudden death descent: the deck's live runners take over from the finale cast in the middle of
+## a shot. Each part starts at the cast's pose (global) and blends into the runner's own animation.
+## player_index -> {"pose": {part key -> Transform3D}, "t": seconds, "duration": seconds}
+var _pose_handoffs := {}
 
 # --- HFF風アクティブラグドール (Phase2) ---
 # 四肢を物理ボディ化し、_animate_skeleton が動かす表示ピボットを目標として
@@ -29,6 +33,7 @@ const USE_ACTIVE_RAGDOLL := false
 const WALL_RAGDOLL_GAME_VELOCITY := Vector3(0.0, 7.0, -11.0)
 const WALL_RAGDOLL_PREVIEW_VELOCITY := Vector3(0.0, 6.0, 8.0)
 const WALL_RAGDOLL_SIDE_VELOCITY := 2.2
+const FLOOD_RAGDOLL_FORWARD_VELOCITY := 9.0
 const WALL_RAGDOLL_SPIN := Vector3(5.5, 1.5, 3.3)
 const INTRO_LANDED_TORSO_HEIGHT := 1.20
 const INTRO_DROP_LINEAR_DAMP := 0.08
@@ -220,7 +225,7 @@ func _go_limp(ragdoll: Dictionary) -> void:
 
 ## 壁へ走り込んだ勢いを保ったまま、全身を後方・上方へ吹き飛ばす。
 ## 全ボディを同じ初速にそろえ、ジョイント経由でインパルスが重複増幅しないようにする。
-func _launch_wall_ragdoll(ragdoll: Dictionary, is_p1: bool, saw_hit := false) -> void:
+func _launch_wall_ragdoll(ragdoll: Dictionary, is_p1: bool, saw_hit := false, flood_hit := false) -> void:
 	_go_limp(ragdoll)
 	if saw_hit:
 		_disable_intro_driver(ragdoll)
@@ -246,12 +251,18 @@ func _launch_wall_ragdoll(ragdoll: Dictionary, is_p1: bool, saw_hit := false) ->
 		else WALL_RAGDOLL_GAME_VELOCITY
 	)
 	launch_velocity.x = WALL_RAGDOLL_SIDE_VELOCITY * side_sign
+	if flood_hit:
+		# The flood hits from behind (-Z) and carries the body forward.
+		launch_velocity.z = FLOOD_RAGDOLL_FORWARD_VELOCITY
 	for key: Variant in rag_bodies:
 		if str(key) == "anchor":
 			continue
 		var body: RigidBody3D = rag_bodies[key] as RigidBody3D
 		if body == null or not is_instance_valid(body):
 			continue
+		if flood_hit:
+			# Pressed against the closed floodgate instead of passing through it.
+			body.collision_mask |= SawChaseState.WALL_COLLISION_LAYER
 		body.sleeping = false
 		body.linear_velocity = launch_velocity
 		var spin_sign := -1.0 if (str(key).hash() & 1) == 0 else 1.0
@@ -260,6 +271,17 @@ func _launch_wall_ragdoll(ragdoll: Dictionary, is_p1: bool, saw_hit := false) ->
 			WALL_RAGDOLL_SPIN.y * side_sign,
 			WALL_RAGDOLL_SPIN.z * side_sign * spin_sign
 		)
+	if flood_hit and torso != null:
+		# The current carries the body on, rolls it in the foam and takes it under (docs 6.6).
+		var limbs: Array[RigidBody3D] = []
+		for key: Variant in rag_bodies:
+			if str(key) != "anchor" and rag_bodies[key] is RigidBody3D and is_instance_valid(rag_bodies[key]):
+				limbs.append(rag_bodies[key] as RigidBody3D)
+		var tumble := FloodTumble.new()
+		tumble.name = "FloodTumble"
+		(ragdoll.container as Node3D).add_child(tumble)
+		tumble.setup(limbs, ragdoll.container as Node3D, torso.global_position.y - 1.0, 1 if is_p1 else 2)
+		ragdoll["flood_tumble"] = tumble
 
 
 ## ラグドールツリーを破棄する(別親に置いているため明示的に解放)。
@@ -2687,6 +2709,38 @@ func play_result_explosion(player_index: int) -> void:
 	_set_rig_scenes_visible(is_p1, false)
 
 
+## A dead finalist appears on the podium as a ghost, so its body leaves the
+## stage. Ragdoll limbs and debris live under GameWorld, not under this node.
+func _hide_result_ghost_body(is_p1: bool) -> void:
+	var ragdoll: Dictionary = _p1_ragdoll if is_p1 else _p2_ragdoll
+	if not ragdoll.is_empty():
+		_teardown_ragdoll(ragdoll)
+		if is_p1:
+			_p1_ragdoll = {}
+			_p1_driver = null
+		else:
+			_p2_ragdoll = {}
+			_p2_driver = null
+	if not (_p1_explosion_bodies if is_p1 else _p2_explosion_bodies).is_empty():
+		_clear_explosion_bodies(is_p1)
+	if is_p1:
+		_p1_exploding = true
+	else:
+		_p2_exploding = true
+	_set_parts_visible(p1_parts if is_p1 else p2_parts, false)
+	_set_hat_visible(is_p1, false)
+	_set_rig_scenes_visible(is_p1, false)
+
+
+## Gives a finale stand-in (or any blockman) the translucent ghost look.
+func apply_ghost_look(root: Node3D, player_index: int) -> void:
+	if root == null or not is_instance_valid(root):
+		return
+	if root.find_child("GhostAura", true, false) == null:
+		_add_ghost_rider_aura(root, player_index)
+	make_ghost_rider_translucent(root)
+
+
 func reset_result_presentation() -> void:
 	_p1_result_exploded = false
 	_p2_result_exploded = false
@@ -3451,7 +3505,8 @@ func update_from_state(gs: QuizGameState) -> void:
 			set_toon_preset(2, desired_p2_toon)
 
 	# --- Player 1 ---
-	position = Vector3(gs.player_x, gs.player_y, gs.player_local_z)
+	# The sudden death elevator deck carries the avatars (presentation only).
+	position = Vector3(gs.player_x, gs.player_y + gs.sudden_death_lift.x, gs.player_local_z)
 	rotation.y = 0.0
 	# The 1P avatar stays visible because normal solo play now uses a third-person camera.
 	var p1_visual_hidden: bool = false
@@ -3459,7 +3514,7 @@ func update_from_state(gs: QuizGameState) -> void:
 	# P1ラグドールは位置確定後の初回に生成(アンカー瞬間移動を回避)。
 	# メニュープレビュー(SubViewport)では不要な物理負荷になるので生成しない
 	# (表示メッシュも隠さないため、プレビューはブロック四肢のまま正しく描画される)。
-	if USE_ACTIVE_RAGDOLL and not p1_visual_hidden and not _is_preview_subviewport() and _p1_ragdoll.is_empty() and not p1_parts.is_empty():
+	if USE_ACTIVE_RAGDOLL and not p1_visual_hidden and not _is_preview_subviewport() and _p1_ragdoll.is_empty() and not p1_parts.is_empty() and not gs.is_result_ghost(1):
 		_p1_ragdoll = _setup_ragdoll(p1_parts, true)
 		_p1_driver = _p1_ragdoll.get("driver")
 
@@ -3494,13 +3549,13 @@ func update_from_state(gs: QuizGameState) -> void:
 			if not p1_float_pose_applied:
 				_animate_struggle(p1_parts, gs.p1_ocean_float_time)
 		elif not _p1_rig.is_rigged:
-			var p1_is_playing := gs.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE] or (
+			var p1_is_playing := gs.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE] or gs.is_sudden_death_runner_active(1) or (
 				gs.game_state == Constants.STATE_RESULT_CEREMONY
 				and gs.result_ceremony_phase == QuizGameState.ResultCeremonyPhase.WALK
 			)
 			_animate_skeleton(p1_parts, gs.player_y, gs.player_vel_y, p1_is_playing, walk_phase, false, gs.p1_emote)
 		else:
-			var is_active := gs.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE] or (
+			var is_active := gs.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE] or gs.is_sudden_death_runner_active(1) or (
 				gs.game_state == Constants.STATE_RESULT_CEREMONY
 				and gs.result_ceremony_phase == QuizGameState.ResultCeremonyPhase.WALK
 			)
@@ -3536,6 +3591,8 @@ func update_from_state(gs: QuizGameState) -> void:
 			_set_hat_visible(true, false)
 			_set_rig_scenes_visible(true, false)
 			_update_explosion(true, _p1_result_explosion_elapsed)
+	elif gs.is_result_ghost(1):
+		_hide_result_ghost_body(true)
 	elif gs.game_over_timer > 0:
 		if gs.p1_shark_killed:
 			begin_ocean_shark_explosion(1)
@@ -3551,12 +3608,13 @@ func update_from_state(gs: QuizGameState) -> void:
 		elif gs.p1_saw_killed:
 			_update_saw_death(true, gs.game_over_timer)
 		elif gs.p1_wall_impact:
-			var scatter_delay := QuizGameState.WALL_RAGDOLL_DURATION
+			# A body swept up by the sudden death flood stays whole and limp.
+			var scatter_delay := INF if gs.is_flood_caught(1) else QuizGameState.WALL_RAGDOLL_DURATION
 			if gs.game_over_timer < scatter_delay:
 				if _p1_ragdoll.is_empty():
 					_p1_ragdoll = _setup_ragdoll(p1_parts, true)
 					_p1_driver = _p1_ragdoll.get("driver")
-					_launch_wall_ragdoll(_p1_ragdoll, true, gs.p1_saw_killed)
+					_launch_wall_ragdoll(_p1_ragdoll, true, gs.p1_saw_killed, gs.is_flood_caught(1))
 			elif not _p1_exploding:
 				_p1_exploding = true
 				_init_wall_ragdoll_explosion(_p1_ragdoll, p1_parts, true)
@@ -3598,11 +3656,13 @@ func update_from_state(gs: QuizGameState) -> void:
 
 	# --- Player 2 ---
 	if gs.num_players >= 2 and p2_container:
-		p2_container.position = Vector3(gs.player2_x - gs.player_x, gs.player2_y - gs.player_y, gs.player2_local_z - gs.player_local_z)
+		p2_container.position = Vector3(gs.player2_x - gs.player_x,
+			(gs.player2_y + gs.sudden_death_lift.y) - (gs.player_y + gs.sudden_death_lift.x),
+			gs.player2_local_z - gs.player_local_z)
 
 		# P2ラグドールは位置確定後の初回に生成(アンカー瞬間移動を回避)。
 		# プレビュー(SubViewport)では生成しない(P1と同様)。
-		if USE_ACTIVE_RAGDOLL and not _is_preview_subviewport() and _p2_ragdoll.is_empty() and not p2_parts.is_empty():
+		if USE_ACTIVE_RAGDOLL and not _is_preview_subviewport() and _p2_ragdoll.is_empty() and not p2_parts.is_empty() and not gs.is_result_ghost(2):
 			_p2_ragdoll = _setup_ragdoll(p2_parts, false)
 			_p2_driver = _p2_ragdoll.get("driver")
 
@@ -3635,13 +3695,13 @@ func update_from_state(gs: QuizGameState) -> void:
 				if not p2_float_pose_applied:
 					_animate_struggle(p2_parts, gs.p2_ocean_float_time)
 			elif not _p2_rig.is_rigged:
-				var p2_is_playing := gs.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE] or (
+				var p2_is_playing := gs.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE] or gs.is_sudden_death_runner_active(2) or (
 					gs.game_state == Constants.STATE_RESULT_CEREMONY
 					and gs.result_ceremony_phase == QuizGameState.ResultCeremonyPhase.WALK
 				)
 				_animate_skeleton(p2_parts, gs.player2_y, gs.player2_vel_y, p2_is_playing, walk_phase * 1.1, true, gs.p2_emote)
 			else:
-				var is_active := gs.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE] or (
+				var is_active := gs.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE] or gs.is_sudden_death_runner_active(2) or (
 					gs.game_state == Constants.STATE_RESULT_CEREMONY
 					and gs.result_ceremony_phase == QuizGameState.ResultCeremonyPhase.WALK
 				)
@@ -3677,6 +3737,8 @@ func update_from_state(gs: QuizGameState) -> void:
 				_set_hat_visible(false, false)
 				_set_rig_scenes_visible(false, false)
 				_update_explosion(false, _p2_result_explosion_elapsed)
+		elif gs.is_result_ghost(2):
+			_hide_result_ghost_body(false)
 		elif gs.player2_game_over_timer > 0:
 			if gs.p2_shark_killed:
 				begin_ocean_shark_explosion(2)
@@ -3692,12 +3754,12 @@ func update_from_state(gs: QuizGameState) -> void:
 			elif gs.p2_saw_killed:
 				_update_saw_death(false, gs.player2_game_over_timer)
 			elif gs.p2_wall_impact:
-				var scatter_delay := QuizGameState.WALL_RAGDOLL_DURATION
+				var scatter_delay := INF if gs.is_flood_caught(2) else QuizGameState.WALL_RAGDOLL_DURATION
 				if gs.player2_game_over_timer < scatter_delay:
 					if _p2_ragdoll.is_empty():
 						_p2_ragdoll = _setup_ragdoll(p2_parts, false)
 						_p2_driver = _p2_ragdoll.get("driver")
-						_launch_wall_ragdoll(_p2_ragdoll, false, gs.p2_saw_killed)
+						_launch_wall_ragdoll(_p2_ragdoll, false, gs.p2_saw_killed, gs.is_flood_caught(2))
 				elif not _p2_exploding:
 					_p2_exploding = true
 					_init_wall_ragdoll_explosion(_p2_ragdoll, p2_parts, false)
@@ -3738,11 +3800,52 @@ func update_from_state(gs: QuizGameState) -> void:
 	if gs.num_players >= 2:
 		_apply_health_pose(gs, p2_parts, 2)
 	_apply_result_camera_facing(gs)
+	_apply_sudden_death_facing(gs)
+	_apply_pose_handoffs()
 
 	# The solo player root must remain visible for the third-person camera.
 	# Individual meshes still control death/explosion visibility above.
 	if gs.num_players == 1:
 		visible = true
+
+
+## Start [param player_index]'s parts at [param pose] (part key -> global Transform3D, the same
+## keys as the skeleton builder's) and blend them into the live animation over [param duration] s.
+func begin_pose_handoff(player_index: int, pose: Dictionary, duration: float) -> void:
+	if pose.is_empty():
+		_pose_handoffs.erase(player_index)
+		return
+	_pose_handoffs[player_index] = {"pose": pose, "t": 0.0, "duration": maxf(duration, 0.01)}
+
+
+func has_pose_handoff(player_index: int) -> bool:
+	return _pose_handoffs.has(player_index)
+
+
+func _apply_pose_handoffs() -> void:
+	if _pose_handoffs.is_empty():
+		return
+	var dt := get_process_delta_time()
+	for player_index: int in _pose_handoffs.keys():
+		var handoff: Dictionary = _pose_handoffs[player_index]
+		# The first frame shows the cast's pose exactly.
+		var weight := smoothstep(0.0, 1.0, float(handoff.t) / float(handoff.duration))
+		handoff.t = float(handoff.t) + dt
+		var parts: Dictionary = p1_parts if player_index == 1 else p2_parts
+		var pose: Dictionary = handoff.pose
+		var target := {}
+		for key: Variant in parts:
+			if parts[key] is Node3D and pose.has(key):
+				target[key] = (parts[key] as Node3D).global_transform
+		# Hierarchy order: parents are written before their children read them.
+		for key: Variant in target:
+			var start: Transform3D = pose[key]
+			var finish: Transform3D = target[key]
+			if start.basis.determinant() * finish.basis.determinant() < 0.0:
+				start.basis.x = -start.basis.x
+			(parts[key] as Node3D).global_transform = start.interpolate_with(finish, weight)
+		if weight >= 1.0:
+			_pose_handoffs.erase(player_index)
 
 
 func _apply_result_locomotion(gs: QuizGameState, player_index: int, parts: Dictionary, rig: AnimationRig) -> bool:
@@ -3761,6 +3864,17 @@ func _apply_result_locomotion(gs: QuizGameState, player_index: int, parts: Dicti
 		ap.speed_scale = 1.0
 	_apply_skeleton_pose(parts, rig.active_skeleton, rig.active_bone_indices, rig.mirror_x)
 	return true
+
+
+## Underground both turn round on their lift towers toward the duel camera (presentation only), the same
+## way the finale turns them to its lens: about the pelvis.
+func _apply_sudden_death_facing(gs: QuizGameState) -> void:
+	if gs.game_state != Constants.STATE_SUDDEN_DEATH or is_zero_approx(gs.sudden_death_facing):
+		return
+	for parts: Dictionary in [p1_parts, p2_parts]:
+		var pelvis := parts.get("pelvis") as Node3D
+		if pelvis != null:
+			pelvis.rotation.y = wrapf(pelvis.rotation.y + gs.sudden_death_facing, -PI, PI)
 
 
 func _apply_result_camera_facing(gs: QuizGameState) -> void:
@@ -4809,7 +4923,9 @@ func apply_ghost_rider_result_pose(
 	rider: Node3D,
 	player_index: int,
 	moving: bool,
-	time_seconds: float
+	time_seconds: float,
+	air_height: float = 0.0,
+	vertical_speed: float = 0.0
 ) -> bool:
 	if rider == null or not is_instance_valid(rider):
 		return false
@@ -4826,8 +4942,8 @@ func apply_ghost_rider_result_pose(
 				part.transform = bind_transform_variant as Transform3D
 	_animate_skeleton(
 		parts,
-		0.0,
-		0.0,
+		air_height,
+		vertical_speed,
 		moving,
 		time_seconds * 5.5,
 		player_index == 2,
@@ -4989,6 +5105,9 @@ func _add_ghost_rider_aura(rider: Node3D, player_index: int) -> void:
 	var mote_mesh := SphereMesh.new()
 	mote_mesh.radius = 0.028
 	mote_mesh.height = 0.075
+	# Default spheres are 4096 triangles per particle; 12x6 reads the same at droplet size.
+	mote_mesh.radial_segments = 12
+	mote_mesh.rings = 6
 	var mote_material := StandardMaterial3D.new()
 	mote_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mote_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED

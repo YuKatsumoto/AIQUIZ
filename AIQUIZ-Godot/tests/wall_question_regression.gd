@@ -297,8 +297,8 @@ func _render_frames(count: int) -> void:
 		await get_tree().process_frame
 
 
-## Wall height as laid out at 1x text, so cases sampled at different 2P
-## camera distances (and text scales) stay comparable.
+## Wall height as laid out at 1x text, so cases sampled with the 2P enlarged
+## text on or off stay comparable.
 func _base_scale_wall_top(wall: Node3D) -> float:
 	return 2.56 + (wall.wall_top_y - 0.18 - 2.56) / wall._text_scale + 0.18
 
@@ -327,7 +327,7 @@ func _validate(label: String, record: bool = true) -> void:
 	_check(glyph_bounds.position.y > 2.38 and panel_bounds.end.y < wall.wall_top_y, label + " question inside wall")
 	var beam: MeshInstance3D = wall.wall_parts[0]
 	var actual_top: float = (beam.transform * beam.get_aabb()).end.y
-	# The two-line reserve grows with the 2P camera-distance text scale.
+	# The two-line reserve grows with the 2P enlarged-text scale.
 	var content_top := maxf(panel_bounds.end.y, 2.56 + (4.474 - 2.56) * wall._text_scale)
 	if wall.is_boss:
 		var heading: Label3D = wall.boss_label

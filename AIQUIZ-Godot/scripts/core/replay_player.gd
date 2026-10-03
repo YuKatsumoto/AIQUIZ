@@ -118,7 +118,10 @@ func apply_to_game_state(gs: QuizGameState) -> void:
 	gs.p2_saw_killed = bool(frame.get("saw_killed2", false))
 	gs.hp_state_available = bool(frame.get("hp_available", false))
 	if gs.uses_hp() and int(frame["wall_idx"]) == gs.current_wall_index + 1:
-		gs.question_completed.emit(gs.current_wall_index, int(frame["score"]) > gs.score or int(frame["p2_score"]) > gs.player2_score)
+		var winner_mask := (1 if int(frame["score"]) > gs.score else 0) | (2 if int(frame["p2_score"]) > gs.player2_score else 0)
+		if gs.num_players >= 2:
+			gs.record_question_winner(gs.current_wall_index, winner_mask)
+		gs.question_completed.emit(gs.current_wall_index, winner_mask != 0)
 	gs._set_player_hp(1, int(frame.get("hp1", 3)))
 	gs._set_player_hp(2, int(frame.get("hp2", 3)))
 	gs.p1_damage_time = float(frame.get("hurt1", 0.0))

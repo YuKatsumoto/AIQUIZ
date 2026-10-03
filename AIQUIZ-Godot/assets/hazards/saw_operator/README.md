@@ -1,52 +1,54 @@
-# 連結チップソー操縦席
+# 連結チップソー操縦席（操作盤v3）
 
-進行方向の左端に取り付ける、ゴドーくん着席済みの操縦席。既存台車・キャラクターのGLBを基準に追加制作した。元の台車GLBとゴドーくんの形状・16ボーンは変更していない。
+進行方向の左端に取り付ける、ゴドーくん着席済みの操縦席。2026-09-28に操作盤と操縦動作を1から作り直した（v3）。ゴドーくんの形状・16ボーン、座席と椅子ロケット部品、ドック取付部は変更していない。
 
 ## 素材
 
 | ファイル | 内容 |
 |---|---|
-| `saw_operator.glb` | 実行時素材。94オブジェクト、57メッシュ、約5.2MB。操作部と飛行する椅子を別階層に保持 |
-| `source/saw_operator.blend` | 編集用原本。分割メッシュ、カーブ、文字、既存リグ、配線、固定金具、材質。テクスチャを内包 |
-| `source/evaluated_poses.json` | ゲームと同じ評価器から出力した60fps・961フレームの検証姿勢 |
-| `references/v2/01_layout.png` | 台車全体と配置の参考画像 |
-| `references/v2/02_controls.png` | 操作盤の詳細参考画像 |
-| `references/v2/03_seated_side.png` | 着席側面の参考画像 |
-| `references/v2/generation_record.json` | 生成元、モデル・設定の取得可否、Higgsfieldの見積もりと失敗理由 |
+| `godot_console_v3.glb` | 実行時の操作盤。デッキ、座席台座、左右の操作ポッド、計器ダッシュ、ペダル、全操作部。140ノード・88メッシュ・約5.7万三角形・約2.4MB |
+| `saw_operator.glb` | 座席（`OP_SeatFlightRoot`）、ゴドーくんのリグ、椅子ロケット部品、ドック取付部（`OP_MountFrame`）、着地基準（`OP_SeatSocket`）。v2の操作盤も含むが、実行時に取り除く |
+| `console_horn.wav` / `console_switch.wav` | クラクション／キー・START音。`tools/saw_operator/build_console_audio.py` で生成（外部素材なし） |
+| `source/saw_operator_v3.blend` | 編集用原本。`GodotConsole_V3` シーンのみ。分割された操作盤、参照用の現行ランタイム（`REF_`）、検査カメラ・ライト、Godotで評価した動き（30fps・1770フレーム、動作ごとのマーカー付き） |
+| `source/evaluated_poses_v3.json` | Blenderプレビュー用の評価済み姿勢 |
+| `source/passport_v3.md` | Scene Passport |
+| `source/saw_operator.blend` ほか | v2の原本と資料（履歴） |
 
-Higgsfieldの画像生成は契約制限によりジョブ作成前に失敗。ユーザー指定に従い、別の画像生成機能で3枚を制作した。Higgsfieldの予定モデルは `gpt_image_2`、high／2k／16:9、見積もりは1枚6.5クレジット（3枚19.5）。代替生成の内部モデル名・請求額はツールから返されていないため未記載。参考画像の人型に近い身体比率は採用せず、実際のゴドーくんの短い手足に操作部を合わせた。
+## 操作盤
 
-v2の3枚を基準に、独立した銀色の可動溝・中立指標、ゴムブーツ、軸受、ボルト、配線固定具、計器の枠、整備ハッチを制作した。計器面は実際の操縦者へ向けている。v1画像は過去の制作資料として残す。
+- 左ポッド「DRIVE」：走行スティック（進行方向＝ゴドーくんの左へ倒す）、キースイッチ、クラクション、速度LEDバー、回転灯、F/Rランプ。
+- 右ポッド「BLADE」：昇降スティック（引くと上昇）、保護カバー付きSTART、トリムダイヤル、高さLEDバー、非常停止（飾り）、UP/DNランプ。
+- 計器ダッシュ：SPEED・RPM・LIFTの3計器（270°・赤帯付き）、PWR/RDY/SAW/LIFT/WARNの5灯、前面の「GODOT SAW」銘板と安全ストライプ。
+- 手の接触点はリグから実測した到達範囲（肩から手首0.237m、手のひらは手首の0.08m前）内に配置。デッキ寸法1.64×1.74m、刃の可動域とのすき間130mm、昇降台内への収まりはv2と同じ。
+- 表示灯・LEDバー・回転灯はノードごとに発光マテリアルを複製し、Godotが状態に応じて発光量を変える。
 
-キャラクターの出典は既存の `assets/characters/godot_plush/CREDITS.md` を参照。
+## 動作（`scripts/world/saw_operator_presentation.gd`）
 
-## 表示と動作
+すべて `sample()` の時刻と入力から決まり、フレームレートやリプレイのシーク順に依存しない。
 
-`SawOperatorPresentation` は台車表示の子として配置される。1.64m×1.74mのデッキ、銀色の金具、暗色の操作盤、ゴムグリップ、クッション座面で構成する。
+| 場面 | 動き |
+|---|---|
+| 搬出 | 船の昇降・横移動の揺れ、デッキ展開の前後の揺れ、床下げで床を見て着地の弾み。走行スティックで台車を操る |
+| 待機（デッキ展開後の待機時計、6.5秒ごと） | 見回し → 手遊び（両手でスティックを交互にトントン）→ 伸び（両手を上げて反り、足を浮かせる）→ うたた寝（首が落ちてハッと起きる）→ 足ぶらぶら → 手振り、の固定順（12枠で重複なし） |
+| 始動（着地後の加速時刻） | 左手でキーをひねる（表示灯・計器の自己診断）、右手で保護カバーを開け、振りかぶってSTARTを叩く（前傾・うなずき・スイッチ音）、右手でガッツポーズ、両手をスティックへ。視線はカバー→RPM計→進行方向 |
+| 追走（7.2秒周期） | 計器確認／左の進行方向へ前傾して追う／昇降計とLEDの確認、のあとにダイヤル調整／座席でノリノリ／なし（固定順）。スティックの微修正、昇降中は右の計器を見る |
+| 捕獲 | 左手でクラクションを2回（音あり）、左手のガッツポーズ、座席で弾んで足をばたつかせ、進行方向を見る |
+| 停止（全員脱落の減速） | スティックを戻し、左手でキーOFF（表示灯消灯）、右手で保護カバーを閉め、背もたれに寄って一息 |
+| メニューの収納（壁速度タブ、収納時計p） | 右手でBLADEスティックを引き続けて収納を指令（UPランプ・右LEDバーに進捗）、ブレーキ中はRPM計、ラックの上昇を見上げ、頭上を通過する間は左手で頭を押さえてかがみ、背後へ吊り下がるラックを振り返り、ロックでうなずく。格納中は左手のガッツポーズのあと待機しぐさを繰り返す。展開は同じpを逆にたどり、スティックは押し側（DNランプ）。回転灯とWARN灯は機械が動く間だけ点く。途中反転はスティックが中立を通って連続的に切り替わる |
+| ポーズ・結果 | 姿勢を保持。リトライ・スキップは配置済み、リプレイは記録から再評価 |
 
-- 本編の格納中心は `(10.7, 0, 0)`、展開中心は `(12.95, -0.628274, 0)`。刃列の左端の外側フレームに固定し、座席・操作盤・操縦者を90度回して右側の刃列へ向ける。逆方向へ搬出するメニューでは左右と向きを反転する。
-- 格納時は台車上に収まり、船の前縁を通過する搬出後半（5.40〜5.90秒）に左へ2.25m展開し、5.90〜6.20秒に床を0.628274m下げる。展開後の床上面は静止した刃の底面（台車ローカル高さ0.341726m）に揃う。固定支持部と伸縮レールを分離し、昇降する刃の円柱状の可動領域から退避する。
-- 外周の黄色い柵・下段柵・取付脚を削除。船のシャッターはゲーム内で除去し、開閉動作と作動音を廃止した。昇降量と搬出の時間は維持する。
-- 着地と台車配置が完了した既存の始動時刻でボタンを押し、保護カバー、スイッチ、ダイヤルの順に約4秒の加速に合わせて操作する。
-- 左レバー・ペダルは符号付き走行速度、右レバー・ペダルは刃の昇降速度を入力とする。高さ保持中は右側が中立へ戻り、右計器は高さを示す。刃の変位が最も大きい対象を選び、同量は左側を優先する。対象切り替えの反対操作は最長0.24秒で連続的に移行する。
-- 手首・肘・足首を既存リグの2関節IKで解き、接触点へ合わせる。頭と上体に操作状態に応じた視線・傾きを加える。
-- 操縦中の動き（すべて `sample()` の時刻から決まり、フレームレート・リプレイのシーク順に依存しない）：
-  - 待機：呼吸、7.2秒周期の見回し（左計器→進行方向→右計器）、右手の握り直し。左手は始動ボタン上で待つ。
-  - 始動：ボタン押下で前傾、カバー・スイッチ・ダイヤルを弧を描く手の軌道で操作し、ダイヤルは手首をひねる。スイッチは弾いてわずかに戻る。視線はボタンから操作盤へ移る。
-  - 追走：走行レバーは振り幅 ±0.30rad で、定速中も小さな修正操作を続ける。6.4秒周期で左計器・進行方向・右計器を確認し、周期の約65%では右手がダイヤルを微調整して戻る。確認中の昇降レバーは中立を保つ。
-  - 上体：座面を支点に、DEF-hips と頭（体の大部分）をまとめて傾ける。レバーを押すと前傾、引くとわずかに後傾。作業する手の側へ傾き、呼吸する。腕の付け根は上体に追従する。
-  - 椅子ロケットで移動する間は、上体の動きをベルトの装着開始から0.3秒で止め、解除の終わりに戻す。
-- ポーズと結果表示では姿勢を保持。リトライ・スキップは配置済み状態、リプレイは記録時間と隣接記録の車輪移動・プレイヤー位置から再評価する。シーク順に依存せず、刃の高さと操縦入力を復元する。
-
-衝突、追走速度、対象モード、34項目の録画形式、既存カメラは変更していない。追走時は左端が既存カメラの画面外になる。ユーザー確認により、搬出・開始前・メニューでの見やすさを優先する。
+椅子ロケットのベルト・飛行姿勢は `SeatLaunchPresentation` が従来どおり制御する。
 
 ## 原本の編集と再出力
 
-Blenderでは `SawOperator_Workbench` を選択する。1〜961フレーム／60fps。タイムラインに格納・搬出・ボタン・カバー・スイッチ・ダイヤル・前進・上昇・保持・後退・下降・中立のマーカーがある。ボーンの元のIK制約はミュート状態で残し、検証用ポーズをキーフレーム化している。実行時GLBはアニメーションを含まず、Godotが評価する。
+ライブのBlenderで実行する（ヘッドレス不可）。開いているファイルには作業用シーンを追加するだけで、保存はしない。
 
-`tools/saw_operator/build_station.py` は `operator_stage = 'blockout' / 'contact' / 'detail' / 'export'` を指定し、接続中のBlenderで実行する段階別制作スクリプト。原本の既存パーツを編集する場合はblockout/detailを再実行せず、exportだけを実行する。複製を材質と親ごとに結合して出力し、編集原本は分割状態を保つ。
+```python
+exec(open(r'C:/AIQUIZ/AIQUIZ-Godot/tools/saw_operator/build_console_v3.py', encoding='utf-8').read(), {'console_stage': 'setup'})
+# 'blockout' → 'detail' → 'export'（GLB出力）→ 'write_source'（原本出力）。作り直しは 'rebuild' → 'detail'
+```
 
-表示コードを変更した後は以下を実行し、続いてBridgeから `tools/saw_operator/bake_source.py` を実行する。Godotの姿勢をBlenderへ反映できる。
+既存の原本を編集する場合は `source/saw_operator_v3.blend` の `GodotConsole_V3` シーンを開き、`export` と `write_source` だけを実行する。動きを変えたら以下で姿勢を書き出し、`tools/saw_operator/bake_source_v3.py` をBlenderで実行（`bake_from`／`bake_to` で分割可）するとBlenderのプレビューに反映される。
 
 ```powershell
 godot --headless --path . --script res://tests/saw_operator_export_poses.gd
@@ -56,23 +58,24 @@ godot --headless --path . --script res://tests/saw_operator_export_poses.gd
 
 ## 検証
 
-椅子だけのロケット発射・着地の追加仕様は `docs/seat_launch.md`。参考画像は `references/seat_rebuild/`、今回の動きの編集用プレビューは `source/chair_transfer_preview.blend`、実機動画・最新検証は `artifacts/seat_launch_rebuild/` に保存する。原本の既存操縦動作は保持する。
-
-最新の結果と映像は `artifacts/saw_operator/v2_report.md`、比較画面は同フォルダーの `review_v2.html`。画像・動画・一時検証GLBは既存Git除外のartifacts内にあり、別環境へ渡す際は一緒にコピーする。
-
 ```powershell
 godot --headless --path . --script res://tests/saw_operator_acceptance_bootstrap.gd
 godot --headless --path . --script res://tests/saw_chase_bootstrap.gd
 godot --headless --path . --script res://tests/saw_dock_bootstrap.gd
+godot --headless --path . --script res://tests/seat_launch_bootstrap.gd
 godot --headless --path . --script res://tests/menu_saw_unit_bootstrap.gd
-godot --path . --resolution 1600x900 --script res://tests/menu_saw_runtime_bootstrap.gd
-godot --path . --script res://tests/menu_saw_edges_bootstrap.gd
 godot --path . --resolution 1280x900 --script res://tests/saw_operator_runtime_bootstrap.gd
 godot --path . --resolution 1600x900 --script res://tests/saw_operator_scene_bootstrap.gd -- mode=menu
+godot --path . --resolution 1600x900 --script res://tests/saw_operator_scene_bootstrap.gd -- mode=game
 godot --path . --resolution 1600x900 --script res://tests/saw_operator_lifecycle_bootstrap.gd
+godot --path . --resolution 1600x900 --script res://tests/menu_saw_runtime_bootstrap.gd
+godot --path . --resolution 1600x900 --script res://tests/menu_saw_edges_bootstrap.gd
 godot --path . --resolution 960x720 --script res://tests/saw_operator_motion_capture_bootstrap.gd -- --sequence
+godot --path . --resolution 960x720 --script res://tests/saw_operator_motion_capture_bootstrap.gd -- --stow
 ```
 
-`motion_capture` は待機・始動・追走・押し操作・昇降の接写（正面／側面／背面）と30fpsの連番を `artifacts/saw_operator/operating_pass/` に出力する。
+結果・接写・通し動画は `artifacts/saw_operator/v3/`（Git除外。別環境へ渡す際は一緒にコピーする）。テストは実ゲーム状態を操作するため、作業中のプレイへ接続して実行しない。
 
-検証用ワーカーは別プロセスで実行する。`scene_bootstrap` は `mode=game`、`retry`、`menu_return` も受け付ける。テストは実ゲーム状態を操作するため、作業中のプレイへ接続して実行しない。
+## v2（2026-09-20〜25）
+
+v2の操作盤・動作・参考画像・制作記録は `references/v2/`、`source/saw_operator.blend`、`tools/saw_operator/build_station.py` ほか、検証は `artifacts/saw_operator/v2_report.md` に残している。キャラクターの出典は `assets/characters/godot_plush/CREDITS.md`。

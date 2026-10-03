@@ -7,6 +7,8 @@ extends Node3D
 ## ゲームオーバー: ズームアウト + シェイク
 ## フライオーバー: 10問モード開始時の壁全体俯瞰
 
+const FinaleCamera = preload("res://scripts/world/result_finale/result_finale_camera.gd")
+
 @onready var camera: Camera3D = $Camera3D
 
 var _time: float = 0.0
@@ -51,10 +53,19 @@ var _wall_text_scale_active: bool = false
 var _wall_text_base_eye := Vector3.ZERO
 var _wall_text_pulled_eye := Vector3.ZERO
 var _wall_text_fov: float = TWO_PLAYER_FOV
+var _sudden_death_camera_ready: bool = false
+var _sudden_death_eye := Vector3.ZERO
+var _sudden_death_target := Vector3.ZERO
+var _sudden_death_fov: float = TWO_PLAYER_FOV
+## SuddenDeathDirector owns the lens through the branch, the shaft, the landing and the return.
+var _director_pose_active: bool = false
+var _director_transform := Transform3D.IDENTITY
+var _director_fov: float = TWO_PLAYER_FOV
 
-## 2Pでカメラが基準位置から離れた分だけ壁の文字を拡大する上限。
-## 2択の選択肢が扉幅(3.6m)に、長い問題文が壁幅に収まる大きさに抑える。
-const WALL_TEXT_MAX_SCALE := 1.5
+## 2Pでカメラが基準位置から離れ、文字の見かけがこの比率まで縮んだら拡大表示へ切り替える。
+const WALL_TEXT_ENLARGE_RATIO := 1.12
+## 拡大表示中は、見かけの縮みがこの比率まで戻ったら等倍へ戻す (境界でのちらつき防止)。
+const WALL_TEXT_RESTORE_RATIO := 1.05
 const QUESTION_SCREEN_MARGIN := 0.08
 const QUESTION_FRAMING_FOLLOW := 8.0
 const SAW_FRAMING_FOLLOW := 2.5
@@ -85,6 +96,7 @@ const TWO_PLAYER_REAR_PULL_START_DISTANCE := 3.5
 const TWO_PLAYER_REAR_PULL_FULL_DISTANCE := 0.5
 const TWO_PLAYER_REAR_MAX_BACK := 13.0
 const TWO_PLAYER_REAR_BLEND_SPEED := 1.2
+const SUDDEN_DEATH_FOLLOW := 4.0
 
 func _ready() -> void:
 	if not camera:
@@ -129,6 +141,34 @@ func set_tutorial_override_pose(eye: Vector3, target: Vector3, fov: float) -> vo
 
 func clear_tutorial_override() -> void:
 	_tutorial_override_active = false
+
+
+## Sudden death presentation (docs/sudden_death_underground.md 5.4): the director
+## computes every shot and the camera applies it as is, ahead of every other mode.
+func set_director_pose(pose: Transform3D, fov: float) -> void:
+	_director_transform = pose.orthonormalized()
+	_director_fov = clampf(fov, 20.0, 100.0)
+	_director_pose_active = true
+
+
+## Hand the lens back. The underground run camera eases in from the current pose
+## instead of cutting (the result camera is matched by the director before release).
+func clear_director_pose() -> void:
+	if not _director_pose_active:
+		return
+	_director_pose_active = false
+	_sudden_death_eye = camera.global_position
+	_sudden_death_target = camera.global_position - camera.global_basis.z * 20.0
+	_sudden_death_fov = camera.fov
+	_sudden_death_camera_ready = true
+	_result_camera_active = true
+	_result_winner_start_eye = camera.global_position
+	_result_winner_start_rotation = camera.global_basis.get_rotation_quaternion()
+	_result_winner_start_fov = camera.fov
+
+
+func has_director_pose() -> bool:
+	return _director_pose_active
 
 
 ## Track the physical body until it bursts, then hold the explosion location.
@@ -279,6 +319,11 @@ func update_camera(gs: QuizGameState, dt: float) -> void:
 		camera.global_position = _tutorial_override_eye
 		camera.look_at(_tutorial_override_target, Vector3.UP)
 		return
+	if _director_pose_active:
+		camera.h_offset = 0.0
+		camera.fov = _director_fov
+		camera.global_transform = _director_transform
+		return
 
 	# Clear the ceremony latch before any early-return camera mode (especially
 	# PRELOADING on retry) so the next round never inherits the fixed result shot.
@@ -310,6 +355,11 @@ func update_camera(gs: QuizGameState, dt: float) -> void:
 		return
 	_result_camera_active = false
 	_result_camera_phase = QuizGameState.ResultCeremonyPhase.NONE
+
+	if gs.game_state == Constants.STATE_SUDDEN_DEATH and gs.sudden_death != null:
+		_update_sudden_death_camera(gs, dt)
+		return
+	_sudden_death_camera_ready = false
 
 	# 1Pではサメの到達後も、ゲームオーバー中はサメ追従カメラを維持する。
 	# 2Pは生存者がいる間だけ DeathWipe を使い、最後の1人が落ちたらメインカメラへ切り替える。
@@ -479,6 +529,32 @@ func update_camera(gs: QuizGameState, dt: float) -> void:
 	camera.look_at(target, Vector3.UP)
 
 
+## 2Pサドンデス（早押し水没リフト）。本戦のショットは SuddenDeathDirector が決めて set_director_pose で
+## 渡すので、ここは演出の手を離れた間だけの控え：2人のリフトを正面（上流側）から見る引きの画。
+func _update_sudden_death_camera(gs: QuizGameState, dt: float) -> void:
+	var shot := SuddenDeathDirector.duel_wide_shot()
+	var eye := shot.origin
+	var target := shot.origin - shot.basis.z * 12.0
+	var fov := SuddenDeathDirector.DUEL_FOV
+	if not _sudden_death_camera_ready:
+		_sudden_death_camera_ready = true
+		_sudden_death_eye = eye
+		_sudden_death_target = target
+		_sudden_death_fov = fov
+	else:
+		var follow := 1.0 - exp(-SUDDEN_DEATH_FOLLOW * maxf(dt, 0.0))
+		_sudden_death_eye = _sudden_death_eye.lerp(eye, follow)
+		_sudden_death_target = _sudden_death_target.lerp(target, follow)
+		_sudden_death_fov = lerpf(_sudden_death_fov, fov, follow)
+	var shake := Vector3.ZERO
+	if gs.camera_shake > 0.0:
+		shake = Vector3(randf() - 0.5, randf() - 0.5, randf() - 0.5) * gs.camera_shake
+	camera.h_offset = 0.0
+	camera.fov = _sudden_death_fov
+	camera.global_position = _sudden_death_eye + shake
+	camera.look_at(_sudden_death_target + shake * 0.5, Vector3.UP)
+
+
 ## 問題文フレーミングによる後退は含めない。文字の拡大がさらに後退を呼ぶ循環を避けるため、
 ## 後方ローラー端への引きとノコギリ回避の後退だけを「離れた量」として記録する。
 func _update_wall_text_scale_pose(gs: QuizGameState, pulled_eye: Vector3, fov: float) -> void:
@@ -501,17 +577,18 @@ func _update_wall_text_scale_pose(gs: QuizGameState, pulled_eye: Vector3, fov: f
 	_wall_text_fov = fov
 
 
-## 基準の2Pカメラから見たときと同じ見かけの大きさになる倍率 (1.0〜WALL_TEXT_MAX_SCALE)。
-func get_wall_text_scale(world_point: Vector3) -> float:
+## 基準の2Pカメラより離れて文字が小さく見えるとき true。拡大表示/等倍の2状態を
+## ヒステリシス付きで切り替えるため、現在拡大中かどうかを受け取る。
+func should_enlarge_wall_text(world_point: Vector3, currently_enlarged: bool) -> bool:
 	if not _wall_text_scale_active:
-		return 1.0
+		return false
 	var base_distance := _wall_text_base_eye.distance_to(world_point)
 	if base_distance < 0.001:
-		return WALL_TEXT_MAX_SCALE
+		return currently_enlarged
 	var ratio := (
 		_wall_text_pulled_eye.distance_to(world_point) * tan(deg_to_rad(_wall_text_fov) * 0.5)
 	) / (base_distance * tan(deg_to_rad(TWO_PLAYER_FOV) * 0.5))
-	return clampf(ratio, 1.0, WALL_TEXT_MAX_SCALE)
+	return ratio > (WALL_TEXT_RESTORE_RATIO if currently_enlarged else WALL_TEXT_ENLARGE_RATIO)
 
 
 func set_question_framing_points(
@@ -638,14 +715,55 @@ func _append_player_framing_points(points: PackedVector3Array, feet: Vector3) ->
 		points.append(bounds.get_endpoint(corner))
 
 
+## The Score Tower Finale lens at `elapsed` without shake or blending:
+## {"transform": Transform3D, "fov": float} (SuddenDeathDirector matches it before handing back).
+func result_ceremony_camera_pose(gs: QuizGameState, elapsed: float) -> Dictionary:
+	var draw := gs.result_winner == 0
+	var finale_time := minf(elapsed, ResultFinaleMotion.end_time())
+	var sample := ResultFinaleMotion.sample_camera(draw, finale_time)
+	var local_pose: Transform3D = sample.transform
+	var sample_fov: float = sample.fov
+	var sudden_death_loser := 3 - gs.sudden_death_winner if gs.sudden_death_winner > 0 else 0
+	var heights := ResultFinaleMotion.side_heights(gs.result_p1_score, gs.result_p2_score, gs.result_winner, finale_time, sudden_death_loser)
+	var tall := FinaleCamera.tall_weight(heights)
+	if tall > 0.0:
+		var shot: Dictionary = FinaleCamera.shot(heights, gs.result_winner, finale_time)
+		var shot_pose: Transform3D = shot.transform
+		local_pose = Transform3D(Basis(local_pose.basis.get_rotation_quaternion().slerp(shot_pose.basis.get_rotation_quaternion(), tall)),
+			local_pose.origin.lerp(shot_pose.origin, tall))
+		sample_fov = lerpf(sample_fov, float(shot.fov), tall)
+	var mirror := Vector3(-1, 1, 1) if gs.result_winner == 2 else Vector3.ONE
+	var stage_basis := Basis(Vector3.UP, PI).scaled(mirror)
+	var stage_origin := ResultCeremonyDirector.stage_origin(gs)
+	var eye := stage_origin + stage_basis * local_pose.origin
+	var forward := -(stage_basis * local_pose.basis.z).normalized()
+	var up := (stage_basis * local_pose.basis.y).normalized()
+	var aspect := get_viewport().get_visible_rect().size.aspect()
+	var fov := rad_to_deg(2.0 * atan(tan(deg_to_rad(sample_fov) * 0.5) * maxf(1.0, (16.0 / 9.0) / aspect)))
+	return {"transform": Transform3D(Basis.looking_at(forward, up), eye), "fov": fov}
+
+
 func _update_result_ceremony_camera(gs: QuizGameState, dt: float) -> void:
 	var phase := gs.result_ceremony_phase
 	# The Blender camera that composed the Score Tower Finale owns the whole shot.
 	# It is symmetric until the verdict, then favours the winner; a P2 win mirrors
 	# stage and camera together. After the last key it holds the final frame.
 	var draw := gs.result_winner == 0
-	var sample := ResultFinaleMotion.sample_camera(draw, minf(gs.result_ceremony_elapsed, ResultFinaleMotion.end_time()))
+	var finale_time := minf(gs.result_ceremony_elapsed, ResultFinaleMotion.end_time())
+	var sample := ResultFinaleMotion.sample_camera(draw, finale_time)
 	var local_pose: Transform3D = sample.transform
+	var sample_fov: float = sample.fov
+	# Towers grow a tier per point; past the baked shot's 2.6 m top, blend into a low
+	# side shot beside the loser looking up at the winner (a draw: a front two-shot).
+	var sudden_death_loser := 3 - gs.sudden_death_winner if gs.sudden_death_winner > 0 else 0
+	var heights := ResultFinaleMotion.side_heights(gs.result_p1_score, gs.result_p2_score, gs.result_winner, finale_time, sudden_death_loser)
+	var tall := FinaleCamera.tall_weight(heights)
+	if tall > 0.0:
+		var shot: Dictionary = FinaleCamera.shot(heights, gs.result_winner, finale_time)
+		var shot_pose: Transform3D = shot.transform
+		local_pose = Transform3D(Basis(local_pose.basis.get_rotation_quaternion().slerp(shot_pose.basis.get_rotation_quaternion(), tall)),
+			local_pose.origin.lerp(shot_pose.origin, tall))
+		sample_fov = lerpf(sample_fov, float(shot.fov), tall)
 	var mirror := Vector3(-1, 1, 1) if gs.result_winner == 2 else Vector3.ONE
 	var stage_basis := Basis(Vector3.UP, PI).scaled(mirror)
 	var stage_origin := ResultCeremonyDirector.stage_origin(gs)
@@ -653,7 +771,7 @@ func _update_result_ceremony_camera(gs: QuizGameState, dt: float) -> void:
 	var forward := -(stage_basis * local_pose.basis.z).normalized()
 	var up := (stage_basis * local_pose.basis.y).normalized()
 	var target_rotation := Basis.looking_at(forward, up).get_rotation_quaternion()
-	var target_fov: float = sample.fov
+	var target_fov := sample_fov
 	# The verdict slam shakes the lens briefly (decays in QuizGameState).
 	if gs.camera_shake > 0.001:
 		_result_shake_time += maxf(dt, 0.0)
@@ -666,6 +784,11 @@ func _update_result_ceremony_camera(gs: QuizGameState, dt: float) -> void:
 		_result_winner_start_eye = camera.global_position
 		_result_winner_start_rotation = camera.global_basis.get_rotation_quaternion()
 		_result_winner_start_fov = camera.fov
+		if gs.result_from_elimination:
+			# The elimination wipe covers the cut; open directly on the finale camera.
+			_result_winner_start_eye = target_eye
+			_result_winner_start_rotation = target_rotation
+			_result_winner_start_fov = target_fov
 		_result_camera_active = true
 	_result_camera_phase = phase
 	var entry := smoothstep(0.0, QuizGameState.RESULT_ASSEMBLE_DURATION, gs.result_ceremony_elapsed)

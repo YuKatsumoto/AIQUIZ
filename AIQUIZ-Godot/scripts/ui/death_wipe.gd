@@ -219,6 +219,9 @@ func _process(dt: float) -> void:
 					target_player = player_index
 					break
 
+	# The dead player is already leaping to the result podium as a ghost.
+	if game_state.result_ghost_mask != 0 or game_state.result_presentation_active:
+		should_show = false
 
 	if should_show:
 		if not _active or _is_hiding or _dead_player != target_player:

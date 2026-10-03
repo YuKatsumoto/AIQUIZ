@@ -1,0 +1,34 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://shaders/sudden_death/cistern_surface.gdshader" id="1_g568q"]
+[ext_resource type="Texture2D" path="res://assets/environment/underground_temple/textures/cistern_end_upstream_light.png" id="2_80r23"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/cistern_generated/textures/macro_noise.res" id="3_v0qi4"]
+
+[resource]
+resource_name = "CIS_Sign"
+render_priority = 0
+shader = ExtResource("1_g568q")
+shader_parameter/opening_color = null
+shader_parameter/opening_strength = null
+shader_parameter/ambient_color = null
+shader_parameter/ambient_level = null
+shader_parameter/white_balance = Vector3(0.81204945, 1.0465903, 1.3167658)
+shader_parameter/light_tex = ExtResource("2_80r23")
+shader_parameter/macro_noise = ExtResource("3_v0qi4")
+shader_parameter/albedo_color = Color(1, 1, 1, 1)
+shader_parameter/uv_scale = 1.0
+shader_parameter/detail_scale = 2.0
+shader_parameter/detail_strength = null
+shader_parameter/roughness_scale = 0.6
+shader_parameter/metallic_value = 0.0
+shader_parameter/normal_strength = null
+shader_parameter/light_max = 5.273985
+shader_parameter/light_scale = 1.5
+shader_parameter/light_gamma = null
+shader_parameter/cavity_strength = null
+shader_parameter/macro_strength = 0.08
+shader_parameter/relight = null
+shader_parameter/seepage = 0.0
+shader_parameter/glint_strength = null
+shader_parameter/debug_view = null
+shader_parameter/glint_color = null

@@ -2,7 +2,7 @@ class_name ResultFinaleEffects
 extends Node3D
 
 ## World-space celebration layers for the Score Tower Finale: cannon confetti,
-## falling confetti, fireworks, the winner's spotlight beam and the loser's rain.
+## falling confetti, fireworks and the winner's spotlight beam.
 ## Lives outside the (possibly mirrored) stage so particles never inherit a reflection.
 
 const GOLD := Color(1.0, 0.82, 0.29)
@@ -25,7 +25,6 @@ void fragment() {
 var events: Array[Dictionary] = []
 var _quality := GraphicsQuality.BALANCED
 var _nodes: Array[Node] = []
-var _rain: Array[GPUParticles3D] = []
 var _confetti_rain: GPUParticles3D
 var _spot: SpotLight3D
 var _beam: MeshInstance3D
@@ -37,7 +36,7 @@ func setup(quality: String) -> void:
 
 
 func _ratio() -> float:
-	return 0.45 if _quality == GraphicsQuality.LOW else (1.0 if _quality == GraphicsQuality.HIGH else 0.75)
+	return 0.45 if _quality == GraphicsQuality.LOW else (1.0 if GraphicsQuality.is_at_least(_quality, GraphicsQuality.HIGH) else 0.75)
 
 
 func _track(node: Node) -> Node:
@@ -201,37 +200,6 @@ func firework(position_value: Vector3, color: Color, time: float) -> void:
 	events.append({"kind": "firework", "time": time})
 
 
-func start_rain(emitter: Node3D, time: float) -> void:
-	if not is_instance_valid(emitter):
-		return
-	var particles := GPUParticles3D.new()
-	particles.name = "CloudRain"
-	emitter.add_child(particles)
-	_nodes.append(particles)
-	_rain.append(particles)
-	particles.amount = int(90 * _ratio())
-	particles.lifetime = 0.5
-	particles.visibility_aabb = AABB(Vector3(-2, -4, -2), Vector3(4, 5, 4))
-	var process := ParticleProcessMaterial.new()
-	process.direction = Vector3.DOWN
-	process.spread = 3.0
-	process.initial_velocity_min = 3.4
-	process.initial_velocity_max = 4.6
-	process.gravity = Vector3(0, -7.0, 0)
-	process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
-	process.emission_box_extents = Vector3(0.42, 0.02, 0.2)
-	process.color = Color(0.45, 0.66, 1.0, 1.0)
-	particles.process_material = process
-	var streak := QuadMesh.new()
-	streak.size = Vector2(0.035, 0.28)
-	var material := _flat_material(false, BaseMaterial3D.BILLBOARD_FIXED_Y)
-	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	streak.material = material
-	particles.draw_pass_1 = streak
-	particles.emitting = true
-	events.append({"kind": "rain", "time": time})
-
-
 ## Spotlight and soft volumetric beam dropping onto the winner's platform.
 func set_spotlight(target: Vector3, amount: float, color: Color) -> void:
 	if not is_instance_valid(_spot):
@@ -277,7 +245,6 @@ func clear() -> void:
 		if is_instance_valid(node):
 			node.queue_free()
 	_nodes.clear()
-	_rain.clear()
 	_confetti_rain = null
 	_spot = null
 	_beam = null

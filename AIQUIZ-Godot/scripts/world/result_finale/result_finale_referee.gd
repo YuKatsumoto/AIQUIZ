@@ -1,13 +1,16 @@
 class_name ResultFinaleReferee
 extends RefCounted
 
-## The Godot plush referee with his checkered flag (referee_finale.glb).
-## Animations "FinaleWin" and "FinaleDraw" are baked in Blender; the rig node
-## carries the authored (0, 1 m behind the marks) offset, so place the scene
-## root at the stage origin with the stage's rotation.
+## The Godot plush referee with a checkered flag in each hand (referee_finale.glb).
+## Animations "FinaleWin" (winner on his right, P1's lane), "FinaleWinP2" (winner on
+## his left) and "FinaleDraw" are baked in Blender and share every key before the
+## verdict, so his pose never tells the result early; at the verdict the winner's
+## flag goes up. The rig node carries the authored (0, 1 m behind the marks) offset,
+## so place the scene root at the stage origin with the stage's rotation.
 
 const SCENE := preload("res://assets/result_finale/referee_finale.glb")
 const WIN_ANIMATION := "FinaleWin"
+const WIN_P2_ANIMATION := "FinaleWinP2"
 const DRAW_ANIMATION := "FinaleDraw"
 const IDLE_LOOP := 1.2  # sway keys at 0 / 0.6 / 1.2 s form a seamless cycle
 
@@ -30,10 +33,25 @@ static func create(parent: Node3D, node_name: String) -> Dictionary:
 	return {"root": root, "animation": player}
 
 
-static func pose(player: AnimationPlayer, draw: bool, time: float) -> void:
+## The finale mirrors its stage in X when P2 wins. A skinned mesh under a mirrored
+## transform is lit inside out on qualities with gameplay shadows (his front turns
+## dark blue), and a mirror would also swap which hand raises the flag. So a P2 win
+## cancels the mirror on the referee's root (he stands centred, so only the
+## handedness changes) and plays FinaleWinP2, authored with the raise and turns on
+## the P2 side. Call once per referee, right after create().
+static func unmirror(root: Node3D) -> void:
+	root.transform = Transform3D(Basis.from_scale(Vector3(-1.0, 1.0, 1.0)), Vector3.ZERO) * root.transform
+
+
+static func animation_for(winner: int) -> String:
+	if winner == 0:
+		return DRAW_ANIMATION
+	return WIN_P2_ANIMATION if winner == 2 else WIN_ANIMATION
+
+
+static func pose(player: AnimationPlayer, animation: String, time: float) -> void:
 	if player == null:
 		return
-	var animation := DRAW_ANIMATION if draw else WIN_ANIMATION
 	if player.current_animation != animation or player.assigned_animation != animation:
 		player.play(animation)
 		player.pause()
@@ -42,4 +60,4 @@ static func pose(player: AnimationPlayer, draw: bool, time: float) -> void:
 
 ## Waiting at the finish before the ceremony: loop the authored idle sway.
 static func pose_idle(player: AnimationPlayer, clock: float) -> void:
-	pose(player, false, fposmod(clock, IDLE_LOOP))
+	pose(player, WIN_ANIMATION, fposmod(clock, IDLE_LOOP))

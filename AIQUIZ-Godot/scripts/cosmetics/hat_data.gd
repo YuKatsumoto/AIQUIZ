@@ -44,6 +44,27 @@ static func get_hat_list() -> Array[Dictionary]:
 		{"id": HAT_PIRATE,    "name": "海賊帽",         "icon": "🏴‍☠️", "desc": "知識の海へ出航！"},
 	]
 
+## Hats that can no longer be chosen. Their ids and models stay (the list index is the
+## id, and an opponent online may still send one), the pickers just skip them.
+const RETIRED: Array[int] = [HAT_CROWN]
+
+
+static func is_selectable(hat_id: int) -> bool:
+	return hat_id >= 0 and hat_id < HAT_COUNT and not (hat_id in RETIRED)
+
+
+## The next hat to the right (direction > 0) or left (< 0) of `hat_id` that can be
+## chosen, wrapping round the list.
+static func step_hat(hat_id: int, direction: int) -> int:
+	var step := 1 if direction >= 0 else -1
+	var next := hat_id
+	for _tries in range(HAT_COUNT):
+		next = (next + step + HAT_COUNT) % HAT_COUNT
+		if is_selectable(next):
+			return next
+	return HAT_NONE
+
+
 static func get_hat_name(hat_id: int) -> String:
 	var list := get_hat_list()
 	if hat_id >= 0 and hat_id < list.size():

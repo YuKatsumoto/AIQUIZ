@@ -72,10 +72,12 @@ func run() -> void:
 			check(gs.p1_hp == 3 and gs.p2_hp == 3 and gs.hp_questions_completed == 0, "retry resets health")
 			check(gs.p1_damage_time == 0.0 and gs._hp_evaluated_mask == 0, "retry clears damage/latches")
 	_staggered()
+	_elimination()
 	_recovery()
 	_hazards()
 	_motion()
 	_sync_replay()
+	_question_winners()
 	for mode in [Constants.MODE_TUTORIAL, Constants.MODE_COOP]:
 		var gs := fixture(2, mode)
 		check(not gs.uses_hp(), "excluded mode keeps rules: " + mode)
@@ -125,6 +127,58 @@ func _staggered() -> void:
 	check(wall._check_player_door(0.0) < 0, "wall-gap fixture")
 	wall.resolve_collision(true, false)
 	check(wall.p1_hp == 2 and wall.current_wall_index == 1, "solid wall loses one HP")
+
+## Local 2P ten-question mode: running out of HP leads to the verdict finale,
+## not the GAME OVER card. The round's history and results are still recorded.
+func _elimination() -> void:
+	var gs := fixture()
+	gs.result_ceremony_enabled = true
+	for hit in range(3):
+		answer(gs, false, false)
+	check(gs.game_state == Constants.STATE_GAME_OVER and gs.is_elimination_result_pending(), "duo elimination waits for the finale")
+	check(gs.quiz_history.size() == 3 and gs.provider.submitted == [false, false, false], "duo elimination keeps the round record")
+	var solo := fixture(1)
+	solo.result_ceremony_enabled = true
+	for hit in range(3):
+		answer(solo, false)
+	check(solo.game_state == Constants.STATE_GAME_OVER and not solo.is_elimination_result_pending(), "solo keeps GAME OVER")
+
+func _question_winners() -> void:
+	var gs := fixture()
+	var events: Array = []
+	gs.question_winner_decided.connect(func(index, mask): events.append([index, mask]))
+	answer(gs, true, false)
+	answer(gs, false, true)
+	answer(gs, false, false)
+	gs.p1_hp = 3
+	gs.p2_hp = 3
+	answer(gs, true, true)
+	check(Array(gs.question_winners) == [1, 2, 0, 3], "question winner masks %s" % [Array(gs.question_winners)])
+	check(events == [[0, 1], [1, 2], [2, 0], [3, 3]], "question winner signal per question")
+	gs.record_question_winner(0, 2)
+	check(gs.get_question_winner(0) == 1 and events.size() == 4, "question winner recorded once")
+	var staggered := fixture()
+	staggered.player_x = door(staggered, false)
+	staggered.player2_x = door(staggered, true)
+	staggered.resolve_collision(true, false)
+	check(staggered.get_question_winner(0) == -1, "question pending until the other player answers")
+	staggered.resolve_collision(false, true)
+	check(staggered.get_question_winner(0) == 2, "late correct player takes the question")
+	var solo := fixture(1)
+	answer(solo, true)
+	check(solo.question_winners.is_empty(), "solo records no question winners")
+	gs.start_game()
+	check(gs.question_winners.is_empty() and gs.get_question_winner(0) == -1, "retry clears question winners")
+	var guest := fixture()
+	var net := NetGameState.new()
+	add_child(net)
+	net.game_state = guest
+	var previous_host := NetworkManager.is_host
+	NetworkManager.is_host = false
+	net._on_event_received({"event": "question_winner", "index": 0, "mask": 2})
+	check(guest.get_question_winner(0) == 2, "online guest receives question winner")
+	NetworkManager.is_host = previous_host
+	net.queue_free()
 
 func _recovery() -> void:
 	var gs := fixture(2, Constants.MODE_ENDLESS)

@@ -41,6 +41,9 @@ static var _shared_time_scale: float = 1.0
 static var _debug_shortcut_down: bool = false
 static var _shared_orbit_basis: Basis = Basis.IDENTITY
 static var _shared_orbit_basis_ready: bool = false
+## Scales the sun and moon (0..1). The sudden death descent fades them while the elevator deck
+## sinks into the shaft mouth, and puts them back for the surface.
+static var light_scale: float = 1.0
 
 
 static func shared_day_phase() -> float:
@@ -172,11 +175,13 @@ func _apply(p_day_phase: float) -> void:
 			clampf(twilight_amount * 0.72, 0.0, 1.0)
 		)
 		var light_energy: float = lerpf(0.0, 1.05, day_amount)
-		directional_light.light_energy = maxf(light_energy, twilight_amount * 0.60)
+		directional_light.light_energy = maxf(light_energy, twilight_amount * 0.60) * light_scale
 
 	if moon_light != null:
 		_aim_light(moon_light, -sun_dir)
-		moon_light.light_energy = night_amount * 0.46
+		moon_light.light_energy = night_amount * 0.46 * light_scale
+		# A zero-energy light still costs every lit pixel a directional-light pass.
+		moon_light.visible = moon_light.light_energy > 0.0
 
 	if environment != null:
 		environment.fog_enabled = false

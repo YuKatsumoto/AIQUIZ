@@ -13,6 +13,11 @@ const CAST_START := 2.0
 const VERDICT := 6.9
 const LOCK_BUMP := 0.06
 const LOCK_BUMP_TIME := 0.18
+## Towers grow one tier per point (totals are half-points, so 2 per tier).
+const TIER_POINTS_HALF := 2
+const TIER_HEIGHT := 0.30
+## Tiers on the column: a perfect 35 points is 35 tiers.
+const TIER_COUNT := 36
 
 static var _data: Dictionary = {}
 
@@ -147,29 +152,49 @@ static func lock_time(total: int, max_total: int) -> float:
 	return float(window[1])
 
 
-static func stop_height(total: int, max_total: int) -> float:
-	var h := heights()
-	if max_total <= 0:
-		return float(h.pop)
-	return float(h.pop) + (float(h.top) - float(h.pop)) * clampf(float(total) / float(max_total), 0.0, 1.0)
+## Resting height for a total: the pad pop plus one TIER_HEIGHT per point,
+## whatever the other player scored (half a tier shows half a tier).
+static func stop_height(total: int) -> float:
+	return float(heights().pop) + TIER_HEIGHT * float(maxi(total, 0)) / float(TIER_POINTS_HALF)
 
 
-## Platform height above the conveyor for one player's tower.
-## The leader (or both, on a draw) rides the authored Blender curve to the top.
-static func tower_height(total: int, max_total: int, draw: bool, time: float) -> float:
-	var lift := winner_lift(time)
-	var window: Array = data().climb_window
-	if max_total <= 0:
-		return minf(lift, float(heights().pop))
-	if draw or total >= max_total:
-		return lift
-	var stop := stop_height(total, max_total)
-	if time < float(window[0]):
-		return lift
-	if time >= beat("sink_start"):
+## Platform height above the conveyor for one player's tower. Before the climb both
+## ride the authored pad pop; then each tower rises with its own counter (both count
+## at the same points per second), bumps when it locks, and the loser sinks later.
+## force_sink: the sudden death loser sinks although the scores are level.
+static func tower_height(total: int, max_total: int, time: float, force_sink := false) -> float:
+	var base := minf(winner_lift(time), float(heights().pop))
+	if max_total <= 0 or total <= 0:
+		return base
+	var counted := minf(float(total), float(max_total) * climb(time))
+	var height := base + TIER_HEIGHT * counted / float(TIER_POINTS_HALF)
+	if time >= beat("sink_start") and (total < max_total or force_sink):
+		var stop := stop_height(total)
 		return stop - (stop - float(heights().collar)) * lose_sink(time)
 	var lock := lock_time(total, max_total)
 	if time < lock:
-		return minf(lift, stop)
+		return height
 	var u := clampf((time - lock) / LOCK_BUMP_TIME, 0.0, 1.0)
-	return stop + LOCK_BUMP * sin(u * PI) * (1.0 - u * 0.4)
+	return height + LOCK_BUMP * sin(u * PI) * (1.0 - u * 0.4)
+
+
+## A draw that branches into the sudden death (docs/sudden_death_underground.md 2.1):
+## both towers stand at their score, then sink together into the elevator deck from
+## `sink_from` on the authored loser curve (1.4 s), down to the collar.
+static func branch_height(total: int, max_total: int, time: float, sink_from: float) -> float:
+	var standing := tower_height(total, max_total, minf(time, sink_from))
+	if time < sink_from:
+		return standing
+	var u := lose_sink(beat("sink_start") + (time - sink_from))
+	return standing - (standing - float(heights().collar)) * u
+
+
+## Tower heights in stage space: x = the -X tower (the winner's, or P1's on a
+## draw), y = the +X tower. Mirrors ResultFinaleStage._side_x.
+## The sudden death loser's tower sank into the deck before the verdict replays.
+static func side_heights(p1_total: int, p2_total: int, winner: int, time: float, sudden_death_loser := 0) -> Vector2:
+	var max_total := maxi(p1_total, p2_total)
+	var collar := float(heights().collar)
+	var p1 := collar if sudden_death_loser == 1 else tower_height(p1_total, max_total, time)
+	var p2 := collar if sudden_death_loser == 2 else tower_height(p2_total, max_total, time)
+	return Vector2(p2, p1) if winner == 2 else Vector2(p1, p2)

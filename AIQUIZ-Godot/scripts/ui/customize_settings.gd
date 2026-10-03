@@ -29,7 +29,6 @@ const TUTORIAL_TOUR_STEPS := [
 
 const WALL_SCENE: PackedScene = preload("res://scenes/quiz_wall.tscn")
 const CONVEYOR_FLOOR_SHADER: Shader = preload("res://shaders/conveyor_belt_floor.gdshader")
-const ConveyorEdgeLightsScript = preload("res://scripts/world/conveyor_edge_lights.gd")
 const PLAYER_CONTROLLER_SCRIPT: Script = preload("res://scripts/world/player_controller.gd")
 const CustomizePreviewCameraSettingsScript = preload(
 	"res://scripts/ui/customize_preview_camera_settings.gd"
@@ -113,7 +112,6 @@ var _preview_floor_material: ShaderMaterial
 var _conveyor_roller_front_material: ShaderMaterial
 var _conveyor_return_material: ShaderMaterial
 var _preview_weather_cycle: WeatherCycle
-var _conveyor_edge_lights: ConveyorEdgeLights
 var _preview_walls: Array[Node3D] = []
 var _merge_left_sils: Array[MeshInstance3D] = []
 var _merge_right_sils: Array[MeshInstance3D] = []
@@ -372,7 +370,6 @@ func _process(dt: float) -> void:
 					rm,
 					lx_lane,
 				)
-		_update_emote_edge_focus()
 
 	if _preview_camera:
 		_apply_preview_camera_smoothing(dt)
@@ -1031,15 +1028,6 @@ func _build_3d_preview() -> void:
 	_sub_viewport.add_child(ocean_mesh)
 
 	_setup_conveyor_extras()
-	_conveyor_edge_lights = ConveyorEdgeLightsScript.new() as ConveyorEdgeLights
-	_conveyor_edge_lights.name = "ConveyorEdgeLights"
-	_sub_viewport.add_child(_conveyor_edge_lights)
-	_conveyor_edge_lights.setup(
-		-64.0,
-		144.0,
-		_preview_floor_material,
-		_preview_weather_cycle
-	)
 
 	var start_z := 8.0 - WALL_SPACING * 2
 	for i in range(3):
@@ -1253,7 +1241,6 @@ func _set_section(section: Section) -> void:
 			if _preview_gs:
 				_preview_gs.game_state = Constants.STATE_PLAYING
 			_set_skin_preview_lighting_active(false)
-			_clear_emote_edge_focus()
 			_section_title.visible = true
 			_section_title.text = "壁速度設定"
 			_cleanup_emote_preview()
@@ -1266,7 +1253,6 @@ func _set_section(section: Section) -> void:
 			_configure_skin_focus_navigation()
 			_set_skin_preview_lighting_active(true)
 			_update_skin_preview_lighting()
-			_clear_emote_edge_focus()
 			_section_title.visible = true
 			_section_title.text = "スキン設定"
 			_explode_preview_walls_for_emote()
@@ -1287,7 +1273,6 @@ func _set_section(section: Section) -> void:
 			_preview_player.visible = false
 			_active_assign_slot_idx = 0
 			_sync_emote_selection_state(true)
-			_update_emote_edge_focus()
 
 
 func _refresh_section_button_states() -> void:
@@ -1342,35 +1327,6 @@ func _set_skin_preview_lighting_active(active: bool) -> void:
 		_preview_world_env.environment.ambient_light_color = (
 			Color(0.38, 0.40, 0.44) if active else Color(0.30, 0.32, 0.35)
 		)
-
-
-func _preview_edge_lights() -> ConveyorEdgeLights:
-	if embedded_mode and _menu_preview != null:
-		var stage: StageEnvironment = _menu_preview.get_stage_environment()
-		if stage != null:
-			return stage.conveyor_edge_lights
-	return _conveyor_edge_lights
-
-
-func _emote_focus_target() -> Vector3:
-	var block_root := _editing_emote_block_root()
-	if block_root != null:
-		return block_root.global_position + Vector3(0.0, 0.7, 0.0)
-	return Vector3(_preview_editing_lane_x(), 0.7, 0.0)
-
-
-func _update_emote_edge_focus() -> void:
-	var lights := _preview_edge_lights()
-	if lights == null:
-		return
-	lights.set_character_focus(true, _emote_focus_target())
-
-
-func _clear_emote_edge_focus() -> void:
-	var lights := _preview_edge_lights()
-	if lights == null:
-		return
-	lights.set_character_focus(false)
 
 
 func _snap_preview_camera_to_current_section() -> void:
@@ -1710,13 +1666,13 @@ func _refresh_emote_player_button_styles() -> void:
 func _on_hat_prev() -> void:
 	if _hat_slide_active:
 		return
-	var next_hat := (_get_current_hat() - 1 + HatData.HAT_COUNT) % HatData.HAT_COUNT
+	var next_hat := HatData.step_hat(_get_current_hat(), -1)
 	_apply_hat_change_animated(next_hat, -1)
 
 func _on_hat_next() -> void:
 	if _hat_slide_active:
 		return
-	var next_hat := (_get_current_hat() + 1) % HatData.HAT_COUNT
+	var next_hat := HatData.step_hat(_get_current_hat(), 1)
 	_apply_hat_change_animated(next_hat, 1)
 
 func _emote_catalog_entry(emote_id: int) -> Dictionary:
@@ -2292,7 +2248,6 @@ func _on_back_pressed() -> void:
 		return
 	_back_to_menu_in_progress = true
 	_stop_preview_wall_speed_emotes()
-	_clear_emote_edge_focus()
 	_hold_customize_frame_before_scene_change()
 	get_tree().change_scene_to_file("res://ui/main_menu.tscn")
 
@@ -2305,7 +2260,6 @@ func _prepare_embedded_close() -> void:
 	_is_open = false
 	_finish_hat_slide_immediate()
 	_cleanup_emote_preview()
-	_clear_emote_edge_focus()
 	if _cust_world_root:
 		_cust_world_root.visible = false
 	if _menu_preview:

@@ -389,60 +389,87 @@ def referee_key(rig, t, *, hop=0.0, turn=0.0, tilt=(0.0, 0.0),
         key_pbone_quat(pb, pb.rotation_quaternion.copy(), t)
 
 
-def referee_performance(rig, draw):
+def _pair(arm, bend=6.0):
+    """Both arms mirrored: arm is the right arm's direction (x < 0 is outward)."""
+    return dict(r_arm=arm, l_arm=(-arm[0], arm[1], arm[2]), r_bend=bend, l_bend=bend)
+
+
+def _raise(up, down, up_bend, down_bend, mirror):
+    """Winner's flag up, the other flag down. up/down are authored for a winner at -X
+    (right arm); mirror hands the raise to the left arm for a winner at +X."""
+    if not mirror:
+        return dict(r_arm=up, l_arm=(-down[0], down[1], down[2]), r_bend=up_bend, l_bend=down_bend)
+    return dict(l_arm=(-up[0], up[1], up[2]), r_arm=down, l_bend=up_bend, r_bend=down_bend)
+
+
+# Outcomes: "win" (winner at -X, P1's lane), "win_p2" (winner at +X: Godot plays it
+# unmirrored for a P2 win), "draw". A flag in each hand, and every key before the
+# verdict is the same for all three, so nothing about the referee gives the result away.
+REF_OUTCOMES = ("win", "win_p2", "draw")
+REF_ACTIONS = ("REF_FinaleWin", "REF_FinaleWinP2", "REF_FinaleDraw")
+
+
+def referee_performance(rig, outcome):
     rig.animation_data_clear()
     for pb in rig.pose.bones:
         pb.rotation_mode = 'QUATERNION'
     k = lambda t, **kw: referee_key(rig, t, **kw)
-    wait = dict(r_arm=(-0.72, -0.18, 0.66), l_arm=(0.75, -0.1, -0.6))
+    # Both flags lowered and held outward, like a flag-raising game waiting for the call.
+    wait = _pair((-0.75, -0.2, -0.55))
     # Waiting at the goal: a gentle rigid rock from side to side.
     for i, t in enumerate([0.0, 0.6, 1.2, 1.8]):
         k(t, tilt=(0, 3 if i % 2 else -3), **wait)
     k(2.10, **wait)
-    k(2.30, hop=0.22, tilt=(-3, 0), r_arm=(-0.45, -0.12, 0.88), l_arm=(0.8, -0.2, 0.4))
+    k(2.30, hop=0.22, tilt=(-3, 0), **_pair((-0.85, -0.2, 0.35), 4))
     k(2.46, **wait)
     k(2.60, **wait)
     # Watch each player as the formula builds (whole-body turns).
     k(2.95, turn=-16, **wait)
     k(3.45, turn=16, **wait)
     k(3.95, **wait)
-    # Towers climb: lean back a little to look up, turning between them.
-    climb = dict(r_arm=(-0.6, -0.12, 0.8), l_arm=(0.85, -0.2, 0.1))
+    # Towers climb: lean back a little to look up, flags out level, turning between them.
+    climb = _pair((-0.85, -0.25, 0.05))
     k(4.20, tilt=(-4, 0), **climb)
     k(4.75, turn=-20, tilt=(-6, 0), **climb)
     k(5.35, turn=20, tilt=(-7, 0), **climb)
     k(5.95, turn=-8, tilt=(-8, 0), **climb)
-    # Hush: flag straight up, a nervous rigid tremble.
-    hush = dict(r_arm=(-0.08, -0.1, 1.0), l_arm=(0.85, -0.25, -0.35), r_bend=0)
+    # Hush: both flags drawn in low and forward, a nervous rigid tremble.
+    hush = _pair((-0.45, -0.55, -0.7), 10)
     k(6.36, tilt=(-4, 0), **hush)
     k(6.60, tilt=(-4, 2), **hush)
     k(6.76, tilt=(-4, -2), **hush)
     k(6.88, tilt=(-3, 0), **hush)
-    if not draw:
-        point = dict(r_arm=(-0.9, -0.32, 0.3), l_arm=(0.8, -0.2, 0.25), r_bend=0)
-        k(7.00, hop=0.26, turn=-24, tilt=(-3, 0), **point)
-        k(7.16, hop=0.06, turn=-26, tilt=(-4, 0), **point)
-        k(7.24, turn=-26, tilt=(-4, 0), **point)
-        k(7.40, turn=-24, tilt=(-4, 0), **point)
-        wave_a = dict(r_arm=(-0.78, -0.12, 0.62), l_arm=(0.75, -0.2, 0.55), r_bend=6)
-        wave_b = dict(r_arm=(-0.05, -0.12, 1.0), l_arm=(0.85, -0.2, 0.3), r_bend=10)
-        turn = -14
+    if outcome != "draw":
+        # Verdict: the winner's flag shoots up on the winner's side, the other stays down.
+        mirror = outcome == "win_p2"
+        side = -1.0 if mirror else 1.0
+        down = (-0.72, -0.2, -0.6)
+        up = _raise((-0.5, -0.2, 0.84), down, 0, 6, mirror)
+        k(7.00, hop=0.26, turn=-20 * side, tilt=(-3, 0), **up)
+        k(7.16, hop=0.06, turn=-22 * side, tilt=(-4, 0), **up)
+        k(7.24, turn=-22 * side, tilt=(-4, 0), **up)
+        k(7.40, turn=-20 * side, tilt=(-4, 0), **up)
+        wave_a = _raise((-0.62, -0.15, 0.78), down, 6, 6, mirror)
+        wave_b = _raise((-0.12, -0.12, 1.0), (-0.7, -0.25, -0.64), 10, 8, mirror)
+        turn = -14 * side
+        roll = side
     else:
-        both = dict(r_arm=(-0.35, -0.1, 0.95), l_arm=(0.45, -0.1, 0.9), r_bend=4, l_bend=6)
+        both = _pair((-0.4, -0.1, 0.92), 4)
         k(7.00, hop=0.26, tilt=(-3, 0), **both)
         k(7.24, tilt=(-3, 0), **both)
-        wave_a = dict(both, r_arm=(-0.75, -0.1, 0.66))
-        wave_b = dict(both, r_arm=(0.1, -0.1, 1.0))
+        wave_a = _pair((-0.72, -0.1, 0.68), 6)
+        wave_b = _pair((-0.1, -0.1, 1.0), 4)
         turn = 0
+        roll = 1.0
     t, a = 7.70, True
     while t < LOOP_START - 1e-6:
         hop = 0.18 if abs(t - 8.10) < 0.01 or abs(t - 8.90) < 0.01 else 0.0
-        k(t, turn=turn, hop=hop, tilt=(-2, 2 if a else -2), **(wave_a if a else wave_b))
+        k(t, turn=turn, hop=hop, tilt=(-2, (2 if a else -2) * roll), **(wave_a if a else wave_b))
         a = not a
         t = round(t + 0.4, 4)
     t, a = LOOP_START, True
     while t <= END + 1e-6:
-        k(t, turn=turn, tilt=(-2, 2 if a else -2), **(wave_a if a else wave_b))
+        k(t, turn=turn, tilt=(-2, (2 if a else -2) * roll), **(wave_a if a else wave_b))
         a = not a
         t = round(t + 0.4, 4)
     smooth_all(rig)
@@ -529,16 +556,15 @@ def animate_all(draw_referee=False):
     animate_crown()
     animate_cloud()
     rig = bpy.data.objects["RIG_Referee"]
-    for stale in ("REF_FinaleWin", "REF_FinaleDraw"):
-        if bpy.data.actions.get(stale) is not None:
-            bpy.data.actions.remove(bpy.data.actions[stale])
-    win_action = referee_performance(rig, draw=False)
-    win_action.name = "REF_FinaleWin"
-    win_action.use_fake_user = True
-    draw_action = referee_performance(rig, draw=True)
-    draw_action.name = "REF_FinaleDraw"
-    draw_action.use_fake_user = True
-    rig.animation_data.action = draw_action if draw_referee else win_action
+    actions = {}
+    for outcome, name in zip(REF_OUTCOMES, REF_ACTIONS):
+        if bpy.data.actions.get(name) is not None:
+            bpy.data.actions.remove(bpy.data.actions[name])
+        action = referee_performance(rig, outcome)
+        action.name = name
+        action.use_fake_user = True
+        actions[outcome] = action
+    rig.animation_data.action = actions["draw" if draw_referee else "win"]
     animate_cameras()
     markers()
     s.camera = bpy.data.objects["CAM_FinaleDraw" if draw_referee else "CAM_FinaleWin"]

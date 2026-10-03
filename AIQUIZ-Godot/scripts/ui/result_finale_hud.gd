@@ -19,15 +19,22 @@ const GOLD := Color(1.0, 0.824, 0.29)
 const INK := Color(0.043, 0.071, 0.125)
 const PALE := Color(0.961, 0.969, 1.0)
 const LOCK_POP := 0.24
+const HP_BONUS_LAYERS := ["HpBonusChip", "HpBonusText", "HpBonusRing"]
+const HP_BONUS_FALLBACK_TIME := 3.92
+static var _hp_bonus_time := -1.0
 const TEXT_JA := {
-	"TitleText": "スコアタワー", "RuleText": "正解数 × 残りHP で勝負！",
-	"CaptionCorrect": "正解", "CaptionHp": "残りHP", "CaptionTotal": "合計",
+	"TitleText": "スコアタワー", "RuleText": "正解数 × (残りHP+0.5) で勝負！",
+	"RuleTextGhost": "生存: 正解×(HP+0.5)／脱落: 正解数",
+	"CaptionCorrect": "正解", "CaptionHp": "残りHP", "CaptionOut": "脱落", "CaptionTotal": "合計",
+	"StatsFinished": "10問完走   •   プレイ時間 %.1f 秒", "StatsEliminated": "全員脱落   •   プレイ時間 %.1f 秒",
 	"VerdictSubWin": "おめでとう！", "VerdictSubDraw": "いい勝負！",
 	"BtnRetryText": "もう一度", "BtnHistoryText": "履歴", "BtnMenuText": "メニュー",
 }
 const TEXT_EN := {
-	"TitleText": "SCORE TOWER", "RuleText": "CORRECT × HP LEFT",
-	"CaptionCorrect": "CORRECT", "CaptionHp": "HP LEFT", "CaptionTotal": "TOTAL",
+	"TitleText": "SCORE TOWER", "RuleText": "CORRECT × (HP LEFT + 0.5)",
+	"RuleTextGhost": "ALIVE: × (HP+0.5) / OUT: CORRECT",
+	"CaptionCorrect": "CORRECT", "CaptionHp": "HP LEFT", "CaptionOut": "OUT", "CaptionTotal": "TOTAL",
+	"StatsFinished": "10 questions finished   •   %.1f sec", "StatsEliminated": "Everyone was eliminated   •   %.1f sec",
 	"VerdictSubWin": "CONGRATULATIONS!", "VerdictSubDraw": "WHAT A MATCH!",
 	"BtnRetryText": "Play again", "BtnHistoryText": "History", "BtnMenuText": "Menu",
 }
@@ -43,6 +50,9 @@ class AeLayer extends Control:
 	var extra_scale := 1.0
 	var highlight := 0.0
 	var font_variation: FontVariation
+	## When set, text is right-aligned to this x (layer space) instead of AE's
+	## justification, so a counting number keeps its last digit in place.
+	var right_edge := NAN
 
 	func configure(value: Dictionary, base_font: Font, mirror: bool) -> void:
 		record = value
@@ -131,7 +141,10 @@ class AeLayer extends Control:
 			var width := 4000.0
 			var alignment := HORIZONTAL_ALIGNMENT_CENTER
 			var origin := Vector2(-width * 0.5, 0.0)
-			if text_spec.justification == "left":
+			if not is_nan(right_edge):
+				alignment = HORIZONTAL_ALIGNMENT_RIGHT
+				origin.x = right_edge - width
+			elif text_spec.justification == "left":
 				alignment = HORIZONTAL_ALIGNMENT_LEFT
 				origin.x = 0.0
 			elif text_spec.justification == "right":
@@ -219,6 +232,14 @@ func _load_frames(folder: String, count: int) -> Array[Texture2D]:
 		if ResourceLoader.exists(path):
 			frames.append(load(path) as Texture2D)
 	return frames
+
+
+## The sudden death owns the screen from just before the iris opens until the
+## verdict replays after the return (SuddenDeathHud draws in between).
+func _hidden_by_sudden_death() -> bool:
+	if game_state.result_return_hold:
+		return true
+	return game_state.sudden_death_pending and game_state.result_ceremony_elapsed >= QuizGameState.SUDDEN_DEATH_IRIS_TIME - 0.2
 
 
 func set_suppressed(suppressed: bool) -> void:
@@ -349,7 +370,9 @@ func _configure_content(winner: int) -> void:
 	for key: String in _named:
 		var layer := _named[key] as AeLayer
 		var short := key.get_slice("/", key.get_slice_count("/") - 1)
-		if short in ["TitleText", "RuleText", "CaptionCorrect", "CaptionHp", "CaptionTotal", "BtnRetryText", "BtnHistoryText", "BtnMenuText"]:
+		if short == "RuleText" and game_state.result_ghost_mask != 0:
+			layer.text = _text("RuleTextGhost")
+		elif short in ["TitleText", "RuleText", "CaptionCorrect", "CaptionHp", "CaptionTotal", "BtnRetryText", "BtnHistoryText", "BtnMenuText"]:
 			layer.text = _text(short)
 		elif short == "VerdictSub":
 			layer.text = _text("VerdictSubDraw" if winner == 0 else "VerdictSubWin")
@@ -360,6 +383,12 @@ func _configure_content(winner: int) -> void:
 		var chip_text := _named.get("Verdict/PlayerChipText") as AeLayer
 		if chip_text != null:
 			chip_text.text = "P%d" % winner
+	# An eliminated finalist scores its correct answers only: no HP factor.
+	for player_index in [1, 2]:
+		if game_state.is_result_ghost(player_index):
+			var caption := _named.get(_card_prefix(player_index) + "/CaptionHp") as AeLayer
+			if caption != null:
+				caption.text = _text("CaptionOut")
 
 
 ## Master layer names for each player's card ("CardP1" is the winner role).
@@ -371,7 +400,7 @@ func _card_prefix(player_index: int) -> String:
 
 func update_overlay(delta: float) -> void:
 	var active := game_state != null and game_state.result_presentation_active and game_state.game_state in [Constants.STATE_RESULT_CEREMONY, Constants.STATE_CLEAR]
-	visible = active and not _suppressed
+	visible = active and not _suppressed and not _hidden_by_sudden_death()
 	if not active:
 		_was_active = false
 		_focused = false
@@ -400,7 +429,7 @@ func update_overlay(delta: float) -> void:
 	_stats.visible = interactive
 	if interactive:
 		_stats.modulate.a = smoothstep(0.1, 0.5, _interactive_elapsed)
-		_stats.text = ("10 questions finished   •   %.1f sec" if game_state.use_english_ui else "10問完走   •   プレイ時間 %.1f 秒") % game_state.play_time
+		_stats.text = _text("StatsEliminated" if game_state.result_from_elimination else "StatsFinished") % game_state.play_time
 		if not _focused and not _suppressed and not _buttons.is_empty():
 			_buttons[0].grab_focus()
 			_focused = true
@@ -413,6 +442,11 @@ func _totals() -> Array[int]:
 func _update_numbers(time: float) -> void:
 	var totals := _totals()
 	var max_total := maxi(totals[0], totals[1])
+	# One number format for the whole count so the digits never jump: when any
+	# total has a half both counters tick in halves with one decimal ("12.0",
+	# "12.5"); otherwise they tick in whole points.
+	var decimal := (totals[0] & 1) == 1 or (totals[1] & 1) == 1
+	var unit_shift := 0 if decimal else 1
 	for player_index in [1, 2]:
 		var prefix := _card_prefix(player_index)
 		var correct := game_state.result_p1_correct_count if player_index == 1 else game_state.result_p2_correct_count
@@ -423,14 +457,50 @@ func _update_numbers(time: float) -> void:
 		var total_layer := _named.get(prefix + "/TotalValue") as AeLayer
 		if correct_layer != null:
 			correct_layer.text = str(correct)
+		var ghost := game_state.is_result_ghost(player_index)
 		if hp_layer != null:
-			hp_layer.text = str(hp)
+			# The AE "+0.5" chip merges into the HP value; a ghost has no HP factor.
+			if ghost:
+				hp_layer.text = "—"
+			elif time >= hp_bonus_time():
+				hp_layer.text = QuizGameState.format_result_hp_factor(hp)
+			else:
+				hp_layer.text = str(hp)
+		for bonus_layer in HP_BONUS_LAYERS:
+			var layer := _named.get(prefix + "/" + bonus_layer) as AeLayer
+			if layer != null:
+				layer.visible = not ghost
 		if total_layer != null:
-			var shown := total if time >= Motion.VERDICT else Motion.display_count(total, max_total, time)
-			total_layer.text = str(shown)
+			var shown := total if time >= Motion.VERDICT else (
+				Motion.display_count(total >> unit_shift, max_total >> unit_shift, time) << unit_shift
+			)
+			total_layer.text = QuizGameState.format_result_points(shown, decimal)
+			# Centre the final value where AE placed it and pin its right edge there.
+			var final_text := QuizGameState.format_result_points(total, decimal)
+			var font_size := int(round(float(total_layer.text_spec.size)))
+			total_layer.right_edge = total_layer.font_variation.get_string_size(final_text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x * 0.5
 			var lock := Motion.lock_time(total, max_total)
 			var u := clampf((time - lock) / LOCK_POP, 0.0, 1.0)
-			total_layer.extra_scale = 1.0 + (0.3 * sin(u * PI) if time >= lock else 0.0)
+			# AE sized the slot for two digits; a four-character total ("28.0") runs
+			# into "=". The fit follows the final value, so it never changes mid-count.
+			var fit := 0.82 if final_text.length() >= 4 else 1.0
+			total_layer.extra_scale = (1.0 + (0.3 * sin(u * PI) if time >= lock else 0.0)) * fit
+
+
+## Ceremony second at which the survival bonus chip lands on the HP value: the
+## last opacity key of HpBonusText in After Effects (hud_motion.json).
+static func hp_bonus_time() -> float:
+	if _hp_bonus_time < 0.0:
+		_hp_bonus_time = HP_BONUS_FALLBACK_TIME
+		var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(HUD_PATH))
+		var comps: Variant = parsed.get("comps") if parsed is Dictionary else null
+		var card: Variant = comps.get("HUD_CardP1") if comps is Dictionary else null
+		if card is Dictionary:
+			for record: Dictionary in card.layers:
+				var track: Variant = (record.tracks as Dictionary).get("opacity")
+				if record.name == "HpBonusText" and track is Dictionary:
+					_hp_bonus_time = (float(track.start) + float((track.values as Array).size() - 1)) / FPS
+	return _hp_bonus_time
 
 
 func _update_fx(time: float) -> void:

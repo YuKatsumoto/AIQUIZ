@@ -25,6 +25,7 @@ func _run() -> void:
 	await _test_ctrl_sides_and_numpad_alias()
 	_test_reduced_motion()
 	await _test_charge_meter_synchronization()
+	_test_static_mode()
 	print("TUTORIAL_KEYBOARD_UNIT " + JSON.stringify({"passed": _failures.is_empty(), "checks": _checks, "failures": _failures}))
 	_keyboard.queue_free()
 	quit(0 if _failures.is_empty() else 1)
@@ -193,7 +194,7 @@ func _test_ctrl_sides_and_numpad_alias() -> void:
 	_send_key(KEY_CTRL, true, KEY_LOCATION_LEFT)
 	await process_frame
 	_keyboard.advance(0.05)
-	_check("CtrlL" in _keyboard.get_evidence().actual_keys and "CtrlR" not in _keyboard.get_evidence().actual_keys, "Physical left Ctrl appears on the left while retaining the shared jump action")
+	_check("CtrlL" in _keyboard.get_evidence().actual_keys and "CtrlR" not in _keyboard.get_evidence().actual_keys, "Physical left Ctrl appears on the left but is not a P2 action key")
 	_send_key(KEY_CTRL, false, KEY_LOCATION_LEFT)
 	await process_frame
 	_keyboard.advance(0.05)
@@ -225,6 +226,17 @@ func _test_reduced_motion() -> void:
 	_keyboard.replay_demo()
 	_keyboard.advance(1.3)
 	_check(_keyboard.get_action_state().pressed, "Re-enabling motion restores the visual press sequence")
+
+
+func _test_static_mode() -> void:
+	_keyboard.show_demo = false
+	_keyboard.configure({"step_id": "static", "tasks": [{"id": "jump", "key": "Space", "caption": "ジャンプ"}]}, false)
+	_keyboard.replay_demo()
+	_keyboard.advance(1.3)
+	var state: Dictionary = _keyboard.get_action_state()
+	_check(_keyboard.get_evidence().demo_key.is_empty() and not state.pressed and state.id.is_empty() and state.caption.is_empty(), "Static mode draws no demonstration key, press or caption")
+	_check("Space" in _keyboard.get_evidence().highlighted_keys and _keyboard.get_evidence().header == "キー配置", "Static mode still marks the action's key location")
+	_keyboard.show_demo = true
 
 
 func _send_key(code: int, pressed: bool, location: int = KEY_LOCATION_UNSPECIFIED) -> void:

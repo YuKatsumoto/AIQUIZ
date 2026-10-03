@@ -1,7 +1,7 @@
 extends Node
 
 ## Explicit real-scene acceptance capture. Does not alter production cameras.
-const OUT := "res://artifacts/saw_operator/"
+const OUT := "res://artifacts/saw_operator/v3/scene/"
 var errors: Array[String] = []
 var frames: Array[Dictionary] = []
 var mode := "menu"
@@ -83,11 +83,13 @@ func run() -> void:
 		var op := saw.operator_seat
 		var maximum := 0.0
 		for v in op.contact_errors.values():maximum=maxf(maximum,float(v))
-		if maximum > .01 and not errors.has("control contact exceeds 1cm"):errors.append("control contact exceeds 1cm")
+		# The chair transfer's flight/belt poses are not console contacts.
+		var chair_pose := op.seat_transfer.owns_pose()
+		if maximum > .01 and not chair_pose and not errors.has("control contact exceeds 1cm"):errors.append("control contact exceeds 1cm")
 		var camera: Camera3D
 		if mode.begins_with("menu"):camera=get_tree().current_scene._menu_wall_preview._preview_camera
 		else:camera=get_tree().current_scene.camera_controller.camera
-		var row := {"time":t,"dock":saw.dock.elapsed if saw.dock else -1,"spin":op.last_sample.get("spin",-1),"contact_error":maximum,"camera":str(camera.transform),"state":"MENU" if mode.begins_with("menu") else get_tree().current_scene.game_state.game_state,"paused":get_tree().paused,"file":"frame_%04d.jpg"%frames.size()}
+		var row := {"time":t,"dock":saw.dock.elapsed if saw.dock else -1,"spin":op.last_sample.get("spin",-1),"contact_error":maximum,"chair_pose":chair_pose,"camera":str(camera.transform),"state":"MENU" if mode.begins_with("menu") else get_tree().current_scene.game_state.game_state,"paused":get_tree().paused,"file":"frame_%04d.jpg"%frames.size()}
 		await RenderingServer.frame_post_draw
 		get_viewport().get_texture().get_image().save_jpg(folder+row.file,.94)
 		frames.append(row)

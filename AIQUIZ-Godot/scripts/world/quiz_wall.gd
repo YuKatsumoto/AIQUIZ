@@ -22,8 +22,11 @@ var _gameplay_question_border: MeshInstance3D = null
 var _gameplay_question_text: String = ""
 ## 背景パネル付きラベル原点から、パネル下端を扉上へ揃えるための局所オフセット。
 var _gameplay_question_anchor_offset: float = 0.0
-## 2Pでカメラが離れたときの問題文・選択肢の拡大率。
+## 問題文・選択肢の現在の拡大率 (等倍と TEXT_ENLARGED_SCALE の間を短く遷移する)。
 var _text_scale: float = 1.0
+## 2Pでカメラが離れて拡大表示中か。
+var _text_enlarged: bool = false
+var _text_scale_tween: Tween = null
 var _scaled_beam_mesh: BoxMesh = null
 ## 文字拡大でボス見出しが押し上げられた量 (等倍レイアウトの枠取り用)。
 var _boss_scale_lift: float = 0.0
@@ -68,6 +71,12 @@ const DOOR_COLORS_2 := [
 	Color(0.10, 0.60, 0.95),  # Left - Blue
 	Color(0.90, 0.15, 0.10),  # Right - Red
 ]
+## 3択はマイルストーン1のサドンデスの水門列用に足したもの（いまの水門列は FloodgateRow で、これは使っていない）。
+const DOOR_COLORS_3 := [
+	Color(0.10, 0.55, 0.95),  # A - Blue
+	Color(0.15, 0.75, 0.30),  # B - Green
+	Color(0.90, 0.15, 0.15),  # C - Red
+]
 const DOOR_COLORS_4 := [
 	Color(0.10, 0.55, 0.95),  # A - Blue
 	Color(0.15, 0.75, 0.30),  # B - Green
@@ -82,11 +91,18 @@ var wall_top_y: float = 4.05
 const QUESTION_TOP_MARGIN: float = 0.180
 const DOOR_TOP_Y: float = 2.38
 const QUESTION_DOOR_GAP: float = 0.18
+## 2P拡大表示時の問題文・選択肢の倍率。
+## 2択の選択肢が扉幅(3.6m)に、長い問題文が壁幅に収まる大きさに抑える。
+const TEXT_ENLARGED_SCALE: float = 1.5
+## 等倍⇔拡大表示の切り替えにかける時間 (秒)。
+const TEXT_SCALE_SWITCH_DURATION: float = 0.5
 
 # Door positions from tuning
 const LEFT_DOOR_X: float = 3.5
 const RIGHT_DOOR_X: float = -3.5
 const DOOR4_XS: Array[float] = [-5.8, -1.95, 1.95, 5.8]
+const DOOR3_XS: Array[float] = [-6.2, 0.0, 6.2]
+const DOOR3_HALF_WIDTH: float = 1.6
 
 ## 問題の壁はコンベア床端より各側をわずかに内側へ収める。
 const WALL_EDGE_INSET: float = 0.10
@@ -144,6 +160,9 @@ func _build_wall_around_doors(num_choices: int) -> void:
 	if num_choices == 4:
 		door_xs = DOOR4_XS
 		door_half_widths = [1.45, 1.45, 1.45, 1.45]
+	elif num_choices == 3:
+		door_xs = DOOR3_XS
+		door_half_widths = [DOOR3_HALF_WIDTH, DOOR3_HALF_WIDTH, DOOR3_HALF_WIDTH]
 	else:
 		door_xs = [RIGHT_DOOR_X, LEFT_DOOR_X] # Sorted by X (-3.5, 3.5)
 		door_half_widths = [1.8, 1.8]
@@ -197,6 +216,20 @@ func _build_doors(num_choices: int) -> void:
 			label.scale = Vector3.ONE * _text_scale
 			add_child(label)
 			door_labels.append(label)
+	elif num_choices == 3:
+		for i: int in range(3):
+			var door := _create_box(Vector3(DOOR3_HALF_WIDTH, 2.2, 0.60), DOOR_COLORS_3[i])
+			door.position = Vector3(DOOR3_XS[i], 0.18, 0)
+			add_child(door)
+			doors.append(door)
+
+			var label := _create_label()
+			label.position = Vector3(DOOR3_XS[i], 0.18, -0.65)
+			label.pixel_size = 0.007
+			label.width = 250.0
+			label.scale = Vector3.ONE * _text_scale
+			add_child(label)
+			door_labels.append(label)
 	else:
 		# Left door (Blue)
 		var left_door := _create_box(Vector3(1.8, 2.2, 0.60), DOOR_COLORS_2[0])
@@ -233,8 +266,8 @@ func set_quiz(quiz: QuizItem, num_choices: int) -> void:
 
 	var labels_4 := ["A", "B", "C", "D"]
 
-	if num_choices == 4:
-		for i: int in range(mini(4, quiz.c.size())):
+	if num_choices in [3, 4]:
+		for i: int in range(mini(num_choices, quiz.c.size())):
 			if i < door_labels.size():
 				var choice := quiz.c[i]
 				if FractionFormatter.is_pure_fraction(choice):
@@ -310,10 +343,25 @@ func _apply_gameplay_question_anchor() -> void:
 	_update_question_wall_height()
 
 
-## 2P: カメラが離れた分だけ問題文と選択肢を中心基準で拡大する。1Pや通常距離では 1.0。
-func set_text_scale(text_scale: float) -> void:
+## 2P: カメラが離れている間は問題文と選択肢を拡大表示、それ以外は等倍に切り替える。
+func set_text_enlarged(enlarged: bool) -> void:
+	if enlarged == _text_enlarged:
+		return
+	_text_enlarged = enlarged
+	if _text_scale_tween != null:
+		_text_scale_tween.kill()
+	var target := TEXT_ENLARGED_SCALE if enlarged else 1.0
+	_text_scale_tween = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	_text_scale_tween.tween_method(_set_text_scale, _text_scale, target, TEXT_SCALE_SWITCH_DURATION)
+
+
+func is_text_enlarged() -> bool:
+	return _text_enlarged
+
+
+func _set_text_scale(text_scale: float) -> void:
 	text_scale = maxf(text_scale, 1.0)
-	if text_scale == _text_scale or (text_scale > 1.0 and absf(text_scale - _text_scale) < 0.002):
+	if text_scale == _text_scale:
 		return
 	_text_scale = text_scale
 	for label: Label3D in door_labels:
@@ -360,8 +408,8 @@ func _update_question_wall_height() -> void:
 	var beam_size := (beam.mesh as BoxMesh).size
 	beam_size.y = wall_top_y - DOOR_TOP_Y
 	if _text_scale > 1.0:
-		# The 2P text scale eases every frame; resize a wall-owned box instead of
-		# filling the shared cache with one mesh per intermediate height.
+		# The 2P enlarge switch eases over a few frames; resize a wall-owned box
+		# instead of filling the shared cache with one mesh per intermediate height.
 		if beam.mesh != _scaled_beam_mesh:
 			_scaled_beam_mesh = BoxMesh.new()
 			beam.mesh = _scaled_beam_mesh

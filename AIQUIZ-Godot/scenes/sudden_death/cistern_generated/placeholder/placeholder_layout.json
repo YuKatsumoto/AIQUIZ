@@ -1,0 +1,42 @@
+{
+	"cistern_bay_a": {
+		"light": "res://scenes/sudden_death/cistern_generated/placeholder/cistern_bay_a_light.res",
+		"light_max": 2.2854917049408,
+		"light_scale": 1.0,
+		"scene": "res://scenes/sudden_death/cistern_generated/placeholder/cistern_bay_a.scn",
+		"size": [
+			602,
+			594
+		]
+	},
+	"cistern_bay_opening": {
+		"light": "res://scenes/sudden_death/cistern_generated/placeholder/cistern_bay_opening_light.res",
+		"light_max": 2.29685115814209,
+		"light_scale": 1.0,
+		"scene": "res://scenes/sudden_death/cistern_generated/placeholder/cistern_bay_opening.scn",
+		"size": [
+			598,
+			594
+		]
+	},
+	"cistern_end_downstream": {
+		"light": "res://scenes/sudden_death/cistern_generated/placeholder/cistern_end_downstream_light.res",
+		"light_max": 3.17540693283081,
+		"light_scale": 1.0,
+		"scene": "res://scenes/sudden_death/cistern_generated/placeholder/cistern_end_downstream.scn",
+		"size": [
+			574,
+			390
+		]
+	},
+	"cistern_end_upstream": {
+		"light": "res://scenes/sudden_death/cistern_generated/placeholder/cistern_end_upstream_light.res",
+		"light_max": 6.09838390350342,
+		"light_scale": 1.0,
+		"scene": "res://scenes/sudden_death/cistern_generated/placeholder/cistern_end_upstream.scn",
+		"size": [
+			594,
+			450
+		]
+	}
+}

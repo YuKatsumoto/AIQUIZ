@@ -8,6 +8,12 @@ uniform vec3 mid_color : source_color = vec3(0.02, 0.42, 0.54);
 uniform vec3 crest_color : source_color = vec3(0.24, 0.78, 0.82);
 uniform float wave_speed : hint_range(0.0, 2.0) = 0.42;
 uniform float wave_height : hint_range(0.0, 2.0) = 0.42;
+#ifdef SHAFT_HOLE
+// Sudden death shaft (StageEnvironment.set_shaft_hole compiles this variant only while the hole
+// is open): (centre x, centre z, radius, active). Water inside the circle is cut away.
+uniform vec4 shaft_hole = vec4(0.0);
+varying vec2 world_xz;
+#endif
 
 varying float crest;
 varying vec2 water_position;
@@ -36,9 +42,20 @@ void vertex() {
 	NORMAL = normalize(vec3(-slope_x, 1.0, -slope_z));
 	crest = displacement / max(wave_height, 0.001);
 	water_position = p;
+#ifdef SHAFT_HOLE
+	world_xz = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xz;
+#endif
 }
 
 void fragment() {
+#ifdef SHAFT_HOLE
+	if (shaft_hole.w > 0.5) {
+		vec2 hole_offset = world_xz - shaft_hole.xy;
+		if (dot(hole_offset, hole_offset) < shaft_hole.z * shaft_hole.z) {
+			discard;
+		}
+	}
+#endif
 	float t = TIME * wave_speed;
 	float flow = sin(water_position.x * 0.028 - water_position.y * 0.018 + t * 0.70) * 0.5 + 0.5;
 	float crest_mask = smoothstep(0.45, 0.95, crest);
@@ -51,6 +68,7 @@ void fragment() {
 	ROUGHNESS = 0.92;
 	METALLIC = 0.0;
 	SPECULAR = 0.0;
-	AMBIENT_LIGHT = water_color * 0.22;
-	EMISSION = water_color * 0.10;
+	// Godot 4 has no writable AMBIENT_LIGHT (the shader did not compile): the intended fixed
+	// ambient (albedo x water_color * 0.22) is added as emission instead.
+	EMISSION = water_color * 0.10 + water_color * water_color * 0.22;
 }

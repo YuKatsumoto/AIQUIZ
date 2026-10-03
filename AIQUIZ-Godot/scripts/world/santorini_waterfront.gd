@@ -13,7 +13,6 @@ const AUTHORED_BED_Y := -17.2
 const BED_Y := StageConstants.SEABED_Y
 const QUAY_Y := -5.16
 const STAIR_END_X := 28.99
-const AISLES := [-60.0, -40.0, -20.0, 0.0, 20.0, 40.0, 60.0]
 const DISTRICT_Z := [-108.0, 65.0, 238.0, 411.0, 584.0]
 const WEST_X := [98.79264507596052, 106.58678045449761, 105.57750685910732, 98.24198963055242, 102.58455298591252]
 const EAST_X := [118.0, 104.67494075077953, 98.03154498183268, 118.0, 107.70365278339887]
@@ -97,7 +96,7 @@ func sync_to_stands(stands: Node3D) -> void:
 		return
 	var signature := str(stands.position, ":", stands.get_child_count())
 	for stand: Node3D in stands.get_children():
-		signature += str(stand.position, ":", stand.scale)
+		signature += str(stand.position, ":", stand.get("block_count"))
 	if signature == _last_layout:
 		return
 	_last_layout = signature
@@ -113,35 +112,32 @@ func sync_to_stands(stands: Node3D) -> void:
 	for stand: Node3D in stands.get_children():
 		var side := -1.0 if stand.position.x < 0.0 else 1.0
 		var offset := absf(stand.position.x)
-		var longitudinal_scale := stand.scale.z
+		# Terrace blocks keep metre scale; each block but the far cap owns one aisle.
+		var aisles: Array[float] = stand.call("aisle_offsets_z")
 		var selected: Array[float] = []
-		if _town_enabled and longitudinal_scale >= 1.0:
-			for aisle: float in [-60.0, 60.0, 0.0, -40.0, 40.0, -20.0, 20.0]:
-				var z := stands.position.z + aisle * longitudinal_scale
+		if _town_enabled:
+			# Try the outer aisles first, then work inwards (as the fixed 160 m stand did).
+			var middle: float = (aisles.front() + aisles.back()) * 0.5 if not aisles.is_empty() else 0.0
+			var preferred := aisles.duplicate()
+			preferred.sort_custom(func(a: float, b: float) -> bool: return absf(a - middle) > absf(b - middle))
+			for aisle: float in preferred:
+				var z := stands.position.z + stand.position.z + aisle
 				var district := _nearest_district(z)
 				var quay_x := float((WEST_X if side < 0.0 else EAST_X)[district]) + 5.0
 				if absf(z - DISTRICT_Z[district]) > 78.0 or quay_x - offset - STAIR_END_X < 4.0:
 					continue
 				var separated := true
 				for existing: float in selected:
-					separated = separated and absf((existing - aisle) * longitudinal_scale) >= 18.0
+					separated = separated and absf(existing - aisle) >= 18.0
 				if not separated:
 					continue
 				selected.append(aisle)
 				_add_route(stand.name, side, offset, aisle, z, quay_x, district, bay_transforms)
 				if selected.size() == 2:
 					break
-		for aisle: float in AISLES:
-			var z := stands.position.z + aisle * longitudinal_scale
+		for aisle: float in aisles:
 			if not selected.has(aisle):
-				rail_transforms.append(_transform(side, offset, z, 1.0, longitudinal_scale))
-			else:
-				# An elongated stand has a wider aisle. Close the space beside
-				# the metre-scale staircase, leaving a 2.3m opening in the middle.
-				var half_extra := 2.3 * (longitudinal_scale - 1.0) * 0.5
-				if half_extra > 0.001:
-					for sign_z: float in [-1.0, 1.0]:
-						rail_transforms.append(_transform(side, offset, z + sign_z * (1.15 + half_extra * 0.5), 1.0, half_extra / 2.3))
+				rail_transforms.append(_transform(side, offset, stands.position.z + stand.position.z + aisle))
 	_add_batch("PierBays", _bay_mesh, bay_transforms)
 	_add_batch("UnusedGateAndLandingRailings", _filler_mesh, rail_transforms)
 	apply_graphics_quality(_quality)

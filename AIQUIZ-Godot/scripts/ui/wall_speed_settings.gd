@@ -15,7 +15,6 @@ var _preview_floor_material: ShaderMaterial
 var _conveyor_roller_front_material: ShaderMaterial
 var _conveyor_return_material: ShaderMaterial
 var _preview_weather_cycle: WeatherCycle
-var _conveyor_edge_lights: ConveyorEdgeLights
 
 # --- UI nodes ---
 var _speed_slider: HSlider
@@ -31,7 +30,6 @@ var _preview_speed: float = GameTuning.WALL_SPEED_AUTO_DEFAULT
 const WALL_SPACING := 30.0
 const WALL_START_Z := 22.0
 const CONVEYOR_FLOOR_SHADER: Shader = preload("res://shaders/conveyor_belt_floor.gdshader")
-const ConveyorEdgeLightsScript = preload("res://scripts/world/conveyor_edge_lights.gd")
 
 # --- Preview Player ---
 const PLAYER_CONTROLLER_SCRIPT: Script = preload("res://scripts/world/player_controller.gd")
@@ -526,15 +524,6 @@ func _build_3d_preview() -> void:
 	
 	# コンベアのレールやローラーを追加
 	_setup_conveyor_extras()
-	_conveyor_edge_lights = ConveyorEdgeLightsScript.new() as ConveyorEdgeLights
-	_conveyor_edge_lights.name = "ConveyorEdgeLights"
-	_sub_viewport.add_child(_conveyor_edge_lights)
-	_conveyor_edge_lights.setup(
-		-64.0,
-		144.0,
-		_preview_floor_material,
-		_preview_weather_cycle
-	)
 	
 	# プレビュー用の壁を初期配置（3枚）
 	var start_z := 8.0 - WALL_SPACING * 2

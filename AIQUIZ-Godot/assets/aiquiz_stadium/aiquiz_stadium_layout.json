@@ -1,0 +1,122 @@
+{
+ "note": "Godot world coordinates. Stands: |x| 28, left side rotated PI, 20 m blocks from the floor back end. The backdrop GLB is authored in world space (instance it at the stage origin).",
+ "goal_gate": {
+  "node": "AQS_GoalGate",
+  "origin": "goal line centre on the belt top (y -1.2)",
+  "replaces": "game_world.gd の金色の柱と梁・GOAL の Label3D（市松の線は残す）"
+ },
+ "goal_stand": {
+  "file": "aiquiz_stadium_goal_stand.glb",
+  "contract": "goal_stand.glb と同じ：GS_Stand / GS_Scoreboard、LED 面の材質名 GS_ScoreboardScreen（UV 0..1）、goal_stand_layout.json はそのまま"
+ },
+ "backdrop": {
+  "AQS_Lighthouse": {
+   "position": [
+    -240.0,
+    -9.2,
+    600.0
+   ],
+   "yaw_deg": -21.5
+  },
+  "AQS_BG_IslandLush": {
+   "position": [
+    1292.89,
+    -9.2,
+    1654.82
+   ],
+   "yaw_deg": 38.0
+  },
+  "AQS_BG_IsletPalms": {
+   "position": [
+    561.91,
+    -9.2,
+    1390.78
+   ],
+   "yaw_deg": 22.0
+  },
+  "AQS_BG_IslandRocky": {
+   "position": [
+    -1116.79,
+    -9.2,
+    1537.13
+   ],
+   "yaw_deg": -36.0
+  },
+  "AQS_BG_IsletFar": {
+   "position": [
+    -403.6,
+    -9.2,
+    2871.78
+   ],
+   "yaw_deg": -8.0
+  },
+  "AQS_BG_City": {
+   "position": [
+    738.0,
+    -9.2,
+    4185.43
+   ],
+   "yaw_deg": 10.0
+  },
+  "AQS_BG_FarSea": {
+   "position": [
+    0.0,
+    0.0,
+    -0.0
+   ],
+   "yaw_deg": 0.0
+  },
+  "AQS_BG_Sailboat1": {
+   "position": [
+    215.0,
+    -8.9,
+    372.39
+   ],
+   "yaw_deg": 60.0
+  },
+  "AQS_BG_Sailboat2": {
+   "position": [
+    -116.97,
+    -8.9,
+    506.67
+   ],
+   "yaw_deg": -40.0
+  },
+  "AQS_BG_Sailboat3": {
+   "position": [
+    232.94,
+    -8.9,
+    869.33
+   ],
+   "yaw_deg": 110.0
+  },
+  "AQS_BG_Sailboat4": {
+   "position": [
+    -557.53,
+    -8.9,
+    1005.81
+   ],
+   "yaw_deg": 20.0
+  },
+  "AQS_BG_Sailboat5": {
+   "position": [
+    148.16,
+    -8.9,
+    1693.53
+   ],
+   "yaw_deg": -80.0
+  },
+  "AQS_BG_Sailboat6": {
+   "position": [
+    475.38,
+    -8.9,
+    443.3
+   ],
+   "yaw_deg": 150.0
+  }
+ },
+ "materials": {
+  "AQS_SailFabric": "両面・半透明（Godot は帆のシェーダー：UV2.x の重みで風に揺らし、backlight で透かす）",
+  "AQS_Painted / AQS_NightGlow / AQS_BoothScreen / AQS_CityFacade_*": "vertex_color_use_as_albedo を入れる。NightGlow と CityFacade の夜の発光は昼夜の切り替えで"
+ }
+}

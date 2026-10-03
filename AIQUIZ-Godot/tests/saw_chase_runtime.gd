@@ -13,6 +13,7 @@ func key(code: Key, down: bool) -> void:
 	var event := InputEventKey.new()
 	event.keycode = code
 	event.physical_keycode = code
+	event.location = KEY_LOCATION_RIGHT if code == KEY_CTRL else KEY_LOCATION_UNSPECIFIED
 	event.pressed = down
 	Input.parse_input_event(event)
 

@@ -155,6 +155,9 @@ func _create_ocean_splash_particles() -> void:
 	var droplet_mesh: SphereMesh = SphereMesh.new()
 	droplet_mesh.radius = 0.055
 	droplet_mesh.height = 0.22
+	# Default spheres are 4096 triangles per particle; 12x6 reads the same at droplet size.
+	droplet_mesh.radial_segments = 12
+	droplet_mesh.rings = 6
 	var droplet_mat: StandardMaterial3D = StandardMaterial3D.new()
 	droplet_mat.albedo_color = Color(0.55, 0.9, 1.0, 0.88)
 	droplet_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -240,6 +243,8 @@ func _create_shark_water_column() -> GPUParticles3D:
 	var droplet_mesh: SphereMesh = SphereMesh.new()
 	droplet_mesh.radius = 0.075
 	droplet_mesh.height = 0.32
+	droplet_mesh.radial_segments = 12
+	droplet_mesh.rings = 6
 	var droplet_material: StandardMaterial3D = StandardMaterial3D.new()
 	droplet_material.albedo_color = Color(0.78, 0.96, 1.0, 0.92)
 	droplet_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -336,6 +341,8 @@ func _launch_single_firework(pos: Vector3, color: Color, height: float) -> void:
 	var trail_mesh := SphereMesh.new()
 	trail_mesh.radius = 0.06
 	trail_mesh.height = 0.12
+	trail_mesh.radial_segments = 12
+	trail_mesh.rings = 6
 	var trail_mesh_mat := StandardMaterial3D.new()
 	trail_mesh_mat.albedo_color = Color.WHITE
 	trail_mesh_mat.emission_enabled = true
@@ -409,6 +416,8 @@ func _spawn_firework_burst(pos: Vector3, color: Color) -> void:
 	var sphere := SphereMesh.new()
 	sphere.radius = 0.08
 	sphere.height = 0.16
+	sphere.radial_segments = 12
+	sphere.rings = 6
 	var sphere_mat := StandardMaterial3D.new()
 	sphere_mat.albedo_color = color
 	sphere_mat.emission_enabled = true

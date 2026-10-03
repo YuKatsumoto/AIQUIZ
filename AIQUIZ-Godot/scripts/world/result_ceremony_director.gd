@@ -1,16 +1,28 @@
 class_name ResultCeremonyDirector
 extends Node3D
 
-## Score Tower Finale — local 2P, ten questions, both players finished alive.
-## Owns the 3D stage (towers, cast, props, referee), the celebration effects, the
-## stage lights and the sound beats. The HUD (ResultFinaleHud) and the camera
-## (CameraController) read the same Blender/After Effects clock.
+## Score Tower Finale — local 2P, ten questions. Every round ends here: living
+## finalists walk in from the goal, eliminated ones join as ghosts (leaping off
+## the ghost shark, or appearing on the podium after the elimination wipe).
+## Owns the 3D stage (towers, cast, props, referee), the result ghosts, the
+## celebration effects, the stage lights and the sound beats. The HUD
+## (ResultFinaleHud) and the camera (CameraController) read the same
+## Blender/After Effects clock.
 
 const Motion = preload("res://scripts/world/result_finale/result_finale_motion.gd")
 const KEY_LIGHT_COLOR := Color(1.0, 0.91, 0.76)
 const RIM_ENERGY := 0.9
+const GHOST_ARC_HEIGHT := 2.4
+
+## Sudden death (SuddenDeathDirector): how far the elevator deck under the podium has
+## sunk below the floor. The whole stage rides it down the shaft mouth and back up.
+static var stage_drop := 0.0
+## Sudden death: the ceremony key and rim lights (0..1) fade as the deck sinks into the mouth.
+static var stage_light := 1.0
 
 var game_state: QuizGameState = null
+## Sudden death return: the crowd waits for the loser to land before throwing.
+var allow_egg_target := true
 var player_controller: PlayerController = null
 var camera_controller: Node3D = null
 
@@ -22,6 +34,13 @@ var _rims: Array[OmniLight3D] = []
 var _interactive_elapsed := 0.0
 var _cues: Dictionary = {}
 var _render_prewarm_active := false
+var _ghost_ride: GhostSharkRideController = null
+var _ghost_root: Node3D
+## Player index -> released ghost, its transform at release and its riding scale.
+var _ghosts: Dictionary = {}
+var _ghost_from: Dictionary = {}
+var _ghost_scale: Dictionary = {}
+var _ghost_clock := 0.0
 
 
 func _exit_tree() -> void:
@@ -33,10 +52,14 @@ func setup(
 		state: QuizGameState,
 		players: PlayerController,
 		camera_rig: Node3D,
-		_ghost_ride: Node = null) -> void:
+		ghost_ride: Node = null) -> void:
 	game_state = state
 	player_controller = players
 	camera_controller = camera_rig
+	_ghost_ride = ghost_ride as GhostSharkRideController
+	_ghost_root = Node3D.new()
+	_ghost_root.name = "ResultGhosts"
+	add_child(_ghost_root)
 	_effects = ResultFinaleEffects.new()
 	_effects.name = "ResultFinaleEffects"
 	add_child(_effects)
@@ -48,8 +71,18 @@ func setup(
 
 ## Stage origin: centred between both finishing marks on the conveyor surface.
 static func stage_origin(state: QuizGameState) -> Vector3:
+	return Vector3(0.0, Motion.FLOOR_TOP_Y - stage_drop,
+		state.get_local_result_goal_z() + QuizGameState.RESULT_WALK_FINISH_OFFSET - state.world_scroll_z)
+
+
+## Where the podium (and the sudden death shaft mouth) sits on the floor, without the drop.
+static func podium_center(state: QuizGameState) -> Vector3:
 	return Vector3(0.0, Motion.FLOOR_TOP_Y,
 		state.get_local_result_goal_z() + QuizGameState.RESULT_WALK_FINISH_OFFSET - state.world_scroll_z)
+
+
+func stage() -> ResultFinaleStage:
+	return _stage
 
 
 ## Ceremony clock including the time the result controls have been waiting.
@@ -61,6 +94,8 @@ func result_elapsed() -> float:
 func crowd_egg_target() -> Node3D:
 	if _stage == null or _render_prewarm_active or game_state == null or not game_state.result_presentation_active:
 		return null
+	if not allow_egg_target:
+		return null
 	if result_elapsed() < Motion.VERDICT:
 		return null
 	return _stage.egg_target()
@@ -69,6 +104,7 @@ func crowd_egg_target() -> Node3D:
 func update_result_ceremony(delta: float) -> void:
 	if game_state == null:
 		return
+	_update_result_ghosts(delta)
 	if not game_state.result_presentation_active:
 		if _stage.is_built() and not _render_prewarm_active:
 			_reset_presentation()
@@ -81,12 +117,123 @@ func update_result_ceremony(delta: float) -> void:
 		_effects.clear()
 		_cues.clear()
 		_stage.build(game_state.result_winner)
+		if game_state.sudden_death_winner > 0:
+			# Back from the sudden death at the verdict: the count-up already played.
+			for beat_name: String in ["pad_pop", "correct", "hp", "hp_bonus", "climb", "lock_1", "lock_2"]:
+				_cues[beat_name] = Motion.VERDICT
+		elif game_state.sudden_death_aborted:
+			# The descent came back up: the draw already played every beat and burst.
+			for beat_name: String in ["pad_pop", "correct", "hp", "hp_bonus", "climb", "lock_1", "lock_2",
+					"verdict", "confetti", "swish", "firework_0", "firework_1", "firework_2", "firework_3"]:
+				_cues[beat_name] = game_state.result_ceremony_elapsed
+			_stage.skip_effects_before(game_state.result_ceremony_elapsed)
 	var elapsed := result_elapsed()
 	_effects.setup(GameManager.graphics_quality)
+	_stage.set_ghost_sources(_ghosts)
 	_stage.update_stage(elapsed, stage_origin(game_state))
 	_ensure_lights()
 	_update_lights(delta, elapsed)
-	_update_sounds(elapsed)
+	# Holding at the verdict after the sudden death: the verdict beats wait for the release.
+	if not game_state.result_return_hold:
+		_update_sounds(elapsed)
+
+
+# ------------------------------------------------------------------ result ghosts
+
+## Ghost finalists: released from the ghost ride (or raised from the body), then
+## a leap onto their own lane, then the same walk as the living onto the pads.
+## ResultFinaleStage takes the pose over at CAST_START and hides them.
+func _update_result_ghosts(delta: float) -> void:
+	if game_state.result_ghost_mask == 0:
+		if not _ghosts.is_empty():
+			_clear_ghosts()
+		return
+	_ghost_clock += maxf(delta, 0.0)
+	for player_index in [1, 2]:
+		if not game_state.is_result_ghost(player_index):
+			continue
+		var ghost := _ghosts.get(player_index) as Node3D
+		if ghost == null or not is_instance_valid(ghost):
+			ghost = _release_ghost(player_index)
+			if ghost == null:
+				continue
+		if game_state.result_presentation_active:
+			_pose_walking_ghost(ghost, player_index)
+		else:
+			_pose_leaping_ghost(ghost, player_index)
+
+
+func _release_ghost(player_index: int) -> Node3D:
+	var ghost: Node3D = null
+	if _ghost_ride != null and is_instance_valid(_ghost_ride):
+		ghost = _ghost_ride.release_result_ghost(player_index, _ghost_root)
+	elif player_controller != null:
+		ghost = player_controller.create_ghost_rider_visual(player_index)
+		if ghost != null:
+			_ghost_root.add_child(ghost)
+			ghost.global_position = player_controller.get_death_presentation_position(player_index == 1)
+			player_controller.make_ghost_rider_translucent(ghost)
+	if ghost == null:
+		return null
+	ghost.name = "ResultGhostP%d" % player_index
+	_ghosts[player_index] = ghost
+	_ghost_from[player_index] = ghost.global_transform.orthonormalized()
+	_ghost_scale[player_index] = clampf(float(ghost.get_meta("result_release_scale", 1.0)), 0.2, 1.0)
+	return ghost
+
+
+func _pose_leaping_ghost(ghost: Node3D, player_index: int) -> void:
+	var progress := game_state.get_result_ghost_arrival_progress(player_index)
+	var from: Transform3D = _ghost_from[player_index]
+	var landing := _world_point(game_state.get_result_ghost_landing_local_position(player_index))
+	var ground := from.origin.lerp(landing, smoothstep(0.0, 1.0, progress))
+	var lift := GHOST_ARC_HEIGHT * 4.0 * progress * (1.0 - progress)
+	var turn := smoothstep(0.0, 0.6, progress)
+	var rotation_value := from.basis.get_rotation_quaternion().slerp(_ghost_facing(), turn)
+	var size := lerpf(float(_ghost_scale[player_index]), 1.0, smoothstep(0.0, 0.35, progress))
+	ghost.global_transform = Transform3D(Basis(rotation_value).scaled(Vector3.ONE * size), ground + Vector3.UP * lift)
+	var rise_speed := GHOST_ARC_HEIGHT * 4.0 * (1.0 - 2.0 * progress) / QuizGameState.RESULT_GHOST_ARRIVAL_DURATION
+	var airborne := progress < 1.0
+	player_controller.apply_ghost_rider_result_pose(
+		ghost, player_index, false, _ghost_clock,
+		lift if airborne else 0.0, rise_speed if airborne else 0.0
+	)
+
+
+func _pose_walking_ghost(ghost: Node3D, player_index: int) -> void:
+	var local := game_state.get_result_player_local_position(player_index)
+	ghost.global_transform = Transform3D(Basis(_ghost_facing()), _world_point(local))
+	var walking := game_state.result_ceremony_phase in [
+		QuizGameState.ResultCeremonyPhase.ASSEMBLE,
+		QuizGameState.ResultCeremonyPhase.WALK,
+	]
+	player_controller.apply_ghost_rider_result_pose(ghost, player_index, walking, _ghost_clock)
+
+
+## Result positions are GameWorld-local, like the live players.
+func _world_point(local: Vector3) -> Vector3:
+	var world_root := get_parent() as Node3D
+	return world_root.to_global(local) if world_root != null else local
+
+
+func _ghost_facing() -> Quaternion:
+	var world_root := get_parent() as Node3D
+	return world_root.global_basis.get_rotation_quaternion() if world_root != null else Quaternion.IDENTITY
+
+
+func _clear_ghosts() -> void:
+	for ghost: Variant in _ghosts.values():
+		if ghost is Node3D and is_instance_valid(ghost):
+			(ghost as Node3D).queue_free()
+	_ghosts.clear()
+	_ghost_from.clear()
+	_ghost_scale.clear()
+	_ghost_clock = 0.0
+
+
+func get_result_ghost(player_index: int) -> Node3D:
+	var ghost := _ghosts.get(player_index) as Node3D
+	return ghost if ghost != null and is_instance_valid(ghost) else null
 
 
 func _cue(name_value: String, due: bool) -> bool:
@@ -106,6 +253,9 @@ func _update_sounds(elapsed: float) -> void:
 		AudioManager.play_result_lock()
 	if _cue("hp", elapsed >= Motion.beat("hp")):
 		AudioManager.play_result_lock()
+	# The After Effects "+0.5" chip lands on a living finalist's HP value.
+	if game_state.result_ghost_mask != 3 and _cue("hp_bonus", elapsed >= ResultFinaleHud.hp_bonus_time()):
+		AudioManager.play_result_cue(&"crown", 1.5, -8.0)
 	if _cue("climb", elapsed >= Motion.beat("climb")):
 		AudioManager.play_result_cue(&"climb")
 	for player_index in [1, 2]:
@@ -126,8 +276,6 @@ func _update_sounds(elapsed: float) -> void:
 			AudioManager.play_result_cue(&"sad", 1.0, -2.0)
 		if _cue("crown", elapsed >= Motion.beat("crown_land")):
 			AudioManager.play_result_cue(&"crown")
-		if _cue("rain", elapsed >= Motion.beat("rain")):
-			AudioManager.start_result_rain()
 	for index in range(4):
 		if _cue("firework_%d" % index, elapsed >= [7.05, 7.55, 8.25, 9.3][index] + 0.08):
 			AudioManager.play_result_cue(&"confetti", 0.62, -9.0)
@@ -196,9 +344,9 @@ func _update_lights(delta: float, elapsed: float) -> void:
 	# Rims sit behind each tower top (stage +Z is away from the camera).
 	_rims[0].global_position = origin + Vector3(Motion.TOWER_X, p1_height + 2.2, 1.6)
 	_rims[1].global_position = origin + Vector3(-Motion.TOWER_X, p2_height + 2.2, 1.6)
-	var amount := smoothstep(0.0, 0.8, elapsed)
+	var amount := smoothstep(0.0, 0.8, elapsed) * stage_light
 	var quality := GraphicsQuality.normalize(GameManager.graphics_quality)
-	var factor := 0.72 if quality == GraphicsQuality.LOW else (1.0 if quality == GraphicsQuality.HIGH else 0.86)
+	var factor := 0.72 if quality == GraphicsQuality.LOW else (1.0 if GraphicsQuality.is_at_least(quality, GraphicsQuality.HIGH) else 0.86)
 	var night := _night_amount()
 	var blend := 1.0 - exp(-maxf(delta, 0.0) * 5.8)
 	_key_light.light_energy = lerpf(_key_light.light_energy, amount * factor * lerpf(0.9, 1.6, night), blend)
@@ -245,5 +393,6 @@ func get_debug_snapshot() -> Dictionary:
 func force_cleanup() -> void:
 	_render_prewarm_active = false
 	_reset_presentation()
+	_clear_ghosts()
 	if player_controller != null:
 		player_controller.reset_result_presentation()

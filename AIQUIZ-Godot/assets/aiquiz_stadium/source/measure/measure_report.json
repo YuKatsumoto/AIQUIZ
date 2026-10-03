@@ -1,0 +1,222 @@
+{
+  "P01_runway_side_elev": {
+    "mast_top_Y": 12.074,
+    "upper_yard_Y": 9.934,
+    "upper_yard_len": 4.513,
+    "sail_foot_Y": 5.42,
+    "sail_foot_len": 13.924,
+    "mast_spacing": 20.025,
+    "mast_diameter": 0.334,
+    "booth_len_along_course": 3.259,
+    "booth_panel_width": 2.34,
+    "seat_pitch": 0.883,
+    "water_Y": -9.27
+  },
+  "P01_runway_side_checks": [
+    {
+      "item": "P01 立面: マストの間隔 = ブロック長",
+      "measured": 20.025,
+      "reference": 20.0,
+      "rel_error": 0.0012,
+      "tier": "primary",
+      "tolerance": 0.02,
+      "pass": true,
+      "reference_source": "BLOCK_LENGTH"
+    },
+    {
+      "item": "P01 立面: 水面の高さ",
+      "measured": -9.27,
+      "reference": -9.2,
+      "rel_error": 0.0076,
+      "tier": "primary",
+      "tolerance": 0.02,
+      "pass": true,
+      "reference_source": "OCEAN_SURFACE_Y"
+    },
+    {
+      "item": "P01 立面: 座席の間隔",
+      "measured": 0.883,
+      "reference": 0.92,
+      "rel_error": 0.0407,
+      "tier": "secondary",
+      "tolerance": 0.05,
+      "pass": true,
+      "reference_source": "SEAT_PITCH"
+    },
+    {
+      "item": "P01 立面: マスト頂部の高さ（設計値の再現）",
+      "measured": 12.074,
+      "reference": 12.0,
+      "rel_error": 0.0062,
+      "tier": "secondary",
+      "tolerance": 0.05,
+      "pass": true,
+      "reference_source": "DESIGN.mast.top_y"
+    },
+    {
+      "item": "P01 立面: 帆の足の長さ（設計値の再現）",
+      "measured": 13.924,
+      "reference": 14.0,
+      "rel_error": 0.0054,
+      "tier": "secondary",
+      "tolerance": 0.05,
+      "pass": true,
+      "reference_source": "DESIGN.sail.half_len×2"
+    }
+  ],
+  "P01_end_elev": {
+    "px_per_m_x": 89.505,
+    "px_per_m_y": 72.8,
+    "aspect_mismatch": 0.229,
+    "mast_top_Y": 14.945,
+    "yard_Y": 12.665,
+    "sail_corner_Y": 5.824,
+    "sail_corner_x": 1.813,
+    "figure_height_by_y_scale": 2.555
+  },
+  "P01_end_elev_usable_for_dimensions": false,
+  "cross_view_checks": [
+    {
+      "item": "マスト頂部の高さ：端面 vs 立面",
+      "measured": 14.945,
+      "reference": 12.074,
+      "rel_error": 0.2378,
+      "tier": "secondary",
+      "tolerance": 0.05,
+      "pass": null,
+      "reference_source": "P01 立面の実測",
+      "excluded": "P01 端面は縦横の縮尺差が 3% を超えるため寸法の照合に使わない"
+    },
+    {
+      "item": "上のヤードの高さ：端面 vs 立面",
+      "measured": 12.665,
+      "reference": 9.934,
+      "rel_error": 0.2749,
+      "tier": "secondary",
+      "tolerance": 0.05,
+      "pass": null,
+      "reference_source": "P01 立面の実測",
+      "excluded": "P01 端面は縦横の縮尺差が 3% を超えるため寸法の照合に使わない"
+    },
+    {
+      "item": "帆の角の高さ：端面 vs 立面",
+      "measured": 5.824,
+      "reference": 5.42,
+      "rel_error": 0.0747,
+      "tier": "secondary",
+      "tolerance": 0.05,
+      "pass": null,
+      "reference_source": "P01 立面の実測",
+      "excluded": "P01 端面は縦横の縮尺差が 3% を超えるため寸法の照合に使わない"
+    }
+  ],
+  "P05_lighthouse_ratios": {
+    "sign_aspect_inner": 2.457,
+    "sign_frame_border_W": 0.025,
+    "sign_bottom_above_water_W": 1.115,
+    "sign_top_above_water_W": 1.572,
+    "gallery_floor_above_water_W": 1.614,
+    "lantern_height_W": 0.152,
+    "lantern_width_W": 0.189,
+    "dome_top_above_water_W": 2.031,
+    "tower_width_top_W": 0.207,
+    "tower_width_low_W": 0.265,
+    "plinth_width_W": 0.335,
+    "islet_width_W": 1.323,
+    "islet_height_W": 0.263
+  },
+  "P07_goal_stand_B_ratios": {
+    "led_aspect": 1.949,
+    "house_width_over_led": 3.004,
+    "deck_width_over_led": 4.045,
+    "flags_span_over_led": 1.078
+  },
+  "reprojection_2p_camera": [
+    {
+      "side": "+X (P1, 画面左)",
+      "mast_z": 57.5,
+      "projected_px": [
+        398,
+        231
+      ],
+      "image_px": [
+        399,
+        227
+      ],
+      "error_frame_h": 0.0024,
+      "error_frame_w": 0.0005,
+      "pass": true
+    },
+    {
+      "side": "-X (P2, 画面右)",
+      "mast_z": 57.5,
+      "projected_px": [
+        2354,
+        231
+      ],
+      "image_px": [
+        2353,
+        227
+      ],
+      "error_frame_h": 0.0024,
+      "error_frame_w": 0.0005,
+      "pass": true
+    }
+  ],
+  "lighthouse_options": [
+    {
+      "option": "A 軸上・走路の先（エンドレスの最長 927.5m より奥）",
+      "position_world_xz": [
+        0.0,
+        980.0
+      ],
+      "sign_inner_width_W": 90.0,
+      "sign_height": 36.6,
+      "total_height_above_sea": 182.8,
+      "islet_width": 119.0,
+      "start_distance": 989.0,
+      "angle_from_axis_deg": 0.0,
+      "in_start_view": true,
+      "sign_width_share_of_frame_at_start": 0.055,
+      "overlaps_endless_course": false,
+      "hidden_behind_goal_stand_in_2p": true
+    },
+    {
+      "option": "B 軸から外した小島（画面右＝-X、ビル群と左右の釣り合い）",
+      "position_world_xz": [
+        -240.0,
+        600.0
+      ],
+      "sign_inner_width_W": 40.0,
+      "sign_height": 16.3,
+      "total_height_above_sea": 81.2,
+      "islet_width": 52.9,
+      "start_distance": 654.6,
+      "angle_from_axis_deg": 21.5,
+      "in_start_view": true,
+      "sign_width_share_of_frame_at_start": 0.037,
+      "overlaps_endless_course": false,
+      "hidden_behind_goal_stand_in_2p": false
+    }
+  ],
+  "clearances": {
+    "stand_inner_face_abs_x": 27.2,
+    "required_min_abs_x": 27.2,
+    "sail_corner_abs_x": 29.4,
+    "sail_corner_Y": 5.2,
+    "sail_post_abs_x": 27.4,
+    "mast_abs_x": 37.5,
+    "mast_top_Y": 12.0,
+    "helicopter_start_abs_x_Y": [
+      36.5,
+      13.700000000000001
+    ],
+    "helicopter_vs_mast_dx": 1.0,
+    "helicopter_vs_mast_dY": 1.7,
+    "water_lane_width": 15.2,
+    "shark_orbit_abs_x": [
+      15.7,
+      20.3
+    ]
+  }
+}

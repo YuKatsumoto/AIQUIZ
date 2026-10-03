@@ -1,0 +1,280 @@
+{
+ "built": "2026-09-30 17:49:05",
+ "seconds": 1.7,
+ "glb": "assets/aiquiz_menu_stage/aiquiz_menu_stage.glb",
+ "glb_sha256": "67e094b5cdbccca1f493de05d452d562e69ff3ad02ec3e0aa3c238ae1b8f31f6",
+ "triangles": {
+  "AMS_LaunchDeck": 5956,
+  "AMS_Backdrop": 1274,
+  "AMS_LedScreen": 2,
+  "AMS_Sign": 2,
+  "AMS_DeckTowers": 804,
+  "AMS_Palms": 648,
+  "AMS_PalmLeaves": 1904,
+  "AMS_Pennants": 416
+ },
+ "triangles_total": 11006,
+ "materials": [
+  "AMS_Foliage",
+  "AMS_Glass",
+  "AMS_Lamp",
+  "AMS_LedScreen",
+  "AMS_Paving",
+  "AMS_Pennant",
+  "AMS_Sign",
+  "AQS_Painted"
+ ],
+ "city_glb": "assets/aiquiz_menu_stage/aiquiz_menu_city.glb",
+ "city_glb_sha256": "0a8e8516889edf9a01137c84d09e3d21f294750ef51b91acdcde4eb634ad3834",
+ "city_triangles": {
+  "AMS_City": 5312,
+  "AMS_CityQuay": 11394,
+  "AMS_CityPromenade": 23588,
+  "AMS_CityWaterfront": 38914,
+  "AMS_FerrisWheelStand": 370,
+  "AMS_FerrisWheelRim": 3840,
+  "AMS_FerrisGondola_00": 84,
+  "AMS_FerrisGondola_01": 84,
+  "AMS_FerrisGondola_02": 84,
+  "AMS_FerrisGondola_03": 84,
+  "AMS_FerrisGondola_04": 84,
+  "AMS_FerrisGondola_05": 84,
+  "AMS_FerrisGondola_06": 84,
+  "AMS_FerrisGondola_07": 84,
+  "AMS_FerrisGondola_08": 84,
+  "AMS_FerrisGondola_09": 84,
+  "AMS_FerrisGondola_10": 84,
+  "AMS_FerrisGondola_11": 84,
+  "AMS_FerrisGondola_12": 84,
+  "AMS_FerrisGondola_13": 84,
+  "AMS_FerrisGondola_14": 84,
+  "AMS_FerrisGondola_15": 84,
+  "AMS_FerrisGondola_16": 84,
+  "AMS_FerrisGondola_17": 84,
+  "AMS_FerrisGondola_18": 84,
+  "AMS_FerrisGondola_19": 84,
+  "AMS_FerrisGondola_20": 84,
+  "AMS_FerrisGondola_21": 84,
+  "AMS_FerrisGondola_22": 84,
+  "AMS_FerrisGondola_23": 84,
+  "AMS_CityBoats": 9566
+ },
+ "city_triangles_total": 95000,
+ "city_materials": [
+  "AMS_Facade_Brick",
+  "AMS_Facade_Corridor",
+  "AMS_Facade_Flat",
+  "AMS_Facade_Glass",
+  "AMS_Facade_Loggia",
+  "AMS_Facade_Mansion",
+  "AMS_Facade_Punched",
+  "AMS_Facade_Ribbon",
+  "AMS_Facade_Shop",
+  "AMS_Facade_Tile",
+  "AQS_BG_Painted",
+  "AQS_CityFacade_A",
+  "AQS_CityFacade_B",
+  "AQS_CityFacade_C",
+  "AQS_CityFacade_D",
+  "AQS_CityFacade_E",
+  "AQS_NightGlow"
+ ],
+ "city": {
+  "removed_faces": 1957,
+  "removed_boxes": 104,
+  "avoid": 20,
+  "lighthouse_top": [
+   475.0,
+   335.0,
+   23.6
+  ],
+  "boats": 49,
+  "wheel": {
+   "center": [
+    -40.0,
+    234.0,
+    40.5
+   ],
+   "radius": 30.0,
+   "axis": [
+    0.0,
+    1.0,
+    0.0
+   ],
+   "gondolas": 24,
+   "rim_y": 2.0
+  },
+  "restyled_midrise": {
+   "ribbon": 7,
+   "flat": 7,
+   "tile": 10,
+   "loggia": 5,
+   "punched": 5,
+   "mansion": 9,
+   "brick": 1
+  },
+  "buildings": 145,
+  "building_types": {
+   "canal": 17,
+   "med": 24,
+   "bay": 16,
+   "terrace": 9,
+   "mansion_h": 16,
+   "apato": 6,
+   "punched": 13,
+   "ribbon": 5,
+   "loggia": 16,
+   "mansion_v": 13,
+   "flat": 2,
+   "hotel": 8
+  }
+ },
+ "checks": [
+  {
+   "name": "triangles <= 60000",
+   "pass": true,
+   "detail": "11006"
+  },
+  {
+   "name": "materials <= 9",
+   "pass": true,
+   "detail": "AMS_Foliage, AMS_Glass, AMS_Lamp, AMS_LedScreen, AMS_Paving, AMS_Pennant, AMS_Sign, AQS_Painted"
+  },
+  {
+   "name": "no .001 names",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "name": "nothing over the belt",
+   "pass": true,
+   "detail": "0 verts"
+  },
+  {
+   "name": "saw stow zone clear",
+   "pass": true,
+   "detail": "0 verts"
+  },
+  {
+   "name": "near zone only under the operator deck",
+   "pass": true,
+   "detail": "0 verts"
+  },
+  {
+   "name": "helicopter corridor clear",
+   "pass": true,
+   "detail": "0 verts"
+  },
+  {
+   "name": "runway sides clear (no piles, walkways, light towers or bridge)",
+   "pass": true,
+   "detail": "0 verts"
+  },
+  {
+   "name": "deck centre",
+   "pass": true,
+   "detail": "30.00, -34.00"
+  },
+  {
+   "name": "AMS_Sign faces the camera",
+   "pass": true,
+   "detail": "dot 1.000"
+  },
+  {
+   "name": "AMS_LedScreen faces the camera",
+   "pass": true,
+   "detail": "dot 0.999"
+  },
+  {
+   "name": "AMS_LaunchDeck outward normals (signed volume > 0)",
+   "pass": true,
+   "detail": "754.9"
+  },
+  {
+   "name": "AMS_Backdrop outward normals (signed volume > 0)",
+   "pass": true,
+   "detail": "589.5"
+  },
+  {
+   "name": "city triangles <= 120000",
+   "pass": true,
+   "detail": "95000"
+  },
+  {
+   "name": "front band trimmed (boxes, sea wall, tree row)",
+   "pass": true,
+   "detail": "104 boxes, 1957 faces"
+  },
+  {
+   "name": "no old sea wall / tree row left",
+   "pass": true,
+   "detail": "0 faces"
+  },
+  {
+   "name": "every building type is used",
+   "pass": true,
+   "detail": [
+    "apato",
+    "bay",
+    "canal",
+    "flat",
+    "hotel",
+    "loggia",
+    "mansion_h",
+    "mansion_v",
+    "med",
+    "punched",
+    "ribbon",
+    "terrace"
+   ]
+  },
+  {
+   "name": "city materials are backdrop materials",
+   "pass": true,
+   "detail": "AMS_Facade_Brick, AMS_Facade_Corridor, AMS_Facade_Flat, AMS_Facade_Glass, AMS_Facade_Loggia, AMS_Facade_Mansion, AMS_Facade_Punched, AMS_Facade_Ribbon, AMS_Facade_Shop, AMS_Facade_Tile, AQS_BG_Painted, AQS_CityFacade_A, AQS_CityFacade_B, AQS_CityFacade_C, AQS_CityFacade_D, AQS_CityFacade_E, AQS_NightGlow"
+  },
+  {
+   "name": "waterfront farther than 600 m from the menu camera",
+   "pass": true,
+   "detail": "713 m"
+  },
+  {
+   "name": "Ferris wheel = stand + turning rim + 24 gondolas (separate objects)",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "name": "wheel origins: rim on the axle, gondolas on the hang circle",
+   "pass": true,
+   "detail": "rim [0.0, 0.0, 0.0], hang radius 30.000..30.000"
+  },
+  {
+   "name": "every gondola hangs from a pivot bar of the rim",
+   "pass": true,
+   "detail": "max 0.212 m"
+  },
+  {
+   "name": "gondolas turn clear of the rim (full turn)",
+   "pass": true,
+   "detail": "0 rim points; gondola body 1.15..4.32 m from the hang point"
+  },
+  {
+   "name": "gondolas turn clear of the stand and the platform",
+   "pass": true,
+   "detail": "0 stand points; lowest gondola floor 1.90 m above ground"
+  },
+  {
+   "name": "rim turns clear of the stand (legs, bearings, platform)",
+   "pass": true,
+   "detail": "0 stand points"
+  },
+  {
+   "name": "gondolas never touch each other",
+   "pass": true,
+   "detail": "hang spacing 7.83 m, gondola 4.95 m"
+  }
+ ],
+ "renders": {},
+ "layout": "assets/aiquiz_menu_stage/aiquiz_menu_stage_layout.json",
+ "all_checks_pass": true
+}

@@ -60,7 +60,7 @@ func run() -> void:
 	var retreated:=false
 	var escaped:=false
 	var gap:=INF
-	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://artifacts/saw_operator/rarity_near/"))
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://artifacts/saw_operator/v3/rarity_near/"))
 	for i in 150:
 		await get_tree().process_frame
 		preview._ai_time+=1.0/60
@@ -74,7 +74,7 @@ func run() -> void:
 		gap=minf(gap,preview._menu_saw.local_z-SawChaseState.BLADE_RADIUS-QuizGameState.PLAYER_BODY_RADIUS-gs.player2_local_z)
 		if i%6==0:
 			await RenderingServer.frame_post_draw
-			get_viewport().get_texture().get_image().save_jpg("res://artifacts/saw_operator/rarity_near/frame_%03d.jpg"%(i/6),.94)
+			get_viewport().get_texture().get_image().save_jpg("res://artifacts/saw_operator/v3/rarity_near/frame_%03d.jpg"%(i/6),.94)
 	checks.near_miss_survives=gs.p2_alive and retreated and escaped
 	checks.near_miss_clearance=gap>=MenuSawChaseState.SAFE_GAP-.001
 	preview._menu_saw.phase=MenuSawChaseState.Phase.CATCHING
@@ -100,10 +100,10 @@ func run() -> void:
 		await get_tree().process_frame
 	checks.start_finishes=get_tree().current_scene!=null and get_tree().current_scene.scene_file_path=="res://scenes/game_world.tscn" and grips.size()==2
 	await RenderingServer.frame_post_draw
-	get_viewport().get_texture().get_image().save_png("res://artifacts/saw_operator/v2_start_finished.png")
+	get_viewport().get_texture().get_image().save_png("res://artifacts/saw_operator/v3/edges_start_finished.png")
 	var errors: Array[String]=[]
 	for key in checks:
 		if not checks[key]:errors.append(key)
-	FileAccess.open("res://artifacts/saw_operator/v2_edges.json",FileAccess.WRITE).store_string(JSON.stringify({"checks":checks,"errors":errors,"passed":errors.is_empty()},"\t"))
+	FileAccess.open("res://artifacts/saw_operator/v3/edges.json",FileAccess.WRITE).store_string(JSON.stringify({"checks":checks,"errors":errors,"passed":errors.is_empty()},"\t"))
 	print("MENU_SAW_EDGES ",JSON.stringify({"checks":checks,"errors":errors}))
 	get_tree().quit(0 if errors.is_empty() else 1)

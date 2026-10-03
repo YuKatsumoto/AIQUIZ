@@ -67,14 +67,18 @@
  "front_y": 0.0,
  "back_y": 4.65,
  "parapet_top": 0.9099999999999999,
- "banner": {
-  "width": 10.5,
-  "height": 4.5,
-  "z": 3.45
- },
+ "back_top": 3.2,
  "flags": {
   "p1_x": -12.55,
   "p2_x": 12.55
  },
- "water_z": -8.0
+ "water_z": -8.0,
+ "scoreboard": {
+  "screen_width": 11.2,
+  "screen_height": 4.8,
+  "screen_z": 3.55,
+  "screen_y": 4.664999999999999,
+  "top": 11.770000000000001,
+  "width": 12.639999999999999
+ }
 }

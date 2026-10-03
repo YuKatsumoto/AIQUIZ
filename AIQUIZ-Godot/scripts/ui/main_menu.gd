@@ -41,6 +41,10 @@ var bgm_vol_slider: HSlider = null
 # speed_slider は廃止（壁速度は難易度から自動決定）
 @onready var res_option: OptionButton = %ResOption
 var graphics_quality_option: OptionButton = null
+## Settings row "サドンデス（2P 10問の引き分け）": オン / オフ (item ids below).
+var sudden_death_option: OptionButton = null
+const SUDDEN_DEATH_ON := 0
+const SUDDEN_DEATH_OFF := 1
 
 var game_state: QuizGameState
 var _tutorial_row: HBoxContainer = null
@@ -789,6 +793,9 @@ func _begin_scene_change(
 	if not tutorial_course.is_empty():
 		game_state.start_tutorial(tutorial_course)
 	elif start_standard_round:
+		# The settings value goes to the state here only, so tests that set it on the
+		# state directly keep theirs.
+		game_state.sudden_death_enabled = GameManager.sudden_death_enabled
 		game_state.start_game()
 	if path.ends_with("game_world.tscn"):
 		get_tree().change_scene_to_packed(GAME_WORLD_SCENE)
@@ -1318,31 +1325,54 @@ func _setup_graphics_quality_option() -> void:
 	option.name = "GraphicsQualityOption"
 	option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	option.add_theme_font_size_override("font_size", 18)
-	option.add_item("軽量", 0)
-	option.add_item("標準", 1)
-	option.add_item("高画質", 2)
-	match GameManager.graphics_quality:
-		GraphicsQuality.LOW:
-			option.select(0)
-		GraphicsQuality.HIGH:
-			option.select(2)
-		_:
-			option.select(1)
+	# 軽量 / 標準 / 高画質 / 最高画質（項目番号 = GraphicsQuality.rank）
+	for index: int in range(GraphicsQuality.VALID_QUALITIES.size()):
+		option.add_item(GraphicsQuality.display_name(GraphicsQuality.VALID_QUALITIES[index]), index)
+	option.select(GraphicsQuality.rank(GameManager.graphics_quality))
 	option.item_selected.connect(_on_graphics_quality_selected)
 	row.add_child(label)
 	row.add_child(option)
 	settings_vbox.add_child(row)
 	settings_vbox.move_child(row, resolution_row.get_index() + 1)
 	graphics_quality_option = option
+	_setup_sudden_death_option(row)
+
+
+## ローカル2P「10問」の引き分けを地下神殿のサドンデスで決着させるか（既定オン）。
+## 画質の行のすぐ下に、同じ見た目の行で置く。
+func _setup_sudden_death_option(after_row: Control) -> void:
+	var settings_vbox: VBoxContainer = $SettingsPanel/VBox
+	var row: HBoxContainer = HBoxContainer.new()
+	row.name = "SuddenDeathBox"
+	row.add_theme_constant_override("separation", 12)
+	var label: Label = Label.new()
+	label.name = "Label"
+	label.text = "サドンデス（2P 10問の引き分け）"
+	label.custom_minimum_size = Vector2(120.0, 0.0)
+	label.add_theme_font_size_override("font_size", 18)
+	var option: OptionButton = OptionButton.new()
+	option.name = "SuddenDeathOption"
+	option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	option.add_theme_font_size_override("font_size", 18)
+	option.add_item("オン", SUDDEN_DEATH_ON)
+	option.add_item("オフ", SUDDEN_DEATH_OFF)
+	option.select(option.get_item_index(SUDDEN_DEATH_ON if GameManager.sudden_death_enabled else SUDDEN_DEATH_OFF))
+	option.item_selected.connect(_on_sudden_death_selected)
+	row.add_child(label)
+	row.add_child(option)
+	settings_vbox.add_child(row)
+	settings_vbox.move_child(row, after_row.get_index() + 1)
+	sudden_death_option = option
+
+
+func _on_sudden_death_selected(index: int) -> void:
+	GameManager.set_sudden_death_enabled(sudden_death_option.get_item_id(index) == SUDDEN_DEATH_ON)
 
 
 func _on_graphics_quality_selected(index: int) -> void:
 	var quality: String = GraphicsQuality.BALANCED
-	match index:
-		0:
-			quality = GraphicsQuality.LOW
-		2:
-			quality = GraphicsQuality.HIGH
+	if index >= 0 and index < GraphicsQuality.VALID_QUALITIES.size():
+		quality = GraphicsQuality.VALID_QUALITIES[index]
 	GameManager.set_graphics_quality(quality)
 	GraphicsQuality.apply_text_viewport(live_viewport, quality)
 	if _menu_wall_preview and _menu_wall_preview.has_method("apply_graphics_quality"):

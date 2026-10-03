@@ -54,7 +54,7 @@ func _setup_viewport() -> void:
 	_sub_viewport.own_world_3d = true
 	_sub_viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
 	# 画面全体の設定に左右されず、100x104表示へ十分なスーパーサンプリングを確保する。
-	GraphicsQuality.apply_character_preview(_sub_viewport, GraphicsQuality.HIGH)
+	GraphicsQuality.apply_character_preview(_sub_viewport, GraphicsQuality.ULTRA)
 	# このViewportは3D専用。不要な2D MSAAを切り、実行時警告と余分な負荷を避ける。
 	_sub_viewport.msaa_2d = Viewport.MSAA_DISABLED
 	# Debanding here poisons the shared font atlas used by LOADING labels.

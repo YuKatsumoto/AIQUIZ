@@ -2,7 +2,7 @@ extends Control
 class_name TutorialKeyboardIntro
 
 ## One complete key map before the existing playable tutorial.
-## All actions stay visible; only the finger demonstration changes focus.
+## Static: all actions stay visible and only real key input is highlighted.
 signal completed(course: String)
 signal cancelled
 
@@ -16,15 +16,11 @@ const IVORY := Color("f5f1e8")
 const MUTED := Color("b4c4d8")
 const P1 := Color("ffa440")
 const P2 := Color("51d8ec")
-const DEMO_SECONDS := 3.6
 
 var _course := SOLO
 var _groups: Array[Dictionary] = []
 var _tasks: Array[Dictionary] = []
 var _players: Array[Dictionary] = []
-var _focus_index := -1
-var _step_clock := 0.0
-var _paused := false
 var _built := false
 var _active_group := ""
 var _deck: Control
@@ -38,8 +34,6 @@ var _cards: Array[Panel] = []
 var _card_keys: Array[Label] = []
 var _card_roles: Array[Label] = []
 var _next: Button
-var _replay: Button
-var _pause: Button
 var _close: Button
 
 
@@ -56,22 +50,14 @@ func show_intro(course: String) -> void:
 		_build_ui()
 	_course = LOCAL_2P if course == LOCAL_2P else SOLO
 	_build_key_map()
-	_step_clock = 0.0
-	_focus_index = -1
 	_active_group = ""
-	_paused = false
-	_keyboard.set_reduced_motion(false)
-	_keyboard.set_demonstration_override({})
-	_keyboard.replay_demo()
 	_eyebrow.text = "ローカル2Pの操作方法" if _course == LOCAL_2P else "1Pの操作方法"
 	_title.text = "キーボード操作"
 	_body.text = "P1はオレンジ、P2は水色で表示しています。各プレイヤーの操作キーを確認してください。" if _course == LOCAL_2P else "移動にはW・A・S・D、または矢印キーを使用します。実際にキーを押して確認できます。"
-	_status.text = "P2のエモートはテンキー7・8・9にも対応。" if _course == LOCAL_2P else "枠と指のアニメーションで入力位置を示します。"
-	_pause.set_pressed_no_signal(false)
-	_pause.text = "アニメーション停止"
+	_status.text = "P2のエモートはテンキー7・8・9にも対応。" if _course == LOCAL_2P else "キーを押すと、対応する操作が強調表示されます。"
 	_rebuild_cards()
+	_configure_keyboard()
 	show()
-	_update_focus()
 	_update_active_card()
 	_layout()
 	_next.grab_focus()
@@ -88,9 +74,6 @@ func get_start_button() -> Button:
 func _process(delta: float) -> void:
 	if not is_active():
 		return
-	if not _paused:
-		_step_clock += maxf(delta, 0.0)
-	_update_focus()
 	_keyboard.advance(delta)
 	_update_active_card()
 	_layout()
@@ -129,17 +112,15 @@ func _build_ui() -> void:
 	_eyebrow = _label("", 16, MUTED)
 	_title = _label("", 35, IVORY)
 	_body = _label("", 18, IVORY)
-	_status = _label("枠と指のアニメーションで入力位置を示します。", 16, MUTED)
+	_status = _label("キーを押すと、対応する操作が強調表示されます。", 16, MUTED)
 	_keyboard = KeyboardScript.new()
 	_keyboard.name = "PhysicalKeyboard"
 	_keyboard.show_footnote = false
+	_keyboard.show_demo = false
 	_deck.add_child(_keyboard)
 	_next = _button("チュートリアル開始", _start_practice)
 	_next.name = "StartPractice"
 	_style_button(_next, true)
-	_replay = _button("操作例を再生", _replay_demo)
-	_pause = _button("アニメーション停止", _toggle_pause)
-	_pause.toggle_mode = true
 	_close = _button("Esc  コース選択", _cancel)
 	_close.add_theme_font_size_override("font_size", 16)
 
@@ -235,7 +216,7 @@ func _build_key_map() -> void:
 		_add_group(player, "forward_back", "↑・↓" if p2 else "W・S", "↑：前進　↓：後退" if p2 else "W：前進　S：後退", [
 			{"id": "forward", "key": "↑" if p2 else "W / ↑" if solo else "W", "caption": "前進"},
 			{"id": "back", "key": "↓" if p2 else "S / ↓" if solo else "S", "caption": "後退"}], player_tasks)
-		_add_group(player, "jump", "Ctrl（左右共通）" if p2 else "Space", "ジャンプ", [
+		_add_group(player, "jump", "右Ctrl" if p2 else "Space", "ジャンプ", [
 			{"id": "jump", "key": "Ctrl" if p2 else "Space", "caption": "ジャンプ"}], player_tasks)
 		var digits: Array = ["8", "9", "0"] if p2 else ["1", "2", "3"]
 		var emotes: Array[Dictionary] = []
@@ -256,14 +237,9 @@ func _add_group(player: int, suffix: String, keys: String, role: String, actions
 		player_tasks.append(task)
 
 
-func _update_focus() -> void:
-	var next_focus := int(floor(_step_clock / DEMO_SECONDS)) % _tasks.size()
-	if next_focus == _focus_index:
-		return
-	_focus_index = next_focus
-	var focused: Dictionary = _tasks[_focus_index]
+func _configure_keyboard() -> void:
 	_keyboard.configure({"step_id": "keyboard_intro_" + _course, "lesson_kind": "key_map",
-		"focus_task": focused, "players": _players}, _course == LOCAL_2P)
+		"players": _players}, _course == LOCAL_2P)
 
 
 func _update_active_card() -> void:
@@ -302,24 +278,6 @@ func _cancel() -> void:
 	cancelled.emit()
 
 
-func _replay_demo() -> void:
-	_step_clock = 0.0
-	_focus_index = -1
-	_paused = false
-	_pause.set_pressed_no_signal(false)
-	_pause.text = "アニメーション停止"
-	_keyboard.set_reduced_motion(false)
-	_keyboard.replay_demo()
-	_update_focus()
-	_update_active_card()
-
-
-func _toggle_pause() -> void:
-	_paused = _pause.button_pressed
-	_keyboard.set_reduced_motion(_paused)
-	_pause.text = "アニメーション再開" if _paused else "アニメーション停止"
-
-
 func _layout() -> void:
 	var view := get_viewport_rect().size
 	var factor := minf(view.x / DESIGN_SIZE.x, view.y / DESIGN_SIZE.y)
@@ -343,9 +301,7 @@ func _layout() -> void:
 		_place(_keyboard, Vector2(64, 223), Vector2(1152, 332))
 	else:
 		_place(_keyboard, Vector2(48, 220), Vector2(1184, 412))
-	_place(_replay, Vector2(64, 662), Vector2(186, 44))
-	_place(_pause, Vector2(266, 662), Vector2(212, 44))
-	_place(_status, Vector2(500, 670), Vector2(420, 26))
+	_place(_status, Vector2(64, 670), Vector2(860, 26))
 	_place(_next, Vector2(950, 654), Vector2(266, 52))
 
 
@@ -367,7 +323,7 @@ func get_evidence() -> Dictionary:
 			"visible": _cards[index].is_visible_in_tree(), "rect": _cards[index].get_global_rect()})
 	return {"active": is_active(), "course": _course, "page_index": 0, "page_count": 1,
 		"players": players, "shown_actions": shown_actions, "action_labels": action_labels,
-		"demo_focus": _active_group, "title": _title.text, "paused": _paused, "next_text": _next.text,
+		"demo_focus": _active_group, "title": _title.text, "next_text": _next.text,
 		"deck_rect": _deck.get_global_rect(), "keyboard_rect": _keyboard.get_global_rect(),
 		"keyboard": _keyboard.get_evidence(), "navigation": "single screen / Tab+Enter / Esc",
-		"uses_character_demo": false}
+		"uses_character_demo": false, "animated_demo": false}

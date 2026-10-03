@@ -1,0 +1,50 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://shaders/sudden_death/cistern_floor.gdshader" id="1_uswd5"]
+[ext_resource type="Texture2D" path="res://assets/environment/underground_temple/textures/floor_albedo.png" id="2_xu5ki"]
+[ext_resource type="Texture2D" path="res://assets/environment/underground_temple/textures/detail_normal.png" id="3_op3gu"]
+[ext_resource type="Texture2D" path="res://assets/environment/underground_temple/textures/cistern_bay_opening_light.png" id="4_7jnyl"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/cistern_generated/textures/macro_noise.res" id="5_md18q"]
+[ext_resource type="Texture2D" path="res://assets/environment/underground_temple/textures/floor_normal.png" id="6_sksgf"]
+[ext_resource type="Texture2D" path="res://assets/environment/underground_temple/textures/floor_orm.png" id="7_o3bm1"]
+[ext_resource type="Texture2D" path="res://assets/environment/underground_temple/textures/floor_wet.png" id="8_i62js"]
+
+[resource]
+resource_name = "CIS_Floor"
+render_priority = 0
+shader = ExtResource("1_uswd5")
+shader_parameter/opening_color = null
+shader_parameter/opening_strength = null
+shader_parameter/ambient_color = null
+shader_parameter/ambient_level = null
+shader_parameter/white_balance = Vector3(0.81204945, 1.0465903, 1.3167658)
+shader_parameter/albedo_tex = ExtResource("2_xu5ki")
+shader_parameter/normal_tex = ExtResource("6_sksgf")
+shader_parameter/orm_tex = ExtResource("7_o3bm1")
+shader_parameter/detail_normal_tex = ExtResource("3_op3gu")
+shader_parameter/light_tex = ExtResource("4_7jnyl")
+shader_parameter/macro_noise = ExtResource("5_md18q")
+shader_parameter/albedo_color = Color(1, 1, 1, 1)
+shader_parameter/uv_scale = 1.0
+shader_parameter/detail_scale = 3.75
+shader_parameter/detail_strength = null
+shader_parameter/roughness_scale = 1.0
+shader_parameter/metallic_value = 1.0
+shader_parameter/normal_strength = null
+shader_parameter/light_max = 0.680884
+shader_parameter/light_scale = 1.5
+shader_parameter/light_gamma = null
+shader_parameter/cavity_strength = null
+shader_parameter/macro_strength = null
+shader_parameter/relight = null
+shader_parameter/seepage = null
+shader_parameter/glint_strength = 1.0
+shader_parameter/debug_view = null
+shader_parameter/glint_color = null
+shader_parameter/wet_tex = ExtResource("8_i62js")
+shader_parameter/puddle_bias = null
+shader_parameter/puddle_variation = null
+shader_parameter/puddle_roughness = null
+shader_parameter/damp_roughness = null
+shader_parameter/damp_darkening = null
+shader_parameter/floor_dampness = null

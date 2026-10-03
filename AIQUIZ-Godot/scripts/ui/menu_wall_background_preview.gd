@@ -13,6 +13,7 @@ const MenuPreviewDoorLearnerScript = preload("res://scripts/ui/menu_preview_door
 const MenuPreviewActorAIStateScript = preload("res://scripts/ui/menu_preview_actor_ai_state.gd")
 const PreviewWallMergeAnimatorScript = preload("res://scripts/ui/preview_wall_merge_animator.gd")
 const HelicopterArrivalDirectorScript = preload("res://scripts/world/helicopter_arrival_director.gd")
+const AiquizMenuStageScript = preload("res://scripts/world/menu_stage/aiquiz_menu_stage.gd")
 
 const WALL_SPACING := 30.0
 const MENU_INTRO_WALL_START_Z := -72.0
@@ -135,6 +136,8 @@ const PREVIEW_CAM_H_OFFSET := 0.05
 var _viewport: SubViewport
 var _preview_camera: Camera3D
 var _stage_env: StageEnvironment = null
+## メニュー専用ステージ（AIQUIZ HARBOR LAUNCH）。コンベアのデモはそのまま、まわりを港の桟橋・発進デッキ・街で飾る
+var _menu_stage: AiquizMenuStage = null
 var _preview_saw: SawChaseController
 var _menu_saw := MenuSawChaseState.new()
 var _saw_accident_owner := 0
@@ -211,11 +214,24 @@ func get_stage_environment() -> StageEnvironment:
 	return _stage_env
 
 
+func get_menu_stage() -> AiquizMenuStage:
+	return _menu_stage
+
+
+## メニューのカメラの回転。メニュー専用ステージを出すときは街が画面に入るよう俯角を浅くする。
+static func menu_camera_rotation_degrees() -> Vector3:
+	if AiquizMenuStageScript.enabled():
+		return AiquizMenuStageScript.camera_rotation_degrees()
+	return PREVIEW_CAM_ROT_DEG
+
+
 func apply_graphics_quality() -> void:
 	if _viewport:
 		GraphicsQuality.apply_text_viewport(_viewport, GameManager.graphics_quality)
 	if _stage_env:
 		_stage_env.apply_graphics_quality(GameManager.graphics_quality)
+	if _menu_stage:
+		_menu_stage.apply_graphics_quality(GameManager.graphics_quality)
 
 
 ## カスタマイズUIがキャラ・スキン照明・エモートを載せる共有 SubViewport
@@ -318,7 +334,9 @@ func _start_camera_return_to_menu() -> void:
 		return
 	var d := _menu_cam_pose if not _menu_cam_pose.is_empty() else MenuPreviewCameraSettingsScript.code_default_settings()
 	if _preview_saw != null and _preview_saw.dock != null:
-		d["position"] = PREVIEW_CAM_POS.lerp(PREVIEW_VESSEL_CAM_POS, _preview_saw.dock.menu_framing_weight())
+		var vessel_weight := _preview_saw.dock.menu_framing_weight()
+		d["position"] = PREVIEW_CAM_POS.lerp(PREVIEW_VESSEL_CAM_POS, vessel_weight)
+		d["rotation_degrees"] = menu_camera_rotation_degrees().lerp(PREVIEW_CAM_ROT_DEG, vessel_weight)
 	var tw := create_tween()
 	tw.set_ease(Tween.EASE_IN_OUT)
 	tw.set_trans(Tween.TRANS_CUBIC)
@@ -362,19 +380,24 @@ func _process(dt: float) -> void:
 		return
 	if _preview_saw != null:
 		var container := _viewport.get_parent() as CanvasItem
-		var presented := (container == null or container.is_visible_in_tree()) and not SceneTransition.is_transitioning() and not _customize_walls_hidden
+		var shown := (container == null or container.is_visible_in_tree()) and not SceneTransition.is_transitioning()
+		var presented := shown and not _customize_walls_hidden
 		if presented:
 			QuizManager.set_meta("saw_dock_menu_seen", true)
-		var saw_running := presented and not _customize_active and not _menu_start_departure_active and not _menu_departure_hold
+		# The wall speed tab racks the blades (Blender "Stow" clip); leaving customize deploys them
+		# again before the chase and the preview spin clock resume.
+		_preview_saw.stow_target = _customize_active and (_preview_saw.dock == null or _preview_saw.dock.is_deployed())
+		var saw_running := presented and not _customize_active and not _menu_start_departure_active and not _menu_departure_hold and _preview_saw.is_stow_clear()
 		# An early Start lets the existing dock finish moving before the buckle.
 		# Never teleport the whole station into place to show the new effect.
 		var seat_waiting_dock := _seat_departure_requested and _menu_start_departure_active and _preview_saw.dock != null and not _preview_saw.dock.is_deployed()
 		saw_running = saw_running or (presented and seat_waiting_dock)
 		_preview_saw.update_preview(dt if saw_running else 0.0)
+		# Skin/emote tabs hide only the walls: the carriage stays in view, racked beside the conveyor.
+		_preview_saw.advance_stow(dt if shown else 0.0, shown)
 		if _seat_departure_requested and _menu_start_departure_active and not seat_waiting_dock:
 			var transfer := _preview_saw.operator_seat.seat_transfer
 			if transfer.phase == SeatLaunchPresentation.Phase.IDLE: transfer.begin_buckle()
-		_preview_saw.visible = not _customize_walls_hidden
 		_apply_vessel_camera_return()
 		if not presented:
 			# The reveal pauses preview AI, but its visible actors still need a pose.
@@ -436,7 +459,7 @@ func _process(dt: float) -> void:
 				_resolve_preview_actor_wall_contact(wall, _p2_ai, false)
 			_update_preview_wall_pass_completion(wall)
 
-		if wall.position.z >= 8.0:
+		if wall.position.z >= _wall_break_z():
 			if wall == _p1_ai.pending_accident_wall:
 				_clear_pending_accident(_p1_ai)
 			if wall == _p2_ai.pending_accident_wall:
@@ -486,6 +509,15 @@ func _process(dt: float) -> void:
 
 	_update_preview_debris_near_camera()
 	_update_death_shard_cleanup()
+
+
+## While the stow machine stands over the belt (davit beams, clamps, upright blades), walls break
+## short of its reach instead of passing through it. Flat chase blades and blades hung beside
+## the conveyor keep the original cliff edge.
+func _wall_break_z() -> float:
+	if _preview_saw == null or not _preview_saw.stow_blocks_walls():
+		return 8.0
+	return minf(8.0, _preview_saw.position.z - _preview_saw.wall_reach_y() - 0.1 - PREVIEW_DOOR_HALF_DEPTH_Z)
 
 
 func _reset_menu_push() -> void:
@@ -543,6 +575,8 @@ func _update_menu_push(dt: float, p1_start: Vector2, p2_start: Vector2) -> void:
 
 func _update_menu_saw(dt: float, start1: Vector2, start2: Vector2) -> void:
 	if _preview_saw==null:return
+	# Racked or deploying blades neither chase nor cut; the chase resumes once they are back.
+	if not _preview_saw.is_stow_clear():return
 	if _saw_accident_owner==2 and not _is_local_2p_active():
 		_clear_pending_accident(_p2_ai);_saw_accident_owner=0
 	if _saw_accident_owner!=0:
@@ -688,7 +722,15 @@ func _build_3d_scene() -> void:
 		"include_sharks": true,
 		"include_grandstands": false,
 		"include_harbor_city": false,
+		# The camera can turn round (customize screen): the game's lighthouse, islands
+		# and skyline lie behind it, and the menu has its own city in front.
+		"include_stadium_scenery": false,
 	})
+	if AiquizMenuStageScript.enabled():
+		_menu_stage = AiquizMenuStageScript.new() as AiquizMenuStage
+		_menu_stage.name = "AiquizMenuStage"
+		_viewport.add_child(_menu_stage)
+		_menu_stage.build(GameManager.graphics_quality)
 
 	_preview_gs = QuizGameState.new()
 	var push_effects := LocalPushEffectsScript.new()
@@ -954,7 +996,8 @@ func _on_game_start_departure_finished(success: bool) -> void:
 
 
 func _operator_chair_ready() -> bool:
-	return not _seat_departure_requested or _preview_saw.operator_seat.seat_transfer.is_buckled()
+	# Buckling goes ahead; only the launch waits while a stowing rack crosses the chair's column.
+	return (not _seat_departure_requested or _preview_saw.operator_seat.seat_transfer.is_buckled()) and _preview_saw.chair_launch_clear(1.5)
 
 
 func _launch_operator_chair() -> void:
@@ -2797,9 +2840,13 @@ func _apply_vessel_camera_return() -> void:
 		_vessel_camera_owned = false
 		return
 	var weight := _preview_saw.dock.menu_framing_weight()
+	var menu_rotation := menu_camera_rotation_degrees()
 	if weight > 0.0:
 		_preview_camera.position = PREVIEW_CAM_POS.lerp(PREVIEW_VESSEL_CAM_POS, weight)
+		# 保守船の入港は従来の俯角で映す（メニュー専用ステージの浅い俯角では船が画面の下へ外れる）
+		_preview_camera.rotation_degrees = menu_rotation.lerp(PREVIEW_CAM_ROT_DEG, weight)
 		_vessel_camera_owned = true
 	elif _vessel_camera_owned:
 		_preview_camera.position = PREVIEW_CAM_POS
+		_preview_camera.rotation_degrees = menu_rotation
 		_vessel_camera_owned = false

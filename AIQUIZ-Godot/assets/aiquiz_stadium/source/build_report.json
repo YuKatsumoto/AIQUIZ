@@ -1,0 +1,914 @@
+{
+ "version": 2,
+ "modules": {
+  "AQS_Stand_Bay": {
+   "triangles": 5282,
+   "vertices": 3441,
+   "materials": [
+    "AQS_Painted",
+    "AQS_NightGlow"
+   ],
+   "non_manifold_edges": 81,
+   "bounds_blender": [
+    [
+     -0.8,
+     -10.0,
+     -17.2
+    ],
+    [
+     10.9,
+     11.1,
+     5.59
+    ]
+   ]
+  },
+  "AQS_Stand_CapStart": {
+   "triangles": 6336,
+   "vertices": 4016,
+   "materials": [
+    "AQS_Painted",
+    "AQS_NightGlow"
+   ],
+   "non_manifold_edges": 118,
+   "bounds_blender": [
+    [
+     -0.8,
+     -12.5,
+     -17.2
+    ],
+    [
+     14.5,
+     11.1,
+     10.15
+    ]
+   ]
+  },
+  "AQS_Stand_CapEnd": {
+   "triangles": 6096,
+   "vertices": 3890,
+   "materials": [
+    "AQS_Painted",
+    "AQS_NightGlow"
+   ],
+   "non_manifold_edges": 101,
+   "bounds_blender": [
+    [
+     -0.8,
+     -10.0,
+     -17.2
+    ],
+    [
+     14.5,
+     12.5,
+     10.15
+    ]
+   ]
+  },
+  "AQS_SailRig_R": {
+   "triangles": 454,
+   "vertices": 273,
+   "materials": [
+    "AQS_SailFabric",
+    "AQS_Painted",
+    "AQS_NightGlow"
+   ],
+   "non_manifold_edges": 58,
+   "bounds_blender": [
+    [
+     0.88,
+     -1.15,
+     5.735
+    ],
+    [
+     9.515,
+     0.1,
+     11.874
+    ]
+   ]
+  },
+  "AQS_SailRig_L": {
+   "triangles": 454,
+   "vertices": 273,
+   "materials": [
+    "AQS_SailFabric",
+    "AQS_Painted",
+    "AQS_NightGlow"
+   ],
+   "non_manifold_edges": 58,
+   "bounds_blender": [
+    [
+     0.88,
+     -0.1,
+     5.735
+    ],
+    [
+     9.516,
+     1.15,
+     11.874
+    ]
+   ]
+  },
+  "AQS_GoalGate": {
+   "triangles": 3864,
+   "vertices": 2584,
+   "materials": [
+    "AQS_Painted",
+    "AQS_NightGlow",
+    "AQS_GoalBoard"
+   ],
+   "non_manifold_edges": 28,
+   "bounds_blender": [
+    [
+     -12.0,
+     -0.495,
+     0.0
+    ],
+    [
+     12.0,
+     0.495,
+     6.35
+    ]
+   ]
+  },
+  "GS_Stand": {
+   "triangles": 1730,
+   "vertices": 1090,
+   "materials": [
+    "AQS_Painted"
+   ],
+   "non_manifold_edges": 216,
+   "bounds_blender": [
+    [
+     -13.3,
+     -0.12,
+     -128.0
+    ],
+    [
+     13.3,
+     7.95,
+     5.5
+    ]
+   ]
+  },
+  "GS_Scoreboard": {
+   "triangles": 820,
+   "vertices": 554,
+   "materials": [
+    "AQS_Painted",
+    "GS_ScoreboardScreen",
+    "GS_SBHeaderSign",
+    "AQS_NightGlow",
+    "AQS_SailFabric"
+   ],
+   "non_manifold_edges": 213,
+   "bounds_blender": [
+    [
+     -9.1,
+     4.45,
+     3.2
+    ],
+    [
+     9.1,
+     7.95,
+     19.85
+    ]
+   ]
+  },
+  "AQS_Lighthouse": {
+   "triangles": 2300,
+   "vertices": 1899,
+   "materials": [
+    "AQS_Painted",
+    "AQS_NightGlow",
+    "AQS_LighthouseSign"
+   ],
+   "non_manifold_edges": 840,
+   "bounds_blender": [
+    [
+     -27.931,
+     -28.018,
+     -3.0
+    ],
+    [
+     27.377,
+     36.127,
+     81.2
+    ]
+   ]
+  },
+  "AQS_BG_IslandLush": {
+   "triangles": 52530,
+   "vertices": 34188,
+   "materials": [
+    "AQS_BG_Painted"
+   ],
+   "non_manifold_edges": 9242,
+   "bounds_blender": [
+    [
+     -608.0,
+     -243.2,
+     -5.76
+    ],
+    [
+     573.986,
+     268.8,
+     121.791
+    ]
+   ]
+  },
+  "AQS_BG_IsletPalms": {
+   "triangles": 9970,
+   "vertices": 8165,
+   "materials": [
+    "AQS_BG_Painted"
+   ],
+   "non_manifold_edges": 4534,
+   "bounds_blender": [
+    [
+     -147.2,
+     -86.203,
+     -3.7
+    ],
+    [
+     142.124,
+     89.6,
+     34.161
+    ]
+   ]
+  },
+  "AQS_BG_IslandRocky": {
+   "triangles": 47138,
+   "vertices": 32406,
+   "materials": [
+    "AQS_BG_Painted"
+   ],
+   "non_manifold_edges": 11080,
+   "bounds_blender": [
+    [
+     -576.0,
+     -230.4,
+     -5.441
+    ],
+    [
+     541.867,
+     230.4,
+     146.786
+    ]
+   ]
+  },
+  "AQS_BG_IsletFar": {
+   "triangles": 10660,
+   "vertices": 8185,
+   "materials": [
+    "AQS_BG_Painted"
+   ],
+   "non_manifold_edges": 3862,
+   "bounds_blender": [
+    [
+     -151.273,
+     -75.789,
+     -3.007
+    ],
+    [
+     136.145,
+     80.842,
+     35.678
+    ]
+   ]
+  },
+  "AQS_BG_City": {
+   "triangles": 8716,
+   "vertices": 5844,
+   "materials": [
+    "AQS_BG_Painted",
+    "AQS_CityFacade_E",
+    "AQS_CityFacade_A",
+    "AQS_NightGlow",
+    "AQS_CityFacade_B",
+    "AQS_CityFacade_C",
+    "AQS_CityFacade_D"
+   ],
+   "non_manifold_edges": 828,
+   "bounds_blender": [
+    [
+     -680.0,
+     -460.0,
+     -3.0
+    ],
+    [
+     680.0,
+     268.0,
+     373.0
+    ]
+   ]
+  },
+  "AQS_BG_FarSea": {
+   "triangles": 2160,
+   "vertices": 1200,
+   "materials": [
+    "AQS_BG_Sea"
+   ],
+   "non_manifold_edges": 240,
+   "bounds_blender": [
+    [
+     -5300.0,
+     -5450.0,
+     -9.5
+    ],
+    [
+     5300.0,
+     5150.0,
+     -9.5
+    ]
+   ]
+  },
+  "AQS_BG_Sailboat1": {
+   "triangles": 439,
+   "vertices": 291,
+   "materials": [
+    "AQS_Painted",
+    "AQS_SailFabric"
+   ],
+   "non_manifold_edges": 67,
+   "bounds_blender": [
+    [
+     -4.505,
+     -1.389,
+     -0.45
+    ],
+    [
+     4.518,
+     1.389,
+     12.7
+    ]
+   ]
+  },
+  "AQS_BG_Sailboat2": {
+   "triangles": 439,
+   "vertices": 291,
+   "materials": [
+    "AQS_Painted",
+    "AQS_SailFabric"
+   ],
+   "non_manifold_edges": 67,
+   "bounds_blender": [
+    [
+     -4.005,
+     -1.239,
+     -0.45
+    ],
+    [
+     4.018,
+     1.239,
+     11.4
+    ]
+   ]
+  },
+  "AQS_BG_Sailboat3": {
+   "triangles": 439,
+   "vertices": 291,
+   "materials": [
+    "AQS_Painted",
+    "AQS_SailFabric"
+   ],
+   "non_manifold_edges": 67,
+   "bounds_blender": [
+    [
+     -5.005,
+     -1.539,
+     -0.45
+    ],
+    [
+     5.018,
+     1.539,
+     14.0
+    ]
+   ]
+  },
+  "AQS_BG_Sailboat4": {
+   "triangles": 439,
+   "vertices": 291,
+   "materials": [
+    "AQS_Painted",
+    "AQS_SailFabric"
+   ],
+   "non_manifold_edges": 67,
+   "bounds_blender": [
+    [
+     -5.505,
+     -1.689,
+     -0.45
+    ],
+    [
+     5.517,
+     1.689,
+     15.3
+    ]
+   ]
+  },
+  "AQS_BG_Sailboat5": {
+   "triangles": 439,
+   "vertices": 291,
+   "materials": [
+    "AQS_Painted",
+    "AQS_SailFabric"
+   ],
+   "non_manifold_edges": 67,
+   "bounds_blender": [
+    [
+     -4.505,
+     -1.389,
+     -0.45
+    ],
+    [
+     4.518,
+     1.389,
+     12.7
+    ]
+   ]
+  },
+  "AQS_BG_Sailboat6": {
+   "triangles": 439,
+   "vertices": 291,
+   "materials": [
+    "AQS_Painted",
+    "AQS_SailFabric"
+   ],
+   "non_manifold_edges": 67,
+   "bounds_blender": [
+    [
+     -4.005,
+     -1.239,
+     -0.45
+    ],
+    [
+     4.018,
+     1.239,
+     11.4
+    ]
+   ]
+  }
+ },
+ "exports": [
+  {
+   "file": "assets/aiquiz_stadium/aiquiz_stadium_stand_blocks.glb",
+   "bytes": 1646008
+  },
+  {
+   "file": "assets/aiquiz_stadium/aiquiz_stadium_sail_rigs.glb",
+   "bytes": 442348
+  },
+  {
+   "file": "assets/aiquiz_stadium/aiquiz_stadium_goal_gate.glb",
+   "bytes": 1000256
+  },
+  {
+   "file": "assets/aiquiz_stadium/aiquiz_stadium_goal_stand.glb",
+   "bytes": 1842112
+  },
+  {
+   "file": "assets/aiquiz_stadium/aiquiz_stadium_backdrop.glb",
+   "bytes": 7926420
+  }
+ ],
+ "checks": [
+  {
+   "item": "AQS_Stand_Bay: 内側面 |x|≥27.2",
+   "pass": true,
+   "detail": "world |x| min 27.200"
+  },
+  {
+   "item": "AQS_Stand_Bay: 三角形 15k 以下",
+   "pass": true,
+   "detail": 5282
+  },
+  {
+   "item": "AQS_Stand_Bay: 杭の下端 -17.2",
+   "pass": true,
+   "detail": -17.2
+  },
+  {
+   "item": "AQS_Stand_Bay: 座席 114",
+   "pass": true,
+   "detail": 114
+  },
+  {
+   "item": "AQS_Stand_Bay: 材質 4 種以内",
+   "pass": true,
+   "detail": [
+    "AQS_Painted",
+    "AQS_NightGlow"
+   ]
+  },
+  {
+   "item": "AQS_Stand_Bay: 高さ（ヘリの開始 Y13.7 より 1m 以上低い）",
+   "pass": true,
+   "detail": "top 5.59"
+  },
+  {
+   "item": "AQS_Stand_CapStart: 内側面 |x|≥27.2",
+   "pass": true,
+   "detail": "world |x| min 27.200"
+  },
+  {
+   "item": "AQS_Stand_CapStart: 三角形 15k 以下",
+   "pass": true,
+   "detail": 6336
+  },
+  {
+   "item": "AQS_Stand_CapStart: 杭の下端 -17.2",
+   "pass": true,
+   "detail": -17.2
+  },
+  {
+   "item": "AQS_Stand_CapStart: 座席 114",
+   "pass": true,
+   "detail": 114
+  },
+  {
+   "item": "AQS_Stand_CapStart: 材質 4 種以内",
+   "pass": true,
+   "detail": [
+    "AQS_Painted",
+    "AQS_NightGlow"
+   ]
+  },
+  {
+   "item": "AQS_Stand_CapStart: 高さ（ヘリの開始 Y13.7 より 1m 以上低い）",
+   "pass": true,
+   "detail": "top 10.15"
+  },
+  {
+   "item": "AQS_Stand_CapEnd: 内側面 |x|≥27.2",
+   "pass": true,
+   "detail": "world |x| min 27.200"
+  },
+  {
+   "item": "AQS_Stand_CapEnd: 三角形 15k 以下",
+   "pass": true,
+   "detail": 6096
+  },
+  {
+   "item": "AQS_Stand_CapEnd: 杭の下端 -17.2",
+   "pass": true,
+   "detail": -17.2
+  },
+  {
+   "item": "AQS_Stand_CapEnd: 座席 114",
+   "pass": true,
+   "detail": 114
+  },
+  {
+   "item": "AQS_Stand_CapEnd: 材質 4 種以内",
+   "pass": true,
+   "detail": [
+    "AQS_Painted",
+    "AQS_NightGlow"
+   ]
+  },
+  {
+   "item": "AQS_Stand_CapEnd: 高さ（ヘリの開始 Y13.7 より 1m 以上低い）",
+   "pass": true,
+   "detail": "top 10.15"
+  },
+  {
+   "item": "AQS_SailRig_R: 走路側の端 |x|≥28.5（海落下カメラの通り道 |x|<27.2 より 1.3m 外）",
+   "pass": true,
+   "detail": 28.88
+  },
+  {
+   "item": "AQS_SailRig_R: 帆の最も低い所が観客の頭（約 3.9）より 1.5m 以上上",
+   "pass": true,
+   "detail": 6.05
+  },
+  {
+   "item": "AQS_SailRig_R: 揺れの重み UV2.x（縁 0・中央 ≈1）",
+   "pass": true,
+   "detail": [
+    0.0,
+    0.996
+   ]
+  },
+  {
+   "item": "AQS_SailRig_R: 三角形 1.5k 以下",
+   "pass": true,
+   "detail": 454
+  },
+  {
+   "item": "AQS_SailRig_R: 高さ（マストの頂を越えない）",
+   "pass": true,
+   "detail": 11.874
+  },
+  {
+   "item": "AQS_SailRig_L: 走路側の端 |x|≥28.5（海落下カメラの通り道 |x|<27.2 より 1.3m 外）",
+   "pass": true,
+   "detail": 28.88
+  },
+  {
+   "item": "AQS_SailRig_L: 帆の最も低い所が観客の頭（約 3.9）より 1.5m 以上上",
+   "pass": true,
+   "detail": 6.05
+  },
+  {
+   "item": "AQS_SailRig_L: 揺れの重み UV2.x（縁 0・中央 ≈1）",
+   "pass": true,
+   "detail": [
+    0.0,
+    0.996
+   ]
+  },
+  {
+   "item": "AQS_SailRig_L: 三角形 1.5k 以下",
+   "pass": true,
+   "detail": 454
+  },
+  {
+   "item": "AQS_SailRig_L: 高さ（マストの頂を越えない）",
+   "pass": true,
+   "detail": 11.874
+  },
+  {
+   "item": "帆：右（ブロック座標 -Y）と左（+Y）でふくらむ向きが逆＝どちらもゴール側",
+   "pass": true,
+   "detail": {
+    "sail_R": -0.469,
+    "sail_L": 0.469
+   }
+  },
+  {
+   "item": "材質：帆の布だけ両面、ほかは片面",
+   "pass": true,
+   "detail": [
+    "AQS_SailFabric"
+   ]
+  },
+  {
+   "item": "GOAL ゲート: 走路の幅（|x|≤12.0）に収まる",
+   "pass": true,
+   "detail": [
+    -12.0,
+    12.0
+   ]
+  },
+  {
+   "item": "GOAL ゲート: 梁の下 5.0m",
+   "pass": true,
+   "detail": 5.0
+  },
+  {
+   "item": "ゴール観客席: LED 面の材質 GS_ScoreboardScreen",
+   "pass": true,
+   "detail": [
+    "AQS_Painted",
+    "GS_ScoreboardScreen",
+    "GS_SBHeaderSign",
+    "AQS_NightGlow",
+    "AQS_SailFabric"
+   ]
+  },
+  {
+   "item": "ゴール観客席: LED 面 11.2×4.8、-Y 向き、UV 0..1",
+   "pass": true,
+   "detail": {
+    "area": 53.76,
+    "normal": [
+     0.0,
+     -1.0,
+     -0.0
+    ],
+    "uv": [
+     [
+      0.0,
+      0.0
+     ],
+     [
+      1.0,
+      0.0
+     ],
+     [
+      1.0,
+      1.0
+     ],
+     [
+      0.0,
+      1.0
+     ]
+    ]
+   }
+  },
+  {
+   "item": "ゴール観客席: デッキ幅 26.6・杭の下端が海底 -129.2",
+   "pass": true,
+   "detail": [
+    26.6,
+    -129.2
+   ]
+  },
+  {
+   "item": "灯台: 看板がスタート地点を向く（ずれ 2° 以内）",
+   "pass": true,
+   "detail": 0.3
+  },
+  {
+   "item": "灯台: 全高 ≒ 寸法表",
+   "pass": true,
+   "detail": 81.2
+  },
+  {
+   "item": "遠景: すべてゲームのカメラの far（5000m）の内側（沖の海を除く）",
+   "pass": true,
+   "detail": [
+    4767.8,
+    "AQS_BG_City"
+   ]
+  },
+  {
+   "item": "沖の海: 上向きの面だけ・内側の縁が海の板の縁に沿う（2m 重ね）・水面の 0.3m 下",
+   "pass": true,
+   "detail": {
+    "faces": 1080,
+    "edge_vertices": 120,
+    "deep_inside": 0,
+    "triangles": 2160
+   }
+  },
+  {
+   "item": "街: いちばん高いビル ≒ 寸法表（原本のように水平線から大きく立つ）",
+   "pass": true,
+   "detail": 373.0
+  },
+  {
+   "item": "AQS_BG_IslandLush: 三角形 60k 以下・高さ ≒ 寸法表",
+   "pass": true,
+   "detail": [
+    52530,
+    121.8
+   ]
+  },
+  {
+   "item": "AQS_BG_IslandLush: 海の中の地形は水際の岩の底（-8m）より浅い（ゲームの海越しに崖が見えない）",
+   "pass": true,
+   "detail": -5.8
+  },
+  {
+   "item": "AQS_BG_IslandLush: 海の板の内側なので浅瀬の棚がある",
+   "pass": true,
+   "detail": 1795
+  },
+  {
+   "item": "AQS_BG_IsletPalms: 三角形 60k 以下・高さ ≒ 寸法表",
+   "pass": true,
+   "detail": [
+    9970,
+    34.2
+   ]
+  },
+  {
+   "item": "AQS_BG_IsletPalms: 海の中の地形は水際の岩の底（-8m）より浅い（ゲームの海越しに崖が見えない）",
+   "pass": true,
+   "detail": -3.7
+  },
+  {
+   "item": "AQS_BG_IsletPalms: 海の板の内側なので浅瀬の棚がある",
+   "pass": true,
+   "detail": 410
+  },
+  {
+   "item": "AQS_BG_IslandRocky: 三角形 60k 以下・高さ ≒ 寸法表",
+   "pass": true,
+   "detail": [
+    47138,
+    146.8
+   ]
+  },
+  {
+   "item": "AQS_BG_IslandRocky: 海の中の地形は水際の岩の底（-8m）より浅い（ゲームの海越しに崖が見えない）",
+   "pass": true,
+   "detail": -5.4
+  },
+  {
+   "item": "AQS_BG_IslandRocky: 海の板の内側なので浅瀬の棚がある",
+   "pass": true,
+   "detail": 1564
+  },
+  {
+   "item": "AQS_BG_IsletFar: 三角形 60k 以下・高さ ≒ 寸法表",
+   "pass": true,
+   "detail": [
+    10660,
+    35.7
+   ]
+  },
+  {
+   "item": "AQS_BG_IsletFar: 海の中の地形は水際の岩の底（-8m）より浅い（ゲームの海越しに崖が見えない）",
+   "pass": true,
+   "detail": -3.0
+  },
+  {
+   "item": "AQS_BG_IsletFar: 海の板の外なので浅瀬を作らない",
+   "pass": true,
+   "detail": 0
+  },
+  {
+   "item": "街: 三角形 40k 以下",
+   "pass": true,
+   "detail": 8716
+  },
+  {
+   "item": "遠景: 三角形の合計 180k 以下",
+   "pass": true,
+   "detail": 136108
+  }
+ ],
+ "build_seconds_modules": 2.7,
+ "layout_scene": "AIQUIZ_Stadium_Layout",
+ "previews": [
+  "assets/aiquiz_stadium/source/previews/layout_2p_day.jpg",
+  "assets/aiquiz_stadium/source/previews/layout_1p_day.jpg",
+  "assets/aiquiz_stadium/source/previews/layout_master_day.jpg",
+  "assets/aiquiz_stadium/source/previews/layout_sail_close_day.jpg",
+  "assets/aiquiz_stadium/source/previews/layout_city_day.jpg",
+  "assets/aiquiz_stadium/source/previews/layout_goal_day.jpg",
+  "assets/aiquiz_stadium/source/previews/layout_water_day.jpg",
+  "assets/aiquiz_stadium/source/previews/layout_2p_dusk.jpg",
+  "assets/aiquiz_stadium/source/previews/layout_2p_night.jpg",
+  "assets/aiquiz_stadium/source/previews/layout_finale_day.jpg",
+  "assets/aiquiz_stadium/source/previews/layout_island_left_day.jpg",
+  "assets/aiquiz_stadium/source/previews/layout_island_right_day.jpg",
+  "assets/aiquiz_stadium/source/previews/layout_city_dusk.jpg",
+  "assets/aiquiz_stadium/source/previews/layout_city_night.jpg",
+  "assets/aiquiz_stadium/source/previews/module_stand_bay.jpg",
+  "assets/aiquiz_stadium/source/previews/module_sail_rig.jpg",
+  "assets/aiquiz_stadium/source/previews/module_goal_stand.jpg",
+  "assets/aiquiz_stadium/source/previews/module_island_lush.jpg",
+  "assets/aiquiz_stadium/source/previews/module_island_rocky.jpg",
+  "assets/aiquiz_stadium/source/previews/module_city.jpg"
+ ],
+ "motion": {
+  "samples_blender": {
+   "1": [
+    0.0,
+    45.0,
+    38.0
+   ],
+   "10": [
+    0.0,
+    45.0,
+    38.0
+   ],
+   "60": [
+    0.0,
+    27.0,
+    21.25
+   ],
+   "110": [
+    0.0,
+    9.0,
+    4.5
+   ],
+   "120": [
+    0.0,
+    9.0,
+    4.5
+   ]
+  },
+  "moves": true,
+  "holds_at_start_and_end": true,
+  "ends_at_2p_camera": true
+ },
+ "renders": {
+  "module_stand_bay": "artifacts/aiquiz_stadium/blender/module_stand_bay.png",
+  "module_stand_bay_course": "artifacts/aiquiz_stadium/blender/module_stand_bay_course.png",
+  "module_sail_rig": "artifacts/aiquiz_stadium/blender/module_sail_rig.png",
+  "module_stand_cap_end": "artifacts/aiquiz_stadium/blender/module_stand_cap_end.png",
+  "module_goal_gate": "artifacts/aiquiz_stadium/blender/module_goal_gate.png",
+  "module_goal_stand": "artifacts/aiquiz_stadium/blender/module_goal_stand.png",
+  "module_island_lush": "artifacts/aiquiz_stadium/blender/module_island_lush.png",
+  "module_island_rocky": "artifacts/aiquiz_stadium/blender/module_island_rocky.png",
+  "module_city": "artifacts/aiquiz_stadium/blender/module_city.png",
+  "layout_2p_day": "artifacts/aiquiz_stadium/blender/layout_2p_day.png",
+  "layout_1p_day": "artifacts/aiquiz_stadium/blender/layout_1p_day.png",
+  "layout_master_day": "artifacts/aiquiz_stadium/blender/layout_master_day.png",
+  "layout_sail_close_day": "artifacts/aiquiz_stadium/blender/layout_sail_close_day.png",
+  "layout_city_day": "artifacts/aiquiz_stadium/blender/layout_city_day.png",
+  "layout_goal_day": "artifacts/aiquiz_stadium/blender/layout_goal_day.png",
+  "layout_water_day": "artifacts/aiquiz_stadium/blender/layout_water_day.png",
+  "layout_overview_day": "artifacts/aiquiz_stadium/blender/layout_overview_day.png",
+  "layout_lighthouse_day": "artifacts/aiquiz_stadium/blender/layout_lighthouse_day.png",
+  "layout_finale_day": "artifacts/aiquiz_stadium/blender/layout_finale_day.png",
+  "layout_island_left_day": "artifacts/aiquiz_stadium/blender/layout_island_left_day.png",
+  "layout_island_right_day": "artifacts/aiquiz_stadium/blender/layout_island_right_day.png",
+  "layout_city_dusk": "artifacts/aiquiz_stadium/blender/layout_city_dusk.png",
+  "layout_city_night": "artifacts/aiquiz_stadium/blender/layout_city_night.png",
+  "layout_1p_dusk": "artifacts/aiquiz_stadium/blender/layout_1p_dusk.png",
+  "layout_2p_dusk": "artifacts/aiquiz_stadium/blender/layout_2p_dusk.png",
+  "layout_1p_night": "artifacts/aiquiz_stadium/blender/layout_1p_night.png",
+  "layout_2p_night": "artifacts/aiquiz_stadium/blender/layout_2p_night.png",
+  "flyover_001": "artifacts/aiquiz_stadium/blender/flyover_001.png",
+  "flyover_060": "artifacts/aiquiz_stadium/blender/flyover_060.png",
+  "flyover_120": "artifacts/aiquiz_stadium/blender/flyover_120.png"
+ },
+ "blend": "assets/aiquiz_stadium/source/blender/aiquiz_stadium.blend",
+ "seconds_total": 21.2,
+ "all_checks_pass": true
+}

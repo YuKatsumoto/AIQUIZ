@@ -398,7 +398,16 @@ func _process(_dt: float) -> void:
 		game_state.result_presentation_active
 		and game_state.game_state in [Constants.STATE_RESULT_CEREMONY, Constants.STATE_CLEAR]
 	)
-	if ceremony_active:
+	# The sudden death descent waits for its questions: the match-start preparing panel.
+	if not game_state.sudden_death_preparing_panel.is_empty() \
+			and game_state.game_state in [Constants.STATE_RESULT_CEREMONY, Constants.STATE_SUDDEN_DEATH]:
+		_show_sudden_death_preparing(_dt)
+		return
+	if _sudden_death_panel_shown:
+		_sudden_death_panel_shown = false
+		preload_panel.visible = false
+	# The sudden death draws its own HUD (SuddenDeathDirector).
+	if ceremony_active or game_state.game_state == Constants.STATE_SUDDEN_DEATH:
 		score_label.visible = false
 		message_label.visible = false
 		progress_bar.visible = false
@@ -409,7 +418,12 @@ func _process(_dt: float) -> void:
 		_update_tutorial_overlay(_dt)
 		return
 
-	if game_state.game_state in [Constants.STATE_GAME_OVER, Constants.STATE_CLEAR]:
+	if game_state.is_elimination_result_pending():
+		# Local 2P: no GAME OVER card; the verdict ceremony follows the wipe.
+		_go_fade_timer = 0.0
+		game_over_panel.visible = false
+		history_panel.visible = false
+	elif game_state.game_state in [Constants.STATE_GAME_OVER, Constants.STATE_CLEAR]:
 		_go_fade_timer += _dt
 		_show_game_over()
 	else:
@@ -551,6 +565,45 @@ func _show_preloading(dt: float) -> void:
 		_displayed_progress = float(target)
 
 	pl_progress.value = _displayed_progress
+
+var _sudden_death_panel_shown := false
+
+
+## 2Pサドンデスの降下中、サドンデス用の問題（オンライン生成）か地下神殿の準備を待っている間。
+## ゲーム開始時の問題準備と同じパネル・進み具合・文言を出す（docs/sudden_death_underground.md 第5.3節）。
+func _show_sudden_death_preparing(dt: float) -> void:
+	_apply_preload_stage_preview_layout()
+	if not _sudden_death_panel_shown:
+		_sudden_death_panel_shown = true
+		_displayed_progress = 0.0
+	preload_bg.visible = false
+	preload_panel.visible = true
+	score_label.visible = false
+	message_label.visible = false
+	progress_bar.visible = false
+	game_over_panel.visible = false
+	if _streak_label != null:
+		_streak_label.visible = false
+	pl_progress.visible = true
+	pl_status.visible = true
+	_set_start_prompt_visible(false)
+	pl_title.text = "問題を準備中..."
+	pl_subtitle.text = "しばらくお待ちください"
+	pl_subtitle.visible = true
+	var target := QuizGameState.SUDDEN_DEATH_GENERATION_COUNT
+	var current := target
+	if game_state.sudden_death_preparing_panel == "questions":
+		current = mini(game_state.sudden_death_generation_received, target)
+		pl_status.text = "Generating quizzes... (%d/%d)" % [current, target] if game_state.use_english_ui \
+			else "AIクイズ生成中... (%d/%d)" % [current, target]
+	else:
+		pl_status.text = "Preparing the underground temple..." if game_state.use_english_ui else "地下神殿を準備中..."
+	pl_progress.max_value = float(target)
+	_displayed_progress = clampf(_displayed_progress, 0.0, float(current))
+	_displayed_progress = lerpf(_displayed_progress, float(current), clampf(dt * 10.0, 0.0, 1.0)) if current < target else float(target)
+	pl_progress.value = _displayed_progress
+	_update_flash()
+
 
 var _blink_timer: float = 0.0
 func _show_waiting_start(dt: float) -> void:

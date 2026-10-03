@@ -53,3 +53,40 @@ at stand length scales 0.5, 1.0 and 2.5. It requires a real rendering backend:
 Godot's headless dummy backend does not preserve MultiMesh transform/color
 readback. The graphical structural run passed all 3,009 scaled placements with
 495 left and 508 right spectators. This is not gameplay screenshot evidence.
+
+## Tileable blocks (current game stands, 2026-09-26)
+
+The game no longer stretches the 160 m terrace along the conveyor. Each side
+stand is a row of 20 m blocks, added one by one as the conveyor grows, so seats,
+stairs, pergolas and piers always keep their real size.
+
+- `source/build_terrace_modules.py` builds four blocks from the same authored
+  helpers and palette as `build_santorini_grandstand.py`, already grounded like
+  the waterfront version (sea piers to -17.2 m, rear rail open at every aisle):
+  `Terrace_Bay`, `Terrace_BayPergola`, `Terrace_CapStart`, `Terrace_CapEnd`.
+  Colours are baked into one vertex-colour surface (plus the lantern glass), so a
+  block costs two draw calls. Run it the same way:
+  `blender --background --factory-startup --python assets/environment/santorini_grandstand/source/build_terrace_modules.py`
+- Outputs: `santorini_terrace_modules.glb`, `santorini_terrace_modules.json`
+  (per-block seats `[x, cushion top, z, row]` in Godot block space and the aisle
+  position) and `source/santorini_terrace_modules.blend`.
+- `scripts/world/santorini_terrace_stand.gd` lays the blocks from the conveyor's
+  back end towards the front: `ceil(floor length / 20)` blocks (at least 2), a
+  cap at each end, a pergola on every third block. Blocks are never removed
+  when the dynamic floor shrinks. `santorini_waterfront.gd` reads the aisles
+  from the stand.
+- Spectators are the goal stand's block people (`assets/goal_stand`), seated:
+  `scripts/world/seated_spectator_kit.gd` merges the seven hairstyle bodies into
+  one mesh and bakes the goal stand clips with the legs posed seated into a bone
+  texture; `shaders/seated_spectator.gdshader` skins them on the GPU and
+  `scripts/world/grandstand_crowd.gd` draws one MultiMesh per block. The right
+  stand (+X) cheers for P1 (orange), the left for P2 (blue); party people dance
+  the game's emotes. They follow `GoalStand.side_crowd_reaction()`: a goal makes
+  that player's fans cheer, the verdict makes the winner's fans cheer and the
+  loser's despair (a draw: everyone cheers).
+- Check: `Godot --headless --path . --script tests/side_stand_blocks_bootstrap.gd`
+  (run without `--headless` to save screenshots to `artifacts/side_stand_blocks/`).
+
+`santorini_open_terrace.glb` and the waterfront's `santorini_open_terrace_grounded.glb`
+remain as the archived single-piece stand; the seating grid and crowd notes above
+describe that archived version.

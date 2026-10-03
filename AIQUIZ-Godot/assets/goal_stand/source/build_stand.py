@@ -1,6 +1,6 @@
 """Finish-line grandstand: three standing tiers with blue benches, a low parapet, a
-back wall carrying the Higgsfield-generated AIQUIZ banner, team flag poles and
-Santorini arches standing in the sea.
+back wall, team flag poles and Santorini arches standing in the sea.  The electric
+scoreboard behind the back wall is its own object (build_scoreboard.py).
 
 Blender space: origin = front centre at conveyor-top height, front faces -Y,
 tiers climb toward +Y.  Godot turns the stand PI so it looks down the conveyor.
@@ -35,7 +35,6 @@ AISLE_W = 1.10
 WATER_Z = -8.0             # ocean surface relative to the conveyor top
 SEABED_Z = -128.0
 BAY = 2.6
-BANNER_W, BANNER_H, BANNER_Z = 10.5, 4.5, 3.45
 FLAG_X = 12.55
 
 
@@ -60,7 +59,6 @@ def mats():
         "p1": G.flat_material("GS_FlagP1", (0.95, 0.55, 0.20), 0.6),
         "p2": G.flat_material("GS_FlagP2", (0.20, 0.65, 0.90), 0.6),
         "sun": G.flat_material("GS_PennantSun", (1.0, 0.80, 0.25), 0.6),
-        "banner": G.image_material("GS_Banner", G.SOURCE + "/textures/banner.png"),
     }
 
 
@@ -150,20 +148,6 @@ class Stand:
         return obj
 
 
-def banner_uv(obj):
-    """Map the banner quad (front face of GS_BannerBoard's material) to 0..1."""
-    mesh = obj.data
-    uv = mesh.uv_layers.active or mesh.uv_layers.new(name="UVMap")
-    banner = list(mesh.materials).index(bpy.data.materials["GS_Banner"])
-    for poly in mesh.polygons:
-        for li in poly.loop_indices:
-            co = mesh.vertices[mesh.loops[li].vertex_index].co
-            if poly.material_index == banner and poly.normal.y < -0.9:
-                uv.data[li].uv = ((co.x + BANNER_W * 0.5) / BANNER_W, (co.z - BANNER_Z) / BANNER_H)
-            else:
-                uv.data[li].uv = (0.5, 0.5)
-
-
 def build():
     G.scene()
     coll = G.collection("GS_Stand")
@@ -210,11 +194,6 @@ def build():
             if i + 1 < TIERS:
                 s.box((a - AISLE_W * 0.5, tier_front(i + 1) - 0.45, tier_floor(i)),
                       (a + AISLE_W * 0.5, tier_front(i + 1), tier_floor(i) + RISE * 0.5), "white", top="tread")
-    # Banner board on two posts above the back wall.
-    for x in (-BANNER_W * 0.5 + 0.6, BANNER_W * 0.5 - 0.6):
-        s.box((x - 0.12, BACK_Y + 0.05, BACK_TOP - 0.2), (x + 0.12, BACK_Y + 0.29, BANNER_Z + 0.4), "trim")
-    s.box((-BANNER_W * 0.5 - 0.15, BACK_Y - 0.02, BANNER_Z - 0.15), (BANNER_W * 0.5 + 0.15, BACK_Y + 0.05, BANNER_Z + BANNER_H + 0.15), "white")
-    s.box((-BANNER_W * 0.5, BACK_Y - 0.06, BANNER_Z), (BANNER_W * 0.5, BACK_Y - 0.02, BANNER_Z + BANNER_H), "white", front="banner")
     # Team flag poles at the back corners. Blender -X becomes Godot +X, P1's lane.
     for sign, team in ((-1.0, "p1"), (1.0, "p2")):
         x = sign * FLAG_X
@@ -241,11 +220,10 @@ def build():
         if k < bays:
             s.arch_panel(px + 0.3, px + WIDTH / bays - 0.3, 0.0, 0.3, DECK_BOTTOM - 1.2, DECK_BOTTOM - 1.2 - 2.6, "white")
     obj = s.finish("GS_Stand", coll)
-    banner_uv(obj)
     layout = {
         "width": WIDTH, "tiers": [], "aisles": AISLES, "aisle_width": AISLE_W,
         "front_y": 0.0, "back_y": BACK_Y + BACK_T, "parapet_top": tier_floor(0) + PARAPET_H + 0.06,
-        "banner": {"width": BANNER_W, "height": BANNER_H, "z": BANNER_Z},
+        "back_top": BACK_TOP,
         "flags": {"p1_x": -FLAG_X, "p2_x": FLAG_X}, "water_z": WATER_Z,
     }
     for i in range(TIERS):
