@@ -2,14 +2,11 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bpmf8dpcnm5cj"
+uid="uid://draj0v3jshd0h"
 path.s3tc="res://.godot/imported/referee_godot_plush_albedo.png-55d9e0d0930848b73f31c755e1f5633b.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
-}
-generator_parameters={
-"md5": "aacbd28b83e786146e006e8d30cfe9cf"
 }
 
 [deps]
