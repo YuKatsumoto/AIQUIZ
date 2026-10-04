@@ -1,0 +1,11 @@
+{
+	"built": "2026-10-04T20:47:06",
+	"instances": 15,
+	"layout": "res://assets/environment/surge_tank/tank_layout.json",
+	"tank_scale": 2.0,
+	"white_balance": [
+		0.882634818553925,
+		1.03068459033966,
+		1.20900583267212
+	]
+}

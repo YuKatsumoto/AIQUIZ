@@ -121,7 +121,7 @@ metadata/editor_instructions = "Select SunOrbitControl and rotate it in the 3D v
 environment = SubResource("Environment_w0773")
 
 [node name="SunOrbitControl" type="DirectionalLight3D" parent="." unique_id=1646016039]
-transform = Transform3D(-0.57077104, 0, -0.82110924, 0, 1, 0, 0.82110924, 0, -0.57077104, 0, 0, 0)
+transform = Transform3D(-0.4943023, 0.28538558, -0.8211092, 0.5, 0.8660254, 0, 0.7111014, -0.4105546, -0.57077116, 0, 0, 0)
 light_color = Color(0.8785713, 0.61790776, 0.5137659, 1)
 light_energy = 0.6
 shadow_enabled = true

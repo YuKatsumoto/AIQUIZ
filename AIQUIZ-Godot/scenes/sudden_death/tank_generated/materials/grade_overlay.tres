@@ -1,0 +1,10 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://shaders/sudden_death/cistern_grade.gdshader" id="1_fq6mi"]
+
+[resource]
+shader = ExtResource("1_fq6mi")
+shader_parameter/vignette = null
+shader_parameter/vignette_start = null
+shader_parameter/vignette_end = null
+shader_parameter/grain = null

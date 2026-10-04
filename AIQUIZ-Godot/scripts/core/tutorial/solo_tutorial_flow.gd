@@ -6,10 +6,13 @@ class_name SoloTutorialFlow
 ## 両クラスは QuizGameState から同じメソッド面で呼ばれるため、
 ## 片方にクエリを足したらもう片方にも同名で足すこと。
 ##
-## 学習順は「操作 → 危険 → 回答 → 実践 → カスタマイズ」。
-## 一度に提示する操作は最大3つまでに抑え、危険を先に見せてから
-## 誘導なしの実戦に入る。誘導なしの問題でミスした場合だけ、
-## 本編とまったく同じ激突死亡演出を見せてから同じ問題を再挑戦させる。
+## 学習順は「操作 → 危険 → 回答 → ハート → 実践 → カスタマイズ」。
+## 本編（10問チャレンジ・エンドレス）と同じく3つのハート（HP）で遊ぶ。
+## 誘導ありの問題ではミスを優しくやり直させ、ハート体験ではわざと不正解のドアへ入ってもらう。
+## 誘導なしの実践は本編と同じ判定で、不正解や壁への衝突でハートが1つ減り、0で脱落する。
+##
+## 操作を教えるステップでは、各タスクの "slots" をもとに 3D 空間へ操作キーを浮かべる
+## （res://scripts/world/tutorial_key_guides_3d.gd）。"key_layout" がその並べ方。
 
 signal step_changed(step_id: String, step_index: int, step_count: int)
 signal task_completed(player_index: int, task_id: String)
@@ -21,15 +24,24 @@ const COURSE_SOLO := "SOLO"
 ## 走路エッジのレーンライン、床投影リング、ドアのルートラインなどの表示切替に使う。
 const GUIDE_LANE := "lane"
 const GUIDE_AIR := "air"
+const GUIDE_EMOTE := "emote"
 const GUIDE_OCEAN := "ocean"
 const GUIDE_GUIDED_DOOR := "guided_door"
+const GUIDE_WRONG_DOOR := "wrong_door"
 const GUIDE_FREE_DOOR := "free_door"
-## 既存のガイド描画スクリプトとの互換用。1Pの新フローからは選択しない。
+## 既存のガイド描画スクリプトとの互換用。1Pのフローからは選択しない。
 const GUIDE_GOAL := "goal"
 const GUIDE_COMPLETE := "complete"
+
+## 3Dキーの並べ方（TutorialKeyGuides3D の LAYOUT_* と同じ値）。
+const KEYS_CLUSTER := "cluster"
+const KEYS_SIDES := "sides"
+
 const TASK_HOLD_SECONDS := 0.55
 const HINT_SECONDS := 3.4
 const GATE_GRACE_SECONDS := 0.7
+## 4択のボス壁で使う問題の番号。
+const BOSS_QUIZ_INDEX := 4
 
 var course: String = COURSE_SOLO
 var step_index: int = 0
@@ -47,11 +59,14 @@ var _gate_elapsed: float = 0.0
 var _death_recovery_active: bool = false
 var _death_recovery_duration: float = 0.0
 var _death_recovery_retry: bool = false
+var _death_recovery_message: String = ""
+var _quiz_items: Array[QuizItem] = []
 
 
 func start(_selected_course: String = COURSE_SOLO) -> void:
 	course = COURSE_SOLO
 	_steps = _build_steps()
+	_quiz_items = _build_quiz_items()
 	step_index = 0
 	revision += 1
 	_clear_transient_state()
@@ -260,7 +275,7 @@ func quiz_index() -> int:
 	return indices[mini(_quiz_cursor, indices.size() - 1)]
 
 
-## 1問正解した後に呼ぶ。ステップ全体を終えたとき true、
+## 1問終えた後に呼ぶ。ステップ全体を終えたとき true、
 ## 同じステップ内にまだ問題が残っているとき false を返す。
 func on_quiz_cleared() -> bool:
 	var indices := _quiz_indices()
@@ -274,11 +289,25 @@ func on_quiz_cleared() -> bool:
 	return false
 
 
+## 同じステップの最初の問題へ戻す（ハートが尽きて実践をやり直すとき）。
+func rewind_quiz_step() -> void:
+	_quiz_cursor = 0
+	_rebuild_tasks()
+	revision += 1
+
+
 func guided_answer() -> int:
 	return int(current_step().get("highlight_answer", -1))
 
 
-## 誘導ありの問題では優しくやり直させ、誘導なしの問題だけ本編と同じ激突を見せる。
+## 3Dガイドとキーが向かう先のドア。誘導中は正解ドア、ハート体験ではわざと入る不正解ドア。
+func target_door() -> int:
+	if is_hp_lesson():
+		return hp_lesson_door()
+	return guided_answer()
+
+
+## 誘導ありの問題では優しくやり直させる。誘導なしの実践は本編と同じ結末にする。
 func punishes_mistakes() -> bool:
 	return bool(current_step().get("punish_mistakes", false))
 
@@ -289,44 +318,52 @@ func requires_both_correct() -> bool:
 
 
 func target_quiz_count() -> int:
-	return 3
+	return _quiz_items.size() if not _quiz_items.is_empty() else _build_quiz_items().size()
 
 
 func build_quiz_items() -> Array[QuizItem]:
-	# 選択肢の並びは左ドア=index0、右ドア=index1。正解の左右がばらけるよう配置する。
-	var items: Array[QuizItem] = [
-		QuizItem.create(
-			"7 + 5 = ?",
-			PackedStringArray(["12", "13"]),
-			0,
-			"7に5を足すと12です。",
-			"TUTORIAL",
-			"",
-			PackedStringArray(),
-			7.0
-		),
-		QuizItem.create(
-			"6 × 3 = ?",
-			PackedStringArray(["16", "18"]),
-			1,
-			"6を3回足すと18です。",
-			"TUTORIAL",
-			"",
-			PackedStringArray(),
-			7.0
-		),
-		QuizItem.create(
-			"20 - 8 = ?",
-			PackedStringArray(["12", "14"]),
-			0,
-			"20から8を引くと12です。",
-			"TUTORIAL",
-			"",
-			PackedStringArray(),
-			7.0
-		),
-	]
+	var items := _build_quiz_items()
+	_quiz_items = items
 	return items
+
+
+## 壁ごとのドアの数。本編の10問チャレンジ最終問題（ボス壁）と同じ4択を1問だけ入れる。
+func choice_count_for_quiz(index: int) -> int:
+	if index >= 0 and index < _quiz_items.size():
+		return clampi(_quiz_items[index].c.size(), 2, 4)
+	return 4 if index == BOSS_QUIZ_INDEX else 2
+
+
+func is_boss_quiz(index: int) -> bool:
+	return index == BOSS_QUIZ_INDEX
+
+
+# ---------- ハート（HP） ----------
+
+## このステップでハート（HP）を表示し、被ダメージののけぞりを有効にするか。
+func uses_hp() -> bool:
+	return bool(current_step().get("hp", false))
+
+
+## 本編と同じ判定（不正解・壁でハート−1、0で脱落）を使う実践ステップか。
+func uses_hp_rules() -> bool:
+	return bool(current_step().get("hp_rules", false))
+
+
+## わざと不正解のドアへ入ってハートが減る様子を確かめるステップか。
+func is_hp_lesson() -> bool:
+	return bool(current_step().get("hp_lesson", false))
+
+
+## ハート体験で入ってもらう不正解のドア。
+func hp_lesson_door() -> int:
+	if not is_hp_lesson():
+		return -1
+	var index := quiz_index()
+	if index < 0 or index >= _quiz_items.size():
+		return -1
+	var answer := _quiz_items[index].a
+	return 1 if answer == 0 else 0
 
 
 # ---------- ワールド挙動クエリ ----------
@@ -349,6 +386,10 @@ func wall_count() -> int:
 
 func world_guide() -> String:
 	return str(current_step().get("guide", ""))
+
+
+func key_layout() -> String:
+	return str(current_step().get("key_layout", ""))
 
 
 func resets_players_on_advance() -> bool:
@@ -389,6 +430,15 @@ func starts_goal_race() -> bool:
 	return false
 
 
+## 回転のこぎりはローカル2P専用。
+func uses_saw() -> bool:
+	return false
+
+
+func is_saw_lesson() -> bool:
+	return false
+
+
 func starts_customize_tour() -> bool:
 	return is_step("customize_tour")
 
@@ -421,10 +471,11 @@ func death_recovery_duration() -> float:
 	return _death_recovery_duration
 
 
-func begin_death_recovery(duration: float, retry_same_step: bool) -> void:
+func begin_death_recovery(duration: float, retry_same_step: bool, message: String = "") -> void:
 	_death_recovery_active = true
 	_death_recovery_duration = maxf(0.2, duration)
 	_death_recovery_retry = retry_same_step
+	_death_recovery_message = message
 	revision += 1
 
 
@@ -432,15 +483,18 @@ func finish_death_recovery() -> Dictionary:
 	if not _death_recovery_active:
 		return {"retry": false, "message": ""}
 	var retry := _death_recovery_retry
+	var message := _death_recovery_message
 	_death_recovery_active = false
 	_death_recovery_duration = 0.0
 	_death_recovery_retry = false
+	_death_recovery_message = ""
 	revision += 1
-	var message := (
-		"同じ問題をやり直します。問題を確認し、正解のドアを選んでください。"
-		if retry
-		else "海に落ちた場合の動作を確認しました。次のステップに進みます。"
-	)
+	if message.is_empty():
+		message = (
+			"同じ問題をやり直します。問題を確認し、正解のドアを選んでください。"
+			if retry
+			else "海に落ちた場合の動作を確認しました。次のステップに進みます。"
+		)
 	return {"retry": retry, "message": message}
 
 
@@ -454,9 +508,10 @@ func set_hint(text: String, seconds: float = HINT_SECONDS) -> void:
 
 func clear_summary_lines() -> PackedStringArray:
 	return PackedStringArray([
-		"✓ 走りながらの前後左右移動とジャンプ",
-		"✓ コース外への落下とサメによる脱落",
-		"✓ 誘導ありと誘導なしのクイズ",
+		"✓ 前後左右の移動・ジャンプ・エモート",
+		"✓ コース外の海とサメ（ハートに関係なく脱落）",
+		"✓ ハート3つ：不正解で1つ減り、0で脱落",
+		"✓ 2択の壁と4択のボス壁",
 		"✓ 壁速度・帽子・エモートのカスタマイズ",
 	])
 
@@ -497,6 +552,9 @@ func get_overlay_model() -> Dictionary:
 		"revision": revision,
 		"world_guide": world_guide(),
 		"highlight_answer": guided_answer(),
+		"target_door": target_door(),
+		"key_layout": key_layout(),
+		"ordered_tasks": false,
 	}
 
 
@@ -510,6 +568,7 @@ func _clear_transient_state() -> void:
 	_death_recovery_active = false
 	_death_recovery_duration = 0.0
 	_death_recovery_retry = false
+	_death_recovery_message = ""
 
 
 func _enter_current_step() -> void:
@@ -540,74 +599,189 @@ func _quiz_indices() -> Array[int]:
 	return result
 
 
+func _build_quiz_items() -> Array[QuizItem]:
+	# 2択の選択肢は左ドア=index0、右ドア=index1。正解の左右がばらけるよう配置する。
+	var items: Array[QuizItem] = [
+		QuizItem.create(
+			"7 + 5 = ?",
+			PackedStringArray(["12", "13"]),
+			0,
+			"7に5を足すと12です。",
+			"TUTORIAL",
+			"",
+			PackedStringArray(),
+			7.0
+		),
+		# ハート体験。正解は左の「4」で、わざと右の「5」へ入ってもらう。
+		QuizItem.create(
+			"2 + 2 = ?",
+			PackedStringArray(["4", "5"]),
+			0,
+			"2に2を足すと4です。",
+			"TUTORIAL",
+			"",
+			PackedStringArray(),
+			7.0
+		),
+		QuizItem.create(
+			"6 × 3 = ?",
+			PackedStringArray(["16", "18"]),
+			1,
+			"6を3回足すと18です。",
+			"TUTORIAL",
+			"",
+			PackedStringArray(),
+			7.0
+		),
+		QuizItem.create(
+			"20 - 8 = ?",
+			PackedStringArray(["12", "14"]),
+			0,
+			"20から8を引くと12です。",
+			"TUTORIAL",
+			"",
+			PackedStringArray(),
+			7.0
+		),
+		# 4択のボス壁。正解のBは中央寄りのドアにして、走り出しから届きやすくする。
+		QuizItem.create(
+			"9 + 6 = ?",
+			PackedStringArray(["13", "15", "16", "18"]),
+			1,
+			"9に6を足すと15です。",
+			"TUTORIAL",
+			"",
+			PackedStringArray(),
+			9.0
+		),
+	]
+	return items
+
+
 func _build_steps() -> Array[Dictionary]:
 	return [
 		{
 			"id": "run_lane",
-			"title": "移動の基本",
-			"body": "キャラクターは自動で前進します。左右のキーを押して移動を確認してください。",
+			"title": "左右の移動",
+			"body": "キャラクターは自動で前に進みます。頭の上に出ているキーで左右に動いてみましょう。矢印キー（← →）でも動けます。",
 			"guide": GUIDE_LANE,
+			"key_layout": KEYS_CLUSTER,
 			"speed": 0.55,
 			"walls": false,
 			"input_practice": true,
 			"tasks": [
-				{"id": "left", "key": "A / ←", "caption": "左移動"},
-				{"id": "right", "key": "D / →", "caption": "右移動"},
+				{"id": "left", "key": "A / ←", "caption": "左移動", "slots": ["left"]},
+				{"id": "right", "key": "D / →", "caption": "右移動", "slots": ["right"]},
 			],
 		},
 		{
 			"id": "air_control",
-			"title": "ジャンプと前後移動",
-			"body": "前後移動で壁に到達するタイミングを調整できます。前進・後退・ジャンプをそれぞれ確認してください。",
+			"title": "ジャンプと前後の移動",
+			"body": "前後の移動で壁に着くタイミングを調整できます。ジャンプ・前進・後退をそれぞれ試してください。",
 			"guide": GUIDE_AIR,
+			"key_layout": KEYS_CLUSTER,
 			"speed": 0.55,
 			"walls": false,
 			"input_practice": true,
 			"tasks": [
-				{"id": "jump", "key": "Space", "caption": "ジャンプ"},
-				{"id": "forward", "key": "W / ↑", "caption": "前進"},
-				{"id": "back", "key": "S / ↓", "caption": "後退"},
+				{"id": "jump", "key": "Space", "caption": "ジャンプ", "slots": ["jump"]},
+				{"id": "forward", "key": "W / ↑", "caption": "前進", "slots": ["up"]},
+				{"id": "back", "key": "S / ↓", "caption": "後退", "slots": ["down"]},
+			],
+		},
+		{
+			"id": "solo_emote",
+			"title": "エモート",
+			"body": "数字キー1・2・3でエモートを踊れます。走りながら踊れ、ジャンプで止まります。どれか1つを再生してください。",
+			"guide": GUIDE_EMOTE,
+			"key_layout": KEYS_CLUSTER,
+			"speed": 0.4,
+			"walls": false,
+			"input_practice": true,
+			"tasks": [
+				{"id": "emote", "key": "1 / 2 / 3", "caption": "エモート", "slots": ["emote_1", "emote_2", "emote_3"]},
 			],
 		},
 		{
 			"id": "ocean_lesson",
-			"title": "コース外への落下",
-			"body": "左右いずれかの端からコース外へ移動してください。海に落ちるとサメに襲われます。",
+			"title": "コース外は海",
+			"body": "コースの左右の端から外に出ると海に落ち、サメに襲われます。海に落ちるとハートの数に関係なく脱落します。試しに端から外へ出てください。",
 			"guide": GUIDE_OCEAN,
+			"key_layout": KEYS_SIDES,
 			"speed": 0.0,
 			"walls": false,
 			"tasks": [
-				{"id": "ocean", "key": "A / D", "caption": "コースの外へ出る"},
+				{"id": "ocean", "key": "A / D", "caption": "コースの外へ出る", "slots": ["toward_edge"]},
 			],
 		},
 		{
 			"id": "guided_wall",
-			"title": "クイズの回答方法",
-			"body": "この問題では正解のドアが点灯します。問題を確認し、点灯したドアを通過してください。",
+			"title": "クイズの答え方",
+			"body": "壁の問題を読み、正解だと思うドアをくぐります。この問題では正解のドアが光ります。光ったドアへ移動してください。",
 			"guide": GUIDE_GUIDED_DOOR,
+			"key_layout": KEYS_SIDES,
 			"speed": 1.0,
 			"walls": true,
+			"hp": true,
 			"reset_on_advance": true,
 			"quiz_indices": [0],
 			"highlight_answer": 0,
 			"presentation": "wall_reveal",
 			"duration": 0.9,
 			"tasks": [
-				{"id": "answer", "key": "A / D", "caption": "点灯したドアへ"},
+				{"id": "answer", "key": "A / D", "caption": "光ったドアへ", "slots": ["toward_door"]},
+			],
+		},
+		{
+			"id": "hp_lesson",
+			"title": "ハート（HP）のしくみ",
+			"body": "左上のハートは3つ。不正解のドアや壁にぶつかると1つ減り、0になると脱落します。試しに、わざと不正解の「5」のドアに入ってください。",
+			"guide": GUIDE_WRONG_DOOR,
+			"key_layout": KEYS_SIDES,
+			"speed": 1.0,
+			"walls": true,
+			"hp": true,
+			"hp_lesson": true,
+			"quiz_indices": [1],
+			"highlight_answer": -1,
+			"tasks": [
+				{"id": "wrong_door", "key": "A / D", "caption": "わざと不正解へ", "slots": ["toward_door"]},
 			],
 		},
 		{
 			"id": "free_wall",
 			"title": "誘導なしで回答",
-			"body": "ここからは正解のドアが点灯しません。問題を解いてドアを選んでください。不正解のドアや壁に衝突すると脱落します。",
+			"body": "ここからは本番と同じです。ドアは光りません。不正解や壁への衝突でハートが1つ減ります。ハートが残っていれば走り続けられます。",
 			"guide": GUIDE_FREE_DOOR,
+			"key_layout": KEYS_SIDES,
 			"speed": 1.0,
 			"walls": true,
-			"quiz_indices": [1, 2],
+			"hp": true,
+			"hp_rules": true,
+			"quiz_indices": [2, 3],
 			"highlight_answer": -1,
 			"punish_mistakes": true,
 			"tasks": [
-				{"id": "answer", "key": "A / D", "caption": "回答を選択"},
+				{"id": "answer", "key": "A / D", "caption": "答えのドアへ", "slots": ["toward_door"]},
+			],
+		},
+		{
+			"id": "boss_wall",
+			"title": "4択のボス壁",
+			"body": "10問チャレンジの最後の問題と、難易度「難しい」の壁はドアが4つ（A〜D）です。左右の移動で答えのドアの前に合わせてください。",
+			"guide": GUIDE_FREE_DOOR,
+			"key_layout": KEYS_SIDES,
+			"speed": 1.0,
+			"walls": true,
+			"hp": true,
+			"hp_rules": true,
+			"quiz_indices": [BOSS_QUIZ_INDEX],
+			"highlight_answer": -1,
+			"punish_mistakes": true,
+			"presentation": "wall_reveal",
+			"duration": 1.6,
+			"tasks": [
+				{"id": "answer", "key": "A / D", "caption": "4つから選ぶ", "slots": ["toward_door"]},
 			],
 		},
 		{
@@ -617,8 +791,9 @@ func _build_steps() -> Array[Dictionary]:
 			"guide": "",
 			"speed": 0.0,
 			"walls": false,
+			"hp": true,
 			"presentation": "solo_stage_complete",
-			"duration": 3.2,
+			"duration": 3.6,
 			"auto_after_presentation": true,
 		},
 		{

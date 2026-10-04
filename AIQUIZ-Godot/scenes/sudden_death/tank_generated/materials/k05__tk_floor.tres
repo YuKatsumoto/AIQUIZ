@@ -1,0 +1,50 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://shaders/surge_tank/tank_floor.gdshader" id="1_45gtj"]
+[ext_resource type="Texture2D" path="res://assets/environment/surge_tank/textures/floor_albedo.png" id="2_wd14b"]
+[ext_resource type="Texture2D" path="res://assets/environment/surge_tank/textures/detail_normal.png" id="3_krl3q"]
+[ext_resource type="Texture2D" path="res://assets/environment/surge_tank/textures/tank_line_05_light.png" id="4_yl1px"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/textures/macro_noise.res" id="5_et8na"]
+[ext_resource type="Texture2D" path="res://assets/environment/surge_tank/textures/floor_normal.png" id="6_bghbw"]
+[ext_resource type="Texture2D" path="res://assets/environment/surge_tank/textures/floor_orm.png" id="7_2vfni"]
+
+[resource]
+resource_name = "TK_Floor"
+render_priority = 0
+shader = ExtResource("1_45gtj")
+shader_parameter/tank_scale = 2.0
+shader_parameter/ambient_color = null
+shader_parameter/ambient_level = null
+shader_parameter/white_balance = Vector3(0.8826348, 1.0306846, 1.2090058)
+shader_parameter/light_specular_scale = null
+shader_parameter/albedo_tex = ExtResource("2_wd14b")
+shader_parameter/normal_tex = ExtResource("6_bghbw")
+shader_parameter/orm_tex = ExtResource("7_2vfni")
+shader_parameter/detail_normal_tex = ExtResource("3_krl3q")
+shader_parameter/light_tex = ExtResource("4_yl1px")
+shader_parameter/macro_noise = ExtResource("5_et8na")
+shader_parameter/albedo_tint = Color(0.5, 0.38, 0.26, 1)
+shader_parameter/uv_metres = 3.75
+shader_parameter/uv_scale = 1.0
+shader_parameter/detail_strength = null
+shader_parameter/normal_strength = null
+shader_parameter/roughness_scale = 1.0
+shader_parameter/roughness_min = null
+shader_parameter/metallic_value = null
+shader_parameter/light_max = 1.341326
+shader_parameter/light_scale = 2.7
+shader_parameter/cavity_strength = null
+shader_parameter/macro_strength = 0.16
+shader_parameter/seepage = null
+shader_parameter/floor_y = -1.2
+shader_parameter/debug_view = null
+shader_parameter/silt_color = null
+shader_parameter/mud_color = null
+shader_parameter/puddle_amount = 0.35
+shader_parameter/puddle_roughness = 0.07
+shader_parameter/damp_roughness = 0.11
+shader_parameter/damp_darkening = 0.45
+shader_parameter/damp_base = 0.85
+shader_parameter/silt_amount = 0.45
+shader_parameter/mud_amount = 0.2
+shader_parameter/mud_z_fade = null

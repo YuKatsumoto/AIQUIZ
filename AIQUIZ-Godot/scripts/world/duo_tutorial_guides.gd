@@ -5,8 +5,11 @@ class_name DuoTutorialGuides
 ## 1P版（solo_tutorial_guides.gd）と同じく全パーツを同じ加算発光マテリアル工場から
 ## 作り、明滅も1つの脈動値で揃える。2Pではこれをプレイヤー色で二重化し、
 ## どちらの誘導なのかを色で見分けられるようにする。
+## 操作キーは TutorialKeyGuides3D（res://scripts/world/tutorial_key_guides_3d.gd）が
+## 各プレイヤーの頭上・肩の横、ゴーストシャークの上に実物のキーキャップとして浮かべる。
 
 const DuoFlow = preload("res://scripts/core/tutorial/duo_tutorial_flow.gd")
+const KeyGuidesScript = preload("res://scripts/world/tutorial_key_guides_3d.gd")
 
 const P1_COLOR := Color(1.0, 0.48, 0.12, 1.0)
 const P2_COLOR := Color(0.18, 0.88, 1.0, 1.0)
@@ -20,6 +23,14 @@ const EDGE_FLOW_SPEED := 7.0
 const ROUTE_DASH_COUNT := 10
 const CHEVRON_COUNT := 3
 const FLOOR_OFFSET := 0.06
+const DOOR_FRAME_HALF_WIDTH := 1.8
+const SAW_LINE_DASH_COUNT := 9
+const LABEL_PIXEL_SIZE := 0.008
+const DOOR_LABEL_PIXEL_SIZE := 0.018
+const SAW_LABEL_PIXEL_SIZE := 0.0065
+## 危険ラインの札がカメラの直前で大きくなりすぎないよう、これより近ければ出さない。
+const SAW_LABEL_MIN_CAMERA_DISTANCE := 5.5
+const SAW_LABEL_BOTTOM_MARGIN := 90.0
 
 var game_state: QuizGameState = null
 
@@ -31,15 +42,22 @@ var _chevrons: Dictionary = {}
 var _route_dashes: Dictionary = {}
 var _name_labels: Dictionary = {}
 var _door_frame: Node3D = null
+var _door_frame_material: StandardMaterial3D = null
 var _danger_stripe: MeshInstance3D = null
 var _target_ring: MeshInstance3D = null
 var _goal_beacon: MeshInstance3D = null
+var _saw_line: Array[MeshInstance3D] = []
 var _label: Label3D = null
+var _key_guides: TutorialKeyGuides3D = null
 
 
 func setup(state: QuizGameState) -> void:
 	game_state = state
 	_build()
+	_key_guides = KeyGuidesScript.new()
+	_key_guides.name = "KeyGuides3D"
+	add_child(_key_guides)
+	_key_guides.setup(state, true)
 
 
 func update(delta: float) -> void:
@@ -67,12 +85,43 @@ func update(delta: float) -> void:
 	_update_edge_lines(guide, pulse)
 	for player_index: int in [1, 2]:
 		_update_player_guide(player_index, model, guide, pulse)
-	_update_name_labels(guide)
+	_update_name_labels(model, guide)
 	_update_door_guide(model, guide, pulse)
 	_update_hazard_guide(guide, pulse)
 	_update_ghost_target(guide, pulse)
+	_update_saw_line(guide, pulse)
 	_update_goal_guide(guide, pulse)
 	_update_label(model, guide)
+	_key_guides.update(delta, model, _keys_allowed(model), _ghost_shark_position(model))
+
+
+## 検証用。3Dキーの状態を返す。
+func get_key_guides() -> TutorialKeyGuides3D:
+	return _key_guides
+
+
+func _keys_allowed(model: Dictionary) -> bool:
+	if bool(model.get("presentation_locked", false)):
+		return false
+	if game_state.game_state not in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]:
+		return false
+	var flow: RefCounted = game_state.tutorial_flow
+	return flow != null and not flow.is_awaiting_death_recovery()
+
+
+## ゴーストシャークを操作できる間だけ、そのサメの位置を返す（照準・突進のキーを浮かべる場所）。
+func _ghost_shark_position(model: Dictionary) -> Variant:
+	var ghost_player := int(model.get("ghost_player", 0))
+	if ghost_player <= 0:
+		return null
+	var world := get_parent()
+	if world == null or not world.has_method("is_ghost_shark_control_active"):
+		return null
+	if not bool(world.call("is_ghost_shark_control_active", ghost_player)):
+		return null
+	var presentation: Dictionary = world.call("get_ghost_shark_presentation", ghost_player)
+	var shark_position: Variant = presentation.get("shark_position", null)
+	return shark_position if shark_position is Vector3 else null
 
 
 # ---------- 構築 ----------
@@ -142,9 +191,9 @@ func _build() -> void:
 		_name_labels[player_index] = name_label
 
 	_door_frame = Node3D.new()
-	_door_frame.name = "CorrectDoorFrame"
+	_door_frame.name = "TargetDoorFrame"
 	add_child(_door_frame)
-	var frame_material := _make_material(ACCENT)
+	_door_frame_material = _make_material(ACCENT)
 	for part_data: Dictionary in [
 		{"size": Vector3(0.14, 3.8, 0.14), "position": Vector3(-1.8, 1.9, 0.0)},
 		{"size": Vector3(0.14, 3.8, 0.14), "position": Vector3(1.8, 1.9, 0.0)},
@@ -155,7 +204,7 @@ func _build() -> void:
 		box.size = part_data["size"]
 		part.mesh = box
 		part.position = part_data["position"]
-		part.material_override = frame_material
+		part.material_override = _door_frame_material
 		_door_frame.add_child(part)
 
 	_danger_stripe = MeshInstance3D.new()
@@ -176,6 +225,18 @@ func _build() -> void:
 	_target_ring.mesh = target_torus
 	_target_ring.material_override = _make_material(EDGE_COLOR)
 	add_child(_target_ring)
+
+	# のこぎりの警告が始まる位置を走路の横幅いっぱいの破線で示す。
+	var saw_material := _make_material(EDGE_COLOR)
+	for _i: int in range(SAW_LINE_DASH_COUNT):
+		var dash := MeshInstance3D.new()
+		var mesh := BoxMesh.new()
+		mesh.size = Vector3(1.6, 0.04, 0.32)
+		dash.mesh = mesh
+		dash.material_override = saw_material
+		dash.name = "SawWarningDash"
+		add_child(dash)
+		_saw_line.append(dash)
 
 	_goal_beacon = MeshInstance3D.new()
 	_goal_beacon.name = "GoalBeacon"
@@ -211,6 +272,11 @@ func _make_material(color: Color) -> StandardMaterial3D:
 	material.emission_energy_multiplier = 2.0
 	_materials.append(material)
 	return material
+
+
+func _tint(material: StandardMaterial3D, color: Color) -> void:
+	material.albedo_color = Color(color.r, color.g, color.b, 0.85)
+	material.emission = color
 
 
 # ---------- 更新 ----------
@@ -250,6 +316,7 @@ func _update_player_guide(
 			DuoFlow.GUIDE_AIR,
 			DuoFlow.GUIDE_EMOTE,
 			DuoFlow.GUIDE_OCEAN,
+			DuoFlow.GUIDE_SAW,
 			DuoFlow.GUIDE_GOAL,
 		]
 	)
@@ -265,7 +332,7 @@ func _update_player_guide(
 
 	# 誘導が必要ないステップではシェブロンを出さず、足元リングだけで所在を示す。
 	var pending := _first_pending_task(model, player_index)
-	var show_chevrons := guide != DuoFlow.GUIDE_EMOTE and (
+	var show_chevrons := guide != DuoFlow.GUIDE_EMOTE and not pending.is_empty() and (
 		guide != DuoFlow.GUIDE_OCEAN or _hazard_player() == player_index
 	)
 	var yaw := _pending_direction_yaw(player_index, pending, guide)
@@ -296,14 +363,16 @@ func _pending_direction_yaw(player_index: int, pending_task: String, guide: Stri
 			return PI * 0.5
 		"right":
 			return -PI * 0.5
-		"back":
+		"back", "saw_approach":
 			return PI
 	return 0.0
 
 
-## どちらがP1でどちらがP2かを覚えてもらうため、操作練習中は頭上に名前を出す。
-func _update_name_labels(guide: String) -> void:
-	var show_names := guide in [DuoFlow.GUIDE_LANE, DuoFlow.GUIDE_AIR, DuoFlow.GUIDE_EMOTE]
+## 頭上のキーボード片に名前を添えるので、操作のステップでは足元近くの名前ラベルを出さない。
+## キーの出ないステップ（海・ゴースト）だけ、どちらがP1かを頭上の名前で示す。
+func _update_name_labels(model: Dictionary, guide: String) -> void:
+	var cluster_keys := str(model.get("key_layout", "")) == KeyGuidesScript.LAYOUT_CLUSTER
+	var show_names := not cluster_keys and guide in [DuoFlow.GUIDE_LANE, DuoFlow.GUIDE_AIR, DuoFlow.GUIDE_EMOTE]
 	for player_index: int in [1, 2]:
 		var label: Label3D = _name_labels[player_index]
 		label.visible = show_names and _is_player_active(player_index)
@@ -312,25 +381,31 @@ func _update_name_labels(guide: String) -> void:
 		label.position = _player_position(player_index) + Vector3(0.0, 2.75, 0.0)
 
 
-## 正解ドアの枠と、各プレイヤーからそこへ繋がる床のルートライン。
+## 目標ドアの枠と、各プレイヤーからそこへ繋がる床のルートライン。
+## 誘導ありの問題は正解ドア（黄）、ハート体験はわざと入る不正解ドア（赤）を示す。
 func _update_door_guide(model: Dictionary, guide: String, pulse: float) -> void:
-	var answer := int(model.get("highlight_answer", -1))
-	var show_door := guide == DuoFlow.GUIDE_GUIDED_DOOR and answer in [0, 1]
+	var target := int(model.get("target_door", -1))
+	var wrong_door := guide == DuoFlow.GUIDE_WRONG_DOOR
+	var show_door := (
+		guide in [DuoFlow.GUIDE_GUIDED_DOOR, DuoFlow.GUIDE_WRONG_DOOR]
+		and target >= 0
+		and game_state.current_quiz != null
+	)
 	_door_frame.visible = show_door
 	if not show_door:
 		for player_index: int in [1, 2]:
 			_hide_route(player_index)
 		return
-	var door_x: float = (
-		game_state.tuning.left_door_x if answer == 0 else game_state.tuning.right_door_x
-	)
+	_tint(_door_frame_material, EDGE_COLOR if wrong_door else ACCENT)
+	var door_x := _door_x(target)
 	var wall_local_z := game_state.wall_z - game_state.world_scroll_z
 	var base_y := StageConstants.FLOOR_TOP_Y + FLOOR_OFFSET
 	_door_frame.position = Vector3(door_x, StageConstants.FLOOR_TOP_Y, wall_local_z - 0.5)
-	_door_frame.scale = Vector3.ONE * (1.0 + pulse * 0.04)
+	var width_scale := _door_half_width() / DOOR_FRAME_HALF_WIDTH
+	_door_frame.scale = Vector3(width_scale, 1.0, 1.0) * (1.0 + pulse * 0.04)
 
 	for player_index: int in [1, 2]:
-		if not _is_player_active(player_index):
+		if not _is_player_active(player_index) or _task_done(model, player_index):
 			_hide_route(player_index)
 			continue
 		var player_position := _player_position(player_index)
@@ -395,6 +470,31 @@ func _update_ghost_target(guide: String, pulse: float) -> void:
 	_target_ring.scale = Vector3.ONE * (1.0 + pulse * 0.16)
 
 
+## のこぎり体験では、刃の警告が始まる距離に赤い破線を引く。ここより後ろに下がると危険。
+func _update_saw_line(guide: String, pulse: float) -> void:
+	var show_line := guide == DuoFlow.GUIDE_SAW and game_state.is_saw_visible()
+	for dash: MeshInstance3D in _saw_line:
+		dash.visible = show_line
+	if not show_line:
+		return
+	var warning_z: float = (
+		game_state.saw.local_z
+		+ SawChaseState.BLADE_RADIUS
+		+ QuizGameState.PLAYER_BODY_RADIUS
+		+ game_state.tuning.saw_warning_distance
+	)
+	var span := StageConstants.FLOOR_HALF_WIDTH * 2.0 - 1.0
+	for i: int in range(_saw_line.size()):
+		var dash := _saw_line[i]
+		var t := (float(i) + 0.5) / float(_saw_line.size())
+		dash.position = Vector3(
+			-span * 0.5 + span * t,
+			StageConstants.FLOOR_TOP_Y + FLOOR_OFFSET,
+			warning_z
+		)
+		dash.scale = Vector3(1.0, 1.0, 1.0 + pulse * 0.4)
+
+
 func _update_goal_guide(guide: String, pulse: float) -> void:
 	_goal_beacon.visible = guide in [DuoFlow.GUIDE_GOAL, DuoFlow.GUIDE_COMPLETE]
 	if not _goal_beacon.visible:
@@ -406,6 +506,7 @@ func _update_goal_guide(guide: String, pulse: float) -> void:
 
 func _update_label(model: Dictionary, guide: String) -> void:
 	var base_y := StageConstants.FLOOR_TOP_Y
+	_label.pixel_size = LABEL_PIXEL_SIZE
 	match guide:
 		DuoFlow.GUIDE_OCEAN:
 			var hazard_player := maxi(1, _hazard_player())
@@ -425,13 +526,34 @@ func _update_label(model: Dictionary, guide: String) -> void:
 			_label.text = "この相手を狙う"
 			_label.modulate = EDGE_COLOR
 			_label.position = _target_ring.position + Vector3(0.0, 3.4, 0.0)
-		DuoFlow.GUIDE_GUIDED_DOOR:
-			if int(model.get("highlight_answer", -1)) not in [0, 1]:
+		DuoFlow.GUIDE_SAW:
+			if _saw_line.is_empty() or not _saw_line[0].visible:
 				_label.visible = false
 				return
-			_label.text = "正解ドア"
-			_label.modulate = ACCENT
-			_label.position = _door_frame.position + Vector3(0.0, 4.6, 0.0)
+			var label_position := Vector3(0.0, base_y + 1.1, _saw_line[0].position.z)
+			var camera := get_viewport().get_camera_3d()
+			if camera == null or camera.global_position.distance_to(label_position) < SAW_LABEL_MIN_CAMERA_DISTANCE:
+				_label.visible = false
+				return
+			# 危険ラインがまだ画面の下端より手前にあるうちは札を出さない（下端で切れて読めないため）。
+			var screen_height := get_viewport().get_visible_rect().size.y
+			if camera.is_position_behind(label_position) or camera.unproject_position(label_position).y > screen_height - SAW_LABEL_BOTTOM_MARGIN:
+				_label.visible = false
+				return
+			_label.text = "ここより後ろは危険"
+			_label.modulate = EDGE_COLOR
+			_label.pixel_size = SAW_LABEL_PIXEL_SIZE
+			_label.position = label_position
+		DuoFlow.GUIDE_GUIDED_DOOR, DuoFlow.GUIDE_WRONG_DOOR:
+			if not _door_frame.visible:
+				_label.visible = false
+				return
+			var wrong_door := guide == DuoFlow.GUIDE_WRONG_DOOR
+			_label.text = "わざと不正解へ" if wrong_door else "正解ドア"
+			_label.modulate = EDGE_COLOR if wrong_door else ACCENT
+			_label.position = _door_frame.position + Vector3(0.0, 4.7, 0.0)
+			# 壁は遠くから近づくので、ドアの上の札は大きめの文字にする。
+			_label.pixel_size = DOOR_LABEL_PIXEL_SIZE
 		DuoFlow.GUIDE_GOAL, DuoFlow.GUIDE_COMPLETE:
 			_label.text = "GOAL"
 			_label.modulate = GOAL_COLOR
@@ -452,6 +574,16 @@ func _player_position(player_index: int) -> Vector3:
 	if player_index == 2:
 		return Vector3(game_state.player2_x, game_state.player2_y, game_state.player2_local_z)
 	return Vector3(game_state.player_x, game_state.player_y, game_state.player_local_z)
+
+
+func _door_x(door: int) -> float:
+	if game_state.num_choices == 4:
+		return float(game_state.tuning.door4_xs[clampi(door, 0, 3)])
+	return game_state.tuning.left_door_x if door == 0 else game_state.tuning.right_door_x
+
+
+func _door_half_width() -> float:
+	return game_state.tuning.door4_half_width if game_state.num_choices == 4 else DOOR_FRAME_HALF_WIDTH
 
 
 ## 脱落中や海で待機中のプレイヤーには床ガイドを出さない。
@@ -488,3 +620,19 @@ func _first_pending_task(model: Dictionary, player_index: int) -> String:
 			if not bool(task.get("done", false)):
 				return str(task.get("id", ""))
 	return ""
+
+
+## そのプレイヤーのタスクがすべて終わっているか（ハート体験で先に入った人のルートを消す）。
+func _task_done(model: Dictionary, player_index: int) -> bool:
+	for player_variant: Variant in model.get("players", []):
+		var player: Dictionary = player_variant
+		if int(player.get("player", 0)) != player_index:
+			continue
+		var tasks: Array = player.get("tasks", [])
+		if tasks.is_empty():
+			return false
+		for task_variant: Variant in tasks:
+			if not bool((task_variant as Dictionary).get("done", false)):
+				return false
+		return true
+	return false

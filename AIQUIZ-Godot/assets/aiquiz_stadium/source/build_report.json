@@ -820,6 +820,129 @@
    "detail": 136108
   }
  ],
+ "wear": {
+  "note": "aqs_wear.bake_wear: AO・水際の汚れ・ムラを AQS_Painted の頂点色へ乗算（2026-10-03）。頂点・面・UV・法線は不変",
+  "AQS_Stand_Bay": {
+   "corners": 10640,
+   "unique_corners": 10391,
+   "mean_luminance_before": 0.8041,
+   "mean_luminance_after": 0.7044,
+   "mean_multiplier": 0.8724,
+   "mean_multiplier_visible_up_side": 0.8804,
+   "multiplier_percentiles_visible": {
+    "p5": 0.642,
+    "p25": 0.742,
+    "p50": 0.943,
+    "p75": 0.989,
+    "p95": 1.009
+   },
+   "mean_multiplier_by_normal": {
+    "up": 0.9906,
+    "side": 0.8518,
+    "down": 0.8312
+   }
+  },
+  "AQS_Stand_CapStart": {
+   "corners": 12648,
+   "unique_corners": 12411,
+   "mean_luminance_before": 0.7885,
+   "mean_luminance_after": 0.686,
+   "mean_multiplier": 0.8652,
+   "mean_multiplier_visible_up_side": 0.8721,
+   "multiplier_percentiles_visible": {
+    "p5": 0.631,
+    "p25": 0.732,
+    "p50": 0.939,
+    "p75": 0.989,
+    "p95": 1.011
+   },
+   "mean_multiplier_by_normal": {
+    "up": 0.9627,
+    "side": 0.8501,
+    "down": 0.8298
+   }
+  },
+  "AQS_Stand_CapEnd": {
+   "corners": 12168,
+   "unique_corners": 12004,
+   "mean_luminance_before": 0.793,
+   "mean_luminance_after": 0.6894,
+   "mean_multiplier": 0.864,
+   "mean_multiplier_visible_up_side": 0.8716,
+   "multiplier_percentiles_visible": {
+    "p5": 0.633,
+    "p25": 0.729,
+    "p50": 0.939,
+    "p75": 0.988,
+    "p95": 1.01
+   },
+   "mean_multiplier_by_normal": {
+    "up": 0.9643,
+    "side": 0.8492,
+    "down": 0.8248
+   }
+  },
+  "AQS_GoalGate": {
+   "corners": 7704,
+   "unique_corners": 7688,
+   "mean_luminance_before": 0.2542,
+   "mean_luminance_after": 0.2368,
+   "mean_multiplier": 0.928,
+   "mean_multiplier_visible_up_side": 0.9147,
+   "multiplier_percentiles_visible": {
+    "p5": 0.666,
+    "p25": 0.786,
+    "p50": 0.996,
+    "p75": 1.007,
+    "p95": 1.013
+   },
+   "mean_multiplier_by_normal": {
+    "up": 0.9583,
+    "side": 0.8957,
+    "down": 0.9716
+   }
+  },
+  "GS_Stand": {
+   "corners": 3364,
+   "unique_corners": 3194,
+   "mean_luminance_before": 0.5114,
+   "mean_luminance_after": 0.4423,
+   "mean_multiplier": 0.8469,
+   "mean_multiplier_visible_up_side": 0.8569,
+   "multiplier_percentiles_visible": {
+    "p5": 0.617,
+    "p25": 0.736,
+    "p50": 0.893,
+    "p75": 0.999,
+    "p95": 1.013
+   },
+   "mean_multiplier_by_normal": {
+    "up": 0.8377,
+    "side": 0.8628,
+    "down": 0.8043
+   }
+  },
+  "GS_Scoreboard": {
+   "corners": 1508,
+   "unique_corners": 1354,
+   "mean_luminance_before": 0.1969,
+   "mean_luminance_after": 0.1748,
+   "mean_multiplier": 0.8688,
+   "mean_multiplier_visible_up_side": 0.8859,
+   "multiplier_percentiles_visible": {
+    "p5": 0.662,
+    "p25": 0.756,
+    "p50": 0.979,
+    "p95": 1.008,
+    "p75": 0.998
+   },
+   "mean_multiplier_by_normal": {
+    "up": 0.8212,
+    "side": 0.916,
+    "down": 0.814
+   }
+  }
+ },
  "build_seconds_modules": 2.7,
  "layout_scene": "AIQUIZ_Stadium_Layout",
  "previews": [

@@ -11,11 +11,13 @@ const P2_COLOR := Color(0.18, 0.88, 1.0, 1.0)
 
 ## 2人分のチップが並ぶので1Pより広く取る。
 const DUO_BAR_WIDTH := 1180.0
+## ハート（HP）のカードが左右の下隅に出ている間、下端のバーはその間に収める。
+const DUO_BAR_WIDTH_BETWEEN_CARDS := 820.0
 ## 問題出題時以外はキャラクターを隠さないよう上端を基本位置にする。
 const DUO_BAR_MARGIN_TOP := 18.0
 ## P1/P2の操作を横一列にまとめ、画面を隠す高さを抑える。
 const DUO_BAR_HEIGHT_FULL := 90.0
-const DUO_BAR_HEIGHT_COMPACT := 66.0
+const DUO_BAR_HEIGHT_COMPACT := 76.0
 
 
 func _course_is_active() -> bool:
@@ -23,6 +25,8 @@ func _course_is_active() -> bool:
 
 
 func _bar_width() -> float:
+	if not _bar_at_top() and game_state != null and game_state.uses_hp():
+		return DUO_BAR_WIDTH_BETWEEN_CARDS
 	return DUO_BAR_WIDTH
 
 

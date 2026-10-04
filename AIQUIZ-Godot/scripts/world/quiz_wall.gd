@@ -85,6 +85,12 @@ const DOOR_COLORS_4 := [
 ]
 const WALL_COLOR := Color(0.50, 0.50, 0.50)
 const BOSS_WALL_COLOR := Color(0.65, 0.15, 0.15)
+## 壁・扉の塗装鋼板パネル材質（albedo_color は上の色のまま。テクスチャはそれに掛ける変調）。
+const WallMaterials = preload("res://scripts/world/wall_materials.gd")
+## 問題文の背景パネルと縁（UNSHADED・霧なし）。スタジアムの看板（GOAL ボード）と同じ紺地に明るい鋼色の縁。
+## 白文字との明暗差を灰色の地より大きく取り、パネル割りの鋼板の壁の上でも看板として浮いて見えるようにする。
+const QUESTION_PANEL_COLOR := Color(0.090, 0.170, 0.360)
+const QUESTION_BORDER_COLOR := Color(0.72, 0.75, 0.80)
 const JAPANESE_FONT: Font = preload("res://resources/fonts/NotoSansJP-Regular.otf")
 ## 問題文の実寸に合わせ、上端に小さな余白だけ残す。
 var wall_top_y: float = 4.05
@@ -204,7 +210,7 @@ func _build_doors(num_choices: int) -> void:
 
 	if num_choices == 4:
 		for i: int in range(4):
-			var door := _create_box(Vector3(1.45, 2.2, 0.60), DOOR_COLORS_4[i])
+			var door := _create_box(Vector3(1.45, 2.2, 0.60), DOOR_COLORS_4[i], i)
 			door.position = Vector3(DOOR4_XS[i], 0.18, 0)
 			add_child(door)
 			doors.append(door)
@@ -218,7 +224,7 @@ func _build_doors(num_choices: int) -> void:
 			door_labels.append(label)
 	elif num_choices == 3:
 		for i: int in range(3):
-			var door := _create_box(Vector3(DOOR3_HALF_WIDTH, 2.2, 0.60), DOOR_COLORS_3[i])
+			var door := _create_box(Vector3(DOOR3_HALF_WIDTH, 2.2, 0.60), DOOR_COLORS_3[i], i)
 			door.position = Vector3(DOOR3_XS[i], 0.18, 0)
 			add_child(door)
 			doors.append(door)
@@ -232,7 +238,7 @@ func _build_doors(num_choices: int) -> void:
 			door_labels.append(label)
 	else:
 		# Left door (Blue)
-		var left_door := _create_box(Vector3(1.8, 2.2, 0.60), DOOR_COLORS_2[0])
+		var left_door := _create_box(Vector3(1.8, 2.2, 0.60), DOOR_COLORS_2[0], 0)
 		left_door.position = Vector3(LEFT_DOOR_X, 0.18, 0)
 		add_child(left_door)
 		doors.append(left_door)
@@ -244,7 +250,7 @@ func _build_doors(num_choices: int) -> void:
 		door_labels.append(left_label)
 
 		# Right door (Red)
-		var right_door := _create_box(Vector3(1.8, 2.2, 0.60), DOOR_COLORS_2[1])
+		var right_door := _create_box(Vector3(1.8, 2.2, 0.60), DOOR_COLORS_2[1], 1)
 		right_door.position = Vector3(RIGHT_DOOR_X, 0.18, 0)
 		add_child(right_door)
 		doors.append(right_door)
@@ -317,12 +323,12 @@ func set_gameplay_question_visible(is_visible: bool) -> void:
 		gameplay_question_label.visible = is_visible and not _retiring_after_pass and not _shattered
 
 
-## A solid gray backing keeps the sky and scenery out of the question text.
+## A solid (navy, QUESTION_PANEL_COLOR) backing keeps the sky and scenery out of the question text.
 ## Child meshes inherit the label's orientation, visibility and retirement.
 func _update_gameplay_question_panel() -> void:
 	if not is_instance_valid(_gameplay_question_panel):
-		_gameplay_question_border = _create_question_panel_quad("QuestionBorder", Color(0.60, 0.60, 0.60))
-		_gameplay_question_panel = _create_question_panel_quad("QuestionBackground", Color(0.35, 0.35, 0.35))
+		_gameplay_question_border = _create_question_panel_quad("QuestionBorder", QUESTION_BORDER_COLOR)
+		_gameplay_question_panel = _create_question_panel_quad("QuestionBackground", QUESTION_PANEL_COLOR)
 	var glyph_bounds := gameplay_question_label.get_aabb()
 	var center := glyph_bounds.get_center()
 	var padding := Vector2(0.28, 0.18)
@@ -503,6 +509,21 @@ func is_retiring_after_pass() -> bool:
 
 func is_retirement_finished() -> bool:
 	return _retirement_finished
+
+
+## Render prewarm: gives every part the transparent material the retirement fade starts
+## from (alpha 1, nothing hidden), so the textured panel's alpha variant is compiled
+## before the first wall is passed instead of at that moment.
+func prewarm_retirement_fade() -> void:
+	for mesh_inst: MeshInstance3D in wall_parts + doors:
+		if not is_instance_valid(mesh_inst):
+			continue
+		var material: StandardMaterial3D = mesh_inst.material_override as StandardMaterial3D
+		if material == null:
+			continue
+		var unique_material: StandardMaterial3D = material.duplicate() as StandardMaterial3D
+		unique_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mesh_inst.material_override = unique_material
 
 
 func _fade_mesh_to_transparent(mesh_inst: MeshInstance3D, fade_duration: float) -> void:
@@ -821,10 +842,11 @@ func is_solid_frame_occluding_segment(segment_start: Vector3, segment_end: Vecto
 	return false
 
 
-func _create_box(half_extents: Vector3, color: Color) -> MeshInstance3D:
+## door_slot: 扉なら選択肢の番号（扉ごとに別のパネル位置を当て、周りの壁と同じ模様が並ばないようにする）。壁は -1。
+func _create_box(half_extents: Vector3, color: Color, door_slot: int = -1) -> MeshInstance3D:
 	var mesh_inst := MeshInstance3D.new()
 	mesh_inst.mesh = _shared_box_mesh(half_extents * 2.0)
-	mesh_inst.material_override = _shared_opaque_material(color)
+	mesh_inst.material_override = _shared_opaque_material(color, door_slot)
 	return mesh_inst
 
 
@@ -839,15 +861,16 @@ static func _shared_box_mesh(size: Vector3) -> BoxMesh:
 	return box
 
 
-static func _shared_opaque_material(color: Color) -> StandardMaterial3D:
-	var key := "%0.4f_%0.4f_%0.4f_%0.4f" % [color.r, color.g, color.b, color.a]
+## 色（と扉の番号・画質）ごとに1枚だけ作って共有する。画質は作成時の GameManager.graphics_quality
+## （壁は試合ごとに作り直されるので、設定変更は次の壁から反映される）。
+static func _shared_opaque_material(color: Color, door_slot: int = -1) -> StandardMaterial3D:
+	var quality := WallMaterials.current_quality()
+	var panel_shift := 0 if door_slot < 0 else door_slot + 1
+	var key := "%0.4f_%0.4f_%0.4f_%0.4f_%d_%s" % [color.r, color.g, color.b, color.a, panel_shift, quality]
 	var cached: StandardMaterial3D = _opaque_material_cache.get(key) as StandardMaterial3D
 	if cached != null:
 		return cached
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = color
-	mat.roughness = 0.6
-	mat.metallic = 0.05
+	var mat := WallMaterials.panel(color, quality, panel_shift, 1.0, 0.6, 0.05)
 	_opaque_material_cache[key] = mat
 	return mat
 

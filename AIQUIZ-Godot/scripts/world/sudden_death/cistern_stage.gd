@@ -1,14 +1,15 @@
 class_name CisternStage
 extends Node3D
 
-## 2Pサドンデス「早押し水没リフト」の地下神殿（docs/sudden_death_underground.md 第6章、部品の取り決めは
-## docs/sudden_death_m3_interface.md）。Blenderの部品（区画 k = −1〜13 と両端）を焼いた光で描き、
-## 実ライトは人物・リフトのタワー・水だけを照らす。
-## シーンは tools/sudden_death/build_cistern_scenes.gd が生成するので、手で編集しない。このシーン
-## （床の当たり判定・天井開口のライト・審判の立ち位置・画面の仕上げ）に、部分シーン（区画 → 両端 →
-## 照明・反射プローブ・霧 → デカール・塵）を add_part_step() で1回に1つずつ足す（5.5節）。部品は追加時に
-## 舞台の材質へ差し替え、描画レイヤー11だけに置く（_dress_module）。
-## 行の明るさ（行0〜14 = 区画 k = −1〜13）は CisternLighting の全体のシェーダー変数で舞台の焼いた光・
+## 2Pサドンデスの地下ステージ。首都圏外郭放水路の調圧水槽を実寸で再現した舞台（docs/surge_tank_reproduction.md）。
+## Blenderの部品（柱の線0〜10の区画、ポンプ側の端、立坑側の端と第1立坑、見学者の通路と階段）を焼いた光で描く。
+## 実ライト（実物の照明と同じ位置の高天井灯・壁の投光器）は人物・リフトのタワー・水を照らし、舞台には
+## 鏡面のハイライトだけを足す（舞台のシェーダーの light()）。
+## シーンは tools/sudden_death/build_tank_scenes.gd が生成するので、手で編集しない。このシーン
+## （床の当たり判定・審判の立ち位置・画面の仕上げ）に、部分シーン（区画 → 両端 → 照明・反射プローブ・霧 →
+## 番号札・塵）を add_part_step() で1回に1つずつ足す（5.5節）。部品は追加時に舞台の材質へ差し替え、
+## 描画レイヤー11だけに置く（_dress_module）。
+## 行の明るさ（行0〜10 = 立坑側の柱の線10 … ポンプ側の線0の照明）は CisternLighting の全体のシェーダー変数で舞台の焼いた光・
 ## 発光・反射に掛かり、同じ行の実ライトの強さにも掛かる。
 ## 本戦の2本のリフトのタワー（決着演出のスコアタワーと同じもの）と、水の流体シミュレーション（CisternFlow、
 ## 判定は持たない）もここに置き、SuddenDeathLoader が build_runtime_step() で1つずつ作る。舞台は動かさず、ワールドの原点に置く。
@@ -17,7 +18,7 @@ extends Node3D
 ## The GraphicsQuality autoload instance can be a stale placeholder in an open
 ## editor; its rules are static, so call them through the script.
 const GraphicsQualityRules := preload("res://scripts/core/graphics_quality.gd")
-const GRADE_LUT_PATH := "res://scenes/sudden_death/cistern_generated/textures/grade_lut.res"
+const GRADE_LUT_PATH := "res://scenes/sudden_death/tank_generated/textures/grade_lut.res"
 
 const FLOOR_Y := SuddenDeathLayout.FLOOR_Y
 const BAYS_PART := &"CisternBays"
@@ -32,10 +33,11 @@ const MATERIALS_META := &"cistern_materials"
 ## 舞台の静的なメッシュだけの描画レイヤー（11）。実ライトの cull mask はこれを外す。
 const HALL_LAYER := 11
 const HALL_LAYER_MASK := 1 << (HALL_LAYER - 1)
-## 光の行の数（区画 k = −1〜13）と、区画の中心から投光器までの z。
+## 光の行の数（行 r = 柱の線 10 − r）と線の間隔。
 const ROW_COUNT := CisternLighting.BAY_COUNT
 const BAY_PITCH := CisternLighting.BAY_PITCH
-const LAMP_DZ := 3.5
+## The lamps of a pillar line hang in its coffers, at the line's own z.
+const LAMP_DZ := CisternLighting.LAMP_OFFSET
 ## 流入トンネルのゲート（部品の CIS_InflowGate）が開くときに上がる量。開ききると上流の壁の裏に隠れる。
 const GATE_TRAVEL := 11.4
 const GATE_NODE := "CIS_InflowGate"
@@ -297,7 +299,7 @@ func _dress_module(module: Node3D) -> void:
 	for pair: Variant in module.get_meta(MATERIALS_META, []):
 		var entry := pair as Array
 		table[str(entry[0])] = entry[1]
-		if str(entry[0]) == "CIS_Concrete":
+		if str(entry[0]) in ["TK_Concrete", "CIS_Concrete"]:
 			fallback = entry[1] as Material
 	_module_sources[str(module.get_meta(MODULE_META))] = module.scene_file_path
 	for node: Node in module.find_children("*", "MeshInstance3D", true, false):
@@ -333,6 +335,16 @@ func _apply_quality_to(part: Node) -> void:
 		var amount := GraphicsQualityRules.particle_amount(DUST_AMOUNT, _quality)
 		if (node as GPUParticles3D).amount != amount:
 			(node as GPUParticles3D).amount = amount
+	# The lamps' highlights on the hall (its light()) are the costliest per-pixel work: off on low.
+	if part.name == LIGHTS_PART:
+		for node: Node in part.find_children("*", "Light3D", true, false):
+			var light := node as Light3D
+			if light.light_cull_mask == 0:
+				continue
+			if _quality == GraphicsQualityRules.LOW:
+				light.light_cull_mask &= ~HALL_LAYER_MASK
+			else:
+				light.light_cull_mask |= HALL_LAYER_MASK
 
 
 func _collect_light_rows(root: Node) -> void:
@@ -382,17 +394,17 @@ func hatch_node(right: bool) -> Node3D:
 
 # ------------------------------------------------------------------ lights
 
-## 照明の行の数（行0〜14 = 区画 k = −1〜13、手前 → 奥）。照明の部分シーンが入る前から 15。
+## 照明の行の数（行0〜10 = 柱の線10〜0、立坑側 → ポンプ側）。照明の部分シーンが入る前から 11。
 func row_count() -> int:
 	_ensure_rows()
 	return _row_brightness.size()
 
 
-## 行の投光器の z（区画の中心 + 3.5m。柱の行の中心と同じ）。
+## 行の z（柱の線の z。その線の照明は同じ z の格天井に吊られている）。
 func light_row_z(index: int) -> float:
 	if index >= 0 and index < _light_rows.size():
 		return float(_light_rows[index].z)
-	return BAY_PITCH * float(clampi(index, 0, ROW_COUNT - 1) - 1) + LAMP_DZ
+	return CisternLighting.ROW_Z0 + BAY_PITCH * float(clampi(index, 0, ROW_COUNT - 1))
 
 
 func row_brightness(index: int) -> float:
@@ -881,7 +893,7 @@ func on_event(event: Dictionary) -> void:
 
 
 func _place_focus() -> void:
-	var bay := clampi(roundi(SuddenDeathLayout.LIFT_Z / BAY_PITCH) + 1, 0, maxi(_row_brightness.size() - 1, 0))
+	var bay := clampi(roundi((SuddenDeathLayout.LIFT_Z - LAMP_DZ - CisternLighting.ROW_Z0) / BAY_PITCH), 0, maxi(_row_brightness.size() - 1, 0))
 	var level := _focus_amount * (_row_brightness[bay] if bay < _row_brightness.size() else 1.0)
 	for light: SpotLight3D in _focus_lights:
 		var player_index := int(light.get_meta(&"player", 1))

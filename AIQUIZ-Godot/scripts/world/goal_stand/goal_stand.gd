@@ -44,6 +44,14 @@ const EGG_SPEED := 19.0
 const MISS_CHANCE := 0.25
 const P1_COLOR := Color(0.95, 0.55, 0.20)
 const P2_COLOR := Color(0.20, 0.65, 0.90)
+## Rotating red beacons on the scoreboard's top edge while it shows "SUDDEN DEATH!"
+## (the surface goes dark then, so the board and the beacons carry the moment).
+const PATROL_COLOR := Color(1.0, 0.1, 0.05)
+const PATROL_SPIN := TAU * 1.5
+const PATROL_COUNT := 3
+const PATROL_LIFT := 0.45
+const LED_ENERGY := 2.2
+const LED_ENERGY_SUDDEN_DEATH := 3.4
 ## Boards the losing side's sign row flips to, left to right on screen.
 const WORD_SIGNS: Array[Texture2D] = [
 	preload("res://assets/goal_stand/goal_stand_spectator_sign_oh.png"),
@@ -129,6 +137,11 @@ var _update_usec := 0.0
 var _sudden_death_refreshed := false
 ## The director's egg target was there last frame.
 var _target_armed := false
+var _led_material: ShaderMaterial
+## {root, spinner, dome, phase} per beacon.
+var _patrol_lamps: Array[Dictionary] = []
+var _patrol_on := false
+var _patrol_phase := 0.0
 
 
 func setup(graphics_quality: String, crowd_seed: int = 0x51AD) -> void:
@@ -150,6 +163,7 @@ func setup(graphics_quality: String, crowd_seed: int = 0x51AD) -> void:
 		mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadows else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		mesh.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 	_install_scoreboard()
+	_install_patrol_lamps()
 	_crowd = Node3D.new()
 	_crowd.name = "Crowd"
 	add_child(_crowd)
@@ -173,6 +187,8 @@ func _install_scoreboard() -> void:
 	material.resource_name = "GS_Scoreboard"
 	material.shader = LED_SHADER
 	material.set_shader_parameter("board", scoreboard.get_texture())
+	material.set_shader_parameter("energy", LED_ENERGY)
+	_led_material = material
 	var level := 1
 	for mip: Texture2D in scoreboard.get_mip_textures():
 		material.set_shader_parameter("board_mip%d" % level, mip)
@@ -183,6 +199,122 @@ func _install_scoreboard() -> void:
 			var original := mesh.mesh.surface_get_material(surface)
 			if original != null and original.resource_name == "GS_ScoreboardScreen":
 				mesh.set_surface_override_material(surface, material)
+
+
+## LED face bounds in stand space (empty AABB when the face is missing).
+func _screen_bounds() -> AABB:
+	var bounds := AABB()
+	var found := false
+	for node: Node in _structure.find_children("*", "MeshInstance3D", true, false):
+		var mesh := node as MeshInstance3D
+		for surface in range(mesh.mesh.get_surface_count()):
+			var original := mesh.mesh.surface_get_material(surface)
+			if original == null or original.resource_name != "GS_ScoreboardScreen":
+				continue
+			var to_stand := Transform3D.IDENTITY
+			var walk: Node = mesh
+			while walk != null and walk != self:
+				if walk is Node3D:
+					to_stand = (walk as Node3D).transform * to_stand
+				walk = walk.get_parent()
+			var vertices: PackedVector3Array = mesh.mesh.surface_get_arrays(surface)[Mesh.ARRAY_VERTEX]
+			for vertex in vertices:
+				var p := to_stand * vertex
+				if found:
+					bounds = bounds.expand(p)
+				else:
+					bounds = AABB(p, Vector3.ZERO)
+					found = true
+	return bounds
+
+
+## Three beacons along the top of the LED face: a dark base, a red glass dome and a
+## reflector spinning a red spot inside it. Hidden until the board says "SUDDEN DEATH!".
+func _install_patrol_lamps() -> void:
+	var bounds := _screen_bounds()
+	if bounds.size == Vector3.ZERO:
+		return
+	var along := Vector3.RIGHT if bounds.size.x >= bounds.size.z else Vector3.BACK
+	var half := (bounds.size.x if along == Vector3.RIGHT else bounds.size.z) * 0.5
+	var top := bounds.get_center() + Vector3(0.0, bounds.size.y * 0.5, 0.0)
+	var base_mesh := CylinderMesh.new()
+	base_mesh.top_radius = 0.34
+	base_mesh.bottom_radius = 0.4
+	base_mesh.height = 0.22
+	var base_mat := StandardMaterial3D.new()
+	base_mat.albedo_color = Color(0.06, 0.06, 0.07)
+	base_mat.roughness = 0.5
+	base_mesh.material = base_mat
+	var dome_mesh := CylinderMesh.new()
+	dome_mesh.top_radius = 0.24
+	dome_mesh.bottom_radius = 0.3
+	dome_mesh.height = 0.55
+	for index in range(PATROL_COUNT):
+		var u := -1.0 + 2.0 * float(index) / float(PATROL_COUNT - 1)
+		var root := Node3D.new()
+		root.name = "PatrolLamp%d" % index
+		root.position = top + along * (u * (half - 0.4)) + Vector3.UP * PATROL_LIFT * 0.5
+		root.visible = false
+		add_child(root)
+		var base := MeshInstance3D.new()
+		base.mesh = base_mesh
+		base.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		root.add_child(base)
+		var dome_mat := StandardMaterial3D.new()
+		dome_mat.albedo_color = Color(PATROL_COLOR, 0.85)
+		dome_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		dome_mat.emission_enabled = true
+		dome_mat.emission = PATROL_COLOR
+		dome_mat.emission_energy_multiplier = 3.0
+		var dome := MeshInstance3D.new()
+		dome.mesh = dome_mesh
+		dome.material_override = dome_mat
+		dome.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		dome.position.y = 0.38
+		root.add_child(dome)
+		var spinner := Node3D.new()
+		spinner.position.y = 0.38
+		root.add_child(spinner)
+		var spot := SpotLight3D.new()
+		spot.light_color = PATROL_COLOR
+		spot.light_energy = 14.0
+		spot.spot_range = 28.0
+		spot.spot_angle = 26.0
+		spot.spot_attenuation = 1.1
+		spot.shadow_enabled = false
+		spot.light_volumetric_fog_energy = 2.5
+		spot.rotation.x = deg_to_rad(-12.0)
+		spinner.add_child(spot)
+		var back := spot.duplicate() as SpotLight3D
+		back.rotation.y = PI
+		spinner.add_child(back)
+		var glow := OmniLight3D.new()
+		glow.light_color = PATROL_COLOR
+		glow.light_energy = 2.0
+		glow.omni_range = 4.0
+		glow.shadow_enabled = false
+		glow.position.y = 0.38
+		root.add_child(glow)
+		_patrol_lamps.append({"root": root, "spinner": spinner, "dome": dome_mat, "phase": 0.9 * float(index)})
+
+
+## Beacons on and the LED pushed brighter while the board shows "SUDDEN DEATH!".
+func _update_patrol(delta: float, state: QuizGameState) -> void:
+	var on := GoalStandScoreboard.shows_sudden_death(state)
+	if on != _patrol_on:
+		_patrol_on = on
+		for lamp: Dictionary in _patrol_lamps:
+			(lamp.root as Node3D).visible = on
+		if _led_material != null:
+			_led_material.set_shader_parameter("energy", LED_ENERGY_SUDDEN_DEATH if on else LED_ENERGY)
+	if not on:
+		return
+	_patrol_phase = fposmod(_patrol_phase + PATROL_SPIN * delta, TAU)
+	for lamp: Dictionary in _patrol_lamps:
+		var angle := _patrol_phase + float(lamp.phase)
+		(lamp.spinner as Node3D).rotation.y = angle
+		# The dome flares as a beam sweeps past the front.
+		(lamp.dome as StandardMaterial3D).emission_energy_multiplier = 2.0 + 6.0 * pow(absf(cos(angle)), 6.0)
 
 
 func scoreboard_installed() -> bool:
@@ -470,6 +602,7 @@ func _update(delta: float, state: QuizGameState, director: Node, camera: Camera3
 	_clear_age = _clear_age + delta if on_result_screen else 0.0
 	var programme_ready := on_result_screen and (reel_ready or _clear_age > PROGRAMME_WAIT_MAX)
 	scoreboard.sync(state, _clock, distance <= ACTIVE_DISTANCE, verdict_winner, programme_ready)
+	_update_patrol(delta, state)
 	_track_arrivals(state)
 	if distance > ACTIVE_DISTANCE and not state.result_presentation_active:
 		# A few hundred metres down the course the crowd is a frozen backdrop.

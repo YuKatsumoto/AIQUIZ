@@ -48,6 +48,10 @@ const DUSK := Vector2(1.0, 2.3)
 const ENTRY_END_EXPOSURE := 0.62
 const SHAFT_START_EXPOSURE := 0.55
 const IRIS_OPEN_TIME := 0.6
+## From the cut-in the surface falls to night over NIGHT_FADE seconds (as far as NIGHT_AMOUNT of the
+## descent's dusk), so the scoreboard's "SUDDEN DEATH!" and the beacons carry the moment on their own.
+const NIGHT_AMOUNT := 0.8
+const NIGHT_FADE := 0.9
 
 # ------------------------------------------------------------------ landing / intro (real seconds after touchdown)
 const INTRO_SHOUT := 0.2
@@ -172,6 +176,9 @@ var _referee_handoff_time := 0.0
 ## The surface sky's ambient and energy before the descent faded them (a copy of the surface environment).
 var _surface_ambient := -1.0
 var _surface_sky := 1.0
+var _surface_fog := 1.0
+## How far the branch has already taken the surface into night (0..NIGHT_AMOUNT).
+var _branch_night := 0.0
 var _arrival_anchored := false
 var _arrival_started := false
 var _abort_announced := false
@@ -430,6 +437,7 @@ func _begin_branch() -> void:
 	_ready_frame_log.clear()
 	_shot_log.clear()
 	_podium = ResultCeremonyDirector.podium_center(game_state)
+	_branch_night = 0.0
 	prepare_for_match()
 	_ensure_hud()
 	_ensure_audio()
@@ -464,8 +472,11 @@ func _update_branch() -> void:
 	if _cue("whistle", elapsed >= QuizGameState.SUDDEN_DEATH_BRANCH_TIME):
 		_play(&"whistle")
 	if _cue("cut_in", elapsed >= CUT_IN_TIME):
-		_hud_call("show_cut_in", ["SUDDEN DEATH!"])
+		# No 2D title: the scoreboard behind the podium carries "SUDDEN DEATH!".
 		_hud_call("flash", [1.0, 0.22])
+		_surface_env = _duplicate_surface_env()
+		_surface_ambient = -1.0
+		_set_env(_surface_env, 1.0, 1.0, 0.0)
 		_play(&"siren", -2.0)
 		# The floor under the podium becomes the steel hatch (hidden by the flash).
 		if stage_env != null and stage_env.has_method("set_shaft_hole"):
@@ -473,6 +484,9 @@ func _update_branch() -> void:
 		if is_instance_valid(_shaft):
 			_shaft.visible = true
 			_shaft.set_beacons(true)
+	if elapsed >= CUT_IN_TIME:
+		_branch_night = NIGHT_AMOUNT * smoothstep(CUT_IN_TIME, CUT_IN_TIME + NIGHT_FADE, elapsed)
+		_set_surface_dusk(_branch_night)
 	if _cue("sink", elapsed >= QuizGameState.SUDDEN_DEATH_SINK_TIME):
 		_play(&"deck_release", -9.0, 0.8)
 	if _cue("iris", elapsed >= QuizGameState.SUDDEN_DEATH_IRIS_TIME):
@@ -508,8 +522,10 @@ func _begin_descent() -> void:
 	_abort_announced = false
 	_deck_rise_elapsed = -1.0
 	_landed_time = -1.0
-	_surface_env = _duplicate_surface_env()
-	_surface_ambient = -1.0
+	# The branch has usually put the night on already: keep it (no flash back to daylight).
+	if _surface_env == null:
+		_surface_env = _duplicate_surface_env()
+		_surface_ambient = -1.0
 	_set_env(_surface_env, 1.0, 1.0, 0.0)
 	_play(&"deck_release")
 	_audio_call("set_motor", [true, 0.0])
@@ -606,7 +622,7 @@ func _update_entry() -> void:
 		_shaft.set_mouth(true, 0.0, 1.0)
 		_shaft.set_daylight(1.0 - smoothstep(1.2, 2.4, _descent.t))
 	_deck_world = _podium + Vector3(0.0, _deck_local_y, 0.0)
-	_set_surface_dusk(smoothstep(DUSK.x, DUSK.y, _descent.t))
+	_set_surface_dusk(maxf(_branch_night, smoothstep(DUSK.x, DUSK.y, _descent.t)))
 	# Daylight to darkness on a fixed curve (no auto exposure, docs 5.2).
 	_env_base_exposure = lerpf(1.0, ENTRY_END_EXPOSURE, smoothstep(1.0, 2.4, _descent.t))
 	if _surface_env != null:
@@ -1785,6 +1801,9 @@ func _set_surface_dusk(amount: float) -> void:
 		if _surface_ambient < 0.0:
 			_surface_ambient = _surface_env.ambient_light_energy
 			_surface_sky = _surface_env.background_energy_multiplier
+			_surface_fog = _surface_env.fog_light_energy
+		# The stage's aerial fog is lit by the sky too: it goes out with the daylight.
+		_surface_env.fog_light_energy = lerpf(_surface_fog, 0.0, amount)
 		_surface_env.ambient_light_energy = lerpf(_surface_ambient, _surface_ambient * 0.08, amount)
 		# The sky also lights the grating through its reflections (it is out of frame by then).
 		_surface_env.background_energy_multiplier = lerpf(_surface_sky, _surface_sky * 0.04, amount)
@@ -1794,6 +1813,7 @@ func _restore_surface_env() -> void:
 	ResultCeremonyDirector.stage_light = 1.0
 	WeatherCycle.light_scale = 1.0
 	_surface_ambient = -1.0
+	_branch_night = 0.0
 	var camera := _camera()
 	if camera != null and camera.environment in [_surface_env, _shaft_env, _hall_env]:
 		camera.environment = null

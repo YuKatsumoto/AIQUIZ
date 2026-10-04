@@ -81,7 +81,7 @@ const BURST_POOL := 8
 ## The flat water downstream of the simulation (to the far end of the hall).
 const FAR_START_Z := 42.0
 const FAR_END_Z := 210.0
-const HALL_HALF_WIDTH := 45.0
+const HALL_HALF_WIDTH := SuddenDeathLayout.HALL_HALF_WIDTH
 
 var quality := GraphicsQualityRules.BALANCED
 ## Game seconds the water has run (the shader's clock).
@@ -338,16 +338,22 @@ static func bed_heights() -> PackedFloat32Array:
 	var heights := PackedFloat32Array()
 	heights.resize(GRID.x * GRID.y)
 	heights.fill(0.0)
+	# the trench floor, its slopes and the shelves 5 m up; solid beyond the side walls
+	for j in range(GRID.y):
+		var z := ORIGIN.y + (float(j) + 0.5) * CELL
+		var wall := SuddenDeathLayout.wall_half_width(z)
+		for i in range(GRID.x):
+			var x := ORIGIN.x + (float(i) + 0.5) * CELL
+			heights[j * GRID.x + i] = WALL_HEIGHT if absf(x) > wall else SuddenDeathLayout.floor_height(x, z)
 	var half := Vector2(SuddenDeathLayout.PILLAR_SIZE.x, SuddenDeathLayout.PILLAR_SIZE.z) * 0.5
-	for column: float in SuddenDeathLayout.PILLAR_COLUMNS:
-		for row_z: float in SuddenDeathLayout.pillar_row_zs():
-			var from := cell_of(Vector2(column - half.x, row_z - half.y))
-			var to := cell_of(Vector2(column + half.x, row_z + half.y))
-			for j in range(maxi(from.y, 0), mini(to.y + 1, GRID.y)):
-				for i in range(maxi(from.x, 0), mini(to.x + 1, GRID.x)):
-					var centre := ORIGIN + (Vector2(i, j) + Vector2(0.5, 0.5)) * CELL
-					if absf(centre.x - column) <= half.x and absf(centre.y - row_z) <= half.y:
-						heights[j * GRID.x + i] = WALL_HEIGHT
+	for pillar: Vector2 in SuddenDeathLayout.pillars():
+		var from := cell_of(pillar - half)
+		var to := cell_of(pillar + half)
+		for j in range(maxi(from.y, 0), mini(to.y + 1, GRID.y)):
+			for i in range(maxi(from.x, 0), mini(to.x + 1, GRID.x)):
+				var centre := ORIGIN + (Vector2(i, j) + Vector2(0.5, 0.5)) * CELL
+				if absf(centre.x - pillar.x) <= half.x and absf(centre.y - pillar.y) <= half.y:
+					heights[j * GRID.x + i] = WALL_HEIGHT
 	return heights
 
 

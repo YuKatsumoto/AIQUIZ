@@ -1,0 +1,9 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://shaders/surge_tank/tank_void.gdshader" id="1_jdo24"]
+
+[resource]
+resource_name = "TK_Void"
+render_priority = 0
+shader = ExtResource("1_jdo24")
+shader_parameter/void_color = null

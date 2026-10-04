@@ -2,7 +2,7 @@ extends Node
 
 ## Milestone 2 of docs/sudden_death_underground.md, the parts around the sudden death:
 ##   settings  GameManager.sudden_death_enabled persists in the settings file and reaches
-##             the long-lived QuizGameState; the main menu's settings row sits under the
+##             the long-lived QuizGameState; the settings hall's row sits under the
 ##             graphics quality row and switches it.
 ##   reel      MatchReel records while underground, marks the deciding moment above the
 ##             win, and stores {rows, by, winner} in the record; older records still read.
@@ -101,18 +101,21 @@ func _check_settings() -> void:
 
 
 func _check_menu_row() -> void:
-	var menu: Control = load("res://ui/main_menu.tscn").instantiate()
-	get_tree().root.add_child(menu)
+	await _check_menu_row_unavailable()
+	var bg := _panel_backdrop()
+	var panel: Control = load("res://scripts/ui/settings_hall_panel.gd").new()
+	get_tree().root.add_child(panel)
 	for _frame in range(10):
 		await get_tree().process_frame
-	var vbox := menu.get_node("SettingsPanel/VBox") as VBoxContainer
+	var vbox := panel.call("display_rows") as VBoxContainer
 	var row := vbox.get_node_or_null("SuddenDeathBox") as HBoxContainer
 	var quality_row := vbox.get_node_or_null("GraphicsQualityBox")
 	check("menu: sudden death row under the graphics quality row", row != null and quality_row != null
 		and row.get_index() == quality_row.get_index() + 1,
 		[row.get_index() if row else -1, quality_row.get_index() if quality_row else -1])
 	if row == null:
-		menu.queue_free()
+		panel.queue_free()
+		bg.queue_free()
 		return
 	var label := row.get_node("Label") as Label
 	var option := row.get_node("SuddenDeathOption") as OptionButton
@@ -126,20 +129,45 @@ func _check_menu_row() -> void:
 	option.item_selected.emit(1)
 	check("menu: choosing オフ switches it off", not GameManager.sudden_death_enabled and not QuizManager.game_state.sudden_death_enabled
 		and _read_settings_file().get("sudden_death_enabled", true) == false)
-	(menu.get_node("SettingsPanel") as Control).visible = true
-	# The first-launch tutorial prompt would cover the panel in the picture.
-	for overlay in ["TutorialCourseSelector", "TutorialKeyboardIntro"]:
-		var node := menu.get_node_or_null(overlay) as CanvasItem
-		if node != null:
-			node.visible = false
 	for _frame in range(3):
 		await RenderingServer.frame_post_draw
 	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path(OUT + "menu_settings_off.png"))
 	option.select(0)
 	option.item_selected.emit(0)
 	check("menu: choosing オン switches it back on", GameManager.sudden_death_enabled and QuizManager.game_state.sudden_death_enabled)
-	menu.queue_free()
+	panel.queue_free()
+	bg.queue_free()
 	await get_tree().process_frame
+
+
+## Switched off for now (docs 20): the settings column has no sudden death row.
+func _check_menu_row_unavailable() -> void:
+	QuizGameState.sudden_death_available = false
+	var bg := _panel_backdrop()
+	var panel: Control = load("res://scripts/ui/settings_hall_panel.gd").new()
+	get_tree().root.add_child(panel)
+	for _frame in range(10):
+		await get_tree().process_frame
+	var vbox := panel.call("display_rows") as VBoxContainer
+	check("menu: no sudden death row while switched off", vbox.get_node_or_null("SuddenDeathBox") == null
+		and vbox.get_node_or_null("GraphicsQualityBox") != null)
+	for _frame in range(3):
+		await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path(OUT + "menu_settings_unavailable.png"))
+	panel.queue_free()
+	bg.queue_free()
+	await get_tree().process_frame
+	QuizGameState.sudden_death_available = true
+
+
+## The settings column now lives in the underground hall scene (ui/settings_hall.tscn, SettingsHallPanel);
+## for the pictures it stands on a dark backdrop instead of the 3D hall.
+func _panel_backdrop() -> ColorRect:
+	var bg := ColorRect.new()
+	bg.color = Color(0.02, 0.04, 0.09)
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	get_tree().root.add_child(bg)
+	return bg
 
 
 # ------------------------------------------------------------------ reel

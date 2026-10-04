@@ -1,0 +1,38 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://shaders/surge_tank/tank_grate.gdshader" id="1_f7ft4"]
+[ext_resource type="Texture2D" path="res://assets/environment/surge_tank/textures/grate_albedo.png" id="2_4siid"]
+[ext_resource type="Texture2D" path="res://assets/environment/surge_tank/textures/tank_end_pump_light.png" id="3_jjdec"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/textures/macro_noise.res" id="4_207pb"]
+[ext_resource type="Texture2D" path="res://assets/environment/surge_tank/textures/grate_normal.png" id="5_tieiq"]
+[ext_resource type="Texture2D" path="res://assets/environment/surge_tank/textures/grate_orm.png" id="6_f61r2"]
+
+[resource]
+resource_name = "TK_Grate"
+render_priority = 0
+shader = ExtResource("1_f7ft4")
+shader_parameter/tank_scale = 2.0
+shader_parameter/ambient_color = null
+shader_parameter/ambient_level = null
+shader_parameter/white_balance = Vector3(0.8826348, 1.0306846, 1.2090058)
+shader_parameter/light_specular_scale = null
+shader_parameter/albedo_tex = ExtResource("2_4siid")
+shader_parameter/normal_tex = ExtResource("5_tieiq")
+shader_parameter/orm_tex = ExtResource("6_f61r2")
+shader_parameter/light_tex = ExtResource("3_jjdec")
+shader_parameter/macro_noise = ExtResource("4_207pb")
+shader_parameter/albedo_tint = Color(0.22, 0.23, 0.24, 1)
+shader_parameter/uv_metres = 0.5
+shader_parameter/uv_scale = 1.0
+shader_parameter/detail_strength = 0.0
+shader_parameter/normal_strength = null
+shader_parameter/roughness_scale = 0.6
+shader_parameter/roughness_min = null
+shader_parameter/metallic_value = 0.4
+shader_parameter/light_max = 5.036286
+shader_parameter/light_scale = 2.7
+shader_parameter/cavity_strength = null
+shader_parameter/macro_strength = 0.05
+shader_parameter/seepage = 0.0
+shader_parameter/floor_y = -1.2
+shader_parameter/debug_view = null

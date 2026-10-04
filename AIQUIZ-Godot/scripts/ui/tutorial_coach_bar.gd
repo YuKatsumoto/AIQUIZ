@@ -18,7 +18,9 @@ const MUTED_COLOR := Color(0.60, 0.68, 0.84, 1.0)
 const BAR_WIDTH := 940.0
 const BAR_MARGIN_BOTTOM := 26.0
 const BAR_HEIGHT_FULL := 108.0
-const BAR_HEIGHT_COMPACT := 66.0
+## クイズ中は進行ドットを隠し、本文（または案内）を最大2行で見せる高さ。
+const BAR_HEIGHT_COMPACT := 76.0
+const COMPACT_BODY_LINES := 2
 const ENTER_SECONDS := 0.35
 const ENTER_RISE := 46.0
 const CHIP_POP_SECONDS := 0.45
@@ -26,6 +28,7 @@ const CHIP_POP_SECONDS := 0.45
 var game_state: QuizGameState = null
 
 var _bar: PanelContainer = null
+var _progress_box: VBoxContainer = null
 var _dots_box: HBoxContainer = null
 var _step_label: Label = null
 var _title_label: Label = null
@@ -157,20 +160,20 @@ func _build_ui() -> void:
 	_bar.add_child(row)
 
 	# 左: ステップ進行
-	var progress_box := VBoxContainer.new()
-	progress_box.add_theme_constant_override("separation", 5)
-	progress_box.custom_minimum_size.x = 132.0
-	progress_box.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	row.add_child(progress_box)
+	_progress_box = VBoxContainer.new()
+	_progress_box.add_theme_constant_override("separation", 5)
+	_progress_box.custom_minimum_size.x = 132.0
+	_progress_box.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(_progress_box)
 
 	_step_label = Label.new()
 	_step_label.add_theme_font_size_override("font_size", 12)
 	_step_label.add_theme_color_override("font_color", MUTED_COLOR)
-	progress_box.add_child(_step_label)
+	_progress_box.add_child(_step_label)
 
 	_dots_box = HBoxContainer.new()
 	_dots_box.add_theme_constant_override("separation", 6)
-	progress_box.add_child(_dots_box)
+	_progress_box.add_child(_dots_box)
 
 	# 中央: 見出しと一行の指示
 	var text_box := VBoxContainer.new()
@@ -247,6 +250,9 @@ func _refresh_content(model: Dictionary, locked: bool, compact: bool) -> void:
 		"font_color", ACCENT if not hint.is_empty() else TEXT_COLOR
 	)
 	_body_label.add_theme_font_size_override("font_size", 16 if compact else 15)
+	# クイズ中は問題文と壁が主役。進行ドットを畳んで本文の幅を確保し、2行までに収める。
+	_progress_box.visible = not compact
+	_body_label.max_lines_visible = COMPACT_BODY_LINES if compact else -1
 	var skip_text := str(model.get("skip_text", ""))
 	_skip_row.visible = locked and not skip_text.is_empty()
 	if _skip_row.visible:

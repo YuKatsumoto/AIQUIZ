@@ -1,0 +1,18 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://shaders/surge_tank/tank_dust.gdshader" id="1_2nn5q"]
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_2nn5q")
+shader_parameter/tank_scale = 2.0
+shader_parameter/ambient_color = null
+shader_parameter/ambient_level = null
+shader_parameter/white_balance = null
+shader_parameter/light_specular_scale = null
+shader_parameter/dust_color = null
+shader_parameter/dust_energy = null
+shader_parameter/near_fade = null
+shader_parameter/far_fade = null
+shader_parameter/lamp_y = null
+shader_parameter/floor_y = -1.2

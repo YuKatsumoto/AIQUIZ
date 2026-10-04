@@ -5,6 +5,9 @@ signal night_amount_changed(value: float)
 
 ## Shared, sunny daytime presentation for every stage viewport.
 ## Phase stays locked at midday so scene changes and session length never shift the sky.
+const StageAtmosphereScript = preload("res://scripts/world/stage_atmosphere.gd")
+const OceanDetailScript = preload("res://scripts/world/ocean_detail.gd")
+
 const DAY_CYCLE_SECONDS: float = 900.0
 const START_DAY_PHASE: float = 0.25
 const LOCK_DAYTIME: bool = true
@@ -31,8 +34,12 @@ var sky_material: ShaderMaterial = null
 var sun_orbit_basis: Basis = Basis.IDENTITY
 var day_phase: float = START_DAY_PHASE
 var night_amount: float = 0.0
+## The desktop ocean material (StageEnvironment links it); it is told where the sun is.
+var ocean_material: ShaderMaterial = null
 
 var _forced: bool = false
+var _sun_dir: Vector3 = Vector3.UP
+var _ocean_sun_sent: Vector3 = Vector3.ZERO
 
 static var _shared_clock_initialized: bool = false
 static var _shared_clock_anchor_ticks_msec: int = 0
@@ -201,11 +208,33 @@ func _apply(p_day_phase: float) -> void:
 		environment.ambient_light_energy = maxf(ambient_energy, twilight_amount * 0.92)
 		var background_energy: float = lerpf(0.74, 0.98, day_amount)
 		environment.background_energy_multiplier = maxf(background_energy, twilight_amount * 0.86)
+		# Fog and hemispheric ambient of the stage; this runs after the lines above, which
+		# reset them every frame.
+		StageAtmosphereScript.apply_weather(environment, day_amount, twilight_amount, _graphics_quality())
 
 	if sky_material != null:
 		sky_material.set_shader_parameter("cycle_sun_direction", sun_dir)
+	_sun_dir = sun_dir
+	if ocean_material != null and not sun_dir.is_equal_approx(_ocean_sun_sent):
+		_ocean_sun_sent = sun_dir
+		OceanDetailScript.set_sun(ocean_material, sun_dir)
 
 	night_amount_changed.emit(night_amount)
+
+
+## Sends the current sun direction to a (new) ocean material.
+func refresh_ocean_sun() -> void:
+	_ocean_sun_sent = Vector3.ZERO
+	if ocean_material != null:
+		_ocean_sun_sent = _sun_dir
+		OceanDetailScript.set_sun(ocean_material, _sun_dir)
+
+
+static func _graphics_quality() -> String:
+	var raw: Variant = GameManager.get("graphics_quality")
+	if typeof(raw) != TYPE_STRING or String(raw).is_empty():
+		return "balanced"
+	return String(raw)
 
 
 static func _default_sun_orbit_basis() -> Basis:

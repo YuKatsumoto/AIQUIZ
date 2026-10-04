@@ -33,18 +33,7 @@ const TutorialCompletionCardScript := preload("res://scripts/ui/tutorial_complet
 @onready var llm_toggle_btn: Button = %LlmToggleBtn
 @onready var customize_btn: Button = %CustomizeBtn
 
-@onready var settings_panel: Panel = $SettingsPanel
 @onready var settings_btn: Button = %SettingsBtn
-@onready var api_status_label: RichTextLabel = $SettingsPanel/VBox/ApiStatusLabel
-@onready var vol_slider: HSlider = $SettingsPanel/VBox/VolBox/VolSlider
-var bgm_vol_slider: HSlider = null
-# speed_slider は廃止（壁速度は難易度から自動決定）
-@onready var res_option: OptionButton = %ResOption
-var graphics_quality_option: OptionButton = null
-## Settings row "サドンデス（2P 10問の引き分け）": オン / オフ (item ids below).
-var sudden_death_option: OptionButton = null
-const SUDDEN_DEATH_ON := 0
-const SUDDEN_DEATH_OFF := 1
 
 var game_state: QuizGameState
 var _tutorial_row: HBoxContainer = null
@@ -64,6 +53,9 @@ const ANIM_STAGGER := 0.055
 const MENU_EXIT_DURATION := 0.34
 const MENU_EXIT_OFFSET_X := -520.0
 const MENU_HELICOPTER_EXIT_TIMEOUT_SEC := 12.0
+## 設定画面（地下神殿の講義室）のシーンと、そこへ向かうライブ背景カメラの急降下の長さ（秒）。
+const SETTINGS_HALL_SCENE_PATH := "res://ui/settings_hall.tscn"
+const SETTINGS_DIVE_DURATION := 0.6
 
 var _prev_menu_step: String = ""
 var _entrance_done: bool = false
@@ -93,7 +85,6 @@ func _ready() -> void:
 	_hide_coop_mode_if_disabled()
 	game_state.game_state = Constants.STATE_MENU
 	# 戻るボタン等からの遷移時に状態を保持するため、menu_stepの強制リセットを削除
-	settings_panel.visible = false
 	_setup_live_background()
 	_setup_helicopter_skip_hint()
 	_enhance_title()
@@ -103,31 +94,6 @@ func _ready() -> void:
 	_setup_embedded_customize()
 	_reset_menu_visual_state()
 
-	_setup_audio_settings()
-
-	res_option.item_selected.connect(_on_resolution_selected)
-	res_option.add_item("1280x720 (HD)", 0)
-	res_option.add_item("1920x1080 (FHD)", 1)
-	res_option.add_item("2560x1440 (WQHD)", 2)
-	res_option.add_item("3840x2160 (4K)", 3)
-	res_option.add_item("フルスクリーン", 4)
-
-	if DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN:
-		res_option.select(4)
-	else:
-		var w = DisplayServer.window_get_size().x
-		if w >= 3840:
-			res_option.select(3)
-		elif w >= 2560:
-			res_option.select(2)
-		elif w >= 1920:
-			res_option.select(1)
-		else:
-			res_option.select(0)
-
-	_setup_graphics_quality_option()
-	ApiStatusAutoload.check_completed.connect(_update_api_status_text)
-	
 	LiveConfigManager.config_updated.connect(_on_live_config_updated)
 	_on_live_config_updated()
 
@@ -463,7 +429,6 @@ func _open_embedded_customize() -> void:
 	_embedded_customize_open = true
 	_menu_exit_in_progress = true
 	_set_all_buttons_disabled(true)
-	settings_panel.visible = false
 	if _embedded_customize.has_method("prepare_embedded_open"):
 		_embedded_customize.call("prepare_embedded_open")
 	_embedded_customize.visible = true
@@ -634,7 +599,6 @@ func _play_exit_and_change_scene(
 		return
 	_menu_exit_in_progress = true
 	_set_all_buttons_disabled(true)
-	settings_panel.visible = false
 	if start_standard_round and path.ends_with("game_world.tscn"):
 		await _play_start_ui_departure()
 		if is_inside_tree():
@@ -1231,185 +1195,28 @@ func _hide_coop_mode_if_disabled() -> void:
 
 # --- Settings ---
 
+## 設定は地下神殿の講義室（ui/settings_hall.tscn）へ移動して行う。メニューが左へ退場し、
+## ライブ背景のカメラが地面へ急降下した先で黒へ落ち、向こうのシーンが立坑を降りて着地する。
 func _on_settings_btn_pressed() -> void:
-	_show_panel_animated(settings_panel)
-	_on_recheck_btn_pressed()
+	_go_to_settings_hall()
 
-func _on_settings_back_btn_pressed() -> void:
-	_hide_panel_animated(settings_panel)
 
-func _on_recheck_btn_pressed() -> void:
-	api_status_label.text = "[color=yellow]API状態チェック中...[/color]"
-	ApiStatusAutoload.run_connectivity_check()
-
-func _on_open_dashboard_pressed() -> void:
-	# Opens the locally running Next.js dashboard in the default browser
-	OS.shell_open("http://localhost:3000")
-
-func _update_api_status_text() -> void:
-	var text := ""
-
-	var i_col = "green" if ApiStatusAutoload.internet_ok else ("red" if ApiStatusAutoload.internet_ok == false else "yellow")
-	text += "[color=%s]インターネット: %s[/color]\n" % [i_col, ApiStatusAutoload.internet_msg]
-
-	var proxy := ApiStatusAutoload.get_proxy_url()
-	var p_col = "green" if ApiStatusAutoload.proxy_status else ("red" if ApiStatusAutoload.proxy_status == false else "yellow")
-	var p_cfg = "設定済" if ApiStatusAutoload.proxy_configured else "未設定"
-	text += "[color=%s]AI Gateway (PROXY): %s[/color] (URL: %s)\n" % [p_col, ApiStatusAutoload.proxy_msg, p_cfg]
-
-	var f_col = "green" if ApiStatusAutoload.firebase_status else ("red" if ApiStatusAutoload.firebase_status == false else "yellow")
-	var f_key = "設定済" if ApiStatusAutoload.firebase_configured else "未設定"
-	text += "[color=%s]Firebase: %s[/color] (DB URL: %s)\n" % [f_col, ApiStatusAutoload.firebase_msg, f_key]
-
-	text += "\n[color=gray]オフライン問題数: %d問[/color]" % ApiStatusAutoload.offline_count
-
-	api_status_label.text = text
-
-func _on_vol_slider_changed(value: float) -> void:
-	game_state.set_sfx_volume(value)
-
-func _on_bgm_vol_slider_changed(value: float) -> void:
-	game_state.set_bgm_volume(value)
-
-func _setup_audio_settings() -> void:
-	game_state.sfx_volume = AudioManager.sfx_volume
-	game_state.bgm_volume = AudioManager.bgm_volume
-	vol_slider.value = AudioManager.sfx_volume
-
-	var sfx_row := $SettingsPanel/VBox/VolBox as HBoxContainer
-	var sfx_label := sfx_row.get_node_or_null("Label") as Label
-	if sfx_label:
-		sfx_label.text = "効果音量:"
-
-	var settings_vbox := $SettingsPanel/VBox as VBoxContainer
-	var existing_slider := settings_vbox.get_node_or_null("BgmVolBox/BgmVolSlider") as HSlider
-	if existing_slider:
-		bgm_vol_slider = existing_slider
-		bgm_vol_slider.value = AudioManager.bgm_volume
+func _go_to_settings_hall() -> void:
+	if _menu_exit_in_progress or _embedded_customize_open:
 		return
-
-	var bgm_row := HBoxContainer.new()
-	bgm_row.name = "BgmVolBox"
-	bgm_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	var bgm_label := Label.new()
-	bgm_label.name = "Label"
-	bgm_label.text = "BGM音量:"
-	bgm_row.add_child(bgm_label)
-	bgm_vol_slider = HSlider.new()
-	bgm_vol_slider.name = "BgmVolSlider"
-	bgm_vol_slider.custom_minimum_size = Vector2(250.0, 0.0)
-	bgm_vol_slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	bgm_vol_slider.max_value = 1.0
-	bgm_vol_slider.step = 0.05
-	bgm_vol_slider.value = AudioManager.bgm_volume
-	bgm_vol_slider.value_changed.connect(_on_bgm_vol_slider_changed)
-	bgm_row.add_child(bgm_vol_slider)
-	settings_vbox.add_child(bgm_row)
-	settings_vbox.move_child(bgm_row, sfx_row.get_index())
-
-# _on_speed_slider_changed は廃止（壁速度は難易度から自動決定）
-
-
-func _setup_graphics_quality_option() -> void:
-	var settings_vbox: VBoxContainer = $SettingsPanel/VBox
-	var resolution_row: HBoxContainer = $SettingsPanel/VBox/ResolutionBox
-	var row: HBoxContainer = HBoxContainer.new()
-	row.name = "GraphicsQualityBox"
-	row.add_theme_constant_override("separation", 12)
-	var label: Label = Label.new()
-	label.name = "Label"
-	label.text = "画質"
-	label.custom_minimum_size = Vector2(120.0, 0.0)
-	label.add_theme_font_size_override("font_size", 18)
-	var option: OptionButton = OptionButton.new()
-	option.name = "GraphicsQualityOption"
-	option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	option.add_theme_font_size_override("font_size", 18)
-	# 軽量 / 標準 / 高画質 / 最高画質（項目番号 = GraphicsQuality.rank）
-	for index: int in range(GraphicsQuality.VALID_QUALITIES.size()):
-		option.add_item(GraphicsQuality.display_name(GraphicsQuality.VALID_QUALITIES[index]), index)
-	option.select(GraphicsQuality.rank(GameManager.graphics_quality))
-	option.item_selected.connect(_on_graphics_quality_selected)
-	row.add_child(label)
-	row.add_child(option)
-	settings_vbox.add_child(row)
-	settings_vbox.move_child(row, resolution_row.get_index() + 1)
-	graphics_quality_option = option
-	_setup_sudden_death_option(row)
-
-
-## ローカル2P「10問」の引き分けを地下神殿のサドンデスで決着させるか（既定オン）。
-## 画質の行のすぐ下に、同じ見た目の行で置く。
-func _setup_sudden_death_option(after_row: Control) -> void:
-	var settings_vbox: VBoxContainer = $SettingsPanel/VBox
-	var row: HBoxContainer = HBoxContainer.new()
-	row.name = "SuddenDeathBox"
-	row.add_theme_constant_override("separation", 12)
-	var label: Label = Label.new()
-	label.name = "Label"
-	label.text = "サドンデス（2P 10問の引き分け）"
-	label.custom_minimum_size = Vector2(120.0, 0.0)
-	label.add_theme_font_size_override("font_size", 18)
-	var option: OptionButton = OptionButton.new()
-	option.name = "SuddenDeathOption"
-	option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	option.add_theme_font_size_override("font_size", 18)
-	option.add_item("オン", SUDDEN_DEATH_ON)
-	option.add_item("オフ", SUDDEN_DEATH_OFF)
-	option.select(option.get_item_index(SUDDEN_DEATH_ON if GameManager.sudden_death_enabled else SUDDEN_DEATH_OFF))
-	option.item_selected.connect(_on_sudden_death_selected)
-	row.add_child(label)
-	row.add_child(option)
-	settings_vbox.add_child(row)
-	settings_vbox.move_child(row, after_row.get_index() + 1)
-	sudden_death_option = option
-
-
-func _on_sudden_death_selected(index: int) -> void:
-	GameManager.set_sudden_death_enabled(sudden_death_option.get_item_id(index) == SUDDEN_DEATH_ON)
-
-
-func _on_graphics_quality_selected(index: int) -> void:
-	var quality: String = GraphicsQuality.BALANCED
-	if index >= 0 and index < GraphicsQuality.VALID_QUALITIES.size():
-		quality = GraphicsQuality.VALID_QUALITIES[index]
-	GameManager.set_graphics_quality(quality)
-	GraphicsQuality.apply_text_viewport(live_viewport, quality)
-	if _menu_wall_preview and _menu_wall_preview.has_method("apply_graphics_quality"):
-		_menu_wall_preview.call("apply_graphics_quality")
-
-
-func _on_resolution_selected(index: int) -> void:
-	if index == 4:
-		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
-	else:
-		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
-		match index:
-			0:
-				DisplayServer.window_set_size(Vector2i(1280, 720))
-			1:
-				DisplayServer.window_set_size(Vector2i(1920, 1080))
-			2:
-				DisplayServer.window_set_size(Vector2i(2560, 1440))
-			3:
-				DisplayServer.window_set_size(Vector2i(3840, 2160))
-
-		# Center the window on the current screen
-		var screen_idx = DisplayServer.window_get_current_screen()
-		var screen_pos = DisplayServer.screen_get_position(screen_idx)
-		var screen_size = DisplayServer.screen_get_size(screen_idx)
-		var win_size = DisplayServer.window_get_size()
-		DisplayServer.window_set_position(screen_pos + (screen_size - win_size) / 2)
-
-
-
-func _show_panel_animated(panel: Control, duration: float = 0.3) -> void:
-	panel.visible = true
-	panel.modulate.a = 1.0
-	panel.scale = Vector2.ONE
-
-func _hide_panel_animated(panel: Control, duration: float = 0.25) -> void:
-	panel.visible = false
+	_menu_exit_in_progress = true
+	_set_all_buttons_disabled(true)
+	var tw := create_tween().set_parallel(true)
+	tw.set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_CUBIC)
+	for target in _menu_exit_targets:
+		if not target:
+			continue
+		var base_pos: Variant = target.get_meta("base_position", target.position)
+		tw.tween_property(target, "position:x", base_pos.x + MENU_EXIT_OFFSET_X, MENU_EXIT_DURATION)
+		tw.tween_property(target, "modulate:a", 0.0, MENU_EXIT_DURATION * 0.9)
+	if _menu_wall_preview != null and _menu_wall_preview.has_method("begin_settings_dive"):
+		_menu_wall_preview.call("begin_settings_dive", SETTINGS_DIVE_DURATION)
+	await _begin_scene_change(SETTINGS_HALL_SCENE_PATH)
 
 # --- 入場 / ステップ切替アニメーション ---
 

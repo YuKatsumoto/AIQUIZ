@@ -77,6 +77,8 @@ func _update_haze() -> void:
 	var environment := _weather.get("environment") as Environment
 	if environment != null:
 		haze["haze_energy"] = environment.background_energy_multiplier
+		# The far sea carries the stage fog itself (its FOG replaces the environment's).
+		haze["edge_fog_density"] = environment.fog_density if environment.fog_enabled else 0.0
 	Materials.set_haze(haze)
 
 

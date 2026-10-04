@@ -1,0 +1,491 @@
+{
+  "props": {
+    "PRP_Platform": {
+      "tris": 10476,
+      "materials": [
+        "LS_WoodB",
+        "LS_WoodA",
+        "LS_WoodC",
+        "LS_WoodDark",
+        "LS_Steel"
+      ]
+    },
+    "PRP_Blackboard": {
+      "tris": 12096,
+      "materials": [
+        "LS_WoodA",
+        "LS_WoodDark",
+        "LS_Board",
+        "LS_DarkSteel",
+        "LS_WoodB",
+        "LS_Chalk",
+        "LS_ChalkYellow",
+        "LS_ChalkPink",
+        "LS_Cloth"
+      ]
+    },
+    "PRP_Lectern": {
+      "tris": 1780,
+      "materials": [
+        "LS_WoodB",
+        "LS_WoodDark",
+        "LS_WoodA",
+        "GK_Blue",
+        "GK_White",
+        "GK_Navy",
+        "LS_Paper",
+        "LS_White"
+      ]
+    },
+    "PRP_ExhibitTable": {
+      "tris": 1404,
+      "materials": [
+        "LS_WoodDark",
+        "LS_Cloth",
+        "LS_Steel",
+        "LS_White",
+        "GK_Navy",
+        "LS_DarkSteel"
+      ]
+    },
+    "PRP_Bookshelf": {
+      "tris": 12744,
+      "materials": [
+        "LS_WoodC",
+        "LS_WoodDark",
+        "LS_BinderD",
+        "LS_Paper",
+        "LS_BinderA",
+        "LS_White",
+        "LS_BinderC",
+        "LS_BinderB"
+      ]
+    },
+    "PRP_PosterEasel": {
+      "tris": 212,
+      "materials": [
+        "LS_WoodA",
+        "LS_White",
+        "LS_Red",
+        "LS_HazardYellow",
+        "GK_Black"
+      ]
+    },
+    "PRP_Desk_0": {
+      "tris": 1856,
+      "materials": [
+        "LS_WoodA",
+        "LS_WoodDark",
+        "LS_Steel",
+        "LS_Paper",
+        "LS_Cloth",
+        "LS_DarkSteel"
+      ]
+    },
+    "PRP_Stool_0": {
+      "tris": 860,
+      "materials": [
+        "LS_WoodB",
+        "LS_Steel"
+      ]
+    },
+    "PRP_Desk_1": {
+      "tris": 2020,
+      "materials": [
+        "LS_WoodA",
+        "LS_WoodDark",
+        "LS_Steel",
+        "LS_Paper",
+        "LS_Cloth",
+        "LS_DarkSteel",
+        "GK_Yellow"
+      ]
+    },
+    "PRP_Stool_1": {
+      "tris": 860,
+      "materials": [
+        "LS_WoodB",
+        "LS_Steel"
+      ]
+    },
+    "PRP_Desk_2": {
+      "tris": 2692,
+      "materials": [
+        "LS_WoodA",
+        "LS_WoodDark",
+        "LS_Steel",
+        "LS_Paper",
+        "LS_Cloth",
+        "LS_DarkSteel",
+        "GK_Yellow"
+      ]
+    },
+    "PRP_Stool_2": {
+      "tris": 860,
+      "materials": [
+        "LS_WoodB",
+        "LS_Steel"
+      ]
+    },
+    "PRP_Cone_0": {
+      "tris": 126,
+      "materials": [
+        "GK_Black",
+        "LS_Cone",
+        "LS_White"
+      ]
+    },
+    "PRP_Cone_1": {
+      "tris": 126,
+      "materials": [
+        "GK_Black",
+        "LS_Cone",
+        "LS_White"
+      ]
+    },
+    "PRP_Cone_2": {
+      "tris": 126,
+      "materials": [
+        "GK_Black",
+        "LS_Cone",
+        "LS_White"
+      ]
+    },
+    "PRP_SignPractice": {
+      "tris": 84,
+      "materials": [
+        "LS_HazardYellow",
+        "LS_HazardBlack"
+      ]
+    },
+    "PRP_Extinguisher": {
+      "tris": 500,
+      "materials": [
+        "LS_Red",
+        "GK_Black",
+        "LS_DarkSteel"
+      ]
+    },
+    "PRP_Toolbox": {
+      "tris": 660,
+      "materials": [
+        "LS_Red",
+        "GK_Black",
+        "LS_Steel",
+        "LS_HazardYellow"
+      ]
+    },
+    "PRP_Bin": {
+      "tris": 488,
+      "materials": [
+        "LS_Steel",
+        "LS_DarkSteel",
+        "LS_Paper"
+      ]
+    },
+    "PRP_Bucket": {
+      "tris": 392,
+      "materials": [
+        "GK_Blue",
+        "LS_BinderA",
+        "LS_Steel"
+      ]
+    }
+  },
+  "cast": {
+    "lecturer": {
+      "tris": 4592,
+      "bones": 18,
+      "vertex_groups_not_bones": [],
+      "bones_without_groups": [
+        "Body",
+        "Root"
+      ],
+      "missing_weights": 0,
+      "action": [
+        "Teach"
+      ],
+      "head_or_hips_keyed": [],
+      "clearance": null,
+      "seated": null,
+      "materials": [
+        "GK_Plush",
+        "GK_Black",
+        "GK_Red",
+        "GK_Silver"
+      ],
+      "plush_custom_normals": true,
+      "gear_custom_normals": false
+    },
+    "student_notes": {
+      "tris": 3514,
+      "bones": 18,
+      "vertex_groups_not_bones": [],
+      "bones_without_groups": [
+        "Body",
+        "Root"
+      ],
+      "missing_weights": 0,
+      "action": [
+        "TakeNotes"
+      ],
+      "head_or_hips_keyed": [],
+      "clearance": null,
+      "seated": {
+        "body_bottom_z": 0.45,
+        "stool_top": 0.45
+      },
+      "materials": [
+        "GK_Plush",
+        "GK_Yellow",
+        "GK_Cream",
+        "GK_Pink"
+      ],
+      "plush_custom_normals": true,
+      "gear_custom_normals": false
+    },
+    "student_hand": {
+      "tris": 4824,
+      "bones": 18,
+      "vertex_groups_not_bones": [],
+      "bones_without_groups": [
+        "Body",
+        "Root"
+      ],
+      "missing_weights": 0,
+      "action": [
+        "RaiseHand"
+      ],
+      "head_or_hips_keyed": [],
+      "clearance": null,
+      "seated": {
+        "body_bottom_z": 0.45,
+        "stool_top": 0.45
+      },
+      "materials": [
+        "GK_Plush",
+        "GK_Green",
+        "GK_White"
+      ],
+      "plush_custom_normals": true,
+      "gear_custom_normals": false
+    },
+    "student_doze": {
+      "tris": 3492,
+      "bones": 19,
+      "vertex_groups_not_bones": [],
+      "bones_without_groups": [
+        "Body",
+        "Root"
+      ],
+      "missing_weights": 0,
+      "action": [
+        "Doze"
+      ],
+      "head_or_hips_keyed": [],
+      "clearance": null,
+      "seated": {
+        "body_bottom_z": 0.45,
+        "stool_top": 0.45
+      },
+      "materials": [
+        "GK_Plush",
+        "GK_Zzz"
+      ],
+      "plush_custom_normals": true,
+      "gear_custom_normals": false
+    },
+    "trainee": {
+      "tris": 6436,
+      "bones": 20,
+      "vertex_groups_not_bones": [],
+      "bones_without_groups": [
+        "Body",
+        "Root"
+      ],
+      "missing_weights": 0,
+      "action": [
+        "Practice"
+      ],
+      "head_or_hips_keyed": [],
+      "clearance": {
+        "min_gap_to_blade": 0.064,
+        "frame": 38
+      },
+      "seated": null,
+      "materials": [
+        "GK_Plush",
+        "GK_Yellow",
+        "GK_White",
+        "GK_Orange",
+        "LS_DarkSteel",
+        "LS_Steel",
+        "GK_Red",
+        "LS_HazardYellow",
+        "GK_Glow",
+        "LS_HazardBlack",
+        "GK_Black"
+      ],
+      "plush_custom_normals": true,
+      "gear_custom_normals": false
+    }
+  },
+  "props_total_tris": 50362,
+  "duplicate_materials": [],
+  "clips": {
+    "lecturer": {
+      "action": "Teach",
+      "length": 288,
+      "fcurves": 67,
+      "bones_rot": [
+        "Body",
+        "DEF-foot.L",
+        "DEF-foot.R",
+        "DEF-forearm.L",
+        "DEF-forearm.R",
+        "DEF-hand.L",
+        "DEF-hand.R",
+        "DEF-shin.L",
+        "DEF-shin.R",
+        "DEF-thigh.L",
+        "DEF-thigh.R",
+        "DEF-toe.L",
+        "DEF-toe.R",
+        "DEF-upper_arm.L",
+        "DEF-upper_arm.R",
+        "Root"
+      ],
+      "bones_loc": [
+        "Root"
+      ]
+    },
+    "student_notes": {
+      "action": "TakeNotes",
+      "length": 192,
+      "fcurves": 67,
+      "bones_rot": [
+        "Body",
+        "DEF-foot.L",
+        "DEF-foot.R",
+        "DEF-forearm.L",
+        "DEF-forearm.R",
+        "DEF-hand.L",
+        "DEF-hand.R",
+        "DEF-shin.L",
+        "DEF-shin.R",
+        "DEF-thigh.L",
+        "DEF-thigh.R",
+        "DEF-toe.L",
+        "DEF-toe.R",
+        "DEF-upper_arm.L",
+        "DEF-upper_arm.R",
+        "Root"
+      ],
+      "bones_loc": [
+        "Root"
+      ]
+    },
+    "student_hand": {
+      "action": "RaiseHand",
+      "length": 240,
+      "fcurves": 67,
+      "bones_rot": [
+        "Body",
+        "DEF-foot.L",
+        "DEF-foot.R",
+        "DEF-forearm.L",
+        "DEF-forearm.R",
+        "DEF-hand.L",
+        "DEF-hand.R",
+        "DEF-shin.L",
+        "DEF-shin.R",
+        "DEF-thigh.L",
+        "DEF-thigh.R",
+        "DEF-toe.L",
+        "DEF-toe.R",
+        "DEF-upper_arm.L",
+        "DEF-upper_arm.R",
+        "Root"
+      ],
+      "bones_loc": [
+        "Root"
+      ]
+    },
+    "student_doze": {
+      "action": "Doze",
+      "length": 216,
+      "fcurves": 70,
+      "bones_rot": [
+        "Body",
+        "DEF-foot.L",
+        "DEF-foot.R",
+        "DEF-forearm.L",
+        "DEF-forearm.R",
+        "DEF-hand.L",
+        "DEF-hand.R",
+        "DEF-shin.L",
+        "DEF-shin.R",
+        "DEF-thigh.L",
+        "DEF-thigh.R",
+        "DEF-toe.L",
+        "DEF-toe.R",
+        "DEF-upper_arm.L",
+        "DEF-upper_arm.R",
+        "Root"
+      ],
+      "bones_loc": [
+        "Root"
+      ]
+    },
+    "trainee": {
+      "action": "Practice",
+      "length": 120,
+      "fcurves": 73,
+      "bones_rot": [
+        "Blade",
+        "Body",
+        "DEF-foot.L",
+        "DEF-foot.R",
+        "DEF-forearm.L",
+        "DEF-forearm.R",
+        "DEF-hand.L",
+        "DEF-hand.R",
+        "DEF-shin.L",
+        "DEF-shin.R",
+        "DEF-thigh.L",
+        "DEF-thigh.R",
+        "DEF-toe.L",
+        "DEF-toe.R",
+        "DEF-upper_arm.L",
+        "DEF-upper_arm.R",
+        "Root"
+      ],
+      "bones_loc": [
+        "Blade",
+        "Root"
+      ]
+    }
+  },
+  "exports_bytes": {
+    "lecture_set_props.glb": 2207064,
+    "godotkun_lecturer.glb": 325924,
+    "godotkun_student_notes.glb": 232924,
+    "godotkun_student_hand.glb": 277040,
+    "godotkun_student_doze.glb": 257272,
+    "godotkun_trainee.glb": 387148
+  },
+  "build_seconds": 0.37,
+  "blend_bytes": 5213700,
+  "blender": "5.1.2",
+  "live_file": "",
+  "renders": [
+    "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\settings_hall\\source\\previews\\review_f000.png",
+    "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\settings_hall\\source\\previews\\review_f056.png",
+    "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\settings_hall\\source\\previews\\review_f100.png",
+    "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\settings_hall\\source\\previews\\review_f150.png",
+    "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\settings_hall\\source\\previews\\review_f204.png",
+    "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\settings_hall\\source\\previews\\cast_f000.png",
+    "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\settings_hall\\source\\previews\\cast_f056.png",
+    "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\settings_hall\\source\\previews\\cast_f100.png"
+  ]
+}

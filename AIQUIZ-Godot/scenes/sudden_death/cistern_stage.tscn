@@ -1,78 +1,48 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://scripts/world/sudden_death/cistern_stage.gd" id="1_l6qty"]
-[ext_resource type="PackedScene" path="res://scenes/sudden_death/cistern_bays.tscn" id="2_y84x0"]
-[ext_resource type="PackedScene" path="res://scenes/sudden_death/cistern_ends.tscn" id="3_d7cq3"]
-[ext_resource type="PackedScene" path="res://scenes/sudden_death/cistern_lights.tscn" id="4_fhy1q"]
-[ext_resource type="PackedScene" path="res://scenes/sudden_death/cistern_dressing.tscn" id="5_ad604"]
+[ext_resource type="PackedScene" path="res://scenes/sudden_death/tank_slices.tscn" id="2_rdn6y"]
+[ext_resource type="PackedScene" path="res://scenes/sudden_death/tank_ends.tscn" id="3_l6qty"]
+[ext_resource type="PackedScene" path="res://scenes/sudden_death/tank_lights.tscn" id="4_y84x0"]
+[ext_resource type="PackedScene" path="res://scenes/sudden_death/tank_dressing.tscn" id="5_d7cq3"]
 [ext_resource type="ArrayMesh" path="res://scenes/sudden_death/cistern_generated/flood/front_mesh.res" id="6_0stqf"]
 [ext_resource type="Texture2D" path="res://assets/hazards/flood_wave/textures/flood_front_vat_pos.exr" id="7_v0h8h"]
 [ext_resource type="Texture2D" path="res://assets/hazards/flood_wave/textures/flood_front_vat_nrm.png" id="8_0eqaq"]
 [ext_resource type="Texture2D" path="res://assets/hazards/flood_wave/textures/flood_foam.png" id="9_o1inv"]
 [ext_resource type="Texture2D" path="res://assets/hazards/flood_wave/textures/flood_water_normal.png" id="10_gwgum"]
 [ext_resource type="Texture2D" path="res://assets/hazards/flood_wave/textures/flood_spray.png" id="11_8s75a"]
-[ext_resource type="Material" path="res://scenes/sudden_death/cistern_generated/materials/light_column.tres" id="12_7ys4l"]
-[ext_resource type="Material" path="res://scenes/sudden_death/cistern_generated/materials/grade_overlay.tres" id="13_v7o3a"]
+[ext_resource type="Material" path="res://scenes/sudden_death/tank_generated/materials/grade_overlay.tres" id="12_fhy1q"]
 
-[sub_resource type="BoxShape3D" id="BoxShape3D_o0t15"]
-size = Vector3(92, 0.5, 242)
+[sub_resource type="BoxShape3D" id="BoxShape3D_rdn6y"]
+size = Vector3(142, 0.5, 342.8)
 
-[sub_resource type="CylinderMesh" id="CylinderMesh_00yiu"]
-top_radius = 6.6
-bottom_radius = 8.6
-height = 18.0
-radial_segments = 32
-rings = 1
-cap_top = false
-cap_bottom = false
-
-[node name="CisternStage" type="Node3D" unique_id=120339623]
+[node name="CisternStage" type="Node3D" unique_id=1865835557]
 script = ExtResource("1_l6qty")
-part_scenes = Array[PackedScene]([ExtResource("2_y84x0"), ExtResource("3_d7cq3"), ExtResource("4_fhy1q"), ExtResource("5_ad604")])
+part_scenes = Array[PackedScene]([ExtResource("2_rdn6y"), ExtResource("3_l6qty"), ExtResource("4_y84x0"), ExtResource("5_d7cq3")])
 flood_assets = Array[Resource]([ExtResource("6_0stqf"), ExtResource("7_v0h8h"), ExtResource("8_0eqaq"), ExtResource("9_o1inv"), ExtResource("10_gwgum"), ExtResource("11_8s75a")])
 
-[node name="Shell" type="Node3D" parent="." unique_id=705055143]
+[node name="Shell" type="Node3D" parent="." unique_id=243201374]
 
-[node name="FloorCollision" type="StaticBody3D" parent="Shell" unique_id=1167885536]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1.45, 90)
+[node name="FloorCollision" type="StaticBody3D" parent="Shell" unique_id=2008241552]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1.45, 94.2)
 collision_mask = 0
 
-[node name="Shape" type="CollisionShape3D" parent="Shell/FloorCollision" unique_id=1071523998]
-shape = SubResource("BoxShape3D_o0t15")
+[node name="Shape" type="CollisionShape3D" parent="Shell/FloorCollision" unique_id=1702480299]
+shape = SubResource("BoxShape3D_rdn6y")
 
-[node name="Opening" type="Node3D" parent="." unique_id=630996904]
+[node name="Upstream" type="Node3D" parent="." unique_id=764028290]
 
-[node name="ShaftLight" type="SpotLight3D" parent="Opening" unique_id=724257232]
-transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, 0, 17.6, 0)
-light_color = Color(0.7, 0.82, 1, 1)
-light_energy = 10.0
-light_volumetric_fog_energy = 2.0
-light_cull_mask = 1047551
-shadow_bias = 0.04
-spot_range = 34.0
-spot_attenuation = 0.6
-spot_angle = 24.0
-spot_angle_attenuation = 0.6
+[node name="Balcony" type="Node3D" parent="Upstream" unique_id=1055412274]
 
-[node name="LightColumn" type="MeshInstance3D" parent="Opening" unique_id=1230572123]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 7.8, 0)
-material_override = ExtResource("12_7ys4l")
-cast_shadow = 0
-mesh = SubResource("CylinderMesh_00yiu")
+[node name="RefereeMark" type="Marker3D" parent="Upstream/Balcony" unique_id=1239907650]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, -1.2, -9)
 
-[node name="Upstream" type="Node3D" parent="." unique_id=1772470101]
-
-[node name="Balcony" type="Node3D" parent="Upstream" unique_id=1924619981]
-
-[node name="RefereeMark" type="Marker3D" parent="Upstream/Balcony" unique_id=238830829]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, 6.8, -25.3)
-
-[node name="Grade" type="CanvasLayer" parent="." unique_id=790303947]
+[node name="Grade" type="CanvasLayer" parent="." unique_id=1125580258]
 layer = -20
 visible = false
 
-[node name="Overlay" type="ColorRect" parent="Grade" unique_id=796685106]
-material = ExtResource("13_v7o3a")
+[node name="Overlay" type="ColorRect" parent="Grade" unique_id=1207821355]
+material = ExtResource("12_fhy1q")
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0

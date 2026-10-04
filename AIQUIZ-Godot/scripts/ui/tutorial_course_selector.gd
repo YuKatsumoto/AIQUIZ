@@ -62,7 +62,7 @@ func _build_selector() -> void:
 	root.add_theme_constant_override("separation", 16)
 	panel.add_child(root)
 	var eyebrow := Label.new()
-	eyebrow.text = "TUTORIAL V3"
+	eyebrow.text = "TUTORIAL V5"
 	eyebrow.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	eyebrow.add_theme_font_size_override("font_size", 14)
 	eyebrow.add_theme_color_override("font_color", Color(0.52, 0.68, 0.94))
@@ -74,7 +74,7 @@ func _build_selector() -> void:
 	title.add_theme_color_override("font_color", Color(1.0, 0.88, 0.24))
 	root.add_child(title)
 	var description := Label.new()
-	description.text = "操作方法とゲームのルールを、実際にプレイしながら確認できます。"
+	description.text = "操作方法とゲームのルールを、実際にプレイしながら確認できます。\n操作するキーは、キャラクターの頭の上に3Dで表示されます。"
 	description.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	description.add_theme_font_size_override("font_size", 16)
 	description.add_theme_color_override("font_color", Color(0.80, 0.86, 0.96))
@@ -87,8 +87,8 @@ func _build_selector() -> void:
 	root.add_child(cards)
 	var solo := _create_course_card(
 		"1P 実践コース",
-		"走りながらの移動とジャンプ\nコース外の海とサメの危険\n誘導あり／なしのクイズとゴール",
-		"約2分30秒",
+		"移動・ジャンプ・エモート\n海の危険とハート（HP）のしくみ\n2択の壁と4択のボス壁",
+		"約3分",
 		"res://assets/ui/1p.png",
 		SOLO_COLOR,
 		GameManager.TUTORIAL_COURSE_SOLO
@@ -97,8 +97,8 @@ func _build_selector() -> void:
 	_solo_badge = solo.get_node("Content/Badge") as Label
 	var duo := _create_course_card(
 		"ローカル2P 実践コース",
-		"2人分の操作とエモート\n海とゴーストシャークで反撃\n1人ずつ判定される実戦と最終レース",
-		"約4分",
+		"2人分の操作と押し合い\n海・ゴーストシャーク・回転のこぎり\nハート・先着の得点・スコアタワー",
+		"約5分",
 		"res://assets/ui/2p.png",
 		DUO_COLOR,
 		GameManager.TUTORIAL_COURSE_LOCAL_2P
@@ -184,13 +184,21 @@ func _create_course_card(
 
 
 func _update_badges() -> void:
-	if _solo_badge:
-		_solo_badge.text = "✓ 完了" if GameManager.tutorial_solo_completed else "未完了"
-		_solo_badge.add_theme_color_override(
-			"font_color", Color(0.36, 1.0, 0.60) if GameManager.tutorial_solo_completed else Color(0.62, 0.68, 0.80)
-		)
-	if _duo_badge:
-		_duo_badge.text = "✓ 完了" if GameManager.tutorial_local_2p_completed else "未完了"
-		_duo_badge.add_theme_color_override(
-			"font_color", Color(0.36, 1.0, 0.60) if GameManager.tutorial_local_2p_completed else Color(0.62, 0.68, 0.80)
-		)
+	_apply_badge(_solo_badge, GameManager.tutorial_course_badge(GameManager.TUTORIAL_COURSE_SOLO))
+	_apply_badge(_duo_badge, GameManager.tutorial_course_badge(GameManager.TUTORIAL_COURSE_LOCAL_2P))
+
+
+## 前の版だけを完了しているコースは「内容を更新」と表示して、もう一度の受講を促す。
+func _apply_badge(badge: Label, state: String) -> void:
+	if badge == null:
+		return
+	match state:
+		"done":
+			badge.text = "✓ 完了"
+			badge.add_theme_color_override("font_color", Color(0.36, 1.0, 0.60))
+		"updated":
+			badge.text = "★ 内容を更新しました"
+			badge.add_theme_color_override("font_color", Color(1.0, 0.82, 0.30))
+		_:
+			badge.text = "未完了"
+			badge.add_theme_color_override("font_color", Color(0.62, 0.68, 0.80))

@@ -11,6 +11,8 @@ extends SceneTree
 ## 部品（assets/environment/underground_temple/*.glb）がまだ無いものは、取り決めどおりの仮の部品
 ## （tools/sudden_death/cistern_placeholder_modules.gd）を作って使う。部品が届いたら再実行する。
 ## 生成物なので手で編集しない。
+## 2026-10-04 以降、地下ステージは調圧水槽の実寸再現（tools/sudden_death/build_tank_scenes.gd）。このツールは
+## `-- legacy` を付けたときだけ動く（以前の架空の地下神殿を作り直す）。
 
 const Layout := preload("res://scripts/world/sudden_death/sudden_death_layout.gd")
 const Placeholders := preload("res://tools/sudden_death/cistern_placeholder_modules.gd")
@@ -94,6 +96,12 @@ func _initialize() -> void:
 
 
 func _build() -> void:
+	# 2026-10-04: the underground stage is now the real surge tank, built by build_tank_scenes.gd into the same
+	# cistern_stage.tscn. This builder (the fictional milestone-3 hall) only runs when asked for explicitly.
+	if not "legacy" in OS.get_cmdline_user_args():
+		print("build_cistern_scenes: superseded by res://tools/sudden_death/build_tank_scenes.gd (pass -- legacy to rebuild the old hall)")
+		quit(0)
+		return
 	_force_placeholders = "placeholders" in OS.get_cmdline_user_args()
 	for sub: String in ["", "materials", "textures", "decals", "placeholder", "flood"]:
 		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(GEN_DIR + sub))

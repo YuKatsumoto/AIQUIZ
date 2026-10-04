@@ -1,0 +1,221 @@
+[gd_scene format=3]
+
+[ext_resource type="Shape3D" path="res://scenes/sudden_death/tank_generated/collision/p__tk_concrete.res" id="1_m1ofv"]
+[ext_resource type="Shape3D" path="res://scenes/sudden_death/tank_generated/collision/p__tk_pillar.res" id="2_muj8h"]
+[ext_resource type="Shape3D" path="res://scenes/sudden_death/tank_generated/collision/p__tk_floor.res" id="3_t4rjo"]
+[ext_resource type="Shape3D" path="res://scenes/sudden_death/tank_generated/collision/s__tk_concrete.res" id="4_p3lly"]
+[ext_resource type="Shape3D" path="res://scenes/sudden_death/tank_generated/collision/s__tk_pillar.res" id="5_pkhc0"]
+[ext_resource type="Shape3D" path="res://scenes/sudden_death/tank_generated/collision/s__tk_floor.res" id="6_jjfoc"]
+[ext_resource type="Shape3D" path="res://scenes/sudden_death/tank_generated/collision/t__tk_concrete.res" id="7_2co4o"]
+[ext_resource type="PackedScene" path="res://assets/environment/surge_tank/tank_end_pump.glb" id="8_hs8da"]
+[ext_resource type="Material" path="res://scenes/sudden_death/tank_generated/materials/p__tk_concrete.tres" id="9_qqt6x"]
+[ext_resource type="Material" path="res://scenes/sudden_death/tank_generated/materials/p__tk_pillar.tres" id="10_2rdc1"]
+[ext_resource type="Material" path="res://scenes/sudden_death/tank_generated/materials/p__tk_floor.tres" id="11_m7k1f"]
+[ext_resource type="Material" path="res://scenes/sudden_death/tank_generated/materials/p__tk_steel.tres" id="12_4ovuf"]
+[ext_resource type="Material" path="res://scenes/sudden_death/tank_generated/materials/p__tk_paint.tres" id="13_tkbh7"]
+[ext_resource type="Material" path="res://scenes/sudden_death/tank_generated/materials/p__tk_galv.tres" id="14_7we6e"]
+[ext_resource type="Material" path="res://scenes/sudden_death/tank_generated/materials/p__tk_grate.tres" id="15_l1r1w"]
+[ext_resource type="Material" path="res://scenes/sudden_death/tank_generated/materials/shared__tk_lens.tres" id="16_nymss"]
+[ext_resource type="Material" path="res://scenes/sudden_death/tank_generated/materials/shared__tk_sky.tres" id="17_ouemq"]
+[ext_resource type="Material" path="res://scenes/sudden_death/tank_generated/materials/shared__tk_void.tres" id="18_yo8n8"]
+[ext_resource type="PackedScene" path="res://assets/environment/surge_tank/tank_end_shaft.glb" id="19_2tc0g"]
+[ext_resource type="Material" path="res://scenes/sudden_death/tank_generated/materials/s__tk_concrete.tres" id="20_eo2pw"]
+[ext_resource type="Material" path="res://scenes/sudden_death/tank_generated/materials/s__tk_pillar.tres" id="21_hkaq7"]
+[ext_resource type="Material" path="res://scenes/sudden_death/tank_generated/materials/s__tk_floor.tres" id="22_lft6i"]
+[ext_resource type="Material" path="res://scenes/sudden_death/tank_generated/materials/s__tk_steel.tres" id="23_ttqym"]
+[ext_resource type="Material" path="res://scenes/sudden_death/tank_generated/materials/s__tk_paint.tres" id="24_xt7ah"]
+[ext_resource type="Material" path="res://scenes/sudden_death/tank_generated/materials/s__tk_galv.tres" id="25_h3ke7"]
+[ext_resource type="Material" path="res://scenes/sudden_death/tank_generated/materials/s__tk_grate.tres" id="26_eil6d"]
+[ext_resource type="PackedScene" path="res://assets/environment/surge_tank/tank_shaft1.glb" id="27_opmas"]
+[ext_resource type="Material" path="res://scenes/sudden_death/tank_generated/materials/q__tk_concrete.tres" id="28_ftydh"]
+[ext_resource type="Material" path="res://scenes/sudden_death/tank_generated/materials/q__tk_pillar.tres" id="29_fhmai"]
+[ext_resource type="Material" path="res://scenes/sudden_death/tank_generated/materials/q__tk_floor.tres" id="30_e7djw"]
+[ext_resource type="Material" path="res://scenes/sudden_death/tank_generated/materials/q__tk_steel.tres" id="31_4l0nn"]
+[ext_resource type="Material" path="res://scenes/sudden_death/tank_generated/materials/q__tk_paint.tres" id="32_snhiv"]
+[ext_resource type="Material" path="res://scenes/sudden_death/tank_generated/materials/q__tk_galv.tres" id="33_fsj0s"]
+[ext_resource type="Material" path="res://scenes/sudden_death/tank_generated/materials/q__tk_grate.tres" id="34_uqgij"]
+[ext_resource type="PackedScene" path="res://assets/environment/surge_tank/tank_stairs.glb" id="35_nbk75"]
+[ext_resource type="Material" path="res://scenes/sudden_death/tank_generated/materials/t__tk_concrete.tres" id="36_dlqkc"]
+[ext_resource type="Material" path="res://scenes/sudden_death/tank_generated/materials/t__tk_pillar.tres" id="37_r4ddh"]
+[ext_resource type="Material" path="res://scenes/sudden_death/tank_generated/materials/t__tk_floor.tres" id="38_ys3x7"]
+[ext_resource type="Material" path="res://scenes/sudden_death/tank_generated/materials/t__tk_steel.tres" id="39_o726h"]
+[ext_resource type="Material" path="res://scenes/sudden_death/tank_generated/materials/t__tk_paint.tres" id="40_lh8mu"]
+[ext_resource type="Material" path="res://scenes/sudden_death/tank_generated/materials/t__tk_galv.tres" id="41_mhbn1"]
+[ext_resource type="Material" path="res://scenes/sudden_death/tank_generated/materials/t__tk_grate.tres" id="42_mg7qw"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_1lg5t"]
+size = Vector3(18, 35.4, 2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_su3ti"]
+size = Vector3(18, 35.4, 2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_nhvj6"]
+size = Vector3(44, 4, 0.6)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_joer3"]
+size = Vector3(4, 35.4, 16)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_p7f8a"]
+size = Vector3(2, 1.7, 1.8)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_5l33e"]
+size = Vector3(2, 1.7, 1.8)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_n55oh"]
+size = Vector3(2, 1.7, 1.8)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_4awbr"]
+size = Vector3(2, 1.7, 1.8)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_f6yul"]
+size = Vector3(2, 1.7, 1.8)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_k4iq0"]
+size = Vector3(2, 1.7, 1.8)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_03xhw"]
+size = Vector3(2, 1.7, 1.8)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_ws6x7"]
+size = Vector3(142, 35.4, 2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_svdkb"]
+size = Vector3(4, 35.4, 18.6)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_jkbti"]
+size = Vector3(4, 35.4, 18.6)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_m6s6v"]
+size = Vector3(4, 35.4, 18.6)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_g1l0q"]
+size = Vector3(4, 35.4, 18.6)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_u4seo"]
+size = Vector3(4, 35.4, 18.6)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_45rmm"]
+size = Vector3(2, 6.4, 7.4)
+
+[node name="TankEnds" type="Node3D" unique_id=1386367661]
+
+[node name="FloorCollision" type="StaticBody3D" parent="." unique_id=1700991049]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1.2, 0)
+collision_mask = 0
+
+[node name="P_TK_Concrete" type="CollisionShape3D" parent="FloorCollision" unique_id=846858776]
+shape = ExtResource("1_m1ofv")
+
+[node name="P_TK_Pillar" type="CollisionShape3D" parent="FloorCollision" unique_id=1811318055]
+shape = ExtResource("2_muj8h")
+
+[node name="P_TK_Floor" type="CollisionShape3D" parent="FloorCollision" unique_id=1382519383]
+shape = ExtResource("3_t4rjo")
+
+[node name="S_TK_Concrete" type="CollisionShape3D" parent="FloorCollision" unique_id=285970248]
+shape = ExtResource("4_p3lly")
+
+[node name="S_TK_Pillar" type="CollisionShape3D" parent="FloorCollision" unique_id=861032480]
+shape = ExtResource("5_pkhc0")
+
+[node name="S_TK_Floor" type="CollisionShape3D" parent="FloorCollision" unique_id=1240516856]
+shape = ExtResource("6_jjfoc")
+
+[node name="T_TK_Concrete" type="CollisionShape3D" parent="FloorCollision" unique_id=783572515]
+shape = ExtResource("7_2co4o")
+
+[node name="EndPump" parent="." unique_id=1902314845 instance=ExtResource("8_hs8da")]
+transform = Transform3D(2, 0, 0, 0, 2, 0, 0, 0, 2, 0, -1.2, 0)
+metadata/cistern_module = "P"
+metadata/cistern_materials = [["TK_Concrete", ExtResource("9_qqt6x")], ["TK_Pillar", ExtResource("10_2rdc1")], ["TK_Floor", ExtResource("11_m7k1f")], ["TK_Steel", ExtResource("12_4ovuf")], ["TK_Paint", ExtResource("13_tkbh7")], ["TK_Galv", ExtResource("14_7we6e")], ["TK_Grate", ExtResource("15_l1r1w")], ["TK_Lens", ExtResource("16_nymss")], ["TK_Sky", ExtResource("17_ouemq")], ["TK_Void", ExtResource("18_yo8n8")]]
+
+[node name="EndShaft" parent="." unique_id=743693389 instance=ExtResource("19_2tc0g")]
+transform = Transform3D(2, 0, 0, 0, 2, 0, 0, 0, 2, 0, -1.2, 0)
+metadata/cistern_module = "S"
+metadata/cistern_materials = [["TK_Concrete", ExtResource("20_eo2pw")], ["TK_Pillar", ExtResource("21_hkaq7")], ["TK_Floor", ExtResource("22_lft6i")], ["TK_Steel", ExtResource("23_ttqym")], ["TK_Paint", ExtResource("24_xt7ah")], ["TK_Galv", ExtResource("25_h3ke7")], ["TK_Grate", ExtResource("26_eil6d")], ["TK_Lens", ExtResource("16_nymss")], ["TK_Sky", ExtResource("17_ouemq")], ["TK_Void", ExtResource("18_yo8n8")]]
+
+[node name="Shaft1" parent="." unique_id=1325171212 instance=ExtResource("27_opmas")]
+transform = Transform3D(2, 0, 0, 0, 2, 0, 0, 0, 2, 0, -1.2, 0)
+metadata/cistern_module = "Q"
+metadata/cistern_materials = [["TK_Concrete", ExtResource("28_ftydh")], ["TK_Pillar", ExtResource("29_fhmai")], ["TK_Floor", ExtResource("30_e7djw")], ["TK_Steel", ExtResource("31_4l0nn")], ["TK_Paint", ExtResource("32_snhiv")], ["TK_Galv", ExtResource("33_fsj0s")], ["TK_Grate", ExtResource("34_uqgij")], ["TK_Lens", ExtResource("16_nymss")], ["TK_Sky", ExtResource("17_ouemq")], ["TK_Void", ExtResource("18_yo8n8")]]
+
+[node name="Stairs" parent="." unique_id=248025774 instance=ExtResource("35_nbk75")]
+transform = Transform3D(2, 0, 0, 0, 2, 0, 0, 0, 2, 0, -1.2, 0)
+metadata/cistern_module = "T"
+metadata/cistern_materials = [["TK_Concrete", ExtResource("36_dlqkc")], ["TK_Pillar", ExtResource("37_r4ddh")], ["TK_Floor", ExtResource("38_ys3x7")], ["TK_Steel", ExtResource("39_o726h")], ["TK_Paint", ExtResource("40_lh8mu")], ["TK_Galv", ExtResource("41_mhbn1")], ["TK_Grate", ExtResource("42_mg7qw")], ["TK_Lens", ExtResource("16_nymss")], ["TK_Sky", ExtResource("17_ouemq")], ["TK_Void", ExtResource("18_yo8n8")]]
+
+[node name="WallCollision" type="StaticBody3D" parent="." unique_id=932492109]
+collision_layer = 16
+collision_mask = 0
+
+[node name="EndWall" type="CollisionShape3D" parent="WallCollision" unique_id=1948507245]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -31, 16.5, -78.2)
+shape = SubResource("BoxShape3D_1lg5t")
+
+[node name="EndWall2" type="CollisionShape3D" parent="WallCollision" unique_id=1045490031]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 31, 16.5, -78.2)
+shape = SubResource("BoxShape3D_su3ti")
+
+[node name="ShaftFence" type="CollisionShape3D" parent="WallCollision" unique_id=1932304206]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, -93)
+shape = SubResource("BoxShape3D_nhvj6")
+
+[node name="OpeningPier" type="CollisionShape3D" parent="WallCollision" unique_id=904898290]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 16.5, -85.2)
+shape = SubResource("BoxShape3D_joer3")
+
+[node name="Block" type="CollisionShape3D" parent="WallCollision" unique_id=1386014852]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24, -0.34999996, -74.3)
+shape = SubResource("BoxShape3D_p7f8a")
+
+[node name="Block2" type="CollisionShape3D" parent="WallCollision" unique_id=179456223]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, -0.34999996, -74.3)
+shape = SubResource("BoxShape3D_5l33e")
+
+[node name="Block3" type="CollisionShape3D" parent="WallCollision" unique_id=198369299]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, -0.34999996, -74.3)
+shape = SubResource("BoxShape3D_n55oh")
+
+[node name="Block4" type="CollisionShape3D" parent="WallCollision" unique_id=1355691972]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.34999996, -74.3)
+shape = SubResource("BoxShape3D_4awbr")
+
+[node name="Block5" type="CollisionShape3D" parent="WallCollision" unique_id=1472422637]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, -0.34999996, -74.3)
+shape = SubResource("BoxShape3D_f6yul")
+
+[node name="Block6" type="CollisionShape3D" parent="WallCollision" unique_id=726982059]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16, -0.34999996, -74.3)
+shape = SubResource("BoxShape3D_k4iq0")
+
+[node name="Block7" type="CollisionShape3D" parent="WallCollision" unique_id=1879238351]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24, -0.34999996, -74.3)
+shape = SubResource("BoxShape3D_03xhw")
+
+[node name="GateFace" type="CollisionShape3D" parent="WallCollision" unique_id=77055504]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 16.5, 266.6)
+shape = SubResource("BoxShape3D_ws6x7")
+
+[node name="DividingWall" type="CollisionShape3D" parent="WallCollision" unique_id=507454932]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -56, 16.5, 256.3)
+shape = SubResource("BoxShape3D_svdkb")
+
+[node name="DividingWall2" type="CollisionShape3D" parent="WallCollision" unique_id=1311151337]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -28, 16.5, 256.3)
+shape = SubResource("BoxShape3D_jkbti")
+
+[node name="DividingWall3" type="CollisionShape3D" parent="WallCollision" unique_id=842309266]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 16.5, 256.3)
+shape = SubResource("BoxShape3D_m6s6v")
+
+[node name="DividingWall4" type="CollisionShape3D" parent="WallCollision" unique_id=1466577940]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 28, 16.5, 256.3)
+shape = SubResource("BoxShape3D_g1l0q")
+
+[node name="DividingWall5" type="CollisionShape3D" parent="WallCollision" unique_id=747599084]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 56, 16.5, 256.3)
+shape = SubResource("BoxShape3D_u4seo")
+
+[node name="Portal" type="CollisionShape3D" parent="WallCollision" unique_id=93236011]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -70, 12, -38.9)
+shape = SubResource("BoxShape3D_45rmm")

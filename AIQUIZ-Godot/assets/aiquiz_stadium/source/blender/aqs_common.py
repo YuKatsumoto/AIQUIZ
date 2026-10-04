@@ -32,6 +32,7 @@ TEX = SRC / "textures"
 
 ARGS = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 DO_RENDER = "--no-render" not in ARGS
+DO_WEAR = "--no-wear" not in ARGS      # スタンド・ゲート・ゴール観客席の頂点色へ AO・汚れ・ムラを焼く（aqs_wear）。--no-wear で省く
 ONLY = None
 if "--only-renders" in ARGS:
     ONLY = set(ARGS[ARGS.index("--only-renders") + 1].split(","))

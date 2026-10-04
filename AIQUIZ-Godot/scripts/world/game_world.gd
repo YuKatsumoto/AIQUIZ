@@ -263,6 +263,9 @@ func _ready() -> void:
 	_saw_controller = preload("res://scripts/world/saw_chase_controller.gd").new()
 	_saw_controller.name = "SawChaseController"
 	add_child(_saw_controller)
+	if game_state.is_duo_tutorial() and not _replay_mode:
+		# 2Pチュートリアルはのこぎり体験から刃を出すので、台車を先に読み込んで隠しておく。
+		_saw_controller.preload_model()
 	game_state.local_push.reset()
 	game_state.local_push_event.connect(_on_local_push_event)
 	# Online and replay retain their existing presentation contract. Every local
@@ -1596,14 +1599,8 @@ func _create_goal_box(box_size: Vector3, color: Color) -> MeshInstance3D:
 	var box := BoxMesh.new()
 	box.size = box_size
 	mesh_inst.mesh = box
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = color
-	mat.roughness = 0.4
-	mat.metallic = 0.3
-	mat.emission_enabled = true
-	mat.emission = color * 0.3
-	mat.emission_energy_multiplier = 0.5
-	mesh_inst.material_override = mat
+	# 塗装鋼板の質感（壁と同じ）。色ごとに1枚を共有し、縞48本ぶんの材質を作らない。
+	mesh_inst.material_override = preload("res://scripts/world/wall_materials.gd").goal_stripe(color)
 	return mesh_inst
 
 func _update_camera(dt: float) -> void:
@@ -2060,6 +2057,8 @@ func _begin_preview_wall_render_prewarm(prewarm_camera: Camera3D) -> Dictionary:
 		dummy_two.visible = true
 		if dummy_two.has_method("set_quiz"):
 			dummy_two.set_quiz(_make_prewarm_quiz(2), 2)
+		if dummy_two.has_method("prewarm_retirement_fade"):
+			dummy_two.prewarm_retirement_fade()
 		report["dummies"] = int(report["dummies"]) + 1
 
 	var dummy_boss: Node3D = quiz_wall_scene.instantiate() as Node3D
@@ -2506,10 +2505,9 @@ func _build_start_barrier_node() -> void:
 	var bx := BoxMesh.new()
 	bx.size = BARRIER_SIZE
 	mi.mesh = bx
-	var mt := StandardMaterial3D.new()
-	mt.albedo_color = BARRIER_COLOR
-	mt.roughness = 0.45
-	mt.metallic = 0.25
+	# 塗装鋼板パネル（壁と同じテクスチャを2倍の区画で。上端を継ぎ目に合わせる）。
+	var mt: StandardMaterial3D = preload("res://scripts/world/wall_materials.gd").panel(
+		BARRIER_COLOR, "", 0, 2.0, 0.45, 0.25, BARRIER_SIZE.y * 0.5)
 	mt.emission_enabled = true
 	mt.emission = Color(0.08, 0.12, 0.25)
 	mt.emission_energy_multiplier = 0.4

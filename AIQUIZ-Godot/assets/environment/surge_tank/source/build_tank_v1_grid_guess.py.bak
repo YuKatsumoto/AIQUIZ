@@ -1,0 +1,990 @@
+"""Geometry of the surge tank modules (LIVE Blender only; see tank_common.py for the survey).
+
+    ns = {"__name__": "tank_build"}
+    exec(open("C:/AIQUIZ/AIQUIZ-Godot/assets/environment/surge_tank/source/build_tank.py", encoding="utf-8").read(), ns)
+    ns["build_module"]("E")        # E / O slice templates, S (shaft end), Q (shaft No.1), P (pump end)
+    ns["place_hall"]()             # linked copies of the slice templates at every line (bake / review)
+
+Modules (Godot space, module floor y = 0):
+  E  slice template of an even pillar line k (5 pillars, rows x = 0, +-15.6, +-31.2), local z about
+     the line: -5.75 .. 7.75 (from the downstream face of the upstream transverse beam to the
+     downstream face of its own downstream beam). Its beam carries the lamps of line k + 1 (odd rows).
+  O  the same for an odd line (4 pillars, rows x = +-7.8, +-23.4; lamps for the even rows).
+  S  line 0 and the shaft-side end wall with the shaft No.1 opening, fence and concrete blocks
+     (hall z = Z_SHAFT - reveal .. line_z(0) + 7.75).
+  Q  the shaft No.1 behind the opening: wall, roof with skylight, stair tower, pipes, ring catwalk.
+  P  line 12 and the pump-side end wall with the four intake bays (hall z = line_z(12) - 5.75 .. ).
+Instances of E / O sit at z = line_z(k); S, Q, P are authored in hall coordinates.
+
+Each module = one object per material ("<TAG>|TK_Concrete", ...). Light fixtures carry lens
+meshes (TK_Lens) and LGT_ lights for the Cycles bake; empties TK_Light_<Kind>_<n> record their
+positions for Godot (local -Z = beam direction).
+"""
+import math
+
+import bmesh
+import bpy
+from mathutils import Matrix, Vector
+
+_ns = {}
+exec(open("C:/AIQUIZ/AIQUIZ-Godot/assets/environment/surge_tank/source/tank_common.py", encoding="utf-8").read(), _ns)
+C = type("C", (), _ns)
+GAcc = C.GAcc
+V = C.V
+UV_WORLD, UV_FACE, UV_EXPLICIT = C.UV_WORLD, C.UV_FACE, C.UV_EXPLICIT
+
+MATS = ("TK_Concrete", "TK_Pillar", "TK_Floor", "TK_Steel", "TK_Galv", "TK_Grate", "TK_Lens", "TK_Void", "TK_Sky", "TK_Paint")
+# lightmap texel density of each part relative to the architecture
+PART = {"TK_Concrete": "shell", "TK_Pillar": "shell", "TK_Floor": "floor", "TK_Steel": "steel", "TK_Galv": "galv", "TK_Grate": "grate",
+        "TK_Lens": "lens", "TK_Void": "dark", "TK_Sky": "dark", "TK_Paint": "steel"}
+TB_HALF = C.TB_W * 0.5
+HALF_LINE = C.LINE_PITCH * 0.5          # 6.75
+SL0 = -(HALF_LINE - TB_HALF)            # -5.75: slice start (local)
+SL1 = HALF_LINE + TB_HALF               # 7.75: slice end (local)
+HEAD_HZ = HALF_LINE - TB_HALF           # 5.75: pillar head reaches the transverse beam faces
+LAMP_Y = C.BEAM_Y - 0.66                # lens of the hanging high-bay
+TOP_Y = C.H                             # slab soffit
+HAUNCH_Y = C.H - C.HAUNCH               # 17.2: beam sides / walls meet the haunches
+X_IN = C.HALF_W - C.WALL_FILLET         # 36.4: floor edge at the side-wall fillets
+
+
+# ------------------------------------------------------------------ materials (bake look-dev placeholders)
+def material(name):
+    m = bpy.data.materials.get(name)
+    if m is None:
+        m = bpy.data.materials.new(name)
+        m.use_nodes = True
+    return m
+
+
+def mats():
+    return {n: material(n) for n in MATS}
+
+
+class Mod:
+    """The per-material accumulators of one module."""
+
+    def __init__(self, tag):
+        self.tag = tag
+        self.acc = {
+            "TK_Concrete": GAcc(scale=C.S_CONCRETE),
+            "TK_Pillar": GAcc(scale=C.S_CONCRETE),
+            "TK_Floor": GAcc(scale=C.S_FLOOR),
+            "TK_Steel": GAcc(scale=C.S_STEEL, color=C.TINT["fixture"] + (1.0,)),
+            "TK_Paint": GAcc(scale=C.S_STEEL, color=C.TINT["green"] + (1.0,)),
+            "TK_Galv": GAcc(scale=C.S_GALV),
+            "TK_Grate": GAcc(scale=C.S_GRATE),
+            "TK_Lens": GAcc(scale=1.0),
+            "TK_Void": GAcc(scale=1.0),
+            "TK_Sky": GAcc(scale=1.0),
+        }
+        self.lights = []      # (kind, pos_g, aim_g, params)
+        self.sharp = []       # concrete sharp edge pairs handled by angle at finish
+
+    def __getitem__(self, key):
+        return self.acc[key]
+
+
+# ------------------------------------------------------------------ outlines
+def rrect(cx, cz, hx, hz, rc, nc=8):
+    """Rounded rectangle in xz (CCW seen from +y), 4 corner arcs of nc segments, no extra side
+    points: 4 * (nc + 1) points, the same count for every (hx, hz, rc), so outlines loft."""
+    rc = min(rc, hx, hz)
+    pts = []
+    corners = ((hx - rc, hz - rc, 0.0), (-(hx - rc), hz - rc, 0.5 * math.pi), (-(hx - rc), -(hz - rc), math.pi), (hx - rc, -(hz - rc), 1.5 * math.pi))
+    for (ox, oz, a0) in corners:
+        for i in range(nc + 1):
+            a = a0 + 0.5 * math.pi * i / nc
+            pts.append((cx + ox + rc * math.cos(a), cz + oz + rc * math.sin(a)))
+    return pts
+
+
+def ring_at(outline, y):
+    return [V(p[0], y, p[1]) for p in outline]
+
+
+def perimeter_u(outline, scale, u0=0.0):
+    us = [u0]
+    for i in range(1, len(outline) + 1):
+        a = outline[i - 1]
+        b = outline[i % len(outline)]
+        us.append(us[-1] + math.hypot(b[0] - a[0], b[1] - a[1]) / scale)
+    return us
+
+
+def loft(acc, rings, us, vs, smooth=True, outward_from=None):
+    """Skin consecutive closed rings (lists of Vector, equal counts) with explicit UVs us (per point,
+    len n + 1) and vs (per ring)."""
+    n = len(rings[0])
+    faces = []
+    for r in range(len(rings) - 1):
+        ra, rb = rings[r], rings[r + 1]
+        for i in range(n):
+            j = (i + 1) % n
+            pts = (ra[i], ra[j], rb[j], rb[i])
+            if (pts[0] - pts[1]).length < 1e-6 and (pts[2] - pts[3]).length < 1e-6:
+                continue
+            uv = ((us[i], vs[r]), (us[i + 1], vs[r]), (us[i + 1], vs[r + 1]), (us[i], vs[r + 1]))
+            if (pts[0] - pts[1]).length < 1e-6:
+                pts = (ra[i], rb[j], rb[i])
+                uv = (uv[0], uv[2], uv[3])
+            elif (pts[2] - pts[3]).length < 1e-6:
+                pts = (ra[i], ra[j], rb[j])
+                uv = (uv[0], uv[1], uv[2])
+            f = acc.face(pts, smooth=smooth, uv=uv)
+            mid = sum(pts, Vector()) / len(pts)
+            axis = outward_from(mid) if outward_from else None
+            if axis is not None:
+                acc.orient(f, mid - axis)
+            faces.append(f)
+    return faces
+
+
+# ------------------------------------------------------------------ pillar
+def pillar(m, cx, cz):
+    """Real pillar: 7 x 2 m with half-round ends, base flare, head flaring into the 4 m pillar-head
+    beam and the transverse beams (local z = cz +- 5.75 at y = BEAM_Y). TK_Pillar: UV0 wraps around."""
+    acc = m["TK_Pillar"]
+    nc = 8
+    hz = C.PIL_HALF_LEN
+    base = rrect(cx, cz, C.PIL_R + C.FLARE_OUT, hz + C.FLARE_OUT, C.PIL_R + C.FLARE_OUT - 1e-4, nc)
+    shaft = rrect(cx, cz, C.PIL_R, hz, C.PIL_R - 1e-4, nc)
+    head = rrect(cx, cz, C.LB_HALF_W, HEAD_HZ, 0.05, nc)
+    rings = [ring_at(base, 0.0), ring_at(base, C.FLARE_LIP), ring_at(shaft, C.FLARE_Y), ring_at(shaft, C.PIL_HEAD_Y), ring_at(head, C.BEAM_Y)]
+    us = perimeter_u(shaft, C.S_CONCRETE, u0=(cx * 0.37 + cz * 0.11) % 1.0)
+    vs = [0.0, C.FLARE_LIP / C.S_CONCRETE, C.FLARE_Y / C.S_CONCRETE, C.PIL_HEAD_Y / C.S_CONCRETE, C.BEAM_Y / C.S_CONCRETE]
+    centre = lambda p: Vector((cx, p.y, cz))
+    faces = loft(acc, rings, us, vs, smooth=True, outward_from=centre)
+    return faces
+
+
+# ------------------------------------------------------------------ ceiling pieces
+def coffer(m, x0, x1, z0, z1, walls=(True, True, True, True)):
+    """Inverted tray between beams: vertical sides BEAM_Y..HAUNCH_Y on the sides flagged in walls
+    (-x, +x, -z, +z), 45 deg haunches to the slab soffit, flat top. Faces point into the tray."""
+    acc = m["TK_Concrete"]
+    h = C.HAUNCH
+    yb, yh, yt = C.BEAM_Y, HAUNCH_Y, TOP_Y
+    cxz = Vector(((x0 + x1) * 0.5, 0.0, (z0 + z1) * 0.5))
+    # top
+    acc.face((V(x0 + h, yt, z0 + h), V(x1 - h, yt, z0 + h), V(x1 - h, yt, z1 - h), V(x0 + h, yt, z1 - h)), out=(0, -1, 0))
+    # haunches
+    acc.face((V(x0, yh, z0), V(x0 + h, yt, z0 + h), V(x0 + h, yt, z1 - h), V(x0, yh, z1)), out=(1, -1, 0))
+    acc.face((V(x1, yh, z0), V(x1, yh, z1), V(x1 - h, yt, z1 - h), V(x1 - h, yt, z0 + h)), out=(-1, -1, 0))
+    acc.face((V(x0, yh, z0), V(x1, yh, z0), V(x1 - h, yt, z0 + h), V(x0 + h, yt, z0 + h)), out=(0, -1, 1))
+    acc.face((V(x0, yh, z1), V(x0 + h, yt, z1 - h), V(x1 - h, yt, z1 - h), V(x1, yh, z1)), out=(0, -1, -1))
+    # vertical sides (beam faces)
+    if walls[0]:
+        acc.face((V(x0, yb, z0), V(x0, yb, z1), V(x0, yh, z1), V(x0, yh, z0)), out=(1, 0, 0))
+    if walls[1]:
+        acc.face((V(x1, yb, z0), V(x1, yh, z0), V(x1, yh, z1), V(x1, yb, z1)), out=(-1, 0, 0))
+    if walls[2]:
+        acc.face((V(x0, yb, z0), V(x0, yh, z0), V(x1, yh, z0), V(x1, yb, z0)), out=(0, 0, 1))
+    if walls[3]:
+        acc.face((V(x0, yb, z1), V(x1, yb, z1), V(x1, yh, z1), V(x0, yh, z1)), out=(0, 0, -1))
+
+
+def tb_soffit(m, z0, z1, x0=-C.HALF_W + C.TB_WALL_HAUNCH, x1=C.HALF_W - C.TB_WALL_HAUNCH):
+    acc = m["TK_Concrete"]
+    acc.face((V(x0, C.BEAM_Y, z0), V(x1, C.BEAM_Y, z0), V(x1, C.BEAM_Y, z1), V(x0, C.BEAM_Y, z1)), out=(0, -1, 0))
+    # haunches under the beam ends at the side walls (the "octagonal" frames of the side aisles)
+    hw = C.TB_WALL_HAUNCH
+    for s in (-1.0, 1.0):
+        xw = s * C.HALF_W
+        xi = s * (C.HALF_W - hw)
+        acc.face((V(xw, C.BEAM_Y - hw, z0), V(xw, C.BEAM_Y - hw, z1), V(xi, C.BEAM_Y, z1), V(xi, C.BEAM_Y, z0)), out=(-s, -1, 0))
+        for zz, dz in ((z0, -1.0), (z1, 1.0)):
+            acc.face((V(xw, C.BEAM_Y - hw, zz), V(xi, C.BEAM_Y, zz), V(xw, C.BEAM_Y, zz)), out=(0, 0, dz))
+
+
+def lb_flat(m, cx, z0, z1):
+    """Plain stretch of a pillar-head beam soffit (end lines: from the head to the end wall)."""
+    acc = m["TK_Concrete"]
+    x0, x1 = cx - C.LB_HALF_W, cx + C.LB_HALF_W
+    acc.face((V(x0, C.BEAM_Y, z0), V(x1, C.BEAM_Y, z0), V(x1, C.BEAM_Y, z1), V(x0, C.BEAM_Y, z1)), out=(0, -1, 0))
+
+
+def x_intervals(beam_rows, x_lo=-C.HALF_W, x_hi=C.HALF_W):
+    """Coffer x intervals between the pillar-head beams of the given rows and the walls."""
+    edges = [x_lo]
+    for j in sorted(beam_rows):
+        x = C.ROWS_X[j]
+        edges += [x - C.LB_HALF_W, x + C.LB_HALF_W]
+    edges.append(x_hi)
+    return [(edges[i], edges[i + 1]) for i in range(0, len(edges), 2)]
+
+
+# ------------------------------------------------------------------ walls, floor
+def side_walls(m, z0, z1, tb_ranges=(), catwalk=True, fillet=True, upper_ranges=None, corner0=False, corner1=False):
+    """Both side walls over z0..z1: fillet, face up to the beam haunches; above BEAM_Y - haunch only
+    where no transverse beam abuts (upper_ranges, default: z0..z1 minus tb_ranges). corner0 / corner1:
+    an end wall with its own foot fillet stands at z0 / z1, so the side fillet is mitred into it (the
+    end module adds the matching triangle of the end fillet, see end_fillet_corner)."""
+    acc = m["TK_Concrete"]
+    yl = C.WALL_FILLET if fillet else 0.0
+    ytb = C.BEAM_Y - C.TB_WALL_HAUNCH
+    if upper_ranges is None:
+        upper_ranges = [(z0, z1)]
+        for (a, b) in tb_ranges:
+            nxt = []
+            for (c, d) in upper_ranges:
+                if b <= c or a >= d:
+                    nxt.append((c, d))
+                    continue
+                if a > c:
+                    nxt.append((c, a))
+                if b < d:
+                    nxt.append((b, d))
+            upper_ranges = nxt
+    for s in (-1.0, 1.0):
+        xw = s * C.HALF_W
+        out = (-s, 0, 0)
+        acc.face((V(xw, yl, z0), V(xw, ytb, z0), V(xw, ytb, z1), V(xw, yl, z1)), out=out)
+        for (a, b) in upper_ranges:
+            acc.face((V(xw, ytb, a), V(xw, HAUNCH_Y, a), V(xw, HAUNCH_Y, b), V(xw, ytb, b)), out=out)
+        if fillet:
+            F = C.WALL_FILLET
+            xi = s * (C.HALF_W - F)
+            za = z0 + (F if corner0 else 0.0)
+            zb = z1 - (F if corner1 else 0.0)
+            acc.face((V(xi, 0.0, za), V(xw, F, za), V(xw, F, zb), V(xi, 0.0, zb)), out=(-s, 1, 0))
+            if corner0:
+                acc.face((V(xi, 0.0, za), V(xw, F, z0), V(xw, F, za)), out=(-s, 1, 0))
+            if corner1:
+                acc.face((V(xi, 0.0, zb), V(xw, F, zb), V(xw, F, z1)), out=(-s, 1, 0))
+        if catwalk:
+            catwalk_run(m, s, z0, z1)
+
+
+def end_fillet_corner(m, zw, dz):
+    """The end-wall fillet's triangles in the two corners (end wall at zw, hall on the dz side)."""
+    acc = m["TK_Concrete"]
+    F = C.WALL_FILLET
+    for s in (-1.0, 1.0):
+        xi = s * (C.HALF_W - F)
+        xw = s * C.HALF_W
+        acc.face((V(xi, 0.0, zw + dz * F), V(xw, F, zw), V(xi, F, zw)), out=(0, 1, dz))
+
+
+def floor(m, x0, x1, z0, z1, step=6.75):
+    acc = m["TK_Floor"]
+    nz = max(1, int(round((z1 - z0) / step)))
+    nx = max(1, int(round((x1 - x0) / 7.8)))
+    for i in range(nx):
+        for k in range(nz):
+            a0 = x0 + (x1 - x0) * i / nx
+            a1 = x0 + (x1 - x0) * (i + 1) / nx
+            b0 = z0 + (z1 - z0) * k / nz
+            b1 = z0 + (z1 - z0) * (k + 1) / nz
+            acc.face((V(a0, 0.0, b0), V(a0, 0.0, b1), V(a1, 0.0, b1), V(a1, 0.0, b0)), out=(0, 1, 0))
+
+
+# ------------------------------------------------------------------ steel: catwalks, railings, lamps
+def railing(m, a, b, base_y, post_step=1.8, height=1.1, toe=True, mat="TK_Galv", r=0.024):
+    """Straight railing from a to b (Godot points at deck level): posts, top and mid rails, toe board."""
+    acc = m[mat]
+    a, b = Vector(a), Vector(b)
+    d = b - a
+    L = d.length
+    if L < 1e-3:
+        return
+    n = max(1, int(math.ceil(L / post_step)))
+    for i in range(n + 1):
+        p = a + d * (i / n)
+        acc.cyl(V(p.x, base_y, p.z), V(p.x, base_y + height, p.z), r * 1.15, segs=6, caps=True)
+    for hgt in (height, height * 0.5):
+        acc.cyl(V(a.x, base_y + hgt, a.z), V(b.x, base_y + hgt, b.z), r, segs=6, caps=True)
+    if toe:
+        t = d.normalized()
+        nrm = Vector((-t.z, 0.0, t.x)) * 0.004
+        acc.face((V(a.x, base_y, a.z) - nrm, V(b.x, base_y, b.z) - nrm, V(b.x, base_y + 0.1, b.z) - nrm, V(a.x, base_y + 0.1, a.z) - nrm), out=Vector((-t.z, 0.0, t.x)))
+        acc.face((V(a.x, base_y, a.z) + nrm, V(a.x, base_y + 0.1, a.z) + nrm, V(b.x, base_y + 0.1, b.z) + nrm, V(b.x, base_y, b.z) + nrm), out=Vector((t.z, 0.0, -t.x)))
+
+
+def catwalk_run(m, s, z0, z1, y=C.CATWALK_Y, w=C.CATWALK_W):
+    """Steel catwalk on a side wall (s = -1 left, +1 right): grating deck, green brackets every 2.25 m,
+    galvanised railing on the open edge."""
+    xw = s * C.HALF_W
+    xe = s * (C.HALF_W - w)
+    g = m["TK_Grate"]
+    g.face((V(xe, y, z0), V(xe, y, z1), V(xw, y, z1), V(xw, y, z0)), out=(0, 1, 0))
+    g.face((V(xe, y - 0.03, z0), V(xw, y - 0.03, z0), V(xw, y - 0.03, z1), V(xe, y - 0.03, z1)), out=(0, -1, 0))
+    p = m["TK_Paint"]
+    # edge stringers (channel)
+    p.box((min(xe, xe + s * 0.0) - 0.04, y - 0.18, z0), (min(xe, xe) + 0.04, y, z1), skip=("-z", "+z"))
+    n = max(1, int(round((z1 - z0) / 2.25)))
+    for i in range(n):
+        zc = z0 + (z1 - z0) * (i + 0.5) / n
+        # cantilever bracket: horizontal arm under the deck and a diagonal strut back to the wall
+        x_a, x_b = sorted((xw, xe))
+        p.box((x_a, y - 0.16, zc - 0.05), (x_b, y - 0.03, zc + 0.05))
+        top = V(xe, y - 0.16, zc)
+        bot = V(xw, y - 1.05, zc)
+        p.cyl(top, bot, 0.045, segs=6, caps=True)
+        p.box((min(xw, xw - s * 0.012), y - 1.2, zc - 0.09), (max(xw, xw - s * 0.012), y - 0.05, zc + 0.09))
+    railing(m, (xe, y, z0), (xe, y, z1), y, post_step=2.25)
+
+
+def high_bay(m, x, z, name, y_mount=C.BEAM_Y):
+    """LED high-bay hanging from a beam soffit: hook stem, finned body, lens facing down."""
+    st = m["TK_Steel"]
+    st.cyl(V(x, y_mount, z), V(x, LAMP_Y + 0.22, z), 0.022, segs=6, caps=False)
+    st.cyl(V(x, LAMP_Y + 0.22, z), V(x, LAMP_Y + 0.13, z), 0.17, r1=0.25, segs=16, caps=True)
+    st.cyl(V(x, LAMP_Y + 0.13, z), V(x, LAMP_Y + 0.015, z), 0.26, segs=16, caps=False)
+    st.cyl(V(x, LAMP_Y + 0.015, z), V(x, LAMP_Y + 0.0, z), 0.26, r1=0.235, segs=16, caps=False)
+    # fins
+    for i in range(8):
+        a = math.tau * i / 8
+        d = Vector((math.cos(a), 0.0, math.sin(a)))
+        c = V(x, LAMP_Y + 0.17, z) + d * 0.2
+        st.obox(c, (0.01, 0.08, 0.1), M=Matrix.Rotation(-a, 4, "Y"))
+    lens = m["TK_Lens"]
+    ring = [V(x + 0.225 * math.cos(math.tau * i / 16), LAMP_Y - 0.002, z + 0.225 * math.sin(math.tau * i / 16)) for i in range(16)]
+    lens.face(ring, out=(0, -1, 0))
+    m.lights.append(("Bay", (x, LAMP_Y - 0.06, z), (0.0, -1.0, 0.0), {"name": name}))
+
+
+def wall_lamp(m, s, z, name, y=C.CATWALK_Y + 1.9):
+    """Flood on the side wall above the catwalk, washing the wall and the aisle below."""
+    xw = s * C.HALF_W
+    st = m["TK_Steel"]
+    st.box((min(xw, xw - s * 0.35), y + 0.0, z - 0.06), (max(xw, xw - s * 0.35), y + 0.08, z + 0.06))
+    c = V(xw - s * 0.45, y - 0.05, z)
+    st.obox(c, (0.22, 0.30, 0.42), M=Matrix.Rotation(s * math.radians(35), 4, "Z"))
+    lens = m["TK_Lens"]
+    # lens on the face looking down and out
+    R = Matrix.Rotation(s * math.radians(35), 4, "Z")
+    hx, hz = 0.1, 0.19
+    off = R @ Vector((0.0, -0.152, 0.0))
+    pts = [c + off + R @ Vector((sx * hx, 0.0, sz * hz)) for (sx, sz) in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
+    lens.face(pts, out=R @ Vector((0, -1, 0)))
+    aim = Vector((-s * 0.55, -1.0, 0.0)).normalized()
+    m.lights.append(("Wall", tuple(c + off * 1.3), tuple(aim), {"name": name}))
+
+
+# ------------------------------------------------------------------ slice templates
+def build_slice(parity):
+    """E (parity 0) / O (parity 1) slice in local coordinates about its pillar line."""
+    tag = "E" if parity == 0 else "O"
+    m = Mod(tag)
+    rows = [j for j in range(9) if (j + parity) % 2 == 0]
+    lamp_rows = [j for j in range(9) if (j + parity + 1) % 2 == 0]
+    # floor and walls
+    floor(m, -X_IN, X_IN, SL0, SL1)
+    side_walls(m, SL0, SL1, tb_ranges=[(HALF_LINE - TB_HALF, SL1)])
+    # pillars
+    for j in rows:
+        pillar(m, C.ROWS_X[j], 0.0)
+    # ceiling: coffers between the head beams, then the downstream transverse beam
+    for (x0, x1) in x_intervals(rows):
+        wall_side = (abs(x0 + C.HALF_W) > 1e-6, abs(x1 - C.HALF_W) > 1e-6)
+        coffer(m, x0, x1, SL0, HALF_LINE - TB_HALF, walls=(wall_side[0], wall_side[1], True, True))
+    # head-beam sides between the coffers are the coffer walls; transverse beam soffit + wall haunches
+    tb_soffit(m, HALF_LINE - TB_HALF, SL1)
+    # lamps of the next line on this slice's transverse beam
+    for j in lamp_rows:
+        high_bay(m, C.ROWS_X[j], HALF_LINE, "Bay_%d" % j)
+    # wall floods above the catwalks (one per side per slice, at the pillar line)
+    for s in (-1.0, 1.0):
+        wall_lamp(m, s, 0.0, "Wall_%s" % ("L" if s < 0 else "R"))
+    return m
+
+
+# ------------------------------------------------------------------ shaft end (S)
+def build_shaft_end():
+    m = Mod("S")
+    zw = C.Z_SHAFT
+    z0 = C.line_z(0)
+    z_end = z0 + SL1
+    rows = [j for j in range(9) if j % 2 == 0]
+    hw, top = C.OPEN_HALF_W, C.OPEN_TOP
+    cxw, cyw = C.OPEN_CHAMFER
+    rev = C.OPEN_REVEAL
+    # floor: hall part and the reveal lip
+    floor(m, -X_IN, X_IN, zw, z_end)
+    acc_f = m["TK_Floor"]
+    acc_f.face((V(-hw + cxw, 0.0, zw - rev), V(-hw + cxw, 0.0, zw), V(hw - cxw, 0.0, zw), V(hw - cxw, 0.0, zw - rev)), out=(0, 1, 0))
+    side_walls(m, zw, z_end, tb_ranges=[(z0 + HALF_LINE - TB_HALF, z_end)], corner0=True)
+    end_fillet_corner(m, zw, 1.0)
+    acc = m["TK_Concrete"]
+    # end wall with the opening (outline in x-y): fillet at the foot outside the opening
+    outline = [(-hw, top), (-hw, cyw), (-hw + cxw, 0.0), (hw - cxw, 0.0), (hw, cyw), (hw, top)]
+    yl = C.WALL_FILLET
+    for s in (-1.0, 1.0):
+        xa, xb = sorted((s * hw, s * (C.HALF_W)))
+        # wall face beside the opening, from the fillet top to the haunch
+        acc.face((V(xa, yl, zw), V(xb, yl, zw), V(xb, HAUNCH_Y, zw), V(xa, HAUNCH_Y, zw)), out=(0, 0, 1))
+        # fillet (45 deg, toward +z) from the side-wall fillet to the jamb chamfer
+        xc_a, xc_b = sorted((s * (hw + 0.0), s * (C.HALF_W - C.WALL_FILLET)))
+        acc.face((V(xc_a, 0.0, zw + yl), V(xc_b, 0.0, zw + yl), V(xc_b, yl, zw), V(xc_a, yl, zw)), out=(0, 1, 1))
+        # the fillet's end cap at the jamb, and the wall face under the jamb chamfer
+        acc.face((V(s * hw, 0.0, zw), V(s * hw, 0.0, zw + yl), V(s * hw, yl, zw)), out=(-s, 0, 0))
+        acc.face((V(s * hw, 0.0, zw), V(s * (hw - cxw), 0.0, zw), V(s * hw, cyw, zw)), out=(0, 0, 1))
+    # lintel strip above the opening
+    acc.face((V(-hw, top, zw), V(hw, top, zw), V(hw, HAUNCH_Y, zw), V(-hw, HAUNCH_Y, zw)), out=(0, 0, 1))
+    # reveal: jambs, chamfers, lintel soffit (extruded outline along -z)
+    for i in range(len(outline) - 1):
+        a, b = outline[i], outline[i + 1]
+        pa0, pb0 = V(a[0], a[1], zw), V(b[0], b[1], zw)
+        pa1, pb1 = V(a[0], a[1], zw - rev), V(b[0], b[1], zw - rev)
+        mid = (pa0 + pb1) * 0.5
+        f = acc.face((pa0, pb0, pb1, pa1))
+        acc.orient(f, Vector((0.0, top * 0.45, mid.z)) - mid)
+    acc.face((V(-hw, top, zw), V(-hw, top, zw - rev), V(hw, top, zw - rev), V(hw, top, zw)), out=(0, -1, 0))
+    # chamfer blocks' floor-level faces already covered by the outline; reveal floor is TK_Floor
+    # ceiling: coffers wall -> transverse beam 0, head beams of line 0 run to the wall
+    for (x0, x1) in x_intervals(rows):
+        wall_side = (abs(x0 + C.HALF_W) > 1e-6, abs(x1 - C.HALF_W) > 1e-6)
+        coffer(m, x0, x1, zw, z0 + HALF_LINE - TB_HALF, walls=(wall_side[0], wall_side[1], False, True))
+    tb_soffit(m, z0 + HALF_LINE - TB_HALF, z_end)
+    for j in rows:
+        pillar(m, C.ROWS_X[j], z0)
+        lb_flat(m, C.ROWS_X[j], zw, z0 - HEAD_HZ)
+    # wall-top haunch along the end wall is part of the coffers; lamps of line 0 on wall brackets
+    st = m["TK_Steel"]
+    for j in rows:
+        x = C.ROWS_X[j]
+        zl = zw + 0.75
+        st.box((x - 0.06, C.BEAM_Y - 0.1, zw), (x + 0.06, C.BEAM_Y + 0.02, zl + 0.05))
+        high_bay(m, x, zl, "Bay_%d" % j, y_mount=C.BEAM_Y - 0.05)
+    # lamps of line 1 on transverse beam 0
+    for j in range(9):
+        if (j + 1) % 2 == 0:
+            high_bay(m, C.ROWS_X[j], z0 + HALF_LINE, "Bay1_%d" % j)
+    for s in (-1.0, 1.0):
+        wall_lamp(m, s, z0, "Wall_%s" % ("L" if s < 0 else "R"))
+    # fence on the reveal lip and the concrete blocks in front of the opening
+    fz = zw - rev + 0.25
+    railing(m, (-hw + cxw + 0.2, 0.0, fz), (hw - cxw - 0.2, 0.0, fz), 0.0, post_step=2.0, mat="TK_Steel", r=0.03)
+    for i in range(7):
+        x = -13.2 + 4.4 * i
+        acc.box((x - 0.5, 0.0, zw + 1.0), (x + 0.5, 0.85, zw + 1.9), skip=("-y",))
+    return m
+
+
+# ------------------------------------------------------------------ shaft No.1 (Q)
+def build_shaft():
+    m = Mod("Q")
+    acc = m["TK_Pillar"]
+    zc = C.Z_SHAFT - C.OPEN_REVEAL - C.SHAFT_BACK
+    R = C.SHAFT_R
+    zchord = C.Z_SHAFT - C.OPEN_REVEAL
+    half = math.acos(C.SHAFT_BACK / R)          # half angle of the arc on the tank side (cut away)
+    # arc behind the chord: angles measured from +z (toward the tank), keep |a| >= half
+    n = 72
+    a0, a1 = half, math.tau - half
+    ys = [C.SHAFT_BOTTOM, -12.0, -4.0, 0.0, 6.0, 12.0, C.SHAFT_TOP - 3.0, C.SHAFT_TOP]
+    rings = []
+    for y in ys:
+        ring = []
+        for i in range(n + 1):
+            a = a0 + (a1 - a0) * i / n
+            ring.append(V(R * math.sin(a), y, zc + R * math.cos(a)))
+        rings.append(ring)
+    circ = R * (a1 - a0)
+    for r in range(len(rings) - 1):
+        for i in range(n):
+            pts = (rings[r][i], rings[r][i + 1], rings[r + 1][i + 1], rings[r + 1][i])
+            u0 = circ * i / n / C.S_CONCRETE
+            u1 = circ * (i + 1) / n / C.S_CONCRETE
+            uv = ((u0, ys[r] / C.S_CONCRETE), (u1, ys[r] / C.S_CONCRETE), (u1, ys[r + 1] / C.S_CONCRETE), (u0, ys[r + 1] / C.S_CONCRETE))
+            f = acc.face(pts, smooth=True, uv=uv)
+            mid = sum(pts, Vector()) / 4
+            acc.orient(f, Vector((0.0, mid.y, zc)) - mid)
+    # chord wall (tank side) below the floor lip and above the lintel
+    acc = m["TK_Concrete"]
+    xc = R * math.sin(half)
+    acc.face((V(-xc, C.SHAFT_BOTTOM, zchord), V(xc, C.SHAFT_BOTTOM, zchord), V(xc, -0.02, zchord), V(-xc, -0.02, zchord)), out=(0, 0, -1))
+    acc.face((V(-xc, C.OPEN_TOP, zchord), V(xc, C.OPEN_TOP, zchord), V(xc, C.SHAFT_TOP, zchord), V(-xc, C.SHAFT_TOP, zchord)), out=(0, 0, -1))
+    # the jamb gap between the chord ends and the opening edges (hw vs chord half)
+    hw = C.OPEN_HALF_W
+    for s in (-1.0, 1.0):
+        if abs(xc - hw) > 1e-3:
+            xa, xb = sorted((s * xc, s * hw))
+            acc.face((V(xa, 0.0, zchord), V(xb, 0.0, zchord), V(xb, C.OPEN_TOP, zchord), V(xa, C.OPEN_TOP, zchord)), out=(0, 0, -1))
+    # bottom (water pool) and roof with the skylight
+    pool = []
+    for i in range(n + 1):
+        a = a0 + (a1 - a0) * i / n
+        pool.append(V(R * math.sin(a), C.SHAFT_BOTTOM, zc + R * math.cos(a)))
+    m["TK_Void"].face(pool, out=(0, 1, 0))
+    sky_r = 9.0
+    ring_out = [V(R * math.sin(math.tau * i / 48), C.SHAFT_TOP, zc + R * math.cos(math.tau * i / 48)) for i in range(48)]
+    ring_in = [V(sky_r * math.sin(math.tau * i / 48), C.SHAFT_TOP, zc + sky_r * math.cos(math.tau * i / 48)) for i in range(48)]
+    for i in range(48):
+        j = (i + 1) % 48
+        f = acc.face((ring_out[i], ring_out[j], ring_in[j], ring_in[i]))
+        acc.orient(f, Vector((0, -1, 0)))
+    sky = [V(sky_r * math.sin(math.tau * i / 48), C.SHAFT_TOP + 0.05, zc + sky_r * math.cos(math.tau * i / 48)) for i in range(48)]
+    m["TK_Sky"].face(sky, out=(0, -1, 0))
+    # ring catwalk near the top
+    yr = C.SHAFT_TOP - 3.4
+    g = m["TK_Grate"]
+    nr = 40
+    for i in range(nr):
+        aa = a0 + (a1 - a0) * i / nr
+        bb = a0 + (a1 - a0) * (i + 1) / nr
+        p0 = V(R * math.sin(aa), yr, zc + R * math.cos(aa))
+        p1 = V(R * math.sin(bb), yr, zc + R * math.cos(bb))
+        q0 = V((R - 1.2) * math.sin(aa), yr, zc + (R - 1.2) * math.cos(aa))
+        q1 = V((R - 1.2) * math.sin(bb), yr, zc + (R - 1.2) * math.cos(bb))
+        g.face((q0, q1, p1, p0), out=(0, 1, 0))
+        g.face((q0, p0, p1, q1), out=(0, -1, 0))
+        m["TK_Paint"].cyl(V(q0.x, yr, q0.z), V(q0.x, yr + 1.1, q0.z), 0.03, segs=6, caps=False)
+        m["TK_Paint"].cyl(V(q0.x, yr + 1.1, q0.z), V(q1.x, yr + 1.1, q1.z), 0.03, segs=6, caps=False)
+        m["TK_Paint"].cyl(V(q0.x, yr + 0.55, q0.z), V(q1.x, yr + 0.55, q1.z), 0.025, segs=6, caps=False)
+    # stair tower against the wall, left of the opening axis (photos: scissor stair, landings every 3 m)
+    ang = math.radians(208.0)
+    tx, tz = (R - 2.2) * math.sin(ang), zc + (R - 2.2) * math.cos(ang)
+    stair_tower(m, tx, tz, C.SHAFT_BOTTOM + 2.0, C.SHAFT_TOP - 3.4)
+    # pipes on the wall
+    for deg, rad in ((228.0, 0.35), (232.0, 0.28), (150.0, 0.4)):
+        a = math.radians(deg)
+        px, pz = (R - rad - 0.15) * math.sin(a), zc + (R - rad - 0.15) * math.cos(a)
+        m["TK_Galv"].cyl(V(px, C.SHAFT_BOTTOM, pz), V(px, C.SHAFT_TOP - 0.5, pz), rad, segs=12, caps=False)
+    # floods around the top, aimed down the wall, and the daylight
+    for i in range(8):
+        a = math.tau * (i + 0.5) / 8
+        p = V((R - 0.8) * math.sin(a), C.SHAFT_TOP - 1.2, zc + (R - 0.8) * math.cos(a))
+        aim = (Vector((0.0, -1.0, 0.0)) * 0.8 + (Vector((0.0, p.y, zc)) - p).normalized() * 0.6).normalized()
+        m.lights.append(("Shaft", tuple(p), tuple(aim), {"name": "Shaft_%d" % i}))
+        m["TK_Steel"].obox(p, (0.5, 0.35, 0.35))
+    m.lights.append(("Sky", (0.0, C.SHAFT_TOP + 0.4, zc), (0.0, -1.0, 0.0), {"name": "Sky", "radius": sky_r}))
+    return m
+
+
+def stair_tower(m, cx, cz, y0, y1, w=3.4, d=3.0, flight=3.0):
+    """Scissor stair tower: corner posts, landings, flights, railings (painted steel)."""
+    p = m["TK_Paint"]
+    g = m["TK_Grate"]
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            p.box((cx + sx * w * 0.5 - 0.08, y0, cz + sz * d * 0.5 - 0.08), (cx + sx * w * 0.5 + 0.08, y1 + 1.1, cz + sz * d * 0.5 + 0.08))
+    y = y0
+    flip = 1.0
+    while y < y1 - 0.1:
+        yn = min(y1, y + flight)
+        # landing at both ends of the tower (x ends)
+        for sx in (-1, 1):
+            x_a, x_b = sorted((cx + sx * w * 0.5, cx + sx * (w * 0.5 - 0.9)))
+            g.face((V(x_a, yn, cz - d * 0.5), V(x_a, yn, cz + d * 0.5), V(x_b, yn, cz + d * 0.5), V(x_b, yn, cz - d * 0.5)), out=(0, 1, 0))
+            g.face((V(x_a, yn - 0.04, cz - d * 0.5), V(x_b, yn - 0.04, cz - d * 0.5), V(x_b, yn - 0.04, cz + d * 0.5), V(x_a, yn - 0.04, cz + d * 0.5)), out=(0, -1, 0))
+        # flight between the landings, alternating sides in z
+        zf = cz + flip * d * 0.25
+        xa, xb = cx - w * 0.5 + 0.9, cx + w * 0.5 - 0.9
+        if flip < 0:
+            xa, xb = xb, xa
+        steps = 14
+        for i in range(steps):
+            t0, t1 = i / steps, (i + 1) / steps
+            xs0 = xa + (xb - xa) * t0
+            xs1 = xa + (xb - xa) * t1
+            ys = y + (yn - y) * t1
+            x_lo, x_hi = sorted((xs0, xs1))
+            g.face((V(x_lo, ys, zf - d * 0.24), V(x_lo, ys, zf + d * 0.24), V(x_hi, ys, zf + d * 0.24), V(x_hi, ys, zf - d * 0.24)), out=(0, 1, 0))
+        for sz in (-1, 1):
+            zz = zf + sz * d * 0.25
+            p.cyl(V(xa, y, zz), V(xb, yn, zz), 0.05, segs=6, caps=True)
+            p.cyl(V(xa, y + 1.0, zz), V(xb, yn + 1.0, zz), 0.025, segs=6, caps=True)
+        flip = -flip
+        y = yn
+
+
+# ------------------------------------------------------------------ pump end (P)
+def build_pump_end():
+    m = Mod("P")
+    zw = C.Z_PUMP
+    z0 = C.line_z(12)
+    z_start = z0 + SL0
+    rows = [j for j in range(9) if j % 2 == 0]
+    floor(m, -X_IN, X_IN, z_start, zw)
+    side_walls(m, z_start, zw, tb_ranges=[], corner1=True)
+    end_fillet_corner(m, zw, -1.0)
+    acc = m["TK_Concrete"]
+    for (x0, x1) in x_intervals(rows):
+        wall_side = (abs(x0 + C.HALF_W) > 1e-6, abs(x1 - C.HALF_W) > 1e-6)
+        coffer(m, x0, x1, z_start, zw, walls=(wall_side[0], wall_side[1], True, False))
+    for j in rows:
+        pillar(m, C.ROWS_X[j], z0)
+        lb_flat(m, C.ROWS_X[j], z0 + HEAD_HZ, zw)
+    for s in (-1.0, 1.0):
+        wall_lamp(m, s, z0, "Wall_%s" % ("L" if s < 0 else "R"))
+    # end wall segments between the bays, with the foot fillet
+    yl = C.WALL_FILLET
+    edges = [-C.HALF_W]
+    for bx in C.BAY_X:
+        edges += [bx - C.BAY_HALF_W, bx + C.BAY_HALF_W]
+    edges.append(C.HALF_W)
+    for i in range(0, len(edges), 2):
+        xa, xb = edges[i], edges[i + 1]
+        fa = xa + (C.WALL_FILLET if i == 0 else 0.0)
+        fb = xb - (C.WALL_FILLET if i == len(edges) - 2 else 0.0)
+        acc.face((V(xa, yl, zw), V(xa, HAUNCH_Y, zw), V(xb, HAUNCH_Y, zw), V(xb, yl, zw)), out=(0, 0, -1))
+        acc.face((V(fa, 0.0, zw - yl), V(fa, yl, zw), V(fb, yl, zw), V(fb, 0.0, zw - yl)), out=(0, 1, -1))
+        # fillet end caps at the bay jambs
+        if i > 0:
+            acc.face((V(xa, 0.0, zw), V(xa, yl, zw), V(xa, 0.0, zw - yl)), out=(1, 0, 0))
+        if i < len(edges) - 2:
+            acc.face((V(xb, 0.0, zw), V(xb, 0.0, zw - yl), V(xb, yl, zw)), out=(-1, 0, 0))
+    for bi, bx in enumerate(C.BAY_X):
+        intake_bay(m, bx, zw, bi)
+        # lintel strip above the bay mouth
+        acc.face((V(bx - C.BAY_HALF_W, C.BEAM_Y, zw), V(bx - C.BAY_HALF_W, HAUNCH_Y, zw), V(bx + C.BAY_HALF_W, HAUNCH_Y, zw), V(bx + C.BAY_HALF_W, C.BEAM_Y, zw)), out=(0, 0, -1))
+    return m
+
+
+def intake_bay(m, bx, zw, index):
+    """Pump intake bay ("altar"): recess 9.6 x 6 m with a sill, a dark slot, a curved ramp up to a
+    ledge, the back wall, a catwalk at 9.5 m and a lamp in the haunched recess ceiling."""
+    acc = m["TK_Concrete"]
+    hw = C.BAY_HALF_W
+    x0, x1 = bx - hw, bx + hw
+    zb = zw + C.BAY_DEPTH
+    ys, yl = C.BAY_SILL_Y, C.BAY_LEDGE_Y
+    sill_d = 1.5
+    ramp_d = 2.6
+    ceil_y = 16.8
+    # recess side walls (jambs) and back wall
+    acc.face((V(x0, 0.0, zw), V(x0, 0.0, zb), V(x0, ceil_y - 1.0, zb), V(x0, C.BEAM_Y, zw)), out=(1, 0, 0))
+    acc.face((V(x1, 0.0, zw), V(x1, C.BEAM_Y, zw), V(x1, ceil_y - 1.0, zb), V(x1, 0.0, zb)), out=(-1, 0, 0))
+    acc.face((V(x0, yl, zb), V(x1, yl, zb), V(x1, ceil_y - 1.0, zb), V(x0, ceil_y - 1.0, zb)), out=(0, 0, -1))
+    # recess ceiling: haunch from the back and sides up to a flat panel, sloped soffit from the lintel
+    acc.face((V(x0, C.BEAM_Y, zw), V(x1, C.BEAM_Y, zw), V(x1 - 1.0, ceil_y, zw + 1.6), V(x0 + 1.0, ceil_y, zw + 1.6)), out=(0, -1, 1))
+    acc.face((V(x0 + 1.0, ceil_y, zw + 1.6), V(x1 - 1.0, ceil_y, zw + 1.6), V(x1 - 1.0, ceil_y, zb - 1.0), V(x0 + 1.0, ceil_y, zb - 1.0)), out=(0, -1, 0))
+    acc.face((V(x0, ceil_y - 1.0, zb), V(x0 + 1.0, ceil_y, zb - 1.0), V(x1 - 1.0, ceil_y, zb - 1.0), V(x1, ceil_y - 1.0, zb)), out=(0, -1, -1))
+    acc.face((V(x0, C.BEAM_Y, zw), V(x0 + 1.0, ceil_y, zw + 1.6), V(x0 + 1.0, ceil_y, zb - 1.0), V(x0, ceil_y - 1.0, zb)), out=(1, -1, 0))
+    acc.face((V(x1, C.BEAM_Y, zw), V(x1, ceil_y - 1.0, zb), V(x1 - 1.0, ceil_y, zb - 1.0), V(x1 - 1.0, ceil_y, zw + 1.6)), out=(-1, -1, 0))
+    # sill front and top
+    acc.face((V(x0, 0.0, zw), V(x1, 0.0, zw), V(x1, ys, zw), V(x0, ys, zw)), out=(0, 0, -1))
+    acc.face((V(x0, ys, zw), V(x1, ys, zw), V(x1, ys, zw + 0.35), V(x0, ys, zw + 0.35)), out=(0, 1, 0))
+    # dark slot (the intake mouth seen as a shadowed groove) under a lip
+    slot_top = ys + 0.32
+    m["TK_Void"].face((V(x0, ys, zw + 0.35), V(x1, ys, zw + 0.35), V(x1, slot_top, zw + 0.35), V(x0, slot_top, zw + 0.35)), out=(0, 0, -1))
+    acc.face((V(x0, slot_top, zw + 0.35), V(x1, slot_top, zw + 0.35), V(x1, slot_top, zw), V(x0, slot_top, zw)), out=(0, -1, 0))
+    acc.face((V(x0, slot_top, zw), V(x1, slot_top, zw), V(x1, slot_top + 0.25, zw), V(x0, slot_top + 0.25, zw)), out=(0, 0, -1))
+    # curved ramp (quarter ellipse, concave) from the lip up to the ledge
+    nseg = 8
+    prev = None
+    for i in range(nseg + 1):
+        t = i / nseg
+        a = 0.5 * math.pi * t
+        zz = zw + (sill_d + ramp_d) * math.sin(a)
+        yy = slot_top + 0.25 + (yl - slot_top - 0.25) * (1.0 - math.cos(a))
+        cur = (zz, yy)
+        if prev is not None:
+            acc.face((V(x0, prev[1], prev[0]), V(x1, prev[1], prev[0]), V(x1, cur[1], cur[0]), V(x0, cur[1], cur[0])), smooth=True, out=(0, 1, -1))
+        prev = cur
+    # ledge to the back wall
+    zl = zw + sill_d + ramp_d
+    acc.face((V(x0, yl, zl), V(x1, yl, zl), V(x1, yl, zb), V(x0, yl, zb)), out=(0, 1, 0))
+    # guide fins at both sides of the ramp
+    for sx, xx in ((1.0, x0), (-1.0, x1)):
+        for i in range(6):
+            t0, t1 = i / 6, (i + 1) / 6
+            a0, a1 = 0.5 * math.pi * t0, 0.5 * math.pi * t1
+            r = 1.6
+            p0 = V(xx + sx * r * (1 - math.cos(a0)) * 0.5, slot_top + 0.25 + 2.2 * math.sin(a0), zw + 0.35 + r * math.sin(a0))
+            p1 = V(xx + sx * r * (1 - math.cos(a1)) * 0.5, slot_top + 0.25 + 2.2 * math.sin(a1), zw + 0.35 + r * math.sin(a1))
+            q0 = V(xx, slot_top + 0.25 + 2.2 * math.sin(a0), zw + 0.35 + r * math.sin(a0))
+            q1 = V(xx, slot_top + 0.25 + 2.2 * math.sin(a1), zw + 0.35 + r * math.sin(a1))
+            f = acc.face((q0, p0, p1, q1))
+            acc.orient(f, Vector((sx, 0.2, -1.0)))
+    # catwalk along the back wall
+    yc = C.BAY_CATWALK_Y
+    zc0 = zb - 1.2
+    g = m["TK_Grate"]
+    g.face((V(x0, yc, zc0), V(x1, yc, zc0), V(x1, yc, zb), V(x0, yc, zb)), out=(0, 1, 0))
+    g.face((V(x0, yc - 0.03, zc0), V(x0, yc - 0.03, zb), V(x1, yc - 0.03, zb), V(x1, yc - 0.03, zc0)), out=(0, -1, 0))
+    p = m["TK_Paint"]
+    p.box((x0, yc - 0.2, zc0 - 0.05), (x1, yc, zc0 + 0.05))
+    for i in range(5):
+        xx = x0 + 0.6 + (x1 - x0 - 1.2) * i / 4
+        p.box((xx - 0.05, yc - 0.18, zc0), (xx + 0.05, yc - 0.03, zb))
+        p.cyl(V(xx, yc - 0.18, zc0 + 0.1), V(xx, yc - 1.0, zb), 0.045, segs=6)
+    railing(m, (x0, yc, zc0), (x1, yc, zc0), yc, post_step=1.6)
+    # lamps: recess ceiling and a linear lamp over the catwalk
+    high_bay(m, bx, zw + 3.6, "Pit_%d" % index, y_mount=ceil_y)
+    st = m["TK_Steel"]
+    st.box((bx - 0.6, yc + 2.05, zb - 0.18), (bx + 0.6, yc + 2.17, zb))
+    m["TK_Lens"].face((V(bx - 0.55, yc + 2.049, zb - 0.16), V(bx + 0.55, yc + 2.049, zb - 0.16), V(bx + 0.55, yc + 2.049, zb - 0.02), V(bx - 0.55, yc + 2.049, zb - 0.02)), out=(0, -1, 0))
+    m.lights.append(("Strip", (bx, yc + 2.0, zb - 0.1), (0.0, -1.0, 0.0), {"name": "Strip_%d" % index, "size": (1.1, 0.14)}))
+
+
+
+# ------------------------------------------------------------------ visitor stairs (T)
+STAIR_Z = 15.0          # centre of the landing along the -x side wall (photos: near the shaft end, right wall
+                        # seen from the shaft looking toward the pumps)
+LANDING_Y = 4.2
+
+
+def steel_flight(m, a, b, width, rise=0.175):
+    """Straight steel flight from a (top, Godot point at the top step nosing) to b (bottom), centre line;
+    treads (grating), stringers (painted), handrails both sides (galvanised)."""
+    a, b = Vector(a), Vector(b)
+    d = b - a
+    horiz = Vector((d.x, 0.0, d.z))
+    L = horiz.length
+    t = horiz.normalized()
+    side = Vector((-t.z, 0.0, t.x))
+    n = max(2, int(round(abs(d.y) / rise)))
+    g = m["TK_Grate"]
+    p = m["TK_Paint"]
+    for i in range(n):
+        f0 = i / n
+        f1 = (i + 1) / n
+        y = a.y + d.y * f1
+        c0 = a + horiz * f0
+        c1 = a + horiz * f1
+        pts = [c0 + side * (width * 0.5), c1 + side * (width * 0.5), c1 - side * (width * 0.5), c0 - side * (width * 0.5)]
+        g.face([V(q.x, y, q.z) for q in pts], out=(0, 1, 0))
+        g.face([V(q.x, y - 0.03, q.z) for q in reversed(pts)], out=(0, -1, 0))
+    for sgn in (-1.0, 1.0):
+        o = side * (sgn * (width * 0.5 + 0.04))
+        top = a + o
+        bot = b + o
+        p.cyl(V(top.x, a.y - 0.12, top.z), V(bot.x, b.y - 0.12, bot.z), 0.06, segs=4, caps=True)
+        railing_slope(m, a + side * (sgn * width * 0.5), b + side * (sgn * width * 0.5))
+
+
+def railing_slope(m, a, b, height=1.0, posts=4):
+    acc = m["TK_Galv"]
+    a, b = Vector(a), Vector(b)
+    for i in range(posts + 1):
+        q = a + (b - a) * (i / posts)
+        acc.cyl(V(q.x, q.y, q.z), V(q.x, q.y + height, q.z), 0.024, segs=6, caps=True)
+    for h in (height, height * 0.5):
+        acc.cyl(V(a.x, a.y + h, a.z), V(b.x, b.y + h, b.z), 0.022, segs=6, caps=True)
+
+
+def build_stairs():
+    m = Mod("T")
+    acc = m["TK_Concrete"]
+    xw = -C.HALF_W
+    zc = STAIR_Z
+    yl = LANDING_Y
+    z0, z1 = zc - 4.2, zc + 4.2
+    xf = xw + 3.8            # landing front face
+    # landing block (solid concrete on the wall fillet): top, front with chamfered corners, ends
+    ch = 1.2
+    top = [V(xw, yl, z0), V(xw, yl, z1), V(xf - ch, yl, z1), V(xf, yl, z1 - ch), V(xf, yl, z0 + ch), V(xf - ch, yl, z0)]
+    acc.face(top, out=(0, 1, 0))
+    outline = [(xw, z0), (xf - ch, z0), (xf, z0 + ch), (xf, z1 - ch), (xf - ch, z1), (xw, z1)]
+    for i in range(len(outline) - 1):
+        (ax, az), (bx, bz) = outline[i], outline[i + 1]
+        f = acc.face((V(ax, 0.0, az), V(bx, 0.0, bz), V(bx, yl, bz), V(ax, yl, az)))
+        mid = Vector(((ax + bx) * 0.5, yl * 0.5, (az + bz) * 0.5))
+        acc.orient(f, mid - Vector((xw - 5.0, yl * 0.5, zc)))
+    # doorway of the stair shaft in the wall above the landing (dark), with a steel frame
+    dz0, dz1 = zc - 1.6, zc + 0.4
+    m["TK_Void"].face((V(xw + 0.02, yl, dz0), V(xw + 0.02, yl, dz1), V(xw + 0.02, yl + 2.4, dz1), V(xw + 0.02, yl + 2.4, dz0)), out=(1, 0, 0))
+    st = m["TK_Steel"]
+    st.box((xw, yl, dz0 - 0.12), (xw + 0.1, yl + 2.52, dz0))
+    st.box((xw, yl, dz1), (xw + 0.1, yl + 2.52, dz1 + 0.12))
+    st.box((xw, yl + 2.4, dz0), (xw + 0.1, yl + 2.52, dz1))
+    # landing railing (front edge and ends) except where the flight leaves
+    fl_z0, fl_z1 = zc + 1.4, zc + 2.6
+    railing(m, (xf, yl, z0 + ch), (xf, yl, fl_z0), yl, post_step=1.4, toe=False)
+    railing(m, (xf, yl, fl_z1), (xf, yl, z1 - ch), yl, post_step=1.4, toe=False)
+    railing(m, (xf - ch, yl, z0), (xf, yl, z0 + ch), yl, post_step=1.4, toe=False)
+    railing(m, (xf, yl, z1 - ch), (xf - ch, yl, z1), yl, post_step=1.4, toe=False)
+    railing(m, (xw, yl, z0), (xf - ch, yl, z0), yl, post_step=1.5, toe=False)
+    railing(m, (xf - ch, yl, z1), (xw, yl, z1), yl, post_step=1.5, toe=False)
+    # U stair: flight 1 out toward the hall, steel mid landing, flight 2 back toward the wall
+    run1 = 12 * 0.28
+    xm = xf + run1
+    ym = yl - 12 * 0.175
+    steel_flight(m, (xf, yl, (fl_z0 + fl_z1) * 0.5), (xm, ym, (fl_z0 + fl_z1) * 0.5), 1.2)
+    g = m["TK_Grate"]
+    mz0, mz1 = zc - 0.2, fl_z1
+    g.face((V(xm, ym, mz0), V(xm, ym, mz1), V(xm + 1.3, ym, mz1), V(xm + 1.3, ym, mz0)), out=(0, 1, 0))
+    g.face((V(xm, ym - 0.03, mz0), V(xm + 1.3, ym - 0.03, mz0), V(xm + 1.3, ym - 0.03, mz1), V(xm, ym - 0.03, mz1)), out=(0, -1, 0))
+    p = m["TK_Paint"]
+    for (px, pz) in ((xm + 1.25, mz0 + 0.05), (xm + 1.25, mz1 - 0.05), (xm + 0.05, mz0 + 0.05)):
+        p.box((px - 0.06, 0.0, pz - 0.06), (px + 0.06, ym, pz + 0.06))
+    railing(m, (xm + 1.3, ym, mz0), (xm + 1.3, ym, mz1), ym, post_step=1.3, toe=False)
+    railing(m, (xm, ym, mz1), (xm + 1.3, ym, mz1), ym, post_step=1.3, toe=False)
+    railing(m, (xm + 1.3, ym, mz0), (xm, ym, mz0), ym, post_step=1.3, toe=False)
+    z2 = (mz0 + fl_z0 - 0.2) * 0.5
+    steel_flight(m, (xm, ym, zc + 0.4), (xm - run1, 0.0, zc + 0.4), 1.2)
+    # lamps: a wall flood over the landing and the green exit light at the doorway
+    wall_lamp(m, -1.0, zc - 3.0, "Stair", y=yl + 3.4)
+    st.box((xw, yl + 2.62, zc - 1.0), (xw + 0.14, yl + 2.92, zc - 0.2))
+    m["TK_Lens"].face((V(xw + 0.142, yl + 2.64, zc - 0.98), V(xw + 0.142, yl + 2.64, zc - 0.22), V(xw + 0.142, yl + 2.9, zc - 0.22), V(xw + 0.142, yl + 2.9, zc - 0.98)), out=(1, 0, 0))
+    m.lights.append(("Exit", (xw + 0.6, yl + 2.6, zc - 0.6), (1.0, -0.6, 0.0), {"name": "Exit"}))
+    # the line of small concrete bollards marking the end of the visitor area
+    for i in range(13):
+        x = -30.0 + 5.0 * i
+        acc.box((x - 0.18, 0.0, 44.82), (x + 0.18, 0.32, 45.18), skip=("-y",))
+    return m
+
+
+# ------------------------------------------------------------------ objects, lights, anchors
+def _finish(m, collection):
+    out = []
+    mt = mats()
+    for name, acc in m.acc.items():
+        if len(acc.bm.faces) == 0:
+            acc.bm.free()
+            continue
+        obj = acc.to_object("%s|%s" % (m.tag, name), mt[name], collection, merge=(name not in ("TK_Galv", "TK_Paint", "TK_Steel")))
+        obj["tk_part"] = PART[name]
+        obj["tk_module"] = m.tag
+        _sharp_by_angle(obj, 50.0)
+        out.append(obj.name)
+    return out
+
+
+def _sharp_by_angle(obj, deg):
+    """Edges between faces meeting at more than deg are sharp (split normals on export)."""
+    me = obj.data
+    bm = bmesh.new()
+    bm.from_mesh(me)
+    lim = math.radians(deg)
+    for e in bm.edges:
+        if len(e.link_faces) == 2:
+            a, b = e.link_faces
+            if a.normal.angle(b.normal, 0.0) > lim or not (a.smooth and b.smooth):
+                e.smooth = False
+            else:
+                e.smooth = True
+        else:
+            e.smooth = False
+    bm.to_mesh(me)
+    bm.free()
+
+
+LIGHT_SPEC = {
+    # kind: (blender type, power W, size, spot deg, blend, colour K)
+    "Bay": ("SPOT", 2600.0, 0.22, 150.0, 0.25, C.LAMP_K),
+    "Wall": ("SPOT", 700.0, 0.15, 110.0, 0.5, C.WALL_LAMP_K),
+    "Strip": ("AREA", 300.0, 0.0, 0.0, 0.0, C.WALL_LAMP_K),
+    "Shaft": ("SPOT", 5000.0, 0.25, 70.0, 0.4, 5200.0),
+    "Sky": ("AREA", 60000.0, 0.0, 0.0, 0.0, 6500.0),
+    "Exit": ("SPOT", 60.0, 0.1, 150.0, 0.8, 0.0),
+}
+
+
+def _lights(m, collection):
+    names = []
+    for idx, (kind, pos, aim, prm) in enumerate(m.lights):
+        typ, power, size, spot, blend, kelvin = LIGHT_SPEC[kind]
+        lname = "%s|LGT_%s_%s" % (m.tag, kind, prm.get("name", str(idx)))
+        ld = bpy.data.lights.get(lname)
+        if ld is not None and ld.type != typ:
+            bpy.data.lights.remove(ld)
+            ld = None
+        if ld is None:
+            ld = bpy.data.lights.new(lname, typ)
+        ld.energy = power
+        ld.color = C.blackbody(kelvin) if kelvin > 0.0 else (0.05, 1.0, 0.25)
+        if typ == "SPOT":
+            ld.shadow_soft_size = size
+            ld.spot_size = math.radians(spot)
+            ld.spot_blend = blend
+        elif typ == "AREA":
+            if kind == "Sky":
+                ld.shape = "DISK"
+                ld.size = prm.get("radius", 9.0) * 2.0
+            else:
+                ld.shape = "RECTANGLE"
+                sx, sy = prm.get("size", (1.0, 0.2))
+                ld.size, ld.size_y = sx, sy
+        ld.use_shadow = True
+        try:
+            ld.cycles.cast_shadow = True
+        except Exception:
+            pass
+        obj = bpy.data.objects.get(lname)
+        if obj is None:
+            obj = bpy.data.objects.new(lname, ld)
+        for c in list(obj.users_collection):
+            c.objects.unlink(obj)
+        collection.objects.link(obj)
+        obj.location = C.g2b(pos)
+        # Blender lights shine along their local -Z
+        d = C.g2b(aim).normalized()
+        obj.rotation_euler = d.to_track_quat("-Z", "Y").to_euler()
+        obj["tk_kind"] = kind
+        names.append(lname)
+        # anchor for Godot: empty whose local +Y (-> Godot -Z) follows the beam
+        an = C.empty("%s|TK_Light_%s_%s" % (m.tag, kind, prm.get("name", str(idx))), collection, pos, aim_g=aim, size=0.25)
+        an["tk_kind"] = kind
+    return names
+
+
+MODULE_NAMES = {"E": "tank_slice_e", "O": "tank_slice_o", "S": "tank_end_shaft", "Q": "tank_shaft1", "P": "tank_end_pump", "T": "tank_stairs"}
+
+
+def build_module(tag):
+    import time
+    t = time.time()
+    root = C.collection("TK_Modules")
+    col = C.collection("TK_" + tag, root)
+    C.clear_collection(col)
+    if tag in ("E", "O"):
+        m = build_slice(0 if tag == "E" else 1)
+    elif tag == "S":
+        m = build_shaft_end()
+    elif tag == "Q":
+        m = build_shaft()
+    elif tag == "P":
+        m = build_pump_end()
+    elif tag == "T":
+        m = build_stairs()
+    else:
+        raise ValueError(tag)
+    objs = _finish(m, col)
+    lights = _lights(m, col)
+    tris = sum(C.tri_count(bpy.data.objects[n]) for n in objs)
+    return {"module": MODULE_NAMES[tag], "objects": objs, "lights": len(lights), "triangles": tris, "secs": round(time.time() - t, 2)}
+
+
+def place_hall(review=True):
+    """Linked copies of the slice templates at lines 1..11 (collection TK_Hall), the templates
+    themselves are excluded from the view layer. S, Q, P stay where they are authored."""
+    hall = C.collection("TK_Hall")
+    C.clear_collection(hall)
+    made = []
+    for k in range(1, 12):
+        tag = "O" if k % 2 else "E"
+        src = bpy.data.collections["TK_" + tag]
+        col = C.collection("TK_K%02d" % k, hall)
+        for o in src.objects:
+            base = o.name.split("|", 1)[1]
+            name = "K%02d|%s" % (k, base)
+            dup = bpy.data.objects.get(name)
+            if dup is None:
+                dup = bpy.data.objects.new(name, o.data)
+            else:
+                dup.data = o.data
+            for c in list(dup.users_collection):
+                c.objects.unlink(dup)
+            col.objects.link(dup)
+            # matrix_basis, not matrix_world: the templates sit in an excluded collection, so the depsgraph
+            # never evaluates their world matrices (they stay identity)
+            dup.matrix_world = Matrix.Translation(C.g2b((0.0, 0.0, C.line_z(k)))) @ o.matrix_basis
+            if o.type == "EMPTY":
+                dup.empty_display_type = o.empty_display_type
+                dup.empty_display_size = o.empty_display_size
+            for key in ("tk_part", "tk_kind"):
+                if key in o.keys():
+                    dup[key] = o[key]
+            dup["tk_module"] = tag
+            dup["tk_line"] = k
+            made.append(name)
+    # templates out of the view layer (they sit at z = 0, inside line 1)
+    vl = bpy.context.view_layer
+
+    def find(lc, name):
+        if lc.collection.name == name:
+            return lc
+        for ch in lc.children:
+            r = find(ch, name)
+            if r is not None:
+                return r
+        return None
+    for tag in ("E", "O"):
+        lc = find(vl.layer_collection, "TK_" + tag)
+        if lc is not None:
+            lc.exclude = True
+    return {"instances": len(made)}

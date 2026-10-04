@@ -188,6 +188,8 @@ var _menu_start_departure_active := false
 ## Keep the extracted runners hidden until the menu scene is replaced.
 var _menu_departure_hold := false
 var _seat_departure_requested := false
+## 設定画面へ向かう急降下の間は、保守船のカメラ復帰（毎フレームの書き戻し）を止める
+var _settings_dive_active := false
 
 
 func _ready() -> void:
@@ -267,6 +269,20 @@ func exit_customize_mode() -> void:
 	_reset_applied_preview_cosmetics()
 	_sync_preview_player_cosmetics(true)
 	_start_camera_return_to_menu()
+
+
+## 設定画面へ: メニューのカメラ制御を引き取り、地面へ向かう急降下を再生する（この後シーンが替わるので復帰は無い）。
+func begin_settings_dive(duration: float) -> void:
+	_cancel_menu_helicopter_intro()
+	_settings_dive_active = true
+	_vessel_camera_owned = false
+	if _preview_camera == null:
+		return
+	var tw := create_tween().set_parallel(true)
+	tw.set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_CUBIC)
+	tw.tween_property(_preview_camera, "position:y", _preview_camera.position.y - 2.6, duration)
+	tw.tween_property(_preview_camera, "rotation_degrees:x", -58.0, duration)
+	tw.tween_property(_preview_camera, "fov", _preview_camera.fov + 6.0, duration)
 
 
 func enter_customize_control() -> void:
@@ -2836,7 +2852,7 @@ func _stop_ai_emote_if_needed_p2() -> void:
 func _apply_vessel_camera_return() -> void:
 	if _preview_camera == null or _preview_saw == null or _preview_saw.dock == null:
 		return
-	if _customize_active or _menu_start_departure_active or _menu_departure_hold:
+	if _customize_active or _settings_dive_active or _menu_start_departure_active or _menu_departure_hold:
 		_vessel_camera_owned = false
 		return
 	var weight := _preview_saw.dock.menu_framing_weight()

@@ -17,18 +17,19 @@ const TUTORIAL_TOUR_STEPS := [
 	},
 	{
 		"title": "スキン設定",
-		"body": "プレイヤー1/2を切り替えて、それぞれの帽子を選べます。キャラクタープレビューは右ドラッグで回転、ホイールで拡大・縮小できます。",
+		"body": "プレイヤー1/2を切り替えて、それぞれの帽子を選べます。プロペラ帽はジャンプ後の落下がゆっくりになります。キャラクタープレビューは右ドラッグで回転、ホイールで拡大・縮小できます。",
 		"image": preload("res://assets/ui/tutorial/customize_skin_hat.png"),
 	},
 	{
 		"title": "エモート設定",
-		"body": "プレイヤーと割り当て先のスロットを選び、一覧からエモートを設定します。ゲーム中は下の数字キーで再生できます。",
+		"body": "プレイヤーと割り当て先のスロットを選び、一覧からエモートを設定します。ゲーム中は下の数字キーで再生できます。1番のエモートは、2人対戦で勝ったときのダンスにもなります。",
 		"image": preload("res://assets/ui/tutorial/customize_emote.png"),
 	},
 ]
 
 const WALL_SCENE: PackedScene = preload("res://scenes/quiz_wall.tscn")
 const CONVEYOR_FLOOR_SHADER: Shader = preload("res://shaders/conveyor_belt_floor.gdshader")
+const StageMaterialsScript = preload("res://scripts/world/stage_materials.gd")
 const PLAYER_CONTROLLER_SCRIPT: Script = preload("res://scripts/world/player_controller.gd")
 const CustomizePreviewCameraSettingsScript = preload(
 	"res://scripts/ui/customize_preview_camera_settings.gd"
@@ -1020,6 +1021,7 @@ func _build_3d_preview() -> void:
 	_preview_floor_material.shader = CONVEYOR_FLOOR_SHADER
 	_preview_floor_material.set_shader_parameter("scroll_z", 0.0)
 	_preview_floor_material.set_shader_parameter("scroll_sign", -1.0)
+	StageMaterialsScript.belt_detail(_preview_floor_material, GameManager.graphics_quality)
 	floor.material_override = _preview_floor_material
 	floor.position = Vector3(0, -9.2, -64.0)
 	_sub_viewport.add_child(floor)
@@ -2783,6 +2785,7 @@ func _setup_conveyor_extras() -> void:
 	_conveyor_roller_front_material.set_shader_parameter("base_color", CONVEYOR_BELT_BASE_COLOR)
 	_conveyor_roller_front_material.set_shader_parameter("stripe_color", CONVEYOR_BELT_STRIPE_COLOR)
 	_conveyor_roller_front_material.set_shader_parameter("side_color", CONVEYOR_BELT_SIDE_COLOR)
+	StageMaterialsScript.belt_detail(_conveyor_roller_front_material, GameManager.graphics_quality)
 	var roller_front := MeshInstance3D.new()
 	roller_front.mesh = roller_mesh
 	roller_front.material_override = _conveyor_roller_front_material
@@ -2801,6 +2804,7 @@ func _setup_conveyor_extras() -> void:
 	_conveyor_return_material.set_shader_parameter("base_color", CONVEYOR_BELT_BASE_COLOR)
 	_conveyor_return_material.set_shader_parameter("stripe_color", CONVEYOR_BELT_STRIPE_COLOR)
 	_conveyor_return_material.set_shader_parameter("side_color", CONVEYOR_BELT_SIDE_COLOR)
+	StageMaterialsScript.belt_detail(_conveyor_return_material, GameManager.graphics_quality)
 	return_belt.material_override = _conveyor_return_material
 	return_belt.position = Vector3(0.0, roller_center_y - CONVEYOR_ROLLER_RADIUS, front_z - 4.0)
 	_sub_viewport.add_child(return_belt)

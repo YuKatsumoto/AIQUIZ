@@ -450,26 +450,41 @@ func play_tutorial_completion_celebration() -> void:
 	_fire_confetti()
 
 
-func show_solo_stage_tutorial_complete(duration: float = 3.2) -> void:
+func show_solo_stage_tutorial_complete(duration: float = 3.6) -> void:
 	_show_tutorial_completion_card("SoloStageCompletionCard", {
 		"step": "1 / 2  STAGE CLEAR",
 		"title": "ステージチュートリアル完了",
-		"body": "走る・ジャンプ・海の危険・3問のクイズを体験しました。",
+		"body": "移動・ジャンプ・エモート、海の危険、ハート（HP）、2択と4択の壁を体験しました。\n本番は10問チャレンジとエンドレスで、ハート3つから始まります。",
 		"progress": "✓ ステージ実践　　次はカスタマイズ",
-		"footer": "自動でカスタマイズ紹介へ進みます",
+		"footer": "自動でカスタマイズ紹介へ進みます　（ゲーム中は Esc で一時停止）",
 		"duration": duration,
 	})
 
 
-func show_duo_stage_tutorial_complete(duration: float = 3.2) -> void:
+func show_duo_stage_tutorial_complete(duration: float = 4.2) -> void:
 	_show_tutorial_completion_card("DuoStageCompletionCard", {
 		"step": "1 / 2  STAGE CLEAR",
 		"title": "ステージチュートリアル完了",
-		"body": "2人の操作・海とゴーストシャーク・1人ずつの判定・最終レースを体験しました。",
-		"progress": "✓ ローカル2P実践　　次はカスタマイズ",
-		"footer": "自動でカスタマイズ紹介へ進みます",
+		"body": "2人の操作と押し合い、海とゴーストシャーク、回転のこぎり、ハートと先着の得点、4択の壁を体験しました。",
+		"progress": _duo_score_tower_summary(),
+		"footer": "自動でカスタマイズ紹介へ進みます　（ゲーム中は Esc で一時停止）",
 		"duration": duration,
 	})
+
+
+## 10問チャレンジの勝敗はスコアタワーで決まる。このチュートリアルの成績で計算例を見せる。
+func _duo_score_tower_summary() -> String:
+	var lines: Array[String] = ["スコアタワー（10問チャレンジの勝敗）＝ 正解数 ×（残りハート＋0.5）"]
+	var parts: Array[String] = []
+	for player_index: int in [1, 2]:
+		var correct: int = game_state.score if player_index == 1 else game_state.player2_score
+		var hp: int = game_state.get_player_hp(player_index)
+		var points := QuizGameState.result_half_points(correct, hp, true)
+		parts.append("P%d  %d問 ×（%d＋0.5）＝ %s" % [
+			player_index, correct, hp, QuizGameState.format_result_points(points)
+		])
+	lines.append("このコースでは　" + "　　".join(parts))
+	return "\n".join(lines)
 
 
 ## コース完了カードは1P/2Pで文面だけが違う。生成と後片付けはここに集約する。
@@ -621,9 +636,9 @@ func _show_waiting_start(dt: float) -> void:
 		var is_duo := game_state.get_tutorial_course() == GameManager.TUTORIAL_COURSE_LOCAL_2P
 		pl_title.text = "ローカル2Pチュートリアル" if is_duo else "1Pチュートリアル"
 		pl_subtitle.text = (
-			"2人の操作・クイズ・ゴースト・ゴールを順番に練習します"
+			"2人の操作・ゴースト・のこぎり・ハート・ゴールを順番に練習します"
 			if is_duo
-			else "操作・クイズ・危険からの復帰・ゴールを順番に練習します"
+			else "操作・海の危険・ハート・4択の壁を順番に練習します"
 		)
 	else:
 		pl_title.text = "問題を準備中..."
@@ -1069,9 +1084,10 @@ func _build_tutorial_result(root: VBoxContainer, checklist_text: String) -> void
 
 	_add_separator(root)
 	var badges := Label.new()
+	var badge_text := {"done": "✓ 完了", "updated": "更新あり", "todo": "未完了"}
 	badges.text = "1P %s     ローカル2P %s" % [
-		"✓ 完了" if GameManager.tutorial_solo_completed else "未完了",
-		"✓ 完了" if GameManager.tutorial_local_2p_completed else "未完了",
+		badge_text[GameManager.tutorial_course_badge(GameManager.TUTORIAL_COURSE_SOLO)],
+		badge_text[GameManager.tutorial_course_badge(GameManager.TUTORIAL_COURSE_LOCAL_2P)],
 	]
 	badges.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	badges.add_theme_font_size_override("font_size", 17)
@@ -1590,7 +1606,8 @@ func _fire_confetti() -> void:
 
 		# Self destruct timer
 		var timer = get_tree().create_timer(3.0)
-		timer.timeout.connect(func(): if is_instance_valid(emitter): emitter.queue_free())
+		# メソッドへ直接つなぐ。シーン切り替えで先に消えた場合は接続ごと外れる。
+		timer.timeout.connect(emitter.queue_free)
 
 
 # ============================================================

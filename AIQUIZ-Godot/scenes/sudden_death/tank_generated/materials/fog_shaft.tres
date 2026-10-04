@@ -1,0 +1,6 @@
+[gd_resource type="FogMaterial" format=3]
+
+[resource]
+density = 0.035
+albedo = Color(0.86, 0.9, 0.95, 1)
+edge_fade = 1.4

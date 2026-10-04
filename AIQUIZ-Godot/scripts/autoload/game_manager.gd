@@ -22,7 +22,10 @@ var current_score: int = 0
 var current_question_index: int = 0
 
 const USER_SETTINGS_PATH := "user://settings.json"
-const CURRENT_TUTORIAL_VERSION := 4
+## 5: ハート（HP）・4択のボス壁・回転のこぎり・スコアタワーに合わせ、操作キーを3Dで示す版。
+const CURRENT_TUTORIAL_VERSION := 5
+## コースごとの完了記録を持たない設定ファイルは、版4での完了として読む。
+const LEGACY_COURSE_COMPLETED_VERSION := 4
 const TUTORIAL_COURSE_SOLO := "SOLO"
 const TUTORIAL_COURSE_LOCAL_2P := "LOCAL_2P"
 
@@ -33,6 +36,9 @@ var tutorial_dismissed_version: int = 0
 var tutorial_prompt_seen_version: int = 0
 var tutorial_solo_completed: bool = false
 var tutorial_local_2p_completed: bool = false
+## コースを完了したときのチュートリアルの版。今の版より古ければ「更新あり」と表示する。
+var tutorial_solo_completed_version: int = 0
+var tutorial_local_2p_completed_version: int = 0
 var graphics_quality: String = GraphicsQuality.BALANCED
 ## ローカル2P「10問」の引き分けを地下神殿のサドンデスで決着させる（既定オン、
 ## docs/sudden_death_underground.md 第1章）。メインメニューが試合開始の直前に
@@ -63,8 +69,10 @@ func has_tutorial_update() -> bool:
 func mark_tutorial_course_completed(course: String) -> void:
 	if course == TUTORIAL_COURSE_LOCAL_2P:
 		tutorial_local_2p_completed = true
+		tutorial_local_2p_completed_version = CURRENT_TUTORIAL_VERSION
 	else:
 		tutorial_solo_completed = true
+		tutorial_solo_completed_version = CURRENT_TUTORIAL_VERSION
 	tutorial_prompt_seen_version = CURRENT_TUTORIAL_VERSION
 	tutorial_dismissed_version = CURRENT_TUTORIAL_VERSION
 	tutorial_dismissed = true
@@ -80,6 +88,8 @@ func mark_tutorial_completed() -> void:
 	# Compatibility helper for older callers. V3 completion requires both course badges.
 	tutorial_solo_completed = true
 	tutorial_local_2p_completed = true
+	tutorial_solo_completed_version = CURRENT_TUTORIAL_VERSION
+	tutorial_local_2p_completed_version = CURRENT_TUTORIAL_VERSION
 	tutorial_completed = true
 	tutorial_dismissed = true
 	tutorial_prompt_seen_version = CURRENT_TUTORIAL_VERSION
@@ -90,6 +100,23 @@ func mark_tutorial_completed() -> void:
 
 func is_tutorial_course_completed(course: String) -> bool:
 	return tutorial_local_2p_completed if course == TUTORIAL_COURSE_LOCAL_2P else tutorial_solo_completed
+
+
+## そのコースを今の版で完了しているか。前の版だけを完了しているときは false。
+func is_tutorial_course_current(course: String) -> bool:
+	var version := (
+		tutorial_local_2p_completed_version
+		if course == TUTORIAL_COURSE_LOCAL_2P
+		else tutorial_solo_completed_version
+	)
+	return is_tutorial_course_completed(course) and version >= CURRENT_TUTORIAL_VERSION
+
+
+## コース選択などの表示用。"done" = 今の版で完了、"updated" = 前の版で完了、"todo" = 未完了。
+func tutorial_course_badge(course: String) -> String:
+	if is_tutorial_course_current(course):
+		return "done"
+	return "updated" if is_tutorial_course_completed(course) else "todo"
 
 
 func dismiss_tutorial() -> void:
@@ -106,6 +133,8 @@ func reset_tutorial_prompt() -> void:
 	tutorial_prompt_seen_version = 0
 	tutorial_solo_completed = false
 	tutorial_local_2p_completed = false
+	tutorial_solo_completed_version = 0
+	tutorial_local_2p_completed_version = 0
 	_save_user_settings()
 
 
@@ -164,6 +193,14 @@ func _load_user_settings() -> void:
 	var legacy_v3_complete := tutorial_completed_version >= 3
 	tutorial_solo_completed = bool(_user_settings.get("tutorial_solo_completed", legacy_v3_complete))
 	tutorial_local_2p_completed = bool(_user_settings.get("tutorial_local_2p_completed", legacy_v3_complete))
+	tutorial_solo_completed_version = int(_user_settings.get(
+		"tutorial_solo_completed_version",
+		LEGACY_COURSE_COMPLETED_VERSION if tutorial_solo_completed else 0
+	))
+	tutorial_local_2p_completed_version = int(_user_settings.get(
+		"tutorial_local_2p_completed_version",
+		LEGACY_COURSE_COMPLETED_VERSION if tutorial_local_2p_completed else 0
+	))
 	tutorial_completed = tutorial_solo_completed and tutorial_local_2p_completed
 	tutorial_dismissed = tutorial_prompt_seen_version >= CURRENT_TUTORIAL_VERSION
 	graphics_quality = GraphicsQuality.normalize(str(_user_settings.get("graphics_quality", GraphicsQuality.BALANCED)))
@@ -177,6 +214,8 @@ func _save_user_settings() -> void:
 	_user_settings["tutorial_prompt_seen_version"] = tutorial_prompt_seen_version
 	_user_settings["tutorial_solo_completed"] = tutorial_solo_completed
 	_user_settings["tutorial_local_2p_completed"] = tutorial_local_2p_completed
+	_user_settings["tutorial_solo_completed_version"] = tutorial_solo_completed_version
+	_user_settings["tutorial_local_2p_completed_version"] = tutorial_local_2p_completed_version
 	_user_settings["graphics_quality"] = graphics_quality
 	_user_settings["sudden_death_enabled"] = sudden_death_enabled
 	var file := FileAccess.open(settings_path, FileAccess.WRITE)

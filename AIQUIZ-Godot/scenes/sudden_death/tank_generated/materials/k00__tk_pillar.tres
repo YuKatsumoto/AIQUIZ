@@ -1,0 +1,40 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://shaders/surge_tank/tank_pillar.gdshader" id="1_ucmbq"]
+[ext_resource type="Texture2D" path="res://assets/environment/surge_tank/textures/concrete_albedo.png" id="2_17hrq"]
+[ext_resource type="Texture2D" path="res://assets/environment/surge_tank/textures/detail_normal.png" id="3_kvsom"]
+[ext_resource type="Texture2D" path="res://assets/environment/surge_tank/textures/tank_line_00_light.png" id="4_js2f8"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/textures/macro_noise.res" id="5_5q8f4"]
+[ext_resource type="Texture2D" path="res://assets/environment/surge_tank/textures/concrete_normal.png" id="6_oa6m4"]
+[ext_resource type="Texture2D" path="res://assets/environment/surge_tank/textures/concrete_orm.png" id="7_in5rb"]
+
+[resource]
+resource_name = "TK_Pillar"
+render_priority = 0
+shader = ExtResource("1_ucmbq")
+shader_parameter/tank_scale = 2.0
+shader_parameter/ambient_color = null
+shader_parameter/ambient_level = null
+shader_parameter/white_balance = Vector3(0.8826348, 1.0306846, 1.2090058)
+shader_parameter/light_specular_scale = null
+shader_parameter/albedo_tex = ExtResource("2_17hrq")
+shader_parameter/normal_tex = ExtResource("6_oa6m4")
+shader_parameter/orm_tex = ExtResource("7_in5rb")
+shader_parameter/detail_normal_tex = ExtResource("3_kvsom")
+shader_parameter/light_tex = ExtResource("4_js2f8")
+shader_parameter/macro_noise = ExtResource("5_5q8f4")
+shader_parameter/albedo_tint = Color(0.95, 0.9, 0.82, 1)
+shader_parameter/uv_metres = 3.75
+shader_parameter/uv_scale = 1.0
+shader_parameter/detail_strength = null
+shader_parameter/normal_strength = null
+shader_parameter/roughness_scale = 0.95
+shader_parameter/roughness_min = null
+shader_parameter/metallic_value = null
+shader_parameter/light_max = 1.233415
+shader_parameter/light_scale = 2.7
+shader_parameter/cavity_strength = null
+shader_parameter/macro_strength = 0.1
+shader_parameter/seepage = 0.25
+shader_parameter/floor_y = -1.2
+shader_parameter/debug_view = null

@@ -1,0 +1,3232 @@
+{
+ "units": "metres, Godot axes (Y up); x = -v across the tank (side walls at +-35.5), z = 132.8 - u along it (u from the pump gate face); trench floor at y = 0 (Godot places the modules at y = SuddenDeathLayout.FLOOR_Y)",
+ "survey": "docs/surge_tank_reproduction.md",
+ "hall": {
+  "inner_half_width": 35.5,
+  "z_pump_gate": 132.8,
+  "z_end_wall": -38.599999999999994,
+  "height": 17.7,
+  "chamfer_z": -23.399999999999977,
+  "end_half_width": 20.0,
+  "line_z": [
+   112.00000000000001,
+   98.00000000000001,
+   84.00000000000001,
+   70.00000000000001,
+   56.000000000000014,
+   42.000000000000014,
+   28.000000000000014,
+   14.000000000000014,
+   0.0,
+   -14.0,
+   -28.0
+  ],
+  "line_pitch": 14.0,
+  "transverse_beam_z": [
+   119.00000000000001,
+   105.00000000000001,
+   91.00000000000001,
+   77.00000000000001,
+   63.000000000000014,
+   49.000000000000014,
+   35.000000000000014,
+   21.000000000000014,
+   7.000000000000014,
+   -7.0,
+   -21.0,
+   -35.0
+  ],
+  "rows_x": [
+   28.0,
+   21.0,
+   14.0,
+   7.0,
+   -0.0,
+   -7.0,
+   -14.0,
+   -21.0,
+   -28.0
+  ],
+  "pillars": [
+   {
+    "x": 28.0,
+    "z": 112.00000000000001,
+    "v": -28.0,
+    "line": 0,
+    "on_shelf": true
+   },
+   {
+    "x": 21.0,
+    "z": 112.00000000000001,
+    "v": -21.0,
+    "line": 0,
+    "on_shelf": false
+   },
+   {
+    "x": 7.0,
+    "z": 112.00000000000001,
+    "v": -7.0,
+    "line": 0,
+    "on_shelf": false
+   },
+   {
+    "x": -7.0,
+    "z": 112.00000000000001,
+    "v": 7.0,
+    "line": 0,
+    "on_shelf": false
+   },
+   {
+    "x": -21.0,
+    "z": 112.00000000000001,
+    "v": 21.0,
+    "line": 0,
+    "on_shelf": false
+   },
+   {
+    "x": -28.0,
+    "z": 112.00000000000001,
+    "v": 28.0,
+    "line": 0,
+    "on_shelf": true
+   },
+   {
+    "x": 28.0,
+    "z": 98.00000000000001,
+    "v": -28.0,
+    "line": 1,
+    "on_shelf": true
+   },
+   {
+    "x": 14.0,
+    "z": 98.00000000000001,
+    "v": -14.0,
+    "line": 1,
+    "on_shelf": false
+   },
+   {
+    "x": -0.0,
+    "z": 98.00000000000001,
+    "v": 0.0,
+    "line": 1,
+    "on_shelf": false
+   },
+   {
+    "x": -14.0,
+    "z": 98.00000000000001,
+    "v": 14.0,
+    "line": 1,
+    "on_shelf": false
+   },
+   {
+    "x": -28.0,
+    "z": 98.00000000000001,
+    "v": 28.0,
+    "line": 1,
+    "on_shelf": true
+   },
+   {
+    "x": 28.0,
+    "z": 84.00000000000001,
+    "v": -28.0,
+    "line": 2,
+    "on_shelf": true
+   },
+   {
+    "x": 21.0,
+    "z": 84.00000000000001,
+    "v": -21.0,
+    "line": 2,
+    "on_shelf": false
+   },
+   {
+    "x": 7.0,
+    "z": 84.00000000000001,
+    "v": -7.0,
+    "line": 2,
+    "on_shelf": false
+   },
+   {
+    "x": -7.0,
+    "z": 84.00000000000001,
+    "v": 7.0,
+    "line": 2,
+    "on_shelf": false
+   },
+   {
+    "x": -21.0,
+    "z": 84.00000000000001,
+    "v": 21.0,
+    "line": 2,
+    "on_shelf": false
+   },
+   {
+    "x": -28.0,
+    "z": 84.00000000000001,
+    "v": 28.0,
+    "line": 2,
+    "on_shelf": true
+   },
+   {
+    "x": 28.0,
+    "z": 70.00000000000001,
+    "v": -28.0,
+    "line": 3,
+    "on_shelf": true
+   },
+   {
+    "x": 14.0,
+    "z": 70.00000000000001,
+    "v": -14.0,
+    "line": 3,
+    "on_shelf": false
+   },
+   {
+    "x": -0.0,
+    "z": 70.00000000000001,
+    "v": 0.0,
+    "line": 3,
+    "on_shelf": false
+   },
+   {
+    "x": -14.0,
+    "z": 70.00000000000001,
+    "v": 14.0,
+    "line": 3,
+    "on_shelf": false
+   },
+   {
+    "x": -28.0,
+    "z": 70.00000000000001,
+    "v": 28.0,
+    "line": 3,
+    "on_shelf": true
+   },
+   {
+    "x": 28.0,
+    "z": 56.000000000000014,
+    "v": -28.0,
+    "line": 4,
+    "on_shelf": true
+   },
+   {
+    "x": 21.0,
+    "z": 56.000000000000014,
+    "v": -21.0,
+    "line": 4,
+    "on_shelf": true
+   },
+   {
+    "x": 7.0,
+    "z": 56.000000000000014,
+    "v": -7.0,
+    "line": 4,
+    "on_shelf": false
+   },
+   {
+    "x": -7.0,
+    "z": 56.000000000000014,
+    "v": 7.0,
+    "line": 4,
+    "on_shelf": false
+   },
+   {
+    "x": -21.0,
+    "z": 56.000000000000014,
+    "v": 21.0,
+    "line": 4,
+    "on_shelf": true
+   },
+   {
+    "x": -28.0,
+    "z": 56.000000000000014,
+    "v": 28.0,
+    "line": 4,
+    "on_shelf": true
+   },
+   {
+    "x": 28.0,
+    "z": 42.000000000000014,
+    "v": -28.0,
+    "line": 5,
+    "on_shelf": true
+   },
+   {
+    "x": 14.0,
+    "z": 42.000000000000014,
+    "v": -14.0,
+    "line": 5,
+    "on_shelf": false
+   },
+   {
+    "x": -0.0,
+    "z": 42.000000000000014,
+    "v": 0.0,
+    "line": 5,
+    "on_shelf": false
+   },
+   {
+    "x": -14.0,
+    "z": 42.000000000000014,
+    "v": 14.0,
+    "line": 5,
+    "on_shelf": false
+   },
+   {
+    "x": -28.0,
+    "z": 42.000000000000014,
+    "v": 28.0,
+    "line": 5,
+    "on_shelf": true
+   },
+   {
+    "x": 28.0,
+    "z": 28.000000000000014,
+    "v": -28.0,
+    "line": 6,
+    "on_shelf": true
+   },
+   {
+    "x": 21.0,
+    "z": 28.000000000000014,
+    "v": -21.0,
+    "line": 6,
+    "on_shelf": true
+   },
+   {
+    "x": 7.0,
+    "z": 28.000000000000014,
+    "v": -7.0,
+    "line": 6,
+    "on_shelf": false
+   },
+   {
+    "x": -7.0,
+    "z": 28.000000000000014,
+    "v": 7.0,
+    "line": 6,
+    "on_shelf": false
+   },
+   {
+    "x": -21.0,
+    "z": 28.000000000000014,
+    "v": 21.0,
+    "line": 6,
+    "on_shelf": true
+   },
+   {
+    "x": -28.0,
+    "z": 28.000000000000014,
+    "v": 28.0,
+    "line": 6,
+    "on_shelf": true
+   },
+   {
+    "x": 28.0,
+    "z": 14.000000000000014,
+    "v": -28.0,
+    "line": 7,
+    "on_shelf": true
+   },
+   {
+    "x": 14.0,
+    "z": 14.000000000000014,
+    "v": -14.0,
+    "line": 7,
+    "on_shelf": false
+   },
+   {
+    "x": -0.0,
+    "z": 14.000000000000014,
+    "v": 0.0,
+    "line": 7,
+    "on_shelf": false
+   },
+   {
+    "x": -14.0,
+    "z": 14.000000000000014,
+    "v": 14.0,
+    "line": 7,
+    "on_shelf": false
+   },
+   {
+    "x": -28.0,
+    "z": 14.000000000000014,
+    "v": 28.0,
+    "line": 7,
+    "on_shelf": true
+   },
+   {
+    "x": 28.0,
+    "z": 0.0,
+    "v": -28.0,
+    "line": 8,
+    "on_shelf": true
+   },
+   {
+    "x": 21.0,
+    "z": 0.0,
+    "v": -21.0,
+    "line": 8,
+    "on_shelf": true
+   },
+   {
+    "x": 7.0,
+    "z": 0.0,
+    "v": -7.0,
+    "line": 8,
+    "on_shelf": false
+   },
+   {
+    "x": -7.0,
+    "z": 0.0,
+    "v": 7.0,
+    "line": 8,
+    "on_shelf": false
+   },
+   {
+    "x": -21.0,
+    "z": 0.0,
+    "v": 21.0,
+    "line": 8,
+    "on_shelf": true
+   },
+   {
+    "x": -28.0,
+    "z": 0.0,
+    "v": 28.0,
+    "line": 8,
+    "on_shelf": true
+   },
+   {
+    "x": 28.0,
+    "z": -14.0,
+    "v": -28.0,
+    "line": 9,
+    "on_shelf": true
+   },
+   {
+    "x": 14.0,
+    "z": -14.0,
+    "v": -14.0,
+    "line": 9,
+    "on_shelf": false
+   },
+   {
+    "x": -0.0,
+    "z": -14.0,
+    "v": 0.0,
+    "line": 9,
+    "on_shelf": false
+   },
+   {
+    "x": -14.0,
+    "z": -14.0,
+    "v": 14.0,
+    "line": 9,
+    "on_shelf": false
+   },
+   {
+    "x": -28.0,
+    "z": -14.0,
+    "v": 28.0,
+    "line": 9,
+    "on_shelf": true
+   },
+   {
+    "x": 21.0,
+    "z": -28.0,
+    "v": -21.0,
+    "line": 10,
+    "on_shelf": true
+   },
+   {
+    "x": 7.0,
+    "z": -28.0,
+    "v": -7.0,
+    "line": 10,
+    "on_shelf": false
+   },
+   {
+    "x": -7.0,
+    "z": -28.0,
+    "v": 7.0,
+    "line": 10,
+    "on_shelf": false
+   },
+   {
+    "x": -21.0,
+    "z": -28.0,
+    "v": 21.0,
+    "line": 10,
+    "on_shelf": true
+   }
+  ],
+  "pillar": {
+   "length": 7.0,
+   "width": 2.0,
+   "end_radius": 1.0,
+   "head_y": 13.5,
+   "flare_y": 1.6,
+   "flare_out": 0.45
+  },
+  "trench": {
+   "shelf_y": 5.0,
+   "slope_run": 2.9,
+   "crest_half_width": [
+    {
+     "z": 132.8,
+     "half": 27.0
+    },
+    {
+     "z": 91.10000000000001,
+     "half": 27.0
+    },
+    {
+     "z": 63.400000000000006,
+     "half": 20.0
+    },
+    {
+     "z": -21.0,
+     "half": 20.0
+    },
+    {
+     "z": -38.599999999999994,
+     "half": 15.0
+    }
+   ]
+  },
+  "beam_soffit_y": 15.5,
+  "transverse_beam_width": 2.0,
+  "pillar_head_beam_half_width": 2.0,
+  "haunch": 0.8,
+  "wall_fillet": 2.0,
+  "catwalk_y": 12.0,
+  "catwalk_width": 1.2,
+  "pump_end": {
+   "dividing_walls_x": [
+    28.0,
+    14.0,
+    -0.0,
+    -14.0,
+    -28.0
+   ],
+   "wall_half": 1.0,
+   "tip_z": 123.50000000000001,
+   "channels_x": [
+    21.0,
+    7.0,
+    -7.0,
+    -21.0
+   ],
+   "channel_half": 6.0,
+   "chamber_depth": 6.0
+  },
+  "shaft_end": {
+   "openings_half": 11.0,
+   "pier_half": 1.0,
+   "opening_top": 15.5
+  },
+  "shaft1": {
+   "radius": 15.8,
+   "centre_z": -62.599999999999994,
+   "top_y": 22.4,
+   "bottom_y": -49.7
+  }
+ },
+ "uv0_metres_per_unit": {
+  "TK_Concrete": 3.75,
+  "TK_Floor": 3.75,
+  "TK_Steel": 1.0,
+  "TK_Paint": 1.0,
+  "TK_Galv": 1.0,
+  "TK_Grate": 0.5,
+  "note": "walls, ceiling and floor are world-projected in Godot; pillars, dividing walls and the shaft wall use UV0 (wrapped round)"
+ },
+ "lightmap_encoding": {
+  "uv": "UV2 (glTF TEXCOORD_1), one atlas per module",
+  "rgb": "pow(texel, 2.2) * light_max = E * grime, E = Cycles diffuse bake (direct + indirect, white Lambertian, scene-linear, exposure 0)",
+  "alpha": "ambient occlusion (1 m)"
+ },
+ "modules": {
+  "tank_line_00": {
+   "file": "tank_line_00.glb",
+   "content": "pillar line 0 (z = 112.0): pillars, coffers, transverse beam at z = 105.0 with its lamps, floor, slopes, shelves, walls",
+   "placement": "hall coordinates: place at the origin",
+   "triangles": {
+    "TK_Concrete": 144,
+    "TK_Pillar": 1808,
+    "TK_Floor": 16,
+    "TK_Steel": 744,
+    "TK_Paint": 544,
+    "TK_Galv": 408,
+    "TK_Grate": 8,
+    "TK_Lens": 46
+   },
+   "lights": [
+    {
+     "node": "TK_Light_Bay_+0",
+     "kind": "Bay",
+     "position": [
+      0.0,
+      14.78,
+      112.0
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Bay_+14",
+     "kind": "Bay",
+     "position": [
+      -14.0,
+      14.78,
+      112.0
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Bay_-14",
+     "kind": "Bay",
+     "position": [
+      14.0,
+      14.78,
+      112.0
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Wall_L",
+     "kind": "Wall",
+     "position": [
+      34.9367,
+      13.6881,
+      112.0
+     ],
+     "direction": [
+      -0.4819,
+      -0.8762,
+      0.0
+     ],
+     "kelvin": 4300.0,
+     "color_linear": [
+      1.0,
+      0.6655,
+      0.4524
+     ],
+     "blender_power_w": 700.0,
+     "blender_spot_size_deg": 110.0,
+     "blender_spot_blend": 0.5,
+     "type": "SpotLight3D",
+     "godot_energy": 4.0,
+     "range": 16.0,
+     "spot_angle_deg": 55.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Wall_R",
+     "kind": "Wall",
+     "position": [
+      -34.9367,
+      13.6881,
+      112.0
+     ],
+     "direction": [
+      0.4819,
+      -0.8762,
+      0.0
+     ],
+     "kelvin": 4300.0,
+     "color_linear": [
+      1.0,
+      0.6655,
+      0.4524
+     ],
+     "blender_power_w": 700.0,
+     "blender_spot_size_deg": 110.0,
+     "blender_spot_blend": 0.5,
+     "type": "SpotLight3D",
+     "godot_energy": 4.0,
+     "range": 16.0,
+     "spot_angle_deg": 55.0,
+     "spot_attenuation": 1.2
+    }
+   ],
+   "triangles_total": 3718
+  },
+  "tank_line_01": {
+   "file": "tank_line_01.glb",
+   "content": "pillar line 1 (z = 98.0): pillars, coffers, transverse beam at z = 91.0 with its lamps, floor, slopes, shelves, walls",
+   "placement": "hall coordinates: place at the origin",
+   "triangles": {
+    "TK_Concrete": 138,
+    "TK_Pillar": 1534,
+    "TK_Floor": 32,
+    "TK_Steel": 976,
+    "TK_Paint": 544,
+    "TK_Galv": 408,
+    "TK_Grate": 8,
+    "TK_Lens": 60
+   },
+   "lights": [
+    {
+     "node": "TK_Light_Bay_+21",
+     "kind": "Bay",
+     "position": [
+      -21.0,
+      14.78,
+      98.0
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Bay_+7",
+     "kind": "Bay",
+     "position": [
+      -7.0,
+      14.78,
+      98.0
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Bay_-21",
+     "kind": "Bay",
+     "position": [
+      21.0,
+      14.78,
+      98.0
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Bay_-7",
+     "kind": "Bay",
+     "position": [
+      7.0,
+      14.78,
+      98.0
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Wall_L",
+     "kind": "Wall",
+     "position": [
+      34.9367,
+      13.6881,
+      98.0
+     ],
+     "direction": [
+      -0.4819,
+      -0.8762,
+      0.0
+     ],
+     "kelvin": 4300.0,
+     "color_linear": [
+      1.0,
+      0.6655,
+      0.4524
+     ],
+     "blender_power_w": 700.0,
+     "blender_spot_size_deg": 110.0,
+     "blender_spot_blend": 0.5,
+     "type": "SpotLight3D",
+     "godot_energy": 4.0,
+     "range": 16.0,
+     "spot_angle_deg": 55.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Wall_R",
+     "kind": "Wall",
+     "position": [
+      -34.9367,
+      13.6881,
+      98.0
+     ],
+     "direction": [
+      0.4819,
+      -0.8762,
+      0.0
+     ],
+     "kelvin": 4300.0,
+     "color_linear": [
+      1.0,
+      0.6655,
+      0.4524
+     ],
+     "blender_power_w": 700.0,
+     "blender_spot_size_deg": 110.0,
+     "blender_spot_blend": 0.5,
+     "type": "SpotLight3D",
+     "godot_energy": 4.0,
+     "range": 16.0,
+     "spot_angle_deg": 55.0,
+     "spot_attenuation": 1.2
+    }
+   ],
+   "triangles_total": 3700
+  },
+  "tank_line_02": {
+   "file": "tank_line_02.glb",
+   "content": "pillar line 2 (z = 84.0): pillars, coffers, transverse beam at z = 77.0 with its lamps, floor, slopes, shelves, walls",
+   "placement": "hall coordinates: place at the origin",
+   "triangles": {
+    "TK_Concrete": 144,
+    "TK_Pillar": 1808,
+    "TK_Floor": 16,
+    "TK_Steel": 744,
+    "TK_Paint": 544,
+    "TK_Galv": 408,
+    "TK_Grate": 8,
+    "TK_Lens": 46
+   },
+   "lights": [
+    {
+     "node": "TK_Light_Bay_+0",
+     "kind": "Bay",
+     "position": [
+      0.0,
+      14.78,
+      84.0
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Bay_+14",
+     "kind": "Bay",
+     "position": [
+      -14.0,
+      14.78,
+      84.0
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Bay_-14",
+     "kind": "Bay",
+     "position": [
+      14.0,
+      14.78,
+      84.0
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Wall_L",
+     "kind": "Wall",
+     "position": [
+      34.9367,
+      13.6881,
+      84.0
+     ],
+     "direction": [
+      -0.4819,
+      -0.8762,
+      0.0
+     ],
+     "kelvin": 4300.0,
+     "color_linear": [
+      1.0,
+      0.6655,
+      0.4524
+     ],
+     "blender_power_w": 700.0,
+     "blender_spot_size_deg": 110.0,
+     "blender_spot_blend": 0.5,
+     "type": "SpotLight3D",
+     "godot_energy": 4.0,
+     "range": 16.0,
+     "spot_angle_deg": 55.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Wall_R",
+     "kind": "Wall",
+     "position": [
+      -34.9367,
+      13.6881,
+      84.0
+     ],
+     "direction": [
+      0.4819,
+      -0.8762,
+      0.0
+     ],
+     "kelvin": 4300.0,
+     "color_linear": [
+      1.0,
+      0.6655,
+      0.4524
+     ],
+     "blender_power_w": 700.0,
+     "blender_spot_size_deg": 110.0,
+     "blender_spot_blend": 0.5,
+     "type": "SpotLight3D",
+     "godot_energy": 4.0,
+     "range": 16.0,
+     "spot_angle_deg": 55.0,
+     "spot_attenuation": 1.2
+    }
+   ],
+   "triangles_total": 3718
+  },
+  "tank_line_03": {
+   "file": "tank_line_03.glb",
+   "content": "pillar line 3 (z = 70.0): pillars, coffers, transverse beam at z = 63.0 with its lamps, floor, slopes, shelves, walls",
+   "placement": "hall coordinates: place at the origin",
+   "triangles": {
+    "TK_Concrete": 138,
+    "TK_Pillar": 1534,
+    "TK_Floor": 32,
+    "TK_Steel": 976,
+    "TK_Paint": 544,
+    "TK_Galv": 408,
+    "TK_Grate": 8,
+    "TK_Lens": 60
+   },
+   "lights": [
+    {
+     "node": "TK_Light_Bay_+21",
+     "kind": "Bay",
+     "position": [
+      -21.0,
+      14.78,
+      70.0
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Bay_+7",
+     "kind": "Bay",
+     "position": [
+      -7.0,
+      14.78,
+      70.0
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Bay_-21",
+     "kind": "Bay",
+     "position": [
+      21.0,
+      14.78,
+      70.0
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Bay_-7",
+     "kind": "Bay",
+     "position": [
+      7.0,
+      14.78,
+      70.0
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Wall_L",
+     "kind": "Wall",
+     "position": [
+      34.9367,
+      13.6881,
+      70.0
+     ],
+     "direction": [
+      -0.4819,
+      -0.8762,
+      0.0
+     ],
+     "kelvin": 4300.0,
+     "color_linear": [
+      1.0,
+      0.6655,
+      0.4524
+     ],
+     "blender_power_w": 700.0,
+     "blender_spot_size_deg": 110.0,
+     "blender_spot_blend": 0.5,
+     "type": "SpotLight3D",
+     "godot_energy": 4.0,
+     "range": 16.0,
+     "spot_angle_deg": 55.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Wall_R",
+     "kind": "Wall",
+     "position": [
+      -34.9367,
+      13.6881,
+      70.0
+     ],
+     "direction": [
+      0.4819,
+      -0.8762,
+      0.0
+     ],
+     "kelvin": 4300.0,
+     "color_linear": [
+      1.0,
+      0.6655,
+      0.4524
+     ],
+     "blender_power_w": 700.0,
+     "blender_spot_size_deg": 110.0,
+     "blender_spot_blend": 0.5,
+     "type": "SpotLight3D",
+     "godot_energy": 4.0,
+     "range": 16.0,
+     "spot_angle_deg": 55.0,
+     "spot_attenuation": 1.2
+    }
+   ],
+   "triangles_total": 3700
+  },
+  "tank_line_04": {
+   "file": "tank_line_04.glb",
+   "content": "pillar line 4 (z = 56.0): pillars, coffers, transverse beam at z = 49.0 with its lamps, floor, slopes, shelves, walls",
+   "placement": "hall coordinates: place at the origin",
+   "triangles": {
+    "TK_Concrete": 144,
+    "TK_Pillar": 1944,
+    "TK_Floor": 16,
+    "TK_Steel": 744,
+    "TK_Paint": 544,
+    "TK_Galv": 408,
+    "TK_Grate": 8,
+    "TK_Lens": 46
+   },
+   "lights": [
+    {
+     "node": "TK_Light_Bay_+0",
+     "kind": "Bay",
+     "position": [
+      0.0,
+      14.78,
+      56.0
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Bay_+14",
+     "kind": "Bay",
+     "position": [
+      -14.0,
+      14.78,
+      56.0
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Bay_-14",
+     "kind": "Bay",
+     "position": [
+      14.0,
+      14.78,
+      56.0
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Wall_L",
+     "kind": "Wall",
+     "position": [
+      34.9367,
+      13.6881,
+      56.0
+     ],
+     "direction": [
+      -0.4819,
+      -0.8762,
+      0.0
+     ],
+     "kelvin": 4300.0,
+     "color_linear": [
+      1.0,
+      0.6655,
+      0.4524
+     ],
+     "blender_power_w": 700.0,
+     "blender_spot_size_deg": 110.0,
+     "blender_spot_blend": 0.5,
+     "type": "SpotLight3D",
+     "godot_energy": 4.0,
+     "range": 16.0,
+     "spot_angle_deg": 55.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Wall_R",
+     "kind": "Wall",
+     "position": [
+      -34.9367,
+      13.6881,
+      56.0
+     ],
+     "direction": [
+      0.4819,
+      -0.8762,
+      0.0
+     ],
+     "kelvin": 4300.0,
+     "color_linear": [
+      1.0,
+      0.6655,
+      0.4524
+     ],
+     "blender_power_w": 700.0,
+     "blender_spot_size_deg": 110.0,
+     "blender_spot_blend": 0.5,
+     "type": "SpotLight3D",
+     "godot_energy": 4.0,
+     "range": 16.0,
+     "spot_angle_deg": 55.0,
+     "spot_attenuation": 1.2
+    }
+   ],
+   "triangles_total": 3854
+  },
+  "tank_line_05": {
+   "file": "tank_line_05.glb",
+   "content": "pillar line 5 (z = 42.0): pillars, coffers, transverse beam at z = 35.0 with its lamps, floor, slopes, shelves, walls",
+   "placement": "hall coordinates: place at the origin",
+   "triangles": {
+    "TK_Concrete": 126,
+    "TK_Pillar": 1534,
+    "TK_Floor": 16,
+    "TK_Steel": 976,
+    "TK_Paint": 544,
+    "TK_Galv": 408,
+    "TK_Grate": 8,
+    "TK_Lens": 60
+   },
+   "lights": [
+    {
+     "node": "TK_Light_Bay_+21",
+     "kind": "Bay",
+     "position": [
+      -21.0,
+      14.78,
+      42.0
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Bay_+7",
+     "kind": "Bay",
+     "position": [
+      -7.0,
+      14.78,
+      42.0
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Bay_-21",
+     "kind": "Bay",
+     "position": [
+      21.0,
+      14.78,
+      42.0
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Bay_-7",
+     "kind": "Bay",
+     "position": [
+      7.0,
+      14.78,
+      42.0
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Wall_L",
+     "kind": "Wall",
+     "position": [
+      34.9367,
+      13.6881,
+      42.0
+     ],
+     "direction": [
+      -0.4819,
+      -0.8762,
+      0.0
+     ],
+     "kelvin": 4300.0,
+     "color_linear": [
+      1.0,
+      0.6655,
+      0.4524
+     ],
+     "blender_power_w": 700.0,
+     "blender_spot_size_deg": 110.0,
+     "blender_spot_blend": 0.5,
+     "type": "SpotLight3D",
+     "godot_energy": 4.0,
+     "range": 16.0,
+     "spot_angle_deg": 55.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Wall_R",
+     "kind": "Wall",
+     "position": [
+      -34.9367,
+      13.6881,
+      42.0
+     ],
+     "direction": [
+      0.4819,
+      -0.8762,
+      0.0
+     ],
+     "kelvin": 4300.0,
+     "color_linear": [
+      1.0,
+      0.6655,
+      0.4524
+     ],
+     "blender_power_w": 700.0,
+     "blender_spot_size_deg": 110.0,
+     "blender_spot_blend": 0.5,
+     "type": "SpotLight3D",
+     "godot_energy": 4.0,
+     "range": 16.0,
+     "spot_angle_deg": 55.0,
+     "spot_attenuation": 1.2
+    }
+   ],
+   "triangles_total": 3672
+  },
+  "tank_line_06": {
+   "file": "tank_line_06.glb",
+   "content": "pillar line 6 (z = 28.0): pillars, coffers, transverse beam at z = 21.0 with its lamps, floor, slopes, shelves, walls",
+   "placement": "hall coordinates: place at the origin",
+   "triangles": {
+    "TK_Concrete": 144,
+    "TK_Pillar": 1944,
+    "TK_Floor": 16,
+    "TK_Steel": 744,
+    "TK_Paint": 544,
+    "TK_Galv": 408,
+    "TK_Grate": 8,
+    "TK_Lens": 46
+   },
+   "lights": [
+    {
+     "node": "TK_Light_Bay_+0",
+     "kind": "Bay",
+     "position": [
+      0.0,
+      14.78,
+      28.0
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Bay_+14",
+     "kind": "Bay",
+     "position": [
+      -14.0,
+      14.78,
+      28.0
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Bay_-14",
+     "kind": "Bay",
+     "position": [
+      14.0,
+      14.78,
+      28.0
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Wall_L",
+     "kind": "Wall",
+     "position": [
+      34.9367,
+      13.6881,
+      28.0
+     ],
+     "direction": [
+      -0.4819,
+      -0.8762,
+      0.0
+     ],
+     "kelvin": 4300.0,
+     "color_linear": [
+      1.0,
+      0.6655,
+      0.4524
+     ],
+     "blender_power_w": 700.0,
+     "blender_spot_size_deg": 110.0,
+     "blender_spot_blend": 0.5,
+     "type": "SpotLight3D",
+     "godot_energy": 4.0,
+     "range": 16.0,
+     "spot_angle_deg": 55.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Wall_R",
+     "kind": "Wall",
+     "position": [
+      -34.9367,
+      13.6881,
+      28.0
+     ],
+     "direction": [
+      0.4819,
+      -0.8762,
+      0.0
+     ],
+     "kelvin": 4300.0,
+     "color_linear": [
+      1.0,
+      0.6655,
+      0.4524
+     ],
+     "blender_power_w": 700.0,
+     "blender_spot_size_deg": 110.0,
+     "blender_spot_blend": 0.5,
+     "type": "SpotLight3D",
+     "godot_energy": 4.0,
+     "range": 16.0,
+     "spot_angle_deg": 55.0,
+     "spot_attenuation": 1.2
+    }
+   ],
+   "triangles_total": 3854
+  },
+  "tank_line_07": {
+   "file": "tank_line_07.glb",
+   "content": "pillar line 7 (z = 14.0): pillars, coffers, transverse beam at z = 7.0 with its lamps, floor, slopes, shelves, walls",
+   "placement": "hall coordinates: place at the origin",
+   "triangles": {
+    "TK_Concrete": 126,
+    "TK_Pillar": 1534,
+    "TK_Floor": 16,
+    "TK_Steel": 976,
+    "TK_Paint": 544,
+    "TK_Galv": 408,
+    "TK_Grate": 8,
+    "TK_Lens": 60
+   },
+   "lights": [
+    {
+     "node": "TK_Light_Bay_+21",
+     "kind": "Bay",
+     "position": [
+      -21.0,
+      14.78,
+      14.0
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Bay_+7",
+     "kind": "Bay",
+     "position": [
+      -7.0,
+      14.78,
+      14.0
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Bay_-21",
+     "kind": "Bay",
+     "position": [
+      21.0,
+      14.78,
+      14.0
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Bay_-7",
+     "kind": "Bay",
+     "position": [
+      7.0,
+      14.78,
+      14.0
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Wall_L",
+     "kind": "Wall",
+     "position": [
+      34.9367,
+      13.6881,
+      14.0
+     ],
+     "direction": [
+      -0.4819,
+      -0.8762,
+      0.0
+     ],
+     "kelvin": 4300.0,
+     "color_linear": [
+      1.0,
+      0.6655,
+      0.4524
+     ],
+     "blender_power_w": 700.0,
+     "blender_spot_size_deg": 110.0,
+     "blender_spot_blend": 0.5,
+     "type": "SpotLight3D",
+     "godot_energy": 4.0,
+     "range": 16.0,
+     "spot_angle_deg": 55.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Wall_R",
+     "kind": "Wall",
+     "position": [
+      -34.9367,
+      13.6881,
+      14.0
+     ],
+     "direction": [
+      0.4819,
+      -0.8762,
+      0.0
+     ],
+     "kelvin": 4300.0,
+     "color_linear": [
+      1.0,
+      0.6655,
+      0.4524
+     ],
+     "blender_power_w": 700.0,
+     "blender_spot_size_deg": 110.0,
+     "blender_spot_blend": 0.5,
+     "type": "SpotLight3D",
+     "godot_energy": 4.0,
+     "range": 16.0,
+     "spot_angle_deg": 55.0,
+     "spot_attenuation": 1.2
+    }
+   ],
+   "triangles_total": 3672
+  },
+  "tank_line_08": {
+   "file": "tank_line_08.glb",
+   "content": "pillar line 8 (z = 0.0): pillars, coffers, transverse beam at z = -7.0 with its lamps, floor, slopes, shelves, walls",
+   "placement": "hall coordinates: place at the origin",
+   "triangles": {
+    "TK_Concrete": 144,
+    "TK_Pillar": 1944,
+    "TK_Floor": 16,
+    "TK_Steel": 744,
+    "TK_Paint": 544,
+    "TK_Galv": 408,
+    "TK_Grate": 8,
+    "TK_Lens": 46
+   },
+   "lights": [
+    {
+     "node": "TK_Light_Bay_+0",
+     "kind": "Bay",
+     "position": [
+      0.0,
+      14.78,
+      -0.0
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Bay_+14",
+     "kind": "Bay",
+     "position": [
+      -14.0,
+      14.78,
+      -0.0
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Bay_-14",
+     "kind": "Bay",
+     "position": [
+      14.0,
+      14.78,
+      -0.0
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Wall_L",
+     "kind": "Wall",
+     "position": [
+      34.9367,
+      13.6881,
+      -0.0
+     ],
+     "direction": [
+      -0.4819,
+      -0.8762,
+      0.0
+     ],
+     "kelvin": 4300.0,
+     "color_linear": [
+      1.0,
+      0.6655,
+      0.4524
+     ],
+     "blender_power_w": 700.0,
+     "blender_spot_size_deg": 110.0,
+     "blender_spot_blend": 0.5,
+     "type": "SpotLight3D",
+     "godot_energy": 4.0,
+     "range": 16.0,
+     "spot_angle_deg": 55.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Wall_R",
+     "kind": "Wall",
+     "position": [
+      -34.9367,
+      13.6881,
+      -0.0
+     ],
+     "direction": [
+      0.4819,
+      -0.8762,
+      0.0
+     ],
+     "kelvin": 4300.0,
+     "color_linear": [
+      1.0,
+      0.6655,
+      0.4524
+     ],
+     "blender_power_w": 700.0,
+     "blender_spot_size_deg": 110.0,
+     "blender_spot_blend": 0.5,
+     "type": "SpotLight3D",
+     "godot_energy": 4.0,
+     "range": 16.0,
+     "spot_angle_deg": 55.0,
+     "spot_attenuation": 1.2
+    }
+   ],
+   "triangles_total": 3854
+  },
+  "tank_line_09": {
+   "file": "tank_line_09.glb",
+   "content": "pillar line 9 (z = -14.0): pillars, coffers, transverse beam at z = -21.0 with its lamps, floor, slopes, shelves, walls",
+   "placement": "hall coordinates: place at the origin",
+   "triangles": {
+    "TK_Concrete": 138,
+    "TK_Pillar": 1534,
+    "TK_Floor": 32,
+    "TK_Steel": 976,
+    "TK_Paint": 544,
+    "TK_Galv": 408,
+    "TK_Grate": 8,
+    "TK_Lens": 60
+   },
+   "lights": [
+    {
+     "node": "TK_Light_Bay_+21",
+     "kind": "Bay",
+     "position": [
+      -21.0,
+      14.78,
+      -14.0
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Bay_+7",
+     "kind": "Bay",
+     "position": [
+      -7.0,
+      14.78,
+      -14.0
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Bay_-21",
+     "kind": "Bay",
+     "position": [
+      21.0,
+      14.78,
+      -14.0
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Bay_-7",
+     "kind": "Bay",
+     "position": [
+      7.0,
+      14.78,
+      -14.0
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Wall_L",
+     "kind": "Wall",
+     "position": [
+      34.9367,
+      13.6881,
+      -14.0
+     ],
+     "direction": [
+      -0.4819,
+      -0.8762,
+      0.0
+     ],
+     "kelvin": 4300.0,
+     "color_linear": [
+      1.0,
+      0.6655,
+      0.4524
+     ],
+     "blender_power_w": 700.0,
+     "blender_spot_size_deg": 110.0,
+     "blender_spot_blend": 0.5,
+     "type": "SpotLight3D",
+     "godot_energy": 4.0,
+     "range": 16.0,
+     "spot_angle_deg": 55.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Wall_R",
+     "kind": "Wall",
+     "position": [
+      -34.9367,
+      13.6881,
+      -14.0
+     ],
+     "direction": [
+      0.4819,
+      -0.8762,
+      0.0
+     ],
+     "kelvin": 4300.0,
+     "color_linear": [
+      1.0,
+      0.6655,
+      0.4524
+     ],
+     "blender_power_w": 700.0,
+     "blender_spot_size_deg": 110.0,
+     "blender_spot_blend": 0.5,
+     "type": "SpotLight3D",
+     "godot_energy": 4.0,
+     "range": 16.0,
+     "spot_angle_deg": 55.0,
+     "spot_attenuation": 1.2
+    }
+   ],
+   "triangles_total": 3700
+  },
+  "tank_line_10": {
+   "file": "tank_line_10.glb",
+   "content": "pillar line 10 (z = -28.0): pillars, coffers, transverse beam at z = -35.0 with its lamps, floor, slopes, shelves, walls",
+   "placement": "hall coordinates: place at the origin",
+   "triangles": {
+    "TK_Concrete": 88,
+    "TK_Pillar": 1260,
+    "TK_Floor": 32,
+    "TK_Steel": 696,
+    "TK_Paint": 104,
+    "TK_Galv": 168,
+    "TK_Grate": 8,
+    "TK_Lens": 42
+   },
+   "lights": [
+    {
+     "node": "TK_Light_Bay_+0",
+     "kind": "Bay",
+     "position": [
+      0.0,
+      14.78,
+      -28.0
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Bay_+14",
+     "kind": "Bay",
+     "position": [
+      -14.0,
+      14.78,
+      -28.0
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Bay_-14",
+     "kind": "Bay",
+     "position": [
+      14.0,
+      14.78,
+      -28.0
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    }
+   ],
+   "triangles_total": 2398
+  },
+  "tank_end_pump": {
+   "file": "tank_end_pump.glb",
+   "content": "pump end: gate face (z = 132.8), five dividing walls, four intake channels, transverse beam before line 0",
+   "placement": "hall coordinates: place at the origin",
+   "triangles": {
+    "TK_Concrete": 308,
+    "TK_Pillar": 140,
+    "TK_Floor": 16,
+    "TK_Steel": 1952,
+    "TK_Paint": 1232,
+    "TK_Galv": 1304,
+    "TK_Grate": 24,
+    "TK_Lens": 124,
+    "TK_Void": 8
+   },
+   "lights": [
+    {
+     "node": "TK_Light_Bay_Front_+21",
+     "kind": "Bay",
+     "position": [
+      -21.0,
+      14.78,
+      126.4
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Bay_Front_+7",
+     "kind": "Bay",
+     "position": [
+      -7.0,
+      14.78,
+      126.4
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Bay_Front_-21",
+     "kind": "Bay",
+     "position": [
+      21.0,
+      14.78,
+      126.4
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Bay_Front_-7",
+     "kind": "Bay",
+     "position": [
+      7.0,
+      14.78,
+      126.4
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Bay_Pit_0",
+     "kind": "Bay",
+     "position": [
+      21.0,
+      14.78,
+      136.4
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Bay_Pit_1",
+     "kind": "Bay",
+     "position": [
+      7.0,
+      14.78,
+      136.4
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Bay_Pit_2",
+     "kind": "Bay",
+     "position": [
+      -7.0,
+      14.78,
+      136.4
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Bay_Pit_3",
+     "kind": "Bay",
+     "position": [
+      -21.0,
+      14.78,
+      136.4
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Strip_0",
+     "kind": "Strip",
+     "position": [
+      21.0,
+      11.5,
+      138.7
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4300.0,
+     "color_linear": [
+      1.0,
+      0.6655,
+      0.4524
+     ],
+     "blender_power_w": 300.0,
+     "type": "OmniLight3D",
+     "godot_energy": 1.5,
+     "range": 6.0
+    },
+    {
+     "node": "TK_Light_Strip_1",
+     "kind": "Strip",
+     "position": [
+      7.0,
+      11.5,
+      138.7
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4300.0,
+     "color_linear": [
+      1.0,
+      0.6655,
+      0.4524
+     ],
+     "blender_power_w": 300.0,
+     "type": "OmniLight3D",
+     "godot_energy": 1.5,
+     "range": 6.0
+    },
+    {
+     "node": "TK_Light_Strip_2",
+     "kind": "Strip",
+     "position": [
+      -7.0,
+      11.5,
+      138.7
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4300.0,
+     "color_linear": [
+      1.0,
+      0.6655,
+      0.4524
+     ],
+     "blender_power_w": 300.0,
+     "type": "OmniLight3D",
+     "godot_energy": 1.5,
+     "range": 6.0
+    },
+    {
+     "node": "TK_Light_Strip_3",
+     "kind": "Strip",
+     "position": [
+      -21.0,
+      11.5,
+      138.7
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4300.0,
+     "color_linear": [
+      1.0,
+      0.6655,
+      0.4524
+     ],
+     "blender_power_w": 300.0,
+     "type": "OmniLight3D",
+     "godot_energy": 1.5,
+     "range": 6.0
+    },
+    {
+     "node": "TK_Light_Wall_L",
+     "kind": "Wall",
+     "position": [
+      34.9367,
+      13.6881,
+      125.8
+     ],
+     "direction": [
+      -0.4819,
+      -0.8762,
+      0.0
+     ],
+     "kelvin": 4300.0,
+     "color_linear": [
+      1.0,
+      0.6655,
+      0.4524
+     ],
+     "blender_power_w": 700.0,
+     "blender_spot_size_deg": 110.0,
+     "blender_spot_blend": 0.5,
+     "type": "SpotLight3D",
+     "godot_energy": 4.0,
+     "range": 16.0,
+     "spot_angle_deg": 55.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Wall_R",
+     "kind": "Wall",
+     "position": [
+      -34.9367,
+      13.6881,
+      125.8
+     ],
+     "direction": [
+      0.4819,
+      -0.8762,
+      0.0
+     ],
+     "kelvin": 4300.0,
+     "color_linear": [
+      1.0,
+      0.6655,
+      0.4524
+     ],
+     "blender_power_w": 700.0,
+     "blender_spot_size_deg": 110.0,
+     "blender_spot_blend": 0.5,
+     "type": "SpotLight3D",
+     "godot_energy": 4.0,
+     "range": 16.0,
+     "spot_angle_deg": 55.0,
+     "spot_attenuation": 1.2
+    }
+   ],
+   "triangles_total": 5108
+  },
+  "tank_end_shaft": {
+   "file": "tank_end_shaft.glb",
+   "content": "shaft-side end: end wall (z = -38.6) with two 10 m openings, passage to shaft No.1, fence, blocks",
+   "placement": "hall coordinates: place at the origin",
+   "triangles": {
+    "TK_Concrete": 158,
+    "TK_Pillar": 52,
+    "TK_Floor": 52,
+    "TK_Steel": 1448,
+    "TK_Lens": 28
+   },
+   "lights": [
+    {
+     "node": "TK_Light_Bay_Open_+6",
+     "kind": "Bay",
+     "position": [
+      -6.0,
+      14.78,
+      -37.85
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    },
+    {
+     "node": "TK_Light_Bay_Open_-6",
+     "kind": "Bay",
+     "position": [
+      6.0,
+      14.78,
+      -37.85
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 4800.0,
+     "color_linear": [
+      1.0,
+      0.745,
+      0.57
+     ],
+     "blender_power_w": 800.0,
+     "type": "SpotLight3D",
+     "godot_energy": 9.0,
+     "range": 26.0,
+     "spot_angle_deg": 62.0,
+     "spot_attenuation": 1.2
+    }
+   ],
+   "triangles_total": 1738
+  },
+  "tank_shaft1": {
+   "file": "tank_shaft1.glb",
+   "content": "shaft No.1: wall, roof with daylight opening, stair tower, pipes, ring catwalk, floods",
+   "placement": "hall coordinates: place at the origin",
+   "triangles": {
+    "TK_Concrete": 96,
+    "TK_Pillar": 1440,
+    "TK_Steel": 96,
+    "TK_Paint": 3616,
+    "TK_Galv": 72,
+    "TK_Grate": 924,
+    "TK_Void": 46,
+    "TK_Sky": 46
+   },
+   "lights": [
+    {
+     "node": "TK_Light_Shaft_0",
+     "kind": "Shaft",
+     "position": [
+      -5.7403,
+      21.2,
+      -48.7418
+     ],
+     "direction": [
+      0.2296,
+      -0.8,
+      -0.5543
+     ],
+     "kelvin": 5200.0,
+     "color_linear": [
+      1.0,
+      0.8063,
+      0.6632
+     ],
+     "blender_power_w": 5000.0,
+     "blender_spot_size_deg": 70.0,
+     "blender_spot_blend": 0.4,
+     "type": "SpotLight3D",
+     "godot_energy": 6.0,
+     "range": 60.0,
+     "spot_angle_deg": 35.0,
+     "spot_attenuation": 1.0
+    },
+    {
+     "node": "TK_Light_Shaft_1",
+     "kind": "Shaft",
+     "position": [
+      -13.8582,
+      21.2,
+      -56.8597
+     ],
+     "direction": [
+      0.5543,
+      -0.8,
+      -0.2296
+     ],
+     "kelvin": 5200.0,
+     "color_linear": [
+      1.0,
+      0.8063,
+      0.6632
+     ],
+     "blender_power_w": 5000.0,
+     "blender_spot_size_deg": 70.0,
+     "blender_spot_blend": 0.4,
+     "type": "SpotLight3D",
+     "godot_energy": 6.0,
+     "range": 60.0,
+     "spot_angle_deg": 35.0,
+     "spot_attenuation": 1.0
+    },
+    {
+     "node": "TK_Light_Shaft_2",
+     "kind": "Shaft",
+     "position": [
+      -13.8582,
+      21.2,
+      -68.3402
+     ],
+     "direction": [
+      0.5543,
+      -0.8,
+      0.2296
+     ],
+     "kelvin": 5200.0,
+     "color_linear": [
+      1.0,
+      0.8063,
+      0.6632
+     ],
+     "blender_power_w": 5000.0,
+     "blender_spot_size_deg": 70.0,
+     "blender_spot_blend": 0.4,
+     "type": "SpotLight3D",
+     "godot_energy": 6.0,
+     "range": 60.0,
+     "spot_angle_deg": 35.0,
+     "spot_attenuation": 1.0
+    },
+    {
+     "node": "TK_Light_Shaft_3",
+     "kind": "Shaft",
+     "position": [
+      -5.7403,
+      21.2,
+      -76.4582
+     ],
+     "direction": [
+      0.2296,
+      -0.8,
+      0.5543
+     ],
+     "kelvin": 5200.0,
+     "color_linear": [
+      1.0,
+      0.8063,
+      0.6632
+     ],
+     "blender_power_w": 5000.0,
+     "blender_spot_size_deg": 70.0,
+     "blender_spot_blend": 0.4,
+     "type": "SpotLight3D",
+     "godot_energy": 6.0,
+     "range": 60.0,
+     "spot_angle_deg": 35.0,
+     "spot_attenuation": 1.0
+    },
+    {
+     "node": "TK_Light_Shaft_4",
+     "kind": "Shaft",
+     "position": [
+      5.7403,
+      21.2,
+      -76.4582
+     ],
+     "direction": [
+      -0.2296,
+      -0.8,
+      0.5543
+     ],
+     "kelvin": 5200.0,
+     "color_linear": [
+      1.0,
+      0.8063,
+      0.6632
+     ],
+     "blender_power_w": 5000.0,
+     "blender_spot_size_deg": 70.0,
+     "blender_spot_blend": 0.4,
+     "type": "SpotLight3D",
+     "godot_energy": 6.0,
+     "range": 60.0,
+     "spot_angle_deg": 35.0,
+     "spot_attenuation": 1.0
+    },
+    {
+     "node": "TK_Light_Shaft_5",
+     "kind": "Shaft",
+     "position": [
+      13.8582,
+      21.2,
+      -68.3402
+     ],
+     "direction": [
+      -0.5543,
+      -0.8,
+      0.2296
+     ],
+     "kelvin": 5200.0,
+     "color_linear": [
+      1.0,
+      0.8063,
+      0.6632
+     ],
+     "blender_power_w": 5000.0,
+     "blender_spot_size_deg": 70.0,
+     "blender_spot_blend": 0.4,
+     "type": "SpotLight3D",
+     "godot_energy": 6.0,
+     "range": 60.0,
+     "spot_angle_deg": 35.0,
+     "spot_attenuation": 1.0
+    },
+    {
+     "node": "TK_Light_Shaft_6",
+     "kind": "Shaft",
+     "position": [
+      13.8582,
+      21.2,
+      -56.8597
+     ],
+     "direction": [
+      -0.5543,
+      -0.8,
+      -0.2296
+     ],
+     "kelvin": 5200.0,
+     "color_linear": [
+      1.0,
+      0.8063,
+      0.6632
+     ],
+     "blender_power_w": 5000.0,
+     "blender_spot_size_deg": 70.0,
+     "blender_spot_blend": 0.4,
+     "type": "SpotLight3D",
+     "godot_energy": 6.0,
+     "range": 60.0,
+     "spot_angle_deg": 35.0,
+     "spot_attenuation": 1.0
+    },
+    {
+     "node": "TK_Light_Shaft_7",
+     "kind": "Shaft",
+     "position": [
+      5.7403,
+      21.2,
+      -48.7418
+     ],
+     "direction": [
+      -0.2296,
+      -0.8,
+      -0.5543
+     ],
+     "kelvin": 5200.0,
+     "color_linear": [
+      1.0,
+      0.8063,
+      0.6632
+     ],
+     "blender_power_w": 5000.0,
+     "blender_spot_size_deg": 70.0,
+     "blender_spot_blend": 0.4,
+     "type": "SpotLight3D",
+     "godot_energy": 6.0,
+     "range": 60.0,
+     "spot_angle_deg": 35.0,
+     "spot_attenuation": 1.0
+    },
+    {
+     "node": "TK_Light_Sky_Top",
+     "kind": "Sky",
+     "position": [
+      0.0,
+      22.8,
+      -62.6
+     ],
+     "direction": [
+      0.0,
+      -1.0,
+      -0.0
+     ],
+     "kelvin": 6500.0,
+     "color_linear": [
+      1.0,
+      0.9921,
+      0.9563
+     ],
+     "blender_power_w": 60000.0,
+     "type": "SpotLight3D",
+     "godot_energy": 4.0,
+     "range": 80.0,
+     "spot_angle_deg": 30.0,
+     "spot_attenuation": 1.0
+    }
+   ],
+   "triangles_total": 6336
+  },
+  "tank_stairs": {
+   "file": "tank_stairs.glb",
+   "content": "visitor access: door portal in the -x side wall, walkway over the shelf, steel stair, exit light, bollards",
+   "placement": "hall coordinates: place at the origin",
+   "triangles": {
+    "TK_Concrete": 138,
+    "TK_Steel": 72,
+    "TK_Paint": 96,
+    "TK_Galv": 1160,
+    "TK_Grate": 116,
+    "TK_Lens": 4,
+    "TK_Void": 2
+   },
+   "lights": [
+    {
+     "node": "TK_Light_Exit_Door",
+     "kind": "Exit",
+     "position": [
+      -33.9,
+      7.6,
+      -19.45
+     ],
+     "direction": [
+      0.8575,
+      -0.5145,
+      0.0
+     ],
+     "kelvin": 0.0,
+     "color_linear": [
+      0.05,
+      1.0,
+      0.25
+     ],
+     "blender_power_w": 60.0,
+     "blender_spot_size_deg": 150.0,
+     "blender_spot_blend": 0.8,
+     "type": "OmniLight3D",
+     "godot_energy": 0.6,
+     "range": 7.0
+    },
+    {
+     "node": "TK_Light_Wall_Stair",
+     "kind": "Wall",
+     "position": [
+      -33.9367,
+      7.8881,
+      -20.95
+     ],
+     "direction": [
+      0.669,
+      -0.7433,
+      0.0
+     ],
+     "kelvin": 4300.0,
+     "color_linear": [
+      1.0,
+      0.6655,
+      0.4524
+     ],
+     "blender_power_w": 700.0,
+     "blender_spot_size_deg": 110.0,
+     "blender_spot_blend": 0.5,
+     "type": "SpotLight3D",
+     "godot_energy": 4.0,
+     "range": 16.0,
+     "spot_angle_deg": 55.0,
+     "spot_attenuation": 1.2
+    }
+   ],
+   "triangles_total": 1588
+  }
+ },
+ "instances": [
+  {
+   "unit": "K00",
+   "module": "tank_line_00",
+   "z": 0.0,
+   "line": 0,
+   "lightmap": "textures/tank_line_00_light.png",
+   "light_max": 1.233415,
+   "lightmap_size": 2048,
+   "light_clipped_fraction": 0.00115
+  },
+  {
+   "unit": "K01",
+   "module": "tank_line_01",
+   "z": 0.0,
+   "line": 1,
+   "lightmap": "textures/tank_line_01_light.png",
+   "light_max": 1.208981,
+   "lightmap_size": 2048,
+   "light_clipped_fraction": 0.0013
+  },
+  {
+   "unit": "K02",
+   "module": "tank_line_02",
+   "z": 0.0,
+   "line": 2,
+   "lightmap": "textures/tank_line_02_light.png",
+   "light_max": 1.227068,
+   "lightmap_size": 2048,
+   "light_clipped_fraction": 0.001
+  },
+  {
+   "unit": "K03",
+   "module": "tank_line_03",
+   "z": 0.0,
+   "line": 3,
+   "lightmap": "textures/tank_line_03_light.png",
+   "light_max": 1.25495,
+   "lightmap_size": 2048,
+   "light_clipped_fraction": 0.00141
+  },
+  {
+   "unit": "K04",
+   "module": "tank_line_04",
+   "z": 0.0,
+   "line": 4,
+   "lightmap": "textures/tank_line_04_light.png",
+   "light_max": 1.232023,
+   "lightmap_size": 2048,
+   "light_clipped_fraction": 0.00116
+  },
+  {
+   "unit": "K05",
+   "module": "tank_line_05",
+   "z": 0.0,
+   "line": 5,
+   "lightmap": "textures/tank_line_05_light.png",
+   "light_max": 1.341326,
+   "lightmap_size": 2048,
+   "light_clipped_fraction": 0.00139
+  },
+  {
+   "unit": "K06",
+   "module": "tank_line_06",
+   "z": 0.0,
+   "line": 6,
+   "lightmap": "textures/tank_line_06_light.png",
+   "light_max": 1.222945,
+   "lightmap_size": 2048,
+   "light_clipped_fraction": 0.00108
+  },
+  {
+   "unit": "K07",
+   "module": "tank_line_07",
+   "z": 0.0,
+   "line": 7,
+   "lightmap": "textures/tank_line_07_light.png",
+   "light_max": 1.359864,
+   "lightmap_size": 2048,
+   "light_clipped_fraction": 0.00143
+  },
+  {
+   "unit": "K08",
+   "module": "tank_line_08",
+   "z": 0.0,
+   "line": 8,
+   "lightmap": "textures/tank_line_08_light.png",
+   "light_max": 1.221891,
+   "lightmap_size": 2048,
+   "light_clipped_fraction": 0.00104
+  },
+  {
+   "unit": "K09",
+   "module": "tank_line_09",
+   "z": 0.0,
+   "line": 9,
+   "lightmap": "textures/tank_line_09_light.png",
+   "light_max": 1.322942,
+   "lightmap_size": 2048,
+   "light_clipped_fraction": 0.00161
+  },
+  {
+   "unit": "K10",
+   "module": "tank_line_10",
+   "z": 0.0,
+   "line": 10,
+   "lightmap": "textures/tank_line_10_light.png",
+   "light_max": 1.392242,
+   "lightmap_size": 2048,
+   "light_clipped_fraction": 0.00026
+  },
+  {
+   "unit": "P",
+   "module": "tank_end_pump",
+   "z": 0.0,
+   "lightmap": "textures/tank_end_pump_light.png",
+   "light_max": 5.036286,
+   "lightmap_size": 2048,
+   "light_clipped_fraction": 0.00235
+  },
+  {
+   "unit": "S",
+   "module": "tank_end_shaft",
+   "z": 0.0,
+   "lightmap": "textures/tank_end_shaft_light.png",
+   "light_max": 1.431586,
+   "lightmap_size": 2048,
+   "light_clipped_fraction": 0.00024
+  },
+  {
+   "unit": "Q",
+   "module": "tank_shaft1",
+   "z": 0.0,
+   "lightmap": "textures/tank_shaft1_light.png",
+   "light_max": 0.974877,
+   "lightmap_size": 2048,
+   "light_clipped_fraction": 0.00224
+  },
+  {
+   "unit": "T",
+   "module": "tank_stairs",
+   "z": 0.0,
+   "lightmap": "textures/tank_stairs_light.png",
+   "light_max": 2.135059,
+   "lightmap_size": 1024,
+   "light_clipped_fraction": 0.00252
+  }
+ ]
+}

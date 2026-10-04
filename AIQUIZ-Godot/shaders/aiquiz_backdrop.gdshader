@@ -3,13 +3,17 @@ render_mode diffuse_burley, specular_schlick_ggx;
 
 // AIQUIZ STADIUM の遠景（島・街）。assets/aiquiz_stadium の AQS_BG_Painted と AQS_CityFacade_* を置き換える。
 // 色：頂点色。外壁は昼のテクスチャを掛け、夜は窓明かりのテクスチャを光らせる（night_energy）。
-// かすみ：ゲームは霧を使わないので、ここで距離に応じて空の地平線の色へ寄せる（FOG）。地平線の色は
+// かすみ：ここで距離に応じて空の地平線の色へ寄せる（FOG）。FOG を書くので環境のフォグ（stage_atmosphere.gd）は
+// このシェーダーの面には掛からない（二重にはならない。置き換え）。地平線の色は
 // 空のシェーダー（aiquiz_day_night_sky.gdshader）と同じ式で、太陽の高さ・向きから昼／夕焼け／夜を混ぜる。
 // 量 = min(haze_max, (1 - exp(-距離 / haze_distance)) × (1 - haze_height_clear × 海面からの高さの smoothstep))
 // Blender の確認シーン（aqs_review.haze_review_material）も同じ式と値。
 // 水面下（島のまわりの浅瀬）はかすませない。ゲームの海はかすまないので、海越しに見える色を海とそろえる。
 // 沖の海（AQS_BG_Sea、fade_from_ocean_edge）：ゲームの海の板の外を埋める。縁ではかすみ 0 で海の色とそろえ、
 // 縁から ocean_haze_fade m 外へ離れるまでに、ほかの遠景と同じかすみになる。
+// ただし、この FOG は環境のフォグを置き換える（このメッシュには環境のフォグがかからない）。海の板は環境のフォグを
+// 受け、標準以上では浅い角度で空を映す（ocean.gdshader）ので、縁から外はその両方の続き
+// 1 - (1 - edge_reflect) × exp(-距離 × edge_fog_density) より薄くしない（水平線に暗い筋を出さない）。
 
 uniform bool use_facade = false;
 uniform sampler2D facade : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
@@ -36,6 +40,9 @@ uniform bool fade_from_ocean_edge = false;
 uniform vec2 ocean_half = vec2(2000.0, 2000.0);
 uniform float ocean_center_z = 150.0;
 uniform float ocean_haze_fade = 900.0;
+// 沖の海だけ：環境のフォグの濃さ（1/m）と、海の板が水平線近くで空を映す割合
+uniform float edge_fog_density = 0.0;
+uniform float edge_reflect : hint_range(0.0, 1.0) = 0.0;
 
 varying vec3 world_pos;
 
@@ -74,6 +81,7 @@ void fragment() {
 	if (fade_from_ocean_edge) {
 		vec2 outside = abs(vec2(world_pos.x, world_pos.z - ocean_center_z)) - ocean_half;
 		amount *= smoothstep(0.0, ocean_haze_fade, max(max(outside.x, outside.y), 0.0));
+		amount = max(amount, 1.0 - (1.0 - edge_reflect) * exp(-dist * edge_fog_density));
 	} else {
 		amount *= smoothstep(-1.2, 0.2, height);
 	}

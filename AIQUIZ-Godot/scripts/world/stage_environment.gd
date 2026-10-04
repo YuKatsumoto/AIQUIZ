@@ -19,6 +19,9 @@ const AiquizStandScript = preload("res://scripts/world/aiquiz_stadium/aiquiz_sta
 const AiquizBackdropScript = preload("res://scripts/world/aiquiz_stadium/aiquiz_stadium_backdrop.gd")
 const HarborCityBackdropScript = preload("res://scripts/world/harbor_city_backdrop.gd")
 const WaterfrontScript = preload("res://scripts/world/santorini_waterfront.gd")
+const StageMaterialsScript = preload("res://scripts/world/stage_materials.gd")
+const StageAtmosphereScript = preload("res://scripts/world/stage_atmosphere.gd")
+const OceanDetailScript = preload("res://scripts/world/ocean_detail.gd")
 const AIQUIZ_STAGE_SKY_PATH := "res://assets/environment/sky/aiquiz_day_night_sky.tres"
 const GRANDSTAND_SIDE_OFFSET: float = 28.0
 ## Side stands and scenery. "aiquiz": AIQUIZ STADIUM (sails, lighthouse, islands,
@@ -117,6 +120,8 @@ var _grandstands_container: Node3D = null
 var _waterfront: Node3D = null
 var _stadium_backdrop: Node3D = null
 var _shark_school: Node3D = null
+## Reflection probe and vignette (StageAtmosphere.build); freed with the other generated children.
+var _atmosphere: Node3D = null
 
 var _floor_belt_material: ShaderMaterial = null
 var _floor_collision_body: StaticBody3D = null
@@ -214,6 +219,7 @@ func _clear_built_stage() -> void:
 	_waterfront = null
 	_stadium_backdrop = null
 	_shark_school = null
+	_atmosphere = null
 	_running_rails = null
 	_floor_belt_material = null
 	_floor_collision_body = null
@@ -283,6 +289,9 @@ func build(config: Dictionary = {}) -> void:
 		_setup_stadium_backdrop(bool(config.get("include_stadium_scenery", true)))
 	if _include_sharks:
 		_setup_sharks()
+	_atmosphere = StageAtmosphereScript.build(self, _graphics_quality(), not _is_preview_environment)
+	if _atmosphere != null:
+		_add_generated_stage_child(_atmosphere)
 
 	set_floor_geometry(_floor_center_z, _floor_length)
 	if _shaft_hole_active:
@@ -356,6 +365,7 @@ func _setup_environment() -> void:
 	env.set_glow_level(2, true)
 	env.set_glow_level(3, false)
 	QualityRules.apply_environment(env, _graphics_quality())
+	StageAtmosphereScript.apply_environment_quality(env, _graphics_quality())
 
 	environment_node = WorldEnvironment.new()
 	environment_node.name = "WorldEnvironment"
@@ -367,6 +377,9 @@ func apply_graphics_quality(quality: String = "") -> void:
 	var q: String = QualityRules.normalize(quality) if not quality.is_empty() else _graphics_quality()
 	if environment_node != null and environment_node.environment != null:
 		QualityRules.apply_environment(environment_node.environment, q)
+		StageAtmosphereScript.apply_environment_quality(environment_node.environment, q)
+	_apply_surface_material_quality(q)
+	StageAtmosphereScript.apply_graphics_quality(_atmosphere, q)
 	if directional_light != null:
 		QualityRules.configure_directional_shadow(directional_light, q)
 		directional_light.shadow_enabled = (
@@ -376,6 +389,7 @@ func apply_graphics_quality(quality: String = "") -> void:
 		)
 	if _ocean_surface != null and is_instance_valid(_ocean_surface):
 		configure_ocean_surface(_ocean_surface, q)
+		_link_ocean_to_weather()
 		# The ocean gets a fresh material (desktop or mobile shader); carry the shaft hole over.
 		_apply_shaft_hole_materials()
 	var town := get_node_or_null("HarborCityBackdrop")
@@ -446,6 +460,7 @@ func _setup_floor_conveyor() -> void:
 	_floor_belt_material.set_shader_parameter("base_color", StageConstants.CONVEYOR_BELT_BASE_COLOR)
 	_floor_belt_material.set_shader_parameter("stripe_color", StageConstants.CONVEYOR_BELT_STRIPE_COLOR)
 	_floor_belt_material.set_shader_parameter("side_color", StageConstants.CONVEYOR_BELT_SIDE_COLOR)
+	StageMaterialsScript.belt_detail(_floor_belt_material, _graphics_quality())
 	floor_mesh.material_override = _floor_belt_material
 	_setup_floor_rails()
 	_setup_conveyor_loop_geometry()
@@ -518,15 +533,13 @@ func _setup_conveyor_loop_geometry() -> void:
 	_conveyor_return_material.set_shader_parameter("side_color", StageConstants.CONVEYOR_BELT_SIDE_COLOR)
 	_conveyor_return_material.set_shader_parameter("rim_inner_x", 12.0)
 	_conveyor_return_material.set_shader_parameter("rim_softness", 0.02)
+	StageMaterialsScript.belt_detail(_conveyor_return_material, _graphics_quality())
 	_conveyor_return_belt.material_override = _conveyor_return_material
 	_add_generated_stage_child(_conveyor_return_belt)
 
 	var side_frame_mesh := BoxMesh.new()
 	side_frame_mesh.size = Vector3(StageConstants.CONVEYOR_SIDE_FRAME_WIDTH, StageConstants.CONVEYOR_SIDE_FRAME_HEIGHT, _floor_length)
-	var side_frame_mat := StandardMaterial3D.new()
-	side_frame_mat.albedo_color = Color(0.30, 0.31, 0.33)
-	side_frame_mat.roughness = 0.62
-	side_frame_mat.metallic = 0.16
+	var side_frame_mat: Material = StageMaterialsScript.side_frame(_graphics_quality())
 
 	_conveyor_side_frame_left = MeshInstance3D.new()
 	_conveyor_side_frame_left.name = "ConveyorSideFrameLeft"
@@ -557,6 +570,7 @@ func _make_roller_material(arc_sign: float) -> ShaderMaterial:
 	mat.set_shader_parameter("roller_depth", 0.0)
 	mat.set_shader_parameter("roughness_val", 0.72)
 	mat.set_shader_parameter("metallic_val", 0.16)
+	StageMaterialsScript.belt_detail(mat, _graphics_quality())
 	return mat
 
 
@@ -581,6 +595,41 @@ func _make_roller(roller_mesh: CylinderMesh, mat: ShaderMaterial) -> MeshInstanc
 func _setup_ocean() -> void:
 	_ocean_surface = create_ocean_surface()
 	_add_generated_stage_child(_ocean_surface)
+	_link_ocean_to_weather()
+
+
+## The day cycle hands the sun direction to the desktop ocean material. The material is
+## replaced on every quality change, so the link is renewed with it.
+func _link_ocean_to_weather() -> void:
+	# In the editor preview the (non-tool) WeatherCycle is only a placeholder instance.
+	if weather_cycle == null or Engine.is_editor_hint():
+		return
+	weather_cycle.ocean_material = (
+		_ocean_surface.material_override as ShaderMaterial
+		if _ocean_surface != null and is_instance_valid(_ocean_surface)
+		else null
+	)
+	weather_cycle.refresh_ocean_sun()
+
+
+## Re-applies the quality-dependent surface materials (belt detail textures, side frames,
+## rails) after a graphics quality change.
+func _apply_surface_material_quality(q: String) -> void:
+	for material: ShaderMaterial in [
+		_floor_belt_material,
+		_conveyor_return_material,
+		_conveyor_roller_front_material,
+		_conveyor_roller_back_material,
+	]:
+		if material != null:
+			StageMaterialsScript.belt_detail(material, q)
+	if _conveyor_side_frame_left != null or _conveyor_side_frame_right != null:
+		var frame_material: Material = StageMaterialsScript.side_frame(q)
+		for frame: MeshInstance3D in [_conveyor_side_frame_left, _conveyor_side_frame_right]:
+			if frame != null:
+				frame.material_override = frame_material
+	if is_instance_valid(_running_rails) and _running_rails.has_method("apply_graphics_quality"):
+		_running_rails.call("apply_graphics_quality", q)
 
 
 func _setup_harbor_city() -> void:
@@ -990,6 +1039,7 @@ static func configure_ocean_surface(ocean_mesh: MeshInstance3D, quality: String 
 		noise2.width = noise_size
 		noise2.height = noise_size
 		mat.set_shader_parameter("noise_tex2", noise2)
+		OceanDetailScript.configure(mat, q)
 
 	ocean_mesh.material_override = mat
 

@@ -183,10 +183,9 @@ func _build_stage() -> void:
 	var tunnel := StandardMaterial3D.new()
 	tunnel.albedo_color = Color(0.02, 0.02, 0.025)
 	_box(Vector3(0.0, FLOOR_Y + 5.0, -33.0), Vector3(10.0, 10.0, 4.0), tunnel)
-	for column: float in SuddenDeathLayout.PILLAR_COLUMNS:
-		for row_z: float in SuddenDeathLayout.pillar_row_zs():
-			if row_z < 80.0:
-				_box(Vector3(column, FLOOR_Y + 9.0, row_z), Vector3(2.0, 18.0, 7.0), concrete)
+	for pillar: Vector2 in SuddenDeathLayout.pillars():
+		if pillar.y < 80.0:
+			_box(Vector3(pillar.x, FLOOR_Y + 9.0, pillar.y), Vector3(2.0, 18.0, 7.0), concrete)
 	for index in range(2):
 		var mesh := MeshInstance3D.new()
 		var cylinder := CylinderMesh.new()

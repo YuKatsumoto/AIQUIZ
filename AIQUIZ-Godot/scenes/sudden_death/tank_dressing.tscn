@@ -1,0 +1,790 @@
+[gd_scene format=3]
+
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No1.res" id="1_8who4"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No2.res" id="2_f5f5o"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No3.res" id="3_mfw18"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No4.res" id="4_hgpwx"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No5.res" id="5_ucsg4"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No6.res" id="6_2ywdb"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No7.res" id="7_wm4ui"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No8.res" id="8_jfh5f"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No9.res" id="9_21kym"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No10.res" id="10_j5tt1"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No11.res" id="11_c3myt"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No12.res" id="12_3ydp7"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No13.res" id="13_ax0s5"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No14.res" id="14_od00b"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No15.res" id="15_op0bj"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No16.res" id="16_25ahr"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No17.res" id="17_dbpff"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No18.res" id="18_nknvx"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No19.res" id="19_x0jj0"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No20.res" id="20_bo742"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No21.res" id="21_l7sem"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No22.res" id="22_gq23t"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No23.res" id="23_a3rjg"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No24.res" id="24_3ieb8"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No25.res" id="25_e161y"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No26.res" id="26_y7qar"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No27.res" id="27_kshbm"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No28.res" id="28_l8q3y"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No29.res" id="29_eqcu4"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No30.res" id="30_7gbf6"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No31.res" id="31_ke0qi"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No32.res" id="32_o4yet"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No33.res" id="33_jeelb"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No34.res" id="34_5pens"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No35.res" id="35_7cey8"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No36.res" id="36_rc8si"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No37.res" id="37_qx10d"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No38.res" id="38_orp8b"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No39.res" id="39_dlmlw"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No40.res" id="40_ka5jd"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No41.res" id="41_q0p6q"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No42.res" id="42_5w4yh"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No43.res" id="43_wrsf7"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No44.res" id="44_7icxf"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No45.res" id="45_3h0ub"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No46.res" id="46_pq8cl"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No47.res" id="47_k38e2"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No48.res" id="48_yx8u8"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No49.res" id="49_2f7in"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No50.res" id="50_3x15t"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No51.res" id="51_yl0x0"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No52.res" id="52_ftk4u"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No53.res" id="53_osrxj"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No54.res" id="54_14wp8"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No55.res" id="55_d4epo"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No56.res" id="56_8qgk0"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No57.res" id="57_q6wj4"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No58.res" id="58_l15lt"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/decals/plate_No59.res" id="59_4gnyr"]
+[ext_resource type="Material" path="res://scenes/sudden_death/tank_generated/materials/dust_process.tres" id="60_3dkpl"]
+[ext_resource type="Material" path="res://scenes/sudden_death/tank_generated/materials/dust.tres" id="61_3sqq8"]
+
+[sub_resource type="QuadMesh" id="QuadMesh_lgrcu"]
+material = ExtResource("61_3sqq8")
+size = Vector2(0.02, 0.02)
+
+[node name="CisternDressing" type="Node3D" unique_id=747307501]
+
+[node name="Decals" type="Node3D" parent="." unique_id=1760758998]
+
+[node name="Plate_01" type="Decal" parent="Decals" unique_id=210700698]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 56, 13.5, 217)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("1_8who4")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_02" type="Decal" parent="Decals" unique_id=1102187381]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 42, 3.4999998, 217)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("2_f5f5o")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_03" type="Decal" parent="Decals" unique_id=739795535]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 14, 3.4999998, 217)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("3_mfw18")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_04" type="Decal" parent="Decals" unique_id=412248487]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -14, 3.4999998, 217)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("4_hgpwx")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_05" type="Decal" parent="Decals" unique_id=2024954775]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -42, 3.4999998, 217)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("5_ucsg4")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_06" type="Decal" parent="Decals" unique_id=897632712]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -56, 13.5, 217)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("6_2ywdb")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_07" type="Decal" parent="Decals" unique_id=1131704683]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 56, 13.5, 189)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("7_wm4ui")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_08" type="Decal" parent="Decals" unique_id=747116700]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 28, 3.4999998, 189)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("8_jfh5f")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_09" type="Decal" parent="Decals" unique_id=65866585]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 0, 3.4999998, 189)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("9_21kym")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_10" type="Decal" parent="Decals" unique_id=871608988]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -28, 3.4999998, 189)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("10_j5tt1")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_11" type="Decal" parent="Decals" unique_id=914420065]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -56, 13.5, 189)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("11_c3myt")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_12" type="Decal" parent="Decals" unique_id=1183501338]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 56, 13.5, 161)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("12_3ydp7")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_13" type="Decal" parent="Decals" unique_id=251979507]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 42, 3.4999998, 161)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("13_ax0s5")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_14" type="Decal" parent="Decals" unique_id=782059249]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 14, 3.4999998, 161)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("14_od00b")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_15" type="Decal" parent="Decals" unique_id=429234639]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -14, 3.4999998, 161)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("15_op0bj")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_16" type="Decal" parent="Decals" unique_id=1272760981]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -42, 3.4999998, 161)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("16_25ahr")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_17" type="Decal" parent="Decals" unique_id=366259154]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -56, 13.5, 161)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("17_dbpff")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_18" type="Decal" parent="Decals" unique_id=1528137300]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 56, 13.5, 133)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("18_nknvx")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_19" type="Decal" parent="Decals" unique_id=806705399]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 28, 3.4999998, 133)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("19_x0jj0")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_20" type="Decal" parent="Decals" unique_id=1882307246]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 0, 3.4999998, 133)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("20_bo742")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_21" type="Decal" parent="Decals" unique_id=183857436]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -28, 3.4999998, 133)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("21_l7sem")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_22" type="Decal" parent="Decals" unique_id=1647316576]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -56, 13.5, 133)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("22_gq23t")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_23" type="Decal" parent="Decals" unique_id=446649860]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 56, 13.5, 105)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("23_a3rjg")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_24" type="Decal" parent="Decals" unique_id=863918676]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 42, 13.5, 105)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("24_3ieb8")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_25" type="Decal" parent="Decals" unique_id=1768375702]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 14, 3.4999998, 105)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("25_e161y")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_26" type="Decal" parent="Decals" unique_id=363774941]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -14, 3.4999998, 105)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("26_y7qar")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_27" type="Decal" parent="Decals" unique_id=410482418]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -42, 13.5, 105)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("27_kshbm")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_28" type="Decal" parent="Decals" unique_id=167202754]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -56, 13.5, 105)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("28_l8q3y")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_29" type="Decal" parent="Decals" unique_id=1944288121]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 56, 13.5, 77)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("29_eqcu4")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_30" type="Decal" parent="Decals" unique_id=698239100]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 28, 3.4999998, 77)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("30_7gbf6")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_31" type="Decal" parent="Decals" unique_id=1776823961]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 0, 3.4999998, 77)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("31_ke0qi")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_32" type="Decal" parent="Decals" unique_id=25966473]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -28, 3.4999998, 77)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("32_o4yet")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_33" type="Decal" parent="Decals" unique_id=716551439]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -56, 13.5, 77)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("33_jeelb")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_34" type="Decal" parent="Decals" unique_id=1343287545]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 56, 13.5, 49)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("34_5pens")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_35" type="Decal" parent="Decals" unique_id=1155797523]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 42, 13.5, 49)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("35_7cey8")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_36" type="Decal" parent="Decals" unique_id=1009113147]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 14, 3.4999998, 49)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("36_rc8si")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_37" type="Decal" parent="Decals" unique_id=1909814976]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -14, 3.4999998, 49)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("37_qx10d")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_38" type="Decal" parent="Decals" unique_id=339837551]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -42, 13.5, 49)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("38_orp8b")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_39" type="Decal" parent="Decals" unique_id=2022459214]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -56, 13.5, 49)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("39_dlmlw")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_40" type="Decal" parent="Decals" unique_id=1433343083]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 56, 13.5, 21)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("40_ka5jd")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_41" type="Decal" parent="Decals" unique_id=1563178541]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 28, 3.4999998, 21)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("41_q0p6q")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_42" type="Decal" parent="Decals" unique_id=1813023077]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 0, 3.4999998, 21)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("42_5w4yh")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_43" type="Decal" parent="Decals" unique_id=221954628]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -28, 3.4999998, 21)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("43_wrsf7")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_44" type="Decal" parent="Decals" unique_id=261093750]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -56, 13.5, 21)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("44_7icxf")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_45" type="Decal" parent="Decals" unique_id=209602931]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 56, 13.5, -7)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("45_3h0ub")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_46" type="Decal" parent="Decals" unique_id=1474784352]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 42, 13.5, -7)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("46_pq8cl")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_47" type="Decal" parent="Decals" unique_id=1758812172]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 14, 3.4999998, -7)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("47_k38e2")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_48" type="Decal" parent="Decals" unique_id=1343545822]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -14, 3.4999998, -7)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("48_yx8u8")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_49" type="Decal" parent="Decals" unique_id=1842277459]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -42, 13.5, -7)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("49_2f7in")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_50" type="Decal" parent="Decals" unique_id=565614520]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -56, 13.5, -7)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("50_3x15t")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_51" type="Decal" parent="Decals" unique_id=1255848777]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 56, 13.5, -35)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("51_yl0x0")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_52" type="Decal" parent="Decals" unique_id=1497603206]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 28, 3.4999998, -35)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("52_ftk4u")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_53" type="Decal" parent="Decals" unique_id=245831705]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 0, 3.4999998, -35)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("53_osrxj")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_54" type="Decal" parent="Decals" unique_id=833362629]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -28, 3.4999998, -35)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("54_14wp8")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_55" type="Decal" parent="Decals" unique_id=1735926934]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -56, 13.5, -35)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("55_d4epo")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_56" type="Decal" parent="Decals" unique_id=1574101895]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 42, 13.5, -63)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("56_8qgk0")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_57" type="Decal" parent="Decals" unique_id=969255063]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 14, 3.4999998, -63)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("57_q6wj4")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_58" type="Decal" parent="Decals" unique_id=2119073402]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -14, 3.4999998, -63)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("58_l15lt")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Plate_59" type="Decal" parent="Decals" unique_id=1284850654]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, -42, 13.5, -63)
+size = Vector3(1.24, 0.5, 0.76)
+texture_albedo = ExtResource("59_4gnyr")
+normal_fade = 0.3
+upper_fade = 0.05
+lower_fade = 0.05
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 20.0
+cull_mask = 1024
+
+[node name="Dust" type="GPUParticles3D" parent="." unique_id=620075385]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 13.8, 94.2)
+cast_shadow = 0
+amount = 2400
+lifetime = 16.0
+preprocess = 16.0
+randomness = 0.6
+visibility_aabb = AABB(-74, -17, -176, 148, 34, 352)
+process_material = ExtResource("60_3dkpl")
+draw_pass_1 = SubResource("QuadMesh_lgrcu")

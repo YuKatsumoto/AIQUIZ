@@ -89,6 +89,7 @@ func run() -> void:
 		_abort_case(fps, true)
 	_abort_case(60, false)
 	_disabled_case()
+	_unavailable_case()
 	_finale_sink_case()
 	_descent_cases()
 	_assemble_cases()
@@ -597,6 +598,22 @@ func _disabled_case() -> void:
 	check(requests.is_empty() and gs.game_state == Constants.STATE_CLEAR and gs.result_winner == 0, "disabled: the draw ends as before")
 
 
+## Switched off for now (docs 20): the setting stays on, yet the draw ends as before.
+func _unavailable_case() -> void:
+	QuizGameState.sudden_death_available = false
+	var gs := _fixture()
+	var requests: Array[bool] = []
+	gs.sudden_death_transition_requested.connect(func(entering: bool) -> void: requests.append(entering))
+	check(gs.sudden_death_enabled and not gs.uses_sudden_death(), "unavailable: the setting alone does not turn it on")
+	check(gs.debug_force_draw_finish() and not gs.sudden_death_pending, "unavailable: plain draw")
+	var t := 0.0
+	while gs.game_state != Constants.STATE_CLEAR and t < 15.0:
+		gs.update(1.0 / 60.0)
+		t += 1.0 / 60.0
+	check(requests.is_empty() and gs.game_state == Constants.STATE_CLEAR and gs.result_winner == 0, "unavailable: the draw ends as before")
+	QuizGameState.sudden_death_available = true
+
+
 func _finale_sink_case() -> void:
 	var motion := ResultFinaleMotion
 	check(absf(motion.tower_height(12, 12, 9.2) - motion.stop_height(12)) < 0.01, "a draw keeps both towers up")
@@ -762,15 +779,21 @@ func _stage_cases() -> void:
 	check(in_frame, "duel shot: both riders in frame at 16:9")
 	var bed := CisternFlow.bed_heights()
 	check(bed.size() == CisternFlow.GRID.x * CisternFlow.GRID.y, "flow: one floor height per cell")
-	var pillar := CisternFlow.cell_of(Vector2(12.9, 3.5))
+	# line 8 (z = 0, the landing's line) has a pillar in the row v = -7
+	var pillar := CisternFlow.cell_of(Vector2(SuddenDeathLayout.pillar_xs(8)[3], SuddenDeathLayout.line_z(8)))
 	var tower := CisternFlow.cell_of(Vector2(SuddenDeathLayout.LIFT_X, SuddenDeathLayout.LIFT_Z))
 	var tunnel := CisternFlow.cell_of(Vector2(0.0, -29.8))
 	check(bed[pillar.y * CisternFlow.GRID.x + pillar.x] >= 20.0, "flow: the pillars are solid")
 	check(bed[tower.y * CisternFlow.GRID.x + tower.x] == 0.0 and bed[tunnel.y * CisternFlow.GRID.x + tunnel.x] == 0.0, "flow: open floor at the towers and the tunnel mouth")
+	# pillars inside the side walls (the grid reaches past the walls, which are solid too)
 	var solid := 0
-	for value: float in bed:
-		if value >= 20.0:
-			solid += 1
+	for j in range(CisternFlow.GRID.y):
+		var z := CisternFlow.ORIGIN.y + (float(j) + 0.5) * CisternFlow.CELL
+		var wall := SuddenDeathLayout.wall_half_width(z)
+		for i in range(CisternFlow.GRID.x):
+			var x := CisternFlow.ORIGIN.x + (float(i) + 0.5) * CisternFlow.CELL
+			if absf(x) < wall and bed[j * CisternFlow.GRID.x + i] >= 20.0:
+				solid += 1
 	metrics["flow_solid_cells"] = solid
 	check(solid > 0 and solid < bed.size() / 10, "flow: pillars take a small part of the hall (%d cells)" % solid)
 	check(CisternFlow.MAX_SPEED * CisternFlow.SIM_DT < 0.5 * CisternFlow.CELL, "flow: under half a cell a step")

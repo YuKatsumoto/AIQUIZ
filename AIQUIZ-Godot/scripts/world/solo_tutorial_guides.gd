@@ -1,13 +1,16 @@
-﻿extends Node3D
+extends Node3D
 class_name SoloTutorialGuides
 
 ## 1Pチュートリアル専用の3Dガイド。
 ## リング・板ポリ矢印・円柱が寄せ集めだった従来版に対し、
 ## ここでは全パーツを同じ加算発光マテリアル工場から作り、
 ## 明滅も1つの脈動値で揃える。
+## 操作キーは TutorialKeyGuides3D（res://scripts/world/tutorial_key_guides_3d.gd）が
+## 頭上・肩の横に実物のキーキャップとして浮かべる。
 ## ローカル2Pコースは res://scripts/world/duo_tutorial_guides.gd が担当する。
 
 const SoloFlow = preload("res://scripts/core/tutorial/solo_tutorial_flow.gd")
+const KeyGuidesScript = preload("res://scripts/world/tutorial_key_guides_3d.gd")
 
 const ACCENT := Color(1.0, 0.82, 0.24, 1.0)
 const EDGE_COLOR := Color(1.0, 0.32, 0.26, 1.0)
@@ -19,6 +22,10 @@ const EDGE_FLOW_SPEED := 7.0
 const ROUTE_DASH_COUNT := 12
 const CHEVRON_COUNT := 3
 const FLOOR_OFFSET := 0.06
+## ドア枠は2択ドア（半幅1.8m）の大きさで作り、4択ドア（半幅1.45m）では横だけ縮める。
+const DOOR_FRAME_HALF_WIDTH := 1.8
+const LABEL_PIXEL_SIZE := 0.008
+const DOOR_LABEL_PIXEL_SIZE := 0.018
 
 var game_state: QuizGameState = null
 
@@ -29,13 +36,20 @@ var _ring: MeshInstance3D = null
 var _chevrons: Array[MeshInstance3D] = []
 var _route_dashes: Array[MeshInstance3D] = []
 var _door_frame: Node3D = null
+var _door_frame_material: StandardMaterial3D = null
+var _route_material: StandardMaterial3D = null
 var _goal_beacon: MeshInstance3D = null
 var _label: Label3D = null
+var _key_guides: TutorialKeyGuides3D = null
 
 
 func setup(state: QuizGameState) -> void:
 	game_state = state
 	_build()
+	_key_guides = KeyGuidesScript.new()
+	_key_guides.name = "KeyGuides3D"
+	add_child(_key_guides)
+	_key_guides.setup(state, false)
 
 
 func update(delta: float) -> void:
@@ -65,6 +79,22 @@ func update(delta: float) -> void:
 	_update_door_guide(model, guide, pulse)
 	_update_goal_guide(guide, pulse)
 	_update_label(model, guide)
+	_key_guides.update(delta, model, _keys_allowed(model))
+
+
+## 検証用。3Dキーの状態を返す。
+func get_key_guides() -> TutorialKeyGuides3D:
+	return _key_guides
+
+
+## 演出中・死亡演出中・結果画面では操作キーを出さない。
+func _keys_allowed(model: Dictionary) -> bool:
+	if bool(model.get("presentation_locked", false)):
+		return false
+	if game_state.game_state not in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]:
+		return false
+	var flow: RefCounted = game_state.tutorial_flow
+	return flow != null and not flow.is_awaiting_death_recovery()
 
 
 # ---------- 構築 ----------
@@ -103,20 +133,20 @@ func _build() -> void:
 		add_child(chevron)
 		_chevrons.append(chevron)
 
-	var route_material := _make_material(ACCENT)
+	_route_material = _make_material(ACCENT)
 	for _i: int in range(ROUTE_DASH_COUNT):
 		var dash := MeshInstance3D.new()
 		var mesh := BoxMesh.new()
 		mesh.size = Vector3(0.22, 0.04, 0.6)
 		dash.mesh = mesh
-		dash.material_override = route_material
+		dash.material_override = _route_material
 		add_child(dash)
 		_route_dashes.append(dash)
 
 	_door_frame = Node3D.new()
-	_door_frame.name = "CorrectDoorFrame"
+	_door_frame.name = "TargetDoorFrame"
 	add_child(_door_frame)
-	var frame_material := _make_material(ACCENT)
+	_door_frame_material = _make_material(ACCENT)
 	for part_data: Dictionary in [
 		{"size": Vector3(0.14, 3.8, 0.14), "position": Vector3(-1.8, 1.9, 0.0)},
 		{"size": Vector3(0.14, 3.8, 0.14), "position": Vector3(1.8, 1.9, 0.0)},
@@ -127,7 +157,7 @@ func _build() -> void:
 		box.size = part_data["size"]
 		part.mesh = box
 		part.position = part_data["position"]
-		part.material_override = frame_material
+		part.material_override = _door_frame_material
 		_door_frame.add_child(part)
 
 	_goal_beacon = MeshInstance3D.new()
@@ -166,6 +196,11 @@ func _make_material(color: Color) -> StandardMaterial3D:
 	return material
 
 
+func _tint(material: StandardMaterial3D, color: Color) -> void:
+	material.albedo_color = Color(color.r, color.g, color.b, 0.85)
+	material.emission = color
+
+
 # ---------- 更新 ----------
 
 ## 走路の左右エッジを流れるラインで示す。ここから外は海、という境界を常時可視化する。
@@ -196,25 +231,28 @@ func _update_player_guide(model: Dictionary, guide: String, pulse: float) -> voi
 	var show_player_guide := guide in [
 		SoloFlow.GUIDE_LANE,
 		SoloFlow.GUIDE_AIR,
+		SoloFlow.GUIDE_EMOTE,
 		SoloFlow.GUIDE_OCEAN,
 		SoloFlow.GUIDE_COMPLETE,
-	]
+	] and game_state.p1_alive and not game_state.p1_waiting_for_shark
 	_ring.visible = show_player_guide
+	var show_chevrons := show_player_guide and guide != SoloFlow.GUIDE_EMOTE
+	for chevron: MeshInstance3D in _chevrons:
+		chevron.visible = show_chevrons
 	if not show_player_guide:
-		for chevron: MeshInstance3D in _chevrons:
-			chevron.visible = false
 		return
 	var base_y := StageConstants.FLOOR_TOP_Y + FLOOR_OFFSET
 	var player_x := game_state.player_x
 	var player_z := game_state.player_local_z
 	_ring.position = Vector3(player_x, base_y, player_z)
 	_ring.scale = Vector3.ONE * (1.0 + pulse * 0.08)
+	if not show_chevrons:
+		return
 
 	var yaw := _pending_direction_yaw(model, guide)
 	var direction := Vector3(sin(yaw), 0.0, cos(yaw))
 	for i: int in range(_chevrons.size()):
 		var chevron := _chevrons[i]
-		chevron.visible = true
 		chevron.position = (
 			Vector3(player_x, base_y, player_z) + direction * (1.7 + float(i) * 1.05)
 		)
@@ -238,22 +276,31 @@ func _pending_direction_yaw(model: Dictionary, guide: String) -> float:
 	return 0.0
 
 
-## 正解ドアの枠と、そこへ繋がる床のルートライン。
+## 目標ドアの枠と、そこへ繋がる床のルートライン。
+## 誘導ありの問題は正解ドア（黄）、ハート体験はわざと入る不正解ドア（赤）を示す。
 func _update_door_guide(model: Dictionary, guide: String, pulse: float) -> void:
-	var answer := int(model.get("highlight_answer", -1))
-	var show_door := guide == SoloFlow.GUIDE_GUIDED_DOOR and answer in [0, 1]
+	var target := int(model.get("target_door", -1))
+	var wrong_door := guide == SoloFlow.GUIDE_WRONG_DOOR
+	var show_door := (
+		guide in [SoloFlow.GUIDE_GUIDED_DOOR, SoloFlow.GUIDE_WRONG_DOOR]
+		and target >= 0
+		and game_state.current_quiz != null
+		and game_state.p1_alive
+	)
 	_door_frame.visible = show_door
 	if not show_door:
 		for dash: MeshInstance3D in _route_dashes:
 			dash.visible = false
 		return
-	var door_x: float = (
-		game_state.tuning.left_door_x if answer == 0 else game_state.tuning.right_door_x
-	)
+	var color := EDGE_COLOR if wrong_door else ACCENT
+	_tint(_door_frame_material, color)
+	_tint(_route_material, color)
+	var door_x := _door_x(target)
 	var wall_local_z := game_state.wall_z - game_state.world_scroll_z
 	var base_y := StageConstants.FLOOR_TOP_Y + FLOOR_OFFSET
 	_door_frame.position = Vector3(door_x, StageConstants.FLOOR_TOP_Y, wall_local_z - 0.5)
-	_door_frame.scale = Vector3.ONE * (1.0 + pulse * 0.04)
+	var width_scale := _door_half_width() / DOOR_FRAME_HALF_WIDTH
+	_door_frame.scale = Vector3(width_scale, 1.0, 1.0) * (1.0 + pulse * 0.04)
 
 	var start := Vector3(game_state.player_x, base_y, game_state.player_local_z + 0.6)
 	var end := Vector3(door_x, base_y, wall_local_z - 0.6)
@@ -286,6 +333,7 @@ func _update_goal_guide(guide: String, pulse: float) -> void:
 
 func _update_label(model: Dictionary, guide: String) -> void:
 	var base_y := StageConstants.FLOOR_TOP_Y
+	_label.pixel_size = LABEL_PIXEL_SIZE
 	match guide:
 		SoloFlow.GUIDE_OCEAN:
 			var side := 1.0 if game_state.player_x >= 0.0 else -1.0
@@ -296,13 +344,16 @@ func _update_label(model: Dictionary, guide: String) -> void:
 				base_y + 2.6,
 				game_state.player_local_z + 2.0
 			)
-		SoloFlow.GUIDE_GUIDED_DOOR:
-			if int(model.get("highlight_answer", -1)) not in [0, 1]:
+		SoloFlow.GUIDE_GUIDED_DOOR, SoloFlow.GUIDE_WRONG_DOOR:
+			if not _door_frame.visible:
 				_label.visible = false
 				return
-			_label.text = "正解ドア"
-			_label.modulate = ACCENT
-			_label.position = _door_frame.position + Vector3(0.0, 4.6, 0.0)
+			var wrong_door := guide == SoloFlow.GUIDE_WRONG_DOOR
+			_label.text = "わざと不正解へ" if wrong_door else "正解ドア"
+			_label.modulate = EDGE_COLOR if wrong_door else ACCENT
+			_label.position = _door_frame.position + Vector3(0.0, 4.7, 0.0)
+			# 壁は遠くから近づくので、ドアの上の札は大きめの文字にする。
+			_label.pixel_size = DOOR_LABEL_PIXEL_SIZE
 		SoloFlow.GUIDE_GOAL:
 			_label.text = "GOAL"
 			_label.modulate = GOAL_COLOR
@@ -311,6 +362,16 @@ func _update_label(model: Dictionary, guide: String) -> void:
 			_label.visible = false
 			return
 	_label.visible = true
+
+
+func _door_x(door: int) -> float:
+	if game_state.num_choices == 4:
+		return float(game_state.tuning.door4_xs[clampi(door, 0, 3)])
+	return game_state.tuning.left_door_x if door == 0 else game_state.tuning.right_door_x
+
+
+func _door_half_width() -> float:
+	return game_state.tuning.door4_half_width if game_state.num_choices == 4 else DOOR_FRAME_HALF_WIDTH
 
 
 func _first_pending_task(model: Dictionary) -> String:

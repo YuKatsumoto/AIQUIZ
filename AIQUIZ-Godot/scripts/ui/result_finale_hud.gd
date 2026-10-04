@@ -234,12 +234,12 @@ func _load_frames(folder: String, count: int) -> Array[Texture2D]:
 	return frames
 
 
-## The sudden death owns the screen from just before the iris opens until the
-## verdict replays after the return (SuddenDeathHud draws in between).
+## The sudden death owns the screen from the scoreboard's "SUDDEN DEATH!" until the
+## verdict replays after the return (no 2D text over the board; SuddenDeathHud draws underground).
 func _hidden_by_sudden_death() -> bool:
 	if game_state.result_return_hold:
 		return true
-	return game_state.sudden_death_pending and game_state.result_ceremony_elapsed >= QuizGameState.SUDDEN_DEATH_IRIS_TIME - 0.2
+	return game_state.sudden_death_pending and game_state.result_ceremony_elapsed >= GoalStandScoreboard.SUDDEN_DEATH_CUTIN
 
 
 func set_suppressed(suppressed: bool) -> void:

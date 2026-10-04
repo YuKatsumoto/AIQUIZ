@@ -31,8 +31,9 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import aqs_geom as AG  # noqa: E402
 import aqs_review as RV  # noqa: E402
+import aqs_wear as WR  # noqa: E402
 from aqs_backdrop import city, far_sea, island, sailboat  # noqa: E402
-from aqs_common import (ASSET, BG, BLEND, DECK_Y, DO_RENDER, EVIDENCE, GG, GOAL_STAND_OFFSET, GOAL_Z, GS, LH, ONLY,  # noqa: E402
+from aqs_common import (ASSET, BG, BLEND, DECK_Y, DO_RENDER, DO_WEAR, EVIDENCE, GG, GOAL_STAND_OFFSET, GOAL_Z, GS, LH, ONLY,  # noqa: E402
                         OCEAN_CENTER_Z, OCEAN_HALF, PREVIEW, ROOT, SEA_Y, SR, SRC, ST, TEX, bearing_pos, facing_yaw, g2b,
                         in_ocean)
 from aqs_parts import build_goal_gate, build_goal_stand, build_lighthouse, build_stand_block  # noqa: E402
@@ -86,7 +87,7 @@ def export_glb(objs, path):
         o.hide_set(False)
         o.select_set(True)
     bpy.context.view_layer.objects.active = objs[0]
-    bpy.ops.export_scene.gltf(filepath=str(path), export_format="GLB", use_selection=True, export_apply=True,
+    bpy.ops.export_scene.gltf(filepath=str(path), export_format="GLB", use_selection=True, use_active_scene=True, export_apply=True,
                               export_yup=True, export_animations=False, export_cameras=False, export_lights=False,
                               export_extras=False, export_vertex_color="ACTIVE",
                               export_active_vertex_color_when_no_material=True, export_image_format="AUTO")
@@ -132,7 +133,7 @@ def build_all():
     t0 = time.time()
     scene = reset()
     mats = make_materials()
-    report = {"version": 2, "modules": {}, "exports": [], "checks": []}
+    report = {"version": 2, "modules": {}, "exports": [], "checks": [], "wear": {}}
     parts = {}
 
     # 1 スタンドのブロック（帆なし）
@@ -142,6 +143,8 @@ def build_all():
         mesh, seats, own_aisle = build_stand_block(kind)
         o = AG.create_object(name, mesh, mats, coll)
         weld(o)
+        if DO_WEAR:
+            report["wear"][name] = WR.bake_wear(o, SEA_Y, WR.STAND_TILES[kind])        # 水面は局所座標の −9.2（ブロックの原点は Godot の Y=0）
         stand_objs[kind] = o
         st = mesh_stats(o)
         blocks[kind] = {"node": name, "seats": seats, "aisle_z": [-10.0] if own_aisle else [], "triangles": st["triangles"]}
@@ -161,6 +164,9 @@ def build_all():
     coll = AG.collection("AQS_EXPORT_GoalGate")
     o = AG.create_object("AQS_GoalGate", build_goal_gate(), mats, coll)
     weld(o)
+    if DO_WEAR:
+        # 原点は床の上面（Godot の Y=-1.2）なので、水面は局所座標の SEA_Y − DECK_Y
+        report["wear"][o.name] = WR.bake_wear(o, SEA_Y - DECK_Y)
     parts["gate"] = o
     report["modules"][o.name] = mesh_stats(o)
 
@@ -172,6 +178,10 @@ def build_all():
     for o in (o1, o2):
         weld(o)
         report["modules"][o.name] = mesh_stats(o)
+    if DO_WEAR:
+        # スタンド本体と電光掲示板は同じ局所座標（原点は床の上面）。互いの影を落とす
+        report["wear"][o1.name] = WR.bake_wear(o1, SEA_Y - DECK_Y, extra=(o2,))
+        report["wear"][o2.name] = WR.bake_wear(o2, SEA_Y - DECK_Y, extra=(o1,))
     parts["goal_stand"] = [o1, o2]
 
     # 5 遠景（灯台・島・街・ヨット）：ワールドの位置に置いて書き出す

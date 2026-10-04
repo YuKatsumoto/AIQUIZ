@@ -91,6 +91,12 @@ func prepare_operator_arrival() -> void:
 func operator_arriving() -> bool:
 	return operator_seat != null and operator_seat.seat_transfer.is_arriving()
 
+## Load the carriage ahead of a mid-round appearance (the 2P tutorial's saw lesson)
+## so the first visible frame does not stall on the GLB.
+func preload_model() -> void:
+	if model == null:
+		_load_model()
+
 func _load_model() -> void:
 	model = (load(MODEL_PATH) as PackedScene).instantiate()
 	model.rotation.y = PI # Blender +Y exports toward Godot -Z.
@@ -121,11 +127,9 @@ func _load_model() -> void:
 				cylinder.bottom_radius = 0.11
 				cylinder.height = 1.0
 				post.mesh = cylinder
-				var steel := StandardMaterial3D.new()
-				steel.albedo_color = Color(0.32, 0.36, 0.40)
-				steel.metallic = 0.85
-				steel.roughness = 0.28
-				post.material_override = steel
+				# Polished steel with the stage's steel relief; one material shared by every spindle.
+				post.material_override = preload("res://scripts/world/wall_materials.gd").spindle_steel(
+					Color(0.32, 0.36, 0.40), 0.85, 0.28)
 				add_child(post)
 				lift_posts.append(post)
 	_setup_stow()

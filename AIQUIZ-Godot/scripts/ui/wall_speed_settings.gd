@@ -30,6 +30,7 @@ var _preview_speed: float = GameTuning.WALL_SPEED_AUTO_DEFAULT
 const WALL_SPACING := 30.0
 const WALL_START_Z := 22.0
 const CONVEYOR_FLOOR_SHADER: Shader = preload("res://shaders/conveyor_belt_floor.gdshader")
+const StageMaterialsScript = preload("res://scripts/world/stage_materials.gd")
 
 # --- Preview Player ---
 const PLAYER_CONTROLLER_SCRIPT: Script = preload("res://scripts/world/player_controller.gd")
@@ -513,6 +514,7 @@ func _build_3d_preview() -> void:
 	_preview_floor_material.shader = CONVEYOR_FLOOR_SHADER
 	_preview_floor_material.set_shader_parameter("scroll_z", 0.0)
 	_preview_floor_material.set_shader_parameter("scroll_sign", -1.0)
+	StageMaterialsScript.belt_detail(_preview_floor_material, GameManager.graphics_quality)
 	_preview_floor.material_override = _preview_floor_material
 	# 床の端（崖）がちょうどZ=8になるように位置を調整（size.z=144なので、-64 + 72 = 8）
 	_preview_floor.position = Vector3(0, -9.2, -64.0)
@@ -613,7 +615,8 @@ func _setup_conveyor_extras() -> void:
 	_conveyor_roller_front_material.set_shader_parameter("groove_strength", 0.12)
 	_conveyor_roller_front_material.set_shader_parameter("roughness_val", 0.72)
 	_conveyor_roller_front_material.set_shader_parameter("metallic_val", 0.16)
-	
+	StageMaterialsScript.belt_detail(_conveyor_roller_front_material, GameManager.graphics_quality)
+
 	var roller_front := MeshInstance3D.new()
 	roller_front.mesh = roller_mesh
 	roller_front.material_override = _conveyor_roller_front_material
@@ -643,6 +646,7 @@ func _setup_conveyor_extras() -> void:
 	_conveyor_return_material.set_shader_parameter("base_color", CONVEYOR_BELT_BASE_COLOR)
 	_conveyor_return_material.set_shader_parameter("stripe_color", CONVEYOR_BELT_STRIPE_COLOR)
 	_conveyor_return_material.set_shader_parameter("side_color", CONVEYOR_BELT_SIDE_COLOR)
+	StageMaterialsScript.belt_detail(_conveyor_return_material, GameManager.graphics_quality)
 	return_belt.material_override = _conveyor_return_material
 	return_belt.position = Vector3(0.0, roller_center_y - CONVEYOR_ROLLER_RADIUS, front_z - 4.0)
 	_sub_viewport.add_child(return_belt)

@@ -28,9 +28,9 @@ const SLOW_SPEED := 6.0
 const SLOW_BLEND := 1.0
 const DECEL_TIME := 1.2
 const DECEL_END_SPEED := 2.0
-## 突入：天井の開口から床まで。
+## 突入：天井の開口から床まで（天井の高さは地下ステージの寸法から）。
 const ARRIVAL_TIME := 2.6
-const HALL_HEIGHT := 18.0
+const HALL_HEIGHT := SuddenDeathLayout.HALL_HEIGHT
 ## 準備が終わらないまま、降下開始からこの秒数を超えたら打ち切る。
 const TIMEOUT := 25.0
 const ABORT_STOP_TIME := 1.2

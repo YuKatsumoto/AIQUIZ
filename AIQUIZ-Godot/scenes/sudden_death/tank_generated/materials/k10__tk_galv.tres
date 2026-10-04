@@ -1,0 +1,38 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://shaders/surge_tank/tank_steel.gdshader" id="1_c46ao"]
+[ext_resource type="Texture2D" path="res://assets/environment/surge_tank/textures/galv_albedo.png" id="2_e5580"]
+[ext_resource type="Texture2D" path="res://assets/environment/surge_tank/textures/tank_line_10_light.png" id="3_pexy5"]
+[ext_resource type="Texture2D" path="res://scenes/sudden_death/tank_generated/textures/macro_noise.res" id="4_dsxlf"]
+[ext_resource type="Texture2D" path="res://assets/environment/surge_tank/textures/galv_normal.png" id="5_mhfcs"]
+[ext_resource type="Texture2D" path="res://assets/environment/surge_tank/textures/galv_orm.png" id="6_1ja2n"]
+
+[resource]
+resource_name = "TK_Galv"
+render_priority = 0
+shader = ExtResource("1_c46ao")
+shader_parameter/tank_scale = 2.0
+shader_parameter/ambient_color = null
+shader_parameter/ambient_level = null
+shader_parameter/white_balance = Vector3(0.8826348, 1.0306846, 1.2090058)
+shader_parameter/light_specular_scale = null
+shader_parameter/albedo_tex = ExtResource("2_e5580")
+shader_parameter/normal_tex = ExtResource("5_mhfcs")
+shader_parameter/orm_tex = ExtResource("6_1ja2n")
+shader_parameter/light_tex = ExtResource("3_pexy5")
+shader_parameter/macro_noise = ExtResource("4_dsxlf")
+shader_parameter/albedo_tint = Color(0.68, 0.69, 0.7, 1)
+shader_parameter/uv_metres = 1.0
+shader_parameter/uv_scale = 1.0
+shader_parameter/detail_strength = 0.0
+shader_parameter/normal_strength = null
+shader_parameter/roughness_scale = 0.45
+shader_parameter/roughness_min = null
+shader_parameter/metallic_value = 0.9
+shader_parameter/light_max = 1.392242
+shader_parameter/light_scale = 2.7
+shader_parameter/cavity_strength = null
+shader_parameter/macro_strength = 0.12
+shader_parameter/seepage = 0.0
+shader_parameter/floor_y = -1.2
+shader_parameter/debug_view = null

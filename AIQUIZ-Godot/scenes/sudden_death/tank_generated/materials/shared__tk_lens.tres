@@ -1,0 +1,16 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://shaders/surge_tank/tank_lamp.gdshader" id="1_w5ydb"]
+
+[resource]
+resource_name = "TK_Lens"
+render_priority = 0
+shader = ExtResource("1_w5ydb")
+shader_parameter/tank_scale = 2.0
+shader_parameter/ambient_color = null
+shader_parameter/ambient_level = null
+shader_parameter/white_balance = Vector3(0.8826348, 1.0306846, 1.2090058)
+shader_parameter/light_specular_scale = null
+shader_parameter/lens_color = Color(1, 0.7450428, 0.57000196, 1)
+shader_parameter/energy = 55.0
+shader_parameter/off_level = null

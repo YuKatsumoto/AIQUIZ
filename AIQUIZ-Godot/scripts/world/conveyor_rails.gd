@@ -3,49 +3,55 @@ extends Node3D
 class_name ConveyorRails
 
 ## Shared, non-colliding running rails for every conveyor presentation.
+const StageMaterialsScript = preload("res://scripts/world/stage_materials.gd")
 const CENTER_X := 11.86
 const TOP_HEIGHT := 0.26
 var left_head: MeshInstance3D
 var right_head: MeshInstance3D
 var _long_parts: Array[MeshInstance3D] = []
 var _caps: Array[MeshInstance3D] = []
+## Galvanised head and web / painted mounting base and end caps (StageMaterials).
+var _head_parts: Array[MeshInstance3D] = []
+var _support_parts: Array[MeshInstance3D] = []
 var _center := INF
 var _length := -1.0
 var _floor_y := 0.0
 
 func build(center_z: float, length: float, floor_y: float) -> void:
-	var steel := StandardMaterial3D.new()
-	steel.albedo_color = Color(0.64, 0.68, 0.71)
-	steel.metallic = 0.8
-	steel.roughness = 0.32
-	var support := StandardMaterial3D.new()
-	support.albedo_color = Color(0.16, 0.18, 0.21)
-	support.metallic = 0.55
-	support.roughness = 0.5
 	for side in [-1, 1]:
 		var prefix := "Left" if side < 0 else "Right"
 		var x: float = CENTER_X * side
-		var head := _part(prefix + "RunningHead", Vector3(0.16, 0.04, 1.0), Vector3(x, 0.24, 0.0), steel)
+		var head := _part(prefix + "RunningHead", Vector3(0.16, 0.04, 1.0), Vector3(x, 0.24, 0.0), _head_parts)
 		if side < 0: left_head = head
 		else: right_head = head
 		_long_parts.append(head)
-		_long_parts.append(_part(prefix + "Web", Vector3(0.06, 0.12, 1.0), Vector3(x, 0.16, 0.0), steel))
-		_long_parts.append(_part(prefix + "MountingBase", Vector3(0.24, 0.06, 1.0), Vector3(x, 0.07, 0.0), support))
+		_long_parts.append(_part(prefix + "Web", Vector3(0.06, 0.12, 1.0), Vector3(x, 0.16, 0.0), _head_parts))
+		_long_parts.append(_part(prefix + "MountingBase", Vector3(0.24, 0.06, 1.0), Vector3(x, 0.07, 0.0), _support_parts))
 		for end in [-1, 1]:
-			var cap := _part(prefix + "EndCap" + str(end), Vector3(0.24, 0.1, 0.08), Vector3(x, 0.09, 0.0), support)
+			var cap := _part(prefix + "EndCap" + str(end), Vector3(0.24, 0.1, 0.08), Vector3(x, 0.09, 0.0), _support_parts)
 			cap.set_meta("end", end)
 			_caps.append(cap)
+	apply_graphics_quality(StageMaterialsScript.current_quality())
 	set_geometry(center_z, length, floor_y)
 
-func _part(part_name: String, size: Vector3, at: Vector3, material: Material) -> MeshInstance3D:
+## Steel materials for `q` (StageEnvironment calls this again when the graphics quality changes).
+func apply_graphics_quality(q: String) -> void:
+	var head_material: Material = StageMaterialsScript.rail_head(q)
+	var support_material: Material = StageMaterialsScript.rail_support(q)
+	for part in _head_parts:
+		part.material_override = head_material
+	for part in _support_parts:
+		part.material_override = support_material
+
+func _part(part_name: String, size: Vector3, at: Vector3, group: Array[MeshInstance3D]) -> MeshInstance3D:
 	var part := MeshInstance3D.new()
 	part.name = part_name
 	var box := BoxMesh.new()
 	box.size = size
 	part.mesh = box
-	part.material_override = material
 	part.position = at
 	add_child(part)
+	group.append(part)
 	return part
 
 func set_geometry(center_z: float, length: float, floor_y: float) -> void:

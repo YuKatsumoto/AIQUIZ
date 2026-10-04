@@ -150,9 +150,25 @@ func _build_poses(presentation_id: String) -> Array[Dictionary]:
 		"goal_sweep":
 			result.append(_pose(center + Vector3(0.0, 5.0, -8.0), Vector3(0.0, 1.2, goal_local_z), 55.0))
 		"wall_reveal":
-			# 前方の壁へ寄って2枚のドアを見せてから、通常視点へ戻す。
-			result.append(_pose(Vector3(0.0, 5.4, wall_z - 11.0), Vector3(0.0, 2.2, wall_z), 58.0))
-			result.append(_pose(Vector3(0.0, 3.6, wall_z - 6.5), Vector3(0.0, 1.9, wall_z), 52.0))
+			if game_state.num_choices == 4:
+				# 4択のボス壁は横に広いので、引いた位置から4枚のドアをまとめて見せる。
+				var wide := _pose(Vector3(0.0, 6.4, wall_z - 13.5), Vector3(0.0, 1.9, wall_z), 60.0)
+				result.append(wide)
+				result.append(wide)
+			else:
+				# 前方の壁へ寄って2枚のドアを見せてから、通常視点へ戻す。
+				result.append(_pose(Vector3(0.0, 5.4, wall_z - 11.0), Vector3(0.0, 2.2, wall_z), 58.0))
+				result.append(_pose(Vector3(0.0, 3.6, wall_z - 6.5), Vector3(0.0, 1.9, wall_z), 52.0))
+		"saw_reveal":
+			# 2人の前から振り返り、背後に迫る回転のこぎりを見せてから通常視点へ戻す。
+			var saw_z: float = game_state.saw.local_z
+			var look_back := _pose(
+				Vector3(center.x * 0.3, 5.2, center.z + 8.5),
+				Vector3(0.0, 0.0, saw_z + 1.0),
+				56.0
+			)
+			result.append(look_back)
+			result.append(look_back)
 		"solo_stage_complete", "duo_stage_complete":
 			# 完了カードが画面を覆うので、カメラは通常視点で保持する。
 			# ここで動かすとカード越しの背景だけが動いて落ち着かない。
