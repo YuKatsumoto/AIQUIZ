@@ -1,7 +1,8 @@
 class_name ResultFinaleReferee
 extends RefCounted
 
-## The Godot plush referee with a checkered flag in each hand (referee_finale.glb).
+## The mascot referee (ハテナ, put on by MascotDresser) with a checkered flag in each
+## hand (referee_finale.glb).
 ## Animations "FinaleWin" (winner on his right, P1's lane), "FinaleWinP2" (winner on
 ## his left) and "FinaleDraw" are baked in Blender and share every key before the
 ## verdict, so his pose never tells the result early; at the verdict the winner's
@@ -18,6 +19,7 @@ const IDLE_LOOP := 1.2  # sway keys at 0 / 0.6 / 1.2 s form a seamless cycle
 static func create(parent: Node3D, node_name: String) -> Dictionary:
 	var root := SCENE.instantiate() as Node3D
 	root.name = node_name
+	MascotDresser.dress(root)
 	parent.add_child(root)
 	var player := root.find_child("AnimationPlayer", true, false) as AnimationPlayer
 	if player != null:

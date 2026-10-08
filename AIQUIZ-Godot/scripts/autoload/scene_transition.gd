@@ -267,6 +267,7 @@ func reveal_current(fade_color: Color = Color.BLACK) -> void:
 func _reveal_current_now(fade_color: Color) -> void:
 	match _active_style:
 		"modular":
+			AudioManager.play_sfx(&"ui_wipe_out")
 			_reveal_modular()
 		"doors":
 			_reveal_doors()
@@ -380,6 +381,7 @@ func fade_in_current(fade_color: Color = Color.BLACK) -> void:
 	reveal_current(fade_color)
 
 func _prepare_modular_cover(fade_color: Color = Color.BLACK) -> void:
+	AudioManager.play_sfx(&"ui_wipe_in")
 	_overlay.color.a = 0.0
 	_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_modular_rect.base_color = fade_color

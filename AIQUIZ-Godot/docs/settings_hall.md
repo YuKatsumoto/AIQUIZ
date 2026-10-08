@@ -1,5 +1,9 @@
 # 設定画面「地下神殿の講義室」
 
+> **2026-10-05: 使っていない。** メインメニューの「設定 / API状態」は、以前のメニュー内パネル（`ui/main_menu.tscn` の `SettingsPanel`、`scripts/ui/main_menu.gd` の `# --- Settings ---`）に戻した。
+> サドンデスの行は `QuizGameState.sudden_death_available` の時だけ出す。このシーンと講義室・実習場のスクリプトや資産はそのまま残してあり、単体（`ui/settings_hall.tscn` を直接実行、`tests/lecture_director_capture.gd`）では今も動く。
+> 戻すときは `main_menu.gd` の `_on_settings_btn_pressed()` を `_go_to_settings_hall()`（コミット `5e03ce7` の版）に、`menu_wall_background_preview.gd` に `begin_settings_dive()` を戻す。以下は使っていた時の説明。
+
 メインメニューの「設定 / API状態」は、メニュー内のパネルではなく専用シーン `ui/settings_hall.tscn` へ移動する。
 Godot 4.7 リリースページのヒーロー（右に斜め俯瞰の 3D セット、左に見出しと操作）の構図で、
 サドンデス用に作った地下神殿（首都圏外郭放水路の調圧水槽、`docs/surge_tank_reproduction.md`）の中に
@@ -29,7 +33,13 @@ Godot 4.7 リリースページのヒーロー（右に斜め俯瞰の 3D セッ
 | `assets/settings_hall/*.glb` | `lecture_set_props.glb`（小道具一式）、`godotkun_lecturer / student_notes / student_hand / student_doze / trainee.glb`（各 1 体＝ぬいぐるみ＋小道具のメッシュ、ループ 1 本: Teach 12 秒 / TakeNotes 8 秒 / RaiseHand 10 秒 / Doze 9 秒 / Practice 5 秒）。読み込み時にぬいぐるみのテクスチャが `godotkun_*_GK_PlushAlbedo.png` として隣に取り出される |
 | `assets/settings_hall/source/blender/` | ビルダー `build_lecture_set.py`（`lsb_common` / `lsb_godotkun` / `lsb_props` / `lsb_anim`）、`SCENE_PASSPORT.md`、書き出した編集用 `lecture_set.blend`。ユーザーのライブ Blender（Higgsfield 連携の `bl_execute`）で `runpy.run_path(...)` して GLB を書き出す。確認レンダーは `source/previews/` |
 | `scripts/world/settings_hall/practice_yard.gd` | 実習場（下の節）。本編の台車・操作盤・レールを実寸で置き、操作実習のループを時計から計算して回す |
-| `scripts/ui/settings_hall_panel.gd` | 左カラムの UI。3D 無しで単体に作れる（テストが使う）。「実習場を見る」は `view_toggled(practice)` で進行役へ |
+| `scripts/ui/settings_hall_panel.gd` | 左カラムの UI。3D 無しで単体に作れる（テストが使う）。「実習場を見る」は `view_toggled(practice)` で進行役へ。効果音の試し鳴らしは `sfx_tested` |
+| `scripts/world/settings_hall/lecture_director.gd` | 講義室の授業の進行役（下の節）。小道具と人物の GLB がそろうと `LectureSet` が作る |
+| `scripts/world/settings_hall/plush_actor.gd` | ゴドーくん 1 体: クリップのつなぎ、歩き・横歩き、両手の IK（TwoBoneIK3D + LookAtModifier3D）、体ごと向く、まばたき（目のテクスチャの差し替え）、揺れもの、伸縮式の指し棒、足音 |
+| `scripts/world/settings_hall/chalk_canvas.gd` / `glyph_book.gd` | 黒板の絵（チョーク・消し・濡れ拭き・前回の板書）と、字の線データ `assets/settings_hall/glyph_strokes.json`（`tools/settings_hall/glyph_strokes.py`） |
+| `scripts/world/settings_hall/lesson_builder.gd` / `lessons/lesson_03.json` | 講義の時間割（開くたびに次の講義）と台本。教科の授業は `offline_bank.json` から出題 |
+| `scripts/world/settings_hall/yard_director.gd` | 実習場の人物（教官・次の操縦者・見学 2 人）と周ごとの出来事 |
+| `assets/audio/sfx/lecture/*.wav` | 講義室の効果音（`tools/settings_hall/lecture_sounds.py` で合成） |
 
 設定項目は旧パネルからそのまま引き継ぐ: API 状態（インターネット / AI Gateway / Firebase / オフライン問題数）と再チェック、
 BGM・効果音（効果音はスライダーを離すと試し音）、解像度、画質、サドンデス（`QuizGameState.sudden_death_available` の時だけ）、
@@ -38,6 +48,23 @@ BGM・効果音（効果音はスライダーを離すと試し音）、解像�
 
 黒板の下 4 行と教壇横のランプは API の状態に連動する（緑 = 接続OK、黄の明滅 = チェック中、赤 = 失敗。
 「自習プリント」はオフライン問題数）。
+
+## 授業（進行役）
+
+先生は本当に黒板に書いて消す。台本の段（write / circle / erase / ask / gag / event …）を上から流し、先生は黒板の前を
+歩いて半身に構え、右手の IK で字の線（Noto Sans JP の細線化、記号は手書きの書き順）をなぞり、`ChalkCanvas` に線が
+積もる。チョークはチョーク受けの実物を取って持ち替え（本数も変わる）、黒板消しで縦のジグザグに拭き（消し跡が残る、
+粉がトレイに積もる）、濡れ雑巾で拭くと暗く光って乾く。高いところは背伸び・ジャンプ・踏み台・指し棒にテープ・肩車、
+上下スライド黒板も動く。生徒は合図（cue）で写す・見る・手を挙げる・居眠りし、漫符（！？怒り・汗・…・♪・電球）が出る。
+
+- 開くたびに講義が進む（`user://lecture_visits.json`）: 連結チップソー → 算数 → 理科 → 国語（縦書き）→ 社会 → 英語 → 小テスト →
+  連結チップソー → 期末テスト → 卒業式。前回の下の黒板は `user://lecture_board_F.png` から薄く残る。
+- 時間帯（`_pick_day_mode`）: 平日 12 時台は給食、16〜20 時台は放課後の掃除、21〜5 時台は夜（先生がひとり電気スタンドで採点）、
+  土日は居眠りの生徒だけの補習。どの場面のあとも授業が始まる。照明が点く前に読み込めたときは「遊ぶ → 固まる → 席へ」から。
+- 設定画面との連動: 効果音の試し鳴らしで振り向く、BGM の音量で居眠りが深く・浅くなる、画質の変更で先生の眼鏡が光る、
+  戻ると全員が手を振る（0.9 秒）、人物をクリックすると反応する、5 分で採点・10 分で先生も居眠り。
+- 確認: `tests/lecture_director_capture.gd`（`jump=周:段`、`cam=`、`mode=`、`visit=`、`date=MM-DD`、`view=practice yard_cycle=N`、
+  `calls=秒:メソッド`、`trace=1`、`canvas=1`）。環境変数 `AIQUIZ_LECTURE_MODE` / `AIQUIZ_LECTURE_VISIT` / `AIQUIZ_LECTURE_DATE` で決め打ち。
 
 ## 画面
 

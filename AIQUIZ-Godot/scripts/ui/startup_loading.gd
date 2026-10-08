@@ -178,7 +178,7 @@ func _run() -> void:
 			paths.append(path)
 	paths.append_array([
 		"res://assets/vehicles/helicopter/helicopter_drop.glb",
-		"res://assets/characters/godot_plush/godot_plush_model.glb",
+		"res://assets/characters/aiquiz_mascot/mascot_model.glb",
 		"res://scripts/world/startup_visual_warmup.gd",
 	])
 	for index: int in range(paths.size()):

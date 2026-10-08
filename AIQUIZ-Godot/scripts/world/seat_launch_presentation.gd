@@ -8,6 +8,8 @@ const HarnessScript := preload("res://scripts/world/seat_launch_harness.gd")
 const HANDOFF := &"chair_transfer_pending"
 const BELT_SECONDS := 2.6
 const LATCH_TIME := 1.95
+## Belts shoot out of the top reels (seat_belt_rope.gd).
+const BELT_SHOOT_TIME := 0.30
 const LAND_SECONDS := 1.8
 const SETTLE_SECONDS := 0.3
 const RELEASE_SECONDS := 1.0
@@ -34,6 +36,7 @@ var _click: AudioStreamPlayer3D
 var _jet: AudioStreamPlayer3D
 var _base_sample: Dictionary = {}
 var _clicked := false
+var _belts_whipped := false
 
 static func eligible(gs: QuizGameState, online: bool = false) -> bool:
 	# The transport flag is initialized by GameWorld, after the menu departure.
@@ -96,6 +99,19 @@ func setup(seat: Node3D) -> void:
 	_set_belt(0.0)
 	set_process(false)
 
+## One-shot positional cue at the chair (belt whip, touchdown thump).
+func _play_kit_sfx(cue: StringName) -> void:
+	var player := AudioStreamPlayer3D.new()
+	player.bus = "SFX"
+	player.stream = AudioManager.get_sfx_stream(cue)
+	player.volume_db = AudioManager.get_sfx_volume_db(cue)
+	player.unit_size = 14.0
+	kit.add_child(player)
+	player.position = Vector3(0.0, 1.3, 0.0)
+	player.finished.connect(player.queue_free)
+	player.play()
+
+
 func owns_pose() -> bool:
 	return phase != Phase.IDLE
 
@@ -111,6 +127,7 @@ func begin_buckle() -> void:
 	phase = Phase.BUCKLING
 	elapsed = 0.0
 	_clicked = false
+	_belts_whipped = false
 	latch_count = 0
 	flight_root.visible = true
 	set_process(true)
@@ -166,6 +183,7 @@ func advance_arrival(dt: float, socket_ready: bool, skip: bool = false) -> void:
 		_jet.stop()
 		_click.pitch_scale = .70
 		_click.play()
+		_play_kit_sfx(&"chair_touchdown")
 	if phase == Phase.SETTLING and elapsed >= SETTLE_SECONDS:
 		elapsed -= SETTLE_SECONDS
 		phase = Phase.UNBUCKLING
@@ -195,6 +213,7 @@ func reset() -> void:
 	elapsed = 0.0
 	height = 0.0
 	_clicked = false
+	_belts_whipped = false
 	flight_root.transform = flight_rest
 	flight_root.visible = true
 	_set_belt(0.0)
@@ -211,6 +230,9 @@ func advance_departure(dt: float) -> void:
 	if phase not in [Phase.BUCKLING, Phase.ARMED, Phase.LAUNCHING]: return
 	elapsed += maxf(dt, 0.0)
 	if phase == Phase.BUCKLING:
+		if elapsed >= BELT_SHOOT_TIME and not _belts_whipped:
+			_belts_whipped = true
+			_play_kit_sfx(&"belt_zip")
 		if elapsed >= LATCH_TIME and not _clicked:
 			_clicked = true
 			latch_count += 1

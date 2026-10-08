@@ -93,6 +93,7 @@ func _ready() -> void:
 	position = MOUNT
 	rotation.y = FACING_YAW
 	skeleton = station.find_child("Skeleton3D", true, false) as Skeleton3D
+	MascotDresser.dress(station)
 	for item: Node in station.find_children("OP_*", "Node3D", true, false):
 		if item is MeshInstance3D: continue
 		controls[str(item.name)] = item

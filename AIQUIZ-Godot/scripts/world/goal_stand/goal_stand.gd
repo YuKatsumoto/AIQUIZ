@@ -39,7 +39,6 @@ const FULL_RATE_DISTANCE := 70.0
 const NEAR_STEP := 1.0 / 30.0
 const FAR_STEP := 1.0 / 10.0
 const ANIM_GROUPS := 3
-const EGG_BUDGET := 18
 const EGG_SPEED := 19.0
 const MISS_CHANCE := 0.25
 const P1_COLOR := Color(0.95, 0.55, 0.20)
@@ -101,7 +100,8 @@ class Spectator:
 	var anger_sent := -1.0
 	var yaw := 0.0
 	var hand_bone := -1
-	var throws_left := 0
+	## A hothead pelting the loser (or the referee): throws until the verdict ends.
+	var throwing := false
 	var throw_started := -1.0
 	var released := false
 	var next_throw := 0.0
@@ -130,7 +130,6 @@ var _mood := {"key": "idle"}
 var _burst_team := 0
 var _burst_until := -1.0
 var _last_mask := 0
-var _egg_budget := EGG_BUDGET
 var _cues := {}
 var _update_usec := 0.0
 ## The crowd already started over for the verdict that came back from the sudden death.
@@ -709,7 +708,7 @@ func _react(s: Spectator, mood: Dictionary, target: Node3D) -> void:
 		_play(s, s.queued, 0.3)
 		s.queued = &""
 		s.next_change = _clock + _vary_after(s)
-	if s.kind == Kind.HOTHEAD and s.throws_left > 0 and is_instance_valid(target):
+	if s.kind == Kind.HOTHEAD and s.throwing and is_instance_valid(target):
 		_update_thrower(s, target)
 	elif s.queued == &"" and _clock >= s.next_change and s.throw_started < 0.0:
 		_play(s, _choose(s, key), 0.35)
@@ -780,7 +779,7 @@ func _on_verdict(s: Spectator, winner: int, eggs: bool) -> void:
 		_set_visible(s, "GSP_SignBoo", true)
 		_set_visible(s, "GSP_SignStickBoo", true)
 	if s.kind == Kind.HOTHEAD and (lost or winner == 0) and eggs:
-		s.throws_left = 3 if winner != 0 else 2
+		s.throwing = true
 		s.next_throw = _clock + _rng.randf_range(0.5, 1.6)
 
 
@@ -789,14 +788,14 @@ func _on_verdict(s: Spectator, winner: int, eggs: bool) -> void:
 func _arm_waiting_throwers(armed: bool) -> void:
 	if armed and not _target_armed:
 		for s: Spectator in spectators:
-			if s.kind == Kind.HOTHEAD and s.throws_left > 0 and s.throw_started < 0.0:
+			if s.kind == Kind.HOTHEAD and s.throwing and s.throw_started < 0.0:
 				s.next_throw = maxf(s.next_throw, _clock + _rng.randf_range(0.4, 1.3))
 	_target_armed = armed
 
 
 ## Back from the sudden death the verdict is out again, now with a winner
 ## (docs/sudden_death_underground.md 2.3): the crowd starts over as for a fresh
-## verdict. Boards flip back, the egg budget is restocked and old eggs cleared, the
+## verdict. Boards flip back and old eggs are cleared, the
 ## cheer and boo are cued again, and every spectator reacts to the new verdict.
 func _refresh_after_sudden_death(state: QuizGameState, mood: Dictionary) -> void:
 	if state.sudden_death_winner <= 0:
@@ -821,18 +820,14 @@ func _update_thrower(s: Spectator, target: Node3D) -> void:
 			_launch_egg(s, target)
 		if t >= _clip_length(&"SPEC_Throw") - 0.05:
 			s.throw_started = -1.0
-			s.throws_left -= 1
 			s.next_throw = _clock + _rng.randf_range(0.5, 1.3)
 			_play(s, &"SPEC_Rage", 0.2)
 		return
-	if _clock >= s.next_throw and _egg_budget > 0 and s.queued == &"":
-		_egg_budget -= 1
+	if _clock >= s.next_throw and s.queued == &"":
 		s.throw_started = _clock
 		s.released = false
 		_set_visible(s, "GSP_Egg", true)
 		_play(s, &"SPEC_Throw", 0.0, true)
-	elif _egg_budget <= 0:
-		s.throws_left = 0
 
 
 func _launch_egg(s: Spectator, target: Node3D) -> void:
@@ -847,7 +842,9 @@ func _launch_egg(s: Spectator, target: Node3D) -> void:
 		aim = Vector3(aim.x, StageConstants.FLOOR_TOP_Y, aim.z) + side * _rng.randf_range(0.9, 1.6)
 	var flight := clampf(start.distance_to(aim) / EGG_SPEED, 0.8, 1.5)
 	eggs.launch(start, aim, flight, target, miss)
-	_cue(StringName("egg_throw_%d" % eggs.launched), &"egg_throw", -14.0)
+	# Every throw sounds (not a one-off cue, which would pile up ids for ever).
+	if is_instance_valid(AudioManager) and AudioManager.has_method("play_crowd_cue"):
+		AudioManager.play_crowd_cue(&"egg_throw", -14.0)
 	if eggs.launched == 1:
 		_cue(&"voice_angry", &"voice_angry", -3.0)
 
@@ -855,7 +852,7 @@ func _launch_egg(s: Spectator, target: Node3D) -> void:
 func _face(s: Spectator, focus: Vector3, target: Node3D, delta: float) -> void:
 	var aim := focus
 	var limit := 0.45
-	if s.kind == Kind.HOTHEAD and s.throws_left > 0 and is_instance_valid(target):
+	if s.kind == Kind.HOTHEAD and s.throwing and is_instance_valid(target):
 		aim = target.global_position
 		limit = 1.0
 	var local := _crowd.to_local(aim) - s.root.position
@@ -906,11 +903,11 @@ func _update_sounds(mood: Dictionary, state: QuizGameState, distance: float) -> 
 
 # ------------------------------------------------------------------ inspection
 
-## A new race on the same course: boards flip back, eggs are restocked.
+## A new race on the same course: boards flip back, the eggs are cleared.
 func _reset_reactions() -> void:
 	clear_eggs()
 	for s: Spectator in spectators:
-		s.throws_left = 0
+		s.throwing = false
 		s.throw_started = -1.0
 		_set_visible(s, "GSP_Egg", false)
 		if s.boo_sign:
@@ -923,7 +920,6 @@ func _reset_reactions() -> void:
 
 
 func clear_eggs() -> void:
-	_egg_budget = EGG_BUDGET
 	if eggs != null:
 		eggs.clear()
 

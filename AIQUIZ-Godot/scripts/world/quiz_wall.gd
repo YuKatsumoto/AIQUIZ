@@ -110,8 +110,9 @@ const DOOR4_XS: Array[float] = [-5.8, -1.95, 1.95, 5.8]
 const DOOR3_XS: Array[float] = [-6.2, 0.0, 6.2]
 const DOOR3_HALF_WIDTH: float = 1.6
 
-## 問題の壁はコンベア床端より各側をわずかに内側へ収める。
-const WALL_EDGE_INSET: float = 0.10
+## 壁の横幅は線路に掛からないよう StageConstants.QUIZ_WALL_HALF_WIDTH で決める。
+## 壁の延長線上（壁端より外）は、いまの問題の壁だけワールドボーダー（WallWorldBorder）で塞ぐ。
+var _world_border: WallWorldBorder = null
 
 var _current_num_choices: int = 2
 var _retiring_after_pass: bool = false
@@ -135,7 +136,7 @@ func _build_wall_around_doors(num_choices: int) -> void:
 	wall_parts.clear()
 
 	# Wall dimensions (matching original single box)
-	var total_width: float = StageConstants.FLOOR_WIDTH - WALL_EDGE_INSET * 2.0
+	var total_width: float = StageConstants.QUIZ_WALL_HALF_WIDTH * 2.0
 	var min_x: float = -total_width * 0.5
 	var max_x: float = total_width * 0.5
 	var door_top_y := DOOR_TOP_Y
@@ -501,6 +502,23 @@ func retire_after_player_pass(fade_duration: float = 0.28) -> void:
 	var finish_tween: Tween = create_tween()
 	finish_tween.tween_interval(fade_duration)
 	finish_tween.tween_callback(_mark_retirement_finished)
+
+
+## いまの問題の壁だけ、延長線上にワールドボーダーを立てる（見た目。押し戻しは GameState 側）。
+func set_world_border_active(active: bool) -> void:
+	var show := active and not _retiring_after_pass and not _shattered
+	if show and _world_border == null:
+		_world_border = WallWorldBorder.new()
+		_world_border.name = "WorldBorder"
+		_world_border.build(
+			StageConstants.QUIZ_WALL_HALF_WIDTH,
+			StageConstants.WALL_WORLD_BORDER_OUTER_X,
+			StageConstants.FLOOR_TOP_Y - 0.3,
+			wall_top_y
+		)
+		add_child(_world_border)
+	if _world_border != null:
+		_world_border.visible = show
 
 
 func is_retiring_after_pass() -> bool:

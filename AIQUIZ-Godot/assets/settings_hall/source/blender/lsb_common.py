@@ -26,7 +26,8 @@ COL_PROPS = "LS_Props"
 COL_CAST = "LS_Cast"
 COL_REVIEW = "LS_Review"
 FPS = 24
-OUR_PREFIXES = ("LS_", "PRP_", "HERO_", "RIG_", "GK_", "CAM_Review", "CAM_Cast", "LGT_LS_", "ACT_")
+OUR_PREFIXES = ("LS_", "PRP_", "HERO_", "RIG_", "GK_", "CAM_Review", "CAM_Cast", "LGT_LS_", "ACT_",
+                "LSP_", "LSX_", "LSB_", "LSL_", "LSF_", "FX_")
 
 
 def g2b(x: float, y: float, z: float) -> Vector:
@@ -265,13 +266,15 @@ class MeshBuilder:
         return self._finish(bottom + top, material, group, False, _xform(at, rotation, (1, 1, 1)))
 
     # --- finish
-    def build(self, collection: bpy.types.Collection, bevel: float = 0.0, bevel_segments: int = 2):
+    def build(self, collection: bpy.types.Collection, bevel: float = 0.0, bevel_segments: int = 2,
+              material_map: dict | None = None):
+        """material_map: 部品の材質名 → 材質（実写版の LSP_ 材質）。省くとパレットの単色の材質。"""
         mesh = bpy.data.meshes.new(self.name)
         bmesh.ops.recalc_face_normals(self.bm, faces=self.bm.faces)
         self.bm.to_mesh(mesh)
         self.bm.free()
         for name in self.materials:
-            mesh.materials.append(palette_material(name))
+            mesh.materials.append(material_map[name] if material_map is not None else palette_material(name))
         obj = bpy.data.objects.new(self.name, mesh)
         collection.objects.link(obj)
         if self.groups:
@@ -324,7 +327,8 @@ def fresh_scene() -> bpy.types.Scene:
         bpy.data.scenes.remove(old)
     _MATERIALS.clear()
     for blocks in (bpy.data.objects, bpy.data.meshes, bpy.data.armatures, bpy.data.actions, bpy.data.materials,
-                   bpy.data.cameras, bpy.data.lights, bpy.data.collections, bpy.data.worlds):
+                   bpy.data.cameras, bpy.data.lights, bpy.data.collections, bpy.data.worlds, bpy.data.images,
+                   bpy.data.curves):
         for block in list(blocks):
             if not block.name.startswith(OUR_PREFIXES):
                 continue
@@ -387,11 +391,13 @@ def export_glb(scene: bpy.types.Scene, path: Path, objects, animations: bool) ->
                       export_apply=True, export_yup=True, export_animations=animations,
                       export_animation_mode="NLA_TRACKS", export_frame_range=False, export_frame_step=1,
                       export_bake_animation=False, export_skins=True, export_morph=False, export_lights=False,
-                      export_cameras=False, export_optimize_animation_size=True)
+                      export_cameras=False, export_optimize_animation_size=True, export_tangents=True,
+                      export_image_format="WEBP", export_image_quality=92)
         try:
             bpy.ops.export_scene.gltf(**kwargs)
         except TypeError:
-            for key in ("export_optimize_animation_size", "export_bake_animation", "export_frame_step", "export_yup"):
+            for key in ("export_optimize_animation_size", "export_bake_animation", "export_frame_step", "export_yup",
+                        "export_image_format", "export_image_quality", "export_tangents"):
                 kwargs.pop(key, None)
             bpy.ops.export_scene.gltf(**kwargs)
         for obj in objects:

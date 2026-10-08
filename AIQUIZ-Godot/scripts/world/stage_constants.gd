@@ -21,6 +21,11 @@ const FLOOR_RAIL_HEIGHT: float = 0.26
 const FLOOR_RAIL_WIDTH: float = 0.16
 const FLOOR_RAIL_INSET: float = 0.06
 
+## 問題の壁の半幅。線路（ConveyorRails、中心 x=±11.86・土台幅0.24 → 内縁 ±11.74）に掛からない内側で止める。
+const QUIZ_WALL_HALF_WIDTH: float = 11.5
+## 壁の延長線上に立つワールドボーダーの外端（床端 FLOOR_HALF_WIDTH より少し外まで塞ぐ）。
+const WALL_WORLD_BORDER_OUTER_X: float = 13.0
+
 const CONVEYOR_BELT_BASE_COLOR := Color(0.40, 0.41, 0.42, 1.0)
 const CONVEYOR_BELT_STRIPE_COLOR := Color(0.34, 0.345, 0.35, 1.0)
 const CONVEYOR_BELT_SIDE_COLOR := Color(0.33, 0.34, 0.35, 1.0)

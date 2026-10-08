@@ -1031,7 +1031,10 @@ func _is_mostly_numeric_answer(text: String) -> bool:
 	return compact.is_valid_float() or compact.is_valid_int()
 
 
-func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count: int, history: Array[String], force_ten_mode: bool = false) -> void:
+## slot_units: 単元スロットで決まったラウンドの単元。指定時は各バッチに1単元ずつ割り当て、
+## 生成された問題の genre をその単元名に揃える（ジャンル上限・LRU が単元単位で効く）。
+func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count: int, history: Array[String], force_ten_mode: bool = false,
+		slot_units: PackedStringArray = PackedStringArray()) -> void:
 	if is_rate_limited():
 		print("[OnlineFetch] Skipping fetch — rate limit backoff (%.0fs remaining)" % get_rate_limit_wait_sec())
 		fetch_completed.emit([] as Array[QuizItem])
@@ -1066,6 +1069,9 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 			unique_seen, answer_seen, batch_units, subject, exact_blocklist
 		)
 		generation_stats["accepted"] += unique_items.size()
+		if not slot_units.is_empty() and batch_units.size() == 1:
+			for item in unique_items:
+				item.genre = batch_units[0]
 		# Archive every structurally valid, deduplicated generated candidate before
 		# BufferedQuizProvider decides whether it fits this round's genre/novelty mix.
 		if not unique_items.is_empty() and QuizManager.firebase_quiz_cache != null:
@@ -1123,7 +1129,8 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 				fetch_completed.emit([] as Array[QuizItem])
 		)
 		
-		var batch_units: Array[PackedStringArray] = _allocate_units_to_batches(subject, grade, TEN_PARALLEL, per_batch)
+		var batch_units: Array[PackedStringArray] = _allocate_slot_units_to_batches(slot_units, TEN_PARALLEL) \
+			if not slot_units.is_empty() else _allocate_units_to_batches(subject, grade, TEN_PARALLEL, per_batch)
 		var variation_focuses: Array[String] = [
 			"逆向きに考える問題、誤った考え方を見抜く問題、正しい手順や理由を選ぶ問題を中心にする。",
 			"二段階の日常場面、複数の条件や情報を組み合わせて判断する問題を中心にする。",
@@ -1174,8 +1181,9 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 				fetch_completed.emit([] as Array[QuizItem])
 		)
 		
-		var batch_units: Array[PackedStringArray] = _allocate_units_to_batches(subject, grade, parallel_count, per_call)
-		
+		var batch_units: Array[PackedStringArray] = _allocate_slot_units_to_batches(slot_units, parallel_count) \
+			if not slot_units.is_empty() else _allocate_units_to_batches(subject, grade, parallel_count, per_call)
+
 		var themes: Array[String] = [
 			"既出の計算・用語問題を避け、逆向きの推論、誤り発見、理由選択の形式にする。",
 			"既出の文章題を避け、二段階の日常課題や複数条件から判断する形式にする。",
@@ -1294,8 +1302,52 @@ func _allocate_units_to_batches(subject: String, grade: int, batch_count: int,
 	for i in range(max_assignments):
 		result[i % batch_count].append(all_unit_names[i])
 	print("[OnlineFetch] Allocated %d units across %d batches from CurriculumDB (LRU)" % [all_unit_names.size(), batch_count])
-	
+
 	return result
+
+
+## 単元スロット: 各バッチに1単元ずつ順番に割り当てる（6バッチ×3単元なら各単元2バッチ）。
+## 呼び出し側が不足している単元から順に並べて渡す。
+func _allocate_slot_units_to_batches(slot_units: PackedStringArray, batch_count: int) -> Array[PackedStringArray]:
+	var result: Array[PackedStringArray] = []
+	for i in range(batch_count):
+		result.append(PackedStringArray([slot_units[i % slot_units.size()]]))
+	print("[OnlineFetch] Allocated slot units %s across %d batches" % [str(slot_units), batch_count])
+	return result
+
+
+## 単元スロットの抽選。最近使っていない単元ほど当たりやすい重み付き抽選で、重複なく count 個選ぶ。
+## 単元数が count 以下ならスロットにする意味がないので空を返す。
+func pick_slot_units(subject: String, grade: int, count: int = 3) -> PackedStringArray:
+	var data := CurriculumDB.load_grade(subject, grade)
+	var names: Array[String] = []
+	for unit: Variant in data.get("units", []):
+		if unit is Dictionary and unit.has("name"):
+			names.append(str(unit["name"]))
+	if names.size() <= count:
+		return PackedStringArray()
+	# 未使用同士の同順位をばらしてから、古い順に並べる
+	names.shuffle()
+	names = _sort_units_lru(subject, grade, names)
+	var weights: Array[float] = []
+	for i in range(names.size()):
+		weights.append(pow(float(names.size() - i), 2.0))
+	var picked := PackedStringArray()
+	while picked.size() < count:
+		var total := 0.0
+		for w in weights:
+			total += w
+		var roll := randf() * total
+		var idx := weights.size() - 1
+		for i in range(weights.size()):
+			roll -= weights[i]
+			if roll < 0.0:
+				idx = i
+				break
+		picked.append(names[idx])
+		names.remove_at(idx)
+		weights.remove_at(idx)
+	return picked
 
 
 func _collect_exact_blocklist(subject: String, grade: int, history: Array) -> Dictionary:

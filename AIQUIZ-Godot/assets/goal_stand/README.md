@@ -5,7 +5,7 @@
 激怒して負けたプレイヤーに卵を投げつける（引き分けなら審判に）。パーティ客はゲームのエモートをランダムに踊る。
 
 制作は Higgsfield 主体：Blender は Higgsfield コネクタ経由で組み立て・リグ・アニメーション・書き出しまで行い、
-看板・プラカードの画像と観客の掛け声は Higgsfield の生成モデルで作った。卵の中身（黄身・白身）は Blender で作った3Dメッシュ。
+看板・プラカードの画像と観客の掛け声は Higgsfield の生成モデルで作った。
 
 ## 配置と挙動
 
@@ -23,7 +23,7 @@
   | 誰かがゴール | そのプレイヤーのファンが歓声ジャンプ、他は拍手（2.8秒）＋歓声 |
   | 演出 0–4.1秒 | 拍手と旗・プラカード。4.1秒〜判定までは息をのむ（祈り・腕組み） |
   | 判定（6.9秒〜） | 勝者側：歓声・指さして笑う・旗振り。敗者側：頭を抱える・首振り・横並びのプラカードが「OH MY GOT」。歓声とブーイング |
-  | 卵 | 敗者側ホットヘッドが激怒（顔が赤くなる）→投球を繰り返す。1人3個・全体18個まで、25%は床に外れる。中身は当たった体に貼り付いて一緒に動く（下の「卵の割れ方」） |
+  | 卵 | 敗者側ホットヘッドが激怒（顔が赤くなる）→判定が出ている間ずっと投げ続ける（数に上限なし）。25%は床に外れる。当たると殻だけが割れて散る（下の「卵の割れ方」） |
   | 引き分け | 全員拍手・歓声、「えーっ！引き分けー？」、ホットヘッドは審判に卵 |
 
 ## 素材
@@ -35,7 +35,7 @@
 | `goal_stand_props.glb` | 飛んでいく卵と殻の破片 |
 | `goal_stand_layout.json` | 段の高さ・立ち位置・通路（Blender空間。Godotでは (x, z, -y)） |
 | `goal_stand_clips.json` | クリップ長・ループ・卵を放す時刻（0.3秒） |
-| `goal_stand_egg_contents.glb` | 卵の中身：白身 `GSE_White`（半径1の放射状ディスク）と黄身 `GSE_Yolk`（底が平らな球）。`source/build_egg_contents.py` で作成 |
+| `goal_stand_egg_contents.glb` | （未使用）卵の中身：白身 `GSE_White`（半径1の放射状ディスク）と黄身 `GSE_Yolk`（底が平らな球）。`source/build_egg_contents.py` で作成 |
 | `source/textures/sb_*.png` | 電光掲示板のヘッダー看板・鋼板（Higgsfield）と電球盤（手続き生成）。`prep_scoreboard_textures.py` で作成 |
 | `../audio/sfx/goal_stand/*.ogg` | 歓声・ブーイング・拍手・掛け声3種・卵の投擲/破裂音 |
 
@@ -82,14 +82,8 @@
 `scripts/world/goal_stand/goal_stand_eggs.gd`。着弾時の速度と当たった面の向きから計算する。
 
 - 卵は面に数フレーム潰れてから割れる。殻の破片は面で跳ね返り、空気抵抗を受けて回転しながら床で弾み、平らに寝て止まってから消える。
-  白身・黄身の小さな飛沫は面に沿って放射状に飛び、床に落ちると水たまりになる（最大40個）。
-- 白身（`GSE_White` ＋ `shaders/goal_stand_egg_white.gdshader`）：縁を24方向に分け、方向ごとに広がる速さを持たせる。
-  粘性で急速に減速し、投げた方向ほど遠くまで広がる。面積が増えるほど薄くなる（体積一定）。体の上では下側の縁がゆっくり垂れ、
-  下端から雫が落ちる。体に当たったものは体の丸みに沿って曲がる。
-- 黄身（`GSE_Yolk`）：着弾で潰れ、減衰するバネで揺れ戻る（約3.5 Hz）。床では勢いで投げた方向に少し転がる。
-  体の上では重力で白身の中を滑り、縁を越えると落下して床で弾み、揺れながら止まる。
-- 中身の形を作り直すとき：`blender -b --factory-startup --python assets/goal_stand/source/build_egg_contents.py`
-  （`--factory-startup` を付けること。ユーザー設定と拡張機能に触れない）。
+- 中身（白身・黄身・飛沫）は描かない。卵は判定が出ている間ずっと飛び続けるので、残っている殻の破片は最大96個（超えたら古いものから消す）。
+- 以前の中身の表現（`goal_stand_egg_contents.glb`、`shaders/goal_stand_egg_white.gdshader`、`source/build_egg_contents.py`）は未使用。
 - 確認：`Godot --headless --path . --script tests/goal_stand_eggs_bootstrap.gd`
 
 ## Higgsfield で生成したもの（計 5.25 クレジット）

@@ -21,11 +21,14 @@ func have_players_touched_down() -> bool:
 	return true
 
 const HELICOPTER_GLB := "res://assets/vehicles/helicopter/helicopter_drop.glb"
-const GODOT_PLUSH_GLB := "res://assets/characters/godot_plush/godot_plush_model.glb"
-const GODOT_PLUSH_ALBEDO := "res://assets/characters/godot_plush/godot_plush_albedo.png"
+## Recorded layers over the generated rotor / landing sounds (see _layer_recorded_sfx).
+const ROTOR_BLADES_GAIN_DB := 8.0
+const LANDING_THUD_GAIN_DB := 9.0
+## The pilot is the AIQUIZ mascot (ハテナ); its GLB carries its own flat-colour materials.
+const PILOT_GLB := "res://assets/characters/aiquiz_mascot/mascot_model.glb"
 const MENU_FLIGHT_PROFILE_SCENE := preload("res://scenes/menu_helicopter_sequence.tscn")
 const WINDOW_GLASS_COLOR := Color(0.62, 0.84, 0.95, 0.34)
-const PILOT_SCALE := 0.38
+const PILOT_SCALE := 0.35 # ハテナ's "?" (2.04 m at scale 1) stays under the cockpit roof
 const PILOT_SEAT_POSITION := Vector3(0.0, -0.16, -1.08)
 const PILOT_SEAT_ROTATION_DEGREES := Vector3(8.0, 180.0, 0.0)
 const COCKPIT_LIGHT_ENERGY := 0.7
@@ -128,8 +131,8 @@ var _player_controller: PlayerController = null
 var _camera_controller: Node3D = null
 var _helicopters: Array[Dictionary] = []
 var _impact_players: Array[AudioStreamPlayer3D] = []
-var _rotor_stream: AudioStreamWAV = null
-var _impact_stream: AudioStreamWAV = null
+var _rotor_stream: AudioStream = null
+var _impact_stream: AudioStream = null
 var _phase := "idle"
 var _phase_elapsed := 0.0
 var _total_elapsed := 0.0
@@ -202,8 +205,8 @@ func setup(
 	if packed == null:
 		_skip_missing_asset("the helicopter GLB could not be loaded")
 		return
-	_rotor_stream = _build_rotor_loop()
-	_impact_stream = _build_landing_impact()
+	_rotor_stream = _layer_recorded_sfx(_build_rotor_loop(), &"heli_rotor", ROTOR_BLADES_GAIN_DB, true)
+	_impact_stream = _layer_recorded_sfx(_build_landing_impact(), &"runner_land", LANDING_THUD_GAIN_DB, false)
 	var helicopter_count := (
 		clampi(_requested_helicopter_count, 1, 2)
 		if _requested_helicopter_count > 0
@@ -1143,6 +1146,9 @@ func _update_menu_rope_ladder_actor(
 		var authored_state := _menu_flight_profile.get_player_state(player_index)
 		if not authored_state.is_empty() and authored_state.has("ladder_deploy"):
 			deploy_progress = clampf(float(authored_state.get("ladder_deploy", deploy_progress)), 0.0, 1.0)
+	if deploy_progress > 0.0 and not bool(info.get("ladder_sfx_played", false)):
+		info["ladder_sfx_played"] = true
+		_play_world_sfx(&"rope_unroll", ladder.global_position)
 	ladder.set_deploy_progress(deploy_progress)
 	# Keep the full rope outside the cabin throughout the hanging departure.
 	ladder.set_winch_progress(0.0)
@@ -1586,6 +1592,7 @@ func _launch_gameplay_jump(info: Dictionary) -> bool:
 	var origin: Vector3 = grab_state.get("character_position", _hatch_release_position(info))
 	var landing := ground + Vector3.UP * 0.9
 	var velocity := _solve_launch_velocity(origin, landing, GP_FLIGHT_DURATION)
+	_play_world_sfx(&"ui_swish", origin)
 	var horizontal := Vector3(velocity.x, 0.0, velocity.z)
 	if not _player_controller.begin_intro_ladder_jump(
 		player_index,
@@ -1689,6 +1696,9 @@ func _update_gameplay_helicopter(info: Dictionary, delta: float) -> bool:
 			info["entered_frame_at"] = _phase_elapsed
 			info["lowering_started_at"] = _phase_elapsed
 			_set_gp_phase(info, "lowering")
+			var lowering_holder := info.get("holder") as Node3D
+			if lowering_holder != null:
+				_play_world_sfx(&"rope_unroll", lowering_holder.global_position)
 			phase = "lowering"
 			elapsed = 0.0
 
@@ -1941,7 +1951,7 @@ func _instantiate_helicopter(packed: PackedScene, player_index: int) -> Dictiona
 		holder.queue_free()
 		return {}
 	_apply_window_glass(model)
-	_mount_godot_pilot(model)
+	_mount_pilot(model)
 	var cabin_light := OmniLight3D.new()
 	cabin_light.name = "CabinLight"
 	cabin_light.light_color = Color(1.0, 0.82, 0.62)
@@ -2049,49 +2059,22 @@ func _apply_window_glass(root: Node) -> void:
 			mesh_instance.set_surface_override_material(surface_index, material)
 
 
-func _mount_godot_pilot(model: Node3D) -> void:
-	if model == null or not ResourceLoader.exists(GODOT_PLUSH_GLB):
+func _mount_pilot(model: Node3D) -> void:
+	if model == null or not ResourceLoader.exists(PILOT_GLB):
 		return
-	var packed := ResourceLoader.load(GODOT_PLUSH_GLB) as PackedScene
+	var packed := ResourceLoader.load(PILOT_GLB) as PackedScene
 	if packed == null:
 		return
 	var pilot := packed.instantiate() as Node3D
 	if pilot == null:
 		return
-	pilot.name = "GodotPilot"
+	pilot.name = "MascotPilot"
 	model.add_child(pilot)
 	pilot.position = PILOT_SEAT_POSITION
 	pilot.rotation_degrees = PILOT_SEAT_ROTATION_DEGREES
 	pilot.scale = Vector3.ONE * PILOT_SCALE
-	_apply_plush_albedo(pilot)
 	_disable_pilot_collision(pilot)
-	var animation := pilot.find_child("AnimationPlayer", true, false) as AnimationPlayer
-	if animation != null and animation.has_animation("idle"):
-		animation.play("idle")
-		animation.advance(0.2)
-		animation.stop()
-		animation.active = false
 	_pose_pilot_seated(pilot)
-
-
-func _apply_plush_albedo(root: Node) -> void:
-	if root == null or not ResourceLoader.exists(GODOT_PLUSH_ALBEDO):
-		return
-	var albedo := ResourceLoader.load(GODOT_PLUSH_ALBEDO) as Texture2D
-	if albedo == null:
-		return
-	for node: Node in root.find_children("*", "MeshInstance3D", true, false):
-		var mesh_instance := node as MeshInstance3D
-		if mesh_instance == null or mesh_instance.mesh == null:
-			continue
-		for surface_index: int in range(mesh_instance.mesh.get_surface_count()):
-			var source := mesh_instance.get_active_material(surface_index)
-			var material := source.duplicate(true) as BaseMaterial3D if source != null else StandardMaterial3D.new()
-			if material == null:
-				material = StandardMaterial3D.new()
-			material.albedo_texture = albedo
-			material.vertex_color_use_as_albedo = true
-			mesh_instance.set_surface_override_material(surface_index, material)
 
 
 func _disable_pilot_collision(root: Node) -> void:
@@ -2242,6 +2225,19 @@ func _hatch_release_position(info: Dictionary) -> Vector3:
 	if holder != null and is_instance_valid(holder):
 		down = -holder.global_basis.y.normalized()
 	return center - down * 0.08
+
+
+## One-shot positional cue from the AudioManager catalog, freed when done.
+func _play_world_sfx(cue: StringName, world_position: Vector3) -> void:
+	var player := AudioStreamPlayer3D.new()
+	player.bus = "SFX"
+	player.stream = AudioManager.get_sfx_stream(cue)
+	player.volume_db = AudioManager.get_sfx_volume_db(cue) + 4.0
+	player.max_distance = 60.0
+	add_child(player)
+	player.global_position = world_position
+	player.finished.connect(player.queue_free)
+	player.play()
 
 
 func _play_landing_impact(world_position: Vector3, player_index: int) -> void:
@@ -2799,6 +2795,23 @@ func _emit_presentation_finished(success: bool) -> void:
 		return
 	_presentation_finished_emitted = true
 	presentation_finished.emit(success)
+
+
+## The generated rotor and landing thump are mostly sub-bass, which small
+## speakers drop. A recorded layer rides on the same player, so every existing
+## pitch/volume ramp and fade applies to both.
+func _layer_recorded_sfx(generated: AudioStream, cue: StringName, gain_db: float, looping: bool) -> AudioStream:
+	var recorded := AudioManager.get_sfx_stream(cue)
+	if recorded == null:
+		return generated
+	if recorded is AudioStreamOggVorbis:
+		(recorded as AudioStreamOggVorbis).loop = looping
+	var layered := AudioStreamSynchronized.new()
+	layered.stream_count = 2
+	layered.set_sync_stream(0, generated)
+	layered.set_sync_stream(1, recorded)
+	layered.set_sync_stream_volume(1, gain_db)
+	return layered
 
 
 func _build_rotor_loop() -> AudioStreamWAV:

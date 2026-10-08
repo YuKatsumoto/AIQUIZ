@@ -12,6 +12,8 @@ signal back_requested
 signal graphics_quality_changed(quality: String)
 signal api_status_changed(summary: Dictionary)
 signal view_toggled(practice: bool)
+## 効果音の音量を変えて試し鳴らしをした（講義室の生徒が音のほうを振り向く）。
+signal sfx_tested
 
 const MenuMetalButtonScript := preload("res://scripts/ui/menu_metal_button.gd")
 const FONT_BOLD: Font = preload("res://resources/fonts/NotoSansJP-Bold.otf")
@@ -513,6 +515,7 @@ func _on_sfx_changed(value: float) -> void:
 func _on_sfx_drag_ended(value_changed: bool) -> void:
 	if value_changed:
 		AudioManager.play_tutorial_step()
+		sfx_tested.emit()
 
 
 func _on_quality_selected(index: int) -> void:

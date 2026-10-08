@@ -1,0 +1,161 @@
+{
+  "_comment": "AIQUIZ 3D PV cut list (60 s). Read by tools/pv/rough_cut.py and tools/pv/ae/build_pv.jsx. clip = artifacts/pv/mezz/<clip>.mov, in = seconds into the clip, dur = seconds on the timeline, speed = playback speed. Telop wording is a draft for the author to confirm.",
+  "fps": 60,
+  "sfx_gain_db": -4.0,
+  "bgm": "artifacts/pv/bgm_temp.wav",
+  "bgm_db": -2,
+  "shots": [
+    {
+      "clip": "intro_solo_t2_generating",
+      "in": 1.4,
+      "dur": 3.0,
+      "telop": "問題をつくるのは、AI。",
+      "note": "※生成にかかる時間は短縮して表示しています"
+    },
+    {
+      "clip": "intro_solo_t2_generating",
+      "in": 4.6,
+      "dur": 3.0,
+      "telop": "学年と教科に合わせて、その場で10問"
+    },
+    {
+      "clip": "intro_solo_t2_flyover",
+      "in": 5.0,
+      "dur": 2.8
+    },
+    {
+      "clip": "intro_solo_t2_play",
+      "in": 0.0,
+      "dur": 1.0
+    },
+    {
+      "card": "logo",
+      "dur": 2.6,
+      "bg": "#0b1630",
+      "image": "assets/aiquiz_menu_stage/led/led_logo.png",
+      "image_scale": 0.9,
+      "image_lift": 90,
+      "sub": "走って答える！ 3Dクイズアクション",
+      "style": "center"
+    },
+    {
+      "clip": "intro_solo_t2_play",
+      "in": 7.6,
+      "dur": 3.0,
+      "telop": "正解のドアを突き破れ！"
+    },
+    {
+      "clip": "intro_solo_t2_play",
+      "in": 27.6,
+      "dur": 3.0,
+      "telop": "まちがえると…ドーン！"
+    },
+    {
+      "clip": "sea_solo_t2_sea",
+      "in": 1.2,
+      "dur": 2.9,
+      "telop": "海に落ちたら…サメ！？"
+    },
+    {
+      "clip": "intro_solo_t2_menu_config",
+      "in": 1.0,
+      "dur": 4.6,
+      "speed": 1.5,
+      "telop": "小学1〜6年 × 5教科 × 3段階"
+    },
+    {
+      "clip": "subject_walls_t2_wall_science34",
+      "in": 0.2,
+      "dur": 1.1,
+      "sub": "理科"
+    },
+    {
+      "clip": "subject_walls_t2_wall_japanese4",
+      "in": 0.2,
+      "dur": 1.1,
+      "sub": "国語"
+    },
+    {
+      "clip": "subject_walls_t2_wall_social4",
+      "in": 0.2,
+      "dur": 1.1,
+      "sub": "社会"
+    },
+    {
+      "clip": "subject_walls_t2_wall_english3",
+      "in": 0.2,
+      "dur": 1.1,
+      "sub": "英語"
+    },
+    {
+      "clip": "intro_solo_t2_history",
+      "in": 0.3,
+      "dur": 1.2
+    },
+    {
+      "clip": "intro_solo_t2_history",
+      "in": 3.0,
+      "dur": 4.2,
+      "telop": "解説つきで、ふり返りもバッチリ",
+      "sub": "問題の「良い・悪い」も評価できる"
+    },
+    {
+      "clip": "duo_t8_heli_pickup",
+      "in": 3.0,
+      "dur": 2.6,
+      "telop": "2人で対戦！"
+    },
+    {
+      "clip": "duo_t8_push_0",
+      "in": 1.45,
+      "dur": 1.6,
+      "telop": "押し合い上等！"
+    },
+    {
+      "clip": "duo_t9_saw",
+      "in": 0.65,
+      "dur": 2.6,
+      "telop": "うしろからノコギリが！"
+    },
+    {
+      "clip": "duo_t8_goal",
+      "in": 1.6,
+      "dur": 2.2
+    },
+    {
+      "clip": "duo_t8_finale",
+      "in": 0.6,
+      "dur": 2.6,
+      "telop": "決着はスコアタワーで！",
+      "sub": "審判はカモメ船長"
+    },
+    {
+      "clip": "duo_t8_finale",
+      "in": 6.0,
+      "dur": 5.7
+    },
+    {
+      "clip": "menu_clean_t2_menu_bg",
+      "in": 0.5,
+      "dur": 7.0,
+      "dim": 0.45,
+      "image": "assets/aiquiz_menu_stage/led/led_logo.png",
+      "image_scale": 0.9,
+      "image_lift": 90,
+      "sub": "遊んで、学んで、走りぬけろ！",
+      "style": "center",
+      "note": "Windows ／ ゲームクリエイター甲子園2026 応募作品"
+    }
+  ],
+  "thumb": {
+    "clip": "duo_t8_finale",
+    "time": 2.2,
+    "image": "assets/aiquiz_menu_stage/led/led_logo.png",
+    "image_scale": 0.55,
+    "image_pos": [
+      960,
+      150
+    ],
+    "telop": "AIがつくるクイズで走れ！"
+  }
+}

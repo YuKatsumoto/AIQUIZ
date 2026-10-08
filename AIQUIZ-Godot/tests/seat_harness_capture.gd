@@ -75,7 +75,7 @@ func run() -> void:
 func audit_fit(op: SawOperatorPresentation) -> Dictionary:
 	# Compare the rendered, skinned mascot triangles, not the profile table used
 	# by the belt. A ray starts in front of each strap sample and finds the body.
-	var body := op.station.find_child("GodotPlushMesh", true, false) as MeshInstance3D
+	var body := op.station.find_child(MascotDresser.BODY_NAME, true, false) as MeshInstance3D
 	var arrays := body.mesh.surface_get_arrays(0)
 	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
 	var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]

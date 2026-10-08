@@ -39,6 +39,9 @@ const HEADER_H := 70.0
 const ROW_H := 162.0
 const ROW_GAP := 16.0
 const CUTIN_ENTER := 0.25
+## Seconds the winner's / draw cut-in stays up before the programme may take the board
+## over, even when the match is already recorded.
+const CUTIN_MIN_HOLD := 15.0
 const DRAW := 3
 ## Cut-in of a draw branching into the sudden death.
 const SUDDEN_DEATH := 4
@@ -158,7 +161,8 @@ func sync(state: QuizGameState, clock: float, animate: bool = true, verdict_winn
 	if _programme_phase == Programme.PLAYING:
 		# The verdict stays out for good, so without this the cut-in would start again.
 		wanted = 0
-	elif _programme_phase == Programme.NONE and programme_ready and cutin_player != 0:
+	elif _programme_phase == Programme.NONE and programme_ready and cutin_player != 0 \
+			and clock - _cutin_started >= CUTIN_MIN_HOLD:
 		_start_programme()
 	if _programme_phase == Programme.LEAD_IN and not _programme.is_lead_in():
 		_programme_phase = Programme.PLAYING

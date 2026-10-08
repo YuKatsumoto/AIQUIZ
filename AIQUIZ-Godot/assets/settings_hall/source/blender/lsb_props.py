@@ -324,9 +324,21 @@ def build_misc(col):
     return objects
 
 
-def build_all_props(col):
-    objects = [build_platform(col), build_blackboard(col), build_lectern(col), build_exhibit_table(col),
-               build_bookshelf(col), build_poster_easel(col)]
-    objects += build_desks(col)
-    objects += build_misc(col)
+def build_all_props(col, skip=()):
+    """skip: 実写版に置き換えた古い小道具（"blackboard"・"easel"）。"""
+    objects = [] if "platform" in skip else [build_platform(col)]
+    if "blackboard" not in skip:
+        objects.append(build_blackboard(col))
+    if "lectern" not in skip:
+        objects.append(build_lectern(col))
+    if "exhibit" not in skip:
+        objects.append(build_exhibit_table(col))
+    if "bookshelf" not in skip:
+        objects.append(build_bookshelf(col))
+    if "easel" not in skip:
+        objects.append(build_poster_easel(col))
+    if "desks" not in skip:
+        objects += build_desks(col)
+    if "misc" not in skip:
+        objects += build_misc(col)
     return objects

@@ -5,6 +5,10 @@ const DuoTutorialOverlayScript := preload("res://scripts/ui/duo_tutorial_overlay
 const SoloTutorialOverlayScript := preload("res://scripts/ui/solo_tutorial_overlay.gd")
 const TutorialCompletionCardScript := preload("res://scripts/ui/tutorial_completion_card.gd")
 const ResultCeremonyOverlayScript := preload("res://scripts/ui/result_finale_hud.gd")
+const UnitSlotReelScript := preload("res://scripts/ui/unit_slot_reel.gd")
+## 単元スロット表示中に準備パネルを上下に広げる量（片側）と、リール行の上端（パネル上端から）
+const SLOT_REEL_PANEL_EXTRA_HALF := 20.0
+const SLOT_REEL_TOP := 108.0
 const OFFSCREEN_MARKER_EDGE_MARGIN := 78.0
 const OFFSCREEN_MARKER_NEAR_SCALE := 0.82
 const OFFSCREEN_MARKER_FAR_SCALE := 1.24
@@ -23,6 +27,9 @@ const REAR_EDGE_WARNING_MAX_BLINK_SPEED := 9.0
 @onready var flash_rect: ColorRect = $FlashRect
 var _shark_impact_flash: float = 0.0
 var _rear_edge_warning_time: float = 0.0
+var _ready_prompt_sounded: bool = false
+var _sfx_counted_score: int = 0
+var _sfx_count_finished: bool = false
 
 ## ゲーム中HUD (3Dシーン上に重ねて表示)
 ## Python版 hud.py の _draw_play 部分に相当
@@ -40,6 +47,9 @@ var _rear_edge_warning_time: float = 0.0
 @onready var start_prompt_label: Label = $PreloadPanel/StartPromptLabel
 var _start_prompt_row: KeyHintRow = null
 var _start_prompt_kind: String = ""
+## 単元スロット（進行バーの上）。抽選番号が変わったら回し、止まったら生成を解放する。
+var _slot_reel: UnitSlotReelScript = null
+var _slot_reel_serial: int = 0
 
 @onready var game_over_panel: Panel = $GameOverPanel
 @onready var go_title: Label = $GameOverPanel/Title
@@ -366,8 +376,13 @@ func _process(_dt: float) -> void:
 		return
 	_shark_impact_flash = maxf(0.0, _shark_impact_flash - _dt * 12.5)
 	# Integrate frequency: multiplying total time by changing proximity jumps phase.
-	var warning_speed := lerpf(REAR_EDGE_WARNING_MIN_BLINK_SPEED, REAR_EDGE_WARNING_MAX_BLINK_SPEED, _rear_edge_warning_strength())
+	var warning_strength := _rear_edge_warning_strength()
+	var warning_speed := lerpf(REAR_EDGE_WARNING_MIN_BLINK_SPEED, REAR_EDGE_WARNING_MAX_BLINK_SPEED, warning_strength)
+	var previous_warning_time := _rear_edge_warning_time
 	_rear_edge_warning_time = fposmod(_rear_edge_warning_time + _dt * warning_speed, TAU)
+	_play_rear_edge_warning_beep(previous_warning_time, warning_strength)
+	if game_state.game_state != Constants.STATE_WAITING_START:
+		_ready_prompt_sounded = false
 	_update_offscreen_player_markers(_dt)
 	if _result_ceremony_overlay != null:
 		_result_ceremony_overlay.update_overlay(_dt)
@@ -521,6 +536,18 @@ func _rear_edge_warning_strength() -> float:
 	)
 
 
+## One beep at the peak of each red blink (saw or rear edge close behind).
+func _play_rear_edge_warning_beep(previous_time: float, strength: float) -> void:
+	if strength < 0.2 or game_state.game_state != Constants.STATE_PLAYING:
+		return
+	var peak := PI * 0.5
+	var wrapped := _rear_edge_warning_time < previous_time
+	var crossed := (previous_time < peak and _rear_edge_warning_time >= peak) or (
+		wrapped and (previous_time < peak or _rear_edge_warning_time >= peak))
+	if crossed:
+		AudioManager.play_sfx(&"danger_beep", lerpf(-8.0, 0.0, strength), lerpf(0.9, 1.25, strength))
+
+
 func _update_flash() -> void:
 	# The result ceremony owns its own explosion feedback. Suppress the legacy
 	# correct/wrong full-screen tint so the grass, characters, and compact result
@@ -554,6 +581,7 @@ func _update_flash() -> void:
 var _displayed_progress: float = 0.0
 
 func _show_preloading(dt: float) -> void:
+	_update_slot_reel()
 	_apply_preload_stage_preview_layout()
 	preload_bg.visible = false
 	preload_panel.visible = true
@@ -568,6 +596,14 @@ func _show_preloading(dt: float) -> void:
 	pl_subtitle.text = "しばらくお待ちください"
 	pl_subtitle.visible = true
 	pl_status.text = game_state.status_text
+	if _slot_reel != null and _slot_reel.visible:
+		if _slot_reel.is_spinning():
+			pl_title.text = "Drawing this round's units..." if game_state.use_english_ui else "今回の単元を抽選中..."
+			pl_subtitle.text = "Quizzes are made from the units that land" if game_state.use_english_ui \
+				else "止まった単元から問題を作ります"
+			pl_status.text = "Drawing units" if game_state.use_english_ui else "単元を抽選中"
+		else:
+			pl_subtitle.text = "This round's units" if game_state.use_english_ui else "今回の単元"
 
 	var target: int = 1 if game_state.mode == Constants.MODE_ENDLESS else game_state.target_count
 	target = maxi(1, target)
@@ -587,6 +623,8 @@ var _sudden_death_panel_shown := false
 ## 2Pサドンデスの降下中、サドンデス用の問題（オンライン生成）か地下神殿の準備を待っている間。
 ## ゲーム開始時の問題準備と同じパネル・進み具合・文言を出す（docs/sudden_death_underground.md 第5.3節）。
 func _show_sudden_death_preparing(dt: float) -> void:
+	if _slot_reel != null:
+		_slot_reel.visible = false
 	_apply_preload_stage_preview_layout()
 	if not _sudden_death_panel_shown:
 		_sudden_death_panel_shown = true
@@ -622,6 +660,7 @@ func _show_sudden_death_preparing(dt: float) -> void:
 
 var _blink_timer: float = 0.0
 func _show_waiting_start(dt: float) -> void:
+	_update_slot_reel()
 	_apply_preload_stage_preview_layout()
 	preload_bg.visible = false
 	preload_panel.visible = true
@@ -669,6 +708,15 @@ func _show_waiting_start(dt: float) -> void:
 		pl_title.text = "Ready!" if game_state.use_english_ui else "準備完了！"
 		pl_subtitle.text = "Press Enter to begin" if game_state.use_english_ui else "Enterキーでスタート"
 	pl_status.text = "Ready" if game_state.use_english_ui else "準備完了"
+	# Chime once Enter actually works (barrier landed, screen uncovered).
+	if (
+		not _ready_prompt_sounded
+		and world != null
+		and world.has_method("is_start_trigger_ready")
+		and bool(world.call("is_start_trigger_ready"))
+	):
+		_ready_prompt_sounded = true
+		AudioManager.play_sfx(&"ui_ready")
 	pl_progress.visible = false
 	_refresh_start_prompt(game_state.mode == Constants.MODE_TUTORIAL)
 	_blink_timer += dt
@@ -677,11 +725,20 @@ func _show_waiting_start(dt: float) -> void:
 
 
 func _apply_preload_stage_preview_layout() -> void:
+	# 単元スロット表示中はパネルを縦に広げ、サブタイトルと進行バーの間にリールの行を置く
+	var slot_extra := SLOT_REEL_PANEL_EXTRA_HALF if _slot_reel != null and _slot_reel.visible else 0.0
 	preload_panel.set_anchors_preset(Control.PRESET_CENTER)
 	preload_panel.offset_left = -300.0
 	preload_panel.offset_right = 300.0
-	preload_panel.offset_top = -120.0
-	preload_panel.offset_bottom = 120.0
+	preload_panel.offset_top = -120.0 - slot_extra
+	preload_panel.offset_bottom = 120.0 + slot_extra
+	if _slot_reel != null:
+		var slot_size: Vector2 = UnitSlotReelScript.SLOT_SIZE
+		_slot_reel.set_anchors_preset(Control.PRESET_CENTER_TOP)
+		_slot_reel.offset_left = -slot_size.x * 0.5
+		_slot_reel.offset_right = slot_size.x * 0.5
+		_slot_reel.offset_top = SLOT_REEL_TOP
+		_slot_reel.offset_bottom = SLOT_REEL_TOP + slot_size.y
 	pl_title.offset_left = -150.0
 	pl_title.offset_top = 20.0
 	pl_title.offset_right = 150.0
@@ -702,6 +759,49 @@ func _apply_preload_stage_preview_layout() -> void:
 	pl_title.add_theme_font_size_override("font_size", 26)
 	pl_subtitle.add_theme_font_size_override("font_size", 18)
 	pl_status.add_theme_font_size_override("font_size", 16)
+
+
+func _ensure_slot_reel() -> void:
+	if _slot_reel != null:
+		return
+	_slot_reel = UnitSlotReelScript.new()
+	_slot_reel.name = "UnitSlotReel"
+	_slot_reel.visible = false
+	preload_panel.add_child(_slot_reel)
+	_slot_reel.finished.connect(_on_slot_reel_finished)
+
+
+## スロット付きラウンドならリールを表示し、新しい抽選番号を見たら回し始める。
+func _update_slot_reel() -> void:
+	var units: PackedStringArray = game_state.get_slot_units()
+	if units.is_empty():
+		if _slot_reel != null:
+			_slot_reel.visible = false
+		return
+	_ensure_slot_reel()
+	_slot_reel.visible = true
+	var serial: int = game_state.get_slot_round_serial()
+	if serial == _slot_reel_serial:
+		return
+	_slot_reel_serial = serial
+	if game_state.game_state == Constants.STATE_PRELOADING:
+		_slot_reel.start(units, _slot_reel_pool(units))
+	else:
+		_slot_reel.show_result(units, _slot_reel_pool(units))
+
+
+func _slot_reel_pool(units: PackedStringArray) -> PackedStringArray:
+	var pool := PackedStringArray()
+	var data := CurriculumDB.load_grade(game_state.subject, game_state.grade)
+	for unit: Variant in data.get("units", []):
+		if unit is Dictionary and unit.has("name"):
+			pool.append(str(unit["name"]))
+	return pool if not pool.is_empty() else units
+
+
+func _on_slot_reel_finished() -> void:
+	if _slot_reel_serial == game_state.get_slot_round_serial():
+		game_state.release_slot_gate()
 
 
 func _ensure_start_prompt_row() -> void:
@@ -894,6 +994,7 @@ func _build_result_card(is_clear: bool, explanation: String) -> void:
 	_score_anim_timer += 0.016
 	var anim_progress := clampf(_score_anim_timer / 1.5, 0.0, 1.0)
 	anim_progress = 1.0 - pow(1.0 - anim_progress, 3.0)
+	_play_score_count_sfx(anim_progress, current_score + (p2_score if is_2p else 0))
 
 	# ─── Row 1: Score display ───
 	if is_coop:
@@ -1107,6 +1208,22 @@ func _build_tutorial_result(root: VBoxContainer, checklist_text: String) -> void
 	_add_tutorial_recap_card(recap, "10問チャレンジ", "10問を走り切る")
 	_add_tutorial_recap_card(recap, "エンドレス", "オフライン問題で挑戦")
 	_add_tutorial_recap_card(recap, "カスタマイズ", "スキン・帽子・エモート")
+
+
+## The result card is rebuilt every frame; tick each time the counted score
+## changes and ring once when it lands.
+func _play_score_count_sfx(anim_progress: float, total_score: int) -> void:
+	if _score_anim_timer <= 0.02:
+		_sfx_counted_score = 0
+		_sfx_count_finished = false
+	var counted := int(anim_progress * total_score)
+	if counted != _sfx_counted_score:
+		_sfx_counted_score = counted
+		AudioManager.play_sfx(&"ui_score_tick")
+	if anim_progress >= 1.0 and not _sfx_count_finished:
+		_sfx_count_finished = true
+		if total_score > 0:
+			AudioManager.play_sfx(&"ui_score_ding")
 
 
 func _add_tutorial_recap_card(parent: HBoxContainer, title: String, detail: String) -> void:
@@ -1512,6 +1629,7 @@ func _replace_rate_buttons(container: HBoxContainer, good: bool) -> void:
 	container.add_child(feedback)
 
 func _fire_confetti() -> void:
+	AudioManager.play_result_cue(&"confetti")
 	var viewport_size = get_viewport().get_visible_rect().size
 	# Center position (assuming CLEAR! text is somewhat central, slightly top)
 	var center_pos = Vector2(viewport_size.x / 2.0, viewport_size.y * 0.3)

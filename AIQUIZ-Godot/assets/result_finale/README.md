@@ -12,7 +12,7 @@
 | 秒 | 内容 |
 | --- | --- |
 | 0.0–0.4 | ゲームカメラから演出カメラへ移行。ゴールゲートを隠す |
-| 0.4–2.0 | 二人がタワーの台座へ歩く。審判ゴドーくんは両手にチェッカーフラッグを持って（下げたまま）台座の奥で待機 |
+| 0.4–2.0 | 二人がタワーの台座へ歩く。審判（マスコットのハテナ）は両手にチェッカーフラッグを持って（下げたまま）台座の奥で待機 |
 | 2.0–2.45 | 振り向きジャンプで台に乗り、台が0.35 mポップ。タイトル「スコアタワー」 |
 | 2.5 / 3.3 | 正解数 → ×残りHP をカードに表示 |
 | 3.5 / 3.92 | 生存ボーナス「+0.5」がHP値に合体（脱落者は表示なし） |
@@ -54,12 +54,12 @@ P2 側へ旗を上げる `FinaleWinP2` を再生する。テストが全場面�
 | `score_tower.glb` | タワー1基（床カラー・昇降台・柱・紙吹雪砲。`TowerLift` を上下させる。`FIN_TowerAccent` はGodotでプレイヤー色に着色）。GLBの柱（0.5 m帯・3.2 m）は非表示にし、Godotが下の `tower_tiers.glb` を36段積んだ `TierColumn` を昇降台の下に付ける |
 | `tower_tiers.glb` | 1点＝1段の段モジュール（高さ0.3 m、上端0）。`TWR_Tier`：角を丸めた白いドラム＋細く奥まった発光リング（`FIN_TowerAccent`、プレイヤー色）。`TWR_TierMilestone`：5段ごとのリングを張り出した金帯（`FIN_TierGold`、Godotでトイゴールド）に替えたもの |
 | `crown.glb` / `rain_cloud.glb` | 王冠、しょんぼり雨雲（`PRP_CloudRain` が雨の発生位置） |
-| `referee_finale.glb` | ゴドーくん＋両手の旗（`PRP_Flag` 右手・`PRP_FlagL` 左手）。アニメーション `FinaleWin` / `FinaleWinP2` / `FinaleDraw` |
+| `referee_finale.glb` | 審判の骨格（16ボーン）＋両手の旗（`PRP_Flag` 右手・`PRP_FlagL` 左手）。アニメーション `FinaleWin` / `FinaleWinP2` / `FinaleDraw` |
 | `finale_motion.json` | Blenderの評価済みデータ60fps：人物16関節＋握り、タワー曲線、王冠・雲、勝敗/引き分けカメラ |
 | `hud_motion.json` | AEのHUDレイアウトと全キーの60fpsサンプル |
 | `fx/burst`, `fx/lock_ring` | AEで描画した白い発光エフェクトの連番（Godotで色付け・加算合成） |
 
-ゴドーくんはぬいぐるみの頭と胴が一体のメッシュで、顔も `DEF-head` / `DEF-hips` に乗っている。
+審判の体はマスコット（`assets/characters/aiquiz_mascot/`）で、GLB内の旧プラシュ本体は取り込まず（`skip_import`）、実行時に `MascotDresser` が同じ骨格へ着せる。体は頭と胴が一体のメッシュで、顔も `DEF-head` / `DEF-hips` に乗っている。
 これらのボーンを曲げたりリグを非一様スケールすると顔が歪むため、体の向き・傾き・ジャンプは
 リグ全体を剛体として動かし、曲げるのは腕だけにしている（傾きは最大8°）。実機テストで
 本体ボーンが休止姿勢から動かないことを検査している。

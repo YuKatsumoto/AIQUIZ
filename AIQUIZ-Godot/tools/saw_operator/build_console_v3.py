@@ -1,4 +1,4 @@
-"""Godot-kun operator console v3. Run stage by stage inside the live Blender:
+"""Mascot (ハテナ) operator console v3. Run stage by stage inside the live Blender:
 
     exec(open(r'C:/AIQUIZ/AIQUIZ-Godot/tools/saw_operator/build_console_v3.py', encoding='utf-8').read(),
          {'console_stage': 'setup'})
@@ -638,7 +638,7 @@ if STAGE == 'detail':
         lamp = bpy.data.objects['OP_Lamp_' + name]
         lathe('OP_LampBezel_' + name, [(.011, 0), (.016, 0), (.016, .004), (.011, .005)], M['steel'], lamp, segments=20, closed=True)
     box('OP_NamePlate', (0, -.7625, 1.215), (.56, .004, .10), M['panel'], root, .002)
-    label('OP_NameText', 'GODOT SAW', (0, -.765, 1.215), .066, M['ink'], root, (math.radians(90), 0, 0))
+    label('OP_NameText', 'AIQUIZ SAW', (0, -.765, 1.215), .066, M['ink'], root, (math.radians(90), 0, 0))
     hazard('OP_DashHazard', .80, .07, frame((0, -.7615, 1.03), (1, 0, 0), (0, 0, 1)), root, M, period=.06)
     bolts('OP_DashBolts', [(x, y, 1.43) for x in (-.37, .37) for y in (-.67, -.73)], M['steel'], root, .006, .004)
     # --- beacon bulb inside the dome; E-stop mushroom on the right pod nose (decor)

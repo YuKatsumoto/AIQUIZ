@@ -1,209 +1,606 @@
 {
   "props": {
     "PRP_Platform": {
-      "tris": 10476,
+      "tris": 63180,
       "materials": [
-        "LS_WoodB",
-        "LS_WoodA",
-        "LS_WoodC",
-        "LS_WoodDark",
-        "LS_Steel"
+        "LSX_PRP_Platform"
       ]
     },
-    "PRP_Blackboard": {
-      "tris": 12096,
+    "PRP_PlatformEdge": {
+      "tris": 11964,
       "materials": [
-        "LS_WoodA",
-        "LS_WoodDark",
-        "LS_Board",
-        "LS_DarkSteel",
-        "LS_WoodB",
-        "LS_Chalk",
-        "LS_ChalkYellow",
-        "LS_ChalkPink",
-        "LS_Cloth"
-      ]
-    },
-    "PRP_Lectern": {
-      "tris": 1780,
-      "materials": [
-        "LS_WoodB",
-        "LS_WoodDark",
-        "LS_WoodA",
-        "GK_Blue",
-        "GK_White",
-        "GK_Navy",
-        "LS_Paper",
-        "LS_White"
-      ]
-    },
-    "PRP_ExhibitTable": {
-      "tris": 1404,
-      "materials": [
-        "LS_WoodDark",
-        "LS_Cloth",
-        "LS_Steel",
-        "LS_White",
-        "GK_Navy",
-        "LS_DarkSteel"
+        "LSX_PRP_PlatformEdge"
       ]
     },
     "PRP_Bookshelf": {
-      "tris": 12744,
+      "tris": 2448,
       "materials": [
-        "LS_WoodC",
-        "LS_WoodDark",
-        "LS_BinderD",
-        "LS_Paper",
-        "LS_BinderA",
-        "LS_White",
-        "LS_BinderC",
-        "LS_BinderB"
+        "LSX_PRP_Bookshelf"
       ]
     },
-    "PRP_PosterEasel": {
-      "tris": 212,
+    "PRP_Binders": {
+      "tris": 2160,
       "materials": [
-        "LS_WoodA",
-        "LS_White",
-        "LS_Red",
-        "LS_HazardYellow",
-        "GK_Black"
+        "LSX_PRP_Binders"
       ]
     },
-    "PRP_Desk_0": {
-      "tris": 1856,
+    "PRP_Books": {
+      "tris": 10264,
       "materials": [
-        "LS_WoodA",
-        "LS_WoodDark",
-        "LS_Steel",
-        "LS_Paper",
-        "LS_Cloth",
-        "LS_DarkSteel"
+        "LSX_PRP_Books"
       ]
     },
-    "PRP_Stool_0": {
-      "tris": 860,
+    "PRP_ExhibitTable": {
+      "tris": 272,
       "materials": [
-        "LS_WoodB",
-        "LS_Steel"
+        "LSX_PRP_ExhibitTable"
       ]
     },
-    "PRP_Desk_1": {
-      "tris": 2020,
+    "PRP_ExhibitCloth": {
+      "tris": 23526,
       "materials": [
-        "LS_WoodA",
-        "LS_WoodDark",
-        "LS_Steel",
-        "LS_Paper",
-        "LS_Cloth",
-        "LS_DarkSteel",
-        "GK_Yellow"
+        "LSX_PRP_ExhibitCloth"
       ]
     },
-    "PRP_Stool_1": {
-      "tris": 860,
+    "PRP_ExhibitPlacard": {
+      "tris": 324,
       "materials": [
-        "LS_WoodB",
-        "LS_Steel"
-      ]
-    },
-    "PRP_Desk_2": {
-      "tris": 2692,
-      "materials": [
-        "LS_WoodA",
-        "LS_WoodDark",
-        "LS_Steel",
-        "LS_Paper",
-        "LS_Cloth",
-        "LS_DarkSteel",
-        "GK_Yellow"
-      ]
-    },
-    "PRP_Stool_2": {
-      "tris": 860,
-      "materials": [
-        "LS_WoodB",
-        "LS_Steel"
-      ]
-    },
-    "PRP_Cone_0": {
-      "tris": 126,
-      "materials": [
-        "GK_Black",
-        "LS_Cone",
-        "LS_White"
-      ]
-    },
-    "PRP_Cone_1": {
-      "tris": 126,
-      "materials": [
-        "GK_Black",
-        "LS_Cone",
-        "LS_White"
-      ]
-    },
-    "PRP_Cone_2": {
-      "tris": 126,
-      "materials": [
-        "GK_Black",
-        "LS_Cone",
-        "LS_White"
-      ]
-    },
-    "PRP_SignPractice": {
-      "tris": 84,
-      "materials": [
-        "LS_HazardYellow",
-        "LS_HazardBlack"
+        "LSX_PRP_ExhibitPlacard"
       ]
     },
     "PRP_Extinguisher": {
-      "tris": 500,
+      "tris": 4296,
       "materials": [
-        "LS_Red",
-        "GK_Black",
-        "LS_DarkSteel"
+        "LSX_PRP_Extinguisher"
       ]
     },
     "PRP_Toolbox": {
-      "tris": 660,
+      "tris": 820,
       "materials": [
-        "LS_Red",
-        "GK_Black",
-        "LS_Steel",
-        "LS_HazardYellow"
+        "LSX_PRP_Toolbox"
       ]
     },
     "PRP_Bin": {
-      "tris": 488,
+      "tris": 960,
       "materials": [
-        "LS_Steel",
-        "LS_DarkSteel",
-        "LS_Paper"
+        "LSX_PRP_Bin"
       ]
     },
     "PRP_Bucket": {
-      "tris": 392,
+      "tris": 560,
       "materials": [
-        "GK_Blue",
-        "LS_BinderA",
-        "LS_Steel"
+        "LSX_PRP_Bucket"
+      ]
+    },
+    "PRP_BucketHandle": {
+      "tris": 384,
+      "materials": [
+        "LSX_PRP_BucketHandle"
+      ]
+    },
+    "PRP_Rag": {
+      "tris": 1424,
+      "materials": [
+        "LSX_PRP_Rag"
+      ]
+    },
+    "PRP_Broom": {
+      "tris": 356,
+      "materials": [
+        "LSX_PRP_Broom"
+      ]
+    },
+    "PRP_Dustpan": {
+      "tris": 548,
+      "materials": [
+        "LSX_PRP_Dustpan"
+      ]
+    },
+    "PRP_Cone_0": {
+      "tris": 1058,
+      "materials": [
+        "LSX_PRP_Cone_0"
+      ]
+    },
+    "PRP_Cone_1": {
+      "tris": 1058,
+      "materials": [
+        "LSX_PRP_Cone_1"
+      ]
+    },
+    "PRP_Cone_2": {
+      "tris": 1058,
+      "materials": [
+        "LSX_PRP_Cone_2"
+      ]
+    },
+    "PRP_SignPractice": {
+      "tris": 756,
+      "materials": [
+        "LSX_PRP_SignPractice"
+      ]
+    },
+    "PRP_Bento_0": {
+      "tris": 872,
+      "materials": [
+        "LSX_PRP_Bento_0"
+      ]
+    },
+    "PRP_Bento_1": {
+      "tris": 872,
+      "materials": [
+        "LSX_PRP_Bento_1"
+      ]
+    },
+    "PRP_Bento_2": {
+      "tris": 872,
+      "materials": [
+        "LSX_PRP_Bento_2"
+      ]
+    },
+    "PRP_Blackboard": {
+      "tris": 9588,
+      "materials": [
+        "LSX_PRP_Blackboard"
+      ]
+    },
+    "PRP_BoardPanel_F": {
+      "tris": 1860,
+      "materials": [
+        "LSX_PRP_BoardPanel_F"
+      ]
+    },
+    "PRP_BoardSurface_F": {
+      "tris": 2,
+      "materials": [
+        "LSX_PRP_BoardSurface_F"
+      ]
+    },
+    "PRP_BoardPanel_B": {
+      "tris": 1860,
+      "materials": [
+        "LSX_PRP_BoardPanel_B"
+      ]
+    },
+    "PRP_BoardSurface_B": {
+      "tris": 2,
+      "materials": [
+        "LSX_PRP_BoardSurface_B"
+      ]
+    },
+    "PRP_Chalk_White_0": {
+      "tris": 476,
+      "materials": [
+        "LSX_PRP_Chalk_White_0"
+      ]
+    },
+    "PRP_Chalk_White_1": {
+      "tris": 522,
+      "materials": [
+        "LSX_PRP_Chalk_White_1"
+      ]
+    },
+    "PRP_Chalk_White_2": {
+      "tris": 522,
+      "materials": [
+        "LSX_PRP_Chalk_White_2"
+      ]
+    },
+    "PRP_Chalk_Yellow_0": {
+      "tris": 476,
+      "materials": [
+        "LSX_PRP_Chalk_Yellow_0"
+      ]
+    },
+    "PRP_Chalk_Yellow_1": {
+      "tris": 522,
+      "materials": [
+        "LSX_PRP_Chalk_Yellow_1"
+      ]
+    },
+    "PRP_Chalk_Red_0": {
+      "tris": 522,
+      "materials": [
+        "LSX_PRP_Chalk_Red_0"
+      ]
+    },
+    "PRP_Chalk_Blue_0": {
+      "tris": 476,
+      "materials": [
+        "LSX_PRP_Chalk_Blue_0"
+      ]
+    },
+    "PRP_Chalk_Broken_0": {
+      "tris": 476,
+      "materials": [
+        "LSX_PRP_Chalk_Broken_0"
+      ]
+    },
+    "PRP_Chalk_Broken_1": {
+      "tris": 476,
+      "materials": [
+        "LSX_PRP_Chalk_Broken_1"
+      ]
+    },
+    "PRP_ChalkBox": {
+      "tris": 4116,
+      "materials": [
+        "LSX_PRP_ChalkBox"
+      ]
+    },
+    "PRP_Eraser_0": {
+      "tris": 940,
+      "materials": [
+        "LSX_PRP_Eraser_0"
+      ]
+    },
+    "PRP_Eraser_1": {
+      "tris": 940,
+      "materials": [
+        "LSX_PRP_Eraser_1"
+      ]
+    },
+    "PRP_CleanerCart": {
+      "tris": 2392,
+      "materials": [
+        "LSX_PRP_CleanerCart"
+      ]
+    },
+    "PRP_EraserCleaner": {
+      "tris": 2540,
+      "materials": [
+        "LSX_PRP_EraserCleaner"
+      ]
+    },
+    "PRP_CleanerCord": {
+      "tris": 2540,
+      "materials": [
+        "LSX_PRP_CleanerCord"
+      ]
+    },
+    "PRP_Magnet_0": {
+      "tris": 724,
+      "materials": [
+        "LSX_PRP_Magnet_0"
+      ]
+    },
+    "PRP_Magnet_1": {
+      "tris": 724,
+      "materials": [
+        "LSX_PRP_Magnet_1"
+      ]
+    },
+    "PRP_Magnet_2": {
+      "tris": 724,
+      "materials": [
+        "LSX_PRP_Magnet_2"
+      ]
+    },
+    "PRP_Magnet_3": {
+      "tris": 724,
+      "materials": [
+        "LSX_PRP_Magnet_3"
+      ]
+    },
+    "PRP_Magnet_4": {
+      "tris": 724,
+      "materials": [
+        "LSX_PRP_Magnet_4"
+      ]
+    },
+    "PRP_Clock": {
+      "tris": 2296,
+      "materials": [
+        "LSX_PRP_Clock"
+      ]
+    },
+    "PRP_ClockHand_H": {
+      "tris": 88,
+      "materials": [
+        "LSX_PRP_ClockHand_H"
+      ]
+    },
+    "PRP_ClockHand_M": {
+      "tris": 88,
+      "materials": [
+        "LSX_PRP_ClockHand_M"
+      ]
+    },
+    "PRP_ClockHand_S": {
+      "tris": 148,
+      "materials": [
+        "LSX_PRP_ClockHand_S"
+      ]
+    },
+    "PRP_ToolRack": {
+      "tris": 5104,
+      "materials": [
+        "LSX_PRP_ToolRack"
+      ]
+    },
+    "PRP_SetSquare_45": {
+      "tris": 404,
+      "materials": [
+        "LSX_PRP_SetSquare_45"
+      ]
+    },
+    "PRP_SetSquare_60": {
+      "tris": 404,
+      "materials": [
+        "LSX_PRP_SetSquare_60"
+      ]
+    },
+    "PRP_Protractor": {
+      "tris": 1476,
+      "materials": [
+        "LSX_PRP_Protractor"
+      ]
+    },
+    "PRP_Ruler": {
+      "tris": 484,
+      "materials": [
+        "LSX_PRP_Ruler"
+      ]
+    },
+    "PRP_Compass": {
+      "tris": 1408,
+      "materials": [
+        "LSX_PRP_Compass"
+      ]
+    },
+    "PRP_Lectern": {
+      "tris": 1856,
+      "materials": [
+        "LSX_PRP_Lectern"
+      ]
+    },
+    "PRP_LecternEmblem": {
+      "tris": 572,
+      "materials": [
+        "LSX_PRP_LecternEmblem"
+      ]
+    },
+    "PRP_Textbook_Closed": {
+      "tris": 432,
+      "materials": [
+        "LSX_PRP_Textbook_Closed"
+      ]
+    },
+    "PRP_AttendanceBook": {
+      "tris": 432,
+      "materials": [
+        "LSX_PRP_AttendanceBook"
+      ]
+    },
+    "PRP_Textbook_Open": {
+      "tris": 524,
+      "materials": [
+        "LSX_PRP_Textbook_Open"
+      ]
+    },
+    "PRP_Printouts": {
+      "tris": 216,
+      "materials": [
+        "LSX_PRP_Printouts"
+      ]
+    },
+    "PRP_Teacup": {
+      "tris": 1098,
+      "materials": [
+        "LSX_PRP_Teacup"
+      ]
+    },
+    "PRP_Straw": {
+      "tris": 2280,
+      "materials": [
+        "LSX_PRP_Straw"
+      ]
+    },
+    "PRP_ChalkDish": {
+      "tris": 504,
+      "materials": [
+        "LSX_PRP_ChalkDish"
+      ]
+    },
+    "PRP_Whistle": {
+      "tris": 2216,
+      "materials": [
+        "LSX_PRP_Whistle"
+      ]
+    },
+    "PRP_DeskLamp": {
+      "tris": 4690,
+      "materials": [
+        "LSX_PRP_DeskLamp"
+      ]
+    },
+    "PRP_StepStool": {
+      "tris": 2352,
+      "materials": [
+        "LSX_PRP_StepStool"
+      ]
+    },
+    "PRP_Desk_0": {
+      "tris": 3216,
+      "materials": [
+        "LSX_PRP_Desk_0"
+      ]
+    },
+    "PRP_Stool_0": {
+      "tris": 4952,
+      "materials": [
+        "LSX_PRP_Stool_0"
+      ]
+    },
+    "PRP_Notebook_0_L": {
+      "tris": 108,
+      "materials": [
+        "LSX_PRP_Notebook_0_L"
+      ]
+    },
+    "PRP_Notebook_0_R": {
+      "tris": 108,
+      "materials": [
+        "LSX_PRP_Notebook_0_R"
+      ]
+    },
+    "PRP_DeskItems_0": {
+      "tris": 4660,
+      "materials": [
+        "LSX_PRP_DeskItems_0"
+      ]
+    },
+    "PRP_StudentBook_0": {
+      "tris": 324,
+      "materials": [
+        "LSX_PRP_StudentBook_0"
+      ]
+    },
+    "PRP_Desk_1": {
+      "tris": 3216,
+      "materials": [
+        "LSX_PRP_Desk_1"
+      ]
+    },
+    "PRP_Stool_1": {
+      "tris": 4952,
+      "materials": [
+        "LSX_PRP_Stool_1"
+      ]
+    },
+    "PRP_Notebook_1_L": {
+      "tris": 108,
+      "materials": [
+        "LSX_PRP_Notebook_1_L"
+      ]
+    },
+    "PRP_Notebook_1_R": {
+      "tris": 108,
+      "materials": [
+        "LSX_PRP_Notebook_1_R"
+      ]
+    },
+    "PRP_DeskItems_1": {
+      "tris": 1380,
+      "materials": [
+        "LSX_PRP_DeskItems_1"
+      ]
+    },
+    "PRP_StudentBook_1": {
+      "tris": 324,
+      "materials": [
+        "LSX_PRP_StudentBook_1"
+      ]
+    },
+    "PRP_Desk_2": {
+      "tris": 3216,
+      "materials": [
+        "LSX_PRP_Desk_2"
+      ]
+    },
+    "PRP_Stool_2": {
+      "tris": 4952,
+      "materials": [
+        "LSX_PRP_Stool_2"
+      ]
+    },
+    "PRP_Notebook_2_L": {
+      "tris": 108,
+      "materials": [
+        "LSX_PRP_Notebook_2_L"
+      ]
+    },
+    "PRP_Notebook_2_R": {
+      "tris": 108,
+      "materials": [
+        "LSX_PRP_Notebook_2_R"
+      ]
+    },
+    "PRP_DeskItems_2": {
+      "tris": 960,
+      "materials": [
+        "LSX_PRP_DeskItems_2"
+      ]
+    },
+    "PRP_SawModel": {
+      "tris": 7560,
+      "materials": [
+        "LSX_PRP_SawModel"
+      ]
+    },
+    "PRP_StudentBook_2": {
+      "tris": 324,
+      "materials": [
+        "LSX_PRP_StudentBook_2"
       ]
     }
   },
   "cast": {
     "lecturer": {
-      "tris": 4592,
-      "bones": 18,
+      "tris": 4348,
+      "bones": 19,
       "vertex_groups_not_bones": [],
       "bones_without_groups": [
         "Body",
         "Root"
       ],
-      "missing_weights": 0,
+      "missing_weights": [],
       "action": [
-        "Teach"
+        "Teach",
+        "T_Idle",
+        "T_IdleLook",
+        "T_Walk",
+        "T_SideStep",
+        "T_WriteStance",
+        "T_WriteTiptoe",
+        "T_JumpWrite",
+        "T_WipeLoop",
+        "T_WipeMessy",
+        "T_Explain",
+        "T_DozeStand",
+        "T_Bow",
+        "T_CrouchPickup",
+        "T_Sneeze",
+        "T_PointTap",
+        "T_ClapDust",
+        "T_SnapChalk",
+        "T_Throw",
+        "T_ClapErasers",
+        "T_Drink",
+        "T_LookClock",
+        "T_Nod",
+        "T_HeadTilt",
+        "T_Sad",
+        "T_Wave",
+        "T_Whistle",
+        "T_Stamp",
+        "T_Startle",
+        "T_HappyHop",
+        "T_LookUp",
+        "T_SitGrade",
+        "G_Idle",
+        "G_Walk",
+        "G_JumpWrite",
+        "G_Bow",
+        "G_Wave",
+        "G_WaveBoth",
+        "G_Startle",
+        "G_HappyHop",
+        "G_LookUp",
+        "G_Clap",
+        "G_Nod",
+        "G_HeadTilt",
+        "G_Sad",
+        "G_Stretch",
+        "G_Chat",
+        "G_Cheer",
+        "G_Freeze",
+        "G_Run",
+        "G_Sweep",
+        "G_PushDesk",
+        "G_Carry",
+        "G_PointCheck",
+        "T_Carry"
       ],
       "head_or_hips_keyed": [],
       "clearance": null,
@@ -225,9 +622,57 @@
         "Body",
         "Root"
       ],
-      "missing_weights": 0,
+      "missing_weights": [],
       "action": [
-        "TakeNotes"
+        "TakeNotes",
+        "S_SitIdle",
+        "S_LookBoard",
+        "S_CopyNotes",
+        "S_FastWrite",
+        "S_PeekLeft",
+        "S_PeekRight",
+        "S_Erase",
+        "S_Sharpen",
+        "S_PageFlip",
+        "S_RaiseHand",
+        "S_RaiseHandEager",
+        "S_StandUp",
+        "S_SitDown",
+        "S_Forget",
+        "S_FixCap",
+        "S_DozeDrift",
+        "S_Faceplant",
+        "S_SleepSlumped",
+        "S_WakeJolt",
+        "S_Teeter",
+        "S_Frenzy",
+        "S_TurnLeft",
+        "S_TurnRight",
+        "S_Clap",
+        "S_HideNotes",
+        "G_Idle",
+        "G_Walk",
+        "G_JumpWrite",
+        "G_Bow",
+        "G_Wave",
+        "G_WaveBoth",
+        "G_Startle",
+        "G_HappyHop",
+        "G_LookUp",
+        "G_Clap",
+        "G_Nod",
+        "G_HeadTilt",
+        "G_Sad",
+        "G_Stretch",
+        "G_Chat",
+        "G_Cheer",
+        "G_Freeze",
+        "G_Run",
+        "G_Sweep",
+        "G_PushDesk",
+        "G_Carry",
+        "G_PointCheck",
+        "S_Eat"
       ],
       "head_or_hips_keyed": [],
       "clearance": null,
@@ -246,15 +691,63 @@
     },
     "student_hand": {
       "tris": 4824,
-      "bones": 18,
+      "bones": 19,
       "vertex_groups_not_bones": [],
       "bones_without_groups": [
         "Body",
         "Root"
       ],
-      "missing_weights": 0,
+      "missing_weights": [],
       "action": [
-        "RaiseHand"
+        "RaiseHand",
+        "S_SitIdle",
+        "S_LookBoard",
+        "S_CopyNotes",
+        "S_FastWrite",
+        "S_PeekLeft",
+        "S_PeekRight",
+        "S_Erase",
+        "S_Sharpen",
+        "S_PageFlip",
+        "S_RaiseHand",
+        "S_RaiseHandEager",
+        "S_StandUp",
+        "S_SitDown",
+        "S_Forget",
+        "S_FixCap",
+        "S_DozeDrift",
+        "S_Faceplant",
+        "S_SleepSlumped",
+        "S_WakeJolt",
+        "S_Teeter",
+        "S_Frenzy",
+        "S_TurnLeft",
+        "S_TurnRight",
+        "S_Clap",
+        "S_HideNotes",
+        "G_Idle",
+        "G_Walk",
+        "G_JumpWrite",
+        "G_Bow",
+        "G_Wave",
+        "G_WaveBoth",
+        "G_Startle",
+        "G_HappyHop",
+        "G_LookUp",
+        "G_Clap",
+        "G_Nod",
+        "G_HeadTilt",
+        "G_Sad",
+        "G_Stretch",
+        "G_Chat",
+        "G_Cheer",
+        "G_Freeze",
+        "G_Run",
+        "G_Sweep",
+        "G_PushDesk",
+        "G_Carry",
+        "G_PointCheck",
+        "S_Eat"
       ],
       "head_or_hips_keyed": [],
       "clearance": null,
@@ -278,9 +771,57 @@
         "Body",
         "Root"
       ],
-      "missing_weights": 0,
+      "missing_weights": [],
       "action": [
-        "Doze"
+        "Doze",
+        "S_SitIdle",
+        "S_LookBoard",
+        "S_CopyNotes",
+        "S_FastWrite",
+        "S_PeekLeft",
+        "S_PeekRight",
+        "S_Erase",
+        "S_Sharpen",
+        "S_PageFlip",
+        "S_RaiseHand",
+        "S_RaiseHandEager",
+        "S_StandUp",
+        "S_SitDown",
+        "S_Forget",
+        "S_FixCap",
+        "S_DozeDrift",
+        "S_Faceplant",
+        "S_SleepSlumped",
+        "S_WakeJolt",
+        "S_Teeter",
+        "S_Frenzy",
+        "S_TurnLeft",
+        "S_TurnRight",
+        "S_Clap",
+        "S_HideNotes",
+        "G_Idle",
+        "G_Walk",
+        "G_JumpWrite",
+        "G_Bow",
+        "G_Wave",
+        "G_WaveBoth",
+        "G_Startle",
+        "G_HappyHop",
+        "G_LookUp",
+        "G_Clap",
+        "G_Nod",
+        "G_HeadTilt",
+        "G_Sad",
+        "G_Stretch",
+        "G_Chat",
+        "G_Cheer",
+        "G_Freeze",
+        "G_Run",
+        "G_Sweep",
+        "G_PushDesk",
+        "G_Carry",
+        "G_PointCheck",
+        "S_Eat"
       ],
       "head_or_hips_keyed": [],
       "clearance": null,
@@ -303,14 +844,43 @@
         "Body",
         "Root"
       ],
-      "missing_weights": 0,
+      "missing_weights": [],
       "action": [
-        "Practice"
+        "Practice",
+        "P_JumpEarly",
+        "P_JumpLate",
+        "P_Double",
+        "P_Fast",
+        "P_Reverse",
+        "P_Clipboard",
+        "P_FanSelf",
+        "G_Idle",
+        "G_Walk",
+        "G_JumpWrite",
+        "G_Bow",
+        "G_Wave",
+        "G_WaveBoth",
+        "G_Startle",
+        "G_HappyHop",
+        "G_LookUp",
+        "G_Clap",
+        "G_Nod",
+        "G_HeadTilt",
+        "G_Sad",
+        "G_Stretch",
+        "G_Chat",
+        "G_Cheer",
+        "G_Freeze",
+        "G_Run",
+        "G_Sweep",
+        "G_PushDesk",
+        "G_Carry",
+        "G_PointCheck"
       ],
       "head_or_hips_keyed": [],
       "clearance": {
-        "min_gap_to_blade": 0.064,
-        "frame": 38
+        "min_gap_to_blade": -0.297,
+        "frame": 44
       },
       "seated": null,
       "materials": [
@@ -328,164 +898,253 @@
       ],
       "plush_custom_normals": true,
       "gear_custom_normals": false
+    },
+    "duty": {
+      "tris": 3736,
+      "bones": 18,
+      "vertex_groups_not_bones": [],
+      "bones_without_groups": [
+        "Body",
+        "Root"
+      ],
+      "missing_weights": [],
+      "action": [
+        "G_Idle",
+        "G_Walk",
+        "G_JumpWrite",
+        "G_Bow",
+        "G_Wave",
+        "G_WaveBoth",
+        "G_Startle",
+        "G_HappyHop",
+        "G_LookUp",
+        "G_Clap",
+        "G_Nod",
+        "G_HeadTilt",
+        "G_Sad",
+        "G_Stretch",
+        "G_Chat",
+        "G_Cheer",
+        "G_Freeze",
+        "G_Run",
+        "G_Sweep",
+        "G_PushDesk",
+        "G_Carry",
+        "G_PointCheck"
+      ],
+      "head_or_hips_keyed": [],
+      "clearance": null,
+      "seated": null,
+      "materials": [
+        "GK_Plush",
+        "GK_Red",
+        "GK_White"
+      ],
+      "plush_custom_normals": true,
+      "gear_custom_normals": false
+    },
+    "vice": {
+      "tris": 3920,
+      "bones": 18,
+      "vertex_groups_not_bones": [],
+      "bones_without_groups": [
+        "Body",
+        "Root"
+      ],
+      "missing_weights": [],
+      "action": [
+        "G_Idle",
+        "G_Walk",
+        "G_JumpWrite",
+        "G_Bow",
+        "G_Wave",
+        "G_WaveBoth",
+        "G_Startle",
+        "G_HappyHop",
+        "G_LookUp",
+        "G_Clap",
+        "G_Nod",
+        "G_HeadTilt",
+        "G_Sad",
+        "G_Stretch",
+        "G_Chat",
+        "G_Cheer",
+        "G_Freeze",
+        "G_Run",
+        "G_Sweep",
+        "G_PushDesk",
+        "G_Carry",
+        "G_PointCheck"
+      ],
+      "head_or_hips_keyed": [],
+      "clearance": null,
+      "seated": null,
+      "materials": [
+        "GK_Plush",
+        "GK_Black",
+        "GK_Navy"
+      ],
+      "plush_custom_normals": true,
+      "gear_custom_normals": false
+    },
+    "transfer": {
+      "tris": 5264,
+      "bones": 18,
+      "vertex_groups_not_bones": [],
+      "bones_without_groups": [
+        "Body",
+        "Root"
+      ],
+      "missing_weights": [],
+      "action": [
+        "G_Idle",
+        "G_Walk",
+        "G_JumpWrite",
+        "G_Bow",
+        "G_Wave",
+        "G_WaveBoth",
+        "G_Startle",
+        "G_HappyHop",
+        "G_LookUp",
+        "G_Clap",
+        "G_Nod",
+        "G_HeadTilt",
+        "G_Sad",
+        "G_Stretch",
+        "G_Chat",
+        "G_Cheer",
+        "G_Freeze",
+        "G_Run",
+        "G_Sweep",
+        "G_PushDesk",
+        "G_Carry",
+        "G_PointCheck"
+      ],
+      "head_or_hips_keyed": [],
+      "clearance": null,
+      "seated": null,
+      "materials": [
+        "GK_Plush",
+        "GK_Yellow",
+        "GK_White",
+        "GK_Red",
+        "GK_Silver",
+        "GK_Black"
+      ],
+      "plush_custom_normals": true,
+      "gear_custom_normals": false
+    },
+    "janitor": {
+      "tris": 5148,
+      "bones": 18,
+      "vertex_groups_not_bones": [],
+      "bones_without_groups": [
+        "Body",
+        "Root"
+      ],
+      "missing_weights": [],
+      "action": [
+        "G_Idle",
+        "G_Walk",
+        "G_JumpWrite",
+        "G_Bow",
+        "G_Wave",
+        "G_WaveBoth",
+        "G_Startle",
+        "G_HappyHop",
+        "G_LookUp",
+        "G_Clap",
+        "G_Nod",
+        "G_HeadTilt",
+        "G_Sad",
+        "G_Stretch",
+        "G_Chat",
+        "G_Cheer",
+        "G_Freeze",
+        "G_Run",
+        "G_Sweep",
+        "G_PushDesk",
+        "G_Carry",
+        "G_PointCheck"
+      ],
+      "head_or_hips_keyed": [],
+      "clearance": null,
+      "seated": null,
+      "materials": [
+        "GK_Plush",
+        "GK_Navy",
+        "GK_White",
+        "GK_Green",
+        "GK_Black",
+        "GK_Orange"
+      ],
+      "plush_custom_normals": true,
+      "gear_custom_normals": false
+    },
+    "parent": {
+      "tris": 6216,
+      "bones": 18,
+      "vertex_groups_not_bones": [],
+      "bones_without_groups": [
+        "Body",
+        "Root"
+      ],
+      "missing_weights": [],
+      "action": [
+        "G_Idle",
+        "G_Walk",
+        "G_JumpWrite",
+        "G_Bow",
+        "G_Wave",
+        "G_WaveBoth",
+        "G_Startle",
+        "G_HappyHop",
+        "G_LookUp",
+        "G_Clap",
+        "G_Nod",
+        "G_HeadTilt",
+        "G_Sad",
+        "G_Stretch",
+        "G_Chat",
+        "G_Cheer",
+        "G_Freeze",
+        "G_Run",
+        "G_Sweep",
+        "G_PushDesk",
+        "G_Carry",
+        "G_PointCheck"
+      ],
+      "head_or_hips_keyed": [],
+      "clearance": null,
+      "seated": null,
+      "materials": [
+        "GK_Plush",
+        "GK_Cream",
+        "GK_Pink",
+        "GK_White",
+        "GK_Silver"
+      ],
+      "plush_custom_normals": true,
+      "gear_custom_normals": false
     }
   },
-  "props_total_tris": 50362,
+  "props_total_tris": 234656,
   "duplicate_materials": [],
-  "clips": {
-    "lecturer": {
-      "action": "Teach",
-      "length": 288,
-      "fcurves": 67,
-      "bones_rot": [
-        "Body",
-        "DEF-foot.L",
-        "DEF-foot.R",
-        "DEF-forearm.L",
-        "DEF-forearm.R",
-        "DEF-hand.L",
-        "DEF-hand.R",
-        "DEF-shin.L",
-        "DEF-shin.R",
-        "DEF-thigh.L",
-        "DEF-thigh.R",
-        "DEF-toe.L",
-        "DEF-toe.R",
-        "DEF-upper_arm.L",
-        "DEF-upper_arm.R",
-        "Root"
-      ],
-      "bones_loc": [
-        "Root"
-      ]
-    },
-    "student_notes": {
-      "action": "TakeNotes",
-      "length": 192,
-      "fcurves": 67,
-      "bones_rot": [
-        "Body",
-        "DEF-foot.L",
-        "DEF-foot.R",
-        "DEF-forearm.L",
-        "DEF-forearm.R",
-        "DEF-hand.L",
-        "DEF-hand.R",
-        "DEF-shin.L",
-        "DEF-shin.R",
-        "DEF-thigh.L",
-        "DEF-thigh.R",
-        "DEF-toe.L",
-        "DEF-toe.R",
-        "DEF-upper_arm.L",
-        "DEF-upper_arm.R",
-        "Root"
-      ],
-      "bones_loc": [
-        "Root"
-      ]
-    },
-    "student_hand": {
-      "action": "RaiseHand",
-      "length": 240,
-      "fcurves": 67,
-      "bones_rot": [
-        "Body",
-        "DEF-foot.L",
-        "DEF-foot.R",
-        "DEF-forearm.L",
-        "DEF-forearm.R",
-        "DEF-hand.L",
-        "DEF-hand.R",
-        "DEF-shin.L",
-        "DEF-shin.R",
-        "DEF-thigh.L",
-        "DEF-thigh.R",
-        "DEF-toe.L",
-        "DEF-toe.R",
-        "DEF-upper_arm.L",
-        "DEF-upper_arm.R",
-        "Root"
-      ],
-      "bones_loc": [
-        "Root"
-      ]
-    },
-    "student_doze": {
-      "action": "Doze",
-      "length": 216,
-      "fcurves": 70,
-      "bones_rot": [
-        "Body",
-        "DEF-foot.L",
-        "DEF-foot.R",
-        "DEF-forearm.L",
-        "DEF-forearm.R",
-        "DEF-hand.L",
-        "DEF-hand.R",
-        "DEF-shin.L",
-        "DEF-shin.R",
-        "DEF-thigh.L",
-        "DEF-thigh.R",
-        "DEF-toe.L",
-        "DEF-toe.R",
-        "DEF-upper_arm.L",
-        "DEF-upper_arm.R",
-        "Root"
-      ],
-      "bones_loc": [
-        "Root"
-      ]
-    },
-    "trainee": {
-      "action": "Practice",
-      "length": 120,
-      "fcurves": 73,
-      "bones_rot": [
-        "Blade",
-        "Body",
-        "DEF-foot.L",
-        "DEF-foot.R",
-        "DEF-forearm.L",
-        "DEF-forearm.R",
-        "DEF-hand.L",
-        "DEF-hand.R",
-        "DEF-shin.L",
-        "DEF-shin.R",
-        "DEF-thigh.L",
-        "DEF-thigh.R",
-        "DEF-toe.L",
-        "DEF-toe.R",
-        "DEF-upper_arm.L",
-        "DEF-upper_arm.R",
-        "Root"
-      ],
-      "bones_loc": [
-        "Blade",
-        "Root"
-      ]
-    }
-  },
   "exports_bytes": {
-    "lecture_set_props.glb": 2207064,
-    "godotkun_lecturer.glb": 325924,
-    "godotkun_student_notes.glb": 232924,
-    "godotkun_student_hand.glb": 277040,
-    "godotkun_student_doze.glb": 257272,
-    "godotkun_trainee.glb": 387148
+    "lecture_set_props.glb": 26759668,
+    "godotkun_lecturer.glb": 1047120,
+    "godotkun_student_notes.glb": 884512,
+    "godotkun_student_hand.glb": 944012,
+    "godotkun_student_doze.glb": 924944,
+    "godotkun_trainee.glb": 951544,
+    "godotkun_duty.glb": 562732,
+    "godotkun_vice.glb": 558088,
+    "godotkun_transfer.glb": 594356,
+    "godotkun_janitor.glb": 609220,
+    "godotkun_parent.glb": 622056,
+    "practice_yard_props.glb": 2699484,
+    "lecture_fx.glb": 458944
   },
-  "build_seconds": 0.37,
-  "blend_bytes": 5213700,
-  "blender": "5.1.2",
-  "live_file": "",
-  "renders": [
-    "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\settings_hall\\source\\previews\\review_f000.png",
-    "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\settings_hall\\source\\previews\\review_f056.png",
-    "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\settings_hall\\source\\previews\\review_f100.png",
-    "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\settings_hall\\source\\previews\\review_f150.png",
-    "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\settings_hall\\source\\previews\\review_f204.png",
-    "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\settings_hall\\source\\previews\\cast_f000.png",
-    "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\settings_hall\\source\\previews\\cast_f056.png",
-    "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\settings_hall\\source\\previews\\cast_f100.png"
-  ]
+  "blend_bytes": 42717750,
+  "blender": "5.1.2"
 }

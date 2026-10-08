@@ -15,6 +15,7 @@ var _caught_lifts: Dictionary = {}
 var _landing_spin_elapsed := 0.0
 var _last_saw_elapsed := 0.0
 var dock: SawDockPresentation
+var _fallback_spindle: AudioStreamPlayer3D = null
 var operator_seat: SawOperatorPresentation
 var _operator_distance := 0.0
 var _operator_elapsed := 0.0
@@ -39,6 +40,8 @@ const TOWER_LAY_SECONDS := 0.7 # davit towers swing between upright and hanging
 const TOWER_HANG_TILT := PI / 60.0 # 3 deg: hanging towers lean this far outboard of plumb
 const STOW_CROSSFADE := 0.35
 const STOW_LIFT_SETTLE := 1.5 # m/s a chase catch lift sinks back while the blades brake
+const STOW_RETREAT_SPEED := 2.5 # m/s the stowed carriage backs away to the end of the belt (and returns before deploying)
+const STOW_RETREAT_ACCEL := 1.5 # m/s^2
 const BEACON_MATERIAL := "MAT_BeaconLens"
 var stow_target := false
 var _stow_p := 0.0 # 0 = deployed rest, stow_length() = parked beside the conveyor
@@ -63,6 +66,9 @@ var _lifts := PackedFloat32Array() # last chase lift per blade
 var _stow_lifts := PackedFloat32Array() # chase lifts held when the stow starts, sinking to zero
 var _stow_drive := 0.0 # operator's DRIVE input when the stow began; eases to zero on the stow clock
 var _stow_idle := -1.0 # seconds resting fully stowed (operator vignettes); -1 = not at rest
+var _retreat := 0.0 # metres the fully stowed carriage has backed (+Z) away from where it stowed; deploy waits for 0
+var _retreat_speed := 0.0 # signed m/s along +Z
+var _retreat_origin_z := 0.0 # carriage Z when this stow began
 var _tower_lay := 1.0 # 1 = davit towers hanging (deployed rest), 0 = upright as both clips start/end
 var _tower_hold_p := 0.0 # p below which neither clip moves a tower
 var _tower_bones: Array[int] = [] # Davit_* luff roots
@@ -335,6 +341,9 @@ func advance_stow(dt: float, audible: bool = true) -> void:
 	_stow_acc -= steps
 	# A blade the menu chase had lifted (catching a runner) sinks back instead of dropping.
 	if is_stow_clear() and steps > 0:
+		_retreat_origin_z = position.z
+		_retreat = 0.0
+		_retreat_speed = 0.0
 		_stow_lifts = _lifts.duplicate()
 		# The carriage coasts to a stop under the operator's hand as the stow begins.
 		if operator_seat != null and not operator_seat.last_sample.is_empty(): _stow_drive = float(operator_seat.last_sample.drive)
@@ -353,6 +362,7 @@ func advance_stow(dt: float, audible: bool = true) -> void:
 	if not sounding:
 		_stow_horn.stop()
 		_stow_latch.stop()
+	_step_retreat(step)
 	if dock != null: dock.update_audio(sounding, _preview_spin_rate(), global_position)
 	_update_beacons(step)
 	_apply_spin(_preview_spin_seconds(), _last_wheel_distance)
@@ -392,6 +402,7 @@ func _stow_tick(events: Dictionary) -> void:
 	var length := stow_length()
 	var want := 1.0 if stow_target else -1.0
 	if (want > 0.0 and _stow_p >= length) or (want < 0.0 and _stow_p <= 0.0): want = 0.0
+	if want < 0.0 and _retreat > 0.0: want = 0.0 # the carriage rolls back to where it stowed before the deploy starts
 	var rate := move_toward(_stow_rate, want, STOW_REVERSE_ACCEL / maxf(stow_speed(_stow_p) * STOW_SPEED, 0.05) * STOW_STEP)
 	var clip := _stow_clip if rate == 0.0 else (0 if rate > 0.0 else 1)
 	if clip != _stow_clip:
@@ -417,6 +428,29 @@ func _stow_tick(events: Dictionary) -> void:
 	var now := _stow_clip_time()
 	for event: Dictionary in _stow_data.events.get("stow" if _stow_clip == 0 else "deploy", []):
 		if float(event.t) > before and float(event.t) <= now: events[str(event.kind)] = true
+
+## Once the blades are fully racked the carriage backs away to the end of the belt (the menu chase's
+## home Z), clear of the playfield; before a deploy it rolls forward to where it stowed. Wheels roll with it.
+func _retreat_goal() -> float:
+	if not stow_target or _stow_p < stow_length(): return 0.0
+	return maxf(SawDockPresentation.MENU_Z - _retreat_origin_z, 0.0)
+
+func _step_retreat(dt: float) -> void:
+	var remaining := _retreat_goal() - _retreat
+	var before := _retreat
+	if absf(remaining) < 0.005:
+		_retreat += remaining
+		_retreat_speed = 0.0
+	else:
+		var want := signf(remaining) * minf(STOW_RETREAT_SPEED, sqrt(2.0 * STOW_RETREAT_ACCEL * absf(remaining)))
+		_retreat_speed = move_toward(_retreat_speed, want, STOW_RETREAT_ACCEL * maxf(dt, 0.0))
+		_retreat += _retreat_speed * maxf(dt, 0.0)
+		if (_retreat - _retreat_goal()) * signf(remaining) > 0.0: # never overshoot the goal
+			_retreat = _retreat_goal()
+			_retreat_speed = 0.0
+	if _retreat != before:
+		position.z = _retreat_origin_z + _retreat
+		_last_wheel_distance += _retreat - before
 
 func _stow_clip_time() -> float:
 	return _stow_p if _stow_clip == 0 else stow_length() - _stow_p
@@ -692,10 +726,41 @@ func _update_lifts(gs: QuizGameState) -> void:
 	_caught_lifts.merge(new_catches)
 	skeleton.force_update_all_bone_transforms()
 
+## Without a dock (the 2P tutorial's saw steps) nothing else owns the blade
+## motor sound, so the carriage runs the dock's spindle loop itself.
+func _update_fallback_spindle(gs: QuizGameState, dt: float) -> void:
+	var speed := smoothstep(0.0, SawChaseState.SPINUP_SECONDS, _landing_spin_elapsed + gs.saw.elapsed)
+	if not gs.is_replay:
+		speed *= gs.saw.stop_speed_ratio()
+	var active := dt > 0.0 and speed > 0.005 and gs.game_state in [Constants.STATE_COUNTDOWN, Constants.STATE_PLAYING]
+	if _fallback_spindle == null:
+		if not active:
+			return
+		_fallback_spindle = AudioStreamPlayer3D.new()
+		_fallback_spindle.name = "FallbackBladeMotor"
+		_fallback_spindle.process_mode = Node.PROCESS_MODE_PAUSABLE
+		var stream := load("res://assets/audio/sfx/dock_spindle.wav").duplicate() as AudioStreamWAV
+		stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		stream.loop_begin = 0
+		stream.loop_end = int(round(stream.get_length() * stream.mix_rate))
+		_fallback_spindle.stream = stream
+		_fallback_spindle.bus = "SFX"
+		_fallback_spindle.unit_size = 15.0
+		_fallback_spindle.max_distance = 55.0
+		add_child(_fallback_spindle)
+	if active and not _fallback_spindle.playing:
+		_fallback_spindle.play()
+	elif not active and _fallback_spindle.playing:
+		_fallback_spindle.stop()
+	_fallback_spindle.pitch_scale = lerpf(0.5, 1.5, speed)
+	_fallback_spindle.volume_db = lerpf(-42.0, -26.0, speed)
+
+
 func update_visual(gs: QuizGameState, dt: float = 0.0, players_landed: bool = false, entrance_running: bool = true) -> void:
 	visible = gs.is_saw_visible()
 	if not visible:
 		if dock != null: dock.stop_audio()
+		if _fallback_spindle != null: _fallback_spindle.stop()
 		return
 	if model == null:
 		_load_model()
@@ -725,3 +790,5 @@ func update_visual(gs: QuizGameState, dt: float = 0.0, players_landed: bool = fa
 		var speed := smoothstep(0.0, SawChaseState.SPINUP_SECONDS, _landing_spin_elapsed + gs.saw.elapsed)
 		if not gs.is_replay: speed *= gs.saw.stop_speed_ratio()
 		dock.update_audio(active, speed, global_position)
+	else:
+		_update_fallback_spindle(gs, dt)

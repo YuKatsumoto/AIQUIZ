@@ -369,6 +369,18 @@ func check_score_tower() -> void:
 	check(absf(column.get_aabb().size.y - M.TIER_COUNT * M.TIER_HEIGHT) < 0.01 and absf(column.get_aabb().end.y - ResultFinaleStage.COLUMN_TOP) < 0.01,
 		"tier column is %d stacked 0.3 m tiers under the platform" % M.TIER_COUNT)
 	check("FIN_TowerBody" in names and "FIN_TowerAccent" in names and "FIN_TierGold" in names, "tier column carries body, accent ring and gold milestone surfaces %s" % [names])
+	# A double-sided surface is lit inside out under the P2 mirror (the tower went grey).
+	var holder := Node3D.new()
+	var tower: Node3D = ResultFinaleStage.create_tower(2, holder).root
+	var double_sided := []
+	for node: Node in tower.find_children("*", "MeshInstance3D", true, false):
+		var mesh := node as MeshInstance3D
+		for surface in range(mesh.mesh.get_surface_count()):
+			var material := mesh.get_active_material(surface) as BaseMaterial3D
+			if material != null and material.cull_mode != BaseMaterial3D.CULL_BACK:
+				double_sided.append(material.resource_name)
+	check(double_sided.is_empty(), "score tower has no double-sided surfaces to light inside out when mirrored %s" % [double_sided])
+	holder.free()
 	check_tall_camera()
 	check(is_equal_approx(M.performance_time(11.2), 11.2) and M.performance_time(12.37) >= float(data.loop_start) and M.performance_time(12.37) <= 11.2, "performance loops after the controls appear")
 	var hud: Variant = JSON.parse_string(FileAccess.get_file_as_string(ResultFinaleHud.HUD_PATH))

@@ -38,6 +38,7 @@ var _servo: AudioStreamPlayer3D
 var _latch: AudioStreamPlayer3D
 var _spindle: AudioStreamPlayer3D
 var _engine: AudioStreamPlayer3D
+var _horn: AudioStreamPlayer3D
 var _wakes: Array[MeshInstance3D] = []
 var _wake_material: ShaderMaterial
 
@@ -96,6 +97,15 @@ func setup(preview: bool, play_entrance: bool) -> void:
 	_latch = _audio("RailLock", "dock_latch.wav", false, -12.0)
 	_spindle = _audio("BladeMotor", "dock_spindle.wav", true, -26.0)
 	_engine = _audio("VesselEngine", "vessel_engine.wav", true, -24.0)
+	_horn = AudioStreamPlayer3D.new()
+	_horn.name = "ShipHorn"
+	_horn.process_mode = Node.PROCESS_MODE_PAUSABLE
+	_horn.stream = AudioManager.get_sfx_stream(&"ship_horn")
+	_horn.volume_db = AudioManager.get_sfx_volume_db(&"ship_horn")
+	_horn.bus = "SFX"
+	_horn.unit_size = 24.0
+	_horn.max_distance = 180.0
+	add_child(_horn)
 	_create_wake()
 	if play_entrance: begin()
 	else: restore_deployed()
@@ -152,6 +162,12 @@ func advance(dt: float) -> void:
 	elapsed = minf(FINISH_TIME, elapsed + maxf(dt, 0.0))
 	if before < TRANSFER_START and elapsed >= TRANSFER_START and _latch != null:
 		_latch.play()
+	# The service vessel sounds its horn as it docks and again as it leaves.
+	var horn_due := (before < DOCKED_TIME and elapsed >= DOCKED_TIME) or (
+		before < DEPARTURE_START and elapsed >= DEPARTURE_START)
+	if horn_due and _horn != null and ship != null:
+		_horn.global_position = ship.to_global(Vector3(0.0, 4.0, 0.0))
+		_horn.play()
 	if elapsed < DOCKED_TIME: phase = Phase.APPROACHING
 	elif elapsed < RAISE_START: phase = Phase.DOCKING
 	elif elapsed < TRANSFER_START: phase = Phase.RAISING
@@ -224,7 +240,7 @@ func _loop(player: AudioStreamPlayer3D, active: bool) -> void:
 	elif not active and player.playing: player.stop()
 
 func stop_audio() -> void:
-	for player in [_servo, _latch, _spindle, _engine]:
+	for player in [_servo, _latch, _spindle, _engine, _horn]:
 		if player != null: player.stop()
 
 func _audio(label: String, file: String, looped: bool, gain: float) -> AudioStreamPlayer3D:

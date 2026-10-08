@@ -132,17 +132,24 @@ func burst_confetti(muzzles: Array[Node3D], colors: Array, time: float) -> void:
 	events.append({"kind": "confetti_burst", "time": time, "count": muzzles.size()})
 
 
-## A gentle curtain of confetti over the winner that keeps falling.
-func start_confetti_rain(centre: Vector3, width: float, colors: Array, time: float) -> void:
+## Slowest drift speed of the rain (gravity 1.6 over the strongest damping 0.9).
+const RAIN_MIN_FALL_SPEED := 1.8
+
+## A gentle curtain of confetti over the winner that keeps falling. fall_distance is
+## the drop from the emitter to the floor: the lifetime is sized so even the slowest
+## piece lands on the floor instead of vanishing mid-air.
+func start_confetti_rain(centre: Vector3, width: float, colors: Array, time: float, fall_distance := 9.0) -> void:
 	if is_instance_valid(_confetti_rain):
 		return
+	var lifetime := maxf(5.0, fall_distance / RAIN_MIN_FALL_SPEED + 1.5)
 	_confetti_rain = _track(GPUParticles3D.new()) as GPUParticles3D
 	_confetti_rain.name = "ConfettiRain"
 	_confetti_rain.global_position = centre
-	_confetti_rain.amount = int(170 * _ratio())
-	_confetti_rain.lifetime = 5.0
+	# Same density as the 5 s curtain, however long the pieces stay alive.
+	_confetti_rain.amount = int(170 * _ratio() * lifetime / 5.0)
+	_confetti_rain.lifetime = lifetime
 	_confetti_rain.preprocess = 0.0
-	_confetti_rain.visibility_aabb = AABB(Vector3(-10, -12, -6), Vector3(20, 16, 12))
+	_confetti_rain.visibility_aabb = AABB(Vector3(-10, -(fall_distance + 3.0), -6), Vector3(20, fall_distance + 7.0, 12))
 	var process := _confetti_process(Vector2(0.2, 1.0), 180.0, -1.6)
 	process.direction = Vector3.DOWN
 	process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX

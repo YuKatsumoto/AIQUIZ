@@ -1,6 +1,9 @@
 extends Node
 
-const BGM_PATH := "res://assets/audio/bgm/head_in_the_sand.ogg"
+const BGM_PATH := "res://assets/audio/bgm/quiz_party_loop.ogg"
+## The loop is mastered to -16 LUFS, but CONTEXT_VOLUME_DB was tuned against the
+## previous BGM at -25.4 LUFS (docs/bgm_renewal.md); trim to keep that balance.
+const BGM_TRACK_GAIN_DB := -9.4
 const SETTINGS_PATH := "user://audio_settings.cfg"
 const MUSIC_CONTEXT_MENU: StringName = &"menu"
 const MUSIC_CONTEXT_GAMEPLAY: StringName = &"gameplay"
@@ -28,6 +31,22 @@ const CROWD_CUE_PATHS := {
 	&"egg_splat": "res://assets/audio/sfx/goal_stand/egg_splat.ogg",
 	&"egg_throw": "res://assets/audio/sfx/goal_stand/egg_throw.ogg",
 }
+
+## Sample-based sound effects (CC0 libraries, see assets/audio/sfx/CREDITS.md).
+const SfxCatalog := preload("res://scripts/autoload/sfx_catalog.gd")
+const SFX_ROOT := "res://assets/audio/sfx/"
+const SFX_VOICES := 16
+## UI focus sounds are skipped right after a scene change, when screens grab
+## focus programmatically.
+const UI_FOCUS_SOUND_GRACE_MSEC := 350
+const UI_NAV_ACTIONS: Array[StringName] = [&"ui_up", &"ui_down", &"ui_left", &"ui_right",
+	&"ui_focus_next", &"ui_focus_prev"]
+## Press cue picked from a button's name/text: whole English words, Japanese substrings.
+const UI_BACK_TOKENS: Array[String] = ["back", "close", "cancel", "quit", "exit", "return"]
+const UI_BACK_TEXT: Array[String] = ["戻る", "もどる", "閉じる", "とじる", "キャンセル", "やめる", "終了",
+	"タイトルへ", "メニュー"]
+const UI_CONFIRM_TOKENS: Array[String] = ["start", "confirm", "begin", "go", "ok", "retry"]
+const UI_CONFIRM_TEXT: Array[String] = ["スタート", "はじめる", "開始", "決定", "けってい", "もう一度", "リトライ"]
 
 ## オーディオ管理 (Autoload)
 ## Python版 synth.py の generate_correct_sound / generate_explosion_sound に相当
@@ -64,6 +83,17 @@ var _music_context: StringName = MUSIC_CONTEXT_MENU
 var _context_before_pause: StringName = MUSIC_CONTEXT_MENU
 var _context_tween: Tween = null
 var _tutorial_ducked: bool = false
+var _sfx_voices: Array[AudioStreamPlayer] = []
+var _sfx_voice_started: Array[int] = []
+var _sfx_streams: Dictionary = {}
+var _sfx_last_msec: Dictionary = {}
+var _sfx_last_variant: Dictionary = {}
+var _sfx_loops: Dictionary = {}
+var _sfx_loop_tweens: Dictionary = {}
+var _sfx_loop_owners: Dictionary = {}
+var _scene_started_msec: int = 0
+var _ui_camel_regex: RegEx = null
+var _ui_split_regex: RegEx = null
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -78,7 +108,7 @@ func _ready() -> void:
 	if bgm_stream is AudioStreamOggVorbis:
 		(bgm_stream as AudioStreamOggVorbis).loop = true
 	bgm_player.stream = bgm_stream
-	bgm_player.volume_db = CONTEXT_VOLUME_DB[MUSIC_CONTEXT_MENU]
+	bgm_player.volume_db = CONTEXT_VOLUME_DB[MUSIC_CONTEXT_MENU] + BGM_TRACK_GAIN_DB
 	add_child(bgm_player)
 
 	correct_player = AudioStreamPlayer.new()
@@ -98,7 +128,9 @@ func _ready() -> void:
 	result_accent_player.volume_db = -5.0
 	for index in range(4):
 		result_cue_players.append(_create_sfx_player("ResultFinaleCue%d" % index))
-	for index in range(5):
+	# Eight voices: egg throws/splats arrive about once a second during the
+	# verdict and used to cut the long cheer and boo short.
+	for index in range(8):
 		crowd_players.append(_create_sfx_player("GoalStandCrowd%d" % index))
 	result_hero_impact = load("res://assets/audio/sfx/result_toon/hero_impact.ogg")
 	result_hero_swish = load("res://assets/audio/sfx/result_toon/hero_swish.ogg")
@@ -107,6 +139,10 @@ func _ready() -> void:
 	tutorial_player.name = "TutorialSFX"
 	tutorial_player.bus = "SFX"
 	add_child(tutorial_player)
+	for index in range(SFX_VOICES):
+		_sfx_voices.append(_create_sfx_player("SfxVoice%d" % index))
+		_sfx_voice_started.append(0)
+	get_tree().node_added.connect(_on_tree_node_added)
 
 	# Generate audio samples
 	_generate_correct_sound()
@@ -124,7 +160,8 @@ func _ready() -> void:
 	game_state.sfx_volume = sfx_volume
 	game_state.bgm_volume = bgm_volume
 	game_state.correct_answer.connect(play_correct)
-	game_state.wrong_answer.connect(func(_msg: String): play_explosion())
+	# Wrong answers are voiced where they show: the wall bonk/crash at the hit and
+	# the explosion when the body bursts (game_world.gd).
 
 	set_sfx_volume(sfx_volume, false)
 	set_bgm_volume(bgm_volume, false)
@@ -197,7 +234,14 @@ func play_crowd_cue(cue: StringName, volume_db: float = 0.0, pitch: float = 1.0)
 		if path.is_empty() or not ResourceLoader.exists(path):
 			return
 		_crowd_streams[cue] = load(path)
+	# Prefer an idle voice so a long cheer or boo is not cut by a short splat.
 	var player := crowd_players[_crowd_index % crowd_players.size()]
+	for offset in range(crowd_players.size()):
+		var candidate := crowd_players[(_crowd_index + offset) % crowd_players.size()]
+		if not candidate.playing:
+			player = candidate
+			_crowd_index += offset
+			break
 	_crowd_index += 1
 	player.stream = _crowd_streams[cue]
 	player.volume_db = volume_db
@@ -224,6 +268,296 @@ func play_tutorial_complete() -> void:
 
 func play_tutorial_settle() -> void:
 	_play_tutorial_stream(tutorial_settle_stream)
+
+
+## Plays a catalog cue (scripts/autoload/sfx_catalog.gd) on a pooled 2D voice.
+## volume_db and pitch_scale are applied on top of the catalog values.
+func play_sfx(cue: StringName, volume_db: float = 0.0, pitch_scale: float = 1.0) -> void:
+	var def: Dictionary = SfxCatalog.CUES.get(cue, {})
+	if def.is_empty():
+		push_warning("AudioManager: unknown sfx cue '%s'" % cue)
+		return
+	var now := Time.get_ticks_msec()
+	var min_interval_msec := int(float(def.get("min_interval", 0.0)) * 1000.0)
+	if min_interval_msec > 0 and now - int(_sfx_last_msec.get(cue, -100000)) < min_interval_msec:
+		return
+	var stream := _sfx_pick_stream(cue, def)
+	if stream == null:
+		return
+	_sfx_last_msec[cue] = now
+	var voice_index := _sfx_free_voice_index()
+	var player := _sfx_voices[voice_index]
+	player.stream = stream
+	player.volume_db = float(def.get("volume_db", 0.0)) + volume_db
+	var jitter := float(def.get("pitch_jitter", 0.0))
+	player.pitch_scale = maxf(0.05, pitch_scale * float(def.get("pitch", 1.0)) * (1.0 + randf_range(-jitter, jitter)))
+	player.play()
+	_sfx_voice_started[voice_index] = now
+
+
+## Starts a looping cue under `key`, or retargets its volume if it already
+## runs. When `owner_node` leaves the tree the loop fades out on its own.
+func start_sfx_loop(key: StringName, cue: StringName, volume_db: float = 0.0, fade_in: float = 0.15,
+		owner_node: Node = null) -> void:
+	var def: Dictionary = SfxCatalog.CUES.get(cue, {})
+	if def.is_empty():
+		push_warning("AudioManager: unknown sfx loop cue '%s'" % cue)
+		return
+	var player: AudioStreamPlayer = _sfx_loops.get(key)
+	if player == null:
+		player = _create_sfx_player("SfxLoop_%s" % key)
+		_sfx_loops[key] = player
+	var target_db := float(def.get("volume_db", 0.0)) + volume_db
+	if owner_node != null:
+		_sfx_loop_owners[key] = owner_node
+	else:
+		_sfx_loop_owners.erase(key)
+	if player.playing and player.has_meta(&"cue") and player.get_meta(&"cue") == cue:
+		_fade_sfx_loop(key, target_db, fade_in, false)
+		return
+	var stream := _sfx_pick_stream(cue, def)
+	if stream == null:
+		return
+	if stream is AudioStreamOggVorbis:
+		(stream as AudioStreamOggVorbis).loop = true
+	elif stream is AudioStreamWAV:
+		(stream as AudioStreamWAV).loop_mode = AudioStreamWAV.LOOP_FORWARD
+	player.set_meta(&"cue", cue)
+	player.stream = stream
+	player.pitch_scale = float(def.get("pitch", 1.0))
+	player.volume_db = -60.0 if fade_in > 0.0 else target_db
+	player.play()
+	if fade_in > 0.0:
+		_fade_sfx_loop(key, target_db, fade_in, false)
+
+
+## Loops started with an owner fade out once that node leaves the tree
+## (scene change, freed controller), even if nobody calls stop_sfx_loop().
+func _process(_delta: float) -> void:
+	if _sfx_loop_owners.is_empty():
+		return
+	for key: StringName in _sfx_loop_owners.keys():
+		var owner_node = _sfx_loop_owners[key]  # Untyped: the node may already be freed.
+		if not is_instance_valid(owner_node) or not (owner_node as Node).is_inside_tree():
+			_sfx_loop_owners.erase(key)
+			stop_sfx_loop(key, 0.15)
+
+
+func stop_sfx_loop(key: StringName, fade_out: float = 0.25) -> void:
+	var player: AudioStreamPlayer = _sfx_loops.get(key)
+	if player == null or not player.playing:
+		return
+	if fade_out <= 0.0:
+		player.stop()
+		return
+	_fade_sfx_loop(key, -60.0, fade_out, true)
+
+
+func set_sfx_loop_pitch(key: StringName, pitch_scale: float) -> void:
+	var player: AudioStreamPlayer = _sfx_loops.get(key)
+	if player != null:
+		player.pitch_scale = maxf(0.05, pitch_scale)
+
+
+## volume_db is relative to the cue's catalog level, as in start_sfx_loop().
+func set_sfx_loop_volume(key: StringName, volume_db: float) -> void:
+	var player: AudioStreamPlayer = _sfx_loops.get(key)
+	if player == null or not player.playing or not player.has_meta(&"cue"):
+		return
+	var previous: Tween = _sfx_loop_tweens.get(key)
+	if is_instance_valid(previous) and previous.is_running():
+		return  # Let fade-ins and fade-outs finish.
+	var def: Dictionary = SfxCatalog.CUES.get(player.get_meta(&"cue"), {})
+	player.volume_db = float(def.get("volume_db", 0.0)) + volume_db
+
+
+## For world scripts that own positional players: one variant of a cue and its
+## catalog level, so 3D sounds share files and mix with play_sfx().
+func get_sfx_stream(cue: StringName) -> AudioStream:
+	var def: Dictionary = SfxCatalog.CUES.get(cue, {})
+	return null if def.is_empty() else _sfx_pick_stream(cue, def)
+
+
+func get_sfx_volume_db(cue: StringName) -> float:
+	return float(SfxCatalog.CUES.get(cue, {}).get("volume_db", 0.0))
+
+
+func is_sfx_loop_playing(key: StringName) -> bool:
+	var player: AudioStreamPlayer = _sfx_loops.get(key)
+	return player != null and player.playing
+
+
+func _fade_sfx_loop(key: StringName, target_db: float, seconds: float, stop_after: bool) -> void:
+	var player: AudioStreamPlayer = _sfx_loops.get(key)
+	if player == null:
+		return
+	var previous: Tween = _sfx_loop_tweens.get(key)
+	if is_instance_valid(previous):
+		previous.kill()
+	if seconds <= 0.0:
+		player.volume_db = target_db
+		if stop_after:
+			player.stop()
+		return
+	var tween := create_tween()
+	tween.tween_property(player, "volume_db", target_db, seconds)
+	if stop_after:
+		tween.tween_callback(player.stop)
+	_sfx_loop_tweens[key] = tween
+
+
+func _sfx_pick_stream(cue: StringName, def: Dictionary) -> AudioStream:
+	var files: Array = def.get("files", [])
+	if files.is_empty():
+		return null
+	var index := 0
+	if files.size() > 1:
+		index = randi() % files.size()
+		if index == int(_sfx_last_variant.get(cue, -1)):
+			index = (index + 1) % files.size()
+	_sfx_last_variant[cue] = index
+	var path: String = SFX_ROOT + String(files[index])
+	if not _sfx_streams.has(path):
+		if not ResourceLoader.exists(path):
+			push_warning("AudioManager: missing sfx file %s" % path)
+			_sfx_streams[path] = null
+		else:
+			_sfx_streams[path] = load(path)
+	return _sfx_streams[path]
+
+
+func _sfx_free_voice_index() -> int:
+	var oldest := 0
+	for index in range(_sfx_voices.size()):
+		if not _sfx_voices[index].playing:
+			return index
+		if _sfx_voice_started[index] < _sfx_voice_started[oldest]:
+			oldest = index
+	return oldest
+
+
+## Gives every Button / Slider / TabBar in the game a UI sound without touching
+## each screen. A control can opt out with set_meta("sfx_silent", true) or pick
+## its own press cue with set_meta("sfx_press", &"cue").
+func _on_tree_node_added(node: Node) -> void:
+	if node.get_parent() == get_tree().root:
+		_scene_started_msec = Time.get_ticks_msec()
+	if not (node is Control) or node.has_meta(&"_sfx_hooked"):
+		return
+	if node is BaseButton:
+		var button := node as BaseButton
+		node.set_meta(&"_sfx_hooked", true)
+		if button.toggle_mode:
+			button.toggled.connect(_on_ui_button_toggled.bind(button))
+		else:
+			button.pressed.connect(_on_ui_button_pressed.bind(button))
+		button.mouse_entered.connect(_on_ui_control_hovered.bind(button))
+		button.focus_entered.connect(_on_ui_control_focused.bind(button))
+	elif node is Slider:
+		var slider := node as Slider
+		node.set_meta(&"_sfx_hooked", true)
+		slider.value_changed.connect(_on_ui_slider_changed.bind(slider))
+		slider.focus_entered.connect(_on_ui_control_focused.bind(slider))
+	elif node is TabBar:
+		node.set_meta(&"_sfx_hooked", true)
+		(node as TabBar).tab_clicked.connect(_on_ui_tab_clicked.bind(node))
+	elif node is TabContainer:
+		node.set_meta(&"_sfx_hooked", true)
+		(node as TabContainer).tab_clicked.connect(_on_ui_tab_clicked.bind(node))
+
+
+## Presses skip the visibility test: the button's own handler often hides its
+## screen before this hook runs.
+func _ui_sound_allowed(control: Control, require_visible: bool = true) -> bool:
+	if not is_instance_valid(control) or control.get_meta(&"sfx_silent", false):
+		return false
+	return not require_visible or control.is_visible_in_tree()
+
+
+func _on_ui_button_pressed(button: BaseButton) -> void:
+	if not _ui_sound_allowed(button, false):
+		return
+	play_sfx(_ui_press_cue(button))
+
+
+func _on_ui_button_toggled(toggled_on: bool, button: BaseButton) -> void:
+	if not _ui_sound_allowed(button, false):
+		return
+	if button.has_meta(&"sfx_press"):
+		play_sfx(button.get_meta(&"sfx_press"))
+	else:
+		play_sfx(&"ui_toggle_on" if toggled_on else &"ui_toggle_off")
+
+
+func _on_ui_control_hovered(control: Control) -> void:
+	if not _ui_sound_allowed(control) or control.get_meta(&"sfx_no_hover", false):
+		return
+	if control is BaseButton and (control as BaseButton).disabled:
+		return
+	play_sfx(&"ui_hover")
+
+
+## Keyboard / gamepad focus moves only: screens that call grab_focus() on open
+## stay silent.
+func _on_ui_control_focused(control: Control) -> void:
+	if not _ui_sound_allowed(control) or control.get_meta(&"sfx_no_hover", false):
+		return
+	if Time.get_ticks_msec() - _scene_started_msec < UI_FOCUS_SOUND_GRACE_MSEC:
+		return
+	for action in UI_NAV_ACTIONS:
+		if InputMap.has_action(action) and Input.is_action_just_pressed(action):
+			play_sfx(&"ui_hover")
+			return
+
+
+func _on_ui_slider_changed(value: float, slider: Slider) -> void:
+	if not _ui_sound_allowed(slider):
+		return
+	# Values set from code (screen setup, loading settings) stay silent.
+	if not slider.has_focus() and not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+		return
+	var span := slider.max_value - slider.min_value
+	var ratio := 0.5 if span <= 0.0 else clampf((value - slider.min_value) / span, 0.0, 1.0)
+	play_sfx(&"ui_slider", 0.0, lerpf(0.85, 1.3, ratio))
+
+
+func _on_ui_tab_clicked(_tab: int, control: Control) -> void:
+	if _ui_sound_allowed(control, false):
+		play_sfx(&"ui_tab")
+
+
+func _ui_press_cue(button: BaseButton) -> StringName:
+	if button.has_meta(&"sfx_press"):
+		return button.get_meta(&"sfx_press")
+	var label := String(button.name)
+	if button is Button:
+		label += " " + (button as Button).text
+	var tokens := _ui_label_tokens(label)
+	for word in UI_BACK_TOKENS:
+		if tokens.has(word):
+			return &"ui_back"
+	for word in UI_BACK_TEXT:
+		if label.contains(word):
+			return &"ui_back"
+	for word in UI_CONFIRM_TOKENS:
+		if tokens.has(word):
+			return &"ui_confirm"
+	for word in UI_CONFIRM_TEXT:
+		if label.contains(word):
+			return &"ui_confirm"
+	return &"ui_click"
+
+
+## "BackButton" / "start_btn" / "Quit Game" -> ["back", "button"], ["start", "btn"], ["quit", "game"].
+func _ui_label_tokens(label: String) -> PackedStringArray:
+	if _ui_camel_regex == null:
+		_ui_camel_regex = RegEx.create_from_string("([a-z0-9])([A-Z])")
+		_ui_split_regex = RegEx.create_from_string("[^a-z0-9]+")
+	var spaced := _ui_camel_regex.sub(label, "$1 $2", true).to_lower()
+	var tokens := PackedStringArray()
+	for part in _ui_split_regex.sub(spaced, " ", true).split(" ", false):
+		tokens.append(part)
+	return tokens
 
 
 func set_tutorial_ducked(ducked: bool, fade_seconds: float = 0.22) -> void:
@@ -257,7 +591,7 @@ func set_music_context(context: StringName, fade_seconds: float = 0.4) -> void:
 func _apply_music_target(fade_seconds: float) -> void:
 	if not is_instance_valid(bgm_player):
 		return
-	var target_db: float = float(CONTEXT_VOLUME_DB.get(_music_context, 0.0))
+	var target_db: float = float(CONTEXT_VOLUME_DB.get(_music_context, 0.0)) + BGM_TRACK_GAIN_DB
 	if _tutorial_ducked:
 		target_db -= 6.0
 	if is_instance_valid(_context_tween):
@@ -616,6 +950,9 @@ func _generate_finale_sounds() -> void:
 		var brass := sin(sad_phase) * 0.6 + sin(sad_phase * 2.0) * 0.28 + sin(sad_phase * 3.0) * 0.16 + sin(sad_phase * 4.0) * 0.08
 		sad[i] = brass * envelope * 0.42
 	_result_cues[&"sad"] = _finale_wav(sad, rate)
+	# result_ceremony_director plays "swish" right after the verdict.
+	if result_hero_swish != null:
+		_result_cues[&"swish"] = result_hero_swish
 
 
 func _generate_shark_rush_sound() -> void:

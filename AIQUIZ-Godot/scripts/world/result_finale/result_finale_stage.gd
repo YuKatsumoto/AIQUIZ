@@ -252,6 +252,10 @@ static func tier_column_mesh() -> ArrayMesh:
 ## The towers neither cast nor receive shadows: a 10 m column threw a long shadow
 ## across the stage, and the cast's shadows streaked over the tiers. The stage's own
 ## overrides (accent, gold) are flagged in place; imported materials get a copy.
+## The copies also cull back faces: glTF marks them double-sided, and a double-sided
+## surface under the P2 mirror takes its front faces for back faces, flips their
+## normals and is lit inside out (the whole tower went grey). Culled materials are
+## mirrored correctly, and the tower parts are closed solids.
 static func _disable_shadows(root: Node) -> void:
 	var copies := {}
 	for node: Node in root.find_children("*", "MeshInstance3D", true, false):
@@ -268,6 +272,7 @@ static func _disable_shadows(root: Node) -> void:
 			if not copies.has(material):
 				var copy := material.duplicate() as BaseMaterial3D
 				copy.disable_receive_shadows = true
+				copy.cull_mode = BaseMaterial3D.CULL_BACK
 				copies[material] = copy
 			mesh.set_surface_override_material(surface, copies[material])
 
@@ -311,12 +316,12 @@ func _hat_top(mount: Node3D) -> float:
 	return maxf(0.0, top - 0.04)
 
 
-## Largest deviation of the plush's body bones from rest (its face shares that mesh).
-## Determinant of the plush body's drawn transform (negative = drawn mirrored).
+## Largest deviation of the referee's body bones from rest (its face shares that mesh).
+## Determinant of the referee body's drawn transform (negative = drawn mirrored).
 func _referee_mesh_determinant() -> float:
 	if not is_instance_valid(_referee):
 		return 0.0
-	var body := _referee.find_child("HERO_GodotPlush", true, false) as Node3D
+	var body := _referee.find_child(MascotDresser.BODY_NAME, true, false) as Node3D
 	return body.global_basis.determinant() if body != null else 0.0
 
 
@@ -614,8 +619,11 @@ func _update_effects(elapsed: float) -> void:
 	if _latch("confetti_rain", elapsed >= Motion.VERDICT + 0.3):
 		# Rain starts above the tallest head.
 		var t := totals()
-		var centre := to_global(Vector3(0.0 if _draw else -Motion.TOWER_X, maxf(7.5, Motion.stop_height(maxi(t.x, t.y)) + 4.0), 0.3))
-		_effects.start_confetti_rain(centre, 11.0 if _draw else 7.0, palette_for.call(_winner if _winner > 0 else 1), elapsed)
+		var rain_height := maxf(7.5, Motion.stop_height(maxi(t.x, t.y)) + 4.0)
+		var centre := to_global(Vector3(0.0 if _draw else -Motion.TOWER_X, rain_height, 0.3))
+		# The curtain has to reach the floor under the tallest tower, not just the pad.
+		_effects.start_confetti_rain(centre, 11.0 if _draw else 7.0, palette_for.call(_winner if _winner > 0 else 1), elapsed,
+			rain_height - Motion.FLOOR_TOP_Y)
 	var bursts := [[7.05, Vector3(-4.5, 9.5, -15.0)], [7.55, Vector3(3.0, 11.0, -17.0)],
 		[8.25, Vector3(-1.0, 12.0, -18.0)], [9.3, Vector3(5.5, 9.0, -16.0)]]
 	for index in range(bursts.size()):

@@ -666,7 +666,6 @@ func _swap_to_underground() -> void:
 				pose[key] = Transform3D(part.basis, part.origin + shift)
 			players.begin_pose_handoff(player_index, pose, CAST_HANDOFF)
 	_capture_referee_pose(finale_referee)
-	_copy_referee_splats(finale_referee)
 	_set_env(_shaft_env_for_quality(), SHAFT_START_EXPOSURE, 1.0, 1.6)
 	_audio_call("set_ambience", [&"shaft"])
 	if _loader != null:
@@ -700,26 +699,6 @@ func _capture_referee_pose(referee: Node3D) -> void:
 	for bone in range(skeleton.get_bone_count()):
 		_referee_handoff[bone] = [skeleton.get_bone_pose_position(bone), skeleton.get_bone_pose_rotation(bone),
 			skeleton.get_bone_pose_scale(bone)]
-
-
-## The crowd's eggs hit the referee at a draw: the deck's referee wears the same splats.
-func _copy_referee_splats(finale_referee: Node3D) -> void:
-	if not is_instance_valid(_deck_referee):
-		return
-	for old: Node in _deck_referee.find_children("*", "Node3D", true, false):
-		if old.has_meta(&"sudden_death_splat_copy"):
-			old.get_parent().remove_child(old)
-			old.queue_free()
-	if finale_referee == null:
-		return
-	for splat: Node in finale_referee.find_children("EggSplat*", "Node3D", true, false):
-		var holder := _deck_referee.get_node_or_null(finale_referee.get_path_to(splat.get_parent()))
-		if holder == null:
-			continue
-		var copy := splat.duplicate() as Node3D
-		copy.set_meta(&"sudden_death_splat_copy", true)
-		holder.add_child(copy)
-		copy.transform = (splat as Node3D).transform
 
 
 static func _first_skeleton(root: Node) -> Skeleton3D:

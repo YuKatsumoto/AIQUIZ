@@ -57,6 +57,7 @@ func _on_join_pressed() -> void:
 	var code := room_code_input.text.strip_edges().to_upper()
 	if code.is_empty():
 		status_label.text = "ルームコードを入力してください"
+		AudioManager.play_sfx(&"ui_error")
 		return
 	status_label.text = "接続中..."
 	game_state.num_players = 2
@@ -84,6 +85,7 @@ func _on_cancel_pressed() -> void:
 # ---------- Network signal handlers ----------
 
 func _on_connection_succeeded(role: String) -> void:
+	AudioManager.play_sfx(&"ui_confirm")
 	if role == "host":
 		_show_waiting("ルーム作成完了！\n相手の参加を待っています...", NetworkManager.room_id)
 	else:
@@ -98,6 +100,7 @@ func _on_connection_succeeded(role: String) -> void:
 
 
 func _on_connection_failed(reason: String) -> void:
+	AudioManager.play_sfx(&"ui_error")
 	waiting_panel.visible = false
 	status_label.text = "接続失敗: %s" % reason
 
@@ -111,6 +114,7 @@ func _on_guest_joined() -> void:
 		game_state.p1_toon_preset,
 	)
 	waiting_label.text = "相手が参加しました！\nゲームを開始します..."
+	AudioManager.play_sfx(&"ui_joined")
 
 	# 2秒後にゲーム開始
 	await get_tree().create_timer(2.0).timeout
@@ -118,6 +122,7 @@ func _on_guest_joined() -> void:
 
 
 func _on_peer_disconnected() -> void:
+	AudioManager.play_sfx(&"ui_disconnect")
 	waiting_panel.visible = false
 	status_label.text = "相手が切断しました"
 
@@ -167,6 +172,8 @@ func _on_game_start_received(data: Dictionary) -> void:
 # ---------- Helpers ----------
 
 func _show_waiting(message: String, code: String) -> void:
+	if not waiting_panel.visible:
+		AudioManager.play_sfx(&"ui_open")
 	waiting_panel.visible = true
 	waiting_label.text = message
 	room_code_label.text = "ルームコード: %s" % code
@@ -201,6 +208,7 @@ func _start_online_game() -> void:
 
 
 func _transition_to_game() -> void:
+	AudioManager.play_sfx(&"ui_ready")
 	NetworkManager.state = NetworkManager.State.IN_GAME
 	get_tree().change_scene_to_file("res://scenes/game_world.tscn")
 

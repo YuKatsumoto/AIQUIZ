@@ -1074,6 +1074,7 @@ func begin_tutorial_tour() -> void:
 	_tutorial_tour_active = true
 	_tutorial_tour_index = 0
 	_tutorial_tour_overlay.visible = true
+	AudioManager.play_sfx(&"ui_open")
 	_back_button.visible = false
 	_back_separator.visible = false
 	_set_tutorial_tour_page(0)
@@ -1100,6 +1101,9 @@ func _set_tutorial_tour_page(step_index: int) -> void:
 	_tutorial_tour_dots.text = "  ".join(dots)
 
 	_tutorial_tour_back_button.disabled = _tutorial_tour_index == 0
+	# Their page flips play in the handlers above, for keys and clicks alike.
+	_tutorial_tour_back_button.set_meta(&"sfx_silent", true)
+	_tutorial_tour_next_button.set_meta(&"sfx_silent", true)
 	_tutorial_tour_next_button.text = (
 		"紹介を終える"
 		if _tutorial_tour_index == TUTORIAL_TOUR_STEPS.size() - 1
@@ -1126,6 +1130,7 @@ func _refresh_tutorial_tour_key_legend() -> void:
 func _show_previous_tutorial_tour_page() -> void:
 	if not _tutorial_tour_active or _tutorial_tour_index <= 0:
 		return
+	AudioManager.play_sfx(&"ui_page_flip", 0.0, 0.92)
 	_set_tutorial_tour_page(_tutorial_tour_index - 1)
 
 
@@ -1133,14 +1138,18 @@ func _show_next_tutorial_tour_page() -> void:
 	if not _tutorial_tour_active:
 		return
 	if _tutorial_tour_index >= TUTORIAL_TOUR_STEPS.size() - 1:
+		AudioManager.play_sfx(&"ui_confirm")
 		_finish_tutorial_tour(true)
 		return
+	AudioManager.play_sfx(&"ui_page_flip")
 	_set_tutorial_tour_page(_tutorial_tour_index + 1)
 
 
 
 
 func _abort_tutorial_tour() -> void:
+	if _tutorial_tour_active:
+		AudioManager.play_sfx(&"ui_back")
 	_finish_tutorial_tour(false)
 
 
@@ -1887,6 +1896,7 @@ func _on_grid_emote_selected(emote_id: int, _card: Button) -> void:
 	var slots := _editing_player_emote_slots().duplicate()
 	if _active_assign_slot_idx < 0 or _active_assign_slot_idx >= slots.size():
 		return
+	AudioManager.play_sfx(&"ui_equip")
 	slots[_active_assign_slot_idx] = _browsing_emote_id
 	if _editing_player == 1:
 		game_state.p1_emote_slots = slots
@@ -2069,6 +2079,7 @@ func _apply_hat_change_animated(new_hat_id: int, direction: int) -> void:
 
 func _start_hat_slide_preview(player_id: int, new_hat_id: int, direction: int) -> void:
 	_finish_hat_slide_immediate()
+	AudioManager.play_sfx(&"ui_swish_light", 0.0, 1.0 if direction > 0 else 0.9)
 	var pc := _preview_player as PlayerController
 	if pc == null:
 		_sync_preview_hat_for_player(player_id)
@@ -2203,6 +2214,7 @@ func _process_hat_slide(dt: float) -> void:
 func _finish_hat_slide() -> void:
 	if not _hat_slide_active:
 		return
+	AudioManager.play_sfx(&"ui_hat_land")
 	if _hat_slide_old and is_instance_valid(_hat_slide_old):
 		_hat_slide_old.queue_free()
 	if _hat_slide_new and is_instance_valid(_hat_slide_new):

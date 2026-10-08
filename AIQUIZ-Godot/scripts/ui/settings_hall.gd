@@ -11,6 +11,7 @@ const GraphicsQualityRules := preload("res://scripts/core/graphics_quality.gd")
 const SettingsHallPanelScript := preload("res://scripts/ui/settings_hall_panel.gd")
 const LectureSetScript := preload("res://scripts/world/settings_hall/lecture_set.gd")
 const PracticeYardScript := preload("res://scripts/world/settings_hall/practice_yard.gd")
+const YardDirectorScript := preload("res://scripts/world/settings_hall/yard_director.gd")
 const DescentScript := preload("res://scripts/world/settings_hall/settings_hall_descent.gd")
 const SHAFT_SCENE := preload("res://scenes/sudden_death/shaft_descent.tscn")
 
@@ -64,6 +65,8 @@ const ROW_TARGETS: Array = [[12.0, 0.60], [30.0, 0.45], [55.0, 0.18]]
 const ROW_TARGET_FAR := 0.08
 const RETURN_RISE := 3.0
 const RETURN_SECONDS := 0.5
+## 戻るときに講義室の全員が手を振る間（秒）。
+const GOODBYE_SECONDS := 0.9
 const WARM_BUDGET_MS := 6.0
 
 var _quality := GraphicsQualityRules.BALANCED
@@ -75,6 +78,8 @@ var _yard: PracticeYardScript = null
 ## 視点: 0 = 講義室、1 = 実習場。_view_u がそこへ VIEW_SECONDS で動く。
 var _view_target := 0.0
 var _view_u := 0.0
+var _camera_override: Dictionary = {}
+var _yard_director: Node = null
 var _audio: SuddenDeathAudio = null
 var _ui: CanvasLayer = null
 var _blackout: ColorRect = null
@@ -83,6 +88,9 @@ var _descent: DescentScript = null
 var _shaft_env: Environment = null
 var _hall_env: Environment = null
 var _hall_lit := 0.0
+## 講義室の時間帯の暗さ（1 = 夜: 行の照明と環境光を落とす）。2 秒でなめらかに変わる。
+var _night := 0.0
+var _night_tween: Tween = null
 var _started := false
 var _leaving := false
 var _settled := false
@@ -145,6 +153,7 @@ func _ready() -> void:
 	_lecture_set.visible = false
 	add_child(_lecture_set)
 	_lecture_set.build(_quality)
+	_lecture_set.mood_changed.connect(_on_lecture_mood)
 
 	_yard = PracticeYardScript.new()
 	_yard.name = "PracticeYard"
@@ -169,6 +178,7 @@ func _ready() -> void:
 	_panel.visible = false
 	_panel.back_requested.connect(_leave)
 	_panel.graphics_quality_changed.connect(_on_panel_quality_changed)
+	_panel.sfx_tested.connect(func() -> void: _lecture_call("on_sfx_test"))
 	_panel.api_status_changed.connect(_on_panel_api_status_changed)
 	_panel.view_toggled.connect(_on_panel_view_toggled)
 	_ui.add_child(_panel)
@@ -335,7 +345,27 @@ func _update_idle() -> void:
 	var drift := Vector3(0.06 * sin(_clock * 0.37), 0.04 * sin(_clock * 0.29), 0.0)
 	var follow := _yard.travel_offset() * PRACTICE_FOLLOW if _yard.is_built() else Vector3.ZERO
 	var pose := view_pose(_view_u, follow)
+	_try_yard_director()
+	if _yard.is_built() and _view_u > 0.0:
+		# 実習場: ときどき操作の手元へ寄る（項目 135）
+		var close := _yard.closeup() * smoothstep(0.0, 1.0, _view_u)
+		if close > 0.0:
+			pose.eye = (pose.eye as Vector3).lerp(_yard.closeup_eye(), close)
+			pose.aim = (pose.aim as Vector3).lerp(_yard.closeup_target(), close)
+			pose.fov = lerpf(float(pose.fov), 30.0, close)
+	if not _camera_override.is_empty():
+		pose = _camera_override
+		drift = Vector3.ZERO
 	_camera_pose(pose.eye + drift, pose.aim, pose.fov)
+
+
+## テスト・確認用: 到着後のカメラを講義セットのローカル座標の目と狙いで固定する（空の辞書で解除）。
+func set_camera_override(eye_local: Vector3, aim_local: Vector3, fov: float) -> void:
+	_camera_override = {"eye": SET_ORIGIN + eye_local, "aim": SET_ORIGIN + aim_local, "fov": fov}
+
+
+func clear_camera_override() -> void:
+	_camera_override = {}
 
 
 ## 視点 u（0 = 講義室、1 = 実習場）のカメラ。目と狙いは途中で少し上がる弧を描く。
@@ -402,9 +432,9 @@ func _update_row_lights(time: float) -> void:
 					_rows_cued = index + 1
 					_audio.play_at(&"light_on", Vector3(0.0, FLOOR_Y + 7.0, _cistern.light_row_z(row)),
 						-4.0 - 1.2 * float(index), 1.0 - 0.015 * float(index))
-			_cistern.set_row_brightness(row, amount)
+			_cistern.set_row_brightness(row, amount * _night_scale())
 			lit_sum += amount
-		_apply_hall_light(HALL_AMBIENT_SCALE * lit_sum / maxf(target_sum, 0.001))
+		_apply_hall_light(HALL_AMBIENT_SCALE * lit_sum / maxf(target_sum, 0.001) * lerpf(1.0, 0.35, _night))
 	if time >= SET_LIGHTS_AT and not _set_lights_on:
 		_set_lights_on = true
 		_lecture_set.set_lit(1.0)
@@ -434,6 +464,7 @@ func _request_loads() -> void:
 		var error := ResourceLoader.load_threaded_request(path)
 		if error != OK:
 			push_warning("SettingsHall: load_threaded_request(%s): %s" % [path, error_string(error)])
+			_attach_failed(path)
 			continue
 		_pending[path] = true
 
@@ -450,6 +481,13 @@ func _poll_loads() -> void:
 		elif status == ResourceLoader.THREAD_LOAD_FAILED or status == ResourceLoader.THREAD_LOAD_INVALID_RESOURCE:
 			push_warning("SettingsHall: failed to load %s" % path)
 			_pending.erase(path)
+			_attach_failed(path)
+
+
+## 講義セットの GLB が読めなかった: セットに知らせる（そろうのを待っている進行役が止まらないように）。
+func _attach_failed(path: String) -> void:
+	if LectureSetScript.asset_paths().has(path):
+		_lecture_set.attach_asset(path, null)
 
 
 func _attach(path: String, resource: Resource) -> void:
@@ -535,6 +573,7 @@ func _collect_warm_value(value: Variant, seen: Dictionary) -> void:
 
 func _on_panel_quality_changed(quality: String) -> void:
 	_quality = GraphicsQualityRules.normalize(quality)
+	_lecture_call("on_quality_changed")
 	GraphicsQualityRules.apply_text_viewport(get_viewport(), _quality)
 	if _cistern != null:
 		_cistern.apply_quality(_quality)
@@ -575,6 +614,11 @@ func _leave() -> void:
 		return
 	_leaving = true
 	if _settled:
+		# 講義室の全員がこちらを向いて手を振ってから（項目 100）
+		if _lecture_call("goodbye"):
+			await get_tree().create_timer(GOODBYE_SECONDS).timeout
+			if not is_inside_tree():
+				return
 		_panel.play_exit()
 		var rise_from := _camera.position.y
 		var tw := create_tween()
@@ -593,6 +637,46 @@ func _leave() -> void:
 		return
 	_audio.stop_all()
 	get_tree().change_scene_to_file(MAIN_MENU_SCENE)
+
+
+func _night_scale() -> float:
+	return lerpf(1.0, 0.18, _night)
+
+
+func _on_lecture_mood(night: float) -> void:
+	if _night_tween != null and _night_tween.is_valid():
+		_night_tween.kill()
+	_night_tween = create_tween()
+	_night_tween.tween_method(_set_night, _night, night, 2.0)
+
+
+func _set_night(value: float) -> void:
+	_night = value
+	if _cistern == null or not _settled:
+		return
+	for index in range(_row_order.size()):
+		_cistern.set_row_brightness(_row_order[index], _row_targets[index] * _night_scale())
+	_apply_hall_light(HALL_AMBIENT_SCALE * lerpf(1.0, 0.35, _night))
+
+
+## 実習場の人物の進行役: 実習場が組み上がり、講義室の人物の GLB が読めたら 1 回だけ作る。
+func _try_yard_director() -> void:
+	if _yard_director != null or not _yard.is_built() or _lecture_set.director == null:
+		return
+	_yard_director = YardDirectorScript.new()
+	_yard_director.name = "YardDirector"
+	_yard.add_child(_yard_director)
+	if not _yard_director.call("setup", _yard):
+		push_warning("SettingsHall: yard director could not start")
+
+
+## 講義室の進行役（いれば）の method を呼ぶ。呼べたら true。
+func _lecture_call(method: String) -> bool:
+	var director: Node = _lecture_set.director if _lecture_set != null else null
+	if director == null or not director.has_method(method):
+		return false
+	director.call(method)
+	return true
 
 
 func _set_return_light(amount: float) -> void:

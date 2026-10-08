@@ -65,6 +65,18 @@ var _round_candidates_seen: int = 0
 var _round_candidates_blocked: int = 0
 var _quality_stats_logged: bool = false
 
+## ── 単元スロット（オンライン10問モード） ──
+## begin_round の前に request_slot_round で渡される、次ラウンドのスロット単元
+var _pending_slot_units: PackedStringArray = PackedStringArray()
+## このラウンドのスロット単元（空ならスロットなし＝従来の全単元配分）
+var _slot_units: PackedStringArray = PackedStringArray()
+## スロット演出が終わるまで生成を止めるゲート
+var _slot_gate_closed: bool = false
+## スロット付きラウンドを開始するたびに増える番号（HUD が新しい抽選を検知する）
+var slot_round_serial: int = 0
+## HUD が解放しない場合（ヘッドレス・シーン読み込みの失敗）でも生成を始める保険
+const SLOT_GATE_FALLBACK_SEC: float = 15.0
+
 func _init() -> void:
 	super._init()
 
@@ -162,6 +174,11 @@ func begin_round(subject: String, grade: int, difficulty: String,
 	_round_candidates_seen = 0
 	_round_candidates_blocked = 0
 	_quality_stats_logged = false
+	_slot_units = _pending_slot_units
+	_pending_slot_units = PackedStringArray()
+	if llm_mode != "ONLINE" or current_mode != Constants.MODE_TEN or not _online_api_available():
+		_slot_units = PackedStringArray()
+	_slot_gate_closed = not _slot_units.is_empty()
 
 	# オフライン問題は直後の同期フェッチで取得できるため、開始時の緊急キャッシュ生成は不要。
 	# ここで過去履歴との意味比較を走らせると、準備画面を長時間ブロックしてしまう。
@@ -175,6 +192,17 @@ func begin_round(subject: String, grade: int, difficulty: String,
 	# ★★★ 速度最適化: ポーリング待ちを廃止し、即座に最初のリクエストを発火 ★★★
 	if llm_mode == "ONLINE" and not _online_api_available():
 		print("[BufferedProvider] Online mode selected but PROXY_URL is not configured — waiting (no offline fallback)")
+	elif _slot_gate_closed:
+		# 単元スロットの演出が終わる（release_slot_gate）まで、持ち越し問題の投入も生成も始めない。
+		slot_round_serial += 1
+		var serial := slot_round_serial
+		print("[BufferedProvider] Slot round %d: units=%s — generation held until reels stop" % [serial, str(_slot_units)])
+		if is_inside_tree():
+			get_tree().create_timer(SLOT_GATE_FALLBACK_SEC).timeout.connect(func():
+				if serial == slot_round_serial and _slot_gate_closed:
+					print("[BufferedProvider] Slot gate fallback release after %.0fs" % SLOT_GATE_FALLBACK_SEC)
+					release_slot_gate()
+			)
 	elif _should_use_offline_quizzes() or _online_api_available():
 		if llm_mode == "ONLINE":
 			_seed_from_generated_bank()
@@ -186,6 +214,8 @@ func begin_round(subject: String, grade: int, difficulty: String,
 
 func end_round() -> void:
 	is_active_round = false
+	_slot_gate_closed = false
+	_slot_units = PackedStringArray()
 	_store_leftovers_to_pool()
 	if is_instance_valid(online_fetcher) and online_fetcher.has_method("cancel_all"):
 		online_fetcher.cancel_all()
@@ -197,6 +227,54 @@ func end_round() -> void:
 	for q_text: String in play_history:
 		_append_history_entry(q_text, "")
 	_save_cross_round_history()
+
+
+## 次の begin_round を単元スロット付きで始める。begin_round の直前に呼ぶ。
+func request_slot_round(units: PackedStringArray) -> void:
+	_pending_slot_units = units
+
+
+func get_slot_units() -> PackedStringArray:
+	return _slot_units
+
+
+func is_slot_gate_closed() -> bool:
+	return _slot_gate_closed
+
+
+## スロット演出が終わったら呼ぶ。抽選単元を使用履歴に記録し、持ち越し問題の投入と生成を始める。
+func release_slot_gate() -> void:
+	if not _slot_gate_closed:
+		return
+	_slot_gate_closed = false
+	if not is_active_round:
+		return
+	print("[BufferedProvider] Slot gate released: units=%s" % str(_slot_units))
+	if is_instance_valid(online_fetcher) and online_fetcher.has_method("record_adopted_units"):
+		var names: Array[String] = []
+		for unit_name in _slot_units:
+			names.append(unit_name)
+		online_fetcher.record_adopted_units(current_subject, current_grade, names)
+	_seed_from_generated_bank()
+	_fire_immediate_fetch()
+
+
+## 補充バッチに渡すスロット単元。ラウンド内の問題が少ない単元から並べ、上限に達した単元は後ろへ回す。
+func _slot_units_by_need() -> PackedStringArray:
+	var open: Array[String] = []
+	var full: Array[String] = []
+	for unit_name in _slot_units:
+		if _genre_count_in_round(unit_name) >= _genre_cap_for(unit_name):
+			full.append(unit_name)
+		else:
+			open.append(unit_name)
+	open.sort_custom(func(a: String, b: String) -> bool:
+		return _genre_count_in_round(a) < _genre_count_in_round(b)
+	)
+	var ordered := PackedStringArray(open)
+	if ordered.is_empty():
+		ordered = PackedStringArray(full)
+	return ordered
 
 
 ## ラウンド終了時、出題済み（プレイヤーが実際に見た）問題のうち
@@ -237,7 +315,7 @@ func _target_buffer_size() -> int:
 
 ## 補充リクエストを飛ばすべきかの判定
 func _worker_should_fill() -> bool:
-	if not is_active_round:
+	if not is_active_round or _slot_gate_closed:
 		return false
 	# 10問モード: fetch_quiz_parallel内部で4並列管理するのでproviderレベルは1で十分
 	# エンドレスモードでも内部で5並列管理しているため1で十分
@@ -320,7 +398,8 @@ func _on_poll() -> void:
 			_initial_ten_fetch_started = true
 		online_fetcher.fetch_quiz_parallel(
 			current_subject, current_grade, current_difficulty,
-			fetch_count, full_history, is_initial_ten
+			fetch_count, full_history, is_initial_ten,
+			_slot_units if is_initial_ten else _slot_units_by_need()
 		)
 	else:
 		print("[BufferedProvider] Using offline bank (llm_mode=%s)" % llm_mode)
@@ -491,6 +570,7 @@ func _on_fetch_partial(quizzes: Array[QuizItem]) -> void:
 		return
 
 	var accepted := false
+	var novelty_rejected := false
 	var history_changed := false
 	var batch_accepted: Array[String] = []
 	var during_preload := _is_preloading()
@@ -518,14 +598,16 @@ func _on_fetch_partial(quizzes: Array[QuizItem]) -> void:
 			continue
 		if llm_mode == "ONLINE" and _is_offline_quiz_item(q):
 			print("[BufferedProvider] Rejected offline quiz in online mode: '%s'" % q.q.left(30))
+			novelty_rejected = true
 			continue
 		if _should_block_quiz(q.q, batch_accepted, during_preload):
 			_round_candidates_blocked += 1
 			print("[BufferedProvider] Dedup blocked: '%s'" % q.q.left(30))
+			novelty_rejected = true
 			continue
 		batch_accepted.append(q.q)
 		if current_mode == Constants.MODE_TEN \
-				and _genre_count_in_round(q.genre) >= _effective_genre_cap():
+				and _genre_count_in_round(q.genre) >= _genre_cap_for(q.genre):
 			# 上限超過はプールへ。枯渇時（cap緩和後）だけ overflow で本ラウンドを埋める。
 			if _dedup_retry_count >= 2 and _needs_more_preload():
 				_overflow_buffer.append(q)
@@ -561,8 +643,10 @@ func _on_fetch_partial(quizzes: Array[QuizItem]) -> void:
 
 	# 新規性を満たさない候補は絶対に採用せず、別単元・別形式で不足分だけ再生成する。
 	if not accepted and quizzes.size() > 0 and _needs_more_preload():
-		_dedup_retry_count += 1
-		print("[BufferedProvider] All candidates rejected by novelty gate; refilling missing questions (%d)" % _dedup_retry_count)
+		# 単元スロットの配分上限だけで弾いた候補は新規性の失敗ではないので、緩和を進めずに補充だけする
+		if _slot_units.is_empty() or novelty_rejected:
+			_dedup_retry_count += 1
+			print("[BufferedProvider] All candidates rejected by novelty gate; refilling missing questions (%d)" % _dedup_retry_count)
 		_schedule_fetch()
 
 func _on_fetch_completed(quizzes: Array[QuizItem]) -> void:
@@ -598,7 +682,7 @@ func get_quizzes(_subject: String, _grade: int, _difficulty: String,
 			if llm_mode == "ONLINE" and _is_offline_quiz_item(ov):
 				continue
 			var played := _genre_count_in_played(ov.genre, out)
-			if played >= _effective_genre_cap() and _overflow_has_other_genre(ov.genre):
+			if played >= _genre_cap_for(ov.genre) and _overflow_has_other_genre(ov.genre):
 				skipped.append(ov)
 				continue
 			_last_dispatched_genre = ov.genre
@@ -625,7 +709,7 @@ func get_quizzes(_subject: String, _grade: int, _difficulty: String,
 					"[BufferedProvider] Offline/emergency cache used: %d (remaining %d)"
 					% [out.size(), _emergency_cache.size()]
 				)
-		else:
+		elif not _slot_gate_closed:
 			if inflight == 0 and _online_api_available():
 				_schedule_fetch()
 			# ONLINEはモードを問わず、オンライン問題が届くまで待機する。
@@ -682,12 +766,33 @@ func _effective_genre_cap() -> int:
 		return GENRE_CAP_PER_ROUND + 1
 	return GENRE_CAP_PER_ROUND
 
+
+## ジャンルごとの上限。単元スロット中（ジャンル＝スロット単元）は、ほかの単元に最低
+## target/単元数 問（3単元なら3問）ずつ枠を残し、先に届いた単元だけで埋まらないようにする（4・3・3）。
+## 新規性で弾かれる再試行が続いたら、最低枠を1問、さらに0問へと緩める。
+func _genre_cap_for(genre: String) -> int:
+	if current_mode != Constants.MODE_TEN or not _slot_units.has(genre):
+		return _effective_genre_cap()
+	var quota := floori(float(target_count) / float(_slot_units.size()))
+	if _dedup_retry_count >= 4:
+		quota = 0
+	elif _dedup_retry_count >= 2:
+		quota = 1
+	var reserved := 0
+	for unit_name in _slot_units:
+		if unit_name != genre:
+			reserved += maxi(_genre_count_in_round(unit_name), quota)
+	return maxi(1, target_count - reserved)
+
 ## バッファを「連続して同じジャンルにならない」よう貪欲法で並べ替える。
 ## 最頻ジャンルを優先しつつ直前ジャンルを避けることで偏りを最小化する。
 func _reorder_buffer_for_genre_spread() -> void:
-	var pool: Array[QuizItem] = buffer.duplicate()
+	buffer = spread_by_genre(buffer, _last_dispatched_genre)
+
+
+static func spread_by_genre(items: Array[QuizItem], prev_genre: String = "") -> Array[QuizItem]:
+	var pool: Array[QuizItem] = items.duplicate()
 	var result: Array[QuizItem] = []
-	var prev_genre := _last_dispatched_genre
 	while pool.size() > 0:
 		# 残プールのジャンル別出現数を集計
 		var counts := {}
@@ -716,7 +821,7 @@ func _reorder_buffer_for_genre_spread() -> void:
 		result.append(chosen)
 		pool.remove_at(best_idx)
 		prev_genre = chosen.genre
-	buffer = result
+	return result
 
 ## オフライン問題から緊急用キャッシュを準備する
 func _prepare_emergency_cache() -> void:
@@ -881,6 +986,9 @@ func _seed_from_generated_bank() -> void:
 			continue
 		if q.genre.strip_edges().is_empty():
 			q.genre = "未分類"
+		# 単元スロット中はスロット外の持ち越し問題を使わない（取り出さずバンクに残す）
+		if not _slot_units.is_empty() and not _slot_units.has(q.genre):
+			continue
 		if _genre_count_in_round(q.genre) == 0:
 			ordered.append(q)
 		else:
@@ -896,7 +1004,7 @@ func _seed_from_generated_bank() -> void:
 		if _should_block_quiz(q.q, batch_accepted, true):
 			continue
 		if current_mode == Constants.MODE_TEN \
-				and _genre_count_in_round(q.genre) >= _effective_genre_cap():
+				and _genre_count_in_round(q.genre) >= _genre_cap_for(q.genre):
 			continue
 		batch_accepted.append(q.q)
 		_append_history_entry(q.q, q.genre)

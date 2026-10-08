@@ -98,6 +98,8 @@ signal game_cleared(message: String)
 signal player_entered_ocean(player_index: int, local_position: Vector3)
 signal player_scrolled_out(player_index: int)
 signal player_caught_by_saw(player_index: int)
+## 壁の横をすり抜けようとしてワールドボーダーに押し戻された。
+signal world_border_pushed(player_index: int)
 
 # GameWorld explicitly enables this only for local sessions.
 var saw_transport_enabled := false
@@ -445,6 +447,10 @@ const PLAYER_BODY_RADIUS: float = 0.62
 const PLAYER_BODY_HEIGHT: float = 1.9
 const PLAYER_BODY_COLLISION_EPSILON: float = 0.0001
 const EXTERNAL_IMPULSE_DECELERATION: float = 10.0
+## ワールドボーダーが壁の手前から後ろへ弾き返す初速（EXTERNAL_IMPULSE_DECELERATION で減衰し約3m戻る）。
+const WALL_WORLD_BORDER_PUSH_SPEED: float = 8.0
+## ボーダーで止める体の中心の位置（壁の中心から手前へ）。壁の衝突判定の 0.4 より手前に置く。
+const WALL_WORLD_BORDER_STOP_DISTANCE: float = 0.85
 const WALL_RAGDOLL_DURATION: float = 2.0
 const WALL_LIMB_SCATTER_DURATION: float = 2.0
 const WALL_DEATH_SEQUENCE_DURATION: float = WALL_RAGDOLL_DURATION + WALL_LIMB_SCATTER_DURATION
@@ -1042,6 +1048,46 @@ func get_local_result_goal_z() -> float:
 	return tuning.wall_start_z + target_count * tuning.wall_spacing + 15.0
 
 
+## 問題の壁は線路の内側までしか幅がないので、壁の延長線上（壁端より外側）をワールドボーダーで塞ぐ。
+## 壁端より外にいるプレイヤーは壁の手前で止め、後ろ（-Z）へ弾き返す。壁への衝突（ドア判定）にはしない。
+## 止める位置は壁の衝突判定（wall_z - 0.4）より手前なので、ボーダーに触れても被弾しない。
+## 落下が確定したプレイヤーやサメ待ちのプレイヤーは対象外（コース外への落下はそのまま）。
+func _apply_wall_world_border() -> void:
+	if are_tutorial_walls_hidden():
+		return
+	var stop_z := wall_z - WALL_WORLD_BORDER_STOP_DISTANCE
+	for player_num: int in [1, 2]:
+		if player_num == 2 and num_players < 2:
+			continue
+		var alive := p1_alive if player_num == 1 else p2_alive
+		var waiting := p1_waiting_for_shark if player_num == 1 else p2_waiting_for_shark
+		var committed := p1_fall_committed if player_num == 1 else p2_fall_committed
+		if not alive or waiting or committed:
+			continue
+		var x := player_x if player_num == 1 else player2_x
+		var z := player_z if player_num == 1 else player2_z
+		if not is_in_wall_border_lane(x) or z <= stop_z or z > wall_z + 1.0:
+			continue
+		var velocity := p1_external_velocity if player_num == 1 else p2_external_velocity
+		# 既に後ろへ弾かれている間は位置だけ止め、閃光と弾きを連発しない。
+		var pushed := velocity.y > -WALL_WORLD_BORDER_PUSH_SPEED * 0.5
+		if pushed:
+			velocity.y = -WALL_WORLD_BORDER_PUSH_SPEED
+		if player_num == 1:
+			player_z = stop_z
+			p1_external_velocity = velocity
+		else:
+			player2_z = stop_z
+			p2_external_velocity = velocity
+		if pushed:
+			world_border_pushed.emit(player_num)
+
+
+## 体の中心が壁端より外（壁の延長線上のボーダー側）にあるか。
+func is_in_wall_border_lane(x_pos: float) -> bool:
+	return absf(x_pos) > StageConstants.QUIZ_WALL_HALF_WIDTH
+
+
 func _is_on_track_floor(x_pos: float, local_z: float, player_num: int, front_z: float = -1.0) -> bool:
 	if local_z < FLOOR_BACK_Z:
 		return false
@@ -1289,6 +1335,7 @@ func start_game() -> void:
 	preload_wait_sec = 0.0
 
 	var provider_mode := _provider_mode()
+	_request_slot_round_if_eligible()
 	provider.begin_round(subject, grade, difficulty, provider_mode, count)
 	# オフラインは同期バンクで問題が揃うので、min_preload の0.35秒は待たない。
 	if llm_mode == "OFFLINE":
@@ -1309,6 +1356,50 @@ func start_game() -> void:
 			load_current_quiz()
 	refresh_status_text()
 	state_changed.emit(game_state)
+
+
+## ── 単元スロット ──
+## オンライン生成の10問モード（1P・ローカル2P対戦）だけ、マッチごとに3単元を抽選してから生成する。
+## 協力・エンドレス・チュートリアル・オンライン対戦・オフラインは対象外。
+const SLOT_UNIT_COUNT: int = 3
+
+
+func _request_slot_round_if_eligible() -> void:
+	if not provider is BufferedQuizProvider:
+		return
+	var buffered_provider := provider as BufferedQuizProvider
+	if llm_mode != "ONLINE" or mode != Constants.MODE_TEN:
+		return
+	if NetworkManager.state != NetworkManager.State.OFFLINE:
+		return
+	if not is_instance_valid(buffered_provider.online_fetcher):
+		return
+	buffered_provider.request_slot_round(
+		buffered_provider.online_fetcher.pick_slot_units(subject, grade, SLOT_UNIT_COUNT)
+	)
+
+
+func get_slot_units() -> PackedStringArray:
+	if mode == Constants.MODE_TEN and provider is BufferedQuizProvider:
+		return (provider as BufferedQuizProvider).get_slot_units()
+	return PackedStringArray()
+
+
+func get_slot_round_serial() -> int:
+	if provider is BufferedQuizProvider:
+		return (provider as BufferedQuizProvider).slot_round_serial
+	return 0
+
+
+func is_slot_gate_closed() -> bool:
+	if provider is BufferedQuizProvider:
+		return (provider as BufferedQuizProvider).is_slot_gate_closed()
+	return false
+
+
+func release_slot_gate() -> void:
+	if provider is BufferedQuizProvider:
+		(provider as BufferedQuizProvider).release_slot_gate()
 
 
 func _prepare_coop_quiz_list() -> void:
@@ -1915,6 +2006,9 @@ func _update_preloading(dt: float) -> void:
 
 	if ready and preload_wait_sec >= min_preload_sec:
 		print("[GameState] Preload complete: %d quizzes in %.1fs (mid_game=%s)" % [quiz_list.size(), preload_wait_sec, str(is_mid_game)])
+		if not is_mid_game and not get_slot_units().is_empty():
+			# スロット単元は到着順だと同じ単元が続きやすいので、連続しないように並べ替える
+			quiz_list = BufferedQuizProvider.spread_by_genre(quiz_list)
 		_prepare_quiz_choices()
 		if is_mid_game:
 			# 中盤: PLAYINGに復帰して次の問題を表示
@@ -2156,6 +2250,7 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 	_resolve_two_player_body_collision(p1_body_start, p2_body_start)
 	_flush_local_push_events()
 	_resolve_all_cliff_body_collisions()
+	_apply_wall_world_border()
 	_sink_ocean_players(dt)
 
 	_update_saw_chase(dt, saw_start1, saw_start2)

@@ -1,6 +1,10 @@
 class_name PracticeYard
 extends Node3D
 
+## 1 周の中の出来事（実習の進行役 yard_director.gd が人物の反応に使う）。name: checklist / point_check / start /
+## stall / restart / horn / overshoot / overlift / estop / buffer / stop / pass / swap
+signal yard_event(name: String)
+
 ## 設定画面の地下神殿の「実習場」（ui/settings_hall.tscn。パネルの「実習場を見る」で見に行く）。
 ## 本編と同じ連結チップソーの台車（linked_saw_carriage.glb）と、操作盤 v3 に座るゴドーくん（SawOperatorPresentation）、
 ## 走行レール（ConveyorRails）を実寸で置き、生徒が 1 周 CYCLE 秒の操作実習をくり返す:
@@ -16,6 +20,8 @@ const OPERATOR_PATHS: Array[String] = [
 	"res://assets/hazards/saw_operator/godot_console_v3.glb",
 ]
 const SFX_DIR := "res://assets/audio/sfx/"
+## 実習場の小道具（停止線・点検表のボード・合格のハンコ・安全柵・見学席。台車と同じローカル座標で Blender から書き出し）。
+const PROPS_PATH := "res://assets/settings_hall/practice_yard_props.glb"
 
 ## 1 周の秒数と、その中の段取り（秒）。
 const CYCLE := 50.0
@@ -36,6 +42,21 @@ const DRIVE_PEAK := 0.8 # 走行スティックの最大の倒し量（-1..1）
 const LIFT_STICK_PEAK := 4.5 # 昇降の入力（SawOperatorPresentation の lift_speed、6 で全開）
 const SPIN_DOWN := 2.4 # 停止で刃が止まるまで
 const RAIL_LENGTH := TRAVEL_HALF * 2.0 + 4.2
+## 周ごとの出来事（項目 126〜134）: 0 ふつう（合格のハンコ）/ 1 エンスト → かけ直し / 2 停止線を行き過ぎ → 笛で戻す /
+## 3 刃を上げすぎ → 警告灯 → 教官が非常停止 / 4 車止めの手前で減速して止まる（合格）。
+const VARIANTS := 5
+const STALL_DIE := 1.4       # エンスト: キーを回してから止まるまで（s 秒）
+const STALL_RETRY := 2.6     # かけ直し
+const OVERSHOOT := 0.65      # 行き過ぎる距離（m）
+const OVERLIFT := 1.28       # 上げすぎ（LIFT_MAX の倍）
+const T_ESTOP := 23.4
+const BUFFER_EXTRA := 1.15   # 車止めの手前まで進む距離（m）
+## 出来事の時刻（周の中の秒）
+const EVENTS := [
+	[1.0, "checklist", -1], [4.4, "point_check", -1], [6.0, "start", -1], [7.4, "stall", 1], [8.6, "restart", 1],
+	[10.2, "horn", -1], [18.7, "overshoot", 2], [22.6, "overlift", 3], [23.4, "estop", 3], [18.4, "buffer", 4],
+	[36.4, "stop", -1], [38.6, "pass", 0], [38.6, "pass", 4], [45.6, "swap", -1],
+]
 
 ## 実習場の明かり（ホールの舞台のレイヤー 11 は照らさない）。台車のローカル座標。
 const HALL_LAYER_MASK := 1 << 10
@@ -52,6 +73,9 @@ var rails: ConveyorRails = null
 ## 実習の時計（秒、CYCLE で回る）。外から seek() で位置を決められる（テストの撮影用）。
 var clock := 0.0
 var last_program: Dictionary = {}
+## 何周目か（0 から）と、その周の出来事（cycle_count % VARIANTS）。
+var cycle_count := 0
+var variant := 0
 var _spin_seconds := 0.0
 var _idle_clock := 0.0
 var _beacon_time := 0.0
@@ -69,6 +93,8 @@ var _held: Dictionary = {}
 static func asset_paths() -> Array[String]:
 	var paths: Array[String] = [MODEL_PATH]
 	paths.append_array(OPERATOR_PATHS)
+	if ResourceLoader.exists(PROPS_PATH):
+		paths.append(PROPS_PATH)
 	return paths
 
 
@@ -95,6 +121,18 @@ func build() -> void:
 	rails.name = "Rails"
 	add_child(rails)
 	rails.build(0.0, RAIL_LENGTH, 0.0)
+	var props_scene := _held.get(PROPS_PATH) as PackedScene
+	if props_scene == null and ResourceLoader.exists(PROPS_PATH):
+		props_scene = load(PROPS_PATH) as PackedScene
+	if props_scene != null:
+		var props := props_scene.instantiate() as Node3D
+		props.name = "YardProps"
+		add_child(props)
+		for node: Node in props.find_children("*", "MeshInstance3D", true, false):
+			(node as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		for node: Node in props.find_children("*", "CollisionObject3D", true, false):
+			(node as CollisionObject3D).collision_layer = 0
+			(node as CollisionObject3D).collision_mask = 0
 	carriage = SawChaseController.new()
 	carriage.name = "Carriage"
 	add_child(carriage)
@@ -109,12 +147,30 @@ func build() -> void:
 	_spindle = _loop_audio("BladeMotor", "dock_spindle.wav", -26.0)
 	_servo = _loop_audio("Hydraulics", "dock_servo.wav", -24.0)
 	set_lit(_lit)
-	_apply(program(clock), 0.0)
+	_apply(program(clock, variant), 0.0)
 	_held.clear()
 
 
 func is_built() -> bool:
 	return _built
+
+
+## 「実習場を見る」のカメラが操作の手元に寄る量（0..1、項目 135）。3 周に 1 回、前進と刃の昇降の間だけ。
+func closeup() -> float:
+	if not _built or cycle_count % 3 != 1:
+		return 0.0
+	return _ease(T_FORWARD.x - 0.5, T_FORWARD.x + 1.5, clock) - _ease(T_LIFT_DOWN.y - 1.0, T_LIFT_DOWN.y + 1.0, clock)
+
+
+## 寄るときに見る点（操縦者の手元、ワールド）と、カメラを置く向き（ワールド）。
+func closeup_target() -> Vector3:
+	if operator == null:
+		return global_position
+	return operator.global_position + Vector3(0.0, 0.95, 0.0)
+
+
+func closeup_eye() -> Vector3:
+	return closeup_target() + global_basis * Vector3(2.0, 1.1, -2.6)
 
 
 ## 台車が走行の中心からずれている量（ワールドの向き）。見学のカメラがついていくのに使う。
@@ -174,17 +230,28 @@ func seek(t: float) -> void:
 	var step := 1.0 / 30.0
 	var u := 0.0
 	while u < clock:
-		_spin_seconds += step * float(program(u).rpm)
+		_spin_seconds += step * float(program(u, variant).rpm)
 		u += step
 	if _built:
-		_apply(program(clock), 0.0)
+		_apply(program(clock, variant), 0.0)
 
 
 func advance(dt: float) -> void:
 	if not _built or dt <= 0.0:
 		return
+	var before := clock
 	clock = fposmod(clock + dt, CYCLE)
-	var p := program(clock)
+	if clock < before:
+		cycle_count += 1
+		variant = cycle_count % VARIANTS
+	for item: Array in EVENTS:
+		var at := float(item[0])
+		var only := int(item[2])
+		if (only < 0 or only == variant) and ((before < at and clock >= at) or (clock < before and at <= clock)):
+			if str(item[1]) == "swap" and cycle_count % 2 == 0:
+				continue
+			yard_event.emit(str(item[1]))
+	var p := program(clock, variant)
 	_spin_seconds += dt * float(p.rpm)
 	if float(p.s) <= 0.0:
 		_idle_clock += dt
@@ -215,16 +282,34 @@ static func blade_lift(t: float, index: int) -> float:
 
 
 ## 時刻 t（0..CYCLE）の段取り: 操縦の時計 s、走行の位置と入力、刃の高さと入力、停止・合図の経過、回転数。
-static func program(t: float) -> Dictionary:
+## variant: 周ごとの出来事（VARIANTS）。
+static func program(t: float, variant := 0) -> Dictionary:
 	var running := t >= T_START and t < T_STOP + STOP_HOLD
 	var s := t - T_START if running else 0.0
 	var travel := -TRAVEL_HALF + 2.0 * TRAVEL_HALF * (_ease(T_FORWARD.x, T_FORWARD.y, t) - _ease(T_REVERSE.x, T_REVERSE.y, t))
 	var drive := DRIVE_PEAK * (_ease_speed(T_FORWARD.x, T_FORWARD.y, t) - _ease_speed(T_REVERSE.x, T_REVERSE.y, t))
-	var lift := LIFT_MAX * (_ease(T_LIFT_UP.x, T_LIFT_UP.y, t) - _ease(T_LIFT_DOWN.x, T_LIFT_DOWN.y, t))
+	var lift_peak := LIFT_MAX * (OVERLIFT if variant == 3 else 1.0)
+	var lift := lift_peak * (_ease(T_LIFT_UP.x, T_LIFT_UP.y, t) - _ease(T_LIFT_DOWN.x, T_LIFT_DOWN.y, t))
 	var lift_rate := LIFT_STICK_PEAK * (_ease_speed(T_LIFT_UP.x, T_LIFT_UP.y, t) - _ease_speed(T_LIFT_DOWN.x, T_LIFT_DOWN.y, t))
+	if variant == 2:
+		# 停止線を行き過ぎて、笛で少し戻す
+		travel += OVERSHOOT * (_ease(16.8, T_FORWARD.y, t) - _ease(19.1, 19.75, t))
+		drive += DRIVE_PEAK * 0.5 * (_ease_speed(16.8, T_FORWARD.y, t) - _ease_speed(19.1, 19.75, t))
+	elif variant == 4:
+		# 車止めの手前まで、ゆっくり進んで止まる（戻りも同じだけ長い）
+		travel += BUFFER_EXTRA * (_ease(17.0, 19.6, t) - _ease(T_REVERSE.x, T_REVERSE.y, t))
+		drive += DRIVE_PEAK * 0.35 * _ease_speed(17.0, 19.6, t)
 	var stop := t - T_STOP if running and t >= T_STOP else -1.0
 	var catch_age := t - T_HORN if running and t >= T_HORN and t < T_HORN + SawOperatorPresentation.CATCH_SECONDS else -1.0
 	var rpm := smoothstep(0.0, SawChaseState.SPINUP_SECONDS, s) if running else 0.0
+	if variant == 1 and running:
+		# エンスト: 回りかけて止まり、キーをかけ直す
+		var first := smoothstep(0.0, 0.7, s) * (1.0 - smoothstep(STALL_DIE - 0.5, STALL_DIE, s))
+		var second := smoothstep(STALL_RETRY, STALL_RETRY + SawChaseState.SPINUP_SECONDS, s)
+		rpm = maxf(first * 0.6, second)
+	if variant == 3 and t >= T_ESTOP and running:
+		# 非常停止: 刃がすぐ止まる
+		rpm *= 1.0 - smoothstep(T_ESTOP, T_ESTOP + 0.8, t)
 	if stop >= 0.0:
 		rpm *= 1.0 - smoothstep(0.0, SPIN_DOWN, stop)
 	# 停止のあと、背もたれに寄った体を待機の姿勢へ戻す量（1 → 0）。
@@ -240,8 +325,10 @@ static func program(t: float) -> Dictionary:
 		if t >= T_LIFT_DOWN.x: phase = "lift_down"
 		if t >= T_REVERSE.x: phase = "reverse"
 		if t >= T_STOP: phase = "stop"
+	var warning := variant == 3 and t >= T_LIFT_UP.y - 0.6 and t < T_ESTOP + 3.0
 	return {"t": t, "s": s, "travel": travel, "drive": drive, "lift": lift, "lift_rate": lift_rate,
-		"stop": stop, "catch": catch_age, "rpm": rpm, "relax": relax, "phase": phase}
+		"stop": stop, "catch": catch_age, "rpm": rpm, "relax": relax, "phase": phase, "variant": variant,
+		"warning": warning}
 
 
 # ------------------------------------------------------------------ apply
@@ -251,10 +338,11 @@ func _apply(p: Dictionary, dt: float) -> void:
 	carriage.position = Vector3(0.0, 0.0, float(p.travel))
 	carriage._apply_spin(_spin_seconds, float(p.travel) + TRAVEL_HALF)
 	var t := float(p.t)
+	var lift_scale := OVERLIFT if variant == 3 else 1.0
 	for index in range(carriage.spin_bones.size()):
-		carriage._set_lift(index, blade_lift(t, index))
+		carriage._set_lift(index, blade_lift(t, index) * lift_scale)
 	carriage.skeleton.force_update_all_bone_transforms()
-	_update_beacons(dt, absf(float(p.drive)) > 0.02 or absf(float(p.lift_rate)) > 0.05)
+	_update_beacons(dt, absf(float(p.drive)) > 0.02 or absf(float(p.lift_rate)) > 0.05 or bool(p.get("warning", false)))
 	var extra := {"catch": float(p.catch)}
 	if float(p.stop) >= 0.0:
 		extra.stop = float(p.stop)

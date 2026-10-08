@@ -49,3 +49,8 @@ AIQUIZ-Godot/.fennara/
 AIQUIZ-Godot/addons/fennara/
 AIQUIZ-Godot-Android/.fennara/
 AIQUIZ-Godot-Android/addons/fennara/
+
+# Claude Code worktrees / Python caches
+**/.claude/worktrees/
+__pycache__/
+*.pyc

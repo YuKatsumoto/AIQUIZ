@@ -26,7 +26,19 @@ for name in list(sys.modules):
         del sys.modules[name]
 
 import lsb_anim as AN  # noqa: E402
+import lsb_anim_common as AC  # noqa: E402
+import lsb_anim_extra as AE  # noqa: E402
+import lsb_anim_students as AS  # noqa: E402
+import lsb_anim_teacher as AT  # noqa: E402
+import lsb_anim_trainee as AP  # noqa: E402
+import lsb_bake as BK  # noqa: E402
+import lsb_board as BD  # noqa: E402
 import lsb_godotkun as GK  # noqa: E402
+import lsb_desks as DK  # noqa: E402
+import lsb_lectern as LC  # noqa: E402
+import lsb_room as RM  # noqa: E402
+import lsb_fx as FX  # noqa: E402
+import lsb_yard as YD  # noqa: E402
 import lsb_props as PR  # noqa: E402
 from lsb_common import (ASSET, BLEND_OUT, COL_CAST, COL_PROPS, COL_REVIEW, PREVIEW, REPORT, SCENE_NAME, collection,  # noqa: E402
                         export_glb, fresh_scene, g2b, render_still, triangle_count, write_blend)
@@ -43,8 +55,15 @@ CAST = [
     ("student_hand", "hand", (0.0, PR.STOOL_Z), 0.0, "hand"),
     ("student_doze", "doze", (2.3, PR.STOOL_Z), 0.0, "doze"),
     ("trainee", "trainee", (-4.4, 1.2), 0.0, "practice"),
+    # 新しいキャラ（2e）。Godot はふだん隠し、出番のときだけ出す。ここでの位置は確認レンダー用
+    ("duty", "duty", (5.0, 2.6), 200.0, "extra"),
+    ("vice", "vice", (6.6, 9.4), 210.0, "extra"),
+    ("transfer", "transfer", (6.0, 4.0), 190.0, "extra"),
+    ("janitor", "janitor", (-6.3, 3.4), 90.0, "extra"),
+    ("parent", "parent", (-2.0, -2.6), 0.0, "extra"),
 ]
 REVIEW_FRAMES = (0, 56, 100, 150, 204)
+COL_YARD = "LS_Yard"  # 実習場の小道具（practice_yard_props.glb、台車のローカル座標）
 
 
 def build_review_camera(scene):
@@ -102,7 +121,17 @@ def place(obj, godot_xz, yaw_deg):
 def build():
     t0 = time.time()
     scene = fresh_scene()
-    props = PR.build_all_props(collection(COL_PROPS))
+    props = PR.build_all_props(collection(COL_PROPS), skip=("platform", "blackboard", "easel", "lectern", "desks",
+                                                           "exhibit", "bookshelf", "misc"))
+    props += RM.build(collection(COL_PROPS))
+    props += BD.build(collection(COL_PROPS))
+    props += LC.build(collection(COL_PROPS))
+    props += DK.build(collection(COL_PROPS))
+    yard_col = bpy.data.collections.get(COL_YARD) or bpy.data.collections.new(COL_YARD)
+    if yard_col.name not in scene.collection.children:
+        scene.collection.children.link(yard_col)
+    YD.build(yard_col)
+    FX.build(scene)
     cast_col = collection(COL_CAST)
     cast = []
     for name, variant, godot_xz, yaw, clip in CAST:
@@ -119,14 +148,25 @@ def build():
         arm = entry["arm"]
         if entry["clip"] == "teach":
             clip_reports[entry["name"]] = AN.clip_teach(arm)
-        elif entry["clip"] == "notes":
-            clip_reports[entry["name"]] = AN.clip_take_notes(arm, seat_lift)
-        elif entry["clip"] == "hand":
-            clip_reports[entry["name"]] = AN.clip_raise_hand(arm, seat_lift)
-        elif entry["clip"] == "doze":
-            clip_reports[entry["name"]] = AN.clip_doze(arm, seat_lift)
+            # 先生の動きの部品（2a）。座って採点は踏み台の上段（0.4725 m）に腰かける
+            clip_reports["lecturer_library"] = AT.build_library(arm, 0.4725 - GK.BODY_BOTTOM)
+            clip_reports["lecturer_common"] = AC.build_common(arm)
+            clip_reports["lecturer_extra"] = AE.build_extra(arm, "teacher")
+        elif entry["clip"] in ("notes", "hand", "doze"):
+            main = {"notes": AN.clip_take_notes, "hand": AN.clip_raise_hand, "doze": AN.clip_doze}[entry["clip"]]
+            clip_reports[entry["name"]] = main(arm, seat_lift)
+            # 生徒の動きの部品（2b）と全員の部品（G_）
+            clip_reports[entry["name"] + "_library"] = AS.build_students(arm, seat_lift)
+            clip_reports[entry["name"] + "_common"] = AC.build_common(arm)
+            clip_reports[entry["name"] + "_extra"] = AE.build_extra(arm, "student", seat_lift)
+        elif entry["clip"] == "extra":
+            clip_reports[entry["name"] + "_common"] = AC.build_common(arm)
+            clip_reports[entry["name"] + "_extra"] = AE.build_extra(arm, "other")
         elif entry["clip"] == "practice":
             clip_reports[entry["name"]] = AN.clip_practice(arm, GK.RAIL_Y0, GK.RAIL_Y1, GK.BLADE_R)
+            clip_reports[entry["name"] + "_library"] = AP.build_trainee(arm, GK.RAIL_Y0, GK.RAIL_Y1)
+            clip_reports[entry["name"] + "_common"] = AC.build_common(arm)
+            clip_reports[entry["name"] + "_extra"] = AE.build_extra(arm, "other")
     GK.release_template()
     scene.frame_set(0)
     cam, cast_cam = build_review_camera(scene)
@@ -146,7 +186,8 @@ def export_all(scene, props, cast):
         arm.rotation_euler = (0.0, 0.0, 0.0)
         file_name = f"godotkun_{entry['name']}.glb"
         try:
-            out[file_name] = export_glb(scene, ASSET / file_name, [arm, entry["mesh"], entry["gear"]], animations=True)
+            out[file_name] = export_glb(scene, ASSET / file_name, [arm, entry["mesh"], entry["gear"]] + entry.get("extra", []),
+                                        animations=True)
         finally:
             arm.location, arm.rotation_euler = placed
     return out
@@ -239,16 +280,150 @@ def audit(scene, props, cast):
     return report
 
 
-def render_previews(scene, cam, cast_cam):
+def render_previews(scene, cam, cast_cam, engine="BLENDER_EEVEE"):
     PREVIEW.mkdir(parents=True, exist_ok=True)
     paths = []
-    for frame in REVIEW_FRAMES:
-        paths.append(str(render_still(scene, cam, frame, PREVIEW / f"review_f{frame:03d}.png", (1600, 900), 24)))
-    for frame in (0, 56, 100):
-        paths.append(str(render_still(scene, cast_cam, frame, PREVIEW / f"cast_f{frame:03d}.png", (1600, 900), 24)))
+    prev = scene.render.engine
+    scene.render.engine = engine
+    if engine == "CYCLES":
+        scene.cycles.samples = 96
+        scene.cycles.use_denoising = True
+        BK._gpu(scene)
+    try:
+        for frame in REVIEW_FRAMES[:2] if engine == "CYCLES" else REVIEW_FRAMES:
+            paths.append(str(render_still(scene, cam, frame, PREVIEW / f"review_f{frame:03d}.png", (1600, 900), 24)))
+        for frame in (0,) if engine == "CYCLES" else (0, 56, 100):
+            paths.append(str(render_still(scene, cast_cam, frame, PREVIEW / f"cast_f{frame:03d}.png", (1600, 900), 24)))
+    finally:
+        scene.render.engine = prev
     scene.camera = cam
     scene.frame_set(0)
     return paths
+
+
+# ------------------------------------------------------------------ stages（lsb_jobs から順に呼ぶ）
+
+def props_in_scene():
+    """書き出す小道具: LS_Props の中のメッシュ（子も含む）。"""
+    col = bpy.data.collections[COL_PROPS]
+    return [o for o in col.all_objects if o.type == "MESH"]
+
+
+def yard_in_scene():
+    col = bpy.data.collections.get(COL_YARD)
+    return [o for o in col.all_objects if o.type == "MESH"] if col else []
+
+
+def to_bake():
+    """LSP_（実写）材質を持ち、まだ焼いていない小道具（教室と実習場）。"""
+    out = []
+    for o in props_in_scene() + yard_in_scene():
+        if o.get("lsb_src"):
+            continue
+        if any(m is not None and m.name.startswith("LSP_") for m in o.data.materials):
+            out.append(o)
+    return out
+
+
+def stage_build():
+    scene, props, cast, clip_reports, cam, cast_cam, build_seconds = build()
+    bpy.context.window.scene = scene
+    return {"props": len(props), "to_bake": [o.name for o in to_bake()], "secs": round(build_seconds, 2),
+            "clips": clip_reports}
+
+
+def _layer_col(lc, name):
+    if lc.collection.name == name:
+        return lc
+    for ch in lc.children:
+        found = _layer_col(ch, name)
+        if found is not None:
+            return found
+    return None
+
+
+def set_bake_view(on: bool):
+    """焼く間は人物（リグとアニメーション）・確認用・表情の集まりをビューレイヤーから外す（毎回の再評価を省く）。"""
+    vl = bpy.context.view_layer
+    for name in (COL_CAST, COL_REVIEW, "LS_FX"):
+        lc = _layer_col(vl.layer_collection, name)
+        if lc is not None:
+            lc.exclude = on
+
+
+def stage_bake(limit=6):
+    """まだ焼いていない小道具を最大 limit 個焼く（1 回の呼び出しを短く保つ）。"""
+    t = time.time()
+    set_bake_view(True)
+    scene = bpy.data.scenes[SCENE_NAME]
+    if not scene.get("lsb_prepared"):
+        # 最初に全部の面取りを確定する（残っていると、UV 展開で編集モードに入るたびに全部が評価し直されて遅い）
+        for obj in to_bake():
+            BK.finalize(obj)
+        scene["lsb_prepared"] = True
+    done = []
+    try:
+        for obj in to_bake()[:limit]:
+            done.append(BK.process(obj))
+        left = len(to_bake())
+    finally:
+        if not to_bake():
+            set_bake_view(False)
+    return {"baked": done, "left": left, "secs": round(time.time() - t, 1)}
+
+
+def stage_rebake(name):
+    """焼き直し: 元の LSP_ 材質へ戻し（obj["lsb_src"]）、床なら平面の UV を作り直して、もう一度焼く。"""
+    obj = bpy.data.objects[name]
+    src = [bpy.data.materials.get(n) for n in obj.get("lsb_src", [])]
+    if src and all(src):
+        obj.data.materials.clear()
+        for m in src:
+            obj.data.materials.append(m)
+        attr = obj.data.attributes.get("lsb_mat")
+        if attr is not None:
+            for p, d in zip(obj.data.polygons, attr.data):
+                p.material_index = d.value
+    if "lsb_src" in obj:
+        del obj["lsb_src"]
+    if name == "PRP_Platform":
+        RM.apply_floor_uv(obj)
+    set_bake_view(True)
+    try:
+        return BK.process(obj)
+    finally:
+        set_bake_view(False)
+
+
+def stage_export(render=False, engine="CYCLES"):
+    scene = bpy.data.scenes[SCENE_NAME]
+    set_bake_view(False)
+    props = props_in_scene()
+    cast = []
+    for name, variant, godot_xz, yaw, clip in CAST:
+        arm = bpy.data.objects[f"RIG_{name}"]
+        extra = [bpy.data.objects[n] for n in (f"HERO_{name}_Pointer",) if n in bpy.data.objects]
+        cast.append({"name": name, "variant": variant, "arm": arm, "mesh": bpy.data.objects[f"HERO_{name}"],
+                     "gear": bpy.data.objects[f"HERO_{name}_Gear"], "extra": extra, "missing_weights": [], "clip": clip})
+    exports = export_all(scene, [o for o in props if o.parent is None] + [o for o in props if o.parent is not None],
+                         cast)
+    yard = yard_in_scene()
+    if yard:
+        exports["practice_yard_props.glb"] = export_glb(scene, ASSET / "practice_yard_props.glb", yard, animations=False)
+    fx_col = bpy.data.collections.get(FX.COL_FX)
+    if fx_col is not None and fx_col.objects:
+        exports["lecture_fx.glb"] = export_glb(scene, ASSET / "lecture_fx.glb", list(fx_col.objects), animations=False)
+    report = audit(scene, props, cast)
+    report["exports_bytes"] = exports
+    report["blend_bytes"] = write_blend(BLEND_OUT, scene)
+    report["blender"] = bpy.app.version_string
+    if render:
+        report["renders"] = render_previews(scene, bpy.data.objects["CAM_Review"], bpy.data.objects["CAM_Cast"],
+                                            engine)
+    REPORT.parent.mkdir(parents=True, exist_ok=True)
+    REPORT.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
+    scene.frame_set(0)
+    return {"exports": exports, "duplicate_materials": report["duplicate_materials"]}
 
 
 def main():

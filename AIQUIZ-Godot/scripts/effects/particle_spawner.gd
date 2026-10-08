@@ -309,6 +309,7 @@ func _schedule_firework(pos: Vector3, color: Color, delay: float, height: float)
 
 func _launch_single_firework(pos: Vector3, color: Color, height: float) -> void:
 	## 1発の花火: 上昇シェル → 爆発バースト
+	AudioManager.play_sfx(&"firework_launch")
 
 	# --- Phase 1: 打ち上げトレイル (上昇する光の筋) ---
 	var trail := GPUParticles3D.new()
@@ -371,6 +372,7 @@ func _launch_single_firework(pos: Vector3, color: Color, height: float) -> void:
 
 func _spawn_firework_burst(pos: Vector3, color: Color) -> void:
 	## 花火の爆発パーティクル
+	AudioManager.play_sfx(&"firework_burst")
 	var burst := GPUParticles3D.new()
 	burst.emitting = false
 	burst.one_shot = true

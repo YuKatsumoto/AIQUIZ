@@ -156,6 +156,8 @@ func _check_programme(stand: GoalStand) -> void:
 		stand.update_stand(1.0 / 60.0, state, null, null, false)
 	check(board.is_cutin_playing() and not board.is_programme_started(), "the programme waits until the match is saved")
 	stand.update_stand(1.0 / 60.0, state, null, null, true)
+	check(board.is_cutin_playing() and not board.is_programme_started(), "saved match: the cut-in still holds for its minimum time")
+	stand.update_stand(GoalStandScoreboard.CUTIN_MIN_HOLD, state, null, null, true)
 	check(board.is_programme_started() and not board.is_programme_playing(), "saved match: the programme leads in")
 	check(board.is_cutin_playing(), "the cut-in keeps playing under the programme's first strokes")
 	var programme := board.programme()
@@ -193,4 +195,6 @@ func _check_programme_timeout(stand: GoalStand) -> void:
 	check(board.is_cutin_playing() and not board.is_programme_started(), "still waiting for the save before the timeout")
 	for _frame in range(90):
 		stand.update_stand(1.0 / 60.0, state, null, null, false)
+	check(board.is_cutin_playing() and not board.is_programme_started(), "the cut-in still holds for its minimum time after the timeout")
+	stand.update_stand(GoalStandScoreboard.CUTIN_MIN_HOLD, state, null, null, false)
 	check(board.is_programme_started(), "the programme starts after the timeout without a saved match")

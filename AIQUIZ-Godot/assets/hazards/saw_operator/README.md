@@ -1,13 +1,13 @@
 # 連結チップソー操縦席（操作盤v3）
 
-進行方向の左端に取り付ける、ゴドーくん着席済みの操縦席。2026-09-28に操作盤と操縦動作を1から作り直した（v3）。ゴドーくんの形状・16ボーン、座席と椅子ロケット部品、ドック取付部は変更していない。
+進行方向の左端に取り付ける、マスコット（ハテナ）着席済みの操縦席。2026-09-28に操作盤と操縦動作を1から作り直した（v3）。操縦者の16ボーン、座席と椅子ロケット部品、ドック取付部は変更していない。
 
 ## 素材
 
 | ファイル | 内容 |
 |---|---|
 | `godot_console_v3.glb` | 実行時の操作盤。デッキ、座席台座、左右の操作ポッド、計器ダッシュ、ペダル、全操作部。140ノード・88メッシュ・約5.7万三角形・約2.4MB |
-| `saw_operator.glb` | 座席（`OP_SeatFlightRoot`）、ゴドーくんのリグ、椅子ロケット部品、ドック取付部（`OP_MountFrame`）、着地基準（`OP_SeatSocket`）。v2の操作盤も含むが、実行時に取り除く |
+| `saw_operator.glb` | 座席（`OP_SeatFlightRoot`）、操縦者のリグ（旧プラシュ本体は `skip_import` で取り込まず、実行時に `MascotDresser` がハテナを着せる）、椅子ロケット部品、ドック取付部（`OP_MountFrame`）、着地基準（`OP_SeatSocket`）。v2の操作盤も含むが、実行時に取り除く |
 | `console_horn.wav` / `console_switch.wav` | クラクション／キー・START音。`tools/saw_operator/build_console_audio.py` で生成（外部素材なし） |
 | `source/saw_operator_v3.blend` | 編集用原本。`GodotConsole_V3` シーンのみ。分割された操作盤、参照用の現行ランタイム（`REF_`）、検査カメラ・ライト、Godotで評価した動き（30fps・1770フレーム、動作ごとのマーカー付き） |
 | `source/evaluated_poses_v3.json` | Blenderプレビュー用の評価済み姿勢 |
@@ -16,9 +16,9 @@
 
 ## 操作盤
 
-- 左ポッド「DRIVE」：走行スティック（進行方向＝ゴドーくんの左へ倒す）、キースイッチ、クラクション、速度LEDバー、回転灯、F/Rランプ。
+- 左ポッド「DRIVE」：走行スティック（進行方向＝操縦者の左へ倒す）、キースイッチ、クラクション、速度LEDバー、回転灯、F/Rランプ。
 - 右ポッド「BLADE」：昇降スティック（引くと上昇）、保護カバー付きSTART、トリムダイヤル、高さLEDバー、非常停止（飾り）、UP/DNランプ。
-- 計器ダッシュ：SPEED・RPM・LIFTの3計器（270°・赤帯付き）、PWR/RDY/SAW/LIFT/WARNの5灯、前面の「GODOT SAW」銘板と安全ストライプ。
+- 計器ダッシュ：SPEED・RPM・LIFTの3計器（270°・赤帯付き）、PWR/RDY/SAW/LIFT/WARNの5灯、前面の「AIQUIZ SAW」銘板（2026-10-08に変更）と安全ストライプ。
 - 手の接触点はリグから実測した到達範囲（肩から手首0.237m、手のひらは手首の0.08m前）内に配置。デッキ寸法1.64×1.74m、刃の可動域とのすき間130mm、昇降台内への収まりはv2と同じ。
 - 表示灯・LEDバー・回転灯はノードごとに発光マテリアルを複製し、Godotが状態に応じて発光量を変える。
 
@@ -78,4 +78,4 @@ godot --path . --resolution 960x720 --script res://tests/saw_operator_motion_cap
 
 ## v2（2026-09-20〜25）
 
-v2の操作盤・動作・参考画像・制作記録は `references/v2/`、`source/saw_operator.blend`、`tools/saw_operator/build_station.py` ほか、検証は `artifacts/saw_operator/v2_report.md` に残している。キャラクターの出典は `assets/characters/godot_plush/CREDITS.md`。
+v2の操作盤・動作・参考画像・制作記録は `references/v2/`、`source/saw_operator.blend`、`tools/saw_operator/build_station.py` ほか、検証は `artifacts/saw_operator/v2_report.md` に残している。現在の操縦者は `assets/characters/aiquiz_mascot/`（旧プラシュの出典は `assets/characters/godot_plush/CREDITS.md`）。

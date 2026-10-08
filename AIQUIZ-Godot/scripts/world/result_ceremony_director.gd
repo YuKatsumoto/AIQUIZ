@@ -278,7 +278,8 @@ func _update_sounds(elapsed: float) -> void:
 			AudioManager.play_result_cue(&"crown")
 	for index in range(4):
 		if _cue("firework_%d" % index, elapsed >= [7.05, 7.55, 8.25, 9.3][index] + 0.08):
-			AudioManager.play_result_cue(&"confetti", 0.62, -9.0)
+			# Pooled SFX voices, so the bursts no longer cut the cymbal or the sad trombone.
+			AudioManager.play_sfx(&"firework_burst", -5.0)
 
 
 ## Prepare the finale meshes and materials under the loading cover so the first

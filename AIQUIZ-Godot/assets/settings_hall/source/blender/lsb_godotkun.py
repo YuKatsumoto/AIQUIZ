@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import math
 
+import bmesh
 import bpy
 from mathutils import Matrix, Vector
 
@@ -147,6 +148,11 @@ def _extra_bones(variant: str):
     ]
     if variant == "doze":
         bones.append(("Zzz", ZZZ_ANCHOR, ZZZ_ANCHOR + Vector((0.0, 0.0, 0.2)), "Body"))
+    # 揺れもの（Godot の SpringBoneSimulator3D が揺らす: 項目 112）
+    if variant == "lecturer":
+        bones.append(("Tie", Vector((0.0, -0.46, TIE_Z)), Vector((0.0, -0.56, TIE_Z)), "DEF-hips"))
+    if variant == "hand":
+        bones.append(("CapBrim", Vector((0.0, 0.34, 1.42)), Vector((0.0, 0.58, 1.42)), "DEF-head"))
     if variant == "trainee":
         # レールと刃は跳躍（Root の移動）に連動しないよう、親なしの Rail ボーンにぶら下げる
         bones.append(("Rail", Vector((0.0, 0.0, -0.3)), Vector((0.0, 0.0, -0.1)), None))
@@ -238,7 +244,8 @@ def _cap(mb: MeshBuilder, mesh_obj, material: str, radius: float, brim_back: boo
     mb.torus(radius * 0.97, 0.022, (0.0, 0.0, cz + 0.005), material, "DEF-head", segments=30, rings=8)
     tilt = Matrix.Rotation(math.radians(-10.0), 3, "X")
     if brim_back:
-        mb.box((radius * 0.85, radius * 0.75, 0.03), (0.0, radius * 1.15, cz - 0.02), material, "DEF-head",
+        # つばは CapBrim ボーン（揺れる）
+        mb.box((radius * 0.85, radius * 0.75, 0.03), (0.0, radius * 1.15, cz - 0.02), material, "CapBrim",
                rotation=Matrix.Rotation(math.radians(10.0), 3, "X"))
     if brim_front:
         mb.box((radius * 0.95, radius * 0.6, 0.03), (0.0, -radius * 1.1, cz - 0.02), material, "DEF-head",
@@ -248,7 +255,9 @@ def _cap(mb: MeshBuilder, mesh_obj, material: str, radius: float, brim_back: boo
     return cz
 
 
-def _accessories(mb: MeshBuilder, arm, mesh_obj, variant: str):
+def _accessories(mb: MeshBuilder, arm, mesh_obj, variant: str, mb_hand: MeshBuilder | None = None):
+    """mb: 体に付いたままの小道具。mb_hand: 手に持って置いたり持ち替えたりする小道具（Godot が出し入れする、
+    HERO_<name>_Pointer）。"""
     if variant == "lecturer":
         # 丸眼鏡: 目の縁に沿わせ、表面から 1.8 cm 浮かせる（つるは頭の丸みから浮くので付けない）
         centers = []
@@ -266,16 +275,18 @@ def _accessories(mb: MeshBuilder, arm, mesh_obj, variant: str):
         loc, normal = _surface(mesh_obj, 0.0, TIE_Z)
         rot = aim_matrix(normal)
         at = loc + normal * 0.02
-        mb.box((0.05, 0.045, 0.04), at, "GK_Red", "DEF-hips", rotation=rot)
+        mb.box((0.05, 0.045, 0.04), at, "GK_Red", "Tie", rotation=rot)
         for s in (1.0, -1.0):
             wing = [(s * 0.02, 0.0), (s * 0.11, 0.045), (s * 0.12, -0.045)]
-            mb.prism(wing if s > 0 else wing[::-1], 0.03, at - normal * 0.004, "GK_Red", "DEF-hips", rotation=rot)
-        # 指し棒（右手）: 腕の延長に握らせる。先が赤
+            mb.prism(wing if s > 0 else wing[::-1], 0.03, at - normal * 0.004, "GK_Red", "Tie", rotation=rot)
+        # 指し棒（右手）: 腕の延長に握らせる。先が赤。チョークや黒板消しを持つときは Godot が隠して
+        # トレイの上に置くので、別のオブジェクト（mb_hand）にする
+        hand = mb_hand if mb_hand is not None else mb
         c, d = _hand_frame(arm, "R")
         grip = c - d * 0.05
         tip = c + d * 0.82
-        mb.cylinder_between(grip, tip, 0.014, "GK_Silver", "DEF-hand.R", radius2=0.009)
-        mb.sphere(0.032, tip, "GK_Red", "DEF-hand.R", segments=12, rings=8)
+        hand.cylinder_between(grip, tip, 0.014, "GK_Silver", "DEF-hand.R", radius2=0.009)
+        hand.sphere(0.032, tip, "GK_Red", "DEF-hand.R", segments=12, rings=8)
     elif variant == "notes":
         # 鉛筆（右手）: 手先の延長に握り、芯がノートへ届く
         c, d = _hand_frame(arm, "R")
@@ -295,6 +306,74 @@ def _accessories(mb: MeshBuilder, arm, mesh_obj, variant: str):
             mb.box((size, t, t), c + Vector((0, 0, size * 0.5)), "GK_Zzz", "Zzz")
             mb.box((size, t, t), c - Vector((0, 0, size * 0.5)), "GK_Zzz", "Zzz")
             mb.box((t, t, size * 1.25), c, "GK_Zzz", "Zzz", rotation=Matrix.Rotation(math.radians(-38.0), 3, "Y"))
+    elif variant == "duty":
+        # 日直: 左の二の腕に赤い腕章と白い「日直」の字
+        _armband(mb, arm, mesh_obj, "L", "GK_Red", "日直")
+    elif variant == "vice":
+        # 教頭: 四角い黒縁の眼鏡、口ひげ、紺のネクタイ
+        for s in (1.0, -1.0):
+            loc, normal = _surface(mesh_obj, s * EYE_X, EYE_Z)
+            c = loc + normal * 0.02
+            rot = aim_matrix(normal)
+            for dx, dz, w, h in ((0.0, EYE_R + 0.02, 2 * EYE_R + 0.06, 0.022), (0.0, -EYE_R - 0.02, 2 * EYE_R + 0.06, 0.022),
+                                 (EYE_R + 0.02, 0.0, 0.022, 2 * EYE_R + 0.06), (-EYE_R - 0.02, 0.0, 0.022, 2 * EYE_R + 0.06)):
+                mb.box((w, h, 0.016), c + rot @ Vector((dx, dz, 0.0)), "GK_Black", "DEF-head", rotation=rot)
+        bridge_l, _ = _surface(mesh_obj, EYE_X - EYE_R - 0.02, EYE_Z)
+        bridge_r, _ = _surface(mesh_obj, -EYE_X + EYE_R + 0.02, EYE_Z)
+        mb.cylinder_between(bridge_l + Vector((0.0, -0.02, 0.0)), bridge_r + Vector((0.0, -0.02, 0.0)), 0.01, "GK_Black",
+                            "DEF-head", segments=6)
+        for s in (1.0, -1.0):
+            loc, normal = _surface(mesh_obj, s * 0.09, EYE_Z - 0.2)
+            mb.sphere(0.05, loc + normal * 0.015, "GK_Navy", "DEF-head", scale=(1.6, 0.6, 0.55),
+                      rotation=Matrix.Rotation(math.radians(s * 12.0), 3, "Y"), segments=14, rings=8)
+        loc, normal = _surface(mesh_obj, 0.0, TIE_Z)
+        rot = aim_matrix(normal)
+        mb.box((0.06, 0.05, 0.03), loc + normal * 0.018, "GK_Navy", "DEF-hips", rotation=rot)
+        mb.prism([(-0.045, 0.0), (0.045, 0.0), (0.06, -0.22), (0.0, -0.27), (-0.06, -0.22)], 0.02,
+                 loc + normal * 0.012 + Vector((0.0, 0.0, -0.02)), "GK_Navy", "DEF-hips",
+                 rotation=rot)
+    elif variant == "transfer":
+        # 転校生: 黄色い通学帽（前つば）と、背中の赤いランドセル
+        _cap(mb, mesh_obj, "GK_Yellow", 0.4, brim_back=False, brim_front=True)
+        back, nb = _surface(mesh_obj, 0.0, 0.85, from_front=False)
+        c = back + Vector((0.0, 0.17, 0.0))
+        mb.box((0.46, 0.22, 0.4), c, "GK_Red", "DEF-hips")
+        mb.sphere(0.23, c + Vector((0.0, 0.02, 0.17)), "GK_Red", "DEF-hips", scale=(1.0, 0.55, 0.45), segments=20, rings=10)
+        mb.box((0.1, 0.02, 0.06), c + Vector((0.0, 0.115, -0.05)), "GK_Silver", "DEF-hips")
+        for s in (1.0, -1.0):
+            mb.cylinder_between(c + Vector((s * 0.16, -0.1, 0.18)), back + Vector((s * 0.2, -0.02, -0.25)), 0.02, "GK_Black",
+                                "DEF-hips", segments=8)
+    elif variant == "janitor":
+        # 用務員: 紺の作業帽（前つば）、胸当てのエプロン、腰の工具ベルト
+        _cap(mb, mesh_obj, "GK_Navy", 0.39, brim_back=False, brim_front=True)
+        loc, normal = _surface(mesh_obj, 0.0, 0.62)
+        rot = aim_matrix(normal)
+        mb.box((0.5, 0.42, 0.018), loc + normal * 0.012, "GK_Green", "DEF-hips", rotation=rot)
+        mb.box((0.22, 0.12, 0.022), loc + normal * 0.022 + Vector((0.0, 0.0, -0.08)), "GK_Green", "DEF-hips", rotation=rot)
+        belt_z = BODY_BOTTOM + 0.08
+        for k in range(24):
+            a = math.tau * k / 24
+            d = Vector((math.cos(a), math.sin(a), 0.0))
+            hit, p, n, _ = mesh_obj.ray_cast(d * 1.5 + Vector((0.0, 0.0, belt_z)), -d)
+            if hit:
+                mb.box((0.13, 0.03, 0.06), p + d * 0.012, "GK_Black", "DEF-hips", rotation=aim_matrix(d))
+        mb.box((0.08, 0.06, 0.1), Vector((0.32, -0.3, belt_z)), "GK_Orange", "DEF-hips")
+    elif variant == "parent":
+        # 保護者（授業参観）: つばの広い帽子とリボン、真珠の首飾り、左腕にハンドバッグ
+        crown_z = max(_top(mesh_obj, x, 0.0) for x in (-0.2, 0.0, 0.2))
+        cz = crown_z - 0.16
+        mb.sphere(0.36, Vector((0.0, 0.0, cz)), "GK_Cream", "DEF-head", scale=(1.0, 0.95, 0.7), segments=30, rings=12)
+        mb.cylinder(0.66, 0.025, Vector((0.0, 0.0, cz - 0.08)), "GK_Cream", "DEF-head", segments=48)
+        mb.torus(0.355, 0.035, Vector((0.0, 0.0, cz - 0.02)), "GK_Pink", "DEF-head", segments=30, rings=8)
+        loc, normal = _surface(mesh_obj, 0.0, TIE_Z + 0.02)
+        for k in range(13):
+            a = math.radians(-60.0 + k * 10.0)
+            p, n = _surface(mesh_obj, math.sin(a) * 0.32, TIE_Z + 0.03 - (1.0 - math.cos(a)) * 0.2)
+            mb.sphere(0.022, p + n * 0.02, "GK_White", "DEF-hips", segments=10, rings=6)
+        c, d = _hand_frame(arm, "L")
+        mb.box((0.26, 0.1, 0.2), c + Vector((0.08, 0.0, -0.16)), "GK_Pink", "DEF-forearm.L")
+        mb.torus(0.07, 0.01, c + Vector((0.08, 0.0, -0.04)), "GK_Silver", "DEF-forearm.L",
+                 rotation=Matrix.Rotation(math.radians(90.0), 3, "X"), segments=16, rings=6)
     elif variant == "trainee":
         # 黄色いヘルメット（前つば）と膝当て
         cz = _cap(mb, mesh_obj, "GK_Yellow", 0.41, brim_back=False, brim_front=True)
@@ -305,6 +384,67 @@ def _accessories(mb: MeshBuilder, arm, mesh_obj, variant: str):
             mb.sphere(0.07, bone.head_local + Vector((0.0, -0.055, -0.02)), "GK_Orange", f"DEF-shin.{side}",
                       scale=(1.0, 0.6, 1.0), segments=14, rings=8)
         _practice_rail(mb)
+
+
+FONT_FILE = ROOT / "resources" / "fonts" / "NotoSansJP-Bold.otf"
+
+
+def _add_text(mb: MeshBuilder, text: str, size: float, matrix: Matrix, material: str, group: str):
+    """文字の字形（押し出し）をギアのメッシュに足す。字形は XY 平面（Z が厚み）、matrix で置く。"""
+    curve = bpy.data.curves.new("GK_tmp_text", "FONT")
+    curve.body = text
+    curve.font = bpy.data.fonts.load(str(FONT_FILE), check_existing=True)
+    curve.size = size
+    curve.extrude = 0.004
+    curve.align_x = "CENTER"
+    curve.align_y = "CENTER"
+    obj = bpy.data.objects.new("GK_tmp_text", curve)
+    bpy.context.scene.collection.objects.link(obj)
+    dg = bpy.context.evaluated_depsgraph_get()
+    me = bpy.data.meshes.new_from_object(obj.evaluated_get(dg), depsgraph=dg)
+    bpy.data.objects.remove(obj)
+    bpy.data.curves.remove(curve)
+    src = bmesh.new()
+    src.from_mesh(me)
+    bpy.data.meshes.remove(me)
+    vmap = {v.index: mb.bm.verts.new(v.co) for v in src.verts}
+    for f in src.faces:
+        try:
+            mb.bm.faces.new([vmap[v.index] for v in f.verts])
+        except ValueError:
+            pass
+    src.free()
+    mb._finish(list(vmap.values()), material, group, False, matrix)
+
+
+def _limb_radius(mesh_obj, center: Vector, axis: Vector) -> float:
+    """腕の太さ: 中心から軸に垂直な 8 方向へ外から光線を当て、表面までの距離の平均。"""
+    perp = axis.orthogonal().normalized()
+    dists = []
+    for k in range(8):
+        d = (Matrix.Rotation(math.tau * k / 8, 3, axis) @ perp).normalized()
+        hit, loc, _, _ = mesh_obj.ray_cast(center + d * 0.5, -d)
+        if hit:
+            dists.append((loc - center).length)
+    return sum(dists) / len(dists) if dists else 0.07
+
+
+def _armband(mb: MeshBuilder, arm, mesh_obj, side: str, material: str, text: str):
+    """腕章: 二の腕の中ほどに巻いた帯（軸に沿った短い筒）と、外側の面の白い文字。"""
+    bone = arm.data.bones[f"DEF-upper_arm.{side}"]
+    head, tail = bone.head_local, bone.tail_local
+    axis = (tail - head).normalized()
+    centre = head.lerp(tail, 0.55)
+    r = _limb_radius(mesh_obj, centre, axis) + 0.006
+    mb.cylinder(r, 0.075, centre, material, f"DEF-upper_arm.{side}", rotation=aim_matrix(axis), segments=24,
+                smooth=True)
+    out = Vector((1.0 if side == "L" else -1.0, 0.0, 0.0))
+    out = (out - axis * out.dot(axis)).normalized()
+    up = axis
+    right = up.cross(out).normalized()
+    rot = Matrix((right, up, out)).transposed()
+    _add_text(mb, text, 0.05, Matrix.Translation(centre + out * (r + 0.004)) @ rot.to_4x4() @
+              Matrix.Rotation(math.radians(-90.0), 4, "Z"), "GK_White", f"DEF-upper_arm.{side}")
 
 
 def _practice_rail(mb: MeshBuilder):
@@ -346,25 +486,29 @@ def _practice_rail(mb: MeshBuilder):
 
 
 def build_godotkun(name: str, variant: str, collection) -> dict:
-    """RIG_<name>、HERO_<name>（ぬいぐるみ）、HERO_<name>_Gear（小道具）を作り、辞書 {"arm", "mesh", "gear"} を返す。
+    """RIG_<name>、HERO_<name>（ぬいぐるみ）、HERO_<name>_Gear（小道具）、先生だけ HERO_<name>_Pointer（指し棒）を作り、
+    辞書 {"arm", "mesh", "gear", "extra"} を返す。
     小道具はぬいぐるみに結合しない: 読み込んだぬいぐるみはカスタム法線と頂点色を持ち、結合すると小道具の
     法線が壊れて Godot で黒く写る。別メッシュのまま同じリグでスキンする。"""
     arm, mesh_obj = _copy_rig(name, variant, collection)
     mb = MeshBuilder(f"HERO_{name}_Gear")
-    _accessories(mb, arm, mesh_obj, variant)
+    mb_hand = MeshBuilder(f"HERO_{name}_Pointer") if variant == "lecturer" else None
+    _accessories(mb, arm, mesh_obj, variant, mb_hand)
     gear = mb.build(collection)
-    gear.parent = arm
-    gear.matrix_parent_inverse = Matrix.Identity(4)
-    mod = gear.modifiers.new("Armature", "ARMATURE")
-    mod.object = arm
-    mod.use_vertex_groups = True
+    extra = [mb_hand.build(collection)] if mb_hand is not None else []
+    for obj in [gear] + extra:
+        obj.parent = arm
+        obj.matrix_parent_inverse = Matrix.Identity(4)
+        mod = obj.modifiers.new("Armature", "ARMATURE")
+        mod.object = arm
+        mod.use_vertex_groups = True
     # どの頂点グループにも入っていない頂点は Root へ（スキンの取りこぼし防止）
     missing = 0
-    for obj in (mesh_obj, gear):
+    for obj in [mesh_obj, gear] + extra:
         weighted = {v.index for v in obj.data.vertices if any(g.weight > 0.0 for g in v.groups)}
         loose = [v.index for v in obj.data.vertices if v.index not in weighted]
         if loose:
             root = obj.vertex_groups.get("Root") or obj.vertex_groups.new(name="Root")
             root.add(loose, 1.0, "REPLACE")
         missing += len(loose)
-    return {"arm": arm, "mesh": mesh_obj, "gear": gear, "variant": variant, "missing_weights": missing}
+    return {"arm": arm, "mesh": mesh_obj, "gear": gear, "extra": extra, "variant": variant, "missing_weights": missing}

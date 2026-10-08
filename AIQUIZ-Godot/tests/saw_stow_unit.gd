@@ -107,10 +107,39 @@ func _ready() -> void:
 		check(same,"stowed pose identical at every fps")
 	check(p_at_5.size()==3 and absf(p_at_5[0]-p_at_5[1])<1e-9 and absf(p_at_5[0]-p_at_5[2])<1e-9,"stow clock identical at 30/60/120 fps %s"%str(p_at_5))
 	_check_fallback()
+	_check_retreat()
 	report.checks=checks
 	report.failures=failures
 	print("SAW_STOW_UNIT ",JSON.stringify(report))
 	get_tree().quit(0 if failures.is_empty() else 1)
+
+## Racked, the carriage backs away to the end of the belt (the menu chase's home Z) and rolls forward
+## again to where it stowed before the deploy starts.
+func _check_retreat() -> void:
+	var dt:=1.0/60.0
+	var saw:=SawChaseController.new()
+	add_child(saw)
+	saw.update_preview(5.0)
+	var from_z:=1.65
+	saw.position.z=from_z
+	saw.stow_target=true
+	var frames:=0
+	while saw.position.z<SawDockPresentation.MENU_Z-.0001 and frames<int(40.0/dt):
+		saw.advance_stow(dt);frames+=1
+	check(saw.is_fully_stowed() and is_equal_approx(saw.position.z,SawDockPresentation.MENU_Z),"racked carriage backs away to the end of the belt (z %.3f)"%saw.position.z)
+	for i in 120:saw.advance_stow(dt)
+	check(is_zero_approx(saw._retreat_speed) and is_equal_approx(saw.position.z,SawDockPresentation.MENU_Z),"carriage stays put at the end of the belt")
+	saw.stow_target=false
+	var p_at_start:=saw.stow_time()
+	var rolled_before_deploy:=true
+	frames=0
+	while not saw.is_stow_clear() and frames<int(40.0/dt):
+		saw.advance_stow(dt)
+		if saw._retreat>0.0 and saw.stow_time()<p_at_start-.0001:rolled_before_deploy=false
+		frames+=1
+	check(rolled_before_deploy,"deploy waits until the carriage is back where it stowed")
+	check(saw.is_stow_clear() and is_equal_approx(saw.position.z,from_z),"carriage ends the deploy where it stowed (z %.3f)"%saw.position.z)
+	saw.free()
 
 class _Track:
 	var prev: Array[Vector3]=[]
