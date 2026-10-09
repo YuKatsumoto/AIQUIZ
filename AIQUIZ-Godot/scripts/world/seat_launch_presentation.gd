@@ -8,8 +8,6 @@ const HarnessScript := preload("res://scripts/world/seat_launch_harness.gd")
 const HANDOFF := &"chair_transfer_pending"
 const BELT_SECONDS := 2.6
 const LATCH_TIME := 1.95
-## Belts shoot out of the top reels (seat_belt_rope.gd).
-const BELT_SHOOT_TIME := 0.30
 const LAND_SECONDS := 1.8
 const SETTLE_SECONDS := 0.3
 const RELEASE_SECONDS := 1.0
@@ -32,11 +30,8 @@ var harness: Node3D
 var effects: SeatLaunchEffects
 var flight_rest := Transform3D.IDENTITY
 var applying_base := false
-var _click: AudioStreamPlayer3D
-var _jet: AudioStreamPlayer3D
 var _base_sample: Dictionary = {}
-var _clicked := false
-var _belts_whipped := false
+var _latched := false
 
 static func eligible(gs: QuizGameState, online: bool = false) -> bool:
 	# The transport flag is initialized by GameWorld, after the menu departure.
@@ -83,34 +78,8 @@ func setup(seat: Node3D) -> void:
 	# World-space smoke must remain visible after the flying chair is hidden.
 	operator.station.add_child(effects)
 	effects.setup(kit, socket)
-	_click = AudioStreamPlayer3D.new()
-	_click.bus = "SFX"
-	_click.stream = preload("res://assets/hazards/saw_operator/chair_latch.wav")
-	_click.unit_size = 12.0
-	_click.volume_db = -5.0
-	kit.add_child(_click)
-	_click.position = Vector3(0.0, 1.34, .07)
-	_jet = AudioStreamPlayer3D.new()
-	_jet.bus = "SFX"
-	_jet.stream = preload("res://assets/hazards/saw_operator/chair_rocket.wav")
-	_jet.unit_size = 20.0
-	_jet.volume_db = -12.0
-	kit.add_child(_jet)
 	_set_belt(0.0)
 	set_process(false)
-
-## One-shot positional cue at the chair (belt whip, touchdown thump).
-func _play_kit_sfx(cue: StringName) -> void:
-	var player := AudioStreamPlayer3D.new()
-	player.bus = "SFX"
-	player.stream = AudioManager.get_sfx_stream(cue)
-	player.volume_db = AudioManager.get_sfx_volume_db(cue)
-	player.unit_size = 14.0
-	kit.add_child(player)
-	player.position = Vector3(0.0, 1.3, 0.0)
-	player.finished.connect(player.queue_free)
-	player.play()
-
 
 func owns_pose() -> bool:
 	return phase != Phase.IDLE
@@ -126,8 +95,7 @@ func begin_buckle() -> void:
 	_base_sample = operator.last_sample.duplicate(true)
 	phase = Phase.BUCKLING
 	elapsed = 0.0
-	_clicked = false
-	_belts_whipped = false
+	_latched = false
 	latch_count = 0
 	flight_root.visible = true
 	set_process(true)
@@ -141,7 +109,6 @@ func launch() -> void:
 	QuizManager.set_meta(HANDOFF, true)
 	_apply_pose()
 	effects.ignite()
-	_jet.play()
 
 func skip_departure() -> void:
 	# Also accepts a skip before the dock is ready and before buckling begins.
@@ -151,7 +118,6 @@ func skip_departure() -> void:
 	flight_root.visible = false
 	QuizManager.set_meta(HANDOFF, true)
 	effects.stop_immediately()
-	_jet.stop()
 	set_process(false)
 
 func begin_arrival() -> void:
@@ -180,10 +146,6 @@ func advance_arrival(dt: float, socket_ready: bool, skip: bool = false) -> void:
 		elapsed -= LAND_SECONDS
 		phase = Phase.SETTLING
 		effects.touchdown()
-		_jet.stop()
-		_click.pitch_scale = .70
-		_click.play()
-		_play_kit_sfx(&"chair_touchdown")
 	if phase == Phase.SETTLING and elapsed >= SETTLE_SECONDS:
 		elapsed -= SETTLE_SECONDS
 		phase = Phase.UNBUCKLING
@@ -192,9 +154,7 @@ func advance_arrival(dt: float, socket_ready: bool, skip: bool = false) -> void:
 		return
 	_apply_pose()
 	if phase == Phase.LANDING:
-		var thrust := smoothstep(.35, 1.25, elapsed)
-		effects.set_thrust(thrust)
-		if thrust > .1 and not _jet.playing: _jet.play()
+		effects.set_thrust(smoothstep(.35, 1.25, elapsed))
 
 func finish_arrival() -> void:
 	phase = Phase.IDLE
@@ -203,7 +163,6 @@ func finish_arrival() -> void:
 	flight_root.visible = true
 	_set_belt(0.0)
 	effects.set_thrust(0.0)
-	_jet.stop()
 	operator.apply_sample(operator.last_sample)
 	landing_error = flight_root.global_position.distance_to(socket.global_position)
 	set_process(false)
@@ -212,14 +171,11 @@ func reset() -> void:
 	phase = Phase.IDLE
 	elapsed = 0.0
 	height = 0.0
-	_clicked = false
-	_belts_whipped = false
+	_latched = false
 	flight_root.transform = flight_rest
 	flight_root.visible = true
 	_set_belt(0.0)
 	effects.stop_immediately()
-	_jet.stop()
-	_click.stop()
 	set_process(false)
 	if not operator.last_sample.is_empty(): operator.apply_sample(operator.last_sample)
 
@@ -230,20 +186,14 @@ func advance_departure(dt: float) -> void:
 	if phase not in [Phase.BUCKLING, Phase.ARMED, Phase.LAUNCHING]: return
 	elapsed += maxf(dt, 0.0)
 	if phase == Phase.BUCKLING:
-		if elapsed >= BELT_SHOOT_TIME and not _belts_whipped:
-			_belts_whipped = true
-			_play_kit_sfx(&"belt_zip")
-		if elapsed >= LATCH_TIME and not _clicked:
-			_clicked = true
+		if elapsed >= LATCH_TIME and not _latched:
+			_latched = true
 			latch_count += 1
-			_click.pitch_scale = 1.0
-			_click.play()
 		if elapsed >= BELT_SECONDS: phase = Phase.ARMED
 	elif phase == Phase.LAUNCHING and elapsed >= LAUNCH_SECONDS:
 		phase = Phase.AWAY
 		flight_root.visible = false
 		effects.set_thrust(0.0)
-		_jet.stop()
 		set_process(false)
 		return
 	_apply_pose()

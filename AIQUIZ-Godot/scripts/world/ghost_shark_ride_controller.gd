@@ -176,7 +176,6 @@ var _charging_input: bool = false
 var _charge_amount: float = 0.0
 var _last_charge_power: float = QUICK_CHARGE_FLOOR
 var _perfect_charge: bool = false
-var _sfx_in_perfect_band: bool = false
 var _combo: int = 0
 var _best_combo: int = 0
 var _current_cooldown_duration: float = MISS_COOLDOWN_SECONDS
@@ -858,8 +857,6 @@ func _update_charge_input(
 	if fire_pressed:
 		_charging_input = true
 		_charge_amount = 0.0
-		_sfx_in_perfect_band = false
-		AudioManager.start_sfx_loop(&"ghost_charge", &"charge_loop", 0.0, 0.08, self)
 	if not _charging_input:
 		_set_meter(0.0, _player_color)
 		_update_hud("照準を合わせ、突進ボタンを長押し")
@@ -869,12 +866,7 @@ func _update_charge_input(
 		if _shark and _shark.has_method("set_ghost_charge_tension"):
 			_shark.set_ghost_charge_tension(_charge_amount)
 		_set_meter(_charge_amount, _charge_feedback_color(_charge_amount))
-		AudioManager.set_sfx_loop_pitch(&"ghost_charge", lerpf(0.8, 1.7, _charge_amount))
-		var in_perfect_band := _is_perfect_power(_charge_amount)
-		if in_perfect_band and not _sfx_in_perfect_band:
-			AudioManager.play_sfx(&"charge_perfect")
-		_sfx_in_perfect_band = in_perfect_band
-		if in_perfect_band:
+		if _is_perfect_power(_charge_amount):
 			_update_hud("PERFECT 帯！ 今離すと強力")
 		else:
 			_update_hud("霊力チャージ %d%%" % roundi(_charge_amount * 100.0))
@@ -887,8 +879,6 @@ func _commit_charge() -> void:
 		return
 	_last_charge_power = maxf(QUICK_CHARGE_FLOOR, _charge_amount)
 	_perfect_charge = _is_perfect_power(_last_charge_power)
-	AudioManager.stop_sfx_loop(&"ghost_charge", 0.06)
-	AudioManager.play_sfx(&"charge_release", 0.0, 1.25 if _perfect_charge else 1.0)
 	var aim_point := _current_aim_point()
 	_locked_direction = _shark.global_position.direction_to(aim_point)
 	_charging_input = false
@@ -992,7 +982,6 @@ func _calculate_rendezvous_position() -> Vector3:
 
 func _begin_soul_rise() -> void:
 	phase = Phase.SOUL_RISE
-	AudioManager.play_sfx(&"soul_rise")
 	_phase_timer = SOUL_RISE_SECONDS
 	_soul_travel_elapsed = 0.0
 	if _rider != null and is_instance_valid(_rider):
@@ -1079,7 +1068,6 @@ func _begin_mounting() -> void:
 		_phase_timer = 0.0
 		return
 	player_controller.make_ghost_rider_opaque(_rider)
-	AudioManager.play_sfx(&"rider_land")
 	_rider.global_position = _shark.get_ghost_mount_world_position()
 	if not _shark.begin_ghost_ride(dead_player_index, _rider):
 		_cleanup_ghost_ride()
@@ -1492,7 +1480,6 @@ func _connect_shark_signals() -> void:
 func _on_ghost_mount_beam_fired(_beam_index: int) -> void:
 	if game_state == null or phase != Phase.BEAM_REVEAL:
 		return
-	AudioManager.play_sfx(&"beam_fire")
 	game_state.camera_shake = maxf(
 		game_state.camera_shake,
 		GHOST_MOUNT_BEAM_LAUNCH_CAMERA_SHAKE
@@ -1516,7 +1503,6 @@ func _begin_cooldown() -> void:
 		_combo = 0
 		_result_text = "MISS… HAUNT COMBO RESET"
 		_current_cooldown_duration = MISS_COOLDOWN_SECONDS
-		AudioManager.play_sfx(&"charge_miss")
 	_current_cooldown_duration = maxf(
 		_current_cooldown_duration,
 		RETURN_PORTAL_SEQUENCE_SECONDS
@@ -1543,7 +1529,6 @@ func _begin_cooldown() -> void:
 
 
 func _spawn_return_portal() -> void:
-	AudioManager.play_sfx(&"portal_open")
 	var cached_portal := _return_portal_cache.get(dead_player_index) as Node3D
 	var reused_prepared_portal := cached_portal != null and is_instance_valid(cached_portal)
 	if reused_prepared_portal:
@@ -1804,7 +1789,6 @@ func _update_return_portal_depth_effect(delta: float) -> void:
 		if float(shark_state.get("portal_entry_progress", 0.0)) >= RETURN_PORTAL_CROSSING_PROGRESS:
 			_return_portal_crossing_pulsed = true
 			_return_portal_crossing_flash_elapsed = 0.0
-			AudioManager.play_sfx(&"portal_cross")
 			if game_state != null:
 				game_state.camera_shake = maxf(
 					game_state.camera_shake,
@@ -2753,7 +2737,6 @@ func _set_meter(progress: float, color: Color) -> void:
 
 
 func _cleanup_ghost_ride() -> void:
-	AudioManager.stop_sfx_loop(&"ghost_charge", 0.1)
 	_clear_ghost_emote()
 	_hide_aim_visuals()
 	_charge_tutorial_active = false

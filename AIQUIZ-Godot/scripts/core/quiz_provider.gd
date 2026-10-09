@@ -7,6 +7,7 @@ class_name QuizProvider
 var bank_path: String
 var bank: Dictionary = {}
 var external_bank_items: Array[Dictionary] = []
+var _count_cache: Dictionary = {}
 
 func _init(path: String = "res://offline_bank.json") -> void:
 	bank_path = path
@@ -48,6 +49,43 @@ func total_count() -> int:
 
 func set_external_items(items: Array[Dictionary]) -> void:
 	external_bank_items = items.duplicate(true)
+	_count_cache.clear()
+
+
+func offline_count_for(subject: String, grade: int, difficulty: String, mode: String) -> int:
+	return count_for(subject, grade, difficulty, mode)
+
+
+## メニューのストック表示用。get_quizzes と同じ条件で組んだ通常プールの件数（他難易度のフォールバックは除く）。
+func count_for(subject: String, grade: int, difficulty: String, mode: String) -> int:
+	var require_four := difficulty == "難しい" or mode == Constants.MODE_TEN
+	var cache_key := "%s|%d|%s|%s" % [subject, grade, difficulty, require_four]
+	if _count_cache.has(cache_key):
+		return int(_count_cache[cache_key])
+	var items: Array[QuizItem] = []
+	var subj_data: Variant = bank.get(subject, {})
+	var raw_items: Variant = (subj_data as Dictionary).get(str(grade), []) if subj_data is Dictionary else []
+	if raw_items is Array:
+		for raw: Variant in raw_items:
+			var item := _normalize(raw)
+			if item != null:
+				items.append(item)
+	for raw: Dictionary in external_bank_items:
+		if str(raw.get("subject", "")) != subject or int(raw.get("grade", 0)) != grade:
+			continue
+		if str(raw.get("difficulty", "")) != difficulty:
+			continue
+		var item := _normalize(raw)
+		if item != null:
+			items.append(item)
+	if require_four:
+		items = _four_choice_pool(items)
+	var unique_texts: Dictionary = {}
+	if not items.is_empty():
+		for item: QuizItem in _bucket_by_difficulty(items, subject, grade, difficulty):
+			unique_texts[item.q.strip_edges()] = true
+	_count_cache[cache_key] = unique_texts.size()
+	return unique_texts.size()
 
 func begin_round(_subject: String, _grade: int, _difficulty: String,
 		_mode: String, _target_count: int) -> void:

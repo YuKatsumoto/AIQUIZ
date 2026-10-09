@@ -37,14 +37,12 @@ func _ready() -> void:
 		var track:=_Track.new(saw)
 		var spin_before:=saw._spin_extra
 		var lit:=false
-		var servo_heard:=false
 		var frames:=0
 		while not saw.is_fully_stowed() and frames<int((length+3.0)*fps):
 			saw.update_preview(0.0)
 			saw.advance_stow(dt)
 			track.step(saw,dt)
 			lit=lit or saw.beacons_lit()
-			servo_heard=servo_heard or saw._stow_servo.playing
 			frames+=1
 			if frames==5*fps:p_at_5.append(saw.stow_time())
 		var stow_seconds:=frames*dt
@@ -54,13 +52,12 @@ func _ready() -> void:
 		check(track.max_speed<=HUB_SPEED,"stow hub speed %.2f m/s"%track.max_speed)
 		check(track.max_jump<=VELOCITY_JUMP,"stow velocity continuous (%.3f m/s jump at p=%.3f, %d fps)"%[track.max_jump,track.jump_at,fps])
 		check(lit,"beacons flash while the machine works")
-		check(servo_heard,"servo sound follows the hydraulics")
 		var coast:=saw._spin_extra-spin_before
 		check(coast>.05 and coast<saw.stow_brake_seconds(),"blades coast to a stop")
 		var spin_q:=sk.get_bone_pose_rotation(saw.spin_bones[0])
 		saw.advance_stow(dt)
 		check(sk.get_bone_pose_rotation(saw.spin_bones[0]).is_equal_approx(spin_q),"racked blades stay still")
-		check(not saw.beacons_lit() and not saw._stow_servo.playing,"beacons and servo stop once parked")
+		check(not saw.beacons_lit(),"beacons go dark once parked")
 		var centers:=_centers(saw)
 		for i in 8:
 			var side:=-1.0 if i<4 else 1.0
@@ -97,7 +94,6 @@ func _ready() -> void:
 		if fps==60:
 			_check_reversals(saw,dt)
 			_check_toggling(saw,dt)
-			_check_hidden_audio(saw,dt)
 			_check_api(saw)
 			_check_transport_envelope(saw)
 		saw.free()
@@ -171,10 +167,6 @@ func _check_clips(saw: SawChaseController) -> void:
 	for anim in saw._stow_anims:
 		check(absf(anim.length-saw.stow_length())<=1.0/30.0+.001,"clip length %.3f matches the sidecar %.3f"%[anim.length,saw.stow_length()])
 	check(saw.spin_bones.size()==8 and saw._stow_bones.size()>=100,"stow tracks bound to %d bones"%saw._stow_bones.size())
-	for key in ["stow","deploy"]:
-		var events: Array=data.events.get(key,[])
-		check(not events.is_empty() and str(events[0].kind)=="horn" and float(events[0].t)<.2,"%s opens with the horn"%key)
-		check(events.any(func(e):return str(e.kind)=="latch"),"%s has latch events"%key)
 	check(not (data.wall_block as Array).is_empty() and float(data.wall_block[0].reach_y)>1.5,"wall block interval with reach")
 	check((data.station_airspace as Array).size()==2 and (data.chair_column as Array).size()==2,"station and chair intervals")
 	check((data.speed_env as PackedFloat32Array).size()>=int(saw.stow_length()*30.0),"30 Hz speed curve")
@@ -237,20 +229,6 @@ func _check_toggling(saw: SawChaseController,dt: float) -> void:
 	check(peak_p>2.0 and track.max_speed<=HUB_SPEED and track.max_jump<=VELOCITY_JUMP,"toggling every 0.2 s stays continuous (%.2f m/s, %.3f jump)"%[track.max_speed,track.max_jump])
 	check(saw.is_stow_clear() and _at_rest(saw),"toggling ends at rest")
 	report.toggle=[snappedf(track.max_speed,.001),snappedf(track.max_jump,.001)]
-
-func _check_hidden_audio(saw: SawChaseController,dt: float) -> void:
-	saw.stow_target=true
-	for i in int(3.5/dt):saw.advance_stow(dt)
-	var p:=saw.stow_time()
-	check(saw._stow_servo.playing,"servo audible in the wall speed tab")
-	for i in 10:saw.advance_stow(dt,false)
-	check(saw.stow_time()>p and not saw._stow_servo.playing and not saw._stow_horn.playing,"hidden tab: stow advances silently")
-	saw.advance_stow(0.0)
-	check(not saw._stow_servo.playing,"dt = 0 silences the stow")
-	saw.stow_target=false
-	var frames:=0
-	while not saw.is_stow_clear() and frames<int((saw.stow_length()+4.0)/dt):
-		saw.advance_stow(dt);frames+=1
 
 func _check_api(saw: SawChaseController) -> void:
 	var data:=saw._stow_data

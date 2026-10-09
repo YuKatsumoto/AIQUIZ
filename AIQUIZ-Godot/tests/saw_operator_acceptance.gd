@@ -163,7 +163,6 @@ func run() -> void:
 	player.seek(3.0);player.apply_to_game_state(gs);saw.update_visual(gs,0)
 	player.seek(2.0);player.apply_to_game_state(gs);saw.update_visual(gs,0)
 	check(op.last_sample==seek_pose,"seek order independent replay controls")
-	check(not op.audio_enabled,"replay seeking is silent")
 	player.seek(1.5);player.apply_to_game_state(gs);saw.update_visual(gs,0)
 	check(float(op.last_sample.lift_motion)>0,"replay ascent operates lift lever up")
 	player.seek(2.5);player.apply_to_game_state(gs);saw.update_visual(gs,0)
@@ -318,10 +317,10 @@ func catch_and_stop(op: SawOperatorPresentation) -> void:
 	var max_error := 0.0
 	var max_step := 0.0
 	var honk := 0.0
+	var last_horn := 0.0
+	var honks := 0
 	var horn_reached := false
 	var previous := Vector3.ZERO
-	op.audio_enabled = true
-	op.horn_count = 0
 	op.apply_sample(SawOperatorPresentation.sample(7,20,.8,1,true))
 	for i in range(30*6):
 		var t := i/30.0
@@ -333,13 +332,14 @@ func catch_and_stop(op: SawOperatorPresentation) -> void:
 		var hand := op.skeleton.get_bone_global_pose(op.bones["DEF-hand.L"]).origin
 		if i > 0: max_step = maxf(max_step,previous.distance_to(hand))
 		previous = hand
-		honk = maxf(honk,float(value.horn))
+		if last_horn < .6 and float(value.horn) >= .6: honks += 1
+		last_horn = float(value.horn)
+		honk = maxf(honk,last_horn)
 		if float((value.hand_L.mix as Dictionary).get("horn",0.0)) > .999 and float(op.contact_errors.hand_L) < .01: horn_reached = true
-	op.audio_enabled = false
 	check(horn_reached and honk > .8,"catch: left hand presses the horn")
-	check(op.horn_count==2,"catch: two honks")
+	check(honks==2,"catch: two honks")
 	check(max_error < .01,"catch/stop targets below 1cm")
 	check(max_step < .075,"catch/stop hand motion continuous")
 	check(absf(op.controls.OP_Key.rotation.y)<.001 and absf(op.controls.OP_Guard.rotation.x)<.001,"stop: key off and guard closed")
 	check(float(op.last_sample.lamp_Power)==0.0 and float(op.last_sample.beacon)==0.0,"stop: console goes dark")
-	operating.catch_stop = {"max_error":max_error,"max_step":max_step,"horn_count":op.horn_count}
+	operating.catch_stop = {"max_error":max_error,"max_step":max_step,"horn_count":honks}

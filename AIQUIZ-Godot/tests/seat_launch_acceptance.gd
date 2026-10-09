@@ -91,7 +91,7 @@ func unit() -> void:
 	t.begin_buckle();t.set_process(false);t.launch()
 	check(t.phase==t.Phase.BUCKLING and not QuizManager.has_meta(SeatLaunchPresentation.HANDOFF),"ignition refuses unfastened belt")
 	t.advance_departure(SeatLaunchPresentation.LATCH_TIME)
-	check(t.latch_count==1 and t.belt_extension==1.0,"latch sound occurs at belt endpoint")
+	check(t.latch_count==1 and t.belt_extension==1.0,"latch occurs at belt endpoint")
 	var rate_samples := {}
 	for rate in [30,60,120]:
 		t.reset()

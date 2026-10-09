@@ -313,7 +313,6 @@ func run() -> void:
 	gs.game_state = Constants.STATE_WAITING_START
 	await frames(3)
 	check(not world.get("camera_controller").get("_result_camera_active"), "camera releases result latch")
-	check(not AudioManager.result_victory_player.playing, "cleanup stops finale audio")
 	check(not director.get_debug_snapshot().built and pc.visible, "reset frees the finale stage and restores players")
 	await capture("restored")
 	if verify_routes:
@@ -763,7 +762,6 @@ func check_scene_routes() -> void:
 		if not SceneTransition.is_fully_covered():
 			check(gs.result_presentation_active, "menu keeps the finale until black cover")
 	check(get_tree().current_scene.scene_file_path == "res://ui/main_menu.tscn" and gs.game_state == Constants.STATE_MENU, "menu callback completes actual transition")
-	check(not AudioManager.result_victory_player.playing, "scene changes leave no finale audio")
 	for frame in range(fps * 10):
 		if not SceneTransition.is_transitioning(): break
 		await get_tree().process_frame

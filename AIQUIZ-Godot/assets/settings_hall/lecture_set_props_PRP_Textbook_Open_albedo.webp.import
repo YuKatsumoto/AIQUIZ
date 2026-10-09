@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bkissbn5sexm5"
-path="res://.godot/imported/lecture_set_props_PRP_Textbook_Open_albedo.webp-4cf8284798012fa1278c7a3c7b109eaa.ctex"
+path.s3tc="res://.godot/imported/lecture_set_props_PRP_Textbook_Open_albedo.webp-4cf8284798012fa1278c7a3c7b109eaa.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "60282c88be8b9eb21e8e26dbbb3972ec"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/settings_hall/lecture_set_props_PRP_Textbook_Open_albedo.webp"
-dest_files=["res://.godot/imported/lecture_set_props_PRP_Textbook_Open_albedo.webp-4cf8284798012fa1278c7a3c7b109eaa.ctex"]
+dest_files=["res://.godot/imported/lecture_set_props_PRP_Textbook_Open_albedo.webp-4cf8284798012fa1278c7a3c7b109eaa.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

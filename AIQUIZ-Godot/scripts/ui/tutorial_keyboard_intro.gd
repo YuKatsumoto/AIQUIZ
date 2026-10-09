@@ -58,7 +58,6 @@ func show_intro(course: String) -> void:
 	_rebuild_cards()
 	_configure_keyboard()
 	show()
-	AudioManager.play_sfx(&"ui_open")
 	_update_active_card()
 	_layout()
 	_next.grab_focus()
@@ -124,7 +123,6 @@ func _build_ui() -> void:
 	_style_button(_next, true)
 	_close = _button("Esc  コース選択", _cancel)
 	_close.add_theme_font_size_override("font_size", 16)
-	_close.set_meta(&"sfx_silent", true)  # _cancel() plays the back cue for Esc and clicks.
 
 
 func _label(text: String, font_size: int, color: Color, host: Control = null) -> Label:
@@ -254,8 +252,6 @@ func _update_active_card() -> void:
 	if active == _active_group:
 		return
 	_active_group = active
-	if not active.is_empty():
-		AudioManager.play_sfx(&"ui_keycap")
 	for index: int in range(_cards.size()):
 		var group: Dictionary = _groups[index]
 		var accent := P2 if int(group["player"]) == 2 else P1
@@ -278,7 +274,6 @@ func _start_practice() -> void:
 func _cancel() -> void:
 	if not is_active():
 		return
-	AudioManager.play_sfx(&"ui_back")
 	hide()
 	cancelled.emit()
 

@@ -107,9 +107,8 @@ func coast_case(world: Node, label: String) -> void:
 		previous_angle = angle
 		angles.append(angle)
 		if frame in [0, 29, 59, 89, 119, 150]:
-			samples.append({"case": label, "time": gs.saw.stop_elapsed, "angle": angle, "velocity": gs.saw.velocity, "z": gs.saw.local_z, "audio_pitch": saw.dock._spindle.pitch_scale, "audio_playing": saw.dock._spindle.playing, "operator_drive": saw.operator_seat.last_sample.drive})
+			samples.append({"case": label, "time": gs.saw.stop_elapsed, "angle": angle, "velocity": gs.saw.velocity, "z": gs.saw.local_z, "operator_drive": saw.operator_seat.last_sample.drive})
 			await capture(label + "_%03d" % frame)
 	check(is_equal_approx(gs.saw.local_z - initial_z, initial_velocity), label + " actual carriage matches integrated stopping distance")
 	check(is_equal_approx(gs.saw.elapsed - initial_spin, 1.0), label + " motor clock integrates deceleration")
-	check(not saw.dock._spindle.playing, label + " spindle audio stops at rest")
 	check(float(saw.operator_seat.last_sample.drive) == 0.0, label + " operator lever returns to rest")

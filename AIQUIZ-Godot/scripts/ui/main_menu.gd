@@ -140,45 +140,25 @@ func _ready() -> void:
 	next_subject_btn.pressed.connect(_on_next_subject_pressed)
 	prev_diff_btn.pressed.connect(_on_prev_diff_pressed)
 	next_diff_btn.pressed.connect(_on_next_diff_pressed)
-
-	_assign_menu_sfx()
+	if QuizManager.firebase_quiz_cache != null:
+		# プロバイダー側が共有キャッシュを取り込んだ後に数え直す
+		QuizManager.firebase_quiz_cache.cache_updated.connect(
+			func(_total: int) -> void: _update_stock_counter.call_deferred())
 
 	_update_ui()
 	# The boot cover stays up through the menu's first real rendered frames.
 	# Delay entrance/tutorial actions until preparation has actually finished.
-	var first_boot: bool = GameManager.startup_loading
 	if GameManager.startup_loading:
 		await GameManager.startup_finished
 	AudioManager.set_music_context(AudioManager.MUSIC_CONTEXT_MENU)
-	AudioManager.start_sfx_loop(&"ambience", &"amb_ocean", -2.0, 1.5, self)
 	if _pending_customize_tutorial_on_ready:
 		_entrance_done = true
 		call_deferred("_begin_pending_customize_tutorial")
 	else:
 		SceneTransition.reveal_current()
 		_play_initial_entrance()
-		if first_boot:
-			AudioManager.play_sfx(&"ui_shimmer")
 		if GameManager.should_show_tutorial_on_start():
 			call_deferred("_start_first_run_tutorial")
-
-## Mode picks confirm and panel buttons open; other buttons keep AudioManager's
-## defaults (click, and back/confirm picked from their names).
-func _assign_menu_sfx() -> void:
-	for path: String in ["VBoxContainer/ModeContainer/ModeButtons/TenQuestionsBtn",
-			"VBoxContainer/ModeContainer/ModeButtons/EndlessBtn"]:
-		var mode_button := get_node_or_null(path)
-		if mode_button != null:
-			mode_button.set_meta(&"sfx_press", &"ui_confirm")
-	for panel_button: Button in [settings_btn, customize_btn, _tutorial_main_btn]:
-		if panel_button != null:
-			panel_button.set_meta(&"sfx_press", &"ui_open")
-	if config_conveyor != null:
-		config_conveyor.motion_started.connect(func(_row_key: StringName, direction: int) -> void:
-			AudioManager.play_sfx(&"ui_belt_start", 0.0, 1.0 if direction > 0 else 0.92))
-		config_conveyor.motion_finished.connect(func(_row_key: StringName, _direction: int) -> void:
-			AudioManager.play_sfx(&"ui_belt_stop"))
-
 
 func _setup_live_background() -> void:
 	if not live_background or not live_viewport:
@@ -186,9 +166,6 @@ func _setup_live_background() -> void:
 	live_background.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	live_background.stretch = true
 	live_viewport.own_world_3d = true
-	# The background world has its own 3D sounds (saw dock, rocket chair,
-	# helicopter); without a listener here they would never be mixed.
-	live_viewport.audio_listener_enable_3d = true
 	live_viewport.render_target_update_mode = SubViewport.UPDATE_WHEN_PARENT_VISIBLE
 	_spawn_menu_wall_preview()
 	if live_camera:
@@ -262,7 +239,6 @@ func _skip_menu_helicopter_departure() -> void:
 		return
 	# Start covering now, but keep the live departure running beneath the wipe.
 	_heli_departure_skip_requested = true
-	AudioManager.play_sfx(&"ui_swish")
 	_set_helicopter_skip_hint_visible(false)
 
 
@@ -561,7 +537,6 @@ func _on_customize_tutorial_completed() -> void:
 		"footer": "まもなくメニューへ戻ります",
 		"duration": 3.8,
 	})
-	AudioManager.play_tutorial_complete()
 
 
 func _on_customize_tutorial_completion_hold_finished() -> void:
@@ -732,20 +707,16 @@ func _play_start_ui_departure() -> void:
 	close.tween_property(shutters[0], "position:x", 0.0, 0.14).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	close.tween_property(shutters[1], "position:x", half_width, 0.14).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	await close.finished
-	AudioManager.play_sfx(&"ui_shutter_slam")
 	if row != null:
 		row.modulate.a = 0.0
 	cover.set_meta("phase", "blinking")
 	go.visible = true
-	AudioManager.play_sfx(&"ui_text_blip")
-	get_tree().create_timer(0.1).timeout.connect(AudioManager.play_sfx.bind(&"ui_text_blip", 0.0, 1.12))
 	var blink := create_tween()
 	for pulse: int in range(2):
 		blink.tween_property(go, "modulate:a", 0.15, 0.05)
 		blink.tween_property(go, "modulate:a", 1.0, 0.05)
 	await blink.finished
 	cover.set_meta("phase", "lowering")
-	AudioManager.play_sfx(&"ui_swish")
 	var drop := create_tween().set_parallel(true)
 	var travel_y := get_viewport_rect().size.y + 80.0
 	for target: Control in _menu_exit_targets:
@@ -1032,13 +1003,11 @@ func _update_ui() -> void:
 		config_container.visible = false
 		if step_changed and _entrance_done:
 			_play_entrance(mode_container, false)
-			AudioManager.play_sfx(&"ui_swish_light", 0.0, 0.9)
 	elif game_state.menu_step == Constants.MENU_STEP_CONFIG:
 		mode_container.visible = false
 		config_container.visible = true
 		if step_changed and _entrance_done:
 			_play_entrance(config_container, true)
-			AudioManager.play_sfx(&"ui_swish_light")
 
 		_update_grade_carousel()
 		_update_diff_carousel()
@@ -1073,6 +1042,7 @@ func _update_ui() -> void:
 			_set_llm_toggle_locked_style(false)
 			var llm_text: String = "出題: ONLINE (AI生成)" if QuizManager.provider.llm_mode == "ONLINE" else "出題: OFFLINE (内蔵問題)"
 			llm_toggle_btn.text = llm_text
+		_update_stock_counter()
 
 		if customize_btn:
 			customize_btn.visible = true
@@ -1199,6 +1169,17 @@ func _commit_config_shift(row_key: StringName, direction: int) -> void:
 		&"difficulty":
 			game_state.cycle_difficulty(direction)
 	_update_ui()
+
+## オフライン出題のときだけ、選択中の教科×学年×難易度で出題できる問題数をコンベア右上に出す。
+func _update_stock_counter() -> void:
+	if config_conveyor == null or game_state == null:
+		return
+	var provider := QuizManager.provider
+	if provider == null or provider.llm_mode != "OFFLINE":
+		config_conveyor.set_stock_count(-1)
+		return
+	config_conveyor.set_stock_count(provider.offline_count_for(
+		game_state.subject, game_state.grade, game_state.difficulty, game_state.mode))
 
 func _update_grade_carousel() -> void:
 	current_grade_label.text = "%d年生" % game_state.grade

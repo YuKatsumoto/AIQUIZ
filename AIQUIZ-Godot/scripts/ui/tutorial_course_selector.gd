@@ -21,8 +21,6 @@ func _ready() -> void:
 
 func show_selector() -> void:
 	_update_badges()
-	if not visible:
-		AudioManager.play_sfx(&"ui_open")
 	visible = true
 	modulate.a = 0.0
 	var tween := create_tween()
@@ -110,7 +108,6 @@ func _build_selector() -> void:
 
 	var later := Button.new()
 	later.text = "後で確認"
-	later.set_meta(&"sfx_press", &"ui_back")
 	later.custom_minimum_size = Vector2(180.0, 42.0)
 	later.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	later.add_theme_font_size_override("font_size", 17)

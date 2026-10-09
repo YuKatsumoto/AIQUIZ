@@ -14,6 +14,6 @@ dest_files=["res://.godot/imported/quiz_party_loop.ogg-939da8df079d07fb898dca851
 
 loop=true
 loop_offset=0
-bpm=116.2
-beat_count=128
+bpm=116.1
+beat_count=260
 bar_beats=4

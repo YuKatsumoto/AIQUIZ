@@ -19,7 +19,6 @@ const OPERATOR_PATHS: Array[String] = [
 	"res://assets/hazards/saw_operator/saw_operator.glb",
 	"res://assets/hazards/saw_operator/godot_console_v3.glb",
 ]
-const SFX_DIR := "res://assets/audio/sfx/"
 ## 実習場の小道具（停止線・点検表のボード・合格のハンコ・安全柵・見学席。台車と同じローカル座標で Blender から書き出し）。
 const PROPS_PATH := "res://assets/settings_hall/practice_yard_props.glb"
 
@@ -82,8 +81,6 @@ var _beacon_time := 0.0
 var _lights: Array[SpotLight3D] = []
 var _light_energy: Array[float] = []
 var _lit := 0.0
-var _spindle: AudioStreamPlayer3D = null
-var _servo: AudioStreamPlayer3D = null
 var _built := false
 ## path -> PackedScene。キャッシュは参照が切れると消えるので、組み立てるまで（中の同期 load が当たるまで）持っておく。
 var _held: Dictionary = {}
@@ -141,11 +138,8 @@ func build() -> void:
 	# 本編（非メニュー）と同じ取り付け: 刃の列の +X の端、列の向きを見て、前進は操縦者の左。
 	operator.position = SawOperatorPresentation.MOUNT
 	operator.rotation.y = SawOperatorPresentation.FACING_YAW
-	operator.audio_enabled = true
 	for item: Array in LIGHTS:
 		_add_light(item)
-	_spindle = _loop_audio("BladeMotor", "dock_spindle.wav", -26.0)
-	_servo = _loop_audio("Hydraulics", "dock_servo.wav", -24.0)
 	set_lit(_lit)
 	_apply(program(clock, variant), 0.0)
 	_held.clear()
@@ -196,23 +190,6 @@ func _add_light(item: Array) -> void:
 	add_child(light)
 	_lights.append(light)
 	_light_energy.append(float(item[3]))
-
-
-func _loop_audio(label: String, file: String, gain: float) -> AudioStreamPlayer3D:
-	var player := AudioStreamPlayer3D.new()
-	player.name = label
-	var stream := load(SFX_DIR + file).duplicate() as AudioStreamWAV
-	stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
-	stream.loop_begin = 0
-	stream.loop_end = int(round(stream.get_length() * stream.mix_rate))
-	player.stream = stream
-	player.bus = "SFX"
-	player.volume_db = gain
-	player.unit_size = 12.0
-	player.max_distance = 60.0
-	carriage.add_child(player)
-	player.position = Vector3(0.0, 0.6, 0.0)
-	return player
 
 
 ## 明かりの強さ 0〜1（講義セットの set_lit と同じ時に呼ぶ）。
@@ -356,7 +333,6 @@ func _apply(p: Dictionary, dt: float) -> void:
 		sample.head_pitch = float(sample.head_pitch) - 0.04 * relax
 		sample.bob = float(sample.bob) - 0.008 * relax
 	operator.apply_sample(sample)
-	_update_audio(p)
 
 
 func _update_beacons(dt: float, working: bool) -> void:
@@ -364,25 +340,3 @@ func _update_beacons(dt: float, working: bool) -> void:
 	var energy := 7.0 * pow(maxf(0.0, cos(TAU * 1.5 * _beacon_time)), 8.0) if working else 0.0
 	for beacon: Array in carriage._beacons:
 		(beacon[2] as BaseMaterial3D).emission_energy_multiplier = energy
-
-
-func _update_audio(p: Dictionary) -> void:
-	if _spindle == null:
-		return
-	var rpm := float(p.rpm)
-	_set_loop(_spindle, rpm > 0.01)
-	_spindle.pitch_scale = lerpf(0.5, 1.5, rpm)
-	_spindle.volume_db = lerpf(-40.0, -24.0, rpm)
-	var hydraulic := clampf(absf(float(p.lift_rate)) / LIFT_STICK_PEAK, 0.0, 1.0)
-	var travel := clampf(absf(float(p.drive)) / DRIVE_PEAK, 0.0, 1.0)
-	var moving := maxf(hydraulic, travel)
-	_set_loop(_servo, moving > 0.02)
-	_servo.pitch_scale = 0.7 + 0.35 * hydraulic + 0.15 * travel
-	_servo.volume_db = lerpf(-34.0, -20.0, moving)
-
-
-func _set_loop(player: AudioStreamPlayer3D, on: bool) -> void:
-	if on and not player.playing and player.is_inside_tree():
-		player.play()
-	elif not on and player.playing:
-		player.stop()

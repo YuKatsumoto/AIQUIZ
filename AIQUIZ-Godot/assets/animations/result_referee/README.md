@@ -75,5 +75,4 @@ Blender上の勝者は移動と構図を確認するためのポーズ。ゲー�
 
 - 既存Godotぬいぐるみ、ブロックプレイヤー、帽子、設定用ダンスFBX。
 - Effects Collection Vol.1の既存`vfx_explosion_02` / `vfx_impact_01` / `smoke_vfx_01`。
-- Kenney Impact Sounds / Interface Sounds (CC0)。ライセンスは`assets/audio/sfx/result_toon/Kenney_*_License.txt`。
-- カウント・爆発低音・勝利音は既存AudioManagerの生成音。有料生成・新規購入は行っていない。
+- 有料生成・新規購入は行っていない。効果音は2026-10-09に削除した（`docs/sound_effects.md`）。

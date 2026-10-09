@@ -5,7 +5,7 @@ extends Node3D
 ## finalists walk in from the goal, eliminated ones join as ghosts (leaping off
 ## the ghost shark, or appearing on the podium after the elimination wipe).
 ## Owns the 3D stage (towers, cast, props, referee), the result ghosts, the
-## celebration effects, the stage lights and the sound beats. The HUD
+## celebration effects, the stage lights and the verdict camera shake. The HUD
 ## (ResultFinaleHud) and the camera (CameraController) read the same
 ## Blender/After Effects clock.
 
@@ -41,11 +41,6 @@ var _ghosts: Dictionary = {}
 var _ghost_from: Dictionary = {}
 var _ghost_scale: Dictionary = {}
 var _ghost_clock := 0.0
-
-
-func _exit_tree() -> void:
-	if is_instance_valid(AudioManager):
-		AudioManager.stop_result_sounds()
 
 
 func setup(
@@ -117,15 +112,9 @@ func update_result_ceremony(delta: float) -> void:
 		_effects.clear()
 		_cues.clear()
 		_stage.build(game_state.result_winner)
-		if game_state.sudden_death_winner > 0:
-			# Back from the sudden death at the verdict: the count-up already played.
-			for beat_name: String in ["pad_pop", "correct", "hp", "hp_bonus", "climb", "lock_1", "lock_2"]:
-				_cues[beat_name] = Motion.VERDICT
-		elif game_state.sudden_death_aborted:
-			# The descent came back up: the draw already played every beat and burst.
-			for beat_name: String in ["pad_pop", "correct", "hp", "hp_bonus", "climb", "lock_1", "lock_2",
-					"verdict", "confetti", "swish", "firework_0", "firework_1", "firework_2", "firework_3"]:
-				_cues[beat_name] = game_state.result_ceremony_elapsed
+		if game_state.sudden_death_aborted:
+			# The descent came back up: the draw already had its verdict and every burst.
+			_cues["verdict"] = game_state.result_ceremony_elapsed
 			_stage.skip_effects_before(game_state.result_ceremony_elapsed)
 	var elapsed := result_elapsed()
 	_effects.setup(GameManager.graphics_quality)
@@ -133,9 +122,9 @@ func update_result_ceremony(delta: float) -> void:
 	_stage.update_stage(elapsed, stage_origin(game_state))
 	_ensure_lights()
 	_update_lights(delta, elapsed)
-	# Holding at the verdict after the sudden death: the verdict beats wait for the release.
+	# Holding at the verdict after the sudden death: the verdict beat waits for the release.
 	if not game_state.result_return_hold:
-		_update_sounds(elapsed)
+		_update_beats(elapsed)
 
 
 # ------------------------------------------------------------------ result ghosts
@@ -243,43 +232,9 @@ func _cue(name_value: String, due: bool) -> bool:
 	return false
 
 
-func _update_sounds(elapsed: float) -> void:
-	var draw := game_state.result_winner == 0
-	var totals := Vector2i(game_state.result_p1_score, game_state.result_p2_score)
-	var max_total := maxi(totals.x, totals.y)
-	if _cue("pad_pop", elapsed >= Motion.beat("pad_pop")):
-		AudioManager.play_result_cue(&"pad_pop")
-	if _cue("correct", elapsed >= Motion.beat("correct")):
-		AudioManager.play_result_lock()
-	if _cue("hp", elapsed >= Motion.beat("hp")):
-		AudioManager.play_result_lock()
-	# The After Effects "+0.5" chip lands on a living finalist's HP value.
-	if game_state.result_ghost_mask != 3 and _cue("hp_bonus", elapsed >= ResultFinaleHud.hp_bonus_time()):
-		AudioManager.play_result_cue(&"crown", 1.5, -8.0)
-	if _cue("climb", elapsed >= Motion.beat("climb")):
-		AudioManager.play_result_cue(&"climb")
-	for player_index in [1, 2]:
-		var total := totals.x if player_index == 1 else totals.y
-		if _cue("lock_%d" % player_index, elapsed >= Motion.lock_time(total, max_total)):
-			AudioManager.play_result_lock()
+func _update_beats(elapsed: float) -> void:
 	if _cue("verdict", elapsed >= Motion.VERDICT):
-		AudioManager.play_result_accent(&"verdict")
-		AudioManager.play_result_cue(&"cymbal", 1.0, -3.0)
-		AudioManager.play_result_victory(draw)
 		game_state.camera_shake = maxf(game_state.camera_shake, 0.45)
-	if _cue("confetti", elapsed >= Motion.VERDICT + 0.03):
-		AudioManager.play_result_cue(&"confetti")
-	if _cue("swish", elapsed >= Motion.VERDICT + 0.12):
-		AudioManager.play_result_cue(&"swish", 1.0, -6.0)
-	if not draw:
-		if _cue("sad", elapsed >= Motion.beat("sink_start") + 0.05):
-			AudioManager.play_result_cue(&"sad", 1.0, -2.0)
-		if _cue("crown", elapsed >= Motion.beat("crown_land")):
-			AudioManager.play_result_cue(&"crown")
-	for index in range(4):
-		if _cue("firework_%d" % index, elapsed >= [7.05, 7.55, 8.25, 9.3][index] + 0.08):
-			# Pooled SFX voices, so the bursts no longer cut the cymbal or the sad trombone.
-			AudioManager.play_sfx(&"firework_burst", -5.0)
 
 
 ## Prepare the finale meshes and materials under the loading cover so the first
@@ -379,7 +334,6 @@ func _reset_presentation() -> void:
 	_lights = null
 	_key_light = null
 	_rims.clear()
-	AudioManager.stop_result_sounds()
 
 
 func get_debug_snapshot() -> Dictionary:

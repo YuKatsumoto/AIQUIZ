@@ -84,9 +84,6 @@ var _yaw_goal := 0.0
 var _face_after := NAN
 var _after_move := ""
 var _timed_left := 0.0
-## 足が床に着くたびに呼ぶ（進行役が足音を鳴らす）。引数はこの PlushActor。
-var on_step: Callable = Callable()
-var _step_clock := 0.0
 ## 足元の高さ（踏み台に乗ると上がる）と、1 画ごとの小さな上下（ばね）。
 var stand_y := 0.0
 var _bob := 0.0
@@ -329,13 +326,6 @@ func update(delta: float) -> void:
 			root.position += d / dist * step
 			if not _sidestep:
 				_yaw_goal = atan2(d.x, d.z)
-			# 足音: 歩き 1 歩 0.5 秒、走り 0.33 秒、横歩き 0.5 秒
-			_step_clock += delta
-			var period := 0.33 if current == "G_Run" else 0.5
-			if _step_clock >= period:
-				_step_clock -= period
-				if on_step.is_valid() and root.is_visible_in_tree():
-					on_step.call(self)
 	var dyaw := angle_difference(root.rotation.y, _yaw_goal)
 	if absf(dyaw) > 0.0005:
 		root.rotation.y += clampf(dyaw, -TURN_SPEED * delta, TURN_SPEED * delta)
@@ -409,7 +399,7 @@ func set_eyes(mode: String) -> void:
 	eyes_mode = mode
 
 
-## すぐに 1 回まばたきする（驚いたとき、チョークの音など）。
+## すぐに 1 回まばたきする（驚いたとき、チョークがきしんだときなど）。
 func blink() -> void:
 	_blink_left = 0.0
 

@@ -109,6 +109,12 @@ func total_count() -> int:
 	return offline_provider.total_count()
 
 
+func offline_count_for(subject: String, grade: int, difficulty: String, mode: String) -> int:
+	if offline_provider == null:
+		return 0
+	return offline_provider.count_for(subject, grade, difficulty, mode)
+
+
 func _on_firebase_cache_updated(_total_count: int) -> void:
 	if offline_provider == null or QuizManager.firebase_quiz_cache == null:
 		return

@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bn7p8fb67h5oe"
-path="res://.godot/imported/lecture_set_props_PRP_BoardPanel_F_albedo.webp-f41e56693917ed6f4cee444d1cf89b68.ctex"
+path.s3tc="res://.godot/imported/lecture_set_props_PRP_BoardPanel_F_albedo.webp-f41e56693917ed6f4cee444d1cf89b68.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "66e08e963753ee566d2cece2924fb58f"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/settings_hall/lecture_set_props_PRP_BoardPanel_F_albedo.webp"
-dest_files=["res://.godot/imported/lecture_set_props_PRP_BoardPanel_F_albedo.webp-f41e56693917ed6f4cee444d1cf89b68.ctex"]
+dest_files=["res://.godot/imported/lecture_set_props_PRP_BoardPanel_F_albedo.webp-f41e56693917ed6f4cee444d1cf89b68.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

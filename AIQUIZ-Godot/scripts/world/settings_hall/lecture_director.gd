@@ -85,9 +85,6 @@ const DUTY_CALL := Vector3(3.6, 0.0, 3.1)
 const EMOTES := {"!": "FX_Exclaim", "?": "FX_Question", "anger": "FX_Anger", "sweat": "FX_Sweat",
 	"dots": "FX_Dots", "note": "FX_Note", "bulb": "FX_Bulb"}
 const EMOTE_SCALE := 3.4
-## 効果音（tools/settings_hall/lecture_sounds.py が合成する）。SFX バスで、置いた場所から鳴る。
-const SFX_DIR := "res://assets/audio/sfx/lecture/"
-const LOOPED_SFX := ["chalk_scratch", "cleaner_hum"]
 ## 居眠り役の眠気（話を聞いている間は 1 秒に 1.6、ほかは 0.6 たまる）: うとうと → 突っ伏して眠る。
 const DOZE_DRIFT := 45.0
 const DOZE_SLEEP := 65.0
@@ -161,7 +158,8 @@ var _lamp: OmniLight3D = null
 var _held_tool: Dictionary = {}     # actor key -> Node3D（ほうき・雑巾）
 var _tool_home: Dictionary = {}     # Node3D -> Transform3D
 var _cycles_done := 0
-var _cleaner_player: AudioStreamPlayer3D = null
+## 日直が黒板消しクリーナーをかけているか（掃除の場面）。
+var _cleaner_running := false
 var _farewell := false
 var _roll: Array = []
 var _prelude_key := "prelude"
@@ -181,8 +179,6 @@ var _last_glyph: Dictionary = {}
 var _clap_props: Array = []
 var _emote_meshes: Dictionary = {}  # 種類 -> MeshInstance3D のひな形
 var _emotes: Array = []             # [{node, actor, kind, t, secs}]
-var _sounds: Dictionary = {}        # 名前 -> AudioStream
-var _scratch: AudioStreamPlayer3D = null
 var _cue_after := "listen"
 
 
@@ -224,8 +220,6 @@ func setup(set_root: Node3D, props: Node3D, cast: Dictionary, canvases: Dictiona
 	_restore_boards()
 	_make_tray_dust()
 	_audio_manager = get_node_or_null("/root/AudioManager")
-	for key: String in actors:
-		(actors[key]).on_step = _on_step
 	if actors.has("trainee"):
 		_trainee = {"next": _rng.randf_range(6.0, 12.0), "mode": "rest", "clip": ""}
 		(actors.trainee).loop("P_Clipboard", 0.0)
@@ -753,8 +747,8 @@ func _tick_step(_delta: float) -> bool:
 		"compass", "set_square":
 			return _tick_drafting(teacher)
 		"chime":
+			# 区切りの間（授業・テストの始めと終わり）
 			if _phase == "begin":
-				sfx("chime", CLOCK_POINT + Vector3(0.0, -0.4, -0.3), 0.0)
 				_wait = float(step.get("secs", 2.5))
 				_phase = "done"
 				return false
@@ -1271,7 +1265,6 @@ func _tick_pen(pen: Dictionary, delta: float) -> bool:
 					_canvas(board).stroke_to(int(pen.id), pen.pos, pen.color, CHALK_WIDTH * (1.25 if pen.dot else 1.0), 1.0 if pen.dot else 0.7)
 					if pen.dot:
 						_puff(board_point(board, pen.pos, 0.02), 0, 0.0)
-						sfx("chalk_tap", board_point(board, pen.pos), -4.0)
 					elif float(pen.length) > 0.45 and _rng.randf() < 0.45:
 						_squeak()
 				_dust.emitting = pen.kind == "write"
@@ -1287,7 +1280,6 @@ func _tick_pen(pen: Dictionary, delta: float) -> bool:
 				_stroke_id += 1
 				pen.id = _stroke_id
 				_canvas(board).stroke_to(int(pen.id), pen.pos, pen.color, CHALK_WIDTH, 0.8)
-				sfx("chalk_tap", board_point(board, pen.pos), -8.0)
 			return false
 		"draw":
 			var speed := PEN_SPEED if pen.kind == "write" else (0.5 if pen.kind == "trace" else (0.9 if pen.kind in ["rub", "wet"] else (0.32 if pen.kind == "point" else ERASE_SPEED)))
@@ -1339,8 +1331,6 @@ func _tick_pen(pen: Dictionary, delta: float) -> bool:
 					pen.drawn = float(pen.drawn) + remaining
 					remaining = 0.0
 				if pen.kind == "write":
-					if not pen.get("dot", false):
-						_scratch_on(board_point(board, pen.pos))
 					var f := clampf(float(pen.drawn) / maxf(0.001, float(pen.length)), 0.0, 1.0)
 					# 書き始めは押し付けて強く、終わりはすっと抜く。少しだけ揺らぐ
 					var pressure := clampf(0.82 + 0.18 * sin(f * PI * 0.8 + 0.4) - 0.25 * smoothstep(0.85, 1.0, f) + _rng.randf_range(-0.05, 0.05), 0.35, 1.0)
@@ -1352,7 +1342,6 @@ func _tick_pen(pen: Dictionary, delta: float) -> bool:
 				pen.phase = "up"
 				pen.t = 0.0
 				_dust.emitting = false
-				_scratch_off()
 				if pen.kind == "write" and not pen.get("dot", false):
 					# 止めに粉が少したまる
 					if _rng.randf() < 0.35:
@@ -1725,10 +1714,9 @@ func _tick_erase(teacher) -> bool:
 	return false
 
 
-## チョークがキーッと鳴る: 起きている生徒はびくっとし、寝ている生徒は飛び起きる。
+## チョークがきしむ: 起きている生徒はびくっとし、寝ている生徒は飛び起きる。
 func _squeak() -> void:
 	last_event = "squeak"
-	sfx("chalk_squeak", (actors.lecturer).hand_tip_point(), -2.0)
 	for key: String in _students:
 		var brain: Dictionary = _students[key]
 		if brain.mode != "" or not _seated.get(key, true):
@@ -1787,7 +1775,6 @@ func _tick_clap_erasers(teacher) -> bool:
 			var length: float = teacher.once("T_ClapErasers", "T_Idle")
 			for k in range(3):
 				_puff_later(0.54 + 0.42 * k, teacher, 2 + (1 if k == 2 else 0), 0.45, true)
-				_sfx_later(0.54 + 0.42 * k, "eraser_clap", teacher, -3.0)
 			_wait = length + 0.1
 			_phase = "sneeze" if _rng.randf() < 0.55 else "put"
 		"sneeze":
@@ -2216,7 +2203,6 @@ func _tick_trainee_demo() -> bool:
 			if teacher.is_busy():
 				return false
 			_wait = teacher.once("T_Whistle", "T_Idle") * 0.7
-			_sfx_later(_wait * 0.8, "whistle", teacher, -2.0)
 			_phase = "jump"
 		"jump":
 			_trainee_jump("P_Fast")
@@ -2416,7 +2402,7 @@ func _begin_mode_scene() -> void:
 
 
 ## お弁当（項目 89）: 生徒は弁当へ体ごと倒れてパクッ、ときどき隣としゃべる。先生は教卓で湯呑み。
-## 終わりのチャイムで弁当をしまう。
+## 時間になったら弁当をしまう。
 func _tick_lunch(teacher) -> bool:
 	match _phase:
 		"begin":
@@ -2444,7 +2430,6 @@ func _tick_lunch(teacher) -> bool:
 						student.once("S_LookBoard", "S_Eat")
 			if _t < float(step.get("secs", 45.0)):
 				return false
-			sfx("chime", CLOCK_POINT + Vector3(0.0, -0.4, -0.3), 0.0)
 			for key: String in STUDENTS:
 				if actors.has(key) and _students.has(key):
 					(actors[key]).loop("S_SitIdle", 0.3)
@@ -2464,7 +2449,7 @@ func _tick_lunch(teacher) -> bool:
 
 
 ## 放課後の掃除（項目 90・37・38）: 用務員がほうきで掃き、生徒は椅子を机に上げて机を後ろへ押し、日直は
-## 黒板消しクリーナー（ブーン）、先生は濡れ雑巾で黒板を拭く（濃い緑 → 乾いて戻る）。最後に元へ戻す。
+## 黒板消しクリーナー、先生は濡れ雑巾で黒板を拭く（濃い緑 → 乾いて戻る）。最後に元へ戻す。
 func _tick_cleaning(teacher) -> bool:
 	var janitor = actors.get("janitor")
 	var duty = actors.get("duty")
@@ -2613,7 +2598,6 @@ func _tick_cleaning(teacher) -> bool:
 					(actors[key]).face(0.0)
 					_seated[key] = false
 					_go_seat(key)
-			sfx("chime", CLOCK_POINT + Vector3(0.0, -0.4, -0.3), 0.0)
 			return true
 	return false
 
@@ -2631,9 +2615,8 @@ func _tick_sweeper(janitor) -> void:
 func _tick_cleaner(duty) -> void:
 	if duty == null or duty.is_moving():
 		return
-	if _cleaner_player == null:
-		var at := CLEANER_SPOT + Vector3(-0.6, 0.9, 0.4)
-		_cleaner_player = sfx("cleaner_hum", at, -8.0)
+	if not _cleaner_running:
+		_cleaner_running = true
 		duty.loop("G_Idle")
 	var eraser: Node3D = _tray.get("PRP_Eraser_1")
 	if eraser != null:
@@ -2644,9 +2627,7 @@ func _tick_cleaner(duty) -> void:
 
 
 func _stop_cleaner() -> void:
-	if _cleaner_player != null and is_instance_valid(_cleaner_player):
-		_cleaner_player.queue_free()
-	_cleaner_player = null
+	_cleaner_running = false
 	var eraser: Node3D = _tray.get("PRP_Eraser_1")
 	if eraser != null:
 		eraser.transform = _tool_home["PRP_Eraser_1"]
@@ -2766,13 +2747,12 @@ func _tick_night(teacher) -> bool:
 	return false
 
 
-## 休み時間（項目 87）: チャイム → 生徒は立って伸び・おしゃべり・展示台の模型を見に行く。先生は湯呑み。
-## 終わりのチャイムで席へ戻る。
+## 休み時間（項目 87）: 生徒は立って伸び・おしゃべり・展示台の模型を見に行く。先生は湯呑み。
+## 時間になったら席へ戻る。
 func _tick_break(teacher) -> bool:
 	match _phase:
 		"begin":
 			last_event = "break"
-			sfx("chime", CLOCK_POINT + Vector3(0.0, -0.4, -0.3), 0.0)
 			_put_down(teacher)
 			teacher.ik_off()
 			teacher.walk_to(DRINK_SPOT, CLASS_YAW, "T_Idle")
@@ -2806,7 +2786,6 @@ func _tick_break(teacher) -> bool:
 				teacher.once("T_Drink", "T_Idle")
 			if _t < float(step.get("secs", 30.0)):
 				return false
-			sfx("chime", CLOCK_POINT + Vector3(0.0, -0.4, -0.3), 0.0)
 			for key: String in STUDENTS:
 				if actors.has(key) and _students.has(key) and str(_students[key].mode) == "answer":
 					_go_seat(key)
@@ -2944,7 +2923,6 @@ func _tick_stool_write(teacher, centre_u: float, top_v: float) -> bool:
 			_stool_carry = ""
 			var spot: Vector3 = _high.spot
 			_stool_node.transform = Transform3D((_high.home as Transform3D).basis, Vector3(spot.x, 0.0, spot.z))
-			sfx("desk_bonk", spot + Vector3(0, 0.2, 0), -12.0)
 			_wait = 0.3
 			_phase = "climb"
 		"climb":
@@ -3106,8 +3084,6 @@ func _tick_slide(teacher) -> bool:
 				teacher.ik_off(0.3)
 				teacher.tip_length = 0.36
 				_update_pointer_hand(teacher, false)
-			if _t < get_process_delta_time() * 1.5:
-				sfx("eraser_clap", board_point("F", Vector2(float(_high.edge_u), 0.0)), -10.0, 0.5)
 			if u < 1.0:
 				return false
 			teacher.loop("T_Idle", 0.2)
@@ -3255,7 +3231,6 @@ func _tick_papers(teacher, handout: bool) -> bool:
 			if handout:
 				_papers.append(_make_paper(desk))
 				(actors[key]).once("S_PageFlip", "S_SitIdle")
-				sfx("page_flip", desk, -10.0)
 			else:
 				var keep: Array = []
 				for paper in _papers:
@@ -3266,7 +3241,6 @@ func _tick_papers(teacher, handout: bool) -> bool:
 					else:
 						keep.append(paper)
 				_papers = keep
-				sfx("page_flip", desk, -12.0)
 			_wait = 0.7
 			_phase = "back"
 		"back":
@@ -3435,7 +3409,6 @@ func _tick_cheer_all(teacher) -> bool:
 			teacher.once("T_HappyHop", "T_Sad")
 			emote(teacher, "sweat", 3.0)
 			_confetti(Vector3(0.0, 3.2, 3.0))
-			sfx("chime", CLOCK_POINT + Vector3(0.0, -0.4, -0.3), -2.0)
 			_wait = 4.5
 			_phase = "sit"
 		"sit":
@@ -3814,7 +3787,6 @@ func _tick_wake(teacher, gag: String) -> bool:
 		"act":
 			if gag == "whistle":
 				_wait = teacher.once("T_Whistle", "T_Idle") * 0.55
-				_sfx_later(_wait * 0.85, "whistle", teacher, -2.0)
 			else:
 				var length: float = teacher.once("T_Throw", "T_Idle")
 				_phase = "throw"
@@ -4081,7 +4053,6 @@ func _tick_fix_light() -> bool:
 			_phase = "tap"
 		"tap":
 			_wait = janitor.once("G_PointCheck", "G_Idle") * 0.7
-			sfx("chalk_tap", lamp + Vector3(0.0, -1.2, 0.0), -6.0, 0.6)
 			_phase = "fixed"
 		"fixed":
 			_set.call("set_lamp_flicker", false)
@@ -4229,8 +4200,6 @@ func _tick_students(delta: float) -> void:
 				student.set_eyes("closed")
 				student.once("S_Faceplant", "S_SleepSlumped")
 				brain.until = student.clip_length("S_Faceplant")
-				_fx.append({"kind": "sfx", "t": 0.0, "secs": 0.55, "name": "desk_bonk", "actor": null, "db": -4.0,
-					"at": student.root.position + Vector3(0, 0.8, 0.6)})
 				continue
 			if float(brain.drowsy) > DOZE_DRIFT:
 				if student.current != "S_DozeDrift" and student.current != "S_Teeter":
@@ -4280,12 +4249,8 @@ func _tick_students(delta: float) -> void:
 			student.once(clip, base)
 			brain.until = student.clip_length(clip)
 			if clip == "S_Sharpen":
-				# 芯が折れた（ポキッ）→ 鉛筆削り（項目 63）
+				# 芯が折れた → 鉛筆削り（項目 63）
 				emote(student, "!", 0.9)
-				sfx("chalk_tap", student.root.position + Vector3(0.0, 0.75, 0.8), -18.0, 1.6)
-			if clip == "S_PageFlip":
-				_fx.append({"kind": "sfx", "t": 0.0, "secs": 0.3, "name": "page_flip", "actor": null, "db": -14.0,
-					"at": student.root.position + Vector3(0, 0.75, 0.9)})
 		else:
 			student.loop(base, 0.35)
 	if _cue_left > 0.0:
@@ -4344,62 +4309,6 @@ func _clear_tray_dust() -> void:
 	if _tray_dust_image != null:
 		_tray_dust_image.fill(Color(0.94, 0.94, 0.9, 0.0))
 		_tray_dust_texture.update(_tray_dust_image)
-
-
-# ------------------------------------------------------------------ sound
-
-## 効果音を at（セットのローカル）で 1 回鳴らす。ループの音は止めるまで鳴る（返り値を stop する）。
-func sfx(name: String, at: Vector3, volume_db := 0.0, pitch := 1.0) -> AudioStreamPlayer3D:
-	var stream: AudioStream = _sounds.get(name)
-	if stream == null:
-		var path := SFX_DIR + name + ".wav"
-		if not ResourceLoader.exists(path):
-			return null
-		stream = load(path)
-		if name in LOOPED_SFX and stream is AudioStreamWAV:
-			stream = (stream as AudioStreamWAV).duplicate()
-			var wav := stream as AudioStreamWAV
-			wav.loop_mode = AudioStreamWAV.LOOP_FORWARD
-			wav.loop_begin = 0
-			wav.loop_end = int(wav.get_length() * wav.mix_rate)
-		_sounds[name] = stream
-	var player := AudioStreamPlayer3D.new()
-	player.stream = stream
-	player.bus = &"SFX"
-	player.position = at
-	player.volume_db = volume_db
-	player.pitch_scale = pitch * _rng.randf_range(0.95, 1.05)
-	player.unit_size = 7.0
-	player.max_distance = 80.0
-	player.attenuation_filter_cutoff_hz = 12000.0
-	_set.add_child(player)
-	player.play()
-	if not (name in LOOPED_SFX):
-		player.finished.connect(player.queue_free)
-	return player
-
-
-func _sfx_later(delay: float, name: String, actor, volume_db := 0.0) -> void:
-	_fx.append({"kind": "sfx", "t": 0.0, "secs": delay, "name": name, "actor": actor, "db": volume_db})
-
-
-func _on_step(actor) -> void:
-	# ぬいぐるみの足音（ぽふ）: 走るときは少し大きく
-	sfx("step_plush", actor.root.position, -16.0 if actor.current != "G_Run" else -12.0, 1.0 + 0.1 * float(actor.key.length() % 3))
-
-
-func _scratch_on(at: Vector3) -> void:
-	if _scratch == null or not is_instance_valid(_scratch):
-		_scratch = sfx("chalk_scratch", at, -15.0)
-	if _scratch != null:
-		_scratch.position = at
-		if not _scratch.playing:
-			_scratch.play()
-
-
-func _scratch_off() -> void:
-	if _scratch != null and is_instance_valid(_scratch) and _scratch.playing:
-		_scratch.stop()
 
 
 # ------------------------------------------------------------------ emotes (漫符)
@@ -4633,7 +4542,6 @@ func _tick_fx(delta: float) -> void:
 					if u >= 1.0:
 						done = true
 						if item.hit:
-							sfx("chalk_hit", item.to, -2.0)
 							# 跳ね返って床へ
 							var bounce_to := (item.to as Vector3) + Vector3(_rng.randf_range(-0.5, 0.5), 0.0, -0.6)
 							bounce_to.y = 0.02
@@ -4655,12 +4563,6 @@ func _tick_fx(delta: float) -> void:
 				else:
 					node.scale = Vector3.ONE * maxf(0.001, sin(u * PI) * 1.2)
 					node.rotation.z = u * 1.2
-			"sfx":
-				if float(item.t) >= float(item.secs):
-					var actor = item.actor
-					var at: Vector3 = item.get("at", actor.hand_tip_point() if actor != null else Vector3.ZERO)
-					sfx(str(item.name), at, float(item.db))
-					done = true
 			"emote":
 				if float(item.t) >= float(item.secs):
 					emote(item.actor, str(item.emote), float(item.len))

@@ -34,11 +34,6 @@ var slats: Array[Node3D] = []
 var rods: Array[Node3D] = []
 var locks: Array[Node3D] = []
 var bridges: Array[Node3D] = []
-var _servo: AudioStreamPlayer3D
-var _latch: AudioStreamPlayer3D
-var _spindle: AudioStreamPlayer3D
-var _engine: AudioStreamPlayer3D
-var _horn: AudioStreamPlayer3D
 var _wakes: Array[MeshInstance3D] = []
 var _wake_material: ShaderMaterial
 
@@ -64,7 +59,6 @@ static func pose_at(time: float) -> Dictionary:
 		"ship_offset": -APPROACH_DISTANCE * (1.0 - approach) - DEPARTURE_DISTANCE * ease_between(time, DEPARTURE_START, FINISH_TIME),
 		"speed": 2.0 * APPROACH_DISTANCE / DOCKED_TIME * (1.0 - 3.0 * u * u + 2.0 * u * u * u) - DEPARTURE_DISTANCE * ease_speed(time, DEPARTURE_START, FINISH_TIME),
 		"rock": (1.0 - ease_between(time, 1.65, DOCKED_TIME)) + ease_between(time, DEPARTURE_START, 9.75),
-		"hydraulic_speed": ease_speed(time, RAISE_START, RAISE_END) + ease_speed(time, LOWER_START, LOWER_END),
 		"shutter_speed": 0.0,
 	}
 
@@ -93,19 +87,6 @@ func setup(preview: bool, play_entrance: bool) -> void:
 		rods.append(machinery.find_child("VSL_ROD_" + side, true, false) as Node3D)
 		locks.append(machinery.find_child("VSL_LOCK_" + side, true, false) as Node3D)
 		bridges.append(machinery.find_child("VSL_BRIDGE_" + side, true, false) as Node3D)
-	_servo = _audio("Mechanism", "dock_servo.wav", true, -20.0)
-	_latch = _audio("RailLock", "dock_latch.wav", false, -12.0)
-	_spindle = _audio("BladeMotor", "dock_spindle.wav", true, -26.0)
-	_engine = _audio("VesselEngine", "vessel_engine.wav", true, -24.0)
-	_horn = AudioStreamPlayer3D.new()
-	_horn.name = "ShipHorn"
-	_horn.process_mode = Node.PROCESS_MODE_PAUSABLE
-	_horn.stream = AudioManager.get_sfx_stream(&"ship_horn")
-	_horn.volume_db = AudioManager.get_sfx_volume_db(&"ship_horn")
-	_horn.bus = "SFX"
-	_horn.unit_size = 24.0
-	_horn.max_distance = 180.0
-	add_child(_horn)
 	_create_wake()
 	if play_entrance: begin()
 	else: restore_deployed()
@@ -123,7 +104,6 @@ func restore_deployed() -> void:
 	animated = false
 	phase = Phase.DEPLOYED
 	apply_pose()
-	stop_audio()
 
 func is_deployed() -> bool:
 	return elapsed >= READY_TIME
@@ -157,17 +137,8 @@ func carriage_basis() -> Basis:
 
 func advance(dt: float) -> void:
 	if not animated: return
-	var before := elapsed
 	total_elapsed += maxf(dt, 0.0)
 	elapsed = minf(FINISH_TIME, elapsed + maxf(dt, 0.0))
-	if before < TRANSFER_START and elapsed >= TRANSFER_START and _latch != null:
-		_latch.play()
-	# The service vessel sounds its horn as it docks and again as it leaves.
-	var horn_due := (before < DOCKED_TIME and elapsed >= DOCKED_TIME) or (
-		before < DEPARTURE_START and elapsed >= DEPARTURE_START)
-	if horn_due and _horn != null and ship != null:
-		_horn.global_position = ship.to_global(Vector3(0.0, 4.0, 0.0))
-		_horn.play()
 	if elapsed < DOCKED_TIME: phase = Phase.APPROACHING
 	elif elapsed < RAISE_START: phase = Phase.DOCKING
 	elif elapsed < TRANSFER_START: phase = Phase.RAISING
@@ -197,29 +168,6 @@ func apply_pose() -> void:
 			wake.position.z = -float(p.ship_offset) + (29.0 if float(p.speed) >= 0.0 else -5.5)
 			wake.rotation.y = 0.0 if float(p.speed) >= 0.0 else PI
 
-func update_audio(active: bool, spin_speed: float, blade_origin: Vector3 = Vector3.INF) -> void:
-	if _servo == null: return
-	if blade_origin.is_finite(): _spindle.global_position = blade_origin
-	var ship_active := active and not has_departed()
-	var p := pose_at(elapsed)
-	var mechanism_speed := float(p.hydraulic_speed)
-	var mechanism_moving := ship_active and mechanism_speed > 0.002
-	_loop(_servo, mechanism_moving)
-	_servo.pitch_scale = 0.7 + minf(mechanism_speed * 0.32, 0.55)
-	_servo.volume_db = lerpf(-34.0, -20.0, clampf(mechanism_speed, 0.0, 1.0))
-	_loop(_engine, ship_active)
-	var throttle := minf(absf(float(p.speed)) / 9.0, 1.0)
-	_engine.pitch_scale = lerpf(0.65, 1.15, throttle)
-	_engine.volume_db = lerpf(-32.0, -24.0, throttle)
-	if ship != null:
-		_engine.global_position = ship.to_global(Vector3(0.0, -5.0, 20.0))
-		_servo.global_position = lift.global_position
-		_latch.global_position = lift.global_position
-	_loop(_spindle, active and spin_speed > 0.005)
-	_spindle.pitch_scale = lerpf(0.5, 1.5, spin_speed)
-	_spindle.volume_db = lerpf(-42.0, -26.0, spin_speed)
-	if not active: _latch.stop()
-
 func _create_wake() -> void:
 	_wake_material = ShaderMaterial.new()
 	_wake_material.shader = load("res://shaders/saw_vessel_wake.gdshader")
@@ -234,30 +182,3 @@ func _create_wake() -> void:
 		machinery.add_child(wake)
 		wake.position = Vector3(side * 10.6, StageConstants.OCEAN_SURFACE_Y - StageConstants.FLOOR_TOP_Y + 0.07, 0.0)
 		_wakes.append(wake)
-
-func _loop(player: AudioStreamPlayer3D, active: bool) -> void:
-	if active and not player.playing: player.play()
-	elif not active and player.playing: player.stop()
-
-func stop_audio() -> void:
-	for player in [_servo, _latch, _spindle, _engine, _horn]:
-		if player != null: player.stop()
-
-func _audio(label: String, file: String, looped: bool, gain: float) -> AudioStreamPlayer3D:
-	var player := AudioStreamPlayer3D.new()
-	player.name = label
-	# GameWorld processes while paused to handle its menu; the vessel's audio must not.
-	player.process_mode = Node.PROCESS_MODE_PAUSABLE
-	var stream := load("res://assets/audio/sfx/" + file).duplicate() as AudioStreamWAV
-	if looped:
-		stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
-		stream.loop_begin = 0
-		# Imported WAVs may be QOA/ADPCM; loop endpoints are sample frames, not bytes.
-		stream.loop_end = int(round(stream.get_length() * stream.mix_rate))
-	player.stream = stream
-	player.bus = "SFX"
-	player.volume_db = gain
-	player.unit_size = 15.0
-	player.max_distance = 55.0
-	add_child(player)
-	return player

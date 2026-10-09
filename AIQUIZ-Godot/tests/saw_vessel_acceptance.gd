@@ -68,10 +68,6 @@ func run_mechanics(world: Node) -> Dictionary:
 	check(rail_error < .001,"bridge ends match existing conveyor rails")
 	dock.elapsed = 3.3
 	dock.apply_pose()
-	dock.update_audio(true,0.0,saw.global_position)
-	check(dock._engine.playing and dock._servo.playing,"vessel and hydraulic SFX active")
-	dock.update_audio(false,0.0,saw.global_position)
-	check(not dock._engine.playing and not dock._servo.playing,"hidden or paused audio stops")
 	var pose := dock.ship.global_transform
 	var time := dock.elapsed
 	get_tree().paused = true
@@ -132,14 +128,14 @@ func run_navigation() -> void:
 	await get_tree().process_frame
 	var hold_time := saw.dock.elapsed
 	await get_tree().create_timer(.2).timeout
-	check(saw.dock.elapsed == hold_time and not saw.visible and not saw.dock._engine.playing,"customize-hidden freezes ship and sound")
+	check(saw.dock.elapsed == hold_time and not saw.visible,"customize-hidden freezes ship")
 	preview.set_customize_walls_hidden(false)
 	var container: CanvasItem = preview._viewport.get_parent()
 	container.hide()
 	await get_tree().process_frame
 	hold_time = saw.dock.elapsed
 	await get_tree().create_timer(.2).timeout
-	check(saw.dock.elapsed == hold_time and not saw.dock._engine.playing,"hidden viewport freezes ship and sound")
+	check(saw.dock.elapsed == hold_time,"hidden viewport freezes ship")
 	container.show()
 	await get_tree().create_timer(.06).timeout
 	check(saw.dock.elapsed > hold_time,"showing viewport resumes entrance")
@@ -159,10 +155,8 @@ func run_navigation() -> void:
 	world._toggle_pause()
 	hold_time = dock.elapsed
 	var hold_pose := dock.ship.global_transform
-	var audio_time := dock._engine.get_playback_position()
 	await get_tree().create_timer(.3,true).timeout
 	check(dock.elapsed == hold_time and dock.ship.global_transform.is_equal_approx(hold_pose),"actual pause menu freezes moving vessel")
-	check(absf(dock._engine.get_playback_position()-audio_time)<.04,"actual pause menu freezes engine playback")
 	await capture("paused_approach")
 	world._toggle_pause()
 	await get_tree().create_timer(.2).timeout

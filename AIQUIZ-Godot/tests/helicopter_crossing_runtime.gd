@@ -62,10 +62,7 @@ func run() -> void:
 	var prepared_ok := is_instance_valid(prepared) and prepared._menu_departure_prepared and not prepared.visible and prepared.process_mode == Node.PROCESS_MODE_DISABLED
 	check(prepared_ok, "departure is prebuilt, hidden and paused")
 	if prepared_ok:
-		var silent := true
-		for info: Dictionary in prepared._helicopters:
-			silent = silent and not (info["audio"] as AudioStreamPlayer3D).playing
-		check(silent and not preview.is_game_start_departure_active(), "prebuilt departure is silent and inactive")
+		check(not preview.is_game_start_departure_active(), "prebuilt departure is inactive")
 	var started := Time.get_ticks_usec()
 	var previous_wall := started
 	menu.call("_on_start_pressed")

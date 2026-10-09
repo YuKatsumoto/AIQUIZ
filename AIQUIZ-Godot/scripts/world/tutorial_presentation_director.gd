@@ -68,7 +68,6 @@ func _begin_presentation(step_id: String, model_revision: int) -> void:
 		game_state.complete_tutorial_presentation(_presentation_id)
 		return
 	AudioManager.set_tutorial_ducked(true)
-	AudioManager.play_tutorial_step()
 	_apply_pose(0.0)
 
 
@@ -78,7 +77,6 @@ func _finish() -> void:
 	_apply_pose(1.0)
 	var finished_id := _presentation_id
 	_cancel(true)
-	AudioManager.play_tutorial_settle()
 	game_state.complete_tutorial_presentation(finished_id)
 	if game_state.is_tutorial_presentation_locked():
 		var model := game_state.get_tutorial_overlay_model()

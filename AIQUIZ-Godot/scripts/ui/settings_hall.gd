@@ -80,7 +80,6 @@ var _view_target := 0.0
 var _view_u := 0.0
 var _camera_override: Dictionary = {}
 var _yard_director: Node = null
-var _audio: SuddenDeathAudio = null
 var _ui: CanvasLayer = null
 var _blackout: ColorRect = null
 var _panel: SettingsHallPanelScript = null
@@ -103,10 +102,8 @@ var _clock := 0.0
 var _pending: Dictionary = {}
 var _cistern_parts_done := false
 var _warm_queue: Array[Resource] = []
-var _lamp_tick_index := -1
 var _row_order: Array[int] = []
 var _row_targets: Array[float] = []
-var _rows_cued := 0
 ## 露出のランプ (from, to, seconds)。
 var _env_ramp := Vector3.ZERO
 var _env_ramp_time := 0.0
@@ -141,11 +138,6 @@ func _ready() -> void:
 	_shaft.set_clip(SHAFT_CLIP_TOP, -INF)
 	_shaft.set_view(0.0, 0.0)
 	_shaft.set_depth_signs([])
-
-	_audio = SuddenDeathAudio.new()
-	_audio.name = "Audio"
-	add_child(_audio)
-	_audio.setup()
 
 	_lecture_set = LectureSetScript.new()
 	_lecture_set.name = "LectureSet"
@@ -193,16 +185,12 @@ func _ready() -> void:
 		return
 	SceneTransition.reveal_current()
 	_last_usec = Time.get_ticks_usec()
-	_audio.set_motor(true, 0.0)
-	_audio.set_ambience(&"shaft")
 	_started = true
 
 
 func _exit_tree() -> void:
 	if RenderingServer.frame_post_draw.is_connected(_on_frame_post_draw):
 		RenderingServer.frame_post_draw.disconnect(_on_frame_post_draw)
-	if is_instance_valid(_audio):
-		_audio.stop_all()
 
 
 func _on_window_size_changed() -> void:
@@ -265,13 +253,6 @@ func _update_shaft() -> void:
 	_shaft.set_view(0.0, _descent.scroll)
 	_shaft.set_motion_speed(_descent.speed)
 	_shaft.set_depth_signs(_descent.depth_signs(0.0))
-	var tick := int(floor((_descent.scroll + 6.2) / SuddenDeathLayout.SHAFT_TILE_HEIGHT))
-	if tick != _lamp_tick_index:
-		if _lamp_tick_index >= 0:
-			_audio.play(&"lamp_pass", -10.0)
-		_lamp_tick_index = tick
-	_audio.set_motor(true, _descent.speed)
-	_audio.set_depth_reverb(clampf(_descent.depth / 70.0, 0.0, 1.0))
 	_update_shaft_view()
 
 
@@ -297,10 +278,6 @@ func _update_shaft_view() -> void:
 func _enter_blackout() -> void:
 	_blackout_entered = true
 	_blackout.visible = true
-	_audio.play(&"deck_stop", -8.0, 1.1)
-	_audio.set_motor(false, 0.0)
-	_audio.set_ambience(&"hall")
-	_audio.set_hall_reverb()
 	if _shaft != null:
 		_shaft.visible = false
 	if _cistern != null:
@@ -382,7 +359,6 @@ static func view_pose(u: float, follow: Vector3 = Vector3.ZERO) -> Dictionary:
 
 func _on_panel_view_toggled(practice: bool) -> void:
 	_view_target = 1.0 if practice else 0.0
-	_audio.play(&"deck_release", -18.0, 1.3)
 
 
 ## テスト用: 視点をすぐ切り替える（u = 0 講義室 / 1 実習場）。
@@ -395,7 +371,6 @@ func set_view_now(u: float) -> void:
 func _plan_rows() -> void:
 	_row_order.clear()
 	_row_targets.clear()
-	_rows_cued = 0
 	if _cistern == null:
 		return
 	for row in range(_cistern.row_count()):
@@ -412,7 +387,7 @@ func _plan_rows() -> void:
 		_row_targets.append(target)
 
 
-## 到着 time 秒: 行が順に点く（接触器の音、短いちらつき、目標の明るさ）。SET_LIGHTS_AT でセットのスポットが一気に点く。
+## 到着 time 秒: 行が順に点く（短いちらつき、目標の明るさ）。SET_LIGHTS_AT でセットのスポットが一気に点く。
 func _update_row_lights(time: float) -> void:
 	if _cistern != null:
 		var lit_sum := 0.0
@@ -428,10 +403,6 @@ func _update_row_lights(time: float) -> void:
 					amount = target
 				else:
 					amount = target * (0.75 if fmod(local, LIGHT_FLICKER) < LIGHT_FLICKER * 0.5 else 0.25)
-				if index >= _rows_cued:
-					_rows_cued = index + 1
-					_audio.play_at(&"light_on", Vector3(0.0, FLOOR_Y + 7.0, _cistern.light_row_z(row)),
-						-4.0 - 1.2 * float(index), 1.0 - 0.015 * float(index))
 			_cistern.set_row_brightness(row, amount * _night_scale())
 			lit_sum += amount
 		_apply_hall_light(HALL_AMBIENT_SCALE * lit_sum / maxf(target_sum, 0.001) * lerpf(1.0, 0.35, _night))
@@ -439,7 +410,6 @@ func _update_row_lights(time: float) -> void:
 		_set_lights_on = true
 		_lecture_set.set_lit(1.0)
 		_yard.set_lit(1.0)
-		_audio.play(&"light_on", 0.0, 0.85)
 		if _cistern != null:
 			_cistern.refresh_reflections()
 
@@ -627,15 +597,12 @@ func _leave() -> void:
 		tw.set_trans(Tween.TRANS_CUBIC)
 		tw.tween_method(_set_return_light, 1.0, 0.0, RETURN_SECONDS)
 		tw.tween_property(_camera, "position:y", rise_from + RETURN_RISE, RETURN_SECONDS)
-		_audio.play(&"deck_release", -10.0)
-		_audio.set_motor(true, 4.0)
 		await get_tree().create_timer(RETURN_SECONDS * 0.6).timeout
 		if not is_inside_tree():
 			return
 	await SceneTransition.fade_to_color_and_wait(Color.BLACK)
 	if not is_inside_tree():
 		return
-	_audio.stop_all()
 	get_tree().change_scene_to_file(MAIN_MENU_SCENE)
 
 

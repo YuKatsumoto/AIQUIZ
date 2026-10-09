@@ -33,20 +33,10 @@ var _fireworks_launched: bool = false
 var _prev_p2_go_timer: float = 0.0
 var _prev_player_y: float = 0.0
 var _prev_p2_y: float = 0.0
-# Sound effect edges. These read state that online snapshots also carry, so
-# clients hear the same cues as the host.
-var _last_push_strike_msec: int = 0
+# Wall-hit sound edges. These read state that online snapshots also carry, so
+# clients hear the same hits as the host.
 var _sfx_prev_damage: Array[float] = [0.0, 0.0]
-var _sfx_prev_hp: Array[int] = [-1, -1]
 var _sfx_prev_wall_impact: Array[bool] = [false, false]
-var _sfx_prev_fall: Array[bool] = [false, false]
-var _sfx_prev_y: Array[float] = [0.0, 0.0]
-var _sfx_air_time: Array[float] = [0.0, 0.0]
-var _sfx_prev_emote: Array[int] = [0, 0]
-var _sfx_prev_streak: int = 0
-var _sfx_countdown_number: int = -1
-var _sfx_last_correct_frame: int = -100
-var _sfx_last_state: String = ""
 var _ocean_attack_sharks: Dictionary = {}
 var _ghost_shark_ride_controller: Node3D = null
 var _result_ceremony_director: Node3D = null
@@ -227,17 +217,6 @@ func _feed_push_input(dt: float) -> void:
 func _on_local_push_event(event: Dictionary) -> void:
 	if event.kind in ["contact", "hit", "clash"]:
 		particle_spawner.spawn_local_push(event)
-	match event.kind:
-		"hit":
-			AudioManager.play_sfx(&"push_hit")
-		"clash":
-			AudioManager.play_sfx(&"push_clash")
-		"contact":
-			# Contact flickers while bodies touch; skip it right after a strike.
-			if float(event.get("age", 0.0)) <= 0.1 and Time.get_ticks_msec() - _last_push_strike_msec > 150:
-				AudioManager.play_sfx(&"push_contact")
-	if event.kind in ["hit", "clash"]:
-		_last_push_strike_msec = Time.get_ticks_msec()
 
 func _on_window_size_changed() -> void:
 	GraphicsQuality.apply_text_viewport(get_viewport(), GameManager.graphics_quality)
@@ -258,16 +237,9 @@ func _ready() -> void:
 	game_state.state_changed.connect(_on_state_changed)
 	game_state.quiz_loaded.connect(_on_quiz_loaded)
 	game_state.correct_answer.connect(_on_correct)
-	game_state.wrong_answer.connect(_on_wrong)
-	game_state.world_border_pushed.connect(func(_player_index: int) -> void:
-		WallWorldBorder.pulse()
-		AudioManager.play_sfx(&"force_field")
-	)
+	game_state.world_border_pushed.connect(func(_player_index: int) -> void: WallWorldBorder.pulse())
 	game_state.question_completed.connect(_on_question_completed)
 	game_state.player_entered_ocean.connect(_on_player_entered_ocean)
-	game_state.player_caught_by_saw.connect(_on_player_caught_by_saw)
-	game_state.player_scrolled_out.connect(func(_player_index: int) -> void: AudioManager.play_sfx(&"player_out"))
-	AudioManager.start_sfx_loop(&"ambience", &"amb_ocean", 0.0, 1.5, self)
 
 	# リプレイ記録を開始（通常モードのみ）
 	# TODO: 一旦リプレイ機能を封印するため無効化
@@ -355,7 +327,6 @@ func _ready() -> void:
 		player_node as PlayerController, stage_env, _set_surface_visible)
 	game_state.sudden_death_transition_requested.connect(_sudden_death_director.on_transition_requested)
 	game_state.sudden_death_event.connect(_sudden_death_director.on_event)
-	game_state.tutorial_task_completed.connect(_on_tutorial_task_completed)
 	game_state.tutorial_presentation_requested.connect(_on_tutorial_presentation_requested)
 	game_state.tutorial_customize_handoff_requested.connect(_on_tutorial_customize_handoff_requested)
 	_tutorial_presentation_director = TutorialPresentationDirectorScript.new()
@@ -390,17 +361,7 @@ func _setup_ocean_shark_signals() -> void:
 func _on_player_entered_ocean(player_index: int, local_position: Vector3) -> void:
 	if particle_spawner.has_method("spawn_ocean_splash"):
 		particle_spawner.spawn_ocean_splash(local_position)
-	AudioManager.play_sfx(&"splash")
 	_start_ocean_shark_attack(player_index, local_position)
-
-
-## Saw blades caught a player: metal grind, then the five limb releases of
-## SawCatchRagdoll (0.52 s + 0.14 s each) pop with a rising pitch.
-func _on_player_caught_by_saw(_player_index: int) -> void:
-	AudioManager.play_sfx(&"saw_catch")
-	for limb in range(5):
-		get_tree().create_timer(0.52 + 0.14 * limb, false).timeout.connect(
-			AudioManager.play_sfx.bind(&"limb_pop", 0.0, 1.0 + 0.09 * limb))
 
 
 func _start_ocean_shark_attack(player_index: int, target_position: Vector3) -> void:
@@ -546,13 +507,6 @@ func _finish_tutorial_ghost_practice() -> void:
 		game_state.finish_tutorial_ghost_step()
 
 
-func _on_tutorial_task_completed(_player_index: int, _task_id: String) -> void:
-	if game_state and game_state.tutorial_flow and game_state.tutorial_flow.all_tasks_complete():
-		AudioManager.play_tutorial_complete()
-	else:
-		AudioManager.play_tutorial_task()
-
-
 func _on_tutorial_presentation_requested(presentation_id: String, context: Dictionary) -> void:
 	if presentation_id == "solo_stage_complete":
 		var stage_hud: Node = get_node_or_null("GameplayHUD")
@@ -561,7 +515,6 @@ func _on_tutorial_presentation_requested(presentation_id: String, context: Dicti
 				"show_solo_stage_tutorial_complete",
 				float(context.get("duration", 3.2)),
 			)
-			AudioManager.play_result_cue(&"confetti")
 		return
 	if presentation_id != "duo_stage_complete":
 		return
@@ -1119,7 +1072,7 @@ func _process(dt: float) -> void:
 	_update_wall_question()
 	_update_camera(dt)
 	_check_particles()
-	_update_player_sfx(dt)
+	_update_wall_hit_sfx()
 	_update_start_barrier()
 	if game_state.is_elimination_result_ready() and not _elimination_transition_running:
 		_run_elimination_result_transition()
@@ -1276,7 +1229,6 @@ func _unhandled_input(event: InputEvent) -> void:
 				return
 			if game_state.has_method("trigger_start"):
 				game_state.trigger_start()
-				AudioManager.play_sfx(&"ui_confirm")
 
 func _update_floor() -> void:
 	if not stage_env:
@@ -1335,17 +1287,6 @@ func is_start_presentation_locked() -> bool:
 
 func is_preload_construction_locked() -> bool:
 	return false
-
-
-## Enter can start the round: the same checks _unhandled_input applies.
-func is_start_trigger_ready() -> bool:
-	return (
-		not is_start_presentation_locked()
-		and not is_preload_construction_locked()
-		and _barrier_spawned_for_session
-		and not _barrier_dropping
-		and not SceneTransition.is_transitioning()
-	)
 
 
 func _update_flyover() -> void:
@@ -1552,11 +1493,6 @@ func _update_wall_question() -> void:
 		if game_state.is_coop_mode() and quiz.has_coop_data():
 			source += "\n%s / %s" % [quiz.coop_p1_label, quiz.coop_p2_label]
 		if quiz != _display_question_quiz or source != _display_question_source:
-			if quiz != _display_question_quiz:
-				# The next question appears the moment the previous wall resolves (or
-				# with the GO blast); let that feedback finish before the chime.
-				var question_cue := &"boss_warning" if game_state.is_boss_index(game_state.current_index) else &"question"
-				get_tree().create_timer(0.6, false).timeout.connect(AudioManager.play_sfx.bind(question_cue))
 			_display_question_quiz = quiz
 			_display_question_source = source
 			_display_question_text = FractionFormatter.format_question(quiz.q)
@@ -1775,23 +1711,7 @@ func _check_particles() -> void:
 		if particle_spawner.has_method("spawn_correct"):
 			particle_spawner.spawn_correct(
 				Vector3(game_state.player_x, game_state.player_y, game_state.player_local_z))
-		# Tutorial respawns reuse the correct sparkle without a correct answer.
-		if (
-			game_state.mode == Constants.MODE_TUTORIAL
-			and game_state.game_state != Constants.STATE_CLEAR
-			and Engine.get_process_frames() - _sfx_last_correct_frame > 2
-		):
-			AudioManager.play_sfx(&"respawn")
 	_prev_correct_flash = game_state.correct_flash
-	# Tutorial miss: the stage rewinds to the safe spot with a red flash.
-	if (
-		game_state.wrong_flash > 0.8
-		and _prev_wrong_flash <= 0.8
-		and game_state.mode == Constants.MODE_TUTORIAL
-		and game_state.game_state not in [Constants.STATE_GAME_OVER, Constants.STATE_CLEAR]
-	):
-		AudioManager.play_sfx(&"retry")
-	_prev_wrong_flash = game_state.wrong_flash
 
 	# Ocean entry splash (position crossing keeps replay/network visuals deterministic)
 	if (
@@ -1805,7 +1725,6 @@ func _check_particles() -> void:
 				StageConstants.OCEAN_SURFACE_Y,
 				game_state.player_local_z
 			))
-		AudioManager.play_sfx(&"splash_small")
 	if (
 		game_state.player2_game_over_timer > 0.0
 		and game_state.player2_y <= StageConstants.OCEAN_ENTRY_Y
@@ -1817,7 +1736,6 @@ func _check_particles() -> void:
 				StageConstants.OCEAN_SURFACE_Y,
 				game_state.player2_local_z
 			))
-		AudioManager.play_sfx(&"splash_small")
 
 	# Explosion particle spawn (P1: non-ocean deaths only)
 	if (
@@ -1830,7 +1748,6 @@ func _check_particles() -> void:
 				1,
 				Vector3(game_state.player_x, game_state.player_y, game_state.player_local_z)
 			))
-		_play_body_burst_sfx()
 	_prev_go_timer = game_state.game_over_timer
 	
 	# Explosion particle spawn (P2: non-ocean deaths only)
@@ -1844,7 +1761,6 @@ func _check_particles() -> void:
 				2,
 				Vector3(game_state.player2_x, game_state.player2_y, game_state.player2_local_z)
 			))
-		_play_body_burst_sfx()
 	_prev_p2_go_timer = game_state.player2_game_over_timer
 	_prev_player_y = game_state.player_y
 	_prev_p2_y = game_state.player2_y
@@ -1862,10 +1778,9 @@ func _check_particles() -> void:
 			particle_spawner.spawn_fireworks(Vector3(0, 0, fw_z))
 
 
-## Per-player cues read from synced state: wall bonk / crash, heart loss and
-## refill, falling off the belt, jumps and landings, emotes and answer streaks.
-func _update_player_sfx(dt: float) -> void:
-	var in_play: bool = game_state.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]
+## Wall-hit sounds read from synced state: a bonk when a wrong door costs a
+## heart, a crash when the hit knocks the player out.
+func _update_wall_hit_sfx() -> void:
 	for index in range(2):
 		var player: int = index + 1
 		if player == 2 and game_state.num_players < 2:
@@ -1875,59 +1790,10 @@ func _update_player_sfx(dt: float) -> void:
 			AudioManager.play_sfx(&"bonk")
 		_sfx_prev_damage[index] = damage
 
-		# Saw, shark and scroll-out empty the hearts in one go and carry their own
-		# cues, so only single-heart losses play here.
-		var hp: int = game_state.get_player_hp(player)
-		var previous_hp: int = _sfx_prev_hp[index]
-		if previous_hp >= 0 and in_play:
-			if hp < previous_hp and hp > 0:
-				AudioManager.play_sfx(&"heart_lose")
-				if hp == 1:
-					get_tree().create_timer(0.45, false).timeout.connect(AudioManager.play_sfx.bind(&"low_hp"))
-			elif hp > previous_hp and previous_hp > 0:
-				AudioManager.play_sfx(&"heart_restore")
-		_sfx_prev_hp[index] = hp
-
 		var wall_impact: bool = game_state.p1_wall_impact if player == 1 else game_state.p2_wall_impact
 		if wall_impact and not _sfx_prev_wall_impact[index]:
 			AudioManager.play_sfx(&"wall_crash")
 		_sfx_prev_wall_impact[index] = wall_impact
-
-		var falling: bool = game_state.p1_fall_committed if player == 1 else game_state.p2_fall_committed
-		if falling and not _sfx_prev_fall[index] and in_play:
-			AudioManager.play_sfx(&"fall_whistle")
-		_sfx_prev_fall[index] = falling
-
-		var alive: bool = game_state.p1_alive if player == 1 else game_state.p2_alive
-		var y: float = game_state.player_y if player == 1 else game_state.player2_y
-		var on_belt: bool = in_play and alive and not falling
-		if on_belt and y > 0.05 and _sfx_prev_y[index] <= 0.02:
-			AudioManager.play_sfx(&"jump", 0.0, 1.0 if player == 1 else 1.08)
-		if y > 0.02:
-			_sfx_air_time[index] += dt
-		else:
-			if _sfx_air_time[index] > 0.25 and on_belt:
-				AudioManager.play_sfx(&"land")
-			_sfx_air_time[index] = 0.0
-		_sfx_prev_y[index] = y
-
-		var emote: int = game_state.p1_emote if player == 1 else game_state.p2_emote
-		if emote != 0 and emote != _sfx_prev_emote[index]:
-			AudioManager.play_sfx(&"emote", 0.0, 1.0 if player == 1 else 1.1)
-		_sfx_prev_emote[index] = emote
-
-	var streak: int = game_state.current_streak
-	if streak > _sfx_prev_streak and streak >= 2 and in_play:
-		get_tree().create_timer(0.12, false).timeout.connect(
-			AudioManager.play_sfx.bind(&"streak", 0.0, 1.0 + 0.06 * mini(streak - 2, 8)))
-	_sfx_prev_streak = streak
-
-
-## The blocky body bursts 2 s after a wall crash, saw catch or scroll-out. This
-## is where the round's explosion belongs (it used to fire at the wall hit).
-func _play_body_burst_sfx() -> void:
-	AudioManager.play_explosion()
-	AudioManager.play_sfx(&"body_pieces")
 
 
 func _get_player_death_effect_position(player_index: int, fallback: Vector3) -> Vector3:
@@ -1946,7 +1812,6 @@ func _finish_intro_arrival_for_gameplay() -> void:
 func _on_state_changed(new_state: String) -> void:
 	if _match_reel != null:
 		_match_reel.notify_state(new_state)
-	_update_state_sfx(new_state)
 	if (
 		_helicopter_arrival_director != null
 		and _helicopter_arrival_director.is_start_locked()
@@ -1996,27 +1861,6 @@ func _on_state_changed(new_state: String) -> void:
 		if not _barrier_spawned_for_session:
 			_begin_barrier_drop()
 
-## state_changed can repeat the current state (tutorial resets), so cues only
-## fire when the state really changes.
-func _update_state_sfx(new_state: String) -> void:
-	if new_state == _sfx_last_state:
-		return
-	_sfx_last_state = new_state
-	if new_state != Constants.STATE_COUNTDOWN:
-		AudioManager.stop_sfx_loop(&"barrier_steam", 0.15)
-	if new_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]:
-		AudioManager.start_sfx_loop(&"belt", &"amb_belt", 0.0, 0.8, self)
-	else:
-		AudioManager.stop_sfx_loop(&"belt", 0.6)
-	match new_state:
-		Constants.STATE_FLYOVER:
-			AudioManager.play_sfx(&"flyover")
-		Constants.STATE_COUNTDOWN:
-			_sfx_countdown_number = -1
-		Constants.STATE_GOAL_RACE:
-			AudioManager.play_sfx(&"whistle")
-
-
 func _on_quiz_loaded(quiz: QuizItem) -> void:
 	# Update labels on the current wall
 	for wall: Node3D in _active_walls:
@@ -2025,7 +1869,6 @@ func _on_quiz_loaded(quiz: QuizItem) -> void:
 			
 
 func _on_correct() -> void:
-	_sfx_last_correct_frame = Engine.get_process_frames()
 	if game_state.uses_hp():
 		return  # HP rounds retire the explicitly completed wall on every peer.
 	if game_state.current_quiz:
@@ -2035,32 +1878,22 @@ func _on_correct() -> void:
 				_retired_wall_indices[game_state.current_wall_index] = true
 				if wall.has_method("break_door"):
 					wall.break_door(answer_idx)
-					AudioManager.play_sfx(&"door_smash")
 				# 正解扉が壊れた瞬間から壁全体も退場させる。
 				# プレイヤーが完全に通過してから消すと、破砕演出との間に
 				# 壁だけが残って見えるため、同じタイミングで短くフェードする。
 				if wall.has_method("retire_after_player_pass"):
 					wall.retire_after_player_pass(0.28)
-	# Audio handled by AudioManager
 
 func _on_question_completed(wall_index: int, correct: bool) -> void:
 	if _retired_wall_indices.has(wall_index):
 		return
-	if not correct:
-		# Hearts remain but nobody picked the right door: the wall just fades.
-		# The buzzer trails the wall bonk so the two stay distinct.
-		get_tree().create_timer(0.18, false).timeout.connect(AudioManager.play_sfx.bind(&"buzzer"))
 	for wall: Node3D in _active_walls:
 		if wall.get_meta("wall_index", -1) == wall_index:
 			_retired_wall_indices[wall_index] = true
 			if correct and wall.has_method("break_door"):
 				wall.break_door(int(wall.get_meta("hp_answer", 0)))
-				AudioManager.play_sfx(&"door_smash")
 			if wall.has_method("retire_after_player_pass"):
 				wall.retire_after_player_pass(0.28)
-
-func _on_wrong(_msg: String) -> void:
-	pass  # Audio handled by AudioManager
 
 func _build_pause_menu() -> void:
 	pause_menu = CanvasLayer.new()
@@ -2128,7 +1961,6 @@ func _build_pause_menu() -> void:
 	btn_resume.custom_minimum_size = Vector2(0, 60)
 	btn_resume.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	btn_resume.pressed.connect(func(): _toggle_pause())
-	btn_resume.set_meta(&"sfx_press", &"ui_pause_out")
 	vbox.add_child(btn_resume)
 	
 	var btn_title = Button.new()
@@ -2154,15 +1986,6 @@ func _toggle_pause() -> void:
 	_clear_push_input()
 	get_tree().paused = new_paused
 	AudioManager.set_music_paused(new_paused)
-	AudioManager.play_sfx(&"ui_pause_in" if new_paused else &"ui_pause_out")
-	# AudioManager keeps running while paused; the belt and the countdown steam
-	# stand still with the world (the steam restarts itself on the next frame).
-	if new_paused:
-		AudioManager.stop_sfx_loop(&"belt", 0.15)
-		AudioManager.stop_sfx_loop(&"barrier_steam", 0.15)
-		AudioManager.stop_sfx_loop(&"ghost_charge", 0.1)
-	elif game_state.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]:
-		AudioManager.start_sfx_loop(&"belt", &"amb_belt", 0.0, 0.3, self)
 	pause_menu.visible = new_paused
 	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 
@@ -2511,9 +2334,6 @@ func _update_preview_walls(dt: float) -> void:
 				)
 				var shake_power: float = clampf(44.0 / maxf(1.0, dist_z), 0.25, 1.45)
 				game_state.camera_shake = maxf(game_state.camera_shake, shake_power)
-				# Walls built behind the loading cover land silently.
-				if not SceneTransition.is_transitioning():
-					AudioManager.play_sfx(&"wall_slam", linear_to_db(shake_power / 1.45))
 
 		elif phase == 2:
 			var p: float = clampf(t_val / PREVIEW_WALL_SETTLE_DURATION, 0.0, 1.0)
@@ -2830,8 +2650,6 @@ func _update_start_barrier() -> void:
 			_start_barrier.position.y = 0.0
 			game_state.camera_shake = 1.2
 			_spawn_landing_impact(_start_barrier.global_position)
-			if not SceneTransition.is_transitioning():
-				AudioManager.play_sfx(&"barrier_land")
 		return
 		
 	if _start_barrier and is_instance_valid(_start_barrier):
@@ -2842,15 +2660,6 @@ func _update_start_barrier() -> void:
 				ql.text = str(remain) if remain > 0 else ""
 				
 				var progress := 1.0 - clampf(game_state.countdown_timer / 3.99, 0.0, 1.0)
-				if remain != _sfx_countdown_number:
-					_sfx_countdown_number = remain
-					if remain > 0:
-						AudioManager.play_sfx(&"countdown_beep")
-				# The steam jets swell with the shaking until the wall blows.
-				if not AudioManager.is_sfx_loop_playing(&"barrier_steam"):
-					AudioManager.start_sfx_loop(&"barrier_steam", &"barrier_steam", -10.0, 0.3, self)
-				else:
-					AudioManager.set_sfx_loop_volume(&"barrier_steam", lerpf(-10.0, 4.0, progress))
 				
 				# 1. 壁の振動演出
 				# base position is x=0, y=0. apply non-linear random offset based on progress.
@@ -2897,9 +2706,6 @@ func _explode_start_barrier() -> void:
 	_barrier_exploded = true
 	if not _start_barrier or not is_instance_valid(_start_barrier):
 		return
-	AudioManager.stop_sfx_loop(&"barrier_steam", 0.05)
-	AudioManager.play_sfx(&"countdown_go")
-	AudioManager.play_sfx(&"barrier_explode")
 	var bpos: Vector3 = _start_barrier.global_position
 	_start_barrier.visible = false
 	game_state.camera_shake = 0.7

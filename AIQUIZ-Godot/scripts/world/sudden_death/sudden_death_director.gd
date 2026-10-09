@@ -143,7 +143,6 @@ var _shaft: ShaftDescent = null
 var _shaft_packed: PackedScene = null
 var _loader: SuddenDeathLoader = null
 var _hud: SuddenDeathHud = null
-var _audio: SuddenDeathAudio = null
 var _drain: SurfaceDrain = null
 var _descent := SuddenDeathDescent.new()
 var _podium := Vector3.ZERO
@@ -186,7 +185,6 @@ var _arrival_start_distance := 0.0
 var _game_dt := 0.0
 var _last_frame := 0
 var _deck_rise_elapsed := -1.0
-var _lamp_index := 0
 var _sign_depths: Array[float] = []
 var _landed_time := -1.0
 ## Intro seconds the rule card appeared at (-1 before), whether Enter took it away, when the countdown
@@ -198,10 +196,9 @@ var _flood_at := INF
 var _deck_rise_from := -1.0
 ## Return slow motion: when (stage seconds) the water took the loser.
 var _caught_at := -1.0
-## The duel camera's eased pose and lens, and the last countdown second ticked.
+## The duel camera's eased pose and lens.
 var _run_pose := Transform3D.IDENTITY
 var _run_fov := DUEL_FOV
-var _last_tick := -1
 var _row_lights_on := 0
 # Return
 var _winner := 0
@@ -390,30 +387,20 @@ func on_event(event: Dictionary) -> void:
 	match kind:
 		"go":
 			_hud_call("set_countdown", [""])
-			_play(&"whistle", -4.0, 1.1)
 		"buzz":
-			_play(&"buzz", -1.0)
 			_hud_call("flash", [0.18, 0.18])
 			_hud_callout(("P%d BUZZ!" if english else "P%d 早押し！") % player, P1_COLOR if player == 1 else P2_COLOR, 1.0)
 		"answer":
 			if bool(event.get("correct", false)):
-				_play(&"correct")
 				_hud_callout(("P%d CORRECT!" if english else "P%d 正解！") % player, Color(0.45, 1.0, 0.55), 1.6)
 			else:
-				_play(&"wrong")
 				var late := bool(event.get("late", false))
 				_hud_callout(("P%d " + ("TOO LATE" if late else "WRONG!")) % player if english
 					else ("P%d " + ("答えられず…" if late else "不正解！")) % player, Color(1.0, 0.4, 0.3), 1.6)
 		"timeout":
-			_play(&"time_up", -2.0)
 			_hud_callout("TIME UP! BOTH LIFTS SINK" if english else "時間切れ！ 両方のリフトが沈む", Color(1.0, 0.72, 0.3), 1.6)
-		"sink":
-			var tower := cistern.tower_position(player) if cistern != null else Vector3.ZERO
-			_audio_call("play_at", [&"deck_release", tower + Vector3(0.0, 2.0, 0.0), -5.0, 0.9])
 		"caught":
 			_hud_callout("P%d OUT!" % player, Color(1.0, 0.35, 0.3), 1.4)
-			var at := _runner_world(player)
-			_audio_call("play_at", [&"drain_burst", at, 0.0, 0.85])
 		"decided":
 			if _act == Act.RUN:
 				_begin_return(int(event.get("winner", 0)))
@@ -440,7 +427,6 @@ func _begin_branch() -> void:
 	_branch_night = 0.0
 	prepare_for_match()
 	_ensure_hud()
-	_ensure_audio()
 	# Compile the floor/ocean hole variants now, not on the cut-in frame.
 	if stage_env != null and stage_env.has_method("prepare_shaft_hole"):
 		stage_env.prepare_shaft_hole()
@@ -469,15 +455,12 @@ func _update_branch() -> void:
 		# The ceremony was cut short (menu, retry): nothing to do.
 		reset()
 		return
-	if _cue("whistle", elapsed >= QuizGameState.SUDDEN_DEATH_BRANCH_TIME):
-		_play(&"whistle")
 	if _cue("cut_in", elapsed >= CUT_IN_TIME):
 		# No 2D title: the scoreboard behind the podium carries "SUDDEN DEATH!".
 		_hud_call("flash", [1.0, 0.22])
 		_surface_env = _duplicate_surface_env()
 		_surface_ambient = -1.0
 		_set_env(_surface_env, 1.0, 1.0, 0.0)
-		_play(&"siren", -2.0)
 		# The floor under the podium becomes the steel hatch (hidden by the flash).
 		if stage_env != null and stage_env.has_method("set_shaft_hole"):
 			stage_env.set_shaft_hole(_podium, SuddenDeathLayout.SHAFT_RADIUS, true)
@@ -487,10 +470,6 @@ func _update_branch() -> void:
 	if elapsed >= CUT_IN_TIME:
 		_branch_night = NIGHT_AMOUNT * smoothstep(CUT_IN_TIME, CUT_IN_TIME + NIGHT_FADE, elapsed)
 		_set_surface_dusk(_branch_night)
-	if _cue("sink", elapsed >= QuizGameState.SUDDEN_DEATH_SINK_TIME):
-		_play(&"deck_release", -9.0, 0.8)
-	if _cue("iris", elapsed >= QuizGameState.SUDDEN_DEATH_IRIS_TIME):
-		_play(&"iris_open")
 	if elapsed >= LETTERBOX_IN.x:
 		_hud_call("set_letterbox", [smoothstep(LETTERBOX_IN.x, LETTERBOX_IN.y, elapsed)])
 	var iris := smoothstep(QuizGameState.SUDDEN_DEATH_IRIS_TIME, QuizGameState.SUDDEN_DEATH_IRIS_TIME + IRIS_OPEN_TIME, elapsed)
@@ -513,7 +492,6 @@ func _begin_descent() -> void:
 	_act_time = 0.0
 	_descent.reset()
 	_scroll = 0.0
-	_lamp_index = 0
 	_swapped = false
 	_space_offset = Vector3.ZERO
 	_referee_handoff.clear()
@@ -527,9 +505,6 @@ func _begin_descent() -> void:
 		_surface_env = _duplicate_surface_env()
 		_surface_ambient = -1.0
 	_set_env(_surface_env, 1.0, 1.0, 0.0)
-	_play(&"deck_release")
-	_audio_call("set_motor", [true, 0.0])
-	_audio_call("set_depth_reverb", [0.0])
 	_hud_call("set_letterbox", [1.0])
 
 
@@ -542,7 +517,6 @@ func _update_descent() -> void:
 	var progress := minf(_loader.progress() if _loader != null else 0.0, game_state.sudden_death_question_progress())
 	_descent.set_preparation(progress, loader_ready, loader_failed, waiting_questions)
 	_update_preparing_panel(waiting_questions)
-	var stage_before := _descent.stage
 	_descent.advance(_real_dt)
 	var stage := _descent.stage
 	# One long frame may cross several stages: every handover still happens, in order.
@@ -557,7 +531,6 @@ func _update_descent() -> void:
 	if _descent.is_aborting() and not _abort_announced:
 		_abort_announced = true
 		_hud_callout("準備が間に合わない… 引き返す" if not game_state.use_english_ui else "NOT READY - GOING BACK UP", Color(1.0, 0.8, 0.3), 2.0)
-		_play(&"klaxon", -6.0)
 	if stage in [SuddenDeathDescent.Stage.ABORT_SURFACE, SuddenDeathDescent.Stage.ABORTED]:
 		_begin_abort_surface()
 		return
@@ -572,9 +545,6 @@ func _update_descent() -> void:
 			_update_arrival()
 			_begin_intro()
 			return
-	if stage_before == SuddenDeathDescent.Stage.DECEL and stage == SuddenDeathDescent.Stage.ARRIVAL:
-		_play(&"deck_stop", -8.0, 1.2)
-	_audio_call("set_motor", [not _descent.is_finished(), absf(_descent.speed)])
 	if is_instance_valid(_shaft):
 		_shaft.set_motion_speed(_descent.speed)
 	if stage == SuddenDeathDescent.Stage.CRUISE:
@@ -596,14 +566,12 @@ func _update_preparing_panel(waiting_questions: bool) -> void:
 	game_state.sudden_death_preparing_panel = panel
 
 
-## Through the ceiling opening: the hall's big air and reverb (docs 5.6).
+## Through the ceiling opening: the hall's environment takes over.
 func _begin_arrival() -> void:
 	_arrival_started = true
 	_set_env(_hall_env_for_quality(), 0.72, 1.0, 1.4)
 	# Dark hall: only the cool column through the opening until the rows come on.
 	CisternStage.apply_hall_light(_hall_env, 0.0)
-	_audio_call("set_ambience", [&"hall"])
-	_audio_call("set_hall_reverb", [])
 	var cistern := _cistern()
 	if cistern != null:
 		cistern.set_opening_light(1.0)
@@ -627,7 +595,6 @@ func _update_entry() -> void:
 	_env_base_exposure = lerpf(1.0, ENTRY_END_EXPOSURE, smoothstep(1.0, 2.4, _descent.t))
 	if _surface_env != null:
 		_surface_env.tonemap_exposure = _env_base_exposure
-	_lamp_ticks(drop)
 	_set_camera(_descent_path(_descent.t), _descent_path_fov(_descent.t), "A_entry")
 
 
@@ -667,7 +634,6 @@ func _swap_to_underground() -> void:
 			players.begin_pose_handoff(player_index, pose, CAST_HANDOFF)
 	_capture_referee_pose(finale_referee)
 	_set_env(_shaft_env_for_quality(), SHAFT_START_EXPOSURE, 1.0, 1.6)
-	_audio_call("set_ambience", [&"shaft"])
 	if _loader != null:
 		_loader.set_presentable(true)
 		_loader.set_heavy_work_allowed(true)
@@ -728,8 +694,6 @@ func _update_cruise() -> void:
 	_deck_world = _shaft.global_position + Vector3(0.0, _deck_local_y, 0.0) if is_instance_valid(_shaft) else SuddenDeathLayout.LANDING
 	_place_runners_on_deck()
 	_pose_deck_referee()
-	_lamp_ticks(_scroll + 6.2)
-	_audio_call("set_depth_reverb", [clampf(_descent.display_depth / SuddenDeathDescent.DISPLAY_FINAL, 0.0, 1.0)])
 	var down := _descent.shot == SuddenDeathDescent.Shot.DOWN
 	var shot := "C_down" if down else "B_cruise"
 	if _descent.is_aborting():
@@ -794,12 +758,9 @@ func _update_row_lights(arrival_time: float) -> void:
 		var local := arrival_time - on_at
 		var amount := 0.0
 		if local >= 0.0:
-			# Contactor clunk, a brief flicker, then full.
+			# A brief flicker, then full.
 			amount = 1.0 if local > LIGHT_FLICKER * 2.0 else (0.75 if fmod(local, LIGHT_FLICKER) < LIGHT_FLICKER * 0.5 else 0.25)
-			if row >= _row_lights_on:
-				_row_lights_on = row + 1
-				var position_value := Vector3(0.0, SuddenDeathLayout.FLOOR_Y + 7.0, cistern.light_row_z(row))
-				_audio_call("play_at", [&"light_on", position_value, -2.0 - 1.4 * float(row), 1.0 - 0.015 * float(row)])
+			_row_lights_on = maxi(_row_lights_on, row + 1)
 		cistern.set_row_brightness(row, amount)
 		lit += amount
 	if _hall_env != null:
@@ -819,8 +780,6 @@ func _begin_intro() -> void:
 	_countdown_at = INF
 	_flood_at = INF
 	_deck_rise_from = -1.0
-	_play(&"landing")
-	_audio_call("set_motor", [false, 0.0])
 	_capture_camera()
 	if _loader != null:
 		_loader.set_heavy_work_allowed(true)
@@ -834,8 +793,6 @@ func _update_intro() -> void:
 		cistern.update_runtime(_real_dt, game_state.sudden_death)
 	if _cue("shout", t >= INTRO_SHOUT):
 		_hud_call("show_shout", ["SUDDEN DEATH!" if game_state.use_english_ui else "サドンデス！"])
-		_play(&"shout_echo")
-		_play(&"whistle", -3.0)
 	# Both step off their pads and walk to their own lift tower, then the towers lift them.
 	var walk := smoothstep(INTRO_WALK.x, INTRO_WALK.y, t)
 	game_state.sudden_death_walk_mask = 3 if t >= INTRO_WALK.x and t < INTRO_WALK.y else 0
@@ -848,19 +805,14 @@ func _update_intro() -> void:
 		var start := game_state.sudden_death.tuning.lift_height(game_state.sudden_death.tuning.start_margin)
 		for player_index in [1, 2]:
 			cistern.set_tower_target(player_index, start, INTRO_RISE_SPEED)
-		_play(&"deck_release", -3.0, 1.1)
 		_deck_rise_from = t
 		_deck_rise_elapsed = 0.0
 	_place_runners_on_towers(walk)
 	_pose_deck_referee()
 	if _cue("gate", t >= INTRO_GATE):
 		_flood_at = t
-		_play(&"whistle", -2.0, 0.95)
 		if cistern != null:
 			cistern.start_flood()
-			var tunnel := Vector3(0.0, SuddenDeathLayout.TUNNEL_CENTER_Y, SuddenDeathLayout.HALL_START_Z)
-			_audio_call("play_at", [&"gate_open", tunnel, 2.0])
-			_audio_call("play_at", [&"flood_burst", tunnel, 3.0])
 	if cistern != null and _flood_at < INF:
 		cistern.set_inflow_gate(smoothstep(0.0, 1.2, t - _flood_at))
 	if _cue("rules", t >= INTRO_RULES):
@@ -958,7 +910,6 @@ func _update_countdown_hud() -> void:
 func _begin_run() -> void:
 	_act = Act.RUN
 	_act_time = 0.0
-	_last_tick = -1
 	_capture_camera()
 	_run_pose = _camera_from
 	_run_fov = _camera_from_fov
@@ -983,7 +934,6 @@ func _update_run(delta: float) -> void:
 	_place_runners_on_towers(1.0)
 	_hud_call("set_quiz", [_quiz_state(sd)])
 	_update_countdown_hud()
-	_timer_ticks(sd)
 	_update_duel_camera(sd)
 	if sd.phase == SuddenDeathState.Phase.DECIDED and _act == Act.RUN:
 		_begin_return(sd.winner)
@@ -1024,22 +974,6 @@ func _quiz_state(sd: SuddenDeathState) -> Dictionary:
 		"result": sd.result if phase == "result" else "",
 		"margins": [maxi(sd.margin[0], 0), maxi(sd.margin[1], 0)], "max_margin": sd.tuning.start_margin,
 	}
-
-
-## A tick for each of the last three seconds to think or to answer.
-func _timer_ticks(sd: SuddenDeathState) -> void:
-	var remaining := INF
-	if sd.phase == SuddenDeathState.Phase.READING and sd.is_fully_revealed():
-		remaining = sd.reading_remaining()
-	elif sd.phase == SuddenDeathState.Phase.ANSWERING:
-		remaining = sd.tuning.answer_time * sd.answer_fraction()
-	if not is_finite(remaining) or remaining > 3.0:
-		_last_tick = -1
-		return
-	var second := int(ceil(remaining))
-	if second != _last_tick and second > 0:
-		_last_tick = second
-		_play(&"tick", -2.0, 1.0 + 0.08 * float(3 - second))
 
 
 ## The duel shot, leaning toward whoever buzzed, then toward a tower that sinks.
@@ -1092,14 +1026,12 @@ func _begin_return(winner: int) -> void:
 	_stage_time = 0.0
 	_caught_at = -1.0
 	Engine.time_scale = SLOWMO_SCALE
-	_play(&"slowmo")
 	_capture_camera()
 	var cistern := _cistern()
 	if cistern != null:
 		# The loser's tower drops into the water.
 		cistern.set_tower_target(_loser, game_state.sudden_death.tuning.sunk_height(), CisternStage.PLUNGE_SPEED)
 		cistern.set_tower_glow(_loser, 0.0)
-	_audio_call("play_at", [&"deck_stop", _runner_world(_loser), 2.0, 0.7])
 
 
 func _update_return() -> void:
@@ -1151,7 +1083,6 @@ func _update_slowmo() -> void:
 func _begin_pickup() -> void:
 	_hud_call("set_quiz", [{}])
 	_hud_call("show_winner", [_winner])
-	_play(&"win_sting")
 	game_state.sudden_death_presentation_lock = true
 	var cistern := _cistern()
 	if not is_instance_valid(_shaft) or cistern == null:
@@ -1172,7 +1103,6 @@ func _begin_pickup() -> void:
 	_shaft.set_mouth(false, 0.0, 1.0)
 	_shaft.set_daylight(0.0)
 	_shaft.set_depth_signs([])
-	_audio_call("set_motor", [true, 6.0])
 
 
 func _update_pickup() -> void:
@@ -1189,12 +1119,6 @@ func _update_pickup() -> void:
 	if t >= lift_start:
 		var u := clampf((t - lift_start) / LIFT_OFF_TIME, 0.0, 1.0)
 		lift_off = u * u * LIFT_OFF_HEIGHT
-	if _cue("pickup_land", t >= PICKUP_DECK.y):
-		_play(&"deck_stop", -2.0)
-		_audio_call("set_motor", [false, 0.0])
-	if _cue("pickup_lift", t >= lift_start):
-		_play(&"deck_release", -3.0)
-		_audio_call("set_motor", [true, 8.0])
 	var deck_top := SuddenDeathLayout.FLOOR_Y + deck_height + lift_off
 	_deck_world = Vector3(_pickup_center.x, deck_top, _pickup_center.z)
 	if is_instance_valid(_shaft):
@@ -1240,8 +1164,6 @@ func _begin_ascent() -> void:
 		cistern.visible = false
 	game_state.sudden_death_walk_mask = 0
 	_set_env(_shaft_env_for_quality(), 0.7, 1.0, 0.8)
-	_audio_call("set_ambience", [&"shaft"])
-	_audio_call("set_depth_reverb", [1.0])
 	_hud_call("set_letterbox", [1.0])
 	_camera_shot = ""
 
@@ -1257,10 +1179,6 @@ func _update_ascent() -> void:
 		_deck_world = _shaft.global_position + Vector3(0.0, _deck_local_y, 0.0)
 	_place_winner_on_deck()
 	_pose_deck_referee()
-	var display := SuddenDeathDescent.DISPLAY_FINAL * (1.0 - smoothstep(0.0, ASCENT_TIME, t))
-	_lamp_ticks(-_ascent_scroll)
-	_audio_call("set_motor", [true, speed * 0.45])
-	_audio_call("set_depth_reverb", [display / SuddenDeathDescent.DISPLAY_FINAL])
 	_set_camera(_ascent_shot(), 60.0, "R_ascent")
 	if t >= ASCENT_TIME:
 		_begin_surface_return()
@@ -1290,8 +1208,6 @@ func _update_surface() -> void:
 	var t := _stage_time
 	_update_surface_deck(t)
 	game_state.result_return_regrow = smoothstep(SURFACE_REGROW.x, SURFACE_REGROW.y, t)
-	if _cue("regrow", t >= SURFACE_REGROW.x):
-		AudioManager.play_result_cue(&"climb")
 	var stage := ceremony.stage() if ceremony != null else null
 	if stage != null:
 		var flight := -1.0
@@ -1301,13 +1217,9 @@ func _update_surface() -> void:
 	if _cue("drain", t >= SURFACE_DRAIN):
 		if _drain != null:
 			_drain.erupt()
-		_play(&"drain_burst")
 		game_state.camera_shake = maxf(game_state.camera_shake, 0.25)
 	if _cue("loser_land", t >= SURFACE_DRAIN + DRAIN_FLIGHT):
-		_play(&"landing", -4.0, 1.3)
-		AudioManager.play_result_cue(&"sad", 1.0, -3.0)
-		# The stand roars at the soaked loser (docs 2.3: 観客が笑って卵を投げる).
-		AudioManager.play_crowd_cue(&"cheer", -5.0, 1.12)
+		# The stand pelts the soaked loser with eggs (docs 2.3: 観客が笑って卵を投げる).
 		if ceremony != null:
 			ceremony.allow_egg_target = true
 	_surface_camera(t, SURFACE_CAMERA_MATCH, QuizGameState.RESULT_VERDICT_TIME)
@@ -1326,11 +1238,6 @@ func _update_surface_deck(t: float) -> void:
 		_shaft.set_mouth(true, 0.0, 1.0 - smoothstep(SURFACE_IRIS_CLOSE.x, SURFACE_IRIS_CLOSE.y, t))
 		_shaft.set_daylight(1.0)
 		_shaft.set_motion_speed(-8.0 * (1.0 - rise))
-	if _cue("surface_stop", t >= SURFACE_RISE):
-		_play(&"deck_stop", -2.0)
-		_audio_call("set_motor", [false, 0.0])
-	if _cue("iris_close", t >= SURFACE_IRIS_CLOSE.x):
-		_play(&"iris_close")
 
 
 ## Daylight: a high shot over the mouth, then match the finale lens before handing back.
@@ -1364,7 +1271,6 @@ func _release_ceremony() -> void:
 		camera_controller.clear_director_pose()
 	_restore_surface_env()
 	_hud_call("hide_all", [false])
-	_audio_call("stop_all", [])
 	if is_instance_valid(_shaft):
 		_shaft.set_beacons(false)
 		_shaft.set_mouth(true, 0.0, 0.0)
@@ -1415,11 +1321,6 @@ func _update_abort() -> void:
 		_shaft.set_daylight(1.0)
 	var regrow_from := SuddenDeathDescent.SURFACE_TIME
 	game_state.result_return_regrow = smoothstep(regrow_from + ABORT_REGROW.x, regrow_from + ABORT_REGROW.y, t)
-	if _cue("abort_stop", drop <= 0.001):
-		_play(&"deck_stop", -2.0)
-		_audio_call("set_motor", [false, 0.0])
-	if _cue("abort_regrow", t >= regrow_from + ABORT_REGROW.x):
-		AudioManager.play_result_cue(&"climb")
 	_surface_camera(t, Vector2(regrow_from + ABORT_RELEASE - 0.8, regrow_from + ABORT_RELEASE),
 		QuizGameState.SUDDEN_DEATH_ABORT_RESUME_TIME)
 	if t >= regrow_from + ABORT_RELEASE:
@@ -1433,7 +1334,6 @@ func _release_abort() -> void:
 		camera_controller.clear_director_pose()
 	_restore_surface_env()
 	_hud_call("hide_all", [false])
-	_audio_call("stop_all", [])
 	if is_instance_valid(_shaft):
 		_shaft.set_beacons(false)
 		_shaft.set_mouth(true, 0.0, 0.0)
@@ -1449,9 +1349,6 @@ func _after_surface_cut() -> void:
 	_free_deck_props()
 	_surface_env = _duplicate_surface_env()
 	_set_env(_surface_env, 2.0, 1.0, 1.3)
-	_audio_call("set_ambience", [&"none"])
-	_audio_call("set_depth_reverb", [0.0])
-	_audio_call("set_motor", [true, 5.0])
 	_hud_call("set_letterbox", [0.0])
 	if is_instance_valid(_shaft):
 		_shaft.visible = true
@@ -1561,12 +1458,6 @@ func _place_winner_on_deck() -> void:
 		game_state.sudden_death_lift.x = lift
 	else:
 		game_state.sudden_death_lift.y = lift
-
-
-func _runner_world(player_index: int) -> Vector3:
-	if player_index == 1:
-		return Vector3(game_state.player_x, SuddenDeathLayout.FLOOR_Y + game_state.player_y, game_state.player_z)
-	return Vector3(game_state.player2_x, SuddenDeathLayout.FLOOR_Y + game_state.player2_y, game_state.player2_z)
 
 
 func _winner_x() -> float:
@@ -1819,14 +1710,6 @@ func _depth_signs() -> Array:
 	return signs
 
 
-## A short tick each time a lamp ring passes the deck.
-func _lamp_ticks(travel: float) -> void:
-	var index := int(floor(travel / SuddenDeathLayout.SHAFT_TILE_HEIGHT))
-	if index != _lamp_index:
-		_lamp_index = index
-		_play(&"lamp_pass", -13.0, randf_range(0.92, 1.08))
-
-
 func _cue(cue_name: String, due: bool) -> bool:
 	if due and not _cues.has(cue_name):
 		_cues[cue_name] = true
@@ -1843,15 +1726,6 @@ func _ensure_hud() -> void:
 	_hud.setup(game_state.use_english_ui)
 
 
-func _ensure_audio() -> void:
-	if is_instance_valid(_audio):
-		return
-	_audio = SuddenDeathAudio.new()
-	_audio.name = "SuddenDeathAudio"
-	add_child(_audio)
-	_audio.setup()
-
-
 func _hud_call(method: StringName, args: Array) -> void:
 	if is_instance_valid(_hud) and _hud.has_method(method):
 		_hud.callv(method, args)
@@ -1859,15 +1733,6 @@ func _hud_call(method: StringName, args: Array) -> void:
 
 func _hud_callout(text: String, color: Color, duration := 1.2) -> void:
 	_hud_call("callout", [text, color, duration])
-
-
-func _audio_call(method: StringName, args: Array) -> void:
-	if is_instance_valid(_audio) and _audio.has_method(method):
-		_audio.callv(method, args)
-
-
-func _play(cue: StringName, volume_db := 0.0, pitch := 1.0) -> void:
-	_audio_call("play", [cue, volume_db, pitch])
 
 
 ## Back to idle: free everything the sudden death created (menu, retry, next round).
@@ -1884,7 +1749,6 @@ func reset() -> void:
 		camera_controller.clear_director_pose()
 	_restore_surface_env()
 	_hud_call("hide_all", [true])
-	_audio_call("stop_all", [])
 	if is_instance_valid(_shaft):
 		_shaft.visible = false
 		_shaft.set_beacons(false)
@@ -1911,7 +1775,6 @@ func get_debug_snapshot() -> Dictionary:
 		"shaft": _shaft.get_debug_snapshot() if is_instance_valid(_shaft) else {},
 		"cistern": cistern.get_debug_snapshot() if cistern != null else {},
 		"hud": _hud.get_debug_snapshot() if is_instance_valid(_hud) else {},
-		"audio": _audio.get_debug_snapshot() if is_instance_valid(_audio) else {},
 		"deck": _deck_world, "stage_drop": ResultCeremonyDirector.stage_drop,
 		"lift": game_state.sudden_death_lift if game_state != null else Vector2.ZERO,
 		"cruise_frames": frames.size(),

@@ -37,7 +37,6 @@
 | `goal_stand_clips.json` | クリップ長・ループ・卵を放す時刻（0.3秒） |
 | `goal_stand_egg_contents.glb` | （未使用）卵の中身：白身 `GSE_White`（半径1の放射状ディスク）と黄身 `GSE_Yolk`（底が平らな球）。`source/build_egg_contents.py` で作成 |
 | `source/textures/sb_*.png` | 電光掲示板のヘッダー看板・鋼板（Higgsfield）と電球盤（手続き生成）。`prep_scoreboard_textures.py` で作成 |
-| `../audio/sfx/goal_stand/*.ogg` | 歓声・ブーイング・拍手・掛け声3種・卵の投擲/破裂音 |
 
 アニメーション（30fps）：
 
@@ -97,7 +96,6 @@
 | 電光掲示板のヘッダー看板「AIQUIZ STADIUM」 | seedream_5_0_flash | ゲームロゴ（icon.jpg）を参照画像に使用。生成された看板枠（2.5:1）をそのまま使う |
 | 広告3枚（カモメ急便／ひらめきソーダ／マナブ文具） | seedream_5_0_flash | 広告帯をなくしたため未使用（元画像のみ `source/generated/` に残す） |
 | 掲示板の塗装鋼板 | seedream_5_0_flash | 縁取りを落とし、明暗ムラを平坦化してタイル化 |
-| 掛け声6本（よっしゃあああ！最高だー！／やったー！おめでとー！／ふざけんなー！金返せー！／ブーーー！／えーっ！引き分けー？／がんばれー！あとちょっと！） | seed_audio（太郎・Hana） | `synth_crowd_audio.py` で群衆の合成音に重ねる |
 
 生成物の元ファイルは `source/generated/`。
 
@@ -119,7 +117,7 @@ Higgsfield Blender コネクタ（Blender 5.1）で実行する。開いてい�
 - `prep_scoreboard_textures.py` — 掲示板のテクスチャ（ヘッダー看板の切り出し・鋼板のタイル化・電球盤の描画）を `textures/sb_*.png` に書き出す
 - `export_goal_stand.py` — GLB 3種と `goal_stand_clips.json`
 - `preview.py` — 確認用レンダー（`artifacts/goal_stand/blender/`）
-- `key_generated.py` — 生成画像の背景抜き / `synth_crowd_audio.py` — 群衆音の合成と書き出し（ffmpeg）
+- `key_generated.py` — 生成画像の背景抜き
 - `build_all.py` — 上の工程を順に実行
 
 ### 再生成
@@ -135,19 +133,17 @@ ns = {}; exec(open(r"C:/AIQUIZ/AIQUIZ-Godot/assets/goal_stand/source/build_all.p
 ```powershell
 python assets/goal_stand/source/key_generated.py
 python assets/goal_stand/source/prep_scoreboard_textures.py
-python assets/goal_stand/source/synth_crowd_audio.py
 ```
 
 ## Godot 実装
 
-- `scripts/world/goal_stand/goal_stand.gd` — スタンド・観客の生成（1フレーム6人ずつ）と反応、卵の狙い、効果音。
+- `scripts/world/goal_stand/goal_stand.gd` — スタンド・観客の生成（1フレーム6人ずつ）と反応、卵の狙い。
   画質別の人数：HIGH 78 / BALANCED 71 / LOW 48（ホットヘッドは常に6人）。LOW はアニメを30Hz、
   70 m 以遠は15Hz、170 m 以遠は処理停止。
 - `scripts/world/goal_stand/goal_stand_scoreboard.gd` — 電光掲示板の表示（スコア表と勝者カットイン）。
 - `scripts/world/goal_stand/goal_stand_eggs.gd` — 卵の弾道（最後は動く標的に追従）と割れた後の物理（下の「卵の割れ方」）。
 - `scripts/world/game_world.gd` — ゴールラインと同じ条件で生成・配置し、毎フレーム更新。
 - `ResultCeremonyDirector.crowd_egg_target()` / `ResultFinaleStage.egg_target()` — 判定後の卵の標的。
-- `AudioManager.play_crowd_cue()` — 群衆の効果音（初回使用時に読み込み）。
 
 ## 検証
 

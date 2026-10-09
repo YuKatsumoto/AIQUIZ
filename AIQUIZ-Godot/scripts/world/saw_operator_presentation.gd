@@ -10,8 +10,6 @@ class_name SawOperatorPresentation
 const ASSET := "res://assets/hazards/saw_operator/saw_operator.glb"
 const CONSOLE_ASSET := "res://assets/hazards/saw_operator/godot_console_v3.glb"
 const KEEP_FROM_SEAT_ASSET := ["OP_SeatFlightRoot", "OP_MountFrame", "OP_SeatSocket"]
-const HORN_STREAM := preload("res://assets/hazards/saw_operator/console_horn.wav")
-const SWITCH_STREAM := preload("res://assets/hazards/saw_operator/console_switch.wav")
 const MOUNT := Vector3(10.70, 0.0, 0.0) # Stowed above the left end; slides onto its end bracket.
 const FACING_YAW := -PI / 2.0 # Face across the blade row toward its right end.
 const EXTENSION := 2.25
@@ -68,14 +66,8 @@ var contact_errors: Dictionary = {}
 var seat_transfer: SeatLaunchPresentation
 ## Set by the chair transfer while it owns the pose; fades the body motion out.
 var body_weight := 1.0
-## The controller enables sounds only for forward, non-replay time.
-var audio_enabled := false
-var horn_count := 0
-var switch_count := 0
 var _body := Transform3D.IDENTITY
 var _lamps: Dictionary = {} # owner node name -> Array[StandardMaterial3D]
-var _horn: AudioStreamPlayer3D
-var _switch: AudioStreamPlayer3D
 
 func _ready() -> void:
 	station = (load(ASSET) as PackedScene).instantiate()
@@ -104,8 +96,6 @@ func _ready() -> void:
 			bones[key] = index
 			bone_rest[key] = skeleton.get_bone_global_rest(index)
 	_collect_lamps()
-	_horn = _sound(HORN_STREAM, "OP_Horn", -6.0)
-	_switch = _sound(SWITCH_STREAM, "OP_Start", -8.0)
 	_build_support()
 	apply_sample(sample(0.0, 0.0, 0.0, 0.0, false))
 	seat_transfer = preload("res://scripts/world/seat_launch_presentation.gd").new()
@@ -144,17 +134,6 @@ func _collect_lamps() -> void:
 			var owner_name := str(mesh_node.get_parent().name)
 			if not _lamps.has(owner_name): _lamps[owner_name] = []
 			(_lamps[owner_name] as Array).append(lit)
-
-func _sound(stream: AudioStream, at: String, volume: float) -> AudioStreamPlayer3D:
-	var player := AudioStreamPlayer3D.new()
-	player.stream = stream
-	player.bus = "SFX"
-	player.unit_size = 10.0
-	player.volume_db = volume
-	player.max_polyphony = 2
-	var node := controls.get(at) as Node3D
-	(node if node != null else self).add_child(player)
-	return player
 
 # ---------------------------------------------------------------- evaluation helpers
 static func blend(a: float, b: float, value: float) -> float:
@@ -477,7 +456,6 @@ func _control(key: String) -> Node3D:
 
 func apply_sample(value: Dictionary) -> void:
 	if skeleton == null: return
-	var previous := last_sample
 	last_sample = value.duplicate(true)
 	station.position.z = -EXTENSION * float(value.extension)
 	var drop := FLOOR_DROP * float(value.lowering)
@@ -518,7 +496,6 @@ func apply_sample(value: Dictionary) -> void:
 		_lamp("OP_Bar_R%d" % i, clampf(float(value.bar_R)*8.0 - i, 0.0, 1.0))
 	var beacon := float(value.beacon)
 	_lamp("OP_BeaconDome", beacon * (.45 + .55*pow(maxf(0.0,cos(float(value.beacon_angle))),4.0)))
-	_play_events(previous, value)
 	# The fixed station follows its dock even while the chair owns the mascot.
 	if seat_transfer != null and seat_transfer.owns_pose() and not seat_transfer.applying_base:
 		return
@@ -571,20 +548,6 @@ func _needle(gauge: String, value: float) -> void:
 func _lamp(owner_name: String, value: float) -> void:
 	for material: StandardMaterial3D in _lamps.get(owner_name, []):
 		material.emission_energy_multiplier = 2.6*clampf(value,0.0,1.0)
-
-func _play_events(previous: Dictionary, now: Dictionary) -> void:
-	if previous.is_empty() or not audio_enabled: return
-	if float(previous.get("horn",0.0)) < .6 and float(now.horn) >= .6:
-		horn_count += 1
-		if is_inside_tree(): _horn.play()
-	var clunk := (float(previous.get("press",0.0)) < .6 and float(now.press) >= .6)
-	clunk = clunk or (float(previous.get("key",0.0)) < .9 and float(now.key) >= .9)
-	clunk = clunk or (float(previous.get("key",0.0)) > .1 and float(now.key) <= .1)
-	if clunk:
-		switch_count += 1
-		if is_inside_tree():
-			_switch.pitch_scale = .8 if float(now.press) >= .6 else 1.35
-			_switch.play()
 
 func _sk(node: Node3D) -> Vector3:
 	return skeleton.to_local(node.global_position)

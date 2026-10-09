@@ -394,7 +394,7 @@ func _process(dt: float) -> void:
 		saw_running = saw_running or (presented and seat_waiting_dock)
 		_preview_saw.update_preview(dt if saw_running else 0.0)
 		# Skin/emote tabs hide only the walls: the carriage stays in view, racked beside the conveyor.
-		_preview_saw.advance_stow(dt if shown else 0.0, shown)
+		_preview_saw.advance_stow(dt if shown else 0.0)
 		if _seat_departure_requested and _menu_start_departure_active and not seat_waiting_dock:
 			var transfer := _preview_saw.operator_seat.seat_transfer
 			if transfer.phase == SeatLaunchPresentation.Phase.IDLE: transfer.begin_buckle()

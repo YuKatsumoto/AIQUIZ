@@ -15,7 +15,6 @@ var _caught_lifts: Dictionary = {}
 var _landing_spin_elapsed := 0.0
 var _last_saw_elapsed := 0.0
 var dock: SawDockPresentation
-var _fallback_spindle: AudioStreamPlayer3D = null
 var operator_seat: SawOperatorPresentation
 var _operator_distance := 0.0
 var _operator_elapsed := 0.0
@@ -57,9 +56,6 @@ var _stow_from: Dictionary = {} # cross-fade source
 var _stow_fade := 1.0
 var _spin_extra := 0.0 # Coasting spin accumulated while the preview clock is frozen.
 var _last_wheel_distance := 0.0
-var _stow_servo: AudioStreamPlayer3D
-var _stow_latch: AudioStreamPlayer3D
-var _stow_horn: AudioStreamPlayer3D
 var _beacons: Array[Array] = [] # [MeshInstance3D, surface, lit material]
 var _beacon_time := 0.0
 var _lifts := PackedFloat32Array() # last chase lift per blade
@@ -173,9 +169,6 @@ func _setup_stow() -> void:
 		_tower_bones.append(bone)
 		_tower_turns.append(Quaternion((rest_rotation.inverse() * parked).normalized().get_axis(), PI - TOWER_HANG_TILT))
 	_tower_hold_p = _tower_rest_span()
-	_stow_servo = _stow_audio("StowServo", "dock_servo.wav", true, -24.0)
-	_stow_latch = _stow_audio("StowLatch", "dock_latch.wav", false, -14.0)
-	_stow_horn = _stow_audio("StowHorn", "stow_alarm.wav", false, -15.0)
 	for node: Node in model.find_children("*", "MeshInstance3D", true, false):
 		var mesh_instance := node as MeshInstance3D
 		if mesh_instance.mesh == null: continue
@@ -189,8 +182,8 @@ func _setup_stow() -> void:
 			mesh_instance.set_surface_override_material(surface, lit)
 			_beacons.append([mesh_instance, surface, lit])
 
-## Sidecar written by tools/saw_stow/build_stow.py (stage "sidecar"): events, wall/chair intervals and
-## 30 Hz speed curves on the stow clock p. Without it the stow still plays, conservatively: walls break
+## Sidecar written by tools/saw_stow/build_stow.py (stage "sidecar"): wall/chair intervals and the
+## 30 Hz speed curve on the stow clock p. Without it the stow still plays, conservatively: walls break
 ## for the whole move and the operator chair never launches while the rack is off its rest.
 static func load_stow_data(path: String, clip_length: float) -> Dictionary:
 	var data: Dictionary = {}
@@ -202,31 +195,12 @@ static func load_stow_data(path: String, clip_length: float) -> Dictionary:
 		"length": length,
 		"brake_seconds": float(data.get("brake_seconds", 1.3)),
 		"curve_rate": float(data.get("curve_rate", 30.0)),
-		"events": data.get("events", {}),
 		"wall_block": data.get("wall_block", [{"from": 0.0, "to": length, "reach_y": 2.0}]),
 		"station_airspace": data.get("station_airspace", [0.0, length]),
 		"chair_column": data.get("chair_column", [0.0, length]),
 		"speed_env": PackedFloat32Array(data.get("speed_env", [4.5])),
-		"hydraulic": PackedFloat32Array(data.get("hydraulic", [1.0])),
 		"fallback": data.is_empty(),
 	}
-
-func _stow_audio(label: String, file: String, looped: bool, gain: float) -> AudioStreamPlayer3D:
-	var player := AudioStreamPlayer3D.new()
-	player.name = label
-	player.process_mode = Node.PROCESS_MODE_PAUSABLE
-	var stream := load("res://assets/audio/sfx/" + file).duplicate() as AudioStreamWAV
-	if looped:
-		stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
-		stream.loop_begin = 0
-		stream.loop_end = int(round(stream.get_length() * stream.mix_rate))
-	player.stream = stream
-	player.bus = "SFX"
-	player.volume_db = gain
-	player.unit_size = 15.0
-	player.max_distance = 55.0
-	add_child(player)
-	return player
 
 func is_stow_clear() -> bool:
 	return _stow_p <= 0.0 and _stow_rate == 0.0
@@ -322,20 +296,17 @@ func _stow_curve(key: String, p: float) -> float:
 ## Advances the stow toward stow_target in fixed 1/240 s steps, so p(t) does not depend on the frame
 ## rate. A reversal decelerates the machine at STOW_REVERSE_ACCEL before the other clip takes over.
 ## The menu freezes the preview clock whenever the saw is not clear, so the coasting spin is integrated
-## here to keep the angle continuous. audible = false (hidden tab) keeps the motion but not its sound.
-func advance_stow(dt: float, audible: bool = true) -> void:
+## here to keep the angle continuous.
+func advance_stow(dt: float) -> void:
 	if model == null: _load_model()
 	if _stow_anims.is_empty(): return
 	if is_stow_clear() and not stow_target:
 		_stow_acc = 0.0
-		var laying := _step_tower_lay(dt)
-		if laying:
+		if _step_tower_lay(dt):
 			_apply_tower_lay()
 			skeleton.force_update_all_bone_transforms()
-		_drive_servo(audible and dt > 0.0, 0.45 if laying else 0.0)
 		return
 	var step := maxf(dt, 0.0)
-	var events: Dictionary = {}
 	_stow_acc += step / STOW_STEP
 	var steps := int(_stow_acc + 0.000001)
 	_stow_acc -= steps
@@ -347,23 +318,10 @@ func advance_stow(dt: float, audible: bool = true) -> void:
 		_stow_lifts = _lifts.duplicate()
 		# The carriage coasts to a stop under the operator's hand as the stow begins.
 		if operator_seat != null and not operator_seat.last_sample.is_empty(): _stow_drive = float(operator_seat.last_sample.drive)
-	var lay_before := _tower_lay
 	for i: int in steps:
-		_stow_tick(events)
+		_stow_tick()
 	if steps > 0: _sample_stow()
-	var sounding := audible and step > 0.0
-	if sounding and events.has("horn"):
-		_stow_horn.global_position = global_position + Vector3.UP * 2.3
-		_stow_horn.play()
-	if sounding and events.has("latch"):
-		_stow_latch.global_position = global_position + Vector3.UP
-		_stow_latch.play()
-	_drive_servo(sounding, maxf(_stow_curve("hydraulic", _stow_p) * absf(_stow_rate), 0.45 if _tower_lay != lay_before else 0.0))
-	if not sounding:
-		_stow_horn.stop()
-		_stow_latch.stop()
 	_step_retreat(step)
-	if dock != null: dock.update_audio(sounding, _preview_spin_rate(), global_position)
 	_update_beacons(step)
 	_apply_spin(_preview_spin_seconds(), _last_wheel_distance)
 	if is_stow_clear():
@@ -371,34 +329,24 @@ func advance_stow(dt: float, audible: bool = true) -> void:
 			if not spin_bones.has(bone): skeleton.reset_bone_pose(bone)
 		_apply_tower_lay()
 		skeleton.force_update_all_bone_transforms()
-	_update_operator_stow(step, sounding)
+	_update_operator_stow(step)
 
 ## The menu chase and preview clocks stop while the blades are racked, so the stow clock p drives
 ## the operator: STOW on the BLADE stick, watch the rack, duck while it passes overhead, look back as
 ## it parks, and the waiting vignettes while stowed. Deploy plays the same p backwards.
-func _update_operator_stow(dt: float, audible: bool) -> void:
+func _update_operator_stow(dt: float) -> void:
 	if operator_seat == null or operator_seat.seat_transfer.owns_pose() or operator_seat.last_sample.is_empty(): return
 	var length := stow_length()
 	if _stow_p >= length:
 		_stow_idle = maxf(_stow_idle, 0.0) + dt
 	elif _stow_p <= length - SawOperatorPresentation.STOW_REST_FADE:
 		_stow_idle = -1.0 # The stowed vignettes have faded out; the next rest starts fresh.
-	operator_seat.audio_enabled = audible
 	operator_seat.apply_sample(SawOperatorPresentation.sample(
 		dock.elapsed if dock != null else SawDockPresentation.FINISH_TIME, _preview_elapsed,
 		_stow_drive * (1.0 - smoothstep(0.0, .6, _stow_p)), 0.0, true, 0.0, 0.0,
 		{"rpm": _preview_spin_rate(), "stow": _stow_p, "stow_length": length, "stow_rate": _stow_rate, "stow_idle": _stow_idle}))
 
-func _drive_servo(sounding: bool, drive: float) -> void:
-	if sounding and drive > 0.02:
-		if not _stow_servo.playing: _stow_servo.play()
-		_stow_servo.pitch_scale = 0.72 + 0.34 * drive
-		_stow_servo.volume_db = lerpf(-34.0, -20.0, drive)
-		_stow_servo.global_position = global_position + Vector3.UP
-	elif _stow_servo.playing:
-		_stow_servo.stop()
-
-func _stow_tick(events: Dictionary) -> void:
+func _stow_tick() -> void:
 	var length := stow_length()
 	var want := 1.0 if stow_target else -1.0
 	if (want > 0.0 and _stow_p >= length) or (want < 0.0 and _stow_p <= 0.0): want = 0.0
@@ -412,7 +360,6 @@ func _stow_tick(events: Dictionary) -> void:
 		if _stow_p > 0.0 and _stow_p < length:
 			_stow_from = _stow_pose.duplicate()
 			_stow_fade = 0.0
-	var before := _stow_clip_time()
 	_spin_extra += _preview_spin_rate() * STOW_STEP
 	for i: int in _stow_lifts.size(): _stow_lifts[i] = move_toward(_stow_lifts[i], 0.0, STOW_LIFT_SETTLE * STOW_STEP)
 	_tower_lay = move_toward(_tower_lay, _tower_lay_target(), STOW_STEP / TOWER_LAY_SECONDS)
@@ -424,10 +371,6 @@ func _stow_tick(events: Dictionary) -> void:
 		_stow_p = _tower_hold_p
 		_stow_rate = 0.0
 	_stow_fade = minf(1.0, _stow_fade + STOW_STEP / STOW_CROSSFADE)
-	# Events belong to the clip in its own forward time, so a reversal never replays one.
-	var now := _stow_clip_time()
-	for event: Dictionary in _stow_data.events.get("stow" if _stow_clip == 0 else "deploy", []):
-		if float(event.t) > before and float(event.t) <= now: events[str(event.kind)] = true
 
 ## Once the blades are fully racked the carriage backs away to the end of the belt (the menu chase's
 ## home Z), clear of the playfield; before a deploy it rolls forward to where it stowed. Wheels roll with it.
@@ -546,7 +489,6 @@ func update_preview(dt: float) -> void:
 		position = dock.carriage_position()
 		basis = dock.carriage_basis()
 		_apply_spin(_preview_spin_seconds(), -dock.wheel_distance())
-		dock.update_audio(dt > 0.0, smoothstep(0.0, SawChaseState.SPINUP_SECONDS, _preview_elapsed), global_position)
 	else:
 		_preview_elapsed += dt
 		position = Vector3(0.0, StageConstants.FLOOR_TOP_Y, SawDockPresentation.MENU_Z)
@@ -588,7 +530,6 @@ func _update_operator(gs: QuizGameState, dt: float, menu: bool=false, drive_over
 	var spin: float = _preview_elapsed if menu else _landing_spin_elapsed + gs.saw.elapsed
 	var extra := {"catch": menu_catch} if menu else {}
 	if menu and _stow_p > 0.0: extra.rpm = _preview_spin_rate()
-	operator_seat.audio_enabled = dt > 0.0 and (gs == null or not gs.is_replay)
 	var drive := 0.0
 	if gs != null and not menu:
 		if gs.is_replay: spin = SawChaseState.SPINUP_SECONDS + gs.saw.elapsed
@@ -726,41 +667,9 @@ func _update_lifts(gs: QuizGameState) -> void:
 	_caught_lifts.merge(new_catches)
 	skeleton.force_update_all_bone_transforms()
 
-## Without a dock (the 2P tutorial's saw steps) nothing else owns the blade
-## motor sound, so the carriage runs the dock's spindle loop itself.
-func _update_fallback_spindle(gs: QuizGameState, dt: float) -> void:
-	var speed := smoothstep(0.0, SawChaseState.SPINUP_SECONDS, _landing_spin_elapsed + gs.saw.elapsed)
-	if not gs.is_replay:
-		speed *= gs.saw.stop_speed_ratio()
-	var active := dt > 0.0 and speed > 0.005 and gs.game_state in [Constants.STATE_COUNTDOWN, Constants.STATE_PLAYING]
-	if _fallback_spindle == null:
-		if not active:
-			return
-		_fallback_spindle = AudioStreamPlayer3D.new()
-		_fallback_spindle.name = "FallbackBladeMotor"
-		_fallback_spindle.process_mode = Node.PROCESS_MODE_PAUSABLE
-		var stream := load("res://assets/audio/sfx/dock_spindle.wav").duplicate() as AudioStreamWAV
-		stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
-		stream.loop_begin = 0
-		stream.loop_end = int(round(stream.get_length() * stream.mix_rate))
-		_fallback_spindle.stream = stream
-		_fallback_spindle.bus = "SFX"
-		_fallback_spindle.unit_size = 15.0
-		_fallback_spindle.max_distance = 55.0
-		add_child(_fallback_spindle)
-	if active and not _fallback_spindle.playing:
-		_fallback_spindle.play()
-	elif not active and _fallback_spindle.playing:
-		_fallback_spindle.stop()
-	_fallback_spindle.pitch_scale = lerpf(0.5, 1.5, speed)
-	_fallback_spindle.volume_db = lerpf(-42.0, -26.0, speed)
-
-
 func update_visual(gs: QuizGameState, dt: float = 0.0, players_landed: bool = false, entrance_running: bool = true) -> void:
 	visible = gs.is_saw_visible()
 	if not visible:
-		if dock != null: dock.stop_audio()
-		if _fallback_spindle != null: _fallback_spindle.stop()
 		return
 	if model == null:
 		_load_model()
@@ -784,11 +693,3 @@ func update_visual(gs: QuizGameState, dt: float = 0.0, players_landed: bool = fa
 		operator_seat.seat_transfer.advance_arrival(
 			dt, entrance_running and (dock == null or dock.is_deployed()),
 			gs.game_state in [Constants.STATE_FLYOVER, Constants.STATE_COUNTDOWN, Constants.STATE_PLAYING])
-	if dock != null:
-		var coasting: bool = not gs.is_replay and gs.saw.stopping and gs.saw.stop_speed_ratio() > 0.0
-		var active := entrance_running and dt > 0.0 and (coasting or gs.game_state in [Constants.STATE_PRELOADING, Constants.STATE_WAITING_START, Constants.STATE_FLYOVER, Constants.STATE_COUNTDOWN, Constants.STATE_PLAYING])
-		var speed := smoothstep(0.0, SawChaseState.SPINUP_SECONDS, _landing_spin_elapsed + gs.saw.elapsed)
-		if not gs.is_replay: speed *= gs.saw.stop_speed_ratio()
-		dock.update_audio(active, speed, global_position)
-	else:
-		_update_fallback_spindle(gs, dt)

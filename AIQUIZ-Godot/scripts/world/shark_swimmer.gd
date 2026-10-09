@@ -210,8 +210,6 @@ var _head_bone_index: int = -1
 var _jaw_rest_rotation: Quaternion = Quaternion.IDENTITY
 var _wake_particles: GPUParticles3D = null
 var _surface_spray: GPUParticles3D = null
-var _rush_audio: AudioStreamPlayer3D = null
-var _impact_audio: AudioStreamPlayer3D = null
 var _ghost_breach_particles: GPUParticles3D = null
 var _ghost_aura_particles: GPUParticles3D = null
 var _ghost_breach_ring: MeshInstance3D = null
@@ -867,7 +865,7 @@ func _create_ghost_mount_beacon(beam_index: int, beam_origin: Vector3) -> Node3D
 	beam.set("start_radius", GHOST_MOUNT_BEAM_START_RADIUS)
 	beam.set("emission", 1.5) # 極太ビームだけ暗くする
 	# Preserve each purchased preset's authored emission, pulse, particles, noise,
-	# flares, and audio. Only the gameplay-required dimensions are overridden.
+	# and flares. Only the gameplay-required dimensions are overridden.
 	beam.set("open_amount", 0.0)
 	return beam
 
@@ -1218,9 +1216,6 @@ func is_ghost_charging() -> bool:
 
 
 func play_ghost_impact() -> void:
-	if _impact_audio:
-		_impact_audio.pitch_scale = randf_range(0.96, 1.05)
-		_impact_audio.play()
 	if _surface_spray:
 		_surface_spray.restart()
 
@@ -1362,22 +1357,6 @@ func _setup_attack_effects() -> void:
 	_ghost_breach_ring.name = "GhostBreachRing"
 	_ghost_breach_ring.top_level = true
 	add_child(_ghost_breach_ring)
-
-	_rush_audio = AudioStreamPlayer3D.new()
-	_rush_audio.name = "SharkRushSFX"
-	_rush_audio.bus = "SFX"
-	_rush_audio.max_distance = 90.0
-	_rush_audio.unit_size = 12.0
-	_rush_audio.stream = AudioManager.get_shark_rush_stream()
-	add_child(_rush_audio)
-
-	_impact_audio = AudioStreamPlayer3D.new()
-	_impact_audio.name = "SharkImpactSFX"
-	_impact_audio.bus = "SFX"
-	_impact_audio.max_distance = 100.0
-	_impact_audio.unit_size = 14.0
-	_impact_audio.stream = AudioManager.get_shark_impact_stream()
-	add_child(_impact_audio)
 
 
 func _create_wake_particles() -> GPUParticles3D:
@@ -1641,15 +1620,6 @@ func _update_arcade_attack_effects(delta: float) -> void:
 			aura_target,
 			delta * 2.8
 		)
-	if _rush_audio != null:
-		if arcade_active and _attack_intensity > 0.04:
-			if not _rush_audio.playing:
-				_rush_audio.play()
-			var audible_strength: float = clampf(_attack_intensity, 0.001, 1.0)
-			_rush_audio.volume_db = linear_to_db(audible_strength) - 2.5
-			_rush_audio.pitch_scale = lerpf(0.78, 1.52, _attack_intensity)
-		elif _rush_audio.playing:
-			_rush_audio.stop()
 
 	# Root travel owns the attack distance. A second visual translation used to
 	# push the head through the target before the timer reported a hit.
@@ -1676,8 +1646,6 @@ func _reset_arcade_attack_effects() -> void:
 	if _surface_spray != null:
 		_surface_spray.emitting = false
 		_surface_spray.amount_ratio = 0.0
-	if _rush_audio != null and _rush_audio.playing:
-		_rush_audio.stop()
 	_apply_jaw_pose()
 
 
@@ -2084,10 +2052,6 @@ func _trigger_ghost_breach() -> void:
 		_ghost_breach_ring.scale = Vector3.ONE * 0.42
 		_ghost_breach_ring.visible = true
 		_ghost_breach_ring_elapsed = 0.0
-	if _impact_audio != null:
-		_impact_audio.volume_db = -5.5
-		_impact_audio.pitch_scale = randf_range(1.08, 1.16)
-		_impact_audio.play()
 
 
 func _update_ghost_breach_effect(delta: float) -> void:
@@ -2313,9 +2277,6 @@ func _finish_attack() -> void:
 	# Absorb the strike at contact. Carrying full rush speed into the ambient
 	# path moved the belly over the character while the first debris separated.
 	_velocity *= 0.12
-	if _impact_audio != null:
-		_impact_audio.pitch_scale = randf_range(0.96, 1.05)
-		_impact_audio.play()
 	_set_attack_phase(AttackPhase.AMBIENT)
 	is_attacking = false
 	attack_route_kind = "ambient"

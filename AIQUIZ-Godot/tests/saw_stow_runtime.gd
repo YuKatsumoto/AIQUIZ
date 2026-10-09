@@ -103,7 +103,6 @@ func scenario_full_stow() -> void:
 	var min_abs_x:=INF
 	var max_top:=-INF
 	var beacon_seen:=false
-	var servo_heard:=false
 	var shown:=true
 	while now()<opened+saw.stow_length()+3.5:
 		await frame()
@@ -111,7 +110,6 @@ func scenario_full_stow() -> void:
 		if racked_at<0.0 and saw.is_fully_stowed():racked_at=now()
 		frozen=frozen and is_equal_approx(preview._menu_saw.local_z,chase_z)
 		beacon_seen=beacon_seen or saw.beacons_lit()
-		servo_heard=servo_heard or saw._stow_servo.playing
 		if saw.stow_blocks_walls():
 			if block_since<0.0:block_since=now()
 			# Walls already between the new break line and the cliff break on the next update.
@@ -133,7 +131,6 @@ func scenario_full_stow() -> void:
 	checks.walls_reach_cliff_once_the_machine_leaves_the_belt=cliff
 	checks.beacons_flash_while_working=beacon_seen
 	checks.beacons_dark_when_parked=not saw.beacons_lit()
-	checks.servo_audible=servo_heard
 	notes.stow={"racked_after":snappedf(racked_at-opened,.01),"wall_overrun":snappedf(wall_overrun,.001),"min_blade_abs_x":snappedf(min_abs_x,.001),"max_blade_top":snappedf(max_top,.001)}
 	stage="closing"
 	var closed:=now()

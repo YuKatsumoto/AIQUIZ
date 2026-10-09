@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://d2glkl2sr51p1"
-path="res://.godot/imported/practice_yard_props_PRP_Yard_StampTable_albedo.webp-645478be9719ba73f8acfe3e6fd50a0f.ctex"
+path.s3tc="res://.godot/imported/practice_yard_props_PRP_Yard_StampTable_albedo.webp-645478be9719ba73f8acfe3e6fd50a0f.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "94222b5054659a8a5e52f967fae7a8bc"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/settings_hall/practice_yard_props_PRP_Yard_StampTable_albedo.webp"
-dest_files=["res://.godot/imported/practice_yard_props_PRP_Yard_StampTable_albedo.webp-645478be9719ba73f8acfe3e6fd50a0f.ctex"]
+dest_files=["res://.godot/imported/practice_yard_props_PRP_Yard_StampTable_albedo.webp-645478be9719ba73f8acfe3e6fd50a0f.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

@@ -60,8 +60,8 @@ func run() -> void:
 			"res://scripts/world/result_ceremony_director.gd", "res://scripts/world/result_finale/result_finale_stage.gd",
 			"res://scripts/core/sudden_death/sudden_death_descent.gd", "res://scripts/world/sudden_death/sudden_death_layout.gd",
 			"res://scripts/world/sudden_death/shaft_descent.gd", "res://scripts/world/sudden_death/cistern_stage.gd",
-			"res://scripts/world/sudden_death/sudden_death_loader.gd", "res://scripts/world/sudden_death/sudden_death_audio.gd",
-			"res://scripts/world/sudden_death/surface_drain.gd", "res://scripts/ui/sudden_death_hud.gd",
+			"res://scripts/world/sudden_death/sudden_death_loader.gd", "res://scripts/world/sudden_death/surface_drain.gd",
+			"res://scripts/ui/sudden_death_hud.gd",
 			"res://scripts/ui/result_finale_hud.gd", "res://scripts/world/stage_environment.gd",
 			"res://scripts/world/match_reel/match_reel.gd", "res://scripts/world/sudden_death/flood_tumble.gd",
 			"res://scripts/core/online_fetch.gd", "res://scripts/core/buffered_provider.gd", "res://scripts/core/quiz_provider.gd"]:

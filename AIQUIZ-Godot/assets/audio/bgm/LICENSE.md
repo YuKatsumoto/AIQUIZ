@@ -7,13 +7,20 @@
 - Suno song id: `efe7efd1-dde8-44a5-9348-25bf92c801e6`
 - Suno plan at generation time: TODO (commercial use requires a paid plan at
   the time the song was generated)
-- Source file: `source/quiz_party_loop_original.mp3`
-  (SHA-256 `4A709F91430CD65483091F528382ADBEFBA0C03450BEF2C07FCC2BE3D05530EF`)
+- Extended version (Suno Extend from 82.6 s, then "Get Whole Song"):
+  - Created: 2026-10-09T12:14:18Z
+  - Suno song id: `00fb9656-0cda-4678-a939-9e50d441dbee`
+    (extension clip id `61f22aaa-5c53-4414-92d2-6a592674c6ea`)
+- Source files:
+  - `source/quiz_party_loop_original.mp3`
+    (SHA-256 `4A709F91430CD65483091F528382ADBEFBA0C03450BEF2C07FCC2BE3D05530EF`)
+  - `source/quiz_party_loop_extended_original.mp3` (the delivered loop is cut from this)
+    (SHA-256 `863CBA4DFE59C815D4220EBC107FA560234FF617759DEBC8F029F587E77085DA`)
 - Delivered file SHA-256:
-  `9C85EC27930F95B9275F55E6D62FFDB1F7E50479D16DE6A0D37D114AFE0F5C15`
+  `DD6D87F4913E2105B72B52CA10CE7B670D4F6187704A016A4842A614AC785F96`
 
-The delivered file is a 32-bar seamless loop cut from the source file and
-loudness-normalized. The processing is documented in `docs/bgm_renewal.md`.
+The delivered file is a 65-bar seamless loop cut from the extended source file
+and loudness-normalized. The processing is documented in `docs/bgm_renewal.md`.
 
 # Head in the Sand
 

@@ -21,9 +21,6 @@ func have_players_touched_down() -> bool:
 	return true
 
 const HELICOPTER_GLB := "res://assets/vehicles/helicopter/helicopter_drop.glb"
-## Recorded layers over the generated rotor / landing sounds (see _layer_recorded_sfx).
-const ROTOR_BLADES_GAIN_DB := 8.0
-const LANDING_THUD_GAIN_DB := 9.0
 ## The pilot is the AIQUIZ mascot (ハテナ); its GLB carries its own flat-colour materials.
 const PILOT_GLB := "res://assets/characters/aiquiz_mascot/mascot_model.glb"
 const MENU_FLIGHT_PROFILE_SCENE := preload("res://scenes/menu_helicopter_sequence.tscn")
@@ -58,7 +55,7 @@ const DROP_PRESENTATION_PITCH := deg_to_rad(4.0)
 const DEPART_CLIMB_PITCH := deg_to_rad(-6.0)
 const MAIN_ROTOR_SPEED := 28.0
 const TAIL_ROTOR_SPEED := 42.0
-const ROTOR_FADE_SECONDS := 0.45
+const HOLDER_FREE_DELAY := 0.45
 const MENU_APPROACH_DURATION := 4.40
 const MENU_HOVER_BEFORE_FIRST_DROP := 0.75
 const MENU_P2_DROP_DELAY := 0.35
@@ -130,9 +127,6 @@ var _game_state: QuizGameState = null
 var _player_controller: PlayerController = null
 var _camera_controller: Node3D = null
 var _helicopters: Array[Dictionary] = []
-var _impact_players: Array[AudioStreamPlayer3D] = []
-var _rotor_stream: AudioStream = null
-var _impact_stream: AudioStream = null
 var _phase := "idle"
 var _phase_elapsed := 0.0
 var _total_elapsed := 0.0
@@ -205,8 +199,6 @@ func setup(
 	if packed == null:
 		_skip_missing_asset("the helicopter GLB could not be loaded")
 		return
-	_rotor_stream = _layer_recorded_sfx(_build_rotor_loop(), &"heli_rotor", ROTOR_BLADES_GAIN_DB, true)
-	_impact_stream = _layer_recorded_sfx(_build_landing_impact(), &"runner_land", LANDING_THUD_GAIN_DB, false)
 	var helicopter_count := (
 		clampi(_requested_helicopter_count, 1, 2)
 		if _requested_helicopter_count > 0
@@ -267,7 +259,7 @@ func setup_menu_departure(
 ## Build the extraction scene before the menu is revealed. In particular, the
 ## editable flight profile instantiates a large reference hierarchy; doing that
 ## on Start blocks the main thread even when its resources are already cached.
-## Keep the prepared shot hidden, silent, and paused until the actual click.
+## Keep the prepared shot hidden and paused until the actual click.
 func prepare_menu_departure(
 	game_state: QuizGameState,
 	player_controller: PlayerController,
@@ -444,11 +436,8 @@ func _begin_after_reveal_and_camera() -> void:
 		return
 	for info: Dictionary in _helicopters:
 		var holder := info.get("holder") as Node3D
-		var audio := info.get("audio") as AudioStreamPlayer3D
 		if holder != null:
 			holder.visible = true
-		if audio != null:
-			audio.play()
 	_phase = "departure_pickup" if _menu_departure_mode else "arrival"
 	_phase_elapsed = 0.0
 	_total_elapsed = 0.0
@@ -1118,11 +1107,6 @@ func _update_menu_engine_charge(info: Dictionary, charge: float) -> void:
 			# Shake the visible fuselage without moving the pickup target.
 			var phase := _total_elapsed * 145.0 + int(info.get("player_index", 1)) * 1.7
 			model.position = base_position + Vector3(sin(phase), sin(phase * 1.31) * 0.7, cos(phase * 0.93) * 0.4) * (0.018 + 0.070 * spool)
-	var rotor_audio := info.get("audio") as AudioStreamPlayer3D
-	if rotor_audio != null:
-		var base_pitch := 0.96 if int(info.get("player_index", 1)) == 1 else 1.04
-		rotor_audio.pitch_scale = base_pitch * (1.65 if _menu_boost_started else 1.0 + 0.4 * spool)
-		rotor_audio.volume_db = -10.0 if _menu_boost_started else lerpf(-18.0, -12.0, spool)
 
 
 func _update_menu_rope_ladder_actor(
@@ -1146,9 +1130,6 @@ func _update_menu_rope_ladder_actor(
 		var authored_state := _menu_flight_profile.get_player_state(player_index)
 		if not authored_state.is_empty() and authored_state.has("ladder_deploy"):
 			deploy_progress = clampf(float(authored_state.get("ladder_deploy", deploy_progress)), 0.0, 1.0)
-	if deploy_progress > 0.0 and not bool(info.get("ladder_sfx_played", false)):
-		info["ladder_sfx_played"] = true
-		_play_world_sfx(&"rope_unroll", ladder.global_position)
 	ladder.set_deploy_progress(deploy_progress)
 	# Keep the full rope outside the cabin throughout the hanging departure.
 	ladder.set_winch_progress(0.0)
@@ -1592,7 +1573,6 @@ func _launch_gameplay_jump(info: Dictionary) -> bool:
 	var origin: Vector3 = grab_state.get("character_position", _hatch_release_position(info))
 	var landing := ground + Vector3.UP * 0.9
 	var velocity := _solve_launch_velocity(origin, landing, GP_FLIGHT_DURATION)
-	_play_world_sfx(&"ui_swish", origin)
 	var horizontal := Vector3(velocity.x, 0.0, velocity.z)
 	if not _player_controller.begin_intro_ladder_jump(
 		player_index,
@@ -1630,7 +1610,6 @@ func _update_gameplay_jump(info: Dictionary, delta: float) -> bool:
 		var impact_position: Vector3 = jump_state.get("position", info.get("ground", Vector3.ZERO))
 		info["impact_played"] = true
 		info["first_impact_position"] = impact_position
-		_play_landing_impact(impact_position, player_index)
 		_spawn_menu_landing_dust(impact_position, player_index)
 	if bool(jump_state.get("landed", false)):
 		var ground: Vector3 = info.get("ground", Vector3.ZERO)
@@ -1696,9 +1675,6 @@ func _update_gameplay_helicopter(info: Dictionary, delta: float) -> bool:
 			info["entered_frame_at"] = _phase_elapsed
 			info["lowering_started_at"] = _phase_elapsed
 			_set_gp_phase(info, "lowering")
-			var lowering_holder := info.get("holder") as Node3D
-			if lowering_holder != null:
-				_play_world_sfx(&"rope_unroll", lowering_holder.global_position)
 			phase = "lowering"
 			elapsed = 0.0
 
@@ -1771,8 +1747,6 @@ func _update_drop_boost(info: Dictionary, delta: float) -> void:
 	var boost_rotation := Basis.looking_at(direction, Vector3.UP).get_rotation_quaternion()
 	var model := info.get("model") as Node3D
 	var rest_position: Vector3 = info.get("model_rest_position", Vector3.ZERO)
-	var rotor_audio := info.get("audio") as AudioStreamPlayer3D
-	var base_pitch := 0.96 if int(info.get("player_index", 1)) == 1 else 1.04
 	var rotation_now: Quaternion
 	if t < DROP_BOOST_CHARGE_DURATION:
 		var charge := t / DROP_BOOST_CHARGE_DURATION
@@ -1782,9 +1756,6 @@ func _update_drop_boost(info: Dictionary, delta: float) -> void:
 		if model != null:
 			var shake_phase := _total_elapsed * 145.0 + int(info.get("player_index", 1)) * 1.7
 			model.position = rest_position + Vector3(sin(shake_phase), sin(shake_phase * 1.31) * 0.7, cos(shake_phase * 0.93) * 0.4) * (0.018 + 0.070 * charge)
-		if rotor_audio != null:
-			rotor_audio.pitch_scale = base_pitch * (1.0 + 0.4 * charge)
-			rotor_audio.volume_db = lerpf(-18.0, -12.0, charge)
 	else:
 		var boost_t := t - DROP_BOOST_CHARGE_DURATION
 		var accelerating := minf(boost_t, DROP_BOOST_ACCEL_TIME)
@@ -1795,9 +1766,6 @@ func _update_drop_boost(info: Dictionary, delta: float) -> void:
 		info["rotor_speed_factor"] = 1.8
 		if model != null:
 			model.position = rest_position
-		if rotor_audio != null:
-			rotor_audio.pitch_scale = base_pitch * 1.65
-			rotor_audio.volume_db = -10.0
 		var exhaust := info.get("boost_exhaust") as HelicopterBoostExhaust
 		if exhaust != null and not exhaust.ignited:
 			exhaust.ignite()
@@ -1858,7 +1826,6 @@ func _update_landing_impact(info: Dictionary) -> void:
 		info["first_impact_position"] = ragdoll_position
 		info["impact_played"] = true
 		info["impact_elapsed"] = _total_elapsed
-		_play_landing_impact(ragdoll_position, int(info["player_index"]))
 		if _menu_preview_mode:
 			_spawn_menu_landing_dust(ragdoll_position, int(info["player_index"]))
 			_menu_camera_shake_remaining = MENU_CAMERA_SHAKE_DURATION
@@ -1970,15 +1937,6 @@ func _instantiate_helicopter(packed: PackedScene, player_index: int) -> Dictiona
 	model.add_child(cockpit_light)
 	cockpit_light.position = Vector3(0.0, 0.32, -0.78)
 
-	var audio := AudioStreamPlayer3D.new()
-	audio.name = "RotorLoop"
-	audio.bus = "SFX"
-	audio.stream = _rotor_stream
-	audio.volume_db = -18.0
-	audio.pitch_scale = 0.96 if player_index == 1 else 1.04
-	audio.max_distance = 48.0
-	audio.attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE
-	holder.add_child(audio)
 	# Every aircraft leaves on the tail jet, whether it drops off or picks up.
 	var exhaust := BoostExhaustScript.new() as HelicopterBoostExhaust
 	exhaust.name = "TailBoostExhaust"
@@ -2000,7 +1958,6 @@ func _instantiate_helicopter(packed: PackedScene, player_index: int) -> Dictiona
 		"hatch_left_rotation": hatch_left.rotation,
 		"hatch_right_rotation": hatch_right.rotation,
 		"cabin_light": cabin_light,
-		"audio": audio,
 		"dropped": false,
 		"get_up_started": false,
 		"first_impact_position": Vector3.INF,
@@ -2227,38 +2184,9 @@ func _hatch_release_position(info: Dictionary) -> Vector3:
 	return center - down * 0.08
 
 
-## One-shot positional cue from the AudioManager catalog, freed when done.
-func _play_world_sfx(cue: StringName, world_position: Vector3) -> void:
-	var player := AudioStreamPlayer3D.new()
-	player.bus = "SFX"
-	player.stream = AudioManager.get_sfx_stream(cue)
-	player.volume_db = AudioManager.get_sfx_volume_db(cue) + 4.0
-	player.max_distance = 60.0
-	add_child(player)
-	player.global_position = world_position
-	player.finished.connect(player.queue_free)
-	player.play()
-
-
-func _play_landing_impact(world_position: Vector3, player_index: int) -> void:
-	var impact := AudioStreamPlayer3D.new()
-	impact.name = "P%dLandingImpact" % player_index
-	impact.bus = "SFX"
-	impact.stream = _impact_stream
-	impact.volume_db = -13.0
-	impact.pitch_scale = 0.96 if player_index == 1 else 1.03
-	impact.max_distance = 36.0
-	add_child(impact)
-	impact.global_position = world_position
-	impact.finished.connect(impact.queue_free)
-	_impact_players.append(impact)
-	impact.play()
-
-
 func _cleanup_helicopters(immediate: bool) -> void:
 	for info: Dictionary in _helicopters:
 		var holder := info.get("holder") as Node3D
-		var audio := info.get("audio") as AudioStreamPlayer3D
 		var downwash := info.get("downwash") as GPUParticles3D
 		var rope_ladder := info.get("rope_ladder") as PhysicalRopeLadder
 		if rope_ladder != null and is_instance_valid(rope_ladder):
@@ -2280,21 +2208,12 @@ func _cleanup_helicopters(immediate: bool) -> void:
 				downwash.queue_free()
 			else:
 				get_tree().create_timer(1.1).timeout.connect(downwash.queue_free)
-		if audio != null and is_instance_valid(audio) and audio.playing and not immediate:
-			var tween := create_tween()
-			tween.tween_property(audio, "volume_db", -80.0, ROTOR_FADE_SECONDS)
-			tween.tween_callback(audio.stop)
 		if holder != null and is_instance_valid(holder):
 			if immediate:
 				holder.queue_free()
 			else:
-				get_tree().create_timer(ROTOR_FADE_SECONDS).timeout.connect(holder.queue_free)
+				get_tree().create_timer(HOLDER_FREE_DELAY).timeout.connect(holder.queue_free)
 	_helicopters.clear()
-	for impact: AudioStreamPlayer3D in _impact_players:
-		if impact != null and is_instance_valid(impact):
-			impact.stop()
-			impact.queue_free()
-	_impact_players.clear()
 	if _menu_flight_profile != null and is_instance_valid(_menu_flight_profile):
 		_menu_flight_profile.queue_free()
 	_menu_flight_profile = null
@@ -2795,61 +2714,3 @@ func _emit_presentation_finished(success: bool) -> void:
 		return
 	_presentation_finished_emitted = true
 	presentation_finished.emit(success)
-
-
-## The generated rotor and landing thump are mostly sub-bass, which small
-## speakers drop. A recorded layer rides on the same player, so every existing
-## pitch/volume ramp and fade applies to both.
-func _layer_recorded_sfx(generated: AudioStream, cue: StringName, gain_db: float, looping: bool) -> AudioStream:
-	var recorded := AudioManager.get_sfx_stream(cue)
-	if recorded == null:
-		return generated
-	if recorded is AudioStreamOggVorbis:
-		(recorded as AudioStreamOggVorbis).loop = looping
-	var layered := AudioStreamSynchronized.new()
-	layered.stream_count = 2
-	layered.set_sync_stream(0, generated)
-	layered.set_sync_stream(1, recorded)
-	layered.set_sync_stream_volume(1, gain_db)
-	return layered
-
-
-func _build_rotor_loop() -> AudioStreamWAV:
-	var stream := AudioStreamWAV.new()
-	stream.format = AudioStreamWAV.FORMAT_16_BITS
-	stream.mix_rate = 22050
-	stream.stereo = false
-	stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
-	var sample_count := int(stream.mix_rate * 0.50)
-	stream.loop_begin = 0
-	stream.loop_end = sample_count
-	var bytes := PackedByteArray()
-	bytes.resize(sample_count * 2)
-	for sample_index: int in range(sample_count):
-		var t := float(sample_index) / float(stream.mix_rate)
-		var pulse := 0.62 * sin(TAU * 17.0 * t) + 0.23 * sin(TAU * 34.0 * t)
-		var engine := 0.15 * sin(TAU * 93.0 * t)
-		var sample := int(clampf((pulse + engine) * 0.28, -1.0, 1.0) * 32767.0)
-		bytes[sample_index * 2] = sample & 0xff
-		bytes[sample_index * 2 + 1] = (sample >> 8) & 0xff
-	stream.data = bytes
-	return stream
-
-
-func _build_landing_impact() -> AudioStreamWAV:
-	var stream := AudioStreamWAV.new()
-	stream.format = AudioStreamWAV.FORMAT_16_BITS
-	stream.mix_rate = 22050
-	stream.stereo = false
-	var sample_count := int(stream.mix_rate * 0.28)
-	var bytes := PackedByteArray()
-	bytes.resize(sample_count * 2)
-	for sample_index: int in range(sample_count):
-		var t := float(sample_index) / float(stream.mix_rate)
-		var envelope := exp(-t * 15.0)
-		var tone := sin(TAU * 54.0 * t) + 0.45 * sin(TAU * 81.0 * t)
-		var sample := int(clampf(tone * envelope * 0.42, -1.0, 1.0) * 32767.0)
-		bytes[sample_index * 2] = sample & 0xff
-		bytes[sample_index * 2 + 1] = (sample >> 8) & 0xff
-	stream.data = bytes
-	return stream

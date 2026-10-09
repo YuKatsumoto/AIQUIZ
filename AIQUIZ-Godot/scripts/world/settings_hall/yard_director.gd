@@ -12,7 +12,6 @@ const QUEUE_GLB := "res://assets/settings_hall/godotkun_student_hand.glb"
 const WATCHER_GLBS := ["res://assets/settings_hall/godotkun_student_notes.glb",
 	"res://assets/settings_hall/godotkun_student_doze.glb"]
 const FX_GLB := "res://assets/settings_hall/lecture_fx.glb"
-const SFX_DIR := "res://assets/audio/sfx/lecture/"
 
 const CHECKLIST := Vector3(15.3, 0.0, -1.4)
 const INSTRUCTOR_HOME := Vector3(13.4, 0.0, -1.5)
@@ -179,7 +178,6 @@ func _on_event(name: String) -> void:
 			instructor.face_point(_console_point())
 			_later(0.3, func() -> void:
 				instructor.once("T_Whistle", "T_Idle")
-				_sfx("whistle", instructor.root.position + Vector3(0, 1.2, 0), -4.0)
 				emote(instructor, "anger", 1.6))
 			_later(0.8, func() -> void: _emote_at(_operator_head(), "sweat", 1.6))
 			for w in watchers:
@@ -195,7 +193,6 @@ func _on_event(name: String) -> void:
 		"estop":
 			instructor.face_point(_console_point())
 			instructor.once("T_PointTap", "T_Idle", 0.08)
-			_sfx("chalk_hit", _console_point() + Vector3(0, 1.0, 0), -2.0, 0.55)
 			_later(0.3, func() -> void: emote(instructor, "!", 1.2))
 			_later(2.4, func() -> void:
 				_warning_t = -1.0
@@ -240,7 +237,6 @@ func _stamp_pass() -> void:
 		instructor.once("T_Stamp", "T_Idle")
 		_later(0.75, func() -> void:
 			_place_mark()
-			_sfx("chalk_tap", _console_point() + Vector3(0, 1.0, 0), -6.0, 0.7)
 			emote(instructor, "note", 1.4)
 			for w in watchers:
 				w.loop_for("S_Clap", 2.5, "S_LookBoard")
@@ -324,7 +320,7 @@ func _swap_operator() -> void:
 		next.root.position = QUEUE[1])
 
 
-# ------------------------------------------------------------------ emotes & sound
+# ------------------------------------------------------------------ emotes
 
 func _load_emotes() -> void:
 	var packed := load(FX_GLB) as PackedScene
@@ -377,23 +373,6 @@ func _tick_emotes(delta: float) -> void:
 		node.scale = Vector3.ONE * maxf(0.001, pop * EMOTE_SCALE)
 		keep.append(item)
 	_emotes = keep
-
-
-func _sfx(name: String, at: Vector3, volume_db := 0.0, pitch := 1.0) -> void:
-	var path := SFX_DIR + name + ".wav"
-	if not ResourceLoader.exists(path):
-		return
-	var player := AudioStreamPlayer3D.new()
-	player.stream = load(path)
-	player.bus = &"SFX"
-	player.position = at
-	player.volume_db = volume_db
-	player.pitch_scale = pitch
-	player.unit_size = 8.0
-	player.max_distance = 80.0
-	yard.add_child(player)
-	player.play()
-	player.finished.connect(player.queue_free)
 
 
 func _exit_tree() -> void:

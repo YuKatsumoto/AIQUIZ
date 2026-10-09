@@ -18,10 +18,7 @@ func run(label: String, players: int) -> void:
 	var prepared: HelicopterArrivalDirector = preview.get("_menu_start_departure")
 	var preparation: Dictionary = {}
 	if is_instance_valid(prepared):
-		var silent := true
-		for info: Dictionary in prepared._helicopters:
-			silent = silent and not (info["audio"] as AudioStreamPlayer3D).playing
-		preparation = {"ready": prepared._menu_departure_prepared, "hidden": not prepared.visible, "paused": prepared.process_mode == Node.PROCESS_MODE_DISABLED, "silent": silent, "count": prepared._helicopters.size(), "active": preview.is_game_start_departure_active()}
+		preparation = {"ready": prepared._menu_departure_prepared, "hidden": not prepared.visible, "paused": prepared.process_mode == Node.PROCESS_MODE_DISABLED, "count": prepared._helicopters.size(), "active": preview.is_game_start_departure_active()}
 	var output := "res://artifacts/menu_start/"
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(output))
 	var frames: Array[Dictionary] = []
@@ -75,7 +72,7 @@ func run(label: String, players: int) -> void:
 	report["preparation"] = preparation
 	report["passed"] = saw_departure and count_seen == players and grips.size() == players and report["reached_game"]
 	if label.begins_with("after"):
-		report["passed"] = report["passed"] and early_gap < 50.0 and preparation.get("ready", false) and preparation.get("hidden", false) and preparation.get("paused", false) and preparation.get("silent", false) and not preparation.get("active", true)
+		report["passed"] = report["passed"] and early_gap < 50.0 and preparation.get("ready", false) and preparation.get("hidden", false) and preparation.get("paused", false) and not preparation.get("active", true)
 	var file := FileAccess.open(output + label + "_p%d.json" % players, FileAccess.WRITE)
 	file.store_string(JSON.stringify(report, "\t"))
 	finished = true

@@ -130,7 +130,6 @@ var _mood := {"key": "idle"}
 var _burst_team := 0
 var _burst_until := -1.0
 var _last_mask := 0
-var _cues := {}
 var _update_usec := 0.0
 ## The crowd already started over for the verdict that came back from the sudden death.
 var _sudden_death_refreshed := false
@@ -615,7 +614,6 @@ func _update(delta: float, state: QuizGameState, director: Node, camera: Camera3
 		_react(s, mood, target)
 		_face(s, focus, target, delta)
 		_update_anger(s, delta)
-	_update_sounds(mood, state, distance)
 	# Animation cost scales with distance; far away the crowd freezes in pose.
 	if distance <= ACTIVE_DISTANCE:
 		var interval := FAR_STEP if distance > FULL_RATE_DISTANCE else NEAR_STEP
@@ -627,9 +625,7 @@ func _update(delta: float, state: QuizGameState, director: Node, camera: Camera3
 			_anim_accumulators[group] = 0.0
 			for index: int in range(group, spectators.size(), ANIM_GROUPS):
 				spectators[index].ap.advance(step)
-	for impact: Dictionary in eggs.update(delta, camera):
-		if is_instance_valid(AudioManager) and AudioManager.has_method("play_crowd_cue"):
-			AudioManager.play_crowd_cue(&"egg_splat", -3.0 if impact.hit else -8.0, _rng.randf_range(0.88, 1.15))
+	eggs.update(delta, camera)
 	if String(_mood.get("key", "")) == "verdict" and mood.key != "verdict":
 		_reset_reactions()
 	_mood = mood
@@ -650,7 +646,7 @@ func _read_mood(state: QuizGameState, director: Node) -> Dictionary:
 	if state.result_presentation_active and director != null and director.has_method("result_elapsed"):
 		var t: float = director.result_elapsed()
 		if t >= Motion.VERDICT:
-			return {"key": "verdict", "winner": state.result_winner, "eggs": true, "since": t - Motion.VERDICT}
+			return {"key": "verdict", "winner": state.result_winner, "eggs": true}
 		if t >= Motion.beat("climb"):
 			return {"key": "nervous"}
 		return {"key": "applause"}
@@ -658,7 +654,7 @@ func _read_mood(state: QuizGameState, director: Node) -> Dictionary:
 		Constants.STATE_GOAL_RACE:
 			return {"key": "hype"}
 		Constants.STATE_CLEAR:
-			return {"key": "verdict", "winner": state.goal_winner, "eggs": false, "since": 0.0}
+			return {"key": "verdict", "winner": state.goal_winner, "eggs": false}
 	return {"key": "idle"}
 
 
@@ -673,7 +669,6 @@ func _track_arrivals(state: QuizGameState) -> void:
 		return
 	_burst_team = 1 if fresh & 1 else 2
 	_burst_until = _clock + 2.8
-	_cue(StringName("cheer_%d_%d" % [_burst_team, int(_clock * 10.0)]), &"cheer", -4.0)
 
 
 func _egg_target(director: Node) -> Node3D:
@@ -795,8 +790,8 @@ func _arm_waiting_throwers(armed: bool) -> void:
 
 ## Back from the sudden death the verdict is out again, now with a winner
 ## (docs/sudden_death_underground.md 2.3): the crowd starts over as for a fresh
-## verdict. Boards flip back and old eggs are cleared, the
-## cheer and boo are cued again, and every spectator reacts to the new verdict.
+## verdict. Boards flip back and old eggs are cleared, and every spectator
+## reacts to the new verdict.
 func _refresh_after_sudden_death(state: QuizGameState, mood: Dictionary) -> void:
 	if state.sudden_death_winner <= 0:
 		_sudden_death_refreshed = false
@@ -805,7 +800,6 @@ func _refresh_after_sudden_death(state: QuizGameState, mood: Dictionary) -> void
 		return
 	_sudden_death_refreshed = true
 	_reset_reactions()
-	_cues.clear()
 	for s: Spectator in spectators:
 		s.mood = ""
 		s.queued = &""
@@ -842,11 +836,6 @@ func _launch_egg(s: Spectator, target: Node3D) -> void:
 		aim = Vector3(aim.x, StageConstants.FLOOR_TOP_Y, aim.z) + side * _rng.randf_range(0.9, 1.6)
 	var flight := clampf(start.distance_to(aim) / EGG_SPEED, 0.8, 1.5)
 	eggs.launch(start, aim, flight, target, miss)
-	# Every throw sounds (not a one-off cue, which would pile up ids for ever).
-	if is_instance_valid(AudioManager) and AudioManager.has_method("play_crowd_cue"):
-		AudioManager.play_crowd_cue(&"egg_throw", -14.0)
-	if eggs.launched == 1:
-		_cue(&"voice_angry", &"voice_angry", -3.0)
 
 
 func _face(s: Spectator, focus: Vector3, target: Node3D, delta: float) -> void:
@@ -867,38 +856,6 @@ func _update_anger(s: Spectator, delta: float) -> void:
 	if absf(s.anger - s.anger_sent) > 0.02:
 		s.anger_sent = s.anger
 		s.body.set_instance_shader_parameter("anger", s.anger)
-
-
-# ------------------------------------------------------------------ sound
-
-func _cue(id: StringName, cue: StringName, volume_db: float) -> void:
-	if _cues.has(id):
-		return
-	_cues[id] = _clock
-	if is_instance_valid(AudioManager) and AudioManager.has_method("play_crowd_cue"):
-		AudioManager.play_crowd_cue(cue, volume_db)
-
-
-func _update_sounds(mood: Dictionary, state: QuizGameState, distance: float) -> void:
-	var key := String(mood.key)
-	if key == "idle":
-		if not _cues.is_empty() and _mood.get("key", "") != "idle":
-			_cues.clear()
-		return
-	if distance > 90.0:
-		return
-	if key == "hype":
-		_cue(&"hype", &"voice_hype", -5.0)
-	elif key == "applause":
-		if state.result_ceremony_elapsed >= QuizGameState.RESULT_ASSEMBLE_DURATION:
-			_cue(&"applause", &"applause", -6.0)
-	elif key == "verdict":
-		var winner := int(mood.get("winner", 0))
-		_cue(&"verdict_cheer", &"cheer", -3.0)
-		if winner == 0:
-			_cue(&"verdict_draw", &"voice_draw", -3.0)
-		elif float(mood.get("since", 0.0)) >= 0.35:
-			_cue(&"verdict_boo", &"boo", -6.0)
 
 
 # ------------------------------------------------------------------ inspection

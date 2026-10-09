@@ -105,8 +105,6 @@ godot --headless --path . --script res://tests/saw_stow_dock_export.gd
 - `artifacts/saw_stow/v2/transport_clearance.json`
 - 復旧コピー：`artifacts/saw_stow/v2/blender/checkpoints/`
 
-警告音は `python tools/saw_stow/build_sfx.py` で `assets/audio/sfx/stow_alarm.wav` を再合成する。
-
 ## 出力と取り込みの注意
 
 - **fps**：シーンは24fpsのまま。変えると `Spin_Loop`（3.333秒）の長さが変わり、ゲーム内の刃の回転速度がずれる。

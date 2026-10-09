@@ -69,17 +69,6 @@ func ignite() -> void:
 		particles.restart()
 		particles.emitting = true
 	set_process(true)
-	# Ignition boom and jet roar ride with the aircraft as it streaks away.
-	var roar := AudioStreamPlayer3D.new()
-	roar.name = "BoostRoar"
-	roar.bus = "SFX"
-	roar.stream = AudioManager.get_sfx_stream(&"heli_boost")
-	roar.volume_db = AudioManager.get_sfx_volume_db(&"heli_boost")
-	roar.unit_size = 14.0
-	roar.max_distance = 140.0
-	add_child(roar)
-	roar.finished.connect(roar.queue_free)
-	roar.play()
 
 ## Render the jet once during the loading prewarm so ignition never compiles
 ## the fire materials mid-flight.

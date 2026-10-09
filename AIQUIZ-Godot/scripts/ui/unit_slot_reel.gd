@@ -75,8 +75,6 @@ func start(final_units: PackedStringArray, pool: PackedStringArray) -> void:
 	_spinning = true
 	for r in range(_reels.size()):
 		_reset_reel(r, r < reel_count)
-	if is_instance_valid(AudioManager):
-		AudioManager.play_result_roll()
 	for r in range(reel_count):
 		# 当たりの下にも1段流しておき、止まったときに上下とも隣の単元がうっすら見えるようにする
 		var names := _spin_sequence(pool, SPIN_CELLS + r * SPIN_CELLS_PER_REEL, final_units[r])
@@ -152,11 +150,7 @@ func _on_reel_stopped(reel_index: int, reel_count: int, run_id: int) -> void:
 	border.tween_property(_frame_styles[reel_index], "border_color", COLOR_ACCENT, 0.15)
 	_tweens.append(border)
 	if _stopped_count < reel_count:
-		if is_instance_valid(AudioManager):
-			AudioManager.play_tutorial_step()
 		return
-	if is_instance_valid(AudioManager):
-		AudioManager.play_result_lock()
 	var hold := create_tween()
 	hold.tween_interval(HOLD_AFTER_STOP_SEC)
 	hold.tween_callback(func():

@@ -27,9 +27,6 @@ const REAR_EDGE_WARNING_MAX_BLINK_SPEED := 9.0
 @onready var flash_rect: ColorRect = $FlashRect
 var _shark_impact_flash: float = 0.0
 var _rear_edge_warning_time: float = 0.0
-var _ready_prompt_sounded: bool = false
-var _sfx_counted_score: int = 0
-var _sfx_count_finished: bool = false
 
 ## ゲーム中HUD (3Dシーン上に重ねて表示)
 ## Python版 hud.py の _draw_play 部分に相当
@@ -376,13 +373,8 @@ func _process(_dt: float) -> void:
 		return
 	_shark_impact_flash = maxf(0.0, _shark_impact_flash - _dt * 12.5)
 	# Integrate frequency: multiplying total time by changing proximity jumps phase.
-	var warning_strength := _rear_edge_warning_strength()
-	var warning_speed := lerpf(REAR_EDGE_WARNING_MIN_BLINK_SPEED, REAR_EDGE_WARNING_MAX_BLINK_SPEED, warning_strength)
-	var previous_warning_time := _rear_edge_warning_time
+	var warning_speed := lerpf(REAR_EDGE_WARNING_MIN_BLINK_SPEED, REAR_EDGE_WARNING_MAX_BLINK_SPEED, _rear_edge_warning_strength())
 	_rear_edge_warning_time = fposmod(_rear_edge_warning_time + _dt * warning_speed, TAU)
-	_play_rear_edge_warning_beep(previous_warning_time, warning_strength)
-	if game_state.game_state != Constants.STATE_WAITING_START:
-		_ready_prompt_sounded = false
 	_update_offscreen_player_markers(_dt)
 	if _result_ceremony_overlay != null:
 		_result_ceremony_overlay.update_overlay(_dt)
@@ -534,18 +526,6 @@ func _rear_edge_warning_strength() -> float:
 		0.0,
 		1.0
 	)
-
-
-## One beep at the peak of each red blink (saw or rear edge close behind).
-func _play_rear_edge_warning_beep(previous_time: float, strength: float) -> void:
-	if strength < 0.2 or game_state.game_state != Constants.STATE_PLAYING:
-		return
-	var peak := PI * 0.5
-	var wrapped := _rear_edge_warning_time < previous_time
-	var crossed := (previous_time < peak and _rear_edge_warning_time >= peak) or (
-		wrapped and (previous_time < peak or _rear_edge_warning_time >= peak))
-	if crossed:
-		AudioManager.play_sfx(&"danger_beep", lerpf(-8.0, 0.0, strength), lerpf(0.9, 1.25, strength))
 
 
 func _update_flash() -> void:
@@ -708,15 +688,6 @@ func _show_waiting_start(dt: float) -> void:
 		pl_title.text = "Ready!" if game_state.use_english_ui else "準備完了！"
 		pl_subtitle.text = "Press Enter to begin" if game_state.use_english_ui else "Enterキーでスタート"
 	pl_status.text = "Ready" if game_state.use_english_ui else "準備完了"
-	# Chime once Enter actually works (barrier landed, screen uncovered).
-	if (
-		not _ready_prompt_sounded
-		and world != null
-		and world.has_method("is_start_trigger_ready")
-		and bool(world.call("is_start_trigger_ready"))
-	):
-		_ready_prompt_sounded = true
-		AudioManager.play_sfx(&"ui_ready")
 	pl_progress.visible = false
 	_refresh_start_prompt(game_state.mode == Constants.MODE_TUTORIAL)
 	_blink_timer += dt
@@ -994,7 +965,6 @@ func _build_result_card(is_clear: bool, explanation: String) -> void:
 	_score_anim_timer += 0.016
 	var anim_progress := clampf(_score_anim_timer / 1.5, 0.0, 1.0)
 	anim_progress = 1.0 - pow(1.0 - anim_progress, 3.0)
-	_play_score_count_sfx(anim_progress, current_score + (p2_score if is_2p else 0))
 
 	# ─── Row 1: Score display ───
 	if is_coop:
@@ -1208,22 +1178,6 @@ func _build_tutorial_result(root: VBoxContainer, checklist_text: String) -> void
 	_add_tutorial_recap_card(recap, "10問チャレンジ", "10問を走り切る")
 	_add_tutorial_recap_card(recap, "エンドレス", "オフライン問題で挑戦")
 	_add_tutorial_recap_card(recap, "カスタマイズ", "スキン・帽子・エモート")
-
-
-## The result card is rebuilt every frame; tick each time the counted score
-## changes and ring once when it lands.
-func _play_score_count_sfx(anim_progress: float, total_score: int) -> void:
-	if _score_anim_timer <= 0.02:
-		_sfx_counted_score = 0
-		_sfx_count_finished = false
-	var counted := int(anim_progress * total_score)
-	if counted != _sfx_counted_score:
-		_sfx_counted_score = counted
-		AudioManager.play_sfx(&"ui_score_tick")
-	if anim_progress >= 1.0 and not _sfx_count_finished:
-		_sfx_count_finished = true
-		if total_score > 0:
-			AudioManager.play_sfx(&"ui_score_ding")
 
 
 func _add_tutorial_recap_card(parent: HBoxContainer, title: String, detail: String) -> void:
@@ -1629,7 +1583,6 @@ func _replace_rate_buttons(container: HBoxContainer, good: bool) -> void:
 	container.add_child(feedback)
 
 func _fire_confetti() -> void:
-	AudioManager.play_result_cue(&"confetti")
 	var viewport_size = get_viewport().get_visible_rect().size
 	# Center position (assuming CLEAR! text is somewhat central, slightly top)
 	var center_pos = Vector2(viewport_size.x / 2.0, viewport_size.y * 0.3)

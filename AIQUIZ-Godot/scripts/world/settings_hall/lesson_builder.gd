@@ -307,7 +307,7 @@ func _answer(subject: String, q: Dictionary, h: float, vertical: bool) -> Array:
 
 # ------------------------------------------------------------------ quiz / exam / graduation
 
-## 小テスト・期末テスト（項目 57）: プリントを配る → 解く → チャイムで集める → 教壇で赤ペン採点 → 平均点を書く。
+## 小テスト・期末テスト（項目 57）: プリントを配る → 解く → 集める → 教壇で赤ペン採点 → 平均点を書く。
 func build_test(exam: bool, seed_value: int) -> Array:
 	rng.seed = seed_value
 	var title := "期末テスト" if exam else "小テスト"

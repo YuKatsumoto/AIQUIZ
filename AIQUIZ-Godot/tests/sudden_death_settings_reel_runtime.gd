@@ -449,8 +449,7 @@ func _check_crowd() -> void:
 	await _step_stand(stand, state, director, null, 3.0, true)
 	var shot := stand.get_debug_snapshot()
 	report["crowd_draw"] = {"eggs_launched": shot.eggs_launched, "boo_signs": shot.boo_signs}
-	check("crowd: the draw verdict has its eggs and voice", int(shot.eggs_launched) > 0 and (stand.get("_cues") as Dictionary).has(&"verdict_draw"),
-		[shot.eggs_launched, (stand.get("_cues") as Dictionary).keys()])
+	check("crowd: the draw verdict has its eggs", int(shot.eggs_launched) > 0, shot.eggs_launched)
 	check("crowd: nobody's boards flip on a draw", int(shot.boo_signs) == 0, shot.boo_signs)
 	# Underground (the stand far from the camera, the director has no target).
 	state.game_state = Constants.STATE_SUDDEN_DEATH
@@ -468,8 +467,7 @@ func _check_crowd() -> void:
 	state.result_ceremony_elapsed = director.elapsed
 	await _step_stand(stand, state, director, null, 1.5, false)
 	shot = stand.get_debug_snapshot()
-	var cues := stand.get("_cues") as Dictionary
-	report["crowd_return_waiting"] = {"eggs_launched": shot.eggs_launched, "boo_signs": shot.boo_signs, "cues": cues.keys(), "mood": shot.mood}
+	report["crowd_return_waiting"] = {"eggs_launched": shot.eggs_launched, "boo_signs": shot.boo_signs, "mood": shot.mood}
 	check("crowd: back from the sudden death, old eggs cleared and none thrown without a target", int(shot.eggs_launched) == 0,
 		shot.eggs_launched)
 	var waiting := _hotheads(stand, 1)
@@ -477,7 +475,6 @@ func _check_crowd() -> void:
 		and waiting.all(func(s: GoalStand.Spectator) -> bool: return s.throwing and s.throw_started < 0.0),
 		waiting.map(func(s: GoalStand.Spectator) -> bool: return s.throwing))
 	check("crowd: the winner's hotheads cheer instead", _hotheads(stand, 2).all(func(s: GoalStand.Spectator) -> bool: return not s.throwing))
-	check("crowd: the new verdict is cheered again (the draw's cue is gone)", cues.has(&"verdict_cheer") and not cues.has(&"verdict_draw"), cues.keys())
 	check("crowd: the loser's sign row flips", int(shot.boo_signs) == 3, shot.boo_signs)
 	check("crowd: the side stands follow the new verdict", stand.side_crowd_reaction().get("team", -1) == 2, stand.side_crowd_reaction())
 	# The target shows up and the ceremony goes on: throws start, staggered.
@@ -493,8 +490,7 @@ func _check_crowd() -> void:
 			first_launch = appeared
 		await get_tree().process_frame
 	shot = stand.get_debug_snapshot()
-	cues = stand.get("_cues") as Dictionary
-	report["crowd_return_throwing"] = {"eggs_launched": shot.eggs_launched, "first_launch_after_s": snappedf(first_launch, 0.01), "cues": cues.keys()}
+	report["crowd_return_throwing"] = {"eggs_launched": shot.eggs_launched, "first_launch_after_s": snappedf(first_launch, 0.01)}
 	check("crowd: eggs fly once the target exists", int(shot.eggs_launched) > 0, shot.eggs_launched)
 	# The hotheads never run out: half a minute on, they are still throwing.
 	for frame in range(60 * 30):
@@ -512,7 +508,6 @@ func _check_crowd() -> void:
 	check("crowd: the eggs keep coming without a limit", before > 40 and int(stand.eggs.launched) > before, [before, stand.eggs.launched])
 	check("crowd: endless eggs keep the shell pieces capped", int(stand.eggs.active_counts().shards) <= GoalStandEggs.MAX_SHARDS, stand.eggs.active_counts())
 	check("crowd: the first throw is staggered after the target appears", first_launch >= 0.4, first_launch)
-	check("crowd: boo for the loser", cues.has(&"verdict_boo"), cues.keys())
 	stand.queue_free()
 	for node: Node in [target, director, far_camera]:
 		node.queue_free()

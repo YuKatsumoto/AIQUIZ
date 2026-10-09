@@ -514,7 +514,6 @@ func _on_sfx_changed(value: float) -> void:
 
 func _on_sfx_drag_ended(value_changed: bool) -> void:
 	if value_changed:
-		AudioManager.play_tutorial_step()
 		sfx_tested.emit()
 
 
