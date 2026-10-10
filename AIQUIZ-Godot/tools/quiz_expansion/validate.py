@@ -184,6 +184,9 @@ def validate(paths, bank=None, quiet=False):
                 share = pos.get(k, 0) / n
                 if not 0.15 <= share <= 0.35:
                     warns.append("answer position %d is %.0f%% of items (aim for 20-30%%)" % (k, share * 100))
+            hard = sum(1 for it in items if isinstance(it, dict) and isinstance(it.get("t"), (int, float)) and it["t"] >= 6.5)
+            if hard / n < 0.30:
+                warns.append("only %.0f%% of items have t >= 6.5 (aim for 30%%+ multi-step questions)" % (hard / n * 100))
             units = Counter(it.get("g") for it in items if isinstance(it, dict))
             if len(units) < 8:
                 warns.append("only %d units (aim for 8-15): %s" % (len(units), dict(units)))
