@@ -22,6 +22,9 @@ BANK_PATH = os.path.normpath(os.path.join(HERE, "..", "..", "offline_bank.json")
 SHARD_DIR = os.path.join(HERE, "shards")
 
 SUBJECT_SLUGS = {"算数": "math", "理科": "science", "国語": "japanese", "社会": "social", "英語": "english"}
+# ゲームで選べる学年（scripts/core/constants.gd の SUBJECT_GRADE_OPTIONS と同じ）。
+# 理科・社会の1・2年は生活科、英語は3年から。ここにない学年の問題はゲームで出ない。
+SUBJECT_GRADES = {"理科": range(3, 7), "社会": range(3, 7), "英語": range(3, 7)}
 MAX_Q, MAX_C, MAX_EXP, MAX_G = 90, 30, 120, 12
 NEAR_DUP = 0.85
 _STRIP = re.compile(r"[\s　【】「」『』（）()［］\[\]、。，．,.？?！!・：:〜~ー－\-]")
@@ -144,6 +147,9 @@ def validate(paths, bank=None, quiet=False):
             errs.append("subject '%s' is not one of %s" % (subj, list(SUBJECT_SLUGS)))
         if not isinstance(grade, int) or not 1 <= grade <= 6:
             errs.append("grade must be an int 1-6")
+        elif grade not in SUBJECT_GRADES.get(subj, range(1, 7)):
+            errs.append("%s is not offered for grade %d in the game (grades %d-%d only)"
+                        % (subj, grade, SUBJECT_GRADES[subj][0], SUBJECT_GRADES[subj][-1]))
         items = shard.get("items")
         if not isinstance(items, list) or not items:
             errs.append("items is empty")
