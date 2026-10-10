@@ -15,7 +15,7 @@ import os
 import re
 import sys
 import unicodedata
-from collections import Counter
+from collections import Counter, defaultdict
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 BANK_PATH = os.path.normpath(os.path.join(HERE, "..", "..", "offline_bank.json"))
@@ -29,6 +29,16 @@ _FIGURE = re.compile(r"(図|表|写真|グラフ|イラスト)(のように|を�
 
 
 _DECIMAL = re.compile(r"(?<=\d)\.(?=\d)")
+_TAG = re.compile(r"^【[^】]*】")
+_QUOTED = re.compile(r"「[^」]*」|（[^）]*）|\([^)]*\)")
+_DIGITS = re.compile(r"[0-9０-９.．]+")
+
+
+def _skeleton(q):
+    """Question with quoted parts and numbers blanked, to spot copy-paste templates."""
+    s = _TAG.sub("", unicodedata.normalize("NFKC", q).strip())
+    s = _DIGITS.sub("0", _QUOTED.sub("X", s))
+    return s
 
 
 def norm(text):
@@ -148,6 +158,8 @@ def validate(paths, bank=None, quiet=False):
             for gr, lst in bank[subj].items():
                 existing.extend((norm(it.get("q", "")), "bank %s/%s" % (subj, gr), it.get("q", "")) for it in lst)
         local = {}
+        skeletons = defaultdict(list)
+        longest_correct = 0
         for i, it in enumerate(items):
             errs.extend(check_item(it, i))
             if not isinstance(it, dict) or not isinstance(it.get("q"), str):
@@ -165,6 +177,17 @@ def validate(paths, bank=None, quiet=False):
                 ans = norm(c[a])
                 if len(ans) >= 2 and not ans.isdigit() and ans in norm(it["q"]):
                     warns.append("#%d: answer '%s' appears in the question" % (i, c[a]))
+                if len(c) == 4 and all(isinstance(x, str) for x in c):
+                    others = sorted((len(x) for k, x in enumerate(c) if k != a), reverse=True)
+                    # Only sentence-like choices; short names/words differ in length naturally.
+                    if len(c[a]) >= 12 and len(c[a]) >= 1.4 * others[0]:
+                        warns.append("#%d: correct choice is much longer than the others (length gives it away): %s" % (i, c))
+                    if len(c[a]) > others[0]:
+                        longest_correct += 1
+                exp = it.get("exp")
+                if isinstance(exp, str) and (len(exp) < 15 or norm(exp) == ans):
+                    warns.append("#%d: exp is too thin to teach anything: '%s'" % (i, exp))
+            skeletons[_skeleton(it["q"])].append(i)
             # seq2 is the cached side; compare this item against each earlier text.
             sm = difflib.SequenceMatcher(None, autojunk=False)
             sm.set_seq2(key)
@@ -193,6 +216,12 @@ def validate(paths, bank=None, quiet=False):
             for u, cnt in units.items():
                 if cnt / n > 0.25:
                     warns.append("unit '%s' is %.0f%% of items (max 25%%)" % (u, cnt / n * 100))
+            if longest_correct / n > 0.40:
+                warns.append("the correct choice is the longest in %.0f%% of items (aim for ~25%%; players learn to pick the longest)" % (longest_correct / n * 100))
+            for sk, idxs in skeletons.items():
+                if len(idxs) >= 5 and len(idxs) / n > 0.08:
+                    warns.append("%d items (%.0f%%) share the same question template '%s' (max 8%%; vary the question forms): #%s"
+                                 % (len(idxs), len(idxs) / n * 100, sk, ",".join(map(str, idxs[:12]))))
 
         total_errors += len(errs)
         if not quiet or errs:
