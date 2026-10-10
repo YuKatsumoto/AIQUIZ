@@ -1,6 +1,6 @@
 ﻿import json
 
-filepath = 'c:/AIQUIZ/AIQUIZ-Godot/offline_bank.json'
+filepath = 'AIQUIZ-Godot/offline_bank.json'
 
 with open(filepath, 'r', encoding='utf-8') as f:
     data = json.load(f)
