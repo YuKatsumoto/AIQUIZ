@@ -1,0 +1,1632 @@
+{
+  "subject": "英語",
+  "grade": 5,
+  "batch": "c",
+  "items": [
+    {
+      "q": "7月7日の七夕を、英語ではどう言いますか？",
+      "c": [
+        "the Snow Festival",
+        "the Moon Festival",
+        "the Flower Festival",
+        "the Star Festival"
+      ],
+      "a": 3,
+      "exp": "七夕は星にちなんだ行事なので the Star Festival。Moon（月）はお月見のほう、Flower（花）や Snow（雪）は関係ありません。",
+      "t": 4.0,
+      "g": "季節の行事"
+    },
+    {
+      "q": "We throw beans on Setsubun. It's in February. 節分は何月ですか？",
+      "c": [
+        "1月",
+        "12月",
+        "2月",
+        "3月"
+      ],
+      "a": 2,
+      "exp": "February は2月。節分は立春の前の日で、2月に豆まきをします。January（1月）や March（3月）とまちがえないように。",
+      "t": 5.0,
+      "g": "季節の行事"
+    },
+    {
+      "q": "Halloween is on October thirty-first. ハロウィンは何月何日ですか？",
+      "c": [
+        "10月31日",
+        "11月1日",
+        "10月13日",
+        "10月3日"
+      ],
+      "a": 0,
+      "exp": "thirty-first は「31番目」。thirteenth（13番目）と形が似ているので注意。thirdは3番目です。",
+      "t": 6.5,
+      "g": "季節の行事"
+    },
+    {
+      "q": "Girls' Day（ひなまつり）は March third です。来月がその月になるのは、今が何月のときですか？",
+      "c": [
+        "3月",
+        "1月",
+        "4月",
+        "2月"
+      ],
+      "a": 3,
+      "exp": "Girls' Day は3月3日。「来月が3月」なら、今は3月の前の月の2月です。今が3月だと、来月は4月になります。",
+      "t": 7.0,
+      "g": "季節の行事"
+    },
+    {
+      "q": "New Year's Day は January first です。その前の日の New Year's Eve は何月何日ですか？",
+      "c": [
+        "12月30日",
+        "1月2日",
+        "12月25日",
+        "12月31日"
+      ],
+      "a": 3,
+      "exp": "Eve は「前の日（前の夜）」。元日の前の日は大みそかの12月31日です。12月25日は Christmas です。",
+      "t": 6.5,
+      "g": "季節の行事"
+    },
+    {
+      "q": "We see fireworks at the summer festival. fireworks は日本語で何ですか？",
+      "c": [
+        "かざり",
+        "風船",
+        "ちょうちん",
+        "花火"
+      ],
+      "a": 3,
+      "exp": "fire（火）が入っているので、花火とつなげて覚えられます。夏まつりの夜空で見ることが多いですね。",
+      "t": 4.0,
+      "g": "季節の行事"
+    },
+    {
+      "q": "春・夏・秋・冬を、英語で順番に言ったものはどれですか？",
+      "c": [
+        "winter, spring, summer, autumn",
+        "summer, spring, winter, autumn",
+        "spring, autumn, summer, winter",
+        "spring, summer, autumn, winter"
+      ],
+      "a": 3,
+      "exp": "春 spring、夏 summer、秋 autumn、冬 winter の順。autumn は fall とも言いますが、つづりは autumn と覚えましょう。",
+      "t": 6.5,
+      "g": "季節の行事"
+    },
+    {
+      "q": "Red and yellow leaves are beautiful. 日本では、おもにどの季節に見られますか？",
+      "c": [
+        "autumn",
+        "winter",
+        "summer",
+        "spring"
+      ],
+      "a": 0,
+      "exp": "赤や黄色に色づく葉は、秋 autumn の風景です。もみじは9月から11月ごろに楽しめます。",
+      "t": 4.5,
+      "g": "季節の行事"
+    },
+    {
+      "q": "Cherry blossoms are pink and beautiful. 日本では、おもにどの季節にさきますか？",
+      "c": [
+        "spring",
+        "autumn",
+        "winter",
+        "summer"
+      ],
+      "a": 0,
+      "exp": "さくらは春 spring にさきます。入学式のころにさく地いきが多いので、春と結びつけて覚えましょう。",
+      "t": 4.0,
+      "g": "季節の行事"
+    },
+    {
+      "q": "Tomorrow is Sunday. 今日は何曜日ですか？",
+      "c": [
+        "Monday",
+        "Friday",
+        "Saturday",
+        "Sunday"
+      ],
+      "a": 2,
+      "exp": "日曜日の前の日は土曜日。Tomorrow（明日）が Sunday なので、今日は Saturday です。Friday は2日前になります。",
+      "t": 5.0,
+      "g": "日付と曜日"
+    },
+    {
+      "q": "「30日」を英語で言うとき、正しいつづりはどれですか？",
+      "c": [
+        "thirtyth",
+        "thirdieth",
+        "thirtieth",
+        "thirteenth"
+      ],
+      "a": 2,
+      "exp": "30番目は thirtieth。thirty の y を ie にかえて th をつけます。thirteenth は13番目です。",
+      "t": 5.5,
+      "g": "日付と曜日"
+    },
+    {
+      "q": "The weekend is two days. どの2日ですか？",
+      "c": [
+        "Friday and Saturday",
+        "Saturday and Sunday",
+        "Sunday and Monday",
+        "Thursday and Friday"
+      ],
+      "a": 1,
+      "exp": "weekend は週の終わりの休みで、土曜日と日曜日。学校がある Friday や Monday は入りません。",
+      "t": 5.0,
+      "g": "日付と曜日"
+    },
+    {
+      "q": "Today is October tenth. Sports Day is October twentieth. 運動会まであと何日ですか？",
+      "c": [
+        "11日",
+        "10日",
+        "20日",
+        "9日"
+      ],
+      "a": 1,
+      "exp": "20日 − 10日 = 10日。ふつうは「あと何日」は引き算で求めます。9日や11日は数え方のまちがいです。",
+      "t": 6.5,
+      "g": "日付と曜日"
+    },
+    {
+      "q": "曜日のうち、水曜日の正しいつづりはどれですか？",
+      "c": [
+        "Wensday",
+        "Wendsday",
+        "Wednesday",
+        "Wednsday"
+      ],
+      "a": 2,
+      "exp": "Wednesday は d を読まないので、つづりをまちがえやすい語です。Wed・nes・day と区切って覚えましょう。",
+      "t": 5.0,
+      "g": "日付と曜日"
+    },
+    {
+      "q": "I go to swimming school on Tuesday, Thursday and Saturday. 週に何日行きますか？",
+      "c": [
+        "3日",
+        "2日",
+        "7日",
+        "4日"
+      ],
+      "a": 0,
+      "exp": "Tuesday、Thursday、Saturday の3つなので3日。T で始まる Tuesday と Thursday をかぞえもれしやすいので注意。",
+      "t": 6.5,
+      "g": "日付と曜日"
+    },
+    {
+      "q": "今日は10月10日（土曜日）です。来週の土曜日を、英語で何と言いますか？",
+      "c": [
+        "October seventeenth",
+        "October twentieth",
+        "October fourteenth",
+        "October seventh"
+      ],
+      "a": 0,
+      "exp": "1週間は7日。10日の7日後は17日で、seventeenth です。seventh（7番目）と seventeenth（17番目）をまちがえないように。",
+      "t": 7.5,
+      "g": "日付と曜日"
+    },
+    {
+      "q": "I always eat breakfast. 朝ごはんを食べるのは、どのくらいですか？",
+      "c": [
+        "ときどき",
+        "いつも",
+        "たいてい",
+        "ぜんぜん食べない"
+      ],
+      "a": 1,
+      "exp": "always は「いつも」。usually は「たいてい」、sometimes は「ときどき」、never は「ぜんぜん〜ない」です。",
+      "t": 4.0,
+      "g": "日課と回数"
+    },
+    {
+      "q": "always, sometimes, usually を、回数の多いほうから順にならべたものはどれですか？",
+      "c": [
+        "usually → always → sometimes",
+        "sometimes → usually → always",
+        "always → usually → sometimes",
+        "always → sometimes → usually"
+      ],
+      "a": 2,
+      "exp": "多い順に always（いつも）、usually（たいてい）、sometimes（ときどき）。「いつも」のほうが「たいてい」より回数が多いと覚えましょう。",
+      "t": 7.0,
+      "g": "日課と回数"
+    },
+    {
+      "q": "わたしは、どの日も朝ごはんを食べません。正しい英文はどれですか？",
+      "c": [
+        "I usually eat breakfast.",
+        "I sometimes eat breakfast.",
+        "I always eat breakfast.",
+        "I never eat breakfast."
+      ],
+      "a": 3,
+      "exp": "どの日も食べないなら never。sometimes は「ときどき食べる」で、食べる日があることになります。",
+      "t": 5.5,
+      "g": "日課と回数"
+    },
+    {
+      "q": "I walk to school most days. I take the bus only on a few days. I ( ) take the bus. 合う語は？",
+      "c": [
+        "always",
+        "usually",
+        "sometimes",
+        "never"
+      ],
+      "a": 2,
+      "exp": "ほんの数日だけバスに乗るので sometimes（ときどき）。ほとんどの日は歩くので usually や always は合いません。",
+      "t": 7.0,
+      "g": "日課と回数"
+    },
+    {
+      "q": "I get up at six thirty. School starts at eight fifteen. 起きてから学校が始まるまで、何時間何分ですか？",
+      "c": [
+        "2時間15分",
+        "1時間30分",
+        "1時間15分",
+        "1時間45分"
+      ],
+      "a": 3,
+      "exp": "6時30分から8時15分まで。7時30分まで1時間、そこから8時15分まで45分で、あわせて1時間45分です。",
+      "t": 8.5,
+      "g": "日課と回数"
+    },
+    {
+      "q": "「What time do you go to bed?」への返事として合うものはどれですか？",
+      "c": [
+        "On Sunday night.",
+        "By bus and train.",
+        "In the summer.",
+        "At nine thirty."
+      ],
+      "a": 3,
+      "exp": "What time は「何時」。時こくは at で答えます。on は曜日、in は月、by は乗り物に使う語です。",
+      "t": 4.0,
+      "g": "日課と回数"
+    },
+    {
+      "q": "ア I eat lunch. イ I eat breakfast. ウ I eat dinner. 1日の食事の順にならべたものはどれですか？",
+      "c": [
+        "イ → ア → ウ",
+        "イ → ウ → ア",
+        "ウ → イ → ア",
+        "ア → イ → ウ"
+      ],
+      "a": 0,
+      "exp": "朝ごはん breakfast、昼ごはん lunch、夕ごはん dinner の順です。breakfast は、夜の間の「食べない時間（fast）」を「やぶる（break）」が元の意味。",
+      "t": 6.5,
+      "g": "日課と回数"
+    },
+    {
+      "q": "朝、犬をさんぽに連れていくことを表す英語はどれですか？",
+      "c": [
+        "watch my dog",
+        "walk my dog",
+        "wash my dog",
+        "wake my dog"
+      ],
+      "a": 1,
+      "exp": "walk は「歩く」で、犬には「さんぽさせる」の意味でも使います。wash はあらう、watch は見る、wake は起こす。",
+      "t": 4.5,
+      "g": "日課と回数"
+    },
+    {
+      "q": "「お皿をあらう」を表す英語はどれですか？",
+      "c": [
+        "watch the dishes",
+        "wash the dishes",
+        "carry the dishes",
+        "cook the dishes"
+      ],
+      "a": 1,
+      "exp": "wash は「あらう」。watch（見る）と形が似ています。dishes は「お皿」で、食器をまとめて言う語です。",
+      "t": 4.5,
+      "g": "日課と回数"
+    },
+    {
+      "q": "「What do you usually do on Sundays?」への返事として合うものはどれですか？",
+      "c": [
+        "I read books.",
+        "It's Sunday today.",
+        "At seven o'clock.",
+        "I'm eleven years old."
+      ],
+      "a": 0,
+      "exp": "What do you do? は「何をするか」をたずねる文なので、することを答えます。曜日や年れい、時こくでは答えになりません。",
+      "t": 5.5,
+      "g": "日課と回数"
+    },
+    {
+      "q": "Mai always walks. Ken never walks. Ryo sometimes walks. Aya usually walks. 毎日歩くのはだれですか？",
+      "c": [
+        "Ken",
+        "Aya",
+        "Mai",
+        "Ryo"
+      ],
+      "a": 2,
+      "exp": "always は「いつも」なので毎日歩くのは Mai。Aya の usually は「たいてい」で、歩かない日もあります。",
+      "t": 7.0,
+      "g": "日課と回数"
+    },
+    {
+      "q": "I get up at six on school days. I get up at eight on Sundays. 日曜日は、学校がある日より何時間おそく起きますか？",
+      "c": [
+        "1時間",
+        "14時間",
+        "2時間",
+        "3時間"
+      ],
+      "a": 2,
+      "exp": "8時 − 6時 = 2時間。6と8をたして14とするのはまちがいです。school days は「学校がある日」です。",
+      "t": 6.5,
+      "g": "日課と回数"
+    },
+    {
+      "q": "I get up at six. I walk my dog. Then I eat breakfast. 犬のさんぽの、すぐあとにすることはどれですか？",
+      "c": [
+        "ふろに入る",
+        "学校へ行く",
+        "起きる",
+        "朝ごはんを食べる"
+      ],
+      "a": 3,
+      "exp": "Then は「それから」。walk my dog のあとは Then I eat breakfast なので朝ごはんです。",
+      "t": 6.0,
+      "g": "日課と回数"
+    },
+    {
+      "q": "The third period is science. The fourth period is P.E. 体育は何時間目ですか？",
+      "c": [
+        "5時間目",
+        "4時間目",
+        "2時間目",
+        "3時間目"
+      ],
+      "a": 1,
+      "exp": "fourth は4番目。third（3番目）が理科、fourth（4番目）が体育です。period は「授業の時間」の意味です。",
+      "t": 5.0,
+      "g": "教科と時間わり"
+    },
+    {
+      "q": "First: math. Second: Japanese. Third: art. Fourth: P.E. 国語のすぐあとの教科はどれですか？",
+      "c": [
+        "体育",
+        "算数",
+        "音楽",
+        "図工"
+      ],
+      "a": 3,
+      "exp": "国語 Japanese は2番目 second。すぐあとの third（3番目）は art（図工）です。体育は4番目です。",
+      "t": 6.5,
+      "g": "教科と時間わり"
+    },
+    {
+      "q": "difficult（むずかしい）の反対の意味の語はどれですか？",
+      "c": [
+        "easy",
+        "hard",
+        "fun",
+        "long"
+      ],
+      "a": 0,
+      "exp": "difficult の反対は easy（やさしい）。hard も「むずかしい」に近い意味なので反対ではありません。",
+      "t": 4.5,
+      "g": "教科と時間わり"
+    },
+    {
+      "q": "We have six classes on Monday. Four are in the morning. How many are in the afternoon?",
+      "c": [
+        "ten",
+        "four",
+        "six",
+        "two"
+      ],
+      "a": 3,
+      "exp": "6 − 4 = 2 なので two。morning は午前、afternoon は午後です。six と four をたすと ten になります。",
+      "t": 6.5,
+      "g": "教科と時間わり"
+    },
+    {
+      "q": "I play soccer after school. after school の意味はどれですか？",
+      "c": [
+        "放課後",
+        "夏休み中",
+        "授業の中",
+        "学校へ行く前"
+      ],
+      "a": 0,
+      "exp": "after は「〜のあとで」。after school は「学校のあと」で放課後。反対の before school は登校前です。",
+      "t": 4.0,
+      "g": "教科と時間わり"
+    },
+    {
+      "q": "教科をたずねる英文はどれですか？",
+      "c": [
+        "What sport do you like?",
+        "What subject do you like?",
+        "What animal do you like?",
+        "What color do you like?"
+      ],
+      "a": 1,
+      "exp": "subject が「教科」。sport はスポーツ、color は色、animal は動物をたずねる文です。what のあとの語で聞く内容が決まります。",
+      "t": 4.5,
+      "g": "教科と時間わり"
+    },
+    {
+      "q": "your / What / subject / favorite / is をならべかえて「あなたの好きな教科は何ですか」の文にすると？",
+      "c": [
+        "What favorite is your subject?",
+        "Is what your favorite subject?",
+        "What is your favorite subject?",
+        "What your favorite subject is?"
+      ],
+      "a": 2,
+      "exp": "What のあとに is、つづけて your favorite subject の順にします。たずねる文では What を文のはじめに置きます。",
+      "t": 7.0,
+      "g": "教科と時間わり"
+    },
+    {
+      "q": "Aya: I like running and jumping. 好きな教科として合うのはどれですか？",
+      "c": [
+        "Japanese",
+        "music",
+        "P.E.",
+        "social studies"
+      ],
+      "a": 2,
+      "exp": "走る、とぶはからだを動かす教科。P.E. は physical education（体育）を短くした言い方です。",
+      "t": 4.5,
+      "g": "教科と時間わり"
+    },
+    {
+      "q": "We have lunch after the fourth period. P.E. is the fifth period. 体育は給食の前ですか、あとですか？",
+      "c": [
+        "給食の前",
+        "給食のあと",
+        "朝の会のあと",
+        "給食と同じ時間"
+      ],
+      "a": 1,
+      "exp": "fifth は5番目。4時間目のあとに lunch があり、体育はその次の5時間目なので給食のあとです。",
+      "t": 6.0,
+      "g": "教科と時間わり"
+    },
+    {
+      "q": "正しくない英文はどれですか？",
+      "c": [
+        "We have art on Monday.",
+        "We have math on Wednesday.",
+        "We have English in Friday.",
+        "We have P.E. on Tuesday."
+      ],
+      "a": 2,
+      "exp": "曜日の前には on を使うので on Friday が正しい形。in は in May（5月に）のように月や季節の前に使います。",
+      "t": 7.0,
+      "g": "教科と時間わり"
+    },
+    {
+      "q": "She can ( ) fast.",
+      "c": [
+        "runs",
+        "to run",
+        "run",
+        "running"
+      ],
+      "a": 2,
+      "exp": "can のあとの言葉は、he や she でも s をつけず、もとの形。「She can run fast.」が正しい文です。",
+      "t": 4.5,
+      "g": "できること"
+    },
+    {
+      "q": "Mai says, \"I can't ride a bike, but I can ride a horse.\" 正しい文はどれですか？",
+      "c": [
+        "Mai can ride a bike.",
+        "Mai can ride a horse.",
+        "Mai can't ride a horse.",
+        "Mai can ride both of them."
+      ],
+      "a": 1,
+      "exp": "but の前は can't ride a bike、後ろは can ride a horse。自転車はだめで、馬には乗れるのです。",
+      "t": 7.0,
+      "g": "できること"
+    },
+    {
+      "q": "Ken can swim. Mai can't swim. Ryo can swim. Aya can't swim. 泳げない人はだれとだれですか？",
+      "c": [
+        "Ryo and Aya",
+        "Ken and Ryo",
+        "Mai and Aya",
+        "Ken and Mai"
+      ],
+      "a": 2,
+      "exp": "can't がついている Mai と Aya が泳げない人。can の人は Ken と Ryo です。",
+      "t": 7.0,
+      "g": "できること"
+    },
+    {
+      "q": "I can speak Japanese and English, but I can't speak French. この人が「話せない」と言っている言葉はどれですか？",
+      "c": [
+        "Japanese",
+        "English",
+        "French",
+        "Chinese"
+      ],
+      "a": 2,
+      "exp": "can't のあとの French が話せない言葉。English と Japanese は can の文なので話せます。",
+      "t": 5.5,
+      "g": "できること"
+    },
+    {
+      "q": "Ken can ( ) judo.",
+      "c": [
+        "play",
+        "make",
+        "ride",
+        "do"
+      ],
+      "a": 3,
+      "exp": "judo のような武道は do を使います。サッカーなど球技は play、自転車や馬は ride です。",
+      "t": 5.5,
+      "g": "できること"
+    },
+    {
+      "q": "「わたしは速く走れません。」を表す正しい英文はどれですか？",
+      "c": [
+        "I can't fast run.",
+        "I can't run fast.",
+        "I don't can run fast.",
+        "I can run not fast."
+      ],
+      "a": 1,
+      "exp": "できないことは can't のあとに動きの語を置き、fast（速く）は run のあとにつけます。don't と can をならべることはしません。",
+      "t": 7.0,
+      "g": "できること"
+    },
+    {
+      "q": "Ryo: I can play soccer, but I can't play baseball. I can't swim. リョウについて正しいものはどれですか？",
+      "c": [
+        "サッカーはでき、野球と水泳はできない",
+        "野球はでき、サッカーと水泳はできない",
+        "サッカーも水泳もでき、野球はできない",
+        "サッカーと野球はでき、水泳はできない"
+      ],
+      "a": 0,
+      "exp": "can は「できる」、can't は「できない」。サッカーだけが can で、野球と水泳は can't です。",
+      "t": 8.0,
+      "g": "できること"
+    },
+    {
+      "q": "Mai can cook. Ken can cook, too. 料理ができるのはだれですか？",
+      "c": [
+        "マイだけ",
+        "ケンだけ",
+        "マイとケンの2人",
+        "だれもできない"
+      ],
+      "a": 2,
+      "exp": "too は「〜も」。Ken も cook できるので、Mai と Ken の2人になります。",
+      "t": 5.0,
+      "g": "できること"
+    },
+    {
+      "q": "I can't play the piano, but my sister can. この can のあとにかくれている言葉はどれですか？",
+      "c": [
+        "play the guitar",
+        "sing songs",
+        "play the recorder",
+        "play the piano"
+      ],
+      "a": 3,
+      "exp": "くり返しをさけて、can のあとの play the piano をはぶいています。my sister can = my sister can play the piano。",
+      "t": 7.0,
+      "g": "できること"
+    },
+    {
+      "q": "I can swim, but I can't swim fast. 正しいものはどれですか？",
+      "c": [
+        "泳げないし、速くも泳げない",
+        "泳げて、速くも泳げる",
+        "泳げるが、速くは泳げない",
+        "速く泳げるが、長くは泳げない"
+      ],
+      "a": 2,
+      "exp": "can swim は泳げる、can't swim fast は速くは泳げない。fast（速く）まで読むことが大切です。",
+      "t": 6.5,
+      "g": "できること"
+    },
+    {
+      "q": "「Who is your hero?」でたずねているのはどれですか？",
+      "c": [
+        "あこがれの人",
+        "いちばんの友だち",
+        "同じクラスの人",
+        "家でいちばん年上の人"
+      ],
+      "a": 0,
+      "exp": "hero は「ヒーロー、あこがれの人」。「My hero is my grandfather.」のように答えます。",
+      "t": 4.5,
+      "g": "人物しょうかい"
+    },
+    {
+      "q": "is と are の使い方が正しくない英文はどれですか？",
+      "c": [
+        "She is a teacher.",
+        "He are my friend.",
+        "He is my brother.",
+        "She is my sister."
+      ],
+      "a": 1,
+      "exp": "he や she のあとは are ではなく is。are は you や they のときに使います。",
+      "t": 6.5,
+      "g": "人物しょうかい"
+    },
+    {
+      "q": "Mr. Kato is our P.E. teacher. He is tall and strong. He can run very fast. 正しいものはどれですか？",
+      "c": [
+        "せが低くて、とても速く走れる",
+        "せが高くて、あまり速く走れない",
+        "せが高くて、とても速く走れる",
+        "力が強いが、速くは走れない"
+      ],
+      "a": 2,
+      "exp": "tall はせが高い、strong は力が強い、can run very fast は「とても速く走れる」。short（せが低い）と取りちがえないように。",
+      "t": 7.5,
+      "g": "人物しょうかい"
+    },
+    {
+      "q": "Mai is eleven. 「How old is Mai?」への返事はどれですか？",
+      "c": [
+        "He is eleven.",
+        "She is eleven.",
+        "You are eleven.",
+        "It is eleven."
+      ],
+      "a": 1,
+      "exp": "女の子の Mai は She で受けます。How old は年れいをたずねる言い方です。",
+      "t": 4.0,
+      "g": "人物しょうかい"
+    },
+    {
+      "q": "Ken is from Canada. Aya is from Japan. Ken can play hockey. Aya can do judo. 女の子ができることは？",
+      "c": [
+        "play soccer",
+        "play hockey",
+        "play tennis",
+        "do judo"
+      ],
+      "a": 3,
+      "exp": "女の子の Aya の文は Aya can do judo。hockey は Ken ができることです。",
+      "t": 6.5,
+      "g": "人物しょうかい"
+    },
+    {
+      "q": "「Is Ms. Green your teacher?」「Yes, ( ) is.」( )に入る語はどれですか？",
+      "c": [
+        "it",
+        "she",
+        "he",
+        "you"
+      ],
+      "a": 1,
+      "exp": "Ms. は女の人に使うので she。Is ... ? には Yes, she is. と答えます。",
+      "t": 4.0,
+      "g": "人物しょうかい"
+    },
+    {
+      "q": "「ケンのえんぴつ」を表す正しい英語はどれですか？",
+      "c": [
+        "Ken is pencil",
+        "Ken's pencil",
+        "Ken pencil's",
+        "Kens pencil"
+      ],
+      "a": 1,
+      "exp": "「〜の」は名前のあとに 's をつけます。Mai's bag（マイのかばん）のように使います。",
+      "t": 4.5,
+      "g": "人物しょうかい"
+    },
+    {
+      "q": "Ken is my father's brother. Ken is my ( ).",
+      "c": [
+        "uncle",
+        "aunt",
+        "grandfather",
+        "cousin"
+      ],
+      "a": 0,
+      "exp": "父の兄弟の男の人は uncle（おじさん）。女の人なら aunt です。",
+      "t": 6.5,
+      "g": "人物しょうかい"
+    },
+    {
+      "q": "犬やねこのびょうきやけがを治す仕事の人を表す英語はどれですか？",
+      "c": [
+        "vet",
+        "cook",
+        "nurse",
+        "singer"
+      ],
+      "a": 0,
+      "exp": "vet は動物のお医者さん。nurse は人のかんごをする人、cook は料理人、singer は歌手です。",
+      "t": 4.5,
+      "g": "仕事"
+    },
+    {
+      "q": "She works at a hospital. She helps the doctor and sick people. 仕事は何ですか？",
+      "c": [
+        "doctor",
+        "nurse",
+        "teacher",
+        "farmer"
+      ],
+      "a": 1,
+      "exp": "「医者を助ける」とあるので nurse（かんごし）。doctor は病気をみる医者で、この人が手伝っている相手です。",
+      "t": 6.0,
+      "g": "仕事"
+    },
+    {
+      "q": "He grows rice and vegetables on a farm. What is his job?",
+      "c": [
+        "He is a singer.",
+        "He is a driver.",
+        "He is a florist.",
+        "He is a farmer."
+      ],
+      "a": 3,
+      "exp": "farm は農場、farmer は農場で作物を育てる人。grow は「育てる」の意味です。",
+      "t": 4.5,
+      "g": "仕事"
+    },
+    {
+      "q": "火事のとき、かけつけて火を消すのはだれですか？",
+      "c": [
+        "firefighters",
+        "police officers",
+        "farmers",
+        "bus drivers"
+      ],
+      "a": 0,
+      "exp": "fire（火）を fight（戦う）人で firefighter。police officer はけいさつかんです。",
+      "t": 4.5,
+      "g": "仕事"
+    },
+    {
+      "q": "I can't find my way. 交番にいて道を教えてくれる人を表す英語はどれですか？",
+      "c": [
+        "police officer",
+        "nurse",
+        "firefighter",
+        "pilot"
+      ],
+      "a": 0,
+      "exp": "交番にいるのは police officer。firefighter は消防士、pilot は飛行機の運転をする人です。",
+      "t": 5.0,
+      "g": "仕事"
+    },
+    {
+      "q": "仕事と、はたらく場所の組み合わせとして正しいものはどれですか？",
+      "c": [
+        "farmer – post office",
+        "doctor – hospital",
+        "teacher – aquarium",
+        "baker – library"
+      ],
+      "a": 1,
+      "exp": "doctor は hospital（病院）ではたらきます。パン屋さんは bakery、先生は school など。",
+      "t": 6.0,
+      "g": "仕事"
+    },
+    {
+      "q": "She is ( ) artist.",
+      "c": [
+        "a",
+        "the",
+        "an",
+        "some"
+      ],
+      "a": 2,
+      "exp": "artist は「ア」の音で始まるので a ではなく an。an apple と同じ決まりです。",
+      "t": 5.0,
+      "g": "仕事"
+    },
+    {
+      "q": "I work in a kitchen. I make food for many people. Who am I?",
+      "c": [
+        "I'm a singer.",
+        "I'm a cook.",
+        "I'm a farmer.",
+        "I'm a dentist."
+      ],
+      "a": 1,
+      "exp": "台所 kitchen で料理を作るのは cook。farmer は食材を育てる人です。",
+      "t": 5.0,
+      "g": "仕事"
+    },
+    {
+      "q": "歯がいたいときに、みてもらう人を表す英語はどれですか？",
+      "c": [
+        "vet",
+        "baker",
+        "dentist",
+        "florist"
+      ],
+      "a": 2,
+      "exp": "dentist は歯医者さん。dent は「歯」のこと。vet は動物のお医者さん、baker はパン屋さん、florist は花屋さんです。",
+      "t": 4.5,
+      "g": "仕事"
+    },
+    {
+      "q": "swim（泳ぐ）に -er をつけて「泳ぐ人」にするとき、正しいつづりはどれですか？",
+      "c": [
+        "swimmar",
+        "swimer",
+        "swimmer",
+        "swimmor"
+      ],
+      "a": 2,
+      "exp": "swim は m を2つかさねて swimmer。dance は最後が e なので dancer になります。",
+      "t": 5.5,
+      "g": "仕事"
+    },
+    {
+      "q": "Go straight. Turn left at the bank. Turn right at the post office. 右に曲がるのはどこですか？",
+      "c": [
+        "駅",
+        "銀行",
+        "ゆうびん局",
+        "図書館"
+      ],
+      "a": 2,
+      "exp": "Turn right at the post office. が右に曲がる場所。銀行 bank では Turn left（左）です。",
+      "t": 7.0,
+      "g": "道案内"
+    },
+    {
+      "q": "The library is two blocks ahead. Walking one block takes three minutes. 図書館まで何分かかりますか？",
+      "c": [
+        "3分",
+        "9分",
+        "6分",
+        "5分"
+      ],
+      "a": 2,
+      "exp": "1ブロック3分、2ブロックなので3 × 2 = 6分。ahead は「前のほうに」の意味です。",
+      "t": 7.0,
+      "g": "道案内"
+    },
+    {
+      "q": "道案内の言い方として、まちがっているものはどれですか？",
+      "c": [
+        "Turn left.",
+        "It's on your right.",
+        "Go straight.",
+        "Go to straight."
+      ],
+      "a": 3,
+      "exp": "straight は「まっすぐに」という語で、to はいりません。Go straight. だけで「まっすぐ進む」です。",
+      "t": 6.5,
+      "g": "道案内"
+    },
+    {
+      "q": "知らない人に道をたずねるとき、さいしょに言うことばはどれですか？",
+      "c": [
+        "See you.",
+        "Thank you.",
+        "Excuse me.",
+        "Good night."
+      ],
+      "a": 2,
+      "exp": "Excuse me. は「すみません」。声をかけるときに使います。Thank you. は教えてもらったあとに言います。",
+      "t": 3.5,
+      "g": "道案内"
+    },
+    {
+      "q": "ア Go straight. イ Where is the bank? ウ Thank you. エ You're welcome. 会話の順はどれですか？",
+      "c": [
+        "イ → ア → ウ → エ",
+        "ウ → エ → イ → ア",
+        "ア → イ → ウ → エ",
+        "イ → ウ → ア → エ"
+      ],
+      "a": 0,
+      "exp": "まず場所をたずね、道を教えてもらい、お礼を言って、You're welcome. と返事をします。",
+      "t": 7.5,
+      "g": "道案内"
+    },
+    {
+      "q": "「角」を英語で書くとき、正しいつづりはどれですか？",
+      "c": [
+        "corner",
+        "coner",
+        "conner",
+        "cornar"
+      ],
+      "a": 0,
+      "exp": "corner は cor・ner と区切って覚えましょう。n と r の順番をまちがえやすい語です。",
+      "t": 4.0,
+      "g": "道案内"
+    },
+    {
+      "q": "「Turn left at the traffic light.」どこで左に曲がりますか？",
+      "c": [
+        "信号",
+        "橋",
+        "公園",
+        "駅"
+      ],
+      "a": 0,
+      "exp": "traffic light は「信号」。at は「〜のところで」の意味です。",
+      "t": 4.5,
+      "g": "道案内"
+    },
+    {
+      "q": "駅へ歩くとき、The bank is on your right. 同じ道を反対向きにもどるとき、銀行はどちらがわに見えますか？",
+      "c": [
+        "右がわ",
+        "左がわ",
+        "正面",
+        "後ろ"
+      ],
+      "a": 1,
+      "exp": "向きが反対になると、右と左も入れかわります。行きに on your right なら、帰りは on your left です。",
+      "t": 8.0,
+      "g": "道案内"
+    },
+    {
+      "q": "道をたずねられましたが、その場所を知りません。返事として合うものはどれですか？",
+      "c": [
+        "Sorry, I don't know.",
+        "You're welcome.",
+        "Yes, I can.",
+        "Here you are."
+      ],
+      "a": 0,
+      "exp": "Sorry, I don't know. は「ごめんなさい、知りません」。You're welcome. はお礼への返事、Here you are. は物をわたすときの言葉です。",
+      "t": 6.0,
+      "g": "道案内"
+    },
+    {
+      "q": "Turn left at the first corner. Then turn right at the next corner. 曲がる向きを順に言うとどうなりますか？",
+      "c": [
+        "左 → 左",
+        "左 → 右",
+        "右 → 左",
+        "右 → 右"
+      ],
+      "a": 1,
+      "exp": "first corner で left、そのあと next corner で right。順番どおりに左、右です。",
+      "t": 6.5,
+      "g": "道案内"
+    },
+    {
+      "q": "「The park is behind the school.」公園はどこにありますか？",
+      "c": [
+        "学校の前",
+        "学校のとなり",
+        "学校の中",
+        "学校の後ろ"
+      ],
+      "a": 3,
+      "exp": "behind は「〜の後ろに」。反対の「〜の前に」は in front of、「となり」は next to です。",
+      "t": 5.5,
+      "g": "道案内"
+    },
+    {
+      "q": "I can't find the station. Can you help me? に合う返事はどれですか？",
+      "c": [
+        "Good morning.",
+        "Sure. Go straight.",
+        "See you.",
+        "You're welcome."
+      ],
+      "a": 1,
+      "exp": "Sure. は「いいですよ」。You're welcome. はお礼を言われたときの返事です。",
+      "t": 4.5,
+      "g": "道案内"
+    },
+    {
+      "q": "野菜や果物をたくさん買える店を表す英語はどれですか？",
+      "c": [
+        "library",
+        "stadium",
+        "museum",
+        "supermarket"
+      ],
+      "a": 3,
+      "exp": "market は「市場」。supermarket は食べ物や日用品をまとめて買える大きな店です。library は本をかりる場所、museum は古い物を見る場所です。",
+      "t": 4.0,
+      "g": "町の場所"
+    },
+    {
+      "q": "Mai: I want to see old things and pictures. マイが行くとよい場所はどれですか？",
+      "c": [
+        "a bank",
+        "a stadium",
+        "a museum",
+        "a bakery"
+      ],
+      "a": 2,
+      "exp": "museum は古い物や美術品を見る場所。stadium は試合を見る場所です。",
+      "t": 5.5,
+      "g": "町の場所"
+    },
+    {
+      "q": "「レストラン」の正しいつづりはどれですか？",
+      "c": [
+        "resturant",
+        "restrant",
+        "restaurant",
+        "restaurent"
+      ],
+      "a": 2,
+      "exp": "restaurant は au の部分を落としやすい語。res・tau・rant と区切って覚えましょう。",
+      "t": 5.0,
+      "g": "町の場所"
+    },
+    {
+      "q": "新しい本を買いたいとき、行く店を表す英語はどれですか？",
+      "c": [
+        "bookstore",
+        "hospital",
+        "bakery",
+        "library"
+      ],
+      "a": 0,
+      "exp": "book＋store で本屋さん。library は本をかりる場所なので、買うなら bookstore です。",
+      "t": 4.5,
+      "g": "町の場所"
+    },
+    {
+      "q": "「プール」を表す英語はどれですか？",
+      "c": [
+        "pool",
+        "pull",
+        "pole",
+        "pond"
+      ],
+      "a": 0,
+      "exp": "swimming pool で水泳のプール。pond は池、pole は細長いぼう、pull は引くという意味で、形が似た語です。",
+      "t": 4.5,
+      "g": "町の場所"
+    },
+    {
+      "q": "I want to see a movie. 行く場所はどれですか？",
+      "c": [
+        "a movie theater",
+        "an aquarium",
+        "a bakery",
+        "a fire station"
+      ],
+      "a": 0,
+      "exp": "movie は「えいが」、theater は「げきじょう」。movie theater でえいがを見る場所です。aquarium は水族館です。",
+      "t": 4.5,
+      "g": "町の場所"
+    },
+    {
+      "q": "「市役所」を表す英語はどれですか？",
+      "c": [
+        "city hall",
+        "station",
+        "hospital",
+        "museum"
+      ],
+      "a": 0,
+      "exp": "city は市、hall は大きな建物。city hall は市の仕事をする役所のことです。",
+      "t": 5.0,
+      "g": "町の場所"
+    },
+    {
+      "q": "I want to buy bread for breakfast. Where do I go?",
+      "c": [
+        "a bank",
+        "a bakery",
+        "a bookstore",
+        "a hospital"
+      ],
+      "a": 1,
+      "exp": "bread（パン）を売るのは bakery（パン屋）。bank（銀行）とつづりの始まりが似ているので注意しましょう。",
+      "t": 5.0,
+      "g": "町の場所"
+    },
+    {
+      "q": "Spaghetti is 280 yen. Salad is 190 yen. I'd like both. 合計はいくらですか？",
+      "c": [
+        "470円",
+        "370円",
+        "480円",
+        "460円"
+      ],
+      "a": 0,
+      "exp": "280 + 190 = 470。一の位は 0 + 0、十の位 8 + 9 = 17 で百の位に1くり上がります。",
+      "t": 7.0,
+      "g": "注文とねだん"
+    },
+    {
+      "q": "I have 500 yen. A sandwich is 320 yen. おつりはいくらですか？",
+      "c": [
+        "280円",
+        "180円",
+        "220円",
+        "820円"
+      ],
+      "a": 1,
+      "exp": "500 − 320 = 180。たし算にして820とするのはまちがいです。おつりは change と言います。",
+      "t": 6.5,
+      "g": "注文とねだん"
+    },
+    {
+      "q": "One apple is 80 yen. I'd like three apples. 合計はいくらですか？",
+      "c": [
+        "320円",
+        "240円",
+        "83円",
+        "160円"
+      ],
+      "a": 1,
+      "exp": "80 × 3 = 240。three は3こ。80と3をたすと83になってしまいます。",
+      "t": 6.5,
+      "g": "注文とねだん"
+    },
+    {
+      "q": "「Large or small?」と聞かれました。小さいほうがほしいときの返事はどれですか？",
+      "c": [
+        "No, thank you.",
+        "Small, please.",
+        "Yes, please.",
+        "Large, please."
+      ],
+      "a": 1,
+      "exp": "AかBかを聞かれたら、ほしいほうを言います。Yes, please. では、どちらか分かりません。",
+      "t": 5.0,
+      "g": "注文とねだん"
+    },
+    {
+      "q": "「Would you like some more rice?」と聞かれて、もっとほしいときの返事はどれですか？",
+      "c": [
+        "No, thank you.",
+        "Yes, please.",
+        "You're welcome.",
+        "Here you are."
+      ],
+      "a": 1,
+      "exp": "もっとほしいなら Yes, please.。No, thank you. はことわるときの言い方です。",
+      "t": 4.0,
+      "g": "注文とねだん"
+    },
+    {
+      "q": "I'd like ten ( ).",
+      "c": [
+        "strawberryes",
+        "strawberrie",
+        "strawberrys",
+        "strawberries"
+      ],
+      "a": 3,
+      "exp": "strawberry のように子音＋y で終わる語は、y を i にかえて es をつけます。",
+      "t": 5.5,
+      "g": "注文とねだん"
+    },
+    {
+      "q": "Pizza is 600 yen. Salad is 250 yen. Juice is 150 yen. 800円で、ピザをふくめて買えるのはどれですか？",
+      "c": [
+        "pizza, salad, and juice",
+        "pizza and salad",
+        "two pizzas",
+        "pizza and juice"
+      ],
+      "a": 3,
+      "exp": "ピザ600円＋ジュース150円 = 750円で買えます。ピザ＋サラダは850円で、800円をこえます。",
+      "t": 9.0,
+      "g": "注文とねだん"
+    },
+    {
+      "q": "野菜ではないものはどれですか？",
+      "c": [
+        "banana",
+        "onion",
+        "carrot",
+        "cabbage"
+      ],
+      "a": 0,
+      "exp": "banana は果物です。carrot（にんじん）、cabbage（キャベツ）、onion（たまねぎ）は野菜。",
+      "t": 4.5,
+      "g": "注文とねだん"
+    },
+    {
+      "q": "のどがかわいて、水がほしいときの気持ちを表す語はどれですか？",
+      "c": [
+        "busy",
+        "hungry",
+        "sleepy",
+        "thirsty"
+      ],
+      "a": 3,
+      "exp": "thirsty は「のどがかわいた」。hungry はおなかがすいた、sleepy はねむいという意味です。",
+      "t": 3.5,
+      "g": "注文とねだん"
+    },
+    {
+      "q": "ピザの「数」をたずねる文はどれですか？",
+      "c": [
+        "Where is the pizza?",
+        "How many pizzas do you want?",
+        "How much is the pizza?",
+        "What pizza is it?"
+      ],
+      "a": 1,
+      "exp": "How many は数、How much はねだんをたずねます。数えられる物には pizzas のように s がつきます。",
+      "t": 5.5,
+      "g": "注文とねだん"
+    },
+    {
+      "q": "「How many apples do you want?」への返事はどれですか？",
+      "c": [
+        "Three, please.",
+        "300 yen, please.",
+        "Apples, please.",
+        "Yes, I do."
+      ],
+      "a": 0,
+      "exp": "How many は「いくつ」と数をたずねる言葉なので、Three, please. のように数で答えます。ねだんは How much でたずねます。",
+      "t": 5.5,
+      "g": "注文とねだん"
+    },
+    {
+      "q": "A hamburger is 400 yen. A juice is 150 yen. The set is 500 yen. セットだと何円安いですか？",
+      "c": [
+        "100円",
+        "550円",
+        "150円",
+        "50円"
+      ],
+      "a": 3,
+      "exp": "別々だと 400 + 150 = 550円。セットは500円なので、550 − 500 = 50円安くなります。",
+      "t": 8.5,
+      "g": "注文とねだん"
+    },
+    {
+      "q": "Pizza is 500 yen. A sandwich is 300 yen. Every drink is 100 yen. 飲み物2つとピザ1つで何円ですか？",
+      "c": [
+        "600円",
+        "700円",
+        "900円",
+        "800円"
+      ],
+      "a": 1,
+      "exp": "every drink は「どの飲み物も」なので、2つで200円。500 + 200 = 700円です。サンドイッチは買っていません。",
+      "t": 8.5,
+      "g": "注文とねだん"
+    },
+    {
+      "q": "「Why do you want to go to China?」への返事はどれですか？",
+      "c": [
+        "Yes, I do. I like it.",
+        "Because I like pandas.",
+        "At the big airport.",
+        "I'm from China, too."
+      ],
+      "a": 1,
+      "exp": "Why は理由をたずねる語。答えは Because（〜だから）で始めます。",
+      "t": 5.0,
+      "g": "行きたい国"
+    },
+    {
+      "q": "I want to eat kimchi. どの国へ行きますか？",
+      "c": [
+        "India",
+        "Korea",
+        "Brazil",
+        "Canada"
+      ],
+      "a": 1,
+      "exp": "キムチはかん国 Korea の有名な食べ物です。India はカレー、Brazil はサッカーで知られます。",
+      "t": 4.5,
+      "g": "行きたい国"
+    },
+    {
+      "q": "「あなたはどこへ行きたいですか」を表す正しい英文はどれですか？",
+      "c": [
+        "Where you want to go?",
+        "Where do you want to go?",
+        "Where do you want go?",
+        "Where want you to go?"
+      ],
+      "a": 1,
+      "exp": "たずねる文は Where のあとに do you を置き、want to go（行きたい）とつづけます。want のあとの to はぬかせません。",
+      "t": 7.0,
+      "g": "行きたい国"
+    },
+    {
+      "q": "A: Do you want to go to Korea? B: No, I don't. I want to go to Spain. Bが行きたい国は？",
+      "c": [
+        "Korea",
+        "Italy",
+        "Spain",
+        "Brazil"
+      ],
+      "a": 2,
+      "exp": "No, I don't. で Korea はことわり、あとの文で Spain と答えています。",
+      "t": 6.0,
+      "g": "行きたい国"
+    },
+    {
+      "q": "行きたい国を聞きました。Ken: Canada. Mai: Brazil. Ryo: Canada. Aya: Italy. いちばん多いのはどの国？",
+      "c": [
+        "Canada",
+        "Brazil",
+        "Italy",
+        "Australia"
+      ],
+      "a": 0,
+      "exp": "Canada は Ken と Ryo の2人、ほかは1人ずつ。数えれば Canada です。",
+      "t": 7.0,
+      "g": "行きたい国"
+    },
+    {
+      "q": "It's January now. I want to go to Italy in April. 何か月あとですか？",
+      "c": [
+        "4か月あと",
+        "5か月あと",
+        "2か月あと",
+        "3か月あと"
+      ],
+      "a": 3,
+      "exp": "1月から4月までは、2月、3月、4月の3か月。4から1を引いて3です。",
+      "t": 6.5,
+      "g": "行きたい国"
+    },
+    {
+      "q": "国名のうち、ドイツを表す語として正しいつづりはどれですか？",
+      "c": [
+        "Germani",
+        "Germeny",
+        "Germany",
+        "Jermany"
+      ],
+      "a": 2,
+      "exp": "ドイツは Germany。Ger・ma・ny と区切ります。「ジャ」と読んでも J ではなく G で始めます。",
+      "t": 4.5,
+      "g": "行きたい国"
+    },
+    {
+      "q": "「Where do you want to go?」への返事はどれですか？",
+      "c": [
+        "I want to go to Thailand.",
+        "Yes, I do.",
+        "I'm from Thailand.",
+        "I want a bag."
+      ],
+      "a": 0,
+      "exp": "Where do you want to go? は行きたい場所をたずねる文。Yes, I do. と答えるのは Do you ...? の文です。",
+      "t": 4.5,
+      "g": "行きたい国"
+    },
+    {
+      "q": "I want to ski in Canada. ski の意味はどれですか？",
+      "c": [
+        "スケートをする",
+        "雪だるまを作る",
+        "スキーをする",
+        "そりに乗る"
+      ],
+      "a": 2,
+      "exp": "ski は「スキーをする」。skate（スケートをする）と形が似ているので注意しましょう。",
+      "t": 4.5,
+      "g": "行きたい国"
+    },
+    {
+      "q": "I want to go to India. The food is delicious. インドへ行きたい理由はどれですか？",
+      "c": [
+        "食べ物がおいしいから",
+        "食べ物を作りたいから",
+        "食べ物がきらいだから",
+        "食べ物が安いから"
+      ],
+      "a": 0,
+      "exp": "delicious は「とてもおいしい」。食べ物がおいしいことが行きたい理由です。",
+      "t": 5.5,
+      "g": "行きたい国"
+    },
+    {
+      "q": "次の国のうち、アジアにある国はどれですか？",
+      "c": [
+        "Canada",
+        "Italy",
+        "Brazil",
+        "Korea"
+      ],
+      "a": 3,
+      "exp": "Korea はアジア、Brazil は南アメリカ、Canada は北アメリカ、Italy はヨーロッパです。",
+      "t": 5.0,
+      "g": "行きたい国"
+    },
+    {
+      "q": "「Bonjour!」は何語のあいさつですか？",
+      "c": [
+        "Spanish",
+        "Chinese",
+        "Korean",
+        "French"
+      ],
+      "a": 3,
+      "exp": "Bonjour は「こんにちは」を表すフランス語。スペイン語は Hola です。",
+      "t": 5.0,
+      "g": "行きたい国"
+    },
+    {
+      "q": "「I want to see the pyramids.」行きたい国はどこですか？",
+      "c": [
+        "India",
+        "China",
+        "Egypt",
+        "Italy"
+      ],
+      "a": 2,
+      "exp": "ピラミッドはエジプト Egypt の有名ないせき。China は万里の長城、India はタージ・マハルで知られます。",
+      "t": 5.0,
+      "g": "行きたい国"
+    },
+    {
+      "q": "Ken: My birthday is in winter. ケンのたんじょう日の月として合わないものはどれですか？",
+      "c": [
+        "December",
+        "January",
+        "August",
+        "February"
+      ],
+      "a": 2,
+      "exp": "日本の冬は12月・1月・2月ごろ。August（8月）は夏なので合いません。",
+      "t": 7.0,
+      "g": "たんじょう日"
+    },
+    {
+      "q": "My birthday is the day after Christmas. わたしのたんじょう日はいつですか？",
+      "c": [
+        "December twenty-fourth",
+        "December twenty-sixth",
+        "November twenty-sixth",
+        "December twenty-fifth"
+      ],
+      "a": 1,
+      "exp": "Christmas は12月25日。the day after は「次の日」なので12月26日、December twenty-sixth です。",
+      "t": 7.5,
+      "g": "たんじょう日"
+    },
+    {
+      "q": "Today is May ninth. Ken's birthday is May tenth. ケンのたんじょう日はいつですか？",
+      "c": [
+        "today",
+        "next year",
+        "yesterday",
+        "tomorrow"
+      ],
+      "a": 3,
+      "exp": "今日が9日でたんじょう日が10日。1日あとなので tomorrow（明日）です。",
+      "t": 5.0,
+      "g": "たんじょう日"
+    },
+    {
+      "q": "I want a bike. I want a red one. この one は何を指しますか？",
+      "c": [
+        "1つ",
+        "たんじょう日",
+        "赤い色",
+        "自転車"
+      ],
+      "a": 3,
+      "exp": "one は前に出た名前をくり返さないための語。a red one は a red bike のことです。",
+      "t": 6.0,
+      "g": "たんじょう日"
+    },
+    {
+      "q": "A: Can you come to my party? B: Sorry, I can't. I have a piano lesson. Bが行けない理由は？",
+      "c": [
+        "パーティーがきらいだから",
+        "場所がわからないから",
+        "ピアノのレッスンがあるから",
+        "ピアノがひけないから"
+      ],
+      "a": 2,
+      "exp": "I can't は「行けない」。ピアノがひけないのではなく、I have a piano lesson. が理由です。",
+      "t": 7.0,
+      "g": "たんじょう日"
+    },
+    {
+      "q": "Ken's birthday is on Children's Day. たんじょう日はいつですか？",
+      "c": [
+        "March third",
+        "December twenty-fifth",
+        "July seventh",
+        "May fifth"
+      ],
+      "a": 3,
+      "exp": "こどもの日 Children's Day は5月5日 May fifth。3月3日は Girls' Day、7月7日は七夕です。",
+      "t": 5.5,
+      "g": "たんじょう日"
+    },
+    {
+      "q": "Today is Thursday. My birthday is in three days. たんじょう日は何曜日ですか？",
+      "c": [
+        "Saturday",
+        "Sunday",
+        "Monday",
+        "Wednesday"
+      ],
+      "a": 1,
+      "exp": "木曜日から3日後は、金→土→日で Sunday。Saturday は2日後、Monday は4日後です。",
+      "t": 7.5,
+      "g": "たんじょう日"
+    },
+    {
+      "q": "Momotaro is a strong boy. strong の意味はどれですか？",
+      "c": [
+        "やさしい",
+        "強い",
+        "おもしろい",
+        "すばやい"
+      ],
+      "a": 1,
+      "exp": "strong は「強い」。力が強いときに使います。kind はやさしい、funny はおもしろいです。",
+      "t": 3.5,
+      "g": "気持ちと様子"
+    },
+    {
+      "q": "Ms. Ito: Are you OK? I can help you. この先生の様子を表す語はどれですか？",
+      "c": [
+        "strong",
+        "kind",
+        "tall",
+        "small"
+      ],
+      "a": 1,
+      "exp": "こまっている人に声をかけて助ける先生は kind（親切な、やさしい）。strong は強い、tall はせが高いです。",
+      "t": 6.0,
+      "g": "気持ちと様子"
+    },
+    {
+      "q": "My cat is so cute! cute の意味はどれですか？",
+      "c": [
+        "大きい",
+        "こわい",
+        "かわいい",
+        "すばやい"
+      ],
+      "a": 2,
+      "exp": "cute は小さな動物や子どもに使う「かわいい」。cool（かっこいい）とも使い分けます。",
+      "t": 3.5,
+      "g": "気持ちと様子"
+    },
+    {
+      "q": "heavy（重い）の反対の意味の語はどれですか？",
+      "c": [
+        "light",
+        "short",
+        "slow",
+        "small"
+      ],
+      "a": 0,
+      "exp": "重いの反対は軽い light。small は小さい、short は短い、slow はおそいで、重さではありません。",
+      "t": 4.5,
+      "g": "気持ちと様子"
+    },
+    {
+      "q": "I'm very sleepy. I want to ( ).",
+      "c": [
+        "eat lunch",
+        "play soccer",
+        "go to school",
+        "go to bed"
+      ],
+      "a": 3,
+      "exp": "sleepy は「ねむい」。ねむいときは go to bed（ねる）がしぜんです。",
+      "t": 4.5,
+      "g": "気持ちと様子"
+    }
+  ]
+}
