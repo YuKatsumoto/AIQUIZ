@@ -58,6 +58,13 @@ git checkout -b quiz-expansion/<セッションID小文字> origin/quiz-expansio
 セル同士は並列でよい。**同時に動くサブエージェントは最大3つ**。サブエージェントが使えない環境なら、
 同じ手順を自分で順に行う（その場合もレビューは作問とは別の新しい気持ちで、ブラインド解答から行う）。
 
+### 2.0 モデルの使い分け（クレジット節約）
+サブエージェントを立ち上げるときは model を明示する（Agent/Task ツールの model 引数）:
+- 作問サブエージェント: **sonnet**（出力量が最も多い工程。Opus の半額）
+- 独立レビューサブエージェント: **opus**（品質の最終関門）
+- オーケストレーター（このセッション）自身は、抜き取り検査と指示出しに集中し、シャード全体を読み込まない
+  （抜き取りは `blind_review.py show <file> <開始> <終了>` で範囲を絞って表示する）。
+
 ### 2.1 作問サブエージェント
 次のプロンプトを `{...}` を埋めて渡す:
 
@@ -66,8 +73,8 @@ git checkout -b quiz-expansion/<セッションID小文字> origin/quiz-expansio
 目標は数ではなく品質。SPEC.md §2 の品質基準を1問ずつ満たすこと。
 1. AIQUIZ-Godot/tools/quiz_expansion/SPEC.md を全部読み、厳密に従う。
 2. 担当: 教科 {教科}、{学年}年。ファイル {シャードパス}（batch "{batch}"、{問数}問）を作る。
-3. 書き始める前に AIQUIZ-Godot/offline_bank.json の {教科} {学年}年の既存問題を全部、前後の学年はざっと読む。
-   shards/ にある同じ教科のシャード（{slug}_g*.json）も全部読む。これらと同じ問題・言い換えだけの問題は作らない。
+3. 書き始める前に python AIQUIZ-Godot/tools/quiz_expansion/list_existing.py {教科} {学年} で既存問題の一覧を全部読む。
+   offline_bank.json やシャードの JSON を丸ごと読まない。これらと同じ問題・言い換えだけの問題は作らない。
 4. SPEC.md §5 の手順1〜4を行う（単元と問う知識の計画 → 作問 → 自己チェック → validate でエラー0・警告解消）。
 5. git の commit/push はしない。shards/ の担当ファイル以外は変更しない。
 {教科・学年ごとの注意（§3 から該当部分をそのまま貼る）}
