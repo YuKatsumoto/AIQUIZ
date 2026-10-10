@@ -4695,9 +4695,9 @@ func resolve_collision(p1_hit: bool = false, p2_hit: bool = false) -> void:
 		else:
 			var nc: int = num_choices
 			var ans_label: String
-			if nc == 4:
-				var labels := ["A", "B", "C", "D"]
-				ans_label = labels[answer] if answer >= 0 and answer < 4 else "?"
+			if nc >= 3:
+				# 壁の扉に記号はないので、正解の選択肢そのものを示す。
+				ans_label = FractionFormatter.to_inline(current_quiz.c[answer]) if answer >= 0 and answer < current_quiz.c.size() else "?"
 			else:
 				if use_english_ui:
 					ans_label = "Left" if answer == 0 else "Right"

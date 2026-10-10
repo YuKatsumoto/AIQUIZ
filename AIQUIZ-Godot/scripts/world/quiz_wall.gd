@@ -6,6 +6,9 @@ extends Node3D
 var wall_parts: Array[MeshInstance3D] = []
 var doors: Array[MeshInstance3D] = []
 var door_labels: Array[Label3D] = []
+## door_labels と同じ並びの扉の半幅と、全扉共通の2P拡大の倍率上限。
+var _door_label_half_widths: Array[float] = []
+var _door_label_max_scale: float = 1.0
 
 var is_boss: bool = false
 var boss_label: Label3D = null
@@ -98,8 +101,26 @@ const QUESTION_TOP_MARGIN: float = 0.180
 const DOOR_TOP_Y: float = 2.38
 const QUESTION_DOOR_GAP: float = 0.18
 ## 2P拡大表示時の問題文・選択肢の倍率。
-## 2択の選択肢が扉幅(3.6m)に、長い問題文が壁幅に収まる大きさに抑える。
+## 長い問題文が壁幅に収まる大きさに抑える。選択肢は扉ごとの内枠に収まる倍率までしか拡大しない。
 const TEXT_ENLARGED_SCALE: float = 1.5
+## 選択肢の文字を収める扉の内枠 (扉の幅・高さに対する比率)。遠くの壁でも読めるよう扉いっぱいに大きく出す。
+const CHOICE_FIT_WIDTH_RATIO: float = 0.82
+const CHOICE_FIT_HEIGHT_RATIO: float = 0.75
+## 改行なしでこの文字サイズ以上に出せる選択肢は1行のまま表示し、届かない長い選択肢だけ折り返して大きくする。
+const CHOICE_SINGLE_LINE_MIN_FONT_SIZE: int = 56
+## 文字サイズを揃えるとき、長い選択肢に合わせてほかの選択肢をこれより小さくはしない。
+const CHOICE_UNIFORM_MIN_FONT_SIZE: int = 56
+## 選択肢の文字サイズの範囲。上限は1文字約1m角、下限は従来の4択 (48px × 0.006) と同じ大きさ。
+const CHOICE_FONT_SIZE_MIN: int = 36
+const CHOICE_FONT_SIZE_MAX: int = 120
+const CHOICE_PIXEL_SIZE: float = 0.008
+const DOOR_HALF_HEIGHT: float = 2.2
+## 壁の文字はMSDFで描き、遠景での縮小や2P拡大でも輪郭をにじませない。
+## MSDFは文字サイズに関係なく1字1回だけ生成されるので、選択肢ごとに文字サイズが変わっても再ラスタライズしない。
+## UIと共有する元フォントの取り込み設定は変えず、壁用に別の FontFile を作る。
+const WALL_FONT_MSDF_SIZE: int = 64
+const WALL_FONT_MSDF_PIXEL_RANGE: int = 16
+static var _wall_font: FontFile = null
 ## 等倍⇔拡大表示の切り替えにかける時間 (秒)。
 const TEXT_SCALE_SWITCH_DURATION: float = 0.5
 
@@ -209,86 +230,155 @@ func _build_doors(num_choices: int) -> void:
 		l.queue_free()
 	door_labels.clear()
 
+	_door_label_half_widths.clear()
+	_door_label_max_scale = 1.0
+
 	if num_choices == 4:
 		for i: int in range(4):
 			var door := _create_box(Vector3(1.45, 2.2, 0.60), DOOR_COLORS_4[i], i)
 			door.position = Vector3(DOOR4_XS[i], 0.18, 0)
 			add_child(door)
 			doors.append(door)
-
-			var label := _create_label()
-			label.position = Vector3(DOOR4_XS[i], 0.18, -0.65)
-			label.pixel_size = 0.006
-			label.width = 240.0
-			label.scale = Vector3.ONE * _text_scale
-			add_child(label)
-			door_labels.append(label)
+			_add_door_label(DOOR4_XS[i], 1.45)
 	elif num_choices == 3:
 		for i: int in range(3):
 			var door := _create_box(Vector3(DOOR3_HALF_WIDTH, 2.2, 0.60), DOOR_COLORS_3[i], i)
 			door.position = Vector3(DOOR3_XS[i], 0.18, 0)
 			add_child(door)
 			doors.append(door)
-
-			var label := _create_label()
-			label.position = Vector3(DOOR3_XS[i], 0.18, -0.65)
-			label.pixel_size = 0.007
-			label.width = 250.0
-			label.scale = Vector3.ONE * _text_scale
-			add_child(label)
-			door_labels.append(label)
+			_add_door_label(DOOR3_XS[i], DOOR3_HALF_WIDTH)
 	else:
 		# Left door (Blue)
 		var left_door := _create_box(Vector3(1.8, 2.2, 0.60), DOOR_COLORS_2[0], 0)
 		left_door.position = Vector3(LEFT_DOOR_X, 0.18, 0)
 		add_child(left_door)
 		doors.append(left_door)
-
-		var left_label := _create_label()
-		left_label.position = Vector3(LEFT_DOOR_X, 0.18, -0.65)
-		left_label.scale = Vector3.ONE * _text_scale
-		add_child(left_label)
-		door_labels.append(left_label)
+		_add_door_label(LEFT_DOOR_X, 1.8)
 
 		# Right door (Red)
 		var right_door := _create_box(Vector3(1.8, 2.2, 0.60), DOOR_COLORS_2[1], 1)
 		right_door.position = Vector3(RIGHT_DOOR_X, 0.18, 0)
 		add_child(right_door)
 		doors.append(right_door)
+		_add_door_label(RIGHT_DOOR_X, 1.8)
 
-		var right_label := _create_label()
-		right_label.position = Vector3(RIGHT_DOOR_X, 0.18, -0.65)
-		right_label.scale = Vector3.ONE * _text_scale
-		add_child(right_label)
-		door_labels.append(right_label)
+
+func _add_door_label(door_x: float, door_half_width: float) -> void:
+	var label := _create_label()
+	label.position = Vector3(door_x, 0.18, -0.65)
+	label.pixel_size = CHOICE_PIXEL_SIZE
+	label.width = door_half_width * 2.0 * CHOICE_FIT_WIDTH_RATIO / CHOICE_PIXEL_SIZE
+	label.scale = Vector3.ONE * minf(_text_scale, _door_label_max_scale)
+	add_child(label)
+	door_labels.append(label)
+	_door_label_half_widths.append(door_half_width)
+
+
+## 変わっていなければ何もしない (GameWorld は現在の壁へ毎フレーム set_quiz を呼ぶ)。
+func _set_door_label_text(index: int, text: String) -> bool:
+	if index >= door_labels.size() or door_labels[index].text == text:
+		return false
+	door_labels[index].text = text
+	return true
+
+
+## 選択肢の文字サイズは壁の中でなるべく揃える。各扉の内枠に収まる最大サイズのうち最小のものを全扉で使い、
+## ただし極端に長い選択肢がほかを CHOICE_UNIFORM_MIN_FONT_SIZE より小さくすることはさせない
+## (その長い選択肢だけが自分の枠に収まるサイズまで小さくなる)。
+func _fit_door_labels() -> void:
+	var fits: Array[int] = []
+	var shared := CHOICE_FONT_SIZE_MAX
+	for i: int in range(door_labels.size()):
+		var text := door_labels[i].text
+		var fit := CHOICE_FONT_SIZE_MIN if text.is_empty() else _fit_choice_size(text, door_labels[i].font, _door_label_box(i))
+		fits.append(fit)
+		if not text.is_empty():
+			shared = mini(shared, maxi(fit, CHOICE_UNIFORM_MIN_FONT_SIZE))
+	# 2P拡大も全扉で同じ倍率にし、どの選択肢も自分の枠からはみ出さない倍率までに抑える。
+	_door_label_max_scale = TEXT_ENLARGED_SCALE
+	for i: int in range(door_labels.size()):
+		var label := door_labels[i]
+		var font_size := mini(shared, fits[i])
+		_set_choice_font_size(label, font_size)
+		if label.text.is_empty():
+			continue
+		var box := _door_label_box(i)
+		var fitted := _measure_choice_text(label.text, label.font, font_size, box.x, true)
+		_door_label_max_scale = minf(_door_label_max_scale, minf(box.x / maxf(fitted.x, 1.0), box.y / maxf(fitted.y, 1.0)))
+	_door_label_max_scale = maxf(_door_label_max_scale, 1.0)
+	_apply_door_label_scale()
+
+
+## 選択肢を収める扉の内枠 (幅 CHOICE_FIT_WIDTH_RATIO・高さ CHOICE_FIT_HEIGHT_RATIO、ラベルのピクセル単位)。
+func _door_label_box(index: int) -> Vector2:
+	return Vector2(
+		_door_label_half_widths[index] * 2.0 * CHOICE_FIT_WIDTH_RATIO,
+		DOOR_HALF_HEIGHT * 2.0 * CHOICE_FIT_HEIGHT_RATIO
+	) / door_labels[index].pixel_size
+
+
+## 内枠に収まる最大の文字サイズ。
+## 日本語は漢字の間でも折り返せるので、短い答えは「富|士山」のように割れないよう、
+## 改行なしで CHOICE_SINGLE_LINE_MIN_FONT_SIZE 以上に出せる限り1行のまま表示する。
+func _fit_choice_size(text: String, font: Font, box: Vector2) -> int:
+	var font_size := _largest_fitting_choice_size(text, font, box, false)
+	if font_size < CHOICE_SINGLE_LINE_MIN_FONT_SIZE:
+		font_size = _largest_fitting_choice_size(text, font, box, true)
+	return font_size
+
+
+func _largest_fitting_choice_size(text: String, font: Font, box: Vector2, wrap: bool) -> int:
+	var low := CHOICE_FONT_SIZE_MIN
+	var high := CHOICE_FONT_SIZE_MAX
+	while low < high:
+		var mid := (low + high + 1) / 2
+		var size := _measure_choice_text(text, font, mid, box.x, wrap)
+		if size.x <= box.x and size.y <= box.y:
+			low = mid
+		else:
+			high = mid - 1
+	return low
+
+
+## 輪郭を含む文字列の外寸 (ラベルのピクセル単位)。wrap=false では明示的な改行 (縦積みの分数) だけで改行する。
+## wrap=true の折り返しは Label3D の AUTOWRAP_WORD_SMART と同じ規則。
+func _measure_choice_text(text: String, font: Font, font_size: int, width: float, wrap: bool) -> Vector2:
+	var tp := TextParagraph.new()
+	tp.width = width if wrap else -1.0
+	tp.break_flags = TextServer.BREAK_MANDATORY
+	if wrap:
+		tp.break_flags |= TextServer.BREAK_WORD_BOUND | TextServer.BREAK_ADAPTIVE
+	tp.add_string(text, font, font_size)
+	return tp.get_size() + Vector2.ONE * _choice_outline_size(font_size) * 2.0
+
+
+func _set_choice_font_size(label: Label3D, font_size: int) -> void:
+	label.font_size = font_size
+	label.outline_size = _choice_outline_size(font_size)
+
+
+## 等倍の 48px で 8px だった輪郭の太さを、文字サイズに比例させる。
+func _choice_outline_size(font_size: int) -> int:
+	return maxi(1, roundi(float(font_size) / 6.0))
+
+
+func _apply_door_label_scale() -> void:
+	for label: Label3D in door_labels:
+		if is_instance_valid(label):
+			label.scale = Vector3.ONE * minf(_text_scale, _door_label_max_scale)
 
 func set_quiz(quiz: QuizItem, num_choices: int) -> void:
 	if num_choices != _current_num_choices:
 		_build_doors(num_choices)
 
-	if not quiz:
-		for label: Label3D in door_labels:
-			label.text = ""
-		return
-
-	var labels_4 := ["A", "B", "C", "D"]
-
-	if num_choices in [3, 4]:
-		for i: int in range(mini(num_choices, quiz.c.size())):
-			if i < door_labels.size():
-				var choice := quiz.c[i]
-				if FractionFormatter.is_pure_fraction(choice):
-					# 分数の場合: プレフィックスを上に、分数をスタック表示
-					door_labels[i].text = "%s.\n%s" % [labels_4[i], FractionFormatter.to_stacked(choice)]
-				elif FractionFormatter.has_fraction(choice):
-					# 混合テキストの場合: インライン分数表示
-					door_labels[i].text = "%s. %s" % [labels_4[i], FractionFormatter.to_inline(choice)]
-				else:
-					door_labels[i].text = "%s. %s" % [labels_4[i], choice]
-	else:
-		if door_labels.size() >= 2:
-			door_labels[0].text = FractionFormatter.format_choice(quiz.c[0]) if quiz.c.size() > 0 else ""
-			door_labels[1].text = FractionFormatter.format_choice(quiz.c[1]) if quiz.c.size() > 1 else ""
+	# 扉は色で区別できるので記号 (A. など) は付けず、答えだけを扉の中央に大きく出す。
+	# 分数だけの答えは縦積み、文中の分数はインライン表記。
+	var changed := false
+	for i: int in range(door_labels.size()):
+		var text := FractionFormatter.format_choice(quiz.c[i]) if quiz and i < quiz.c.size() else ""
+		changed = _set_door_label_text(i, text) or changed
+	if changed:
+		_fit_door_labels()
 
 func set_labels_visible(is_visible: bool) -> void:
 	for label: Label3D in door_labels:
@@ -371,9 +461,7 @@ func _set_text_scale(text_scale: float) -> void:
 	if text_scale == _text_scale:
 		return
 	_text_scale = text_scale
-	for label: Label3D in door_labels:
-		if is_instance_valid(label):
-			label.scale = Vector3.ONE * _text_scale
+	_apply_door_label_scale()
 	if not is_instance_valid(gameplay_question_label):
 		return
 	gameplay_question_label.scale = Vector3.ONE * _text_scale
@@ -470,7 +558,8 @@ func _framing_transform(node: Node3D, at_base_scale: bool) -> Transform3D:
 	if node == boss_label:
 		local.origin.y -= _boss_scale_lift
 	else:
-		local.basis = local.basis.scaled(Vector3.ONE / _text_scale)
+		# Door labels clamp the 2P scale to their door, so undo each node's own scale.
+		local.basis = local.basis.scaled(Vector3.ONE / node.scale.x)
 		if node == gameplay_question_label and is_instance_valid(_gameplay_question_panel):
 			local.origin.y = DOOR_TOP_Y + QUESTION_DOOR_GAP + _gameplay_question_anchor_offset
 	return global_transform * local
@@ -911,9 +1000,22 @@ func _create_label() -> Label3D:
 	label.text = ""
 	label.rotation.y = PI
 
-	label.font = JAPANESE_FONT
+	label.font = _wall_label_font()
 
 	return label
+
+
+static func _wall_label_font() -> FontFile:
+	if _wall_font == null:
+		var source := JAPANESE_FONT as FontFile
+		_wall_font = FontFile.new()
+		_wall_font.data = source.data
+		_wall_font.multichannel_signed_distance_field = true
+		_wall_font.msdf_size = WALL_FONT_MSDF_SIZE
+		_wall_font.msdf_pixel_range = WALL_FONT_MSDF_PIXEL_RANGE
+		_wall_font.generate_mipmaps = true
+		_wall_font.allow_system_fallback = source.allow_system_fallback
+	return _wall_font
 
 func shatter_wall(direction_z: float = -1.0) -> void:
 	_shattered = true
