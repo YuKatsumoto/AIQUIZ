@@ -28,8 +28,13 @@ _STRIP = re.compile(r"[\s　【】「」『』（）()［］\[\]、。，．,.�
 _FIGURE = re.compile(r"(図|表|写真|グラフ|イラスト)(のように|を見て|で示|の中|から読み)|下の(図|表)|右の(図|表)|左の(図|表)")
 
 
+_DECIMAL = re.compile(r"(?<=\d)\.(?=\d)")
+
+
 def norm(text):
-    return _STRIP.sub("", unicodedata.normalize("NFKC", str(text))).lower()
+    # Keep decimal points so "1.5秒" and "15秒" stay distinct choices.
+    text = _DECIMAL.sub("p", unicodedata.normalize("NFKC", str(text)))
+    return _STRIP.sub("", text).lower()
 
 
 def load_bank():
