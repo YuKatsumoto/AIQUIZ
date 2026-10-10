@@ -1,0 +1,1632 @@
+{
+ "subject": "英語",
+ "grade": 6,
+ "batch": "b",
+ "items": [
+  {
+   "q": "自己紹介の文として、正しくないものはどれですか？",
+   "c": [
+    "My name is Ken.",
+    "I'm Ken.",
+    "I like soccer.",
+    "Name my is Ken."
+   ],
+   "a": 3,
+   "exp": "英語は「わたしの名前は〜です」を My name is 〜. の順に言います。Name my is では語順がさかさまです。",
+   "t": 7.0,
+   "g": "自己紹介"
+  },
+  {
+   "q": "「あなたは何が得意ですか。」とたずねる英語はどれですか？",
+   "c": [
+    "What do you like?",
+    "What are you good at?",
+    "What do you have?",
+    "What can you eat?"
+   ],
+   "a": 1,
+   "exp": "be good at 〜 は「〜が得意」。What are you good at? で得意なことをたずねます。What do you like? は好きなものです。",
+   "t": 6.0,
+   "g": "自己紹介"
+  },
+  {
+   "q": "友だちが I'm good at cooking. と言いました。得意なことは何ですか？",
+   "c": [
+    "料理",
+    "水泳",
+    "歌",
+    "絵をかくこと"
+   ],
+   "a": 0,
+   "exp": "cooking は cook（料理する）に ing がついた形で「料理すること」。I'm good at 〜. で得意なことを伝えます。",
+   "t": 4.0,
+   "g": "自己紹介"
+  },
+  {
+   "q": "Nice to meet you. と言われたときの返事はどれですか？",
+   "c": [
+    "You're welcome.",
+    "See you.",
+    "Nice to meet you, too.",
+    "I'm fine, thank you."
+   ],
+   "a": 2,
+   "exp": "はじめて会ったときのあいさつには、too（〜も）をつけて返します。You're welcome. はお礼への返事です。",
+   "t": 4.5,
+   "g": "自己紹介"
+  },
+  {
+   "q": "「わたしのたんじょう日は9月12日です。」を表す英語はどれですか？",
+   "c": [
+    "My birthday is September 2nd.",
+    "My birthday is September 12th.",
+    "My birthday is December 9th.",
+    "My birthday is November 12th."
+   ],
+   "a": 1,
+   "exp": "月→日の順に言います。12日は twelfth と書いて 12th。2nd は2日、December は12月です。",
+   "t": 5.0,
+   "g": "自己紹介"
+  },
+  {
+   "q": "Where are you from? に合う答えはどれですか？",
+   "c": [
+    "I'm twelve years old.",
+    "I'm fine, thank you.",
+    "I'm from Osaka.",
+    "I'm a student."
+   ],
+   "a": 2,
+   "exp": "Where は「どこ」。from のあとに出身地を言います。年れいは How old、調子は How are you? で聞かれます。",
+   "t": 5.0,
+   "g": "自己紹介"
+  },
+  {
+   "q": "Do you have a pet? に「はい」と答える文はどれですか？",
+   "c": [
+    "Yes, I can.",
+    "Yes, I am.",
+    "Yes, it is.",
+    "Yes, I do."
+   ],
+   "a": 3,
+   "exp": "Do で聞かれたら do で答えます。can は「できる」、am は「〜です」のときの答え方です。",
+   "t": 5.5,
+   "g": "自己紹介"
+  },
+  {
+   "q": "自己紹介のスピーチの最後に言うのに、ふさわしい一言はどれですか？",
+   "c": [
+    "Thank you.",
+    "Hello, everyone.",
+    "My name is Ken.",
+    "I'm from Osaka."
+   ],
+   "a": 0,
+   "exp": "スピーチは Hello. ではじめ、Thank you. で聞いてくれた人にお礼を言ってしめます。",
+   "t": 5.0,
+   "g": "自己紹介"
+  },
+  {
+   "q": "This is Ken. He is good at tennis. 〈He〉がさしている人はだれですか？",
+   "c": [
+    "先生",
+    "ケン",
+    "わたし",
+    "ミカ"
+   ],
+   "a": 1,
+   "exp": "He は男の人ひとりをさす言葉で、直前の Ken のことです。女の人なら She を使います。",
+   "t": 5.5,
+   "g": "自己紹介"
+  },
+  {
+   "q": "This is Mika. ( ) is my friend. かっこに入る語はどれですか？",
+   "c": [
+    "She",
+    "He",
+    "It",
+    "They"
+   ],
+   "a": 0,
+   "exp": "Mika は女の子の名前なので She。男の人は He、物や動物は It、複数の人は They です。",
+   "t": 5.0,
+   "g": "自己紹介"
+  },
+  {
+   "q": "We have Children's Day in May. の意味はどれですか？",
+   "c": [
+    "5月にひなまつりがあります。",
+    "3月にこどもの日があります。",
+    "7月にたなばたがあります。",
+    "5月にこどもの日があります。"
+   ],
+   "a": 3,
+   "exp": "We have 〜 in (月). で「〜が(月)にあります」。May は5月、March は3月、July は7月です。",
+   "t": 5.5,
+   "g": "日本の紹介"
+  },
+  {
+   "q": "3月にひなまつりがあることを紹介する文はどれですか？",
+   "c": [
+    "We have Boys' Day in March.",
+    "We have Girls' Day in May.",
+    "We have Girls' Day in March.",
+    "We have Obon in March."
+   ],
+   "a": 2,
+   "exp": "ひなまつりは Girls' Day。Boys' Day や Children's Day は5月の行事です。月も行事も合うものを選びます。",
+   "t": 6.5,
+   "g": "日本の紹介"
+  },
+  {
+   "q": "日本のでんとう的なスポーツ・武道ではないものはどれですか？",
+   "c": [
+    "judo",
+    "kendo",
+    "sumo",
+    "baseball"
+   ],
+   "a": 3,
+   "exp": "judo（じゅうどう）、kendo（けんどう）、sumo（すもう）は日本で生まれました。baseball は海外で生まれて日本に伝わりました。",
+   "t": 5.0,
+   "g": "日本の紹介"
+  },
+  {
+   "q": "外国の友だちに日本のでんとう的な服を紹介します。英語で何と言いますか？",
+   "c": [
+    "sari",
+    "hanbok",
+    "kimono",
+    "ao dai"
+   ],
+   "a": 2,
+   "exp": "kimono は日本の着物。sari はインド、hanbok は韓国、ao dai はベトナムのでんとう的な服です。",
+   "t": 4.5,
+   "g": "日本の紹介"
+  },
+  {
+   "q": "You can enjoy hot springs in Japan. 日本で楽しめるものは何ですか？",
+   "c": [
+    "温泉",
+    "花火",
+    "雪まつり",
+    "お花見"
+   ],
+   "a": 0,
+   "exp": "hot springs は「温泉」。You can enjoy 〜. は「〜を楽しめますよ」と、おすすめするときに使います。",
+   "t": 5.0,
+   "g": "日本の紹介"
+  },
+  {
+   "q": "We have four seasons in Japan. からわかることはどれですか？",
+   "c": [
+    "日本には四つの県がある",
+    "日本には春夏秋冬がある",
+    "日本には四つの海がある",
+    "日本では一年が四か月だ"
+   ],
+   "a": 1,
+   "exp": "season は「季節」。four seasons は春・夏・秋・冬の四つの季節のことです。",
+   "t": 6.5,
+   "g": "日本の紹介"
+  },
+  {
+   "q": "日本でいちばん高い山を英語で紹介します。〈the highest mountain in Japan〉にあたる山はどれですか？",
+   "c": [
+    "Mt. Takao",
+    "Mt. Aso",
+    "Mt. Fuji",
+    "Mt. Tsukuba"
+   ],
+   "a": 2,
+   "exp": "日本でいちばん高い山は富士山（Mt. Fuji）で、3776mです。highest は「いちばん高い」。阿蘇山は火山、高尾山や筑波山は登山で人気の山です。",
+   "t": 6.0,
+   "g": "日本の紹介"
+  },
+  {
+   "q": "日本の習慣を紹介します。「家の中ではくつをぬぎます。」を表す英語はどれですか？",
+   "c": [
+    "We take off our shoes at home.",
+    "We put on our shoes at home.",
+    "We wash our shoes at home.",
+    "We buy our shoes at home."
+   ],
+   "a": 0,
+   "exp": "take off は「ぬぐ」、put on は「身につける」。反対の意味なので、まちがえないようにしましょう。",
+   "t": 6.5,
+   "g": "日本の紹介"
+  },
+  {
+   "q": "「日本には山がたくさんあります。」を表す正しい英語はどれですか？",
+   "c": [
+    "Japan has much mountains.",
+    "Japan has many mountains.",
+    "Japan is many mountains.",
+    "Japan has many mountain."
+   ],
+   "a": 1,
+   "exp": "数えられる物の複数には many と、名詞のおわりの s をつけます。much は数えられない物に使います。",
+   "t": 6.5,
+   "g": "日本の紹介"
+  },
+  {
+   "q": "12月31日を表す英語はどれですか？",
+   "c": [
+    "New Year's Day",
+    "Christmas Eve",
+    "Children's Day",
+    "New Year's Eve"
+   ],
+   "a": 3,
+   "exp": "Eve は「前の日の夜」。New Year's Day（元日）の前の日なので、New Year's Eve（大みそか）です。",
+   "t": 5.0,
+   "g": "日本の紹介"
+  },
+  {
+   "q": "We throw beans in February. We say, \"Oni wa soto!\" この行事は何ですか？",
+   "c": [
+    "たなばた",
+    "ひなまつり",
+    "せつぶん",
+    "お月見"
+   ],
+   "a": 2,
+   "exp": "豆をまいて「おには外」と言うのは、2月のせつぶんです。throw は「投げる」。",
+   "t": 6.5,
+   "g": "日本の紹介"
+  },
+  {
+   "q": "たなばたの日づけを正しく紹介している文はどれですか？",
+   "c": [
+    "We have Tanabata on June 7th.",
+    "We have Tanabata on July 17th.",
+    "We have Tanabata on April 7th.",
+    "We have Tanabata on July 7th."
+   ],
+   "a": 3,
+   "exp": "たなばたは7月7日。July 7th と書き、seventh と読みます。月と日の両方に注意しましょう。",
+   "t": 5.5,
+   "g": "日本の紹介"
+  },
+  {
+   "q": "Do you have summer festivals in Japan? に「はい」と答える文はどれですか？",
+   "c": [
+    "Yes, we do.",
+    "Yes, we are.",
+    "Yes, we did.",
+    "Yes, we can."
+   ],
+   "a": 0,
+   "exp": "Do で聞かれたら do で答えます。did は過去、are は「〜です」の文の答え方です。",
+   "t": 5.5,
+   "g": "日本の紹介"
+  },
+  {
+   "q": "リオのカーニバルで有名な国を表す英語はどれですか？",
+   "c": [
+    "Mexico",
+    "Brazil",
+    "Spain",
+    "Peru"
+   ],
+   "a": 1,
+   "exp": "リオのカーニバルはブラジル（Brazil）の大きなお祭りです。サンバのおどりでも知られています。",
+   "t": 5.5,
+   "g": "行きたい国"
+  },
+  {
+   "q": "You can see kangaroos in ( ). かっこに入る国はどれですか？",
+   "c": [
+    "Austria",
+    "Australia",
+    "Africa",
+    "America"
+   ],
+   "a": 1,
+   "exp": "カンガルーがいるのはオーストラリア（Australia）。つづりが似た Austria はヨーロッパの国です。",
+   "t": 6.0,
+   "g": "行きたい国"
+  },
+  {
+   "q": "マチュピチュ（Machu Picchu）を見に行きたい人は、どの国へ行けばよいですか？",
+   "c": [
+    "Brazil",
+    "Chile",
+    "Mexico",
+    "Peru"
+   ],
+   "a": 3,
+   "exp": "マチュピチュは、南アメリカのペルー（Peru）の山の上にある古い町のあとです。となりのブラジルやチリとまちがえないようにしましょう。",
+   "t": 6.0,
+   "g": "行きたい国"
+  },
+  {
+   "q": "大きな時計台ビッグ・ベン（Big Ben）がある都市はどれですか？",
+   "c": [
+    "Paris",
+    "Rome",
+    "London",
+    "Sydney"
+   ],
+   "a": 2,
+   "exp": "ビッグ・ベンは、イギリスの首都ロンドン（London）にある時計台です。Paris はフランス、Rome はイタリア、Sydney はオーストラリアの都市です。",
+   "t": 5.5,
+   "g": "行きたい国"
+  },
+  {
+   "q": "万里の長城（the Great Wall）を見たい人が言う文はどれですか？",
+   "c": [
+    "I want to go to China.",
+    "I want to go to Japan.",
+    "I want to go to Korea.",
+    "I want to go to Thailand."
+   ],
+   "a": 0,
+   "exp": "万里の長城は中国（China）にある、とても長い城かべです。great は「大きい、すばらしい」、wall は「かべ」です。",
+   "t": 6.0,
+   "g": "行きたい国"
+  },
+  {
+   "q": "ライオンやシマウマをサファリで見られる国として、合うものはどれですか？",
+   "c": [
+    "Egypt",
+    "Brazil",
+    "Peru",
+    "Kenya"
+   ],
+   "a": 3,
+   "exp": "ケニア（Kenya）は、アフリカの広いサバンナで野生動物を見るサファリで有名です。",
+   "t": 6.5,
+   "g": "行きたい国"
+  },
+  {
+   "q": "I want to go to Italy. I want to ( ) pizza. かっこに入る語はどれですか？",
+   "c": [
+    "eat",
+    "ate",
+    "eats",
+    "eating"
+   ],
+   "a": 0,
+   "exp": "want to のあとの動詞は、もとの形（eat）を使います。ate は eat の過去形なので、ここでは合いません。",
+   "t": 5.5,
+   "g": "行きたい国"
+  },
+  {
+   "q": "「あなたはどこへ行きたいですか。」を表す正しい英語はどれですか？",
+   "c": [
+    "Where you do want to go?",
+    "Do where you want to go?",
+    "Where do you want to go?",
+    "Where want you to go?"
+   ],
+   "a": 2,
+   "exp": "たずねる文は、Where のあとに do you want to go? と続けます。do は you の前に置きます。",
+   "t": 6.5,
+   "g": "行きたい国"
+  },
+  {
+   "q": "国の名前ではないものはどれですか？",
+   "c": [
+    "Canada",
+    "Paris",
+    "Brazil",
+    "India"
+   ],
+   "a": 1,
+   "exp": "Paris（パリ）はフランスの首都で、都市の名前です。Canada、Brazil、India はどれも国です。",
+   "t": 4.5,
+   "g": "行きたい国"
+  },
+  {
+   "q": "国と、その国で有名な食べ物の組み合わせで、正しくないものはどれですか？",
+   "c": [
+    "Mexico ー tacos",
+    "Italy ー pizza",
+    "Korea ー kimchi",
+    "India ー paella"
+   ],
+   "a": 3,
+   "exp": "paella（パエリア）はスペインの米料理です。インドで有名なのはカレー（curry）。タコスはメキシコ、ピザはイタリア、キムチは韓国の食べ物です。",
+   "t": 7.0,
+   "g": "行きたい国"
+  },
+  {
+   "q": "What do you want to eat in Korea? の答えとして合うものはどれですか？",
+   "c": [
+    "I want to eat paella.",
+    "I want to eat pasta.",
+    "I want to eat kimchi.",
+    "I want to eat tacos."
+   ],
+   "a": 2,
+   "exp": "キムチ（kimchi）は韓国の食べ物。paella はスペイン、pasta はイタリア、tacos はメキシコの食べ物です。",
+   "t": 6.5,
+   "g": "行きたい国"
+  },
+  {
+   "q": "Why do you want to go to the USA? の答えとして合うものはどれですか？",
+   "c": [
+    "To see the Statue of Liberty.",
+    "To see the pyramids.",
+    "To see the Eiffel Tower.",
+    "To see Big Ben."
+   ],
+   "a": 0,
+   "exp": "自由の女神（the Statue of Liberty）はアメリカにあります。ピラミッドはエジプト、エッフェル塔はフランスです。",
+   "t": 7.0,
+   "g": "行きたい国"
+  },
+  {
+   "q": "Mika ( ) to go to Kenya. かっこに入る語はどれですか？",
+   "c": [
+    "want",
+    "wanting",
+    "to want",
+    "wants"
+   ],
+   "a": 3,
+   "exp": "主語が Mika（ひとり）のときは、want に s をつけて wants にします。I や you のときは want です。",
+   "t": 6.5,
+   "g": "行きたい国"
+  },
+  {
+   "q": "How was the curry? に合う答えはどれですか？",
+   "c": [
+    "It was beautiful.",
+    "It was delicious.",
+    "It was exciting.",
+    "It was interesting."
+   ],
+   "a": 1,
+   "exp": "How was 〜? は感想をたずねる文。食べ物の感想には delicious（おいしい）が合います。",
+   "t": 5.0,
+   "g": "夏休みの思い出"
+  },
+  {
+   "q": "夏の思い出で「かき氷」を表す英語はどれですか？",
+   "c": [
+    "ice cream",
+    "shaved ice",
+    "iced tea",
+    "ice cube"
+   ],
+   "a": 1,
+   "exp": "shaved は「けずった」という意味で、氷をけずって作るかき氷は shaved ice。ice cube は四角い氷、iced tea は冷たい紅茶です。",
+   "t": 5.0,
+   "g": "夏休みの思い出"
+  },
+  {
+   "q": "We went camping. At night, we saw many stars. 夜に見たものは何ですか？",
+   "c": [
+    "花火",
+    "ホタル",
+    "星",
+    "月"
+   ],
+   "a": 2,
+   "exp": "star は「星」、at night は「夜に」。went（行った）、saw（見た）は過去の形です。fireworks（花火）や fireflies（ホタル）と区別しましょう。",
+   "t": 6.5,
+   "g": "夏休みの思い出"
+  },
+  {
+   "q": "お祭りの思い出です。「とても楽しい時間を過ごしました。」を英語で言うとどれですか？",
+   "c": [
+    "I had a great time.",
+    "I have a great time.",
+    "I has a great time.",
+    "I having a great time."
+   ],
+   "a": 0,
+   "exp": "have a great time は「すばらしい時間を過ごす」。過ごしたのは過去のことなので、have の過去形 had を使います。",
+   "t": 7.0,
+   "g": "夏休みの思い出"
+  },
+  {
+   "q": "I went to the sea. After that, I ate lunch. Finally, I saw the sunset. 最後にしたことは何ですか？",
+   "c": [
+    "起きた",
+    "海へ行った",
+    "昼食を食べた",
+    "夕日を見た"
+   ],
+   "a": 3,
+   "exp": "After that（そのあと）、Finally（最後に）の順で、出来事が進みます。最後は夕日（sunset）を見ました。",
+   "t": 7.0,
+   "g": "夏休みの思い出"
+  },
+  {
+   "q": "「花火」を表す英語はどれですか？",
+   "c": [
+    "fireworks",
+    "fireflies",
+    "firewood",
+    "fire engine"
+   ],
+   "a": 0,
+   "exp": "fireworks は花火。fireflies はホタル、firewood はまき、fire engine は消防車です。",
+   "t": 5.0,
+   "g": "夏休みの思い出"
+  },
+  {
+   "q": "It was hot, but the view was beautiful. の意味はどれですか？",
+   "c": [
+    "暑かったので、景色が美しかった。",
+    "暑かったけれど、景色は美しかった。",
+    "暑くなかったが、景色は美しかった。",
+    "暑かったし、景色も美しくなかった。"
+   ],
+   "a": 1,
+   "exp": "but は「でも、けれど」。反対の内容をつなぎます。「暑い」と「美しい」が対比されています。",
+   "t": 7.0,
+   "g": "夏休みの思い出"
+  },
+  {
+   "q": "I saw my grandma. I ( ) very happy. かっこに入る語はどれですか？",
+   "c": [
+    "am",
+    "were",
+    "was",
+    "is"
+   ],
+   "a": 2,
+   "exp": "過去のことなので、am の過去形 was を使います。were は you や複数のときの形です。",
+   "t": 6.5,
+   "g": "夏休みの思い出"
+  },
+  {
+   "q": "Who did you go with? に合う答えはどれですか？",
+   "c": [
+    "I went to the sea.",
+    "I went by train.",
+    "I went last Sunday.",
+    "I went with my family."
+   ],
+   "a": 3,
+   "exp": "Who は「だれ」。with のあとに人を言います。to は場所、by は交通手段、last は時を答える文です。",
+   "t": 6.5,
+   "g": "夏休みの思い出"
+  },
+  {
+   "q": "How did you go to Kyoto? に合う答えはどれですか？",
+   "c": [
+    "I went with Ken.",
+    "I went by train.",
+    "I went last summer.",
+    "I went to see temples."
+   ],
+   "a": 1,
+   "exp": "How は「どうやって」。by train（電車で）のように、交通手段を答えます。",
+   "t": 6.5,
+   "g": "夏休みの思い出"
+  },
+  {
+   "q": "夏休みの話で、文法がまちがっているものはどれですか？",
+   "c": [
+    "I went to the sea last Sunday.",
+    "I enjoyed camping last summer.",
+    "I see fireworks last night.",
+    "I ate watermelon yesterday."
+   ],
+   "a": 2,
+   "exp": "last night（昨夜）は過去のことなので、see ではなく過去形の saw を使います。",
+   "t": 7.0,
+   "g": "夏休みの思い出"
+  },
+  {
+   "q": "Last summer, I went to Nagano. I didn't see the sea, but I saw many mountains. 正しいのは？",
+   "c": [
+    "山を見て、海は見なかった",
+    "海を見て、山は見なかった",
+    "山も海も見た",
+    "山も海も見なかった"
+   ],
+   "a": 0,
+   "exp": "didn't see は「見なかった」、saw は「見た」。sea（海）と mountains（山）のどちらかを読み分けます。",
+   "t": 7.5,
+   "g": "夏休みの思い出"
+  },
+  {
+   "q": "The fireworks ( ) beautiful. かっこに入る語はどれですか？",
+   "c": [
+    "was",
+    "is",
+    "am",
+    "were"
+   ],
+   "a": 3,
+   "exp": "fireworks は複数なので、are の過去形 were を使います。was はひとつの物のときです。",
+   "t": 6.5,
+   "g": "夏休みの思い出"
+  },
+  {
+   "q": "「わたしは夏祭りを楽しみました。」を表す正しい英語はどれですか？",
+   "c": [
+    "Enjoyed I the summer festival.",
+    "I the summer festival enjoyed.",
+    "I enjoyed the summer festival.",
+    "The festival I enjoyed it."
+   ],
+   "a": 2,
+   "exp": "英語は「だれが→どうした→何を」の順。I enjoyed の後ろに the summer festival を置きます。",
+   "t": 6.5,
+   "g": "夏休みの思い出"
+  },
+  {
+   "q": "Did you play soccer yesterday? に「はい」と答える文はどれですか？",
+   "c": [
+    "Yes, I did.",
+    "Yes, I do.",
+    "Yes, I am.",
+    "Yes, I was."
+   ],
+   "a": 0,
+   "exp": "Did で聞かれたら did で答えます。「昨日」のことなので、do にしないようにしましょう。",
+   "t": 5.5,
+   "g": "過去の出来事"
+  },
+  {
+   "q": "Did you eat breakfast? に「いいえ」と答える文はどれですか？",
+   "c": [
+    "No, I don't.",
+    "No, I didn't.",
+    "No, I wasn't.",
+    "No, I can't."
+   ],
+   "a": 1,
+   "exp": "Did の質問には、No, I didn't. と答えます。didn't は did not の短い形です。",
+   "t": 6.5,
+   "g": "過去の出来事"
+  },
+  {
+   "q": "「昨日の夜」は英語でどう言いますか？",
+   "c": [
+    "tonight",
+    "last night",
+    "tomorrow night",
+    "every night"
+   ],
+   "a": 1,
+   "exp": "last は「この前の」。tonight は今夜、tomorrow night は明日の夜、every night は毎晩です。",
+   "t": 4.5,
+   "g": "過去の出来事"
+  },
+  {
+   "q": "I ate natto yesterday morning. いつ食べましたか？",
+   "c": [
+    "今日の朝",
+    "明日の朝",
+    "毎朝",
+    "昨日の朝"
+   ],
+   "a": 3,
+   "exp": "yesterday は「昨日」。this morning は今日の朝のことなので、昨日ではありません。",
+   "t": 5.5,
+   "g": "過去の出来事"
+  },
+  {
+   "q": "今のことではなく、過去のことを言っている文はどれですか？",
+   "c": [
+    "She was busy.",
+    "She is busy.",
+    "She isn't busy.",
+    "She's busy."
+   ],
+   "a": 0,
+   "exp": "was は is の過去形。is、isn't、She's はどれも今のことを言っています。",
+   "t": 5.5,
+   "g": "過去の出来事"
+  },
+  {
+   "q": "過去の形ではないものはどれですか？",
+   "c": [
+    "went",
+    "ate",
+    "play",
+    "saw"
+   ],
+   "a": 2,
+   "exp": "went は go、ate は eat、saw は see の過去形です。play の過去形は played です。",
+   "t": 5.0,
+   "g": "過去の出来事"
+  },
+  {
+   "q": "先週の土曜日にしたことを話している文はどれですか？",
+   "c": [
+    "I see a movie every Saturday.",
+    "I want to see a movie.",
+    "I saw a movie last Saturday.",
+    "I can see a movie on Saturday."
+   ],
+   "a": 2,
+   "exp": "last Saturday は「この前の土曜日」。すんだことなので see の過去形 saw を使います。every Saturday は「毎週土曜日」で、今の習慣です。",
+   "t": 7.0,
+   "g": "過去の出来事"
+  },
+  {
+   "q": "What did you do last weekend? に合う答えはどれですか？",
+   "c": [
+    "I like baseball.",
+    "I want to play baseball.",
+    "I can play baseball.",
+    "I played baseball."
+   ],
+   "a": 3,
+   "exp": "What did you do 〜? は「何をしましたか」。したことを過去形で答えます。",
+   "t": 6.5,
+   "g": "過去の出来事"
+  },
+  {
+   "q": "Where were you yesterday? に合う答えはどれですか？",
+   "c": [
+    "I am at the library.",
+    "I were at the library.",
+    "I was at the library.",
+    "I was to the library."
+   ],
+   "a": 2,
+   "exp": "were you の質問には、I のとき was で答えます。yesterday なので am ではありません。",
+   "t": 6.5,
+   "g": "過去の出来事"
+  },
+  {
+   "q": "I studied before lunch and played after lunch. 昼食のあとにしたことは何ですか？",
+   "c": [
+    "遊んだ",
+    "勉強した",
+    "昼食を食べた",
+    "昼寝をした"
+   ],
+   "a": 0,
+   "exp": "before は「〜の前に」、after は「〜のあとに」。まぎらわしいので、順番を整理しましょう。",
+   "t": 7.0,
+   "g": "過去の出来事"
+  },
+  {
+   "q": "I didn't eat breakfast, so I was hungry. の意味はどれですか？",
+   "c": [
+    "朝食を食べなかったので、おなかがすいた。",
+    "朝食を食べたので、おなかがすいた。",
+    "朝食を食べなかったが、おなかはすかなかった。",
+    "朝食を食べたが、おなかがすいた。"
+   ],
+   "a": 0,
+   "exp": "so は「だから」で、理由と結果をつなぎます。didn't eat は「食べなかった」です。",
+   "t": 7.5,
+   "g": "過去の出来事"
+  },
+  {
+   "q": "It was rainy yesterday, but it is sunny today. 今日の天気はどれですか？",
+   "c": [
+    "雨",
+    "晴れ",
+    "くもり",
+    "雪"
+   ],
+   "a": 1,
+   "exp": "yesterday（昨日）は was で雨、today（今日）は is で sunny（晴れ）。but のあとに今日のことが書かれています。",
+   "t": 7.0,
+   "g": "過去の出来事"
+  },
+  {
+   "q": "What's your best memory? は何をたずねる文ですか？",
+   "c": [
+    "いちばん好きな給食",
+    "いちばん得意な教科",
+    "いちばんの思い出",
+    "いちばん行きたい国"
+   ],
+   "a": 2,
+   "exp": "memory は「思い出」、best は「いちばんの」。My best memory is 〜. と答えます。",
+   "t": 5.0,
+   "g": "小学校の思い出"
+  },
+  {
+   "q": "運動会のことを英語で何と言いますか？",
+   "c": [
+    "school trip",
+    "music festival",
+    "field trip",
+    "sports day"
+   ],
+   "a": 3,
+   "exp": "sports day は運動会、school trip は修学旅行、music festival は音楽会です。",
+   "t": 4.0,
+   "g": "小学校の思い出"
+  },
+  {
+   "q": "「入学式」を表す英語はどれですか？",
+   "c": [
+    "entrance ceremony",
+    "graduation ceremony",
+    "opening ceremony",
+    "school festival"
+   ],
+   "a": 0,
+   "exp": "entrance は「入口」で、学校に入る式が入学式です。graduation ceremony は卒業式です。",
+   "t": 4.5,
+   "g": "小学校の思い出"
+  },
+  {
+   "q": "We had a relay race. We cheered for our team. 何の行事の思い出ですか？",
+   "c": [
+    "音楽会",
+    "えん足",
+    "卒業式",
+    "運動会"
+   ],
+   "a": 3,
+   "exp": "relay race（リレー）やチームのおうえんから、運動会だとわかります。cheer は「応援する」。",
+   "t": 6.0,
+   "g": "小学校の思い出"
+  },
+  {
+   "q": "We visited Nara and saw a big Buddha. We stayed at a hotel. 何の行事の思い出ですか？",
+   "c": [
+    "運動会",
+    "修学旅行",
+    "音楽会",
+    "卒業式"
+   ],
+   "a": 1,
+   "exp": "奈良の大仏を見て、ホテルにとまったので、修学旅行（school trip）だとわかります。",
+   "t": 6.5,
+   "g": "小学校の思い出"
+  },
+  {
+   "q": "卒業式のスピーチで、感謝を伝える言葉はどれですか？",
+   "c": [
+    "You're very welcome.",
+    "See you again soon.",
+    "Thank you for everything.",
+    "Nice to meet you, too."
+   ],
+   "a": 2,
+   "exp": "Thank you for 〜. で「〜をありがとう」。everything は「すべて、いろいろ」です。",
+   "t": 4.5,
+   "g": "小学校の思い出"
+  },
+  {
+   "q": "Why did your team win? ── Because we worked hard together. 勝った理由はどれですか？",
+   "c": [
+    "一人でがんばったから",
+    "相手が弱かったから",
+    "練習が早く終わったから",
+    "みんなで力を合わせたから"
+   ],
+   "a": 3,
+   "exp": "Because 〜. は理由を答える言い方。worked hard は「がんばった」、together は「いっしょに」なので、みんなで力を合わせたからです。",
+   "t": 7.0,
+   "g": "小学校の思い出"
+  },
+  {
+   "q": "Our school trip was in October. 修学旅行は何月でしたか？",
+   "c": [
+    "8月",
+    "10月",
+    "11月",
+    "12月"
+   ],
+   "a": 1,
+   "exp": "October は10月。November（11月）、December（12月）と形が似ているので注意。Oct- は「8」をもとにしたことばですが、10月を表します。",
+   "t": 6.0,
+   "g": "小学校の思い出"
+  },
+  {
+   "q": "「わたしのいちばんの思い出は旅行です。」を表す正しい英語はどれですか？",
+   "c": [
+    "My best memory are the trip.",
+    "My best memory is the trip.",
+    "I best memory is the trip.",
+    "My memory best is the trip."
+   ],
+   "a": 1,
+   "exp": "主語 My best memory はひとつなので is を使います。best は memory の前に置きます。",
+   "t": 6.5,
+   "g": "小学校の思い出"
+  },
+  {
+   "q": "Our teacher helped us a lot. の意味はどれですか？",
+   "c": [
+    "わたしたちが先生をたくさん助けた。",
+    "先生は助けてくれなかった。",
+    "先生がわたしたちをたくさん助けてくれた。",
+    "先生がたくさん話した。"
+   ],
+   "a": 2,
+   "exp": "主語は Our teacher なので、助けたのは先生です。us は「わたしたちを」です。",
+   "t": 7.0,
+   "g": "小学校の思い出"
+  },
+  {
+   "q": "We have the graduation ceremony in March. の意味はどれですか？",
+   "c": [
+    "3月に入学式があります。",
+    "4月に卒業式があります。",
+    "4月に入学式があります。",
+    "3月に卒業式があります。"
+   ],
+   "a": 3,
+   "exp": "graduation ceremony は卒業式、entrance ceremony は入学式。March は3月、April は4月です。",
+   "t": 6.5,
+   "g": "小学校の思い出"
+  },
+  {
+   "q": "I want to be a doctor in the future. は、いつのことを話していますか？",
+   "c": [
+    "将来",
+    "昨日",
+    "去年",
+    "毎日"
+   ],
+   "a": 0,
+   "exp": "in the future は「将来に」。future は「未来、将来」です。I want to be 〜. と合わせて、将来の夢を話す文になります。",
+   "t": 5.0,
+   "g": "将来の夢"
+  },
+  {
+   "q": "I want to be a pilot. I want to ( ) an airplane. かっこに入る語はどれですか？",
+   "c": [
+    "swim",
+    "climb",
+    "fly",
+    "cook"
+   ],
+   "a": 2,
+   "exp": "パイロットは飛行機を飛ばす人。fly は「飛ぶ、飛ばす」。swim は泳ぐ、climb は登るです。",
+   "t": 4.5,
+   "g": "将来の夢"
+  },
+  {
+   "q": "Why do you want to be a cook? の答えとして合うものはどれですか？",
+   "c": [
+    "Because I like flying.",
+    "Because I like cooking.",
+    "Because I like singing.",
+    "Because I like teaching."
+   ],
+   "a": 1,
+   "exp": "Why〜? には Because 〜. で理由を答えます。cook（料理人）には cooking（料理）が合います。",
+   "t": 5.5,
+   "g": "将来の夢"
+  },
+  {
+   "q": "I want to be ( ) astronaut. かっこに入る語はどれですか？",
+   "c": [
+    "a",
+    "the",
+    "some",
+    "an"
+   ],
+   "a": 3,
+   "exp": "astronaut は「ア」の音ではじまるので、a ではなく an を使います。",
+   "t": 5.5,
+   "g": "将来の夢"
+  },
+  {
+   "q": "I want to be a baker. I make bread every morning. baker とは、何をする人ですか？",
+   "c": [
+    "野菜をそだてる人",
+    "パンをつくる人",
+    "病気をなおす人",
+    "歌をうたう人"
+   ],
+   "a": 1,
+   "exp": "baker は「パン屋さん」。bake は「（パンなどを）焼く」で、「ベイカー」と読みます。",
+   "t": 4.0,
+   "g": "将来の夢"
+  },
+  {
+   "q": "He wants to be a baseball player. の意味はどれですか？",
+   "c": [
+    "彼は野球選手だ。",
+    "彼は野球をした。",
+    "彼は野球選手になりたい。",
+    "彼は野球が好きだ。"
+   ],
+   "a": 2,
+   "exp": "wants to be 〜 は「〜になりたい」。He のときは want に s がつきます。",
+   "t": 6.5,
+   "g": "将来の夢"
+  },
+  {
+   "q": "I want to be a cook. のあとに続ける文として合うものはどれですか？",
+   "c": [
+    "I want to make good food.",
+    "I want to fly an airplane.",
+    "I want to help sick animals.",
+    "I want to teach children."
+   ],
+   "a": 0,
+   "exp": "cook は「料理人」なので、おいしい料理を作りたいがぴったり。airplane は pilot、sick animals は vet、teach は teacher の仕事です。",
+   "t": 7.0,
+   "g": "将来の夢"
+  },
+  {
+   "q": "友だちが I want to be an astronaut. と言いました。応援する言葉はどれですか？",
+   "c": [
+    "Good luck!",
+    "Nice to meet you.",
+    "I'm sorry.",
+    "You're welcome."
+   ],
+   "a": 0,
+   "exp": "Good luck! は「がんばって、幸運を」と相手を応援する言葉です。",
+   "t": 4.5,
+   "g": "将来の夢"
+  },
+  {
+   "q": "職業ではないものはどれですか？",
+   "c": [
+    "pilot",
+    "vet",
+    "airport",
+    "singer"
+   ],
+   "a": 2,
+   "exp": "airport（空港）は場所です。pilot と vet と singer は人の職業を表します。",
+   "t": 5.0,
+   "g": "将来の夢"
+  },
+  {
+   "q": "I want to be a teacher because I like children. の意味はどれですか？",
+   "c": [
+    "先生が好きなので、子どもになりたい。",
+    "子どもが好きなので、先生になりたい。",
+    "子どもが好きだが、先生になりたくない。",
+    "先生になったので、子どもが好きだ。"
+   ],
+   "a": 1,
+   "exp": "because は「〜なので」。あとに理由が続きます。因果の向きを読み取りましょう。",
+   "t": 7.0,
+   "g": "将来の夢"
+  },
+  {
+   "q": "I'm good at drawing pictures. この人のなりたい職業として合うものはどれですか？",
+   "c": [
+    "astronaut",
+    "actor",
+    "doctor",
+    "artist"
+   ],
+   "a": 3,
+   "exp": "artist は「画家、芸術家」。絵をかくのが得意なので artist が合います。actor は俳優、astronaut は宇宙飛行士です。",
+   "t": 6.0,
+   "g": "将来の夢"
+  },
+  {
+   "q": "What do you want to do? は何をたずねる文ですか？",
+   "c": [
+    "なりたいもの",
+    "したいこと",
+    "持っているもの",
+    "好きな食べ物"
+   ],
+   "a": 1,
+   "exp": "What do you want to be? は「なりたいもの」、What do you want to do? は「したいこと」です。",
+   "t": 6.5,
+   "g": "将来の夢"
+  },
+  {
+   "q": "「歯医者さん」を表す英語はどれですか？",
+   "c": [
+    "dentist",
+    "doctor",
+    "dancer",
+    "designer"
+   ],
+   "a": 0,
+   "exp": "dentist は歯の病気をなおす人。dental は「歯の」という意味です。",
+   "t": 4.5,
+   "g": "職業"
+  },
+  {
+   "q": "「花屋さん」で働く人を表す英語はどれですか？",
+   "c": [
+    "farmer",
+    "baker",
+    "pilot",
+    "florist"
+   ],
+   "a": 3,
+   "exp": "florist は花屋さん。flower（花）と同じく「花」をもとにしたことばです。baker はパン屋さん、farmer は農家の人です。",
+   "t": 4.5,
+   "g": "職業"
+  },
+  {
+   "q": "zookeeper とは、どんな仕事をする人ですか？",
+   "c": [
+    "水族館で魚の世話をする人",
+    "動物園で動物の世話をする人",
+    "図書館で本を貸す人",
+    "農場で牛を育てる人"
+   ],
+   "a": 1,
+   "exp": "zoo（動物園）＋ keeper（世話をする人）で zookeeper。動物にえさをあげたり、おりをそうじしたりします。",
+   "t": 5.5,
+   "g": "職業"
+  },
+  {
+   "q": "I work at a hospital. I help sick people. この人の職業はどれですか？",
+   "c": [
+    "vet",
+    "doctor",
+    "cook",
+    "pilot"
+   ],
+   "a": 1,
+   "exp": "hospital（病院）で sick people（病気の人）を助けるのは doctor（医者）。vet は動物のお医者さんです。",
+   "t": 6.5,
+   "g": "職業"
+  },
+  {
+   "q": "I grow rice and vegetables. I have cows, too. この人の職業はどれですか？",
+   "c": [
+    "baker",
+    "florist",
+    "farmer",
+    "cook"
+   ],
+   "a": 2,
+   "exp": "grow は「育てる」。米や野菜を育て、牛も飼っているのは farmer（農家の人）。farm（農場）に -er がついた形です。",
+   "t": 6.5,
+   "g": "職業"
+  },
+  {
+   "q": "人を笑わせる仕事をしている人はどれですか？",
+   "c": [
+    "comedian",
+    "vet",
+    "pilot",
+    "dentist"
+   ],
+   "a": 0,
+   "exp": "comedian はお笑い芸人。Comedians make people laugh.（人を笑わせる）と言えます。laugh は「笑う」です。",
+   "t": 5.0,
+   "g": "職業"
+  },
+  {
+   "q": "次のうち、仲間はずれの語はどれですか？",
+   "c": [
+    "finger",
+    "teacher",
+    "singer",
+    "farmer"
+   ],
+   "a": 0,
+   "exp": "finger は「指」。teacher、singer、farmer は、おわりの -er で「〜する人」を表します。",
+   "t": 5.5,
+   "g": "職業"
+  },
+  {
+   "q": "He is a vet. He ( ) animals. かっこに入る語はどれですか？",
+   "c": [
+    "help",
+    "helping",
+    "helps",
+    "to help"
+   ],
+   "a": 2,
+   "exp": "主語が He（ひとり）なので、help に s をつけて helps にします。",
+   "t": 6.0,
+   "g": "職業"
+  },
+  {
+   "q": "cook という語が表す意味の組み合わせとして正しいものはどれですか？",
+   "c": [
+    "料理する・台所",
+    "食べる・料理人",
+    "料理する・料理人",
+    "台所・料理人"
+   ],
+   "a": 2,
+   "exp": "cook は「料理する」という動作と、「料理人」という人の両方を表せます。台所は kitchen です。I cook dinner. / He is a cook.",
+   "t": 6.5,
+   "g": "職業"
+  },
+  {
+   "q": "I want to join the basketball team. の意味はどれですか？",
+   "c": [
+    "バスケットボールを見に行きたい。",
+    "バスケットボールの試合に勝ちたい。",
+    "バスケットボール部をやめたい。",
+    "バスケットボール部に入りたい。"
+   ],
+   "a": 3,
+   "exp": "join は「入る、参加する」。join the 〜 team で「〜部に入る」という意味です。",
+   "t": 5.5,
+   "g": "中学校の生活"
+  },
+  {
+   "q": "「ブラスバンド（ふきそうがく）」を表す英語はどれですか？",
+   "c": [
+    "baseball team",
+    "brass band",
+    "art club",
+    "science club"
+   ],
+   "a": 1,
+   "exp": "brass band は金管楽器を中心にした楽団のこと。クラブは club、運動の部は team と言うことが多いです。",
+   "t": 5.0,
+   "g": "中学校の生活"
+  },
+  {
+   "q": "中学校で「英語を一生けんめい勉強したい」と言う文はどれですか？",
+   "c": [
+    "I want to teach English.",
+    "I'm good at English.",
+    "I want to study English hard.",
+    "I want to buy English books."
+   ],
+   "a": 2,
+   "exp": "hard は「一生けんめい」。study hard で「熱心に勉強する」。I'm good at 〜. は「〜が得意」で、したいことではありません。",
+   "t": 6.5,
+   "g": "中学校の生活"
+  },
+  {
+   "q": "中学校で新しい友だちをつくりたいとき、何と言いますか？",
+   "c": [
+    "I want to make new friends.",
+    "I want to see old friends.",
+    "I want to buy new clothes.",
+    "I want to read new books."
+   ],
+   "a": 0,
+   "exp": "make friends で「友だちをつくる」。make は「作る」ですが、友だちにも使えます。old は「古い、昔からの」です。",
+   "t": 6.0,
+   "g": "中学校の生活"
+  },
+  {
+   "q": "中学校でしたいことを話す文として、正しいものはどれですか？",
+   "c": [
+    "I want enjoy sports.",
+    "I want to enjoy sports.",
+    "I want to enjoyed sports.",
+    "I wants to enjoy sports."
+   ],
+   "a": 1,
+   "exp": "「〜したい」は want to のあとに動詞のもとの形。to がない、過去形にする、I なのに wants にする、はどれもまちがいです。",
+   "t": 7.5,
+   "g": "中学校の生活"
+  },
+  {
+   "q": "My brother goes to junior high school. 兄は何学校に通っていますか？",
+   "c": [
+    "小学校",
+    "高校",
+    "大学",
+    "中学校"
+   ],
+   "a": 3,
+   "exp": "junior high school は中学校。小学校は elementary school、高校は high school です。",
+   "t": 4.5,
+   "g": "中学校の生活"
+  },
+  {
+   "q": "What do you want to do in junior high school? に合う答えはどれですか？",
+   "c": [
+    "I went to junior high school.",
+    "I'm in the sixth grade.",
+    "I like junior high school.",
+    "I want to play soccer."
+   ],
+   "a": 3,
+   "exp": "want to do（したいこと）をたずねているので、I want to 〜. と答えます。",
+   "t": 6.5,
+   "g": "中学校の生活"
+  },
+  {
+   "q": "I want to try new things. の意味はどれですか？",
+   "c": [
+    "新しい物を買いたい。",
+    "新しいことにチャレンジしたい。",
+    "新しい町に行きたい。",
+    "新しい先生に会いたい。"
+   ],
+   "a": 1,
+   "exp": "try は「やってみる」。things は「こと、物」で、new things は新しいことです。",
+   "t": 5.5,
+   "g": "中学校の生活"
+  },
+  {
+   "q": "Why do you want to join the art club? の答えとして合うものはどれですか？",
+   "c": [
+    "Because I like swimming.",
+    "Because I like cooking.",
+    "Because I like drawing.",
+    "Because I like singing."
+   ],
+   "a": 2,
+   "exp": "art club は絵などをかく部活動。drawing pictures（絵をかく）が理由に合います。",
+   "t": 6.0,
+   "g": "中学校の生活"
+  },
+  {
+   "q": "Do you want to join the tennis team? に「いいえ」と答える文はどれですか？",
+   "c": [
+    "No, I don't.",
+    "No, I'm not.",
+    "No, I can't.",
+    "No, I didn't."
+   ],
+   "a": 0,
+   "exp": "Do の質問には、No, I don't. と答えます。am や can や did では答えられません。",
+   "t": 7.0,
+   "g": "中学校の生活"
+  },
+  {
+   "q": "「中学校でもベストをつくそうね」と友だちに声をかける英語はどれですか？",
+   "c": [
+    "Let's do our best.",
+    "Let's make our best.",
+    "Let's take our best.",
+    "Let's have our best."
+   ],
+   "a": 0,
+   "exp": "do one's best で「ベストをつくす」。決まった言い方なので do を使います。make や take は使いません。",
+   "t": 6.5,
+   "g": "中学校の生活"
+  },
+  {
+   "q": "本を借りたいとき、町のどこへ行けばよいですか？",
+   "c": [
+    "station",
+    "library",
+    "bakery",
+    "hospital"
+   ],
+   "a": 1,
+   "exp": "borrow books（本を借りる）ことができるのは library（図書館）。bakery はパン屋、station は駅です。",
+   "t": 4.5,
+   "g": "町の紹介"
+  },
+  {
+   "q": "手紙に切手（stamp）をはって出したいとき、行く場所はどれですか？",
+   "c": [
+    "library",
+    "police station",
+    "supermarket",
+    "post office"
+   ],
+   "a": 3,
+   "exp": "post office は郵便局。手紙を出したり、切手を買ったりできます。police station は警察署です。",
+   "t": 5.5,
+   "g": "町の紹介"
+  },
+  {
+   "q": "museum（美術館・博物館）で見られるものとして、合うものはどれですか？",
+   "c": [
+    "古い絵や道具",
+    "野球の試合",
+    "生きた魚やイルカ",
+    "発車する電車"
+   ],
+   "a": 0,
+   "exp": "museum では古い絵や道具を見られます。野球は stadium、魚やイルカは aquarium、電車は station で見られます。",
+   "t": 6.0,
+   "g": "町の紹介"
+  },
+  {
+   "q": "I like dolphins and fish. 町の中で、この人が行くとよい場所はどれですか？",
+   "c": [
+    "library",
+    "station",
+    "aquarium",
+    "school"
+   ],
+   "a": 2,
+   "exp": "aquarium は水族館。dolphin（イルカ）や魚など、水の生き物を見られます。",
+   "t": 5.5,
+   "g": "町の紹介"
+  },
+  {
+   "q": "Our town has a stadium. そこでできることはどれですか？",
+   "c": [
+    "本を借りる",
+    "野球の試合を見る",
+    "切手を買う",
+    "電車に乗る"
+   ],
+   "a": 1,
+   "exp": "stadium は競技場、球場のこと。スポーツの試合を見られます。本は library、切手は post office、電車は station です。",
+   "t": 6.0,
+   "g": "町の紹介"
+  },
+  {
+   "q": "町の案内を始めるとき、最初に言う言葉として合うものはどれですか？",
+   "c": [
+    "You're welcome.",
+    "Good luck!",
+    "Welcome to our town!",
+    "I'm sorry."
+   ],
+   "a": 2,
+   "exp": "Welcome to 〜! は「〜へようこそ」。You're welcome. も welcome が入っていますが、お礼への返事「どういたしまして」です。",
+   "t": 6.5,
+   "g": "町の紹介"
+  },
+  {
+   "q": "Our town is famous for apples. からわかることはどれですか？",
+   "c": [
+    "その町はりんごがきらいだ。",
+    "その町はりんごが少ない。",
+    "その町でりんごを食べた。",
+    "その町はりんごで有名だ。"
+   ],
+   "a": 3,
+   "exp": "famous for 〜 は「〜で有名」。町の自まんをするときに使います。",
+   "t": 6.5,
+   "g": "町の紹介"
+  },
+  {
+   "q": "There ( ) two parks in my town. かっこに入る語はどれですか？",
+   "c": [
+    "is",
+    "am",
+    "are",
+    "be"
+   ],
+   "a": 2,
+   "exp": "two parks は複数なので、There are 〜. を使います。ひとつなら There is です。",
+   "t": 6.5,
+   "g": "町の紹介"
+  },
+  {
+   "q": "Go straight. Turn right. You can see the library on your left. 図書館はどこに見えますか？",
+   "c": [
+    "右がわ",
+    "左がわ",
+    "正面",
+    "うしろ"
+   ],
+   "a": 1,
+   "exp": "Turn right のあとに、library が on your left（左がわに）見えます。右に曲がっても図書館は左です。",
+   "t": 7.5,
+   "g": "町の紹介"
+  },
+  {
+   "q": "The post office is next to the library. 郵便局はどこにありますか？",
+   "c": [
+    "図書館の中",
+    "図書館のうしろ",
+    "図書館のむかい",
+    "図書館のとなり"
+   ],
+   "a": 3,
+   "exp": "next to 〜 は「〜のとなり」。まぎらわしいですが、in は中、behind はうしろです。",
+   "t": 6.0,
+   "g": "町の紹介"
+  },
+  {
+   "q": "先生に Eat breakfast every day. と言われました。何をすればよいですか？",
+   "c": [
+    "毎日朝ごはんを食べる",
+    "毎日朝ごはんを作る",
+    "毎日朝ごはんを買う",
+    "毎日夕ごはんを食べる"
+   ],
+   "a": 0,
+   "exp": "breakfast は朝ごはん、eat は食べる。every day は毎日です。夕ごはんは dinner。朝ごはんは一日のげんきのもとです。",
+   "t": 6.0,
+   "g": "食べ物と健康"
+  },
+  {
+   "q": "Wash your hands before lunch. の意味はどれですか？",
+   "c": [
+    "給食のあとに手を洗おう。",
+    "給食の前に手を洗おう。",
+    "給食の前に手をふこう。",
+    "給食の前に手を上げよう。"
+   ],
+   "a": 1,
+   "exp": "before は「〜の前に」、after は「〜のあとに」。wash は「洗う」です。",
+   "t": 6.5,
+   "g": "食べ物と健康"
+  },
+  {
+   "q": "やさいではないものはどれですか？",
+   "c": [
+    "banana",
+    "carrot",
+    "cabbage",
+    "onion"
+   ],
+   "a": 0,
+   "exp": "banana（バナナ）は果物です。carrot はにんじん、cabbage はキャベツ、onion はたまねぎです。",
+   "t": 4.5,
+   "g": "食べ物と健康"
+  },
+  {
+   "q": "milk（牛乳）から作られるものはどれですか？",
+   "c": [
+    "tofu",
+    "natto",
+    "cheese",
+    "ketchup"
+   ],
+   "a": 2,
+   "exp": "cheese（チーズ）やバターは牛乳から作られます。tofu と natto は豆（beans）、ketchup はトマトから作られます。",
+   "t": 5.5,
+   "g": "食べ物と健康"
+  },
+  {
+   "q": "I'm thirsty. と言った友だちにあげるものとして合うのはどれですか？",
+   "c": [
+    "Here's some rice.",
+    "Here's some bread.",
+    "Here's some cake.",
+    "Here's some water."
+   ],
+   "a": 3,
+   "exp": "thirsty は「のどがかわいた」。飲み物をあげます。hungry（おなかがすいた）とは別です。",
+   "t": 5.5,
+   "g": "食べ物と健康"
+  },
+  {
+   "q": "Do you want more curry? と聞かれました。おなかがいっぱいのときの答えはどれですか？",
+   "c": [
+    "Yes, please. I'm full.",
+    "No, thank you. I'm hungry.",
+    "Yes, I'm thirsty.",
+    "No, thank you. I'm full."
+   ],
+   "a": 3,
+   "exp": "full は「おなかがいっぱい」。もういらないので No, thank you. とていねいにことわります。hungry は「おなかがすいた」です。",
+   "t": 7.0,
+   "g": "食べ物と健康"
+  },
+  {
+   "q": "What do you usually have for breakfast? に合う答えはどれですか？",
+   "c": [
+    "I usually get up at six.",
+    "I usually have rice and fish.",
+    "I usually walk to school.",
+    "I usually go to bed at ten."
+   ],
+   "a": 1,
+   "exp": "have for breakfast は「朝食に食べる」。食べ物を答えている文を選びます。",
+   "t": 6.5,
+   "g": "食べ物と健康"
+  },
+  {
+   "q": "給食に出たピーマンは、英語で何と言いますか？",
+   "c": [
+    "sweet potatoes",
+    "pumpkins",
+    "green peppers",
+    "pineapples"
+   ],
+   "a": 2,
+   "exp": "green pepper がピーマン。pumpkin はかぼちゃ、sweet potato はさつまいも、pineapple はパイナップルです。",
+   "t": 5.0,
+   "g": "食べ物と健康"
+  },
+  {
+   "q": "健康のための呼びかけとして、まちがっているものはどれですか？",
+   "c": [
+    "Eat a lot of candy every day.",
+    "Eat breakfast every day.",
+    "Wash your hands.",
+    "Eat vegetables."
+   ],
+   "a": 0,
+   "exp": "おかしを毎日たくさん食べると、むし歯や食べすぎの原因になります。ほかの三つは健康によい習慣です。",
+   "t": 7.0,
+   "g": "食べ物と健康"
+  },
+  {
+   "q": "sour（すっぱい）と言うのに、いちばん合う食べ物はどれですか？",
+   "c": [
+    "honey",
+    "lemons",
+    "chocolate",
+    "cookies"
+   ],
+   "a": 1,
+   "exp": "レモンの味は sour（すっぱい）。honey（はちみつ）、chocolate、cookies は sweet（あまい）です。",
+   "t": 5.0,
+   "g": "食べ物と健康"
+  }
+ ]
+}

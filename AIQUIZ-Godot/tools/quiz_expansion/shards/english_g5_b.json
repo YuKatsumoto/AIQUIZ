@@ -1,0 +1,1632 @@
+{
+  "subject": "英語",
+  "grade": 5,
+  "batch": "b",
+  "items": [
+    {
+      "q": "「3番目」を表す英語はどれですか？",
+      "c": [
+        "third",
+        "three",
+        "thirty",
+        "thirteen"
+      ],
+      "a": 0,
+      "exp": "「3つ」はthree、「3番目」はthird。first、secondと同じように、順番の言い方は形がかわります。",
+      "t": 3.5,
+      "g": "順番の数え方"
+    },
+    {
+      "q": "英語で5番目はどう言いますか？",
+      "c": [
+        "five",
+        "fifth",
+        "fifty",
+        "fifteen"
+      ],
+      "a": 1,
+      "exp": "5番目はfifth。fiveのveがfにかわります。fifty（50）やfifteen（15）とまちがえないように。",
+      "t": 4.0,
+      "g": "順番の数え方"
+    },
+    {
+      "q": "the ( ) day で「8番目の日」と言うとき、( )に入る語は？",
+      "c": [
+        "eighty",
+        "eight",
+        "eighth",
+        "eighteen"
+      ],
+      "a": 2,
+      "exp": "8番目はeighth。eight（8）の最後にhをたした形です。eighty（80）とつづりが似ているので注意。",
+      "t": 4.0,
+      "g": "順番の数え方"
+    },
+    {
+      "q": "1年の12番目の月 the ( ) month の( )に入る語は？",
+      "c": [
+        "eleventh",
+        "twelve",
+        "twentieth",
+        "twelfth"
+      ],
+      "a": 3,
+      "exp": "12はtwelve、12番目はtwelfth。veがfthにかわります。twentieth（20番目）やeleventh（11番目）とはちがいます。",
+      "t": 5.0,
+      "g": "順番の数え方"
+    },
+    {
+      "q": "first, second, third, ( ) とつづくとき、「4番目」を表す語はどれですか？",
+      "c": [
+        "fourth",
+        "fourteen",
+        "four",
+        "fifth"
+      ],
+      "a": 0,
+      "exp": "4番目はfourth。four（4）にthをつけた形です。fifthは5番目。",
+      "t": 4.5,
+      "g": "順番の数え方"
+    },
+    {
+      "q": "「順番」を表す言葉ではないものはどれですか？",
+      "c": [
+        "second",
+        "ten",
+        "first",
+        "ninth"
+      ],
+      "a": 1,
+      "exp": "tenは「10」という数で、順番ではありません。first（1番目）、second（2番目）、ninth（9番目）は順番を表す言葉です。",
+      "t": 6.5,
+      "g": "順番の数え方"
+    },
+    {
+      "q": "「わたしは6年生です。」I'm in the ( ) grade. の( )に入る語はどれですか？",
+      "c": [
+        "six",
+        "sixteen",
+        "sixth",
+        "sixty"
+      ],
+      "a": 2,
+      "exp": "「〜年生」は、the sixth gradeのように順番の言い方を使います。5年生ならthe fifth grade。",
+      "t": 6.0,
+      "g": "順番の数え方"
+    },
+    {
+      "q": "21番目を表す語を選ぶと、どれですか？",
+      "c": [
+        "twenty-second",
+        "twentieth",
+        "twenty-one",
+        "twenty-first"
+      ],
+      "a": 3,
+      "exp": "21番目はtwenty-first。twenty-oneは「21」という数です。最後のoneだけがfirstにかわります。",
+      "t": 6.5,
+      "g": "順番の数え方"
+    },
+    {
+      "q": "「9番目」の正しいつづりはどれですか？",
+      "c": [
+        "ninth",
+        "ninnth",
+        "nineth",
+        "ninetth"
+      ],
+      "a": 0,
+      "exp": "nine（9）のeをとってthをつけ、ninthとなります。nine+thと考えてninethとしてしまうまちがいが多いです。",
+      "t": 6.0,
+      "g": "順番の数え方"
+    },
+    {
+      "q": "「5月3日」を英語で読むと、どうなりますか？",
+      "c": [
+        "May thirteenth",
+        "May third",
+        "May three",
+        "March third"
+      ],
+      "a": 1,
+      "exp": "日にちはthirdのように順番の言い方で読みます。threeは数、thirteenthは13日です。",
+      "t": 4.5,
+      "g": "日付"
+    },
+    {
+      "q": "August 15 は、英語ではどう読みますか？",
+      "c": [
+        "August fifty",
+        "August fifteen",
+        "August fifteenth",
+        "August fifth"
+      ],
+      "a": 2,
+      "exp": "15日はfifteenth。fifth（5日）やfifteen（数の15）とまちがえやすいので、つづりの終わりのthを見よう。",
+      "t": 5.5,
+      "g": "日付"
+    },
+    {
+      "q": "「What's the date today?」（今日は何月何日？）に合う返事はどれですか？",
+      "c": [
+        "It's Monday.",
+        "It's ten o'clock.",
+        "It's sunny.",
+        "It's October tenth."
+      ],
+      "a": 3,
+      "exp": "dateは「日付」。月と日にちで答えます。Mondayは曜日、sunnyは天気、ten o'clockは時こくへの返事です。",
+      "t": 5.5,
+      "g": "日付"
+    },
+    {
+      "q": "「What day is it today?」（今日は何曜日？）に合う返事はどれですか？",
+      "c": [
+        "It's Friday.",
+        "It's seven o'clock.",
+        "It's rainy.",
+        "It's January."
+      ],
+      "a": 0,
+      "exp": "What day ...? は曜日をたずねる文です。日付をたずねるのはWhat's the date today? です。",
+      "t": 5.0,
+      "g": "日付"
+    },
+    {
+      "q": "「4月1日」を表す正しい英文はどれですか？",
+      "c": [
+        "It's April four.",
+        "It's April first.",
+        "It's first four.",
+        "It's April one."
+      ],
+      "a": 1,
+      "exp": "日にちは1番目＝firstのように順番の言い方をします。月→日の順に言います。",
+      "t": 5.5,
+      "g": "日付"
+    },
+    {
+      "q": "「Sports Day is on October tenth.」運動会はいつですか？",
+      "c": [
+        "10月13日",
+        "1月10日",
+        "10月10日",
+        "10月1日"
+      ],
+      "a": 2,
+      "exp": "Octoberは10月、tenthは10番目＝10日。firstは1日、thirteenthは13日です。月と日をとりちがえないように。",
+      "t": 7.0,
+      "g": "日付"
+    },
+    {
+      "q": "「Our school trip is on June second.」遠足はいつですか？",
+      "c": [
+        "2月6日",
+        "6月22日",
+        "6月12日",
+        "6月2日"
+      ],
+      "a": 3,
+      "exp": "Juneは6月、secondは2番目＝2日。twelfth（12日）やtwenty-second（22日）とまちがえないこと。",
+      "t": 7.0,
+      "g": "日付"
+    },
+    {
+      "q": "日にちの言い方としてまちがっているものはどれですか？",
+      "c": [
+        "August five",
+        "June second",
+        "July third",
+        "May first"
+      ],
+      "a": 0,
+      "exp": "日にちは順番の言い方にします。fiveではなくfifthが正しく、August fifth（8月5日）となります。",
+      "t": 7.0,
+      "g": "日付"
+    },
+    {
+      "q": "July（7月）の2か月前の月はどれですか？",
+      "c": [
+        "April",
+        "May",
+        "August",
+        "June"
+      ],
+      "a": 1,
+      "exp": "April、May、June、Julyの順。Julyの1つ前がJune、2つ前がMayです。Augustは1か月後。",
+      "t": 7.0,
+      "g": "日付"
+    },
+    {
+      "q": "2月を表す英語を、正しくつづっているものはどれですか？",
+      "c": [
+        "Februry",
+        "Febrary",
+        "February",
+        "Febuary"
+      ],
+      "a": 2,
+      "exp": "Februaryは Feb-ru-ary。真ん中の「ru」を落としやすいので気をつけよう。",
+      "t": 6.5,
+      "g": "日付"
+    },
+    {
+      "q": "「Today is Sunday, May fourth.」明日の曜日はどれですか？",
+      "c": [
+        "Saturday",
+        "Friday",
+        "Tuesday",
+        "Monday"
+      ],
+      "a": 3,
+      "exp": "日曜日（Sunday）の次の日は月曜日（Monday）。Saturday（土曜日）は昨日です。",
+      "t": 7.0,
+      "g": "日付"
+    },
+    {
+      "q": "「My birthday is March third.」その1週間後の日付はどれですか？",
+      "c": [
+        "March tenth",
+        "March ninth",
+        "April third",
+        "March fourth"
+      ],
+      "a": 0,
+      "exp": "1週間は7日なので、3＋7＝10で March tenth（3月10日）。April third は1か月後、March fourth は1日後です。",
+      "t": 8.0,
+      "g": "たんじょう日"
+    },
+    {
+      "q": "たんじょう日をきかれて、「5月20日です」と答える英文はどれですか？",
+      "c": [
+        "It's May second.",
+        "It's May twentieth.",
+        "It's May twelfth.",
+        "It's March twentieth."
+      ],
+      "a": 1,
+      "exp": "Mayは5月、twentiethは20日。secondは2日、twelfthは12日です。月も日にちも順番に読もう。",
+      "t": 6.0,
+      "g": "たんじょう日"
+    },
+    {
+      "q": "「My birthday is ( ) July.」と「My birthday is ( ) July ninth.」の( )に入る語の組み合わせは？",
+      "c": [
+        "on / in",
+        "in / at",
+        "in / on",
+        "at / on"
+      ],
+      "a": 2,
+      "exp": "月だけのときはin July、日にちまで言うときはon July ninthのようにonを使います。",
+      "t": 7.5,
+      "g": "たんじょう日"
+    },
+    {
+      "q": "友だちに「Happy birthday!」と言われたときの返事はどれですか？",
+      "c": [
+        "Nice to meet you.",
+        "See you.",
+        "You're welcome.",
+        "Thank you."
+      ],
+      "a": 3,
+      "exp": "お祝いにはThank you.（ありがとう）と答えます。You're welcome.は感謝されたときの返事です。",
+      "t": 4.5,
+      "g": "たんじょう日"
+    },
+    {
+      "q": "Ai: May fifth. Ken: March ninth. Mai: June first. Ryo: April tenth. 1年でたんじょう日がいちばん早いのはだれ？",
+      "c": [
+        "Ken",
+        "Ryo",
+        "Ai",
+        "Mai"
+      ],
+      "a": 0,
+      "exp": "月の順は March、April、May、June。fifthやtenthは日にちなので、まず月を見ます。Marchが最初なのでKenです。",
+      "t": 8.5,
+      "g": "たんじょう日"
+    },
+    {
+      "q": "ケンは10さいです。「How old are you?」と聞かれたときのケンの返事はどれですか？",
+      "c": [
+        "It's ten.",
+        "I'm ten.",
+        "I have ten.",
+        "I'm tenth."
+      ],
+      "a": 1,
+      "exp": "年れいは数で答えます。tenthは「10番目」の意味なので合いません。",
+      "t": 6.5,
+      "g": "たんじょう日"
+    },
+    {
+      "q": "「Christmas is December twenty-fifth.」クリスマスはいつですか？",
+      "c": [
+        "11月25日",
+        "12月5日",
+        "12月25日",
+        "12月15日"
+      ],
+      "a": 2,
+      "exp": "Decemberは12月、twenty-fifthは25番目＝25日。fifteenth（15日）やfifth（5日）と区別しよう。",
+      "t": 6.5,
+      "g": "たんじょう日"
+    },
+    {
+      "q": "「What do you want for your birthday?」への返事はどれですか？",
+      "c": [
+        "I'm eleven.",
+        "It's July fifth.",
+        "Yes, I do.",
+        "I want a new bike."
+      ],
+      "a": 3,
+      "exp": "たんじょう日に「何がほしい？」と聞いているので、I want ~.（〜がほしい）で答えます。It's July fifth. は「いつ？」、I'm eleven. は年れいへの返事です。",
+      "t": 6.5,
+      "g": "たんじょう日"
+    },
+    {
+      "q": "「たんじょう日」の正しいつづりはどれですか？",
+      "c": [
+        "birthday",
+        "birsday",
+        "berthday",
+        "birthdey"
+      ],
+      "a": 0,
+      "exp": "birth（生まれ）＋ day（日）で「生まれた日」。そう考えるとつづりを覚えやすくなります。",
+      "t": 5.0,
+      "g": "たんじょう日"
+    },
+    {
+      "q": "8時30分を表す英文はどれですか？",
+      "c": [
+        "It's eighth thirty.",
+        "It's eight thirty.",
+        "It's eight three.",
+        "It's thirty eight."
+      ],
+      "a": 1,
+      "exp": "時こくは「時＋分」の順に、数でそのまま読みます。順番を表すeighthは使いません。",
+      "t": 5.5,
+      "g": "時こく"
+    },
+    {
+      "q": "「It's four forty-five.」は何時何分ですか？",
+      "c": [
+        "4時54分",
+        "5時45分",
+        "4時45分",
+        "4時15分"
+      ],
+      "a": 2,
+      "exp": "fourは4時、forty-fiveは45分。fifteen（15）やfifty（50）とまちがえやすいので注意。",
+      "t": 6.5,
+      "g": "時こく"
+    },
+    {
+      "q": "「It's time for lunch.」の意味はどれですか？",
+      "c": [
+        "昼食がすきです。",
+        "昼食はおわりです。",
+        "昼食を作ります。",
+        "昼食の時間です。"
+      ],
+      "a": 3,
+      "exp": "It's time for ~. は「〜の時間です」。It's time for school. なら「学校の時間です」。",
+      "t": 4.5,
+      "g": "時こく"
+    },
+    {
+      "q": "時計の長いはりが6、短いはりが2と3のあいだを指しています。何時何分ですか？",
+      "c": [
+        "It's two thirty.",
+        "It's six thirty.",
+        "It's two six.",
+        "It's six two."
+      ],
+      "a": 0,
+      "exp": "長いはりの6は30分。短いはりは2をすぎたところなので2時です。だから two thirty（2時30分）になります。",
+      "t": 7.5,
+      "g": "時こく"
+    },
+    {
+      "q": "給食は12時30分から。今は「It's twelve ten.」です。給食まであと何分ですか？",
+      "c": [
+        "10分",
+        "20分",
+        "40分",
+        "30分"
+      ],
+      "a": 1,
+      "exp": "12時10分から12時30分まで。30－10＝20分です。",
+      "t": 7.0,
+      "g": "時こく"
+    },
+    {
+      "q": "「It's nine thirty.」はどの時こくですか？",
+      "c": [
+        "9時3分",
+        "3時9分",
+        "9時30分",
+        "9時13分"
+      ],
+      "a": 2,
+      "exp": "thirtyは30、thirteenは13。thirty は前のほうを強く読みます。",
+      "t": 6.0,
+      "g": "時こく"
+    },
+    {
+      "q": "次の4つの中で、仲間はずれの語はどれですか？",
+      "c": [
+        "evening",
+        "afternoon",
+        "morning",
+        "Monday"
+      ],
+      "a": 3,
+      "exp": "morning（朝）、afternoon（午後）、evening（夕方）は1日の時間帯。Mondayは曜日です。",
+      "t": 5.5,
+      "g": "時こく"
+    },
+    {
+      "q": "「I study English ( ) the morning.」の( )に入る語はどれですか？",
+      "c": [
+        "in",
+        "by",
+        "on",
+        "at"
+      ],
+      "a": 0,
+      "exp": "朝・午後・夕方には in the morning のようにinを使います。時こくにはat、曜日にはonです。",
+      "t": 6.0,
+      "g": "時こく"
+    },
+    {
+      "q": "いちばん早い時こくはどれですか？",
+      "c": [
+        "It's six ten.",
+        "It's five fifty.",
+        "It's six forty.",
+        "It's seven ten."
+      ],
+      "a": 1,
+      "exp": "5時50分がいちばん早い。fiftyは大きい数でも、時のfiveが6や7より小さいので先です。",
+      "t": 7.5,
+      "g": "時こく"
+    },
+    {
+      "q": "「What time is it?」でたずねているのはどれですか？",
+      "c": [
+        "日付",
+        "天気",
+        "時こく",
+        "曜日"
+      ],
+      "a": 2,
+      "exp": "What time ...? は「何時？」。日付はWhat's the date today?、曜日はWhat day is it today? です。",
+      "t": 4.0,
+      "g": "時こく"
+    },
+    {
+      "q": "「It's time to go to bed.」の意味はどれですか？",
+      "c": [
+        "ねたくありません。",
+        "ねる場所です。",
+        "よくねました。",
+        "ねる時間です。"
+      ],
+      "a": 3,
+      "exp": "It's time to ~. は「〜する時間です」。go to bedは「ねる」という意味です。",
+      "t": 5.0,
+      "g": "時こく"
+    },
+    {
+      "q": "「6時30分に起きます。」を表す正しい英文はどれですか？",
+      "c": [
+        "I get up at six thirty.",
+        "I get up to six thirty.",
+        "I get up on six thirty.",
+        "I get up in six thirty."
+      ],
+      "a": 0,
+      "exp": "時こくの前にはatを使います。onは曜日や日付、inは月や朝などに使います。",
+      "t": 6.0,
+      "g": "毎日の生活"
+    },
+    {
+      "q": "「歯をみがく」を表す英語はどれですか？",
+      "c": [
+        "brush my hair",
+        "brush my teeth",
+        "wash my teeth",
+        "wash my hands"
+      ],
+      "a": 1,
+      "exp": "歯はブラシでみがくのでbrushを使います。「あらう」と考えてwashとするまちがいに注意。",
+      "t": 4.5,
+      "g": "毎日の生活"
+    },
+    {
+      "q": "「ふろに入る」を表す英語はどれですか？",
+      "c": [
+        "go a bath",
+        "enter a bath",
+        "take a bath",
+        "make a bath"
+      ],
+      "a": 2,
+      "exp": "ふろに入るはtake a bath。takeは「取る」だけでなく、「（入浴などを）する」でも使います。",
+      "t": 5.0,
+      "g": "毎日の生活"
+    },
+    {
+      "q": "「宿題をする」を表す英語はどれですか？",
+      "c": [
+        "play my homework",
+        "take my homework",
+        "make my homework",
+        "do my homework"
+      ],
+      "a": 3,
+      "exp": "宿題にはdo（する）を使います。makeは「作る」、playは「遊ぶ・競技をする」です。",
+      "t": 4.5,
+      "g": "毎日の生活"
+    },
+    {
+      "q": "I get up at six. I eat breakfast at seven. I go to school at eight. 起きてから学校へ行くまで何時間？",
+      "c": [
+        "2時間",
+        "1時間",
+        "8時間",
+        "3時間"
+      ],
+      "a": 0,
+      "exp": "6時に起きて8時に出かけます。8－6＝2時間。1時間は起きてから朝ごはんまでです。",
+      "t": 8.0,
+      "g": "毎日の生活"
+    },
+    {
+      "q": "ア I eat breakfast. イ I get up. ウ I go to school. 朝の行動を順にならべたものはどれ？",
+      "c": [
+        "ア → イ → ウ",
+        "イ → ア → ウ",
+        "ウ → ア → イ",
+        "イ → ウ → ア"
+      ],
+      "a": 1,
+      "exp": "get up（起きる）→ eat breakfast（朝ごはん）→ go to school（学校へ行く）の順です。",
+      "t": 7.0,
+      "g": "毎日の生活"
+    },
+    {
+      "q": "「I eat dinner at seven.」は、どの質問への答えですか？",
+      "c": [
+        "What do you eat for dinner?",
+        "Where do you eat dinner?",
+        "What time do you eat dinner?",
+        "How do you eat dinner?"
+      ],
+      "a": 2,
+      "exp": "at seven（7時に）と答えているので、時こくをたずねるWhat time ...? が合います。",
+      "t": 6.5,
+      "g": "毎日の生活"
+    },
+    {
+      "q": "「I do my homework after dinner.」の意味はどれですか？",
+      "c": [
+        "宿題のあとに夕食を食べます。",
+        "夕食の前に宿題をします。",
+        "夕食を食べながら宿題をします。",
+        "夕食のあとに宿題をします。"
+      ],
+      "a": 3,
+      "exp": "afterは「〜のあとに」、beforeは「〜の前に」。after dinnerは夕食のあとです。",
+      "t": 7.0,
+      "g": "毎日の生活"
+    },
+    {
+      "q": "食事を表す語の中にまぎれている、仲間はずれはどれですか？",
+      "c": [
+        "homework",
+        "breakfast",
+        "lunch",
+        "dinner"
+      ],
+      "a": 0,
+      "exp": "breakfast（朝食）、lunch（昼食）、dinner（夕食）は食事。homework（宿題）だけがちがいます。",
+      "t": 4.5,
+      "g": "毎日の生活"
+    },
+    {
+      "q": "「Do you take a bath every day?」に「はい」と答える返事はどれですか？",
+      "c": [
+        "Yes, it is.",
+        "Yes, I do.",
+        "Yes, I can.",
+        "Yes, I am."
+      ],
+      "a": 1,
+      "exp": "Do you ~? にはdoを使って、Yes, I do. / No, I don't. と答えます。canやamは別の文に使います。",
+      "t": 5.5,
+      "g": "毎日の生活"
+    },
+    {
+      "q": "「I play soccer on Sundays.」の意味はどれですか？",
+      "c": [
+        "日曜日にサッカーを見ます。",
+        "毎日サッカーをします。",
+        "毎週日曜日にサッカーをします。",
+        "今度の日曜日にサッカーをします。"
+      ],
+      "a": 2,
+      "exp": "Sundaysと複数形にすると「毎週日曜日に」。毎日ならevery dayを使います。",
+      "t": 7.0,
+      "g": "毎日の生活"
+    },
+    {
+      "q": "「What do you have on Wednesday?」への返事はどれですか？",
+      "c": [
+        "I can math and Japanese.",
+        "I like math and Japanese.",
+        "I am math and Japanese.",
+        "I have math and Japanese."
+      ],
+      "a": 3,
+      "exp": "What do you have ~? には I have ~. で答えます。I like ~. は「好き」と言う文で、何があるかには答えていません。amやcanでは文がなりたちません。",
+      "t": 5.5,
+      "g": "教科"
+    },
+    {
+      "q": "We have P.E. on Tuesday and Thursday. 今日は水曜日です。次に体育があるのはいつですか？",
+      "c": [
+        "Thursday",
+        "Tuesday",
+        "Friday",
+        "Wednesday"
+      ],
+      "a": 0,
+      "exp": "水曜日の次の日は木曜日（Thursday）。Tuesday（火曜日）は昨日なので、もう過ぎています。",
+      "t": 8.0,
+      "g": "教科"
+    },
+    {
+      "q": "今日は火曜日。火曜日は図工と体育だけです。「Do you have music today?」の返事は？",
+      "c": [
+        "Yes, I do.",
+        "No, I don't.",
+        "No, I'm not.",
+        "No, I can't."
+      ],
+      "a": 1,
+      "exp": "Do you have ~? にはdoを使って答えます。音楽はないので No, I don't. です。",
+      "t": 7.0,
+      "g": "教科"
+    },
+    {
+      "q": "「I like drawing pictures.」と言う人が好きな教科はどれですか？",
+      "c": [
+        "P.E.",
+        "music",
+        "art",
+        "science"
+      ],
+      "a": 2,
+      "exp": "drawing picturesは「絵をかく」こと。図工（art）の活動です。musicは音楽。",
+      "t": 5.5,
+      "g": "教科"
+    },
+    {
+      "q": "教科の名前の中にまぎれている、仲間はずれはどれですか？",
+      "c": [
+        "math",
+        "English",
+        "science",
+        "notebook"
+      ],
+      "a": 3,
+      "exp": "math（算数）、science（理科）、English（英語）は教科。notebook（ノート）は文ぼう具です。",
+      "t": 5.0,
+      "g": "教科"
+    },
+    {
+      "q": "「理科」を表す英語で、つづりが正しいのはどれですか？",
+      "c": [
+        "science",
+        "sciense",
+        "sience",
+        "scince"
+      ],
+      "a": 0,
+      "exp": "scienceは s-c-i-e-n-c-e。「sc」のあとに「ie」が来ます。最後はceでseではありません。",
+      "t": 6.0,
+      "g": "教科"
+    },
+    {
+      "q": "「今日は体育がありません。」を表す正しい英文はどれですか？",
+      "c": [
+        "We don't has P.E. today.",
+        "We don't have P.E. today.",
+        "We aren't have P.E. today.",
+        "We not have P.E. today."
+      ],
+      "a": 1,
+      "exp": "「〜がない」はdon't have。haveは主語がWeのときはhasにならず、notだけでは使えません。",
+      "t": 6.5,
+      "g": "教科"
+    },
+    {
+      "q": "「have / you / do / What / on Tuesday」をならべて、「火曜日は何がありますか」の文にすると？",
+      "c": [
+        "What you do have on Tuesday?",
+        "Do what you have on Tuesday?",
+        "What do you have on Tuesday?",
+        "You do what have on Tuesday?"
+      ],
+      "a": 2,
+      "exp": "「What + do + 主語 + 動作の語 ...?」の順になります。Whatは文の最初に置きます。",
+      "t": 8.0,
+      "g": "教科"
+    },
+    {
+      "q": "「わたしの好きな教科は体育です。」を表す英文はどれですか？",
+      "c": [
+        "Favorite my subject is P.E.",
+        "I favorite subject is P.E.",
+        "My favorite subject P.E.",
+        "My favorite subject is P.E."
+      ],
+      "a": 3,
+      "exp": "「My favorite subject is ~.」の形で、isをわすれずに。IではなくMyを使います。",
+      "t": 6.0,
+      "g": "教科"
+    },
+    {
+      "q": "「I'm good at math.」の意味はどれですか？",
+      "c": [
+        "算数が得意です。",
+        "算数がありません。",
+        "算数が苦手です。",
+        "算数のテストです。"
+      ],
+      "a": 0,
+      "exp": "be good at ~ は「〜が得意」。苦手と言いたいときは、I'm not good at math. となります。",
+      "t": 5.0,
+      "g": "教科"
+    },
+    {
+      "q": "「泳げません。」を表す正しい英文はどれですか？",
+      "c": [
+        "I not can swim.",
+        "I can't swim.",
+        "I can't swimming.",
+        "I don't can swim."
+      ],
+      "a": 1,
+      "exp": "canの「〜ない」の形はcan't。そのあとの動作の語はもとの形（swim）です。don'tはいっしょに使えません。",
+      "t": 6.0,
+      "g": "できること"
+    },
+    {
+      "q": "ケンはギターがひけます。「Can Ken play the guitar?」への返事はどれですか？",
+      "c": [
+        "Yes, he does.",
+        "Yes, he is.",
+        "Yes, he can.",
+        "Yes, I can."
+      ],
+      "a": 2,
+      "exp": "Can ~? にはcanで答えます。ケンは男の子なのでheを使います。Iは自分のことです。",
+      "t": 6.5,
+      "g": "できること"
+    },
+    {
+      "q": "マイは料理ができません。「Can Mai cook?」への返事はどれですか？",
+      "c": [
+        "No, she isn't.",
+        "No, I can't.",
+        "No, she doesn't.",
+        "No, she can't."
+      ],
+      "a": 3,
+      "exp": "Can ~? にはcanで答えます。マイは女の子なのでsheを使います。",
+      "t": 6.5,
+      "g": "できること"
+    },
+    {
+      "q": "「あなたは上手に歌えますか。」を表す正しい英文はどれですか？",
+      "c": [
+        "Can you sing well?",
+        "You can sing well.",
+        "Do you can sing well?",
+        "Can sing you well?"
+      ],
+      "a": 0,
+      "exp": "「〜できますか」はCan + 主語 + 動作の語 ...? の形。canの文にdoは使いません。",
+      "t": 7.5,
+      "g": "できること"
+    },
+    {
+      "q": "「What can you cook?」への返事として合うものはどれですか？",
+      "c": [
+        "Yes, I can.",
+        "I can cook curry.",
+        "No, I can't.",
+        "I like curry."
+      ],
+      "a": 1,
+      "exp": "What can you cook? は「何を作れますか」とたずねる文。Yes/Noではなく、I can cook curry. のように作れる物を答えます。I like ~ は好きな物です。",
+      "t": 5.5,
+      "g": "できること"
+    },
+    {
+      "q": "ケン「I can play the recorder. How about you?」マイもリコーダーがふけます。マイの返事は？",
+      "c": [
+        "You can play it, too.",
+        "I can't play it.",
+        "I can play it, too.",
+        "Yes, you can."
+      ],
+      "a": 2,
+      "exp": "How about you? は「あなたはどう？」。自分のことなので主語はI、「〜も」はtooで I can play it, too. と答えます。",
+      "t": 8.0,
+      "g": "できること"
+    },
+    {
+      "q": "Mai can play the piano. Ken can play the guitar. 「Who can play the piano?」の返事は？",
+      "c": [
+        "Yes, she can.",
+        "Ken can.",
+        "The piano.",
+        "Mai can."
+      ],
+      "a": 3,
+      "exp": "Who ~? は「だれが」。Yes/Noではなく、人の名前で答えます。ピアノをひけるのはMaiです。",
+      "t": 7.5,
+      "g": "できること"
+    },
+    {
+      "q": "cannot を短くした形として正しい書き方はどれですか？",
+      "c": [
+        "can't",
+        "cann't",
+        "can'nt",
+        "ca'nt"
+      ],
+      "a": 0,
+      "exp": "can'tはcannotを短くした形。「'」は消えたoのかわりです。",
+      "t": 5.0,
+      "g": "できること"
+    },
+    {
+      "q": "「かれは上手におどれます。」を表す英文はどれですか？",
+      "c": [
+        "He can dances well.",
+        "He can dance well.",
+        "He can to dance well.",
+        "He cans dance well."
+      ],
+      "a": 1,
+      "exp": "canのあとの動作の語はもとの形。主語がheでもcansやdancesにはなりません。toも入れません。",
+      "t": 6.5,
+      "g": "できること"
+    },
+    {
+      "q": "ケンは泳げて、自転車にも乗れます。「What can Ken do?」の返事は？",
+      "c": [
+        "She can swim and ride a bike.",
+        "I can swim and ride a bike.",
+        "He can swim and ride a bike.",
+        "Yes, he can."
+      ],
+      "a": 2,
+      "exp": "ケンのことを答えるので主語はHe。What ~? にはYes/Noでは答えません。",
+      "t": 7.0,
+      "g": "できること"
+    },
+    {
+      "q": "「わたしも泳げます。」I can swim, ( ). の( )に入る語はどれですか？",
+      "c": [
+        "to",
+        "two",
+        "toe",
+        "too"
+      ],
+      "a": 3,
+      "exp": "「〜も」はtoo。to（〜へ）、two（2）と音が同じなので、意味でえらびましょう。",
+      "t": 6.0,
+      "g": "できること"
+    },
+    {
+      "q": "「Turn right at the second corner.」の意味はどれですか？",
+      "c": [
+        "2つ目の角で右に曲がる。",
+        "2つ目の信号で右に曲がる。",
+        "右に2回曲がる。",
+        "2つ目の角で左に曲がる。"
+      ],
+      "a": 0,
+      "exp": "secondは2番目、cornerは角。rightは右、leftは左です。信号はtraffic lightといいます。",
+      "t": 7.0,
+      "g": "道案内"
+    },
+    {
+      "q": "Go straight. Turn right at the bank. The park is on your left. 公園はどちらがわに見えますか？",
+      "c": [
+        "右がわ",
+        "左がわ",
+        "うしろ",
+        "正面"
+      ],
+      "a": 1,
+      "exp": "on your leftは「左がわに」。右に曲がったあとでも、公園は左がわにあります。",
+      "t": 7.5,
+      "g": "道案内"
+    },
+    {
+      "q": "「Excuse me. Where is the station?」への返事はどれですか？",
+      "c": [
+        "I can see a station.",
+        "I like the station.",
+        "Go straight and turn left.",
+        "I want a station."
+      ],
+      "a": 2,
+      "exp": "場所をたずねられたら、Go straight. Turn left. のように道順で答えます。",
+      "t": 5.5,
+      "g": "道案内"
+    },
+    {
+      "q": "「The hospital is next to the bank.」病院はどこにありますか？",
+      "c": [
+        "銀行の前",
+        "銀行のうしろ",
+        "銀行の中",
+        "銀行のとなり"
+      ],
+      "a": 3,
+      "exp": "next toは「〜のとなり」。in front ofは「〜の前」、inは「〜の中」です。",
+      "t": 6.0,
+      "g": "道案内"
+    },
+    {
+      "q": "「The bakery is between the bank and the library.」パン屋はどこにありますか？",
+      "c": [
+        "銀行と図書館のあいだ",
+        "図書館の中",
+        "銀行の中",
+        "銀行と図書館のうしろ"
+      ],
+      "a": 0,
+      "exp": "between A and B は「AとBのあいだ」。パン屋は2つの建物にはさまれています。",
+      "t": 7.0,
+      "g": "道案内"
+    },
+    {
+      "q": "「角を左に曲がってください。」を表す正しい英文はどれですか？",
+      "c": [
+        "Turn at left the corner.",
+        "Turn left at the corner.",
+        "Left turn at the corner.",
+        "At the corner left turn."
+      ],
+      "a": 1,
+      "exp": "「曲がる → どちらへ → どこで」の順にならべます。Turn left at the corner. です。",
+      "t": 6.5,
+      "g": "道案内"
+    },
+    {
+      "q": "「Is there a park in your town?」に「あります」と答える返事はどれですか？",
+      "c": [
+        "Yes, it is.",
+        "Yes, I do.",
+        "Yes, there is.",
+        "Yes, I can."
+      ],
+      "a": 2,
+      "exp": "Is there ~? にはYes, there is. / No, there isn't. で答えます。",
+      "t": 7.0,
+      "g": "道案内"
+    },
+    {
+      "q": "「Go straight for two blocks.」の意味はどれですか？",
+      "c": [
+        "2分間まっすぐ進む。",
+        "右に2回曲がる。",
+        "2つ目の角で曲がる。",
+        "2ブロックまっすぐ進む。"
+      ],
+      "a": 3,
+      "exp": "blockは道の1区画。for two blocksで「2区画ぶん」。2つ目の角で曲がるならat the second cornerです。",
+      "t": 7.0,
+      "g": "道案内"
+    },
+    {
+      "q": "Go straight. Turn left at the park. Stop at the station. 2番目にすることはどれですか？",
+      "c": [
+        "左に曲がる",
+        "まっすぐ進む",
+        "止まる",
+        "右に曲がる"
+      ],
+      "a": 0,
+      "exp": "Go straight → Turn left → Stop の順です。2番目はTurn leftで、左に曲がります。",
+      "t": 8.0,
+      "g": "道案内"
+    },
+    {
+      "q": "道案内の言葉のうち、場所の名前ではないものはどれですか？",
+      "c": [
+        "library",
+        "straight",
+        "hospital",
+        "station"
+      ],
+      "a": 1,
+      "exp": "library（図書館）、station（駅）、hospital（病院）は場所。straight（まっすぐ）は進む向きです。",
+      "t": 5.0,
+      "g": "道案内"
+    },
+    {
+      "q": "「まっすぐ」の正しいつづりはどれですか？",
+      "c": [
+        "straigt",
+        "strait",
+        "straight",
+        "streight"
+      ],
+      "a": 2,
+      "exp": "straightはghを読みません。strait（かいきょう）という別の単語もあるので注意しよう。",
+      "t": 6.0,
+      "g": "道案内"
+    },
+    {
+      "q": "道をおしえたあとに「Thank you very much.」と言われました。返事はどれですか？",
+      "c": [
+        "See you.",
+        "Nice to meet you.",
+        "Excuse me.",
+        "You're welcome."
+      ],
+      "a": 3,
+      "exp": "Thank you.にはYou're welcome.（どういたしまして）と答えます。",
+      "t": 4.5,
+      "g": "道案内"
+    },
+    {
+      "q": "「それは左がわにあります。」を表す英文はどれですか？",
+      "c": [
+        "It's on your left.",
+        "It's under your left.",
+        "It's in your left.",
+        "It's by left you."
+      ],
+      "a": 0,
+      "exp": "「〜がわに」はon your left / rightのようにonを使います。",
+      "t": 5.5,
+      "g": "道案内"
+    },
+    {
+      "q": "「The hospital is far from here.」の意味はどれですか？",
+      "c": [
+        "病院はここから近い。",
+        "病院はここから遠い。",
+        "病院はここのとなり。",
+        "病院はここの前。"
+      ],
+      "a": 1,
+      "exp": "farは「遠い」、nearは「近い」。反対の意味なので、セットで覚えよう。",
+      "t": 4.5,
+      "g": "道案内"
+    },
+    {
+      "q": "野球やサッカーの試合を大ぜいで見に行く場所を表す英語はどれですか？",
+      "c": [
+        "temple",
+        "aquarium",
+        "stadium",
+        "museum"
+      ],
+      "a": 2,
+      "exp": "stadiumは競技場。aquariumは水族館、museumは博物館です。",
+      "t": 5.0,
+      "g": "町の施設"
+    },
+    {
+      "q": "火事のとき、しょうぼう車が出発する場所を表す英語はどれですか？",
+      "c": [
+        "city hall",
+        "post office",
+        "police station",
+        "fire station"
+      ],
+      "a": 3,
+      "exp": "fireは「火」、stationは「（仕事をする）所」。police stationはけいさつの所です。",
+      "t": 5.0,
+      "g": "町の施設"
+    },
+    {
+      "q": "水族館を表す英語はどれですか？",
+      "c": [
+        "aquarium",
+        "zoo",
+        "gym",
+        "museum"
+      ],
+      "a": 0,
+      "exp": "aquaは「水」の意味。水の生き物を見る所だからaquariumです。zooは動物園。",
+      "t": 4.5,
+      "g": "町の施設"
+    },
+    {
+      "q": "「I want to see lions and pandas.」どこへ行くとよいですか？",
+      "c": [
+        "the hospital",
+        "the zoo",
+        "the bakery",
+        "the library"
+      ],
+      "a": 1,
+      "exp": "動物を見たいときはzoo（動物園）。zooは「ズー」と読み、oが2つならびます。",
+      "t": 5.0,
+      "g": "町の施設"
+    },
+    {
+      "q": "花を買いたいときに行くお店を表す英語はどれですか？",
+      "c": [
+        "a library",
+        "a bakery",
+        "a flower shop",
+        "a hospital"
+      ],
+      "a": 2,
+      "exp": "flowerは「花」、shopは「店」。bakeryはパン屋です。",
+      "t": 4.0,
+      "g": "町の施設"
+    },
+    {
+      "q": "図書館の正しいつづりはどれですか？",
+      "c": [
+        "libraly",
+        "libary",
+        "liblary",
+        "library"
+      ],
+      "a": 3,
+      "exp": "libraryはlとrが両方入ります。「ライブラリー」と読んで覚えよう。",
+      "t": 6.5,
+      "g": "町の施設"
+    },
+    {
+      "q": "「コンビニエンスストア」を表す英語として正しいものはどれですか？",
+      "c": [
+        "convenience store",
+        "convenient store",
+        "convention store",
+        "conveyance store"
+      ],
+      "a": 0,
+      "exp": "convenienceは「便利さ」という名前の語。convenient（便利な）と形が似ているので注意。",
+      "t": 6.5,
+      "g": "町の施設"
+    },
+    {
+      "q": "手紙を出しに行く場所を表す英語はどれですか？",
+      "c": [
+        "fire station",
+        "post office",
+        "city hall",
+        "bookstore"
+      ],
+      "a": 1,
+      "exp": "post office はゆうびん局。postは「（手紙を）出す」という意味です。city hallは市役所、bookstoreは本屋です。",
+      "t": 5.0,
+      "g": "町の施設"
+    },
+    {
+      "q": "お店ではないものはどれですか？",
+      "c": [
+        "bakery",
+        "flower shop",
+        "school",
+        "bookstore"
+      ],
+      "a": 2,
+      "exp": "bakery、flower shop、bookstoreは物を売る店。schoolは学ぶ場所です。",
+      "t": 5.5,
+      "g": "町の施設"
+    },
+    {
+      "q": "「He is my father. ( ) name is Taro.」の( )に入る語はどれですか？",
+      "c": [
+        "She",
+        "He",
+        "Her",
+        "His"
+      ],
+      "a": 3,
+      "exp": "hisは「男の人の」、herは「女の人の」。Heは「その人は」で、名前の前には置けません。",
+      "t": 6.5,
+      "g": "人物しょうかい"
+    },
+    {
+      "q": "「Mr. Smith is our English teacher. ( ) is kind.」の( )に入る語はどれですか？",
+      "c": [
+        "He",
+        "They",
+        "She",
+        "We"
+      ],
+      "a": 0,
+      "exp": "Mr.は男の人につけるよび名。男の人ひとりを指すときはHeを使います。",
+      "t": 5.5,
+      "g": "人物しょうかい"
+    },
+    {
+      "q": "「Who is that girl?」への返事はどれですか？",
+      "c": [
+        "He is my sister.",
+        "She is my sister.",
+        "They are my sister.",
+        "It is my sister."
+      ],
+      "a": 1,
+      "exp": "girlは女の子なのでshe。heは男の人、itは物や動物に使います。",
+      "t": 5.5,
+      "g": "人物しょうかい"
+    },
+    {
+      "q": "パンをやく仕事の人を表す英語はどれですか？",
+      "c": [
+        "farmer",
+        "singer",
+        "baker",
+        "pilot"
+      ],
+      "a": 2,
+      "exp": "bakeは「（パンなどを）やく」。-erをつけると「〜する人」。farmerは農家、pilotは飛行機のパイロットです。",
+      "t": 5.5,
+      "g": "人物しょうかい"
+    },
+    {
+      "q": "飛行機をうんてんする人を表す英語はどれですか？",
+      "c": [
+        "doctor",
+        "farmer",
+        "teacher",
+        "pilot"
+      ],
+      "a": 3,
+      "exp": "pilotは飛行機のパイロット。doctorは医者、teacherは先生です。",
+      "t": 5.0,
+      "g": "人物しょうかい"
+    },
+    {
+      "q": "ケンはみんなを笑わせます。「Ken is ( ).」の( )に入る語は？",
+      "c": [
+        "funny",
+        "kind",
+        "strong",
+        "quiet"
+      ],
+      "a": 0,
+      "exp": "funnyは「おもしろい」。kindはやさしい、strongは強い、quietはしずかな、という意味です。",
+      "t": 6.5,
+      "g": "人物しょうかい"
+    },
+    {
+      "q": "「マイは歌が上手です。」を、Sheを使って言う正しい英文はどれですか？",
+      "c": [
+        "She is singer a good.",
+        "She is a good singer.",
+        "She a good is singer.",
+        "Is she a good singer."
+      ],
+      "a": 1,
+      "exp": "「She is + a + ようすの語 + 名前の語」の順。aは「good singer」の前に置きます。",
+      "t": 7.0,
+      "g": "人物しょうかい"
+    },
+    {
+      "q": "ケンはカナダ出身です。「Where is Ken from?」への返事はどれですか？",
+      "c": [
+        "I'm from Canada.",
+        "You're from Canada.",
+        "He is from Canada.",
+        "She is from Canada."
+      ],
+      "a": 2,
+      "exp": "ケンのことを答えるのでHe。I'mは自分のことを言うときに使います。",
+      "t": 6.0,
+      "g": "人物しょうかい"
+    },
+    {
+      "q": "マイはケンの妹です。ケンが、マイのことを「Is she your sister?」と聞かれました。返事はどれ？",
+      "c": [
+        "Yes, I am.",
+        "Yes, it is.",
+        "Yes, she does.",
+        "Yes, she is."
+      ],
+      "a": 3,
+      "exp": "Is she ~? と is で聞かれたら、is を使って Yes, she is. と答えます。マイのことなので I am ではなく she です。",
+      "t": 6.5,
+      "g": "人物しょうかい"
+    },
+    {
+      "q": "「She is my classmate.」としょうかいされた人はどんな人ですか？",
+      "c": [
+        "同じクラスの人",
+        "ちがう学校の友だち",
+        "同じ家に住む人",
+        "学校の先生"
+      ],
+      "a": 0,
+      "exp": "class（クラス）+ mate（なかま）で同級生のこと。",
+      "t": 5.0,
+      "g": "人物しょうかい"
+    },
+    {
+      "q": "友だちが「This is my friend, Mai.」としょうかいしてくれました。マイに言うひとことは？",
+      "c": [
+        "See you later.",
+        "Nice to meet you.",
+        "You're welcome.",
+        "Happy birthday."
+      ],
+      "a": 1,
+      "exp": "初めて会った人にはNice to meet you.（はじめまして）と言います。",
+      "t": 4.0,
+      "g": "人物しょうかい"
+    },
+    {
+      "q": "店員さんに「What would you like?」と聞かれました。返事はどれですか？",
+      "c": [
+        "I'm a hamburger.",
+        "I'm like a hamburger.",
+        "I'd like a hamburger.",
+        "I can a hamburger."
+      ],
+      "a": 2,
+      "exp": "I'd like ~. は「〜をください」というていねいな言い方。I'mは「わたしは〜です」の意味です。",
+      "t": 5.5,
+      "g": "注文"
+    },
+    {
+      "q": "もう注文するものがないとき、「Anything else?」にはどう答えますか？",
+      "c": [
+        "No, I can't.",
+        "Yes, I do.",
+        "You're welcome.",
+        "No, thank you."
+      ],
+      "a": 3,
+      "exp": "Anything else?（ほかには？）にはYes, please. / No, thank you. で答えます。",
+      "t": 6.5,
+      "g": "注文"
+    },
+    {
+      "q": "店員さんが「Here you are.」と料理をわたしてくれました。返事はどれですか？",
+      "c": [
+        "Thank you.",
+        "Excuse me.",
+        "You're welcome.",
+        "Nice to meet you."
+      ],
+      "a": 0,
+      "exp": "Here you are.は「どうぞ」。受け取るときはThank you.と言います。",
+      "t": 5.0,
+      "g": "注文"
+    },
+    {
+      "q": "「いくらですか。」とねだんをたずねる英文はどれですか？",
+      "c": [
+        "How long is it?",
+        "How much is it?",
+        "How old is it?",
+        "How many is it?"
+      ],
+      "a": 1,
+      "exp": "How muchはねだんをたずねます。How manyは数、How oldは年れい、How longは長さです。",
+      "t": 5.0,
+      "g": "注文"
+    },
+    {
+      "q": "「It's four hundred yen.」は何円ですか？",
+      "c": [
+        "40円",
+        "4000円",
+        "400円",
+        "140円"
+      ],
+      "a": 2,
+      "exp": "hundredは100。four hundredで400円です。forty（40）と音が似ているので注意。",
+      "t": 5.5,
+      "g": "注文"
+    },
+    {
+      "q": "「A hamburger is 300 yen. A juice is 150 yen.」合計はいくらですか？",
+      "c": [
+        "550円",
+        "350円",
+        "3150円",
+        "450円"
+      ],
+      "a": 3,
+      "exp": "300＋150＝450円。350円は150の百の位を落とした答え、3150円は数をならべてしまった答えです。",
+      "t": 7.0,
+      "g": "注文"
+    },
+    {
+      "q": "「I'd like two ( ).」の( )に入る語はどれですか？",
+      "c": [
+        "oranges",
+        "orange",
+        "an orange",
+        "a orange"
+      ],
+      "a": 0,
+      "exp": "2つ以上のときは名前の語にsをつけてtwo orangesとします。an orangeは1つのときの言い方です。",
+      "t": 6.5,
+      "g": "注文"
+    },
+    {
+      "q": "食べ物の中にまぎれている、飲み物はどれですか？",
+      "c": [
+        "spaghetti",
+        "juice",
+        "salad",
+        "pizza"
+      ],
+      "a": 1,
+      "exp": "pizza、salad、spaghettiは食べ物、juiceは飲み物です。",
+      "t": 5.0,
+      "g": "注文"
+    },
+    {
+      "q": "食事のあとに食べるあまい物を表す英語はどれですか？",
+      "c": [
+        "salad",
+        "steak",
+        "dessert",
+        "soup"
+      ],
+      "a": 2,
+      "exp": "dessertは食事のしめのあまい物。ケーキやアイスクリームがその仲間です。",
+      "t": 5.5,
+      "g": "注文"
+    },
+    {
+      "q": "「I'd like a hamburger and orange juice, please.」注文したものはどれですか？",
+      "c": [
+        "ピザとオレンジジュース",
+        "ハンバーガーとサラダ",
+        "ハンバーガーとコーラ",
+        "ハンバーガーとオレンジジュース"
+      ],
+      "a": 3,
+      "exp": "andは「〜と」。pleaseをつけると、よりていねいな注文になります。",
+      "t": 6.5,
+      "g": "注文"
+    },
+    {
+      "q": "ア Here you are. イ What would you like? ウ I'd like a pizza. エ Thank you. 会話の順は？",
+      "c": [
+        "イ → ウ → ア → エ",
+        "イ → ア → ウ → エ",
+        "ア → イ → ウ → エ",
+        "ウ → イ → ア → エ"
+      ],
+      "a": 0,
+      "exp": "店員が聞く→注文する→わたす→お礼、の順です。",
+      "t": 9.0,
+      "g": "注文"
+    },
+    {
+      "q": "「イタリアへ行きたいです。」を表す正しい英文はどれですか？",
+      "c": [
+        "I want go to Italy.",
+        "I want to go to Italy.",
+        "I want to go Italy.",
+        "I want to going to Italy."
+      ],
+      "a": 1,
+      "exp": "want toのあとは動作の語のもとの形（go）。「〜へ」を表すtoも必要です。",
+      "t": 6.0,
+      "g": "行きたい所"
+    },
+    {
+      "q": "「I want to see the Great Wall.」行きたい国はどこですか？",
+      "c": [
+        "India",
+        "Korea",
+        "China",
+        "Japan"
+      ],
+      "a": 2,
+      "exp": "万里の長城は中国にあるとても長い城のかべです。",
+      "t": 6.0,
+      "g": "行きたい所"
+    },
+    {
+      "q": "「I want to see Big Ben.」行きたい国はどこですか？",
+      "c": [
+        "the U.S.",
+        "Italy",
+        "France",
+        "the U.K."
+      ],
+      "a": 3,
+      "exp": "Big BenはLondonの時計台。the U.K.（イギリス）にあります。",
+      "t": 6.5,
+      "g": "行きたい所"
+    },
+    {
+      "q": "「Do you want to go to Italy?」に「はい」と答える文はどれですか？",
+      "c": [
+        "Yes, I do.",
+        "Yes, I can.",
+        "Yes, I want.",
+        "Yes, I am."
+      ],
+      "a": 0,
+      "exp": "Do you ~? にはdoで答えます。「Yes, I want.」とは言いません。",
+      "t": 5.5,
+      "g": "行きたい所"
+    },
+    {
+      "q": "ともだちに「Let's go to the park.」と言われて、さんせいするときの返事はどれですか？",
+      "c": [
+        "No, thank you.",
+        "Good idea.",
+        "I'm sorry.",
+        "I can't."
+      ],
+      "a": 1,
+      "exp": "Good idea.（いい考えだね）はさんせいの返事。ことわるときはSorry, I can't. と言います。",
+      "t": 5.0,
+      "g": "行きたい所"
+    },
+    {
+      "q": "ケンは言いました。「I want to go to Australia. I want to swim in the sea.」ケンがしたいことは？",
+      "c": [
+        "川で遊ぶ",
+        "魚をつる",
+        "海で泳ぐ",
+        "山にのぼる"
+      ],
+      "a": 2,
+      "exp": "swimは「泳ぐ」、seaは「海」。ケンはオーストラリアの海で泳ぎたいのです。",
+      "t": 6.5,
+      "g": "行きたい所"
+    },
+    {
+      "q": "次の中で、国ではなく都市の名前はどれですか？",
+      "c": [
+        "Italy",
+        "Brazil",
+        "Canada",
+        "Tokyo"
+      ],
+      "a": 3,
+      "exp": "Tokyoは日本の首都の名前で、国ではありません。Canada、Italy、Brazilは国です。",
+      "t": 5.0,
+      "g": "行きたい所"
+    },
+    {
+      "q": "オーストラリアの正しいつづりはどれですか？",
+      "c": [
+        "Australia",
+        "Austrlia",
+        "Austraria",
+        "Australla"
+      ],
+      "a": 0,
+      "exp": "Australiaのlとrを書き分けます。Aus-tra-liaと区切ると覚えやすい。",
+      "t": 6.5,
+      "g": "行きたい所"
+    }
+  ]
+}

@@ -1,0 +1,657 @@
+{
+  "subject": "英語",
+  "grade": 4,
+  "batch": "b",
+  "items": [
+    {
+      "q": "「Guten Tag.」は、どの国のことばのこんにちはですか？",
+      "c": [
+        "スペイン語",
+        "ドイツ語",
+        "フランス語",
+        "イタリア語"
+      ],
+      "a": 1,
+      "exp": "Guten Tag.は「よい日」という意味のドイツ語のあいさつ。Hola.はスペイン語、Bonjour.はフランス語、Ciao.はイタリア語です。",
+      "t": 5,
+      "g": "あいさつ"
+    },
+    {
+      "q": "「Good night.」を言う場面として合うのはどれですか？",
+      "c": [
+        "夜、友だちに会ったときに言う",
+        "夜、ねる前に言う",
+        "朝、学校に着いたときに言う",
+        "昼、給食の前に言う"
+      ],
+      "a": 1,
+      "exp": "Good night.は、ねる前や夜に別れるときのあいさつ。夜に会ったときは Good evening. を使います。",
+      "t": 6.5,
+      "g": "あいさつ"
+    },
+    {
+      "q": "夜おそくまで起きていて、ねむくてたまりません。「How are you?」と聞かれたときの答えはどれですか？",
+      "c": [
+        "I'm hungry.",
+        "I'm sleepy.",
+        "I'm happy.",
+        "I'm hot."
+      ],
+      "a": 1,
+      "exp": "sleepy は「ねむい」。hungry（おなかがすいた）や happy（うれしい）ではなく、そのときの気持ちや様子に合う言葉を選びます。I'm fine. だけでなく、いろいろな答え方ができます。",
+      "t": 7,
+      "g": "あいさつ"
+    },
+    {
+      "q": "「How are you?」と聞かれたときの返事として合うのはどれですか？",
+      "c": [
+        "I'm fine, thank you.",
+        "My name is Ken.",
+        "Nice to meet you.",
+        "I'm ten years old."
+      ],
+      "a": 0,
+      "exp": "How are you? は「元気ですか？」とたずねる言葉。I'm fine, thank you. で「元気です、ありがとう」と答えます。",
+      "t": 5,
+      "g": "あいさつ"
+    },
+    {
+      "q": "「How's the weather?」への返事として合わないものはどれですか？",
+      "c": [
+        "It's sunny.",
+        "It's windy.",
+        "It's Monday.",
+        "It's rainy."
+      ],
+      "a": 2,
+      "exp": "How's the weather? は天気をたずねる文。It's Monday. は曜日を答える文なので合いません。曜日は What day is it? で聞きます。",
+      "t": 6.5,
+      "g": "天気と遊び"
+    },
+    {
+      "q": "「It's sunny in the morning. It's rainy in the afternoon.」この日の天気として正しいのはどれですか？",
+      "c": [
+        "朝は雨、午後は晴れ",
+        "朝は晴れ、午後は雨",
+        "朝も午後も晴れ",
+        "朝はくもり、午後は雨"
+      ],
+      "a": 1,
+      "exp": "in the morning は朝、in the afternoon は午後。Good morning. や Good afternoon. と同じ言葉です。sunny は晴れ、rainy は雨なので、朝と午後を入れかえないように。",
+      "t": 8,
+      "g": "天気と遊び"
+    },
+    {
+      "q": "「Rock, paper, scissors.」は、何をするときのかけ声ですか？",
+      "c": [
+        "かくれんぼ",
+        "じゃんけん",
+        "おにごっこ",
+        "なわとび"
+      ],
+      "a": 1,
+      "exp": "rock（石）、paper（紙）、scissors（はさみ）で、グー・チョキ・パーのじゃんけんをします。",
+      "t": 3,
+      "g": "天気と遊び"
+    },
+    {
+      "q": "「Monday is sunny. Tuesday is rainy. Wednesday is cloudy. Thursday is windy.」雨がふる日は何曜日ですか？",
+      "c": [
+        "月曜日",
+        "水曜日",
+        "火曜日",
+        "木曜日"
+      ],
+      "a": 2,
+      "exp": "Tuesday is rainy. は「火曜日は雨」。sunny は晴れ、cloudy はくもり、windy は風が強い日です。",
+      "t": 7,
+      "g": "天気と遊び"
+    },
+    {
+      "q": "今日は Saturday です。5日後は何曜日ですか？",
+      "c": [
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday"
+      ],
+      "a": 2,
+      "exp": "Saturday の1日後は Sunday、2日後 Monday、3日後 Tuesday、4日後 Wednesday、5日後 Thursday です。",
+      "t": 8,
+      "g": "曜日"
+    },
+    {
+      "q": "「I go to the library on Wednesdays and Saturdays.」図書館に行く曜日はどれですか？",
+      "c": [
+        "水曜日と日曜日",
+        "火曜日と土曜日",
+        "木曜日と日曜日",
+        "水曜日と土曜日"
+      ],
+      "a": 3,
+      "exp": "曜日のうしろの s は「毎週その曜日に」の意味。Wednesdays and Saturdays は水曜日と土曜日。Sunday（日曜日）とまちがえないように。",
+      "t": 7,
+      "g": "曜日"
+    },
+    {
+      "q": "次のうち、曜日ではない言葉はどれですか？",
+      "c": [
+        "Sunny",
+        "Friday",
+        "Sunday",
+        "Monday"
+      ],
+      "a": 0,
+      "exp": "Sunny は「晴れ」で天気の言葉。Sunday（日曜日）とつづりがにているので注意しましょう。",
+      "t": 4.5,
+      "g": "曜日"
+    },
+    {
+      "q": "「It's ten fifty-five.」と言われました。11時まで、あと何分ですか？",
+      "c": [
+        "55分",
+        "15分",
+        "5分",
+        "45分"
+      ],
+      "a": 2,
+      "exp": "fifty-five は55なので、今は10時55分。1時間は60分だから、60−55=5で、あと5分です。fifteen（15）と聞きまちがえないように。",
+      "t": 8,
+      "g": "時刻"
+    },
+    {
+      "q": "「I go to school at 8 a.m. I go home at 3 p.m.」学校へ行ってから家に帰るまで、何時間ですか？",
+      "c": [
+        "5時間",
+        "6時間",
+        "11時間",
+        "7時間"
+      ],
+      "a": 3,
+      "exp": "午後3時は15時。15−8=7で7時間です。8+3=11 と足してしまわないように。",
+      "t": 8.5,
+      "g": "時刻"
+    },
+    {
+      "q": "「What time do you go to bed?」の返事として合うのはどれですか？",
+      "c": [
+        "I get up at nine.",
+        "I go to school at nine.",
+        "I eat lunch at nine.",
+        "I go to bed at nine."
+      ],
+      "a": 3,
+      "exp": "What time は「何時」。ねる時間を聞かれたので go to bed を使います。get up は起きる、go to school は学校へ行くです。",
+      "t": 6,
+      "g": "時刻"
+    },
+    {
+      "q": "「It's eleven fifty.」は何時何分ですか？",
+      "c": [
+        "10時50分",
+        "11時5分",
+        "11時50分",
+        "1時50分"
+      ],
+      "a": 2,
+      "exp": "eleven は11、fifty は50。fifteen（15）と fifty（50）は聞きまちがえやすいので、-teen と -ty に注意しましょう。",
+      "t": 5,
+      "g": "時刻"
+    },
+    {
+      "q": "「get up」「eat lunch」「go home」「go to bed」を、朝から夜の順にならべたものはどれですか？",
+      "c": [
+        "昼食→起きる→帰る→ねる",
+        "起きる→帰る→昼食→ねる",
+        "ねる→起きる→昼食→帰る",
+        "起きる→昼食→帰る→ねる"
+      ],
+      "a": 3,
+      "exp": "朝に get up（起きる）、昼に eat lunch（昼ごはん）、学校のあとに go home（帰る）、夜に go to bed（ねる）です。",
+      "t": 7,
+      "g": "時刻"
+    },
+    {
+      "q": "「thirteen」と「thirty」の数の組み合わせとして正しいのはどれですか？",
+      "c": [
+        "thirteen は30、thirty は13",
+        "thirteen は13、thirty は30",
+        "thirteen は13、thirty は3",
+        "thirteen は31、thirty は13"
+      ],
+      "a": 1,
+      "exp": "-teen で終わる語は13〜19、-ty で終わる語は20、30、40…。thirteen は13、thirty は30です。",
+      "t": 7,
+      "g": "数（1〜60）"
+    },
+    {
+      "q": "「りんごが twenty-four こあります。four こ食べると、のこりはいくつですか？」",
+      "c": [
+        "twenty-eight",
+        "twenty-two",
+        "twenty",
+        "fourteen"
+      ],
+      "a": 2,
+      "exp": "24−4=20 なので twenty。足して twenty-eight にしないこと。fourteen（14）は four ではなく ten をひいた数です。",
+      "t": 7.5,
+      "g": "数（1〜60）"
+    },
+    {
+      "q": "「sixty, fifty-five, fifty, ( )」のように、数が小さくなっていきます。( )に入る数は？",
+      "c": [
+        "forty",
+        "forty-five",
+        "forty-six",
+        "forty-four"
+      ],
+      "a": 1,
+      "exp": "5ずつへっているので、50−5=45 で forty-five。forty は40です。",
+      "t": 6.5,
+      "g": "数（1〜60）"
+    },
+    {
+      "q": "次の数のうち、forty より大きい数はどれですか？",
+      "c": [
+        "fourteen",
+        "thirty-nine",
+        "forty-one",
+        "nineteen"
+      ],
+      "a": 2,
+      "exp": "forty は40、forty-one は41で40より大きい数。fourteen は14、nineteen は19、thirty-nine は39です。-teen は十いくつ、-ty は何十と覚えましょう。",
+      "t": 7,
+      "g": "数（1〜60）"
+    },
+    {
+      "q": "ミカは thirty まい、ケンは twenty-five まいシールを持っています。ミカはケンより何まい多いですか？",
+      "c": [
+        "five",
+        "ten",
+        "fifteen",
+        "fifty-five"
+      ],
+      "a": 0,
+      "exp": "30−25=5 で five。ちがいを求めるときは引き算です。合計の fifty-five を答えにしないように。",
+      "t": 8,
+      "g": "数（1〜60）"
+    },
+    {
+      "q": "図工で色をぬる物を、友だちにかりたいです。どの英文でたずねるとよいですか？",
+      "c": [
+        "Do you have glue?",
+        "Do you have scissors?",
+        "Do you have a ruler?",
+        "Do you have crayons?"
+      ],
+      "a": 3,
+      "exp": "crayon は「クレヨン」で、色をぬる物。glue（のり）ははる物、scissors（はさみ）は切る物、ruler（じょうぎ）は線を引く物です。",
+      "t": 7,
+      "g": "文房具と身の回り"
+    },
+    {
+      "q": "「I have three erasers.」の erasers の s は、何を表していますか？",
+      "c": [
+        "1つだけあること",
+        "新しい物であること",
+        "持っていないこと",
+        "2つ以上あること"
+      ],
+      "a": 3,
+      "exp": "物が2つ以上のときは、名前のおわりに s をつけます。three erasers は「消しゴム3こ」。two pencils、four books のように使います。",
+      "t": 5,
+      "g": "文房具と身の回り"
+    },
+    {
+      "q": "ケンは「I have a pen, a ruler and scissors.」と言いました。ケンが言わなかった物はどれですか？",
+      "c": [
+        "pen",
+        "scissors",
+        "ruler",
+        "glue"
+      ],
+      "a": 3,
+      "exp": "ケンが言ったのは pen（ペン）、ruler（じょうぎ）、scissors（はさみ）の3つ。glue（のり）は出てきません。",
+      "t": 5.5,
+      "g": "文房具と身の回り"
+    },
+    {
+      "q": "「あなたはわたしのペンを持っていますか？」を英語で言うとどれですか？",
+      "c": [
+        "Do you have my pen?",
+        "Do I have your pen?",
+        "Do you have your pen?",
+        "Do I have my pen?"
+      ],
+      "a": 0,
+      "exp": "「あなたは」は Do you、「わたしの」は my。you と I、my と your を入れかえないように。",
+      "t": 8,
+      "g": "文房具と身の回り"
+    },
+    {
+      "q": "「I have a pen and two pencils.」持っている文ぼう具は全部で何本ですか？",
+      "c": [
+        "2本",
+        "3本",
+        "4本",
+        "5本"
+      ],
+      "a": 1,
+      "exp": "a pen は1本、two pencils は2本。合わせて 1+2=3本です。a は「1つ」という意味でも使われます。",
+      "t": 6,
+      "g": "文房具と身の回り"
+    },
+    {
+      "q": "「I want a cake.」は、どの問いかけに答えた文ですか？",
+      "c": [
+        "What time is it?",
+        "How are you?",
+        "What do you want?",
+        "What day is it?"
+      ],
+      "a": 2,
+      "exp": "I want ~. は「~がほしい」。ほしい物をたずねる What do you want? への答えです。What time は時こく、What day は曜日をたずねます。",
+      "t": 6,
+      "g": "ほしい物"
+    },
+    {
+      "q": "「I want a dog.」の意味に合うのはどれですか？",
+      "c": [
+        "犬がほしい",
+        "犬が好きだ",
+        "犬をかっている",
+        "犬を見ている"
+      ],
+      "a": 0,
+      "exp": "want は「ほしい」。like（好き）や have（持っている）とは意味がちがいます。I like dogs. なら「犬が好き」です。",
+      "t": 4.5,
+      "g": "ほしい物"
+    },
+    {
+      "q": "「I like pizza and tomatoes. I don't like onions.」この人が好きではないと言ったのはどれですか？",
+      "c": [
+        "pizza",
+        "tomatoes",
+        "carrots",
+        "onions"
+      ],
+      "a": 3,
+      "exp": "don't like は「好きではない」。I like ~. は好きな物、I don't like ~. は苦手な物を言うときに使います。",
+      "t": 6,
+      "g": "ほしい物"
+    },
+    {
+      "q": "「Do you want a banana?」をことわるとき、ていねいな返事はどれですか？",
+      "c": [
+        "No, thank you.",
+        "You're welcome.",
+        "Yes, please.",
+        "Here you are."
+      ],
+      "a": 0,
+      "exp": "ほしくないときは No, thank you.（いいえ、けっこうです）。ほしいときは Yes, please. と答えます。",
+      "t": 5.5,
+      "g": "ほしい物"
+    },
+    {
+      "q": "店の人に「Tea or milk?」と聞かれました。milk がほしいとき、何と答えますか？",
+      "c": [
+        "Yes, please.",
+        "Milk, please.",
+        "Tea, please.",
+        "No, thank you."
+      ],
+      "a": 1,
+      "exp": "or は「または」。どちらがほしいかを聞かれているので、ほしい物を言って Milk, please. と答えます。Yes, please. だけでは、どちらがほしいか伝わりません。",
+      "t": 7,
+      "g": "ほしい物"
+    },
+    {
+      "q": "「What sport do you like?」への答えとして合わないものはどれですか？",
+      "c": [
+        "I like tennis.",
+        "I like soccer.",
+        "I like pizza.",
+        "I like swimming."
+      ],
+      "a": 2,
+      "exp": "sport は「スポーツ」。好きなスポーツをたずねているので、食べ物の pizza は合いません。tennis、soccer、swimming はどれもスポーツです。",
+      "t": 6,
+      "g": "ほしい物"
+    },
+    {
+      "q": "「Turn left.」で左に曲がり、次の角でもう一度「Turn left.」で左に曲がりました。はじめに向いていた方を「前」とすると、今はどちらを向いていますか？",
+      "c": [
+        "左",
+        "右",
+        "前",
+        "うしろ"
+      ],
+      "a": 3,
+      "exp": "左に1回曲がると左向き、もう1回左に曲がると、はじめと反対のうしろ向きになります。Turn right. を2回しても同じで、うしろを向きます。",
+      "t": 9,
+      "g": "道案内"
+    },
+    {
+      "q": "道案内で使わない言葉はどれですか？",
+      "c": [
+        "Go straight.",
+        "Turn left.",
+        "Turn right.",
+        "Sit down."
+      ],
+      "a": 3,
+      "exp": "Go straight.（まっすぐ）と Turn left. / Turn right.（左・右に曲がる）は道案内の言葉。Sit down. は「すわって」で、教室でよく使います。",
+      "t": 5.5,
+      "g": "道案内"
+    },
+    {
+      "q": "「That's right.」の right は、どんな意味ですか？",
+      "c": [
+        "右",
+        "正しい",
+        "まっすぐ",
+        "止まれ"
+      ],
+      "a": 1,
+      "exp": "right には「右」と「正しい」の2つの意味があります。That's right. は「そのとおり」。Turn right. の right は「右」です。",
+      "t": 6.5,
+      "g": "道案内"
+    },
+    {
+      "q": "校長先生がいる部屋を英語で言うとどれですか？",
+      "c": [
+        "principal's office",
+        "teachers' office",
+        "music room",
+        "school nurse's office"
+      ],
+      "a": 0,
+      "exp": "principal は「校長」。principal's office で校長室です。teachers' office はしょくいん室、school nurse's office はほけん室です。",
+      "t": 5.5,
+      "g": "学校の場所"
+    },
+    {
+      "q": "パソコンを使って学ぶ部屋を英語で言うとどれですか？",
+      "c": [
+        "science room",
+        "art room",
+        "cooking room",
+        "computer room"
+      ],
+      "a": 3,
+      "exp": "computer はコンピューター、room は部屋。science room（理科室）や art room（図工室）といっしょに覚えましょう。",
+      "t": 4,
+      "g": "学校の場所"
+    },
+    {
+      "q": "「Go straight. Turn left. It's on your right.」目的の場所は、最後にどちら側にありますか？",
+      "c": [
+        "左側",
+        "正面",
+        "右側",
+        "うしろ"
+      ],
+      "a": 2,
+      "exp": "最後の It's on your right. は「右側にある」の意味。Turn left. は曲がる向きで、場所がある側ではありません。",
+      "t": 6.5,
+      "g": "道案内"
+    },
+    {
+      "q": "「I get up at six. I eat breakfast at seven. I go to school at eight.」学校へ行く1時間前にすることは？",
+      "c": [
+        "起きる",
+        "朝ごはんを食べる",
+        "家に帰る",
+        "ねる"
+      ],
+      "a": 1,
+      "exp": "学校へ行くのは8時。その1時間前の7時に、I eat breakfast.（朝ごはんを食べる）とあります。起きるのは6時です。",
+      "t": 8,
+      "g": "一日の生活"
+    },
+    {
+      "q": "「I get up. I eat breakfast. I go to school. I go home. I go to bed.」この発表に出てこないものはどれですか？",
+      "c": [
+        "起きる",
+        "学校へ行く",
+        "宿題をする",
+        "ねる"
+      ],
+      "a": 2,
+      "exp": "do homework（宿題をする）は出てきません。get up、go to school、go to bed は文の中にあります。",
+      "t": 7,
+      "g": "一日の生活"
+    },
+    {
+      "q": "「go to school」と反対の動きを表す英語はどれですか？",
+      "c": [
+        "get up",
+        "go home",
+        "eat lunch",
+        "go to bed"
+      ],
+      "a": 1,
+      "exp": "go to school は「学校へ行く」、go home は「家へ帰る」。行く向きが反対です。go to bed は「ねる」です。",
+      "t": 5,
+      "g": "一日の生活"
+    },
+    {
+      "q": "「I watch TV after dinner.」テレビを見るのはいつですか？",
+      "c": [
+        "夕ごはんの前",
+        "昼ごはんのあと",
+        "夕ごはんのあと",
+        "朝ごはんのあと"
+      ],
+      "a": 2,
+      "exp": "dinner は夕ごはん、after は「〜のあと」。breakfast（朝ごはん）や lunch（昼ごはん）とまちがえないように。after school なら「学校のあと（放課後）」です。",
+      "t": 7,
+      "g": "一日の生活"
+    },
+    {
+      "q": "小文字で、大文字とほぼ同じ形（大きさだけがちがう）の文字はどれですか？",
+      "c": [
+        "b",
+        "r",
+        "s",
+        "g"
+      ],
+      "a": 2,
+      "exp": "s と S は大きさだけがちがう形。c、o、v、w、x、z などもそうです。b と B、g と G は形がちがいます。",
+      "t": 6.5,
+      "g": "アルファベット"
+    },
+    {
+      "q": "アルファベット順（a, b, c…の順）にならんでいる小文字はどれですか？",
+      "c": [
+        "e, g, f, h",
+        "f, e, g, h",
+        "e, f, g, h",
+        "e, f, h, g"
+      ],
+      "a": 2,
+      "exp": "アルファベットは e, f, g, h の順。g と h や、e と f の入れかわりに気をつけましょう。",
+      "t": 6,
+      "g": "アルファベット"
+    },
+    {
+      "q": "小文字の「a, c, t」をならべかえて、「ねこ」を表す単語にするとどれですか？",
+      "c": [
+        "cat",
+        "act",
+        "tac",
+        "tca"
+      ],
+      "a": 0,
+      "exp": "cat が「ねこ」。同じ文字でも、a-c-t の順にならべると act（行動）という別の単語になります。",
+      "t": 6,
+      "g": "アルファベット"
+    },
+    {
+      "q": "アルファベットは全部で何文字ですか？（大文字と小文字は同じ文字として数えます）",
+      "c": [
+        "24文字",
+        "25文字",
+        "26文字",
+        "27文字"
+      ],
+      "a": 2,
+      "exp": "a から z まで、全部で26文字です。大文字 A と小文字 a は、同じ文字のなかまとして数えます。",
+      "t": 4,
+      "g": "アルファベット"
+    },
+    {
+      "q": "「d」ではじまる単語はどれですか？",
+      "c": [
+        "bed",
+        "dog",
+        "bag",
+        "pig"
+      ],
+      "a": 1,
+      "exp": "dog（犬）は d ではじまります。bed は d で終わる単語。b と d は向きが反対なので、はじめの文字をよく見ましょう。",
+      "t": 5.5,
+      "g": "アルファベット"
+    },
+    {
+      "q": "「What's your name?」と聞かれたときの返事として合うのはどれですか？",
+      "c": [
+        "I'm ten years old.",
+        "My name is Mika.",
+        "I have a pen.",
+        "I want a cake."
+      ],
+      "a": 1,
+      "exp": "What's your name? は名前をたずねる文。My name is ~. で「わたしの名前は~です」と答えます。",
+      "t": 4,
+      "g": "会話表現"
+    },
+    {
+      "q": "ケンは「I like soccer. I don't like baseball.」と言いました。「Do you like baseball?」と聞かれたとき、ケンの返事は？",
+      "c": [
+        "Yes, I do.",
+        "No, I don't.",
+        "Yes, I have.",
+        "No, I'm not."
+      ],
+      "a": 1,
+      "exp": "Do you like ~? には Yes, I do. か No, I don't. で答えます。ケンは baseball が好きではないので No, I don't. です。",
+      "t": 7,
+      "g": "会話表現"
+    },
+    {
+      "q": "「How many pencils do you have?」でたずねていることはどれですか？",
+      "c": [
+        "えんぴつの色",
+        "えんぴつのねだん",
+        "えんぴつの長さ",
+        "えんぴつの数"
+      ],
+      "a": 3,
+      "exp": "How many は「いくつ」と数をたずねる言い方。How many pencils do you have? は「えんぴつを何本持っていますか」です。",
+      "t": 4.5,
+      "g": "会話表現"
+    }
+  ]
+}
