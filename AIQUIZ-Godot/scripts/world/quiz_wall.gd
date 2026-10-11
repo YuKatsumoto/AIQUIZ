@@ -3,11 +3,15 @@ extends Node3D
 ## クイズの壁 + ドア (2個 or 4個)
 ## Python版 renderer.py の _draw_wall_doors + _draw_labels に相当
 
+const JapaneseLineBreaker = preload("res://scripts/core/japanese_line_breaker.gd")
+
 var wall_parts: Array[MeshInstance3D] = []
 var doors: Array[MeshInstance3D] = []
 var door_labels: Array[Label3D] = []
 ## door_labels と同じ並びの扉の半幅と、全扉共通の2P拡大の倍率上限。
 var _door_label_half_widths: Array[float] = []
+## door_labels と同じ並びの改行前の選択肢 (ラベルには文節で改行した文字列が入る)。
+var _door_label_texts: Array[String] = []
 var _door_label_max_scale: float = 1.0
 
 var is_boss: bool = false
@@ -113,6 +117,8 @@ const CHOICE_UNIFORM_MIN_FONT_SIZE: int = 56
 ## 選択肢の文字サイズの範囲。上限は1文字約1m角、下限は従来の4択 (48px × 0.006) と同じ大きさ。
 const CHOICE_FONT_SIZE_MIN: int = 36
 const CHOICE_FONT_SIZE_MAX: int = 120
+## 語の途中での改行をいくつでも許す (_choice_fits の allowed_splits)。
+const CHOICE_ANY_SPLITS: int = 1000
 const CHOICE_PIXEL_SIZE: float = 0.008
 const DOOR_HALF_HEIGHT: float = 2.2
 ## 壁の文字はMSDFで描き、遠景での縮小や2P拡大でも輪郭をにじませない。
@@ -231,6 +237,7 @@ func _build_doors(num_choices: int) -> void:
 	door_labels.clear()
 
 	_door_label_half_widths.clear()
+	_door_label_texts.clear()
 	_door_label_max_scale = 1.0
 
 	if num_choices == 4:
@@ -268,16 +275,20 @@ func _add_door_label(door_x: float, door_half_width: float) -> void:
 	label.position = Vector3(door_x, 0.18, -0.65)
 	label.pixel_size = CHOICE_PIXEL_SIZE
 	label.width = door_half_width * 2.0 * CHOICE_FIT_WIDTH_RATIO / CHOICE_PIXEL_SIZE
+	# 改行は _fit_door_labels が文節の切れ目に入れる。
+	label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	label.scale = Vector3.ONE * minf(_text_scale, _door_label_max_scale)
 	add_child(label)
 	door_labels.append(label)
 	_door_label_half_widths.append(door_half_width)
+	_door_label_texts.append("")
 
 
 ## 変わっていなければ何もしない (GameWorld は現在の壁へ毎フレーム set_quiz を呼ぶ)。
 func _set_door_label_text(index: int, text: String) -> bool:
-	if index >= door_labels.size() or door_labels[index].text == text:
+	if index >= door_labels.size() or _door_label_texts[index] == text:
 		return false
+	_door_label_texts[index] = text
 	door_labels[index].text = text
 	return true
 
@@ -289,7 +300,7 @@ func _fit_door_labels() -> void:
 	var fits: Array[int] = []
 	var shared := CHOICE_FONT_SIZE_MAX
 	for i: int in range(door_labels.size()):
-		var text := door_labels[i].text
+		var text := _door_label_texts[i]
 		var fit := CHOICE_FONT_SIZE_MIN if text.is_empty() else _fit_choice_size(text, door_labels[i].font, _door_label_box(i))
 		fits.append(fit)
 		if not text.is_empty():
@@ -300,10 +311,12 @@ func _fit_door_labels() -> void:
 		var label := door_labels[i]
 		var font_size := mini(shared, fits[i])
 		_set_choice_font_size(label, font_size)
-		if label.text.is_empty():
+		if _door_label_texts[i].is_empty():
+			label.text = ""
 			continue
 		var box := _door_label_box(i)
-		var fitted := _measure_choice_text(label.text, label.font, font_size, box.x, true)
+		label.text = _wrap_choice_text(_door_label_texts[i], label.font, font_size, box.x).text
+		var fitted := _measure_choice_text(label.text, label.font, font_size)
 		_door_label_max_scale = minf(_door_label_max_scale, minf(box.x / maxf(fitted.x, 1.0), box.y / maxf(fitted.y, 1.0)))
 	_door_label_max_scale = maxf(_door_label_max_scale, 1.0)
 	_apply_door_label_scale()
@@ -318,36 +331,53 @@ func _door_label_box(index: int) -> Vector2:
 
 
 ## 内枠に収まる最大の文字サイズ。
-## 日本語は漢字の間でも折り返せるので、短い答えは「富|士山」のように割れないよう、
-## 改行なしで CHOICE_SINGLE_LINE_MIN_FONT_SIZE 以上に出せる限り1行のまま表示する。
+## 短い答えは「富|士山」のように割れないよう、改行なしで CHOICE_SINGLE_LINE_MIN_FONT_SIZE 以上に出せる限り1行のまま表示する。
+## 折り返すときは文節の切れ目だけで改行できる最大サイズを選ぶ。最小サイズでも収まらない長い答えは、
+## 語の途中での改行が1か所で済むサイズ、それも無理なら収まる最大サイズにする。
 func _fit_choice_size(text: String, font: Font, box: Vector2) -> int:
-	var font_size := _largest_fitting_choice_size(text, font, box, false)
-	if font_size < CHOICE_SINGLE_LINE_MIN_FONT_SIZE:
-		font_size = _largest_fitting_choice_size(text, font, box, true)
-	return font_size
+	var font_size := _largest_fitting_choice_size(text, font, box, -1)
+	if font_size >= CHOICE_SINGLE_LINE_MIN_FONT_SIZE:
+		return font_size
+	for allowed_splits: int in [0, 1]:
+		font_size = _largest_fitting_choice_size(text, font, box, allowed_splits)
+		if font_size > CHOICE_FONT_SIZE_MIN or _choice_fits(text, font, font_size, box, allowed_splits):
+			return font_size
+	return _largest_fitting_choice_size(text, font, box, CHOICE_ANY_SPLITS)
 
 
-func _largest_fitting_choice_size(text: String, font: Font, box: Vector2, wrap: bool) -> int:
+func _largest_fitting_choice_size(text: String, font: Font, box: Vector2, allowed_splits: int) -> int:
 	var low := CHOICE_FONT_SIZE_MIN
 	var high := CHOICE_FONT_SIZE_MAX
 	while low < high:
 		var mid := (low + high + 1) / 2
-		var size := _measure_choice_text(text, font, mid, box.x, wrap)
-		if size.x <= box.x and size.y <= box.y:
+		if _choice_fits(text, font, mid, box, allowed_splits):
 			low = mid
 		else:
 			high = mid - 1
 	return low
 
 
-## 輪郭を含む文字列の外寸 (ラベルのピクセル単位)。wrap=false では明示的な改行 (縦積みの分数) だけで改行する。
-## wrap=true の折り返しは Label3D の AUTOWRAP_WORD_SMART と同じ規則。
-func _measure_choice_text(text: String, font: Font, font_size: int, width: float, wrap: bool) -> Vector2:
+## allowed_splits: 負なら明示的な改行 (縦積みの分数) だけで表示し、0以上なら文節で折り返して語の途中での改行をその数まで許す。
+func _choice_fits(text: String, font: Font, font_size: int, box: Vector2, allowed_splits: int) -> bool:
+	var shown := text
+	if allowed_splits >= 0:
+		var wrapped := _wrap_choice_text(text, font, font_size, box.x)
+		if wrapped.split_words > allowed_splits:
+			return false
+		shown = wrapped.text
+	var size := _measure_choice_text(shown, font, font_size)
+	return size.x <= box.x and size.y <= box.y
+
+
+func _wrap_choice_text(text: String, font: Font, font_size: int, box_width: float) -> Dictionary:
+	return JapaneseLineBreaker.layout(text, font, font_size, box_width - _choice_outline_size(font_size) * 2.0)
+
+
+## 輪郭を含む文字列の外寸 (ラベルのピクセル単位)。改行は文字列中の "\n" だけで行う。
+func _measure_choice_text(text: String, font: Font, font_size: int) -> Vector2:
 	var tp := TextParagraph.new()
-	tp.width = width if wrap else -1.0
+	tp.width = -1.0
 	tp.break_flags = TextServer.BREAK_MANDATORY
-	if wrap:
-		tp.break_flags |= TextServer.BREAK_WORD_BOUND | TextServer.BREAK_ADAPTIVE
 	tp.add_string(text, font, font_size)
 	return tp.get_size() + Vector2.ONE * _choice_outline_size(font_size) * 2.0
 
@@ -680,7 +710,8 @@ func set_preview_labels(quiz: QuizItem) -> void:
 		lbl.font_size = 64
 		lbl.outline_modulate = Color(0.02, 0.05, 0.08, 0.95)
 		lbl.outline_size = 8
-		lbl.text = FractionFormatter.format_choice(quiz.c[i])
+		lbl.autowrap_mode = TextServer.AUTOWRAP_OFF
+		lbl.text = JapaneseLineBreaker.layout(FractionFormatter.format_choice(quiz.c[i]), lbl.font, lbl.font_size, lbl.width).text
 		add_child(lbl)
 		preview_choice_labels.append(lbl)
 
@@ -697,31 +728,28 @@ const QUESTION_LABEL_MAX_WIDTH := 1600.0
 
 ## 問題文ラベルは1行・2行のどちらでも同じ文字サイズで表示し、省略はしない。
 ## 2行に収まらない場合は横幅を段階的に広げて全文を表示する（上限に達したらそこで止める）。
+## 改行は文節の切れ目に入れ (JapaneseLineBreaker)、自動折り返しは使わない。
 ## 下端を扉の上端へ固定し、行数が増えたら壁面の上方向へ伸ばす。
 func _fit_question_label_to_two_lines(label: Label3D, text: String) -> void:
 	if not label:
 		return
 	var font: Font = label.font if label.font else ThemeDB.fallback_font
-	var break_flags := TextServer.BREAK_MANDATORY | TextServer.BREAK_WORD_BOUND | TextServer.BREAK_ADAPTIVE
 	var font_size := QUESTION_LABEL_FONT_SIZE
 	label.font_size = font_size
-	label.text = text
+	label.autowrap_mode = TextServer.AUTOWRAP_OFF
 
 	var width := QUESTION_LABEL_BASE_WIDTH
-	while width < QUESTION_LABEL_MAX_WIDTH and _measure_line_count(text, font, font_size, width, break_flags) > QUESTION_LABEL_MAX_LINES:
+	var wrapped := JapaneseLineBreaker.layout(text, font, font_size, width)
+	while width < QUESTION_LABEL_MAX_WIDTH and wrapped.line_count > QUESTION_LABEL_MAX_LINES:
 		width = minf(width + QUESTION_LABEL_WIDTH_STEP, QUESTION_LABEL_MAX_WIDTH)
+		wrapped = JapaneseLineBreaker.layout(text, font, font_size, width)
 	label.width = width
+	label.text = wrapped.text
 
 	# 行数によらず、問題文を扉のすぐ上に揃える。
 	label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
 	label.position.y = DOOR_TOP_Y + QUESTION_LABEL_DOOR_CLEARANCE
 
-func _measure_line_count(text: String, font: Font, font_size: int, width: float, break_flags: int) -> int:
-	var tp := TextParagraph.new()
-	tp.width = width
-	tp.break_flags = break_flags
-	tp.add_string(text, font, font_size)
-	return maxi(1, tp.get_line_count())
 
 
 func _clear_preview_labels() -> void:

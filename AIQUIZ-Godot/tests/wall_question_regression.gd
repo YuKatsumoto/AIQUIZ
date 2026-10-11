@@ -271,8 +271,14 @@ func _mode_case(players: int, mode: String) -> void:
 	_validate(phase)
 	if mode == Constants.MODE_COOP:
 		var label: Label3D = _world._question_framing_wall.gameplay_question_label
-		_check(label.text.contains(_gs.current_quiz.coop_p1_label) and label.text.contains(_gs.current_quiz.coop_p2_label), "coop role labels retained")
+		var shown := _unwrapped(label.text)
+		_check(shown.contains(_unwrapped(_gs.current_quiz.coop_p1_label)) and shown.contains(_unwrapped(_gs.current_quiz.coop_p2_label)), "coop role labels retained")
 	await _capture(phase)
+
+
+## 問題文は文節の切れ目で改行され、改行した位置の空白は消えるので、改行と空白を除いて比べる。
+func _unwrapped(text: String) -> String:
+	return text.replace("\n", "").replace(" ", "").replace("\u3000", "")
 
 
 func _place(distance: float, p1_x: float, p2_x: float, separation: float) -> void:
@@ -319,7 +325,7 @@ func _validate(label: String, record: bool = true) -> void:
 		return
 	var question: Label3D = wall.gameplay_question_label
 	_check(int(wall.get_meta("wall_index")) == _gs.current_wall_index, label + " current wall")
-	_check(question.text.begins_with(FractionFormatter.format_question(_gs.current_quiz.q)), label + " complete formatted text")
+	_check(_unwrapped(question.text).begins_with(_unwrapped(FractionFormatter.format_question(_gs.current_quiz.q))), label + " complete formatted text")
 	var glyph_bounds := question.transform * question.get_aabb()
 	var panel: MeshInstance3D = question.get_node("QuestionBorder")
 	var panel_bounds: AABB = (question.transform * panel.transform) * panel.get_aabb()
