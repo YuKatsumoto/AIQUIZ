@@ -14,6 +14,21 @@ signal validation_completed(valid: Array[QuizItem], invalid_reasons: Array[Strin
 const MAX_RETRY: int = 2
 const FLASH_MODEL: String = "gemini-3.6-flash"
 const THINKING_VALIDATION: String = "low"
+const MAX_REJECTED: int = 500
+
+## LLM チェックで不合格になった問題文（QuizDedup.exact_key → 理由）。
+## 選択肢数の調整で QuizItem が複製されても弾けるよう、オブジェクトではなく問題文で持つ。
+var _rejected: Dictionary = {}
+
+
+func is_rejected(question: String) -> bool:
+	return _rejected.has(QuizDedup.exact_key(question))
+
+
+func _mark_rejected(item: QuizItem, reason: String) -> void:
+	_rejected[QuizDedup.exact_key(item.q)] = reason
+	while _rejected.size() > MAX_REJECTED:
+		_rejected.erase(_rejected.keys()[0])
 
 ## ルールベースのバリデーション（即時・無料）
 func validate_rules(items: Array[QuizItem]) -> Dictionary:
@@ -81,6 +96,12 @@ func _has_mojibake(text: String) -> bool:
 
 
 ## LLMベースの正解検証（Flash で独立に解かせる）
+## callback(valid_items, invalid_reasons):
+##  - 合格した問題は validated = true にして valid_items に入れる。
+##  - 不合格の問題は valid_items から外し、is_rejected() で弾けるよう記録する。正解番号は書き換えない
+##    （チェック役が正しい答えを「修正」してしまうことがあるため）。
+##  - 結果が返らなかった問題・通信失敗は、出題は止めないが validated = false のまま valid_items に残す。
+##    確認済みかどうかは呼び出し側が item.validated で判断する。
 func validate_answers_llm(items: Array[QuizItem], subject: String, grade: int,
 		callback: Callable) -> void:
 	if items.is_empty():
@@ -141,33 +162,27 @@ func validate_answers_llm(items: Array[QuizItem], subject: String, grade: int,
 					var item := items[i]
 					var check = _find_result_for_id(results, i)
 					
-					if check == null:
-						# No validation result, pass through
-						item.validated = true
+					if check == null or typeof(check.get("claimed_ok")) != TYPE_BOOL \
+							or typeof(check.get("grade_ok")) != TYPE_BOOL:
+						# 結果なし・形式不正: 出題は止めないが、確認済みにはしない
 						valid_items.append(item)
-					elif check.get("claimed_ok", true) and check.get("grade_ok", true):
+					elif check["claimed_ok"] and check["grade_ok"]:
 						item.validated = true
 						valid_items.append(item)
 					else:
-						var issue: String = check.get("issue", "不明な問題")
-						invalid_reasons.append("%s → %s" % [item.q.left(30), issue])
-						
-						# If the correct answer is different, try to fix it
-						if not check.get("claimed_ok", true):
-							var correct_idx = check.get("correct_answer", -1)
-							if typeof(correct_idx) == TYPE_FLOAT:
-								correct_idx = int(correct_idx)
-							if correct_idx >= 0 and correct_idx < item.c.size():
-								# Fix the answer and include the item
-								item.a = correct_idx
-								item.validated = true
-								valid_items.append(item)
-								invalid_reasons[invalid_reasons.size() - 1] += "（正解を修正して採用）"
-								print("[QuizValidator] Fixed answer: %s → %d" % [item.q.left(30), correct_idx])
+						var issue := str(check.get("issue", "")).strip_edges()
+						if issue.is_empty():
+							issue = "正解の不一致" if not check["claimed_ok"] else "学年範囲外"
+						var reason := "%s → %s" % [item.q.left(30), issue]
+						invalid_reasons.append(reason)
+						_mark_rejected(item, issue)
+			else:
+				valid_items = items
+				print("[QuizValidator] LLM validation returned no candidates; items stay unvalidated")
 		else:
-			# Validation failed, pass all through rather than blocking
+			# 通信失敗: 出題は止めないが、確認済みにはしない
 			valid_items = items
-			print("[QuizValidator] LLM validation failed (code=%d), passing all items through" % response_code)
+			print("[QuizValidator] LLM validation failed (code=%d), items stay unvalidated" % response_code)
 		
 		http.queue_free()
 		callback.call(valid_items, invalid_reasons)

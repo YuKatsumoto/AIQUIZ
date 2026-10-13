@@ -1092,6 +1092,7 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 				
 				var gs := QuizManager.game_state
 				var in_preload := gs != null and gs.game_state == Constants.STATE_PRELOADING
+						# 合格は validator が validated を立て、不合格は is_rejected() で出題・プール保存・評価から外れる。
 				if validator and unique_items.size() > 0 and not in_preload:
 					var pending: Array[QuizItem] = []
 					for item in unique_items:
@@ -1099,9 +1100,7 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 							pending.append(item)
 					if pending.size() > 0:
 						validator.validate_answers_llm(pending, subject, grade,
-							func(valid_items: Array[QuizItem], invalid_reasons: Array[String]):
-								for valid_item in valid_items:
-									valid_item.validated = true
+							func(_valid_items: Array[QuizItem], invalid_reasons: Array[String]):
 								if invalid_reasons.size() > 0:
 									print("[OnlineFetch] LLM validation flagged %d items (async)" % invalid_reasons.size())
 									for reason in invalid_reasons:

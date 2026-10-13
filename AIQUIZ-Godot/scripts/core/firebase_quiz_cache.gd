@@ -293,7 +293,7 @@ func _is_valid_cache_item(item: Dictionary) -> bool:
 		return false
 	if answer < 0 or answer >= choices.size():
 		return false
-	if subject not in ["国語", "算数", "理科", "社会"] or grade < 1 or grade > 6:
+	if subject not in ["国語", "算数", "理科", "社会", "英語"] or grade < 1 or grade > 6:
 		return false
 	if difficulty not in ["簡単", "普通", "難しい"]:
 		return false
@@ -310,7 +310,7 @@ func _is_valid_cache_item(item: Dictionary) -> bool:
 
 
 func _is_online_source(source: String) -> bool:
-	return source.strip_edges().to_upper() in ["GEMINI", "GEMINI_STREAM", "OPENAI"]
+	return source.strip_edges().to_upper() in ["GEMINI", "GEMINI_STREAM", "GEMINI_POOL", "OPENAI"]
 
 
 func _local_question_key(payload: Dictionary) -> String:

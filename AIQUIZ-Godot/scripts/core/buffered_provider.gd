@@ -486,6 +486,20 @@ func _prepare_round_candidate(quiz: QuizItem) -> QuizItem:
 func prepare_choice_count(item: QuizItem, expected: int) -> QuizItem:
 	var prepared := super.prepare_choice_count(item, expected)
 	# Keep explanation/answer validation tied to the actual displayed choices.
+## 正解チェックで不合格になった問題か（未出題の払い出し・プール保存から外す）。
+func _is_rejected(item: QuizItem) -> bool:
+	var validator: QuizValidator = QuizManager.quiz_validator
+	return item != null and validator != null and validator.is_rejected(item.q)
+
+
+func _without_rejected(items: Array[QuizItem]) -> Array[QuizItem]:
+	var kept: Array[QuizItem] = []
+	for item: QuizItem in items:
+		if not _is_rejected(item):
+			kept.append(item)
+	return kept
+
+
 	if prepared != null and prepared != item:
 		for i: int in range(_dispatched_items.size()):
 			if _dispatched_items[i] == item:
@@ -499,6 +513,8 @@ func prepare_choice_count(item: QuizItem, expected: int) -> QuizItem:
 const SUDDEN_DEATH_FOCUS := "【サドンデス用・最優先】走りながら一瞬で読める問題にする。問題文は30文字以内、選択肢は各8文字以内、予測解答時間(t)は4.5秒以下。計算は一段階まで。図や画像を前提にしない。"
 const SUDDEN_DEATH_VALIDATION_TIMEOUT := 12.0
 
+		if _is_rejected(raw_quiz):
+			continue
 func request_sudden_death_quizzes(count: int, exclude_texts: Array[String], on_progress: Callable,
 		on_done: Callable) -> bool:
 	if llm_mode != "ONLINE" or not _online_api_available() or not is_instance_valid(online_fetcher):
@@ -523,12 +539,13 @@ func request_sudden_death_quizzes(count: int, exclude_texts: Array[String], on_p
 	return true
 
 
-## The sudden death decides the match: check every answer before it is used. A slow or
-## failed check passes the items through (as the main round does).
+## The sudden death decides the match: only questions whose answer the check confirmed are
+## used. A disputed, unchecked, slow or failed check hands back nothing, and the game falls
+## back to the collected questions (game_state._finish_sudden_death_generation).
 func _validate_sudden_death_quizzes(items: Array[QuizItem], subject: String, grade: int, on_done: Callable) -> void:
 	var validator: QuizValidator = QuizManager.quiz_validator
 	if items.is_empty() or validator == null:
-		on_done.call(items)
+		on_done.call([] as Array[QuizItem])
 		return
 	var state := {"done": false}
 	var finish := func(valid: Array[QuizItem]) -> void:
@@ -537,24 +554,17 @@ func _validate_sudden_death_quizzes(items: Array[QuizItem], subject: String, gra
 		state["done"] = true
 		on_done.call(valid)
 	get_tree().create_timer(SUDDEN_DEATH_VALIDATION_TIMEOUT).timeout.connect(func() -> void:
-		finish.call(items))
-	# The checker sometimes "fixes" a correct answer. The sudden death decides the match,
-	# so a question whose answer it disputes is dropped, never re-keyed.
-	var claimed := {}
-	for item: QuizItem in items:
-		claimed[item] = item.a
+		print("[BufferedProvider] Sudden death validation timed out; using the collected questions")
+		finish.call([] as Array[QuizItem]))
 	validator.validate_answers_llm(items, subject, grade,
 		func(valid_items: Array[QuizItem], invalid_reasons: Array[String]) -> void:
 			for reason: String in invalid_reasons:
 				print("[BufferedProvider] Sudden death validation: %s" % reason)
-			var agreed: Array[QuizItem] = []
+			var confirmed: Array[QuizItem] = []
 			for item: QuizItem in valid_items:
-				if claimed.has(item) and int(claimed[item]) == item.a:
-					agreed.append(item)
-				elif claimed.has(item):
-					item.a = int(claimed[item])
-					print("[BufferedProvider] Sudden death: dropped a disputed answer: '%s'" % item.q.left(30))
-			finish.call(agreed))
+				if item.validated:
+					confirmed.append(item)
+			finish.call(confirmed))
 
 
 ## 2Pサドンデス用。このラウンドで使わなかった生成済みの候補を取り出す。
@@ -565,7 +575,7 @@ func take_round_leftovers(max_count: int) -> Array[QuizItem]:
 	for source: Array[QuizItem] in [buffer, _overflow_buffer]:
 		while source.size() > 0 and out.size() < max_count:
 			var item: QuizItem = source.pop_front()
-			if item == null or (llm_mode == "ONLINE" and _is_offline_quiz_item(item)):
+			if item == null or (llm_mode == "ONLINE" and _is_offline_quiz_item(item)) or _is_rejected(item):
 				continue
 			out.append(item)
 	return out
@@ -590,6 +600,9 @@ func _on_fetch_partial(quizzes: Array[QuizItem]) -> void:
 			continue
 		if q.genre.strip_edges().is_empty():
 			q.genre = "未分類"
+		if _is_rejected(picked):
+			print("[BufferedProvider] Skipped quiz that failed the answer check: '%s'" % picked.q.left(30))
+			continue
 		if _genre_count_in_round(q.genre) == 0:
 			ordered.append(q)
 		else:
@@ -603,6 +616,8 @@ func _on_fetch_partial(quizzes: Array[QuizItem]) -> void:
 			surplus.append(q)
 			continue
 		if llm_mode == "ONLINE" and _is_offline_quiz_item(q):
+			if _is_rejected(ov):
+				continue
 			print("[BufferedProvider] Rejected offline quiz in online mode: '%s'" % q.q.left(30))
 			novelty_rejected = true
 			continue
@@ -639,7 +654,7 @@ func _on_fetch_partial(quizzes: Array[QuizItem]) -> void:
 			and online_fetcher.has_method("record_adopted_units"):
 		online_fetcher.record_adopted_units(current_subject, current_grade, adopted_units)
 	if surplus.size() > 0 and llm_mode == "ONLINE" and generated_bank != null:
-		generated_bank.store_items(surplus, current_subject, current_grade, current_difficulty)
+		generated_bank.store_items(_without_rejected(surplus), current_subject, current_grade, current_difficulty)
 
 	if accepted and online_fetcher.has_method("reset_rate_limit"):
 		online_fetcher.reset_rate_limit()
@@ -860,6 +875,7 @@ func _track_dispatched_unexplained(q: QuizItem) -> void:
 	while _dispatched_items.size() > 30:
 		_dispatched_items.pop_front()
 
+	# 合格は validator が validated を立てる。不合格は is_rejected() で未出題分の払い出しから外れる。
 
 ## バッファ内・払い出し済みの解説未取得問題に対してバックグラウンドで解説生成をキック。
 ## 10問モードでは生成時に解説を省略して高速化しているため、
@@ -927,6 +943,7 @@ func _propagate_explanations_to_game(quizzes: Array[QuizItem]) -> void:
 			if queued_quiz != null and queued_quiz != src_q and queued_quiz.q == src_q.q and queued_quiz.e.strip_edges().is_empty():
 				queued_quiz.e = src_q.e
 		for entry in gs.quiz_history:
+	leftovers = _without_rejected(leftovers)
 			if not entry is Dictionary:
 				continue
 			var hq = (entry as Dictionary).get("quiz", null)
@@ -967,8 +984,6 @@ func _run_answer_validation_once() -> void:
 	print("[BufferedProvider] Running one-shot answer validation for %d quizzes" % targets.size())
 	validator.validate_answers_llm(targets, current_subject, current_grade,
 		func(_valid_items: Array[QuizItem], invalid_reasons: Array[String]):
-			for item in _valid_items:
-				item.validated = true
 			if invalid_reasons.size() > 0:
 				print("[BufferedProvider] Answer validation flagged %d items:" % invalid_reasons.size())
 				for reason in invalid_reasons:
@@ -986,7 +1001,7 @@ func _seed_from_generated_bank() -> void:
 		return
 	var ordered: Array[QuizItem] = []
 	var rest: Array[QuizItem] = []
-	for raw_quiz: QuizItem in candidates:
+	for raw_quiz: QuizItem in _without_rejected(candidates):
 		var q := _prepare_round_candidate(raw_quiz)
 		if q == null:
 			continue

@@ -38,13 +38,21 @@ func _save_ratings() -> void:
 	if f:
 		f.store_string(JSON.stringify(ratings, "  "))
 
+func _is_evaluable(entry: Dictionary) -> bool:
+	var q: QuizItem = entry.get("quiz")
+	if not q or entry.get("rated", "") != "":
+		return false
+	if not (q.src == "GEMINI" or q.src == "OPENAI" or q.src == "GEMINI_STREAM" or q.src == "GEMINI_POOL"):
+		return false
+	# 正解チェックで不合格になった問題は良問として共有バンクへ送らない
+	var validator: QuizValidator = QuizManager.quiz_validator
+	return validator == null or not validator.is_rejected(q.q)
+
+
 func evaluate_history(history: Array[Dictionary], subject: String, grade: int, difficulty: String) -> void:
 	var unrated := 0
 	for entry in history:
-		var q: QuizItem = entry.get("quiz")
-		if not q:
-			continue
-		if entry.get("rated", "") == "" and (q.src == "GEMINI" or q.src == "OPENAI" or q.src == "GEMINI_STREAM" or q.src == "GEMINI_POOL"):
+		if _is_evaluable(entry):
 			unrated += 1
 	if unrated < MIN_ITEMS_FOR_EVAL:
 		return
@@ -53,9 +61,7 @@ func evaluate_history(history: Array[Dictionary], subject: String, grade: int, d
 		print("[QuizOptimizer] Skipping evaluation (round %d, every %d)" % [_eval_round_counter, EVAL_EVERY_N_ROUNDS])
 		return
 	for entry in history:
-		var q: QuizItem = entry.get("quiz")
-		if not q: continue
-		if entry.get("rated", "") == "" and (q.src == "GEMINI" or q.src == "OPENAI" or q.src == "GEMINI_STREAM" or q.src == "GEMINI_POOL"):
+		if _is_evaluable(entry):
 			entry["rated"] = "queued"
 			entry["_eval_ctx"] = {"subject": subject, "grade": grade, "difficulty": difficulty}
 			entry["_retry_count"] = 0
@@ -70,16 +76,14 @@ func _process_next_batch() -> void:
 		return
 		
 	_is_evaluating = true
-	var batch_size = mini(10, _eval_queue.size())
-	var to_evaluate: Array[Dictionary] = []
-	for i in range(batch_size):
-		to_evaluate.append(_eval_queue.pop_front())
-		
+	var ctx: Dictionary = _eval_queue[0]["_eval_ctx"]
+	var subject: String = ctx["subject"]
+	var grade: int = ctx["grade"]
+	var difficulty: String = ctx["difficulty"]
+	var to_evaluate := _take_same_context_batch(10)
+
 	var items := []
-	var subject: String = to_evaluate[0]["_eval_ctx"]["subject"]
-	var grade: int = to_evaluate[0]["_eval_ctx"]["grade"]
-	var difficulty: String = to_evaluate[0]["_eval_ctx"]["difficulty"]
-	
+
 	for i in range(to_evaluate.size()):
 		var entry = to_evaluate[i]
 		var q: QuizItem = entry["quiz"]
@@ -106,6 +110,23 @@ func _process_next_batch() -> void:
 	
 	_fetch_evaluation(prompt, to_evaluate, subject, grade, difficulty)
 
+## 1回の評価は先頭と同じ教科・学年・難易度の問題だけでまとめる。再送待ちで前の試合の問題が
+## 残っていても、別の学年の基準で判定されないようにする。残りはキューに戻す。
+func _take_same_context_batch(max_size: int) -> Array[Dictionary]:
+	var ctx: Dictionary = _eval_queue[0]["_eval_ctx"]
+	var picked: Array[Dictionary] = []
+	var others: Array[Dictionary] = []
+	for entry: Dictionary in _eval_queue:
+		var entry_ctx: Dictionary = entry["_eval_ctx"]
+		if picked.size() < max_size and entry_ctx["subject"] == ctx["subject"] \
+				and int(entry_ctx["grade"]) == int(ctx["grade"]) \
+				and entry_ctx["difficulty"] == ctx["difficulty"]:
+			picked.append(entry)
+		else:
+			others.append(entry)
+	_eval_queue = others
+	return picked
+
 func _fetch_evaluation(prompt: String, to_evaluate: Array[Dictionary], subject: String, grade: int, difficulty: String) -> void:
 	var target_model := EVALUATION_GEMINI_MODEL
 	
@@ -127,7 +148,7 @@ func _fetch_evaluation(prompt: String, to_evaluate: Array[Dictionary], subject: 
 	})
 	
 	http.request_completed.connect(func(result: int, response_code: int, _h, b: PackedByteArray):
-		var success := false
+		var unrated: Array[Dictionary] = to_evaluate
 		if result == HTTPRequest.RESULT_SUCCESS and response_code == 200:
 			var json = JSON.parse_string(b.get_string_from_utf8())
 			if json is Dictionary and json.has("candidates"):
@@ -135,18 +156,21 @@ func _fetch_evaluation(prompt: String, to_evaluate: Array[Dictionary], subject: 
 				var res = _extract_json_array(text)
 				if res:
 					_process_evaluation_results(res, to_evaluate, subject, grade, difficulty)
-					success = true
-		
-		if not success:
-			for entry in to_evaluate:
-				var retries: int = entry.get("_retry_count", 0)
-				if retries < 3:
-					entry["_retry_count"] = retries + 1
-					entry["rated"] = "queued"
-					_eval_queue.append(entry)
-				else:
-					entry["rated"] = "failed"
-					
+					# 結果が返らなかった問題・good/bad 以外の判定だけを再送に回す
+					unrated = []
+					for entry in to_evaluate:
+						if entry.get("rated", "") == "evaluating":
+							unrated.append(entry)
+
+		for entry in unrated:
+			var retries: int = entry.get("_retry_count", 0)
+			if retries < 3:
+				entry["_retry_count"] = retries + 1
+				entry["rated"] = "queued"
+				_eval_queue.append(entry)
+			else:
+				entry["rated"] = "failed"
+
 		http.queue_free()
 		var tree := get_tree()
 		if tree:
@@ -186,11 +210,15 @@ func _process_evaluation_results(eval_results: Array, to_evaluate: Array[Diction
 		var rating: String = str(res["rating"]).to_lower()
 		var reason: String = res.get("reason", "")
 		
+		if rating != "good" and rating != "bad":
+			continue
 		if idx >= 0 and idx < to_evaluate.size():
 			var entry = to_evaluate[idx]
+			if entry.get("rated", "") != "evaluating":
+				continue
 			var q: QuizItem = entry["quiz"]
 			entry["rated"] = rating
-			
+
 			var payload := {
 				"q": q.q,
 				"c": Array(q.c),

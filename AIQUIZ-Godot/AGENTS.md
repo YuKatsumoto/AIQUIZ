@@ -1,3 +1,8 @@
+# 回答の言語
+
+ユーザーへの回答は必ず日本語で書く。説明・報告・質問・作業途中の短い経過報告もすべて日本語にする。
+コード、識別子、コマンド、ファイルパス、エラーメッセージの引用など、原文のままにすべきものはそのままでよい。
+
 # Godot AI MCP
 
 This project uses Godot AI (`godot-ai`) with the addon at `addons/godot_ai/`.
