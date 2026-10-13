@@ -73,3 +73,40 @@ test('bad always wins and later good evaluations cannot reactivate it', () => {
     assert.equal(laterGood.status, 'bad');
     assert.equal(laterGood.bad_ever, true);
 });
+
+test('English and reused pool questions can enter the shared archive', () => {
+    const english = canonicalizeQuiz(quiz({
+        q: 'What color is the sky?', c: ['blue', 'red'], a: 0, subject: '英語', grade: 3,
+    }));
+    assert.equal(english.subject, '英語');
+    assert.equal(canonicalizeQuiz(quiz({ src: 'GEMINI_POOL' })).original_src, 'GEMINI_POOL');
+});
+
+test('with review required, client good votes are counted but do not promote', () => {
+    const item = canonicalizeQuiz(quiz());
+    const voted = mergeEvaluation(null, item, true, 'ok', 100, { requireReview: true });
+    assert.equal(voted.status, 'pending');
+    assert.equal(voted.good_votes, 1);
+
+    const again = mergeEvaluation(voted, item, true, 'ok', 110, { requireReview: true });
+    assert.equal(again.status, 'pending');
+    assert.equal(again.good_votes, 2);
+
+    const rejected = mergeEvaluation(again, item, false, 'wrong', 120, { requireReview: true });
+    assert.equal(rejected.status, 'bad');
+    assert.equal(rejected.bad_ever, true);
+
+    // 既に good の問題（確認合格・従来の昇格分）は good のまま
+    const reviewedGood = { ...voted, status: 'good' };
+    assert.equal(mergeEvaluation(reviewedGood, item, true, 'ok', 130, { requireReview: true }).status, 'good');
+});
+
+test('client uploads cannot change the content of a question sent for review', () => {
+    const item = canonicalizeQuiz(quiz());
+    const reviewed = { ...mergeCandidate(null, item, 100), review: { state: 'done', verdict: 'pass' } };
+    const tampered = canonicalizeQuiz(quiz({ a: 2, e: '別の解説' }));
+    const merged = mergeCandidate(reviewed, tampered, 110);
+    assert.equal(merged.a, 1);
+    assert.equal(merged.e, '3と4を足します。');
+    assert.equal(merged.seen_count, 2);
+});

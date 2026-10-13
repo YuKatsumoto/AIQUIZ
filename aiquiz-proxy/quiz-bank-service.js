@@ -3,9 +3,17 @@ const express = require('express');
 const { applicationDefault, getApps, initializeApp } = require('firebase-admin/app');
 const { getDatabase } = require('firebase-admin/database');
 
-const SUBJECTS = new Set(['国語', '算数', '理科', '社会']);
+const SUBJECTS = new Set(['国語', '算数', '理科', '社会', '英語']);
 const DIFFICULTIES = new Set(['簡単', '普通', '難しい']);
-const ONLINE_SOURCES = new Set(['GEMINI', 'GEMINI_STREAM', 'OPENAI']);
+// GEMINI_POOL: 手元の生成プールから次のラウンドで再利用された Gemini 生成問題
+const ONLINE_SOURCES = new Set(['GEMINI', 'GEMINI_STREAM', 'GEMINI_POOL', 'OPENAI']);
+const CONTENT_FIELDS = ['q', 'c', 'a', 'e'];
+
+// QUIZ_BANK_REQUIRE_REVIEW=1 のとき、クライアントの good は昇格させず票として数えるだけにする。
+// 共有バンクへの昇格は Claude の確認（claude-review.js）が合格させたものだけ。
+function requireReviewFromEnv() {
+    return process.env.QUIZ_BANK_REQUIRE_REVIEW === '1';
+}
 const MAX_BATCH = 50;
 const MAX_PAGE = 500;
 
@@ -82,9 +90,17 @@ function canonicalizeQuiz(raw, { allowOffline = false } = {}) {
 function mergeCandidate(existing, quiz, nowSeconds) {
     const prior = existing && typeof existing === 'object' ? existing : {};
     const status = prior.bad_ever ? 'bad' : (prior.status || 'pending');
+    // 確認に出した後の問題文・選択肢・正解・解説は、クライアントの送信で上書きしない。
+    const frozen = {};
+    if (prior.review && prior.review.state) {
+        for (const field of CONTENT_FIELDS) {
+            if (prior[field] !== undefined) frozen[field] = prior[field];
+        }
+    }
     return {
         ...prior,
         ...quiz,
+        ...frozen,
         status,
         bad_ever: Boolean(prior.bad_ever),
         first_seen: Number(prior.first_seen || nowSeconds),
@@ -93,7 +109,7 @@ function mergeCandidate(existing, quiz, nowSeconds) {
     };
 }
 
-function mergeEvaluation(existing, quiz, good, reason, nowSeconds) {
+function mergeEvaluation(existing, quiz, good, reason, nowSeconds, { requireReview = false } = {}) {
     const candidate = mergeCandidate(existing, quiz, nowSeconds);
     // Evaluations are not new generation sightings. Preserve the generation
     // count when the candidate was already archived.
@@ -101,9 +117,15 @@ function mergeEvaluation(existing, quiz, good, reason, nowSeconds) {
         candidate.seen_count = Number(existing.seen_count || 0);
     }
     const badEver = Boolean(candidate.bad_ever) || !good;
+    let status = badEver ? 'bad' : 'good';
+    if (!badEver && requireReview) {
+        // 既に good の問題はそのまま。保留中の問題は票を数えるだけで昇格させない。
+        status = candidate.status === 'good' ? 'good' : 'pending';
+    }
     return {
         ...candidate,
-        status: badEver ? 'bad' : 'good',
+        status,
+        good_votes: Number(candidate.good_votes || 0) + (good ? 1 : 0),
         bad_ever: badEver,
         last_evaluated: nowSeconds,
         evaluation_reason: String(reason || '').slice(0, 500),
@@ -155,8 +177,9 @@ function createFirebaseDatabase() {
 }
 
 class FirebaseQuizBankService {
-    constructor(databaseFactory = createFirebaseDatabase) {
+    constructor(databaseFactory = createFirebaseDatabase, { requireReview = requireReviewFromEnv() } = {}) {
         this.databaseFactory = databaseFactory;
+        this.requireReview = requireReview;
     }
 
     _db() {
@@ -203,17 +226,20 @@ class FirebaseQuizBankService {
                     throw new Error('Unknown OFFLINE_FIREBASE quiz');
                 }
                 const transaction = await archiveRef.transaction(
-                    current => mergeEvaluation(current, quiz, raw.good, reason, now),
+                    current => mergeEvaluation(current, quiz, raw.good, reason, now, {
+                        requireReview: this.requireReview,
+                    }),
                 );
                 const archive = transaction.snapshot.val();
                 const bankRef = db.ref(`quiz_bank/v1/items/${quiz.id}`);
                 if (archive.status === 'good') {
                     await bankRef.set(reusableRecord(archive));
-                } else {
+                    bankChanged = true;
+                } else if (archive.status === 'bad') {
                     await bankRef.remove();
+                    bankChanged = true;
                 }
                 status = archive.status;
-                bankChanged = true;
             }
 
             const eventId = /^[A-Za-z0-9_-]{16,160}$/.test(String(raw.event_id || ''))
@@ -317,6 +343,7 @@ function createQuizBankRouter(service = new FirebaseQuizBankService()) {
 
 module.exports = {
     FirebaseQuizBankService,
+    createFirebaseDatabase,
     canonicalizeQuiz,
     createQuizBankRouter,
     mergeCandidate,

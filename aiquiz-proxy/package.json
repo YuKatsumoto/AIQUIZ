@@ -9,6 +9,7 @@
     "migrate:quiz-bank": "node migrate-ratings.js"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.133.0",
     "cors": "^2.8.5",
     "express": "^4.22.2",
     "express-rate-limit": "^8.6.2",

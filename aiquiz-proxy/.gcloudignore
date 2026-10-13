@@ -1,0 +1,7 @@
+# gcloud run deploy / jobs deploy --source で送らないもの。
+# node_modules はコンテナ内の npm install で入れ直す。
+.gcloudignore
+.git
+node_modules/
+test/
+*.md

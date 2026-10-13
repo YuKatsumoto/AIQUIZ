@@ -1,0 +1,40 @@
+{
+  "rules": {
+    "live_config": {
+      ".read": true,
+      ".write": false
+    },
+    "telemetry": {
+      ".read": false,
+      "sessions": {
+        "$entry": {
+          ".write": "!data.exists() && newData.exists()",
+          ".validate": "newData.hasChildren(['q', 'correct', 'ts'])",
+          "q": { ".validate": "newData.isString() && newData.val().length <= 200" },
+          "response_time": { ".validate": "newData.isNumber()" },
+          "correct": { ".validate": "newData.isBoolean()" },
+          "chosen": { ".validate": "newData.isNumber()" },
+          "answer": { ".validate": "newData.isNumber()" },
+          "num_choices": { ".validate": "newData.isNumber()" },
+          "src": { ".validate": "newData.isString() && newData.val().length <= 40" },
+          "subject": { ".validate": "newData.isString() && newData.val().length <= 20" },
+          "grade": { ".validate": "newData.isNumber()" },
+          "difficulty": { ".validate": "newData.isString() && newData.val().length <= 20" },
+          "ts": { ".validate": "newData.isNumber()" },
+          "$other": { ".validate": false }
+        }
+      }
+    },
+    "quiz_ratings": {
+      ".read": false,
+      ".write": false
+    },
+    "quiz_archive": {
+      "v1": {
+        "items": {
+          ".indexOn": ["status"]
+        }
+      }
+    }
+  }
+}
