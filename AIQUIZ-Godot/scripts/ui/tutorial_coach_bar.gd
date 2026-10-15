@@ -66,6 +66,8 @@ func update_overlay(delta: float = 0.0) -> void:
 		Constants.STATE_WAITING_START,
 		Constants.STATE_FLYOVER,
 		Constants.STATE_COUNTDOWN,
+		# 2Pのスコアタワーは本編の演出をそのまま見せ、得点の説明は結果画面側に出す。
+		Constants.STATE_RESULT_CEREMONY,
 	]
 	if not visible:
 		_step_id = ""

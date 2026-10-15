@@ -6,13 +6,13 @@ class_name DuoTutorialFlow
 ## 両クラスは QuizGameState から同じメソッド面で呼ばれるため、
 ## 片方にクエリを足したらもう片方にも同名で足すこと。
 ##
-## 学習順は「操作 → 危険 → ゴースト → のこぎり → 回答 → ハート → 実践 → ゴール → カスタマイズ紹介」。
+## 学習順は「操作 → 危険 → ゴースト → のこぎり → 回答 → ハート → 実践 → ゴールと勝敗判定 → カスタマイズ紹介」。
 ## 本編のローカル2P（10問チャレンジ・エンドレス）に合わせ、
 ## - ハートは1人3つ。不正解や壁で1つ減り、0で脱落してゴーストシャークへ回る。
 ## - 先に正解したプレイヤーだけに1点が入り、壁は2人とも通れるように開く。
 ## - 後ろから回転のこぎりが追ってくる。触れるとハートに関係なく脱落する。
 ## - ゴールは生き残った全員が通過し、勝敗はスコアタワー（正解数 ×（残りハート＋0.5））で決まる。
-## 一度に提示する操作は各プレイヤー最大3つまでに抑える。
+## 一度に提示する操作は各プレイヤー最大4つ（前後左右の移動）までに抑える。
 ##
 ## 操作を教えるステップでは、各タスクの "slots" をもとに 3D 空間へ操作キーを浮かべる
 ## （res://scripts/world/tutorial_key_guides_3d.gd）。"key_layout" がその並べ方。
@@ -26,7 +26,7 @@ const COURSE_LOCAL_2P := "LOCAL_2P"
 
 ## 走路エッジのレーンライン、床投影リング、ドアのルートラインなどの表示切替に使う。
 const GUIDE_LANE := "lane"
-const GUIDE_AIR := "air"
+const GUIDE_JUMP := "jump"
 const GUIDE_EMOTE := "emote"
 const GUIDE_OCEAN := "ocean"
 const GUIDE_GHOST := "ghost"
@@ -41,6 +41,9 @@ const GUIDE_COMPLETE := "complete"
 const KEYS_CLUSTER := "cluster"
 const KEYS_SIDES := "sides"
 const KEYS_GHOST := "ghost"
+
+## エモートキーのビット（bit0 = 1/8、bit1 = 2/9、bit2 = 3/0）と、それぞれを練習するタスク。
+const EMOTE_TASKS: Array[String] = ["emote_1", "emote_2", "emote_3"]
 
 const TASK_HOLD_SECONDS := 0.55
 const HINT_SECONDS := 3.4
@@ -222,20 +225,22 @@ func advances_after_countdown() -> bool:
 
 
 ## 操作練習ステップの進行。2人分のタスクが揃ったら true を返す。
+## emote_keys_* は押されているエモートキーのビット（bit0 = 1/8、bit1 = 2/9、bit2 = 3/0。
+## P2はテンキー7・8・9も同じビット）。エモートIDではスロットの重複や空きを区別できない。
 func update_input_practice(
 		axis_p1: Vector2,
 		axis_p2: Vector2,
 		jump_p1: bool,
 		jump_p2: bool,
-		emote_p1: int,
-		emote_p2: int,
+		emote_keys_p1: int,
+		emote_keys_p2: int,
 		delta: float = 0.0) -> bool:
 	if not is_input_practice_step() or presentation_locked or awaiting_neutral_input:
 		_task_hold = -1.0
 		return false
 
-	_update_player_controls(1, axis_p1, jump_p1, emote_p1)
-	_update_player_controls(2, axis_p2, jump_p2, emote_p2)
+	_update_player_controls(1, axis_p1, jump_p1, emote_keys_p1)
+	_update_player_controls(2, axis_p2, jump_p2, emote_keys_p2)
 	return _hold_after_all_tasks(delta)
 
 
@@ -485,6 +490,12 @@ func requires_all_finishers() -> bool:
 	return starts_goal_race()
 
 
+## ゴールの後は本編と同じスコアタワーで勝敗を判定する。得点が出そろったところで
+## 一度止め、計算方法を説明してから勝敗を発表する（QuizGameState が進行を持つ）。
+func uses_result_ceremony() -> bool:
+	return true
+
+
 func starts_customize_tour() -> bool:
 	return is_step("customize_tour")
 
@@ -554,11 +565,11 @@ func set_hint(text: String, seconds: float = HINT_SECONDS) -> void:
 
 func clear_summary_lines() -> PackedStringArray:
 	return PackedStringArray([
-		"✓ 2人分の移動・ジャンプ・エモートと押し合い",
+		"✓ 2人分の前後左右の移動・ジャンプ・3つのエモート",
 		"✓ 海（即脱落）とゴーストシャークでの反撃",
 		"✓ 後ろから迫る回転のこぎり（即脱落）",
 		"✓ ハート3つと、先に正解した人だけの得点",
-		"✓ 4択のボス壁、ゴールとスコアタワー",
+		"✓ 4択のボス壁、ゴールとスコアタワーの勝敗判定",
 		"✓ 壁速度・帽子・エモートのカスタマイズ",
 	])
 
@@ -585,13 +596,6 @@ func get_overlay_model() -> Dictionary:
 	if indices.size() > 1:
 		sub_label = "問題 %d / %d" % [mini(_quiz_cursor + 1, indices.size()), indices.size()]
 	var hint := _hint_text
-	if is_step("duo_push") and hint.is_empty():
-		if not _push_task_done(1, "brace"):
-			hint = "2人とも相手の方向のキーを押し続けてください。ジャンプでは相手を越えられません。"
-		elif not _push_task_done(1, "push"):
-			hint = "P2は押し続けたまま、P1はキーを一度離して押し直すと体当たりで押せます。"
-		elif not _push_task_done(2, "push"):
-			hint = "P1は押し続けたまま、P2はキーを一度離して押し直すと体当たりで押せます。"
 	return {
 		# 完了カードが画面全体を使うので、コーチバーは隠して
 		# 使えない Enter スキップ行を出さないようにする。
@@ -620,7 +624,7 @@ func get_overlay_model() -> Dictionary:
 		"highlight_answer": guided_answer(),
 		"target_door": target_door(),
 		"key_layout": key_layout(),
-		# 順番に行うタスク（踏ん張り→押す、後退→前進）は、今やる分のキーだけを光らせる。
+		# 順番に行うタスク（後退→前進）は、今やる分のキーだけを光らせる。
 		"ordered_tasks": bool(step.get("ordered_tasks", false)),
 	}
 
@@ -683,7 +687,7 @@ func _hold_after_all_tasks(delta: float) -> bool:
 	return _task_hold >= TASK_HOLD_SECONDS
 
 
-func _update_player_controls(player_index: int, axis: Vector2, jump: bool, emote: int) -> void:
+func _update_player_controls(player_index: int, axis: Vector2, jump: bool, emote_keys: int) -> void:
 	if axis.x > 0.35:
 		complete_task(player_index, "left")
 	if axis.x < -0.35:
@@ -694,27 +698,9 @@ func _update_player_controls(player_index: int, axis: Vector2, jump: bool, emote
 		complete_task(player_index, "back")
 	if jump:
 		complete_task(player_index, "jump")
-	if emote > 0:
-		complete_task(player_index, "emote")
-
-
-func on_local_push_event(event: Dictionary) -> void:
-	if not is_step("duo_push") or awaiting_neutral_input or presentation_locked:
-		return
-	if event.kind == "stalemate":
-		complete_task(1, "brace")
-		complete_task(2, "brace")
-	elif event.kind == "hit" and _push_task_done(1, "brace"):
-		if event.player == 1:
-			complete_task(1, "push")
-		elif _push_task_done(1, "push"):
-			complete_task(2, "push")
-
-func _push_task_done(player: int, id: String) -> bool:
-	for task: Dictionary in _tasks.get(player, []):
-		if task.id == id:
-			return task.get("done", false)
-	return false
+	for slot: int in EMOTE_TASKS.size():
+		if emote_keys & (1 << slot):
+			complete_task(player_index, EMOTE_TASKS[slot])
 
 
 func _build_quiz_items() -> Array[QuizItem]:
@@ -779,9 +765,9 @@ func _build_quiz_items() -> Array[QuizItem]:
 func _build_steps() -> Array[Dictionary]:
 	return [
 		{
-			"id": "duo_run",
-			"title": "2人プレイの基本操作",
-			"body": "P1はオレンジ、P2は水色です。頭の上に出ているキーで、それぞれ左右に動いてみましょう。",
+			"id": "duo_move",
+			"title": "2人プレイの移動",
+			"body": "P1はオレンジ、P2は水色です。左右でドアを選び、前後の移動で壁に着くタイミングを調整できます。頭の上のキーで、それぞれ4方向に動いてみましょう。",
 			"guide": GUIDE_LANE,
 			"key_layout": KEYS_CLUSTER,
 			"speed": 0.55,
@@ -791,68 +777,51 @@ func _build_steps() -> Array[Dictionary]:
 				1: [
 					{"id": "left", "key": "A", "caption": "左移動", "slots": ["left"]},
 					{"id": "right", "key": "D", "caption": "右移動", "slots": ["right"]},
-				],
-				2: [
-					{"id": "left", "key": "←", "caption": "左移動", "slots": ["left"]},
-					{"id": "right", "key": "→", "caption": "右移動", "slots": ["right"]},
-				],
-			},
-		},
-		{
-			"id": "duo_push",
-			"title": "押し合い",
-			"body": "相手の方向のキーを押し続けると踏ん張り、一度離して押し直すと体当たりで押せます。押し出された相手は海に落ちることもあります。",
-			"guide": GUIDE_LANE,
-			"key_layout": KEYS_CLUSTER,
-			"speed": 0.55,
-			"walls": false,
-			"input_practice": true,
-			"ordered_tasks": true,
-			"tasks": {
-				1: [
-					{"id": "brace", "key": "A / D", "caption": "2人で踏ん張る", "slots": ["toward_opponent"]},
-					{"id": "push", "key": "離す→押す", "caption": "P1から押す", "slots": ["toward_opponent"]},
-				],
-				2: [
-					{"id": "brace", "key": "← / →", "caption": "2人で踏ん張る", "slots": ["toward_opponent"]},
-					{"id": "push", "key": "離す→押す", "caption": "P2から押す", "slots": ["toward_opponent"]},
-				],
-			},
-		},
-		{
-			"id": "duo_air",
-			"title": "ジャンプと前後の移動",
-			"body": "前後の移動で壁に着くタイミングを調整できます。P2のジャンプはキーボード右側のCtrlです（左のCtrlは使えません）。",
-			"guide": GUIDE_AIR,
-			"key_layout": KEYS_CLUSTER,
-			"speed": 0.55,
-			"walls": false,
-			"input_practice": true,
-			"tasks": {
-				1: [
-					{"id": "jump", "key": "Space", "caption": "ジャンプ", "slots": ["jump"]},
 					{"id": "forward", "key": "W", "caption": "前進", "slots": ["up"]},
 					{"id": "back", "key": "S", "caption": "後退", "slots": ["down"]},
 				],
 				2: [
-					{"id": "jump", "key": "Ctrl", "caption": "ジャンプ", "slots": ["jump"]},
+					{"id": "left", "key": "←", "caption": "左移動", "slots": ["left"]},
+					{"id": "right", "key": "→", "caption": "右移動", "slots": ["right"]},
 					{"id": "forward", "key": "↑", "caption": "前進", "slots": ["up"]},
 					{"id": "back", "key": "↓", "caption": "後退", "slots": ["down"]},
 				],
 			},
 		},
 		{
+			"id": "duo_jump",
+			"title": "ジャンプ",
+			"body": "P1はSpace、P2はキーボード右側のCtrlでジャンプします（左のCtrlは使えません）。それぞれジャンプしてみましょう。",
+			"guide": GUIDE_JUMP,
+			"key_layout": KEYS_CLUSTER,
+			"speed": 0.55,
+			"walls": false,
+			"input_practice": true,
+			"tasks": {
+				1: [{"id": "jump", "key": "Space", "caption": "ジャンプ", "slots": ["jump"]}],
+				2: [{"id": "jump", "key": "右Ctrl", "caption": "ジャンプ", "slots": ["jump"]}],
+			},
+		},
+		{
 			"id": "duo_emote",
 			"title": "エモート",
-			"body": "数字キーでエモートを踊れます（P2はテンキーの7・8・9でも可）。ジャンプで止まります。それぞれ1つ再生してください。",
+			"body": "数字キーでエモートを踊れます（P2はテンキーの7・8・9でも可）。ジャンプで止まります。それぞれ3つすべてを再生してください。",
 			"guide": GUIDE_EMOTE,
 			"key_layout": KEYS_CLUSTER,
 			"speed": 0.4,
 			"walls": false,
 			"input_practice": true,
 			"tasks": {
-				1: [{"id": "emote", "key": "1 / 2 / 3", "caption": "エモート", "slots": ["emote_1", "emote_2", "emote_3"]}],
-				2: [{"id": "emote", "key": "8 / 9 / 0", "caption": "エモート", "slots": ["emote_1", "emote_2", "emote_3"]}],
+				1: [
+					{"id": "emote_1", "key": "1", "caption": "エモート1", "slots": ["emote_1"]},
+					{"id": "emote_2", "key": "2", "caption": "エモート2", "slots": ["emote_2"]},
+					{"id": "emote_3", "key": "3", "caption": "エモート3", "slots": ["emote_3"]},
+				],
+				2: [
+					{"id": "emote_1", "key": "8", "caption": "エモート1", "slots": ["emote_1"]},
+					{"id": "emote_2", "key": "9", "caption": "エモート2", "slots": ["emote_2"]},
+					{"id": "emote_3", "key": "0", "caption": "エモート3", "slots": ["emote_3"]},
+				],
 			},
 		},
 		{
@@ -999,7 +968,7 @@ func _build_steps() -> Array[Dictionary]:
 		{
 			"id": "duo_goal",
 			"title": "ゴールとスコアタワー",
-			"body": "最後の問題の後はゴールへ向かいます。2人ともゴールすると、スコアタワーで勝敗が決まります（正解数 ×（残りハート＋0.5））。",
+			"body": "最後の問題の後はゴールへ向かいます。2人ともゴールすると、本番と同じスコアタワーで勝敗が決まります。得点が出そろったところで計算方法を説明します。",
 			"guide": GUIDE_GOAL,
 			"key_layout": KEYS_CLUSTER,
 			"speed": 1.0,

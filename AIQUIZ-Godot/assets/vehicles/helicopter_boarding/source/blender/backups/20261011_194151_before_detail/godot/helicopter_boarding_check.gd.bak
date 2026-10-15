@@ -1,0 +1,228 @@
+extends SceneTree
+
+## 乗り込めるヘリ（helicopter_boarding.glb）の取り込み結果を確かめる。
+##   構造：ノード名・マーカーの位置（layout JSON と一致）・回る部品の原点・ドアのヒンジの向き・材質名・頂点色・三角形の数
+##   動き：左のドアをヒンジのまわりに -90° 回すと、上へ開く（外板が屋根より上に出る）
+##         ジェットのポッドを deploy_deg だけ回すと翼が水平になり、噴射口が真後ろ（+Z）を向き、ローターの円より下にある
+##   見た目（--headless でないときだけ）：オレンジとブルーに色替えした 2 機、ドアを開けた 1 機を撮る
+## ./Godot_v4.7.2-stable_win64_console.exe --headless --path . --script res://tests/helicopter_boarding_check.gd
+## ./Godot_v4.7.2-stable_win64_console.exe --path . --resolution 1600x900 --script res://tests/helicopter_boarding_check.gd -- shots=assets/vehicles/helicopter_boarding/source/previews
+
+const GLB := "res://assets/vehicles/helicopter_boarding/helicopter_boarding.glb"
+const LAYOUT := "res://assets/vehicles/helicopter_boarding/helicopter_boarding_layout.json"
+const REQUIRED := ["Body", "Windows", "Door_L", "Door_R", "MainRotor", "TailRotor", "DropHatchLeft", "DropHatchRight",
+	"DropBayFrame", "DropBayInterior", "FrameAndSkids", "Interior", "DashScreens", "Seat_L", "Seat_R", "Booster_R",
+	"Yoke_L", "Yoke_R", "Belt_L", "Belt_R", "Step_L", "NavLight_L", "NavLight_R", "Beacon", "Markers",
+	"JetPod_L", "JetPod_R", "JetNozzle_L", "JetNozzle_R", "JetGlow_L", "JetGlow_R"]
+const P1_BODY := Color(0.95, 0.55, 0.20)
+const P2_BODY := Color(0.20, 0.65, 0.90)
+
+var report := {"passed": true, "problems": [], "checks": 0}
+var shots_dir := ""
+
+
+func _initialize() -> void:
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("shots="):
+			shots_dir = arg.trim_prefix("shots=")
+	call_deferred("run")
+
+
+func check(ok: bool, label: String) -> void:
+	report.checks += 1
+	if not ok:
+		report.passed = false
+		report.problems.append(label)
+
+
+func run() -> void:
+	var packed := load(GLB) as PackedScene
+	check(packed != null, "GLB loads")
+	if packed == null:
+		_finish()
+		return
+	var layout: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(LAYOUT))
+	check(layout != null and layout.has("markers"), "layout JSON loads")
+	var heli := packed.instantiate() as Node3D
+	root.add_child(heli)
+	for name: String in REQUIRED:
+		check(heli.find_child(name, true, false) != null, "node %s exists" % name)
+	# マーカー
+	var worst := 0.0
+	for name: String in layout.markers:
+		var marker := heli.find_child(name, true, false) as Node3D
+		check(marker != null, "marker %s exists" % name)
+		if marker == null:
+			continue
+		var want: Array = layout.markers[name].position
+		var d := (marker.global_position - Vector3(want[0], want[1], want[2])).length()
+		worst = maxf(worst, d)
+		if layout.markers[name].yaw_deg != null:
+			var yaw := rad_to_deg(marker.global_basis.get_euler().y)
+			check(absf(wrapf(yaw - float(layout.markers[name].yaw_deg), -180.0, 180.0)) < 0.5, "marker %s yaw (%.1f)" % [name, yaw])
+	report["marker_worst_offset"] = snappedf(worst, 0.0001)
+	check(worst < 0.002, "markers match the layout (worst %.4f)" % worst)
+	# 回る部品の原点
+	for key: String in ["main_rotor", "tail_rotor"]:
+		var node := heli.find_child(layout[key].node, true, false) as Node3D
+		var p: Array = layout[key].pivot
+		check(node != null and node.global_position.distance_to(Vector3(p[0], p[1], p[2])) < 0.002, "%s pivot" % key)
+	# ドア：ローカル +Z がヒンジの線。-90° 回すと上へ開く
+	var door := heli.find_child("Door_L", true, false) as Node3D
+	var info: Dictionary = layout.doors.Door_L
+	var hinge := (Vector3(info.hinge_end[0], info.hinge_end[1], info.hinge_end[2]) - Vector3(info.pivot[0], info.pivot[1], info.pivot[2])).normalized()
+	check(door.global_basis.z.normalized().distance_to(hinge) < 0.001, "Door_L local +Z follows the hinge")
+	var closed := _aabb(door)
+	var rest := door.basis
+	door.basis = rest * Basis(Vector3(0, 0, 1), deg_to_rad(float(info.open_deg)))
+	var opened := _aabb(door)
+	report["door_closed_top"] = snappedf(closed.end.y, 0.001)
+	report["door_open_top"] = snappedf(opened.end.y, 0.001)
+	report["door_open_left"] = snappedf(opened.position.x, 0.001)
+	check(opened.end.y > closed.end.y + 1.0, "Door_L opens upward")
+	check(opened.position.x < closed.position.x - 0.8, "Door_L swings outward (to -X)")
+	door.basis = rest
+	# ジェットのポッド：たたんだ形から deploy_deg で水平に。噴射口の出口はポッドの軸の上で、炎は +Z（後ろ）へ
+	var jet: Dictionary = layout.get("jet_boost", {})
+	check(jet.get("pods", {}).size() == 2, "layout has two jet pods")
+	for pod_name: String in jet.get("pods", {}):
+		var pod_info: Dictionary = jet.pods[pod_name]
+		var pod := heli.find_child(pod_name, true, false) as Node3D
+		if pod == null:
+			check(false, "%s exists" % pod_name)
+			continue
+		var pivot: Array = pod_info.pivot
+		check(pod.global_position.distance_to(Vector3(pivot[0], pivot[1], pivot[2])) < 0.002, "%s pivot" % pod_name)
+		check(heli.find_child(str(pod_info.nozzle), true, false) in pod.find_children("*", "Node3D", true, false), "%s nozzle moves with the pod" % pod_name)
+		var exit_local: Array = pod_info.nozzle_exit_local
+		var exit := Vector3(exit_local[0], exit_local[1], exit_local[2])
+		var stowed_exit := pod.global_transform * exit
+		var pod_rest := pod.basis
+		pod.basis = pod_rest * Basis(Vector3(0, 0, 1), deg_to_rad(float(pod_info.deploy_deg)))
+		var deployed_exit := pod.global_transform * exit
+		check(absf(deployed_exit.y - pod.global_position.y) < 0.01, "%s deploys level (exit y %.3f)" % [pod_name, deployed_exit.y])
+		check(stowed_exit.y < deployed_exit.y - 0.3, "%s is folded down at rest" % pod_name)
+		check(pod.global_basis.z.normalized().distance_to(Vector3(0, 0, 1)) < 0.001, "%s fires straight back (+Z)" % pod_name)
+		check(_aabb(pod).end.y < float(layout.main_rotor.pivot[1]) - 0.3, "%s stays below the rotor disc" % pod_name)
+		pod.basis = pod_rest
+	# 材質（色替え・ガラス）と頂点色（AO）
+	var names := {}
+	var vertex_colour := false
+	var tris := 0
+	for node in heli.find_children("*", "MeshInstance3D", true, false):
+		var mi := node as MeshInstance3D
+		for s in range(mi.mesh.get_surface_count()):
+			var mat := mi.mesh.surface_get_material(s)
+			if mat != null:
+				names[mat.resource_name] = true
+				if mat.resource_name == "BodyPaint" and mat is BaseMaterial3D:
+					vertex_colour = vertex_colour or (mat as BaseMaterial3D).vertex_color_use_as_albedo
+			var arrays := mi.mesh.surface_get_arrays(s)
+			var idx: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+			tris += idx.size() / 3 if idx.size() > 0 else (arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).size() / 3
+	report["materials"] = names.keys()
+	report["triangles"] = tris
+	check(names.has("BodyPaint") and names.has("Windows"), "BodyPaint and Windows materials exist")
+	check(vertex_colour, "BodyPaint multiplies the baked AO (vertex colour as albedo)")
+	check(tris < 12000, "triangle budget (%d)" % tris)
+	check(names.has("JetGlow"), "JetGlow material exists")
+	# 着地：スキッドの下面が原点の skid_drop 下
+	var lowest := INF
+	var skids := heli.find_child("FrameAndSkids", true, false) as MeshInstance3D
+	lowest = (skids.global_transform * skids.get_aabb()).position.y
+	report["skid_bottom"] = snappedf(lowest, 0.001)
+	check(absf(lowest + float(layout.skid_drop)) < 0.01, "skid bottom sits skid_drop below the origin")
+	if not shots_dir.is_empty() and DisplayServer.get_name() != "headless":
+		await _shots(packed)
+	_finish()
+
+
+func _aabb(node: Node3D) -> AABB:
+	var out := AABB()
+	var first := true
+	for child in node.find_children("*", "MeshInstance3D", true, false) + ([node] if node is MeshInstance3D else []):
+		var mi := child as MeshInstance3D
+		var box := mi.global_transform * mi.get_aabb()
+		out = box if first else out.merge(box)
+		first = false
+	return out
+
+
+func _tint(heli: Node3D, color: Color) -> void:
+	for node in heli.find_children("*", "MeshInstance3D", true, false):
+		var mi := node as MeshInstance3D
+		for s in range(mi.mesh.get_surface_count()):
+			var src := mi.mesh.surface_get_material(s)
+			if src == null:
+				continue
+			if src.resource_name == "BodyPaint":
+				var m := src.duplicate() as BaseMaterial3D
+				m.albedo_color = color
+				mi.set_surface_override_material(s, m)
+			elif src.resource_name == "Windows":
+				var g := src.duplicate() as BaseMaterial3D
+				g.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS
+				g.albedo_color = Color(0.62, 0.84, 0.95, 0.34)
+				g.cull_mode = BaseMaterial3D.CULL_DISABLED
+				mi.set_surface_override_material(s, g)
+
+
+func _shots(packed: PackedScene) -> void:
+	for child in root.get_children():
+		child.queue_free()
+	await process_frame
+	var world := Node3D.new()
+	root.add_child(world)
+	var env := WorldEnvironment.new()
+	var e := Environment.new()
+	e.background_mode = Environment.BG_COLOR
+	e.background_color = Color(0.55, 0.72, 0.9)
+	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	e.ambient_light_color = Color(0.75, 0.82, 0.92)
+	e.ambient_light_energy = 0.7
+	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	env.environment = e
+	world.add_child(env)
+	var sun := DirectionalLight3D.new()
+	sun.rotation_degrees = Vector3(-48, -35, 0)
+	sun.shadow_enabled = true
+	sun.light_energy = 1.3
+	world.add_child(sun)
+	var floor_mesh := MeshInstance3D.new()
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(60, 60)
+	floor_mesh.mesh = plane
+	var fm := StandardMaterial3D.new()
+	fm.albedo_color = Color(0.36, 0.40, 0.44)
+	floor_mesh.material_override = fm
+	floor_mesh.position.y = 0.0
+	world.add_child(floor_mesh)
+	var layout: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(LAYOUT))
+	var drop := float(layout.skid_drop)
+	var a := packed.instantiate() as Node3D
+	world.add_child(a)
+	a.position = Vector3(-3.0, drop, 0.0)
+	_tint(a, P1_BODY)
+	var door := a.find_child("Door_L", true, false) as Node3D
+	door.basis = door.basis * Basis(Vector3(0, 0, 1), deg_to_rad(float(layout.doors.Door_L.open_deg)))
+	var b := packed.instantiate() as Node3D
+	world.add_child(b)
+	b.position = Vector3(5.5, drop, 3.0)
+	b.rotation_degrees.y = 20.0
+	_tint(b, P2_BODY)
+	var cam := Camera3D.new()
+	world.add_child(cam)
+	cam.fov = 45
+	for shot: Array in [["godot_pair", Vector3(-13, 7.5, -15), Vector3(1.0, 1.8, 1.0)], ["godot_door", Vector3(-10.5, 2.6, -4.5), Vector3(-3.5, 2.0, -1.2)]]:
+		cam.position = shot[1]
+		cam.look_at(shot[2])
+		for i in range(4):
+			await process_frame
+		await RenderingServer.frame_post_draw
+		DirAccess.make_dir_recursive_absolute(shots_dir)
+		root.get_texture().get_image().save_png("%s/%s.png" % [shots_dir, shot[0]])
+
+
+func _finish() -> void:
+	print("HELICOPTER_BOARDING " + JSON.stringify(report))
+	quit(0 if report.passed else 1)

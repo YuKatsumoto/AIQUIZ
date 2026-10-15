@@ -117,8 +117,16 @@ func apply_to_game_state(gs: QuizGameState) -> void:
 	gs.p1_saw_killed = bool(frame.get("saw_killed1", false))
 	gs.p2_saw_killed = bool(frame.get("saw_killed2", false))
 	gs.hp_state_available = bool(frame.get("hp_available", false))
-	if gs.uses_hp() and int(frame["wall_idx"]) == gs.current_wall_index + 1:
+	var wall_step := int(frame["wall_idx"]) - gs.current_wall_index
+	if wall_step < 0 or wall_step > 1:
+		# シークで問題を飛ばしたときは途中の連続正解を数え直せないので、炎を消しておく。
+		gs.current_streak = 0
+		gs.player2_streak = 0
+	if gs.uses_hp() and wall_step == 1:
 		var winner_mask := (1 if int(frame["score"]) > gs.score else 0) | (2 if int(frame["p2_score"]) > gs.player2_score else 0)
+		# 連続正解はフレームに記録していないので、問題ごとの正解者から組み立て直す。
+		gs.current_streak = gs.current_streak + 1 if winner_mask & 1 else 0
+		gs.player2_streak = gs.player2_streak + 1 if winner_mask & 2 else 0
 		if gs.num_players >= 2:
 			gs.record_question_winner(gs.current_wall_index, winner_mask)
 		gs.question_completed.emit(gs.current_wall_index, winner_mask != 0)

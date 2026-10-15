@@ -38,21 +38,20 @@ func run() -> void:
 	net = world.get("_net_state")
 	for i in range(30): await get_tree().process_frame
 	world.set_process(false)
+	# Real relay (protocol v2): the host queues first, so the relay makes it the host.
 	NetworkManager.relay_url = "ws://127.0.0.1:18766"
-	NetworkManager.room_id = "hp-regression"
-	NetworkManager.is_host = role == "host"
-	NetworkManager.message_received.connect(_message)
-	NetworkManager._connect_to_relay()
+	NetworkManager.relay_message.connect(func(_type: String, data: Dictionary) -> void: _message(data))
+	NetworkManager.find_match({"subject": "算数", "grade": 3, "difficulty": 1, "mode": Constants.MODE_TEN}, {})
 	var deadline := Time.get_ticks_msec() + 20000
-	while NetworkManager._ws.get_ready_state() != WebSocketPeer.STATE_OPEN and Time.get_ticks_msec() < deadline:
+	while NetworkManager.state != NetworkManager.State.IN_LOBBY and Time.get_ticks_msec() < deadline:
 		await get_tree().process_frame
-	if NetworkManager._ws.get_ready_state() != WebSocketPeer.STATE_OPEN:
-		failures.append("loopback connection timed out")
+	if NetworkManager.state != NetworkManager.State.IN_LOBBY or NetworkManager.is_host != (role == "host"):
+		failures.append("relay match timed out or roles swapped")
 		finish()
 		return
-	NetworkManager.state = NetworkManager.State.IN_GAME
-	net.is_online = true
-	NetworkManager.send_message({"type": "settings", "hp_ready": role})
+	NetworkManager.enter_game()
+	net.setup(gs)
+	_send({"hp_ready": role})
 	if role == "guest":
 		while received < 5 and Time.get_ticks_msec() < deadline + 45000:
 			await get_tree().process_frame
@@ -85,8 +84,8 @@ func _message(data: Dictionary) -> void:
 		sample_guest.call_deferred(int(data.hp_phase))
 
 func publish(phase: int) -> void:
-	net._send_snapshot()
-	NetworkManager.send_message({"type": "settings", "hp_phase": phase})
+	net._send_snapshot(true)
+	_send({"hp_phase": phase})
 	await sample(phase)
 	var deadline := Time.get_ticks_msec() + 10000
 	while acknowledged < phase and Time.get_ticks_msec() < deadline:
@@ -96,10 +95,17 @@ func publish(phase: int) -> void:
 func sample_guest(phase: int) -> void:
 	await sample(phase)
 	received = phase
-	NetworkManager.send_message({"type": "settings", "hp_ack": phase})
+	_send({"hp_ack": phase})
+
+## Test handshakes ride on the relay's role allowlist: host "settings", guest "ready".
+func _send(data: Dictionary) -> void:
+	NetworkManager.send("settings" if role == "host" else "ready", data)
 
 func sample(phase: int) -> void:
 	for i in range(15):
+		if role == "guest":
+			# The world's _process is off here; place avatars as the guest renders them.
+			net.guest_frame(0.0, Vector2.ZERO, false, 0)
 		pc.update_from_state(gs)
 		await get_tree().process_frame
 	await RenderingServer.frame_post_draw
@@ -114,4 +120,5 @@ func finish() -> void:
 	var report := {"role": role, "passed": failures.is_empty(), "samples": rows, "events": completed_events, "health_events": health_events, "failures": failures}
 	FileAccess.open(OUT + "network_" + role + ".json", FileAccess.WRITE).store_string(JSON.stringify(report, "\t"))
 	print("HP_NETWORK " + JSON.stringify(report))
+	NetworkManager.leave_match()
 	get_tree().quit(0 if failures.is_empty() else 1)

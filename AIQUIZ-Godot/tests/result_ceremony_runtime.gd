@@ -4,7 +4,7 @@ extends Node
 ## towers climb with the real totals -> verdict, confetti, crown / sinking tower,
 ## controls. Captures beats and optional frames for review.
 ## Args: case=p1|p2|draw|landslide|ghost_p2|ghost_win|elimination fps=30|60|120
-##       quality=low|balanced|high record hats
+##       quality=low|balanced|high record hats skins
 ##       sizes routes emote=<id> all_emotes audible out=<folder>
 ##       programme (1080p; keeps the result screen open and captures the scoreboard's
 ##       AIQUIZ VISION programme; add `reel` to play this match's own record; the
@@ -106,6 +106,10 @@ func run() -> void:
 	if test_hats:
 		gs.p1_hat = HatData.HAT_BOUSI
 		gs.p2_hat = HatData.HAT_SOMBRERO
+	if "skins" in OS.get_cmdline_user_args():
+		# 体の色を変えた2人（勝者の P1/P2 バッジが 頭・胴・足 のグラデーションになるのを見る）
+		gs.set_player_skin(1, PlayerSkin.preset_skin(&"forest", 1))
+		gs.set_player_skin(2, PlayerSkin.preset_skin(&"panda", 2))
 	QuizManager.player_analytics = null
 	QuizManager.game_state = gs
 	gs.skip_start_helicopter_arrival = true

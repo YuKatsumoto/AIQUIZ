@@ -177,7 +177,8 @@ func _run() -> void:
 		if not path.is_empty() and not paths.has(path):
 			paths.append(path)
 	paths.append_array([
-		"res://assets/vehicles/helicopter/helicopter_drop.glb",
+		"res://assets/vehicles/helicopter_boarding/helicopter_boarding.glb",
+		"res://assets/characters/aiquiz_mascot/mascot_pilot.glb",
 		"res://assets/characters/aiquiz_mascot/mascot_model.glb",
 		"res://scripts/world/startup_visual_warmup.gd",
 	])

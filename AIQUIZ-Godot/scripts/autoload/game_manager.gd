@@ -23,7 +23,9 @@ var current_question_index: int = 0
 
 const USER_SETTINGS_PATH := "user://settings.json"
 ## 5: ハート（HP）・4択のボス壁・回転のこぎり・スコアタワーに合わせ、操作キーを3Dで示す版。
-const CURRENT_TUTORIAL_VERSION := 5
+## 6: 前後左右の移動を1ステップに、ジャンプを独立、エモートは3つすべて、
+##    2Pはゴール後にスコアタワーの勝敗判定まで進み、得点の計算方法を説明する版。
+const CURRENT_TUTORIAL_VERSION := 6
 ## コースごとの完了記録を持たない設定ファイルは、版4での完了として読む。
 const LEGACY_COURSE_COMPLETED_VERSION := 4
 const TUTORIAL_COURSE_SOLO := "SOLO"
@@ -40,10 +42,20 @@ var tutorial_local_2p_completed: bool = false
 var tutorial_solo_completed_version: int = 0
 var tutorial_local_2p_completed_version: int = 0
 var graphics_quality: String = GraphicsQuality.BALANCED
+## 設定画面の「FPS上限」で選べる値（Engine.max_fps）。0 は制限なし（垂直同期だけが上限）。
+const MAX_FPS_CHOICES: Array[int] = [30, 60, 120, 144, 240, 0]
+## 設定画面の「FPS上限」。起動時と変更時に Engine.max_fps へ渡す。
+var max_fps: int = 0
 ## ローカル2P「10問」の引き分けを地下神殿のサドンデスで決着させる（既定オン、
 ## docs/sudden_death_underground.md 第1章）。メインメニューが試合開始の直前に
 ## QuizGameState.sudden_death_enabled へ渡す。
 var sudden_death_enabled: bool = true
+## オンライン対戦のマッチング演出を「みじかい」にする（docs/online_match_staging/spec.md D11。既定は「ふつう」）。
+var online_staging_short: bool = false
+## オンライン対戦で相手に見せるプリセットのニックネーム ID（NetNicknames）。-1 は未選択。
+var online_nickname: int = -1
+## オンライン対戦で相手に見せる名前（自分で入力するか、サイコロの二つ名）。空なら未設定。
+var online_name: String = ""
 ## Tests point the settings file somewhere else (never the player's own).
 var settings_path: String = USER_SETTINGS_PATH
 var _user_settings: Dictionary = {}
@@ -55,6 +67,7 @@ func _ready() -> void:
 	HighlightStore.clear()
 	_load_user_settings()
 	GraphicsQuality.apply_rendering_server(graphics_quality)
+	Engine.max_fps = max_fps
 	_load_env()
 
 func should_show_tutorial_on_start() -> bool:
@@ -148,6 +161,42 @@ func set_graphics_quality(value: String) -> void:
 	graphics_quality_changed.emit(graphics_quality)
 
 
+## 設定画面の「FPS上限」。MAX_FPS_CHOICES にない値は制限なしとして扱う。
+func set_max_fps(value: int) -> void:
+	var normalized := normalize_max_fps(value)
+	Engine.max_fps = normalized
+	if max_fps == normalized:
+		return
+	max_fps = normalized
+	_save_user_settings()
+
+
+static func normalize_max_fps(value: int) -> int:
+	return value if MAX_FPS_CHOICES.has(value) else 0
+
+
+func set_online_name(value: String) -> void:
+	if online_name == value:
+		return
+	online_name = value
+	_save_user_settings()
+
+
+func set_online_nickname(value: int) -> void:
+	if online_nickname == value:
+		return
+	online_nickname = value
+	_save_user_settings()
+
+
+## 設定画面の「オンラインの えんしゅつ」（ふつう／みじかい）。
+func set_online_staging_short(value: bool) -> void:
+	if online_staging_short == value:
+		return
+	online_staging_short = value
+	_save_user_settings()
+
+
 ## 設定画面のサドンデスのオン／オフ。保存し、進行中のゲーム状態にもすぐ反映する。
 func set_sudden_death_enabled(value: bool) -> void:
 	var changed := sudden_death_enabled != value
@@ -204,7 +253,11 @@ func _load_user_settings() -> void:
 	tutorial_completed = tutorial_solo_completed and tutorial_local_2p_completed
 	tutorial_dismissed = tutorial_prompt_seen_version >= CURRENT_TUTORIAL_VERSION
 	graphics_quality = GraphicsQuality.normalize(str(_user_settings.get("graphics_quality", GraphicsQuality.BALANCED)))
+	max_fps = normalize_max_fps(int(_user_settings.get("max_fps", 0)))
 	sudden_death_enabled = bool(_user_settings.get("sudden_death_enabled", true))
+	online_staging_short = bool(_user_settings.get("online_staging_short", false))
+	online_nickname = int(_user_settings.get("online_nickname", -1))
+	online_name = str(_user_settings.get("online_name", ""))
 
 func _save_user_settings() -> void:
 	_user_settings["tutorial_completed"] = tutorial_completed
@@ -217,7 +270,11 @@ func _save_user_settings() -> void:
 	_user_settings["tutorial_solo_completed_version"] = tutorial_solo_completed_version
 	_user_settings["tutorial_local_2p_completed_version"] = tutorial_local_2p_completed_version
 	_user_settings["graphics_quality"] = graphics_quality
+	_user_settings["max_fps"] = max_fps
 	_user_settings["sudden_death_enabled"] = sudden_death_enabled
+	_user_settings["online_staging_short"] = online_staging_short
+	_user_settings["online_nickname"] = online_nickname
+	_user_settings["online_name"] = online_name
 	var file := FileAccess.open(settings_path, FileAccess.WRITE)
 	if file:
 		file.store_string(JSON.stringify(_user_settings, "  "))

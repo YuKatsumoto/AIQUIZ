@@ -45,8 +45,12 @@ func _test_subject_registry() -> void:
 	_assert_true(Constants.normalize_grade_for_subject("英語", 2) == 3, "英語選択時に2年を3年へ補正")
 	_assert_true(Constants.cycle_grade_for_subject("英語", 3, -1) == 6, "英語学年の逆循環")
 	_assert_true(Constants.cycle_grade_for_subject("英語", 6, 1) == 3, "英語学年の順循環")
-	for subject: String in ["算数", "理科", "国語", "社会"]:
-		_assert_true(Constants.grades_for_subject(subject) == [1, 2, 3, 4, 5, 6], "%sは従来の1〜6年" % subject)
+	for subject: String in ["算数", "国語"]:
+		_assert_true(Constants.grades_for_subject(subject) == [1, 2, 3, 4, 5, 6], "%sは1〜6年" % subject)
+	for subject: String in ["理科", "社会"]:
+		_assert_true(Constants.grades_for_subject(subject) == [3, 4, 5, 6], "%sは3〜6年（1・2年は生活科）" % subject)
+		_assert_true(Constants.normalize_grade_for_subject(subject, 1) == 3, "%s選択時に1年を3年へ補正" % subject)
+		_assert_true(Constants.normalize_grade_for_subject(subject, 2) == 3, "%s選択時に2年を3年へ補正" % subject)
 
 
 func _test_question_spacing() -> void:

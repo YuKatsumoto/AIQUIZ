@@ -1,7 +1,8 @@
 extends Node
 
-## 刷新したチュートリアル（V5）の判定を QuizGameState で直接確かめる（描画なし）。
-## ハート体験・誘導なしの実践・4択のボス壁・先着の得点・のこぎり・全員ゴールを、
+## 刷新したチュートリアル（V6）の判定を QuizGameState で直接確かめる（描画なし）。
+## ハート体験・誘導なしの実践・4択のボス壁・先着の得点・のこぎり・全員ゴール・
+## ゴール後のスコアタワー（得点説明の一時停止と勝敗発表）を、
 ## 壁に当たったときの本物の処理（resolve_collision など）で進める。
 ## ./Godot_v4.7.2-stable_win64_console.exe --headless --path . --script res://tests/tutorial_rules_bootstrap.gd
 
@@ -25,6 +26,9 @@ func run() -> void:
 	_test_solo_state_rules()
 	_test_duo_state_rules()
 	_test_duo_saw_and_goal()
+	_test_duo_score_tower()
+	_test_duo_score_tower_draw()
+	_test_duo_score_tower_ghost()
 	print("TUTORIAL_RULES " + JSON.stringify({"checks": checks, "failures": failures, "passed": failures.is_empty()}))
 	get_tree().quit(0 if failures.is_empty() else 1)
 
@@ -145,7 +149,119 @@ func _test_duo_saw_and_goal() -> void:
 	_check(gs.get_tutorial_step_id() == "duo_goal" and gs.has_player_reached_goal(1), "First finisher waits for the other survivor")
 	gs.player2_z = gs.goal_z + 0.1
 	gs._update_goal_race(1.0 / 60.0, Vector2.ZERO, Vector2.ZERO, false, false, 0, 0)
+	# 演出を使えないとき（result_ceremony_enabled = false）は従来どおり完了ステップへ進む。
+	_check(not gs.uses_local_result_ceremony(), "Ceremony gate off: no score tower")
 	_check(gs.get_tutorial_step_id() == "duo_complete", "Course ends once every survivor finishes")
+
+
+# ---------- ゴール後のスコアタワー（勝敗判定）と得点説明 ----------
+
+const DT := 1.0 / 60.0
+
+
+## 2人をゴール前に立たせ、指定した正解数とハートでゴールステップを始める。
+func _goal_state(p1_correct: int, p1_hp: int, p2_correct: int, p2_hp: int) -> QuizGameState:
+	var gs := _tutorial_state("LOCAL_2P", 2)
+	gs.result_ceremony_enabled = true
+	if not _seek_state(gs, "duo_goal"):
+		return gs
+	gs.score = p1_correct
+	gs.player2_score = p2_correct
+	gs._set_player_hp(1, p1_hp)
+	gs._set_player_hp(2, p2_hp)
+	return gs
+
+
+func _step(gs: QuizGameState, seconds: float) -> void:
+	for i: int in range(int(round(seconds / DT))):
+		gs.update(DT)
+
+
+func _step_until(gs: QuizGameState, condition: Callable, limit_seconds: float) -> bool:
+	for i: int in range(int(limit_seconds / DT)):
+		if condition.call():
+			return true
+		gs.update(DT)
+	return condition.call()
+
+
+func _finish_both(gs: QuizGameState) -> void:
+	gs.player_z = gs.goal_z + 0.1
+	gs.player2_z = gs.goal_z + 0.1
+	gs.player_y = 0.0
+	gs.player2_y = 0.0
+	gs.update(DT)
+
+
+func _test_duo_score_tower() -> void:
+	# P1: 3問 × (2 + 0.5) = 7.5、P2: 2問 × (3 + 0.5) = 7 → P1 の勝ち。
+	var gs := _goal_state(3, 2, 2, 3)
+	_check(gs.uses_local_result_ceremony() and gs.uses_tutorial_result_ceremony(), "2P tutorial goal uses the score tower")
+	_check(not gs.uses_sudden_death(), "Tutorial never branches into the sudden death")
+	gs.player_z = gs.goal_z + 0.1
+	gs.player2_z = gs.goal_z - 20.0
+	gs.update(DT)
+	_check(gs.game_state == Constants.STATE_GOAL_RACE and gs.has_player_reached_goal(1), "First finisher waits at the goal")
+	_check(gs.tutorial_flow.is_task_done(1, "goal") and not gs.tutorial_flow.is_task_done(2, "goal"), "Goal task follows each arrival")
+	gs.player2_z = gs.goal_z + 0.1
+	gs.update(DT)
+	_check(gs.game_state == Constants.STATE_RESULT_CEREMONY and gs.result_presentation_active, "Both finishers start the score tower")
+	_check(gs.get_tutorial_step_id() == "duo_goal", "Tutorial stays on the goal step during the tower")
+	_check(gs.result_p1_score == 15 and gs.result_p2_score == 14 and gs.result_winner == 1, "Tower scores use correct × (hearts + 0.5)")
+	_check(_step_until(gs, gs.is_tutorial_score_pause_active, 9.0), "Ceremony pauses once the scores are tallied")
+	_check(
+		absf(gs.result_ceremony_elapsed - QuizGameState.RESULT_VERDICT_TIME + QuizGameState.RESULT_VERDICT_DURATION) < 0.001,
+		"Pause sits at the end of the score roll (%.3f s)" % gs.result_ceremony_elapsed
+	)
+	_check(gs.result_ceremony_phase == QuizGameState.ResultCeremonyPhase.VERDICT, "Pause happens before the verdict is shown")
+	_check(gs.get_result_formula_text(1) == "P1: 3 × 2.5 = 7.5" and gs.get_result_formula_text(2) == "P2: 2 × 3.5 = 7", "Explanation shows each player's formula")
+	_check(not gs.resume_tutorial_score_pause(), "Resume waits for the minimum reading time")
+	var frozen := gs.result_ceremony_elapsed
+	_step(gs, 3.0)
+	_check(gs.is_tutorial_score_pause_active() and is_equal_approx(gs.result_ceremony_elapsed, frozen), "Pause holds until a key is pressed")
+	_check(gs.resume_tutorial_score_pause(), "Key press resumes after the minimum time")
+	_check(not gs.is_tutorial_score_pause_active(), "Explanation closes on resume")
+	_check(_step_until(gs, func() -> bool: return gs.get_tutorial_step_id() == "duo_complete", 6.0), "Verdict and winner lead to the completion step")
+	_check(gs.game_state == Constants.STATE_RESULT_CEREMONY and gs.result_presentation_active, "Completion card stays on the podium")
+	_check(gs.result_ceremony_phase == QuizGameState.ResultCeremonyPhase.WINNER, "Tutorial never reaches the result buttons")
+	_check(gs.tutorial_flow.presentation_locked, "Completion card presentation runs")
+	var elapsed := gs.result_ceremony_elapsed
+	_step(gs, 1.0)
+	_check(is_equal_approx(gs.result_ceremony_elapsed, elapsed) and gs.game_state != Constants.STATE_CLEAR, "Ceremony stays frozen under the card")
+	gs.complete_tutorial_presentation()
+	_check(gs.get_tutorial_step_id() == "customize_tour", "Completion card hands off to the customize tour")
+	_check(not gs.result_presentation_active, "Handoff clears the ceremony")
+
+
+func _test_duo_score_tower_draw() -> void:
+	# 2人とも 2問 × (3 + 0.5) = 7 → 引き分け。本編のサドンデスが有効でも分岐しない。
+	var gs := _goal_state(2, 3, 2, 3)
+	var previous_available := gs.sudden_death_available
+	gs.sudden_death_available = true
+	gs.sudden_death_enabled = true
+	_check(not gs.uses_sudden_death(), "Sudden death stays off in the tutorial even when enabled")
+	_finish_both(gs)
+	_check(gs.result_winner == 0 and not gs.sudden_death_pending, "Tied tutorial tower is a plain draw")
+	_check(_step_until(gs, gs.is_tutorial_score_pause_active, 9.0), "Draw also pauses for the explanation")
+	_step(gs, 1.1)
+	_check(gs.resume_tutorial_score_pause(), "Draw resumes after the minimum time")
+	_check(_step_until(gs, func() -> bool: return gs.get_tutorial_step_id() == "duo_complete", 6.0), "Draw verdict leads to the completion step")
+	gs.sudden_death_available = previous_available
+
+
+func _test_duo_score_tower_ghost() -> void:
+	# P2 がゴール前に脱落 → ゴーストとして表彰台へ。得点は正解数だけ。
+	var gs := _goal_state(2, 3, 4, 2)
+	gs.player_z = gs.goal_z + 0.1
+	gs.player_y = 0.0
+	gs.update(DT)
+	gs.p2_alive = false
+	gs.player2_game_over_timer = 0.01
+	_check(_step_until(gs, func() -> bool: return gs.game_state == Constants.STATE_RESULT_CEREMONY, 6.0), "Fallen player's ghost joins the tower")
+	_check(gs.is_result_ghost(2) and gs.result_p2_score == 8 and gs.result_p1_score == 14, "Ghost scores correct answers only")
+	_check(gs.tutorial_flow.is_task_done(2, "goal"), "Ghost arrival closes the fallen player's goal task")
+	_check(gs.get_result_formula_text(2) == "P2: 4 (脱落) = 4", "Explanation marks the eliminated player")
+	_check(_step_until(gs, gs.is_tutorial_score_pause_active, 9.0), "Ghost finale also pauses for the explanation")
 
 
 func _check(condition: bool, label: String) -> void:

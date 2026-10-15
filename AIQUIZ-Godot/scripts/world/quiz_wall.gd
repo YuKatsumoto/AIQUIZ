@@ -8,16 +8,13 @@ var doors: Array[MeshInstance3D] = []
 var door_labels: Array[Label3D] = []
 ## door_labels と同じ並びの扉の半幅と、全扉共通の2P拡大の倍率上限。
 var _door_label_half_widths: Array[float] = []
+## door_labels と同じ並びの改行を入れる前の選択肢 (表示文字列には文節の切れ目で改行を入れる)。
+var _door_label_texts: Array[String] = []
 var _door_label_max_scale: float = 1.0
 
 var is_boss: bool = false
 var boss_label: Label3D = null
 var boss_sparks: Array[CPUParticles3D] = []
-
-# メニュー背景プレビュー用: カメラ側(+Z)を向いた問題文・選択肢ラベル
-# (通常の door_labels はプレイヤー側(-Z)向きでメニューカメラからは見えない)
-var preview_question_label: Label3D = null
-var preview_choice_labels: Array[Label3D] = []
 
 var gameplay_question_label: Label3D = null
 var _gameplay_question_panel: MeshInstance3D = null
@@ -103,9 +100,9 @@ const QUESTION_DOOR_GAP: float = 0.18
 ## 2P拡大表示時の問題文・選択肢の倍率。
 ## 長い問題文が壁幅に収まる大きさに抑える。選択肢は扉ごとの内枠に収まる倍率までしか拡大しない。
 const TEXT_ENLARGED_SCALE: float = 1.5
-## 選択肢の文字を収める扉の内枠 (扉の幅・高さに対する比率)。遠くの壁でも読めるよう扉いっぱいに大きく出す。
+## 選択肢の文字を収める扉の内枠 (扉の幅・床から上に見えている高さに対する比率)。遠くの壁でも読めるよう扉いっぱいに大きく出す。
 const CHOICE_FIT_WIDTH_RATIO: float = 0.82
-const CHOICE_FIT_HEIGHT_RATIO: float = 0.75
+const CHOICE_FIT_HEIGHT_RATIO: float = 0.82
 ## 改行なしでこの文字サイズ以上に出せる選択肢は1行のまま表示し、届かない長い選択肢だけ折り返して大きくする。
 const CHOICE_SINGLE_LINE_MIN_FONT_SIZE: int = 56
 ## 文字サイズを揃えるとき、長い選択肢に合わせてほかの選択肢をこれより小さくはしない。
@@ -114,7 +111,10 @@ const CHOICE_UNIFORM_MIN_FONT_SIZE: int = 56
 const CHOICE_FONT_SIZE_MIN: int = 36
 const CHOICE_FONT_SIZE_MAX: int = 120
 const CHOICE_PIXEL_SIZE: float = 0.008
-const DOOR_HALF_HEIGHT: float = 2.2
+## 扉の下部は床 (StageConstants.FLOOR_TOP_Y) に埋まっているので、選択肢は床から上に見えている部分の中央に置く。
+## (扉の中心に置くと、4〜5行の選択肢の最終行が床に隠れる。)
+const CHOICE_CENTER_Y: float = (DOOR_TOP_Y + StageConstants.FLOOR_TOP_Y) * 0.5
+const CHOICE_VISIBLE_DOOR_HEIGHT: float = DOOR_TOP_Y - StageConstants.FLOOR_TOP_Y
 ## 壁の文字はMSDFで描き、遠景での縮小や2P拡大でも輪郭をにじませない。
 ## MSDFは文字サイズに関係なく1字1回だけ生成されるので、選択肢ごとに文字サイズが変わっても再ラスタライズしない。
 ## UIと共有する元フォントの取り込み設定は変えず、壁用に別の FontFile を作る。
@@ -231,6 +231,7 @@ func _build_doors(num_choices: int) -> void:
 	door_labels.clear()
 
 	_door_label_half_widths.clear()
+	_door_label_texts.clear()
 	_door_label_max_scale = 1.0
 
 	if num_choices == 4:
@@ -265,19 +266,21 @@ func _build_doors(num_choices: int) -> void:
 
 func _add_door_label(door_x: float, door_half_width: float) -> void:
 	var label := _create_label()
-	label.position = Vector3(door_x, 0.18, -0.65)
+	label.position = Vector3(door_x, CHOICE_CENTER_Y, -0.65)
 	label.pixel_size = CHOICE_PIXEL_SIZE
 	label.width = door_half_width * 2.0 * CHOICE_FIT_WIDTH_RATIO / CHOICE_PIXEL_SIZE
 	label.scale = Vector3.ONE * minf(_text_scale, _door_label_max_scale)
 	add_child(label)
 	door_labels.append(label)
 	_door_label_half_widths.append(door_half_width)
+	_door_label_texts.append("")
 
 
 ## 変わっていなければ何もしない (GameWorld は現在の壁へ毎フレーム set_quiz を呼ぶ)。
 func _set_door_label_text(index: int, text: String) -> bool:
-	if index >= door_labels.size() or door_labels[index].text == text:
+	if index >= door_labels.size() or _door_label_texts[index] == text:
 		return false
+	_door_label_texts[index] = text
 	door_labels[index].text = text
 	return true
 
@@ -289,8 +292,8 @@ func _fit_door_labels() -> void:
 	var fits: Array[int] = []
 	var shared := CHOICE_FONT_SIZE_MAX
 	for i: int in range(door_labels.size()):
-		var text := door_labels[i].text
-		var fit := CHOICE_FONT_SIZE_MIN if text.is_empty() else _fit_choice_size(text, door_labels[i].font, _door_label_box(i))
+		var text := _door_label_texts[i]
+		var fit := CHOICE_FONT_SIZE_MIN if text.is_empty() else int(_layout_choice(text, door_labels[i].font, _door_label_box(i), CHOICE_FONT_SIZE_MAX).font_size)
 		fits.append(fit)
 		if not text.is_empty():
 			shared = mini(shared, maxi(fit, CHOICE_UNIFORM_MIN_FONT_SIZE))
@@ -298,22 +301,41 @@ func _fit_door_labels() -> void:
 	_door_label_max_scale = TEXT_ENLARGED_SCALE
 	for i: int in range(door_labels.size()):
 		var label := door_labels[i]
-		var font_size := mini(shared, fits[i])
-		_set_choice_font_size(label, font_size)
-		if label.text.is_empty():
+		var text := _door_label_texts[i]
+		if text.is_empty():
+			label.text = ""
+			_set_choice_font_size(label, mini(shared, fits[i]))
 			continue
+		# 揃えたサイズで改行位置を選び直す (小さくなったぶん1行に収まることがある)。
 		var box := _door_label_box(i)
-		var fitted := _measure_choice_text(label.text, label.font, font_size, box.x, true)
+		var laid := _layout_choice(text, label.font, box, mini(shared, fits[i]))
+		label.text = laid.text
+		_set_choice_font_size(label, laid.font_size)
+		var fitted := _measure_choice_text(label.text, label.font, label.font_size, box.x, true)
 		_door_label_max_scale = minf(_door_label_max_scale, minf(box.x / maxf(fitted.x, 1.0), box.y / maxf(fitted.y, 1.0)))
 	_door_label_max_scale = maxf(_door_label_max_scale, 1.0)
 	_apply_door_label_scale()
+
+
+## 選択肢を max_size 以下で内枠に収める: {"text": 改行を入れた表示文字列, "font_size": int}。
+## 文節の切れ目で改行できない選択肢 (縦積みの分数・長い英単語など) は従来どおり Label3D の自動折り返しに任せる。
+## max_size より小さい場合 (壁の中で揃えたサイズ) は、まずそのサイズちょうどで最も良い改行位置を探す。
+func _layout_choice(text: String, font: Font, box: Vector2, max_size: int) -> Dictionary:
+	var laid := {}
+	if max_size < CHOICE_FONT_SIZE_MAX:
+		laid = ChoiceLineBreaker.layout(text, font, box, max_size, max_size)
+	if laid.is_empty():
+		laid = ChoiceLineBreaker.layout(text, font, box, CHOICE_FONT_SIZE_MIN, max_size)
+	if not laid.is_empty():
+		return laid
+	return {"text": text, "font_size": mini(max_size, _fit_choice_size(text, font, box))}
 
 
 ## 選択肢を収める扉の内枠 (幅 CHOICE_FIT_WIDTH_RATIO・高さ CHOICE_FIT_HEIGHT_RATIO、ラベルのピクセル単位)。
 func _door_label_box(index: int) -> Vector2:
 	return Vector2(
 		_door_label_half_widths[index] * 2.0 * CHOICE_FIT_WIDTH_RATIO,
-		DOOR_HALF_HEIGHT * 2.0 * CHOICE_FIT_HEIGHT_RATIO
+		CHOICE_VISIBLE_DOOR_HEIGHT * CHOICE_FIT_HEIGHT_RATIO
 	) / door_labels[index].pixel_size
 
 
@@ -388,7 +410,7 @@ func set_labels_visible(is_visible: bool) -> void:
 		set_gameplay_question_visible(false)
 
 
-## Gameplay faces -Z; the menu keeps its independent +Z labels.
+## Faces -Z (the player side). The menu preview turns the whole wall to show this face.
 ## Called repeatedly by GameWorld, so shaping only runs when the text changes.
 func set_gameplay_question(text: String, is_visible: bool) -> void:
 	if text.is_empty():
@@ -487,9 +509,6 @@ func _update_question_wall_height() -> void:
 	if is_instance_valid(_gameplay_question_border):
 		var panel_bounds: AABB = (gameplay_question_label.transform * _gameplay_question_border.transform) * _gameplay_question_border.get_aabb()
 		content_top = panel_bounds.end.y
-	elif is_instance_valid(preview_question_label):
-		var text_bounds := preview_question_label.transform * preview_question_label.get_aabb()
-		content_top = text_bounds.end.y + preview_question_label.outline_size * preview_question_label.pixel_size
 	content_top = maxf(content_top, minimum_content_top)
 	_boss_scale_lift = 0.0
 	if is_boss and is_instance_valid(boss_label):
@@ -571,6 +590,10 @@ func _append_label_framing_points(points: PackedVector3Array, label: Label3D, xf
 		points.append(xform * bounds.get_endpoint(corner))
 
 
+## PV の撮影（tests/pv_capture）のときだけ true にする。通過した壁を薄れさせずに残し、
+## コースの後端を越えたときに通常どおり片付ける（文字と火花は通常どおり消す）。ゲームでは常に false。
+static var keep_after_pass_for_capture: bool = false
+
 ## 1P用: プレイヤーが通過した壁を、文字を残さず短くフェード退場させる。
 func retire_after_player_pass(fade_duration: float = 0.28) -> void:
 	if _retiring_after_pass:
@@ -584,6 +607,8 @@ func retire_after_player_pass(fade_duration: float = 0.28) -> void:
 		if is_instance_valid(sparks):
 			sparks.emitting = false
 			sparks.visible = false
+	if keep_after_pass_for_capture:
+		return
 	for part: MeshInstance3D in wall_parts:
 		_fade_mesh_to_transparent(part, fade_duration)
 	for door: MeshInstance3D in doors:
@@ -652,39 +677,6 @@ func _mark_retirement_finished() -> void:
 	_retirement_finished = true
 
 
-## メニュー背景プレビュー用: 問題文と選択肢をカメラ側(+Z)の面に表示する (2択専用)
-func set_preview_labels(quiz: QuizItem) -> void:
-	_clear_preview_labels()
-	if not quiz or quiz.q.is_empty():
-		return
-
-	preview_question_label = _create_label()
-	preview_question_label.rotation.y = 0.0
-	# 問題文はゲームと同じく扉のすぐ上の壁面に表示する
-	preview_question_label.position = Vector3(0, 0, 0.65)
-	preview_question_label.width = 640.0
-	# 遠景で塗りと輪郭が競合しないよう、細めの濃紺アウトラインでコントラストを保つ
-	preview_question_label.outline_modulate = Color(0.02, 0.05, 0.08, 0.95)
-	preview_question_label.outline_size = 8
-	var question_text: String = FractionFormatter.to_inline(quiz.q) if FractionFormatter.has_fraction(quiz.q) else quiz.q
-	add_child(preview_question_label)
-	_fit_question_label_to_two_lines(preview_question_label, question_text)
-	_update_question_wall_height.call_deferred()
-
-	var door_xs := [LEFT_DOOR_X, RIGHT_DOOR_X]
-	for i: int in range(mini(2, quiz.c.size())):
-		var lbl := _create_label()
-		lbl.rotation.y = 0.0
-		lbl.position = Vector3(door_xs[i], 0.18, 0.65)
-		lbl.width = 200.0
-		lbl.font_size = 64
-		lbl.outline_modulate = Color(0.02, 0.05, 0.08, 0.95)
-		lbl.outline_size = 8
-		lbl.text = FractionFormatter.format_choice(quiz.c[i])
-		add_child(lbl)
-		preview_choice_labels.append(lbl)
-
-
 const QUESTION_LABEL_MAX_LINES := 2
 ## 1行でも2行でも常にこの大きさで表示する（行数によって縮小しない）
 const QUESTION_LABEL_FONT_SIZE := 64
@@ -722,16 +714,6 @@ func _measure_line_count(text: String, font: Font, font_size: int, width: float,
 	tp.break_flags = break_flags
 	tp.add_string(text, font, font_size)
 	return maxi(1, tp.get_line_count())
-
-
-func _clear_preview_labels() -> void:
-	if is_instance_valid(preview_question_label):
-		preview_question_label.queue_free()
-	preview_question_label = null
-	for lbl: Label3D in preview_choice_labels:
-		if is_instance_valid(lbl):
-			lbl.queue_free()
-	preview_choice_labels.clear()
 
 
 func set_is_boss(boss: bool) -> void:
@@ -828,8 +810,6 @@ func break_door(door_index: int) -> void:
 	door.visible = false
 	if door_index < door_labels.size():
 		door_labels[door_index].visible = false
-	if door_index < preview_choice_labels.size() and is_instance_valid(preview_choice_labels[door_index]):
-		preview_choice_labels[door_index].visible = false
 
 	# Hide boss label if it exists
 	if is_instance_valid(boss_label):
@@ -1033,11 +1013,6 @@ func shatter_wall(direction_z: float = -1.0) -> void:
 			label.visible = false
 	if is_instance_valid(boss_label):
 		boss_label.visible = false
-	if is_instance_valid(preview_question_label):
-		preview_question_label.visible = false
-	for plbl in preview_choice_labels:
-		if is_instance_valid(plbl):
-			plbl.visible = false
 
 func _shatter_mesh(mesh_inst: MeshInstance3D, direction_z: float) -> void:
 	if not is_instance_valid(mesh_inst): return

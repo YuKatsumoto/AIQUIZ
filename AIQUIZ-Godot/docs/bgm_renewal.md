@@ -1,6 +1,6 @@
 # BGMリニューアル（全曲AI生成）
 
-現在のBGMは `assets/audio/bgm/quiz_party_loop.ogg`（Sunoで生成、134秒のループ）1曲だけで、全場面で流れ続け、場面ごとに音量だけを変えている（`scripts/autoload/audio_manager.gd`）。2026年10月8日に、それまでの `head_in_the_sand.ogg`（CC0、38秒）から差し替えた（「採用した曲」の節）。これを場面別の13素材に置き換える。全曲を音楽生成AIで作る。
+現在のBGMは4曲（2026年10月12日にオンライン対戦のマッチング待機用 `quiz_match_loop.ogg` を足した）。プレイ中（壁が割れてから）は `assets/audio/bgm/quiz_play_loop.ogg`（2026年10月11日採用）、クリア画面と2人用のスコアタワーは `assets/audio/bgm/quiz_result_loop.ogg`（2026年10月12日採用）、それ以外の場面は `assets/audio/bgm/quiz_party_loop.ogg` を流し、場面ごとに音量を変えている（`scripts/autoload/audio_manager.gd`）。どれもSunoで生成した（「採用した曲」の節）。メニュー曲は2026年10月8日に、それまでの `head_in_the_sand.ogg`（CC0、38秒）から差し替えた。これを場面別の素材に増やしていく。全曲を音楽生成AIで作る。
 
 この文書は、生成AIへの発注仕様（プロンプト）と、Godotへ組み込むときの仕様をまとめたもの。
 
@@ -10,9 +10,10 @@
 
 | ID | 場面 | 種類 | 長さ | BPM | キー |
 |---|---|---|---|---|---|
-| `bgm_menu` | 起動・メインメニュー・カスタマイズ・オンラインロビー | ループ | 素材は2〜3分 | 92 | F |
+| `bgm_menu` | 起動・メインメニュー・カスタマイズ | ループ | 素材は2〜3分 | 92 | F |
+| `bgm_online` | オンライン対戦画面（ヘリポートのトップ・ともだちコード・スキン設定・乗り込み〜検索中の飛行） | ループ | 素材は2〜3分 | 自由 | 自由 |
 | `bgm_intro` | ヘリ降下・問題生成待ち・開始待ち・空撮 | ループ | 素材は1〜2分 | 120 | F |
-| `sting_countdown` | カウントダウン「4・3・2・1」→壁が割れる | 単発 | 約5.5秒 | 120 | F→B♭ |
+| `sting_countdown` | カウントダウン「5・4・3・2・1」→壁が割れる | 単発 | 約6.5秒 | 120 | F→B♭ |
 | `bgm_tutorial` | チュートリアル | ループ | 素材は2分 | 104 | F |
 | `bgm_play` | 本編（1P10問・協力・オンライン・1Pエンドレス） | ループ | 素材は2〜3分 | 150 | B♭ |
 | `bgm_chase` | のこぎり追跡（ローカル2Pの10問・エンドレス） | ループ | 素材は2分 | 168 | Gm |
@@ -35,11 +36,11 @@
 ## 時間の基準（コードから）
 
 - **空撮**：3.8秒（`game_state.gd:2013`）。チュートリアルでは省略。
-- **カウントダウン**：3.99秒（`game_state.gd:2025`）。
-  - 表示は `ceil(countdown_timer)` で「4・3・2・1」を約1秒ずつ（`game_world.gd:2649`）。0秒で壁が割れて PLAYING になる。
+- **カウントダウン**：4.99秒（`QuizGameState.COUNTDOWN_SECONDS`、2026年10月11日に3.99秒から変更）。
+  - 表示は `ceil(countdown_timer)` で「5・4・3・2・1」を約1秒ずつ（`game_world.gd`）。0秒で壁が割れて PLAYING になる。
   - 進むにつれて壁の揺れと蒸気が強くなる。
-  - チュートリアルは3.0秒から始まるので「3・2・1」だけ。`sting_countdown` を1.0秒の位置から再生すれば合う。
-  - 効果音は壁にぶつかった音だけなので（`docs/sound_effects.md`）、カウントダウン中に鳴る効果音はない。
+  - チュートリアルは3.0秒から始まるので「3・2・1」だけ。`sting_countdown` を2.0秒の位置から再生すれば合う。
+  - 数字が変わるたびに電子音「ぷっ」、壁が割れる瞬間に「ぷーん」が鳴る（OtoLogic の素材、`docs/sound_effects.md`）。`sting_countdown` を作る場合はこの電子音と重なる。
 - **スコアタワーの演出**（`assets/result_finale/finale_motion.json`。両者がゴールした時点を0秒とする）
 
 | 時刻 | 出来事 |
@@ -220,14 +221,174 @@ BGM音量のスライダー（0〜1）は、BGMバスの音量に次の対応で
 | BGMバス | 無音 | −31.2 dB | −21.8 dB | −9.4 dB | 0 dB | +5.5 dB | +9.4 dB |
 
 - 初期値の0.5は、それまでの最大（スライダー1.0＝0 dB）と同じ音量。スライダーを半分にするごとに9.4 dB下がる。
-- 最大の +9.4 dB（`BGM_MAX_GAIN_DB`）は `BGM_TRACK_GAIN_DB` をちょうど打ち消す値で、本編の場面（場面ごとの音量 0 dB）では曲そのものの音量（−16 LUFS、ピーク −4.3 dBFS）になり、音割れしない。
+- 最大の +9.4 dB（`BGM_MAX_GAIN_DB`）は `BGM_TRACK_GAIN_DB` をちょうど打ち消す値。場面ごとの音量が 0 dB なら曲そのものの音量（−16 LUFS、ピーク −4.3 dBFS）になり、音割れしない。
+- 場面ごとの音量（`CONTEXT_VOLUME_DB`）は、メニュー・プレイ中・結果がどれも −4 dB（2026年10月12日から）。それまではプレイ中だけ 0 dB で、ゲーム画面に入ると4 dB上がっていた。ポーズとサドンデスは −10 dB。
 - それまでは、スライダーの値をそのまま音量の倍率にしていた（0.5＝−6 dB、1.0＝0 dB）。この形式で保存された設定（`user://audio_settings.cfg` に `version` がないもの）は、起動時に同じ音量になるスライダー位置へ直して保存し直す（1.0→0.5、0.5→0.3）。
+
+### `bgm_play` の候補（2026年10月11日生成、選定待ち）
+
+メニュー曲のメロディを使わず、新しいメロディで作った候補。ジャンルを10通りに変えた。Coverではなく、参考音源なしで作った。
+
+- **設定**：Advanced、v6、歌詞欄は空、長さ2:30、奇抜さ35%、スタイルの影響70%、バリエーションはオフ、パーソナライズはオフ。
+- **Styles**：ジャンルごとの文の後ろに、次の共通文を付けた。コード進行とキーは指定していない。
+
+```
+Gameplay background loop for a cheerful kids' 3D quiz party game: players run and bump through giant quiz walls with answer doors. A brand-new, original, catchy lead melody with short, hummable phrases. Bright, happy and fun, never dark, sad or scary. Steady tempo and even energy from start to finish: no build-up, no risers, no breakdowns, no big climax, no fade-out, no ending; each phrase flows straight into the next. Clean, punchy mix with space left for sound effects. Instrumental only.
+```
+
+- **除外リスト**：`vocals, choir, spoken word, humming, dark, sad, horror, minor key, epic, cinematic, risers, whoosh, sweeps, build-up, drops, dubstep, heavy reverb, sound effects`
+  - `risers, whoosh, sweeps, build-up` は、区切りで低い音から駆け上がる音を入れさせないために足した。
+
+| 曲名（Suno） | ジャンル（ジャンルごとの文の要点） | song id |
+|---|---|---|
+| Quiz Play 01 Chiptune | 150 BPM。ファミコン風。オクターブで跳ねるメロディ | `f37af25c-9905-4c61-abe2-f45a3560430f`、`c21034ea-28ce-40ac-b485-0746f425ae24` |
+| Quiz Play 02 Ska | 160 BPM。スカ。ホーン隊のユニゾン | `4f228f58-8f05-493d-8bf7-0ddec1a49f39`、`0b731c6f-231e-4662-badf-b80e00d4cdd6` |
+| Quiz Play 03 Surf | 155 BPM。サーフロック。エレキギターの速いメロディ | `7936d123-65d3-45d9-8f26-ddc484e0b4de`、`969de7c3-7f77-4c72-ab45-41cd199109e7` |
+| Quiz Play 04 Greek | 150 BPM。ギリシャの島の民族舞曲。ブズーキとマンドリン | `0934a3dc-6d97-4fd6-9c05-5c8a77498778`、`bd6a608d-95c2-4705-ab56-33ff8ec42afc`、`e05a8a9d-c724-43d7-8a97-c920453fa201`、`99a52dbb-f142-4531-848b-664c2bee0798` |
+| Quiz Play 05 Swing | 150 BPM、跳ねる8分。ビッグバンド・スウィング | `70d6eb73-f50a-424f-abe1-99cdfaffded3`、`98fa08c3-6995-4524-b021-417b75d48a80` |
+| Quiz Play 06 Shibuya | 145 BPM。90年代のバラエティ番組風の渋谷系 | `a8fb3ba1-85c3-4ccf-90d4-31adb2d613dd`、`805e5962-5a32-4403-a452-249efa3ceeee` |
+| Quiz Play 07 Marimba | 150 BPM。マリンバ・アコーディオン・ウッドベース・ドラムの小編成 | `43280828-c72c-4cb1-854b-af018ea724ff`、`ac637923-577d-46cd-8ca9-486f9516fa6c` |
+| Quiz Play 08 Cartoon March | 150 BPM、2拍子のノリ。アニメのドタバタ行進曲 | `509a5503-0c27-4ce1-85db-32204c890596`、`8e27b7a4-c4ce-44af-a88e-0848a2bcffca` |
+| Quiz Play 09 Pop Rock | 170 BPM。スポーツアニメのオープニング風ポップロック | `20d0f780-4a9e-43f2-928d-0dfbfefe78f5`、`68538ece-0894-41e7-bee1-a28d42e2cf1c` |
+| Quiz Play 10 90s Console | 140 BPM。90年代ゲーム機風のファンク（サンプリング音源） | `4a9cb0cd-fac0-40bf-bee6-32e3d78c62aa`、`aa96e20d-fae0-428d-8920-c5bf315384c6` |
+
+- 曲のページは `https://suno.com/song/<song id>`。
+- 10月9日に作った候補（Coverの2曲、新しいメロディのチップチューン4曲と生楽器4曲）も、選定待ちのまま残っている。
+
+### Cartoon Marchのチップチューン版（2026年10月11日生成、選定待ち）
+
+`bgm_play` の候補「Quiz Play 08 Cartoon March」（`8e27b7a4`、2:29）を、今のメニュー曲と同じ音色（ファミコン風の4パート）でCoverした候補。メロディと構成は08のまま、楽器だけを替える指示にした。
+
+- **参考音源**：Sunoのワークスペースにある08の曲を、「オーディオ」→「参照」で選んだ。
+- **設定**：Cover、v6、歌詞欄は `[Instrumental]`、長さAuto、奇抜さ25%、スタイルの影響70%、バリエーションはオフ、パーソナライズはオフ。オーディオの影響は70%と55%で1回ずつ。
+- **Styles**：メニュー曲（Suno「Quiz Party Loop」）のスタイル文を元に、テンポを08の150 BPMにした。
+
+```
+Chiptune version of the source song: keep its main melody, chords, tempo and structure, and change only the instruments. Early 8-bit video game soundtrack, two square-wave channels trade a catchy lead and clipped chords, triangle-wave bass walks beneath crisp noise-channel drums; instrumental, buoyant straight eighths at 150 BPM, dry clean mix with open space. Bright, happy and playful, never dark. Even energy from start to finish: no build-up, no risers, no breakdowns, no big climax, no fade-out, no ending; each phrase flows straight into the next.
+```
+
+- **除外リスト**：`orchestral, cinematic, epic, choir, vocals, spoken word, acoustic drums, brass, tuba, strings, electric guitar, heavy reverb, EDM, dubstep, risers, whoosh, build-up, sound effects`
+
+| オーディオの影響 | song id | 長さ |
+|---|---|---|
+| 70% | `65daed1f-feb8-4155-94d7-f2be08a5d6e2` | 134.6秒 |
+| 70% | `61b02d79-fe39-4eb5-bfd6-6e3fcbce02db` | 132.0秒 |
+| 55% | `e2f4d387-0027-416e-a650-7f25cda17c4a` | 148.8秒 |
+| 55% | `c385d72f-0434-4a7e-b5fb-be82433c3799` | 146.4秒 |
+
+- 同じ日に、逆の向き（メニュー曲を08の楽器でCover）の「Quiz Party Loop (Cartoon March)」も4曲作ったが、依頼と逆だったので候補にしない（`58debecc`、`ed66a9e6`、`17ee391b`、`acb6c603`）。
+
+### メニュー曲の音色で作った新しいメロディ（2026年10月11日生成）
+
+メニュー曲と同じ音色（ファミコン風の4パート）のまま、メロディの性格だけを変えて作った `bgm_play` の候補。参考音源は使っていない。この中の「Quiz Chip Sports 03 Clown Galop」（`c723f094`）を採用した（「採用した曲」の `quiz_play_loop.ogg`）。
+
+- **設定**：Advanced、v6、歌詞欄は `[Instrumental]`、長さ2:30、奇抜さ35%、スタイルの影響70%、バリエーションはオフ、パーソナライズはオフ。
+- **Styles**：メニュー曲（Suno「Quiz Party Loop」）のスタイル文に、テンポとメロディの説明（`Melody: ...`）を足し、次の共通文を付けた。
+
+```
+<メニュー曲のスタイル文（テンポを差し替え）> Melody: <メロディの説明> Gameplay background loop for a cheerful kids' 3D quiz party game. A brand-new, original, catchy melody. Bright, happy and fun, never dark. Same tempo and even energy from start to finish: no build-up, no risers, no breakdowns, no big climax, no fade-out, no ending; each phrase flows straight into the next.
+```
+
+- **除外リスト**：`orchestral, cinematic, epic, choir, vocals, spoken word, acoustic drums, electric guitar, heavy reverb, EDM, dubstep, risers, whoosh, build-up, dark, sad, minor key, sound effects`
+- **「Sports」の付いた6種類**：「運動会で流れていそうな速さとメロディ」という要望で作った。拍子を2/4にし、ベースは「拍ごとに弾む」などに替えた。
+
+| 曲名（Suno） | テンポ | メロディの説明（要点） | song id |
+|---|---|---|---|
+| Quiz Chip 01 Hopping | 150 | オクターブで跳ね、分散和音で飾る | `44c8e20d-5518-4fd2-8472-fc497559b7fc`、`86a9940d-0984-4b33-9cd7-f6b151c36f6e` |
+| Quiz Chip 02 Singalong | 150 | 隣の音へ進む、口ずさめる歌のような旋律 | `b98d7e4b-2859-46e3-b618-b7b472b63bd0`、`f8e54f74-3b4a-4118-a97f-ef5563c158a1` |
+| Quiz Chip 03 Running | 160 | 速い音階とトリルが駆け回る | `03df81c2-5d93-4039-9773-ff4162741033`、`cfc17613-4752-4b80-9698-3455d78e55b8` |
+| Quiz Chip 04 Call and Response | 144 | 2本の矩形波が問いと答えを掛け合う | `7f678d16-aec4-4ba0-a63b-b81ef754931c`、`cf1c4a9d-d309-454c-90a1-15c5c166c947` |
+| Quiz Chip 05 Syncopated | 150 | 裏拍のアクセントで弾む | `49cd4c32-6ab6-493d-a8b8-488b018290e2`、`9e046a01-11dd-4a3f-a343-8f7a2be4c098` |
+| Quiz Chip 06 Fanfare | 156 | 連打音と大きな跳躍のファンファーレ風 | `284eb6ab-68ae-4f7a-b9ec-1291577dcc3d`、`5c52a2b8-042a-4e25-8270-0bb03c6725d3` |
+| Quiz Chip 07 Cheeky | 140 | 装飾音と半音の経過音で、おどけたスタッカート | `4da1ea41-04fa-42ef-9d55-ab89accd6ea4`、`f1f78e58-5710-41c7-a280-a62b524c5615` |
+| Quiz Chip 08 Pentatonic | 150 | ペンタトニックで、夏祭りのような軽さ | `5291151c-e250-4aa1-805c-605e2437351a`、`74f76fb0-4a9f-4273-8684-5aec1fcd7318` |
+| Quiz Chip Sports 01 Galop | 176、2/4 | カンカン風のギャロップ。連打音と駆け上がり（リレー） | `4463a4e1-b214-4861-ab48-238c7a4557b7`、`9ab7d7af-3b18-4d66-bdb3-93284fed48f2` |
+| Quiz Chip Sports 02 Post Horn | 168、2/4 | ラッパの合図のような付点リズムと3連符 | `6f19bc41-eb45-43a1-b300-78d0dfe3f655`、`91a7c66e-5cd5-4a2e-a9fc-10e4756a97e5` |
+| Quiz Chip Sports 03 Clown Galop | 172、2/4 | 半音階で上下する、サーカス風のギャロップ（障害物競走） | `5e5ab5e4-6f40-46a2-8974-30b4ff6f21ac`、`c723f094-ec06-496a-a902-e72e4afe4b71` |
+| Quiz Chip Sports 04 Gallop Finale | 160、2/4 | 「タタタン」と駆ける序曲のフィナーレ風（最終リレー） | `42bf426a-f7cc-41f5-a21d-d0766dd8cc55`、`aafeabfd-d0e0-4c55-8cfe-f453ef4e8e09` |
+| Quiz Chip Sports 05 Polka | 160、2/4 | 付点で跳ねる速いポルカ（玉入れ） | `9c587c61-48cb-4e22-a813-843efb6b5175`、`d9a51543-9491-4475-8616-376c4812d58c` |
+| Quiz Chip Sports 06 Quick March | 144、2/4 | 入場行進のような速い行進曲 | `28075351-c1de-4f75-9bca-3c12423aabaa`、`d1df04f1-621a-4ac6-badf-0052d76065f8` |
+
+- 長さはどれも約2分29〜30秒。
+- 生成の途中で、Sunoに「私はロボットではありません」の確認が出たので、ユーザーに対応してもらった。
+
+### `bgm_result` の候補（2026年10月12日生成）
+
+結果画面（1人用のクリア画面、2人用のスコアタワー演出の後）のループ曲の候補。メニュー曲と同じ音色で、メロディの性格を8通りに変えた。参考音源は使っていない。この中の「Quiz Result 03 Parade」（`319f8136`）を採用した（「採用した曲」の `quiz_result_loop.ogg`）。
+
+- **設定**：「メニュー曲の音色で作った新しいメロディ」の節と同じ（Advanced、v6、歌詞欄 `[Instrumental]`、長さ2:30、奇抜さ35%、スタイルの影響70%、除外リストも同じ）。
+- **Styles**：メニュー曲のスタイル文（テンポとノリを差し替え）＋ `Melody: <メロディの説明>` ＋次の共通文。
+
+```
+Results screen loop for a cheerful kids' 3D quiz party game, played after the race while players look at their scores. Happy and relaxed, never dark or sad. Same tempo and even energy from start to finish: no build-up, no risers, no breakdowns, no big climax, no fade-out, no ending; each phrase flows straight into the next.
+```
+
+| 曲名（Suno） | テンポ・ノリ | メロディの説明（要点） | song id |
+|---|---|---|---|
+| Quiz Result 01 Victory Lap | 112、まっすぐな8分 | 隣の音へ進む、満足げな「よくできました」（ウイニングラン） | `823e3936-6a6d-448f-bfce-df7c51f78a9e`、`d01a88e3-4f49-4fb4-a190-abed39d30008` |
+| Quiz Result 02 Shuffle | 104、跳ねるシャッフル | のんびり跳ねる、少しおどけた旋律 | `699d6095-77f5-49d9-97ea-c0be62bb7e35`、`89971fb8-d885-4123-9f3a-33098bfeeed1` |
+| Quiz Result 03 Parade | 120、軽い行進 | 誇らしげだがくつろいだパレード。フレーズの終わりに小さなファンファーレ | `319f8136-24f1-401b-9157-027df0e2bfba`、`4053e4f2-57f1-4b9d-b06b-77e3748d94fd` |
+| Quiz Result 04 Stroll | 96、ゆったり | レース後の散歩のような、口ずさめる旋律と穏やかな分散和音 | `157bd4ce-a7d7-45fc-80c7-4d07806e19c8`、`64fb6df5-4214-4b76-885a-b48d0081fc06` |
+| Quiz Result 05 Party | 116、弾む | オクターブで跳ねる、お祝いパーティー | `9463c04a-c094-41d5-aeec-731cc6429654`、`cdf4e416-2004-4bc6-999c-752d5ac0325b` |
+| Quiz Result 06 Waltz | 132、3/4 | メリーゴーラウンドのワルツ | `b69de95f-f257-4e82-a655-b1eb945ee71e`、`fa25fb0a-1a30-4f78-ba0d-98b27b1122fa` |
+| Quiz Result 07 Island | 112、シンコペーション | 裏拍で弾む南の島のビーチパーティー | `a8f05732-626a-495d-a178-d3ef72b82327`、`bd070454-2beb-4f5f-a952-6ed523881a1d` |
+| Quiz Result 08 Fun Day | 100、まっすぐな8分 | 楽しい一日を振り返るような、少し懐かしいが明るい旋律 | `282af357-c6c3-4439-ae42-3084e83b0064`、`46cf090e-c21f-47e7-a1f7-6d8f178ebf7a` |
+
+- 長さはどれも約2分29〜30秒。
+
+### `bgm_online` の候補（2026年10月12日生成）
+
+オンライン対戦画面（`OnlineMenu`：ヘリポートのトップ、ともだちコード、スキン設定、乗り込みから検索中の飛行まで）のループ曲の候補。今はこの画面でメニュー曲が流れている。メニュー曲と同じ音色で、メロディの性格を8通りに変えた。参考音源は使っていない。
+
+- **設定**：「メニュー曲の音色で作った新しいメロディ」の節と同じ（Advanced、v6、歌詞欄 `[Instrumental]`、長さ2:30、奇抜さ35%、スタイルの影響70%、バリエーションはオフ、除外リストも同じ）。「Quiz Result 08 Fun Day」の「プロンプトを再利用」で入力欄を埋め、スタイル文と曲名だけを差し替えた。
+- **Styles**：メニュー曲のスタイル文（テンポとノリを差し替え）＋ `Melody: <メロディの説明>` ＋次の共通文。
+
+```
+Online versus lobby loop for a cheerful kids' 3D quiz party game: players wait at a seaside heliport and fly a helicopter over the sea while searching for an online rival. Excited, adventurous anticipation; bright and fun, never dark or scary. Same tempo and even energy from start to finish: no build-up, no risers, no breakdowns, no big climax, no fade-out, no ending; each phrase flows straight into the next.
+```
+
+| 曲名（Suno） | テンポ・ノリ | メロディの説明（要点） | song id |
+|---|---|---|---|
+| Quiz Online 01 Sky Patrol | 132、力強い8分 | 長くのばす音と5度の跳躍で舞い上がる旋律。下でローターのような16分の分散和音（海の上を高く飛ぶ） | `9bfdd76b-dec1-435d-99c6-9a7ea702f4ce`、`9c0961fe-e050-4794-87a2-f64c9dcabceb` |
+| Quiz Online 02 Rival Radar | 124、弾む8分 | 短いスタッカートの「ピッピッ」が自分に答える、レーダーで相手を探すような旋律 | `7b61a97b-affa-470a-8026-5c6592f0117e`、`38ffefa3-35ff-438a-8c3d-3c891d97c286` |
+| Quiz Online 03 Versus Lobby | 140、力強い8分 | 「だれと戦う？」という自信のあるスポーティな旋律。シンコペーションと、フレーズの終わりの駆け上がり（明るい格闘ゲームのキャラ選択画面） | `ea0e2ea5-5f00-4364-8fc6-2acd05497380`、`29471b78-03a2-443b-9696-5fe503407fba` |
+| Quiz Online 04 Sea Breeze Flight | 120、跳ねるシャッフル | 口笛のようにのんきな旋律が、転がる分散和音の上をすべる（晴れた海の上の飛行） | `2cbc53b8-f4ad-4f92-927e-f4a49f8c5c0a`、`0fca5247-8394-4df1-a93d-f120e3c22cde` |
+| Quiz Online 05 Takeoff March | 138、2/4の行進 | 付点のリズムとラッパの合図のような弱起。ヘリのパイロットたちが出発する行進曲 | `f17bfc0e-a92f-4275-8aaa-edc7a78cbdd5`、`87260afb-7410-4f3a-b8ae-3a30cf363f36` |
+| Quiz Online 06 Waiting Room Groove | 112、ゆったりしたファンク | 裏拍のアクセントと短いスライドの、少しおどけたクールな旋律（試合を待つあいだ） | `94e3bfe5-42c5-4f7d-ad50-d85f7b02b007`、`6522e5ed-0d3b-4d7a-9c0f-58162c0c3ef2` |
+| Quiz Online 07 Match Hype | 150、速い8分。ベースはオクターブで弾む | 短い反復で上へ進み続ける、「もうすぐ試合！」のわくわく感 | `248adff4-1df0-4624-90ce-f971c9d48c67`、`4a6b27f9-e946-437a-8c90-8d39875298f7` |
+| Quiz Online 08 Cloud Hopper | 128、軽く弾む8分 | 高い音と低い音を跳び移る、雲から雲へ跳ねるような旋律。速い装飾音 | `69f03fec-d131-4026-8d57-60653a6f1fec`、`3be3332f-f742-420e-9029-c5a43887be1b` |
+
+- 長さはどれも約2分29〜31秒。
+- 05は最初、メロディの説明に `aviators'` と書いたところ、Sunoがアーティスト名とみなして生成を断った。`pilots'` に変えて作り直した。
+
+#### ゆっくりでシンプルな待機曲（2026年10月12日生成）
+
+上の8種類を聴いたユーザーの要望（「オンライン対戦メニュー画面にも使いたいので、もっとゆっくりで音の数も少なめでシンプルな待機曲」）で作り直した候補。設定は上と同じ（「Quiz Online 02 Rival Radar」の「プロンプトを再利用」で埋め、長さ2:30・奇抜さ35%・スタイルの影響70%に合わせ直した）。
+
+- **Styles**：音色の文を「主旋律1本＋やわらかい和音＋穏やかなベース＋軽いドラム」に変え、テンポを88〜108 BPMにした。
+
+```
+Early 8-bit video game soundtrack, a simple square-wave lead over soft square-wave chords, a gentle triangle-wave bass and light noise-channel drums; instrumental, <ノリ> at <BPM> BPM, dry clean mix with open space. Melody: <メロディの説明> Waiting-room menu loop for a cheerful kids' 3D quiz party game: the online versus menu at a seaside heliport, where players pick settings and wait for an online rival. Calm, simple and friendly; bright, never dark or sad. Sparse, minimal arrangement with few notes and plenty of space. Same tempo and even energy from start to finish: no build-up, no risers, no breakdowns, no big climax, no fade-out, no ending; each phrase flows straight into the next.
+```
+
+| 曲名（Suno） | テンポ・ノリ | メロディの説明（要点） | song id |
+|---|---|---|---|
+| Quiz Online Wait 01 Heliport Lounge | 92、くつろいだ8分 | 長い音が隣の音へ進む、親しみやすい旋律。フレーズの間に休み（静かなヘリポートのラウンジ） | `e9de950c-c8cd-405f-afd1-29295be19d7a`、`4d957159-a045-4104-bf39-029d454b6f2b` |
+| Quiz Online Wait 02 Easy Shuffle | 96、のんびりしたシャッフル | 数音だけの口ずさめる短いフレーズを、休みを多くはさんで少しずつ変えながら繰り返す | `77af9418-0a34-449b-b9f7-138e7ff02626`、`880defd7-00c4-48f4-b2b7-bcf75f09580c` |
+| Quiz Online Wait 03 Seaside Bossa | 100、やわらかいボサノバ | 少しのシンコペーションと長い間の、なめらかでまばらな旋律（海辺のカフェ） | `920fa21f-9c09-424b-8b74-85304f7b42cc`、`89b53057-e624-4db7-9c94-661f246c5cb5` |
+| Quiz Online Wait 04 Blue Sky Idle | 88、ゆっくりした4分の拍 | 長くのばす音と、ゆっくりした分散和音（青空を流れる雲） | `babe3487-fc3a-4300-983a-9ed0f492b433`、`6fc37409-a625-4dd8-8b3d-88c61b373bfb` |
+| Quiz Online Wait 05 Tick Tock | 100、軽い8分 | 時計の「チクタク」のような数音のスタッカートに、やわらかい長い音が答える | `d49d6b37-0a66-4632-a29a-52b8eb53fbc3`、`7782cdbf-08cc-435e-bc7f-8706b5fa90f4` |
+| Quiz Online Wait 06 Sunny Stroll | 104、歩く速さ | 小さな歩幅と短い休みの、明るい散歩の旋律 | `cc0c1f4d-1806-4676-8164-aabe94714b17`、`b584cd05-625e-42cc-93a3-807d28974c54` |
+| Quiz Online Wait 07 Sea Breeze Waltz | 108、3/4のワルツ | 1小節に数音だけの、ゆれるワルツ（小舟をゆらす海風） | `b38609cc-6696-4c18-9d65-d935078bbd1a`、`309b4253-4903-462a-bc76-eec2db37a779` |
+| Quiz Online Wait 08 Menu Chill | 90、ゆったりしたグルーヴ | 2小節の短いモチーフを少しずつ変えて繰り返す。長く聴いても疲れない | `8b60d976-8f83-4b76-9e86-a7ba930bd30c`、`2436c8d3-306c-471f-958c-9307caf9e064` |
+
+- 長さはどれも約2分29〜32秒。
 
 ### 採用した曲
 
 #### `quiz_party_loop.ogg`（2026年10月8日採用、10月9日に延長版へ差し替え）
 
-テーマ曲の参考音源をCoverした曲。今は場面別の切り替えが未実装なので、全場面でこの曲を流している。最初は66秒（32小節）のループだったが、ずっと聴いていると飽きるので、10月9日にSunoのExtend（延長）で続きを作り、134秒（65小節）のループに伸ばした。
+テーマ曲の参考音源をCoverした曲。プレイ中以外の全場面でこの曲を流している。最初は66秒（32小節）のループだったが、ずっと聴いていると飽きるので、10月9日にSunoのExtend（延長）で続きを作り、134秒（65小節）のループに伸ばした。
 
 | 項目 | 内容 |
 |---|---|
@@ -247,6 +408,65 @@ BGM音量のスライダー（0〜1）は、BGMバスの音量に次の対応で
   - Godotで終わりの2秒前から再生して、ファイルの終わりで頭に戻り再生が続くことを確かめた。
 - **48kHzのまま納品した理由**：後処理の基準は44.1kHzだが、ループ音源を変換すると両端に余計な揺れが出て、つなぎ目が乱れることがある。Godotは48kHzをそのまま再生できる。
 - **商用利用の権利**：生成したときのSunoのプランを `assets/audio/bgm/LICENSE.md` に記入する。
+
+#### `quiz_play_loop.ogg`（2026年10月11日採用、プレイ中の曲）
+
+メニュー曲と同じ音色で、運動会のような速い2拍子のメロディにした新しい曲（「メニュー曲の音色で作った新しいメロディ」の節）。壁が割れてプレイが始まる瞬間に、曲の頭から流す。
+
+| 項目 | 内容 |
+|---|---|
+| 生成元 | Suno「Quiz Chip Sports 03 Clown Galop」（ユーザー katsuyu2354）、2026-10-11T13:37:16Z、id `c723f094-ec06-496a-a902-e72e4afe4b71` |
+| 元ファイル | `assets/audio/bgm/source/quiz_play_loop_original.mp3`（149.7秒、48kHzステレオ） |
+| テンポ・キー | 約175.3 BPM（指示は172）、2拍子。0〜113秒ごろはト長調（G）、115秒あたりからイ長調（A）に転調して最後まで戻らない |
+| 構成 | 4拍を1単位とすると、8単位（32拍）のフレーズが続く。10〜23単位目（13.8〜32秒）と、232拍後の68〜81単位目（93〜111秒）で、和音と拍の打ち方がよく一致する |
+| ループ区間 | 初回はファイルの頭から流し、2周目からは13.811秒（10単位目の頭の40ミリ秒前）に戻る。戻り目は93.209秒（68単位目の頭の40ミリ秒前）で、ループは79.398秒（232拍）。転調した後の部分は使わなかった |
+| 納品ファイル | `assets/audio/bgm/quiz_play_loop.ogg`（93.209秒、4,474,032サンプル、48kHzステレオ、Ogg Vorbis 品質6、−16.1 LUFS、ピーク −5.0 dBFS） |
+| インポート設定 | `loop=true`、`loop_offset=13.811`、`bpm=175.32`、`beat_count=0`、`bar_beats=2`。`beat_count` を0にして、ファイルの終わりで `loop_offset` に戻す |
+
+- **戻り位置の選び方**：4拍ごとの和音（拍ごとのクロマ）、拍の打ち方（1ミリ秒単位の打点の相互相関）、帯域ごとの音色、音量を、232拍離れた2か所で比べた。10単位目は和音0.80、打点0.87、音量差+0.5 dBでよく一致し、フレーズの頭でもある。18単位目より後は音色の差が大きくなる。
+- **つなぎ目の処理**：メニュー曲と違い、ファイルの頭は初回のために残すので、ファイルの終わりの30ミリ秒を「戻り目から自然に続く音」から「戻り先（13.811秒）の直前の音」へ徐々に入れ替えた（等パワーのクロスフェード）。戻った先は元の曲のままつながる。
+  - 戻り目の位置は、10単位目の頭（13.851秒）から232拍後の打点を、前後の4つの区間で相互相関をとって求めた（93.249秒、区間による差は5ミリ秒以内）。
+  - つなぎ目の段差（0.0040）は、元の曲でその位置が自然につながっているときの段差（0.0040）と同じ。
+  - Godotのデコーダで、ファイルの終わりの1秒前から再生して戻り目をまたぎ、13.811秒から直接再生した音と比べた（`tests/bgm_loop_seam_check.gd`）。戻った後の音は相関0.998で一致し、ずれは再生レート（44.1kHz）への変換による1フレーム（23マイクロ秒）だけ。メニュー曲も同じ結果。
+- **頭の処理**：最初のサンプルが無音ではないので、3ミリ秒のフェードインを付けた。
+
+#### `quiz_result_loop.ogg`（2026年10月12日採用、結果画面の曲）
+
+メニュー曲と同じ音色の、軽いパレード風の曲（「`bgm_result` の候補」の節）。1人用のクリア画面（CLEAR）と、2人用のスコアタワー演出（RESULT_CEREMONY、演出の頭から）で、曲の頭から流す。
+
+| 項目 | 内容 |
+|---|---|
+| 生成元 | Suno「Quiz Result 03 Parade」（ユーザー katsuyu2354）、2026-10-12T09:32:54Z、id `319f8136-24f1-401b-9157-027df0e2bfba` |
+| 元ファイル | `assets/audio/bgm/source/quiz_result_loop_original.mp3`（149.6秒、48kHzステレオ） |
+| テンポ・キー | 120.0 BPM、4/4。ハ長調が中心で、39〜45小節目（78〜92秒）あたりで一時的に変ホ長調・変イ長調方面へ寄ってから戻る |
+| 構成 | 1小節（2秒）単位で、6〜26小節目と、46小節後の52〜72小節目がほぼ同じ（和音の一致0.93〜0.98） |
+| ループ区間 | 初回はファイルの頭から流し、2周目からは12.202秒（6小節目の頭の40ミリ秒前）に戻る。戻り目は104.191秒（52小節目の頭の40ミリ秒前）で、ループは91.989秒（184拍） |
+| 納品ファイル | `assets/audio/bgm/quiz_result_loop.ogg`（104.191秒、5,001,168サンプル、48kHzステレオ、Ogg Vorbis 品質6、−16.1 LUFS、ピーク −4.1 dBFS） |
+| インポート設定 | `loop=true`、`loop_offset=12.202`、`bpm=120.0`、`beat_count=0`、`bar_beats=4` |
+
+- **戻り位置の選び方**：プレイ曲と同じ。46小節離れた2か所は、打点のずれが約10ミリ秒で一定、帯域ごとの音色の差も小さく、全体でよく一致した。6小節目はハ長調の和音で始まる区切りで、和音0.93、打点0.85、音色の差2.0。
+- **つなぎ目の処理**：プレイ曲と同じく、ファイルの終わりの30ミリ秒を戻り先の直前の音へクロスフェードした。つなぎ目の段差（0.0134）は、元の曲でその位置が自然につながっているときの段差（0.0135）と同じ。Godotのデコーダでの確認（`tests/bgm_loop_seam_check.gd`）も、戻った後の音は相関0.997で一致。
+- **頭の処理**：最初のサンプルが無音ではないので、3ミリ秒のフェードインを付けた。
+
+#### `quiz_match_loop.ogg`（2026年10月12日採用、オンライン対戦のマッチング待機の曲）
+
+オンライン対戦で、相手が決まるのを待っているあいだ（演出の「検索中」。`OnlineStagingDirector` の `CRUISE`）に流す曲。ユーザーが用意した Suno の曲を、そのまま使った。
+
+| 項目 | 内容 |
+|---|---|
+| 生成元 | Suno「Syncopated Groove」（ユーザー katsuyu2354）、2026-10-12T13:38:44Z、id `d0298999-0745-4bf8-8c22-2d8d929c384f` |
+| 元ファイル | `assets/audio/bgm/source/quiz_match_original.mp3`（176.4秒、48kHzステレオ、−15.6 LUFS、ピーク −2.8 dBFS） |
+| テンポ | 116.54 BPM（1拍 0.51484秒）、全体を通してほぼ安定（30秒ごとの拍の位置のずれは、最初の30秒が 32 ミリ秒、それ以降は 10 ミリ秒以内）。音量は最初から終わりの 4 秒前まで −16 dB 前後でほぼ一定 |
+| 構成 | 180拍（約92.7秒）で同じ流れに戻る。拍ごとの和音・帯域ごとの音色・打点の一致が最も高く、音量差は 0.0 dB |
+| ループ区間 | 初回はファイルの頭から流し、2周目からは63.587秒に戻る。戻り目は156.267秒で、ループは92.679秒（180拍） |
+| 納品ファイル | `assets/audio/bgm/quiz_match_loop.ogg`（156.266秒、48kHzステレオ、Ogg Vorbis 品質6、−16.1 LUFS、ピーク −3.4 dBFS） |
+| インポート設定 | `loop=true`、`loop_offset=63.587`、`bpm=116.54`、`beat_count=0`、`bar_beats=4` |
+
+- **戻り位置の選び方**：拍を足場に、つなぎ目の前 16 拍（4 小節）の和音・音色・打点を、戻り目と戻り先で比べて選んだ（和音の一致 0.94、音色の差 0.23、打点の相関 0.66）。曲の終わりの約 4 秒（フェードアウト）は使わない。
+- **つなぎ目の処理**：拍の頭の 40 ミリ秒前に区切りを置き、ファイルの終わりの 30 ミリ秒を戻り先の直前の音へ等パワーでクロスフェードした。戻り目の位置は、前 0.8 秒の音量の変化の相関で ±30 ミリ秒の範囲を探して +7.7 ミリ秒合わせた。つなぎ目の段差（0.0210）は、元の曲でその位置が自然につながっているときの段差（0.0210）と同じ。
+- **確認**：`tests/bgm_loop_seam_check.gd` で、Godot のデコーダで戻った後の音が戻り先から直接再生した音と相関 0.991 で一致し、つなぎ目の段差は 0.0174（通常のサンプル間の変化の 99.9 パーセンタイルは 0.146）。
+- **頭の処理**：最初のサンプルが無音ではないので、3ミリ秒のフェードインを付けた。
+- **流れる場面**：ヘリポートのトップとスキン設定などはメニュー曲のまま。乗り込みが始まると、メニュー曲を止めずに音量だけ −16 dB まで下げ（0.6秒。通常は −4 dB）、離陸・急発進して暗転しきるまではヘリの効果音を聞かせる。暗転が明けて「検索中」に入ったら、この曲にクロスフェードして音量を通常に戻し、検索を探し直すときも流れ続ける。やめる・失敗・時間切れでヘリポートに戻ると、メニュー曲が通常の音量に戻る。相手が決まった後は合流・VS カットイン・読み込みまでこの曲のまま続き、ゲーム画面に入ると 0.8 秒で消える（今まで通り）。乗り込みの途中で相手が決まったときは検索中を通らないので、下げた音量のメニュー曲のままゲームへ進む。
 
 ## 共通スタイル（全プロンプトの末尾に付ける）
 
@@ -539,7 +759,8 @@ Game-over screen loop, 92 BPM, D minor, 4/4. Droll, slapstick "better luck next 
 
 | ゲーム状態 | 再生する素材 |
 |---|---|
-| startup_loading / main_menu / customize / online_lobby | `bgm_menu` |
+| startup_loading / main_menu / customize | `bgm_menu` |
+| online_menu（オンライン対戦画面。VSカットインからゲーム画面へ移るまで） | `bgm_online` |
 | game_world に入ってヘリ降下、PRELOADING / WAITING_START / FLYOVER | `bgm_intro` |
 | COUNTDOWN | `sting_countdown`（チュートリアルは1.0秒の位置から） |
 | PLAYING / CORRECT | のこぎり追跡中は `bgm_chase`、チュートリアルは `bgm_tutorial`、それ以外は `bgm_play` |
@@ -549,4 +770,23 @@ Game-over screen loop, 92 BPM, D minor, 4/4. Droll, slapstick "better luck next 
 | GAME_OVER | `jingle_gameover` → `bgm_gameover` |
 | ポーズ | 再生中の曲にローパスフィルターをかけて −10dB |
 
-`audio_manager.gd` は今のところプレイヤーが1つで音量しか変えないので、曲の切り替え（クロスフェード、または `AudioStreamInteractive` で小節の頭で切り替え）を新しく実装する必要がある。素材がそろってから実装する。
+### 今の実装（2026年10月12日）
+
+上の表は最終形。今は3曲だけで、次のように切り替えている。
+
+| ゲーム状態 | 曲 |
+|---|---|
+| メニュー | メニュー曲（`quiz_party_loop.ogg`） |
+| ゲーム画面に入ってから（ヘリ到着）、WAITING_START / FLYOVER / COUNTDOWN | 曲なし（`MUSIC_TRACK_NONE`）。メニュー曲を0.8秒でフェードアウトし、観客のざわめきだけを流す（2026年10月12日から） |
+| PLAYING / CORRECT / GOAL_RACE | プレイ曲（`quiz_play_loop.ogg`）。PLAYING になった瞬間に頭から流す |
+| CLEAR | 結果画面の曲（`quiz_result_loop.ogg`、頭から） |
+| RESULT_CEREMONY | 判定（6.9秒）までは曲なし（観客のざわめきとドラムロールだけ）。判定の瞬間に結果画面の曲を頭から流す（`ResultCeremonyDirector`、2026年10月12日から） |
+| GAME_OVER | 曲なし。プレイ曲を1秒でフェードアウトする（2026年10月12日まではメニュー曲が流れていた）。`bgm_gameover` ができたらここで流す |
+| SUDDEN_DEATH / MENU | メニュー曲（頭から） |
+| PRELOADING | 曲を変えない（エンドレスの途中の問題補充で PLAYING と行き来するため） |
+
+- `AudioManager.set_music_track()` が曲ごとのプレイヤーを持ち（`MUSIC_TRACK_NONE` は曲を止めたままにする）、前の曲を0.35秒でフェードアウトして止め、新しい曲を頭から0.35秒でフェードインする。同じ曲を指定したときは何もしない（流し続ける）。
+- 曲は `game_world.gd` の `_on_state_changed()` で選ぶ。ゲーム画面を出るとき（`_exit_tree()`）はメニュー曲に戻す。
+- 場面ごとの音量（`set_music_context()`）とチュートリアル中の音量下げは、今流れている曲にかかる。
+- 実際の流れで切り替わることを `tests/bgm_track_runtime.gd`（`--script res://tests/bgm_track_bootstrap.gd`）で確かめた。
+- **画面切り替えのフェード**（2026年10月12日から）：黒い画面の切り替え演出が画面を覆う割合（`SceneTransition.get_cover_factor()`）に合わせて、BGMバスと観客の声のバス（`Ambience`、SFXバスへ送る）の音量を下げる（`AudioManager._process()`）。覆うにつれてフェードアウトし、真っ黒の間（読み込み中）は無音、新しい画面が開くにつれてフェードインする。カーブは等パワー（半分覆うと約−3 dB）。どの切り替え方（ハーフトーンのワイプ、フェード、ドア、VSの分割）でも同じように動く。曲の切り替え（`set_music_track()`）は黒い間に起きるので、新しい曲は画面が開くのに合わせて聞こえ始める。

@@ -34,7 +34,6 @@ const EMOTE_SLOTS := [SLOT_EMOTE_1, SLOT_EMOTE_2, SLOT_EMOTE_3]
 ## 実行時に向きが決まるスロット。
 const DYNAMIC_EDGE := "toward_edge"
 const DYNAMIC_DOOR := "toward_door"
-const DYNAMIC_OPPONENT := "toward_opponent"
 
 const P1_COLOR := Color("ffa440")
 const P2_COLOR := Color("51d8ec")
@@ -366,9 +365,6 @@ func _resolve_slots(player_index: int, task: Dictionary, model: Dictionary) -> A
 				var dx := _door_x(target_door) - _player_position(player_index).x
 				if absf(dx) > 0.45:
 					out.append(SLOT_LEFT if dx > 0.0 else SLOT_RIGHT)
-			DYNAMIC_OPPONENT:
-				var other := 3 - player_index
-				out.append(SLOT_LEFT if _player_position(other).x > _player_position(player_index).x else SLOT_RIGHT)
 			_:
 				out.append(slot)
 	return out

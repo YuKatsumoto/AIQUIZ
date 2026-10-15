@@ -1,14 +1,11 @@
 extends CanvasLayer
 
 const OFFSCREEN_PLAYER_MARKER_SCRIPT := preload("res://scripts/ui/offscreen_player_marker.gd")
+const LOCAL_PLAYER_ARROW_SCRIPT := preload("res://scripts/ui/local_player_arrow.gd")
 const DuoTutorialOverlayScript := preload("res://scripts/ui/duo_tutorial_overlay.gd")
 const SoloTutorialOverlayScript := preload("res://scripts/ui/solo_tutorial_overlay.gd")
 const TutorialCompletionCardScript := preload("res://scripts/ui/tutorial_completion_card.gd")
 const ResultCeremonyOverlayScript := preload("res://scripts/ui/result_finale_hud.gd")
-const UnitSlotReelScript := preload("res://scripts/ui/unit_slot_reel.gd")
-## 単元スロット表示中に準備パネルを上下に広げる量（片側）と、リール行の上端（パネル上端から）
-const SLOT_REEL_PANEL_EXTRA_HALF := 20.0
-const SLOT_REEL_TOP := 108.0
 const OFFSCREEN_MARKER_EDGE_MARGIN := 78.0
 const OFFSCREEN_MARKER_NEAR_SCALE := 0.82
 const OFFSCREEN_MARKER_FAR_SCALE := 1.24
@@ -23,6 +20,10 @@ const REAR_EDGE_WARNING_MIN_ALPHA := 0.05
 const REAR_EDGE_WARNING_MAX_ALPHA := 0.34
 const REAR_EDGE_WARNING_MIN_BLINK_SPEED := 4.5
 const REAR_EDGE_WARNING_MAX_BLINK_SPEED := 9.0
+## オンライン：自分のキャラの頭上の矢印を、帽子の付け根からこれだけ上に出す（帽子に重ならない高さ）。
+const LOCAL_ARROW_HEAD_CLEARANCE := 0.7
+## オンライン：右上の ping 表示（NetOverlay）の下にスコアと連続正解を下げる量。
+const ONLINE_PING_RESERVED_HEIGHT := 34.0
 
 @onready var flash_rect: ColorRect = $FlashRect
 var _shark_impact_flash: float = 0.0
@@ -44,9 +45,6 @@ var _rear_edge_warning_time: float = 0.0
 @onready var start_prompt_label: Label = $PreloadPanel/StartPromptLabel
 var _start_prompt_row: KeyHintRow = null
 var _start_prompt_kind: String = ""
-## 単元スロット（進行バーの上）。抽選番号が変わったら回し、止まったら生成を解放する。
-var _slot_reel: UnitSlotReelScript = null
-var _slot_reel_serial: int = 0
 
 @onready var game_over_panel: Panel = $GameOverPanel
 @onready var go_title: Label = $GameOverPanel/Title
@@ -72,12 +70,13 @@ var _stats_panel: PanelContainer = null
 var _score_anim_timer: float = 0.0
 var _displayed_score: float = 0.0
 var _target_score: int = 0
-var _streak_label: Label = null
 var _confetti_fired: bool = false
 var _tutorial_panel: Control = null
 var _tutorial_completion_card: Control = null
 var _p1_offscreen_marker: Control = null
 var _p2_offscreen_marker: Control = null
+var _local_player_arrow: Control = null
+var _online_top_right_shifted := false
 var _gameplay_camera: Camera3D = null
 var _result_ceremony_overlay: Control = null
 
@@ -112,27 +111,13 @@ func _ready() -> void:
 	# フェードイン（ゲームシーン開始時）
 
 
-	# Create streak label for in-game display
-	_streak_label = Label.new()
-	_streak_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	_streak_label.add_theme_font_size_override("font_size", 18)
-	_streak_label.add_theme_color_override("font_color", Color(1.0, 0.6, 0.2))
-	_streak_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
-	_streak_label.add_theme_constant_override("outline_size", 3)
-	_streak_label.visible = false
-	# Position below the score label
-	_streak_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	_streak_label.offset_left = -200.0
-	_streak_label.offset_top = 44.0
-	_streak_label.offset_right = -16.0
-	_streak_label.offset_bottom = 68.0
-	add_child(_streak_label)
-
 	# Build the stats panel for game over (created once, updated per game)
 	_create_stats_panel()
 	_create_result_ceremony_overlay()
 	_create_tutorial_overlay()
 	_create_offscreen_player_markers()
+	_local_player_arrow = LOCAL_PLAYER_ARROW_SCRIPT.new() as Control
+	add_child(_local_player_arrow)
 
 
 
@@ -158,8 +143,13 @@ func _ready() -> void:
 func _return_to_main_menu() -> void:
 	if SceneTransition.is_transitioning():
 		return
-	await SceneTransition.fade_to_color_and_wait(Color.BLACK)
+	var online := game_state.net_online
+	var wipe_style := SceneTransition.WipeStyle.DATA if online else SceneTransition.WipeStyle.CIRCLE
+	await SceneTransition.fade_to_color_and_wait(Color.BLACK, false, wipe_style)
 	if not is_inside_tree():
+		return
+	if online:
+		OnlineMenu.return_from_match(get_tree())
 		return
 	game_state.reset_to_menu()
 	get_tree().change_scene_to_file("res://ui/main_menu.tscn")
@@ -192,6 +182,14 @@ func _create_result_ceremony_overlay() -> void:
 	)
 
 
+var _online_markers_labelled := false
+
+
+## リザルトのスコア欄の呼び名（オンラインは「じぶん」と相手のニックネーム）。
+func _result_label(slot: int) -> String:
+	return game_state.slot_label(slot) if game_state.net_online else "P%d" % slot
+
+
 func _create_offscreen_player_markers() -> void:
 	var p1_marker: Control = OFFSCREEN_PLAYER_MARKER_SCRIPT.new() as Control
 	p1_marker.name = "P1OffscreenMarker"
@@ -209,6 +207,11 @@ func _create_offscreen_player_markers() -> void:
 func _update_offscreen_player_markers(delta: float) -> void:
 	if _p1_offscreen_marker == null or _p2_offscreen_marker == null:
 		return
+	if game_state.net_online and not _online_markers_labelled:
+		# オンラインは「じぶん」と相手のニックネームで示す（1P/2P はローカル用の呼び名）。
+		_online_markers_labelled = true
+		_p1_offscreen_marker.call("configure", game_state.slot_label(1), Color(0.95, 0.55, 0.20))
+		_p2_offscreen_marker.call("configure", game_state.slot_label(2), Color(0.20, 0.65, 0.90))
 
 	var marker_state_active: bool = (
 		game_state.num_players >= 2
@@ -363,6 +366,55 @@ func _hide_offscreen_player_markers() -> void:
 		_p2_offscreen_marker.call("hide_marker")
 
 
+## オンライン対戦：カウントダウンが終わったら、自分が操作しているキャラの頭上に矢印を出す。
+## 画面の外にいるときはオフスクリーンマーカーに任せて隠す。
+func _update_local_player_arrow(delta: float) -> void:
+	if _local_player_arrow == null:
+		return
+	var slot: int = game_state.local_slot
+	var active: bool = (
+		game_state.net_online
+		and game_state.num_players >= 2
+		and game_state.game_state in [
+			Constants.STATE_PLAYING,
+			Constants.STATE_CORRECT,
+			Constants.STATE_GOAL_RACE,
+		]
+		and (game_state.p1_alive if slot == 1 else game_state.p2_alive)
+		and not (game_state.p1_waiting_for_shark if slot == 1 else game_state.p2_waiting_for_shark)
+	)
+	if not active:
+		_local_player_arrow.call("hide_arrow")
+		return
+	var world_root: Node3D = get_parent() as Node3D
+	if world_root == null:
+		_local_player_arrow.call("hide_arrow")
+		return
+	var player: PlayerController = world_root.get_node_or_null("Player") as PlayerController
+	if _gameplay_camera == null or not is_instance_valid(_gameplay_camera):
+		_gameplay_camera = world_root.get_node_or_null("CameraController/Camera3D") as Camera3D
+	if player == null or _gameplay_camera == null or not _gameplay_camera.is_inside_tree():
+		_local_player_arrow.call("hide_arrow")
+		return
+	var anchor: Vector3 = player.get_head_top_position(slot) + Vector3(0.0, LOCAL_ARROW_HEAD_CLEARANCE, 0.0)
+	if _gameplay_camera.is_position_behind(anchor) or not _gameplay_camera.is_position_in_frustum(anchor):
+		_local_player_arrow.call("hide_arrow")
+		return
+	_local_player_arrow.call("configure", Color(0.95, 0.55, 0.20) if slot == 1 else Color(0.20, 0.65, 0.90))
+	# 「じぶん」の札は 1 枚目の問題（壁）を突破するまで。current_wall_index はゲストにも同期される。
+	var show_label: bool = game_state.current_wall_index < 1
+	_local_player_arrow.call("point_at", _gameplay_camera.unproject_position(anchor), delta, show_label)
+
+
+## オンラインでは右上に ping を出すので、その下へスコアを一度だけ下げる。
+func _shift_top_right_for_online_ping() -> void:
+	if _online_top_right_shifted or not game_state.net_online:
+		return
+	_online_top_right_shifted = true
+	score_label.offset_top += ONLINE_PING_RESERVED_HEIGHT
+	score_label.offset_bottom += ONLINE_PING_RESERVED_HEIGHT
+
+
 func _show_feedback(txt: String) -> void:
 	btn_good.get_parent().visible = false
 	rate_feedback.text = txt
@@ -376,6 +428,8 @@ func _process(_dt: float) -> void:
 	var warning_speed := lerpf(REAR_EDGE_WARNING_MIN_BLINK_SPEED, REAR_EDGE_WARNING_MAX_BLINK_SPEED, _rear_edge_warning_strength())
 	_rear_edge_warning_time = fposmod(_rear_edge_warning_time + _dt * warning_speed, TAU)
 	_update_offscreen_player_markers(_dt)
+	_update_local_player_arrow(_dt)
+	_shift_top_right_for_online_ping()
 	if _result_ceremony_overlay != null:
 		_result_ceremony_overlay.update_overlay(_dt)
 
@@ -419,8 +473,6 @@ func _process(_dt: float) -> void:
 		message_label.visible = false
 		progress_bar.visible = false
 		game_over_panel.visible = false
-		if _streak_label != null:
-			_streak_label.visible = false
 		_update_flash()
 		_update_tutorial_overlay(_dt)
 		return
@@ -446,7 +498,6 @@ func _process(_dt: float) -> void:
 	_update_message()
 	_update_progress()
 	_update_flash()
-	_update_streak_label()
 	_update_tutorial_overlay(_dt)
 
 func play_shark_impact_flash() -> void:
@@ -472,7 +523,7 @@ func show_duo_stage_tutorial_complete(duration: float = 4.2) -> void:
 	_show_tutorial_completion_card("DuoStageCompletionCard", {
 		"step": "1 / 2  STAGE CLEAR",
 		"title": "ステージチュートリアル完了",
-		"body": "2人の操作と押し合い、海とゴーストシャーク、回転のこぎり、ハートと先着の得点、4択の壁を体験しました。",
+		"body": "2人の操作と押し合い、海とゴーストシャーク、回転のこぎり、ハートと先着の得点、4択の壁、スコアタワーの勝敗判定を体験しました。",
 		"progress": _duo_score_tower_summary(),
 		"footer": "自動でカスタマイズ紹介へ進みます　（ゲーム中は Esc で一時停止）",
 		"duration": duration,
@@ -483,6 +534,15 @@ func show_duo_stage_tutorial_complete(duration: float = 4.2) -> void:
 func _duo_score_tower_summary() -> String:
 	var lines: Array[String] = ["スコアタワー（10問チャレンジの勝敗）＝ 正解数 ×（残りハート＋0.5）"]
 	var parts: Array[String] = []
+	if game_state.result_presentation_active:
+		# ゴール後に実際のスコアタワーで確定した得点（脱落した人は正解数だけ）と勝敗。
+		for player_index: int in [1, 2]:
+			parts.append(game_state.get_result_formula_text(player_index))
+		var verdict := (
+			"引き分け" if game_state.result_winner == 0 else "P%dの勝ち" % game_state.result_winner
+		)
+		lines.append("このコースの結果　" + "　　".join(parts) + "　→ " + verdict)
+		return "\n".join(lines)
 	for player_index: int in [1, 2]:
 		var correct: int = game_state.score if player_index == 1 else game_state.player2_score
 		var hp: int = game_state.get_player_hp(player_index)
@@ -561,7 +621,6 @@ func _update_flash() -> void:
 var _displayed_progress: float = 0.0
 
 func _show_preloading(dt: float) -> void:
-	_update_slot_reel()
 	_apply_preload_stage_preview_layout()
 	preload_bg.visible = false
 	preload_panel.visible = true
@@ -576,14 +635,6 @@ func _show_preloading(dt: float) -> void:
 	pl_subtitle.text = "しばらくお待ちください"
 	pl_subtitle.visible = true
 	pl_status.text = game_state.status_text
-	if _slot_reel != null and _slot_reel.visible:
-		if _slot_reel.is_spinning():
-			pl_title.text = "Drawing this round's units..." if game_state.use_english_ui else "今回の単元を抽選中..."
-			pl_subtitle.text = "Quizzes are made from the units that land" if game_state.use_english_ui \
-				else "止まった単元から問題を作ります"
-			pl_status.text = "Drawing units" if game_state.use_english_ui else "単元を抽選中"
-		else:
-			pl_subtitle.text = "This round's units" if game_state.use_english_ui else "今回の単元"
 
 	var target: int = 1 if game_state.mode == Constants.MODE_ENDLESS else game_state.target_count
 	target = maxi(1, target)
@@ -603,8 +654,6 @@ var _sudden_death_panel_shown := false
 ## 2Pサドンデスの降下中、サドンデス用の問題（オンライン生成）か地下神殿の準備を待っている間。
 ## ゲーム開始時の問題準備と同じパネル・進み具合・文言を出す（docs/sudden_death_underground.md 第5.3節）。
 func _show_sudden_death_preparing(dt: float) -> void:
-	if _slot_reel != null:
-		_slot_reel.visible = false
 	_apply_preload_stage_preview_layout()
 	if not _sudden_death_panel_shown:
 		_sudden_death_panel_shown = true
@@ -615,8 +664,6 @@ func _show_sudden_death_preparing(dt: float) -> void:
 	message_label.visible = false
 	progress_bar.visible = false
 	game_over_panel.visible = false
-	if _streak_label != null:
-		_streak_label.visible = false
 	pl_progress.visible = true
 	pl_status.visible = true
 	_set_start_prompt_visible(false)
@@ -640,7 +687,6 @@ func _show_sudden_death_preparing(dt: float) -> void:
 
 var _blink_timer: float = 0.0
 func _show_waiting_start(dt: float) -> void:
-	_update_slot_reel()
 	_apply_preload_stage_preview_layout()
 	preload_bg.visible = false
 	preload_panel.visible = true
@@ -696,20 +742,11 @@ func _show_waiting_start(dt: float) -> void:
 
 
 func _apply_preload_stage_preview_layout() -> void:
-	# 単元スロット表示中はパネルを縦に広げ、サブタイトルと進行バーの間にリールの行を置く
-	var slot_extra := SLOT_REEL_PANEL_EXTRA_HALF if _slot_reel != null and _slot_reel.visible else 0.0
 	preload_panel.set_anchors_preset(Control.PRESET_CENTER)
 	preload_panel.offset_left = -300.0
 	preload_panel.offset_right = 300.0
-	preload_panel.offset_top = -120.0 - slot_extra
-	preload_panel.offset_bottom = 120.0 + slot_extra
-	if _slot_reel != null:
-		var slot_size: Vector2 = UnitSlotReelScript.SLOT_SIZE
-		_slot_reel.set_anchors_preset(Control.PRESET_CENTER_TOP)
-		_slot_reel.offset_left = -slot_size.x * 0.5
-		_slot_reel.offset_right = slot_size.x * 0.5
-		_slot_reel.offset_top = SLOT_REEL_TOP
-		_slot_reel.offset_bottom = SLOT_REEL_TOP + slot_size.y
+	preload_panel.offset_top = -120.0
+	preload_panel.offset_bottom = 120.0
 	pl_title.offset_left = -150.0
 	pl_title.offset_top = 20.0
 	pl_title.offset_right = 150.0
@@ -730,49 +767,6 @@ func _apply_preload_stage_preview_layout() -> void:
 	pl_title.add_theme_font_size_override("font_size", 26)
 	pl_subtitle.add_theme_font_size_override("font_size", 18)
 	pl_status.add_theme_font_size_override("font_size", 16)
-
-
-func _ensure_slot_reel() -> void:
-	if _slot_reel != null:
-		return
-	_slot_reel = UnitSlotReelScript.new()
-	_slot_reel.name = "UnitSlotReel"
-	_slot_reel.visible = false
-	preload_panel.add_child(_slot_reel)
-	_slot_reel.finished.connect(_on_slot_reel_finished)
-
-
-## スロット付きラウンドならリールを表示し、新しい抽選番号を見たら回し始める。
-func _update_slot_reel() -> void:
-	var units: PackedStringArray = game_state.get_slot_units()
-	if units.is_empty():
-		if _slot_reel != null:
-			_slot_reel.visible = false
-		return
-	_ensure_slot_reel()
-	_slot_reel.visible = true
-	var serial: int = game_state.get_slot_round_serial()
-	if serial == _slot_reel_serial:
-		return
-	_slot_reel_serial = serial
-	if game_state.game_state == Constants.STATE_PRELOADING:
-		_slot_reel.start(units, _slot_reel_pool(units))
-	else:
-		_slot_reel.show_result(units, _slot_reel_pool(units))
-
-
-func _slot_reel_pool(units: PackedStringArray) -> PackedStringArray:
-	var pool := PackedStringArray()
-	var data := CurriculumDB.load_grade(game_state.subject, game_state.grade)
-	for unit: Variant in data.get("units", []):
-		if unit is Dictionary and unit.has("name"):
-			pool.append(str(unit["name"]))
-	return pool if not pool.is_empty() else units
-
-
-func _on_slot_reel_finished() -> void:
-	if _slot_reel_serial == game_state.get_slot_round_serial():
-		game_state.release_slot_gate()
 
 
 func _ensure_start_prompt_row() -> void:
@@ -941,6 +935,10 @@ func _show_game_over() -> void:
 
 	# Bottom buttons
 	btn_history.visible = game_state.quiz_history.size() > 0
+	if game_state.net_online:
+		# オンラインは同じ相手ともう一度は始められないので、オンラインメニューへ戻して さがし直す。
+		btn_retry.visible = false
+		btn_menu.text = "オンラインメニューへ"
 
 func _build_result_card(is_clear: bool, explanation: String) -> void:
 	"""メインカード内に全リザルト情報を構築"""
@@ -1000,7 +998,7 @@ func _build_result_card(is_clear: bool, explanation: String) -> void:
 		hbox_scores.alignment = BoxContainer.ALIGNMENT_CENTER
 		hbox_scores.add_theme_constant_override("separation", 30)
 		root_vbox.add_child(hbox_scores)
-		_add_player_score_column(hbox_scores, "P1", current_score, anim_progress,
+		_add_player_score_column(hbox_scores, _result_label(1), current_score, anim_progress,
 			current_score > p2_score)
 		var vs_label := Label.new()
 		vs_label.text = "+" if is_tutorial else "vs"
@@ -1008,7 +1006,7 @@ func _build_result_card(is_clear: bool, explanation: String) -> void:
 		vs_label.add_theme_color_override("font_color", Color(0.5, 0.55, 0.65))
 		vs_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		hbox_scores.add_child(vs_label)
-		_add_player_score_column(hbox_scores, "P2", p2_score, anim_progress,
+		_add_player_score_column(hbox_scores, _result_label(2), p2_score, anim_progress,
 			p2_score > current_score)
 
 		# Winner
@@ -1021,7 +1019,11 @@ func _build_result_card(is_clear: bool, explanation: String) -> void:
 			root_vbox.add_child(done_label)
 		elif current_score != p2_score:
 			var wl := Label.new()
-			wl.text = "🏆 %s WIN!" % ("P1" if current_score > p2_score else "P2")
+			var winner_slot := 1 if current_score > p2_score else 2
+			if game_state.net_online:
+				wl.text = "🏆 あなたの かち！" if game_state.is_local_slot(winner_slot) else "🏆 %s の かち" % game_state.slot_label(winner_slot)
+			else:
+				wl.text = "🏆 %s WIN!" % ("P1" if winner_slot == 1 else "P2")
 			wl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 			wl.add_theme_font_size_override("font_size", 22)
 			wl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
@@ -1288,7 +1290,16 @@ func _update_score() -> void:
 			if game_state.is_coop_mode():
 				score_label.text = "協力: %d/%d" % [game_state.score, game_state.target_count]
 			else:
-				score_label.text = "P1: %d  P2: %d" % [game_state.score, game_state.player2_score]
+				if game_state.net_online:
+					# 自分のスコアを先に出す。
+					var mine := game_state.local_slot
+					var theirs := game_state.remote_slot()
+					score_label.text = "%s: %d  %s: %d" % [
+						game_state.slot_label(mine), game_state.score if mine == 1 else game_state.player2_score,
+						game_state.slot_label(theirs), game_state.score if theirs == 1 else game_state.player2_score,
+					]
+				else:
+					score_label.text = "P1: %d  P2: %d" % [game_state.score, game_state.player2_score]
 		else:
 			if game_state.mode == Constants.MODE_TEN:
 				score_label.text = "正解: %d  問題: %d/10" % [game_state.score, game_state.current_index + 1]
@@ -1296,31 +1307,6 @@ func _update_score() -> void:
 				score_label.text = "正解: %d" % game_state.score
 	else:
 		score_label.visible = false
-
-func _update_streak_label() -> void:
-	if not _streak_label:
-		return
-	if game_state.game_state in [Constants.STATE_PLAYING, Constants.STATE_CORRECT]:
-		if game_state.current_streak >= 2:
-			_streak_label.visible = true
-			_streak_label.text = "🔥 %d連続正解!" % game_state.current_streak
-			# Color intensifies with streak
-			var intensity := clampf(float(game_state.current_streak - 2) / 8.0, 0.0, 1.0)
-			_streak_label.add_theme_color_override("font_color", Color(
-				1.0,
-				0.6 - intensity * 0.3,
-				0.2 - intensity * 0.15
-			))
-			# Slight pulse on the streak label
-			var pulse := 0.85 + 0.15 * sin(_go_fade_timer * 6.0)  # reuse timer is 0 during gameplay, use correct_flash
-			if game_state.correct_flash > 0.0:
-				_streak_label.scale = Vector2(1.15, 1.15)
-			else:
-				_streak_label.scale = Vector2(1.0, 1.0)
-		else:
-			_streak_label.visible = false
-	else:
-		_streak_label.visible = false
 
 func _update_message() -> void:
 	if game_state.game_state == Constants.STATE_GOAL_RACE:

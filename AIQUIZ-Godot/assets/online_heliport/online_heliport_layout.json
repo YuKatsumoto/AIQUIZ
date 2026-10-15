@@ -1,0 +1,179 @@
+{
+  "version": 2,
+  "about": "AIQUIZ ONLINE HELIPORT v2（パッド 1 つ）。座標は Godot（オンラインメニューの 3D ワールド）。build_online_heliport.py が書き出す。カメラは演出の定数（online_staging_timeline.gd、ヘリの座標）をこのパッドの上に置いたもの（確認用）",
+  "deck_y": -1.2,
+  "sea_y": -9.2,
+  "pad": {
+    "center": [
+      0.0,
+      -1.2,
+      0.0
+    ],
+    "apothem": 9.0,
+    "lamp_count": 16
+  },
+  "helicopter": {
+    "position": [
+      0.0,
+      0.55,
+      0.0
+    ],
+    "yaw_deg": -90.0,
+    "skid_drop": 1.75,
+    "rotor_radius": 5.3,
+    "ground": [
+      0.0,
+      -1.2,
+      0.0
+    ]
+  },
+  "spots": {
+    "idle": [
+      1.4199999999999997,
+      -1.2,
+      -4.3
+    ]
+  },
+  "pivots": {
+    "windsock": [
+      4.8,
+      3.3,
+      6.6
+    ],
+    "windsock_yaw_deg": -60.0,
+    "flag_a": [
+      -7.5,
+      4.65,
+      3.2
+    ],
+    "flag_b": [
+      -6.7,
+      4.65,
+      4.7
+    ]
+  },
+  "cameras": {
+    "CAM_Idle": {
+      "position": [
+        8.6,
+        1.9,
+        -10.2
+      ],
+      "target": [
+        0.6,
+        0.5,
+        -1.0
+      ],
+      "rotation_deg": [
+        -6.551,
+        138.991,
+        0.0
+      ],
+      "fov": 40.0
+    },
+    "CAM_Board": {
+      "position": [
+        4.4,
+        0.25,
+        -7.2
+      ],
+      "target": [
+        1.3,
+        0.45,
+        -1.3
+      ],
+      "rotation_deg": [
+        1.719,
+        152.281,
+        0.0
+      ],
+      "fov": 42.0
+    },
+    "CAM_Cockpit": {
+      "position": [
+        6.6,
+        1.15,
+        -0.3
+      ],
+      "target": [
+        1.2,
+        0.95,
+        -0.0
+      ],
+      "rotation_deg": [
+        -2.118,
+        93.18,
+        0.0
+      ],
+      "fov": 34.0
+    },
+    "CAM_PadLow": {
+      "position": [
+        9.5,
+        -0.65,
+        -8.5
+      ],
+      "target": [
+        0.0,
+        1.2,
+        0.0
+      ],
+      "rotation_deg": [
+        8.257,
+        131.82,
+        0.0
+      ],
+      "fov": 50.0
+    },
+    "CAM_Overview": {
+      "position": [
+        -34.0,
+        22.0,
+        30.0
+      ],
+      "target": [
+        0.0,
+        -2.0,
+        0.0
+      ],
+      "rotation_deg": [
+        -27.892,
+        -48.576,
+        0.0
+      ],
+      "fov": 40.0
+    }
+  },
+  "city": {
+    "position": [
+      -563.4106401696499,
+      -9.2,
+      870.3133886163839
+    ],
+    "yaw_deg": 326.9909
+  },
+  "objects": [
+    "OHP_FlagA",
+    "OHP_FlagB",
+    "OHP_Pad",
+    "OHP_Pad_Lamps",
+    "OHP_Props",
+    "OHP_Windsock"
+  ],
+  "triangles": {
+    "OHP_Pad": 1380,
+    "OHP_Pad_Lamps": 1248,
+    "OHP_Props": 1868,
+    "OHP_Windsock": 812,
+    "OHP_FlagA": 90,
+    "OHP_FlagB": 90
+  },
+  "materials": {
+    "AQS_Painted": "頂点色の塗装（AiquizStadiumMaterials.painted）",
+    "AQS_NightGlow": "夜の灯（AiquizStadiumMaterials.glow）",
+    "OHP_PadDeck": "パッドの床（画像）",
+    "OHP_PadLamp": "縁の灯。UV2.x = 灯の番号 / lamp_count（追いかける光）",
+    "OHP_Net": "網。アルファで切り抜く・両面",
+    "OHP_Flag": "旗。UV2.x = 竿からの距離の割合（揺れの重み）・両面"
+  }
+}

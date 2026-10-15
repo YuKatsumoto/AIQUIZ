@@ -1,0 +1,563 @@
+{
+ "seconds": 3.1,
+ "glb": "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\vehicles\\helicopter_boarding\\helicopter_boarding.glb",
+ "glb_bytes": 0,
+ "exported": false,
+ "glb_check": {},
+ "triangles_total": 23404,
+ "triangles": {
+  "Body": 14104,
+  "DropBayFrame": 216,
+  "Door_L": 866,
+  "Door_R": 866,
+  "LandingLight": 80,
+  "Beacon": 214,
+  "Windows": 504,
+  "Interior": 596,
+  "DashScreens": 236,
+  "Seat_L": 232,
+  "Seat_R": 232,
+  "Booster_R": 44,
+  "Belt_L": 64,
+  "Belt_R": 76,
+  "Yoke_L": 244,
+  "Yoke_R": 244,
+  "FrameAndSkids": 480,
+  "Step_L": 148,
+  "MainRotor": 1908,
+  "MainRotorBlades": 456,
+  "TailRotor": 280,
+  "DropBayInterior": 8,
+  "DropHatchLeft": 12,
+  "DropHatchRight": 12,
+  "NavLight_L": 44,
+  "NavLight_R": 44,
+  "StrobeLights": 50,
+  "JetPod_L": 498,
+  "JetNozzle_L": 60,
+  "JetGlow_L": 14,
+  "JetPod_R": 498,
+  "JetNozzle_R": 60,
+  "JetGlow_R": 14
+ },
+ "surfaces_total": 81,
+ "surfaces": {
+  "Body": 7,
+  "DropBayFrame": 2,
+  "Door_L": 6,
+  "Door_R": 6,
+  "LandingLight": 1,
+  "Beacon": 1,
+  "Windows": 1,
+  "Interior": 6,
+  "DashScreens": 4,
+  "Seat_L": 2,
+  "Seat_R": 2,
+  "Booster_R": 1,
+  "Belt_L": 2,
+  "Belt_R": 2,
+  "Yoke_L": 2,
+  "Yoke_R": 2,
+  "FrameAndSkids": 1,
+  "Step_L": 3,
+  "MainRotor": 3,
+  "MainRotorBlades": 2,
+  "TailRotor": 1,
+  "DropBayInterior": 1,
+  "DropHatchLeft": 2,
+  "DropHatchRight": 2,
+  "NavLight_L": 1,
+  "NavLight_R": 1,
+  "StrobeLights": 1,
+  "JetPod_L": 4,
+  "JetNozzle_L": 3,
+  "JetGlow_L": 1,
+  "JetPod_R": 4,
+  "JetNozzle_R": 3,
+  "JetGlow_R": 1
+ },
+ "mesh_lint": {
+  "Body": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 120
+  },
+  "DropBayFrame": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 6
+  },
+  "Door_L": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 0
+  },
+  "Door_R": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 0
+  },
+  "LandingLight": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 1
+  },
+  "Beacon": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 2
+  },
+  "Windows": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 0
+  },
+  "Interior": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 5
+  },
+  "DashScreens": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 4
+  },
+  "Seat_L": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 0
+  },
+  "Seat_R": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 0
+  },
+  "Booster_R": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 0
+  },
+  "Belt_L": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 0
+  },
+  "Belt_R": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 0
+  },
+  "Yoke_L": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 6
+  },
+  "Yoke_R": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 6
+  },
+  "FrameAndSkids": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 6
+  },
+  "Step_L": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 2
+  },
+  "MainRotor": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 40
+  },
+  "MainRotorBlades": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 6
+  },
+  "TailRotor": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 10
+  },
+  "DropBayInterior": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 0
+  },
+  "DropHatchLeft": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 0
+  },
+  "DropHatchRight": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 0
+  },
+  "NavLight_L": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 0
+  },
+  "NavLight_R": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 0
+  },
+  "StrobeLights": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 2
+  },
+  "JetPod_L": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 7
+  },
+  "JetNozzle_L": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 0
+  },
+  "JetGlow_L": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 0
+  },
+  "JetPod_R": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 7
+  },
+  "JetNozzle_R": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 0
+  },
+  "JetGlow_R": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 0
+  }
+ },
+ "shell": {
+  "stations": 51,
+  "ring": 42,
+  "rims": 170,
+  "z_first": -3.14,
+  "z_last": 2.25,
+  "nose_theta_jump": 0.0524,
+  "stripe_z_end": 1.638,
+  "ring_order_fallbacks": 0,
+  "anchor_inexact": [],
+  "shell_width": 3.6396,
+  "door_keepout": {
+   "-2.75": 1.167,
+   "-2.7": 0.92,
+   "-2.65": 1.045,
+   "-2.6": 0.726,
+   "-2.55": 0.574,
+   "-2.5": 0.689,
+   "-2.45": 0.461,
+   "-2.4": 0.63,
+   "-2.35": 0.387,
+   "-2.3": 0.482,
+   "-2.25": 0.338,
+   "-2.2": 0.362,
+   "-2.15": 0.443,
+   "-2.1": 0.283,
+   "-2.05": 0.32,
+   "-2.0": 0.422,
+   "-1.95": 0.241,
+   "-1.9": 0.299,
+   "-1.85": 0.743,
+   "-1.8": 0.219,
+   "-1.75": 0.307,
+   "-1.7": 0.559,
+   "-1.65": 0.228,
+   "-1.6": 0.607,
+   "-1.55": 0.326,
+   "-1.5": 0.323,
+   "-1.45": 0.246,
+   "-1.4": 0.349,
+   "-1.35": 0.789,
+   "-1.3": 0.268,
+   "-1.25": 0.375,
+   "-1.2": 0.663,
+   "-1.15": 0.293,
+   "-1.1": 0.405,
+   "-1.05": 0.447,
+   "-1.0": 0.323,
+   "-0.95": 0.522,
+   "-0.9": 0.44,
+   "-0.85": 0.599,
+   "-0.8": 0.357,
+   "-0.75": 0.713,
+   "-0.7": 0.387,
+   "-0.65": 0.645,
+   "-0.6": 0.35,
+   "-0.55": 0.35
+  },
+  "door_ceiling_band": {
+   "x": [
+    0.184,
+    1.691
+   ],
+   "y": [
+    0.816,
+    3.425
+   ],
+   "z": [
+    -2.276,
+    -0.564
+   ],
+   "points": 157
+  }
+ },
+ "checks": [
+  {
+   "check": "名前に .001 がない",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "必要なノードがそろう",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "マーカーがそろう",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "三角形の合計",
+   "ok": true,
+   "detail": "23404（上限 40000）"
+  },
+  {
+   "check": "なめらかな面はすべて溶接してある",
+   "ok": true,
+   "detail": "{}"
+  },
+  {
+   "check": "溶接の頂点の数が予定どおり",
+   "ok": true,
+   "detail": "{}"
+  },
+  {
+   "check": "同じ点を 2 度通る面がない",
+   "ok": true,
+   "detail": "{}"
+  },
+  {
+   "check": "me.validate() が何も直さない",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "色替えの材質 BodyPaint がある",
+   "ok": true,
+   "detail": "BodyAccent, BodyPaint, Charcoal, DashDark, DropHatchInterior, Floor, Interior, JetGlow, LampWhite, Metal, NavGreen, NavRed, Rubber, ScreenGlow, SeatFabric, Trim, Windows"
+  },
+  {
+   "check": "ガラスの材質 Windows がある",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "Door_L の原点",
+   "ok": true,
+   "detail": "[-0.35, 1.4057, -2.25]"
+  },
+  {
+   "check": "Door_R の原点",
+   "ok": true,
+   "detail": "[0.35, 1.4057, -2.25]"
+  },
+  {
+   "check": "MainRotor の原点",
+   "ok": true,
+   "detail": "[0.0, 2.35, -0.0]"
+  },
+  {
+   "check": "MainRotorBlades の原点",
+   "ok": true,
+   "detail": "[0.0, 2.35, -0.0]"
+  },
+  {
+   "check": "TailRotor の原点",
+   "ok": true,
+   "detail": "[-0.03, 1.67, 6.36]"
+  },
+  {
+   "check": "DropHatchLeft の原点",
+   "ok": true,
+   "detail": "[-0.65, -1.26, 0.4]"
+  },
+  {
+   "check": "DropHatchRight の原点",
+   "ok": true,
+   "detail": "[0.65, -1.26, 0.4]"
+  },
+  {
+   "check": "JetPod_L の原点",
+   "ok": true,
+   "detail": "[-1.4718, 1.33, 0.75]"
+  },
+  {
+   "check": "JetPod_R の原点",
+   "ok": true,
+   "detail": "[1.4718, 1.33, 0.75]"
+  },
+  {
+   "check": "Door_L のヒンジの向き",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "たたんだポッドが胴体に入らない",
+   "ok": true,
+   "detail": "{'inside': 0, 'min_gap': 0.048, 'deployed_top': 3.35}"
+  },
+  {
+   "check": "広げたポッドがローターの円の下",
+   "ok": true,
+   "detail": "3.350"
+  },
+  {
+   "check": "胴体の殻の幅（設計 3.64）",
+   "ok": true,
+   "detail": "3.640"
+  },
+  {
+   "check": "Body の幅（ホイスト込み）< 4.2",
+   "ok": true,
+   "detail": "3.820"
+  },
+  {
+   "check": "開いていくドアが部品に当たらない（3° ごと、ヒンジの軸の近くは除く）",
+   "ok": true,
+   "detail": "{\"overlaps\": 0, \"first\": []}"
+  },
+  {
+   "check": "開いたドアの不透明な面が客室の天井より下に入らない",
+   "ok": true,
+   "detail": "{\"inside\": 0, \"first\": []}"
+  },
+  {
+   "check": "床下ハッチの開口の下に部品がない",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "check": "スキッドのほかは地面から 0.05 より上",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "check": "乗り込みの通り道（外とドアの口）が空いている",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "check": "羽根（MainRotorBlades）はハブ（MainRotor）の子",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "金属の材質 Metal がある",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "開いていくドアとローター（ハブ・羽根・マスト）の隙間 ≥ 0.08",
+   "ok": true,
+   "detail": "{\"min\": 0.1352, \"L\": {\"min\": 0.1352, \"at_deg\": 90.0}, \"R\": {\"min\": 0.1352, \"at_deg\": 90.0}}"
+  },
+  {
+   "check": "止めた羽根の先（r > 4）の高さ ≥ 3.42",
+   "ok": true,
+   "detail": "3.953"
+  },
+  {
+   "check": "回らない部品はローターの羽根の高さより下",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "check": "尾のファンがダクトの中（半径・厚み）",
+   "ok": true,
+   "detail": "{\"reach\": 0.4534, \"x_max\": 0.0552, \"bottom\": 2.9666}"
+  },
+  {
+   "check": "尾のファンの下端が、いちばん高い帽子（2.916）より上",
+   "ok": true,
+   "detail": "2.967"
+  },
+  {
+   "check": "メインローターの先の円と尾 ≥ 0.30",
+   "ok": true,
+   "detail": "0.483"
+  },
+  {
+   "check": "灯の物は面（材質）が 1 つ（Godot が全部の面を光らせる）",
+   "ok": true,
+   "detail": "{}"
+  },
+  {
+   "check": "輪の目印の順番が崩れない（今までの割り振りに戻った輪がない）",
+   "ok": true,
+   "detail": "0"
+  },
+  {
+   "check": "ドア・ハッチ・風防の目印はそのまま（混ぜていない）",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "check": "正面とコックピットのカメラから顔と「?」が見える",
+   "ok": true,
+   "detail": "{\"ok\": true, \"hits\": {\"CAM_Front:hatena_face\": \"0/61\", \"CAM_Front:hatena_mark\": \"0/10\", \"CAM_Front:player_face\": \"0/3\", \"CAM_CockpitGame:hatena_face\": \"0/61\", \"CAM_CockpitGame:hatena_mark\": \"0/10\", \"CAM_CockpitGame:player_face\": \"0/3\"}, \"entry_max\": {\"CAM_Front:hatena_face\": 2.21, \"CAM_Front:hatena_mark\": 2.828, \"CAM_Front:player_face\": 2.197, \"CAM_CockpitGame:hatena_face\": 2.206, \"CAM_CockpitGame:hatena_mark\": 2.743, \"CAM_CockpitGame:player_face\": 2.191}}"
+  }
+ ],
+ "warnings": [],
+ "bake": [],
+ "renders": {}
+}

@@ -29,6 +29,10 @@ const TEXT_JA := {
 	"StatsFinished": "10問完走   •   プレイ時間 %.1f 秒", "StatsEliminated": "全員脱落   •   プレイ時間 %.1f 秒",
 	"VerdictSubWin": "おめでとう！", "VerdictSubDraw": "いい勝負！",
 	"BtnRetryText": "もう一度", "BtnHistoryText": "履歴", "BtnMenuText": "メニュー",
+	"NoteTitle": "得点の計算",
+	"NoteFormula": "正解数 ×（残りハート＋0.5）",
+	"NoteGhost": "脱落した人は 正解数 だけ",
+	"NoteFooter": "合計が大きい方の勝ち\nEnter・Space・右Ctrl で勝敗発表へ",
 }
 const TEXT_EN := {
 	"TitleText": "SCORE TOWER", "RuleText": "CORRECT × (HP LEFT + 0.5)",
@@ -37,7 +41,14 @@ const TEXT_EN := {
 	"StatsFinished": "10 questions finished   •   %.1f sec", "StatsEliminated": "Everyone was eliminated   •   %.1f sec",
 	"VerdictSubWin": "CONGRATULATIONS!", "VerdictSubDraw": "WHAT A MATCH!",
 	"BtnRetryText": "Play again", "BtnHistoryText": "History", "BtnMenuText": "Menu",
+	"NoteTitle": "HOW THE SCORE WORKS",
+	"NoteFormula": "CORRECT × (HEARTS + 0.5)",
+	"NoteGhost": "Eliminated: CORRECT only",
+	"NoteFooter": "Higher total wins\nEnter / Space / Right Ctrl: verdict",
 }
+## 2Pチュートリアルの得点説明パネル（キャンバス座標）。タイトル（y 106 まで）の下で、
+## タワーに立つ2人（左右）の間の列に収め、審判と下部の得点カード（y 512-688）にも掛けない。
+const NOTE_RECT := Rect2(475, 140, 330, 236)
 
 
 class AeLayer extends Control:
@@ -49,6 +60,11 @@ class AeLayer extends Control:
 	var mirror_x := false
 	var extra_scale := 1.0
 	var highlight := 0.0
+	## 角丸の矩形を上から下へこの色の順でぬる（勝者の P1/P2 バッジ＝キャラの頭・胴・足）。空なら fill_color。
+	var fill_gradient: Array[Color] = []
+	## 文字のふち（AE に stroke がない文字へ足す。0 ならなし）
+	var outline_size := 0
+	var outline_color := Color.BLACK
 	var font_variation: FontVariation
 	## When set, text is right-aligned to this x (layer space) instead of AE's
 	## justification, so a counting number keeps its last digit in place.
@@ -125,6 +141,9 @@ class AeLayer extends Control:
 				box.bg_color = fill_color if shape.has("fill") else Color.TRANSPARENT
 				box.set_corner_radius_all(int(minf(float(shape.get("radius", 0.0)) + grow, minf(rect.size.x, rect.size.y) * 0.5)))
 				box.anti_aliasing = true
+				if shape.has("fill") and not fill_gradient.is_empty():
+					PlayerBadgePaint.fill_rounded_gradient(self, rect, float(box.corner_radius_top_left), fill_gradient)
+					box.draw_center = false
 				if shape.has("stroke"):
 					box.border_color = _color(shape.stroke, 1.0)
 					box.set_border_width_all(int(round(stroke_width)))
@@ -153,6 +172,8 @@ class AeLayer extends Control:
 			if text_spec.has("stroke"):
 				draw_string_outline(font_variation, origin, text, alignment, width, font_size,
 					int(round(float(text_spec.strokeWidth))), _color(text_spec.stroke, 1.0))
+			elif outline_size > 0:
+				draw_string_outline(font_variation, origin, text, alignment, width, font_size, outline_size, outline_color)
 			draw_string(font_variation, origin, text, alignment, width, font_size, fill_color)
 
 
@@ -204,6 +225,10 @@ var _buttons: Array[Button] = []
 var _stats: Label
 var _burst_frames: Array[Texture2D] = []
 var _lock_frames: Array[Texture2D] = []
+var _note: PanelContainer
+var _note_lines: Array[Label] = []
+var _note_footer: Label
+var _note_elapsed := 0.0
 
 
 func setup(state: QuizGameState, retry_action: Callable, history_action: Callable, menu_action: Callable) -> void:
@@ -377,12 +402,18 @@ func _configure_content(winner: int) -> void:
 		elif short == "VerdictSub":
 			layer.text = _text("VerdictSubDraw" if winner == 0 else "VerdictSubWin")
 	if winner > 0:
+		# 勝者のバッジは、そのキャラの 頭・胴・足 の色の縦グラデーション
+		var badge_colors := PlayerBadgePaint.colors_for(game_state, winner)
 		var chip := _named.get("Verdict/PlayerChip") as AeLayer
 		if chip != null:
 			chip.fill_color = Color(P_COLORS[winner - 1], 1.0)
+			chip.fill_gradient = badge_colors
 		var chip_text := _named.get("Verdict/PlayerChipText") as AeLayer
 		if chip_text != null:
 			chip_text.text = "P%d" % winner
+			chip_text.fill_color = PlayerBadgePaint.ink_for(badge_colors)
+			chip_text.outline_size = 6 if chip_text.fill_color != INK else 0
+			chip_text.outline_color = INK
 	# An eliminated finalist scores its correct answers only: no HP factor.
 	for player_index in [1, 2]:
 		if game_state.is_result_ghost(player_index):
@@ -405,6 +436,7 @@ func update_overlay(delta: float) -> void:
 		_was_active = false
 		_focused = false
 		_interactive_elapsed = 0.0
+		_update_tutorial_note(0.0)
 		return
 	if not _was_active or _built_winner != game_state.result_winner:
 		_build(game_state.result_winner)
@@ -422,6 +454,7 @@ func update_overlay(delta: float) -> void:
 	for layer: AeLayer in _layers:
 		layer.apply(frame)
 	_update_fx(time)
+	_update_tutorial_note(delta)
 	for button: Button in _buttons:
 		button.visible = interactive
 		var layer := button.get_parent() as AeLayer
@@ -433,6 +466,90 @@ func update_overlay(delta: float) -> void:
 		if not _focused and not _suppressed and not _buttons.is_empty():
 			_buttons[0].grab_focus()
 			_focused = true
+
+
+## 2Pチュートリアル: スコアタワーの得点が出そろって止まっている間だけ、計算方法と
+## 2人の実際の計算式を出す。勝敗はまだ伏せたまま。
+func _update_tutorial_note(delta: float) -> void:
+	var show := (
+		game_state != null
+		and visible
+		and game_state.has_method("is_tutorial_score_pause_active")
+		and game_state.is_tutorial_score_pause_active()
+	)
+	if not show:
+		_note_elapsed = 0.0
+		if _note != null:
+			_note.visible = false
+		return
+	if _note == null:
+		_build_tutorial_note()
+	_note_elapsed += maxf(0.0, delta)
+	_note.visible = true
+	_note.modulate.a = smoothstep(0.0, 0.25, _note_elapsed)
+	_note_lines[0].text = _text("NoteTitle")
+	_note_lines[1].text = _text("NoteFormula")
+	_note_lines[2].text = _text("NoteGhost")
+	_note_lines[2].visible = game_state.result_ghost_mask != 0
+	for player_index in [1, 2]:
+		_note_lines[2 + player_index].text = game_state.get_result_formula_text(player_index)
+	_note_footer.text = _text("NoteFooter")
+	# 再開を受け付ける前は薄く、受け付けたら点滅させてキーを促す。
+	_note_footer.modulate.a = (
+		0.75 + 0.25 * sin(_note_elapsed * 5.0)
+		if game_state.can_resume_tutorial_score_pause()
+		else 0.4
+	)
+
+
+func _build_tutorial_note() -> void:
+	_note = PanelContainer.new()
+	_note.name = "TutorialScoreNote"
+	_note.position = NOTE_RECT.position
+	_note.custom_minimum_size = NOTE_RECT.size
+	_note.size = NOTE_RECT.size
+	_note.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var box := StyleBoxFlat.new()
+	box.bg_color = Color(INK, 0.86)
+	box.border_color = Color(GOLD, 0.9)
+	box.set_border_width_all(3)
+	box.set_corner_radius_all(18)
+	box.content_margin_left = 14.0
+	box.content_margin_right = 14.0
+	box.content_margin_top = 12.0
+	box.content_margin_bottom = 12.0
+	_note.add_theme_stylebox_override("panel", box)
+	var column := VBoxContainer.new()
+	column.alignment = BoxContainer.ALIGNMENT_CENTER
+	column.add_theme_constant_override("separation", 4)
+	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_note.add_child(column)
+	# タイトル・式・脱落の補足・P1・P2 の順。
+	var specs := [[22, GOLD], [19, PALE], [14, PALE], [24, P_COLORS[0]], [24, P_COLORS[1]]]
+	_note_lines.clear()
+	for spec: Array in specs:
+		var label := _make_note_label(int(spec[0]), spec[1])
+		column.add_child(label)
+		_note_lines.append(label)
+	_note_footer = _make_note_label(14, PALE)
+	column.add_child(_note_footer)
+	# 演出の HUD（_root）は勝者ごとに作り直すので、パネルはキャンバス直下に置く。
+	_canvas.add_child(_note)
+
+
+func _make_note_label(font_size: int, color: Color) -> Label:
+	var label := Label.new()
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	# 英語など長い文はパネルの幅で折り返す。
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.custom_minimum_size.x = NOTE_RECT.size.x - 28.0
+	label.add_theme_font_override("font", FONT)
+	label.add_theme_font_size_override("font_size", font_size)
+	label.add_theme_color_override("font_color", color)
+	label.add_theme_color_override("font_outline_color", INK)
+	label.add_theme_constant_override("outline_size", 4)
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return label
 
 
 func _totals() -> Array[int]:
@@ -543,4 +660,7 @@ func get_debug_snapshot() -> Dictionary:
 		"verdict_rect": verdict.get_global_rect() if verdict != null else Rect2(),
 		"cards": cards, "burst_frame": _burst.index if _burst != null else -1,
 		"lock_frames": _lock_rings.map(func(ring: FxSprite): return ring.index),
-		"canvas_rect": _canvas.get_global_rect()}
+		"canvas_rect": _canvas.get_global_rect(),
+		"tutorial_note_visible": _note != null and _note.visible,
+		"tutorial_note_rect": _note.get_global_rect() if _note != null else Rect2(),
+		"tutorial_note_lines": _note_lines.map(func(label: Label): return label.text)}

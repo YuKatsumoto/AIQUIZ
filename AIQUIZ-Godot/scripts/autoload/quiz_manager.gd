@@ -38,4 +38,6 @@ func _ready() -> void:
 	add_child(player_analytics)
 	
 	game_state = QuizGameState.new(provider)
+	# 保存済みの見た目（体の塗りと帽子）を反映する。
+	PlayerSkinStore.load_into(game_state)
 	print("[QuizManager] Started with BufferedQuizProvider, FirebaseQuizCache, FirebaseRatings, QuizOptimizer, QuizValidator, and PlayerAnalytics.")

@@ -140,7 +140,8 @@ func run() -> void:
 				check(bool(m.get("exited_frame", false)), "%s disappears outside frame" % key)
 	if players == 2:
 		check(pair_crossed, "helicopter screen paths cross after passenger release")
-		check(pair_min_distance >= 10.0, "crossing rotor clearance: %.2f m between aircraft" % pair_min_distance)
+		# Rotor diameter of the boarding helicopter is 10.6 m.
+		check(pair_min_distance >= 10.8, "crossing rotor clearance: %.2f m between aircraft" % pair_min_distance)
 
 	if extras and arrival_completed:
 		await check_retry_and_skip()

@@ -1,0 +1,215 @@
+extends SceneTree
+
+## 乗り込めるヘリ（helicopter_boarding.glb）の取り込み結果を確かめる（自動読み込みを使わない静的なチェック）。
+##   構造：ノード名・マーカーの位置（layout JSON と一致）・回る部品の原点・ドアのヒンジの向き・材質名・頂点色・三角形と面（surface）の数
+##   動き：左のドアをヒンジのまわりに -90° 回すと、上へ開く（外板が屋根より上に出る）
+##         ジェットのポッドを deploy_deg だけ回すと翼が水平になり、噴射口が真後ろ（+Z）を向き、ローターの円より下にある
+## ゲームと同じ OnlineHeliportHelicopter での確かめと撮影は tests/helicopter_boarding_runtime.gd（bootstrap から読む）。
+## ./Godot_v4.7.2-stable_win64_console.exe --headless --path . --script res://tests/helicopter_boarding_check.gd
+
+const GLB := "res://assets/vehicles/helicopter_boarding/helicopter_boarding.glb"
+const LAYOUT := "res://assets/vehicles/helicopter_boarding/helicopter_boarding_layout.json"
+const REQUIRED := ["Body", "Windows", "Door_L", "Door_R", "MainRotor", "MainRotorBlades", "TailRotor", "StrobeLights", "DropHatchLeft", "DropHatchRight",
+	"DropBayFrame", "DropBayInterior", "FrameAndSkids", "Interior", "DashScreens", "Seat_L", "Seat_R", "Booster_R",
+	"Yoke_L", "Yoke_R", "Belt_L", "Belt_R", "Step_L", "NavLight_L", "NavLight_R", "Beacon", "Markers",
+	"JetPod_L", "JetPod_R", "JetNozzle_L", "JetNozzle_R", "JetGlow_L", "JetGlow_R"]
+const TRI_BUDGET := 40000
+const SURFACE_BUDGET := 100
+
+var report := {"passed": true, "problems": [], "checks": 0}
+
+
+func _initialize() -> void:
+	call_deferred("run")
+
+
+func check(ok: bool, label: String) -> void:
+	report.checks += 1
+	if not ok:
+		report.passed = false
+		report.problems.append(label)
+
+
+func run() -> void:
+	var packed := load(GLB) as PackedScene
+	check(packed != null, "GLB loads")
+	if packed == null:
+		_finish()
+		return
+	var layout: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(LAYOUT))
+	check(layout != null and layout.has("markers"), "layout JSON loads")
+	var heli := packed.instantiate() as Node3D
+	root.add_child(heli)
+	for name: String in REQUIRED:
+		check(heli.find_child(name, true, false) != null, "node %s exists" % name)
+	# マーカー
+	var worst := 0.0
+	for name: String in layout.markers:
+		var marker := heli.find_child(name, true, false) as Node3D
+		check(marker != null, "marker %s exists" % name)
+		if marker == null:
+			continue
+		var want: Array = layout.markers[name].position
+		var d := (marker.global_position - Vector3(want[0], want[1], want[2])).length()
+		worst = maxf(worst, d)
+		if layout.markers[name].yaw_deg != null:
+			var yaw := rad_to_deg(marker.global_basis.get_euler().y)
+			check(absf(wrapf(yaw - float(layout.markers[name].yaw_deg), -180.0, 180.0)) < 0.5, "marker %s yaw (%.1f)" % [name, yaw])
+	report["marker_worst_offset"] = snappedf(worst, 0.0001)
+	check(worst < 0.002, "markers match the layout (worst %.4f)" % worst)
+	# 回る部品の原点
+	for key: String in ["main_rotor", "tail_rotor"]:
+		var node := heli.find_child(layout[key].node, true, false) as Node3D
+		var p: Array = layout[key].pivot
+		check(node != null and node.global_position.distance_to(Vector3(p[0], p[1], p[2])) < 0.002, "%s pivot" % key)
+	# ローター：羽根（MainRotorBlades）はハブ（MainRotor）の子で、原点と向きは同じ。3 枚、止めると 1 枚が機首の上
+	var hub_node := heli.find_child("MainRotor", true, false) as Node3D
+	var blades_node := heli.find_child("MainRotorBlades", true, false) as Node3D
+	check(blades_node != null and blades_node.get_parent() == hub_node, "MainRotorBlades is a child of MainRotor")
+	check(blades_node != null and blades_node.transform.is_equal_approx(Transform3D.IDENTITY), "MainRotorBlades shares the hub pivot")
+	check(int(layout.main_rotor.get("blades", 0)) == 3 and is_zero_approx(float(layout.main_rotor.get("park_deg", -1.0))), "layout: 3 blades parked at 0")
+	check(float(layout.main_rotor.get("radius", 0.0)) > 5.0, "layout: main_rotor.radius")
+	var metal := _material(heli, "Metal") as BaseMaterial3D
+	check(metal != null and metal.metallic >= 0.7, "Metal material is metallic")
+	# 尾のフェネストロン：TailRotor はファンの羽根だけ。ローカル X で回り、羽根の先はダクトの中、厚みは囲いの中
+	var tail_info: Dictionary = layout.get("tail_rotor", {})
+	var fan := heli.find_child("TailRotor", true, false) as MeshInstance3D
+	check(str(tail_info.get("type", "")) == "fenestron", "layout: tail_rotor is a fenestron")
+	if fan != null:
+		check(fan.global_basis.x.normalized().distance_to(Vector3.RIGHT) < 0.001, "TailRotor spins on local X")
+		var reach := 0.0
+		var x_max := 0.0
+		for s in range(fan.mesh.get_surface_count()):
+			for v: Vector3 in fan.mesh.surface_get_arrays(s)[Mesh.ARRAY_VERTEX]:
+				reach = maxf(reach, Vector2(v.y, v.z).length())
+				x_max = maxf(x_max, absf(v.x + fan.position.x))
+		report["tail_fan_reach"] = snappedf(reach, 0.0001)
+		check(reach < float(tail_info.get("duct_radius", 0.0)) - 0.005, "fan tips stay inside the duct (%.3f)" % reach)
+		check(absf(reach - float(tail_info.get("radius", 0.0))) < 0.01, "fan reach matches tail_rotor.radius")
+		check(x_max <= float(tail_info.get("shroud_half_thickness", 0.0)) + 1e-4, "fan stays inside the shroud thickness")
+	# ドア：ローカル +Z がヒンジの線。-90° 回すと上へ開く
+	var door := heli.find_child("Door_L", true, false) as Node3D
+	var info: Dictionary = layout.doors.Door_L
+	var hinge := (Vector3(info.hinge_end[0], info.hinge_end[1], info.hinge_end[2]) - Vector3(info.pivot[0], info.pivot[1], info.pivot[2])).normalized()
+	check(door.global_basis.z.normalized().distance_to(hinge) < 0.001, "Door_L local +Z follows the hinge")
+	var closed := _aabb(door)
+	var rest := door.basis
+	door.basis = rest * Basis(Vector3(0, 0, 1), deg_to_rad(float(info.open_deg)))
+	var opened := _aabb(door)
+	report["door_closed_top"] = snappedf(closed.end.y, 0.001)
+	report["door_open_top"] = snappedf(opened.end.y, 0.001)
+	report["door_open_left"] = snappedf(opened.position.x, 0.001)
+	check(opened.end.y > closed.end.y + 1.0, "Door_L opens upward")
+	check(opened.position.x < closed.position.x - 0.8, "Door_L swings outward (to -X)")
+	door.basis = rest
+	# ジェットのポッド：たたんだ形から deploy_deg で水平に。噴射口の出口はポッドの軸の上で、炎は +Z（後ろ）へ
+	var jet: Dictionary = layout.get("jet_boost", {})
+	check(jet.get("pods", {}).size() == 2, "layout has two jet pods")
+	for pod_name: String in jet.get("pods", {}):
+		var pod_info: Dictionary = jet.pods[pod_name]
+		var pod := heli.find_child(pod_name, true, false) as Node3D
+		if pod == null:
+			check(false, "%s exists" % pod_name)
+			continue
+		var pivot: Array = pod_info.pivot
+		check(pod.global_position.distance_to(Vector3(pivot[0], pivot[1], pivot[2])) < 0.002, "%s pivot" % pod_name)
+		check(heli.find_child(str(pod_info.nozzle), true, false) in pod.find_children("*", "Node3D", true, false), "%s nozzle moves with the pod" % pod_name)
+		var exit_local: Array = pod_info.nozzle_exit_local
+		var exit := Vector3(exit_local[0], exit_local[1], exit_local[2])
+		var stowed_exit := pod.global_transform * exit
+		var pod_rest := pod.basis
+		pod.basis = pod_rest * Basis(Vector3(0, 0, 1), deg_to_rad(float(pod_info.deploy_deg)))
+		var deployed_exit := pod.global_transform * exit
+		check(absf(deployed_exit.y - pod.global_position.y) < 0.01, "%s deploys level (exit y %.3f)" % [pod_name, deployed_exit.y])
+		check(stowed_exit.y < deployed_exit.y - 0.3, "%s is folded down at rest" % pod_name)
+		check(pod.global_basis.z.normalized().distance_to(Vector3(0, 0, 1)) < 0.001, "%s fires straight back (+Z)" % pod_name)
+		check(_aabb(pod).end.y < float(layout.main_rotor.pivot[1]) - 0.3, "%s stays below the rotor disc" % pod_name)
+		pod.basis = pod_rest
+	# 材質（色替え・ガラス）と頂点色（AO）
+	var names := {}
+	var vertex_colour := false
+	var tris := 0
+	var surfaces := 0
+	for node in heli.find_children("*", "MeshInstance3D", true, false):
+		var mi := node as MeshInstance3D
+		surfaces += mi.mesh.get_surface_count()
+		for s in range(mi.mesh.get_surface_count()):
+			var mat := mi.mesh.surface_get_material(s)
+			if mat != null:
+				names[mat.resource_name] = true
+				if mat.resource_name == "BodyPaint" and mat is BaseMaterial3D:
+					vertex_colour = vertex_colour or (mat as BaseMaterial3D).vertex_color_use_as_albedo
+			var arrays := mi.mesh.surface_get_arrays(s)
+			var idx: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+			tris += idx.size() / 3 if idx.size() > 0 else (arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).size() / 3
+	report["materials"] = names.keys()
+	report["triangles"] = tris
+	report["surfaces"] = surfaces
+	check(names.has("BodyPaint") and names.has("Windows"), "BodyPaint and Windows materials exist")
+	check(vertex_colour, "BodyPaint multiplies the baked AO (vertex colour as albedo)")
+	check(tris < TRI_BUDGET, "triangle budget (%d < %d)" % [tris, TRI_BUDGET])
+	check(surfaces <= SURFACE_BUDGET, "surface (draw call) budget (%d <= %d)" % [surfaces, SURFACE_BUDGET])
+	# 溶接（なめらかな陰影）：ポッドの頂点が三角形の数に近いこと（報告だけ。取り込みで頂点が割れることがある）
+	var pod_mesh := heli.find_child("JetPod_L", true, false) as MeshInstance3D
+	if pod_mesh != null:
+		var verts := 0
+		var pod_tris := 0
+		for s in range(pod_mesh.mesh.get_surface_count()):
+			var arrays := pod_mesh.mesh.surface_get_arrays(s)
+			verts += (arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
+			pod_tris += (arrays[Mesh.ARRAY_INDEX] as PackedInt32Array).size() / 3
+		report["jetpod_l_vertex_ratio"] = snappedf(float(verts) / maxf(pod_tris, 1), 0.001)
+	check(names.has("JetGlow"), "JetGlow material exists")
+	# 帯より下・尾翼の濃紺（BodyAccent）：色替えしない、頂点色の AO を掛ける
+	var accent := _material(heli, "BodyAccent") as BaseMaterial3D
+	check(accent != null and accent.vertex_color_use_as_albedo, "BodyAccent exists and multiplies the baked AO")
+	if accent != null:
+		report["body_accent_albedo"] = accent.albedo_color.to_html(false)
+		var navy := Color("#1D2F5C")
+		check(absf(accent.albedo_color.r - navy.r) < 0.01 and absf(accent.albedo_color.g - navy.g) < 0.01 and absf(accent.albedo_color.b - navy.b) < 0.01,
+			"BodyAccent is the brand navy (%s)" % accent.albedo_color.to_html(false))
+	for navy_part: String in ["DropBayFrame", "DropHatchLeft", "DropHatchRight"]:
+		var part := heli.find_child(navy_part, true, false) as MeshInstance3D
+		var has_paint := false
+		if part != null:
+			for s in range(part.mesh.get_surface_count()):
+				var m := part.mesh.surface_get_material(s)
+				has_paint = has_paint or (m != null and m.resource_name == "BodyPaint")
+		check(part != null and not has_paint, "%s is navy, not tinted" % navy_part)
+	# 光る物は面が 1 つ（OnlineHeliportHelicopter が全部の面を光る材質に塗り替える。覆いは Body に入れる）
+	for lamp_name: String in ["NavLight_L", "NavLight_R", "Beacon", "LandingLight", "StrobeLights", "JetGlow_L", "JetGlow_R"]:
+		var lamp := heli.find_child(lamp_name, true, false) as MeshInstance3D
+		check(lamp != null and lamp.mesh.get_surface_count() == 1, "%s has a single surface" % lamp_name)
+	# 着地：スキッドの下面が原点の skid_drop 下
+	var lowest := INF
+	var skids := heli.find_child("FrameAndSkids", true, false) as MeshInstance3D
+	lowest = (skids.global_transform * skids.get_aabb()).position.y
+	report["skid_bottom"] = snappedf(lowest, 0.001)
+	check(absf(lowest + float(layout.skid_drop)) < 0.01, "skid bottom sits skid_drop below the origin")
+	_finish()
+
+
+func _material(heli: Node3D, material_name: String) -> Material:
+	for node in heli.find_children("*", "MeshInstance3D", true, false):
+		var mi := node as MeshInstance3D
+		for s in range(mi.mesh.get_surface_count()):
+			var m := mi.mesh.surface_get_material(s)
+			if m != null and m.resource_name == material_name:
+				return m
+	return null
+
+
+func _aabb(node: Node3D) -> AABB:
+	var out := AABB()
+	var first := true
+	for child in node.find_children("*", "MeshInstance3D", true, false) + ([node] if node is MeshInstance3D else []):
+		var mi := child as MeshInstance3D
+		var box := mi.global_transform * mi.get_aabb()
+		out = box if first else out.merge(box)
+		first = false
+	return out
+
+
+func _finish() -> void:
+	print("HELICOPTER_BOARDING " + JSON.stringify(report))
+	quit(0 if report.passed else 1)

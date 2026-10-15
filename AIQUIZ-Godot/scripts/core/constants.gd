@@ -11,7 +11,10 @@ const SUBJECT_EN = {
 }
 
 const DEFAULT_SUBJECT_GRADES = [1, 2, 3, 4, 5, 6]
+## 学校でまだ習わない学年は選べない（理科・社会は1・2年が生活科、英語は3年から）。
 const SUBJECT_GRADE_OPTIONS = {
+	"理科": [3, 4, 5, 6],
+	"社会": [3, 4, 5, 6],
 	"英語": [3, 4, 5, 6],
 }
 

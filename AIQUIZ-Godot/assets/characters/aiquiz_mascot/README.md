@@ -13,6 +13,11 @@
 |---|---|
 | `mascot_model.glb` | 骨格 `Rig`（16本の `DEF-*`）と本体メッシュ `HERO_Mascot`。<br>・約3.5万三角形、高さ2.04m（「？」込み）<br>・単色の材質が8つで、テクスチャはない<br>・アニメーションは含まない |
 | `source/aiquiz_mascot.blend` | 編集用の原本（Blender 5.1）。コレクションは次のとおり。<br>・`HATENA_Parts`：ハテナの部品（非表示。`build_hatena.py` が作り直す）<br>・`HATENA_Review`：確認用のカメラ<br>・`MASCOT_Final`：骨格と完成した本体（`HERO_Mascot`）。前のカモメ船長（`HERO_Mascot_Kamome`）と手作業の試作（`HERO_Mascot_Handmade`）も非表示で残している<br>・`MASCOT_Concepts` / `MASCOT_Concepts2`：最初のデザイン案（ハテナは `CONCEPT_A_Hatena`） |
+| `mascot_pilot.glb` | 操縦士の動き（骨組み `Rig` とアクションだけ、メッシュなし）：`Pilot_SitIdle`（3.25 秒のループ）、`Pilot_Wave`（1.29 秒のループ）、`Pilot_Point`（前を指す）、`Pilot_Steer`（2.6 秒のループ）。トラックは `Rig/Skeleton3D:DEF-*` で `mascot_model.glb` と同じ |
+| `pilot_headset.glb` | 操縦士のヘッドセット（ハテナの空間で作ってある。頭の骨 `DEF-head` に付ける） |
+| `mascot_stand.glb` | 客席のハテナの動き（骨組み `Rig` とアクションだけ）：`Stand_Idle`（2 秒、客席に手を振る）、`Stand_Cheer`（0.75 秒、両手を上げて跳ぶ）、`Stand_Dance`（2 秒）、`Stand_WaveLead`（1.5 秒、ウェーブの合図）、`Stand_Clap`（0.5 秒、応援の拍）。`source/build_stand_mascot.py` で作る（[docs/crowd_extras.md](../../../docs/crowd_extras.md)） |
+| `mascot_model_lod.glb` | 軽い版（約 8,000 三角形、ウェイトはそのまま）。品質「低」の操縦士 |
+| `source/build_pilot.py` | 上の 3 つを作って書き出すスクリプト（オンライン対戦のマッチング演出 M2） |
 | `source/build_hatena.py` | ハテナの部品を組み立てるスクリプト |
 | `source/fit_hatena.py` | 部品を骨格に載せてウェイトを付け、GLBに書き出すスクリプト |
 | `source/fit_generated.py`、`build_mascot.py`、`generated_meshy_multiview.glb`、`concept_*.png`、`kamome_albedo_2048.jpg` | カモメ船長の時の素材。今は使っていない |
@@ -50,8 +55,13 @@ exec(open(r'C:/AIQUIZ/AIQUIZ-Godot/assets/characters/aiquiz_mascot/source/fit_ha
 
 ## ゲームへの組み込み
 
-- **ヘリの操縦士**：`scripts/world/helicopter_arrival_director.gd` の `PILOT_GLB` から、このGLBを直接読み込む。
-  - 表示倍率は `PILOT_SCALE` = 0.35。「？」がコックピットの天井から出ない大きさにしてある。
+- **オンライン対戦のヘリの操縦士**：`scripts/world/online_staging/hatena_pilot.gd`（`HatenaPilot`）。等倍で右の席に座り、
+  `mascot_pilot.glb` の動きを AnimationPlayer で再生し、`pilot_headset.glb` を頭に付ける（品質「低」は `mascot_model_lod.glb`）。
+  作り直すときは `aiquiz_mascot.blend` を開いて `build_pilot.py` を実行し、`.blend` を保存する（`mascot_model.glb` は変わらない）。
+- **本編のヘリ登場の操縦士**：`helicopter_arrival_director.gd` も同じ `OnlineHeliportHelicopter` を使うので、上と同じ `HatenaPilot`（等倍、
+  飛んでいるあいだは `Pilot_Steer`）。前の 0.35 倍のハテナ（`PILOT_SCALE`）はやめた（2026-10-11、計画書 M9）。
+- **客席のハテナ**：`scripts/world/crowd/stand_mascot.gd`（`StandMascot`）。ゴール観客席の前と左右のスタンドの通路に立ち、
+  `mascot_stand.glb` の動きを観客の合図（`CrowdCues`）に合わせて再生する。作り直すときは `aiquiz_mascot.blend` を開いて `build_stand_mascot.py` を実行し、`.blend` を保存する。
 - **審判・ノコギリ操縦席**：`scripts/world/mascot/mascot_dresser.gd`（`MascotDresser.dress()`）を使う。
   - `referee_finale.glb` と `saw_operator.glb` の骨格へ、本体メッシュとスキンを付け直す。
   - 両GLBの旧本体は、取り込み設定の `skip_import` で読み込まない。

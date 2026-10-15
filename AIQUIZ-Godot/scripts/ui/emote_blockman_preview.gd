@@ -111,7 +111,8 @@ static func build_player_skeleton(
 	is_p1: bool,
 	parent_node: Node3D,
 	hat_id: int,
-	toon_preset: int = ToonPresets.STANDARD,
+	_toon_preset: int = ToonPresets.STANDARD,
+	skin: Dictionary = {},
 ) -> Dictionary:
 	var body_col: Color = PlayerController.P1_BODY if is_p1 else PlayerController.P2_BODY
 	var head_col: Color = PlayerController.P1_HEAD if is_p1 else PlayerController.P2_HEAD
@@ -125,7 +126,9 @@ static func build_player_skeleton(
 	parent_node.add_child(pelvis)
 	parts["pelvis"] = pelvis
 
-	var lower_torso := _create_box(Vector3(0.38, 0.22, 0.22), body_col)
+	# むね（upper_torso）と重なる部分の面が同じ奥行きにならないよう、5mm だけ細く・薄くする
+	# （むねとこしを違う色にしたとき、重なりがちらついて縞に見えるのを防ぐ）。
+	var lower_torso := _create_box(Vector3(0.375, 0.22, 0.215), body_col)
 	lower_torso.position = Vector3(0, 0.15, 0)
 	pelvis.add_child(lower_torso)
 	parts["lower_torso"] = lower_torso
@@ -314,7 +317,9 @@ static func build_player_skeleton(
 			character_meshes.append(character_mesh)
 	parts["meshes"] = character_meshes
 	parts["hat_meshes"] = []
-	ToonPresets.apply_to_parts(parts, toon_preset)
+	# トゥーン選択は廃止済み。体の塗りは PlayerSkin（{} はスロットの標準色）。
+	PlayerSkinRig.prepare_parts(parts)
+	PlayerSkinRig.apply(parts, skin, 1 if is_p1 else 2)
 
 	return parts
 

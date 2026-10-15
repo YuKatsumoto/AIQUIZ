@@ -1,0 +1,157 @@
+{
+	"by_state": {
+		"BOARDING": {
+			"draw_calls_max": 661,
+			"draw_calls_p50": 488,
+			"frames": 793,
+			"max_ms": 4.84,
+			"mean_fps": 240.0,
+			"median_ms": 4.17,
+			"over_50ms": 0,
+			"p99_ms": 4.71,
+			"primitives_max": 432872,
+			"primitives_p50": 371750
+		},
+		"CLIMB": {
+			"draw_calls_max": 504,
+			"draw_calls_p50": 468,
+			"frames": 531,
+			"max_ms": 5.11,
+			"mean_fps": 240.0,
+			"median_ms": 4.16,
+			"over_50ms": 0,
+			"p99_ms": 4.63,
+			"primitives_max": 272528,
+			"primitives_p50": 248202
+		},
+		"COCKPIT": {
+			"draw_calls_max": 461,
+			"draw_calls_p50": 459,
+			"frames": 217,
+			"max_ms": 5.1,
+			"mean_fps": 239.9,
+			"median_ms": 4.18,
+			"over_50ms": 0,
+			"p99_ms": 4.89,
+			"primitives_max": 359110,
+			"primitives_p50": 358654
+		},
+		"CRUISE": {
+			"draw_calls_max": 416,
+			"draw_calls_p50": 415,
+			"frames": 1439,
+			"max_ms": 16.94,
+			"mean_fps": 239.7,
+			"median_ms": 4.16,
+			"over_50ms": 0,
+			"p99_ms": 4.72,
+			"primitives_max": 230430,
+			"primitives_p50": 230380
+		},
+		"CUTIN_HOLD": {
+			"draw_calls_max": 812,
+			"draw_calls_p50": 792,
+			"frames": 337,
+			"max_ms": 4.9,
+			"mean_fps": 240.0,
+			"median_ms": 4.18,
+			"over_50ms": 0,
+			"p99_ms": 4.71,
+			"primitives_max": 460084,
+			"primitives_p50": 424692
+		},
+		"CUTIN_IN": {
+			"draw_calls_max": 833,
+			"draw_calls_p50": 756,
+			"frames": 210,
+			"max_ms": 23.21,
+			"mean_fps": 233.3,
+			"median_ms": 4.16,
+			"over_50ms": 0,
+			"p99_ms": 6.84,
+			"primitives_max": 426198,
+			"primitives_p50": 420512
+		},
+		"FORMATION": {
+			"draw_calls_max": 824,
+			"draw_calls_p50": 751,
+			"frames": 337,
+			"max_ms": 4.89,
+			"mean_fps": 240.1,
+			"median_ms": 4.17,
+			"over_50ms": 0,
+			"p99_ms": 4.63,
+			"primitives_max": 414146,
+			"primitives_p50": 405348
+		},
+		"IDLE": {
+			"draw_calls_max": 661,
+			"draw_calls_p50": 661,
+			"frames": 706,
+			"max_ms": 1755.35,
+			"mean_fps": 148.6,
+			"median_ms": 4.16,
+			"over_50ms": 1,
+			"p99_ms": 4.99,
+			"primitives_max": 432872,
+			"primitives_p50": 432872
+		},
+		"JOIN": {
+			"draw_calls_max": 836,
+			"draw_calls_p50": 833,
+			"frames": 419,
+			"max_ms": 46.79,
+			"mean_fps": 232.7,
+			"median_ms": 4.17,
+			"over_50ms": 0,
+			"p99_ms": 4.76,
+			"primitives_max": 405512,
+			"primitives_p50": 405476
+		},
+		"TAKEOFF": {
+			"draw_calls_max": 541,
+			"draw_calls_p50": 532,
+			"frames": 385,
+			"max_ms": 4.71,
+			"mean_fps": 240.2,
+			"median_ms": 4.16,
+			"over_50ms": 0,
+			"p99_ms": 4.67,
+			"primitives_max": 373476,
+			"primitives_p50": 371292
+		}
+	},
+	"error": "",
+	"quality": "high",
+	"resolution": [
+		1280.0,
+		720.0
+	],
+	"staging": {
+		"frames": 5364,
+		"max_ms": 49.14,
+		"mean_fps": 238.7,
+		"median_ms": 4.16,
+		"over_50ms": 0,
+		"p99_ms": 4.74
+	},
+	"staging_p99_ok": true,
+	"swap": {
+		"frames": 256,
+		"max_ms": 2905.29,
+		"mean_fps": 63.7,
+		"median_ms": 4.17,
+		"over_50ms": 1,
+		"p99_ms": 25.52
+	},
+	"swap_first_frames_ms": [
+		25.5,
+		2905.3,
+		38.8,
+		5.6,
+		3.6,
+		3.1,
+		3.4,
+		3.6
+	]
+}

@@ -1,0 +1,35 @@
+shader_type spatial;
+render_mode blend_mix, depth_draw_never, cull_disabled, unshaded, shadows_disabled;
+
+// 速く回るメインローターの代わりの円盤（OnlineHeliportHelicopter）。
+// 羽根 2 枚の残像（向きに沿って薄くなる縞）、先端の白い帯、まん中の黒いハブ。spin は羽根の角度（ラジアン）。
+
+uniform float spin = 0.0;
+uniform vec3 blade_color : source_color = vec3(0.13, 0.15, 0.18);
+uniform vec3 tip_color : source_color = vec3(0.95, 0.95, 0.93);
+uniform float strength : hint_range(0.0, 1.0) = 0.42;
+
+varying vec2 v_xz;
+
+void vertex() {
+	v_xz = VERTEX.xz;
+}
+
+void fragment() {
+	float r_max = 5.3;
+	float r = length(v_xz) / r_max;
+	if (r > 1.0) {
+		discard;
+	}
+	float a = atan(v_xz.y, v_xz.x) - spin;
+	// 2 枚の羽根：角度の差が 0 に近いほど濃く、後ろへ尾を引く
+	float lag = fract(a / 3.14159265);
+	float trail = exp(-lag * 5.0) + exp(-(1.0 - lag) * 26.0) * 0.6;
+	float body = smoothstep(0.08, 0.16, r) * (1.0 - smoothstep(0.96, 1.0, r));
+	float tip = smoothstep(0.86, 0.9, r) * (1.0 - smoothstep(0.97, 1.0, r));
+	float hub = 1.0 - smoothstep(0.06, 0.08, r);
+	vec3 col = mix(blade_color, tip_color, tip);
+	float alpha = (0.10 + 0.55 * trail) * strength * body + tip * 0.35 * strength + hub * 0.95;
+	ALBEDO = mix(col, vec3(0.08, 0.09, 0.1), hub);
+	ALPHA = clamp(alpha, 0.0, 1.0);
+}

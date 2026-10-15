@@ -124,6 +124,21 @@ const CHARGE_TUTORIAL_DEMO_HOLD_SECONDS: float = 1.35
 const CHARGE_TUTORIAL_DEMO_RESET_SECONDS: float = 0.24
 const CHARGE_TUTORIAL_DEMO_WRAP_COUNT: int = 2
 const CHARGE_TUTORIAL_PERFECT_BLINK_HZ: float = 5.0
+## Held-charge hum (docs/sound_effects.md). It plays on its own looping player while the rider
+## holds the dash button; pitch and level follow the charge meter, which wraps every
+## CHARGE_BUILD_SECONDS, so the hum drops back down whenever the meter restarts.
+const CHARGE_AUDIO_PATH := "res://assets/audio/sfx/ghost_shark/ghost_charge_loop.ogg"
+const CHARGE_AUDIO_MIN_PITCH: float = 0.75
+const CHARGE_AUDIO_MAX_PITCH: float = 1.7
+const CHARGE_AUDIO_MIN_DB: float = -14.0
+const CHARGE_AUDIO_MAX_DB: float = -6.0
+## Long ghost cues faded out when a ride is torn down mid-sequence.
+const GHOST_LONG_SFX_CUES: Array[StringName] = [
+	&"ghost_soul_rise",
+	&"ghost_shark_rise",
+	&"ghost_mount_beam",
+	&"ghost_portal_open",
+]
 const CHARGE_TUTORIAL_DEMO_TARGETS := [0.48, 0.83, 0.99, 0.75]
 const CHARGE_TUTORIAL_DEMO_LABELS := [
 	"チャージ不足",
@@ -237,6 +252,8 @@ var _charge_tutorial_handoff_from: Rect2 = Rect2()
 var _charge_tutorial_handoff_to: Rect2 = Rect2()
 var _aim_material: StandardMaterial3D = null
 var _aim_outer_material: StandardMaterial3D = null
+var _charge_audio: AudioStreamPlayer = null
+var _charge_audio_in_perfect: bool = false
 
 
 func setup(
@@ -258,6 +275,7 @@ func setup(
 	_previous_p1_alive = game_state.p1_alive
 	_previous_p2_alive = game_state.p2_alive
 	_build_aim_visuals()
+	_build_charge_audio()
 
 
 func remember_ocean_death_shark(player_index: int, shark: SharkSwimmerScript) -> void:
@@ -298,6 +316,7 @@ func update_ghost_ride(
 				fire_released,
 				emote_input
 			)
+	_update_charge_audio(fire_down)
 	# サメ移動・壁スクロール・カメラ更新の後に判定しないと透過切替が1フレーム遅れる。
 	call_deferred("_update_problem_wall_occlusion")
 	_update_hud_animation(delta)
@@ -662,6 +681,8 @@ func _try_release_ghost_rendezvous_after_wipe() -> void:
 	if not wipe_is_settled:
 		return
 	_ghost_rendezvous_released = _shark.start_ghost_rendezvous_ascent()
+	if _ghost_rendezvous_released:
+		AudioManager.play_sfx(&"ghost_shark_rise")
 
 
 func _base_mode_is_eligible(is_online: bool, is_replay: bool) -> bool:
@@ -874,6 +895,55 @@ func _update_charge_input(
 		_commit_charge()
 
 
+func _build_charge_audio() -> void:
+	if _charge_audio != null:
+		return
+	if not ResourceLoader.exists(CHARGE_AUDIO_PATH):
+		return
+	var stream := load(CHARGE_AUDIO_PATH) as AudioStream
+	if stream is AudioStreamOggVorbis:
+		(stream as AudioStreamOggVorbis).loop = true
+	_charge_audio = AudioStreamPlayer.new()
+	_charge_audio.name = "GhostChargeAudio"
+	_charge_audio.bus = "SFX"
+	_charge_audio.stream = stream
+	add_child(_charge_audio)
+
+
+## The hum runs only while the rider is really holding a charge (not in the charge tutorial's demo,
+## the windup or the dash), and the PERFECT tick sounds each time the meter enters that band.
+func _update_charge_audio(fire_down: bool) -> void:
+	var charging := (
+		phase == Phase.AIMING
+		and _charging_input
+		and fire_down
+		and not is_charge_tutorial_active()
+		and not AudioManager.menu_sfx_muted
+	)
+	if not charging:
+		_stop_charge_audio()
+		return
+	if _charge_audio != null:
+		_charge_audio.pitch_scale = lerpf(
+			CHARGE_AUDIO_MIN_PITCH,
+			CHARGE_AUDIO_MAX_PITCH,
+			_charge_amount
+		)
+		_charge_audio.volume_db = lerpf(CHARGE_AUDIO_MIN_DB, CHARGE_AUDIO_MAX_DB, _charge_amount)
+		if not _charge_audio.playing:
+			_charge_audio.play()
+	var in_perfect := _is_perfect_power(_charge_amount)
+	if in_perfect and not _charge_audio_in_perfect:
+		AudioManager.play_sfx(&"ghost_charge_perfect")
+	_charge_audio_in_perfect = in_perfect
+
+
+func _stop_charge_audio() -> void:
+	_charge_audio_in_perfect = false
+	if _charge_audio != null and _charge_audio.playing:
+		_charge_audio.stop()
+
+
 func _commit_charge() -> void:
 	if phase != Phase.AIMING or not _charging_input or _shark == null:
 		return
@@ -984,6 +1054,7 @@ func _begin_soul_rise() -> void:
 	phase = Phase.SOUL_RISE
 	_phase_timer = SOUL_RISE_SECONDS
 	_soul_travel_elapsed = 0.0
+	AudioManager.play_sfx(&"ghost_soul_rise")
 	if _rider != null and is_instance_valid(_rider):
 		_soul_start_position = _rider.global_position
 	_soul_rise_position = (
@@ -1393,6 +1464,10 @@ func _start_charge() -> void:
 	_sweep_previous_position = _shark.global_position
 	_hit_this_charge = false
 	_charge_finished_pending = false
+	if _perfect_charge:
+		AudioManager.play_sfx(&"ghost_dash", 1.5, 1.08)
+	else:
+		AudioManager.play_sfx(&"ghost_dash", 0.0, lerpf(0.94, 1.04, _last_charge_power))
 	_hide_aim_visuals()
 	_set_meter(_last_charge_power, _charge_feedback_color(_last_charge_power))
 	_update_hud("PERFECT DASH！" if _perfect_charge else "直線突進中！")
@@ -1460,6 +1535,7 @@ func _apply_charge_hit() -> void:
 		particle_spawner.spawn_shark_impact(survivor_position, _locked_direction)
 	if camera_controller and camera_controller.has_method("trigger_ocean_attack_impact"):
 		camera_controller.trigger_ocean_attack_impact()
+	AudioManager.play_sfx(&"ghost_hit", 1.5 if _perfect_charge else 0.0)
 	if _shark:
 		_shark.play_ghost_impact()
 
@@ -1475,11 +1551,19 @@ func _connect_shark_signals() -> void:
 		_shark.ghost_charge_finished.connect(_on_shark_charge_finished)
 	if not _shark.ghost_mount_beam_fired.is_connected(_on_ghost_mount_beam_fired):
 		_shark.ghost_mount_beam_fired.connect(_on_ghost_mount_beam_fired)
+	if not _shark.ghost_breached.is_connected(_on_shark_ghost_breached):
+		_shark.ghost_breached.connect(_on_shark_ghost_breached)
+
+
+func _on_shark_ghost_breached() -> void:
+	if phase != Phase.INACTIVE:
+		AudioManager.play_sfx(&"ghost_shark_breach")
 
 
 func _on_ghost_mount_beam_fired(_beam_index: int) -> void:
 	if game_state == null or phase != Phase.BEAM_REVEAL:
 		return
+	AudioManager.play_sfx(&"ghost_mount_beam")
 	game_state.camera_shake = maxf(
 		game_state.camera_shake,
 		GHOST_MOUNT_BEAM_LAUNCH_CAMERA_SHAKE
@@ -1523,6 +1607,7 @@ func _begin_cooldown() -> void:
 		_shark.set_ghost_charge_tension(0.0)
 	if _shark:
 		_shark.visible = false
+		AudioManager.play_sfx(&"ghost_vanish")
 	_set_meter(0.0, _player_color)
 	_update_hud("%s  /  再突進 %.1f 秒" % [_result_text, _phase_timer])
 	charge_resolved.emit(dead_player_index, _hit_this_charge, _last_charge_power)
@@ -1567,6 +1652,7 @@ func _spawn_return_portal() -> void:
 	if portal_particles != null:
 		portal_particles.restart()
 	_return_portal.call("open")
+	AudioManager.play_sfx(&"ghost_portal_open")
 
 
 ## Keep the purchased preset's stencil writer active, but render its central
@@ -1789,6 +1875,7 @@ func _update_return_portal_depth_effect(delta: float) -> void:
 		if float(shark_state.get("portal_entry_progress", 0.0)) >= RETURN_PORTAL_CROSSING_PROGRESS:
 			_return_portal_crossing_pulsed = true
 			_return_portal_crossing_flash_elapsed = 0.0
+			AudioManager.play_sfx(&"ghost_portal_cross")
 			if game_state != null:
 				game_state.camera_shake = maxf(
 					game_state.camera_shake,
@@ -2737,6 +2824,10 @@ func _set_meter(progress: float, color: Color) -> void:
 
 
 func _cleanup_ghost_ride() -> void:
+	if phase != Phase.INACTIVE:
+		for cue: StringName in GHOST_LONG_SFX_CUES:
+			AudioManager.fade_out_sfx(cue, 0.3)
+	_stop_charge_audio()
 	_clear_ghost_emote()
 	_hide_aim_visuals()
 	_charge_tutorial_active = false
@@ -2769,6 +2860,8 @@ func _cleanup_ghost_ride() -> void:
 			_shark.ghost_charge_finished.disconnect(_on_shark_charge_finished)
 		if _shark.ghost_mount_beam_fired.is_connected(_on_ghost_mount_beam_fired):
 			_shark.ghost_mount_beam_fired.disconnect(_on_ghost_mount_beam_fired)
+		if _shark.ghost_breached.is_connected(_on_shark_ghost_breached):
+			_shark.ghost_breached.disconnect(_on_shark_ghost_breached)
 		_shark.end_ghost_ride()
 	if _rider != null and is_instance_valid(_rider):
 		_rider.queue_free()

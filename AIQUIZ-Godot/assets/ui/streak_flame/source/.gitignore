@@ -1,0 +1,4 @@
+# After Effects の自動保存とレンダーログ（作業中に AE が作る。リポジトリには入れない）
+自動保存/
+*.aepログ/
+Adobe After Effects Auto-Save/

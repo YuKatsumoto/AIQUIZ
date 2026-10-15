@@ -75,7 +75,21 @@ func ensure_blocks(count: int) -> bool:
 		var kind := block_kind(index)
 		block.set_meta("kind", kind)
 		block.mesh = _meshes[kind]
+	_place_mascot()
 	return true
+
+
+## The crowd's mascot stands in the aisle nearest CrowdScript.MASCOT_ALONG.
+func _place_mascot() -> void:
+	if crowd == null or crowd.mascot != null:
+		return
+	var best := INF
+	for offset: float in aisle_offsets_z():
+		if absf(offset - CrowdScript.MASCOT_ALONG) < absf(best - CrowdScript.MASCOT_ALONG):
+			best = offset
+	if absf(best - CrowdScript.MASCOT_ALONG) < 15.0:
+		# Aisle offsets run along world +Z; the left stand is turned PI.
+		crowd.add_mascot(best * side)
 
 
 ## Block centre in stand-local Z (see the class comment for the direction).

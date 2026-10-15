@@ -79,6 +79,8 @@ static func build(container: Node3D, pelvis: Node3D, parts: Dictionary, opts: Di
 	var limb_color: Color = opts.get("limb_color", Color(0.2, 0.9, 0.4, 0.5))
 	var head_color: Color = opts.get("head_color", limb_color)
 	var toon_preset: int = ToonPresets.normalize(int(opts.get("toon_preset", 0)))
+	# 元の表示スケルトン。あれば表示メッシュをそのスキン（塗り）と同じ見た目にする。
+	var skin_parts: Dictionary = opts.get("skin_parts", {})
 
 	# --- 体幹アンカー(キネマティック) ---
 	# pelvis に毎物理フレーム同期され、四肢ルートの接続元になる。
@@ -125,7 +127,10 @@ static func build(container: Node3D, pelvis: Node3D, parts: Dictionary, opts: Di
 	t_shape.position = Vector3(0.0, 0.31, 0.0)
 	torso.add_child(t_shape)
 	# 表示メッシュ: lower_torso/upper_torso を pelvis 相対オフセットで子に持つ
-	for m in [{"size": Vector3(0.76, 0.44, 0.44), "y": 0.15}, {"size": Vector3(0.76, 0.52, 0.44), "y": 0.48}]:
+	for m in [
+		{"size": Vector3(0.75, 0.44, 0.43), "y": 0.15, "src": "lower_torso"},
+		{"size": Vector3(0.76, 0.52, 0.44), "y": 0.48, "src": "upper_torso"},
+	]:
 		var tmi := MeshInstance3D.new()
 		var tbm := BoxMesh.new()
 		tbm.size = m["size"]
@@ -142,6 +147,8 @@ static func build(container: Node3D, pelvis: Node3D, parts: Dictionary, opts: Di
 		else:
 			tmat = ToonPresets.create_material(toon_preset, body_color)
 		tmi.material_override = tmat
+		if not debug:
+			_dress_from_source(tmi, skin_parts, str(m["src"]))
 		torso.add_child(tmi)
 	bodies["torso"] = torso
 
@@ -188,6 +195,8 @@ static func build(container: Node3D, pelvis: Node3D, parts: Dictionary, opts: Di
 		else:
 			mat = ToonPresets.create_material(toon_preset, base_col)
 		mi.material_override = mat
+		if not debug:
+			_dress_from_source(mi, skin_parts, str(spec["mesh"]))
 		body.add_child(mi)
 
 		bodies[spec["key"]] = body
@@ -240,3 +249,20 @@ static func build(container: Node3D, pelvis: Node3D, parts: Dictionary, opts: Di
 static func sync_anchor(anchor: RigidBody3D, pelvis: Node3D) -> void:
 	if anchor and is_instance_valid(anchor) and pelvis and is_instance_valid(pelvis):
 		anchor.global_transform = pelvis.global_transform
+
+
+## 物理体の表示メッシュを元の表示パーツと同じマテリアル／塗り座標にする。
+## 手は簡略化した箱なので、手のひら（最初のメッシュ）の塗りを借りる。
+static func _dress_from_source(target: MeshInstance3D, skin_parts: Dictionary, key: String) -> void:
+	if skin_parts.is_empty():
+		return
+	var source_node := skin_parts.get(key) as Node
+	if source_node == null or not is_instance_valid(source_node):
+		return
+	var source := source_node as MeshInstance3D
+	if source == null:
+		for child: Node in source_node.find_children("*", "MeshInstance3D", true, false):
+			source = child as MeshInstance3D
+			break
+	if source != null:
+		PlayerSkinRig.dress_like(target, source)

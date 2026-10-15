@@ -23,9 +23,12 @@ const PREVIEW_DOOR_HALF_DEPTH_Z: float = 0.30
 ## 本編 game_state の wall_z - 0.4 を扉手前(+Z)基準に換算（0.4 + 扉半奥行0.3）
 const PREVIEW_WALL_CONTACT_Z: float = 0.70
 const PREVIEW_RED_DOOR_INDEX: int = 1
-## quiz_wall.gd の 2択ドア位置（左=青, 右=赤）
-const PREVIEW_DOOR_X_LEFT: float = 3.5
-const PREVIEW_DOOR_X_RIGHT: float = -3.5
+## メニューの壁は本編と同じ面をカメラ(+Z)へ向けるため Y 軸で 180° 回す。
+## そのため quiz_wall.gd の 2択ドア位置 (扉0=青 x=+3.5 / 扉1=赤 x=-3.5) はワールドでは左右が入れ替わる
+## (画面左=青, 画面右=赤 で本編と同じ並び)。
+const PREVIEW_WALL_YAW: float = PI
+const PREVIEW_DOOR_X_LEFT: float = -3.5
+const PREVIEW_DOOR_X_RIGHT: float = 3.5
 const PREVIEW_DOOR_HALF_WIDTH: float = 1.8
 const PREVIEW_DOOR_PASS_MARGIN: float = 0.4
 const PREVIEW_WALL_SHATTER_DIR_Z: float = 1.0
@@ -78,8 +81,8 @@ const AI_ACCIDENT_COOLDOWN_MIN: float = 7.5
 const AI_ACCIDENT_COOLDOWN_MAX: float = 12.0
 
 ## 左右ドア（±3.5）の両方へ行ける X 範囲
-const AI_PLAYER_X_MIN: float = PREVIEW_DOOR_X_RIGHT - 0.35
-const AI_PLAYER_X_MAX: float = PREVIEW_DOOR_X_LEFT + 0.35
+const AI_PLAYER_X_MIN: float = PREVIEW_DOOR_X_LEFT - 0.35
+const AI_PLAYER_X_MAX: float = PREVIEW_DOOR_X_RIGHT + 0.35
 const AI_DOOR_VISIT_CHANCE: float = 0.55
 const AI_LEARN_APPROACH_MIN_DIST: float = 0.4
 const AI_LEARN_APPROACH_MAX_DIST: float = 18.0
@@ -252,6 +255,7 @@ func enter_customize_mode() -> void:
 			"rotation_degrees": _preview_camera.rotation_degrees,
 			"fov": _preview_camera.fov,
 			"h_offset": _preview_camera.h_offset,
+			"v_offset": _preview_camera.v_offset,
 		}
 	if _preview_player:
 		_preview_player.visible = false
@@ -344,6 +348,8 @@ func _start_camera_return_to_menu() -> void:
 	tw.parallel().tween_property(_preview_camera, "rotation_degrees", d["rotation_degrees"], 0.45)
 	tw.parallel().tween_property(_preview_camera, "fov", float(d["fov"]), 0.45)
 	tw.parallel().tween_property(_preview_camera, "h_offset", float(d["h_offset"]), 0.45)
+	# スキン画面はキャラを中央の枠に収めるため縦にもずらすので、こちらも戻す。
+	tw.parallel().tween_property(_preview_camera, "v_offset", float(d.get("v_offset", 0.0)), 0.45)
 
 
 func _resolve_preview_speed() -> void:
@@ -1062,13 +1068,14 @@ func _spawn_preview_wall(z_pos: float) -> void:
 
 	var wall := WALL_SCENE.instantiate()
 	wall.position.z = z_pos
+	# 本編のプレイヤー側の面 (問題文パネル・扉に収めた選択肢) をメニューカメラへ向ける
+	wall.rotation.y = PREVIEW_WALL_YAW
 	_viewport.add_child(wall)
-	if wall.has_method("set_quiz"):
-		wall.set_quiz(quiz, 2)
-	if not quiz.q.is_empty() and quiz.q != "プレビュー":
-		# 本物の問題: カメラ側に問題文・選択肢を表示し、AIが解く正解扉を記録
-		if wall.has_method("set_preview_labels"):
-			wall.set_preview_labels(quiz)
+	var is_real_quiz := not quiz.q.is_empty() and quiz.q != "プレビュー"
+	wall.set_quiz(quiz if is_real_quiz else null, 2)
+	if is_real_quiz:
+		# 本物の問題: 本編と同じ問題文・選択肢を表示し、AIが解く正解扉を記録
+		wall.set_gameplay_question(FractionFormatter.format_question(quiz.q), true)
 		wall.set_meta("preview_correct_door", quiz.a)
 	wall.set_meta("preview_should_break_door", true)
 	wall.set_meta("preview_collision_processed", false)
@@ -1360,6 +1367,11 @@ func _sync_preview_player_cosmetics(force: bool = false) -> void:
 	if pc == null or not pc.has_method("set_hat"):
 		return
 	var gm := QuizManager.game_state
+	# 体の塗りはプレビュー用の状態へ写せば、update_from_state が変化したときだけ塗り直す。
+	if _preview_gs.p1_skin_code != gm.p1_skin_code:
+		_preview_gs.set_player_skin(1, gm.p1_skin)
+	if _preview_gs.p2_skin_code != gm.p2_skin_code:
+		_preview_gs.set_player_skin(2, gm.p2_skin)
 	if pc.p1_parts.has("hat_mount") and (force or _applied_preview_p1_hat != gm.p1_hat):
 		pc.set_hat(1, gm.p1_hat)
 		_applied_preview_p1_hat = gm.p1_hat

@@ -14,6 +14,10 @@ var _preview_elapsed := 0.0
 var _caught_lifts: Dictionary = {}
 var _landing_spin_elapsed := 0.0
 var _last_saw_elapsed := 0.0
+var _start_sound: AudioStreamPlayer
+var _sound_spin_rate := 0.0
+## The startup is the user-supplied engine start (se_lab/ is not in git; a missing file stays silent).
+const START_SOUND_PATH := "res://assets/audio/sfx/se_lab/saw_start.ogg"
 var dock: SawDockPresentation
 var operator_seat: SawOperatorPresentation
 var _operator_distance := 0.0
@@ -330,6 +334,7 @@ func advance_stow(dt: float) -> void:
 		_apply_tower_lay()
 		skeleton.force_update_all_bone_transforms()
 	_update_operator_stow(step)
+	_update_start_sound(_preview_spin_rate(), step)
 
 ## The menu chase and preview clocks stop while the blades are racked, so the stow clock p drives
 ## the operator: STOW on the BLADE stick, watch the rack, duck while it passes overhead, look back as
@@ -498,6 +503,7 @@ func update_preview(dt: float) -> void:
 		_apply_spin(_preview_spin_seconds(),_menu_chase.travel-(dock.wheel_distance() if dock else 0.0))
 	else:
 		_update_operator(null, dt)
+	_update_start_sound(_preview_spin_rate(), dt)
 
 func apply_menu_chase(gs: QuizGameState, state: MenuSawChaseState, dt: float) -> void:
 	_menu_chase=state
@@ -670,6 +676,7 @@ func _update_lifts(gs: QuizGameState) -> void:
 func update_visual(gs: QuizGameState, dt: float = 0.0, players_landed: bool = false, entrance_running: bool = true) -> void:
 	visible = gs.is_saw_visible()
 	if not visible:
+		_update_start_sound(0.0, dt)
 		return
 	if model == null:
 		_load_model()
@@ -686,6 +693,8 @@ func update_visual(gs: QuizGameState, dt: float = 0.0, players_landed: bool = fa
 	basis = dock.carriage_basis() if dock != null else Basis.IDENTITY
 	var entry_distance := dock.wheel_distance() if dock != null else 0.0
 	_apply_spin(spin_time(gs), gs.saw.wheel_distance + entry_distance)
+	var spin_rate := smoothstep(0.0, SawChaseState.SPINUP_SECONDS, _landing_spin_elapsed + gs.saw.elapsed) * gs.saw.stop_speed_ratio()
+	_update_start_sound(spin_rate, dt)
 	if skeleton != null:
 		if dock == null or dock.is_deployed(): _update_lifts(gs)
 	_update_operator(gs, dt)
@@ -693,3 +702,29 @@ func update_visual(gs: QuizGameState, dt: float = 0.0, players_landed: bool = fa
 		operator_seat.seat_transfer.advance_arrival(
 			dt, entrance_running and (dock == null or dock.is_deployed()),
 			gs.game_state in [Constants.STATE_FLYOVER, Constants.STATE_COUNTDOWN, Constants.STATE_PLAYING])
+
+
+## A single startup per actual stopped -> rotating transition, never per blade or frame.
+func _update_start_sound(rate: float, dt: float) -> void:
+	var can_play := is_visible_in_tree() and not get_tree().paused and not SceneTransition.is_fully_covered() and not AudioManager.menu_sfx_muted
+	if not can_play or rate <= 0.00001:
+		if _start_sound != null:
+			_start_sound.stop()
+		_sound_spin_rate = 0.0
+		return
+	if dt <= 0.0:
+		return # Static render prewarm must not trigger a fresh startup.
+	if _sound_spin_rate <= 0.00001 and rate > 0.0001:
+		if _start_sound == null and ResourceLoader.exists(START_SOUND_PATH):
+			_start_sound = AudioStreamPlayer.new()
+			_start_sound.name = "SawStartupSound"
+			_start_sound.stream = load(START_SOUND_PATH)
+			_start_sound.bus = "SFX"
+			_start_sound.volume_db = -8.0
+			add_child(_start_sound)
+		if _start_sound != null:
+			_start_sound.play()
+			AudioManager.sfx_played.emit(&"saw_start")
+	# Keep the stopped baseline until enough actual rotation exists to trigger startup.
+	if rate > 0.0001:
+		_sound_spin_rate = rate

@@ -1,0 +1,130 @@
+{
+  "built": "2026-10-11 11:23:51",
+  "seconds": 13.2,
+  "checks": [
+    {
+      "check": "export_names_unique",
+      "pass": true,
+      "detail": "OHP_FlagA, OHP_FlagB, OHP_Pad, OHP_Pad_Lamps, OHP_Props, OHP_Windsock"
+    },
+    {
+      "check": "triangles_total_le_30k",
+      "pass": true,
+      "detail": "5488 {'OHP_Pad': 1380, 'OHP_Pad_Lamps': 1248, 'OHP_Props': 1868, 'OHP_Windsock': 812, 'OHP_FlagA': 90, 'OHP_FlagB': 90}"
+    },
+    {
+      "check": "deck_top_level",
+      "pass": true,
+      "detail": "(-1.2, -1.2)"
+    },
+    {
+      "check": "rotor_clearance",
+      "pass": true,
+      "detail": "need 5.8: [('windsock', 8.16), ('flag0', 8.1), ('flag1', 8.18), ('flood0', 7.62)]; tail [('windsock', 12.33), ('flag0', 2.4), ('flag1', 3.75), ('flood0', 5.26)]"
+    },
+    {
+      "check": "props_on_deck_outside_rotor",
+      "pass": true,
+      "detail": "[('monitor0', 8.06), ('monitor1', 8.22), ('cabinet0', 8.19), ('cabinet1', 8.42), ('buoy0', 8.33), ('buoy1', 8.35), ('buoy2', 8.36), ('buoy3', 8.06)] (deck 8.559999999999999)"
+    },
+    {
+      "check": "idle_spot_on_deck",
+      "pass": true,
+      "detail": "(1.4199999999999997, -4.3)"
+    },
+    {
+      "check": "windsock_pivot_on_pole_top",
+      "pass": true,
+      "detail": "(4.8, -6.6, 3.3)"
+    },
+    {
+      "check": "materials_allowed",
+      "pass": true,
+      "detail": "AQS_NightGlow, AQS_Painted, OHP_Flag, OHP_Net, OHP_PadDeck, OHP_PadLamp"
+    },
+    {
+      "check": "images_resolved",
+      "pass": true,
+      "detail": "ohp_net.png (512, 512), ohp_pad_deck.png (2048, 2048)"
+    },
+    {
+      "check": "lamps_16",
+      "pass": true,
+      "detail": "16"
+    }
+  ],
+  "all_checks_pass": true,
+  "triangles": 5488,
+  "glb_bytes": 5293332,
+  "renders": [
+    "C:\\AIQUIZ\\AIQUIZ-Godot\\artifacts\\online_heliport\\blender\\cam_idle.png",
+    "C:\\AIQUIZ\\AIQUIZ-Godot\\artifacts\\online_heliport\\blender\\cam_board.png",
+    "C:\\AIQUIZ\\AIQUIZ-Godot\\artifacts\\online_heliport\\blender\\cam_cockpit.png",
+    "C:\\AIQUIZ\\AIQUIZ-Godot\\artifacts\\online_heliport\\blender\\cam_padlow.png",
+    "C:\\AIQUIZ\\AIQUIZ-Godot\\artifacts\\online_heliport\\blender\\cam_overview.png"
+  ],
+  "wear": [
+    {
+      "object": "OHP_Pad",
+      "corners": 2536,
+      "unique_corners": 2328,
+      "loops_total": 2608,
+      "mean_luminance_before": 0.3992,
+      "mean_luminance_after": 0.3606,
+      "mean_multiplier": 0.8968,
+      "min_multiplier_rgb": [
+        0.55,
+        0.55,
+        0.55
+      ],
+      "mean_multiplier_visible_up_side": 0.888,
+      "multiplier_percentiles_visible": {
+        "p5": 0.613,
+        "p25": 0.771,
+        "p50": 0.949,
+        "p75": 0.997,
+        "p95": 1.015
+      },
+      "mean_multiplier_by_normal": {
+        "up": 0.9403,
+        "side": 0.8722,
+        "down": 0.9297
+      },
+      "seconds": 0.2
+    },
+    {
+      "object": "OHP_Props",
+      "corners": 3484,
+      "unique_corners": 3292,
+      "loops_total": 3492,
+      "mean_luminance_before": 0.4476,
+      "mean_luminance_after": 0.4186,
+      "mean_multiplier": 0.9304,
+      "min_multiplier_rgb": [
+        0.55,
+        0.55,
+        0.55
+      ],
+      "mean_multiplier_visible_up_side": 0.9432,
+      "multiplier_percentiles_visible": {
+        "p5": 0.749,
+        "p25": 0.875,
+        "p50": 0.993,
+        "p75": 1.005,
+        "p95": 1.013
+      },
+      "mean_multiplier_by_normal": {
+        "up": 0.9624,
+        "side": 0.9381,
+        "down": 0.8642
+      },
+      "seconds": 0.2
+    }
+  ],
+  "log": [
+    "textures ['pad', 'net']",
+    "parts 6",
+    "wear OHP_Pad: 0.888 (0.2 s)",
+    "wear OHP_Props: 0.9432 (0.2 s)"
+  ]
+}

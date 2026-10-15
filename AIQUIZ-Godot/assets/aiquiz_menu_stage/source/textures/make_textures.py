@@ -1,7 +1,7 @@
 """AIQUIZ HARBOR LAUNCH（メニューのステージ）のテクスチャを作る。
 
-- sign_aiquiz.png：看板。深い紺地に白い縁と、ゲームのロゴ（リポジトリ直下の icon.jpg）をそのまま白で載せる。
-  ロゴは生成し直さず icon.jpg の形を使う（字形をゲームのロゴとそろえる）
+- sign_aiquiz.png：看板。深い紺地に白い縁と、ゲームのロゴをそのまま白で載せる。
+  ロゴは生成し直さず、ロゴエディタの書き出し（assets/branding/logo/aiquiz_logo.png、なければ icon.jpg）の形を使う
 - led_idle.png：LED の面。Godot では LED のシェーダー（shaders/aiquiz_menu_led.gdshader）に差し替えるので、
   これは Blender の確認レンダーと、シェーダーが使えないときの予備。橙と水色の斜めの帯を LED の粒で描く
 - paving.png：デッキと歩道の舗装
@@ -21,6 +21,7 @@ from PIL import Image, ImageDraw, ImageFilter
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[3]
 LOGO = ROOT / "icon.jpg"
+LOGO_MASTER = ROOT / "assets" / "branding" / "logo" / "aiquiz_logo.png"  # ロゴエディタの書き出し
 
 NAVY = (29, 47, 92)          # #1D2F5C 看板の地
 NAVY_EDGE = (19, 32, 66)
@@ -31,7 +32,15 @@ LED_BG = (14, 22, 44)
 
 
 def _logo_mask(height_px: int) -> Image.Image:
-    """icon.jpg の白いロゴだけを取り出し、高さ height_px の不透明度マスクにする。"""
+    """ゲームのロゴを、高さ height_px の不透明度マスクにする。
+
+    ロゴエディタ（tools/logo_editor）が書き出す白・透過の高解像度ロゴ LOGO_MASTER があればそれを使い、
+    なければ icon.jpg の白い部分を取り出す。
+    """
+    if LOGO_MASTER.exists():
+        alpha = Image.open(LOGO_MASTER).convert("RGBA").getchannel("A")
+        mask = alpha.crop(alpha.getbbox())
+        return mask.resize((round(mask.width * height_px / mask.height), height_px), Image.LANCZOS)
     grey = Image.open(LOGO).convert("L")
     a = np.asarray(grey).astype(np.float32) / 255.0
     ys, xs = np.where(a > 0.45)

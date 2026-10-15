@@ -9,8 +9,9 @@ const NOISE_START: float = 1.1
 const NOISE_MIN: float = 0.12
 const MISS_CHANCE_START: float = 0.38
 const MISS_CHANCE_MIN: float = 0.12
-const LEFT_DOOR_X: float = 3.5
-const RIGHT_DOOR_X: float = -3.5
+## メニューの壁は180°回して置くので、扉0(青)はワールド x=-3.5、扉1(赤)は x=+3.5。
+const LEFT_DOOR_X: float = -3.5
+const RIGHT_DOOR_X: float = 3.5
 const CENTER_MISS_X: float = 0.0
 const MISS_CENTER_CHANCE: float = 0.15
 

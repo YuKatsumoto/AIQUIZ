@@ -96,6 +96,10 @@ func _cancel(restore_audio: bool) -> void:
 func _apply_pose(progress: float) -> void:
 	if _poses.is_empty():
 		return
+	# 2Pのスコアタワーの後に重ねる完了カードでは、演出のカメラ（表彰台）をそのまま見せる。
+	# 通常視点の姿勢へ動かすと、カード越しに走路の画へ戻ってしまう。
+	if game_state.result_presentation_active:
+		return
 	if _poses.size() == 1:
 		_set_camera_pose(_poses[0])
 		return

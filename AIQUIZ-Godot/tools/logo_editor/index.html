@@ -1,0 +1,917 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AIQUIZ ロゴエディタ</title>
+<style>
+	:root {
+		--bg: #15171c;
+		--panel: #1d2027;
+		--panel-2: #252932;
+		--line: #333845;
+		--text: #e7e9ee;
+		--muted: #9aa1b0;
+		--accent: #f28c33;
+		--accent-2: #33a6e6;
+		--danger: #e5534b;
+		--ok: #4cc38a;
+	}
+	* { box-sizing: border-box; }
+	html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+		font: 13px/1.5 "Yu Gothic UI", "Meiryo", system-ui, sans-serif; }
+	body { display: grid; grid-template-rows: auto 1fr auto; grid-template-columns: 1fr 340px; height: 100vh; }
+	header { grid-column: 1 / 3; display: flex; gap: 8px; align-items: center; padding: 8px 12px;
+		background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+	header h1 { font-size: 15px; margin: 0 12px 0 0; font-weight: 700; letter-spacing: .02em; }
+	.sep { width: 1px; height: 22px; background: var(--line); margin: 0 4px; }
+	button, select, input { font: inherit; color: var(--text); }
+	button { background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+	button:hover { border-color: #4a5163; }
+	button:disabled { opacity: .4; cursor: default; }
+	button.primary { background: var(--accent); border-color: var(--accent); color: #1a1205; font-weight: 700; }
+	button.danger { color: #ffb3ae; }
+	button.on { border-color: var(--accent-2); color: #bfe6ff; }
+	select, input[type=number], input[type=text] { background: #12141a; border: 1px solid var(--line); border-radius: 5px; padding: 3px 6px; }
+	input[type=number] { width: 78px; }
+	input[type=range] { width: 100%; accent-color: var(--accent); }
+	#stage { position: relative; overflow: hidden; background: #0b0c0f; }
+	#view { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+	aside { grid-row: 2 / 4; grid-column: 2; background: var(--panel); border-left: 1px solid var(--line); overflow-y: auto; padding: 10px 12px 20px; }
+	aside h2 { font-size: 12px; color: var(--muted); font-weight: 600; margin: 14px 0 6px; letter-spacing: .04em; }
+	#layers { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+	#layers li { display: grid; grid-template-columns: 22px 1fr auto auto; gap: 6px; align-items: center; padding: 4px 6px; border-top: 1px solid var(--line); cursor: pointer; }
+	#layers li:first-child { border-top: 0; }
+	#layers li.sel { background: #2b3140; }
+	#layers li .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	#layers li .op { font-size: 11px; padding: 0 6px; border-radius: 10px; background: #3a3f4c; color: #d6d9e0; }
+	#layers li .op.cut { background: #4a2a2a; color: #ffb3ae; }
+	#layers li .mv button { padding: 0 5px; font-size: 11px; }
+	.row { display: grid; grid-template-columns: 92px 1fr; gap: 8px; align-items: center; margin: 6px 0; }
+	.row .pair { display: flex; gap: 6px; align-items: center; }
+	.btns { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+	.hint { color: var(--muted); font-size: 12px; }
+	.card { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin-top: 6px; }
+	footer { grid-column: 1; display: flex; gap: 16px; padding: 4px 12px; background: var(--panel); border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+	#status.ok { color: var(--ok); }
+	#status.err { color: var(--danger); }
+	#dirty { color: var(--accent); }
+	kbd { background: #2a2e38; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; font-size: 11px; }
+	.help li { margin: 2px 0; }
+	.help { padding-left: 18px; margin: 4px 0; }
+</style>
+</head>
+<body>
+<header>
+	<h1>AIQUIZ ロゴエディタ</h1>
+	<button id="undo" title="元に戻す (Ctrl+Z)">↶ 元に戻す</button>
+	<button id="redo" title="やり直す (Ctrl+Y)">↷ やり直す</button>
+	<span class="sep"></span>
+	<label>表示
+		<select id="mode">
+			<option value="normal">ロゴだけ</option>
+			<option value="overlay">見本を重ねる</option>
+			<option value="diff">差分を見る</option>
+		</select>
+	</label>
+	<button id="toggleLines" class="on" title="すべての線の中心線を表示">中心線</button>
+	<button id="fit" title="ロゴ全体が見えるように">全体を表示</button>
+	<span class="sep"></span>
+	<button id="reload" title="最後に保存した状態を読み込み直す">保存した状態に戻す</button>
+	<button id="save" class="primary" title="保存して icon.jpg と LED のロゴも作り直す (Ctrl+S)">保存して反映</button>
+	<span id="dirty"></span>
+	<span id="status"></span>
+</header>
+
+<div id="stage"><canvas id="view"></canvas></div>
+
+<aside>
+	<h2>要素（上から順に重ねる。「消す」はそれより上の白を消す）</h2>
+	<ul id="layers"></ul>
+	<div class="btns">
+		<button id="addLine">＋ 線</button>
+		<button id="addCircle">＋ 輪</button>
+		<button id="dup">複製</button>
+		<button id="del" class="danger">削除</button>
+	</div>
+
+	<div id="props"></div>
+
+	<h2>操作</h2>
+	<ul class="help hint">
+		<li>点を<b>ドラッグ</b>で移動。<kbd>Shift</kbd>を押しながらだと隣の点から 45° 刻み</li>
+		<li>線や輪の<b>本体をドラッグ</b>で丸ごと移動</li>
+		<li>選んだ線を<b>ダブルクリック</b>で点を追加、<kbd>Delete</kbd>で選んだ点を削除</li>
+		<li>矢印キーで 1px（<kbd>Shift</kbd> 10px、<kbd>Alt</kbd> 0.25px）</li>
+		<li>ホイールで拡大縮小、<kbd>Space</kbd>＋ドラッグ／右ドラッグで移動</li>
+		<li><kbd>Ctrl</kbd>+<kbd>Z</kbd> 元に戻す、<kbd>Ctrl</kbd>+<kbd>Y</kbd> やり直す、<kbd>Ctrl</kbd>+<kbd>S</kbd> 保存</li>
+	</ul>
+</aside>
+
+<footer>
+	<span id="cursor">x – , y –</span>
+	<span id="zoomInfo"></span>
+</footer>
+
+<script src="logo_geometry.js"></script>
+<script>
+"use strict";
+const G = window.LogoGeometry;
+const $ = (id) => document.getElementById(id);
+const canvas = $("view");
+const ctx = canvas.getContext("2d");
+const logoLayer = document.createElement("canvas");
+const logoCtx = logoLayer.getContext("2d");
+
+const CAPS = [["butt", "直角"], ["round", "丸"], ["h", "水平に切る"], ["v", "垂直に切る"]];
+const MASTER_SCALE = 4; // 保存する透過 PNG は icon.jpg の 4 倍の解像度
+
+let model = null;
+let savedText = "";
+let undoStack = [];
+let redoStack = [];
+let lastCommitted = "";
+let sel = { el: -1, pt: -1 };
+let view = { s: 1, tx: 0, ty: 0 };
+let showLines = true;
+let mode = "normal";
+let refImg = null;
+let refTinted = null;
+let drag = null;
+let spaceDown = false;
+let mouseWorld = null;
+
+// ---------- 読み込み・保存 ----------
+async function load() {
+	const res = await fetch("/api/logo", { cache: "no-store" });
+	if (!res.ok) throw new Error("ロゴの読み込みに失敗しました");
+	model = await res.json();
+	savedText = JSON.stringify(model);
+	lastCommitted = savedText;
+	undoStack = [];
+	redoStack = [];
+	if (sel.el >= model.elements.length) sel = { el: -1, pt: -1 };
+	refreshAll();
+}
+
+function loadReference() {
+	const img = new Image();
+	img.onload = () => {
+		refImg = img;
+		// 差分表示用に、見本の白を水色にした画像を作っておく
+		const c = document.createElement("canvas");
+		c.width = img.width;
+		c.height = img.height;
+		const cx = c.getContext("2d");
+		cx.drawImage(img, 0, 0);
+		const d = cx.getImageData(0, 0, c.width, c.height);
+		for (let i = 0; i < d.data.length; i += 4) {
+			const v = Math.max(0, Math.min(255, (d.data[i] - 14) * 255 / 241));
+			d.data[i] = 0;
+			d.data[i + 1] = v;
+			d.data[i + 2] = v;
+			d.data[i + 3] = 255;
+		}
+		cx.putImageData(d, 0, 0);
+		refTinted = c;
+		draw();
+	};
+	img.src = "/api/reference";
+}
+
+function renderLogoCanvas(scale, x0, y0, w, h, background) {
+	const layer = document.createElement("canvas");
+	layer.width = w;
+	layer.height = h;
+	G.drawLogo(layer.getContext("2d"), model, { scale, originX: x0, originY: y0 });
+	if (!background) return layer;
+	const out = document.createElement("canvas");
+	out.width = w;
+	out.height = h;
+	const oc = out.getContext("2d");
+	oc.fillStyle = background;
+	oc.fillRect(0, 0, w, h);
+	oc.drawImage(layer, 0, 0);
+	return out;
+}
+
+async function save() {
+	const btn = $("save");
+	btn.disabled = true;
+	setStatus("保存中…");
+	try {
+		const b = G.bounds(model);
+		const pad = 8;
+		const x0 = Math.floor(b.x0 - pad), y0 = Math.floor(b.y0 - pad);
+		const x1 = Math.ceil(b.x1 + pad), y1 = Math.ceil(b.y1 + pad);
+		const master = renderLogoCanvas(MASTER_SCALE, x0, y0, (x1 - x0) * MASTER_SCALE, (y1 - y0) * MASTER_SCALE, null);
+		const [W, H] = model.canvas || [1024, 1024];
+		const icon = renderLogoCanvas(1, 0, 0, W, H, model.background || "#0e0e0e");
+		const body = {
+			model,
+			svg: G.toSVG(model),
+			master_png: master.toDataURL("image/png"),
+			icon_png: icon.toDataURL("image/png"),
+		};
+		const res = await fetch("/api/save", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+		const out = await res.json();
+		if (!res.ok || !out.ok) throw new Error(out.error || res.statusText);
+		savedText = JSON.stringify(model);
+		updateDirty();
+		setStatus("保存しました：" + out.written.join("、") + (out.warning ? "（注意：" + out.warning + "）" : ""), out.warning ? "err" : "ok");
+	} catch (e) {
+		setStatus("保存できませんでした：" + e.message, "err");
+	} finally {
+		btn.disabled = false;
+	}
+}
+
+function setStatus(text, cls) {
+	const s = $("status");
+	s.textContent = text;
+	s.className = cls || "";
+}
+
+// ---------- 元に戻す ----------
+function commit() {
+	const now = JSON.stringify(model);
+	if (now === lastCommitted) return;
+	undoStack.push(lastCommitted);
+	if (undoStack.length > 300) undoStack.shift();
+	redoStack = [];
+	lastCommitted = now;
+	updateDirty();
+	updateUndoButtons();
+}
+
+function undo() {
+	if (!undoStack.length) return;
+	redoStack.push(lastCommitted);
+	lastCommitted = undoStack.pop();
+	model = JSON.parse(lastCommitted);
+	clampSelection();
+	refreshAll();
+}
+
+function redo() {
+	if (!redoStack.length) return;
+	undoStack.push(lastCommitted);
+	lastCommitted = redoStack.pop();
+	model = JSON.parse(lastCommitted);
+	clampSelection();
+	refreshAll();
+}
+
+function clampSelection() {
+	if (sel.el >= model.elements.length) sel = { el: -1, pt: -1 };
+	const el = model.elements[sel.el];
+	if (!el || !el.points || sel.pt >= el.points.length) sel.pt = -1;
+}
+
+function updateUndoButtons() {
+	$("undo").disabled = !undoStack.length;
+	$("redo").disabled = !redoStack.length;
+}
+
+function updateDirty() {
+	$("dirty").textContent = JSON.stringify(model) !== savedText ? "● 未保存の変更あり" : "";
+}
+
+function refreshAll() {
+	updateUndoButtons();
+	updateDirty();
+	buildLayers();
+	buildProps();
+	draw();
+}
+
+// ---------- 表示 ----------
+function resize() {
+	const r = canvas.getBoundingClientRect();
+	const dpr = window.devicePixelRatio || 1;
+	canvas.width = Math.max(1, Math.round(r.width * dpr));
+	canvas.height = Math.max(1, Math.round(r.height * dpr));
+	logoLayer.width = canvas.width;
+	logoLayer.height = canvas.height;
+	draw();
+}
+
+function fitView() {
+	const b = G.bounds(model);
+	const dpr = window.devicePixelRatio || 1;
+	const w = canvas.width, h = canvas.height;
+	const margin = Math.min(60 * dpr, w * 0.08, h * 0.08);
+	const s = Math.max(0.05, Math.min((w - 2 * margin) / (b.x1 - b.x0), (h - 2 * margin) / (b.y1 - b.y0)));
+	view.s = s;
+	view.tx = w / 2 - s * (b.x0 + b.x1) / 2;
+	view.ty = h / 2 - s * (b.y0 + b.y1) / 2;
+	draw();
+}
+
+const toScreen = (p) => [p[0] * view.s + view.tx, p[1] * view.s + view.ty];
+const toWorld = (sx, sy) => [(sx - view.tx) / view.s, (sy - view.ty) / view.s];
+
+function draw() {
+	if (!model) return;
+	const w = canvas.width, h = canvas.height;
+	ctx.setTransform(1, 0, 0, 1, 0, 0);
+	ctx.globalCompositeOperation = "source-over";
+	ctx.globalAlpha = 1;
+	ctx.fillStyle = mode === "diff" ? "#000" : "#0b0c0f";
+	ctx.fillRect(0, 0, w, h);
+	// 1024×1024 の画面（icon.jpg の範囲）
+	const [W, H] = model.canvas || [1024, 1024];
+	const a = toScreen([0, 0]), bb = toScreen([W, H]);
+	ctx.fillStyle = mode === "diff" ? "#000" : (model.background || "#0e0e0e");
+	ctx.fillRect(a[0], a[1], bb[0] - a[0], bb[1] - a[1]);
+	ctx.strokeStyle = "#2a2e38";
+	ctx.strokeRect(a[0] + 0.5, a[1] + 0.5, bb[0] - a[0], bb[1] - a[1]);
+
+	// ロゴは透明なレイヤーに描いてから重ねる（消す要素のため）
+	logoCtx.setTransform(1, 0, 0, 1, 0, 0);
+	logoCtx.clearRect(0, 0, logoLayer.width, logoLayer.height);
+	logoCtx.setTransform(view.s, 0, 0, view.s, view.tx, view.ty);
+	G.drawLogo(logoCtx, model, { color: mode === "diff" ? "#ff2a2a" : (model.color || "#fff") });
+	logoCtx.setTransform(1, 0, 0, 1, 0, 0);
+
+	ctx.imageSmoothingEnabled = true;
+	if (mode === "diff") {
+		if (refTinted) ctx.drawImage(refTinted, a[0], a[1], bb[0] - a[0], bb[1] - a[1]);
+		ctx.globalCompositeOperation = "lighter";
+		ctx.drawImage(logoLayer, 0, 0);
+		ctx.globalCompositeOperation = "source-over";
+	} else {
+		ctx.drawImage(logoLayer, 0, 0);
+		if (mode === "overlay" && refImg) {
+			ctx.globalAlpha = 0.45;
+			ctx.globalCompositeOperation = "difference";
+			ctx.drawImage(refImg, a[0], a[1], bb[0] - a[0], bb[1] - a[1]);
+			ctx.globalCompositeOperation = "source-over";
+			ctx.globalAlpha = 1;
+		}
+	}
+	drawOverlay();
+	$("zoomInfo").textContent = "拡大 " + Math.round(view.s / (window.devicePixelRatio || 1) * 100) + "%" +
+		(mode === "diff" ? "　差分：白＝同じ、赤＝今のロゴだけ、水色＝元の icon.jpg だけ" : "");
+}
+
+function strokePolyline(pts, color, width, dash) {
+	ctx.beginPath();
+	pts.forEach((p, i) => {
+		const s = toScreen(p);
+		if (i === 0) ctx.moveTo(s[0], s[1]);
+		else ctx.lineTo(s[0], s[1]);
+	});
+	ctx.strokeStyle = color;
+	ctx.lineWidth = width;
+	ctx.setLineDash(dash || []);
+	ctx.stroke();
+	ctx.setLineDash([]);
+}
+
+function handlesOf(el) {
+	if (el.kind === "circle") return [el.center, [el.center[0] + el.radius, el.center[1]]];
+	return el.points;
+}
+
+function drawOverlay() {
+	const dpr = window.devicePixelRatio || 1;
+	model.elements.forEach((el, i) => {
+		if (el.visible === false) return;
+		const selected = i === sel.el;
+		if (!selected && !showLines) return;
+		const color = el.op === "cut" ? "rgba(255,120,110," : "rgba(80,190,255,";
+		const alpha = selected ? "1)" : "0.55)";
+		if (el.kind === "circle") {
+			const c = toScreen(el.center);
+			ctx.beginPath();
+			ctx.arc(c[0], c[1], el.radius * view.s, 0, Math.PI * 2);
+			ctx.strokeStyle = color + alpha;
+			ctx.lineWidth = (selected ? 1.6 : 1) * dpr;
+			ctx.setLineDash(el.op === "cut" ? [4 * dpr, 3 * dpr] : []);
+			ctx.stroke();
+			ctx.setLineDash([]);
+		} else {
+			strokePolyline(G.centerline(el), color + alpha, (selected ? 1.6 : 1) * dpr, el.op === "cut" ? [4 * dpr, 3 * dpr] : null);
+			if (selected) strokePolyline(el.points, "rgba(255,255,255,0.25)", 1 * dpr, [2 * dpr, 3 * dpr]);
+		}
+		if (!selected) return;
+		handlesOf(el).forEach((p, k) => {
+			const s = toScreen(p);
+			const isSel = k === sel.pt;
+			ctx.beginPath();
+			if (el.kind === "circle" && k === 1) {
+				ctx.rect(s[0] - 5 * dpr, s[1] - 5 * dpr, 10 * dpr, 10 * dpr);
+			} else {
+				ctx.arc(s[0], s[1], (isSel ? 6 : 5) * dpr, 0, Math.PI * 2);
+			}
+			ctx.fillStyle = isSel ? "#f28c33" : "#ffffff";
+			ctx.strokeStyle = "#111";
+			ctx.lineWidth = 1.5 * dpr;
+			ctx.fill();
+			ctx.stroke();
+			if (el.kind !== "circle" && el.radii && el.radii[k] > 0) {
+				ctx.fillStyle = "#33a6e6";
+				ctx.font = `${11 * dpr}px sans-serif`;
+				ctx.fillText("R" + el.radii[k], s[0] + 8 * dpr, s[1] - 8 * dpr);
+			}
+		});
+	});
+}
+
+// ---------- 要素リスト ----------
+function buildLayers() {
+	const ul = $("layers");
+	ul.innerHTML = "";
+	model.elements.forEach((el, i) => {
+		const li = document.createElement("li");
+		if (i === sel.el) li.className = "sel";
+		const vis = document.createElement("input");
+		vis.type = "checkbox";
+		vis.checked = el.visible !== false;
+		vis.title = "表示";
+		vis.addEventListener("click", (e) => e.stopPropagation());
+		vis.addEventListener("change", () => { el.visible = vis.checked; commit(); draw(); });
+		const name = document.createElement("span");
+		name.className = "name";
+		name.textContent = (i + 1) + ". " + (el.name || el.id);
+		const op = document.createElement("span");
+		op.className = "op" + (el.op === "cut" ? " cut" : "");
+		op.textContent = el.op === "cut" ? "消す" : "塗る";
+		const mv = document.createElement("span");
+		mv.className = "mv";
+		const up = document.createElement("button");
+		up.textContent = "↑";
+		up.title = "奥へ（先に描く）";
+		up.disabled = i === 0;
+		up.addEventListener("click", (e) => { e.stopPropagation(); moveElement(i, -1); });
+		const down = document.createElement("button");
+		down.textContent = "↓";
+		down.title = "手前へ（後に描く）";
+		down.disabled = i === model.elements.length - 1;
+		down.addEventListener("click", (e) => { e.stopPropagation(); moveElement(i, 1); });
+		mv.append(up, down);
+		li.append(vis, name, op, mv);
+		li.addEventListener("click", () => select(i, -1));
+		ul.appendChild(li);
+	});
+}
+
+function moveElement(i, d) {
+	const j = i + d;
+	if (j < 0 || j >= model.elements.length) return;
+	const els = model.elements;
+	[els[i], els[j]] = [els[j], els[i]];
+	if (sel.el === i) sel.el = j;
+	else if (sel.el === j) sel.el = i;
+	commit();
+	refreshAll();
+}
+
+function select(i, pt) {
+	sel = { el: i, pt: pt };
+	buildLayers();
+	buildProps();
+	draw();
+}
+
+// ---------- プロパティ ----------
+function numberRow(label, value, min, max, step, onInput, hint) {
+	const row = document.createElement("div");
+	row.className = "row";
+	const l = document.createElement("label");
+	l.textContent = label;
+	const pair = document.createElement("div");
+	pair.className = "pair";
+	const range = document.createElement("input");
+	range.type = "range";
+	range.min = min; range.max = max; range.step = step; range.value = value;
+	const num = document.createElement("input");
+	num.type = "number";
+	num.min = min; num.max = max; num.step = step; num.value = value;
+	range.addEventListener("input", () => { num.value = range.value; onInput(+range.value); draw(); });
+	num.addEventListener("input", () => { if (num.value !== "") { range.value = num.value; onInput(+num.value); draw(); } });
+	range.addEventListener("change", () => commit());
+	num.addEventListener("change", () => commit());
+	pair.append(range, num);
+	row.append(l, pair);
+	if (hint) row.title = hint;
+	return row;
+}
+
+function xyRow(label, p, onSet) {
+	const row = document.createElement("div");
+	row.className = "row";
+	const l = document.createElement("label");
+	l.textContent = label;
+	const pair = document.createElement("div");
+	pair.className = "pair";
+	const mk = (idx) => {
+		const n = document.createElement("input");
+		n.type = "number";
+		n.step = 0.25;
+		n.value = p[idx];
+		n.addEventListener("input", () => { if (n.value !== "") { onSet(idx, +n.value); draw(); } });
+		n.addEventListener("change", () => commit());
+		return n;
+	};
+	pair.append("X", mk(0), "Y", mk(1));
+	row.append(l, pair);
+	return row;
+}
+
+function selectRow(label, value, options, onSet) {
+	const row = document.createElement("div");
+	row.className = "row";
+	const l = document.createElement("label");
+	l.textContent = label;
+	const s = document.createElement("select");
+	for (const [v, t] of options) {
+		const o = document.createElement("option");
+		o.value = v; o.textContent = t;
+		if (v === value) o.selected = true;
+		s.appendChild(o);
+	}
+	s.addEventListener("change", () => { onSet(s.value); commit(); draw(); buildLayers(); });
+	row.append(l, s);
+	return row;
+}
+
+function buildProps() {
+	const box = $("props");
+	box.innerHTML = "";
+	const el = model.elements[sel.el];
+	if (!el) {
+		box.innerHTML = '<h2>選んだ要素</h2><div class="hint">左の画面かリストで線や輪を選んでください。</div>';
+		return;
+	}
+	const h = document.createElement("h2");
+	h.textContent = "選んだ要素";
+	box.appendChild(h);
+	const card = document.createElement("div");
+	card.className = "card";
+	box.appendChild(card);
+
+	const nameRow = document.createElement("div");
+	nameRow.className = "row";
+	const nl = document.createElement("label");
+	nl.textContent = "名前";
+	const ni = document.createElement("input");
+	ni.type = "text";
+	ni.value = el.name || "";
+	ni.addEventListener("input", () => { el.name = ni.value; });
+	ni.addEventListener("change", () => { commit(); buildLayers(); });
+	nameRow.append(nl, ni);
+	card.appendChild(nameRow);
+
+	card.appendChild(selectRow("働き", el.op || "paint", [["paint", "塗る（白）"], ["cut", "消す（すき間）"]], (v) => { el.op = v; }));
+	card.appendChild(numberRow("太さ", el.width, 1, 120, 0.25, (v) => { el.width = v; }));
+
+	if (el.kind === "circle") {
+		card.appendChild(xyRow("中心", el.center, (i, v) => { el.center[i] = v; }));
+		card.appendChild(numberRow("半径", el.radius, 1, 300, 0.25, (v) => { el.radius = v; }, "輪の太さの真ん中までの半径"));
+		return;
+	}
+
+	card.appendChild(selectRow("始点の端", el.capStart || "butt", CAPS, (v) => { el.capStart = v; }));
+	card.appendChild(selectRow("終点の端", el.capEnd || "butt", CAPS, (v) => { el.capEnd = v; }));
+
+	const ph = document.createElement("h2");
+	ph.textContent = sel.pt >= 0 ? `点 ${sel.pt + 1} / ${el.points.length}` : `点（${el.points.length} 個）— 画面で点をクリックして選択`;
+	box.appendChild(ph);
+	if (sel.pt < 0) return;
+	const pcard = document.createElement("div");
+	pcard.className = "card";
+	box.appendChild(pcard);
+	const p = el.points[sel.pt];
+	pcard.appendChild(xyRow("位置", p, (i, v) => { p[i] = v; }));
+	const interior = sel.pt > 0 && sel.pt < el.points.length - 1;
+	if (interior) {
+		if (!el.radii) el.radii = el.points.map(() => 0);
+		pcard.appendChild(numberRow("角の丸み", el.radii[sel.pt] || 0, 0, 200, 0.25, (v) => { el.radii[sel.pt] = v; },
+			"0 で尖った角。大きくすると角が円弧になる（隣の辺の長さまで）"));
+	} else {
+		const hint = document.createElement("div");
+		hint.className = "hint";
+		hint.textContent = "端の点です。間の点を選ぶと角の丸みを変えられます。";
+		pcard.appendChild(hint);
+	}
+	const btns = document.createElement("div");
+	btns.className = "btns";
+	const addAfter = document.createElement("button");
+	addAfter.textContent = "＋ 次との間に点を追加";
+	addAfter.disabled = sel.pt >= el.points.length - 1;
+	addAfter.addEventListener("click", () => insertPoint(sel.el, sel.pt + 1, mid(el.points[sel.pt], el.points[sel.pt + 1])));
+	const delPt = document.createElement("button");
+	delPt.className = "danger";
+	delPt.textContent = "この点を削除";
+	delPt.disabled = el.points.length <= 2;
+	delPt.addEventListener("click", () => deletePoint());
+	btns.append(addAfter, delPt);
+	pcard.appendChild(btns);
+}
+
+const mid = (a, b) => [snap((a[0] + b[0]) / 2), snap((a[1] + b[1]) / 2)];
+const snap = (v) => Math.round(v * 4) / 4;
+
+function insertPoint(ei, index, p) {
+	const el = model.elements[ei];
+	el.points.splice(index, 0, p);
+	if (!el.radii) el.radii = el.points.map(() => 0);
+	else el.radii.splice(index, 0, 0);
+	sel = { el: ei, pt: index };
+	commit();
+	refreshAll();
+}
+
+function deletePoint() {
+	const el = model.elements[sel.el];
+	if (!el || el.kind === "circle" || sel.pt < 0 || el.points.length <= 2) return;
+	el.points.splice(sel.pt, 1);
+	if (el.radii) {
+		el.radii.splice(sel.pt, 1);
+		el.radii[0] = 0;
+		el.radii[el.radii.length - 1] = 0;
+	}
+	sel.pt = Math.min(sel.pt, el.points.length - 1);
+	commit();
+	refreshAll();
+}
+
+function newId(base) {
+	let i = 1;
+	while (model.elements.some((e) => e.id === base + i)) i++;
+	return base + i;
+}
+
+function viewCenter() {
+	return toWorld(canvas.width / 2, canvas.height / 2).map(snap);
+}
+
+function addElement(el) {
+	const at = sel.el >= 0 ? sel.el + 1 : model.elements.length;
+	model.elements.splice(at, 0, el);
+	sel = { el: at, pt: -1 };
+	commit();
+	refreshAll();
+}
+
+// ---------- 画面の操作 ----------
+function eventPos(e) {
+	const r = canvas.getBoundingClientRect();
+	const dpr = window.devicePixelRatio || 1;
+	return [(e.clientX - r.left) * dpr, (e.clientY - r.top) * dpr];
+}
+
+function hitHandle(sx, sy) {
+	const el = model.elements[sel.el];
+	if (!el || el.visible === false) return -1;
+	const dpr = window.devicePixelRatio || 1;
+	const hs = handlesOf(el);
+	let best = -1, bestD = 9 * dpr;
+	hs.forEach((p, k) => {
+		const s = toScreen(p);
+		const d = Math.hypot(s[0] - sx, s[1] - sy);
+		if (d < bestD) { bestD = d; best = k; }
+	});
+	return best;
+}
+
+function hitElement(wx, wy) {
+	// 手前（後に描く）から探す。中心線の近くも当たりにする
+	const dpr = window.devicePixelRatio || 1;
+	const tol = 6 * dpr / view.s;
+	for (let i = model.elements.length - 1; i >= 0; i--) {
+		const el = model.elements[i];
+		if (el.visible === false) continue;
+		const path = new Path2D();
+		for (const poly of G.contours(el)) {
+			poly.forEach(([x, y], k) => (k === 0 ? path.moveTo(x, y) : path.lineTo(x, y)));
+			path.closePath();
+		}
+		if (ctx.isPointInPath(path, wx, wy, "nonzero")) return i;
+		if (el.kind !== "circle") {
+			const c = G.centerline(el);
+			for (let k = 0; k < c.length - 1; k++) if (distToSeg([wx, wy], c[k], c[k + 1]) < tol) return i;
+		}
+	}
+	return -1;
+}
+
+function distToSeg(p, a, b) {
+	const dx = b[0] - a[0], dy = b[1] - a[1];
+	const l2 = dx * dx + dy * dy;
+	let t = l2 ? ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2 : 0;
+	t = Math.max(0, Math.min(1, t));
+	return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy);
+}
+
+function constrain45(p, anchor) {
+	const dx = p[0] - anchor[0], dy = p[1] - anchor[1];
+	const ang = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) * (Math.PI / 4);
+	const ux = Math.cos(ang), uy = Math.sin(ang);
+	const t = dx * ux + dy * uy;
+	return [anchor[0] + ux * t, anchor[1] + uy * t];
+}
+
+canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+
+canvas.addEventListener("pointerdown", (e) => {
+	canvas.setPointerCapture(e.pointerId);
+	const [sx, sy] = eventPos(e);
+	if (e.button === 1 || e.button === 2 || spaceDown) {
+		drag = { type: "pan", sx, sy, tx: view.tx, ty: view.ty };
+		return;
+	}
+	if (e.button !== 0) return;
+	const [wx, wy] = toWorld(sx, sy);
+	const h = hitHandle(sx, sy);
+	if (h >= 0) {
+		const el = model.elements[sel.el];
+		sel.pt = el.kind === "circle" ? -1 : h;
+		drag = { type: "handle", k: h, start: [wx, wy], orig: JSON.parse(JSON.stringify(el)) };
+		buildProps();
+		draw();
+		return;
+	}
+	const i = hitElement(wx, wy);
+	if (i >= 0) {
+		if (i !== sel.el) select(i, -1);
+		else if (sel.pt !== -1) select(i, -1);
+		drag = { type: "move", start: [wx, wy], orig: JSON.parse(JSON.stringify(model.elements[i])) };
+		return;
+	}
+	select(-1, -1);
+	drag = { type: "pan", sx, sy, tx: view.tx, ty: view.ty };
+});
+
+canvas.addEventListener("pointermove", (e) => {
+	const [sx, sy] = eventPos(e);
+	const [wx, wy] = toWorld(sx, sy);
+	mouseWorld = [wx, wy];
+	$("cursor").textContent = `x ${wx.toFixed(1)} , y ${wy.toFixed(1)}`;
+	if (!drag) {
+		canvas.style.cursor = spaceDown ? "grab" : hitHandle(sx, sy) >= 0 ? "pointer" : "default";
+		return;
+	}
+	if (drag.type === "pan") {
+		view.tx = drag.tx + (sx - drag.sx);
+		view.ty = drag.ty + (sy - drag.sy);
+		draw();
+		return;
+	}
+	const el = model.elements[sel.el];
+	const dx = wx - drag.start[0], dy = wy - drag.start[1];
+	if (drag.type === "move") {
+		if (el.kind === "circle") el.center = [snap(drag.orig.center[0] + dx), snap(drag.orig.center[1] + dy)];
+		else el.points = drag.orig.points.map(([x, y]) => [snap(x + dx), snap(y + dy)]);
+	} else if (drag.type === "handle") {
+		if (el.kind === "circle") {
+			if (drag.k === 0) el.center = [snap(drag.orig.center[0] + dx), snap(drag.orig.center[1] + dy)];
+			else el.radius = snap(Math.max(1, Math.hypot(wx - el.center[0], wy - el.center[1])));
+		} else {
+			let p = [drag.orig.points[drag.k][0] + dx, drag.orig.points[drag.k][1] + dy];
+			if (e.shiftKey) {
+				const anchor = drag.k > 0 ? el.points[drag.k - 1] : el.points[1];
+				p = constrain45(p, anchor);
+			}
+			el.points[drag.k] = [snap(p[0]), snap(p[1])];
+		}
+	}
+	draw();
+});
+
+function endDrag() {
+	if (!drag) return;
+	const wasEdit = drag.type !== "pan";
+	drag = null;
+	if (wasEdit) {
+		commit();
+		buildProps();
+	}
+}
+canvas.addEventListener("pointerup", endDrag);
+canvas.addEventListener("pointercancel", endDrag);
+
+canvas.addEventListener("dblclick", (e) => {
+	const el = model.elements[sel.el];
+	if (!el || el.kind === "circle") return;
+	const [wx, wy] = toWorld(...eventPos(e));
+	let best = -1, bestD = Infinity;
+	for (let k = 0; k < el.points.length - 1; k++) {
+		const d = distToSeg([wx, wy], el.points[k], el.points[k + 1]);
+		if (d < bestD) { bestD = d; best = k; }
+	}
+	if (best < 0) return;
+	const a = el.points[best], b = el.points[best + 1];
+	const dx = b[0] - a[0], dy = b[1] - a[1];
+	const t = Math.max(0, Math.min(1, ((wx - a[0]) * dx + (wy - a[1]) * dy) / (dx * dx + dy * dy || 1)));
+	insertPoint(sel.el, best + 1, [snap(a[0] + t * dx), snap(a[1] + t * dy)]);
+});
+
+canvas.addEventListener("wheel", (e) => {
+	e.preventDefault();
+	const [sx, sy] = eventPos(e);
+	const k = Math.exp(-e.deltaY * 0.0015);
+	const ns = Math.max(0.1, Math.min(80, view.s * k));
+	const [wx, wy] = toWorld(sx, sy);
+	view.s = ns;
+	view.tx = sx - wx * ns;
+	view.ty = sy - wy * ns;
+	draw();
+}, { passive: false });
+
+window.addEventListener("keydown", (e) => {
+	const tag = (e.target && e.target.tagName) || "";
+	const typing = tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA";
+	const mod = e.ctrlKey || e.metaKey;
+	if (mod && e.key.toLowerCase() === "s") { e.preventDefault(); save(); return; }
+	if (typing) return;
+	if (mod && e.key.toLowerCase() === "z") { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
+	if (mod && e.key.toLowerCase() === "y") { e.preventDefault(); redo(); return; }
+	if (e.key === " ") { spaceDown = true; canvas.style.cursor = "grab"; e.preventDefault(); return; }
+	if (e.key === "Escape") { select(-1, -1); return; }
+	if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); deletePoint(); return; }
+	const arrows = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+	if (arrows[e.key]) {
+		const el = model.elements[sel.el];
+		if (!el) return;
+		e.preventDefault();
+		const step = e.shiftKey ? 10 : e.altKey ? 0.25 : 1;
+		const [dx, dy] = arrows[e.key].map((v) => v * step);
+		if (el.kind === "circle") el.center = [el.center[0] + dx, el.center[1] + dy];
+		else if (sel.pt >= 0) el.points[sel.pt] = [el.points[sel.pt][0] + dx, el.points[sel.pt][1] + dy];
+		else el.points = el.points.map(([x, y]) => [x + dx, y + dy]);
+		commit();
+		buildProps();
+		draw();
+	}
+});
+window.addEventListener("keyup", (e) => {
+	if (e.key === " ") { spaceDown = false; canvas.style.cursor = "default"; }
+});
+
+// ---------- ボタン ----------
+$("undo").addEventListener("click", undo);
+$("redo").addEventListener("click", redo);
+$("save").addEventListener("click", save);
+$("fit").addEventListener("click", fitView);
+$("mode").addEventListener("change", (e) => { mode = e.target.value; draw(); });
+$("toggleLines").addEventListener("click", (e) => {
+	showLines = !showLines;
+	e.target.classList.toggle("on", showLines);
+	draw();
+});
+$("reload").addEventListener("click", async () => {
+	if (JSON.stringify(model) !== savedText && !confirm("未保存の変更を捨てて、最後に保存した状態に戻しますか？")) return;
+	await load();
+	setStatus("最後に保存した状態を読み込みました", "ok");
+});
+$("addLine").addEventListener("click", () => {
+	const [cx, cy] = viewCenter();
+	addElement({ id: newId("line"), name: "新しい線", kind: "line", op: "paint", visible: true,
+		points: [[cx - 50, cy], [cx + 50, cy]], radii: [0, 0], width: 32, capStart: "butt", capEnd: "butt" });
+});
+$("addCircle").addEventListener("click", () => {
+	const [cx, cy] = viewCenter();
+	addElement({ id: newId("circle"), name: "新しい輪", kind: "circle", op: "paint", visible: true,
+		center: [cx, cy], radius: 50, width: 32 });
+});
+$("dup").addEventListener("click", () => {
+	const el = model.elements[sel.el];
+	if (!el) return;
+	const copy = JSON.parse(JSON.stringify(el));
+	copy.id = newId(el.id + "_");
+	copy.name = (el.name || el.id) + "（コピー）";
+	if (copy.kind === "circle") copy.center = [copy.center[0] + 20, copy.center[1] + 20];
+	else copy.points = copy.points.map(([x, y]) => [x + 20, y + 20]);
+	addElement(copy);
+});
+$("del").addEventListener("click", () => {
+	const el = model.elements[sel.el];
+	if (!el) return;
+	model.elements.splice(sel.el, 1);
+	sel = { el: -1, pt: -1 };
+	commit();
+	refreshAll();
+});
+
+window.addEventListener("beforeunload", (e) => {
+	if (model && JSON.stringify(model) !== savedText) { e.preventDefault(); e.returnValue = ""; }
+});
+window.addEventListener("resize", resize);
+
+(async () => {
+	try {
+		await load();
+	} catch (e) {
+		setStatus(e.message + "（start_logo_editor.bat から開いてください）", "err");
+		return;
+	}
+	loadReference();
+	resize();
+	fitView();
+})();
+</script>
+</body>
+</html>

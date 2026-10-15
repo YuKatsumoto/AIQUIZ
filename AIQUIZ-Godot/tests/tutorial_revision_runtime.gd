@@ -68,7 +68,7 @@ func run() -> void:
 	_finish()
 
 func _settings_snapshot(gs: QuizGameState) -> String:
-	return JSON.stringify([gs.tuning.wall_speed_override, gs.p1_hat, gs.p2_hat, gs.p1_emote_slots, gs.p2_emote_slots])
+	return JSON.stringify([gs.tuning.wall_speed_override, gs.p1_hat, gs.p2_hat, gs.p1_emote_slots, gs.p2_emote_slots, gs.p1_skin_code, gs.p2_skin_code])
 
 func _tap(code: int) -> void:
 	var event := InputEventKey.new()

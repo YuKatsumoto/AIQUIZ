@@ -37,7 +37,7 @@ const HAT_TARGET_HEIGHTS := {
 	HatData.HAT_CAP:       0.28,  # キャップ
 	HatData.HAT_SANTA:     0.45,  # サンタ帽
 	HatData.HAT_COWBOY:    0.32,  # カウボーイハット
-	HatData.HAT_HELMET:    0.32,  # ヘルメット
+	HatData.HAT_HELMET:    0.38,  # ヘルメット（紐を除いたドーム高さ。四角い頭の角まで覆う）
 	HatData.HAT_WIZARD:    0.50,  # ウィザード帽子
 	HatData.HAT_CONE:      0.45,  # コーン
 	HatData.HAT_SOMBRERO:  0.25,  # ソンブレロ（横に広いので高さは控えめ）
@@ -57,7 +57,7 @@ const HAT_Y_TWEAKS := {
 	HatData.HAT_CAP:       0.02,   # つばを頭にめり込ませない
 	HatData.HAT_SANTA:     -0.02,
 	HatData.HAT_COWBOY:    -0.02,
-	HatData.HAT_HELMET:    -0.12,  # Lowered significantly to stop floating
+	HatData.HAT_HELMET:    -0.15,  # ドームの縁を頭頂から下げ、頭の上部をすっぽり覆う
 	HatData.HAT_WIZARD:    0.04,   # つばが頭を貫通しないよう上げる
 	HatData.HAT_CONE:      0.0,
 	HatData.HAT_SOMBRERO:  0.0,    # 沈み込みと浮きの中間
@@ -74,6 +74,7 @@ const HAT_Y_TWEAKS := {
 # キャラクターのローカル +Z（足先と進行方向）へ、つば・顔をそろえる。
 const HAT_Y_ROTATIONS := {
 	HatData.HAT_CAP:       90.0,  # つばをキャラ正面へ
+	HatData.HAT_HELMET:    -90.0, # 前つば（モデル +X）をキャラ正面へ
 	HatData.HAT_FROG:      90.0,  # カエルの顔をキャラ正面へ
 	HatData.HAT_PROPELLER: 180.0, # つばをキャラ正面へ
 	HatData.HAT_CHICKEN:   90.0,  # ニワトリをキャラ正面へ
@@ -83,7 +84,6 @@ const HAT_Y_ROTATIONS := {
 
 # 帽子ごとの追加X軸オフセット（微調整用）
 const HAT_X_TWEAKS := {
-	HatData.HAT_HELMET:    -0.08, # AABB偏りで横に寄るのを戻す
 	HatData.HAT_PIRATE:    0.13,  # 垂れ布込みAABBではなく赤バンダナ中心を頭へ合わせる
 }
 
@@ -91,9 +91,30 @@ const HAT_X_TWEAKS := {
 # つば付き帽子は AABB 中心だとドームが前に出るので、被る部分を頭の中央へ戻す
 const HAT_Z_TWEAKS := {
 	HatData.HAT_CAP:       -0.08,  # ドームを頭の上へ
+	HatData.HAT_HELMET:    0.065,  # 前つばの分だけ後ろに寄ったドームを頭の中央へ
 	HatData.HAT_PROPELLER: -0.08,  # ドームを頭の上へ
 	HatData.HAT_BOUSI:     -0.10,   # ドームを前へ寄せ、四角い頭の前端が帽体を突き抜けないようにする
 }
+
+# 寸法・位置合わせをこのメッシュだけで測る帽子（ぶら下がった紐を AABB に入れない）
+const HAT_FIT_NODES := {
+	HatData.HAT_HELMET: &"Sphere001",
+}
+
+# 元モデルの紐を外し、キャラクターの頭に沿うアゴ紐を作り直す帽子（値は元の紐ノード名）
+const HAT_CHIN_STRAP_NODES := {
+	HatData.HAT_HELMET: &"Box001",
+}
+
+# アゴ紐の形（HatMount 基準。頭は一辺 HEAD_WIDTH * 2 の立方体で、HatMount が頭頂の中心）
+const CHIN_STRAP_WIDTH := 0.03
+const CHIN_STRAP_THICKNESS := 0.012
+const CHIN_STRAP_GAP := 0.004       # 頭の面とのすき間（ちらつき防止）
+const CHIN_STRAP_TOP_Y := -0.12     # つばの下へ潜り込ませる上端
+const CHIN_STRAP_CHIN_Y := -0.40    # アゴ（顔の下端付近）の高さ
+
+static func has_chin_strap(hat_id: int) -> bool:
+	return HAT_CHIN_STRAP_NODES.has(hat_id)
 
 # ボブルヘッド（赤ベコ）エフェクト対象の帽子
 # プレイヤーの動きに応じてバネ物理で首がゆらゆら揺れる
@@ -149,9 +170,14 @@ static func create_hat(hat_id: int) -> Node3D:
 	var model := scene.instantiate()
 	root.add_child(model)
 	
+	var strap_material: Material = null
+	if HAT_CHIN_STRAP_NODES.has(hat_id):
+		strap_material = _remove_source_strap(model, HAT_CHIN_STRAP_NODES[hat_id])
+	var fit_node: StringName = HAT_FIT_NODES.get(hat_id, &"")
+
 	# --- 自動フィッティング ---
 	# 1. モデルの AABB を計算
-	var aabb := _compute_model_aabb(model, Transform3D.IDENTITY)
+	var aabb := _compute_model_aabb(model, Transform3D.IDENTITY, fit_node)
 	
 	if aabb.size.length() < 0.001:
 		# AABB が取れない場合はフォールバック
@@ -171,7 +197,7 @@ static func create_hat(hat_id: int) -> Node3D:
 		model.rotation_degrees.y += y_rot
 	
 	# 3. スケール・回転適用後の AABB を再計算
-	var scaled_aabb := _compute_model_aabb(model, Transform3D.IDENTITY)
+	var scaled_aabb := _compute_model_aabb(model, Transform3D.IDENTITY, fit_node)
 	
 	# 4. 帽子の底面が Y=0（HatMount位置）に来るように配置
 	#    かつ XZ 中心を原点に揃える
@@ -193,8 +219,74 @@ static func create_hat(hat_id: int) -> Node3D:
 		_setup_propeller_spin(model)
 	elif hat_id == HatData.HAT_BOUSI:
 		_setup_giraffe_head_tracking(model)
-	
+
+	if HAT_CHIN_STRAP_NODES.has(hat_id):
+		_build_chin_strap(root, strap_material)
+
 	return root
+
+
+## 元モデルの紐を取り外し、その材質を返す（新しいアゴ紐に同じ色を使う）
+static func _remove_source_strap(model: Node, strap_name: StringName) -> Material:
+	var strap := model.find_child(String(strap_name), true, false)
+	if strap == null:
+		push_warning("HatFactory: Strap node was not found: " + String(strap_name))
+		return null
+	var material: Material = null
+	if strap is MeshInstance3D:
+		material = (strap as MeshInstance3D).get_active_material(0)
+	strap.get_parent().remove_child(strap)
+	strap.free()
+	return material
+
+
+## 頭の左右の面をつばの下からアゴへ斜めに下り、顔の下端を横切るアゴ紐を作る
+static func _build_chin_strap(root: Node3D, material: Material) -> void:
+	if material == null:
+		var fallback := StandardMaterial3D.new()
+		fallback.albedo_color = Color(0.03, 0.03, 0.03)
+		fallback.roughness = 0.95
+		material = fallback
+	var strap := Node3D.new()
+	strap.name = "ChinStrap"
+	root.add_child(strap)
+
+	var half := HEAD_WIDTH
+	var face_out := half + CHIN_STRAP_GAP + CHIN_STRAP_THICKNESS * 0.5
+	var front_z := half - CHIN_STRAP_WIDTH
+	for side: float in [-1.0, 1.0]:
+		var top := Vector3(side * face_out, CHIN_STRAP_TOP_Y, 0.0)
+		var chin := Vector3(side * face_out, CHIN_STRAP_CHIN_Y, front_z)
+		var dir := chin - top
+		var piece := _strap_piece(
+			"Side%s" % ("L" if side < 0.0 else "R"),
+			Vector3(CHIN_STRAP_THICKNESS, dir.length() + CHIN_STRAP_WIDTH, CHIN_STRAP_WIDTH),
+			material,
+		)
+		# ローカル +Y を上端→アゴの向きへ倒す（X 軸まわりの回転だけで YZ 平面内に収まる）
+		piece.transform = Transform3D(
+			Basis(Vector3.RIGHT, atan2(dir.z, dir.y)),
+			(top + chin) * 0.5,
+		)
+		strap.add_child(piece)
+
+	var bar := _strap_piece(
+		"Chin",
+		Vector3((half + CHIN_STRAP_GAP + CHIN_STRAP_THICKNESS) * 2.0, CHIN_STRAP_WIDTH, CHIN_STRAP_THICKNESS),
+		material,
+	)
+	bar.position = Vector3(0.0, CHIN_STRAP_CHIN_Y, half + CHIN_STRAP_GAP + CHIN_STRAP_THICKNESS * 0.5)
+	strap.add_child(bar)
+
+
+static func _strap_piece(piece_name: String, size: Vector3, material: Material) -> MeshInstance3D:
+	var box := BoxMesh.new()
+	box.size = size
+	var piece := MeshInstance3D.new()
+	piece.name = piece_name
+	piece.mesh = box
+	piece.material_override = material
+	return piece
 
 
 static func _setup_giraffe_head_tracking(model: Node) -> void:
@@ -535,7 +627,8 @@ static func _collect_meshes(node: Node, meshes: Array[MeshInstance3D]) -> void:
 
 
 ## モデルの結合 AABB を計算（再帰的に全子ノードの Transform を考慮）
-static func _compute_model_aabb(node: Node, parent_xform: Transform3D) -> AABB:
+## only_mesh を指定すると、その名前の MeshInstance3D だけを測る
+static func _compute_model_aabb(node: Node, parent_xform: Transform3D, only_mesh: StringName = &"") -> AABB:
 	var combined := AABB()
 	var has_any := false
 	
@@ -543,7 +636,7 @@ static func _compute_model_aabb(node: Node, parent_xform: Transform3D) -> AABB:
 	if node is Node3D:
 		this_xform = parent_xform * (node as Node3D).transform
 	
-	if node is MeshInstance3D:
+	if node is MeshInstance3D and (only_mesh == &"" or node.name == only_mesh):
 		var mi := node as MeshInstance3D
 		if mi.mesh:
 			var local_aabb: AABB = mi.mesh.get_aabb()
@@ -551,9 +644,9 @@ static func _compute_model_aabb(node: Node, parent_xform: Transform3D) -> AABB:
 			var transformed := this_xform * local_aabb
 			combined = transformed
 			has_any = true
-	
+
 	for child in node.get_children():
-		var child_aabb := _compute_model_aabb(child, this_xform)
+		var child_aabb := _compute_model_aabb(child, this_xform, only_mesh)
 		if child_aabb.size.length() > 0.001:
 			if has_any:
 				combined = combined.merge(child_aabb)

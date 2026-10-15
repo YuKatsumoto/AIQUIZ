@@ -88,7 +88,7 @@
 | `blender/aiquiz_stadium.blend` | 組み立て結果。部品のシーンと、ゲームの座標どおりに並べた確認シーン（床と問題壁はゲームの形を写した参照物、仮置きの観客、昼・夕暮れ・夜、原本の空撮に近いカメラ） |
 | `build_report.json` | 検算（43 項目＋動き 3 項目）、部品ごとの三角形数・材質・外形 |
 | `previews/*.jpg` / `previews/ingame/*.jpg` | Blender の確認レンダーと、ゲームの実画面 |
-| `textures/make_textures.py` | 手続きのテクスチャ：帆の布、ブースの画面、街の外壁（昼と夜の窓）。`goal_board.png` は Higgsfield、`lighthouse_sign.png` は `sb_header.png` の流用 |
+| `textures/make_textures.py` | 手続きのテクスチャ：帆の布、ブースの画面、街の外壁（昼と夜の窓）。`goal_board.png` は Higgsfield、`lighthouse_sign.png` は `sb_header.png` の流用。ロゴの部分は `tools/logo_editor/apply_logo.py` が、字を消した下地 `lighthouse_sign_plate.png`（Codex の画像生成）の上に今のロゴを箱文字の見た目で描く（元の画像は `lighthouse_sign_original.png`） |
 | `DIMENSIONS.md` / `dimensions.json` | 寸法表（人が読む版 / ビルダーが読む版）。値ごとに根拠（定数・実測・設計） |
 | `reference/`・`generation_record.json`・`PROMPTS.md`・`palette.json`・`game_constants.json`・`guides/`・`measure/` | 参照画像と生成記録、色見本、ゲームの定数、ガイドと実測 |
 

@@ -1,0 +1,226 @@
+extends Node
+
+## 乗り込めるヘリを、ゲームと同じ OnlineHeliportHelicopter で確かめる（材質の準備・色替え・ジェットの光）。
+## 画面付きで shots= を渡すと、空の下で撮る（godot_pair：オレンジとブルー、godot_door：ドアを開けた 1 機）。
+## tests/helicopter_boarding_bootstrap.gd から読む（自動読み込みが要る）。
+
+const P1_BODY := Color(0.95, 0.55, 0.20)
+const P2_BODY := Color(0.20, 0.65, 0.90)
+
+var report := {"passed": true, "problems": [], "checks": 0}
+var shots_dir := ""
+
+
+func _ready() -> void:
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("shots="):
+			shots_dir = arg.trim_prefix("shots=")
+	call_deferred("run")
+
+
+func check(ok: bool, label: String) -> void:
+	report.checks += 1
+	if not ok:
+		report.passed = false
+		report.problems.append(label)
+
+
+func run() -> void:
+	var heli := OnlineHeliportHelicopter.new()
+	add_child(heli)
+	check(heli.setup(P2_BODY, false, false), "OnlineHeliportHelicopter.setup")
+	if heli.model != null:
+		_check_materials(heli)
+	heli.queue_free()
+	await get_tree().process_frame
+	if not shots_dir.is_empty() and DisplayServer.get_name() != "headless":
+		await _shots()
+	_finish()
+
+
+func _surfaces(heli: OnlineHeliportHelicopter, material_name: String) -> Array:
+	var out := []
+	for node in heli.model.find_children("*", "MeshInstance3D", true, false):
+		var mi := node as MeshInstance3D
+		for s in range(mi.mesh.get_surface_count()):
+			var src := mi.mesh.surface_get_material(s)
+			if src != null and src.resource_name == material_name:
+				out.append([mi, s])
+	return out
+
+
+func _check_materials(heli: OnlineHeliportHelicopter) -> void:
+	# 色替え：BodyPaint の面はすべてプレイヤーの色
+	var paint := _surfaces(heli, "BodyPaint")
+	var tinted := 0
+	for pair: Array in paint:
+		var o := (pair[0] as MeshInstance3D).get_surface_override_material(pair[1]) as BaseMaterial3D
+		if o != null and o.albedo_color.is_equal_approx(P2_BODY):
+			tinted += 1
+	report["bodypaint_surfaces"] = paint.size()
+	check(not paint.is_empty() and tinted == paint.size(), "every BodyPaint surface takes the tint (%d / %d)" % [tinted, paint.size()])
+	# ガラス：材質 Windows の面はガラスのシェーダー。風防だけサンバイザー
+	var canopy_ok := true
+	var door_ok := true
+	for pair: Array in _surfaces(heli, "Windows"):
+		var mi := pair[0] as MeshInstance3D
+		var o := mi.get_surface_override_material(pair[1]) as ShaderMaterial
+		if o == null or o.shader != OnlineHeliportHelicopter.GLASS_SHADER:
+			canopy_ok = false
+			door_ok = false
+			continue
+		var visor := float(o.get_shader_parameter("visor_strength"))
+		if mi.name == "Windows":
+			canopy_ok = canopy_ok and is_equal_approx(visor, 1.0)
+		else:
+			door_ok = door_ok and is_equal_approx(visor, 0.0)
+	check(canopy_ok, "canopy glass uses heli_glass with the visor")
+	check(door_ok, "door glass uses heli_glass without the visor")
+	# 濃紺（BodyAccent）は P2 の機でも色替えしない
+	var accent_pairs := _surfaces(heli, "BodyAccent")
+	var accent_ok := not accent_pairs.is_empty()
+	for pair: Array in accent_pairs:
+		var o := (pair[0] as MeshInstance3D).get_surface_override_material(pair[1]) as BaseMaterial3D
+		var src := (pair[0] as MeshInstance3D).mesh.surface_get_material(pair[1]) as BaseMaterial3D
+		var used := o if o != null else src
+		accent_ok = accent_ok and used != null and not used.albedo_color.is_equal_approx(P2_BODY) and absf(used.albedo_color.b - OnlineHeliportHelicopter.BRAND_NAVY.b) < 0.02
+	check(accent_ok, "BodyAccent stays navy on the P2 heli (%d surfaces)" % accent_pairs.size())
+	# 塗装のつや：BodyPaint と Trim にクリアコート
+	for name: String in ["BodyPaint", "Trim"]:
+		var pairs := _surfaces(heli, name)
+		var o := (pairs[0][0] as MeshInstance3D).get_surface_override_material(pairs[0][1]) as BaseMaterial3D if not pairs.is_empty() else null
+		check(o != null and o.clearcoat_enabled, "%s gets a clearcoat" % name)
+	# ローターのぼかし：回っているときは羽根だけ隠し、ハブは見えたまま
+	var blades := heli.model.find_child("MainRotorBlades", true, false) as Node3D
+	var hub := heli.model.find_child("MainRotor", true, false) as Node3D
+	heli.spool = 1.0
+	heli.spool_target = 1.0
+	heli._process(1.0 / 60.0)
+	check(blades != null and not blades.visible and hub.visible, "spinning: blades hidden, hub visible")
+	# 品質「低」：円盤にせず、1 フレームの回りは MAIN_ROTOR_MAX_STEP まで（30 fps、溜めの 1.8 倍）
+	heli.apply_quality("low")
+	heli.rotor_speed_factor = 1.8
+	var before := heli._main_angle
+	heli._process(1.0 / 30.0)
+	var turned := wrapf(heli._main_angle - before, -PI, PI)
+	check(blades.visible and absf(turned) <= OnlineHeliportHelicopter.MAIN_ROTOR_MAX_STEP + 1e-4, "low quality: blades visible, step %.3f rad" % turned)
+	heli.apply_quality("high")
+	# 尾のフェネストロン：回っているときはファンを円盤に替える。ストロボは止まっているあいだ光らない
+	heli.spool = 1.0
+	heli._process(1.0 / 60.0)
+	var tail_disc := heli.model.find_child("TailFanDisc", true, false) as MeshInstance3D
+	var tail_fan := heli.model.find_child("TailRotor", true, false) as Node3D
+	check(tail_disc != null and tail_disc.visible and not tail_fan.visible, "spinning: fan disc shown, fan blades hidden")
+	heli.park_rotor()
+	heli._process(1.0 / 60.0)
+	check(tail_fan.visible and not tail_disc.visible, "parked: fan blades shown")
+	check(heli._strobe_material != null and heli._strobe_material.emission_energy_multiplier < 0.5, "strobe is dark while the rotor is stopped")
+	# ジェットの光：_find_jets の発光の上書きが残る
+	var glow := heli.model.find_child("JetGlow_L", true, false) as MeshInstance3D
+	var glow_override := glow.get_surface_override_material(0) as StandardMaterial3D if glow != null else null
+	check(glow_override != null and glow_override.emission_enabled, "JetGlow_L keeps its emissive override")
+	# デカール：アルファで重ね、ほかの半透明より先に描く。頂点色（細い線の色・AO）を掛ける
+	var decal_pairs := _surfaces(heli, "Decal") + _surfaces(heli, "DecalNumber")
+	var decal_ok := not decal_pairs.is_empty()
+	for pair: Array in decal_pairs:
+		var o := (pair[0] as MeshInstance3D).get_surface_override_material(pair[1]) as BaseMaterial3D
+		decal_ok = decal_ok and o != null and o.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA \
+			and o.render_priority == OnlineHeliportHelicopter.DECAL_RENDER_PRIORITY and o.vertex_color_use_as_albedo and o.albedo_texture != null
+	report["decal_surfaces"] = decal_pairs.size()
+	check(decal_ok, "decals: alpha blend, render_priority -8, vertex colour (%d surfaces)" % decal_pairs.size())
+	# 機体番号：slot 2 は number_uv_step だけ行をずらす。slot 1 はずらさない
+	var number_pairs := _surfaces(heli, "DecalNumber")
+	var number := (number_pairs[0][0] as MeshInstance3D).get_surface_override_material(number_pairs[0][1]) as BaseMaterial3D if not number_pairs.is_empty() else null
+	var step: Array = heli.layout.get("livery", {}).get("number_uv_step", [0.0, 0.0])
+	heli.set_livery_slot(2)
+	var slot2 := number.uv1_offset if number != null else Vector3.ZERO
+	heli.set_livery_slot(1)
+	var slot1 := number.uv1_offset if number != null else Vector3.ONE
+	report["number_offset_slot2"] = [slot2.x, slot2.y]
+	check(number != null and slot2.is_equal_approx(Vector3(float(step[0]), float(step[1]), 0.0)) and slot1.is_zero_approx(), "DecalNumber: slot 2 shifts by number_uv_step, slot 1 stays")
+	var shared := _surfaces(heli, "Decal")
+	var decal_override := (shared[0][0] as MeshInstance3D).get_surface_override_material(shared[0][1]) as BaseMaterial3D if not shared.is_empty() else null
+	check(number != null and decal_override != null and number != decal_override, "DecalNumber has its own material per heli")
+
+
+func _shots() -> void:
+	var world := Node3D.new()
+	add_child(world)
+	var env := WorldEnvironment.new()
+	var e := Environment.new()
+	e.background_mode = Environment.BG_SKY
+	e.sky = StageEnvironment.create_stage_sky()
+	e.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+	e.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
+	e.ambient_light_energy = 1.0
+	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	env.environment = e
+	world.add_child(env)
+	var sun := DirectionalLight3D.new()
+	sun.rotation_degrees = Vector3(-48, -35, 0)
+	sun.shadow_enabled = true
+	sun.light_energy = 1.3
+	world.add_child(sun)
+	var floor_mesh := MeshInstance3D.new()
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(60, 60)
+	floor_mesh.mesh = plane
+	var fm := StandardMaterial3D.new()
+	fm.albedo_color = Color(0.36, 0.40, 0.44)
+	floor_mesh.material_override = fm
+	world.add_child(floor_mesh)
+	var a := OnlineHeliportHelicopter.new()
+	world.add_child(a)
+	a.setup(P1_BODY, false, false)
+	a.position = Vector3(-3.0, 0.0, 0.0)
+	a.set_door("L", 1.0)
+	var b := OnlineHeliportHelicopter.new()
+	world.add_child(b)
+	b.setup(P2_BODY, false, false)
+	b.set_livery_slot(2)
+	b.position = Vector3(5.5, 0.0, 3.0)
+	b.rotation_degrees.y = 20.0
+	var cam := Camera3D.new()
+	world.add_child(cam)
+	cam.fov = 45
+	# 操縦席の近景（オンラインの CAM_Cockpit とおなじ向き・FOV 34）：ハテナを乗せた 1 機を別の場所に置く
+	var c := OnlineHeliportHelicopter.new()
+	world.add_child(c)
+	c.setup(P1_BODY, true, false)
+	c.position = Vector3(0.0, 0.0, -20.0)
+	# 腹（本編で下から見上げる向き）：もう 1 機
+	var d := OnlineHeliportHelicopter.new()
+	world.add_child(d)
+	d.setup(P2_BODY, false, false)
+	d.position = Vector3(0.0, 0.0, 20.0)
+	# 画ごとに映す機体
+	for shot: Array in [["godot_pair", Vector3(-13, 7.5, -15), Vector3(1.0, 1.8, 1.0), 45.0, [a, b]],
+			["godot_door", Vector3(-10.5, 2.6, -4.5), Vector3(-3.5, 2.0, -1.2), 45.0, [a, b]],
+			["godot_cockpit", Vector3(-0.3, 2.35, -26.6), Vector3(0.0, 2.15, -21.2), 34.0, [c]],
+			["godot_belly", Vector3(7.0, 0.4, 32.0), Vector3(0.0, 1.6, 20.5), 45.0, [d]],
+			["godot_rotor_blur", Vector3(-9.0, 7.5, 31.0), Vector3(0.0, 3.0, 20.0), 45.0, [d]],
+			["godot_tail", Vector3(-1.5, 4.2, 30.0), Vector3(0.0, 3.4, 26.3), 45.0, [d]],
+			# 尾翼の機体番号：オレンジ（a）は AQ-01、ブルー（b）は AQ-02
+			["godot_number_a", Vector3(-8.0, 4.6, 9.0), Vector3(-3.0, 4.0, 6.2), 30.0, [a]],
+			["godot_number_b", Vector3(1.8, 4.6, 11.4), Vector3(7.7, 4.0, 9.2), 30.0, [b]],
+			# デカールの遠景（26 m、mesh_lod_threshold 1.5）：LOD でデカールが沈まないか
+			["godot_lod26", Vector3(-20.0, 7.0, 4.0), Vector3(0.0, 2.2, 20.0), 30.0, [d]]]:
+		d.spool = 1.0 if shot[0] == "godot_rotor_blur" else 0.0
+		d.spool_target = d.spool
+		get_viewport().mesh_lod_threshold = 1.5 if shot[0] == "godot_lod26" else 1.0
+		for h: Node3D in [a, b, c, d]:
+			h.visible = h in shot[4]
+		cam.position = shot[1]
+		cam.look_at(shot[2])
+		cam.fov = shot[3]
+		for i in range(4):
+			await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		DirAccess.make_dir_recursive_absolute(shots_dir)
+		get_viewport().get_texture().get_image().save_png("%s/%s.png" % [shots_dir, shot[0]])
+	world.queue_free()
+
+
+func _finish() -> void:
+	print("HELICOPTER_BOARDING_RUNTIME " + JSON.stringify(report))
+	get_tree().quit(0 if report.passed else 1)

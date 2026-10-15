@@ -16,8 +16,13 @@ ns = {}
 exec(open("C:/AIQUIZ/AIQUIZ-Godot/assets/goal_stand/source/gs_common.py", encoding="utf-8").read(), ns)
 G = type("G", (), ns)
 
-ONE_SHOT = {"SPEC_Throw"}
+ONE_SHOT = {"SPEC_Throw", "SPEC_WakeUp"}
 THROW_RELEASE = 9           # frame measured by bake_ual.py (fastest forward hand speed)
+# Crowd extras (author_crowd_extras.py) that Godot needs as numbers, in seconds.
+WAVE_RISE = [4 / 30.0, 14 / 30.0, 26 / 30.0, 38 / 30.0]   # stand_wave_rise(): up 4..14, down 26..38
+LEADER_BEAT = 15 / 30.0
+KID_SEAT = (0.0, 0.19, 1.47)                               # Blender carrier rest space
+KID_SCALE = 0.62
 
 
 def _select(objects):
@@ -63,6 +68,8 @@ def export_spectator():
         start, end = action.frame_range
         clips[name] = {"frames": int(round(end - start)), "seconds": round((end - start) / G.FPS, 4),
                        "loop": name not in ONE_SHOT}
+        if action.get("source_seconds") is not None:
+            clips[name]["source_seconds"] = float(action["source_seconds"])
     clips["SPEC_Throw"]["release"] = round(THROW_RELEASE / G.FPS, 4)
     rig.data.pose_position = "POSE"
     for pb in rig.pose.bones:
@@ -94,15 +101,28 @@ def export_loose():
         o.hide_render = True
 
 
-def export_all():
-    clips, spectator_objects = export_spectator()
-    export_stand()
-    export_loose()
-    meta = {"fps": G.FPS, "clips": clips, "roles": {"skin": 0, "shirt": 1, "pants": 2, "hair": 3, "shoes": 4,
-            "dark": 5, "accent": 6, "white": 7, "blush": 8, "egg": 9, "carton": 10, "wood": 11}, "role_count": G.ROLE_COUNT}
-    with open(G.OUT + "/goal_stand_clips.json", "w", encoding="utf-8") as fh:
-        json.dump(meta, fh, indent=1)
-    return {"clips": len(clips), "spectator_objects": spectator_objects}
+def export_all(only=None):
+    """`only`: None for all three GLBs, or a subset of {"spectator", "stand", "loose"}
+    (the clip metadata is written with the spectator)."""
+    parts = set(only or ("spectator", "stand", "loose"))
+    out = {}
+    if "spectator" in parts:
+        clips, spectator_objects = export_spectator()
+        clips["SPEC_StandWave"]["rise"] = [round(t, 4) for t in WAVE_RISE]
+        meta = {"fps": G.FPS, "clips": clips, "roles": {"skin": 0, "shirt": 1, "pants": 2, "hair": 3, "shoes": 4,
+                "dark": 5, "accent": 6, "white": 7, "blush": 8, "egg": 9, "carton": 10, "wood": 11,
+                "popcorn": 12, "red": 13, "metal": 14, "bun": 15}, "role_count": G.ROLE_COUNT,
+                "leader_beat": LEADER_BEAT,
+                # Godot space (x, z, -y) of the carrier's rest: the kid's root sits there on the neck.
+                "kid": {"seat": [KID_SEAT[0], KID_SEAT[2], -KID_SEAT[1]], "scale": KID_SCALE, "bone": "neck_01"}}
+        with open(G.OUT + "/goal_stand_clips.json", "w", encoding="utf-8") as fh:
+            json.dump(meta, fh, indent=1)
+        out.update({"clips": len(clips), "spectator_objects": spectator_objects})
+    if "stand" in parts:
+        export_stand()
+    if "loose" in parts:
+        export_loose()
+    return out
 
 
-result = export_all()
+result = export_all(globals().get("EXPORT_ONLY"))

@@ -72,6 +72,8 @@ func update(delta: float) -> void:
 		Constants.STATE_WAITING_START,
 		Constants.STATE_FLYOVER,
 		Constants.STATE_COUNTDOWN,
+		# ゴール後のスコアタワーは本編と同じ演出だけを見せる。
+		Constants.STATE_RESULT_CEREMONY,
 	]
 	if not visible:
 		return
@@ -313,7 +315,7 @@ func _update_player_guide(
 		_is_player_active(player_index)
 		and guide in [
 			DuoFlow.GUIDE_LANE,
-			DuoFlow.GUIDE_AIR,
+			DuoFlow.GUIDE_JUMP,
 			DuoFlow.GUIDE_EMOTE,
 			DuoFlow.GUIDE_OCEAN,
 			DuoFlow.GUIDE_SAW,
@@ -332,7 +334,7 @@ func _update_player_guide(
 
 	# 誘導が必要ないステップではシェブロンを出さず、足元リングだけで所在を示す。
 	var pending := _first_pending_task(model, player_index)
-	var show_chevrons := guide != DuoFlow.GUIDE_EMOTE and not pending.is_empty() and (
+	var show_chevrons := guide not in [DuoFlow.GUIDE_EMOTE, DuoFlow.GUIDE_JUMP] and not pending.is_empty() and (
 		guide != DuoFlow.GUIDE_OCEAN or _hazard_player() == player_index
 	)
 	var yaw := _pending_direction_yaw(player_index, pending, guide)
@@ -372,7 +374,7 @@ func _pending_direction_yaw(player_index: int, pending_task: String, guide: Stri
 ## キーの出ないステップ（海・ゴースト）だけ、どちらがP1かを頭上の名前で示す。
 func _update_name_labels(model: Dictionary, guide: String) -> void:
 	var cluster_keys := str(model.get("key_layout", "")) == KeyGuidesScript.LAYOUT_CLUSTER
-	var show_names := not cluster_keys and guide in [DuoFlow.GUIDE_LANE, DuoFlow.GUIDE_AIR, DuoFlow.GUIDE_EMOTE]
+	var show_names := not cluster_keys and guide in [DuoFlow.GUIDE_LANE, DuoFlow.GUIDE_JUMP, DuoFlow.GUIDE_EMOTE]
 	for player_index: int in [1, 2]:
 		var label: Label3D = _name_labels[player_index]
 		label.visible = show_names and _is_player_active(player_index)

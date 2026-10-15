@@ -1,0 +1,1642 @@
+{
+ "seconds": 12.9,
+ "glb": "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\vehicles\\helicopter_boarding\\helicopter_boarding.glb",
+ "glb_bytes": 1886400,
+ "exported": true,
+ "glb_check": {
+  "meshes": 33,
+  "materials": [
+   "BodyAccent",
+   "BodyPaint",
+   "Charcoal",
+   "DashDark",
+   "DropHatchInterior",
+   "Floor",
+   "Interior",
+   "JetGlow",
+   "LampWhite",
+   "Metal",
+   "NavGreen",
+   "NavRed",
+   "Rubber",
+   "ScreenGlow",
+   "SeatFabric",
+   "Trim",
+   "Windows"
+  ],
+  "images": 0,
+  "primitives": 86,
+  "jetpod_l_vertex_ratio": 1.027,
+  "problems": []
+ },
+ "triangles_total": 34286,
+ "triangles": {
+  "Body": 14904,
+  "DropBayFrame": 216,
+  "Door_L": 1060,
+  "Door_R": 1060,
+  "LandingLight": 80,
+  "Beacon": 214,
+  "Windows": 644,
+  "Interior": 4020,
+  "DashScreens": 162,
+  "Seat_L": 856,
+  "Seat_R": 524,
+  "Booster_R": 44,
+  "Belt_L": 64,
+  "Belt_R": 76,
+  "Yoke_L": 244,
+  "Yoke_R": 244,
+  "FrameAndSkids": 2856,
+  "Step_L": 322,
+  "MainRotor": 1908,
+  "MainRotorBlades": 456,
+  "TailRotor": 280,
+  "DropBayInterior": 8,
+  "DropHatchLeft": 12,
+  "DropHatchRight": 12,
+  "NavLight_L": 72,
+  "NavLight_R": 72,
+  "StrobeLights": 50,
+  "JetPod_L": 1819,
+  "JetNozzle_L": 80,
+  "JetGlow_L": 14,
+  "JetPod_R": 1819,
+  "JetNozzle_R": 80,
+  "JetGlow_R": 14
+ },
+ "surfaces_total": 86,
+ "surfaces": {
+  "Body": 7,
+  "DropBayFrame": 2,
+  "Door_L": 6,
+  "Door_R": 6,
+  "LandingLight": 1,
+  "Beacon": 1,
+  "Windows": 1,
+  "Interior": 7,
+  "DashScreens": 4,
+  "Seat_L": 3,
+  "Seat_R": 3,
+  "Booster_R": 1,
+  "Belt_L": 2,
+  "Belt_R": 2,
+  "Yoke_L": 2,
+  "Yoke_R": 2,
+  "FrameAndSkids": 3,
+  "Step_L": 3,
+  "MainRotor": 3,
+  "MainRotorBlades": 2,
+  "TailRotor": 1,
+  "DropBayInterior": 1,
+  "DropHatchLeft": 2,
+  "DropHatchRight": 2,
+  "NavLight_L": 1,
+  "NavLight_R": 1,
+  "StrobeLights": 1,
+  "JetPod_L": 5,
+  "JetNozzle_L": 2,
+  "JetGlow_L": 1,
+  "JetPod_R": 5,
+  "JetNozzle_R": 2,
+  "JetGlow_R": 1
+ },
+ "mesh_lint": {
+  "Body": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 138
+  },
+  "DropBayFrame": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 6
+  },
+  "Door_L": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 1
+  },
+  "Door_R": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 1
+  },
+  "LandingLight": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 1
+  },
+  "Beacon": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 2
+  },
+  "Windows": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 2
+  },
+  "Interior": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 35
+  },
+  "DashScreens": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 1
+  },
+  "Seat_L": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 10
+  },
+  "Seat_R": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 3
+  },
+  "Booster_R": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 0
+  },
+  "Belt_L": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 0
+  },
+  "Belt_R": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 0
+  },
+  "Yoke_L": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 6
+  },
+  "Yoke_R": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 6
+  },
+  "FrameAndSkids": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 34
+  },
+  "Step_L": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 3
+  },
+  "MainRotor": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 40
+  },
+  "MainRotorBlades": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 6
+  },
+  "TailRotor": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 10
+  },
+  "DropBayInterior": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 0
+  },
+  "DropHatchLeft": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 0
+  },
+  "DropHatchRight": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 0
+  },
+  "NavLight_L": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 3
+  },
+  "NavLight_R": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 3
+  },
+  "StrobeLights": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 2
+  },
+  "JetPod_L": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 39
+  },
+  "JetNozzle_L": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 0
+  },
+  "JetGlow_L": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 0
+  },
+  "JetPod_R": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 39
+  },
+  "JetNozzle_R": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 0
+  },
+  "JetGlow_R": {
+   "smooth_unwelded": 0,
+   "weld_mismatch": {},
+   "rejected": 0,
+   "weld_groups": 0
+  }
+ },
+ "shell": {
+  "stations": 51,
+  "ring": 42,
+  "rims": 170,
+  "z_first": -3.14,
+  "z_last": 2.25,
+  "nose_theta_jump": 0.0524,
+  "stripe_z_end": 1.638,
+  "ring_order_fallbacks": 0,
+  "anchor_inexact": [],
+  "shell_width": 3.6396,
+  "door_keepout": {
+   "-2.75": 1.167,
+   "-2.7": 0.92,
+   "-2.65": 1.045,
+   "-2.6": 0.726,
+   "-2.55": 0.574,
+   "-2.5": 0.689,
+   "-2.45": 0.461,
+   "-2.4": 0.63,
+   "-2.35": 0.387,
+   "-2.3": 0.482,
+   "-2.25": 0.338,
+   "-2.2": 0.362,
+   "-2.15": 0.443,
+   "-2.1": 0.283,
+   "-2.05": 0.32,
+   "-2.0": 0.422,
+   "-1.95": 0.241,
+   "-1.9": 0.299,
+   "-1.85": 0.743,
+   "-1.8": 0.219,
+   "-1.75": 0.307,
+   "-1.7": 0.559,
+   "-1.65": 0.228,
+   "-1.6": 0.607,
+   "-1.55": 0.326,
+   "-1.5": 0.323,
+   "-1.45": 0.246,
+   "-1.4": 0.349,
+   "-1.35": 0.789,
+   "-1.3": 0.268,
+   "-1.25": 0.375,
+   "-1.2": 0.663,
+   "-1.15": 0.293,
+   "-1.1": 0.405,
+   "-1.05": 0.447,
+   "-1.0": 0.323,
+   "-0.95": 0.522,
+   "-0.9": 0.44,
+   "-0.85": 0.599,
+   "-0.8": 0.357,
+   "-0.75": 0.713,
+   "-0.7": 0.387,
+   "-0.65": 0.645,
+   "-0.6": 0.35,
+   "-0.55": 0.35
+  },
+  "door_ceiling_band": {
+   "x": [
+    0.184,
+    0.247
+   ],
+   "y": [
+    3.22,
+    3.425
+   ],
+   "z": [
+    -1.981,
+    -1.164
+   ],
+   "points": 33
+  }
+ },
+ "checks": [
+  {
+   "check": "名前に .001 がない",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "必要なノードがそろう",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "マーカーがそろう",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "三角形の合計",
+   "ok": true,
+   "detail": "34286（上限 40000）"
+  },
+  {
+   "check": "なめらかな面はすべて溶接してある",
+   "ok": true,
+   "detail": "{}"
+  },
+  {
+   "check": "溶接の頂点の数が予定どおり",
+   "ok": true,
+   "detail": "{}"
+  },
+  {
+   "check": "同じ点を 2 度通る面がない",
+   "ok": true,
+   "detail": "{}"
+  },
+  {
+   "check": "me.validate() が何も直さない",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "色替えの材質 BodyPaint がある",
+   "ok": true,
+   "detail": "BodyAccent, BodyPaint, Charcoal, DashDark, DropHatchInterior, Floor, Interior, JetGlow, LampWhite, Metal, NavGreen, NavRed, Rubber, ScreenGlow, SeatFabric, Trim, Windows"
+  },
+  {
+   "check": "ガラスの材質 Windows がある",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "Door_L の原点",
+   "ok": true,
+   "detail": "[-0.35, 1.4057, -2.25]"
+  },
+  {
+   "check": "Door_R の原点",
+   "ok": true,
+   "detail": "[0.35, 1.4057, -2.25]"
+  },
+  {
+   "check": "MainRotor の原点",
+   "ok": true,
+   "detail": "[0.0, 2.35, -0.0]"
+  },
+  {
+   "check": "MainRotorBlades の原点",
+   "ok": true,
+   "detail": "[0.0, 2.35, -0.0]"
+  },
+  {
+   "check": "TailRotor の原点",
+   "ok": true,
+   "detail": "[-0.03, 1.67, 6.36]"
+  },
+  {
+   "check": "DropHatchLeft の原点",
+   "ok": true,
+   "detail": "[-0.65, -1.26, 0.4]"
+  },
+  {
+   "check": "DropHatchRight の原点",
+   "ok": true,
+   "detail": "[0.65, -1.26, 0.4]"
+  },
+  {
+   "check": "JetPod_L の原点",
+   "ok": true,
+   "detail": "[-1.4718, 1.33, 0.75]"
+  },
+  {
+   "check": "JetPod_R の原点",
+   "ok": true,
+   "detail": "[1.4718, 1.33, 0.75]"
+  },
+  {
+   "check": "Door_L のヒンジの向き",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "たたんだポッドが胴体に入らない",
+   "ok": true,
+   "detail": "{'inside': 0, 'min_gap': 0.048, 'deployed_top': 3.35}"
+  },
+  {
+   "check": "広げたポッドがローターの円の下",
+   "ok": true,
+   "detail": "3.350"
+  },
+  {
+   "check": "胴体の殻の幅（設計 3.64）",
+   "ok": true,
+   "detail": "3.640"
+  },
+  {
+   "check": "Body の幅（ホイスト込み）< 4.2",
+   "ok": true,
+   "detail": "3.820"
+  },
+  {
+   "check": "開いていくドアが部品に当たらない（3° ごと、ヒンジの軸の近くは除く）",
+   "ok": true,
+   "detail": "{\"overlaps\": 0, \"first\": []}"
+  },
+  {
+   "check": "開いたドアの不透明な面が客室の天井より下に入らない",
+   "ok": true,
+   "detail": "{\"inside\": 0, \"first\": []}"
+  },
+  {
+   "check": "床下ハッチの開口の下に部品がない",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "check": "スキッドのほかは地面から 0.05 より上",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "check": "客室の部品が外板から出ない",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "check": "計器盤の上はハテナの口の前で 1.835 まで",
+   "ok": true,
+   "detail": "1.685"
+  },
+  {
+   "check": "左の壁の出っ張り（足・肘のあたり）≤ 0.02",
+   "ok": true,
+   "detail": "0.015"
+  },
+  {
+   "check": "天井の部品の下面 ≥ 3.12",
+   "ok": true,
+   "detail": "3.152"
+  },
+  {
+   "check": "床下ハッチの縦穴が空いている",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "check": "プレイヤーの足の床 ≤ 0.704",
+   "ok": true,
+   "detail": "0.7040"
+  },
+  {
+   "check": "天井のパネルと天井灯 ≥ 0.15",
+   "ok": true,
+   "detail": "0.301"
+  },
+  {
+   "check": "開くドアが入る天井の帯に内装の部品がない",
+   "ok": true,
+   "detail": "0 {'x': (0.184, 0.247), 'y': (3.22, 3.425), 'z': (-1.981, -1.164), 'points': 33}"
+  },
+  {
+   "check": "スキッドの下面（すり板）が地面 y 0",
+   "ok": true,
+   "detail": "{\"bottom\": 0.0, \"below\": 0}"
+  },
+  {
+   "check": "ステップの上面 0.35〜0.362",
+   "ok": true,
+   "detail": "0.3580"
+  },
+  {
+   "check": "たたんだポッドの本体と胴体の隙間 ≥ 0.035",
+   "ok": true,
+   "detail": "{\"min\": 0.0565, \"L\": 0.0565, \"R\": 0.0565}"
+  },
+  {
+   "check": "ポッドを広げる途中で部品に当たらない（20 段階）",
+   "ok": true,
+   "detail": "{\"overlaps\": 0, \"first\": [], \"deployed_top\": 3.3532}"
+  },
+  {
+   "check": "広げたポッドの上端 < ハブ − 0.35（形で測る）",
+   "ok": true,
+   "detail": "3.353"
+  },
+  {
+   "check": "乗り込みの通り道（外とドアの口）が空いている",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "check": "羽根（MainRotorBlades）はハブ（MainRotor）の子",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "金属の材質 Metal がある",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "開いていくドアとローター（ハブ・羽根・マスト）の隙間 ≥ 0.08",
+   "ok": true,
+   "detail": "{\"min\": 0.1352, \"L\": {\"min\": 0.1352, \"at_deg\": 90.0}, \"R\": {\"min\": 0.1352, \"at_deg\": 90.0}}"
+  },
+  {
+   "check": "止めた羽根の先（r > 4）の高さ ≥ 3.42",
+   "ok": true,
+   "detail": "3.953"
+  },
+  {
+   "check": "回らない部品はローターの羽根の高さより下",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "check": "尾のファンがダクトの中（半径・厚み）",
+   "ok": true,
+   "detail": "{\"reach\": 0.4534, \"x_max\": 0.0552, \"bottom\": 2.9666}"
+  },
+  {
+   "check": "尾のファンの下端が、いちばん高い帽子（2.916）より上",
+   "ok": true,
+   "detail": "2.967"
+  },
+  {
+   "check": "メインローターの先の円と尾 ≥ 0.30",
+   "ok": true,
+   "detail": "0.483"
+  },
+  {
+   "check": "灯の物は面（材質）が 1 つ（Godot が全部の面を光らせる）",
+   "ok": true,
+   "detail": "{}"
+  },
+  {
+   "check": "輪の目印の順番が崩れない（今までの割り振りに戻った輪がない）",
+   "ok": true,
+   "detail": "0"
+  },
+  {
+   "check": "ドア・ハッチ・風防の目印はそのまま（混ぜていない）",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "check": "正面とコックピットのカメラから顔と「?」が見える",
+   "ok": true,
+   "detail": "{\"ok\": true, \"hits\": {\"CAM_Front:hatena_face\": \"0/61\", \"CAM_Front:hatena_mark\": \"0/10\", \"CAM_Front:player_face\": \"0/3\", \"CAM_CockpitGame:hatena_face\": \"0/61\", \"CAM_CockpitGame:hatena_mark\": \"0/10\", \"CAM_CockpitGame:player_face\": \"0/3\"}, \"entry_max\": {\"CAM_Front:hatena_face\": 2.21, \"CAM_Front:hatena_mark\": 2.828, \"CAM_Front:player_face\": 2.197, \"CAM_CockpitGame:hatena_face\": 2.206, \"CAM_CockpitGame:hatena_mark\": 2.743, \"CAM_CockpitGame:player_face\": 2.191}}"
+  }
+ ],
+ "warnings": [],
+ "bake": [
+  {
+   "object": "Body",
+   "corners": 29866,
+   "unique_corners": 14194,
+   "loops_total": 29866,
+   "mean_luminance_before": 1.0,
+   "mean_luminance_after": 0.8639,
+   "mean_multiplier": 0.8639,
+   "min_multiplier_rgb": [
+    0.48,
+    0.48,
+    0.48
+   ],
+   "mean_multiplier_visible_up_side": 0.8668,
+   "multiplier_percentiles_visible": {
+    "p5": 0.48,
+    "p25": 0.665,
+    "p50": 0.959,
+    "p75": 0.998,
+    "p95": 1.004
+   },
+   "mean_multiplier_by_normal": {
+    "up": 0.8719,
+    "side": 0.8637,
+    "down": 0.8531
+   },
+   "grade": {
+    "BodyPaint": {
+     "p5": 0.599,
+     "p25": 0.862,
+     "p50": 0.913,
+     "p75": 0.994
+    },
+    "Trim": {
+     "p5": 0.55,
+     "p25": 0.78,
+     "p50": 0.949,
+     "p75": 0.999
+    },
+    "BodyAccent": {
+     "p5": 0.926,
+     "p25": 0.984,
+     "p50": 0.999,
+     "p75": 1.0
+    },
+    "Rubber": {
+     "p5": 0.558,
+     "p25": 0.558,
+     "p50": 0.962,
+     "p75": 0.998
+    },
+    "Metal": {
+     "p5": 0.48,
+     "p25": 0.611,
+     "p50": 0.871,
+     "p75": 0.996
+    },
+    "Charcoal": {
+     "p5": 0.558,
+     "p25": 0.588,
+     "p50": 0.848,
+     "p75": 0.996
+    }
+   }
+  },
+  {
+   "object": "DropBayFrame",
+   "corners": 384,
+   "unique_corners": 272,
+   "loops_total": 384,
+   "mean_luminance_before": 1.0,
+   "mean_luminance_after": 0.7994,
+   "mean_multiplier": 0.7994,
+   "min_multiplier_rgb": [
+    0.48,
+    0.48,
+    0.48
+   ],
+   "mean_multiplier_visible_up_side": 0.7631,
+   "multiplier_percentiles_visible": {
+    "p5": 0.48,
+    "p25": 0.496,
+    "p50": 0.845,
+    "p75": 1.0,
+    "p95": 1.002
+   },
+   "mean_multiplier_by_normal": {
+    "up": 0.5603,
+    "side": 0.8488,
+    "down": 0.9215
+   },
+   "grade": {
+    "Charcoal": {
+     "p5": 0.529,
+     "p25": 0.53,
+     "p50": 0.827,
+     "p75": 0.949
+    },
+    "BodyAccent": {
+     "p5": 0.7,
+     "p25": 0.7,
+     "p50": 0.743,
+     "p75": 0.92
+    }
+   }
+  },
+  {
+   "object": "Door_L",
+   "corners": 1816,
+   "unique_corners": 1212,
+   "loops_total": 2124,
+   "mean_luminance_before": 1.0,
+   "mean_luminance_after": 0.8123,
+   "mean_multiplier": 0.8127,
+   "min_multiplier_rgb": [
+    0.48,
+    0.48,
+    0.48
+   ],
+   "mean_multiplier_visible_up_side": 0.8121,
+   "multiplier_percentiles_visible": {
+    "p5": 0.48,
+    "p25": 0.48,
+    "p50": 0.89,
+    "p75": 0.999,
+    "p95": 1.002
+   },
+   "mean_multiplier_by_normal": {
+    "up": 0.7704,
+    "side": 0.8301,
+    "down": 0.8151
+   },
+   "grade": {
+    "Rubber": {
+     "p5": 0.557,
+     "p25": 0.558,
+     "p50": 0.91,
+     "p75": 1.0
+    },
+    "Trim": {
+     "p5": 0.55,
+     "p25": 0.55,
+     "p50": 0.817,
+     "p75": 0.944
+    },
+    "BodyPaint": {
+     "p5": 0.877,
+     "p25": 0.88,
+     "p50": 0.882,
+     "p75": 0.888
+    },
+    "BodyAccent": {
+     "p5": 0.977,
+     "p25": 0.978,
+     "p50": 0.979,
+     "p75": 0.998
+    }
+   }
+  },
+  {
+   "object": "Door_R",
+   "corners": 1816,
+   "unique_corners": 1212,
+   "loops_total": 2124,
+   "mean_luminance_before": 1.0,
+   "mean_luminance_after": 0.8119,
+   "mean_multiplier": 0.8121,
+   "min_multiplier_rgb": [
+    0.48,
+    0.48,
+    0.48
+   ],
+   "mean_multiplier_visible_up_side": 0.8135,
+   "multiplier_percentiles_visible": {
+    "p5": 0.48,
+    "p25": 0.48,
+    "p50": 0.891,
+    "p75": 1.002,
+    "p95": 1.005
+   },
+   "mean_multiplier_by_normal": {
+    "up": 0.7754,
+    "side": 0.8299,
+    "down": 0.8058
+   },
+   "grade": {
+    "Rubber": {
+     "p5": 0.557,
+     "p25": 0.558,
+     "p50": 0.914,
+     "p75": 0.999
+    },
+    "Trim": {
+     "p5": 0.55,
+     "p25": 0.55,
+     "p50": 0.822,
+     "p75": 0.948
+    },
+    "BodyAccent": {
+     "p5": 0.981,
+     "p25": 0.981,
+     "p50": 0.982,
+     "p75": 1.0
+    },
+    "BodyPaint": {
+     "p5": 0.882,
+     "p25": 0.884,
+     "p50": 0.887,
+     "p75": 0.892
+    }
+   }
+  },
+  {
+   "object": "Interior",
+   "corners": 7898,
+   "unique_corners": 6267,
+   "loops_total": 7898,
+   "mean_luminance_before": 0.9136,
+   "mean_luminance_after": 0.7785,
+   "mean_multiplier": 0.8594,
+   "min_multiplier_rgb": [
+    0.58,
+    0.58,
+    0.58
+   ],
+   "mean_multiplier_visible_up_side": 0.8527,
+   "multiplier_percentiles_visible": {
+    "p5": 0.58,
+    "p25": 0.69,
+    "p50": 0.946,
+    "p75": 0.998,
+    "p95": 1.004
+   },
+   "mean_multiplier_by_normal": {
+    "up": 0.8504,
+    "side": 0.8539,
+    "down": 0.8858
+   },
+   "grade": {
+    "Trim": {
+     "p5": 0.594,
+     "p25": 0.708,
+     "p50": 0.917,
+     "p75": 0.951
+    }
+   }
+  },
+  {
+   "object": "Seat_L",
+   "corners": 1688,
+   "unique_corners": 1360,
+   "loops_total": 1688,
+   "mean_luminance_before": 0.9173,
+   "mean_luminance_after": 0.7743,
+   "mean_multiplier": 0.8453,
+   "min_multiplier_rgb": [
+    0.58,
+    0.58,
+    0.58
+   ],
+   "mean_multiplier_visible_up_side": 0.8557,
+   "multiplier_percentiles_visible": {
+    "p5": 0.58,
+    "p25": 0.742,
+    "p50": 0.928,
+    "p75": 0.994,
+    "p95": 1.0
+   },
+   "mean_multiplier_by_normal": {
+    "up": 0.8609,
+    "side": 0.8536,
+    "down": 0.8087
+   },
+   "grade": {
+    "Trim": {
+     "p5": 0.576,
+     "p25": 0.678,
+     "p50": 0.837,
+     "p75": 0.941
+    }
+   }
+  },
+  {
+   "object": "Seat_R",
+   "corners": 1092,
+   "unique_corners": 1038,
+   "loops_total": 1092,
+   "mean_luminance_before": 1.0,
+   "mean_luminance_after": 0.85,
+   "mean_multiplier": 0.8504,
+   "min_multiplier_rgb": [
+    0.58,
+    0.58,
+    0.58
+   ],
+   "mean_multiplier_visible_up_side": 0.8639,
+   "multiplier_percentiles_visible": {
+    "p5": 0.58,
+    "p25": 0.743,
+    "p50": 0.941,
+    "p75": 1.003,
+    "p95": 1.007
+   },
+   "mean_multiplier_by_normal": {
+    "up": 0.8622,
+    "side": 0.8648,
+    "down": 0.8109
+   },
+   "grade": {
+    "Trim": {
+     "p5": 0.576,
+     "p25": 0.65,
+     "p50": 0.72,
+     "p75": 0.753
+    }
+   }
+  },
+  {
+   "object": "Booster_R",
+   "corners": 96,
+   "unique_corners": 96,
+   "loops_total": 96,
+   "mean_luminance_before": 1.0,
+   "mean_luminance_after": 0.8355,
+   "mean_multiplier": 0.8359,
+   "min_multiplier_rgb": [
+    0.58,
+    0.58,
+    0.58
+   ],
+   "mean_multiplier_visible_up_side": 0.8481,
+   "multiplier_percentiles_visible": {
+    "p5": 0.58,
+    "p25": 0.737,
+    "p50": 0.916,
+    "p75": 0.975,
+    "p95": 1.001
+   },
+   "mean_multiplier_by_normal": {
+    "up": 0.8985,
+    "side": 0.7977,
+    "down": 0.8114
+   },
+   "grade": {
+    "BodyPaint": {
+     "p5": 0.51,
+     "p25": 0.648,
+     "p50": 0.806,
+     "p75": 0.858
+    }
+   }
+  },
+  {
+   "object": "Belt_L",
+   "corners": 136,
+   "unique_corners": 136,
+   "loops_total": 136,
+   "mean_luminance_before": 1.0,
+   "mean_luminance_after": 0.9363,
+   "mean_multiplier": 0.9371,
+   "min_multiplier_rgb": [
+    0.58,
+    0.58,
+    0.58
+   ],
+   "mean_multiplier_visible_up_side": 0.9571,
+   "multiplier_percentiles_visible": {
+    "p5": 0.856,
+    "p25": 0.949,
+    "p50": 0.992,
+    "p75": 0.995,
+    "p95": 0.998
+   },
+   "mean_multiplier_by_normal": {
+    "up": 0.989,
+    "side": 0.9278,
+    "down": 0.8952
+   },
+   "grade": {
+    "Trim": {
+     "p5": 0.875,
+     "p25": 0.923,
+     "p50": 0.946,
+     "p75": 0.948
+    }
+   }
+  },
+  {
+   "object": "Belt_R",
+   "corners": 160,
+   "unique_corners": 160,
+   "loops_total": 160,
+   "mean_luminance_before": 1.0,
+   "mean_luminance_after": 0.9359,
+   "mean_multiplier": 0.9364,
+   "min_multiplier_rgb": [
+    0.58,
+    0.58,
+    0.58
+   ],
+   "mean_multiplier_visible_up_side": 0.9506,
+   "multiplier_percentiles_visible": {
+    "p5": 0.725,
+    "p25": 0.953,
+    "p50": 0.976,
+    "p75": 1.002,
+    "p95": 1.002
+   },
+   "mean_multiplier_by_normal": {
+    "up": 0.9784,
+    "side": 0.9414,
+    "down": 0.8795
+   },
+   "grade": {
+    "Trim": {
+     "p5": 0.594,
+     "p25": 0.891,
+     "p50": 0.954,
+     "p75": 0.957
+    }
+   }
+  },
+  {
+   "object": "Yoke_L",
+   "corners": 432,
+   "unique_corners": 320,
+   "loops_total": 432,
+   "mean_luminance_before": 1.0,
+   "mean_luminance_after": 0.967,
+   "mean_multiplier": 0.9677,
+   "min_multiplier_rgb": [
+    0.71,
+    0.714,
+    0.718
+   ],
+   "mean_multiplier_visible_up_side": 0.9821,
+   "multiplier_percentiles_visible": {
+    "p5": 0.909,
+    "p25": 0.985,
+    "p50": 0.997,
+    "p75": 0.998,
+    "p95": 0.999
+   },
+   "mean_multiplier_by_normal": {
+    "up": 0.9923,
+    "side": 0.9761,
+    "down": 0.9286
+   },
+   "grade": {}
+  },
+  {
+   "object": "Yoke_R",
+   "corners": 432,
+   "unique_corners": 320,
+   "loops_total": 432,
+   "mean_luminance_before": 1.0,
+   "mean_luminance_after": 0.9615,
+   "mean_multiplier": 0.962,
+   "min_multiplier_rgb": [
+    0.636,
+    0.638,
+    0.641
+   ],
+   "mean_multiplier_visible_up_side": 0.977,
+   "multiplier_percentiles_visible": {
+    "p5": 0.856,
+    "p25": 0.974,
+    "p50": 1.0,
+    "p75": 1.003,
+    "p95": 1.004
+   },
+   "mean_multiplier_by_normal": {
+    "up": 0.9884,
+    "side": 0.9704,
+    "down": 0.921
+   },
+   "grade": {}
+  },
+  {
+   "object": "FrameAndSkids",
+   "corners": 5776,
+   "unique_corners": 2424,
+   "loops_total": 5776,
+   "mean_luminance_before": 1.0,
+   "mean_luminance_after": 0.8979,
+   "mean_multiplier": 0.898,
+   "min_multiplier_rgb": [
+    0.48,
+    0.48,
+    0.48
+   ],
+   "mean_multiplier_visible_up_side": 0.879,
+   "multiplier_percentiles_visible": {
+    "p5": 0.502,
+    "p25": 0.771,
+    "p50": 0.919,
+    "p75": 0.997,
+    "p95": 1.005
+   },
+   "mean_multiplier_by_normal": {
+    "up": 0.8452,
+    "side": 0.8947,
+    "down": 0.966
+   },
+   "grade": {
+    "Charcoal": {
+     "p5": 0.61,
+     "p25": 0.842,
+     "p50": 0.904,
+     "p75": 0.94
+    },
+    "Metal": {
+     "p5": 0.487,
+     "p25": 0.727,
+     "p50": 0.883,
+     "p75": 0.959
+    },
+    "BodyAccent": {
+     "p5": 0.7,
+     "p25": 0.7,
+     "p50": 0.716,
+     "p75": 0.781
+    }
+   }
+  },
+  {
+   "object": "Step_L",
+   "corners": 612,
+   "unique_corners": 544,
+   "loops_total": 612,
+   "mean_luminance_before": 0.8475,
+   "mean_luminance_after": 0.6596,
+   "mean_multiplier": 0.8112,
+   "min_multiplier_rgb": [
+    0.48,
+    0.48,
+    0.48
+   ],
+   "mean_multiplier_visible_up_side": 0.8059,
+   "multiplier_percentiles_visible": {
+    "p5": 0.48,
+    "p25": 0.529,
+    "p50": 0.916,
+    "p75": 1.001,
+    "p95": 1.003
+   },
+   "mean_multiplier_by_normal": {
+    "up": 0.8604,
+    "side": 0.7903,
+    "down": 0.8361
+   },
+   "grade": {
+    "Trim": {
+     "p5": 0.793,
+     "p25": 0.893,
+     "p50": 0.921,
+     "p75": 0.922
+    },
+    "Rubber": {
+     "p5": 0.527,
+     "p25": 0.527,
+     "p50": 0.543,
+     "p75": 0.674
+    },
+    "Metal": {
+     "p5": 0.48,
+     "p25": 0.644,
+     "p50": 0.867,
+     "p75": 1.0
+    }
+   }
+  },
+  {
+   "object": "MainRotor",
+   "corners": 3962,
+   "unique_corners": 2971,
+   "loops_total": 3962,
+   "mean_luminance_before": 1.0,
+   "mean_luminance_after": 0.7778,
+   "mean_multiplier": 0.7778,
+   "min_multiplier_rgb": [
+    0.48,
+    0.48,
+    0.48
+   ],
+   "mean_multiplier_visible_up_side": 0.7932,
+   "multiplier_percentiles_visible": {
+    "p5": 0.48,
+    "p25": 0.594,
+    "p50": 0.828,
+    "p75": 0.997,
+    "p95": 1.0
+   },
+   "mean_multiplier_by_normal": {
+    "up": 0.8602,
+    "side": 0.7493,
+    "down": 0.7276
+   },
+   "grade": {
+    "Metal": {
+     "p5": 0.48,
+     "p25": 0.58,
+     "p50": 0.792,
+     "p75": 0.973
+    },
+    "Charcoal": {
+     "p5": 0.558,
+     "p25": 0.649,
+     "p50": 0.865,
+     "p75": 0.998
+    },
+    "BodyPaint": {
+     "p5": 0.848,
+     "p25": 0.998,
+     "p50": 0.999,
+     "p75": 0.999
+    }
+   }
+  },
+  {
+   "object": "MainRotorBlades",
+   "corners": 900,
+   "unique_corners": 324,
+   "loops_total": 900,
+   "mean_luminance_before": 0.7189,
+   "mean_luminance_after": 0.7046,
+   "mean_multiplier": 0.9855,
+   "min_multiplier_rgb": [
+    0.778,
+    0.778,
+    0.779
+   ],
+   "mean_multiplier_visible_up_side": 0.9968,
+   "multiplier_percentiles_visible": {
+    "p5": 0.947,
+    "p25": 0.997,
+    "p50": 1.0,
+    "p75": 1.001,
+    "p95": 1.004
+   },
+   "mean_multiplier_by_normal": {
+    "up": 1.0002,
+    "side": 0.9938,
+    "down": 0.9614
+   },
+   "grade": {
+    "Charcoal": {
+     "p5": 0.959,
+     "p25": 0.997,
+     "p50": 1.0,
+     "p75": 1.001
+    },
+    "Trim": {
+     "p5": 0.997,
+     "p25": 0.998,
+     "p50": 1.0,
+     "p75": 1.001
+    }
+   }
+  },
+  {
+   "object": "TailRotor",
+   "corners": 540,
+   "unique_corners": 240,
+   "loops_total": 540,
+   "mean_luminance_before": 1.0,
+   "mean_luminance_after": 0.5789,
+   "mean_multiplier": 0.5788,
+   "min_multiplier_rgb": [
+    0.48,
+    0.48,
+    0.48
+   ],
+   "mean_multiplier_visible_up_side": 0.5885,
+   "multiplier_percentiles_visible": {
+    "p5": 0.48,
+    "p25": 0.48,
+    "p50": 0.48,
+    "p75": 0.608,
+    "p95": 0.874
+   },
+   "mean_multiplier_by_normal": {
+    "up": 0.5393,
+    "side": 0.6054,
+    "down": 0.5412
+   },
+   "grade": {
+    "Metal": {
+     "p5": 0.48,
+     "p25": 0.48,
+     "p50": 0.551,
+     "p75": 0.649
+    }
+   }
+  },
+  {
+   "object": "DropBayInterior",
+   "corners": 16,
+   "unique_corners": 16,
+   "loops_total": 16,
+   "mean_luminance_before": 1.0,
+   "mean_luminance_after": 0.8727,
+   "mean_multiplier": 0.8728,
+   "min_multiplier_rgb": [
+    0.79,
+    0.792,
+    0.793
+   ],
+   "mean_multiplier_visible_up_side": 0.8728,
+   "multiplier_percentiles_visible": {
+    "p5": 0.792,
+    "p25": 0.809,
+    "p50": 0.858,
+    "p75": 0.99,
+    "p95": 1.002
+   },
+   "mean_multiplier_by_normal": {
+    "up": 0.0,
+    "side": 0.8728,
+    "down": 0.0
+   },
+   "grade": {}
+  },
+  {
+   "object": "DropHatchLeft",
+   "corners": 24,
+   "unique_corners": 24,
+   "loops_total": 24,
+   "mean_luminance_before": 1.0,
+   "mean_luminance_after": 0.8873,
+   "mean_multiplier": 0.8875,
+   "min_multiplier_rgb": [
+    0.48,
+    0.48,
+    0.48
+   ],
+   "mean_multiplier_visible_up_side": 0.865,
+   "multiplier_percentiles_visible": {
+    "p5": 0.48,
+    "p25": 0.731,
+    "p50": 0.998,
+    "p75": 1.0,
+    "p95": 1.0
+   },
+   "mean_multiplier_by_normal": {
+    "up": 0.5025,
+    "side": 0.9557,
+    "down": 0.9996
+   },
+   "grade": {
+    "BodyAccent": {
+     "p5": 0.768,
+     "p25": 0.891,
+     "p50": 0.92,
+     "p75": 0.92
+    }
+   }
+  },
+  {
+   "object": "DropHatchRight",
+   "corners": 24,
+   "unique_corners": 24,
+   "loops_total": 24,
+   "mean_luminance_before": 1.0,
+   "mean_luminance_after": 0.888,
+   "mean_multiplier": 0.888,
+   "min_multiplier_rgb": [
+    0.48,
+    0.48,
+    0.48
+   ],
+   "mean_multiplier_visible_up_side": 0.8655,
+   "multiplier_percentiles_visible": {
+    "p5": 0.48,
+    "p25": 0.728,
+    "p50": 0.998,
+    "p75": 1.0,
+    "p95": 1.003
+   },
+   "mean_multiplier_by_normal": {
+    "up": 0.5025,
+    "side": 0.9563,
+    "down": 1.0003
+   },
+   "grade": {
+    "BodyAccent": {
+     "p5": 0.769,
+     "p25": 0.892,
+     "p50": 0.92,
+     "p75": 0.92
+    }
+   }
+  },
+  {
+   "object": "JetPod_L",
+   "corners": 3351,
+   "unique_corners": 1653,
+   "loops_total": 3531,
+   "mean_luminance_before": 0.9304,
+   "mean_luminance_after": 0.7169,
+   "mean_multiplier": 0.7686,
+   "min_multiplier_rgb": [
+    0.48,
+    0.48,
+    0.48
+   ],
+   "mean_multiplier_visible_up_side": 0.7636,
+   "multiplier_percentiles_visible": {
+    "p5": 0.48,
+    "p25": 0.48,
+    "p50": 0.801,
+    "p75": 1.0,
+    "p95": 1.002
+   },
+   "mean_multiplier_by_normal": {
+    "up": 0.8189,
+    "side": 0.7341,
+    "down": 0.7812
+   },
+   "grade": {
+    "BodyPaint": {
+     "p5": 0.48,
+     "p25": 0.852,
+     "p50": 0.98,
+     "p75": 0.994
+    },
+    "Trim": {
+     "p5": 0.55,
+     "p25": 0.624,
+     "p50": 0.957,
+     "p75": 0.995
+    },
+    "Metal": {
+     "p5": 0.48,
+     "p25": 0.48,
+     "p50": 0.643,
+     "p75": 0.895
+    },
+    "Charcoal": {
+     "p5": 0.558,
+     "p25": 0.758,
+     "p50": 0.833,
+     "p75": 1.001
+    }
+   }
+  },
+  {
+   "object": "JetNozzle_L",
+   "corners": 160,
+   "unique_corners": 140,
+   "loops_total": 160,
+   "mean_luminance_before": 0.5193,
+   "mean_luminance_after": 0.4571,
+   "mean_multiplier": 0.7508,
+   "min_multiplier_rgb": [
+    0.48,
+    0.48,
+    0.48
+   ],
+   "mean_multiplier_visible_up_side": 0.7754,
+   "multiplier_percentiles_visible": {
+    "p5": 0.48,
+    "p25": 0.48,
+    "p50": 1.003,
+    "p75": 1.004,
+    "p95": 1.005
+   },
+   "mean_multiplier_by_normal": {
+    "up": 0.6703,
+    "side": 0.8183,
+    "down": 0.6664
+   },
+   "grade": {
+    "Charcoal": {
+     "p5": 0.952,
+     "p25": 0.989,
+     "p50": 1.003,
+     "p75": 1.004
+    },
+    "Metal": {
+     "p5": 0.48,
+     "p25": 0.48,
+     "p50": 0.575,
+     "p75": 1.004
+    }
+   }
+  },
+  {
+   "object": "JetPod_R",
+   "corners": 3351,
+   "unique_corners": 1653,
+   "loops_total": 3531,
+   "mean_luminance_before": 0.9304,
+   "mean_luminance_after": 0.7165,
+   "mean_multiplier": 0.7678,
+   "min_multiplier_rgb": [
+    0.48,
+    0.48,
+    0.48
+   ],
+   "mean_multiplier_visible_up_side": 0.7633,
+   "multiplier_percentiles_visible": {
+    "p5": 0.48,
+    "p25": 0.484,
+    "p50": 0.802,
+    "p75": 0.996,
+    "p95": 0.998
+   },
+   "mean_multiplier_by_normal": {
+    "up": 0.8212,
+    "side": 0.7324,
+    "down": 0.7794
+   },
+   "grade": {
+    "BodyPaint": {
+     "p5": 0.48,
+     "p25": 0.871,
+     "p50": 0.977,
+     "p75": 0.99
+    },
+    "Trim": {
+     "p5": 0.55,
+     "p25": 0.642,
+     "p50": 0.967,
+     "p75": 0.992
+    },
+    "Metal": {
+     "p5": 0.48,
+     "p25": 0.48,
+     "p50": 0.647,
+     "p75": 0.913
+    },
+    "Charcoal": {
+     "p5": 0.558,
+     "p25": 0.759,
+     "p50": 0.831,
+     "p75": 0.996
+    }
+   }
+  },
+  {
+   "object": "JetNozzle_R",
+   "corners": 160,
+   "unique_corners": 140,
+   "loops_total": 160,
+   "mean_luminance_before": 0.5193,
+   "mean_luminance_after": 0.4541,
+   "mean_multiplier": 0.747,
+   "min_multiplier_rgb": [
+    0.48,
+    0.48,
+    0.48
+   ],
+   "mean_multiplier_visible_up_side": 0.7711,
+   "multiplier_percentiles_visible": {
+    "p5": 0.48,
+    "p25": 0.48,
+    "p50": 0.994,
+    "p75": 0.995,
+    "p95": 0.996
+   },
+   "mean_multiplier_by_normal": {
+    "up": 0.6671,
+    "side": 0.8136,
+    "down": 0.664
+   },
+   "grade": {
+    "Charcoal": {
+     "p5": 0.952,
+     "p25": 0.987,
+     "p50": 0.995,
+     "p75": 0.995
+    },
+    "Metal": {
+     "p5": 0.48,
+     "p25": 0.48,
+     "p50": 0.569,
+     "p75": 0.995
+    }
+   }
+  }
+ ],
+ "renders": {
+  "hb_02_front_f1.png": "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\vehicles\\helicopter_boarding\\source\\previews\\hb_02_front_f1.png",
+  "hb_04_cabin_f1.png": "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\vehicles\\helicopter_boarding\\source\\previews\\hb_04_cabin_f1.png",
+  "hb_20_cockpitgame_f1.png": "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\vehicles\\helicopter_boarding\\source\\previews\\hb_20_cockpitgame_f1.png",
+  "hb_21_cockpitgame_f1.png": "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\vehicles\\helicopter_boarding\\source\\previews\\hb_21_cockpitgame_f1.png",
+  "hb_22_boardgame_f16.png": "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\vehicles\\helicopter_boarding\\source\\previews\\hb_22_boardgame_f16.png",
+  "hb_23_cabinrear_f1.png": "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\vehicles\\helicopter_boarding\\source\\previews\\hb_23_cabinrear_f1.png"
+ }
+}

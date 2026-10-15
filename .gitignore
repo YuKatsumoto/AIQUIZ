@@ -54,3 +54,6 @@ AIQUIZ-Godot-Android/addons/fennara/
 **/.claude/worktrees/
 __pycache__/
 *.pyc
+
+# After Effects autosaves
+**/自動保存/

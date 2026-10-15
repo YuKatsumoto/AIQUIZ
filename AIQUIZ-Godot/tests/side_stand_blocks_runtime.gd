@@ -61,6 +61,16 @@ func _run() -> void:
 	for uv: Vector2 in mesh.surface_get_arrays(0)[Mesh.ARRAY_TEX_UV2]:
 		styles |= int(uv.y)
 	check(styles == 127, "all seven goal-stand hairstyles merged")
+	# The seated hand props (docs/crowd_extras.md) ride along as their own mask bits,
+	# only in the mesh for the spectators that hold one.
+	var with_props := 0
+	for uv: Vector2 in Kit.prop_mesh().surface_get_arrays(0)[Mesh.ARRAY_TEX_UV2]:
+		with_props |= int(uv.y)
+	check(with_props & 127 == 127, "prop mesh keeps every hairstyle")
+	for prop: int in range(1, Kit.PROPS.size() + 1):
+		check(with_props & (1 << (Kit.PROP_BIT_BASE + prop)) != 0, "seated prop %s merged" % Kit.PROPS[prop - 1])
+	for clip: StringName in Kit.CLIPS:
+		check(Kit.clip_seconds(clip) > 0.0, "seated clip %s baked" % clip)
 	check(Kit.bone_count() == 23, "goal-stand rig has 23 bones")
 	check(Kit.frame_rows() > 0, "clips baked")
 

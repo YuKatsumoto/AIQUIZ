@@ -1,0 +1,147 @@
+extends Node
+
+## オンライン対戦のマッチング演出の重さ（docs/online_match_staging/spec.md 15、受け入れ基準 A8）。
+## 画面付きで、実時間のまま演出を通し（乗り込み → … → 検索中 6 秒 → マッチ → … → カットイン → SWAP）、
+## 状態ごとのフレーム時間（中央値・99% 点・最大）と、SWAP のまわり（覆いの下でゲーム画面を組み立てるフレーム）を測る。
+##   Godot --path . --resolution 1920x1080 --script tests/net/net_match_bootstrap.gd -- runtime=res://tests/perf/online_staging_perf.gd [quality=high] [out=FILE]
+## リレーは使わない（閉じたポート）。SWAP のあとはオフラインのゲーム画面になるので、数秒測って終わる。
+
+const DEAD_RELAY := "ws://127.0.0.1:9"
+const BUDGET_MS := 1000.0 / 60.0
+const SPIKE_MS := 50.0
+
+var menu: OnlineMenu
+var director: OnlineStagingDirector
+var quality := "high"
+var out_path := "res://artifacts/online_staging/perf.json"
+var report := {}
+var _frames_by_state := {}
+var _last_us := 0
+var _state := "OPEN"
+var _swap_frames: Array[float] = []
+var _swapping := false
+var _saved_quality := ""
+
+
+func _ready() -> void:
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("quality="):
+			quality = arg.trim_prefix("quality=")
+		elif arg.begins_with("out="):
+			out_path = arg.trim_prefix("out=")
+	call_deferred("run")
+
+
+func _process(_delta: float) -> void:
+	var now := Time.get_ticks_usec()
+	if _last_us > 0:
+		var ms := float(now - _last_us) / 1000.0
+		if _swapping:
+			_swap_frames.append(ms)
+		else:
+			if not _frames_by_state.has(_state):
+				_frames_by_state[_state] = []
+			(_frames_by_state[_state] as Array).append(ms)
+	_last_us = now
+
+
+func run() -> void:
+	# 設定ファイルに残るので、終わったら元の画質へ戻す
+	_saved_quality = GameManager.graphics_quality
+	GameManager.set_graphics_quality(quality)
+	NetworkManager.relay_url = DEAD_RELAY
+	get_tree().change_scene_to_file(OnlineMenu.SCENE_PATH)
+	await _wait(func() -> bool: return get_tree().current_scene is OnlineMenu, 20000)
+	menu = get_tree().current_scene as OnlineMenu
+	await _wait(func() -> bool: return not SceneTransition.is_transitioning(), 8000)
+	director = menu.director
+	if director == null:
+		_finish("no 3D heliport")
+		return
+	director.swap_ready.disconnect(menu._on_swap_ready)
+	director.hold_started.disconnect(menu._on_hold_started)
+	director.state_changed.connect(func(s: int) -> void: _state = OnlineStagingDirector.STATE_NAMES[s])
+	_state = "IDLE"
+	await _seconds(3.0)
+	menu.set("_search_kind", &"random")
+	menu.call("_begin_departure")
+	await _wait(func() -> bool: return director.state_name() == "CRUISE", 20000)
+	await _seconds(6.0)
+	NetworkManager.is_host = false
+	NetworkManager.opponent_name = "テストの あいて"
+	NetworkManager.opponent_profile = {"hat": 3, "name": "テストの あいて"}
+	NetworkManager.match_settings = {"subject": "算数", "grade": 3, "difficulty": 1}
+	menu.call("_on_matched", {"you": {}})
+	await _wait(func() -> bool: return director.state_name() == "CUTIN_HOLD", 20000)
+	director.start_ready = true
+	await _wait(func() -> bool: return director.state_name() == "SWAP", 30000)
+	_state = "SWAP"
+	# SWAP：カットインを写して覆い、読み込み済みのゲーム画面へ切り替える（OnlineMenu._transition_to_game と同じ覆い方）
+	_swapping = true
+	var packed: PackedScene = menu.get("_game_packed")
+	var shot := get_viewport().get_texture().get_image()
+	SceneTransition.hold_versus_split(ImageTexture.create_from_image(shot), menu.cutin.seam_points(), director.duration("REVEAL"))
+	if packed != null:
+		get_tree().change_scene_to_packed(packed)
+	else:
+		get_tree().change_scene_to_file(OnlineMenu.GAME_WORLD_PATH)
+	await _seconds(4.0)
+	_swapping = false
+	_finish("")
+
+
+func _stats(values: Array) -> Dictionary:
+	if values.is_empty():
+		return {}
+	var sorted := values.duplicate()
+	sorted.sort()
+	var p99: float = sorted[mini(sorted.size() - 1, int(ceil(sorted.size() * 0.99)) - 1)]
+	var total := 0.0
+	var spikes := 0
+	for v: float in sorted:
+		total += v
+		if v > SPIKE_MS:
+			spikes += 1
+	return {"frames": sorted.size(), "median_ms": snappedf(sorted[sorted.size() / 2], 0.01), "p99_ms": snappedf(p99, 0.01),
+		"max_ms": snappedf(sorted[-1], 0.01), "mean_fps": snappedf(1000.0 * sorted.size() / maxf(total, 0.001), 0.1), "over_50ms": spikes}
+
+
+func _finish(error: String) -> void:
+	var states := {}
+	var all: Array = []
+	for key: String in _frames_by_state:
+		var values: Array = _frames_by_state[key]
+		# 状態に入った最初のフレーム（カットの切り替え）は別に数える
+		states[key] = _stats(values)
+		all.append_array(values.slice(1))
+	report["quality"] = quality
+	report["resolution"] = [get_viewport().get_visible_rect().size.x, get_viewport().get_visible_rect().size.y]
+	report["staging"] = _stats(all)
+	report["by_state"] = states
+	report["swap"] = _stats(_swap_frames)
+	report["swap_first_frames_ms"] = _swap_frames.slice(0, 8).map(func(v: float) -> float: return snappedf(v, 0.1))
+	report["error"] = error
+	report["staging_p99_ok"] = not all.is_empty() and float(_stats(all).get("p99_ms", 999.0)) <= 20.0
+	var file := FileAccess.open(out_path, FileAccess.WRITE)
+	if file:
+		file.store_string(JSON.stringify(report, "\t"))
+		file.close()
+	print("ONLINE_STAGING_PERF " + JSON.stringify(report))
+	if not _saved_quality.is_empty():
+		GameManager.set_graphics_quality(_saved_quality)
+	get_tree().quit(0)
+
+
+func _seconds(duration: float) -> void:
+	var end := Time.get_ticks_msec() + int(duration * 1000.0)
+	while Time.get_ticks_msec() < end:
+		await get_tree().process_frame
+
+
+func _wait(condition: Callable, timeout_ms: int) -> bool:
+	var deadline := Time.get_ticks_msec() + timeout_ms
+	while Time.get_ticks_msec() < deadline:
+		if condition.call():
+			return true
+		await get_tree().process_frame
+	return false

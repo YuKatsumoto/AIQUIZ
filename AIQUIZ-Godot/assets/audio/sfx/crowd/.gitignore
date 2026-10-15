@@ -1,0 +1,7 @@
+# Pixabay / 効果音ラボ sounds: game embedding is allowed, but the terms forbid redistributing
+# the files themselves, and this repository is public. Keep them out of git (CREDITS.md).
+*.ogg
+*.ogg.import
+# The murmur is CC0 (Freesound 453906 by kyles), so it may be committed.
+!crowd_murmur_loop.ogg
+!crowd_murmur_loop.ogg.import

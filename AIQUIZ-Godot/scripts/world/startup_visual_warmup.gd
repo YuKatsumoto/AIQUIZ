@@ -47,6 +47,8 @@ func run() -> Dictionary:
 	state.num_players = 2
 	state.p1_hat = QuizManager.game_state.p1_hat
 	state.p2_hat = QuizManager.game_state.p2_hat
+	state.set_player_skin(1, QuizManager.game_state.p1_skin)
+	state.set_player_skin(2, QuizManager.game_state.p2_skin)
 	var player := PlayerController.new()
 	player.process_mode = Node.PROCESS_MODE_DISABLED
 	_world.add_child(player)
@@ -86,7 +88,6 @@ func run() -> Dictionary:
 		wall.set_quiz(quiz, choice_count)
 		wall.set_is_boss(choice_count == 4)
 		wall.set_gameplay_question(quiz.q, true)
-		wall.set_preview_labels(quiz)
 		await _draw_frames()
 		wall.queue_free()
 	_report["question_variants"] = 2
@@ -121,6 +122,22 @@ func run() -> Dictionary:
 	portals.end_return_portal_render_prewarm()
 	shark.end_ghost_portal_render_prewarm()
 	_report["portals"] = portal_report.get("portals", 0)
+	# The boarding helicopter (menu pickup, game arrival): body paint, glass, the pilot,
+	# blades and the blurred rotor disc, then the jet glow, flames and smoke, so the first
+	# Start press never compiles them on screen.
+	var heli := OnlineHeliportHelicopter.new()
+	_world.add_child(heli)
+	heli.position = Vector3(0, -1.5, 0)
+	var heli_ready := heli.setup(PlayerController.P1_BODY, true, GraphicsQuality.normalize(GameManager.graphics_quality) == GraphicsQuality.LOW)
+	await _draw_frames()
+	heli.spool = 1.0
+	heli.spool_target = 1.0
+	heli.enable_jets()
+	heli.ignite_jets()
+	await _draw_frames(4)
+	_report["helicopter"] = heli_ready and heli.has_jets()
+	heli.queue_free()
+	await _draw_frames()
 	_report["ready"] = int(_report.death_pieces) > 0 and int(_report.portals) == 2
 	step_completed.emit(1.0)
 	return _report

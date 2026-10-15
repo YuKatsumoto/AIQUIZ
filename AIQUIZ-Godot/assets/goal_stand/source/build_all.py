@@ -8,6 +8,8 @@ scenes in the session are never touched (name collisions raise instead).
 import bpy
 
 SOURCE = "C:/AIQUIZ/AIQUIZ-Godot/assets/goal_stand/source/"
+## Every standing emote, full length at its real speed, so the crowd can dance
+## in step with the winner (Flair and Head Spinning are floor moves: no crowd clip).
 DANCES = [
     ("Ymca Dance.fbx", "SPEC_Dance_YMCA"),
     ("Y Bot@Gangnam Style.fbx", "SPEC_Dance_Gangnam"),
@@ -16,6 +18,13 @@ DANCES = [
     ("Dancing Running Man.fbx", "SPEC_Dance_RunningMan"),
     ("Wave Hip Hop Dance.fbx", "SPEC_Dance_WaveHipHop"),
     ("Swing Dancing.fbx", "SPEC_Dance_Swing"),
+    ("Y Bot@Step Hip Hop Dance.fbx", "SPEC_Dance_StepHipHop"),
+    ("Slide Hip Hop Dance.fbx", "SPEC_Dance_SlideHipHop"),
+    ("Moonwalk.fbx", "SPEC_Dance_Moonwalk"),
+    ("Hip Hop Dancing.fbx", "SPEC_Dance_HipHop"),
+    ("House Dancing.fbx", "SPEC_Dance_House"),
+    ("Hip Hop Dancing (1).fbx", "SPEC_Dance_HipHop2"),
+    (["Thriller Part 1.fbx", "Thriller Part 2.fbx", "Thriller Part 3.fbx", "Thriller Part 4.fbx"], "SPEC_Dance_Thriller"),
 ]
 
 
@@ -36,7 +45,9 @@ def build_all(export=True):
     retarget = run("retarget_dances.py")["retarget"]
     report["dances"] = [retarget(fbx, action) for fbx, action in DANCES]
     report["ual"] = run("bake_ual.py")["result"]
+    report["extras"] = run("author_crowd_extras.py")["result"]
     report["props"] = run("build_props.py")["result"]
+    report["crowd_props"] = run("build_crowd_props.py")["result"]
     report["stand"] = run("build_stand.py")["result"]
     report["scoreboard"] = run("build_scoreboard.py")["result"]
     if export:

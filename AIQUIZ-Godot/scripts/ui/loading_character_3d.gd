@@ -33,6 +33,9 @@ var _p1_hat_id: int = HatData.HAT_NONE
 var _p2_hat_id: int = HatData.HAT_NONE
 var _p1_toon_preset_id: int = ToonPresets.STANDARD
 var _p2_toon_preset_id: int = ToonPresets.STANDARD
+## 適用済みの体の塗り（PlayerSkin のコンパクト表記）。
+var _p1_skin_code: String = ""
+var _p2_skin_code: String = ""
 var _is_p1: bool = true
 
 
@@ -127,24 +130,31 @@ func _rebuild_player(is_p1: bool, hat_id: int, toon_preset: int) -> void:
 	var player_root := Node3D.new()
 	player_root.name = "P1LoadingPlayer" if is_p1 else "P2LoadingPlayer"
 	_sub_viewport.add_child(player_root)
+	var game_state := QuizManager.game_state
+	var slot := 1 if is_p1 else 2
+	var skin: Dictionary = game_state.get_display_skin(slot) if game_state != null else {}
 	var parts: Dictionary = EmoteBlockmanPreview.build_player_skeleton(
 		is_p1,
 		player_root,
 		hat_id,
 		toon_preset,
+		skin,
 	)
+	var skin_code := game_state.get_display_skin_key(slot) if game_state != null else ""
 
 	if is_p1:
 		_p1_root = player_root
 		_p1_parts = parts
 		_p1_hat_id = hat_id
 		_p1_toon_preset_id = ToonPresets.normalize(toon_preset)
+		_p1_skin_code = skin_code
 		_p1_root_motion = {"ready": false, "origin": Vector3.ZERO}
 	else:
 		_p2_root = player_root
 		_p2_parts = parts
 		_p2_hat_id = hat_id
 		_p2_toon_preset_id = ToonPresets.normalize(toon_preset)
+		_p2_skin_code = skin_code
 		_p2_root_motion = {"ready": false, "origin": Vector3.ZERO}
 
 
@@ -218,8 +228,24 @@ func set_player(is_p1: bool) -> void:
 		var cached_toon: int = _p1_toon_preset_id if is_p1 else _p2_toon_preset_id
 		if current_hat != cached_hat or current_toon != cached_toon:
 			_rebuild_player(is_p1, current_hat, current_toon)
+		else:
+			_sync_skin(is_p1, game_state)
 	_apply_player_visibility()
 	_apply_current_pose()
+
+
+## 帽子が同じなら作り直さず、塗りだけ差し替える。
+func _sync_skin(is_p1: bool, game_state: QuizGameState) -> void:
+	var slot := 1 if is_p1 else 2
+	var code := game_state.get_display_skin_key(slot)
+	var parts: Dictionary = _p1_parts if is_p1 else _p2_parts
+	if parts.is_empty() or code == (_p1_skin_code if is_p1 else _p2_skin_code):
+		return
+	PlayerSkinRig.apply(parts, game_state.get_display_skin(slot), slot)
+	if is_p1:
+		_p1_skin_code = code
+	else:
+		_p2_skin_code = code
 
 
 func set_active(active: bool) -> void:

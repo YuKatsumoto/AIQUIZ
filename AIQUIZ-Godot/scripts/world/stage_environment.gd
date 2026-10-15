@@ -96,6 +96,10 @@ const GENERATED_STAGE_META: StringName = &"stage_environment_generated"
 		_queue_editor_preview_rebuild()
 
 # --- 構成オプション ---
+## 海のノイズの使い回し（_ocean_noise_textures）。大きさ → [noise_tex, noise_tex2]
+static var _ocean_noise_cache := {}
+## create_stage_sky の元（aiquiz_day_night_sky.tres）
+static var _stage_sky_source: Sky
 var _scroll_sign: float = 1.0
 var _return_scroll_sign: float = -1.0
 var _include_back_roller: bool = true
@@ -306,13 +310,18 @@ static func _graphics_quality() -> String:
 
 
 static func create_stage_sky() -> Sky:
-	if ResourceLoader.exists(AIQUIZ_STAGE_SKY_PATH):
-		var loaded: Resource = load(AIQUIZ_STAGE_SKY_PATH)
-		if loaded is Sky:
-			var sky: Sky = (loaded as Sky).duplicate(true) as Sky
-			sky.radiance_size = Sky.RADIANCE_SIZE_256
-			sky.process_mode = Sky.PROCESS_MODE_REALTIME
-			return sky
+	if _stage_sky_source == null and ResourceLoader.exists(AIQUIZ_STAGE_SKY_PATH):
+		# 元の空は持ち続ける。手放すと読み込みのキャッシュから外れ、次の画面で読み直してノイズを作り直す。
+		_stage_sky_source = load(AIQUIZ_STAGE_SKY_PATH) as Sky
+	if _stage_sky_source != null:
+		# 空と材質だけを複製し、雲などのノイズのテクスチャ（4 枚）は共有する（時刻で変えるのは数値だけ）。
+		# duplicate(true) だとノイズも複製され、初回の絵をメインスレッドで作るので画面の組み立てが 770 ms 止まる。
+		var sky: Sky = _stage_sky_source.duplicate() as Sky
+		if sky.sky_material != null:
+			sky.sky_material = sky.sky_material.duplicate() as Material
+		sky.radiance_size = Sky.RADIANCE_SIZE_256
+		sky.process_mode = Sky.PROCESS_MODE_REALTIME
+		return sky
 	return _create_procedural_fallback_sky()
 
 
@@ -1013,35 +1022,45 @@ static func configure_ocean_surface(ocean_mesh: MeshInstance3D, quality: String 
 	mat.shader = MOBILE_OCEAN_SHADER if use_lightweight_shader else StageConstants.OCEAN_SHADER
 
 	if not use_lightweight_shader:
-		var noise_size: int = QualityRules.ocean_noise_texture_size(q)
-		var noise1 := NoiseTexture2D.new()
-		var fnl1 := FastNoiseLite.new()
-		fnl1.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
-		fnl1.frequency = 0.01
-		fnl1.fractal_octaves = 4
-		fnl1.fractal_lacunarity = 2.0
-		fnl1.fractal_gain = 0.5
-		noise1.noise = fnl1
-		noise1.seamless = true
-		noise1.width = noise_size
-		noise1.height = noise_size
-		mat.set_shader_parameter("noise_tex", noise1)
-
-		var noise2 := NoiseTexture2D.new()
-		var fnl2 := FastNoiseLite.new()
-		fnl2.noise_type = FastNoiseLite.TYPE_CELLULAR
-		fnl2.frequency = 0.015
-		fnl2.fractal_octaves = 3
-		fnl2.cellular_distance_function = FastNoiseLite.DISTANCE_EUCLIDEAN
-		fnl2.cellular_return_type = FastNoiseLite.RETURN_DISTANCE
-		noise2.noise = fnl2
-		noise2.seamless = true
-		noise2.width = noise_size
-		noise2.height = noise_size
-		mat.set_shader_parameter("noise_tex2", noise2)
+		var noise: Array[NoiseTexture2D] = _ocean_noise_textures(QualityRules.ocean_noise_texture_size(q))
+		mat.set_shader_parameter("noise_tex", noise[0])
+		mat.set_shader_parameter("noise_tex2", noise[1])
 		OceanDetailScript.configure(mat, q)
 
 	ocean_mesh.material_override = mat
+
+
+## 海の波のノイズ 2 枚（大きさごとに 1 組を使い回す）。NoiseTexture2D は初回の絵をメインスレッドで作るので、
+## 毎回作るとヘリポート（オンライン）からゲーム画面へ切り替えるフレームが数百 ms 止まる。
+static func _ocean_noise_textures(noise_size: int) -> Array[NoiseTexture2D]:
+	if _ocean_noise_cache.has(noise_size):
+		return _ocean_noise_cache[noise_size]
+	var noise1 := NoiseTexture2D.new()
+	var fnl1 := FastNoiseLite.new()
+	fnl1.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	fnl1.frequency = 0.01
+	fnl1.fractal_octaves = 4
+	fnl1.fractal_lacunarity = 2.0
+	fnl1.fractal_gain = 0.5
+	noise1.noise = fnl1
+	noise1.seamless = true
+	noise1.width = noise_size
+	noise1.height = noise_size
+
+	var noise2 := NoiseTexture2D.new()
+	var fnl2 := FastNoiseLite.new()
+	fnl2.noise_type = FastNoiseLite.TYPE_CELLULAR
+	fnl2.frequency = 0.015
+	fnl2.fractal_octaves = 3
+	fnl2.cellular_distance_function = FastNoiseLite.DISTANCE_EUCLIDEAN
+	fnl2.cellular_return_type = FastNoiseLite.RETURN_DISTANCE
+	noise2.noise = fnl2
+	noise2.seamless = true
+	noise2.width = noise_size
+	noise2.height = noise_size
+	var pair: Array[NoiseTexture2D] = [noise1, noise2]
+	_ocean_noise_cache[noise_size] = pair
+	return pair
 
 
 ## 床ボックスのサイズ・位置と、それに追従するレール／ローラー／サイドフレームを更新する。

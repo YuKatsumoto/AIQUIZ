@@ -1722,6 +1722,7 @@ func _ensure_hud() -> void:
 		return
 	_hud = SuddenDeathHud.new()
 	_hud.name = "SuddenDeathHud"
+	_hud.game_state = game_state
 	add_child(_hud)
 	_hud.setup(game_state.use_english_ui)
 

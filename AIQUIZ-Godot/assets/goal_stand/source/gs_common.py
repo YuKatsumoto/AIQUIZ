@@ -22,11 +22,15 @@ FPS = 30
 # Godot (goal_stand_spectator.gdshader) resolves them with per-instance colours.
 ROLE_COUNT = 16
 SKIN, SHIRT, PANTS, HAIR, SHOES, DARK, ACCENT, WHITE, BLUSH, EGG, CARTON, WOOD = range(12)
+# Crowd extras (build_crowd_props.py): popcorn / mustard / beer, red stripes and
+# sausage, keg and binocular metal, bread.
+POPCORN, RED, METAL, BUN = range(12, 16)
 PREVIEW_COLORS = {
     SKIN: (0.93, 0.74, 0.60), SHIRT: (0.94, 0.41, 0.35), PANTS: (0.20, 0.24, 0.34),
     HAIR: (0.23, 0.15, 0.10), SHOES: (0.12, 0.12, 0.14), DARK: (0.05, 0.05, 0.07),
     ACCENT: (0.95, 0.55, 0.20), WHITE: (0.96, 0.96, 0.94), BLUSH: (0.95, 0.55, 0.55),
     EGG: (0.97, 0.93, 0.84), CARTON: (0.74, 0.66, 0.54), WOOD: (0.62, 0.45, 0.28),
+    POPCORN: (0.97, 0.84, 0.42), RED: (0.80, 0.16, 0.13), METAL: (0.72, 0.75, 0.79), BUN: (0.80, 0.52, 0.27),
 }
 
 KEEP_BONES = [

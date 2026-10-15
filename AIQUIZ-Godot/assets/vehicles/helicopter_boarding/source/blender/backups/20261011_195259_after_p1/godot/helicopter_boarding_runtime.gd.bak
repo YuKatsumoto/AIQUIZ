@@ -1,0 +1,120 @@
+extends Node
+
+## 乗り込めるヘリを、ゲームと同じ OnlineHeliportHelicopter で確かめる（材質の準備・色替え・ジェットの光）。
+## 画面付きで shots= を渡すと、空の下で撮る（godot_pair：オレンジとブルー、godot_door：ドアを開けた 1 機）。
+## tests/helicopter_boarding_bootstrap.gd から読む（自動読み込みが要る）。
+
+const P1_BODY := Color(0.95, 0.55, 0.20)
+const P2_BODY := Color(0.20, 0.65, 0.90)
+
+var report := {"passed": true, "problems": [], "checks": 0}
+var shots_dir := ""
+
+
+func _ready() -> void:
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("shots="):
+			shots_dir = arg.trim_prefix("shots=")
+	call_deferred("run")
+
+
+func check(ok: bool, label: String) -> void:
+	report.checks += 1
+	if not ok:
+		report.passed = false
+		report.problems.append(label)
+
+
+func run() -> void:
+	var heli := OnlineHeliportHelicopter.new()
+	add_child(heli)
+	check(heli.setup(P2_BODY, false, false), "OnlineHeliportHelicopter.setup")
+	if heli.model != null:
+		_check_materials(heli)
+	heli.queue_free()
+	await get_tree().process_frame
+	if not shots_dir.is_empty() and DisplayServer.get_name() != "headless":
+		await _shots()
+	_finish()
+
+
+func _surfaces(heli: OnlineHeliportHelicopter, material_name: String) -> Array:
+	var out := []
+	for node in heli.model.find_children("*", "MeshInstance3D", true, false):
+		var mi := node as MeshInstance3D
+		for s in range(mi.mesh.get_surface_count()):
+			var src := mi.mesh.surface_get_material(s)
+			if src != null and src.resource_name == material_name:
+				out.append([mi, s])
+	return out
+
+
+func _check_materials(heli: OnlineHeliportHelicopter) -> void:
+	# 色替え：BodyPaint の面はすべてプレイヤーの色
+	var paint := _surfaces(heli, "BodyPaint")
+	var tinted := 0
+	for pair: Array in paint:
+		var o := (pair[0] as MeshInstance3D).get_surface_override_material(pair[1]) as BaseMaterial3D
+		if o != null and o.albedo_color.is_equal_approx(P2_BODY):
+			tinted += 1
+	report["bodypaint_surfaces"] = paint.size()
+	check(not paint.is_empty() and tinted == paint.size(), "every BodyPaint surface takes the tint (%d / %d)" % [tinted, paint.size()])
+	# ジェットの光：_find_jets の発光の上書きが残る
+	var glow := heli.model.find_child("JetGlow_L", true, false) as MeshInstance3D
+	var glow_override := glow.get_surface_override_material(0) as StandardMaterial3D if glow != null else null
+	check(glow_override != null and glow_override.emission_enabled, "JetGlow_L keeps its emissive override")
+
+
+func _shots() -> void:
+	var world := Node3D.new()
+	add_child(world)
+	var env := WorldEnvironment.new()
+	var e := Environment.new()
+	e.background_mode = Environment.BG_SKY
+	e.sky = StageEnvironment.create_stage_sky()
+	e.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+	e.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
+	e.ambient_light_energy = 1.0
+	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	env.environment = e
+	world.add_child(env)
+	var sun := DirectionalLight3D.new()
+	sun.rotation_degrees = Vector3(-48, -35, 0)
+	sun.shadow_enabled = true
+	sun.light_energy = 1.3
+	world.add_child(sun)
+	var floor_mesh := MeshInstance3D.new()
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(60, 60)
+	floor_mesh.mesh = plane
+	var fm := StandardMaterial3D.new()
+	fm.albedo_color = Color(0.36, 0.40, 0.44)
+	floor_mesh.material_override = fm
+	world.add_child(floor_mesh)
+	var a := OnlineHeliportHelicopter.new()
+	world.add_child(a)
+	a.setup(P1_BODY, false, false)
+	a.position = Vector3(-3.0, 0.0, 0.0)
+	a.set_door("L", 1.0)
+	var b := OnlineHeliportHelicopter.new()
+	world.add_child(b)
+	b.setup(P2_BODY, false, false)
+	b.position = Vector3(5.5, 0.0, 3.0)
+	b.rotation_degrees.y = 20.0
+	var cam := Camera3D.new()
+	world.add_child(cam)
+	cam.fov = 45
+	for shot: Array in [["godot_pair", Vector3(-13, 7.5, -15), Vector3(1.0, 1.8, 1.0)], ["godot_door", Vector3(-10.5, 2.6, -4.5), Vector3(-3.5, 2.0, -1.2)]]:
+		cam.position = shot[1]
+		cam.look_at(shot[2])
+		for i in range(4):
+			await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		DirAccess.make_dir_recursive_absolute(shots_dir)
+		get_viewport().get_texture().get_image().save_png("%s/%s.png" % [shots_dir, shot[0]])
+	world.queue_free()
+
+
+func _finish() -> void:
+	print("HELICOPTER_BOARDING_RUNTIME " + JSON.stringify(report))
+	get_tree().quit(0 if report.passed else 1)

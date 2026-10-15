@@ -180,6 +180,7 @@ func _customize_captures(preview: MenuWallBackgroundPreview) -> void:
 	var menu := get_tree().current_scene
 	if not menu.has_method("_open_embedded_customize"):
 		return
+	var offsets_before := Vector2(preview.get_camera().h_offset, preview.get_camera().v_offset)
 	menu.call("_open_embedded_customize")
 	await get_tree().create_timer(2.5).timeout
 	var customize := menu.find_child("CustomizeSettings", true, false)
@@ -200,6 +201,9 @@ func _customize_captures(preview: MenuWallBackgroundPreview) -> void:
 	var camera := preview.get_camera()
 	check("camera back at the harbor pose after customize",
 		camera.rotation_degrees.distance_to(AiquizMenuStage.camera_rotation_degrees()) < 0.1, camera.rotation_degrees)
+	# スキン画面はキャラを中央の枠に収めるため h_offset / v_offset を動かすので、両方戻ること。
+	var offsets_after := Vector2(camera.h_offset, camera.v_offset)
+	check("camera lens offsets restored after customize", offsets_after.distance_to(offsets_before) < 0.01, offsets_after)
 
 
 func _captures(preview: MenuWallBackgroundPreview, camera: Camera3D, layout: Dictionary) -> void:

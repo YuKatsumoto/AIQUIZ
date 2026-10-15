@@ -1,0 +1,346 @@
+{
+	"version": 1,
+	"canvas": [
+		1024,
+		1024
+	],
+	"background": "#0e0e0e",
+	"color": "#ffffff",
+	"elements": [
+		{
+			"id": "i1_stem",
+			"name": "I（1つ目）の縦棒",
+			"kind": "line",
+			"op": "paint",
+			"points": [
+				[
+					317.75,
+					421.75
+				],
+				[
+					317.75,
+					587.75
+				]
+			],
+			"radii": [
+				0,
+				0
+			],
+			"width": 35.5,
+			"capStart": "butt",
+			"capEnd": "butt",
+			"visible": true
+		},
+		{
+			"id": "q_ring",
+			"name": "Q の輪",
+			"kind": "circle",
+			"op": "paint",
+			"center": [
+				449.5,
+				504.5
+			],
+			"radius": 71.5,
+			"width": 33.5,
+			"visible": true
+		},
+		{
+			"id": "d1_gap",
+			"name": "A→Q 斜め線のすき間",
+			"kind": "line",
+			"op": "cut",
+			"points": [
+				[
+					265.13,
+					587.75
+				],
+				[
+					398.94,
+					453.94
+				]
+			],
+			"radii": [
+				0,
+				0
+			],
+			"width": 55.25,
+			"capStart": "h",
+			"capEnd": "butt",
+			"visible": true
+		},
+		{
+			"id": "d1",
+			"name": "A→Q 斜め線",
+			"kind": "line",
+			"op": "paint",
+			"points": [
+				[
+					265.13,
+					587.75
+				],
+				[
+					400.0,
+					452.88
+				]
+			],
+			"radii": [
+				0,
+				0
+			],
+			"width": 33.5,
+			"capStart": "h",
+			"capEnd": "butt",
+			"visible": true
+		},
+		{
+			"id": "a_left",
+			"name": "A 左の脚",
+			"kind": "line",
+			"op": "paint",
+			"points": [
+				[
+					120.5,
+					587.75
+				],
+				[
+					191.5,
+					421.75
+				]
+			],
+			"radii": [
+				0,
+				0
+			],
+			"width": 33.5,
+			"capStart": "h",
+			"capEnd": "h",
+			"visible": true
+		},
+		{
+			"id": "a_right",
+			"name": "A 右の脚",
+			"kind": "line",
+			"op": "paint",
+			"points": [
+				[
+					192,
+					421.75
+				],
+				[
+					264.25,
+					587.75
+				]
+			],
+			"radii": [
+				0,
+				0
+			],
+			"width": 33.5,
+			"capStart": "h",
+			"capEnd": "h",
+			"visible": true
+		},
+		{
+			"id": "a_bar",
+			"name": "A の横棒",
+			"kind": "line",
+			"op": "paint",
+			"points": [
+				[
+					140,
+					536
+				],
+				[
+					250,
+					536
+				]
+			],
+			"radii": [
+				0,
+				0
+			],
+			"width": 31,
+			"capStart": "butt",
+			"capEnd": "butt",
+			"visible": true
+		},
+		{
+			"id": "q_tail_gap",
+			"name": "Q の尾のすき間",
+			"kind": "line",
+			"op": "cut",
+			"points": [
+				[
+					457,
+					517
+				],
+				[
+					534.75,
+					594.75
+				]
+			],
+			"radii": [
+				0,
+				0
+			],
+			"width": 53.75,
+			"capStart": "butt",
+			"capEnd": "butt",
+			"visible": true
+		},
+		{
+			"id": "q_tail",
+			"name": "Q の尾",
+			"kind": "line",
+			"op": "paint",
+			"points": [
+				[
+					457,
+					517
+				],
+				[
+					534.75,
+					594.75
+				]
+			],
+			"radii": [
+				0,
+				0
+			],
+			"width": 32,
+			"capStart": "butt",
+			"capEnd": "butt",
+			"visible": true
+		},
+		{
+			"id": "i2_stem",
+			"name": "I（2つ目）の縦棒",
+			"kind": "line",
+			"op": "paint",
+			"points": [
+				[
+					752.5,
+					421.75
+				],
+				[
+					752.5,
+					587.75
+				]
+			],
+			"radii": [
+				0,
+				0
+			],
+			"width": 36,
+			"capStart": "butt",
+			"capEnd": "butt",
+			"visible": true
+		},
+		{
+			"id": "u",
+			"name": "U",
+			"kind": "line",
+			"op": "paint",
+			"points": [
+				[
+					579,
+					421.75
+				],
+				[
+					579,
+					573.5
+				],
+				[
+					687,
+					573.5
+				],
+				[
+					687,
+					421.75
+				]
+			],
+			"radii": [
+				0,
+				49.5,
+				49.5,
+				0
+			],
+			"width": 35.5,
+			"capStart": "butt",
+			"capEnd": "butt",
+			"visible": true
+		},
+		{
+			"id": "z_top",
+			"name": "Z 上の横棒",
+			"kind": "line",
+			"op": "paint",
+			"points": [
+				[
+					791,
+					437
+				],
+				[
+					922,
+					437
+				]
+			],
+			"radii": [
+				0,
+				0
+			],
+			"width": 31,
+			"capStart": "butt",
+			"capEnd": "butt",
+			"visible": true
+		},
+		{
+			"id": "z_diag",
+			"name": "Z 斜め線",
+			"kind": "line",
+			"op": "paint",
+			"points": [
+				[
+					898.5,
+					450
+				],
+				[
+					813.75,
+					560
+				]
+			],
+			"radii": [
+				0,
+				0
+			],
+			"width": 33.25,
+			"capStart": "h",
+			"capEnd": "h",
+			"visible": true
+		},
+		{
+			"id": "z_bottom",
+			"name": "Z 下の横棒",
+			"kind": "line",
+			"op": "paint",
+			"points": [
+				[
+					791,
+					571.5
+				],
+				[
+					923.5,
+					571.5
+				]
+			],
+			"radii": [
+				0,
+				0
+			],
+			"width": 32,
+			"capStart": "butt",
+			"capEnd": "butt",
+			"visible": true
+		}
+	]
+}

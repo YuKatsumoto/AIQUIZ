@@ -326,33 +326,17 @@ func _edge_case() -> void:
 	_check(gs.p1_alive, "survivor continues after edge push")
 
 func _tutorial() -> void:
-	phase = "tutorial_push"
-	# Complete the original left/right lesson with real keys.
+	phase = "tutorial_no_push_lesson"
+	# Complete the four-direction movement lesson with real keys; the push lesson was removed.
 	_release_all()
 	await _wait(0.25)
-	_key(KEY_A, true)
-	_key(KEY_RIGHT, true)
-	await _wait(0.12)
-	_release_all()
-	_key(KEY_D, true)
-	_key(KEY_LEFT, true)
-	await _wait(0.12)
-	_release_all()
+	for pair: Array in [[KEY_A, KEY_RIGHT], [KEY_D, KEY_LEFT], [KEY_W, KEY_UP], [KEY_S, KEY_DOWN]]:
+		_key(pair[0], true)
+		_key(pair[1], true)
+		await _wait(0.12)
+		_release_all()
 	await _wait(0.9)
-	_check(gs.tutorial_flow.current_step_id() == "duo_push", "live tutorial enters push lesson after movement")
-	await _wait(0.3)
-	_begin_record("tutorial")
-	_inward()
-	await _wait(0.55)
-	_repress(1)
-	await _wait(0.28)
-	await _wait(0.2)
-	_repress(2)
-	await _wait(0.28)
-	_release_all()
-	await _wait(1.1)
-	_check(gs.tutorial_flow.current_step_id() == "duo_air", "actual sequential shoulder hits complete tutorial lesson")
-	recording = false
+	_check(gs.tutorial_flow.current_step_id() == "duo_jump", "live tutorial goes straight from movement to the jump lesson")
 
 func _record_frame() -> void:
 	if not recording or not is_instance_valid(world):

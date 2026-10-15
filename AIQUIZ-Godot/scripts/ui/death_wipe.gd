@@ -281,11 +281,13 @@ func _start_wipe(player: int) -> void:
 					wipe_camera.environment = world_env.environment
 
 	# Label styling per player
+	var gs: QuizGameState = QuizManager.game_state
+	var online := gs != null and gs.net_online
 	if player == 1:
-		label.text = "P1"
+		label.text = gs.slot_label(1) if online else "P1"
 		label.add_theme_color_override("font_color", Color(1.0, 0.6, 0.25))
 	else:
-		label.text = "P2"
+		label.text = gs.slot_label(2) if online else "P2"
 		label.add_theme_color_override("font_color", Color(0.35, 0.75, 1.0))
 	skull_label.text = ""
 

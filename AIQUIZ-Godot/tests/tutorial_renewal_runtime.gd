@@ -3,7 +3,7 @@ extends Node
 ## 刷新したチュートリアルを実ゲームで最初から最後まで遊ぶ受け入れ確認。
 ## 実キー入力（Input.parse_input_event）だけで進め、各ステップの画面と3Dキーの状態を残す。
 ## プレイヤーの設定ファイルには書き込まない（保存先をテスト用に差し替え、元のハッシュを確認する）。
-const OUT := "res://artifacts/tutorial_v5/"
+const OUT := "res://artifacts/tutorial_v6/"
 const SOLO := "SOLO"
 const DUO := "LOCAL_2P"
 const TEST_SETTINGS := "user://tutorial_renewal_test_settings.json"
@@ -53,16 +53,16 @@ func run() -> void:
 # ---------- 1P ----------
 
 func _run_solo() -> void:
-	if not await _wait_step("run_lane"):
+	if not await _wait_step("move_lane"):
 		return
 	await _wait(0.7)
-	await _shot("01_run_lane")
-	_expect_layout("P1", "cluster", "run_lane")
-	_expect_key("P1", "left", "A", "target", "run_lane")
-	_expect_key("P1", "right", "D", "target", "run_lane")
-	_expect_key("P1", "up", "W", "idle", "run_lane")
-	_expect_key("P1", "down", "S", "idle", "run_lane")
-	_check(not _keys().get("P1", {}).get("keys", {}).has("jump"), "run_lane shows only the movement cluster")
+	await _shot("01_move_lane")
+	_expect_layout("P1", "cluster", "move_lane")
+	_expect_key("P1", "left", "A", "target", "move_lane")
+	_expect_key("P1", "right", "D", "target", "move_lane")
+	_expect_key("P1", "up", "W", "target", "move_lane")
+	_expect_key("P1", "down", "S", "target", "move_lane")
+	_check(not _keys().get("P1", {}).get("keys", {}).has("jump"), "move_lane shows only the movement cluster")
 	_key(KEY_A, true)
 	await _wait(0.2)
 	await _shot("02_press_A")
@@ -72,32 +72,39 @@ func _run_solo() -> void:
 	await _wait(0.35)
 	_expect_key("P1", "left", "A", "done", "after pressing A")
 	await _tap(KEY_D, 0.2)
-
-	if not await _wait_step("air_control"):
-		return
-	await _wait(0.6)
-	await _shot("03_air_control")
-	_expect_key("P1", "jump", "Space", "target", "air_control")
-	_expect_key("P1", "up", "W", "target", "air_control")
-	_expect_key("P1", "down", "S", "target", "air_control")
-	_expect_key("P1", "left", "A", "idle", "air_control context")
-	await _tap(KEY_SPACE, 0.15)
-	await _wait(0.5)
 	await _tap(KEY_W, 0.2)
+	await _wait(0.4)
+	_check(gs.get_tutorial_step_id() == "move_lane", "left/right/forward alone do not finish the movement step")
 	_key(KEY_DOWN, true)
 	await _wait(0.2)
 	_expect_key("P1", "down", "↓", "", "solo arrow keys relabel the 3D keys")
-	await _shot("04_arrow_legends")
+	await _shot("03_arrow_legends")
 	_key(KEY_DOWN, false)
+
+	if not await _wait_step("jump_lesson"):
+		return
+	await _wait(0.6)
+	await _shot("04_jump_lesson")
+	_expect_key("P1", "jump", "Space", "target", "jump_lesson")
+	_check(not _keys().get("P1", {}).get("keys", {}).has("left"), "jump step shows only the jump key")
+	await _tap(KEY_SPACE, 0.15)
 
 	if not await _wait_step("solo_emote"):
 		return
 	await _wait(0.6)
 	_expect_key("P1", "emote_1", "1", "target", "solo_emote")
+	_expect_key("P1", "emote_2", "2", "target", "solo_emote")
 	_expect_key("P1", "emote_3", "3", "target", "solo_emote")
 	_check(not _keys().get("P1", {}).get("keys", {}).has("left"), "emote step shows only the number keys")
 	await _shot("05_emote")
 	await _tap(KEY_1, 0.25)
+	await _wait(0.8)
+	_check(gs.get_tutorial_step_id() == "solo_emote", "one emote key does not finish the emote step")
+	_expect_key("P1", "emote_1", "1", "done", "emote 1 turns done")
+	_expect_key("P1", "emote_2", "2", "target", "emote 2 still waits")
+	await _shot("05b_emote_one_done")
+	await _tap(KEY_2, 0.25)
+	await _tap(KEY_3, 0.25)
 
 	if not await _wait_step("ocean_lesson"):
 		return
@@ -161,16 +168,18 @@ func _run_solo() -> void:
 # ---------- 2P ----------
 
 func _run_duo() -> void:
-	if not await _wait_step("duo_run"):
+	if not await _wait_step("duo_move"):
 		return
 	await _wait(0.7)
-	await _shot("01_duo_run")
-	_expect_layout("P1", "cluster", "duo_run")
-	_expect_layout("P2", "cluster", "duo_run")
-	_expect_key("P1", "left", "A", "target", "duo_run")
-	_expect_key("P1", "right", "D", "target", "duo_run")
-	_expect_key("P2", "left", "←", "target", "duo_run")
-	_expect_key("P2", "up", "↑", "idle", "duo_run")
+	await _shot("01_duo_move")
+	_expect_layout("P1", "cluster", "duo_move")
+	_expect_layout("P2", "cluster", "duo_move")
+	_expect_key("P1", "left", "A", "target", "duo_move")
+	_expect_key("P1", "right", "D", "target", "duo_move")
+	_expect_key("P1", "up", "W", "target", "duo_move")
+	_expect_key("P2", "left", "←", "target", "duo_move")
+	_expect_key("P2", "down", "↓", "target", "duo_move")
+	_check(_clusters_apart(), "P1 and P2 key clusters never overlap on screen (move)")
 	_key(KEY_A, true)
 	_key(KEY_RIGHT, true)
 	await _wait(0.2)
@@ -181,38 +190,8 @@ func _run_duo() -> void:
 	await _wait(0.2)
 	await _tap(KEY_D, 0.2)
 	await _tap(KEY_LEFT, 0.2)
-
-	if not await _wait_step("duo_push"):
-		return
-	await _wait(0.6)
-	var p1_inward: Key = KEY_D if gs.player_x > gs.player2_x else KEY_A
-	var p2_inward: Key = KEY_LEFT if gs.player_x > gs.player2_x else KEY_RIGHT
-	_expect_key("P1", "right" if p1_inward == KEY_D else "left", "D" if p1_inward == KEY_D else "A", "target", "push toward the opponent")
-	await _shot("03_push")
-	_key(p1_inward, true)
-	_key(p2_inward, true)
-	await _wait_until(func() -> bool: return gs.tutorial_flow.is_task_done(1, "brace"), 4.0)
-	await _wait(0.2)
-	_key(p1_inward, false)
-	_key(p1_inward, true)
-	await _wait_until(func() -> bool: return gs.tutorial_flow.is_task_done(1, "push"), 2.0)
-	await _wait(0.35)
-	_key(p2_inward, false)
-	_key(p2_inward, true)
 	await _wait(0.4)
-	_key(p1_inward, false)
-	_key(p2_inward, false)
-
-	if not await _wait_step("duo_air", 10.0):
-		return
-	await _wait(0.6)
-	_expect_key("P2", "jump", "Ctrl", "target", "P2 jumps with right Ctrl")
-	_expect_key("P1", "jump", "Space", "target", "P1 jumps with Space")
-	_check(_clusters_apart(), "P1 and P2 key clusters never overlap on screen (air)")
-	await _shot("04_duo_air")
-	await _tap(KEY_SPACE, 0.15)
-	await _tap(KEY_CTRL, 0.15)
-	await _wait(0.5)
+	_check(gs.get_tutorial_step_id() == "duo_move", "left/right alone do not finish the 2P movement step")
 	_key(KEY_W, true)
 	_key(KEY_UP, true)
 	await _wait(0.2)
@@ -224,14 +203,37 @@ func _run_duo() -> void:
 	_key(KEY_S, false)
 	_key(KEY_DOWN, false)
 
+	if not await _wait_step("duo_jump", 10.0):
+		return
+	await _wait(0.6)
+	_expect_key("P2", "jump", "Ctrl", "target", "P2 jumps with right Ctrl")
+	_expect_key("P1", "jump", "Space", "target", "P1 jumps with Space")
+	_check(_clusters_apart(), "P1 and P2 key clusters never overlap on screen (jump)")
+	await _shot("04_duo_jump")
+	# 左Ctrlでは P2 のジャンプにならない。
+	await _tap_left_ctrl(0.15)
+	await _tap(KEY_SPACE, 0.15)
+	await _wait(0.3)
+	_check(gs.get_tutorial_step_id() == "duo_jump" and not gs.tutorial_flow.is_task_done(2, "jump"), "left Ctrl does not count as the P2 jump")
+	await _tap(KEY_CTRL, 0.15)
+
 	if not await _wait_step("duo_emote", 10.0):
 		return
 	await _wait(0.6)
 	_expect_key("P2", "emote_1", "8", "target", "duo_emote")
+	_expect_key("P2", "emote_3", "0", "target", "duo_emote")
 	_check(_clusters_apart(), "P1 and P2 key clusters never overlap on screen (emote)")
 	await _shot("05_duo_emote")
 	await _tap(KEY_1, 0.25)
 	await _tap(KEY_8, 0.25)
+	await _wait(0.8)
+	_check(gs.get_tutorial_step_id() == "duo_emote", "one emote each does not finish the 2P emote step")
+	_expect_key("P2", "emote_1", "8", "done", "P2 emote 8 turns done")
+	await _shot("05b_duo_emote_one_done")
+	await _tap(KEY_2, 0.25)
+	await _tap(KEY_3, 0.25)
+	await _tap(KEY_KP_8, 0.25)
+	await _tap(KEY_0, 0.25)
 
 	if not await _wait_step("duo_ocean", 10.0):
 		return
@@ -327,18 +329,55 @@ func _run_duo() -> void:
 	await _shot("17_goal_waiting")
 	_check(gs.get_tutorial_step_id() == "duo_goal", "the course waits for every survivor at the goal")
 	_key(KEY_UP, true)
-	if not await _wait_step_any(["duo_complete"], 25.0, true):
-		_key(KEY_W, false)
-		_key(KEY_UP, false)
-		return
+	var ceremony := await _wait_until(func() -> bool: return gs.game_state == Constants.STATE_RESULT_CEREMONY, 25.0)
 	_key(KEY_W, false)
 	_key(KEY_UP, false)
+	_check(ceremony, "both finishers move on to the score tower (now %d)" % gs.game_state)
+	if not ceremony:
+		return
+	_check(gs.get_tutorial_step_id() == "duo_goal", "the score tower runs before the completion card")
+	await _wait(3.0)
+	await _shot("18_score_tower")
+	var paused := await _wait_until(func() -> bool: return gs.is_tutorial_score_pause_active(), 12.0)
+	_check(paused, "the score tower pauses once the scores are tallied")
+	if not paused:
+		return
+	await _wait(0.4)
+	var hud: Node = world.get_node("GameplayHUD/ResultCeremonyOverlay")
+	var snapshot: Dictionary = hud.call("get_debug_snapshot")
+	_check(bool(snapshot.get("tutorial_note_visible", false)), "score explanation panel is visible during the pause")
+	_check(not bool(snapshot.get("verdict_visible", true)), "the verdict stays hidden during the explanation")
+	_check(not bool(snapshot.get("actions_visible", true)), "no result buttons during the explanation")
+	var note_rect: Rect2 = snapshot.get("tutorial_note_rect", Rect2())
+	for card: Dictionary in (snapshot.get("cards", {}) as Dictionary).values():
+		_check(not note_rect.intersects(card.rect as Rect2), "explanation panel leaves the score cards visible")
+	var lines: Array = snapshot.get("tutorial_note_lines", [])
+	_check(lines.size() >= 5 and str(lines[3]).begins_with("P1:") and str(lines[4]).begins_with("P2:"), "explanation lists both players' formulas (%s)" % str(lines))
+	await _shot("19_score_pause")
+	# 最短表示時間の前の Enter は読み飛ばしにならない（ここでは 0.4 秒経過）。
+	var early_elapsed := gs.get_tutorial_score_pause_elapsed()
+	if early_elapsed < QuizGameState.TUTORIAL_SCORE_PAUSE_MIN_SECONDS - 0.2:
+		await _tap(KEY_ENTER, 0.05)
+		_check(gs.is_tutorial_score_pause_active(), "an early Enter keeps the explanation open")
+	await _wait(2.0)
+	_check(gs.is_tutorial_score_pause_active(), "the explanation waits for a key")
+	await _tap(KEY_ENTER, 0.05)
+	_check(not gs.is_tutorial_score_pause_active(), "Enter resumes the ceremony toward the verdict")
+	await _wait(2.4)
+	await _shot("20_verdict")
+	snapshot = hud.call("get_debug_snapshot")
+	_check(bool(snapshot.get("verdict_visible", false)), "the verdict is announced after the explanation")
+	if not await _wait_step_any(["duo_complete"], 10.0, true):
+		return
+	_check(gs.game_state == Constants.STATE_RESULT_CEREMONY, "the completion card sits over the podium")
+	snapshot = hud.call("get_debug_snapshot")
+	_check(not bool(snapshot.get("actions_visible", true)), "the tutorial never shows the result buttons")
 	await _wait(1.4)
-	await _shot("18_duo_complete")
+	await _shot("21_duo_complete")
 	await _wait_until(func() -> bool: return gs.has_pending_solo_customize_tour(), 8.0)
 	_check(gs.has_pending_solo_customize_tour(), "duo course hands off to the customize tour")
 	await _wait(3.0)
-	await _shot("19_customize_tour")
+	await _shot("22_customize_tour")
 
 
 ## ゴーストシャーク練習: 照準キー → 長押し → PERFECT帯で離して P1 に命中させる。
@@ -406,6 +445,18 @@ func _key(key: Key, pressed: bool) -> void:
 	event.location = KEY_LOCATION_RIGHT if key == KEY_CTRL else KEY_LOCATION_UNSPECIFIED
 	event.pressed = pressed
 	Input.parse_input_event(event)
+
+
+## 左Ctrl（P2のジャンプには使えないキー）を押して離す。
+func _tap_left_ctrl(hold := 0.15) -> void:
+	for pressed: bool in [true, false]:
+		var event := InputEventKey.new()
+		event.keycode = KEY_CTRL
+		event.physical_keycode = KEY_CTRL
+		event.location = KEY_LOCATION_LEFT
+		event.pressed = pressed
+		Input.parse_input_event(event)
+		await _wait(hold if pressed else 0.12)
 
 
 func _tap(key: Key, hold := 0.2) -> void:
@@ -566,7 +617,7 @@ func _finish() -> void:
 	if _finished:
 		return
 	_finished = true
-	for key: Key in [KEY_A, KEY_D, KEY_W, KEY_S, KEY_LEFT, KEY_RIGHT, KEY_UP, KEY_DOWN, KEY_SPACE, KEY_CTRL]:
+	for key: Key in [KEY_A, KEY_D, KEY_W, KEY_S, KEY_LEFT, KEY_RIGHT, KEY_UP, KEY_DOWN, KEY_SPACE, KEY_CTRL, KEY_ENTER, KEY_1, KEY_2, KEY_3, KEY_8, KEY_KP_8, KEY_0]:
 		_key(key, false)
 	_check(FileAccess.get_sha256(GameManager.USER_SETTINGS_PATH) == _settings_hash, "player settings file untouched")
 	var report := {

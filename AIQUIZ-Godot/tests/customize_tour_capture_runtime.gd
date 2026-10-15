@@ -2,7 +2,8 @@ extends Node
 
 ## カスタマイズ紹介（チュートリアルの最後）で見せる画面写真を、今のカスタマイズ画面から撮り直す。
 ## 設定は変えず、写真は artifacts/tutorial_v5/customize/ に保存する（差し替えは人が確認してから行う）。
-## ./Godot_v4.7.2-stable_win64_console.exe --path . --script res://tests/customize_tour_capture_bootstrap.gd --fixed-fps 60
+## ./Godot_v4.7.2-stable_win64_console.exe --path . --script res://tests/customize_tour_capture_bootstrap.gd --fixed-fps 60 -- --fresh-profile
+## （--fresh-profile：保存済みの見た目を読まず、標準の色で撮る。帽子を替えても保存ファイルには書かない）
 const OUT := "res://artifacts/tutorial_v5/customize/"
 const NAMES := ["customize_wall_speed", "customize_skin_hat", "customize_emote"]
 
@@ -17,7 +18,9 @@ func run() -> void:
 	get_tree().root.size = Vector2i(1280, 720)
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT))
 	GameManager.settings_path = "user://customize_tour_capture_settings.json"
+	PlayerSkinStore.path = "user://customize_tour_capture_skins.json"
 	var settings_hash := FileAccess.get_sha256(GameManager.USER_SETTINGS_PATH)
+	var skins_hash := FileAccess.get_sha256(PlayerSkinStore.DEFAULT_PATH)
 	get_tree().change_scene_to_file("res://ui/main_menu.tscn")
 	var ready := await _wait_until(func() -> bool:
 		var scene := get_tree().current_scene
@@ -44,14 +47,18 @@ func run() -> void:
 		host.call("_set_section", index)
 		await _wait(1.2)
 		if index == 1:
-			# 帽子が見えないと紹介にならないので、効果のあるプロペラ帽を選んだ姿を撮る（保存はされない）。
+			# 帽子が見えないと紹介にならないので、効果のあるプロペラ帽を選んだ姿を撮る（本物の保存ファイルには書かない）。
 			host.call("_apply_hat_change_animated", HatData.HAT_PROPELLER, 1)
 			await _wait(1.4)
 		await _wait(0.6)
 		await RenderingServer.frame_post_draw
 		var image := get_tree().root.get_texture().get_image()
 		image.save_png(ProjectSettings.globalize_path(OUT + NAMES[index] + ".png"))
-	var untouched := FileAccess.get_sha256(GameManager.USER_SETTINGS_PATH) == settings_hash
+	PlayerSkinStore.flush()
+	var untouched := (
+		FileAccess.get_sha256(GameManager.USER_SETTINGS_PATH) == settings_hash
+		and FileAccess.get_sha256(PlayerSkinStore.DEFAULT_PATH) == skins_hash
+	)
 	print("CUSTOMIZE_CAPTURE " + JSON.stringify({"saved": NAMES, "settings_untouched": untouched}))
 	get_tree().quit(0)
 

@@ -23,6 +23,15 @@ const AIQUIZ_GOAL_GATE_SCENE: PackedScene = preload("res://assets/aiquiz_stadium
 
 var game_state: QuizGameState
 var _net_state: NetGameState = null
+var _net_overlay: NetOverlay = null
+const ONLINE_START_TIMEOUT := 12.0
+## オンライン：中央の線が開く時刻を両方でそろえる（ゲストの ready loaded → ホストの evt reveal）。来なければ自分だけ開く
+const ONLINE_REVEAL_SYNC_TIMEOUT := 4.0
+## オンラインのホスト：覆いが開ききるのを待って問題生成を始める。開ききらなくてもこの秒数で始める
+const ONLINE_QUIZ_START_TIMEOUT := 6.0
+const ONLINE_REVEAL_LEAD_MS := 250.0
+var _online_start_wait := 0.0
+var _online_ready_sent := false
 var quiz_wall_scene: PackedScene
 
 # Track previous flash values for particle spawning
@@ -37,6 +46,10 @@ var _prev_p2_y: float = 0.0
 # clients hear the same hits as the host.
 var _sfx_prev_damage: Array[float] = [0.0, 0.0]
 var _sfx_prev_wall_impact: Array[bool] = [false, false]
+var _sfx_prev_score: Array[int] = [0, 0]
+var _sfx_airborne: Array[bool] = [false, false]
+## Height above the track that counts as being in the air (a jump), for the landing sound.
+const SFX_AIRBORNE_HEIGHT := 0.25
 var _ocean_attack_sharks: Dictionary = {}
 var _ghost_shark_ride_controller: Node3D = null
 var _result_ceremony_director: Node3D = null
@@ -74,6 +87,12 @@ var _barrier_exploded: bool = false
 var _barrier_dropping: bool = false
 var _barrier_drop_timer: float = 0.0
 var _barrier_spawned_for_session: bool = false  # 1ゲームに1回だけ
+var _countdown_beep_number: int = 0  # 最後に電子音を鳴らしたカウントダウンの数字（0 = カウントダウン外）
+var _crowd_goal_mask: int = 0  # 観客がゴールの歓声をあげ終えたプレイヤー（goal_reached_mask と同じビット）
+## 観客の合図（カウントダウン・スタート・失敗・HP・ノコギリやサメ・ウェーブ・応援・勝者のダンス）。
+## ゴール観客席と左右のスタンドが毎フレーム読む（docs/crowd_extras.md）。
+var _crowd_cues := CrowdCues.new()
+var _crowd_shark_mask: int = 0
 const MAX_VISIBLE_WALLS := preload("res://scripts/core/game_state.gd").MAX_VISIBLE_WALLS
 const PREVIEW_WALLS_PER_FRAME := 1
 const COVER_PREVIEW_WALLS_PER_FRAME := 2
@@ -96,6 +115,7 @@ var _world_visual_prep_report: Dictionary = {}
 var _pw_render_prewarmed: bool = false
 var _wall_prewarm_root: Node3D = null
 var _barrier_prebuilt: bool = false
+var _countdown_rumble_active: bool = false  # カウントダウン壁の振動音（countdown_rumble）が鳴っている間
 var _barrier_landing_dust: CPUParticles3D = null
 
 # ── リプレイ記録 ──
@@ -126,14 +146,41 @@ var _right_ctrl_down := false
 func _is_right_ctrl_pressed() -> bool:
 	return _right_ctrl_down and Input.is_key_pressed(KEY_CTRL)
 
+## 得点説明を閉じるキー。P1のジャンプ（Space）とP2のジャンプ（右Ctrlのみ）、Enter。
+static func _is_tutorial_score_resume_key(event: InputEventKey) -> bool:
+	var key: int = event.keycode if event.keycode != 0 else event.physical_keycode
+	if key in [KEY_ENTER, KEY_KP_ENTER, KEY_SPACE]:
+		return true
+	return (
+		(event.keycode == KEY_CTRL or event.physical_keycode == KEY_CTRL)
+		and event.location == KEY_LOCATION_RIGHT
+	)
+
 func _push_key_masks() -> Array:
+	if _net_state != null and _net_state.is_online:
+		# オンライン: 自分は WASD/矢印の合成、相手はコマンドで届いた押下状態。
+		var masks := [0, 0]
+		masks[game_state.local_slot - 1] = _online_push_mask()
+		masks[game_state.remote_slot() - 1] = _net_state.remote_push_mask
+		return masks
 	return [(1 if Input.is_key_pressed(KEY_A) else 0) | (2 if Input.is_key_pressed(KEY_D) else 0),
 		(1 if Input.is_key_pressed(KEY_LEFT) else 0) | (2 if Input.is_key_pressed(KEY_RIGHT) else 0)]
+
+
+func _online_push_mask() -> int:
+	return (1 if Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT) else 0) 		| (2 if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT) else 0)
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and (event.keycode == KEY_CTRL or event.physical_keycode == KEY_CTRL) 			and event.location == KEY_LOCATION_RIGHT:
 		_right_ctrl_down = event.pressed
 	if not event is InputEventKey or event.echo or game_state == null:
+		return
+	if game_state.is_tutorial_score_pause_active():
+		# 2Pチュートリアルの得点説明。Enter／Space／右Ctrlで勝敗発表へ進む。
+		# 最短表示時間の前に押されたキーも飲み込み、ほかの操作へ流さない。
+		if event.pressed and _is_tutorial_score_resume_key(event as InputEventKey):
+			game_state.resume_tutorial_score_pause()
+			get_viewport().set_input_as_handled()
 		return
 	if game_state.game_state == Constants.STATE_SUDDEN_DEATH:
 		_record_sudden_death_key(event as InputEventKey)
@@ -142,6 +189,10 @@ func _input(event: InputEvent) -> void:
 		return
 	var key: int = event.keycode if event.keycode != 0 else event.physical_keycode
 	var mapping := {KEY_A: [1, 1], KEY_D: [1, -1], KEY_LEFT: [2, 1], KEY_RIGHT: [2, -1]}
+	if _net_state != null and _net_state.is_online:
+		# オンラインは WASD と矢印のどちらでも自分（local_slot）を動かすので、押し合いも同じ。
+		var me := game_state.local_slot
+		mapping = {KEY_A: [me, 1], KEY_LEFT: [me, 1], KEY_D: [me, -1], KEY_RIGHT: [me, -1]}
 	if mapping.has(key):
 		_push_key_events.append({"player": mapping[key][0], "direction": mapping[key][1],
 			"pressed": event.pressed, "usec": Time.get_ticks_usec()})
@@ -185,6 +236,14 @@ func _clear_push_input() -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_APPLICATION_FOCUS_IN:
 		_right_ctrl_down = false
+	if _net_state != null and _net_state.is_online:
+		# オンラインは相手の押し合いを止められないので、自分のキーを離したことにするだけ。
+		if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+			_push_key_events.clear()
+			for direction in [1, -1]:
+				_push_key_events.append({"player": game_state.local_slot, "direction": direction,
+					"pressed": false, "usec": Time.get_ticks_usec()})
+		return
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
 		_push_focus_lost = true
 		_clear_push_input()
@@ -192,13 +251,31 @@ func _notification(what: int) -> void:
 		_push_focus_lost = false
 		_clear_push_input()
 
+## 観客の大歓声：誰かがゴールラインを越えた瞬間（2人用は1人ずつ）。goal_reached_mask は
+## オンラインでも同期されるので、ゲストにも同じ瞬間に聞こえる。
+func _update_crowd_reactions() -> void:
+	var mask := game_state.goal_reached_mask
+	if mask & ~_crowd_goal_mask:
+		AudioManager.play_sfx(&"crowd_goal_cheer")
+	_crowd_goal_mask = mask
+
+
 func _exit_tree() -> void:
+	# どの経路でゲーム画面を出ても、プレイ曲と観客の声は残さない。
+	_stop_countdown_rumble()
+	AudioManager.set_music_track(AudioManager.MUSIC_TRACK_MENU)
+	AudioManager.set_crowd_ambience(AudioManager.CROWD_NONE)
 	if game_state != null:
 		game_state.local_push.reset()
 		game_state.saw_transport_enabled = false
+	# どの経路でゲーム画面を出ても、試合の接続は閉じる（終わっていれば相手に影響しない）。
+	if NetworkManager.is_in_match():
+		NetworkManager.leave_match()
+	if game_state != null and game_state.net_online:
+		game_state.reset_net_view()
 
 func _feed_push_input(dt: float) -> void:
-	game_state.local_push_transport_enabled = not _replay_mode and not (_net_state and _net_state.is_online)
+	game_state.local_push_transport_enabled = not _replay_mode
 	var active: bool = game_state.uses_local_push()
 	if active and not _push_active_last:
 		_push_resync = true
@@ -217,6 +294,9 @@ func _feed_push_input(dt: float) -> void:
 func _on_local_push_event(event: Dictionary) -> void:
 	if event.kind in ["contact", "hit", "clash"]:
 		particle_spawner.spawn_local_push(event)
+	# A push that lands, or both pushing at once (docs/sound_effects.md).
+	if event.kind in ["hit", "clash"]:
+		AudioManager.play_sfx(&"push_kick")
 
 func _on_window_size_changed() -> void:
 	GraphicsQuality.apply_text_viewport(get_viewport(), GameManager.graphics_quality)
@@ -225,6 +305,9 @@ func _ready() -> void:
 	_world_visual_prep_started_msec = Time.get_ticks_msec()
 	game_state = QuizManager.game_state
 	AudioManager.set_music_context(AudioManager.MUSIC_CONTEXT_GAMEPLAY)
+	# ヘリで着いたときから、メニューの曲を止めてスタジアムの観客のざわめきだけにする。
+	AudioManager.set_music_track(AudioManager.MUSIC_TRACK_NONE, 0.8)
+	AudioManager.set_crowd_ambience(AudioManager.CROWD_MURMUR)
 	GraphicsQuality.apply_text_viewport(get_viewport(), GameManager.graphics_quality)
 	# 最高画質の超解像倍率はウィンドウ解像度から決まるため、リサイズに追従する。
 	get_window().size_changed.connect(_on_window_size_changed)
@@ -240,6 +323,11 @@ func _ready() -> void:
 	game_state.world_border_pushed.connect(func(_player_index: int) -> void: WallWorldBorder.pulse())
 	game_state.question_completed.connect(_on_question_completed)
 	game_state.player_entered_ocean.connect(_on_player_entered_ocean)
+	game_state.health_changed.connect(_on_crowd_health_changed)
+	game_state.player_caught_by_saw.connect(_on_crowd_saw_catch)
+	game_state.question_winner_decided.connect(_on_crowd_question_decided)
+	# 勝者のダンスを観客が一緒に踊れるよう、両プレイヤーのエモートを先に焼いておく。
+	GrandstandCrowdScript.prepare_dances(game_state.get_result_winner_emote(1), game_state.get_result_winner_emote(2))
 
 	# リプレイ記録を開始（通常モードのみ）
 	# TODO: 一旦リプレイ機能を封印するため無効化
@@ -252,6 +340,12 @@ func _ready() -> void:
 	_net_state = NetGameState.new()
 	add_child(_net_state)
 	_net_state.setup(game_state)
+	if _net_state.is_online:
+		_net_overlay = NetOverlay.new()
+		add_child(_net_overlay)
+		_net_overlay.setup(_net_state)
+		_net_overlay.quit_requested.connect(_leave_online_match)
+		_net_state.shark_impact.connect(_play_shark_impact)
 	# ゴール掲示板の LED 番組（ハイライトと戦績）のための記録。テストのハーネス（スクリプトの
 	# SceneTree）は保存先を差し替えたときだけ記録し、プレイヤーの戦績に書かない。
 	var harness := get_tree().get_script() != null and MatchHistory.path_override.is_empty()
@@ -259,8 +353,9 @@ func _ready() -> void:
 		_match_reel = MatchReel.new()
 		add_child(_match_reel)
 		_match_reel.setup(game_state, GameManager.graphics_quality, _net_state.is_online, NetworkManager.is_host)
-	game_state.local_push_transport_enabled = not _replay_mode and not _net_state.is_online
-	game_state.saw_transport_enabled = not _replay_mode and not _net_state.is_online
+	game_state.local_push_transport_enabled = not _replay_mode
+	# のこぎりはオンラインでもホストが動かし、スナップショットで同期する（脱落ルールをオフラインと揃える）。
+	game_state.saw_transport_enabled = not _replay_mode
 	game_state.result_ceremony_enabled = not _replay_mode and not _net_state.is_online
 	if not _replay_mode:
 		game_state.saw.enabled = game_state.uses_saw_chase()
@@ -272,16 +367,17 @@ func _ready() -> void:
 		_saw_controller.preload_model()
 	game_state.local_push.reset()
 	game_state.local_push_event.connect(_on_local_push_event)
-	# Online and replay retain their existing presentation contract. Every local
-	# game mode shares this one director and the same product GLB.
-	# Retry skips the drop so players spawn on the belt immediately.
+	# Every local game mode and online match shares this one director and the same
+	# helicopter. Online, each screen plays its own arrival after the synced reveal and
+	# the start waits until both players have landed (_update_online_start). Replays keep
+	# their own presentation. Retry skips the drop so players spawn on the belt immediately.
 	var skip_helicopter_arrival := game_state.consume_skip_start_helicopter_arrival()
 	var chair_arriving := SeatLaunchPresentation.consume_handoff(game_state, _net_state.is_online, skip_helicopter_arrival)
 	if game_state.uses_saw_chase() and not _replay_mode:
 		_saw_controller.configure_entrance(false, not skip_helicopter_arrival)
 		if chair_arriving: _saw_controller.prepare_operator_arrival()
 		camera_controller.saw_dock_framing = _saw_controller.dock.framing_weight()
-	if not _replay_mode and not _net_state.is_online and not skip_helicopter_arrival:
+	if not _replay_mode and not skip_helicopter_arrival:
 		_helicopter_arrival_director = HelicopterArrivalDirectorScript.new()
 		_helicopter_arrival_director.name = "HelicopterArrivalDirector"
 		add_child(_helicopter_arrival_director)
@@ -362,6 +458,52 @@ func _on_player_entered_ocean(player_index: int, local_position: Vector3) -> voi
 	if particle_spawner.has_method("spawn_ocean_splash"):
 		particle_spawner.spawn_ocean_splash(local_position)
 	_start_ocean_shark_attack(player_index, local_position)
+	# 観客：落ちたプレイヤーのファンは頭を抱え、近くの席は息をのむ。
+	_crowd_cues.on_miss(player_index)
+	_crowd_cues.on_shock(local_position.z)
+
+
+func _on_crowd_health_changed(player_index: int, previous_hp: int, hp: int) -> void:
+	if hp < previous_hp and hp > 0:
+		_crowd_cues.on_hurt(player_index)
+
+
+func _on_crowd_saw_catch(player_index: int) -> void:
+	_crowd_cues.on_miss(player_index)
+	_crowd_cues.on_shock(game_state.player_local_z if player_index == 1 else game_state.player2_local_z)
+
+
+## 違う扉を選んだプレイヤー（判定された中で正解の側にいない人）。
+func _on_crowd_question_decided(_question_index: int, winner_mask: int) -> void:
+	var wrong := game_state.get_question_evaluated_mask() & ~winner_mask
+	for player_index: int in [1, 2]:
+		if wrong & (1 << (player_index - 1)):
+			_crowd_cues.on_miss(player_index)
+
+
+## 観客の合図を進め、ゴール観客席と左右のスタンド（座席の観客とマスコット）へ渡す。
+func _update_crowd(dt: float) -> void:
+	var camera := camera_controller.get_node_or_null("Camera3D") as Camera3D
+	var stands := stage_env.get_node_or_null("Grandstands") as Node3D if is_instance_valid(stage_env) else null
+	if stands != null:
+		_crowd_cues.course_z = stands.global_position.z
+	if is_instance_valid(_goal_stand):
+		_crowd_cues.goal_course = _goal_stand.global_position.z - _crowd_cues.course_z
+	# サメに食べられた瞬間も、近くの席が息をのむ。
+	var sharks := (1 if game_state.p1_shark_killed else 0) | (2 if game_state.p2_shark_killed else 0)
+	for player_index: int in [1, 2]:
+		var bit := 1 << (player_index - 1)
+		if sharks & bit and not _crowd_shark_mask & bit:
+			_crowd_cues.on_shock(game_state.player_local_z if player_index == 1 else game_state.player2_local_z)
+	_crowd_shark_mask = sharks
+	_crowd_cues.update(dt, game_state, _goal_stand.side_crowd_reaction() if is_instance_valid(_goal_stand) else {},
+		_result_ceremony_director)
+	if is_instance_valid(_goal_stand):
+		# The scoreboard plays the programme (highlights, records) once the match is saved.
+		_goal_stand.update_stand(dt, game_state, _result_ceremony_director, camera,
+			_match_reel == null or _match_reel.is_ready(), _crowd_cues)
+	GrandstandCrowdScript.follow_cues(_crowd_cues)
+	GrandstandCrowdScript.update_mascots(_crowd_cues, dt, camera)
 
 
 func _start_ocean_shark_attack(player_index: int, target_position: Vector3) -> void:
@@ -600,6 +742,20 @@ func _on_shark_attack_reached(player_index: int, shark: SharkSwimmer) -> void:
 		else Vector3(game_state.player2_x, game_state.player2_y, game_state.player2_local_z)
 	)
 	var attack_forward: Vector3 = -shark.global_basis.z
+	if _net_state != null and _net_state.is_online:
+		_net_state.send_shark_impact(player_index, attack_position, attack_forward)
+	_play_shark_impact(player_index, attack_position, attack_forward)
+	game_state.complete_ocean_shark_attack(player_index)
+
+
+## サメの噛みつき演出。ホストは判定と同時に、オンラインのゲストはホストのイベントで再生する。
+func _play_shark_impact(player_index: int, attack_position: Vector3, attack_forward: Vector3) -> void:
+	if _net_state != null and _net_state.is_guest():
+		var stale_variant: Variant = _ocean_attack_sharks.get(player_index)
+		var stale_shark: SharkSwimmer = stale_variant as SharkSwimmer
+		if stale_shark != null and is_instance_valid(stale_shark):
+			stale_shark.cancel_attack()
+		_ocean_attack_sharks.erase(player_index)
 	if particle_spawner.has_method("spawn_shark_impact"):
 		particle_spawner.spawn_shark_impact(attack_position, attack_forward)
 	if camera_controller != null and camera_controller.has_method("trigger_ocean_attack_impact"):
@@ -612,30 +768,70 @@ func _on_shark_attack_reached(player_index: int, shark: SharkSwimmer) -> void:
 		var death_wipe: Node = get_node_or_null("DeathWipeLayer/DeathWipe")
 		if death_wipe != null and death_wipe.has_method("play_shark_impact_flash"):
 			death_wipe.play_shark_impact_flash(player_index)
-	game_state.complete_ocean_shark_attack(player_index)
 	if player_node is PlayerController:
 		player_node.begin_ocean_shark_explosion(player_index)
 
 
 ## 重い表示系は黒画面内で予熱する。オンラインでヘリ投入が有効なときは準備画面を先に開示し、
 ## 問題ロードと投入演出を並列化する。オフラインは10問とステージ構築が完了してから開示する。
+## オンラインのホストは、VS の覆いが開ききってから問題生成を始める（GameState.start_game(true)）。
 func _reveal_after_transition() -> void:
 	if not SceneTransition.is_transitioning():
+		game_state.begin_deferred_quiz_generation()
 		return
 	await _prepare_world_visuals_under_cover()
 	if not is_inside_tree():
 		return
+	var online := _net_state != null and _net_state.is_online
 	# Online helicopter arrival may own the visible preparation window so quiz
 	# generation continues behind it. Offline 10-question rounds must keep the
 	# black cover until every quiz and the world load are finished; wall drops
-	# still wait for the reveal wipe to complete.
+	# still wait for the reveal wipe to complete. Online never waits for quizzes
+	# here: the host only starts generating once the screen has opened.
 	var parallel_arrival_active := is_start_presentation_locked()
-	if _uses_offline_quiz_source():
+	if _uses_offline_quiz_source() and not online:
 		await _wait_for_offline_transition_ready()
 	elif parallel_arrival_active:
 		print("[GameWorld] Quiz preparation and helicopter arrival are running in parallel")
+	if online and is_inside_tree():
+		await _sync_online_reveal()
 	if is_inside_tree():
 		SceneTransition.reveal_current()
+		await _begin_deferred_quiz_generation_after_reveal()
+
+
+## VS の覆い（稲妻で割れて開く）が開ききってから問題生成を始める。開く演出を問題生成の処理で止めないため。
+## 覆いが閉じたまま残っても始められるよう、ONLINE_QUIZ_START_TIMEOUT 秒で待つのをやめる。
+func _begin_deferred_quiz_generation_after_reveal() -> void:
+	if not game_state.quiz_generation_deferred:
+		return
+	var deadline := Time.get_ticks_msec() + int(ONLINE_QUIZ_START_TIMEOUT * 1000.0)
+	while SceneTransition.is_transitioning() and Time.get_ticks_msec() < deadline and is_inside_tree():
+		await get_tree().process_frame
+	if is_inside_tree():
+		print("[GameWorld] Screen opened; starting quiz generation")
+		game_state.begin_deferred_quiz_generation()
+
+
+## オンライン：両方の画面の準備がそろってから、同じ時刻に覆いを開く（docs/online_match_staging/spec.md 12）。
+## ゲストは ready {phase: loaded} を送って evt reveal を待ち、ホストはゲストの loaded を待って 250 ms 先の時刻を送る。
+## どちらも 4 秒たったら待つのをやめて、自分の準備ができしだい開く。
+func _sync_online_reveal() -> void:
+	var deadline := Time.get_ticks_msec() + int(ONLINE_REVEAL_SYNC_TIMEOUT * 1000.0)
+	if _net_state.is_guest():
+		NetworkManager.send("ready", {"phase": "loaded"})
+		while _net_state.reveal_at_ms < 0.0 and Time.get_ticks_msec() < deadline and is_inside_tree():
+			await get_tree().process_frame
+	else:
+		while not _net_state.guest_loaded and Time.get_ticks_msec() < deadline and is_inside_tree():
+			await get_tree().process_frame
+		if _net_state.guest_loaded:
+			_net_state.reveal_at_ms = NetworkManager.server_time_ms() + ONLINE_REVEAL_LEAD_MS
+			NetworkManager.send("evt", {"event": "reveal", "at": _net_state.reveal_at_ms})
+	if _net_state.reveal_at_ms > 0.0:
+		var latest := Time.get_ticks_msec() + 1000
+		while NetworkManager.server_time_ms() < _net_state.reveal_at_ms and Time.get_ticks_msec() < latest and is_inside_tree():
+			await get_tree().process_frame
 
 
 ## 問題生成やプレビュー壁の状態機械には触れず、表示系だけを黒画面中に準備する。
@@ -921,10 +1117,11 @@ func _is_offline_transition_prepared() -> bool:
 func _process(dt: float) -> void:
 	if not game_state or get_tree().paused:
 		return
+	_update_crowd_reactions()
 
 	# --- Online mode: client skips game logic, only sends input ---
 	var _is_online: bool = _net_state and _net_state.is_online
-	var _is_client: bool = _is_online and not NetworkManager.is_host
+	var _is_client: bool = _is_online and _net_state.is_guest()
 
 	# Gather input
 	var axis_p1 := Vector2.ZERO
@@ -933,12 +1130,14 @@ func _process(dt: float) -> void:
 	var jump_p2 := false
 	var emote_p1 := 0
 	var emote_p2 := 0
+	# 押されているエモートキーのビット（チュートリアルの「3つすべて再生」の判定用）。
+	var emote_keys_p1 := 0
+	var emote_keys_p2 := 0
 	if game_state.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE, Constants.STATE_WAITING_START, Constants.STATE_FLYOVER, Constants.STATE_COUNTDOWN, Constants.STATE_SUDDEN_DEATH]:
 		# --- ローカル入力収集 (P1 or クライアントの自分) ---
 		# P1 エモート: キー1,2,3 → スロットからエモートIDを取得
-		if Input.is_key_pressed(KEY_1) and game_state.p1_emote_slots.size() > 0: emote_p1 = game_state.p1_emote_slots[0]
-		elif Input.is_key_pressed(KEY_2) and game_state.p1_emote_slots.size() > 1: emote_p1 = game_state.p1_emote_slots[1]
-		elif Input.is_key_pressed(KEY_3) and game_state.p1_emote_slots.size() > 2: emote_p1 = game_state.p1_emote_slots[2]
+		emote_keys_p1 = _emote_key_mask(1)
+		emote_p1 = _emote_for_keys(game_state.p1_emote_slots, emote_keys_p1)
 		
 		# Player 1: W/A/S/D
 		if Input.is_key_pressed(KEY_D): axis_p1.x -= 1.0
@@ -947,21 +1146,22 @@ func _process(dt: float) -> void:
 		if Input.is_key_pressed(KEY_S): axis_p1.y -= 1.0
 		jump_p1 = Input.is_key_pressed(KEY_SPACE)
 
-		# --- Online client: 自分の入力をホストに送信 ---
-		if _is_client:
-			axis_p1 = axis_p1.normalized()
-			_net_state.send_local_input(axis_p1, jump_p1, emote_p1)
-		# --- Online host: P2の入力はネットワーク経由 ---
-		elif _is_online and NetworkManager.is_host:
-			axis_p2 = _net_state.get_remote_axis()
-			jump_p2 = _net_state.get_remote_jump()
-			emote_p2 = _net_state.get_remote_emote()
+		# --- オンライン: 自分の操作は WASD と矢印キーのどちらでも。相手の入力はネット経由 ---
+		if _is_online:
+			if Input.is_key_pressed(KEY_RIGHT): axis_p1.x -= 1.0
+			if Input.is_key_pressed(KEY_LEFT): axis_p1.x += 1.0
+			if Input.is_key_pressed(KEY_UP): axis_p1.y += 1.0
+			if Input.is_key_pressed(KEY_DOWN): axis_p1.y -= 1.0
+			axis_p1 = axis_p1.limit_length(1.0)
+			if _is_client:
+				# ゲストの自分はスロット 2。エモートは自分（スロット 2）の枠から選ぶ。
+				emote_p1 = _online_local_emote(game_state.p2_emote_slots)
+			emote_keys_p1 = 0
 		# --- ローカル2P ---
 		elif game_state.num_players >= 2:
-			# P2 エモート: キー8,9,0 → スロットからエモートIDを取得
-			if (Input.is_key_pressed(KEY_8) or Input.is_key_pressed(KEY_KP_7)) and game_state.p2_emote_slots.size() > 0: emote_p2 = game_state.p2_emote_slots[0]
-			elif (Input.is_key_pressed(KEY_9) or Input.is_key_pressed(KEY_KP_8)) and game_state.p2_emote_slots.size() > 1: emote_p2 = game_state.p2_emote_slots[1]
-			elif (Input.is_key_pressed(KEY_0) or Input.is_key_pressed(KEY_KP_9)) and game_state.p2_emote_slots.size() > 2: emote_p2 = game_state.p2_emote_slots[2]
+			# P2 エモート: キー8,9,0（テンキー7,8,9）→ スロットからエモートIDを取得
+			emote_keys_p2 = _emote_key_mask(2)
+			emote_p2 = _emote_for_keys(game_state.p2_emote_slots, emote_keys_p2)
 			
 			# 2P: Arrow keys for P2
 			if Input.is_key_pressed(KEY_RIGHT): axis_p2.x -= 1.0
@@ -986,6 +1186,12 @@ func _process(dt: float) -> void:
 		jump_p2 = false
 		emote_p1 = 0
 		emote_p2 = 0
+		emote_keys_p1 = 0
+		emote_keys_p2 = 0
+	game_state.set_tutorial_emote_keys(
+		0 if _replay_mode else emote_keys_p1,
+		0 if _replay_mode else emote_keys_p2
+	)
 
 	# 1P uses a fixed third-person view, so gameplay never captures the mouse.
 	if Input.get_mouse_mode() == Input.MOUSE_MODE_CAPTURED:
@@ -993,7 +1199,27 @@ func _process(dt: float) -> void:
 
 	# Update game state (host or offline only — client receives snapshots)
 	game_state.result_ceremony_enabled = not _is_online and not _replay_mode
-	if not _is_client and not _replay_mode:
+	if _is_client:
+		# ゲスト: 判定はホスト。自分の入力をコマンドにして送り、予測と補間で描く。
+		var push_events: Array = _push_key_events.duplicate()
+		_push_key_events.clear()
+		_net_state.guest_frame(dt, axis_p1, jump_p1, emote_p1, push_events, _online_push_mask())
+	elif _is_online and not _replay_mode:
+		# ホスト: 1/60 秒の固定ティックで進め、ゲストのコマンドを 1 ティック 1 個ずつ使う。
+		# 押し合いキーは自分の分をフレーム内の時刻どおりティックへ振り分け、ゲストの分は
+		# コマンドに載った時刻で、それぞれのティックの直前に渡す。
+		var steps := _net_state.host_begin_frame(dt)
+		var local_push := _host_online_push_events(dt, steps)
+		for step in range(steps):
+			var remote := _net_state.host_pop_command()
+			if game_state.uses_local_push() and not _push_focus_lost:
+				for event: Array in local_push[step]:
+					game_state.submit_local_push_key(game_state.local_slot, event[0], event[1], event[2])
+				for event: Array in remote.push:
+					game_state.submit_local_push_key(game_state.remote_slot(), event[0], event[1], event[2])
+			game_state.update(NetGameState.TICK, axis_p1, remote.axis, jump_p1, remote.jump, emote_p1, remote.emote)
+			_net_state.host_after_tick()
+	elif not _replay_mode:
 		_feed_push_input(dt)
 		_feed_sudden_death_input(dt)
 		game_state.update(dt, axis_p1, axis_p2, jump_p1, jump_p2, emote_p1, emote_p2)
@@ -1030,6 +1256,8 @@ func _process(dt: float) -> void:
 	# Network sync (snapshot send for host)
 	if _net_state:
 		_net_state.process_network(dt)
+		if _is_online:
+			_update_online_start()
 
 	_update_ocean_shark_attacks()
 
@@ -1056,14 +1284,8 @@ func _process(dt: float) -> void:
 		_result_ceremony_director.update_result_ceremony(dt)
 	_update_walls()
 	_update_goal_line()
-	if is_instance_valid(_goal_stand):
-		# The scoreboard plays the programme (highlights, records) once the match is saved.
-		_goal_stand.update_stand(dt, game_state, _result_ceremony_director,
-			camera_controller.get_node_or_null("Camera3D") as Camera3D,
-			_match_reel == null or _match_reel.is_ready())
-	# Side stand fans mirror the goal crowd's cheers and verdict.
-	GrandstandCrowdScript.follow_reaction(
-		_goal_stand.side_crowd_reaction() if is_instance_valid(_goal_stand) else {}, dt)
+	# The goal stand, the side stands and their mascots follow the crowd's cues.
+	_update_crowd(dt)
 	_update_preview_walls(dt)
 	if _tutorial_presentation_director:
 		_tutorial_presentation_director.update(dt)
@@ -1122,7 +1344,11 @@ func _set_surface_visible(surface_visible: bool) -> void:
 
 ## Debug builds: F9 ends a local 2P ten-question round as a draw at the goal.
 func _debug_force_draw_finish() -> void:
-	if SceneTransition.is_transitioning() or not game_state.uses_local_result_ceremony():
+	if (
+		SceneTransition.is_transitioning()
+		or not game_state.uses_local_result_ceremony()
+		or game_state.mode == Constants.MODE_TUTORIAL
+	):
 		return
 	if game_state.game_state not in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]:
 		return
@@ -1140,11 +1366,119 @@ func _debug_force_draw_finish() -> void:
 func _return_to_main_menu_from_result() -> void:
 	if SceneTransition.is_transitioning():
 		return
-	await SceneTransition.fade_to_color_and_wait(Color.BLACK)
+	var online := game_state.net_online
+	var wipe_style := SceneTransition.WipeStyle.DATA if online else SceneTransition.WipeStyle.CIRCLE
+	await SceneTransition.fade_to_color_and_wait(Color.BLACK, false, wipe_style)
 	if not is_inside_tree():
+		return
+	if online:
+		OnlineMenu.return_from_match(get_tree())
 		return
 	game_state.reset_to_menu()
 	get_tree().change_scene_to_file("res://ui/main_menu.tscn")
+
+## 開始してよい状態か（Enter での開始と同じ条件: 開始演出と壁の構築が終わり、カウントダウン壁が着地済み）。
+func _can_trigger_start() -> bool:
+	return (
+		game_state.game_state == Constants.STATE_WAITING_START
+		and not is_start_presentation_locked()
+		and not is_preload_construction_locked()
+		and _barrier_spawned_for_session
+		and not _barrier_dropping
+	)
+
+
+## オンラインの開始合わせ。ゲストは準備ができたら ready を送り、ホストは両者そろうか
+## 待ちすぎたら開始する。どちらも Enter は使わない。
+func _update_online_start() -> void:
+	if game_state.game_state != Constants.STATE_WAITING_START:
+		_online_start_wait = 0.0
+		_online_ready_sent = false
+		return
+	_online_start_wait += get_process_delta_time()
+	if not _can_trigger_start() or _net_state.paused:
+		return
+	if _net_state.is_guest():
+		if not _online_ready_sent:
+			_online_ready_sent = true
+			NetworkManager.send("ready")
+	elif _net_state.guest_ready or _online_start_wait >= ONLINE_START_TIMEOUT:
+		_net_state.guest_ready = false
+		game_state.trigger_start()
+
+
+## ホスト（オンライン）: この描画フレームの自分の押し合いキーを、回すティックへ振り分ける。
+## 返り値は steps 個の配列で、各要素は [direction, pressed, offset] の並び。
+func _host_online_push_events(dt: float, steps: int) -> Array:
+	game_state.local_push_transport_enabled = true
+	var active: bool = game_state.uses_local_push()
+	if active and not _push_active_last:
+		_push_resync = true
+	_push_active_last = active
+	var buckets: Array = []
+	for i in range(steps):
+		buckets.append([])
+	if _push_resync or not active or game_state.is_tutorial_presentation_locked():
+		if steps > 0:
+			game_state.suspend_local_push(_push_key_masks())
+			_push_resync = false
+		_push_key_events.clear()
+		return buckets
+	if steps <= 0:
+		if _net_state.paused:
+			_push_key_events.clear()  # 一時停止中の押下は再開後に持ち込まない
+		return buckets  # 次のフレームへ持ち越す
+	var frame_start := Time.get_ticks_usec() - int(dt * 1000000.0)
+	for event: Dictionary in _push_key_events:
+		var fraction := clampf(float(int(event.usec) - frame_start) / maxf(dt * 1000000.0, 1.0), 0.0, 0.9999)
+		var slot := fraction * steps
+		var index := mini(int(slot), steps - 1)
+		buckets[index].append([int(event.direction), bool(event.pressed), (slot - index) * NetGameState.TICK])
+	_push_key_events.clear()
+	return buckets
+
+
+## 押されているエモートキーのビット。bit0 = 1枠目（P1: 1、P2: 8 / テンキー7）、
+## bit1 = 2枠目（2 / 9 / テンキー8）、bit2 = 3枠目（3 / 0 / テンキー9）。
+func _emote_key_mask(player_index: int) -> int:
+	var mask := 0
+	if player_index == 1:
+		if Input.is_key_pressed(KEY_1): mask |= 1
+		if Input.is_key_pressed(KEY_2): mask |= 2
+		if Input.is_key_pressed(KEY_3): mask |= 4
+	else:
+		if Input.is_key_pressed(KEY_8) or Input.is_key_pressed(KEY_KP_7): mask |= 1
+		if Input.is_key_pressed(KEY_9) or Input.is_key_pressed(KEY_KP_8): mask |= 2
+		if Input.is_key_pressed(KEY_0) or Input.is_key_pressed(KEY_KP_9): mask |= 4
+	return mask
+
+
+## 押されているキーのうち最も若い枠のエモートID（同時押しは 1 → 2 → 3 の順で優先）。
+static func _emote_for_keys(slots: Array[int], mask: int) -> int:
+	for slot: int in range(mini(slots.size(), 3)):
+		if mask & (1 << slot):
+			return slots[slot]
+	return 0
+
+
+## オンライン: 自分のエモートキー（1/2/3）を、自分のスロットのエモート枠から選ぶ。
+func _online_local_emote(slots: Array[int]) -> int:
+	if Input.is_key_pressed(KEY_1) and slots.size() > 0: return slots[0]
+	if Input.is_key_pressed(KEY_2) and slots.size() > 1: return slots[1]
+	if Input.is_key_pressed(KEY_3) and slots.size() > 2: return slots[2]
+	return 0
+
+
+## オンライン対戦を抜けてオンラインメニューへ戻る（試合中なら相手の不戦勝になる）。
+func _leave_online_match() -> void:
+	if SceneTransition.is_transitioning():
+		return
+	NetworkManager.leave_match()
+	await SceneTransition.fade_to_color_and_wait(Color.BLACK, false, SceneTransition.WipeStyle.DATA)
+	if not is_inside_tree():
+		return
+	OnlineMenu.return_from_match(get_tree())
+
 
 func _update_floor_conveyor() -> void:
 	if stage_env:
@@ -1162,6 +1496,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	if event is InputEventKey and event.keycode == KEY_ESCAPE and event.is_pressed() and not event.is_echo():
+		if _net_overlay != null:
+			# オンラインは時間を止められないので、ポーズではなく「やめる？」を出す。
+			_net_overlay.toggle_quit_confirm()
+			return
 		if game_state and game_state.game_state in [
 			Constants.STATE_WAITING_START, Constants.STATE_COUNTDOWN,
 			Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE, Constants.STATE_SUDDEN_DEATH,
@@ -1217,6 +1555,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		and not event.is_echo()
 	):
 		if game_state and game_state.game_state == Constants.STATE_WAITING_START:
+			if _net_state != null and _net_state.is_online:
+				# オンラインは両者の準備がそろったら自動で始まる（Enter では始めない）。
+				return
 			if is_start_presentation_locked():
 				get_viewport().set_input_as_handled()
 				return
@@ -1530,7 +1871,11 @@ func _update_goal_line() -> void:
 	)
 	var tutorial_goal_visible := (
 		game_state.mode == Constants.MODE_TUTORIAL
-		and game_state.game_state in [Constants.STATE_GOAL_RACE, Constants.STATE_CLEAR]
+		and game_state.game_state in [
+			Constants.STATE_GOAL_RACE,
+			Constants.STATE_RESULT_CEREMONY,
+			Constants.STATE_CLEAR,
+		]
 	)
 	var should_show := challenge_goal_visible or tutorial_goal_visible
 
@@ -1780,20 +2125,45 @@ func _check_particles() -> void:
 
 ## Wall-hit sounds read from synced state: a bonk when a wrong door costs a
 ## heart, a crash when the hit knocks the player out.
+## Door and body sounds (docs/sound_effects.md), read from values the online snapshot also
+## carries, so a guest hears them at the same moments as the host.
 func _update_wall_hit_sfx() -> void:
+	var racing := game_state.game_state in [Constants.STATE_PLAYING, Constants.STATE_CORRECT, Constants.STATE_GOAL_RACE]
+	var on_field := racing or game_state.game_state in [Constants.STATE_PRELOADING, Constants.STATE_WAITING_START, Constants.STATE_FLYOVER, Constants.STATE_COUNTDOWN]
 	for index in range(2):
 		var player: int = index + 1
 		if player == 2 and game_state.num_players < 2:
 			continue
+		# Wrong door: the player hits the wall (a heart lost) under the quiz buzzer.
 		var damage: float = game_state.get_damage_time(player)
 		if damage > _sfx_prev_damage[index] + 0.25 and damage >= QuizGameState.DAMAGE_FLASH_DURATION * 0.8:
 			AudioManager.play_sfx(&"bonk")
+			AudioManager.play_sfx(&"door_wrong")
 		_sfx_prev_damage[index] = damage
 
+		# The fatal crash (last heart, or the wall between doors) is a wrong answer too.
 		var wall_impact: bool = game_state.p1_wall_impact if player == 1 else game_state.p2_wall_impact
 		if wall_impact and not _sfx_prev_wall_impact[index]:
-			AudioManager.play_sfx(&"wall_crash")
+			AudioManager.play_sfx(&"wall_crash", 0.0, 0.85)
+			AudioManager.play_sfx(&"door_wrong")
 		_sfx_prev_wall_impact[index] = wall_impact
+
+		# Correct door: each point a player scores is a door they ran through.
+		var points: int = game_state.score if player == 1 else game_state.player2_score
+		if racing and points > _sfx_prev_score[index]:
+			AudioManager.play_sfx(&"door_correct")
+		_sfx_prev_score[index] = points
+
+		# Landing from a jump (or from the helicopter drop) while on the course.
+		var alive: bool = game_state.p1_alive if player == 1 else game_state.p2_alive
+		var height: float = game_state.player_y if player == 1 else game_state.player2_y
+		if not (on_field and alive) or (player_node is PlayerController and player_node.has_intro_arrival()):
+			_sfx_airborne[index] = false
+		elif height > SFX_AIRBORNE_HEIGHT:
+			_sfx_airborne[index] = true
+		elif _sfx_airborne[index] and height <= 0.001:
+			_sfx_airborne[index] = false
+			AudioManager.play_sfx(&"jump_land")
 
 
 func _get_player_death_effect_position(player_index: int, fallback: Vector3) -> Vector3:
@@ -1835,6 +2205,41 @@ func _on_state_changed(new_state: String) -> void:
 		AudioManager.set_music_context(AudioManager.MUSIC_CONTEXT_MENU)
 	else:
 		AudioManager.set_music_context(AudioManager.MUSIC_CONTEXT_GAMEPLAY)
+	# BGM の曲（docs/bgm_renewal.md）: ゲーム画面に入ってからスタートまでは曲なし（観客の声だけ）、
+	# 壁が割れたらプレイ曲を頭から流し、クリア画面と2人用のスコアタワーの判定の後は結果の曲、
+	# ゲームオーバーは専用曲ができるまで曲なし（メニュー曲には戻さない）。
+	# エンドレスの途中の問題補充（PRELOADING）などでは曲を変えない。
+	if new_state in [Constants.STATE_PLAYING, Constants.STATE_CORRECT, Constants.STATE_GOAL_RACE]:
+		AudioManager.set_music_track(AudioManager.MUSIC_TRACK_PLAY)
+	elif new_state == Constants.STATE_CLEAR:
+		AudioManager.set_music_track(AudioManager.MUSIC_TRACK_RESULT)
+	elif new_state in [Constants.STATE_RESULT_CEREMONY, Constants.STATE_WAITING_START, Constants.STATE_FLYOVER, Constants.STATE_COUNTDOWN]:
+		# スタート前と、2人用のスコアタワーの判定まで（結果の曲は ResultCeremonyDirector が判定で始める）は
+		# 曲を止めて、観客のざわめきだけにする。
+		AudioManager.set_music_track(AudioManager.MUSIC_TRACK_NONE)
+	elif new_state == Constants.STATE_GAME_OVER:
+		# 死んでゲームオーバーになったら、プレイ曲を静かに止める（メニュー曲には戻さない）。
+		# ゲームオーバー画面の曲（bgm_gameover）ができたらここで流す。
+		AudioManager.set_music_track(AudioManager.MUSIC_TRACK_NONE, 1.0)
+	elif new_state in [Constants.STATE_MENU, Constants.STATE_SUDDEN_DEATH]:
+		AudioManager.set_music_track(AudioManager.MUSIC_TRACK_MENU)
+	# 観客の声（docs/sound_effects.md）: スタート前と判定までのスコアタワーはざわめき、壁が割れたら歓声、ほかは無音。
+	# ゴールの大歓声は _update_crowd_reactions()、2人用の判定の歓声は ResultCeremonyDirector。
+	if new_state in [Constants.STATE_PLAYING, Constants.STATE_CORRECT, Constants.STATE_GOAL_RACE]:
+		AudioManager.set_crowd_ambience(AudioManager.CROWD_RACE)
+	elif new_state in [Constants.STATE_WAITING_START, Constants.STATE_FLYOVER, Constants.STATE_COUNTDOWN, Constants.STATE_RESULT_CEREMONY]:
+		AudioManager.set_crowd_ambience(AudioManager.CROWD_MURMUR)
+	elif new_state in [
+		Constants.STATE_MENU,
+		Constants.STATE_CLEAR,
+		Constants.STATE_GAME_OVER,
+		Constants.STATE_SUDDEN_DEATH,
+	]:
+		AudioManager.set_crowd_ambience(AudioManager.CROWD_NONE)
+	if new_state == Constants.STATE_CLEAR:
+		# 1人用はゴールでそのままクリアになる（2人用のゴールは goal_reached_mask で鳴らす。
+		# 同じ瞬間に重なっても min_interval で1回になる）。
+		AudioManager.play_sfx(&"crowd_goal_cheer")
 	if new_state == Constants.STATE_CLEAR:
 		_fireworks_launched = false
 	elif new_state == Constants.STATE_PLAYING:
@@ -1842,6 +2247,7 @@ func _on_state_changed(new_state: String) -> void:
 		_clear_preview_walls()
 		# カウントダウン終了 → バリア壁を爆散！
 		if not _barrier_exploded:
+			AudioManager.play_sfx(&"countdown_go")
 			_explode_start_barrier()
 	elif new_state == Constants.STATE_MENU:
 		_fireworks_launched = false
@@ -2125,7 +2531,7 @@ func _begin_preview_wall_render_prewarm(prewarm_camera: Camera3D) -> Dictionary:
 		_start_barrier.visible = true
 		var countdown_label := _start_barrier.get_node_or_null("QuestionLabel") as Label3D
 		if countdown_label != null:
-			countdown_label.text = "3"
+			countdown_label.text = "5"
 		var steam_l := _start_barrier.get_node_or_null("SteamL") as CPUParticles3D
 		var steam_r := _start_barrier.get_node_or_null("SteamR") as CPUParticles3D
 		if steam_l != null:
@@ -2334,6 +2740,8 @@ func _update_preview_walls(dt: float) -> void:
 				)
 				var shake_power: float = clampf(44.0 / maxf(1.0, dist_z), 0.25, 1.45)
 				game_state.camera_shake = maxf(game_state.camera_shake, shake_power)
+				# 壁がコンベアに着地した音。カメラに近い壁ほど大きい（揺れと同じ割合）。
+				AudioManager.play_sfx(&"wall_land", linear_to_db(clampf(shake_power / 1.45, 0.4, 1.0)))
 
 		elif phase == 2:
 			var p: float = clampf(t_val / PREVIEW_WALL_SETTLE_DURATION, 0.0, 1.0)
@@ -2650,6 +3058,7 @@ func _update_start_barrier() -> void:
 			_start_barrier.position.y = 0.0
 			game_state.camera_shake = 1.2
 			_spawn_landing_impact(_start_barrier.global_position)
+			AudioManager.play_sfx(&"barrier_land")
 		return
 		
 	if _start_barrier and is_instance_valid(_start_barrier):
@@ -2658,8 +3067,19 @@ func _update_start_barrier() -> void:
 			if game_state.game_state == Constants.STATE_COUNTDOWN:
 				var remain := int(ceil(game_state.countdown_timer))
 				ql.text = str(remain) if remain > 0 else ""
-				
-				var progress := 1.0 - clampf(game_state.countdown_timer / 3.99, 0.0, 1.0)
+				# 数字が変わった瞬間に電子音（GO の音は壁が割れるときに _on_state_changed で鳴らす）。
+				# オンラインのゲストも同期された countdown_timer で同じ数字を表示するので、同じ瞬間に鳴る。
+				if remain != _countdown_beep_number:
+					_countdown_beep_number = remain
+					if remain > 0:
+						AudioManager.play_sfx(&"countdown_beep")
+
+				# 壁が振動しているあいだのゴゴゴ音（振動と一緒に大きくなり、壁が割れるときに止める）。
+				if not _countdown_rumble_active:
+					_countdown_rumble_active = true
+					AudioManager.play_sfx(&"countdown_rumble")
+
+				var progress := 1.0 - clampf(game_state.countdown_timer / QuizGameState.COUNTDOWN_SECONDS, 0.0, 1.0)
 				
 				# 1. 壁の振動演出
 				# base position is x=0, y=0. apply non-linear random offset based on progress.
@@ -2682,6 +3102,8 @@ func _update_start_barrier() -> void:
 					
 			else:
 				ql.text = ""
+				_countdown_beep_number = 0
+				_stop_countdown_rumble()
 				if (
 					_barrier_spawned_for_session
 					and not _barrier_dropping
@@ -2702,10 +3124,18 @@ func _spawn_landing_impact(pos: Vector3) -> void:
 	_barrier_landing_dust.restart()
 	_barrier_landing_dust.emitting = true
 
+func _stop_countdown_rumble() -> void:
+	if _countdown_rumble_active:
+		_countdown_rumble_active = false
+		AudioManager.stop_sfx(&"countdown_rumble")
+
+
 func _explode_start_barrier() -> void:
 	_barrier_exploded = true
+	_stop_countdown_rumble()
 	if not _start_barrier or not is_instance_valid(_start_barrier):
 		return
+	AudioManager.play_sfx(&"barrier_explosion")
 	var bpos: Vector3 = _start_barrier.global_position
 	_start_barrier.visible = false
 	game_state.camera_shake = 0.7

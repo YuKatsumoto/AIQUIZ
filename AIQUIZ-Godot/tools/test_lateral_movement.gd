@@ -92,18 +92,25 @@ func _test_goal_race_movement() -> void:
 func _test_tutorial_tasks() -> void:
 	var solo: RefCounted = load("res://scripts/core/tutorial/solo_tutorial_flow.gd").new()
 	var duo: RefCounted = load("res://scripts/core/tutorial/duo_tutorial_flow.gd").new()
-	_check(_step_task_ids(solo._build_steps(), "air_control") == ["jump", "forward", "back"], "Solo tutorial teaches jump and forward/back")
-	_check(_step_task_ids(duo._build_steps(), "duo_air", 1) == ["jump", "forward", "back"], "Duo P1 tutorial teaches jump and forward/back")
-	_check(_step_task_ids(duo._build_steps(), "duo_air", 2) == ["jump", "forward", "back"], "Duo P2 tutorial teaches jump and forward/back")
+	var directions: Array[String] = ["left", "right", "forward", "back"]
+	_check(_step_task_ids(solo._build_steps(), "move_lane") == directions, "Solo tutorial teaches all four directions in one step")
+	_check(_step_task_ids(duo._build_steps(), "duo_move", 1) == directions, "Duo P1 tutorial teaches all four directions in one step")
+	_check(_step_task_ids(duo._build_steps(), "duo_move", 2) == directions, "Duo P2 tutorial teaches all four directions in one step")
+	_check(_step_task_ids(solo._build_steps(), "jump_lesson") == ["jump"], "Solo tutorial teaches jump on its own")
+	_check(_step_task_ids(duo._build_steps(), "duo_jump", 1) == ["jump"], "Duo P1 tutorial teaches jump on its own")
+	_check(_step_task_ids(duo._build_steps(), "duo_jump", 2) == ["jump"], "Duo P2 tutorial teaches jump on its own")
 	for flow in [solo, duo]:
 		flow.start()
-		while flow.current_step_id() not in ["air_control", "duo_air"]:
+		# for で回し、ステップが見つからなくても無限ループにしない。
+		for i: int in flow.step_count():
+			if flow.current_step_id() in ["move_lane", "duo_move"]:
+				break
 			flow.advance_step()
 		flow.presentation_locked = false
 		flow.awaiting_neutral_input = false
-		flow.update_input_practice(Vector2(0, 1), Vector2(0, 1), false, false, 0, 0)
-		flow.update_input_practice(Vector2(0, -1), Vector2(0, -1), true, true, 0, 0)
-		_check(flow.all_tasks_complete(), "Tutorial forward/back/jump tasks can actually complete")
+		for axis: Vector2 in [Vector2(1, 0), Vector2(-1, 0), Vector2(0, 1), Vector2(0, -1)]:
+			flow.update_input_practice(axis, axis, false, false, 0, 0)
+		_check(flow.all_tasks_complete(), "Tutorial four-direction tasks can actually complete")
 
 
 func _step_task_ids(steps: Array[Dictionary], step_id: String, player_index: int = 0) -> Array[String]:

@@ -9,6 +9,7 @@ const TEXT := Color(0.96, 0.975, 1.0)
 const MUTED := Color(0.63, 0.70, 0.80)
 const WARNING := Color(1.0, 0.49, 0.37)
 const MOTION_PATH := "res://assets/ui/duo_hud/motion.json"
+const STREAK_BADGE := preload("res://scripts/ui/streak_flame_badge.gd")
 
 var game_state: QuizGameState
 var player_index := 1
@@ -36,6 +37,7 @@ var _shine_time := 10.0
 var _impact_time := 10.0
 var _ghost_slot: Control
 var _ghost_hud_active := false
+var _streak_badge: Control
 
 func setup(gs: QuizGameState, index: int, color: Color) -> void:
 	game_state = gs
@@ -78,7 +80,12 @@ func _ready() -> void:
 	_score_label = _label("Score", str(_last_score), Vector2(50, 2), Vector2(98, 30), 25, TEXT)
 	_score_label.pivot_offset = Vector2(0, 18)
 	_score_unit = _label("ScoreUnit", "correct" if game_state.use_english_ui else "正解", Vector2(77, 19), Vector2(44, 15), 10, MUTED)
-	_label("Player", "P%d" % player_index, Vector2(10, 10), Vector2(30, 22), 13, INK, true)
+	if game_state.net_online:
+		# オンラインは自分のカードと相手のカードを言葉で分ける。
+		var tag := "じぶん" if game_state.is_local_slot(player_index) else "あいて"
+		_label("Player", tag, Vector2(4, 10), Vector2(42, 22), 10, INK, true)
+	else:
+		_label("Player", "P%d" % player_index, Vector2(10, 10), Vector2(30, 22), 13, INK, true)
 	_label("HPHeading", "HP", Vector2(10, 45), Vector2(27, 23), 11, MUTED)
 	_hp_label = _label("HP", "3 / 3", Vector2(127, 45), Vector2(49, 23), 12, TEXT, true)
 	_delta_label = _label("ScoreDelta", "+1", Vector2(48, -27), Vector2(68, 25), 21, accent, true)
@@ -86,6 +93,12 @@ func _ready() -> void:
 	_delta_label.add_theme_constant_override("outline_size", 3)
 	_delta_label.visible = false
 	_status_label = _label("Status", "", Vector2(121, 61), Vector2(60, 14), 10, WARNING, true)
+	# 連続正解は正解数の右に、炎（AE 製ループ）と回数で出す。
+	_streak_badge = STREAK_BADGE.new()
+	_streak_badge.name = "StreakBadge"
+	_streak_badge.setup(game_state.use_english_ui)
+	_surface.add_child(_streak_badge)
+	_streak_badge.snap(game_state.get_player_streak(player_index))
 	for i in range(64):
 		var t := TAU * float(i) / 64.0
 		_heart_points.append(Vector2(16.0 * pow(sin(t), 3), -(13.0 * cos(t) - 5.0 * cos(2.0 * t) - 2.0 * cos(3.0 * t) - cos(4.0 * t))) / 16.0)
@@ -143,6 +156,7 @@ func _process(dt: float) -> void:
 		_bursts.clear()
 		_shown_hp = game_state.get_player_hp(player_index)
 		_last_score = _current_score()
+		_streak_badge.snap(game_state.get_player_streak(player_index))
 		return
 	if not _was_visible:
 		_entrance_time = -0.067 * float(player_index - 1)
@@ -194,6 +208,8 @@ func _process(dt: float) -> void:
 	var scale_value := _sample("score_scale", _score_time)
 	_score_label.scale = Vector2.ONE * scale_value
 	_place_score_unit(scale_value)
+	_streak_badge.advance(dt, game_state.get_player_streak(player_index))
+	_place_streak_badge()
 	_delta_label.visible = _score_time < 0.65
 	_delta_label.position.y = -19.0 - 22.0 * _sample("burst_progress", _score_time)
 	_delta_label.scale = Vector2.ONE * lerpf(0.8, 1.0, _sample("entrance_alpha", _score_time))
@@ -227,6 +243,26 @@ func _place_score_unit(score_scale: float) -> void:
 	var width := font.get_string_size(_score_label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
 	_score_unit.position.x = minf(140.0, 57.0 + width * score_scale)
 
+## 正解の単位の直後に置く。幅が足りなければ「連続」を省き、それでも足りなければ「正解」を隠して
+## 正解数の直後に詰める。
+func _place_streak_badge() -> void:
+	var limit := size.x - 8.0
+	var unit_end := _score_unit.position.x + _text_width(_score_unit)
+	_streak_badge.set_compact(false)
+	if unit_end + 4.0 + float(_streak_badge.content_width()) > limit:
+		_streak_badge.set_compact(true)
+	var width: float = _streak_badge.content_width()
+	var x := unit_end + 4.0
+	var show_unit := x + width <= limit
+	if not show_unit:
+		x = _score_label.position.x + _text_width(_score_label) * _score_label.scale.x + 4.0
+	_score_unit.visible = show_unit or not _streak_badge.visible
+	_streak_badge.position = Vector2(minf(x, limit - width), 0)
+
+func _text_width(label: Label) -> float:
+	var font: Font = label.get_theme_font("font")
+	return font.get_string_size(label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, label.get_theme_font_size("font_size")).x
+
 func _sample(track_name: String, time: float) -> float:
 	var track: Dictionary = _motion[track_name]
 	var values: Array = track.values
@@ -244,7 +280,7 @@ func _draw_surface() -> void:
 	_surface.draw_line(Vector2(10, 39), Vector2(size.x - 10, 39), Color(0.22, 0.30, 0.39, 0.72), 1.0, true)
 	var accent_x := 2.0 if player_index == 1 else size.x - 2.0
 	_surface.draw_line(Vector2(accent_x, 14), Vector2(accent_x, size.y - 14), accent, 2.0, true)
-	_surface.draw_style_box(_badge, Rect2(10, 10, 30, 22))
+	_surface.draw_style_box(_badge, Rect2(4, 10, 42, 22) if game_state.net_online else Rect2(10, 10, 30, 22))
 	if _ghost_hud_active:
 		_draw_bursts()
 		return

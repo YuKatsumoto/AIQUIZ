@@ -1,0 +1,4 @@
+# Sounds whose terms allow use inside the game but forbid redistributing the files
+# (効果音ラボ). This repository is public, so keep them out of git (../CREDITS.md).
+*.ogg
+*.ogg.import

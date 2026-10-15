@@ -15,6 +15,9 @@
 - 役割：ホットヘッド（片側3人、卵パック持ち）、プラカード（片側3人が同じ段で横並び。がんばれ／ファイト、
   負けると画面左から「OH」「MY」「GOT」に裏返す。全画質で必ず3人とも出る）、
   チーム旗、フォームフィンガー、パーティ客（ダンス）、一般ファン。
+  追加演出（[docs/crowd_extras.md](../../docs/crowd_extras.md)）：応援団長（P1 メガホン／P2 太鼓）、肩を組む・ハイタッチする 2 人組、
+  子どもの肩車、タオル回し、居眠り、ポップコーン・ホットドッグを食べる客、自撮り、双眼鏡、通路を歩くビールの売り子 2 人、
+  前列のマスコット（ハテナ）。
 - 反応：
   | 状況 | 反応 |
   | --- | --- |
@@ -25,16 +28,20 @@
   | 判定（6.9秒〜） | 勝者側：歓声・指さして笑う・旗振り。敗者側：頭を抱える・首振り・横並びのプラカードが「OH MY GOT」。歓声とブーイング |
   | 卵 | 敗者側ホットヘッドが激怒（顔が赤くなる）→判定が出ている間ずっと投げ続ける（数に上限なし）。25%は床に外れる。当たると殻だけが割れて散る（下の「卵の割れ方」） |
   | 引き分け | 全員拍手・歓声、「えーっ！引き分けー？」、ホットヘッドは審判に卵 |
+  | カウントダウン／スタート | 前のめりで身構え、スタートで歓声（居眠り客は飛び起きる） |
+  | 失敗・HP 減少 | 失敗した側のファンは頭を抱える・首を振る、2人用では相手のファンが指さして笑う |
+  | ウェーブ・応援の拍 | 右スタンドから来たウェーブが通ると立ち上がって両手を上げる。応援団長の 0.5 秒の拍で頭上の手拍子 |
+  | 勝者のダンス（判定後） | 盛り上げ役と勝者側のファンの約 4 割が、勝者と同じエモートを同じ拍で踊る |
 
 ## 素材
 
 | ファイル | 内容 |
 | --- | --- |
 | `goal_stand.glb` | スタンド本体 `GS_Stand`（段・青いベンチ・胸壁・ペナント・チーム旗・海中の柱とアーチ）と電光掲示板 `GS_Scoreboard`。ヘッダー看板・電球盤・鋼板の画像を埋め込み |
-| `goal_stand_spectator.glb` | 観客リグ（23ボーン）＋髪型7種のボディ＋手持ち小道具＋アニメーション25本 |
+| `goal_stand_spectator.glb` | 観客リグ（23ボーン）＋髪型7種のボディ＋手持ち小道具＋アニメーション52本 |
 | `goal_stand_props.glb` | 飛んでいく卵と殻の破片 |
 | `goal_stand_layout.json` | 段の高さ・立ち位置・通路（Blender空間。Godotでは (x, z, -y)） |
-| `goal_stand_clips.json` | クリップ長・ループ・卵を放す時刻（0.3秒） |
+| `goal_stand_clips.json` | クリップ長・ループ・卵を放す時刻（0.3秒）・ダンスの元の長さ（`source_seconds`）・ウェーブで立つ時刻（`rise`）・肩車の位置（`kid`）・応援の拍（`leader_beat`） |
 | `goal_stand_egg_contents.glb` | （未使用）卵の中身：白身 `GSE_White`（半径1の放射状ディスク）と黄身 `GSE_Yolk`（底が平らな球）。`source/build_egg_contents.py` で作成 |
 | `source/textures/sb_*.png` | 電光掲示板のヘッダー看板・鋼板（Higgsfield）と電球盤（手続き生成）。`prep_scoreboard_textures.py` で作成 |
 
@@ -44,9 +51,17 @@
   `SPEC_Anticipate` `SPEC_PointLaugh` `SPEC_SignUp`
 - Quaternius UAL（CC0、`assets/animations/cc0_quaternius`）から：`SPEC_Idle` `SPEC_Talk` `SPEC_Phone` `SPEC_FoldArms`
   `SPEC_ShakeHead` `SPEC_Nod` `SPEC_HoldUp` `SPEC_Throw` `SPEC_DanceBounce` `SPEC_Shout`
+- 追加演出（`author_crowd_extras.py`）：`SPEC_Gasp` `SPEC_Doze` `SPEC_WakeUp`（一回だけ） `SPEC_Eat` `SPEC_HighFiveL/R`
+  `SPEC_ShoulderL/R` `SPEC_Selfie` `SPEC_Binoculars` `SPEC_Megaphone` `SPEC_Drum` `SPEC_ChantClap` `SPEC_StandWave`
+  `SPEC_TowelSpin` `SPEC_CarryKid` `SPEC_KidRide` `SPEC_KidSit` `SPEC_VendorWalk`（UAL `Walk_Loop` の脚） `SPEC_VendorCall`
 - ゲームのエモート（Mixamo FBX）をリターゲット：`SPEC_Dance_YMCA` `Gangnam` `Silly` `HokeyPokey` `RunningMan`
-  `WaveHipHop` `Swing`。両リグは同じTポーズ・-Y向きなので、ボーンごとにワールド空間の回転差分を移し、
+  `WaveHipHop` `Swing` `StepHipHop` `SlideHipHop` `Moonwalk` `HipHop` `House` `HipHop2` `Thriller`（4部を連結）。
+  FBX は 60fps なので元の 2 フレームを 1 フレームにして、実際の速さ・全長で作る（2026-10-14 までは半分の速さだった）。
+  両リグは同じTポーズ・-Y向きなので、ボーンごとにワールド空間の回転差分を移し、
   腰の移動は脚の長さ比で縮めてから1.5秒の移動平均を引いて段から出ないようにしている。
+
+小道具の追加（`build_crowd_props.py`）：`GSP_Popcorn` `GSP_HotDog` `GSP_Phone` `GSP_Binoculars` `GSP_Megaphone`
+`GSP_Drum`（太鼓とバチ）`GSP_Towel` `GSP_TowelNeck` `GSP_Keg` `GSP_Cup`。色の役割に 12 ポップコーン・13 赤・14 金属・15 パンを追加。
 
 観客は1マテリアル（`shaders/goal_stand_spectator.gdshader`）。Blenderで各面の色の役割を UV.x
 （(役割+0.5)/16）に焼き、Godotでは肌・服・ズボン・髪・靴・チーム色・怒り度をインスタンスごとに渡す。
@@ -108,14 +123,17 @@ Higgsfield Blender コネクタ（Blender 5.1）で実行する。開いてい�
 - `build_rig.py` — UAL マネキンから指を除いた `RIG_Spectator`
 - `build_bodies.py` — 髪型7種のブロック人形（各箱を1ボーンに100%スキン）
 - `pose_lib.py` / `author_actions.py` — ポーズソルバー（2ボーンIK）と独自リアクション
-- `retarget_dances.py` — エモートのリターゲット
+- `retarget_dances.py` — エモートのリターゲット（実際の速さ・全長・連結、`source_seconds` を記録）
+- `author_crowd_extras.py` / `build_crowd_props.py` — 追加演出の動き 20 本と小道具 10 種
+- `preview_crowd_extras.py` — 動きを並べた確認用レンダー（`artifacts/crowd_extras/`）
+- `goal_stand_crowd.blend` — 観客の作業ファイル（`build_all.py` の観客部分を実行して保存したもの）
 - `bake_ual.py` — UAL クリップの焼き込みと卵を放す瞬間の計測
 - `build_props.py` — 卵・卵パック・フォームフィンガー・旗・プラカード
 - `prep_word_signs.py` — 手描きの「OH」「MY」「GOT」を看板テクスチャに整える
 - `build_stand.py` — スタンド本体と `goal_stand_layout.json`
 - `build_scoreboard.py` — 電光掲示板 `GS_Scoreboard`（`goal_stand_layout.json` に画面位置 `scoreboard` を追記）
 - `prep_scoreboard_textures.py` — 掲示板のテクスチャ（ヘッダー看板の切り出し・鋼板のタイル化・電球盤の描画）を `textures/sb_*.png` に書き出す
-- `export_goal_stand.py` — GLB 3種と `goal_stand_clips.json`
+- `export_goal_stand.py` — GLB 3種と `goal_stand_clips.json`（`EXPORT_ONLY = ["spectator"]` で観客だけ）
 - `preview.py` — 確認用レンダー（`artifacts/goal_stand/blender/`）
 - `key_generated.py` — 生成画像の背景抜き
 - `build_all.py` — 上の工程を順に実行
@@ -142,6 +160,8 @@ python assets/goal_stand/source/prep_scoreboard_textures.py
   70 m 以遠は15Hz、170 m 以遠は処理停止。
 - `scripts/world/goal_stand/goal_stand_scoreboard.gd` — 電光掲示板の表示（スコア表と勝者カットイン）。
 - `scripts/world/goal_stand/goal_stand_eggs.gd` — 卵の弾道（最後は動く標的に追従）と割れた後の物理（下の「卵の割れ方」）。
+- `scripts/world/crowd/crowd_cues.gd`（`CrowdCues`）— 観客への合図（カウントダウン・スタート・失敗・HP・驚き・ウェーブ・応援・勝者のダンス）。
+- `scripts/world/crowd/stand_mascot.gd`（`StandMascot`）— 客席のハテナ。
 - `scripts/world/game_world.gd` — ゴールラインと同じ条件で生成・配置し、毎フレーム更新。
 - `ResultCeremonyDirector.crowd_egg_target()` / `ResultFinaleStage.egg_target()` — 判定後の卵の標的。
 

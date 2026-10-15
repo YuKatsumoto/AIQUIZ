@@ -63,13 +63,24 @@ const INTRO_JUMP_LAND_SECONDS := 0.32
 const INTRO_LAND_BLEND := 0.35
 const INTRO_IDLE_BLEND := 0.15
 const INTRO_JUMP_GRAVITY := 9.8
-const INTRO_FALL_BLEND_SECONDS := 0.15
+## Letting go of the rope: the overhead grip unwinds into Falling Idle over this
+## window instead of popping, and the curled fingers open a little sooner.
+const INTRO_LADDER_RELEASE_BLEND_SECONDS := 0.5
+const INTRO_LADDER_RELEASE_FINGER_SECONDS := 0.24
 const INTRO_FALL_LAND_BLEND_SECONDS := 0.12
 const INTRO_CABIN_POSE_KEYS := [
 	"pelvis", "spine", "neck", "head_pivot",
 	"l_shoulder", "r_shoulder", "l_elbow", "r_elbow",
 	"l_wrist", "r_wrist", "l_hip", "r_hip", "l_knee", "r_knee",
 	"l_ankle", "r_ankle", "l_toe", "r_toe",
+]
+const INTRO_FINGER_POSE_KEYS := [
+	"l_thumb_prox", "l_thumb_dist", "l_index_prox", "l_index_mid", "l_index_dist",
+	"l_middle_prox", "l_middle_mid", "l_middle_dist", "l_ring_prox", "l_ring_mid", "l_ring_dist",
+	"l_pinky_prox", "l_pinky_mid", "l_pinky_dist",
+	"r_thumb_prox", "r_thumb_dist", "r_index_prox", "r_index_mid", "r_index_dist",
+	"r_middle_prox", "r_middle_mid", "r_middle_dist", "r_ring_prox", "r_ring_mid", "r_ring_dist",
+	"r_pinky_prox", "r_pinky_mid", "r_pinky_dist",
 ]
 const RagdollBuilderScript = preload("res://scripts/world/ragdoll_builder.gd")
 const ActiveRagdollDriverScript = preload("res://scripts/world/active_ragdoll_driver.gd")
@@ -119,6 +130,10 @@ var _p1_hat_node: Node3D = null
 var _p2_hat_node: Node3D = null
 var _p1_toon_preset_id: int = -1
 var _p2_toon_preset_id: int = -1
+## 体の塗り（PlayerSkin）。適用済みのコンパクト表記を覚えて、変化したときだけ塗り直す。
+const SKIN_CODE_UNSET := "<unset>"
+var _applied_skin_codes: Dictionary = {1: SKIN_CODE_UNSET, 2: SKIN_CODE_UNSET}
+var _applied_skins: Dictionary = {1: {}, 2: {}}
 
 var _p1_exploding: bool = false
 var _p2_exploding: bool = false
@@ -191,6 +206,7 @@ func _setup_ragdoll(parts: Dictionary, is_p1: bool) -> Dictionary:
 	var rag: Dictionary = RagdollBuilderScript.build(container, parts["pelvis"], parts, {
 		"debug": false, "limb_color": limb_col, "head_color": head_col, "torso_color": body_col,
 		"toon_preset": _p1_toon_preset_id if is_p1 else _p2_toon_preset_id,
+		"skin_parts": parts,
 	})
 
 	# 物理駆動に置き換える表示メッシュを非表示にする(体幹は表示のまま)
@@ -1725,6 +1741,11 @@ func begin_intro_ladder_jump(
 	var origin := pelvis.global_position
 	var release_transform := pelvis.global_transform
 	var release_pose := _capture_intro_pose(parts)
+	var release_fingers := {}
+	for key: String in INTRO_FINGER_POSE_KEYS:
+		var finger := parts.get(key) as Node3D
+		if finger != null and is_instance_valid(finger):
+			release_fingers[key] = finger.quaternion
 	var landing := Vector3(
 		ground_target.x,
 		ground_target.y + INTRO_PELVIS_HEIGHT,
@@ -1759,6 +1780,7 @@ func begin_intro_ladder_jump(
 		"source_ready": true,
 		"position": origin,
 		"release_pose": release_pose,
+		"release_fingers": release_fingers,
 		"facing_yaw": atan2(release_transform.basis.z.x, release_transform.basis.z.z),
 		"animated_fall": false,
 	}
@@ -1777,9 +1799,12 @@ func _apply_intro_falling_idle(player_index: int, state: Dictionary, position_on
 	_apply_skeleton_pose(parts, rig.active_skeleton, rig.active_bone_indices, rig.mirror_x)
 	var pelvis := parts.get("pelvis") as Node3D
 	pelvis.global_basis = Basis(Vector3.UP, float(state.get("facing_yaw", 0.0))) * pelvis.global_basis
-	_blend_intro_fall_pose(parts, state.get("release_pose", {}), smoothstep(
-		0.0, INTRO_FALL_BLEND_SECONDS, elapsed
-	))
+	_blend_intro_ladder_release(
+		parts,
+		state.get("release_pose", {}),
+		state.get("release_fingers", {}),
+		elapsed
+	)
 	# Ignore FBX root translation: the physical torso owns the complete flight path.
 	pelvis.global_position = position_on_path
 	if not bool(state.get("animated_fall", false)):
@@ -1797,6 +1822,52 @@ func _blend_intro_fall_pose(parts: Dictionary, from_pose: Dictionary, weight: fl
 		var from: Transform3D = from_pose[key]
 		# Root position belongs to the flight path / existing foot planting.
 		part.basis = from.basis.slerp(part.basis, weight)
+
+
+## The hang IK and the Mixamo clip disagree by up to ~170 degrees per arm, most of
+## it roll around the bone. A plain slerp swings the arm through the torso, so the
+## bone direction (swing) and its roll (twist) unwind separately from the grip.
+func _blend_intro_ladder_release(
+	parts: Dictionary,
+	from_pose: Dictionary,
+	from_fingers: Dictionary,
+	elapsed: float
+) -> void:
+	var weight := smoothstep(0.0, INTRO_LADDER_RELEASE_BLEND_SECONDS, elapsed)
+	if weight < 1.0:
+		for key: String in INTRO_CABIN_POSE_KEYS:
+			var part := parts.get(key) as Node3D
+			if part == null or not from_pose.has(key):
+				continue
+			var from: Quaternion = (from_pose[key] as Transform3D).basis.get_rotation_quaternion()
+			var scale := part.basis.get_scale()
+			var blended := _swing_twist_slerp(from, part.quaternion, weight)
+			part.basis = Basis(blended).scaled_local(scale)
+	var finger_weight := smoothstep(0.0, INTRO_LADDER_RELEASE_FINGER_SECONDS, elapsed)
+	if finger_weight < 1.0:
+		for key: String in from_fingers:
+			var finger := parts.get(key) as Node3D
+			if finger != null:
+				var finger_scale := finger.basis.get_scale()
+				var opened := (from_fingers[key] as Quaternion).slerp(finger.quaternion, finger_weight)
+				finger.basis = Basis(opened).scaled_local(finger_scale)
+
+
+## Interpolates from -> to with the bone axis (local Y) direction and the roll
+## around it advancing on separate shortest arcs.
+func _swing_twist_slerp(from: Quaternion, to: Quaternion, weight: float) -> Quaternion:
+	var delta := (from.inverse() * to).normalized()
+	if delta.w < 0.0:
+		delta = -delta
+	var twist := Quaternion(0.0, delta.y, 0.0, delta.w)
+	if twist.length_squared() <= 0.000001:
+		return from.slerp(to, weight)
+	twist = twist.normalized()
+	var swing := (delta * twist.inverse()).normalized()
+	if swing.w < 0.0:
+		swing = -swing
+	var partial := Quaternion.IDENTITY.slerp(swing, weight) * Quaternion.IDENTITY.slerp(twist, weight)
+	return (from * partial).normalized()
 
 
 func _prepare_ladder_jump_ragdoll(player_index: int) -> void:
@@ -2597,6 +2668,7 @@ func _update_saw_death(is_p1: bool, timer: float) -> void:
 			else: _p2_ragdoll = ragdoll
 		var catch_driver := ragdoll.get("saw_catch") as SawCatchRagdoll
 		if catch_driver != null and catch_driver.finished:
+			AudioManager.play_sfx(&"body_burst", -5.0)
 			_clear_explosion_bodies(is_p1)
 			var debris: Array[RigidBody3D] = []
 			for key: String in ragdoll.rag.bodies:
@@ -2647,6 +2719,19 @@ func _init_wall_ragdoll_explosion(ragdoll: Dictionary, fallback_parts: Dictionar
 		for piece: RigidBody3D in (_p1_explosion_bodies if is_p1 else _p2_explosion_bodies):
 			piece.collision_mask |= SawChaseState.WALL_COLLISION_LAYER
 	_teardown_ragdoll(ragdoll)
+
+
+## 頭のてっぺん（帽子の付け根）のワールド座標。アニメーションの姿勢に追従する。
+## オンライン対戦で自分のキャラの頭上に出す矢印の基準点。
+func get_head_top_position(player_index: int) -> Vector3:
+	var parts: Dictionary = p1_parts if player_index == 1 else p2_parts
+	var mount := parts.get("hat_mount") as Node3D
+	if mount != null and is_instance_valid(mount) and mount.is_inside_tree():
+		return mount.global_position
+	var root: Node3D = self if player_index == 1 else p2_container
+	if root == null or not is_instance_valid(root):
+		root = self
+	return root.global_position + Vector3(0.0, BASE_Y + 2.0, 0.0)
 
 
 ## 死亡演出で現在見えている身体の中心を返す。
@@ -2776,8 +2861,6 @@ func _load_mixamo_rig(gs: QuizGameState) -> void:
 	if gs:
 		p1_slots = gs.p1_emote_slots
 		p2_slots = gs.p2_emote_slots
-	if NetworkManager and NetworkManager.state == NetworkManager.State.IN_GAME:
-		p2_slots = NetworkManager.opponent_emote_slots
 	_apply_emote_rig_slots(p1_slots, p2_slots, loader)
 
 
@@ -3100,7 +3183,9 @@ func _build_player_skeleton(is_p1: bool, parent_node: Node3D) -> Dictionary:
 	parts["pelvis"] = pelvis
 
 	# Lower Torso (hip/belly area)
-	var lower_torso = _create_box(Vector3(0.38, 0.22, 0.22), body_col)
+	# むね（upper_torso）と重なる部分の面が同じ奥行きにならないよう、5mm だけ細く・薄くする
+	# （むねとこしを違う色にしたとき、重なりがちらついて縞に見えるのを防ぐ）。
+	var lower_torso = _create_box(Vector3(0.375, 0.22, 0.215), body_col)
 	lower_torso.position = Vector3(0, 0.15, 0)
 	pelvis.add_child(lower_torso)
 	parts["lower_torso"] = lower_torso
@@ -3307,6 +3392,9 @@ func _build_player_skeleton(is_p1: bool, parent_node: Node3D) -> Dictionary:
 		
 	parts["meshes"] = m_list
 	parts["hat_meshes"] = []  # Populated when hat is set
+	# 各メッシュのパーツを覚え、スロットの標準色で塗っておく。
+	PlayerSkinRig.prepare_parts(parts)
+	PlayerSkinRig.apply(parts, {}, 1 if is_p1 else 2)
 
 	return parts
 
@@ -3334,7 +3422,8 @@ func _process(dt: float) -> void:
 	var gs = QuizManager.game_state
 	var speed: float = gs._active_wall_speed if gs else 3.5
 	var mult := 1.0
-	if Input.is_key_pressed(KEY_W):
+	# オンラインでは自分のキーが相手の走りまで速めないよう、キーボードを直接見ない。
+	if Input.is_key_pressed(KEY_W) and not (gs and gs.net_online):
 		mult = 2.0
 	_run_phase += dt * 8.0 * (speed / 3.5) * mult
 
@@ -3351,6 +3440,7 @@ func prepare_for_loading(gs: QuizGameState) -> void:
 	if gs.num_players >= 2:
 		set_hat(2, gs.p2_hat)
 		set_toon_preset(2, ToonPresets.resolve_player_preset(gs, 2))
+	_sync_skins_from_state(gs)
 	if not has_intro_arrival():
 		return
 	var count := 2 if gs.num_players >= 2 else 1
@@ -3370,6 +3460,7 @@ func _sync_player_model_count(gs: QuizGameState) -> void:
 		add_child(p2_container)
 		p2_parts = _build_player_skeleton(false, p2_container)
 		_p2_toon_preset_id = -1
+		_applied_skin_codes[2] = SKIN_CODE_UNSET
 		# P2ラグドールは p2_container.position 確定後に遅延生成する
 	if gs.num_players < 2 and p2_container != null:
 		# 爆発デブリは別親(get_parent())に在り container 解放では消えないので明示解放。
@@ -3383,6 +3474,7 @@ func _sync_player_model_count(gs: QuizGameState) -> void:
 		p2_container = null
 		p2_parts.clear()
 		_p2_toon_preset_id = -1
+		_applied_skin_codes[2] = SKIN_CODE_UNSET
 
 
 var _health_pose_restore: Array[Dictionary] = []
@@ -3491,11 +3583,12 @@ func update_from_state(gs: QuizGameState) -> void:
 	var pz: float = gs.player_z
 	var walk_phase: float = _run_phase
 	var mult := 1.0
-	if Input.is_key_pressed(KEY_W):
+	if Input.is_key_pressed(KEY_W) and not gs.net_online:
 		mult = 2.0
 	var speed_ratio: float = clampf((gs._active_wall_speed / 3.5) * mult, 0.3, 6.0)
 
 	_sync_player_model_count(gs)
+	_sync_skins_from_state(gs)
 	var desired_p1_toon := ToonPresets.resolve_player_preset(gs, 1)
 	if desired_p1_toon != _p1_toon_preset_id:
 		set_toon_preset(1, desired_p1_toon)
@@ -4061,8 +4154,9 @@ func _update_bobblehead(parts: Dictionary, is_p2: bool, is_playing: bool, phase:
 	var hat_m: Node3D = parts["hat_mount"]
 	var bobble: Dictionary = _p1_bobble if not is_p2 else _p2_bobble
 	var hat_id := _p2_hat_id if is_p2 else _p1_hat_id
-	if hat_id == HatData.HAT_BOUSI:
+	if hat_id == HatData.HAT_BOUSI or HatFactory.has_chin_strap(hat_id):
 		# キリンは分離した頭部だけが追従する。帽体・脚・胴体・首は揺らさない。
+		# アゴ紐付きの帽子は頭に固定する（揺らすと紐が顔から浮く）。
 		hat_m.rotation = Vector3.ZERO
 		return
 	
@@ -4295,11 +4389,12 @@ func begin_ocean_shark_explosion(player_index: int) -> void:
 		_p1_exploding = true
 	else:
 		_p2_exploding = true
-	_init_explosion(parts, is_p1)
+	AudioManager.play_sfx(&"shark_bite")
+	_init_explosion(parts, is_p1, false, -5.0)
 	_set_parts_visible(parts, false)
 
 
-func _init_explosion(parts: Dictionary, is_p1: bool, force_non_forward: bool = false) -> void:
+func _init_explosion(parts: Dictionary, is_p1: bool, force_non_forward: bool = false, sound_trim_db: float = 0.0) -> void:
 	if not parts or not parts.has("meshes"):
 		return
 	_hide_rig_scenes(is_p1)
@@ -4385,6 +4480,8 @@ func _init_explosion(parts: Dictionary, is_p1: bool, force_non_forward: bool = f
 		_p1_explosion_bodies = bodies
 	else:
 		_p2_explosion_bodies = bodies
+	if not bodies.is_empty():
+		AudioManager.play_sfx(&"body_burst", sound_trim_db)
 
 
 ## Shared by the real death path and covered first-use rendering.
@@ -4762,6 +4859,7 @@ func create_ghost_rider_visual(player_index: int) -> Node3D:
 	var rider := Node3D.new()
 	rider.name = "GhostRiderP%d" % player_index
 	var parts := _build_player_skeleton(player_index == 1, rider)
+	PlayerSkinRig.apply(parts, _applied_skins.get(player_index, {}), player_index)
 	rider.set_meta("ghost_mount_parts", parts)
 	var bind_transforms: Dictionary = {}
 	for part_name: Variant in parts:
@@ -5133,13 +5231,68 @@ func _add_ghost_rider_aura(rider: Node3D, player_index: int) -> void:
 # ============================================================
 
 func set_toon_preset(player_id: int, preset_id: int) -> void:
+	# キャラクター用シェーダー選択は廃止済み。見た目は PlayerSkin が持つので ID だけ覚える。
 	var normalized := ToonPresets.normalize(preset_id)
 	if player_id == 1:
-		ToonPresets.apply_to_parts(p1_parts, normalized)
 		_p1_toon_preset_id = normalized
 	elif player_id == 2 and not p2_parts.is_empty():
-		ToonPresets.apply_to_parts(p2_parts, normalized)
 		_p2_toon_preset_id = normalized
+
+
+# ============================================================
+# Skin (body colors)
+# ============================================================
+
+## skin は PlayerSkin 形式（{} はスロットの標準色）。
+func set_skin(player_id: int, skin: Dictionary) -> void:
+	var parts := p1_parts if player_id == 1 else p2_parts
+	if parts.is_empty():
+		return
+	PlayerSkinRig.apply(parts, skin, player_id)
+	_applied_skins[player_id] = skin.duplicate(true)
+	_applied_skin_codes[player_id] = PlayerSkin.to_code(skin, player_id)
+
+
+func get_applied_skin(player_id: int) -> Dictionary:
+	return _applied_skins.get(player_id, {})
+
+
+## ゲーム状態の見た目（ローカル2人対戦なら あたまは標準色）に合わせる。変わったときだけ塗る。
+func _sync_skins_from_state(gs: QuizGameState) -> void:
+	if gs == null:
+		return
+	var key_p1 := gs.get_display_skin_key(1)
+	if key_p1 != _applied_skin_codes[1]:
+		set_skin(1, gs.get_display_skin(1))
+		_applied_skin_codes[1] = key_p1
+	if gs.num_players >= 2 and not p2_parts.is_empty():
+		var key_p2 := gs.get_display_skin_key(2)
+		if key_p2 != _applied_skin_codes[2]:
+			set_skin(2, gs.get_display_skin(2))
+			_applied_skin_codes[2] = key_p2
+
+
+## スキン編集プレビュー用: 画面上のレイが当たったパーツ ID（なければ &""）。
+func pick_skin_part(player_id: int, ray_origin: Vector3, ray_dir: Vector3) -> StringName:
+	var parts := p1_parts if player_id == 1 else p2_parts
+	return PlayerSkinRig.pick(parts, ray_origin, ray_dir)
+
+
+func set_skin_highlight_map(player_id: int, amounts: Dictionary) -> void:
+	var parts := p1_parts if player_id == 1 else p2_parts
+	PlayerSkinRig.set_highlight_map(parts, amounts)
+
+
+## スキン編集プレビュー用: 選んだパーツの輪郭を光らせる（&"" で消す）。
+func set_skin_outline(player_id: int, part_id: StringName) -> void:
+	var parts := p1_parts if player_id == 1 else p2_parts
+	PlayerSkinRig.set_outline(parts, part_id)
+
+
+## スキン編集プレビュー用: パーツ（ALL は全身）のワールド座標の範囲。カメラを寄せるのに使う。
+func skin_part_world_aabb(player_id: int, part_id: StringName) -> AABB:
+	var parts := p1_parts if player_id == 1 else p2_parts
+	return PlayerSkinRig.part_world_aabb(parts, part_id)
 
 
 func set_hat(player_id: int, hat_id: int) -> void:

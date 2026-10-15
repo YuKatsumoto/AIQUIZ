@@ -21,6 +21,8 @@ extends Node
 ## (PLAY_REPLAY).
 
 const FONT: Font = preload("res://resources/fonts/NotoSansJP-Bold.otf")
+## ゲームのロゴ（白・透過。見出しでは琥珀色に染める。tools/logo_editor で作り直される）
+const LOGO: Texture2D = preload("res://assets/ui/branding/aiquiz_logo.png")
 const SIZE := Vector2i(1400, 600)   # the LED face is 11.2 x 4.8 m (7:3)
 const COLUMNS := 10
 const P_COLORS: Array[Color] = [Color(0.95, 0.55, 0.20), Color(0.20, 0.65, 0.90)]
@@ -101,6 +103,8 @@ func setup() -> void:
 	_canvas = Control.new()
 	_canvas.name = "Board"
 	_canvas.size = Vector2(SIZE)
+	# ロゴの画像を大きく縮めて描くので、ミップマップで縁のちらつきを抑える
+	_canvas.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	_canvas.draw.connect(_draw_board)
 	viewport.add_child(_canvas)
 	marks.resize(COLUMNS)
@@ -284,11 +288,12 @@ func _start_cutin(state: QuizGameState, who: int, clock: float) -> void:
 	_cutin_english = state.use_english_ui
 	for player in _cutin_players():
 		var hat := state.p1_hat if player == 1 else state.p2_hat
+		var skin_code := state.get_display_skin_key(player)
 		var actor: Dictionary = _actors.get(player, {})
-		if actor.is_empty() or int(actor.hat) != hat:
+		if actor.is_empty() or int(actor.hat) != hat or str(actor.get("skin", "")) != skin_code:
 			if not actor.is_empty():
 				(actor.viewport as SubViewport).queue_free()
-			actor = _build_actor(player, hat)
+			actor = _build_actor(player, hat, state.get_display_skin(player), skin_code)
 			_actors[player] = actor
 		(actor.viewport as SubViewport).render_target_update_mode = SubViewport.UPDATE_ALWAYS
 		_pose_actor(player, 0.0)
@@ -302,7 +307,7 @@ func _end_cutin() -> void:
 	_cutin_started = -1.0
 
 
-func _build_actor(player: int, hat: int) -> Dictionary:
+func _build_actor(player: int, hat: int, skin: Dictionary = {}, skin_code: String = "") -> Dictionary:
 	var portrait := SubViewport.new()
 	portrait.name = "P%dPortrait" % player
 	portrait.size = PORTRAIT
@@ -330,8 +335,8 @@ func _build_actor(player: int, hat: int) -> Dictionary:
 	root.name = "Actor"
 	root.rotation.y = 0.35 if player == 1 else -0.35
 	portrait.add_child(root)
-	var parts := EmoteBlockmanPreview.build_player_skeleton(player == 1, root, hat)
-	return {"viewport": portrait, "root": root, "parts": parts, "hat": hat}
+	var parts := EmoteBlockmanPreview.build_player_skeleton(player == 1, root, hat, 0, skin)
+	return {"viewport": portrait, "root": root, "parts": parts, "hat": hat, "skin": skin_code}
 
 
 ## Both arms thrown up with a hop, then fist pumps for as long as the board holds.
@@ -569,7 +574,9 @@ func _draw_board() -> void:
 	_canvas.draw_rect(full.grow(-12.0), BOARD_DEEP)
 	_canvas.draw_rect(full.grow(-22.0), BOARD)
 	# Title strip.
-	_canvas.draw_string(FONT, Vector2(MARGIN + 14.0, 104.0), "AIQUIZ", HORIZONTAL_ALIGNMENT_LEFT, -1, 78, AMBER)
+	var logo_h := 58.0
+	var logo_rect := Rect2(MARGIN + 14.0, 46.0, logo_h * LOGO.get_width() / LOGO.get_height(), logo_h)
+	_canvas.draw_texture_rect(LOGO, logo_rect, false, AMBER)
 	_canvas.draw_string(FONT, Vector2(MARGIN + 300.0, 100.0), "SCOREBOARD", HORIZONTAL_ALIGNMENT_LEFT, -1, 38, DIM)
 	var shown := current + 1 if current >= 0 else _played()
 	var right := float(SIZE.x) - MARGIN - 14.0

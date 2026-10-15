@@ -2,7 +2,7 @@ class_name SettingsHallPanel
 extends Control
 
 ## 設定画面（ui/settings_hall.tscn）の左カラム。3D 無しで単体でも作れる（tests）。
-## 旧 main_menu の SettingsPanel の項目を引き継ぐ: API状態と再チェック、BGM・効果音、解像度、画質、
+## 旧 main_menu の SettingsPanel の項目を引き継ぐ: API状態と再チェック、BGM・効果音、解像度、FPS上限、画質、
 ## サドンデス（QuizGameState.sudden_death_available の時だけ、画質の行の直後）、ダッシュボード、戻る。
 ## API は ApiStatusAutoload の状態フラグとメッセージだけを見せる（get_env() の中身は表示しない）。
 ## 効果音スライダーは離したときに短い効果音を鳴らし、音量を確かめられる。
@@ -31,6 +31,8 @@ const API_POLL_INTERVAL := 0.25
 const API_POLL_TIMEOUT := 10.0
 const SUDDEN_DEATH_ON := 0
 const SUDDEN_DEATH_OFF := 1
+const ONLINE_STAGING_NORMAL := 0
+const ONLINE_STAGING_SHORT := 1
 const DASHBOARD_URL := "http://localhost:3000"
 
 const GOLD := Color(1.0, 0.88, 0.25)
@@ -57,7 +59,9 @@ var _sfx_pct: Label = null
 var _display_rows: VBoxContainer = null
 var _res_option: OptionButton = null
 var _quality_option: OptionButton = null
+var _max_fps_option: OptionButton = null
 var _sudden_death_option: OptionButton = null
+var _online_staging_option: OptionButton = null
 var _poll_timer: Timer = null
 var _poll_elapsed := 0.0
 var _check_started := false
@@ -78,7 +82,7 @@ func _ready() -> void:
 	_column = VBoxContainer.new()
 	_column.name = "Column"
 	_column.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_column.add_theme_constant_override("separation", 10)
+	_column.add_theme_constant_override("separation", 8)
 	add_child(_column)
 	_build_title()
 	_build_api_card()
@@ -145,16 +149,18 @@ func _build_api_card() -> void:
 	_api_row(rows, "internet", "InternetRow", "インターネット")
 	_api_row(rows, "gateway", "GatewayRow", "AI Gateway")
 	_api_row(rows, "firebase", "FirebaseRow", "Firebase")
+	# オフライン問題数と再チェックは同じ行（画面の行を増やしても 720p に収まるように）。
+	var button_row := HBoxContainer.new()
+	button_row.name = "RecheckRow"
+	rows.add_child(button_row)
 	_offline_label = Label.new()
 	_offline_label.name = "OfflineRow"
+	_offline_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_offline_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_offline_label.add_theme_font_override("font", FONT_MEDIUM)
 	_offline_label.add_theme_font_size_override("font_size", 15)
 	_offline_label.add_theme_color_override("font_color", MUTED)
-	rows.add_child(_offline_label)
-	var button_row := HBoxContainer.new()
-	button_row.name = "RecheckRow"
-	button_row.alignment = BoxContainer.ALIGNMENT_END
-	rows.add_child(button_row)
+	button_row.add_child(_offline_label)
 	_recheck_btn = _metal_button("RecheckBtn", "再チェック", false)
 	_recheck_btn.pressed.connect(begin_api_check)
 	button_row.add_child(_recheck_btn)
@@ -265,6 +271,13 @@ func _build_display_card() -> void:
 		else:
 			_res_option.select(0)
 	_res_option.item_selected.connect(_on_resolution_selected)
+	# FPS上限（項目 ID = Engine.max_fps の値。0 = 制限なし）
+	var fps_row := _option_row("MaxFpsBox", "FPS上限", "MaxFpsOption")
+	_max_fps_option = fps_row.get_node("MaxFpsOption") as OptionButton
+	for fps: int in GameManager.MAX_FPS_CHOICES:
+		_max_fps_option.add_item("制限なし" if fps == 0 else "%d FPS" % fps, fps)
+	_max_fps_option.select(_max_fps_option.get_item_index(GameManager.max_fps))
+	_max_fps_option.item_selected.connect(_on_max_fps_selected)
 	# 画質（軽量 / 標準 / 高画質 / 最高画質。項目番号 = GraphicsQuality.rank）
 	var quality_row := _option_row("GraphicsQualityBox", "画質", "GraphicsQualityOption")
 	_quality_option = quality_row.get_node("GraphicsQualityOption") as OptionButton
@@ -281,6 +294,14 @@ func _build_display_card() -> void:
 		_sudden_death_option.select(_sudden_death_option.get_item_index(
 			SUDDEN_DEATH_ON if GameManager.sudden_death_enabled else SUDDEN_DEATH_OFF))
 		_sudden_death_option.item_selected.connect(_on_sudden_death_selected)
+	# オンライン対戦のマッチング演出（ふつう／みじかい。docs/online_match_staging/spec.md D11）
+	var staging_row := _option_row("OnlineStagingBox", "オンラインの えんしゅつ", "OnlineStagingOption")
+	_online_staging_option = staging_row.get_node("OnlineStagingOption") as OptionButton
+	_online_staging_option.add_item("ふつう", ONLINE_STAGING_NORMAL)
+	_online_staging_option.add_item("みじかい", ONLINE_STAGING_SHORT)
+	_online_staging_option.select(_online_staging_option.get_item_index(
+		ONLINE_STAGING_SHORT if GameManager.online_staging_short else ONLINE_STAGING_NORMAL))
+	_online_staging_option.item_selected.connect(_on_online_staging_selected)
 
 
 func _option_row(row_name: String, title: String, option_name: String) -> HBoxContainer:
@@ -340,13 +361,13 @@ func _card(node_name: String) -> VBoxContainer:
 	style.set_corner_radius_all(16)
 	style.content_margin_left = 16.0
 	style.content_margin_right = 16.0
-	style.content_margin_top = 12.0
-	style.content_margin_bottom = 12.0
+	style.content_margin_top = 10.0
+	style.content_margin_bottom = 10.0
 	panel.add_theme_stylebox_override("panel", style)
 	_column.add_child(panel)
 	var rows := VBoxContainer.new()
 	rows.name = "Rows"
-	rows.add_theme_constant_override("separation", 8)
+	rows.add_theme_constant_override("separation", 6)
 	panel.add_child(rows)
 	return rows
 
@@ -380,8 +401,8 @@ func _style_plain_button(button: Button) -> void:
 	normal.set_corner_radius_all(10)
 	normal.content_margin_left = 14.0
 	normal.content_margin_right = 14.0
-	normal.content_margin_top = 6.0
-	normal.content_margin_bottom = 6.0
+	normal.content_margin_top = 4.0
+	normal.content_margin_bottom = 4.0
 	var hover := normal.duplicate() as StyleBoxFlat
 	hover.bg_color = Color(0.18, 0.20, 0.28)
 	hover.border_color = Color(0.4, 0.5, 0.7)
@@ -525,10 +546,22 @@ func _on_quality_selected(index: int) -> void:
 	graphics_quality_changed.emit(quality)
 
 
+func _on_max_fps_selected(index: int) -> void:
+	if _max_fps_option == null:
+		return
+	GameManager.set_max_fps(_max_fps_option.get_item_id(index))
+
+
 func _on_sudden_death_selected(index: int) -> void:
 	if _sudden_death_option == null:
 		return
 	GameManager.set_sudden_death_enabled(_sudden_death_option.get_item_id(index) == SUDDEN_DEATH_ON)
+
+
+func _on_online_staging_selected(index: int) -> void:
+	if _online_staging_option == null:
+		return
+	GameManager.set_online_staging_short(_online_staging_option.get_item_id(index) == ONLINE_STAGING_SHORT)
 
 
 func _on_resolution_selected(index: int) -> void:

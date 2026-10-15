@@ -1,0 +1,6 @@
+{
+  "note": "S01-S03 v3: the logo (案 C) sits on the new capture (tests/pv_capture/pv_v3_runtime.gd, merged by tools/pv/merge_subframes.py) from PV frame 957",
+  "bg_first": "C:/AIQUIZ/AIQUIZ-Godot/artifacts/pv_capture/v3_frames/pv_0001.jpg",
+  "bg_start_frame": 957,
+  "save_as": "C:/AIQUIZ/AIQUIZ-Godot/docs/pv/previz/ae/AIQUIZ_PV_S01_S03_v3.aep"
+}

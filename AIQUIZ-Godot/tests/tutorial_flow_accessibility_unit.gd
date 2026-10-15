@@ -1,6 +1,6 @@
 extends SceneTree
 
-## 刷新したチュートリアル（V5）のコース・入力・判定・引き継ぎの契約。
+## 刷新したチュートリアル（V6）のコース・入力・判定・引き継ぎの契約。
 ## コースは本編（3ハート、2択／4択の壁、ローカル2Pののこぎり・先着の得点・スコアタワー）に合わせ、
 ## 操作のステップでは各タスクの "slots" をもとに 3D 空間へ操作キーを浮かべる。
 ## 開始前の全画面キーボード説明は tutorial_keyboard_intro_unit.gd、ゲーム状態での判定は
@@ -8,11 +8,11 @@ extends SceneTree
 ## ./Godot_v4.7.2-stable_win64_console.exe --headless --path . --script res://tests/tutorial_flow_accessibility_unit.gd
 
 const SOLO_STEPS := [
-	"run_lane", "air_control", "solo_emote", "ocean_lesson", "guided_wall",
+	"move_lane", "jump_lesson", "solo_emote", "ocean_lesson", "guided_wall",
 	"hp_lesson", "free_wall", "boss_wall", "stage_complete", "customize_tour",
 ]
 const DUO_STEPS := [
-	"duo_run", "duo_push", "duo_air", "duo_emote", "duo_ocean", "duo_ghost", "duo_saw",
+	"duo_move", "duo_jump", "duo_emote", "duo_ocean", "duo_ghost", "duo_saw",
 	"duo_guided_wall", "duo_hp", "duo_free_wall", "duo_boss_wall", "duo_goal", "duo_complete",
 	"customize_tour",
 ]
@@ -114,16 +114,22 @@ func _test_solo_inputs(flow: RefCounted) -> void:
 	var detached: Dictionary = flow.get_overlay_model()
 	detached.tasks[0].done = true
 	_check(not flow.get_overlay_model().tasks[0].done, "UI tasks cannot mutate completion")
+	_check(_task_ids(flow.get_overlay_model().tasks) == ["left", "right", "forward", "back"], "Solo movement step teaches all four directions")
 	flow.update_input_practice(Vector2(-1, 0), Vector2.ZERO, false, false, 0, 0)
 	_check(flow.get_overlay_model().tasks[1].done and not flow.all_tasks_complete(), "Solo right can complete before left")
-	flow.update_input_practice(Vector2(1, 0), Vector2.ZERO, false, false, 0, 0)
-	_check(flow.all_tasks_complete(), "Both solo directions complete")
-	_check(flow.update_input_practice(Vector2.ZERO, Vector2.ZERO, false, false, 0, 0, 0.55), "Completion hold still applies")
-	_seek(flow, "air_control")
-	_open_gate(flow)
+	flow.update_input_practice(Vector2(1, 0), Vector2.ZERO, true, false, 0, 0)
+	_check(not flow.all_tasks_complete(), "Left/right alone (and a jump) do not finish the movement step")
+	flow.update_input_practice(Vector2(0, -1), Vector2.ZERO, false, false, 0, 0)
 	flow.update_input_practice(Vector2(0, 1), Vector2.ZERO, false, false, 0, 0)
-	flow.update_input_practice(Vector2(0, -1), Vector2.ZERO, true, false, 0, 0)
-	_check(flow.all_tasks_complete(), "Solo forward/back plus jump complete in any order")
+	_check(flow.all_tasks_complete(), "All four solo directions complete in any order")
+	_check(flow.update_input_practice(Vector2.ZERO, Vector2.ZERO, false, false, 0, 0, 0.55), "Completion hold still applies")
+	_seek(flow, "jump_lesson")
+	_open_gate(flow)
+	_check(_task_ids(flow.get_overlay_model().tasks) == ["jump"], "Jump has its own step")
+	flow.update_input_practice(Vector2(1, 0), Vector2.ZERO, false, false, 0, 0)
+	_check(not flow.all_tasks_complete(), "Moving does not complete the jump step")
+	flow.update_input_practice(Vector2.ZERO, Vector2.ZERO, true, false, 0, 0)
+	_check(flow.all_tasks_complete(), "Solo jump completes the jump step")
 	flow.restart_current_step()
 	_check(not flow.all_tasks_complete(), "Restart resets tasks")
 	_check(flow.consume_input_gate(Vector2.ONE, Vector2.ZERO, true, false, 0, 0), "Held input initially gated")
@@ -131,17 +137,26 @@ func _test_solo_inputs(flow: RefCounted) -> void:
 	_check(not flow.consume_input_gate(Vector2.ONE, Vector2.ZERO, true, false, 0, 0), "Held input cannot lock gate forever")
 	_seek(flow, "solo_emote")
 	_open_gate(flow)
-	flow.update_input_practice(Vector2.ZERO, Vector2.ZERO, false, false, 3, 0)
-	_check(flow.all_tasks_complete(), "Solo course now teaches emotes")
+	_check(_task_ids(flow.get_overlay_model().tasks) == ["emote_1", "emote_2", "emote_3"], "Solo emote step asks for all three keys")
+	flow.update_input_practice(Vector2.ZERO, Vector2.ZERO, false, false, 0b001, 0)
+	_check(flow.get_overlay_model().tasks[0].done and not flow.all_tasks_complete(), "One emote key is not enough")
+	flow.update_input_practice(Vector2.ZERO, Vector2.ZERO, false, false, 0b001, 0)
+	_check(not flow.all_tasks_complete(), "Repeating the same emote key is not enough")
+	flow.update_input_practice(Vector2.ZERO, Vector2.ZERO, false, false, 0b110, 0)
+	_check(flow.all_tasks_complete(), "All three emote keys finish the solo emote step")
 	_seek(flow, "ocean_lesson")
 	_check(flow.allows_ocean_entry(1) and not flow.allows_ocean_entry(2), "Solo ocean belongs to P1")
 	_check(not flow.hands_off_to_ghost_after_hazard() and not flow.allows_ghost_ride(), "Solo keeps recovery instead of ghost ride")
 	_check(not flow.uses_saw() and not flow.starts_goal_race(), "Solo has no saw and no goal race (1P ends at CLEAR)")
+	_check(not flow.uses_result_ceremony() and not flow.requires_all_finishers(), "Solo has no score tower")
 
 
 func _test_duo_inputs(flow: RefCounted) -> void:
 	flow.start()
 	_open_gate(flow)
+	var start_model: Dictionary = flow.get_overlay_model()
+	for player: Dictionary in start_model.players:
+		_check(_task_ids(player.tasks) == ["left", "right", "forward", "back"], "P%d movement step teaches all four directions" % int(player.player))
 	flow.update_input_practice(Vector2.ZERO, Vector2(-1, 0), false, false, 0, 0)
 	flow.update_input_practice(Vector2.ZERO, Vector2(1, 0), false, false, 0, 0)
 	var model: Dictionary = flow.get_overlay_model()
@@ -149,24 +164,22 @@ func _test_duo_inputs(flow: RefCounted) -> void:
 	_check(not flow.all_tasks_complete() and not model.players[0].tasks[0].done, "P2 cannot complete P1 controls")
 	flow.update_input_practice(Vector2(-1, 0), Vector2.ZERO, false, false, 0, 0)
 	flow.update_input_practice(Vector2(1, 0), Vector2.ZERO, false, false, 0, 0)
-	_check(flow.all_tasks_complete(), "Both players must finish directions")
-	_seek(flow, "duo_air")
-	_open_gate(flow)
+	_check(not flow.all_tasks_complete(), "Left/right alone do not finish the 2P movement step")
 	flow.update_input_practice(Vector2(0, 1), Vector2(0, 1), false, false, 0, 0)
-	flow.update_input_practice(Vector2(0, -1), Vector2(0, -1), true, true, 0, 0)
-	_check(flow.all_tasks_complete(), "Both players retain forward/back plus jump")
-	_seek(flow, "duo_push")
-	_check(bool(flow.get_overlay_model().get("ordered_tasks", false)), "Push lesson lights its keys in order")
+	flow.update_input_practice(Vector2(0, -1), Vector2(0, -1), false, false, 0, 0)
+	_check(flow.all_tasks_complete(), "Both players must finish all four directions")
+	_seek(flow, "duo_jump")
 	_open_gate(flow)
-	flow.on_local_push_event({"kind":"hit", "player":1})
-	_check(not flow._push_task_done(1, "push"), "Early push cannot bypass bracing")
-	flow.on_local_push_event({"kind":"stalemate"})
-	_check(flow._push_task_done(1, "brace") and flow._push_task_done(2, "brace"), "Both players brace")
-	flow.on_local_push_event({"kind":"hit", "player":2})
-	_check(not flow._push_task_done(2, "push"), "P2 cannot bypass P1 turn")
-	flow.on_local_push_event({"kind":"hit", "player":1})
-	flow.on_local_push_event({"kind":"hit", "player":2})
-	_check(flow.all_tasks_complete(), "Ordered push practice completes")
+	flow.update_input_practice(Vector2.ZERO, Vector2.ZERO, true, false, 0, 0)
+	_check(flow.is_task_done(1, "jump") and not flow.all_tasks_complete(), "P1 jump alone does not finish the 2P jump step")
+	flow.update_input_practice(Vector2.ZERO, Vector2.ZERO, false, true, 0, 0)
+	_check(flow.all_tasks_complete(), "Both players jump")
+	_seek(flow, "duo_emote")
+	_open_gate(flow)
+	flow.update_input_practice(Vector2.ZERO, Vector2.ZERO, false, false, 0b111, 0b001)
+	_check(not flow.all_tasks_complete() and flow.is_task_done(2, "emote_1") and not flow.is_task_done(2, "emote_2"), "P2 still needs its other emote keys")
+	flow.update_input_practice(Vector2.ZERO, Vector2.ZERO, false, false, 0, 0b110)
+	_check(flow.all_tasks_complete(), "Both players play all three emotes")
 	_seek(flow, "duo_ocean")
 	_check(not flow.allows_ocean_entry(1) and flow.allows_ocean_entry(2), "Hazard practice belongs to P2")
 	_check(flow.hands_off_to_ghost_after_hazard() and flow.allows_ghost_ride(), "Ocean hands off to ghost")
@@ -180,6 +193,11 @@ func _test_duo_inputs(flow: RefCounted) -> void:
 	_check(not flow.revives_players() and flow.allows_ghost_ride(), "Boss wall keeps fallen players as ghost sharks")
 	_seek(flow, "duo_goal")
 	_check(flow.starts_goal_race() and flow.revives_players() and flow.requires_all_finishers(), "Goal waits for every survivor")
+	_check(flow.uses_result_ceremony(), "2P goal continues to the score tower verdict")
+
+
+func _task_ids(tasks: Array) -> Array:
+	return tasks.map(func(task: Dictionary) -> String: return str(task.get("id", "")))
 
 
 func _test_quiz_items(flow: RefCounted) -> void:

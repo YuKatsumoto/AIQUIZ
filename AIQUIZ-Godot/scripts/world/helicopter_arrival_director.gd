@@ -20,15 +20,14 @@ func have_players_touched_down() -> bool:
 			return false
 	return true
 
-const HELICOPTER_GLB := "res://assets/vehicles/helicopter/helicopter_drop.glb"
-## The pilot is the AIQUIZ mascot (ハテナ); its GLB carries its own flat-colour materials.
-const PILOT_GLB := "res://assets/characters/aiquiz_mascot/mascot_model.glb"
+## The boarding helicopter (assets/vehicles/helicopter_boarding) built by OnlineHeliportHelicopter:
+## body tint, glass, the full-size pilot ハテナ, rotors and the twin jet pods. Plan M9.
+const HELICOPTER_GLB := OnlineHeliportHelicopter.HELICOPTER_SCENE
+## Holder-space point where the aircraft's drop hatch (the mid-point of its two hinges) sits.
+## The previous, smaller aircraft had its hatch here, so the hatch, rope ladder, release and
+## jump tuning below carries over unchanged; the larger body extends around it.
+const HATCH_ANCHOR := Vector3(0.0, -0.998, 0.0)
 const MENU_FLIGHT_PROFILE_SCENE := preload("res://scenes/menu_helicopter_sequence.tscn")
-const WINDOW_GLASS_COLOR := Color(0.62, 0.84, 0.95, 0.34)
-const PILOT_SCALE := 0.35 # ハテナ's "?" (2.04 m at scale 1) stays under the cockpit roof
-const PILOT_SEAT_POSITION := Vector3(0.0, -0.16, -1.08)
-const PILOT_SEAT_ROTATION_DEGREES := Vector3(8.0, 180.0, 0.0)
-const COCKPIT_LIGHT_ENERGY := 0.7
 const PhysicalRopeLadderScript := preload("res://scripts/world/physical_rope_ladder.gd")
 const APPROACH_DURATION := 4.40
 const HOVER_BEFORE_FIRST_DROP := 0.70
@@ -48,13 +47,12 @@ const HATCH_OPEN_DURATION := 0.45
 const HATCH_CLOSE_DELAY := 0.55
 const HATCH_CLOSE_DURATION := 0.50
 const HATCH_OPEN_ANGLE := deg_to_rad(78.0)
-const CABIN_WAIT_PELVIS_HEIGHT := 0.32
+## Fallback when the layout has no MK_CabinWait (pelvis height above the hatch hinges).
+const CABIN_WAIT_PELVIS_HEIGHT := 0.53
 const CABIN_LIGHT_ENERGY := 0.9
 const DEPART_AFTER_DROP := 1.00
 const DROP_PRESENTATION_PITCH := deg_to_rad(4.0)
 const DEPART_CLIMB_PITCH := deg_to_rad(-6.0)
-const MAIN_ROTOR_SPEED := 28.0
-const TAIL_ROTOR_SPEED := 42.0
 const HOLDER_FREE_DELAY := 0.45
 const MENU_APPROACH_DURATION := 4.40
 const MENU_HOVER_BEFORE_FIRST_DROP := 0.75
@@ -94,7 +92,6 @@ const MENU_LADDER_DEPLOY_DURATION := 0.38
 const MENU_LADDER_P2_DELAY := 0.104
 const MENU_LADDER_GRAB_DURATION := 0.62
 const MENU_LADDER_DEPART_PATH_TIME := 2.3075
-const BoostExhaustScript := preload("res://scripts/world/helicopter_boost_exhaust.gd")
 const MENU_BOOST_CHARGE_DURATION := 0.80
 const MENU_BOOST_FLIGHT_DURATION := 1.95
 const MENU_BOOST_ACCEL_TIME := 0.65
@@ -105,7 +102,7 @@ const GP_APPROACH_DURATION := 2.65
 const PASS_SPEED := 1.5
 const GP_LOWER_DURATION := 1.75
 const GP_EXIT_SPEED := 20.0
-## Drop-off departures: brake, spool up, then leave on the tail jet.
+## Drop-off departures: brake, spool up and raise the jet pods, then leave on the jets.
 const DROP_BOOST_CHARGE_DURATION := 1.80
 const DROP_BOOST_ACCEL_TIME := 0.60
 const DROP_BOOST_SPEED := 64.0
@@ -120,7 +117,9 @@ const GP_HOVER_ALTITUDE := 11.40
 const GP_OCEAN_OUTSET := 4.50
 const GP_SOLO_OCEAN_OUTSET := 1.50
 const GP_P2_DELAY := 0.25
-const GP_PASSENGER_SEAT_LOCAL := Vector3(0.0, 0.10, -0.42)
+## P2's crossing lane behind P1 (rotor diameter 10.6 m; the jets cross at about 12 m).
+const GP_P2_LANE_DEPTH := 11.5
+const GP_P2_LANE_RISE := 1.6
 const GP_HATCH_KEEP_OPEN := 1.0
 
 var _game_state: QuizGameState = null
@@ -150,6 +149,7 @@ var _menu_boost_started := false
 var _presentation_finished_emitted := false
 var _preparing_menu_departure := false
 var _menu_departure_prepared := false
+var _setup_msec := 0
 
 
 func setup(
@@ -157,6 +157,7 @@ func setup(
 	player_controller: PlayerController,
 	camera_controller: Node3D
 ) -> void:
+	var setup_started := Time.get_ticks_msec()
 	_game_state = game_state
 	_player_controller = player_controller
 	_camera_controller = camera_controller
@@ -195,26 +196,23 @@ func setup(
 		add_child(_menu_flight_profile)
 		_restore_menu_camera()
 
-	var packed := ResourceLoader.load(HELICOPTER_GLB) as PackedScene
-	if packed == null:
-		_skip_missing_asset("the helicopter GLB could not be loaded")
-		return
 	var helicopter_count := (
 		clampi(_requested_helicopter_count, 1, 2)
 		if _requested_helicopter_count > 0
 		else (2 if _menu_preview_mode or _game_state.num_players >= 2 else 1)
 	)
 	for player_index: int in range(1, helicopter_count + 1):
-		var info := _instantiate_helicopter(packed, player_index)
+		var info := _instantiate_helicopter(player_index)
 		if info.is_empty():
 			_skip_missing_asset(
-				"the GLB must contain BodyPaint, MainRotor, and TailRotor"
+				"the GLB must contain MainRotor, TailRotor, the drop hatches and the jet pods"
 			)
 			return
 		_helicopters.append(info)
 
 	if not _menu_departure_mode:
 		_player_controller.prepare_intro_arrival(helicopter_count)
+	_setup_msec = Time.get_ticks_msec() - setup_started
 	if _preparing_menu_departure:
 		return
 	_start_locked = true
@@ -287,29 +285,31 @@ func get_menu_pickup_clearance_z() -> float:
 func begin_render_prewarm() -> Dictionary:
 	if _helicopters.is_empty():
 		return {"ready": false, "reason": "helicopter_asset_missing"}
+	var prewarm_started := Time.get_ticks_msec()
 	_prewarm_visible = true
 	for info: Dictionary in _helicopters:
 		var holder := info.get("holder") as Node3D
 		if holder != null:
 			holder.visible = true
-		var exhaust := info.get("boost_exhaust") as HelicopterBoostExhaust
-		if exhaust != null:
-			exhaust.set_prewarm(true)
+		var heli := info.get("heli") as OnlineHeliportHelicopter
+		if heli != null:
+			heli.set_sound_enabled(false)
+			heli.set_jet_prewarm(true)
 	if _player_controller != null:
 		if _menu_preview_mode:
 			_player_controller.prewarm_intro_drop_ragdolls(_helicopters.size())
 		else:
 			_player_controller.prewarm_intro_ladder_clips(_helicopters.size())
 			_player_controller.prewarm_intro_drop_ragdolls(_helicopters.size())
-	return {"ready": true, "helicopters": _helicopters.size()}
+	return {"ready": true, "helicopters": _helicopters.size(), "setup_msec": _setup_msec, "prewarm_msec": Time.get_ticks_msec() - prewarm_started}
 
 
 func end_render_prewarm() -> void:
 	_prewarm_visible = false
 	for info: Dictionary in _helicopters:
-		var exhaust := info.get("boost_exhaust") as HelicopterBoostExhaust
-		if exhaust != null and is_instance_valid(exhaust):
-			exhaust.set_prewarm(false)
+		var heli := info.get("heli") as OnlineHeliportHelicopter
+		if heli != null and is_instance_valid(heli):
+			heli.set_jet_prewarm(false)
 	if _phase == "waiting_camera":
 		for info: Dictionary in _helicopters:
 			var holder := info.get("holder") as Node3D
@@ -441,6 +441,10 @@ func _begin_after_reveal_and_camera() -> void:
 	_phase = "departure_pickup" if _menu_departure_mode else "arrival"
 	_phase_elapsed = 0.0
 	_total_elapsed = 0.0
+	for info: Dictionary in _helicopters:
+		var heli := info.get("heli") as OnlineHeliportHelicopter
+		if heli != null:
+			heli.set_sound_enabled(true)
 
 
 func _prepare_flight_paths() -> void:
@@ -513,19 +517,14 @@ func _cabin_wait_transform(info: Dictionary) -> Transform3D:
 	var cabin_basis := holder.global_basis.orthonormalized()
 	return Transform3D(
 		cabin_basis,
-		center + cabin_basis.y.normalized() * CABIN_WAIT_PELVIS_HEIGHT
+		center + cabin_basis.y.normalized() * float(info.get("cabin_wait_height", CABIN_WAIT_PELVIS_HEIGHT))
 	)
 
 
+## Riding in from the sea, the passenger already waits above the open hatch (MK_CabinWait),
+## so lowering onto the ladder starts from where the drop would.
 func _cabin_ride_transform(info: Dictionary) -> Transform3D:
-	var holder := info.get("holder") as Node3D
-	if holder == null or not is_instance_valid(holder):
-		return _cabin_wait_transform(info)
-	var cabin_basis := holder.global_basis.orthonormalized()
-	return Transform3D(
-		cabin_basis,
-		holder.global_transform * GP_PASSENGER_SEAT_LOCAL
-	)
+	return _cabin_wait_transform(info)
 
 
 func _prepare_authored_menu_paths(animation_name: StringName) -> bool:
@@ -711,9 +710,9 @@ func _prepare_gameplay_flight_paths() -> void:
 			ground.y + GP_HOVER_ALTITUDE,
 			ground.z
 		)
-		# Two depth lanes keep the rotor discs clear as the aircraft cross on screen.
-		hover_ocean.z += 8.0 if is_pair and player_index == 2 else -1.0
-		hover_ocean.y += 1.2 if is_pair and player_index == 2 else 0.0
+		# Two depth lanes keep the 10.6 m rotor discs clear as the aircraft cross on screen.
+		hover_ocean.z += GP_P2_LANE_DEPTH if is_pair and player_index == 2 else -1.0
+		hover_ocean.y += GP_P2_LANE_RISE if is_pair and player_index == 2 else 0.0
 		var inward := Vector3(-player_side, 0.0, 0.0)
 		var pass_direction := Vector3(-player_side, 0.0, 0.16).normalized()
 		var start := hover_ocean - pass_direction * 20.0 + Vector3.UP * 3.5
@@ -1065,9 +1064,9 @@ func _update_authored_menu_departure(delta: float) -> bool:
 				var distance := 0.5 * MENU_BOOST_SPEED / MENU_BOOST_ACCEL_TIME * accelerating * accelerating
 				distance += MENU_BOOST_SPEED * maxf(t - MENU_BOOST_ACCEL_TIME, 0.0)
 				launch_position += MENU_BOOST_DIRECTION.normalized() * distance
-				var exhaust := info.get("boost_exhaust") as HelicopterBoostExhaust
-				if exhaust != null:
-					exhaust.ignite()
+				var heli := info.get("heli") as OnlineHeliportHelicopter
+				if heli != null and not heli.jets_ignited:
+					heli.ignite_jets()
 			else:
 				var from_rotation: Quaternion = info["charge_rotation"]
 				launch_basis = Basis(from_rotation.slerp(launch_basis.get_rotation_quaternion(), smoothstep(0.0, 1.0, charge)))
@@ -1100,6 +1099,9 @@ func _update_menu_engine_charge(info: Dictionary, charge: float) -> void:
 	var charging := _menu_launch_charge_elapsed > 0.0 and not _menu_boost_started
 	var spool := charge if charging else 0.0
 	info["rotor_speed_factor"] = 1.8 if _menu_boost_started else 1.0 + spool * 0.55
+	var heli := info.get("heli") as OnlineHeliportHelicopter
+	if heli != null and not heli.jets_ignited:
+		heli.set_jet_charge(spool)
 	if model != null:
 		if not charging:
 			model.position = base_position
@@ -1163,6 +1165,9 @@ func _update_menu_rope_ladder_actor(
 			_set_hatch_openness(info, 1.0)
 			if not bool(info.get("captured", false)):
 				info["captured_at"] = _phase_elapsed
+				var heli := info.get("heli") as OnlineHeliportHelicopter
+				if heli != null and heli.sound != null:
+					heli.sound.play_detail(&"grip")
 			info["captured"] = true
 	return true
 
@@ -1610,6 +1615,7 @@ func _update_gameplay_jump(info: Dictionary, delta: float) -> bool:
 		var impact_position: Vector3 = jump_state.get("position", info.get("ground", Vector3.ZERO))
 		info["impact_played"] = true
 		info["first_impact_position"] = impact_position
+		AudioManager.play_sfx(&"heli_land")
 		_spawn_menu_landing_dust(impact_position, player_index)
 	if bool(jump_state.get("landed", false)):
 		var ground: Vector3 = info.get("ground", Vector3.ZERO)
@@ -1729,8 +1735,8 @@ func _begin_drop_boost(info: Dictionary, drift_velocity: Vector3, boost_directio
 	info["drop_boost_charge_rotation"] = holder.global_basis.get_rotation_quaternion()
 
 
-## Slows down while the engine spools, then fires the tail jet along one
-## straight line. The nose points down that line so the flame trails behind it.
+## Slows down while the engine spools and the jet pods swing out, then fires the
+## jets along one straight line. The nose points down that line so the flames trail behind.
 func _update_drop_boost(info: Dictionary, delta: float) -> void:
 	var holder := info.get("holder") as Node3D
 	if holder == null or not is_instance_valid(holder):
@@ -1753,6 +1759,9 @@ func _update_drop_boost(info: Dictionary, delta: float) -> void:
 		var from_rotation: Quaternion = info["drop_boost_charge_rotation"]
 		rotation_now = from_rotation.slerp(boost_rotation, smoothstep(0.0, 1.0, charge))
 		info["rotor_speed_factor"] = 1.0 + charge * 0.55
+		var charging_heli := info.get("heli") as OnlineHeliportHelicopter
+		if charging_heli != null:
+			charging_heli.set_jet_charge(charge)
 		if model != null:
 			var shake_phase := _total_elapsed * 145.0 + int(info.get("player_index", 1)) * 1.7
 			model.position = rest_position + Vector3(sin(shake_phase), sin(shake_phase * 1.31) * 0.7, cos(shake_phase * 0.93) * 0.4) * (0.018 + 0.070 * charge)
@@ -1766,9 +1775,9 @@ func _update_drop_boost(info: Dictionary, delta: float) -> void:
 		info["rotor_speed_factor"] = 1.8
 		if model != null:
 			model.position = rest_position
-		var exhaust := info.get("boost_exhaust") as HelicopterBoostExhaust
-		if exhaust != null and not exhaust.ignited:
-			exhaust.ignite()
+		var heli := info.get("heli") as OnlineHeliportHelicopter
+		if heli != null and not heli.jets_ignited:
+			heli.ignite_jets()
 			if _menu_preview_mode:
 				_menu_camera_shake_remaining = MENU_CAMERA_SHAKE_DURATION
 	holder.global_transform = Transform3D(Basis(rotation_now), position_now)
@@ -1826,6 +1835,7 @@ func _update_landing_impact(info: Dictionary) -> void:
 		info["first_impact_position"] = ragdoll_position
 		info["impact_played"] = true
 		info["impact_elapsed"] = _total_elapsed
+		AudioManager.play_sfx(&"heli_land")
 		if _menu_preview_mode:
 			_spawn_menu_landing_dust(ragdoll_position, int(info["player_index"]))
 			_menu_camera_shake_remaining = MENU_CAMERA_SHAKE_DURATION
@@ -1888,37 +1898,37 @@ func _skip_missing_asset(reason: String) -> void:
 	_emit_presentation_finished(false)
 
 
-func _instantiate_helicopter(packed: PackedScene, player_index: int) -> Dictionary:
+func _instantiate_helicopter(player_index: int) -> Dictionary:
 	var holder := Node3D.new()
 	holder.name = "P%dHelicopter" % player_index
 	add_child(holder)
-	var model := packed.instantiate() as Node3D
-	if model == null:
+	var heli := OnlineHeliportHelicopter.new()
+	heli.name = "Model"
+	holder.add_child(heli)
+	var low_quality := GraphicsQuality.normalize(GameManager.graphics_quality) == GraphicsQuality.LOW
+	var tint := PlayerController.P1_BODY if player_index == 1 else PlayerController.P2_BODY
+	if not heli.setup(tint, true, low_quality):
 		holder.queue_free()
 		return {}
-	model.name = "Model"
-	holder.add_child(model)
-	if _menu_preview_mode:
-		model.scale *= MENU_HELICOPTER_SCALE
-	var main_rotor := model.find_child("MainRotor", true, false) as Node3D
-	var tail_rotor := model.find_child("TailRotor", true, false) as Node3D
-	var hatch_left := model.find_child("DropHatchLeft", true, false) as Node3D
-	var hatch_right := model.find_child("DropHatchRight", true, false) as Node3D
-	var body_tinted := _apply_body_tint(
-		model,
-		PlayerController.P1_BODY if player_index == 1 else PlayerController.P2_BODY
-	)
-	if (
-		main_rotor == null
-		or tail_rotor == null
-		or hatch_left == null
-		or hatch_right == null
-		or not body_tinted
-	):
+	heli.set_livery_slot(player_index)
+	var hatch_left := heli.model.find_child("DropHatchLeft", true, false) as Node3D
+	var hatch_right := heli.model.find_child("DropHatchRight", true, false) as Node3D
+	if hatch_left == null or hatch_right == null or not heli.has_jets():
 		holder.queue_free()
 		return {}
-	_apply_window_glass(model)
-	_mount_pilot(model)
+	# Put the hatch (mid-point of its hinges) on HATCH_ANCHOR in holder space.
+	var hatch_center := (
+		_transform_in(hatch_left, heli).origin + _transform_in(hatch_right, heli).origin
+	) * 0.5
+	heli.position = HATCH_ANCHOR - hatch_center
+	var cabin_wait_height := CABIN_WAIT_PELVIS_HEIGHT
+	if heli.has_marker("MK_CabinWait"):
+		cabin_wait_height = heli.marker_position("MK_CabinWait").y - hatch_center.y
+	# Rotors run at flight speed for the whole presentation (blurred disc above "low").
+	heli.spool = 1.0
+	heli.spool_target = 1.0
+	if heli.pilot != null:
+		heli.pilot.play(&"steer")
 	var cabin_light := OmniLight3D.new()
 	cabin_light.name = "CabinLight"
 	cabin_light.light_color = Color(1.0, 0.82, 0.62)
@@ -1926,33 +1936,18 @@ func _instantiate_helicopter(packed: PackedScene, player_index: int) -> Dictiona
 	cabin_light.omni_range = 2.4
 	cabin_light.shadow_enabled = false
 	holder.add_child(cabin_light)
-	var hatch_center := (hatch_left.global_position + hatch_right.global_position) * 0.5
-	cabin_light.global_position = hatch_center + holder.global_basis.y.normalized() * 0.36
-	var cockpit_light := OmniLight3D.new()
-	cockpit_light.name = "CockpitLight"
-	cockpit_light.light_color = Color(1.0, 0.92, 0.82)
-	cockpit_light.light_energy = COCKPIT_LIGHT_ENERGY
-	cockpit_light.omni_range = 2.0
-	cockpit_light.shadow_enabled = false
-	model.add_child(cockpit_light)
-	cockpit_light.position = Vector3(0.0, 0.32, -0.78)
-
-	# Every aircraft leaves on the tail jet, whether it drops off or picks up.
-	var exhaust := BoostExhaustScript.new() as HelicopterBoostExhaust
-	exhaust.name = "TailBoostExhaust"
-	model.add_child(exhaust)
-	var tail_local := model.to_local(tail_rotor.global_position)
-	exhaust.position = Vector3(0.0, tail_local.y, tail_local.z + 0.35)
-	var visual_points := _collect_helicopter_visual_points(holder, model)
+	cabin_light.position = HATCH_ANCHOR + Vector3.UP * 0.36
+	var visual_points := _collect_helicopter_visual_points(holder, heli)
+	# Every aircraft leaves on the twin jets, whether it drops off or picks up.
+	heli.enable_jets()
 	holder.visible = false
 	return {
 		"player_index": player_index,
 		"holder": holder,
-		"model": model,
-		"model_rest_position": model.position,
-		"boost_exhaust": exhaust,
-		"main_rotor": main_rotor,
-		"tail_rotor": tail_rotor,
+		"model": heli,
+		"heli": heli,
+		"model_rest_position": heli.position,
+		"cabin_wait_height": cabin_wait_height,
 		"hatch_left": hatch_left,
 		"hatch_right": hatch_right,
 		"hatch_left_rotation": hatch_left.rotation,
@@ -1970,114 +1965,26 @@ func _instantiate_helicopter(packed: PackedScene, player_index: int) -> Dictiona
 	}
 
 
-func _apply_body_tint(root: Node, color: Color) -> bool:
-	var applied := false
-	for node: Node in root.find_children("*", "MeshInstance3D", true, false):
-		var mesh_instance := node as MeshInstance3D
-		if mesh_instance == null or mesh_instance.mesh == null:
-			continue
-		var body_node := str(mesh_instance.name) == "BodyPaint"
-		for surface_index: int in range(mesh_instance.mesh.get_surface_count()):
-			var source := mesh_instance.mesh.surface_get_material(surface_index)
-			var body_material := source != null and source.resource_name == "BodyPaint"
-			if not body_node and not body_material:
-				continue
-			var material := source.duplicate(true) as BaseMaterial3D if source != null else StandardMaterial3D.new()
-			if material == null:
-				continue
-			material.albedo_color = color
-			mesh_instance.set_surface_override_material(surface_index, material)
-			applied = true
-	return applied
+## node's transform relative to ancestor (works before the nodes enter the tree).
+func _transform_in(node: Node3D, ancestor: Node3D) -> Transform3D:
+	var xf := Transform3D.IDENTITY
+	var current: Node3D = node
+	while current != null and current != ancestor:
+		xf = current.transform * xf
+		current = current.get_parent() as Node3D
+	return xf
 
 
-func _apply_window_glass(root: Node) -> void:
-	if root == null:
-		return
-	for node: Node in root.find_children("*", "MeshInstance3D", true, false):
-		var mesh_instance := node as MeshInstance3D
-		if mesh_instance == null or mesh_instance.mesh == null:
-			continue
-		var window_node := str(mesh_instance.name) == "Windows"
-		for surface_index: int in range(mesh_instance.mesh.get_surface_count()):
-			var source := mesh_instance.mesh.surface_get_material(surface_index)
-			var window_material := source != null and source.resource_name == "Windows"
-			if not window_node and not window_material:
-				continue
-			var material := source.duplicate(true) as BaseMaterial3D if source != null else StandardMaterial3D.new()
-			if material == null:
-				material = StandardMaterial3D.new()
-			material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS
-			material.albedo_color = WINDOW_GLASS_COLOR
-			material.roughness = 0.06
-			material.metallic = 0.08
-			material.cull_mode = BaseMaterial3D.CULL_DISABLED
-			material.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_ALWAYS
-			mesh_instance.set_surface_override_material(surface_index, material)
-
-
-func _mount_pilot(model: Node3D) -> void:
-	if model == null or not ResourceLoader.exists(PILOT_GLB):
-		return
-	var packed := ResourceLoader.load(PILOT_GLB) as PackedScene
-	if packed == null:
-		return
-	var pilot := packed.instantiate() as Node3D
-	if pilot == null:
-		return
-	pilot.name = "MascotPilot"
-	model.add_child(pilot)
-	pilot.position = PILOT_SEAT_POSITION
-	pilot.rotation_degrees = PILOT_SEAT_ROTATION_DEGREES
-	pilot.scale = Vector3.ONE * PILOT_SCALE
-	_disable_pilot_collision(pilot)
-	_pose_pilot_seated(pilot)
-
-
-func _disable_pilot_collision(root: Node) -> void:
-	if root == null:
-		return
-	for node: Node in root.find_children("*", "CollisionObject3D", true, false):
-		var body := node as CollisionObject3D
-		if body == null:
-			continue
-		body.collision_layer = 0
-		body.collision_mask = 0
-
-
-func _pose_pilot_seated(pilot: Node3D) -> void:
-	if pilot == null:
-		return
-	var skeleton := pilot.find_child("Skeleton3D", true, false) as Skeleton3D
-	if skeleton == null:
-		return
-	var thigh_bend := Quaternion(Vector3.RIGHT, deg_to_rad(78.0))
-	var shin_bend := Quaternion(Vector3.RIGHT, deg_to_rad(-82.0))
-	var arm_forward := Quaternion(Vector3.FORWARD, deg_to_rad(28.0))
-	_set_named_bone_rotation(skeleton, "DEF-thigh.L", thigh_bend)
-	_set_named_bone_rotation(skeleton, "DEF-thigh.R", thigh_bend)
-	_set_named_bone_rotation(skeleton, "DEF-shin.L", shin_bend)
-	_set_named_bone_rotation(skeleton, "DEF-shin.R", shin_bend)
-	_set_named_bone_rotation(skeleton, "DEF-upper_arm.L", arm_forward.inverse())
-	_set_named_bone_rotation(skeleton, "DEF-upper_arm.R", arm_forward)
-
-
-func _set_named_bone_rotation(skeleton: Skeleton3D, bone_name: String, bone_rotation: Quaternion) -> void:
-	var bone_index := skeleton.find_bone(bone_name)
-	if bone_index < 0:
-		return
-	skeleton.set_bone_pose_rotation(bone_index, bone_rotation)
-
-
-func _spin_rotors(delta: float) -> void:
+## The aircraft spins its own rotors; the timeline only sets how fast (charge and boost).
+func _spin_rotors(_delta: float) -> void:
 	for info: Dictionary in _helicopters:
-		var main_rotor := info.get("main_rotor") as Node3D
-		var tail_rotor := info.get("tail_rotor") as Node3D
-		var speed_factor := float(info.get("rotor_speed_factor", 1.0))
-		if main_rotor != null and is_instance_valid(main_rotor):
-			main_rotor.rotate_y(MAIN_ROTOR_SPEED * speed_factor * delta)
-		if tail_rotor != null and is_instance_valid(tail_rotor):
-			tail_rotor.rotate_x(TAIL_ROTOR_SPEED * speed_factor * delta)
+		var heli := info.get("heli") as OnlineHeliportHelicopter
+		if heli != null and is_instance_valid(heli):
+			heli.rotor_speed_factor = float(info.get("rotor_speed_factor", 1.0))
+			var ladder := info.get("rope_ladder") as PhysicalRopeLadder
+			if heli.sound != null and is_instance_valid(ladder):
+				heli.sound.set_mechanism(&"rope", ladder._deploy_progress)
+				heli.sound.set_mechanism(&"winch", ladder._winch_progress)
 
 
 func _set_flight_transform(
@@ -2147,6 +2054,9 @@ func _remember_helicopter_velocity(info: Dictionary) -> void:
 
 
 func _set_hatch_openness(info: Dictionary, openness: float) -> void:
+	var heli := info.get("heli") as OnlineHeliportHelicopter
+	if heli != null and heli.sound != null:
+		heli.sound.set_mechanism(&"hatch", openness)
 	var hatch_left := info.get("hatch_left") as Node3D
 	var hatch_right := info.get("hatch_right") as Node3D
 	var left_base: Vector3 = info.get("hatch_left_rotation", Vector3.ZERO)
@@ -2186,6 +2096,9 @@ func _hatch_release_position(info: Dictionary) -> Vector3:
 
 func _cleanup_helicopters(immediate: bool) -> void:
 	for info: Dictionary in _helicopters:
+		var audio_heli := info.get("heli") as OnlineHeliportHelicopter
+		if is_instance_valid(audio_heli):
+			audio_heli.set_sound_enabled(false)
 		var holder := info.get("holder") as Node3D
 		var downwash := info.get("downwash") as GPUParticles3D
 		var rope_ladder := info.get("rope_ladder") as PhysicalRopeLadder
@@ -2212,6 +2125,10 @@ func _cleanup_helicopters(immediate: bool) -> void:
 			if immediate:
 				holder.queue_free()
 			else:
+				# The departed aircraft is off screen, but its jet smoke trail may not be: let it fade in the air.
+				var heli := info.get("heli") as OnlineHeliportHelicopter
+				if heli != null and is_instance_valid(heli):
+					heli.release_jet_smoke(self)
 				get_tree().create_timer(HOLDER_FREE_DELAY).timeout.connect(holder.queue_free)
 	_helicopters.clear()
 	if _menu_flight_profile != null and is_instance_valid(_menu_flight_profile):

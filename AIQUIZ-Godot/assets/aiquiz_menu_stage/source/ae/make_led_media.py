@@ -1,6 +1,7 @@
 """メニューの LED 番組（AIQUIZ VISION）の素材を作る。
 
-- led/led_logo.png：看板と同じロゴ（リポジトリ直下の icon.jpg）を白・透過で。AE の LED_Logo と Godot が使う
+- led/led_logo.png：看板と同じロゴ（ロゴエディタの書き出し assets/branding/logo/aiquiz_logo.png）を白・透過で。
+  AE の LED_Logo と Godot が使う。ロゴエディタで保存するとこの画像も作り直される
 - source/ae/media/clip_placeholder.jpg：AE でハイライトの枠を確かめるための仮の映像（ゲームの実画面を
   LED の比 216:98 に切り抜いたもの）。Godot は保存したハイライトの連番に差し替えるので、ゲームには入れない
 
@@ -23,12 +24,20 @@ MEDIA_DIR = HERE / "media"
 PLACEHOLDER_SOURCE = ROOT / "artifacts" / "aiquiz_stadium" / "game" / "v3_2p_day_play.png"
 LED_ASPECT = 216.0 / 98.0
 WHITE = (246, 244, 238)
+LOGO_SIZE = (1310, 300)  # led_motion.json の LED_Logo / LED_LogoLoop が使う画像の大きさ
 
 
-def make_logo(height_px: int = 300) -> Path:
-    mask = _logo_mask(height_px)
-    logo = Image.new("RGBA", mask.size, WHITE + (0,))
-    logo.putalpha(mask)
+def make_logo(size: tuple[int, int] = LOGO_SIZE) -> Path:
+    # LED の番組（led_motion.json）はこの画像を 1310×300 として描くので、縦横比が変わっても
+    # 画像の大きさは変えず、ロゴを中に収めて真ん中に置く（引き伸ばさない）
+    w, h = size
+    mask = _logo_mask(h)
+    if mask.width > w:
+        mask = _logo_mask(max(1, int(h * w / mask.width)))
+    alpha = Image.new("L", size, 0)
+    alpha.paste(mask, ((w - mask.width) // 2, (h - mask.height) // 2))
+    logo = Image.new("RGBA", size, WHITE + (0,))
+    logo.putalpha(alpha)
     LED_DIR.mkdir(parents=True, exist_ok=True)
     out = LED_DIR / "led_logo.png"
     logo.save(out)

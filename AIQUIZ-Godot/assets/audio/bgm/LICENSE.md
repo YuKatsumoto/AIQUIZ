@@ -22,6 +22,60 @@
 The delivered file is a 65-bar seamless loop cut from the extended source file
 and loudness-normalized. The processing is documented in `docs/bgm_renewal.md`.
 
+# Quiz Result Loop
+
+- File: `quiz_result_loop.ogg` (clear screen and the 2P score tower ceremony)
+- Track: `Quiz Result 03 Parade`
+- Generator: Suno (account: katsuyu2354)
+- Created: 2026-10-12T09:32:54Z
+- Suno song id: `319f8136-24f1-401b-9157-027df0e2bfba`
+- Suno plan at generation time: TODO (commercial use requires a paid plan at
+  the time the song was generated)
+- Source file: `source/quiz_result_loop_original.mp3`
+  (SHA-256 `CA89C05AF99BE8006B155838B9EFB87E36A1BE795ECFC580076B1B3094D349F0`)
+- Delivered file SHA-256:
+  `4E204C0049F090E22E8AF2D3B2D001796C5B0339C193701796B09AEEBEE560C9`
+
+The delivered file is the source's first 104.191 s with a 184-beat loop
+(back to 12.202 s via the import `loop_offset`), loudness-normalized. The
+processing is documented in `docs/bgm_renewal.md`.
+
+# Quiz Play Loop
+
+- File: `quiz_play_loop.ogg` (gameplay BGM, from the start barrier breaking until the run ends)
+- Track: `Quiz Chip Sports 03 Clown Galop`
+- Generator: Suno (account: katsuyu2354)
+- Created: 2026-10-11T13:37:16Z
+- Suno song id: `c723f094-ec06-496a-a902-e72e4afe4b71`
+- Suno plan at generation time: TODO (commercial use requires a paid plan at
+  the time the song was generated)
+- Source file: `source/quiz_play_loop_original.mp3`
+  (SHA-256 `41F3452BE1F77BCCCCAC49376CECD944577AA30A4F65993399EE00DBB5B7E5CD`)
+- Delivered file SHA-256:
+  `9646D79842D7E212228A3228C8B073A6E37B5D344714EF2908FA18AB7557A6FF`
+
+The delivered file is the source's first 93.209 s with a 232-beat loop
+(back to 13.811 s via the import `loop_offset`), loudness-normalized. The
+processing is documented in `docs/bgm_renewal.md`.
+
+# Quiz Match Loop
+
+- File: `quiz_match_loop.ogg` (online match: the matching wait / search screen)
+- Track: `Syncopated Groove`
+- Generator: Suno (account: katsuyu2354)
+- Created: 2026-10-12T13:38:44Z
+- Suno song id: `d0298999-0745-4bf8-8c22-2d8d929c384f`
+- Suno plan at generation time: TODO (commercial use requires a paid plan at
+  the time the song was generated)
+- Source file: `source/quiz_match_original.mp3`
+  (SHA-256 `75454A86373F198C5126B01A62E5033AA5D7BAB04669324FC2D3A3AAE2706F82`)
+- Delivered file SHA-256:
+  `BA3C9C5A967979441618843F4F810DBAB6D1E458DD5CCC15A4445D874AA4E5A9`
+
+The delivered file is the source's first 156.266 s with a 180-beat loop (back to
+63.587 s via the import `loop_offset`), loudness-normalized. The processing is
+documented in `docs/bgm_renewal.md`.
+
 # Head in the Sand
 
 - File: `head_in_the_sand.ogg` (previous BGM, no longer referenced by code)

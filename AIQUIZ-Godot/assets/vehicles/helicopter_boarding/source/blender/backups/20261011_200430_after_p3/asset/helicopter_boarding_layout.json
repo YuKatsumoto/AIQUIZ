@@ -1,0 +1,311 @@
+{
+ "version": 1,
+ "units": "Godot model space (m). 機首 -Z。原点＝ローター軸 × 地面から skid_drop",
+ "skid_drop": 1.75,
+ "main_rotor": {
+  "node": "MainRotor",
+  "pivot": [
+   0.0,
+   2.25,
+   -0.0
+  ],
+  "axis_local": [
+   0,
+   1,
+   0
+  ],
+  "park_deg": 0.0
+ },
+ "tail_rotor": {
+  "node": "TailRotor",
+  "pivot": [
+   0.3,
+   1.87,
+   6.55
+  ],
+  "axis_local": [
+   1,
+   0,
+   0
+  ]
+ },
+ "doors": {
+  "Door_L": {
+   "pivot": [
+    -0.35,
+    1.4057,
+    -2.25
+   ],
+   "hinge_end": [
+    -0.35,
+    1.8078,
+    -0.55
+   ],
+   "axis_local": [
+    0,
+    0,
+    1
+   ],
+   "open_deg": -90.0,
+   "open_seconds": 0.6,
+   "close_seconds": 0.6
+  },
+  "Door_R": {
+   "pivot": [
+    0.35,
+    1.4057,
+    -2.25
+   ],
+   "hinge_end": [
+    0.35,
+    1.8078,
+    -0.55
+   ],
+   "axis_local": [
+    0,
+    0,
+    1
+   ],
+   "open_deg": 90.0,
+   "open_seconds": 0.6,
+   "close_seconds": 0.6
+  }
+ },
+ "hatches": {
+  "DropHatchLeft": {
+   "pivot": [
+    -0.65,
+    -1.26,
+    0.4
+   ],
+   "axis_local": [
+    0,
+    0,
+    1
+   ],
+   "open_deg": -78
+  },
+  "DropHatchRight": {
+   "pivot": [
+    0.65,
+    -1.26,
+    0.4
+   ],
+   "axis_local": [
+    0,
+    0,
+    1
+   ],
+   "open_deg": 78
+  }
+ },
+ "toggles": {
+  "Belt_L": "座ったら表示（ふだん非表示）",
+  "Belt_R": "ハテナが座っている間は表示",
+  "Beacon": "点滅",
+  "Booster_R": "ハテナが右の席のとき表示（座席のかさ上げ。ジェットではない）"
+ },
+ "jet_boost": {
+  "pods": {
+   "JetPod_L": {
+    "pivot": [
+     -1.4718,
+     1.33,
+     0.75
+    ],
+    "axis_local": [
+     0,
+     0,
+     1
+    ],
+    "deploy_deg": -38.0,
+    "nozzle": "JetNozzle_L",
+    "glow": "JetGlow_L",
+    "nozzle_exit_local": [
+     -0.8,
+     0.0,
+     1.33
+    ]
+   },
+   "JetPod_R": {
+    "pivot": [
+     1.4718,
+     1.33,
+     0.75
+    ],
+    "axis_local": [
+     0,
+     0,
+     1
+    ],
+    "deploy_deg": 38.0,
+    "nozzle": "JetNozzle_R",
+    "glow": "JetGlow_R",
+    "nozzle_exit_local": [
+     0.8,
+     0.0,
+     1.33
+    ]
+   }
+  },
+  "nozzle_open_scale": 1.35,
+  "stow_deg": 38.0,
+  "pod_radius": 0.27,
+  "note": "発進の溜め：翼を上げる → 羽根を広げる → 奥の光を強める → 点火（nozzle_exit_local から +Z）"
+ },
+ "tint_material": "BodyPaint",
+ "glass_material": "Windows",
+ "glass": {
+  "visor_y": [
+   1.25,
+   1.45
+  ],
+  "note": "風防（Windows）のサンバイザーの帯。GLB の y。顔と「?」の視線より上"
+ },
+ "markers": {
+  "MK_GroundContact": {
+   "position": [
+    0.0,
+    -1.75,
+    0.0
+   ],
+   "yaw_deg": null,
+   "note": "スキッドの下面の中心（着地の基準）。原点からの高さ＝SKID_DROP"
+  },
+  "MK_IdleSpot": {
+   "position": [
+    -4.3,
+    -1.75,
+    -1.42
+   ],
+   "yaw_deg": 90,
+   "note": "メニューで待つ立ち位置（デッキ上。ヘリポート側で決めてよい）"
+  },
+  "MK_BoardStand": {
+   "position": [
+    -2.72,
+    -1.75,
+    -1.42
+   ],
+   "yaw_deg": 90,
+   "note": "ステップの前。ここで止まり、ヘリの方を向く"
+  },
+  "MK_Step": {
+   "position": [
+    -1.88,
+    -1.4,
+    -1.42
+   ],
+   "yaw_deg": 90,
+   "note": "ステップの上面（1 段目）"
+  },
+  "MK_DoorSill": {
+   "position": [
+    -1.25,
+    -1.05,
+    -1.42
+   ],
+   "yaw_deg": 90,
+   "note": "ドアを入ってすぐの床（2 段目）。ここでかがむ"
+  },
+  "MK_SeatFront": {
+   "position": [
+    -0.77,
+    -1.05,
+    -1.66
+   ],
+   "yaw_deg": 180,
+   "note": "座席の前で機首を向いて立つ。Sitting_Enter の始まり"
+  },
+  "MK_SeatPassenger": {
+   "position": [
+    -0.77,
+    -0.3900000000000001,
+    -1.1
+   ],
+   "yaw_deg": 180,
+   "note": "座ったプレイヤーの pelvis（ももの下面＝座面）"
+  },
+  "MK_SeatPilot": {
+   "position": [
+    0.77,
+    -0.801,
+    -1.349
+   ],
+   "yaw_deg": 180,
+   "note": "ハテナの原点（足元の基準。等倍）。体の下端がクッションの上"
+  },
+  "MK_HatchDrop": {
+   "position": [
+    0.0,
+    -1.23,
+    0.4
+   ],
+   "yaw_deg": null,
+   "note": "床下ハッチの中心（本編の投下）"
+  },
+  "MK_CabinWait": {
+   "position": [
+    0.0,
+    -0.73,
+    0.4
+   ],
+   "yaw_deg": null,
+   "note": "ハッチの上でかがんで待つ pelvis（今の CABIN_WAIT_PELVIS_HEIGHT と同じ 0.32）"
+  },
+  "MK_CockpitLight": {
+   "position": [
+    0.0,
+    1.2999999999999998,
+    -1.45
+   ],
+   "yaw_deg": null,
+   "note": "操縦室の明かり"
+  },
+  "MK_CabinLight": {
+   "position": [
+    0.0,
+    1.1,
+    0.4
+   ],
+   "yaw_deg": null,
+   "note": "荷室（ハッチの上）の明かり"
+  }
+ },
+ "hatena": {
+  "root": [
+   0.77,
+   -0.801,
+   -1.349
+  ],
+  "scale": 1.0,
+  "yaw_deg": 180
+ },
+ "yokes": {
+  "Yoke_L": {
+   "grip_l": [
+    -1.2888,
+    0.02,
+    -1.7092
+   ],
+   "grip_r": [
+    -0.2834,
+    0.055,
+    -1.653
+   ]
+  },
+  "Yoke_R": {
+   "grip_l": [
+    0.184,
+    0.0172,
+    -1.7101
+   ],
+   "grip_r": [
+    1.356,
+    0.0172,
+    -1.7101
+   ]
+  }
+ },
+ "spec_source": "artifacts/heli_blueprint/heli_pilot_spec.json"
+}

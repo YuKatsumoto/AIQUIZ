@@ -149,7 +149,7 @@ Web で実在のアパート・マンションの外観を調べ（資料の一�
 | `blender/SCENE_PASSPORT.md` | 組み立ての仕様と結果 |
 | `blender/aiquiz_menu_stage.blend` | 組み立て結果（シーン `AIQUIZ_MenuStage`：部品・ベルトと壁とキャラの仮置き・保守船・メニューの街（元の `AQS_BG_City` は隠して残す）・カメラ 9 台） |
 | `build_report.json` | 検算（三角形・材質・ベルト・のこぎり・ヘリの通り道・走路の脇・デッキの位置・看板と LED の向き・面の向き、街：三角形・手前の帯を除いたか・材質・カメラからの距離、観覧車：部品が分かれているか・原点・吊り棒・1 周回したときに輪・脚・乗り場・ゴンドラどうしが当たらないか） |
-| `textures/make_textures.py` | 看板（`icon.jpg` のロゴをそのまま白で）、LED の予備、舗装（1.5m のタイル、目地）、岸辺の外壁 `harbor_facade_*` 10 種（建物の型ごと：shop・flat・glass・mansion・tile・corridor・loggia・brick・ribbon・punched、夜の窓明かり） |
+| `textures/make_textures.py` | 看板（ロゴエディタ `tools/logo_editor` が書き出す `assets/branding/logo/aiquiz_logo.png` のロゴをそのまま白で）、LED の予備、舗装（1.5m のタイル、目地）、岸辺の外壁 `harbor_facade_*` 10 種（建物の型ごと：shop・flat・glass・mansion・tile・corridor・loggia・brick・ribbon・punched、夜の窓明かり） |
 | `concepts/`・`prompts_src/`・`PROMPTS.md`・`generation_record.json` | Codex CLI で作ったコンセプト・下絵・配置案・描き足しと、そのプロンプトと採否 |
 | `tools/codex_image.sh` | Codex CLI で画像を 1 枚作る手順（プロンプトは標準入力、保存先はセッション id で拾う） |
 | `previews/ingame/`・`previews/blender/` | ゲームの実画面と Blender の確認レンダー |

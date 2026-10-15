@@ -87,7 +87,7 @@ func _build_selector() -> void:
 	root.add_child(cards)
 	var solo := _create_course_card(
 		"1P 実践コース",
-		"移動・ジャンプ・エモート\n海の危険とハート（HP）のしくみ\n2択の壁と4択のボス壁",
+		"前後左右の移動・ジャンプ・エモート\n海の危険とハート（HP）のしくみ\n2択の壁と4択のボス壁",
 		"約3分",
 		"res://assets/ui/1p.png",
 		SOLO_COLOR,
@@ -97,8 +97,8 @@ func _build_selector() -> void:
 	_solo_badge = solo.get_node("Content/Badge") as Label
 	var duo := _create_course_card(
 		"ローカル2P 実践コース",
-		"2人分の操作と押し合い\n海・ゴーストシャーク・回転のこぎり\nハート・先着の得点・スコアタワー",
-		"約5分",
+		"2人分の操作と押し合い\n海・ゴーストシャーク・回転のこぎり\nハート・先着の得点・スコアタワーの勝敗判定",
+		"約6分",
 		"res://assets/ui/2p.png",
 		DUO_COLOR,
 		GameManager.TUTORIAL_COURSE_LOCAL_2P

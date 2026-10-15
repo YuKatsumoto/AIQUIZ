@@ -8,6 +8,8 @@ uniform vec3 mid_color : source_color = vec3(0.02, 0.42, 0.54);
 uniform vec3 crest_color : source_color = vec3(0.24, 0.78, 0.82);
 uniform float wave_speed : hint_range(0.0, 2.0) = 0.42;
 uniform float wave_height : hint_range(0.0, 2.0) = 0.42;
+// Moves the water pattern without moving the mesh (see ocean.gdshader). 0 elsewhere.
+uniform vec2 flow_offset = vec2(0.0);
 #ifdef SHAFT_HOLE
 // Sudden death shaft (StageEnvironment.set_shaft_hole compiles this variant only while the hole
 // is open): (centre x, centre z, radius, active). Water inside the circle is cut away.
@@ -20,7 +22,7 @@ varying vec2 water_position;
 
 void vertex() {
 	float t = TIME * wave_speed;
-	vec2 p = VERTEX.xz;
+	vec2 p = VERTEX.xz + flow_offset;
 	float phase_a = p.x * 0.050 + t * 1.20;
 	float phase_b = (p.x + p.y) * 0.075 - t * 0.86;
 	float phase_c = (p.x - p.y) * 0.023 + t * 0.48;

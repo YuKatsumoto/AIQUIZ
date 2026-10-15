@@ -23,7 +23,7 @@ const COURSE_SOLO := "SOLO"
 
 ## 走路エッジのレーンライン、床投影リング、ドアのルートラインなどの表示切替に使う。
 const GUIDE_LANE := "lane"
-const GUIDE_AIR := "air"
+const GUIDE_JUMP := "jump"
 const GUIDE_EMOTE := "emote"
 const GUIDE_OCEAN := "ocean"
 const GUIDE_GUIDED_DOOR := "guided_door"
@@ -36,6 +36,9 @@ const GUIDE_COMPLETE := "complete"
 ## 3Dキーの並べ方（TutorialKeyGuides3D の LAYOUT_* と同じ値）。
 const KEYS_CLUSTER := "cluster"
 const KEYS_SIDES := "sides"
+
+## エモートキーのビット（bit0 = 1、bit1 = 2、bit2 = 3）と、それぞれを練習するタスク。
+const EMOTE_TASKS: Array[String] = ["emote_1", "emote_2", "emote_3"]
 
 const TASK_HOLD_SECONDS := 0.55
 const HINT_SECONDS := 3.4
@@ -203,13 +206,15 @@ func advances_after_countdown() -> bool:
 
 
 ## 操作練習ステップの進行。ステップを終えてよいとき true を返す。
+## emote_keys_* は押されているエモートキーのビット（bit0 = 1、bit1 = 2、bit2 = 3）。
+## エモートIDではスロットの重複や空きを区別できないため、キーそのものを受け取る。
 func update_input_practice(
 		axis_p1: Vector2,
 		_axis_p2: Vector2,
 		jump_p1: bool,
 		_jump_p2: bool,
-		emote_p1: int,
-		_emote_p2: int,
+		emote_keys_p1: int,
+		_emote_keys_p2: int,
 		delta: float = 0.0) -> bool:
 	if not is_input_practice_step() or presentation_locked or awaiting_neutral_input:
 		_task_hold = -1.0
@@ -225,8 +230,9 @@ func update_input_practice(
 		complete_task(1, "back")
 	if jump_p1:
 		complete_task(1, "jump")
-	if emote_p1 > 0:
-		complete_task(1, "emote")
+	for slot: int in EMOTE_TASKS.size():
+		if emote_keys_p1 & (1 << slot):
+			complete_task(1, EMOTE_TASKS[slot])
 
 	if not all_tasks_complete():
 		_task_hold = -1.0
@@ -430,6 +436,16 @@ func starts_goal_race() -> bool:
 	return false
 
 
+## 1Pにゴールはない（2Pの「生き残った全員がゴール」は持たない）。
+func requires_all_finishers() -> bool:
+	return false
+
+
+## 2Pのスコアタワー（勝敗判定）は1Pにはない。
+func uses_result_ceremony() -> bool:
+	return false
+
+
 ## 回転のこぎりはローカル2P専用。
 func uses_saw() -> bool:
 	return false
@@ -508,7 +524,7 @@ func set_hint(text: String, seconds: float = HINT_SECONDS) -> void:
 
 func clear_summary_lines() -> PackedStringArray:
 	return PackedStringArray([
-		"✓ 前後左右の移動・ジャンプ・エモート",
+		"✓ 前後左右の移動・ジャンプ・3つのエモート",
 		"✓ コース外の海とサメ（ハートに関係なく脱落）",
 		"✓ ハート3つ：不正解で1つ減り、0で脱落",
 		"✓ 2択の壁と4択のボス壁",
@@ -661,9 +677,9 @@ func _build_quiz_items() -> Array[QuizItem]:
 func _build_steps() -> Array[Dictionary]:
 	return [
 		{
-			"id": "run_lane",
-			"title": "左右の移動",
-			"body": "キャラクターは自動で前に進みます。頭の上に出ているキーで左右に動いてみましょう。矢印キー（← →）でも動けます。",
+			"id": "move_lane",
+			"title": "前後左右の移動",
+			"body": "自動で前に進みます。左右でドアを選び、前後で壁に着くタイミングを調整します。4方向に動いてみましょう（矢印キーも可）。",
 			"guide": GUIDE_LANE,
 			"key_layout": KEYS_CLUSTER,
 			"speed": 0.55,
@@ -672,34 +688,36 @@ func _build_steps() -> Array[Dictionary]:
 			"tasks": [
 				{"id": "left", "key": "A / ←", "caption": "左移動", "slots": ["left"]},
 				{"id": "right", "key": "D / →", "caption": "右移動", "slots": ["right"]},
+				{"id": "forward", "key": "W / ↑", "caption": "前進", "slots": ["up"]},
+				{"id": "back", "key": "S / ↓", "caption": "後退", "slots": ["down"]},
 			],
 		},
 		{
-			"id": "air_control",
-			"title": "ジャンプと前後の移動",
-			"body": "前後の移動で壁に着くタイミングを調整できます。ジャンプ・前進・後退をそれぞれ試してください。",
-			"guide": GUIDE_AIR,
+			"id": "jump_lesson",
+			"title": "ジャンプ",
+			"body": "Spaceでジャンプします。ジャンプするとエモートも止まります。試しにジャンプしてみましょう。",
+			"guide": GUIDE_JUMP,
 			"key_layout": KEYS_CLUSTER,
 			"speed": 0.55,
 			"walls": false,
 			"input_practice": true,
 			"tasks": [
 				{"id": "jump", "key": "Space", "caption": "ジャンプ", "slots": ["jump"]},
-				{"id": "forward", "key": "W / ↑", "caption": "前進", "slots": ["up"]},
-				{"id": "back", "key": "S / ↓", "caption": "後退", "slots": ["down"]},
 			],
 		},
 		{
 			"id": "solo_emote",
 			"title": "エモート",
-			"body": "数字キー1・2・3でエモートを踊れます。走りながら踊れ、ジャンプで止まります。どれか1つを再生してください。",
+			"body": "数字キー1・2・3でエモートを踊れます。走りながら踊れ、ジャンプで止まります。3つすべてを再生してください。",
 			"guide": GUIDE_EMOTE,
 			"key_layout": KEYS_CLUSTER,
 			"speed": 0.4,
 			"walls": false,
 			"input_practice": true,
 			"tasks": [
-				{"id": "emote", "key": "1 / 2 / 3", "caption": "エモート", "slots": ["emote_1", "emote_2", "emote_3"]},
+				{"id": "emote_1", "key": "1", "caption": "エモート1", "slots": ["emote_1"]},
+				{"id": "emote_2", "key": "2", "caption": "エモート2", "slots": ["emote_2"]},
+				{"id": "emote_3", "key": "3", "caption": "エモート3", "slots": ["emote_3"]},
 			],
 		},
 		{

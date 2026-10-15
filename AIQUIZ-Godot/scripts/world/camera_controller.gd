@@ -21,6 +21,9 @@ var _entry_start_fov: float = 44.0
 var _entry_start_h_offset: float = 0.0
 var _entry_blend_active: bool = false
 var _entry_blend_t: float = 0.0
+var _reveal_push_applied := false
+var _reveal_push_base := Transform3D.IDENTITY
+var _reveal_push_base_fov := 44.0
 var _ocean_attack_focus: Vector3 = Vector3.ZERO
 var _has_ocean_attack_focus: bool = false
 var _ocean_attack_camera_active: bool = false
@@ -76,6 +79,12 @@ const SAW_SCREEN_SIDE_MARGIN := 0.01
 
 const ENTRY_BLEND_DURATION := 0.95
 const PRELOAD_CAMERA_FOV := 66.0
+## オンライン対戦の開始で、覆いが開くのと同時に寄るカメラの引き（後ろへ m・上へ m・画角を広げる度）
+const REVEAL_PUSH_BACK := 9.0
+const REVEAL_PUSH_RISE := 2.5
+const REVEAL_PUSH_FOV := 8.0
+## 引いた位置からも同じ所を見る（カメラの前のこの距離の点）
+const REVEAL_PUSH_LOOK_DISTANCE := 14.0
 const THIRD_PERSON_FOV := 50.0
 const THIRD_PERSON_DISTANCE := 5.6
 const THIRD_PERSON_FOCUS_HEIGHT := 1.0
@@ -294,7 +303,33 @@ func wait_for_entry_blend() -> void:
 	while _entry_blend_active and is_inside_tree():
 		await get_tree().process_frame
 
+## オンライン対戦の開始：中央の線が開く覆い（S10 v1.6）のあいだは引いた位置にいて、開くのと同時に本来の位置へ寄る。
+## どのカメラの段でも同じように効くよう、段ごとの姿勢を決めたあとに引きを重ね、次のフレームの最初に外す
+## （前のフレームのカメラから追いかける段に、引きが積み重ならないように）。
 func update_camera(gs: QuizGameState, dt: float) -> void:
+	if _reveal_push_applied:
+		camera.global_transform = _reveal_push_base
+		camera.fov = _reveal_push_base_fov
+		_reveal_push_applied = false
+	_update_camera_pose(gs, dt)
+	_apply_reveal_push()
+
+
+func _apply_reveal_push() -> void:
+	var pull := SceneTransition.get_reveal_camera_pull()
+	if pull <= 0.0:
+		return
+	_reveal_push_base = camera.global_transform
+	_reveal_push_base_fov = camera.fov
+	_reveal_push_applied = true
+	var back := camera.global_transform.basis.z
+	var look := camera.global_position - back * REVEAL_PUSH_LOOK_DISTANCE
+	var eye := camera.global_position + back * REVEAL_PUSH_BACK * pull + Vector3.UP * REVEAL_PUSH_RISE * pull
+	camera.global_transform = Transform3D(Basis(_quat_look_at(eye, look)), eye)
+	camera.fov = _reveal_push_base_fov + REVEAL_PUSH_FOV * pull
+
+
+func _update_camera_pose(gs: QuizGameState, dt: float) -> void:
 	_wall_text_scale_active = false
 	if gs.game_state not in [Constants.STATE_PLAYING, Constants.STATE_CORRECT] or _tutorial_override_active or _ocean_attack_camera_active:
 		_question_pitch = 0.0

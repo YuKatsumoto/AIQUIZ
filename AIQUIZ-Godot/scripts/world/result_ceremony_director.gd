@@ -233,8 +233,24 @@ func _cue(name_value: String, due: bool) -> bool:
 
 
 func _update_beats(elapsed: float) -> void:
+	# A drum roll from the start of the score tally until the towers have climbed (2.0-6.3 s), and
+	# its closing hit at the verdict (docs/sound_effects.md). The roll only starts on time: a verdict
+	# replayed after the sudden death skips it.
+	var roll_start := Motion.beat("cast_start")
+	if _cue("roll", elapsed >= roll_start and elapsed < roll_start + 0.25):
+		AudioManager.play_sfx(&"score_drum_roll")
 	if _cue("verdict", elapsed >= Motion.VERDICT):
+		AudioManager.play_sfx(&"score_drum_finish")
 		game_state.camera_shake = maxf(game_state.camera_shake, 0.45)
+		# The result music starts once the winner is known; the murmur gives way to it.
+		AudioManager.set_music_track(AudioManager.MUSIC_TRACK_RESULT)
+		AudioManager.set_crowd_ambience(AudioManager.CROWD_NONE)
+		# Spectators (docs/sound_effects.md): a cheer with applause for the verdict (also a draw).
+		AudioManager.play_sfx(&"crowd_win_cheer")
+		AudioManager.play_sfx(&"crowd_applause")
+	# ...and a sympathetic "aww" as the loser's tower starts to sink.
+	if _cue("sink", game_state.result_winner != 0 and elapsed >= Motion.beat("sink_start")):
+		AudioManager.play_sfx(&"crowd_aww")
 
 
 ## Prepare the finale meshes and materials under the loading cover so the first
@@ -325,6 +341,8 @@ func _night_amount() -> float:
 
 
 func _reset_presentation() -> void:
+	AudioManager.stop_sfx(&"score_drum_roll")
+	AudioManager.stop_sfx(&"score_drum_finish")
 	_stage.clear()
 	_effects.clear()
 	_cues.clear()

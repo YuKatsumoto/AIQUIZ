@@ -17,6 +17,10 @@ uniform float wave_height : hint_range(0.0, 2.0) = 0.52;
 uniform float detail_strength : hint_range(0.0, 1.0) = 0.28;
 uniform float roughness_val : hint_range(0.0, 1.0) = 1.0;
 uniform float opacity : hint_range(0.0, 1.0) = 0.34;
+// Moves the water pattern without moving the mesh (metres, world xz). The online matching flight
+// keeps its helicopter near the origin and scrolls the sea underneath (OnlineHeliportStage). 0 elsewhere.
+uniform vec2 flow_offset = vec2(0.0);
+uniform float flow_uv_per_m = 0.00025;
 uniform sampler2D depth_texture : hint_depth_texture, repeat_disable, filter_nearest;
 uniform float depth_absorption : hint_range(0.01, 0.3) = 0.08;
 uniform sampler2D noise_tex;
@@ -110,7 +114,7 @@ const vec4 RIPPLES[6] = vec4[6](
 
 void vertex() {
 	float t = TIME * wave_speed;
-	vec2 p = VERTEX.xz;
+	vec2 p = VERTEX.xz + flow_offset;
 
 	float swell_a = sin(p.x * 0.055 + t * 1.25) * cos(p.y * 0.042 - t * 0.82);
 	float swell_b = sin((p.x + p.y) * 0.085 - t * 1.08);
@@ -201,8 +205,9 @@ void fragment() {
 	}
 #endif
 	float t = TIME * wave_speed;
-	vec2 flow_uv_a = UV * 7.0 + vec2(t * 0.038, -t * 0.026);
-	vec2 flow_uv_b = UV * 11.0 + vec2(-t * 0.031, t * 0.043);
+	vec2 flow_uv = UV + flow_offset * flow_uv_per_m;
+	vec2 flow_uv_a = flow_uv * 7.0 + vec2(t * 0.038, -t * 0.026);
+	vec2 flow_uv_b = flow_uv * 11.0 + vec2(-t * 0.031, t * 0.043);
 
 	float a = texture(noise_tex, flow_uv_a).r;
 	float b = texture(noise_tex2, flow_uv_b).r;
@@ -270,7 +275,7 @@ void fragment() {
 	vec3 emission = water_color * 0.02;
 
 	// ---- Detail (all zero on the low tier) ----
-	vec2 world_xz = surface_world.xz;
+	vec2 world_xz = surface_world.xz + flow_offset;
 	vec3 to_camera = CAMERA_POSITION_WORLD - surface_world;
 	vec3 view_world = normalize(to_camera);
 	// Metres of water per pixel along the coarser screen axis (filters ripples and glints).

@@ -2241,10 +2241,12 @@ func _set_current_hat(hat_id: int) -> void:
 		gs.p1_hat = hat_id
 	else:
 		gs.p2_hat = hat_id
+	PlayerSkinStore.set_hat(_editing_player, hat_id)
 
 func _on_back_pressed() -> void:
 	if _back_to_menu_in_progress:
 		return
+	PlayerSkinStore.flush()
 	if embedded_mode:
 		request_close.emit()
 		return
@@ -2259,6 +2261,7 @@ func _prepare_embedded_close() -> void:
 		_cleanup_tutorial_tour()
 	_back_to_menu_in_progress = true
 	_stop_preview_wall_speed_emotes()
+	PlayerSkinStore.flush()
 	_is_open = false
 	_finish_hat_slide_immediate()
 	_cleanup_emote_preview()

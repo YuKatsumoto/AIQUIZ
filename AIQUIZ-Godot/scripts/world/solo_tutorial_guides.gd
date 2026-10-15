@@ -230,13 +230,14 @@ func _update_edge_lines(guide: String, pulse: float) -> void:
 func _update_player_guide(model: Dictionary, guide: String, pulse: float) -> void:
 	var show_player_guide := guide in [
 		SoloFlow.GUIDE_LANE,
-		SoloFlow.GUIDE_AIR,
+		SoloFlow.GUIDE_JUMP,
 		SoloFlow.GUIDE_EMOTE,
 		SoloFlow.GUIDE_OCEAN,
 		SoloFlow.GUIDE_COMPLETE,
 	] and game_state.p1_alive and not game_state.p1_waiting_for_shark
 	_ring.visible = show_player_guide
-	var show_chevrons := show_player_guide and guide != SoloFlow.GUIDE_EMOTE
+	# その場で行うジャンプ・エモートには進む方向がないので、シェブロンを出さない。
+	var show_chevrons := show_player_guide and guide not in [SoloFlow.GUIDE_EMOTE, SoloFlow.GUIDE_JUMP]
 	for chevron: MeshInstance3D in _chevrons:
 		chevron.visible = show_chevrons
 	if not show_player_guide:

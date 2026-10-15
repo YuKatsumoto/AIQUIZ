@@ -83,8 +83,6 @@ func _flush_local_push_events() -> void:
 			event.feet.append(Vector3(player2_x, StageConstants.FLOOR_TOP_Y + 0.07, player2_z - world_scroll_z))
 		event["age"] = maxf(0.0, local_push.time - float(event.time))
 		local_push_event.emit(event)
-		if is_duo_tutorial() and tutorial_flow.has_method("on_local_push_event"):
-			tutorial_flow.on_local_push_event(event)
 	local_push.events.clear()
 
 ## ゲーム状態管理クラス
@@ -122,6 +120,17 @@ enum ResultCeremonyPhase {
 	EFFECT,
 	WINNER,
 	INTERACTIVE,
+}
+
+## 2Pチュートリアルのスコアタワーの進行。得点が出そろった（VERDICT に入った）ところで
+## 時計を止めて計算方法を説明し、キーで勝敗発表へ進む。WINNER の後は結果ボタンを出さず
+## チュートリアルの完了ステップへ渡す。
+enum TutorialCeremonyStage {
+	NONE,
+	ROLLING,
+	SCORE_PAUSE,
+	VERDICT,
+	DONE,
 }
 
 var provider: QuizProvider
@@ -210,6 +219,8 @@ var rating_feedback: String = ""
 # --- Streak & Stats ---
 var current_streak: int = 0
 var max_streak: int = 0
+## P2 の連続正解（P1 は current_streak）。対戦カードの炎バッジが読む。
+var player2_streak: int = 0
 var play_time: float = 0.0
 var total_answered: int = 0
 var total_wrong: int = 0
@@ -220,7 +231,11 @@ var recent_response_times: Array[float] = [] # 直近の回答時間履歴 (パ�
 
 # --- Quiz History (for game-over review) ---
 var quiz_history: Array[Dictionary] = []  # [{quiz: QuizItem, correct: bool, rated: String}]
-var countdown_timer: float = 3.0
+## スタートの壁のカウントダウン。ceil() で「5・4・3・2・1」を約1秒ずつ表示し、0秒で壁が割れる。
+## チュートリアルは空撮を省くので短く「3・2・1」から。
+const COUNTDOWN_SECONDS := 4.99
+const TUTORIAL_COUNTDOWN_SECONDS := 3.0
+var countdown_timer: float = TUTORIAL_COUNTDOWN_SECONDS
 
 # --- Flyover (10問モードのカメラ演出) ---
 var flyover_timer: float = 0.0
@@ -269,6 +284,12 @@ var p1_hat: int = 0
 var p2_hat: int = 0
 var p1_toon_preset: int = ToonPresets.STANDARD
 var p2_toon_preset: int = ToonPresets.STANDARD
+## 体の塗り（PlayerSkin 形式、{} はスロットの標準色）。直接書かず set_player_skin() を使う。
+## *_skin_code はそのコンパクト表記（標準色は ""）で、描画側は毎フレームこれだけを比べる。
+var p1_skin: Dictionary = {}
+var p2_skin: Dictionary = {}
+var p1_skin_code: String = ""
+var p2_skin_code: String = ""
 var is_replay: bool = false
 ## リトライ開始時だけ本編のヘリ降下を省略する。game_world が消費する。
 var skip_start_helicopter_arrival: bool = false
@@ -318,6 +339,14 @@ signal result_transition_requested
 ## existing immediate-result contract without serializing ceremony-only state.
 var result_ceremony_enabled: bool = false
 var result_presentation_active: bool = false
+## 得点説明で止めてから再開を受け付けるまでの最短時間（誤操作で読み飛ばさないため）。
+const TUTORIAL_SCORE_PAUSE_MIN_SECONDS: float = 1.0
+var tutorial_ceremony_stage: int = TutorialCeremonyStage.NONE
+var _tutorial_score_pause_elapsed: float = 0.0
+## 押されているエモートキー（bit0 = 1/8、bit1 = 2/9、bit2 = 3/0）。GameWorld が毎フレーム渡す。
+## チュートリアルの「3つすべて再生」はエモートIDではなくキーで判定する。
+var tutorial_emote_keys_p1: int = 0
+var tutorial_emote_keys_p2: int = 0
 var result_ceremony_phase: int = ResultCeremonyPhase.NONE
 var result_ceremony_phase_elapsed: float = 0.0
 var result_ceremony_elapsed: float = 0.0
@@ -428,6 +457,23 @@ var sudden_death_preparing_panel: String = ""
 
 var p1_jump_trigger: bool = false
 var p2_jump_trigger: bool = false
+## ジャンプ開始の累計。1フレームだけ立つ trigger はスナップショットの間に消えるので、
+## オンラインのゲストはこの増分でジャンプ演出を起こす。
+var p1_jump_count: int = 0
+var p2_jump_count: int = 0
+
+# ---------- Online (net) ----------
+## この端末で操作しているスロット。オフラインと 1P/ホストは 1、オンラインのゲストは 2。
+## スロット自体は入れ替えず、カメラ・HUD・入力・見た目だけをこの視点に合わせる。
+var local_slot: int = 1
+## false の端末（オンラインのゲスト）は判定と状態遷移を行わず、ホストの結果に従う。
+var net_authority: bool = true
+## オンライン対戦中か（HUD の表記などに使う）。
+var net_online: bool = false
+## オンラインのホスト：試合の状態は整えたが、問題生成（provider.begin_round）はまだ始めていない。
+## VS の演出を問題生成で止めないよう、ゲーム画面が開いてから begin_deferred_quiz_generation() で始める。
+var quiz_generation_deferred: bool = false
+var _net_cosmetic_backup: Dictionary = {}
 
 # --- Dynamic wall speed ---
 var _active_wall_speed: float = GameTuning.WALL_SPEED_AUTO_DEFAULT
@@ -552,6 +598,9 @@ func _tick_health(dt: float) -> void:
 	p1_damage_time = maxf(0.0, p1_damage_time - dt) if active and p1_alive and not p1_fall_committed and not p1_waiting_for_shark else 0.0
 	p2_damage_time = maxf(0.0, p2_damage_time - dt) if active and p2_alive and not p2_fall_committed and not p2_waiting_for_shark else 0.0
 
+func get_player_streak(player_index: int) -> int:
+	return current_streak if player_index == 1 else player2_streak
+
 func _hp_answerable(player_index: int) -> bool:
 	if player_index == 1:
 		return p1_alive and not p1_fall_committed and not p1_waiting_for_shark
@@ -613,6 +662,9 @@ func _resolve_hp_collision(p1_hit: bool, p2_hit: bool) -> void:
 				total_wrong += 1
 		elif correct:
 			player2_score += 1
+			player2_streak += 1
+		else:
+			player2_streak = 0
 		if correct:
 			_hp_correct_mask |= bit
 		else:
@@ -633,6 +685,11 @@ func _try_finish_hp_question() -> void:
 		return
 	choice_locked = true
 	var completed_wall := current_wall_index
+	# 先着で取られた・海に落ちていたなど、この問題を正解できなかった人の連続正解は途切れる。
+	if (_hp_correct_mask & 1) == 0:
+		current_streak = 0
+	if (_hp_correct_mask & 2) == 0:
+		player2_streak = 0
 	provider.submit_result(current_quiz, any_correct)
 	quiz_history.append({"quiz": current_quiz, "correct": any_correct, "rated": ""})
 	var response_time := (Time.get_ticks_msec() - _quiz_shown_time) / 1000.0
@@ -899,13 +956,7 @@ func _on_tutorial_saw_catch(hit_mask: int) -> void:
 func get_tutorial_overlay_model() -> Dictionary:
 	if not _is_tutorial_mode() or tutorial_flow == null:
 		return {"visible": false}
-	var model: Dictionary = tutorial_flow.get_overlay_model()
-	if is_duo_tutorial() and tutorial_flow.current_step_id() == "duo_push":
-		for row: Dictionary in model.get("players", []):
-			for task: Dictionary in row.get("tasks", []):
-				if task.id in ["brace", "push"]:
-					task.key = ("D" if player_x > player2_x else "A") if row.player == 1 else ("←" if player_x > player2_x else "→")
-	return model
+	return tutorial_flow.get_overlay_model()
 
 
 func is_tutorial_presentation_locked() -> bool:
@@ -1250,7 +1301,9 @@ func consume_skip_start_helicopter_arrival() -> bool:
 	return skip
 
 
-func start_game() -> void:
+## defer_quiz_generation：状態だけ整えて PRELOADING で待ち、問題生成は begin_deferred_quiz_generation() で始める。
+func start_game(defer_quiz_generation: bool = false) -> void:
+	quiz_generation_deferred = false
 	_reset_saw_chase()
 	is_replay = false
 	_reset_health()
@@ -1288,6 +1341,7 @@ func start_game() -> void:
 	player2_y = 0.0
 	player2_z = 0.0
 	player2_score = 0
+	player2_streak = 0
 	player2_vel_y = 0.0
 	player2_vel_z = 0.0
 	p2_alive = true
@@ -1333,9 +1387,28 @@ func start_game() -> void:
 	message_text = ""
 	game_state = Constants.STATE_PRELOADING
 	preload_wait_sec = 0.0
+	if defer_quiz_generation:
+		quiz_generation_deferred = true
+		refresh_status_text()
+		state_changed.emit(game_state)
+		return
+	_begin_quiz_generation()
 
+
+## start_game(true) で後回しにした問題生成を始める。後回しにしていなければ何もしない。
+func begin_deferred_quiz_generation() -> void:
+	if not quiz_generation_deferred:
+		return
+	quiz_generation_deferred = false
+	if game_state != Constants.STATE_PRELOADING:
+		return
+	preload_wait_sec = 0.0
+	_begin_quiz_generation()
+
+
+func _begin_quiz_generation() -> void:
+	var count := target_count
 	var provider_mode := _provider_mode()
-	_request_slot_round_if_eligible()
 	provider.begin_round(subject, grade, difficulty, provider_mode, count)
 	# オフラインは同期バンクで問題が揃うので、min_preload の0.35秒は待たない。
 	if llm_mode == "OFFLINE":
@@ -1356,50 +1429,6 @@ func start_game() -> void:
 			load_current_quiz()
 	refresh_status_text()
 	state_changed.emit(game_state)
-
-
-## ── 単元スロット ──
-## オンライン生成の10問モード（1P・ローカル2P対戦）だけ、マッチごとに3単元を抽選してから生成する。
-## 協力・エンドレス・チュートリアル・オンライン対戦・オフラインは対象外。
-const SLOT_UNIT_COUNT: int = 3
-
-
-func _request_slot_round_if_eligible() -> void:
-	if not provider is BufferedQuizProvider:
-		return
-	var buffered_provider := provider as BufferedQuizProvider
-	if llm_mode != "ONLINE" or mode != Constants.MODE_TEN:
-		return
-	if NetworkManager.state != NetworkManager.State.OFFLINE:
-		return
-	if not is_instance_valid(buffered_provider.online_fetcher):
-		return
-	buffered_provider.request_slot_round(
-		buffered_provider.online_fetcher.pick_slot_units(subject, grade, SLOT_UNIT_COUNT)
-	)
-
-
-func get_slot_units() -> PackedStringArray:
-	if mode == Constants.MODE_TEN and provider is BufferedQuizProvider:
-		return (provider as BufferedQuizProvider).get_slot_units()
-	return PackedStringArray()
-
-
-func get_slot_round_serial() -> int:
-	if provider is BufferedQuizProvider:
-		return (provider as BufferedQuizProvider).slot_round_serial
-	return 0
-
-
-func is_slot_gate_closed() -> bool:
-	if provider is BufferedQuizProvider:
-		return (provider as BufferedQuizProvider).is_slot_gate_closed()
-	return false
-
-
-func release_slot_gate() -> void:
-	if provider is BufferedQuizProvider:
-		(provider as BufferedQuizProvider).release_slot_gate()
 
 
 func _prepare_coop_quiz_list() -> void:
@@ -1483,6 +1512,7 @@ func start_tutorial(course: String = GameManager.TUTORIAL_COURSE_SOLO) -> void:
 	player2_y = 0.0
 	player2_z = 0.0
 	player2_score = 0
+	player2_streak = 0
 	player2_vel_y = 0.0
 	player2_vel_z = 0.0
 	p2_alive = num_players >= 2
@@ -1540,8 +1570,10 @@ func _advance_tutorial_step() -> void:
 		_start_goal_race()
 		return
 	# 完了ステップでは必ずゴールレースから抜ける。抜けないと完了演出の裏で
-	# ゴール判定と物理が動き続けてしまう。
-	game_state = Constants.STATE_PLAYING
+	# ゴール判定と物理が動き続けてしまう。スコアタワーの後は表彰台の演出状態のまま
+	# 完了カードを重ねる（PLAYING に戻すとカメラと選手が走路へ戻ってしまう）。
+	if not result_presentation_active:
+		game_state = Constants.STATE_PLAYING
 	if tutorial_flow.is_final_step():
 		choice_locked = true
 		current_quiz = null
@@ -1711,6 +1743,8 @@ func _complete_tutorial_quiz_step(correct: bool = true) -> void:
 	_advance_tutorial_step()
 
 func reset_to_menu() -> void:
+	reset_net_view()
+	quiz_generation_deferred = false
 	_reset_saw_chase()
 	_reset_health()
 	is_replay = false
@@ -1751,6 +1785,7 @@ func reset_to_menu() -> void:
 	player2_y = 0.0
 	player2_z = 0.0
 	player2_score = 0
+	player2_streak = 0
 	player2_vel_y = 0.0
 	player2_vel_z = 0.0
 	p2_alive = true
@@ -1889,6 +1924,12 @@ func update(dt: float, axis_p1: Vector2 = Vector2.ZERO, axis_p2: Vector2 = Vecto
 	correct_flash = maxf(0.0, correct_flash - dt * 1.5)
 	wrong_flash = maxf(0.0, wrong_flash - dt * 1.2)
 	camera_shake = maxf(0.0, camera_shake - dt * 2.8)
+	local_push.tick_presentation(dt)
+	# のこぎりは 30Hz の値の間を速度で進めて、刃の動きを滑らかにする。
+	if saw.enabled and game_state == Constants.STATE_PLAYING and not saw.stopping:
+		saw.elapsed += dt
+		saw.local_z += saw.velocity * dt
+		saw.wheel_distance += saw.velocity * dt
 	if sudden_death_generation == "generating":
 		_poll_sudden_death_generation()
 
@@ -1910,8 +1951,10 @@ func update(dt: float, axis_p1: Vector2 = Vector2.ZERO, axis_p2: Vector2 = Vecto
 				game_over_timer += dt
 			if num_players >= 2 and not p2_alive and player2_game_over_timer > 0.0:
 				player2_game_over_timer += dt
-			_process_dead_player_physics(dt)
-			_sink_ocean_players(dt)
+			# スコアタワーの後の完了カード中は表彰台の画を止めたままにする。
+			if not result_presentation_active:
+				_process_dead_player_physics(dt)
+				_sink_ocean_players(dt)
 			return
 
 	p1_jump_trigger = false
@@ -1974,6 +2017,9 @@ func update(dt: float, axis_p1: Vector2 = Vector2.ZERO, axis_p2: Vector2 = Vecto
 		return
 
 func _update_preloading(dt: float) -> void:
+	if quiz_generation_deferred:
+		# 問題生成はまだ始めていない（ゲーム画面が開いてから始める）
+		return
 	preload_wait_sec += dt
 	var missing: int
 	if _is_fixed_count_mode():
@@ -2006,9 +2052,6 @@ func _update_preloading(dt: float) -> void:
 
 	if ready and preload_wait_sec >= min_preload_sec:
 		print("[GameState] Preload complete: %d quizzes in %.1fs (mid_game=%s)" % [quiz_list.size(), preload_wait_sec, str(is_mid_game)])
-		if not is_mid_game and not get_slot_units().is_empty():
-			# スロット単元は到着順だと同じ単元が続きやすいので、連続しないように並べ替える
-			quiz_list = BufferedQuizProvider.spread_by_genre(quiz_list)
 		_prepare_quiz_choices()
 		if is_mid_game:
 			# 中盤: PLAYINGに復帰して次の問題を表示
@@ -2049,7 +2092,7 @@ func trigger_start() -> void:
 			# Tutorials begin with their first instruction instead of the normal
 			# challenge-mode course flyover.
 			game_state = Constants.STATE_COUNTDOWN
-			countdown_timer = 3.0
+			countdown_timer = TUTORIAL_COUNTDOWN_SECONDS
 			state_changed.emit(game_state)
 			return
 		game_state = Constants.STATE_FLYOVER
@@ -2070,7 +2113,7 @@ func _update_flyover(dt: float, emote_p1: int = 0, emote_p2: int = 0) -> void:
 	if flyover_timer >= flyover_duration:
 		# フライオーバー完了 → カウントダウンへ
 		game_state = Constants.STATE_COUNTDOWN
-		countdown_timer = 3.99
+		countdown_timer = COUNTDOWN_SECONDS
 		state_changed.emit(game_state)
 
 func _update_countdown(dt: float, emote_p1: int = 0, emote_p2: int = 0) -> void:
@@ -2110,7 +2153,7 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 		and tutorial_flow != null
 		and tutorial_flow.is_input_practice_step()
 		and tutorial_flow.update_input_practice(
-			axis_p1, axis_p2, jump_p1, jump_p2, _emote_p1, _emote_p2, dt
+			axis_p1, axis_p2, jump_p1, jump_p2, tutorial_emote_keys_p1, tutorial_emote_keys_p2, dt
 		)
 	):
 		if tutorial_flow.is_final_step():
@@ -2171,6 +2214,7 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 
 		if p1_jump_allowed and player_y <= 0.0 and is_on_floor:
 			p1_jump_trigger = true
+			p1_jump_count += 1
 			player_vel_y = TWO_PLAYER_JUMP_FORCE if num_players >= 2 else JUMP_FORCE
 
 		player_vel_y -= _jump_gravity(p1_hat, player_y, player_vel_y) * dt
@@ -2220,6 +2264,7 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 
 		if p2_jump_allowed and player2_y <= 0.0 and p2_is_on_floor:
 			p2_jump_trigger = true
+			p2_jump_count += 1
 			player2_vel_y = TWO_PLAYER_JUMP_FORCE if num_players >= 2 else JUMP_FORCE
 
 		player2_vel_y -= _jump_gravity(p2_hat, player2_y, player2_vel_y) * dt
@@ -2657,6 +2702,8 @@ func _update_game_over(dt: float) -> void:
 
 func _reset_result_ceremony_state() -> void:
 	result_presentation_active = false
+	tutorial_ceremony_stage = TutorialCeremonyStage.NONE
+	_tutorial_score_pause_elapsed = 0.0
 	result_ceremony_phase = ResultCeremonyPhase.NONE
 	result_ceremony_phase_elapsed = 0.0
 	result_ceremony_elapsed = 0.0
@@ -2692,10 +2739,73 @@ func uses_local_result_ceremony() -> bool:
 		result_ceremony_enabled
 		and not is_replay
 		and num_players == 2
-		and mode == Constants.MODE_TEN
 		and not is_coop_mode()
-		and not _is_tutorial_mode()
+		and (
+			(mode == Constants.MODE_TEN and not _is_tutorial_mode())
+			or uses_tutorial_result_ceremony()
+		)
 	)
+
+
+## 2Pチュートリアルもゴールの後は本編と同じスコアタワーで勝敗を判定する。
+## コース単位の判定にして、演出のプリウォームもチュートリアルの開始時に済ませる。
+func uses_tutorial_result_ceremony() -> bool:
+	return (
+		result_ceremony_enabled
+		and not is_replay
+		and num_players == 2
+		and is_duo_tutorial()
+		and tutorial_flow.uses_result_ceremony()
+	)
+
+
+func set_tutorial_emote_keys(p1_keys: int, p2_keys: int) -> void:
+	tutorial_emote_keys_p1 = p1_keys
+	tutorial_emote_keys_p2 = p2_keys
+
+
+## スコアタワーの得点が出そろい、計算方法の説明のために止まっているか。
+func is_tutorial_score_pause_active() -> bool:
+	return (
+		result_presentation_active
+		and tutorial_ceremony_stage == TutorialCeremonyStage.SCORE_PAUSE
+	)
+
+
+func get_tutorial_score_pause_elapsed() -> float:
+	return _tutorial_score_pause_elapsed if is_tutorial_score_pause_active() else 0.0
+
+
+func can_resume_tutorial_score_pause() -> bool:
+	return (
+		is_tutorial_score_pause_active()
+		and _tutorial_score_pause_elapsed >= TUTORIAL_SCORE_PAUSE_MIN_SECONDS
+	)
+
+
+## 得点説明を閉じて勝敗発表へ進む。最短表示時間の前は何もしない。
+func resume_tutorial_score_pause() -> bool:
+	if not can_resume_tutorial_score_pause():
+		return false
+	tutorial_ceremony_stage = TutorialCeremonyStage.VERDICT
+	tutorial_ui_revision += 1
+	return true
+
+
+func _begin_tutorial_score_pause() -> void:
+	tutorial_ceremony_stage = TutorialCeremonyStage.SCORE_PAUSE
+	_tutorial_score_pause_elapsed = 0.0
+	message_text = "Scoring" if use_english_ui else "得点の計算"
+	tutorial_ui_revision += 1
+	refresh_status_text()
+
+
+## 勝敗発表まで見せたら、結果ボタン（INTERACTIVE）を出さずに完了ステップへ進む。
+func _finish_tutorial_result_ceremony() -> void:
+	tutorial_ceremony_stage = TutorialCeremonyStage.DONE
+	tutorial_ui_revision += 1
+	if _is_tutorial_mode() and tutorial_flow != null and tutorial_flow.starts_goal_race():
+		_advance_tutorial_step()
 
 
 func has_player_reached_goal(player_index: int) -> bool:
@@ -2924,6 +3034,7 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 
 		if p1_jump_allowed and player_y <= 0.0 and is_on_floor:
 			p1_jump_trigger = true
+			p1_jump_count += 1
 			player_vel_y = TWO_PLAYER_JUMP_FORCE if num_players >= 2 else JUMP_FORCE
 		player_vel_y -= _jump_gravity(p1_hat, player_y, player_vel_y) * dt
 		player_y += player_vel_y * dt
@@ -2957,6 +3068,7 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 
 		if p2_jump_allowed and player2_y <= 0.0 and p2_is_on_floor:
 			p2_jump_trigger = true
+			p2_jump_count += 1
 			player2_vel_y = TWO_PLAYER_JUMP_FORCE if num_players >= 2 else JUMP_FORCE
 		player2_vel_y -= _jump_gravity(p2_hat, player2_y, player2_vel_y) * dt
 		player2_y += player2_vel_y * dt
@@ -2999,11 +3111,21 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 		and player2_z >= goal_z
 	)
 
-	if _is_tutorial_mode() and tutorial_flow != null and tutorial_flow.requires_all_finishers():
-		if _update_tutorial_goal(p1_reached, p2_reached):
-			return
-	elif uses_local_result_ceremony():
+	var tutorial_goal: bool = (
+		_is_tutorial_mode() and tutorial_flow != null and tutorial_flow.requires_all_finishers()
+	)
+	if uses_local_result_ceremony():
+		# 2Pチュートリアルも本編と同じく得点を記録し、全員がそろったらスコアタワーへ進む。
+		if tutorial_goal:
+			_mark_tutorial_goal_arrivals(p1_reached, p2_reached)
 		if _update_local_result_goal(dt, p1_reached, p2_reached):
+			return
+		if tutorial_goal and (p1_reached or p2_reached):
+			# 本編のローカル2Pと同じ待ちの文言（_goal_wait_message）をコーチバーにも出す。
+			tutorial_flow.set_hint(_goal_wait_message(), 3.4)
+	elif tutorial_goal:
+		# スコアタワーを使えないとき（演出の無効化時）は従来どおり完了ステップへ進む。
+		if _update_tutorial_goal(p1_reached, p2_reached):
 			return
 	elif p1_reached or p2_reached or (p1_alive and has_player_reached_goal(1)) or (p2_alive and has_player_reached_goal(2)):
 		# If the other player falls while a finisher waits, retain the legacy
@@ -3077,6 +3199,17 @@ func _update_tutorial_goal(p1_reached: bool, p2_reached: bool) -> bool:
 		tutorial_ui_revision += 1
 		refresh_status_text()
 	return false
+
+
+## 2Pチュートリアルのゴール到着をタスクに反映する。得点の記録とスコアタワーへの
+## 移行は本編と同じ _update_local_result_goal が担い、待ちの文言も本編と同じものを出す。
+func _mark_tutorial_goal_arrivals(p1_reached: bool, p2_reached: bool) -> void:
+	if p1_reached:
+		tutorial_flow.complete_task(1, "goal")
+	if p2_reached:
+		tutorial_flow.complete_task(2, "goal")
+	if p1_reached or p2_reached:
+		tutorial_ui_revision += 1
 
 
 ## Local 2P ten-question finish. Every finalist reaches the podium: living
@@ -3211,8 +3344,16 @@ func _begin_result_ceremony() -> void:
 	result_ceremony_elapsed = 0.0
 	# The sudden death still draws from this round's leftovers.
 	if not _result_round_closed and not sudden_death_pending:
-		provider.end_round()
+		# チュートリアルは出題ラウンドを開いていない（メニューへ戻るときに閉じる）。
+		if not _is_tutorial_mode():
+			provider.end_round()
 		_result_round_closed = true
+	if uses_tutorial_result_ceremony():
+		tutorial_ceremony_stage = TutorialCeremonyStage.ROLLING
+		# ゴーストで表彰台へ向かった人の分もゴールのタスクを閉じる。
+		tutorial_flow.complete_task(1, "goal")
+		tutorial_flow.complete_task(2, "goal")
+		tutorial_ui_revision += 1
 	game_state = Constants.STATE_RESULT_CEREMONY
 	message_text = "Score announcement!" if use_english_ui else "これから得点発表！"
 	_set_result_ceremony_phase(ResultCeremonyPhase.ASSEMBLE)
@@ -3237,6 +3378,11 @@ func _update_result_ceremony(dt: float) -> void:
 	# deliver each crossed boundary, including after a long render frame.
 	if result_return_hold:
 		return
+	if tutorial_ceremony_stage == TutorialCeremonyStage.DONE:
+		return
+	if tutorial_ceremony_stage == TutorialCeremonyStage.SCORE_PAUSE:
+		_tutorial_score_pause_elapsed += maxf(0.0, dt)
+		return
 	var remaining := maxf(0.0, dt)
 	if sudden_death_pending:
 		# A draw branches: the clock holds at the descent while the director takes
@@ -3257,7 +3403,20 @@ func _update_result_ceremony(dt: float) -> void:
 		remaining -= step
 		_update_result_positions()
 		if result_ceremony_phase_elapsed >= duration - 0.0000001:
+			if (
+				result_ceremony_phase == ResultCeremonyPhase.WINNER
+				and tutorial_ceremony_stage != TutorialCeremonyStage.NONE
+			):
+				_finish_tutorial_result_ceremony()
+				return
 			_set_result_ceremony_phase(result_ceremony_phase + 1)
+			if (
+				tutorial_ceremony_stage == TutorialCeremonyStage.ROLLING
+				and result_ceremony_phase == ResultCeremonyPhase.VERDICT
+			):
+				# 得点がちょうど出そろった瞬間で止める（残りのフレーム時間は捨てる）。
+				_begin_tutorial_score_pause()
+				return
 			if result_ceremony_phase == ResultCeremonyPhase.INTERACTIVE:
 				clear_game()
 
@@ -3329,7 +3488,13 @@ const SUDDEN_DEATH_CHOICE_KEYS := {
 }
 
 func uses_sudden_death() -> bool:
-	return sudden_death_available and sudden_death_enabled and uses_local_result_ceremony()
+	# チュートリアルの引き分けはサドンデスへ進まず、そのまま引き分けを見せる。
+	return (
+		sudden_death_available
+		and sudden_death_enabled
+		and uses_local_result_ceremony()
+		and not _is_tutorial_mode()
+	)
 
 
 func is_sudden_death_running() -> bool:
@@ -3740,7 +3905,7 @@ func abort_sudden_death(hold := true) -> bool:
 ## Debug builds only (GameWorld F9): finish a local 2P ten-question round now as
 ## a draw with both runners at the goal, to rehearse the finale and sudden death.
 func debug_force_draw_finish() -> bool:
-	if not uses_local_result_ceremony() or result_presentation_active:
+	if not uses_local_result_ceremony() or _is_tutorial_mode() or result_presentation_active:
 		return false
 	if game_state not in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]:
 		return false
@@ -4176,10 +4341,12 @@ func _register_coop_result(correct: bool, p1_door: int = -1, p2_door: int = -1) 
 		score += 1
 		player2_score += 1
 		current_streak += 1
+		player2_streak = current_streak
 		max_streak = maxi(max_streak, current_streak)
 	else:
 		total_wrong += 1
 		current_streak = 0
+		player2_streak = 0
 	total_answered += 1
 	recent_results.append(correct)
 	if recent_results.size() > 12:
@@ -4648,8 +4815,10 @@ func resolve_collision(p1_hit: bool = false, p2_hit: bool = false) -> void:
 			player2_vel_z = -12.0
 		elif door2 == answer:
 			player2_score += 1
+			player2_streak += 1
 			p2_correct = true
 		else:
+			player2_streak = 0
 			p2_alive = false
 			p2_wall_impact = true
 			player2_game_over_timer = 0.001
@@ -4747,7 +4916,7 @@ func advance_after_correct() -> void:
 ## the deaths play out, GameWorld wipes the screen and the ghosts meet on the
 ## podium (begin_elimination_result_ceremony).
 func _end_round_all_eliminated(msg: String) -> void:
-	if not uses_local_result_ceremony():
+	if not uses_local_result_ceremony() or _is_tutorial_mode():
 		_game_over(msg)
 		return
 	if elimination_result_pending or result_presentation_active:
@@ -5039,8 +5208,154 @@ func refresh_status_text() -> void:
 		]
 
 # ===========================================================================
+# Online view helpers (local_slot)
+# ===========================================================================
+
+func reset_net_view() -> void:
+	local_slot = 1
+	net_authority = true
+	net_online = false
+	_restore_net_cosmetics()
+
+
+## slot は 1/2。skin は PlayerSkin 形式（{} はスロットの標準色）。
+func set_player_skin(slot: int, skin: Dictionary) -> void:
+	var code := PlayerSkin.to_code(skin, slot)
+	var stored := {} if code.is_empty() else PlayerSkin.canonicalize(skin, slot)
+	if slot == 2:
+		p2_skin = stored
+		p2_skin_code = code
+	else:
+		p1_skin = stored
+		p1_skin_code = code
+
+
+func get_player_skin(slot: int) -> Dictionary:
+	return p2_skin if slot == 2 else p1_skin
+
+
+## 体の色はオンライン対戦だけで使う。ソロ・ローカル2人対戦・メニューではスロットの標準色にする。
+## リプレイは記録した時点の見た目（オフラインなら標準色）をそのまま映す。
+func uses_custom_skin_colors() -> bool:
+	return net_online or is_replay
+
+
+## 画面に出す見た目。オンライン対戦以外はスロットの標準色（{}）。
+func get_display_skin(slot: int) -> Dictionary:
+	return get_player_skin(slot) if uses_custom_skin_colors() else {}
+
+
+## 描画側が毎フレーム比べる値（見える色が変わったときだけ塗り直す）。
+func get_display_skin_key(slot: int) -> String:
+	if not uses_custom_skin_colors():
+		return ""
+	return p2_skin_code if slot == 2 else p1_skin_code
+
+
+## コンパクト表記から設定する（"" や不正な値はスロットの標準色）。
+func set_player_skin_code(slot: int, code: String) -> void:
+	set_player_skin(slot, PlayerSkin.from_code(code))
+
+
+## オンライン対戦の見た目を各スロットへ入れる。{slot: {hat, toon, emotes, skin}}。
+## メニューで選んだ自分の見た目は退避しておき、試合後に reset_net_view で戻す。
+func apply_net_cosmetics(slot_profiles: Dictionary) -> void:
+	if _net_cosmetic_backup.is_empty():
+		_net_cosmetic_backup = {
+			"p1_hat": p1_hat, "p2_hat": p2_hat,
+			"p1_toon": p1_toon_preset, "p2_toon": p2_toon_preset,
+			"p1_emotes": p1_emote_slots.duplicate(), "p2_emotes": p2_emote_slots.duplicate(),
+			"p1_skin": p1_skin.duplicate(true), "p2_skin": p2_skin.duplicate(true),
+		}
+	for slot: int in slot_profiles:
+		var profile: Dictionary = slot_profiles[slot]
+		var hat := int(profile.get("hat", 0))
+		if hat < 0 or hat >= HatData.HAT_COUNT:
+			hat = 0
+		var toon := ToonPresets.normalize(int(profile.get("toon", ToonPresets.STANDARD)))
+		var emotes: Array[int] = []
+		for emote in profile.get("emotes", [1, 2, 3]):
+			emotes.append(clampi(int(emote), 0, EmoteData.EMOTE_COUNT - 1))
+		var skin_code: Variant = profile.get("skin", "")
+		set_player_skin_code(slot, skin_code if skin_code is String else "")
+		if slot == 1:
+			p1_hat = hat
+			p1_toon_preset = toon
+			p1_emote_slots = emotes
+		else:
+			p2_hat = hat
+			p2_toon_preset = toon
+			p2_emote_slots = emotes
+
+
+## オンライン対戦の見た目が入っている間は true（試合後 reset_net_view で戻る）。
+func has_net_cosmetics() -> bool:
+	return not _net_cosmetic_backup.is_empty()
+
+
+func _restore_net_cosmetics() -> void:
+	if _net_cosmetic_backup.is_empty():
+		return
+	var b := _net_cosmetic_backup
+	p1_hat = int(b.p1_hat)
+	p2_hat = int(b.p2_hat)
+	p1_toon_preset = int(b.p1_toon)
+	p2_toon_preset = int(b.p2_toon)
+	p1_emote_slots = b.p1_emotes
+	p2_emote_slots = b.p2_emotes
+	set_player_skin(1, b.get("p1_skin", {}))
+	set_player_skin(2, b.get("p2_skin", {}))
+	_net_cosmetic_backup = {}
+
+
+func remote_slot() -> int:
+	return 2 if local_slot == 1 else 1
+
+
+func is_local_slot(slot: int) -> bool:
+	return slot == local_slot
+
+
+## カメラや演出が「主に追う」プレイヤー。自分が生きていれば自分、脱落していれば生存者。
+func view_primary_slot() -> int:
+	if num_players < 2:
+		return 1
+	var local_alive := p1_alive if local_slot == 1 else p2_alive
+	if local_alive:
+		return local_slot
+	var other := remote_slot()
+	var other_alive := p1_alive if other == 1 else p2_alive
+	return other if other_alive else local_slot
+
+
+## HUD に出すプレイヤーの呼び名。オンラインでは「じぶん」と相手のニックネーム。
+func slot_label(slot: int) -> String:
+	if not net_online:
+		return "%dP" % slot
+	if slot == local_slot:
+		return "じぶん"
+	var opponent := NetworkManager.opponent_name
+	return opponent if not opponent.is_empty() else "あいて"
+
+
+# ===========================================================================
 # Network snapshot serialization (used by net_game_state.gd)
 # ===========================================================================
+
+## 1 スロット分の運動状態（ゲストの予測とリコンシリエーションに使う。z はトラック座標）。
+func get_slot_motion(slot: int) -> Dictionary:
+	if slot == 1:
+		return {
+			"x": player_x, "lz": player_z - world_scroll_z, "y": player_y, "vy": player_vel_y,
+			"ex": p1_external_velocity.x, "ez": p1_external_velocity.y,
+			"lock": p1_external_control_lock, "hurt": p1_damage_time,
+		}
+	return {
+		"x": player2_x, "lz": player2_z - world_scroll_z, "y": player2_y, "vy": player2_vel_y,
+		"ex": p2_external_velocity.x, "ez": p2_external_velocity.y,
+		"lock": p2_external_control_lock, "hurt": p2_damage_time,
+	}
+
 
 func to_snapshot() -> Dictionary:
 	"""ホスト側: 現在のゲーム状態をDictionaryにシリアライズ (クライアントに送信用)"""
@@ -5057,6 +5372,9 @@ func to_snapshot() -> Dictionary:
 		"p1y": player_y,
 		"p1z": player_z,
 		"p1vy": player_vel_y,
+		"p1ex": p1_external_velocity.x,
+		"p1ez": p1_external_velocity.y,
+		"p1lk": p1_external_control_lock,
 		"p1a": p1_alive,
 		"p1wi": p1_wall_impact,
 		"p1fc": p1_fall_committed,
@@ -5066,12 +5384,16 @@ func to_snapshot() -> Dictionary:
 		"p1olz": p1_ocean_local_z,
 		"p1e": p1_emote,
 		"p1mb": p1_moving_back,
+		"p1jc": p1_jump_count,
 		"s1": score,
 		# Player 2
 		"p2x": player2_x,
 		"p2y": player2_y,
 		"p2z": player2_z,
 		"p2vy": player2_vel_y,
+		"p2ex": p2_external_velocity.x,
+		"p2ez": p2_external_velocity.y,
+		"p2lk": p2_external_control_lock,
 		"p2a": p2_alive,
 		"p2wi": p2_wall_impact,
 		"p2fc": p2_fall_committed,
@@ -5081,12 +5403,14 @@ func to_snapshot() -> Dictionary:
 		"p2olz": p2_ocean_local_z,
 		"p2e": p2_emote,
 		"p2mb": p2_moving_back,
+		"p2jc": p2_jump_count,
 		"s2": player2_score,
 		# World
 		"ws": world_scroll_z,
 		"wi": current_wall_index,
 		"ci": current_index,
 		"gs": game_state,
+		"cl": choice_locked,
 		# Effects
 		"cf": correct_flash,
 		"wf": wrong_flash,
@@ -5098,37 +5422,66 @@ func to_snapshot() -> Dictionary:
 		"got2": player2_game_over_timer,
 		"mt": message_timer,
 		"ct": countdown_timer,
+		"ft": flyover_timer,
+		"pt": play_time,
 		# Text
 		"msg": message_text,
 		# Goal race
 		"gz": goal_z,
 		"gw": goal_winner,
+		"grm": goal_reached_mask,
 		# Streaks & stats
 		"st": current_streak,
+		"st2": player2_streak,
 		"ms": max_streak,
 		"ta": total_answered,
 		"tw": total_wrong,
 		# Wall speed
 		"aws": _active_wall_speed,
-		# Jump triggers
-		"p1j": p1_jump_trigger,
-		"p2j": p2_jump_trigger,
+		# Saw chase
+		"swe": saw.enabled,
+		"swz": saw.local_z,
+		"swt": saw.elapsed,
+		"swd": saw.wheel_distance,
+		"swv": saw.velocity,
+		"sws": saw.stopping,
+		"swse": saw.stop_elapsed,
+		"sk1": p1_saw_killed,
+		"sk2": p2_saw_killed,
+		# Push duel presentation (the duel itself only runs on the host)
+		"lpt": local_push.time,
+		"lp": local_push.to_net(),
 	}
 
 
-func apply_snapshot(data: Dictionary) -> void:
-	"""クライアント側: 受信したスナップショットをローカル状態に適用"""
+## クライアント側: 受信したスナップショットをローカル状態に適用する。
+## skip_positions のときは位置（x/y/z/速度/スクロール）を書き換えない。ゲストの
+## NetGameState が予測・補間した位置を描画用に書き込むため。
+func apply_snapshot(data: Dictionary, skip_positions: bool = false) -> void:
 	hp_state_available = bool(data.get("hp_enabled", false)) and int(data.get("hp_version", 0)) >= 1
-	_set_player_hp(1, int(data.get("hp1", MAX_HP)))
-	_set_player_hp(2, int(data.get("hp2", MAX_HP)))
-	p1_damage_time = float(data.get("hurt1", 0.0))
-	p2_damage_time = float(data.get("hurt2", 0.0))
-	hp_questions_completed = int(data.get("hp_completed", 0))
-	# Player 1
-	player_x = data.get("p1x", player_x)
-	player_y = data.get("p1y", player_y)
-	player_z = data.get("p1z", player_z)
-	player_vel_y = data.get("p1vy", player_vel_y)
+	_set_player_hp(1, int(data.get("hp1", p1_hp)))
+	_set_player_hp(2, int(data.get("hp2", p2_hp)))
+	p1_damage_time = float(data.get("hurt1", p1_damage_time))
+	p2_damage_time = float(data.get("hurt2", p2_damage_time))
+	hp_questions_completed = int(data.get("hp_completed", hp_questions_completed))
+	if not skip_positions:
+		player_x = data.get("p1x", player_x)
+		player_y = data.get("p1y", player_y)
+		player_z = data.get("p1z", player_z)
+		player_vel_y = data.get("p1vy", player_vel_y)
+		player2_x = data.get("p2x", player2_x)
+		player2_y = data.get("p2y", player2_y)
+		player2_z = data.get("p2z", player2_z)
+		player2_vel_y = data.get("p2vy", player2_vel_y)
+		world_scroll_z = data.get("ws", world_scroll_z)
+		p1_jump_trigger = int(data.get("p1jc", p1_jump_count)) != p1_jump_count
+		p2_jump_trigger = int(data.get("p2jc", p2_jump_count)) != p2_jump_count
+		p1_jump_count = int(data.get("p1jc", p1_jump_count))
+		p2_jump_count = int(data.get("p2jc", p2_jump_count))
+	p1_external_velocity = Vector2(float(data.get("p1ex", p1_external_velocity.x)), float(data.get("p1ez", p1_external_velocity.y)))
+	p2_external_velocity = Vector2(float(data.get("p2ex", p2_external_velocity.x)), float(data.get("p2ez", p2_external_velocity.y)))
+	p1_external_control_lock = float(data.get("p1lk", p1_external_control_lock))
+	p2_external_control_lock = float(data.get("p2lk", p2_external_control_lock))
 	p1_alive = data.get("p1a", p1_alive)
 	p1_wall_impact = data.get("p1wi", p1_wall_impact)
 	p1_fall_committed = data.get("p1fc", p1_fall_committed)
@@ -5139,11 +5492,6 @@ func apply_snapshot(data: Dictionary) -> void:
 	p1_emote = data.get("p1e", p1_emote)
 	p1_moving_back = data.get("p1mb", p1_moving_back)
 	score = int(data.get("s1", score))
-	# Player 2
-	player2_x = data.get("p2x", player2_x)
-	player2_y = data.get("p2y", player2_y)
-	player2_z = data.get("p2z", player2_z)
-	player2_vel_y = data.get("p2vy", player2_vel_y)
 	p2_alive = data.get("p2a", p2_alive)
 	p2_wall_impact = data.get("p2wi", p2_wall_impact)
 	p2_fall_committed = data.get("p2fc", p2_fall_committed)
@@ -5155,9 +5503,9 @@ func apply_snapshot(data: Dictionary) -> void:
 	p2_moving_back = data.get("p2mb", p2_moving_back)
 	player2_score = int(data.get("s2", player2_score))
 	# World
-	world_scroll_z = data.get("ws", world_scroll_z)
 	current_wall_index = int(data.get("wi", current_wall_index))
 	current_index = int(data.get("ci", current_index))
+	choice_locked = bool(data.get("cl", choice_locked))
 	var new_state: String = data.get("gs", game_state)
 	# 旧クライアント由来の専用エラー状態も画面へ出さず、オンライン待機へ戻す。
 	if new_state == "ONLINE_QUIZ_ERROR":
@@ -5166,10 +5514,10 @@ func apply_snapshot(data: Dictionary) -> void:
 		game_state = new_state
 		refresh_status_text()
 		state_changed.emit(new_state)
-	# Effects
-	correct_flash = data.get("cf", correct_flash)
-	wrong_flash = data.get("wf", wrong_flash)
-	camera_shake = data.get("cs", camera_shake)
+	# Effects: ゲストは自分のフレームで減衰させ、新しい演出（値の跳ね上がり）だけ取り込む。
+	correct_flash = _net_effect(correct_flash, data, "cf")
+	wrong_flash = _net_effect(wrong_flash, data, "wf")
+	camera_shake = _net_effect(camera_shake, data, "cs")
 	camera_yaw = data.get("cy", camera_yaw)
 	camera_pitch = data.get("cp", camera_pitch)
 	# Timers
@@ -5177,18 +5525,52 @@ func apply_snapshot(data: Dictionary) -> void:
 	player2_game_over_timer = data.get("got2", player2_game_over_timer)
 	message_timer = data.get("mt", message_timer)
 	countdown_timer = data.get("ct", countdown_timer)
+	flyover_timer = data.get("ft", flyover_timer)
+	play_time = data.get("pt", play_time)
 	# Text
 	message_text = data.get("msg", message_text)
 	# Goal race
 	goal_z = data.get("gz", goal_z)
 	goal_winner = int(data.get("gw", goal_winner))
+	goal_reached_mask = int(data.get("grm", goal_reached_mask))
 	# Streaks & stats
 	current_streak = int(data.get("st", current_streak))
+	player2_streak = int(data.get("st2", player2_streak))
 	max_streak = int(data.get("ms", max_streak))
 	total_answered = int(data.get("ta", total_answered))
 	total_wrong = int(data.get("tw", total_wrong))
 	# Wall speed
 	_active_wall_speed = data.get("aws", _active_wall_speed)
-	# Jump triggers
-	p1_jump_trigger = data.get("p1j", p1_jump_trigger)
-	p2_jump_trigger = data.get("p2j", p2_jump_trigger)
+	# Saw chase
+	saw.enabled = bool(data.get("swe", saw.enabled))
+	saw.local_z = float(data.get("swz", saw.local_z))
+	saw.elapsed = float(data.get("swt", saw.elapsed))
+	saw.wheel_distance = float(data.get("swd", saw.wheel_distance))
+	saw.velocity = float(data.get("swv", saw.velocity))
+	saw.stopping = bool(data.get("sws", saw.stopping))
+	saw.stop_elapsed = float(data.get("swse", saw.stop_elapsed))
+	for slot in [1, 2]:
+		var killed := bool(data.get("sk%d" % slot, p1_saw_killed if slot == 1 else p2_saw_killed))
+		var was := p1_saw_killed if slot == 1 else p2_saw_killed
+		if slot == 1:
+			p1_saw_killed = killed
+		else:
+			p2_saw_killed = killed
+		if killed and not was:
+			player_caught_by_saw.emit(slot)
+	if data.has("lp"):
+		local_push.apply_net(data["lp"], float(data.get("lpt", local_push.time)))
+
+
+func _net_effect(current: float, data: Dictionary, key: String) -> float:
+	if not data.has(key):
+		return current
+	var incoming := float(data[key])
+	return incoming if incoming > current + 0.05 else current
+
+
+## ゲスト: ホストが進める時間演出（フラッシュ・揺れ）を自分のフレームで減衰させる。
+func client_tick(dt: float) -> void:
+	correct_flash = maxf(0.0, correct_flash - dt * 1.5)
+	wrong_flash = maxf(0.0, wrong_flash - dt * 1.2)
+	camera_shake = maxf(0.0, camera_shake - dt * 2.8)

@@ -49,6 +49,7 @@ const SUDDEN_DEATH_OFF := 1
 var game_state: QuizGameState
 var _tutorial_row: HBoxContainer = null
 var _tutorial_main_btn: Button = null
+var _online_btn: Button = null
 var _tutorial_selector: Control = null
 var _tutorial_keyboard_intro: Control = null
 
@@ -56,6 +57,11 @@ const SHOW_COOP_MODE := false
 const GAME_WORLD_SCENE: PackedScene = preload("res://scenes/game_world.tscn")
 const CUSTOMIZE_SETTINGS_SCENE: PackedScene = preload("res://ui/customize_settings.tscn")
 const MenuWallBackgroundPreviewScene := preload("res://scripts/ui/menu_wall_background_preview.gd")
+## ゲームのロゴ（tools/logo_editor の「保存して反映」で作り直される）
+const TITLE_LOGO: Texture2D = preload("res://assets/ui/branding/aiquiz_logo.png")
+const TITLE_LOGO_HEIGHT := 56.0
+## 起動して最初のメニューだけ、タイトルの登場演出を見せる（QuizManager のメタで覚える）
+const TITLE_LOGO_INTRO_SEEN_META := "title_logo_intro_seen"
 
 # --- 推移アニメーション設定 ---
 const ANIM_SLIDE_OFFSET := 56.0
@@ -79,6 +85,8 @@ var _customize_tutorial_completion_showing: bool = false
 var _tutorial_completion_previous_mouse_mode: int = Input.MOUSE_MODE_VISIBLE
 var _tutorial_completion_mouse_mode_saved: bool = false
 var _heli_skip_hint: Control = null
+## タイトルの登場演出（2D のベルトコンベア。見せないときは null）
+var _title_logo_intro: TitleLogoIntro = null
 var _heli_departure_skippable: bool = false
 var _heli_departure_skip_requested: bool = false
 
@@ -88,7 +96,14 @@ var _step_indicator_bright_sky: bool = false
 
 func _ready() -> void:
 	GraphicsQuality.reset_window_3d_quality(get_viewport())
+	# ゲーム開始ボタンだけ、通常のクリック音ではなく決定音（ui_start）を鳴らす。
+	start_button.set_meta(AudioManager.UI_SOUND_META, &"ui_start")
+	# メニュー画面では UI 以外の効果音（チェンソー、ヘリ、壁、爆散など）を鳴らさない。
+	AudioManager.set_menu_sfx_muted(self, true)
 	game_state = QuizManager.game_state
+	# リプレイは保存時の見た目でゲーム状態を上書きするので、メニューでは保存済みの自分の見た目へ戻す。
+	if not game_state.has_net_cosmetics():
+		PlayerSkinStore.apply_to_state(game_state)
 	_pending_customize_tutorial_on_ready = game_state.has_pending_solo_customize_tour()
 	_hide_coop_mode_if_disabled()
 	game_state.game_state = Constants.STATE_MENU
@@ -98,8 +113,10 @@ func _ready() -> void:
 	_setup_helicopter_skip_hint()
 	_enhance_title()
 	_apply_menu_text_shadows()
+	_apply_title_logo()
 	_setup_step_indicator()
 	_setup_menu_exit_targets()
+	_setup_title_logo_intro()
 	_setup_embedded_customize()
 	_reset_menu_visual_state()
 
@@ -157,6 +174,7 @@ func _ready() -> void:
 	else:
 		SceneTransition.reveal_current()
 		_play_initial_entrance()
+		_start_title_logo_intro()
 		if GameManager.should_show_tutorial_on_start():
 			call_deferred("_start_first_run_tutorial")
 
@@ -243,6 +261,9 @@ func _skip_menu_helicopter_departure() -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if _title_logo_intro != null and _title_logo_intro.is_running() and _is_title_logo_skip_event(event):
+		# 押したものはそのまま届ける（ボタンも効く）。演出は早送りで終わらせる
+		_title_logo_intro.fast_forward()
 	if not _heli_departure_skippable:
 		return
 	if not _is_space_skip_event(event):
@@ -316,6 +337,89 @@ func _enhance_title() -> void:
 	accent.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	menu_vbox.add_child(accent)
 	menu_vbox.move_child(accent, insert_idx)
+
+## タイトルの「AIQUIZ」の文字を、ゲームのロゴの画像に置き換える（ロゴは tools/logo_editor で編集する）。
+## 文字のラベルは隠して残す（影やアクセントバーの位置の基準のまま）
+func _apply_title_logo() -> void:
+	if not is_instance_valid(title_label) or title_label.get_parent().has_node("TitleLogo"):
+		return
+	var height := TITLE_LOGO_HEIGHT
+	var logo_size := Vector2(height * TITLE_LOGO.get_width() / TITLE_LOGO.get_height(), height)
+	var holder := Control.new()
+	holder.name = "TitleLogo"
+	holder.custom_minimum_size = logo_size
+	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	holder.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	# 背景の 3D に負けないよう、文字のときと同じく右下へ影を落とす
+	for layer in [[Vector2(3, 3), Color(0, 0, 0, 0.75)], [Vector2.ZERO, Color.WHITE]]:
+		var rect := TextureRect.new()
+		rect.texture = TITLE_LOGO
+		rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		rect.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+		rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		rect.position = layer[0]
+		rect.size = logo_size
+		rect.modulate = layer[1]
+		holder.add_child(rect)
+	var row := title_label.get_parent()
+	row.add_child(holder)
+	row.move_child(holder, title_label.get_index())
+	title_label.visible = false
+
+## タイトルの登場演出（scripts/ui/title_logo/title_logo_intro.gd）。起動して最初のメニューだけ。
+## 2D のロゴの画像はメニューが見える前から隠し（ロード画面が消えるときにロゴが一瞬見えないように）、
+## 黄色い線は演出が始まるまで本物を見せる（演出は同じ場所・同じ色の線から始まる）。
+func _setup_title_logo_intro() -> void:
+	if _pending_customize_tutorial_on_ready or QuizManager.has_meta(TITLE_LOGO_INTRO_SEEN_META):
+		return
+	var holder := _title_logo_holder()
+	var accent := menu_vbox.get_node_or_null("TitleAccentBar") as CanvasItem
+	if holder == null or accent == null:
+		return
+	var layers: Array[CanvasItem] = []
+	for child: Node in holder.get_children():
+		if child is TextureRect:
+			layers.append(child as CanvasItem)
+	var intro := TitleLogoIntro.new()
+	holder.add_child(intro)
+	if not intro.setup(holder.custom_minimum_size, layers, accent):
+		intro.queue_free()
+		return
+	_title_logo_intro = intro
+	for layer: CanvasItem in layers:
+		layer.visible = false
+
+
+func _start_title_logo_intro() -> void:
+	if _title_logo_intro == null or _title_logo_intro.is_running():
+		return
+	QuizManager.set_meta(TITLE_LOGO_INTRO_SEEN_META, true)
+	var holder := _title_logo_holder()
+	var row := holder.get_parent() as Control
+	var accent := menu_vbox.get_node_or_null("TitleAccentBar") as Control
+	# 黄色い線は VBox で TitleRow の下、左端は TitleLogo と同じ（入場の横すべりは x だけを動かす）
+	var bar_y := accent.position.y - row.position.y - holder.position.y
+	_title_logo_intro.start(Rect2(Vector2(0.0, bar_y), accent.size))
+
+
+func _title_logo_holder() -> Control:
+	if not is_instance_valid(title_label):
+		return null
+	return title_label.get_parent().get_node_or_null("TitleLogo") as Control
+
+
+func _is_title_logo_skip_event(event: InputEvent) -> bool:
+	if event is InputEventKey:
+		var key := event as InputEventKey
+		return key.pressed and not key.echo and not (OS.is_debug_build() and key.keycode in [KEY_PAGEUP, KEY_PAGEDOWN, KEY_END])
+	if event is InputEventMouseButton:
+		return (event as InputEventMouseButton).pressed
+	if event is InputEventJoypadButton:
+		return (event as InputEventJoypadButton).pressed
+	if event is InputEventScreenTouch:
+		return (event as InputEventScreenTouch).pressed
+	return false
 
 ## ③ 文字影: 背景に負けないようメニュー内ラベルへ影を付ける
 func _apply_menu_text_shadows() -> void:
@@ -468,12 +572,13 @@ func _open_embedded_customize() -> void:
 	_menu_exit_in_progress = true
 	_set_all_buttons_disabled(true)
 	settings_panel.visible = false
+	# 先に一括で操作可能へ戻してから開く（開く処理が付けた「選択中タブ」の無効表示を消さないため）。
+	_set_buttons_disabled_in(_embedded_customize, false)
 	if _embedded_customize.has_method("prepare_embedded_open"):
 		_embedded_customize.call("prepare_embedded_open")
 	_embedded_customize.visible = true
 	_embedded_customize.mouse_filter = Control.MOUSE_FILTER_STOP
 	_embedded_customize.modulate.a = 0.0
-	_set_buttons_disabled_in(_embedded_customize, false)
 
 	var tw := create_tween()
 	tw.set_parallel(true)
@@ -786,7 +891,11 @@ func _begin_scene_change(
 ) -> void:
 	await get_tree().process_frame
 	var show_loading_character: bool = path.ends_with("game_world.tscn")
-	await SceneTransition.fade_to_color_and_wait(Color.BLACK, show_loading_character)
+	var wipe_style := (
+		SceneTransition.WipeStyle.DATA if path == OnlineMenu.SCENE_PATH
+		else SceneTransition.WipeStyle.CIRCLE
+	)
+	await SceneTransition.fade_to_color_and_wait(Color.BLACK, show_loading_character, wipe_style)
 	if not is_inside_tree():
 		return
 	if _heli_departure_skip_requested:
@@ -811,6 +920,7 @@ func _set_all_buttons_disabled(disabled: bool) -> void:
 
 
 func _exit_tree() -> void:
+	AudioManager.set_menu_sfx_muted(self, false)
 	_restore_tutorial_completion_mouse_mode()
 
 
@@ -915,7 +1025,8 @@ func _ensure_tutorial_button() -> void:
 	_tutorial_row = HBoxContainer.new()
 	_tutorial_row.name = "TutorialRow"
 	_tutorial_row.alignment = BoxContainer.ALIGNMENT_BEGIN
-	_tutorial_row.add_theme_constant_override("separation", 12)
+	# 上の ModeButtons と同じ間隔にして、オンライン対戦をエンドレスの真下にそろえる。
+	_tutorial_row.add_theme_constant_override("separation", 20)
 	mode_container.add_child(_tutorial_row)
 
 	# 初回起動時と同じコース選択オーバーレイを開く
@@ -927,6 +1038,18 @@ func _ensure_tutorial_button() -> void:
 	_tutorial_main_btn.add_theme_font_size_override("font_size", 18)
 	_tutorial_main_btn.pressed.connect(_on_tutorial_pressed)
 	_tutorial_row.add_child(_tutorial_main_btn)
+
+	# オンライン対戦は設定画面を通らず、専用のオンラインメニュー画面へ直接進む。
+	_online_btn = MenuMetalButtonScript.new()
+	(_online_btn as MenuMetalButton).compact = true
+	(_online_btn as MenuMetalButton).accent = OnlineMenuStyle.ACCENT_ONLINE
+	_online_btn.name = "OnlineVersusBtn"
+	_online_btn.text = "オンライン対戦"
+	_online_btn.custom_minimum_size = Vector2(260, 52)
+	_online_btn.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	_online_btn.add_theme_font_size_override("font_size", 18)
+	_online_btn.pressed.connect(_on_online_pressed)
+	_tutorial_row.add_child(_online_btn)
 
 
 func _ensure_tutorial_selector() -> void:
@@ -1015,13 +1138,10 @@ func _update_ui() -> void:
 		var p_text: String
 		if game_state.num_players == 1:
 			p_text = "1人プレイ"
-		elif game_state.num_players == 2:
-			if game_state.mode == Constants.MODE_COOP:
-				p_text = "2人協力"
-			else:
-				p_text = "2人プレイ"
+		elif game_state.mode == Constants.MODE_COOP:
+			p_text = "2人協力"
 		else:
-			p_text = "オンライン対戦"
+			p_text = "2人プレイ"
 		players_btn.text = p_text
 
 		# エンドレスモードはオフライン問題のみ対応（オンラインAI生成は選択不可）
@@ -1098,33 +1218,25 @@ func _set_llm_toggle_locked_style(locked: bool) -> void:
 		llm_toggle_btn.remove_theme_color_override("font_disabled_color")
 		llm_toggle_btn.modulate = Color(1, 1, 1, 1)
 
+## オンライン対戦はモード選択の専用ボタンへ移したので、ここは 1人 / 2人（ローカル）だけを回す。
 func _on_players_toggle_pressed() -> void:
 	if not SHOW_COOP_MODE:
 		if game_state.mode == Constants.MODE_COOP:
 			game_state.mode = Constants.MODE_TEN
-		if game_state.num_players == 1:
-			game_state.num_players = 2
-		elif game_state.num_players == 2:
-			game_state.num_players = 3
-		else:
-			game_state.num_players = 1
+		game_state.num_players = 2 if game_state.num_players == 1 else 1
 		_update_ui()
 		return
 
-	# 1人 → 2人(ローカル) → 2人協力 → オンライン対戦 のサイクル
+	# 1人 → 2人(ローカル) → 2人協力 のサイクル
 	if game_state.num_players == 1:
 		game_state.num_players = 2
 		if game_state.mode == Constants.MODE_COOP:
 			game_state.mode = Constants.MODE_TEN
-	elif game_state.num_players == 2 and game_state.mode != Constants.MODE_COOP:
+	elif game_state.mode != Constants.MODE_COOP:
 		game_state.mode = Constants.MODE_COOP
-	elif game_state.num_players == 2 and game_state.mode == Constants.MODE_COOP:
-		game_state.num_players = 3
-		game_state.mode = Constants.MODE_TEN
 	else:
 		game_state.num_players = 1
-		if game_state.mode == Constants.MODE_COOP:
-			game_state.mode = Constants.MODE_TEN
+		game_state.mode = Constants.MODE_TEN
 	_update_ui()
 
 func _on_customize_pressed() -> void:
@@ -1132,6 +1244,12 @@ func _on_customize_pressed() -> void:
 
 func _on_tutorial_pressed() -> void:
 	_show_tutorial_selector()
+
+
+func _on_online_pressed() -> void:
+	if _menu_exit_in_progress:
+		return
+	_play_exit_and_change_scene(OnlineMenu.SCENE_PATH)
 
 func _on_prev_grade_pressed() -> void:
 	_request_config_shift(&"grade", -1)
@@ -1225,15 +1343,8 @@ func _on_start_pressed() -> void:
 		return
 
 	_hide_coop_mode_if_disabled()
-	var open_online_lobby: bool = game_state.num_players == 3
 	if game_state.mode == Constants.MODE_COOP:
 		game_state.num_players = 2
-
-	if open_online_lobby:
-		# オンライン対戦: ロビー画面へ
-		game_state.num_players = 2  # 実際のプレイは2人
-		get_tree().change_scene_to_file("res://ui/online_lobby.tscn")
-		return
 	_go_to_game(true)
 
 func _hide_coop_mode_if_disabled() -> void:

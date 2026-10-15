@@ -9,8 +9,11 @@ on both players until the existing physical floor-contact detection fires.
   all 46 avatar mapping entries resolve.
 - Dedicated animation slot 26; existing emote and UAL slot numbers are unchanged.
 - Each player's flight elapsed time independently samples the loop.
-- Blend from the release pose over 0.15 seconds and into the existing `Jump_Land`
-  over 0.12 seconds. The original `Idle_Loop` follows landing.
+- Blend from the rope-ladder hang pose over 0.5 seconds (fingers open over
+  0.24 seconds) and into the existing `Jump_Land` over 0.12 seconds. The original
+  `Idle_Loop` follows landing. The hang IK and the clip differ by ~170 degrees per
+  arm, mostly roll, so the release blend unwinds bone direction (swing) and roll
+  (twist) separately instead of slerping the arm through the torso.
 - The existing ragdoll still owns flight position, gravity, CCD and floor contacts.
   Its mesh is hidden during the animated flight; the regular avatar follows its
   torso. Hats follow the regular head. No helicopter trajectory or physics tuning
@@ -51,3 +54,16 @@ Run with the project's Godot executable:
 ```
 
 Add `--baseline` to disable only the new animation slot for the physical fallback.
+
+## Rope release (2026-10-12)
+
+`tests/ladder_release_bootstrap.gd` follows the same Start route and measures the
+largest joint angular speed from the last hang frame into Falling Idle, with
+close-ups in `artifacts/ladder_release/`. The previous 0.15 second swap peaked at
+~1800 deg/s on the shoulders (Falling Idle fully reached two frames after letting
+go); the swing/twist blend peaks at ~550 deg/s for both players. The test fails
+above 800 deg/s.
+
+```text
+--path C:/AIQUIZ/AIQUIZ-Godot --script res://tests/ladder_release_bootstrap.gd -- --players=2 --fps=60
+```

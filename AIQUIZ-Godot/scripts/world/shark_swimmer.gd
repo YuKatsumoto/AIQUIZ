@@ -5,6 +5,8 @@ signal attack_reached(player_index: int)
 signal attack_phase_changed(player_index: int, attack_phase: int)
 signal ghost_charge_finished()
 signal ghost_mount_beam_fired(beam_index: int)
+## The ghost shark's rendezvous ascent broke the ocean surface (the breach splash starts).
+signal ghost_breached()
 
 ## AIQUIZ-UE から移植したサメを、通常時は滑らかに回遊させ、
 ## 落水時はステージを避ける経路でプレイヤーへ急行させる。
@@ -2052,6 +2054,7 @@ func _trigger_ghost_breach() -> void:
 		_ghost_breach_ring.scale = Vector3.ONE * 0.42
 		_ghost_breach_ring.visible = true
 		_ghost_breach_ring_elapsed = 0.0
+	ghost_breached.emit()
 
 
 func _update_ghost_breach_effect(delta: float) -> void:

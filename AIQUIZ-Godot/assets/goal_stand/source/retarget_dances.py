@@ -30,7 +30,10 @@ MAP = {
 }
 DRIFT_WINDOW = 45        # frames (1.5 s) of hip travel averaged away
 DRIFT_LIMIT = 0.16       # metres of remaining sway allowed on a step
-MAX_FRAMES = 16 * 30
+## The Mixamo FBX are 60 fps (Godot plays YMCA in 4.5 s), the crowd clips 30 fps:
+## every second source frame becomes one crowd frame, so a dance keeps its real
+## length and the crowd can dance in step with the winner (GoalStand B5).
+SOURCE_STEP = 2
 
 
 def _import(fbx_name):
@@ -59,24 +62,28 @@ def _bone_map(arm):
     return found
 
 
-def retarget(fbx_name, action_name, start=None, end=None):
+def _sample(fbx_name, last_part):
+    """World rotations from rest and scaled hip travel of one FBX, every
+    SOURCE_STEP frames. A part followed by another drops its closing sample, so
+    the parts join on the same timeline Godot plays them on."""
     sc = G.scene()
-    rig = P.RIG
     arm, src_action, imported = _import(fbx_name)
     names = _bone_map(arm)
     first, last = (int(v) for v in src_action.frame_range)
-    if start is not None:
-        first = max(first, start)
-    if end is not None:
-        last = min(last, end)
-    last = min(last, first + MAX_FRAMES)
     rest_src = {s: (arm.matrix_world @ arm.data.bones[n].matrix_local) for s, n in names.items()}
     rest_q = {s: m.to_quaternion() for s, m in rest_src.items()}
     hips_rest = rest_src["Hips"].translation
     scale = P.head("pelvis").z / hips_rest.z
     rotations = []
     hips = []
-    for frame in range(first, last + 1):
+    frames = list(range(first, last + 1, SOURCE_STEP))
+    if frames[-1] != last:
+        frames.append(last)
+    if not last_part:
+        frames = frames[:-1]
+    # The importer switches the scene to the FBX rate: Godot plays span / rate seconds.
+    source_seconds = (last - first) / float(sc.render.fps)
+    for frame in frames:
         sc.frame_set(frame)
         pose = {}
         for short, name in names.items():
@@ -85,6 +92,33 @@ def retarget(fbx_name, action_name, start=None, end=None):
             if short == "Hips":
                 hips.append((m.translation - hips_rest) * scale)
         rotations.append(pose)
+    # Drop the probe import (armature + its imported actions).
+    data = arm.data
+    bpy.data.objects.remove(arm, do_unlink=True)
+    if data.users == 0:
+        bpy.data.armatures.remove(data)
+    for act in imported:
+        # The FBX importer keeps its actions with a fake user; they are only a
+        # source here and would bloat the .blend by ~170 MB.
+        act.use_fake_user = False
+        if act.users == 0:
+            bpy.data.actions.remove(act)
+    return rotations, hips, len(names), scale, source_seconds
+
+
+def retarget(fbx_names, action_name):
+    """`fbx_names`: one FBX, or several played back to back (Thriller's parts)."""
+    rig = P.RIG
+    if isinstance(fbx_names, str):
+        fbx_names = [fbx_names]
+    rotations = []
+    hips = []
+    source_seconds = 0.0
+    for index, fbx_name in enumerate(fbx_names):
+        part_rotations, part_hips, bone_count, scale, part_seconds = _sample(fbx_name, index == len(fbx_names) - 1)
+        rotations += part_rotations
+        hips += part_hips
+        source_seconds += part_seconds
     # Remove slow travel, keep sway: subtract a centred moving average, then clamp.
     n = len(hips)
     cleaned = []
@@ -106,15 +140,10 @@ def retarget(fbx_name, action_name, start=None, end=None):
     action = G.new_action(action_name, rig)
     curves = G.ensure_fcurves(action, rig, P.ORDER, with_location=("pelvis",))
     G.write_keys(curves, samples)
+    # Godot's length of the emote itself; the crowd loops on it (CrowdCues.dance_time).
+    action["source_seconds"] = round(source_seconds, 4)
     rig.animation_data.action = None
-    # Drop the probe import (armature + its imported actions).
-    data = arm.data
-    bpy.data.objects.remove(arm, do_unlink=True)
-    if data.users == 0:
-        bpy.data.armatures.remove(data)
-    for act in imported:
-        if act.users == 0:
-            bpy.data.actions.remove(act)
     lowest = min(min(s["pelvis"][1].z for s in samples), 0.0)
-    return {"action": action_name, "frames": len(samples), "seconds": round(len(samples) / G.FPS, 2),
-            "bones": len(names), "hip_scale": round(scale, 3), "pelvis_min_dz": round(lowest, 3)}
+    return {"action": action_name, "frames": len(samples), "seconds": round((len(samples) - 1) / G.FPS, 3),
+            "source_seconds": round(source_seconds, 4),
+            "bones": bone_count, "hip_scale": round(scale, 3), "pelvis_min_dz": round(lowest, 3)}

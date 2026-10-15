@@ -68,6 +68,9 @@ func start_recording(gs: QuizGameState) -> void:
 		"p2_hat": gs.p2_hat,
 		"p1_toon_preset": ToonPresets.normalize(gs.p1_toon_preset),
 		"p2_toon_preset": ToonPresets.normalize(gs.p2_toon_preset),
+		# 試合で見えていた色（ローカル2人対戦なら あたまは標準色）をそのまま残す
+		"p1_skin": PlayerSkin.to_code(gs.get_display_skin(1), 1),
+		"p2_skin": PlayerSkin.to_code(gs.get_display_skin(2), 2),
 		"timestamp": int(Time.get_unix_time_from_system()),
 		"version": 4,
 		"hp_enabled": gs.uses_hp(),

@@ -68,7 +68,6 @@ func configure(model: Dictionary, duo: bool = false) -> void:
 	for task: Dictionary in _tasks:
 		for key_id: String in _task_key_ids(task):
 			# Keep the first unfinished action when stages share one key.
-			# In push practice, holding/brace precedes release-and-push.
 			var previous: Dictionary = _highlights.get(key_id, {})
 			if previous.is_empty() or (bool(previous.get("done", false)) and not bool(task.get("done", false))):
 				_highlights[key_id] = task
@@ -76,9 +75,8 @@ func configure(model: Dictionary, duo: bool = false) -> void:
 			_focus = task
 	var supplied_focus: Dictionary = model.get("focus_task", {})
 	if not supplied_focus.is_empty():
-		# game_state can refresh a push direction in players.tasks after the flow
-		# produced focus_task. Resolve identity against the current tasks so the
-		# illustrated key always follows the current runtime direction.
+		# Resolve focus_task identity against the current tasks so the
+		# illustrated key always follows the latest task data.
 		for task: Dictionary in _tasks:
 			if str(task.get("id", "")) != str(supplied_focus.get("id", "")):
 				continue

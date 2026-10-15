@@ -1,0 +1,423 @@
+class_name OnlineHeliportStage
+extends Node3D
+
+## オンライン対戦メニュー（OnlineMenu）の 3D 背景「海上ヘリポート」v2：パッド 1 つと乗り込めるヘリ。
+## 部品は Blender のビルダー（assets/online_heliport/source/blender/build_online_heliport.py）が書き出した GLB と
+## 配置 JSON（パッド・ヘリの置き場所と向き・吹き流し・街）。空・太陽・天気・海・空気感はゲームと同じもの
+## （StageEnvironment の部品）、遠くの街はメインメニューの街（AiquizMenuStage）を JSON の位置へ置き直して使う。
+##
+## この舞台は「物」と「道具」だけを持つ。いつ何をどう動かすか（乗り込み → 離陸 → 検索中の飛行 → 合流 → 並走）は
+## マッチング演出の監督（OnlineStagingDirector、仕様書 docs/online_match_staging/spec.md）が決める。
+##   pad_ground          パッドに止めたヘリの「ヘリの座標（H）」のワールドの Transform3D
+##   my_heli / their_heli 自分と相手のヘリ（OnlineHeliportHelicopter、原点は H）
+##   me() / them()       自分と相手のキャラ（StagingPuppet）。色はスロット（1＝オレンジ、2＝ブルー）で決まり、
+##                       set_my_slot でゲストを 2 にすると、自分のキャラ・ヘリがブルーに替わる（D5）
+##   set_flow / advance_flow  原点を動かさない飛行：ヘリポートと街を隠し、海と雲を後ろへ流す（D14）
+
+const HELIPORT_SCENE := "res://assets/online_heliport/online_heliport.glb"
+const LAYOUT_PATH := "res://assets/online_heliport/online_heliport_layout.json"
+const LAMP_SHADER: Shader = preload("res://shaders/online_heliport_lamp.gdshader")
+const FLAG_SHADER: Shader = preload("res://shaders/online_heliport_flag.gdshader")
+const SPLASH_SHADER: Shader = preload("res://shaders/online_staging_splash.gdshader")
+const StadiumMaterials = preload("res://scripts/world/aiquiz_stadium/aiquiz_stadium_materials.gd")
+const StageAtmosphereScript = preload("res://scripts/world/stage_atmosphere.gd")
+const BackdropScript = preload("res://scripts/world/aiquiz_stadium/aiquiz_stadium_backdrop.gd")
+const QualityRules = preload("res://scripts/core/graphics_quality.gd")
+const PlayerControllerScript = preload("res://scripts/world/player_controller.gd")
+const LAMP_GREEN := Color(0.36, 0.89, 0.54)
+
+var layout: Dictionary = {}
+var quality := ""
+var camera: Camera3D = null
+var weather: WeatherCycle = null
+var environment_node: WorldEnvironment = null
+var sun: DirectionalLight3D = null
+var ocean: MeshInstance3D = null
+var heliport: Node3D = null
+var city_stage: AiquizMenuStage = null
+var my_heli: OnlineHeliportHelicopter = null
+var their_heli: OnlineHeliportHelicopter = null
+var players: PlayerController = null
+var clouds: StagingClouds = null
+var splash: MeshInstance3D = null
+## パッドに止めたヘリの H（接地点）のワールドの位置と向き
+var pad_ground := Transform3D.IDENTITY
+## 自分のスロット（1＝ホスト・オレンジ、2＝ゲスト・ブルー）。決まるまで 1
+var my_slot := 1
+var flow_enabled := false
+var flow_distance := 0.0
+## 吹き流しの張り（0＝そよ風、1＝ローターの風でピンと張る）
+var windsock_tension := 0.0
+
+var _atmosphere: Node3D = null
+var _backdrop: Node = null
+var _gs: QuizGameState = null
+var _puppets: Array[StagingPuppet] = []
+var _time := 0.0
+var _windsock: Node3D = null
+var _windsock_base := Basis.IDENTITY
+var _lamp_material: ShaderMaterial = null
+var _splash_material: ShaderMaterial = null
+var _flow_forward := Vector3(0, 0, -1)
+var _flow_offset := Vector2.ZERO
+
+
+static func load_layout() -> Dictionary:
+	var file := FileAccess.open(LAYOUT_PATH, FileAccess.READ)
+	if file == null:
+		return {}
+	var parsed: Variant = JSON.parse_string(file.get_as_text())
+	return parsed if parsed is Dictionary else {}
+
+
+## 組み立てる。木に入れてから呼ぶ（キャラは _ready で骨組みを作る）。
+func build(p_quality: String = "") -> bool:
+	layout = load_layout()
+	if layout.is_empty() or not layout.has("helicopter"):
+		push_warning("OnlineHeliportStage: %s is missing or old" % LAYOUT_PATH)
+		return false
+	quality = QualityRules.normalize(p_quality) if not p_quality.is_empty() else QualityRules.BALANCED
+	var heli: Dictionary = layout.helicopter
+	pad_ground = Transform3D(Basis(Vector3.UP, deg_to_rad(float(heli.get("yaw_deg", 0.0)))), _vec3(heli.get("ground", [0, -1.2, 0])))
+	_build_environment()
+	_build_city()
+	if not _build_heliport():
+		return false
+	_build_helicopters()
+	_build_players()
+	_build_camera()
+	_build_flight_props()
+	return true
+
+
+func apply_graphics_quality(p_quality: String) -> void:
+	quality = QualityRules.normalize(p_quality)
+	if environment_node != null:
+		QualityRules.apply_environment(environment_node.environment, quality)
+		StageAtmosphereScript.apply_environment_quality(environment_node.environment, quality)
+	StageAtmosphereScript.apply_graphics_quality(_atmosphere, quality)
+	if sun != null:
+		QualityRules.configure_directional_shadow(sun, quality)
+		sun.shadow_enabled = QualityRules.preview_shadow_enabled(quality)
+	if ocean != null:
+		StageEnvironment.configure_ocean_surface(ocean, quality)
+		_link_ocean()
+		_apply_flow_offset()
+	if city_stage != null:
+		city_stage.apply_graphics_quality(quality)
+	StadiumMaterials.apply_graphics_quality(quality)
+	_apply_heliport_shadows()
+	for heli: OnlineHeliportHelicopter in [my_heli, their_heli]:
+		if heli != null:
+			heli.apply_quality(quality)
+	if clouds != null:
+		clouds.build(quality, _flow_forward)
+
+
+# ---------- 自分と相手 ----------
+
+## 自分のスロットを決める（D5）。ゲスト（2）なら自分のヘリとキャラがブルーになる。呼ぶのは画面が切り替わる瞬間。
+func set_my_slot(slot: int, their_hat: int = -1) -> void:
+	my_slot = 2 if slot == 2 else 1
+	if my_heli != null:
+		my_heli.set_tint(slot_color(my_slot))
+		my_heli.set_livery_slot(my_slot)
+	if their_heli != null:
+		their_heli.set_tint(slot_color(3 - my_slot))
+		their_heli.set_livery_slot(3 - my_slot)
+	var my_hat := QuizManager.game_state.p1_hat
+	me().set_hat(my_hat)
+	if their_hat >= 0:
+		them().set_hat(clampi(their_hat, 0, HatData.HAT_COUNT - 1))
+
+
+func me() -> StagingPuppet:
+	return _puppets[my_slot - 1]
+
+
+func them() -> StagingPuppet:
+	return _puppets[2 - my_slot]
+
+
+static func slot_color(slot: int) -> Color:
+	return PlayerController.P1_BODY if slot == 1 else PlayerController.P2_BODY
+
+
+# ---------- 飛行（原点を動かさない） ----------
+
+## 流しの始まり：ヘリポートと街を隠し、雲を出す。forward は飛ぶ向き（ワールド、水平）。
+func set_flow(enabled: bool, forward: Vector3 = Vector3.ZERO) -> void:
+	flow_enabled = enabled
+	if forward.length_squared() > 0.0001:
+		_flow_forward = Vector3(forward.x, 0.0, forward.z).normalized()
+		if clouds != null:
+			clouds.build(quality, _flow_forward)
+	if heliport != null:
+		heliport.visible = not enabled
+	if city_stage != null:
+		city_stage.visible = not enabled
+	if clouds != null:
+		clouds.visible = enabled
+	if not enabled:
+		flow_distance = 0.0
+		_flow_offset = Vector2.ZERO
+		_apply_flow_offset()
+
+
+## 流れた距離（m）だけ、海の模様と雲を後ろへずらす。
+func advance_flow(distance: float) -> void:
+	if not flow_enabled or distance == 0.0:
+		return
+	flow_distance += distance
+	# 時間切れ（120 秒）まで飛んでも約 3 km：シェーダーの float で十分に足りる
+	_flow_offset += Vector2(_flow_forward.x, _flow_forward.z) * distance
+	_apply_flow_offset()
+	if clouds != null:
+		clouds.advance(distance)
+
+
+func _apply_flow_offset() -> void:
+	if ocean == null:
+		return
+	var material := ocean.material_override as ShaderMaterial
+	if material != null:
+		material.set_shader_parameter("flow_offset", _flow_offset)
+
+
+## 離陸の水しぶき（0〜1 の進み。中心はワールドの xz）。0 か 1 で隠す。
+func set_splash(progress: float, center: Vector3, r0: float, r1: float) -> void:
+	if splash == null:
+		return
+	splash.visible = progress > 0.0 and progress < 1.0
+	if not splash.visible:
+		return
+	splash.global_position = Vector3(center.x, StageConstants.OCEAN_SURFACE_Y + 0.15, center.z)
+	_splash_material.set_shader_parameter("radius", lerpf(r0, r1, 1.0 - pow(1.0 - progress, 2.0)))
+	_splash_material.set_shader_parameter("fade", 1.0 - smoothstep(0.55, 1.0, progress))
+
+
+# ---------- 毎フレーム ----------
+
+func _process(delta: float) -> void:
+	if heliport == null:
+		return
+	_time += delta
+	if _windsock != null and heliport.visible:
+		var calm := 1.0 - windsock_tension
+		var sway := deg_to_rad(6.0) * sin(_time * 0.9) * calm + deg_to_rad(2.0) * sin(_time * 2.3 + 0.7) * calm \
+			+ deg_to_rad(1.5) * sin(_time * 9.0) * windsock_tension
+		var lift := deg_to_rad(1.5) * sin(_time * 1.7) * calm + deg_to_rad(7.0) * windsock_tension
+		_windsock.basis = Basis(Vector3.UP, sway) * _windsock_base * Basis(Vector3.FORWARD, lift)
+	if _lamp_material != null:
+		_lamp_material.set_shader_parameter("base_energy", 0.7)
+
+
+# ---------- 組み立て ----------
+
+func _build_environment() -> void:
+	var env := Environment.new()
+	StageEnvironment.configure_stage_environment(env)
+	env.tonemap_mode = Environment.TONE_MAPPER_ACES
+	env.tonemap_white = 6.0
+	env.glow_enabled = true
+	env.glow_intensity = 0.5
+	env.glow_strength = 0.8
+	env.glow_bloom = 0.05
+	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_SOFTLIGHT
+	env.glow_hdr_threshold = 0.8
+	env.set_glow_level(0, true)
+	env.set_glow_level(1, true)
+	env.set_glow_level(2, true)
+	env.set_glow_level(3, false)
+	QualityRules.apply_environment(env, quality)
+	StageAtmosphereScript.apply_environment_quality(env, quality)
+	environment_node = WorldEnvironment.new()
+	environment_node.name = "WorldEnvironment"
+	environment_node.environment = env
+	add_child(environment_node)
+	sun = DirectionalLight3D.new()
+	sun.name = "Sun"
+	sun.light_color = Color(0.90, 0.92, 0.95)
+	sun.light_energy = 1.2
+	QualityRules.configure_directional_shadow(sun, quality)
+	sun.shadow_enabled = QualityRules.preview_shadow_enabled(quality)
+	sun.directional_shadow_max_distance = 160.0
+	add_child(sun)
+	weather = StageEnvironment.attach_weather_cycle(self, env, sun)
+	ocean = StageEnvironment.create_ocean_surface()
+	add_child(ocean)
+	StageEnvironment.configure_ocean_surface(ocean, quality)
+	_link_ocean()
+	_atmosphere = StageAtmosphereScript.build(self, quality, false)
+
+
+func _link_ocean() -> void:
+	if weather == null or ocean == null:
+		return
+	weather.ocean_material = ocean.material_override as ShaderMaterial
+	weather.refresh_ocean_sun()
+
+
+func _build_city() -> void:
+	if AiquizMenuStage.enabled():
+		city_stage = AiquizMenuStage.new()
+		city_stage.name = "City"
+		add_child(city_stage)
+		city_stage.build(quality)
+		var place: Dictionary = layout.get("city", {})
+		if city_stage.city != null and not place.is_empty():
+			city_stage.city.transform = Transform3D(Basis(Vector3.UP, deg_to_rad(float(place.get("yaw_deg", 0.0)))),
+				_vec3(place.get("position", [0, 0, 0])))
+	# 街のかすみと夜の灯を空に合わせる（遠景の島は出さない）
+	_backdrop = BackdropScript.new()
+	_backdrop.name = "Backdrop"
+	add_child(_backdrop)
+	_backdrop.build(weather, quality, false)
+
+
+func _build_heliport() -> bool:
+	var packed := load(HELIPORT_SCENE) as PackedScene
+	if packed == null:
+		push_warning("OnlineHeliportStage: %s is missing" % HELIPORT_SCENE)
+		return false
+	heliport = packed.instantiate() as Node3D
+	heliport.name = "Heliport"
+	add_child(heliport)
+	StadiumMaterials.apply(heliport)
+	var flag_material := ShaderMaterial.new()
+	flag_material.shader = FLAG_SHADER
+	for node: Node in heliport.find_children("*", "MeshInstance3D", true, false):
+		var geometry := node as MeshInstance3D
+		if geometry.mesh == null:
+			continue
+		for surface: int in range(geometry.mesh.get_surface_count()):
+			var source: Material = geometry.mesh.surface_get_material(surface)
+			var key := source.resource_name if source != null else ""
+			match key:
+				"OHP_PadLamp":
+					_lamp_material = ShaderMaterial.new()
+					_lamp_material.shader = LAMP_SHADER
+					_lamp_material.set_shader_parameter("lamp_color", LAMP_GREEN)
+					_lamp_material.set_shader_parameter("chase", 0.0)
+					geometry.set_surface_override_material(surface, _lamp_material)
+				"OHP_Flag":
+					geometry.set_surface_override_material(surface, flag_material)
+				"OHP_Net":
+					var net := (source.duplicate() as StandardMaterial3D) if source is StandardMaterial3D else StandardMaterial3D.new()
+					net.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+					net.alpha_scissor_threshold = 0.45
+					net.cull_mode = BaseMaterial3D.CULL_DISABLED
+					net.roughness = 0.9
+					net.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+					geometry.set_surface_override_material(surface, net)
+				"OHP_PadDeck":
+					var deck := source as BaseMaterial3D
+					if deck != null:
+						deck.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+						deck.roughness = 0.8
+	_windsock = heliport.find_child("OHP_Windsock", true, false) as Node3D
+	if _windsock != null:
+		_windsock_base = _windsock.basis
+	_apply_heliport_shadows()
+	return true
+
+
+func _apply_heliport_shadows() -> void:
+	if heliport == null:
+		return
+	var casts := QualityRules.preview_shadow_enabled(quality)
+	for node: Node in heliport.find_children("*", "MeshInstance3D", true, false):
+		var geometry := node as MeshInstance3D
+		geometry.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if casts else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		geometry.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+
+
+func _build_helicopters() -> void:
+	my_heli = OnlineHeliportHelicopter.new()
+	my_heli.name = "MyHelicopter"
+	add_child(my_heli)
+	my_heli.setup(slot_color(1), true, quality == QualityRules.LOW)
+	my_heli.transform = pad_ground
+	their_heli = OnlineHeliportHelicopter.new()
+	their_heli.name = "TheirHelicopter"
+	add_child(their_heli)
+	their_heli.setup(slot_color(2), true, quality == QualityRules.LOW)
+	their_heli.set_livery_slot(2)
+	their_heli.visible = false
+	their_heli.set_process(false)
+
+
+func _build_players() -> void:
+	_gs = QuizGameState.new()
+	_gs.num_players = 2
+	_gs.mode = Constants.MODE_TEN
+	_gs.game_state = Constants.STATE_MENU
+	_gs.p1_alive = true
+	_gs.p2_alive = true
+	_gs.world_scroll_z = 0.0
+	var holder := Node3D.new()
+	holder.set_script(PlayerControllerScript)
+	holder.name = "Players"
+	add_child(holder)
+	players = holder as PlayerController
+	players.call("_sync_player_model_count", _gs)
+	if players.p2_container != null:
+		players.p2_container.position = Vector3.ZERO
+	_puppets = [StagingPuppet.new(players, 1), StagingPuppet.new(players, 2)]
+	set_my_slot(1)
+	them().set_visible(false)
+
+
+func _build_camera() -> void:
+	camera = Camera3D.new()
+	camera.name = "Camera"
+	camera.near = 0.1
+	camera.far = 5000.0
+	add_child(camera)
+	camera.current = true
+
+
+func _build_flight_props() -> void:
+	clouds = StagingClouds.new()
+	clouds.name = "Clouds"
+	add_child(clouds)
+	_flow_forward = -pad_ground.basis.z
+	clouds.build(quality, _flow_forward)
+	clouds.visible = false
+	splash = MeshInstance3D.new()
+	splash.name = "Splash"
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(36.0, 36.0)
+	splash.mesh = plane
+	_splash_material = ShaderMaterial.new()
+	_splash_material.shader = SPLASH_SHADER
+	splash.material_override = _splash_material
+	splash.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	splash.visible = false
+	add_child(splash)
+
+
+# ---------- 道具 ----------
+
+static func _vec3(value: Variant) -> Vector3:
+	if value is Array and (value as Array).size() >= 3:
+		return Vector3(float(value[0]), float(value[1]), float(value[2]))
+	return Vector3.ZERO
+
+
+static func catmull(points: Array, u: float) -> Vector3:
+	var count := points.size()
+	if count == 0:
+		return Vector3.ZERO
+	if count == 1:
+		return points[0]
+	var f := clampf(u, 0.0, 1.0) * float(count - 1)
+	var i := mini(int(f), count - 2)
+	var t := f - float(i)
+	var p0: Vector3 = points[maxi(i - 1, 0)]
+	var p1: Vector3 = points[i]
+	var p2: Vector3 = points[i + 1]
+	var p3: Vector3 = points[mini(i + 2, count - 1)]
+	var t2 := t * t
+	var t3 := t2 * t
+	return 0.5 * ((2.0 * p1) + (-p0 + p2) * t + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t2 + (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * t3)

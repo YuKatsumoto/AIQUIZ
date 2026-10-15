@@ -56,6 +56,8 @@ static func lecture(visit: int) -> Dictionary:
 			lec.title = "連結チップソー概論"
 			lec.subtitle = "第%d講　安全な観察距離と回転数" % lec.number
 		"subject":
+			# 1・2年の周回でも、その教科をまだ習わない学年（理科・社会・英語）は3年生の講義にする。
+			lec.grade = Constants.normalize_grade_for_subject(str(plan.subject), lec.grade)
 			lec.title = str(plan.subject)
 			lec.subtitle = "第%d講　%d年生のおさらい" % [lec.number, lec.grade]
 		"quiz":

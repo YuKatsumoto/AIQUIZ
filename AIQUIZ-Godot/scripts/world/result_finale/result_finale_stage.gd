@@ -210,7 +210,9 @@ func _build_actor(player_index: int) -> void:
 	root.name = "P%dFinaleActor" % player_index
 	(_towers[player_index].lift as Node3D).add_child(root)
 	var hat_id := _state.p1_hat if player_index == 1 else _state.p2_hat
-	var parts := EmoteBlockmanPreview.build_player_skeleton(player_index == 1, root, hat_id)
+	var parts := EmoteBlockmanPreview.build_player_skeleton(
+		player_index == 1, root, hat_id, 0, _state.get_display_skin(player_index)
+	)
 	# Eliminated finalists stay ghosts on the podium (the crown is attached later
 	# and keeps its solid gold).
 	if _state.is_result_ghost(player_index) and is_instance_valid(_players):

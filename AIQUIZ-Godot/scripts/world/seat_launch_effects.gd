@@ -4,6 +4,9 @@ class_name SeatLaunchEffects
 ## Rocket exhaust derived from the installed Effects Collection Vol.1 assets.
 ## All materials are local copies. Smoke uses world coordinates and outlives the
 ## visible chair; the stationary ignition cloud stays on the fixed socket.
+## Copies are shallow: the pack's noise textures stay shared. A deep copy clones them,
+## and a cloned NoiseTexture2D generates its first image on the main thread (about
+## 100-190 ms per effect, which froze the online VS cut-in while the match was built).
 const FIRE := preload("res://assets/BinbunVFX/fire_effects/effects/Fire/fire_04.tscn")
 const SMOKE := preload("res://assets/BinbunVFX/smoke_effects/effects/smoke_big/smoke_big_vfx_01.tscn")
 var nozzles: Array[Node3D] = []
@@ -30,7 +33,7 @@ func setup(kit: Node3D, fixed_socket: Node3D) -> void:
 			if p.name != &"Flame":
 				p.visible = false
 				continue
-			p.process_material = p.process_material.duplicate(true)
+			p.process_material = p.process_material.duplicate()
 			var pm := p.process_material as ParticleProcessMaterial
 			pm.direction = Vector3.UP
 			pm.gravity = Vector3.ZERO
@@ -46,14 +49,16 @@ func setup(kit: Node3D, fixed_socket: Node3D) -> void:
 			p.lifetime = .35
 			p.amount = GraphicsQuality.particle_amount(64, GameManager.graphics_quality)
 			p.preprocess = .1
-			p.draw_pass_1 = p.draw_pass_1.duplicate(true)
-			var flame_material := p.draw_pass_1.surface_get_material(0) as ShaderMaterial
+			var flame_mesh := p.draw_pass_1.duplicate() as PrimitiveMesh
+			var flame_material := flame_mesh.material.duplicate() as ShaderMaterial
+			flame_mesh.material = flame_material
+			p.draw_pass_1 = flame_mesh
 			flame_material.set_shader_parameter("lightness", .65)
 			flame_material.set_shader_parameter("smoke_color", Color(1.0,.36,.03))
 			p.visibility_aabb = AABB(Vector3(-3,-3,-3), Vector3(6,12,6))
 			flames.append(p)
 		var core := fire.get_node("Flame_Core") as MeshInstance3D
-		core.mesh = core.mesh.duplicate(true)
+		core.mesh = core.mesh.duplicate()
 		core.scale = Vector3(.40, 2.5, .40)
 		core.position.y = .9
 		core.visible = false
@@ -77,9 +82,9 @@ func _smoke(burst: bool) -> GPUParticles3D:
 			child.emitting = false
 			if child.name != &"Smoke": child.visible = false
 	var p := container.get_node("Smoke") as GPUParticles3D
-	p.process_material = p.process_material.duplicate(true)
-	p.material_override = p.material_override.duplicate(true)
-	p.draw_pass_1 = p.draw_pass_1.duplicate(true)
+	p.process_material = p.process_material.duplicate()
+	p.material_override = p.material_override.duplicate()
+	p.draw_pass_1 = p.draw_pass_1.duplicate()
 	var pm := p.process_material as ParticleProcessMaterial
 	pm.direction = Vector3.DOWN if not burst else Vector3.UP
 	pm.gravity = Vector3(0,.8,0)

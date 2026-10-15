@@ -2,320 +2,429 @@ extends Node
 
 const ToonPresets = preload("res://scripts/cosmetics/character_toon_presets.gd")
 
-## ネットワーク管理Autoload
-## WebSocketリレーサーバーを介したオンライン対戦の接続管理
+## ネットワーク管理Autoload（リレープロトコル v2）
+## マッチング（ランダム／ともだちコード）、試合中メッセージの送受信、
+## 切断時の自動再接続（リレーの猶予時間内）を受け持つ。
+## フレームは {"t": 種類, "d": 中身} の JSON テキスト。
 
-signal connection_succeeded(role: String)        # "host" or "guest"
+const PROTO_VERSION := 2
+const BUILD := "godot-2"
+
+signal state_changed(state: State)
 signal connection_failed(reason: String)
-signal guest_joined                               # ホスト側: 相手が参加
-signal peer_disconnected                          # 相手が切断
-signal room_list_received(rooms: Array)
-signal message_received(msg: Dictionary)
-signal player_info_received(info: Dictionary)
-signal game_start_received(data: Dictionary)
-signal snapshot_received(data: Dictionary)
-signal input_received(data: Dictionary)
-signal quiz_received(data: Dictionary)
-signal event_received(data: Dictionary)
+signal queued
+signal queue_timeout
+signal friend_code_received(code: String)
+signal matched(info: Dictionary)
+signal resumed(info: Dictionary)
+signal reconnect_failed(reason: String)
+signal peer_paused(who: String, grace_s: float)
+signal peer_resumed(who: String)
+signal peer_left(who: String)
+signal forfeit_received(winner_role: String, reason: String)
+signal server_restarting
+signal error_received(code: String)
+signal profile_received(profile: Dictionary)
+## 試合中にリレーされたメッセージ（settings / start / snap / quiz / evt / resync / finish / cmd / ready / req_resync）
+signal relay_message(msg_type: String, data: Dictionary)
 
-enum State { OFFLINE, CONNECTING, IN_LOBBY, IN_GAME }
+enum State { OFFLINE, CONNECTING, IDLE, QUEUED, IN_LOBBY, IN_GAME, RECONNECTING }
 
 var state: State = State.OFFLINE
 var is_host: bool = false
-var room_id: String = ""
 var relay_url: String = ""
 
-var _ws: WebSocketPeer = null
-var _poll_timer: float = 0.0
-const POLL_INTERVAL := 0.016  # ~60Hz
-const PING_INTERVAL := 10.0
-var _ping_timer: float = 0.0
-var _reconnect_attempts: int = 0
-const MAX_RECONNECT := 3
+# 試合情報（matched / resumed で確定）
+var match_id: String = ""
+var match_settings: Dictionary = {}
+var my_profile: Dictionary = {}
+## リレーが検査したあとの自分のプロフィール（なまえが弾かれたら name が空になる）。
+var match_you: Dictionary = {}
+var opponent_profile: Dictionary = {}
+var friend_code: String = ""
+var opponent_present: bool = false
 
-# 相手のプレイヤー情報
+# 回線品質
+var rtt_ms: float = -1.0
+var server_clock_offset_ms: float = 0.0
+var bytes_sent: int = 0
+var bytes_received: int = 0
+
+# 相手のプレイヤー情報（旧コード互換。profile から導出）
 var opponent_name: String = ""
 var opponent_hat: int = 0
 var opponent_toon_preset: int = ToonPresets.STANDARD
+## 相手の体の塗り（PlayerSkin のコンパクト表記。"" は相手スロットの標準色）。
+var opponent_skin_code: String = ""
 var opponent_emote_slots: Array[int] = [1, 2, 3]
+
+const PING_INTERVAL := 1.0
+## これだけ何も届かなければ回線が死んだとみなす（Cloud Run は切断を通知しないことがある）
+const SILENCE_TIMEOUT := 5.0
+const RECONNECT_BACKOFF: Array[float] = [0.5, 1.0, 2.0, 4.0]
+
+var _ws: WebSocketPeer = null
+var _greeted := false
+var _hello_sent := false
+var _pending: Dictionary = {}  # 接続完了後に送る最初の要求 {t, d}
+var _token: String = ""
+var _ping_timer := 0.0
+var _silence := 0.0
+var _resume_state: State = State.IN_GAME
+var _reconnect_deadline_ms := 0
+var _reconnect_attempt := 0
+var _reconnect_wait := 0.0
+var _grace_s := 30.0
 
 
 func _ready() -> void:
+	# ポーズ中も通信と生存確認を止めない（止めるとリレーに切断扱いされる）。
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	relay_url = _get_relay_url()
-	if relay_url.is_empty():
-		push_warning("[NetworkManager] RELAY_SERVER_URL not set in .env")
-	else:
-		print("[NetworkManager] Relay URL: %s" % relay_url)
+	print("[NetworkManager] Relay URL: %s" % relay_url)
 
 
 func _get_relay_url() -> String:
-	# .env から読み取り（GameManagerが先にロード済み）
 	var url := OS.get_environment("RELAY_SERVER_URL")
 	if url.is_empty():
-		# フォールバック: ローカル開発用
 		url = "ws://localhost:8080"
-	# https → wss, http → ws 変換
 	if url.begins_with("https://"):
 		url = "wss://" + url.substr(8)
 	elif url.begins_with("http://"):
 		url = "ws://" + url.substr(7)
 	elif not url.begins_with("ws://") and not url.begins_with("wss://"):
 		url = "ws://" + url
-	return url
+	return url.trim_suffix("/")
 
 
 # ---------- Public API ----------
 
-func create_room() -> void:
-	"""ルームを作成してホストとして待機"""
-	room_id = _generate_room_id()
-	is_host = true
-	_connect_to_relay()
+func is_in_match() -> bool:
+	return state in [State.IN_LOBBY, State.IN_GAME, State.RECONNECTING]
 
 
-func join_room(target_room_id: String) -> void:
-	"""既存ルームにゲストとして参加"""
-	room_id = target_room_id
-	is_host = false
-	_connect_to_relay()
+func is_online_game() -> bool:
+	return state in [State.IN_GAME, State.RECONNECTING]
 
 
-func fetch_room_list() -> void:
-	"""利用可能なルーム一覧を取得 (HTTP GET)"""
-	var http := HTTPRequest.new()
-	add_child(http)
-	http.timeout = 5.0
-
-	var base_url := relay_url.replace("ws://", "http://").replace("wss://", "https://")
-	var url := base_url + "/rooms"
-
-	http.request_completed.connect(func(result: int, code: int, _h, body: PackedByteArray):
-		var rooms_list: Array = []
-		if result == HTTPRequest.RESULT_SUCCESS and code == 200:
-			var json := JSON.new()
-			if json.parse(body.get_string_from_utf8()) == OK and json.data is Array:
-				rooms_list = json.data
-		room_list_received.emit(rooms_list)
-		http.queue_free()
-	)
-
-	var err := http.request(url)
-	if err != OK:
-		room_list_received.emit([])
-		http.queue_free()
+func role() -> String:
+	return "host" if is_host else "guest"
 
 
-func send_message(msg: Dictionary) -> void:
-	"""リレーサーバーにメッセージを送信"""
-	if _ws and _ws.get_ready_state() == WebSocketPeer.STATE_OPEN:
-		_ws.send_text(JSON.stringify(msg))
+## ランダムマッチの待ち行列に入る。settings: subject / grade / difficulty(0-2) / mode
+func find_match(settings: Dictionary, profile: Dictionary) -> void:
+	_request({"t": "queue", "d": settings}, profile)
 
 
-func send_input(axis: Vector2, jump: bool, emote: int) -> void:
-	"""クライアント→ホスト: 入力データ送信"""
-	send_message({
-		"type": "input",
-		"ax": axis.x,
-		"ay": axis.y,
-		"j": jump,
-		"e": emote,
-	})
+func create_friend_room(settings: Dictionary, profile: Dictionary) -> void:
+	_request({"t": "friend_create", "d": settings}, profile)
 
 
-func send_snapshot(data: Dictionary) -> void:
-	"""ホスト→両者: ゲーム状態スナップショット送信"""
-	data["type"] = "snapshot"
-	send_message(data)
+func join_friend_room(code: String, profile: Dictionary) -> void:
+	_request({"t": "friend_join", "d": {"code": code.strip_edges().to_upper()}}, profile)
 
 
-func send_quiz(quiz_data: Dictionary) -> void:
-	"""ホスト→両者: クイズデータ送信"""
-	send_message({"type": "quiz", "data": quiz_data})
+func cancel_search() -> void:
+	send("cancel")
+	friend_code = ""
+	if state in [State.QUEUED, State.CONNECTING]:
+		_set_state(State.IDLE if _greeted else State.OFFLINE)
 
 
-func send_event(event_name: String, data: Dictionary = {}) -> void:
-	"""ゲームイベント送信"""
-	data["type"] = "event"
-	data["event"] = event_name
-	send_message(data)
-
-
-func send_player_info(
-	player_name: String,
-	hat: int,
-	emote_slots: Array[int],
-	toon_preset: int = ToonPresets.STANDARD,
-) -> void:
-	"""プレイヤー情報を相手に送信"""
-	send_message({
-		"type": "player_info",
-		"name": player_name,
-		"hat": hat,
-		"emote_slots": emote_slots,
-		"toon_preset": ToonPresets.normalize(toon_preset),
-	})
-
-
-func send_game_start(settings: Dictionary) -> void:
-	"""ホスト: ゲーム開始を通知"""
-	send_message({"type": "start", "data": settings})
-
-
-func send_settings(settings: Dictionary) -> void:
-	"""ホスト: ゲーム設定を共有"""
-	send_message({"type": "settings", "data": settings})
+## 試合を自分から抜ける（相手は不戦勝になる）。
+func leave_match() -> void:
+	if is_in_match():
+		send("leave")
+	disconnect_from_relay()
 
 
 func disconnect_from_relay() -> void:
-	"""リレーサーバーから切断"""
 	if _ws:
 		_ws.close()
 		_ws = null
-	state = State.OFFLINE
-	room_id = ""
+	_greeted = false
+	_pending = {}
+	_token = ""
+	match_id = ""
+	match_settings = {}
+	match_you = {}
+	friend_code = ""
+	opponent_present = false
 	is_host = false
-	_reconnect_attempts = 0
-	opponent_name = ""
-	opponent_hat = 0
-	opponent_toon_preset = ToonPresets.STANDARD
-	opponent_emote_slots = [1, 2, 3]
+	rtt_ms = -1.0
+	_set_opponent_profile({})
+	_set_state(State.OFFLINE)
 
 
-# ---------- Internal ----------
+## デバッグ用：通信なしで「相手が見つかった」状態にする（マッチング演出の確認。OnlineMenu の L キー）。
+## 接続・待ち行列は閉じ、ホスト扱いで相手のプロフィールと試合設定だけを入れる。
+func debug_fake_match(profile: Dictionary, settings: Dictionary) -> void:
+	disconnect_from_relay()
+	is_host = true
+	match_settings = settings
+	opponent_present = true
+	_set_opponent_profile(profile)
+	_set_state(State.IN_LOBBY)
 
-func _generate_room_id() -> String:
-	# 4文字の覚えやすいルームコード
-	var chars := "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-	var code := ""
-	for i in range(4):
-		code += chars[randi() % chars.length()]
-	return code
+
+## 試合中は IN_GAME に進める（ロビーからゲーム画面へ移るとき）。
+func enter_game() -> void:
+	if state == State.IN_LOBBY:
+		_set_state(State.IN_GAME)
 
 
-func _connect_to_relay() -> void:
-	state = State.CONNECTING
+func send(msg_type: String, data: Dictionary = {}) -> void:
+	if _ws == null or _ws.get_ready_state() != WebSocketPeer.STATE_OPEN:
+		return
+	if not _greeted and msg_type != "hello":
+		return
+	var text := JSON.stringify({"t": msg_type, "d": data})
+	bytes_sent += text.length()
+	_ws.send_text(text)
+
+
+func send_profile(profile: Dictionary) -> void:
+	my_profile = profile
+	send("profile", profile)
+
+
+## サーバー時計の推定（ミリ秒）。早押しの公平判定などに使う。
+func server_time_ms() -> float:
+	return Time.get_unix_time_from_system() * 1000.0 + server_clock_offset_ms
+
+
+# ---------- Connection ----------
+
+func _request(first: Dictionary, profile: Dictionary) -> void:
+	my_profile = profile
+	friend_code = ""
+	if _greeted and _ws != null and _ws.get_ready_state() == WebSocketPeer.STATE_OPEN:
+		send(first.t, first.d)
+		return
+	_pending = first
+	_open_socket(State.CONNECTING)
+
+
+func _open_socket(next_state: State) -> void:
+	if _ws:
+		_ws.close()
+	_greeted = false
+	_hello_sent = false
+	_silence = 0.0
+	_ping_timer = 0.0
 	_ws = WebSocketPeer.new()
-	var url := "%s/ws/%s" % [relay_url, room_id]
-	print("[NetworkManager] Connecting to: %s" % url)
+	_ws.inbound_buffer_size = 1 << 20
+	_ws.outbound_buffer_size = 1 << 20
+	_set_state(next_state)
+	var url := relay_url + "/ws"
 	var err := _ws.connect_to_url(url)
 	if err != OK:
-		push_error("[NetworkManager] Failed to initiate connection: %d" % err)
-		state = State.OFFLINE
-		connection_failed.emit("接続を開始できませんでした")
+		push_warning("[NetworkManager] connect_to_url failed: %d" % err)
+		_on_socket_closed()
+
+
+func _send_hello() -> void:
+	var hello := {"proto": PROTO_VERSION, "build": BUILD, "profile": my_profile}
+	if state == State.RECONNECTING and not _token.is_empty():
+		hello["resume"] = {"match_id": match_id, "token": _token}
+	var text := JSON.stringify({"t": "hello", "d": hello})
+	_ws.send_text(text)
 
 
 func _process(dt: float) -> void:
+	if state == State.RECONNECTING and _ws == null:
+		_tick_reconnect(dt)
+		return
 	if _ws == null:
 		return
-
 	_ws.poll()
-
 	var ws_state := _ws.get_ready_state()
-
 	if ws_state == WebSocketPeer.STATE_OPEN:
-		if state == State.CONNECTING:
-			# 接続成功を待つ（サーバーからのroom_created/room_joinedメッセージで確定）
-			pass
-
-		# メッセージ受信
-		while _ws.get_available_packet_count() > 0:
+		if not _hello_sent:
+			_hello_sent = true
+			_send_hello()
+		while _ws != null and _ws.get_available_packet_count() > 0:
 			var raw := _ws.get_packet().get_string_from_utf8()
+			bytes_received += raw.length()
+			_silence = 0.0
 			_handle_message(raw)
-
-		# Ping
-		_ping_timer += dt
-		if _ping_timer >= PING_INTERVAL:
-			_ping_timer = 0.0
-			send_message({"type": "ping", "ts": Time.get_ticks_msec()})
-
+		if _ws == null:
+			return
+		_silence += dt
+		if _silence > SILENCE_TIMEOUT:
+			print("[NetworkManager] Relay silent for %.1fs, dropping link" % _silence)
+			_ws.close()
+			_ws = null
+			_on_socket_closed()
+			return
+		if _greeted:
+			_ping_timer += dt
+			if _ping_timer >= PING_INTERVAL:
+				_ping_timer = 0.0
+				send("ping", {"ts": Time.get_ticks_msec()})
 	elif ws_state == WebSocketPeer.STATE_CLOSED:
-		var code := _ws.get_close_code()
-		print("[NetworkManager] Connection closed: code=%d" % code)
+		print("[NetworkManager] Connection closed: code=%d" % _ws.get_close_code())
 		_ws = null
+		_on_socket_closed()
 
-		if state == State.CONNECTING:
-			connection_failed.emit("サーバーに接続できませんでした")
-			state = State.OFFLINE
-		elif state in [State.IN_LOBBY, State.IN_GAME]:
-			peer_disconnected.emit()
-			state = State.OFFLINE
 
+func _on_socket_closed() -> void:
+	_ws = null
+	_greeted = false
+	if is_in_match() and not _token.is_empty():
+		_begin_reconnect()
+		return
+	var was := state
+	_set_state(State.OFFLINE)
+	if was in [State.CONNECTING, State.QUEUED, State.IDLE]:
+		connection_failed.emit("サーバーにつながりませんでした")
+
+
+func _begin_reconnect() -> void:
+	if state != State.RECONNECTING:
+		_resume_state = state
+		_reconnect_deadline_ms = Time.get_ticks_msec() + int(_grace_s * 1000.0)
+		_reconnect_attempt = 0
+		_set_state(State.RECONNECTING)
+	_reconnect_wait = RECONNECT_BACKOFF[mini(_reconnect_attempt, RECONNECT_BACKOFF.size() - 1)]
+	_reconnect_attempt += 1
+
+
+func _tick_reconnect(dt: float) -> void:
+	if Time.get_ticks_msec() > _reconnect_deadline_ms:
+		_fail_reconnect("つながりなおせませんでした")
+		return
+	_reconnect_wait -= dt
+	if _reconnect_wait <= 0.0:
+		print("[NetworkManager] Reconnect attempt %d" % _reconnect_attempt)
+		_open_socket(State.RECONNECTING)
+
+
+func _fail_reconnect(reason: String) -> void:
+	disconnect_from_relay()
+	reconnect_failed.emit(reason)
+
+
+func reconnect_seconds_left() -> float:
+	if state != State.RECONNECTING:
+		return 0.0
+	return maxf(0.0, float(_reconnect_deadline_ms - Time.get_ticks_msec()) / 1000.0)
+
+
+# ---------- Messages ----------
 
 func _handle_message(raw: String) -> void:
-	var json := JSON.new()
-	if json.parse(raw) != OK:
+	var parsed: Variant = JSON.parse_string(raw)
+	if not parsed is Dictionary:
 		return
-	var msg: Dictionary = json.data
-	if not msg is Dictionary:
-		return
-
-	var msg_type: String = msg.get("type", "")
+	var msg := parsed as Dictionary
+	var msg_type := str(msg.get("t", ""))
+	var data: Dictionary = msg.get("d", {}) if msg.get("d", {}) is Dictionary else {}
 
 	match msg_type:
-		"room_created":
-			state = State.IN_LOBBY
-			room_id = msg.get("room_id", room_id)
-			is_host = true
-			print("[NetworkManager] Room created: %s (host)" % room_id)
-			connection_succeeded.emit("host")
-
-		"room_joined":
-			state = State.IN_LOBBY
-			room_id = msg.get("room_id", room_id)
-			is_host = false
-			print("[NetworkManager] Joined room: %s (guest)" % room_id)
-			connection_succeeded.emit("guest")
-
-		"guest_joined":
-			print("[NetworkManager] Guest joined the room")
-			guest_joined.emit()
-
-		"peer_disconnected":
-			print("[NetworkManager] Peer disconnected")
-			peer_disconnected.emit()
-			if state == State.IN_GAME:
-				state = State.OFFLINE
-
+		"welcome":
+			_greeted = true
+			if state == State.CONNECTING:
+				_set_state(State.IDLE)
+			if not _pending.is_empty():
+				send(_pending.t, _pending.d)
+				_pending = {}
+		"update_required":
+			_pending = {}
+			disconnect_from_relay()
+			connection_failed.emit("ゲームを最新版にアップデートしてください")
+		"queued":
+			_set_state(State.QUEUED)
+			queued.emit()
+		"queue_timeout":
+			_set_state(State.IDLE)
+			queue_timeout.emit()
+		"cancelled":
+			pass
+		"friend_code":
+			friend_code = str(data.get("code", ""))
+			_set_state(State.QUEUED)
+			friend_code_received.emit(friend_code)
+		"matched":
+			_apply_match_info(data)
+			_set_state(State.IN_LOBBY)
+			matched.emit(data)
+		"resumed":
+			_apply_match_info(data)
+			_set_state(_resume_state)
+			print("[NetworkManager] Resumed match %s as %s" % [match_id, role()])
+			resumed.emit(data)
+		"resume_failed":
+			_fail_reconnect("試合が終わっていました")
+		"peer_paused":
+			opponent_present = false
+			peer_paused.emit(str(data.get("who", "")), float(data.get("grace_s", 30.0)))
+		"peer_resumed":
+			opponent_present = true
+			peer_resumed.emit(str(data.get("who", "")))
+		"peer_left":
+			opponent_present = false
+			peer_left.emit(str(data.get("who", "")))
+		"forfeit":
+			opponent_present = false
+			forfeit_received.emit(str(data.get("winner", "")), str(data.get("reason", "")))
+		"profile":
+			_set_opponent_profile(data)
+			profile_received.emit(data)
+		"server_restart":
+			server_restarting.emit()
 		"error":
-			var error_msg: String = msg.get("msg", "Unknown error")
-			print("[NetworkManager] Error: %s" % error_msg)
-			connection_failed.emit(error_msg)
-
-		"player_info":
-			opponent_name = msg.get("name", "")
-			opponent_hat = int(msg.get("hat", 0))
-			opponent_toon_preset = ToonPresets.normalize(int(msg.get("toon_preset", 0)))
-			var slots = msg.get("emote_slots", [1, 2, 3])
-			opponent_emote_slots.clear()
-			for s in slots:
-				opponent_emote_slots.append(int(s))
-			player_info_received.emit(msg)
-
-		"start":
-			state = State.IN_GAME
-			game_start_received.emit(msg.get("data", {}))
-
-		"settings":
-			message_received.emit(msg)
-
-		"snapshot":
-			snapshot_received.emit(msg)
-
-		"input":
-			input_received.emit(msg)
-
-		"quiz":
-			quiz_received.emit(msg.get("data", {}))
-
-		"event":
-			event_received.emit(msg)
-
+			var code := str(data.get("code", "error"))
+			print("[NetworkManager] Relay error: %s" % code)
+			error_received.emit(code)
 		"pong":
-			var sent_ts: int = int(msg.get("ts", 0))
-			var rtt: int = Time.get_ticks_msec() - sent_ts
-			# RTTログ（デバッグ用）
-			if rtt > 200:
-				print("[NetworkManager] High RTT: %dms" % rtt)
-
+			_on_pong(data)
 		_:
-			message_received.emit(msg)
+			relay_message.emit(msg_type, data)
+
+
+func _apply_match_info(data: Dictionary) -> void:
+	match_id = str(data.get("match_id", ""))
+	_token = str(data.get("token", _token))
+	is_host = str(data.get("role", "")) == "host"
+	match_settings = data.get("settings", {}) if data.get("settings", {}) is Dictionary else {}
+	opponent_present = bool(data.get("peer_present", true))
+	_grace_s = float(data.get("grace_s", 30.0))
+	friend_code = ""
+	_set_opponent_profile(data.get("opponent", {}) if data.get("opponent", {}) is Dictionary else {})
+	match_you = data.get("you", {}) if data.get("you", {}) is Dictionary else {}
+
+
+func _set_opponent_profile(profile: Dictionary) -> void:
+	opponent_profile = profile
+	# 相手が決めた名前（リレーの検査を通ったもの）。無ければプリセットのニックネーム。
+	opponent_name = str(profile.get("name", ""))
+	if opponent_name.is_empty() and not profile.is_empty():
+		opponent_name = NetNicknames.name_for(int(profile.get("nick", 0)))
+	opponent_hat = int(profile.get("hat", 0))
+	opponent_toon_preset = ToonPresets.normalize(int(profile.get("toon", ToonPresets.STANDARD)))
+	var skin_code: Variant = profile.get("skin", "")
+	opponent_skin_code = skin_code if skin_code is String and not PlayerSkin.from_code(skin_code).is_empty() else ""
+	opponent_emote_slots.clear()
+	for slot in profile.get("emotes", [1, 2, 3]):
+		opponent_emote_slots.append(int(slot))
+
+
+func _on_pong(data: Dictionary) -> void:
+	var sent := int(data.get("ts", 0))
+	var sample := float(Time.get_ticks_msec() - sent)
+	if sample < 0.0 or sample > 10000.0:
+		return
+	rtt_ms = sample if rtt_ms < 0.0 else lerpf(rtt_ms, sample, 0.2)
+	var server_ms := float(data.get("server_ms", 0))
+	if server_ms > 0.0:
+		var local_at_server := Time.get_unix_time_from_system() * 1000.0 - sample * 0.5
+		var offset := server_ms - local_at_server
+		server_clock_offset_ms = offset if is_zero_approx(server_clock_offset_ms) else lerpf(server_clock_offset_ms, offset, 0.1)
+
+
+func _set_state(next: State) -> void:
+	if state == next:
+		return
+	state = next
+	state_changed.emit(next)

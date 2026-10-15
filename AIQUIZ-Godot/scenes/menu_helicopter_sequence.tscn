@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://d0x4w2ueqen2b"]
 
 [ext_resource type="Script" uid="uid://4deh6tca0t7a" path="res://scripts/ui/menu_helicopter_sequence_profile.gd" id="1_hf3go"]
-[ext_resource type="PackedScene" uid="uid://bdh11fdpgbuio" path="res://assets/vehicles/helicopter/helicopter_drop.glb" id="2_iitsd"]
+[ext_resource type="PackedScene" uid="uid://c24leweirrjv8" path="res://assets/vehicles/helicopter_boarding/helicopter_boarding.glb" id="2_hf3go"]
 
 [sub_resource type="Curve3D" id="Curve3D_8p27q"]
 resource_local_to_scene = true
@@ -657,8 +657,8 @@ transform = Transform3D(0.9636157, -0.2452761, -0.104831494, 0.13676494, 0.11694
 progress = 0.33838528
 loop = false
 
-[node name="PreviewModel" parent="IntroP1Path/Follow" unique_id=2005487795 instance=ExtResource("2_iitsd")]
-transform = Transform3D(-0.37530786, 0.8952619, 0.24010473, -0.8766306, -0.4269866, 0.22181302, 0.30110222, -0.1272353, 0.9450654, 0, 0, 0)
+[node name="PreviewModel" parent="IntroP1Path/Follow" unique_id=1104564920 instance=ExtResource("2_hf3go")]
+transform = Transform3D(-0.37530786, 0.8952619, 0.24010473, -0.8766306, -0.4269866, 0.22181302, 0.30110222, -0.1272353, 0.9450654, 0.13851672, -0.2005957, -0.4113618)
 visible = false
 
 [node name="IntroP2Path" type="Path3D" parent="." unique_id=1672875205]
@@ -670,7 +670,8 @@ debug_custom_color = Color(0.15, 0.45, 1, 1)
 transform = Transform3D(-0.034905873, 0.013756518, 0.99912333, -4.655768e-10, 0.9997286, -0.013764967, -0.9992089, -0.00048056387, -0.03490288, 32.16222, 10.673926, 0.385487)
 loop = false
 
-[node name="PreviewModel" parent="IntroP2Path/Follow" unique_id=252759098 instance=ExtResource("2_iitsd")]
+[node name="PreviewModel" parent="IntroP2Path/Follow" unique_id=1786311903 instance=ExtResource("2_hf3go")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.262, -0.4)
 visible = false
 
 [node name="PickupP1Path" type="Path3D" parent="." unique_id=1127358232]
@@ -683,7 +684,8 @@ transform = Transform3D(-0.9863939, -0.13086647, 0.09950369, 0, 0.60525745, 0.79
 rotation_mode = 1
 loop = false
 
-[node name="PreviewModel" parent="PickupP1Path/Follow" unique_id=1459482035 instance=ExtResource("2_iitsd")]
+[node name="PreviewModel" parent="PickupP1Path/Follow" unique_id=786390971 instance=ExtResource("2_hf3go")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.262, -0.4)
 
 [node name="PickupP2Path" type="Path3D" parent="." unique_id=1942965485]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.5, -1.2, 0)
@@ -695,7 +697,8 @@ transform = Transform3D(-0.62469506, -0.5761757, 0.5270462, 2.980232e-08, 0.6749
 rotation_mode = 1
 loop = false
 
-[node name="PreviewModel" parent="PickupP2Path/Follow" unique_id=927416923 instance=ExtResource("2_iitsd")]
+[node name="PreviewModel" parent="PickupP2Path/Follow" unique_id=1813009632 instance=ExtResource("2_hf3go")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.262, -0.4)
 
 [node name="EditorReference" type="Node3D" parent="." unique_id=2096062964]
 

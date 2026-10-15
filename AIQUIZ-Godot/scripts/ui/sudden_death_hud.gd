@@ -132,6 +132,10 @@ class Painter extends Control:
 var debug_manual_clock := false
 
 var _english := false
+## P1/P2 のバッジをキャラの色でぬるのに使う（なければ QuizManager のもの）
+var game_state: QuizGameState = null
+## スロットごとのバッジの色（頭・胴・足）と、そのもとになった見た目のキー
+var _badge_cache := {}
 var _root: Control
 var _danger_rect: ColorRect
 var _danger_material: ShaderMaterial
@@ -887,9 +891,11 @@ func _paint_callouts(ci: Control, viewport: Vector2, u: float) -> void:
 			_poly(ci, _skewed(Vector2.ZERO, half * 2.0, skew), _fade(Color.WHITE, flash_a * alpha))
 		var x := -(text_width + chip_width) * 0.5
 		if player > 0:
-			var chip_color := PLAYER_COLORS[player - 1]
-			_round_box(ci, Rect2(x, -20.0, 56.0, 40.0), 20.0, _fade(chip_color, alpha), _fade(INK, alpha), 3.0)
-			_text(ci, _font_heavy, "P%d" % player, Vector2(x + 28.0, 0.0), 24, _fade(INK, alpha))
+			var badge := _badge_colors(player)
+			var chip_rect := Rect2(x, -20.0, 56.0, 40.0)
+			PlayerBadgePaint.fill_rounded_gradient(ci, chip_rect, 20.0, badge, alpha)
+			_round_box(ci, chip_rect, 20.0, Color(0, 0, 0, 0), _fade(INK, alpha), 3.0)
+			_badge_text(ci, "P%d" % player, Vector2(x + 28.0, 0.0), 24, badge, alpha)
 			x += chip_width
 		_text(ci, _font_heavy, text, Vector2(x, 0.0), CALLOUT_SIZE, _fade(color, alpha), 8, _fade(INK, alpha), -1)
 		_record("callout_%d" % int(round(slot)), xf, Rect2(-half - Vector2(skew, 0.0), half * 2.0 + Vector2(skew * 2.0, 0.0)))
@@ -1296,8 +1302,11 @@ func _paint_gauge(ci: Control, viewport: Vector2, u: float, a: float, player_ind
 	var pulse := (0.65 + 0.35 * sin(_clock * TAU * 2.4)) if lit else 0.0
 	_round_box(ci, Rect2(rect.position + Vector2(0.0, 6.0), rect.size), 14.0, _fade(Color.BLACK, 0.3 * a))
 	_round_box(ci, rect, 14.0, _fade(INK, 0.9 * a), _fade(color, a * (0.55 + 0.45 * pulse)), 2.0 + 3.0 * pulse)
-	_round_box(ci, Rect2(rect.position + Vector2(13.0, 12.0), Vector2(size.x - 26.0, 30.0)), 15.0, _fade(color, a))
-	_text(ci, _font_heavy, "P%d" % player_index, rect.position + Vector2(size.x * 0.5, 27.0), 20, _fade(INK, a))
+	var badge := _badge_colors(player_index)
+	var badge_rect := Rect2(rect.position + Vector2(13.0, 12.0), Vector2(size.x - 26.0, 30.0))
+	PlayerBadgePaint.fill_rounded_gradient(ci, badge_rect, 15.0, badge, a)
+	PlayerBadgePaint.smooth_edge(ci, badge_rect, 15.0, badge, a)
+	_badge_text(ci, "P%d" % player_index, rect.position + Vector2(size.x * 0.5, 27.0), 20, badge, a)
 	var pip := Vector2(size.x - 30.0, 26.0)
 	for index in range(full):
 		# Pips stack up from the water line: the lowest is the last half step above it.
@@ -1478,6 +1487,26 @@ func _skewed(centre: Vector2, size: Vector2, skew: float) -> PackedVector2Array:
 	var half := size * 0.5
 	return PackedVector2Array([centre + Vector2(-half.x + skew, -half.y), centre + Vector2(half.x + skew, -half.y),
 		centre + Vector2(half.x - skew, half.y), centre + Vector2(-half.x - skew, half.y)])
+
+
+## プレイヤーのバッジの色（キャラの 頭・胴・足）。見た目が変わったときだけ作り直す。
+func _badge_colors(player_index: int) -> Array[Color]:
+	var state := game_state if game_state != null else QuizManager.game_state
+	var key := state.get_display_skin_key(player_index) if state != null else ""
+	var cached: Dictionary = _badge_cache.get(player_index, {})
+	if cached.is_empty() or str(cached.key) != key:
+		cached = {"key": key, "colors": PlayerBadgePaint.colors_for(state, player_index)}
+		_badge_cache[player_index] = cached
+	return cached.colors
+
+
+## バッジの「P1」：色が暗いときは白い字に紺のふち。
+func _badge_text(ci: CanvasItem, text: String, centre: Vector2, size: int, badge: Array[Color], alpha: float) -> void:
+	var ink := PlayerBadgePaint.ink_for(badge)
+	if ink == INK:
+		_text(ci, _font_heavy, text, centre, size, _fade(INK, alpha))
+	else:
+		_text(ci, _font_heavy, text, centre, size, _fade(ink, alpha), 5, _fade(INK, alpha))
 
 
 func _round_box(ci: CanvasItem, rect: Rect2, radius: float, fill: Color, border := Color(0, 0, 0, 0), border_width := 0.0) -> void:

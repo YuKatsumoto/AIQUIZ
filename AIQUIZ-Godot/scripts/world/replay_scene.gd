@@ -39,6 +39,11 @@ func _ready() -> void:
 	_game_state.p2_hat = meta.get("p2_hat", 0)
 	_game_state.p1_toon_preset = ToonPresets.normalize(int(meta.get("p1_toon_preset", 0)))
 	_game_state.p2_toon_preset = ToonPresets.normalize(int(meta.get("p2_toon_preset", 0)))
+	var p1_skin: Variant = meta.get("p1_skin", "")
+	var p2_skin: Variant = meta.get("p2_skin", "")
+	_game_state.set_player_skin_code(1, p1_skin if p1_skin is String else "")
+	_game_state.set_player_skin_code(2, p2_skin if p2_skin is String else "")
+	# 記録はすでに試合で見えていた色なので、そのまま映す（is_replay の間は get_display_skin が素通し）
 	_game_state.game_state = Constants.STATE_PLAYING
 
 	# ReplayPlayer を設定

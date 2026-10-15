@@ -12,6 +12,8 @@ const BODY_WIDTH := 1.24
 const HELD_SPEED := 1.35
 const SLICE := 1.0 / 240.0
 
+## Online widens this: each side reacts to a slightly older view of the other.
+var clash_window := CLASH_WINDOW
 var time := 0.0
 var contact := false
 var order := 1.0 # direction from P1 to P2; refreshed after a jump clears contact
@@ -215,7 +217,7 @@ func _read_key(event: Dictionary) -> void:
 		clash_pose[i] = false
 
 func _resolve_strikes() -> void:
-	if pending[0] >= 0.0 and pending[1] >= 0.0 and absf(attack_start[0] - attack_start[1]) <= CLASH_WINDOW + 0.0000001:
+	if pending[0] >= 0.0 and pending[1] >= 0.0 and absf(attack_start[0] - attack_start[1]) <= clash_window + 0.0000001:
 		if time + 0.0000001 >= minf(pending[0], pending[1]):
 			for i in range(2):
 				pending[i] = -1.0
@@ -288,3 +290,44 @@ func resolve(positions: Vector2, z_separation: float, bodies_overlap := true) ->
 		var center := (positions.x + positions.y) * 0.5
 		return Vector2(center - order * width * 0.5, center + order * width * 0.5)
 	return positions
+
+# ---------- Online (host -> guest presentation) ----------
+
+## Everything presentation() and the guest's rendering read; the guest never advances the duel.
+func to_net() -> Array:
+	return [contact, order, pending.duplicate(), attack_start.duplicate(), hit_start.duplicate(),
+		recoil_start.duplicate(), shove_start.duplicate(), shove_direction.duplicate(),
+		pose_direction.duplicate(), brace.duplicate(), clash_pose.duplicate(), _valid.duplicate(), _grounded.duplicate()]
+
+func apply_net(data: Array, host_time: float) -> void:
+	if data.size() < 13:
+		return
+	time = host_time
+	contact = bool(data[0])
+	order = float(data[1])
+	pending = _floats(data[2])
+	attack_start = _floats(data[3])
+	hit_start = _floats(data[4])
+	recoil_start = _floats(data[5])
+	shove_start = _floats(data[6])
+	shove_direction = _floats(data[7])
+	pose_direction = _floats(data[8])
+	brace = _floats(data[9])
+	clash_pose = [bool(data[10][0]), bool(data[10][1])]
+	_valid = [bool(data[11][0]), bool(data[11][1])]
+	_grounded = [bool(data[12][0]), bool(data[12][1])]
+
+## Guest: keep presentation ages moving between 30Hz snapshots.
+func tick_presentation(dt: float) -> void:
+	time += dt
+
+## Guest: the struck/striking motion of `player` is still playing out.
+func is_shoving(player: int, margin := 0.08) -> bool:
+	var i := player - 1
+	return time - float(shove_start[i]) < PUSH_TIME + margin
+
+static func _floats(values: Variant) -> Array:
+	var out := [0.0, 0.0]
+	if values is Array and values.size() >= 2:
+		out = [float(values[0]), float(values[1])]
+	return out

@@ -1,0 +1,1094 @@
+<meta charset="utf-8">
+<title>AIQUIZ PV 絵コンテ</title>
+<meta name="description" content="ゲームクリエイター甲子園2026 応募用PV（約74秒）の設計計画と絵コンテ">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=IBM+Plex+Mono:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap">
+<style>
+/* Layout: production sheet. Masthead → requirements → concept → timeline ribbon + animatic → shot rows (frame | notes) → plans */
+:root{
+  --bg:#eef1f6; --surface:#ffffff; --sunk:#e3e8f0; --ink:#121a2e; --muted:#586378; --line:#d3d9e4;
+  --accent:#f2c21b; --accent-ink:#6b5200;
+  --sec-open:#5b6cf0; --sec-ai:#1798b8; --sec-rule:#c99300; --sec-duo:#e3721a; --sec-world:#c9447f; --sec-end:#5d6b86;
+  --ok:#2b8f57; --warn:#b86b0c; --crit:#c93a36; --gen:#7a4fd6;
+  /* video colors: identical in both themes because they describe the film itself */
+  --tv-navy:#0b1630; --tv-yellow:#f2c21b; --tv-white:#ffffff; --tv-wall:#a9afb8;
+  --tv-blue:#3d9df2; --tv-red:#e5393b; --tv-green:#2fae68; --tv-heart:#ff5a6e;
+  --font-display:"Dela Gothic One","Zen Kaku Gothic New","Hiragino Sans","Yu Gothic UI",sans-serif;
+  --font-body:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic UI","Meiryo",system-ui,sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,"Consolas",monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0c1220; --surface:#141c2d; --sunk:#0f1626; --ink:#e7ecf6; --muted:#98a4bb; --line:#26324a;
+    --accent:#f2c21b; --accent-ink:#f2c21b;
+    --sec-open:#8494ff; --sec-ai:#3cc0de; --sec-rule:#e8b51a; --sec-duo:#f39443; --sec-world:#e66aa4; --sec-end:#8b99b4;
+    --ok:#4cbc7e; --warn:#e39a35; --crit:#ec6662; --gen:#a07cf0;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0c1220; --surface:#141c2d; --sunk:#0f1626; --ink:#e7ecf6; --muted:#98a4bb; --line:#26324a;
+  --accent:#f2c21b; --accent-ink:#f2c21b;
+  --sec-open:#8494ff; --sec-ai:#3cc0de; --sec-rule:#e8b51a; --sec-duo:#f39443; --sec-world:#e66aa4; --sec-end:#8b99b4;
+  --ok:#4cbc7e; --warn:#e39a35; --crit:#ec6662; --gen:#a07cf0;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:15px;line-height:1.75;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1180px;margin:0 auto;padding-inline:clamp(16px,4vw,40px);padding-block:0 96px}
+a{color:inherit}
+h1,h2,h3{text-wrap:balance}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+
+/* masthead */
+.mast{padding-block:44px 26px}
+.eyebrow{font-family:var(--font-mono);font-size:12px;letter-spacing:.12em;color:var(--muted)}
+h1{font-family:var(--font-display);font-weight:400;font-size:clamp(32px,5.4vw,58px);line-height:1.12;margin:10px 0 16px}
+h1 .mk{background:linear-gradient(transparent 64%,var(--accent) 64%,var(--accent) 90%,transparent 90%)}
+.meta{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 18px;padding:0;list-style:none}
+.chip{font-family:var(--font-mono);font-size:12px;padding:3px 10px;border:1px solid var(--line);border-radius:999px;background:var(--surface);white-space:nowrap}
+.lead{max-width:68ch;margin:0;color:var(--ink)}
+.lead + .lead{margin-top:8px}
+.callout{display:inline-flex;gap:10px;align-items:center;margin-top:16px;font-weight:700;font-size:14px;text-decoration:none;padding:8px 14px;border-radius:8px;background:var(--surface);border:1px solid var(--line)}
+.callout b{background:var(--accent);color:#1a1300;border-radius:4px;padding:0 6px;font-family:var(--font-mono)}
+
+nav.toc{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:color-mix(in srgb,var(--bg) 90%,transparent);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-block:1px solid var(--line)}
+nav.toc ul{display:flex;gap:4px 18px;overflow-x:auto;list-style:none;margin:0;padding:10px 0;scrollbar-width:none}
+nav.toc a{font-size:13px;color:var(--muted);text-decoration:none;white-space:nowrap}
+nav.toc a:hover,nav.toc a:focus-visible{color:var(--ink)}
+
+section{padding-block:56px 4px;scroll-margin-top:52px}
+h2{font-family:var(--font-display);font-weight:400;font-size:clamp(23px,3vw,31px);line-height:1.3;margin:0 0 8px}
+h3{font-size:16px;font-weight:900;margin:28px 0 10px}
+.sub{color:var(--muted);max-width:70ch;margin:0 0 22px}
+
+/* generic */
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.fact{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;min-width:0}
+.fact .k{font-size:12px;color:var(--muted)}
+.fact .v{font-weight:900;font-size:18px;line-height:1.4;margin:2px 0}
+.fact .s{font-size:13px;color:var(--muted);line-height:1.6}
+.fact.due{border-color:color-mix(in srgb,var(--crit) 55%,var(--line))}
+.fact.due .v{color:var(--crit)}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+th{font-size:12px;color:var(--muted);font-weight:500;white-space:nowrap;background:var(--sunk)}
+td.nw{white-space:nowrap}
+.pill{display:inline-block;font-size:12px;font-weight:700;padding:1px 8px;border-radius:999px;border:1px solid currentColor;white-space:nowrap}
+.pill.hi{color:var(--crit)} .pill.mid{color:var(--warn)} .pill.lo{color:var(--muted)}
+ul.plain{margin:0;padding-left:1.2em}
+ul.plain li{margin:2px 0}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:24px}
+.cols > *{min-width:0}
+
+/* concept */
+.concept{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:32px;align-items:start}
+@media (max-width:880px){.concept{grid-template-columns:1fr}}
+.bigq{font-family:var(--font-display);font-size:clamp(26px,4vw,40px);line-height:1.3;margin:0 0 14px}
+.bigq em{font-style:normal;background:linear-gradient(transparent 62%,var(--accent) 62%,var(--accent) 90%,transparent 90%)}
+.walls{display:grid;gap:14px}
+.mw{display:grid;grid-template-columns:76px minmax(0,1fr);gap:12px;align-items:center}
+.mw .lab{font-family:var(--font-display);font-size:15px;text-align:right}
+.mw .wall{background:var(--tv-wall);border-radius:6px;padding:9px;display:grid;gap:7px}
+.mw .sign{background:var(--tv-navy);color:var(--tv-white);font-weight:900;text-align:center;padding:6px 8px;font-size:14px;border-radius:3px;line-height:1.4}
+.mw .doors{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:7px}
+.mw .door{height:46px;display:grid;place-items:center;color:var(--tv-white);font-weight:900;font-size:14px;border-radius:2px;position:relative}
+.mw .door.win{box-shadow:0 0 0 3px var(--tv-yellow)}
+.mw .then{grid-column:2;font-size:13px;color:var(--muted);margin-top:-4px}
+.d-blue{background:var(--tv-blue)} .d-red{background:var(--tv-red)} .d-green{background:var(--tv-green)} .d-yellow{background:var(--tv-yellow);color:var(--tv-navy)!important}
+.copy{margin-top:26px;padding:18px 20px;border-radius:10px;background:var(--tv-navy);color:var(--tv-white)}
+.copy .k{font-size:12px;opacity:.7}
+.copy .v{font-family:var(--font-display);font-size:clamp(24px,3.4vw,34px);line-height:1.3;margin:4px 0 6px}
+.copy .v .y{color:var(--tv-yellow)}
+.copy .s{font-size:13px;opacity:.82}
+
+/* ribbon */
+.ribbon-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:14px}
+.ribbon{min-width:780px;display:grid;grid-template-columns:62px minmax(0,1fr);row-gap:6px;column-gap:10px;align-items:center}
+.rl{font-size:12px;color:var(--muted)}
+.rr{display:grid;grid-template-columns:repeat(40,minmax(0,1fr));gap:2px}
+.rs{border-radius:3px;font-size:11.5px;font-weight:700;padding:3px 6px;white-space:nowrap;overflow:hidden;background:color-mix(in srgb,var(--c) 20%,var(--surface));box-shadow:inset 0 -3px 0 var(--c)}
+.rshot{display:block;text-align:center;font-family:var(--font-mono);font-size:10.5px;padding:6px 0;border-radius:3px;text-decoration:none;background:color-mix(in srgb,var(--c) 30%,var(--surface));color:var(--ink)}
+.rshot:hover,.rshot:focus-visible{background:color-mix(in srgb,var(--c) 55%,var(--surface))}
+.rshot.now{outline:2px solid var(--ink);outline-offset:-2px}
+.rm{border-radius:3px;font-size:11px;padding:3px 6px;white-space:nowrap;overflow:hidden;background:color-mix(in srgb,var(--accent) calc(var(--e) * 15%),var(--surface));border:1px solid var(--line)}
+.rt{font-family:var(--font-mono);font-size:10.5px;color:var(--muted);border-left:1px solid var(--line);padding-left:4px}
+.rtel{height:8px;border-radius:2px;background:var(--accent)}
+
+/* animatic */
+.anim{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:24px;margin-top:22px;align-items:start}
+@media (max-width:880px){.anim{grid-template-columns:1fr}}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+button{font:inherit;font-size:14px;padding:7px 14px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+button.primary{background:var(--ink);color:var(--bg);border-color:var(--ink);min-width:96px}
+button[aria-pressed="true"]{background:color-mix(in srgb,var(--accent) 35%,var(--surface));border-color:var(--accent)}
+button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.scrub{position:relative;height:14px;background:var(--sunk);border-radius:99px;cursor:pointer;overflow:hidden;margin-top:12px;border:1px solid var(--line)}
+.scrub i{position:absolute;inset:0 auto 0 0;width:0;background:var(--accent)}
+.scrub b{position:absolute;top:0;bottom:0;width:1px;background:color-mix(in srgb,var(--ink) 30%,transparent)}
+.readout{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:14px;align-content:start}
+.readout dt{color:var(--muted);font-size:12px;padding-top:2px}
+.readout dd{margin:0;font-weight:700}
+.readout .big{font-family:var(--font-mono);font-size:22px;font-variant-numeric:tabular-nums;font-weight:500}
+.hint{font-size:12px;color:var(--muted);margin-top:14px}
+
+/* shots */
+.toolbar{display:flex;flex-wrap:wrap;gap:16px;align-items:center;font-size:13px;color:var(--muted);margin:0 0 6px}
+.toolbar label{display:inline-flex;gap:6px;align-items:center;cursor:pointer}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px}
+.legend span{display:inline-flex;gap:6px;align-items:center}
+.legend i{width:10px;height:10px;border-radius:2px;display:inline-block}
+.shot{display:grid;grid-template-columns:minmax(0,1.22fr) minmax(0,1fr);gap:24px;padding-block:28px;border-top:1px solid var(--line);scroll-margin-top:56px}
+@media (max-width:880px){.shot{grid-template-columns:1fr;gap:14px}}
+.shot-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;margin-bottom:10px}
+.sid{font-family:var(--font-display);font-size:28px;line-height:1;color:var(--c)}
+.stitle{font-weight:900;font-size:19px;line-height:1.4}
+.stc{font-family:var(--font-mono);font-size:12.5px;color:var(--muted);flex-basis:100%}
+.stc .sec{white-space:nowrap;font-family:var(--font-body);font-weight:700;color:var(--ink);background:color-mix(in srgb,var(--c) 18%,transparent);padding:1px 8px;border-radius:4px;margin-left:6px}
+dl.notes{display:grid;grid-template-columns:5em minmax(0,1fr);gap:7px 12px;margin:0;font-size:14px;line-height:1.7}
+dl.notes dt{color:var(--muted);font-size:12px;padding-top:2px}
+dl.notes dd{margin:0}
+dd.tl{font-weight:900}
+.status{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
+.st{font-size:12px;font-weight:700;padding:1px 9px;border-radius:999px;border:1px solid currentColor;white-space:nowrap}
+.st.need{color:var(--warn)} .st.shoot{color:var(--sec-ai)} .st.ae{color:var(--sec-open)} .st.ok{color:var(--ok)} .st.risk{color:var(--crit)}
+
+/* frame (the film) */
+.frame{position:relative;aspect-ratio:16/9;width:100%;max-width:100%;overflow:hidden;border-radius:6px;background:var(--tv-navy);container-type:inline-size;isolation:isolate}
+.frame>img.bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.frame>img.blur{filter:blur(4px) brightness(.5) saturate(.9);transform:scale(1.05)}
+.ov{position:absolute;pointer-events:none}
+.ov-img{inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.seqstrip{display:grid;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));gap:6px;margin-top:8px}
+.seqstrip figure{margin:0;min-width:0}
+.seqstrip img{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:3px;display:block;background:var(--tv-navy)}
+.seqstrip figcaption{font-family:var(--font-mono);font-size:10.5px;color:var(--muted);line-height:1.4;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ov[hidden]{display:none!important}
+.ov-dim{inset:0;background:rgba(11,22,48,var(--a,.45))}
+.ov-telop{left:6%;bottom:11%;max-width:88%;color:var(--tv-white)}
+.ov-telop .m{font-family:var(--font-display);font-size:4.4cqw;line-height:1.22;letter-spacing:.02em;-webkit-text-stroke:.55cqw var(--tv-navy);paint-order:stroke fill;text-shadow:0 .35cqw 0 rgba(11,22,48,.4)}
+.ov-telop .s[hidden]{display:none}
+.ov-telop .s{display:inline-block;margin-top:.8cqw;font-weight:900;font-size:2.05cqw;line-height:1.35;background:var(--tv-navy);padding:.35cqw 1.1cqw;border-radius:.4cqw}
+.ov-telop .y{color:var(--tv-yellow)}
+.ov-telop.p-br{left:auto;right:6%;text-align:right}
+.ov-telop.p-tc{left:50%;bottom:auto;top:7%;transform:translateX(-50%);text-align:center;white-space:nowrap}
+.ov-telop.p-c{left:50%;bottom:auto;top:50%;transform:translate(-50%,-50%);text-align:center;white-space:nowrap}
+.ov-tag{top:6%;left:5.5%;background:var(--tv-yellow);color:var(--tv-navy);font-family:var(--font-display);font-size:2.4cqw;line-height:1.3;padding:.25cqw 1.2cqw;border-radius:.5cqw}
+.ov-note{right:5.5%;bottom:5.5%;font-size:1.5cqw;font-weight:700;color:var(--tv-white);text-shadow:0 0 .5cqw rgba(0,0,0,.9)}
+.ov-sign,.ov-door{display:grid;place-items:center;text-align:center;font-weight:900;line-height:1.25;color:var(--tv-white)}
+.ov-sign{font-size:var(--fs,2.2cqw);padding:0 .8cqw}
+.ov-door{font-size:var(--fs,2.6cqw);-webkit-text-stroke:.3cqw rgba(11,22,48,.8);paint-order:stroke fill}
+.ov-heart{font-family:var(--font-display);font-size:3.4cqw;color:var(--tv-heart);-webkit-text-stroke:.4cqw var(--tv-white);paint-order:stroke fill;white-space:nowrap}
+.ov-fx{font-family:var(--font-display);font-size:4.6cqw;color:var(--tv-yellow);-webkit-text-stroke:.5cqw var(--tv-navy);paint-order:stroke fill;transform:rotate(var(--r,-8deg));white-space:nowrap}
+.ov-hud{left:2.4%;bottom:4%;display:flex;align-items:center;gap:1cqw;background:rgba(10,16,30,.86);border:.2cqw solid #f08a24;border-radius:.8cqw;padding:.6cqw 1.2cqw;color:var(--tv-white);font-weight:900;font-size:1.7cqw}
+.ov-hud .p{background:#f08a24;color:var(--tv-navy);border-radius:.4cqw;padding:0 .7cqw}
+.ov-hud .h{color:#f08a24;font-size:2.2cqw;letter-spacing:.2cqw}
+.ov-hud .h i{font-style:normal;color:rgba(255,255,255,.22)}
+.ov-game{font-family:var(--font-display);font-size:3.6cqw;color:var(--tv-yellow);font-style:italic;-webkit-text-stroke:.45cqw var(--tv-navy);paint-order:stroke fill;transform:rotate(-6deg);white-space:nowrap}
+.ov-subj{top:6%;left:5.5%;background:var(--tv-navy);color:var(--tv-white);font-weight:900;font-size:2.6cqw;line-height:1.4;padding:.2cqw 1.4cqw;border-radius:.5cqw;box-shadow:0 0 0 .3cqw var(--tv-yellow)}
+.ov-badge{top:3.6%;right:2.8%;font-size:clamp(9px,1.5cqw,12px);line-height:1.5;font-weight:700;letter-spacing:.04em;color:var(--tv-white);background:rgba(8,14,28,.74);padding:.1em .75em;border-radius:99px;z-index:5}
+.ov-badge.gen{background:color-mix(in srgb,var(--gen) 88%,black)}
+.ov-badge.done{background:color-mix(in srgb,var(--ok) 85%,black)}
+.ov-logo{left:50%;top:var(--y,40%);width:var(--w,52%);transform:translate(-50%,-50%)}
+.ov-logo img{width:100%;display:block;filter:drop-shadow(.4cqw .4cqw 0 rgba(0,0,0,.6))}
+.ov-logo .bar{height:.7cqw;width:22%;background:var(--tv-yellow);margin-top:1.4cqw}
+.ov-catch{left:50%;top:var(--y,66%);transform:translate(-50%,-50%);white-space:nowrap;font-family:var(--font-display);font-size:4cqw;color:var(--tv-white);-webkit-text-stroke:.5cqw var(--tv-navy);paint-order:stroke fill}
+.ov-catch .y{color:var(--tv-yellow)}
+.ov-sub2{left:50%;top:var(--y,64%);transform:translate(-50%,-50%);white-space:nowrap;font-weight:900;font-size:2.3cqw;color:var(--tv-white);letter-spacing:.2em}
+.ov-info{inset:0;display:grid;place-content:center;justify-items:center;gap:1.2cqw;background:var(--tv-navy);color:var(--tv-white);text-align:center}
+.ov-info img{width:36%}
+.ov-info .t{font-family:var(--font-display);font-size:3.3cqw;line-height:1.2;margin-top:.6cqw}
+.ov-info .p{font-size:2cqw;font-weight:700;opacity:.92}
+.ov-info .cr{position:absolute;left:0;right:0;bottom:6%;font-size:1.25cqw;opacity:.62}
+video.clip{width:100%;max-width:100%;aspect-ratio:16/9;border-radius:6px;background:var(--tv-navy);display:block}
+body.show-safe .frame::after{content:"";position:absolute;inset:5%;border:1px dashed rgba(255,255,255,.75);z-index:6;pointer-events:none}
+
+/* schedule */
+.sched{list-style:none;margin:0;padding:0;border-left:2px solid var(--line);margin-left:6px}
+.sched li{position:relative;padding:0 0 18px 22px}
+.sched li::before{content:"";position:absolute;left:-7px;top:7px;width:12px;height:12px;border-radius:50%;background:var(--surface);border:2px solid var(--muted)}
+.sched li.due::before{background:var(--crit);border-color:var(--crit)}
+.sched li.now::before{background:var(--accent);border-color:var(--accent)}
+.sched .d{font-family:var(--font-mono);font-size:13px;color:var(--muted)}
+.sched li.due .d{color:var(--crit);font-weight:600}
+.sched .w{font-weight:700}
+.sched .x{font-size:13px;color:var(--muted)}
+
+/* decisions */
+ol.dec{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+ol.dec li{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 18px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 14px}
+ol.dec .n{font-family:var(--font-display);font-size:22px;line-height:1.2;color:var(--accent-ink);grid-row:span 2}
+ol.dec .q{font-weight:900}
+ol.dec .r{font-size:14px;color:var(--muted)}
+ol.dec .r b{color:var(--ink)}
+
+footer{margin-top:64px;padding-top:20px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted)}
+footer p{margin:4px 0;max-width:90ch}
+@media (prefers-reduced-motion: reduce){*{scroll-behavior:auto!important}}
+</style>
+
+<div class="wrap">
+  <header class="mast">
+    <div class="eyebrow">ゲームクリエイター甲子園2026 ／ 作品提出用の紹介映像</div>
+    <h1>AIQUIZ PV <span class="mk">絵コンテ</span></h1>
+    <ul class="meta">
+      <li class="chip" id="chipLen">本編 74.1秒</li>
+      <li class="chip">1920×1080・60fps・mp4</li>
+      <li class="chip" id="chipBars">128 BPM・40小節（5小節目だけ2拍）</li>
+      <li class="chip" id="chipShots">20カット</li>
+      <li class="chip">テロップは要所に1行</li>
+      <li class="chip">版 v0.8 ／ 2026-10-16</li>
+    </ul>
+    <p class="lead">PVの最初と最後に「見ている人への問題」を書いたクイズの壁を出し、キャラクターが答えのドアを突き破ります。ルールを説明しなくても最初の壁で遊び方が伝わり、最後の壁がオチになります。</p>
+    <p class="lead">v0.7では尺を案B（約80秒）にしました。冒頭のS01〜S03は撮影済みのv3（19.7秒）に差し替え、そのぶん空撮（もとのS08）を外し、VSカットイン（もとのS19）をS18に入れ、スコアタワー（S21）を2小節に縮めました。v0.8ではさらにQ2の壁（S14）と押し合い（S15）を外し、約74秒（40小節）になりました。S08・S14・S15・S19は欠番です。</p>
+    <p class="lead">テロップは、絵だけでは伝わりにくい所に1カット1行で使います。AIが問題を作ること・別のAIがチェックすること・壁の速さもAIが決めることと、ルール（ゴツン・サメ・ボス壁・チップソー・サメの逆襲）と、オンライン対戦・カスタマイズです。問題の壁が主役のカット（S01・S02・S22）と、サビの頭の決めの絵（S10）には乗せません。</p>
+    <p class="lead">絵の参考には、実機の画面、v3の撮影から切り出したコマ、ゲーム内演出の確認用動画、生成イメージ（撮っていないカットの構図案。Codex CLIで生成）を使っています。本番のPVはすべて実機で撮影します。</p>
+    <a class="callout" href="#decisions"><b>4</b>決めてほしいこと</a>
+  </header>
+</div>
+
+<nav class="toc" aria-label="目次">
+  <div class="wrap" style="padding-block:0">
+    <ul>
+      <li><a href="#rules">応募の条件</a></li>
+      <li><a href="#concept">コンセプト</a></li>
+      <li><a href="#structure">構成とアニマティック</a></li>
+      <li><a href="#test-footage">S01〜S03 v3</a></li>
+      <li><a href="#board">絵コンテ</a></li>
+      <li><a href="#sound">音</a></li>
+      <li><a href="#type">映像の見せ方</a></li>
+      <li><a href="#thumb">サムネイル</a></li>
+      <li><a href="#capture">撮影</a></li>
+      <li><a href="#schedule">スケジュール</a></li>
+      <li><a href="#risks">リスク</a></li>
+      <li><a href="#decisions">決めてほしいこと</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="wrap">
+
+<section id="rules">
+  <h2>応募の条件</h2>
+  <p class="sub">2026年の応募要項から、PVの作りに関わるところだけを抜き出しました。審査の観点には、このPVのどこで答えるかを並べています。</p>
+  <div class="facts">
+    <div class="fact"><div class="k">映像の形式と長さ</div><div class="v">mp4・約15〜90秒</div><div class="s">プレイ映像または紹介映像。本編は約74秒（74.1秒）にして、前後の無音を足しても上限まで約15秒の余裕を残す。</div></div>
+    <div class="fact"><div class="k">映像に入れないもの</div><div class="v">学校名・個人名</div><div class="s">オンライン対戦の名前は自動で付く二つ名だけを映す。</div></div>
+    <div class="fact"><div class="k">サムネイル</div><div class="v">16:9・2MB以下</div><div class="s">JPGまたはPNG。最大1920×1080を推奨。</div></div>
+    <div class="fact due"><div class="k">エントリーとチーム登録</div><div class="v">10月31日（土）16:59</div><div class="s">作品提出より1週間早い。未登録なら先に済ませる。</div></div>
+    <div class="fact due"><div class="k">作品の提出</div><div class="v">11月7日（土）16:59</div><div class="s">期間内なら何度でも出し直せる。提出フォームはLINEで案内される。</div></div>
+    <div class="fact"><div class="k">素材の決まり</div><div class="v">オリジナルのみ</div><div class="s">版権キャラや世界観は使えない。他作品の画像を使うなら出典を書く。</div></div>
+  </div>
+
+  <h3>審査の観点と、このPVでの答え方</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>審査の観点</th><th>このPVでの答え方</th><th>カット</th></tr></thead>
+    <tbody>
+      <tr><td class="nw">独自性・面白さ</td><td>「問題を作るのはAI」を、Q1の壁と、AIが作った問題の壁が空から次々に落ちてくる絵で見せ、テロップで「毎回ちがう問題」「別のAIがチェック」「壁の速さもAIが決める」と言い切る。PVそのものをクイズにする見せ方。P2の自爆やサメに乗って逆襲するなどの笑い。</td><td class="nw mono">S01–S07, S09, S17, S22</td></tr>
+      <tr><td class="nw">わかりやすさ・伝わるか</td><td>最初の壁で「壁が落ちてくる → ドアを選ぶ → まちがえるとゴツン → 正解を突き破る」を説明なしで見せる。ルールはそのあとのカットで、短いテロップを1行ずつ添えて確かめる。1カットに見せ場は1つ、テロップも1つ。</td><td class="nw mono">S01–S03, S10–S13</td></tr>
+      <tr><td class="nw">ゲームとして成立しているか</td><td>正解、不正解、落下、ボス壁、勝敗まで、1ゲームの流れがそろっている。</td><td class="nw mono">S09–S13, S21</td></tr>
+      <tr><td class="nw">プレイ体感</td><td>実機の映像と効果音を主役にする。スローは見せ場の3か所だけ。</td><td class="nw mono">S02, S13, S17</td></tr>
+      <tr><td class="nw">努力・突き詰め</td><td>キャラの演技とカメラを作り込んだ冒頭、ヘリのお迎え、空から落ちてくる問題の壁、海の上のスタジアム、タイトルロゴの作り込み。帽子は1拍ごとの切り替えで種類の多さを見せる。</td><td class="nw mono">S01–S06, S20, S23</td></tr>
+      <tr><td class="nw">商品としての完成度</td><td>曲の拍にカットと効果音とテロップの出入りを合わせる。テロップの書体・色・位置をそろえ、ゲームのロゴと同じ色にする。エンドカードに作品情報。</td><td class="nw mono">全体</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="concept">
+  <h2>コンセプト</h2>
+  <div class="concept">
+    <div>
+      <p class="bigq">PVそのものを、<em>AIQUIZ</em>にする。</p>
+      <p>このゲームは「迫ってくる壁の、正解のドアを突き破る」遊びです。PVでも同じことをします。最初と最後に出てくる壁には、ゲームの問題ではなく<strong>見ている人への問題</strong>が書いてあり、キャラクターが答えのドアを突き破ると、その答えのとおりにPVが進みます。</p>
+      <p>こうすると、ルールの説明カットがいりません。最初の壁（Q1）を見た時点で遊び方が分かり、最後の壁（LAST Q）はどのドアも「あそぶ」というオチで締めます。</p>
+      <ul class="plain">
+        <li>トーン：明るく、テンポは速く。失敗（ゴツン・サメ）で笑わせて、最後はスカッと終わる。</li>
+        <li>テロップは要所に1カット1行。絵だけでは伝わりにくいAIの仕組みとルールを、短い言葉で言い切る。問題の壁が主役のカットには乗せない。</li>
+        <li>ゲームの中の文字（問題の壁・ハート・PERFECT・VSカットインなど）はそのまま生かす。ナレーションは入れない。</li>
+        <li>映すのは今のゲームにある機能だけ。止めている機能と、10月8日より前の映像は使わない。</li>
+      </ul>
+    </div>
+    <div>
+      <div class="walls">
+        <div class="mw">
+          <div class="lab">Q1</div>
+          <div class="wall"><div class="sign">このゲームの もんだいを つくっているのは だれ？</div><div class="doors"><div class="door d-blue win">AI</div><div class="door d-red">せんせい</div></div></div>
+          <div class="then">P2は「せんせい」でゴツン、P1は「AI」を突き破る → ロゴ → 「AIが出題」の章へ（S01–S07）</div>
+        </div>
+        <div class="mw">
+          <div class="lab">LAST Q</div>
+          <div class="wall"><div class="sign">さあ、どうする？</div><div class="doors"><div class="door d-yellow win">あそぶ</div><div class="door d-yellow win">あそぶ</div><div class="door d-yellow win">あそぶ</div><div class="door d-yellow win">あそぶ</div></div></div>
+          <div class="then">どれを選んでも同じ答え、というオチ → ロゴへ（S22–S24）</div>
+        </div>
+      </div>
+      <div class="copy">
+        <div class="k">キャッチコピー（案）</div>
+        <div class="v">AIが出す。<span class="y">キミが走る。</span></div>
+        <div class="s">AIが問題を作ることと、体を動かして答えることを、同じ形の2文で並べました。キャッチコピーはこの1行だけで、最後のロゴの下に置きます。サムネイルにも使います。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="structure">
+  <h2>構成とアニマティック</h2>
+  <p class="sub">128 BPMの曲を想定して、1小節（1.875秒）を基本の単位に組みました。冒頭のv3に半小節（P2が指さす2拍）があるので、曲の5小節目だけを2拍にして、6小節目から先の切り替えを小節の頭にそろえています。カットの切り替えはすべて小節か拍の頭です。帯の「テロップ」の行は、テロップが出ている間を示します。</p>
+  <div class="ribbon-wrap"><div class="ribbon" id="ribbon"></div></div>
+
+  <div class="anim">
+    <div>
+      <div class="stage" id="stage"></div>
+      <div class="scrub" id="scrub" role="slider" aria-label="再生位置" aria-valuemin="0" aria-valuemax="75" aria-valuenow="0" tabindex="0"><i id="scrubFill"></i></div>
+      <div class="controls">
+        <button class="primary" id="play" type="button">再生</button>
+        <button id="rewind" type="button">先頭へ</button>
+        <button id="metro" type="button" aria-pressed="false">メトロノーム</button>
+      </div>
+    </div>
+    <div>
+      <dl class="readout">
+        <dt>時間</dt><dd class="big" id="rTc">0:00.00</dd>
+        <dt>小節</dt><dd class="mono" id="rBar">1小節 1拍</dd>
+        <dt>カット</dt><dd id="rShot">S01</dd>
+        <dt>曲</dt><dd id="rMus">イントロ</dd>
+      </dl>
+      <p class="hint">絵コンテを<span id="animLen">74.1秒</span>の尺どおりに並べたアニマティックです。S01〜S03とS18は、カットの中の切り替えも時間どおりに差し替わります。テロップの出入りも本番の予定どおりなので、読み切れるかを確かめてください。メトロノームを入れると、拍に合わせてクリック音が鳴ります（1拍目は高い音）。</p>
+    </div>
+  </div>
+
+  <h3>章ごとに伝えること</h3>
+  <div class="tbl"><table id="secTable">
+    <thead><tr><th>章</th><th>時間</th><th>小節</th><th>伝えること</th></tr></thead>
+    <tbody></tbody>
+  </table></div>
+</section>
+
+<section id="test-footage">
+  <h2>S01〜S03 v3（実際のゲームで撮影）</h2>
+  <p class="sub">S01〜S03（19.69秒、10.5小節）の通しです。本物のゲームを1回の通しで動かして撮り、ロゴ（案C）はAfter Effectsで重ねました。撮影中に鳴った効果音を、ゲームと同じ音量・同じ時刻に置いています。曲はまだ入っていません。</p>
+  <div class="cols">
+    <div><video class="clip" src="previz/v3/PV_S01-S03_v3_720p.mp4" controls playsinline preload="metadata" poster="frames/v3/v3_0150.jpg"></video></div>
+    <div>
+      <ul class="plain">
+        <li><b>壁が空から落ちる</b>：ゲームのプレビューの壁と同じ落ち方（2乗の加速・0.55秒）で着地し、潰れて戻る。土ぼこり・揺れ・観客のどよめき。2人はのけぞる。</li>
+        <li><b>演技</b>：2人がドアを1拍ずつ見比べ、P2が指さして踊りながら「せんせい」へ。ゴツンで脱落したP2をP1が指さしてダンスで煽り、2秒後にP2が爆散する。P1は「AI」を踊りながら突き破る。上乗せの演技はUALのクリップ。</li>
+        <li><b>カメラ</b>：背中越しのアップ、前から2人の顔、横から2人を一緒に、低い追従、壁の向こう側。人の位置を毎フレーム追わず、時間で決めた動きだけにして揺れをなくした。</li>
+        <li><b>ロゴ（案C）</b>：黄色い線がベルトになり、文字が落ちて運ばれ、白い閃光と斜めの棒でそろう。最後に黄色い帯が画面を覆い、S04はその帯が抜けるところから始まる。</li>
+        <li><b>画質</b>：1920×1080・60fps。1フレームを8回に分けて進め、最後の4回を重ねてモーションブラーにしている。何度撮っても同じ絵になる。</li>
+      </ul>
+      <p style="font-size:13px;color:var(--muted)">詳しい手順と値は <span class="mono">docs/pv/capture.md</span> の「S01〜S03 v3」。1080pの版は <span class="mono">docs/pv/previz/v3/PV_S01-S03_v3.mp4</span>。</p>
+    </div>
+  </div>
+</section>
+
+<section id="board">
+  <h2>絵コンテ</h2>
+  <p class="sub">左が画面の案、右が演出のメモです。画面の右上に、元にした画像の種類を書いています。問題文やドアの文字は、ゲームの中に出る文字を画像の上に重ねたものです。テロップも予定の位置と大きさで重ねています。「足す文字」は編集で足す文字です。S01〜S03とS18は、画面の下にカットの中の切り替えを並べています。</p>
+  <div class="toolbar">
+    <label><input type="checkbox" id="safeToggle"> タイトルセーフ（外周5%）を表示</label>
+    <div class="legend" id="legend"></div>
+  </div>
+  <div id="shots"></div>
+</section>
+
+<section id="sound">
+  <h2>音</h2>
+  <p class="sub">BGMは曲の展開そのものが編集の設計図になります。曲の構成とカットの山場を合わせ、ゲームの効果音を主役にします。</p>
+  <div class="cols">
+    <div>
+      <h3>BGMの条件</h3>
+      <ul class="plain">
+        <li>128 BPM・40小節（74.1秒）。4/4拍子で、5小節目だけ2拍（2/4）。前後0.5秒は無音。</li>
+        <li>ゲームのテーマ曲と同じ、8bit風の明るいJポップの方向。</li>
+        <li>1〜8小節目は効果音が主役の「ため」（壁の着地・見比べ・ゴツン・爆散）。9小節目の頭に最初のアタックを置く（P1のドア破壊）。10〜11小節目はロゴのジングル。</li>
+        <li>18〜19小節目はカウントダウンのビルド、20小節目の頭からサビ1（S10のドア破壊）。</li>
+        <li>24〜25小節目はドラムを抜いたブレイク（ボス壁）。26小節目の頭からサビ2（S16のチップソーで2人対戦へ）。34小節目は丸ごと止める（LAST Qの間）。</li>
+        <li>33小節目の頭に「WIN!」を合わせる。</li>
+      </ul>
+      <h3>ミックス</h3>
+      <ul class="plain">
+        <li>テロップは補足で、効果音が主役。サビではBGMを約3dB下げて、ドア・激突・水しぶきを立てる。テロップの出入りに音は付けない（効果音とぶつかるため）。</li>
+        <li>効果音の優先順：ドアの破壊 ＞ 激突 ＞ 噛みつき・水しぶき ＞ ドラムロール・WIN ＞ ヘリ・ジェット。</li>
+        <li>仕上がりは −14 LUFS・トゥルーピーク −1 dBTP。</li>
+      </ul>
+    </div>
+    <div>
+      <h3>BGMをどう用意するか</h3>
+      <div class="tbl"><table>
+        <thead><tr><th>案</th><th>内容</th><th>注意</th></tr></thead>
+        <tbody>
+          <tr><td class="nw"><b>A（推奨）</b></td><td>ゲームのテーマ曲をPV用の約74秒に作り直す。ゲームと音の印象がそろう。</td><td>Sunoで作った時点で有料プランだったことの確認が必要（今は記録が「TODO」のまま）。</td></tr>
+          <tr><td class="nw"><b>B</b></td><td>PV専用の曲を新しく作る。40小節の構成表どおりに発注できる。</td><td>有料プランで生成するか、自作する。</td></tr>
+          <tr><td class="nw"><b>C</b></td><td>商用利用できるフリー音源を使う。</td><td>尺と展開が合う曲を探す手間。作品説明にクレジット。</td></tr>
+        </tbody>
+      </table></div>
+      <h3>クレジットが必要な音</h3>
+      <ul class="plain">
+        <li>カウントダウンとドアの正解・不正解の音は OtoLogic（CC BY 4.0）。PVに入るなら表記する。</li>
+        <li>効果音ラボの素材は、PVにも使えるがContent IDへの登録は禁止。</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="type">
+  <h2>映像の見せ方</h2>
+  <p class="sub">テロップは、絵だけでは伝わりにくいこと（AIの仕組みとルール）に1カット1行で使います。何が起きたかは絵の流れ・カメラ・音で伝え、テロップはそれを言葉で確かめる役です。</p>
+  <div class="cols">
+    <div>
+      <h3 style="margin-top:0">テロップの決まり</h3>
+      <ul class="plain">
+        <li><b>1カット1行</b>：本文は14字前後まで。補足を付けるときは小さい文字で1行だけ。要のことばは黄色にする。</li>
+        <li><b>読める長さだけ出す</b>：拍の頭で出し、カットの切り替えで消す。1小節（1.88秒）のカットは本文だけにし、補足は2小節以上のカットに付ける。命中・噛みつき・爆発の瞬間には文字を残さない。</li>
+        <li><b>見た目をそろえる</b>：書体はロゴに合う太いゴシック（Dela Gothic One相当）、白い文字に紺のふち。位置は左下（下から11%）が基本で、HUDや看板とぶつかるときは上の中央に移す。タイトルセーフ（外周5%）の内側に置く。</li>
+        <li><b>出し方</b>：0.2秒で下から押し上げて出し、0.15秒で消す。カットごとに違う動きは付けない。</li>
+        <li><b>乗せないカット</b>：問題の壁が主役のカット（S01・S02・S22）、サビの頭の決めの絵（S10）、画面の文字で足りるカット（S05）。</li>
+      </ul>
+      <h3>映像の見せ方</h3>
+      <ul class="plain">
+        <li><b>文字はゲームの中にも置く</b>：問題の壁、設定画面、「問題を準備中」、ハート、PERFECT、VSカットイン、スコアタワーの式。PVのための質問（Q1・LAST Q）は、壁の看板とドアに書く。</li>
+        <li><b>1カットに見せ場は1つ</b>：1秒で何が起きたか分かる構図にする。主役は画面の中央1/3に置き、テロップの場所をあけておく。</li>
+        <li><b>カメラ</b>：ローアングル、壁の向こうからのリバースアングル、横からの追従。突破や命中の瞬間だけスピードランプ（0.5倍 → 等速）。</li>
+        <li><b>つなぎ</b>：動きの向きをそろえてつなぐ（ドアを突き破った向きのまま次のカットへ）。場面転換にはゲームのワイプ（ドア・ハーフトーン・稲妻・S03の黄色い帯）を使う。</li>
+        <li><b>音が説明役</b>：「ブー」「ガシャン」「噛みつき」「歓声」で何が起きたかを伝える。効果音は曲より前に出す。笑いどころは一瞬の無音で間を作る。</li>
+        <li><b>HUD</b>：情報になるときだけ出す（S11のハート、S17のPERFECT）。ほかのカットでは消す。</li>
+        <li><b>作品説明に回すこと</b>：AIの名前（Gemini・Claude）や、問題を作ってチェックする流れの細かいところ。</li>
+      </ul>
+    </div>
+    <div>
+      <h3 style="margin-top:0">編集で足す文字（<span id="telCount">20</span>か所）</h3>
+      <div class="tbl"><table id="telTable">
+        <thead><tr><th>時間</th><th>カット</th><th>文字</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+      <h3>ゲームの中に出る文字</h3>
+      <div class="tbl"><table>
+        <thead><tr><th>カット</th><th>文字</th></tr></thead>
+        <tbody>
+          <tr><td class="mono nw">S01, S02</td><td>Q1の壁「このゲームの もんだいを つくっているのは だれ？」／「AI」「せんせい」</td></tr>
+          <tr><td class="mono nw">S04</td><td>設定画面（教科・学年・難しさ・ゲーム開始）</td></tr>
+          <tr><td class="mono nw">S06</td><td>「問題を準備中」と n/10 の数字</td></tr>
+          <tr><td class="mono nw">S07, S13</td><td>実際にAIが作った問題とドアの答え</td></tr>
+          <tr><td class="mono nw">S09</td><td>カウントダウンの数字</td></tr>
+          <tr><td class="mono nw">S11</td><td>HUDのハート</td></tr>
+          <tr><td class="mono nw">S17</td><td>PERFECT</td></tr>
+          <tr><td class="mono nw">S18</td><td>「オンライン対戦」の画面、自動で付いた二つ名、VSカットイン</td></tr>
+          <tr><td class="mono nw">S21</td><td>得点の式と「WIN!」</td></tr>
+          <tr><td class="mono nw">S22</td><td>LAST Qの壁「さあ、どうする？」／「あそぶ」×4</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </div>
+</section>
+
+<section id="thumb">
+  <h2>サムネイル</h2>
+  <p class="sub">1920×1080のJPG（2MB以下）。PVの中で一番動きのある瞬間と、キャッチコピーを組み合わせます。</p>
+  <div class="cols">
+    <div id="thumbFrame"></div>
+    <div>
+      <ul class="plain">
+        <li>絵：P1が青いドアを突き破って手前に飛び出す瞬間。本番は実機でS02と同じ位置から撮り、一番破片が広がったフレームを使う。</li>
+        <li>左上にロゴ、右下にキャッチコピー「AIが出す。キミが走る。」。</li>
+        <li>スマホの一覧で小さく表示されても読めるよう、文字は画面の高さの1/8以上。</li>
+        <li>作品名・個人名・学校名は入れない（作品名はロゴで足りる）。</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="capture">
+  <h2>撮影</h2>
+  <p class="sub">台本どおりにゲームを自動で操作して撮ります。画面録画と違ってフレームが落ちず、同じ絵を何度でも撮り直せます。S01〜S03（v3）の撮影の仕組みを土台にして、テイクごとの台本を足していきます。</p>
+  <div class="cols">
+    <div>
+      <h3>撮り方</h3>
+      <ul class="plain">
+        <li>v3と同じく、Godotを固定のフレームレートで動かし、1フレームを8回に分けて進めて重ね、1920×1080・60fpsの連番で保存する（<span class="mono">tests/pv_capture/pv_v3_runtime.gd</span>、<span class="mono">tools/pv/merge_subframes.py</span>）。</li>
+        <li>効果音は撮影中に鳴ったキュー（<span class="mono">cues.json</span>）から、ゲームと同じファイル・音量・時刻で置き直す（<span class="mono">tools/pv/mix_audio.py</span>）。</li>
+        <li>2人の動きが自動操作で安定しないカットは、実際に2人で遊んで画面録画する。</li>
+      </ul>
+      <h3>PV撮影のために作るもの</h3>
+      <ol class="plain" style="padding-left:1.3em;margin:0">
+        <li>撮影の土台：<span class="mono">pv_v3_runtime.gd</span> を、共通の部分（起動・画質・HUDを隠す・設定を汚さない・キュー・演技の上乗せ・書き出し）とテイクごとの台本に分ける。</li>
+        <li>メタ問題の差し込み：Q1・LAST Q。2択と4択、「全部正解」にできる。<b>（Q1は済み）</b></li>
+        <li>問題の固定：実際にAIが作った問題（<span class="mono">offline_bank.json</span>）から選んで流し、撮り直しても同じ問題が出る。</li>
+        <li>PVカメラ：壁の正面固定、横から低く追従、ローアングル、真上、見上げ、刃越し、サメの追従。<b>（背中越し・前から・横から・壁の向こうは済み）</b></li>
+        <li>壁を空から落とす演出を10枚に広げる（S06）。<b>（1枚はv3で済み）</b></li>
+        <li>カットごとのHUDの表示切り替え（ハート・PERFECT・準備中カウンター）と、UIありで撮る経路（S04・S20）。<b>（スローは済み）</b></li>
+        <li>2人ぶんの自動操作：チップソーからの逃げ、ゴーストシャークの命中、スコアタワーまでの通し。</li>
+      </ol>
+      <p style="font-size:13px;color:var(--muted)">メタ問題や「全部正解」はPV撮影モードのときだけ有効にし、ゲーム本体の遊び方は変えない。</p>
+    </div>
+    <div>
+      <h3>撮影テイク</h3>
+      <div class="tbl"><table>
+        <thead><tr><th>テイク</th><th>内容</th><th>カット</th></tr></thead>
+        <tbody>
+          <tr><td class="nw mono">v3</td><td>Q1の壁から、P1の突破とロゴまで <b>（撮影済み）</b></td><td class="mono nw">S01–S03</td></tr>
+          <tr><td class="nw mono">T1</td><td>1人の通し：設定 → ヘリのお迎え → 問題の壁が空から落ちる → カウントダウン → 正解・不正解 → 落下 → ボス壁</td><td class="mono nw">S04–S06, S09–S13</td></tr>
+          <tr><td class="nw mono">T2</td><td>メタ問題：LAST Q（4択・全部「あそぶ」）</td><td class="mono nw">S22</td></tr>
+          <tr><td class="nw mono">T3</td><td>5教科の問題の壁を正面から1枚ずつ</td><td class="mono nw">S07</td></tr>
+          <tr><td class="nw mono">T4</td><td>2人対戦：チップソー・ゴーストシャーク・スコアタワー（勝ち負けがつく回）</td><td class="mono nw">S16, S17, S21</td></tr>
+          <tr><td class="nw mono">T5</td><td>オンライン：同じPCでゲームを2つ起動して対戦、ホスト側をVSカットインまで録る</td><td class="mono nw">S18</td></tr>
+          <tr><td class="nw mono">T6</td><td>カスタマイズ：帽子・色</td><td class="mono nw">S20</td></tr>
+          <tr><td class="nw mono">T7</td><td>メニューの3D背景（UIなし）</td><td class="mono nw">S23</td></tr>
+          <tr><td class="nw mono">AE</td><td>テロップ（「編集で足す文字」の表のとおり）、ロゴ、キャッチコピー、作品情報</td><td class="mono nw">S03–S24</td></tr>
+        </tbody>
+      </table></div>
+      <h3>撮影前のチェック</h3>
+      <ul class="plain">
+        <li>10月8日より前の映像（旧マスコット）を使わない。</li>
+        <li>止めている機能（協力・サドンデス・リプレイ）を映さない。</li>
+        <li>名前は自動の二つ名だけ。設定画面などのアカウント名を映さない。</li>
+        <li>デバッグ表示・FPS・エディタの画面を映さない。</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="schedule">
+  <h2>スケジュール</h2>
+  <p class="sub">作品は締め切りまで何度でも出し直せるので、11月2日に暫定版を一度出してから仕上げます。</p>
+  <ol class="sched">
+    <li><div class="d">10/13（火）〜 10/15（木）</div><div class="w">設計と絵コンテ、S01〜S03（v3）の撮影</div><div class="x">済み。</div></li>
+    <li class="now"><div class="d">10/16（金）</div><div class="w">絵コンテ v0.7〜v0.8（案B・テロップ・S14とS15を外す）</div><div class="x">尺を約74秒にし、テロップを要所に入れた。このページの「決めてほしいこと」を決める。</div></li>
+    <li><div class="d">10/16（金）〜 10/18（日）</div><div class="w">アニマティックで尺とテロップを確かめる</div><div class="x">このページのアニマティックを、ゲームを知らない人に見てもらい、テロップが読み切れるか・AIの話が伝わるかを確かめる。</div></li>
+    <li><div class="d">10/16（金）〜 10/22（木）</div><div class="w">PV撮影の仕組みを作る</div><div class="x">撮影の土台を分ける、メタ問題、問題の固定、PVカメラ、HUDの切り替え、自動操作。</div></li>
+    <li><div class="d">10/17（土）〜 10/27（火）</div><div class="w">本撮影と撮り直し</div><div class="x">仕組みができたものから、簡単な順に撮る：T7・T3 → T1 → T2・T6 → T4 → T5。</div></li>
+    <li><div class="d">10/28（水）〜 11/1（日）</div><div class="w">本編集</div><div class="x">After Effectsでカットのつなぎ・スピードランプ・テロップ・ロゴ・音</div></li>
+    <li class="due"><div class="d">10/31（土）16:59</div><div class="w">エントリーとチーム登録の締め切り</div></li>
+    <li><div class="d">11/2（月）</div><div class="w">暫定版を提出</div></li>
+    <li><div class="d">11/3（火）〜 11/5（木）</div><div class="w">見直し・修正・サムネイル・最終の書き出し</div><div class="x">mp4・尺・黒画面・音量・名前の映り込みを確認する。</div></li>
+    <li><div class="d">11/6（金）</div><div class="w">最終版を提出</div></li>
+    <li class="due"><div class="d">11/7（土）16:59</div><div class="w">作品提出の締め切り</div></li>
+  </ol>
+</section>
+
+<section id="risks">
+  <h2>リスク</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>重さ</th><th>内容</th><th>対策</th></tr></thead>
+    <tbody>
+      <tr><td><span class="pill hi">高</span></td><td>BGMの権利。Sunoで作った時点のプランが確認できていない（確認の期限だった10/15を過ぎた）。</td><td>すぐに確認する。確認できなければ案Bか案Cにする。曲の構成は40小節（5小節目だけ2拍）で発注する。</td></tr>
+      <tr><td><span class="pill hi">高</span></td><td>エントリーとチーム登録の締め切りが、作品提出より1週間早い（10/31）。</td><td>未登録なら今週中に済ませる。</td></tr>
+      <tr><td><span class="pill mid">中</span></td><td>テロップを増やしたので、読み切れない・画面がうるさくなるおそれがある。</td><td>1カット1行、本文は14字前後まで、1小節のカットは本文だけ。アニマティックで読み切れるかを確かめ、読めないものは削る。</td></tr>
+      <tr><td><span class="pill mid">中</span></td><td>オンラインの撮影には、ゲームを2つ同時に動かす必要がある。</td><td>撮れなければS18を外し、その2小節をS17とS20に1小節ずつ振り分ける。</td></tr>
+      <tr><td><span class="pill mid">中</span></td><td>2人の自動操作（ゴーストシャークの命中など）が安定しない。</td><td>実際に2人で遊び、画面録画で撮る。</td></tr>
+      <tr><td><span class="pill mid">中</span></td><td>メタ問題や「全部正解」など、PVだけの特別な動きが必要。</td><td>PV撮影モードのときだけ有効にし、ゲーム本体は変えない。</td></tr>
+      <tr><td><span class="pill mid">中</span></td><td>素材のクレジット。効果音（OtoLogic、CC BY 4.0）と帽子のモデル（Poly Pizza、CC BY 3.0）。</td><td>エンドカードに短く入れ、詳しくは作品説明に書く。</td></tr>
+      <tr><td><span class="pill mid">中</span></td><td>S06の「問題の壁が空から落ちてくる」は、ゲームの出方（左右から飛んできて合体）と違う。</td><td>PVだけの見せ方として撮る。気になるならゲームの出方のまま撮り、カメラだけ同じにする。</td></tr>
+      <tr><td><span class="pill lo">低</span></td><td>映ってはいけないものが映る。</td><td>撮影前のチェックで確認する。</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="decisions">
+  <h2>決めてほしいこと</h2>
+  <p class="sub">それぞれにおすすめを書いています。そのままでよければ「おすすめどおり」で進めます。</p>
+  <h3>決まったこと（v0.7〜v0.8）</h3>
+  <ul class="plain">
+    <li>尺は案Bをもとに74.1秒・40小節。S01〜S03はv3、もとのS08を外し、S19をS18に入れ、S21を2小節に。Q2の壁（S14）と押し合い（S15）も外す（外した3小節はほかに回さない）。</li>
+    <li>テロップは要所に1カット1行。AIの仕組み（毎回ちがう問題・別のAIのチェック・壁の速さの予測）もテロップで言い切る。AIの名前は作品説明に書く。</li>
+    <li>コンセプトは「PVそのものをクイズにする」のまま。</li>
+  </ul>
+  <h3>まだ決めてほしいこと</h3>
+  <ol class="dec">
+    <li><span class="n">1</span><span class="q">テロップの文言でよいか</span><span class="r"><b>おすすめ：「映像の見せ方」にある「編集で足す文字」の表のまま。</b>言い回しを直したいものがあれば、カットの番号で教えてください。</span></li>
+    <li><span class="n">2</span><span class="q">S03のロゴの下にジャンル名「走って こたえる 3Dクイズ」を出すか</span><span class="r"><b>おすすめ：出す。</b>ロゴだけだと何のゲームか分からないので、最初のロゴで一言だけ添えます。</span></li>
+    <li><span class="n">3</span><span class="q">BGMをどう用意するか</span><span class="r"><b>おすすめ：Sunoで作った時点のプランを確認して案A。</b>確認できなければ案B。</span></li>
+    <li><span class="n">4</span><span class="q">オンライン対戦のカット（S18）を入れるか</span><span class="r"><b>おすすめ：入れる。</b>撮影が難しければ外して、その2小節を2人対戦とカスタマイズに回します。</span></li>
+  </ol>
+  <p style="font-size:13px;color:var(--muted)">ナレーションは入れない（前の版のおすすめどおり）として進めます。</p>
+</section>
+
+<footer>
+  <p>画像の出典：「Godotで撮影」はS01〜S03 v3（2026-10-15、Godot 4.7.2）から切り出したコマ。「実機」は2026-10-13にGodot 4.7.2で撮影した画面。「演出動画」はゲーム内演出の確認用動画（artifacts/ の10月12日以降のもの）から切り出したコマ。「生成イメージ」はCodex CLI（<span class="mono">codex exec</span>）の画像生成で作った構図案で、本番では使いません（S12は2026-10-16に追加）。</p>
+  <p>ファイル：docs/pv/storyboard.html、画像は docs/pv/frames/（v3のコマは frames/v3/）、生成プロンプトは docs/pv/gen_prompts/。</p>
+</footer>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+  // 128 BPM。曲は40小節で、5小節目だけ2拍（v3 の 05「P2が指さす」の半小節）。ほかは4/4。
+  const BPM = 128, BEAT = 60 / BPM, BAR = BEAT * 4;
+  const BAR_BEATS = Array.from({length:40}, (_, i) => i === 4 ? 2 : 4);
+  const BAR_START = []; { let a = 0; BAR_BEATS.forEach(n => { BAR_START.push(a); a += n; }); }
+  const TOTAL_BEATS = BAR_BEATS.reduce((a, n) => a + n, 0), TOTAL = TOTAL_BEATS * BEAT;
+  // 拍（0始まり）→ [小節（1始まり）, 小節の中の拍（1始まり）]
+  function barOf(beat){
+    let b = 0; while (b + 1 < BAR_START.length && BAR_START[b + 1] <= beat) b++;
+    return [b + 1, Math.floor(beat - BAR_START[b]) + 1];
+  }
+
+  const SECS = {
+    open:  {name:"つかみ",           c:"--sec-open",  msg:"Q1の壁が空から落ちてきて、2人が見比べる。P2は「せんせい」に激突して爆散、P1は「AI」を突き破ってロゴへ。最初の20秒で遊び方と笑いどころを見せる。"},
+    ai:    {name:"AIが出題",         c:"--sec-ai",    msg:"設定 → ヘリ → AIが作った問題が空から落ちてくる → 5教科×6学年。「AIが毎回ちがう問題をつくる」「別のAIがチェック」をテロップで言い切る。"},
+    rule:  {name:"走って答える",     c:"--sec-rule",  msg:"カウントダウン（壁の速さもAIが決める）から、正解・不正解・落下・ボス壁まで。ルールは短いテロップで添える。"},
+    duo:   {name:"ふたりでドタバタ", c:"--sec-duo",   msg:"ボス壁のブレイクから、サビ2の頭で2人対戦へ。チップソー・サメでの逆襲、オンライン対戦（VSカットインまで）。"},
+    world: {name:"キャラと決着",     c:"--sec-world", msg:"自分だけのキャラと、スコアタワーでの決着。"},
+    end:   {name:"エンド",           c:"--sec-end",   msg:"LAST Qのオチからロゴ、キャッチコピー、作品情報。"}
+  };
+  // 曲の構成（拍）。合計 158 拍 = 40 小節。
+  const MUSIC = [
+    {name:"イントロ", beats:12, e:1}, {name:"ため", beats:18, e:2}, {name:"ヒット", beats:4, e:4}, {name:"ジングル", beats:8, e:3},
+    {name:"Aメロ", beats:24, e:2}, {name:"ビルド", beats:8, e:3}, {name:"サビ1", beats:16, e:4}, {name:"ブレイク", beats:8, e:1},
+    {name:"サビ2", beats:24, e:5}, {name:"クライマックス", beats:8, e:5}, {name:"ストップ", beats:8, e:1}, {name:"アウトロ", beats:20, e:3}
+  ];
+  const SRC = {real:"実機 10/13", clip:"演出動画", gen:"生成イメージ", design:"デザイン案", godot:"Godotで撮影", ae:"AEで試作"};
+
+  // box helper: [left%, top%, width%, height%]
+  const box = (l, t, w, h) => ({l, t, w, h});
+
+  const SHOTS = [
+    {id:"S01", sec:"open", beats:12, title:"Q1の壁が、空から落ちてくる", img:"frames/v3/v3_0150.jpg", src:"godot",
+     seq:[{img:"frames/v3/v3_0060.jpg", from:0, to:.335, label:"01"},
+          {img:"frames/v3/v3_0150.jpg", from:.335, to:.667, label:"02"},
+          {img:"frames/v3/v3_0300.jpg", from:.667, to:1, label:"03"}],
+     ov:[],
+     screen:"01：スタートを待つ2人（ベルトは止まったまま、立ちポーズ）。02：問題の壁が空から落ちて着地する。潰れて戻り、白い土ぼこりが3つ上がり、画面が揺れる。2人はのけぞる。03：2人の背中越しのアップへ寄り、看板「Q1 このゲームのもんだいを／つくっているのはだれ？」とドア「AI」「せんせい」を読ませる。",
+     camera:"01・02は2人の後ろの低い位置から。03は2拍で背中越しのアップへ寄る（ドアが2人の頭の間に見える高さ）。",
+     audio:"観客のざわめき。壁の着地（`wall_land`）と観客のどよめき。曲はイントロ（3小節）。",
+     add:"なし（「Q1」は壁の看板の中）",
+     capture:"撮影済み（v3、<span class=\"mono\">tests/pv_capture/pv_v3_runtime.gd</span> のPVフレーム1〜338）。",
+     status:[["ok","Godotで撮影済み（v3）"]]},
+    {id:"S02", sec:"open", beats:22, title:"見比べて…P2は「せんせい」でゴツン。P1は「AI」を突き破る", img:"frames/v3/v3_0862.jpg", src:"godot",
+     seq:[{img:"frames/v3/v3_0400.jpg", from:0, to:.181, label:"04"},
+          {img:"frames/v3/v3_0490.jpg", from:.181, to:.272, label:"05"},
+          {img:"frames/v3/v3_0580.jpg", from:.272, to:.455, label:"06"},
+          {img:"frames/v3/v3_0632.jpg", from:.455, to:.523, label:"07"},
+          {img:"frames/v3/v3_0752.jpg", from:.523, to:.703, label:"07b"},
+          {img:"frames/v3/v3_0810.jpg", from:.703, to:.809, label:"08"},
+          {img:"frames/v3/v3_0862.jpg", from:.809, to:1, label:"09"}],
+     ov:[],
+     screen:"04：前から2人の顔。赤→青→赤と1拍ずつドアを見比べる。05：P2が赤いドアを指さし、P1は首を振って迷う（半小節）。06：P2がその場で踊って見せびらかしてから、踊りながら斜めに赤いドアへ。P1は腕を組んで目で追う。07：P2がゴツン（ハート1なので脱落）。07b：P1が指さしてダンスで煽る。激突のちょうど2秒後にP2が爆散。08：P1が青いドアの正面へ寄って走る。09：壁の向こうから。P1が踊りながら「AI」を突き破る（0.6秒だけ0.5倍のスロー）。",
+     camera:"04・05は前から。06・07は2人の後ろから壁を見る。07bは横から2人を一緒に。08は低い追従。09は壁の向こう側から。",
+     audio:"5小節目だけ2拍（05の指さし）。P2のゴツンと不正解の音、爆散と爆発音。P1の突破を9小節目の頭（最初のアタック）に合わせ、ここで曲が入る。",
+     add:"なし（何が起きたかは動きと効果音で伝える）",
+     capture:"撮影済み（v3 のPVフレーム339〜956）。このPVだけベルトは1.0m/s。演技の上乗せは <span class=\"mono\">StagingPuppet</span>（UALのクリップ）。",
+     status:[["ok","Godotで撮影済み（v3）"]]},
+    {id:"S03", sec:"open", beats:8, title:"ロゴ（案C）", img:"frames/v3/v3_1150.jpg", src:"ae",
+     seq:[{img:"frames/v3/v3_1000.jpg", from:0, to:.5, label:"ロゴ1"},
+          {img:"frames/v3/v3_1150.jpg", from:.5, to:1, label:"ロゴ2"}],
+     ov:[{t:"sub2", text:"走って こたえる 3Dクイズ", y:"36%", from:.6}],
+     screen:"S02から止めずにつながる。P1は砕けたドアの前で踊り続ける。その上でタイトルロゴの登場演出（黄色い線→ベルト→文字が落ちて運ばれる→白い閃光→斜めの棒）。ロゴがそろったら、下にジャンル名の1行を出す。最後の拍で、ベルトがロゴごと左へ流れ、右から黄色い斜めの帯が画面を覆う。",
+     camera:"胸の高さへ上がって引く（v3のロゴの部分）。",
+     audio:"ジングル。文字の着地音を拍に合わせる。",
+     add:"ロゴ ＋「走って こたえる 3Dクイズ」",
+     capture:"背景はv3のPVフレーム957〜1180。ロゴはAfter Effects（<span class=\"mono\">docs/pv/previz/ae/build_s03_c.jsx</span>）。ジャンル名の1行はAEで足す。",
+     status:[["ok","Godot＋AEで試作済み"],["ae","AE：ジャンル名の1行"]]},
+    {id:"S04", sec:"ai", beats:4, title:"教科と学年をえらぶ", img:"frames/ref_menu_settings.jpg", src:"real",
+     ov:[{t:"telop", text:"教科と学年を、<span class=\"y\">えらぶだけ</span>"}],
+     screen:"S03の黄色い帯が抜けると、メニューの設定パネル。教科が「算数 → 国語 → 理科 → 社会 → 英語」、学年が「1年生 → 6年生」と半拍ごとに切り替わり、最後に「ゲーム開始」が押される。",
+     camera:"画面の収録をAEで設定パネルへゆっくり寄せる（1.0 → 1.15倍）。",
+     audio:"切り替えのカーソル音を拍に合わせる。",
+     add:"「教科と学年を、えらぶだけ」（何年生・何の教科かは、S07の補足と教科名で見せる）",
+     capture:"実機（UIあり）。撮影スクリプトで半拍ごとに設定を切り替える。",
+     status:[["shoot","要撮影"],["ae","AE：テロップ"]]},
+    {id:"S05", sec:"ai", beats:4, title:"ヘリのお迎え", img:"frames/ref_heli_ladder.jpg", src:"real",
+     ov:[],
+     screen:"ハテナが操縦するヘリが桟橋に来て縄ばしごを下ろす。キャラが助走してジャンプでつかまり、そのまま飛び去る。",
+     camera:"実機のメニューのカメラ。最後の2拍は、飛び去るヘリを真下から見上げるPVカメラ。",
+     audio:"ローター音。ジャンプでつかまる瞬間を3拍目の頭に合わせる。",
+     add:"なし（絵で伝わる）",
+     capture:"実機（メニューのヘリの演出）。見上げのカットだけPVカメラ。",
+     status:[["shoot","要撮影"],["need","要実装：PVカメラ"]]},
+    {id:"S06", sec:"ai", beats:8, title:"AIが作った問題が、空から落ちてくる", img:"frames/gen/s06_falling_walls.jpg", src:"gen",
+     ov:[{t:"telop", text:"AIが、<span class=\"y\">毎回ちがう問題</span>をつくる", sub:"つくった問題は、別のAIがチェック", subFrom:.5}],
+     screen:"問題の壁がコースの奥から手前へ、1拍ごとに1枚ずつ空から落ちて着地していく（S01と同じ落ち方：潰れて戻る・土ぼこり・揺れ）。「問題を準備中 n/10」のカウンターも進む。",
+     camera:"コースの奥（ゴール側）の高い位置から始め、手前（スタート側）へ前進しながら高さを下げるドリー。落ちてくる壁を次々に追い越し、最後は走者の背中の高さで止まる。",
+     audio:"壁が着地する「ドスン」を拍の頭にそろえる。",
+     add:"「AIが、毎回ちがう問題をつくる」→ 2小節目から補足「つくった問題は、別のAIがチェック」",
+     capture:"実機と、奥から手前へ動くPVカメラ。落とし方はv3の仕組み（<span class=\"mono\">DROP_START_Y</span> など）を10枚に広げる。ゲームでは壁が左右から飛んできて合体するので、PVだけの見せ方になる。",
+     status:[["need","要実装：PVカメラ"],["ok","落下はv3で済み"],["risk","ゲームの出方との差"],["ae","AE：テロップ"]]},
+    {id:"S07", sec:"ai", beats:8, title:"5教科×6学年の問題", img:"frames/ref_quiz_wall_q1.jpg", src:"real",
+     ov:[{t:"subj", text:"算数", animHide:true},
+         {t:"subj", text:"算数", from:0, to:.1875, staticHide:true},
+         {t:"subj", text:"国語", from:.1875, to:.375, staticHide:true},
+         {t:"subj", text:"理科", from:.375, to:.5625, staticHide:true},
+         {t:"subj", text:"社会", from:.5625, to:.75, staticHide:true},
+         {t:"subj", text:"英語", from:.75, to:1, staticHide:true},
+         {t:"telop", pos:"br", text:"5教科 × <span class=\"y\">6学年</span>", sub:"学年に合わせた問題を、AIがつくる"}],
+     screen:"正面から見た問題の壁を5連続で切り替える（算数・国語・理科・社会・英語、学年もばらばらに）。壁の構図は同じで、問題文とドアの文字だけが替わる。左上の教科名もカットごとに替わる。",
+     camera:"壁の正面に固定したPVカメラ。5枚とも同じ位置・同じ画角。",
+     audio:"切り替えごとにシャッター風の「カシャ」。",
+     add:"左上に教科名（1.5拍ずつ、英語だけ2拍）＋右下に「5教科×6学年」",
+     capture:"実機。実際にAIが作った問題を教科ごとに1枚（<span class=\"mono\">offline_bank.json</span> から選んで固定）。",
+     status:[["need","要実装：PVカメラ"],["need","要実装：問題の固定"],["shoot","要撮影"],["ae","AE：テロップ"]]},
+    {id:"S09", sec:"rule", beats:8, title:"カウントダウン（壁の速さもAIが決める）", img:"frames/ref_countdown.jpg", src:"real",
+     ov:[{t:"telop", text:"壁のスピードも、<span class=\"y\">AIが決める</span>", sub:"答えるのにかかる時間を、AIが予測", to:.875}],
+     screen:"カウントダウンの壁が地鳴りとともに着地する。「3・2・1」で壁が爆発してスタート。",
+     camera:"実機の後方カメラ。着地の瞬間はゲームの画面揺れをそのまま使う。",
+     audio:"1小節目は着地と地鳴り（ビルド）。2小節目は1拍ずつ「3・2・1」、4拍目で爆発 → 次の小節からサビ。",
+     add:"「壁のスピードも、AIが決める」＋補足「答えるのにかかる時間を、AIが予測」（爆発の前に消す）",
+     capture:"実機。本編のカウントは5からなので、3から後を使う。",
+     status:[["shoot","要撮影"],["ae","AE：テロップ"]]},
+    {id:"S10", sec:"rule", beats:4, title:"正解のドアを突き破る", img:"frames/clip_door_smash_b.jpg", src:"clip",
+     ov:[],
+     screen:"正解のドアを突き破り、連続正解の炎のバッジが出る。",
+     camera:"横から低く追従し、破片が横へ流れる。突破の瞬間だけスピードランプ。",
+     audio:"正解音とドアの破壊音（サビの頭）。",
+     add:"なし（サビの頭の決めの絵なので文字を乗せない）",
+     capture:"実機と、横から追従するPVカメラ。",
+     status:[["need","要実装：PVカメラ"]]},
+    {id:"S11", sec:"rule", beats:4, title:"まちがえたら、ゴツン", img:"frames/gen/s11_bonk.jpg", src:"gen",
+     ov:[{t:"hud"}, {t:"telop", pos:"tc", text:"まちがえると、<span class=\"y\">ゴツン</span>"}],
+     screen:"不正解のドア（実はただの壁）に激突してのけぞる。左下のハートが1つ消える。",
+     camera:"壁の側から正面（PVカメラ）。このカットだけHUDのハートを出す。",
+     audio:"激突音と「ブー」。",
+     add:"「まちがえると、ゴツン」（上の中央。左下のハートとぶつけない。ハートが減るのはHUDで見せる）",
+     capture:"実機。わざと不正解のドアへ走らせる。",
+     status:[["need","要実装：PVカメラ"],["need","要実装：HUDの切り替え"],["ae","AE：テロップ"]]},
+    {id:"S12", sec:"rule", beats:8, title:"落ちたら、サメ", img:"frames/gen/s12_shark_bite.jpg", src:"gen",
+     ov:[{t:"telop", text:"コンベアから落ちると……", to:.5}],
+     screen:"コンベアの端から海へ落ちる。水面が静かになる半拍の間のあと、サメが急行して噛みつく。",
+     camera:"落下は真上から、噛みつきは水面すれすれ（実機の死亡カメラの映像を画面いっぱいで）。",
+     audio:"水しぶき → 一瞬の無音 → 噛みつき音を2小節目の頭に合わせる。",
+     add:"「コンベアから落ちると……」（1小節目だけ。噛みつきは文字なしで見せる）",
+     capture:"実機。参考の実機画面では右下の小窓に映っている映像を、画面いっぱいで撮る。",
+     status:[["need","要実装：PVカメラ"],["ae","AE：テロップ"]]},
+    {id:"S13", sec:"rule", beats:8, title:"4択のボス壁", img:"frames/gen/s13_boss.jpg", src:"gen",
+     ov:[{t:"sign", b:box(25.6,6.7,48.5,16.2), text:"【例】36 ÷ 4 ＝ ？", fs:"3cqw"},
+         {t:"door", b:box(24,28.5,11.5,34.5), text:"6", fs:"5cqw"},
+         {t:"door", b:box(38.5,28.5,10,34.5), text:"8", fs:"5cqw"},
+         {t:"door", b:box(51.5,28.5,10,34.5), text:"9", fs:"5cqw"},
+         {t:"door", b:box(64.5,28.5,11.5,34.5), text:"12", fs:"5cqw"},
+         {t:"telop", text:"最後は、<span class=\"y\">4択のボス壁</span>"}],
+     screen:"4つのドアがある大きな壁がゆっくり迫る。いつもの2択の壁より大きく、ドアが4つあることで「最後の壁」と分かる。",
+     camera:"床すれすれから見上げて、ゆっくり前へ。0.6倍のスロー。",
+     audio:"ブレイク。ドラムが抜けて、心音とベースだけ。",
+     add:"「最後は、4択のボス壁」",
+     capture:"実機の10問目と、ローアングルのPVカメラ。",
+     status:[["need","要実装：PVカメラ"],["need","要実装：スロー"],["ae","AE：テロップ"]]},
+    {id:"S16", sec:"duo", beats:4, title:"うしろからチップソー", img:"frames/ref_saw_shatter.jpg", src:"real",
+     ov:[{t:"telop", text:"おくれると、<span class=\"y\">チップソー</span>"}],
+     screen:"ここから2人対戦。並んで逃げる2人の後ろから8連のチップソーが迫り、遅れたほうが巻き込まれてバラバラになる。2人が同じコースにいることが1枚で分かる構図にする。",
+     camera:"刃の列の後ろの上から、刃越しに逃げる2人を撮る。",
+     audio:"サビ2の頭。ボス壁のブレイクから、回転刃のうなりで入り、巻き込まれる音。",
+     add:"「おくれると、チップソー」",
+     capture:"実機。2人の自動操作で、片方をわざと遅らせる。",
+     status:[["need","要実装：2人の自動操作"],["need","要実装：PVカメラ"],["ae","AE：テロップ"]]},
+    {id:"S17", sec:"duo", beats:8, title:"サメに乗って逆襲", img:"frames/gen/s17_ghost_shark.jpg", src:"gen",
+     ov:[{t:"game", text:"PERFECT", x:30, y:16}, {t:"telop", text:"脱落しても、<span class=\"y\">サメに乗って逆襲</span>", to:.625}],
+     screen:"脱落したキャラが幽霊になってサメに乗り、狙いを付けてチャージする。黄色の「PERFECT」で離して突進し、相手を海へ弾き飛ばす。",
+     camera:"サメの後ろから追従。命中の瞬間だけスロー。",
+     audio:"チャージ音 → 突進 → 水しぶき。",
+     add:"「脱落しても、サメに乗って逆襲」（命中の前に消す）",
+     capture:"実機。自動操作で命中が安定しなければ、2人で実際に遊んで録る。",
+     status:[["need","要実装：2人の自動操作"],["risk","撮影が難しい"],["ae","AE：テロップ"]]},
+    {id:"S18", sec:"duo", beats:8, title:"オンライン対戦へ（VSカットインまで）", img:"frames/clip_online_menu.jpg", src:"clip",
+     seq:[{img:"frames/clip_online_menu.jpg", from:0, to:.25, label:"画面"},
+          {img:"frames/clip_boarding.jpg", from:.25, to:.5, label:"乗る"},
+          {img:"frames/clip_jet.jpg", from:.5, to:.75, label:"発進"},
+          {img:"frames/clip_vs.jpg", from:.75, to:1, label:"VS"}],
+     ov:[{t:"telop", text:"<span class=\"y\">オンライン対戦</span>も", sub:"ランダムマッチ ・ ともだちコード", to:.75}],
+     screen:"オンライン対戦の画面（ゲームの見出しと、自動で付いた二つ名）→ ヘリに乗り込む → ジェット噴射で急発進 → VSカットイン（入りの0.9秒）。2拍ずつの4カット。",
+     camera:"実機のマッチング演出のカメラ。",
+     audio:"ボタン音 → ドアが閉まる音 → ジェット噴射 → カットインの一打（VSの着地を2小節目の3拍目に）。",
+     add:"「オンライン対戦も」＋補足「ランダムマッチ・ともだちコード」（VSカットインの前に消す）",
+     capture:"実機。同じPCでゲームを2つ起動し、ともだちコードで対戦してホスト側を録る。名前は自動の二つ名。案Bで、もとのS19（VSカットイン）をこのカットの最後の2拍に入れた。",
+     status:[["shoot","要撮影"],["risk","撮影が難しい"],["ae","AE：テロップ"]]},
+    {id:"S20", sec:"world", beats:4, title:"自分だけのキャラ", img:"frames/gen/s20_customize.jpg", src:"gen",
+     ov:[{t:"telop", text:"帽子と色で、<span class=\"y\">自分だけのキャラ</span>に"}],
+     screen:"1拍ごとに帽子が替わる（王冠 → プロペラ → キリン → 海賊）。数で言わず、切り替えの速さで種類の多さを見せる。ダンスはS02・S03で見せているので、ここは帽子と塗りに絞る。",
+     camera:"カスタマイズ画面のプレビューを、正面のバストアップで固定。",
+     audio:"帽子が替わるたびに「ポン」。",
+     add:"「帽子と色で、自分だけのキャラに」",
+     capture:"実機のカスタマイズ画面。撮影スクリプトで拍に合わせて切り替える。",
+     status:[["shoot","要撮影"],["risk","帽子モデルのクレジット"],["ae","AE：テロップ"]]},
+    {id:"S21", sec:"world", beats:8, title:"決着はスコアタワー", img:"frames/ref_score_tower.jpg", src:"real",
+     ov:[{t:"telop", pos:"tc", text:"決着は、<span class=\"y\">スコアタワー</span>で", to:.5}],
+     screen:"得点の式 → ドラムロールでタワーがせり上がる → 2小節目の頭で「WIN!」と紙吹雪・王冠 → 負けた側に卵が飛ぶ。案Bで3小節から2小節に縮め、ハテナが旗を上げる所は切った。",
+     camera:"実機のフィナーレのカメラ。",
+     audio:"ゲームのドラムロールを曲に重ね、「WIN!」を33小節目の頭に合わせる。",
+     add:"「決着は、スコアタワーで」（1小節目だけ）",
+     capture:"実機。2人の10問をゴールまで走り、勝ち負けがつく回を撮る（参考画像は引き分けの回）。",
+     status:[["shoot","要撮影"],["ae","AE：テロップ"]]},
+    {id:"S22", sec:"end", beats:8, title:"LAST Q", img:"frames/gen/s22_lastq.jpg", src:"gen",
+     ov:[{t:"sign", b:box(35.4,11.1,29.2,8.9), text:"<span class=\"y\">LAST Q</span> さあ、どうする？", fs:"1.9cqw"},
+         {t:"door", b:box(29.1,21.8,8.5,21.5), text:"あそぶ", fs:"1.9cqw"},
+         {t:"door", b:box(40.1,21.8,8.7,21.5), text:"あそぶ", fs:"1.9cqw"},
+         {t:"door", b:box(51.1,21.8,8.8,21.5), text:"あそぶ", fs:"1.9cqw"},
+         {t:"door", b:box(62.1,21.8,8.7,21.5), text:"あそぶ", fs:"1.9cqw"}],
+     screen:"4つのドアが全部「あそぶ」の壁。問題は「さあ、どうする？」。P1が一瞬首をかしげてから、全力で突き破る。",
+     camera:"1小節目はP1の背中越しで止まり気味。突破は壁の向こう側から。",
+     audio:"1小節目は曲を止めてチクタクだけ。2小節目の頭で、破壊音と同時に最後のフレーズ。",
+     add:"なし（壁の文字がオチ）",
+     capture:"実機。メタ問題（4択・全部同じ答え）とPVカメラ。",
+     status:[["need","要実装：メタ問題"],["need","要実装：PVカメラ"]]},
+    {id:"S23", sec:"end", beats:12, title:"ロゴとキャッチコピー", img:"frames/clip_saw_row.jpg", src:"clip",
+     ov:[{t:"dim", a:.5},
+         {t:"logo", w:"52%", y:"40%"},
+         {t:"catch", text:"AIが出す。<span class=\"y\">キミが走る。</span>", y:"68%", from:.33}],
+     screen:"メニューの港の景色（UIなし）を背景に、タイトルロゴの登場演出をほぼ等速で。ロゴが組み上がったら、下にキャッチコピー。",
+     camera:"メニュー背景の3D（UIを消した状態）。",
+     audio:"曲の最後のフレーズ。ロゴが完成した瞬間に決めの一音。",
+     add:"ロゴとキャッチコピー「AIが出す。キミが走る。」",
+     capture:"背景は実機のメニューをUIなしで撮る。ロゴはAEのタイトルロゴのコンポ。",
+     status:[["ae","AE制作"],["shoot","要撮影（背景）"]]},
+    {id:"S24", sec:"end", beats:8, title:"作品情報", img:"", src:"design",
+     ov:[{t:"info"}],
+     screen:"ロゴを小さく上に置き、作品名・対応環境・応募作品であることを表示。最下段に小さく素材のクレジット。",
+     camera:"—",
+     audio:"最後の和音の余韻。最後の0.5秒は無音。",
+     add:"作品名・対応環境・応募作品の表記・素材クレジット",
+     capture:"After Effects。個人名・学校名は入れない。",
+     status:[["ae","AE制作"]]}
+  ];
+
+  // derive timing（拍で積み上げる）
+  let cursor = 0;
+  SHOTS.forEach(s => {
+    s.b0 = cursor; s.t0 = cursor * BEAT; s.dur = s.beats * BEAT; s.t1 = s.t0 + s.dur;
+    s.bar0 = barOf(cursor)[0]; s.bar1 = barOf(cursor + s.beats - 1)[0];
+    cursor += s.beats;
+  });
+  let mc = 0;
+  MUSIC.forEach(m => { m.b0 = mc; m.t0 = mc * BEAT; m.t1 = m.t0 + m.beats * BEAT; m.bar0 = barOf(mc)[0]; m.bar1 = barOf(mc + m.beats - 1)[0]; mc += m.beats; });
+  const secOrder = Object.keys(SECS);
+  secOrder.forEach(k => {
+    const list = SHOTS.filter(s => s.sec === k);
+    SECS[k].b0 = list[0].b0;
+    SECS[k].beats = list.reduce((a, s) => a + s.beats, 0);
+    SECS[k].shots = list.map(s => s.id);
+  });
+
+  const tc = sec => { const m = Math.floor(sec / 60); const s = sec - m * 60; return m + ":" + s.toFixed(2).padStart(5, "0"); };
+  const secColor = k => "var(" + SECS[k].c + ")";
+  const barRange = (a, b) => a === b ? `${a}小節` : `${a}–${b}小節`;
+  const strip = h => h.replace(/<[^>]+>/g, "");
+
+  // ---------- frame rendering ----------
+  function pos(b){ return `left:${b.l}%;top:${b.t}%;width:${b.w}%;height:${b.h}%;`; }
+  function timing(o){
+    let a = "";
+    if (o.from !== undefined) a += ` data-from="${o.from}"`;
+    if (o.to !== undefined) a += ` data-to="${o.to}"`;
+    return a;
+  }
+  function ovHTML(o, mode){
+    if (mode === "static" && o.staticHide) return "";
+    if (mode === "anim" && o.animHide) return "";
+    const tm = mode === "anim" ? timing(o) : "";
+    switch (o.t){
+      case "dim": return `<div class="ov ov-dim" style="--a:${o.a ?? .45}"${tm}></div>`;
+      case "telop": {
+        const subTm = mode === "anim" && o.subFrom !== undefined ? ` data-from="${o.subFrom}"` : "";
+        return `<div class="ov ov-telop${o.pos ? " p-" + o.pos : ""}"${tm}><div class="m">${o.text}</div>${o.sub ? `<div class="s"${subTm}>${o.sub}</div>` : ""}</div>`;
+      }
+      case "tag": return `<div class="ov ov-tag"${tm}>${o.text}</div>`;
+      case "note": return `<div class="ov ov-note"${tm}>${o.text}</div>`;
+      case "sign": return `<div class="ov ov-sign" style="${pos(o.b)}--fs:${o.fs || "2.2cqw"}"${tm}>${o.text}</div>`;
+      case "door": return `<div class="ov ov-door" style="${pos(o.b)}--fs:${o.fs || "2.6cqw"}"${tm}>${o.text}</div>`;
+      case "heart": return `<div class="ov ov-heart" style="left:${o.x}%;top:${o.y}%"${tm}>${o.text}</div>`;
+      case "fx": return `<div class="ov ov-fx" style="left:${o.x}%;top:${o.y}%;--r:${o.r || "-8deg"}"${tm}>${o.text}</div>`;
+      case "logo": return `<div class="ov ov-logo" style="--w:${o.w || "52%"};--y:${o.y || "40%"}"${tm}><img src="frames/logo_white.png" alt="AIQUIZ"><div class="bar"></div></div>`;
+      case "catch": return `<div class="ov ov-catch" style="--y:${o.y || "66%"}"${tm}>${o.text}</div>`;
+      case "sub2": return `<div class="ov ov-sub2" style="--y:${o.y || "64%"}"${tm}>${o.text}</div>`;
+      case "hud": return `<div class="ov ov-hud"${tm}><span class="p">P1</span><span class="h">♥♥<i>♥</i></span><span class="n">2 / 3</span></div>`;
+      case "game": return `<div class="ov ov-game" style="left:${o.x}%;top:${o.y}%"${tm}>${o.text}</div>`;
+      case "subj": return `<div class="ov ov-subj"${tm}>${o.text}</div>`;
+      case "info": return `<div class="ov ov-info"><img src="frames/logo_white.png" alt="AIQUIZ"><div class="t">AIQUIZ 3D</div><div class="p">Windows ／ 小学生向け 3Dクイズランナー</div><div class="p">ゲームクリエイター甲子園2026 応募作品</div><div class="cr">効果音：OtoLogic（CC BY 4.0）ほか ／ 3Dモデル：Poly Pizza（CC BY 3.0）ほか ／ 詳しくは作品説明へ</div></div>`;
+    }
+    return "";
+  }
+  function frameHTML(s, mode){
+    const lazy = mode === "static" ? ' loading="lazy"' : "";
+    const img = s.img ? `<img class="bg${s.blur ? " blur" : ""}" src="${s.img}" alt=""${lazy} decoding="async">` : "";
+    // アニマティックでは、1カットの中の切り替え（seq）を時間どおりに差し替える
+    const seq = mode === "anim" && s.seq ? s.seq.map(q => `<img class="ov ov-img" src="${q.img}" alt="" decoding="async" data-from="${q.from}" data-to="${q.to}">`).join("") : "";
+    const badge = `<div class="ov ov-badge${s.src === "gen" ? " gen" : (s.src === "godot" || s.src === "ae") ? " done" : ""}">${SRC[s.src]}</div>`;
+    return `<div class="frame" role="img" aria-label="${s.id} ${s.title}">${img}${seq}${s.ov.map(o => ovHTML(o, mode)).join("")}${badge}</div>`;
+  }
+  function stripHTML(s){
+    if (!s.seq) return "";
+    const nb = q => Math.round((q.to - q.from) * s.beats * 2) / 2;
+    return `<div class="seqstrip">${s.seq.map(q => `<figure><img src="${q.img}" alt="" loading="lazy" decoding="async"><figcaption>${q.label}・約${nb(q)}拍</figcaption></figure>`).join("")}</div>`;
+  }
+
+  // ---------- header numbers ----------
+  const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  setText("chipLen", "本編 " + TOTAL.toFixed(1) + "秒");
+  setText("chipBars", "128 BPM・" + BAR_BEATS.length + "小節（5小節目だけ2拍）");
+  setText("chipShots", SHOTS.length + "カット");
+
+  // ---------- ribbon（1列 = 1拍） ----------
+  const rib = document.getElementById("ribbon");
+  const col = (b0, n) => `grid-column:${b0 + 1} / span ${n}`;
+  const rr = `<div class="rr" style="grid-template-columns:repeat(${TOTAL_BEATS},minmax(0,1fr))">`;
+  let html = `<div class="rl">章</div>${rr}`;
+  secOrder.forEach(k => { const x = SECS[k]; html += `<div class="rs" style="${col(x.b0, x.beats)};--c:${secColor(k)}">${x.name}</div>`; });
+  html += `</div><div class="rl">カット</div>${rr}`;
+  SHOTS.forEach(s => { html += `<a class="rshot" id="rib-${s.id}" href="#${s.id}" title="${s.id} ${s.title}（${tc(s.t0)}）" style="${col(s.b0, s.beats)};--c:${secColor(s.sec)}">${s.id.slice(1)}</a>`; });
+  html += `</div><div class="rl">テロップ</div>${rr}`;
+  SHOTS.forEach(s => {
+    s.ov.filter(o => o.t === "telop" || o.t === "sub2" || o.t === "catch").forEach(o => {
+      const f = o.from ?? 0, to = o.to ?? 1;
+      const b0 = Math.round(s.b0 + f * s.beats), n = Math.max(1, Math.round((to - f) * s.beats));
+      html += `<div class="rtel" style="${col(b0, n)}" title="${s.id}：${strip(o.text)}"></div>`;
+    });
+  });
+  html += `</div><div class="rl">曲</div>${rr}`;
+  MUSIC.forEach(m => { html += `<div class="rm" style="${col(m.b0, m.beats)};--e:${m.e}" title="${m.name}（${barRange(m.bar0, m.bar1)}）">${m.name}</div>`; });
+  html += `</div><div class="rl">時間</div>${rr}`;
+  for (let b = 1; b <= BAR_BEATS.length; b += 4){
+    const b0 = BAR_START[b - 1], b1 = b + 4 <= BAR_BEATS.length ? BAR_START[b + 3] : TOTAL_BEATS;
+    html += `<div class="rt" style="${col(b0, b1 - b0)}">${tc(b0 * BEAT).replace(/\.00$/, "")}<br>${b}小節</div>`;
+  }
+  html += `</div>`;
+  rib.innerHTML = html;
+
+  // section table
+  document.querySelector("#secTable tbody").innerHTML = secOrder.map(k => {
+    const x = SECS[k]; const t0 = x.b0 * BEAT; const t1 = t0 + x.beats * BEAT;
+    return `<tr><td class="nw"><span class="pill" style="color:${secColor(k)}">${x.name}</span></td><td class="mono nw">${tc(t0)}–${tc(t1)}</td><td class="mono nw">${barRange(barOf(x.b0)[0], barOf(x.b0 + x.beats - 1)[0])}</td><td>${x.msg}<br><span class="mono" style="font-size:12px;color:var(--muted)">${x.shots[0]}–${x.shots[x.shots.length - 1]}</span></td></tr>`;
+  }).join("");
+
+  // telop table（編集で足す文字。カットのデータから作る）
+  const telRows = [];
+  SHOTS.forEach(s => s.ov.forEach(o => {
+    if (o.t === "telop") telRows.push([s.t0 + (o.from ?? 0) * s.dur, s.id, strip(o.text) + (o.sub ? `<br><span style="color:var(--muted);font-size:13px">補足：${strip(o.sub)}</span>` : "")]);
+    if (o.t === "sub2") telRows.push([s.t0 + (o.from ?? 0) * s.dur, s.id, "ロゴの下に「" + strip(o.text) + "」"]);
+    if (o.t === "logo" && s.id !== "S03") telRows.push([s.t0, s.id, "ロゴ（タイトルロゴの登場演出）"]);
+    if (o.t === "catch") telRows.push([s.t0 + (o.from ?? 0) * s.dur, s.id, "キャッチコピー「" + strip(o.text) + "」"]);
+  }));
+  telRows.push([SHOTS.find(s => s.id === "S07").t0, "S07", "左上の教科名「算数」「国語」「理科」「社会」「英語」（1.5拍ずつ、英語だけ2拍）"]);
+  telRows.push([SHOTS.find(s => s.id === "S24").t0, "S24", "AIQUIZ 3D ／ Windows ／ ゲームクリエイター甲子園2026 応募作品 ／ 素材クレジット"]);
+  telRows.sort((a, b) => a[0] - b[0]);
+  const telBody = document.querySelector("#telTable tbody");
+  if (telBody) telBody.innerHTML = telRows.map(r => `<tr><td class="mono nw">${tc(r[0])}</td><td class="mono nw">${r[1]}</td><td>${r[2]}</td></tr>`).join("");
+  setText("telCount", String(telRows.length));
+
+  // legend
+  document.getElementById("legend").innerHTML = secOrder.map(k => `<span><i style="background:${secColor(k)}"></i>${SECS[k].name}</span>`).join("");
+
+  // shots
+  const sh = document.getElementById("shots");
+  sh.innerHTML = SHOTS.map(s => {
+    const m = MUSIC.find(m => s.b0 >= m.b0 && s.b0 < m.b0 + m.beats);
+    return `<article class="shot" id="${s.id}" style="--c:${secColor(s.sec)}">
+      <div>${frameHTML(s, "static")}${stripHTML(s)}</div>
+      <div>
+        <div class="shot-head"><span class="sid">${s.id}</span><span class="stitle">${s.title}</span>
+          <span class="stc">${tc(s.t0)}–${tc(s.t1)} ／ ${barRange(s.bar0, s.bar1)}（${s.beats}拍・${s.dur.toFixed(2)}秒）<span class="sec">${SECS[s.sec].name}</span></span></div>
+        <dl class="notes">
+          <dt>画面</dt><dd>${s.screen}</dd>
+          <dt>カメラ</dt><dd>${s.camera}</dd>
+          <dt>音</dt><dd>${s.audio}<br><span style="color:var(--muted);font-size:12.5px">曲：${m.name}</span></dd>
+          <dt>足す文字</dt><dd class="tl">${s.add}</dd>
+          <dt>撮り方</dt><dd>${s.capture}</dd>
+        </dl>
+        <div class="status">${s.status.map(x => `<span class="st ${x[0]}">${x[1]}</span>`).join("")}</div>
+      </div>
+    </article>`;
+  }).join("");
+
+  // thumbnail
+  document.getElementById("thumbFrame").innerHTML = frameHTML({id:"thumb", title:"サムネイル", img:"frames/gen/thumb_kv.jpg", src:"gen",
+    ov:[{t:"logo", w:"36%", y:"16%"}, {t:"catch", text:"AIが出す。<br><span class=\"y\">キミが走る。</span>", y:"84%"}]}, "static")
+    .replace('class="ov ov-logo" style="', 'class="ov ov-logo" style="left:23%;')
+    .replace('class="ov ov-catch" style="', 'class="ov ov-catch" style="left:auto;right:5%;transform:translateY(-50%);text-align:right;line-height:1.15;font-size:5.6cqw;');
+
+  // safe toggle
+  const safe = document.getElementById("safeToggle");
+  safe.addEventListener("change", () => document.body.classList.toggle("show-safe", safe.checked));
+
+  // ---------- animatic ----------
+  const stage = document.getElementById("stage");
+  const scrub = document.getElementById("scrub"), fill = document.getElementById("scrubFill");
+  const playBtn = document.getElementById("play"), rewBtn = document.getElementById("rewind"), metBtn = document.getElementById("metro");
+  const rTc = document.getElementById("rTc"), rBar = document.getElementById("rBar"), rShot = document.getElementById("rShot"), rMus = document.getElementById("rMus");
+  scrub.setAttribute("aria-valuemax", TOTAL.toFixed(1));
+  setText("animLen", TOTAL.toFixed(1) + "秒");
+  SHOTS.forEach(s => { if (s.t0 > 0){ const b = document.createElement("b"); b.style.left = (s.t0 / TOTAL * 100) + "%"; scrub.appendChild(b); } });
+
+  let playing = false, offset = 0, t0 = 0, curIdx = -1, lastBeat = -1, metro = false, actx = null, raf = 0;
+
+  function shotAt(t){ for (let i = 0; i < SHOTS.length; i++) if (t < SHOTS[i].t1) return i; return SHOTS.length - 1; }
+  function render(t){
+    const i = shotAt(t), s = SHOTS[i];
+    if (i !== curIdx){
+      stage.innerHTML = frameHTML(s, "anim");
+      if (curIdx >= 0) document.getElementById("rib-" + SHOTS[curIdx].id).classList.remove("now");
+      document.getElementById("rib-" + s.id).classList.add("now");
+      curIdx = i;
+      rShot.textContent = s.id + " " + s.title;
+    }
+    const frac = (t - s.t0) / s.dur;
+    stage.querySelectorAll("[data-from],[data-to]").forEach(el => {
+      const f = el.dataset.from !== undefined ? +el.dataset.from : 0;
+      const to = el.dataset.to !== undefined ? +el.dataset.to : 1.01;
+      el.hidden = !(frac >= f && frac < to);
+    });
+    const beat = Math.floor(t / BEAT + 1e-6);
+    const [bar, inBar] = barOf(beat);
+    rTc.textContent = tc(t);
+    rBar.textContent = bar + "小節 " + inBar + "拍";
+    const m = MUSIC.find(m => t < m.t1) || MUSIC[MUSIC.length - 1];
+    rMus.textContent = m.name;
+    fill.style.width = (t / TOTAL * 100) + "%";
+    scrub.setAttribute("aria-valuenow", t.toFixed(1));
+    return beat;
+  }
+  function click(accent){
+    if (!actx) return;
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.frequency.value = accent ? 1760 : 1100;
+    g.gain.setValueAtTime(0.0001, actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(accent ? 0.35 : 0.2, actx.currentTime + 0.002);
+    g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + 0.06);
+    o.connect(g).connect(actx.destination);
+    o.start(); o.stop(actx.currentTime + 0.07);
+  }
+  function now(){ return playing ? offset + (performance.now() - t0) / 1000 : offset; }
+  function loop(){
+    let t = now();
+    if (t >= TOTAL){ t = TOTAL - 0.0001; pause(); offset = t; }
+    const beat = render(t);
+    if (playing && metro && beat !== lastBeat) click(barOf(beat)[1] === 1);
+    lastBeat = beat;
+    if (playing) raf = requestAnimationFrame(loop);
+  }
+  function play(){
+    if (offset >= TOTAL - 0.01) offset = 0;
+    playing = true; t0 = performance.now(); lastBeat = -1;
+    playBtn.textContent = "一時停止";
+    raf = requestAnimationFrame(loop);
+  }
+  function pause(){
+    offset = now(); playing = false; cancelAnimationFrame(raf);
+    playBtn.textContent = "再生";
+  }
+  playBtn.addEventListener("click", () => { if (metro && actx && actx.state === "suspended") actx.resume(); playing ? pause() : play(); });
+  rewBtn.addEventListener("click", () => { offset = 0; t0 = performance.now(); lastBeat = -1; render(0); });
+  metBtn.addEventListener("click", () => {
+    metro = !metro; metBtn.setAttribute("aria-pressed", String(metro));
+    if (metro && !actx){ try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){ actx = null; } }
+    if (actx && actx.state === "suspended") actx.resume();
+  });
+  function seekTo(clientX){
+    const r = scrub.getBoundingClientRect();
+    const f = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
+    offset = f * TOTAL; t0 = performance.now(); lastBeat = -1;
+    render(offset);
+  }
+  let dragging = false;
+  scrub.addEventListener("pointerdown", e => { dragging = true; scrub.setPointerCapture(e.pointerId); seekTo(e.clientX); });
+  scrub.addEventListener("pointermove", e => { if (dragging) seekTo(e.clientX); });
+  scrub.addEventListener("pointerup", () => { dragging = false; });
+  scrub.addEventListener("keydown", e => {
+    if (e.key === "ArrowRight" || e.key === "ArrowLeft"){
+      e.preventDefault();
+      offset = Math.min(TOTAL - 0.001, Math.max(0, now() + (e.key === "ArrowRight" ? BAR : -BAR)));
+      t0 = performance.now(); render(offset);
+    }
+    if (e.key === " "){ e.preventDefault(); playing ? pause() : play(); }
+  });
+  render(0);
+})();
+</script>

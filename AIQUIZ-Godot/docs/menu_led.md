@@ -110,7 +110,7 @@
 | `build_led.jsx` | コンポジションの構築（作り直すと手作業の調整は消える）。動きの約束：太い線はトリムパスで伸びて抜ける（速く出て柔らかく止まる）、エコーは同じ曲線で少し遅れて追う、入場は「少し下から 95→100%、0.21 秒遅れて不透明に」、主役だけ跳ねる、パネルだけ小さく行き過ぎて戻る。Godot はモーションブラーを描かないので AE でも切っている |
 | `sample_led.jsx` | `assets/aiquiz_menu_stage/led/led_motion.json` の書き出し（レイアウト・色・文字・パスの端点と線端と、動くプロパティ・トリムの 60fps サンプル） |
 | `render_review.py`（`render_frames.jsx`・`contact_sheet.py`） | 指定の秒をフレームに書き出してコンタクトシートにする（`previews/`）。例：`python render_review.py previews/wipe_sheet.jpg 5 WIPE_Strokes=0.2,0.45,0.7` |
-| `make_led_media.py` | `led/led_logo.png`（看板と同じロゴを白・透過で）と仮の映像 `media/clip_placeholder.jpg` |
+| `make_led_media.py` | `led/led_logo.png`（看板と同じロゴを白・透過で。元はロゴエディタ `tools/logo_editor` の書き出し `assets/branding/logo/aiquiz_logo.png`。エディタで保存すると自動で作り直される）と仮の映像 `media/clip_placeholder.jpg` |
 | `ae_run.mjs` | Higgsfield のローカル AE ブリッジ経由で .jsx を実行 |
 
 AE で位置やキーを調整したら `sample_led.jsx` だけ実行すれば Godot に反映される。

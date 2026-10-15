@@ -6,6 +6,21 @@
    "seconds": 0.5333,
    "loop": true
   },
+  "SPEC_Binoculars": {
+   "frames": 90,
+   "seconds": 3.0,
+   "loop": true
+  },
+  "SPEC_CarryKid": {
+   "frames": 30,
+   "seconds": 1.0,
+   "loop": true
+  },
+  "SPEC_ChantClap": {
+   "frames": 30,
+   "seconds": 1.0,
+   "loop": true
+  },
   "SPEC_Cheer": {
    "frames": 24,
    "seconds": 0.8,
@@ -22,41 +37,105 @@
    "loop": true
   },
   "SPEC_Dance_Gangnam": {
-   "frames": 480,
-   "seconds": 16.0,
-   "loop": true
+   "frames": 371,
+   "seconds": 12.3667,
+   "loop": true,
+   "source_seconds": 12.35
+  },
+  "SPEC_Dance_HipHop": {
+   "frames": 134,
+   "seconds": 4.4667,
+   "loop": true,
+   "source_seconds": 4.4667
+  },
+  "SPEC_Dance_HipHop2": {
+   "frames": 359,
+   "seconds": 11.9667,
+   "loop": true,
+   "source_seconds": 11.9667
   },
   "SPEC_Dance_HokeyPokey": {
-   "frames": 480,
-   "seconds": 16.0,
-   "loop": true
+   "frames": 350,
+   "seconds": 11.6667,
+   "loop": true,
+   "source_seconds": 11.6667
+  },
+  "SPEC_Dance_House": {
+   "frames": 785,
+   "seconds": 26.1667,
+   "loop": true,
+   "source_seconds": 26.1667
+  },
+  "SPEC_Dance_Moonwalk": {
+   "frames": 31,
+   "seconds": 1.0333,
+   "loop": true,
+   "source_seconds": 1.0167
   },
   "SPEC_Dance_RunningMan": {
-   "frames": 480,
-   "seconds": 16.0,
-   "loop": true
+   "frames": 325,
+   "seconds": 10.8333,
+   "loop": true,
+   "source_seconds": 10.8167
   },
   "SPEC_Dance_Silly": {
-   "frames": 229,
-   "seconds": 7.6333,
-   "loop": true
+   "frames": 115,
+   "seconds": 3.8333,
+   "loop": true,
+   "source_seconds": 3.8167
+  },
+  "SPEC_Dance_SlideHipHop": {
+   "frames": 519,
+   "seconds": 17.3,
+   "loop": true,
+   "source_seconds": 17.3
+  },
+  "SPEC_Dance_StepHipHop": {
+   "frames": 234,
+   "seconds": 7.8,
+   "loop": true,
+   "source_seconds": 7.8
   },
   "SPEC_Dance_Swing": {
-   "frames": 311,
-   "seconds": 10.3667,
-   "loop": true
+   "frames": 156,
+   "seconds": 5.2,
+   "loop": true,
+   "source_seconds": 5.1833
+  },
+  "SPEC_Dance_Thriller": {
+   "frames": 3339,
+   "seconds": 111.3,
+   "loop": true,
+   "source_seconds": 111.2833
   },
   "SPEC_Dance_WaveHipHop": {
-   "frames": 480,
-   "seconds": 16.0,
-   "loop": true
+   "frames": 479,
+   "seconds": 15.9667,
+   "loop": true,
+   "source_seconds": 15.9667
   },
   "SPEC_Dance_YMCA": {
-   "frames": 270,
-   "seconds": 9.0,
-   "loop": true
+   "frames": 135,
+   "seconds": 4.5,
+   "loop": true,
+   "source_seconds": 4.5
   },
   "SPEC_Despair": {
+   "frames": 60,
+   "seconds": 2.0,
+   "loop": true
+  },
+  "SPEC_Doze": {
+   "frames": 90,
+   "seconds": 3.0,
+   "loop": true
+  },
+  "SPEC_Drum": {
+   "frames": 30,
+   "seconds": 1.0,
+   "loop": true
+  },
+  "SPEC_Eat": {
    "frames": 60,
    "seconds": 2.0,
    "loop": true
@@ -64,6 +143,21 @@
   "SPEC_FoldArms": {
    "frames": 75,
    "seconds": 2.5,
+   "loop": true
+  },
+  "SPEC_Gasp": {
+   "frames": 30,
+   "seconds": 1.0,
+   "loop": true
+  },
+  "SPEC_HighFiveL": {
+   "frames": 30,
+   "seconds": 1.0,
+   "loop": true
+  },
+  "SPEC_HighFiveR": {
+   "frames": 30,
+   "seconds": 1.0,
    "loop": true
   },
   "SPEC_HoldUp": {
@@ -74,6 +168,21 @@
   "SPEC_Idle": {
    "frames": 75,
    "seconds": 2.5,
+   "loop": true
+  },
+  "SPEC_KidRide": {
+   "frames": 24,
+   "seconds": 0.8,
+   "loop": true
+  },
+  "SPEC_KidSit": {
+   "frames": 60,
+   "seconds": 2.0,
+   "loop": true
+  },
+  "SPEC_Megaphone": {
+   "frames": 30,
+   "seconds": 1.0,
    "loop": true
   },
   "SPEC_Nod": {
@@ -96,9 +205,24 @@
    "seconds": 0.6667,
    "loop": true
   },
+  "SPEC_Selfie": {
+   "frames": 60,
+   "seconds": 2.0,
+   "loop": true
+  },
   "SPEC_ShakeHead": {
    "frames": 75,
    "seconds": 2.5,
+   "loop": true
+  },
+  "SPEC_ShoulderL": {
+   "frames": 60,
+   "seconds": 2.0,
+   "loop": true
+  },
+  "SPEC_ShoulderR": {
+   "frames": 60,
+   "seconds": 2.0,
    "loop": true
   },
   "SPEC_Shout": {
@@ -111,6 +235,17 @@
    "seconds": 0.8,
    "loop": true
   },
+  "SPEC_StandWave": {
+   "frames": 40,
+   "seconds": 1.3333,
+   "loop": true,
+   "rise": [
+    0.1333,
+    0.4667,
+    0.8667,
+    1.2667
+   ]
+  },
   "SPEC_Talk": {
    "frames": 88,
    "seconds": 2.9333,
@@ -121,6 +256,26 @@
    "seconds": 1.3333,
    "loop": false,
    "release": 0.3
+  },
+  "SPEC_TowelSpin": {
+   "frames": 32,
+   "seconds": 1.0667,
+   "loop": true
+  },
+  "SPEC_VendorCall": {
+   "frames": 45,
+   "seconds": 1.5,
+   "loop": true
+  },
+  "SPEC_VendorWalk": {
+   "frames": 40,
+   "seconds": 1.3333,
+   "loop": true
+  },
+  "SPEC_WakeUp": {
+   "frames": 36,
+   "seconds": 1.2,
+   "loop": false
   },
   "SPEC_Wave": {
    "frames": 30,
@@ -140,7 +295,21 @@
   "blush": 8,
   "egg": 9,
   "carton": 10,
-  "wood": 11
+  "wood": 11,
+  "popcorn": 12,
+  "red": 13,
+  "metal": 14,
+  "bun": 15
  },
- "role_count": 16
+ "role_count": 16,
+ "leader_beat": 0.5,
+ "kid": {
+  "seat": [
+   0.0,
+   1.47,
+   -0.19
+  ],
+  "scale": 0.62,
+  "bone": "neck_01"
+ }
 }
