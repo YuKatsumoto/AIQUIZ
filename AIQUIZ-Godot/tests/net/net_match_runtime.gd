@@ -34,7 +34,16 @@ var _quit_at_wall := -1
 ## scenario=staging: also records the matching presentation (states, cut-in names and poses, match -> reveal time).
 ## scenario=quit_at_cutin: the host (it matches first, so it reaches the cut-in first) vanishes as its cut-in starts;
 ##   the guest, still in the join or formation shot, must search again in the air (D12).
+## scenario=ghost / ghost_host: the guest (ghost) or the host (ghost_host) walks off the side early, then rides
+##   the ghost shark and charges at the survivor whenever it is aiming. Both sides record the ghost counters.
 var _scenario := ""
+var _ghost := {"phases": [], "knockbacks": 0, "shots": []}
+var _ghost_hold_ms := -1
+## scenario=result / result_elim: play on through the score-tower result ceremony (result_elim: both walk off
+##   the side first, so the ceremony opens with two ghosts) until its buttons show. Both sides record the ceremony.
+var _result := {"phases": [], "shots": []}
+var _result_interactive_ms := -1
+var _ghost_knocked := false
 var _staging := {"states": [], "cutin_names": [], "cutin_poses": []}
 ## 中央の線が開いたあとのヘリ登場（計画書 M9）：監督があるか、降ろし終えたか、着地してから始まったか。
 var _arrival := {"present": false}
@@ -287,13 +296,25 @@ func _play() -> void:
 		_push_counts[key] = int(_push_counts.get(key, 0)) + 1)
 	while Time.get_ticks_msec() - started < PLAY_TIMEOUT_MS:
 		await get_tree().process_frame
-		if gs.game_state in [Constants.STATE_GOAL_RACE, Constants.STATE_CLEAR, Constants.STATE_GAME_OVER, Constants.STATE_RESULT_CEREMONY]:
+		if _is_result_scenario():
+			await _watch_result(net)
+			if _result_interactive_ms > 0 and Time.get_ticks_msec() - _result_interactive_ms > 1500:
+				break
+			if gs.game_state == Constants.STATE_GAME_OVER and not gs.is_elimination_result_pending() and not gs.result_presentation_active:
+				_result["game_over_card"] = true
+				break
+		elif gs.game_state in [Constants.STATE_GOAL_RACE, Constants.STATE_CLEAR, Constants.STATE_GAME_OVER, Constants.STATE_RESULT_CEREMONY]:
 			break
-		if net.finished:
+		if net.finished and not _is_result_scenario():
 			break
 		var alive := gs.p1_alive if mine == 1 else gs.p2_alive
+		if _is_ghost_scenario():
+			await _watch_ghost(mine)
 		if not alive:
-			_release_all()
+			if _is_ghost_scenario() and mine == _ghost_rider_slot():
+				_steer_ghost()
+			else:
+				_release_all()
 			continue
 		if _quit_at_wall >= 0 and gs.current_wall_index >= _quit_at_wall:
 			# Vanish without a goodbye (closed laptop): the relay must forfeit us after the grace window.
@@ -333,6 +354,12 @@ func _steer(mine: int, playing: bool, started: int) -> void:
 	if _scenario == "push" and Time.get_ticks_msec() - started < 4000:
 		await _steer_push(mine, started)
 		return
+	if (_scenario == "result_elim" or (_is_ghost_scenario() and mine == _ghost_rider_slot())) and Time.get_ticks_msec() - started > 1500:
+		# 横へ歩いて床から落ち、海のサメで脱落する（KEY_A で x が増える）。
+		_hold(KEY_W, false)
+		_hold(KEY_D, false)
+		_hold(KEY_A, true)
+		return
 	var x := gs.player_x if mine == 1 else gs.player2_x
 	var answer := gs.current_quiz.a
 	var target_door := answer
@@ -369,6 +396,125 @@ func _steer_push(mine: int, started: int) -> void:
 	if not _shots_dir.is_empty() and mine == 2 and _push_shots < 3 and gs.local_push.contact and (gs.local_push.is_shoving(1, 0.0) or gs.local_push.is_shoving(2, 0.0)):
 		_push_shots += 1
 		await _shot("push%d" % _push_shots)
+
+
+func _is_result_scenario() -> bool:
+	return _scenario in ["result", "result_elim"]
+
+
+## Both sides: the ceremony's phases, the frozen result, whether the match was already
+## over when the ceremony opened, the buttons at the end, and screenshots of the verdict and the buttons.
+func _watch_result(net: NetGameState) -> void:
+	if not gs.result_presentation_active:
+		return
+	var phase_name: String = QuizGameState.ResultCeremonyPhase.keys()[gs.result_ceremony_phase]
+	var phases: Array = _result.phases
+	if phases.is_empty():
+		_result["finished_at_begin"] = net.finished
+		_result["winner"] = gs.result_winner
+		_result["points"] = [gs.result_p1_score, gs.result_p2_score]
+		_result["correct"] = [gs.result_p1_correct_count, gs.result_p2_correct_count]
+		_result["ghosts"] = gs.result_ghost_mask
+		_result["elimination"] = gs.result_from_elimination
+	if phases.is_empty() or phases[-1] != phase_name:
+		phases.append(phase_name)
+		if phase_name == "WINNER":
+			await _wait(func() -> bool: return false, 600)
+			await _shot("result_verdict")
+			(_result.shots as Array).append("result_verdict")
+	if phase_name == "INTERACTIVE" and _result_interactive_ms < 0:
+		_result_interactive_ms = Time.get_ticks_msec()
+		_result["state_at_end"] = gs.game_state
+	if _result_interactive_ms > 0 and not _result.has("hud") and Time.get_ticks_msec() - _result_interactive_ms > 1000:
+		var overlay := world.find_child("ResultCeremonyOverlay", true, false)
+		if overlay != null:
+			var hud: Dictionary = overlay.call("get_debug_snapshot")
+			var visible_buttons: Array = []
+			for button: Button in overlay.get("_buttons"):
+				if button.visible:
+					visible_buttons.append(String(button.name))
+			var menu_text := ""
+			var named: Dictionary = overlay.get("_named")
+			for key: String in named:
+				if key.ends_with("BtnMenuText"):
+					menu_text = str(named[key].text)
+			_result["hud"] = {"actions_visible": hud.get("actions_visible"), "buttons": visible_buttons, "menu_text": menu_text,
+				"totals": hud.get("totals"), "verdict": hud.get("verdict")}
+		await _shot("result_buttons")
+		(_result.shots as Array).append("result_buttons")
+
+
+func _is_ghost_scenario() -> bool:
+	return _scenario in ["ghost", "ghost_host"]
+
+
+## ghost: the guest (slot 2) rides; ghost_host: the host (slot 1) rides.
+func _ghost_rider_slot() -> int:
+	return 1 if _scenario == "ghost_host" else 2
+
+
+func _ghost_controller() -> GhostSharkRideController:
+	return world.get("_ghost_shark_ride_controller") as GhostSharkRideController
+
+
+## The rider bot: whenever the ghost is aiming, hold the dash button for about 0.4 s
+## (charge near the PERFECT band) and let go. The aim stays on the survivor.
+func _steer_ghost() -> void:
+	var ghost := _ghost_controller()
+	if ghost == null:
+		return
+	for key in [KEY_A, KEY_D, KEY_W, KEY_S]:
+		_hold(key, false)
+	var aiming := ghost.phase == GhostSharkRideController.Phase.AIMING and not ghost.is_charge_tutorial_active()
+	if not aiming:
+		_ghost_hold_ms = -1
+		_hold(KEY_SPACE, false)
+		return
+	if _ghost_hold_ms < 0:
+		_ghost_hold_ms = Time.get_ticks_msec()
+	_hold(KEY_SPACE, Time.get_ticks_msec() - _ghost_hold_ms < 400)
+
+
+## Both sides: phases the ghost went through, the survivor's knockbacks as this screen sees
+## them, and a few screenshots (aiming and the dash).
+func _watch_ghost(mine: int) -> void:
+	var ghost := _ghost_controller()
+	if ghost == null:
+		return
+	var phase_name: String = GhostSharkRideController.Phase.keys()[ghost.phase]
+	var phases: Array = _ghost.phases
+	if phases.is_empty() or phases[-1] != phase_name:
+		phases.append(phase_name)
+		if phase_name in ["AIMING", "CHARGING"] and (_ghost.shots as Array).size() < 4:
+			var shot_name := "ghost_%s_%d" % [phase_name.to_lower(), (_ghost.shots as Array).size()]
+			(_ghost.shots as Array).append(shot_name)
+			if phase_name == "CHARGING":
+				await _wait(func() -> bool: return false, 250)
+			await _shot(shot_name)
+	if phase_name in ["DEATH_HOLD", "SOUL_RISE", "SOUL_FLIGHT"] and Time.get_ticks_msec() - int(_ghost.get("diag_ms", 0)) > 1000:
+		# 魂のあいだ止まったときの手がかり：死亡ワイプ・爆散・サメの状態。
+		_ghost["diag_ms"] = Time.get_ticks_msec()
+		var wipe := world.get_node_or_null("DeathWipeLayer/DeathWipe")
+		var shark: Variant = ghost.get("_shark")
+		if not _ghost.has("diag"):
+			_ghost["diag"] = []
+		(_ghost.diag as Array).append({
+			"phase": phase_name,
+			"wipe": {} if wipe == null else {"active": wipe.get("_active"), "visible": wipe.visible, "hiding": wipe.get("_is_hiding"),
+				"dead": wipe.get("_dead_player"), "fade": wipe.get("_fade_in"), "settled": wipe.call("is_settled_for_player", ghost.dead_player_index)},
+			"exploded": world.call("has_player_death_exploded", ghost.dead_player_index),
+			"waiting": gs.is_player_waiting_for_shark(ghost.dead_player_index),
+			"state": gs.game_state,
+			"released": ghost.get("_ghost_rendezvous_released"),
+			"shark": {} if shark == null or not is_instance_valid(shark) else (shark as Node).call("get_ghost_ride_debug_state").get("phase"),
+		})
+	var survivor := 3 - _ghost_rider_slot()
+	var push: Vector2 = gs.p1_external_velocity if survivor == 1 else gs.p2_external_velocity
+	var knocked := push.length() > 6.0
+	if knocked and not _ghost_knocked and ghost.phase in [GhostSharkRideController.Phase.CHARGING, GhostSharkRideController.Phase.COOLDOWN]:
+		_ghost.knockbacks = int(_ghost.knockbacks) + 1
+	_ghost_knocked = knocked
+	_ghost["mine"] = mine
 
 
 func _shot(name: String) -> void:
@@ -436,6 +582,8 @@ func _frames(count: int) -> void:
 
 ## 試合の結果を書き留める（オンラインメニューへ戻ると状態が消えるので、その前に）。
 func _record_state() -> void:
+	if _is_ghost_scenario() and world != null and is_instance_valid(world) and _ghost_controller() != null:
+		_ghost["net"] = _ghost_controller().net_stats.duplicate()
 	if gs == null or report.has("state"):
 		return
 	report["state"] = gs.game_state
@@ -495,6 +643,10 @@ func _finish(error: String) -> void:
 	report["push_contact_seen"] = _push_contact_seen
 	report["staging"] = _staging
 	report["arrival"] = _arrival
+	if _is_ghost_scenario():
+		report["ghost"] = _ghost
+	if _is_result_scenario():
+		report["result"] = _result
 	report["passed"] = (report.failures as Array).is_empty()
 	var file := FileAccess.open(out_path, FileAccess.WRITE)
 	if file:

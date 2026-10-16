@@ -30,6 +30,8 @@ const ONLINE_REVEAL_SYNC_TIMEOUT := 4.0
 ## オンラインのホスト：覆いが開ききるのを待って問題生成を始める。開ききらなくてもこの秒数で始める
 const ONLINE_QUIZ_START_TIMEOUT := 6.0
 const ONLINE_REVEAL_LEAD_MS := 250.0
+## オンラインのゲスト：2 人とも脱落したあと、暗転の下でホストの結果発表（result_begin）を待つ長さ。
+const ELIMINATION_RESULT_WAIT_MS := 6000
 var _online_start_wait := 0.0
 var _online_ready_sent := false
 var quiz_wall_scene: PackedScene
@@ -356,7 +358,8 @@ func _ready() -> void:
 	game_state.local_push_transport_enabled = not _replay_mode
 	# のこぎりはオンラインでもホストが動かし、スナップショットで同期する（脱落ルールをオフラインと揃える）。
 	game_state.saw_transport_enabled = not _replay_mode
-	game_state.result_ceremony_enabled = not _replay_mode and not _net_state.is_online
+	# 2人の10問の結果発表（スコアタワー）はオンラインでも出す。ゲストはホストの result_begin から同じものを再生する。
+	game_state.result_ceremony_enabled = not _replay_mode
 	if not _replay_mode:
 		game_state.saw.enabled = game_state.uses_saw_chase()
 	_saw_controller = preload("res://scripts/world/saw_chase_controller.gd").new()
@@ -404,6 +407,10 @@ func _ready() -> void:
 		camera_controller,
 		particle_spawner
 	)
+	if _net_state.is_online:
+		# オンライン：乗り手の画面が照準・突進・命中を決め、相手の画面はなぞる（吹き飛ばしはホスト）。
+		_ghost_shark_ride_controller.configure_network(game_state.local_slot, NetworkManager.is_host)
+		_net_state.ghost_received.connect(_ghost_shark_ride_controller.apply_net_incoming)
 	if _match_reel != null:
 		_match_reel.watch_ghost_rides(_ghost_shark_ride_controller)
 	_ghost_shark_ride_controller.aim_used.connect(_on_tutorial_ghost_aim_used)
@@ -1198,7 +1205,7 @@ func _process(dt: float) -> void:
 		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 
 	# Update game state (host or offline only — client receives snapshots)
-	game_state.result_ceremony_enabled = not _is_online and not _replay_mode
+	game_state.result_ceremony_enabled = not _replay_mode
 	if _is_client:
 		# ゲスト: 判定はホスト。自分の入力をコマンドにして送り、予測と補間で描く。
 		var push_events: Array = _push_key_events.duplicate()
@@ -1227,17 +1234,25 @@ func _process(dt: float) -> void:
 		_process_sudden_death(dt)
 		return
 	if _ghost_shark_ride_controller:
-		_ghost_shark_ride_controller.update_ghost_ride(
-			dt,
-			axis_p1,
-			axis_p2,
-			jump_p1,
-			jump_p2,
-			emote_p1,
-			emote_p2,
-			_is_online,
-			_replay_mode
-		)
+		if _is_client:
+			# ゲストの自分の入力（axis_p1 などに集めている）は、スロット 2 の乗り手として渡す。
+			_ghost_shark_ride_controller.update_ghost_ride(
+				dt, Vector2.ZERO, axis_p1, false, jump_p1, 0, emote_p1, _is_online, _replay_mode
+			)
+		else:
+			_ghost_shark_ride_controller.update_ghost_ride(
+				dt,
+				axis_p1,
+				axis_p2,
+				jump_p1,
+				jump_p2,
+				emote_p1,
+				emote_p2,
+				_is_online,
+				_replay_mode
+			)
+		if _is_online:
+			_net_state.queue_ghost(_ghost_shark_ride_controller.take_net_outgoing())
 	# リプレイ記録
 	if _recorder and _recorder.is_recording:
 		_recorder.capture(game_state)
@@ -1316,7 +1331,15 @@ func _run_elimination_result_transition() -> void:
 		return
 	_elimination_transition_running = true
 	await SceneTransition.fade_to_color_and_wait(Color.BLACK)
-	if is_inside_tree() and game_state.begin_elimination_result_ceremony():
+	if is_inside_tree() and _net_state != null and _net_state.is_guest():
+		# オンラインのゲスト：結果発表はホストが始めて result_begin で届く。覆ったまま待つ。
+		var deadline := Time.get_ticks_msec() + ELIMINATION_RESULT_WAIT_MS
+		while is_inside_tree() and not game_state.result_presentation_active and Time.get_ticks_msec() < deadline:
+			await get_tree().process_frame
+		for _frame in range(3):
+			if is_inside_tree():
+				await get_tree().process_frame
+	elif is_inside_tree() and game_state.begin_elimination_result_ceremony():
 		# Let walls retire, ghosts spawn, the goal stand and the finale camera settle.
 		for _frame in range(3):
 			await get_tree().process_frame

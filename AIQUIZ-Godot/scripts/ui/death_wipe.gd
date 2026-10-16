@@ -152,6 +152,8 @@ func _process(dt: float) -> void:
 		_explosion_hold_elapsed += dt
 	elif not active_player_exploded:
 		_explosion_hold_elapsed = 0.0
+	if not _active and game_state.net_online and not game_state.net_authority:
+		_start_online_guest_wipe(current_scene)
 	if game_state.num_players >= 2:
 		var playing_states := [
 			Constants.STATE_PLAYING,
@@ -231,6 +233,25 @@ func _process(dt: float) -> void:
 
 	if _active:
 		_update_wipe(dt)
+
+## オンラインのゲストは game_state.update() を回さないので、海に落ちた・置いていかれた・のこぎりの
+## 合図（signal）が来ない。スナップショットで届く状態から、同じところで始める：サメ待ちに入ったとき、
+## またはゴーストシャークの演出が始まったとき（爆散した脱落も、ホストと同じく爆散の保持のあいだ映す）。
+func _start_online_guest_wipe(current_scene: Node) -> void:
+	if game_state.num_players < 2:
+		return
+	for player_index: int in [1, 2]:
+		var other_alive: bool = game_state.p2_alive if player_index == 1 else game_state.p1_alive
+		if not other_alive:
+			continue
+		var ghost_starting := false
+		if current_scene != null and current_scene.has_method("get_ghost_shark_presentation"):
+			var presentation: Dictionary = current_scene.get_ghost_shark_presentation(player_index)
+			ghost_starting = bool(presentation.get("active", false)) and str(presentation.get("phase", "")) == "DEATH_HOLD"
+		if game_state.is_player_waiting_for_shark(player_index) or ghost_starting:
+			_start_wipe(player_index)
+			return
+
 
 ## Initialize the real render target while covered, without starting a death.
 func begin_render_prewarm(world: World3D, source_camera: Camera3D) -> void:

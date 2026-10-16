@@ -44,8 +44,13 @@ var tutorial_local_2p_completed_version: int = 0
 var graphics_quality: String = GraphicsQuality.BALANCED
 ## 設定画面の「FPS上限」で選べる値（Engine.max_fps）。0 は制限なし（垂直同期だけが上限）。
 const MAX_FPS_CHOICES: Array[int] = [30, 60, 120, 144, 240, 0]
+## 「FPS上限」の既定値。プレイヤーが選ぶまではこの値で動く。
+const DEFAULT_MAX_FPS := 60
 ## 設定画面の「FPS上限」。起動時と変更時に Engine.max_fps へ渡す。
-var max_fps: int = 0
+var max_fps: int = DEFAULT_MAX_FPS
+## プレイヤーが設定画面で FPS上限を選んだか。選ぶ前の設定ファイルに残る max_fps
+## （既定が「制限なし」だった頃に自動で書かれた 0）は使わず、既定値で動かす。
+var max_fps_chosen: bool = false
 ## ローカル2P「10問」の引き分けを地下神殿のサドンデスで決着させる（既定オン、
 ## docs/sudden_death_underground.md 第1章）。メインメニューが試合開始の直前に
 ## QuizGameState.sudden_death_enabled へ渡す。
@@ -161,18 +166,19 @@ func set_graphics_quality(value: String) -> void:
 	graphics_quality_changed.emit(graphics_quality)
 
 
-## 設定画面の「FPS上限」。MAX_FPS_CHOICES にない値は制限なしとして扱う。
+## 設定画面の「FPS上限」。MAX_FPS_CHOICES にない値は既定値として扱う。
 func set_max_fps(value: int) -> void:
 	var normalized := normalize_max_fps(value)
 	Engine.max_fps = normalized
-	if max_fps == normalized:
+	if max_fps == normalized and max_fps_chosen:
 		return
 	max_fps = normalized
+	max_fps_chosen = true
 	_save_user_settings()
 
 
 static func normalize_max_fps(value: int) -> int:
-	return value if MAX_FPS_CHOICES.has(value) else 0
+	return value if MAX_FPS_CHOICES.has(value) else DEFAULT_MAX_FPS
 
 
 func set_online_name(value: String) -> void:
@@ -253,7 +259,10 @@ func _load_user_settings() -> void:
 	tutorial_completed = tutorial_solo_completed and tutorial_local_2p_completed
 	tutorial_dismissed = tutorial_prompt_seen_version >= CURRENT_TUTORIAL_VERSION
 	graphics_quality = GraphicsQuality.normalize(str(_user_settings.get("graphics_quality", GraphicsQuality.BALANCED)))
-	max_fps = normalize_max_fps(int(_user_settings.get("max_fps", 0)))
+	max_fps_chosen = bool(_user_settings.get("max_fps_chosen", false))
+	max_fps = DEFAULT_MAX_FPS
+	if max_fps_chosen:
+		max_fps = normalize_max_fps(int(_user_settings.get("max_fps", DEFAULT_MAX_FPS)))
 	sudden_death_enabled = bool(_user_settings.get("sudden_death_enabled", true))
 	online_staging_short = bool(_user_settings.get("online_staging_short", false))
 	online_nickname = int(_user_settings.get("online_nickname", -1))
@@ -271,6 +280,7 @@ func _save_user_settings() -> void:
 	_user_settings["tutorial_local_2p_completed_version"] = tutorial_local_2p_completed_version
 	_user_settings["graphics_quality"] = graphics_quality
 	_user_settings["max_fps"] = max_fps
+	_user_settings["max_fps_chosen"] = max_fps_chosen
 	_user_settings["sudden_death_enabled"] = sudden_death_enabled
 	_user_settings["online_staging_short"] = online_staging_short
 	_user_settings["online_nickname"] = online_nickname

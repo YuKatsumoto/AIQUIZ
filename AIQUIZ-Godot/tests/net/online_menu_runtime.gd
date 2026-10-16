@@ -111,6 +111,17 @@ func _home_page(menu: OnlineMenu) -> void:
 	home.roll_name()
 	check(not find.disabled, "dice name re-enables matching")
 	check(GameManager.online_name == input.text, "dice name is saved")
+	# 見た目の確認用：なまえの入力欄を選んだとき（ふちが光る）と、スキン設定のページ
+	input.grab_focus()
+	await _frames(3)
+	await _shot("online_home_name_focus")
+	menu.call("_on_page_action", &"skin", {})
+	check(menu.current_id() == OnlineMenu.SKIN, "the skin sign action opens the skin page")
+	await _seconds(0.8)
+	await _shot("online_skin")
+	menu.back()
+	check(menu.current_id() == OnlineMenu.HOME, "back from the skin page returns home")
+	await _seconds(0.8)
 
 
 ## 3D の背景（海上ヘリポート v2）と演出の監督。演出の中身は tests/net/online_staging_runtime.gd が確かめる。

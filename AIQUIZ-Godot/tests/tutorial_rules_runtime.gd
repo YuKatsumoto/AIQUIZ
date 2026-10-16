@@ -25,6 +25,7 @@ func run() -> void:
 	QuizManager.player_analytics = null
 	_test_solo_state_rules()
 	_test_duo_state_rules()
+	_test_duo_ghost_target_falls()
 	_test_duo_saw_and_goal()
 	_test_duo_score_tower()
 	_test_duo_score_tower_draw()
@@ -123,6 +124,28 @@ func _test_duo_state_rules() -> void:
 	_check(gs.get_tutorial_step_id() == "duo_boss_wall", "Both wrong still closes the question")
 	_check(not gs.p1_alive and gs.p2_alive and gs.p2_hp == 1, "P1 at zero hearts falls while P2 keeps playing")
 	_check(not gs.p1_alive and gs.allows_tutorial_ghost_ride(), "Fallen player rides the ghost shark into the boss wall")
+
+
+## ゴーストシャーク練習で標的（P1）が体当たりで海へ落ちても、ゴースト（P2）は脱落したまま
+## 練習を続けられる。ステップ全体をやり直すとP2まで復活し、サメが二度と出ずに進行不能になる。
+func _test_duo_ghost_target_falls() -> void:
+	var gs := _tutorial_state("LOCAL_2P", 2)
+	if not _seek_state(gs, "duo_ocean"):
+		return
+	gs.player2_x = -30.0
+	_check(_step_until(gs, func() -> bool: return gs.p2_waiting_for_shark, 6.0), "P2 drops into the ocean lesson")
+	gs.complete_ocean_shark_attack(2)
+	_check(gs.get_tutorial_step_id() == "duo_ghost" and not gs.p2_alive, "Shark hands P2 over to the ghost practice")
+	gs.register_tutorial_ghost_aim(2)
+	gs.register_tutorial_ghost_charge(2, false, 0.5)
+	gs.player_x = 30.0
+	_check(_step_until(gs, func() -> bool: return gs.player_x < 10.0, 6.0), "Knocked-off P1 comes back to the course")
+	_step(gs, 0.5)
+	_check(gs.get_tutorial_step_id() == "duo_ghost", "Ghost practice continues after P1 falls")
+	_check(gs.p1_alive and not gs.p1_fall_committed, "P1 is back on the course")
+	_check(not gs.p2_alive, "P2 stays a ghost so the shark keeps flying")
+	_check(gs.tutorial_flow.is_task_done(2, "aim") and gs.tutorial_flow.is_task_done(2, "charge"), "Ghost tasks already done are kept")
+	_check(gs.register_tutorial_ghost_charge(2, true, 0.8), "A later hit still finishes the ghost practice")
 
 
 func _test_duo_saw_and_goal() -> void:

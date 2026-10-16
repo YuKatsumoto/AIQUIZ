@@ -16,6 +16,9 @@ class_name NetGameState
 signal pause_changed(paused: bool, message: String)
 signal match_over(message: String)
 signal shark_impact(player_index: int, position: Vector3, forward: Vector3)
+## 相手の画面のゴーストシャーク（照準・チャージ・エモートと、突進・命中のイベント）。
+## ホストからはスナップショットに、ゲストからはコマンドに相乗りして届く（リレーは中身を見ない）。
+signal ghost_received(state: Dictionary, events: Array)
 
 const TICK := 1.0 / 60.0
 const MAX_STEPS_PER_FRAME := 4
@@ -33,6 +36,8 @@ const RESUME_COUNTDOWN := 3.0
 const ONLINE_CLASH_WINDOW := 0.10
 ## 接触中・押された直後は、自分の左右位置も相手と同じ補間の時間軸で描く。切り替えにかける秒数。
 const PUSH_VIEW_BLEND := 0.15
+## 送れないあいだ（一時停止など）に溜めておくゴーストシャークのイベントの上限。
+const GHOST_EVENTS_MAX := 16
 
 var game_state: QuizGameState
 var is_online: bool = false
@@ -83,6 +88,11 @@ var _local_moving_back := false
 var _push_view := 0.0
 ## ホスト: 最後に届いたゲストの押し合いキーの押下状態（中断時の同期に使う）。
 var remote_push_mask := 0
+
+# ---------- Ghost shark (both) ----------
+## 自分が乗っているゴーストシャークの最新の状態（乗っていなければ空）と、まだ送っていないイベント。
+var _ghost_state: Dictionary = {}
+var _ghost_events: Array = []
 
 # ---------- Stats (F8 overlay) ----------
 var stats := {"snap_bytes": 0, "cmd_bytes": 0, "correction": 0.0, "buffer": 0}
@@ -248,8 +258,38 @@ func _send_snapshot(full: bool) -> void:
 			if not _last_sent.has(key) or _last_sent[key] != snap[key]:
 				out[key] = snap[key]
 	_last_sent = snap
+	# ゴーストシャークは差分の外（毎回の最新とイベント）。ゲストは受け取ったら取り除く。
+	_attach_ghost(out)
 	stats.snap_bytes += JSON.stringify(out).length()
 	NetworkManager.send("snap", out)
+
+
+## 自分のゴーストシャークの送るもの（GhostSharkRideController.take_net_outgoing）を毎フレーム渡す。
+## 状態は最新だけ、イベントは届けるまで溜める。ホストは次のスナップショット、ゲストは次のコマンドで送る。
+func queue_ghost(outgoing: Dictionary) -> void:
+	if not is_online:
+		return
+	_ghost_state = outgoing.get("state", {})
+	for event: Variant in outgoing.get("events", []):
+		_ghost_events.append(event)
+	while _ghost_events.size() > GHOST_EVENTS_MAX:
+		_ghost_events.pop_front()
+
+
+## 送る中身に、ゴーストシャークの分を足す（状態は gh、イベントは ghe）。
+func _attach_ghost(payload: Dictionary) -> void:
+	if not _ghost_state.is_empty():
+		payload["gh"] = _ghost_state
+	if not _ghost_events.is_empty():
+		payload["ghe"] = _ghost_events
+		_ghost_events = []
+
+
+func _receive_ghost(data: Dictionary) -> void:
+	var state: Variant = data.get("gh", {})
+	var events: Variant = data.get("ghe", [])
+	if state is Dictionary and events is Array and (not (state as Dictionary).is_empty() or not (events as Array).is_empty()):
+		ghost_received.emit(state, events)
 
 
 func _build_snapshot() -> Dictionary:
@@ -350,6 +390,14 @@ func send_shark_impact(player_index: int, position: Vector3, forward: Vector3) -
 func _on_host_state_changed(new_state: String) -> void:
 	if finished or not is_host:
 		return
+	if new_state == Constants.STATE_RESULT_CEREMONY and game_state.result_presentation_active:
+		# 結果発表の始まり：確定した中身を送る（ゲストは自分の時計で同じ結果発表を進める）。
+		# スナップショットより先に届くので、ゲストの状態はこれで結果発表に入る。
+		send_game_event("result_begin", game_state.result_net_payload())
+		return
+	if new_state == Constants.STATE_GAME_OVER and game_state.elimination_result_pending:
+		# 2 人とも脱落：GAME OVER のあと結果発表へ進む。試合の終わりは結果発表のあとの CLEAR で知らせる。
+		return
 	if new_state in [Constants.STATE_CLEAR, Constants.STATE_GAME_OVER]:
 		finished = true
 		_send_snapshot(true)
@@ -409,6 +457,7 @@ func guest_frame(dt: float, axis: Vector2, jump: bool, emote: int, push_events: 
 			_outbox_ticks += 1
 		if _outbox_ticks >= CMD_BATCH_TICKS:
 			var payload := {"c": _outbox}
+			_attach_ghost(payload)
 			stats.cmd_bytes += JSON.stringify(payload).length()
 			NetworkManager.send("cmd", payload)
 			_outbox = []
@@ -465,6 +514,9 @@ func _render() -> void:
 	var gs := game_state
 	var now := Time.get_ticks_msec() / 1000.0
 	gs.world_scroll_z = _scroll
+	if gs.result_presentation_active:
+		# 結果発表のあいだは、ゲストの時計で動かした立ち位置（_update_result_ceremony）をそのまま描く。
+		return
 	# 相手（ホスト = スロット 1）は補間。
 	if not _interp[1].is_empty():
 		var p1 := _interp[1].sample(now)
@@ -535,6 +587,11 @@ func _on_snapshot_received(data: Dictionary) -> void:
 	"""ゲスト: ホストからのスナップショット（差分）を適用"""
 	if game_state == null or is_host:
 		return
+	if data.has("gh") or data.has("ghe"):
+		_receive_ghost(data)
+		data = data.duplicate()
+		data.erase("gh")
+		data.erase("ghe")
 	if bool(data.get("kf", false)):
 		_snap_state = data.duplicate()
 	else:
@@ -647,6 +704,9 @@ func _on_event_received(data: Dictionary) -> void:
 				Vector3(float(fwd[0]), float(fwd[1]), float(fwd[2])))
 		"resume":
 			_begin_resume_countdown()
+		"result_begin":
+			if not is_host:
+				game_state.begin_net_result_ceremony(data)
 		"reveal":
 			reveal_at_ms = float(data.get("at", -1.0))
 		"push_fx":
@@ -725,6 +785,7 @@ func _on_relay_message(msg_type: String, data: Dictionary) -> void:
 
 
 func _on_commands(data: Dictionary) -> void:
+	_receive_ghost(data)
 	for raw in data.get("c", []):
 		if not raw is Array or raw.size() < 5:
 			continue

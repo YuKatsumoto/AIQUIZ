@@ -10,6 +10,10 @@ tests/net/net_match_runtime.gd, then checks that host and guest agree.
     python tests/net/run_pair.py --headless            # no windows (dummy renderer)
     python tests/net/run_pair.py --scenario staging    # also checks the matching presentation (spec A5/A6)
     python tests/net/run_pair.py --quit-at-cutin       # host vanishes at its cut-in; guest searches again (spec A7)
+    python tests/net/run_pair.py --scenario ghost      # guest falls off, rides the ghost shark and hits the host
+    python tests/net/run_pair.py --scenario ghost_host # the same with the host as the rider
+    python tests/net/run_pair.py --scenario result     # play to the goal and through the score-tower result ceremony
+    python tests/net/run_pair.py --scenario result_elim  # both fall off first: the ceremony opens with two ghosts
 """
 
 from __future__ import annotations
@@ -74,13 +78,78 @@ def launch(role: str, args) -> tuple[subprocess.Popen, object]:
     return subprocess.Popen(cmd, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, creationflags=flags), log
 
 
+def check_ghost(scenario: str, h: dict, g: dict) -> list[str]:
+    """The rider's screen decides aim, dash and hit; the other screen replays them; the host applies the knockback."""
+    errors: list[str] = []
+    rider, mirror = (h, g) if scenario == "ghost_host" else (g, h)
+    rider_name, mirror_name = ("host", "guest") if scenario == "ghost_host" else ("guest", "host")
+    rn = rider.get("ghost", {}).get("net", {})
+    mn = mirror.get("ghost", {}).get("net", {})
+    hn = h.get("ghost", {}).get("net", {})
+    if "AIMING" not in rider.get("ghost", {}).get("phases", []):
+        errors.append(f"{rider_name} never reached ghost AIMING: {rider.get('ghost', {}).get('phases')}")
+    if "AIMING" not in mirror.get("ghost", {}).get("phases", []):
+        errors.append(f"{mirror_name} never showed the opponent's ghost aiming: {mirror.get('ghost', {}).get('phases')}")
+    sent, played = rn.get("launches_sent", 0), mn.get("launches_played", 0)
+    if sent < 2:
+        errors.append(f"{rider_name} launched only {sent} ghost dashes")
+    # The last dash may still be on its way when the round ends.
+    if played < sent - 1 or played > sent:
+        errors.append(f"dashes: {rider_name} sent {sent}, {mirror_name} replayed {played}")
+    hits = rn.get("hits_sent", 0)
+    if hits < 1:
+        errors.append(f"{rider_name} never hit the survivor ({rn})")
+    applied = hn.get("impulses_applied", 0)
+    if applied < hits - 1 or applied > hits:
+        errors.append(f"knockbacks: {rider_name} hit {hits}, host applied {applied}")
+    presented = mn.get("hits_presented", 0)
+    if presented < hits - 1 or presented > hits:
+        errors.append(f"hits: {rider_name} hit {hits}, {mirror_name} showed {presented}")
+    for role_name, rep in (("host", h), ("guest", g)):
+        if rep.get("ghost", {}).get("knockbacks", 0) < 1:
+            errors.append(f"{role_name} never saw the survivor knocked back")
+    return errors
+
+
+RESULT_PHASES = ["ASSEMBLE", "WALK", "SCORE_ROLL", "VERDICT", "EFFECT", "WINNER", "INTERACTIVE"]
+
+
+def check_result(scenario: str, h: dict, g: dict) -> list[str]:
+    """Both screens play the same score-tower ceremony; the guest's starts from the host's result_begin."""
+    errors: list[str] = []
+    hr, gr = h.get("result", {}), g.get("result", {})
+    for role_name, rep in (("host", hr), ("guest", gr)):
+        if rep.get("game_over_card"):
+            errors.append(f"{role_name}: showed the GAME OVER card instead of the ceremony")
+        phases = rep.get("phases", [])
+        if phases != RESULT_PHASES:
+            errors.append(f"{role_name}: ceremony phases {phases}")
+        if rep.get("finished_at_begin"):
+            errors.append(f"{role_name}: the match was already finished when the ceremony began")
+        if rep.get("state_at_end") != "CLEAR":
+            errors.append(f"{role_name}: state at the end of the ceremony was {rep.get('state_at_end')}")
+        hud = rep.get("hud", {})
+        if not hud.get("actions_visible") or hud.get("buttons") != ["BtnHistory", "BtnMenu"]:
+            errors.append(f"{role_name}: result buttons {hud.get('buttons')} (want history and menu, no retry)")
+        if hud.get("menu_text") != "オンラインメニューへ":
+            errors.append(f"{role_name}: menu button reads {hud.get('menu_text')!r}")
+        if scenario == "result_elim" and (rep.get("ghosts") != 3 or not rep.get("elimination")):
+            errors.append(f"{role_name}: elimination ceremony without both ghosts ({rep.get('ghosts')}, {rep.get('elimination')})")
+    for key in ("winner", "points", "correct", "ghosts", "elimination"):
+        if hr.get(key) != gr.get(key):
+            errors.append(f"result {key} differ: host={hr.get(key)} guest={gr.get(key)}")
+    if hr.get("hud", {}).get("totals") != gr.get("hud", {}).get("totals"):
+        errors.append(f"tower totals differ: host={hr.get('hud', {}).get('totals')} guest={gr.get('hud', {}).get('totals')}")
+    return errors
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--netsim", default="")
     parser.add_argument("--kill-at", type=int, default=-1)
     parser.add_argument("--kill-role", default="guest", choices=["host", "guest"])
     parser.add_argument("--headless", action="store_true")
-    parser.add_argument("--scenario", default="", choices=["", "push", "staging"])
+    parser.add_argument("--scenario", default="", choices=["", "push", "staging", "ghost", "ghost_host", "result", "result_elim"])
     parser.add_argument("--quit-at-cutin", action="store_true", help="host vanishes when its cut-in starts; the guest must search again in the air")
     parser.add_argument("--reveal-limit", type=float, default=11.0, help="max seconds from match to the split opening (staging, spec A6 v1.3)")
     parser.add_argument("--quit-at", type=int, default=-1, help="guest vanishes at this wall; host must win by forfeit")
@@ -180,6 +249,10 @@ def main() -> int:
                     errors.append(f"push {kind}: host saw {hp.get(kind, 0)}, guest saw {gp.get(kind, 0)}")
             if not g.get("push_contact_seen"):
                 errors.append("guest never rendered push contact")
+        if args.scenario in ("ghost", "ghost_host"):
+            errors += check_ghost(args.scenario, h, g)
+        if args.scenario in ("result", "result_elim"):
+            errors += check_result(args.scenario, h, g)
         if args.scenario == "staging":
             hs, gst = h.get("staging", {}), g.get("staging", {})
             hn, gn = hs.get("cutin_names", []), gst.get("cutin_names", [])
@@ -215,15 +288,15 @@ def main() -> int:
                 errors.append(f"{role_name}: no helicopter arrival for both players ({arr})")
             elif not (arr.get("finished") and arr.get("landed_before_start")):
                 errors.append(f"{role_name}: the round started before the helicopters had landed ({arr})")
-        if h.get("wall", 0) < 3:
+        if h.get("wall", 0) < 3 and args.scenario != "result_elim":
             errors.append(f"only reached wall {h.get('wall')}")
         if args.kill_at >= 0:
             for role, rep in (("host", h), ("guest", g)):
                 if not (rep.get("pause_seen") and rep.get("resume_seen")):
                     errors.append(f"{role} did not pause and resume after the {args.kill_role}'s dropped link")
     summary = {"passed": not errors, "relay": RELAY_WS, "netsim": args.netsim, "kill_at": args.kill_at, "failures": errors,
-               "host": {k: reports.get("host", {}).get(k) for k in ("state", "wall", "winners", "hp", "rtt_ms", "push_events", "staging", "arrival")},
-               "guest": {k: reports.get("guest", {}).get(k) for k in ("state", "wall", "winners", "hp", "corrections", "far_corrections", "rtt_ms", "push_events", "push_contact_seen", "staging", "arrival")}}
+               "host": {k: reports.get("host", {}).get(k) for k in ("state", "wall", "winners", "hp", "rtt_ms", "push_events", "staging", "arrival", "ghost", "result")},
+               "guest": {k: reports.get("guest", {}).get(k) for k in ("state", "wall", "winners", "hp", "corrections", "far_corrections", "rtt_ms", "push_events", "push_contact_seen", "staging", "arrival", "ghost", "result")}}
     (OUT / "report.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(summary, ensure_ascii=False, indent=2))
     return 0 if not errors else 1

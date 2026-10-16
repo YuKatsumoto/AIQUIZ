@@ -41,6 +41,8 @@ var bgm_vol_slider: HSlider = null
 # speed_slider は廃止（壁速度は難易度から自動決定）
 @onready var res_option: OptionButton = %ResOption
 var graphics_quality_option: OptionButton = null
+## 設定の「FPS上限」行（項目 ID = Engine.max_fps の値。0 = 制限なし）。
+var max_fps_option: OptionButton = null
 ## Settings row "サドンデス（2P 10問の引き分け）": オン / オフ (item ids below).
 var sudden_death_option: OptionButton = null
 const SUDDEN_DEATH_ON := 0
@@ -143,6 +145,7 @@ func _ready() -> void:
 			res_option.select(0)
 
 	_setup_graphics_quality_option()
+	_setup_max_fps_option()
 	ApiStatusAutoload.check_completed.connect(_update_api_status_text)
 	
 	LiveConfigManager.config_updated.connect(_on_live_config_updated)
@@ -1464,6 +1467,37 @@ func _setup_graphics_quality_option() -> void:
 	# サドンデスは廃止中なので行を出さない（保存した選択はそのまま残す）
 	if QuizGameState.sudden_death_available:
 		_setup_sudden_death_option(row)
+
+
+## 「FPS上限」（既定 60）。解像度の行のすぐ下、画質の行と同じ見た目で置く。
+func _setup_max_fps_option() -> void:
+	var settings_vbox: VBoxContainer = $SettingsPanel/VBox
+	var resolution_row: HBoxContainer = $SettingsPanel/VBox/ResolutionBox
+	var row: HBoxContainer = HBoxContainer.new()
+	row.name = "MaxFpsBox"
+	row.add_theme_constant_override("separation", 12)
+	var label: Label = Label.new()
+	label.name = "Label"
+	label.text = "FPS上限"
+	label.custom_minimum_size = Vector2(120.0, 0.0)
+	label.add_theme_font_size_override("font_size", 18)
+	var option: OptionButton = OptionButton.new()
+	option.name = "MaxFpsOption"
+	option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	option.add_theme_font_size_override("font_size", 18)
+	for fps: int in GameManager.MAX_FPS_CHOICES:
+		option.add_item("制限なし" if fps == 0 else "%d FPS" % fps, fps)
+	option.select(option.get_item_index(GameManager.max_fps))
+	option.item_selected.connect(_on_max_fps_selected)
+	row.add_child(label)
+	row.add_child(option)
+	settings_vbox.add_child(row)
+	settings_vbox.move_child(row, resolution_row.get_index() + 1)
+	max_fps_option = option
+
+
+func _on_max_fps_selected(index: int) -> void:
+	GameManager.set_max_fps(max_fps_option.get_item_id(index))
 
 
 ## ローカル2P「10問」の引き分けを地下神殿のサドンデスで決着させるか（既定オン）。

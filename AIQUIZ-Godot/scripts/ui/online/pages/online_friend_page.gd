@@ -17,7 +17,7 @@ var _join_button: Button
 
 func _ready() -> void:
 	var choose := OnlineMenuStyle.card(self, 12)
-	choose.add_child(OnlineMenuStyle.label("ともだちと コードで あそぼう", 20))
+	OnlineMenuStyle.section(choose, "ともだちと コードで あそぼう")
 	_create_button = OnlineMenuStyle.button("コードを つくる", Vector2(0, 56), 22)
 	_create_button.pressed.connect(func() -> void: request(&"friend_create"))
 	choose.add_child(_create_button)
@@ -27,7 +27,7 @@ func _ready() -> void:
 	_boxes[Mode.CHOOSE] = choose.get_parent()
 
 	var join := OnlineMenuStyle.card(self, 12)
-	join.add_child(OnlineMenuStyle.label("ともだちの コード（%dもじ）" % CODE_LENGTH, 18))
+	OnlineMenuStyle.section(join, "ともだちの コード", "%dもじ" % CODE_LENGTH)
 	_code_input = OnlineMenuStyle.line_edit("ABCDE", CODE_LENGTH, Vector2(0, 60), 32)
 	_code_input.text_changed.connect(_on_code_changed)
 	_code_input.text_submitted.connect(func(_text: String) -> void: _submit_code())

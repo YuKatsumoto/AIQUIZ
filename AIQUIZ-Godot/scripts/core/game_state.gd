@@ -2228,8 +2228,7 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 
 		if player_y < StageConstants.OCEAN_ENTRY_Y:
 			if _is_tutorial_mode() and not _is_expected_tutorial_ocean_entry(1):
-				_reset_tutorial_attempt("今は海の練習ではありません。安全な位置からこのステップをやり直します。")
-				tutorial_flow.restart_current_step(false)
+				_recover_tutorial_unexpected_ocean_entry(1, "今は海の練習ではありません。安全な位置からこのステップをやり直します。")
 				return
 			if _is_tutorial_mode():
 				message_text = "海に落ちました。サメが接近しています。"
@@ -2278,8 +2277,7 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 
 		if player2_y < StageConstants.OCEAN_ENTRY_Y:
 			if _is_tutorial_mode() and not _is_expected_tutorial_ocean_entry(2):
-				_reset_tutorial_attempt("今はP2が海へ落ちるステップではありません。安全な位置からやり直します。")
-				tutorial_flow.restart_current_step(false)
+				_recover_tutorial_unexpected_ocean_entry(2, "今はP2が海へ落ちるステップではありません。安全な位置からやり直します。")
 				return
 			if _is_tutorial_mode():
 				message_text = "P2は海でサメを待機中です。P1のメイン画面は継続し、右下のDeathWipeで演出を確認できます。"
@@ -2381,6 +2379,23 @@ func _update_tutorial_saw_lesson(dt: float) -> bool:
 		return false
 	_advance_tutorial_step()
 	return true
+
+
+## 海へ落ちてはいけないステップで落ちたときの復帰。
+## ゴーストシャーク練習の標的が体当たりで落ちた場合は、標的だけを戻して練習を続ける。
+## ステップ全体をやり直すとゴースト側まで復活し、サメが二度と出ずに進行不能になる。
+func _recover_tutorial_unexpected_ocean_entry(player_index: int, hint: String) -> void:
+	if is_tutorial_ghost_practice() and player_index != get_tutorial_ghost_player():
+		_revive_tutorial_player(player_index)
+		var ghost_hint := "P%dがコースへ復帰しました。ゴーストシャークの操作を続けてください。" % player_index
+		message_text = ghost_hint
+		tutorial_flow.set_hint(ghost_hint, 3.0)
+		tutorial_ui_revision += 1
+		refresh_status_text()
+		state_changed.emit(game_state)
+		return
+	_reset_tutorial_attempt(hint)
+	tutorial_flow.restart_current_step(false)
 
 
 func _is_expected_tutorial_ocean_entry(player_index: int) -> bool:
@@ -3361,6 +3376,81 @@ func _begin_result_ceremony() -> void:
 	state_changed.emit(game_state)
 
 
+## オンライン（ホスト）：結果発表を始めたときに確定した中身。ゲストへ result_begin で送る。
+func result_net_payload() -> Dictionary:
+	return {
+		"winner": result_winner,
+		"ghosts": result_ghost_mask,
+		"correct": [result_p1_correct_count, result_p2_correct_count],
+		"hp": [result_p1_hp, result_p2_hp],
+		"points": [result_p1_score, result_p2_score],
+		"start1": [_result_p1_start_position.x, _result_p1_start_position.y, _result_p1_start_position.z],
+		"start2": [_result_p2_start_position.x, _result_p2_start_position.y, _result_p2_start_position.z],
+		"goal_z": goal_z,
+		"elimination": result_from_elimination,
+	}
+
+
+## オンライン（ゲスト）：ホストの result_begin で、同じ中身の結果発表を始める。あとはゲストの時計で進む
+## （client_tick → _update_result_ceremony）。勝敗・得点はホストが決めたものをそのまま使う。
+func begin_net_result_ceremony(data: Dictionary) -> void:
+	if result_presentation_active or net_authority:
+		return
+	var correct: Array = data.get("correct", [0, 0])
+	var hp: Array = data.get("hp", [0, 0])
+	var points: Array = data.get("points", [0, 0])
+	var start1: Array = data.get("start1", [RESULT_PLAYER_X, 0.0, goal_z])
+	var start2: Array = data.get("start2", [-RESULT_PLAYER_X, 0.0, goal_z])
+	elimination_result_pending = false
+	_elimination_result_ready = false
+	result_from_elimination = bool(data.get("elimination", false))
+	goal_z = float(data.get("goal_z", goal_z))
+	result_ghost_mask = clampi(int(data.get("ghosts", 0)), 0, 3)
+	result_ghost_arrival_player = 0
+	result_ghost_arrival_elapsed = 0.0
+	result_p1_correct_count = int(correct[0])
+	result_p2_correct_count = int(correct[1])
+	result_p1_hp = int(hp[0])
+	result_p2_hp = int(hp[1])
+	result_p1_score = int(points[0])
+	result_p2_score = int(points[1])
+	result_winner = clampi(int(data.get("winner", 0)), 0, 2)
+	goal_winner = result_winner
+	_result_p1_start_position = Vector3(float(start1[0]), float(start1[1]), float(start1[2]))
+	_result_p2_start_position = Vector3(float(start2[0]), float(start2[1]), float(start2[2]))
+	result_p1_position = _result_p1_start_position
+	result_p2_position = _result_p2_start_position
+	result_ceremony_elapsed = 0.0
+	# 出題のラウンドはホストのもの。ゲストは閉じない。
+	_result_round_closed = true
+	p1_waiting_for_shark = false
+	p2_waiting_for_shark = false
+	p1_external_velocity = Vector2.ZERO
+	p2_external_velocity = Vector2.ZERO
+	p1_emote = 0
+	p2_emote = 0
+	result_presentation_active = true
+	game_state = Constants.STATE_RESULT_CEREMONY
+	message_text = "Score announcement!" if use_english_ui else "これから得点発表！"
+	_set_result_ceremony_phase(ResultCeremonyPhase.ASSEMBLE)
+	refresh_status_text()
+	state_changed.emit(game_state)
+
+
+## オンライン（ゲスト）：結果発表の終わり（INTERACTIVE）。clear_game と同じ文言で CLEAR にする。
+## 出題のラウンドや問題の評価はホストのものなので、ここではさわらない。
+func _clear_net_result() -> void:
+	game_state = Constants.STATE_CLEAR
+	rating_target_quiz = current_quiz
+	rating_feedback = ""
+	var verdict := ("DRAW!" if use_english_ui else "引き分け！") if result_winner == 0 else (("P%d WINS!" if use_english_ui else "P%d の勝ち！") % result_winner)
+	message_text = "%s\n%s\n%s" % [verdict, get_result_formula_text(1), get_result_formula_text(2)]
+	correct_flash = 1.0
+	refresh_status_text()
+	game_cleared.emit(message_text)
+	state_changed.emit(game_state)
+
+
 func get_result_ceremony_total_duration() -> float:
 	return RESULT_DRAW_TOTAL_DURATION if result_winner == 0 else RESULT_TOTAL_DURATION
 
@@ -3418,7 +3508,10 @@ func _update_result_ceremony(dt: float) -> void:
 				_begin_tutorial_score_pause()
 				return
 			if result_ceremony_phase == ResultCeremonyPhase.INTERACTIVE:
-				clear_game()
+				if net_online and not net_authority:
+					_clear_net_result()
+				else:
+					clear_game()
 
 
 func _update_result_positions() -> void:
@@ -3494,6 +3587,8 @@ func uses_sudden_death() -> bool:
 		and sudden_death_enabled
 		and uses_local_result_ceremony()
 		and not _is_tutorial_mode()
+		# オンラインの引き分けはサドンデスへ進まず、そのまま引き分けにする（地下の同期はない）。
+		and not net_online
 	)
 
 
@@ -5430,6 +5525,13 @@ func to_snapshot() -> Dictionary:
 		"gz": goal_z,
 		"gw": goal_winner,
 		"grm": goal_reached_mask,
+		# Result ceremony (online): the wait at the goal and the elimination hold. The ceremony
+		# itself starts on the guest from the result_begin event and runs on its own clock.
+		"erp": elimination_result_pending,
+		"err": _elimination_result_ready,
+		"rgm": result_ghost_mask,
+		"rgap": result_ghost_arrival_player,
+		"rgae": result_ghost_arrival_elapsed,
 		# Streaks & stats
 		"st": current_streak,
 		"st2": player2_streak,
@@ -5510,6 +5612,10 @@ func apply_snapshot(data: Dictionary, skip_positions: bool = false) -> void:
 	# 旧クライアント由来の専用エラー状態も画面へ出さず、オンライン待機へ戻す。
 	if new_state == "ONLINE_QUIZ_ERROR":
 		new_state = Constants.STATE_PRELOADING
+	# 結果発表はゲストの時計で進む（result_begin で始め、終わりで自分で CLEAR にする）。
+	# そのあいだホストの状態（結果発表・CLEAR）で行き来させない。
+	if result_presentation_active and new_state in [Constants.STATE_RESULT_CEREMONY, Constants.STATE_CLEAR]:
+		new_state = game_state
 	if new_state != game_state:
 		game_state = new_state
 		refresh_status_text()
@@ -5533,6 +5639,17 @@ func apply_snapshot(data: Dictionary, skip_positions: bool = false) -> void:
 	goal_z = data.get("gz", goal_z)
 	goal_winner = int(data.get("gw", goal_winner))
 	goal_reached_mask = int(data.get("grm", goal_reached_mask))
+	if not result_presentation_active:
+		elimination_result_pending = bool(data.get("erp", elimination_result_pending))
+		_elimination_result_ready = bool(data.get("err", _elimination_result_ready))
+		result_ghost_mask = int(data.get("rgm", result_ghost_mask))
+		var arrival_player := int(data.get("rgap", result_ghost_arrival_player))
+		var arrival_elapsed := float(data.get("rgae", result_ghost_arrival_elapsed))
+		# 魂が表彰台へ飛ぶ時間はゲストのフレームでも進めている（client_tick）。届いた値で戻さない。
+		if arrival_player == result_ghost_arrival_player:
+			arrival_elapsed = maxf(arrival_elapsed, result_ghost_arrival_elapsed)
+		result_ghost_arrival_player = arrival_player
+		result_ghost_arrival_elapsed = arrival_elapsed
 	# Streaks & stats
 	current_streak = int(data.get("st", current_streak))
 	player2_streak = int(data.get("st2", player2_streak))
@@ -5574,3 +5691,8 @@ func client_tick(dt: float) -> void:
 	correct_flash = maxf(0.0, correct_flash - dt * 1.5)
 	wrong_flash = maxf(0.0, wrong_flash - dt * 1.2)
 	camera_shake = maxf(0.0, camera_shake - dt * 2.8)
+	# オンラインの結果発表：始まったらゲストの時計で進める（ホストと同じ _update_result_ceremony）。
+	if result_presentation_active and game_state == Constants.STATE_RESULT_CEREMONY:
+		_update_result_ceremony(dt)
+	elif result_ghost_arrival_player != 0:
+		result_ghost_arrival_elapsed = minf(RESULT_GHOST_ARRIVAL_DURATION, result_ghost_arrival_elapsed + dt)

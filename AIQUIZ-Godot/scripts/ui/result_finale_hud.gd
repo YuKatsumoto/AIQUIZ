@@ -401,6 +401,12 @@ func _configure_content(winner: int) -> void:
 			layer.text = _text(short)
 		elif short == "VerdictSub":
 			layer.text = _text("VerdictSubDraw" if winner == 0 else "VerdictSubWin")
+		if game_state.net_online:
+			# オンラインは同じ相手ともう一度は始められない（結果画面と同じ）。メニューはオンラインメニューへ戻る。
+			if short in ["BtnRetry", "BtnRetryText"]:
+				layer.visible = false
+			elif short == "BtnMenuText":
+				layer.text = "ONLINE MENU" if game_state.use_english_ui else "オンラインメニューへ"
 	if winner > 0:
 		# 勝者のバッジは、そのキャラの 頭・胴・足 の色の縦グラデーション
 		var badge_colors := PlayerBadgePaint.colors_for(game_state, winner)
@@ -456,16 +462,19 @@ func update_overlay(delta: float) -> void:
 	_update_fx(time)
 	_update_tutorial_note(delta)
 	for button: Button in _buttons:
-		button.visible = interactive
 		var layer := button.get_parent() as AeLayer
+		button.visible = interactive and layer.visible
 		layer.highlight = 1.0 if interactive and (button.has_focus() or button.is_hovered()) else 0.0
 	_stats.visible = interactive
 	if interactive:
 		_stats.modulate.a = smoothstep(0.1, 0.5, _interactive_elapsed)
 		_stats.text = _text("StatsEliminated" if game_state.result_from_elimination else "StatsFinished") % game_state.play_time
-		if not _focused and not _suppressed and not _buttons.is_empty():
-			_buttons[0].grab_focus()
-			_focused = true
+		if not _focused and not _suppressed:
+			for button: Button in _buttons:
+				if button.visible:
+					button.grab_focus()
+					_focused = true
+					break
 
 
 ## 2Pチュートリアル: スコアタワーの得点が出そろって止まっている間だけ、計算方法と
@@ -653,7 +662,7 @@ func get_debug_snapshot() -> Dictionary:
 		if card != null:
 			cards[player_index] = {"rect": card.get_global_rect(), "opacity": card.modulate.a, "scale": card.scale.x}
 	return {"motion_loaded": not _data.is_empty(), "layers": _layers.size(), "winner_built": _built_winner,
-		"actions_visible": not _buttons.is_empty() and _buttons[0].visible,
+		"actions_visible": _buttons.any(func(button: Button) -> bool: return button.visible),
 		"buttons": _buttons.map(func(button: Button): return button.name),
 		"totals": totals, "verdict": word.text if word != null else "",
 		"verdict_visible": verdict != null and verdict.modulate.a > 0.5,

@@ -40,7 +40,17 @@ func run() -> void:
 	if FileAccess.file_exists(gm.settings_path):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(gm.settings_path))
 	gm._load_user_settings()
-	check("default: no cap without a file", int(gm.max_fps) == 0, gm.max_fps)
+	check("default: 60 without a file", int(gm.max_fps) == 60, gm.max_fps)
+	# 既定が「制限なし」だった頃のファイル（選んでいないのに 0 が書かれている）は 60 で動く。
+	var legacy := FileAccess.open(gm.settings_path, FileAccess.WRITE)
+	legacy.store_string(JSON.stringify({"max_fps": 0}))
+	legacy.close()
+	gm._load_user_settings()
+	check("legacy unchosen 0 becomes 60", int(gm.max_fps) == 60, gm.max_fps)
+	gm.set_max_fps(0)
+	gm.max_fps = 60
+	gm._load_user_settings()
+	check("chosen no-cap is kept", int(gm.max_fps) == 0 and Engine.max_fps == 0, [gm.max_fps, Engine.max_fps])
 	gm.set_max_fps(60)
 	check("set 60: engine capped", Engine.max_fps == 60, Engine.max_fps)
 	check("set 60: saved", int(_read_settings_file(gm).get("max_fps", -1)) == 60, _read_settings_file(gm))
@@ -48,7 +58,7 @@ func run() -> void:
 	gm._load_user_settings()
 	check("set 60: read back", int(gm.max_fps) == 60, gm.max_fps)
 	gm.set_max_fps(75)
-	check("unknown value falls back to no cap", int(gm.max_fps) == 0 and Engine.max_fps == 0, [gm.max_fps, Engine.max_fps])
+	check("unknown value falls back to 60", int(gm.max_fps) == 60 and Engine.max_fps == 60, [gm.max_fps, Engine.max_fps])
 
 	var bg := ColorRect.new()
 	bg.color = Color(0.02, 0.04, 0.09)

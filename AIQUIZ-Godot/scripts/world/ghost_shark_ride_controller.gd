@@ -146,6 +146,10 @@ const CHARGE_TUTORIAL_DEMO_LABELS := [
 	"チャージ超過",
 	"PERFECT！",
 ]
+## オンライン（docs/online_versus.md「ゴーストシャーク」）：なぞり役の照準が、届いた照準へ寄る速さ（1/秒）。
+const NET_AIM_FOLLOW_RATE: float = 18.0
+## ホスト：ゲストが当てた突進を、この画面のサメで見せられないまま待つ長さ。過ぎたら吹き飛ばしだけ先に入れる。
+const NET_HIT_FALLBACK_MS: int = 700
 
 var game_state: QuizGameState = null
 var stage_environment: StageEnvironment = null
@@ -255,6 +259,32 @@ var _aim_outer_material: StandardMaterial3D = null
 var _charge_audio: AudioStreamPlayer = null
 var _charge_audio_in_perfect: bool = false
 
+# ---------- オンライン ----------
+# 乗り手（脱落した人）の画面が照準・チャージ・命中を決め、相手の画面はそれをなぞる。
+# 吹き飛ばしはホストだけが入れる（ゲストが乗り手なら、命中をホストへ送る）。
+var _net_enabled: bool = false
+var _net_local_slot: int = 1
+var _net_is_host: bool = true
+## 乗り手の画面：突進ごとの番号と、相手へ送るイベント。
+var _net_launch_id: int = 0
+var _net_out_events: Array = []
+## なぞり役の画面：届いた照準・チャージ・エモート。
+var _net_remote_aim: Vector2 = Vector2.ZERO
+var _net_remote_charging: bool = false
+var _net_remote_charge: float = 0.0
+var _net_remote_emote: int = 0
+## なぞり役：まだ始めていない突進（AIMING に入ったら始める）と、いま見せている突進の番号。
+var _net_pending_launch: Dictionary = {}
+var _net_mirror_launch_id: int = 0
+## なぞり役：乗り手が命中と決めた突進（番号 -> {power, perfect, dir, combo}）と、見せ終えた番号。
+var _net_confirmed_hits: Dictionary = {}
+var _net_presented_hit_id: int = 0
+var _net_mirror_swept: bool = false
+## ホスト：吹き飛ばしを入れ終えた突進の番号（同じ突進で 2 回入れない）。
+var _net_applied_hit_ids: Dictionary = {}
+## テストと F8 用の数。
+var net_stats := {"launches_sent": 0, "launches_played": 0, "hits_sent": 0, "hits_presented": 0, "impulses_applied": 0}
+
 
 func setup(
 	state: QuizGameState,
@@ -297,6 +327,9 @@ func update_ghost_ride(
 	if game_state == null:
 		return
 	var fire_down := jump_p1 if dead_player_index == 1 else jump_p2
+	if _is_net_mirror():
+		# 相手が乗っているあいだ、自分のキーは使わない。チャージの音は相手の長押しに合わせる。
+		fire_down = _net_remote_charging
 	var fire_pressed := fire_down and not _previous_fire_down
 	var fire_released := not fire_down and _previous_fire_down
 	var emote_input := emote_p1 if dead_player_index == 1 else emote_p2
@@ -316,6 +349,8 @@ func update_ghost_ride(
 				fire_released,
 				emote_input
 			)
+	if _net_enabled and _net_is_host:
+		_net_flush_stale_hits()
 	_update_charge_audio(fire_down)
 	# サメ移動・壁スクロール・カメラ更新の後に判定しないと透過切替が1フレーム遅れる。
 	call_deferred("_update_problem_wall_occlusion")
@@ -519,6 +554,8 @@ func get_debug_state() -> Dictionary:
 		"hud_position": _hud_panel.position if _hud_panel != null else Vector2.ZERO,
 		"hud_slide_progress": clampf(_hud_slide_elapsed / HUD_SLIDE_SECONDS, 0.0, 1.0),
 		"hud_controls": _hud_controls.text if _hud_controls != null else "",
+		"net_mirror": _is_net_mirror(),
+		"net": net_stats.duplicate(),
 	}
 
 
@@ -578,6 +615,209 @@ func get_presentation_state(player_index: int) -> Dictionary:
 			else _rendezvous_position
 		),
 	}
+
+
+# ===========================================================================
+# オンライン（docs/online_versus.md「ゴーストシャーク」）
+# ===========================================================================
+
+## オンライン対戦で使う。local_slot はこの画面の自分のスロット。
+func configure_network(local_slot: int, is_host: bool) -> void:
+	_net_enabled = true
+	_net_local_slot = clampi(local_slot, 1, 2)
+	_net_is_host = is_host
+
+
+## 相手が乗っているゴーストシャークを、この画面でなぞっているか。
+func _is_net_mirror() -> bool:
+	return (
+		_net_enabled
+		and phase != Phase.INACTIVE
+		and dead_player_index > 0
+		and dead_player_index != _net_local_slot
+	)
+
+
+## 相手へ送るもの：{state: 照準・チャージ・エモート（自分が乗っているあいだ）, events: [突進・命中]}。
+## 送ったイベントはここで消える。
+func take_net_outgoing() -> Dictionary:
+	var out := {}
+	if _net_enabled and phase != Phase.INACTIVE and dead_player_index == _net_local_slot:
+		out["state"] = {
+			"r": dead_player_index,
+			"ax": snappedf(_aim_offset.x, 0.001),
+			"ay": snappedf(_aim_offset.y, 0.001),
+			"c": _charging_input and phase == Phase.AIMING,
+			"ca": snappedf(_charge_amount, 0.001),
+			"em": _ghost_emote_id,
+		}
+	if not _net_out_events.is_empty():
+		out["events"] = _net_out_events
+		_net_out_events = []
+	return out
+
+
+## 相手の画面から届いたもの（take_net_outgoing の中身）。
+func apply_net_incoming(state: Dictionary, events: Array) -> void:
+	if not _net_enabled:
+		return
+	var remote_slot := 3 - _net_local_slot
+	# 自分が乗っているあいだは、相手から乗り手の情報は来ないはず（来ても使わない）。
+	if phase != Phase.INACTIVE and dead_player_index == _net_local_slot:
+		return
+	if not state.is_empty() and int(state.get("r", 0)) == remote_slot:
+		_net_remote_aim = _clamp_aim_offset(Vector2(float(state.get("ax", 0.0)), float(state.get("ay", 0.0))))
+		_net_remote_charging = bool(state.get("c", false))
+		_net_remote_charge = clampf(float(state.get("ca", 0.0)), 0.0, 1.0)
+		_net_remote_emote = clampi(int(state.get("em", 0)), 0, 63)
+	for raw: Variant in events:
+		if not raw is Dictionary:
+			continue
+		var event := raw as Dictionary
+		var id := int(event.get("id", 0))
+		if id <= 0:
+			continue
+		match str(event.get("k", "")):
+			"launch":
+				if id <= _net_mirror_launch_id:
+					continue
+				if not _net_pending_launch.is_empty() and id <= int(_net_pending_launch.id):
+					continue
+				_net_pending_launch = {
+					"id": id,
+					"p": clampf(float(event.get("p", QUICK_CHARGE_FLOOR)), QUICK_CHARGE_FLOOR, 1.0),
+					"pf": bool(event.get("pf", false)),
+					"aim": _clamp_aim_offset(Vector2(float(event.get("ax", 0.0)), float(event.get("ay", 0.0)))),
+				}
+			"hit":
+				if id <= _net_presented_hit_id or _net_confirmed_hits.has(id):
+					continue
+				var direction := Vector2(float(event.get("dx", 1.0)), float(event.get("dz", 0.0)))
+				direction = direction.normalized() if direction.length_squared() > 0.01 else Vector2.RIGHT
+				var hit := {
+					"power": clampf(float(event.get("p", QUICK_CHARGE_FLOOR)), QUICK_CHARGE_FLOOR, 1.0),
+					"perfect": bool(event.get("pf", false)),
+					"dir": direction,
+					"combo": clampi(int(event.get("cb", 1)), 1, 99),
+					"at": Time.get_ticks_msec(),
+				}
+				if id < _net_mirror_launch_id:
+					# この画面はもう次の突進を見せている。吹き飛ばしだけ入れる（ホスト）。
+					_net_apply_remote_impulse(id, hit)
+					continue
+				_net_confirmed_hits[id] = hit
+				if id == _net_mirror_launch_id and phase == Phase.COOLDOWN:
+					# この画面の突進は先に終わっていた。遅れて当たりを見せる。
+					_net_present_confirmed_hit()
+
+
+func _clamp_aim_offset(offset: Vector2) -> Vector2:
+	return Vector2(
+		clampf(offset.x, -AIM_SIDE_LIMIT, AIM_SIDE_LIMIT),
+		clampf(offset.y, -AIM_BACK_LIMIT, AIM_FORWARD_LIMIT)
+	)
+
+
+## なぞり役の AIMING：届いた照準へ寄せ、チャージのメーターと音を相手の長押しに合わせる。
+func _update_net_mirror_aiming(delta: float) -> void:
+	if _net_try_start_pending_launch():
+		return
+	_update_ghost_emote(_net_remote_emote, _net_remote_emote <= 0 and _ghost_emote_id > 0)
+	_aim_offset = _aim_offset.lerp(_net_remote_aim, 1.0 - exp(-NET_AIM_FOLLOW_RATE * delta))
+	_update_hover_target()
+	_charging_input = _net_remote_charging
+	if _net_remote_charging:
+		# 届くあいだ（30Hz）も、乗り手と同じ速さで進めておく。
+		_net_remote_charge = fposmod(_net_remote_charge + delta / CHARGE_BUILD_SECONDS, 1.0)
+		_charge_amount = _net_remote_charge
+		_set_meter(_charge_amount, _charge_feedback_color(_charge_amount))
+	else:
+		_charge_amount = 0.0
+		_set_meter(0.0, _player_color)
+	if _shark and _shark.has_method("set_ghost_charge_tension"):
+		_shark.set_ghost_charge_tension(_charge_amount)
+	_update_hud("")
+	_update_aim_visuals(false)
+
+
+## 届いている突進があれば、乗り手と同じ強さと照準で予備動作から始める。
+func _net_try_start_pending_launch() -> bool:
+	if (
+		_net_pending_launch.is_empty()
+		or phase != Phase.AIMING
+		or _shark == null
+		or not is_instance_valid(_shark)
+	):
+		return false
+	var launch := _net_pending_launch
+	_net_pending_launch = {}
+	_net_mirror_launch_id = int(launch.id)
+	_net_mirror_swept = false
+	_clear_ghost_emote()
+	_aim_offset = launch.aim
+	_update_progress_follow()
+	_update_hover_target()
+	_last_charge_power = float(launch.p)
+	_perfect_charge = bool(launch.pf)
+	_charging_input = false
+	_net_remote_charging = false
+	_locked_direction = _shark.global_position.direction_to(_current_aim_point())
+	phase = Phase.WINDUP
+	_phase_timer = WINDUP_SECONDS
+	net_stats.launches_played += 1
+	_update_hud("")
+	return true
+
+
+## なぞり役：いま見せている突進を、乗り手が当てていたら当たりとして見せる。
+func _net_present_confirmed_hit() -> void:
+	var id := _net_mirror_launch_id
+	if id <= 0 or id <= _net_presented_hit_id or not _net_confirmed_hits.has(id):
+		return
+	var hit: Dictionary = _net_confirmed_hits[id]
+	_net_confirmed_hits.erase(id)
+	_net_presented_hit_id = id
+	_hit_this_charge = true
+	_combo = int(hit.combo)
+	_best_combo = maxi(_best_combo, _combo)
+	_last_charge_power = float(hit.power)
+	_perfect_charge = bool(hit.perfect)
+	_set_hit_result_text()
+	_net_apply_remote_impulse(id, hit)
+	_play_charge_hit_effects()
+	net_stats.hits_presented += 1
+
+
+## ホスト：ゲストが当てた突進の吹き飛ばしを入れる（突進ごとに 1 回）。
+func _net_apply_remote_impulse(id: int, hit: Dictionary) -> void:
+	if not _net_is_host or _net_applied_hit_ids.has(id):
+		return
+	if phase == Phase.INACTIVE or dead_player_index != 3 - _net_local_slot:
+		return
+	_net_applied_hit_ids[id] = true
+	_apply_hit_impulse(_net_local_slot, hit.dir, float(hit.power), bool(hit.perfect))
+
+
+## ホスト：届いた命中を、この画面の突進が見せられないまま待たせすぎない。
+## （サメの向きや位置がずれて見せる機会がないときも、吹き飛ばしは必ず入れる）
+func _net_flush_stale_hits() -> void:
+	if _net_confirmed_hits.is_empty():
+		return
+	var now := Time.get_ticks_msec()
+	for id: int in _net_confirmed_hits.keys():
+		var hit: Dictionary = _net_confirmed_hits[id]
+		if now - int(hit.at) >= NET_HIT_FALLBACK_MS:
+			_net_apply_remote_impulse(id, hit)
+
+
+func _reset_net_ride() -> void:
+	_net_pending_launch = {}
+	_net_confirmed_hits.clear()
+	_net_remote_aim = Vector2.ZERO
+	_net_remote_charging = false
+	_net_remote_charge = 0.0
+	_net_remote_emote = 0
+	_net_mirror_swept = false
 
 
 func _detect_new_death(is_online: bool, is_replay: bool) -> void:
@@ -691,7 +931,8 @@ func _base_mode_is_eligible(is_online: bool, is_replay: bool) -> bool:
 		and not game_state.is_coop_mode()
 		# チュートリアルでは搭乗を許すステップ（海・ゴースト練習・実戦・最終レース）だけ。
 		and game_state.allows_tutorial_ghost_ride()
-		and not is_online
+		# オンラインは同期の準備（configure_network）ができているときだけ。
+		and (not is_online or _net_enabled)
 		and not is_replay
 	)
 
@@ -835,6 +1076,9 @@ func _update_active_phase(
 				if _shark != null and is_instance_valid(_shark):
 					_presentation_focus = _shark.global_position
 				return
+			if _is_net_mirror():
+				_update_net_mirror_aiming(delta)
+				return
 			_update_ghost_emote(emote_input, fire_pressed)
 			var aim_axis := axis_p1 if dead_player_index == 1 else axis_p2
 			if aim_axis.length_squared() > 0.02:
@@ -859,7 +1103,10 @@ func _update_active_phase(
 				_begin_cooldown()
 		Phase.COOLDOWN:
 			if not _result_departure_only:
-				_update_ghost_emote(emote_input, false)
+				if _is_net_mirror():
+					_update_ghost_emote(_net_remote_emote, _net_remote_emote <= 0 and _ghost_emote_id > 0)
+				else:
+					_update_ghost_emote(emote_input, false)
 			_update_cooldown(delta)
 	if (
 		phase in [Phase.AIMING, Phase.WINDUP, Phase.CHARGING, Phase.COOLDOWN]
@@ -958,6 +1205,17 @@ func _commit_charge() -> void:
 	phase = Phase.WINDUP
 	_phase_timer = WINDUP_SECONDS
 	_update_hud("PERFECT CHARGE！" if _perfect_charge else "突進方向ロック")
+	if _net_enabled:
+		_net_launch_id += 1
+		_net_out_events.append({
+			"k": "launch",
+			"id": _net_launch_id,
+			"p": snappedf(_last_charge_power, 0.001),
+			"pf": _perfect_charge,
+			"ax": snappedf(_aim_offset.x, 0.001),
+			"ay": snappedf(_aim_offset.y, 0.001),
+		})
+		net_stats.launches_sent += 1
 
 
 func _is_perfect_power(power: float) -> bool:
@@ -1464,6 +1722,7 @@ func _start_charge() -> void:
 	_sweep_previous_position = _shark.global_position
 	_hit_this_charge = false
 	_charge_finished_pending = false
+	_net_mirror_swept = false
 	if _perfect_charge:
 		AudioManager.play_sfx(&"ghost_dash", 1.5, 1.08)
 	else:
@@ -1478,7 +1737,14 @@ func _update_charge_sweep() -> void:
 		_cleanup_ghost_ride()
 		return
 	var current_position := _shark.global_position
-	if not _hit_this_charge and _segment_hits_survivor(_sweep_previous_position, current_position):
+	if _is_net_mirror():
+		# 当たったかどうかは乗り手の画面が決める。ここでは、決まった命中を
+		# このサメが相手を通り過ぎた瞬間に見せる（見た目の当たりと合わせる）。
+		if not _net_mirror_swept and _segment_hits_survivor(_sweep_previous_position, current_position):
+			_net_mirror_swept = true
+		if _net_mirror_swept:
+			_net_present_confirmed_hit()
+	elif not _hit_this_charge and _segment_hits_survivor(_sweep_previous_position, current_position):
 		_apply_charge_hit()
 	_sweep_previous_position = current_position
 
@@ -1501,35 +1767,66 @@ func _apply_charge_hit() -> void:
 	var horizontal_direction := Vector2(_locked_direction.x, _locked_direction.z).normalized()
 	if horizontal_direction.length_squared() < 0.001:
 		horizontal_direction = Vector2.RIGHT
-	var horizontal_speed := lerpf(
-		MIN_HIT_HORIZONTAL_SPEED,
-		MAX_HIT_HORIZONTAL_SPEED,
-		_last_charge_power
-	)
-	var vertical_speed := lerpf(
-		MIN_HIT_VERTICAL_SPEED,
-		MAX_HIT_VERTICAL_SPEED,
-		_last_charge_power
-	)
-	var control_lock := lerpf(
-		MIN_HIT_CONTROL_LOCK,
-		MAX_HIT_CONTROL_LOCK,
-		_last_charge_power
-	)
-	if _perfect_charge:
-		horizontal_speed += 1.8
-		vertical_speed += 0.6
+	_set_hit_result_text()
+	if _net_enabled:
+		# オンライン：吹き飛ばしはホストだけ。ゲストが乗り手なら、命中をホストへ送る（同じ式で入れる）。
+		_net_out_events.append({
+			"k": "hit",
+			"id": _net_launch_id,
+			"p": snappedf(_last_charge_power, 0.001),
+			"pf": _perfect_charge,
+			"dx": snappedf(horizontal_direction.x, 0.001),
+			"dz": snappedf(horizontal_direction.y, 0.001),
+			"cb": _combo,
+		})
+		net_stats.hits_sent += 1
+		if _net_is_host:
+			_net_applied_hit_ids[_net_launch_id] = true
+			_apply_hit_impulse(survivor_player_index, horizontal_direction, _last_charge_power, _perfect_charge)
+	else:
+		_apply_hit_impulse(survivor_player_index, horizontal_direction, _last_charge_power, _perfect_charge)
+	_play_charge_hit_effects()
+
+
+func _set_hit_result_text() -> void:
 	_result_text = (
 		"PERFECT HIT！ HAUNT x%d" % _combo
 		if _perfect_charge
 		else "HIT！ HAUNT x%d" % _combo
 	)
+
+
+## 突進の強さから吹き飛ばしを入れる。オフラインとオンラインのホストが使う（ゲストからの命中も同じ式）。
+func _apply_hit_impulse(target_index: int, horizontal_direction: Vector2, power: float, perfect: bool) -> void:
+	var horizontal_speed := lerpf(
+		MIN_HIT_HORIZONTAL_SPEED,
+		MAX_HIT_HORIZONTAL_SPEED,
+		power
+	)
+	var vertical_speed := lerpf(
+		MIN_HIT_VERTICAL_SPEED,
+		MAX_HIT_VERTICAL_SPEED,
+		power
+	)
+	var control_lock := lerpf(
+		MIN_HIT_CONTROL_LOCK,
+		MAX_HIT_CONTROL_LOCK,
+		power
+	)
+	if perfect:
+		horizontal_speed += 1.8
+		vertical_speed += 0.6
 	game_state.apply_external_impulse(
-		survivor_player_index,
+		target_index,
 		horizontal_direction * horizontal_speed,
 		vertical_speed,
 		control_lock
 	)
+	if _net_enabled:
+		net_stats.impulses_applied += 1
+
+
+func _play_charge_hit_effects() -> void:
 	var survivor_position := _player_position(survivor_player_index) + Vector3.UP * 0.85
 	if particle_spawner and particle_spawner.has_method("spawn_shark_impact"):
 		particle_spawner.spawn_shark_impact(survivor_position, _locked_direction)
@@ -1571,6 +1868,9 @@ func _on_ghost_mount_beam_fired(_beam_index: int) -> void:
 
 
 func _begin_cooldown() -> void:
+	if _is_net_mirror():
+		# 通り過ぎる形にならなくても、乗り手が当てた突進は終わりまでに当たりとして見せる。
+		_net_present_confirmed_hit()
 	phase = Phase.COOLDOWN
 	# 復帰演出中は生存プレイヤーの移動でポータル位置・通過経路・姿勢を
 	# 更新しない。攻撃終了時の構図をアニメーション完了まで保持する。
@@ -1967,6 +2267,8 @@ func _update_cooldown(delta: float) -> void:
 		_update_hover_target()
 		phase = Phase.AIMING
 		_show_aim_visuals()
+		if _is_net_mirror():
+			_net_try_start_pending_launch()
 
 
 func _begin_shark_portal_reentry() -> void:
@@ -2745,13 +3047,26 @@ func _update_hud(_status: String) -> void:
 func _refresh_hud_controls() -> void:
 	if _hud_controls == null:
 		return
-	if _hud_controls_for_player == dead_player_index and _hud_controls.get_child_count() > 0:
+	# オンラインは乗り手か相手かで中身が変わるので、キーを分ける。
+	var controls_key := dead_player_index + (0 if not _net_enabled else (20 if _is_net_mirror() else 10))
+	if _hud_controls_for_player == controls_key and _hud_controls.get_child_count() > 0:
 		return
-	_hud_controls_for_player = dead_player_index
+	_hud_controls_for_player = controls_key
 	_hud_controls.reset()
 	var accent := Color(0.95, 0.55, 0.20) if dead_player_index == 1 else Color(0.20, 0.65, 0.90)
 	var hint := Color(0.88, 0.93, 1.0, 1.0)
-	if dead_player_index == 1:
+	if _is_net_mirror():
+		_hud_controls.add_text("あいてが ねらっているよ！ よけて！", hint, 12, true)
+		return
+	if _net_enabled:
+		# オンラインの自分の操作は、どちらのスロットでも WASD・矢印と Space。
+		_hud_controls.add_spec("WASD", accent, KeycapChip.SizeClass.TINY)
+		_hud_controls.add_text("/", hint, 12, true)
+		_hud_controls.add_spec("矢印", accent, KeycapChip.SizeClass.TINY)
+		_hud_controls.add_text("照準", hint, 12, true)
+		_hud_controls.add_text(" | ", hint, 12, true)
+		_hud_controls.add_spec("Space", accent, KeycapChip.SizeClass.TINY)
+	elif dead_player_index == 1:
 		_hud_controls.add_spec("WASD", accent, KeycapChip.SizeClass.TINY)
 		_hud_controls.add_text("照準", hint, 12, true)
 		_hud_controls.add_text(" | ", hint, 12, true)
@@ -2913,3 +3228,4 @@ func _cleanup_ghost_ride() -> void:
 	_return_locked_hover_target = Vector3.ZERO
 	_return_locked_aim_point = Vector3.ZERO
 	_preferred_ocean_sharks.clear()
+	_reset_net_ride()

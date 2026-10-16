@@ -28,10 +28,8 @@ func _ready() -> void:
 	_hat_prev.tooltip_text = "前のぼうし"
 	_hat_prev.pressed.connect(_step_hat.bind(-1))
 	hat_row.add_child(_hat_prev)
-	_hat_label = OnlineMenuStyle.label("", 22)
-	_hat_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_hat_label = OnlineMenuStyle.readout(hat_row, 22)
 	_hat_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	hat_row.add_child(_hat_label)
 	_hat_next = OnlineMenuStyle.arrow_button("▶")
 	_hat_next.tooltip_text = "次のぼうし"
 	_hat_next.pressed.connect(_step_hat.bind(1))

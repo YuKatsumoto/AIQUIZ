@@ -15,7 +15,7 @@ var _values: Dictionary = {}  # &"subject" / &"grade" / &"difficulty" -> Label
 
 func _ready() -> void:
 	var name_card := OnlineMenuStyle.card(self)
-	name_card.add_child(OnlineMenuStyle.label("あなたの なまえ（サイコロで 二つ名）", 16, OnlineMenuStyle.MUTED))
+	OnlineMenuStyle.section(name_card, "あなたの なまえ", "サイコロで 二つ名")
 	var name_row := HBoxContainer.new()
 	name_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	name_row.add_theme_constant_override("separation", 10)
@@ -31,7 +31,7 @@ func _ready() -> void:
 	name_card.add_child(_name_hint)
 
 	var rule_card := OnlineMenuStyle.card(self, 8)
-	rule_card.add_child(OnlineMenuStyle.label("あそぶ もんだい", 16, OnlineMenuStyle.MUTED))
+	OnlineMenuStyle.section(rule_card, "あそぶ もんだい")
 	_add_stepper(rule_card, &"subject", "きょうか")
 	_add_stepper(rule_card, &"grade", "がくねん")
 	_add_stepper(rule_card, &"difficulty", "むずかしさ")
@@ -68,14 +68,12 @@ func _add_stepper(parent: Control, key: StringName, title: String) -> void:
 	row.add_theme_constant_override("separation", 10)
 	parent.add_child(row)
 	var name_label := OnlineMenuStyle.label(title, 18, OnlineMenuStyle.MUTED, HORIZONTAL_ALIGNMENT_LEFT)
-	name_label.custom_minimum_size = Vector2(130, 0)
+	name_label.custom_minimum_size = Vector2(120, 0)
 	row.add_child(name_label)
 	var prev := OnlineMenuStyle.arrow_button("◀")
 	prev.pressed.connect(_shift.bind(key, -1))
 	row.add_child(prev)
-	var value := OnlineMenuStyle.label("", 22)
-	value.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(value)
+	var value := OnlineMenuStyle.readout(row, 22)
 	var next := OnlineMenuStyle.arrow_button("▶")
 	next.pressed.connect(_shift.bind(key, 1))
 	row.add_child(next)
