@@ -8,6 +8,8 @@ class_name SkinEditor
 
 signal look_changed(player: int, skin: Dictionary)
 signal part_selected(player: int, part_id: StringName)
+## 人型マップでカーソルが乗ったパーツ（&"" で外れた）。3D のキャラにも映すのに使う。
+signal part_hovered(player: int, part_id: StringName)
 signal hat_restore_requested(player: int, hat_id: int)
 
 ## パレット：12色相 × 3段（あざやか／うすい／こい）＋ 無彩色1列。
@@ -81,6 +83,7 @@ func build_left(container: VBoxContainer, with_presets: bool = true) -> void:
 	_body_map.custom_minimum_size = Vector2(0, 220)
 	_body_map.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_body_map.part_clicked.connect(func(part_id: StringName) -> void: select_part(part_id))
+	_body_map.part_hovered.connect(func(part_id: StringName) -> void: part_hovered.emit(player, part_id))
 	container.add_child(_body_map)
 
 	_note_label = SkinUiStyle.label("", 12, SkinUiStyle.MUTED)

@@ -2,14 +2,11 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://da732f7sod75"
+uid="uid://osrb3240ii78"
 path.s3tc="res://.godot/imported/godotkun_student_notes_GK_PlushAlbedo.webp-ba3a27d6389c697664a5509f7ac9c693.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
-}
-generator_parameters={
-"md5": "86a5c45aa8e6f81e044cf56ce5a68317"
 }
 
 [deps]

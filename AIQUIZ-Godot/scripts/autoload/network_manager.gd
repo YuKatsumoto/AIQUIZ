@@ -58,6 +58,10 @@ var opponent_toon_preset: int = ToonPresets.STANDARD
 var opponent_skin_code: String = ""
 var opponent_emote_slots: Array[int] = [1, 2, 3]
 
+## RELAY_SERVER_URL（環境変数 / .env）が無いときの接続先＝本番リレー（Cloud Run）。
+## ローカルのリレーで試すときは .env に RELAY_SERVER_URL=ws://localhost:8080 を書く。
+const DEFAULT_RELAY_URL := "wss://aiquiz-relay-pktyslvfzq-an.a.run.app"
+
 const PING_INTERVAL := 1.0
 ## これだけ何も届かなければ回線が死んだとみなす（Cloud Run は切断を通知しないことがある）
 const SILENCE_TIMEOUT := 5.0
@@ -87,7 +91,7 @@ func _ready() -> void:
 func _get_relay_url() -> String:
 	var url := OS.get_environment("RELAY_SERVER_URL")
 	if url.is_empty():
-		url = "ws://localhost:8080"
+		url = DEFAULT_RELAY_URL
 	if url.begins_with("https://"):
 		url = "wss://" + url.substr(8)
 	elif url.begins_with("http://"):

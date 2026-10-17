@@ -4,7 +4,9 @@ extends OnlineMenuPage
 ## 「スキン設定」：右に立っている自分のキャラを見ながら、帽子と体の色をその場で変える。
 ## 色の編集はカスタマイズ画面と同じ SkinEditor で、相手に見える自分の見た目（このPCのプレイヤー1）を変える。
 ## 変えた見た目はすぐ保存する。3D のキャラへの反映は OnlineMenu に頼む
-## （skin_look：体の色、skin_hat：帽子、skin_part：選んだパーツを光らせる、skin_done：トップへ戻る）。
+## （skin_look：体の色、skin_hat：帽子、skin_part：選んだパーツを光らせる、skin_hover：人型マップで指したパーツを
+## うすく光らせる、skin_done：トップへ戻る）。右の 3D のキャラをクリックしてパーツを選ぶのも OnlineMenu が受け持ち、
+## editor.select_part を呼ぶ。
 
 const PLAYER := 1
 
@@ -50,6 +52,9 @@ func _ready() -> void:
 	editor = SkinEditor.new()
 	add_child(editor)
 	editor.build_left(left, false)
+	var pick_hint := SkinUiStyle.label("キャラを クリックしても\nえらべるよ", 12, SkinUiStyle.MUTED)
+	pick_hint.name = "PickHint"
+	left.add_child(pick_hint)
 	editor.build_right(right, 20.0)
 	var toolbar := HBoxContainer.new()
 	toolbar.name = "SkinToolbar"
@@ -57,6 +62,7 @@ func _ready() -> void:
 	editor.build_toolbar(toolbar, false)
 	editor.look_changed.connect(func(_slot: int, skin: Dictionary) -> void: request(&"skin_look", {"skin": skin}))
 	editor.part_selected.connect(func(_slot: int, part_id: StringName) -> void: request(&"skin_part", {"part": part_id}))
+	editor.part_hovered.connect(func(_slot: int, part_id: StringName) -> void: request(&"skin_hover", {"part": part_id}))
 	editor.hat_restore_requested.connect(func(_slot: int, hat_id: int) -> void: _apply_hat(hat_id))
 
 	_done_button = OnlineMenuStyle.button("✓ けってい", Vector2(0, 56), 22, true)

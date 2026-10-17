@@ -33,6 +33,8 @@ const SKIN_SIGN_FORWARD := 0.35
 ## スキン設定で選んだパーツを 3D のキャラで光らせる長さと強さ
 const SKIN_PULSE_SECONDS := 0.7
 const SKIN_PULSE_STRENGTH := 0.55
+## スキン設定で、カーソルが乗っているパーツ（3D のキャラか人型マップ）をうすく光らせる強さ
+const SKIN_HOVER_STRENGTH := 0.35
 
 ## 画面の飾りの出し方：menu（ヘッダー＋左の列）、band（下の帯だけ）、staging（左下の小さな「やめる」だけ）、none（なし）
 const CHROME_MENU := &"menu"
@@ -94,6 +96,10 @@ var _skin_closeup: OnlineSkinCloseup = null
 ## スキン設定で選んでいるパーツ（輪郭を光らせる）と、いま光らせているもの
 var _skin_outline_part: StringName = PlayerSkin.ALL
 var _skin_outline_shown: StringName = &""
+## スキン設定で、カーソルが乗っているパーツ：3D のキャラの上と、左の人型マップの上（3D を優先）。いま光らせているもの
+var _skin_hover_3d: StringName = &""
+var _skin_hover_map: StringName = &""
+var _skin_hover_shown: StringName = &""
 
 
 func _ready() -> void:
@@ -140,7 +146,7 @@ static func return_from_match(tree: SceneTree) -> void:
 
 func _process(dt: float) -> void:
 	_update_skin_sign()
-	_update_skin_pulse(dt)
+	_update_skin_highlight(dt)
 	_update_skin_closeup()
 	_poll_loading()
 	if _debug_label != null and _debug_label.visible and director != null:
@@ -378,10 +384,17 @@ func _place_skin_sign(board: OnlineSkinSign) -> void:
 	board.global_transform = Transform3D(Basis(Vector3.UP, atan2(face.x, face.z)), spot)
 
 
-## マウス（タッチ）で看板を指す・押す。ページの列やボタンの上では反応しない。
+## マウス（タッチ）で看板を指す・押す。スキン設定の間は、立っているキャラのパーツを指す・押す。
+## ページの列やボタンの上では反応しない。
 func _input(event: InputEvent) -> void:
+	if not (event is InputEventMouseMotion or event is InputEventMouseButton):
+		return
+	if current_id() == SKIN:
+		_skin_pick_input(event as InputEventMouse)
+		return
+	_set_skin_hover_3d(&"")
 	var board := _skin_sign()
-	if board == null or not (event is InputEventMouseMotion or event is InputEventMouseButton):
+	if board == null:
 		return
 	if not board.is_shown() or current_id() != HOME:
 		# 押せるのはトップのときだけ（スキン設定の間は立っているだけ）
@@ -438,14 +451,58 @@ func _update_skin_closeup() -> void:
 		puppet.controller.set_skin_outline(puppet.index, outline)
 
 
-## スキン設定で選んだパーツを、立っているキャラの上で短く光らせる。
-func _update_skin_pulse(dt: float) -> void:
-	if _skin_pulse_t <= 0.0 or stage == null or not stage.me().is_ready():
-		return
-	_skin_pulse_t = maxf(_skin_pulse_t - dt, 0.0)
-	var phase := _skin_pulse_t / SKIN_PULSE_SECONDS
+## スキン設定で、立っているキャラのパーツをクリックして選ぶ（左の人型マップと同じ）。
+func _skin_pick_input(event: InputEventMouse) -> void:
+	var editor := (page(SKIN) as OnlineSkinPage).editor
+	var part: StringName = &""
+	if not _leaving and editor.input_enabled and not _pointer_over_ui():
+		part = _skin_part_at((make_input_local(event) as InputEventMouse).position)
+		if editor.is_part_locked(part):
+			part = &""
+	_set_skin_hover_3d(part)
+	var button := event as InputEventMouseButton
+	if part != &"" and button != null and button.button_index == MOUSE_BUTTON_LEFT and button.pressed:
+		get_viewport().set_input_as_handled()
+		editor.select_part(part)
+
+
+## 画面の点（この画面の座標）の下にある、自分のキャラのパーツ（なければ &""）。
+func _skin_part_at(screen_position: Vector2) -> StringName:
+	if stage == null or stage.camera == null or not stage.me().is_ready() or _stage_view.scale.x <= 0.0 or _stage_view.scale.y <= 0.0:
+		return &""
+	var view_position := (screen_position - _stage_view.position) / _stage_view.scale
 	var puppet := stage.me()
-	puppet.controller.set_skin_highlight_map(puppet.index, {_skin_pulse_part: SKIN_PULSE_STRENGTH * phase * phase})
+	return puppet.controller.pick_skin_part(puppet.index, stage.camera.project_ray_origin(view_position), stage.camera.project_ray_normal(view_position))
+
+
+func _set_skin_hover_3d(part_id: StringName) -> void:
+	if _skin_hover_3d == part_id:
+		return
+	_skin_hover_3d = part_id
+	Input.set_default_cursor_shape(Input.CURSOR_POINTING_HAND if part_id != &"" else Input.CURSOR_ARROW)
+	var skin_page := page(SKIN) as OnlineSkinPage
+	if skin_page != null and skin_page.editor != null:
+		skin_page.editor.show_hover(part_id)
+
+
+## スキン設定で、カーソルが乗っているパーツをうすく光らせ、選んだパーツを短く強く光らせる。
+func _update_skin_highlight(dt: float) -> void:
+	if stage == null or not stage.me().is_ready():
+		return
+	var editing := current_id() == SKIN and not _leaving
+	var hover := (_skin_hover_3d if _skin_hover_3d != &"" else _skin_hover_map) if editing else &""
+	if _skin_pulse_t <= 0.0 and hover == _skin_hover_shown:
+		return
+	_skin_hover_shown = hover
+	_skin_pulse_t = maxf(_skin_pulse_t - dt, 0.0)
+	var amounts := {}
+	if hover != &"":
+		amounts[hover] = SKIN_HOVER_STRENGTH
+	if _skin_pulse_part != &"":
+		var phase := _skin_pulse_t / SKIN_PULSE_SECONDS
+		amounts[_skin_pulse_part] = maxf(float(amounts.get(_skin_pulse_part, 0.0)), SKIN_PULSE_STRENGTH * phase * phase)
+	var puppet := stage.me()
+	puppet.controller.set_skin_highlight_map(puppet.index, amounts)
 
 
 ## 演出の上に載せるもの：左下の小さな「やめる」、合流の文字、カットイン、暗転。
@@ -745,6 +802,8 @@ func _on_page_action(action: StringName, data: Dictionary) -> void:
 			_skin_pulse_part = StringName(str(data.get("part", "")))
 			_skin_pulse_t = SKIN_PULSE_SECONDS
 			_skin_outline_part = _skin_pulse_part
+		&"skin_hover":
+			_skin_hover_map = StringName(str(data.get("part", "")))
 
 
 # ---------- マッチング ----------
