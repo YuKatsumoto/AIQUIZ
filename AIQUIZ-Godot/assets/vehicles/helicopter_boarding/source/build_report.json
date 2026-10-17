@@ -1,7 +1,7 @@
 {
- "seconds": 23.8,
+ "seconds": 15.0,
  "glb": "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\vehicles\\helicopter_boarding\\helicopter_boarding.glb",
- "glb_bytes": 2280728,
+ "glb_bytes": 3067164,
  "exported": true,
  "glb_check": {
   "meshes": 26,
@@ -31,15 +31,15 @@
   "jetpod_l_vertex_ratio": 1.027,
   "problems": []
  },
- "triangles_total": 35558,
+ "triangles_total": 35830,
  "triangles": {
-  "Body": 16168,
+  "Body": 16166,
   "Door_L": 1174,
   "Door_R": 1176,
   "LandingLight": 80,
   "Beacon": 214,
   "Windows": 644,
-  "Interior": 5890,
+  "Interior": 6164,
   "DashScreens": 162,
   "Booster_R": 44,
   "Belt_L": 64,
@@ -136,7 +136,7 @@
    "smooth_unwelded": 0,
    "weld_mismatch": {},
    "rejected": 0,
-   "weld_groups": 60,
+   "weld_groups": 78,
    "decal_no_uv": 0
   },
   "DashScreens": {
@@ -349,13 +349,13 @@
  },
  "decals": {
   "D1_boom_logo": {
-   "faces": 62,
+   "faces": 61,
    "cover": 1.0,
    "min_mm": 4.95,
    "max_mm": 5.0,
    "inside": 0,
    "size_m": [
-    0.984,
+    0.975,
     0.245
    ]
   },
@@ -469,15 +469,15 @@
   "regions": {
    "LOGO_KEY": [
     40,
-    1674,
+    1673,
     944,
-    235
+    237
    ],
    "LOGO_MASK": [
     40,
-    1162,
+    1161,
     944,
-    235
+    237
    ],
    "NUM_0": [
     1056,
@@ -592,15 +592,27 @@
     976,
     32,
     32
+   ],
+   "BOARD": [
+    1446,
+    37,
+    563,
+    950
    ]
   },
   "info": {
    "logo_px": [
-    1310,
+    1297,
     300
    ],
-   "logo_aspect": 4.3667,
-   "font": "NotoSansJP-Bold.otf"
+   "logo_aspect": 4.3233,
+   "font": "NotoSansJP-Bold.otf",
+   "board_photos": [
+    "goal",
+    "shark",
+    "wave",
+    "hatena"
+   ]
   }
  },
  "checks": [
@@ -622,7 +634,7 @@
   {
    "check": "三角形の合計",
    "ok": true,
-   "detail": "35558（上限 40000）"
+   "detail": "35830（上限 40000）"
   },
   {
    "check": "なめらかな面はすべて溶接してある",
@@ -882,7 +894,7 @@
   {
    "check": "詰めたアトラス = ディスクの PNG（MD5）",
    "ok": true,
-   "detail": "{\"packed\": \"56297abd3a53\", \"disk\": \"56297abd3a53\"}"
+   "detail": "{\"packed\": \"d727282c74f2\", \"disk\": \"d727282c74f2\"}"
   },
   {
    "check": "デカールと外板のすき間 1.5〜15 mm（外側）",
@@ -914,12 +926,12 @@
  "bake": [
   {
    "object": "Body",
-   "corners": 32480,
-   "unique_corners": 15492,
-   "loops_total": 32480,
+   "corners": 32476,
+   "unique_corners": 15490,
+   "loops_total": 32476,
    "mean_luminance_before": 0.9804,
-   "mean_luminance_after": 0.8496,
-   "mean_multiplier": 0.8693,
+   "mean_luminance_after": 0.8497,
+   "mean_multiplier": 0.8694,
    "min_multiplier_rgb": [
     0.48,
     0.48,
@@ -931,17 +943,17 @@
     "p25": 0.69,
     "p50": 0.979,
     "p75": 0.999,
-    "p95": 1.006
+    "p95": 1.005
    },
    "mean_multiplier_by_normal": {
     "up": 0.8688,
-    "side": 0.8759,
-    "down": 0.8548
+    "side": 0.876,
+    "down": 0.855
    },
    "grade": {
     "BodyPaint": {
-     "p5": 0.592,
-     "p25": 0.863,
+     "p5": 0.599,
+     "p25": 0.862,
      "p50": 0.913,
      "p75": 0.994
     },
@@ -978,7 +990,7 @@
     "Decal": {
      "p5": 0.994,
      "p25": 0.996,
-     "p50": 1.001,
+     "p50": 1.002,
      "p75": 1.004
     },
     "DecalNumber": {
@@ -995,8 +1007,8 @@
    "unique_corners": 1328,
    "loops_total": 2360,
    "mean_luminance_before": 0.9584,
-   "mean_luminance_after": 0.7917,
-   "mean_multiplier": 0.8336,
+   "mean_luminance_after": 0.792,
+   "mean_multiplier": 0.8339,
    "min_multiplier_rgb": [
     0.48,
     0.48,
@@ -1013,7 +1025,7 @@
    "mean_multiplier_by_normal": {
     "up": 0.7704,
     "side": 0.8583,
-    "down": 0.8265
+    "down": 0.8282
    },
    "grade": {
     "Rubber": {
@@ -1054,8 +1066,8 @@
    "unique_corners": 1330,
    "loops_total": 2364,
    "mean_luminance_before": 0.9585,
-   "mean_luminance_after": 0.7932,
-   "mean_multiplier": 0.835,
+   "mean_luminance_after": 0.793,
+   "mean_multiplier": 0.8348,
    "min_multiplier_rgb": [
     0.48,
     0.48,
@@ -1072,7 +1084,7 @@
    "mean_multiplier_by_normal": {
     "up": 0.7754,
     "side": 0.859,
-    "down": 0.8256
+    "down": 0.8246
    },
    "grade": {
     "Rubber": {
@@ -1109,42 +1121,42 @@
   },
   {
    "object": "Interior",
-   "corners": 11546,
-   "unique_corners": 9309,
-   "loops_total": 11546,
-   "mean_luminance_before": 0.9288,
-   "mean_luminance_after": 0.7977,
-   "mean_multiplier": 0.8635,
+   "corners": 12098,
+   "unique_corners": 9512,
+   "loops_total": 12098,
+   "mean_luminance_before": 0.9054,
+   "mean_luminance_after": 0.7794,
+   "mean_multiplier": 0.8657,
    "min_multiplier_rgb": [
     0.58,
     0.58,
     0.58
    ],
-   "mean_multiplier_visible_up_side": 0.862,
+   "mean_multiplier_visible_up_side": 0.8655,
    "multiplier_percentiles_visible": {
     "p5": 0.58,
-    "p25": 0.717,
-    "p50": 0.954,
+    "p25": 0.72,
+    "p50": 0.957,
     "p75": 0.998,
     "p95": 1.004
    },
    "mean_multiplier_by_normal": {
-    "up": 0.8633,
-    "side": 0.8613,
-    "down": 0.8693
+    "up": 0.8597,
+    "side": 0.8683,
+    "down": 0.8666
    },
    "grade": {
     "Trim": {
-     "p5": 0.593,
-     "p25": 0.697,
+     "p5": 0.594,
+     "p25": 0.71,
      "p50": 0.893,
-     "p75": 0.948
+     "p75": 0.951
     },
     "Decal": {
-     "p5": 0.999,
-     "p25": 0.999,
-     "p50": 1.0,
-     "p75": 1.0
+     "p5": 0.995,
+     "p25": 0.996,
+     "p50": 0.996,
+     "p75": 0.997
     }
    }
   },
@@ -1266,16 +1278,16 @@
     0.48,
     0.48
    ],
-   "mean_multiplier_visible_up_side": 0.8716,
+   "mean_multiplier_visible_up_side": 0.8717,
    "multiplier_percentiles_visible": {
     "p5": 0.48,
-    "p25": 0.741,
+    "p25": 0.742,
     "p50": 0.918,
     "p75": 0.998,
     "p95": 1.005
    },
    "mean_multiplier_by_normal": {
-    "up": 0.8462,
+    "up": 0.8463,
     "side": 0.8829,
     "down": 0.9557
    },
@@ -1695,29 +1707,6 @@
   }
  ],
  "renders": {
-  "hb_01_hero_f16.png": "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\vehicles\\helicopter_boarding\\source\\previews\\hb_01_hero_f16.png",
-  "hb_02_front_f1.png": "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\vehicles\\helicopter_boarding\\source\\previews\\hb_02_front_f1.png",
-  "hb_03_board_f16.png": "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\vehicles\\helicopter_boarding\\source\\previews\\hb_03_board_f16.png",
-  "hb_04_cabin_f1.png": "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\vehicles\\helicopter_boarding\\source\\previews\\hb_04_cabin_f1.png",
-  "hb_05_sideortho_f1.png": "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\vehicles\\helicopter_boarding\\source\\previews\\hb_05_sideortho_f1.png",
-  "hb_06_hero_f1.png": "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\vehicles\\helicopter_boarding\\source\\previews\\hb_06_hero_f1.png",
-  "hb_07_hero_f120.png": "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\vehicles\\helicopter_boarding\\source\\previews\\hb_07_hero_f120.png",
-  "hb_08_jetrear_f1.png": "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\vehicles\\helicopter_boarding\\source\\previews\\hb_08_jetrear_f1.png",
-  "hb_09_jetrear_f120.png": "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\vehicles\\helicopter_boarding\\source\\previews\\hb_09_jetrear_f120.png",
-  "hb_11_cowltop_f1.png": "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\vehicles\\helicopter_boarding\\source\\previews\\hb_11_cowltop_f1.png",
-  "hb_12_rotorhead_f1.png": "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\vehicles\\helicopter_boarding\\source\\previews\\hb_12_rotorhead_f1.png",
-  "hb_13_rotorhead_f120.png": "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\vehicles\\helicopter_boarding\\source\\previews\\hb_13_rotorhead_f120.png",
-  "hb_10_noseclose_f1.png": "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\vehicles\\helicopter_boarding\\source\\previews\\hb_10_noseclose_f1.png",
-  "hb_14_tail_f1.png": "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\vehicles\\helicopter_boarding\\source\\previews\\hb_14_tail_f1.png",
-  "hb_15_tailr_f1.png": "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\vehicles\\helicopter_boarding\\source\\previews\\hb_15_tailr_f1.png",
-  "hb_16_bellyrear_f1.png": "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\vehicles\\helicopter_boarding\\source\\previews\\hb_16_bellyrear_f1.png",
-  "hb_17_bellyfront_f1.png": "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\vehicles\\helicopter_boarding\\source\\previews\\hb_17_bellyfront_f1.png",
-  "hb_18_doorhinge_f16.png": "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\vehicles\\helicopter_boarding\\source\\previews\\hb_18_doorhinge_f16.png",
-  "hb_19_skid_f1.png": "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\vehicles\\helicopter_boarding\\source\\previews\\hb_19_skid_f1.png",
-  "hb_20_cockpitgame_f1.png": "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\vehicles\\helicopter_boarding\\source\\previews\\hb_20_cockpitgame_f1.png",
-  "hb_21_cockpitgame_f1.png": "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\vehicles\\helicopter_boarding\\source\\previews\\hb_21_cockpitgame_f1.png",
-  "hb_22_boardgame_f16.png": "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\vehicles\\helicopter_boarding\\source\\previews\\hb_22_boardgame_f16.png",
-  "hb_23_cabinrear_f1.png": "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\vehicles\\helicopter_boarding\\source\\previews\\hb_23_cabinrear_f1.png",
-  "hb_24_tailside_f1.png": "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\vehicles\\helicopter_boarding\\source\\previews\\hb_24_tailside_f1.png"
+  "hb_23_cabinrear_f1.png": "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\vehicles\\helicopter_boarding\\source\\previews\\hb_23_cabinrear_f1.png"
  }
 }

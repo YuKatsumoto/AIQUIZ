@@ -129,20 +129,26 @@
    960,
    64,
    64
+  ],
+  "BOARD": [
+   1408,
+   0,
+   640,
+   1024
   ]
  },
  "regions": {
   "LOGO_KEY": [
    40,
-   1674,
+   1673,
    944,
-   235
+   237
   ],
   "LOGO_MASK": [
    40,
-   1162,
+   1161,
    944,
-   235
+   237
   ],
   "NUM_0": [
    1056,
@@ -257,6 +263,12 @@
    976,
    32,
    32
+  ],
+  "BOARD": [
+   1446,
+   37,
+   563,
+   950
   ]
  },
  "numbers": [
@@ -269,10 +281,16 @@
  ],
  "info": {
   "logo_px": [
-   1310,
+   1297,
    300
   ],
-  "logo_aspect": 4.3667,
-  "font": "NotoSansJP-Bold.otf"
+  "logo_aspect": 4.3233,
+  "font": "NotoSansJP-Bold.otf",
+  "board_photos": [
+   "goal",
+   "shark",
+   "wave",
+   "hatena"
+  ]
  }
 }

@@ -6,7 +6,7 @@
 
 見た目：かわいい形のまま、機械の作り込み（屋根のカバー・吸気口・排気・ローターの頭・3 枚羽根・フェネストロンの尾・機首の機器・
 ヒンジ・ホイスト・スキッドの金具・コックピットの計器）を足した。帯より下と尾翼は濃紺（色替えしない）、上はプレイヤーの色、
-白い帯の上下に細い線。デカールは「AIQUIZ」のロゴ・機体番号（AQ-01 / AQ-02）・ハテナの紋章・黄黒の帯だけ（注意書きの文字はない）。ロゴを変えたときは `tools/logo_editor/apply_logo.py` が `hb_decals.png` のロゴの 2 マスだけを描き直す（機体の UV はそのまま）。
+白い帯の上下に細い線。デカールは「AIQUIZ」のロゴ・機体番号（AQ-01 / AQ-02）・ハテナの紋章・黄黒の帯だけ（注意書きの文字はない）。後ろの仕切りはコルクボードで、操縦士ハテナがこれまで乗せた人との写真 4 枚（ゴールで肩組み・幽霊ザメに二人乗り・客席でウェーブ・「？」のポーズ）と、ハテナのシール・画びょうを貼ってある（風防越しに見える）。ロゴを変えたときは `tools/logo_editor/apply_logo.py` が `hb_decals.png` のロゴの 2 マスだけを描き直す（機体の UV はそのまま）。
 
 ## ファイル
 
@@ -17,6 +17,7 @@
 | `helicopter_boarding_layout.json` | マーカー（MK_*）、ドアのヒンジ、ローター・尾のファン・ハッチの軸、`skid_drop`、ジェット（`jet_boost`）、ガラスの帯（`glass`）、塗装と機体番号（`livery`） |
 | `source/blender/build_helicopter_boarding.py` | ビルダー（ライブの Blender で runpy）。形は `hb_shell.py`（胴体）・`hb_parts.py`（ローター・尾・スキッド・灯・ジェット）・`hb_detail.py`（屋根・機首・ヒンジ・腹）・`hb_cockpit.py`（コックピット）、デカールは `hb_textures.py`（アトラスを描く）と `hb_decals.py`（外板に貼る） |
 | `source/textures/hb_decals.png` / `hb_decals_regions.json` | ビルダーが描くアトラスと、領域の表（左下が原点の px） |
+| `source/textures/board_photos/*.png` | 後ろのコルクボードの写真（768² の正方形 4 枚。Godot の本物のステージ・観客・ハテナ・プレイヤーで撮る：`tests/heli_board_photos.gd`）。アトラスの `BOARD` へ縮めて貼る。配置は `hb_cockpit.BOARD` |
 | `source/heli_pilot_spec.json` | ビルダーが読む数値（設計図 `artifacts/heli_blueprint` が書き出す写し。`artifacts/` は git の管理外なので、ここに置く） |
 | `source/blender/helicopter_boarding.blend` | 編集用の原本（Blender 5.1。アトラスを詰めてある） |
 | `source/blender/SCENE_PASSPORT.md` | 作り方の約束（部品・材質・確かめ方） |
@@ -32,7 +33,8 @@
     （glTF のクリアコートは Godot 4.7 が読まないので、つやはここで足す）
   - `Windows`：`shaders/heli_glass.gdshader`。風防（`Windows`）だけサンバイザーの帯（高さは layout の `glass.visor_y`）
   - `Decal` / `DecalNumber`：`configure_decal_material()`（アルファで重ねる・深度を書かない・`render_priority = -8`・頂点色を掛ける）。
-    ガラス・ローターの円盤・炎より先に描く。影は落とさない
+    ガラス・ローターの円盤・炎より先に描く。影は落とさない。`Interior` の `Decal`（計器盤の銘板・後ろのコルクボード）は紙なので別の材質にし、
+    クリアコートを付けず `roughness = INTERIOR_DECAL_ROUGHNESS`（0.85。天井の灯が白く照り返さない）
   - 機体番号：`set_livery_slot(slot)`（1 = AQ-01、2 = AQ-02）。`DecalNumber` を機体ごとに複製し、`uv1_offset = livery.number_uv_step × (slot − 1)`
   - 灯（`Beacon`・`NavLight_*`・`LandingLight`・`StrobeLights`・`JetGlow_*`）は面が 1 つ。覆いは `Body` に入れてある
 - 画質：`apply_quality(quality)`。低ではローターを円盤にせず、デカールの異方性フィルタを切る
@@ -56,6 +58,12 @@
 
 ## 作り直し方
 
+0. コルクボードの写真を撮り直すときは、Godot で次を実行して `source/textures/board_photos/` を書き直す（4 枚で約 15 秒。`-- only=shark` でその 1 枚だけ。
+   ポーズ・カメラの調整値は `-- key=value` で試せる。`-- preview` を付けると本物の写真を書き換えず `artifacts/heli_board_photos/preview_<名前>.png` に撮る）。
+   「はてな？」の写真のプレイヤーのポーズは、`tests/heli_board_photos.gd` の先頭の表 `HATENA_PLAYER_POSE` で決める。そのあと下の 2. でヘリを作り直す
+   ```powershell
+   ./Godot_v4.7.2-stable_win64_console.exe --path . --resolution 768x768 --script res://tests/heli_board_photos_bootstrap.gd
+   ```
 1. 設計を直すときは `artifacts/heli_blueprint/heli_design.py` を直し、`python artifacts/heli_blueprint/make_blueprint.py spec` で
    `heli_pilot_spec.json` を書き直す（`make_blueprint.py` だけなら図面も作り直す。ドアの通り道の計算で 10 分ほどかかる）
 2. ライブの Blender（Higgsfield の Blender 連携）で次を実行する。チェックが通れば GLB・layout を書き、確認レンダーを出して `.blend` を保存する

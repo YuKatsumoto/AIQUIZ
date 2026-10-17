@@ -3,7 +3,8 @@
 Decal / DecalNumber / ScreenGlow の 3 つの材質が 1 枚を使う。GLB には 1 枚だけ入る。
   外（上半分 y 1024〜2047）：ロゴ（濃紺に白い縁・白だけ）、機体番号（AQ-01 / AQ-02、上下に 256 px ずつ）、ハテナの紋章、
                             黄黒の縞（つなげて使うタイル）、細い線の帯
-  コックピット（下半分 y 0〜1023）：多機能画面 4 枚・計器の文字盤 4 つ・無線の窓 3 つ・警告灯の列・不透明のマス・透明のマス
+  コックピット（下半分 y 0〜1023）：多機能画面 4 枚・計器の文字盤 4 つ・無線の窓 3 つ・警告灯の列・不透明のマス・透明のマス、
+                                  後ろの仕切りのコルクボード（右下、写真 4 枚・シール。配置は hb_cockpit.BOARD）
 外の領域は 2 のべき乗にそろえたマスの中に置き、まわりに 32 px 以上の透明なすき間をとる（遠くで縮小しても隣がにじまない）。
 つなげて使うタイル（黄黒・細い線）は、マスの横いっぱいに同じ模様を続ける（縮小してもつなぎ目が出ない）。
 
@@ -48,7 +49,10 @@ CELLS = {
     "ANNUN": (768, 576, 256, 64),
     "UI_SOLID": (1024, 960, 64, 64),
     "TRANSPARENT": (1088, 960, 64, 64),
+    "BOARD": (1408, 0, 640, 1024),
 }
+PHOTOS = K.TEXTURES / "board_photos"     # 後ろの仕切りの写真（tests/heli_board_photos.gd が撮る、正方形）
+BOARD_PX = 880.0                         # コルクボードの px/m
 REGIONS: dict[str, tuple] = {}     # 名前 → 中身の四角 (x, y, 幅, 高さ)（px、左下が原点）
 INFO: dict = {}                    # 使った字体・ロゴの縦横比など（ビルドのレポートへ）
 
@@ -402,7 +406,12 @@ def _paint_emblem(buf):
     rw = cw - 2 * GUTTER
     x0, y0 = cx0 + GUTTER, cy0 + GUTTER
     REGIONS["EMBLEM"] = (x0, y0, rw, rw)
-    view = buf[y0:y0 + rw, x0:x0 + rw]
+    _draw_emblem(buf[y0:y0 + rw, x0:x0 + rw])
+
+
+def _draw_emblem(view):
+    """白い縁の空色の円にハテナ（view は正方形）。"""
+    rw = view.shape[0]
     X, Y = _grid(rw, rw)
     R = rw / 2 - 1.5
     c = rw / 2
@@ -565,6 +574,174 @@ def _paint_ui(buf):
     buf[y0:y0 + 32, x0:x0 + 32] = 0.0
 
 
+# ---------------------------------------------------------------- 後ろの仕切りのコルクボード
+
+CORK = _rgb("#C48F58")
+PAPER = _rgb("#FBFAF4")
+MARKER = _rgb("#E2483C")
+
+
+def _blur(a, r):
+    """箱ぼかし（半径 r px）を縦横に 3 回（山の形に近づける）。大きさは変わらない。"""
+    out = a.astype(np.float32)
+    n = 2 * r + 1
+    for _ in range(3):
+        for axis in (0, 1):
+            pad = np.pad(out, [(r + 1, r) if k == axis else (0, 0) for k in (0, 1)], mode="edge")
+            c = np.cumsum(pad, axis=axis, dtype=np.float64)
+            out = ((c[n:] - c[:-n]) if axis == 0 else (c[:, n:] - c[:, :-n])).astype(np.float32) / n
+    return out
+
+
+def _paste(buf, layer, cx, cy, deg, opacity=1.0, tint=None):
+    """layer（RGBA、行 0 が下）の中心を buf の (cx, cy) px に置き、deg 度（反時計回り）回して重ねる。
+    双線形（色はアルファを掛けて補間する）。tint を渡すと色をその 1 色にする（影）。"""
+    lh, lw = layer.shape[:2]
+    a = math.radians(deg)
+    c, s = math.cos(a), math.sin(a)
+    ex = abs(lw / 2 * c) + abs(lh / 2 * s) + 2
+    ey = abs(lw / 2 * s) + abs(lh / 2 * c) + 2
+    H, W = buf.shape[:2]
+    x0, x1 = max(0, int(cx - ex)), min(W, int(math.ceil(cx + ex)))
+    y0, y1 = max(0, int(cy - ey)), min(H, int(math.ceil(cy + ey)))
+    if x1 <= x0 or y1 <= y0:
+        return
+    X, Y = _grid(x1 - x0, y1 - y0)
+    dx, dy = X + x0 - cx, Y + y0 - cy
+    lx = c * dx + s * dy + lw / 2 + 0.5          # 1 px の透明なふちを足した layer の画素の座標
+    ly = -s * dx + c * dy + lh / 2 + 0.5
+    pm = np.zeros((lh + 2, lw + 2, 4), np.float32)
+    pm[1:-1, 1:-1, :3] = layer[..., :3] * layer[..., 3:4]
+    pm[1:-1, 1:-1, 3] = layer[..., 3]
+    ix = np.floor(lx).astype(int)
+    iy = np.floor(ly).astype(int)
+    ok = (ix >= 0) & (iy >= 0) & (ix <= lw) & (iy <= lh)
+    fx = (lx - ix)[..., None]
+    fy = (ly - iy)[..., None]
+    ix = np.clip(ix, 0, lw)
+    iy = np.clip(iy, 0, lh)
+    smp = (pm[iy, ix] * (1 - fx) * (1 - fy) + pm[iy, ix + 1] * fx * (1 - fy)
+           + pm[iy + 1, ix] * (1 - fx) * fy + pm[iy + 1, ix + 1] * fx * fy) * ok[..., None]
+    alpha = smp[..., 3]
+    rgb = smp[..., :3] / np.maximum(alpha, 1e-6)[..., None]
+    if tint is not None:
+        rgb = np.broadcast_to(np.asarray(tint, np.float32), rgb.shape)
+    _over(buf[y0:y1, x0:x1], rgb, np.clip(alpha * opacity, 0.0, 1.0))
+
+
+def _paste_with_shadow(buf, layer, cx, cy, deg, lift=1.0):
+    """紙の影（下へずらしてぼかす。天井の灯が上にある）を落としてから貼る。lift が大きいほど浮いて見える。"""
+    r = max(2, int(round(3 * lift)))
+    pad = 3 * r
+    a = _blur(np.pad(layer[..., 3], pad), r)
+    shadow = np.zeros(a.shape + (4,), np.float32)
+    shadow[..., 3] = a
+    _paste(buf, shadow, cx + 1.5 * lift, cy - 4.0 * lift, deg, 0.38, tint=(0.08, 0.05, 0.03))
+    _paste(buf, layer, cx, cy, deg)
+
+
+def _text_layer(text, w, h, rgb, margin=0.04):
+    out = np.zeros((h, w, 4), np.float32)
+    out[..., :3] = rgb
+    out[..., 3] = _text_mask(text, w, h, margin=margin)
+    return out
+
+
+def _photo(name, size):
+    """board_photos/<name>.png を一辺 size px に縮める（RGB、行 0 が下）。印画紙らしく黒を少し持ち上げる。"""
+    path = PHOTOS / f"{name}.png"
+    if not path.exists():
+        raise FileNotFoundError(f"写真 {path} がない（Godot で tests/heli_board_photos_bootstrap.gd を実行して撮る）")
+    img = bpy.data.images.load(str(path), check_existing=False)
+    try:
+        w, h = img.size
+        px = np.empty(w * h * 4, np.float32)
+        img.pixels.foreach_get(px)
+    finally:
+        bpy.data.images.remove(img)
+    rgb = px.reshape(h, w, 4)[..., :3]
+    k = max(1, int(min(w, h) / (size * 1.2)))       # 先に整数分の 1 へ平均で縮める（ちらつきを抑える）
+    if k > 1:
+        hh, ww = (h // k) * k, (w // k) * k
+        rgb = rgb[:hh, :ww].reshape(hh // k, k, ww // k, k, 3).mean(axis=(1, 3))
+    out = np.stack([_resample(rgb[..., c], size, size) for c in range(3)], axis=-1)
+    out = out * np.array([0.93, 0.92, 0.89], np.float32) + np.array([0.045, 0.04, 0.035], np.float32)
+    return np.clip(out, 0.0, 1.0).astype(np.float32)
+
+
+def _polaroid(name):
+    """白い枠の写真（上と左右の余白が同じ、下が広い）。「はてな？」には赤いペンで「？」を描き足す。"""
+    import hb_cockpit
+    pw, ph, side = hb_cockpit.BOARD["polaroid"]
+    W, H, P = (int(round(v * BOARD_PX)) for v in (pw, ph, side))
+    m = (W - P) // 2
+    lay = np.zeros((H, W, 4), np.float32)
+    lay[..., :3] = PAPER
+    lay[..., 3] = 1.0
+    y_photo = H - m - P
+    lay[y_photo:y_photo + P, m:m + P, :3] = _photo(name, P)
+    X, Y = _grid(W, H)
+    edge = _sd_box(X, Y, m + P / 2, y_photo + P / 2, P / 2, P / 2)
+    _over(lay, np.zeros(3, np.float32), _cov(np.abs(edge) - 0.6) * 0.22)
+    if name == "hatena":
+        for (fx, fy, deg, size) in ((0.16, 0.80, 16.0, 0.30), (0.86, 0.64, -14.0, 0.24)):
+            q = int(P * size)
+            mark = _text_layer("？", q, q, MARKER, margin=0.02)
+            halo = mark.copy()
+            halo[..., :3] = 1.0
+            halo[..., 3] = _dilate(mark[..., 3], 3)
+            for layer in (halo, mark):
+                _paste(lay, layer, m + P * fx, y_photo + P * fy, deg)
+    return lay
+
+
+def _cork(w, h):
+    """コルクの地（まだら・粒・細かい点。縁は紺の板の影で少し暗い）。乱数は決まった種。"""
+    rng = np.random.default_rng(20261016)
+
+    def smooth(nx, ny):
+        return _resample(rng.random((ny, nx)).astype(np.float32), w, h, ss=1)
+
+    mottle = 0.6 * smooth(14, 24) + 0.4 * smooth(48, 80)
+    grain = smooth(170, 290)
+    fine = rng.random((h, w)).astype(np.float32)
+    shade = 0.90 + 0.16 * mottle
+    shade *= 1.0 - 0.20 * np.clip((grain - 0.70) / 0.12, 0.0, 1.0)
+    shade *= 1.0 + 0.10 * np.clip((0.22 - grain) / 0.10, 0.0, 1.0)
+    shade *= 0.95 + 0.07 * fine
+    X, Y = _grid(w, h)
+    edge = np.minimum(np.minimum(X, w - X), np.minimum(Y, h - Y))
+    shade *= 0.80 + 0.20 * np.clip(edge / 14.0, 0.0, 1.0)
+    out = np.zeros((h, w, 4), np.float32)
+    out[..., :3] = CORK * shade[..., None]
+    out[..., 3] = 1.0
+    return out
+
+
+def _paint_board(buf):
+    """後ろの仕切りのコルクボード（配置は hb_cockpit.BOARD）。画びょうは形で作る（hb_cockpit.build_board）。"""
+    import hb_cockpit
+    B = hb_cockpit.BOARD
+    cx0, cy0, cw, ch = CELLS["BOARD"]
+    w, h = (int(round(v * BOARD_PX)) for v in B["size"])
+    x0, y0 = cx0 + (cw - w) // 2, cy0 + (ch - h) // 2
+    REGIONS["BOARD"] = (x0, y0, w, h)
+    view = buf[y0:y0 + h, x0:x0 + w]
+    view[:] = _cork(w, h)
+
+    def at(st):
+        return w / 2 + st[0] * BOARD_PX, h / 2 + st[1] * BOARD_PX
+
+    st = B["sticker"]
+    d = int(round(st["diameter"] * BOARD_PX))
+    sticker = np.zeros((d, d, 4), np.float32)
+    _draw_emblem(sticker)
+    _paste_with_shadow(view, sticker, *at(st["center"]), -8.0, lift=0.4)
+    for name, centre, deg, _pin in B["photos"]:
+        _paste_with_shadow(view, _polaroid(name), *at(centre), deg, lift=1.0)
+    INFO["board_photos"] = [p[0] for p in B["photos"]]
+
+
 # ---------------------------------------------------------------- UV
 
 def uv_rect(name, inset_u=2.0, inset_v=2.0):
@@ -602,6 +779,7 @@ def build_atlas():
     _paint_hazard(buf)
     _paint_pin(buf)
     _paint_ui(buf)
+    _paint_board(buf)
     for font in [f for f in bpy.data.fonts if f.filepath and FONT_PATH.name in f.filepath and f.users == 0]:
         bpy.data.fonts.remove(font)
     _bleed(buf)
@@ -626,6 +804,7 @@ def build_atlas():
     for k in range(3):
         hb_cockpit.UI_RECTS[f"radio{k}"] = _corners(f"RADIO_{k}")
     hb_cockpit.UI_RECTS["annunciator"] = _corners("ANNUN")
+    hb_cockpit.UI_RECTS["board"] = _corners("BOARD")
     K.DEFAULT_UV.clear()
     K.DEFAULT_UV["ScreenGlow"] = uv_center("UI_SOLID")
     K.DEFAULT_UV["Decal"] = uv_center("TRANSPARENT")

@@ -107,7 +107,6 @@ const SFX_CUES := {
 	&"ghost_shark_rise": {"files": ["ghost_shark/ghost_shark_rise.ogg"], "volume_db": -8.0, "pitch_jitter": 0.0, "min_interval": 0.5},
 	&"ghost_shark_breach": {"files": ["ghost_shark/ghost_shark_breach.ogg"], "volume_db": -6.0, "pitch_jitter": 0.03, "min_interval": 0.5},
 	&"ghost_mount_beam": {"files": ["ghost_shark/ghost_mount_beam.ogg"], "volume_db": -9.0, "pitch_jitter": 0.0, "min_interval": 0.5},
-	&"ghost_charge_perfect": {"files": ["ghost_shark/ghost_charge_perfect.ogg"], "volume_db": -15.0, "pitch_jitter": 0.0, "min_interval": 0.1},
 	&"ghost_dash": {"files": ["ghost_shark/ghost_dash.ogg"], "volume_db": -6.0, "pitch_jitter": 0.03, "min_interval": 0.2},
 	&"ghost_hit": {"files": ["ghost_shark/ghost_hit.ogg"], "volume_db": -5.0, "pitch_jitter": 0.04, "min_interval": 0.2},
 	&"ghost_vanish": {"files": ["ghost_shark/ghost_vanish.ogg"], "volume_db": -11.0, "pitch_jitter": 0.03, "min_interval": 0.3},

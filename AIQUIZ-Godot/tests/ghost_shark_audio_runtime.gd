@@ -1,7 +1,7 @@
 extends Node
 
 ## Ghost shark ride sound effects (docs/sound_effects.md) through the real 2P route: a fatal wall
-## hit, the soul / ascent / breach / mount beam sequence, a held charge (hum + PERFECT tick), a
+## hit, the soul / ascent / breach / mount beam sequence, a held charge (hum, no PERFECT cue), a
 ## missed dash with the return portal, then a dash aimed at the survivor. Records the cues with the
 ## ride phase they fired in and the SFX bus output to artifacts/ghost_shark_audio/.
 const OUT := "res://artifacts/ghost_shark_audio/"
@@ -111,7 +111,7 @@ func run() -> void:
 	check(charge_samples.any(func(s): return s.playing), "charge hum plays while the button is held")
 	var pitches: Array = charge_samples.filter(func(s): return s.playing).map(func(s): return s.pitch)
 	check(pitches.size() >= 2 and pitches.max() > pitches.min() + 0.2, "charge hum pitch rises with the meter")
-	check(count("ghost_charge_perfect") >= 1, "PERFECT tick when the meter enters the band")
+	check(count("ghost_charge_perfect") == 0, "no extra cue when the meter enters the PERFECT band")
 	key(KEY_SPACE, false)
 	await frames(2)
 	check(ghost.get("_perfect_charge"), "first shot released in the PERFECT band")

@@ -11,6 +11,7 @@ extends Node3D
 ##   デカール（Decal：ロゴ・紋章・細い線・黄黒の帯、DecalNumber：尾翼の機体番号）は 1 枚のアトラス。アルファで重ね、
 ##     ほかの半透明（ガラス・ローターの円盤・炎）より先に描く（render_priority -8）。影は落とさない。
 ##     機体番号は set_livery_slot(slot)：DecalNumber を機体ごとに複製し、uv1_offset でアトラスの行を選ぶ（1 = AQ-01、2 = AQ-02）
+##     室内（Interior：計器盤の銘板・後ろの仕切りのコルクボード）のデカールは紙なので、別の材質にしてつやを消す
 ##   ドア：Door_L / Door_R をローカル +Z（ヒンジ）回りに open_deg（set_door(side, 0〜1)）
 ##   ローター：回る勢い spool（0＝止まる、1＝飛べる）が目標へゆっくり近づく。spool が ROTOR_BLUR_SPOOL を超えたら羽根をぼかした円盤に替える
 ##     MainRotor はハブ（回っても見えたまま）、子の MainRotorBlades が羽根（円盤のあいだ隠す）。羽根 3 枚、止めると 1 枚が機首の上
@@ -56,6 +57,8 @@ const PAINT_CLEARCOAT_ROUGHNESS := 0.20
 const TRIM_CLEARCOAT := 0.20
 const TRIM_CLEARCOAT_ROUGHNESS := 0.25
 const DECAL_RENDER_PRIORITY := -8
+## 室内のデカール（紙の銘板・コルクボードの写真）のざらつき。クリアコートは付けない
+const INTERIOR_DECAL_ROUGHNESS := 0.85
 const GLASS_SHADER := preload("res://shaders/heli_glass.gdshader")
 const ROTOR_DISC_SHADER := preload("res://shaders/online_staging_rotor_disc.gdshader")
 const QualityRules := preload("res://scripts/core/graphics_quality.gd")
@@ -482,6 +485,9 @@ static func prepare_surface_material(source: Material, tint: Color, node_name: S
 			if decal == null:
 				return null
 			configure_decal_material(decal, anisotropic)
+			if node_name == "Interior":
+				decal.clearcoat_enabled = false
+				decal.roughness = INTERIOR_DECAL_ROUGHNESS
 			return decal
 		"Windows":
 			return make_glass_material(node_name == "Windows", glass_layout)
@@ -550,10 +556,12 @@ func _prepare_materials(tint: Color) -> void:
 			var source := mesh_instance.mesh.surface_get_material(surface)
 			if source == null:
 				continue
-			# 同じ元の材質は 1 つの材質を使い回す（ガラスは風防とドアで分ける）
+			# 同じ元の材質は 1 つの材質を使い回す（ガラスは風防とドア、デカールは外と室内で分ける）
 			var key: Variant = source
 			if source.resource_name == "Windows":
 				key = "glass_canopy" if mesh_instance.name == "Windows" else "glass_door"
+			elif source.resource_name == "Decal" and mesh_instance.name == "Interior":
+				key = "decal_interior"
 			var prepared: Variant = _material_cache.get(key)
 			if prepared == null and not _material_cache.has(key):
 				prepared = prepare_surface_material(source, tint, mesh_instance.name, _anisotropic, glass_layout)

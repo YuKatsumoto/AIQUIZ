@@ -1,0 +1,215 @@
+// PV のテロップ（絵コンテ docs/pv/storyboard.html の「テロップの決まり」）を After Effects で作る共通部品。
+// build_*.jsx から読み込む：  eval(readText(ROOT + "docs/pv/previz/ae/pv_telop.jsxinc"));
+//   本文：白・紺のふち（0.55cqw）・下へ 0.35cqw の影。要のことばは黄色。書体は Noto Sans JP Black
+//         （絵コンテの Dela Gothic One はこの PC に無いので代わり）。
+//   補足：紺の帯に白い文字（2.05cqw）。本文の下に 0.8cqw あけて置く。
+//   位置：左下（左 6%・下から 11%）。"br" は右下、"tc" は上の中央。
+//   出し方：0.2 秒で下から押し上げて出し、0.15 秒で消す。
+// cqw = 画面の幅の 1%（1920 px なら 19.2 px）。
+// 注意：ExtendScript は a ? b : c ? d : e を (a ? b : c) ? d : e と読むので、入れ子の三項演算子には必ず括弧を付ける。
+var TEL = {
+    W: 1920, H: 1080,
+    NAVY: [11 / 255, 22 / 255, 48 / 255], YELLOW: [242 / 255, 194 / 255, 27 / 255], WHITE: [1, 1, 1],
+    FONT: "NotoSansJP-Black",
+    IN: 0.2, OUT: 0.15, RISE: 34
+};
+TEL.cq = function (v) { return v * TEL.W / 100; };
+
+function telReadText(path) {
+    var f = new File(path);
+    f.encoding = "UTF-8";
+    if (!f.open("r")) throw new Error("cannot open " + path);
+    var s = f.read();
+    f.close();
+    return s;
+}
+
+// "教科と学年を、[えらぶだけ]" の [] の中を黄色にする。戻り値 { text, ranges: [[start, end], ...] }
+function telParse(marked) {
+    var text = "", ranges = [], open = -1;
+    for (var i = 0; i < marked.length; i++) {
+        var c = marked.charAt(i);
+        if (c === "[") { open = text.length; continue; }
+        if (c === "]") { ranges.push([open, text.length]); open = -1; continue; }
+        text += c;
+    }
+    return { text: text, ranges: ranges };
+}
+
+function telTextLayer(comp, name, marked, size, color, strokeWidth) {
+    var p = telParse(marked);
+    var layer = comp.layers.addText(p.text);
+    layer.name = name;
+    var src = layer.property("ADBE Text Properties").property("ADBE Text Document");
+    var doc = src.value;
+    doc.resetCharStyle();
+    doc.font = TEL.FONT;
+    doc.fontSize = size;
+    doc.fillColor = color;
+    doc.applyFill = true;
+    doc.tracking = 20;
+    if (strokeWidth > 0) {
+        doc.applyStroke = true;
+        doc.strokeColor = TEL.NAVY;
+        doc.strokeWidth = strokeWidth;
+        doc.strokeOverFill = false;
+        try { doc.lineJoinType = LineJoinType.LINE_JOIN_ROUND; } catch (e) {}
+    } else {
+        doc.applyStroke = false;
+    }
+    doc.justification = ParagraphJustification.LEFT_JUSTIFY;
+    src.setValue(doc);
+    // 要のことばを黄色に（AE 2024 以降の文字範囲）
+    var colored = 0;
+    if (p.ranges.length) {
+        doc = src.value;
+        for (var r = 0; r < p.ranges.length; r++) {
+            try {
+                var cr = doc.characterRange(p.ranges[r][0], p.ranges[r][1]);
+                cr.fillColor = TEL.YELLOW;
+                colored++;
+            } catch (e2) {}
+        }
+        src.setValue(doc);
+    }
+    layer.__plain = p.text;
+    layer.__colored = colored;
+    return layer;
+}
+
+function telShadow(layer, distance, opacity) {
+    var ds = layer.property("ADBE Effect Parade").addProperty("ADBE Drop Shadow");
+    ds.property("ADBE Drop Shadow-0001").setValue([TEL.NAVY[0], TEL.NAVY[1], TEL.NAVY[2], 1]);
+    ds.property("ADBE Drop Shadow-0002").setValue(opacity * 255);   // 不透明度（0〜255）
+    ds.property("ADBE Drop Shadow-0003").setValue(180);             // 真下
+    ds.property("ADBE Drop Shadow-0004").setValue(distance);
+    ds.property("ADBE Drop Shadow-0005").setValue(0);
+    return ds;
+}
+
+// アンカーを文字の箱の基準点へ（ax, ay は 0 = 左/上、1 = 右/下）。
+function telAnchor(layer, ax, ay, t) {
+    var b = layer.sourceRectAtTime(t || 0, false);
+    layer.property("ADBE Transform Group").property("ADBE Anchor Point").setValue([b.left + b.width * ax, b.top + b.height * ay]);
+    return b;
+}
+
+// 本文（＋補足）のテロップを t0〜t1 に出す。opt: { pos: "bl"|"br"|"tc", sub: "補足", subFrom: 秒 }
+// 戻り値は作ったレイヤー（上から順）。
+function telop(comp, label, marked, t0, t1, opt) {
+    opt = opt || {};
+    var pos = opt.pos || "bl";
+    var layers = [];
+
+    var mainSize = TEL.cq(4.4), mainStroke = TEL.cq(0.55) * 2;   // AE の線は中心から両側へ。塗りの下に描くので見える幅は半分
+    var main = telTextLayer(comp, "TEL_" + label, marked, mainSize, TEL.WHITE, mainStroke);
+    telShadow(main, TEL.cq(0.35), 0.4);
+    var mb = telAnchor(main, (pos === "br" ? 1 : (pos === "tc" ? 0.5 : 0)), pos === "tc" ? 0 : 1, t0);
+
+    var subLayers = [];
+    var subH = 0;
+    if (opt.sub) {
+        var subSize = TEL.cq(2.05);
+        var st = telTextLayer(comp, "TEL_" + label + "_sub", opt.sub, subSize, TEL.WHITE, 0);
+        var sb = telAnchor(st, (pos === "br" ? 1 : (pos === "tc" ? 0.5 : 0)), 1, t0);
+        var padX = TEL.cq(1.1), padY = TEL.cq(0.35);
+        var plate = comp.layers.addShape();
+        plate.name = "TEL_" + label + "_sub_plate";
+        var g = plate.property("ADBE Root Vectors Group").addProperty("ADBE Vector Group");
+        var gc = g.property("ADBE Vectors Group");
+        var rc = gc.addProperty("ADBE Vector Shape - Rect");
+        var pw = sb.width + padX * 2, ph = sb.height + padY * 2;
+        rc.property("ADBE Vector Rect Size").setValue([pw, ph]);
+        rc.property("ADBE Vector Rect Roundness").setValue(TEL.cq(0.4));
+        var ax = (pos === "br" ? -pw / 2 : (pos === "tc" ? 0 : pw / 2));
+        rc.property("ADBE Vector Rect Position").setValue([ax, -ph / 2]);
+        var fl = gc.addProperty("ADBE Vector Graphic - Fill");
+        fl.property("ADBE Vector Fill Color").setValue([TEL.NAVY[0], TEL.NAVY[1], TEL.NAVY[2], 1]);
+        subH = ph;
+        subLayers = [st, plate];
+        st.__padX = padX; st.__padY = padY;
+    }
+
+    // ブロックの基準点（本文の下端。補足があればその下に補足）
+    var x = (pos === "br" ? TEL.W * 0.94 : (pos === "tc" ? TEL.W / 2 : TEL.W * 0.06));
+    var gap = TEL.cq(0.8);
+    var blockBottom = TEL.H * (1 - 0.11);
+    var mainY, subY;
+    if (pos === "tc") {
+        mainY = TEL.H * 0.07;
+        subY = mainY + mb.height + gap + subH;
+    } else {
+        subY = blockBottom;
+        mainY = opt.sub ? blockBottom - subH - gap : blockBottom;
+    }
+    main.property("ADBE Transform Group").property("ADBE Position").setValue([x, mainY]);
+    if (opt.sub) {
+        var stl = subLayers[0], pl = subLayers[1];
+        var sx = (pos === "br" ? x - stl.__padX : (pos === "tc" ? x : x + stl.__padX));
+        stl.property("ADBE Transform Group").property("ADBE Position").setValue([sx, subY - stl.__padY]);
+        pl.property("ADBE Transform Group").property("ADBE Anchor Point").setValue([0, 0]);
+        pl.property("ADBE Transform Group").property("ADBE Position").setValue([x, subY]);
+        pl.moveAfter(stl);
+    }
+
+    // 出し入れ：本文
+    telInOut(main, t0, t1);
+    layers.push(main);
+    if (opt.sub) {
+        var s0 = opt.subFrom !== undefined ? opt.subFrom : t0;
+        telInOut(subLayers[0], s0, t1);
+        telInOut(subLayers[1], s0, t1);
+        layers.push(subLayers[0], subLayers[1]);
+    }
+    return layers;
+}
+
+// 0.2 秒で下から押し上げて出し（不透明度 0→100、y +RISE→0）、t1 の 0.15 秒前から消す。
+function telInOut(layer, t0, t1) {
+    layer.inPoint = t0;
+    layer.outPoint = t1;
+    var tp = layer.property("ADBE Transform Group");
+    var op = tp.property("ADBE Opacity");
+    var pos = tp.property("ADBE Position");
+    var p = pos.value;
+    op.setValueAtTime(t0, 0);
+    op.setValueAtTime(t0 + TEL.IN, 100);
+    op.setValueAtTime(t1 - TEL.OUT, 100);
+    op.setValueAtTime(t1, 0);
+    pos.setValueAtTime(t0, [p[0], p[1] + TEL.RISE]);
+    pos.setValueAtTime(t0 + TEL.IN, p);
+    var outEase = [new KeyframeEase(0, 75)];
+    var i1 = pos.nearestKeyIndex(t0 + TEL.IN);
+    pos.setTemporalEaseAtKey(i1, [new KeyframeEase(0, 75)], [new KeyframeEase(0, 33.33)]);
+    for (var k = 1; k <= op.numKeys; k++) op.setInterpolationTypeAtKey(k, KeyframeInterpolationType.LINEAR);
+}
+
+// 左上の教科名のタグ（S07）：紺の地に白い文字、黄色い縁。t0〜t1 に出す（切り替えはパッと）。
+function telSubjectTag(comp, text, t0, t1) {
+    var size = TEL.cq(2.6);
+    var tl = telTextLayer(comp, "TAG_" + text, text, size, TEL.WHITE, 0);
+    var b = telAnchor(tl, 0, 0, t0);
+    var padX = TEL.cq(1.4), padY = TEL.cq(0.2) + size * 0.2;
+    var x = TEL.W * 0.055, y = TEL.H * 0.06;
+    tl.property("ADBE Transform Group").property("ADBE Position").setValue([x + padX, y + padY]);
+    var plate = comp.layers.addShape();
+    plate.name = "TAG_" + text + "_plate";
+    var root = plate.property("ADBE Root Vectors Group");
+    var pw = b.width + padX * 2, ph = b.height + padY * 2;
+    var g = root.addProperty("ADBE Vector Group").property("ADBE Vectors Group");
+    var rc = g.addProperty("ADBE Vector Shape - Rect");
+    rc.property("ADBE Vector Rect Size").setValue([pw, ph]);
+    rc.property("ADBE Vector Rect Position").setValue([pw / 2, ph / 2]);
+    rc.property("ADBE Vector Rect Roundness").setValue(TEL.cq(0.5));
+    var fl = g.addProperty("ADBE Vector Graphic - Fill");
+    fl.property("ADBE Vector Fill Color").setValue([TEL.NAVY[0], TEL.NAVY[1], TEL.NAVY[2], 1]);
+    var stk = g.addProperty("ADBE Vector Graphic - Stroke");
+    stk.property("ADBE Vector Stroke Color").setValue([TEL.YELLOW[0], TEL.YELLOW[1], TEL.YELLOW[2], 1]);
+    stk.property("ADBE Vector Stroke Width").setValue(TEL.cq(0.3) * 2);
+    plate.property("ADBE Transform Group").property("ADBE Anchor Point").setValue([0, 0]);
+    plate.property("ADBE Transform Group").property("ADBE Position").setValue([x, y]);
+    plate.moveAfter(tl);
+    tl.inPoint = plate.inPoint = t0;
+    tl.outPoint = plate.outPoint = t1;
+    return [tl, plate];
+}

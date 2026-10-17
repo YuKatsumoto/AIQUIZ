@@ -300,26 +300,75 @@ def build_cabin_walls():
 
 # ---------------------------------------------------------------- 後ろの仕切り・床
 
+# 後ろの仕切りのコルクボード：ハテナがこれまで乗せた人との写真（Godot で撮る：tests/heli_board_photos.gd）。
+# 絵（コルク・写真の枠・シール）は hb_textures がアトラスの BOARD に描き、ここは板と画びょうを作る。
+# 座標は板の上の (s, t)：s は見る人の右（Godot の −x）、t は上、単位 m、コルクの中心が原点。傾きは度（見る人から反時計回り）。
+BOARD = {
+    "center": (0.0, 2.45),            # コルクの中心（Godot の x, y）
+    "size": (0.64, 1.08),             # コルク（紺の板 0.72 × 1.16 の、面取りの内側の平らな面に収める）
+    "lift": 0.0015,                   # 紺の板の前の面からコルクの面まで
+    "polaroid": (0.270, 0.320, 0.236),   # 写真の枠の幅・高さ、写真の一辺（上と左右の余白が同じ、下が広い）
+    "photos": [
+        # 名前（board_photos/<名前>.png）、中心 (s, t)、傾き、画びょうの色
+        ("goal", (-0.148, 0.272), -4.0, "#D8352B"),
+        ("shark", (0.150, 0.236), 5.0, "#F2C230"),
+        ("wave", (-0.150, -0.106), 3.0, "#2F7FE0"),
+        ("hatena", (0.148, -0.140), -5.0, "#3BB36A"),
+    ],
+    "sticker": {"center": (0.150, -0.432), "diameter": 0.10},
+}
+BOARD_GRID = (6, 10)                  # コルクの面の分け方（焼いた AO が板の中で変われるように）
+
+
+def board_point(s, t, z):
+    """板の上の (s, t) → Godot の点。z はそのままの Godot の z。"""
+    cx, cy = BOARD["center"]
+    return (cx - s, cy + t, z)
+
+
+def board_pin_points():
+    """写真ごとの画びょうの位置 (s, t) と色：枠の上の辺のまん中から 0.022 下（写真の傾きで回す）。"""
+    _, ph, _ = BOARD["polaroid"]
+    out = []
+    for _name, (cs, ct), deg, col in BOARD["photos"]:
+        a = math.radians(deg)
+        ds, dt = 0.0, ph / 2 - 0.022
+        out.append(((cs + ds * math.cos(a) - dt * math.sin(a), ct + ds * math.sin(a) + dt * math.cos(a)), col))
+    return out
+
+
+def build_board(m, zb):
+    """コルクの面（材質 Decal、アトラスの BOARD）と画びょう（Trim に頂点色）。"""
+    from hb_common import hexcol
+    w, h = BOARD["size"]
+    z = zb - 0.047 - BOARD["lift"]
+    rect = UI_RECTS.get("board")
+    nu, nv = BOARD_GRID
+    (u0, v0), (u1, _), (_, v1), _ = rect if rect is not None else [(0.5, 0.5)] * 4
+    for i in range(nu):
+        for j in range(nv):
+            ss = [-w / 2 + w * (i + k) / nu for k in (0, 1)]
+            ts = [-h / 2 + h * (j + k) / nv for k in (0, 1)]
+            corners = [(ss[0], ts[0]), (ss[1], ts[0]), (ss[1], ts[1]), (ss[0], ts[1])]
+            pts = [board_point(s, t, z) for s, t in corners]
+            uv = [(u0 + (s / w + 0.5) * (u1 - u0), v0 + (t / h + 0.5) * (v1 - v0)) for s, t in corners] if rect is not None else None
+            m._oriented(pts, (0, 0, -1), "Decal", uv=uv, col=(1.0, 1.0, 1.0, 1.0))
+    # 画びょう：コルクに当たる鍔・首・つまみ（-z へ出る）
+    for (s, t), col in board_pin_points():
+        x, y, _ = board_point(s, t, z)
+        c = hexcol(col)
+        m.lathe_axis((x, y, z), (0, 0, -1), [(0.0, 0.011), (0.003, 0.011), (0.004, 0.0045), (0.009, 0.0045),
+                                             (0.010, 0.008), (0.019, 0.007)], "Trim", n=10, cols=[c] * 6, cap1="flat")
+
+
 def build_bulkhead():
     from hb_parts import _disc, _ring
     m, glow = GMesh(), GMesh()
     zb = SPEC["bay"]["rear_z"]
-    # B1 ふかふかの板・B2 白い縁取り
+    # B1 ふかふかの紺の板（コルクボードの縁）
     m.box((0.0, 2.45, zb - 0.0245), (0.72, 1.16, 0.045), "SeatFabric", chamfer=0.03)
-    for x in (-0.18, 0.18):
-        m.box((x, 2.45, zb - 0.049), (0.006, 1.08, 0.004), "Trim")
-    for y in (2.16, 2.74):
-        m.box((0.0, y, zb - 0.049), (0.66, 0.006, 0.004), "Trim")
-    # B3 「?」の紋章（白い円に濃紺の「?」。見る人の右は -x）
-    _disc(m, Vector((0.0, 2.45, zb - 0.050)), (0, 0, -1), 0.15, "Trim", n=20)
-    m.lathe_axis((0.0, 2.45, zb - 0.044), (0, 0, -1), [(0.0, 0.15), (0.006, 0.153), (0.006, 0.15)], "Trim", n=20, smooth=False)
-    pts = []
-    for phi in (160, 120, 80, 40, 0, -40, -75):
-        a = math.radians(phi)
-        pts.append((-0.062 * math.cos(a), 2.495 + 0.062 * math.sin(a), zb - 0.056))
-    pts += [(0.0, 2.395, zb - 0.056), (0.0, 2.375, zb - 0.056)]
-    m.polyline_tube(pts, 0.016, "Trim", n=6, col=NAVY)
-    m.tube((0.0, 2.33, zb - 0.052), (0.0, 2.33, zb - 0.062), 0.019, "Trim", n=8, col=NAVY)
+    # B2 コルクボード：写真 4 枚・見出し・メモ・シール（絵はアトラス）と画びょう
+    build_board(m, zb)
     # B4 道具のレール
     m.tube((-0.62, 3.08, zb - 0.05), (0.62, 3.08, zb - 0.05), 0.016, "Charcoal", n=6)
     for x in (-0.55, 0.55):

@@ -257,7 +257,6 @@ var _charge_tutorial_handoff_to: Rect2 = Rect2()
 var _aim_material: StandardMaterial3D = null
 var _aim_outer_material: StandardMaterial3D = null
 var _charge_audio: AudioStreamPlayer = null
-var _charge_audio_in_perfect: bool = false
 
 # ---------- オンライン ----------
 # 乗り手（脱落した人）の画面が照準・チャージ・命中を決め、相手の画面はそれをなぞる。
@@ -1158,7 +1157,7 @@ func _build_charge_audio() -> void:
 
 
 ## The hum runs only while the rider is really holding a charge (not in the charge tutorial's demo,
-## the windup or the dash), and the PERFECT tick sounds each time the meter enters that band.
+## the windup or the dash). Reaching the PERFECT band plays no extra cue.
 func _update_charge_audio(fire_down: bool) -> void:
 	var charging := (
 		phase == Phase.AIMING
@@ -1179,14 +1178,9 @@ func _update_charge_audio(fire_down: bool) -> void:
 		_charge_audio.volume_db = lerpf(CHARGE_AUDIO_MIN_DB, CHARGE_AUDIO_MAX_DB, _charge_amount)
 		if not _charge_audio.playing:
 			_charge_audio.play()
-	var in_perfect := _is_perfect_power(_charge_amount)
-	if in_perfect and not _charge_audio_in_perfect:
-		AudioManager.play_sfx(&"ghost_charge_perfect")
-	_charge_audio_in_perfect = in_perfect
 
 
 func _stop_charge_audio() -> void:
-	_charge_audio_in_perfect = false
 	if _charge_audio != null and _charge_audio.playing:
 		_charge_audio.stop()
 

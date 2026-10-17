@@ -300,8 +300,52 @@ func _launch_wall_ragdoll(ragdoll: Dictionary, is_p1: bool, saw_hit := false, fl
 		ragdoll["flood_tumble"] = tumble
 
 
+## 壁に激突したラグドールの頭へ帽子を付け替える。表示用の体は隠れるので、
+## 付け根に残すと帽子だけ消えてしまう。外すときは _teardown_ragdoll が元へ戻す。
+func _attach_ragdoll_hat(ragdoll: Dictionary, is_p1: bool) -> void:
+	if ragdoll.has("hat_restore"):
+		return
+	var hat: Node3D = _p1_hat_node if is_p1 else _p2_hat_node
+	var rag: Dictionary = ragdoll.get("rag", {})
+	var bodies: Dictionary = rag.get("bodies", {})
+	var head_body := bodies.get("head") as RigidBody3D
+	if hat == null or not is_instance_valid(hat) or head_body == null or not is_instance_valid(head_body):
+		return
+	# 爆散で帽子のメッシュも破片になって隠れるので、戻すときの表示を覚えておく。
+	var mesh_visible := {}
+	for mesh: MeshInstance3D in HatFactory.get_hat_meshes(hat):
+		mesh_visible[mesh] = mesh.visible
+	ragdoll["hat_restore"] = {
+		"hat": hat,
+		"parent": hat.get_parent(),
+		"transform": hat.transform,
+		"mesh_visible": mesh_visible,
+	}
+	hat.reparent(head_body, true)
+	hat.visible = true
+
+
+## 帽子を元の付け根へ戻す。帽子そのものを見せるかは呼び出し側が決める。
+func _restore_ragdoll_hat(ragdoll: Dictionary) -> void:
+	var restore: Dictionary = ragdoll.get("hat_restore", {})
+	ragdoll.erase("hat_restore")
+	var hat_ref: Variant = restore.get("hat")
+	if not is_instance_valid(hat_ref):
+		return
+	var hat := hat_ref as Node3D
+	var original_parent: Variant = restore.get("parent")
+	if is_instance_valid(original_parent):
+		hat.reparent(original_parent as Node, false)
+		hat.transform = restore.get("transform", Transform3D.IDENTITY)
+	var mesh_visible: Dictionary = restore.get("mesh_visible", {})
+	for mesh: Variant in mesh_visible:
+		if is_instance_valid(mesh):
+			(mesh as MeshInstance3D).visible = bool(mesh_visible[mesh])
+
+
 ## ラグドールツリーを破棄する(別親に置いているため明示的に解放)。
 func _teardown_ragdoll(ragdoll: Dictionary) -> void:
+	_restore_ragdoll_hat(ragdoll)
 	if ragdoll.has("container"):
 		var c = ragdoll["container"]
 		if is_instance_valid(c):
@@ -3708,12 +3752,14 @@ func update_from_state(gs: QuizGameState) -> void:
 					_p1_ragdoll = _setup_ragdoll(p1_parts, true)
 					_p1_driver = _p1_ragdoll.get("driver")
 					_launch_wall_ragdoll(_p1_ragdoll, true, gs.p1_saw_killed, gs.is_flood_caught(1))
+					_attach_ragdoll_hat(_p1_ragdoll, true)
 			elif not _p1_exploding:
 				_p1_exploding = true
 				_init_wall_ragdoll_explosion(_p1_ragdoll, p1_parts, true)
 				_p1_ragdoll = {}
 				_p1_driver = null
-			_set_hat_visible(true, false)
+			# 吹き飛んでいる間は帽子が頭に付いている。爆散したら帽子も破片になる。
+			_set_hat_visible(true, _p1_ragdoll.has("hat_restore"))
 			_set_parts_visible(p1_parts, false)
 			if not _p1_explosion_bodies.is_empty():
 				_update_explosion(true, gs.game_over_timer - scatter_delay)
@@ -3853,12 +3899,13 @@ func update_from_state(gs: QuizGameState) -> void:
 						_p2_ragdoll = _setup_ragdoll(p2_parts, false)
 						_p2_driver = _p2_ragdoll.get("driver")
 						_launch_wall_ragdoll(_p2_ragdoll, false, gs.p2_saw_killed, gs.is_flood_caught(2))
+						_attach_ragdoll_hat(_p2_ragdoll, false)
 				elif not _p2_exploding:
 					_p2_exploding = true
 					_init_wall_ragdoll_explosion(_p2_ragdoll, p2_parts, false)
 					_p2_ragdoll = {}
 					_p2_driver = null
-				_set_hat_visible(false, false)
+				_set_hat_visible(false, _p2_ragdoll.has("hat_restore"))
 				_set_parts_visible(p2_parts, false)
 				if not _p2_explosion_bodies.is_empty():
 					_update_explosion(false, gs.player2_game_over_timer - scatter_delay)

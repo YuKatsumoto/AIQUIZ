@@ -24,6 +24,13 @@ const REAR_EDGE_WARNING_MAX_BLINK_SPEED := 9.0
 const LOCAL_ARROW_HEAD_CLEARANCE := 0.7
 ## オンライン：右上の ping 表示（NetOverlay）の下にスコアと連続正解を下げる量。
 const ONLINE_PING_RESERVED_HEIGHT := 34.0
+## 届いた数が増えたときに数字がポンと弾む長さと大きさ。
+const GENERATION_COUNT_POP_SECONDS := 0.28
+const GENERATION_COUNT_POP_SCALE := 0.3
+const GENERATION_COUNT_COLOR := Color(0.93, 0.95, 1.0)
+const GENERATION_COUNT_POP_COLOR := Color(0.38, 0.68, 1.0)
+const GENERATION_COUNT_DONE_COLOR := Color(0.34, 0.86, 0.5)
+const GENERATION_COUNT_FONT: Font = preload("res://resources/fonts/NotoSansJP-Bold.otf")
 
 @onready var flash_rect: ColorRect = $FlashRect
 var _shark_impact_flash: float = 0.0
@@ -45,6 +52,14 @@ var _rear_edge_warning_time: float = 0.0
 @onready var start_prompt_label: Label = $PreloadPanel/StartPromptLabel
 var _start_prompt_row: KeyHintRow = null
 var _start_prompt_kind: String = ""
+## 問題の生成待ちの演出：タイトルの回転アイコンと弾む数字（_create_generation_decor）。
+var _generation_title_decor: GenerationTitleDecor = null
+var _generation_count_label: Label = null
+var _generation_count_shown := -1
+var _generation_count_pop := 0.0
+## "match"（ゲーム開始の準備）、"sudden_death"（サドンデスの問題待ち）、""。変わったら演出を最初から。
+var _generation_phase_key := ""
+var _generation_stale := true
 
 @onready var game_over_panel: Panel = $GameOverPanel
 @onready var go_title: Label = $GameOverPanel/Title
@@ -107,6 +122,7 @@ func _ready() -> void:
 	pl_fill_style.set_corner_radius_all(5)
 	pl_progress.add_theme_stylebox_override("fill", pl_fill_style)
 	pl_progress.custom_minimum_size.y = 22.0
+	_create_generation_decor()
 
 	# フェードイン（ゲームシーン開始時）
 
@@ -168,6 +184,20 @@ func _retry_game() -> void:
 		game_state.start_game()
 	game_state.skip_start_helicopter_arrival = true
 	get_tree().change_scene_to_file("res://scenes/game_world.tscn")
+
+
+func _create_generation_decor() -> void:
+	_generation_title_decor = GenerationTitleDecor.new()
+	_generation_title_decor.name = "GenerationTitleDecor"
+	preload_panel.add_child(_generation_title_decor)
+	_generation_count_label = Label.new()
+	_generation_count_label.name = "GenerationCount"
+	_generation_count_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_generation_count_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_generation_count_label.add_theme_font_override("font", GENERATION_COUNT_FONT)
+	_generation_count_label.add_theme_font_size_override("font_size", 20)
+	preload_panel.add_child(_generation_count_label)
+	_set_generation_decor_visible(false)
 
 
 func _create_result_ceremony_overlay() -> void:
@@ -432,6 +462,10 @@ func _process(_dt: float) -> void:
 	_shift_top_right_for_online_ping()
 	if _result_ceremony_overlay != null:
 		_result_ceremony_overlay.update_overlay(_dt)
+	var generation_phase := _generation_phase()
+	if generation_phase != _generation_phase_key:
+		_generation_phase_key = generation_phase
+		_generation_stale = true
 
 	if game_state.game_state == Constants.STATE_PRELOADING:
 		_show_preloading(_dt)
@@ -621,7 +655,6 @@ func _update_flash() -> void:
 var _displayed_progress: float = 0.0
 
 func _show_preloading(dt: float) -> void:
-	_apply_preload_stage_preview_layout()
 	preload_bg.visible = false
 	preload_panel.visible = true
 	score_label.visible = false
@@ -631,22 +664,119 @@ func _show_preloading(dt: float) -> void:
 	pl_progress.visible = true
 	pl_status.visible = true
 	_set_start_prompt_visible(false)
-	pl_title.text = "問題を準備中..."
-	pl_subtitle.text = "しばらくお待ちください"
 	pl_subtitle.visible = true
+	var target := _generation_target()
+	_show_generation_progress(dt, _generation_arrived(target), target, _generation_by_ai())
 	pl_status.text = game_state.status_text
 
-	var target: int = 1 if game_state.mode == Constants.MODE_ENDLESS else game_state.target_count
-	target = maxi(1, target)
-	var current: int = mini(game_state.quiz_list.size(), target)
+
+## 問題の生成待ちの演出を出す場面。値が変わったら演出を最初からにする（_process）。
+func _generation_phase() -> String:
+	var state := game_state.game_state
+	if state == Constants.STATE_PRELOADING:
+		return "match"
+	if state == Constants.STATE_WAITING_START and game_state.mode != Constants.MODE_TUTORIAL:
+		return "match"
+	if game_state.sudden_death_preparing_panel == "questions" 			and state in [Constants.STATE_RESULT_CEREMONY, Constants.STATE_SUDDEN_DEATH]:
+		return "sudden_death"
+	return ""
+
+
+func _generation_target() -> int:
+	return maxi(1, 1 if game_state.mode == Constants.MODE_ENDLESS else game_state.target_count)
+
+
+## 届いた問題の数。オンラインのゲストは穴あき（null）で届くので数えない。
+func _generation_arrived(target: int) -> int:
+	var arrived := 0
+	for quiz: QuizItem in game_state.quiz_list:
+		if quiz != null:
+			arrived += 1
+	return mini(arrived, target)
+
+
+## オンラインのAI生成か（オフラインの問題集とチュートリアルは違う）。
+func _generation_by_ai() -> bool:
+	return game_state.mode != Constants.MODE_TUTORIAL 		and (game_state.llm_mode != "OFFLINE" or game_state.net_online)
+
+
+## 問題の生成待ちのパネル：タイトル（回転アイコンと動く点、そろったらチェック）と、バーの右の弾む数字。
+## Status の文言は呼び出し側が決める。
+func _show_generation_progress(dt: float, current: int, target: int, by_ai: bool) -> void:
+	if _generation_stale:
+		_generation_stale = false
+		_generation_count_shown = -1
+		_generation_count_pop = 0.0
+	_apply_generation_layout()
+
+	var english := game_state.use_english_ui
+	var complete := current >= target
+	if complete:
+		pl_title.text = "Quizzes ready!" if english else "問題ができました！"
+	elif by_ai:
+		pl_title.text = "AI is writing your quizzes" if english else "AIが問題をつくっています"
+	else:
+		pl_title.text = "Preparing quizzes" if english else "問題を準備しています"
+	pl_subtitle.text = "%s · Grade %d" % [Constants.SUBJECT_EN.get(game_state.subject, game_state.subject), game_state.grade] 		if english else "%s・%d年 の問題" % [game_state.subject, game_state.grade]
+	var title_font := pl_title.get_theme_font("font")
+	var title_size := pl_title.get_theme_font_size("font_size")
+	_generation_title_decor.text_width = title_font.get_string_size(
+		pl_title.text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, title_size).x
+	_generation_title_decor.mode = "done" if complete else "busy"
+	_generation_title_decor.advance(dt)
+
 	pl_progress.max_value = float(target)
 	_displayed_progress = clampf(_displayed_progress, 0.0, float(current))
-	if current < target:
-		_displayed_progress = lerpf(_displayed_progress, float(current), dt * 10.0)
-	else:
-		_displayed_progress = float(target)
-
+	_displayed_progress = lerpf(_displayed_progress, float(current), clampf(dt * 10.0, 0.0, 1.0)) 		if current < target else float(target)
 	pl_progress.value = _displayed_progress
+
+	if current > _generation_count_shown and _generation_count_shown >= 0:
+		_generation_count_pop = 1.0
+	_generation_count_shown = current
+	_generation_count_pop = maxf(0.0, _generation_count_pop - dt / GENERATION_COUNT_POP_SECONDS)
+	var pop := sin(_generation_count_pop * PI)
+	_generation_count_label.text = "%d/%d" % [current, target]
+	_generation_count_label.pivot_offset = Vector2(0.0, _generation_count_label.size.y * 0.5)
+	_generation_count_label.scale = Vector2.ONE * (1.0 + pop * GENERATION_COUNT_POP_SCALE)
+	_generation_count_label.add_theme_color_override("font_color",
+		(GENERATION_COUNT_DONE_COLOR if complete else GENERATION_COUNT_COLOR).lerp(GENERATION_COUNT_POP_COLOR, pop))
+
+
+func _set_generation_decor_visible(visible_now: bool) -> void:
+	if _generation_title_decor == null:
+		return
+	_generation_title_decor.visible = visible_now
+	_generation_count_label.visible = visible_now
+
+
+## 生成待ちの並び：パネルは 600×240 のまま、タイトルに飾りの幅を足し、バーの右に数字を置く。
+func _apply_generation_layout() -> void:
+	_set_generation_decor_visible(true)
+	preload_panel.set_anchors_preset(Control.PRESET_CENTER)
+	preload_panel.offset_left = -300.0
+	preload_panel.offset_right = 300.0
+	preload_panel.offset_top = -120.0
+	preload_panel.offset_bottom = 120.0
+	# Title と Subtitle は上辺の中央、ProgressBar と Status は下辺の中央が基準（gameplay_hud.tscn）。
+	_set_offsets(pl_title, -280.0, 16.0, 280.0, 60.0)
+	pl_title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_set_offsets(pl_subtitle, -280.0, 66.0, 280.0, 92.0)
+	_generation_title_decor.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	_set_offsets(_generation_title_decor, -280.0, 16.0, 280.0, 60.0)
+	_set_offsets(pl_progress, -250.0, -86.0, 164.0, -64.0)
+	_generation_count_label.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_set_offsets(_generation_count_label, 176.0, -94.0, 280.0, -56.0)
+	_set_offsets(pl_status, -280.0, -50.0, 280.0, -20.0)
+	pl_title.add_theme_font_size_override("font_size", 26)
+	pl_subtitle.add_theme_font_size_override("font_size", 18)
+	pl_status.add_theme_font_size_override("font_size", 16)
+
+
+func _set_offsets(control: Control, left: float, top: float, right: float, bottom: float) -> void:
+	control.offset_left = left
+	control.offset_top = top
+	control.offset_right = right
+	control.offset_bottom = bottom
 
 var _sudden_death_panel_shown := false
 
@@ -654,7 +784,6 @@ var _sudden_death_panel_shown := false
 ## 2Pサドンデスの降下中、サドンデス用の問題（オンライン生成）か地下神殿の準備を待っている間。
 ## ゲーム開始時の問題準備と同じパネル・進み具合・文言を出す（docs/sudden_death_underground.md 第5.3節）。
 func _show_sudden_death_preparing(dt: float) -> void:
-	_apply_preload_stage_preview_layout()
 	if not _sudden_death_panel_shown:
 		_sudden_death_panel_shown = true
 		_displayed_progress = 0.0
@@ -667,27 +796,26 @@ func _show_sudden_death_preparing(dt: float) -> void:
 	pl_progress.visible = true
 	pl_status.visible = true
 	_set_start_prompt_visible(false)
-	pl_title.text = "問題を準備中..."
-	pl_subtitle.text = "しばらくお待ちください"
 	pl_subtitle.visible = true
 	var target := QuizGameState.SUDDEN_DEATH_GENERATION_COUNT
-	var current := target
 	if game_state.sudden_death_preparing_panel == "questions":
-		current = mini(game_state.sudden_death_generation_received, target)
+		var current := mini(game_state.sudden_death_generation_received, target)
+		_show_generation_progress(dt, current, target, true)
 		pl_status.text = "Generating quizzes... (%d/%d)" % [current, target] if game_state.use_english_ui \
 			else "AIクイズ生成中... (%d/%d)" % [current, target]
 	else:
+		_apply_preload_stage_preview_layout()
+		pl_title.text = "問題を準備中..."
+		pl_subtitle.text = "しばらくお待ちください"
 		pl_status.text = "Preparing the underground temple..." if game_state.use_english_ui else "地下神殿を準備中..."
-	pl_progress.max_value = float(target)
-	_displayed_progress = clampf(_displayed_progress, 0.0, float(current))
-	_displayed_progress = lerpf(_displayed_progress, float(current), clampf(dt * 10.0, 0.0, 1.0)) if current < target else float(target)
-	pl_progress.value = _displayed_progress
+		pl_progress.max_value = float(target)
+		_displayed_progress = float(target)
+		pl_progress.value = _displayed_progress
 	_update_flash()
 
 
 var _blink_timer: float = 0.0
 func _show_waiting_start(dt: float) -> void:
-	_apply_preload_stage_preview_layout()
 	preload_bg.visible = false
 	preload_panel.visible = true
 	score_label.visible = false
@@ -696,6 +824,29 @@ func _show_waiting_start(dt: float) -> void:
 	game_over_panel.visible = false
 	pl_status.visible = true
 	pl_subtitle.visible = true
+	var world := get_parent()
+	var arrival_locked := (
+		world != null
+		and world.has_method("is_start_presentation_locked")
+		and bool(world.call("is_start_presentation_locked"))
+	)
+	var construction_locked := (
+		world != null
+		and world.has_method("is_preload_construction_locked")
+		and bool(world.call("is_preload_construction_locked"))
+	)
+	if game_state.mode != Constants.MODE_TUTORIAL and (arrival_locked or construction_locked):
+		# 問題はそろい、キャラクターの到着待ち。「問題ができました！」と満タンのバーを出したままにする。
+		_set_start_prompt_visible(false)
+		pl_progress.visible = true
+		var target := _generation_target()
+		_show_generation_progress(dt, _generation_arrived(target), target, _generation_by_ai())
+		if construction_locked:
+			pl_status.text = game_state.status_text
+		else:
+			pl_status.text = "Characters arriving..." if game_state.use_english_ui else "キャラクター到着中..."
+		return
+	_apply_preload_stage_preview_layout()
 
 	if game_state.mode == Constants.MODE_TUTORIAL:
 		var is_duo := game_state.get_tutorial_course() == GameManager.TUTORIAL_COURSE_LOCAL_2P
@@ -708,17 +859,6 @@ func _show_waiting_start(dt: float) -> void:
 	else:
 		pl_title.text = "問題を準備中..."
 		pl_subtitle.text = "しばらくお待ちください"
-	var world := get_parent()
-	var arrival_locked := (
-		world != null
-		and world.has_method("is_start_presentation_locked")
-		and bool(world.call("is_start_presentation_locked"))
-	)
-	var construction_locked := (
-		world != null
-		and world.has_method("is_preload_construction_locked")
-		and bool(world.call("is_preload_construction_locked"))
-	)
 	if construction_locked:
 		pl_status.text = game_state.status_text
 		pl_progress.visible = false
@@ -742,6 +882,8 @@ func _show_waiting_start(dt: float) -> void:
 
 
 func _apply_preload_stage_preview_layout() -> void:
+	_set_generation_decor_visible(false)
+	pl_title.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 	preload_panel.set_anchors_preset(Control.PRESET_CENTER)
 	preload_panel.offset_left = -300.0
 	preload_panel.offset_right = 300.0

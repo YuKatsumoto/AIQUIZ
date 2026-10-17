@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <title>AIQUIZ PV 絵コンテ</title>
-<meta name="description" content="ゲームクリエイター甲子園2026 応募用PV（約74秒）の設計計画と絵コンテ">
+<meta name="description" content="ゲームクリエイター甲子園2026 応募用PV（約78秒）の設計計画と絵コンテ">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=IBM+Plex+Mono:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap">
@@ -235,15 +235,15 @@ footer p{margin:4px 0;max-width:90ch}
     <div class="eyebrow">ゲームクリエイター甲子園2026 ／ 作品提出用の紹介映像</div>
     <h1>AIQUIZ PV <span class="mk">絵コンテ</span></h1>
     <ul class="meta">
-      <li class="chip" id="chipLen">本編 74.1秒</li>
+      <li class="chip" id="chipLen">本編 77.8秒</li>
       <li class="chip">1920×1080・60fps・mp4</li>
-      <li class="chip" id="chipBars">128 BPM・40小節（5小節目だけ2拍）</li>
+      <li class="chip" id="chipBars">128 BPM・42小節（5小節目だけ2拍）</li>
       <li class="chip" id="chipShots">20カット</li>
       <li class="chip">テロップは要所に1行</li>
-      <li class="chip">版 v0.8 ／ 2026-10-16</li>
+      <li class="chip">版 v0.9.1 ／ 2026-10-17</li>
     </ul>
     <p class="lead">PVの最初と最後に「見ている人への問題」を書いたクイズの壁を出し、キャラクターが答えのドアを突き破ります。ルールを説明しなくても最初の壁で遊び方が伝わり、最後の壁がオチになります。</p>
-    <p class="lead">v0.7では尺を案B（約80秒）にしました。冒頭のS01〜S03は撮影済みのv3（19.7秒）に差し替え、そのぶん空撮（もとのS08）を外し、VSカットイン（もとのS19）をS18に入れ、スコアタワー（S21）を2小節に縮めました。v0.8ではさらにQ2の壁（S14）と押し合い（S15）を外し、約74秒（40小節）になりました。S08・S14・S15・S19は欠番です。</p>
+    <p class="lead">v0.7では尺を案B（約80秒）にしました。冒頭のS01〜S03は撮影済みのv3（19.7秒）に差し替え、そのぶん空撮（もとのS08）を外し、VSカットイン（もとのS19）をS18に入れ、スコアタワー（S21）を2小節に縮めました。v0.8ではさらにQ2の壁（S14）と押し合い（S15）を外し、約74秒（40小節）になりました。S08・S14・S15・S19は欠番です。v0.9では、S01〜S02で壁にぶつかったP2の帽子が消えていた不具合（ゲーム本体の不具合）を直して撮り直し、S04〜S07を実際のゲームで撮影して、テロップまで入れて仕上げました。v0.9.1では、S04〜S06の頭まで場面の切り替えが速すぎて頭に入らなかったので、S04（設定）とS05（ヘリのお迎え）をそれぞれ2小節に伸ばし、約78秒（42小節）にしました。</p>
     <p class="lead">テロップは、絵だけでは伝わりにくい所に1カット1行で使います。AIが問題を作ること・別のAIがチェックすること・壁の速さもAIが決めることと、ルール（ゴツン・サメ・ボス壁・チップソー・サメの逆襲）と、オンライン対戦・カスタマイズです。問題の壁が主役のカット（S01・S02・S22）と、サビの頭の決めの絵（S10）には乗せません。</p>
     <p class="lead">絵の参考には、実機の画面、v3の撮影から切り出したコマ、ゲーム内演出の確認用動画、生成イメージ（撮っていないカットの構図案。Codex CLIで生成）を使っています。本番のPVはすべて実機で撮影します。</p>
     <a class="callout" href="#decisions"><b>4</b>決めてほしいこと</a>
@@ -256,7 +256,7 @@ footer p{margin:4px 0;max-width:90ch}
       <li><a href="#rules">応募の条件</a></li>
       <li><a href="#concept">コンセプト</a></li>
       <li><a href="#structure">構成とアニマティック</a></li>
-      <li><a href="#test-footage">S01〜S03 v3</a></li>
+      <li><a href="#test-footage">S01〜S07</a></li>
       <li><a href="#board">絵コンテ</a></li>
       <li><a href="#sound">音</a></li>
       <li><a href="#type">映像の見せ方</a></li>
@@ -275,7 +275,7 @@ footer p{margin:4px 0;max-width:90ch}
   <h2>応募の条件</h2>
   <p class="sub">2026年の応募要項から、PVの作りに関わるところだけを抜き出しました。審査の観点には、このPVのどこで答えるかを並べています。</p>
   <div class="facts">
-    <div class="fact"><div class="k">映像の形式と長さ</div><div class="v">mp4・約15〜90秒</div><div class="s">プレイ映像または紹介映像。本編は約74秒（74.1秒）にして、前後の無音を足しても上限まで約15秒の余裕を残す。</div></div>
+    <div class="fact"><div class="k">映像の形式と長さ</div><div class="v">mp4・約15〜90秒</div><div class="s">プレイ映像または紹介映像。本編は約78秒（77.8秒）にして、前後の無音を足しても上限まで約11秒の余裕を残す。</div></div>
     <div class="fact"><div class="k">映像に入れないもの</div><div class="v">学校名・個人名</div><div class="s">オンライン対戦の名前は自動で付く二つ名だけを映す。</div></div>
     <div class="fact"><div class="k">サムネイル</div><div class="v">16:9・2MB以下</div><div class="s">JPGまたはPNG。最大1920×1080を推奨。</div></div>
     <div class="fact due"><div class="k">エントリーとチーム登録</div><div class="v">10月31日（土）16:59</div><div class="s">作品提出より1週間早い。未登録なら先に済ませる。</div></div>
@@ -355,7 +355,7 @@ footer p{margin:4px 0;max-width:90ch}
         <dt>カット</dt><dd id="rShot">S01</dd>
         <dt>曲</dt><dd id="rMus">イントロ</dd>
       </dl>
-      <p class="hint">絵コンテを<span id="animLen">74.1秒</span>の尺どおりに並べたアニマティックです。S01〜S03とS18は、カットの中の切り替えも時間どおりに差し替わります。テロップの出入りも本番の予定どおりなので、読み切れるかを確かめてください。メトロノームを入れると、拍に合わせてクリック音が鳴ります（1拍目は高い音）。</p>
+      <p class="hint">絵コンテを<span id="animLen">77.8秒</span>の尺どおりに並べたアニマティックです。S01〜S03とS18は、カットの中の切り替えも時間どおりに差し替わります。テロップの出入りも本番の予定どおりなので、読み切れるかを確かめてください。メトロノームを入れると、拍に合わせてクリック音が鳴ります（1拍目は高い音）。</p>
     </div>
   </div>
 
@@ -367,19 +367,24 @@ footer p{margin:4px 0;max-width:90ch}
 </section>
 
 <section id="test-footage">
-  <h2>S01〜S03 v3（実際のゲームで撮影）</h2>
-  <p class="sub">S01〜S03（19.69秒、10.5小節）の通しです。本物のゲームを1回の通しで動かして撮り、ロゴ（案C）はAfter Effectsで重ねました。撮影中に鳴った効果音を、ゲームと同じ音量・同じ時刻に置いています。曲はまだ入っていません。</p>
+  <h2>S01〜S07（実際のゲームで撮影）</h2>
+  <p class="sub">S01〜S07（34.67秒、18.5小節）の通しです。本物のゲームを動かして撮り、ロゴ（案C）とテロップはAfter Effectsで重ねました。撮影中に鳴った効果音を、ゲームと同じ音量・同じ時刻に置いています（ヘリの音は編集で置いたもの）。曲はまだ入っていません。</p>
   <div class="cols">
-    <div><video class="clip" src="previz/v3/PV_S01-S03_v3_720p.mp4" controls playsinline preload="metadata" poster="frames/v3/v3_0150.jpg"></video></div>
+    <div><video class="clip" src="previz/v4/PV_S01-S07_720p.mp4" controls playsinline preload="metadata" poster="frames/v4/v4_1770.jpg"></video></div>
     <div>
       <ul class="plain">
         <li><b>壁が空から落ちる</b>：ゲームのプレビューの壁と同じ落ち方（2乗の加速・0.55秒）で着地し、潰れて戻る。土ぼこり・揺れ・観客のどよめき。2人はのけぞる。</li>
         <li><b>演技</b>：2人がドアを1拍ずつ見比べ、P2が指さして踊りながら「せんせい」へ。ゴツンで脱落したP2をP1が指さしてダンスで煽り、2秒後にP2が爆散する。P1は「AI」を踊りながら突き破る。上乗せの演技はUALのクリップ。</li>
         <li><b>カメラ</b>：背中越しのアップ、前から2人の顔、横から2人を一緒に、低い追従、壁の向こう側。人の位置を毎フレーム追わず、時間で決めた動きだけにして揺れをなくした。</li>
         <li><b>ロゴ（案C）</b>：黄色い線がベルトになり、文字が落ちて運ばれ、白い閃光と斜めの棒でそろう。最後に黄色い帯が画面を覆い、S04はその帯が抜けるところから始まる。</li>
+        <li><b>帽子</b>：壁にぶつかったP2のキツネ帽子が消えていたのは、ゲーム本体の不具合だった。吹き飛ぶ体（ラグドール）の頭に帽子を付け替えるように直し、v3を撮り直した。</li>
+        <li><b>S04 設定</b>（2小節）：メインメニューの設定パネル（UIあり）。1拍ごとに矢印が押され、教科と学年が切り替わり、5.5拍目で「ゲーム開始」。UIが下がり、空からヘリが近づいてくるところまで見せる。</li>
+        <li><b>S05 ヘリ</b>（2小節）：ヘリが降りてきて縄ばしごを下ろし、キャラが走って飛びつくまでを横から切らずに見せ（6拍目の頭でつかまる）、真下から見上げると、ジェットが点火して打ち上がる（7.5拍目）。</li>
+        <li><b>S06 問題の壁</b>：ゲームの準備中の演出そのまま。問題が届くたびに壁が空から1枚ずつ落ちる。届く時刻を決めて、着地を1拍ごとにそろえた。「AIが問題をつくっています n/10」もゲームの表示。</li>
+        <li><b>S07 5教科</b>：壁の正面に固定し、算数4年・国語6年・理科3年・社会6年・英語3年の問題（offline_bank.json）を1.5拍ごとに替える。左上に教科名と学年、切り替えでシャッターの光。</li>
         <li><b>画質</b>：1920×1080・60fps。1フレームを8回に分けて進め、最後の4回を重ねてモーションブラーにしている。何度撮っても同じ絵になる。</li>
       </ul>
-      <p style="font-size:13px;color:var(--muted)">詳しい手順と値は <span class="mono">docs/pv/capture.md</span> の「S01〜S03 v3」。1080pの版は <span class="mono">docs/pv/previz/v3/PV_S01-S03_v3.mp4</span>。</p>
+      <p style="font-size:13px;color:var(--muted)">詳しい手順と値は <span class="mono">docs/pv/capture.md</span> の「S01〜S03 v3」と「S04〜S07」。1080pの版は <span class="mono">docs/pv/previz/v4/PV_S01-S07.mp4</span>（S01〜S03だけは <span class="mono">docs/pv/previz/v3/PV_S01-S03_v3.mp4</span>）。</p>
     </div>
   </div>
 </section>
@@ -401,12 +406,12 @@ footer p{margin:4px 0;max-width:90ch}
     <div>
       <h3>BGMの条件</h3>
       <ul class="plain">
-        <li>128 BPM・40小節（74.1秒）。4/4拍子で、5小節目だけ2拍（2/4）。前後0.5秒は無音。</li>
+        <li>128 BPM・42小節（77.8秒）。4/4拍子で、5小節目だけ2拍（2/4）。前後0.5秒は無音。</li>
         <li>ゲームのテーマ曲と同じ、8bit風の明るいJポップの方向。</li>
         <li>1〜8小節目は効果音が主役の「ため」（壁の着地・見比べ・ゴツン・爆散）。9小節目の頭に最初のアタックを置く（P1のドア破壊）。10〜11小節目はロゴのジングル。</li>
-        <li>18〜19小節目はカウントダウンのビルド、20小節目の頭からサビ1（S10のドア破壊）。</li>
-        <li>24〜25小節目はドラムを抜いたブレイク（ボス壁）。26小節目の頭からサビ2（S16のチップソーで2人対戦へ）。34小節目は丸ごと止める（LAST Qの間）。</li>
-        <li>33小節目の頭に「WIN!」を合わせる。</li>
+        <li>20〜21小節目はカウントダウンのビルド、22小節目の頭からサビ1（S10のドア破壊）。</li>
+        <li>26〜27小節目はドラムを抜いたブレイク（ボス壁）。28小節目の頭からサビ2（S16のチップソーで2人対戦へ）。36小節目は丸ごと止める（LAST Qの間）。</li>
+        <li>35小節目の頭に「WIN!」を合わせる。</li>
       </ul>
       <h3>ミックス</h3>
       <ul class="plain">
@@ -420,8 +425,8 @@ footer p{margin:4px 0;max-width:90ch}
       <div class="tbl"><table>
         <thead><tr><th>案</th><th>内容</th><th>注意</th></tr></thead>
         <tbody>
-          <tr><td class="nw"><b>A（推奨）</b></td><td>ゲームのテーマ曲をPV用の約74秒に作り直す。ゲームと音の印象がそろう。</td><td>Sunoで作った時点で有料プランだったことの確認が必要（今は記録が「TODO」のまま）。</td></tr>
-          <tr><td class="nw"><b>B</b></td><td>PV専用の曲を新しく作る。40小節の構成表どおりに発注できる。</td><td>有料プランで生成するか、自作する。</td></tr>
+          <tr><td class="nw"><b>A（推奨）</b></td><td>ゲームのテーマ曲をPV用の約78秒に作り直す。ゲームと音の印象がそろう。</td><td>Sunoで作った時点で有料プランだったことの確認が必要（今は記録が「TODO」のまま）。</td></tr>
+          <tr><td class="nw"><b>B</b></td><td>PV専用の曲を新しく作る。42小節の構成表どおりに発注できる。</td><td>有料プランで生成するか、自作する。</td></tr>
           <tr><td class="nw"><b>C</b></td><td>商用利用できるフリー音源を使う。</td><td>尺と展開が合う曲を探す手間。作品説明にクレジット。</td></tr>
         </tbody>
       </table></div>
@@ -507,18 +512,18 @@ footer p{margin:4px 0;max-width:90ch}
     <div>
       <h3>撮り方</h3>
       <ul class="plain">
-        <li>v3と同じく、Godotを固定のフレームレートで動かし、1フレームを8回に分けて進めて重ね、1920×1080・60fpsの連番で保存する（<span class="mono">tests/pv_capture/pv_v3_runtime.gd</span>、<span class="mono">tools/pv/merge_subframes.py</span>）。</li>
+        <li>v3と同じく、Godotを固定のフレームレートで動かし、1フレームを8回に分けて進めて重ね、1920×1080・60fpsの連番で保存する（<span class="mono">tests/pv_capture/pv_take_base.gd</span> の上にテイクごとの台本、<span class="mono">tools/pv/merge_subframes.py</span>）。</li>
         <li>効果音は撮影中に鳴ったキュー（<span class="mono">cues.json</span>）から、ゲームと同じファイル・音量・時刻で置き直す（<span class="mono">tools/pv/mix_audio.py</span>）。</li>
         <li>2人の動きが自動操作で安定しないカットは、実際に2人で遊んで画面録画する。</li>
       </ul>
       <h3>PV撮影のために作るもの</h3>
       <ol class="plain" style="padding-left:1.3em;margin:0">
-        <li>撮影の土台：<span class="mono">pv_v3_runtime.gd</span> を、共通の部分（起動・画質・HUDを隠す・設定を汚さない・キュー・演技の上乗せ・書き出し）とテイクごとの台本に分ける。</li>
+        <li>撮影の土台：<span class="mono">pv_v3_runtime.gd</span> を、共通の部分（起動・画質・HUDを隠す・設定を汚さない・キュー・演技の上乗せ・書き出し）とテイクごとの台本に分ける。<b>（共通の土台 pv_take_base.gd を作り、S04〜S07はその上で撮った。v3と演技の上乗せはまだ）</b></li>
         <li>メタ問題の差し込み：Q1・LAST Q。2択と4択、「全部正解」にできる。<b>（Q1は済み）</b></li>
-        <li>問題の固定：実際にAIが作った問題（<span class="mono">offline_bank.json</span>）から選んで流し、撮り直しても同じ問題が出る。</li>
-        <li>PVカメラ：壁の正面固定、横から低く追従、ローアングル、真上、見上げ、刃越し、サメの追従。<b>（背中越し・前から・横から・壁の向こうは済み）</b></li>
-        <li>壁を空から落とす演出を10枚に広げる（S06）。<b>（1枚はv3で済み）</b></li>
-        <li>カットごとのHUDの表示切り替え（ハート・PERFECT・準備中カウンター）と、UIありで撮る経路（S04・S20）。<b>（スローは済み）</b></li>
+        <li>問題の固定：実際にAIが作った問題（<span class="mono">offline_bank.json</span>）から選んで流し、撮り直しても同じ問題が出る。<b>（S06・S07で済み）</b></li>
+        <li>PVカメラ：壁の正面固定、横から低く追従、ローアングル、真上、見上げ、刃越し、サメの追従。<b>（背中越し・前から・横から・壁の向こう・壁の正面固定・見上げ・上空から下がるドリーは済み）</b></li>
+        <li>壁を空から落とす演出を10枚に広げる（S06）。<b>（済み：今のゲームの準備中の演出がそのまま使えた）</b></li>
+        <li>カットごとのHUDの表示切り替え（ハート・PERFECT・準備中カウンター）と、UIありで撮る経路（S04・S20）。<b>（スロー・準備中カウンター・UIありで撮る経路（S04）は済み）</b></li>
         <li>2人ぶんの自動操作：チップソーからの逃げ、ゴーストシャークの命中、スコアタワーまでの通し。</li>
       </ol>
       <p style="font-size:13px;color:var(--muted)">メタ問題や「全部正解」はPV撮影モードのときだけ有効にし、ゲーム本体の遊び方は変えない。</p>
@@ -529,9 +534,9 @@ footer p{margin:4px 0;max-width:90ch}
         <thead><tr><th>テイク</th><th>内容</th><th>カット</th></tr></thead>
         <tbody>
           <tr><td class="nw mono">v3</td><td>Q1の壁から、P1の突破とロゴまで <b>（撮影済み）</b></td><td class="mono nw">S01–S03</td></tr>
-          <tr><td class="nw mono">T1</td><td>1人の通し：設定 → ヘリのお迎え → 問題の壁が空から落ちる → カウントダウン → 正解・不正解 → 落下 → ボス壁</td><td class="mono nw">S04–S06, S09–S13</td></tr>
+          <tr><td class="nw mono">T1</td><td>1人の通し：設定 → ヘリのお迎え → 問題の壁が空から落ちる → カウントダウン → 正解・不正解 → 落下 → ボス壁 <b>（S04〜S06は撮影済み：テイク s04_s05・s06_s07）</b></td><td class="mono nw">S04–S06, S09–S13</td></tr>
           <tr><td class="nw mono">T2</td><td>メタ問題：LAST Q（4択・全部「あそぶ」）</td><td class="mono nw">S22</td></tr>
-          <tr><td class="nw mono">T3</td><td>5教科の問題の壁を正面から1枚ずつ</td><td class="mono nw">S07</td></tr>
+          <tr><td class="nw mono">T3</td><td>5教科の問題の壁を正面から1枚ずつ <b>（撮影済み：テイク s06_s07 の後半）</b></td><td class="mono nw">S07</td></tr>
           <tr><td class="nw mono">T4</td><td>2人対戦：チップソー・ゴーストシャーク・スコアタワー（勝ち負けがつく回）</td><td class="mono nw">S16, S17, S21</td></tr>
           <tr><td class="nw mono">T5</td><td>オンライン：同じPCでゲームを2つ起動して対戦、ホスト側をVSカットインまで録る</td><td class="mono nw">S18</td></tr>
           <tr><td class="nw mono">T6</td><td>カスタマイズ：帽子・色</td><td class="mono nw">S20</td></tr>
@@ -555,7 +560,8 @@ footer p{margin:4px 0;max-width:90ch}
   <p class="sub">作品は締め切りまで何度でも出し直せるので、11月2日に暫定版を一度出してから仕上げます。</p>
   <ol class="sched">
     <li><div class="d">10/13（火）〜 10/15（木）</div><div class="w">設計と絵コンテ、S01〜S03（v3）の撮影</div><div class="x">済み。</div></li>
-    <li class="now"><div class="d">10/16（金）</div><div class="w">絵コンテ v0.7〜v0.8（案B・テロップ・S14とS15を外す）</div><div class="x">尺を約74秒にし、テロップを要所に入れた。このページの「決めてほしいこと」を決める。</div></li>
+    <li><div class="d">10/16（金）</div><div class="w">絵コンテ v0.7〜v0.8（案B・テロップ・S14とS15を外す）</div><div class="x">尺を約74秒にし、テロップを要所に入れた。このページの「決めてほしいこと」を決める。</div></li>
+    <li class="now"><div class="d">10/17（土）</div><div class="w">帽子の不具合を直してS01〜S03を撮り直し、S04〜S07を撮影・編集</div><div class="x">済み（v0.9〜v0.9.1）。S04〜S07はテロップまで入れて、S01〜S07の通しを書き出した。テンポが速すぎたので、S04とS05を2小節ずつに伸ばした（約78秒・42小節）。</div></li>
     <li><div class="d">10/16（金）〜 10/18（日）</div><div class="w">アニマティックで尺とテロップを確かめる</div><div class="x">このページのアニマティックを、ゲームを知らない人に見てもらい、テロップが読み切れるか・AIの話が伝わるかを確かめる。</div></li>
     <li><div class="d">10/16（金）〜 10/22（木）</div><div class="w">PV撮影の仕組みを作る</div><div class="x">撮影の土台を分ける、メタ問題、問題の固定、PVカメラ、HUDの切り替え、自動操作。</div></li>
     <li><div class="d">10/17（土）〜 10/27（火）</div><div class="w">本撮影と撮り直し</div><div class="x">仕組みができたものから、簡単な順に撮る：T7・T3 → T1 → T2・T6 → T4 → T5。</div></li>
@@ -573,14 +579,13 @@ footer p{margin:4px 0;max-width:90ch}
   <div class="tbl"><table>
     <thead><tr><th>重さ</th><th>内容</th><th>対策</th></tr></thead>
     <tbody>
-      <tr><td><span class="pill hi">高</span></td><td>BGMの権利。Sunoで作った時点のプランが確認できていない（確認の期限だった10/15を過ぎた）。</td><td>すぐに確認する。確認できなければ案Bか案Cにする。曲の構成は40小節（5小節目だけ2拍）で発注する。</td></tr>
+      <tr><td><span class="pill hi">高</span></td><td>BGMの権利。Sunoで作った時点のプランが確認できていない（確認の期限だった10/15を過ぎた）。</td><td>すぐに確認する。確認できなければ案Bか案Cにする。曲の構成は42小節（5小節目だけ2拍）で発注する。</td></tr>
       <tr><td><span class="pill hi">高</span></td><td>エントリーとチーム登録の締め切りが、作品提出より1週間早い（10/31）。</td><td>未登録なら今週中に済ませる。</td></tr>
       <tr><td><span class="pill mid">中</span></td><td>テロップを増やしたので、読み切れない・画面がうるさくなるおそれがある。</td><td>1カット1行、本文は14字前後まで、1小節のカットは本文だけ。アニマティックで読み切れるかを確かめ、読めないものは削る。</td></tr>
       <tr><td><span class="pill mid">中</span></td><td>オンラインの撮影には、ゲームを2つ同時に動かす必要がある。</td><td>撮れなければS18を外し、その2小節をS17とS20に1小節ずつ振り分ける。</td></tr>
       <tr><td><span class="pill mid">中</span></td><td>2人の自動操作（ゴーストシャークの命中など）が安定しない。</td><td>実際に2人で遊び、画面録画で撮る。</td></tr>
       <tr><td><span class="pill mid">中</span></td><td>メタ問題や「全部正解」など、PVだけの特別な動きが必要。</td><td>PV撮影モードのときだけ有効にし、ゲーム本体は変えない。</td></tr>
       <tr><td><span class="pill mid">中</span></td><td>素材のクレジット。効果音（OtoLogic、CC BY 4.0）と帽子のモデル（Poly Pizza、CC BY 3.0）。</td><td>エンドカードに短く入れ、詳しくは作品説明に書く。</td></tr>
-      <tr><td><span class="pill mid">中</span></td><td>S06の「問題の壁が空から落ちてくる」は、ゲームの出方（左右から飛んできて合体）と違う。</td><td>PVだけの見せ方として撮る。気になるならゲームの出方のまま撮り、カメラだけ同じにする。</td></tr>
       <tr><td><span class="pill lo">低</span></td><td>映ってはいけないものが映る。</td><td>撮影前のチェックで確認する。</td></tr>
     </tbody>
   </table></div>
@@ -591,7 +596,7 @@ footer p{margin:4px 0;max-width:90ch}
   <p class="sub">それぞれにおすすめを書いています。そのままでよければ「おすすめどおり」で進めます。</p>
   <h3>決まったこと（v0.7〜v0.8）</h3>
   <ul class="plain">
-    <li>尺は案Bをもとに74.1秒・40小節。S01〜S03はv3、もとのS08を外し、S19をS18に入れ、S21を2小節に。Q2の壁（S14）と押し合い（S15）も外す（外した3小節はほかに回さない）。</li>
+    <li>尺は案Bをもとに74.1秒・40小節だったが、v0.9.1でS04とS05を2小節ずつに伸ばして77.8秒・42小節にした（ほかのカットは削っていない）。S01〜S03はv3、もとのS08を外し、S19をS18に入れ、S21を2小節に。Q2の壁（S14）と押し合い（S15）も外す（外した3小節はほかに回さない）。</li>
     <li>テロップは要所に1カット1行。AIの仕組み（毎回ちがう問題・別のAIのチェック・壁の速さの予測）もテロップで言い切る。AIの名前は作品説明に書く。</li>
     <li>コンセプトは「PVそのものをクイズにする」のまま。</li>
   </ul>
@@ -606,7 +611,7 @@ footer p{margin:4px 0;max-width:90ch}
 </section>
 
 <footer>
-  <p>画像の出典：「Godotで撮影」はS01〜S03 v3（2026-10-15、Godot 4.7.2）から切り出したコマ。「実機」は2026-10-13にGodot 4.7.2で撮影した画面。「演出動画」はゲーム内演出の確認用動画（artifacts/ の10月12日以降のもの）から切り出したコマ。「生成イメージ」はCodex CLI（<span class="mono">codex exec</span>）の画像生成で作った構図案で、本番では使いません（S12は2026-10-16に追加）。</p>
+  <p>画像の出典：「Godotで撮影」はS01〜S03 v3（2026-10-15に撮影、帽子を直して2026-10-17に撮り直し）とS04〜S07 v4（2026-10-17、Godot 4.7.2）の書き出しから切り出したコマ（テロップ入り）。「実機」は2026-10-13にGodot 4.7.2で撮影した画面。「演出動画」はゲーム内演出の確認用動画（artifacts/ の10月12日以降のもの）から切り出したコマ。「生成イメージ」はCodex CLI（<span class="mono">codex exec</span>）の画像生成で作った構図案で、本番では使いません（S12は2026-10-16に追加）。</p>
   <p>ファイル：docs/pv/storyboard.html、画像は docs/pv/frames/（v3のコマは frames/v3/）、生成プロンプトは docs/pv/gen_prompts/。</p>
 </footer>
 
@@ -615,9 +620,9 @@ footer p{margin:4px 0;max-width:90ch}
 <script>
 (function(){
   "use strict";
-  // 128 BPM。曲は40小節で、5小節目だけ2拍（v3 の 05「P2が指さす」の半小節）。ほかは4/4。
+  // 128 BPM。曲は42小節で、5小節目だけ2拍（v3 の 05「P2が指さす」の半小節）。ほかは4/4。
   const BPM = 128, BEAT = 60 / BPM, BAR = BEAT * 4;
-  const BAR_BEATS = Array.from({length:40}, (_, i) => i === 4 ? 2 : 4);
+  const BAR_BEATS = Array.from({length:42}, (_, i) => i === 4 ? 2 : 4);
   const BAR_START = []; { let a = 0; BAR_BEATS.forEach(n => { BAR_START.push(a); a += n; }); }
   const TOTAL_BEATS = BAR_BEATS.reduce((a, n) => a + n, 0), TOTAL = TOTAL_BEATS * BEAT;
   // 拍（0始まり）→ [小節（1始まり）, 小節の中の拍（1始まり）]
@@ -634,10 +639,10 @@ footer p{margin:4px 0;max-width:90ch}
     world: {name:"キャラと決着",     c:"--sec-world", msg:"自分だけのキャラと、スコアタワーでの決着。"},
     end:   {name:"エンド",           c:"--sec-end",   msg:"LAST Qのオチからロゴ、キャッチコピー、作品情報。"}
   };
-  // 曲の構成（拍）。合計 158 拍 = 40 小節。
+  // 曲の構成（拍）。合計 166 拍 = 42 小節。
   const MUSIC = [
     {name:"イントロ", beats:12, e:1}, {name:"ため", beats:18, e:2}, {name:"ヒット", beats:4, e:4}, {name:"ジングル", beats:8, e:3},
-    {name:"Aメロ", beats:24, e:2}, {name:"ビルド", beats:8, e:3}, {name:"サビ1", beats:16, e:4}, {name:"ブレイク", beats:8, e:1},
+    {name:"Aメロ", beats:32, e:2}, {name:"ビルド", beats:8, e:3}, {name:"サビ1", beats:16, e:4}, {name:"ブレイク", beats:8, e:1},
     {name:"サビ2", beats:24, e:5}, {name:"クライマックス", beats:8, e:5}, {name:"ストップ", beats:8, e:1}, {name:"アウトロ", beats:20, e:3}
   ];
   const SRC = {real:"実機 10/13", clip:"演出動画", gen:"生成イメージ", design:"デザイン案", godot:"Godotで撮影", ae:"AEで試作"};
@@ -682,44 +687,47 @@ footer p{margin:4px 0;max-width:90ch}
      add:"ロゴ ＋「走って こたえる 3Dクイズ」",
      capture:"背景はv3のPVフレーム957〜1180。ロゴはAfter Effects（<span class=\"mono\">docs/pv/previz/ae/build_s03_c.jsx</span>）。ジャンル名の1行はAEで足す。",
      status:[["ok","Godot＋AEで試作済み"],["ae","AE：ジャンル名の1行"]]},
-    {id:"S04", sec:"ai", beats:4, title:"教科と学年をえらぶ", img:"frames/ref_menu_settings.jpg", src:"real",
-     ov:[{t:"telop", text:"教科と学年を、<span class=\"y\">えらぶだけ</span>"}],
-     screen:"S03の黄色い帯が抜けると、メニューの設定パネル。教科が「算数 → 国語 → 理科 → 社会 → 英語」、学年が「1年生 → 6年生」と半拍ごとに切り替わり、最後に「ゲーム開始」が押される。",
-     camera:"画面の収録をAEで設定パネルへゆっくり寄せる（1.0 → 1.15倍）。",
-     audio:"切り替えのカーソル音を拍に合わせる。",
-     add:"「教科と学年を、えらぶだけ」（何年生・何の教科かは、S07の補足と教科名で見せる）",
-     capture:"実機（UIあり）。撮影スクリプトで半拍ごとに設定を切り替える。",
-     status:[["shoot","要撮影"],["ae","AE：テロップ"]]},
-    {id:"S05", sec:"ai", beats:4, title:"ヘリのお迎え", img:"frames/ref_heli_ladder.jpg", src:"real",
+    {id:"S04", sec:"ai", beats:8, title:"教科と学年をえらぶ", img:"frames/v4/v4_1280.jpg", src:"godot",
+     seq:[{img:"frames/v4/v4_1280.jpg", from:0, to:.6875, label:"設定"},
+          {img:"frames/v4/v4_1390.jpg", from:.6875, to:1, label:"ヘリが来る"}],
+     ov:[{t:"telop", pos:"br", text:"教科と学年を、<span class=\"y\">えらぶだけ</span>", to:.8125, baked:true}],
+     screen:"S03の黄色い帯が左へ抜けると、メニューの設定パネル。1拍ごとに矢印が押され、教科「国語 → 社会」、学年「3年生 → 4年生」、教科「英語 → 算数」と切り替わる。5.5拍目で「ゲーム開始」が押され、LETS'GOのシャッターが閉じてUIが下がり、空からヘリが近づいてくる。",
+     camera:"メニューのカメラ（UIあり）。AEで「ゲーム開始」まで設定パネルへゆっくり寄せる（1.0 → 1.12倍）。そのあとはヘリの演出のカメラが空を見上げる。",
+     audio:"矢印のクリック音を1拍ごとに。ゲーム開始の決定音。ヘリのローター音が近づく。",
+     add:"「教科と学年を、えらぶだけ」（右下。左に設定パネルがあるため。UIが下がりきる6.5拍目で消す）",
+     capture:"撮影済み（v4、<span class=\"mono\">tests/pv_capture/pv_s04_s05_runtime.gd</span> の1〜225）。本物のメインメニューで、矢印のボタンを1拍ごとに押す。v0.9.1で1小節から2小節に伸ばし、切り替えを半拍ごと6回から1拍ごと4回に減らした。",
+     status:[["ok","Godotで撮影済み（v4）"],["ok","AE：テロップ済み"]]},
+    {id:"S05", sec:"ai", beats:8, title:"ヘリのお迎え", img:"frames/v4/v4_1530.jpg", src:"godot",
+     seq:[{img:"frames/v4/v4_1470.jpg", from:0, to:.625, label:"降りてきて飛びつく"},
+          {img:"frames/v4/v4_1600.jpg", from:.625, to:1, label:"見上げ"}],
      ov:[],
-     screen:"ハテナが操縦するヘリが桟橋に来て縄ばしごを下ろす。キャラが助走してジャンプでつかまり、そのまま飛び去る。",
-     camera:"実機のメニューのカメラ。最後の2拍は、飛び去るヘリを真下から見上げるPVカメラ。",
-     audio:"ローター音。ジャンプでつかまる瞬間を3拍目の頭に合わせる。",
+     screen:"ハテナが操縦するヘリが降りてきて縄ばしごを下ろす。揺れが収まるとキャラが助走してジャンプでつかまる（6拍目の頭）。真下から見上げると、ジェットが点火して打ち上がり（7.5拍目）、飛び去る。",
+     camera:"前半5拍は横から寄ったPVカメラで、ヘリが降りてくるところから飛びつくまで切らずに見せる（メニューのカメラではキャラが小さすぎる）。後半3拍は桟橋の床すれすれから見上げるPVカメラ。",
+     audio:"ローター音。つかまる音を6拍目の頭、ジェットの点火を7.5拍目に（ヘリの音は編集で置く）。",
      add:"なし（絵で伝わる）",
-     capture:"実機（メニューのヘリの演出）。見上げのカットだけPVカメラ。",
-     status:[["shoot","要撮影"],["need","要実装：PVカメラ"]]},
-    {id:"S06", sec:"ai", beats:8, title:"AIが作った問題が、空から落ちてくる", img:"frames/gen/s06_falling_walls.jpg", src:"gen",
-     ov:[{t:"telop", text:"AIが、<span class=\"y\">毎回ちがう問題</span>をつくる", sub:"つくった問題は、別のAIがチェック", subFrom:.5}],
-     screen:"問題の壁がコースの奥から手前へ、1拍ごとに1枚ずつ空から落ちて着地していく（S01と同じ落ち方：潰れて戻る・土ぼこり・揺れ）。「問題を準備中 n/10」のカウンターも進む。",
-     camera:"コースの奥（ゴール側）の高い位置から始め、手前（スタート側）へ前進しながら高さを下げるドリー。落ちてくる壁を次々に追い越し、最後は走者の背中の高さで止まる。",
-     audio:"壁が着地する「ドスン」を拍の頭にそろえる。",
+     capture:"撮影済み（v4、同じテイクの226〜450）。縄ばしごの揺れが収まるまでは約1.45倍、キャラが走り出したら、つかまる瞬間が6拍目の頭に来る速さへ撮影中に切り替える。v0.9.1で1小節から2小節に伸ばし、間を詰めるカットをなくした。",
+     status:[["ok","Godotで撮影済み（v4）"]]},
+    {id:"S06", sec:"ai", beats:8, title:"AIが作った問題が、空から落ちてくる", img:"frames/v4/v4_1770.jpg", src:"godot",
+     ov:[{t:"telop", text:"AIが、<span class=\"y\">毎回ちがう問題</span>をつくる", sub:"つくった問題は、別のAIがチェック", subFrom:.5, baked:true}],
+     screen:"問題の準備中。問題が1問届くたびに、その壁が空から落ちて着地する（ゲームの演出そのまま：潰れて戻る・土ぼこり・揺れ）。奥から手前へ1拍ごとに1枚。右上の「AIが問題をつくっています n/10」も進み、最後に「問題ができました！」。",
+     camera:"コースの奥の上空から、壁の文字の側を見たまま1拍に壁1枚ぶん（30m）ずつ下がり、着地する壁をいつも画面の中央に見る。高さを下げていき、最後はP1の頭の上を越えて背中の高さで止まる。",
+     audio:"壁が着地する「ドスン」を拍の頭にそろえる。観客のざわめき。",
      add:"「AIが、毎回ちがう問題をつくる」→ 2小節目から補足「つくった問題は、別のAIがチェック」",
-     capture:"実機と、奥から手前へ動くPVカメラ。落とし方はv3の仕組み（<span class=\"mono\">DROP_START_Y</span> など）を10枚に広げる。ゲームでは壁が左右から飛んできて合体するので、PVだけの見せ方になる。",
-     status:[["need","要実装：PVカメラ"],["ok","落下はv3で済み"],["risk","ゲームの出方との差"],["ae","AE：テロップ"]]},
-    {id:"S07", sec:"ai", beats:8, title:"5教科×6学年の問題", img:"frames/ref_quiz_wall_q1.jpg", src:"real",
-     ov:[{t:"subj", text:"算数", animHide:true},
-         {t:"subj", text:"算数", from:0, to:.1875, staticHide:true},
-         {t:"subj", text:"国語", from:.1875, to:.375, staticHide:true},
-         {t:"subj", text:"理科", from:.375, to:.5625, staticHide:true},
-         {t:"subj", text:"社会", from:.5625, to:.75, staticHide:true},
-         {t:"subj", text:"英語", from:.75, to:1, staticHide:true},
-         {t:"telop", pos:"br", text:"5教科 × <span class=\"y\">6学年</span>", sub:"学年に合わせた問題を、AIがつくる"}],
-     screen:"正面から見た問題の壁を5連続で切り替える（算数・国語・理科・社会・英語、学年もばらばらに）。壁の構図は同じで、問題文とドアの文字だけが替わる。左上の教科名もカットごとに替わる。",
-     camera:"壁の正面に固定したPVカメラ。5枚とも同じ位置・同じ画角。",
-     audio:"切り替えごとにシャッター風の「カシャ」。",
-     add:"左上に教科名（1.5拍ずつ、英語だけ2拍）＋右下に「5教科×6学年」",
-     capture:"実機。実際にAIが作った問題を教科ごとに1枚（<span class=\"mono\">offline_bank.json</span> から選んで固定）。",
-     status:[["need","要実装：PVカメラ"],["need","要実装：問題の固定"],["shoot","要撮影"],["ae","AE：テロップ"]]},
+     capture:"撮影済み（v4、<span class=\"mono\">tests/pv_capture/pv_s06_s07_runtime.gd</span> の1〜225）。今のゲームは準備中の壁を空から1枚ずつ落とすので、ゲームの演出のまま撮った。問題を届ける時刻だけ決めて、3〜10問目の着地を1拍ごとの頭にそろえた。",
+     status:[["ok","Godotで撮影済み（v4）"],["ok","AE：テロップ済み"]]},
+    {id:"S07", sec:"ai", beats:8, title:"5教科×6学年の問題", img:"frames/v4/v4_1920.jpg", src:"godot",
+     seq:[{img:"frames/v4/v4_1880.jpg", from:0, to:.1875, label:"算数4年"},
+          {img:"frames/v4/v4_1920.jpg", from:.1875, to:.375, label:"国語6年"},
+          {img:"frames/v4/v4_1963.jpg", from:.375, to:.5625, label:"理科3年"},
+          {img:"frames/v4/v4_2005.jpg", from:.5625, to:.75, label:"社会6年"},
+          {img:"frames/v4/v4_2055.jpg", from:.75, to:1, label:"英語3年"}],
+     ov:[{t:"telop", pos:"tc", text:"5教科 × <span class=\"y\">6学年</span>", sub:"学年に合わせた問題を、AIがつくる", baked:true}],
+     screen:"正面から見た問題の壁で、問題を5連続で切り替える（算数4年・国語6年・理科3年・社会6年・英語3年）。壁の構図は同じで、問題文とドアの文字だけが替わる。左上の教科名と学年も替わる。",
+     camera:"壁の正面に固定したPVカメラ（壁を画面の下寄りに）。AEで1.0 → 1.03倍へごくゆっくり寄る。",
+     audio:"切り替えごとにシャッター風の「カチッ」と白い光。",
+     add:"左上に教科名と学年（1.5拍ずつ、英語だけ2拍）＋上の中央に「5教科×6学年」（扉が画面の下半分にあるため）",
+     capture:"撮影済み（v4、同じテイクの226〜450）。問題は offline_bank.json から教科ごとに1問ずつ固定（撮影のたびに問題集と一致するか確かめる）。",
+     status:[["ok","Godotで撮影済み（v4）"],["ok","AE：テロップ済み"]]},
     {id:"S09", sec:"rule", beats:8, title:"カウントダウン（壁の速さもAIが決める）", img:"frames/ref_countdown.jpg", src:"real",
      ov:[{t:"telop", text:"壁のスピードも、<span class=\"y\">AIが決める</span>", sub:"答えるのにかかる時間を、AIが予測", to:.875}],
      screen:"カウントダウンの壁が地鳴りとともに着地する。「3・2・1」で壁が爆発してスタート。",
@@ -805,7 +813,7 @@ footer p{margin:4px 0;max-width:90ch}
      ov:[{t:"telop", pos:"tc", text:"決着は、<span class=\"y\">スコアタワー</span>で", to:.5}],
      screen:"得点の式 → ドラムロールでタワーがせり上がる → 2小節目の頭で「WIN!」と紙吹雪・王冠 → 負けた側に卵が飛ぶ。案Bで3小節から2小節に縮め、ハテナが旗を上げる所は切った。",
      camera:"実機のフィナーレのカメラ。",
-     audio:"ゲームのドラムロールを曲に重ね、「WIN!」を33小節目の頭に合わせる。",
+     audio:"ゲームのドラムロールを曲に重ね、「WIN!」を35小節目の頭に合わせる。",
      add:"「決着は、スコアタワーで」（1小節目だけ）",
      capture:"実機。2人の10問をゴールまで走り、勝ち負けがつく回を撮る（参考画像は引き分けの回）。",
      status:[["shoot","要撮影"],["ae","AE：テロップ"]]},
@@ -872,6 +880,7 @@ footer p{margin:4px 0;max-width:90ch}
     return a;
   }
   function ovHTML(o, mode){
+    if (o.baked) return "";   // 撮影したコマにすでに入っている（AEで重ねて書き出したもの）。テロップの表には残す
     if (mode === "static" && o.staticHide) return "";
     if (mode === "anim" && o.animHide) return "";
     const tm = mode === "anim" ? timing(o) : "";
@@ -957,7 +966,7 @@ footer p{margin:4px 0;max-width:90ch}
     if (o.t === "logo" && s.id !== "S03") telRows.push([s.t0, s.id, "ロゴ（タイトルロゴの登場演出）"]);
     if (o.t === "catch") telRows.push([s.t0 + (o.from ?? 0) * s.dur, s.id, "キャッチコピー「" + strip(o.text) + "」"]);
   }));
-  telRows.push([SHOTS.find(s => s.id === "S07").t0, "S07", "左上の教科名「算数」「国語」「理科」「社会」「英語」（1.5拍ずつ、英語だけ2拍）"]);
+  telRows.push([SHOTS.find(s => s.id === "S07").t0, "S07", "左上の教科名と学年「算数 4年」「国語 6年」「理科 3年」「社会 6年」「英語 3年」（1.5拍ずつ、英語だけ2拍）"]);
   telRows.push([SHOTS.find(s => s.id === "S24").t0, "S24", "AIQUIZ 3D ／ Windows ／ ゲームクリエイター甲子園2026 応募作品 ／ 素材クレジット"]);
   telRows.sort((a, b) => a[0] - b[0]);
   const telBody = document.querySelector("#telTable tbody");
