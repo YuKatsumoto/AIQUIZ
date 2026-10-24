@@ -1,0 +1,31 @@
+[gd_resource type="ShaderMaterial" format=3 uid="uid://52kvgbbek12d"]
+
+[ext_resource type="Shader" uid="uid://bkb1f7plk6r1j" path="res://assets/BinbunMaterials/src/shader/stylized.gdshader" id="1_a7qob"]
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_ryguw"]
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_a7qob")
+shader_parameter/albedo_color = Color(0.5362245, 0.43530655, 0.6110245, 1)
+shader_parameter/albedo_affect = 0.0
+shader_parameter/use_stepped = true
+shader_parameter/steps = 3.0
+shader_parameter/step_smoothness = 0.20000000298024
+shader_parameter/shadow_tint = Color(0, 0, 0.654902, 1)
+shader_parameter/shadow_tint_amount = 0.10000000149012
+shader_parameter/specular = 0.0
+shader_parameter/normal_strength = 0.0
+shader_parameter/use_rim = false
+shader_parameter/rim_color = Color(0.7764706, 1, 1, 1)
+shader_parameter/rim_amount = 2.0
+shader_parameter/rim_smoothness = 0.475
+shader_parameter/rim_mask_shadow = 1.0
+shader_parameter/rim_blend = 0.60000000894072
+shader_parameter/use_pattern = true
+shader_parameter/pattern_texture = SubResource("NoiseTexture2D_ryguw")
+shader_parameter/pattern_uv_mode = 2
+shader_parameter/pattern_tiling = 8.0
+shader_parameter/pattern_amount = 0.0
+shader_parameter/pattern_smoothness = 0.0
+shader_parameter/pattern_blend = 1.0

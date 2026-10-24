@@ -294,6 +294,11 @@ def _cell_view(buf, name):
     return buf[y:y + h, x:x + w]
 
 
+# 機体に AIQUIZ のロゴは描かない（2026-10-17〜、タイトルが TESTOPIA になったため）。ロゴのマスは透明のまま残し、
+# 領域（REGIONS）と縦横比は今までどおり決める（hb_decals.py の外板・銘板の面の大きさがこれで決まる）。
+PAINT_LOGOS = False
+
+
 def _paint_logos(buf):
     a = _logo_alpha()
     aspect = a.shape[1] / a.shape[0]
@@ -308,6 +313,8 @@ def _paint_logos(buf):
         x0 = cx + (cw - rw) // 2
         y0 = cy + (ch - rh) // 2
         REGIONS[name] = (x0, y0, rw, rh)
+        if not PAINT_LOGOS:
+            continue
         view = buf[y0:y0 + rh, x0:x0 + rw]
         full = np.zeros((rh, rw), np.float32)
         full[outline:outline + lh, outline:outline + lw] = mask

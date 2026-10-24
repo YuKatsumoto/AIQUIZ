@@ -9,13 +9,14 @@ extends Node3D
 ## AnimationPlayer the owner advances (`advance`), like the goal stand crowd.
 ##
 ##   play(&"idle") / play(&"cheer") / play(&"dance") / play(&"wave_lead") / play(&"clap")
+##   play(&"hold_card") / play(&"point")（司会の動き：左手を頭の上に掲げる、右腕で前を指す）
 
 const MASCOT_GLB := "res://assets/characters/aiquiz_mascot/mascot_model.glb"
 const MASCOT_LOD_GLB := "res://assets/characters/aiquiz_mascot/mascot_model_lod.glb"
 const STAND_ANIM_GLB := "res://assets/characters/aiquiz_mascot/mascot_stand.glb"
 const QualityRules = preload("res://scripts/core/graphics_quality.gd")
 const ACTIONS := {&"idle": "Stand_Idle", &"cheer": "Stand_Cheer", &"dance": "Stand_Dance",
-	&"wave_lead": "Stand_WaveLead", &"clap": "Stand_Clap"}
+	&"wave_lead": "Stand_WaveLead", &"clap": "Stand_Clap", &"hold_card": "Stand_HoldCard", &"point": "Stand_Point"}
 const BLEND_SECONDS := 0.25
 ## Beyond this camera distance the mascot holds its pose (like the goal stand crowd).
 const ACTIVE_DISTANCE := 170.0

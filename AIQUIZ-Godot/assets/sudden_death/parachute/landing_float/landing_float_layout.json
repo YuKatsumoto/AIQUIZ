@@ -1,0 +1,35 @@
+{
+  "note": "着地台のマーカー。Godot の座標（x, y 上, z）。原点＝浮き台の中心 × 喫水線。build_landing_float.py が書く",
+  "markers": {
+    "MK_LandCenter": [
+      0.0,
+      0.572,
+      -0.0
+    ],
+    "MK_PadEdge": [
+      0.0,
+      0.5611,
+      3.0
+    ],
+    "MK_Ladder_PX": [
+      3.55,
+      0.8644,
+      -0.0
+    ],
+    "MK_Ladder_NX": [
+      -3.55,
+      0.8644,
+      -0.0
+    ],
+    "MK_TvCamera": [
+      0.0,
+      1.5786,
+      -3.4102
+    ]
+  },
+  "pad_top": 0.5714,
+  "pad_radius": 3.15,
+  "outer_radius": 4.07,
+  "tube_top": 0.8,
+  "waterline": 0.0
+}

@@ -700,7 +700,7 @@ func _update_mode_label() -> void:
 		_mode_label.text = "手動モード（固定速度）"
 		_mode_label.add_theme_color_override("font_color", Color(1.0, 0.7, 0.3))
 	else:
-		_mode_label.text = "自動モード（AI解答時間から算出）"
+		_mode_label.text = "自動モード（問題の長さ・難しさから算出）"
 		_mode_label.add_theme_color_override("font_color", Color(0.4, 0.75, 1.0))
 
 func _update_speed_display() -> void:

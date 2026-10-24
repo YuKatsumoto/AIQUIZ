@@ -1,6 +1,8 @@
 extends "res://tests/pv_capture/pv_take_base.gd"
 
-## PV S04「教科と学年をえらぶ」と S05「ヘリのお迎え」を、本物のメインメニューで撮る（1 人）。どちらも 2 小節。
+## PV S04「教科と学年をえらぶ」と S05「ヘリのお迎え」を、本物のメインメニューで撮る（既定は 2 人。players=1 で 1 人）。S04 は 2 小節、
+## S05 は 3 小節（10/21 に S03 のタイトルから 4 拍回して、飛び去るのを見送る時間と S06 への帯のワイプを長くした）。
+## 2 人のときはヘリが 2 機来て 1 人ずつ迎え、ハテナの椅子もヘリと同時にロケットで発射される（docs/seat_launch.md）。
 ##   Godot_v4.7.2-stable_win64_console.exe --path . --resolution 1920x1080 --fixed-fps 480 --script res://tests/pv_capture/pv_take_bootstrap.gd -- take=s04_s05 quality=ultra sub=8
 ## テロップと設定パネルへの寄りは After Effects（docs/pv/previz/ae/build_s04_s07.jsx）。
 ## 引数 measure を付けると、ゲーム開始から先も等速で回し、ヘリの出来事の時刻（G_*）を report に書く。
@@ -13,12 +15,12 @@ extends "res://tests/pv_capture/pv_take_base.gd"
 ##                揺れが収まるとキャラが助走してジャンプでつかまる。切らずに見せ、つかまる瞬間を 367（S05 の 6 拍目の頭）に合わせる。
 ##                縄ばしごの揺れが収まる時刻は物理で決まり、早回しの速さでも変わるので、走り出すまでは S05_PRE_SPEED 倍で回し、
 ##                走り出した瞬間に「走る時間＋飛びつく 0.62 秒」（物理によらない）が 367 で終わる速さに切り替える。
-##   S05b 367-450 つかまったヘリの下、桟橋の床すれすれから見上げる PV のカメラ。エンジンをためて（ゲームの 0.8 秒）打ち上がり、
-##                飛び去るのを見送る。打ち上がりを 409（S05 の 7.5 拍目）に合わせる。
+##   S05b 367-562 つかまったヘリの下、桟橋の床すれすれから見上げる PV のカメラ。エンジンをためて（ゲームの 0.8 秒）打ち上がり、
+##                飛び去るのを見送る。打ち上がりを 409（S05 の 7.5 拍目）に合わせる。最後の 3 拍に S06 への帯のワイプが重なる（AE）。
 ## メニューでは UI 以外の効果音が鳴らないので、ヘリの音は編集で置く（docs/pv/capture.md）。
 
 const S04_FRAMES := 225
-const S05_FRAMES := 225
+const S05_FRAMES := 337                     # 12 拍（337.5）。S04 と合わせて 20 拍 = 562 フレーム
 const HANDLE_FRAMES := 4
 
 ## 1 拍ごとの矢印：[拍, 行]
@@ -41,9 +43,22 @@ const S05A_EYE := Vector3(10.2, 1.1, 0.3)
 const S05A_EYE_END := Vector3(9.2, 1.1, -0.4)
 const S05A_TARGET := Vector3(-1.5, 5.1, -3.6)
 const S05A_FOV := 60.0
+## 2 人のとき：ヘリは P1 側 (−8, 9, −4) と P2 側 (4, 9, −4) に 12 m 離れて止まる。横からでは 2 機が重なるので、
+## 2 機の間の正面（+z 側）の低い所から、2 機と 2 人が並んで見えるように撮り、ゆっくり寄る
+const S05A2_EYE := Vector3(-2.0, 2.4, 16.0)
+const S05A2_EYE_END := Vector3(-2.0, 2.0, 12.5)
+const S05A2_TARGET := Vector3(-2.0, 4.4, -4.0)
+const S05A2_FOV := 58.0
+const SETTLE_2P_SECONDS := 4.5
+## S05b（2 人）：2 機の間の真下より手前、床すれすれから見上げる。2 機と、同時に打ち上がるハテナの椅子が一緒に入るように広く
+const LOOKUP2_EYE := Vector3(-2.0, -0.55, -1.5)    # 収納したチップソーの柱（z ≈ 0〜2）より奥
+const LOOKUP2_TARGET0 := Vector3(-2.0, 7.0, -4.0)
+const LOOKUP2_FOV := 74.0
 
 const P1_HAT := 11
 const P1_SKIN_CODE := "035bd66225c92ea51dc325c92e25c92e46d14d46d14da51dc3a51dc3293029293029"
+const P2_HAT := 12
+const P2_SKIN_CODE := "034dbff2f5f5f0f5f5f01e1e221e1e22f5f5f0f5f5f01e1e221e1e221e1e221e1e22"
 
 ## S05b の見上げ：ヘリ（つかまった瞬間の位置）の下、桟橋の床すれすれから
 const LOOKUP_EYE_OFFSET := Vector3(1.2, 0.0, 3.6)    # ヘリの真下から (x, z) ずらす。ヘリは −z へ飛ぶので、その反対側から遠ざかるのを見送る
@@ -51,6 +66,7 @@ const LOOKUP_EYE_Y := -0.55                          # 床（−1.2）の少し�
 const LOOKUP_FOV := 64.0
 
 var measure := false
+var players := 2
 var gs: QuizGameState
 var menu                                    # main_menu.gd（型なしで、メニューの変数と関数をそのまま使う）
 var preview: Node
@@ -88,6 +104,8 @@ func _default_frames() -> int:
 func _parse_arg(arg: String) -> void:
 	if arg == "measure":
 		measure = true
+	elif arg.begins_with("players="):
+		players = clampi(int(arg.trim_prefix("players=")), 1, 2)
 
 
 func _setup() -> void:
@@ -105,8 +123,10 @@ func _setup() -> void:
 	PlayerSkinStore.suspended = true
 	PlayerSkinStore._skins[1] = PlayerSkinStore.normalized(1, PlayerSkin.from_code(P1_SKIN_CODE))
 	PlayerSkinStore._hats[1] = P1_HAT
+	PlayerSkinStore._skins[2] = PlayerSkinStore.normalized(2, PlayerSkin.from_code(P2_SKIN_CODE))
+	PlayerSkinStore._hats[2] = P2_HAT
 	gs = QuizManager.game_state
-	gs.num_players = 1
+	gs.num_players = players
 	gs.mode = Constants.MODE_TEN
 	gs.menu_step = Constants.MENU_STEP_CONFIG
 	gs.subject = START_SUBJECT
@@ -115,6 +135,10 @@ func _setup() -> void:
 	gs.llm_mode = "ONLINE"
 	_saved_provider_mode = QuizManager.provider.llm_mode
 	QuizManager.provider.llm_mode = "ONLINE"
+	# 撮影済みの素材と同じ見た目で撮る：メニュー背景の新しい歩様・ゴーストライダー・わざと起こす事故は使わない
+	MenuRunnerAnimator.globally_enabled = false
+	MenuGhostRideDirector.globally_enabled = false
+	MenuActorAI.accidents_enabled = false
 	get_tree().change_scene_to_file("res://ui/main_menu.tscn")
 	while get_tree().current_scene == null or not get_tree().current_scene.is_node_ready():
 		await get_tree().process_frame
@@ -122,8 +146,14 @@ func _setup() -> void:
 	preview = menu.get("_menu_wall_preview")
 	if gs.has_pending_solo_customize_tour():
 		failures.append("customize tour pending")
-	preview.call("sync_menu_player_count", 1)
+	# 待ちの演出の「チップソーに巻き込まれる」抽選を撮影のあいだだけ止める（menu_wall_background_preview.gd の SAW_*）
+	preview.set("_saw_accident_cooldown", 1.0e9)
+	preview.set("_saw_next_trial", 1.0e9)
+	preview.call("sync_menu_player_count", players)
 	await _frames(int(4.0 * FPS) * sub)                # 入場・P2 が消える演出・ベルトが止まるまで
+	if players >= 2:
+		# 2 人にした直後は P1 がチップソーに巻き込まれて復帰する流れが入る（約 4 秒、pv_s23_runtime.gd と同じ）。落ち着くまで待つ
+		await _frames(int(SETTLE_2P_SECONDS * FPS) * sub)
 	while menu.config_conveyor.is_moving():
 		await get_tree().process_frame
 	var stage: StageEnvironment = preview.call("get_stage_environment")
@@ -174,25 +204,35 @@ func _plan_speed(t: float) -> void:
 		var remaining := _remaining_to_grab()
 		_speed = clampf(remaining / maxf(tg - t, 0.001), 0.5, 3.0)
 	elif not _events.has("launch"):
-		var left := CHARGE - (_dep_time - float(_events["grab"]))
+		var last_grab := maxf(float(_events["grab"]), float(_events.get("grab2", 0.0)))
+		var left := CHARGE - (_dep_time - last_grab)
 		_speed = clampf(left / maxf(tl - t, 0.001), 0.5, 3.0)
 	else:
 		_speed = 1.0
 
 
-## 走り出してからつかまるまでの残り（ゲームの秒）：走る時間（プレイヤーが決めた duration）の残り＋飛びつき
+## 走り出してからつかまるまでの残り（ゲームの秒）：走る時間（プレイヤーが決めた duration）の残り＋飛びつき。2 人のときは遅いほう
 func _remaining_to_grab() -> float:
 	var pp: Node = preview.get("_preview_player")
 	var approaches: Dictionary = pp.get("_intro_pickup_approaches") if pp != null else {}
-	var run: Dictionary = approaches.get(1, {})
-	var run_left := 0.0
-	if not run.is_empty():
-		run_left = maxf(float(run.get("duration", 0.0)) - float(run.get("elapsed", 0.0)), 0.0)
-	var info: Dictionary = director.get("_helicopters")[0]
-	if bool(info.get("pickup_started", false)):
-		var since := float(director.get("_phase_elapsed")) - float(info.get("grab_started_at", 0.0))
-		return maxf(GRAB_HOLD - since, 0.0)
-	return run_left + GRAB_HOLD
+	var helis: Array = director.get("_helicopters")
+	var worst := 0.0
+	for i in range(mini(players, helis.size())):
+		var info: Dictionary = helis[i]
+		var rem := 0.0
+		if bool(info.get("captured", false)):
+			rem = 0.0
+		elif bool(info.get("pickup_started", false)):
+			var since := float(director.get("_phase_elapsed")) - float(info.get("grab_started_at", 0.0))
+			rem = maxf(GRAB_HOLD - since, 0.0)
+		else:
+			var run: Dictionary = approaches.get(i + 1, {})
+			var run_left := 0.0
+			if not run.is_empty():
+				run_left = maxf(float(run.get("duration", 0.0)) - float(run.get("elapsed", 0.0)), 0.0)
+			rem = run_left + GRAB_HOLD
+		worst = maxf(worst, rem)
+	return worst
 
 
 # ------------------------------------------------------------------ 毎フレーム
@@ -213,15 +253,16 @@ func _update(n: int, t: float, dt: float) -> void:
 	if last_sub and n == S04_FRAMES and _dep_at_s05 < 0.0 and _departure_started:
 		_dep_at_s05 = _dep_time
 		report["dep_at_s05"] = snappedf(_dep_at_s05, 0.0001)
-	if _approach_t < 0.0 and _events.has("approach"):
+	# 2 人のときは、遅いほうが走り出した／つかまった時刻で決める（発射は最後につかまった 0.8 秒後）
+	if _approach_t < 0.0 and _events.has("approach") and (players == 1 or _events.has("approach2")):
 		_approach_t = t
-	if _grab_t < 0.0 and _events.has("grab"):
+	if _grab_t < 0.0 and _events.has("grab") and (players == 1 or _events.has("grab2")):
 		_grab_t = t
 	_plan_speed(t)
 	if not measure and n > S04_FRAMES and n < bf(GRAB_BEAT):
-		_apply_side_camera(n)
+		_apply_side_camera(n) if players == 1 else _apply_front_camera(n)
 	if n >= bf(GRAB_BEAT) and not measure:
-		_apply_lookup_camera(n, t)
+		_apply_lookup_camera(n, t) if players == 1 else _apply_lookup_camera_2p(n, t)
 	if last_sub and (n % 4 == 1 or n == bf(GRAB_BEAT) or n == bf(LAUNCH_BEAT)):
 		_trace_frame(n)
 
@@ -238,7 +279,7 @@ func _press_start() -> void:
 func _run_departure() -> void:
 	await menu._play_start_ui_departure()
 	await get_tree().process_frame
-	_departure_started = bool(preview.call("begin_game_start_departure", 1))
+	_departure_started = bool(preview.call("begin_game_start_departure", players))
 	director = preview.get("_menu_start_departure")
 	_dep_time = 0.0
 	_departure_t = float(_step) / (FPS * sub)
@@ -261,6 +302,22 @@ func _track_departure(dt: float) -> void:
 		var holder := info.get("holder") as Node3D
 		if holder != null:
 			_heli_at_grab = holder.global_position
+	var helis: Array = director.get("_helicopters")
+	if helis.size() >= 2:
+		var info2: Dictionary = helis[1]
+		if not _events.has("approach2") and bool(info2.get("approach_started", false)):
+			_events["approach2"] = snappedf(_dep_time, 0.001)
+		if not _events.has("jump2") and bool(info2.get("pickup_started", false)):
+			_events["jump2"] = snappedf(_dep_time, 0.001)
+		if not _events.has("grab2") and bool(info2.get("captured", false)):
+			_events["grab2"] = snappedf(_dep_time, 0.001)
+			_events["grab2_frame"] = frame_of(_step)
+	var saw: Variant = preview.get("_preview_saw")
+	if saw != null and saw.get("operator_seat") != null:
+		var phase := int(saw.operator_seat.seat_transfer.phase)
+		var key := "seat_phase_%d" % phase
+		if phase != 0 and not _events.has(key):
+			_events[key] = snappedf(_dep_time, 0.001)
 	if not _events.has("launch") and bool(director.get("_menu_boost_started")):
 		_events["launch"] = snappedf(_dep_time, 0.001)
 		_launch_frame = frame_of(_step)
@@ -274,6 +331,39 @@ func _apply_side_camera(n: int) -> void:
 	var eye := S05A_EYE.lerp(S05A_EYE_END, u)
 	menu_cam.global_transform = Transform3D(Basis.looking_at(S05A_TARGET - eye, Vector3.UP), eye)
 	menu_cam.fov = S05A_FOV
+
+
+## S05a（2 人）：2 機の間の正面から。カットの間にゆっくり寄る
+func _apply_front_camera(n: int) -> void:
+	if menu_cam == null:
+		return
+	var u := smooth(float(n - S04_FRAMES - 1) / float(bf(GRAB_BEAT) - S04_FRAMES - 1))
+	var eye := S05A2_EYE.lerp(S05A2_EYE_END, u)
+	menu_cam.global_transform = Transform3D(Basis.looking_at(S05A2_TARGET - eye, Vector3.UP), eye)
+	menu_cam.fov = S05A2_FOV
+
+
+## S05b（2 人）：床すれすれから広く見上げる。カメラは置いたまま、2 機の中点を追って向きだけ変える
+func _apply_lookup_camera_2p(_n: int, _t: float) -> void:
+	if menu_cam == null or director == null:
+		return
+	var helis: Array = director.get("_helicopters")
+	var mid := LOOKUP2_TARGET0
+	var count := 0
+	var sum := Vector3.ZERO
+	for info: Dictionary in helis:
+		var downwash := info.get("downwash") as GPUParticles3D
+		if downwash != null:
+			downwash.visible = false
+		var holder := info.get("holder") as Node3D
+		if holder != null:
+			sum += holder.global_position + Vector3(0.0, -2.0, 0.0)
+			count += 1
+	if count > 0:
+		mid = sum / count
+	var eye := LOOKUP2_EYE
+	menu_cam.global_transform = Transform3D(Basis.looking_at(mid - eye, Vector3.UP), eye)
+	menu_cam.fov = LOOKUP2_FOV
 
 
 ## S05b：つかまった瞬間のヘリの下から見上げる（カメラは置いたまま。ヘリを追って向きだけ変え、飛び去るのを見送る）
@@ -296,18 +386,26 @@ func _apply_lookup_camera(_n: int, _t: float) -> void:
 func _trace_frame(n: int) -> void:
 	var entry := {"f": n, "dep": snappedf(_dep_time, 0.001), "subject": gs.subject, "grade": gs.grade, "ts": snappedf(Engine.time_scale, 0.01)}
 	if director != null and not director.get("_helicopters").is_empty():
-		var holder := (director.get("_helicopters")[0] as Dictionary).get("holder") as Node3D
-		if holder != null:
-			var p := holder.global_position
-			entry["heli"] = [snappedf(p.x, 0.01), snappedf(p.y, 0.01), snappedf(p.z, 0.01)]
+		for hi in range(director.get("_helicopters").size()):
+			var holder := (director.get("_helicopters")[hi] as Dictionary).get("holder") as Node3D
+			if holder != null:
+				var p := holder.global_position
+				entry["heli" if hi == 0 else "heli%d" % (hi + 1)] = [snappedf(p.x, 0.01), snappedf(p.y, 0.01), snappedf(p.z, 0.01)]
 		entry["phase"] = str(director.get("_phase"))
 	if menu_cam != null:
 		var c := menu_cam.global_position
 		entry["cam"] = [snappedf(c.x, 0.01), snappedf(c.y, 0.01), snappedf(c.z, 0.01)]
+	var saw: Variant = preview.get("_preview_saw")
+	if saw != null and saw.get("operator_seat") != null:
+		var seat_node := saw.operator_seat as Node3D
+		if seat_node != null:
+			var sp := seat_node.global_position
+			entry["seat"] = [snappedf(sp.x, 0.01), snappedf(sp.y, 0.01), snappedf(sp.z, 0.01), int(saw.operator_seat.seat_transfer.phase)]
 	_trace.append(entry)
 
 
 func _check() -> void:
+	report["players"] = players
 	report["events"] = _events
 	report["grab_frame"] = _grab_frame
 	report["launch_frame"] = _launch_frame
@@ -322,8 +420,9 @@ func _check() -> void:
 	if not _departure_started or _dep_at_s05 < 0.0:
 		failures.append("S05: helicopter departure did not start before S05")
 	if not measure:
-		if absi(_grab_frame - bf(GRAB_BEAT)) > 1:
-			failures.append("S05: grab at %d, planned %d" % [_grab_frame, bf(GRAB_BEAT)])
+		var last_grab_frame := maxi(_grab_frame, int(_events.get("grab2_frame", -1)))
+		if absi(last_grab_frame - bf(GRAB_BEAT)) > 1:
+			failures.append("S05: last grab at %d, planned %d" % [last_grab_frame, bf(GRAB_BEAT)])
 		if absi(_launch_frame - bf(LAUNCH_BEAT)) > 1:
 			failures.append("S05: launch at %d, planned %d" % [_launch_frame, bf(LAUNCH_BEAT)])
 

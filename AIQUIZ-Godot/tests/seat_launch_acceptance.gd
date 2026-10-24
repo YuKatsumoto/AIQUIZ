@@ -238,7 +238,7 @@ func runtime() -> void:
 					check(not t.flight_root.visible and t.operator.station.visible,"fixed station visible before chair arrival")
 				if t.phase==t.Phase.LANDING:
 					saw_landing=true
-					check(not SceneTransition.is_transitioning() and saw.dock.is_deployed(),"visible landing waits for loading and socket")
+					check(not SceneTransition.is_transitioning(),"visible landing waits for loading")
 					if t.elapsed>.65: await picture("descent")
 					if t.elapsed>1.45: await picture("braking")
 					if scenario=="arrival_skip" and not did_action:

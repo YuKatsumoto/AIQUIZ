@@ -273,6 +273,13 @@ func set_hatch(openness: float) -> void:
 		_hatches[i].basis = _hatch_rest[i] * Basis(Vector3(0, 0, 1), side * deg_to_rad(78.0) * t)
 
 
+## メインローターの軸のワールドの位置（吹き流しへ届く吹き下ろしの元）。
+func rotor_hub_global() -> Vector3:
+	if _main_rotor != null:
+		return _main_rotor.global_position
+	return global_transform * Vector3(0.0, skid_drop + 1.0, 0.0)
+
+
 ## ローターを止めた向き（前後）にそろえる。
 func park_rotor() -> void:
 	spool = 0.0

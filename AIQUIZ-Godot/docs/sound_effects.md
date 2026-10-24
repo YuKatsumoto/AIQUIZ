@@ -13,6 +13,8 @@
 | `jump_land` | 通常のジャンプから着地した瞬間（ヘリからの接地は `heli_land`） | `assets/audio/sfx/se_lab/jump_land.ogg` |
 | `countdown_beep` | スタートの壁のカウントダウンで、数字（5・4・3・2・1）が変わった瞬間の「ぷっ」 | `assets/audio/sfx/game/countdown_beep.ogg` |
 | `countdown_go` | カウントダウンが終わって壁が割れる瞬間の「ぷーん」 | `assets/audio/sfx/game/countdown_go.ogg` |
+| `ai_type_tick` | PV 冒頭で問題文と選択肢を AI が書く演出（ゲームでは鳴らない）で、文字のかたまり（トークン）が 1 つ出るたびの小さな電子音（−12 dB、音程 ±8%。`docs/ai_question_typing.md`） | `assets/audio/sfx/game/ai_type_tick.ogg`（合成） |
+| `ai_type_done` | 同じ演出で、問題文と選択肢を書き終えた瞬間の 2 音のきらめき（−10 dB） | `assets/audio/sfx/game/ai_type_done.ogg`（合成） |
 | `versus_cutin_in` | オンライン対戦の VS カットインの入り（パネル・稲妻・VS の着地・名前の帯まで、時刻を合わせた 1 本） | `assets/audio/sfx/online/versus_cutin_in.ogg` |
 | `versus_charge` | VS の覆いの静止画のあいだ（ゲーム画面を組み立てている間）の溜めの唸り。開く演出で消す | `assets/audio/sfx/online/versus_charge.ogg` |
 | `versus_reveal` / `versus_reveal_short` | VS の覆いが稲妻で割れて開く演出（3.20 秒／「みじかい」2.20 秒） | `assets/audio/sfx/online/versus_reveal*.ogg` |
@@ -78,6 +80,8 @@
 | `ghost_soul_rise` | 脱落した身体から魂が浮き上がる瞬間（`_begin_soul_rise()`）。息のような上昇音ときらめき | −10 dB |
 | `ghost_shark_rise` | 死亡ワイプが落ち着き、サメが海の底から浮上し始める瞬間（`start_ghost_rendezvous_ascent()` が成功したとき）。水中の唸りと上がっていく幽霊の声（浮上 2.45 秒に合わせた長さ） | −8 dB |
 | `ghost_shark_breach` | サメが水面を突き破った瞬間（`SharkSwimmer.ghost_breached` シグナル。水しぶきの演出と同じ）。水しぶき・飛沫・遠吠え | −6 dB |
+| `ghost_awaken` | 魂が両腕を広げて幽霊として目覚める瞬間（演技の 1.27 秒。吸い込みの 0.16 秒あとに和音が鳴るので 1.11 秒に鳴らす。`GhostRiderPresentation` の拍 `awaken_sound`）。吸い込み・明るい幽霊の和音・低い「ドン」・上へ流れるきらめき（2026-10-21 追加） | −9 dB |
+| `ghost_mount_land` | 魂が鞍へ落ちて乗り移る瞬間（`_begin_mounting()` の `_play_mount_impact()`）。体の重いどすん・鞍のはたき・グリップの金属音・サメへ流れ込む幽霊の唸り（2026-10-21 追加） | −6 dB |
 | `ghost_mount_beam` | 乗り込んだあと光の柱が立つ瞬間（`ghost_mount_beam_fired`）。点火・持続の唸り・0.34 秒で開き 1.39 秒で落ちる柱の時刻に合わせた電源断・上昇の風切り | −9 dB |
 | チャージの唸り（ループ） | 突進ボタンを押しているあいだ（照準中に本当に溜めているときだけ）。メーターに合わせて音程 0.75〜1.7 倍、音量 −14〜−6 dB。メーターが一周して 0 に戻ると音程も下がる | 専用プレイヤー |
 | `ghost_dash` | 溜めを離し、構え（WINDUP）のあとに突進が始まる瞬間（`_start_charge()`）。PERFECT は +1.5 dB・1.08 倍の音程、それ以外は溜めの強さで 0.94〜1.04 倍 | −6 dB |
@@ -86,11 +90,76 @@
 | `ghost_portal_open` | 戻りのポータルが開く瞬間（`_spawn_return_portal()`） | −9 dB |
 | `ghost_portal_cross` | サメがポータルから飛び出す瞬間（ポータルの閃光・カメラの揺れと同じ） | −8 dB |
 
+- 2026-10-21 の 2 音は `python tools/audio/make_ghost_shark_sfx.py --only ghost_awaken.ogg ghost_mount_land.ogg` で作った（ほかの音を作り直さない。この 2 音は音ごとの乱数で、作る順に左右されない）。搭乗の見せ方は `docs/ghost_rider_mount.md`。
+
+### サドンデスへ行くときの幽霊の復活（2026-10-21）
+
+引き分けで幽霊のまま表彰台にいる人が、サドンデスの前に体を取り戻す（`docs/sudden_death_v2/ghost_revive.md`、`GhostRevival`）。同じ道具で合成した（`python tools/audio/make_ghost_shark_sfx.py --only ghost_revive_gather.ogg ghost_revive_snap.ogg ghost_revive_burst.ogg`）。体を呼ぶ瞬間は既存の `ghost_awaken`、弾ける瞬間は既存の `sg_revive`（効果音ラボ「回復魔法1」）も重ねる。
+
+| 音 | 発生する瞬間 | 音量 |
+|---|---|---|
+| `ghost_revive_gather` | 部位を呼び始める（復活の 0.25 秒）。速くなる渦の風・部位が飛んでくる風切り 12 回・上がっていく幽霊の声、最後に吸い込みが弾ける瞬間（1.43 秒後）でぴたりと止まる | −8 dB |
+| `ghost_revive_snap` | 部位が 1 つはまるたび。磁石のような「コッ」・短いクリック・ガラスの「チン」・きらめき。はまる順に長音階で音程を上げる（0.72 倍から） | −9 dB（呼ぶ側で −2 dB） |
+| `ghost_revive_burst` | 体がそろって弾ける。鋭い破裂・低いドン・広がる長和音・きらめきの雨、0.30 秒後に台へ着地する重い音と床をたたく音 | −5 dB |
 - チャージの唸りは `AudioManager` の共通の声ではなく、コントローラーの子の `GhostChargeAudio`（SFX バス、ループ）で鳴らす。音程と音量を毎フレーム変えるため。チャージのチュートリアルの見本、構え・突進中、メニュー（`menu_sfx_muted`）では鳴らさず、ポーズ中はツリーと一緒に止まる。
 - 乗り手が生き返る・結果演出へ降りるなどで途中で畳まれたときは、長い音（魂・浮上・ビーム・ポータル）を 0.3 秒でフェードアウトし、唸りを止める（`_cleanup_ghost_ride()`）。
 - 幽霊サメはローカルの2人用だけ（オンライン・リプレイでは出ない）なので、音もローカルだけ。
 - `tests/ghost_shark_audio_runtime.gd`（`--script res://tests/ghost_shark_audio_bootstrap.gd`、ウィンドウが要る）が、実際の壁の脱落 → 魂 → 浮上 → 水面 → ビーム → 照準 → PERFECT で外す突進 → ポータルからの復帰 → 生き残った側への命中までを通し、音の順番・鳴ったフェーズ・唸りの音程・離したら止まること・片付けで残らないことを 26 項目で確かめる。SFX バスの録音は `artifacts/ghost_shark_audio/`（`python tools/audio/analyze_helicopter_capture.py --folder artifacts/ghost_shark_audio` で WAV に変換）。2026-10-16 の実行で全項目合格、ピーク −6.1 dBFS・音割れ 0。各音の最大 80 ms RMS は −15〜−22 dB で、同じ録音の爆散（−17.6 dB）・不正解のブー（−15.6 dB）と同じくらい。
 - 待ち時間は秒数で書いている。このPCではテストのゲームが約 190 fps で回るので、フレーム数で待つと（`tests/ghost_hud_runtime.gd` の 1800 フレームなど）幽霊サメが照準に着く前に打ち切られる。
+
+## サドンデス「つきやぶれ！スカイゲート」（2026-10-20）
+
+2人用「10問」の引き分けからのサドンデス（`docs/sudden_death_v2/`）に音を付けた。それまでは今ある音の代用で、代用のうち `door_open`・`rotor_spool`・`whoosh_flyby`・`belt_click`・`split_whoosh` などはファイルが無く、実際には鳴っていなかった。水上機のエンジンの音も無かった。
+
+素材はすべて効果音ラボ（ユーザーの指示で 2026-10-20 に 27 ファイルを入手。原本は `assets/audio/sfx/source/se_lab/`）。`tools/audio/make_sudden_death_sfx.py` が切り出し・フェード・ピーク −3 dBFS（ループは −6 dBFS）にそろえて `assets/audio/sfx/se_lab/` の `sd_*`・`fp_*`・`sg_*` を作る。**再配布が禁止なので git に入れない**（`se_lab/.gitignore`。ファイルが無い環境ではその音だけ鳴らない）。作り直したらエディタにファイルを走査させる（取り込み直さないと、ゲームは前の音のまま鳴る）。音量は `SFX_CUES` で、同じ録音の最大 80 ms RMS（再生の大きさ）が今ある音とそろうように決めた（ふつうの出来事は −20 dB 前後、大きな見せ場は −15 dB 前後）。
+
+| 音 | 鳴る瞬間 | 素材（効果音ラボ） |
+|---|---|---|
+| `sd_whistle` | 決着演出 8.4 秒、審判の笛（両者が踊りをやめて振り向く） | 警官のホイッスル2 |
+| `sd_siren` | 8.6 秒「SUDDEN DEATH!」と回転灯。乗り込みの頭（スタンドが上がる）にも小さく | 警報が鳴る（頭 3.2 秒） |
+| `sd_tower_move` | 9.0 秒、両方のタワーが床まで沈む。帰還で勝者のタワーが伸び直す。昇降台のデッキが起きる | 巨大モーター起動（頭 2.0 秒） |
+| `sd_stand_lift` | 乗り込みの頭、台座の横のスタンドが塔で持ち上がる | 巨大シャッターが開く（頭 3.0 秒） |
+| `sd_stand_lower` | 昇降台が 2 人を乗せて下りる・離水のあとスタンドが下りる | 巨大モーター起動（頭 3.6 秒） |
+| `sd_servo` | 水上機の上のふたが開く | ロボットが腕を動かす1 |
+| `fp_ramp` | スロープが開く・閉まる（油圧。開く速さに合わせて音程を変える） | 巨大ロボットが腕を動かす3 |
+| `fp_ramp_latch` | スロープが閉まりきる | 鉄の扉を閉める |
+| `fp_belt` | ベルトを締める・外す | 既存の `helicopter/belt_click.ogg`（合成） |
+| `fp_flyby` | 乗り込みで水上機が台座の真上を低く越える（いちばん大きい所＝頭から 1.2 秒を、真上を通る時刻（約 1.3 秒）に合わせる。その間エンジンのループを 9 dB 下げる） | プロペラ機上空通過（軍用） |
+| `fp_touchdown` | 着水のしぶき | 水面に石投げ2（巨大な石） |
+| `fp_green_light` | 降下と帰還で降下灯が緑になる（2026-10-20 に開演ブザーから替えた：不正解のブーとまぎらわしかった） | 既存の `game/countdown_go.ogg`（スタートの壁が割れる「ぷーん」。OtoLogic） |
+| `fp_ramp_wind` | 空でスロープが開き、風が吹き込む（2 秒でふくらむ） | 風が吹く2（40〜45.5 秒） |
+| `fp_jump` | スロープから飛び出す（降下・帰還） | ジャンプ（風を切る音） |
+| `sd_cloud_whoosh` | 雲の覆い（白・暗転）。いちばん強い所が 0.5 秒あたり＝画面が覆われている間 | 突風が吹く（0.42 秒から） |
+| `sg_gate_rush` | ボードの高さを通る瞬間（時間切れ） | 高速移動 |
+| `sg_tear` | 正解のパネルをつき破る（2 通りからランダム。`door_correct` も一緒） | 紙を破く2・3 |
+| `sg_bounce` | まちがいの紙にはね返される（`wall_crash` を小さく重ねる） | ボヨン |
+| `sg_safe` | 判定「セーフ！」（全員が正解） | キラッ1 |
+| `sg_revive` | 2人とも同じゲートでアウト → その場で復活 | 回復魔法1 |
+| `sg_round_gong` | ROUND 2 以降の開始 | 試合開始のゴング |
+| `sg_round_clear` | 2人とも地上へ（「ROUND n」） | ラッパのファンファーレ |
+| `sg_overtime` | 延長戦 | 突撃ラッパ（頭 3.3 秒） |
+| `sg_notice` | 「ボードが動く！」「ボードが小さく・速く！」「早い者勝ち！」 | 警告音2 |
+| `sg_chute_open` | パラシュートが開く（2人なら音程を少しずらす） | 傘をさす |
+| `sg_float_splash` | 着地台に降りる（`jump_land` と一緒） | 水をバシャッとかける1 |
+| `sg_winner` | 決着のあと勝者が着地台に降りる | ジャジャーン |
+
+- **水上機のエンジン**：`FloatplaneSound`（`scripts/world/sudden_death/floatplane/floatplane_sound.gd`、機体の子）。2 つのループを重ねる：エンジン `fp_engine_loop`（戦闘機内（飛行中）の 4〜17 秒、1 秒のクロスフェード）と、プロペラ `fp_prop_loop`（プロペラ機上空通過の近づく間 1.0〜2.2 秒。羽根の音 68 Hz が動かない所。音量のふくらみをならし、前向き＋逆向きでつないだ 2.3 秒）。機体の回転（`prop_speed`）・逆推力（`reverse_mix()`）・推力（`thrust`。`FloatplaneStaging` が場面ごとに入れる）で音量と音程を変える。回転いっぱい・すぐ近くでエンジン −7 dB・プロペラ −7 dB。カメラが機内（貨物室・操縦席）にいるときはこもった音（高域 1500 Hz まで、スロープが開くと 5200 Hz まで）で、エンジンを 1 dB・プロペラを 7 dB 下げる。外では 30 m より遠いと小さく、140〜300 m で消え、高域を落とし、左右に振り、ドップラー（0.86〜1.16 倍）。専用のバスを SFX へ送る。乗り込みの頭（`begin_board`）で有効にし、`hide_all` で止める（試合の頭の描画の予熱では鳴らない）。機体が隠れたとき（飛び去ったあと）は 0.25 秒で消し、カメラのカット（1 フレームで 25 m 以上）はドップラーに数えない。メニュー・ポーズ・画面の暗転では鳴らない。
+- **落ちる風**：`SkyGatePresenter` の専用のプレイヤー（`sd_freefall_loop`、風が吹く2 の 10〜34 秒、ふくらみを半分ならして 2 秒のクロスフェード、22 秒）。ルールカードの間は 45%、本戦は `_wind()`（ゲートが近いと弱く、つき破る瞬間に強く）、着地で開く前は 115%、開いたら 22%、着地で消す。スローの間は音程を 0.72 倍まで下げる。本戦を隠す・片付けるときに止める。
+- 鳴らす場所：分岐の笛・警報・タワーは `HeliSuddenDeathDirector._update_branch()`、雲の風は `SuddenDeathCloudCover.play()`/`play_black()`、水上機の場面は `FloatplaneStaging`、本戦は `SkyGatePresenter`。監督が試合の頭（`prepare_for_match()`、読み込みの覆いの下）に `AudioManager.preload_sfx(AudioManager.SUDDEN_DEATH_SFX_CUES)` で読んでおく。
+- 種目発表のドラムロール・締め、爆散（`barrier_explosion`・`body_burst`）、幽霊（`ghost_soul_rise`）、カウントダウン、扉の正解・不正解、帰還の着地と歓声は今までの音のまま。スロープの踏み音（`step_metal`）は素材が無く、今も鳴らない。
+- 音量の見直し（2026-10-20、round2 の録音）：降下でカメラが機外へ出た瞬間（全開の機体のすぐ横・吹き込む風・2 人の飛び出し）が SFX バスでピーク +3.1 dBFS・1 秒の RMS −19 dB になっていたので、機外のエンジンとプロペラを 3〜4 dB、吹き込む風 3 dB、飛び出し 4 dB（2 人めはさらに 5 dB）下げた。2 人ぶん重なる紙・パラシュート・しぶきとボヨンも 2〜3 dB 下げた。
+- **着地台のまわりの観客船（2026-10-21、`docs/sudden_death_v2/sky_gate.md` 第9章）**：クラッカーと打ち上げ花火の専用の音はまだ無いので、手持ちの音で代用している。音の名前は専用にしてあるので、替えるときは `SFX_CUES` のファイルだけ替える。音は聞こえる所（カメラ）までの距離の分だけ遅らせ（340 m/秒）、遠いほど少し小さくする（`SkyGateFireworks._sound`）。効果音の声が 8 本しかないので、1 回のクラッカーの波で音を鳴らすのは 3 本だけ（ほかは音なし）。
+
+  | 音 | 鳴る瞬間 | いまの代用 |
+  |---|---|---|
+  | `sg_popper` | 着地の瞬間、観客がクラッカーを鳴らす（決着はダンスの途中でもう一度） | 爆発の音（`barrier_explosion`）を 2.1〜2.5 倍の音程で短く・−17 dB |
+  | `sg_firework_launch` | 船の打ち上げ筒から花火が上がる | 高速移動（`sg_gate_rush`）・−15 dB |
+  | `sg_firework_burst` | 花火がはじける | 爆発の音（`barrier_explosion`）を 0.82〜1.0 倍の音程で・−8 dB |
+  | `crowd_win_cheer` | 決着で勝者が着地台に着いた（観客船の歓声） | 今までの観客の歓声 |
+  | `crowd_goal_cheer` | ROUND のあと 2 人とも着地台に着いた | 今までの観客の歓声 |
+
+- 確かめ方：`tests/sudden_death_v2/skygate_audio_runtime.gd`（`--script res://tests/sudden_death_v2/skygate_audio_bootstrap.gd -- case=p1|round2|both`、ウィンドウが要る。`--fixed-fps 60`）。実際の通しで、場面ごとに鳴るはずの音が鳴ったか、エンジンが乗り込み〜帰還で聞こえて巡航では機内の音になるか、本戦で落ちる風が聞こえるかを見る。Master を絞って SFX バスを録音する（`artifacts/sudden_death_audio/<case>/sfx.f32`、`python tools/audio/analyze_helicopter_capture.py --folder artifacts/sudden_death_audio/<case>` で WAV）。
+- 2026-10-20 の結果：p1・round2・both とも失敗 0（場面の順・勝者も合う。鳴った音は 79・115・88 回）。エンジンは乗り込み・巡航・降下・迎え・帰還で聞こえ、巡航では機内の音になり、終わったあとは残らない。本戦の落ちる風は最大 95%。SFX バスの録音（Master の前）のピークは −1.3・−0.4・0.0 dBFS で、2 人が同時に爆散する瞬間（今までの爆発の音 2 つ）の 1 サンプルだけが 1.0 に届く（Master のリミッターが抑える）。いちばん大きい 80 ms の RMS は爆散の瞬間（今までの爆発の音）の −13 dB 前後で、新しい音の山（降下の飛び出し・勝者の着地・水上機の通過・笛と警報）は −14.5 dB 前後。録音全体の RMS は −21 dB。このPCではテストが実時間の約 2.4 倍の速さで回る（`--max-fps 60` を付けても）ので、録音の中の音は実際の遊びより詰まって重なる。
 
 ## 削除したもの
 

@@ -1,0 +1,29 @@
+[gd_resource type="ShaderMaterial" load_steps=3 format=3 uid="uid://bftt5frene634"]
+
+[ext_resource type="Shader" uid="uid://bkb1f7plk6r1j" path="res://assets/BinbunMaterials/src/shader/stylized.gdshader" id="1_p3jbj"]
+[ext_resource type="Texture2D" uid="uid://dgm3ecp211mn7" path="res://assets/BinbunMaterials/src/texture/patterns/dither/dither_02.png" id="2_p3jbj"]
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_p3jbj")
+shader_parameter/albedo_color = Color(0.74902, 0.854902, 0.988235, 1)
+shader_parameter/use_stepped = true
+shader_parameter/steps = 3.0
+shader_parameter/step_smoothness = 0.2
+shader_parameter/shadow_tint = Color(0.168627, 0, 0.509804, 1)
+shader_parameter/shadow_tint_amount = 1.0
+shader_parameter/specular = 0.0
+shader_parameter/normal_strength = 0.0
+shader_parameter/use_rim = true
+shader_parameter/rim_color = Color(1, 0.96, 0.88, 1)
+shader_parameter/rim_amount = 1.5
+shader_parameter/rim_smoothness = 0.2
+shader_parameter/rim_mask_shadow = 1.0
+shader_parameter/rim_blend = 1.0
+shader_parameter/use_pattern = true
+shader_parameter/pattern_texture = ExtResource("2_p3jbj")
+shader_parameter/pattern_uv_mode = 2
+shader_parameter/pattern_tiling = 8.0
+shader_parameter/pattern_amount = 0.15
+shader_parameter/pattern_smoothness = 0.2
+shader_parameter/pattern_blend = 0.35

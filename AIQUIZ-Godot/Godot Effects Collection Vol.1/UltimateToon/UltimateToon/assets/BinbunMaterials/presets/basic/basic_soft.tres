@@ -1,0 +1,29 @@
+[gd_resource type="ShaderMaterial" load_steps=3 format=3 uid="uid://cqirk8yq40rkw"]
+
+[ext_resource type="Shader" uid="uid://bkb1f7plk6r1j" path="res://assets/BinbunMaterials/src/shader/stylized.gdshader" id="1_jjlux"]
+[ext_resource type="Texture2D" uid="uid://cardscljgiqw0" path="res://assets/BinbunMaterials/src/texture/patterns/shape/circle.tres" id="2_jbiru"]
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_jjlux")
+shader_parameter/albedo_color = Color(0.881335, 0.91, 0.7189, 1)
+shader_parameter/use_stepped = true
+shader_parameter/steps = 3.0
+shader_parameter/step_smoothness = 0.3
+shader_parameter/shadow_tint = Color(0.408, 0.51, 0, 1)
+shader_parameter/shadow_tint_amount = 0.4
+shader_parameter/specular = 0.0
+shader_parameter/normal_strength = 0.0
+shader_parameter/use_rim = true
+shader_parameter/rim_color = Color(1, 0.975997, 0.876715, 1)
+shader_parameter/rim_amount = 1.5
+shader_parameter/rim_smoothness = 0.5
+shader_parameter/rim_mask_shadow = 0.9
+shader_parameter/rim_blend = 1.0
+shader_parameter/use_pattern = false
+shader_parameter/pattern_texture = ExtResource("2_jbiru")
+shader_parameter/pattern_uv_mode = 2
+shader_parameter/pattern_tiling = 32.0
+shader_parameter/pattern_amount = 0.0
+shader_parameter/pattern_smoothness = 0.0
+shader_parameter/pattern_blend = 0.35

@@ -1,11 +1,11 @@
 // Render PV_S01_S03_v3 (video only; the sound is mixed by tools/pv/mix_audio.py and muxed with ffmpeg).
 // Run in a FRESH After Effects session (on this PC AE 2026 fails on the second render of a session).
-var OUT = "C:/AIQUIZ/AIQUIZ-Godot/docs/pv/previz/v3/PV_S01-S03_v3_video.mp4";
+var OUT = "G:/AIQUIZ-Main/AIQUIZ-Godot/docs/pv/previz/v3/PV_S01-S03_v3_video.mp4";
 function pick(list, tests) {
     for (var t = 0; t < tests.length; t++) for (var i = 0; i < list.length; i++) if (tests[t](list[i])) return list[i];
     return null;
 }
-var aep = new File("C:/AIQUIZ/AIQUIZ-Godot/docs/pv/previz/ae/AIQUIZ_PV_S01_S03_v3.aep");
+var aep = new File("G:/AIQUIZ-Main/AIQUIZ-Godot/docs/pv/previz/ae/AIQUIZ_PV_S01_S03_v3.aep");
 if (!app.project.file || app.project.file.fsName !== aep.fsName) app.open(aep);
 var comp = null;
 for (var i = 1; i <= app.project.numItems; i++) if (app.project.item(i).name === "PV_S01_S03_v3") comp = app.project.item(i);

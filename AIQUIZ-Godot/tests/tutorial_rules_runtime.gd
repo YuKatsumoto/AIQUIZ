@@ -1,6 +1,6 @@
 extends Node
 
-## 刷新したチュートリアル（V6）の判定を QuizGameState で直接確かめる（描画なし）。
+## 刷新したチュートリアル（V7）の判定を QuizGameState で直接確かめる（描画なし）。
 ## ハート体験・誘導なしの実践・4択のボス壁・先着の得点・のこぎり・全員ゴール・
 ## ゴール後のスコアタワー（得点説明の一時停止と勝敗発表）を、
 ## 壁に当たったときの本物の処理（resolve_collision など）で進める。
@@ -78,23 +78,28 @@ func _test_solo_state_rules() -> void:
 	_check(gs.num_choices == 2 and not gs.is_boss_index(0), "Guided wall has two doors")
 	_hit_wall(gs, gs.tuning.right_door_x)
 	_check(gs.get_tutorial_step_id() == "guided_wall" and gs.p1_hp == 3, "Guided miss retries without losing a heart")
+	var guided_hint := str(gs.get_tutorial_overlay_model().get("hint", ""))
+	_check(guided_hint == "光るドアは左", "Guided miss shows a one-line hint (%s)" % guided_hint)
 	_hit_wall(gs, gs.tuning.left_door_x)
 	_check(gs.get_tutorial_step_id() == "hp_lesson" and gs.score == 1, "Guided correct answer scores and continues")
+	_check(not gs.tutorial_flow.awaiting_neutral_input, "Next quiz in the same chapter starts without stopping the world")
 	_hit_wall(gs, gs.tuning.left_door_x)
 	_check(gs.get_tutorial_step_id() == "hp_lesson" and gs.p1_hp == 3, "Heart lesson asks for the wrong door instead")
 	_hit_wall(gs, gs.tuning.right_door_x)
 	_check(gs.get_tutorial_step_id() == "free_wall" and gs.p1_hp == 2, "Heart lesson costs exactly one heart")
 	_check(gs.is_damage_stunned(1), "Heart loss staggers the runner like the real game")
+	_check(_toast_titles(gs) == ["ハート −1", "ここから本番"], "Heart loss and the real-rules wall each show one rule toast (%s)" % str(_toast_titles(gs)))
 	var wall := gs.current_wall_index
 	_hit_wall(gs, gs.tuning.left_door_x)
 	_check(gs.p1_hp == 1 and gs.p1_alive and gs.current_wall_index == wall + 1, "Free miss costs a heart and the run continues")
-	_hit_wall(gs, gs.tuning.right_door_x)
+	_check(gs.get_tutorial_step_id() == "boss_wall", "One real-rules question leads to the boss wall")
+	_check(int(gs.get_tutorial_overlay_model().get("banner", {}).get("serial", 0)) > 0 and str(gs.get_tutorial_overlay_model().banner.label) == "クイズ", "Leaving the quiz chapter shows its CLEAR banner")
+	_check(gs.num_choices == 4 and gs.is_boss_index(gs.current_index), "Boss wall uses four doors")
+	var boss_answer: int = gs.current_quiz.a
+	_hit_wall(gs, float(gs.tuning.door4_xs[(boss_answer + 2) % 4]))
 	_check(gs.p1_hp == 0 and not gs.p1_alive and gs.tutorial_flow.is_awaiting_death_recovery(), "Zero hearts eliminates the runner")
 	gs._recover_tutorial_from_death()
-	_check(gs.p1_alive and gs.p1_hp == 3 and gs.get_tutorial_step_id() == "free_wall", "Elimination retries the same question with full hearts")
-	_hit_wall(gs, gs.tuning.left_door_x)
-	_check(gs.get_tutorial_step_id() == "boss_wall", "Correct retry reaches the boss wall")
-	_check(gs.num_choices == 4 and gs.is_boss_index(gs.current_index), "Boss wall uses four doors")
+	_check(gs.p1_alive and gs.p1_hp == 3 and gs.get_tutorial_step_id() == "boss_wall", "Elimination retries the same question with full hearts")
 	_hit_wall(gs, float(gs.tuning.door4_xs[gs.current_quiz.a]))
 	_check(gs.get_tutorial_step_id() == "stage_complete", "Boss answer completes the solo stage")
 
@@ -106,24 +111,35 @@ func _test_duo_state_rules() -> void:
 	_check(gs.uses_saw_chase(), "2P saw runs during the quiz lessons")
 	_hit_wall(gs, gs.tuning.left_door_x)
 	_check(gs.get_tutorial_step_id() == "duo_hp" and gs.score == 1 and gs.player2_score == 0, "First correct player alone scores and opens the wall")
+	_check("早い者勝ち" in _toast_titles(gs), "First-come scoring is explained right after it happens")
 	gs.player2_z = gs.wall_z - 6.0
 	_hit_wall(gs, gs.tuning.right_door_x)
 	_check(gs.get_tutorial_step_id() == "duo_hp" and gs.p1_hp == 2 and gs.p2_hp == 3, "P1 waits at the wall after the lesson miss")
 	_hit_wall(gs, gs.tuning.right_door_x, gs.tuning.right_door_x)
 	_check(gs.get_tutorial_step_id() == "duo_free_wall" and gs.p1_hp == 2 and gs.p2_hp == 2, "Both lesson misses cost one heart each")
+	# P1 を残りハート1にして本番の1問へ。P1 が不正解で脱落し、P2 が先着の1点を取る。
+	gs._set_player_hp(1, 1)
 	var answer: int = gs.current_quiz.a
 	var correct_x: float = gs.tuning.left_door_x if answer == 0 else gs.tuning.right_door_x
 	var wrong_x: float = gs.tuning.right_door_x if answer == 0 else gs.tuning.left_door_x
 	var wall := gs.current_wall_index
 	_hit_wall(gs, wrong_x, correct_x)
-	_check(gs.p1_hp == 1 and gs.p2_hp == 2 and gs.player2_score == 1 and gs.current_wall_index == wall + 1, "Wrong P1 loses a heart while P2 takes the point")
-	answer = gs.current_quiz.a
-	correct_x = gs.tuning.left_door_x if answer == 0 else gs.tuning.right_door_x
-	wrong_x = gs.tuning.right_door_x if answer == 0 else gs.tuning.left_door_x
-	_hit_wall(gs, wrong_x, wrong_x)
-	_check(gs.get_tutorial_step_id() == "duo_boss_wall", "Both wrong still closes the question")
-	_check(not gs.p1_alive and gs.p2_alive and gs.p2_hp == 1, "P1 at zero hearts falls while P2 keeps playing")
-	_check(not gs.p1_alive and gs.allows_tutorial_ghost_ride(), "Fallen player rides the ghost shark into the boss wall")
+	_check(gs.p1_hp == 0 and gs.p2_hp == 2 and gs.player2_score == 1 and gs.current_wall_index == wall + 1, "Wrong P1 loses its last heart while P2 takes the point")
+	_check(gs.get_tutorial_step_id() == "duo_boss_wall", "One real-rules question leads to the boss wall")
+	_check(not gs.p1_alive and gs.p2_alive, "P1 at zero hearts falls while P2 keeps playing")
+	_check(gs.allows_tutorial_ghost_ride(), "Fallen player rides the ghost shark into the boss wall")
+	var boss_answer: int = gs.current_quiz.a
+	gs.player2_x = float(gs.tuning.door4_xs[(boss_answer + 1) % 4])
+	gs.player2_z = gs.wall_z
+	gs.resolve_collision(false, true)
+	_check(gs.get_tutorial_step_id() == "duo_goal" and gs.p2_hp == 1, "The only answerable player's miss still closes the boss wall")
+
+
+func _toast_titles(gs: QuizGameState) -> Array:
+	var titles: Array = []
+	for toast: Dictionary in gs.get_tutorial_overlay_model().get("toasts", []):
+		titles.append(str(toast.get("title", "")))
+	return titles
 
 
 ## ゴーストシャーク練習で標的（P1）が体当たりで海へ落ちても、ゴースト（P2）は脱落したまま

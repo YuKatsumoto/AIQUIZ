@@ -1,0 +1,19 @@
+{
+  "name": "aiquiz-ops",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AIQUIZ の運用状況（費用・共有バンク・プレイヤー）を自分の PC で見る管理ソフト",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "express": "^4.22.2",
+    "firebase-admin": "^14.3.0",
+    "google-auth-library": "^10.9.1"
+  }
+}

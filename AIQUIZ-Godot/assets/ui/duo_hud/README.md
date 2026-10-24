@@ -10,6 +10,10 @@ The native AE source was built and rendered through the official **Higgsfield us
 
 ## Appearance and behavior
 
+The card is styled after the menu's metal push buttons (`scripts/ui/menu_metal_button.gd`): a slate face `#323e48` on a `#72838b` rim that is thicker at the bottom, four corner bolts, an indicator lamp beside the featured-style P1/P2 badge, and a player-colour underline. Hearts sit in dark sockets like the button lamp holes; HP shows in a dark meter window. Low HP pulses the rim and blinks the lamp red; zero HP turns the lamp off, darkens the plate and stamps `OUT` (both languages).
+
+The score, its unit and the streak flame/count light up in an amber LED window modelled on the underground-temple floodgate question boards: `shaders/duo_hud_led.gdshader` draws the unlit dot grid (`LedWindow`) and masks the live labels and the AE flame loop to lit dots, with an orange halo drawn behind them (`LedGlow`). The dot grid is fixed in card space, so the score pop moves the digits under the dots. Dot pitch targets about 2.4 screen pixels.
+
 P1 orange `(0.95, 0.55, 0.20)` sits bottom left; P2 blue `(0.20, 0.65, 0.90)` sits bottom right. Cards are 188 x 80 logical pixels, about 55% less area than the previous 244 x 136 design. They are inset 16 horizontally and 36 from the bottom to clear the existing progress bar. Each score appears above its HP. Cards scale down on narrow viewports. Offscreen indicators reserve space above the cards.
 
 - Entrance: 36 px upward slide with a 4 px overshoot, 0.44 seconds; P2 follows 0.067 seconds later.
@@ -18,7 +22,7 @@ P1 orange `(0.95, 0.55, 0.20)` sits bottom left; P2 blue `(0.20, 0.65, 0.90)` si
 - Recovery: changed hearts reach 1.32 scale, settling over 0.40 seconds, with eight sparkles and two expanding rings.
 - A soft diagonal highlight and an edge trace play on entrance, score and recovery. Event bursts expire after 0.68 seconds; the bounded pool holds at most eight bursts per card. The idle state has no particles or moving highlight.
 - Low HP: numeric `1 / 3`, explicit warning and a restrained border pulse.
-- Zero HP: empty hearts and an OUT status.
+- Zero HP: empty hearts, a dimmed LED window and a tilted OUT stamp.
 
 Game state is authoritative. Neither AE data nor UI animation changes score, HP, collision or recovery rules. Normal 2P TEN/ENDLESS and HP-aware replays use these cards. 1P, tutorial, cooperative scoring and old replays retain their established presentation. Text follows `use_english_ui`.
 

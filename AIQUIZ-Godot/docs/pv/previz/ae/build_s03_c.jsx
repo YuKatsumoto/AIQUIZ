@@ -15,7 +15,7 @@
 // Background: the Godot capture continues under the logo, NOT blurred or dimmed (PV frames 338-562).
 // Note (this PC, AE 2026): after one render, the next render in the same AE session can fail or come out empty.
 // Restart AE (and wait until it is fully up) before rendering again.
-var ROOT = "C:/AIQUIZ/AIQUIZ-Godot/";
+var ROOT = "G:/AIQUIZ-Main/AIQUIZ-Godot/";
 var LAYOUT = ROOT + "tools/title_logo_ae/layout.json";
 var BG_FIRST = ROOT + "artifacts/pv_capture/s01_s03/pv_0001.jpg";   // numbered sequence pv_0001..pv_0562
 var BG_START_FRAME = 338;                                            // PV frame shown at comp time 0

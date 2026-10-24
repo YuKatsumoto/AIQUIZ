@@ -26,9 +26,15 @@ const MAX_CANDIDATE_BATCH: int = 50
 const MAX_EVALUATION_BATCH: int = 25
 const INITIAL_RETRY_SECONDS: float = 5.0
 const MAX_RETRY_SECONDS: float = 300.0
+## /quiz-bank/changes の返り値の版
+const CHANGES_VERSION: int = 2
+## 差分が無くても、起点がこれだけ進んだら保存し直す（次回の差分を小さく保つ）
+const RESAVE_AFTER_MS: int = 6 * 3600 * 1000
 
 var _cache_items: Array[Dictionary] = []
 var _cache_revision: int = 0
+## 差分同期（/quiz-bank/changes）の起点（サーバー時刻 ms）。0 なら次は全件を取る
+var _sync_since_ms: int = 0
 var _candidate_outbox: Dictionary = {}
 var _evaluation_outbox: Dictionary = {}
 var _syncing: bool = false
@@ -104,6 +110,18 @@ func sync_now() -> void:
 	if _syncing or ApiStatusAutoload.get_proxy_url().is_empty():
 		return
 	_syncing = true
+	# 手元に保存があり、前回同期した時刻を覚えていれば、その後の差分だけを取る
+	if _sync_since_ms > 0 and not _cache_items.is_empty():
+		var changes: Dictionary = await _download_changes(_sync_since_ms)
+		if changes.get("ok", false):
+			_syncing = false
+			_apply_changes(changes)
+			return
+		if int(changes.get("code", 0)) != 404:
+			_syncing = false
+			_schedule_retry()
+			return
+		# /changes が無い古いプロキシ: 全件で取り直す
 	var snapshot: Dictionary = await _download_snapshot()
 	_syncing = false
 	if not snapshot.get("ok", false):
@@ -118,13 +136,15 @@ func sync_now() -> void:
 			items.append(item)
 
 	var revision := int(snapshot.get("revision", 0))
-	if not _replace_cache_atomically(items, revision):
+	var sync_since := int(snapshot.get("sync_since", 0))
+	if not _replace_cache_atomically(items, revision, sync_since):
 		push_warning("[FirebaseQuizCache] Snapshot was valid but could not be persisted")
 		_schedule_retry()
 		return
 
 	_cache_items = items
 	_cache_revision = revision
+	_sync_since_ms = sync_since
 	_retry_seconds = INITIAL_RETRY_SECONDS
 	print("[FirebaseQuizCache] Synced %d reusable quizzes (revision=%d)" % [
 		_cache_items.size(), _cache_revision
@@ -188,11 +208,92 @@ func flush_outbox() -> void:
 		_schedule_retry()
 
 
+## 前回の同期より後に入った・変わった問題と、消えた問題の ID（/quiz-bank/changes）。
+## {ok, items, removed, sync_since}。失敗は {ok: false, code}（404 は /changes が無い古いプロキシ）。
+func _download_changes(since: int) -> Dictionary:
+	var items: Array[Dictionary] = []
+	var removed: Array[String] = []
+	var page_since := since
+	var after_key := ""
+	for _page: int in range(MAX_SYNC_PAGES):
+		var url := ApiStatusAutoload.get_proxy_url().trim_suffix("/") \
+			+ "/quiz-bank/changes?since=%d&limit=%d" % [page_since, PAGE_SIZE]
+		if not after_key.is_empty():
+			url += "&after_key=" + after_key.uri_encode()
+		var response: Dictionary = await _request_json(HTTPClient.METHOD_GET, url, {})
+		if not response.get("ok", false):
+			return {"ok": false, "code": int(response.get("code", 0))}
+		var data: Dictionary = response.get("data")
+		if int(data.get("version", 0)) != CHANGES_VERSION:
+			return {"ok": false, "code": 0}
+		for raw: Variant in data.get("items", []):
+			# 1 件おかしくても全体は止めない（その問題だけ取り込まない）
+			if raw is Dictionary and _is_valid_cache_item(raw):
+				items.append((raw as Dictionary).duplicate(true))
+		for removed_id: Variant in data.get("removed", []):
+			removed.append(str(removed_id))
+		var next: Variant = data.get("next")
+		if next is Dictionary:
+			page_since = int(next.get("since", page_since))
+			after_key = str(next.get("after_key", ""))
+			continue
+		return {"ok": true, "items": items, "removed": removed,
+			"sync_since": int(data.get("sync_since", since))}
+	push_warning("[FirebaseQuizCache] Changes exceeded %d pages" % MAX_SYNC_PAGES)
+	return {"ok": false, "code": 0}
+
+
+## 差分を手元の保存に当てる。何も変わらなければ、時刻が大きく進んだときだけ保存し直す。
+func _apply_changes(changes: Dictionary) -> void:
+	var by_key := {}
+	for item: Dictionary in _cache_items:
+		by_key[_cache_item_key(item)] = item
+	var removed_count := 0
+	for removed_id: String in changes.get("removed", []):
+		if by_key.erase(removed_id):
+			removed_count += 1
+	var updated_count := 0
+	for raw: Dictionary in changes.get("items", []):
+		var item := raw.duplicate(true)
+		item["src"] = "OFFLINE_FIREBASE"
+		var key := _cache_item_key(item)
+		# 時刻のゆとりで取り直した、中身の同じ問題は数えない
+		if by_key.has(key) and JSON.stringify(by_key[key]) == JSON.stringify(item):
+			continue
+		by_key[key] = item
+		updated_count += 1
+	var sync_since := int(changes.get("sync_since", _sync_since_ms))
+	var changed := updated_count > 0 or removed_count > 0
+	_retry_seconds = INITIAL_RETRY_SECONDS
+	print("[FirebaseQuizCache] Delta sync: %d updated, %d removed (total %d)" % [
+		updated_count, removed_count, by_key.size()])
+	if not changed and sync_since - _sync_since_ms < RESAVE_AFTER_MS:
+		_sync_since_ms = sync_since
+		return
+	var merged: Array[Dictionary] = []
+	for item: Variant in by_key.values():
+		merged.append(item)
+	if not _replace_cache_atomically(merged, _cache_revision, sync_since):
+		push_warning("[FirebaseQuizCache] Delta sync could not be persisted")
+		_schedule_retry()
+		return
+	_cache_items = merged
+	_sync_since_ms = sync_since
+	if changed:
+		cache_updated.emit(_cache_items.size())
+
+
+func _cache_item_key(item: Dictionary) -> String:
+	var id := str(item.get("id", ""))
+	return id if not id.is_empty() else _local_question_key(item)
+
+
 func _download_snapshot() -> Dictionary:
 	for _attempt: int in range(2):
 		var collected: Array[Dictionary] = []
 		var cursor := ""
 		var revision := 0
+		var sync_since := 0
 		var restart := false
 		for _page: int in range(MAX_SYNC_PAGES):
 			var url := ApiStatusAutoload.get_proxy_url().trim_suffix("/") \
@@ -213,6 +314,8 @@ func _download_snapshot() -> Dictionary:
 			var page_revision := int(data.get("revision", 0))
 			if revision == 0:
 				revision = page_revision
+				# 全件を取り始めた時刻（ゆとり込み）。次回からはここより後の差分だけを取る
+				sync_since = int(data.get("sync_since", 0))
 			elif revision != page_revision:
 				restart = true
 				break
@@ -225,7 +328,7 @@ func _download_snapshot() -> Dictionary:
 				collected.append((raw as Dictionary).duplicate(true))
 			cursor = str(data.get("next_cursor", ""))
 			if cursor.is_empty():
-				return {"ok": true, "revision": revision, "items": collected}
+				return {"ok": true, "revision": revision, "items": collected, "sync_since": sync_since}
 		if not restart:
 			push_warning("[FirebaseQuizCache] Snapshot exceeded %d pages" % MAX_SYNC_PAGES)
 			return {"ok": false}
@@ -352,6 +455,7 @@ func _load_cache() -> void:
 			loaded.append(item)
 	_cache_items = loaded
 	_cache_revision = int(data.get("revision", 0))
+	_sync_since_ms = int(data.get("sync_since", 0))
 	print("[FirebaseQuizCache] Loaded %d cached quizzes (revision=%d)" % [
 		_cache_items.size(), _cache_revision
 	])
@@ -381,12 +485,13 @@ func _save_outbox() -> void:
 		push_warning("[FirebaseQuizCache] Could not persist upload outbox")
 
 
-func _replace_cache_atomically(items: Array[Dictionary], revision: int) -> bool:
+func _replace_cache_atomically(items: Array[Dictionary], revision: int, sync_since: int = 0) -> bool:
 	return _write_json_atomically(
 		CACHE_PATH, CACHE_TEMP_PATH, CACHE_BACKUP_PATH,
 		{
 			"version": CACHE_VERSION,
 			"revision": revision,
+			"sync_since": sync_since,
 			"items": items,
 		}
 	)

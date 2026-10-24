@@ -51,7 +51,7 @@ static func get_emote_list() -> Array[Dictionary]:
 	return [
 		{"id": EMOTE_NONE,          "name": "なし",               "icon": "—",  "desc": "通常の立ち姿勢"},
 		{"id": EMOTE_STEP_HIP_HOP, "name": "ステップヒップホップ", "icon": "🕺", "desc": ""},
-		{"id": EMOTE_GANGNAM,      "name": "カンナムスタイル",         "icon": "🐴", "desc": ""},
+		{"id": EMOTE_GANGNAM,      "name": "ホースダンス",         "icon": "🐴", "desc": ""},
 		{"id": EMOTE_SLIDE_HIP_HOP,"name": "スライドヒップホップ", "icon": "💃", "desc": ""},
 		{"id": EMOTE_FLAIR,        "name": "フレア",               "icon": "🤸", "desc": ""},
 		{"id": EMOTE_MOONWALK,     "name": "ムーンウォーク",       "icon": "🌙", "desc": ""},

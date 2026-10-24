@@ -1,0 +1,104 @@
+{
+  "boats": {
+    "SB_Launch": {
+      "triangles": 22868,
+      "objects": {
+        "Launch_Hull": 2030,
+        "Launch_Trim": 2844,
+        "Launch_Steel": 9320,
+        "Launch_Teak": 1996,
+        "Launch_Cushion": 2256,
+        "Launch_Deck": 12,
+        "Launch_HullWhite": 620,
+        "Launch_Glass": 12,
+        "Launch_Canvas": 188,
+        "Launch_Fender": 1164,
+        "Launch_Rope": 872,
+        "Launch_Accent": 560,
+        "Launch_LampRed": 12,
+        "Launch_LampGreen": 12,
+        "Launch_Crate": 324,
+        "Launch_Tube": 312,
+        "Launch_TubeCap": 312,
+        "Launch_Flags": 22
+      },
+      "materials": [
+        "SB_Accent",
+        "SB_Bottom",
+        "SB_Canvas",
+        "SB_Crate",
+        "SB_Cushion",
+        "SB_Deck",
+        "SB_Fender",
+        "SB_Flags",
+        "SB_Glass",
+        "SB_HullWhite",
+        "SB_LampGreen",
+        "SB_LampRed",
+        "SB_Rope",
+        "SB_Steel",
+        "SB_Stripe",
+        "SB_Teak",
+        "SB_Trim",
+        "SB_Tube",
+        "SB_TubeCap"
+      ],
+      "size": [
+        10.182,
+        3.874,
+        4.975
+      ],
+      "seats": 12
+    },
+    "SB_Pontoon": {
+      "triangles": 10070,
+      "objects": {
+        "Pontoon_Alu": 2832,
+        "Pontoon_Deck": 24,
+        "Pontoon_Trim": 436,
+        "Pontoon_Steel": 924,
+        "Pontoon_HullWhite": 308,
+        "Pontoon_Stripe": 120,
+        "Pontoon_Teak": 1996,
+        "Pontoon_Cushion": 2256,
+        "Pontoon_Glass": 12,
+        "Pontoon_Crate": 324,
+        "Pontoon_Tube": 208,
+        "Pontoon_TubeCap": 208,
+        "Pontoon_Rope": 406,
+        "Pontoon_Flags": 16
+      },
+      "materials": [
+        "SB_Alu",
+        "SB_Crate",
+        "SB_Cushion",
+        "SB_Deck",
+        "SB_Flags",
+        "SB_Glass",
+        "SB_HullWhite",
+        "SB_Rope",
+        "SB_Steel",
+        "SB_Stripe",
+        "SB_Teak",
+        "SB_Trim",
+        "SB_Tube",
+        "SB_TubeCap"
+      ],
+      "size": [
+        7.553,
+        2.735,
+        4.205
+      ],
+      "seats": 12
+    }
+  },
+  "previews": [
+    "G:\\AIQUIZ-Main\\AIQUIZ-Godot\\assets\\sudden_death\\sky_gate\\spectator_boats\\source\\previews\\sb_01_launch_hero.png",
+    "G:\\AIQUIZ-Main\\AIQUIZ-Godot\\assets\\sudden_death\\sky_gate\\spectator_boats\\source\\previews\\sb_02_launch_far.png",
+    "G:\\AIQUIZ-Main\\AIQUIZ-Godot\\assets\\sudden_death\\sky_gate\\spectator_boats\\source\\previews\\sb_03_launch_top.png",
+    "G:\\AIQUIZ-Main\\AIQUIZ-Godot\\assets\\sudden_death\\sky_gate\\spectator_boats\\source\\previews\\sb_04_launch_detail.png",
+    "G:\\AIQUIZ-Main\\AIQUIZ-Godot\\assets\\sudden_death\\sky_gate\\spectator_boats\\source\\previews\\sb_05_launch_stern.png",
+    "G:\\AIQUIZ-Main\\AIQUIZ-Godot\\assets\\sudden_death\\sky_gate\\spectator_boats\\source\\previews\\sb_06_pontoon_hero.png",
+    "G:\\AIQUIZ-Main\\AIQUIZ-Godot\\assets\\sudden_death\\sky_gate\\spectator_boats\\source\\previews\\sb_07_pontoon_back.png"
+  ]
+}

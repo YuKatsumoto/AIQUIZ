@@ -32,6 +32,9 @@ var _scaled_beam_mesh: BoxMesh = null
 var _boss_scale_lift: float = 0.0
 var _shattered: bool = false
 var _saw_collision_shapes: Dictionary = {}
+## 問題文と選択肢を AI が書いているように出す演出（docs/ai_question_typing.md）。壁ごとに 1 回だけ。
+var _ai_text_reveal: WallAiTextReveal = null
+var _ai_text_reveal_started: bool = false
 
 func _physics_process(_dt: float) -> void:
 	# Only saw-launched bodies opt into this layer. Match each visible solid so
@@ -222,6 +225,7 @@ func _build_doors(num_choices: int) -> void:
 	_current_num_choices = num_choices
 	_build_wall_around_doors(num_choices)
 	
+	_finish_ai_text_reveal()
 	# Clear existing doors
 	for d: MeshInstance3D in doors:
 		d.queue_free()
@@ -436,6 +440,35 @@ func set_gameplay_question_visible(is_visible: bool) -> void:
 		gameplay_question_label.visible = is_visible and not _retiring_after_pass and not _shattered
 
 
+## 問題文と選択肢を、AI がいま書いているように 1〜3 文字ずつ出す（WallAiTextReveal）。問題文と選択肢を入れてから呼ぶ。
+## delay 秒は文字を隠したまま待つ（落ちてくる壁なら着地のあとから書く）。壁ごとに 1 回だけ。
+## いまは PV の撮影（tests/pv_capture/pv_v3_runtime.gd）だけが使う。ゲームのプレイ画面では出さない。
+func begin_ai_text_reveal(delay: float = 0.0) -> void:
+	if _ai_text_reveal_started:
+		return
+	_ai_text_reveal_started = true
+	var question: Label3D = gameplay_question_label if is_instance_valid(gameplay_question_label) else null
+	var choices: Array[Label3D] = []
+	for label: Label3D in door_labels:
+		if is_instance_valid(label):
+			choices.append(label)
+	_ai_text_reveal = WallAiTextReveal.new()
+	_ai_text_reveal.name = "AiTextReveal"
+	add_child(_ai_text_reveal)
+	_ai_text_reveal.start(question, choices, delay)
+
+
+func has_started_ai_text_reveal() -> bool:
+	return _ai_text_reveal_started
+
+
+## 書いている途中なら、すぐに書き終えた姿へ戻す。
+func _finish_ai_text_reveal() -> void:
+	if is_instance_valid(_ai_text_reveal) and not _ai_text_reveal.is_finished():
+		_ai_text_reveal.finish_now()
+	_ai_text_reveal = null
+
+
 ## A solid (navy, QUESTION_PANEL_COLOR) backing keeps the sky and scenery out of the question text.
 ## Child meshes inherit the label's orientation, visibility and retirement.
 func _update_gameplay_question_panel() -> void:
@@ -570,6 +603,47 @@ func get_gameplay_framing_points(at_base_scale: bool = false) -> PackedVector3Ar
 	return points
 
 
+## 選択肢（扉と選択肢の文字）と問題文パネルが画面のどこに映っているか（オンラインの頭上の名前が重なったら薄くする用）。
+## 文字を消した壁（通過後など）とカメラの後ろにかかる部分は含めない。
+func get_choice_screen_rects(camera: Camera3D) -> Array[Rect2]:
+	var rects: Array[Rect2] = []
+	if _retiring_after_pass or camera == null:
+		return rects
+	for i: int in range(doors.size()):
+		var label: Label3D = door_labels[i] if i < door_labels.size() else null
+		if not is_instance_valid(label) or not label.is_visible_in_tree():
+			continue
+		var points := PackedVector3Array()
+		var door := doors[i]
+		if is_instance_valid(door) and door.is_visible_in_tree():
+			var door_bounds := door.get_aabb()
+			for corner: int in range(8):
+				points.append(door.global_transform * door_bounds.get_endpoint(corner))
+		_append_label_framing_points(points, label, label.global_transform)
+		_append_screen_rect(rects, camera, points)
+	if is_instance_valid(gameplay_question_label) and gameplay_question_label.is_visible_in_tree():
+		var question_points := PackedVector3Array()
+		_append_label_framing_points(question_points, gameplay_question_label, gameplay_question_label.global_transform)
+		if is_instance_valid(_gameplay_question_border):
+			var panel_bounds := _gameplay_question_border.get_aabb()
+			for corner: int in range(8):
+				question_points.append(_gameplay_question_border.global_transform * panel_bounds.get_endpoint(corner))
+		_append_screen_rect(rects, camera, question_points)
+	return rects
+
+
+func _append_screen_rect(rects: Array[Rect2], camera: Camera3D, points: PackedVector3Array) -> void:
+	if points.is_empty():
+		return
+	var rect := Rect2()
+	for i: int in range(points.size()):
+		if camera.is_position_behind(points[i]):
+			return
+		var screen := camera.unproject_position(points[i])
+		rect = Rect2(screen, Vector2.ZERO) if i == 0 else rect.expand(screen)
+	rects.append(rect)
+
+
 func _framing_transform(node: Node3D, at_base_scale: bool) -> Transform3D:
 	if not at_base_scale or _text_scale == 1.0:
 		return node.global_transform
@@ -600,6 +674,7 @@ func retire_after_player_pass(fade_duration: float = 0.28) -> void:
 		return
 	_retiring_after_pass = true
 	_retirement_finished = false
+	_finish_ai_text_reveal()
 	set_labels_visible(false)
 	if is_instance_valid(boss_label):
 		boss_label.visible = false
@@ -999,6 +1074,7 @@ static func _wall_label_font() -> FontFile:
 
 func shatter_wall(direction_z: float = -1.0) -> void:
 	_shattered = true
+	_finish_ai_text_reveal()
 	set_gameplay_question_visible(false)
 	for part in wall_parts:
 		if is_instance_valid(part) and part.visible:

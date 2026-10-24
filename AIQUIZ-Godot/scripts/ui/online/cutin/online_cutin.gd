@@ -4,7 +4,8 @@ extends Control
 ## オンライン対戦の VS カットイン（仕様書 S8 カットインが入る・S9 読み込み・7 見た目）。
 ## 3D（並走の 2 機）の上に重ねる 2D の層。基準の大きさ 1920×1080 で組み、画面の高さに合わせて縮める。
 ## 時刻は play() からの秒（CUTIN_IN の始まり）。CUTIN_IN のあとは読み込みのあいだの動き（hold）を続ける。
-##   play(info)              info：me / them（名前）、rules、my_slot、my_hat、their_hat、short
+##   play(info)              info：me / them（名前）、rules、my_slot、my_hat、their_hat、my_skin、their_skin、
+##                           my_emotes / their_emotes（付けているエモート）、match_key（踊るエモートを選ぶ試合の値）、short
 ##   set_progress(p, wait)   ゲージ（0〜1）と「あいての つうしんを まっています…」
 ##   hide_now()              すぐ消す（やめる・探し直し）
 ## 部品の順（下から）：パネル（online_cutin_panel）→ キャラ → 稲妻（online_cutin_seam）→ VS → 名前の帯 → ゲージ → 白い光
@@ -231,7 +232,8 @@ func _layout() -> void:
 	_panel_material.set_shader_parameter("rect_size", _design_size)
 	_seam_material.set_shader_parameter("rect_size", _design_size)
 	var w := _design_size.x
-	var char_size := Vector2(720, 800)
+	# キャラの絵は名前の帯の上（905）から画面の上まで。幅は横に伸ばした手足が入るように広め（縦横比は CutinActors.VIEW_SIZE）
+	var char_size := Vector2(905.0 * float(CutinActors.VIEW_SIZE.x) / float(CutinActors.VIEW_SIZE.y), 905.0)
 	_chars[0].size = char_size
 	_chars[0].pivot_offset = Vector2(char_size.x * 0.5, char_size.y)
 	_chars[1].size = char_size
@@ -276,6 +278,8 @@ func play(info: Dictionary) -> void:
 	if _actor_key(info) != _primed_key:
 		_prepare_actors(info)
 	_primed_key = ""
+	if actors != null:
+		actors.start_dance()
 	time = 0.0
 	_sting_sent = false
 	_progress = 0.0
@@ -292,6 +296,7 @@ func play(info: Dictionary) -> void:
 
 ## カットインのキャラ絵（左右の SubViewport）を先に描いておく。play() の最初のフレームで描くと、
 ## カットインの入りのフレームが重くなる（カクつく）ので、合流の始まりなど前もって呼ぶ。info は play() と同じ。
+## 踊るエモートの FBX もここからスレッドで読み始める（合流と並走のあいだに読み終える）。
 func prime(info: Dictionary) -> void:
 	_prepare_actors(info)
 	_primed_key = _actor_key(info)
@@ -300,19 +305,26 @@ func prime(info: Dictionary) -> void:
 func _prepare_actors(info: Dictionary) -> void:
 	if actors == null:
 		return
+	var me := str(info.get("me", ""))
+	var them := str(info.get("them", ""))
+	var match_key := str(info.get("match_key", ""))
 	var my_skin: Variant = info.get("my_skin", {})
 	var their_skin: Variant = info.get("their_skin", {})
+	var my_emotes: Variant = info.get("my_emotes", [])
+	var their_emotes: Variant = info.get("their_emotes", [])
 	actors.prepare(int(info.get("my_slot", 1)), int(info.get("my_hat", 0)), int(info.get("their_hat", 0)),
-		OnlineStagingTimeline.cutin_pose_index(str(info.get("me", ""))),
-		OnlineStagingTimeline.cutin_pose_index(str(info.get("them", ""))),
-		my_skin if my_skin is Dictionary else {}, their_skin if their_skin is Dictionary else {})
+		OnlineStagingTimeline.cutin_pose_index(me), OnlineStagingTimeline.cutin_pose_index(them),
+		my_skin if my_skin is Dictionary else {}, their_skin if their_skin is Dictionary else {},
+		OnlineStagingTimeline.cutin_emote(my_emotes if my_emotes is Array else [], me, match_key),
+		OnlineStagingTimeline.cutin_emote(their_emotes if their_emotes is Array else [], them, match_key))
 	_chars[0].texture = actors.left_texture()
 	_chars[1].texture = actors.right_texture()
 
 
 static func _actor_key(info: Dictionary) -> String:
 	return var_to_str([info.get("my_slot", 1), info.get("my_hat", 0), info.get("their_hat", 0),
-		info.get("me", ""), info.get("them", ""), info.get("my_skin", {}), info.get("their_skin", {})])
+		info.get("me", ""), info.get("them", ""), info.get("my_skin", {}), info.get("their_skin", {}),
+		info.get("my_emotes", []), info.get("their_emotes", []), info.get("match_key", "")])
 
 
 func _set_name(i: int, text: String, tag: String) -> void:
@@ -366,6 +378,13 @@ func names() -> Array[String]:
 	return [_band_names[0].text, _band_names[1].text]
 
 
+## 左右のキャラが踊るエモート（テスト用。踊らずポーズのときは EMOTE_NONE）。
+func emotes() -> Array[int]:
+	if actors == null:
+		return [EmoteData.EMOTE_NONE, EmoteData.EMOTE_NONE]
+	return actors.dance_emotes()
+
+
 func _process(delta: float) -> void:
 	if not playing:
 		return
@@ -373,6 +392,8 @@ func _process(delta: float) -> void:
 	if not _sting_sent and time >= OnlineStagingTimeline.STING_AT:
 		_sting_sent = true
 		AudioManager.play_sting(&"versus")
+	if actors != null:
+		actors.advance(delta)
 	_update(delta)
 
 

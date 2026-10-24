@@ -383,6 +383,9 @@ const SUDDEN_DEATH_BRANCH_TIME: float = 8.4
 const SUDDEN_DEATH_SINK_TIME: float = 9.0
 const SUDDEN_DEATH_IRIS_TIME: float = 10.4
 const SUDDEN_DEATH_DESCENT_TIME: float = 11.0
+## 新サドンデス（docs/sudden_death_v2/common.md 4.2節）：決着演出の時計を止める位置。
+## 以後は HeliSuddenDeathDirector の実時間の時計で、種目発表・ヘリへの飛びつき・移動と続く。
+const SUDDEN_DEATH_HOLD_TIME: float = SUDDEN_DEATH_DESCENT_TIME
 ## Both runners start on their own score-tower pad on the deck (SuddenDeathLayout.PAD_X).
 const SUDDEN_DEATH_START_X: float = 2.2
 ## A failed or timed-out descent comes back up and ends as the plain draw from here.
@@ -401,12 +404,30 @@ const SUDDEN_DEATH_SURFACE_FIELDS: Array[String] = [
 ## end_sudden_death() (leaving) under the cover.
 signal sudden_death_transition_requested(entering: bool)
 signal sudden_death_event(event: Dictionary)
-## サドンデスは2026-10-04に一旦廃止した（docs/sudden_death_underground.md 第20章）。コード・舞台・素材は
-## 残してあり、true に戻すと設定画面の項目・引き分けからの分岐・地下の準備がすべて元どおりになる。
-## サドンデスのテストは入口でこれを true にして動かす。
-static var sudden_death_available: bool = false
+## サドンデスは2026-10-04に一旦廃止し、2026-10-18からヘリに乗って種目で決着する形に作り直している
+## （docs/sudden_death_v2/）。種目は「ひらけ！パラシュート」（parachute.md）。仕上がる（M6）までは、エディタから動かす
+## デバッグ版だけで有効にする（書き出した製品版では false）。サドンデスのテストは入口でこれを true にして動かす。
+static var sudden_death_available: bool = OS.is_debug_build()
 var sudden_death_enabled: bool = true
+## 旧サドンデス（地下神殿）のルール。新しい流れでは使わず、いつも null（旧のファイルを残すために型だけ持つ）。
 var sudden_death: SuddenDeathState = null
+## 新サドンデスの種目のルール（docs/sudden_death_v2/common.md 8.1節）。
+var sudden_death_game: SuddenDeathGame = null
+## 種目（SUDDEN_DEATH_GAMES のどれか。いまは種目がない）と、その乱数の種（分岐の0秒に決める）。
+var sudden_death_kind: String = ""
+var sudden_death_seed: int = 0
+## テスト用：引き分けで決める種目を指定する（空なら SUDDEN_DEATH_GAMES の先頭。LEGACY_SUDDEN_DEATH_GAMES の種目も選べる）。
+var debug_sudden_death_kind: String = ""
+## 記録（MatchReel）：種目の record()。end_sudden_death で写す。
+var sudden_death_record: Dictionary = {}
+## 演出だけ（HeliSuddenDeathDirector）：決着演出の人形ではなく本物の2人が台座の上・ゴールにいる間（ヘリへの
+## 飛びつき、勝者が戻る）。ResultFinaleStage は本物の2人を隠さない。
+var sudden_death_live_players: bool = false
+## 演出だけ（HeliSuddenDeathDirector）：分岐のとき幽霊だった人のうち、体が集まって復活した人（1 = P1、2 = P2。
+## docs/sudden_death_v2/ghost_revive.md）。得点は脱落のまま（result_ghost_mask はそのまま戻る）で、決着演出の人形だけ幽霊にしない。
+var sudden_death_revived_mask: int = 0
+## 演出だけ：大型ビジョンの種目発表に出す種目名（"" の間は「SUDDEN DEATH!」）。監督が種目発表で入れる。
+var sudden_death_title: String = ""
 var sudden_death_pending: bool = false
 var sudden_death_winner: int = 0
 var sudden_death_decided_by: String = ""
@@ -477,6 +498,8 @@ var _net_cosmetic_backup: Dictionary = {}
 
 # --- Dynamic wall speed ---
 var _active_wall_speed: float = GameTuning.WALL_SPEED_AUTO_DEFAULT
+## 自動モードの壁速度（問題ごとの見積もりとプレイヤーの調子）。
+var wall_speed_planner := WallSpeedPlanner.new()
 
 # --- Physics Constants ---
 const GRAVITY: float = 18.0
@@ -692,10 +715,7 @@ func _try_finish_hp_question() -> void:
 		player2_streak = 0
 	provider.submit_result(current_quiz, any_correct)
 	quiz_history.append({"quiz": current_quiz, "correct": any_correct, "rated": ""})
-	var response_time := (Time.get_ticks_msec() - _quiz_shown_time) / 1000.0
-	recent_response_times.append(response_time)
-	if recent_response_times.size() > 5:
-		recent_response_times.pop_front()
+	var response_time := _record_answer_timing(any_correct)
 	if QuizManager.player_analytics != null:
 		QuizManager.player_analytics.record(current_quiz, response_time, any_correct, _hp_chosen_door, subject, grade, difficulty)
 	QuizManager.quiz_optimizer.evaluate_history(quiz_history, subject, grade, difficulty)
@@ -797,6 +817,19 @@ func get_tutorial_course() -> String:
 
 func get_tutorial_step_id() -> String:
 	return tutorial_flow.current_step_id() if tutorial_flow != null else ""
+
+
+## 2Pチュートリアルで、P2のジャンプ（右Ctrlだけ）を左Ctrlで押そうとしたときの短いヒント。
+## 説明文で先に断るのではなく、間違えたその場で教える。
+func hint_tutorial_left_ctrl() -> void:
+	if not is_duo_tutorial():
+		return
+	var step_id: String = tutorial_flow.current_step_id()
+	if step_id not in ["duo_jump", "duo_ghost"]:
+		return
+	if step_id == "duo_jump" and tutorial_flow.is_task_done(2, "jump"):
+		return
+	tutorial_flow.set_hint("P2は右のCtrlを使おう")
 
 
 func has_pending_solo_customize_tour() -> bool:
@@ -937,19 +970,15 @@ func _on_tutorial_saw_catch(hit_mask: int) -> void:
 			names.append("P%d" % index)
 	var who := "と".join(names)
 	if tutorial_flow.punishes_mistakes() and (p1_alive or p2_alive):
-		message_text = "%sがのこぎりに巻き込まれて脱落しました。残った人は答え続けてください。" % who
-		tutorial_flow.set_hint(message_text, 3.6)
+		message_text = "%sがのこぎりで脱落" % who
+		tutorial_flow.set_hint(message_text, 3.0)
 		_try_finish_tutorial_hp_wall()
 		refresh_status_text()
 		return
 	choice_locked = true
-	message_text = "%sがのこぎりに巻き込まれました。ハートが残っていても即脱落です。" % who
+	message_text = "のこぎりで即アウト！"
 	tutorial_flow.set_hint(message_text, TUTORIAL_SAW_RECOVERY_DURATION)
-	tutorial_flow.begin_death_recovery(
-		TUTORIAL_SAW_RECOVERY_DURATION,
-		true,
-		"のこぎりから遅れすぎないように進みましょう。もう一度やってみます。"
-	)
+	tutorial_flow.begin_death_recovery(TUTORIAL_SAW_RECOVERY_DURATION, true, "遅れないようにもう一度")
 	refresh_status_text()
 	state_changed.emit(game_state)
 
@@ -1261,7 +1290,7 @@ func back_from_settings() -> void:
 	menu_step = Constants.MENU_STEP_MODE
 	refresh_status_text()
 
-# set_wall_speed() は廃止。壁速度はAI予測解答時間から自動算出される。
+# set_wall_speed() は廃止。壁速度は問題ごとに自動算出される（WallSpeedPlanner）。
 
 func set_sfx_volume(vol: float) -> void:
 	sfx_volume = clampf(vol, 0.0, 1.0)
@@ -1369,6 +1398,7 @@ func start_game(defer_quiz_generation: bool = false) -> void:
 	total_answered = 0
 	total_wrong = 0
 	recent_response_times.clear()
+	wall_speed_planner.begin_round()
 	# Dynamic wall speed reset（手動オーバーライドがあればそれを使用）
 	if tuning.wall_speed_override > 0:
 		_active_wall_speed = clampf(
@@ -1871,9 +1901,8 @@ func load_current_quiz() -> void:
 	quiz_loaded.emit(current_quiz)
 
 func _recalc_wall_speed() -> void:
-	## AI予測解答時間から壁速度を逆算する
-	## speed = 可視距離 ÷ (予測秒数 + 移動バッファ)
-	## + ステージ加速（緊張感演出）
+	## 問題ごとに「読んで答えを決める秒数 + ドアまで動く秒数 + 余裕」で壁が届くよう速度を決める。
+	## 見積もりは WallSpeedPlanner（AI の予測解答時間は遅くする方向にだけ使う）。
 
 	if _is_tutorial_mode():
 		_active_wall_speed = 3.8
@@ -1888,31 +1917,43 @@ func _recalc_wall_speed() -> void:
 		)
 		return
 
-	# --- AI予測解答時間を取得 ---
-	var est_sec: float = 4.0  # デフォルト
-	if current_quiz:
-		est_sec = current_quiz.estimated_seconds
-
-	# --- 壁が見えてからプレイヤーに到達するまでの距離 ---
-	const VISIBLE_DISTANCE: float = 28.0  # wall_start_z(22) - hit_z(-6)
-	const MOVE_BUFFER: float = 28.0 / GameTuning.WALL_SPEED_AUTO_DEFAULT - 4.0  # 基準速度2.9に合わせる
-
-	var target_time: float = est_sec + MOVE_BUFFER
-	var base_speed: float = VISIBLE_DISTANCE / target_time
-
-	# --- ステージ加速 ---
-	var stage_factor: float = 1.0
-	if _is_fixed_count_mode() and not _is_tutorial_mode():
-		# 10問モード: 問題番号 0〜9 で 0%〜15% 加速
-		var progress: float = clampf(float(current_index) / 9.0, 0.0, 1.0)
-		stage_factor = 1.0 + progress * 0.15
+	# 回の後半ほど余裕を縮める（考える時間は削らない）。
+	var progress: float
+	if _is_fixed_count_mode():
+		progress = float(current_index) / float(maxi(1, target_count - 1))
 	else:
-		# エンドレスモード: 5問周期で微加速、最大+20%
-		var cycle_pos: float = float(total_answered % 5) / 4.0
-		stage_factor = 1.0 + minf(cycle_pos * 0.15, 0.20)
+		progress = float(current_wall_index) / float(WallSpeedPlanner.ENDLESS_RAMP_WALLS)
+	var speed := wall_speed_planner.plan(
+		current_quiz, subject, grade, difficulty, num_choices, _distance_to_current_wall(), progress
+	)
+	_active_wall_speed = clampf(speed, tuning.wall_speed_min, tuning.wall_speed_max)
+	print("[WallSpeed] %.2f m/s  答え%.1fs × 調子%.2f → 壁まで%.1fs  (%s)" % [
+		_active_wall_speed, wall_speed_planner.last_answer_seconds, wall_speed_planner.pace,
+		wall_speed_planner.last_budget_seconds, current_quiz.q.left(24) if current_quiz else "-"
+	])
 
-	var final_speed: float = base_speed * stage_factor
-	_active_wall_speed = clampf(final_speed, tuning.wall_speed_min, tuning.wall_speed_max)
+
+## 一番壁に近い（先に当たる）プレイヤーから今の壁までの距離。誰も走っていなければ壁の間隔。
+func _distance_to_current_wall() -> float:
+	var front := -INF
+	if p1_alive and not p1_waiting_for_shark:
+		front = player_z
+	if num_players >= 2 and p2_alive and not p2_waiting_for_shark:
+		front = maxf(front, player2_z)
+	if front == -INF:
+		return tuning.wall_spacing
+	return wall_z - 0.4 - front
+
+
+## 1問の解答時間を残し、壁速度の自動調整へ結果を渡す。
+func _record_answer_timing(correct: bool) -> float:
+	var response_time := (Time.get_ticks_msec() - _quiz_shown_time) / 1000.0
+	recent_response_times.append(response_time)
+	if recent_response_times.size() > 5:
+		recent_response_times.pop_front()
+	if not _is_tutorial_mode():
+		wall_speed_planner.record_result(correct)
+	return response_time
 
 
 # ---------- Frame update ----------
@@ -2189,6 +2230,11 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 
 	p1_moving_back = p1_axis.y < -0.1
 	p2_moving_back = p2_axis.y < -0.1
+	if current_quiz != null and not choice_locked:
+		wall_speed_planner.track(dt, (
+			p1_moving_back and p1_alive
+			or num_players >= 2 and p2_moving_back and p2_alive
+		))
 
 	# Player 1 movement
 	if p1_alive and not p1_waiting_for_shark:
@@ -2228,11 +2274,13 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 
 		if player_y < StageConstants.OCEAN_ENTRY_Y:
 			if _is_tutorial_mode() and not _is_expected_tutorial_ocean_entry(1):
-				_recover_tutorial_unexpected_ocean_entry(1, "今は海の練習ではありません。安全な位置からこのステップをやり直します。")
+				_recover_tutorial_unexpected_ocean_entry(1, "海に注意！ やり直し")
 				return
 			if _is_tutorial_mode():
-				message_text = "海に落ちました。サメが接近しています。"
-				tutorial_flow.set_hint(message_text, 4.0)
+				message_text = "サメが来る！"
+				# 海の体験ではルール表示が説明するので、ミッションの行は変えない。
+				if not tutorial_flow.is_ocean_hazard_step():
+					tutorial_flow.set_hint(message_text, 3.0)
 				tutorial_ui_revision += 1
 			_begin_ocean_shark_wait(1)
 	elif p1_alive and p1_waiting_for_shark:
@@ -2277,10 +2325,12 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 
 		if player2_y < StageConstants.OCEAN_ENTRY_Y:
 			if _is_tutorial_mode() and not _is_expected_tutorial_ocean_entry(2):
-				_recover_tutorial_unexpected_ocean_entry(2, "今はP2が海へ落ちるステップではありません。安全な位置からやり直します。")
+				_recover_tutorial_unexpected_ocean_entry(2, "海に注意！ やり直し")
 				return
 			if _is_tutorial_mode():
-				message_text = "P2は海でサメを待機中です。P1のメイン画面は継続し、右下のDeathWipeで演出を確認できます。"
+				message_text = "サメが来る！"
+				if not tutorial_flow.is_ocean_hazard_step():
+					tutorial_flow.set_hint(message_text, 3.0)
 				tutorial_ui_revision += 1
 			_begin_ocean_shark_wait(2)
 	elif num_players >= 2 and p2_alive and p2_waiting_for_shark:
@@ -2314,7 +2364,7 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 		if player_z - player2_z > SCROLL_OUT_LIMIT:
 			# P2 が遅れて画面外に消えた
 			if _is_tutorial_mode():
-				_reset_tutorial_attempt("P2が画面外に取り残されました。2人ともスタート位置へ戻します。")
+				_reset_tutorial_attempt("P2が置き去りに。やり直し")
 				return
 			if is_coop_mode():
 				_fail_coop_immediately("P2が画面外に取り残されました。協力失敗です。")
@@ -2328,7 +2378,7 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 		elif player2_z - player_z > SCROLL_OUT_LIMIT:
 			# P1 が遅れて画面外に消えた
 			if _is_tutorial_mode():
-				_reset_tutorial_attempt("P1が画面外に取り残されました。2人ともスタート位置へ戻します。")
+				_reset_tutorial_attempt("P1が置き去りに。やり直し")
 				return
 			if is_coop_mode():
 				_fail_coop_immediately("P1が画面外に取り残されました。協力失敗です。")
@@ -2387,9 +2437,9 @@ func _update_tutorial_saw_lesson(dt: float) -> bool:
 func _recover_tutorial_unexpected_ocean_entry(player_index: int, hint: String) -> void:
 	if is_tutorial_ghost_practice() and player_index != get_tutorial_ghost_player():
 		_revive_tutorial_player(player_index)
-		var ghost_hint := "P%dがコースへ復帰しました。ゴーストシャークの操作を続けてください。" % player_index
+		var ghost_hint := "P%dが復帰。続けよう" % player_index
 		message_text = ghost_hint
-		tutorial_flow.set_hint(ghost_hint, 3.0)
+		tutorial_flow.set_hint(ghost_hint, 2.6, TutorialFlowBase.HINT_TONE_GOOD)
 		tutorial_ui_revision += 1
 		refresh_status_text()
 		state_changed.emit(game_state)
@@ -2424,9 +2474,9 @@ func _update_tutorial_special_step(dt: float) -> bool:
 			# 標的側が落ちてもゴーストの練習は続けたいので、標的だけを復帰させる。
 			# ステップ全体をやり直すとゴースト側も復活してしまい、練習が始められない。
 			_revive_tutorial_player(survivor_index)
-			var hint := "P%dが復帰しました。ゴーストシャークの操作を続けてください。" % survivor_index
+			var hint := "P%dが復帰。続けよう" % survivor_index
 			message_text = hint
-			tutorial_flow.set_hint(hint, 3.0)
+			tutorial_flow.set_hint(hint, 2.6, TutorialFlowBase.HINT_TONE_GOOD)
 			tutorial_ui_revision += 1
 			refresh_status_text()
 			state_changed.emit(game_state)
@@ -2883,6 +2933,15 @@ func is_result_ghost(player_index: int) -> bool:
 	return (result_ghost_mask & (1 if player_index == 1 else 2)) != 0
 
 
+## サドンデスへ行くときに体が戻った幽霊（sudden_death_revived_mask）。
+func is_sudden_death_revived(player_index: int) -> bool:
+	return (sudden_death_revived_mask & (1 if player_index == 1 else 2)) != 0
+
+
+func mark_sudden_death_revived(player_index: int) -> void:
+	sudden_death_revived_mask |= 1 if player_index == 1 else 2
+
+
 func get_result_formula_text(player_index: int) -> String:
 	var correct := result_p1_correct_count if player_index == 1 else result_p2_correct_count
 	var hp := result_p1_hp if player_index == 1 else result_p2_hp
@@ -3002,8 +3061,8 @@ func _start_goal_race() -> void:
 	game_state = Constants.STATE_GOAL_RACE
 	message_text = "GOAL へ走れ！" if not use_english_ui else "Race to the GOAL!"
 	if revived_players and tutorial_flow != null:
-		# 画面中央は本編と同じ「GOAL へ走れ！」のまま。復帰の説明はコーチバーに出す。
-		tutorial_flow.set_hint("脱落したプレイヤーもハート1つで復帰します。ゴールへ向かってください。", 4.0)
+		# 画面中央は本編と同じ「GOAL へ走れ！」のまま。復帰の説明はミッションの行に出す。
+		tutorial_flow.set_hint("ハート1つで復帰！", 3.0, TutorialFlowBase.HINT_TONE_GOOD)
 	refresh_status_text()
 	state_changed.emit(game_state)
 
@@ -3136,8 +3195,8 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 		if _update_local_result_goal(dt, p1_reached, p2_reached):
 			return
 		if tutorial_goal and (p1_reached or p2_reached):
-			# 本編のローカル2Pと同じ待ちの文言（_goal_wait_message）をコーチバーにも出す。
-			tutorial_flow.set_hint(_goal_wait_message(), 3.4)
+			# 本編のローカル2Pと同じ待ちの文言（_goal_wait_message）をミッションの行にも出す。
+			tutorial_flow.set_hint(_goal_wait_message(), 3.0, TutorialFlowBase.HINT_TONE_GOOD)
 	elif tutorial_goal:
 		# スコアタワーを使えないとき（演出の無効化時）は従来どおり完了ステップへ進む。
 		if _update_tutorial_goal(p1_reached, p2_reached):
@@ -3174,7 +3233,7 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 		goal_winner = 0
 		if _is_tutorial_mode() and tutorial_flow != null:
 			# チュートリアルのレースは失敗で終わらせず、2人を復活させて再スタートする。
-			_reset_tutorial_attempt("2人ともゴール前に脱落しました。もう一度レースします。")
+			_reset_tutorial_attempt("2人とも脱落…もう一度")
 			return
 		var defeat_message := (
 			"全員がゴール前に脱落しました。"
@@ -3210,7 +3269,7 @@ func _update_tutorial_goal(p1_reached: bool, p2_reached: bool) -> bool:
 	if p1_reached or p2_reached:
 		# 本編のローカル2Pと同じ文言（_goal_wait_message）。
 		message_text = _goal_wait_message()
-		tutorial_flow.set_hint(message_text, 3.4)
+		tutorial_flow.set_hint(message_text, 3.0, TutorialFlowBase.HINT_TONE_GOOD)
 		tutorial_ui_revision += 1
 		refresh_status_text()
 	return false
@@ -3593,7 +3652,7 @@ func uses_sudden_death() -> bool:
 
 
 func is_sudden_death_running() -> bool:
-	return game_state == Constants.STATE_SUDDEN_DEATH and sudden_death != null and sudden_death.is_running()
+	return game_state == Constants.STATE_SUDDEN_DEATH and sudden_death_game != null and sudden_death_game.is_running()
 
 
 ## Avatar runs: only while the director walks the runner (deck walk-off, onto the lift, pickup).
@@ -3621,6 +3680,13 @@ static func sudden_death_key_for_choice(choice: int, choice_count: int) -> int:
 
 func _reset_sudden_death_state() -> void:
 	sudden_death = null
+	sudden_death_game = null
+	sudden_death_kind = ""
+	sudden_death_seed = 0
+	sudden_death_record = {}
+	sudden_death_live_players = false
+	sudden_death_revived_mask = 0
+	sudden_death_title = ""
 	sudden_death_pending = false
 	sudden_death_winner = 0
 	sudden_death_decided_by = ""
@@ -3649,9 +3715,17 @@ func _reset_sudden_death_state() -> void:
 func _prepare_sudden_death() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.randomize()
+	# 種目を決める（2026-10-18 から種目は1つだけ。ルーレットはしない）。
+	sudden_death_kind = ""
+	for kind: String in SUDDEN_DEATH_GAMES:
+		sudden_death_kind = kind
+		break
+	if not debug_sudden_death_kind.is_empty():
+		sudden_death_kind = debug_sudden_death_kind
+	sudden_death_seed = rng.randi()
 	_sudden_death_questions = SuddenDeathQuestions.collect(
-		provider, subject, grade, difficulty, quiz_list, SuddenDeathTuning.new(), rng)
-	sudden_death_pending = _sudden_death_questions.size() == SuddenDeathTuning.QUESTION_COUNT
+		provider, subject, grade, difficulty, quiz_list, SuddenDeathTuning.new(), rng, sudden_death_question_target())
+	sudden_death_pending = has_sudden_death_game(sudden_death_kind) and _sudden_death_questions.size() == sudden_death_question_target()
 	_sudden_death_requested = false
 	_sudden_death_exit_requested = false
 	if not sudden_death_pending:
@@ -3695,8 +3769,10 @@ func _finish_sudden_death_generation(items: Array[QuizItem]) -> void:
 	# Underground already: swap them in while the rules still wait (no question is shown yet).
 	if sudden_death != null and sudden_death.phase == SuddenDeathState.Phase.INTRO:
 		sudden_death.quizzes = questions.duplicate()
+	if sudden_death_game != null and sudden_death_game.waiting_for_start:
+		sudden_death_game.quizzes = questions.duplicate()
 	print("[SuddenDeath] Generated %d of %d questions (%d received)" % [
-		sudden_death_generated_count, SuddenDeathTuning.QUESTION_COUNT, items.size()])
+		sudden_death_generated_count, sudden_death_question_target(), items.size()])
 
 
 ## The provider never answered: carry on with the collected questions.
@@ -3724,12 +3800,13 @@ func sudden_death_question_progress() -> float:
 ## SuddenDeathState.Phase.INTRO until start_sudden_death_countdown().
 ## Returns false when there is nothing to start.
 func begin_sudden_death() -> bool:
-	if not sudden_death_pending or game_state != Constants.STATE_RESULT_CEREMONY:
+	if not sudden_death_pending or game_state != Constants.STATE_RESULT_CEREMONY or not has_sudden_death_game(sudden_death_kind):
 		return false
 	_sudden_death_saved.clear()
 	for field: String in SUDDEN_DEATH_SURFACE_FIELDS:
 		_sudden_death_saved[field] = get(field)
-	sudden_death = SuddenDeathState.new()
+	sudden_death = null
+	sudden_death_game = _create_sudden_death_game(sudden_death_kind)
 	result_presentation_active = false
 	result_ghost_mask = 0
 	world_scroll_z = 0.0
@@ -3739,12 +3816,13 @@ func begin_sudden_death() -> bool:
 	player2_x = -SUDDEN_DEATH_START_X
 	player_z = 0.0
 	player2_z = 0.0
-	sudden_death.setup(_sudden_death_questions, true)
+	sudden_death_game.setup(_sudden_death_questions, sudden_death_seed)
 	# Past the collected questions the arithmetic generator keeps the duel going.
 	var rng := RandomNumberGenerator.new()
-	rng.randomize()
-	sudden_death.extra_question = func() -> QuizItem:
+	rng.seed = sudden_death_seed ^ 0x5D1E
+	sudden_death_game.extra_question = func() -> QuizItem:
 		return SuddenDeathQuestions.fallback(provider, subject, grade, rng)
+	sudden_death_record = {}
 	_active_wall_speed = 0.0
 	_sudden_death_input.clear()
 	sudden_death_facing = 0.0
@@ -3804,14 +3882,14 @@ func _revive_for_sudden_death(player_index: int) -> void:
 
 ## Landing and intro done (docs 2.2): 3-2-1, then the first question.
 func start_sudden_death_countdown() -> void:
-	if sudden_death == null or sudden_death.phase != SuddenDeathState.Phase.INTRO:
+	if sudden_death_game == null or not sudden_death_game.waiting_for_start:
 		return
 	sudden_death_presentation_lock = false
 	_sudden_death_input.clear()
-	sudden_death.start_countdown()
-	for event: Dictionary in sudden_death.events:
+	sudden_death_game.start()
+	for event: Dictionary in sudden_death_game.events:
 		sudden_death_event.emit(event)
-	sudden_death.events.clear()
+	sudden_death_game.events.clear()
 
 
 ## Presentation only: the director parks a runner (deck pad, lift tower, pickup walk).
@@ -3834,48 +3912,95 @@ func place_sudden_death_runner(player_index: int, x: float, z: float, y := 0.0) 
 ## seconds into this frame. [param kind] "buzz" (the jump key) or "answer" with [param key]
 ## (SUDDEN_DEATH_KEY_*). Only the first press of each kind in a frame counts; held keys never repeat.
 func submit_sudden_death_key(player_index: int, kind: String, key := -1, offset := 0.0) -> void:
-	if game_state != Constants.STATE_SUDDEN_DEATH or sudden_death == null or sudden_death_presentation_lock:
+	if game_state != Constants.STATE_SUDDEN_DEATH or sudden_death_game == null or sudden_death_presentation_lock:
 		return
 	if player_index < 1 or player_index > 2:
 		return
 	var slot := player_index - 1
 	if _sudden_death_input.is_empty():
-		_sudden_death_input = {"buzz": [-1.0, -1.0], "choice": [-1, -1], "choice_offset": [0.0, 0.0]}
-	if kind == "buzz":
-		var buzzes: Array = _sudden_death_input.buzz
-		if float(buzzes[slot]) < 0.0:
-			buzzes[slot] = maxf(offset, 0.0)
+		_sudden_death_input = {"action": [-1.0, -1.0], "answer": [-1, -1], "answer_offset": [0.0, 0.0]}
+	# "buzz" は旧の名前（アクションキー＝ジャンプキー）。
+	if kind == "action" or kind == "buzz":
+		var actions: Array = _sudden_death_input.action
+		if float(actions[slot]) < 0.0:
+			actions[slot] = maxf(offset, 0.0)
 	elif kind == "answer":
-		var choices: Array = _sudden_death_input.choice
-		var choice := sudden_death_choice_for_key(key, sudden_death.current_choices())
-		if choice >= 0 and int(choices[slot]) < 0:
-			choices[slot] = choice
-			(_sudden_death_input.choice_offset as Array)[slot] = maxf(offset, 0.0)
+		var answers: Array = _sudden_death_input.answer
+		var choice := sudden_death_choice_for_key(key, sudden_death_game.current_choices())
+		if choice >= 0 and int(answers[slot]) < 0:
+			answers[slot] = choice
+			(_sudden_death_input.answer_offset as Array)[slot] = maxf(offset, 0.0)
+
+
+## GameWorld, every frame before update(): the held direction of [param player_index] in the air game
+## (SkyGateGame, docs/sudden_death_v2/skygate_build_plan.md 4.5). x = right, y = forward, length 0..1.
+func set_sudden_death_move(player_index: int, move: Vector2) -> void:
+	if game_state != Constants.STATE_SUDDEN_DEATH or sudden_death_game == null or sudden_death_presentation_lock:
+		return
+	if player_index < 1 or player_index > 2:
+		return
+	if _sudden_death_input.is_empty():
+		_sudden_death_input = {"action": [-1.0, -1.0], "answer": [-1, -1], "answer_offset": [0.0, 0.0]}
+	if not _sudden_death_input.has("move"):
+		_sudden_death_input["move"] = [Vector2.ZERO, Vector2.ZERO]
+	(_sudden_death_input.move as Array)[player_index - 1] = move.limit_length(1.0)
 
 
 func _update_sudden_death(dt: float) -> void:
-	var sd := sudden_death
-	if sd == null:
+	var game := sudden_death_game
+	if game == null:
 		return
 	_active_wall_speed = 0.0
 	var input := _sudden_death_input
 	_sudden_death_input = {}
-	sd.step(dt, input)
-	for player_index in [1, 2]:
-		if sd.caught[player_index - 1] and not is_flood_caught(player_index):
-			_sweep_runner_away(player_index)
-	if not p1_alive and game_over_timer > 0.0:
-		game_over_timer += dt
-	if not p2_alive and player2_game_over_timer > 0.0:
-		player2_game_over_timer += dt
-	_process_dead_player_physics(dt)
-	for event: Dictionary in sd.events:
-		_on_sudden_death_rule_event(event)
+	game.step(dt, input)
+	for event: Dictionary in game.events:
 		sudden_death_event.emit(event)
-	sd.events.clear()
-	if sd.finished and not _sudden_death_exit_requested:
+	game.events.clear()
+	if game.finished and not _sudden_death_exit_requested:
 		_sudden_death_exit_requested = true
 		sudden_death_transition_requested.emit(false)
+
+
+## GameWorld：一時停止・ウィンドウのフォーカスを失った（種目ごとに扱う。ビタ止めは挑戦のやり直し）。
+func interrupt_sudden_death() -> void:
+	if game_state != Constants.STATE_SUDDEN_DEATH or sudden_death_game == null:
+		return
+	_sudden_death_input.clear()
+	sudden_death_game.interrupt()
+	for event: Dictionary in sudden_death_game.events:
+		sudden_death_event.emit(event)
+	sudden_death_game.events.clear()
+
+
+## 種目ごとに確保する問題の数（docs/sudden_death_v2/common.md 第9章）。
+func sudden_death_question_target() -> int:
+	if sudden_death_kind == "sky_gate":
+		return SkyGateGame.QUESTION_COUNT
+	if sudden_death_kind == "parachute":
+		return ParachuteGame.QUESTION_COUNT
+	return SuddenDeathTuning.QUESTION_COUNT
+
+
+## 新サドンデスの種目（docs/sudden_death_v2/common.md 第2章）。2026-10-19 から「つきやぶれ！スカイゲート」の1つだけ
+## （docs/sudden_death_v2/sky_gate.md。「ひらけ！パラシュート」のコードは残してある）。
+## 種目を足すときは、ここと _create_sudden_death_game と HeliSuddenDeathDirector._create_presenter に足す。
+const SUDDEN_DEATH_GAMES: Array[String] = ["sky_gate"]
+## 引き分けでは選ばないが、まだ動かせる種目（テストの debug_sudden_death_kind と記録の再生のため）。
+const LEGACY_SUDDEN_DEATH_GAMES: Array[String] = ["parachute"]
+
+
+static func has_sudden_death_game(kind: String) -> bool:
+	return SUDDEN_DEATH_GAMES.has(kind) or LEGACY_SUDDEN_DEATH_GAMES.has(kind)
+
+
+func _create_sudden_death_game(kind: String) -> SuddenDeathGame:
+	if kind == "sky_gate":
+		return SkyGateGame.new()
+	if kind == "parachute":
+		return ParachuteGame.new()
+	push_warning("[SuddenDeath] No sudden death game '%s'." % kind)
+	return null
 
 
 ## The rider of a sinking lift flinches (the HP hit reaction, no HP is taken).
@@ -3914,11 +4039,13 @@ func _sweep_runner_away(player_index: int) -> void:
 ## waits at the verdict until release_result_return_hold() (the winner's tower
 ## grows back and the loser comes out of the drain first, docs 2.3).
 func end_sudden_death(hold := false) -> bool:
-	if game_state != Constants.STATE_SUDDEN_DEATH or sudden_death == null:
+	if game_state != Constants.STATE_SUDDEN_DEATH or sudden_death_game == null or sudden_death_game.winner <= 0:
 		return false
-	sudden_death_winner = sudden_death.winner
-	sudden_death_decided_by = sudden_death.decided_by
-	sudden_death_question_count = sudden_death.question_index + 1
+	sudden_death_winner = sudden_death_game.winner
+	sudden_death_decided_by = sudden_death_game.decided_by
+	sudden_death_question_count = sudden_death_game.question_index + 1
+	sudden_death_record = sudden_death_game.record()
+	sudden_death_game = null
 	for field: String in _sudden_death_saved:
 		set(field, _sudden_death_saved[field])
 	p1_flood_caught = false
@@ -3968,6 +4095,8 @@ func abort_sudden_death(hold := true) -> bool:
 		sudden_death_generation = "failed"
 	sudden_death_pending = false
 	sudden_death = null
+	sudden_death_game = null
+	sudden_death_record = {}
 	sudden_death_winner = 0
 	sudden_death_decided_by = ""
 	sudden_death_question_count = 0
@@ -3999,7 +4128,9 @@ func abort_sudden_death(hold := true) -> bool:
 
 ## Debug builds only (GameWorld F9): finish a local 2P ten-question round now as
 ## a draw with both runners at the goal, to rehearse the finale and sudden death.
-func debug_force_draw_finish() -> bool:
+## [param ghost_mask] (1 = P1, 2 = P2, 3 = both; Shift+F9 / Ctrl+F9 / Ctrl+Shift+F9) puts those finalists on the
+## podium as eliminated ghosts instead, to rehearse the revival (docs/sudden_death_v2/ghost_revive.md).
+func debug_force_draw_finish(ghost_mask := 0) -> bool:
 	if not uses_local_result_ceremony() or _is_tutorial_mode() or result_presentation_active:
 		return false
 	if game_state not in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]:
@@ -4012,6 +4143,11 @@ func debug_force_draw_finish() -> bool:
 	var correct := maxi(1, maxi(score, player2_score))
 	score = correct
 	player2_score = correct
+	ghost_mask = clampi(ghost_mask, 0, 3)
+	if ghost_mask == 1 or ghost_mask == 2:
+		# A ghost scores its answers ×1, the living ×(HP + 0.5): (2 HP + 1) answers against 2 tie.
+		score = 2 * hp + 1 if ghost_mask == 1 else 2
+		player2_score = 2 if ghost_mask == 1 else 2 * hp + 1
 	goal_z = get_local_result_goal_z()
 	world_scroll_z = maxf(world_scroll_z, goal_z - RESULT_ELIMINATION_GOAL_AHEAD)
 	player_x = RESULT_PLAYER_X
@@ -4020,8 +4156,19 @@ func debug_force_draw_finish() -> bool:
 	player2_z = player_z
 	result_ghost_mask = 0
 	goal_reached_mask = 0
-	_record_result_finisher(1)
-	_record_result_finisher(2)
+	result_ghost_arrival_player = 0
+	result_ghost_arrival_elapsed = 0.0
+	for player_index in [1, 2]:
+		if (ghost_mask & (1 if player_index == 1 else 2)) == 0:
+			_record_result_finisher(player_index)
+			continue
+		if player_index == 1:
+			p1_alive = false
+			p1_hp = 0
+		else:
+			p2_alive = false
+			p2_hp = 0
+		_record_result_ghost(player_index)
 	_begin_result_ceremony()
 	return result_presentation_active
 
@@ -4083,7 +4230,7 @@ func _resolve_tutorial_collision() -> void:
 		_resolve_tutorial_collision_2p()
 		return
 	if not tutorial_flow.is_quiz_step() or current_quiz == null:
-		_reset_tutorial_attempt("画面の案内に従って操作してください。")
+		_reset_tutorial_attempt("案内に従おう")
 		return
 
 	var door := _check_player_door(player_x)
@@ -4113,21 +4260,17 @@ func _resolve_tutorial_collision() -> void:
 	if p1_alive:
 		# 本編と同じく、ハートが残っていれば壁が開いて次へ進める。
 		choice_locked = true
-		message_text = "%s ハートが1つ減りました（残り%d）。" % [hint, p1_hp]
-		tutorial_flow.set_hint(message_text, 4.0)
+		message_text = "ハート−1　%s" % hint
+		tutorial_flow.set_hint(message_text, 3.0)
 		tutorial_ui_revision += 1
 		wrong_answer.emit(message_text)
 		_complete_tutorial_quiz_step(false)
 		return
 	# ハートが尽きた。本編と同じ激突演出を見せ切ってから、ハートを戻して同じ問題をやり直す。
 	choice_locked = true
-	message_text = "%s ハートが0になり脱落しました。" % hint
+	message_text = "ハート0で脱落…"
 	tutorial_flow.set_hint(message_text, WALL_DEATH_SEQUENCE_DURATION)
-	tutorial_flow.begin_death_recovery(
-		WALL_DEATH_SEQUENCE_DURATION,
-		true,
-		"ハートを3つに戻して、同じ問題からやり直します。"
-	)
+	tutorial_flow.begin_death_recovery(WALL_DEATH_SEQUENCE_DURATION, true, "ハートを戻してもう一度")
 	tutorial_ui_revision += 1
 	wrong_answer.emit(message_text)
 
@@ -4136,35 +4279,34 @@ func _resolve_tutorial_collision() -> void:
 ## 正解のドアに入った場合は、壁の手前からやり直して不正解のドアへ向かってもらう。
 func _resolve_tutorial_hp_lesson_solo(door: int) -> void:
 	if door == current_quiz.a:
-		_reset_tutorial_attempt(
-			"そこは正解のドアです。この練習では、わざと不正解の「%s」のドアに入ってください。"
-			% _tutorial_lesson_choice_text()
-		)
+		_reset_tutorial_attempt("今回はわざと「%s」へ" % _tutorial_lesson_choice_text())
 		return
 	choice_locked = true
 	_apply_tutorial_lesson_damage(1)
+	# 説明は complete_task が出すルール表示（ハート −1／0になると脱落）が受け持つ。
 	tutorial_flow.complete_task(1, "wrong_door")
-	var cause := "壁にぶつかっても" if door < 0 else "不正解のドアに入ると"
-	message_text = "%sハートが1つ減ります（残り%d）。0になるまでは走り続けられます。" % [cause, p1_hp]
-	tutorial_flow.set_hint(message_text, 4.2)
+	message_text = "ハート −1"
 	tutorial_ui_revision += 1
 	wrong_answer.emit(message_text)
 	_complete_tutorial_quiz_step(false)
 
 
+## ミスしたときにミッションの行へ出す短いヒント。誘導ありの問題では光るドアの方向を教える。
 func _tutorial_miss_hint(door: int, answer: int) -> String:
 	if door == -2:
-		return "ドアの境目に衝突しました。ドアの中央を通過してください。"
+		return "ドアの真ん中を通ろう"
+	if tutorial_flow != null and tutorial_flow.guided_answer() >= 0:
+		return "光るドアは%s" % _tutorial_answer_label(answer)
 	if door < 0:
-		return "ドアを外して壁に激突しました。正解は%sのドアでした。" % _tutorial_answer_label(answer)
-	return "不正解のドアでした。正解は%sのドアです。" % _tutorial_answer_label(answer)
+		return "壁に激突！ 正解は%s" % _tutorial_answer_label(answer)
+	return "正解は%s" % _tutorial_answer_label(answer)
 
 func _resolve_tutorial_collision_2p() -> void:
 	var p1_at_wall := p1_alive and not p1_waiting_for_shark and player_z >= wall_z - 0.4
 	var p2_at_wall := p2_alive and not p2_waiting_for_shark and player2_z >= wall_z - 0.4
 	if not tutorial_flow.is_quiz_step() or current_quiz == null:
 		# 壁を使わないステップで壁に触れてしまった場合は、案内の位置へ戻す。
-		_reset_tutorial_attempt("画面の案内に従って操作してください。")
+		_reset_tutorial_attempt("案内に従おう")
 		tutorial_flow.restart_current_step(false)
 		return
 	if _tutorial_eval_wall != current_wall_index:
@@ -4201,30 +4343,19 @@ func _resolve_tutorial_guided_wall_2p(p1_at_wall: bool, p2_at_wall: bool) -> voi
 		correct_flash = 1.0
 		camera_shake = 0.18
 		var detail := (
-			"2人同時に正解！ 同時なら2人とも1点です。"
+			"2人とも1点！"
 			if p1_correct and p2_correct
-			else "P%dが先に正解して1点！ 壁は2人とも通れるように開きます。" % (1 if p1_correct else 2)
+			else "P%dが1点！" % (1 if p1_correct else 2)
 		)
-		# 画面中央の緑の文字は短く、詳しい説明はコーチバーに出す。
+		# 画面中央の緑の文字とミッションの行は短く。ルール（先着の1点）はルール表示が受け持つ。
 		message_text = "2人とも正解！" if p1_correct and p2_correct else "P%d 正解！" % (1 if p1_correct else 2)
-		tutorial_flow.set_hint(detail, 4.0)
+		tutorial_flow.set_hint(detail, 3.0, TutorialFlowBase.HINT_TONE_GOOD)
 		tutorial_ui_revision += 1
 		correct_answer.emit()
 		_complete_tutorial_quiz_step(true)
 		return
-	var misses: Array[String] = []
-	if p1_at_wall:
-		misses.append(_tutorial_player_miss_text("P1", _check_player_door(player_x), answer))
-	if p2_at_wall:
-		misses.append(_tutorial_player_miss_text("P2", _check_player_door(player2_x), answer))
-	var shown: Array[String] = []
-	for miss: String in misses:
-		if not miss.is_empty():
-			shown.append(miss)
-	var hint := "%s 正解は%sのドアです。光ったドアへ向かってください。" % [
-		" / ".join(shown), _tutorial_answer_label(answer)
-	]
-	_reset_tutorial_attempt(hint.strip_edges())
+	var door := _check_player_door(player_x if p1_at_wall else player2_x)
+	_reset_tutorial_attempt(_tutorial_miss_hint(door, answer))
 
 
 ## ハート体験（2P）。2人ともわざと不正解のドア（または壁）に入るとハートが1つずつ減る。
@@ -4245,11 +4376,8 @@ func _resolve_tutorial_hp_lesson_2p(p1_at_wall: bool, p2_at_wall: bool) -> void:
 			# 正解ドアの前では止まったまま。壁沿いに不正解のドアへ移ってもらう。
 			if (_tutorial_lesson_hint_mask & bit) == 0:
 				_tutorial_lesson_hint_mask |= bit
-				message_text = (
-					"P%dのそこは正解のドアです。わざと不正解の「%s」のドアへ移ってください。"
-					% [player_index, _tutorial_lesson_choice_text()]
-				)
-				tutorial_flow.set_hint(message_text, 3.6)
+				message_text = "P%d：今回は「%s」へ" % [player_index, _tutorial_lesson_choice_text()]
+				tutorial_flow.set_hint(message_text, 3.0)
 				tutorial_ui_revision += 1
 			continue
 		_tutorial_eval_mask |= bit
@@ -4260,16 +4388,16 @@ func _resolve_tutorial_hp_lesson_2p(p1_at_wall: bool, p2_at_wall: bool) -> void:
 		return
 	var answerable := (1 if _hp_answerable(1) else 0) | (2 if _hp_answerable(2) else 0)
 	if (answerable & ~_tutorial_eval_mask) == 0:
+		# 説明は2人目の complete_task が出すルール表示（ハート −1／0になるとサメに）が受け持つ。
 		choice_locked = true
-		message_text = "2人ともハートが1つ減りました（P1 残り%d・P2 残り%d）。0になるまでは走り続けられます。" % [p1_hp, p2_hp]
-		tutorial_flow.set_hint(message_text, 4.4)
+		message_text = "ハート −1"
 		tutorial_ui_revision += 1
 		wrong_answer.emit(message_text)
 		_complete_tutorial_quiz_step(false)
 		return
 	var other := 2 if newly_hit[0] == 1 else 1
-	message_text = "P%dのハートが1つ減りました。不正解の人は、相手が答えるまで壁の前で止まります。P%dも不正解のドアへ。" % [newly_hit[0], other]
-	tutorial_flow.set_hint(message_text, 4.0)
+	message_text = "P%dも「%s」へ" % [other, _tutorial_lesson_choice_text()]
+	tutorial_flow.set_hint(message_text, 3.0)
 	tutorial_ui_revision += 1
 	wrong_answer.emit(message_text)
 
@@ -4301,10 +4429,8 @@ func _resolve_tutorial_hp_wall_2p(p1_at_wall: bool, p2_at_wall: bool) -> void:
 			tutorial_flow.complete_task(player_index, "answer")
 			continue
 		_apply_tutorial_hp_damage(player_index)
-		var label := "P%d" % player_index
 		var hp_left := get_player_hp(player_index)
-		var hp_text := ("ハート残り%d" % hp_left) if hp_left > 0 else "ハート0で脱落"
-		misses.append("%s（%s）" % [_tutorial_player_miss_text(label, door, answer), hp_text])
+		misses.append("P%d %s" % [player_index, "ハート−1" if hp_left > 0 else "脱落"])
 	if not judged:
 		return
 	_try_finish_tutorial_hp_wall(misses)
@@ -4315,18 +4441,18 @@ func _try_finish_tutorial_hp_wall(misses: Array[String] = []) -> void:
 	if tutorial_flow == null or not tutorial_flow.uses_hp_rules() or current_quiz == null or choice_locked:
 		return
 	var answer := current_quiz.a
-	var miss_summary := " / ".join(misses)
+	var miss_summary := "・".join(misses)
 	if _tutorial_correct_mask != 0:
 		choice_locked = true
 		correct_flash = 1.0
 		camera_shake = 0.18
 		var scorer := (
-			"2人同時に正解。2人とも1点です。"
+			"2人とも1点！"
 			if _tutorial_correct_mask == 3
-			else "P%dが先に正解して1点！" % (1 if (_tutorial_correct_mask & 1) != 0 else 2)
+			else "P%dが1点！" % (1 if (_tutorial_correct_mask & 1) != 0 else 2)
 		)
 		message_text = "2人とも正解！" if _tutorial_correct_mask == 3 else "P%d 正解！" % (1 if (_tutorial_correct_mask & 1) != 0 else 2)
-		tutorial_flow.set_hint(("%s %s" % [scorer, miss_summary]).strip_edges(), 4.0)
+		tutorial_flow.set_hint(("%s %s" % [scorer, miss_summary]).strip_edges(), 3.0, TutorialFlowBase.HINT_TONE_GOOD)
 		tutorial_ui_revision += 1
 		correct_answer.emit()
 		_complete_tutorial_quiz_step(true)
@@ -4334,13 +4460,9 @@ func _try_finish_tutorial_hp_wall(misses: Array[String] = []) -> void:
 	if not p1_alive and not p2_alive:
 		# 2人とも倒れたときだけ、激突演出を見せ切ってから同じ問題をやり直す。
 		choice_locked = true
-		message_text = "2人とも脱落しました。正解は%sのドアでした。" % _tutorial_answer_label(answer)
+		message_text = "2人とも脱落… 正解は%s" % _tutorial_answer_label(answer)
 		tutorial_flow.set_hint(message_text, WALL_DEATH_SEQUENCE_DURATION)
-		tutorial_flow.begin_death_recovery(
-			WALL_DEATH_SEQUENCE_DURATION,
-			true,
-			"ハートを戻して、同じ問題からやり直します。"
-		)
+		tutorial_flow.begin_death_recovery(WALL_DEATH_SEQUENCE_DURATION, true, "ハートを戻してもう一度")
 		tutorial_ui_revision += 1
 		wrong_answer.emit(message_text)
 		return
@@ -4348,17 +4470,17 @@ func _try_finish_tutorial_hp_wall(misses: Array[String] = []) -> void:
 	if _tutorial_eval_mask != 0 and (answerable & ~_tutorial_eval_mask) == 0:
 		# 答えられる全員が不正解。本編と同じく得点なしで壁を開けて次へ進む。
 		choice_locked = true
-		var nobody := "2人とも不正解。" if _tutorial_eval_mask == 3 else "不正解。"
-		message_text = ("%s正解は%sのドアでした。 %s" % [nobody, _tutorial_answer_label(answer), miss_summary]).strip_edges()
-		tutorial_flow.set_hint(message_text, 4.2)
+		var nobody := "2人とも不正解" if _tutorial_eval_mask == 3 else "不正解"
+		message_text = "%s 正解は%s" % [nobody, _tutorial_answer_label(answer)]
+		tutorial_flow.set_hint(message_text, 3.0)
 		tutorial_ui_revision += 1
 		wrong_answer.emit(message_text)
 		_complete_tutorial_quiz_step(false)
 		return
 	if miss_summary.is_empty():
 		return
-	message_text = "%s 相手が答えるまで壁の前で待ちます。" % miss_summary
-	tutorial_flow.set_hint(message_text, 3.6)
+	message_text = "%s　相手を待とう" % miss_summary
+	tutorial_flow.set_hint(message_text, 3.0)
 	tutorial_ui_revision += 1
 	wrong_answer.emit(message_text)
 
@@ -4390,15 +4512,6 @@ func _tutorial_lesson_choice_text() -> String:
 		return "不正解"
 	return current_quiz.c[door]
 
-
-func _tutorial_player_miss_text(player_label: String, door: int, answer: int) -> String:
-	if door == -2:
-		return "%sはドアの境目にぶつかりました" % player_label
-	if door < 0:
-		return "%sは壁にぶつかりました" % player_label
-	if door == answer:
-		return ""
-	return "%sは不正解のドアでした" % player_label
 
 func _tutorial_answer_label(answer: int) -> String:
 	if num_choices == 4:
@@ -4456,10 +4569,7 @@ func _register_coop_result(correct: bool, p1_door: int = -1, p2_door: int = -1) 
 		"p2_choice": p2_door
 	})
 
-	var response_time: float = (Time.get_ticks_msec() - _quiz_shown_time) / 1000.0
-	recent_response_times.append(response_time)
-	if recent_response_times.size() > 5:
-		recent_response_times.pop_front()
+	_record_answer_timing(correct)
 
 	if correct:
 		QuizManager.quiz_optimizer.evaluate_history(quiz_history, subject, grade, difficulty)
@@ -4646,14 +4756,14 @@ func complete_ocean_shark_attack(player_index: int) -> void:
 			tutorial_flow.complete_task(player_index, "ocean")
 			if tutorial_flow.hands_off_to_ghost_after_hazard():
 				# 復活させず、そのままゴーストシャークの練習ステップへ引き継ぐ。
-				message_text = "サメに襲われて脱落。ここからはゴーストシャークで反撃します。"
-				tutorial_flow.set_hint(message_text, 4.0)
+				# 海のルールは complete_task が出すルール表示、次の操作はミッションの行が受け持つ。
+				message_text = "サメで反撃へ"
 				_advance_tutorial_step()
 				return
 			# 壁への激突と同じく、サメ演出も最後まで見せてから復帰させる。
+			# 説明は complete_task が出すルール表示（海は即アウト）が受け持つ。
 			tutorial_flow.begin_death_recovery(TUTORIAL_OCEAN_RECOVERY_DURATION, false)
-			message_text = "サメに襲われました。コースの外は危険です。"
-			tutorial_flow.set_hint(message_text, TUTORIAL_OCEAN_RECOVERY_DURATION)
+			message_text = "サメに襲われた！"
 			refresh_status_text()
 			state_changed.emit(game_state)
 			return
@@ -4662,22 +4772,18 @@ func complete_ocean_shark_attack(player_index: int) -> void:
 			# 実践は死亡復帰、最終レースは _update_goal_race 側で扱う。
 			var all_defeated: bool = not p1_alive and (num_players < 2 or not p2_alive)
 			if all_defeated and tutorial_flow.punishes_mistakes():
-				message_text = (
-					"2人とも脱落しました。同じ問題をやり直します。"
-					if num_players >= 2
-					else "海に落ちると、ハートに関係なく脱落します。同じ問題をやり直します。"
-				)
+				message_text = "2人とも海で脱落…" if num_players >= 2 else "海で脱落…"
 				tutorial_flow.set_hint(message_text, WALL_DEATH_SEQUENCE_DURATION)
 				tutorial_flow.begin_death_recovery(WALL_DEATH_SEQUENCE_DURATION, true)
 			else:
-				message_text = "P%dが海でサメに襲われて脱落しました。" % player_index
-				tutorial_flow.set_hint(message_text, 3.4)
+				message_text = "P%dが海で脱落" % player_index
+				tutorial_flow.set_hint(message_text, 3.0)
 				# 落ちた人はもう答えられない。残った人の回答だけで壁を閉じられるか確かめる。
 				_try_finish_tutorial_hp_wall()
 			refresh_status_text()
 			state_changed.emit(game_state)
 			return
-		_reset_tutorial_attempt("コースの外に落ちました。海に落ちるとハートに関係なく脱落します。安全な位置からやり直します。")
+		_reset_tutorial_attempt("海に注意！ やり直し")
 		return
 	# 片方が先にサメに倒されても、もう片方の海上・サメ襲撃演出を完走させる。
 	# 両者が倒れた後だけ、協力プレイの失敗処理へ進む。
@@ -4937,10 +5043,7 @@ func resolve_collision(p1_hit: bool = false, p2_hit: bool = false) -> void:
 
 		# パフォーマンスと行動データを記録
 		if current_quiz:
-			var response_time: float = (Time.get_ticks_msec() - _quiz_shown_time) / 1000.0
-			recent_response_times.append(response_time)
-			if recent_response_times.size() > 5:
-				recent_response_times.pop_front()
+			var response_time := _record_answer_timing(any_correct)
 
 			if QuizManager.player_analytics != null:
 				var chosen_door: int = _check_player_door(player_x) if p1_hit or not p1_correct else current_quiz.a

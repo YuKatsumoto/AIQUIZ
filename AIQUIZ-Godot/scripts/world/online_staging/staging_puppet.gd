@@ -3,8 +3,9 @@ extends RefCounted
 
 ## マッチング演出のキャラ 1 人（PlayerController の箱の人形の 1 体）を、決めた位置・向き・動きで止めて見せる。
 ## PlayerController の update_from_state（ゲームの動き）は使わず、毎フレーム次の順で置く：
-##   1. pose(clip, slot, ratio)：UAL のクリップを位置 0〜1 で当てる（_apply_intro_ual_pose と同じ道）
-##   2. stand_at(位置, 向き, 床の高さ) か sit_at(座る Transform3D)：pelvis をワールドで置き直す
+##   1. pose(clip, slot, ratio)：UAL のクリップを位置 0〜1 で当てる（_apply_intro_ual_pose と同じ道）。
+##      エモートの FBX は pose_skeleton（VS カットインの踊り）
+##   2. stand_at(位置, 向き, 床の高さ) か sit_at(座る Transform3D)：pelvis をワールドで置き直す。踊りは stand_dancing
 ## 向き（yaw）は +Z を回す角度（目印の yaw_deg と同じ約束）。UAL のポーズを当てた箱の人形はそのまま +Z が前。
 ## 立つときは足の裏の実測を床に合わせる（ポーズで BASE_Y から 0.14〜0.19 m ずれるため。仕様書 5）。
 
@@ -103,6 +104,11 @@ func pose_blend(clip_a: String, ratio_a: float, clip_b: String, ratio_b: float, 
 	return true
 
 
+## エモートの FBX（Mixamo の骨。ResultWinnerDance.make_clip）の今の姿を当てる。ゲームのエモートと同じく左右を写す。
+func pose_skeleton(skeleton: Skeleton3D, bones: Dictionary) -> void:
+	controller.call("_apply_skeleton_pose", parts(), skeleton, bones, true)
+
+
 func clip_length(clip: String, slot: int = AnimationRig.SLOT_UAL) -> float:
 	var r := rig()
 	return r.get_ual_clip_length(clip, slot) if r != null else 0.0
@@ -119,6 +125,33 @@ func stand_at(position: Vector3, yaw: float, ground_y: float, frame: Basis = Bas
 	var lowest: float = controller.call("_lowest_intro_foot_mesh_y", parts())
 	if is_finite(lowest):
 		pelvis.global_position.y += ground_y + FOOT_CLEARANCE - lowest
+
+
+## 踊りながら立たせる（pose_skeleton のあと。置き方は ResultWinnerDance と同じ）。踊りの回転（腰の向き）を打ち消して
+## 向きは yaw のまま保ち、sway（踊りの横のずれ。体の向きの座標）だけ動かす。体と帽子のいちばん低いところ
+## （ふつうは足、逆立ちなら帽子や頭・手）を床から lift（ResultWinnerDance.contact_lift：跳ねている高さ）に合わせる。
+func stand_dancing(position: Vector3, yaw: float, ground_y: float, sway: Vector3, lift: float) -> void:
+	var pelvis := parts().get("pelvis") as Node3D
+	if pelvis == null:
+		return
+	var pose_basis := pelvis.basis
+	var facing := Basis(Vector3.UP, yaw - pose_basis.get_euler().y)
+	var hips := pelvis.position.y - PlayerController.BASE_Y
+	pelvis.global_transform = Transform3D(facing * pose_basis, Vector3(position.x, ground_y + hips, position.z) + facing * sway)
+	var lowest := INF
+	for list: Array in [parts().get("meshes", []), parts().get("hat_meshes", [])]:
+		for item: Variant in list:
+			if not is_instance_valid(item):
+				continue
+			var mesh := item as MeshInstance3D
+			if mesh == null:
+				continue
+			var aabb := mesh.get_aabb()
+			var xf := mesh.global_transform
+			for corner in range(8):
+				lowest = minf(lowest, (xf * aabb.get_endpoint(corner)).y)
+	if is_finite(lowest):
+		pelvis.global_position.y += ground_y + FOOT_CLEARANCE + lift - lowest
 
 
 ## 座らせる：seat は pelvis の置き場所（目印 MK_SeatPassenger をワールドに直したもの。basis が向き）。
@@ -146,6 +179,23 @@ func begin_blend(seconds: float) -> void:
 	_blend_offsets = {}
 	_blend_seconds = seconds
 	_blend_time = 0.0
+
+
+## begin_blend と同じだが、つなぐ元の姿を呼ぶ側が持っている（前のフレームの最後に capture_display で取った姿）。
+## 同じフレームで別の書き手（PlayerController.update_from_state など）が先に姿を変えてしまう場合に使う。
+func begin_blend_from(snapshot: Dictionary, seconds: float) -> void:
+	if not is_ready() or seconds <= 0.0 or snapshot.is_empty():
+		cancel_blend()
+		return
+	_blend_snapshot = snapshot
+	_blend_offsets = {}
+	_blend_seconds = seconds
+	_blend_time = 0.0
+
+
+## 今見えている姿（pelvis はワールド、ほかは親から）。begin_blend_from に渡す。
+func capture_display() -> Dictionary:
+	return _capture_display()
 
 
 func cancel_blend() -> void:

@@ -699,8 +699,10 @@ func update_visual(gs: QuizGameState, dt: float = 0.0, players_landed: bool = fa
 		if dock == null or dock.is_deployed(): _update_lifts(gs)
 	_update_operator(gs, dt)
 	if operator_arriving():
+		# The chair rides the carriage's socket, so it needn't wait for the ship to finish
+		# the transfer (dock.READY_TIME): it comes down as soon as the entrance starts.
 		operator_seat.seat_transfer.advance_arrival(
-			dt, entrance_running and (dock == null or dock.is_deployed()),
+			dt, entrance_running,
 			gs.game_state in [Constants.STATE_FLYOVER, Constants.STATE_COUNTDOWN, Constants.STATE_PLAYING])
 
 

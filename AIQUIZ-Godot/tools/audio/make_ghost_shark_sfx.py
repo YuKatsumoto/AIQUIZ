@@ -343,22 +343,186 @@ def portal_cross():
     return stereo(body, seconds=1.1, mix=0.28, width_seed=97)
 
 
+def seeded_noise(n, low, high, seed):
+    """Like noise(), but from its own seed, so a cue does not depend on the order cues are built."""
+    rng = np.random.default_rng(seed)
+    hz = np.fft.rfftfreq(n, 1 / SR)
+    spec = np.fft.rfft(rng.standard_normal(n))
+    spec *= np.minimum(1, hz / low) ** 4 / (1 + (hz / high) ** 6)
+    y = np.fft.irfft(spec, n)
+    return y / max(1e-9, np.sqrt(np.mean(y * y)))
+
+
+def awaken():
+    """GOSTRIDER: the soul opens its arms and wakes as a ghost (~1.0 s). A short inhale swells into
+    a bright spectral chord, a soft low 'whump' at the pose, then sparkles that drift upward."""
+    length = 1.0
+    t = tt(length)
+    hit_at = 0.16
+    after = np.maximum(0, t - hit_at)
+    inhale = sweep_bandpass(seeded_noise(len(t), 400, 9000, 1201), 700 + 3800 * np.clip(t / hit_at, 0, 1) ** 2, q=2.6)
+    inhale /= np.max(np.abs(inhale))
+    inhale *= np.clip(t / hit_at, 0, 1) ** 2 * np.where(t < hit_at, 1.0, np.exp(-after / 0.05))
+    chord = np.zeros_like(t)
+    for k, hz in enumerate([523.25, 659.25, 783.99, 1046.5]):
+        chord += ghost_voice(t, np.full_like(t, hz) * (1 + 0.02 * np.exp(-after / 0.2)), vibrato_hz=5.5 + k * 0.4, vibrato_depth=0.01, voices=3, detune=0.006) / (1 + 0.35 * k)
+    chord *= np.where(t >= hit_at, env_ad(after, 0.015, 0.42), 0)
+    whump = np.sin(phase(95 * np.exp(-after / 0.07) + 42)) * np.where(t >= hit_at, env_ad(after, 0.003, 0.14), 0)
+    sparkle = np.zeros_like(t)
+    rng = np.random.default_rng(1207)
+    for at in np.sort(rng.uniform(hit_at + 0.02, 0.85, 22)):
+        age = np.maximum(0, t - at)
+        pitch = rng.uniform(2400, 5200) * (1 + 0.4 * (at - hit_at))
+        sparkle += np.where(t >= at, np.sin(2 * np.pi * pitch * age) * np.exp(-age / 0.045), 0) * (1 - (at - hit_at) / 0.9)
+    body = 0.32 * inhale + 0.3 * chord + 0.5 * whump + 0.07 * sparkle
+    return stereo(body, seconds=1.5, mix=0.4, width_seed=1211)
+
+
+def mount_land():
+    """GOSTRIDER: the ghost drops into the saddle (~1.1 s). A heavy body thud, the slap of the saddle,
+    a metallic clank from the handlebar grips, then a ghostly surge as the spirit flows into the shark."""
+    length = 1.1
+    t = tt(length)
+    thud = np.sin(phase(70 * np.exp(-t / 0.09) + 38)) * env_ad(t, 0.002, 0.2)
+    slap = sweep_bandpass(seeded_noise(len(t), 200, 8000, 1301), 1100 * np.exp(-t / 0.05) + 380, q=2.2)
+    slap = slap / np.max(np.abs(slap)) * env_ad(t, 0.0015, 0.045)
+    clank = np.zeros_like(t)
+    clank_at = 0.012
+    age = np.maximum(0, t - clank_at)
+    for hz, decay, gain in [(1240, 0.09, 1.0), (2710, 0.06, 0.7), (4130, 0.04, 0.45), (5620, 0.03, 0.3)]:
+        clank += np.where(t >= clank_at, np.sin(2 * np.pi * hz * age) * np.exp(-age / decay) * gain, 0)
+    surge_start = 0.08
+    surge_age = np.maximum(0, t - surge_start)
+    surge_u = np.clip(surge_age / 0.75, 0, 1)
+    surge = ghost_voice(t, 196 * 2 ** (1.4 * surge_u ** 0.7), vibrato_hz=6.2, vibrato_depth=0.02, voices=5, detune=0.012)
+    surge *= np.where(t >= surge_start, np.clip(surge_age / 0.12, 0, 1) * np.exp(-surge_age / 0.5), 0)
+    air = sweep_bandpass(seeded_noise(len(t), 300, 11000, 1307), 900 + 4200 * surge_u, q=2.8)
+    air = air / np.max(np.abs(air)) * np.where(t >= surge_start, np.clip(surge_age / 0.2, 0, 1) * np.exp(-surge_age / 0.35), 0)
+    body = 0.72 * thud + 0.34 * slap + 0.12 * clank + 0.24 * surge + 0.16 * air
+    return stereo(body, seconds=1.3, mix=0.26, width_seed=1311)
+
+
+def revive_gather():
+    """Sudden death revival (docs/sudden_death_v2/ghost_revive.md): the floating ghost calls its body back.
+    Starts 0.25 s into the revival and peaks at the burst 1.43 s later: a swirling wind that speeds up, swishes of the
+    parts flying past, a rising ghost choir, and a short inhale that stops dead at the burst (~1.6 s)."""
+    length = 1.6
+    burst = 1.43
+    t = tt(length)
+    u = np.clip(t / burst, 0, 1)
+    swirl_rate = 2.4 + 11.0 * u ** 1.6
+    swirl = 0.55 + 0.45 * np.sin(np.cumsum(2 * np.pi * swirl_rate / SR))
+    wind = sweep_bandpass(seeded_noise(len(t), 150, 9000, 1401), 380 + 2600 * u ** 1.4 + 500 * swirl, q=2.2)
+    wind = wind / np.max(np.abs(wind)) * (0.25 + 0.75 * u ** 1.2) * swirl
+    swishes = np.zeros_like(t)
+    rng = np.random.default_rng(1409)
+    # one swish per part arriving (the revival's arrival times, from the gather sound's start)
+    for at in [0.31, 0.39, 0.47, 0.55, 0.63, 0.71, 0.79, 0.86, 0.93, 1.0, 1.08, 1.17]:
+        width = 0.07
+        shape = np.exp(-((t - at) / width) ** 2)
+        center = 900 + 3800 * shape
+        swish = sweep_bandpass(seeded_noise(len(t), 300, 12000, 1410 + int(at * 100)), center, q=3.5)
+        swishes += swish / np.max(np.abs(swish)) * shape * rng.uniform(0.6, 1.0)
+    choir = ghost_voice(t, 196 * 2 ** (1.0 * u ** 1.3), vibrato_hz=5.0 + 2.5 * u, vibrato_depth=0.016, voices=5, detune=0.01)
+    choir += 0.6 * ghost_voice(t, 294 * 2 ** (1.0 * u ** 1.3), vibrato_hz=5.6 + 2.0 * u, vibrato_depth=0.014, voices=4, detune=0.009)
+    choir *= np.clip(t / 0.25, 0, 1) * (0.3 + 0.7 * u ** 1.5)
+    inhale_start = burst - 0.22
+    inhale_u = np.clip((t - inhale_start) / (burst - inhale_start), 0, 1)
+    inhale = sweep_bandpass(seeded_noise(len(t), 400, 11000, 1417), 800 + 6000 * inhale_u ** 2, q=2.4)
+    inhale = inhale / np.max(np.abs(inhale)) * inhale_u ** 2
+    body = 0.34 * wind + 0.22 * swishes + 0.2 * choir + 0.4 * inhale
+    # everything stops dead at the burst (the burst sound takes over), with only a short room tail
+    body *= np.where(t < burst, 1.0, np.exp(-(t - burst) / 0.018))
+    return stereo(body, seconds=0.9, mix=0.22, width_seed=1421)
+
+
+def revive_snap():
+    """A body part locking into the ghost (~0.3 s). The game raises the pitch with every part (a rising scale).
+    A soft magnetic thunk, a tight click, a glassy ping and a pinch of sparkle."""
+    length = 0.3
+    t = tt(length)
+    thunk = np.sin(phase(150 * np.exp(-t / 0.03) + 95)) * env_ad(t, 0.0015, 0.05)
+    click = sweep_bandpass(seeded_noise(len(t), 1500, 14000, 1501), np.full_like(t, 5200), q=1.6)
+    click = click / np.max(np.abs(click)) * env_ad(t, 0.0005, 0.007)
+    ping = np.zeros_like(t)
+    for hz, decay, gain in [(880, 0.1, 1.0), (1764, 0.07, 0.55), (2659, 0.05, 0.35), (4420, 0.035, 0.22)]:
+        ping += np.sin(2 * np.pi * hz * t) * np.exp(-t / decay) * gain
+    ping *= np.minimum(1, t / 0.002)
+    sparkle = np.zeros_like(t)
+    rng = np.random.default_rng(1507)
+    for at in np.sort(rng.uniform(0.01, 0.12, 6)):
+        age = np.maximum(0, t - at)
+        sparkle += np.where(t >= at, np.sin(2 * np.pi * rng.uniform(3600, 6400) * age) * np.exp(-age / 0.025), 0)
+    body = 0.55 * thunk + 0.35 * click + 0.3 * ping + 0.06 * sparkle
+    return stereo(body, seconds=0.35, mix=0.18, width_seed=1511)
+
+
+def revive_burst():
+    """The whole body is back and bursts with light (~1.6 s): a bright crack and a deep boom, a major chord that
+    blooms and a shower of sparkles; 0.30 s later the body lands on its pad (a heavy thud and the slap of the floor)."""
+    length = 1.6
+    land_at = 0.3
+    t = tt(length)
+    crack = sweep_bandpass(seeded_noise(len(t), 600, 15000, 1601), 5200 * np.exp(-t / 0.06) + 1400, q=1.4)
+    crack = crack / np.max(np.abs(crack)) * env_ad(t, 0.001, 0.05)
+    boom = np.sin(phase(78 * np.exp(-t / 0.12) + 34)) * env_ad(t, 0.002, 0.32)
+    chord = np.zeros_like(t)
+    for k, hz in enumerate([261.63, 329.63, 392.0, 523.25, 659.25]):
+        chord += ghost_voice(t, np.full_like(t, hz) * (1 + 0.03 * np.exp(-t / 0.08)), vibrato_hz=5.2 + k * 0.3, vibrato_depth=0.008, voices=3, detune=0.005) / (1 + 0.3 * k)
+    chord *= env_ad(t, 0.015, 0.5)
+    sparkle = np.zeros_like(t)
+    rng = np.random.default_rng(1607)
+    for at in np.sort(rng.uniform(0.02, 0.9, 36)):
+        age = np.maximum(0, t - at)
+        pitch = rng.uniform(2600, 7200)
+        sparkle += np.where(t >= at, np.sin(2 * np.pi * pitch * age) * np.exp(-age / 0.045), 0) * (1 - at / 1.05)
+    land_age = np.maximum(0, t - land_at)
+    landed = np.where(t >= land_at, 1.0, 0.0)
+    thud = np.sin(phase(64 * np.exp(-land_age / 0.08) + 36)) * env_ad(land_age, 0.002, 0.2) * landed
+    slap = sweep_bandpass(seeded_noise(len(t), 200, 9000, 1611), 1300 * np.exp(-land_age / 0.04) + 420, q=2.0)
+    slap = slap / np.max(np.abs(slap)) * env_ad(land_age, 0.0012, 0.05) * landed
+    body = 0.4 * crack + 0.7 * boom + 0.22 * chord + 0.08 * sparkle + 0.75 * thud + 0.3 * slap
+    return stereo(body, seconds=1.2, mix=0.3, width_seed=1621)
+
+
+CUES = {
+    'ghost_soul_rise.ogg': (soul_rise, {'fade_in': 0.02}),
+    'ghost_shark_rise.ogg': (shark_rise, {'fade_in': 0.02}),
+    'ghost_shark_breach.ogg': (shark_breach, {}),
+    'ghost_mount_beam.ogg': (mount_beam, {}),
+    'ghost_charge_loop.ogg': (charge_loop, {'peak': -6.0, 'loop': True}),
+    'ghost_charge_perfect.ogg': (charge_perfect, {}),
+    'ghost_dash.ogg': (dash, {}),
+    'ghost_hit.ogg': (hit, {}),
+    'ghost_vanish.ogg': (vanish, {'fade_in': 0.01}),
+    'ghost_portal_open.ogg': (portal_open, {'fade_in': 0.02}),
+    'ghost_portal_cross.ogg': (portal_cross, {'fade_in': 0.01}),
+    # GOSTRIDER mount presentation (seeded per cue, independent of build order).
+    'ghost_awaken.ogg': (awaken, {'fade_in': 0.01}),
+    'ghost_mount_land.ogg': (mount_land, {}),
+    # Sudden death: a ghost at the draw gets its body back (docs/sudden_death_v2/ghost_revive.md).
+    'ghost_revive_gather.ogg': (revive_gather, {'fade_in': 0.05}),
+    'ghost_revive_snap.ogg': (revive_snap, {'fade_out': 0.03}),
+    'ghost_revive_burst.ogg': (revive_burst, {}),
+}
+
+
 def main():
-    report = [
-        write('ghost_soul_rise.ogg', soul_rise(), fade_in=0.02),
-        write('ghost_shark_rise.ogg', shark_rise(), fade_in=0.02),
-        write('ghost_shark_breach.ogg', shark_breach()),
-        write('ghost_mount_beam.ogg', mount_beam()),
-        write('ghost_charge_loop.ogg', charge_loop(), peak=-6.0, loop=True),
-        write('ghost_charge_perfect.ogg', charge_perfect()),
-        write('ghost_dash.ogg', dash()),
-        write('ghost_hit.ogg', hit()),
-        write('ghost_vanish.ogg', vanish(), fade_in=0.01),
-        write('ghost_portal_open.ogg', portal_open(), fade_in=0.02),
-        write('ghost_portal_cross.ogg', portal_cross(), fade_in=0.01),
-    ]
+    """python make_ghost_shark_sfx.py [--only name.ogg ...]  (default: every cue, in order)"""
+    import sys
+    only = [arg for arg in sys.argv[1:] if not arg.startswith('--')]
+    names = only if '--only' in sys.argv[1:] else list(CUES)
+    report = []
+    for name in names:
+        build, options = CUES[name]
+        report.append(write(name, build(), **options))
     p = ROOT / 'artifacts/ghost_shark_audio/assets.json'
     p.parent.mkdir(parents=True, exist_ok=True)
+    if '--only' in sys.argv[1:] and p.exists():
+        previous = {entry['path']: entry for entry in json.loads(p.read_text(encoding='utf8'))}
+        for entry in report:
+            previous[entry['path']] = entry
+        report = list(previous.values())
     p.write_text(json.dumps(report, indent=2), encoding='utf8')
     print(json.dumps(report, indent=2))
 

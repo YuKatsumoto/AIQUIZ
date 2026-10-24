@@ -1,7 +1,7 @@
 extends CanvasLayer
 
 const OFFSCREEN_PLAYER_MARKER_SCRIPT := preload("res://scripts/ui/offscreen_player_marker.gd")
-const LOCAL_PLAYER_ARROW_SCRIPT := preload("res://scripts/ui/local_player_arrow.gd")
+const PLAYER_NAME_TAG_SCRIPT := preload("res://scripts/ui/player_name_tag.gd")
 const DuoTutorialOverlayScript := preload("res://scripts/ui/duo_tutorial_overlay.gd")
 const SoloTutorialOverlayScript := preload("res://scripts/ui/solo_tutorial_overlay.gd")
 const TutorialCompletionCardScript := preload("res://scripts/ui/tutorial_completion_card.gd")
@@ -20,8 +20,8 @@ const REAR_EDGE_WARNING_MIN_ALPHA := 0.05
 const REAR_EDGE_WARNING_MAX_ALPHA := 0.34
 const REAR_EDGE_WARNING_MIN_BLINK_SPEED := 4.5
 const REAR_EDGE_WARNING_MAX_BLINK_SPEED := 9.0
-## オンライン：自分のキャラの頭上の矢印を、帽子の付け根からこれだけ上に出す（帽子に重ならない高さ）。
-const LOCAL_ARROW_HEAD_CLEARANCE := 0.7
+## オンライン：頭上の名前を、帽子の付け根からこれだけ上に出す（帽子に重ならない高さ）。
+const NAME_TAG_HEAD_CLEARANCE := 0.6
 ## オンライン：右上の ping 表示（NetOverlay）の下にスコアと連続正解を下げる量。
 const ONLINE_PING_RESERVED_HEIGHT := 34.0
 ## 届いた数が増えたときに数字がポンと弾む長さと大きさ。
@@ -90,7 +90,7 @@ var _tutorial_panel: Control = null
 var _tutorial_completion_card: Control = null
 var _p1_offscreen_marker: Control = null
 var _p2_offscreen_marker: Control = null
-var _local_player_arrow: Control = null
+var _player_name_tags: Array[Control] = []
 var _online_top_right_shifted := false
 var _gameplay_camera: Camera3D = null
 var _result_ceremony_overlay: Control = null
@@ -132,8 +132,7 @@ func _ready() -> void:
 	_create_result_ceremony_overlay()
 	_create_tutorial_overlay()
 	_create_offscreen_player_markers()
-	_local_player_arrow = LOCAL_PLAYER_ARROW_SCRIPT.new() as Control
-	add_child(_local_player_arrow)
+	_create_player_name_tags()
 
 
 
@@ -396,44 +395,64 @@ func _hide_offscreen_player_markers() -> void:
 		_p2_offscreen_marker.call("hide_marker")
 
 
-## オンライン対戦：カウントダウンが終わったら、自分が操作しているキャラの頭上に矢印を出す。
+func _create_player_name_tags() -> void:
+	for slot in [1, 2]:
+		var tag: Control = PLAYER_NAME_TAG_SCRIPT.new() as Control
+		tag.name = "P%dNameTag" % slot
+		add_child(tag)
+		_player_name_tags.append(tag)
+
+
+## オンライン対戦：両方のキャラの頭上に名前を小さく半透明で出し続ける。
 ## 画面の外にいるときはオフスクリーンマーカーに任せて隠す。
-func _update_local_player_arrow(delta: float) -> void:
-	if _local_player_arrow == null:
+func _update_player_name_tags(delta: float) -> void:
+	if _player_name_tags.is_empty():
 		return
-	var slot: int = game_state.local_slot
 	var active: bool = (
 		game_state.net_online
 		and game_state.num_players >= 2
 		and game_state.game_state in [
+			Constants.STATE_COUNTDOWN,
 			Constants.STATE_PLAYING,
 			Constants.STATE_CORRECT,
 			Constants.STATE_GOAL_RACE,
 		]
-		and (game_state.p1_alive if slot == 1 else game_state.p2_alive)
-		and not (game_state.p1_waiting_for_shark if slot == 1 else game_state.p2_waiting_for_shark)
 	)
-	if not active:
-		_local_player_arrow.call("hide_arrow")
-		return
-	var world_root: Node3D = get_parent() as Node3D
-	if world_root == null:
-		_local_player_arrow.call("hide_arrow")
-		return
-	var player: PlayerController = world_root.get_node_or_null("Player") as PlayerController
-	if _gameplay_camera == null or not is_instance_valid(_gameplay_camera):
-		_gameplay_camera = world_root.get_node_or_null("CameraController/Camera3D") as Camera3D
-	if player == null or _gameplay_camera == null or not _gameplay_camera.is_inside_tree():
-		_local_player_arrow.call("hide_arrow")
-		return
-	var anchor: Vector3 = player.get_head_top_position(slot) + Vector3(0.0, LOCAL_ARROW_HEAD_CLEARANCE, 0.0)
-	if _gameplay_camera.is_position_behind(anchor) or not _gameplay_camera.is_position_in_frustum(anchor):
-		_local_player_arrow.call("hide_arrow")
-		return
-	_local_player_arrow.call("configure", Color(0.95, 0.55, 0.20) if slot == 1 else Color(0.20, 0.65, 0.90))
-	# 「じぶん」の札は 1 枚目の問題（壁）を突破するまで。current_wall_index はゲストにも同期される。
-	var show_label: bool = game_state.current_wall_index < 1
-	_local_player_arrow.call("point_at", _gameplay_camera.unproject_position(anchor), delta, show_label)
+	var world_root: Node3D = get_parent() as Node3D if active else null
+	var player: PlayerController = null
+	if world_root != null:
+		player = world_root.get_node_or_null("Player") as PlayerController
+		if _gameplay_camera == null or not is_instance_valid(_gameplay_camera):
+			_gameplay_camera = world_root.get_node_or_null("CameraController/Camera3D") as Camera3D
+	var can_draw: bool = player != null and _gameplay_camera != null and _gameplay_camera.is_inside_tree()
+	# 選択肢と問題文の画面上の範囲。名前が重なったら薄くして読むじゃまをしない。
+	var avoid_rects: Array[Rect2] = []
+	if can_draw and world_root.has_method("get_choice_screen_rects"):
+		avoid_rects = world_root.call("get_choice_screen_rects", _gameplay_camera)
+	for i in _player_name_tags.size():
+		var tag: Control = _player_name_tags[i]
+		var slot: int = i + 1
+		var alive: bool = (
+			(game_state.p1_alive if slot == 1 else game_state.p2_alive)
+			and not (game_state.p1_waiting_for_shark if slot == 1 else game_state.p2_waiting_for_shark)
+		)
+		if not can_draw or not alive:
+			tag.call("hide_tag")
+			continue
+		var anchor: Vector3 = player.get_head_top_position(slot) + Vector3(0.0, NAME_TAG_HEAD_CLEARANCE, 0.0)
+		if _gameplay_camera.is_position_behind(anchor) or not _gameplay_camera.is_position_in_frustum(anchor):
+			tag.call("hide_tag")
+			continue
+		tag.call("configure", _online_player_name(slot), Color(0.95, 0.55, 0.20) if slot == 1 else Color(0.20, 0.65, 0.90))
+		tag.call("point_at", _gameplay_camera.unproject_position(anchor), avoid_rects, delta)
+
+
+## 頭上に出す名前。自分は相手に見えているのと同じ名前、相手はニックネーム。
+func _online_player_name(slot: int) -> String:
+	if slot == game_state.local_slot:
+		return OnlineMenu.shown_own_name()
+	var opponent := NetworkManager.opponent_name
+	return opponent if not opponent.is_empty() else "あいて"
 
 
 ## オンラインでは右上に ping を出すので、その下へスコアを一度だけ下げる。
@@ -458,7 +477,7 @@ func _process(_dt: float) -> void:
 	var warning_speed := lerpf(REAR_EDGE_WARNING_MIN_BLINK_SPEED, REAR_EDGE_WARNING_MAX_BLINK_SPEED, _rear_edge_warning_strength())
 	_rear_edge_warning_time = fposmod(_rear_edge_warning_time + _dt * warning_speed, TAU)
 	_update_offscreen_player_markers(_dt)
-	_update_local_player_arrow(_dt)
+	_update_player_name_tags(_dt)
 	_shift_top_right_for_online_ping()
 	if _result_ceremony_overlay != null:
 		_result_ceremony_overlay.update_overlay(_dt)
@@ -542,31 +561,39 @@ func play_tutorial_completion_celebration() -> void:
 	_fire_confetti()
 
 
-func show_solo_stage_tutorial_complete(duration: float = 3.6) -> void:
+## 1Pのクリア画面。クリアタイムと残りハートを出す。
+func show_solo_stage_tutorial_complete(duration: float = 4.0) -> void:
 	_show_tutorial_completion_card("SoloStageCompletionCard", {
-		"step": "1 / 2  STAGE CLEAR",
-		"title": "ステージチュートリアル完了",
-		"body": "移動・ジャンプ・エモート、海の危険、ハート（HP）、2択と4択の壁を体験しました。\n本番は10問チャレンジとエンドレスで、ハート3つから始まります。",
-		"progress": "✓ ステージ実践　　次はカスタマイズ",
-		"footer": "自動でカスタマイズ紹介へ進みます　（ゲーム中は Esc で一時停止）",
+		"course_label": "1P コース",
+		"stats": [
+			{"value": _format_play_time(game_state.play_time), "label": "クリアタイム"},
+			{"value": "%d / %d" % [game_state.p1_hp, QuizGameState.MAX_HP], "label": "残りハート"},
+		],
+		"next": "次はカスタマイズ紹介",
 		"duration": duration,
 	})
 
 
+## 2Pのクリア画面。クリアタイムと、スコアタワーで決まった勝敗を1行で出す。
 func show_duo_stage_tutorial_complete(duration: float = 4.2) -> void:
 	_show_tutorial_completion_card("DuoStageCompletionCard", {
-		"step": "1 / 2  STAGE CLEAR",
-		"title": "ステージチュートリアル完了",
-		"body": "2人の操作と押し合い、海とゴーストシャーク、回転のこぎり、ハートと先着の得点、4択の壁、スコアタワーの勝敗判定を体験しました。",
-		"progress": _duo_score_tower_summary(),
-		"footer": "自動でカスタマイズ紹介へ進みます　（ゲーム中は Esc で一時停止）",
+		"course_label": "ローカル2P コース",
+		"stats": [
+			{"value": _format_play_time(game_state.play_time), "label": "クリアタイム"},
+		],
+		"result_line": _duo_score_tower_summary(),
+		"next": "次はカスタマイズ紹介",
 		"duration": duration,
 	})
+
+
+func _format_play_time(seconds: float) -> String:
+	var total := int(round(maxf(0.0, seconds)))
+	return "%d:%02d" % [total / 60, total % 60]
 
 
 ## 10問チャレンジの勝敗はスコアタワーで決まる。このチュートリアルの成績で計算例を見せる。
 func _duo_score_tower_summary() -> String:
-	var lines: Array[String] = ["スコアタワー（10問チャレンジの勝敗）＝ 正解数 ×（残りハート＋0.5）"]
 	var parts: Array[String] = []
 	if game_state.result_presentation_active:
 		# ゴール後に実際のスコアタワーで確定した得点（脱落した人は正解数だけ）と勝敗。
@@ -575,17 +602,16 @@ func _duo_score_tower_summary() -> String:
 		var verdict := (
 			"引き分け" if game_state.result_winner == 0 else "P%dの勝ち" % game_state.result_winner
 		)
-		lines.append("このコースの結果　" + "　　".join(parts) + "　→ " + verdict)
-		return "\n".join(lines)
+		return "　".join(parts) + "　→ " + verdict
 	for player_index: int in [1, 2]:
 		var correct: int = game_state.score if player_index == 1 else game_state.player2_score
 		var hp: int = game_state.get_player_hp(player_index)
 		var points := QuizGameState.result_half_points(correct, hp, true)
-		parts.append("P%d  %d問 ×（%d＋0.5）＝ %s" % [
-			player_index, correct, hp, QuizGameState.format_result_points(points)
+		parts.append("P%d: %d × %s = %s" % [
+			player_index, correct, QuizGameState.format_result_hp_factor(hp),
+			QuizGameState.format_result_points(points)
 		])
-	lines.append("このコースでは　" + "　　".join(parts))
-	return "\n".join(lines)
+	return "　".join(parts)
 
 
 ## コース完了カードは1P/2Pで文面だけが違う。生成と後片付けはここに集約する。
@@ -807,7 +833,8 @@ func _show_sudden_death_preparing(dt: float) -> void:
 		_apply_preload_stage_preview_layout()
 		pl_title.text = "問題を準備中..."
 		pl_subtitle.text = "しばらくお待ちください"
-		pl_status.text = "Preparing the underground temple..." if game_state.use_english_ui else "地下神殿を準備中..."
+		# 新サドンデス（docs/sudden_death_v2/common.md 第6章）：種目の舞台（第1段はビタ止めの島）の準備待ち。
+		pl_status.text = "Preparing the island..." if game_state.use_english_ui else "島を準備中..."
 		pl_progress.max_value = float(target)
 		_displayed_progress = float(target)
 		pl_progress.value = _displayed_progress
@@ -846,19 +873,27 @@ func _show_waiting_start(dt: float) -> void:
 		else:
 			pl_status.text = "Characters arriving..." if game_state.use_english_ui else "キャラクター到着中..."
 		return
+	if game_state.mode != Constants.MODE_TUTORIAL:
+		# 到着がすんでも「問題ができました！」とチェックはそのまま。バーと数字と Status の代わりに
+		# Enter の案内だけを出し、同じことを言う文言（準備完了・Enterキーでスタート）は重ねない。
+		var target := _generation_target()
+		_show_generation_progress(dt, _generation_arrived(target), target, _generation_by_ai())
+		pl_progress.visible = false
+		_generation_count_label.visible = false
+		pl_status.visible = false
+		_refresh_start_prompt(false)
+		_blink_timer += dt
+		_start_prompt_row.modulate.a = 0.5 + 0.5 * sin(_blink_timer * 6.0)
+		return
 	_apply_preload_stage_preview_layout()
 
-	if game_state.mode == Constants.MODE_TUTORIAL:
-		var is_duo := game_state.get_tutorial_course() == GameManager.TUTORIAL_COURSE_LOCAL_2P
-		pl_title.text = "ローカル2Pチュートリアル" if is_duo else "1Pチュートリアル"
-		pl_subtitle.text = (
-			"2人の操作・ゴースト・のこぎり・ハート・ゴールを順番に練習します"
-			if is_duo
-			else "操作・海の危険・ハート・4択の壁を順番に練習します"
-		)
-	else:
-		pl_title.text = "問題を準備中..."
-		pl_subtitle.text = "しばらくお待ちください"
+	var is_duo := game_state.get_tutorial_course() == GameManager.TUTORIAL_COURSE_LOCAL_2P
+	pl_title.text = "ローカル2Pチュートリアル" if is_duo else "1Pチュートリアル"
+	pl_subtitle.text = (
+		"2人の操作・ゴースト・のこぎり・ハート・ゴールを順番に練習します"
+		if is_duo
+		else "操作・海の危険・ハート・4択の壁を順番に練習します"
+	)
 	if construction_locked:
 		pl_status.text = game_state.status_text
 		pl_progress.visible = false
@@ -870,12 +905,9 @@ func _show_waiting_start(dt: float) -> void:
 		pl_progress.visible = false
 		_set_start_prompt_visible(false)
 		return
-	if game_state.mode != Constants.MODE_TUTORIAL:
-		pl_title.text = "Ready!" if game_state.use_english_ui else "準備完了！"
-		pl_subtitle.text = "Press Enter to begin" if game_state.use_english_ui else "Enterキーでスタート"
 	pl_status.text = "Ready" if game_state.use_english_ui else "準備完了"
 	pl_progress.visible = false
-	_refresh_start_prompt(game_state.mode == Constants.MODE_TUTORIAL)
+	_refresh_start_prompt(true)
 	_blink_timer += dt
 	if _start_prompt_row != null:
 		_start_prompt_row.modulate.a = 0.5 + 0.5 * sin(_blink_timer * 6.0)

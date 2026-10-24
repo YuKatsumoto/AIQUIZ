@@ -50,6 +50,11 @@ func is_active() -> bool:
 	return _active
 
 
+## 今の演出が始まってからの秒数（演出がないときは 0）。
+func elapsed_seconds() -> float:
+	return _elapsed if _active else 0.0
+
+
 func _begin_presentation(step_id: String, model_revision: int) -> void:
 	var flow: RefCounted = game_state.tutorial_flow
 	if flow == null:

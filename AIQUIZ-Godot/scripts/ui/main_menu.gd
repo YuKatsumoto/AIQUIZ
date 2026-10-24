@@ -1,9 +1,7 @@
 extends Control
 
 const TutorialCourseSelectorScript := preload("res://scripts/ui/tutorial_course_selector.gd")
-const TutorialKeyboardIntroScript := preload("res://scripts/ui/tutorial_keyboard_intro.gd")
 const MenuMetalButtonScript := preload("res://scripts/ui/menu_metal_button.gd")
-const TutorialCompletionCardScript := preload("res://scripts/ui/tutorial_completion_card.gd")
 
 ## メインメニュー画面 (STAGE A: 最低限のUI)
 ## Python版 hud.py のメニュー部分に相当
@@ -35,7 +33,10 @@ const TutorialCompletionCardScript := preload("res://scripts/ui/tutorial_complet
 
 @onready var settings_panel: Panel = $SettingsPanel
 @onready var settings_btn: Button = %SettingsBtn
-@onready var api_status_label: RichTextLabel = $SettingsPanel/VBox/ApiStatusLabel
+## 設定の「接続状態」の行（キー → {dot: Label, msg: Label}）。_layout_settings_panel で作る。
+var _api_rows: Dictionary = {}
+var _offline_count_label: Label = null
+var _recheck_btn: Button = null
 @onready var vol_slider: HSlider = $SettingsPanel/VBox/VolBox/VolSlider
 var bgm_vol_slider: HSlider = null
 # speed_slider は廃止（壁速度は難易度から自動決定）
@@ -47,20 +48,28 @@ var max_fps_option: OptionButton = null
 var sudden_death_option: OptionButton = null
 const SUDDEN_DEATH_ON := 0
 const SUDDEN_DEATH_OFF := 1
+## 設定パネルの幅・行ラベルの幅・文字の大きさ（全部の行でそろえる）
+const SETTINGS_PANEL_WIDTH := 760.0
+const SETTINGS_LABEL_WIDTH := 300.0
+const SETTINGS_FONT_SIZE := 18
+const SETTINGS_SECTION_COLOR := Color(1.0, 0.88, 0.25)
+const SETTINGS_MUTED_COLOR := Color(0.62, 0.68, 0.78)
+const API_DOT_OK := Color(0.35, 0.9, 0.45)
+const API_DOT_FAIL := Color(1.0, 0.4, 0.4)
+const API_DOT_CHECKING := Color(1.0, 0.85, 0.3)
 
 var game_state: QuizGameState
 var _tutorial_row: HBoxContainer = null
 var _tutorial_main_btn: Button = null
 var _online_btn: Button = null
 var _tutorial_selector: Control = null
-var _tutorial_keyboard_intro: Control = null
 
 const SHOW_COOP_MODE := false
 const GAME_WORLD_SCENE: PackedScene = preload("res://scenes/game_world.tscn")
 const CUSTOMIZE_SETTINGS_SCENE: PackedScene = preload("res://ui/customize_settings.tscn")
 const MenuWallBackgroundPreviewScene := preload("res://scripts/ui/menu_wall_background_preview.gd")
-## ゲームのロゴ（tools/logo_editor の「保存して反映」で作り直される）
-const TITLE_LOGO: Texture2D = preload("res://assets/ui/branding/aiquiz_logo.png")
+## タイトルのロゴの画像（TitleLogoIntro が作れないときだけ使う。tools/logo_editor/render_logo_png.gd が作る）
+const TITLE_LOGO: Texture2D = preload("res://assets/ui/branding/testopia_logo.png")
 const TITLE_LOGO_HEIGHT := 56.0
 ## 起動して最初のメニューだけ、タイトルの登場演出を見せる（QuizManager のメタで覚える）
 const TITLE_LOGO_INTRO_SEEN_META := "title_logo_intro_seen"
@@ -82,13 +91,12 @@ var _embedded_customize: Control = null
 var _embedded_customize_open: bool = false
 var _pending_customize_tutorial_on_ready: bool = false
 var _embedded_customize_close_pending: bool = false
-var _tutorial_completion_card: Control = null
 var _customize_tutorial_completion_showing: bool = false
-var _tutorial_completion_previous_mouse_mode: int = Input.MOUSE_MODE_VISIBLE
-var _tutorial_completion_mouse_mode_saved: bool = false
 var _heli_skip_hint: Control = null
-## タイトルの登場演出（2D のベルトコンベア。見せないときは null）
+## タイトルのロゴ（2D のベルトコンベアの上の TESTOPIA。作れないときは null で、画像のロゴのまま）
 var _title_logo_intro: TitleLogoIntro = null
+## 起動して最初のメニューで、登場演出を流すか（流したら覚える）
+var _title_logo_play_pending: bool = false
 var _heli_departure_skippable: bool = false
 var _heli_departure_skip_requested: bool = false
 
@@ -146,7 +154,9 @@ func _ready() -> void:
 
 	_setup_graphics_quality_option()
 	_setup_max_fps_option()
+	_layout_settings_panel()
 	ApiStatusAutoload.check_completed.connect(_update_api_status_text)
+	ApiStatusAutoload.status_changed.connect(_update_api_status_text)
 	
 	LiveConfigManager.config_updated.connect(_on_live_config_updated)
 	_on_live_config_updated()
@@ -370,40 +380,37 @@ func _apply_title_logo() -> void:
 	row.move_child(holder, title_label.get_index())
 	title_label.visible = false
 
-## タイトルの登場演出（scripts/ui/title_logo/title_logo_intro.gd）。起動して最初のメニューだけ。
-## 2D のロゴの画像はメニューが見える前から隠し（ロード画面が消えるときにロゴが一瞬見えないように）、
-## 黄色い線は演出が始まるまで本物を見せる（演出は同じ場所・同じ色の線から始まる）。
+## タイトルのロゴ（scripts/ui/title_logo/title_logo_intro.gd）：ベルトコンベアの上の TESTOPIA。
+## 画像のロゴと黄色い線（TitleAccentBar。並びのために残す）は隠す（ベルトが黄色い線の代わり）。
+## 起動して最初のメニューだけ登場演出を流し（_start_title_logo_intro）、2 回目からは最後の姿をそのまま出す。
+## 大きさと見た目（ベルトの上の立体の文字）は、メニューのどの手順でも同じ。
 func _setup_title_logo_intro() -> void:
-	if _pending_customize_tutorial_on_ready or QuizManager.has_meta(TITLE_LOGO_INTRO_SEEN_META):
-		return
 	var holder := _title_logo_holder()
-	var accent := menu_vbox.get_node_or_null("TitleAccentBar") as CanvasItem
-	if holder == null or accent == null:
+	if holder == null:
 		return
-	var layers: Array[CanvasItem] = []
-	for child: Node in holder.get_children():
-		if child is TextureRect:
-			layers.append(child as CanvasItem)
 	var intro := TitleLogoIntro.new()
-	holder.add_child(intro)
-	if not intro.setup(holder.custom_minimum_size, layers, accent):
-		intro.queue_free()
+	if not intro.setup(holder.custom_minimum_size):
+		intro.free()
 		return
 	_title_logo_intro = intro
-	for layer: CanvasItem in layers:
-		layer.visible = false
+	for child: Node in holder.get_children():
+		if child is TextureRect:
+			(child as CanvasItem).visible = false
+	holder.add_child(intro)
+	var accent := menu_vbox.get_node_or_null("TitleAccentBar") as CanvasItem
+	if accent != null:
+		accent.self_modulate.a = 0.0
+	_title_logo_play_pending = not _pending_customize_tutorial_on_ready and not QuizManager.has_meta(TITLE_LOGO_INTRO_SEEN_META)
+	if not _title_logo_play_pending:
+		intro.show_final()
 
 
 func _start_title_logo_intro() -> void:
-	if _title_logo_intro == null or _title_logo_intro.is_running():
+	if _title_logo_intro == null or not _title_logo_play_pending:
 		return
+	_title_logo_play_pending = false
 	QuizManager.set_meta(TITLE_LOGO_INTRO_SEEN_META, true)
-	var holder := _title_logo_holder()
-	var row := holder.get_parent() as Control
-	var accent := menu_vbox.get_node_or_null("TitleAccentBar") as Control
-	# 黄色い線は VBox で TitleRow の下、左端は TitleLogo と同じ（入場の横すべりは x だけを動かす）
-	var bar_y := accent.position.y - row.position.y - holder.position.y
-	_title_logo_intro.start(Rect2(Vector2(0.0, bar_y), accent.size))
+	_title_logo_intro.start()
 
 
 func _title_logo_holder() -> Control:
@@ -612,70 +619,61 @@ func _begin_pending_customize_tutorial() -> void:
 	SceneTransition.reveal_current()
 
 
+## カスタマイズ紹介を最後まで見たら、すぐに完了として保存してメニューへ戻す。
+## 成績はゲーム中のクリア画面で見せているので、ここでは小さな通知だけを出す（入力は止めない）。
 func _on_customize_tutorial_completed() -> void:
-	if _customize_tutorial_completion_showing:
+	if _customize_tutorial_completion_showing or not game_state.has_pending_solo_customize_tour():
 		return
 	_customize_tutorial_completion_showing = true
-	_tutorial_completion_previous_mouse_mode = Input.get_mouse_mode()
-	_tutorial_completion_mouse_mode_saved = true
-	Input.set_mouse_mode(Input.MOUSE_MODE_HIDDEN)
-	var card := TutorialCompletionCardScript.new() as Control
-	card.name = "SoloTutorialCompletionCard"
-	add_child(card)
-	_tutorial_completion_card = card
-	card.tree_exited.connect(func() -> void:
-		if _tutorial_completion_card == card:
-			_tutorial_completion_card = null
-	)
-	card.connect(
-		"hold_completed",
-		Callable(self, "_on_customize_tutorial_completion_hold_finished"),
-		CONNECT_ONE_SHOT,
-	)
 	var is_duo := game_state.get_pending_customize_tour_course() == GameManager.TUTORIAL_COURSE_LOCAL_2P
-	card.call("present", {
-		"step": "2 / 2  TUTORIAL COMPLETE",
-		"title": "ローカル2Pチュートリアル完了" if is_duo else "1Pチュートリアル完了",
-		"body": (
-			"2人プレイの操作とカスタマイズの紹介が完了しました。"
-			if is_duo
-			else "ステージ操作とカスタマイズの紹介が完了しました。"
-		),
-		"progress": "✓ ステージ実践　　✓ カスタマイズ",
-		"footer": "まもなくメニューへ戻ります",
-		"duration": 3.8,
-	})
-
-
-func _on_customize_tutorial_completion_hold_finished() -> void:
-	if not _customize_tutorial_completion_showing:
-		return
-	if not game_state.has_pending_solo_customize_tour():
-		_dismiss_customize_tutorial_completion_card()
-		return
-	# 完了カードを十分に見せた後で初めて保存する。閉じる処理より先に
-	# pending を解除し、通常の close が中断扱いにしないようにする。
+	# 閉じる処理より先に pending を解除し、通常の close が中断扱いにしないようにする。
 	game_state.complete_solo_customize_tour()
 	_on_embedded_customize_close_requested()
 	while _menu_exit_in_progress and is_inside_tree():
 		await get_tree().process_frame
 	if not is_inside_tree():
 		return
-	_dismiss_customize_tutorial_completion_card()
-
-
-func _dismiss_customize_tutorial_completion_card() -> void:
+	_show_tutorial_complete_notice("ローカル2P コース" if is_duo else "1P コース")
 	_customize_tutorial_completion_showing = false
-	if _tutorial_completion_card and is_instance_valid(_tutorial_completion_card):
-		_tutorial_completion_card.call("dismiss")
-	_restore_tutorial_completion_mouse_mode()
 
 
-func _restore_tutorial_completion_mouse_mode() -> void:
-	if not _tutorial_completion_mouse_mode_saved:
-		return
-	Input.set_mouse_mode(_tutorial_completion_previous_mouse_mode)
-	_tutorial_completion_mouse_mode_saved = false
+## 画面上端から降りてくる小さな完了通知。数秒で消える。
+func _show_tutorial_complete_notice(course_label: String) -> void:
+	var notice := PanelContainer.new()
+	notice.name = "TutorialCompleteNotice"
+	notice.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	notice.z_index = 500
+	var style := TutorialUiStyle.box(
+		TutorialUiStyle.PANEL_SOLID, Color(TutorialUiStyle.DONE, 0.7), 2, 30, 0.0, 8.0
+	)
+	style.content_margin_left = 10.0
+	style.content_margin_right = 26.0
+	style.shadow_color = Color(0.0, 0.0, 0.0, 0.35)
+	style.shadow_size = 12
+	notice.add_theme_stylebox_override("panel", style)
+	var row := HBoxContainer.new()
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_theme_constant_override("separation", 12)
+	notice.add_child(row)
+	row.add_child(TutorialUiStyle.glyph_disc("check", 38.0, TutorialUiStyle.DONE, Color("05301a")))
+	var column := VBoxContainer.new()
+	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	column.alignment = BoxContainer.ALIGNMENT_CENTER
+	column.add_theme_constant_override("separation", 0)
+	row.add_child(column)
+	column.add_child(TutorialUiStyle.make_label("チュートリアル完了", 19, Color.WHITE))
+	column.add_child(TutorialUiStyle.make_label(course_label, 12, TutorialUiStyle.MUTED, TutorialUiStyle.FONT_MEDIUM))
+	add_child(notice)
+	var notice_size := notice.get_combined_minimum_size()
+	notice.size = notice_size
+	notice.position = Vector2((get_viewport_rect().size.x - notice_size.x) * 0.5, -notice_size.y - 8.0)
+	var tween := notice.create_tween()
+	tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tween.tween_property(notice, "position:y", 24.0, 0.32)
+	tween.tween_interval(2.6)
+	tween.set_ease(Tween.EASE_IN)
+	tween.tween_property(notice, "modulate:a", 0.0, 0.3)
+	tween.tween_callback(notice.queue_free)
 
 
 func _on_customize_tutorial_aborted() -> void:
@@ -924,7 +922,6 @@ func _set_all_buttons_disabled(disabled: bool) -> void:
 
 func _exit_tree() -> void:
 	AudioManager.set_menu_sfx_muted(self, false)
-	_restore_tutorial_completion_mouse_mode()
 
 
 func _notification(what: int) -> void:
@@ -979,7 +976,9 @@ func _style_all_buttons() -> void:
 			continue
 		# Dedicated tutorial views own all states, including their focus colors.
 		# Keep the traversal itself intact: transition locking also uses it.
-		if _tutorial_keyboard_intro and _tutorial_keyboard_intro.is_ancestor_of(btn):
+		if _tutorial_selector and _tutorial_selector.is_ancestor_of(btn):
+			continue
+		if btn.has_meta(&"tutorial_own_style"):
 			continue
 		btn.add_theme_stylebox_override("normal", normal_style.duplicate())
 		btn.add_theme_stylebox_override("hover", hover_style.duplicate())
@@ -1063,11 +1062,6 @@ func _ensure_tutorial_selector() -> void:
 	add_child(_tutorial_selector)
 	_tutorial_selector.connect("course_selected", _on_tutorial_course_selected)
 	_tutorial_selector.connect("dismissed", _on_tutorial_selector_dismissed)
-	_tutorial_keyboard_intro = TutorialKeyboardIntroScript.new()
-	_tutorial_keyboard_intro.name = "TutorialKeyboardIntro"
-	add_child(_tutorial_keyboard_intro)
-	_tutorial_keyboard_intro.connect("completed", _on_tutorial_keyboard_completed)
-	_tutorial_keyboard_intro.connect("cancelled", _show_tutorial_selector)
 
 
 func _show_tutorial_selector() -> void:
@@ -1097,13 +1091,8 @@ func _go_to_game(
 	_play_exit_and_change_scene(GAME_SCENE, start_standard_round, tutorial_course)
 
 
+## コース選択の画面で操作キーも説明しているので、選んだらそのままゲームへ進む。
 func _start_tutorial_game(course: String = GameManager.TUTORIAL_COURSE_SOLO) -> void:
-	if _menu_exit_in_progress:
-		return
-	_tutorial_keyboard_intro.call("show_intro", course)
-
-
-func _on_tutorial_keyboard_completed(course: String) -> void:
 	_go_to_game(false, course)
 
 func _start_first_run_tutorial() -> void:
@@ -1368,31 +1357,177 @@ func _on_settings_back_btn_pressed() -> void:
 	_hide_panel_animated(settings_panel)
 
 func _on_recheck_btn_pressed() -> void:
-	api_status_label.text = "[color=yellow]API状態チェック中...[/color]"
 	ApiStatusAutoload.run_connectivity_check()
+	_update_api_status_text()
 
 func _on_open_dashboard_pressed() -> void:
 	# Opens the locally running Next.js dashboard in the default browser
 	OS.shell_open("http://localhost:3000")
 
 func _update_api_status_text() -> void:
-	var text := ""
+	var gateway_msg: String = ApiStatusAutoload.proxy_msg
+	if not ApiStatusAutoload.proxy_configured:
+		gateway_msg = "PROXY_URL 未設定"
+	var firebase_msg: String = ApiStatusAutoload.firebase_msg
+	if not ApiStatusAutoload.firebase_configured:
+		firebase_msg = "DB URL 未設定"
+	_set_api_row("internet", ApiStatusAutoload.internet_ok, ApiStatusAutoload.internet_msg)
+	_set_api_row("gateway", ApiStatusAutoload.proxy_status, gateway_msg)
+	_set_api_row("firebase", ApiStatusAutoload.firebase_status, firebase_msg)
+	if _offline_count_label:
+		_offline_count_label.text = "オフライン問題数: %d問" % ApiStatusAutoload.offline_count
+	if _recheck_btn:
+		_recheck_btn.disabled = ApiStatusAutoload.checking
+		_recheck_btn.text = "チェック中…" if ApiStatusAutoload.checking else "再チェック"
 
-	var i_col = "green" if ApiStatusAutoload.internet_ok else ("red" if ApiStatusAutoload.internet_ok == false else "yellow")
-	text += "[color=%s]インターネット: %s[/color]\n" % [i_col, ApiStatusAutoload.internet_msg]
 
-	var proxy := ApiStatusAutoload.get_proxy_url()
-	var p_col = "green" if ApiStatusAutoload.proxy_status else ("red" if ApiStatusAutoload.proxy_status == false else "yellow")
-	var p_cfg = "設定済" if ApiStatusAutoload.proxy_configured else "未設定"
-	text += "[color=%s]AI Gateway (PROXY): %s[/color] (URL: %s)\n" % [p_col, ApiStatusAutoload.proxy_msg, p_cfg]
+func _set_api_row(key: String, status: Variant, message: String) -> void:
+	var row: Dictionary = _api_rows.get(key, {})
+	if row.is_empty():
+		return
+	var color := API_DOT_CHECKING
+	if status != null:
+		color = API_DOT_OK if bool(status) else API_DOT_FAIL
+	(row.dot as Label).add_theme_color_override("font_color", color)
+	(row.msg as Label).text = message
+	(row.msg as Label).add_theme_color_override("font_color", color)
 
-	var f_col = "green" if ApiStatusAutoload.firebase_status else ("red" if ApiStatusAutoload.firebase_status == false else "yellow")
-	var f_key = "設定済" if ApiStatusAutoload.firebase_configured else "未設定"
-	text += "[color=%s]Firebase: %s[/color] (DB URL: %s)\n" % [f_col, ApiStatusAutoload.firebase_msg, f_key]
 
-	text += "\n[color=gray]オフライン問題数: %d問[/color]" % ApiStatusAutoload.offline_count
+## 設定パネルを「接続状態 / サウンド / 画面 / ゲーム」の区切りで並べ直す。
+## 行はシーンとコードで作ったものを使い回し、ラベルの幅と文字の大きさを全部そろえる。
+## VBox は中身の高さに合わせて上下へ伸ばす（固定 400px からはみ出してタイトルに重なっていた）。
+func _layout_settings_panel() -> void:
+	var vbox: VBoxContainer = $SettingsPanel/VBox
+	vbox.anchor_top = 0.5
+	vbox.anchor_bottom = 0.5
+	vbox.offset_left = -SETTINGS_PANEL_WIDTH * 0.5
+	vbox.offset_right = SETTINGS_PANEL_WIDTH * 0.5
+	vbox.offset_top = 0.0
+	vbox.offset_bottom = 0.0
+	vbox.grow_vertical = Control.GROW_DIRECTION_BOTH
+	vbox.add_theme_constant_override("separation", 10)
 
-	api_status_label.text = text
+	var title := $SettingsPanel/Title as Label
+	title.reparent(vbox, false)
+
+	# 接続状態：● 名前 状態 の 3 列。右に再チェック。
+	var old_label := vbox.get_node("ApiStatusLabel")
+	vbox.remove_child(old_label)
+	old_label.queue_free()
+	var api_box := HBoxContainer.new()
+	api_box.name = "ApiBox"
+	api_box.add_theme_constant_override("separation", 16)
+	var api_col := VBoxContainer.new()
+	api_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	api_col.add_theme_constant_override("separation", 4)
+	var grid := GridContainer.new()
+	grid.columns = 3
+	grid.add_theme_constant_override("h_separation", 10)
+	grid.add_theme_constant_override("v_separation", 4)
+	for entry: Array in [["internet", "インターネット"], ["gateway", "AIゲートウェイ"], ["firebase", "Firebase"]]:
+		var dot := _settings_label("●")
+		var name_label := _settings_label(entry[1])
+		name_label.custom_minimum_size.x = 150.0
+		var msg := _settings_label("未チェック")
+		grid.add_child(dot)
+		grid.add_child(name_label)
+		grid.add_child(msg)
+		_api_rows[entry[0]] = {"dot": dot, "msg": msg}
+	api_col.add_child(grid)
+	_offline_count_label = _settings_label("")
+	_offline_count_label.add_theme_font_size_override("font_size", 15)
+	_offline_count_label.add_theme_color_override("font_color", SETTINGS_MUTED_COLOR)
+	api_col.add_child(_offline_count_label)
+	api_box.add_child(api_col)
+	_recheck_btn = vbox.get_node("RecheckBtn") as Button
+	_recheck_btn.reparent(api_box, false)
+	_recheck_btn.custom_minimum_size = Vector2(150.0, 45.0)
+	_recheck_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	vbox.add_child(api_box)
+
+	# 下のボタンは横に並べる
+	var button_row := HBoxContainer.new()
+	button_row.name = "ButtonRow"
+	button_row.add_theme_constant_override("separation", 16)
+	for btn_name: String in ["OpenDashboardBtn", "SettingsBackBtn"]:
+		var btn := vbox.get_node(btn_name) as Button
+		btn.reparent(button_row, false)
+		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	(button_row.get_node("OpenDashboardBtn") as Button).text = "管理ダッシュボードを開く"
+	vbox.add_child(button_row)
+
+	var order: Array[Control] = [title, _settings_section("接続状態"), api_box,
+		_settings_section("サウンド"), vbox.get_node("BgmVolBox"), vbox.get_node("VolBox"),
+		_settings_section("画面"), vbox.get_node("ResolutionBox"), vbox.get_node("MaxFpsBox"),
+		vbox.get_node("GraphicsQualityBox")]
+	var sudden_row := vbox.get_node_or_null("SuddenDeathBox") as Control
+	if sudden_row:
+		order.append_array([_settings_section("ゲーム"), sudden_row])
+	var spacer := Control.new()
+	spacer.custom_minimum_size.y = 12.0
+	order.append_array([spacer, button_row])
+	for i: int in range(order.size()):
+		if order[i].get_parent() == null:
+			vbox.add_child(order[i])
+		vbox.move_child(order[i], i)
+
+	for row_name: String in ["BgmVolBox", "VolBox", "ResolutionBox", "MaxFpsBox", "GraphicsQualityBox", "SuddenDeathBox"]:
+		var row := vbox.get_node_or_null(row_name) as HBoxContainer
+		if row:
+			_style_settings_row(row)
+	_update_api_status_text()
+
+
+func _settings_label(text: String) -> Label:
+	var label := Label.new()
+	label.text = text
+	label.add_theme_font_size_override("font_size", SETTINGS_FONT_SIZE)
+	return label
+
+
+## 区切りの見出し（金色の小さな文字と下線）
+func _settings_section(text: String) -> Control:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 2)
+	var label := _settings_label(text)
+	label.add_theme_font_size_override("font_size", 15)
+	label.add_theme_color_override("font_color", SETTINGS_SECTION_COLOR)
+	box.add_child(label)
+	var line := ColorRect.new()
+	line.custom_minimum_size.y = 1.0
+	line.color = Color(SETTINGS_SECTION_COLOR, 0.35)
+	box.add_child(line)
+	return box
+
+
+## 行（ラベル + 操作）の見た目をそろえる。スライダーには右に % を出す。
+func _style_settings_row(row: HBoxContainer) -> void:
+	row.alignment = BoxContainer.ALIGNMENT_BEGIN
+	row.add_theme_constant_override("separation", 12)
+	var label := row.get_node_or_null("Label") as Label
+	if label:
+		label.text = label.text.trim_suffix(":")
+		label.custom_minimum_size.x = SETTINGS_LABEL_WIDTH
+		label.add_theme_font_size_override("font_size", SETTINGS_FONT_SIZE)
+	for child: Node in row.get_children():
+		if child == label or not (child is Control):
+			continue
+		var control := child as Control
+		control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		control.custom_minimum_size.x = 0.0
+		control.add_theme_font_size_override("font_size", SETTINGS_FONT_SIZE)
+		if control is HSlider:
+			var slider := control as HSlider
+			var value_label := _settings_label("")
+			value_label.name = "ValueLabel"
+			value_label.custom_minimum_size.x = 60.0
+			value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+			row.add_child(value_label)
+			var show_value := func(value: float) -> void:
+				value_label.text = "%d%%" % roundi(value * 100.0)
+			show_value.call(slider.value)
+			slider.value_changed.connect(show_value)
+
 
 func _on_vol_slider_changed(value: float) -> void:
 	game_state.set_sfx_volume(value)
@@ -1580,8 +1715,8 @@ func _play_initial_entrance() -> void:
 	_entrance_done = true
 	_play_entrance($VBoxContainer, true)
 
-func _play_entrance(container: Control, from_left: bool = true) -> void:
-	## container の表示中の子要素を、方向付きスライド＋段階フェードで順番に出現させる
+func _play_entrance(container: Control, from_left: bool = true, skip: Array = []) -> void:
+	## container の表示中の子要素を、方向付きスライド＋段階フェードで順番に出現させる（skip の子は動かさない）
 	if not container or not is_inside_tree():
 		return
 	# コンテナのレイアウト確定を待ってから各子の定位置を取得する
@@ -1594,7 +1729,7 @@ func _play_entrance(container: Control, from_left: bool = true) -> void:
 		if not (child is Control):
 			continue
 		var ci := child as Control
-		if not ci.visible:
+		if not ci.visible or skip.has(ci):
 			continue
 		var target_x: float = ci.position.x
 		ci.modulate.a = 0.0

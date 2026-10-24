@@ -798,6 +798,14 @@ func has_ocean_surface() -> bool:
 	return _ocean_surface != null and is_instance_valid(_ocean_surface)
 
 
+## 観客席ブロックの前面(コース側)のX絶対値。観客席がなければ INF。
+## ブロックメッシュは原点から手前へ0.8m張り出す。
+func get_grandstand_front_x() -> float:
+	if not _include_grandstands:
+		return INF
+	return _grandstand_side_offset - 0.8
+
+
 func get_floor_center_z() -> float:
 	return _floor_center_z
 

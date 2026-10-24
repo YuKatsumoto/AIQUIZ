@@ -265,6 +265,17 @@ func _install_scoreboard() -> void:
 				mesh.set_surface_override_material(surface, material)
 
 
+## The LED face's centre and size in world space (新サドンデスの種目発表でカメラが寄る)。
+## {} when the face is missing.
+func screen_frame() -> Dictionary:
+	var bounds := _screen_bounds()
+	if bounds.size == Vector3.ZERO:
+		return {}
+	var center := global_transform * bounds.get_center()
+	var extent := global_transform.basis * bounds.size
+	return {"center": center, "width": maxf(absf(extent.x), absf(extent.z)), "height": absf(extent.y)}
+
+
 ## LED face bounds in stand space (empty AABB when the face is missing).
 func _screen_bounds() -> AABB:
 	var bounds := AABB()
@@ -833,6 +844,7 @@ func _update(delta: float, state: QuizGameState, director: Node, camera: Camera3
 		return
 	_refresh_after_sudden_death(state, mood)
 	var target := _egg_target(director) if bool(mood.get("eggs", false)) else null
+	eggs.support = _egg_support(director) if is_instance_valid(target) else {}
 	_arm_waiting_throwers(is_instance_valid(target))
 	var focus := _focus_point(state, target)
 	for s: Spectator in spectators:
@@ -923,6 +935,12 @@ func _egg_target(director: Node) -> Node3D:
 	if director != null and director.has_method("crowd_egg_target"):
 		return director.crowd_egg_target() as Node3D
 	return null
+
+
+func _egg_support(director: Node) -> Dictionary:
+	if director != null and director.has_method("crowd_egg_support"):
+		return director.crowd_egg_support()
+	return {}
 
 
 func _focus_point(state: QuizGameState, target: Node3D) -> Vector3:

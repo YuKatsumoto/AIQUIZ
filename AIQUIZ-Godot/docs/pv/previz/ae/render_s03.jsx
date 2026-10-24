@@ -1,5 +1,5 @@
 // Render PV_S03 to a PNG sequence for review.
-var OUT = "C:/AIQUIZ/AIQUIZ-Godot/docs/pv/previz/frames_s03/s03_[####].png";
+var OUT = "G:/AIQUIZ-Main/AIQUIZ-Godot/docs/pv/previz/frames_s03/s03_[####].png";
 var comp = null;
 for (var i = 1; i <= app.project.numItems; i++) {
     var it = app.project.item(i);
@@ -13,7 +13,7 @@ var om = item.outputModule(1);
 var tpl = null, names = om.templates;
 for (var k = 0; k < names.length; k++) { if (/PNG/i.test(names[k])) { tpl = names[k]; break; } }
 if (tpl) om.applyTemplate(tpl);
-new Folder("C:/AIQUIZ/AIQUIZ-Godot/docs/pv/previz/frames_s03").create();
+new Folder("G:/AIQUIZ-Main/AIQUIZ-Godot/docs/pv/previz/frames_s03").create();
 om.file = new File(OUT);
 rq.render();
 return { template: tpl, status: String(item.status), templates: names.join(" | ") };

@@ -898,7 +898,9 @@ func _compose_hard_instructions(grade: int, subject: String, curriculum: Diction
 	return p
 
 func is_rate_limited() -> bool:
-	return Time.get_ticks_msec() < _rate_limit_until_ms
+	# プロキシが予算切れで止めている間も、新しい生成は送らない
+	return Time.get_ticks_msec() < _rate_limit_until_ms \
+		or ApiStatusAutoload.is_online_generation_paused()
 
 
 func get_rate_limit_wait_sec() -> float:
@@ -1453,6 +1455,10 @@ func _fetch_gemini_target(prompt: String, target_model: String, temperature: flo
 		var out: Array[QuizItem] = []
 		if response_code == 429:
 			notify_rate_limit()
+		elif response_code == 503:
+			ApiStatusAutoload.notify_online_generation_paused()
+		elif response_code == 401:
+			ApiStatusAutoload.notify_device_token_rejected()
 		elif result == HTTPRequest.RESULT_SUCCESS and response_code == 200:
 			var json = JSON.parse_string(b.get_string_from_utf8())
 			if json is Dictionary and json.has("candidates"):
@@ -1836,6 +1842,16 @@ func _fetch_gemini_streaming(prompt: String, target_model: String, temperature: 
 		if not success and emitted_items.is_empty():
 			if stream_client.response_code == 429:
 				notify_rate_limit()
+				callback.call([] as Array[QuizItem])
+				return
+			# 予算切れ。ストリーミング自体は壊れていないので無効化せず、生成だけ止める
+			if stream_client.response_code == 503:
+				ApiStatusAutoload.notify_online_generation_paused()
+				callback.call([] as Array[QuizItem])
+				return
+			# 端末の許可証が受け付けられなかった。取り直す間は共有バンクで続ける
+			if stream_client.response_code == 401:
+				ApiStatusAutoload.notify_device_token_rejected()
 				callback.call([] as Array[QuizItem])
 				return
 			# 429 以外のストリーミング完全失敗 → 非ストリーミングにフォールバック

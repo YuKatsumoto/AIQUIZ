@@ -1,0 +1,44 @@
+{
+  "advance_usec_avg": 311.142857142857,
+  "blocks_from_doll": {
+    "Blocks": 45,
+    "Chips": 0,
+    "Flaps": 0,
+    "Flashes": 0,
+    "Puffs": 4,
+    "Rings": 0,
+    "Stars": 3
+  },
+  "build_ok": true,
+  "draw_calls_board_idle": 39,
+  "draw_calls_boom_and_blocks": 39,
+  "draw_calls_far_70m": 39,
+  "draw_calls_highlight_2": 41,
+  "fps": 60.0,
+  "fps_independence_max_diff": 0.00000000372529029846191,
+  "hole_offset_uv": [
+    0.187010943889618,
+    0.769461095333099
+  ],
+  "particle_amounts": {
+    "boom_puffs": 9,
+    "boom_shreds": 20,
+    "boom_stars": 5,
+    "burst_confetti": 56,
+    "player_puffs": 4,
+    "player_stars": 3
+  },
+  "peak_draw_calls_board": 46,
+  "peak_particles": 161,
+  "peak_particles_by_kind": {
+    "Blocks": 45,
+    "Chips": 76,
+    "Flaps": 12,
+    "Flashes": 3,
+    "Puffs": 13,
+    "Rings": 4,
+    "Stars": 8
+  },
+  "primitives_board_idle": 17940,
+  "quality": "low"
+}

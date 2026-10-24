@@ -77,6 +77,8 @@ var _cancelling := false
 var _matched := false
 ## L キー（デバッグ版だけ）の仮マッチ中：通信エラーなどで演出が中断されないようにする
 var _fake_match := false
+## カットインで踊るエモートを選ぶ試合ごとの値（両方の画面で同じ。マッチの番号）
+var _cutin_match_key := ""
 ## random / friend_host / friend_join
 var _search_kind: StringName = &"random"
 ## ゲーム画面の読み込み（D9）：0 まだ、1 読み込み中、2 済み、3 失敗（change_scene_to_file に切り替える）
@@ -203,6 +205,7 @@ func _debug_fake_match() -> void:
 	_fake_match = true
 	_matched = true
 	_start_sent = false
+	_cutin_match_key = "debug-%d" % randi()
 	_guest_start = {}
 	_peer_waiting = false
 	if _small_cancel != null:
@@ -906,7 +909,7 @@ func _local_profile() -> Dictionary:
 
 
 ## 相手に見える自分のなまえ（リレーが使えないと判断したらニックネームになる）。
-func shown_own_name() -> String:
+static func shown_own_name() -> String:
 	var mine: Dictionary = NetworkManager.match_you
 	var accepted := str(mine.get("name", GameManager.online_name))
 	return accepted if not accepted.is_empty() else NetNicknames.name_for(GameManager.online_nickname)
@@ -956,7 +959,7 @@ func _on_cutin_started() -> void:
 	cutin.play(_cutin_info())
 
 
-## カットインに渡す中身（名前・ルール・帽子・スキン・ポーズ）。
+## カットインに渡す中身（名前・ルール・帽子・スキン・踊るエモートの候補）。
 func _cutin_info() -> Dictionary:
 	return {
 		"me": shown_own_name(),
@@ -967,6 +970,10 @@ func _cutin_info() -> Dictionary:
 		"their_hat": int(NetworkManager.opponent_profile.get("hat", 0)),
 		"my_skin": PlayerSkinStore.get_skin(1),
 		"their_skin": PlayerSkin.from_code(NetworkManager.opponent_skin_code),
+		# 付けているエモート（相手に送ったものと同じ）から、試合ごとに 1 つ選んで踊る
+		"my_emotes": Array(game_state.p1_emote_slots),
+		"their_emotes": Array(NetworkManager.opponent_emote_slots),
+		"match_key": _cutin_match_key,
 		"short": director.short_mode,
 	}
 
@@ -1158,6 +1165,7 @@ func _on_error(code: String) -> void:
 func _on_matched(info: Dictionary) -> void:
 	_matched = true
 	_start_sent = false
+	_cutin_match_key = NetworkManager.match_id
 	_vs_elapsed = 0.0
 	_guest_start = {}
 	_peer_waiting = false

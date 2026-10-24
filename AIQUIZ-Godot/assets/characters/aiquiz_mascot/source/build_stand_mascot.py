@@ -5,12 +5,14 @@ aiquiz_mascot.blend を開いて実行する（Higgsfield の Blender 連携 bl_
   sys.argv = ["blender", "--"]          # 書き出さないなら ["blender", "--", "--no-export"]
   runpy.run_path(r"C:/AIQUIZ/AIQUIZ-Godot/assets/characters/aiquiz_mascot/source/build_stand_mascot.py", run_name="__main__")
 
-作るもの（mascot_model.glb は変えない）：Rig のアクション 5 本 → ../mascot_stand.glb（骨組みとアクションだけ、メッシュなし）
+作るもの（mascot_model.glb は変えない）：Rig のアクション 7 本 → ../mascot_stand.glb（骨組みとアクションだけ、メッシュなし）
   Stand_Idle      2.0 秒のループ。弾みながら、左手で客席に手を振る
   Stand_Cheer     0.75 秒のループ。両手を上げて跳ぶ（ゴール・判定・スタート）
   Stand_Dance     2.0 秒のループ。左右にステップして腕を交互に突き上げる（勝者のダンスの間）
   Stand_WaveLead  1.5 秒のループ。両腕を下から頭上へ大きく振り上げる（ウェーブの合図）
   Stand_Clap      0.5 秒のループ。頭上で手拍子（応援団の 0.5 秒の拍に合わせる）
+  Stand_HoldCard  2.0 秒のループ。左手（DEF-hand.L）で問題の札を頭の上に掲げ、右手は腰（司会の出題）
+  Stand_Point     1.5 秒のループ。右腕で前を指して、2 回突き出す（司会の指名。向きは呼ぶ側が回す）
 姿勢は骨の向き（ハテナの空間 = glTF：x 左右、y 上、z 前）と、体（DEF-head）と腰（DEF-hips）の上下で決める。
 脚は足首を床に置いたまま 2 本の骨の IK で曲げる（跳ぶ間は足ごと浮く）。
 最後の行 STAND_MASCOT {...} に結果。.blend の保存は呼ぶ側で行う（AGENTS.md）。
@@ -222,9 +224,27 @@ def build_actions(poser):
         bounce = -0.04 * (1.0 - open_amount)
         return {"aims": a, "body_lift": bounce, "hips_lift": bounce, "nod": -0.08}
 
+    def hold_card(t):
+        p = t / 2.0
+        bob = 0.02 * (0.5 - 0.5 * math.cos(TAU * 2.0 * p))
+        sway = math.sin(TAU * p)
+        # Left hand up over the head (the card's handle), right fist on the hip.
+        a = arms((0.16, 1.0, 0.10 + 0.04 * sway), (-0.02 + 0.05 * sway, 1.0, 0.20),
+                 (-0.75, -0.35, -0.35), (0.55, -0.10, 0.25))
+        return {"aims": a, "body_lift": -bob, "hips_lift": -bob, "tilt": -0.06 + 0.03 * sway, "nod": -0.06}
+
+    def point(t):
+        p = t / 1.5
+        jab = max(0.0, math.sin(TAU * 2.0 * p)) ** 2
+        # Right arm straight out in front, a little up and out; it jabs forward twice.
+        a = arms((0.75, -0.45, -0.20), (0.55, -0.30, 0.45),
+                 (-0.32, 0.18 + 0.05 * jab, 1.0), (-0.22, 0.14, 1.0))
+        return {"aims": a, "body_lift": -0.02 * jab, "hips_lift": -0.02 * jab, "tilt": 0.05, "nod": 0.06 + 0.06 * jab}
+
     return [make_action(poser, "Stand_Idle", 2.0, idle), make_action(poser, "Stand_Cheer", 0.75, cheer),
             make_action(poser, "Stand_Dance", 2.0, dance), make_action(poser, "Stand_WaveLead", 1.5, wave_lead),
-            make_action(poser, "Stand_Clap", 0.5, clap)]
+            make_action(poser, "Stand_Clap", 0.5, clap), make_action(poser, "Stand_HoldCard", 2.0, hold_card),
+            make_action(poser, "Stand_Point", 1.5, point)]
 
 
 def _select(objs, active):

@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AIQUIZ 運用</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">AIQUIZ <span>運用</span></div>
+    <nav class="tabs" role="tablist">
+      <button role="tab" data-tab="money">お金</button>
+      <button role="tab" data-tab="pipeline">生成ライン</button>
+      <button role="tab" data-tab="bank">共有バンク</button>
+      <button role="tab" data-tab="players">プレイヤー</button>
+      <button role="tab" data-tab="log">記録</button>
+    </nav>
+    <div class="top-right">
+      <span id="updated" class="muted"></span>
+      <button id="refresh" class="btn">更新</button>
+    </div>
+  </header>
+
+  <div id="error" class="error" hidden></div>
+
+  <main>
+    <section id="tab-money" class="tab" hidden>
+      <div id="money-level" class="level-card"></div>
+      <div class="grid cards-3">
+        <div class="card" id="money-today"></div>
+        <div class="card" id="money-month"></div>
+        <div class="card" id="money-claude"></div>
+      </div>
+      <div class="card">
+        <h2>Gemini の日ごとの使用額（30日）</h2>
+        <div id="money-chart" class="chart"></div>
+        <div id="money-legend" class="legend"></div>
+      </div>
+      <div class="grid cards-2">
+        <div class="card"><h2>モデル別（今日）</h2><div id="models-today"></div></div>
+        <div class="card"><h2>モデル別（今月）</h2><div id="models-month"></div></div>
+      </div>
+    </section>
+
+    <section id="tab-pipeline" class="tab" hidden>
+      <div class="card">
+        <div class="card-head">
+          <h2>問題生成ライン（問題が作られて出題されるまで）</h2>
+          <div class="legend" style="margin:0">
+            <span><i class="swatch pipe-sw player"></i>ゲーム（端末）</span>
+            <span><i class="swatch pipe-sw proxy"></i>プロキシ</span>
+            <span><i class="swatch pipe-sw gemini"></i>Gemini</span>
+            <span><i class="swatch pipe-sw claude"></i>Claude</span>
+            <span><i class="swatch pipe-sw store"></i>問題のたまり場</span>
+            <span><i class="swatch pipe-sw ops"></i>管理ソフト</span>
+          </div>
+        </div>
+        <div id="pipeline" class="pipe-wrap"></div>
+        <div class="small muted">箱の数字は今の値です（1分ごとに更新。共有バンクの数は「更新」で読み直し）。箱を押すと詳しいタブに移ります。</div>
+      </div>
+    </section>
+
+    <section id="tab-bank" class="tab" hidden>
+      <div class="grid cards-5" id="bank-totals"></div>
+      <div class="card">
+        <div class="card-head">
+          <h2>区分ごとの在庫（共有バンク／目標 <span id="bank-target"></span> 問）</h2>
+          <div class="muted small" id="bank-fetched"></div>
+        </div>
+        <div id="bank-grid" class="bank-grid"></div>
+        <div class="legend" id="bank-legend"></div>
+      </div>
+      <div class="grid cards-2" id="jobs"></div>
+      <div class="card">
+        <div class="card-head">
+          <h2>問題を探す（変な問題を共有バンクから外す）</h2>
+          <label class="small muted"><input type="checkbox" id="q-removed"> 外した問題を表示（戻せます）</label>
+        </div>
+        <form id="q-form" class="search-form">
+          <input id="q-text" type="search" placeholder="問題文・選択肢・解説の言葉（スペースで区切ると全部を含むもの）">
+          <input id="q-id" type="text" placeholder="問題の ID" class="id-input">
+          <select id="q-subject"><option value="">教科</option></select>
+          <select id="q-grade"><option value="">学年</option></select>
+          <select id="q-difficulty"><option value="">難しさ</option></select>
+          <button class="btn primary" type="submit">探す</button>
+        </form>
+        <div id="q-results"></div>
+      </div>
+      <div class="grid cards-2">
+        <div class="card"><h2>夜の補充の Batch</h2><div id="builder-batches"></div></div>
+        <div class="card"><h2>判定の Batch</h2><div id="review-batches"></div></div>
+      </div>
+    </section>
+
+    <section id="tab-players" class="tab" hidden>
+      <div class="grid cards-6" id="players-totals"></div>
+      <div class="card">
+        <h2>試合数と端末数（14日）</h2>
+        <div id="players-chart" class="chart"></div>
+        <div class="legend">
+          <span><i class="swatch" style="background:var(--accent)"></i>試合数</span>
+          <span><i class="swatch line"></i>試合をした端末の数（右の目盛り）</span>
+        </div>
+      </div>
+      <div class="grid cards-2">
+        <div class="card"><h2>使用額の多い端末（今日）</h2><div id="top-devices"></div></div>
+        <div class="card"><h2>使用額の多い回線（今日）</h2><div id="top-ips"></div></div>
+      </div>
+      <div class="grid cards-2">
+        <div class="card"><h2>止めた回数（今日・理由ごと）</h2><div id="denials"></div></div>
+        <div class="card">
+          <h2>ブロック中の端末・回線</h2>
+          <div id="blocked-list"></div>
+          <form id="block-form" class="search-form" style="margin-top:10px">
+            <select id="block-kind"><option value="device">端末</option><option value="ip">回線</option></select>
+            <input id="block-key" type="text" class="id-input" placeholder="ID（端末は32桁、回線は表の値）">
+            <button class="btn danger" type="submit">ブロック</button>
+          </form>
+          <div class="small muted">プロキシは1分ごとにブロックの一覧を読み直します。止めた端末・回線では新作が作られず、共有バンクの問題で遊べます。</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-log" class="tab" hidden>
+      <div class="card">
+        <h2>操作の記録（新しい順・50件）</h2>
+        <div id="ops-log"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot muted small" id="foot"></footer>
+
+  <dialog id="confirm">
+    <form method="dialog">
+      <h2 id="confirm-title"></h2>
+      <div id="confirm-body" class="confirm-body"></div>
+      <label id="confirm-reason-wrap" class="small muted">理由（記録に残ります）
+        <textarea id="confirm-reason" rows="2" maxlength="200"></textarea>
+      </label>
+      <div class="confirm-buttons">
+        <button class="btn" value="cancel" type="submit">やめる</button>
+        <button class="btn danger" value="ok" type="submit" id="confirm-ok">実行</button>
+      </div>
+    </form>
+  </dialog>
+  <div id="toast" class="toast" hidden></div>
+  <script src="app.js"></script>
+  <script src="pipeline.js"></script>
+</body>
+</html>

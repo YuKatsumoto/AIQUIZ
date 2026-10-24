@@ -1,0 +1,1388 @@
+{
+ "version": 1,
+ "units": "m",
+ "origin": "海面（浮いているときの水面）× 機体の中心線 × 主翼の翼弦の中央（機首から 6.6 m）。+Y が上、機首が −Z。z = u − 6.6、y = v",
+ "design_source": "source/c130_design.py（artifacts/sudden_death_v2/c130_float/c130_design.py の写し）",
+ "plan": "docs/sudden_death_v2/skygate_build_plan.md 4.2",
+ "markers": {
+  "MK_SeatP1": {
+   "position": [
+    1.76,
+    2.56,
+    0.8
+   ],
+   "note": "P1 の座った pelvis（機体の右の壁のベンチ。ももの下面＝座面）。+Z が向き＝通路の向かい（−X）",
+   "basis": [
+    [
+     -0.0,
+     0.0,
+     1.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.0
+    ],
+    [
+     -1.0,
+     0.0,
+     -0.0
+    ]
+   ]
+  },
+  "MK_SeatP2": {
+   "position": [
+    -1.76,
+    2.56,
+    0.8
+   ],
+   "note": "P2 の座った pelvis（左の壁のベンチ）。+Z が向き＝通路の向かい（+X）",
+   "basis": [
+    [
+     0.0,
+     0.0,
+     -1.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0,
+     0.0
+    ]
+   ]
+  },
+  "MK_StandP1": {
+   "position": [
+    1.15,
+    1.9,
+    0.8
+   ],
+   "note": "P1 がベルトを外して立つ足もと（床の上）",
+   "basis": [
+    [
+     -0.0,
+     0.0,
+     1.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.0
+    ],
+    [
+     -1.0,
+     0.0,
+     -0.0
+    ]
+   ]
+  },
+  "MK_StandP2": {
+   "position": [
+    -1.15,
+    1.9,
+    0.8
+   ],
+   "note": "P2 がベルトを外して立つ足もと（床の上）",
+   "basis": [
+    [
+     0.0,
+     0.0,
+     -1.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0,
+     0.0
+    ]
+   ]
+  },
+  "MK_RampHinge": {
+   "position": [
+    0.0,
+    1.9,
+    4.6
+   ],
+   "note": "スロープの付け根（床の上面）。+Z が外（後ろ）",
+   "basis": [
+    [
+     1.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     1.0
+    ]
+   ]
+  },
+  "MK_RampEdge": {
+   "position": [
+    0.0,
+    1.9,
+    7.8
+   ],
+   "note": "開いたスロープの端の上面＝飛び出す位置（set_ramp(1) のとき）。+Z が外",
+   "basis": [
+    [
+     1.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     1.0
+    ]
+   ]
+  },
+  "MK_DeckDoor": {
+   "position": [
+    0.0,
+    2.95,
+    -3.4
+   ],
+   "note": "操縦席の出入り口（段の上、操縦席の床）。+Z が貨物室",
+   "basis": [
+    [
+     1.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     1.0
+    ]
+   ]
+  },
+  "MK_PilotSeat": {
+   "position": [
+    0.0,
+    3.2,
+    -4.85
+   ],
+   "note": "ハテナ（HatenaPilot）の原点（足元の基準・等倍）。体の下端がクッションの上。+Z が向き＝機首",
+   "basis": [
+    [
+     -1.0,
+     0.0,
+     -0.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     -1.0
+    ]
+   ]
+  },
+  "MK_CamAft": {
+   "position": [
+    0.0,
+    4.55,
+    -3.5
+   ],
+   "note": "機内のカメラ（段の上から後ろを見る。P1 が左）。カメラの −Z が見る向き",
+   "basis": [
+    [
+     -1.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.9799,
+     0.1996
+    ],
+    [
+     -0.0,
+     0.1996,
+     -0.9799
+    ]
+   ]
+  },
+  "MK_CamFwd": {
+   "position": [
+    0.0,
+    3.6,
+    4.35
+   ],
+   "note": "機内のカメラ（スロープの付け根から前を見る）。カメラの −Z が見る向き",
+   "basis": [
+    [
+     1.0,
+     -0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.9995,
+     0.0322
+    ],
+    [
+     -0.0,
+     -0.0322,
+     0.9995
+    ]
+   ]
+  },
+  "MK_TailEnd": {
+   "position": [
+    0.0,
+    5.3,
+    11.45
+   ],
+   "note": "尾の一番後ろ（垂直尾翼の後ろの縁の根元）。水路で床の壁から 0.5 m に合わせる",
+   "basis": [
+    [
+     1.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     1.0
+    ]
+   ]
+  },
+  "MK_JumpLight": {
+   "position": [
+    0.0,
+    5.4,
+    4.28
+   ],
+   "note": "降下のランプ（後ろの開口の上。赤＝+X 側、緑＝−X 側）",
+   "basis": [
+    [
+     -1.0,
+     0.0,
+     -0.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     -1.0
+    ]
+   ]
+  },
+  "MK_CockpitLight": {
+   "position": [
+    0.0,
+    4.982,
+    -4.5
+   ],
+   "note": "操縦席の明かり"
+  },
+  "MK_CabinLight1": {
+   "position": [
+    0.0,
+    5.25,
+    -1.7
+   ],
+   "note": "貨物室の明かり（前）"
+  },
+  "MK_CabinLight2": {
+   "position": [
+    0.0,
+    5.25,
+    0.7
+   ],
+   "note": "貨物室の明かり（真ん中）"
+  },
+  "MK_CabinLight3": {
+   "position": [
+    0.0,
+    5.25,
+    3.1
+   ],
+   "note": "貨物室の明かり（後ろ）"
+  },
+  "MK_SprayBow_L": {
+   "position": [
+    -3.6,
+    0.0,
+    -4.9
+   ],
+   "note": "フロートのしぶき（船首、L）"
+  },
+  "MK_SprayStep_L": {
+   "position": [
+    -3.6,
+    0.0,
+    2.1
+   ],
+   "note": "フロートのしぶき（船底の段、L）"
+  },
+  "MK_SprayStern_L": {
+   "position": [
+    -3.6,
+    0.0,
+    8.0
+   ],
+   "note": "フロートのしぶき（船尾、L）"
+  },
+  "MK_SprayBow_R": {
+   "position": [
+    3.6,
+    0.0,
+    -4.9
+   ],
+   "note": "フロートのしぶき（船首、R）"
+  },
+  "MK_SprayStep_R": {
+   "position": [
+    3.6,
+    0.0,
+    2.1
+   ],
+   "note": "フロートのしぶき（船底の段、R）"
+  },
+  "MK_SprayStern_R": {
+   "position": [
+    3.6,
+    0.0,
+    8.0
+   ],
+   "note": "フロートのしぶき（船尾、R）"
+  }
+ },
+ "marker_convention": "basis の +Z が人の向き（StagingPuppet の yaw と同じ約束）。MK_Cam* だけはカメラの向き（−Z が見る向き）",
+ "ramp": {
+  "node": "Ramp",
+  "pivot": [
+   0.0,
+   1.9,
+   4.6
+  ],
+  "axis": [
+   1,
+   0,
+   0
+  ],
+  "open_deg": 25.0,
+  "length": 3.2,
+  "half_width": 1.55,
+  "note": "GLB は閉じた形（上へ 25°）。開く：ramp.basis = Basis(Vector3.RIGHT, deg_to_rad(open_deg * t))。t=1 で床と水平"
+ },
+ "upper_door": {
+  "node": "UpperDoor",
+  "pivot": [
+   0.0,
+   5.0083,
+   11.25
+  ],
+  "axis": [
+   1,
+   0,
+   0
+  ],
+  "open_deg": 28.159,
+  "open_front_bottom_y": 5.0,
+  "note": "尾の下のふた。後ろの端の蝶番で前を上げて尾の中へ入れる（Basis(Vector3.RIGHT, deg_to_rad(open_deg * t))）"
+ },
+ "tail_passage": [
+  {
+   "z": 7.5,
+   "u": 14.1,
+   "half_width": 1.317,
+   "cheek_bottom_y": 3.097,
+   "top_inner_y": 5.487
+  },
+  {
+   "z": 7.8,
+   "u": 14.4,
+   "half_width": 1.272,
+   "cheek_bottom_y": 3.278,
+   "top_inner_y": 5.466
+  },
+  {
+   "z": 8.2,
+   "u": 14.8,
+   "half_width": 1.185,
+   "cheek_bottom_y": 3.522,
+   "top_inner_y": 5.437
+  },
+  {
+   "z": 8.6,
+   "u": 15.2,
+   "half_width": 1.089,
+   "cheek_bottom_y": 3.772,
+   "top_inner_y": 5.406
+  },
+  {
+   "z": 9.0,
+   "u": 15.6,
+   "half_width": 0.986,
+   "cheek_bottom_y": 4.013,
+   "top_inner_y": 5.374
+  },
+  {
+   "z": 9.4,
+   "u": 16.0,
+   "half_width": 0.88,
+   "cheek_bottom_y": 4.233,
+   "top_inner_y": 5.368
+  },
+  {
+   "z": 9.8,
+   "u": 16.4,
+   "half_width": 0.769,
+   "cheek_bottom_y": 4.423,
+   "top_inner_y": 5.356
+  },
+  {
+   "z": 10.2,
+   "u": 16.8,
+   "half_width": 0.648,
+   "cheek_bottom_y": 4.589,
+   "top_inner_y": 5.337
+  },
+  {
+   "z": 10.6,
+   "u": 17.2,
+   "half_width": 0.52,
+   "cheek_bottom_y": 4.741,
+   "top_inner_y": 5.314
+  },
+  {
+   "z": 11.0,
+   "u": 17.6,
+   "half_width": 0.39,
+   "cheek_bottom_y": 4.885,
+   "top_inner_y": 5.29
+  },
+  {
+   "z": 11.25,
+   "u": 17.85,
+   "half_width": 0.31,
+   "cheek_bottom_y": 4.975,
+   "top_inner_y": 5.275
+  }
+ ],
+ "props": [
+  {
+   "node": "Prop_1",
+   "hub": [
+    -8.0,
+    5.2,
+    -3.7
+   ],
+   "spin_axis": [
+    0,
+    0,
+    1
+   ],
+   "diameter": 2.8,
+   "blades": [
+    {
+     "node": "Blade_1_1",
+     "radial": [
+      0.70711,
+      0.70711,
+      0.0
+     ]
+    },
+    {
+     "node": "Blade_1_2",
+     "radial": [
+      0.70711,
+      -0.70711,
+      0.0
+     ]
+    },
+    {
+     "node": "Blade_1_3",
+     "radial": [
+      -0.70711,
+      -0.70711,
+      0.0
+     ]
+    },
+    {
+     "node": "Blade_1_4",
+     "radial": [
+      -0.70711,
+      0.70711,
+      0.0
+     ]
+    }
+   ],
+   "pitch_deg": 22.0,
+   "reverse_pitch_delta_deg": -42.0
+  },
+  {
+   "node": "Prop_2",
+   "hub": [
+    -4.4,
+    5.2,
+    -3.7
+   ],
+   "spin_axis": [
+    0,
+    0,
+    1
+   ],
+   "diameter": 2.8,
+   "blades": [
+    {
+     "node": "Blade_2_1",
+     "radial": [
+      0.70711,
+      0.70711,
+      0.0
+     ]
+    },
+    {
+     "node": "Blade_2_2",
+     "radial": [
+      0.70711,
+      -0.70711,
+      0.0
+     ]
+    },
+    {
+     "node": "Blade_2_3",
+     "radial": [
+      -0.70711,
+      -0.70711,
+      0.0
+     ]
+    },
+    {
+     "node": "Blade_2_4",
+     "radial": [
+      -0.70711,
+      0.70711,
+      0.0
+     ]
+    }
+   ],
+   "pitch_deg": 22.0,
+   "reverse_pitch_delta_deg": -42.0
+  },
+  {
+   "node": "Prop_3",
+   "hub": [
+    4.4,
+    5.2,
+    -3.7
+   ],
+   "spin_axis": [
+    0,
+    0,
+    1
+   ],
+   "diameter": 2.8,
+   "blades": [
+    {
+     "node": "Blade_3_1",
+     "radial": [
+      0.70711,
+      0.70711,
+      0.0
+     ]
+    },
+    {
+     "node": "Blade_3_2",
+     "radial": [
+      0.70711,
+      -0.70711,
+      0.0
+     ]
+    },
+    {
+     "node": "Blade_3_3",
+     "radial": [
+      -0.70711,
+      -0.70711,
+      0.0
+     ]
+    },
+    {
+     "node": "Blade_3_4",
+     "radial": [
+      -0.70711,
+      0.70711,
+      0.0
+     ]
+    }
+   ],
+   "pitch_deg": 22.0,
+   "reverse_pitch_delta_deg": -42.0
+  },
+  {
+   "node": "Prop_4",
+   "hub": [
+    8.0,
+    5.2,
+    -3.7
+   ],
+   "spin_axis": [
+    0,
+    0,
+    1
+   ],
+   "diameter": 2.8,
+   "blades": [
+    {
+     "node": "Blade_4_1",
+     "radial": [
+      0.70711,
+      0.70711,
+      0.0
+     ]
+    },
+    {
+     "node": "Blade_4_2",
+     "radial": [
+      0.70711,
+      -0.70711,
+      0.0
+     ]
+    },
+    {
+     "node": "Blade_4_3",
+     "radial": [
+      -0.70711,
+      -0.70711,
+      0.0
+     ]
+    },
+    {
+     "node": "Blade_4_4",
+     "radial": [
+      -0.70711,
+      0.70711,
+      0.0
+     ]
+    }
+   ],
+   "pitch_deg": 22.0,
+   "reverse_pitch_delta_deg": -42.0
+  }
+ ],
+ "flaps": [
+  {
+   "node": "Flap_L1",
+   "pivot": [
+    -3.025,
+    5.9027,
+    0.8
+   ],
+   "axis": [
+    1,
+    0,
+    0
+   ],
+   "down_deg": 30.0
+  },
+  {
+   "node": "Flap_L2",
+   "pivot": [
+    -6.2,
+    5.9027,
+    0.8
+   ],
+   "axis": [
+    1,
+    0,
+    0
+   ],
+   "down_deg": 30.0
+  },
+  {
+   "node": "Flap_L3",
+   "pivot": [
+    -9.55,
+    5.9027,
+    0.8
+   ],
+   "axis": [
+    1,
+    0,
+    0
+   ],
+   "down_deg": 30.0
+  },
+  {
+   "node": "Flap_R1",
+   "pivot": [
+    3.025,
+    5.9027,
+    0.8
+   ],
+   "axis": [
+    1,
+    0,
+    0
+   ],
+   "down_deg": 30.0
+  },
+  {
+   "node": "Flap_R2",
+   "pivot": [
+    6.2,
+    5.9027,
+    0.8
+   ],
+   "axis": [
+    1,
+    0,
+    0
+   ],
+   "down_deg": 30.0
+  },
+  {
+   "node": "Flap_R3",
+   "pivot": [
+    9.55,
+    5.9027,
+    0.8
+   ],
+   "axis": [
+    1,
+    0,
+    0
+   ],
+   "down_deg": 30.0
+  }
+ ],
+ "jump_light": {
+  "red": "JumpLight_Red",
+  "green": "JumpLight_Green",
+  "marker": "MK_JumpLight"
+ },
+ "cabin_lights": [
+  {
+   "kind": "downlight",
+   "position": [
+    -0.75,
+    5.4839,
+    -3.09
+   ],
+   "direction": [
+    0.1537,
+    -0.9881,
+    0.0
+   ]
+  },
+  {
+   "kind": "downlight",
+   "position": [
+    -0.75,
+    5.509,
+    -2.485
+   ],
+   "direction": [
+    0.1546,
+    -0.988,
+    0.0
+   ]
+  },
+  {
+   "kind": "downlight",
+   "position": [
+    -0.75,
+    5.5138,
+    -1.9
+   ],
+   "direction": [
+    0.1548,
+    -0.9879,
+    0.0
+   ]
+  },
+  {
+   "kind": "downlight",
+   "position": [
+    -0.75,
+    5.5138,
+    -1.2
+   ],
+   "direction": [
+    0.1548,
+    -0.9879,
+    0.0
+   ]
+  },
+  {
+   "kind": "downlight",
+   "position": [
+    -0.75,
+    5.5138,
+    -0.44
+   ],
+   "direction": [
+    0.1548,
+    -0.9879,
+    0.0
+   ]
+  },
+  {
+   "kind": "downlight",
+   "position": [
+    -0.75,
+    5.5138,
+    0.24
+   ],
+   "direction": [
+    0.1548,
+    -0.9879,
+    0.0
+   ]
+  },
+  {
+   "kind": "downlight",
+   "position": [
+    -0.75,
+    5.5138,
+    1.0
+   ],
+   "direction": [
+    0.1548,
+    -0.9879,
+    0.0
+   ]
+  },
+  {
+   "kind": "downlight",
+   "position": [
+    -0.75,
+    5.5138,
+    1.76
+   ],
+   "direction": [
+    0.1548,
+    -0.9879,
+    0.0
+   ]
+  },
+  {
+   "kind": "downlight",
+   "position": [
+    -0.75,
+    5.5138,
+    2.44
+   ],
+   "direction": [
+    0.1548,
+    -0.9879,
+    0.0
+   ]
+  },
+  {
+   "kind": "downlight",
+   "position": [
+    -0.75,
+    5.5138,
+    3.2
+   ],
+   "direction": [
+    0.1548,
+    -0.9879,
+    0.0
+   ]
+  },
+  {
+   "kind": "downlight",
+   "position": [
+    -0.75,
+    5.5138,
+    3.81
+   ],
+   "direction": [
+    0.1548,
+    -0.9879,
+    0.0
+   ]
+  },
+  {
+   "kind": "downlight",
+   "position": [
+    -0.75,
+    5.5138,
+    4.175
+   ],
+   "direction": [
+    0.1548,
+    -0.9879,
+    0.0
+   ]
+  },
+  {
+   "kind": "downlight",
+   "position": [
+    0.75,
+    5.4839,
+    -3.09
+   ],
+   "direction": [
+    -0.1537,
+    -0.9881,
+    0.0
+   ]
+  },
+  {
+   "kind": "downlight",
+   "position": [
+    0.75,
+    5.509,
+    -2.485
+   ],
+   "direction": [
+    -0.1546,
+    -0.988,
+    0.0
+   ]
+  },
+  {
+   "kind": "downlight",
+   "position": [
+    0.75,
+    5.5138,
+    -1.9
+   ],
+   "direction": [
+    -0.1548,
+    -0.9879,
+    0.0
+   ]
+  },
+  {
+   "kind": "downlight",
+   "position": [
+    0.75,
+    5.5138,
+    -1.2
+   ],
+   "direction": [
+    -0.1548,
+    -0.9879,
+    0.0
+   ]
+  },
+  {
+   "kind": "downlight",
+   "position": [
+    0.75,
+    5.5138,
+    -0.44
+   ],
+   "direction": [
+    -0.1548,
+    -0.9879,
+    0.0
+   ]
+  },
+  {
+   "kind": "downlight",
+   "position": [
+    0.75,
+    5.5138,
+    0.24
+   ],
+   "direction": [
+    -0.1548,
+    -0.9879,
+    0.0
+   ]
+  },
+  {
+   "kind": "downlight",
+   "position": [
+    0.75,
+    5.5138,
+    1.0
+   ],
+   "direction": [
+    -0.1548,
+    -0.9879,
+    0.0
+   ]
+  },
+  {
+   "kind": "downlight",
+   "position": [
+    0.75,
+    5.5138,
+    1.76
+   ],
+   "direction": [
+    -0.1548,
+    -0.9879,
+    0.0
+   ]
+  },
+  {
+   "kind": "downlight",
+   "position": [
+    0.75,
+    5.5138,
+    2.44
+   ],
+   "direction": [
+    -0.1548,
+    -0.9879,
+    0.0
+   ]
+  },
+  {
+   "kind": "downlight",
+   "position": [
+    0.75,
+    5.5138,
+    3.2
+   ],
+   "direction": [
+    -0.1548,
+    -0.9879,
+    0.0
+   ]
+  },
+  {
+   "kind": "downlight",
+   "position": [
+    0.75,
+    5.5138,
+    3.81
+   ],
+   "direction": [
+    -0.1548,
+    -0.9879,
+    0.0
+   ]
+  },
+  {
+   "kind": "downlight",
+   "position": [
+    0.75,
+    5.5138,
+    4.175
+   ],
+   "direction": [
+    -0.1548,
+    -0.9879,
+    0.0
+   ]
+  },
+  {
+   "kind": "amber",
+   "position": [
+    1.6954,
+    4.69,
+    -3.32
+   ],
+   "direction": [
+    -1,
+    -0.3,
+    0.0
+   ]
+  },
+  {
+   "kind": "amber",
+   "position": [
+    -1.6954,
+    4.69,
+    -3.32
+   ],
+   "direction": [
+    1,
+    -0.3,
+    0.0
+   ]
+  },
+  {
+   "kind": "amber",
+   "position": [
+    1.5931,
+    4.94,
+    4.3
+   ],
+   "direction": [
+    -1,
+    -0.3,
+    0.0
+   ]
+  },
+  {
+   "kind": "amber",
+   "position": [
+    -1.5931,
+    4.94,
+    4.3
+   ],
+   "direction": [
+    1,
+    -0.3,
+    0.0
+   ]
+  },
+  {
+   "kind": "amber",
+   "position": [
+    -1.8147,
+    4.29,
+    -2.77
+   ],
+   "direction": [
+    1,
+    -0.3,
+    0.0
+   ]
+  },
+  {
+   "kind": "cockpit",
+   "position": [
+    0.0,
+    5.132,
+    -4.5
+   ],
+   "direction": [
+    0,
+    -1,
+    0
+   ]
+  }
+ ],
+ "ramp_actuators": {
+  "L": {
+   "cylinder": "RampCyl_L",
+   "rod": "RampRod_L",
+   "anchor": [
+    -1.74,
+    3.35,
+    4.85
+   ],
+   "ramp_point_closed": [
+    -1.63,
+    2.7121,
+    5.9867
+   ],
+   "note": "anchor は胴体（動かない）、ramp_point_closed はスロープの上の点（閉じたとき）。筒・棒のローカル −Z を相手へ向ける"
+  },
+  "R": {
+   "cylinder": "RampCyl_R",
+   "rod": "RampRod_R",
+   "anchor": [
+    1.74,
+    3.35,
+    4.85
+   ],
+   "ramp_point_closed": [
+    1.63,
+    2.7121,
+    5.9867
+   ],
+   "note": "anchor は胴体（動かない）、ramp_point_closed はスロープの上の点（閉じたとき）。筒・棒のローカル −Z を相手へ向ける"
+  }
+ },
+ "lights": {
+  "NavLight_L": [
+   -11.9,
+   5.9947,
+   -0.48
+  ],
+  "NavLight_R": [
+   11.9,
+   5.9947,
+   -0.48
+  ],
+  "Beacon": [
+   0.0,
+   5.87,
+   3.0
+  ],
+  "TailLight": [
+   0.0,
+   5.14,
+   11.38
+  ],
+  "JumpLight_Red": [
+   0.12,
+   5.4,
+   4.28
+  ],
+  "JumpLight_Green": [
+   -0.12,
+   5.4,
+   4.28
+  ]
+ },
+ "exhausts": [
+  [
+   -8.0,
+   5.755,
+   2.67
+  ],
+  [
+   -4.4,
+   5.755,
+   2.67
+  ],
+  [
+   4.4,
+   5.755,
+   2.67
+  ],
+  [
+   8.0,
+   5.755,
+   2.67
+  ]
+ ],
+ "belts": {
+  "1": "Belt_P1",
+  "2": "Belt_P2"
+ },
+ "hatena": {
+  "marker": "MK_PilotSeat",
+  "scale": 1.0,
+  "yaw_deg": 180.0
+ },
+ "yoke": {
+  "grip_l": [
+   -0.586,
+   4.018,
+   -5.211
+  ],
+  "grip_r": [
+   0.586,
+   4.018,
+   -5.211
+  ]
+ },
+ "materials": [
+  "FP_Dark",
+  "FP_Decal",
+  "FP_Exhaust",
+  "FP_Glareshield",
+  "FP_Glass",
+  "FP_HazardBlack",
+  "FP_HazardYellow",
+  "FP_InteriorBelt",
+  "FP_InteriorBlanket",
+  "FP_InteriorDark",
+  "FP_InteriorDecal",
+  "FP_InteriorDoor",
+  "FP_InteriorDuct",
+  "FP_InteriorFloor",
+  "FP_InteriorFrame",
+  "FP_InteriorGauge",
+  "FP_InteriorKnob",
+  "FP_InteriorLamp",
+  "FP_InteriorLampAmber",
+  "FP_InteriorMetal",
+  "FP_InteriorNet",
+  "FP_InteriorOlive",
+  "FP_InteriorOxygen",
+  "FP_InteriorPanel",
+  "FP_InteriorRed",
+  "FP_InteriorScreen",
+  "FP_InteriorSeat",
+  "FP_InteriorTread",
+  "FP_InteriorTrim",
+  "FP_InteriorWall",
+  "FP_InteriorYellow",
+  "FP_KnobBlack",
+  "FP_Lens",
+  "FP_LightGreen",
+  "FP_LightRed",
+  "FP_LightWhite",
+  "FP_Metal",
+  "FP_Navy",
+  "FP_Paint",
+  "FP_PropBlade",
+  "FP_PropTip",
+  "FP_Rubber",
+  "FP_SeatFabric",
+  "FP_SeatWebbing",
+  "FP_Slime",
+  "FP_Spinner",
+  "FP_StripeBlue",
+  "FP_StripeOrange",
+  "FP_WindowDark",
+  "FP_WingEdge"
+ ],
+ "dims": {
+  "length_overall": 18.03,
+  "span": 24.0,
+  "height_overall": 10.15,
+  "fuselage_width": 4.4,
+  "fuselage_height": 4.2,
+  "hold_length": 8.0,
+  "hold_inner_width": 4.04,
+  "hold_standing_height": 3.72,
+  "opening_width": 3.1,
+  "opening_height": 3.3,
+  "ramp_length": 3.2,
+  "ramp_width": 3.1,
+  "prop_diameter": 2.8012,
+  "float_length": 14.2,
+  "float_diameter": 1.707,
+  "float_draft": 0.65,
+  "float_spacing": 7.2,
+  "floor_height": 1.9,
+  "flight_deck_height": 2.95
+ },
+ "design": {
+  "length_overall": 18.0,
+  "span": 24.0,
+  "height_overall": 10.15,
+  "fuselage_width": 4.4,
+  "fuselage_height": 4.2,
+  "hold_length": 8.0,
+  "hold_inner_width": 4.04,
+  "hold_standing_height": 3.72,
+  "opening_width": 3.1,
+  "opening_height": 3.3,
+  "ramp_length": 3.2,
+  "ramp_width": 3.1,
+  "prop_diameter": 2.8,
+  "float_length": 14.2,
+  "float_diameter": 1.7,
+  "float_draft": 0.65,
+  "float_spacing": 7.2,
+  "floor_height": 1.9,
+  "flight_deck_height": 2.95
+ }
+}

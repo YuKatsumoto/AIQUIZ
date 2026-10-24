@@ -21,27 +21,41 @@ func setup(parent: Node3D, selected: int) -> void:
 		parent.add_child(source)
 		source.visible = false
 		source.process_mode = Node.PROCESS_MODE_DISABLED
-		var skeleton := source.find_child("*Skeleton*", true, false) as Skeleton3D
-		if skeleton == null:
-			var skeletons := source.find_children("*", "Skeleton3D", true, false)
-			if not skeletons.is_empty(): skeleton = skeletons[0] as Skeleton3D
-		var ap := source.find_child("AnimationPlayer", true, false) as AnimationPlayer
-		var animation := EmoteBlockmanPreview.pick_best_emote_animation(ap)
-		if skeleton == null or animation.is_empty():
+		var clip := make_clip(source)
+		if clip.is_empty():
 			source.queue_free()
 			continue
-		ap.play(animation)
-		ap.pause()
-		ap.seek(0.0, true)
-		skeleton.force_update_all_bone_transforms()
-		var bones := EmoteBlockmanPreview.map_mixamo_bones(skeleton)
-		var clip_duration := ap.get_animation(animation).length
-		if clip_duration <= 0.0 or not bones.has("hips"):
-			source.queue_free()
-			continue
-		clips.append({"source": source, "ap": ap, "skeleton": skeleton, "bones": bones,
-			"duration": clip_duration, "origin": skeleton.get_bone_global_pose(bones.hips).origin})
-		duration += clip_duration
+		clips.append(clip)
+		duration += float(clip.duration)
+
+## Bind an instanced emote FBX (hidden, not processing) at its first frame.
+## Empty when it has no usable skeleton, clip or hips. Also used by the VS cut-in (CutinActors).
+static func make_clip(source: Node3D) -> Dictionary:
+	var skeleton := source.find_child("*Skeleton*", true, false) as Skeleton3D
+	if skeleton == null:
+		var skeletons := source.find_children("*", "Skeleton3D", true, false)
+		if not skeletons.is_empty(): skeleton = skeletons[0] as Skeleton3D
+	var ap := source.find_child("AnimationPlayer", true, false) as AnimationPlayer
+	var animation := EmoteBlockmanPreview.pick_best_emote_animation(ap)
+	if skeleton == null or animation.is_empty(): return {}
+	ap.play(animation)
+	ap.pause()
+	ap.seek(0.0, true)
+	skeleton.force_update_all_bone_transforms()
+	var bones := EmoteBlockmanPreview.map_mixamo_bones(skeleton)
+	var clip_duration := ap.get_animation(animation).length
+	if clip_duration <= 0.0 or not bones.has("hips"): return {}
+	return {"source": source, "ap": ap, "skeleton": skeleton, "bones": bones,
+		"duration": clip_duration, "origin": skeleton.get_bone_global_pose(bones.hips).origin}
+
+## Keep contact poses on the floor, but retain jumps present in the source:
+## how far the lowest foot, hand or head is off the ground (head spins stay down).
+static func contact_lift(skeleton: Skeleton3D, bones: Dictionary, emote: int) -> float:
+	if emote == EmoteData.EMOTE_HEAD_SPINNING: return 0.0
+	var source_height := INF
+	for key in ["l_foot", "r_foot", "l_toe", "r_toe", "l_hand", "r_hand", "head"]:
+		if bones.has(key): source_height = minf(source_height, skeleton.get_bone_global_pose(bones[key]).origin.y)
+	return clampf(source_height - 0.12, 0.0, 0.55)
 
 ## `fade` (0..1) scales the dance out again (the sudden death whistle stops it).
 func apply(root: Node3D, parts: Dictionary, camera: Camera3D, elapsed: float, floor_y: float, fade := 1.0) -> void:
@@ -81,10 +95,7 @@ func apply(root: Node3D, parts: Dictionary, camera: Camera3D, elapsed: float, fl
 	var drift: Vector3 = hip_pose.origin - (clip.origin as Vector3)
 	root.global_position += root.global_basis * Vector3(clampf(-drift.x, -0.16, 0.16), 0.0, clampf(drift.z, -0.12, 0.12)) * weight
 	# Keep contact poses on the belt, but retain jumps present in the source.
-	var source_height := INF
-	for key in ["l_foot", "r_foot", "l_toe", "r_toe", "l_hand", "r_hand", "head"]:
-		if clip.bones.has(key): source_height = minf(source_height, skeleton.get_bone_global_pose(clip.bones[key]).origin.y)
-	var lift := clampf(source_height - 0.12, 0.0, 0.55) if emote_id != EmoteData.EMOTE_HEAD_SPINNING else 0.0
+	var lift := contact_lift(skeleton, clip.bones, emote_id)
 	var lowest := INF
 	for mesh: MeshInstance3D in parts.meshes:
 		for corner in range(8): lowest = minf(lowest, (mesh.global_transform * mesh.get_aabb().get_endpoint(corner)).y)

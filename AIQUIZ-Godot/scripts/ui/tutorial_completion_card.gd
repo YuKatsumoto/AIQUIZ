@@ -1,16 +1,35 @@
 extends Control
 class_name TutorialCompletionCard
 
+## チュートリアルのクリア画面（V7）。
+## チェックと「TUTORIAL CLEAR」の見出しの下に、1P はクリアタイムと残りハート、
+## 2P はクリアタイムとスコアタワーの結果（1行）を出す。成績の評価（メダルなど）は付けない。
+## 一定時間で自動的に次（カスタマイズ紹介）へ進み、MIN_SECONDS 見せた後は Enter で先へ進める。
+##
+## present() の config:
+##   course_label: String           例「1P コース」
+##   stats: Array[Dictionary]       {"value", "label"}
+##   result_line: String            2P のスコアタワーの結果（なければ出さない）
+##   next: String                   例「次はカスタマイズ紹介」
+##   duration: float                自動で次へ進むまでの秒数
+##   auto_dismiss: bool             時間が来たら自分で閉じるか
+
 signal hold_completed
 signal dismissed
 
+## これより早い Enter は飲み込む（見せ切る前に誤って飛ばさない）。
+const MIN_SECONDS := 1.0
+const CHECK_SIZE := 64.0
+
 var _card: PanelContainer
-var _step_label: Label
+var _course_label: Label
 var _title_label: Label
-var _body_label: Label
-var _progress_label: Label
-var _footer_label: Label
-var _time_bar: ProgressBar
+var _check: Control
+var _stat_row: HBoxContainer
+var _result_label: Label
+var _next_label: Label
+var _time_fill: ColorRect
+var _time_track: Control
 var _auto_seconds: float = 0.0
 var _auto_dismiss: bool = false
 var _elapsed: float = 0.0
@@ -27,7 +46,7 @@ func _ready() -> void:
 	z_index = 500
 
 	var dim := ColorRect.new()
-	dim.color = Color(0.005, 0.018, 0.045, 0.72)
+	dim.color = Color(0.005, 0.018, 0.045, 0.62)
 	dim.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(dim)
 	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -39,103 +58,113 @@ func _ready() -> void:
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	_card = PanelContainer.new()
-	_card.custom_minimum_size = Vector2(640.0, 300.0)
+	_card.name = "ClearCard"
+	_card.custom_minimum_size = Vector2(780.0, 0.0)
 	_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var card_style := StyleBoxFlat.new()
-	card_style.bg_color = Color(0.025, 0.055, 0.105, 0.985)
-	card_style.border_color = Color(1.0, 0.78, 0.18, 0.98)
-	card_style.set_border_width_all(3)
-	card_style.set_corner_radius_all(24)
-	card_style.shadow_color = Color(0.0, 0.0, 0.0, 0.55)
-	card_style.shadow_size = 18
-	card_style.content_margin_left = 42.0
-	card_style.content_margin_right = 42.0
-	card_style.content_margin_top = 28.0
+	var card_style := TutorialUiStyle.box(
+		TutorialUiStyle.PANEL_SOLID, Color(TutorialUiStyle.ACCENT, 0.85), 2, 26, 40.0, 0.0
+	)
+	card_style.content_margin_top = 30.0
 	card_style.content_margin_bottom = 26.0
+	card_style.shadow_color = Color(0.0, 0.0, 0.0, 0.5)
+	card_style.shadow_size = 24
 	_card.add_theme_stylebox_override("panel", card_style)
 	center.add_child(_card)
 
 	var content := VBoxContainer.new()
 	content.alignment = BoxContainer.ALIGNMENT_CENTER
-	content.add_theme_constant_override("separation", 10)
+	content.add_theme_constant_override("separation", 18)
 	content.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_card.add_child(content)
 
-	_step_label = Label.new()
-	_step_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_step_label.add_theme_font_size_override("font_size", 14)
-	_step_label.add_theme_color_override("font_color", Color(0.58, 0.74, 0.96))
-	content.add_child(_step_label)
-
-	var check := Label.new()
-	check.text = "✓"
-	check.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	check.add_theme_font_size_override("font_size", 48)
-	check.add_theme_color_override("font_color", Color(0.34, 1.0, 0.60))
-	content.add_child(check)
-
-	_title_label = Label.new()
-	_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_title_label.add_theme_font_size_override("font_size", 32)
-	_title_label.add_theme_color_override("font_color", Color(1.0, 0.86, 0.28))
+	_course_label = _centered(TutorialUiStyle.make_label("", 14, TutorialUiStyle.MUTED))
+	content.add_child(_course_label)
+	_check = TutorialUiStyle.glyph_disc("check", CHECK_SIZE, TutorialUiStyle.DONE, Color("05301a"))
+	_check.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_check.pivot_offset = Vector2(CHECK_SIZE, CHECK_SIZE) * 0.5
+	content.add_child(_check)
+	_title_label = _centered(TutorialUiStyle.make_label("TUTORIAL CLEAR", 52, TutorialUiStyle.ACCENT))
+	_title_label.add_theme_constant_override("line_spacing", 0)
 	content.add_child(_title_label)
 
-	_body_label = Label.new()
-	_body_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_body_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_body_label.add_theme_font_size_override("font_size", 18)
-	_body_label.add_theme_color_override("font_color", Color(0.92, 0.95, 1.0))
-	content.add_child(_body_label)
+	_stat_row = HBoxContainer.new()
+	_stat_row.name = "Stats"
+	_stat_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_stat_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	_stat_row.add_theme_constant_override("separation", 14)
+	content.add_child(_stat_row)
 
-	_progress_label = Label.new()
-	_progress_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_progress_label.add_theme_font_size_override("font_size", 16)
-	_progress_label.add_theme_color_override("font_color", Color(0.48, 0.96, 0.72))
-	content.add_child(_progress_label)
+	_result_label = _centered(TutorialUiStyle.make_label("", 17, TutorialUiStyle.TEXT))
+	content.add_child(_result_label)
 
-	_footer_label = Label.new()
-	_footer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_footer_label.add_theme_font_size_override("font_size", 13)
-	_footer_label.add_theme_color_override("font_color", Color(0.62, 0.70, 0.84))
-	content.add_child(_footer_label)
-
-	_time_bar = ProgressBar.new()
-	_time_bar.custom_minimum_size = Vector2(0.0, 8.0)
-	_time_bar.min_value = 0.0
-	_time_bar.max_value = 100.0
-	_time_bar.value = 0.0
-	_time_bar.show_percentage = false
-	var bar_bg := StyleBoxFlat.new()
-	bar_bg.bg_color = Color(0.10, 0.15, 0.24, 0.95)
-	bar_bg.set_corner_radius_all(4)
-	var bar_fill := StyleBoxFlat.new()
-	bar_fill.bg_color = Color(1.0, 0.76, 0.18, 1.0)
-	bar_fill.set_corner_radius_all(4)
-	_time_bar.add_theme_stylebox_override("background", bar_bg)
-	_time_bar.add_theme_stylebox_override("fill", bar_fill)
-	content.add_child(_time_bar)
+	var next_row := HBoxContainer.new()
+	next_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	next_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	next_row.add_theme_constant_override("separation", 10)
+	content.add_child(next_row)
+	_next_label = TutorialUiStyle.make_label("", 15, TutorialUiStyle.MUTED)
+	_next_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	next_row.add_child(_next_label)
+	var enter_chip := TutorialKeyChip.new()
+	enter_chip.setup("Enter", TutorialKeyChip.Look.IDLE, TutorialUiStyle.ACCENT, 24.0)
+	next_row.add_child(enter_chip)
+	_time_track = Panel.new()
+	_time_track.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_time_track.custom_minimum_size = Vector2(160.0, 5.0)
+	_time_track.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_time_track.clip_contents = true
+	_time_track.add_theme_stylebox_override("panel", TutorialUiStyle.box(Color(1.0, 1.0, 1.0, 0.14), Color.TRANSPARENT, 0, 3))
+	next_row.add_child(_time_track)
+	_time_fill = ColorRect.new()
+	_time_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_time_fill.color = TutorialUiStyle.ACCENT
+	_time_fill.size = Vector2(0.0, 5.0)
+	_time_track.add_child(_time_fill)
 
 	modulate.a = 0.0
 	set_process(false)
 
 
+func _centered(label: Label) -> Label:
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	return label
+
+
 func present(config: Dictionary) -> void:
-	_step_label.text = str(config.get("step", ""))
-	_title_label.text = str(config.get("title", "チュートリアル完了"))
-	_body_label.text = str(config.get("body", ""))
-	_progress_label.text = str(config.get("progress", ""))
-	_footer_label.text = str(config.get("footer", "自動で次へ進みます"))
-	_auto_seconds = maxf(0.1, float(config.get("duration", 3.0)))
-	# シーンが切り替わらない呼び出し元（2Pコース完了→リザルト）では、
-	# カードが入力を飲み込んだまま残らないよう自分で閉じる。
+	_course_label.text = str(config.get("course_label", ""))
+	_course_label.visible = not _course_label.text.is_empty()
+	_title_label.text = str(config.get("title", "TUTORIAL CLEAR"))
+	_build_stats(config.get("stats", []))
+	_result_label.text = str(config.get("result_line", ""))
+	_result_label.visible = not _result_label.text.is_empty()
+	_next_label.text = str(config.get("next", "次へ進みます"))
+	_auto_seconds = maxf(0.1, float(config.get("duration", 4.0)))
+	# シーンが切り替わらない呼び出し元では、カードが入力を飲み込んだまま残らないよう自分で閉じる。
 	_auto_dismiss = bool(config.get("auto_dismiss", false))
 	_elapsed = 0.0
 	_holding = true
 	_hold_emitted = false
-	_time_bar.value = 0.0
 	set_process(true)
 	call_deferred("_play_entrance")
 	call_deferred("_fire_confetti")
+
+
+func _build_stats(stats: Array) -> void:
+	for child: Node in _stat_row.get_children():
+		child.queue_free()
+	for stat_variant: Variant in stats:
+		var stat: Dictionary = stat_variant
+		var panel := PanelContainer.new()
+		panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		panel.add_theme_stylebox_override("panel", TutorialUiStyle.box(Color(1.0, 1.0, 1.0, 0.06), Color.TRANSPARENT, 0, 12, 20.0, 8.0))
+		_stat_row.add_child(panel)
+		var column := VBoxContainer.new()
+		column.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		column.add_theme_constant_override("separation", 0)
+		panel.add_child(column)
+		column.add_child(_centered(TutorialUiStyle.make_label(str(stat.get("value", "")), 26, Color.WHITE)))
+		column.add_child(_centered(TutorialUiStyle.make_label(str(stat.get("label", "")), 12, TutorialUiStyle.MUTED)))
+	_stat_row.visible = not stats.is_empty()
 
 
 func _play_entrance() -> void:
@@ -148,6 +177,9 @@ func _play_entrance() -> void:
 	tween.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	tween.tween_property(self, "modulate:a", 1.0, 0.28)
 	tween.tween_property(_card, "scale", Vector2.ONE, 0.34)
+	# チェックはカードより少し遅れて押されるように出す。
+	_check.scale = Vector2.ZERO
+	tween.tween_property(_check, "scale", Vector2.ONE, 0.32).set_delay(0.22)
 
 
 func _fire_confetti() -> void:
@@ -199,13 +231,19 @@ func _process(delta: float) -> void:
 	if not _holding or _hold_emitted:
 		return
 	_elapsed = minf(_auto_seconds, _elapsed + delta)
-	_time_bar.value = (_elapsed / _auto_seconds) * 100.0
+	_time_fill.size = Vector2(_time_track.size.x * (_elapsed / _auto_seconds), 5.0)
 	if _elapsed >= _auto_seconds:
-		_hold_emitted = true
-		set_process(false)
-		hold_completed.emit()
-		if _auto_dismiss:
-			dismiss()
+		_finish_hold()
+
+
+func _finish_hold() -> void:
+	if _hold_emitted:
+		return
+	_hold_emitted = true
+	set_process(false)
+	hold_completed.emit()
+	if _auto_dismiss:
+		dismiss()
 
 
 func dismiss() -> void:
@@ -223,6 +261,29 @@ func dismiss() -> void:
 	queue_free()
 
 
-func _input(_event: InputEvent) -> void:
-	if visible:
-		get_viewport().set_input_as_handled()
+## テスト用。表示中の見出しと数値。
+func get_debug_snapshot() -> Dictionary:
+	return {
+		"title": _title_label.text,
+		"course": _course_label.text,
+		"stats": _stat_row.get_child_count(),
+		"result_line": _result_label.text,
+		"elapsed": _elapsed,
+	}
+
+
+## カードの間はほかの操作を通さない。MIN_SECONDS 見せた後の Enter だけは、
+## ゲーム側（クリア画面の演出を早送りする処理）へ渡す。
+func _input(event: InputEvent) -> void:
+	if not visible:
+		return
+	var key := event as InputEventKey
+	if (
+		key != null
+		and key.pressed
+		and not key.echo
+		and key.keycode in [KEY_ENTER, KEY_KP_ENTER]
+		and _elapsed >= MIN_SECONDS
+	):
+		return
+	get_viewport().set_input_as_handled()

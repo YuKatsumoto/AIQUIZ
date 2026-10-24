@@ -1,0 +1,395 @@
+[gd_scene format=3]
+
+[ext_resource type="Material" path="res://assets/BinbunMaterials/presets/basic/basic_hard.tres" id="m0"]
+[ext_resource type="Material" path="res://assets/BinbunMaterials/presets/basic/basic_medium.tres" id="m1"]
+[ext_resource type="Material" path="res://assets/BinbunMaterials/presets/basic/basic_soft.tres" id="m2"]
+[ext_resource type="Material" path="res://assets/BinbunMaterials/presets/brush/brush_01.tres" id="m3"]
+[ext_resource type="Material" path="res://assets/BinbunMaterials/presets/brush/brush_02.tres" id="m4"]
+[ext_resource type="Material" path="res://assets/BinbunMaterials/presets/cross/cross_hard.tres" id="m5"]
+[ext_resource type="Material" path="res://assets/BinbunMaterials/presets/cross/cross_medium.tres" id="m6"]
+[ext_resource type="Material" path="res://assets/BinbunMaterials/presets/cross/cross_soft.tres" id="m7"]
+[ext_resource type="Material" path="res://assets/BinbunMaterials/presets/diagonal/diagonal_hard.tres" id="m8"]
+[ext_resource type="Material" path="res://assets/BinbunMaterials/presets/diagonal/diagonal_medium.tres" id="m9"]
+[ext_resource type="Material" path="res://assets/BinbunMaterials/presets/diagonal/diagonal_soft.tres" id="m10"]
+[ext_resource type="Material" path="res://assets/BinbunMaterials/presets/dither/dither_hard.tres" id="m11"]
+[ext_resource type="Material" path="res://assets/BinbunMaterials/presets/dither/dither_medium.tres" id="m12"]
+[ext_resource type="Material" path="res://assets/BinbunMaterials/presets/dither/dither_soft.tres" id="m13"]
+[ext_resource type="Material" path="res://assets/BinbunMaterials/presets/dot/dot_hard.tres" id="m14"]
+[ext_resource type="Material" path="res://assets/BinbunMaterials/presets/dot/dot_medium.tres" id="m15"]
+[ext_resource type="Material" path="res://assets/BinbunMaterials/presets/dot/dot_soft.tres" id="m16"]
+[ext_resource type="Material" path="res://assets/BinbunMaterials/presets/grid/grid_hard.tres" id="m17"]
+[ext_resource type="Material" path="res://assets/BinbunMaterials/presets/grid/grid_medium.tres" id="m18"]
+[ext_resource type="Material" path="res://assets/BinbunMaterials/presets/grid/grid_soft.tres" id="m19"]
+[ext_resource type="Material" path="res://assets/BinbunMaterials/presets/hatching/hatching_hard.tres" id="m20"]
+[ext_resource type="Material" path="res://assets/BinbunMaterials/presets/hatching/hatching_medium.tres" id="m21"]
+[ext_resource type="Material" path="res://assets/BinbunMaterials/presets/hatching/hatching_soft.tres" id="m22"]
+[ext_resource type="Material" path="res://assets/BinbunMaterials/presets/noise/bubbly.tres" id="m23"]
+[ext_resource type="Material" path="res://assets/BinbunMaterials/presets/noise/cell.tres" id="m24"]
+[ext_resource type="Material" path="res://assets/BinbunMaterials/presets/pencil/pencil_01.tres" id="m25"]
+[ext_resource type="Material" path="res://assets/BinbunMaterials/presets/pencil/pencil_02.tres" id="m26"]
+[ext_resource type="Material" path="res://assets/BinbunMaterials/presets/pencil/pencil_03.tres" id="m27"]
+[ext_resource type="Material" path="res://assets/BinbunMaterials/presets/square/square_hard.tres" id="m28"]
+[ext_resource type="Material" path="res://assets/BinbunMaterials/presets/square/square_medium.tres" id="m29"]
+[ext_resource type="Material" path="res://assets/BinbunMaterials/presets/square/square_soft.tres" id="m30"]
+
+[sub_resource type="SphereMesh" id="sphere"]
+
+[sub_resource type="Environment" id="env"]
+background_mode = 1
+background_color = Color(0.32, 0.34, 0.38, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.5, 0.5, 0.5, 1)
+ambient_light_energy = 0.4
+
+[node name="PresetPreview" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("env")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866, -0.354, 0.354, 0, 0.707, 0.707, -0.5, -0.612, 0.612, 0, 10, 0)
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.94, 0.342, 0, -0.342, 0.94, 0, 2.5, 13)
+current = true
+
+[node name="basic_hard" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.60, 2.50, 0)
+mesh = SubResource("sphere")
+material_override = ExtResource("m0")
+
+[node name="Label" type="Label3D" parent="basic_hard"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.75, 0)
+text = "basic_hard"
+font_size = 24
+outline_size = 6
+
+[node name="basic_medium" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.00, 2.50, 0)
+mesh = SubResource("sphere")
+material_override = ExtResource("m1")
+
+[node name="Label" type="Label3D" parent="basic_medium"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.75, 0)
+text = "basic_medium"
+font_size = 24
+outline_size = 6
+
+[node name="basic_soft" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.40, 2.50, 0)
+mesh = SubResource("sphere")
+material_override = ExtResource("m2")
+
+[node name="Label" type="Label3D" parent="basic_soft"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.75, 0)
+text = "basic_soft"
+font_size = 24
+outline_size = 6
+
+[node name="brush_01" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.80, 2.50, 0)
+mesh = SubResource("sphere")
+material_override = ExtResource("m3")
+
+[node name="Label" type="Label3D" parent="brush_01"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.75, 0)
+text = "brush_01"
+font_size = 24
+outline_size = 6
+
+[node name="brush_02" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.80, 2.50, 0)
+mesh = SubResource("sphere")
+material_override = ExtResource("m4")
+
+[node name="Label" type="Label3D" parent="brush_02"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.75, 0)
+text = "brush_02"
+font_size = 24
+outline_size = 6
+
+[node name="cross_hard" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.40, 2.50, 0)
+mesh = SubResource("sphere")
+material_override = ExtResource("m5")
+
+[node name="Label" type="Label3D" parent="cross_hard"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.75, 0)
+text = "cross_hard"
+font_size = 24
+outline_size = 6
+
+[node name="cross_medium" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.00, 2.50, 0)
+mesh = SubResource("sphere")
+material_override = ExtResource("m6")
+
+[node name="Label" type="Label3D" parent="cross_medium"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.75, 0)
+text = "cross_medium"
+font_size = 24
+outline_size = 6
+
+[node name="cross_soft" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.60, 2.50, 0)
+mesh = SubResource("sphere")
+material_override = ExtResource("m7")
+
+[node name="Label" type="Label3D" parent="cross_soft"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.75, 0)
+text = "cross_soft"
+font_size = 24
+outline_size = 6
+
+[node name="diagonal_hard" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.60, 0.60, 0)
+mesh = SubResource("sphere")
+material_override = ExtResource("m8")
+
+[node name="Label" type="Label3D" parent="diagonal_hard"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.75, 0)
+text = "diagonal_hard"
+font_size = 24
+outline_size = 6
+
+[node name="diagonal_medium" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.00, 0.60, 0)
+mesh = SubResource("sphere")
+material_override = ExtResource("m9")
+
+[node name="Label" type="Label3D" parent="diagonal_medium"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.75, 0)
+text = "diagonal_medium"
+font_size = 24
+outline_size = 6
+
+[node name="diagonal_soft" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.40, 0.60, 0)
+mesh = SubResource("sphere")
+material_override = ExtResource("m10")
+
+[node name="Label" type="Label3D" parent="diagonal_soft"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.75, 0)
+text = "diagonal_soft"
+font_size = 24
+outline_size = 6
+
+[node name="dither_hard" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.80, 0.60, 0)
+mesh = SubResource("sphere")
+material_override = ExtResource("m11")
+
+[node name="Label" type="Label3D" parent="dither_hard"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.75, 0)
+text = "dither_hard"
+font_size = 24
+outline_size = 6
+
+[node name="dither_medium" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.80, 0.60, 0)
+mesh = SubResource("sphere")
+material_override = ExtResource("m12")
+
+[node name="Label" type="Label3D" parent="dither_medium"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.75, 0)
+text = "dither_medium"
+font_size = 24
+outline_size = 6
+
+[node name="dither_soft" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.40, 0.60, 0)
+mesh = SubResource("sphere")
+material_override = ExtResource("m13")
+
+[node name="Label" type="Label3D" parent="dither_soft"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.75, 0)
+text = "dither_soft"
+font_size = 24
+outline_size = 6
+
+[node name="dot_hard" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.00, 0.60, 0)
+mesh = SubResource("sphere")
+material_override = ExtResource("m14")
+
+[node name="Label" type="Label3D" parent="dot_hard"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.75, 0)
+text = "dot_hard"
+font_size = 24
+outline_size = 6
+
+[node name="dot_medium" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.60, 0.60, 0)
+mesh = SubResource("sphere")
+material_override = ExtResource("m15")
+
+[node name="Label" type="Label3D" parent="dot_medium"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.75, 0)
+text = "dot_medium"
+font_size = 24
+outline_size = 6
+
+[node name="dot_soft" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.60, -1.30, 0)
+mesh = SubResource("sphere")
+material_override = ExtResource("m16")
+
+[node name="Label" type="Label3D" parent="dot_soft"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.75, 0)
+text = "dot_soft"
+font_size = 24
+outline_size = 6
+
+[node name="grid_hard" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.00, -1.30, 0)
+mesh = SubResource("sphere")
+material_override = ExtResource("m17")
+
+[node name="Label" type="Label3D" parent="grid_hard"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.75, 0)
+text = "grid_hard"
+font_size = 24
+outline_size = 6
+
+[node name="grid_medium" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.40, -1.30, 0)
+mesh = SubResource("sphere")
+material_override = ExtResource("m18")
+
+[node name="Label" type="Label3D" parent="grid_medium"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.75, 0)
+text = "grid_medium"
+font_size = 24
+outline_size = 6
+
+[node name="grid_soft" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.80, -1.30, 0)
+mesh = SubResource("sphere")
+material_override = ExtResource("m19")
+
+[node name="Label" type="Label3D" parent="grid_soft"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.75, 0)
+text = "grid_soft"
+font_size = 24
+outline_size = 6
+
+[node name="hatching_hard" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.80, -1.30, 0)
+mesh = SubResource("sphere")
+material_override = ExtResource("m20")
+
+[node name="Label" type="Label3D" parent="hatching_hard"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.75, 0)
+text = "hatching_hard"
+font_size = 24
+outline_size = 6
+
+[node name="hatching_medium" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.40, -1.30, 0)
+mesh = SubResource("sphere")
+material_override = ExtResource("m21")
+
+[node name="Label" type="Label3D" parent="hatching_medium"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.75, 0)
+text = "hatching_medium"
+font_size = 24
+outline_size = 6
+
+[node name="hatching_soft" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.00, -1.30, 0)
+mesh = SubResource("sphere")
+material_override = ExtResource("m22")
+
+[node name="Label" type="Label3D" parent="hatching_soft"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.75, 0)
+text = "hatching_soft"
+font_size = 24
+outline_size = 6
+
+[node name="bubbly" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.60, -1.30, 0)
+mesh = SubResource("sphere")
+material_override = ExtResource("m23")
+
+[node name="Label" type="Label3D" parent="bubbly"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.75, 0)
+text = "bubbly"
+font_size = 24
+outline_size = 6
+
+[node name="cell" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.60, -3.20, 0)
+mesh = SubResource("sphere")
+material_override = ExtResource("m24")
+
+[node name="Label" type="Label3D" parent="cell"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.75, 0)
+text = "cell"
+font_size = 24
+outline_size = 6
+
+[node name="pencil_01" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.00, -3.20, 0)
+mesh = SubResource("sphere")
+material_override = ExtResource("m25")
+
+[node name="Label" type="Label3D" parent="pencil_01"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.75, 0)
+text = "pencil_01"
+font_size = 24
+outline_size = 6
+
+[node name="pencil_02" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.40, -3.20, 0)
+mesh = SubResource("sphere")
+material_override = ExtResource("m26")
+
+[node name="Label" type="Label3D" parent="pencil_02"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.75, 0)
+text = "pencil_02"
+font_size = 24
+outline_size = 6
+
+[node name="pencil_03" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.80, -3.20, 0)
+mesh = SubResource("sphere")
+material_override = ExtResource("m27")
+
+[node name="Label" type="Label3D" parent="pencil_03"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.75, 0)
+text = "pencil_03"
+font_size = 24
+outline_size = 6
+
+[node name="square_hard" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.80, -3.20, 0)
+mesh = SubResource("sphere")
+material_override = ExtResource("m28")
+
+[node name="Label" type="Label3D" parent="square_hard"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.75, 0)
+text = "square_hard"
+font_size = 24
+outline_size = 6
+
+[node name="square_medium" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.40, -3.20, 0)
+mesh = SubResource("sphere")
+material_override = ExtResource("m29")
+
+[node name="Label" type="Label3D" parent="square_medium"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.75, 0)
+text = "square_medium"
+font_size = 24
+outline_size = 6
+
+[node name="square_soft" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.00, -3.20, 0)
+mesh = SubResource("sphere")
+material_override = ExtResource("m30")
+
+[node name="Label" type="Label3D" parent="square_soft"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.75, 0)
+text = "square_soft"
+font_size = 24
+outline_size = 6

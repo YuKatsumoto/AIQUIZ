@@ -1,15 +1,16 @@
-extends RefCounted
+extends TutorialFlowBase
 class_name SoloTutorialFlow
 
-## 1P（ソロ）チュートリアルコース。
+## 1P（ソロ）チュートリアルコース（V7）。
 ## ローカル2Pコースは res://scripts/core/tutorial/duo_tutorial_flow.gd が担当する。
 ## 両クラスは QuizGameState から同じメソッド面で呼ばれるため、
-## 片方にクエリを足したらもう片方にも同名で足すこと。
+## 片方にクエリを足したらもう片方にも同名で足すこと。章・ルール表示・ミッションなど
+## 共通の仕組みは res://scripts/core/tutorial/tutorial_flow_base.gd にある。
 ##
-## 学習順は「操作 → 危険 → 回答 → ハート → 実践 → カスタマイズ」。
-## 本編（10問チャレンジ・エンドレス）と同じく3つのハート（HP）で遊ぶ。
-## 誘導ありの問題ではミスを優しくやり直させ、ハート体験ではわざと不正解のドアへ入ってもらう。
-## 誘導なしの実践は本編と同じ判定で、不正解や壁への衝突でハートが1つ減り、0で脱落する。
+## 章は「操作 → キケン → クイズ → ボス」。本編（10問チャレンジ・エンドレス）と同じく
+## 3つのハート（HP）で遊ぶ。誘導ありの問題ではミスを優しくやり直させ、ハート体験では
+## わざと不正解のドアへ入ってもらう。誘導なしの本番とボス壁は本編と同じ判定で、
+## 不正解や壁への衝突でハートが1つ減り、0で脱落する。
 ##
 ## 操作を教えるステップでは、各タスクの "slots" をもとに 3D 空間へ操作キーを浮かべる
 ## （res://scripts/world/tutorial_key_guides_3d.gd）。"key_layout" がその並べ方。
@@ -40,30 +41,36 @@ const KEYS_SIDES := "sides"
 ## エモートキーのビット（bit0 = 1、bit1 = 2、bit2 = 3）と、それぞれを練習するタスク。
 const EMOTE_TASKS: Array[String] = ["emote_1", "emote_2", "emote_3"]
 
-const TASK_HOLD_SECONDS := 0.55
-const HINT_SECONDS := 3.4
+## タスクがそろってから次のステップへ移るまでの間。チェックが見えるだけの短さにする。
+const TASK_HOLD_SECONDS := 0.3
 const GATE_GRACE_SECONDS := 0.7
-## 4択のボス壁で使う問題の番号。
-const BOSS_QUIZ_INDEX := 4
+## 4択のボス壁で使う問題の番号（誘導・ハート体験・本番1問の次）。
+const BOSS_QUIZ_INDEX := 3
+
+const CHAPTERS: Array[Dictionary] = [
+	{"id": "controls", "label": "操作", "icon": "move"},
+	{"id": "danger", "label": "キケン", "icon": "wave"},
+	{"id": "quiz", "label": "クイズ", "icon": "door"},
+	{"id": "boss", "label": "ボス", "icon": "crown"},
+]
 
 var course: String = COURSE_SOLO
-var step_index: int = 0
-var revision: int = 0
 var presentation_locked: bool = false
 var awaiting_neutral_input: bool = false
 
-var _steps: Array[Dictionary] = []
 var _tasks: Array[Dictionary] = []
 var _quiz_cursor: int = 0
 var _task_hold: float = -1.0
-var _hint_text: String = ""
-var _hint_timer: float = 0.0
 var _gate_elapsed: float = 0.0
 var _death_recovery_active: bool = false
 var _death_recovery_duration: float = 0.0
 var _death_recovery_retry: bool = false
 var _death_recovery_message: String = ""
 var _quiz_items: Array[QuizItem] = []
+
+
+func chapter_defs() -> Array[Dictionary]:
+	return CHAPTERS
 
 
 func start(_selected_course: String = COURSE_SOLO) -> void:
@@ -73,33 +80,18 @@ func start(_selected_course: String = COURSE_SOLO) -> void:
 	step_index = 0
 	revision += 1
 	_clear_transient_state()
-	_enter_current_step()
-
-
-func current_step() -> Dictionary:
-	if step_index < 0 or step_index >= _steps.size():
-		return {}
-	return _steps[step_index]
-
-
-func current_step_id() -> String:
-	return str(current_step().get("id", ""))
-
-
-func is_step(step_id: String) -> bool:
-	return current_step_id() == step_id
-
-
-func step_count() -> int:
-	return _steps.size()
+	_reset_v7_state()
+	_enter_current_step(false)
 
 
 func advance_step() -> bool:
 	if step_index + 1 >= _steps.size():
 		return false
+	var previous_chapter := chapter_id()
 	step_index += 1
 	revision += 1
-	_enter_current_step()
+	_queue_chapter_banner(previous_chapter)
+	_enter_current_step(not previous_chapter.is_empty() and previous_chapter == chapter_id())
 	return true
 
 
@@ -148,6 +140,7 @@ func finish_presentation(_expected_id: String = "") -> bool:
 	presentation_locked = false
 	awaiting_neutral_input = true
 	revision += 1
+	_fire_step_toast(TOAST_ON_ENTER)
 	presentation_finished.emit(finished_id)
 	return true
 
@@ -189,11 +182,7 @@ func tick(delta: float) -> void:
 		_gate_elapsed += delta
 	else:
 		_gate_elapsed = 0.0
-	if _hint_timer > 0.0:
-		_hint_timer = maxf(0.0, _hint_timer - delta)
-		if _hint_timer <= 0.0:
-			_hint_text = ""
-			revision += 1
+	_tick_hint(delta)
 
 
 func is_input_practice_step() -> bool:
@@ -255,6 +244,8 @@ func complete_task(player_index: int, task_id: String) -> bool:
 		task["done"] = true
 		revision += 1
 		task_completed.emit(player_index, task_id)
+		if all_tasks_complete():
+			_fire_step_toast(TOAST_ON_DONE)
 		return true
 	return false
 
@@ -495,6 +486,8 @@ func begin_death_recovery(duration: float, retry_same_step: bool, message: Strin
 	revision += 1
 
 
+## 復帰後にミッションの行へ出す短いヒント。体験として見せただけの落下（海）は
+## ルール表示が説明を済ませているので、何も出さずに次のミッションへ移る。
 func finish_death_recovery() -> Dictionary:
 	if not _death_recovery_active:
 		return {"retry": false, "message": ""}
@@ -505,30 +498,19 @@ func finish_death_recovery() -> Dictionary:
 	_death_recovery_retry = false
 	_death_recovery_message = ""
 	revision += 1
-	if message.is_empty():
-		message = (
-			"同じ問題をやり直します。問題を確認し、正解のドアを選んでください。"
-			if retry
-			else "海に落ちた場合の動作を確認しました。次のステップに進みます。"
-		)
+	if message.is_empty() and retry:
+		message = "同じ問題からもう一度"
 	return {"retry": retry, "message": message}
 
 
-# ---------- ヒント ----------
-
-func set_hint(text: String, seconds: float = HINT_SECONDS) -> void:
-	_hint_text = text
-	_hint_timer = maxf(0.0, seconds)
-	revision += 1
-
+# ---------- まとめ ----------
 
 func clear_summary_lines() -> PackedStringArray:
 	return PackedStringArray([
-		"✓ 前後左右の移動・ジャンプ・3つのエモート",
-		"✓ コース外の海とサメ（ハートに関係なく脱落）",
-		"✓ ハート3つ：不正解で1つ減り、0で脱落",
-		"✓ 2択の壁と4択のボス壁",
-		"✓ 壁速度・帽子・エモートのカスタマイズ",
+		"✓ 操作：前後左右の移動・ジャンプ・3つのエモート",
+		"✓ キケン：コース外の海（ハートに関係なく脱落）",
+		"✓ クイズ：ハート3つ、不正解で1つ減り0で脱落",
+		"✓ ボス：4択の壁",
 	])
 
 
@@ -543,9 +525,8 @@ func get_overlay_model() -> Dictionary:
 	var sub_label := ""
 	if indices.size() > 1:
 		sub_label = "問題 %d / %d" % [mini(_quiz_cursor + 1, indices.size()), indices.size()]
-	return {
-		# The stage-complete card owns the whole presentation. Hiding the regular
-		# coach bar also removes its unusable Enter-to-skip hint beneath the card.
+	var model := {
+		# クリア画面が画面全体を受け持つので、その間はミッションバーを出さない。
 		"visible": current_step_id() != "stage_complete",
 		"course": course,
 		"step_id": current_step_id(),
@@ -553,13 +534,13 @@ func get_overlay_model() -> Dictionary:
 		"step_number": step_index + 1,
 		"step_count": _steps.size(),
 		"title": str(step.get("title", "チュートリアル")),
-		"body": str(step.get("body", "")),
+		"body": _mission_text(),
 		"hint": _hint_text,
 		"sub_label": sub_label,
 		"presentation_locked": presentation_locked,
 		"awaiting_neutral_input": awaiting_neutral_input,
 		"skip_text": (
-			"[Enter] スキップ"
+			"スキップ"
 			if presentation_locked and current_step_id() != "stage_complete"
 			else ""
 		),
@@ -572,6 +553,8 @@ func get_overlay_model() -> Dictionary:
 		"key_layout": key_layout(),
 		"ordered_tasks": false,
 	}
+	model.merge(_v7_model(), true)
+	return model
 
 
 # ---------- 内部 ----------
@@ -579,25 +562,26 @@ func get_overlay_model() -> Dictionary:
 func _clear_transient_state() -> void:
 	_quiz_cursor = 0
 	_task_hold = -1.0
-	_hint_text = ""
-	_hint_timer = 0.0
 	_death_recovery_active = false
 	_death_recovery_duration = 0.0
 	_death_recovery_retry = false
 	_death_recovery_message = ""
 
 
-func _enter_current_step() -> void:
+## continues_chapter = 同じ章の中で次のステップへ移った。世界を止めずに続けるため、
+## 中立入力待ち（押しっぱなしのキーで次のステップが進まないようにする間）を挟まない。
+func _enter_current_step(continues_chapter: bool) -> void:
 	_quiz_cursor = 0
 	_task_hold = -1.0
-	_hint_text = ""
-	_hint_timer = 0.0
+	_clear_hint()
 	_rebuild_tasks()
 	presentation_locked = not presentation_id().is_empty()
-	awaiting_neutral_input = not presentation_locked
+	awaiting_neutral_input = not presentation_locked and not continues_chapter
 	step_changed.emit(current_step_id(), step_index, _steps.size())
 	if presentation_locked:
 		presentation_requested.emit(presentation_id(), presentation_context())
+	else:
+		_fire_step_toast(TOAST_ON_ENTER)
 
 
 func _rebuild_tasks() -> void:
@@ -639,21 +623,12 @@ func _build_quiz_items() -> Array[QuizItem]:
 			PackedStringArray(),
 			7.0
 		),
+		# 誘導なしの本番。正解は右に置き、ここまでの「左が正解」をなぞるだけにしない。
 		QuizItem.create(
 			"6 × 3 = ?",
 			PackedStringArray(["16", "18"]),
 			1,
 			"6を3回足すと18です。",
-			"TUTORIAL",
-			"",
-			PackedStringArray(),
-			7.0
-		),
-		QuizItem.create(
-			"20 - 8 = ?",
-			PackedStringArray(["12", "14"]),
-			0,
-			"20から8を引くと12です。",
 			"TUTORIAL",
 			"",
 			PackedStringArray(),
@@ -674,12 +649,16 @@ func _build_quiz_items() -> Array[QuizItem]:
 	return items
 
 
+## mission はミニバーの1行（12字以内）。説明の段落は持たない。
+## toast はそのステップで体験した直後に出すルール表示（見出し10字以内、補足16字以内）。
 func _build_steps() -> Array[Dictionary]:
 	return [
 		{
 			"id": "move_lane",
+			"chapter": "controls",
+			"icon": "move",
 			"title": "前後左右の移動",
-			"body": "自動で前に進みます。左右でドアを選び、前後で壁に着くタイミングを調整します。4方向に動いてみましょう（矢印キーも可）。",
+			"mission": "4方向に動こう",
 			"guide": GUIDE_LANE,
 			"key_layout": KEYS_CLUSTER,
 			"speed": 0.55,
@@ -694,8 +673,10 @@ func _build_steps() -> Array[Dictionary]:
 		},
 		{
 			"id": "jump_lesson",
+			"chapter": "controls",
+			"icon": "jump",
 			"title": "ジャンプ",
-			"body": "Spaceでジャンプします。ジャンプするとエモートも止まります。試しにジャンプしてみましょう。",
+			"mission": "ジャンプしよう",
 			"guide": GUIDE_JUMP,
 			"key_layout": KEYS_CLUSTER,
 			"speed": 0.55,
@@ -707,8 +688,10 @@ func _build_steps() -> Array[Dictionary]:
 		},
 		{
 			"id": "solo_emote",
+			"chapter": "controls",
+			"icon": "emote",
 			"title": "エモート",
-			"body": "数字キー1・2・3でエモートを踊れます。走りながら踊れ、ジャンプで止まります。3つすべてを再生してください。",
+			"mission": "エモートを3つ踊ろう",
 			"guide": GUIDE_EMOTE,
 			"key_layout": KEYS_CLUSTER,
 			"speed": 0.4,
@@ -722,20 +705,28 @@ func _build_steps() -> Array[Dictionary]:
 		},
 		{
 			"id": "ocean_lesson",
+			"chapter": "danger",
+			"icon": "wave",
 			"title": "コース外は海",
-			"body": "コースの左右の端から外に出ると海に落ち、サメに襲われます。海に落ちるとハートの数に関係なく脱落します。試しに端から外へ出てください。",
+			"mission": "海に飛び込もう",
 			"guide": GUIDE_OCEAN,
 			"key_layout": KEYS_SIDES,
 			"speed": 0.0,
 			"walls": false,
+			"toast": {
+				"on": TOAST_ON_DONE, "icon": "wave", "tone": "danger",
+				"title": "海は即アウト", "sub": "ハートが残っていても脱落",
+			},
 			"tasks": [
 				{"id": "ocean", "key": "A / D", "caption": "コースの外へ出る", "slots": ["toward_edge"]},
 			],
 		},
 		{
 			"id": "guided_wall",
+			"chapter": "quiz",
+			"icon": "door",
 			"title": "クイズの答え方",
-			"body": "壁の問題を読み、正解だと思うドアをくぐります。この問題では正解のドアが光ります。光ったドアへ移動してください。",
+			"mission": "光るドアをくぐろう",
 			"guide": GUIDE_GUIDED_DOOR,
 			"key_layout": KEYS_SIDES,
 			"speed": 1.0,
@@ -752,8 +743,10 @@ func _build_steps() -> Array[Dictionary]:
 		},
 		{
 			"id": "hp_lesson",
+			"chapter": "quiz",
+			"icon": "heart",
 			"title": "ハート（HP）のしくみ",
-			"body": "左上のハートは3つ。不正解のドアや壁にぶつかると1つ減り、0になると脱落します。試しに、わざと不正解の「5」のドアに入ってください。",
+			"mission": "わざと「5」へ入ろう",
 			"guide": GUIDE_WRONG_DOOR,
 			"key_layout": KEYS_SIDES,
 			"speed": 1.0,
@@ -762,31 +755,43 @@ func _build_steps() -> Array[Dictionary]:
 			"hp_lesson": true,
 			"quiz_indices": [1],
 			"highlight_answer": -1,
+			"toast": {
+				"on": TOAST_ON_DONE, "icon": "heart_broken", "tone": "danger",
+				"title": "ハート −1", "sub": "0になると脱落",
+			},
 			"tasks": [
 				{"id": "wrong_door", "key": "A / D", "caption": "わざと不正解へ", "slots": ["toward_door"]},
 			],
 		},
 		{
 			"id": "free_wall",
+			"chapter": "quiz",
+			"icon": "door",
 			"title": "誘導なしで回答",
-			"body": "ここからは本番と同じです。ドアは光りません。不正解や壁への衝突でハートが1つ減ります。ハートが残っていれば走り続けられます。",
+			"mission": "自分で答えよう",
 			"guide": GUIDE_FREE_DOOR,
 			"key_layout": KEYS_SIDES,
 			"speed": 1.0,
 			"walls": true,
 			"hp": true,
 			"hp_rules": true,
-			"quiz_indices": [2, 3],
+			"quiz_indices": [2],
 			"highlight_answer": -1,
 			"punish_mistakes": true,
+			"toast": {
+				"on": TOAST_ON_ENTER, "icon": "door", "tone": "info",
+				"title": "ここから本番", "sub": "ドアはもう光らない",
+			},
 			"tasks": [
 				{"id": "answer", "key": "A / D", "caption": "答えのドアへ", "slots": ["toward_door"]},
 			],
 		},
 		{
 			"id": "boss_wall",
+			"chapter": "boss",
+			"icon": "crown",
 			"title": "4択のボス壁",
-			"body": "10問チャレンジの最後の問題と、難易度「難しい」の壁はドアが4つ（A〜D）です。左右の移動で答えのドアの前に合わせてください。",
+			"mission": "正解のドアを選ぼう",
 			"guide": GUIDE_FREE_DOOR,
 			"key_layout": KEYS_SIDES,
 			"speed": 1.0,
@@ -798,26 +803,32 @@ func _build_steps() -> Array[Dictionary]:
 			"punish_mistakes": true,
 			"presentation": "wall_reveal",
 			"duration": 1.6,
+			"toast": {
+				"on": TOAST_ON_ENTER, "icon": "crown", "tone": "boss",
+				"title": "BOSS 4択", "sub": "10問チャレンジの最終問題",
+			},
 			"tasks": [
 				{"id": "answer", "key": "A / D", "caption": "4つから選ぶ", "slots": ["toward_door"]},
 			],
 		},
 		{
 			"id": "stage_complete",
-			"title": "ステージチュートリアル完了",
-			"body": "実践問題をクリアしました。続いてカスタマイズを紹介します。",
+			"icon": "check",
+			"title": "チュートリアルクリア",
+			"mission": "クリア！",
 			"guide": "",
 			"speed": 0.0,
 			"walls": false,
 			"hp": true,
 			"presentation": "solo_stage_complete",
-			"duration": 3.6,
+			"duration": 4.0,
 			"auto_after_presentation": true,
 		},
 		{
 			"id": "customize_tour",
+			"icon": "check",
 			"title": "カスタマイズの紹介",
-			"body": "最後に実際のカスタマイズ画面へ移動します。",
+			"mission": "カスタマイズへ",
 			"guide": "",
 			"speed": 0.0,
 			"walls": false,

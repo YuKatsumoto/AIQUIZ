@@ -1,35 +1,19 @@
 extends TutorialCoachBar
 class_name DuoTutorialOverlay
 
-## ローカル2Pチュートリアル専用のコーチバー。
+## ローカル2Pチュートリアル専用のミッションバー。
 ## バーの枠組みは res://scripts/ui/tutorial_coach_bar.gd が持ち、
-## ここではP1（オレンジ）とP2（シアン）のキーチップを横一列に組み立てる。
+## ここではP1（オレンジ）とP2（水色）のキーを横一列に組み立てる。
+## 片方が先に終えたら、その人の段に「OK」を付ける。
 ## 1Pコースは res://scripts/ui/solo_tutorial_overlay.gd が担当する。
-
-const P1_COLOR := Color(1.0, 0.48, 0.12, 1.0)
-const P2_COLOR := Color(0.18, 0.88, 1.0, 1.0)
-
-## 2人分のチップが並ぶので1Pより広く取る。
-const DUO_BAR_WIDTH := 1180.0
-## ハート（HP）のカードが左右の下隅に出ている間、下端のバーはその間に収める。
-const DUO_BAR_WIDTH_BETWEEN_CARDS := 820.0
-## 問題出題時以外はキャラクターを隠さないよう上端を基本位置にする。
-const DUO_BAR_MARGIN_TOP := 18.0
-## P1/P2の操作を横一列にまとめ、画面を隠す高さを抑える。
-const DUO_BAR_HEIGHT_FULL := 90.0
-const DUO_BAR_HEIGHT_COMPACT := 76.0
 
 
 func _course_is_active() -> bool:
 	return game_state.is_duo_tutorial()
 
 
-func _bar_width() -> float:
-	if not _bar_at_top() and game_state != null and game_state.uses_hp():
-		return DUO_BAR_WIDTH_BETWEEN_CARDS
-	return DUO_BAR_WIDTH
-
-
+## クイズ以外ではキャラクターを隠さないよう、バーを画面の上に置く。
+## クイズ中は小さなピルにして、下隅のハートのカードの間（画面の下）に収める。
 func _bar_at_top() -> bool:
 	return (
 		game_state != null
@@ -38,47 +22,33 @@ func _bar_at_top() -> bool:
 	)
 
 
-func _bar_margin_top() -> float:
-	return DUO_BAR_MARGIN_TOP
-
-
-func _bar_height_full() -> float:
-	return DUO_BAR_HEIGHT_FULL
-
-
-func _bar_height_compact() -> float:
-	return DUO_BAR_HEIGHT_COMPACT
-
-
-func _chip_rows_inline() -> bool:
-	return true
-
-
-func _chip_rows(model: Dictionary) -> Array[Dictionary]:
-	var rows: Array[Dictionary] = []
+func _key_groups(model: Dictionary) -> Array[Dictionary]:
+	var groups: Array[Dictionary] = []
 	var ghost_ready := _is_ghost_control_display_ready()
 	for player_variant: Variant in model.get("players", []):
 		var player: Dictionary = player_variant
 		var player_index := int(player.get("player", 0))
 		var tasks: Array = player.get("tasks", [])
-		# ゴーストシャークの操作チップは、サメの操作フェーズに入ってから見せる。
+		# ゴーストシャークの操作キーは、サメの操作フェーズに入ってから見せる。
 		if not ghost_ready and player_index == int(model.get("ghost_player", 0)):
 			continue
 		if tasks.is_empty():
 			continue
-		# 脱落した側の回答チップは指示として成立しないので伏せる。
+		# 脱落した側の回答キーは指示として成立しないので伏せる。
 		# 代わりにゴーストシャーク側の操作HUDが下部に出る。
 		if not _player_is_alive(player_index):
 			continue
-		rows.append({
+		groups.append({
 			"label": str(player.get("label", "P%d" % player_index)),
-			"color": P1_COLOR if player_index == 1 else P2_COLOR,
+			"color": TutorialUiStyle.player_color(player_index),
 			"tasks": tasks,
+			"player": player_index,
+			"complete": bool(player.get("complete", false)),
 		})
-	return rows
+	return groups
 
 
-## ゴースト操作チップの表示可否と生存状況はモデルの revision に現れないので、
+## ゴースト操作キーの表示可否と生存状況はモデルの revision に現れないので、
 ## 明示的にシグネチャへ混ぜて再描画を促す。
 func _extra_signature() -> String:
 	return "%s|%s|%s" % [
@@ -88,7 +58,7 @@ func _extra_signature() -> String:
 	]
 
 
-## 脱落中でもゴースト練習ステップでは操作チップを見せたいので、
+## 脱落中でもゴースト練習ステップでは操作キーを見せたいので、
 ## そのステップだけは生存扱いにする。
 func _player_is_alive(player_index: int) -> bool:
 	if game_state == null or game_state.is_tutorial_ghost_practice():

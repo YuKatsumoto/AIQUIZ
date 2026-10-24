@@ -1,8 +1,8 @@
 extends Node
 
 ## 「問題を準備中」パネルの生成待ちの演出（GameplayHUD._show_generation_progress）を素の場面で動かす実機テスト。
-## 本物の gameplay_hud.tscn に問題を少しずつ渡し、タイトル・回転アイコン・弾む数字・
-## キャラクター到着待ちの「問題ができました！」・Enter待ちで元に戻ることを確かめて画像を撮る。
+## 本物の gameplay_hud.tscn に問題を少しずつ渡し、タイトル・光の筋・弾む数字・
+## キャラクター到着待ちの「問題ができました！」とチェックへの変化・Enter待ちで元に戻ることを確かめて画像を撮る。
 ## Godot --path . --fixed-fps 60 --script res://tests/preload_progress_bootstrap.gd
 
 const OUT := "res://artifacts/preload_progress/"
@@ -64,7 +64,7 @@ func hud_pass() -> void:
 	check((hud.get_node("PreloadPanel/Subtitle") as Label).text == "算数・3年 の問題", "hud: subtitle")
 	check(status.text == gs.status_text, "hud: Status keeps the game status text (%s)" % status.text)
 	check(count.visible and count.text == "0/10", "hud: count 0/10 (%s)" % count.text)
-	check(decor.visible and decor.mode == "busy" and decor.text_width > 200.0, "hud: spinner and dots around the title")
+	check(decor.visible and decor.mode == "busy" and decor.text_width > 200.0, "hud: light trail beside the title")
 	check(plain_bar.visible and plain_bar.get_child_count() == 0, "hud: the plain bar, nothing drawn over it")
 	await capture("01_waiting")
 
@@ -91,6 +91,12 @@ func hud_pass() -> void:
 	_add_quizzes(1)
 	arrival_locked = true
 	gs.game_state = Constants.STATE_WAITING_START
+	# 光の筋がチェックへ変わる途中：筋が吸い込まれるところと、チェックを引いているところ。
+	await frames(5)
+	check(decor.mode == "done", "hud: decor switches to done on the last quiz")
+	await capture("04a_check_collapse")
+	await frames(8)
+	await capture("04b_check_stroke")
 	await frames(20)
 	check(is_equal_approx(plain_bar.value, 10.0), "hud: full bar")
 	check(title.text == "問題ができました！" and decor.mode == "done", "hud: title turns to ready (%s)" % title.text)
@@ -100,8 +106,12 @@ func hud_pass() -> void:
 
 	arrival_locked = false
 	await frames(6)
-	check(not count.visible and not decor.visible and not plain_bar.visible, "hud: decor hides at the start prompt")
-	check(title.text == "準備完了！" and title.vertical_alignment == VERTICAL_ALIGNMENT_TOP, "hud: start prompt title (%s)" % title.text)
+	var start_row := hud.get_node("PreloadPanel/StartPromptRow") as Control
+	check(title.text == "問題ができました！" and decor.visible and decor.mode == "done",
+		"hud: start prompt keeps the ready title and check (%s)" % title.text)
+	check(not count.visible and not plain_bar.visible and not status.visible, "hud: bar, count and status give way to the prompt")
+	check(start_row.visible, "hud: Enter prompt row shows")
+	check(panel.get_global_rect().encloses(start_row.get_global_rect()), "hud: Enter prompt stays inside the panel")
 	await capture("05_start_prompt")
 
 	# English, and a fresh round starts from zero.

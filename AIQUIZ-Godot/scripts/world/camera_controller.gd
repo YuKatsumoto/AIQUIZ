@@ -30,6 +30,8 @@ var _ocean_attack_camera_active: bool = false
 var _ocean_attack_player_index: int = 1
 var _ocean_attack_intensity: float = 0.0
 var _ocean_attack_impact_timer: float = 0.0
+## サメ襲撃カメラの横位置の上限。観客席の手前(前面 x=27.2)に収め、席へ入り込ませない。
+var ocean_attack_max_eye_x: float = 24.0
 var _tutorial_override_active: bool = false
 var _tutorial_override_eye: Vector3 = Vector3.ZERO
 var _tutorial_override_target: Vector3 = Vector3.ZERO
@@ -884,6 +886,13 @@ func get_ocean_attack_camera_pose(
 		var camera_side: Vector3 = Vector3(-horizontal.z, 0.0, horizontal.x)
 		desired_eye += camera_side * orbit_distance
 
+	# 観客席は x=±(28-0.8) より外側にあり、外側へ回り込んだカメラがその内部や
+	# 手すりの裏に入ると襲撃シーンが隠れる。席の手前で止め、削った分は高さで補う。
+	var stand_excess: float = absf(desired_eye.x) - ocean_attack_max_eye_x
+	if stand_excess > 0.0:
+		desired_eye.x = signf(desired_eye.x) * ocean_attack_max_eye_x
+		desired_eye.y += minf(stand_excess * 0.6, 6.0)
+
 	return {
 		"eye": desired_eye,
 		"target": framing_anchor + Vector3(0.0, -0.45, 0.0),
@@ -1017,11 +1026,9 @@ func _update_preload_camera(gs: QuizGameState, _dt: float) -> void:
 		end_pos += Vector3.UP * _third_person_camera_height(gs)
 		end_look = _third_person_camera_target(gs, focus)
 
-	# Keep the original preparation shot. A small lift/backward offset gives
-	# the rail handoff room without a separate wide shot of the vessel.
-	var vessel_weight := clampf(saw_dock_framing, 0.0, 1.0)
+	# Keep the original preparation shot; the vessel arrival does not move the camera.
 	var view_dir := (end_look - end_pos).normalized()
-	var target_eye := end_pos - view_dir * (14.0 + 1.5 * vessel_weight) + Vector3.UP * (0.5 * vessel_weight)
+	var target_eye := end_pos - view_dir * 14.0
 	var target_look := end_look - view_dir * 14.0
 	var target_quat := _quat_look_at(target_eye, target_look)
 	var eye := target_eye

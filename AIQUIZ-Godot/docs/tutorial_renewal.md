@@ -1,5 +1,54 @@
 # チュートリアル
 
+## 2026-10-20 全面リニューアル（V7）
+
+不満点（長さ・文章の多さ・見た目・ゲームらしさ）への対応。設計案と決定事項（Q1 B、Q2 B、Q3 A、Q4 B、Q5 A）は設計案のページにまとめた。ステップID・3Dキーキャップ・床のガイド・本編と同じ判定はV6のまま。
+
+### コース
+
+- 1P・2Pの2コースのまま。ステップは章にまとめた（1P: 操作・キケン・クイズ・ボス、2P: さらにゴール）。ステップ数は1P 8・2P 11のまま（ジャンプとエモートは別ステップのまま）。
+- 誘導なしの本番の2択を2問から1問にし、壁を5枚から4枚にした（`BOSS_QUIZ_INDEX` は3）。
+- 同じ章の中では中立入力待ちを挟まず、世界を止めずに次のステップへ移る（`_enter_current_step(continues_chapter)`）。タスクがそろってから次へ移るまでの間は0.55秒から0.3秒にした。
+- 章・ルール表示・バナーの共通部分は `scripts/core/tutorial/tutorial_flow_base.gd`（`TutorialFlowBase`）に置き、1P・2Pのフローが継承する。
+
+### 文章
+
+- 説明の段落（`body`）をなくし、各ステップは12字以内の `mission` だけを持つ。順番のあるのこぎり体験は `mission_by_task` で「少し下がってみよう」→「前進で逃げよう」に切り替える。
+- ルールは体験した直後に `toast`（見出し10字以内・補足16字以内）で出す。きっかけは `enter`（演出の後）か `done`（タスクがそろった瞬間）。同じ表示は1コースで1回だけ。例: 海に落ちた直後「海は即アウト／ハートが残っていても脱落」、ハート体験「ハート −1／0になると脱落」、のこぎり「遅れると即アウト」、先着「早い者勝ち／先に正解した人に1点」、ボス壁「BOSS 4択／10問チャレンジの最終問題」。
+- ミスのヒントは game_state.gd 側の文を短くし（例「光るドアは左」「今回はわざと「5」へ」「ハート−1　正解は右」）、ミッションの行を最大3.2秒だけ置き換える。成功の知らせ（「P1が1点！」など）は緑で出す。
+- 2PでP2が左Ctrlを押したときだけ「P2は右のCtrlを使おう」と出す（`QuizGameState.hint_tutorial_left_ctrl()`）。
+
+### 画面
+
+- コーチバーを細いミッションバーに作り直した（`scripts/ui/tutorial_coach_bar.gd`）。章アイコン・章名・ミッション・キー（3Dキーと同じ色の決まり。移動は W A S D／↑ ← ↓ → の順）。クイズ中はアイコンとミッションだけの小さなピル。バーの外側に章ごとの進行の線を引き、「STEP 3 / 10」の文字は出さない。2Pは操作中は画面上、クイズ中は下。
+- ルール表示は画面上部（2Pでバーが上のときはその下）。クイズ中は壁の問題文を隠さないよう左上に出す。章を終えると「◯◯ CLEAR」のバナー（約1秒、`door_correct` を高めの音程で）。キーを達成すると `ui_click`。
+- アイコンは画像を持たず `scripts/ui/tutorial_glyph.gd` で描く。キーキャップは `scripts/ui/tutorial_key_chip.gd`、色と文字は `scripts/ui/tutorial_ui_style.gd`。
+- クリア画面（`scripts/ui/tutorial_completion_card.gd`）は「TUTORIAL CLEAR」とクリアタイム・残りハート（2Pはスコアタワーの結果1行）。成績の評価（メダル）は付けない。1秒見せた後は Enter で次へ進める（`game_world.gd` の `TUTORIAL_CLEAR_MIN_SECONDS`）。
+- 開始前の全画面キーボード説明（`tutorial_keyboard_intro.gd`）を廃止し、コース選択と1画面にまとめた（`scripts/ui/tutorial_course_selector.gd`）。左でコースを選ぶと右のキーボードと説明が切り替わる。説明のキーは実際の配列どおり（W の下に A S D、横長の Space、1 2 3 の横並び、矢印の逆T字）。エモートの説明は「相手を煽ろう!!」。
+- カスタマイズ紹介は画像3枚・戻る／次へ の形式のまま、画像を大きくし該当箇所を枠で囲み、説明を見出しと1行にした。ボタンはメニュー側の一括スタイルに上書きされないよう `tutorial_own_style` の印を持つ。
+- カスタマイズ紹介の後の大きな完了カードはやめ、メニュー上端の小さな通知（「チュートリアル完了」）にした。
+- `GameManager.CURRENT_TUTORIAL_VERSION` を7へ。
+
+### 検証
+
+- `tests/tutorial_flow_accessibility_unit.gd`（527項目。章・ミッションの長さ・ルール表示・同じ章の中で止めないこと・バナーを含む）。
+- `tests/tutorial_rules_bootstrap.gd`（83項目。本番1問・ボス壁でのハート0・ルール表示の順番・左右のヒント）。
+- `tests/tutorial_course_selector_unit.gd`（29項目。キー配列どおりの並び・練習キーで開始しない・960×540）。画面は `-- --capture` で `artifacts/tutorial_v7/course_select/`。
+- `tests/tutorial_renewal_bootstrap.gd`（実キーだけで通しプレイ。1P 66項目・2P 86項目）。画面は `artifacts/tutorial_v7/solo|duo/`。ボットの操作でカウントダウン明けからカスタマイズ紹介へ移るまで、ゲーム内時間で1P 45.5秒・2P 88.5秒（人が文字を読んで迷う時間は含まない）。
+- `tests/tutorial_revision_bootstrap.gd`（25項目。メニューの開始画面・カスタマイズ紹介・完了通知、設定ファイルを書き換えないこと）。画面は `artifacts/tutorial_v7/menu/`。
+- 既存: キーボード47、HP 197、押し合い286、結果演出5000、左右移動の各テストが成功。
+
+```powershell
+./Godot_v4.7.2-stable_win64_console.exe --headless --path . --script res://tests/tutorial_flow_accessibility_unit.gd
+./Godot_v4.7.2-stable_win64_console.exe --headless --path . --script res://tests/tutorial_rules_bootstrap.gd
+./Godot_v4.7.2-stable_win64_console.exe --path . --script res://tests/tutorial_course_selector_unit.gd -- --capture
+./Godot_v4.7.2-stable_win64_console.exe --path . --script res://tests/tutorial_renewal_bootstrap.gd --fixed-fps 60 -- course=solo
+./Godot_v4.7.2-stable_win64_console.exe --path . --script res://tests/tutorial_renewal_bootstrap.gd --fixed-fps 60 -- course=duo
+./Godot_v4.7.2-stable_win64_console.exe --path . --script res://tests/tutorial_revision_bootstrap.gd --fixed-fps 60
+```
+
+---
+
 ## 2026-10-12 移動の統合・ジャンプの独立・エモート3つ・2Pの勝敗判定（V6）
 
 V5のコースを次のように変えた。ステップ数は1P 10・2P 13のまま（2ステップを2ステップに置き換え）。

@@ -31,7 +31,6 @@ LiveConfigManager="*res://scripts/autoload/live_config_manager.gd"
 SceneTransition="*res://scripts/autoload/scene_transition.gd"
 NetworkManager="*res://scripts/autoload/network_manager.gd"
 GraphicsQuality="*res://scripts/core/graphics_quality.gd"
-_fennara_game_capture="*res://addons/fennara/runtime/game_capture_helper.gd"
 _mcp_game_helper="*res://addons/godot_ai/runtime/game_helper.gd"
 
 [display]
@@ -117,4 +116,4 @@ cistern_wet_z={
 
 [tripo_bridge]
 
-last_cleanup="2026-10-16T05:44:31"
+last_cleanup="2026-10-23T20:08:15"

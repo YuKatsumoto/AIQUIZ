@@ -119,6 +119,11 @@ const RULES_EN := [
 ]
 
 
+## The rule card lines shown now (the new sudden death sets each game's own: set_rule_lines).
+var rule_lines_ja: Array = RULES_JA
+var rule_lines_en: Array = RULES_EN
+
+
 ## Paints the whole HUD; the parent keeps every timeline.
 class Painter extends Control:
 	var hud: SuddenDeathHud
@@ -288,6 +293,13 @@ func show_rule_card(duration: float) -> void:
 		_shout_out_at = minf(_shout_out_at, maxf(_clock - _shout_start, 0.8))
 
 
+## 新サドンデス（docs/sudden_death_v2/common.md 第11章）：種目のルールカードの4行。
+## 行は [文字, 色] の並び（"w" 白、"y" 要点、"r" 注意）。
+func set_rule_lines(ja: Array, en: Array) -> void:
+	rule_lines_ja = ja
+	rule_lines_en = en
+
+
 ## 2.2: the card (held or timed) slides out from now.
 func dismiss_rule_card() -> void:
 	if _rule_on:
@@ -398,7 +410,7 @@ func get_debug_snapshot() -> Dictionary:
 		callouts.append({"text": entry.text, "color": (entry.color as Color).to_html(false),
 			"alpha": snappedf(_callout_alpha(entry), 0.001), "slot": snappedf(float(entry.slot), 0.01)})
 	var rules: Array[String] = []
-	for line: Array in (RULES_EN if _english else RULES_JA):
+	for line: Array in (rule_lines_en if _english else rule_lines_ja):
 		rules.append(_plain(line))
 	return {
 		"layer": layer, "english": _english, "clock": _clock,
@@ -956,7 +968,7 @@ func _paint_rule_card(ci: Control, viewport: Vector2, u: float) -> void:
 	var t := _clock - _rule_start
 	var short := _rule_short()
 	var out := clampf((t - (_rule_duration - _rule_out_time())) / _rule_out_time(), 0.0, 1.0)
-	var lines: Array = RULES_EN if _english else RULES_JA
+	var lines: Array = rule_lines_en if _english else rule_lines_ja
 	var text_size := 22 if _english else 25
 	var card := RULE_SIZE
 	card.y += 56.0 * float(lines.size() - 3)

@@ -6,6 +6,8 @@ const OUT:="res://artifacts/saw_operator/v3/menu_chase/"
 func _ready() -> void:call_deferred("run")
 func run() -> void:
 	Engine.max_fps=60
+	# ノコギリの追跡と事故を確かめるので、ゴーストのライド（ライド中はノコギリが休む）は止める
+	MenuGhostRideDirector.globally_enabled=false
 	QuizManager.set_meta("saw_dock_menu_seen",true)
 	QuizManager.provider.llm_mode="OFFLINE"
 	get_tree().change_scene_to_file("res://ui/main_menu.tscn")

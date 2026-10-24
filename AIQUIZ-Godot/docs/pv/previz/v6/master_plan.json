@@ -1,0 +1,1327 @@
+{
+ "fps": 60,
+ "width": 1920,
+ "height": 1080,
+ "frames": 5119,
+ "seconds": 85.3167,
+ "beats": 182,
+ "comp": "TESTOPIA_PV_master",
+ "aep": "docs/pv/previz/ae/TESTOPIA_PV_master.aep",
+ "audio_file": "docs/pv/previz/v6/PV_full_audio.wav",
+ "music": {
+  "file": "docs/pv/music/testopia_pv_bgm_game_show_70s.mp3",
+  "at": 15.9333,
+  "db": -4.0,
+  "seconds": 69.192
+ },
+ "cuts": [
+  {
+   "id": "S01",
+   "title": "Q1の壁が、空から落ちてくる",
+   "beats": 12,
+   "start": 0,
+   "frames": 338,
+   "source": "撮影済み（AIQUIZ_PV_S01_S07.aep の PV_S01_S07）",
+   "placeholder": false
+  },
+  {
+   "id": "S02",
+   "title": "見比べて…P2は「54」でゴツン。P1は「56」を突き破る",
+   "beats": 22,
+   "start": 338,
+   "frames": 618,
+   "source": "撮影済み（AIQUIZ_PV_S01_S07.aep の PV_S01_S07）",
+   "placeholder": false
+  },
+  {
+   "id": "S03",
+   "title": "タイトル（TESTOPIA）",
+   "beats": 12,
+   "start": 956,
+   "frames": 338,
+   "source": "撮影（v3 の連番 PV 957〜 ＋ artifacts/pv_capture/logo_s03_x16/、TESTOPIA_PV_S03_long.aep）",
+   "placeholder": false
+  },
+  {
+   "id": "S04",
+   "title": "教科と学年をえらぶ",
+   "beats": 8,
+   "start": 1294,
+   "frames": 225,
+   "source": "撮影（artifacts/pv_capture/s04_s05_frames、566 フレーム、2 人）",
+   "placeholder": false
+  },
+  {
+   "id": "S05",
+   "title": "ヘリのお迎え（2機）",
+   "beats": 12,
+   "start": 1519,
+   "frames": 337,
+   "source": "撮影（artifacts/pv_capture/s04_s05_frames、566 フレーム、2 人）",
+   "placeholder": false
+  },
+  {
+   "id": "S06",
+   "title": "AIが問題を作っている、実際の準備画面",
+   "beats": 8,
+   "start": 1856,
+   "frames": 226,
+   "source": "撮影（artifacts/pv_capture/s06_s07_frames、679 フレーム）",
+   "placeholder": false
+  },
+  {
+   "id": "S07",
+   "title": "5教科×6学年の問題",
+   "beats": 6,
+   "start": 2082,
+   "frames": 168,
+   "source": "撮影（artifacts/pv_capture/s06_s07_frames、679 フレーム）",
+   "placeholder": false
+  },
+  {
+   "id": "S09",
+   "title": "実際のプレイ画面（2人で遊んだ試合：カウントダウンからボス壁まで）",
+   "beats": 76,
+   "start": 2250,
+   "frames": 2138,
+   "source": "撮影を詰めた：カウントダウンから1問目まで=s09_play event:countdown_burst@786、ハートが0で脱落=s09_play event:ghost_phase_death_hold@2578、ビームから体当たりまで=s09_play cue_first:ghost_mount_beam@2885、ボス壁=s09_play event:boss_break@4872",
+   "placeholder": false
+  },
+  {
+   "id": "S21",
+   "title": "決着はスコアタワー",
+   "beats": 8,
+   "start": 4388,
+   "frames": 225,
+   "source": "撮影（artifacts/pv_capture/s21_play_frames、285 フレーム、1 から）",
+   "placeholder": false
+  },
+  {
+   "id": "S20",
+   "title": "自分だけのキャラ（スキンとエモートを左右に）",
+   "beats": 6,
+   "start": 4613,
+   "frames": 168,
+   "source": "撮影を左右に並べた：スキン・帽子=s20、エモート・ヒップホップ=s20_emote、エモート・ハウスダンス=s20_emote_b、エモート・ヘッドスピン=s20_emote_c",
+   "placeholder": false
+  },
+  {
+   "id": "S23",
+   "title": "ロゴ",
+   "beats": 12,
+   "start": 4781,
+   "frames": 338,
+   "source": "撮影済み（TESTOPIA_PV_S23_S24.aep の PV_S23_S24、最初の 5.625 秒）",
+   "placeholder": false
+  }
+ ],
+ "layers": [
+  {
+   "kind": "comp",
+   "aep": "docs/pv/previz/ae/TESTOPIA_PV_S03_long.aep",
+   "comp": "PV_S03_T",
+   "src_in": 0,
+   "start": 956,
+   "frames": 338,
+   "name": "S03 タイトル（PV_S03_T、338 フレーム）"
+  },
+  {
+   "kind": "comp",
+   "aep": "docs/pv/previz/ae/AIQUIZ_PV_S01_S07.aep",
+   "comp": "PV_S01_S07",
+   "src_in": 0,
+   "start": 0,
+   "frames": 338,
+   "name": "S01（PV_S01_S07）",
+   "shake": true
+  },
+  {
+   "kind": "comp",
+   "aep": "docs/pv/previz/ae/AIQUIZ_PV_S01_S07.aep",
+   "comp": "PV_S01_S07",
+   "src_in": 338,
+   "start": 338,
+   "frames": 618,
+   "name": "S02（PV_S01_S07）",
+   "shake": true
+  },
+  {
+   "kind": "seq",
+   "first": "artifacts/pv_capture/s04_s05_frames/pv_0001.jpg",
+   "src_in": 0,
+   "start": 1294,
+   "frames": 225,
+   "name": "S04 教科と学年をえらぶ（s04_s05 1〜225）",
+   "anchor": [
+    410,
+    440
+   ],
+   "scale_keys": [
+    [
+     1294,
+     100,
+     false
+    ],
+    [
+     1449,
+     112,
+     true
+    ]
+   ]
+  },
+  {
+   "kind": "seq",
+   "first": "artifacts/pv_capture/s04_s05_frames/pv_0001.jpg",
+   "src_in": 225,
+   "start": 1519,
+   "frames": 337,
+   "name": "S05 ヘリのお迎え（s04_s05 226〜562）"
+  },
+  {
+   "kind": "seq",
+   "first": "artifacts/pv_capture/s06_s07_frames/pv_0001.jpg",
+   "src_in": 39,
+   "start": 1856,
+   "frames": 226,
+   "name": "S06 実際の準備画面（s06_s07 40〜265）"
+  },
+  {
+   "kind": "seq",
+   "first": "artifacts/pv_capture/s06_s07_frames/pv_0001.jpg",
+   "src_in": 338,
+   "start": 2082,
+   "frames": 168,
+   "name": "S07 5教科×6学年（s06_s07 339〜506）",
+   "scale": [
+    100,
+    103
+   ]
+  },
+  {
+   "kind": "seq",
+   "first": "artifacts/pv_capture/s09_play_frames/pv_0001.jpg",
+   "src_in": 605,
+   "start": 2250,
+   "frames": 619,
+   "name": "S09 カウントダウンから1問目まで（s09_play 606〜1224）"
+  },
+  {
+   "kind": "seq",
+   "first": "artifacts/pv_capture/s09_play_frames/pv_0001.jpg",
+   "src_in": 2445,
+   "start": 2869,
+   "frames": 225,
+   "name": "S09 ハートが0で脱落（s09_play 2446〜2670）"
+  },
+  {
+   "kind": "seq",
+   "first": "artifacts/pv_capture/s09_play_frames/pv_0001.jpg",
+   "src_in": 2884,
+   "start": 3094,
+   "frames": 731,
+   "name": "S09 ビームから体当たりまで（s09_play 2885〜3615）"
+  },
+  {
+   "kind": "seq",
+   "first": "artifacts/pv_capture/s09_play_frames/pv_0001.jpg",
+   "src_in": 4365,
+   "start": 3825,
+   "frames": 563,
+   "name": "S09 ボス壁（s09_play 4366〜4928）"
+  },
+  {
+   "kind": "seq",
+   "first": "artifacts/pv_capture/s21_play_frames/pv_0001.jpg",
+   "src_in": 0,
+   "start": 4388,
+   "frames": 225,
+   "name": "S21 決着はスコアタワー（s21_play 1〜）"
+  },
+  {
+   "kind": "seq",
+   "first": "artifacts/pv_capture/s20_frames/pv_0001.jpg",
+   "src_in": 0,
+   "start": 4613,
+   "frames": 168,
+   "name": "S20 スキン 帽子（s20 1〜168）",
+   "crop": [
+    0,
+    0,
+    960,
+    1080
+   ],
+   "dest": [
+    0,
+    0,
+    960,
+    1080
+   ]
+  },
+  {
+   "kind": "seq",
+   "first": "artifacts/pv_capture/s20_emote_frames/pv_0001.jpg",
+   "src_in": 0,
+   "start": 4613,
+   "frames": 56,
+   "name": "S20 エモート ヒップホップ（s20_emote 1〜56）",
+   "crop": [
+    40,
+    40,
+    900,
+    1007
+   ],
+   "dest": [
+    960,
+    0,
+    1920,
+    1080
+   ]
+  },
+  {
+   "kind": "seq",
+   "first": "artifacts/pv_capture/s20_emote_b_frames/pv_0001.jpg",
+   "src_in": 0,
+   "start": 4669,
+   "frames": 56,
+   "name": "S20 エモート ハウスダンス（s20_emote_b 1〜56）",
+   "crop": [
+    40,
+    40,
+    900,
+    1007
+   ],
+   "dest": [
+    960,
+    0,
+    1920,
+    1080
+   ]
+  },
+  {
+   "kind": "seq",
+   "first": "artifacts/pv_capture/s20_emote_c_frames/pv_0001.jpg",
+   "src_in": 0,
+   "start": 4725,
+   "frames": 56,
+   "name": "S20 エモート ヘッドスピン（s20_emote_c 1〜56）",
+   "crop": [
+    40,
+    40,
+    900,
+    1007
+   ],
+   "dest": [
+    960,
+    0,
+    1920,
+    1080
+   ]
+  },
+  {
+   "kind": "comp",
+   "aep": "docs/pv/previz/ae/TESTOPIA_PV_S23_S24.aep",
+   "comp": "PV_S23_S24",
+   "src_in": 0,
+   "start": 4781,
+   "frames": 338,
+   "name": "S23 ロゴ（PV_S23_S24）"
+  }
+ ],
+ "overlays": [
+  {
+   "kind": "wipe_out",
+   "t": 1294,
+   "name": "S04_WIPE_OUT（S03 の帯の続き）"
+  },
+  {
+   "kind": "wipe_in",
+   "t0": 1772,
+   "t1": 1856,
+   "name": "S05_WIPE_IN（S03 の WIPE_TO_S04 と同じ）"
+  },
+  {
+   "kind": "wipe_out",
+   "t": 1856,
+   "name": "S06_WIPE_OUT"
+  },
+  {
+   "kind": "tag",
+   "text": "算数 4年",
+   "t0": 2082,
+   "t1": 2138
+  },
+  {
+   "kind": "flash",
+   "t": 2082,
+   "opacity": 45
+  },
+  {
+   "kind": "tag",
+   "text": "国語 6年",
+   "t0": 2138,
+   "t1": 2194
+  },
+  {
+   "kind": "flash",
+   "t": 2138,
+   "opacity": 70
+  },
+  {
+   "kind": "tag",
+   "text": "理科 3年",
+   "t0": 2194,
+   "t1": 2250
+  },
+  {
+   "kind": "flash",
+   "t": 2194,
+   "opacity": 70
+  },
+  {
+   "kind": "tag",
+   "text": "スキン",
+   "t0": 4613,
+   "t1": 4781,
+   "x": 105.6
+  },
+  {
+   "kind": "tag",
+   "text": "エモート",
+   "t0": 4613,
+   "t1": 4781,
+   "x": 1065.6
+  },
+  {
+   "kind": "bar",
+   "x": 960,
+   "w": 10,
+   "t0": 4613,
+   "t1": 4781,
+   "name": "S20_DIVIDER"
+  },
+  {
+   "kind": "telop",
+   "label": "S04_1",
+   "text": "教科と学年と難易度を[選ぶ]",
+   "sub": null,
+   "pos": "br",
+   "t0": 1294,
+   "t1": 1477,
+   "subFrom": null
+  },
+  {
+   "kind": "telop",
+   "label": "S06_1",
+   "text": "AIが[毎回違う問題]を作る",
+   "sub": null,
+   "pos": "bl",
+   "t0": 1856,
+   "t1": 2082,
+   "subFrom": null
+  },
+  {
+   "kind": "telop",
+   "label": "S07_1",
+   "text": "[小1〜小6]の5教科から出題！",
+   "sub": "学年に合わせて、AIが問題を作る",
+   "pos": "tc",
+   "t0": 2082,
+   "t1": 2250,
+   "subFrom": null
+  },
+  {
+   "kind": "telop",
+   "label": "S09_1",
+   "text": "壁のスピードも、[AIが決める]",
+   "sub": "答えるのにかかる時間を、AIが予測",
+   "pos": "bl",
+   "t0": 2250,
+   "t1": 2423,
+   "subFrom": null,
+   "bottom": 0.21
+  },
+  {
+   "kind": "telop",
+   "label": "S09_2",
+   "text": "迫りくる壁の[問題に答えよう！]",
+   "sub": null,
+   "pos": "tc",
+   "t0": 2458,
+   "t1": 2627,
+   "subFrom": null
+  },
+  {
+   "kind": "telop",
+   "label": "S09_3",
+   "text": "ハートがなくなると、[脱落]",
+   "sub": null,
+   "pos": "tc",
+   "t0": 2925,
+   "t1": 3088,
+   "subFrom": null
+  },
+  {
+   "kind": "telop",
+   "label": "S09_4",
+   "text": "脱落した人は、[サメに乗って相手を狙う]",
+   "sub": null,
+   "pos": "tc",
+   "t0": 3460,
+   "t1": 3642,
+   "subFrom": null
+  },
+  {
+   "kind": "telop",
+   "label": "S09_5",
+   "text": "遅れると、[チップソーに巻き込まれる！]",
+   "sub": null,
+   "pos": "bl",
+   "t0": 3713,
+   "t1": 3820,
+   "subFrom": null,
+   "bottom": 0.21
+  },
+  {
+   "kind": "telop",
+   "label": "S09_6",
+   "text": "10問目は、[4択の大きなボス壁]",
+   "sub": null,
+   "pos": "bl",
+   "t0": 4065,
+   "t1": 4318,
+   "subFrom": null,
+   "bottom": 0.21
+  },
+  {
+   "kind": "telop",
+   "label": "S20_1",
+   "text": "帽子とエモートで、[自分だけのキャラ]に",
+   "sub": null,
+   "pos": "bc",
+   "t0": 4613,
+   "t1": 4781,
+   "subFrom": null
+  }
+ ],
+ "audio": [
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/se_lab/wall_land.ogg",
+   "at": 2.35,
+   "db": -4.0,
+   "why": "S01-S03 wall_land"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/game/ai_type_tick.ogg",
+   "at": 2.8479,
+   "db": -12.0,
+   "why": "S01-S03 ai_type_tick"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/game/ai_type_tick.ogg",
+   "at": 2.9,
+   "db": -12.0,
+   "why": "S01-S03 ai_type_tick"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/game/ai_type_tick.ogg",
+   "at": 2.9458,
+   "db": -12.0,
+   "why": "S01-S03 ai_type_tick"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/game/ai_type_tick.ogg",
+   "at": 2.9875,
+   "db": -12.0,
+   "why": "S01-S03 ai_type_tick"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/game/ai_type_tick.ogg",
+   "at": 3.0583,
+   "db": -12.0,
+   "why": "S01-S03 ai_type_tick"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/game/ai_type_tick.ogg",
+   "at": 3.1792,
+   "db": -12.0,
+   "why": "S01-S03 ai_type_tick"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/game/ai_type_tick.ogg",
+   "at": 3.3396,
+   "db": -12.0,
+   "why": "S01-S03 ai_type_tick"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/game/ai_type_tick.ogg",
+   "at": 3.3833,
+   "db": -12.0,
+   "why": "S01-S03 ai_type_tick"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/game/ai_type_done.ogg",
+   "at": 3.5021,
+   "db": -10.0,
+   "why": "S01-S03 ai_type_done"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/se_lab/wall_hit.ogg",
+   "at": 10.4208,
+   "db": -9.0,
+   "why": "S01-S03 wall_crash"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/game/door_wrong.ogg",
+   "at": 10.4208,
+   "db": -6.0,
+   "why": "S01-S03 door_wrong"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/ghost_shark/ghost_shark_rise.ogg",
+   "at": 10.9208,
+   "db": -8.0,
+   "why": "S01-S03 ghost_shark_rise"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/ghost_shark/ghost_soul_rise.ogg",
+   "at": 10.9708,
+   "db": -10.0,
+   "why": "S01-S03 ghost_soul_rise"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/ghost_shark/ghost_shark_breach.ogg",
+   "at": 12.0479,
+   "db": -6.0,
+   "why": "S01-S03 ghost_shark_breach"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/game/body_burst.ogg",
+   "at": 12.4208,
+   "db": -9.0,
+   "why": "S01-S03 body_burst"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/se_lab/barrier_explosion.ogg",
+   "at": 12.4229,
+   "db": -7.0,
+   "why": "S01-S03 barrier_explosion"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/game/door_correct.ogg",
+   "at": 14.0979,
+   "db": -6.0,
+   "why": "S01-S03 door_correct"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/ghost_shark/ghost_mount_beam.ogg",
+   "at": 15.8625,
+   "db": -9.0,
+   "why": "S01-S03 ghost_mount_beam"
+  },
+  {
+   "kind": "bed",
+   "file": "assets/audio/sfx/crowd/crowd_murmur_loop.ogg",
+   "start": 0.0,
+   "end": 9.2333,
+   "db": -8.0,
+   "fade_in": 0.0,
+   "fade_out": 0.8,
+   "why": "S01-S02 ざわめき",
+   "src_offset": 0.0
+  },
+  {
+   "kind": "bed",
+   "file": "assets/audio/sfx/crowd/crowd_race_loop.ogg",
+   "start": 8.4333,
+   "end": 21.5667,
+   "db": -14.0,
+   "fade_in": 0.8,
+   "fade_out": 0.25,
+   "why": "S02-S03 声援",
+   "src_offset": 0.0
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/se_lab/ui_click.ogg",
+   "at": 22.0334,
+   "db": -3.0,
+   "why": "S04 ui_click"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/se_lab/ui_click.ogg",
+   "at": 22.5,
+   "db": -3.0,
+   "why": "S04 ui_click"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/se_lab/ui_click.ogg",
+   "at": 22.9667,
+   "db": -3.0,
+   "why": "S04 ui_click"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/se_lab/ui_click.ogg",
+   "at": 23.45,
+   "db": -3.0,
+   "why": "S04 ui_click"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/se_lab/ui_start.ogg",
+   "at": 24.15,
+   "db": -3.0,
+   "why": "S04 ui_start"
+  },
+  {
+   "kind": "bed",
+   "file": "assets/audio/sfx/helicopter/rotor_loop.ogg",
+   "start": 24.7,
+   "end": 28.6167,
+   "db": -12.0,
+   "fade_in": 0.6,
+   "fade_out": 0.25,
+   "why": "S04-S05 ローター 1",
+   "src_offset": 0.0
+  },
+  {
+   "kind": "bed",
+   "file": "assets/audio/sfx/helicopter/jet_loop.ogg",
+   "start": 28.3667,
+   "end": 30.9833,
+   "db": -9.0,
+   "fade_in": 0.05,
+   "fade_out": 0.2,
+   "why": "S05 ジェット 1",
+   "src_offset": 0.0
+  },
+  {
+   "kind": "bed",
+   "file": "assets/audio/sfx/helicopter/rotor_loop.ogg",
+   "start": 24.7,
+   "end": 28.6167,
+   "db": -12.0,
+   "fade_in": 0.6,
+   "fade_out": 0.25,
+   "why": "S04-S05 ローター 2",
+   "src_offset": 0.37
+  },
+  {
+   "kind": "bed",
+   "file": "assets/audio/sfx/helicopter/jet_loop.ogg",
+   "start": 28.3667,
+   "end": 30.9833,
+   "db": -9.0,
+   "fade_in": 0.05,
+   "fade_out": 0.2,
+   "why": "S05 ジェット 2",
+   "src_offset": 0.37
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/helicopter/grip.ogg",
+   "at": 27.3167,
+   "db": -4.0,
+   "why": "S05 つかまる 1"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/helicopter/grip.ogg",
+   "at": 27.65,
+   "db": -4.0,
+   "why": "S05 つかまる 2"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/helicopter/jet_ignite.ogg",
+   "at": 28.3667,
+   "db": -2.0,
+   "why": "S05 ジェット点火"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/se_lab/wall_land.ogg",
+   "at": 32.1375,
+   "db": -10.0,
+   "why": "S06 wall_land"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/se_lab/wall_land.ogg",
+   "at": 32.3541,
+   "db": -10.0,
+   "why": "S06 wall_land"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/se_lab/wall_land.ogg",
+   "at": 32.5146,
+   "db": -10.0,
+   "why": "S06 wall_land"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/se_lab/wall_land.ogg",
+   "at": 32.675,
+   "db": -10.0,
+   "why": "S06 wall_land"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/se_lab/wall_land.ogg",
+   "at": 32.8354,
+   "db": -10.0,
+   "why": "S06 wall_land"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/se_lab/wall_land.ogg",
+   "at": 32.9958,
+   "db": -10.0,
+   "why": "S06 wall_land"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/se_lab/wall_land.ogg",
+   "at": 33.1562,
+   "db": -10.0,
+   "why": "S06 wall_land"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/se_lab/wall_land.ogg",
+   "at": 33.3166,
+   "db": -10.0,
+   "why": "S06 wall_land"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/se_lab/wall_land.ogg",
+   "at": 33.4771,
+   "db": -10.0,
+   "why": "S06 wall_land"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/se_lab/wall_land.ogg",
+   "at": 33.8041,
+   "db": -10.0,
+   "why": "S06 wall_land"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/helicopter/belt_click.ogg",
+   "at": 34.7,
+   "db": -4.0,
+   "why": "S07 シャッター 1"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/se_lab/ui_click.ogg",
+   "at": 34.745,
+   "db": -9.0,
+   "why": "S07 シャッター 1（ui_click）"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/helicopter/belt_click.ogg",
+   "at": 35.6333,
+   "db": -4.0,
+   "why": "S07 シャッター 2"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/se_lab/ui_click.ogg",
+   "at": 35.6783,
+   "db": -9.0,
+   "why": "S07 シャッター 2（ui_click）"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/helicopter/belt_click.ogg",
+   "at": 36.5667,
+   "db": -4.0,
+   "why": "S07 シャッター 3"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/se_lab/ui_click.ogg",
+   "at": 36.6117,
+   "db": -9.0,
+   "why": "S07 シャッター 3（ui_click）"
+  },
+  {
+   "kind": "bed",
+   "file": "assets/audio/sfx/crowd/crowd_murmur_loop.ogg",
+   "start": 30.9333,
+   "end": 37.5,
+   "db": -8.0,
+   "fade_in": 0.15,
+   "fade_out": 0.25,
+   "why": "S06-S07 ざわめき",
+   "src_offset": 0.0
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/game/countdown_beep.ogg",
+   "at": 38.5,
+   "db": -10.0,
+   "why": "S09 カウントダウンから1問目まで countdown_beep"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/game/countdown_beep.ogg",
+   "at": 39.5,
+   "db": -10.0,
+   "why": "S09 カウントダウンから1問目まで countdown_beep"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/game/countdown_go.ogg",
+   "at": 40.5,
+   "db": -10.0,
+   "why": "S09 カウントダウンから1問目まで countdown_go"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/se_lab/barrier_explosion.ogg",
+   "at": 40.5,
+   "db": -7.0,
+   "why": "S09 カウントダウンから1問目まで barrier_explosion"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/se_lab/wall_hit.ogg",
+   "at": 46.0834,
+   "db": -11.0,
+   "why": "S09 カウントダウンから1問目まで bonk"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/game/door_wrong.ogg",
+   "at": 46.0834,
+   "db": -6.0,
+   "why": "S09 カウントダウンから1問目まで door_wrong"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/game/door_correct.ogg",
+   "at": 46.7834,
+   "db": -6.0,
+   "why": "S09 カウントダウンから1問目まで door_correct"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/se_lab/wall_hit.ogg",
+   "at": 50.0167,
+   "db": -9.0,
+   "why": "S09 ハートが0で脱落 wall_crash"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/game/door_wrong.ogg",
+   "at": 50.0167,
+   "db": -6.0,
+   "why": "S09 ハートが0で脱落 door_wrong"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/ghost_shark/ghost_shark_rise.ogg",
+   "at": 50.5167,
+   "db": -8.0,
+   "why": "S09 ハートが0で脱落 ghost_shark_rise"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/ghost_shark/ghost_soul_rise.ogg",
+   "at": 50.5834,
+   "db": -10.0,
+   "why": "S09 ハートが0で脱落 ghost_soul_rise"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/game/door_correct.ogg",
+   "at": 50.85,
+   "db": -6.0,
+   "why": "S09 ハートが0で脱落 door_correct"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/ghost_shark/ghost_awaken.ogg",
+   "at": 51.15,
+   "db": -9.0,
+   "why": "S09 ハートが0で脱落 ghost_awaken"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/ghost_shark/ghost_mount_beam.ogg",
+   "at": 51.5833,
+   "db": -9.0,
+   "why": "S09 ビームから体当たりまで ghost_mount_beam"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/se_lab/wall_hit.ogg",
+   "at": 54.25,
+   "db": -11.0,
+   "why": "S09 ビームから体当たりまで bonk"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/game/door_wrong.ogg",
+   "at": 54.25,
+   "db": -6.0,
+   "why": "S09 ビームから体当たりまで door_wrong"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/ghost_shark/ghost_dash.ogg",
+   "at": 60.9,
+   "db": -6.0,
+   "why": "S09 ビームから体当たりまで ghost_dash"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/ghost_shark/ghost_hit.ogg",
+   "at": 61.25,
+   "db": -5.0,
+   "why": "S09 ビームから体当たりまで ghost_hit"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/se_lab/jump_land.ogg",
+   "at": 62.1333,
+   "db": -5.0,
+   "why": "S09 ビームから体当たりまで jump_land"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/ghost_shark/ghost_vanish.ogg",
+   "at": 62.1833,
+   "db": -11.0,
+   "why": "S09 ビームから体当たりまで ghost_vanish"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/ghost_shark/ghost_portal_open.ogg",
+   "at": 62.2,
+   "db": -9.0,
+   "why": "S09 ビームから体当たりまで ghost_portal_open"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/se_lab/jump_land.ogg",
+   "at": 63.3333,
+   "db": -5.0,
+   "why": "S09 ビームから体当たりまで jump_land"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/se_lab/jump_land.ogg",
+   "at": 65.1833,
+   "db": -5.0,
+   "why": "S09 ボス壁 jump_land"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/game/door_correct.ogg",
+   "at": 67.2333,
+   "db": -6.0,
+   "why": "S09 ボス壁 door_correct"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/ghost_shark/ghost_dash.ogg",
+   "at": 69.8667,
+   "db": -6.0,
+   "why": "S09 ボス壁 ghost_dash"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/ghost_shark/ghost_hit.ogg",
+   "at": 70.3167,
+   "db": -5.0,
+   "why": "S09 ボス壁 ghost_hit"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/se_lab/jump_land.ogg",
+   "at": 71.0667,
+   "db": -5.0,
+   "why": "S09 ボス壁 jump_land"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/ghost_shark/ghost_vanish.ogg",
+   "at": 71.2667,
+   "db": -11.0,
+   "why": "S09 ボス壁 ghost_vanish"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/ghost_shark/ghost_portal_open.ogg",
+   "at": 71.2833,
+   "db": -9.0,
+   "why": "S09 ボス壁 ghost_portal_open"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/game/door_correct.ogg",
+   "at": 72.1833,
+   "db": -6.0,
+   "why": "S09 ボス壁 door_correct"
+  },
+  {
+   "kind": "bed",
+   "file": "assets/audio/sfx/crowd/crowd_murmur_loop.ogg",
+   "start": 37.5,
+   "end": 41.3,
+   "db": -8.0,
+   "fade_in": 0.15,
+   "fade_out": 0.8,
+   "why": "S09 ざわめき",
+   "src_offset": 0.0
+  },
+  {
+   "kind": "bed",
+   "file": "assets/audio/sfx/crowd/crowd_race_loop.ogg",
+   "start": 40.5,
+   "end": 73.1333,
+   "db": -14.0,
+   "fade_in": 0.8,
+   "fade_out": 0.25,
+   "why": "S09 声援",
+   "src_offset": 0.0
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/se_lab/score_roll_finish.ogg",
+   "at": 75.7166,
+   "db": -5.0,
+   "why": "S21 score_drum_finish"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/crowd/crowd_win_cheer.ogg",
+   "at": 75.7166,
+   "db": -6.0,
+   "why": "S21 crowd_win_cheer"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/crowd/crowd_applause.ogg",
+   "at": 75.7166,
+   "db": -9.0,
+   "why": "S21 crowd_applause"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/crowd/crowd_aww.ogg",
+   "at": 76.1166,
+   "db": -8.0,
+   "why": "S21 crowd_aww"
+  },
+  {
+   "kind": "clip",
+   "file": "assets/audio/sfx/se_lab/score_roll.ogg",
+   "src_in": 1.0,
+   "at": 73.1333,
+   "dur": 2.5667,
+   "db": -5.0,
+   "fade_out": 0.01,
+   "why": "S21 score_drum_roll（撮影の前から）"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/se_lab/ui_click.ogg",
+   "at": 76.8854,
+   "db": -3.0,
+   "why": "S20 スキン 帽子 ui_click"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/se_lab/ui_click.ogg",
+   "at": 77.8187,
+   "db": -3.0,
+   "why": "S20 スキン 帽子 ui_click"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/se_lab/ui_click.ogg",
+   "at": 78.7687,
+   "db": -3.0,
+   "why": "S20 スキン 帽子 ui_click"
+  }
+ ],
+ "markers": [
+  [
+   0,
+   "S01 Q1の壁が、空から落ちてくる"
+  ],
+  [
+   338,
+   "S02 見比べて…P2は「54」でゴツン。P1は「56」を突き破る"
+  ],
+  [
+   956,
+   "S03 タイトル（TESTOPIA）"
+  ],
+  [
+   1294,
+   "S04 教科と学年をえらぶ"
+  ],
+  [
+   1519,
+   "S05 ヘリのお迎え（2機）"
+  ],
+  [
+   1856,
+   "S06 AIが問題を作っている、実際の準備画面"
+  ],
+  [
+   2082,
+   "S07 5教科×6学年の問題"
+  ],
+  [
+   2250,
+   "S09 実際のプレイ画面（2人で遊んだ試合：カウントダウンからボス壁まで）"
+  ],
+  [
+   4388,
+   "S21 決着はスコアタワー"
+  ],
+  [
+   4613,
+   "S20 自分だけのキャラ（スキンとエモートを左右に）"
+  ],
+  [
+   4781,
+   "S23 ロゴ"
+  ]
+ ],
+ "takes": {
+  "s06_s07": {
+   "ready": true,
+   "reason": "",
+   "frames": 679,
+   "warnings": []
+  },
+  "s04_s05": {
+   "ready": true,
+   "reason": "",
+   "frames": 566,
+   "warnings": []
+  },
+  "s09_play": {
+   "ready": true,
+   "reason": "",
+   "frames": 5052,
+   "warnings": [
+    "report.json の failures：replay: ゲームの状態が記録と違う（2578 フレーム目から、1025 フレーム）"
+   ]
+  },
+  "s09": {
+   "ready": true,
+   "reason": "",
+   "frames": 3300,
+   "warnings": [
+    "report.json の failures：user://settings.json changed"
+   ]
+  },
+  "s09_fall": {
+   "ready": false,
+   "reason": "連番がまだ無い",
+   "frames": 0,
+   "warnings": []
+  },
+  "s21_play": {
+   "ready": true,
+   "reason": "",
+   "frames": 285,
+   "warnings": [
+    "report.json の failures：replay: ゲームの状態が記録と違う（2578 フレーム目から、1025 フレーム）"
+   ]
+  },
+  "s20": {
+   "ready": true,
+   "reason": "",
+   "frames": 173,
+   "warnings": []
+  },
+  "s20_emote": {
+   "ready": true,
+   "reason": "",
+   "frames": 61,
+   "warnings": []
+  },
+  "s20_emote_b": {
+   "ready": true,
+   "reason": "",
+   "frames": 61,
+   "warnings": []
+  },
+  "s20_emote_c": {
+   "ready": true,
+   "reason": "",
+   "frames": 61,
+   "warnings": []
+  }
+ },
+ "s03": {
+  "frames": 338,
+  "logo_dir": "artifacts/pv_capture/logo_s03_x16/",
+  "bg_first": "artifacts/pv_capture/v3_frames/pv_0001.jpg",
+  "bg_start_frame": 957,
+  "bg_min_frames": 1518,
+  "aep": "docs/pv/previz/ae/TESTOPIA_PV_S03_long.aep",
+  "comp": "PV_S03_T"
+ },
+ "unknown_cues": [],
+ "skipped_telops": [
+  "S21_1「[正解数と残りのハート]で点数が決まる」：ゲームの見出し「スコアタワー」「正解数 × (残りHP+0.5) で勝負！」が上の中央に 2 秒ほど出て重なり、下は得点のカード。見出しがテロップの代わりになる（docs/pv/takes/s21.md、レーン 3 の案。10/20 夜も出さないままと決定）"
+ ],
+ "shakes": [
+  {
+   "t": 2.35,
+   "amp": 22.0,
+   "dur": 0.42,
+   "why": "wall_land",
+   "pv_frame": 142
+  },
+  {
+   "t": 10.4208,
+   "amp": 14.0,
+   "dur": 0.35,
+   "why": "wall_crash",
+   "pv_frame": 626
+  },
+  {
+   "t": 12.4208,
+   "amp": 30.0,
+   "dur": 0.5,
+   "why": "body_burst",
+   "pv_frame": 746
+  }
+ ]
+}

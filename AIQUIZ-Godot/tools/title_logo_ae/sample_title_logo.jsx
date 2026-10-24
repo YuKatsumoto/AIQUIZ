@@ -1,14 +1,15 @@
 // Sample the title intro for Godot (ExtendScript ES3, run via ae_run.mjs after build_title_logo.jsx).
 // Writes res://assets/ui/title_logo/title_logo_motion.json for TitleLogoIntro:
-//   controls  CTRL sliders (Form, Travel, Reveal): value at 0 s and 60 fps samples between the first and last key
+//   controls  CTRL sliders (Form, Travel): value at 0 s and 60 fps samples between the first and last key
 //   layers    every layer except BG_Preview / BELT: parent, in/out points, anchor, position (X/Y separated or not),
 //             scale, rotation, opacity (base value + 60 fps samples between first and last key);
 //             DUST_<n> / FX_<name> also carry their shape (ellipse or rounded rect: size, fill, stroke)
+//   markers   comp markers (comment -> seconds), e.g. BURST / END
 // After Effects stays the source of truth: change keys in the AEP, run this again (no Godot code change).
 
 var COMP = "TitleLogo_Intro";
 var OUT = "C:/AIQUIZ/AIQUIZ-Godot/assets/ui/title_logo/title_logo_motion.json";
-var FPS = 60, K = 4, OX = -30, OY = -140;  // same as build_title_logo.jsx
+var FPS = 60, K = 4, OX = -60, OY = -150;  // same as build_title_logo.jsx
 var SKIP = { "BG_Preview": true, "BELT": true };
 
 function r(v, n) { var m = Math.pow(10, n); return Math.round(v * m) / m; }
@@ -80,7 +81,8 @@ var layers = {};
 var digits = { position: 2, scale: 2, rotation: 2, opacity: 1, anchor: 2 };
 for (var i = 1; i <= comp.numLayers; i++) {
   var layer = comp.layer(i);
-  if (SKIP[layer.name] || layer.name === "CTRL") continue;
+  // CS_<key> (contact shadows) are drawn by expressions; Godot computes them itself
+  if (SKIP[layer.name] || layer.name === "CTRL" || layer.name.indexOf("CS_") === 0) continue;
   var rec2 = { parent: layer.parent ? layer.parent.name : null, inPoint: r(layer.inPoint, 4), outPoint: r(layer.outPoint, 4),
                base: {}, tracks: {} };
   var keys = ["position", "scale", "rotation", "opacity", "anchor"];
@@ -115,7 +117,11 @@ for (var i = 1; i <= comp.numLayers; i++) {
   }
   layers[layer.name] = rec2;
 }
-var data = { version: 1, source: "After Effects " + app.version + " / tools/title_logo_ae/AIQUIZ_TitleLogo.aep (" + COMP + ")",
+// markers (comment -> seconds)
+var markers = {};
+var mk = comp.markerProperty;
+for (var mi = 1; mi <= mk.numKeys; mi++) markers[mk.keyValue(mi).comment] = r(mk.keyTime(mi), 4);
+var data = { version: 1, markers: markers, source: "After Effects " + app.version + " / tools/title_logo_ae/TESTOPIA_TitleLogo.aep (" + COMP + ")",
              fps: FPS, scale: K, origin: [OX, OY], size: [comp.width, comp.height], duration: r(comp.duration, 4),
              controls: controls, layers: layers };
 var dir = new Folder("C:/AIQUIZ/AIQUIZ-Godot/assets/ui/title_logo");

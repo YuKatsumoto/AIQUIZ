@@ -1,0 +1,29 @@
+{
+  "note": "台座の横の水路の仕掛けの寸法（Godot の座標）。build_stage_gate.py が書く",
+  "tower_height": 40.0,
+  "tower_width": 1.8,
+  "deck_len": 4.36,
+  "deck_half_z": 1.9,
+  "deck_thickness": 0.26,
+  "hinge_x": 0.04,
+  "rail_h": 1.0,
+  "rail_z": 1.8,
+  "track_z": 2.2,
+  "track_d": 0.16,
+  "rail_length": 6.9,
+  "toe_len": 0.32,
+  "toe_drop": 0.3,
+  "beacon": [
+    0.3,
+    -0.39,
+    2.62
+  ],
+  "triangles": {
+    "SG_Tower": 3016,
+    "SG_LiftDeck": 856,
+    "SG_LiftHandrail": 248,
+    "SG_LiftCarriage": 240,
+    "SG_LiftFrame": 1640,
+    "SG_Beacon": 104
+  }
+}

@@ -7,7 +7,7 @@
 //   4. restart AE, then node ... docs/pv/previz/ae/render_s01_s07.jsx
 // Times are in PV frames of the segment (1 = the head of S04, 60 fps, 1 beat = 28.125 frames). S04 starts right after
 // the v3 part (1180 frames), 1.25 frames before the ideal beat 42 of the 128 BPM grid.
-var ROOT = "C:/AIQUIZ/AIQUIZ-Godot/";
+var ROOT = "G:/AIQUIZ-Main/AIQUIZ-Godot/";
 function readText(p) { var f = new File(p); f.encoding = "UTF-8"; if (!f.open("r")) throw new Error("cannot open " + p); var s = f.read(); f.close(); return s; }
 eval(readText(ROOT + "docs/pv/previz/ae/pv_telop.jsxinc"));
 var L = JSON.parse(readText(ROOT + "tools/title_logo_ae/layout.json"));

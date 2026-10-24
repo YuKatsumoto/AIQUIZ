@@ -6,6 +6,18 @@
       "runtimeExecutable": "python",
       "runtimeArgs": ["-m", "http.server", "8765", "--directory", "docs/pv"],
       "port": 8765
+    },
+    {
+      "name": "ai-typing-mock",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8766", "--directory", "docs"],
+      "port": 8766
+    },
+    {
+      "name": "aiquiz-ops",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["../aiquiz-ops/server.js"],
+      "port": 3002
     }
   ]
 }

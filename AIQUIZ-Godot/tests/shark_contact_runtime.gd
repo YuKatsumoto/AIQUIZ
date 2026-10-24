@@ -45,6 +45,11 @@ func run() -> void:
 	world = load("res://scenes/game_world.tscn").instantiate()
 	get_tree().root.add_child(world)
 	get_tree().current_scene = world
+	# The local 2P saw chase (added after this probe) starts at SawChaseState.INITIAL_Z and
+	# cuts both players placed at z = -12 (and the back-edge cases) on the first frame,
+	# ending the match before the ocean fall. This probe only covers the shark bite, so stop
+	# the blades after the world's _ready has enabled them.
+	gs.saw_transport_enabled = false
 	world.get_node("Player").prepare_for_loading(gs)
 	await get_tree().create_timer(0.3).timeout
 	if target_player == 1:

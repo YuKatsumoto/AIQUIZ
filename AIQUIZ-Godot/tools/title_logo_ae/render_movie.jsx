@@ -1,5 +1,5 @@
 // Render TitleLogo_Intro to artifacts/title_logo_ae/TitleLogo_Intro.mp4 (H.264) for review
-// (ExtendScript ES3, run via ae_run.mjs with AIQUIZ_TitleLogo.aep open).
+// (ExtendScript ES3, run via ae_run.mjs with TESTOPIA_TitleLogo.aep open).
 var OUT = "C:/AIQUIZ/AIQUIZ-Godot/artifacts/title_logo_ae/TitleLogo_Intro.mp4";
 function pick(list, tests) {
   for (var t = 0; t < tests.length; t++) for (var i = 0; i < list.length; i++) if (tests[t](list[i])) return list[i];

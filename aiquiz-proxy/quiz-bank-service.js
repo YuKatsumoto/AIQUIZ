@@ -6,7 +6,8 @@ const { getDatabase } = require('firebase-admin/database');
 const SUBJECTS = new Set(['国語', '算数', '理科', '社会', '英語']);
 const DIFFICULTIES = new Set(['簡単', '普通', '難しい']);
 // GEMINI_POOL: 手元の生成プールから次のラウンドで再利用された Gemini 生成問題
-const ONLINE_SOURCES = new Set(['GEMINI', 'GEMINI_STREAM', 'GEMINI_POOL', 'OPENAI']);
+// CLAUDE_HAIKU: 補充ジョブ（bank-builder.js）が Claude Haiku で作った問題
+const ONLINE_SOURCES = new Set(['GEMINI', 'GEMINI_STREAM', 'GEMINI_POOL', 'OPENAI', 'CLAUDE_HAIKU']);
 const CONTENT_FIELDS = ['q', 'c', 'a', 'e'];
 
 // QUIZ_BANK_REQUIRE_REVIEW=1 のとき、クライアントの good は昇格させず票として数えるだけにする。
@@ -16,6 +17,11 @@ function requireReviewFromEnv() {
 }
 const MAX_BATCH = 50;
 const MAX_PAGE = 500;
+const BANK_ITEMS_PATH = 'quiz_bank/v1/items';
+// 共有バンクから消した問題の記録 {id: 消した時刻(ms)}。差分同期でゲームの手元からも消すため。
+const BANK_REMOVED_PATH = 'quiz_bank/v1/removed';
+// 差分同期の時刻のゆとり。書き込みと読み出しが重なっても取りこぼさないよう、少し前から取り直させる。
+const CHANGES_MARGIN_MS = 2 * 60 * 1000;
 
 function normalizeQuestion(text) {
     return String(text || '')
@@ -148,6 +154,17 @@ function reusableRecord(archive) {
     };
 }
 
+// 共有バンクに入れる / 消す。差分同期（/quiz-bank/changes）のため変更時刻と削除の記録を残す。
+async function putBankItem(db, id, archive, nowMs = Date.now()) {
+    await db.ref(`${BANK_ITEMS_PATH}/${id}`).set({ ...reusableRecord(archive), changed_at: nowMs });
+    await db.ref(`${BANK_REMOVED_PATH}/${id}`).remove();
+}
+
+async function removeBankItem(db, id, nowMs = Date.now()) {
+    await db.ref(`${BANK_REMOVED_PATH}/${id}`).set(nowMs);
+    await db.ref(`${BANK_ITEMS_PATH}/${id}`).remove();
+}
+
 function parseBatch(body, name) {
     let parsed;
     try {
@@ -231,12 +248,11 @@ class FirebaseQuizBankService {
                     }),
                 );
                 const archive = transaction.snapshot.val();
-                const bankRef = db.ref(`quiz_bank/v1/items/${quiz.id}`);
                 if (archive.status === 'good') {
-                    await bankRef.set(reusableRecord(archive));
+                    await putBankItem(db, quiz.id, archive);
                     bankChanged = true;
                 } else if (archive.status === 'bad') {
-                    await bankRef.remove();
+                    await removeBankItem(db, quiz.id);
                     bankChanged = true;
                 }
                 status = archive.status;
@@ -269,6 +285,7 @@ class FirebaseQuizBankService {
 
     async snapshot({ cursor = '', limit = 200, expectedRevision = 0 } = {}) {
         const db = this._db();
+        const startedMs = Date.now();
         const metaRef = db.ref('quiz_bank/v1/meta/revision');
         const before = Number((await metaRef.once('value')).val() || 0);
         if (expectedRevision && expectedRevision !== before) {
@@ -297,8 +314,44 @@ class FirebaseQuizBankService {
         return {
             version: 1,
             revision: before,
+            // 全件を取ったあとの差分同期は、この時刻から始める（ゆとり込み）
+            sync_since: Math.max(0, startedMs - CHANGES_MARGIN_MS),
             items: entries.map(([id, item]) => ({ id, ...item })),
             next_cursor: hasMore && entries.length ? entries[entries.length - 1][0] : '',
+        };
+    }
+
+    // since（ms）より後に入れた・変えた問題と、消した問題の ID。changed_at の順にページ分けする。
+    // 2 ページ目以降は前のページの next {since, after_key} をそのまま渡す。
+    async changes({ since = 0, afterKey = '', limit = 500 } = {}) {
+        const db = this._db();
+        const startedMs = Date.now();
+        since = Math.max(0, Number(since) || 0);
+        const pageSize = Math.min(MAX_PAGE, Math.max(1, Number(limit) || 500));
+        let query = db.ref(BANK_ITEMS_PATH).orderByChild('changed_at');
+        query = afterKey ? query.startAt(since, afterKey) : query.startAt(since);
+        const snapshot = await query.limitToFirst(pageSize + (afterKey ? 2 : 1)).once('value');
+        let entries = [];
+        snapshot.forEach(child => {
+            entries.push([child.key, child.val()]);
+        });
+        if (afterKey && entries.length && entries[0][0] === afterKey) entries = entries.slice(1);
+        const hasMore = entries.length > pageSize;
+        entries = entries.slice(0, pageSize);
+        let removed = [];
+        if (!afterKey) {
+            const removedSnapshot = await db.ref(BANK_REMOVED_PATH).orderByValue().startAt(since).once('value');
+            removedSnapshot.forEach(child => {
+                removed.push(child.key);
+            });
+        }
+        const last = entries[entries.length - 1];
+        return {
+            version: 2,
+            items: entries.map(([id, item]) => ({ id, ...item })),
+            removed,
+            next: hasMore ? { since: Number(last[1].changed_at || since), after_key: last[0] } : null,
+            sync_since: hasMore ? null : Math.max(0, startedMs - CHANGES_MARGIN_MS),
         };
     }
 }
@@ -321,6 +374,19 @@ function createQuizBankRouter(service = new FirebaseQuizBankService()) {
             res.status(200).json(result);
         } catch (error) {
             res.status(400).json({ error: error.message });
+        }
+    });
+
+    router.get('/changes', async (req, res) => {
+        try {
+            const result = await service.changes({
+                since: Number(req.query.since || 0),
+                afterKey: String(req.query.after_key || ''),
+                limit: Number(req.query.limit || 500),
+            });
+            res.status(200).json(result);
+        } catch (error) {
+            res.status(error.statusCode || 500).json({ error: error.message });
         }
     });
 
@@ -349,6 +415,8 @@ module.exports = {
     mergeCandidate,
     mergeEvaluation,
     normalizeQuestion,
+    putBankItem,
     questionId,
+    removeBankItem,
     reusableRecord,
 };

@@ -1,14 +1,60 @@
 # Sound effect credits
 
+## Sudden death "SKY GATE BREAK!" (`se_lab/`, not in git)
+
+27 files downloaded from 効果音ラボ (https://soundeffect-lab.info/sound/) on 2026-10-20 at the user's request
+(originals in `source/se_lab/`, file names as on the site). Same terms as the other `se_lab/` files: game use
+allowed, no credit, the files themselves may not be redistributed (edited or not), so they stay out of this
+public repository. `tools/audio/make_sudden_death_sfx.py` cuts, fades and normalises them (one-shots −3 dBFS
+peak, loops −6 dBFS, Ogg Vorbis q6, 48 kHz stereo). **Confirm the source** before release.
+開演ブザー `buzzer-opening1.mp3` was downloaded too but is no longer used: the green jump light plays `game/countdown_go.ogg`
+(OtoLogic, below) since it sounded too much like the wrong-answer buzzer.
+
+| File(s) | Original (page) | Edit |
+|---|---|---|
+| `sd_whistle.ogg` | 警官のホイッスル2 `police-whistle2.mp3` (various3) | head trimmed |
+| `sd_siren.ogg` | 警報が鳴る `emergency-alert1.mp3` (anime) | first 3.2 s, 0.7 s fade-out |
+| `sd_tower_move.ogg`, `sd_stand_lower.ogg` | 巨大モーター起動 `giant-motor1.mp3` (machine) | first 2.0 s / 3.6 s, fade-out |
+| `sd_stand_lift.ogg` | 巨大シャッターが開く `giant-shutter1.mp3` (machine) | first 3.0 s, 0.8 s fade-out |
+| `sd_servo.ogg` | ロボットが腕を動かす1 `arm-action1.mp3` (machine) | — |
+| `fp_ramp.ogg` | 巨大ロボットが腕を動かす3 `giant-arm-action3.mp3` (machine) | first 2.0 s |
+| `fp_ramp_latch.ogg` | 鉄の扉を閉める `iron-door-close1.mp3` (various) | head trimmed |
+| `fp_flyby.ogg`, `fp_prop_loop.ogg` | プロペラ機上空通過 `propeller-aircraft-pass1.mp3` (machine) | from 2.1 s / 1.0–2.2 s levelled, forward + reversed loop |
+| `fp_engine_loop.ogg` | 戦闘機内（飛行中） `fighter-cockpit1.mp3` (machine) | 4–17 s, 1 s crossfade loop |
+| `fp_touchdown.ogg` | 水面に石投げ2 `water-throw-stone2.mp3` (various) | head trimmed |
+| `fp_ramp_wind.ogg`, `sd_freefall_loop.ogg` | 風が吹く2 `wind2.mp3` (environment) | 40–45.5 s with 2 s fade-in / 10–34 s, swells halved, 2 s crossfade loop |
+| `fp_jump.ogg` | ジャンプ `jump1.mp3` (battle) | first 0.9 s |
+| `sd_cloud_whoosh.ogg` | 突風が吹く `gust-wind1.mp3` (animal) | from 0.42 s |
+| `sg_gate_rush.ogg` | 高速移動 `highspeed-movement1.mp3` (battle) | — |
+| `sg_tear_a.ogg`, `sg_tear_b.ogg` | 紙を破く2・3 `paper-tear2.mp3`, `paper-tear3.mp3` (various2) | tails trimmed, a at −7 dBFS |
+| `sg_bounce.ogg` | ボヨン `boyon1.mp3` (anime) | — |
+| `sg_safe.ogg` | キラッ1 `kira1.mp3` (anime) | — |
+| `sg_revive.ogg` | 回復魔法1 `magic-cure1.mp3` (battle) | — |
+| `sg_round_gong.ogg` | 試合開始のゴング `gong-played1.mp3` (anime) | — |
+| `sg_round_clear.ogg` | ラッパのファンファーレ `trumpet1.mp3` (anime) | — |
+| `sg_overtime.ogg` | 突撃ラッパ `trumpet2.mp3` (anime) | first 3.3 s |
+| `sg_notice.ogg` | 警告音2 `warning2.mp3` (button) | — |
+| `sg_chute_open.ogg` | 傘をさす `umbrella-open1.mp3` (various) | from 0.15 s |
+| `sg_float_splash.ogg` | 水をバシャッとかける1 `sprinkle-water1.mp3` (various) | — |
+| `sg_winner.ogg` | ジャジャーン `jajean1.mp3` (anime) | — |
+
 ## Ghost shark ride (2026-10-16)
 
 All files in `ghost_shark/` (`ghost_soul_rise`, `ghost_shark_rise`, `ghost_shark_breach`,
 `ghost_mount_beam`, `ghost_charge_loop`, `ghost_charge_perfect`, `ghost_dash`, `ghost_hit`,
-`ghost_vanish`, `ghost_portal_open`, `ghost_portal_cross`) were synthesized for this project
+`ghost_vanish`, `ghost_portal_open`, `ghost_portal_cross`, and the sudden death revival's
+`ghost_revive_gather`, `ghost_revive_snap`, `ghost_revive_burst` added 2026-10-21) were synthesized for this project
 without external samples. No third-party license restrictions. Rebuild with
 `tools/audio/make_ghost_shark_sfx.py` (deterministic noise seeds, 48 kHz stereo, Ogg Vorbis q7;
 −3 dBFS peaks, the charge loop −6 dBFS). Runtime gains are in `AudioManager.SFX_CUES` and
 `docs/sound_effects.md`.
+
+## PV: first question written by "AI" (2026-10-22)
+
+`game/ai_type_tick.ogg` and `game/ai_type_done.ogg` were synthesized for this project without
+external samples. No third-party license restrictions. Rebuild with
+`tools/audio/make_ai_typing_sfx.py` (deterministic noise seed, 48 kHz stereo, Ogg Vorbis q7;
+−3 dBFS peaks). Runtime gains are in `AudioManager.SFX_CUES` and `docs/sound_effects.md`.
 
 ## Online VS face-off (2026-10-13)
 

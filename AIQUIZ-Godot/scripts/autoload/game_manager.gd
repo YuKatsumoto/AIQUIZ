@@ -25,7 +25,9 @@ const USER_SETTINGS_PATH := "user://settings.json"
 ## 5: ハート（HP）・4択のボス壁・回転のこぎり・スコアタワーに合わせ、操作キーを3Dで示す版。
 ## 6: 前後左右の移動を1ステップに、ジャンプを独立、エモートは3つすべて、
 ##    2Pはゴール後にスコアタワーの勝敗判定まで進み、得点の計算方法を説明する版。
-const CURRENT_TUTORIAL_VERSION := 6
+## 7: 説明の段落をなくし、1行のミッション・体験後のルール表示・章クリアのバナーで進める版。
+##    コース選択とキーボード説明を1画面にし、クリア画面に章メダルとクリアタイムを出す。
+const CURRENT_TUTORIAL_VERSION := 7
 ## コースごとの完了記録を持たない設定ファイルは、版4での完了として読む。
 const LEGACY_COURSE_COMPLETED_VERSION := 4
 const TUTORIAL_COURSE_SOLO := "SOLO"

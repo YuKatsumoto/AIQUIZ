@@ -10,6 +10,8 @@ const TRACKS := [
 	"res://assets/audio/bgm/quiz_play_loop.ogg",
 	"res://assets/audio/bgm/quiz_result_loop.ogg",
 	"res://assets/audio/bgm/quiz_match_loop.ogg",
+	"res://assets/audio/bgm/quiz_sd_intro_loop.ogg",
+	"res://assets/audio/bgm/quiz_sd_skydive_loop.ogg",
 ]
 const LEAD_SECONDS := 1.0
 const AFTER_SECONDS := 1.0

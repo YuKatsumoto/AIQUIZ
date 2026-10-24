@@ -258,8 +258,8 @@ def main() -> int:
             hn, gn = hs.get("cutin_names", []), gst.get("cutin_names", [])
             if len(hn) != 2 or len(gn) != 2 or hn != list(reversed(gn)):
                 errors.append(f"cut-in names do not mirror: host={hn} guest={gn}")
-            if hs.get("cutin_poses") != list(reversed(gst.get("cutin_poses", []))):
-                errors.append(f"cut-in poses do not mirror: host={hs.get('cutin_poses')} guest={gst.get('cutin_poses')}")
+            if hs.get("cutin_emotes") != list(reversed(gst.get("cutin_emotes", []))):
+                errors.append(f"cut-in emotes do not mirror: host={hs.get('cutin_emotes')} guest={gst.get('cutin_emotes')}")
             for role_name, st in (("host", hs), ("guest", gst)):
                 seconds = st.get("match_to_reveal_s")
                 if seconds is None or seconds > args.reveal_limit:

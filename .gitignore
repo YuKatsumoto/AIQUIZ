@@ -44,12 +44,6 @@ __pycache__/
 AIQUIZ-Godot/artifacts/
 AIQUIZ-Godot/addons/.godot_ai_update/
 
-# Fennara MCP tooling (dev-only, not project sources)
-AIQUIZ-Godot/.fennara/
-AIQUIZ-Godot/addons/fennara/
-AIQUIZ-Godot-Android/.fennara/
-AIQUIZ-Godot-Android/addons/fennara/
-
 # Claude Code worktrees / Python caches
 **/.claude/worktrees/
 __pycache__/

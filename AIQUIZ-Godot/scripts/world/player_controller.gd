@@ -84,11 +84,17 @@ const INTRO_FINGER_POSE_KEYS := [
 ]
 const RagdollBuilderScript = preload("res://scripts/world/ragdoll_builder.gd")
 const ActiveRagdollDriverScript = preload("res://scripts/world/active_ragdoll_driver.gd")
-const GHOST_MOUNT_ANIMATION_PATH := "res://assets/animations/Ghost Shark Mount.fbx"
 const GHOST_RIDER_MOUNT_SCALE: float = 0.62
 const GHOST_RIDER_BIND_TRANSFORMS_META := &"ghost_mount_bind_transforms"
 const GHOST_RIDER_MOUNT_SCALE_META := &"ghost_mount_scale"
 const GHOST_RIDER_MOUNT_TRANSFORM_META := &"ghost_mount_target_transform"
+const GHOST_RIDER_BIND_PELVIS_META := &"ghost_rider_bind_pelvis"
+const GHOST_SOUL_SHADER := preload("res://assets/ghost_rider/ghost_soul.gdshader")
+const GHOST_RIDER_SOLID_SHADER := preload("res://assets/ghost_rider/ghost_rider_solid.gdshader")
+const GHOST_RIDER_RIM_P1 := Color(1.0, 0.6, 0.24, 1.0)
+const GHOST_RIDER_RIM_P2 := Color(0.34, 0.78, 1.0, 1.0)
+## apply_ghost_soul_look の前の見た目 {"override", "shadow"}（remove_ghost_soul_look が戻す）。
+const GHOST_ORIGINAL_LOOK_META := &"ghost_original_look"
 # 物理駆動に置き換えるため非表示にする表示メッシュのキー
 const _RAGDOLL_HIDE_KEYS := [
 	"head", "l_upp_arm", "l_low_arm", "r_upp_arm", "r_low_arm",
@@ -169,7 +175,6 @@ const EXPLOSION_PHYSICS_BOUNCE: float = 0.32
 # Animation Rig (P1/P2蜈ｱ騾壹け繝ｩ繧ｹ縺ｧ邂｡逅・
 var _p1_rig: AnimationRig = AnimationRig.new("P1")
 var _p2_rig: AnimationRig = AnimationRig.new("P2")
-var _ghost_mount_rig_data: Dictionary = {}
 
 var _time: float = 0.0
 const BASE_Y: float = -1.2
@@ -185,7 +190,6 @@ func _ready() -> void:
 	# 遅延実行する(_ready 時点では原点のため、初フレームのアンカー瞬間移動を回避)。
 	var gs = QuizManager.game_state
 	_load_mixamo_rig(gs)
-	_load_ghost_mount_rig()
 
 
 ## 四肢物理ツリー+駆動器を生成する。
@@ -2863,11 +2867,76 @@ func _hide_result_ghost_body(is_p1: bool) -> void:
 
 ## Gives a finale stand-in (or any blockman) the translucent ghost look.
 func apply_ghost_look(root: Node3D, player_index: int) -> void:
+	apply_ghost_soul_look(root, player_index)
+
+
+## 幽霊の姿（どの場面でも GOSTRIDER の魂と同じ）：部品ごとに魂のシェーダー（半透明・プレイヤー色の縁光り・
+## 上へ流れるゆらぎ）と、昇る光の粒・淡い灯り。表彰台の代役やサドンデスの空のゲートの幽霊もこれを使う。
+static func apply_ghost_soul_look(root: Node3D, player_index: int) -> void:
 	if root == null or not is_instance_valid(root):
 		return
-	if root.find_child("GhostAura", true, false) == null:
+	for node: Node in root.find_children("*", "MeshInstance3D", true, false):
+		var mesh_instance := node as MeshInstance3D
+		# 元の見た目（remove_ghost_soul_look で戻す）。幽霊のシェーダーのときは覚え直さない。
+		if not is_ghost_soul_look(mesh_instance) and not _is_ghost_solid_look(mesh_instance):
+			mesh_instance.set_meta(GHOST_ORIGINAL_LOOK_META, {
+				"override": mesh_instance.material_override, "shadow": mesh_instance.cast_shadow})
+		if not mesh_instance.has_meta(&"ghost_soul_material"):
+			_prepare_ghost_rider_materials(mesh_instance, player_index)
+		mesh_instance.material_override = mesh_instance.get_meta(&"ghost_soul_material")
+	var aura := root.find_child("GhostAura", true, false) as GPUParticles3D
+	if aura == null:
 		_add_ghost_rider_aura(root, player_index)
-	make_ghost_rider_translucent(root)
+	else:
+		aura.visible = true
+		aura.emitting = true
+		var glow := root.find_child("GhostGlow", true, false) as Light3D
+		if glow != null:
+			glow.visible = true
+
+
+## 幽霊の姿をやめて、apply_ghost_soul_look の前の見た目へ戻す（サドンデスへ行くときに体が戻る。
+## docs/sudden_death_v2/ghost_revive.md）。昇る光の粒と淡い灯りも消す。
+static func remove_ghost_soul_look(root: Node3D) -> void:
+	if root == null or not is_instance_valid(root):
+		return
+	for node: Node in root.find_children("*", "MeshInstance3D", true, false):
+		restore_ghost_soul_mesh(node as MeshInstance3D)
+	var aura := root.find_child("GhostAura", true, false) as GPUParticles3D
+	if aura != null:
+		aura.emitting = false
+		aura.visible = false
+	var glow := root.find_child("GhostGlow", true, false) as Light3D
+	if glow != null:
+		glow.visible = false
+
+
+## 部品 1 つだけ元の見た目へ戻す（幽霊の体へ部位が 1 つずつはまるとき）。幽霊の姿でなければ何もしない。
+static func restore_ghost_soul_mesh(mesh_instance: MeshInstance3D) -> void:
+	if mesh_instance == null or not mesh_instance.has_meta(GHOST_ORIGINAL_LOOK_META):
+		return
+	if not is_ghost_soul_look(mesh_instance) and not _is_ghost_solid_look(mesh_instance):
+		return
+	var original: Dictionary = mesh_instance.get_meta(GHOST_ORIGINAL_LOOK_META)
+	mesh_instance.material_override = original.get("override") as Material
+	mesh_instance.cast_shadow = int(original.get("shadow", GeometryInstance3D.SHADOW_CASTING_SETTING_ON))
+
+
+static func _is_ghost_solid_look(mesh_instance: MeshInstance3D) -> bool:
+	return (
+		mesh_instance != null
+		and mesh_instance.has_meta(&"ghost_solid_material")
+		and mesh_instance.material_override == mesh_instance.get_meta(&"ghost_solid_material")
+	)
+
+
+## 幽霊の姿（apply_ghost_soul_look・GOSTRIDER の魂）になっている部品か。
+static func is_ghost_soul_look(mesh_instance: MeshInstance3D) -> bool:
+	return (
+		mesh_instance != null
+		and mesh_instance.has_meta(&"ghost_soul_material")
+		and mesh_instance.material_override == mesh_instance.get_meta(&"ghost_soul_material")
+	)
 
 
 func reset_result_presentation() -> void:
@@ -2906,30 +2975,6 @@ func _load_mixamo_rig(gs: QuizGameState) -> void:
 		p1_slots = gs.p1_emote_slots
 		p2_slots = gs.p2_emote_slots
 	_apply_emote_rig_slots(p1_slots, p2_slots, loader)
-
-
-func _load_ghost_mount_rig() -> void:
-	_ghost_mount_rig_data.clear()
-	var loaded: Variant = _load_fbx_scene(
-		GHOST_MOUNT_ANIMATION_PATH,
-		"GhostMountHeroicPoseRig"
-	)
-	if not (loaded is Dictionary):
-		push_warning("Ghost mount animation could not be loaded")
-		return
-	_ghost_mount_rig_data = loaded
-	var animation_player := _ghost_mount_rig_data.get("anim_player") as AnimationPlayer
-	var animation_name := String(_ghost_mount_rig_data.get("anim_name", ""))
-	if animation_player == null or animation_name.is_empty():
-		_ghost_mount_rig_data.clear()
-		push_warning("Ghost mount animation has no playable action")
-		return
-	var animation: Animation = animation_player.get_animation(animation_name)
-	if animation != null:
-		animation.loop_mode = Animation.LOOP_NONE
-	animation_player.play(animation_name)
-	animation_player.seek(0.0, true)
-	animation_player.pause()
 
 
 func reload_emote_rigs(p1_slots: Array[int], p2_slots: Array[int]) -> void:
@@ -4417,9 +4462,14 @@ func _clear_explosion_bodies(is_p1: bool) -> void:
 	bodies.clear()
 
 
-func _mesh_box_size(mesh_inst: MeshInstance3D) -> Vector3:
+## 破片の当たり判定の大きさ。visual_scale は画面で見えていた（ワールドの）scale。
+func _mesh_box_size(mesh_inst: MeshInstance3D, visual_scale: Vector3) -> Vector3:
+	var size := Vector3(0.18, 0.18, 0.18)
 	var box := mesh_inst.mesh as BoxMesh
-	var size := box.size if box else Vector3(0.18, 0.18, 0.18)
+	if box:
+		size = box.size * visual_scale.abs()
+	elif mesh_inst.mesh:
+		size = mesh_inst.mesh.get_aabb().size * visual_scale.abs()
 	return size.max(Vector3.ONE * EXPLOSION_MIN_COLLISION_SIZE)
 
 
@@ -4470,7 +4520,8 @@ func _init_explosion(parts: Dictionary, is_p1: bool, force_non_forward: bool = f
 		var piece := _create_explosion_piece(mesh, is_p1)
 
 		spawn_root.add_child(piece)
-		piece.global_transform = gt
+		# 剛体の scale は物理側で捨てられるので、見た目の大きさは子の visual に持たせる。
+		piece.global_transform = gt.orthonormalized()
 
 		var impulse_z := randf_range(EXPLOSION_IMPULSE_Z_MIN, EXPLOSION_IMPULSE_Z_MAX)
 		if force_non_forward:
@@ -4547,13 +4598,19 @@ func _create_explosion_piece(mesh: MeshInstance3D, is_p1: bool) -> RigidBody3D:
 	piece.physics_material_override = phys_mat
 	piece.set_meta("player_death_shard", true)
 	piece.set_meta("preview_death_shard_p1", is_p1)
-	piece.set_meta("base_scale", mesh.scale)
+	# 帽子は GLB の親ノードで縮めてあるので、ローカルの scale ではなく
+	# 画面で見えていた大きさ（ワールドの scale）を破片に引き継ぐ。
+	var visual_scale := mesh.global_transform.basis.get_scale() if mesh.is_inside_tree() else mesh.scale
+	piece.set_meta("base_scale", visual_scale)
 	piece.set_meta("groove_offset", randf_range(-0.42, 0.42))
 
 	var col := CollisionShape3D.new()
 	var shape := BoxShape3D.new()
-	shape.size = _mesh_box_size(mesh)
+	shape.size = _mesh_box_size(mesh, visual_scale)
 	col.shape = shape
+	# 帽子のメッシュは原点が中心とは限らないので、当たり判定を見た目の中心へ寄せる。
+	if mesh.mesh and not (mesh.mesh is BoxMesh):
+		col.position = mesh.mesh.get_aabb().get_center() * visual_scale
 	piece.add_child(col)
 
 	var visual := MeshInstance3D.new()
@@ -4561,7 +4618,7 @@ func _create_explosion_piece(mesh: MeshInstance3D, is_p1: bool) -> RigidBody3D:
 		visual.mesh = mesh.mesh
 	if mesh.material_override:
 		visual.material_override = mesh.material_override
-	visual.scale = mesh.scale
+	visual.scale = visual_scale
 	piece.add_child(visual)
 	return piece
 
@@ -4795,7 +4852,15 @@ func _emote_kazotsky(t: float, parts: Dictionary) -> void:
 # Rigged Animation Support (Mixamo / FBX)
 # ============================================================
 
-func _apply_skeleton_pose(parts: Dictionary, skeleton: Skeleton3D, bone_indices: Dictionary, mirror_x: bool = false) -> void:
+## space_root を渡すと、骨の向きをその親（ゴーストの乗り手など）の向きと大きさの中で当てる。
+## 渡さないときは従来どおりワールドの向きとして当てる（向きを変えない走者用）。
+func _apply_skeleton_pose(
+	parts: Dictionary,
+	skeleton: Skeleton3D,
+	bone_indices: Dictionary,
+	mirror_x: bool = false,
+	space_root: Node3D = null
+) -> void:
 	"""豈弱ヵ繝ｬ繝ｼ繝 Skeleton3D 縺ｮ鬪ｨ蠎ｧ讓吶ｒ隱ｭ縺ｿ蜿悶ｊ縲√ヶ繝ｭ繝・け縺ｮ繝斐・繝・ヨ縺ｫ驕ｩ逕ｨ縺吶ｋ"""
 	if not skeleton or bone_indices.is_empty():
 		return
@@ -4803,7 +4868,12 @@ func _apply_skeleton_pose(parts: Dictionary, skeleton: Skeleton3D, bone_indices:
 	var pelvis: Node3D = parts.get("pelvis")
 	if not pelvis:
 		return
-	
+	var root_basis := (
+		space_root.global_basis
+		if space_root != null and is_instance_valid(space_root) and space_root.is_inside_tree()
+		else Basis.IDENTITY
+	)
+
 	var mirror_matrix = Basis(Vector3(-1, 0, 0), Vector3(0, 1, 0), Vector3(0, 0, 1))
 	
 	# Hips・医・繝ｫ繝薙せ・峨・菴咲ｽｮ縺ｨ蝗櫁ｻ｢繧帝←逕ｨ
@@ -4836,7 +4906,8 @@ func _apply_skeleton_pose(parts: Dictionary, skeleton: Skeleton3D, bone_indices:
 			if flip:
 				# X霆ｸ蜻ｨ繧翫↓180蠎ｦ蝗櫁ｻ｢縺励€・Y譁ｹ蜷代′鬪ｨ縺ｮ+Y譁ｹ蜷代→荳€閾ｴ縺吶ｋ繧医≧縺ｫ縺吶ｋ
 				new_basis = new_basis * Basis(Vector3.RIGHT, PI)
-			node.global_basis = new_basis
+			# 親の大きさ込みで掛けると、部品のローカルには回転だけが残る（0.62 倍の乗り手でも手足が膨らまない）。
+			node.global_basis = root_basis * new_basis
 	
 	# 閭碁ｪｨ繝ｻ鬥厄ｼ・Y譁ｹ蜷代↓讒狗ｯ峨＆繧後※縺・ｋ縺ｮ縺ｧ繝輔Μ繝・・荳崎ｦ・ｼ・
 	apply_bone.call("spine", "spine", false)
@@ -4915,6 +4986,9 @@ func create_ghost_rider_visual(player_index: int) -> Node3D:
 			var part := part_variant as Node3D
 			bind_transforms[part_name] = part.transform
 	rider.set_meta(GHOST_RIDER_BIND_TRANSFORMS_META, bind_transforms)
+	var pelvis_part := parts.get("pelvis") as Node3D
+	rider.set_meta(GHOST_RIDER_BIND_PELVIS_META, pelvis_part.position if pelvis_part != null else Vector3.ZERO)
+	GhostRiderPerformance.remember_rest(parts)
 	var mounted_transform := Transform3D(
 		Basis.from_scale(Vector3.ONE * GHOST_RIDER_MOUNT_SCALE),
 		Vector3.ZERO
@@ -4938,8 +5012,68 @@ func create_ghost_rider_visual(player_index: int) -> Node3D:
 		ghost_meshes.append(hat_mesh)
 	for mesh_instance in ghost_meshes:
 		_apply_ghost_material(mesh_instance)
+		_prepare_ghost_rider_materials(mesh_instance, player_index)
 	_add_ghost_rider_aura(rider, player_index)
 	return rider
+
+
+## GOSTRIDER の乗り手の部品ごとに、魂（半透明・縁光り）と騎乗中（不透明・縁光り）のシェーダーを用意し、魂で始める。
+## 標準の幽霊マテリアル（_apply_ghost_material）は、ポータルの Stencil を通る間の差し替え用に残す。
+static func _prepare_ghost_rider_materials(mesh_instance: MeshInstance3D, player_index: int) -> void:
+	if mesh_instance == null:
+		return
+	var source: Material = mesh_instance.material_override
+	if source == null and mesh_instance.mesh != null and mesh_instance.mesh.get_surface_count() > 0:
+		source = mesh_instance.mesh.surface_get_material(0)
+	var standard := source as StandardMaterial3D
+	var base := standard.albedo_color if standard != null else Color(0.9, 0.9, 0.9)
+	base.a = 1.0
+	var rim := GHOST_RIDER_RIM_P1 if player_index == 1 else GHOST_RIDER_RIM_P2
+	var soul := ShaderMaterial.new()
+	soul.shader = GHOST_SOUL_SHADER
+	soul.set_shader_parameter("albedo", base)
+	soul.set_shader_parameter("rim_color", rim)
+	var solid := ShaderMaterial.new()
+	solid.shader = GHOST_RIDER_SOLID_SHADER
+	solid.set_shader_parameter("albedo", base)
+	solid.set_shader_parameter("rim_color", rim)
+	mesh_instance.set_meta(&"ghost_standard_material", standard)
+	mesh_instance.set_meta(&"ghost_soul_material", soul)
+	mesh_instance.set_meta(&"ghost_solid_material", solid)
+	mesh_instance.material_override = soul
+	mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
+## 乗り手の全部の幽霊シェーダーに同じ値を入れる（目覚め・着座の白い光など）。
+func set_ghost_rider_shader_parameter(rider: Node3D, parameter: StringName, value: Variant) -> void:
+	if rider == null or not is_instance_valid(rider):
+		return
+	for node: Node in rider.find_children("*", "MeshInstance3D", true, false):
+		for key: StringName in [&"ghost_soul_material", &"ghost_solid_material"]:
+			var material := node.get_meta(key, null) as ShaderMaterial
+			if material != null:
+				material.set_shader_parameter(parameter, value)
+
+
+## ポータルを通る間（サメの Stencil の差し替えは StandardMaterial3D を前提にしている）は標準の不透明マテリアルにする。
+func set_ghost_rider_portal_safe(rider: Node3D, enabled: bool) -> void:
+	if rider == null or not is_instance_valid(rider):
+		return
+	for node: Node in rider.find_children("*", "MeshInstance3D", true, false):
+		var mesh_instance := node as MeshInstance3D
+		if mesh_instance == null or not mesh_instance.has_meta(&"ghost_solid_material"):
+			continue
+		if enabled:
+			var standard := mesh_instance.get_meta(&"ghost_standard_material", null) as StandardMaterial3D
+			if standard == null:
+				continue
+			var opaque := standard.duplicate() as StandardMaterial3D
+			opaque.transparency = BaseMaterial3D.TRANSPARENCY_DISABLED
+			opaque.albedo_color.a = 1.0
+			opaque.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_OPAQUE_ONLY
+			mesh_instance.material_override = opaque
+		else:
+			mesh_instance.material_override = mesh_instance.get_meta(&"ghost_solid_material")
 
 
 func apply_ghost_rider_mounted_pose(
@@ -5036,6 +5170,9 @@ func make_ghost_rider_opaque(rider: Node3D) -> void:
 		var mesh_instance := node as MeshInstance3D
 		if mesh_instance == null:
 			continue
+		if mesh_instance.has_meta(&"ghost_solid_material"):
+			mesh_instance.material_override = mesh_instance.get_meta(&"ghost_solid_material")
+			continue
 		var material := mesh_instance.material_override as StandardMaterial3D
 		if material == null:
 			continue
@@ -5056,8 +5193,12 @@ func make_ghost_rider_translucent(rider: Node3D) -> void:
 		return
 	for node: Node in rider.find_children("*", "MeshInstance3D", true, false):
 		var mesh_instance := node as MeshInstance3D
-		if mesh_instance != null:
-			_apply_ghost_material(mesh_instance)
+		if mesh_instance == null:
+			continue
+		if mesh_instance.has_meta(&"ghost_soul_material"):
+			mesh_instance.material_override = mesh_instance.get_meta(&"ghost_soul_material")
+			continue
+		_apply_ghost_material(mesh_instance)
 	var aura := rider.find_child("GhostAura", true, false) as GPUParticles3D
 	if aura != null:
 		aura.visible = true
@@ -5114,40 +5255,24 @@ func _blend_ghost_rider_part_rotation(
 	part.quaternion = part.quaternion.slerp(target_quaternion, weight)
 
 
-func sample_ghost_mount_pose(rider: Node3D, time_seconds: float) -> bool:
-	if rider == null or not is_instance_valid(rider) or _ghost_mount_rig_data.is_empty():
+func apply_ghost_rider_mount_hold_pose(rider: Node3D) -> bool:
+	# 乗っているときの基本の姿勢は、鞍に IK で合わせた演技（GhostRiderPerformance の idle の頭）。
+	var hold := GhostRiderPerformance.sample(GhostRiderPerformance.CLIP_IDLE, 0.0)
+	if not hold.is_empty():
+		return apply_ghost_rider_performance_pose(rider, hold)
+	return apply_ghost_rider_mounted_pose(rider)
+
+
+## GOSTRIDER の演技（GhostRiderPerformance.sample の姿勢）を乗り手の部品へ当てる。only_bones でその骨だけ。
+func apply_ghost_rider_performance_pose(rider: Node3D, pose: Dictionary, only_bones: Array = []) -> bool:
+	if rider == null or not is_instance_valid(rider) or pose.is_empty():
 		return false
 	var parts_variant: Variant = rider.get_meta("ghost_mount_parts", {})
 	if not (parts_variant is Dictionary):
 		return false
-	var parts: Dictionary = parts_variant
-	var skeleton := _ghost_mount_rig_data.get("skeleton") as Skeleton3D
-	var animation_player := _ghost_mount_rig_data.get("anim_player") as AnimationPlayer
-	var bone_indices_variant: Variant = _ghost_mount_rig_data.get("bone_indices", {})
-	var animation_name := String(_ghost_mount_rig_data.get("anim_name", ""))
-	if (
-		skeleton == null
-		or animation_player == null
-		or not (bone_indices_variant is Dictionary)
-		or animation_name.is_empty()
-	):
-		return false
-	var animation: Animation = animation_player.get_animation(animation_name)
-	if animation == null:
-		return false
-	if animation_player.current_animation != animation_name:
-		animation_player.play(animation_name)
-		animation_player.pause()
-	animation_player.seek(clampf(time_seconds, 0.0, animation.length), true)
-	_apply_skeleton_pose(parts, skeleton, bone_indices_variant, true)
+	var bind_pelvis: Vector3 = rider.get_meta(GHOST_RIDER_BIND_PELVIS_META, Vector3(0.0, BASE_Y + 0.9, 0.0))
+	GhostRiderPerformance.apply_pose(parts_variant, pose, bind_pelvis, only_bones)
 	return true
-
-
-func apply_ghost_rider_mount_hold_pose(rider: Node3D) -> bool:
-	# The imported clip supplies the approach only. Its global-basis mapping also
-	# carries rig scale into the procedural pivots, so the hold must restore the
-	# rider's bind transforms before applying the measured seat-and-grip pose.
-	return apply_ghost_rider_mounted_pose(rider)
 
 
 func apply_ghost_rider_emote_pose(
@@ -5177,7 +5302,8 @@ func apply_ghost_rider_emote_pose(
 			parts,
 			rig.active_skeleton,
 			rig.active_bone_indices,
-			rig.mirror_x
+			rig.mirror_x,
+			rider
 		)
 		return true
 	_animate_emote(parts, normalized_emote, is_p2)
@@ -5190,17 +5316,6 @@ func stop_ghost_rider_emote(rider: Node3D, player_index: int) -> void:
 	rig.stop_all()
 	if rider != null and is_instance_valid(rider):
 		apply_ghost_rider_mount_hold_pose(rider)
-
-
-func get_ghost_mount_animation_length() -> float:
-	if _ghost_mount_rig_data.is_empty():
-		return 0.0
-	var animation_player := _ghost_mount_rig_data.get("anim_player") as AnimationPlayer
-	var animation_name := String(_ghost_mount_rig_data.get("anim_name", ""))
-	if animation_player == null or animation_name.is_empty():
-		return 0.0
-	var animation: Animation = animation_player.get_animation(animation_name)
-	return animation.length if animation != null else 0.0
 
 
 func _apply_ghost_material(mesh_instance: MeshInstance3D) -> void:
@@ -5223,7 +5338,7 @@ func _apply_ghost_material(mesh_instance: MeshInstance3D) -> void:
 	mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 
-func _add_ghost_rider_aura(rider: Node3D, player_index: int) -> void:
+static func _add_ghost_rider_aura(rider: Node3D, player_index: int) -> void:
 	var aura_color := (
 		Color(1.0, 0.48, 0.16, 0.74)
 		if player_index == 1

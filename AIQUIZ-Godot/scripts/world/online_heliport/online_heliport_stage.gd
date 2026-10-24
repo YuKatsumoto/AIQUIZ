@@ -48,16 +48,16 @@ var pad_ground := Transform3D.IDENTITY
 var my_slot := 1
 var flow_enabled := false
 var flow_distance := 0.0
-## 吹き流しの張り（0＝そよ風、1＝ローターの風でピンと張る）
+## 自分のヘリのローターのピッチ（0＝地上で空回し、1＝離陸の推力）。吹き下ろしの強さになり、吹き流しが物理でなびく
 var windsock_tension := 0.0
+var windsock: OnlineHeliportWindsock = null
 
 var _atmosphere: Node3D = null
 var _backdrop: Node = null
 var _gs: QuizGameState = null
 var _puppets: Array[StagingPuppet] = []
 var _time := 0.0
-var _windsock: Node3D = null
-var _windsock_base := Basis.IDENTITY
+var _rotor_pitch := 0.0
 var _lamp_material: ShaderMaterial = null
 var _splash_material: ShaderMaterial = null
 var _flow_forward := Vector3(0, 0, -1)
@@ -216,12 +216,15 @@ func _process(delta: float) -> void:
 	if heliport == null:
 		return
 	_time += delta
-	if _windsock != null and heliport.visible:
-		var calm := 1.0 - windsock_tension
-		var sway := deg_to_rad(6.0) * sin(_time * 0.9) * calm + deg_to_rad(2.0) * sin(_time * 2.3 + 0.7) * calm \
-			+ deg_to_rad(1.5) * sin(_time * 9.0) * windsock_tension
-		var lift := deg_to_rad(1.5) * sin(_time * 1.7) * calm + deg_to_rad(7.0) * windsock_tension
-		_windsock.basis = Basis(Vector3.UP, sway) * _windsock_base * Basis(Vector3.FORWARD, lift)
+	if windsock != null and heliport.visible:
+		_rotor_pitch = move_toward(_rotor_pitch, windsock_tension, delta * 1.6)
+		if my_heli != null and my_heli.visible:
+			windsock.rotor_hub = my_heli.rotor_hub_global()
+			windsock.rotor_up = my_heli.global_basis.y.normalized()
+			windsock.rotor_power = my_heli.spool * my_heli.spool * minf(my_heli.rotor_speed_factor, 1.3) * lerpf(0.3, 1.0, _rotor_pitch)
+		else:
+			windsock.rotor_power = 0.0
+		windsock.advance(delta)
 	if _lamp_material != null:
 		_lamp_material.set_shader_parameter("base_energy", 0.7)
 
@@ -329,9 +332,14 @@ func _build_heliport() -> bool:
 					if deck != null:
 						deck.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 						deck.roughness = 0.8
-	_windsock = heliport.find_child("OHP_Windsock", true, false) as Node3D
-	if _windsock != null:
-		_windsock_base = _windsock.basis
+	var sock := heliport.find_child("OHP_Windsock", true, false) as Node3D
+	if sock != null:
+		windsock = OnlineHeliportWindsock.new()
+		windsock.deck_y = pad_ground.origin.y
+		windsock.rotor_radius = float(layout.helicopter.get("rotor_radius", 5.3))
+		if not windsock.setup(sock):
+			push_warning("OnlineHeliportStage: OHP_Windsock has no mesh")
+			windsock = null
 	_apply_heliport_shadows()
 	return true
 

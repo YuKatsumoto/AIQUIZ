@@ -7,8 +7,10 @@ extends RefCounted
 ## 選択肢は元の数のまま（4つより多ければ4つへ縮める）、並びは混ぜ直す。
 
 
+## count：確保する数（新サドンデスは種目ごと。docs/sudden_death_v2/common.md 第9章）。
 static func collect(provider: QuizProvider, subject: String, grade: int, difficulty: String,
-		played: Array, tuning: SuddenDeathTuning, rng: RandomNumberGenerator) -> Array[QuizItem]:
+		played: Array, tuning: SuddenDeathTuning, rng: RandomNumberGenerator,
+		count := SuddenDeathTuning.QUESTION_COUNT) -> Array[QuizItem]:
 	var used := _used_keys(played)
 	var leftovers: Array[QuizItem] = []
 	var offline: Array[QuizItem] = []
@@ -31,7 +33,7 @@ static func collect(provider: QuizProvider, subject: String, grade: int, difficu
 		else:
 			long_pool.append(item)
 	var result: Array[QuizItem] = []
-	for _index in range(SuddenDeathTuning.QUESTION_COUNT):
+	for _index in range(count):
 		var picked: QuizItem = null
 		if not short_pool.is_empty():
 			picked = short_pool.pop_front()
@@ -66,7 +68,8 @@ static func assemble(generated: Array[QuizItem], fallback_questions: Array[QuizI
 		pool.append(item)
 	var questions: Array[QuizItem] = []
 	var generated_count := 0
-	for index in range(SuddenDeathTuning.QUESTION_COUNT):
+	# 確保した数（種目ごと。旧は QUESTION_COUNT の8問）だけそろえる。
+	for index in range(fallback_questions.size()):
 		var prepared: QuizItem = prepare(pool.pop_front(), rng) if not pool.is_empty() else null
 		if prepared != null:
 			questions.append(prepared)

@@ -1,15 +1,16 @@
 class_name TitleLogoGeometry
 extends RefCounted
 
-## ロゴ（assets/branding/logo/aiquiz_logo.json）の形を、立体の文字に使える多角形に直す。
+## タイトルのロゴ（assets/branding/logo/testopia_logo.json）の形を、立体の文字に使える多角形に直す。
+## TESTOPIA のロゴは tools/logo_editor/build_testopia_logo.mjs が作る（AIQUIZ のロゴと同じ部品と書式）。
 ## 形の計算は tools/logo_editor/logo_geometry.js と同じ（線は中心線と太さ、輪は中心・半径・太さ、
-## cut はそれまでに塗った白を消す）。ロゴエディタで形を直すと、メニューの立体ロゴも同じ形になる。
+## 多角形（poly）は頂点を順に結んだ形、cut はそれまでに塗った白を消す）。ロゴエディタで形を直すと、メニューの立体ロゴも同じ形になる。
 ##
 ## 部品は要素 id の「_」より前でまとめる（a_left・a_right・a_bar → "a"、q_ring・q_tail → "q"）。
 ## 消す要素（cut）は、それより前に塗った要素だけから引く（エディタの描く順と同じ）。
 ## 返す座標は「リグ座標」：ロゴの外接矩形の中心が原点、x 右・y 上、単位はロゴのピクセル（1024 の画用紙）。
 
-const LOGO_JSON := "res://assets/branding/logo/aiquiz_logo.json"
+const LOGO_JSON := "res://assets/branding/logo/testopia_logo.json"
 const ARC_STEP := PI / 90.0
 const MITER_LIMIT := 4.0
 const CIRCLE_STEPS := 180
@@ -25,8 +26,9 @@ static func load_model(path: String = LOGO_JSON) -> Dictionary:
 
 ## ロゴを部品に分けて返す。
 ## {
-##   "pieces": [{"key", "polys": Array[PackedVector2Array]（部品の中心が原点）, "center": Vector2, "size": Vector2,
-##               "bottom": float}],
+##   "pieces": [{"key", "polys": Array[PackedVector2Array]（部品の中心が原点）, "colors": Array[Color]（多角形ごと。
+##               要素の color、無ければ白）, "flat": Array[bool]（要素の flat。光・つやなど、厚みを付けないもの）,
+##               "center": Vector2, "size": Vector2, "bottom": float}],
 ##   "bounds": Rect2（リグ座標）, "baseline": float（リグ座標の文字の下端）
 ## }
 static func build(model: Dictionary) -> Dictionary:
@@ -39,6 +41,8 @@ static func build(model: Dictionary) -> Dictionary:
 	var logo_rect := _paint_bounds(elements)
 	var origin := logo_rect.get_center()
 	var grouped := {}
+	var grouped_colors := {}
+	var grouped_flat := {}
 	var order: Array[String] = []
 	for i: int in elements.size():
 		var el: Dictionary = elements[i]
@@ -56,11 +60,16 @@ static func build(model: Dictionary) -> Dictionary:
 		var key := _piece_key(el)
 		if not grouped.has(key):
 			grouped[key] = []
+			grouped_colors[key] = []
+			grouped_flat[key] = []
 			order.append(key)
+		var color := Color.html(str(el.get("color", "#ffffff")))
 		for poly: PackedVector2Array in polys:
 			var clean := _clean(poly)
 			if clean.size() >= 3:
 				(grouped[key] as Array).append(_to_rig(clean, origin))
+				(grouped_colors[key] as Array).append(color)
+				(grouped_flat[key] as Array).append(bool(el.get("flat", false)))
 	var pieces: Array = []
 	var bottoms: Array[float] = []
 	for key: String in order:
@@ -75,8 +84,12 @@ static func build(model: Dictionary) -> Dictionary:
 			for p: Vector2 in poly:
 				moved.append(p - center)
 			local.append(moved)
+		var colors: Array[Color] = []
+		colors.assign(grouped_colors[key])
+		var flat: Array[bool] = []
+		flat.assign(grouped_flat[key])
 		pieces.append({
-			"key": key, "polys": local, "center": center, "size": rect.size,
+			"key": key, "polys": local, "colors": colors, "flat": flat, "center": center, "size": rect.size,
 			"bottom": rect.position.y,
 		})
 		bottoms.append(rect.position.y)
@@ -227,6 +240,12 @@ static func _contours(el: Dictionary, later_cuts: Array[PackedVector2Array]) -> 
 	if str(el.get("kind", "line")) == "circle":
 		var ring: Array[PackedVector2Array] = [_ring_outline(el, later_cuts)]
 		return ring
+	if str(el.get("kind", "line")) == "poly":
+		var points := PackedVector2Array()
+		for p: Variant in el.get("points", []):
+			points.append(_v2(p))
+		var shape: Array[PackedVector2Array] = [points]
+		return shape
 	return _line_outline(el)
 
 

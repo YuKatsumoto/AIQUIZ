@@ -76,6 +76,26 @@ func run() -> Dictionary:
 	await _draw_frames()
 	wipe.end_render_prewarm()
 	_report["death_viewport"] = true
+	# GOSTRIDER: the soul and riding shaders, the trail, rings, shells, sparks and motes,
+	# so the first ghost ride never compiles them on screen.
+	var ghost := player.create_ghost_rider_visual(1)
+	_world.add_child(ghost)
+	ghost.position = Vector3(-2.0, 0.4, 4.0)
+	var presenter := GhostRiderPresentation.new()
+	presenter.player_controller = player
+	_world.add_child(presenter)
+	presenter.begin(ghost, 1, 0.6, 0.0)
+	presenter.play_awaken(Vector3(-2.0, 1.2, 4.0), Vector3.BACK)
+	presenter.play_mount_impact(Vector3(2.0, 1.0, 4.0), Vector3.UP)
+	for step: int in range(3):
+		ghost.position.x += 0.4
+		presenter.update_effects(1.0 / 60.0, true)
+	await _draw_frames()
+	player.make_ghost_rider_opaque(ghost)
+	await _draw_frames()
+	_report["ghost_rider"] = ghost.get_child_count() > 0
+	presenter.queue_free()
+	ghost.queue_free()
 	step_completed.emit(0.4)
 	pieces.queue_free()
 	player.queue_free()
@@ -122,6 +142,10 @@ func run() -> Dictionary:
 	portals.end_return_portal_render_prewarm()
 	shark.end_ghost_portal_render_prewarm()
 	_report["portals"] = portal_report.get("portals", 0)
+	# The overlay a ghost rider leaves on the shark it possesses.
+	shark.begin_ghost_possession(PlayerController.P1_BODY)
+	await _draw_frames()
+	shark._end_ghost_possession()
 	# The boarding helicopter (menu pickup, game arrival): body paint, glass, the pilot,
 	# blades and the blurred rotor disc, then the jet glow, flames and smoke, so the first
 	# Start press never compiles them on screen.

@@ -3,7 +3,7 @@
 // The title logo AEP is imported (not opened), so the original file is untouched.
 // Background: the Godot capture keeps running under the logo (frames 338-562 of
 // artifacts/pv_capture/s01_s03: P1 dances in front of the broken door while the belt carries the wall away).
-var ROOT = "C:/AIQUIZ/AIQUIZ-Godot/";
+var ROOT = "G:/AIQUIZ-Main/AIQUIZ-Godot/";
 var LOGO_AEP = ROOT + "tools/title_logo_ae/AIQUIZ_TitleLogo.aep";
 var BG_FIRST = ROOT + "artifacts/pv_capture/s01_s03/pv_0001.jpg";   // numbered sequence pv_0001..pv_0562
 var BG_START_FRAME = 338;                                            // PV frame shown at comp time 0

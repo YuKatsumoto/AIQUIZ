@@ -32,6 +32,8 @@ const ONLINE_QUIZ_START_TIMEOUT := 6.0
 const ONLINE_REVEAL_LEAD_MS := 250.0
 ## オンラインのゲスト：2 人とも脱落したあと、暗転の下でホストの結果発表（result_begin）を待つ長さ。
 const ELIMINATION_RESULT_WAIT_MS := 6000
+## チュートリアルのクリア画面は、この秒数を見せた後なら Enter で次へ進められる。
+const TUTORIAL_CLEAR_MIN_SECONDS := 1.0
 var _online_start_wait := 0.0
 var _online_ready_sent := false
 var quiz_wall_scene: PackedScene
@@ -126,8 +128,9 @@ var _replay_mode: bool = false
 ## Match record and highlight clips for the LED programme on the goal stand scoreboard (MatchReel).
 var _match_reel: MatchReel = null
 var _saw_controller: Node3D
-## Local 2P sudden death underground (docs/sudden_death_underground.md).
-var _sudden_death_director: SuddenDeathDirector = null
+## Local 2P sudden death: helicopters and a game (docs/sudden_death_v2/). The underground
+## director (SuddenDeathDirector, docs/sudden_death_underground.md) is kept but no longer used.
+var _sudden_death_director: HeliSuddenDeathDirector = null
 var _push_key_events: Array[Dictionary] = []
 ## Underground buzzer duel: this frame's key presses {"player", "kind" ("buzz" / "answer"), "key", "usec"}.
 var _sudden_death_keys: Array[Dictionary] = []
@@ -177,12 +180,29 @@ func _input(event: InputEvent) -> void:
 		_right_ctrl_down = event.pressed
 	if not event is InputEventKey or event.echo or game_state == null:
 		return
+	# 2PのジャンプはP2が右Ctrlだけ。左Ctrlを押したときだけ、その場で短く教える。
+	if (
+		event.pressed
+		and (event.keycode == KEY_CTRL or event.physical_keycode == KEY_CTRL)
+		and event.location == KEY_LOCATION_LEFT
+	):
+		game_state.hint_tutorial_left_ctrl()
 	if game_state.is_tutorial_score_pause_active():
 		# 2Pチュートリアルの得点説明。Enter／Space／右Ctrlで勝敗発表へ進む。
 		# 最短表示時間の前に押されたキーも飲み込み、ほかの操作へ流さない。
 		if event.pressed and _is_tutorial_score_resume_key(event as InputEventKey):
 			game_state.resume_tutorial_score_pause()
 			get_viewport().set_input_as_handled()
+		return
+	# サドンデスの水上機の乗り込み・降下・ラウンドの間の迎えは Space で飛ばせる（docs/sudden_death_v2/c130_float.md 第6章）。
+	if (
+		event.pressed
+		and (event as InputEventKey).keycode == KEY_SPACE
+		and not get_tree().paused
+		and _sudden_death_director != null
+		and _sudden_death_director.skip_presentation()
+	):
+		get_viewport().set_input_as_handled()
 		return
 	if game_state.game_state == Constants.STATE_SUDDEN_DEATH:
 		_record_sudden_death_key(event as InputEventKey)
@@ -227,6 +247,17 @@ func _feed_sudden_death_input(dt: float) -> void:
 		var offset := clampf(float(int(entry.usec) - frame_start) / 1000000.0, 0.0, dt)
 		game_state.submit_sudden_death_key(int(entry.player), str(entry.kind), int(entry.key), offset)
 	_sudden_death_keys.clear()
+	# スカイゲート（docs/sudden_death_v2/skygate_build_plan.md 4.5）：空中で動く向き（押しっぱなし。x＝右、y＝前）。
+	game_state.set_sudden_death_move(1, _held_move(KEY_W, KEY_A, KEY_S, KEY_D))
+	game_state.set_sudden_death_move(2, _held_move(KEY_UP, KEY_LEFT, KEY_DOWN, KEY_RIGHT))
+
+
+func _held_move(up: Key, left: Key, down: Key, right: Key) -> Vector2:
+	if _push_focus_lost:
+		return Vector2.ZERO
+	var x := (1.0 if Input.is_key_pressed(right) else 0.0) - (1.0 if Input.is_key_pressed(left) else 0.0)
+	var y := (1.0 if Input.is_key_pressed(up) else 0.0) - (1.0 if Input.is_key_pressed(down) else 0.0)
+	return Vector2(x, y).limit_length(1.0)
 
 
 func _clear_push_input() -> void:
@@ -249,6 +280,8 @@ func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
 		_push_focus_lost = true
 		_clear_push_input()
+		if _sudden_death_director != null:
+			_sudden_death_director.on_interrupted()
 	elif what == NOTIFICATION_APPLICATION_FOCUS_IN:
 		_push_focus_lost = false
 		_clear_push_input()
@@ -424,7 +457,7 @@ func _ready() -> void:
 		camera_controller,
 		_ghost_shark_ride_controller as GhostSharkRideController
 	)
-	_sudden_death_director = SuddenDeathDirector.new()
+	_sudden_death_director = HeliSuddenDeathDirector.new()
 	add_child(_sudden_death_director)
 	_sudden_death_director.setup(game_state, camera_controller, _result_ceremony_director as ResultCeremonyDirector,
 		player_node as PlayerController, stage_env, _set_surface_visible)
@@ -565,6 +598,15 @@ func get_ocean_attack_shark_position(player_index: int) -> Variant:
 		if bool(presentation.get("active", false)):
 			return presentation.get("focus", null)
 	return null
+
+
+## いま出ている壁の選択肢と問題文が映っている画面上の範囲（ゲームHUDが頭上の名前を薄くする判定に使う）。
+func get_choice_screen_rects(camera: Camera3D) -> Array[Rect2]:
+	var rects: Array[Rect2] = []
+	for wall: Node3D in _active_walls:
+		if is_instance_valid(wall) and wall.is_visible_in_tree() and wall.has_method("get_choice_screen_rects"):
+			rects.append_array(wall.call("get_choice_screen_rects", camera))
+	return rects
 
 
 func is_problem_wall_occluding_segment(
@@ -1231,6 +1273,8 @@ func _process(dt: float) -> void:
 		_feed_sudden_death_input(dt)
 		game_state.update(dt, axis_p1, axis_p2, jump_p1, jump_p2, emote_p1, emote_p2)
 	if game_state.game_state == Constants.STATE_SUDDEN_DEATH:
+		# 勝者のダンス（docs/sudden_death_v2/parachute.md 6.6）：本編と同じエモートのキーを監督へ渡す。
+		_sudden_death_director.set_emote_keys(emote_keys_p1, emote_keys_p2)
 		_process_sudden_death(dt)
 		return
 	if _ghost_shark_ride_controller:
@@ -1366,7 +1410,8 @@ func _set_surface_visible(surface_visible: bool) -> void:
 
 
 ## Debug builds: F9 ends a local 2P ten-question round as a draw at the goal.
-func _debug_force_draw_finish() -> void:
+## Shift+F9 / Ctrl+F9 / Ctrl+Shift+F9: P1 / P2 / both stand on the podium as ghosts (ghost_mask 1 / 2 / 3).
+func _debug_force_draw_finish(ghost_mask := 0) -> void:
 	if (
 		SceneTransition.is_transitioning()
 		or not game_state.uses_local_result_ceremony()
@@ -1378,7 +1423,10 @@ func _debug_force_draw_finish() -> void:
 	await SceneTransition.fade_to_color_and_wait(Color.BLACK)
 	if not is_inside_tree():
 		return
-	game_state.debug_force_draw_finish()
+	game_state.debug_force_draw_finish(ghost_mask)
+	if ghost_mask != 0 and _ghost_shark_ride_controller:
+		# The ghosts are already on the podium: no ride starts for the deaths the debug draw just made.
+		_ghost_shark_ride_controller.force_cleanup()
 	for _frame in range(3):
 		await get_tree().process_frame
 	if is_inside_tree():
@@ -1509,13 +1557,22 @@ func _update_floor_conveyor() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	# 完了カードの演出中はEnterスキップを受け付けない。カードを見せ切ってから
-	# リザルトへ送るので、ここで先に進まれると祝いの演出が飛ぶ。
+	# クリア画面の間は他の操作を受け付けない。Enter だけは、画面を
+	# TUTORIAL_CLEAR_MIN_SECONDS 見せた後なら待たずにカスタマイズ紹介へ進める。
 	if (
 		game_state
 		and game_state.get_tutorial_step_id() in ["stage_complete", "duo_complete"]
 		and game_state.is_tutorial_presentation_locked()
 	):
+		if (
+			event is InputEventKey
+			and event.keycode in [KEY_ENTER, KEY_KP_ENTER]
+			and event.is_pressed()
+			and not event.is_echo()
+			and _tutorial_presentation_director
+			and _tutorial_presentation_director.elapsed_seconds() >= TUTORIAL_CLEAR_MIN_SECONDS
+		):
+			_tutorial_presentation_director.skip()
 		get_viewport().set_input_as_handled()
 		return
 	if event is InputEventKey and event.keycode == KEY_ESCAPE and event.is_pressed() and not event.is_echo():
@@ -1536,7 +1593,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		and not event.is_echo()
 		and OS.is_debug_build()
 	):
-		_debug_force_draw_finish()
+		var key_event := event as InputEventKey
+		_debug_force_draw_finish((1 if key_event.shift_pressed else 0) | (2 if key_event.ctrl_pressed else 0))
 		get_viewport().set_input_as_handled()
 		return
 	if (
@@ -1997,6 +2055,9 @@ func _update_camera(dt: float) -> void:
 		question_points = _question_framing_wall.get_gameplay_framing_points()
 		base_scale_question_points = _question_framing_wall.get_gameplay_framing_points(true)
 	camera_controller.set_question_framing_points(question_points, base_scale_question_points)
+	if stage_env != null:
+		# サメ襲撃カメラを観客席の手前に収める(席の前面から3.2m手前)。
+		camera_controller.ocean_attack_max_eye_x = minf(stage_env.get_grandstand_front_x() - 3.2, 40.0)
 	var death_player := 0
 	var death_focus := Vector3.ZERO
 	var death_exploded := false
@@ -2232,9 +2293,13 @@ func _on_state_changed(new_state: String) -> void:
 	# 壁が割れたらプレイ曲を頭から流し、クリア画面と2人用のスコアタワーの判定の後は結果の曲、
 	# ゲームオーバーは専用曲ができるまで曲なし（メニュー曲には戻さない）。
 	# エンドレスの途中の問題補充（PRELOADING）などでは曲を変えない。
+	# サドンデスの曲は監督（8.6 秒の「SUDDEN DEATH!」で導入曲）とスカイゲート（GO で本戦曲、勝者の着地で結果の曲）が選ぶ。
 	if new_state in [Constants.STATE_PLAYING, Constants.STATE_CORRECT, Constants.STATE_GOAL_RACE]:
 		AudioManager.set_music_track(AudioManager.MUSIC_TRACK_PLAY)
 	elif new_state == Constants.STATE_CLEAR:
+		AudioManager.set_music_track(AudioManager.MUSIC_TRACK_RESULT)
+	elif new_state == Constants.STATE_RESULT_CEREMONY and (game_state.sudden_death_winner > 0 or game_state.sudden_death_aborted):
+		# サドンデスから決着演出へ戻った（勝者の帰還・打ち切り）：判定はもう出ているので、結果の曲を流したまま続ける。
 		AudioManager.set_music_track(AudioManager.MUSIC_TRACK_RESULT)
 	elif new_state in [Constants.STATE_RESULT_CEREMONY, Constants.STATE_WAITING_START, Constants.STATE_FLYOVER, Constants.STATE_COUNTDOWN]:
 		# スタート前と、2人用のスコアタワーの判定まで（結果の曲は ResultCeremonyDirector が判定で始める）は
@@ -2244,7 +2309,10 @@ func _on_state_changed(new_state: String) -> void:
 		# 死んでゲームオーバーになったら、プレイ曲を静かに止める（メニュー曲には戻さない）。
 		# ゲームオーバー画面の曲（bgm_gameover）ができたらここで流す。
 		AudioManager.set_music_track(AudioManager.MUSIC_TRACK_NONE, 1.0)
-	elif new_state in [Constants.STATE_MENU, Constants.STATE_SUDDEN_DEATH]:
+	elif new_state == Constants.STATE_SUDDEN_DEATH:
+		# ふつうは 8.6 秒から導入曲が流れている（そのまま）。監督を通らずに入ったときもここで始める。
+		AudioManager.set_music_track(AudioManager.MUSIC_TRACK_SUDDEN_DEATH_INTRO)
+	elif new_state == Constants.STATE_MENU:
 		AudioManager.set_music_track(AudioManager.MUSIC_TRACK_MENU)
 	# 観客の声（docs/sound_effects.md）: スタート前と判定までのスコアタワーはざわめき、壁が割れたら歓声、ほかは無音。
 	# ゴールの大歓声は _update_crowd_reactions()、2人用の判定の歓声は ResultCeremonyDirector。
@@ -2413,6 +2481,9 @@ func _toggle_pause() -> void:
 		return
 	var new_paused = !get_tree().paused
 	_clear_push_input()
+	if new_paused and _sudden_death_director != null:
+		# 新サドンデスの種目の最中なら、種目のルールにやり直しを任せる（SuddenDeathGame.interrupt）。
+		_sudden_death_director.on_interrupted()
 	get_tree().paused = new_paused
 	AudioManager.set_music_paused(new_paused)
 	pause_menu.visible = new_paused

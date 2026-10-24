@@ -49,6 +49,12 @@ const DRAW := 3
 const SUDDEN_DEATH := 4
 ## Ceremony second of the "SUDDEN DEATH!" cut-in (docs/sudden_death_underground.md 2.1).
 const SUDDEN_DEATH_CUTIN := 8.6
+## 新サドンデスの種目発表（docs/sudden_death_v2/common.md 4.2節）：カメラが大型ビジョンへ寄り、
+## 種目名がここに出る（画面には大きく出さない）。QuizGameState.sudden_death_title が入ってから。
+const GAME_TITLE := 5
+## 種目発表：「???」が回ってから種目名が叩きつけられるまで（秒）、副題が出る時刻。
+const TITLE_SPIN := 1.1
+const TITLE_SUB_AT := 1.55
 const HAZARD_RED := Color("#d3261f")
 const HAZARD_DEEP := Color("#2a0505")
 const HAZARD_INK := Color("#160404")
@@ -89,6 +95,8 @@ var _actors := {}
 var _mip_frames := 0
 var _programme: MenuLedProgram = null
 var _programme_phase := Programme.NONE
+## 種目発表の種目名（GAME_TITLE の間）。
+var _title_text := ""
 
 
 func setup() -> void:
@@ -161,7 +169,7 @@ func sync(state: QuizGameState, clock: float, animate: bool = true, verdict_winn
 			dirty = true
 	var wanted := 0 if verdict_winner < 0 else (verdict_winner if verdict_winner in [1, 2] else DRAW)
 	if shows_sudden_death(state):
-		wanted = SUDDEN_DEATH
+		wanted = GAME_TITLE if not state.sudden_death_title.is_empty() else SUDDEN_DEATH
 	if _programme_phase == Programme.PLAYING:
 		# The verdict stays out for good, so without this the cut-in would start again.
 		wanted = 0
@@ -286,6 +294,7 @@ func _start_cutin(state: QuizGameState, who: int, clock: float) -> void:
 	_cutin_started = clock
 	cutin_sudden_death = who in [1, 2] and state.sudden_death_winner == who
 	_cutin_english = state.use_english_ui
+	_title_text = state.sudden_death_title
 	for player in _cutin_players():
 		var hat := state.p1_hat if player == 1 else state.p2_hat
 		var skin_code := state.get_display_skin_key(player)
@@ -368,6 +377,10 @@ func _flip_x(x: float) -> float:
 
 
 func _draw_cutin() -> void:
+	if cutin_player == GAME_TITLE:
+		_draw_game_title_cutin()
+		_draw_led_frame()
+		return
 	if cutin_player == SUDDEN_DEATH:
 		_draw_sudden_death_cutin()
 		_draw_led_frame()
@@ -529,13 +542,74 @@ func _draw_sudden_death_cutin() -> void:
 		_canvas.draw_string_outline(FONT, origin, title, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, 28, Color(HAZARD_INK, slam))
 		_canvas.draw_string(FONT, origin, title, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color(lit, slam))
 		_canvas.draw_set_transform(Vector2.ZERO)
-		var sub := "TO THE UNDERGROUND!" if _cutin_english else "地下神殿で決着！"
+		# 新サドンデス（docs/sudden_death_v2/）：ヘリで種目の舞台へ向かう。
+		var sub := "THE GAME IS NEXT!" if _cutin_english else "種目は…！？"
 		var sub_size := FONT.get_string_size(sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 56)
 		var sub_origin := Vector2(w * 0.5 - sub_size.x * 0.5, 548.0 + drop)
 		_canvas.draw_string_outline(FONT, sub_origin, sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 56, 14, Color(HAZARD_INK, slam))
 		_canvas.draw_string(FONT, sub_origin, sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 56, Color(1, 1, 1, slam))
 	if flash > 0.0:
 		_canvas.draw_rect(Rect2(Vector2.ZERO, Vector2(SIZE)), Color(1, 1, 1, 0.55 * flash))
+
+
+## 新サドンデスの種目発表（docs/sudden_death_v2/common.md 4.2節）。カメラがこの大型ビジョンへ寄る。
+## 上に「SUDDEN DEATH」の小さな帯と「種目発表」、中央で「？？？」がスロットのように回ってから、
+## 種目名が白い閃光とともに叩きつけられる。下に副題。サドンデスの赤い盤のまま。
+func _draw_game_title_cutin() -> void:
+	var t := _clock - _cutin_started
+	var w := float(SIZE.x)
+	var h := float(SIZE.y)
+	var siren := 0.5 + 0.5 * sin(t * TAU * 0.8)
+	_canvas.draw_rect(Rect2(Vector2.ZERO, Vector2(SIZE)), HAZARD_DEEP.lerp(HAZARD_RED.darkened(0.6), siren * 0.35))
+	var center := Vector2(w * 0.5, h * 0.5 + 10.0)
+	for beam in range(2):
+		var a := t * 1.6 + PI * beam
+		_canvas.draw_colored_polygon(PackedVector2Array([center,
+			center + Vector2.from_angle(a - 0.22) * 1600.0,
+			center + Vector2.from_angle(a + 0.22) * 1600.0]), Color(1.0, 0.55, 0.15, 0.09))
+	# Header: the hazard tape and "SUDDEN DEATH  種目発表".
+	_draw_hazard_tape(0.0, w, 22.0, 34.0, t * 0.6)
+	var header := "SUDDEN DEATH  —  THE GAME" if _cutin_english else "SUDDEN DEATH  —  種目発表"
+	var header_size := FONT.get_string_size(header, HORIZONTAL_ALIGNMENT_LEFT, -1, 50)
+	var header_origin := Vector2(w * 0.5 - header_size.x * 0.5, 112.0)
+	_canvas.draw_string_outline(FONT, header_origin, header, HORIZONTAL_ALIGNMENT_LEFT, -1, 50, 12, HAZARD_INK)
+	_canvas.draw_string(FONT, header_origin, header, HORIZONTAL_ALIGNMENT_LEFT, -1, 50, AMBER)
+	# The title window.
+	var window := Rect2(Vector2(70.0, 160.0), Vector2(w - 140.0, 270.0))
+	_canvas.draw_rect(window, HAZARD_INK)
+	_canvas.draw_rect(window, AMBER, false, 6.0)
+	var landed := t >= TITLE_SPIN
+	var font_size := 150
+	var text := _title_text if landed else "？？？"
+	var slam := _ease_out((t - TITLE_SPIN) / 0.22) if landed else 1.0
+	var natural := FONT.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size)
+	var fit := minf(1.0, (window.size.x - 80.0) / maxf(1.0, natural.x))
+	var grow := fit * (1.0 + 0.6 * (1.0 - slam)) if landed else fit
+	var text_center := window.get_center()
+	if not landed:
+		# Spinning reel: the "???" rolls through the window, faster at first.
+		var roll := fposmod(t * lerpf(7.0, 3.0, t / TITLE_SPIN), 1.0)
+		text_center.y += (roll - 0.5) * window.size.y * 0.9
+	var lit := Color.WHITE if not landed or t - TITLE_SPIN > 0.5 or int(t * 8.0) % 2 == 0 else AMBER
+	_canvas.draw_set_transform(text_center, 0.0, Vector2(grow, grow))
+	var origin := Vector2(-natural.x * 0.5, font_size * 0.36)
+	_canvas.draw_string_outline(FONT, origin, text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, 26, Color(HAZARD_INK, slam))
+	_canvas.draw_string(FONT, origin, text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color(lit, slam))
+	_canvas.draw_set_transform(Vector2.ZERO)
+	# Cover the reel's overflow above and below the window.
+	_canvas.draw_rect(Rect2(Vector2(70.0, window.position.y - 40.0), Vector2(w - 140.0, 40.0)), HAZARD_DEEP.lerp(HAZARD_RED.darkened(0.6), siren * 0.35))
+	_canvas.draw_rect(Rect2(Vector2(70.0, window.end.y), Vector2(w - 140.0, 40.0)), HAZARD_DEEP.lerp(HAZARD_RED.darkened(0.6), siren * 0.35))
+	_canvas.draw_rect(window, AMBER, false, 6.0)
+	if t >= TITLE_SUB_AT:
+		var sub_alpha := clampf((t - TITLE_SUB_AT) / 0.3, 0.0, 1.0)
+		var sub := "TO THE ISLAND BY HELICOPTER!" if _cutin_english else "ヘリで決着の島へ！"
+		var sub_size := FONT.get_string_size(sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 58)
+		var sub_origin := Vector2(w * 0.5 - sub_size.x * 0.5, 520.0)
+		_canvas.draw_string_outline(FONT, sub_origin, sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 58, 14, Color(HAZARD_INK, sub_alpha))
+		_canvas.draw_string(FONT, sub_origin, sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 58, Color(1, 1, 1, sub_alpha))
+	var flash := clampf(1.0 - absf(t - TITLE_SPIN - 0.05) / 0.16, 0.0, 1.0) if landed else 0.0
+	if flash > 0.0:
+		_canvas.draw_rect(Rect2(Vector2.ZERO, Vector2(SIZE)), Color(1, 1, 1, 0.6 * flash))
 
 
 # ------------------------------------------------------------------ drawing

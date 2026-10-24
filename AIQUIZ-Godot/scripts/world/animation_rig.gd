@@ -22,7 +22,9 @@ const SLOT_LADDER_GRAB := 24
 const SLOT_UAL := SLOT_LADDER_GRAB
 const SLOT_UAL2 := 25
 const SLOT_FALLING_IDLE := 26
-const SLOT_COUNT := 8 + SLOT_EXTRA_EMOTE_COUNT + 3
+## スカイゲートの人の動き（乗り込み・降下・空中・帰還の着地。UAL と同じ骨。DropMotion が使う）。
+const SLOT_DROP := 27
+const SLOT_COUNT := 8 + SLOT_EXTRA_EMOTE_COUNT + 4
 
 const UAL_CABIN_IDLE := "Sitting_Idle_Loop"
 const UAL_INTERACT := "Interact"
@@ -44,6 +46,7 @@ const FBX_PATHS: Array[String] = [
 	"res://assets/animations/cc0_quaternius/UAL1_Standard.glb",
 	"res://assets/animations/cc0_quaternius/UAL2_Standard.glb",
 	"res://assets/animations/Falling Idle.fbx",
+	"res://assets/animations/sudden_death/drop_moves.glb",
 ]
 
 const SLOT_NAMES: Array[String] = [
@@ -51,7 +54,7 @@ const SLOT_NAMES: Array[String] = [
 	"TreadingWater", "Drowning", "Flair", "Jump",
 	"Emote08", "Emote09", "Emote10", "Emote11", "Emote12", "Emote13", "Emote14",
 	"Emote15", "Emote16", "Emote17", "Emote18", "Emote19", "Emote20", "Emote21",
-	"Emote22", "Emote23", "LadderGrab", "Ual2", "FallingIdle",
+	"Emote22", "Emote23", "LadderGrab", "Ual2", "FallingIdle", "Drop",
 ]
 
 ## SLOT_MOONWALK はコア8枠のプレースホルダ（未使用）。エモート用は他スロットへ割当

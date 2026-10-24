@@ -1,0 +1,559 @@
+{
+	"version": 1,
+	"canvas": [
+		1024,
+		1024
+	],
+	"background": "#0e0e0e",
+	"color": "#ffffff",
+	"weight": 1.18,
+	"elements": [
+		{
+			"id": "t1_bar",
+			"name": "T（1つ目） 横棒",
+			"kind": "line",
+			"op": "paint",
+			"points": [
+				[
+					31.81,
+					436.38
+				],
+				[
+					135.81,
+					436.38
+				]
+			],
+			"radii": [
+				0,
+				0
+			],
+			"width": 29.26,
+			"capStart": "butt",
+			"capEnd": "butt",
+			"visible": true
+		},
+		{
+			"id": "t1_stem",
+			"name": "T（1つ目） 縦棒",
+			"kind": "line",
+			"op": "paint",
+			"points": [
+				[
+					83.81,
+					421.75
+				],
+				[
+					83.81,
+					554.55
+				]
+			],
+			"radii": [
+				0,
+				0
+			],
+			"width": 33.51,
+			"capStart": "butt",
+			"capEnd": "butt",
+			"visible": true
+		},
+		{
+			"id": "e_stem",
+			"name": "E 縦棒",
+			"kind": "line",
+			"op": "paint",
+			"points": [
+				[
+					171.77,
+					421.75
+				],
+				[
+					171.77,
+					554.55
+				]
+			],
+			"radii": [
+				0,
+				0
+			],
+			"width": 33.51,
+			"capStart": "butt",
+			"capEnd": "butt",
+			"visible": true
+		},
+		{
+			"id": "e_top",
+			"name": "E 上の横棒",
+			"kind": "line",
+			"op": "paint",
+			"points": [
+				[
+					155.01,
+					436.38
+				],
+				[
+					247.01,
+					436.38
+				]
+			],
+			"radii": [
+				0,
+				0
+			],
+			"width": 29.26,
+			"capStart": "butt",
+			"capEnd": "butt",
+			"visible": true
+		},
+		{
+			"id": "e_mid",
+			"name": "E まん中の横棒",
+			"kind": "line",
+			"op": "paint",
+			"points": [
+				[
+					155.01,
+					488.15
+				],
+				[
+					239.01,
+					488.15
+				]
+			],
+			"radii": [
+				0,
+				0
+			],
+			"width": 29.26,
+			"capStart": "butt",
+			"capEnd": "butt",
+			"visible": true
+		},
+		{
+			"id": "e_bottom",
+			"name": "E 下の横棒",
+			"kind": "line",
+			"op": "paint",
+			"points": [
+				[
+					155.01,
+					539.92
+				],
+				[
+					247.01,
+					539.92
+				]
+			],
+			"radii": [
+				0,
+				0
+			],
+			"width": 29.26,
+			"capStart": "butt",
+			"capEnd": "butt",
+			"visible": true
+		},
+		{
+			"id": "s",
+			"name": "S",
+			"kind": "line",
+			"op": "paint",
+			"points": [
+				[
+					366.21,
+					437.56
+				],
+				[
+					282.02,
+					437.56
+				],
+				[
+					282.02,
+					488.15
+				],
+				[
+					350.4,
+					488.15
+				],
+				[
+					350.4,
+					538.74
+				],
+				[
+					266.21,
+					538.74
+				]
+			],
+			"radii": [
+				0,
+				25.29,
+				25.29,
+				25.29,
+				25.29,
+				0
+			],
+			"width": 31.62,
+			"capStart": "butt",
+			"capEnd": "butt",
+			"visible": true
+		},
+		{
+			"id": "t2_bar",
+			"name": "T（2つ目） 横棒",
+			"kind": "line",
+			"op": "paint",
+			"points": [
+				[
+					385.41,
+					436.38
+				],
+				[
+					489.41,
+					436.38
+				]
+			],
+			"radii": [
+				0,
+				0
+			],
+			"width": 29.26,
+			"capStart": "butt",
+			"capEnd": "butt",
+			"visible": true
+		},
+		{
+			"id": "t2_stem",
+			"name": "T（2つ目） 縦棒",
+			"kind": "line",
+			"op": "paint",
+			"points": [
+				[
+					437.41,
+					421.75
+				],
+				[
+					437.41,
+					554.55
+				]
+			],
+			"radii": [
+				0,
+				0
+			],
+			"width": 33.51,
+			"capStart": "butt",
+			"capEnd": "butt",
+			"visible": true
+		},
+		{
+			"id": "o_hole",
+			"name": "O の穴の奥（紺）",
+			"kind": "circle",
+			"op": "paint",
+			"center": [
+				579.21,
+				488.15
+			],
+			"radius": 20.29,
+			"width": 40.58,
+			"color": "#1B2A4A",
+			"flat": true,
+			"visible": true
+		},
+		{
+			"id": "o_head_left",
+			"name": "P1 の頭の左の面",
+			"kind": "line",
+			"op": "paint",
+			"points": [
+				[
+					564.4,
+					501.79
+				],
+				[
+					557.77,
+					495.17
+				]
+			],
+			"radii": [
+				0,
+				0
+			],
+			"width": 40.24,
+			"capStart": "v",
+			"capEnd": "v",
+			"visible": true,
+			"color": "#C9661B",
+			"flat": true
+		},
+		{
+			"id": "o_head_top",
+			"name": "P1 の頭の上の面",
+			"kind": "line",
+			"op": "paint",
+			"points": [
+				[
+					592.85,
+					473.34
+				],
+				[
+					586.23,
+					466.71
+				]
+			],
+			"radii": [
+				0,
+				0
+			],
+			"width": 40.24,
+			"capStart": "h",
+			"capEnd": "h",
+			"visible": true,
+			"color": "#FFC489",
+			"flat": true
+		},
+		{
+			"id": "o_head",
+			"name": "P1 の頭の前の面",
+			"kind": "line",
+			"op": "paint",
+			"points": [
+				[
+					564.4,
+					501.79
+				],
+				[
+					621.3,
+					501.79
+				]
+			],
+			"radii": [
+				0,
+				0
+			],
+			"width": 56.9,
+			"capStart": "butt",
+			"capEnd": "butt",
+			"visible": true,
+			"color": "#F28C33",
+			"flat": true
+		},
+		{
+			"id": "o",
+			"name": "O の輪",
+			"kind": "circle",
+			"op": "paint",
+			"center": [
+				579.21,
+				488.15
+			],
+			"radius": 54.79,
+			"width": 31.62,
+			"visible": true
+		},
+		{
+			"id": "p_stem",
+			"name": "P 縦棒",
+			"kind": "line",
+			"op": "paint",
+			"points": [
+				[
+					685.77,
+					421.75
+				],
+				[
+					685.77,
+					554.55
+				]
+			],
+			"radii": [
+				0,
+				0
+			],
+			"width": 33.51,
+			"capStart": "butt",
+			"capEnd": "butt",
+			"visible": true
+		},
+		{
+			"id": "p_bowl",
+			"name": "P のふくらみ",
+			"kind": "line",
+			"op": "paint",
+			"points": [
+				[
+					685.77,
+					437.56
+				],
+				[
+					754.6,
+					437.56
+				],
+				[
+					754.6,
+					498.74
+				],
+				[
+					685.77,
+					498.74
+				]
+			],
+			"radii": [
+				0,
+				30.59,
+				30.59,
+				0
+			],
+			"width": 31.62,
+			"capStart": "butt",
+			"capEnd": "butt",
+			"visible": true
+		},
+		{
+			"id": "i_stem",
+			"name": "I（!）の縦棒",
+			"kind": "line",
+			"op": "paint",
+			"points": [
+				[
+					806.6,
+					421.75
+				],
+				[
+					806.6,
+					511.35
+				]
+			],
+			"radii": [
+				0,
+				0
+			],
+			"width": 33.98,
+			"capStart": "butt",
+			"capEnd": "butt",
+			"visible": true
+		},
+		{
+			"id": "i_dot",
+			"name": "I（!）の点（P2）",
+			"kind": "line",
+			"op": "paint",
+			"points": [
+				[
+					806.6,
+					527.35
+				],
+				[
+					806.6,
+					554.55
+				]
+			],
+			"radii": [
+				0,
+				0
+			],
+			"width": 33.98,
+			"capStart": "butt",
+			"capEnd": "butt",
+			"visible": true,
+			"color": "#33A6E6"
+		},
+		{
+			"id": "i_shine",
+			"name": "I（!）の点のつや",
+			"kind": "line",
+			"op": "paint",
+			"points": [
+				[
+					789.61,
+					529.75
+				],
+				[
+					823.59,
+					529.75
+				]
+			],
+			"radii": [
+				0,
+				0
+			],
+			"width": 4.8,
+			"capStart": "butt",
+			"capEnd": "butt",
+			"visible": true,
+			"color": "#FFFFFF59",
+			"flat": true
+		},
+		{
+			"id": "a_left",
+			"name": "A 左の脚",
+			"kind": "line",
+			"op": "paint",
+			"points": [
+				[
+					859.99,
+					554.55
+				],
+				[
+					916.79,
+					421.75
+				]
+			],
+			"radii": [
+				0,
+				0
+			],
+			"width": 31.62,
+			"capStart": "h",
+			"capEnd": "h",
+			"visible": true
+		},
+		{
+			"id": "a_right",
+			"name": "A 右の脚",
+			"kind": "line",
+			"op": "paint",
+			"points": [
+				[
+					917.19,
+					421.75
+				],
+				[
+					974.99,
+					554.55
+				]
+			],
+			"radii": [
+				0,
+				0
+			],
+			"width": 31.62,
+			"capStart": "h",
+			"capEnd": "h",
+			"visible": true
+		},
+		{
+			"id": "a_bar",
+			"name": "A の横棒",
+			"kind": "line",
+			"op": "paint",
+			"points": [
+				[
+					875.59,
+					513.15
+				],
+				[
+					963.59,
+					513.15
+				]
+			],
+			"radii": [
+				0,
+				0
+			],
+			"width": 29.26,
+			"capStart": "butt",
+			"capEnd": "butt",
+			"visible": true
+		}
+	]
+}

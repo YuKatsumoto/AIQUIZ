@@ -1,0 +1,35 @@
+[gd_resource type="ShaderMaterial" format=3 uid="uid://c7jcfvt75ykni"]
+
+[ext_resource type="Shader" uid="uid://bkb1f7plk6r1j" path="res://assets/BinbunMaterials/src/shader/stylized.gdshader" id="1_nf3af"]
+
+[sub_resource type="Gradient" id="Gradient_ryguw"]
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_d13ii"]
+gradient = SubResource("Gradient_ryguw")
+fill_from = Vector2(0, 1)
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_nf3af")
+shader_parameter/albedo_color = Color(0.31075293, 0.5027243, 0.64644724, 1)
+shader_parameter/albedo_affect = 0.0
+shader_parameter/use_stepped = false
+shader_parameter/steps = 3.0
+shader_parameter/step_smoothness = 1.0
+shader_parameter/shadow_tint = Color(0, 0, 0.654902, 1)
+shader_parameter/shadow_tint_amount = 0.10000000149012
+shader_parameter/specular = 0.0
+shader_parameter/normal_strength = 0.0
+shader_parameter/use_rim = true
+shader_parameter/rim_color = Color(0.7764706, 1, 1, 1)
+shader_parameter/rim_amount = 3.0
+shader_parameter/rim_smoothness = 0.5
+shader_parameter/rim_mask_shadow = 1.0
+shader_parameter/rim_blend = 0.60000000894072
+shader_parameter/use_pattern = true
+shader_parameter/pattern_texture = SubResource("GradientTexture2D_d13ii")
+shader_parameter/pattern_uv_mode = 2
+shader_parameter/pattern_tiling = 32.0
+shader_parameter/pattern_amount = 0.0
+shader_parameter/pattern_smoothness = 0.0
+shader_parameter/pattern_blend = 0.40000000596048

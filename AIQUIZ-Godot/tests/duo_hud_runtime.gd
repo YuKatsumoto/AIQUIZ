@@ -88,7 +88,7 @@ func run() -> void:
 	gs._set_player_hp(2, 0)
 	await frames(30)
 	await capture("zero_hp")
-	check(cards[1].get_node("AnimatedSurface/Status").text == "脱落", "zero HP has explicit status")
+	check(cards[1].get_node("AnimatedSurface/Status").text == "OUT", "zero HP has explicit OUT stamp")
 	for dimensions in [Vector2i(1920,1080), Vector2i(1024,768), Vector2i(960,540)]:
 		get_tree().root.size = dimensions
 		await frames(12)

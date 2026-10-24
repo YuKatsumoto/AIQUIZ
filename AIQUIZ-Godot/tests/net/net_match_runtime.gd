@@ -44,7 +44,7 @@ var _ghost_hold_ms := -1
 var _result := {"phases": [], "shots": []}
 var _result_interactive_ms := -1
 var _ghost_knocked := false
-var _staging := {"states": [], "cutin_names": [], "cutin_poses": []}
+var _staging := {"states": [], "cutin_names": [], "cutin_emotes": []}
 ## 中央の線が開いたあとのヘリ登場（計画書 M9）：監督があるか、降ろし終えたか、着地してから始まったか。
 var _arrival := {"present": false}
 var _matched_ms := -1
@@ -53,7 +53,7 @@ var _push_contact_seen := false
 var _push_shots := 0
 var _match_over_message := ""
 var _shot_walls: Dictionary = {}
-## カウントダウンが終わって走り出した時刻（ms）。少しあとに「じぶん」の矢印が出ている画面を撮る。
+## カウントダウンが終わって走り出した時刻（ms）。少しあとに頭上の名前が出ている画面を撮る。
 var _go_ms := -1
 ## 対峙の演出のフレーム時間（ms）：JOIN・FORMATION・CUTIN_IN・CUTIN_HOLD・SWAP（メニュー）、COVER（覆いの静止画の下でゲーム画面を準備）、
 ## REVEAL（覆いが割れて開くあいだ）。カクつき（HITCH_MS をこえるフレーム）を数える
@@ -260,7 +260,8 @@ func _watch_staging(menu: OnlineMenu) -> void:
 		if name == "CUTIN_IN" and menu.cutin != null:
 			var names := menu.cutin.names()
 			_staging["cutin_names"] = names
-			_staging["cutin_poses"] = [OnlineStagingTimeline.cutin_pose_index(names[0]), OnlineStagingTimeline.cutin_pose_index(names[1])]
+			# 踊るエモート（試合と名前で決まるので、ホストとゲストで左右が入れ替わって同じになる）
+			_staging["cutin_emotes"] = Array(menu.cutin.emotes())
 			if _scenario == "quit_at_cutin" and role == "host":
 				OS.kill(OS.get_process_id()))
 
@@ -584,6 +585,11 @@ func _frames(count: int) -> void:
 func _record_state() -> void:
 	if _is_ghost_scenario() and world != null and is_instance_valid(world) and _ghost_controller() != null:
 		_ghost["net"] = _ghost_controller().net_stats.duplicate()
+	if world != null and is_instance_valid(world) and not report.has("net_bytes"):
+		# 通信量の目安（docs/online_versus.md のサーバー代）：送った JSON の本文の合計と、試合の長さ
+		var net_state: NetGameState = world.get("_net_state")
+		if net_state != null:
+			report["net_bytes"] = {"snap": net_state.stats.snap_bytes, "cmd": net_state.stats.cmd_bytes, "play_s": snappedf(gs.play_time, 0.1)}
 	if gs == null or report.has("state"):
 		return
 	report["state"] = gs.game_state

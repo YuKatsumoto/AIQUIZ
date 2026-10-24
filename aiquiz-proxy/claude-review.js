@@ -12,10 +12,9 @@
 //   quiz_review/v1/spend/{YYYY-MM}     … {usd, requests, input_tokens, output_tokens, ...}
 
 const crypto = require('crypto');
-const { reusableRecord } = require('./quiz-bank-service');
+const { putBankItem, removeBankItem } = require('./quiz-bank-service');
 
 const ARCHIVE_PATH = 'quiz_archive/v1/items';
-const BANK_PATH = 'quiz_bank/v1/items';
 const REVIEW_PATH = 'quiz_review/v1';
 const MAX_ATTEMPTS = 2;
 const ISSUE_CODES = [
@@ -278,11 +277,10 @@ class ClaudeReviewJob {
             return next;
         });
         const archive = transaction.snapshot.val();
-        const bankRef = this.db.ref(`${BANK_PATH}/${id}`);
         if (archive.status === 'good' && result.verdict === 'pass') {
-            await bankRef.set(reusableRecord(archive));
+            await putBankItem(this.db, id, archive, this.now().getTime());
         } else if (archive.status === 'bad') {
-            await bankRef.remove();
+            await removeBankItem(this.db, id, this.now().getTime());
         }
         return result.verdict;
     }

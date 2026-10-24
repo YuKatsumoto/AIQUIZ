@@ -1,0 +1,93 @@
+[gd_scene load_steps=20 format=3 uid="uid://b7us7rqvmuxdc"]
+
+[ext_resource type="PackedScene" uid="uid://bgr1gr0wt8sjt" path="res://assets/TransitionKit/transitions/t_circle.tscn" id="1_iu21p"]
+[ext_resource type="PackedScene" uid="uid://dfhtofm6r1jpm" path="res://assets/TransitionKit/transitions/t_diamond.tscn" id="2_tnj6f"]
+[ext_resource type="PackedScene" uid="uid://cyi7ncqnbp103" path="res://assets/TransitionKit/transitions/t_diagonal.tscn" id="3_xtsi8"]
+[ext_resource type="PackedScene" uid="uid://bu25654pxn8cv" path="res://assets/TransitionKit/transitions/t_circle_radial_in.tscn" id="4_s2dcu"]
+[ext_resource type="PackedScene" uid="uid://bx3qocr5ym5j2" path="res://assets/TransitionKit/transitions/t_circle_radial_out.tscn" id="5_lj1om"]
+[ext_resource type="Texture2D" uid="uid://coxgk4ixjsvu4" path="res://assets/TransitionKit/src/texture/transition_shape/noise/cell_01.tres" id="5_tnj6f"]
+[ext_resource type="PackedScene" uid="uid://coevilrwr5w0n" path="res://assets/TransitionKit/transitions/t_natural_ridge.tscn" id="6_vg8cu"]
+[ext_resource type="PackedScene" uid="uid://diephe8hw1ej3" path="res://assets/TransitionKit/transitions/t_ordered_ridge.tscn" id="7_y6asa"]
+[ext_resource type="PackedScene" uid="uid://lc8y8at536ng" path="res://assets/TransitionKit/transitions/t_split.tscn" id="8_6r5n1"]
+[ext_resource type="PackedScene" uid="uid://dsb13yyt3u1qh" path="res://assets/TransitionKit/transitions/t_data.tscn" id="9_8cwq8"]
+[ext_resource type="PackedScene" uid="uid://udq3k5kt871x" path="res://assets/TransitionKit/transitions/t_cells.tscn" id="10_j77v0"]
+[ext_resource type="PackedScene" uid="uid://dgrx8nbk1ce8d" path="res://assets/TransitionKit/transitions/t_bubbles.tscn" id="11_8sqr0"]
+[ext_resource type="PackedScene" uid="uid://dvoblr68s5451" path="res://assets/TransitionKit/transitions/t_blades.tscn" id="12_fdnyx"]
+
+[sub_resource type="Gradient" id="Gradient_h2yge"]
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_iu21p"]
+gradient = SubResource("Gradient_h2yge")
+fill_from = Vector2(0, 1)
+
+[sub_resource type="Gradient" id="Gradient_tnj6f"]
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_xtsi8"]
+gradient = SubResource("Gradient_tnj6f")
+fill_to = Vector2(0, 1)
+
+[sub_resource type="Gradient" id="Gradient_xtsi8"]
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_s2dcu"]
+gradient = SubResource("Gradient_xtsi8")
+fill_from = Vector2(1, 1)
+fill_to = Vector2(0, 0)
+
+[node name="Node2D" type="Node2D"]
+metadata/_edit_vertical_guides_ = [-121.0]
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="TCircle" parent="CanvasLayer" instance=ExtResource("1_iu21p")]
+gradient_texture = SubResource("GradientTexture2D_iu21p")
+gradient_fixed = true
+shape_tiling = 8.0
+
+[node name="TDiamond" parent="CanvasLayer" instance=ExtResource("2_tnj6f")]
+visible = false
+factor = 0.3
+shape_tiling = 16.0
+
+[node name="TDiagonal" parent="CanvasLayer" instance=ExtResource("3_xtsi8")]
+visible = false
+factor = 0.3
+width = 0.2
+shape_tiling = 16.0
+
+[node name="TCircleRadialIn" parent="CanvasLayer" instance=ExtResource("4_s2dcu")]
+visible = false
+factor = 0.3
+shape_texture = ExtResource("5_tnj6f")
+shape_tiling = 4.0
+
+[node name="TCircleRadialOut" parent="CanvasLayer" instance=ExtResource("5_lj1om")]
+visible = false
+
+[node name="TNaturalRidge" parent="CanvasLayer" instance=ExtResource("6_vg8cu")]
+visible = false
+factor = 0.3
+gradient_texture = SubResource("GradientTexture2D_xtsi8")
+gradient_fixed = true
+shape_scroll = Vector2(0.02, 0.1)
+
+[node name="TOrderedRidge" parent="CanvasLayer" instance=ExtResource("7_y6asa")]
+visible = false
+
+[node name="TSplit" parent="CanvasLayer" instance=ExtResource("8_6r5n1")]
+visible = false
+
+[node name="TData" parent="CanvasLayer" instance=ExtResource("9_8cwq8")]
+visible = false
+factor = 0.3
+width = 0.6
+gradient_texture = SubResource("GradientTexture2D_s2dcu")
+shape_tiling = 4.0
+
+[node name="TCells" parent="CanvasLayer" instance=ExtResource("10_j77v0")]
+visible = false
+
+[node name="TBubbles" parent="CanvasLayer" instance=ExtResource("11_8sqr0")]
+visible = false
+
+[node name="TBlades" parent="CanvasLayer" instance=ExtResource("12_fdnyx")]
+visible = false

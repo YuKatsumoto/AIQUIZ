@@ -1,0 +1,14 @@
+[remap]
+
+importer="glsl"
+type="RDShaderFile"
+uid="uid://d3sslajno0u3h"
+path="res://.godot/imported/goal_stand_egg_fluid.glsl-b060f18812e05525de28a499b72daf26.res"
+
+[deps]
+
+source_file="res://shaders/goal_stand_egg_fluid.glsl"
+dest_files=["res://.godot/imported/goal_stand_egg_fluid.glsl-b060f18812e05525de28a499b72daf26.res"]
+
+[params]
+

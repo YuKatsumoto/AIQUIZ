@@ -1,4 +1,4 @@
-// AIQUIZ ロゴの形の計算（エディタとフィット用スクリプトで共用）。
+// ロゴの形の計算（エディタとフィット用スクリプト・TESTOPIA のロゴの組み立てで共用）。
 //
 // ロゴは「要素」を上から順に重ねて作る。
 //   op "paint" … 白で塗る
@@ -7,6 +7,7 @@
 //   kind "line"   … 中心線（points）と太さ（width）で描く線。曲がり角ごとに丸み（radii）を持てる。
 //                   端の形 capStart / capEnd：butt 直角、round 丸、h 水平に切る、v 垂直に切る
 //   kind "circle" … 中心（center）、中心線の半径（radius）、太さ（width）の輪
+//   kind "poly"   … 頂点（points）を順に結んだ多角形（角を斜めに切った文字など）
 // 座標は icon.jpg と同じ 1024×1024 のピクセル（y は下向き）。
 (function (root, factory) {
 	const api = factory();
@@ -182,6 +183,7 @@
 	/** 要素の輪郭（多角形の配列、塗りは nonzero）。 */
 	function contours(el) {
 		if (el.kind === "circle") return circleOutline(el);
+		if (el.kind === "poly") return [el.points.map(([x, y]) => [x, y])];
 		return lineOutline(el);
 	}
 
@@ -244,7 +246,13 @@
 			.join("");
 	}
 
-	/** 消す要素をマスクで表した SVG（Inkscape や Figma で開ける）。 */
+	/** 要素の色（#RRGGBB か #RRGGBBAA）を SVG の fill に。 */
+	function fillAttr(c) {
+		if (/^#[0-9a-fA-F]{8}$/.test(c)) return `fill="${c.slice(0, 7)}" fill-opacity="${(parseInt(c.slice(7), 16) / 255).toFixed(3)}"`;
+		return `fill="${c}"`;
+	}
+
+	/** 消す要素をマスクで表した SVG（Inkscape や Figma で開ける）。要素に color があればその色で塗る。 */
 	function toSVG(model, opts) {
 		const o = opts || {};
 		const [W, H] = model.canvas || [1024, 1024];
@@ -260,7 +268,7 @@
 					`<rect width="${W}" height="${H}" fill="#fff"/><path d="${d}" fill="#000" fill-rule="nonzero"/></mask>`;
 				body = `<g mask="url(#cut${maskId})">${body}</g>`;
 			} else {
-				body += `<path d="${d}" fill="${color}" fill-rule="nonzero"/>`;
+				body += `<path d="${d}" ${fillAttr(el.color || color)} fill-rule="nonzero"/>`;
 			}
 		}
 		const bg = o.background ? `<rect width="${W}" height="${H}" fill="${o.background}"/>` : "";

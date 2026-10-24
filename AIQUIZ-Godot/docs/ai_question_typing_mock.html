@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI執筆演出モック</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;padding:24px 16px;background:#f3f3f1;color:#222;font-family:'Noto Sans JP',sans-serif}
+.wrap{max-width:960px;margin:0 auto}
+.st{position:relative;aspect-ratio:16/9;overflow:hidden;border-radius:10px;container-type:inline-size;background:#a9d5f1}
+.cam{position:absolute;inset:0}
+.cam div{position:absolute}
+.tx{color:#fff;-webkit-text-stroke:.36cqw #06101a;paint-order:stroke fill;font-weight:700;text-align:center;line-height:1.35;white-space:nowrap}
+.hid{color:transparent;-webkit-text-stroke-color:transparent}
+.sk{color:transparent;-webkit-text-stroke-color:transparent;background:rgba(255,255,255,var(--ska,.15))}
+.cur{display:inline-block;width:0;position:relative;height:1em}
+.cur::after{content:'';position:absolute;left:.06em;top:.12em;width:.45em;height:1.05em;background:#7fe0ff}
+.ctrl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:14px}
+button{font:inherit;font-size:14px;padding:6px 14px;border-radius:8px;border:1px solid #c8c8c4;background:#fff;color:#222;cursor:pointer}
+button:hover{background:#f7f7f5}
+.seg[aria-pressed=true]{border-color:#378add;background:#e6f1fb;color:#185fa5}
+.ph{font-size:12px;padding:3px 10px;border-radius:8px;background:#fff;color:#999}
+.ph.on{background:#e6f1fb;color:#185fa5}
+.lbl{font-size:13px;color:#666}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="st">
+ <div class="cam" id="cam">
+  <div style="left:6%;top:6%;width:13%;height:6%;background:#fff;opacity:.85;border-radius:99px"></div>
+  <div style="left:58%;top:4%;width:17%;height:7%;background:#fff;opacity:.85;border-radius:99px"></div>
+  <div style="left:82%;top:12%;width:10%;height:4%;background:#fff;opacity:.85;border-radius:99px"></div>
+  <div style="left:0;top:38%;width:100%;height:18%;background:#3c9cc4"></div>
+  <div style="left:0;top:27%;width:14%;height:12%;background:#d3d8de"></div>
+  <div style="left:0;top:29%;width:14%;height:6%;background:#c9a98f"></div>
+  <div style="right:0;top:27%;width:14%;height:12%;background:#d3d8de"></div>
+  <div style="right:0;top:29%;width:14%;height:6%;background:#8fb0c9"></div>
+  <div style="left:0;top:46%;width:13%;height:10%;background:#eef2f6"></div>
+  <div style="right:0;top:46%;width:13%;height:10%;background:#eef2f6"></div>
+  <div style="left:0;top:56%;width:100%;height:44%;background:repeating-linear-gradient(180deg,#9aa1aa 0 3.4cqw,#858c95 3.4cqw 3.8cqw)"></div>
+  <div id="wall" style="left:12%;top:19%;width:76%;height:37%;background:#a3a3a3;transform-origin:50% 100%">
+   <div style="left:0;top:0;width:100%;height:3%;background:#8f8f8f"></div>
+   <div id="panel" style="left:23.7%;top:10%;width:52.6%;height:38%;background:#172b5c;border:.45cqw solid #b8bfcc;box-sizing:border-box;display:flex;align-items:center;justify-content:center">
+    <span class="tx" id="q" style="font-size:2.45cqw;position:relative"></span>
+    <span id="think" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:.6cqw;color:#7fe0ff;font-size:1.7cqw;font-weight:500;opacity:0"><span>✦</span><span>AIが問題を作成中</span><span id="dots" style="display:inline-block;width:2.4cqw;text-align:left"></span></span>
+    <div id="flash" style="inset:0;background:#fff;opacity:0"></div>
+   </div>
+   <div id="d0" style="left:25%;top:56.8%;width:17.1%;height:43.2%;background:#1a99f2;display:flex;align-items:center;justify-content:center"><span class="tx" style="font-size:3cqw;position:relative"></span></div>
+   <div id="d1" style="left:57.9%;top:56.8%;width:17.1%;height:43.2%;background:#e62619;display:flex;align-items:center;justify-content:center"><span class="tx" style="font-size:3cqw;position:relative"></span></div>
+  </div>
+  <div style="left:36%;bottom:4%;width:6cqw;height:7cqw;background:#e89a4a;border-radius:.6cqw"></div>
+  <div style="left:36.8%;bottom:calc(4% + 7.4cqw);width:4.4cqw;height:4.2cqw;background:#e6a764;border-radius:.6cqw"></div>
+  <div style="left:36.6%;bottom:calc(4% + 11.2cqw);width:4.8cqw;height:1.4cqw;background:#e2463a;border-radius:.6cqw .6cqw 0 0"></div>
+  <div style="left:57%;bottom:4%;width:6cqw;height:7cqw;background:#4da3e6;border-radius:.6cqw"></div>
+  <div style="left:57.8%;bottom:calc(4% + 7.4cqw);width:4.4cqw;height:4.2cqw;background:#e8a98c;border-radius:.6cqw"></div>
+  <div id="fx"></div>
+ </div>
+</div>
+<div class="ctrl">
+ <span class="lbl">表現</span>
+ <button class="seg" data-s="0">A ストリーミング</button>
+ <button class="seg" data-s="1">B デコード</button>
+ <button class="seg" data-s="2">C スケルトン</button>
+ <span style="flex:1"></span>
+ <label class="lbl" style="display:flex;align-items:center;gap:4px"><input type="checkbox" id="slow"> スロー (1/3)</label>
+ <button id="rp">最初から再生</button>
+</div>
+<div class="ctrl" id="phs" style="gap:6px"></div>
+</div>
+<script>
+(() => {
+const QT = "Q1 このゲームのもんだいを\nつくっているのはだれ？", CT = ["AI", "せんせい"];
+const JP = "アイウエオカキクケコサシスセソタチツテトナニヌネノ問題生成解答知識計算論理推論学習電脳", AS = "ABCDEFGHJKLMNPQRSTUVWXYZ0123456789#%&";
+// 落下 0.28 秒・潰れて戻る 0.14 秒は game_world.gd の PREVIEW_WALL_DROP_DURATION / SETTLE_DURATION と同じ。
+const LAND = 0.28, SET = 0.42, PH = ["落下", "着地", "AI思考", "問題文", "選択肢", "完成"];
+let mode = 0, slow = false, clk = 0, last = performance.now(), plan, parts = [];
+const el = id => document.getElementById(id);
+
+function rng(s) {
+	return () => { s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+}
+
+// 1文字ずつの「表示開始時刻」と「乱字で揺れる時間」を決める。
+function sched(text, start, r) {
+	const at = [], hold = [];
+	if (mode === 0) {
+		// LLM のトークンのように 1〜3 文字ずつ、ときどき少し詰まりながら出す。
+		let t = start, i = 0;
+		while (i < text.length) {
+			const n = 1 + Math.floor(r() * 3);
+			for (let k = 0; k < n && i < text.length; k++, i++) { at[i] = t; hold[i] = 0; }
+			t += 0.045 + r() * 0.05 + (r() < 0.1 ? 0.16 : 0);
+		}
+	} else if (mode === 1) {
+		for (let i = 0; i < text.length; i++) { at[i] = start + i * 0.03; hold[i] = 0.24; }
+	} else {
+		for (let i = 0; i < text.length; i++) { at[i] = start + i * 0.04; hold[i] = 0; }
+	}
+	return { at, hold, start, end: Math.max(...at.map((a, i) => a + hold[i])) };
+}
+
+function build() {
+	const r = rng(11);
+	const qs = mode === 2 ? SET + 0.5 : SET + 0.65;
+	const q = sched(QT, qs, r);
+	const cs = CT.map((c, k) => sched(c, q.end + 0.15 + k * 0.2, r));
+	const done = Math.max(...cs.map(s => s.end)) + 0.1;
+	plan = { qs, q, cs, done, marks: [0, LAND, SET, qs, q.end + 0.15, done] };
+	const fx = el("fx");
+	fx.innerHTML = "";
+	parts = [];
+	for (let i = 0; i < 24; i++) {
+		const d = document.createElement("div");
+		d.style.background = "#fff";
+		fx.appendChild(d);
+		const x = 12 + r() * 76;
+		parts.push({ d, x, vx: (x - 50) * 0.7 + (r() - 0.5) * 24, vy: -(18 + r() * 45), life: 0.5 + r() * 0.35, sz: 0.6 + r() * 0.9 });
+	}
+	el("phs").innerHTML = PH.map((p, i) => `<span class="ph" id="ph${i}">${p}</span>`).join("");
+}
+
+// 出たばかりの文字は水色、0.3 秒で白へ。
+function mix(k) {
+	const a = [127, 224, 255];
+	return `rgb(${a.map(v => Math.round(v + (255 - v) * k)).join(",")})`;
+}
+
+// まだ出ていない文字も透明で並べておき、中央揃えの行が文字の増加でずれないようにする。
+function txt(text, s, t) {
+	let o = "", lv = -1;
+	for (let i = 0; i < text.length; i++) if (t >= s.at[i]) lv = i;
+	for (let i = 0; i < text.length; i++) {
+		const ch = text[i];
+		if (ch === "\n") { o += "<br>"; continue; }
+		const age = t - s.at[i];
+		if (age < 0) {
+			o += `<span class="${mode === 2 ? "sk" : "hid"}">${ch}</span>`;
+		} else if (age < s.hold[i]) {
+			const p = /[\x00-\x7f]/.test(ch) ? AS : JP;
+			o += `<span style="color:#7fe0ff">${ch === " " ? " " : p[Math.floor(Math.random() * p.length)]}</span>`;
+		} else {
+			o += `<span style="color:${mix(Math.min(1, (age - s.hold[i]) / 0.3))}">${ch}</span>`;
+		}
+		if (mode === 0 && i === lv && t < s.end + 0.45) {
+			const on = t < s.end || Math.floor(t * 5) % 2 === 0;
+			o += `<span class="cur" style="opacity:${on ? 1 : 0}"></span>`;
+		}
+	}
+	return o;
+}
+
+function render(t) {
+	const w = el("wall");
+	if (t < LAND) {
+		const p = t / LAND;
+		w.style.transform = `translateY(${-175 * (1 - p * p)}%)`;
+	} else {
+		const p = Math.min(1, (t - LAND) / (SET - LAND)), e = 1 - Math.pow(1 - p, 3);
+		w.style.transform = `scale(${1.16 - 0.16 * e},${0.78 + 0.22 * e})`;
+	}
+	const sh = t >= LAND && t < LAND + 0.35 ? 1.1 * (1 - (t - LAND) / 0.35) : 0;
+	el("cam").style.transform = `translate(${(Math.random() - 0.5) * sh}cqw,${(Math.random() - 0.5) * sh}cqw)`;
+	for (const p of parts) {
+		const a = t - LAND;
+		if (a < 0 || a > p.life) { p.d.style.display = "none"; continue; }
+		p.d.style.display = "block";
+		p.d.style.left = (p.x + p.vx * a) + "%";
+		p.d.style.top = (55 + p.vy * a + 70 * a * a) + "%";
+		p.d.style.width = p.d.style.height = p.sz + "cqw";
+		p.d.style.opacity = 1 - a / p.life;
+	}
+	el("think").style.opacity = mode !== 2 && t >= SET && t < plan.qs ? 1 : 0;
+	el("dots").textContent = ".".repeat(Math.floor(t * 6) % 4);
+	el("panel").style.setProperty("--ska", (0.12 + 0.07 * Math.sin(t * 9)).toFixed(3));
+	const showSk = mode === 2 && t >= SET;
+	el("q").innerHTML = (t >= plan.qs || showSk) ? txt(QT, plan.q, t) : "";
+	CT.forEach((c, k) => {
+		el("d" + k).firstElementChild.innerHTML = (t >= plan.cs[k].start || showSk) ? txt(c, plan.cs[k], t) : "";
+	});
+	const f = t - plan.done;
+	el("flash").style.opacity = f >= 0 && f < 0.4 ? (0.35 * (1 - f / 0.4)).toFixed(2) : 0;
+	el("panel").style.borderColor = f >= 0 && f < 0.5 ? mix(f / 0.5) : "#b8bfcc";
+	let cur = 0;
+	plan.marks.forEach((m, i) => { if (t >= m) cur = i; });
+	PH.forEach((_, i) => el("ph" + i).classList.toggle("on", i === cur));
+}
+
+function frame(now) {
+	// 描画が間引かれる環境でも実時間で進める (上限はタブ復帰時の大きな飛びだけを抑える)。
+	const dt = Math.min(0.5, (now - last) / 1000);
+	last = now;
+	clk += dt * (slow ? 1 / 3 : 1);
+	if (clk > plan.done + 2.4) clk = 0;
+	render(clk);
+	requestAnimationFrame(frame);
+}
+
+function restart() {
+	clk = 0;
+	build();
+	document.querySelectorAll(".seg").forEach(b => b.setAttribute("aria-pressed", +b.dataset.s === mode));
+}
+
+document.querySelectorAll(".seg").forEach(b => b.addEventListener("click", () => { mode = +b.dataset.s; restart(); }));
+el("rp").addEventListener("click", restart);
+el("slow").addEventListener("change", e => { slow = e.target.checked; });
+restart();
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

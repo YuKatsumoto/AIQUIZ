@@ -108,7 +108,9 @@ const OCEAN_ATTACK_PORTAL_P2_SCENE: PackedScene = preload(
 )
 const GHOST_MOUNT_BEAM_HEIGHT: float = 28.0
 const GHOST_MOUNT_BEAM_ROOT_ABOVE_OCEAN: float = 0.18
-const GHOST_MOUNT_BEAM_ASCENT_HEIGHT: float = 4.2
+# 待ち合わせの高さ（海面 +2.35）から、待機の高さ（甲板 +3.8）まで上がる。4.2 では甲板の端より
+# 下で止まり、生き残った人の画面ではサメの体が隠れたままだった（2026-10-22 に 9.45 へ）。
+const GHOST_MOUNT_BEAM_ASCENT_HEIGHT: float = 9.45
 const GHOST_MOUNT_BEAM_COUNT: int = 1
 const GHOST_MOUNT_BEAM_RENDER_LAYER: int = 19
 # One oversized vertical pillar fires while the mounted shark remains planted.
@@ -142,10 +144,9 @@ const GHOST_MOUNT_BEAM_SEQUENCE_DURATION: float = (
 	GHOST_MOUNT_BEAM_ASCENT_START_TIME
 	+ GHOST_MOUNT_BEAM_ASCENT_DURATION
 )
-const GHOST_MOUNT_BEAM_ASCENT_EXIT_SPEED: float = (
-	GHOST_MOUNT_BEAM_ASCENT_HEIGHT * 1.22
-	/ GHOST_MOUNT_BEAM_ASCENT_DURATION
-)
+# Upward speed handed to the departure curve. It stays at the old 4.2 m ascent's
+# exit speed so the higher lift slows near the top and the departure arc is unchanged.
+const GHOST_MOUNT_BEAM_ASCENT_EXIT_SPEED: float = 3.66
 const GHOST_MOUNT_VERTICAL_TURN_END: float = 0.34
 # 問題壁越しのシルエットはプレイヤーテーマ色より少し暗くし、
 # 壁や問題文より前に出すぎないようにする。
@@ -153,17 +154,27 @@ const GHOST_SILHOUETTE_P1_COLOR: Color = Color(0.779, 0.451, 0.164, 0.68)
 const GHOST_SILHOUETTE_P2_COLOR: Color = Color(0.164, 0.533, 0.738, 0.68)
 const GHOST_SILHOUETTE_EMISSION_ENERGY: float = 2.2
 const GHOST_MOUNT_SETTLE_DURATION: float = 0.85
-const GHOST_RIDER_SOCKET_YAW_CORRECTION: float = PI
-const GHOST_RIDER_MOUNT_LIFT: float = 0.16
+## 乗り手はソケット（GhostMountSocket）の向き・位置そのままに乗る。座り位置・手足の接地は
+## 乗り手の演技（GhostRiderPerformance、Blender で鞍に IK で合わせたもの）が持つ。
+const GHOST_RIDER_SOCKET_YAW_CORRECTION: float = 0.0
+const GHOST_RIDER_MOUNT_LIFT: float = 0.0
 const GHOST_AIM_TURN_RESPONSE: float = 3.0
 const GHOST_RENDEZVOUS_ANIMATION_SPEED: float = 0.62
-const GHOST_MOUNT_ANIMATION_SPEED: float = 0.72
+const GHOST_MOUNT_ANIMATION_SPEED: float = 1.0
+const GHOST_BEAM_POWER_ANIMATION_SPEED: float = 1.0
 const GHOST_HOVER_ANIMATION_SPEED: float = 0.82
 const SHARK_SWIM_ANIMATION := &"SharkSwim"
 const SHARK_BITE_ANIMATION := &"SharkBite"
 const GHOST_RENDEZVOUS_ANIMATION := &"GhostRendezvousIdle"
 const GHOST_MOUNT_RECEIVE_ANIMATION := &"GhostMountReceive"
+const GHOST_BEAM_POWER_ANIMATION := &"GhostBeamPower"
 const GHOST_DEPARTURE_ANIMATION := &"GhostDeparture"
+## 幽霊が乗り移ったサメの光（assets/ghost_rider/ghost_possession.gdshader）。origin はモデルの空間の鞍のあたり。
+const GHOST_POSSESSION_SHADER := preload("res://assets/ghost_rider/ghost_possession.gdshader")
+const GHOST_POSSESSION_ORIGIN := Vector3(1.3, 0.62, 0.0)
+const GHOST_POSSESSION_REACH: float = 6.2
+const GHOST_POSSESSION_SWEEP_SECONDS: float = 0.7
+const GHOST_POSSESSION_RIDE_INTENSITY: float = 0.55
 
 var is_attacking: bool = false
 var is_ghost_ridden: bool = false
@@ -265,6 +276,11 @@ var _ghost_mount_beam_elapsed: float = 0.0
 var _ghost_mount_beam_ascent_start: Vector3 = Vector3.ZERO
 var _ghost_mount_beam_ascent_start_quaternion: Quaternion = Quaternion.IDENTITY
 var _ghost_mount_beam_cage_center: Vector3 = Vector3.ZERO
+var _ghost_possession_material: ShaderMaterial = null
+var _ghost_possession_meshes: Array[MeshInstance3D] = []
+var _ghost_possession_active: bool = false
+var _ghost_possession_elapsed: float = 0.0
+var _ghost_possession_pulse: float = 0.0
 
 
 func _ready() -> void:
@@ -380,14 +396,83 @@ func _update_ghost_occlusion_silhouette() -> void:
 	if should_enable == _ghost_silhouette_enabled:
 		return
 	_ghost_silhouette_enabled = should_enable
+	_refresh_ghost_overlays()
+
+
+## 重ねるマテリアルの優先：壁越しのシルエット ＞（ポータルを通る間は何も足さない）＞ 憑依の光 ＞ 元のまま。
+func _ghost_overlay_for(mesh_instance: MeshInstance3D) -> Material:
+	if _ghost_silhouette_enabled and _ghost_silhouette_original_overlays.has(mesh_instance):
+		return _ghost_silhouette_material
+	if (
+		_ghost_possession_active
+		and not _ghost_portal_stencil_active
+		and _ghost_possession_meshes.has(mesh_instance)
+	):
+		return _ghost_possession_material
+	return _ghost_silhouette_original_overlays.get(mesh_instance) as Material
+
+
+func _refresh_ghost_overlays() -> void:
 	for mesh_instance: MeshInstance3D in _ghost_silhouette_meshes:
-		if not is_instance_valid(mesh_instance):
-			continue
-		mesh_instance.material_overlay = (
-			_ghost_silhouette_material
-			if should_enable
-			else _ghost_silhouette_original_overlays.get(mesh_instance) as Material
-		)
+		if is_instance_valid(mesh_instance):
+			mesh_instance.material_overlay = _ghost_overlay_for(mesh_instance)
+	for mesh_instance: MeshInstance3D in _ghost_possession_meshes:
+		if is_instance_valid(mesh_instance) and not _ghost_silhouette_original_overlays.has(mesh_instance):
+			mesh_instance.material_overlay = _ghost_overlay_for(mesh_instance)
+
+
+## 幽霊が乗り移った：鞍から頭と尾へ光の帯が走り、走り抜けたところの輪郭がプレイヤー色で光り続ける。
+func begin_ghost_possession(color: Color) -> void:
+	if _ghost_possession_material == null:
+		_ghost_possession_material = ShaderMaterial.new()
+		_ghost_possession_material.shader = GHOST_POSSESSION_SHADER
+	_ghost_possession_meshes.clear()
+	for node: Node in model.find_children("*", "MeshInstance3D", true, false):
+		var mesh_instance := node as MeshInstance3D
+		if mesh_instance != null and not String(mesh_instance.name).begins_with("SharkSaddle"):
+			_ghost_possession_meshes.append(mesh_instance)
+	_ghost_possession_material.set_shader_parameter("color", color)
+	_ghost_possession_material.set_shader_parameter("origin", GHOST_POSSESSION_ORIGIN)
+	_ghost_possession_material.set_shader_parameter("reach", GHOST_POSSESSION_REACH)
+	_ghost_possession_material.set_shader_parameter("sweep", 0.0)
+	_ghost_possession_material.set_shader_parameter("intensity", 1.0)
+	_ghost_possession_material.set_shader_parameter("pulse", 0.0)
+	_ghost_possession_active = true
+	_ghost_possession_elapsed = 0.0
+	_ghost_possession_pulse = 0.0
+	_refresh_ghost_overlays()
+
+
+## 柱が立っている間などに、憑依の輪郭を脈打たせる（0〜1）。
+func set_ghost_possession_pulse(amount: float) -> void:
+	_ghost_possession_pulse = clampf(amount, 0.0, 1.0)
+
+
+func _update_ghost_possession(delta: float) -> void:
+	if not _ghost_possession_active or _ghost_possession_material == null:
+		return
+	_ghost_possession_elapsed += delta
+	var sweep := clampf(_ghost_possession_elapsed / GHOST_POSSESSION_SWEEP_SECONDS, 0.0, 1.0)
+	# 帯が走る間は明るく、走り終えたら乗っている間ずっと控えめに光らせる。
+	var settle := smoothstep(GHOST_POSSESSION_SWEEP_SECONDS, GHOST_POSSESSION_SWEEP_SECONDS + 0.8, _ghost_possession_elapsed)
+	_ghost_possession_material.set_shader_parameter("sweep", 1.0 - pow(1.0 - sweep, 2.2))
+	_ghost_possession_material.set_shader_parameter(
+		"intensity",
+		lerpf(1.0, GHOST_POSSESSION_RIDE_INTENSITY, settle)
+	)
+	_ghost_possession_material.set_shader_parameter(
+		"pulse",
+		_ghost_possession_pulse * (0.35 + 0.25 * sin(_swim_time * 22.0))
+	)
+
+
+func _end_ghost_possession() -> void:
+	_ghost_possession_active = false
+	_ghost_possession_pulse = 0.0
+	for mesh_instance: MeshInstance3D in _ghost_possession_meshes:
+		if is_instance_valid(mesh_instance) and mesh_instance.material_overlay == _ghost_possession_material:
+			mesh_instance.material_overlay = _ghost_silhouette_original_overlays.get(mesh_instance) as Material
+	_ghost_possession_meshes.clear()
 
 
 func set_ghost_wall_occluded(is_occluded: bool) -> void:
@@ -476,6 +561,8 @@ func _set_ghost_portal_stencil_enabled(enabled: bool) -> void:
 			original_entry["surface_overrides"] = original_surfaces
 			_ghost_portal_stencil_originals[mesh_instance] = original_entry
 		_ghost_portal_stencil_active = _ghost_portal_stencil_surface_count > 0
+		if _ghost_possession_active:
+			_refresh_ghost_overlays()
 		return
 
 	for mesh_variant: Variant in _ghost_portal_stencil_originals:
@@ -500,6 +587,8 @@ func _set_ghost_portal_stencil_enabled(enabled: bool) -> void:
 	_ghost_portal_stencil_originals.clear()
 	_ghost_portal_stencil_active = false
 	_ghost_portal_stencil_surface_count = 0
+	if _ghost_possession_active:
+		_refresh_ghost_overlays()
 
 
 ## 黒画面中に実際のサメ材質へポータル用Stencilパスを一度適用し、
@@ -553,6 +642,7 @@ func _process(delta: float) -> void:
 	_update_ocean_attack_contact()
 	_update_ghost_breach_effect(delta)
 	_update_ghost_occlusion_silhouette()
+	_update_ghost_possession(delta)
 	_update_surface_wake(delta)
 
 
@@ -720,6 +810,10 @@ func begin_ghost_ride(player_index: int, rider_visual: Node3D) -> bool:
 	_ghost_rider = rider_visual
 	_register_ghost_silhouette_meshes(_ghost_rider)
 	_ghost_rider_settle_start = rider_visual.transform
+	rider_visual.set_meta(
+		&"ghost_mount_target_transform",
+		Transform3D(Basis.from_scale(Vector3.ONE * get_ghost_rider_local_scale()), Vector3.ZERO)
+	)
 	_play_named_animation(
 		GHOST_MOUNT_RECEIVE_ANIMATION,
 		false,
@@ -746,6 +840,8 @@ func start_ghost_reveal_beams() -> bool:
 		+ Vector3.UP * GHOST_MOUNT_BEAM_ASCENT_HEIGHT * 0.82
 	)
 	_start_ghost_mount_beacon_sequence()
+	# 柱が立つ瞬間の身震い・柱の間の震え・上昇の尾の漕ぎ（3.59 秒、BEAM_REVEAL と同じ長さ）。
+	_play_named_animation(GHOST_BEAM_POWER_ANIMATION, false, GHOST_BEAM_POWER_ANIMATION_SPEED, 0.12)
 	return true
 
 
@@ -830,6 +926,11 @@ func translate_ghost_ride_presentation(offset: Vector3) -> bool:
 	_ghost_rendezvous_position += offset
 	_ghost_hover_target += offset
 	_ghost_aim_point += offset
+	if _ghost_phase == GhostRidePhase.DEPARTING:
+		# 待機の場所へ移る弧もいっしょに進め、カメラに置いていかれて画面の端へ流れないようにする。
+		_ghost_entry_start += offset
+		_ghost_departure_control_a += offset
+		_ghost_departure_control_b += offset
 	if _ghost_mount_beam_sequence_started:
 		_ghost_mount_beam_ascent_start += offset
 		_ghost_mount_beam_cage_center += offset
@@ -951,6 +1052,25 @@ func get_ghost_mount_world_position() -> Vector3:
 	if authored_socket != null:
 		return authored_socket.global_position + Vector3.UP * GHOST_RIDER_MOUNT_LIFT
 	return to_global(_calculate_ghost_mount_position() + Vector3.UP * GHOST_RIDER_MOUNT_LIFT)
+
+
+## 乗り手が乗るときの向き（ソケットの向き。乗り手の +Z = サメの頭、+Y = 背の上）。
+func get_ghost_mount_world_basis() -> Basis:
+	var authored_socket := model.find_child("GhostMountSocket", true, false) as Node3D
+	if authored_socket != null:
+		return authored_socket.global_basis.orthonormalized()
+	return global_basis.orthonormalized() * Basis(Vector3.UP, PI)
+
+
+## 乗り手をソケットの子（サメのルートの空間）に置くときの大きさ。モデルの 1 単位に対する乗り手の大きさ
+## （GhostRiderPerformance.rider_scale）にモデルの倍率を掛ける（サメごとに倍率が違っても鞍に合う）。
+func get_ghost_rider_local_scale() -> float:
+	return GhostRiderPerformance.rider_scale() * model.scale.x
+
+
+## 乗り手のワールドでの大きさ（飛んでいる魂を、乗ったときと同じ大きさにそろえる）。
+func get_ghost_rider_world_scale() -> float:
+	return get_ghost_rider_local_scale() * global_basis.get_scale().x
 
 
 func get_ghost_rendezvous_mount_world_position() -> Vector3:
@@ -1108,6 +1228,7 @@ func depart_ghost_rendezvous(
 func end_ghost_ride() -> void:
 	if not is_ghost_ridden:
 		return
+	_end_ghost_possession()
 	_set_ghost_portal_stencil_enabled(false)
 	_clear_ghost_occlusion_silhouette()
 	is_ghost_ridden = false
@@ -1782,18 +1903,18 @@ func _update_ghost_ride(delta: float) -> void:
 			)
 			_velocity = (position - previous_position) / maxf(delta, 0.0001)
 			if _ghost_rider != null and is_instance_valid(_ghost_rider):
-				var eased_settle := 1.0 - pow(1.0 - settle_progress, 3.0)
+				# 魂は飛び終わりでソケットの向き・大きさにそろって着くので、ここで残りのずれを消すだけ。
+				# 着座の沈み込み・跳ね返りは乗り手の演技（腰と上体）が持つ。
+				var eased_settle := 1.0 - pow(1.0 - minf(1.0, settle_progress * 3.0), 3.0)
 				var mounted_transform_variant: Variant = _ghost_rider.get_meta(
 					"ghost_mount_target_transform",
-					Transform3D(Basis.from_scale(Vector3.ONE * 0.92), Vector3.ZERO)
+					Transform3D(Basis.from_scale(Vector3.ONE * get_ghost_rider_local_scale()), Vector3.ZERO)
 				)
 				var mounted_transform := mounted_transform_variant as Transform3D
 				_ghost_rider.transform = _ghost_rider_settle_start.interpolate_with(
 					mounted_transform,
 					eased_settle
 				)
-				var rider_rebound := sin(settle_progress * PI * 2.0) * (1.0 - settle_progress)
-				_ghost_rider.position += Vector3(0.0, rider_rebound * 0.07, rider_rebound * 0.04)
 			_attack_intensity = move_toward(_attack_intensity, 0.16, delta * 1.8)
 		GhostRidePhase.DEPARTING:
 			if animation_player.current_animation == StringName():
@@ -1985,9 +2106,17 @@ func _update_post_mount_beam_ascent(delta: float) -> void:
 	_bank = 0.0
 	model.rotation = Vector3(0.0, PI * 0.5, 0.0)
 
-	# Ease into the lift, but retain upward velocity at the end so the following
-	# departure curve can continue without a mid-air stop.
-	var lift_progress := pow(ascent_progress, 1.22)
+	# Ease into the lift and slow toward the top, but retain the exit velocity so
+	# the following departure curve can continue without a mid-air stop.
+	var exit_slope := (
+		GHOST_MOUNT_BEAM_ASCENT_EXIT_SPEED
+		* GHOST_MOUNT_BEAM_ASCENT_DURATION
+		/ GHOST_MOUNT_BEAM_ASCENT_HEIGHT
+	)
+	var lift_progress := (
+		ascent_progress * ascent_progress * (3.0 - 2.0 * ascent_progress)
+		+ exit_slope * ascent_progress * ascent_progress * (ascent_progress - 1.0)
+	)
 	var previous_position := position
 	position = (
 		_ghost_mount_beam_ascent_start
@@ -2111,25 +2240,11 @@ func _update_ghost_mount_bob() -> void:
 		)
 		base_position = socket_local.origin + Vector3.UP * GHOST_RIDER_MOUNT_LIFT
 		_ghost_mount_base_position = base_position
-	var bob_speed := lerpf(3.2, 5.8, _ghost_charge_tension)
-	var bob_amount := lerpf(0.055, 0.025, _ghost_charge_tension)
-	var bob := sin(_swim_time * bob_speed + float(_ghost_player_index)) * bob_amount
-	var entry_reveal := 1.0
-	if _ghost_phase == GhostRidePhase.ENTERING:
-		entry_reveal = clampf((_ghost_entry_progress - 0.08) / 0.54, 0.0, 1.0)
-	_ghost_mount.position = (
-		base_position
-		+ Vector3.UP * bob
-		+ Vector3(0.0, -0.04, -0.18) * _ghost_charge_tension
-	)
-	var entry_pitch := lerpf(18.0, 0.0, entry_reveal)
-	var animated_basis := Basis.from_euler(
-		Vector3(deg_to_rad(entry_pitch - 12.0 * _ghost_charge_tension), 0.0, 0.0)
-	)
-	animated_basis = animated_basis.scaled(
-		Vector3.ONE * lerpf(GHOST_ENTRY_START_SCALE, 1.0, entry_reveal)
-	)
-	_ghost_mount.basis = base_basis * animated_basis
+	# 乗り手の手はハンドル、足は足掛け、腰は鞍に付いている（演技を鞍に IK で焼いてある）。
+	# 乗り手だけを揺らしたり傾けたりすると離れるので、マウントはソケットそのものに置く。
+	# 揺れ・前のめりはサメの体の動きと、乗り手の演技（構え・突進の姿勢）が持つ。
+	_ghost_mount.position = base_position
+	_ghost_mount.basis = base_basis
 
 
 func _calculate_ghost_mount_position() -> Vector3:

@@ -714,7 +714,7 @@ function logoLayers(c, f, logoFootage, dur, from, to, prefix) {
   var logo = c.layers.add(logoFootage);
   logo.name = "Logo";
   tr(logo, "Position").setValue([CX, CY]);
-  var s = 700 / logoFootage.width * 100;
+  var s = 800 / logoFootage.width * 100;
   tr(logo, "Scale").setValue([s, s]);
   return { plate: plate, logo: logo, scale: s };
 }

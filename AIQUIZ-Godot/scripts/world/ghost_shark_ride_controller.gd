@@ -88,6 +88,13 @@ const RENDEZVOUS_REVEAL_DEPTH_OFFSET: float = 4.0
 # Keep the whole shark body above the transparent ocean during mount so the
 # water depth buffer cannot punch a see-through cut through the mesh.
 const RENDEZVOUS_SURFACE_CLEARANCE: float = 2.35
+## 搭乗の柱をメインの画面に入れる：甲板からこの高さの柱の点が、画面の横の端からこの割合の内側に入るまで前へずらす。
+## 2026-10-22：0.07 では柱が画面の右の端（横 89% ほど）に立って切れかけたので、もっと奥（前）に立つよう 0.18 に。
+## 0.25 まで寄せると、近づいてくる問題壁の陰に柱とサメが入る時間が長くなり、上昇が隠れた。
+const BEAM_MAIN_VIEW_PROBE_HEIGHT: float = 4.0
+const BEAM_MAIN_VIEW_EDGE_MARGIN: float = 0.18
+const BEAM_MAIN_VIEW_STEP: float = 1.5
+const BEAM_MAIN_VIEW_MAX_SHIFT: float = 24.0
 const SOUL_PRESENTATION_RENDER_LAYER: int = 20
 const GHOST_MOUNT_BEAM_RENDER_LAYER: int = 19
 const GHOST_MOUNT_BEAM_LAUNCH_CAMERA_SHAKE: float = 1.15
@@ -257,6 +264,14 @@ var _charge_tutorial_handoff_to: Rect2 = Rect2()
 var _aim_material: StandardMaterial3D = null
 var _aim_outer_material: StandardMaterial3D = null
 var _charge_audio: AudioStreamPlayer = null
+## 乗り手の演技・魂の向きと大きさ・光（scripts/world/ghost_rider_presentation.gd）。
+var _presenter: GhostRiderPresentation = null
+## 演出のフェーズの時計（_sequence_elapsed と違い頭打ちしない）と、いまのフェーズに入った時刻。
+var _heroic_clock: float = 0.0
+var _heroic_phase_seen: int = -1
+var _heroic_phase_started: float = 0.0
+## ポータルを通る間、乗り手を標準マテリアルにしている（サメの Stencil の差し替え用）。
+var _rider_portal_safe: bool = false
 
 # ---------- オンライン ----------
 # 乗り手（脱落した人）の画面が照準・チャージ・命中を決め、相手の画面はそれをなぞる。
@@ -284,6 +299,22 @@ var _net_applied_hit_ids: Dictionary = {}
 ## テストと F8 用の数。
 var net_stats := {"launches_sent": 0, "launches_played": 0, "hits_sent": 0, "hits_presented": 0, "impulses_applied": 0}
 
+# ---------- メニュー背景（MenuGhostRideDirector）用の差し込み口。既定値はどれも本編と同じ動き ----------
+## false なら死亡を自分では見張らず、begin_for_dead_player で始める（死んだらいつも乗るとは限らない画面用）。
+var auto_detect_deaths: bool = true
+## 0 以外ならサメの待つ側（+1 / -1）を固定する（本編は死んだ人のいた側）。
+var hover_side_override: float = 0.0
+## 待つ場所：床の外側へ出す量と、生き残った人からの奥行き（本編はプレイヤーの進む向きが +z）。
+var hover_outside_offset: float = HOVER_OUTSIDE_STAGE_OFFSET
+var hover_depth_offset: float = 6.0
+## 海から上がって乗せる場所：待つ場所からの横と奥行き。
+var rendezvous_side_distance: float = RENDEZVOUS_SIDE_DISTANCE
+var rendezvous_depth_offset: float = RENDEZVOUS_REVEAL_DEPTH_OFFSET - RENDEZVOUS_BACK_DISTANCE
+## false なら、死亡〜登場の演出を生き残った人の前後の動きに付いて動かさない（カメラが止まっている画面用）。
+var heroic_follow_survivor: bool = true
+## camera_controller がないときに、戻りのポータルの向きと壁の透過の判定に使うカメラ。
+var view_camera: Camera3D = null
+
 
 func setup(
 	state: QuizGameState,
@@ -297,7 +328,10 @@ func setup(
 	player_controller = visual_controller
 	camera_controller = main_camera_controller
 	particle_spawner = effects
-	var main_camera := camera_controller.get_node_or_null("Camera3D") as Camera3D
+	# カメラの台がない画面（メニュー背景）では、魂を別のレイヤーへ分けない（死亡のワイプがないので、そのまま見せる）。
+	var main_camera := (
+		camera_controller.get_node_or_null("Camera3D") as Camera3D if camera_controller != null else null
+	)
 	if main_camera != null:
 		main_camera.set_cull_mask_value(SOUL_PRESENTATION_RENDER_LAYER, false)
 		main_camera.set_cull_mask_value(GHOST_MOUNT_BEAM_RENDER_LAYER, true)
@@ -305,6 +339,13 @@ func setup(
 	_previous_p2_alive = game_state.p2_alive
 	_build_aim_visuals()
 	_build_charge_audio()
+	GhostRiderPerformance.ensure_loaded()
+	if _presenter == null:
+		_presenter = GhostRiderPresentation.new()
+		_presenter.name = "GhostRiderPresentation"
+		add_child(_presenter)
+		_presenter.beat.connect(_on_presentation_beat)
+	_presenter.player_controller = player_controller
 
 
 func remember_ocean_death_shark(player_index: int, shark: SharkSwimmerScript) -> void:
@@ -334,7 +375,8 @@ func update_ghost_ride(
 	var emote_input := emote_p1 if dead_player_index == 1 else emote_p2
 
 	if phase == Phase.INACTIVE:
-		_detect_new_death(is_online, is_replay)
+		if auto_detect_deaths:
+			_detect_new_death(is_online, is_replay)
 	else:
 		if not _can_continue(is_online, is_replay):
 			_cleanup_ghost_ride()
@@ -350,6 +392,12 @@ func update_ghost_ride(
 			)
 	if _net_enabled and _net_is_host:
 		_net_flush_stale_hits()
+	_update_rider_ride_pose(delta)
+	if _presenter != null:
+		_presenter.update_effects(
+			delta,
+			phase in [Phase.SOUL_RISE, Phase.SOUL_FLIGHT] and _soul_travel_elapsed > 0.12
+		)
 	_update_charge_audio(fire_down)
 	# サメ移動・壁スクロール・カメラ更新の後に判定しないと透過切替が1フレーム遅れる。
 	call_deferred("_update_problem_wall_occlusion")
@@ -366,6 +414,72 @@ func force_cleanup() -> void:
 	if game_state:
 		_previous_p1_alive = game_state.p1_alive
 		_previous_p2_alive = game_state.p2_alive
+
+
+## auto_detect_deaths = false の画面が、乗せると決めた死亡で搭乗を始める（演出は本編の死亡時と同じ）。
+func begin_for_dead_player(dead_index: int) -> bool:
+	if phase != Phase.INACTIVE or game_state == null or player_controller == null or dead_index not in [1, 2]:
+		return false
+	if not _base_mode_is_eligible(false, false):
+		return false
+	var survivor_index := 2 if dead_index == 1 else 1
+	if _is_player_alive(dead_index) or not _is_player_alive(survivor_index):
+		return false
+	_begin_death_delay(dead_index, survivor_index)
+	_previous_p1_alive = game_state.p1_alive
+	_previous_p2_alive = game_state.p2_alive
+	return phase != Phase.INACTIVE
+
+
+## HUD（照準の説明と溜めのゲージ）を出すか。メニュー背景では出さない。
+func set_hud_enabled(enabled: bool) -> void:
+	if _hud_layer != null:
+		_hud_layer.visible = enabled
+
+
+## 見た目の PlayerController を作り直したとき（メニュー背景の復活）に差し替える。乗り手の人形はそのまま。
+func rebind_player_controller(visual_controller: PlayerController) -> void:
+	player_controller = visual_controller
+	if _presenter != null:
+		_presenter.player_controller = visual_controller
+
+
+## 搭乗を終わらせる。dismount_parent があり乗り手が見えていれば、乗り手をそこへ降ろして返す（呼んだ側が消す）。
+## それ以外は乗り手を消す。どちらもサメは海へ潜って元の泳ぎに戻る（その場で泳ぎ出さない）。
+func retire_ride(dismount_parent: Node = null) -> Node3D:
+	if phase == Phase.INACTIVE:
+		return null
+	var rider_visible := (
+		_rider != null
+		and is_instance_valid(_rider)
+		and _rider.is_visible_in_tree()
+		and phase not in [Phase.CHARGING, Phase.COOLDOWN]
+	)
+	if dismount_parent != null and rider_visible:
+		return begin_result_dismount(dismount_parent)
+	var shark := _shark
+	_cleanup_ghost_ride()
+	if shark != null and is_instance_valid(shark):
+		shark.retire_after_result_dismount()
+	return null
+
+
+func get_aim_point() -> Vector3:
+	return _current_aim_point()
+
+
+## 長押し中の溜め（0〜1、0.5 秒で一周）。
+func get_charge_amount() -> float:
+	return _charge_amount
+
+
+## 突進の向き（WINDUP で決まる。世界座標の単位ベクトル）。
+func get_locked_direction() -> Vector3:
+	return _locked_direction
+
+
+func get_shark() -> Node3D:
+	return _shark
 
 
 ## Hands the dead player's ghost to the result finale. Uses the live rider (or
@@ -587,8 +701,25 @@ func dismiss_charge_tutorial() -> bool:
 func get_presentation_state(player_index: int) -> Dictionary:
 	if not is_active_for_player(player_index):
 		return {"active": false}
+	var shark_ok := _shark != null and is_instance_valid(_shark)
+	var mount_basis := _shark.get_ghost_mount_world_basis() if shark_ok else Basis.IDENTITY
+	# 小窓のカメラを置く外側は、サメが待つ側（_hover_side）。甲板の上で脱落すると、脱落した位置の左右（_death_position.x の符号）と
+	# 食い違うことがあり、そのときはカメラがステージの塊越しにサメを見て、小窓が側壁だけになった（2026-10-22）。
+	var out_sign := _hover_side
 	return {
 		"active": true,
+		# 小窓のカメラ用：演出のフェーズに入ってからの秒・演技の時刻・サメの鞍の位置と向き・乗り手の胸。
+		"phase_elapsed": (
+			_heroic_clock - _heroic_phase_started if phase == _heroic_phase_seen else 0.0
+		),
+		"performance_time": _current_performance_time(),
+		"mount_position": _shark.get_ghost_mount_world_position() if shark_ok else _rendezvous_position,
+		"mount_basis": mount_basis,
+		"rider_chest": _presenter.chest_position() if _presenter != null else _presentation_focus,
+		"rendezvous_position": _rendezvous_position,
+		"death_position": _death_position,
+		"out_sign": out_sign,
+		"world_scale": _presenter.world_scale() if _presenter != null else 0.6,
 		"show_wipe": (
 			phase in [
 				Phase.DEATH_HOLD,
@@ -843,6 +974,8 @@ func _begin_death_delay(dead_index: int, survivor_index: int) -> void:
 	_hover_side = signf(_death_position.x - _player_position(survivor_player_index).x)
 	if is_zero_approx(_hover_side):
 		_hover_side = 1.0 if dead_player_index == 1 else -1.0
+	if not is_zero_approx(hover_side_override):
+		_hover_side = signf(hover_side_override)
 	_aim_offset = Vector2.ZERO
 	_charging_input = false
 	_charge_amount = 0.0
@@ -871,15 +1004,27 @@ func _begin_death_delay(dead_index: int, survivor_index: int) -> void:
 		return
 	add_child(_rider)
 	_rider_revealed_to_main = false
+	_rider_portal_safe = false
 	_set_rider_presentation_only(true)
 	_soul_start_position = _death_position + Vector3.UP * 0.16
 	_soul_rise_position = (
 		_soul_start_position
 		+ Vector3(-_hover_side * 0.24, SOUL_RISE_HEIGHT, 0.34)
 	)
-	_rider.global_position = _soul_start_position
-	_rider.global_rotation = Vector3.ZERO
 	var mount_target := _shark.get_ghost_rendezvous_mount_world_position()
+	# 魂は乗ったときと同じ大きさ（サメのモデルの倍率に合わせる）で形になり、サメの方を向いて出る。
+	var toward_shark := mount_target - _soul_start_position
+	_heroic_clock = 0.0
+	_heroic_phase_seen = -1
+	_heroic_phase_started = 0.0
+	_presenter.begin(
+		_rider,
+		dead_player_index,
+		_shark.get_ghost_rider_world_scale(),
+		atan2(toward_shark.x, toward_shark.z)
+	)
+	_presenter.set_presentation_only(true)
+	_presenter.hold_soul(_soul_start_position, 0.0)
 	_soul_control_a = (
 		_soul_rise_position
 		+ Vector3(_hover_side * SOUL_FLIGHT_SIDE_ARC, SOUL_FLIGHT_LIFT, 2.35)
@@ -891,7 +1036,7 @@ func _begin_death_delay(dead_index: int, survivor_index: int) -> void:
 	_presentation_focus = _soul_start_position
 	_presentation_follow_anchor_z = _survivor_camera_anchor_z()
 	_presentation_follow_initialized = true
-	player_controller.sample_ghost_mount_pose(_rider, 0.0)
+	_presenter.apply_heroic("DEATH_HOLD", 0.0)
 	_set_meter(0.0, _player_color)
 	_hud_slide_elapsed = 0.0
 	_hud_slide_active = false
@@ -967,12 +1112,14 @@ func _update_active_phase(
 	fire_released: bool,
 	emote_input: int
 ) -> void:
+	# 上がりきったあと待機の場所へ移るあいだ（ENTERING）も付いて進め、サメを画面の端へ流さない。
 	if phase in [
 		Phase.DEATH_HOLD,
 		Phase.SOUL_RISE,
 		Phase.SOUL_FLIGHT,
 		Phase.MOUNTING,
 		Phase.BEAM_REVEAL,
+		Phase.ENTERING,
 	]:
 		_update_heroic_camera_follow()
 	_try_release_ghost_rendezvous_after_wipe()
@@ -991,7 +1138,7 @@ func _update_active_phase(
 			_death_position = _death_presentation_position(dead_player_index)
 			_soul_start_position = _death_position + Vector3.UP * 0.16
 			if _rider != null and is_instance_valid(_rider):
-				_rider.global_position = _soul_start_position
+				_presenter.hold_soul(_soul_start_position, _current_performance_time())
 			_presentation_focus = _soul_start_position
 			if _phase_timer <= 0.0:
 				_begin_soul_rise()
@@ -1005,15 +1152,6 @@ func _update_active_phase(
 			_advance_heroic_sequence(delta)
 			_phase_timer -= delta
 			if _rider != null and is_instance_valid(_rider):
-				var mount_pose_progress := clampf(
-					1.0 - _phase_timer / MOUNTING_SECONDS,
-					0.0,
-					1.0
-				)
-				player_controller.apply_ghost_rider_mounted_pose(
-					_rider,
-					smoothstep(0.0, 0.78, mount_pose_progress)
-				)
 				_presentation_focus = _rider.global_position.lerp(
 					_shark.global_position,
 					0.38
@@ -1023,17 +1161,19 @@ func _update_active_phase(
 		Phase.BEAM_REVEAL:
 			_advance_heroic_sequence(delta)
 			_phase_timer = maxf(0.0, _phase_timer - delta)
-			player_controller.apply_ghost_rider_mounted_pose(_rider)
 			_presentation_focus = _rider.global_position.lerp(
 				_shark.global_position,
 				0.38
 			)
-			if game_state != null and _shark.is_ghost_reveal_beam_firing():
+			var beam_firing := _shark.is_ghost_reveal_beam_firing()
+			_shark.set_ghost_possession_pulse(1.0 if beam_firing else 0.0)
+			if game_state != null and beam_firing:
 				game_state.camera_shake = maxf(
 					game_state.camera_shake,
 					GHOST_MOUNT_BEAM_SUSTAINED_CAMERA_SHAKE
 				)
 			if _shark.is_ghost_reveal_sequence_complete():
+				_shark.set_ghost_possession_pulse(0.0)
 				_begin_authored_entry()
 		Phase.DEATH_DELAY:
 			_phase_timer -= delta
@@ -1043,9 +1183,7 @@ func _update_active_phase(
 				_start_ghost_ride()
 		Phase.ENTERING:
 			_advance_heroic_sequence(delta)
-			# Once contact is complete, keep the rider planted on the seat and both
-			# hands on the grips while the shark performs its departure motion.
-			player_controller.apply_ghost_rider_mounted_pose(_rider)
+			# 演技（発進）の手はハンドル、足は足掛けに IK で付いたまま。
 			_presentation_focus = _shark.global_position
 			_update_hover_target()
 			_phase_timer -= delta
@@ -1059,7 +1197,6 @@ func _update_active_phase(
 				_set_rider_presentation_only(false)
 			if _phase_timer <= 0.0 and _shark and _shark.is_ghost_hovering():
 				phase = Phase.AIMING
-				player_controller.apply_ghost_rider_mount_hold_pose(_rider)
 				if _should_show_charge_tutorial():
 					_start_charge_tutorial()
 				else:
@@ -1232,9 +1369,9 @@ func _prepare_fixed_targets() -> void:
 		survivor_position.z
 	)
 	var desired_hover_target := Vector3(
-		_hover_side * (StageConstants.FLOOR_HALF_WIDTH + HOVER_OUTSIDE_STAGE_OFFSET),
+		_hover_side * (StageConstants.FLOOR_HALF_WIDTH + hover_outside_offset),
 		StageConstants.FLOOR_TOP_Y + 3.8,
-		survivor_position.z + 6.0
+		survivor_position.z + hover_depth_offset
 	)
 	_fixed_hover_target = _keep_inside_camera(
 		desired_hover_target,
@@ -1267,7 +1404,7 @@ func _survivor_camera_anchor_z() -> float:
 
 
 func _update_heroic_camera_follow() -> void:
-	if survivor_player_index <= 0:
+	if survivor_player_index <= 0 or not heroic_follow_survivor:
 		return
 	var current_anchor_z := _survivor_camera_anchor_z()
 	if not _presentation_follow_initialized:
@@ -1293,13 +1430,62 @@ func _update_heroic_camera_follow() -> void:
 
 
 func _calculate_rendezvous_position() -> Vector3:
-	return Vector3(
-		_fixed_hover_target.x + _hover_side * RENDEZVOUS_SIDE_DISTANCE,
+	return _keep_beam_in_main_view(Vector3(
+		_fixed_hover_target.x + _hover_side * rendezvous_side_distance,
 		StageConstants.OCEAN_SURFACE_Y + RENDEZVOUS_SURFACE_CLEARANCE,
-		_fixed_hover_target.z
-		- RENDEZVOUS_BACK_DISTANCE
-		+ RENDEZVOUS_REVEAL_DEPTH_OFFSET
-	)
+		_fixed_hover_target.z + rendezvous_depth_offset
+	))
+
+
+## 生き残った人の画面（メインのカメラ）にも、搭乗の柱が立つのが見えるようにする。
+## 柱の甲板より上の部分が画面の横に収まるまで、待ち合わせの場所を水路の前へずらす（横には動かさない）。
+func _keep_beam_in_main_view(rendezvous: Vector3) -> Vector3:
+	var probe_camera := _make_gameplay_view_probe()
+	if probe_camera == null:
+		return rendezvous
+	var viewport_size := probe_camera.get_viewport().get_visible_rect().size
+	var margin := viewport_size.x * BEAM_MAIN_VIEW_EDGE_MARGIN
+	var start_z := rendezvous.z
+	while rendezvous.z - start_z <= BEAM_MAIN_VIEW_MAX_SHIFT:
+		var probe := Vector3(rendezvous.x, StageConstants.FLOOR_TOP_Y + BEAM_MAIN_VIEW_PROBE_HEIGHT, rendezvous.z)
+		if not probe_camera.is_position_behind(probe):
+			var screen_x := probe_camera.unproject_position(probe).x
+			if screen_x >= margin and screen_x <= viewport_size.x - margin:
+				break
+		rendezvous.z += BEAM_MAIN_VIEW_STEP
+	probe_camera.queue_free()
+	return rendezvous
+
+
+## 遊んでいるときのメインのカメラの姿勢をまねた、画面に入るかを確かめる用のカメラ（使い終わったら queue_free する）。
+## 脱落の瞬間のカメラは一時的に引いているので、そのままのカメラで確かめると、戻ったあとの画面からはみ出す。
+func _make_gameplay_view_probe() -> Camera3D:
+	if camera_controller == null:
+		return null
+	var camera := camera_controller.get_node_or_null("Camera3D") as Camera3D
+	if camera == null or camera.get_viewport() == null:
+		return null
+	var viewport_size := camera.get_viewport().get_visible_rect().size
+	if viewport_size.x <= 1.0 or viewport_size.y <= 1.0:
+		return null
+	var probe_camera := Camera3D.new()
+	probe_camera.name = "GameplayViewProbe"
+	add_child(probe_camera)
+	probe_camera.fov = camera.fov
+	probe_camera.near = camera.near
+	probe_camera.far = camera.far
+	probe_camera.keep_aspect = camera.keep_aspect
+	probe_camera.global_transform = camera.global_transform
+	if game_state != null and camera_controller.has_method("get_gameplay_pose"):
+		var pose: Dictionary = camera_controller.call("get_gameplay_pose", game_state)
+		var eye_variant: Variant = pose.get("eye")
+		var target_variant: Variant = pose.get("target")
+		if eye_variant is Vector3 and target_variant is Vector3:
+			probe_camera.global_position = eye_variant
+			if (eye_variant as Vector3).distance_squared_to(target_variant) > 0.0001:
+				probe_camera.look_at(target_variant, Vector3.UP)
+		probe_camera.fov = float(pose.get("fov", camera.fov))
+	return probe_camera
 
 
 func _begin_soul_rise() -> void:
@@ -1351,26 +1537,19 @@ func _update_soul_travel(delta: float) -> void:
 			mount_target,
 			look_weight
 		)
-		_rider.global_position = soul_position
-		if soul_position.distance_squared_to(look_position) > 0.0001:
-			_rider.look_at(look_position, Vector3.UP)
-		var launch_bank := sin(travel_progress * PI) * -_hover_side * 0.16
-		var contact_counter_bank := (
-			smoothstep(0.72, 1.0, travel_progress)
-			* _hover_side
-			* 0.09
+		# 向きは進む向きへ振り向き、曲がりで傾き、着く直前にサメのソケットの向きへそろう。
+		# 体を水平に倒す・脚を開いて鞍へ落ちるのは演技（GhostRiderPerformance）の仕事。
+		_presenter.place_soul(
+			delta,
+			soul_position,
+			look_position,
+			travel_progress,
+			_shark.get_ghost_mount_world_basis(),
+			_current_performance_time()
 		)
-		_rider.rotation.z += launch_bank + contact_counter_bank
-		var extraction_scale := lerpf(
-			0.86,
-			1.0,
-			smoothstep(0.0, 0.22, travel_progress)
-		)
-		var mounted_scale := float(_rider.get_meta("ghost_mount_scale", 0.92))
-		_rider.scale = Vector3.ONE * mounted_scale * extraction_scale
 		# Become solid before contact so the translucent soul never overlaps the
 		# shark for a visible frame during the mount handoff.
-		if travel_progress >= 0.78:
+		if travel_progress >= 0.9:
 			player_controller.make_ghost_rider_opaque(_rider)
 		_presentation_focus = _rider.global_position
 	if _soul_travel_elapsed < SOUL_RISE_SECONDS:
@@ -1391,20 +1570,71 @@ func _begin_mounting() -> void:
 		_phase_timer = 0.0
 		return
 	player_controller.make_ghost_rider_opaque(_rider)
-	_rider.global_position = _shark.get_ghost_mount_world_position()
+	_rider.global_transform = Transform3D(
+		_shark.get_ghost_mount_world_basis().scaled(Vector3.ONE * _shark.get_ghost_rider_world_scale()),
+		_shark.get_ghost_mount_world_position()
+	)
 	if not _shark.begin_ghost_ride(dead_player_index, _rider):
 		_cleanup_ghost_ride()
 		return
 	phase = Phase.MOUNTING
 	_phase_timer = MOUNTING_SECONDS
 	_presentation_focus = _rider.global_position
+	_play_mount_impact()
+
+
+## 着座：衝撃の輪・火花・白い光、サメへの乗り移り（鞍から頭と尾へ光が走る）、小窓の閃光と揺れ。
+func _play_mount_impact() -> void:
+	if _shark == null or not is_instance_valid(_shark):
+		return
+	var seat := _shark.get_ghost_mount_world_position()
+	var up := _shark.get_ghost_mount_world_basis().y.normalized()
+	_presenter.play_mount_impact(seat + up * 0.12 * _presenter.world_scale(), up)
+	_shark.begin_ghost_possession(_presenter.player_color())
+	AudioManager.play_sfx(&"ghost_mount_land")
+	_ghost_wipe_call(&"play_ghost_flash", [dead_player_index, 0.6, _presenter.player_color()])
+	_ghost_wipe_call(&"add_ghost_shake", [dead_player_index, 0.9])
+
+
+func _ghost_wipe_call(method: StringName, arguments: Array) -> void:
+	var death_wipe := get_parent().get_node_or_null("DeathWipeLayer/DeathWipe") if get_parent() != null else null
+	if death_wipe != null and death_wipe.has_method(method):
+		death_wipe.callv(method, arguments)
+
+
+## 演技の中の拍（目覚め・柱）を、光・音・小窓の閃光にする。
+func _on_presentation_beat(beat_name: StringName, world_position: Vector3) -> void:
+	match beat_name:
+		&"emerge":
+			_presenter.play_emerge(world_position)
+		&"awaken_sound":
+			AudioManager.play_sfx(&"ghost_awaken")
+		&"awaken":
+			var facing := Vector3.UP
+			var wipe_camera := _wipe_camera()
+			if wipe_camera != null:
+				facing = (wipe_camera.global_position - world_position).normalized()
+			_presenter.play_awaken(world_position, facing)
+			_ghost_wipe_call(&"play_ghost_flash", [dead_player_index, 0.45, _presenter.player_color()])
+			_ghost_wipe_call(&"add_ghost_shake", [dead_player_index, 0.45])
+		&"erupt":
+			if _shark != null and is_instance_valid(_shark):
+				var up := _shark.get_ghost_mount_world_basis().y.normalized()
+				_presenter.play_erupt(_shark.get_ghost_mount_world_position(), up)
+			_ghost_wipe_call(&"play_ghost_flash", [dead_player_index, 0.35, Color(1.0, 1.0, 1.0)])
+			_ghost_wipe_call(&"add_ghost_shake", [dead_player_index, 0.7])
+
+
+func _wipe_camera() -> Camera3D:
+	if get_parent() == null:
+		return null
+	return get_parent().get_node_or_null("DeathWipeLayer/DeathWipe/SubViewport/WipeCamera") as Camera3D
 
 
 func _begin_post_mount_beam_reveal() -> void:
 	if _shark == null or _rider == null or not is_instance_valid(_rider):
 		_cleanup_ghost_ride()
 		return
-	player_controller.apply_ghost_rider_mounted_pose(_rider)
 	if not _shark.start_ghost_reveal_beams():
 		return
 	_ghost_reveal_beams_started = true
@@ -1437,6 +1667,8 @@ func _cinematic_travel_ease(progress: float) -> float:
 
 
 func _set_rider_presentation_only(presentation_only: bool) -> void:
+	if _presenter != null:
+		_presenter.set_presentation_only(presentation_only)
 	if _rider == null or not is_instance_valid(_rider):
 		return
 	for node: Node in _rider.find_children("*", "GeometryInstance3D", true, false):
@@ -1456,14 +1688,29 @@ func _update_ghost_emote(emote_input: int, cancel: bool) -> void:
 	if emote_input > 0:
 		_ghost_emote_id = EmoteData.normalize_emote_id(emote_input)
 	if _ghost_emote_id <= 0:
-		player_controller.apply_ghost_rider_mount_hold_pose(_rider)
+		# 乗っている姿勢は _update_rider_ride_pose（演技の待機・構え・突進）が当てる。
 		return
+	# 上半身はエモート、腰と脚は _update_rider_ride_pose が鞍の姿勢へ戻す。
 	player_controller.apply_ghost_rider_emote_pose(
 		_rider,
 		dead_player_index,
 		_ghost_emote_id
 	)
-	player_controller.apply_ghost_rider_mounted_pose(_rider, 1.0, true)
+
+
+## 照準〜戻り（AIMING〜COOLDOWN）の乗り手の姿勢：待機（呼吸・見回し）、チャージ中と構えは身を沈め、
+## 突進は低く前へ。エモート中は腰と脚だけ鞍の姿勢に戻す（上半身はエモート）。
+func _update_rider_ride_pose(delta: float) -> void:
+	if _presenter == null or _rider == null or not is_instance_valid(_rider):
+		return
+	if phase not in [Phase.AIMING, Phase.WINDUP, Phase.CHARGING, Phase.COOLDOWN]:
+		return
+	var state := GhostRiderPresentation.RIDE_IDLE
+	if phase == Phase.WINDUP or (phase == Phase.AIMING and _charging_input):
+		state = GhostRiderPresentation.RIDE_WINDUP
+	elif phase == Phase.CHARGING:
+		state = GhostRiderPresentation.RIDE_DASH
+	_presenter.update_ride(delta, state, _ghost_emote_id > 0)
 
 
 func _clear_ghost_emote() -> void:
@@ -1476,14 +1723,23 @@ func _clear_ghost_emote() -> void:
 
 func _advance_heroic_sequence(delta: float) -> void:
 	_sequence_elapsed = minf(HEROIC_SEQUENCE_SECONDS, _sequence_elapsed + delta)
+	if phase != _heroic_phase_seen:
+		_heroic_phase_seen = phase
+		_heroic_phase_started = _heroic_clock
+	_heroic_clock += delta
 	if _rider != null and is_instance_valid(_rider):
-		var clip_length := player_controller.get_ghost_mount_animation_length()
-		var pose_time := (
-			_sequence_elapsed / HEROIC_SEQUENCE_SECONDS * clip_length
-			if clip_length > 0.0
-			else _sequence_elapsed
-		)
-		player_controller.sample_ghost_mount_pose(_rider, pose_time)
+		# 演技はフェーズごとに「区切りの時刻 + そのフェーズに入ってからの秒」で読む。
+		_presenter.apply_heroic(Phase.keys()[phase], _heroic_clock - _heroic_phase_started)
+
+
+## いまの演技の時刻（秒。GhostRiderPerformance の performance クリップ）。
+func _current_performance_time() -> float:
+	if phase != _heroic_phase_seen:
+		return GhostRiderPerformance.phase_start(Phase.keys()[phase])
+	return GhostRiderPerformance.performance_time(
+		Phase.keys()[phase],
+		_heroic_clock - _heroic_phase_started
+	)
 
 
 func _death_presentation_position(player_index: int) -> Vector3:
@@ -1600,12 +1856,20 @@ func _update_problem_wall_occlusion() -> void:
 	_shark.set_ghost_wall_occluded(is_occluded)
 
 
+## 遊んでいる画面のカメラ（カメラの台の Camera3D。台がない画面では view_camera）。
+func _main_camera() -> Camera3D:
+	if camera_controller != null:
+		return camera_controller.get_node_or_null("Camera3D") as Camera3D
+	if view_camera != null and is_instance_valid(view_camera):
+		return view_camera
+	return null
+
+
 func _occlusion_cameras() -> Array[Camera3D]:
 	var cameras: Array[Camera3D] = []
-	if camera_controller != null:
-		var main_camera := camera_controller.get_node_or_null("Camera3D") as Camera3D
-		if main_camera != null:
-			cameras.append(main_camera)
+	var main_camera := _main_camera()
+	if main_camera != null:
+		cameras.append(main_camera)
 	var world := get_parent()
 	if world != null:
 		var wipe_camera := world.get_node_or_null(
@@ -1653,14 +1917,11 @@ func _calculate_entry_position(hover_target: Vector3) -> Vector3:
 
 
 func _keep_inside_camera(desired: Vector3, survivor_focus: Vector3, outside_side: float) -> Vector3:
-	if camera_controller == null:
-		return desired
-	var camera := camera_controller.get_node_or_null("Camera3D") as Camera3D
-	if camera == null or camera.get_viewport() == null:
+	# 上がりきったあとに待つ場所も、遊んでいるときの画面でサメの全身が見えるところにする。
+	var camera := _make_gameplay_view_probe()
+	if camera == null:
 		return desired
 	var viewport_size := camera.get_viewport().get_visible_rect().size
-	if viewport_size.x <= 1.0 or viewport_size.y <= 1.0:
-		return desired
 	var margin := viewport_size * CAMERA_EDGE_MARGIN
 	var outside_x := outside_side * (
 		StageConstants.FLOOR_HALF_WIDTH + HOVER_OUTSIDE_STAGE_OFFSET
@@ -1679,6 +1940,7 @@ func _keep_inside_camera(desired: Vector3, survivor_focus: Vector3, outside_side
 		# narrows its projected horizontal offset without pulling it onto the stage.
 		desired.x = outside_x
 		desired.z = maxf(desired.z + 2.0, survivor_focus.z + 6.0)
+	camera.queue_free()
 	return desired
 
 
@@ -2254,6 +2516,9 @@ func _update_cooldown(delta: float) -> void:
 	):
 		_cleanup_return_portal()
 		_return_animation_locked = false
+		if _rider_portal_safe and _rider != null and is_instance_valid(_rider):
+			player_controller.set_ghost_rider_portal_safe(_rider, false)
+			_rider_portal_safe = false
 		if _result_departure_only:
 			_cleanup_ghost_ride()
 			return
@@ -2279,6 +2544,10 @@ func _begin_shark_portal_reentry() -> void:
 	if travel_forward.length_squared() <= 0.0001:
 		travel_forward = _return_portal_exit_direction
 	var shark_start := portal_center - travel_forward * RETURN_PORTAL_SHARK_START_DEPTH
+	# ポータルの開口に切り抜く Stencil は StandardMaterial3D の差し替えで行うので、通る間は乗り手も標準の材質にする。
+	if _rider != null and is_instance_valid(_rider) and not _rider_portal_safe:
+		player_controller.set_ghost_rider_portal_safe(_rider, true)
+		_rider_portal_safe = true
 	if _shark.has_method("restart_ghost_hover_through_portal"):
 		_shark.restart_ghost_hover_through_portal(
 			shark_start,
@@ -2332,13 +2601,12 @@ func _return_portal_exit_forward(hover_target: Vector3) -> Vector3:
 
 
 func _portal_toward_camera(world_position: Vector3) -> Vector3:
-	if camera_controller != null:
-		var camera := camera_controller.get_node_or_null("Camera3D") as Camera3D
-		if camera != null:
-			var direction := camera.global_position - world_position
-			direction.y = 0.0
-			if direction.length_squared() > 0.0001:
-				return direction.normalized()
+	var camera := _main_camera()
+	if camera != null:
+		var direction := camera.global_position - world_position
+		direction.y = 0.0
+		if direction.length_squared() > 0.0001:
+			return direction.normalized()
 	return Vector3.BACK
 
 
@@ -3172,10 +3440,16 @@ func _cleanup_ghost_ride() -> void:
 		if _shark.ghost_breached.is_connected(_on_shark_ghost_breached):
 			_shark.ghost_breached.disconnect(_on_shark_ghost_breached)
 		_shark.end_ghost_ride()
+	if _presenter != null:
+		_presenter.end()
 	if _rider != null and is_instance_valid(_rider):
 		_rider.queue_free()
 	_rider = null
 	_rider_revealed_to_main = false
+	_rider_portal_safe = false
+	_heroic_clock = 0.0
+	_heroic_phase_seen = -1
+	_heroic_phase_started = 0.0
 	_shark = null
 	phase = Phase.INACTIVE
 	dead_player_index = 0

@@ -9,21 +9,29 @@ enum Section {
 	EMOTE,
 }
 
+## チュートリアルの最後に見せるカスタマイズ紹介（画像3枚）。
+## body は見出しの下の1行、note は補足。focus は画像の中で枠で囲む場所（画像に対する割合）。
 const TUTORIAL_TOUR_STEPS := [
 	{
-		"title": "壁速度設定",
-		"body": "スライダーで壁と床の移動速度を調整できます。「自動モードに戻す」を選ぶと、問題の回答時間に応じた速度に切り替わります。",
+		"title": "壁の速さ",
+		"body": "壁が迫ってくる速さを、自分で決められます。",
+		"note": "「自動モードに戻す」で、問題ごとに合った速さに戻ります。",
 		"image": preload("res://assets/ui/tutorial/customize_wall_speed.png"),
+		"focus": Rect2(0.576, 0.366, 0.376, 0.296),
 	},
 	{
-		"title": "スキン設定",
-		"body": "プレイヤー1/2を切り替えて、それぞれの帽子を選べます。プロペラ帽はジャンプ後の落下がゆっくりになります。キャラクタープレビューは右ドラッグで回転、ホイールで拡大・縮小できます。",
+		"title": "帽子",
+		"body": "P1・P2それぞれの帽子を選べます。",
+		"note": "プロペラ帽はジャンプ後の落下がゆっくりに。プレビューは右ドラッグで回転できます。",
 		"image": preload("res://assets/ui/tutorial/customize_skin_hat.png"),
+		"focus": Rect2(0.58, 0.455, 0.37, 0.16),
 	},
 	{
-		"title": "エモート設定",
-		"body": "プレイヤーと割り当て先のスロットを選び、一覧からエモートを設定します。ゲーム中は下の数字キーで再生できます。1番のエモートは、2人対戦で勝ったときのダンスにもなります。",
+		"title": "エモート",
+		"body": "数字キーで踊るエモートを選べます。",
+		"note": "1番のエモートは、2人対戦で勝ったときのダンスにもなります。",
 		"image": preload("res://assets/ui/tutorial/customize_emote.png"),
+		"focus": Rect2(0.502, 0.32, 0.448, 0.122),
 	},
 ]
 
@@ -153,8 +161,10 @@ var _tutorial_tour_panel: PanelContainer
 var _tutorial_tour_progress: Label
 var _tutorial_tour_title: Label
 var _tutorial_tour_body: Label
-var _tutorial_tour_dots: Label
-var _tutorial_tour_key_legend: KeyHintRow
+var _tutorial_tour_note: Label
+var _tutorial_tour_dots: HBoxContainer
+var _tutorial_tour_key_legend: Control
+var _tutorial_tour_focus: Control
 var _tutorial_tour_image: TextureRect
 var _tutorial_tour_back_button: Button
 var _tutorial_tour_next_button: Button
@@ -513,6 +523,8 @@ func _build_ui() -> void:
 	_configure_emote_focus_navigation()
 
 
+## カスタマイズ紹介（V7）。大きな画像の該当箇所を枠で囲み、右に見出しと1行の説明を置く。
+## 形式（画像3枚・戻る／次へ）は以前のまま。色と文字はチュートリアル共通（TutorialUiStyle）。
 func _build_tutorial_tour_overlay() -> void:
 	_tutorial_tour_overlay = Control.new()
 	_tutorial_tour_overlay.name = "CustomizeTutorialOverlay"
@@ -524,7 +536,7 @@ func _build_tutorial_tour_overlay() -> void:
 
 	_tutorial_input_blocker = ColorRect.new()
 	_tutorial_input_blocker.name = "InputShield"
-	_tutorial_input_blocker.color = Color(0.005, 0.015, 0.04, 0.94)
+	_tutorial_input_blocker.color = Color(TutorialUiStyle.NAVY, 0.96)
 	_tutorial_input_blocker.mouse_filter = Control.MOUSE_FILTER_STOP
 	_tutorial_tour_overlay.add_child(_tutorial_input_blocker)
 	_tutorial_input_blocker.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -532,46 +544,34 @@ func _build_tutorial_tour_overlay() -> void:
 	_tutorial_tour_panel = PanelContainer.new()
 	_tutorial_tour_panel.name = "CustomizeTutorialGuide"
 	_tutorial_tour_panel.set_anchors_preset(Control.PRESET_CENTER)
-	_tutorial_tour_panel.offset_left = -590.0
-	_tutorial_tour_panel.offset_top = -330.0
-	_tutorial_tour_panel.offset_right = 590.0
-	_tutorial_tour_panel.offset_bottom = 330.0
+	_tutorial_tour_panel.offset_left = -606.0
+	_tutorial_tour_panel.offset_top = -266.0
+	_tutorial_tour_panel.offset_right = 606.0
+	_tutorial_tour_panel.offset_bottom = 266.0
 	_tutorial_tour_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	_tutorial_tour_panel.z_index = 200
-	var guide_style := StyleBoxFlat.new()
-	guide_style.bg_color = Color(0.025, 0.055, 0.11, 0.995)
-	guide_style.border_color = Color(1.0, 0.80, 0.25, 0.96)
-	guide_style.set_border_width_all(2)
-	guide_style.set_corner_radius_all(18)
+	var guide_style := TutorialUiStyle.box(
+		TutorialUiStyle.PANEL_SOLID, Color(TutorialUiStyle.ACCENT, 0.85), 2, 24, 22.0, 22.0
+	)
 	guide_style.shadow_color = Color(0.0, 0.0, 0.0, 0.42)
-	guide_style.shadow_size = 14
-	guide_style.content_margin_left = 22.0
-	guide_style.content_margin_right = 22.0
-	guide_style.content_margin_top = 20.0
-	guide_style.content_margin_bottom = 20.0
+	guide_style.shadow_size = 16
 	_tutorial_tour_panel.add_theme_stylebox_override("panel", guide_style)
 	_tutorial_tour_overlay.add_child(_tutorial_tour_panel)
 
 	var content_row := HBoxContainer.new()
 	content_row.name = "Content"
-	content_row.add_theme_constant_override("separation", 22)
+	content_row.add_theme_constant_override("separation", 26)
 	_tutorial_tour_panel.add_child(content_row)
 
 	var image_frame := PanelContainer.new()
 	image_frame.name = "ImageFrame"
-	image_frame.custom_minimum_size = Vector2(800.0, 450.0)
+	image_frame.custom_minimum_size = Vector2(848.0, 477.0)
 	image_frame.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	image_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var image_style := StyleBoxFlat.new()
-	image_style.bg_color = Color(0.008, 0.018, 0.038, 1.0)
-	image_style.border_color = Color(0.24, 0.48, 0.78, 0.86)
-	image_style.set_border_width_all(2)
-	image_style.set_corner_radius_all(12)
-	image_style.content_margin_left = 4.0
-	image_style.content_margin_right = 4.0
-	image_style.content_margin_top = 4.0
-	image_style.content_margin_bottom = 4.0
-	image_frame.add_theme_stylebox_override("panel", image_style)
+	image_frame.clip_contents = true
+	image_frame.add_theme_stylebox_override(
+		"panel", TutorialUiStyle.box(Color(0.008, 0.018, 0.038, 1.0), Color(0.17, 0.25, 0.4), 2, 14, 3.0, 3.0)
+	)
 	content_row.add_child(image_frame)
 
 	_tutorial_tour_image = TextureRect.new()
@@ -582,41 +582,38 @@ func _build_tutorial_tour_overlay() -> void:
 	_tutorial_tour_image.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	image_frame.add_child(_tutorial_tour_image)
 
+	# 画像の該当箇所を枠で囲み、枠の外を少し暗くする。
+	_tutorial_tour_focus = Control.new()
+	_tutorial_tour_focus.name = "FocusRing"
+	_tutorial_tour_focus.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_tutorial_tour_focus.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_tutorial_tour_focus.draw.connect(_draw_tutorial_tour_focus)
+	_tutorial_tour_image.add_child(_tutorial_tour_focus)
+
 	var guide_box := VBoxContainer.new()
 	guide_box.name = "Guide"
-	guide_box.custom_minimum_size = Vector2(310.0, 0.0)
+	guide_box.custom_minimum_size = Vector2(290.0, 0.0)
 	guide_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	guide_box.add_theme_constant_override("separation", 10)
+	guide_box.add_theme_constant_override("separation", 12)
 	content_row.add_child(guide_box)
 
-	_tutorial_tour_progress = Label.new()
-	_tutorial_tour_progress.add_theme_font_size_override("font_size", 14)
-	_tutorial_tour_progress.add_theme_color_override("font_color", Color(0.62, 0.72, 0.90))
-	_tutorial_tour_progress.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_tutorial_tour_progress = TutorialUiStyle.make_label("", 14, TutorialUiStyle.MUTED)
 	guide_box.add_child(_tutorial_tour_progress)
-
-	_tutorial_tour_title = Label.new()
-	_tutorial_tour_title.add_theme_font_size_override("font_size", 30)
-	_tutorial_tour_title.add_theme_color_override("font_color", Color(1.0, 0.84, 0.28))
-	_tutorial_tour_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_tutorial_tour_title = TutorialUiStyle.make_label("", 38, TutorialUiStyle.ACCENT)
 	guide_box.add_child(_tutorial_tour_title)
-
-	var separator := HSeparator.new()
-	separator.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	guide_box.add_child(separator)
-
-	_tutorial_tour_body = Label.new()
+	_tutorial_tour_body = TutorialUiStyle.make_label("", 19, Color.WHITE)
 	_tutorial_tour_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_tutorial_tour_body.add_theme_font_size_override("font_size", 18)
-	_tutorial_tour_body.add_theme_constant_override("line_spacing", 8)
-	_tutorial_tour_body.add_theme_color_override("font_color", Color(0.90, 0.93, 1.0))
-	_tutorial_tour_body.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_tutorial_tour_body.add_theme_constant_override("line_spacing", 6)
 	guide_box.add_child(_tutorial_tour_body)
+	_tutorial_tour_note = TutorialUiStyle.make_label("", 14, TutorialUiStyle.MUTED, TutorialUiStyle.FONT_MEDIUM)
+	_tutorial_tour_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_tutorial_tour_note.add_theme_constant_override("line_spacing", 4)
+	guide_box.add_child(_tutorial_tour_note)
 
-	_tutorial_tour_key_legend = KeyHintRow.new()
+	_tutorial_tour_key_legend = HBoxContainer.new()
 	_tutorial_tour_key_legend.name = "EmoteKeyLegend"
-	_tutorial_tour_key_legend.alignment = BoxContainer.ALIGNMENT_CENTER
-	_tutorial_tour_key_legend.add_theme_constant_override("separation", 6)
+	_tutorial_tour_key_legend.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_tutorial_tour_key_legend.add_theme_constant_override("separation", 14)
 	_tutorial_tour_key_legend.visible = false
 	guide_box.add_child(_tutorial_tour_key_legend)
 
@@ -625,42 +622,107 @@ func _build_tutorial_tour_overlay() -> void:
 	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	guide_box.add_child(spacer)
 
-	_tutorial_tour_dots = Label.new()
-	_tutorial_tour_dots.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_tutorial_tour_dots.add_theme_font_size_override("font_size", 16)
-	_tutorial_tour_dots.add_theme_color_override("font_color", Color(0.48, 0.70, 1.0))
+	_tutorial_tour_dots = HBoxContainer.new()
+	_tutorial_tour_dots.name = "PageDots"
 	_tutorial_tour_dots.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_tutorial_tour_dots.add_theme_constant_override("separation", 8)
 	guide_box.add_child(_tutorial_tour_dots)
+	for page_index: int in range(TUTORIAL_TOUR_STEPS.size()):
+		var dot := Panel.new()
+		dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		dot.custom_minimum_size = Vector2(28.0, 6.0)
+		_tutorial_tour_dots.add_child(dot)
 
-	var input_hint := KeyHintRow.new()
+	var input_hint := HBoxContainer.new()
 	input_hint.name = "TourInputHint"
-	input_hint.add_theme_constant_override("separation", 5)
-	input_hint.add_spec("← / →", KeycapChip.DEFAULT_ACCENT, KeycapChip.SizeClass.TINY)
-	input_hint.add_text("または", Color(0.58, 0.68, 0.84), 12)
-	input_hint.add_spec("Enter", KeycapChip.DEFAULT_ACCENT, KeycapChip.SizeClass.TINY)
-	input_hint.add_spec("Space", KeycapChip.DEFAULT_ACCENT, KeycapChip.SizeClass.TINY)
-	input_hint.add_spec("Esc", KeycapChip.DEFAULT_ACCENT, KeycapChip.SizeClass.TINY)
-	input_hint.add_text("中断", Color(0.58, 0.68, 0.84), 12)
+	input_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	input_hint.add_theme_constant_override("separation", 6)
 	guide_box.add_child(input_hint)
+	for key_text: String in ["←", "→"]:
+		var arrow := TutorialKeyChip.new()
+		arrow.setup(key_text, TutorialKeyChip.Look.IDLE, TutorialUiStyle.ACCENT, 22.0)
+		input_hint.add_child(arrow)
+	var page_label := TutorialUiStyle.make_label("ページ", 12, TutorialUiStyle.MUTED, TutorialUiStyle.FONT_MEDIUM)
+	page_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	input_hint.add_child(page_label)
+	var esc_chip := TutorialKeyChip.new()
+	esc_chip.setup("Esc", TutorialKeyChip.Look.IDLE, TutorialUiStyle.ACCENT, 22.0)
+	input_hint.add_child(esc_chip)
+	var abort_label := TutorialUiStyle.make_label("中断", 12, TutorialUiStyle.MUTED, TutorialUiStyle.FONT_MEDIUM)
+	abort_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	input_hint.add_child(abort_label)
 
 	var button_row := HBoxContainer.new()
-	button_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	button_row.add_theme_constant_override("separation", 10)
 	guide_box.add_child(button_row)
 
-	_tutorial_tour_back_button = Button.new()
+	_tutorial_tour_back_button = _tutorial_tour_button("← 戻る", false)
 	_tutorial_tour_back_button.name = "PreviousPage"
-	_tutorial_tour_back_button.text = "← 戻る"
-	_tutorial_tour_back_button.custom_minimum_size = Vector2(140.0, 48.0)
 	_tutorial_tour_back_button.pressed.connect(_show_previous_tutorial_tour_page)
 	button_row.add_child(_tutorial_tour_back_button)
 
-	_tutorial_tour_next_button = Button.new()
+	_tutorial_tour_next_button = _tutorial_tour_button("次へ →", true)
 	_tutorial_tour_next_button.name = "NextPage"
-	_tutorial_tour_next_button.text = "次へ →"
-	_tutorial_tour_next_button.custom_minimum_size = Vector2(160.0, 48.0)
 	_tutorial_tour_next_button.pressed.connect(_show_next_tutorial_tour_page)
 	button_row.add_child(_tutorial_tour_next_button)
+
+
+func _tutorial_tour_button(text: String, primary: bool) -> Button:
+	var button := Button.new()
+	button.text = text
+	# メニュー側のボタン一括スタイル（main_menu.gd）に上書きされないようにする印。
+	button.set_meta(&"tutorial_own_style", true)
+	button.custom_minimum_size = Vector2(0.0, 50.0)
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.add_theme_font_override("font", TutorialUiStyle.FONT_BOLD)
+	button.add_theme_font_size_override("font_size", 17)
+	for state: String in ["normal", "hover", "pressed", "disabled"]:
+		var bg := TutorialUiStyle.ACCENT if primary else Color(1.0, 1.0, 1.0, 0.07)
+		if state == "hover":
+			bg = bg.lightened(0.12) if primary else Color(1.0, 1.0, 1.0, 0.12)
+		elif state == "pressed":
+			bg = bg.darkened(0.12)
+		elif state == "disabled":
+			bg = Color(1.0, 1.0, 1.0, 0.03)
+		button.add_theme_stylebox_override(state, TutorialUiStyle.box(bg, Color.TRANSPARENT, 0, 12, 12.0, 6.0))
+	var focus := TutorialUiStyle.box(Color.TRANSPARENT, Color.WHITE, 3, 14)
+	focus.expand_margin_left = 3
+	focus.expand_margin_top = 3
+	focus.expand_margin_right = 3
+	focus.expand_margin_bottom = 3
+	button.add_theme_stylebox_override("focus", focus)
+	var ink := Color("2a1d00") if primary else TutorialUiStyle.TEXT
+	for state: String in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
+		button.add_theme_color_override(state, ink)
+	button.add_theme_color_override("font_disabled_color", Color(TutorialUiStyle.MUTED, 0.45))
+	return button
+
+
+func _draw_tutorial_tour_focus() -> void:
+	if _tutorial_tour_focus == null or not _tutorial_tour_active:
+		return
+	var page: Dictionary = TUTORIAL_TOUR_STEPS[_tutorial_tour_index]
+	var focus: Rect2 = page.get("focus", Rect2())
+	if focus.size == Vector2.ZERO:
+		return
+	var area := _tutorial_tour_focus.size
+	var ring := Rect2(focus.position * area, focus.size * area)
+	var shade := Color(0.02, 0.04, 0.08, 0.45)
+	_tutorial_tour_focus.draw_rect(Rect2(0.0, 0.0, area.x, ring.position.y), shade)
+	_tutorial_tour_focus.draw_rect(Rect2(0.0, ring.end.y, area.x, area.y - ring.end.y), shade)
+	_tutorial_tour_focus.draw_rect(Rect2(0.0, ring.position.y, ring.position.x, ring.size.y), shade)
+	_tutorial_tour_focus.draw_rect(Rect2(ring.end.x, ring.position.y, area.x - ring.end.x, ring.size.y), shade)
+	var border := TutorialUiStyle.box(Color.TRANSPARENT, TutorialUiStyle.ACCENT, 4, 14)
+	border.draw_center = false
+	_tutorial_tour_focus.draw_style_box(border, ring.grow(4.0))
+	var badge := ring.position + Vector2(-2.0, -2.0)
+	_tutorial_tour_focus.draw_circle(badge, 17.0, TutorialUiStyle.ACCENT)
+	var font := TutorialUiStyle.FONT_BOLD
+	var number := str(_tutorial_tour_index + 1)
+	var text_size := font.get_string_size(number, HORIZONTAL_ALIGNMENT_LEFT, -1, 18)
+	_tutorial_tour_focus.draw_string(
+		font, badge + Vector2(-text_size.x * 0.5, 6.5), number, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color("2a1d00")
+	)
 
 
 func _make_section_button(label: String, parent: Node, section: Section) -> Button:
@@ -1085,19 +1147,25 @@ func _set_tutorial_tour_page(step_index: int) -> void:
 		return
 	_tutorial_tour_index = clampi(step_index, 0, TUTORIAL_TOUR_STEPS.size() - 1)
 	var page: Dictionary = TUTORIAL_TOUR_STEPS[_tutorial_tour_index]
-	_tutorial_tour_progress.text = "カスタマイズ紹介  %d / %d" % [
+	_tutorial_tour_progress.text = "カスタマイズ  %d / %d" % [
 		_tutorial_tour_index + 1,
 		TUTORIAL_TOUR_STEPS.size(),
 	]
 	_tutorial_tour_title.text = str(page.get("title", "カスタマイズ"))
 	_tutorial_tour_body.text = str(page.get("body", ""))
+	_tutorial_tour_note.text = str(page.get("note", ""))
+	_tutorial_tour_note.visible = not _tutorial_tour_note.text.is_empty()
 	_tutorial_tour_image.texture = page.get("image") as Texture2D
+	_tutorial_tour_focus.queue_redraw()
 	_refresh_tutorial_tour_key_legend()
 
-	var dots := PackedStringArray()
-	for page_index: int in range(TUTORIAL_TOUR_STEPS.size()):
-		dots.append("●" if page_index == _tutorial_tour_index else "○")
-	_tutorial_tour_dots.text = "  ".join(dots)
+	var page_index := 0
+	for dot: Node in _tutorial_tour_dots.get_children():
+		(dot as Panel).add_theme_stylebox_override("panel", TutorialUiStyle.box(
+			TutorialUiStyle.ACCENT if page_index == _tutorial_tour_index else Color(1.0, 1.0, 1.0, 0.18),
+			Color.TRANSPARENT, 0, 3
+		))
+		page_index += 1
 
 	_tutorial_tour_back_button.disabled = _tutorial_tour_index == 0
 	_tutorial_tour_next_button.text = (
@@ -1108,19 +1176,27 @@ func _set_tutorial_tour_page(step_index: int) -> void:
 	_tutorial_tour_next_button.call_deferred("grab_focus")
 
 
+## エモートのページでは、踊るキーを実際の配列どおりに並べて見せる。
 func _refresh_tutorial_tour_key_legend() -> void:
 	if _tutorial_tour_key_legend == null:
 		return
 	var show_emote_keys := _tutorial_tour_index == 2
 	_tutorial_tour_key_legend.visible = show_emote_keys
-	if not show_emote_keys:
+	if not show_emote_keys or _tutorial_tour_key_legend.get_child_count() > 0:
 		return
-	_tutorial_tour_key_legend.reset()
-	_tutorial_tour_key_legend.add_player_tag("P1", PlayerController.P1_BODY, 13)
-	_tutorial_tour_key_legend.add_spec("1 / 2 / 3", PlayerController.P1_BODY, KeycapChip.SizeClass.SMALL)
-	_tutorial_tour_key_legend.add_text("  ", Color.WHITE, 12)
-	_tutorial_tour_key_legend.add_player_tag("P2", PlayerController.P2_BODY, 13)
-	_tutorial_tour_key_legend.add_spec("8 / 9 / 0", PlayerController.P2_BODY, KeycapChip.SizeClass.SMALL)
+	for player: int in [1, 2]:
+		var group := HBoxContainer.new()
+		group.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		group.add_theme_constant_override("separation", 6)
+		_tutorial_tour_key_legend.add_child(group)
+		var tag := TutorialUiStyle.make_label("P%d" % player, 15, TutorialUiStyle.player_color(player))
+		tag.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		group.add_child(tag)
+		var digits: Array = ["1", "2", "3"] if player == 1 else ["8", "9", "0"]
+		var row: Array = []
+		for digit: String in digits:
+			row.append({"text": digit})
+		group.add_child(TutorialUiStyle.key_cluster([row], TutorialUiStyle.player_color(player), 26.0))
 
 
 func _show_previous_tutorial_tour_page() -> void:
@@ -2831,6 +2907,9 @@ func _style_all_buttons() -> void:
 	hover_style.bg_color = Color(0.18, 0.20, 0.28, 0.9)
 	hover_style.border_color = Color(0.4, 0.5, 0.7, 0.9)
 	for btn: Button in _get_all_buttons(self):
+		# カスタマイズ紹介のボタンはチュートリアル共通の見た目を自分で持つ。
+		if _tutorial_tour_overlay and _tutorial_tour_overlay.is_ancestor_of(btn):
+			continue
 		if _emote_grid and btn.get_parent() == _emote_grid:
 			continue
 		if btn == _skin_player_btn_p1 or btn == _skin_player_btn_p2:

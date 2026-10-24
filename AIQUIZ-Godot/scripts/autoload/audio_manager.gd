@@ -3,19 +3,26 @@ extends Node
 signal sfx_played(cue: StringName)
 
 ## BGM tracks (docs/bgm_renewal.md). play starts from its head when the start barrier breaks,
-## result plays on the clear screen and the 2P score tower, menu everywhere else. play and
-## result have an intro: after the first pass they loop back to loop_offset (set in the .import).
+## result plays on the clear screen and the 2P score tower, menu everywhere else. Every loop but
+## menu has an intro: after the first pass it loops back to loop_offset (set in the .import).
 const MUSIC_TRACK_NONE: StringName = &""
 const MUSIC_TRACK_MENU: StringName = &"menu"
 const MUSIC_TRACK_PLAY: StringName = &"play"
 const MUSIC_TRACK_RESULT: StringName = &"result"
 ## Online match: while the matching search waits (docs/online_match_staging/spec.md 13).
 const MUSIC_TRACK_MATCH: StringName = &"match"
+## 2P sudden death (docs/sudden_death_v2/): the showdown from the "SUDDEN DEATH!" cut-in through the
+## boarding, the cruise and the drop to the rule card, then the sky-gate main event from its first "GO!".
+## The winner's landing hands over to the result loop, which carries on into the replayed verdict.
+const MUSIC_TRACK_SUDDEN_DEATH_INTRO: StringName = &"sudden_death_intro"
+const MUSIC_TRACK_SUDDEN_DEATH_MAIN: StringName = &"sudden_death_main"
 const MUSIC_TRACKS := {
 	MUSIC_TRACK_MENU: "res://assets/audio/bgm/quiz_party_loop.ogg",
 	MUSIC_TRACK_PLAY: "res://assets/audio/bgm/quiz_play_loop.ogg",
 	MUSIC_TRACK_RESULT: "res://assets/audio/bgm/quiz_result_loop.ogg",
 	MUSIC_TRACK_MATCH: "res://assets/audio/bgm/quiz_match_loop.ogg",
+	MUSIC_TRACK_SUDDEN_DEATH_INTRO: "res://assets/audio/bgm/quiz_sd_intro_loop.ogg",
+	MUSIC_TRACK_SUDDEN_DEATH_MAIN: "res://assets/audio/bgm/quiz_sd_skydive_loop.ogg",
 }
 const MUSIC_TRACK_FADE_SECONDS := 0.35
 ## Every loop is mastered to -16 LUFS, but CONTEXT_VOLUME_DB was tuned against the
@@ -34,7 +41,8 @@ const MUSIC_CONTEXT_MENU: StringName = &"menu"
 const MUSIC_CONTEXT_GAMEPLAY: StringName = &"gameplay"
 const MUSIC_CONTEXT_PAUSED: StringName = &"paused"
 const MUSIC_CONTEXT_RESULT: StringName = &"result"
-## 2P sudden death (docs/sudden_death_underground.md 9): BGM 10 dB under gameplay.
+## 2P sudden death (docs/sudden_death_v2/), from the "SUDDEN DEATH!" cut-in: its own music sits 2 dB under
+## gameplay so the floatplane, the wind and the gates stay on top (the menu loop used to play 6 dB lower).
 const MUSIC_CONTEXT_SUDDEN_DEATH: StringName = &"sudden_death"
 ## Online match: from boarding the helicopter until the blackout after the dash, the BGM keeps
 ## playing but sits 12 dB under the menu level so the helicopter effects lead.
@@ -47,7 +55,7 @@ const CONTEXT_VOLUME_DB := {
 	MUSIC_CONTEXT_GAMEPLAY: -4.0,
 	MUSIC_CONTEXT_PAUSED: -10.0,
 	MUSIC_CONTEXT_RESULT: -4.0,
-	MUSIC_CONTEXT_SUDDEN_DEATH: -10.0,
+	MUSIC_CONTEXT_SUDDEN_DEATH: -6.0,
 	MUSIC_CONTEXT_ONLINE_STAGING: -16.0,
 }
 
@@ -76,6 +84,10 @@ const SFX_CUES := {
 	# Quiz judgement at each player's door: correct (ding-dong) and wrong (buzzer).
 	&"door_correct": {"files": ["game/door_correct.ogg"], "volume_db": -6.0, "pitch_jitter": 0.0, "min_interval": 0.15},
 	&"door_wrong": {"files": ["game/door_wrong.ogg"], "volume_db": -6.0, "pitch_jitter": 0.0, "min_interval": 0.3},
+	# The PV's first question being written by "AI" (docs/ai_question_typing.md; not used in gameplay): a soft
+	# tick per token and a short two-note shimmer when the question and choices are complete (tools/audio/make_ai_typing_sfx.py).
+	&"ai_type_tick": {"files": ["game/ai_type_tick.ogg"], "volume_db": -12.0, "pitch_jitter": 0.08, "min_interval": 0.03},
+	&"ai_type_done": {"files": ["game/ai_type_done.ogg"], "volume_db": -10.0, "pitch_jitter": 0.0, "min_interval": 0.5},
 	# 2P push duel (a push lands or both clash) and a player landing from a jump.
 	&"push_kick": {"files": ["se_lab/push_kick.ogg"], "volume_db": -13.0, "pitch_jitter": 0.05, "min_interval": 0.08},
 	&"jump_land": {"files": ["se_lab/jump_land.ogg"], "volume_db": -5.0, "pitch_jitter": 0.06, "min_interval": 0.05},
@@ -112,7 +124,68 @@ const SFX_CUES := {
 	&"ghost_vanish": {"files": ["ghost_shark/ghost_vanish.ogg"], "volume_db": -11.0, "pitch_jitter": 0.03, "min_interval": 0.3},
 	&"ghost_portal_open": {"files": ["ghost_shark/ghost_portal_open.ogg"], "volume_db": -9.0, "pitch_jitter": 0.0, "min_interval": 0.5},
 	&"ghost_portal_cross": {"files": ["ghost_shark/ghost_portal_cross.ogg"], "volume_db": -8.0, "pitch_jitter": 0.03, "min_interval": 0.3},
+	# GOSTRIDER の搭乗：魂が両腕を広げて目覚める（吸い込みの 0.16 秒あとに和音）、鞍へ落ちて乗り移る。
+	&"ghost_awaken": {"files": ["ghost_shark/ghost_awaken.ogg"], "volume_db": -9.0, "pitch_jitter": 0.0, "min_interval": 0.5},
+	&"ghost_mount_land": {"files": ["ghost_shark/ghost_mount_land.ogg"], "volume_db": -6.0, "pitch_jitter": 0.02, "min_interval": 0.5},
+	# サドンデスへ行くときの幽霊の復活（docs/sudden_death_v2/ghost_revive.md）：部位を引き寄せる風（弾ける瞬間に吸い込みが
+	# 止まる）、部位が 1 つはまる音（GhostRevival が長音階で音程を上げていく）、弾ける光と 0.46 秒後の着地。
+	&"ghost_revive_gather": {"files": ["ghost_shark/ghost_revive_gather.ogg"], "volume_db": -8.0, "pitch_jitter": 0.0, "min_interval": 0.1},
+	&"ghost_revive_snap": {"files": ["ghost_shark/ghost_revive_snap.ogg"], "volume_db": -9.0, "pitch_jitter": 0.0, "min_interval": 0.0},
+	&"ghost_revive_burst": {"files": ["ghost_shark/ghost_revive_burst.ogg"], "volume_db": -5.0, "pitch_jitter": 0.0, "min_interval": 0.1},
+	# サドンデス「つきやぶれ！スカイゲート」（docs/sound_effects.md「サドンデス」）。効果音ラボの素材を
+	# tools/audio/make_sudden_death_sfx.py で切り出した se_lab/ の音（git に入れない。ファイルがなければ鳴らない）。
+	# 分岐：審判の笛（8.4 秒）、「SUDDEN DEATH!」の警報（8.6 秒）、タワーが沈む・伸び直す／昇降台のモーター。
+	&"sd_whistle": {"files": ["se_lab/sd_whistle.ogg"], "volume_db": -7.0, "pitch_jitter": 0.0, "min_interval": 0.5},
+	&"sd_siren": {"files": ["se_lab/sd_siren.ogg"], "volume_db": -2.0, "pitch_jitter": 0.0, "min_interval": 1.0},
+	&"sd_tower_move": {"files": ["se_lab/sd_tower_move.ogg"], "volume_db": -7.0, "pitch_jitter": 0.0, "min_interval": 0.3},
+	# 水上機の乗り込み：台座の横のスタンドが塔で上がる・下りる、ハッチのサーボ、油圧のスロープとロック、ベルト。
+	&"sd_stand_lift": {"files": ["se_lab/sd_stand_lift.ogg"], "volume_db": -3.0, "pitch_jitter": 0.0, "min_interval": 1.0},
+	&"sd_stand_lower": {"files": ["se_lab/sd_stand_lower.ogg"], "volume_db": -5.0, "pitch_jitter": 0.0, "min_interval": 0.5},
+	&"sd_servo": {"files": ["se_lab/sd_servo.ogg"], "volume_db": -5.0, "pitch_jitter": 0.02, "min_interval": 0.2},
+	&"fp_ramp": {"files": ["se_lab/fp_ramp.ogg"], "volume_db": -7.0, "pitch_jitter": 0.0, "min_interval": 0.2},
+	&"fp_ramp_latch": {"files": ["se_lab/fp_ramp_latch.ogg"], "volume_db": -9.0, "pitch_jitter": 0.02, "min_interval": 0.3},
+	&"fp_belt": {"files": ["helicopter/belt_click.ogg"], "volume_db": -1.0, "pitch_jitter": 0.04, "min_interval": 0.0},
+	# 水上機：真上を低く通る（通過の録音。いちばん大きい所が頭から 1.2 秒）、着水のしぶき、降下灯が緑になる合図（スタートの壁が
+	# 割れる「ぷーん」と同じ音。前のブザーは不正解のブーとまぎらわしかった）、
+	# 開いたスロープから吹き込む風、スロープから飛び出す、雲の覆い（雲を抜ける風）。エンジンは FloatplaneSound。
+	&"fp_flyby": {"files": ["se_lab/fp_flyby.ogg"], "volume_db": -1.0, "pitch_jitter": 0.0, "min_interval": 1.0},
+	&"fp_touchdown": {"files": ["se_lab/fp_touchdown.ogg"], "volume_db": -2.0, "pitch_jitter": 0.03, "min_interval": 0.5},
+	&"fp_green_light": {"files": ["game/countdown_go.ogg"], "volume_db": -13.0, "pitch_jitter": 0.0, "min_interval": 0.5},
+	&"fp_ramp_wind": {"files": ["se_lab/fp_ramp_wind.ogg"], "volume_db": -6.0, "pitch_jitter": 0.0, "min_interval": 1.0},
+	&"fp_jump": {"files": ["se_lab/fp_jump.ogg"], "volume_db": -6.0, "pitch_jitter": 0.04, "min_interval": 0.0},
+	&"sd_cloud_whoosh": {"files": ["se_lab/sd_cloud_whoosh.ogg"], "volume_db": -1.0, "pitch_jitter": 0.03, "min_interval": 0.4},
+	# 本戦：ボードの高さを通る、正解の紙をつき破る（2 通り）、まちがいの紙にはね返される、判定のセーフ、2 人ともアウトからの復活、
+	# ROUND 2 からの開始のゴング、2 人とも地上へのファンファーレ、延長戦、ボードの知らせ、パラシュートが開く、着地台のしぶき、勝者の着地。
+	&"sg_gate_rush": {"files": ["se_lab/sg_gate_rush.ogg"], "volume_db": -3.0, "pitch_jitter": 0.03, "min_interval": 0.3},
+	&"sg_tear": {"files": ["se_lab/sg_tear_a.ogg", "se_lab/sg_tear_b.ogg"], "volume_db": -1.0, "pitch_jitter": 0.06, "min_interval": 0.0},
+	&"sg_bounce": {"files": ["se_lab/sg_bounce.ogg"], "volume_db": -4.0, "pitch_jitter": 0.03, "min_interval": 0.0},
+	&"sg_safe": {"files": ["se_lab/sg_safe.ogg"], "volume_db": -5.0, "pitch_jitter": 0.0, "min_interval": 0.3},
+	&"sg_revive": {"files": ["se_lab/sg_revive.ogg"], "volume_db": -5.0, "pitch_jitter": 0.0, "min_interval": 0.5},
+	&"sg_round_gong": {"files": ["se_lab/sg_round_gong.ogg"], "volume_db": -1.0, "pitch_jitter": 0.0, "min_interval": 1.0},
+	&"sg_round_clear": {"files": ["se_lab/sg_round_clear.ogg"], "volume_db": -2.0, "pitch_jitter": 0.0, "min_interval": 1.0},
+	&"sg_overtime": {"files": ["se_lab/sg_overtime.ogg"], "volume_db": -1.0, "pitch_jitter": 0.0, "min_interval": 1.0},
+	&"sg_notice": {"files": ["se_lab/sg_notice.ogg"], "volume_db": -4.0, "pitch_jitter": 0.0, "min_interval": 0.5},
+	&"sg_chute_open": {"files": ["se_lab/sg_chute_open.ogg"], "volume_db": -1.0, "pitch_jitter": 0.03, "min_interval": 0.0},
+	&"sg_float_splash": {"files": ["se_lab/sg_float_splash.ogg"], "volume_db": -7.0, "pitch_jitter": 0.05, "min_interval": 0.05},
+	&"sg_winner": {"files": ["se_lab/sg_winner.ogg"], "volume_db": -3.0, "pitch_jitter": 0.0, "min_interval": 1.0},
+	# 着地台のまわりの観客船（sky_gate.md 第9章）：クラッカー、打ち上げ花火の上がる音とはじける音。専用の音はまだないので、
+	# 手持ちの効果音ラボの音で代用している（クラッカー＝爆発の音を高く短く鳴らす・上がる音＝高速移動の風切り・はじける音＝爆発の音）。
+	# 専用の音に替えるときはファイルだけ替える（鳴らす所と音程は SkyGateFireworks）。
+	&"sg_popper": {"files": ["se_lab/barrier_explosion.ogg"], "volume_db": -17.0, "pitch_jitter": 0.06, "min_interval": 0.12},
+	&"sg_firework_launch": {"files": ["se_lab/sg_gate_rush.ogg"], "volume_db": -15.0, "pitch_jitter": 0.05, "min_interval": 0.25},
+	&"sg_firework_burst": {"files": ["se_lab/barrier_explosion.ogg"], "volume_db": -8.0, "pitch_jitter": 0.05, "min_interval": 0.12},
 }
+## サドンデスで鳴らす単発の音（監督が試合の頭に preload_sfx で読んでおく）。
+const SUDDEN_DEATH_SFX_CUES: Array[StringName] = [
+	&"sd_whistle", &"sd_siren", &"sd_tower_move", &"sd_stand_lift", &"sd_stand_lower", &"sd_servo", &"fp_ramp",
+	&"fp_ramp_latch", &"fp_belt", &"fp_flyby", &"fp_touchdown", &"fp_green_light", &"fp_ramp_wind", &"fp_jump", &"sd_cloud_whoosh",
+	&"sg_gate_rush", &"sg_tear", &"sg_bounce", &"sg_safe", &"sg_revive", &"sg_round_gong", &"sg_round_clear", &"sg_overtime",
+	&"sg_notice", &"sg_chute_open", &"sg_float_splash", &"sg_winner", &"sg_popper", &"sg_firework_launch", &"sg_firework_burst",
+	&"crowd_win_cheer", &"crowd_goal_cheer",
+	&"score_drum_roll", &"score_drum_finish", &"door_correct", &"door_wrong", &"countdown_beep", &"countdown_go",
+	&"barrier_explosion", &"body_burst", &"ghost_soul_rise", &"wall_crash", &"jump_land",
+	&"ghost_awaken", &"ghost_revive_gather", &"ghost_revive_snap", &"ghost_revive_burst",
+]
 ## Spectator beds on the SFX bus (set_crowd_ambience): the stadium murmur before the start,
 ## the cheering while a race runs. Switching crossfades; a missing file stays silent.
 const CROWD_NONE: StringName = &""

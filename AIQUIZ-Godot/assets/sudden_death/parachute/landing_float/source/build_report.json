@@ -1,0 +1,78 @@
+{
+  "triangles": 75022,
+  "objects": {
+    "Tube": 19200,
+    "Pad": 13440,
+    "Rubber": 8416,
+    "SeamTape": 3456,
+    "Metal": 12896,
+    "Rope": 10778,
+    "Plastic": 768,
+    "Webbing": 768,
+    "Lamps": 448,
+    "CameraBody": 1160,
+    "LensGlass": 92,
+    "Tally": 80,
+    "Piping": 2560,
+    "Pole": 480,
+    "Accent": 480
+  },
+  "materials": [
+    "LF_Accent",
+    "LF_CameraBody",
+    "LF_LampAmber",
+    "LF_LensGlass",
+    "LF_Metal",
+    "LF_Pad",
+    "LF_Piping",
+    "LF_Plastic",
+    "LF_Pole",
+    "LF_Rope",
+    "LF_Rubber",
+    "LF_SeamTape",
+    "LF_TallyRed",
+    "LF_Tube",
+    "LF_Webbing"
+  ],
+  "dimensions": [
+    8.133,
+    8.133,
+    1.04
+  ],
+  "markers": {
+    "MK_LandCenter": [
+      0.0,
+      0.572,
+      -0.0
+    ],
+    "MK_PadEdge": [
+      0.0,
+      0.5611,
+      3.0
+    ],
+    "MK_Ladder_PX": [
+      3.55,
+      0.8644,
+      -0.0
+    ],
+    "MK_Ladder_NX": [
+      -3.55,
+      0.8644,
+      -0.0
+    ],
+    "MK_TvCamera": [
+      0.0,
+      1.5786,
+      -3.4102
+    ]
+  },
+  "previews": [
+    "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\sudden_death\\parachute\\landing_float\\source\\previews\\lf_01_hero.png",
+    "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\sudden_death\\parachute\\landing_float\\source\\previews\\lf_02_top.png",
+    "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\sudden_death\\parachute\\landing_float\\source\\previews\\lf_03_ladder.png",
+    "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\sudden_death\\parachute\\landing_float\\source\\previews\\lf_04_tvcam.png",
+    "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\sudden_death\\parachute\\landing_float\\source\\previews\\lf_05_side.png",
+    "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\sudden_death\\parachute\\landing_float\\source\\previews\\lf_06_deck.png",
+    "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\sudden_death\\parachute\\landing_float\\source\\previews\\lf_07_cleat.png"
+  ]
+}

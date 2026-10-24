@@ -1,6 +1,6 @@
 # BGMリニューアル（全曲AI生成）
 
-現在のBGMは4曲（2026年10月12日にオンライン対戦のマッチング待機用 `quiz_match_loop.ogg` を足した）。プレイ中（壁が割れてから）は `assets/audio/bgm/quiz_play_loop.ogg`（2026年10月11日採用）、クリア画面と2人用のスコアタワーは `assets/audio/bgm/quiz_result_loop.ogg`（2026年10月12日採用）、それ以外の場面は `assets/audio/bgm/quiz_party_loop.ogg` を流し、場面ごとに音量を変えている（`scripts/autoload/audio_manager.gd`）。どれもSunoで生成した（「採用した曲」の節）。メニュー曲は2026年10月8日に、それまでの `head_in_the_sand.ogg`（CC0、38秒）から差し替えた。これを場面別の素材に増やしていく。全曲を音楽生成AIで作る。
+現在のBGMは6曲（2026年10月12日にオンライン対戦のマッチング待機用 `quiz_match_loop.ogg` を、2026年10月21日に2人用サドンデスの導入 `quiz_sd_intro_loop.ogg` と本戦 `quiz_sd_skydive_loop.ogg` を足した）。プレイ中（壁が割れてから）は `assets/audio/bgm/quiz_play_loop.ogg`（2026年10月11日採用）、クリア画面と2人用のスコアタワーは `assets/audio/bgm/quiz_result_loop.ogg`（2026年10月12日採用）、それ以外の場面は `assets/audio/bgm/quiz_party_loop.ogg` を流し、場面ごとに音量を変えている（`scripts/autoload/audio_manager.gd`）。どれもSunoで生成した（「採用した曲」の節）。メニュー曲は2026年10月8日に、それまでの `head_in_the_sand.ogg`（CC0、38秒）から差し替えた。これを場面別の素材に増やしていく。全曲を音楽生成AIで作る。
 
 この文書は、生成AIへの発注仕様（プロンプト）と、Godotへ組み込むときの仕様をまとめたもの。
 
@@ -27,7 +27,8 @@
 
 - **曲を作らない場面**
   - ポーズ：流れている曲にローパスフィルターをかけ、音量を−10dBにする。
-  - サドンデスと設定ホール：使われていないので対象外。
+  - 設定ホール：使われていないので対象外。
+  - サドンデス：素材一覧には入れず、2026年10月21日に専用の2曲（導入・本戦）を作った（「サドンデスの曲の候補」の節）。
 - **テーマ曲を使う場合**：キーとテンポは「Suno用シンプル版」の「テーマ曲」の節を優先する（全曲C、`bgm_menu` は117 BPM）。
 - **キーの選び方**：つながる場面同士を近いキーにして、クロスフェードしても濁らないようにした。
   - B♭とGmは平行調。FはB♭の属調。
@@ -384,6 +385,69 @@ Early 8-bit video game soundtrack, a simple square-wave lead over soft square-wa
 
 - 長さはどれも約2分29〜32秒。
 
+### サドンデスの曲の候補（2026年10月21日生成）
+
+2人用「10問」の引き分けからのサドンデス（`docs/sudden_death_v2/`、種目「つきやぶれ！スカイゲート」）の曲の候補。ユーザーの指示で2曲に分けた。導入は「Quiz SD Intro 04 High Noon Duel」のテイク2（`4eb46846`）、本戦は「Quiz SD Skydive 06 Air Race」のテイク2（`66c9a283`）を採用した（「採用した曲」の `quiz_sd_intro_loop.ogg`・`quiz_sd_skydive_loop.ogg`）。
+
+| 曲 | 流れる場面 |
+|---|---|
+| 導入（`Quiz SD Intro`） | 決着演出 8.6 秒の「SUDDEN DEATH!」から、種目発表・水上機への乗り込み・機内の巡航・降下・ルールカードまで |
+| 本戦（`Quiz SD Skydive`） | ルールカードのあとの「3・2・1・GO」から本戦の間。ラウンドの間（着地・暗転・短い降下）も流し続ける |
+
+勝者の迎えと帰還は、今ある結果の曲（`quiz_result_loop.ogg`）を流して決着演出へつなぐ。
+
+- **音色**：ユーザーの指示で「サドンデスだけ特別な音色」にした。メニュー曲と同じファミコン風の4パートを元に、ベースを三角波に太いノコギリ波を重ねたものにし、ドラムをキックの深い重いものにした。
+- **設定**：「メニュー曲の音色で作った新しいメロディ」の節と同じ（Advanced、v6、歌詞欄 `[Instrumental]`、長さ2:30、奇抜さ35%、スタイルの影響70%、バリエーションはオフ、パーソナライズはオフ）。採用済みの「Quiz Chip Sports 03 Clown Galop」の「プロンプトを再利用」で入力欄を埋め、スタイル・除外リスト・曲名を差し替えた。生成された曲の設定値（`control_sliders`）が `style_weight` 0.7・`weirdness_constraint` 0.35・`aug_creativity` 0 であることを確かめた。
+- **Styles**：次の音色の文＋場面ごとの共通文。
+
+```
+Early 8-bit video game soundtrack with extra punch: two square-wave channels trade a bold lead and clipped chords, a thick sawtooth bass doubles the triangle wave, heavy noise-channel drums with a deep kick and sharp snare; instrumental, <ノリ> at <BPM> BPM, dry clean mix with open space. Melody: <メロディの説明>
+```
+
+導入の共通文：
+
+```
+Sudden-death showdown loop for a cheerful kids' 3D quiz party game: after a tie, two rivals board a seaplane for a final sky showdown. Suspenseful, thrilling anticipation with a playful game-show wink; never scary or sad. Same tempo and even energy from start to finish: no build-up, no risers, no breakdowns, no big climax, no fade-out, no ending; each phrase flows straight into the next.
+```
+
+本戦の共通文：
+
+```
+Main-event loop for a cheerful kids' 3D quiz party game: two rivals skydive and burst through giant quiz gates on the way down to the sea. Exhilarating, fast and airborne; bright, heroic and fun, never dark or scary. Same tempo and even energy from start to finish: no build-up, no risers, no breakdowns, no big climax, no fade-out, no ending; each phrase flows straight into the next.
+```
+
+- **除外リスト**
+  - 導入：`orchestral, cinematic, epic, choir, vocals, spoken word, acoustic drums, electric guitar, heavy reverb, EDM, dubstep, risers, whoosh, build-up, horror, sad, sound effects`（緊張感を出すため、短調を除外しない）
+  - 本戦：導入のリストに `dark, minor key` を足したもの
+
+導入の候補：
+
+| 曲名（Suno） | テンポ・ノリ | メロディの説明（要点） | song id |
+|---|---|---|---|
+| Quiz SD Intro 01 Showdown Pulse | 128、力強い8分 | 1音ずつ高くなる短い2音のモチーフに自信のある答え。心臓の鼓動のようなオクターブのベース。短調に明るいひねり | `e78a4132-129a-48ab-ac33-684d70810cd7`、`229a92e6-c279-4abe-ab41-58dbde0ba4b3` |
+| Quiz SD Intro 02 Quiz Show Clock | 120、時計の刻みの8分 | 2本の矩形波がスタッカートで問いと答えを掛け合う。クイズ番組の時計のようなハイハット | `1f2a1f68-9d75-4495-9851-079f491d9cee`、`58feed7d-23fe-40fd-b1de-edea2634ebf6` |
+| Quiz SD Intro 03 Secret Mission | 132、忍び足の8分 | ベースを半音階のリフが忍び歩き、主旋律が大胆に答える（アニメのスパイ作戦）。短調だがおどけた感じ | `8bcb4a10-ce16-462a-b86c-3602ea3ccea6`、`e55f96c7-7792-44cc-b164-418b2d0d3031` |
+| Quiz SD Intro 04 High Noon Duel | 112、駆けるシャッフル | 2人のにらみ合い。長くのばす音と大きな跳躍の主旋律、駆けるベースと鋭いスネア（コメディの西部劇の決闘） | `e0650c4a-c55c-4a7a-bf61-42e0e700e9ba`、`4eb46846-f345-4571-8a24-17d2bdd3e0c7` |
+| Quiz SD Intro 05 Boarding March | 138、2/4の行進 | 付点のリズムとラッパの合図のような弱起。2人が大きな飛行機へ乗り込む堂々とした行進 | `bb76786b-7b15-47bb-befb-843d81bc4a71`、`1971f10e-9818-4855-9ba3-c8bcdd404735` |
+| Quiz SD Intro 06 Countdown Arps | 140、力強い16分の分散和音 | カウントダウンのように上下し続ける分散和音の上で、主旋律が短く明るく呼びかける | `e81674d2-e6bc-4ec5-a1fe-4f1c6d99f0ca`、`55123631-95a9-4465-b953-45c67d773bc0` |
+| Quiz SD Intro 07 Cool Standoff | 104、ハーフタイムのファンク | 自信のあるシンコペーションのベースリフと短い主旋律、音の隙間が多い（2人が相手を値踏みする） | `fcd52d57-ff7f-4512-a8b6-784ea52b0777`、`86829ad8-bdd3-4c7d-ab5d-9cfce4bca783` |
+| Quiz SD Intro 08 Mission Briefing | 124、一定の8分 | 4度ずつ上る長い音の、勇ましいが抑えた旋律（大ジャンプの前の静けさ） | `cb8e8676-1abc-4232-ba80-842447670bd7`、`18ed4603-7110-4df2-b806-35128a5243eb` |
+
+本戦の候補：
+
+| 曲名（Suno） | テンポ・ノリ | メロディの説明（要点） | song id |
+|---|---|---|---|
+| Quiz SD Skydive 01 Freefall Rush | 168、力強い8分 | 長くのばす音と大きな上への跳躍で舞い上がる主旋律。下で16分の分散和音が駆ける（風を切る） | `90acf7e7-fcea-4d41-abfc-c44409121c65`、`db1c9fd6-dfa1-4e58-941f-b4fb73689920` |
+| Quiz SD Skydive 02 Gate Breaker | 172、歯切れのよい8分 | 連打音とオクターブの跳躍のスタッカートのリフ。フレーズの終わりに鋭いアクセント（紙の壁をつき破る） | `1b7ea636-82fc-43ea-87da-8fac0d5cf298`、`cfb80332-d83f-4290-9e2f-ece5241f047c` |
+| Quiz SD Skydive 03 Sky Hero | 160、勇ましい8分 | 付点のリズムとファンファーレのような跳躍の、ヒーローのテーマ | `df5095db-303f-4de2-a495-bf6d6994e518`、`4e753db6-71f0-4cb5-8fdf-8e4aa330507d` |
+| Quiz SD Skydive 04 Turbo Dive | 180、速い8分 | 2本の矩形波の間を速い音階とトリルが駆け回る | `b44bef21-8b0f-4cb5-a6ca-5417ae483066`、`2267be6b-6198-4691-a5c0-83df83677bad` |
+| Quiz SD Skydive 05 Barrel Roll | 164、シンコペーション | 裏拍のアクセントと、輪を描いて回る旋律（曲芸飛行） | `e75fe478-1d96-4dbf-b6d0-996293c0d5bc`、`06dcc99b-8c43-4c5a-a69d-d0cd49ed0830` |
+| Quiz SD Skydive 06 Air Race | 170、ロックのビート | ベースのロック風のリフの上で、主旋律が短いフレーズを叫ぶ | `a8c48e16-efa4-46c7-b3c7-27acb09dd2a3`、`66c9a283-abaa-45ba-8e38-182def765b29` |
+| Quiz SD Skydive 07 Sky Dance | 150、4つ打ちのキック | オクターブで跳ねるベースと手拍子のようなノイズの上の、弾むダンスの旋律 | `70f4c33b-3950-4b95-b2fc-a8e5c8890b4d`、`d21d7520-4e00-4719-a9eb-b29fb6519db0` |
+| Quiz SD Skydive 08 Final Round | 176、せき立てる8分 | 2本の矩形波が掛け合いながら上り続ける（最終周） | `a1155b25-6afe-41e0-93fa-49a703fe3690`、`fb04c9df-bd12-433b-bd18-df1a618a6d70` |
+
+- 長さはどれも約2分28〜30秒。
+
 ### 採用した曲
 
 #### `quiz_party_loop.ogg`（2026年10月8日採用、10月9日に延長版へ差し替え）
@@ -467,6 +531,33 @@ Early 8-bit video game soundtrack, a simple square-wave lead over soft square-wa
 - **確認**：`tests/bgm_loop_seam_check.gd` で、Godot のデコーダで戻った後の音が戻り先から直接再生した音と相関 0.991 で一致し、つなぎ目の段差は 0.0174（通常のサンプル間の変化の 99.9 パーセンタイルは 0.146）。
 - **頭の処理**：最初のサンプルが無音ではないので、3ミリ秒のフェードインを付けた。
 - **流れる場面**：ヘリポートのトップとスキン設定などはメニュー曲のまま。乗り込みが始まると、メニュー曲を止めずに音量だけ −16 dB まで下げ（0.6秒。通常は −4 dB）、離陸・急発進して暗転しきるまではヘリの効果音を聞かせる。暗転が明けて「検索中」に入ったら、この曲にクロスフェードして音量を通常に戻し、検索を探し直すときも流れ続ける。やめる・失敗・時間切れでヘリポートに戻ると、メニュー曲が通常の音量に戻る。相手が決まった後は合流・VS カットイン・読み込みまでこの曲のまま続き、ゲーム画面に入ると 0.8 秒で消える（今まで通り）。乗り込みの途中で相手が決まったときは検索中を通らないので、下げた音量のメニュー曲のままゲームへ進む。
+
+#### `quiz_sd_intro_loop.ogg`・`quiz_sd_skydive_loop.ogg`（2026年10月21日採用、2人用サドンデスの曲）
+
+「サドンデスの曲の候補」の節から選んだ2曲。ユーザーが Suno から書き出した MP3 を使った。切り出しと音量の調整は、今回作った `tools/audio/make_bgm_loop.py`（拍の検出・ループ位置の候補・書き出し。numpy と ffmpeg だけを使う）で行った。
+
+| 項目 | 導入（`quiz_sd_intro_loop.ogg`） | 本戦（`quiz_sd_skydive_loop.ogg`） |
+|---|---|---|
+| 生成元 | Suno「Quiz SD Intro 04 High Noon Duel」、id `4eb46846-f345-4571-8a24-17d2bdd3e0c7` | Suno「Quiz SD Skydive 06 Air Race」、id `66c9a283-abaa-45ba-8e38-182def765b29` |
+| 元ファイル | `assets/audio/bgm/source/quiz_sd_intro_original.mp3`（149.6秒、48kHzステレオ） | `assets/audio/bgm/source/quiz_sd_skydive_original.mp3`（149.5秒、48kHzステレオ） |
+| テンポ | 112.02 BPM（1拍 0.53563秒。指示は112）。最初の拍は0.422秒。一定の拍の格子からのずれは30秒ごとに±10ミリ秒以内 | 178.43 BPM（1拍 0.33626秒。指示は170）。最初の拍は0.312秒。ずれは±2.5ミリ秒以内 |
+| 小節の頭 | 拍の番号を4で割った余りが3の拍（和音の変わり目と低音の立ち上がりから推定） | 余りが1の拍 |
+| 繰り返し | 104拍（26小節、55.70秒）離れた2か所がよく一致する。84〜101拍目と188〜205拍目で、拍を4つに分けた和音の一致がほとんどの拍で0.55以上（95〜101拍目は0.9以上） | 160拍（40小節、53.81秒）離れた2か所が、160〜199拍目にわたって一致する（多くの拍で0.5以上、185〜188拍目は0.85以上） |
+| ループ区間 | 初回はファイルの頭から流し、2周目からは51.267秒（95拍目の頭の40ミリ秒前）に戻る。戻り目は199拍目 | 2周目からは62.481秒（185拍目の頭の40ミリ秒前）に戻る。戻り目は345拍目 |
+| 戻り位置の比べ方 | 戻り目と戻り先の前16拍・後8拍：和音0.74、リズム（拍を8つに分けた打点）0.93、帯域ごとの音色の差2.6 dB、音量差 +0.7 dB（戻ると0.7 dB下がる） | 和音0.60、リズム0.95、音色の差2.7 dB、音量差 +0.8 dB |
+| 納品ファイル | 106.969秒（5,134,516サンプル）、48kHzステレオ、Ogg Vorbis 品質6、−16.0 LUFS、トゥルーピーク −5.5 dBFS（元から −1.3 dB） | 116.286秒（5,581,706サンプル）、同じ形式、−16.0 LUFS、−5.8 dBFS（元から −0.7 dB） |
+| インポート設定 | `loop=true`、`loop_offset=51.267`、`bpm=112.02`、`beat_count=0`、`bar_beats=4` | `loop=true`、`loop_offset=62.481`、`bpm=178.43`、`beat_count=0`、`bar_beats=4` |
+
+- **つなぎ目の処理**：今までの曲と同じ。ファイルの終わりの30ミリ秒を、戻り先の直前の音へ等パワーでクロスフェードした。戻り目は、前0.8秒の音量の変化の相関で ±30ミリ秒の範囲を探して合わせた（導入 −3.0ミリ秒、本戦 +3.3ミリ秒）。戻り先は整数ミリ秒にして、`loop_offset` がちょうどそのサンプルになるようにした。頭に3ミリ秒のフェードイン。
+- **確認**：`tests/bgm_loop_seam_check.gd` で、Godot のデコーダで戻った後の音が戻り先から直接再生した音と一致した（導入：相関0.996、ずれ0フレーム、つなぎ目の段差0.023（通常の変化の99.9パーセンタイルは0.108）。本戦：0.994、0フレーム、0.003（0.121））。
+- **試聴用**：つなぎ目の前後8秒ずつをつないだ WAV を `artifacts/bgm_seam/` に置いた（8.0秒目がつなぎ目。git には入れない）。
+- **作り直し方**：
+
+```powershell
+python tools/audio/make_bgm_loop.py analyze assets/audio/bgm/source/quiz_sd_intro_original.mp3 --bpm 112 --min-loop 50
+python tools/audio/make_bgm_loop.py render assets/audio/bgm/source/quiz_sd_intro_original.mp3 assets/audio/bgm/quiz_sd_intro_loop.ogg --bpm 112 --start-beat 95 --end-beat 199
+python tools/audio/make_bgm_loop.py render assets/audio/bgm/source/quiz_sd_skydive_original.mp3 assets/audio/bgm/quiz_sd_skydive_loop.ogg --bpm 170 --start-beat 185 --end-beat 345
+```
 
 ## 共通スタイル（全プロンプトの末尾に付ける）
 
@@ -770,9 +861,9 @@ Game-over screen loop, 92 BPM, D minor, 4/4. Droll, slapstick "better luck next 
 | GAME_OVER | `jingle_gameover` → `bgm_gameover` |
 | ポーズ | 再生中の曲にローパスフィルターをかけて −10dB |
 
-### 今の実装（2026年10月12日）
+### 今の実装（2026年10月12日、サドンデスは10月21日）
 
-上の表は最終形。今は3曲だけで、次のように切り替えている。
+上の表は最終形。今は次のように切り替えている。
 
 | ゲーム状態 | 曲 |
 |---|---|
@@ -780,10 +871,26 @@ Game-over screen loop, 92 BPM, D minor, 4/4. Droll, slapstick "better luck next 
 | ゲーム画面に入ってから（ヘリ到着）、WAITING_START / FLYOVER / COUNTDOWN | 曲なし（`MUSIC_TRACK_NONE`）。メニュー曲を0.8秒でフェードアウトし、観客のざわめきだけを流す（2026年10月12日から） |
 | PLAYING / CORRECT / GOAL_RACE | プレイ曲（`quiz_play_loop.ogg`）。PLAYING になった瞬間に頭から流す |
 | CLEAR | 結果画面の曲（`quiz_result_loop.ogg`、頭から） |
-| RESULT_CEREMONY | 判定（6.9秒）までは曲なし（観客のざわめきとドラムロールだけ）。判定の瞬間に結果画面の曲を頭から流す（`ResultCeremonyDirector`、2026年10月12日から） |
+| RESULT_CEREMONY | 判定（6.9秒）までは曲なし（観客のざわめきとドラムロールだけ）。判定の瞬間に結果画面の曲を頭から流す（`ResultCeremonyDirector`、2026年10月12日から）。サドンデスへ分かれるときは下の「サドンデス」 |
 | GAME_OVER | 曲なし。プレイ曲を1秒でフェードアウトする（2026年10月12日まではメニュー曲が流れていた）。`bgm_gameover` ができたらここで流す |
-| SUDDEN_DEATH / MENU | メニュー曲（頭から） |
+| MENU | メニュー曲（頭から） |
 | PRELOADING | 曲を変えない（エンドレスの途中の問題補充で PLAYING と行き来するため） |
+
+サドンデス（2人用「10問」の引き分け、`docs/sudden_death_v2/`。2026年10月21日から）：
+
+| 場面 | 曲 |
+|---|---|
+| 判定（6.9秒）の「DRAW!」〜8.6秒 | 結果画面の曲（上と同じ） |
+| 8.6秒の「SUDDEN DEATH!」から、種目発表・乗り込み・機内の巡航・降下・ルールカード・「3・2・1」まで | 導入曲（`quiz_sd_intro_loop.ogg`、頭から）。監督（`HeliSuddenDeathDirector._update_branch()`）が警報と同時に替える。音量の文脈もここでサドンデス（`MUSIC_CONTEXT_SUDDEN_DEATH`）にする |
+| ROUND 1 の「GO!」から本戦。ラウンドの間（着地・暗転・短い降下・次のラウンドのカウントダウン）も | 本戦曲（`quiz_sd_skydive_loop.ogg`、頭から）。`SkyGatePresenter._update_countdown()` がルールを始める瞬間に替える。ROUND 2 からは同じ曲の指定なので流れたまま |
+| 勝者が着地台に降りた瞬間（「ジャジャーン」の `sg_winner`）から、ダンス・迎え・帰還・やり直す判定まで | 結果画面の曲（頭から）。地上へ戻って決着演出（RESULT_CEREMONY）に入っても、判定をやり直しても、同じ曲なので途切れない |
+| 準備の失敗・時間切れで打ち切ったとき | 引き分けに戻ったところで結果画面の曲（頭から） |
+
+- 音量の文脈 `MUSIC_CONTEXT_SUDDEN_DEATH` は −6 dB（プレイ中より2 dB小さい）。それまでは −10 dB で、メニュー曲を水上機のエンジン・風・ゲートの音の下で鳴らしていた。専用の曲になったので上げた。大きすぎる・小さすぎるときは、この値（`audio_manager.gd` の `CONTEXT_VOLUME_DB`）を変える。
+- `game_world.gd` の `_on_state_changed()` は、SUDDEN_DEATH に入ったときは導入曲を指定する（ふつうは流れているので何もしない）。サドンデスから RESULT_CEREMONY に戻ったとき（`sudden_death_winner > 0` か `sudden_death_aborted`）は、曲を止めずに結果画面の曲を指定する。
+- 実際の流れで切り替わることを `tests/sudden_death_v2/skygate_audio_runtime.gd`（`--script res://tests/sudden_death_v2/skygate_audio_bootstrap.gd -- case=p1|round2|abort`）で確かめた。曲が替わった場面と、場面ごとに実際に鳴っていた曲を記録する。2026年10月21日の結果：p1・round2・both・abort とも失敗 0。
+  - 最初、round2 だけ「ラウンドの間の暗転」と「ROUND 2 のカウントダウン」が見つからない失敗が 5 つ出た。原因はテストの側にあった。元の `skygate_runtime.gd` の `_watch()` は、画を撮らない通し（`take_shots = false`）では途中で戻っていて、ラウンドの間（`_watch_round_turn()`）とゲートのカメラ（`_watch_gate_camera()`）を確かめていなかった。演出は正しく動いていた。
+  - 撮る予約だけを省くように直した。直したあとの round2 は、暗転の黒さが最大 1.0、カウントダウンの「3・2・1・GO!」が 0.6 秒ずつ出ていた。
 
 - `AudioManager.set_music_track()` が曲ごとのプレイヤーを持ち（`MUSIC_TRACK_NONE` は曲を止めたままにする）、前の曲を0.35秒でフェードアウトして止め、新しい曲を頭から0.35秒でフェードインする。同じ曲を指定したときは何もしない（流し続ける）。
 - 曲は `game_world.gd` の `_on_state_changed()` で選ぶ。ゲーム画面を出るとき（`_exit_tree()`）はメニュー曲に戻す。

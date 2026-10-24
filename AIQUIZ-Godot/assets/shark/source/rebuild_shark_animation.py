@@ -203,8 +203,11 @@ def build_actions(rig):
 def export_runtime(rig):
     scene = bpy.context.scene
     scene.render.fps = FPS
+    # GhostBeamPower is the GOSTRIDER beam-reveal clip from
+    # assets/animations/source/build_ghost_shark_mount.py.
     actions = [bpy.data.actions[n] for n in ['SharkSwim', 'SharkBite',
-               'GhostRendezvousIdle', 'GhostMountReceive', 'GhostDeparture']]
+               'GhostRendezvousIdle', 'GhostMountReceive', 'GhostBeamPower', 'GhostDeparture']
+               if n in bpy.data.actions]
     rig.animation_data.action = None
     for t in list(rig.animation_data.nla_tracks):
         rig.animation_data.nla_tracks.remove(t)

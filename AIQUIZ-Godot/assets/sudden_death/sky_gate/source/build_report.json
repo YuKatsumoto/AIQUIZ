@@ -1,0 +1,283 @@
+{
+  "triangles": 35772,
+  "objects": {
+    "Frame": 8640,
+    "SignFrame": 2512,
+    "QuestionSign": 44,
+    "Panel_0": 672,
+    "Panel_1": 672,
+    "Panel_2": 672,
+    "Panel_3": 672,
+    "Drone_0": 2472,
+    "Drone_1": 2472,
+    "Drone_2": 2472,
+    "Drone_3": 2472,
+    "Drone_4": 2472,
+    "Drone_5": 2472,
+    "Rotor_0_0": 250,
+    "Rotor_0_1": 250,
+    "Rotor_0_2": 250,
+    "Rotor_0_3": 250,
+    "Rotor_1_0": 250,
+    "Rotor_1_1": 250,
+    "Rotor_1_2": 250,
+    "Rotor_1_3": 250,
+    "Rotor_2_0": 250,
+    "Rotor_2_1": 250,
+    "Rotor_2_2": 250,
+    "Rotor_2_3": 250,
+    "Rotor_3_0": 250,
+    "Rotor_3_1": 250,
+    "Rotor_3_2": 250,
+    "Rotor_3_3": 250,
+    "Rotor_4_0": 250,
+    "Rotor_4_1": 250,
+    "Rotor_4_2": 250,
+    "Rotor_4_3": 250,
+    "Rotor_5_0": 250,
+    "Rotor_5_1": 250,
+    "Rotor_5_2": 250,
+    "Rotor_5_3": 250,
+    "RotorDisc_0": 104,
+    "RotorDisc_1": 104,
+    "RotorDisc_2": 104,
+    "RotorDisc_3": 104,
+    "RotorDisc_4": 104,
+    "RotorDisc_5": 104,
+    "Cable_0": 72,
+    "Cable_1": 72,
+    "Cable_2": 72,
+    "Cable_3": 72,
+    "Cable_4": 72,
+    "Cable_5": 72
+  },
+  "materials": [
+    "GB_Body",
+    "GB_Paper_Lemon",
+    "GB_Paper_Mint",
+    "GB_Paper_Pink",
+    "GB_Paper_Sky",
+    "GB_RotorBlur",
+    "GB_Strip"
+  ],
+  "layout": {
+    "note": "スカイゲートの問題のボード。Godot の座標（x 右, y 上, z 手前）。原点＝ボードの中心 × 紙の面。−Z が奥（問題文の帯）。build_gate_board.py が書く",
+    "board_size": [
+      17.0,
+      12.2
+    ],
+    "frame": {
+      "width": 0.46,
+      "height": 0.34,
+      "inner_width": 0.3,
+      "inner_height": 0.26
+    },
+    "panels": {
+      "Panel_0": {
+        "center": [
+          -4.095,
+          0.0,
+          -1.32
+        ],
+        "size": [
+          7.89,
+          4.44
+        ],
+        "color": "#8FE3B5",
+        "name": "Mint"
+      },
+      "Panel_1": {
+        "center": [
+          4.095,
+          0.0,
+          -1.32
+        ],
+        "size": [
+          7.89,
+          4.44
+        ],
+        "color": "#8CCDF5",
+        "name": "Sky"
+      },
+      "Panel_2": {
+        "center": [
+          -4.095,
+          0.0,
+          3.42
+        ],
+        "size": [
+          7.89,
+          4.44
+        ],
+        "color": "#FBE878",
+        "name": "Lemon"
+      },
+      "Panel_3": {
+        "center": [
+          4.095,
+          0.0,
+          3.42
+        ],
+        "size": [
+          7.89,
+          4.44
+        ],
+        "color": "#F9A9C8",
+        "name": "Pink"
+      }
+    },
+    "panel_order": "0=奥の左, 1=奥の右, 2=手前の左, 3=手前の右（ルールの選択肢の番号と同じ）",
+    "question_sign": {
+      "face_center_top": [
+        0.0,
+        0.388,
+        -6.74
+      ],
+      "face_size": [
+        16.28,
+        5.28
+      ],
+      "outer_size": [
+        17.0,
+        6.0
+      ],
+      "near_y": 3.74,
+      "far_y": 9.74
+    },
+    "drone_order": "0・1＝看板の手前の角（左・右）、2・3＝ボードの手前の角、4・5＝看板の奥の角",
+    "drones": {
+      "Drone_0": {
+        "center": [
+          -9.07,
+          3.73,
+          -3.92
+        ],
+        "hook": [
+          -9.07,
+          3.31,
+          -3.92
+        ]
+      },
+      "Drone_1": {
+        "center": [
+          9.07,
+          3.73,
+          -3.92
+        ],
+        "hook": [
+          9.07,
+          3.31,
+          -3.92
+        ]
+      },
+      "Drone_2": {
+        "center": [
+          -9.02,
+          3.53,
+          6.49
+        ],
+        "hook": [
+          -9.02,
+          3.11,
+          6.49
+        ]
+      },
+      "Drone_3": {
+        "center": [
+          9.02,
+          3.53,
+          6.49
+        ],
+        "hook": [
+          9.02,
+          3.11,
+          6.49
+        ]
+      },
+      "Drone_4": {
+        "center": [
+          -9.07,
+          3.73,
+          -10.18
+        ],
+        "hook": [
+          -9.07,
+          3.31,
+          -10.18
+        ]
+      },
+      "Drone_5": {
+        "center": [
+          9.07,
+          3.73,
+          -10.18
+        ],
+        "hook": [
+          9.07,
+          3.31,
+          -10.18
+        ]
+      }
+    },
+    "cables": {
+      "Cable_0": {
+        "attach": [
+          -8.32,
+          0.53,
+          -3.92
+        ],
+        "length": 2.8794
+      },
+      "Cable_1": {
+        "attach": [
+          8.32,
+          0.53,
+          -3.92
+        ],
+        "length": 2.8794
+      },
+      "Cable_2": {
+        "attach": [
+          -8.27,
+          0.33,
+          5.87
+        ],
+        "length": 2.9454
+      },
+      "Cable_3": {
+        "attach": [
+          8.27,
+          0.33,
+          5.87
+        ],
+        "length": 2.9454
+      },
+      "Cable_4": {
+        "attach": [
+          -8.32,
+          0.53,
+          -9.56
+        ],
+        "length": 2.9454
+      },
+      "Cable_5": {
+        "attach": [
+          8.32,
+          0.53,
+          -9.56
+        ],
+        "length": 2.9454
+      }
+    },
+    "drone_hook_y": -0.42,
+    "rotor_radius": 0.55,
+    "paper_sag": 0.05
+  },
+  "previews": [
+    "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\sudden_death\\sky_gate\\source\\previews\\gb_01_topdown.png",
+    "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\sudden_death\\sky_gate\\source\\previews\\gb_02_hero.png",
+    "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\sudden_death\\sky_gate\\source\\previews\\gb_03_below.png",
+    "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\sudden_death\\sky_gate\\source\\previews\\gb_04_drone.png",
+    "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\sudden_death\\sky_gate\\source\\previews\\gb_05_corner.png"
+  ]
+}

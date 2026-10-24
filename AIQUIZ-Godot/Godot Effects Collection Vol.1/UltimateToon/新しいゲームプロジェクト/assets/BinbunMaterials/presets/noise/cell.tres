@@ -1,0 +1,29 @@
+[gd_resource type="ShaderMaterial" load_steps=3 format=3 uid="uid://c5rhr5ilwhrdr"]
+
+[ext_resource type="Shader" uid="uid://bkb1f7plk6r1j" path="res://assets/BinbunMaterials/src/shader/stylized.gdshader" id="1_g2feq"]
+[ext_resource type="Texture2D" uid="uid://clvbp22rccwuy" path="res://assets/BinbunMaterials/src/texture/patterns/noise/cell.tres" id="2_5me2f"]
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_g2feq")
+shader_parameter/albedo_color = Color(0.99, 0.9504, 0.7524, 1)
+shader_parameter/use_stepped = true
+shader_parameter/steps = 3.0
+shader_parameter/step_smoothness = 0.0
+shader_parameter/shadow_tint = Color(0, 0.0666667, 0.509804, 1)
+shader_parameter/shadow_tint_amount = 1.0
+shader_parameter/specular = 0.0
+shader_parameter/normal_strength = 0.0
+shader_parameter/use_rim = true
+shader_parameter/rim_color = Color(1, 0.96, 0.88, 1)
+shader_parameter/rim_amount = 1.5
+shader_parameter/rim_smoothness = 0.5
+shader_parameter/rim_mask_shadow = 0.9
+shader_parameter/rim_blend = 1.0
+shader_parameter/use_pattern = true
+shader_parameter/pattern_texture = ExtResource("2_5me2f")
+shader_parameter/pattern_uv_mode = 2
+shader_parameter/pattern_tiling = 2.0
+shader_parameter/pattern_amount = 0.65
+shader_parameter/pattern_smoothness = 1.0
+shader_parameter/pattern_blend = 0.3

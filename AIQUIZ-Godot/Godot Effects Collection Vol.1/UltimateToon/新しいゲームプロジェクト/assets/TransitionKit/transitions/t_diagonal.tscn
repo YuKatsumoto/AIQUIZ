@@ -1,0 +1,46 @@
+[gd_scene load_steps=8 format=3 uid="uid://cyi7ncqnbp103"]
+
+[ext_resource type="Shader" uid="uid://ovrd5ydp8p0q" path="res://assets/TransitionKit/src/shader/transition.gdshader" id="1_ouw2j"]
+[ext_resource type="Script" uid="uid://bo1i5j2m427bs" path="res://assets/TransitionKit/src/script/transition_rect.gd" id="2_da36s"]
+
+[sub_resource type="Gradient" id="Gradient_al746"]
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_lquwl"]
+gradient = SubResource("Gradient_al746")
+fill_to = Vector2(1, 1)
+
+[sub_resource type="Gradient" id="Gradient_lr8m3"]
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_1bvp3"]
+gradient = SubResource("Gradient_lr8m3")
+fill_from = Vector2(0, 1)
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_7mycd"]
+shader = ExtResource("1_ouw2j")
+shader_parameter/base_color = Color(0, 0, 0, 1)
+shader_parameter/node_resolution = Vector2(1152, 648)
+shader_parameter/factor = 0.5
+shader_parameter/width = 0.4
+shader_parameter/gradient_texture = SubResource("GradientTexture2D_lquwl")
+shader_parameter/gradient_fixed = true
+shader_parameter/shape_texture = SubResource("GradientTexture2D_1bvp3")
+shader_parameter/shape_tiling = 32.0
+shader_parameter/shape_rotation = 0.0
+shader_parameter/shape_scroll = Vector2(0, 0.05)
+shader_parameter/shape_feathering = 0.0
+shader_parameter/shape_treshold = 1.01
+
+[node name="TDiagonal" type="ColorRect"]
+material = SubResource("ShaderMaterial_7mycd")
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("2_da36s")
+width = 0.4
+gradient_texture = SubResource("GradientTexture2D_lquwl")
+gradient_fixed = true
+shape_texture = SubResource("GradientTexture2D_1bvp3")
+shape_scroll = Vector2(0, 0.05)
+shape_treshold = 1.01

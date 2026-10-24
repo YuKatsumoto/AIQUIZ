@@ -76,6 +76,42 @@ The delivered file is the source's first 156.266 s with a 180-beat loop (back to
 63.587 s via the import `loop_offset`), loudness-normalized. The processing is
 documented in `docs/bgm_renewal.md`.
 
+# Quiz SD Intro Loop
+
+- File: `quiz_sd_intro_loop.ogg` (2P sudden death: from the "SUDDEN DEATH!" cut-in to the rule card)
+- Track: `Quiz SD Intro 04 High Noon Duel`
+- Generator: Suno (account: katsuyu2354)
+- Created: 2026-10-21 (the `created` in the MP3 tag is the export time, 2026-10-21T14:01:36Z)
+- Suno song id: `4eb46846-f345-4571-8a24-17d2bdd3e0c7`
+- Suno plan at generation time: TODO (commercial use requires a paid plan at
+  the time the song was generated)
+- Source file: `source/quiz_sd_intro_original.mp3`
+  (SHA-256 `B7F0027F7171571763BC717AD5C0CF5E7EF5C5D9F7CA9EDA10D7B6D5CAF61F09`)
+- Delivered file SHA-256:
+  `76473C95432B360C04AC5F97838A67718F9628E9A93ED805C5DEA676A100589A`
+
+The delivered file is the source's first 106.969 s with a 104-beat loop (back to
+51.267 s via the import `loop_offset`), loudness-normalized with
+`tools/audio/make_bgm_loop.py`. The processing is documented in `docs/bgm_renewal.md`.
+
+# Quiz SD Skydive Loop
+
+- File: `quiz_sd_skydive_loop.ogg` (2P sudden death: the sky-gate main event from its first "GO!")
+- Track: `Quiz SD Skydive 06 Air Race`
+- Generator: Suno (account: katsuyu2354)
+- Created: 2026-10-21 (the `created` in the MP3 tag is the export time, 2026-10-21T13:54:12Z)
+- Suno song id: `66c9a283-abaa-45ba-8e38-182def765b29`
+- Suno plan at generation time: TODO (commercial use requires a paid plan at
+  the time the song was generated)
+- Source file: `source/quiz_sd_skydive_original.mp3`
+  (SHA-256 `8AB53BD02B93F4215955EC6007EE4D3A8A939DA476063002957A6122BCEABC9B`)
+- Delivered file SHA-256:
+  `D09E67C67FB46D94D4F6113A70DDE319844A16A2FD80D784A3260633875DBB45`
+
+The delivered file is the source's first 116.286 s with a 160-beat loop (back to
+62.481 s via the import `loop_offset`), loudness-normalized with
+`tools/audio/make_bgm_loop.py`. The processing is documented in `docs/bgm_renewal.md`.
+
 # Head in the Sand
 
 - File: `head_in_the_sand.ogg` (previous BGM, no longer referenced by code)

@@ -190,6 +190,19 @@ func _test_explosion_and_ghost_keep_skin() -> void:
 	controller._apply_ghost_material(head)
 	var ghost := head.material_override as StandardMaterial3D
 	_check(ghost != null and _close(ghost.albedo_color, Color.MAGENTA), "ghost keeps the part color")
+	# The shared ghost look (GOSTRIDER soul, finale stand-ins, the sky gate) keeps it too.
+	var stand_in := Node3D.new()
+	var stand_in_parts: Dictionary = EmoteBlockmanPreview.build_player_skeleton(
+		false, stand_in, 0, 0, PlayerSkin.set_color(PlayerSkin.default_skin(2), &"head", Color.MAGENTA)
+	)
+	PlayerControllerRes.apply_ghost_soul_look(stand_in, 2)
+	var soul_head: MeshInstance3D = stand_in_parts.head
+	var soul := soul_head.material_override as ShaderMaterial
+	_check(PlayerControllerRes.is_ghost_soul_look(soul_head), "the shared ghost look uses the soul shader")
+	_check(soul != null and _close(soul.get_shader_parameter("albedo"), Color.MAGENTA), "the soul keeps the part color")
+	_check(soul != null and _close(soul.get_shader_parameter("rim_color"), PlayerControllerRes.GHOST_RIDER_RIM_P2), "the soul rim is the player's color")
+	_check(stand_in.find_child("GhostAura", true, false) != null, "the shared ghost look adds the soul motes")
+	stand_in.free()
 	holder.free()
 	controller.free()
 

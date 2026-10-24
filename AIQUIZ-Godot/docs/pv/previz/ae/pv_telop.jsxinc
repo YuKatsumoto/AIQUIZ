@@ -3,7 +3,8 @@
 //   本文：白・紺のふち（0.55cqw）・下へ 0.35cqw の影。要のことばは黄色。書体は Noto Sans JP Black
 //         （絵コンテの Dela Gothic One はこの PC に無いので代わり）。
 //   補足：紺の帯に白い文字（2.05cqw）。本文の下に 0.8cqw あけて置く。
-//   位置：左下（左 6%・下から 11%）。"br" は右下、"tc" は上の中央。
+//   位置：左下（左 6%・下から 11%）。"br" は右下、"tc" は上の中央、"bc" は下の中央（S20 の左右に分けた画面）。
+//         opt.bottom で下からの位置を変えられる（ゲームの HUD を避けるとき）。
 //   出し方：0.2 秒で下から押し上げて出し、0.15 秒で消す。
 // cqw = 画面の幅の 1%（1920 px なら 19.2 px）。
 // 注意：ExtendScript は a ? b : c ? d : e を (a ? b : c) ? d : e と読むので、入れ子の三項演算子には必ず括弧を付ける。
@@ -94,24 +95,25 @@ function telAnchor(layer, ax, ay, t) {
     return b;
 }
 
-// 本文（＋補足）のテロップを t0〜t1 に出す。opt: { pos: "bl"|"br"|"tc", sub: "補足", subFrom: 秒 }
+// 本文（＋補足）のテロップを t0〜t1 に出す。opt: { pos: "bl"|"br"|"tc"|"bc", sub: "補足", subFrom: 秒, bottom: 下からの割合（既定 0.11） }
 // 戻り値は作ったレイヤー（上から順）。
 function telop(comp, label, marked, t0, t1, opt) {
     opt = opt || {};
     var pos = opt.pos || "bl";
+    var mid = pos === "tc" || pos === "bc";                        // 横の真ん中にそろえる
     var layers = [];
 
     var mainSize = TEL.cq(4.4), mainStroke = TEL.cq(0.55) * 2;   // AE の線は中心から両側へ。塗りの下に描くので見える幅は半分
     var main = telTextLayer(comp, "TEL_" + label, marked, mainSize, TEL.WHITE, mainStroke);
     telShadow(main, TEL.cq(0.35), 0.4);
-    var mb = telAnchor(main, (pos === "br" ? 1 : (pos === "tc" ? 0.5 : 0)), pos === "tc" ? 0 : 1, t0);
+    var mb = telAnchor(main, (pos === "br" ? 1 : (mid ? 0.5 : 0)), pos === "tc" ? 0 : 1, t0);
 
     var subLayers = [];
     var subH = 0;
     if (opt.sub) {
         var subSize = TEL.cq(2.05);
         var st = telTextLayer(comp, "TEL_" + label + "_sub", opt.sub, subSize, TEL.WHITE, 0);
-        var sb = telAnchor(st, (pos === "br" ? 1 : (pos === "tc" ? 0.5 : 0)), 1, t0);
+        var sb = telAnchor(st, (pos === "br" ? 1 : (mid ? 0.5 : 0)), 1, t0);
         var padX = TEL.cq(1.1), padY = TEL.cq(0.35);
         var plate = comp.layers.addShape();
         plate.name = "TEL_" + label + "_sub_plate";
@@ -121,7 +123,7 @@ function telop(comp, label, marked, t0, t1, opt) {
         var pw = sb.width + padX * 2, ph = sb.height + padY * 2;
         rc.property("ADBE Vector Rect Size").setValue([pw, ph]);
         rc.property("ADBE Vector Rect Roundness").setValue(TEL.cq(0.4));
-        var ax = (pos === "br" ? -pw / 2 : (pos === "tc" ? 0 : pw / 2));
+        var ax = (pos === "br" ? -pw / 2 : (mid ? 0 : pw / 2));
         rc.property("ADBE Vector Rect Position").setValue([ax, -ph / 2]);
         var fl = gc.addProperty("ADBE Vector Graphic - Fill");
         fl.property("ADBE Vector Fill Color").setValue([TEL.NAVY[0], TEL.NAVY[1], TEL.NAVY[2], 1]);
@@ -131,9 +133,9 @@ function telop(comp, label, marked, t0, t1, opt) {
     }
 
     // ブロックの基準点（本文の下端。補足があればその下に補足）
-    var x = (pos === "br" ? TEL.W * 0.94 : (pos === "tc" ? TEL.W / 2 : TEL.W * 0.06));
+    var x = (pos === "br" ? TEL.W * 0.94 : (mid ? TEL.W / 2 : TEL.W * 0.06));
     var gap = TEL.cq(0.8);
-    var blockBottom = TEL.H * (1 - 0.11);
+    var blockBottom = TEL.H * (1 - (opt.bottom || 0.11));
     var mainY, subY;
     if (pos === "tc") {
         mainY = TEL.H * 0.07;
@@ -145,7 +147,7 @@ function telop(comp, label, marked, t0, t1, opt) {
     main.property("ADBE Transform Group").property("ADBE Position").setValue([x, mainY]);
     if (opt.sub) {
         var stl = subLayers[0], pl = subLayers[1];
-        var sx = (pos === "br" ? x - stl.__padX : (pos === "tc" ? x : x + stl.__padX));
+        var sx = (pos === "br" ? x - stl.__padX : (mid ? x : x + stl.__padX));
         stl.property("ADBE Transform Group").property("ADBE Position").setValue([sx, subY - stl.__padY]);
         pl.property("ADBE Transform Group").property("ADBE Anchor Point").setValue([0, 0]);
         pl.property("ADBE Transform Group").property("ADBE Position").setValue([x, subY]);
@@ -185,12 +187,13 @@ function telInOut(layer, t0, t1) {
 }
 
 // 左上の教科名のタグ（S07）：紺の地に白い文字、黄色い縁。t0〜t1 に出す（切り替えはパッと）。
-function telSubjectTag(comp, text, t0, t1) {
+// x0：札の左端（既定は画面の左 5.5%。S20 の右半分の「エモート」は右半分の左端から）
+function telSubjectTag(comp, text, t0, t1, x0) {
     var size = TEL.cq(2.6);
     var tl = telTextLayer(comp, "TAG_" + text, text, size, TEL.WHITE, 0);
     var b = telAnchor(tl, 0, 0, t0);
     var padX = TEL.cq(1.4), padY = TEL.cq(0.2) + size * 0.2;
-    var x = TEL.W * 0.055, y = TEL.H * 0.06;
+    var x = (x0 !== undefined && x0 !== null) ? x0 : TEL.W * 0.055, y = TEL.H * 0.06;
     tl.property("ADBE Transform Group").property("ADBE Position").setValue([x + padX, y + padY]);
     var plate = comp.layers.addShape();
     plate.name = "TAG_" + text + "_plate";

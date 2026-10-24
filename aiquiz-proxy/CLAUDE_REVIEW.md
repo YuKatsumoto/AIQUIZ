@@ -63,3 +63,14 @@
 npm test
 CLAUDE_REVIEW_DRY_RUN=1 FIREBASE_DB_URL=... FIREBASE_PROJECT_ID=... node jobs/claude-review.js
 ```
+
+## 共有バンクの差分同期（フェーズ C3）
+
+ゲームは起動のたびに共有バンクを全件ダウンロードしていたが、バンクが大きくなると転送料が膨らむので差分だけにした。
+
+- 共有バンクに入れるときは `changed_at`（ms）を付け、消すときは `quiz_bank/v1/removed/<id>` に消した時刻を残す（`putBankItem` / `removeBankItem`。claude-review.js と quiz-bank-service.js の両方が使う）。
+- `GET /quiz-bank/changes?since=<ms>[&after_key=<id>]` は、`since` より後に入れた・変えた問題（`changed_at` 順、500 件ずつ）と、消した問題の ID を返す。最後のページの `sync_since` を次回の `since` にする（取りこぼさないよう 2 分のゆとり込み）。
+- ゲームは手元に保存が無いとき（初回）だけ `/quiz-bank/snapshot` で全件を取り、そのときの `sync_since` を保存する。以後は差分だけ。
+- Realtime Database のルールに索引が必要（無いとプロキシが全件を読んでから絞る）:
+  `"quiz_bank": {"v1": {"items": {".indexOn": ["changed_at"]}, "removed": {".indexOn": ".value"}}}`（firebase/database.rules.json）。
+- 確認ジョブ（quiz-claude-review）のイメージも、この版に更新すること。古いイメージは `changed_at` を付けずに共有バンクへ入れるので、差分同期のゲームに届かない。

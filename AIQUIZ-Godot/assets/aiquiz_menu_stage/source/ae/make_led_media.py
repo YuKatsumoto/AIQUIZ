@@ -1,7 +1,8 @@
 """メニューの LED 番組（AIQUIZ VISION）の素材を作る。
 
-- led/led_logo.png：看板と同じロゴ（ロゴエディタの書き出し assets/branding/logo/aiquiz_logo.png）を白・透過で。
-  AE の LED_Logo と Godot が使う。ロゴエディタで保存するとこの画像も作り直される
+- led/led_logo.png：今のゲームのロゴ（タイトルと同じ testopia。ロゴエディタの書き出し
+  assets/branding/logo/testopia_logo.svg）の白い字だけを透過で（O と A の中の P1・P2 の頭は描かない）。
+  AE の LED_Logo / LED_LogoLoop と Godot が使う。ロゴエディタで保存するとこの画像も作り直される
 - source/ae/media/clip_placeholder.jpg：AE でハイライトの枠を確かめるための仮の映像（ゲームの実画面を
   LED の比 216:98 に切り抜いたもの）。Godot は保存したハイライトの連番に差し替えるので、ゲームには入れない
 
@@ -9,34 +10,57 @@
 """
 from __future__ import annotations
 
-import sys
+import re
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageDraw
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[3]
-sys.path.insert(0, str(HERE.parent / "textures"))
-from make_textures import _logo_mask  # noqa: E402  看板と同じロゴの取り出し
 
 LED_DIR = ROOT / "assets" / "aiquiz_menu_stage" / "led"
 MEDIA_DIR = HERE / "media"
 PLACEHOLDER_SOURCE = ROOT / "artifacts" / "aiquiz_stadium" / "game" / "v3_2p_day_play.png"
 LED_ASPECT = 216.0 / 98.0
-WHITE = (246, 244, 238)
+## 今のゲームのロゴ（メインメニューのタイトルと同じ）。白い字の多角形と、P1・P2 の頭（紺の丸と色のブロック）
+CURRENT_LOGO = ROOT / "assets" / "branding" / "logo" / "testopia_logo.svg"
+## 字の多角形を描く倍率（描いてから縮めて縁をなめらかにする）
+SUPERSAMPLE = 4
 LOGO_SIZE = (1310, 300)  # led_motion.json の LED_Logo / LED_LogoLoop が使う画像の大きさ
+
+
+def _letters(height: int) -> Image.Image:
+    """ロゴの白い字だけ（頭の部品は色が白でないので除く）を、字の高さ `height` 前後の白・透過で。"""
+    svg = CURRENT_LOGO.read_text(encoding="utf-8")
+    shapes = []
+    for d, fill in re.findall(r'<path d="([^"]*)" fill="([^"]*)"', svg):
+        if fill.lower() != "#ffffff":
+            continue
+        numbers = [float(v) for v in re.findall(r"-?\d+(?:\.\d+)?", d)]
+        shapes.append(list(zip(numbers[0::2], numbers[1::2])))
+    xs = [x for shape in shapes for x, _ in shape]
+    ys = [y for shape in shapes for _, y in shape]
+    left, top = min(xs), min(ys)
+    scale = height * SUPERSAMPLE / (max(ys) - top)
+    size = (int((max(xs) - left) * scale) + 2, int((max(ys) - top) * scale) + 2)
+    mask = Image.new("L", size, 0)
+    draw = ImageDraw.Draw(mask)
+    for shape in shapes:
+        draw.polygon([((x - left) * scale, (y - top) * scale) for x, y in shape], fill=255)
+    mask = mask.resize((max(1, size[0] // SUPERSAMPLE), max(1, size[1] // SUPERSAMPLE)), Image.LANCZOS)
+    return mask
 
 
 def make_logo(size: tuple[int, int] = LOGO_SIZE) -> Path:
     # LED の番組（led_motion.json）はこの画像を 1310×300 として描くので、縦横比が変わっても
     # 画像の大きさは変えず、ロゴを中に収めて真ん中に置く（引き伸ばさない）
     w, h = size
-    mask = _logo_mask(h)
-    if mask.width > w:
-        mask = _logo_mask(max(1, int(h * w / mask.width)))
+    mask = _letters(h)
+    if mask.width > w - 12:
+        mask = _letters(max(1, int(h * (w - 12) / mask.width)))
     alpha = Image.new("L", size, 0)
     alpha.paste(mask, ((w - mask.width) // 2, (h - mask.height) // 2))
-    logo = Image.new("RGBA", size, WHITE + (0,))
+    logo = Image.new("RGBA", size, (255, 255, 255, 0))
     logo.putalpha(alpha)
     LED_DIR.mkdir(parents=True, exist_ok=True)
     out = LED_DIR / "led_logo.png"

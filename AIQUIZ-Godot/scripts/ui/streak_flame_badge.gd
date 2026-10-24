@@ -68,6 +68,36 @@ func _make_label(node_name: String, font_size: int, color: Color) -> Label:
 	return label
 
 
+## 対戦カードの LED 窓に入れるとき：炎と数字を窓の粒で描く（led_material は窓の文字と共有）。
+## 縁取りは粒の地に溶けるので外し、色は LED の琥珀色にする。
+func set_led_style(led_material: Material, font: Font, count_color: Color, unit_color: Color) -> void:
+	material = led_material
+	for label: Label in [_count, _unit]:
+		label.use_parent_material = true
+		label.add_theme_font_override("font", font)
+		label.add_theme_constant_override("outline_size", 0)
+	_count.add_theme_color_override("font_color", count_color)
+	_unit.add_theme_color_override("font_color", unit_color)
+
+
+## LED のにじみを描く文字（表示中のものだけ）。
+func glow_labels() -> Array[Label]:
+	var labels: Array[Label] = [_count]
+	if _unit.visible:
+		labels.append(_unit)
+	return labels
+
+
+## 炎の芯の位置（バッジの座標）。
+func flame_center() -> Vector2:
+	return Vector2(FLAME_SIZE.x * 0.5, 31.0 - FLAME_SIZE.y * 0.42 * _heat)
+
+
+## 炎の今の明るさ（点火・消火の途中は薄い。大きく燃えるほど強い）。
+func flame_strength() -> float:
+	return 0.0 if _phase == Phase.HIDDEN else _alpha() * _heat
+
+
 ## 炎・数字・単位の合計幅。カードはこれを使って正解数の右に収める。
 func content_width() -> float:
 	var width := FLAME_SIZE.x + FLAME_GAP + _text_width(_count)

@@ -1,0 +1,230 @@
+{
+  "triangles": {
+    "SFI_Main_Hi": 113872,
+    "SFI_Main_Pier": 636,
+    "SFI_Main_Lo": 6282,
+    "SFI_Green_Hi": 63894,
+    "SFI_Green_Lo": 3852,
+    "SFI_West_Hi": 54068,
+    "SFI_West_Lo": 2992,
+    "SFI_IsletA_Hi": 27406,
+    "SFI_IsletA_Lo": 4204,
+    "SFI_IsletB_Hi": 30308,
+    "SFI_IsletB_Lo": 4732,
+    "SFI_IsletC_Hi": 27150,
+    "SFI_IsletC_Lo": 4152,
+    "SFI_IsletD_Hi": 24746,
+    "SFI_IsletD_Lo": 3818,
+    "SFI_Atoll_Hi": 38518,
+    "SFI_Atoll_Lo": 5148,
+    "SFI_Surf_All": 3336,
+    "SFB_Motor": 283,
+    "SFB_Sail": 439
+  },
+  "files": [
+    {
+      "file": "assets/sudden_death/sky_fx/sky_fx_islands.glb",
+      "bytes": 16776700
+    },
+    {
+      "file": "assets/sudden_death/sky_fx/sky_fx_boats.glb",
+      "bytes": 55324
+    }
+  ],
+  "layout": {
+    "note": "スカイゲートの空の演出の島の並び。Godot の座標（x 右, y 上, z 手前）、原点＝着地台の中心 × 海面。build_sky_fx.py が書く",
+    "islands": [
+      {
+        "name": "Main",
+        "center": [
+          -250.0,
+          0.0,
+          -60.0
+        ],
+        "radius": 284.0,
+        "lod_far": 380.0,
+        "hi": "SFI_Main_Hi",
+        "lo": "SFI_Main_Lo",
+        "pier": "SFI_Main_Pier"
+      },
+      {
+        "name": "Green",
+        "center": [
+          330.0,
+          0.0,
+          250.0
+        ],
+        "radius": 203.2,
+        "lod_far": 340.0,
+        "hi": "SFI_Green_Hi",
+        "lo": "SFI_Green_Lo"
+      },
+      {
+        "name": "West",
+        "center": [
+          -540.0,
+          0.0,
+          -560.0
+        ],
+        "radius": 162.2,
+        "lod_far": 300.0,
+        "hi": "SFI_West_Hi",
+        "lo": "SFI_West_Lo"
+      },
+      {
+        "name": "IsletA",
+        "center": [
+          130.0,
+          0.0,
+          -240.0
+        ],
+        "radius": 65.6,
+        "lod_far": 240.0,
+        "hi": "SFI_IsletA_Hi",
+        "lo": "SFI_IsletA_Lo"
+      },
+      {
+        "name": "IsletB",
+        "center": [
+          -140.0,
+          0.0,
+          270.0
+        ],
+        "radius": 81.5,
+        "lod_far": 240.0,
+        "hi": "SFI_IsletB_Hi",
+        "lo": "SFI_IsletB_Lo"
+      },
+      {
+        "name": "IsletC",
+        "center": [
+          -460.0,
+          0.0,
+          210.0
+        ],
+        "radius": 66.9,
+        "lod_far": 240.0,
+        "hi": "SFI_IsletC_Hi",
+        "lo": "SFI_IsletC_Lo"
+      },
+      {
+        "name": "IsletD",
+        "center": [
+          620.0,
+          0.0,
+          10.0
+        ],
+        "radius": 55.7,
+        "lod_far": 240.0,
+        "hi": "SFI_IsletD_Hi",
+        "lo": "SFI_IsletD_Lo"
+      },
+      {
+        "name": "Atoll",
+        "center": [
+          440.0,
+          0.0,
+          -480.0
+        ],
+        "radius": 308.5,
+        "lod_far": 520.0,
+        "hi": "SFI_Atoll_Hi",
+        "lo": "SFI_Atoll_Lo"
+      }
+    ],
+    "surf": "SFI_Surf_All",
+    "pier": {
+      "moorings": [
+        [
+          -96.479,
+          0.0,
+          -95.125
+        ],
+        [
+          -80.921,
+          0.0,
+          -92.717
+        ]
+      ],
+      "yaw_deg": 18.42
+    },
+    "sail_routes": [
+      {
+        "from": [
+          -120.0,
+          0.0,
+          -420.0
+        ],
+        "to": [
+          260.0,
+          0.0,
+          -150.0
+        ],
+        "boat": "SFB_Sail",
+        "speed": 3.0
+      },
+      {
+        "from": [
+          520.0,
+          0.0,
+          420.0
+        ],
+        "to": [
+          120.0,
+          0.0,
+          120.0
+        ],
+        "boat": "SFB_Sail",
+        "speed": 2.6
+      },
+      {
+        "from": [
+          -620.0,
+          0.0,
+          60.0
+        ],
+        "to": [
+          -300.0,
+          0.0,
+          420.0
+        ],
+        "boat": "SFB_Sail",
+        "speed": 2.8
+      },
+      {
+        "from": [
+          40.0,
+          0.0,
+          480.0
+        ],
+        "to": [
+          -260.0,
+          0.0,
+          160.0
+        ],
+        "boat": "SFB_Motor",
+        "speed": 7.0
+      },
+      {
+        "from": [
+          700.0,
+          0.0,
+          -260.0
+        ],
+        "to": [
+          300.0,
+          0.0,
+          -40.0
+        ],
+        "boat": "SFB_Motor",
+        "speed": 6.0
+      }
+    ]
+  },
+  "triangles_total_hi": 384656,
+  "previews": [
+    "assets/sudden_death/sky_fx/source/previews/bl_islands_top.png",
+    "assets/sudden_death/sky_fx/source/previews/bl_main_near.png",
+    "assets/sudden_death/sky_fx/source/previews/bl_atoll.png"
+  ]
+}

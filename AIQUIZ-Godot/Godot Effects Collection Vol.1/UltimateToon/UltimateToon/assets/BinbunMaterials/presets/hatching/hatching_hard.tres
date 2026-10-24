@@ -1,0 +1,29 @@
+[gd_resource type="ShaderMaterial" load_steps=3 format=3 uid="uid://7aqtu6morg6p"]
+
+[ext_resource type="Shader" uid="uid://bkb1f7plk6r1j" path="res://assets/BinbunMaterials/src/shader/stylized.gdshader" id="1_v4dsu"]
+[ext_resource type="Texture2D" uid="uid://bvbb25bv4cder" path="res://assets/BinbunMaterials/src/texture/patterns/hatching/hatching_01.png" id="2_v4dsu"]
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_v4dsu")
+shader_parameter/albedo_color = Color(0.91, 0.7189, 0.88452, 1)
+shader_parameter/use_stepped = true
+shader_parameter/steps = 3.0
+shader_parameter/step_smoothness = 0.0
+shader_parameter/shadow_tint = Color(0.51, 0, 0.4505, 1)
+shader_parameter/shadow_tint_amount = 1.0
+shader_parameter/specular = 0.0
+shader_parameter/normal_strength = 0.0
+shader_parameter/use_rim = true
+shader_parameter/rim_color = Color(1, 0.96, 0.88, 1)
+shader_parameter/rim_amount = 1.5
+shader_parameter/rim_smoothness = 0.0
+shader_parameter/rim_mask_shadow = 1.0
+shader_parameter/rim_blend = 1.0
+shader_parameter/use_pattern = true
+shader_parameter/pattern_texture = ExtResource("2_v4dsu")
+shader_parameter/pattern_uv_mode = 2
+shader_parameter/pattern_tiling = 4.0
+shader_parameter/pattern_amount = 0.25
+shader_parameter/pattern_smoothness = 0.0
+shader_parameter/pattern_blend = 0.5

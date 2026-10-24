@@ -6,7 +6,7 @@ extends Node
 ##   ./Godot_v4.7.2-stable_win64_console.exe --path . --resolution 1280x720 --script tests/net/net_match_bootstrap.gd -- runtime=res://tests/online_cutin_ae/capture_cutin_chars.gd [out=res://artifacts/online_cutin_ae/chars] [scale=2] [wide=1.3]
 ## ファイル名：slot{1|2}_pose{0..3}_{L|R}.png
 ##   L＝左のパネルに置く絵（体は右＝画面の真ん中を向く）、R＝右のパネルに置く絵（左を向く）。
-## 高さはゲームの SubViewport（900×1000）の scale 倍（既定 2 倍＝2000 px）。幅は wide 倍だけ広げる（既定 1.3 倍＝2340 px）。
+## 高さはゲームの SubViewport（CutinActors.VIEW_SIZE。1034×1000）の scale 倍（既定 2 倍＝2000 px）。幅は wide 倍だけ広げる（既定 1.3 倍＝2688 px）。
 ## Godot のカメラは縦の画角を保つので、幅を広げても体の大きさと位置はゲームと同じで、横に伸ばした腕が切れなくなるだけ。
 ## 帽子はかぶせない（HAT_NONE）。肌はスロットの標準色。
 

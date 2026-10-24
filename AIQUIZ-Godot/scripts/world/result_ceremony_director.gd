@@ -96,6 +96,14 @@ func crowd_egg_target() -> Node3D:
 	return _stage.egg_target()
 
 
+## Where the egg contents dripping off the crowd's target land (the loser's lift
+## deck), whenever there is an egg target.
+func crowd_egg_support() -> Dictionary:
+	if crowd_egg_target() == null:
+		return {}
+	return _stage.egg_support()
+
+
 func update_result_ceremony(delta: float) -> void:
 	if game_state == null:
 		return

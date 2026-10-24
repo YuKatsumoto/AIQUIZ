@@ -4,9 +4,11 @@
 
 反映先
 - ui_logo        assets/ui/branding/aiquiz_logo.png         メインメニューのタイトル・スコアボードの見出し（Godot が直接読む）
-- led_logo       assets/aiquiz_menu_stage/led/led_logo.png  LED 番組（AIQUIZ VISION）のロゴ（make_led_media.make_logo）
+- led_logo       assets/aiquiz_menu_stage/led/led_logo.png  LED 番組（AIQUIZ VISION）のロゴ（make_led_media.make_logo。
+                 2026-10-21 から今のタイトルのロゴ testopia_logo.png で作る）
 - menu_sign      メニューのステージの看板（make_textures.make_sign）。発進デッキは今は作っていないが、作り直したときのため
-- helicopter     ヘリコプターの機体のデカール（hb_decals.png のロゴ 2 つ）。機体の UV はそのままにするため、
+- （ヘリコプターには描かない。2026-10-17 に機体の AIQUIZ のロゴを消した：clear_helicopter_logos）
+- helicopter     （使っていない）ヘリコプターの機体のデカール（hb_decals.png のロゴ 2 つ）。機体の UV はそのままにするため、
                  ロゴの枠（hb_decals_regions.json の regions）は変えず、その中へ縦横比を保って収める。
                  Blender で機体を作り直すと hb_textures.py が led_logo.png から同じように描き直す
 - lighthouse     スタジアムの灯台とゴールスタンドの看板「AIQUIZ STADIUM」。字を消した下地
@@ -154,7 +156,28 @@ def _bleed(buf, iters=HB_BLEED):
 		filled = filled | grow
 
 
+def clear_helicopter_logos() -> list[Path]:
+	"""ヘリコプターの機体の AIQUIZ のロゴ（外板の 2 か所と計器盤の銘板）を消す（2026-10-17〜、タイトルが TESTOPIA になったため）。
+	ロゴの 2 マス（LOGO_KEY・LOGO_MASK）を透明にするだけで、機体の UV とデカールの面はそのまま（アルファで重ねるので何も見えない）。
+	ロゴを変えてもヘリには描かない（STEPS に入れていない）。
+		python -c "import sys; sys.path.insert(0, 'tools/logo_editor'); import apply_logo; apply_logo.clear_helicopter_logos()"
+	"""
+	info = json.loads(HELI_REGIONS.read_text(encoding="utf-8"))
+	size = int(info["size"])
+	img = np.asarray(Image.open(HELI_SOURCE).convert("RGBA")).astype(np.float32) / 255.0
+	buf = img[::-1].copy()  # 行 0 を下に
+	for name in ("LOGO_KEY", "LOGO_MASK"):
+		cx, cy, cw, ch = info["cells"][name]
+		buf[cy:cy + ch, cx:cx + cw] = 0.0
+	out = Image.fromarray((buf[::-1] * 255.0 + 0.5).astype(np.uint8), "RGBA")
+	assert out.size == (size, size)
+	out.save(HELI_SOURCE)
+	shutil.copyfile(HELI_SOURCE, HELI_GAME)
+	return [HELI_SOURCE, HELI_GAME]
+
+
 def helicopter() -> list[Path]:
+	"""（使っていない）ヘリコプターのデカールにロゴを描く。AIQUIZ のころの描き方を残してある。"""
 	info = json.loads(HELI_REGIONS.read_text(encoding="utf-8"))
 	size = int(info["size"])
 	img = np.asarray(Image.open(HELI_SOURCE).convert("RGBA")).astype(np.float32) / 255.0
@@ -250,7 +273,6 @@ STEPS = [
 	("ui_logo", "メニュー・スコアボードのロゴ", ui_logo),
 	("led_logo", "LED のロゴ", led_logo),
 	("menu_sign", "メニューのステージの看板", menu_sign),
-	("helicopter", "ヘリコプターのデカール", helicopter),
 	("lighthouse", "灯台・ゴールスタンドの看板", lighthouse),
 ]
 

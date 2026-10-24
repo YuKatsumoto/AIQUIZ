@@ -114,7 +114,7 @@ ffmpeg -i docs/pv/previz/v3/PV_S01-S03_v3_video.mp4 -i docs/pv/previz/v3/PV_S01-
 | PV フレーム | カット | 中身 |
 |---|---|---|
 | 1〜113 | 01 | カウントダウンの状態のまま止める（ベルトは動かず、2 人は立ちポーズ）。問題の壁は空の上に隠す |
-| 114〜225 | 02 | 壁がゲームのプレビューの壁と同じ形（2 乗の加速・0.55 秒）で落ち、142 で着地：潰れて戻る、白い土ぼこりの衝撃（BinbunVFX vfx_impact_01 を灰色に）×3、揺れ、`wall_land`、観客のどよめき。2 人はのけぞる（UAL Hit_Chest） |
+| 114〜225 | 02 | 壁がゲームのプレビューの壁と同じ形（2 乗の加速・0.55 秒）で落ち、142 で着地：潰れて戻る、白い土ぼこりの衝撃（BinbunVFX vfx_impact_01 を灰色に）×3、揺れ、`wall_land`、観客のどよめき。2 人はのけぞる（UAL Hit_Chest）。落ちてくるあいだは文字を隠し、着地の 0.5 秒後（衝撃のトゲが消えるころ）から問題文と選択肢を AI が書いているように出す（PV だけの演出。ゲームでは使わない。`docs/ai_question_typing.md`、2026-10-22） |
 | 226〜338 | 03 | 2 拍で背中越しのアップへ寄る（扉が 2 人の頭の間に見える高さ）。2 人とも頭を青い扉の中心へ実際に向ける |
 | 339〜450 | 04 | 前から 2 人の顔。赤 → 青 → 赤と 1 拍ずつ、頭を扉の中心へ向けて見比べる（頭は扉の向き、体は 20% だけ） |
 | 451〜506 | 05 | 前から。P2 は 0.1 秒目から 0.42 秒かけて右腕を上げ（少し行き過ぎて戻る）、赤い扉を指さし、胸を赤い扉へ向ける。P1 は首を振って迷う（UAL2 Idle_No_Loop） |
@@ -184,7 +184,7 @@ copy artifacts/pv_capture/s04_s05_sub8/{cues,report}.json artifacts/pv_capture/s
 node assets/aiquiz_menu_stage/source/ae/ae_run.mjs docs/pv/previz/ae/build_s03_c.jsx
 node assets/aiquiz_menu_stage/source/ae/ae_run.mjs docs/pv/previz/ae/build_s01_s03_v3.jsx
 node assets/aiquiz_menu_stage/source/ae/ae_run.mjs docs/pv/previz/ae/build_s04_s07.jsx         # テロップ・教科名・シャッターの光、通しのコンポ PV_S01_S07（AIQUIZ_PV_S01_S07.aep）
-"G:\adobe\Adobe After Effects 2026\Support Files\aerender.exe" -project C:\AIQUIZ\AIQUIZ-Godot\docs\pv\previz\ae\AIQUIZ_PV_S01_S07.aep -comp PV_S01_S07 -RStemplate 最良設定 -OMtemplate "H.264 - レンダリング設定を一致 - 40 Mbps" -output C:\AIQUIZ\AIQUIZ-Godot\docs\pv\previz\v4\PV_S01-S07_video.mp4
+"G:\adobe\Adobe After Effects 2026\Support Files\aerender.exe" -project G:\AIQUIZ-Main\AIQUIZ-Godot\docs\pv\previz\ae\AIQUIZ_PV_S01_S07.aep -comp PV_S01_S07 -RStemplate 最良設定 -OMtemplate "H.264 - レンダリング設定を一致 - 40 Mbps" -output G:\AIQUIZ-Main\AIQUIZ-Godot\docs\pv\previz\v4\PV_S01-S07_video.mp4
 python tools/pv/mix_s01_s07.py docs/pv/previz/v4/PV_S01-S07_audio.wav
 ffmpeg -i docs/pv/previz/v4/PV_S01-S07_video.mp4 -i docs/pv/previz/v4/PV_S01-S07_audio.wav -map 0:v -map 1:a -c:v copy -c:a aac -b:a 256k docs/pv/previz/v4/PV_S01-S07.mp4
 ```
@@ -193,7 +193,7 @@ ffmpeg -i docs/pv/previz/v4/PV_S01-S07_video.mp4 -i docs/pv/previz/v4/PV_S01-S07
 「1 回書き出すと同じ起動の次の書き出しが失敗する」問題も、立ち上げ直しも要らない（2080 フレームで約 2 分）。AE の中から書き出す
 `render_s01_s07.jsx` も残してある（その場合は AE を立ち上げ直してから）。
 
-### S04〜S05（`pv_s04_s05_runtime.gd`：本物のメインメニュー、1 人）
+### S04〜S05（`pv_s04_s05_runtime.gd`：本物のメインメニュー、1 人。10/20 からは 2 人版：「全体の通し（v6）」の「S04〜S07 の 2 人版」）
 
 | テイクのフレーム | カット | 中身 |
 |---|---|---|
@@ -212,7 +212,7 @@ ffmpeg -i docs/pv/previz/v4/PV_S01-S07_video.mp4 -i docs/pv/previz/v4/PV_S01-S07
 - 見上げのカットだけ、ローターの風で舞う破片（`downwash`）を隠す（床すれすれのカメラではレンズの前を横切る大きな白い四角になる）。
 - メニューでは UI 以外の効果音が鳴らないので、ヘリの音（ローター・つかまる音・ジェット点火）は `mix_s01_s07.py` が置く。
 
-### S06〜S07（`pv_s06_s07_runtime.gd`：本物の GameWorld、1 人）
+### S06〜S07（`pv_s06_s07_runtime.gd`：本物の GameWorld、1 人。10/20 からは 2 人版で撮り直し、手順は `docs/pv/takes/s06_s07.md`）
 
 | テイクのフレーム | カット | 中身 |
 |---|---|---|
@@ -233,6 +233,292 @@ ffmpeg -i docs/pv/previz/v4/PV_S01-S07_video.mp4 -i docs/pv/previz/v4/PV_S01-S07
   S07 は上の中央（扉が画面の下半分）。
 - S07 は左上に教科名と学年（例「算数 4年」）、切り替えごとに白い光（シャッター）。音は `helicopter/belt_click` ＋ `ui_click` の「カチッ」。
 - ExtendScript は `a ? b : c ? d : e` を `(a ? b : c) ? d : e` と読むので、入れ子の三項演算子には括弧を付ける。
+
+## v1.0 の撮り直し（2026-10-19：TESTOPIA・かけ算の Q1・S23〜S24）
+
+ゲームの名前が AIQUIZ から TESTOPIA に変わった（`docs/title_logo_intro.md`）ので、S01〜S07 を今のゲームで撮り直し、ロゴを
+ゲーム本体の登場演出に替えた。できあがり：`docs/pv/previz/v5/PV_S01-S07.mp4`（34.7 秒・音つき）と `docs/pv/previz/v5/PV_S23-S24.mp4`
+（9.4 秒・音なし）。絵コンテ用の 720p とコマは同じフォルダと `docs/pv/frames/v5/`。10/17 の AIQUIZ の版は `previz/v4/` と
+`artifacts/pv_capture/*_frames_1017/` に残してある。
+
+- **Q1**：`pv_v3_runtime.gd` の `Q1_TEXT` を「【かけ算】7 × 8 ＝ ？」、ドアを「56」（青・正解）「54」（赤）にした。問題集
+  （`offline_bank.json` の算数 2 年「【かけ算】7 × 8 =」）の問題で、誤答は 6 × 9 と取り違えやすい 54。頭に「Q1」を付けると
+  引きの画で「Q17 × 8」と読めるので、ゲームの壁と同じ書き方にした（看板は 1 行。`measure_question.gd` で確かめた）。演技・カメラ・時刻は v3 のまま。
+- **ロゴ**：AE で文字を組み直さず、ゲームのタイトルの登場演出（`TitleLogoIntro`）そのものを `tests/pv_capture/pv_logo_capture.gd` で
+  透明な連番 PNG（`artifacts/pv_capture/logo_<tag>/l_NNNN.png`、色は不透明度を掛けたもの）に書き出し、AE で重ねる。形・色・平らなベルト・
+  縁取り・超解像はゲームと同じ。演出の時刻は `_t` を直接決めて描く（`tests/title_logo_intro_capture.gd` と同じやり方）ので、何度でも同じ絵になる。
+  `report.json` にロゴの場所とマーカー（ALL SEATED・BURST・END）の PV フレームが入り、AE のスクリプトがそれを読む。
+- **S03**（`docs/pv/previz/ae/build_s03_t.jsx`、コンポ `PV_S03_T`）：登場演出を DEPLOY から 1.92 倍速。全部そろう（ALL SEATED）のが
+  2 小節目の頭の 0.03 秒後、扉のブロックの爆散（BURST）が 2 小節目の 2 拍目の頭。そろうところで小さく 1.6% 寄り、爆散に白い閃光・光の筋・
+  斜めの棒・107% のズームパンチ、そのあと 104% までゆっくり寄る。最後の拍でベルトがロゴを左へ運び出し、黄色い帯で S04 へ（案 C と同じ帯）。
+  `build_s01_s03_v3.jsx` は `PV_S03_T` を使う（無ければ前の `PV_S03_C`）。
+- **S23〜S24**（`tests/pv_capture/pv_s23_runtime.gd`、`docs/pv/previz/ae/build_s23_s24.jsx`、`TESTOPIA_PV_S23_S24.aep`）：
+  背景は本物のメインメニュー（設定の手順。2 人）で、`MainMenu` の子のうち `LiveBackground` 以外と CanvasLayer を全部隠す。
+  モードを選ぶ手順は待ちの演出（キャラがチップソーに巻き込まれる・T ポーズ）が入るので使わない。待ちの演出のチップソーの抽選
+  （`menu_wall_background_preview.gd` の `_saw_next_trial` / `_saw_accident_cooldown`）は撮影中だけ止める。2 人にした直後の約 4 秒は
+  P1 が巻き込まれて復帰する流れが入るので、6.5 秒待ってから撮る。S24 の途中でメニューの壁が崩れる（暗くぼかしてあるのでそのまま）。
+  ロゴは 1.6 倍速（爆散が S23 の 7 拍目の頭）、背景を 45% 暗く。S24 で背景を 72% 暗くぼかし、ロゴを上へ小さく寄せ、
+  作品情報と素材のクレジットを出す。ロゴの下のキャッチコピーは入れない（10/19 に決定。`build_s23_s24.jsx` の `CATCH` を空にしてある）。
+
+```
+Godot_v4.7.2-stable_win64_console.exe --path . --resolution 1920x1080 --fixed-fps 480 --script res://tests/pv_capture/pv_v3_bootstrap.gd -- quality=ultra sub=8 tag=v3_sub8
+Godot_v4.7.2-stable_win64_console.exe --path . --resolution 1920x1080 --fixed-fps 480 --script res://tests/pv_capture/pv_take_bootstrap.gd -- take=s04_s05 quality=ultra sub=8 tag=s04_s05_sub8
+Godot_v4.7.2-stable_win64_console.exe --path . --resolution 1920x1080 --fixed-fps 480 --script res://tests/pv_capture/pv_take_bootstrap.gd -- take=s06_s07 quality=ultra sub=8 tag=s06_s07_sub8
+Godot_v4.7.2-stable_win64_console.exe --path . --resolution 1920x1080 --fixed-fps 480 --script res://tests/pv_capture/pv_take_bootstrap.gd -- take=s23 quality=ultra sub=8 tag=s23_sub8
+python tools/pv/merge_subframes.py artifacts/pv_capture/<take>_sub8 artifacts/pv_capture/<take>_frames   （4 本とも。cues.json と report.json も写す）
+Godot_v4.7.2-stable_win64_console.exe --path . --resolution 1920x1080 --script res://tests/pv_capture/pv_logo_capture.gd -- tag=s03 zoom=4 top=120 t0=0.35 speed=1.92 frames=225
+Godot_v4.7.2-stable_win64_console.exe --path . --resolution 1920x1080 --script res://tests/pv_capture/pv_logo_capture.gd -- tag=s23 zoom=2.6 top=359 t0=0.35 speed=1.6 frames=563
+node tools/title_logo_ae/ae_run.mjs docs/pv/previz/ae/build_s03_t.jsx
+node tools/title_logo_ae/ae_run.mjs docs/pv/previz/ae/build_s01_s03_v3.jsx
+node tools/title_logo_ae/ae_run.mjs docs/pv/previz/ae/build_s04_s07.jsx
+"G:\adobe\Adobe After Effects 2026\Support Files\aerender.exe" -project G:\AIQUIZ-Main\AIQUIZ-Godot\docs\pv\previz\ae\AIQUIZ_PV_S01_S07.aep -comp PV_S01_S07 -RStemplate 最良設定 -OMtemplate "H.264 - レンダリング設定を一致 - 40 Mbps" -output G:\AIQUIZ-Main\AIQUIZ-Godot\docs\pv\previz\v5\PV_S01-S07_video.mp4
+python tools/pv/mix_s01_s07.py docs/pv/previz/v5/PV_S01-S07_audio.wav
+ffmpeg -i docs/pv/previz/v5/PV_S01-S07_video.mp4 -i docs/pv/previz/v5/PV_S01-S07_audio.wav -map 0:v -map 1:a -c:v copy -c:a aac -b:a 256k docs/pv/previz/v5/PV_S01-S07.mp4
+node tools/title_logo_ae/ae_run.mjs docs/pv/previz/ae/build_s23_s24.jsx
+"G:\adobe\Adobe After Effects 2026\Support Files\aerender.exe" -project G:\AIQUIZ-Main\AIQUIZ-Godot\docs\pv\previz\ae\TESTOPIA_PV_S23_S24.aep -comp PV_S23_S24 -RStemplate 最良設定 -OMtemplate "H.264 - レンダリング設定を一致 - 40 Mbps" -output G:\AIQUIZ-Main\AIQUIZ-Godot\docs\pv\previz\v5\PV_S23-S24_video.mp4
+```
+
+- かかった時間（この PC、本番画質）：撮影は v3 が約 4.5 分、s04_s05 が約 4 分、s06_s07 が約 2 分、s23 が約 3 分（合わせ込みに 1 分ほど足す）。
+  ロゴの連番は 1 本 1 分ほど。aerender は S01〜S07 が約 3 分、S23〜S24 が約 1.5 分。ゲームの見た目が変わったら、この順に流し直せばよい。
+- `build_s03_t.jsx` と `build_s23_s24.jsx` は新しいプロジェクトを作るので、開いているプロジェクトに保存していない変更があると止まる
+  （閉じて消さないため）。途中で止まって無題のプロジェクトが残ったときは、それを閉じてから流し直す。
+- AE の画面が aerender の書き出し中にスクリプトを受け付けないことがある（`ae_run.mjs` が 60 秒で諦める）。書き出しが終わってから流し直す。
+
+v1.1（10/19）：S03 のジャンル名・S22（LAST Q）・S24（作品情報）は使わないことにした。`PV_S23_S24` のコンポと書き出しには S24 の部分が
+残っているが、PV では最初の 5.625 秒（S23）だけを使う。絵コンテの「走って答える」の章（S09）は PV カメラやスローを使わず、
+ゲームのカメラ・HUD・効果音のまま 1 人の通しを撮る。
+
+## BGM（2026-10-20）
+
+Suno（Premier プランで作成）の「TESTOPIA PV BGM - Game Show 70s」（約 133 BPM・69.19 秒、Suno の id 4bae983f-be50-4377-b2aa-0d72dc3130b0）を
+`docs/pv/music/testopia_pv_bgm_game_show_70s.mp3` に置いた。最初に選んだ「Game Show」（83.6 秒）と同じ楽器構成・同じスタイルの文で、
+長さだけ 1:10 に指定して作り直したもの。**曲には手を加えない**（カット・つなぎ替え・テンポや音程の変更をしない。音ハメもしない）。
+
+- S03 でタイトルが出はじめるところ（PV フレーム 957 = 15.933 秒）から、一定の音量で効果音の下に流す。S01〜S02 は効果音と観客の声だけ。
+- 曲の終わり（PV の 85.125 秒）で PV も終わる。絵コンテ v1.2 でカットを伸ばして 85.3 秒（182 拍）にした（通しは下の「全体の通し（v6）」）。
+- S01〜S07 の試聴版：`docs/pv/previz/v5/PV_S01-S07_music_720p.mp4`。効果音 `PV_S01-S07_audio.wav` と曲（15.933 秒遅らせる）を
+  どちらも −4 dB で足し、全体を +2.6 dB（ピーク −1.0 dBFS、−16.5 LUFS）。自動で音量をならす処理は使っていない。
+- 途中で試してやめたもの：最初の「Game Show」を Suno の「セクションを削除」で縮めた版（つなぎ目が不自然）と、150 BPM に速めた版。
+
+```
+ffmpeg -i docs/pv/previz/v5/PV_S01-S07_audio.wav -i docs/pv/music/testopia_pv_bgm_game_show_70s.mp3 -filter_complex "[1:a]aresample=48000,volume=-4dB,adelay=15933|15933[m];[0:a]volume=-4dB[s];[s][m]amix=inputs=2:normalize=0:duration=first,volume=2.6dB[a]" -map "[a]" -c:a pcm_s16le docs/pv/previz/v5/PV_S01-S07_mix.wav
+```
+
+## 全体の通し（v6：S01〜S23、2026-10-20〜、レーン 6）
+
+できあがり：`docs/pv/previz/v6/PV_full.mp4`（絵コンテの 11 カット・182 拍 = 5119 フレーム・85.3 秒、1920×1080・60 fps・音つき。
+10/20 夜に S16・S17 を S09 へ統合し、S18 を外して S03 を 20 拍に伸ばした。10/21 夜の絵コンテ v1.3 で、実際のプレイ画面 S09 を
+60 → 72 拍に伸ばした：S03 16 → 12・S06 12 → 8・S07 12 → 10・S21 10 → 8 拍。10/22 の v1.6 で、S07 を 3 問・6 拍に詰め、
+S09 をカウントダウンの「3」から始めて 76 拍にした：浮いた尺は、幽霊がサメに乗るところまで S09 の 1 本目を伸ばすのに使った）と
+`PV_full_720p.mp4`。確認用の一覧は `docs/pv/previz/check/pv_full_contact.jpg`（各カットの 30%・75% のコマ）。
+撮れていないカットは絵コンテの画像で仮に置き、右上に赤い「仮」の札とカット名を出す。
+
+```
+python tools/pv/pv_master.py                     # plan → audio → s03 → ae → render → mux → check（ほとんどが aerender の 5 分ほど）
+python tools/pv/pv_master.py plan                # 計画だけ。どのカットが撮影／仮かの表を出す
+python tools/pv/pv_master.py plan audio          # 一部だけ（書いた順ではなく上の順に流す）
+python tools/pv/pv_master.py --placeholder=S09   # 届いていても仮のままにする（カンマ区切り）
+```
+
+**ほかのレーンの連番が届いたら、`python tools/pv/pv_master.py` をもう一度流すだけでよい**（届いたカットは自動で撮影に替わる）。
+
+| 段 | 中身 |
+|---|---|
+| plan | 絵コンテの SHOTS（`tools/pv/storyboard_shots.mjs` が HTML から読む）からカットの順・長さ・テロップを、各テイクの連番・`report.json`・`cues.json` から絵と音の置き場所を決めて `docs/pv/previz/v6/master_plan.json` に書く |
+| audio | 効果音と曲を足し、一定の倍率で true peak を −1.5 dBFS にそろえる → `PV_full_audio.wav`（数値は `PV_full_audio.json`） |
+| s03 | `docs/pv/previz/ae/build_s03_t_long.jsx` が計画の `s03`（`pv_master.py` の `S03_LONG`）を読み、`build_s03_t.jsx` を 16 拍の設定で流して `TESTOPIA_PV_S03_long.aep`（コンポ `PV_S03_T`、450 フレーム）を組み、保存して閉じる |
+| ae | `docs/pv/previz/ae/build_master.jsx` が計画どおりに新しいプロジェクトを組み、`TESTOPIA_PV_master.aep`（コンポ `TESTOPIA_PV_master`）に保存して閉じる |
+| render | aerender（`最良設定`・`H.264 - レンダリング設定を一致 - 40 Mbps`）→ `PV_full_video.mp4`（ログは `artifacts/pv_capture/aerender_master.log`） |
+| mux | 音をつけて `PV_full.mp4`（AAC 256k）と `PV_full_720p.mp4`（x264 CRF 20） |
+| check | フレーム数・音の長さ・AAC の true peak・黒いコマを確かめ、要所のコマの一覧を作る |
+
+### 並び（60 fps、1 拍 = 28.125 フレーム）
+
+- S01・S02 は撮影済みのコンポ `PV_S01_S07`（`AIQUIZ_PV_S01_S07.aep` を読み込む。元のファイルは変えない）の頭 956 フレーム
+  （切れ目は 0・338）。S03（956〜1294、12 拍・338 フレーム）は `TESTOPIA_PV_S03_long.aep` の `PV_S03_T`（下の「S03 のタイトル」）。
+  S04（1294〜、225 フレーム）・S05（1519〜、12 拍・337 フレーム）はテイク s04_s05 の連番から通しで組む（下の「S04〜S07 の 2 人版」）。S06 は 1856 から。
+  そこから先は 128 BPM の拍のいちばん近いフレーム（四捨五入）で切る。S06 はテイク s06_s07 の `S06_SRC_IN`（40）から（頭の「0/10」のまま待つところと、
+  「問題ができました！」（195）のあと止まっているところを削る）。S07 は `cuts.S07` の頭（339）から 3 問（v1.6）で、4 問目へ切り替わる前（506）で終わる。
+  拍の切れ目（2081）からでは 4 問目が 1 フレーム入るので、S07 を 1 フレーム早く始め、S06 が 226 フレームになる（`make_plan`）。
+  切れ目（S01 からの秒）：S01 0・S02 5.63・S03 15.93・S04 21.57・S05 25.32・S06 30.93・S07 34.70・S09 37.50・S21 73.13・S20 76.88・S23 79.68・終わり 85.32
+  （v1.4 で S21 のスコアタワーを S20 の前へ移した。ゴールのあとすぐに決着、そのあとキャラの紹介からロゴへ）。
+- S23 は `TESTOPIA_PV_S23_S24.aep` の `PV_S23_S24` の最初の 338 フレーム（S24 の部分は使わない）。
+- `PV_S01_S07` の中の S04〜S07（`s04_s05_frames`・`s06_s07_frames` を読む）は、読み込んだらすぐ外す（使わないうえ、AE が連番を
+  つかむと撮り直しの上書きを邪魔するため）。`build_s04_s07.jsx` と `AIQUIZ_PV_S01_S07.aep` の S04〜S07 は v5（1 人版）のもので、通しでは使わない。
+
+### S03 のタイトル（10/20 夜に 20 拍、10/21 に 16 拍、10/21 夜（v1.3）から 12 拍）
+
+ユーザーの決定で、オンライン対戦のカット（S18、12 拍）を外し、その 12 拍で S03 のタイトルを 8 拍から 20 拍（9.37 秒・562 フレーム）に伸ばした。
+10/21 にユーザーの決定で 16 拍（7.5 秒・450 フレーム）に詰め、その 4 拍を S05 へ回した（爆散のあと止めて見せる間が短くなる。ロゴの連番は
+562 フレームのまま、頭の 450 フレームを使う。演出の時刻は長さからの相対なので `S03_LONG` の `frames` を変えるだけ）。
+10/21 夜（v1.3）に、実際のプレイ画面 S09 を伸ばすため 12 拍（5.63 秒・338 フレーム）へ詰めた。爆散（BURST）は 2.83 秒目、ロゴの完成は 3.63 秒目のままで、
+止めて見せる間は約 2.3 秒（最後の 1 拍の帯のワイプ `T_OUT` = 5.16 秒まで）。
+全体は 182 拍・85.3 秒のまま、曲も S03 の頭（PV 15.933 秒）から変わらない。素材は親のセッションが用意した：
+
+- 背景：v3 を 1522 フレームまで撮り直した `artifacts/pv_capture/v3_frames`（PV 957〜1518 が S03 の 562 フレーム）。前の 1180 フレームの版は
+  `v3_frames_1180`。PV 1〜956（S01・S02）は前と同じ台本なので同じ絵。10/22 に、AI が問題を書く演出のため PV 1〜338 だけ撮り直して
+  差し替えた（`docs/ai_question_typing.md`。前の連番は `v3_frames_pre_ai`）。
+- ロゴ：ゲームの登場演出（`TitleLogoIntro`）を 1.6 倍で 562 フレーム書き出した `artifacts/pv_capture/logo_s03_x16`
+  （`pv_logo_capture.gd -- tag=s03_x16 zoom=4 top=120 t0=0.35 speed=1.6 frames=562`。report.json にマーカーの PV フレーム）。
+  10/21 にユーザーの決定で、文字が落ちてくる速さを最後のロゴ（S23、`speed=1.6`）にそろえた。前の等速の版は `logo_s03_long`。
+
+組み方：`build_s03_t.jsx` は長さ（`DUR`）と最後の拍（`T_OUT` = 長さ − 1 拍）を `$.global.S03_T_CFG` から変えられるようにした（置かなければ前の 2 小節のまま）。
+`build_s03_t_long.jsx` が計画の `s03`（`pv_master.py` の `S03_LONG`）を読んでそれを置き、`build_s03_t.jsx` を流す。ロゴは S23 と同じ 1.6 倍で、扉のブロックの
+爆散（BURST）までゲームの動きのまま。閃光・光の筋・斜めの棒・ズームパンチは BURST に合わせ、そのあとは止めて見せる間にゆっくり 104% へ寄り、
+きらめきと観客席のフラッシュを散らす。最後の 1 拍でベルトがロゴを左へ運び出し、今までと同じ黄色い帯のワイプで S04 へ。
+`pv_master.py plan` は、背景（1518 枚以上）とロゴ（562 枚）がそろい、GPU_LOCK に v3 の撮影が無いときだけ進む。
+
+### S04〜S07 の 2 人版（10/20）
+
+10/20 に S04〜S07 を 2 人プレイで撮り直した（ユーザーの決定）。1 人版の連番は `artifacts/pv_capture/s04_s05_frames_1p`・`s06_s07_frames_1p` に残してある。
+
+- **S04**（s04_s05 の 1〜225、`pv_s04_s05_runtime.gd` の `players=2`。既定が 2 人）：2 人のメインメニュー（ボタンが「2人プレイ」）。設定パネルの位置は
+  1 人版と同じなので、寄り（設定パネルの中心 (410, 440) へ「ゲーム開始」（`press_frame` 156）まで 1.0 → 1.12 倍）とテロップ（右下、6.5 拍目まで）は
+  1 人版と同じ。S03 の黄色い帯は S04 の頭で 0.32 秒かけて左へ抜ける（`S04_WIPE_OUT`）。どれも `build_master.jsx` が通しの中で作る。
+- **S05**（同じテイクの 226〜562。10/21 に 8 拍から 12 拍へ伸ばして撮り直した。`pv_s04_s05_runtime.gd` の `S05_FRAMES` = 337）：ヘリが 2 機（P1 側 x = −8・P2 側 x = +4、12 m 離れて止まる）。前半は 2 機の間の正面の低い所から、
+  2 機と 2 人が並んで見えるようにゆっくり寄る。後半（367〜）は 2 機の間の真下より手前、床すれすれから広く見上げ、2 機とハテナの椅子が
+  一緒に打ち上がる。P1 がつかまるのは 346（`grab_frame`）、P2 は 366（`events.grab2_frame`）、発射は 409（`launch_frame`）。
+  発射のあとは 562 まで、遠ざかる 2 機を見上げのカメラ（2 機の中点を追う）で見送る。前の 8 拍の版は `s04_s05_frames_1020_8beats`。
+- **S05 → S06 のワイプ**：S05 の最後の 3 拍（1884〜1968。10/21 に 1 拍から 3 拍へ）で、S03 の終わりと同じ黄色い斜めの帯（白い先端つき、`PV_S03_T` の `WIPE_TO_S04` と
+  同じ形・色・動き）が右から画面を覆い、S06 の頭でその帯が 0.32 秒で左へ抜けて S06 を見せる。覆い始めは `pv_master.py` の `S05_WIPE_BEATS`（3 拍）。
+  帯は止まった状態からゆるく出るので、画面に入るのは覆い始めて少したってから。発射（1814）からの 2 拍ほどは飛び去る 2 機がそのまま見え、
+  2 機が壁の向こうへ消える（テイクの 475 ごろ = PV 1880）のと入れ替わりに帯がゆっくり覆う。
+- **S05 の音**：ローターとジェットは 2 機ぶん（同じループを 0.37 秒ずらして重ね、1 機ぶん −3 dB）、つかまる音は P1・P2 の 2 回、ジェットの点火は 1 回。
+- **S06・S07**（s06_s07、レーン 1、`players: 2`）：2 人の準備画面と 5 教科の壁。切れ目と切り替えは 1 人版と同じ（`cuts`・`s07.switch_frames`）。
+
+### 届いたとみなす条件と、テイクから読むもの
+
+`artifacts/pv_capture/<take>_frames/` に連番 `pv_NNNN.jpg`（1 から続き）・`report.json`・`cues.json` がそろい、`report.json` が
+連番より新しいこと（merge の途中に読まない。report は merge のあとに写す）。連番が足りなければ最後のコマで止めて知らせる。
+
+| カット | テイク | 置き方 |
+|---|---|---|
+| S06・S07 | s06_s07（600 枚以上。旧 v5 の 450 枚は仮のまま。手順は `docs/pv/takes/s06_s07.md`） | S06 はテイクの `S06_SRC_IN`（40）から、S07 は `report.json` の `cuts.S07` の頭（無ければ `s07_start_frame`、それも無ければ 339 = bf(12)）から。S07 は 1.0 → 1.03 倍へ寄る。教科名のタグとシャッターの光・音は `s07.switch_frames`（無ければ cues.json の S07 範囲の ui_click、それも無ければ 2 拍ごと）。撮影で鳴らした切り替えの ui_click は使わず、シャッターの音に置きかえる |
+| S09 | s09（600 枚以上。手順と出来事のフレームは `docs/pv/takes/s09.md`） | 2 人版の 1 本の通し。v1.7 から 3 本に切り出す（v1.8 は 40・9・27 拍。S09 の中のカットは 2 回）。下の「S09 の詰め方」。1 人版のころの `s09_fall` は、あれば同じ人数のときだけ使う |
+| S21 | s21（カットの 9 割以上の枚数。S16・S17 は 10/20 夜に S09 へ統合したので、絵コンテに無ければ飛ばす） | `report.json` の `cut_in_frame`（無ければ 1）からカットの長さだけ |
+| S20 | s20・s20_emote・s20_emote_b・s20_emote_c（v1.4、`docs/pv/takes/s20.md`） | 画面を左右に分ける（`pv_master.py` の `SPLIT_SCREEN`）。左は `s20`（6 拍、テイクの x 0〜960 をそのまま）、右は `s20_emote`・`_b`・`_c` を 2 拍ずつ（テイクの x 40〜900・y 40〜1007 を 111.6% にして右半分へ）。どちらも 1 から。境目に帯と同じ黄色の線（幅 10 px）、各半分の左上に S07 の教科名と同じ形の札「スキン」「エモート」。前の 1 画面の版にするときは `--take=S20:s20`（`s20_skin` も同じ） |
+| S18（10/20 夜に外した。絵コンテに戻せばまた使える） | `docs/pv/media/s18_*.mp4`（いちばん新しいもの） | `docs/pv/media/s18_cuts.json` の `{"pieces": [{"in": 秒, "beats": 3}, …], "audio_db": null}` で切ってつなぐ（無ければ頭から 12 拍）。録画の音は `audio_db` を書いたときだけ使う（ゲームの BGM が入るので、録るときは BGM を 0 にする） |
+
+### S09 の詰め方（`pv_master.py` の `S09_PIECES`。10/20 夜からは 2 人版、10/21 夜（v1.3）から 72 拍、10/22（v1.5）から 2 本の通し、v1.6 から 76 拍、v1.7 から 3 本、v1.8 からビームと上昇は本画面、v1.9 から 2 人で遊んだ試合）
+
+10/20 夜、S09 を 2 人プレイで撮り直し、案 A で S16（チップソー）・S17（サメの逆襲）を S09 に混ぜた。10/21 夜（v1.3）に 72 拍へ伸ばした。
+10/22（v1.5）にユーザーの指示で、**カットを挟みすぎず、必要最低限のカットで伝える**ように組み直した：S09 の中のカットは 1 回だけ（2 本の通し）。
+v1.7 で、幽霊のサメがビームを出して空へ上がるところを見せるため、3 問目の突破のあとでもう 1 回切る（S09 の中のカットは 2 回）。
+v1.8 で、それを小窓ではなく本画面のまま見せる。ユーザーの指示で**ゲームの側**を直した（ビームの柱をもっと奥に立て、サメを甲板の高さまで上げ、
+上がりきったあとに待つ場所も画面の中に入れた。`docs/pv/takes/s09.md`「v6 のゲームの直し」）ので、テイクも v6 に撮り直した（動きは v5 と同じ）。
+テイクも v5 に撮り直した（`docs/pv/takes/s09.md`）：ジャンプを 1 回に減らし、**プレイヤー同士の押し合いを多く**（1 問目に並んで押し合い、
+2 問目に突き放してゴツン、3 問目に右の端で押して海へ）。幽霊のサメの体当たりはボス壁の直前の 9 問目にしたので、ボス壁まで切らずにつながる。
+テイクは 1 本の通し `s09_frames`（3300 枚、v6）。前の版は `s09_frames_v5`（ゲームを直す前、3283 枚）・`s09_frames_v4`（踊りとジャンプ）・`s09_frames_v3`（まっすぐ動くだけ）・`s09_frames_v2`（体当たりなし）。
+
+v1.9（10/22 夜、ユーザーの指示）で、**2 人で遊んだ試合**（テイク `s09_play`、`docs/pv/takes/s09_play.md`）に差し替えた。遊んだキー入力を記録し、
+同じキーを同じコマで送り直して本番の画質（ultra・1 秒 60 コマ。動きのブレはなし）で撮り直したもの（`s09_play_frames`、5052 枚）。幽霊のサメの
+きっかけは海への落下ではなく、ハートがなくなって脱落すること。試合は 72 秒あるので 4 本に切った（S09 の中のカットは 3 回）。
+下の表は v1.9。v1.8 までの台本の撮影 `s09`（P2 が 3 問目に海へ落ちる）は `S09_PIECES` の探すテイクを `s09` に戻せば使える。
+
+| 部分（拍、S09 の中の拍） | テイクのフレーム | 中身 |
+|---|---|---|
+| カウントダウンから1問目まで（22、0〜22） | 606〜1224 | カウントダウンの「3」から（2 人が踊っている）。爆発（`countdown_burst` 786）を 6.4 拍目。1 問目に P2 が赤いドアにゴツン（1121、ハート 3 → 2）、P1 が正解を突き破る（1163） |
+| ハートが0で脱落（8、22〜30） | 2446〜2670 | 5 問目に P2 が赤いドアへ走り、最後のゴツン（2578、ハート 1 → 0。`ghost_phase_death_hold`）を 4.7 拍目。甲板の上で脱落し、右下の小窓で魂が抜ける（2612〜）。魂が飛び始めたところで切る |
+| ビームから体当たりまで（26、30〜56） | 2885〜3615 | ビーム（`ghost_mount_beam` 2885）→ 6 問目の壁の上に柱 → P1 が 6 問目にゴツン（3046）→ サメが海から上がって全身が見え（3050〜）、右上へ滑る → 照準（3237）→ PERFECT（3424、0.767）→ 命中（`ghost_hit` 3466、20.7 拍目）→ 弾かれて遅れた P1 の後ろにチップソー（3500〜） |
+| ボス壁（20、56〜76） | 4366〜4928 | 9 問目（P1 が 1 回跳ぶ、幽霊が狙う）→ 9 問目の突破（4575）→ 4 択のボス壁（幽霊の 3 回目の突進は外れる）→ 突破（`boss_break` 4872）を 18 拍目、そのあと「GOAL へ走れ！」を 2 拍 |
+
+テロップ（絵コンテの S09 の区間は、この割り振りに合わせてある。変えるときは `S09_PIECES` と絵コンテの両方を直す）：
+
+| テロップ | S09 の中の拍 | 位置 |
+|---|---|---|
+| 壁のスピードも、[AIが決める]（答えるのにかかる時間を、AIが予測） | 0〜6.15（爆発の前に消す） | 左下（P1 のカードの上） |
+| 迫りくる壁の[問題に答えよう！] | 7.4〜13.4（1 問目） | 上の中央 |
+| ハートがなくなると、[脱落]（v1.9） | 24.0〜29.8（5 問目に P2 が赤いドアへ走るところから、魂が抜けるところまで） | 上の中央 |
+| 脱落した人は、[サメに乗って相手を狙う] | 43.0〜49.5（照準・チャージの間。命中の前に消す） | 上の中央（右下の GHOST RIDER の案内を避ける） |
+| 遅れると、[チップソーに巻き込まれる！] | 52.0〜55.8（チップソーが映るところ） | 左下（P1 のカードの上） |
+| 10問目は、[4択の大きなボス壁] | 64.5〜73.5（突破の手前で消す） | 左下（P1 のカードの上） |
+
+- **右下へ寄せる**（`S09_ZOOMS`）：3 問目の右の端の押し落としは画面の右下（x 1550〜1700・y 650〜780 ほど）の小さな所で起き、
+  そのあと 2 人のときのサメの襲撃は右下の小窓（x 1392〜1884・y 588〜960）に出る。どちらも同じ寄り（拡大の中心 (1884, 880)・1.8 倍）に入るので、
+  P1 が P2 に触れる 30 フレーム前（`edge_contact` − 30）から 20 フレームで寄せ、部分の終わり（P1 の 3 問目の突破のあと）まで保つ。「ビームを出して上昇」は v1.8 から寄せない（本画面のまま。v1.7 は `S09_ZOOMS` の `piece` で小窓へ 2.5 倍に寄せていた）。
+  `edge_contact` が無いテイク（human=0 など）は、前と同じく噛みつきの 24 フレーム前から寄せる。拡大の中心が画面の中にあれば端は出ない。
+- 出来事は `report.json` の `events`（`[{"name", "frame"}]` でも `{名前: フレーム}` でもよい）、無ければ cues.json から。人数は report の
+  `players` / `start.players` / `final.hp` の数で見る。見つからない部分だけ絵コンテの画像で仮に置く。
+- 傷のあるコマは隣のコマに差し替える（`BAD_FRAMES`）：640（爆発の最初のフレームで 2 人とも一瞬 T ポーズになって半透明に重なる。ゲーム本体の
+  見た目の不具合）を 641 に。
+- HUD（左下に P1・右下に P2 の対戦カード、P2 が脱落したあとは右下に「GHOST RIDER」の案内）はゲームのまま。左下のテロップは、そのままだと
+  P1 のカード（x 24〜305・y 906〜1026）に重なるので、S09 だけ下端を画面の下から 21%（y 853）に持ち上げる（`TELOP_BOTTOM_2P`、`pv_telop.jsxinc` の `opt.bottom`。
+  P2 が脱落したあとの右下の GHOST RIDER の案内（上端 y 848）にも、長いテロップの右の端がかからない高さ）。
+
+仮置き：S07 は旧 S07（10/19 の v5 の撮影、テロップなし）の 5 問のコマ（`docs/pv/previz/v6/placeholder/`）。
+ほかは絵コンテの `img`・`seq` の画像を、`seq` の区間どおりに画面いっぱいに置く。
+
+### テロップ（`pv_telop.jsxinc`）
+
+絵コンテの SHOTS の `ov` の telop（文字・位置・出す区間・補足）をそのまま使う。撮影済みのコンポに入っているもの（S04 の `baked`）は足さない。
+S07 は前半「5教科 × [6学年]」（補足「学年に合わせた問題を、AIがつくる」）、後半「[大人]も、つい答えたくなる」（どちらも上の中央）、
+左上に教科名と学年（算数 4年・国語 6年・理科 3年・社会 6年・英語 3年・算数 6年、2 拍ずつ）と、切り替えごとにシャッターの光。
+
+### 音
+
+- 効果音：S01〜S05 は v5 と同じ（v3 のキュー、観客のざわめきと声援、設定のクリック、ヘリの音。`mix_s01_s07.py` の中身を移した）。
+  S06 から先は各テイクの `cues.json` を、ゲームと同じファイル・音量で、撮影の秒をカットの位置へ移して置く（S09 は詰めた部分に入るものだけ）。
+  観客：S06〜S07 はざわめき、S09 はカウントダウンの爆発までざわめき・そこから声援、S07 の切り替えに「カチッ」（belt_click ＋ ui_click）。
+- PV だけ、爆発の 2 つのキューを一定の量だけ下げる（`barrier_explosion` −4 dB、`body_burst` −3 dB。どの回も同じ）。S02 の P2 の爆散で
+  2 つが同時に鳴り、ほかの音より 3.7 dB 大きく、そのままだと全体の倍率がこの 1 か所で決まって全体が −19.8 LUFS まで小さくなったため。
+- S06 の着地の音（`wall_land`）も一定の量下げる（`WALL_LAND_TRIM_DB` −6 dB）。10/20 19:38 の版は問題の届く時刻が本物のオンライン生成の速さで、
+  10 枚が約 1.7 秒の間に続けて着地して音が重なり、−3 dB のままでは全体の倍率がここで決まって全体が −18.0 LUFS まで小さくなった。
+- 曲：`docs/pv/music/testopia_pv_bgm_game_show_70s.mp3` を手を加えずに（切らない・テンポも音程も変えない・途中で音量を変えない）
+  PV の 15.933 秒（フレーム 956）から −4 dB で重ねる。曲は 85.125 秒で終わり、最後の 0.19 秒は S23 のロゴだけ。
+- 全体：足したものに一定の倍率を 1 つ掛けて true peak を −1.5 dBFS にそろえる（リミッター・コンプ・ラウドネスの自動調整は使わない）。
+  AAC にしたあとも −1 dBFS 以下かを check で確かめる。倍率は、届いたテイクの効果音で一番大きい瞬間が変わると変わる。
+
+### S01・S02 の画面の揺れ（10/20 夜）
+
+撮影にも弱い揺れは入っているが伝わらないので、AE で 2D の揺れを足す（`pv_master.py` の `SHAKES`、`build_master.jsx` の `shakeExpr`）。
+時刻は v3 の `cues.json` の音の時刻から取るので、音とずれない。
+
+| 出来事 | キュー | PV フレーム | 横の振れ幅（縦は 0.75 倍） | 収まるまで |
+|---|---|---|---|---|
+| Q1 の壁が空から落ちて着地 | `wall_land` | 142 | 22 px | 0.42 秒 |
+| P2 がゴツンで脱落 | `wall_crash` | 626 | 14 px | 0.35 秒 |
+| P2 が爆散 | `body_burst` | 746 | 30 px | 0.50 秒 |
+
+- S01・S02 のレイヤー（`PV_S01_S07`）の位置と大きさに式を付ける。乱数は使わず、減衰（(1 − u)²）する 2 つのサイン波の和
+  （横 12・19 Hz、縦 14・8 Hz）なので、何度書き出しても同じ揺れになる。
+- 端が見えないよう、その瞬間の振れ幅の合計 m に合わせて 1 + 1.5 m / 1080 × 1.06 倍に拡大する（揺れていないときは 100%）。
+- 式は配列の足し算に `add()` を使う（AE の JavaScript の式では配列の + が文字列のつなぎになる）。式の中の改行は `String.fromCharCode(10)` でつなぐ
+  （`ae_run.mjs` で送ると、文字列の中の「\」＋「n」が本物の改行に化けて構文エラーになる）。組み立ての結果の `exprErrors` が空であることを確かめる。
+
+### テロップと音で、絵コンテから変えたところ
+
+- テロップの文言は絵コンテの SHOTS から読む（[ ] の中が黄色）。10/20 夜の決定（ユーザーの表）で、何が起きるかが一目で分かる文にしたもの（S07・S09 のゴツン／落下／ボス壁・S16・S17）と、元のままのものがある：
+
+  | カット | 本文（補足） |
+  |---|---|
+  | S04 | 教科と学年と難易度を[選ぶ] |
+  | S06 | AIが[毎回違う問題]を作る（補足なし） |
+  | S07 | [小1〜小6]の5教科から出題！（学年に合わせて、AIが問題を作る）。v1.6 で S07 を 3 問にしたので、カットの終わりまで出す |
+  | S09 カウントダウン | 壁のスピードも、[AIが決める]（答えるのにかかる時間を、AIが予測）（元のまま） |
+  | S09 ゴツン | （v1.3 で外した。ゴツンは絵と音で伝わる） |
+  | S09 1 問目（v1.3 で足し、v1.5 で 1 問目の押し合いの間へ） | 迫りくる壁の[問題に答えよう！] |
+  | S09 落下 | コンベアから落ちると、[サメに食べられる]（噛みつきの前に消す） |
+  | S09 ボス壁 | 10問目は、[4択の大きなボス壁]（突破の手前で消す） |
+  | S09 チップソー（もと S16。10/20 夜に S09 へ統合） | 遅れると、[チップソーに巻き込まれる！] |
+  | S09 幽霊のサメ（もと S17。10/20 夜に S09 へ統合） | 脱落した人は、[サメに乗って相手を狙う]（命中の前に消す） |
+  | S18 | （10/20 夜にカットを外したので無し） |
+  | S20 | 帽子とエモートで、[自分だけのキャラ]に（v1.4。左右にまたがるので下の中央、`pv_telop.jsxinc` の `"bc"`） |
+  | S21 | [正解数と残りのハート]で点数が決まる（絵コンテだけ。通しでは出さない。下） |
+- S21 のテロップは出さない（`TELOP_SKIP`）。ゲームの見出し「スコアタワー」「正解数 × (残りHP+0.5) で勝負！」が
+  上の中央に 2 秒ほど出て重なり、下は得点のカードで場所がない。見出しがテロップの代わりになる（`docs/pv/takes/s21.md`、レーン 3 の案）。戻すなら `TELOP_SKIP` から消す。
+- S09 の幽霊のサメ（もと S17）の「PERFECT」は足していない。ゲームの HUD には PERFECT の文字は出ない（メーターと照準の輪が黄色になるだけ。`docs/pv/takes/s17.md`）。
+  出すなら編集で離した瞬間（`perfect_release` 196）から足す。
+- S21 のドラムロールは撮影の頭より前から鳴っているので、`report.json` の `audio_before_take`（音の 1.0 秒目から置き、WIN! の 155 で切る）のとおりに置く。
+- ゲームが `sfx_played` で知らせるが AudioManager の表に無い音（チップソーの起動 `saw_start`）は `EXTRA_CUES` で置く。
+
+### 注意
+
+- `build_master.jsx` は、AE で開いているプロジェクトに保存していない変更があると何もしない。組み終わると保存して閉じ、前に開いていた
+  プロジェクトを開き直す（無題なら空のプロジェクト）。途中で失敗したときも、作りかけは保存せずに閉じて元に戻す。
+- `TESTOPIA_PV_master.aep` は毎回作り直すので、手で直さない（直すのは `pv_master.py` と `build_master.jsx`）。
+- 撮影中のテイク（`GPU_LOCK` にテイクの名前がある）は、`plan` が読まずに仮にする。10/21 夜まで、この確かめの正規表現の `\b` が
+  ファイルの中で本物のバックスペースの文字になっていて効いていなかった（直した）。
+- aerender の書き出し中（10 分ほど）は、ほかのレーンが同じ `<take>_frames` を上書きしないこと。
 
 ## 参考：Blender のプリビズ
 

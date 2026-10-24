@@ -4,19 +4,27 @@ extends Node3D
 ## Eggs thrown from the goal stand: ballistic flight, then a break driven by the
 ## impact velocity and the surface it hits. The egg squashes against the surface
 ## for a moment and bursts into shell pieces that rebound, tumble under drag,
-## bounce and come to rest flat on the conveyor before fading. The contents are
-## not drawn. The crowd throws for as long as the verdict holds, so the live shell
-## pieces are capped. World-space (top_level).
+## bounce and come to rest flat on the conveyor before fading. On a body some pieces
+## stay stuck in the white and some fly off on a thread of albumen.
+##
+## The raw contents (white, yolk, rivulets, drips, puddles) are GoalStandEggContents:
+## a hit on a body breaks on the real surface of the part it reaches (a ray along the
+## throw, leaned toward the camera so the audience sees it), a miss on the conveyor.
+## The crowd throws for as long as the verdict holds, so the live shell pieces are
+## capped, and so is everything in the contents. World-space (top_level).
 
 const QualityRules = preload("res://scripts/core/graphics_quality.gd")
 const GRAVITY := Vector3(0.0, -9.8, 0.0)
 const FLOOR_Y := StageConstants.FLOOR_TOP_Y
 ## Cartoon scale: a real-size egg is a couple of pixels from the finale camera.
 const EGG_SCALE := 1.6
-## The aim point is the target's spine/rig axis; the egg breaks this far out on the surface.
+## Without body proxies the egg breaks this far out from the aim point (the spine axis).
 const BODY_RADIUS := 0.22
-## How much the break's facing leans toward the camera so it never goes edge-on.
+## How much the ray that finds where it breaks leans toward the camera, so the
+## splat lands on a side the audience sees.
 const CAMERA_FACING := 0.65
+## Share of a body hit's shell pieces that stay stuck in the white.
+const CAPTURE_SHARE := 0.35
 const BURST_TIME := 0.05
 ## Shell: light, so air drag matters; bounces lose most of their energy.
 const SHARD_DRAG := 0.6
@@ -44,6 +52,16 @@ var launched := 0
 var hits := 0
 var misses := 0
 var shards_rested := 0
+var contents: GoalStandEggContents
+## Smoothed cost of the contents' update (microseconds).
+var contents_usec := 0.0
+## What drips and fallen yolks land on before the conveyor: {node, top (local y),
+## radius} of the loser's lift deck, or empty (GoalStand passes the director's).
+var support := {}:
+	set(value):
+		support = value
+		if contents != null:
+			contents.support = value
 
 var _detail: Dictionary = DETAIL[QualityRules.BALANCED]
 var _flights: Array[Dictionary] = []
@@ -60,10 +78,22 @@ func setup(egg: Mesh, shard: Mesh, shared_material: Material, seed_value: int, q
 	shard_mesh = shard
 	material = shared_material
 	_rng.seed = seed_value
-	var level := QualityRules.normalize(quality)
-	if QualityRules.is_mobile_target() and QualityRules.is_at_least(level, QualityRules.HIGH):
-		level = QualityRules.BALANCED
+	var mobile := QualityRules.is_mobile_target()
+	var level := detail_level(quality, mobile)
 	_detail = DETAIL.get(level, DETAIL[QualityRules.BALANCED])
+	contents = GoalStandEggContents.new()
+	add_child(contents)
+	var length := egg_mesh.get_aabb().get_longest_axis_size() * EGG_SCALE if egg_mesh != null else 0.32
+	contents.setup(level, GoalStandEggRheology.scale_for_length(length), seed_value + 1, mobile)
+	contents.support = support
+
+
+## The quality the eggs run at: mobile builds stop at BALANCED.
+static func detail_level(quality: String, mobile: bool) -> String:
+	var level := QualityRules.normalize(quality)
+	if mobile and QualityRules.is_at_least(level, QualityRules.HIGH):
+		level = QualityRules.BALANCED
+	return level
 
 
 ## Throw one egg from `start` so it arrives at `aim` after `flight` seconds.
@@ -107,6 +137,10 @@ func update(delta: float, camera: Camera3D) -> Array[Dictionary]:
 			impacts.append(_impact(egg, position, incoming, target if not flight.miss else null, camera))
 	_update_bursts(delta)
 	_update_shards(delta)
+	if contents != null:
+		var started := Time.get_ticks_usec()
+		contents.update(delta, camera)
+		contents_usec = lerpf(contents_usec, float(Time.get_ticks_usec() - started), 0.1)
 	return impacts
 
 
@@ -114,23 +148,39 @@ func _impact(egg: MeshInstance3D, point: Vector3, incoming: Vector3, target: Nod
 	var hit := is_instance_valid(target)
 	var normal := Vector3.UP
 	var surface := Vector3(point.x, FLOOR_Y, point.z)
+	var splat := {}
 	if hit:
-		# The egg lands on the side facing the thrower; lean it toward the camera
-		# (the audience) so a side-on hit still reads.
-		var facing := Vector3(-incoming.x, -incoming.y * 0.5, -incoming.z)
-		normal = facing.normalized() if facing.length() > 0.01 else Vector3.BACK
+		# Where it breaks: the first surface along the throw, leaned toward the camera
+		# (the audience) so a side-on hit still lands where it reads.
+		var ray := incoming.normalized()
 		if is_instance_valid(camera):
-			normal = normal.lerp((camera.global_position - point).normalized(), CAMERA_FACING).normalized()
-		surface = point + normal * BODY_RADIUS
+			ray = ray.lerp((point - camera.global_position).normalized(), CAMERA_FACING).normalized()
+		splat = contents.spawn_on_body(target, point, incoming, ray) if contents != null else {}
+		if not splat.is_empty():
+			surface = splat.hit
+			normal = splat.normal
+		else:
+			var facing := Vector3(-incoming.x, -incoming.y * 0.5, -incoming.z)
+			normal = facing.normalized() if facing.length() > 0.01 else Vector3.BACK
+			if is_instance_valid(camera):
+				normal = normal.lerp((camera.global_position - point).normalized(), CAMERA_FACING).normalized()
+			surface = point + normal * BODY_RADIUS
 		hits += 1
 	else:
+		if contents != null:
+			splat = contents.spawn_on_floor(surface, incoming)
 		misses += 1
 	var normal_speed := incoming.dot(normal)
 	var tangential := incoming - normal * normal_speed
 	_burst(egg, surface, normal)
+	var tethers := 0
 	for _index in range(int(_detail.shards)):
-		_spawn_shard(surface + normal * 0.03, normal, normal_speed, tangential)
-	return {"point": point, "hit": hit}
+		if hit and not splat.is_empty() and _rng.randf() < CAPTURE_SHARE and contents.capture(splat, shard_mesh, material):
+			continue
+		var shard := _spawn_shard(surface + normal * 0.03, normal, normal_speed, tangential)
+		if hit and not splat.is_empty() and tethers < 3 and contents.tether(splat, shard):
+			tethers += 1
+	return {"point": point, "hit": hit, "surface": surface, "normal": normal}
 
 
 ## The egg flattens against the surface for a couple of frames before it bursts.
@@ -158,7 +208,7 @@ func _update_bursts(delta: float) -> void:
 			_apply_burst(burst)
 
 
-func _spawn_shard(point: Vector3, normal: Vector3, normal_speed: float, tangential: Vector3) -> void:
+func _spawn_shard(point: Vector3, normal: Vector3, normal_speed: float, tangential: Vector3) -> Dictionary:
 	if _shards.size() >= MAX_SHARDS:
 		var oldest: Dictionary = _shards.pop_front()
 		if is_instance_valid(oldest.node):
@@ -177,6 +227,7 @@ func _spawn_shard(point: Vector3, normal: Vector3, normal_speed: float, tangenti
 	var velocity := rebound + carry + scatter
 	_shards.append({"node": shard, "velocity": velocity, "age": 0.0, "axis": _random_unit(),
 		"spin_rate": velocity.length() * _rng.randf_range(3.0, 6.0), "bounces": 0, "rested": -1.0})
+	return _shards.back()
 
 
 func _update_shards(delta: float) -> void:
@@ -230,7 +281,10 @@ func in_flight() -> int:
 
 
 func active_counts() -> Dictionary:
-	return {"shards": _shards.size(), "shards_rested": shards_rested}
+	var counts := {"shards": _shards.size(), "shards_rested": shards_rested}
+	if contents != null:
+		counts.merge(contents.counts())
+	return counts
 
 
 func clear() -> void:
@@ -238,9 +292,12 @@ func clear() -> void:
 		for entry: Dictionary in list:
 			if is_instance_valid(entry.node):
 				(entry.node as Node).queue_free()
-		list.clear()
+			list.clear()
+	if contents != null:
+		contents.clear()
 	for child in get_children():
-		child.queue_free()
+		if child != contents:
+			child.queue_free()
 	launched = 0
 	hits = 0
 	misses = 0

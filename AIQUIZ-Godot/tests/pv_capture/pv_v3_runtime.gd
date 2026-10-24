@@ -1,7 +1,7 @@
 extends Node
 
 ## PV 冒頭 S01〜S03 の新しい流れ（絵コンテ docs/pv/storyboard_s01_s03_v2/s01_s03_storyboard_v3.png）を、本物の GameWorld で
-## 1 回の通しとして撮る（ローカル 2P）。ロゴ（案 C）は After Effects で重ねる（docs/pv/previz/ae/build_s03_c.jsx）。
+## 1 回の通しとして撮る（ローカル 2P）。ロゴ（ゲーム本体の TESTOPIA の登場演出）は After Effects で重ねる（docs/pv/previz/ae/build_s03_t.jsx）。
 ##   Godot_v4.7.2-stable_win64_console.exe --path . --resolution 1920x1080 --fixed-fps 60 --script res://tests/pv_capture/pv_v3_bootstrap.gd -- quality=ultra
 ## 引数（"--" の後ろ）:
 ##   quality=low|balanced|high|ultra   画質（既定 ultra）
@@ -18,17 +18,18 @@ extends Node
 ## 流れ（PV フレーム。1 = 曲の頭、60 fps、128 BPM で 1 拍 = 28.125 フレーム）:
 ##   01   1-113  2 人がスタート位置に立つ（カウントダウンの状態のまま止め、ベルトは動かさない）。コースは空
 ##   02 114-225  空から問題の壁が 1 枚落ちてドスン（ゲームのプレビューの壁と同じ落ち方・弾み方。土ぼこりの衝撃・揺れ・どよめき）。
-##               2 人はびくっとのけぞる（Hit_Chest）
-##   03 226-338  2 拍で背中越しのアップへ寄る。2 人がそろって青い「AI」の扉を見る（頭を扉の中心へ実際に向ける）
+##               2 人はびくっとのけぞる（Hit_Chest）。着地の 0.5 秒後（衝撃のトゲが消えるころ）から、問題文と選択肢を AI が書いているように出す
+##               （QuizWall.begin_ai_text_reveal。落ちてくるあいだは文字を隠す）
+##   03 226-338  2 拍で背中越しのアップへ寄る。2 人がそろって青い「56」の扉を見る（頭を扉の中心へ実際に向ける）
 ##   04 339-450  前から 2 人の顔。赤 → 青 → 赤と 1 拍ずつ扉を見比べる
-##   05 451-506  前から P2 のアップ。P2 が赤い「せんせい」を指さしてドヤ顔、P1 は首を振って迷う
+##   05 451-506  前から P2 のアップ。P2 が赤い「54」（まちがい）を指さしてドヤ顔、P1 は首を振って迷う
 ##   06 507-619  スタート（PLAYING へ）。P2 はヒップホップ2 をその場で見せびらかしてから、踊りながら赤い扉へ斜めに突っ込む。P1 は腕を組んで見送る
 ##   07 620-661  引き。P2 がゴツン（ハート 1 なのでゲームどおり脱落）、吹き飛ぶ
 ##   07b 662-773 煽る：P1 が P2 のほうへ向き直って指さし、シリーダンスで煽る（倒れた P2 の向こうから撮る）。
 ##               ゲームどおり激突の 2 秒後に P2 が爆散（このPVだけ破片の勢いを大きく、大爆発の演出つき）
 ##   08 774-839  P1 が青い扉の正面へ寄って走る（低い追従）
 ##   09 840-956  壁の向こう側から。P1 がカンナムスタイルを踊りながら扉を突き破る（突破 846、0.6 秒だけ 0.5 倍のスロー）
-##   ロゴ 957-1180 S03 と同じく胸の高さへ上がって引く（この上に AE でロゴ案 C を重ねる）
+##   ロゴ 957-1180 S03 と同じく胸の高さへ上がって引く（この上に AE で TESTOPIA のロゴを重ねる）
 ## このPVだけ：ベルトは 1.0 m/s（ゲームの典型は 2.9。壁を 12 m 先に落としたまま、煽るパートの 1 小節を入れるため）
 
 const OUT_ROOT := "res://artifacts/pv_capture/"
@@ -67,13 +68,15 @@ const FLOOR_Y := -1.2
 const P2_START_HP := 1
 const SAW_FOLLOW := 26.0
 const SAW_BEHIND := SAW_FOLLOW + 1.45
-const DOOR_X := 3.5                              # 青「AI」は +x（後ろから見て左）、赤「せんせい」は −x
+const DOOR_X := 3.5                              # 青「56」（正解）は +x（後ろから見て左）、赤「54」は −x
 
 ## 壁の落下（GameWorld のプレビューの壁と同じ形。長さだけ見える速さにのばす）
 const DROP_START_Y := 46.0
 const DROP_SECONDS := 0.55
 const SETTLE_SECONDS := 0.14
 const SQUASH := Vector3(1.16, 0.78, 1.16)
+## 着地から、問題文と選択肢を AI が書いているように出し始めるまで（土ぼこりの衝撃が収まるころ。docs/ai_question_typing.md）
+const AI_TEXT_AFTER_LAND := 0.5
 
 ## スロー（突破のまわり）
 const SLOW_SCALE := 0.5
@@ -121,8 +124,12 @@ const P1_HAT := 11
 const P1_SKIN_CODE := "035bd66225c92ea51dc325c92e25c92e46d14d46d14da51dc3a51dc3293029293029"
 const P2_HAT := 12
 const P2_SKIN_CODE := "034dbff2f5f5f0f5f5f01e1e221e1e22f5f5f0f5f5f01e1e221e1e221e1e221e1e22"
-const Q1_TEXT := "Q1 このゲームの もんだいを つくっているのは だれ？"
-const Q1_CHOICES := ["AI", "せんせい"]
+## Q1：offline_bank.json の 算数 2 年「【かけ算】7 × 8 =」（選択肢 48・49・54・56、正解 56）。ゲームの壁と同じ書き方で、看板では 1 行
+## （measure_question.gd）。頭に「Q1」を付けると、引きの画で「Q17 × 8」と読めるので付けない。
+## 2 択の誤答は、6 × 9 と取り違えやすい 54 にする（P2 が自信満々でまちがえる）
+const Q1_TEXT := "【かけ算】7 × 8 ＝ ？"
+const Q1_CHOICES := ["56", "54"]
+const Q1_EXPLANATION := "しちはごじゅうろく"
 const FILLER := [
 	["【計算】36 ÷ 4 ＝ ？", ["9", "8"]],
 	["「たいよう」を漢字で書くと？", ["太陽", "太洋"]],
@@ -371,7 +378,7 @@ func _install_quizzes() -> void:
 	for index in range(gs.quiz_list.size()):
 		var item: QuizItem
 		if index == 0:
-			item = QuizItem.create(Q1_TEXT, PackedStringArray(Q1_CHOICES), 0, "PV 用のメタ問題。", "OFFLINE")
+			item = QuizItem.create(Q1_TEXT, PackedStringArray(Q1_CHOICES), 0, Q1_EXPLANATION, "OFFLINE")
 		else:
 			var filler: Array = FILLER[(index - 1) % FILLER.size()]
 			var choices := PackedStringArray(filler[1])
@@ -596,6 +603,9 @@ func _apply_wall(t: float) -> void:
 			w.position.y = DROP_START_Y
 			continue
 		w.visible = true
+		if not w.call("has_started_ai_text_reveal"):
+			# 落ちてくるあいだは文字を隠し、着地のあとから AI が書く（PV だけの演出。ゲームでは使わない）。
+			w.call("begin_ai_text_reveal", maxf(0.0, t_land - t) + AI_TEXT_AFTER_LAND)
 		if t < t_land:
 			var p := clampf((t - start) / DROP_SECONDS, 0.0, 1.0)
 			w.position.y = lerpf(DROP_START_Y, 0.0, p * p)

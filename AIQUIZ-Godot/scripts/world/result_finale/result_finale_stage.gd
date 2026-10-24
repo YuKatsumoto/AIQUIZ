@@ -214,14 +214,38 @@ func _build_actor(player_index: int) -> void:
 		player_index == 1, root, hat_id, 0, _state.get_display_skin(player_index)
 	)
 	# Eliminated finalists stay ghosts on the podium (the crown is attached later
-	# and keeps its solid gold).
-	if _state.is_result_ghost(player_index) and is_instance_valid(_players):
+	# and keeps its solid gold), and so does the loser of the sudden death.
+	var ghost := wants_ghost_look(player_index)
+	if ghost and is_instance_valid(_players):
 		_players.apply_ghost_look(root, player_index)
 	var rest := {}
 	for key: Variant in parts:
 		if parts[key] is Node3D:
 			rest[key] = (parts[key] as Node3D).transform
-	_actors[player_index] = {"root": root, "parts": parts, "rest": rest, "hat": hat_id}
+	_actors[player_index] = {"root": root, "parts": parts, "rest": rest, "hat": hat_id, "ghost": ghost}
+
+
+## Eliminated finalists and the sudden death's loser wear the ghost look; a ghost whose body came back
+## on the way into the sudden death (docs/sudden_death_v2/ghost_revive.md) does not.
+func wants_ghost_look(player_index: int) -> bool:
+	if _state == null:
+		return false
+	if is_sudden_death_ghost(player_index):
+		return true
+	return _state.is_result_ghost(player_index) and not _state.is_sudden_death_revived(player_index)
+
+
+## The look follows the state while the stage stands (a revival during the held draw, then an aborted sudden death).
+func _sync_actor_look(player_index: int) -> void:
+	var actor: Dictionary = _actors[player_index]
+	var ghost := wants_ghost_look(player_index)
+	if bool(actor.get("ghost", false)) == ghost or not is_instance_valid(_players):
+		return
+	actor["ghost"] = ghost
+	if ghost:
+		_players.apply_ghost_look(actor.root as Node3D, player_index)
+	else:
+		PlayerController.remove_ghost_soul_look(actor.root as Node3D)
 
 
 ## The whole column as one mesh (one surface per material), shared by both towers.
@@ -369,6 +393,7 @@ func update_stage(elapsed: float, stage_origin: Vector3) -> void:
 	for player_index in [1, 2]:
 		(_towers[player_index].lift as Node3D).position.y = PAD_CLEARANCE + tower_height(player_index, elapsed if elapsed < Motion.end_time() else Motion.end_time())
 		_update_column_visibility(player_index, elapsed)
+		_sync_actor_look(player_index)
 	_update_cast_visibility(elapsed)
 	for player_index in [1, 2]:
 		_pose_actor(player_index, pt)
@@ -440,7 +465,13 @@ func _turn_to_referee(amount: float) -> void:
 
 ## Sudden death return: `from` (world) is where the actor comes from (the drain);
 ## progress 0..1 flies it in a tumbling arc onto its own pad. Negative = hidden.
-func set_actor_flight(player_index: int, from: Vector3, progress: float) -> void:
+## The sudden death's loser (docs/sudden_death_v2/common.md): it comes home as a ghost.
+func is_sudden_death_ghost(player_index: int) -> bool:
+	return _state != null and _state.sudden_death_winner in [1, 2] and player_index != _state.sudden_death_winner
+
+
+## style "" is the tumbling arc (the drain's water column); "ghost" floats in on a gentle wave, upright.
+func set_actor_flight(player_index: int, from: Vector3, progress: float, style := "") -> void:
 	if progress >= 1.0:
 		_flights.erase(player_index)
 		_hidden_actors.erase(player_index)
@@ -450,7 +481,7 @@ func set_actor_flight(player_index: int, from: Vector3, progress: float) -> void
 		_flights.erase(player_index)
 		return
 	_hidden_actors.erase(player_index)
-	_flights[player_index] = {"from": from, "progress": progress}
+	_flights[player_index] = {"from": from, "progress": progress, "style": style}
 
 
 func clear_actor_flights() -> void:
@@ -470,6 +501,17 @@ func _apply_flights() -> void:
 		var u := clampf(float(flight.progress), 0.0, 1.0)
 		var landing := root.global_transform
 		var from: Vector3 = flight.from
+		if str(flight.get("style", "")) == "ghost":
+			# Glides in fast, slows down over the pad and settles, bobbing and leaning into the flight.
+			var e := 1.0 - pow(1.0 - u, 2.6)
+			var path := from.lerp(landing.origin, e)
+			path.y += sin(u * TAU * 1.5) * 0.35 * (1.0 - u) + 0.25 * (1.0 - smoothstep(0.75, 1.0, u))
+			var travel := (landing.origin - from) * Vector3(1.0, 0.0, 1.0)
+			var lean_axis := Vector3.UP.cross(travel).normalized() if travel.length_squared() > 0.01 else Vector3.RIGHT
+			var lean := Basis(lean_axis, 0.45 * (1.0 - smoothstep(0.55, 1.0, u)))
+			root.global_transform = Transform3D(lean * landing.basis, path)
+			root.visible = true
+			continue
 		var ground := from.lerp(landing.origin, u)
 		var peak := maxf(from.y, landing.origin.y) + 5.5
 		var arc := 4.0 * u * (1.0 - u) * (peak - lerpf(from.y, landing.origin.y, 0.5))
@@ -507,7 +549,8 @@ func _update_cast_visibility(elapsed: float) -> void:
 	for player_index in [1, 2]:
 		(_actors[player_index].root as Node3D).visible = cast
 	if is_instance_valid(_players):
-		_players.visible = not cast
+		# 新サドンデス：本物の2人がヘリへ飛びつく・勝者が戻る間は隠さない（docs/sudden_death_v2/common.md 5.2）。
+		_players.visible = not cast or _state.sudden_death_live_players
 	for ghost: Variant in _ghost_sources.values():
 		if ghost is Node3D and is_instance_valid(ghost):
 			(ghost as Node3D).visible = not cast
@@ -657,6 +700,20 @@ func egg_target() -> Node3D:
 	return actor_parts(3 - _winner).get("spine") as Node3D
 
 
+## What the egg contents dripping off the loser land on before the conveyor: the
+## top of the loser's lift deck (TowerPlatform), riding up and down with it. Empty
+## on a draw (the referee stands on the floor).
+func egg_support() -> Dictionary:
+	if not is_built() or not visible or _draw:
+		return {}
+	var lift := _towers[3 - _winner].lift as Node3D
+	var platform := lift.find_child("TowerPlatform", false, false) as MeshInstance3D if lift != null else null
+	if platform == null or platform.mesh == null:
+		return {}
+	var box := platform.mesh.get_aabb()
+	return {"node": lift, "top": platform.position.y + box.end.y, "radius": minf(box.size.x, box.size.z) * 0.5}
+
+
 func clear() -> void:
 	for dance: Variant in _dances.values():
 		(dance as ResultWinnerDance).clear()
@@ -705,8 +762,7 @@ func get_debug_snapshot() -> Dictionary:
 		var head := (parts.head as Node3D).global_position
 		var ghost_look := false
 		for node: Node in (actor.root as Node3D).find_children("*", "MeshInstance3D", true, false):
-			var material := (node as MeshInstance3D).material_override as BaseMaterial3D
-			if material != null and material.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA:
+			if PlayerController.is_ghost_soul_look(node as MeshInstance3D):
 				ghost_look = true
 				break
 		actors.append({"player": player_index, "side": side_of(player_index), "hat": actor.hat,

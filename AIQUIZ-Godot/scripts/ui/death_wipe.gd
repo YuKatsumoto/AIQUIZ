@@ -22,6 +22,22 @@ var _shark_impact_flash: float = 0.0
 var _impact_overlay: ColorRect = null
 var _ghost_follow_direction: Vector3 = Vector3.FORWARD
 var _explosion_hold_elapsed: float = 0.0
+## GOSTRIDER の演出中のカメラ（なめらかに追う目・注視点・画角）と、揺れ・閃光・寄り。
+var _ghost_presenting: bool = false
+var _ghost_camera_ready: bool = false
+var _ghost_camera_eye: Vector3 = Vector3.ZERO
+var _ghost_camera_target: Vector3 = Vector3.ZERO
+var _ghost_camera_fov: float = 50.0
+var _ghost_shot_name: String = ""
+var _ghost_ascent_ready: bool = false
+var _ghost_ascent_anchor: Vector3 = Vector3.ZERO
+var _ghost_ascent_back: Vector3 = Vector3.BACK
+var _ghost_ascent_side: Vector3 = Vector3.RIGHT
+var _ghost_shake: float = 0.0
+var _ghost_shake_time: float = 0.0
+var _ghost_flash: float = 0.0
+var _ghost_flash_color: Color = Color.WHITE
+var _ghost_punch: float = 0.0
 
 const WIPE_W := 320
 const WIPE_H := 240
@@ -32,6 +48,18 @@ const FADE_DURATION := 0.5
 const EXPLOSION_HOLD_DURATION := 1.25
 const SOUL_PRESENTATION_RENDER_LAYER := 20
 const GHOST_MOUNT_BEAM_RENDER_LAYER := 19
+const GHOST_CAMERA_FOLLOW_RATE := 14.0
+const GHOST_CAMERA_AIM_RATE := 20.0
+const GHOST_CAMERA_MIN_SIDE_X := StageConstants.FLOOR_HALF_WIDTH + 0.45
+const GHOST_CAMERA_MIN_WATER_CLEARANCE := 0.28
+const GHOST_CAMERA_DECK_CLEARANCE := 0.35
+const GHOST_SHAKE_DECAY := 2.6
+const GHOST_SHAKE_DISTANCE := 0.16
+const GHOST_FLASH_DECAY := 3.4
+const GHOST_PUNCH_DECAY := 3.0
+const GHOST_PUNCH_SCALE := 0.07
+const P1_COLOR := Color(1.0, 0.6, 0.25)
+const P2_COLOR := Color(0.35, 0.75, 1.0)
 
 func _ready() -> void:
 	game_state = QuizManager.game_state
@@ -63,6 +91,7 @@ func _ready() -> void:
 	wipe_camera.set_cull_mask_value(SOUL_PRESENTATION_RENDER_LAYER, true)
 	# The survivor camera owns the beacon reveal. Keep it out of the wipe feed
 	# even after the wipe has reached its settled corner position.
+	# （小窓のカメラは柱のすぐ外に寄るので、映すと画面が柱の色で埋まり乗り手が隠れる）
 	wipe_camera.set_cull_mask_value(GHOST_MOUNT_BEAM_RENDER_LAYER, false)
 
 	# Container size (viewport + border)
@@ -199,19 +228,11 @@ func _process(dt: float) -> void:
 			var presentation: Dictionary = current_scene.get_ghost_shark_presentation(
 				player_index
 			)
-			var player_exploded := _has_player_death_exploded(
-				current_scene,
-				player_index
-			)
-			var holding_explosion := (
-				player_exploded
-				and player_index == _dead_player
-				and _explosion_hold_elapsed < EXPLOSION_HOLD_DURATION
-			)
+			# 幽霊の演出（魂が抜ける → サメに乗る → ビーム）は、体が爆散したあとが本番なので、
+			# 爆散の保持（EXPLOSION_HOLD_DURATION）で閉じない。演出が小窓を要る間ずっと映す。
 			if (
 				bool(presentation.get("active", false))
 				and bool(presentation.get("show_wipe", true))
-				and (not player_exploded or holding_explosion)
 			):
 				var other_alive := (
 					game_state.p2_alive if player_index == 1 else game_state.p1_alive
@@ -285,6 +306,14 @@ func _start_wipe(player: int) -> void:
 	_is_hiding = false
 	_explosion_hold_elapsed = 0.0
 	_ghost_follow_direction = Vector3.FORWARD
+	_ghost_presenting = false
+	_ghost_camera_ready = false
+	_ghost_shot_name = ""
+	_ghost_ascent_ready = false
+	_ghost_shake = 0.0
+	_ghost_flash = 0.0
+	_ghost_punch = 0.0
+	scale = Vector2.ONE
 	visible = true
 
 	# Share main viewport's World3D so the wipe camera sees the same scene
@@ -332,9 +361,16 @@ func _hide_wipe() -> void:
 func _update_wipe(dt: float) -> void:
 	_timer += dt
 	_shark_impact_flash = maxf(0.0, _shark_impact_flash - dt * 12.5)
+	_ghost_flash = maxf(0.0, _ghost_flash - dt * GHOST_FLASH_DECAY)
+	_ghost_punch = maxf(0.0, _ghost_punch - dt * GHOST_PUNCH_DECAY)
 	if _impact_overlay != null:
-		_impact_overlay.color = Color(0.72, 0.94, 1.0, _shark_impact_flash * 0.76)
-	
+		if _ghost_flash > _shark_impact_flash:
+			var flash_color := _ghost_flash_color
+			flash_color.a = _ghost_flash * _ghost_flash * 0.72
+			_impact_overlay.color = flash_color
+		else:
+			_impact_overlay.color = Color(0.72, 0.94, 1.0, _shark_impact_flash * 0.76)
+
 	var slide_offset := Vector2(size.x + WIPE_MARGIN_X + 50.0, 0.0) # 右側に完全に隠れるオフセット
 	var current_offset := slide_offset
 
@@ -357,15 +393,26 @@ func _update_wipe(dt: float) -> void:
 	# Position at bottom-right + slide offset
 	var screen_size := get_viewport_rect().size
 	position = screen_size - size - Vector2(WIPE_MARGIN_X, WIPE_MARGIN_Y) + current_offset
+	# 着座・目覚めの閃光で一瞬だけ大きくする（右下の角を固定して寄る）。
+	var punch := 1.0 + GHOST_PUNCH_SCALE * _ghost_punch * _ghost_punch
+	pivot_offset = size
+	scale = Vector2.ONE * punch
 
-	# Animate border color (danger pulse)
 	var pulse := 0.5 + 0.5 * sin(_timer * 5.0)
-	border_rect.color = Color(
-		0.9 + pulse * 0.1,
-		0.1 + pulse * 0.15,
-		0.05,
-		1.0
-	)
+	if _ghost_presenting:
+		# 幽霊の演出中は、危険の赤ではなくプレイヤー色の光る枠にする。
+		var ghost_color := P1_COLOR if _dead_player == 1 else P2_COLOR
+		var glow := 0.75 + 0.25 * sin(_timer * 3.2)
+		border_rect.color = ghost_color.lerp(Color.WHITE, _ghost_flash * 0.7) * Color(glow, glow, glow, 1.0)
+		border_rect.color.a = 1.0
+	else:
+		# Animate border color (danger pulse)
+		border_rect.color = Color(
+			0.9 + pulse * 0.1,
+			0.1 + pulse * 0.15,
+			0.05,
+			1.0
+		)
 
 	# Skull label subtle shake
 	skull_label.position.x = (size.x - 40) / 2.0 + sin(_timer * 12.0) * 3.0
@@ -397,8 +444,13 @@ func _update_wipe_camera() -> void:
 			_dead_player
 		)
 		if bool(ghost_presentation.get("active", false)):
+			if not _ghost_presenting:
+				_ghost_presenting = true
+				var player_name := label.text if not label.text.is_empty() else "P%d" % _dead_player
+				label.text = "%s  GHOST RIDER" % player_name
 			_update_ghost_presentation_camera(player_position, ghost_presentation)
 			return
+	_ghost_presenting = false
 	if current_scene != null and current_scene.has_method("get_ocean_attack_shark_position"):
 		var shark_position_variant: Variant = current_scene.get_ocean_attack_shark_position(_dead_player)
 		if shark_position_variant is Vector3:
@@ -430,66 +482,176 @@ func _update_wipe_camera() -> void:
 	wipe_camera.look_at(cam_target, Vector3.UP)
 
 
+## GOSTRIDER の演出（脱落〜発進）の小窓のカメラ。演技の時刻（performance_time）でショットを選ぶ。
+## 魂とサメは甲板より 8 m 下の水路で動くので、カメラはステージの側壁の外・水面の上に置き、
+## 背景が壁だけにならない向き（水路の奥・空・観客席）を選ぶ。ショットの間はなめらかにつなぎ、着座の瞬間だけカットで寄る。
 func _update_ghost_presentation_camera(
 	death_position: Vector3,
 	presentation: Dictionary
 ) -> void:
-	var duration := maxf(float(presentation.get("duration", 7.5)), 0.001)
-	var elapsed := clampf(float(presentation.get("elapsed", 0.0)), 0.0, duration)
-	var rider_position: Vector3 = presentation.get("rider_position", death_position)
-	var shark_position: Vector3 = presentation.get("shark_position", rider_position)
-	var travel_direction := shark_position - rider_position
-	travel_direction.y = 0.0
-	if travel_direction.length_squared() >= 0.001:
-		_ghost_follow_direction = travel_direction.normalized()
-	travel_direction = _ghost_follow_direction
-	var camera_side := Vector3(-travel_direction.z, 0.0, travel_direction.x)
-	var side_sign := signf(death_position.x)
-	if is_zero_approx(side_sign):
-		side_sign = 1.0 if _dead_player == 1 else -1.0
-	if camera_side.x * side_sign < 0.0:
-		camera_side = -camera_side
-
-	# Every shot is rooted at the live ghost rider. The offsets and FOV may change,
-	# but neither the camera position nor its look target drifts toward the shark.
-	var follow_target := rider_position + Vector3.UP * 0.45
-	var close_eye := rider_position + camera_side * 3.0 - travel_direction * 3.6 + Vector3.UP * 2.55
-	var reveal_eye := rider_position + camera_side * 5.4 - travel_direction * 1.2 + Vector3.UP * 2.85
-	var chase_eye := rider_position + camera_side * 5.8 - travel_direction * 1.4 + Vector3.UP * 3.30
-	var mount_eye := rider_position + camera_side * 5.8 - travel_direction * 0.8 + Vector3.UP * 3.15
-	var hero_eye := rider_position + camera_side * 5.0 + travel_direction * 1.7 + Vector3.UP * 2.75
-
-	var cam_eye: Vector3
-	var cam_target: Vector3
-	var fov: float
-	if elapsed < 0.8:
-		cam_eye = close_eye
-		cam_target = follow_target
-		fov = 44.0
-	elif elapsed < 1.8:
-		var blend_to_reveal := smoothstep(0.0, 1.0, (elapsed - 0.8) / 1.0)
-		cam_eye = close_eye.lerp(reveal_eye, blend_to_reveal)
-		cam_target = follow_target
-		fov = lerpf(44.0, 58.0, blend_to_reveal)
-	elif elapsed < 3.2:
-		var blend_to_chase := smoothstep(0.0, 1.0, (elapsed - 1.8) / 1.4)
-		cam_eye = reveal_eye.lerp(chase_eye, blend_to_chase)
-		cam_target = follow_target
-		fov = lerpf(58.0, 55.0, blend_to_chase)
-	elif elapsed < 4.2:
-		var blend_to_mount := smoothstep(0.0, 1.0, elapsed - 3.2)
-		cam_eye = chase_eye.lerp(mount_eye, blend_to_mount)
-		cam_target = follow_target
-		fov = lerpf(55.0, 50.0, blend_to_mount)
+	var dt := get_process_delta_time()
+	var shot := _ghost_shot(death_position, presentation)
+	var eye: Vector3 = shot.eye
+	var target: Vector3 = shot.target
+	var fov: float = shot.fov
+	var cut := bool(shot.get("cut", false)) and str(shot.get("name", "")) != _ghost_shot_name
+	_ghost_shot_name = str(shot.get("name", ""))
+	if not _ghost_camera_ready or cut:
+		_ghost_camera_eye = eye
+		_ghost_camera_target = target
+		_ghost_camera_fov = fov
+		_ghost_camera_ready = true
 	else:
-		var blend_to_hero := smoothstep(
-			0.0,
-			1.0,
-			(elapsed - 4.2) / maxf(0.001, duration - 4.2)
-		)
-		cam_eye = mount_eye.lerp(hero_eye, blend_to_hero)
-		cam_target = follow_target
-		fov = lerpf(50.0, 48.0, blend_to_hero)
-	wipe_camera.fov = fov
-	wipe_camera.global_position = cam_eye
-	wipe_camera.look_at(cam_target, Vector3.UP)
+		var follow := 1.0 - exp(-GHOST_CAMERA_FOLLOW_RATE * dt)
+		_ghost_camera_eye = _ghost_camera_eye.lerp(eye, follow)
+		_ghost_camera_target = _ghost_camera_target.lerp(target, 1.0 - exp(-GHOST_CAMERA_AIM_RATE * dt))
+		_ghost_camera_fov = lerpf(_ghost_camera_fov, fov, follow)
+	var shaken_eye := _ghost_camera_eye
+	var shaken_target := _ghost_camera_target
+	if _ghost_shake > 0.0:
+		_ghost_shake = maxf(0.0, _ghost_shake - dt * GHOST_SHAKE_DECAY)
+		_ghost_shake_time += dt
+		var amount := _ghost_shake * _ghost_shake * GHOST_SHAKE_DISTANCE * float(presentation.get("world_scale", 0.6)) / 0.6
+		var wobble := Vector3(
+			sin(_ghost_shake_time * 61.0) + sin(_ghost_shake_time * 23.0) * 0.5,
+			sin(_ghost_shake_time * 53.0 + 1.3) + sin(_ghost_shake_time * 31.0) * 0.5,
+			sin(_ghost_shake_time * 47.0 + 2.1)
+		) * amount
+		shaken_target += wobble
+		shaken_eye += wobble * 0.35
+	wipe_camera.fov = _ghost_camera_fov
+	wipe_camera.global_position = shaken_eye
+	if shaken_eye.distance_squared_to(shaken_target) > 0.0001:
+		wipe_camera.look_at(shaken_target, Vector3.UP)
+
+
+func _ghost_shot(death_position: Vector3, p: Dictionary) -> Dictionary:
+	var t := float(p.get("performance_time", 0.0))
+	var k := float(p.get("world_scale", 0.6)) / 0.6
+	var out := Vector3(float(p.get("out_sign", 1.0)), 0.0, 0.0)
+	var forward := Vector3.BACK  # 水路の前（ゲームの進む向き +Z）
+	var chest: Vector3 = p.get("rider_chest", p.get("rider_position", death_position))
+	var mount: Vector3 = p.get("mount_position", chest)
+	var basis: Basis = p.get("mount_basis", Basis.IDENTITY)
+	var shark_forward := basis.z.normalized()
+	var shark_up := basis.y.normalized()
+	var shark_side := basis.x.normalized()
+	# サメの横のうち、ステージ側（out の逆）を正にする。
+	if shark_side.dot(out) > 0.0:
+		shark_side = -shark_side
+	var source: Vector3 = p.get("death_position", death_position)
+	var result: Dictionary
+	if t < 1.40:
+		# 出現：水面すれすれ・水路の前から、昇る魂を正面に見上げる。目覚め（1.27 秒）へゆっくり寄る。
+		# 甲板の上で脱落したとき（壁への激突など）は前に問題の壁があるので、外側の斜め後ろから見る。
+		var on_deck := source.y > StageConstants.FLOOR_TOP_Y - 1.0
+		var eye := source + forward * 3.1 * k - out * 0.5 * k + Vector3.UP * 0.05 * k
+		if on_deck:
+			eye = source + out * 2.4 * k - forward * 1.6 * k + Vector3.UP * 0.35 * k
+		result = {
+			"name": "emerge",
+			"eye": eye,
+			"target": chest + Vector3.UP * 0.12 * k,
+			"fov": lerpf(48.0, 39.0, smoothstep(0.55, 1.3, t)),
+		}
+	elif t < 4.05:
+		# 飛ぶ：肩越しに前で待つサメを見せてから、ステージ側から並んで追う。
+		var shoulder := {
+			"eye": chest - forward * 3.6 * k - out * 0.9 * k + Vector3.UP * 1.25 * k,
+			"target": chest.lerp(mount, 0.5),
+			"fov": 54.0,
+		}
+		var track := {
+			"eye": chest - out * 3.7 * k + Vector3.UP * 0.75 * k - forward * 0.9 * k,
+			"target": chest.lerp(mount, lerpf(0.28, 0.55, smoothstep(2.6, 4.0, t))),
+			"fov": lerpf(50.0, 45.0, smoothstep(3.0, 4.05, t)),
+		}
+		result = _blend_shots(shoulder, track, smoothstep(2.25, 2.85, t))
+		result["name"] = "flight"
+		result["cut"] = true
+	elif t < 4.90:
+		# 着座：サメの斜め前に切り替えて寄り、ゆるめていく。
+		var local := t - 4.05
+		var eye := mount + shark_forward * 2.3 * k + shark_side * 1.45 * k + shark_up * 0.85 * k
+		result = {
+			"name": "impact",
+			"cut": true,
+			"eye": eye,
+			"target": mount + shark_up * 0.42 * k,
+			"fov": lerpf(38.0, 47.0, smoothstep(0.0, 0.6, local)),
+		}
+	elif t < 7.05:
+		# 力み：下からあおり、ゆっくり横へ回り込む。突き上げた拳と空・観客席を入れる。
+		var local := t - 4.90
+		var angle := deg_to_rad(lerpf(28.0, 62.0, smoothstep(0.0, 2.15, local)))
+		var around := shark_forward.rotated(shark_up, angle * signf(shark_side.dot(shark_up.cross(shark_forward)) + 0.0001))
+		var eye := mount + around * 2.9 * k - shark_up * 0.25 * k
+		result = {
+			"name": "power",
+			"eye": eye,
+			"target": mount + shark_up * 0.8 * k,
+			"fov": 52.0,
+		}
+	elif t < 8.49:
+		# 縦に立って昇る：背中（乗り手）の側の下から見上げる。昇り始めの位置に据えて、首を振って追う。
+		if not _ghost_ascent_ready:
+			_ghost_ascent_ready = true
+			_ghost_ascent_anchor = mount
+			_ghost_ascent_back = -shark_forward
+			_ghost_ascent_side = shark_side
+		var eye := _ghost_ascent_anchor + _ghost_ascent_back * 4.6 * k + _ghost_ascent_side * 2.6 * k + Vector3.UP * 0.35 * k
+		result = {
+			"name": "ascent",
+			"eye": eye,
+			"target": chest,
+			"fov": lerpf(54.0, 62.0, smoothstep(7.1, 8.4, t)),
+		}
+	else:
+		# 発進：後ろ上から追い、行く先を見る（サメの前後は水平にならして、腹の下に回り込まない）。
+		var flat_forward := Vector3(shark_forward.x, 0.0, shark_forward.z)
+		flat_forward = flat_forward.normalized() if flat_forward.length_squared() > 0.0001 else -out
+		var eye := mount - flat_forward * 4.4 * k + Vector3.UP * 1.9 * k - out * 0.6 * k
+		result = {
+			"name": "chase",
+			"eye": eye,
+			"target": mount + flat_forward * 2.0 * k + Vector3.UP * 0.35 * k,
+			"fov": 58.0,
+		}
+	if t < 7.0:
+		_ghost_ascent_ready = false
+	result["eye"] = _keep_ghost_camera_outside(result.eye, out)
+	return result
+
+
+func _blend_shots(a: Dictionary, b: Dictionary, weight: float) -> Dictionary:
+	return {
+		"eye": (a.eye as Vector3).lerp(b.eye, weight),
+		"target": (a.target as Vector3).lerp(b.target, weight),
+		"fov": lerpf(float(a.fov), float(b.fov), weight),
+	}
+
+
+## ステージの体（甲板より下の側壁の内側）と水の中にカメラを入れない。甲板より上なら甲板の上でよい。
+func _keep_ghost_camera_outside(eye: Vector3, out: Vector3) -> Vector3:
+	var side := signf(out.x) if not is_zero_approx(out.x) else 1.0
+	var below_deck := eye.y < StageConstants.FLOOR_TOP_Y + GHOST_CAMERA_DECK_CLEARANCE
+	if below_deck and (absf(eye.x) < GHOST_CAMERA_MIN_SIDE_X or signf(eye.x) != side):
+		eye.x = side * GHOST_CAMERA_MIN_SIDE_X
+	eye.y = maxf(eye.y, StageConstants.OCEAN_SURFACE_Y + GHOST_CAMERA_MIN_WATER_CLEARANCE)
+	return eye
+
+
+## 着座・目覚め・柱の閃光（小窓に重ねる色）。
+func play_ghost_flash(player_index: int, strength: float, color: Color) -> void:
+	if not _active or _dead_player != player_index:
+		return
+	_ghost_flash = maxf(_ghost_flash, clampf(strength, 0.0, 1.0))
+	_ghost_flash_color = color.lerp(Color.WHITE, 0.45)
+	_ghost_punch = maxf(_ghost_punch, clampf(strength, 0.0, 1.0))
+
+
+## 衝撃の揺れ（0〜1）。
+func add_ghost_shake(player_index: int, strength: float) -> void:
+	if not _active or _dead_player != player_index:
+		return
+	_ghost_shake = maxf(_ghost_shake, clampf(strength, 0.0, 1.0))

@@ -6,6 +6,8 @@ const OUT:="res://artifacts/saw_operator/rarity/"
 func _ready() -> void:call_deferred("run")
 func run() -> void:
 	Engine.max_fps=60
+	# ノコギリの事故の頻度を測るので、ゴーストのライド（ライド中はノコギリが休む）は止める
+	MenuGhostRideDirector.globally_enabled=false
 	seed(240920)
 	QuizManager.set_meta("saw_dock_menu_seen",true)
 	QuizManager.provider.llm_mode="OFFLINE"

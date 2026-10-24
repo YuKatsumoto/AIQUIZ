@@ -1,0 +1,785 @@
+{
+  "advance_ms_avg": {
+    "A": 0.991,
+    "C": 0.935,
+    "E": 0.81,
+    "F": 0.81,
+    "scarves_2": 0.482
+  },
+  "counts": {
+    "advance_ms": 0.84,
+    "band": "E",
+    "clouds": {
+      "clouds": 106,
+      "draws": 2,
+      "layers": {
+        "mid": 9,
+        "near": 4,
+        "rim": 12,
+        "sea": 75,
+        "thin": 6
+      },
+      "shadows": 15,
+      "steps": 16,
+      "visible": 1
+    },
+    "draws_estimate": 26,
+    "flyers": {
+      "bird_weight": 1.0,
+      "birds": 10,
+      "draws": 1,
+      "plane_weight": 0.0
+    },
+    "islands": {
+      "boats": 3,
+      "draws": 19,
+      "moored": 2,
+      "near": [
+        "Main"
+      ]
+    },
+    "progress": 0.93,
+    "wind": {
+      "bits": 20,
+      "draws": 3,
+      "trail_points": 11,
+      "trail_vertices": 480,
+      "trails": 8
+    },
+    "wind_strength": 0.5
+  },
+  "draw_calls_scarves": 4,
+  "draw_calls_sky_fx": {
+    "A": 16,
+    "C": 16,
+    "E": 12,
+    "F": 15
+  },
+  "drop_motion": true,
+  "fps": 60.0,
+  "gpu_ms": {
+    "A": {
+      "with": 0.57,
+      "without": 0.44
+    },
+    "C": {
+      "with": 1.7,
+      "without": 0.45
+    },
+    "E": {
+      "with": 0.52,
+      "without": 0.43
+    },
+    "F": {
+      "with": 1.43,
+      "without": 0.45
+    }
+  },
+  "quality": "low",
+  "shots": {
+    "01_C_cloud_sea": {
+      "band": "C",
+      "draws_total": 137,
+      "progress": 0.04,
+      "stats": {
+        "advance_ms": 0.636,
+        "band": "C",
+        "clouds": {
+          "clouds": 106,
+          "draws": 1,
+          "layers": {
+            "mid": 9,
+            "near": 4,
+            "rim": 12,
+            "sea": 75,
+            "thin": 6
+          },
+          "shadows": 15,
+          "steps": 16,
+          "visible": 90
+        },
+        "draws_estimate": 16,
+        "flyers": {
+          "bird_weight": 0.0,
+          "birds": 10,
+          "draws": 2,
+          "plane_weight": 1.0
+        },
+        "islands": {
+          "boats": 3,
+          "draws": 9,
+          "moored": 2,
+          "near": []
+        },
+        "progress": 0.04,
+        "wind": {
+          "bits": 20,
+          "draws": 3,
+          "trail_points": 11,
+          "trail_vertices": 480,
+          "trails": 8
+        },
+        "wind_strength": 1.0
+      },
+      "wind": 1.0
+    },
+    "02_F_enter": {
+      "band": "C",
+      "draws_total": 144,
+      "progress": 0.165,
+      "stats": {
+        "advance_ms": 0.531,
+        "band": "C",
+        "clouds": {
+          "clouds": 106,
+          "draws": 1,
+          "layers": {
+            "mid": 9,
+            "near": 4,
+            "rim": 12,
+            "sea": 75,
+            "thin": 6
+          },
+          "shadows": 15,
+          "steps": 16,
+          "visible": 87
+        },
+        "draws_estimate": 14,
+        "flyers": {
+          "bird_weight": 0.0,
+          "birds": 10,
+          "draws": 0,
+          "plane_weight": 0.0
+        },
+        "islands": {
+          "boats": 3,
+          "draws": 9,
+          "moored": 2,
+          "near": []
+        },
+        "progress": 0.165,
+        "wind": {
+          "bits": 20,
+          "draws": 3,
+          "trail_points": 11,
+          "trail_vertices": 480,
+          "trails": 8
+        },
+        "wind_strength": 0.5
+      },
+      "wind": 0.5
+    },
+    "03_F_inside": {
+      "band": "C",
+      "draws_total": 165,
+      "progress": 0.19,
+      "stats": {
+        "advance_ms": 0.545,
+        "band": "C",
+        "clouds": {
+          "clouds": 106,
+          "draws": 2,
+          "layers": {
+            "mid": 9,
+            "near": 4,
+            "rim": 12,
+            "sea": 75,
+            "thin": 6
+          },
+          "shadows": 15,
+          "steps": 16,
+          "visible": 93
+        },
+        "draws_estimate": 15,
+        "flyers": {
+          "bird_weight": 0.0,
+          "birds": 10,
+          "draws": 0,
+          "plane_weight": 0.0
+        },
+        "islands": {
+          "boats": 3,
+          "draws": 9,
+          "moored": 2,
+          "near": []
+        },
+        "progress": 0.19,
+        "wind": {
+          "bits": 20,
+          "draws": 3,
+          "trail_points": 11,
+          "trail_vertices": 480,
+          "trails": 8
+        },
+        "wind_strength": 0.5
+      },
+      "wind": 0.5
+    },
+    "04_F_exit": {
+      "band": "A",
+      "draws_total": 165,
+      "progress": 0.235,
+      "stats": {
+        "advance_ms": 0.613,
+        "band": "A",
+        "clouds": {
+          "clouds": 106,
+          "draws": 2,
+          "layers": {
+            "mid": 9,
+            "near": 4,
+            "rim": 12,
+            "sea": 75,
+            "thin": 6
+          },
+          "shadows": 15,
+          "steps": 16,
+          "visible": 102
+        },
+        "draws_estimate": 15,
+        "flyers": {
+          "bird_weight": 0.0,
+          "birds": 10,
+          "draws": 0,
+          "plane_weight": 0.0
+        },
+        "islands": {
+          "boats": 3,
+          "draws": 9,
+          "moored": 2,
+          "near": []
+        },
+        "progress": 0.235,
+        "wind": {
+          "bits": 20,
+          "draws": 3,
+          "trail_points": 11,
+          "trail_vertices": 480,
+          "trails": 8
+        },
+        "wind_strength": 0.5
+      },
+      "wind": 0.5
+    },
+    "05_A_islands": {
+      "band": "A",
+      "draws_total": 146,
+      "progress": 0.4,
+      "stats": {
+        "advance_ms": 0.627,
+        "band": "A",
+        "clouds": {
+          "clouds": 106,
+          "draws": 2,
+          "layers": {
+            "mid": 9,
+            "near": 4,
+            "rim": 12,
+            "sea": 75,
+            "thin": 6
+          },
+          "shadows": 15,
+          "steps": 16,
+          "visible": 16
+        },
+        "draws_estimate": 17,
+        "flyers": {
+          "bird_weight": 0.0,
+          "birds": 10,
+          "draws": 2,
+          "plane_weight": 1.0
+        },
+        "islands": {
+          "boats": 3,
+          "draws": 9,
+          "moored": 2,
+          "near": []
+        },
+        "progress": 0.4,
+        "wind": {
+          "bits": 20,
+          "draws": 3,
+          "trail_points": 11,
+          "trail_vertices": 480,
+          "trails": 8
+        },
+        "wind_strength": 1.0
+      },
+      "wind": 1.0
+    },
+    "06_A_gate_near": {
+      "band": "A",
+      "draws_total": 162,
+      "progress": 0.68,
+      "stats": {
+        "advance_ms": 0.652,
+        "band": "A",
+        "clouds": {
+          "clouds": 106,
+          "draws": 2,
+          "layers": {
+            "mid": 9,
+            "near": 4,
+            "rim": 12,
+            "sea": 75,
+            "thin": 6
+          },
+          "shadows": 15,
+          "steps": 16,
+          "visible": 14
+        },
+        "draws_estimate": 23,
+        "flyers": {
+          "bird_weight": 0.67,
+          "birds": 10,
+          "draws": 1,
+          "plane_weight": 0.0
+        },
+        "islands": {
+          "boats": 3,
+          "draws": 16,
+          "moored": 2,
+          "near": []
+        },
+        "progress": 0.68,
+        "wind": {
+          "bits": 20,
+          "draws": 3,
+          "trail_points": 11,
+          "trail_vertices": 480,
+          "trails": 8
+        },
+        "wind_strength": 0.5
+      },
+      "wind": 0.5
+    },
+    "07_E_near_island": {
+      "band": "E",
+      "draws_total": 144,
+      "progress": 0.9,
+      "stats": {
+        "advance_ms": 0.78,
+        "band": "E",
+        "clouds": {
+          "clouds": 106,
+          "draws": 2,
+          "layers": {
+            "mid": 9,
+            "near": 4,
+            "rim": 12,
+            "sea": 75,
+            "thin": 6
+          },
+          "shadows": 15,
+          "steps": 16,
+          "visible": 2
+        },
+        "draws_estimate": 26,
+        "flyers": {
+          "bird_weight": 0.9,
+          "birds": 10,
+          "draws": 1,
+          "plane_weight": 0.0
+        },
+        "islands": {
+          "boats": 3,
+          "draws": 19,
+          "moored": 2,
+          "near": [
+            "Main"
+          ]
+        },
+        "progress": 0.9,
+        "wind": {
+          "bits": 20,
+          "draws": 3,
+          "trail_points": 11,
+          "trail_vertices": 480,
+          "trails": 8
+        },
+        "wind_strength": 0.5
+      },
+      "wind": 0.5
+    },
+    "08_E_landing": {
+      "band": "E",
+      "draws_total": 159,
+      "progress": 0.985,
+      "stats": {
+        "advance_ms": 0.723,
+        "band": "E",
+        "clouds": {
+          "clouds": 106,
+          "draws": 1,
+          "layers": {
+            "mid": 9,
+            "near": 4,
+            "rim": 12,
+            "sea": 75,
+            "thin": 6
+          },
+          "shadows": 15,
+          "steps": 16,
+          "visible": 0
+        },
+        "draws_estimate": 25,
+        "flyers": {
+          "bird_weight": 1.0,
+          "birds": 10,
+          "draws": 1,
+          "plane_weight": 0.0
+        },
+        "islands": {
+          "boats": 3,
+          "draws": 19,
+          "moored": 2,
+          "near": [
+            "Main"
+          ]
+        },
+        "progress": 0.985,
+        "wind": {
+          "bits": 20,
+          "draws": 3,
+          "trail_points": 11,
+          "trail_vertices": 480,
+          "trails": 8
+        },
+        "wind_strength": 0.5
+      },
+      "wind": 0.5
+    },
+    "09_overtime": {
+      "band": "A",
+      "draws_total": 136,
+      "progress": 0.5,
+      "stats": {
+        "advance_ms": 0.684,
+        "band": "A",
+        "clouds": {
+          "clouds": 106,
+          "draws": 2,
+          "layers": {
+            "mid": 9,
+            "near": 4,
+            "rim": 12,
+            "sea": 75,
+            "thin": 6
+          },
+          "shadows": 15,
+          "steps": 16,
+          "visible": 17
+        },
+        "draws_estimate": 17,
+        "flyers": {
+          "bird_weight": 0.0,
+          "birds": 10,
+          "draws": 2,
+          "plane_weight": 0.6
+        },
+        "islands": {
+          "boats": 3,
+          "draws": 9,
+          "moored": 2,
+          "near": []
+        },
+        "progress": 0.5,
+        "wind": {
+          "bits": 20,
+          "draws": 3,
+          "trail_points": 11,
+          "trail_vertices": 480,
+          "trails": 8
+        },
+        "wind_strength": 1.0
+      },
+      "wind": 1.0
+    },
+    "10_scarf_close": {
+      "band": "A",
+      "draws_total": 65,
+      "progress": 0.45,
+      "stats": {
+        "advance_ms": 0.675,
+        "band": "A",
+        "clouds": {
+          "clouds": 106,
+          "draws": 2,
+          "layers": {
+            "mid": 9,
+            "near": 4,
+            "rim": 12,
+            "sea": 75,
+            "thin": 6
+          },
+          "shadows": 15,
+          "steps": 16,
+          "visible": 17
+        },
+        "draws_estimate": 17,
+        "flyers": {
+          "bird_weight": 0.0,
+          "birds": 10,
+          "draws": 2,
+          "plane_weight": 0.68
+        },
+        "islands": {
+          "boats": 3,
+          "draws": 9,
+          "moored": 2,
+          "near": []
+        },
+        "progress": 0.45,
+        "wind": {
+          "bits": 20,
+          "draws": 3,
+          "trail_points": 11,
+          "trail_vertices": 480,
+          "trails": 8
+        },
+        "wind_strength": 1.0
+      },
+      "wind": 1.0
+    },
+    "11_clouds_high": {
+      "band": "A",
+      "draws_total": 138,
+      "progress": 0.32,
+      "stats": {
+        "advance_ms": 0.654,
+        "band": "A",
+        "clouds": {
+          "clouds": 106,
+          "draws": 2,
+          "layers": {
+            "mid": 9,
+            "near": 4,
+            "rim": 12,
+            "sea": 75,
+            "thin": 6
+          },
+          "shadows": 15,
+          "steps": 16,
+          "visible": 17
+        },
+        "draws_estimate": 17,
+        "flyers": {
+          "bird_weight": 0.0,
+          "birds": 10,
+          "draws": 2,
+          "plane_weight": 1.0
+        },
+        "islands": {
+          "boats": 3,
+          "draws": 9,
+          "moored": 2,
+          "near": []
+        },
+        "progress": 0.32,
+        "wind": {
+          "bits": 20,
+          "draws": 3,
+          "trail_points": 11,
+          "trail_vertices": 480,
+          "trails": 8
+        },
+        "wind_strength": 1.0
+      },
+      "wind": 1.0
+    },
+    "12_cloud_sea_high": {
+      "band": "C",
+      "draws_total": 136,
+      "progress": 0.05,
+      "stats": {
+        "advance_ms": 0.594,
+        "band": "C",
+        "clouds": {
+          "clouds": 106,
+          "draws": 1,
+          "layers": {
+            "mid": 9,
+            "near": 4,
+            "rim": 12,
+            "sea": 75,
+            "thin": 6
+          },
+          "shadows": 15,
+          "steps": 16,
+          "visible": 88
+        },
+        "draws_estimate": 16,
+        "flyers": {
+          "bird_weight": 0.0,
+          "birds": 10,
+          "draws": 2,
+          "plane_weight": 1.0
+        },
+        "islands": {
+          "boats": 3,
+          "draws": 9,
+          "moored": 2,
+          "near": []
+        },
+        "progress": 0.05,
+        "wind": {
+          "bits": 20,
+          "draws": 3,
+          "trail_points": 11,
+          "trail_vertices": 480,
+          "trails": 8
+        },
+        "wind_strength": 1.0
+      },
+      "wind": 1.0
+    },
+    "13_birds": {
+      "band": "E",
+      "draws_total": 162,
+      "progress": 0.93,
+      "stats": {
+        "advance_ms": 0.636,
+        "band": "E",
+        "clouds": {
+          "clouds": 106,
+          "draws": 2,
+          "layers": {
+            "mid": 9,
+            "near": 4,
+            "rim": 12,
+            "sea": 75,
+            "thin": 6
+          },
+          "shadows": 15,
+          "steps": 16,
+          "visible": 2
+        },
+        "draws_estimate": 26,
+        "flyers": {
+          "bird_weight": 1.0,
+          "birds": 10,
+          "draws": 1,
+          "plane_weight": 0.0
+        },
+        "islands": {
+          "boats": 3,
+          "draws": 19,
+          "moored": 2,
+          "near": [
+            "Main"
+          ]
+        },
+        "progress": 0.93,
+        "wind": {
+          "bits": 20,
+          "draws": 3,
+          "trail_points": 11,
+          "trail_vertices": 480,
+          "trails": 8
+        },
+        "wind_strength": 0.5
+      },
+      "wind": 0.5
+    },
+    "14_contrail": {
+      "band": "C",
+      "draws_total": 137,
+      "progress": 0.03,
+      "stats": {
+        "advance_ms": 0.615,
+        "band": "C",
+        "clouds": {
+          "clouds": 106,
+          "draws": 1,
+          "layers": {
+            "mid": 9,
+            "near": 4,
+            "rim": 12,
+            "sea": 75,
+            "thin": 6
+          },
+          "shadows": 15,
+          "steps": 16,
+          "visible": 88
+        },
+        "draws_estimate": 16,
+        "flyers": {
+          "bird_weight": 0.0,
+          "birds": 10,
+          "draws": 2,
+          "plane_weight": 1.0
+        },
+        "islands": {
+          "boats": 3,
+          "draws": 9,
+          "moored": 2,
+          "near": []
+        },
+        "progress": 0.03,
+        "wind": {
+          "bits": 20,
+          "draws": 3,
+          "trail_points": 11,
+          "trail_vertices": 480,
+          "trails": 8
+        },
+        "wind_strength": 1.0
+      },
+      "wind": 1.0
+    },
+    "15_landing_low": {
+      "band": "E",
+      "draws_total": 30,
+      "progress": 1.0,
+      "stats": {
+        "advance_ms": 0.651,
+        "band": "E",
+        "clouds": {
+          "clouds": 106,
+          "draws": 1,
+          "layers": {
+            "mid": 9,
+            "near": 4,
+            "rim": 12,
+            "sea": 75,
+            "thin": 6
+          },
+          "shadows": 15,
+          "steps": 16,
+          "visible": 0
+        },
+        "draws_estimate": 25,
+        "flyers": {
+          "bird_weight": 1.0,
+          "birds": 10,
+          "draws": 1,
+          "plane_weight": 0.0
+        },
+        "islands": {
+          "boats": 3,
+          "draws": 19,
+          "moored": 2,
+          "near": [
+            "Main"
+          ]
+        },
+        "progress": 1.0,
+        "wind": {
+          "bits": 20,
+          "draws": 3,
+          "trail_points": 11,
+          "trail_vertices": 480,
+          "trails": 8
+        },
+        "wind_strength": 0.5
+      },
+      "wind": 0.5
+    }
+  },
+  "sun_energy": 1.04999995231628,
+  "sun_to_sun": [
+    0.285,
+    0.866,
+    -0.411
+  ]
+}

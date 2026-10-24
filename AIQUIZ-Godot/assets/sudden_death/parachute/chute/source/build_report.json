@@ -1,0 +1,40 @@
+{
+  "triangles": {
+    "Canopy": 5920,
+    "Lines": 496,
+    "Slider": 620,
+    "Risers": 504,
+    "PilotChute": 808,
+    "Bridle": 16,
+    "DeployBag": 748,
+    "Container": 852,
+    "Hanky": 444,
+    "SplashColumn": 1260,
+    "SplashCrown": 1232,
+    "SplashDroplets": 1932,
+    "SplashFoam": 256,
+    "SplashRipple": 480
+  },
+  "chute_triangles": 10408,
+  "splash_triangles": 5160,
+  "shape_keys": [
+    "Basis",
+    "Packed",
+    "Half",
+    "Collapsed",
+    "Breath",
+    "Grounded"
+  ],
+  "canopy_top": 6.718,
+  "previews": [
+    "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\sudden_death\\parachute\\chute\\source\\previews\\pc_01_full.png",
+    "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\sudden_death\\parachute\\chute\\source\\previews\\pc_02_half.png",
+    "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\sudden_death\\parachute\\chute\\source\\previews\\pc_03_packed.png",
+    "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\sudden_death\\parachute\\chute\\source\\previews\\pc_04_collapsed.png",
+    "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\sudden_death\\parachute\\chute\\source\\previews\\pc_05_breath.png",
+    "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\sudden_death\\parachute\\chute\\source\\previews\\pc_09_grounded.png",
+    "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\sudden_death\\parachute\\chute\\source\\previews\\pc_06_below.png",
+    "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\sudden_death\\parachute\\chute\\source\\previews\\pc_07_parts.png",
+    "C:\\AIQUIZ\\AIQUIZ-Godot\\assets\\sudden_death\\parachute\\chute\\source\\previews\\pc_08_splash.png"
+  ]
+}

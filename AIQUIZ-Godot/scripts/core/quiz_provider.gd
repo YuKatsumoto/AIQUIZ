@@ -634,6 +634,46 @@ func _fallback_question(subject: String, grade: int, four_choices: bool = false)
 		"FALLBACK"
 	)
 
+## オンラインモードで新作以外の枠を埋める問題（フェーズ C1）。tier ごとに取り出す。
+##   "shared"       … 共有バンク（Claude 確認済み）で、指定の難易度のもの
+##   "builtin"      … ゲーム同梱の問題（共有バンクが足りないときだけ使う）
+##   "shared_other" … 共有バンクの別の難易度のもの（最後の補い）
+## exclude_texts と同じ問題文は除く。足りなくても算数の自動生成では埋めない。
+func bank_candidates(subject: String, grade: int, difficulty: String, mode: String,
+		count: int, exclude_texts: Array[String], tier: String) -> Array[QuizItem]:
+	var excluded := QuizDedup.make_exact_index(exclude_texts)
+	var items: Array[QuizItem] = []
+	if tier == "builtin":
+		items = offline_candidates(subject, grade, difficulty)
+	else:
+		for raw: Dictionary in external_bank_items:
+			if str(raw.get("subject", "")) != subject or int(raw.get("grade", 0)) != grade:
+				continue
+			var same_difficulty := str(raw.get("difficulty", "")) == difficulty
+			if same_difficulty != (tier == "shared"):
+				continue
+			var n := _normalize(raw)
+			if n == null:
+				continue
+			n.src = "OFFLINE_FIREBASE"
+			n.estimated_seconds = _estimate_seconds(n, subject, difficulty)
+			items.append(n)
+	if difficulty == "難しい" or mode == Constants.MODE_TEN:
+		items = _four_choice_pool(items)
+	items.shuffle()
+	var picked: Array[QuizItem] = []
+	var seen := {}
+	for item: QuizItem in items:
+		var key := QuizDedup.exact_key(item.q)
+		if excluded.has(key) or seen.has(key):
+			continue
+		seen[key] = true
+		picked.append(_harden_distractors(item) if difficulty == "難しい" else item)
+		if picked.size() >= count:
+			break
+	return picked
+
+
 # ---------- Main API ----------
 
 func get_quizzes(subject: String, grade: int, difficulty: String,

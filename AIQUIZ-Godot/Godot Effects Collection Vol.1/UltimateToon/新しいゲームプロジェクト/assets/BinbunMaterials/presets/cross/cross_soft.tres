@@ -1,0 +1,29 @@
+[gd_resource type="ShaderMaterial" load_steps=3 format=3 uid="uid://d0yg2wdmg73in"]
+
+[ext_resource type="Shader" uid="uid://bkb1f7plk6r1j" path="res://assets/BinbunMaterials/src/shader/stylized.gdshader" id="1_5sfn2"]
+[ext_resource type="Texture2D" uid="uid://cia1gvvvoqcjx" path="res://assets/BinbunMaterials/src/texture/patterns/cross/cross_01.png" id="2_5sfn2"]
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_5sfn2")
+shader_parameter/albedo_color = Color(0.752941, 0.988235, 0.890196, 1)
+shader_parameter/use_stepped = false
+shader_parameter/steps = 3.0
+shader_parameter/step_smoothness = 0.0
+shader_parameter/shadow_tint = Color(0, 0.0666667, 0.509804, 1)
+shader_parameter/shadow_tint_amount = 1.0
+shader_parameter/specular = 0.5
+shader_parameter/normal_strength = 0.0
+shader_parameter/use_rim = true
+shader_parameter/rim_color = Color(1, 0.96, 0.88, 1)
+shader_parameter/rim_amount = 1.5
+shader_parameter/rim_smoothness = 0.5
+shader_parameter/rim_mask_shadow = 0.9
+shader_parameter/rim_blend = 1.0
+shader_parameter/use_pattern = true
+shader_parameter/pattern_texture = ExtResource("2_5sfn2")
+shader_parameter/pattern_uv_mode = 2
+shader_parameter/pattern_tiling = 8.0
+shader_parameter/pattern_amount = 0.25
+shader_parameter/pattern_smoothness = 0.3
+shader_parameter/pattern_blend = 0.5

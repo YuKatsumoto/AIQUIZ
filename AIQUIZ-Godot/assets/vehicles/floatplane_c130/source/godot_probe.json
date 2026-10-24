@@ -1,0 +1,267 @@
+{
+  "checks": [
+    {
+      "check": "build(\"high\") が通る",
+      "detail": "",
+      "ok": true
+    },
+    {
+      "check": "GLB の部品がそろう",
+      "detail": "[]",
+      "ok": true
+    },
+    {
+      "check": "layout のマーカーがそろう（計画書 4.2 の表）",
+      "detail": "[]",
+      "ok": true
+    },
+    {
+      "check": "材質の名前（FP_Paint・FP_Navy・…・FP_Interior*）",
+      "detail": "[]",
+      "ok": true
+    },
+    {
+      "check": "P1 は右の壁（+X）・P2 は左",
+      "detail": "[(1.76, 2.56, 0.8), (-1.76, 2.56, 0.8)]",
+      "ok": true
+    },
+    {
+      "check": "座る向き（+Z）が通路の向かい",
+      "detail": "",
+      "ok": true
+    },
+    {
+      "check": "尾の一番後ろは z = 11.45（機首から 18.05）",
+      "detail": "(0.0, 5.3, 11.45)",
+      "ok": true
+    },
+    {
+      "check": "MK_CamAft は後ろを見る（カメラの −Z）",
+      "detail": "(0.0, -0.1996, 0.9799)",
+      "ok": true
+    },
+    {
+      "check": "set_ramp(1)：スロープの端が MK_RampEdge",
+      "detail": "[(0.0, 1.9, 7.8), (0.0, 1.9, 7.8)]",
+      "ok": true
+    },
+    {
+      "check": "set_ramp(1)：スロープの上面が床と水平（y 1.90）",
+      "detail": "[1.89999985694885, 1.89999997615814]",
+      "ok": true
+    },
+    {
+      "check": "set_ramp(0)：閉じると端が上がる（25°）",
+      "detail": "3.25237846374512",
+      "ok": true
+    },
+    {
+      "check": "作動筒の筒が棒の付け根を向く",
+      "detail": "1.0",
+      "ok": true
+    },
+    {
+      "check": "set_upper_door(1)：前の端の下面が海面から 5.0 m",
+      "detail": "5.00002527236938",
+      "ok": true
+    },
+    {
+      "check": "set_flaps(1)：30° 下がる",
+      "detail": "30.0000008348261",
+      "ok": true
+    },
+    {
+      "check": "set_props(1)：プロペラが回る",
+      "detail": "",
+      "ok": true
+    },
+    {
+      "check": "速いときは羽根を隠して円盤",
+      "detail": "",
+      "ok": true
+    },
+    {
+      "check": "set_props(…, true)：逆推力で羽根がねじれる",
+      "detail": "",
+      "ok": true
+    },
+    {
+      "check": "止めると羽根が元に戻る",
+      "detail": "",
+      "ok": true
+    },
+    {
+      "check": "set_jump_light(\"red\")",
+      "detail": "",
+      "ok": true
+    },
+    {
+      "check": "set_jump_light(\"green\")",
+      "detail": "",
+      "ok": true
+    },
+    {
+      "check": "set_pontoon_spray(1)：しぶき 6 か所",
+      "detail": "6",
+      "ok": false
+    },
+    {
+      "check": "set_belt(1, true)",
+      "detail": "",
+      "ok": true
+    },
+    {
+      "check": "set_cabin_lighting(\"red\")：ダウンライトが赤",
+      "detail": "24",
+      "ok": true
+    },
+    {
+      "check": "寸法の差が 5 cm 以内（Godot で読んだ形 と c130_design.py）",
+      "detail": "0.03000020980835",
+      "ok": true
+    },
+    {
+      "check": "画質「低」：灯を減らす・影なし・円盤なし",
+      "detail": "[8, 0]",
+      "ok": true
+    }
+  ],
+  "dims": {
+    "rows": [
+      {
+        "design": 18.0,
+        "diff": 0.03,
+        "godot": 18.03,
+        "key": "length_overall"
+      },
+      {
+        "design": 24.0,
+        "diff": 0.0,
+        "godot": 24.0,
+        "key": "span"
+      },
+      {
+        "design": 10.15,
+        "diff": 0.0,
+        "godot": 10.15,
+        "key": "height_overall"
+      },
+      {
+        "design": 4.4,
+        "diff": 0.0,
+        "godot": 4.4,
+        "key": "fuselage_width"
+      },
+      {
+        "design": 4.2,
+        "diff": 0.0,
+        "godot": 4.2,
+        "key": "fuselage_height"
+      },
+      {
+        "design": 8.0,
+        "diff": 0.005,
+        "godot": 8.005,
+        "key": "hold_length"
+      },
+      {
+        "design": 4.04,
+        "diff": 0.0,
+        "godot": 4.04,
+        "key": "hold_inner_width"
+      },
+      {
+        "design": 3.72,
+        "diff": 0.0,
+        "godot": 3.72,
+        "key": "hold_standing_height"
+      },
+      {
+        "design": 3.1,
+        "diff": 0.0,
+        "godot": 3.1,
+        "key": "opening_width"
+      },
+      {
+        "design": 3.3,
+        "diff": 0.0,
+        "godot": 3.3,
+        "key": "opening_height"
+      },
+      {
+        "design": 3.2,
+        "diff": 0.0,
+        "godot": 3.2,
+        "key": "ramp_length"
+      },
+      {
+        "design": 3.1,
+        "diff": 0.0,
+        "godot": 3.1,
+        "key": "ramp_width"
+      },
+      {
+        "design": 2.8,
+        "diff": 0.001,
+        "godot": 2.801,
+        "key": "prop_diameter"
+      },
+      {
+        "design": 14.2,
+        "diff": 0.0,
+        "godot": 14.2,
+        "key": "float_length"
+      },
+      {
+        "design": 1.7,
+        "diff": 0.007,
+        "godot": 1.707,
+        "key": "float_diameter"
+      },
+      {
+        "design": 0.65,
+        "diff": 0.0,
+        "godot": 0.65,
+        "key": "float_draft"
+      },
+      {
+        "design": 7.2,
+        "diff": 0.0,
+        "godot": 7.2,
+        "key": "float_spacing"
+      },
+      {
+        "design": 1.9,
+        "diff": 0.0,
+        "godot": 1.9,
+        "key": "floor_height"
+      },
+      {
+        "design": 2.95,
+        "diff": 0.0,
+        "godot": 2.95,
+        "key": "flight_deck_height"
+      }
+    ],
+    "worst_abs_diff": 0.03
+  },
+  "passed": false,
+  "shots": [
+    "assets/vehicles/floatplane_c130/source/previews/godot_ext_34.png",
+    "assets/vehicles/floatplane_c130/source/previews/godot_ext_side_left.png",
+    "assets/vehicles/floatplane_c130/source/previews/godot_ext_rear_open.png",
+    "assets/vehicles/floatplane_c130/source/previews/godot_ext_nose.png",
+    "assets/vehicles/floatplane_c130/source/previews/godot_ext_float.png",
+    "assets/vehicles/floatplane_c130/source/previews/godot_int_aft.png",
+    "assets/vehicles/floatplane_c130/source/previews/godot_int_fwd.png",
+    "assets/vehicles/floatplane_c130/source/previews/godot_int_red_open.png",
+    "assets/vehicles/floatplane_c130/source/previews/godot_int_seats.png",
+    "assets/vehicles/floatplane_c130/source/previews/godot_int_wall.png",
+    "assets/vehicles/floatplane_c130/source/previews/godot_cockpit.png",
+    "assets/vehicles/floatplane_c130/source/previews/godot_cockpit_side.png",
+    "assets/vehicles/floatplane_c130/source/previews/godot_cockpit_eye.png",
+    "assets/vehicles/floatplane_c130/source/previews/godot_cockpit_back.png",
+    "assets/vehicles/floatplane_c130/source/previews/godot_ext_engine.png",
+    "assets/vehicles/floatplane_c130/source/previews/godot_ext_float_bow.png"
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "note": "パラシュート一式の寸法（Godot の座標、原点＝肩のライザーのつけ根）。build_parachute.py が書く",
+  "canopy_top": 6.718,
+  "canopy_mid": 6.3,
+  "bag_center": [
+    0.0,
+    1.2999999523162842,
+    -0.0
+  ],
+  "slider_open": 0.62,
+  "link_height": 0.55,
+  "span": 7.2,
+  "shape_keys": [
+    "Packed",
+    "Half",
+    "Collapsed",
+    "Breath",
+    "Grounded"
+  ],
+  "grounded": "Grounded の原点＝床（着地した人の 0.45 m 後ろに置く）。布の山の中心は原点から後ろへ 1.55 m、横の半分 1.45 m",
+  "pilot_bridle_attach": "PilotChute の原点。全開のときは布の上面の中心（canopy_top）の 0.6 m 上に置く",
+  "container_mount": "Container の原点＝背中に当たる面の中心。本体は Godot の −Z（後ろ）へ 0.16 m",
+  "hanky": "Hanky の原点＝ひものつけ根。布は +Y の 0.6〜1.05 m、+Z（前）を向く"
+}

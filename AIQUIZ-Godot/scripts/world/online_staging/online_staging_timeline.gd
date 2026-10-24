@@ -245,7 +245,8 @@ const CUTIN := {
 ## 稲妻の線（画面の幅・高さに対する割合）
 const SEAM_POINTS := [Vector2(0.535, -0.02), Vector2(0.475, 0.20), Vector2(0.548, 0.36), Vector2(0.462, 0.58), Vector2(0.540, 0.76), Vector2(0.488, 1.02)]
 ## カットインのポーズ（D13）：[クリップ, スロット（AnimationRig）, 位置 0〜1]。
-## 箱の人形を正面から撮り比べて決めた（artifacts/online_staging/probes/poses_front.png）
+## 箱の人形を正面から撮り比べて決めた（artifacts/online_staging/probes/poses_front.png）。
+## カットインのキャラは付けているエモートを踊る（cutin_emote）。このポーズは踊れるエモートが無いときと、FBX を読み終えるまで
 const CUTIN_POSES := [
 	["Idle_FoldArms_Loop", 25, 0.30],
 	["Punch_Cross", 24, 0.50],
@@ -275,7 +276,26 @@ static func camera(name: String) -> Dictionary:
 
 ## 名前から決まるカットインのポーズの番号（両方の画面で同じになる）。
 static func cutin_pose_index(player_name: String) -> int:
+	return _text_hash(player_name) % CUTIN_POSES.size()
+
+
+## カットインで踊るエモート：付けているエモート（slots）から、試合（match_key：両方の画面で同じ値）と名前で 1 つ選ぶ。
+## 試合ごとに変わり、両方の画面で同じになる。踊れるエモートが無ければ EMOTE_NONE（CUTIN_POSES のポーズにする）。
+static func cutin_emote(slots: Array, player_name: String, match_key: String) -> int:
+	var choices: Array[int] = []
+	for raw: Variant in slots:
+		var id := EmoteData.normalize_emote_id(int(raw))
+		if id <= EmoteData.EMOTE_NONE or id >= EmoteData.EMOTE_COUNT or choices.has(id) or EmoteData.get_emote_fbx(id).is_empty():
+			continue
+		choices.append(id)
+	if choices.is_empty():
+		return EmoteData.EMOTE_NONE
+	return choices[_text_hash(match_key + "/" + player_name) % choices.size()]
+
+
+## 文字コードから計算した値（31 倍して足していく）。String.hash() は版によって変わりうるので使わない。
+static func _text_hash(text: String) -> int:
 	var h := 0
-	for i in range(player_name.length()):
-		h = (h * 31 + player_name.unicode_at(i)) % 1000003
-	return h % CUTIN_POSES.size()
+	for i in range(text.length()):
+		h = (h * 31 + text.unicode_at(i)) % 1000003
+	return h

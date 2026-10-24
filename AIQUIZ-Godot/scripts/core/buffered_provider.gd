@@ -61,6 +61,19 @@ var _last_refetch_ms: int = 0
 var _history_save_scheduled: bool = false
 var _initial_ten_fetch_started: bool = false
 var generated_bank: GeneratedBank
+## このラウンドは予算切れで共有バンクに切り替えた（ラウンドの途中で戻さない）
+var _round_bank_fallback: bool = false
+## フェーズ C1: プロキシの /round-plan が決めたこのラウンドの新作の数。
+## 10問モードは新作 _round_new_target 問＋共有バンクなど、エンドレスは補充の _endless_new_ratio を新作にする。
+## -1 は制限なし（プロキシから計画を受け取れなかったときの従来どおりの動き）。
+var _round_plan_pending: bool = false
+var _round_plan_serial: int = 0
+var _round_new_target: int = -1
+var _endless_new_ratio: float = 1.0
+var _endless_generated: int = 0
+var _endless_banked: int = 0
+## 計画で新作以外の枠に入れたバンクの問題（オンライン中でも払い出してよい OFFLINE 系）
+var _planned_bank_keys: Dictionary = {}
 var _round_candidates_seen: int = 0
 var _round_candidates_blocked: int = 0
 var _quality_stats_logged: bool = false
@@ -122,7 +135,21 @@ func _online_api_available() -> bool:
 
 
 func _should_use_offline_quizzes() -> bool:
-	return llm_mode != "ONLINE"
+	return not _uses_online_generation()
+
+
+## オンラインモードで、このラウンドの問題を Gemini に作らせるか。
+## プロキシが予算切れ（503）で生成を止めたら、そのラウンドの残りは共有バンク
+## （Firebase から同期した確認済みの問題を含むオフライン問題）で出題する。
+func _uses_online_generation() -> bool:
+	if llm_mode != "ONLINE" or _round_bank_fallback:
+		return false
+	if ApiStatusAutoload.is_online_generation_paused():
+		if is_active_round:
+			_round_bank_fallback = true
+			print("[BufferedProvider] Online generation paused by the proxy budget — using the shared bank for this round")
+		return false
+	return true
 
 
 func _is_offline_quiz_item(q: QuizItem) -> bool:
@@ -168,6 +195,14 @@ func begin_round(subject: String, grade: int, difficulty: String,
 	_round_candidates_seen = 0
 	_round_candidates_blocked = 0
 	_quality_stats_logged = false
+	_round_bank_fallback = false
+	_round_plan_pending = false
+	_round_plan_serial += 1
+	_round_new_target = -1
+	_endless_new_ratio = 1.0
+	_endless_generated = 0
+	_endless_banked = 0
+	_planned_bank_keys.clear()
 
 	# オフライン問題は直後の同期フェッチで取得できるため、開始時の緊急キャッシュ生成は不要。
 	# ここで過去履歴との意味比較を走らせると、準備画面を長時間ブロックしてしまう。
@@ -181,6 +216,9 @@ func begin_round(subject: String, grade: int, difficulty: String,
 	# ★★★ 速度最適化: ポーリング待ちを廃止し、即座に最初のリクエストを発火 ★★★
 	if llm_mode == "ONLINE" and not _online_api_available():
 		print("[BufferedProvider] Online mode selected but PROXY_URL is not configured — waiting (no offline fallback)")
+	elif _uses_online_generation():
+		# 新作の数をプロキシに聞いてから、バンクで埋めて生成を始める
+		_start_round_plan()
 	elif _should_use_offline_quizzes() or _online_api_available():
 		if llm_mode == "ONLINE":
 			_seed_from_generated_bank()
@@ -243,7 +281,7 @@ func _target_buffer_size() -> int:
 
 ## 補充リクエストを飛ばすべきかの判定
 func _worker_should_fill() -> bool:
-	if not is_active_round:
+	if not is_active_round or _round_plan_pending:
 		return false
 	# 10問モード: fetch_quiz_parallel内部で4並列管理するのでproviderレベルは1で十分
 	# エンドレスモードでも内部で5並列管理しているため1で十分
@@ -309,14 +347,29 @@ func _on_poll() -> void:
 
 	if llm_mode == "ONLINE" and not _online_api_available():
 		return
-	if online_fetcher.has_method("is_rate_limited") and online_fetcher.is_rate_limited():
+	# レート制限・予算切れで待つのはオンライン生成だけ。共有バンクからの補充は止めない。
+	if _uses_online_generation() and online_fetcher.has_method("is_rate_limited") \
+			and online_fetcher.is_rate_limited():
 		return
-	
+
 	_last_refetch_ms = Time.get_ticks_msec()
 	inflight += 1
 	var fetch_count: int = _calculate_fetch_candidate_count()
-		
-	if llm_mode == "ONLINE":
+
+	if _uses_online_generation() and current_mode == Constants.MODE_ENDLESS and _endless_new_ratio < 1.0:
+		# エンドレス: 補充のうち新作は _endless_new_ratio だけ。残りはバンクで埋める
+		var total := _endless_generated + _endless_banked + fetch_count
+		var gen_count := clampi(roundi(total * _endless_new_ratio) - _endless_generated, 0, fetch_count)
+		var banked := _fill_from_bank(fetch_count - gen_count)
+		_endless_banked += banked
+		gen_count = fetch_count - banked
+		if gen_count <= 0:
+			inflight = maxi(0, inflight - 1)
+			return
+		fetch_count = gen_count
+		_endless_generated += gen_count
+
+	if _uses_online_generation():
 		var full_history: Array[String] = _build_fetch_history()
 		# 初回だけ24候補の高速並列生成。不足分の補充は重複落ちを見越して余裕を持たせる。
 		var is_initial_ten := current_mode == Constants.MODE_TEN \
@@ -344,6 +397,9 @@ func _calculate_fetch_candidate_count() -> int:
 		# 目標バッファサイズを満たすための必要最小限のみをリクエスト (最小1)
 		return maxi(1, _target_buffer_size() - buffer.size())
 	var missing: int = target_count - yielded_count - buffer.size()
+	# 計画で新作を絞ったラウンドは、足りない分だけ作る（下限で余分に作らない）
+	if current_mode == Constants.MODE_TEN and _round_new_target >= 0 and _round_new_target < target_count:
+		return clampi(missing, 1, 10)
 	if current_mode == Constants.MODE_TEN and _is_preloading():
 		return clampi(maxi(missing, TEN_PRELOAD_MIN_CANDIDATES), 2, 10)
 	return clampi(missing, 2, 10)
@@ -422,7 +478,10 @@ const SUDDEN_DEATH_VALIDATION_TIMEOUT := 12.0
 
 func request_sudden_death_quizzes(count: int, exclude_texts: Array[String], on_progress: Callable,
 		on_done: Callable) -> bool:
-	if llm_mode != "ONLINE" or not _online_api_available() or not is_instance_valid(online_fetcher):
+	if not _uses_online_generation() or not _online_api_available() or not is_instance_valid(online_fetcher):
+		return false
+	# 計画が「新作なし」のラウンドは、集めた問題で戦う
+	if _round_new_target == 0:
 		return false
 	if online_fetcher.has_method("is_rate_limited") and online_fetcher.is_rate_limited():
 		return false
@@ -480,7 +539,7 @@ func take_round_leftovers(max_count: int) -> Array[QuizItem]:
 	for source: Array[QuizItem] in [buffer, _overflow_buffer]:
 		while source.size() > 0 and out.size() < max_count:
 			var item: QuizItem = source.pop_front()
-			if item == null or (llm_mode == "ONLINE" and _is_offline_quiz_item(item)) or _is_rejected(item):
+			if item == null or _is_unplanned_offline(item) or _is_rejected(item):
 				continue
 			out.append(item)
 	return out
@@ -532,7 +591,7 @@ func _on_fetch_partial(quizzes: Array[QuizItem]) -> void:
 				and yielded_count + _preload_buffer_count() >= target_count:
 			surplus.append(q)
 			continue
-		if llm_mode == "ONLINE" and _is_offline_quiz_item(q):
+		if _uses_online_generation() and _is_offline_quiz_item(q):
 			print("[BufferedProvider] Rejected offline quiz in online mode: '%s'" % q.q.left(30))
 			continue
 		if _should_block_quiz(q.q, batch_accepted, during_preload):
@@ -567,7 +626,7 @@ func _on_fetch_partial(quizzes: Array[QuizItem]) -> void:
 			and online_fetcher.has_method("record_adopted_units"):
 		online_fetcher.record_adopted_units(current_subject, current_grade, adopted_units)
 	if surplus.size() > 0 and llm_mode == "ONLINE" and generated_bank != null:
-		generated_bank.store_items(_without_rejected(surplus), current_subject, current_grade, current_difficulty)
+		generated_bank.store_items(_without_rejected(_filter_online_only(surplus)), current_subject, current_grade, current_difficulty)
 
 	if accepted and online_fetcher.has_method("reset_rate_limit"):
 		online_fetcher.reset_rate_limit()
@@ -597,7 +656,7 @@ func get_quizzes(_subject: String, _grade: int, _difficulty: String,
 		var picked := _prepare_round_candidate(buffer.pop_front())
 		if picked == null:
 			continue
-		if llm_mode == "ONLINE" and _is_offline_quiz_item(picked):
+		if _is_unplanned_offline(picked):
 			print("[BufferedProvider] Skipped offline quiz in online buffer: '%s'" % picked.q.left(30))
 			continue
 		if _is_rejected(picked):
@@ -614,7 +673,7 @@ func get_quizzes(_subject: String, _grade: int, _difficulty: String,
 			var ov := _prepare_round_candidate(_overflow_buffer.pop_front())
 			if ov == null:
 				continue
-			if llm_mode == "ONLINE" and _is_offline_quiz_item(ov):
+			if _is_unplanned_offline(ov):
 				continue
 			if _is_rejected(ov):
 				continue
@@ -887,12 +946,13 @@ func _run_answer_validation_once() -> void:
 
 ## ── ラウンド間 問題履歴の永続化 ──
 
-func _seed_from_generated_bank() -> void:
-	if generated_bank == null or llm_mode != "ONLINE":
-		return
+## limit 問まで（-1 は 10問モードの残り枠まで）。入れた数を返す。
+func _seed_from_generated_bank(limit: int = -1) -> int:
+	if generated_bank == null or llm_mode != "ONLINE" or limit == 0:
+		return 0
 	var candidates := generated_bank.take_items(current_subject, current_grade, current_difficulty)
 	if candidates.is_empty():
-		return
+		return 0
 	var ordered: Array[QuizItem] = []
 	var rest: Array[QuizItem] = []
 	for raw_quiz: QuizItem in _without_rejected(candidates):
@@ -913,6 +973,8 @@ func _seed_from_generated_bank() -> void:
 		if current_mode == Constants.MODE_TEN \
 				and yielded_count + _preload_buffer_count() >= target_count:
 			break
+		if limit >= 0 and used.size() >= limit:
+			break
 		if _should_block_quiz(q.q, batch_accepted, true):
 			continue
 		if current_mode == Constants.MODE_TEN \
@@ -931,6 +993,84 @@ func _seed_from_generated_bank() -> void:
 	if adopted_units.size() > 0 and is_instance_valid(online_fetcher) \
 			and online_fetcher.has_method("record_adopted_units"):
 		online_fetcher.record_adopted_units(current_subject, current_grade, adopted_units)
+	return used.size()
+
+
+## ── フェーズ C1: 新作とバンクの混ぜ方 ──
+
+func _start_round_plan() -> void:
+	_round_plan_pending = true
+	var serial := _round_plan_serial
+	var mode_key := "ten" if current_mode == Constants.MODE_TEN else "endless"
+	var plan: Dictionary = await ApiStatusAutoload.request_round_plan(mode_key)
+	# 待っている間に次のラウンドが始まった・終わったら捨てる
+	if serial != _round_plan_serial or not is_active_round:
+		return
+	_round_plan_pending = false
+	_apply_round_plan(plan)
+
+
+func _apply_round_plan(plan: Dictionary) -> void:
+	# 計画を受け取れなかったときは従来どおり全部作る（予算の判定はプロキシ側にも残っている）
+	var new_count := clampi(int(plan.get("new_count", 10)), 0, 10)
+	var banked := 0
+	if current_mode == Constants.MODE_TEN:
+		_round_new_target = new_count
+		banked = _fill_from_bank(maxi(0, target_count - new_count))
+	else:
+		_endless_new_ratio = clampf(float(plan.get("endless_new_ratio", 1.0)), 0.0, 1.0)
+	print("[BufferedProvider] Round plan: level=%s round=%d new=%d banked=%d" % [
+		str(plan.get("level", "none")), int(plan.get("round_index", 0)), new_count, banked])
+	_fire_immediate_fetch()
+
+
+## 新作以外の枠を、まだ見ていない問題で count 問まで埋める。入れた数を返す。
+## 優先順: 共有バンク（同じ難易度）→ 端末内の問題プール → 同梱の問題 → 共有バンク（別の難易度）
+func _fill_from_bank(count: int) -> int:
+	if count <= 0:
+		return 0
+	var added := _take_bank_tier("shared", count)
+	if added < count:
+		added += _seed_from_generated_bank(count - added)
+	if added < count:
+		added += _take_bank_tier("builtin", count - added)
+	if added < count:
+		added += _take_bank_tier("shared_other", count - added)
+	return added
+
+
+func _take_bank_tier(tier: String, limit: int) -> int:
+	var exclude: Array[String] = recent_questions.duplicate()
+	exclude.append_array(_collect_offline_question_texts())
+	var candidates := offline_provider.bank_candidates(current_subject, current_grade, current_difficulty,
+		current_mode, limit * 3, exclude, tier)
+	var batch_accepted: Array[String] = []
+	var added := 0
+	for raw_quiz: QuizItem in candidates:
+		if added >= limit:
+			break
+		var q := _prepare_round_candidate(raw_quiz)
+		if q == null:
+			continue
+		if q.genre.strip_edges().is_empty():
+			q.genre = "未分類"
+		if _should_block_quiz(q.q, batch_accepted, true):
+			continue
+		batch_accepted.append(q.q)
+		_append_history_entry(q.q, q.genre)
+		_planned_bank_keys[QuizDedup.exact_key(q.q)] = true
+		buffer.append(q)
+		added += 1
+	if added > 0:
+		_schedule_history_save()
+	return added
+
+
+## オンライン生成中に混ざった、計画にないオフライン問題か（払い出さない）
+func _is_unplanned_offline(item: QuizItem) -> bool:
+	if not _uses_online_generation() or not _is_offline_quiz_item(item):
+		return false
+	return not _planned_bank_keys.has(QuizDedup.exact_key(item.q))
 
 
 func _store_leftovers_to_pool() -> void:

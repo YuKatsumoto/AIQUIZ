@@ -453,6 +453,15 @@ func check_goal_stand(expected_winner: int, marks_z: float, raced := true) -> vo
 	print("GOAL_STAND_COST " + JSON.stringify({"draw_calls_with": calls_with, "draw_calls_without": calls_without,
 		"update_usec": snappedf(float(stand.get_debug_snapshot().update_usec), 0.1), "spectators": int(shot.spectators), "quality": quality}))
 	check(int(end.eggs_launched) >= 4 and int(end.eggs_hit) >= 1, "hotheads pelt the %s with eggs (%d thrown, %d hit)" % ["referee" if expected_winner == 0 else "loser", int(end.eggs_launched), int(end.eggs_hit)])
+	# The raw contents stay on whoever was hit and on the conveyor (GoalStandEggContents).
+	var debris: Dictionary = end.get("egg_debris", {})
+	check(int(debris.get("body_splats", 0)) >= 1, "raw egg sticks to the %s (%s)" % ["referee" if expected_winner == 0 else "loser", debris])
+	if int(end.eggs_missed) >= 1:
+		check(int(debris.get("floor_splats", 0)) >= 1, "missed eggs lie broken on the conveyor")
+	for entry: Dictionary in stand.eggs.contents.splats():
+		if entry.body != null:
+			check((entry.frame as Transform3D).basis.determinant() > 0.0, "egg splat frames stay right-handed on the finale stage")
+	await capture_eggs(stand)
 	var dancing := 0
 	for clip: String in (end.clips as Dictionary):
 		if clip.begins_with("SPEC_Dance"):
@@ -770,6 +779,32 @@ func check_scene_routes() -> void:
 		if not SceneTransition.is_transitioning(): break
 		await get_tree().process_frame
 	world = get_tree().current_scene
+
+
+## A close look at the egg target (loser or referee) from the camera's side, saved
+## as <case>_eggs_closeup.png; the game camera is left as it was.
+func capture_eggs(stand: GoalStand) -> void:
+	var director: Node = world.get("_result_ceremony_director")
+	var target: Node3D = director.crowd_egg_target() if director != null else null
+	var game_camera: Camera3D = get_viewport().get_camera_3d()
+	if target == null or game_camera == null:
+		return
+	var look := Camera3D.new()
+	look.fov = 40.0
+	world.add_child(look)
+	var chest := target.global_position + Vector3(0.0, 0.25 if not String(target.name).contains("Referee") else 0.9, 0.0)
+	var toward := game_camera.global_position - chest
+	toward.y = 0.0
+	toward = toward.normalized() if toward.length() > 0.01 else Vector3.BACK
+	look.look_at_from_position(chest + toward * 1.9 + Vector3.UP * 0.35, chest, Vector3.UP)
+	look.current = true
+	await frames(3)
+	get_viewport().get_texture().get_image().save_png(OUT + scenario + "_eggs_closeup.png")
+	print("GOAL_STAND_EGGS " + JSON.stringify(stand.eggs.active_counts()))
+	look.current = false
+	game_camera.current = true
+	look.queue_free()
+	await frames(1)
 
 
 func capture(tag: String) -> void:
