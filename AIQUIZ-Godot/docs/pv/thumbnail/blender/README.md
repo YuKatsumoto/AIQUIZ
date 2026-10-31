@@ -148,3 +148,66 @@ Blender（`build_scene.py` の `ART["t7"]`）で足した演出:
 流す（55 %）。色（`plate_look`）は彩度 1.35、空は地平線より上ほど深い青へ（青みの強い所だけ。雲や建物はそのまま）、海（`sea`）は
 地平線の明るい水色から手前の深い青へ塗り直し、波の明暗を 2.2 乗で強める。最後に 2 人のうしろへスピード線。
 ロゴは幅 700 px・左から 60 px（P1 のうしろの土ぼこりが画面の 0.42 から始まるので、その手前で止める）。
+
+## t8（絵コンテ `gen_v2/a_shoulder.png` の肩タックル、2026-10-31）
+
+ゲーム内撮影版（`final/t8.jpg`）はポーズが弱かったので、Blender でポーズを付け直し、絵コンテどおりに仕上げた版。
+できあがり：`../final/t8_blender.png`・`.jpg`。Blender のファイル：`t8_thumbnail.blend`（`build_scene.py` の build("t8") ＋ `t8_art.py`）。
+
+- 画角：絵コンテの目立つ点（帽子のてっぺん・腰・足もと・奥の赤い扉・壁の線の消える所）の画面の位置に合うカメラを計算で求めた
+  （壁の中心・床から目 (3.48, 1.0, 2.73)、注視点 (−6.04, 2.23, −0.06)、縦 101.8°）。ゲームの壁は短いので、赤い扉を遠く小さく見せる
+  絵コンテの遠近感は広角でしか出ない。Blender では縦 90° にズームし（`blender_art.json` の fov）、背景のゲームの絵も合成で同じ倍率
+  （tan(101.8°/2) / tan(90°/2) = 1.23）に拡大する（背景は遠いので、位置を変えずにズームしたのと同じになる）。
+- 書き出し（Godot）：`pv_thumb_runtime.gd` の `export=76`。`stage=res://docs/pv/thumbnail/t8/stage_export.json`（ゲームの破片を隠し、
+  演出用の破片を出さず、P1 は全力疾走 Sprint_Loop 0.33 の姿）と、上の `cam=`。書き出しに **関節**（`scene.json` の `joints`：
+  PlayerController の parts のノードの位置と向き・道筋・親）を足した。`apply_pose` は `lib: "ual2"` で UAL2 のクリップも使える。
+- ポーズ：Codex の画像生成で、絵コンテの P1 と同じ姿を 3 方向（絵コンテの斜め前・真横・真正面）から描いた参考図を作り
+  （`../gen_v2/pose/pose_sheet.png`、プロンプトは同じフォルダ）、Blender の同じ 3 方向の絵と並べて合わせた。
+  - 試してやめたもの：数値で関節を順に回す（全力疾走の前傾と重なって崩れる）、腕をカメラへ真っすぐ向ける（短い突起に見える）、
+    UAL2 の Shield_Dash（肩から当たる横向きの姿で、正面寄りのカメラでは脚が横に開いて身構えた形に見える）。
+  - P1 は扉の穴の中まで下げた（カメラから 2.1 m。近いと、カメラへ向く手足が大きく写って崩れる）。体はカメラへ 35° 向け（turn）、
+    腰ごと 24° 前へ倒し（lean）、手前の右腕は前腕を斜めに立てて顔の前を守り、奥の左腕はこぶしをお腹の前へ、左ももを前へ、右脚は後ろへ。
+- Blender（`t8_art.py`。値は `../t8/blender_art.json`。書き換えて `setup()` を呼び直すと当て直す）:
+  - `rig()`：関節を空の物体 `RIG_P1_<名前>` にし、部位をいちばん近い関節の子にする（49 関節・47 部位）。部品名の l_ は体の右。
+  - `pose()`：書き出しの姿に戻してから、体ごと向きを変え（turn）・倒し（lean）・動かし（move）、部分（関節 → 次の関節）を
+    体の右・前・上で書いた向きへ向ける（aim。"cam" はカメラへ）。`fist()` で指を手のひら側へ曲げて握りこぶしに。
+    `ground` で、いちばん低い所を床に合わせる。
+  - `zoom()`：ズーム。`debris()`：扉の青（quiz_wall.gd の DOOR_COLORS_2[0]）の箱。画面の位置とカメラからの距離で置く（回転もカメラから見た
+    向き）大きな板 7 枚・箱 9 個・欠片と、扉の穴の縁の割れ残り（壁基準）。扉の穴の真ん中から外へ飛ぶ速さで、1 フレーム前からのキー
+    （モーションブラー。0.02 秒）。`dust()`：少し透ける白い煙。`lens()`：ピントは P1 の胸、絞り 2.0。
+  - `layer()`：全部をいっしょに描く VL_t8（2 人目・文字の板は外す）。描画データの持ち越し（persistent data）は切る。
+  - `preview()`・`preview_views()`：確かめ用の速い絵（正面・真横・本番の画角）。
+- 描画：`render_layers.py` の **`render_async("VL_t8", tag="final1080", res=(1920, 1080), samples=384)`**。
+  - **Blender が落ちないように**：`render_one`・`render_all_later` は描き終わるまで Blender の画面を止めるので、長い描画では Windows に
+    「応答なし」として閉じられた（1080p・512 サンプル）。`render_async` は Blender のふつうのレンダリング（INVOKE）で裏で描き、
+    描いているあいだも画面が動く。終わったらタイマーで EXR を .npy に直して `<tag>_VL_t8_done.txt` を書く。
+  - また、描画データを持ち越したまま描いたあとに破片を作り直すと Blender が落ちたので、持ち越しは使わない。
+- 合成：`compose.py t8 final1080 final`（`SHOTS["t8"]`：VL_t8 をゲームと同じ色の変換で、ズームに合わせて拡大したゲームの背景の絵
+  plate_dof に重ねる）。仕上げとロゴは `../finish.py` の t8 の設定。
+
+### ポーズを手で変える（骨とパネル）
+
+- `t8_art.py` の `armature()` で、関節の空の物体を Blender のふつうのアーマチュア **ARM_P1**（骨 49 本）に置き換えた（`setup()` の中で
+  aim のポーズを付けたあと）。骨の休みの姿は書き出しの姿（全力疾走）。部位は骨の子で、クリックで骨を選べるよう部位は選べないようにしてある。
+- パネル：`t8_panel_addon.py`（Blender のアドオン「AIQUIZ Thumbnail t8」。3D ビューで N → **Thumb** タブ）。
+  1. **ポーズを編集**：ARM_P1 を選んでポーズモードに。骨をクリックして **R**（回す。R X / R Y / R Z で軸を決める。数字を打てばその角度）。
+     **Alt+R** でその骨を書き出しの姿に戻す。Ctrl+Z で取り消し。
+  2. **ポーズを保存**：いまの骨の姿を `../t8/blender_art.json` の `bone_pose` に書き、.blend も保存する（組み直したときも、この姿が当たる）。
+  3. **保存した姿に戻す**：`bone_pose` を当て直す。
+  4. **確認の絵**：1920×1080・24 サンプル（約 50 秒）で描いて合成し、`out/t8_prev_ui.png` を開く。
+  5. **本番を描く**：1920×1080・384 サンプル（約 12 分）で描いて仕上げ、`../final/t8_blender.jpg` を開く。
+  描画はどちらも `render_async`（Blender の画面は止まらない）。合成はこの PC の Python（numpy・Pillow）で `compose.py` を動かす。
+- 注意：Higgsfield の Blender 連携は、Blender のメインの窓を最小化しているあいだ命令を受け付けない（2026-10-31。窓を戻すと動いた）。
+- カメラ CAM_main は位置と回転をロックしてある（ポーズを付けているうちにカメラが動いてしまったため。戻すときは書き出しの scene.json の camera）。
+- `blender_art.json` の `hide_fingers`（["l"]）：画面の左に構えた手（体の右）の指を描かず、手のひらの箱だけのこぶしにする（`hide_fingers()`）。
+
+### ほかの PC で作業する（メインPC など）
+
+- スクリプト（`build_scene.py`・`render_layers.py`・`t8_panel_addon.py`）は、開いている .blend から上へたどって `project.godot` のある
+  フォルダをプロジェクトとする（無ければ環境変数 `AIQUIZ_ROOT`、`C:\AIQUIZ\AIQUIZ-Godot`、`G:\AIQUIZ-Main\AIQUIZ-Godot`、
+  `~\Desktop\AIQUIZ\AIQUIZ-Godot` の順）。`compose.py` は自分の場所から。
+- Godot の書き出し（`artifacts/` は git に入らない）は、t8 の分だけ `../t8/export/`（scene.json・plate_dof.png・foreground.glb）に写してあり、
+  `artifacts` に無いときはそちらを使う。
+- メインPC での手順：git で取り込んだあと、Blender で `docs/pv/thumbnail/blender/t8_thumbnail.blend` を開き、パネルのアドオン
+  `t8_panel_addon.py` を入れる（編集 → プリファレンス → アドオン → ディスクからインストール、または Higgsfield 連携の bl_install_py_addon）。
+  合成には、その PC の Python に numpy と Pillow が要る。

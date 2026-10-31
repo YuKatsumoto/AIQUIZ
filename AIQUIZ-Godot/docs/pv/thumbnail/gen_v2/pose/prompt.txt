@@ -1,0 +1,12 @@
+You are making a POSE REFERENCE SHEET for a 3D artist who will pose a blocky game character to match a key visual.
+Use your image generation tool to create exactly ONE image, landscape 16:9, and save it in the current directory as pose_sheet.png. Do not create or modify any other files.
+
+Image 1 is the key visual: a blocky character (tan-orange box body and limbs, square head with no face, red baseball cap worn BACKWARDS with a small blue propeller on top) bursting through a blue door toward the viewer with a powerful shoulder-charge / tackle.
+Image 2 is a screenshot of the real character model from the game (same blocky proportions: boxy torso, boxy upper/lower arms and legs, square head, simple boxy hands).
+
+Draw the SAME character, in EXACTLY the same pose as in Image 1, three times side by side on a plain light-grey studio background, with the same scale and the feet on the same ground line:
+  - left panel: the same three-quarter front view as Image 1 (the character coming toward the viewer, slightly to the viewer's left);
+  - middle panel: a pure side view, the character moving to the LEFT of the panel (so we see the forward lean, which arm is forward and which leg is forward / back);
+  - right panel: a pure front view (the character coming straight at the viewer).
+Make the pose read clearly as "smashing through a wall": strong forward lean, leading shoulder and forearm forward to guard the head, the other arm pulled back with a bent elbow, a big running stride with the front knee driven forward and the back leg extended behind, pushing off.
+Keep the blocky box proportions of Image 2 (no human anatomy, no fingers detail beyond boxy fists, no face). No debris, no wall, no door, no text, no labels, no logo, no shadows other than a soft contact shadow.

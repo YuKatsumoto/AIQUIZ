@@ -20,6 +20,8 @@
       層は artifacts/pv_capture/thumb_<shot>_blender/<tag>_<層>.npy（layers=<フォルダ> で変えられる）。
       final を付けると ../finish.py と同じ仕上げとロゴで final/<shot>_blender.png・.jpg も書く
 """
+import json
+import math
 import sys
 from pathlib import Path
 
@@ -59,11 +61,16 @@ SHOTS = {
            "speed_lines": [(0.600, 0.36, 0.525, 3.0, 0.85), (0.640, 0.33, 0.515, 3.5, 0.9), (0.682, 0.38, 0.50, 2.5, 0.75),
                            (0.722, 0.40, 0.472, 2.5, 0.7), (0.775, 0.33, 0.425, 2.5, 0.65), (0.622, 0.60, 0.70, 3.0, 0.8),
                            (0.662, 0.615, 0.703, 2.5, 0.75), (0.578, 0.63, 0.718, 2.0, 0.6)]},
+    # t8（絵コンテ gen_v2/a_shoulder.png の肩タックル）：前景は Blender の 1 層（VL_t8。t8_art.py）を、ゲームの背景の絵（plate_dof）に重ねる
+    "t8": {"single": "VL_t8", "art": "docs/pv/thumbnail/t8/blender_art.json"},
 }
 
 
 def export_dir(shot: str) -> Path:
-    return ROOT / f"artifacts/pv_capture/thumb_{shot}_export/export"
+    """Godot の書き出し（artifacts は git に入らないので、無ければ docs/pv/thumbnail/<shot>/export に写したもの）"""
+    d = ROOT / f"artifacts/pv_capture/thumb_{shot}_export/export"
+    alt = HERE.parent / shot / "export"
+    return d if (d / "scene.json").exists() or not (alt / "scene.json").exists() else alt
 
 
 # ------------------------------------------------------------------ 色
@@ -280,6 +287,20 @@ def speed_lines(img: np.ndarray, lines: list) -> np.ndarray:
 def compose(shot: str, folder: Path, tag: str, plate: str = "plate_dof.png", near: bool = True, dof: bool = True) -> dict:
     cfg = SHOTS[shot]
     out = background(shot, plate)
+    if cfg.get("single"):
+        # 全部をいっしょに描いた 1 層（ぼけとモーションブラーは Cycles のまま）を、ゲームの背景の絵に重ねるだけ。
+        # Blender でズームした（art の fov）ときは、背景の絵も真ん中を中心に同じ倍率に拡大する
+        if cfg.get("art"):
+            art = json.load(open(ROOT / cfg["art"], encoding="utf-8"))
+            game_fov = json.load(open(export_dir(shot) / "scene.json", encoding="utf-8"))["camera"]["fov"]
+            z = math.tan(math.radians(game_fov) / 2) / math.tan(math.radians(art.get("fov", game_fov)) / 2)
+            if z > 1.0001:
+                img = Image.fromarray(np.clip(out * 255 + 0.5, 0, 255).astype(np.uint8))
+                cw, ch = W / z, H / z
+                img = img.resize((W, H), Image.LANCZOS, box=((W - cw) / 2, (H - ch) / 2, (W + cw) / 2, (H + ch) / 2))
+                out = np.asarray(img, dtype=np.float64) / 255.0
+        rgb, a = to_display(load_layer(folder, tag, cfg["single"]))
+        return {"image": over(out, rgb, a), "layers": {"single": (rgb, a)}, "depth": None}
     depth = load_depth(folder, tag)
     layers = {}
     deck = load_layer(folder, tag, "VL_deck")

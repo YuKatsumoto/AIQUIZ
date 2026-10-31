@@ -1,0 +1,12 @@
+You are making a concept image (key visual) for the thumbnail of a game called TESTOPIA.
+Use your image generation tool to create exactly ONE image, landscape 16:9, then save it in the current directory under the file name given at the end. Do not create or modify any other files.
+
+The attached image (Image 1) is a real screenshot from the game, at the camera angle the user chose. Keep its world, look and camera idea:
+- Low camera right next to a broken quiz door, looking along the conveyor-belt track. Bright sunny day, blue sky with small scattered clouds, a blurred stadium crowd and the sea far away on the left.
+- The player character P1 is a blocky low-poly figure made only of boxes (like a cardboard-box robot / blocky avatar): tan-orange body and limbs, square head with no face details, a red baseball cap with a small blue propeller on top. Keep exactly this character design and colors. No realistic humans, no faces.
+- The door P1 breaks is a flat saturated blue (#2f8ff0-ish) panel set in a light grey concrete wall. Its pieces are the same flat blue.
+- In the background, further down the track, there is a red door in the grey wall (the wrong answer).
+- Clean, simple, stylized 3D game render (flat materials, soft sun shadows, slight depth of field), not painterly, no text, no logos, no UI, no watermark.
+- Keep the left third of the frame calmer (sky / track / crowd) so a title logo can be placed there later. The action is center-right.
+
+What to change from Image 1: the user wants it to feel much more like P1 is SMASHING THROUGH the door. Make the pose powerful and the debris dramatic, as described below.

@@ -13,6 +13,8 @@
 <shot> はシーンの thumb_shot（無ければファイル名の頭。t2_thumbnail.blend → t2）。合成は compose.py。
 1 層ずつ描くこと（4K・1024 サンプルで 1 層 30〜120 秒。まとめて呼ぶと Blender 連携の待ち時間を超える。
 待ち時間を超えても描画は Blender の中で続くので、書き出されるファイルを見て待つ）。
+長い描画は render_async を使う（render_one・render_all_later は描き終わるまで Blender の画面を止め、Windows に「応答なし」として
+閉じられることがある。render_async は裏で描き、終わると <tag>_<layer>_done.txt を書く）。
 """
 import os
 import time
@@ -20,7 +22,22 @@ import time
 import bpy
 import numpy as np
 
-ROOT = r"G:\AIQUIZ-Main\AIQUIZ-Godot"
+def find_root():
+    """プロジェクト（project.godot のあるフォルダ）。開いている .blend から上へたどり、無ければ環境変数 AIQUIZ_ROOT、
+    メインPC の C:\AIQUIZ\AIQUIZ-Godot・G:\AIQUIZ-Main\AIQUIZ-Godot、ノートPC の デスクトップ\AIQUIZ\AIQUIZ-Godot の順に探す"""
+    p = bpy.data.filepath
+    while p and os.path.dirname(p) != p:
+        p = os.path.dirname(p)
+        if os.path.isfile(os.path.join(p, "project.godot")):
+            return p
+    for c in (os.environ.get("AIQUIZ_ROOT", ""), r"C:\AIQUIZ\AIQUIZ-Godot", r"G:\AIQUIZ-Main\AIQUIZ-Godot",
+              os.path.expanduser(r"~\Desktop\AIQUIZ\AIQUIZ-Godot")):
+        if c and os.path.isfile(os.path.join(c, "project.godot")):
+            return c
+    raise RuntimeError("AIQUIZ-Godot が見つからない（環境変数 AIQUIZ_ROOT で指定できる）")
+
+
+ROOT = find_root()
 # 層 → (サンプル数, フィルタの幅, モーションブラー)。ブラーは残像の尾の層だけ（吹っ飛ぶプレイヤーの影も、本体と同じくくっきり）
 LAYERS = {
     "VL_chars": (1024, None, False),
@@ -28,6 +45,8 @@ LAYERS = {
     "VL_wall": (1024, None, False),
     "VL_deck": (1024, None, False),
     "VL_depth": (1, 0.01, False),
+    # t8：全部をいっしょに（カメラのぼけと、破片のモーションブラーは Cycles のまま。t8_art.py の layer()）
+    "VL_t8": (1024, None, True),
 }
 
 
@@ -99,6 +118,106 @@ def render_one(layer, tag="final4k", res=(3840, 2160), samples=None, out=None):
     if samples and layer != "VL_depth":
         spp = samples
     return render_layer_to_npy(layer, out or out_dir(), tag, samples=spp, res=res, filter_width=filter_width, motion_blur=mb)
+
+
+def exr_to_npy(exr):
+    """EXR → 上から下の float32 RGBA の .npy（render_layer_to_npy と同じ形）"""
+    img = bpy.data.images.load(exr, check_existing=False)
+    try:
+        w, h = img.size
+        buf = np.empty(w * h * 4, dtype=np.float32)
+        img.pixels.foreach_get(buf)
+        arr = np.flipud(buf.reshape(h, w, 4)).copy()
+    finally:
+        bpy.data.images.remove(img)
+    npy = exr[:-4] + ".npy"
+    np.save(npy, arr)
+    return {"size": [w, h], "alpha_mean": round(float(arr[..., 3].mean()), 4), "rgb_max": round(float(arr[..., :3].max()), 3)}
+
+
+def render_async(layer, tag="final", res=(1920, 1080), samples=None, out=None, tile=1024):
+    """画面を止めずに描く（Blender のふつうのレンダリング：裏で進み、レンダーの窓に進み具合が出る）。
+    render_one や render_all_later は、描き終わるまで Blender の画面が止まり、長いと Windows に「応答なし」として閉じられる
+    （2026-10-31、t8 の 1080p・512 サンプルで起きた）。こちらは描いているあいだも画面が動く。
+    終わると、タイマー（画面の処理の合間）で EXR を .npy に直し、設定を元に戻して <tag>_<layer>_done.txt を書く
+    （中止・失敗は _error.txt）。外からはこのファイルを見て待つ。メモリを抑えるため、タイルを小さめにし、データを持ち越さない"""
+    import json
+    scn = bpy.context.scene
+    folder = out or out_dir()
+    os.makedirs(folder, exist_ok=True)
+    spp, filter_width, mb = LAYERS[layer]
+    if samples and layer != "VL_depth":
+        spp = samples
+    exr = os.path.join(folder, "%s_%s.exr" % (tag, layer))
+    done = os.path.join(folder, "%s_%s_done.txt" % (tag, layer))
+    err = os.path.join(folder, "%s_%s_error.txt" % (tag, layer))
+    for p in (exr, exr[:-4] + ".npy", done, err):
+        if os.path.exists(p):
+            os.remove(p)
+    r, c, st = scn.render, scn.cycles, scn.render.image_settings
+    keep = {"res": (r.resolution_x, r.resolution_y, r.resolution_percentage), "samples": c.samples,
+            "filter": c.filter_width, "fmt": (st.file_format, st.color_depth, st.color_mode), "path": r.filepath,
+            "single": r.use_single_layer, "mb": r.use_motion_blur, "persistent": r.use_persistent_data,
+            "tile": (c.use_auto_tile, c.tile_size), "uses": {vl.name: vl.use for vl in scn.view_layers}}
+
+    def restore():
+        r.resolution_x, r.resolution_y, r.resolution_percentage = keep["res"]
+        c.samples, c.filter_width = keep["samples"], keep["filter"]
+        st.file_format, st.color_depth, st.color_mode = keep["fmt"]
+        r.filepath, r.use_single_layer, r.use_motion_blur = keep["path"], keep["single"], keep["mb"]
+        # 持ち越し（persistent data）は戻さない：描いたあとに物体を消すと Blender が落ちた（2026-10-31、t8 の破片の作り直し）
+        r.use_persistent_data = False
+        c.use_auto_tile, c.tile_size = keep["tile"]
+        for vl in scn.view_layers:
+            vl.use = keep["uses"].get(vl.name, vl.use)
+
+    for vl in scn.view_layers:
+        vl.use = (vl.name == layer)
+    r.use_single_layer = False
+    r.resolution_x, r.resolution_y = res
+    r.resolution_percentage = 100
+    c.samples = spp
+    if filter_width is not None:
+        c.filter_width = filter_width
+    r.use_motion_blur = mb
+    r.use_persistent_data = False
+    c.use_auto_tile, c.tile_size = True, tile
+    st.file_format, st.color_depth, st.color_mode = 'OPEN_EXR', '32', 'RGBA'
+    st.exr_codec = 'ZIP'
+    r.filepath = exr
+    started = time.time()
+    state = {"seen_running": False}
+
+    def watch():
+        running = bpy.app.is_job_running('RENDER')
+        if running:
+            state["seen_running"] = True
+            return 1.0
+        if not os.path.exists(exr) or os.path.getmtime(exr) < started:
+            if state["seen_running"] or time.time() - started > 30:
+                restore()
+                with open(err, "w", encoding="utf-8") as f:
+                    f.write("render stopped without writing %s (cancelled or failed)" % exr)
+                return None
+            return 1.0
+        try:
+            info = exr_to_npy(exr)
+            info.update({"layer": layer, "seconds": round(time.time() - started, 1), "samples": spp})
+            with open(done, "w", encoding="utf-8") as f:
+                f.write(json.dumps(info))
+        except Exception:
+            import traceback
+            with open(err, "w", encoding="utf-8") as f:
+                f.write(traceback.format_exc())
+        finally:
+            restore()
+        return None
+
+    win = bpy.context.window_manager.windows[0]
+    with bpy.context.temp_override(window=win):
+        bpy.ops.render.render('INVOKE_DEFAULT', write_still=True)
+    bpy.app.timers.register(watch, first_interval=2.0)
+    return {"exr": exr, "done": done, "samples": spp, "res": list(res)}
 
 
 def render_all_later(tag="final4k", res=(3840, 2160), samples=None, out=None):

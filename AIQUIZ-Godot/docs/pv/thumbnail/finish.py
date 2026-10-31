@@ -39,6 +39,9 @@ SHOTS = {
     # 始まるので、ロゴを小さめにしてその手前で止める。白い文字が明るい空に沈まないよう少しだけ暗くする
     "t7": {"frame": 71, "shutter": 1, "zone_blur": 0, "zone_shade": 0.08, "zone_end": 0.42, "logo_x": 60, "logo_w": 700,
            "blender_only": True},
+    # t8（gen_v2/a_shoulder.png の肩タックル。演出の値は t8/stage.json）：ロゴの下は空と線路（もうぼけている）。
+    # 白い文字が明るい空に沈まないよう少しだけ暗くする。手前の破片が画面の 0.45 あたりから入るので、その手前で止める
+    "t8": {"frame": 76, "shutter": 1, "zone_blur": 0, "zone_shade": 0.08, "zone_end": 0.45, "logo_x": 56, "logo_w": 740},
 }
 
 

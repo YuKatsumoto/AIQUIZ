@@ -1,0 +1,4 @@
+Concept C - crossed-arms guard break.
+P1 charges through with both forearms crossed in an X in front of the head, body hunched forward, mid-stride with one foot planted on the conveyor and the other foot kicking back. The red cap peeks over the crossed arms.
+Debris: the door bursts apart into thick rectangular planks and blocks of different sizes (like a breaking brick wall of blue blocks), blown outward in an explosion cone toward the camera, with speed streaks behind P1 and a burst of small cubes. Some planks are still half-attached to the door frame, bent outward.
+Save as: c_cross_guard.png

@@ -77,6 +77,13 @@ const SHOTS := {
 	"t5": {"frames": 110, "cam": [7.3, 1.1, -12.0, 3.4, 2.57, 1.44, 42.0], "dof": [4.0, 12.0, 0.3],
 		"wall": 7.0, "lag": -0.35, "lanes": [2.6, -2.2], "brace": 0, "shove": 0, "shover": 2,
 		"anchor": "wall", "p2_hp": 1, "keep_wall": true, "keep_labels": true, "slow_from": 34, "slow": 0.35},
+	# t8：t5 の場面を、壁の向こう（P1 の正面）の床すれすれから縦 120° の広角で撮る（ユーザーが画角調整ツールで決めた画角）。
+	# 絵コンテ gen_v2/a_shoulder.png（肩から突っ込む）に寄せて、P1 の姿（pose）と、レンズの手前へ飛ぶ演出用の破片（hero_debris）を足す。
+	# 演出の値は docs/pv/thumbnail/t8/stage.json（make_stage.py で作る）。使うのは 76 フレーム（export=76 が効くよう、撮るのは 80 まで）
+	"t8": {"frames": 80, "cam": [3.23, 1.8, 3.58, -9.13, 1.6, -3.13, 120.0], "dof": [4.0, 12.0, 0.3],
+		"stage_file": "res://docs/pv/thumbnail/t8/stage.json",
+		"wall": 7.0, "lag": -0.35, "lanes": [2.6, -2.2], "brace": 0, "shove": 0, "shover": 2,
+		"anchor": "wall", "p2_hp": 1, "keep_wall": true, "keep_labels": true, "slow_from": 34, "slow": 0.35},
 	# t7：絵コンテ gen/t2_side.png をそのまま再現する。カメラは線路に真横（2 人の 62 m 横、床から 2.1 m、縦の画角 7.7° の
 	# 超望遠）。位置・高さ・画角は、絵コンテの 2 人の足と頭・地平線・床の奥の縁・壁の端と扉の位置から求めた（ずれ約 6 px）。
 	# P2 は 2.8 m 前。書き出すのは 2 人とも大股（前の足を前へ、後ろの足を後ろへ伸ばす）の 71 フレームで、壁はそのとき P1 の
@@ -152,6 +159,8 @@ func _parse_arg(arg: String) -> void:
 			_overrides["sprint"] = {"clip": v[0], "phase": [float(v[1]), float(v[2])], "rate": float(v[3]) if v.size() > 3 else 0.0}
 		"day":
 			day_phase = float(kv[1])
+		"stage":
+			_overrides["stage_file"] = kv[1]
 		"export":
 			export_frame = int(kv[1])
 
@@ -168,6 +177,15 @@ func run() -> void:
 
 
 func _setup() -> void:
+	# 演出の値のファイル（t8 の stage）を先に重ね、引数（cam= など）はそのあとで上書きする。stage=<path> で差し替えられる
+	if _overrides.has("stage_file"):
+		cfg["stage_file"] = _overrides["stage_file"]
+	if cfg.has("stage_file"):
+		var stage: Variant = JSON.parse_string(FileAccess.get_file_as_string(String(cfg["stage_file"])))
+		if stage is Dictionary:
+			cfg.merge(stage, true)
+		else:
+			failures.append("stage_file を読めない：%s" % cfg["stage_file"])
 	for key: String in _overrides:
 		cfg[key] = _overrides[key]
 	await _build_world()
@@ -319,6 +337,9 @@ func _update(n: int, _t: float, _dt: float) -> void:
 	if cfg.has("sprint"):
 		# ゲームの処理（PlayerController が走りのアニメを当てる）のあと、描く前に置き換える
 		_apply_sprint.call_deferred(cfg["sprint"], n)
+	if cfg.has("pose"):
+		apply_pose.call_deferred(cfg["pose"])
+	stage_debris()
 	_record(n)
 	if export_frame > 0 and n == export_frame and (_step % sub) == 0 and not _export_pending:
 		# この刻みの絵が描かれたあと、ゲームを止める（次のフレームからは物理もゲームの処理も進まない）
@@ -482,6 +503,77 @@ func _apply_sprint(c: Dictionary, n: int) -> void:
 			failures.append("クリップ %s がない" % c["clip"])
 
 
+## 1 人の姿を作る（t8 の pose）：UAL のクリップのその位相に置いてから、部品を世界の軸まわりに回す（その部品から先がいっしょに回る）。
+## p = {"who": 1|2, "clip": 名前, "phase": 0〜1, "lib": "ual2"（省略で UAL1）, "rot": [[部品, "x"|"y"|"z", 度], ...]}。部品は PlayerController の
+## parts の名前（pelvis・spine・neck・head_pivot・l_shoulder・l_elbow・l_wrist・l_hip・l_knee・l_ankle ほか。r_ も同じ）。
+## 回す順に並べる（親から先に）。毎回クリップの姿からやり直すので、何度呼んでも同じ姿になる
+func apply_pose(p: Dictionary) -> void:
+	var who := int(p.get("who", 1))
+	var rig := player.get("_p1_rig" if who == 1 else "_p2_rig") as AnimationRig
+	var parts: Dictionary = player.get("p1_parts" if who == 1 else "p2_parts")
+	if rig == null or not rig.is_rigged:
+		failures.append("P%d の骨組みがない（pose を当てられない）" % who)
+		return
+	# lib = "ual2" で UAL2（Shield_Dash・Melee_Hook など）、ほかは UAL1（Sprint_Loop・Punch_Cross など）
+	var slot := AnimationRig.SLOT_UAL2 if String(p.get("lib", "")) == "ual2" else AnimationRig.SLOT_UAL
+	if not rig.seek_ual_clip(String(p.get("clip", "Sprint_Loop")), float(p.get("phase", 0.33)), slot):
+		failures.append("クリップ %s がない" % p.get("clip"))
+		return
+	player.call("_apply_skeleton_pose", parts, rig.active_skeleton, rig.active_bone_indices, rig.mirror_x)
+	var axes := {"x": Vector3.RIGHT, "y": Vector3.UP, "z": Vector3.BACK}
+	for r: Array in p.get("rot", []):
+		var part := parts.get(String(r[0])) as Node3D
+		if part != null:
+			part.global_basis = Basis(axes[String(r[1])], deg_to_rad(float(r[2]))) * part.global_basis
+
+
+## 演出用の破片（t8）：ゲームの破片（物理で飛ぶ箱）に、画面の位置で決めた箱を足す。カメラについて置き直す。
+## cfg["hero_debris"] = [[u, v, 距離, 幅, 高さ, 奥行き, 回転 x, y, z（度）], ...]（u・v は画面の横・縦 0〜1、距離はカメラから m）。
+## cfg["anchored_debris"] は同じ並びで、位置だけ anchor（t8 は 1 枚目の壁の中心・床）からの x・y・z（m）。扉の穴の縁の割れ残りなど。
+## cfg["hide_chunks"] = true でゲームの破片を隠す。色は 1 枚目の壁の、割れた扉の色（少しずつ白へずらす）
+func stage_debris() -> void:
+	if cfg.get("hide_chunks", false):
+		for node: Node in world.get_node("WallContainer").get_children():
+			if node is RigidBody3D:
+				(node as RigidBody3D).visible = false
+	var holder := world.get_node_or_null("ThumbDebris") as Node3D
+	if holder != null:
+		holder.free()
+	var list: Array = cfg.get("hero_debris", [])
+	var anchored: Array = cfg.get("anchored_debris", [])
+	if (list.is_empty() and anchored.is_empty()) or cam == null:
+		return
+	holder = Node3D.new()
+	holder.name = "ThumbDebris"
+	world.add_child(holder)
+	var base := _broken_door_color()
+	var view := Vector2(get_viewport().get_visible_rect().size)
+	for i in range(list.size() + anchored.size()):
+		var d: Array = list[i] if i < list.size() else anchored[i - list.size()]
+		var mi := MeshInstance3D.new()
+		var box := BoxMesh.new()
+		box.size = Vector3(d[3], d[4], d[5])
+		mi.mesh = box
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = base.lerp(Color.WHITE, 0.04 + 0.16 * fposmod(i * 0.618, 1.0))
+		mat.roughness = 0.6
+		mat.metallic = 0.05
+		mi.material_override = mat
+		holder.add_child(mi)
+		var pos := cam.project_position(Vector2(float(d[0]) * view.x, float(d[1]) * view.y), float(d[2])) if i < list.size() \
+			else _mid() + Vector3(d[0], d[1], d[2])
+		mi.global_transform = Transform3D(Basis.from_euler(Vector3(deg_to_rad(d[6]), deg_to_rad(d[7]), deg_to_rad(d[8]))), pos)
+
+
+func _broken_door_color() -> Color:
+	var wall := _wall0_node()
+	if wall != null:
+		for door: MeshInstance3D in wall.get("doors"):
+			if is_instance_valid(door) and not door.visible and door.material_override is StandardMaterial3D:
+				return (door.material_override as StandardMaterial3D).albedo_color
+	return Color(0.2, 0.55, 0.95)
+
+
 ## 奥の観客席（GrandstandRight。+x）のうち、ブロックの中心が cut_z より手前（−z）のものを、観客ごと隠す
 func _hide_far_stand(cut_z: float) -> void:
 	var stand := world.find_child("GrandstandRight", true, false) as Node3D
@@ -535,7 +627,12 @@ func _apply_camera() -> void:
 		attrs.dof_blur_far_enabled = true
 		attrs.dof_blur_far_distance = subject + float(d[0])
 		attrs.dof_blur_far_transition = float(d[1])
-		attrs.dof_blur_near_enabled = false
+		# dof_near = [距離, 幅]：カメラからその距離より手前をぼかす（t8 のレンズの手前を飛ぶ破片）
+		var near: Array = cfg.get("dof_near", [])
+		attrs.dof_blur_near_enabled = near.size() >= 2
+		if attrs.dof_blur_near_enabled:
+			attrs.dof_blur_near_distance = float(near[0])
+			attrs.dof_blur_near_transition = float(near[1])
 		attrs.dof_blur_amount = float(d[2])
 		cam.attributes = attrs
 	else:
@@ -562,6 +659,12 @@ func _record(n: int) -> void:
 func _do_export() -> void:
 	if cfg.has("sprint"):
 		_apply_sprint(cfg["sprint"], export_frame)
+	if cfg.has("pose"):
+		apply_pose(cfg["pose"])
+	# 演出用の破片（t8）は Blender で置き直すので書き出さない（GameWorld の直下なので、背景だけの絵にも写ってしまう）
+	var thumb_debris := world.get_node_or_null("ThumbDebris")
+	if thumb_debris != null:
+		thumb_debris.free()
 	await _frames(3)                         # 止めたフレームの撮影（_capture）を済ませる
 	var dir := out + "export/"
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(dir))
@@ -573,6 +676,7 @@ func _do_export() -> void:
 	info["lights"] = _light_info()
 	info["environment"] = _environment_info()
 	info["labels"] = _label_info()
+	info["joints"] = {"P1": _joint_info("p1_parts"), "P2": _joint_info("p2_parts")}
 	info["meshes"] = _export_gltf(groups, dir + "foreground.glb")
 	var saved_attrs := cam.attributes
 	cam.attributes = null
@@ -612,6 +716,25 @@ func _do_export() -> void:
 	report["export"] = {"dir": dir, "meshes": counts, "labels": (info["labels"] as Array).size()}
 	_running = false
 	_finish()
+
+
+## プレイヤーの関節（PlayerController の parts のノード）：名前 → 位置と向き、ノードの道筋、親の関節の名前。
+## Blender で部位をこの関節の子にして、関節を回して姿を付け直す（t8）。部位の glTF の行の path が、どの関節の下かを決める
+func _joint_info(parts_key: String) -> Dictionary:
+	var parts: Dictionary = player.get(parts_key)
+	var by_node := {}
+	for key: Variant in parts:
+		var value: Variant = parts[key]          # parts には部品のほかの値（寸法など）も入っている
+		if value is Node3D and is_instance_valid(value):
+			by_node[value] = String(key)
+	var out := {}
+	for node: Node3D in by_node:
+		var parent := node.get_parent()
+		while parent != null and not by_node.has(parent):
+			parent = parent.get_parent()
+		out[by_node[node]] = {"xform": _xform(node.global_transform), "path": String(world.get_path_to(node)),
+			"parent": by_node[parent] if parent != null else ""}
+	return out
 
 
 ## 前景のいちばん上のノード（背景だけの絵ではこれを隠す）

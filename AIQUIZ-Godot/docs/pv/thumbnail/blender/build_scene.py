@@ -25,7 +25,22 @@ import bmesh
 import bpy
 from mathutils import Matrix, Vector
 
-ROOT = r"G:\AIQUIZ-Main\AIQUIZ-Godot"
+def find_root():
+    """プロジェクト（project.godot のあるフォルダ）。開いている .blend から上へたどり、無ければ環境変数 AIQUIZ_ROOT、
+    メインPC の C:\AIQUIZ\AIQUIZ-Godot・G:\AIQUIZ-Main\AIQUIZ-Godot、ノートPC の デスクトップ\AIQUIZ\AIQUIZ-Godot の順に探す"""
+    p = bpy.data.filepath
+    while p and os.path.dirname(p) != p:
+        p = os.path.dirname(p)
+        if os.path.isfile(os.path.join(p, "project.godot")):
+            return p
+    for c in (os.environ.get("AIQUIZ_ROOT", ""), r"C:\AIQUIZ\AIQUIZ-Godot", r"G:\AIQUIZ-Main\AIQUIZ-Godot",
+              os.path.expanduser(r"~\Desktop\AIQUIZ\AIQUIZ-Godot")):
+        if c and os.path.isfile(os.path.join(c, "project.godot")):
+            return c
+    raise RuntimeError("AIQUIZ-Godot が見つからない（環境変数 AIQUIZ_ROOT で指定できる）")
+
+
+ROOT = find_root()
 HERE = os.path.join(ROOT, "docs", "pv", "thumbnail", "blender")
 TEX = os.path.join(ROOT, "assets", "environment", "conveyor_stage", "textures")
 
@@ -95,6 +110,16 @@ def g2b_matrix(x):
         m[0][i], m[1][i], m[2][i] = cols[i]
     m[0][3], m[1][3], m[2][3] = g2b(x["origin"])
     return m
+
+
+def find_export(shot):
+    """Godot の書き出し：artifacts/pv_capture/thumb_<shot>_export/export（git に入らない）が無ければ、
+    docs/pv/thumbnail/<shot>/export（ほかの PC でも作業できるように写したもの。t8）"""
+    for d in (os.path.join(ROOT, "artifacts", "pv_capture", "thumb_%s_export" % shot, "export"),
+              os.path.join(ROOT, "docs", "pv", "thumbnail", shot, "export")):
+        if os.path.isfile(os.path.join(d, "scene.json")):
+            return d
+    raise FileNotFoundError("thumb_%s_export の scene.json が無い" % shot)
 
 
 def coll(name):
@@ -953,7 +978,7 @@ def look_through_camera():
 # ------------------------------------------------------------------ まとめ
 
 def build(shot, export_dir=None):
-    export_dir = export_dir or os.path.join(ROOT, "artifacts", "pv_capture", "thumb_%s_export" % shot, "export")
+    export_dir = export_dir or find_export(shot)
     J = json.load(open(os.path.join(export_dir, "scene.json"), encoding="utf-8"))
     path = new_file(shot)
     res = {"file": path, "frame": J["frame"]}

@@ -1,0 +1,4 @@
+Concept B - flying punch.
+P1 is airborne, leaping through the blue door like a superhero: one fist punched straight toward the camera (big because it is close, slight perspective exaggeration), the other arm swept back, body stretched horizontally, legs trailing behind. 
+Debris: the door shatters radially from the fist's impact point - large angular triangular and trapezoid shards (not only cubes) flying outward in a star burst, with crack lines left on the remaining edges of the door frame, small fragments and a white impact flash ring around the fist.
+Save as: b_superman.png
