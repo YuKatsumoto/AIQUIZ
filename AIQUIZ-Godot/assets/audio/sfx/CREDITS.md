@@ -49,6 +49,13 @@ without external samples. No third-party license restrictions. Rebuild with
 −3 dBFS peaks, the charge loop −6 dBFS). Runtime gains are in `AudioManager.SFX_CUES` and
 `docs/sound_effects.md`.
 
+## Tutorial (practice) (2026-10-26)
+
+All files in `practice/` (`practice_pop`, `practice_tick`, `practice_stamp`, `practice_rewind`, `practice_fence`,
+`practice_sign_fly`, `practice_high_five`) were synthesized for this project without external samples. No third-party
+license restrictions. Rebuild with `tools/audio/make_practice_sfx.py` (deterministic noise seeds, 48 kHz mono,
+Ogg Vorbis q7; −3 dBFS peaks). Runtime gains are in `AudioManager.SFX_CUES` and `docs/sound_effects.md`.
+
 ## PV: first question written by "AI" (2026-10-22)
 
 `game/ai_type_tick.ogg` and `game/ai_type_done.ogg` were synthesized for this project without

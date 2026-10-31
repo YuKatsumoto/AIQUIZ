@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://dhi2s7gu3t5lp"
 path.s3tc="res://.godot/imported/goal_stand_sb_steel.jpg-8cc129bb258bfe8c5b2b19887f5d6c6b.s3tc.ctex"
+path.etc2="res://.godot/imported/goal_stand_sb_steel.jpg-8cc129bb258bfe8c5b2b19887f5d6c6b.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/goal_stand/goal_stand_sb_steel.jpg"
-dest_files=["res://.godot/imported/goal_stand_sb_steel.jpg-8cc129bb258bfe8c5b2b19887f5d6c6b.s3tc.ctex"]
+dest_files=["res://.godot/imported/goal_stand_sb_steel.jpg-8cc129bb258bfe8c5b2b19887f5d6c6b.s3tc.ctex", "res://.godot/imported/goal_stand_sb_steel.jpg-8cc129bb258bfe8c5b2b19887f5d6c6b.etc2.ctex"]
 
 [params]
 

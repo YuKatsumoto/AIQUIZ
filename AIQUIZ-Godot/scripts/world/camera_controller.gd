@@ -30,12 +30,14 @@ var _ocean_attack_camera_active: bool = false
 var _ocean_attack_player_index: int = 1
 var _ocean_attack_intensity: float = 0.0
 var _ocean_attack_impact_timer: float = 0.0
-## サメ襲撃カメラの横位置の上限。観客席の手前(前面 x=27.2)に収め、席へ入り込ませない。
-var ocean_attack_max_eye_x: float = 24.0
 var _tutorial_override_active: bool = false
 var _tutorial_override_eye: Vector3 = Vector3.ZERO
 var _tutorial_override_target: Vector3 = Vector3.ZERO
 var _tutorial_override_fov: float = 50.0
+## サメ襲撃カメラに足した爆散の揺れ。なめらかな追従に混ぜると消えるので、追従のあとに足して次のフレームで外す。
+var _ocean_attack_burst_offset := Vector3.ZERO
+## サメ襲撃カメラの横位置の上限。観客席の手前(前面 x=27.2)に収め、席へ入り込ませない。
+var ocean_attack_max_eye_x: float = 24.0
 var _result_camera_active: bool = false
 var _result_camera_phase: int = QuizGameState.ResultCeremonyPhase.NONE
 var _result_winner_start_eye := Vector3.ZERO
@@ -66,6 +68,35 @@ var _sudden_death_fov: float = TWO_PLAYER_FOV
 var _director_pose_active: bool = false
 var _director_transform := Transform3D.IDENTITY
 var _director_fov: float = TWO_PLAYER_FOV
+## 練習（docs/new_tutorial/phase4_design.md 2.6）：遊ぶときのカメラに重ねる向きと入り。どちらも 0 のときは何もしない。
+## 向き：注視点を point のほうへ最大 PRACTICE_LOOK_BLEND まで寄せる（重みは from → to へ seconds かけて動く）。
+const PRACTICE_LOOK_BLEND := 0.6
+var _practice_look_point := Vector3.ZERO
+var _practice_look_weight := 0.0
+var _practice_look_from := 0.0
+var _practice_look_to := 0.0
+var _practice_look_elapsed := 0.0
+var _practice_look_seconds := 0.0
+## 入り：始めは いつもの位置から PRACTICE_INTRO_EYE_OFFSET だけ高く後ろにいて、注視点も先にある。seconds かけて戻る。
+const PRACTICE_INTRO_EYE_OFFSET := Vector3(0.0, 9.0, -9.0)
+const PRACTICE_INTRO_LOOK_AHEAD := 10.0
+const PRACTICE_INTRO_FOV_ADD := 8.0
+var _practice_intro_elapsed := 0.0
+var _practice_intro_seconds := 0.0
+## 画：目 eye・注視点 target へ seconds かけて移って止まる（mode 1）。戻す（mode 2）は、止まっていた画から
+## いつものカメラへ seconds かけて移る。0 は何もしない。from は移り始めたときに映っていた目と注視点。
+var _practice_frame_mode := 0
+var _practice_frame_eye := Vector3.ZERO
+var _practice_frame_target := Vector3.ZERO
+var _practice_frame_from_eye := Vector3.ZERO
+var _practice_frame_from_target := Vector3.ZERO
+var _practice_frame_elapsed := 0.0
+var _practice_frame_seconds := 0.0
+## 画へ移る・戻る途中の目は、床の上では床の上面よりこれだけ上を通る（床の土台の中を通らない）。
+const PRACTICE_FRAME_FLOOR_CLEARANCE := 1.4
+## 直前のフレームに遊ぶときのカメラが出した目と注視点（揺れの前。画へ移り始める所）。
+var _practice_shown_eye := Vector3.ZERO
+var _practice_shown_target := Vector3.ZERO
 
 ## 2Pでカメラが基準位置から離れ、文字の見かけがこの比率まで縮んだら拡大表示へ切り替える。
 const WALL_TEXT_ENLARGE_RATIO := 1.12
@@ -180,6 +211,146 @@ func clear_director_pose() -> void:
 
 func has_director_pose() -> bool:
 	return _director_pose_active
+
+
+## 練習：遊ぶときのカメラのまま、point（ゲーム画面の座標）のほうへ seconds かけてなめらかに向ける。
+func practice_look(point: Vector3, seconds: float) -> void:
+	_practice_look_point = point
+	_begin_practice_look(1.0, seconds)
+
+
+## 練習：目 eye・注視点 target（ゲーム画面の座標）へ、いまの画から seconds かけてなめらかに移り、そこで止まる。
+func practice_frame(eye: Vector3, target: Vector3, seconds: float) -> void:
+	_practice_frame_from_eye = _practice_shown_eye
+	_practice_frame_from_target = _practice_shown_target
+	_practice_frame_eye = eye
+	_practice_frame_target = target
+	_practice_frame_mode = 1
+	_practice_frame_elapsed = 0.0
+	_practice_frame_seconds = maxf(seconds, 0.0)
+
+
+## 練習：practice_look の向きと practice_frame の画を、seconds かけていつもの遊ぶときのカメラへ戻す。
+func practice_release(seconds: float) -> void:
+	_begin_practice_look(0.0, seconds)
+	if _practice_frame_mode == 1:
+		_practice_frame_from_eye = _practice_shown_eye
+		_practice_frame_from_target = _practice_shown_target
+		_practice_frame_mode = 2
+		_practice_frame_elapsed = 0.0
+		_practice_frame_seconds = maxf(seconds, 0.0)
+
+
+## 練習の画へ移る・戻るの進み具合（0〜1）。
+func _practice_frame_progress() -> float:
+	if _practice_frame_seconds <= 0.0:
+		return 1.0
+	return smoothstep(0.0, 1.0, _practice_frame_elapsed / _practice_frame_seconds)
+
+
+func _begin_practice_look(to_weight: float, seconds: float) -> void:
+	_practice_look_from = _practice_look_weight
+	_practice_look_to = to_weight
+	_practice_look_elapsed = 0.0
+	_practice_look_seconds = maxf(seconds, 0.0)
+	if _practice_look_seconds <= 0.0:
+		_practice_look_weight = to_weight
+
+
+## 練習：少し高い所から舞台全体を見せ、seconds かけていつもの位置へ下りる。
+func practice_intro(seconds: float) -> void:
+	_practice_intro_seconds = maxf(seconds, 0.01)
+	_practice_intro_elapsed = 0.0
+
+
+## 練習のまきもどし：サメの襲撃カメラと最後の死のカメラの続きを捨てる（次のフレームから遊ぶときのカメラ）。
+func practice_clear_death() -> void:
+	_has_ocean_attack_focus = false
+	_ocean_attack_intensity = 0.0
+	_ocean_attack_impact_timer = 0.0
+	_ocean_attack_camera_active = false
+	_ocean_attack_burst_offset = Vector3.ZERO
+	_final_death_player = 0
+	_final_death_exploded = false
+	_go_timer = 0.0
+
+
+## 練習の向きと入りの時間を進める。
+func _advance_practice_camera(dt: float) -> void:
+	if _practice_look_seconds > 0.0:
+		_practice_look_elapsed = minf(_practice_look_elapsed + dt, _practice_look_seconds)
+		var t := smoothstep(0.0, 1.0, _practice_look_elapsed / _practice_look_seconds)
+		_practice_look_weight = lerpf(_practice_look_from, _practice_look_to, t)
+		if _practice_look_elapsed >= _practice_look_seconds:
+			_practice_look_seconds = 0.0
+	if _practice_intro_seconds > 0.0:
+		_practice_intro_elapsed += dt
+		if _practice_intro_elapsed >= _practice_intro_seconds:
+			_practice_intro_seconds = 0.0
+	if _practice_frame_mode != 0:
+		_practice_frame_elapsed = minf(_practice_frame_elapsed + dt, _practice_frame_seconds)
+
+
+## 練習の向き・入り・画を、遊ぶときのカメラ（eye・target）に重ねる。返り値は [eye, target]（映した画として覚える）。
+## 画角には _practice_intro_weight() × PRACTICE_INTRO_FOV_ADD を足す。
+func _apply_practice_camera(eye: Vector3, target: Vector3) -> PackedVector3Array:
+	if _practice_look_weight > 0.0:
+		target = target.lerp(_practice_look_point, PRACTICE_LOOK_BLEND * _practice_look_weight)
+	var intro := _practice_intro_weight()
+	if intro > 0.0:
+		eye += PRACTICE_INTRO_EYE_OFFSET * intro
+		target += Vector3(0.0, 0.0, PRACTICE_INTRO_LOOK_AHEAD) * intro
+	if _practice_frame_mode == 1:
+		var to_frame := _practice_frame_progress()
+		eye = _practice_frame_path(_practice_frame_from_eye, _practice_frame_eye, to_frame)
+		target = _practice_frame_from_target.lerp(_practice_frame_target, to_frame)
+	elif _practice_frame_mode == 2:
+		var back := _practice_frame_progress()
+		eye = _practice_frame_path(_practice_frame_from_eye, eye, back)
+		target = _practice_frame_from_target.lerp(target, back)
+		if back >= 1.0:
+			_practice_frame_mode = 0
+	_practice_shown_eye = eye
+	_practice_shown_target = target
+	return PackedVector3Array([eye, target])
+
+
+## 画へ移る途中の目（t は 0〜1）。まっすぐ移ると床の土台の中を通るときは、高さをそろえてから床の上を渡る
+## （低い所からは、床の外で上がってから横へ。床の上からは、横へ渡ってから床の外で下りる）。
+func _practice_frame_path(from: Vector3, to: Vector3, t: float) -> Vector3:
+	if t >= 1.0:
+		return to
+	if not _practice_path_hits_floor(from, to):
+		return from.lerp(to, t)
+	var safe_y := maxf(maxf(from.y, to.y), StageConstants.FLOOR_TOP_Y + PRACTICE_FRAME_FLOOR_CLEARANCE)
+	var points := PackedVector3Array([from, Vector3(from.x, safe_y, from.z), Vector3(to.x, safe_y, to.z), to])
+	var total := 0.0
+	for i in range(points.size() - 1):
+		total += points[i].distance_to(points[i + 1])
+	var remaining := total * t
+	for i in range(points.size() - 1):
+		var length := points[i].distance_to(points[i + 1])
+		if remaining <= length and length > 0.0:
+			return points[i].lerp(points[i + 1], remaining / length)
+		remaining -= length
+	return to
+
+
+## まっすぐ移ると、目が床の上で床の上面に近すぎる（床の土台の中を通る）か。
+func _practice_path_hits_floor(from: Vector3, to: Vector3) -> bool:
+	for i in range(25):
+		var point := from.lerp(to, float(i) / 24.0)
+		var over_floor := absf(point.x) < StageConstants.FLOOR_HALF_WIDTH + 0.5 and point.z > StageConstants.FLOOR_BACK_Z - 0.5
+		if over_floor and point.y < StageConstants.FLOOR_TOP_Y + PRACTICE_FRAME_FLOOR_CLEARANCE:
+			return true
+	return false
+
+
+## 入りの残り（1 → 0。入りをしていないときは 0）。
+func _practice_intro_weight() -> float:
+	if _practice_intro_seconds <= 0.0:
+		return 0.0
+	return 1.0 - smoothstep(0.0, 1.0, _practice_intro_elapsed / _practice_intro_seconds)
 
 
 ## Track the physical body until it bursts, then hold the explosion location.
@@ -549,6 +720,16 @@ func _update_camera_pose(gs: QuizGameState, dt: float) -> void:
 	_update_wall_text_scale_pose(gs, framing_start_eye + (saw_pose[0] - eye), fov)
 	eye = saw_pose[0]
 	target = saw_pose[1]
+	# 練習の監督が重ねる向きと入り（ふだんは何もしない）。
+	if _practice_look_weight > 0.0 or _practice_look_seconds > 0.0 or _practice_intro_seconds > 0.0 or _practice_frame_mode != 0:
+		_advance_practice_camera(dt)
+		fov += PRACTICE_INTRO_FOV_ADD * _practice_intro_weight()
+		var practice_pose := _apply_practice_camera(eye, target)
+		eye = practice_pose[0]
+		target = practice_pose[1]
+	else:
+		_practice_shown_eye = eye
+		_practice_shown_target = target
 
 	# Apply camera shake
 	if gs.camera_shake > 0.0:
@@ -645,11 +826,9 @@ func _frame_question(gs: QuizGameState, eye: Vector3, target: Vector3, fov: floa
 	var points := _question_framing_points.duplicate()
 	if gs.game_state != Constants.STATE_PLAYING:
 		points.clear()
-	if not points.is_empty():
-		if gs.p1_alive:
-			_append_player_framing_points(points, Vector3(gs.player_x, gs.player_y, gs.player_local_z))
-		if gs.num_players >= 2 and gs.p2_alive:
-			_append_player_framing_points(points, Vector3(gs.player2_x, gs.player2_y, gs.player2_local_z))
+	# 2Pでは2人の間隔でカメラを引かない（後退はチップソー接近時の _frame_saw だけに任せる）。
+	if not points.is_empty() and gs.num_players < 2 and gs.p1_alive:
+		_append_player_framing_points(points, Vector3(gs.player_x, gs.player_y, gs.player_local_z))
 	var direction := (target - eye).normalized()
 	var distance := eye.distance_to(target)
 	var view_basis := Basis.looking_at(direction, Vector3.UP)
@@ -929,8 +1108,13 @@ func _update_ocean_attack_camera(gs: QuizGameState, dt: float) -> void:
 		camera.global_position = desired_eye
 		_ocean_attack_camera_active = true
 	else:
-		camera.global_position = camera.global_position.lerp(desired_eye, blend)
-	camera.look_at(desired_target, Vector3.UP)
+		camera.global_position = (camera.global_position - _ocean_attack_burst_offset).lerp(desired_eye, blend)
+	# 食われて爆散したときの強い揺れ（壁激突と同じ gs.camera_shake）。
+	_ocean_attack_burst_offset = Vector3.ZERO
+	if gs.camera_shake > 0.0:
+		_ocean_attack_burst_offset = Vector3(randf() - 0.5, randf() - 0.5, randf() - 0.5) * gs.camera_shake
+	camera.global_position += _ocean_attack_burst_offset
+	camera.look_at(desired_target + _ocean_attack_burst_offset * 0.5, Vector3.UP)
 
 
 func _update_flyover_camera(gs: QuizGameState, _dt: float) -> void:

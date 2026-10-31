@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://dtub3l2m0hl2e"
 path.s3tc="res://.godot/imported/lecture_set_props_PRP_ExhibitPlacard_orm.webp-bb3dcfed5e6bc2d0b58a81bcbce31860.s3tc.ctex"
+path.etc2="res://.godot/imported/lecture_set_props_PRP_ExhibitPlacard_orm.webp-bb3dcfed5e6bc2d0b58a81bcbce31860.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/settings_hall/lecture_set_props_PRP_ExhibitPlacard_orm.webp"
-dest_files=["res://.godot/imported/lecture_set_props_PRP_ExhibitPlacard_orm.webp-bb3dcfed5e6bc2d0b58a81bcbce31860.s3tc.ctex"]
+dest_files=["res://.godot/imported/lecture_set_props_PRP_ExhibitPlacard_orm.webp-bb3dcfed5e6bc2d0b58a81bcbce31860.s3tc.ctex", "res://.godot/imported/lecture_set_props_PRP_ExhibitPlacard_orm.webp-bb3dcfed5e6bc2d0b58a81bcbce31860.etc2.ctex"]
 
 [params]
 

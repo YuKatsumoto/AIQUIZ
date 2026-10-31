@@ -4,22 +4,46 @@ class_name QuizProvider
 ## オフラインクイズプロバイダー
 ## Python版 quiz_provider.py の OfflineQuizProvider 相当
 
+const DEFAULT_BANK_PATH := "res://offline_bank.json"
+
 var bank_path: String
 var bank: Dictionary = {}
 var external_bank_items: Array[Dictionary] = []
 var _count_cache: Dictionary = {}
 
-func _init(path: String = "res://offline_bank.json") -> void:
+## 読み込んだバンク（パス → Dictionary）。offline_bank.json は 5 MB あり、プロバイダは
+## 本編・バッファ・メニュー背景などで何度も作られるので、解析は 1 回だけにして中身を共有する。
+## 共有なので、bank の中身（教科・学年・問題の辞書）は書き換えないこと。
+static var _bank_cache: Dictionary = {}
+static var _bank_cache_mutex: Mutex = Mutex.new()
+
+func _init(path: String = DEFAULT_BANK_PATH) -> void:
 	bank_path = path
 	bank = _load_bank()
 
 func _load_bank() -> Dictionary:
-	if not FileAccess.file_exists(bank_path):
-		push_warning("[QuizProvider] Bank file not found: %s" % bank_path)
+	return shared_bank(bank_path)
+
+
+## path のバンクを返す（2 回目からは解析済みのものを共有）。読めなければ空の辞書（キャッシュしない）。
+static func shared_bank(path: String = DEFAULT_BANK_PATH) -> Dictionary:
+	_bank_cache_mutex.lock()
+	if not _bank_cache.has(path):
+		var parsed := _parse_bank_file(path)
+		if not parsed.is_empty():
+			_bank_cache[path] = parsed
+	var result: Dictionary = _bank_cache.get(path, {})
+	_bank_cache_mutex.unlock()
+	return result
+
+
+static func _parse_bank_file(path: String) -> Dictionary:
+	if not FileAccess.file_exists(path):
+		push_warning("[QuizProvider] Bank file not found: %s" % path)
 		return {}
-	var file := FileAccess.open(bank_path, FileAccess.READ)
+	var file := FileAccess.open(path, FileAccess.READ)
 	if not file:
-		push_warning("[QuizProvider] Failed to open bank: %s" % bank_path)
+		push_warning("[QuizProvider] Failed to open bank: %s" % path)
 		return {}
 	var json_text := file.get_as_text()
 	file.close()

@@ -17,10 +17,14 @@ const PALETTE_HUES: Array[float] = [0.0, 0.05, 0.10, 0.15, 0.22, 0.33, 0.45, 0.5
 const PALETTE_ROWS: Array[Vector2] = [Vector2(0.82, 0.96), Vector2(0.38, 1.0), Vector2(0.85, 0.52)]
 const PALETTE_NEUTRALS: Array[Color] = [Color(0.97, 0.97, 0.96), Color(0.55, 0.57, 0.60), Color(0.12, 0.12, 0.14)]
 const PALETTE_NEUTRAL_NAMES: Array[String] = ["しろ", "グレー", "くろ"]
+## スマホ（タッチだけ）：パレットの列（指の大きさのマスで 39 色を 4 段に）と、人型の最小の高さ。
+const TOUCH_PALETTE_COLUMNS := 10
+const TOUCH_BODY_MAP_MIN_HEIGHT := 160.0
+const MobileUi = preload("res://scripts/core/mobile_ui.gd")
 
 var player: int = 1
 var target: StringName = PlayerSkin.ALL
-## チュートリアルの紹介中などは false にして操作を止める。
+## 操作を止めたい間（撮影・テストなど）は false にする。
 var input_enabled: bool = true
 ## true なら どのプレイヤーも あたまを選べない（カスタマイズ画面：ローカル2人対戦で見分けるため固定）。
 ## false でもプレイヤー2 のあたまは固定（オンライン画面はプレイヤー1 だけを編集し、あたまも変えられる）。
@@ -45,6 +49,11 @@ var _sat_slider: SkinColorSlider
 var _val_slider: SkinColorSlider
 
 var _undo_button: SkinToolButton
+## スマホだけ：やりなおし（Ctrl+Y の代わり）と、パレット⇔スライダーの切り替え（指の大きさの部品を 720 の高さに収める）。
+var _redo_button: SkinToolButton
+var _fine_button: SkinToolButton
+var _palette_grid: GridContainer
+var _slider_rows: Array[Control] = []
 var _reset_button: SkinToolButton
 var _random_button: SkinToolButton
 var _copy_button: SkinToolButton
@@ -70,6 +79,7 @@ func build_left(container: VBoxContainer, with_presets: bool = true) -> void:
 	_all_button.name = "WholeBodyButton"
 	_all_button.toggle_mode = true
 	_all_button.custom_minimum_size = Vector2(64, 30)
+	MobileUi.ensure_touch_size(_all_button, true)
 	_all_button.pressed.connect(func() -> void: select_part(PlayerSkin.ALL))
 	target_row.add_child(_all_button)
 	_target_label = SkinUiStyle.label("", 13, SkinUiStyle.TEXT, true)
@@ -80,7 +90,7 @@ func build_left(container: VBoxContainer, with_presets: bool = true) -> void:
 
 	_body_map = SkinBodyMap.new()
 	_body_map.name = "SkinBodyMap"
-	_body_map.custom_minimum_size = Vector2(0, 220)
+	_body_map.custom_minimum_size = Vector2(0, 220.0 if not MobileUi.is_touch_ui() else TOUCH_BODY_MAP_MIN_HEIGHT)
 	_body_map.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_body_map.part_clicked.connect(func(part_id: StringName) -> void: select_part(part_id))
 	_body_map.part_hovered.connect(func(part_id: StringName) -> void: part_hovered.emit(player, part_id))
@@ -114,7 +124,8 @@ func build_right(container: VBoxContainer, swatch_size: float = 24.0) -> void:
 
 	var palette_grid := GridContainer.new()
 	palette_grid.name = "Palette"
-	palette_grid.columns = PALETTE_HUES.size() + 1
+	palette_grid.columns = PALETTE_HUES.size() + 1 if not MobileUi.is_touch_ui() else TOUCH_PALETTE_COLUMNS
+	_palette_grid = palette_grid
 	palette_grid.add_theme_constant_override(&"h_separation", 4)
 	palette_grid.add_theme_constant_override(&"v_separation", 4)
 	container.add_child(palette_grid)
@@ -127,6 +138,24 @@ func build_right(container: VBoxContainer, swatch_size: float = 24.0) -> void:
 	_hue_slider = _add_color_slider(container, "色あい", SkinColorSlider.Mode.HUE, "虹の中から色をえらびます")
 	_sat_slider = _add_color_slider(container, "あざやかさ", SkinColorSlider.Mode.SATURATION, "左ほど くすんだ色、右ほど あざやかな色")
 	_val_slider = _add_color_slider(container, "明るさ", SkinColorSlider.Mode.VALUE, "左ほど 暗い色、右ほど 明るい色")
+	if MobileUi.is_touch_ui():
+		# スマホ：ふだんはパレットだけ。ツールバーの「こまかく」でスライダーに切り替える
+		set_fine_mode(false)
+
+
+## スマホ：true でスライダー（色あい・あざやかさ・明るさ）、false でパレットを出す。
+func set_fine_mode(on: bool) -> void:
+	if _palette_grid != null:
+		_palette_grid.visible = not on
+	for row: Control in _slider_rows:
+		row.visible = on
+	if _fine_button != null:
+		_fine_button.button_pressed = on
+		_fine_button.set_text("パレット" if on else "こまかく")
+
+
+func is_fine_mode() -> bool:
+	return not _slider_rows.is_empty() and _slider_rows[0].visible
 
 
 ## ツールバー。with_copy なら「P2にコピー」も出す（プレイヤーを切りかえられる画面だけ）。
@@ -139,7 +168,17 @@ func build_toolbar(container: HBoxContainer, with_copy: bool = true) -> void:
 	_undo_button.pressed.connect(undo)
 	_reset_button.pressed.connect(_reset_target)
 	_random_button.pressed.connect(_randomize)
-	for button: SkinToolButton in [_undo_button, _reset_button, _random_button]:
+	var buttons: Array[SkinToolButton] = [_undo_button, _reset_button, _random_button]
+	if MobileUi.is_touch_ui():
+		# スマホ：キーの Ctrl+Y の代わりの「やりなおす」と、パレット⇔スライダーの切り替え
+		_redo_button = SkinToolButton.new(SkinToolButton.Icon.REDO, "やりなおす", "")
+		_redo_button.pressed.connect(redo)
+		buttons.insert(1, _redo_button)
+		_fine_button = SkinToolButton.new(SkinToolButton.Icon.NONE, "こまかく", "")
+		_fine_button.toggle_mode = true
+		_fine_button.pressed.connect(func() -> void: set_fine_mode(not is_fine_mode()))
+		buttons.append(_fine_button)
+	for button: SkinToolButton in buttons:
 		container.add_child(button)
 	if with_copy:
 		_copy_button = SkinToolButton.new(SkinToolButton.Icon.COPY, "P2にコピー", "")
@@ -150,6 +189,7 @@ func build_toolbar(container: HBoxContainer, with_copy: bool = true) -> void:
 func _add_palette_swatch(grid: GridContainer, color: Color, tip: String, swatch_size: float) -> void:
 	var swatch := SkinPaletteSwatch.new(PlayerSkin.quantize(color), tip)
 	swatch.custom_minimum_size = Vector2(swatch_size, swatch_size)
+	MobileUi.ensure_touch_size(swatch, true)
 	swatch.pressed.connect(func() -> void: _set_color(swatch.swatch_color, ""))
 	grid.add_child(swatch)
 	_palette.append(swatch)
@@ -162,6 +202,7 @@ func _add_color_slider(container: VBoxContainer, caption: String, mode: SkinColo
 	var caption_label := SkinUiStyle.label(caption, 13, SkinUiStyle.MUTED)
 	caption_label.custom_minimum_size = Vector2(76, 0)
 	row.add_child(caption_label)
+	_slider_rows.append(row)
 	var slider := SkinColorSlider.new(mode)
 	slider.tooltip_text = tip
 	slider.value_changed.connect(func(_value: float) -> void: _on_hsv_changed())
@@ -382,6 +423,8 @@ func refresh_toolbar() -> void:
 	if _undo_button == null:
 		return
 	_undo_button.disabled = not history.can_undo(player)
+	if _redo_button != null:
+		_redo_button.disabled = not history.can_redo(player)
 	var other := 3 - player
 	if _copy_button:
 		_copy_button.set_text("P%dにコピー" % other)
@@ -422,7 +465,7 @@ func right_focus_chain() -> Array[Control]:
 
 func toolbar_focus_chain() -> Array[Control]:
 	var chain: Array[Control] = []
-	for control: Control in [_undo_button, _reset_button, _random_button, _copy_button]:
+	for control: Control in [_undo_button, _redo_button, _reset_button, _random_button, _copy_button, _fine_button]:
 		if control:
 			chain.append(control)
 	return chain

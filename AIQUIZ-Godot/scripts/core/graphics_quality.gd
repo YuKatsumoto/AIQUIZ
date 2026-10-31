@@ -42,12 +42,32 @@ const ADAPTIVE_UP_MARGIN: float = 0.85
 ## screens get 60 fps worth of budget, 144/240 Hz screens 120 fps worth).
 const ADAPTIVE_BUDGET_SHARE: float = 0.85
 const ADAPTIVE_MAX_TARGET_FPS: float = 120.0
+## Mobile text viewports adapt too: FSR between this floor and the tier's cap, in finer
+## steps, against the frame rate actually asked for (min of the refresh rate and
+## Engine.max_fps). As the phone heats and its GPU clocks down, the scale follows; that is
+## the thermal protection (the FPS setting itself is never changed behind the player).
+const MOBILE_ADAPTIVE_MIN_SCALE: float = 0.55
+const MOBILE_ADAPTIVE_STEP: float = 0.05
+const MOBILE_ADAPTIVE_MIN_TARGET_FPS: float = 30.0
+## Over budget even at the floor for this long: logged once per viewport (until it recovers).
+const MOBILE_OVER_BUDGET_LOG_SEC: float = 10.0
+## Mobile directional shadow atlas (only lights that keep shadows on mobile use it).
+const MOBILE_DIRECTIONAL_SHADOW_ATLAS: int = 2048
+## Scene-placed GPUParticles3D on mobile emit this share of their authored amount. Code that
+## sizes an emitter with particle_amount() marks it (mark_particles_scaled) so it is not
+## reduced twice.
+const MOBILE_SCENE_PARTICLE_RATIO: float = 0.6
+const PARTICLES_SCALED_META := &"graphics_quality_particles_scaled"
+const PARTICLES_RATIO_META := &"graphics_quality_particle_ratio"
+const SkyCloudClock = preload("res://scripts/core/sky_cloud_clock.gd")
 
 ## Viewport instance id -> adaptive state. Only Ultra text viewports (the root
 ## Window in a match, the menu background) register.
 static var _adaptive: Dictionary = {}
 ## Tests and benchmarks can impose a budget (ms) to emulate a slower GPU.
 static var adaptive_budget_override_ms: float = 0.0
+## -1 until _fsr_supported() reads the renderer (it cannot change while the game runs).
+static var _fsr_supported_cache: int = -1
 
 
 func _ready() -> void:
@@ -64,9 +84,46 @@ func _ready() -> void:
 func _on_node_added(node: Node) -> void:
 	if node is GPUParticles3D or node is CPUParticles3D:
 		(node as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		if node is GPUParticles3D and is_mobile_target():
+			_queue_mobile_particle_ratio(node as GPUParticles3D)
 
 
-func _process(_delta: float) -> void:
+## Scene-placed emitters only (instanced from a .tscn: they have an owner). Emitters built
+## in code are sized with particle_amount() already. Checked a frame later so a script that
+## resizes the emitter right after adding it (amount changed) is left alone.
+func _queue_mobile_particle_ratio(particles: GPUParticles3D) -> void:
+	if particles.owner == null or particles.has_meta(PARTICLES_SCALED_META):
+		return
+	_apply_mobile_particle_ratio.call_deferred(weakref(particles), particles.amount)
+
+
+func _apply_mobile_particle_ratio(ref: WeakRef, amount_when_added: int) -> void:
+	var particles := ref.get_ref() as GPUParticles3D
+	if particles == null or particles.has_meta(PARTICLES_SCALED_META):
+		return
+	particles.set_meta(PARTICLES_SCALED_META, true)
+	if particles.amount != amount_when_added or not is_equal_approx(particles.amount_ratio, 1.0):
+		return
+	# amount_ratio trims the emission without reallocating the particle buffers.
+	particles.amount_ratio = MOBILE_SCENE_PARTICLE_RATIO
+	particles.set_meta(PARTICLES_RATIO_META, true)
+
+
+## Marks an emitter whose amount a script sets with particle_amount(), so the mobile
+## scene-particle trim (MOBILE_SCENE_PARTICLE_RATIO) does not reduce it a second time.
+## Undoes that trim if it was already applied.
+static func mark_particles_scaled(node: Node) -> void:
+	if node == null:
+		return
+	if node.has_meta(PARTICLES_RATIO_META):
+		node.remove_meta(PARTICLES_RATIO_META)
+		if node is GPUParticles3D:
+			(node as GPUParticles3D).amount_ratio = 1.0
+	node.set_meta(PARTICLES_SCALED_META, true)
+
+
+func _process(delta: float) -> void:
+	SkyCloudClock.advance(delta)
 	if _adaptive.is_empty():
 		return
 	var now: float = Time.get_ticks_msec() / 1000.0
@@ -91,9 +148,13 @@ func _process(_delta: float) -> void:
 		samples.sort()
 		var median: float = samples[samples.size() / 2]
 		var scale: float = entry["scale"]
+		var min_scale: float = float(entry.get("min", 1.0))
 		var next: float = adaptive_next_scale(
-			scale, entry["max"], median, budget, now >= float(entry["hold_until"])
+			scale, entry["max"], median, budget, now >= float(entry["hold_until"]),
+			min_scale, float(entry.get("step", ADAPTIVE_STEP))
 		)
+		if bool(entry.get("mobile", false)):
+			_watch_mobile_over_budget(viewport, entry, scale <= min_scale + 0.001 and median > budget, median, budget, now)
 		if next < scale:
 			entry["hold_until"] = now + ADAPTIVE_UP_HOLD_SEC
 		if not is_equal_approx(next, scale):
@@ -103,21 +164,43 @@ func _process(_delta: float) -> void:
 
 ## The supersample to use next, given the current one, its cap, the averaged
 ## GPU time of the viewport and the budget. Pure so it can be tested.
-static func adaptive_next_scale(scale: float, max_scale: float, average_ms: float, budget_ms: float, may_rise: bool) -> float:
-	if average_ms > budget_ms and scale > 1.0:
-		return maxf(1.0, scale - ADAPTIVE_STEP)
+## Desktop Ultra steps a quarter between native (1.0) and its cap; mobile passes its FSR
+## floor and finer step.
+static func adaptive_next_scale(
+	scale: float,
+	max_scale: float,
+	average_ms: float,
+	budget_ms: float,
+	may_rise: bool,
+	min_scale: float = 1.0,
+	step: float = ADAPTIVE_STEP
+) -> float:
+	if average_ms > budget_ms and scale > min_scale:
+		return maxf(min_scale, _snap_scale(scale - step, step))
 	if may_rise and scale < max_scale:
-		var next: float = minf(max_scale, scale + ADAPTIVE_STEP)
+		var next: float = minf(max_scale, _snap_scale(scale + step, step))
 		# Pessimistic: only the pixel-bound part really grows with the scale.
 		if average_ms * (next * next) / (scale * scale) < budget_ms * ADAPTIVE_UP_MARGIN:
 			return next
 	return scale
 
 
+## Fine steps would drift off the 0.05 grid by float error; quarter steps are exact.
+static func _snap_scale(value: float, step: float) -> float:
+	return snappedf(value, 0.01) if step < ADAPTIVE_STEP else value
+
+
 static func adaptive_frame_budget_ms() -> float:
 	if adaptive_budget_override_ms > 0.0:
 		return adaptive_budget_override_ms
 	var refresh: float = DisplayServer.screen_get_refresh_rate()
+	if is_mobile_target():
+		# A 120 Hz phone capped at 60 fps has a 60 fps budget, not a 120 one.
+		var target: float = refresh if refresh > 0.0 else 60.0
+		if Engine.max_fps > 0:
+			target = minf(target, float(Engine.max_fps))
+		target = clampf(target, MOBILE_ADAPTIVE_MIN_TARGET_FPS, ADAPTIVE_MAX_TARGET_FPS)
+		return 1000.0 / target * ADAPTIVE_BUDGET_SHARE
 	var target_fps: float = clampf(refresh if refresh > 0.0 else 60.0, 60.0, ADAPTIVE_MAX_TARGET_FPS)
 	return 1000.0 / target_fps * ADAPTIVE_BUDGET_SHARE
 
@@ -128,15 +211,24 @@ static func adaptive_scale(viewport: Viewport) -> float:
 	return float(entry.get("scale", -1.0))
 
 
-static func _register_adaptive(viewport: Viewport, max_scale: float) -> float:
+static func _register_adaptive(
+	viewport: Viewport,
+	max_scale: float,
+	min_scale: float = 1.0,
+	step: float = ADAPTIVE_STEP,
+	mobile: bool = false
+) -> float:
 	var id: int = viewport.get_instance_id()
 	var now: float = Time.get_ticks_msec() / 1000.0
 	var entry: Dictionary = _adaptive.get(id, {})
 	# A re-apply (window resize) keeps what the GPU already proved it can hold.
-	var scale: float = minf(float(entry.get("scale", max_scale)), max_scale)
+	var scale: float = clampf(float(entry.get("scale", max_scale)), min_scale, max_scale)
 	entry["settle_until"] = now + (ADAPTIVE_SETTLE_SEC if entry.has("scale") else ADAPTIVE_START_SETTLE_SEC)
 	entry["ref"] = weakref(viewport)
 	entry["max"] = max_scale
+	entry["min"] = min_scale
+	entry["step"] = step
+	entry["mobile"] = mobile
 	entry["scale"] = scale
 	if not entry.has("hold_until"):
 		entry["hold_until"] = 0.0
@@ -153,6 +245,10 @@ static func _unregister_adaptive(viewport: Viewport) -> void:
 static func _set_adaptive_scale(viewport: Viewport, entry: Dictionary, scale: float, now: float) -> void:
 	entry["scale"] = scale
 	entry["settle_until"] = now + ADAPTIVE_SETTLE_SEC
+	if bool(entry.get("mobile", false)):
+		# Mobile keeps FSR and FXAA at every scale (apply_text_viewport).
+		_set_3d_scaling(viewport, Viewport.SCALING_3D_MODE_FSR, scale)
+		return
 	_set_3d_scaling(viewport, Viewport.SCALING_3D_MODE_BILINEAR, scale)
 	# MSAA stays as chosen for the cap (changing it would rebuild every material
 	# pipeline); SMAA returns whenever the supersample falls below 1.5x.
@@ -168,6 +264,28 @@ static func _restart_adaptive_window(entry: Dictionary, now: float) -> void:
 	entry["window_start"] = now
 
 
+## The scale cannot drop further and the GPU still misses the budget: the device is too hot
+## (or the scene too heavy) for the chosen FPS. Logged, never acted on: the FPS setting is
+## the player's.
+static func _watch_mobile_over_budget(
+	viewport: Viewport, entry: Dictionary, over: bool, median_ms: float, budget_ms: float, now: float
+) -> void:
+	if not over:
+		entry["over_since"] = -1.0
+		entry["over_logged"] = false
+		return
+	var since: float = float(entry.get("over_since", -1.0))
+	if since < 0.0:
+		entry["over_since"] = now
+		return
+	if now - since >= MOBILE_OVER_BUDGET_LOG_SEC and not bool(entry.get("over_logged", false)):
+		entry["over_logged"] = true
+		push_warning(
+			"GraphicsQuality: %s stays over its GPU budget at the lowest 3D scale %.2f for %.0f s (median %.1f ms > %.1f ms, max_fps %d). Lower the FPS cap or the quality tier."
+			% [viewport.name, float(entry["scale"]), now - since, median_ms, budget_ms, Engine.max_fps]
+		)
+
+
 static func normalize(value: String) -> String:
 	return value if value in VALID_QUALITIES else BALANCED
 
@@ -180,8 +298,32 @@ static func is_at_least(value: String, minimum: String) -> bool:
 	return rank(value) >= rank(minimum)
 
 
+## Called many times per frame, and neither the platform nor the command line
+## change while running: -1 unknown, 0 no, 1 yes.
+static var _mobile_target_cache: int = -1
+static var _mobile_preview_cache: int = -1
+
+
 static func is_mobile_target() -> bool:
-	return OS.has_feature("mobile") or OS.has_feature("android") or OS.has_feature("ios")
+	if _mobile_target_cache < 0:
+		var mobile := OS.has_feature("mobile") or OS.has_feature("android") or OS.has_feature("ios")
+		_mobile_target_cache = 1 if mobile or is_mobile_preview() else 0
+	return _mobile_target_cache == 1
+
+
+## Desktop runs started with `-- --mobile-preview`, or played from the editor
+## while the project setting aiquiz/debug/mobile_preview is on, take every
+## mobile branch (touch controls, safe area, lighter rendering) so the Android
+## build can be checked at 2520x1080 without a device. Exported builds ignore
+## the project setting.
+static func is_mobile_preview() -> bool:
+	if _mobile_preview_cache < 0:
+		var preview := OS.get_cmdline_user_args().has("--mobile-preview")
+		# Headless test and tool runs keep the desktop rules they were written for.
+		if not preview and OS.has_feature("editor") and not Engine.is_editor_hint() and DisplayServer.get_name() != "headless":
+			preview = bool(ProjectSettings.get_setting("aiquiz/debug/mobile_preview", false))
+		_mobile_preview_cache = 1 if preview else 0
+	return _mobile_preview_cache == 1
 
 
 static func display_name(value: String) -> String:
@@ -198,13 +340,15 @@ static func display_name(value: String) -> String:
 
 static func ocean_subdivisions(value: String) -> int:
 	if is_mobile_target():
+		# Phones above low draw the same clear desktop water, so they need its swell shape too
+		# (a 4 km plane at 80 is still only ~6.5 k vertices).
 		match normalize(value):
 			LOW:
 				return 20
 			HIGH, ULTRA:
-				return 48
+				return 128
 			_:
-				return 32
+				return 80
 	match normalize(value):
 		LOW:
 			return 48
@@ -217,11 +361,13 @@ static func ocean_subdivisions(value: String) -> int:
 			return 80
 
 
-static func uses_lightweight_ocean(_value: String) -> bool:
+static func uses_lightweight_ocean(value: String) -> bool:
 	# Desktop low already drops subdivisions, glow, and 3D scale. Keep the
 	# stylized transparent ocean there so returning from a match does not
 	# suddenly swap in the opaque mobile water (which picks up sky IBL).
-	return is_mobile_target()
+	# Phones keep the clear desktop water too; only their low tier takes the
+	# opaque lightweight water.
+	return is_mobile_target() and normalize(value) == LOW
 
 
 static func ocean_noise_texture_size(value: String) -> int:
@@ -261,16 +407,18 @@ static func apply_text_viewport(viewport: Viewport, value: String) -> void:
 		return
 	var quality: String = normalize(value)
 	viewport.msaa_2d = Viewport.MSAA_DISABLED
-	if quality != ULTRA or is_mobile_target():
+	if quality != ULTRA and not is_mobile_target():
 		_unregister_adaptive(viewport)
 	if is_mobile_target():
-		match quality:
-			LOW:
-				_set_3d_scaling(viewport, Viewport.SCALING_3D_MODE_FSR, 0.55)
-			HIGH, ULTRA:
-				_set_3d_scaling(viewport, Viewport.SCALING_3D_MODE_FSR, 0.85)
-			_:
-				_set_3d_scaling(viewport, Viewport.SCALING_3D_MODE_FSR, 0.70)
+		# The tier sets the cap; the GPU time then picks the scale between the floor and it
+		# (see _process), which also backs off as the phone heats up.
+		var max_scale: float = mobile_text_viewport_max_scale(quality)
+		var scale: float = max_scale
+		if max_scale > MOBILE_ADAPTIVE_MIN_SCALE:
+			scale = _register_adaptive(viewport, max_scale, MOBILE_ADAPTIVE_MIN_SCALE, MOBILE_ADAPTIVE_STEP, true)
+		else:
+			_unregister_adaptive(viewport)
+		_set_3d_scaling(viewport, Viewport.SCALING_3D_MODE_FSR, scale)
 		viewport.msaa_3d = Viewport.MSAA_2X if is_at_least(quality, HIGH) else Viewport.MSAA_DISABLED
 	else:
 		match quality:
@@ -309,6 +457,17 @@ static func apply_text_viewport(viewport: Viewport, value: String) -> void:
 	# Godot 4.6ではSubViewportのdebanding切替時に共有フォントアトラスが一時的に
 	# 黒く描画される場合があるため、文字を含むViewportでは常に無効化する。
 	viewport.use_debanding = false
+
+
+## The FSR cap of a mobile text viewport (the match window, the menu background).
+static func mobile_text_viewport_max_scale(value: String) -> float:
+	match normalize(value):
+		LOW:
+			return 0.55
+		HIGH, ULTRA:
+			return 0.85
+		_:
+			return 0.70
 
 
 static func apply_character_preview(viewport: Viewport, value: String) -> void:
@@ -418,10 +577,10 @@ static func apply_rendering_server(value: String) -> void:
 		if not mobile and is_at_least(quality, HIGH)
 		else RenderingServer.SHADOW_QUALITY_SOFT_LOW
 	)
-	RenderingServer.directional_shadow_atlas_set_size(
-		8192 if not mobile and is_at_least(quality, HIGH) else 4096,
-		true
-	)
+	var directional_atlas: int = 8192 if is_at_least(quality, HIGH) else 4096
+	if mobile:
+		directional_atlas = MOBILE_DIRECTIONAL_SHADOW_ATLAS
+	RenderingServer.directional_shadow_atlas_set_size(directional_atlas, true)
 	RenderingServer.directional_soft_shadow_filter_set_quality(shadow_quality)
 	RenderingServer.positional_soft_shadow_filter_set_quality(shadow_quality)
 	if quality == ULTRA and not mobile:
@@ -468,11 +627,23 @@ static func ultra_supersampling_scale(output_size: Vector2) -> float:
 
 ## FSR cannot downsample. Pass through bilinear so switching from a supersampled
 ## tier never pairs FSR with a scale above 1 (Godot warns and falls back).
+## FSR1 needs Forward+: under the Mobile renderer (Android) Godot warns with a backtrace on
+## every FSR request and draws bilinear anyway, so bilinear is asked for directly.
 static func _set_3d_scaling(viewport: Viewport, mode: Viewport.Scaling3DMode, scale: float) -> void:
+	if mode == Viewport.SCALING_3D_MODE_FSR and not _fsr_supported():
+		mode = Viewport.SCALING_3D_MODE_BILINEAR
 	if viewport.scaling_3d_mode != Viewport.SCALING_3D_MODE_BILINEAR:
 		viewport.scaling_3d_mode = Viewport.SCALING_3D_MODE_BILINEAR
 	viewport.scaling_3d_scale = scale
 	viewport.scaling_3d_mode = mode
+
+
+static func _fsr_supported() -> bool:
+	if _fsr_supported_cache < 0:
+		_fsr_supported_cache = (
+			1 if RenderingServer.get_current_rendering_method() == "forward_plus" else 0
+		)
+	return _fsr_supported_cache == 1
 
 
 static func _viewport_output_size(viewport: Viewport) -> Vector2:

@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://dpmsgo5m54xyc"
 path.s3tc="res://.godot/imported/lecture_set_props_PRP_Teacup_albedo.webp-af9203a6f2474a6abe978e140963b4bf.s3tc.ctex"
+path.etc2="res://.godot/imported/lecture_set_props_PRP_Teacup_albedo.webp-af9203a6f2474a6abe978e140963b4bf.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/settings_hall/lecture_set_props_PRP_Teacup_albedo.webp"
-dest_files=["res://.godot/imported/lecture_set_props_PRP_Teacup_albedo.webp-af9203a6f2474a6abe978e140963b4bf.s3tc.ctex"]
+dest_files=["res://.godot/imported/lecture_set_props_PRP_Teacup_albedo.webp-af9203a6f2474a6abe978e140963b4bf.s3tc.ctex", "res://.godot/imported/lecture_set_props_PRP_Teacup_albedo.webp-af9203a6f2474a6abe978e140963b4bf.etc2.ctex"]
 
 [params]
 

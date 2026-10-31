@@ -761,6 +761,8 @@ const QUESTION_LABEL_DOOR_CLEARANCE := 0.45
 const QUESTION_LABEL_BASE_WIDTH := 640.0
 const QUESTION_LABEL_WIDTH_STEP := 80.0
 const QUESTION_LABEL_MAX_WIDTH := 1600.0
+## 問題文の改行を行の区切りとして守り、行の途中では折り返さない（練習の台本の問題。本番は false）。
+var keep_question_lines := false
 
 ## 問題文ラベルは1行・2行のどちらでも同じ文字サイズで表示し、省略はしない。
 ## 2行に収まらない場合は横幅を段階的に広げて全文を表示する（上限に達したらそこで止める）。
@@ -774,8 +776,11 @@ func _fit_question_label_to_two_lines(label: Label3D, text: String) -> void:
 	label.font_size = font_size
 	label.text = text
 
+	var max_lines := QUESTION_LABEL_MAX_LINES
+	if keep_question_lines:
+		max_lines = mini(text.count("\n") + 1, QUESTION_LABEL_MAX_LINES)
 	var width := QUESTION_LABEL_BASE_WIDTH
-	while width < QUESTION_LABEL_MAX_WIDTH and _measure_line_count(text, font, font_size, width, break_flags) > QUESTION_LABEL_MAX_LINES:
+	while width < QUESTION_LABEL_MAX_WIDTH and _measure_line_count(text, font, font_size, width, break_flags) > max_lines:
 		width = minf(width + QUESTION_LABEL_WIDTH_STEP, QUESTION_LABEL_MAX_WIDTH)
 	label.width = width
 

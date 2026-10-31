@@ -79,6 +79,6 @@
   `death=wall|ocean`、`until=aim|dash|miss`、`every=N`、`rider=1|2`。出力 `artifacts/ghost_mount_capture/<tag>/`（`main_*.jpg` は画面、`wipe_*.jpg` は小窓のカメラを 960×720 で撮ったもの、`report.json` にフェーズ・音・柱の画面の位置）。
 - 座標の実測：`tests/ghost_mount_probe_bootstrap.gd`（鞍の部品・関節の乗り手の空間での位置、乗り移りの重ねがけの状態）。
 - 2026-10-21 に通したテスト：`ghost_hud`（P1・P2 とも 112）・`ghost_shark_audio`（26）・`result_ceremony` 単体（5000）と実機（780）・`player_skin`・`hp` 単体（197）と実機・
-  `tutorial_renewal`（duo、86）・`tutorial_rules`（83）・`shark_asset`・起動の予熱（`startup_loading_acceptance`、30）・
+  `shark_asset`・起動の予熱（`startup_loading_acceptance`、30）・
   オンライン `tests/net/run_pair.py --scenario ghost` と `ghost_host`・`shark_contact`（既定・`player=2`・`case=back`・`case=close`）。
   `shark_contact` は、2 人用ののこぎり（後で追加）の刃の中に選手を置いていて最初のフレームで試合が終わっていたので、テストでのこぎりを止めた。

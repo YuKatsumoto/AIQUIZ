@@ -4,7 +4,10 @@ extends Node3D
 ## Shared, Blender-authored Cycladic town. The imported datum is sea level.
 ## The central water corridor stays open for the course, sharks and helicopters.
 const QualityRules = preload("res://scripts/core/graphics_quality.gd")
-const CITY_SCENE: PackedScene = preload("res://assets/environment/santorini_town/town_layout.tscn")
+## Loaded on build() only: the town (about 110 MB imported) is off by default
+## (StageEnvironment.include_harbor_city), and a preload would hold it in memory with
+## every stage script that preloads this one.
+const CITY_SCENE_PATH := "res://assets/environment/santorini_town/town_layout.tscn"
 
 var _window_materials: Array[StandardMaterial3D] = []
 var _town_meshes: Array[MeshInstance3D] = []
@@ -15,7 +18,11 @@ func build(weather: WeatherCycle, quality: String = "balanced") -> void:
 	position.y = StageConstants.OCEAN_SURFACE_Y
 	# Gameplay-only scenery. Left, rear and right coast stay in world coordinates.
 	# The +Z course corridor is open, including the long flyover floor.
-	var island := CITY_SCENE.instantiate() as Node3D
+	var city_scene := load(CITY_SCENE_PATH) as PackedScene
+	if city_scene == null:
+		push_warning("HarborCityBackdrop: %s could not be loaded" % CITY_SCENE_PATH)
+		return
+	var island := city_scene.instantiate() as Node3D
 	island.name = "SantoriniTown"
 	add_child(island)
 	var materials: Dictionary = {}

@@ -10,6 +10,10 @@ const CONTROL_HEIGHT := 26.0
 const TRACK_HEIGHT := 12.0
 const KNOB_DIAMETER := 20.0
 const SEGMENTS := 24
+## スマホ（タッチだけ）：指でつかめる高さとつまみ。
+const TOUCH_TRACK_HEIGHT := 20.0
+const TOUCH_KNOB_DIAMETER := 38.0
+const MobileUi = preload("res://scripts/core/mobile_ui.gd")
 
 var mode: Mode = Mode.HUE
 ## 溝を描くための今の色（HSV）。
@@ -21,7 +25,7 @@ var _hovered := false
 
 func _init(p_mode: Mode = Mode.HUE) -> void:
 	mode = p_mode
-	custom_minimum_size.y = CONTROL_HEIGHT
+	custom_minimum_size.y = MobileUi.touch(CONTROL_HEIGHT, true)
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	focus_mode = Control.FOCUS_ALL
 	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
@@ -64,11 +68,19 @@ func _hide_native_visuals() -> void:
 	transparent.set_color(0, Color.TRANSPARENT)
 	transparent.set_color(1, Color.TRANSPARENT)
 	var invisible := GradientTexture2D.new()
-	invisible.width = int(KNOB_DIAMETER)
-	invisible.height = int(KNOB_DIAMETER)
+	invisible.width = int(_knob_diameter())
+	invisible.height = int(_knob_diameter())
 	invisible.gradient = transparent
 	for icon_name: StringName in [&"grabber", &"grabber_highlight", &"grabber_disabled"]:
 		add_theme_icon_override(icon_name, invisible)
+
+
+func _knob_diameter() -> float:
+	return TOUCH_KNOB_DIAMETER if MobileUi.is_touch_ui() else KNOB_DIAMETER
+
+
+func _track_height() -> float:
+	return TOUCH_TRACK_HEIGHT if MobileUi.is_touch_ui() else TRACK_HEIGHT
 
 
 func _ratio() -> float:
@@ -86,13 +98,15 @@ func _color_at(t: float) -> Color:
 
 func _draw() -> void:
 	# HSlider の値⇔位置の対応（つまみ幅を除いた範囲）に合わせて描く。
-	var half := KNOB_DIAMETER * 0.5
-	var track := Rect2(half, (size.y - TRACK_HEIGHT) * 0.5, maxf(size.x - KNOB_DIAMETER, 1.0), TRACK_HEIGHT)
+	var knob_diameter := _knob_diameter()
+	var track_height := _track_height()
+	var half := knob_diameter * 0.5
+	var track := Rect2(half, (size.y - track_height) * 0.5, maxf(size.x - knob_diameter, 1.0), track_height)
 	var outer := StyleBoxFlat.new()
 	outer.bg_color = Color(0.02, 0.03, 0.05, 0.9)
-	outer.set_corner_radius_all(int(TRACK_HEIGHT * 0.5 + 2.0))
+	outer.set_corner_radius_all(int(track_height * 0.5 + 2.0))
 	draw_style_box(outer, track.grow(2.0))
-	var radius := TRACK_HEIGHT * 0.5
+	var radius := track_height * 0.5
 	draw_circle(Vector2(track.position.x, track.get_center().y), radius, _color_at(0.0))
 	draw_circle(Vector2(track.end.x, track.get_center().y), radius, _color_at(1.0))
 	for index: int in range(SEGMENTS):

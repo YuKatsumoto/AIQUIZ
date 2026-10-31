@@ -3,8 +3,8 @@ extends Node3D
 
 ## サドンデスへ行くときの幽霊の復活（docs/sudden_death_v2/ghost_revive.md）。1 人ぶん。
 ## 台座の上の幽霊（本物のアバターに魂の見た目をかけたもの）が宙へ浮いて体を呼ぶと、体の部位が画面の外から 1 つずつ
-## 渦を描いて飛んできてはまり、はまった所から体に戻る。全部そろうと身を丸めてため、光を放って弾け、ヒーロー着地で
-## 台に降りて立ち上がる。
+## 渦を描いて飛んできてはまり、はまった所から体に戻る。全部そろうと身を丸めてため、光を放って弾け、台に降りて
+## 立ったまま着地する（膝はつかない）。
 ## 持つのは見た目（アバターの姿・部位の飛行・光・音）だけ。カメラと HUD は監督（HeliSuddenDeathDirector）が、
 ## take_beats() の拍（snap・burst・land）を見て決める。時計は監督の実時間の時計（advance の delta）。
 
@@ -27,14 +27,14 @@ const BURST_AT := 1.68
 const BURST_HOLD := 0.06
 const DROP_TIME := 0.24
 const LAND_AT := BURST_AT + BURST_HOLD + DROP_TIME
-## 着地からはヒーロー着地（drop_moves の SD_Land_Hero。着地 1.5 秒）を速めて最後まで → 待機の姿へ。
+## 落ちる間は SD_Land_Hero（drop_moves）の落ちる姿（フレーム FALL → LAND の手前）。着地では膝をつかず、立ったまま
+## 脚で衝撃を受けて（LAND_ABSORB 秒）まっすぐに戻る → 待機の姿へ。
 const LAND_CLIP := "SD_Land_Hero"
 const LAND_CLIP_FALL := 1.3
 const LAND_CLIP_LAND := 1.5
-const LAND_CLIP_END := 3.12
-const LAND_RATE := 1.75
-const SETTLE_TIME := 0.3
-const STAND_AT := LAND_AT + (LAND_CLIP_END - LAND_CLIP_LAND) / LAND_RATE
+const LAND_ABSORB := 0.34
+const SETTLE_TIME := 0.15
+const STAND_AT := LAND_AT + LAND_ABSORB
 const LENGTH := STAND_AT + SETTLE_TIME
 const IDLE_CLIP := "Idle_Loop"
 ## 台の上に立つ人の腰の高さ（足の裏から。監督・水上機の乗り込みと同じ値）。
@@ -92,6 +92,13 @@ const POSE_DROP := [
 	["spine", "x", 10.0], ["head_pivot", "x", -8.0],
 	["l_shoulder", "z", -26.0], ["r_shoulder", "z", 26.0], ["l_elbow", "x", -28.0], ["r_elbow", "x", -18.0],
 	["l_hip", "x", -34.0], ["r_hip", "x", -14.0], ["l_knee", "x", 52.0], ["r_knee", "x", 30.0],
+]
+## 着地で脚が衝撃を受ける：ひざを軽く曲げて腰を落とす（足は床に着いたまま。足の向きは水平のまま）。
+const POSE_LAND_DIP := [
+	["spine", "x", 9.0], ["head_pivot", "x", -7.0],
+	["l_shoulder", "z", -12.0], ["r_shoulder", "z", 12.0], ["l_elbow", "x", -14.0], ["r_elbow", "x", -14.0],
+	["l_hip", "x", -26.0], ["r_hip", "x", -26.0], ["l_knee", "x", 52.0], ["r_knee", "x", 52.0],
+	["l_ankle", "x", -26.0], ["r_ankle", "x", -26.0],
 ]
 const AXES := {"x": Vector3(1, 0, 0), "y": Vector3(0, 1, 0), "z": Vector3(0, 0, 1)}
 const FRONT_YAW := PI
@@ -325,7 +332,7 @@ func _pose_body(t: float, delta: float) -> void:
 		segment = "curl"
 	if segment != _segment:
 		# 区切りごとに今の姿から慣性でつなぐ（StagingPuppet.begin_blend）。着地は落ちてきた勢いのまま切り替える。
-		var blend := {"curl": 0.12, "burst": 0.05, "drop": 0.12, "land": 0.0, "settle": SETTLE_TIME}
+		var blend := {"curl": 0.12, "burst": 0.05, "drop": 0.12, "land": 0.06, "settle": SETTLE_TIME}
 		if _segment != "" and float(blend.get(segment, 0.0)) > 0.0:
 			_puppet.begin_blend(float(blend[segment]))
 		_segment = segment
@@ -373,8 +380,14 @@ func _pose_body(t: float, delta: float) -> void:
 			_append_rows(rows, POSE_DROP, smoothstep(0.0, 0.35, u))
 			_apply_rows(rows, Basis(Vector3.UP, FRONT_YAW))
 		"land":
-			DropMotion.pose_puppet(_puppet, LAND_CLIP, LAND_CLIP_LAND + (t - LAND_AT) * LAND_RATE)
+			# 立ったまま着地：膝をつかず、脚が衝撃を受けて（すぐ沈んでゆっくり戻る）まっすぐに立つ。
+			_idle(t)
 			_puppet.stand_at(_pad, FRONT_YAW, pad_y)
+			var absorb := clampf((t - LAND_AT) / LAND_ABSORB, 0.0, 1.0)
+			var rows: Array = []
+			_append_rows(rows, POSE_LAND_DIP, sin(PI * pow(absorb, 0.6)))
+			_apply_rows(rows, Basis(Vector3.UP, FRONT_YAW))
+			_ground_feet(pad_y)
 		"settle":
 			_idle(t)
 			_puppet.stand_at(_pad, FRONT_YAW, pad_y)
@@ -383,6 +396,16 @@ func _pose_body(t: float, delta: float) -> void:
 	var accel := -_jolt * 230.0 - _jolt_velocity * 19.0
 	_jolt_velocity += accel * delta
 	_jolt += _jolt_velocity * delta
+
+
+## 曲げた脚でも足の裏を床に着ける（stand_at は曲げる前の姿で合わせるので、曲げたあとに腰の高さを合わせ直す）。
+func _ground_feet(ground_y: float) -> void:
+	var pelvis := _puppet.parts().get("pelvis") as Node3D
+	if pelvis == null or _controller == null:
+		return
+	var lowest: float = _controller.call("_lowest_intro_foot_mesh_y", _puppet.parts())
+	if is_finite(lowest):
+		pelvis.global_position.y += ground_y + StagingPuppet.FOOT_CLEARANCE - lowest
 
 
 func _idle(t: float) -> void:

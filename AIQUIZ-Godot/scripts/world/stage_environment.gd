@@ -22,6 +22,7 @@ const WaterfrontScript = preload("res://scripts/world/santorini_waterfront.gd")
 const StageMaterialsScript = preload("res://scripts/world/stage_materials.gd")
 const StageAtmosphereScript = preload("res://scripts/world/stage_atmosphere.gd")
 const OceanDetailScript = preload("res://scripts/world/ocean_detail.gd")
+const SkyCloudClock = preload("res://scripts/core/sky_cloud_clock.gd")
 const AIQUIZ_STAGE_SKY_PATH := "res://assets/environment/sky/aiquiz_day_night_sky.tres"
 const GRANDSTAND_SIDE_OFFSET: float = 28.0
 ## Side stands and scenery. "aiquiz": AIQUIZ STADIUM (sails, lighthouse, islands,
@@ -112,6 +113,7 @@ var _include_right_grandstand: bool = true
 var _grandstand_side_offset: float = GRANDSTAND_SIDE_OFFSET
 var _include_spectators: bool = true
 var _spectator_density: float = 0.85
+var _crowd_sim: bool = false
 var _stadium_style: String = STADIUM_AIQUIZ
 
 # --- ノード参照 ---
@@ -158,6 +160,10 @@ var _floor_center_z: float = 0.0
 var _floor_length: float = 144.0
 ## 観客スタンドが最後に同期した床長。動的床の縮小ではブロックを減らさない。
 var _grandstand_synced_length: float = 0.0
+## 左右の客席の奥の端（ワールド Z）。ゴール観客席のモニターより奥へ座席を出さない。INF なら制限なし。
+var _grandstand_end_limit_z: float = INF
+## 左右の客席をずらしている量（set_grandstand_shift）
+var _grandstand_shift := 0.0
 var _editor_preview_rebuild_queued: bool = false
 
 
@@ -250,7 +256,9 @@ func _clear_built_stage() -> void:
 ##              include_harbor_city (default false; retained town data can be re-enabled),
 ##              include_stadium_scenery (default true; false builds no lighthouse,
 ##              islands, skyline or sailboats, e.g. in the menu, whose camera can turn
-##              round to face them)
+##              round to face them),
+##              crowd_sim (default false; true lets the AIQUIZ STADIUM side stands' crowd
+##              come, go and walk, docs/crowd_sim.md — game_world turns it on)
 func build(config: Dictionary = {}) -> void:
 	_clear_built_stage()
 	_floor_center_z = float(config.get("floor_center_z", 0.0))
@@ -267,6 +275,7 @@ func build(config: Dictionary = {}) -> void:
 	_grandstand_side_offset = float(config.get("grandstand_side_offset", GRANDSTAND_SIDE_OFFSET))
 	_include_spectators = bool(config.get("include_spectators", true))
 	_spectator_density = clampf(float(config.get("spectator_density", 0.85)), 0.0, 1.0)
+	_crowd_sim = bool(config.get("crowd_sim", false))
 	var include_harbor_city: bool = config.get("include_harbor_city", layout_include_harbor_city) != false
 	_stadium_style = String(config.get("stadium_style", layout_stadium_style))
 	if _stadium_style != STADIUM_SANTORINI:
@@ -319,8 +328,17 @@ static func create_stage_sky() -> Sky:
 		var sky: Sky = _stage_sky_source.duplicate() as Sky
 		if sky.sky_material != null:
 			sky.sky_material = sky.sky_material.duplicate() as Material
-		sky.radiance_size = Sky.RADIANCE_SIZE_256
-		sky.process_mode = Sky.PROCESS_MODE_REALTIME
+		if QualityRules.is_mobile_target():
+			# The ambient and reflections need only a small, rarely refreshed cubemap: it is redrawn
+			# when the sky's parameters change, spread over several frames.
+			# Mode first: a realtime sky (the source's mode) refuses any radiance size but 256.
+			sky.process_mode = Sky.PROCESS_MODE_INCREMENTAL
+			sky.radiance_size = Sky.RADIANCE_SIZE_128
+		else:
+			sky.radiance_size = Sky.RADIANCE_SIZE_256
+			sky.process_mode = Sky.PROCESS_MODE_REALTIME
+		# The clouds drift by a uniform (not TIME, which would redraw the radiance every frame).
+		SkyCloudClock.register(sky.sky_material, QualityRules.is_mobile_target())
 		return sky
 	return _create_procedural_fallback_sky()
 
@@ -677,10 +695,38 @@ func _setup_grandstands() -> void:
 		var stand: Node3D = _stand_script().new()
 		container.add_child(stand)
 		stand.setup(signf(side_x), density, 1729 if side_x < 0.0 else 7919)
+		if _crowd_sim and density > 0.0 and stand.has_method("enable_crowd_sim"):
+			stand.enable_crowd_sim(crowd_walkers(_graphics_quality()), crowd_vendors(_graphics_quality()))
 		stand.position = Vector3(side_x, 0.0, 0.0)
 		stand.process_mode = Node.PROCESS_MODE_DISABLED
 
 	_sync_grandstands_to_floor()
+
+
+## Beer vendors per side stand (docs/crowd_sim.md).
+static func crowd_vendors(quality: String) -> int:
+	if QualityRules.is_mobile_target():
+		return 1
+	match QualityRules.normalize(quality):
+		QualityRules.LOW:
+			return 1
+		QualityRules.HIGH, QualityRules.ULTRA:
+			return 3
+	return 2
+
+
+## People on foot at a time per side stand (docs/crowd_sim.md).
+static func crowd_walkers(quality: String) -> int:
+	if QualityRules.is_mobile_target():
+		return 12
+	match QualityRules.normalize(quality):
+		QualityRules.LOW:
+			return 12
+		QualityRules.HIGH:
+			return 40
+		QualityRules.ULTRA:
+			return 48
+	return 24
 
 
 func _configure_grandstand_geometry(stand: Node3D) -> void:
@@ -706,14 +752,75 @@ func _sync_grandstands_to_floor() -> void:
 	if _grandstand_synced_length > 0.0 and _floor_length < _grandstand_synced_length:
 		return
 	_grandstand_synced_length = _floor_length
-	container.position.z = _floor_center_z - _floor_length * 0.5
+	container.position.z = _floor_center_z - _floor_length * 0.5 + _grandstand_shift
 	var blocks: int = _stand_script().blocks_for_length(_floor_length)
 	for child: Node in container.get_children():
 		if child.has_method("ensure_blocks") and child.ensure_blocks(blocks):
 			_configure_grandstand_geometry(child as Node3D)
+	_apply_grandstand_end_limit()
 	if is_instance_valid(_waterfront) and _stadium_style == STADIUM_SANTORINI:
 		# Routes are keyed on the stand layout, so an unchanged stand is a no-op.
 		_waterfront.sync_to_stands(container)
+
+
+## 左右の客席を、コースの流れと一緒に z へずらす（両者脱落の投げ縄でハテナが 2 人を運ぶあいだ、コースを流した分だけ
+## 後ろへ下げて、ゴールへ向かって飛んでいるように見せる。EliminationLassoDirector）。0 で元の場所。客席はコースの
+## 全長ぶん並んでいるので、流した分だけ下げても前（ゴールの側）は途切れない。
+func set_grandstand_shift(offset_z: float) -> void:
+	if is_equal_approx(offset_z, _grandstand_shift):
+		return
+	var step := offset_z - _grandstand_shift
+	_grandstand_shift = offset_z
+	if _grandstands_container != null:
+		_grandstands_container.position.z += step
+		# サントリーニの岸壁（階段・入り江）は客席に合わせて置かれているので一緒に動かす
+		if is_instance_valid(_waterfront) and _stadium_style == STADIUM_SANTORINI:
+			_waterfront.position.z += step
+		_apply_grandstand_end_limit()
+
+
+func get_grandstand_shift() -> float:
+	return _grandstand_shift
+
+
+## 左右の客席を world_z（ゴール観客席のモニターの Z）で終える。INF で制限を外す。
+## AIQUIZ STADIUM の客席は前端のキャップを world_z まで下げ、間のブロックをそこで切って、モニターまで
+## 途切れずに続ける（aiquiz_stadium_stand.gd の fit_end()）。それ以外の客席はブロックが 20 m 単位なので、
+## 奥の端が world_z を越えるブロックを座席ごと隠す。毎フレーム呼んでよい（変わったときだけ触る）。
+func set_grandstand_end_limit(world_z: float) -> void:
+	if world_z == _grandstand_end_limit_z:
+		return
+	_grandstand_end_limit_z = world_z
+	_apply_grandstand_end_limit()
+
+
+func _apply_grandstand_end_limit() -> void:
+	if _grandstands_container == null or not _grandstands_container.is_inside_tree():
+		return
+	var half_block: float = float(_stand_script().BLOCK_LENGTH) * 0.5
+	for stand: Node in _grandstands_container.get_children():
+		if stand.has_method(&"fit_end"):
+			stand.fit_end(_grandstand_end_limit_z)
+			continue
+		var blocks: Node = stand.get_node_or_null("Blocks")
+		if blocks == null:
+			continue
+		var crowd: Node = stand.get_node_or_null("Spectators")
+		for block: Node in blocks.get_children():
+			var block_node := block as Node3D
+			if block_node == null:
+				continue
+			var beyond: bool = block_node.global_position.z + half_block > _grandstand_end_limit_z
+			if beyond == bool(block_node.get_meta(&"end_limit_hidden", false)):
+				continue
+			block_node.set_meta(&"end_limit_hidden", beyond)
+			block_node.visible = not beyond
+			if crowd == null:
+				continue
+			for suffix: String in ["", "Props"]:
+				var batch := crowd.get_node_or_null(String(block_node.name) + suffix) as Node3D
+				if batch != null:
+					batch.visible = not beyond
 
 
 func _setup_sharks() -> void:

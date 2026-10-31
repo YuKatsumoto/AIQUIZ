@@ -51,14 +51,26 @@ const SIDE_FRAME_COLOR := Color(0.30, 0.31, 0.33)
 const RAIL_HEAD_COLOR := Color(0.64, 0.68, 0.71)
 const RAIL_SUPPORT_COLOR := Color(0.16, 0.18, 0.21)
 
+## Mobile builds of the belt and steel shaders. With the belt-top detail layer (BELT_NO_TOP_DETAIL
+## in shaders/conveyor_belt_floor.gdshader) or the steel relief normals (STEEL_NO_RELIEF in
+## shaders/ground_steel.gdshader) compiled in, the Galaxy Z Flip 7 (Xclipse 950) hangs the whole GPU
+## for ~5.5 s again and again, so mobile leaves that code out of the shader.
+const MOBILE_BELT_DEFINE := "#define BELT_NO_TOP_DETAIL"
+const MOBILE_STEEL_DEFINE := "#define STEEL_NO_RELIEF"
+## "define|base shader id" -> the base shader compiled with that define (shared by every material).
+static var _mobile_shader_variants: Dictionary = {}
+
 
 ## Gives a belt-shader material (shaders/conveyor_belt_floor.gdshader) its detail textures
 ## for `quality`. A material that never goes through here keeps the plain procedural look
-## (the menu and settings previews build their own belt materials).
+## (the menu and settings previews build their own belt materials). On mobile the material also
+## moves onto the BELT_NO_TOP_DETAIL build of its shader (_mobile_variant).
 static func belt_detail(material: ShaderMaterial, quality: String) -> void:
 	if material == null:
 		return
 	var q: String = QualityRules.normalize(quality)
+	if QualityRules.is_mobile_target():
+		material.shader = _mobile_variant(material.shader, MOBILE_BELT_DEFINE)
 	material.set_shader_parameter("detail_albedo", BELT_ALBEDO)
 	material.set_shader_parameter("detail_orm", BELT_ORM)
 	material.set_shader_parameter("detail_normal", BELT_NORMAL)
@@ -78,6 +90,27 @@ static func belt_detail(material: ShaderMaterial, quality: String) -> void:
 	material.set_shader_parameter("side_albedo_mean", CONCRETE_MEAN)
 	material.set_shader_parameter("side_tile_m", CONCRETE_TILE_M)
 	material.set_shader_parameter("side_detail", 1.0)
+
+
+## `base` compiled with `define` (a mobile build, see MOBILE_BELT_DEFINE). Safe to call again on a
+## shader that already has it, also on the SHAFT_HOLE variant StageEnvironment builds from it.
+static func _mobile_variant(base: Shader, define: String) -> Shader:
+	if base == null or base.code.contains(define):
+		return base
+	var key := "%s|%d" % [define, base.get_instance_id()]
+	if _mobile_shader_variants.has(key):
+		return _mobile_shader_variants[key] as Shader
+	var variant := Shader.new()
+	variant.code = base.code.replace("shader_type spatial;", "shader_type spatial;\n" + define)
+	_mobile_shader_variants[key] = variant
+	return variant
+
+
+## The steel shader of the side frames and rails (mobile: without the relief normals).
+static func _steel_shader() -> Shader:
+	if QualityRules.is_mobile_target():
+		return _mobile_variant(STEEL_SHADER, MOBILE_STEEL_DEFINE)
+	return STEEL_SHADER
 
 
 ## Normal map strength of the belt cover: off on low (two texture reads instead of three).
@@ -105,7 +138,7 @@ static func side_frame(quality: String) -> Material:
 ## Head and web of the running rails: galvanised steel with a polished running band on top.
 static func rail_head(quality: String) -> Material:
 	var material := ShaderMaterial.new()
-	material.shader = STEEL_SHADER
+	material.shader = _steel_shader()
 	material.set_shader_parameter("albedo_tex", GALV_ALBEDO)
 	material.set_shader_parameter("orm_tex", GALV_ORM)
 	material.set_shader_parameter("finish_color", RAIL_HEAD_COLOR)
@@ -155,7 +188,7 @@ static func current_quality() -> String:
 
 static func _painted_steel(color: Color, quality: String) -> ShaderMaterial:
 	var material := ShaderMaterial.new()
-	material.shader = STEEL_SHADER
+	material.shader = _steel_shader()
 	material.set_shader_parameter("albedo_tex", STEEL_ALBEDO)
 	material.set_shader_parameter("orm_tex", STEEL_ORM)
 	material.set_shader_parameter("finish_color", color)

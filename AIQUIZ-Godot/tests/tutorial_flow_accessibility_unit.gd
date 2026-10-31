@@ -1,10 +1,9 @@
 extends SceneTree
 
-## 刷新したチュートリアル（V7）のコース・入力・判定・引き継ぎの契約。
+## 刷新したチュートリアル（V6）のコース・入力・判定・引き継ぎの契約。
 ## コースは本編（3ハート、2択／4択の壁、ローカル2Pののこぎり・先着の得点・スコアタワー）に合わせ、
 ## 操作のステップでは各タスクの "slots" をもとに 3D 空間へ操作キーを浮かべる。
-## V7 では説明の段落をなくし、章・1行のミッション・体験後のルール表示・章クリアのバナーで進める。
-## コース選択とキー配置の画面は tutorial_course_selector_unit.gd、ゲーム状態での判定は
+## 開始前の全画面キーボード説明は tutorial_keyboard_intro_unit.gd、ゲーム状態での判定は
 ## tutorial_rules_bootstrap.gd、実ゲームでの通し確認は tutorial_renewal_bootstrap.gd が担当する。
 ## ./Godot_v4.7.2-stable_win64_console.exe --headless --path . --script res://tests/tutorial_flow_accessibility_unit.gd
 
@@ -37,15 +36,10 @@ func _initialize() -> void:
 	_test_hp_flags(solo, ["guided_wall", "hp_lesson", "free_wall", "boss_wall"], ["free_wall", "boss_wall"])
 	_test_hp_flags(duo, ["duo_guided_wall", "duo_hp", "duo_free_wall", "duo_boss_wall", "duo_goal"], ["duo_free_wall", "duo_boss_wall"])
 	_test_saw_lesson(duo)
-	_test_v7_copy(solo)
-	_test_v7_copy(duo)
-	_test_v7_tempo(solo)
-	_test_v7_tempo(duo)
-	_test_v7_toasts_and_misses(solo)
-	for file: String in ["tutorial_coach_bar", "solo_tutorial_overlay", "duo_tutorial_overlay", "gameplay_hud", "tutorial_course_selector", "tutorial_completion_card", "tutorial_glyph", "tutorial_key_chip", "tutorial_ui_style"]:
+	for file: String in ["tutorial_coach_bar", "solo_tutorial_overlay", "duo_tutorial_overlay", "gameplay_hud", "tutorial_course_selector", "tutorial_completion_card"]:
 		var source: Script = load("res://scripts/ui/" + file + ".gd")
 		_check(source != null and source.can_instantiate(), "UI script loads: " + file)
-	for file: String in ["tutorial_keycap_3d", "tutorial_key_guides_3d", "solo_tutorial_guides", "duo_tutorial_guides", "ghost_shark_ride_controller"]:
+	for file: String in ["keycap_3d", "key_guides_3d", "solo_tutorial_guides", "duo_tutorial_guides", "ghost_shark_ride_controller"]:
 		var world_script: Script = load("res://scripts/world/" + file + ".gd")
 		_check(world_script != null and world_script.can_instantiate(), "World script loads: " + file)
 	print("TUTORIAL_FLOW " + JSON.stringify({"checks": checks, "failures": failures, "passed": failures.is_empty()}))
@@ -209,13 +203,13 @@ func _task_ids(tasks: Array) -> Array:
 func _test_quiz_items(flow: RefCounted) -> void:
 	flow.start()
 	var quizzes: Array = flow.build_quiz_items()
-	_check(quizzes.size() == flow.target_quiz_count() and quizzes.size() == 4, "%s builds four walls" % flow.course)
+	_check(quizzes.size() == flow.target_quiz_count() and quizzes.size() == 5, "%s builds five walls" % flow.course)
 	for i: int in quizzes.size():
 		var quiz: QuizItem = quizzes[i]
 		_check(quiz.a >= 0 and quiz.a < quiz.c.size(), "%s quiz %d has a valid answer" % [flow.course, i])
 		_check(flow.choice_count_for_quiz(i) == quiz.c.size(), "%s quiz %d door count matches choices" % [flow.course, i])
-		_check(flow.is_boss_quiz(i) == (i == 3), "%s boss wall is the last wall only" % flow.course)
-	_check((quizzes[3] as QuizItem).c.size() == 4, "%s boss wall offers A-D" % flow.course)
+		_check(flow.is_boss_quiz(i) == (i == 4), "%s boss wall is the last wall only" % flow.course)
+	_check((quizzes[4] as QuizItem).c.size() == 4, "%s boss wall offers A-D" % flow.course)
 	while not flow.is_quiz_step():
 		flow.advance_step()
 	_check(flow.presentation_locked and flow.presentation_id() == "wall_reveal", "First wall keeps its reveal")
@@ -227,9 +221,10 @@ func _test_quiz_items(flow: RefCounted) -> void:
 	_check(flow.target_door() == 1 - (quizzes[1] as QuizItem).a, "Heart lesson steers toward the wrong door")
 	flow.advance_step()
 	_check(flow.punishes_mistakes() and flow.uses_hp_rules() and flow.guided_answer() == -1, "Free practice uses real heart rules")
-	_check(flow.quiz_index() == 2 and flow.on_quiz_cleared(), "Free practice is a single real-rules question")
+	_check(flow.quiz_index() == 2 and not flow.on_quiz_cleared() and flow.quiz_index() == 3, "Free practice advances through both questions")
+	_check(flow.on_quiz_cleared(), "Last free quiz completes step")
 	flow.advance_step()
-	_check(flow.quiz_index() == 3 and flow.uses_hp_rules(), "Boss wall closes the quiz lessons")
+	_check(flow.quiz_index() == 4 and flow.uses_hp_rules(), "Boss wall closes the quiz lessons")
 
 
 func _test_hp_flags(flow: RefCounted, hp_steps: Array, rule_steps: Array) -> void:
@@ -254,12 +249,9 @@ func _test_saw_lesson(flow: RefCounted) -> void:
 	_seek(flow, "duo_saw")
 	_check(flow.is_saw_lesson() and bool(flow.get_overlay_model().get("ordered_tasks", false)), "Saw lesson is ordered")
 	_open_gate(flow)
-	_check(str(flow.get_overlay_model().get("mission", "")) == "少し下がってみよう", "Saw mission starts with backing off")
 	_check(not flow.update_saw_lesson(0.0, 0.0, 0.1), "Standing still does not finish the saw lesson")
 	flow.update_saw_lesson(0.3, 0.1, 0.1)
 	_check(flow.is_task_done(1, "saw_approach") and not flow.is_task_done(2, "saw_approach"), "Each player must reach the warning")
-	flow.update_saw_lesson(0.3, 0.3, 0.1)
-	_check(str(flow.get_overlay_model().get("mission", "")) == "前進で逃げよう", "Saw mission switches once both saw the warning")
 	flow.update_saw_lesson(0.0, 0.3, 0.1)
 	_check(not flow.is_task_done(1, "saw_escape"), "Escape needs a short hold outside the warning")
 	flow.update_saw_lesson(0.0, 0.0, 0.4)
@@ -269,84 +261,6 @@ func _test_saw_lesson(flow: RefCounted) -> void:
 	for i: int in range(4):
 		finished = finished or flow.update_saw_lesson(0.0, 0.0, 0.2)
 	_check(finished, "Saw lesson completes after the hold")
-
-
-# ---------- V7: 章・ミッション・ルール表示 ----------
-
-## 説明の段落を持たず、遊ぶステップは章と12字以内のミッションを持つ。ルール表示は短く保つ。
-func _test_v7_copy(flow: RefCounted) -> void:
-	flow.start()
-	var seen_chapters: Array[String] = []
-	var last_chapter := ""
-	for i: int in flow.step_count():
-		var step: Dictionary = flow.current_step()
-		var id := str(step.get("id", ""))
-		var model: Dictionary = flow.get_overlay_model()
-		_check(not step.has("body"), "%s has no explanation paragraph" % id)
-		var mission := str(model.get("mission", ""))
-		_check(not mission.is_empty() and mission.length() <= 12, "%s mission is one short line (%s)" % [id, mission])
-		for alt: Variant in (step.get("mission_by_task", {}) as Dictionary).values():
-			_check(str(alt).length() <= 12, "%s ordered mission stays short (%s)" % [id, str(alt)])
-		var chapter := str(step.get("chapter", ""))
-		var playable := id not in ["stage_complete", "duo_complete", "customize_tour"]
-		_check(playable == not chapter.is_empty(), "%s chapter assignment (%s)" % [id, chapter])
-		_check(not str(model.get("icon", "")).is_empty(), "%s has a mission icon" % id)
-		if not chapter.is_empty() and chapter != last_chapter:
-			_check(chapter not in seen_chapters, "%s chapters stay contiguous (%s)" % [flow.course, chapter])
-			seen_chapters.append(chapter)
-		if not chapter.is_empty():
-			last_chapter = chapter
-		var toast: Dictionary = step.get("toast", {})
-		if not toast.is_empty():
-			_check(str(toast.get("title", "")).length() <= 10, "%s toast title fits (%s)" % [id, str(toast.get("title", ""))])
-			_check(str(toast.get("sub", "")).length() <= 16, "%s toast note fits (%s)" % [id, str(toast.get("sub", ""))])
-			_check(str(toast.get("on", "")) in ["enter", "done"], "%s toast has a trigger" % id)
-		flow.advance_step()
-	var chapter_ids: Array[String] = []
-	for chapter: Dictionary in flow.chapter_defs():
-		chapter_ids.append(str(chapter.get("id", "")))
-	_check(seen_chapters == chapter_ids, "%s chapters appear in order (%s)" % [flow.course, str(seen_chapters)])
-
-
-## 同じ章の中では中立入力待ちで世界を止めない。章が変わるときはバナーを出す。
-func _test_v7_tempo(flow: RefCounted) -> void:
-	flow.start()
-	_check(flow.awaiting_neutral_input, "%s first lesson still waits for neutral input after the countdown" % flow.course)
-	flow.advance_step()
-	_check(not flow.awaiting_neutral_input, "%s next lesson in the same chapter starts at once" % flow.course)
-	_check((flow.get_overlay_model().get("banner", {}) as Dictionary).is_empty(), "%s no banner inside a chapter" % flow.course)
-	flow.advance_step()
-	flow.advance_step()
-	var banner: Dictionary = flow.get_overlay_model().get("banner", {})
-	_check(str(banner.get("label", "")) == "操作" and str(banner.get("next_label", "")) == "キケン", "%s finishing the controls shows its CLEAR banner" % flow.course)
-	_check(flow.awaiting_neutral_input, "%s a new chapter waits for neutral input again" % flow.course)
-	var chapters: Array = flow.get_overlay_model().get("chapters", [])
-	_check(chapters.size() == flow.chapter_defs().size() and int(chapters[0].get("done_steps", 0)) == 3, "%s chapter progress counts finished steps" % flow.course)
-	var banner_serial := int(banner.get("serial", 0))
-	while not flow.is_final_step():
-		var before: String = flow.chapter_id()
-		flow.advance_step()
-		if flow.chapter_id().is_empty() and not before.is_empty():
-			var after: Dictionary = flow.get_overlay_model().get("banner", {})
-			_check(int(after.get("serial", 0)) == banner_serial or str(after.get("label", "")) != before, "%s the clear screen gets no chapter banner" % flow.course)
-		banner_serial = int((flow.get_overlay_model().get("banner", {}) as Dictionary).get("serial", 0))
-
-
-## ルール表示は体験したときに1回だけ。ミスしたときのヒントはすぐ消える。
-func _test_v7_toasts_and_misses(flow: RefCounted) -> void:
-	_seek(flow, "ocean_lesson")
-	_check((flow.get_overlay_model().get("toasts", []) as Array).is_empty(), "Ocean rule waits until the player falls in")
-	flow.complete_task(1, "ocean")
-	var toasts: Array = flow.get_overlay_model().get("toasts", [])
-	_check(toasts.size() == 1 and str(toasts[0].get("title", "")) == "海は即アウト", "Falling in shows the ocean rule")
-	flow.restart_current_step()
-	flow.complete_task(1, "ocean")
-	_check((flow.get_overlay_model().get("toasts", []) as Array).size() == 1, "The same rule is shown only once per course")
-	_check(not flow.has_method("chapter_results") and not flow.has_method("note_miss"), "No medal or miss grading is kept")
-	flow.set_hint("海に注意！ やり直し")
-	_check(str(flow.get_overlay_model().get("hint", "")) == "海に注意！ やり直し", "Hints replace the mission line")
-	flow.tick(3.3)
-	_check(str(flow.get_overlay_model().get("hint", "")).is_empty(), "Hints clear themselves quickly")
 
 
 func _check(condition: bool, label: String) -> void:

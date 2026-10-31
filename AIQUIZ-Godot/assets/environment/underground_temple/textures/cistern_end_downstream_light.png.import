@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://dvyhdamrr3608"
 path.bptc="res://.godot/imported/cistern_end_downstream_light.png-fce80ff53950ab342e77bb3953846791.bptc.ctex"
+path.astc="res://.godot/imported/cistern_end_downstream_light.png-fce80ff53950ab342e77bb3953846791.astc.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/environment/underground_temple/textures/cistern_end_downstream_light.png"
-dest_files=["res://.godot/imported/cistern_end_downstream_light.png-fce80ff53950ab342e77bb3953846791.bptc.ctex"]
+dest_files=["res://.godot/imported/cistern_end_downstream_light.png-fce80ff53950ab342e77bb3953846791.bptc.ctex", "res://.godot/imported/cistern_end_downstream_light.png-fce80ff53950ab342e77bb3953846791.astc.ctex"]
 
 [params]
 

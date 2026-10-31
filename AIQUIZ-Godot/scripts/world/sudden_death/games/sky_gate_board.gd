@@ -53,10 +53,10 @@ const ROTOR_SPEED := 30.0
 ## 光る枠の帯（外のふちからの距離と幅、m）。2 人が同じパネルなら P1 が外、P2 が内
 const HIGHLIGHT_INSET := 0.04
 const HIGHLIGHT_WIDTH := 0.34
-## これより遠いと描かない（m）：小さい部品と文字
+## これより遠いと描かない（m）：小さい部品と文字。文字は列の引きの画（G4_Column）で 4 枚目まで読めるよう遠くまで（2026-10-25：260 → 420 m）
 const SMALL_PART_RANGE := 110.0
 const CABLE_RANGE := 170.0
-const LABEL_RANGE := 260.0
+const LABEL_RANGE := 420.0
 
 static var _font: FontFile = null
 

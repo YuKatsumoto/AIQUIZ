@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://h1a8tn678wq8"
 path.bptc="res://.godot/imported/floor_orm.png-f8f8b5a8c707b8cecc5e4e0f2665286e.bptc.ctex"
+path.astc="res://.godot/imported/floor_orm.png-f8f8b5a8c707b8cecc5e4e0f2665286e.astc.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/environment/underground_temple/textures/floor_orm.png"
-dest_files=["res://.godot/imported/floor_orm.png-f8f8b5a8c707b8cecc5e4e0f2665286e.bptc.ctex"]
+dest_files=["res://.godot/imported/floor_orm.png-f8f8b5a8c707b8cecc5e4e0f2665286e.bptc.ctex", "res://.godot/imported/floor_orm.png-f8f8b5a8c707b8cecc5e4e0f2665286e.astc.ctex"]
 
 [params]
 

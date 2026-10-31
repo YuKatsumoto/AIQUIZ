@@ -6,7 +6,8 @@ extends SubViewport
 ## 小さな別の世界でくり返し見せる。HUD（SkyGateHud）は get_texture() をカードの絵として描く。
 ##   "steer"  ：動いて正しい答えのパネルの上へ（見下ろし。真下のパネルが自分の色で光る）
 ##   "burst"  ：正解のパネルは紙を破って抜ける（見下ろしのまま。ボードは体の上を通りすぎながら消える）
-##   "bounce" ：まちがいのパネルは破れず、力が抜けて（ラグドール）はね返されて爆散する（その人の寄りの画。本戦の G6_Death と同じ）
+##   "bounce" ：まちがいのパネルは破れず、力が抜けて（ラグドール）はね返されて爆散する（カードの小さな絵なので、その人の寄りの画。
+##             本戦は 2026-10-25 から画を切り替えず、見下ろしのまま強いスローで見せる）
 ## カードが出ている間だけ描いて時計を進める（set_playing）。
 
 const LOOP := {"steer": 3.8, "burst": 2.7, "bounce": 2.9}
@@ -15,9 +16,12 @@ const QUESTION := "7 × 8 = ?"
 const CHOICES := ["54", "56", "63", "64"]
 const RIGHT_PANEL := 1
 const WRONG_PANEL := 2
-## 時間切れまでの近づき（秒）と、そのはじめの深さ（m）。
+## 紙に当たるまでの近づき（秒）と、そのはじめの深さ（m）。
 const APPROACH := 0.9
 const APPROACH_FROM := 9.0
+## はね返される場面の寄りの画：体から見た目の位置（外へ・上へ・うしろへ m）と画角（もとの本戦の G6_Death の値）。
+const BOUNCE_EYE := Vector3(2.2, 2.0, -4.4)
+const BOUNCE_FOV := 50.0
 ## 見下ろしの場面：ボードの深さ（m）・人形が動く道すじ（ボードの座標）。
 const STEER_DEPTH := 4.5
 const STEER_FROM := Vector2(-3.6, -3.1)
@@ -200,9 +204,9 @@ func _pose_steer(_sd: float) -> void:
 	_camera.global_transform = Transform3D(Basis.looking_at(forward, Vector3.UP), aim - forward * 23.0)
 
 
-## 本戦と同じ：ボードが下から寄って時間切れ（APPROACH 秒）に届き、SkyGateImpact のとおりに動く。
+## 本戦と同じ：ボードが下から寄って APPROACH 秒で届き、SkyGateImpact のとおりに動く。
 ##   正解：見下ろしのまま、紙を破って抜け、ボードは体の上を通りすぎながら消える。
-##   まちがい：その人の寄りの画（本戦の G6_Death と同じ向き）で、力が抜けて（ラグドール）はね返されて爆散。
+##   まちがい：その人の寄りの画（外の側の少しうしろの上から）で、力が抜けて（ラグドール）はね返されて爆散。
 func _pose_impact(_sd: float, burst: bool) -> void:
 	var t := _time
 	var it := t - APPROACH
@@ -213,7 +217,7 @@ func _pose_impact(_sd: float, burst: bool) -> void:
 	var body_y := 0.0
 	if it < 0.0:
 		var u := clampf(t / APPROACH, 0.0, 1.0)
-		# 近づき：はじめ速く、届く前にスローへ入る（本戦の _approach と同じ形）
+		# 近づき：はじめ速く、届く前にスローへ入る（カードの短い絵の中で届くように）
 		board_y = -lerpf(APPROACH_FROM, SkyGateImpact.CONTACT, 1.0 - pow(1.0 - u, 2.2))
 	else:
 		board_y = SkyGateImpact.board_height(mode, it)
@@ -264,11 +268,11 @@ func _pose_impact(_sd: float, burst: bool) -> void:
 		_camera.fov = 46.0
 		_camera.global_transform = Transform3D(Basis.looking_at(forward, Vector3.UP), aim - forward * 15.0)
 	else:
-		# 寄りの画（本戦の G6_Death と同じ：外の側の少しうしろの上から、体を追う）
+		# 寄りの画（外の側の少しうしろの上から、体を追う）
 		var out := 1.0 if player == 1 else -1.0
-		var off := SkyGatePresenter.DEATH_OFFSET
+		var off := BOUNCE_EYE
 		var eye := Vector3(off.x * out, off.y + body_y * 0.45, off.z)
-		_camera.fov = SkyGatePresenter.DEATH_FOV
+		_camera.fov = BOUNCE_FOV
 		_camera.global_transform = Transform3D(Basis.looking_at(Vector3(0.0, body_y + 0.35, 0.0) - eye, Vector3.UP), eye)
 
 

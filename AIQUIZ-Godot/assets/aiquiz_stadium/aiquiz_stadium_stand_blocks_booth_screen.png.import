@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://cp6w2iccindkd"
 path.bptc="res://.godot/imported/aiquiz_stadium_stand_blocks_booth_screen.png-ca2526f6c603c473d6b67d2da40eb148.bptc.ctex"
+path.astc="res://.godot/imported/aiquiz_stadium_stand_blocks_booth_screen.png-ca2526f6c603c473d6b67d2da40eb148.astc.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/aiquiz_stadium/aiquiz_stadium_stand_blocks_booth_screen.png"
-dest_files=["res://.godot/imported/aiquiz_stadium_stand_blocks_booth_screen.png-ca2526f6c603c473d6b67d2da40eb148.bptc.ctex"]
+dest_files=["res://.godot/imported/aiquiz_stadium_stand_blocks_booth_screen.png-ca2526f6c603c473d6b67d2da40eb148.bptc.ctex", "res://.godot/imported/aiquiz_stadium_stand_blocks_booth_screen.png-ca2526f6c603c473d6b67d2da40eb148.astc.ctex"]
 
 [params]
 

@@ -47,7 +47,6 @@ var _steps_by_frame: Dictionary = {}         # PV フレーム → [step, ...]
 var _done: Array = []
 var _real_skin_hash := ""
 var _saved_relay := ""
-var _saved_tutorial_version := 0
 var _saved_skin_path := ""
 var _saved_skin_suspended := false
 var _start_hat_applied := false
@@ -82,7 +81,6 @@ func _setup() -> void:
 	_real_skin_hash = FileAccess.get_sha256(PlayerSkinStore.DEFAULT_PATH) if FileAccess.file_exists(PlayerSkinStore.DEFAULT_PATH) else "absent"
 	_saved_relay = NetworkManager.relay_url
 	NetworkManager.relay_url = DEAD_RELAY
-	_saved_tutorial_version = GameManager.tutorial_prompt_seen_version
 	_saved_skin_path = PlayerSkinStore.path
 	_saved_skin_suspended = PlayerSkinStore.suspended
 	PlayerSkinStore.path = "user://pv_capture_player_skins.json"
@@ -237,7 +235,6 @@ func _check() -> void:
 func _cleanup() -> void:
 	# 保留中の保存タイマーが、戻したあとの本当のファイルへ書かないように、先に捨てる
 	PlayerSkinStore.reset_memory()
-	GameManager.tutorial_prompt_seen_version = _saved_tutorial_version
 	PlayerSkinStore.path = _saved_skin_path
 	PlayerSkinStore.suspended = _saved_skin_suspended
 	NetworkManager.relay_url = _saved_relay

@@ -46,6 +46,8 @@ extends RefCounted
 ##     receive_course_reflections().
 
 const GRADE_SHADER: Shader = preload("res://shaders/ground_grade.gdshader")
+## Loaded (never preloaded) by _is_mobile_target().
+const GRAPHICS_QUALITY_PATH := "res://scripts/core/graphics_quality.gd"
 
 const LOW := "low"
 const BALANCED := "balanced"
@@ -279,9 +281,18 @@ static func _wants_vignette(quality: String, gameplay: bool) -> bool:
 	return gameplay and _normalize(quality) != LOW
 
 
-## The probe is for high and ultra, and only while PROBE_ENABLED.
+## The probe is for high and ultra, and only while PROBE_ENABLED. Never on mobile: its
+## capture renders the whole course six times, and the Mobile renderer gives each mesh only
+## a few probe slots; the sky reflection stands in.
 static func _wants_probe(quality: String) -> bool:
-	return _rank(quality) >= _rank(HIGH) and bool(_tune(&"probe", PROBE_ENABLED))
+	return _rank(quality) >= _rank(HIGH) and bool(_tune(&"probe", PROBE_ENABLED)) and not _is_mobile_target()
+
+
+## GraphicsQuality.is_mobile_target(), loaded on call: this script must not preload
+## graphics_quality.gd (see the header).
+static func _is_mobile_target() -> bool:
+	var rules := load(GRAPHICS_QUALITY_PATH) as GDScript
+	return rules != null and bool(rules.call(&"is_mobile_target"))
 
 
 ## The tuned values the node needs (the inner class cannot call this script's statics).

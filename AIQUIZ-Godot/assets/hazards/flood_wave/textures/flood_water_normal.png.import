@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://desu4hsly1b67"
 path.s3tc="res://.godot/imported/flood_water_normal.png-34a97de53490b367ea3632010aad9fad.s3tc.ctex"
+path.etc2="res://.godot/imported/flood_water_normal.png-34a97de53490b367ea3632010aad9fad.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/hazards/flood_wave/textures/flood_water_normal.png"
-dest_files=["res://.godot/imported/flood_water_normal.png-34a97de53490b367ea3632010aad9fad.s3tc.ctex"]
+dest_files=["res://.godot/imported/flood_water_normal.png-34a97de53490b367ea3632010aad9fad.s3tc.ctex", "res://.godot/imported/flood_water_normal.png-34a97de53490b367ea3632010aad9fad.etc2.ctex"]
 
 [params]
 

@@ -18,6 +18,8 @@ extends Node3D
 ## The GraphicsQuality autoload instance can be a stale placeholder in an open
 ## editor; its rules are static, so call them through the script.
 const GraphicsQualityRules := preload("res://scripts/core/graphics_quality.gd")
+## LightColumn on mobile: the same cone without the depth-texture floor fade.
+const MOBILE_COLUMN_SHADER := preload("res://shaders/mobile/cistern_column_mobile.gdshader")
 const GRADE_LUT_PATH := "res://scenes/sudden_death/tank_generated/textures/grade_lut.res"
 
 const FLOOR_Y := SuddenDeathLayout.FLOOR_Y
@@ -49,6 +51,9 @@ const DECAL_FADE := Vector2(90.0, 20.0)
 ## 体積フォグの解像度（全体の設定。6.7節：標準は低解像度、最高画質は高解像度）。
 ## 1フレームに撮り直す反射プローブの数（1個で舞台を6面描く。8個を一度に撮ると約20ms重くなる）。
 const PROBES_PER_FRAME := 2
+## モバイルで残す反射プローブの数（舞台の原点＝2 人の近くから）。Mobile レンダラーは 1 メッシュに
+## 割り当てるプローブの数に上限があり、撮り直しも 1 個ごとに 6 面を描くため。
+const MOBILE_MAX_PROBES := 2
 const FOG_VOLUME_SIZE := {"balanced": Vector2i(48, 48), "high": Vector2i(64, 64), "ultra": Vector2i(96, 96)}
 
 # Runtime: the two lift towers, the water and the key lights on the towers.
@@ -149,6 +154,10 @@ func _ready() -> void:
 	if _light_column != null and _light_column.material_override is ShaderMaterial:
 		# Own copy: the scene's material is shared through the resource cache.
 		_column_material = (_light_column.material_override as ShaderMaterial).duplicate()
+		if GraphicsQualityRules.is_mobile_target():
+			_column_material.shader = MOBILE_COLUMN_SHADER
+			# The cone's foot (its lowest point, on the floor), for the depth-free floor fade.
+			_column_material.set_shader_parameter(&"column_foot_y", _light_column.get_aabb().position.y)
 		_light_column.material_override = _column_material
 	_collect_collision(self)
 	_apply_opening()
@@ -327,7 +336,10 @@ static func material_key(material: Material, mesh: Mesh, surface: int) -> String
 
 ## Quality-dependent parts of the decorations: decal reach, dust amount, fog-only halos.
 func _apply_quality_to(part: Node) -> void:
-	var fade := DECAL_FADE_LOW if _quality == GraphicsQualityRules.LOW else DECAL_FADE
+	# Mobile treats the hall like low: decals only up close (the renderer caps decals per mesh)
+	# and no dynamic lamp light on the hall layer (the baked light carries it).
+	var light_hall := _quality != GraphicsQualityRules.LOW and not GraphicsQualityRules.is_mobile_target()
+	var fade := DECAL_FADE if light_hall else DECAL_FADE_LOW
 	for node: Node in part.find_children("*", "Decal", true, false):
 		(node as Decal).distance_fade_begin = fade.x
 		(node as Decal).distance_fade_length = fade.y
@@ -335,13 +347,14 @@ func _apply_quality_to(part: Node) -> void:
 		var amount := GraphicsQualityRules.particle_amount(DUST_AMOUNT, _quality)
 		if (node as GPUParticles3D).amount != amount:
 			(node as GPUParticles3D).amount = amount
+		GraphicsQualityRules.mark_particles_scaled(node)
 	# The lamps' highlights on the hall (its light()) are the costliest per-pixel work: off on low.
 	if part.name == LIGHTS_PART:
 		for node: Node in part.find_children("*", "Light3D", true, false):
 			var light := node as Light3D
 			if light.light_cull_mask == 0:
 				continue
-			if _quality == GraphicsQualityRules.LOW:
+			if not light_hall:
 				light.light_cull_mask &= ~HALL_LAYER_MASK
 			else:
 				light.light_cull_mask |= HALL_LAYER_MASK
@@ -378,6 +391,18 @@ func _collect_probes(root: Node) -> void:
 	_probes.clear()
 	for node: Node in root.find_children("*", "ReflectionProbe", true, false):
 		_probes.append(node as ReflectionProbe)
+	if GraphicsQualityRules.is_mobile_target() and _probes.size() > MOBILE_MAX_PROBES:
+		_probes.sort_custom(func(a: ReflectionProbe, b: ReflectionProbe) -> bool:
+			return _probe_distance(a) < _probe_distance(b))
+		for index in range(MOBILE_MAX_PROBES, _probes.size()):
+			_probes[index].visible = false
+		_probes.resize(MOBILE_MAX_PROBES)
+
+
+## How far a probe's centre lies from the stage origin (where the two players stand), along the hall.
+func _probe_distance(probe: ReflectionProbe) -> float:
+	var local := to_local(probe.global_position) if probe.is_inside_tree() and is_inside_tree() else probe.position
+	return absf(local.z)
 
 
 func _find_gate(root: Node) -> void:

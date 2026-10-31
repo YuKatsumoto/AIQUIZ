@@ -4,6 +4,7 @@ extends CanvasLayer
 ## Resource I/O runs on the loader thread; scene mutations stay on the main thread.
 ## 2D lettering and the progress bar paint before the 3D flair is constructed.
 ## The live Label is the source of truth; do not snapshot it into a SubViewport.
+const MobileMenu = preload("res://scripts/ui/mobile/mobile_menu.gd")
 const MENU_PATH := "res://ui/main_menu.tscn"
 const PROGRESS_HEIGHT := 8.0
 var _cover: ColorRect
@@ -27,7 +28,27 @@ func _ready() -> void:
 	_started_usec = Time.get_ticks_usec()
 	_last_frame_usec = _started_usec
 	_build_screen()
+	# Phones: keep LOADING off the camera cutout / rounded corners (desktop insets stay 0).
+	_apply_safe_area()
+	MobileMenu.connect_safe_area(_apply_safe_area)
 	_run.call_deferred()
+
+func _exit_tree() -> void:
+	MobileMenu.disconnect_safe_area(_apply_safe_area)
+
+func _apply_safe_area() -> void:
+	if _holder == null or _progress == null:
+		return
+	var left := MobileMenu.safe_inset(&"left")
+	var bottom := MobileMenu.safe_inset(&"bottom")
+	_holder.offset_left = SceneTransition.LOADING_REST_LEFT + left
+	_holder.offset_right = _holder.offset_left + SceneTransition.LOADING_HOLDER_SIZE.x
+	_holder.offset_top = -SceneTransition.LOADING_BOTTOM - SceneTransition.LOADING_HOLDER_SIZE.y - bottom
+	_holder.offset_bottom = -SceneTransition.LOADING_BOTTOM - bottom
+	_progress.offset_left = SceneTransition.LOADING_REST_LEFT + left
+	_progress.offset_right = _progress.offset_left + 220.0
+	_progress.offset_top = -SceneTransition.LOADING_BOTTOM + 4.0 - bottom
+	_progress.offset_bottom = _progress.offset_top + PROGRESS_HEIGHT
 
 func _build_screen() -> void:
 	_cover = ColorRect.new()
@@ -124,7 +145,8 @@ func _draw_frame() -> void:
 	await get_tree().process_frame
 
 func _load_resource(path: String) -> Resource:
-	var error := ResourceLoader.load_threaded_request(path)
+	# Phones: the menu's dependency tree loads on all cores (the default is one loader thread).
+	var error := ResourceLoader.load_threaded_request(path, "", GraphicsQuality.is_mobile_target())
 	if error != OK:
 		_fail("素材を読み込めませんでした", path)
 		return null
@@ -142,6 +164,27 @@ func _load_resource(path: String) -> Resource:
 			return null
 		await get_tree().process_frame
 	return null
+
+## Requests every path at once and waits for all of them: on a phone the one-at-a-time
+## loop kept a single core busy for ~30 s while the others idled.
+func _load_resources_together(paths: Array[String]) -> void:
+	for path: String in paths:
+		if ResourceLoader.load_threaded_request(path) != OK:
+			_fail("素材を読み込めませんでした", path)
+			return
+	var pending: Array[String] = paths.duplicate()
+	while not pending.is_empty():
+		for path: String in pending.duplicate():
+			var status := ResourceLoader.load_threaded_get_status(path)
+			if status == ResourceLoader.THREAD_LOAD_LOADED:
+				GameManager.startup_resources.append(ResourceLoader.load_threaded_get(path))
+				_retained_paths.append(path)
+				pending.erase(path)
+			elif status == ResourceLoader.THREAD_LOAD_FAILED or status == ResourceLoader.THREAD_LOAD_INVALID_RESOURCE:
+				_fail("素材を読み込めませんでした", path)
+				return
+		await _set_stage("キャラクターを準備しています", 20.0 + 35.0 * (paths.size() - pending.size()) / paths.size())
+
 
 func _fail(message: String, detail: String) -> void:
 	_failed = true
@@ -182,11 +225,14 @@ func _run() -> void:
 		"res://assets/characters/aiquiz_mascot/mascot_model.glb",
 		"res://scripts/world/startup_visual_warmup.gd",
 	])
-	for index: int in range(paths.size()):
-		await _set_stage("キャラクターを準備しています", 20.0 + 35.0 * index / paths.size())
-		await _load_resource(paths[index])
-		if _failed:
-			return
+	if GraphicsQuality.is_mobile_target():
+		await _load_resources_together(paths)
+	else:
+		for index: int in range(paths.size()):
+			await _set_stage("キャラクターを準備しています", 20.0 + 35.0 * index / paths.size())
+			await _load_resource(paths[index])
+	if _failed:
+		return
 	await _set_stage("演出を準備しています", 60)
 	var warmup: Node = load("res://scripts/world/startup_visual_warmup.gd").new()
 	add_child(warmup)

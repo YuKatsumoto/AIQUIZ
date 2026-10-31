@@ -14,7 +14,6 @@
 | `bgm_online` | オンライン対戦画面（ヘリポートのトップ・ともだちコード・スキン設定・乗り込み〜検索中の飛行） | ループ | 素材は2〜3分 | 自由 | 自由 |
 | `bgm_intro` | ヘリ降下・問題生成待ち・開始待ち・空撮 | ループ | 素材は1〜2分 | 120 | F |
 | `sting_countdown` | カウントダウン「5・4・3・2・1」→壁が割れる | 単発 | 約6.5秒 | 120 | F→B♭ |
-| `bgm_tutorial` | チュートリアル | ループ | 素材は2分 | 104 | F |
 | `bgm_play` | 本編（1P10問・協力・オンライン・1Pエンドレス） | ループ | 素材は2〜3分 | 150 | B♭ |
 | `bgm_chase` | のこぎり追跡（ローカル2Pの10問・エンドレス） | ループ | 素材は2分 | 168 | Gm |
 | `bgm_goal` | ゴールまでの競争 | ループ | 素材は1〜2分 | 176 | B♭ |
@@ -36,11 +35,10 @@
 
 ## 時間の基準（コードから）
 
-- **空撮**：3.8秒（`game_state.gd:2013`）。チュートリアルでは省略。
+- **空撮**：3.8秒（`game_state.gd:2013`）。
 - **カウントダウン**：4.99秒（`QuizGameState.COUNTDOWN_SECONDS`、2026年10月11日に3.99秒から変更）。
   - 表示は `ceil(countdown_timer)` で「5・4・3・2・1」を約1秒ずつ（`game_world.gd`）。0秒で壁が割れて PLAYING になる。
   - 進むにつれて壁の揺れと蒸気が強くなる。
-  - チュートリアルは3.0秒から始まるので「3・2・1」だけ。`sting_countdown` を2.0秒の位置から再生すれば合う。
   - 数字が変わるたびに電子音「ぷっ」、壁が割れる瞬間に「ぷーん」が鳴る（OtoLogic の素材、`docs/sound_effects.md`）。`sting_countdown` を作る場合はこの電子音と重なる。
 - **スコアタワーの演出**（`assets/result_finale/finale_motion.json`。両者がゴールした時点を0秒とする）
 
@@ -180,7 +178,6 @@ Simple looping background music for a cheerful kids' 3D quiz party game, like a 
 |---|---|
 | `bgm_menu` | テーマ曲そのものを使う（Coverしない）。元気すぎると感じたときだけ、次でCoverする：`Main menu theme, 92 BPM, C major, 4/4. Relaxed, friendly and catchy, like a calm title screen: the melody over a bouncy two-beat bass and a light, steady beat. Medium-low energy.` |
 | `bgm_intro` | `Pre-game waiting loop, 120 BPM, C major, 4/4. Light anticipation, like a game show just before the first round: the melody played lightly over a repeating bass riff and ticking hi-hat, so it can loop while the game loads. Medium energy, no climax.` |
-| `bgm_tutorial` | `Tutorial loop, 104 BPM, C major, 4/4. Friendly and encouraging, very sparse: the melody played softly with long rests over a simple bass and drum groove, so on-screen instructions stay easy to read. Low energy.` |
 | `bgm_play` | `Main gameplay loop, 150 BPM, C major, 4/4, straight eighth notes. Upbeat and bouncy: the melody as a catchy lead, a busy walking bass, and a driving but light beat. Fun, never tense. Medium-high energy that stays even.` |
 | `bgm_chase` | `Chase loop, 168 BPM, C minor, 4/4: a minor-key version of the same melody. Comedic hurry, like a cartoon chase in an old arcade game: fast pulsing bass and a busy beat. Urgent but funny, never scary. High energy that stays even.` |
 | `bgm_goal` | `Final sprint loop, 176 BPM, C major, fast 2/4 galop feel. A cheerful dash to the finish line: the melody played quick and bouncy, oom-pah bass on every beat, snappy drums. Exciting and silly, but the same small band, not an orchestra. High energy that stays even.` |
@@ -709,14 +706,6 @@ Pre-game anticipation loop, 120 BPM, F major, 4/4. "Something big is about to st
 Short countdown sting, exactly 120 BPM, 4/4, about 5.5 seconds total. Four big orchestral hits exactly one second apart, each louder and higher than the last, over a rising snare roll and brass crescendo. Then a huge "GO!" brass-and-cymbal hit on a B-flat major chord at exactly 4.0 seconds, followed by a short 1.5-second ring-out. No melody, no vocals.
 ```
 
-### `bgm_tutorial` — チュートリアル
-
-狙い：説明を読む邪魔をしない。チュートリアルの演出中はBGMを−6dB下げる既存処理（`set_tutorial_ducked`）があるので、密度は低めにする。
-
-```
-Tutorial practice loop, 104 BPM, F major, 4/4. Friendly, light and encouraging, like a playful training drill at a school sports day. Pizzicato strings, bouncy clarinet and bassoon melody, glockenspiel accents, soft marching snare, gentle tuba. Low density and rhythm-driven so on-screen instructions stay easy to read; sparse, simple melody. Even energy, no build-ups, no ending.
-```
-
 ### `bgm_play` — 本編（クイズの壁を突破する）
 
 ```
@@ -853,8 +842,8 @@ Game-over screen loop, 92 BPM, D minor, 4/4. Droll, slapstick "better luck next 
 | startup_loading / main_menu / customize | `bgm_menu` |
 | online_menu（オンライン対戦画面。VSカットインからゲーム画面へ移るまで） | `bgm_online` |
 | game_world に入ってヘリ降下、PRELOADING / WAITING_START / FLYOVER | `bgm_intro` |
-| COUNTDOWN | `sting_countdown`（チュートリアルは1.0秒の位置から） |
-| PLAYING / CORRECT | のこぎり追跡中は `bgm_chase`、チュートリアルは `bgm_tutorial`、それ以外は `bgm_play` |
+| COUNTDOWN | `sting_countdown` |
+| PLAYING / CORRECT | のこぎり追跡中は `bgm_chase`、それ以外は `bgm_play` |
 | GOAL_RACE | `bgm_goal` |
 | RESULT_CEREMONY | 2.0秒に `ceremony_build` → 6.3秒にカット → 6.9秒に `sting_verdict` → 11.2秒に `bgm_result` |
 | CLEAR | `jingle_clear` → `bgm_result` |
@@ -894,6 +883,6 @@ Game-over screen loop, 92 BPM, D minor, 4/4. Droll, slapstick "better luck next 
 
 - `AudioManager.set_music_track()` が曲ごとのプレイヤーを持ち（`MUSIC_TRACK_NONE` は曲を止めたままにする）、前の曲を0.35秒でフェードアウトして止め、新しい曲を頭から0.35秒でフェードインする。同じ曲を指定したときは何もしない（流し続ける）。
 - 曲は `game_world.gd` の `_on_state_changed()` で選ぶ。ゲーム画面を出るとき（`_exit_tree()`）はメニュー曲に戻す。
-- 場面ごとの音量（`set_music_context()`）とチュートリアル中の音量下げは、今流れている曲にかかる。
+- 場面ごとの音量（`set_music_context()`）は、今流れている曲にかかる。
 - 実際の流れで切り替わることを `tests/bgm_track_runtime.gd`（`--script res://tests/bgm_track_bootstrap.gd`）で確かめた。
 - **画面切り替えのフェード**（2026年10月12日から）：黒い画面の切り替え演出が画面を覆う割合（`SceneTransition.get_cover_factor()`）に合わせて、BGMバスと観客の声のバス（`Ambience`、SFXバスへ送る）の音量を下げる（`AudioManager._process()`）。覆うにつれてフェードアウトし、真っ黒の間（読み込み中）は無音、新しい画面が開くにつれてフェードインする。カーブは等パワー（半分覆うと約−3 dB）。どの切り替え方（ハーフトーンのワイプ、フェード、ドア、VSの分割）でも同じように動く。曲の切り替え（`set_music_track()`）は黒い間に起きるので、新しい曲は画面が開くのに合わせて聞こえ始める。

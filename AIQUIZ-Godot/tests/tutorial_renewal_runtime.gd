@@ -1,10 +1,9 @@
 extends Node
 
-## 刷新したチュートリアル（V7）を実ゲームで最初から最後まで遊ぶ受け入れ確認。
-## 実キー入力（Input.parse_input_event）だけで進め、各ステップの画面と3Dキー・ミッションバーの状態を残す。
-## 所要時間（カウントダウン明けからカスタマイズ紹介へ移るまで）も測って報告に入れる。
+## 刷新したチュートリアルを実ゲームで最初から最後まで遊ぶ受け入れ確認。
+## 実キー入力（Input.parse_input_event）だけで進め、各ステップの画面と3Dキーの状態を残す。
 ## プレイヤーの設定ファイルには書き込まない（保存先をテスト用に差し替え、元のハッシュを確認する）。
-const OUT := "res://artifacts/tutorial_v7/"
+const OUT := "res://artifacts/tutorial_v6/"
 const SOLO := "SOLO"
 const DUO := "LOCAL_2P"
 const TEST_SETTINGS := "user://tutorial_renewal_test_settings.json"
@@ -20,19 +19,10 @@ var steps_seen: Array[String] = []
 var key_log: Dictionary = {}
 var _settings_hash := ""
 var _finished := false
-var _play_started_ms := 0
-var _course_seconds := -1.0
-## カウントダウン明けからのゲーム内の経過時間（--fixed-fps 60 では 1/60 秒ずつ進む）。
-var _game_seconds := 0.0
 
 
 func _ready() -> void:
 	call_deferred("run")
-
-
-func _process(delta: float) -> void:
-	if _play_started_ms > 0 and _course_seconds < 0.0:
-		_game_seconds += delta
 
 
 func run() -> void:
@@ -67,8 +57,6 @@ func _run_solo() -> void:
 		return
 	await _wait(0.7)
 	await _shot("01_move_lane")
-	_expect_bar("4方向に動こう", "操作", false, "move_lane")
-	_check(_bar().get("keys", []).size() == 4, "move_lane bar shows the four movement keys only")
 	_expect_layout("P1", "cluster", "move_lane")
 	_expect_key("P1", "left", "A", "target", "move_lane")
 	_expect_key("P1", "right", "D", "target", "move_lane")
@@ -95,10 +83,8 @@ func _run_solo() -> void:
 
 	if not await _wait_step("jump_lesson"):
 		return
-	_check(not gs.tutorial_flow.awaiting_neutral_input, "jump follows the movement step without stopping")
 	await _wait(0.6)
 	await _shot("04_jump_lesson")
-	_expect_bar("ジャンプしよう", "操作", false, "jump_lesson")
 	_expect_key("P1", "jump", "Space", "target", "jump_lesson")
 	_check(not _keys().get("P1", {}).get("keys", {}).has("left"), "jump step shows only the jump key")
 	await _tap(KEY_SPACE, 0.15)
@@ -122,28 +108,19 @@ func _run_solo() -> void:
 
 	if not await _wait_step("ocean_lesson"):
 		return
-	await _wait(0.2)
-	_check(bool(_bar().get("banner_visible", false)) and str(_bar().get("banner_label", "")) == "操作", "finishing the controls shows the CLEAR banner")
-	await _shot("06a_chapter_banner")
 	await _wait(0.6)
 	_expect_layout("P1", "sides", "ocean_lesson")
-	_expect_bar("海に飛び込もう", "キケン", false, "ocean_lesson")
 	await _shot("06_ocean")
 	var edge_key: Key = KEY_A if gs.player_x >= 0.0 else KEY_D
 	_key(edge_key, true)
 	await _wait_until(func() -> bool: return gs.p1_fall_committed or gs.p1_waiting_for_shark or not gs.p1_alive, 5.0)
 	_key(edge_key, false)
-	var ocean_toast := await _wait_until(func() -> bool: return str(_bar().get("toast_title", "")) == "海は即アウト" and bool(_bar().get("toast_visible", false)), 8.0)
-	_check(ocean_toast, "falling in shows the ocean rule right away")
-	await _wait(0.3)
-	await _shot("06b_ocean_toast")
 
 	if not await _wait_step("guided_wall", 30.0):
 		return
 	await _wait(0.5)
 	_check(_hud_hearts_visible(), "hearts appear from the quiz lessons on")
 	_expect_layout("P1", "sides", "guided_wall")
-	_expect_bar("光るドアをくぐろう", "", true, "guided_wall")
 	await _shot("07_guided_wall")
 	await _steer(1, gs.tuning.left_door_x)
 	await _wait(0.3)
@@ -156,18 +133,17 @@ func _run_solo() -> void:
 	_check(gs.tutorial_flow.target_door() == 1, "heart lesson targets the wrong door")
 	await _shot("09_hp_lesson")
 	await _steer(1, gs.tuning.right_door_x)
-	var heart_toast := await _wait_until(func() -> bool: return str(_bar().get("toast_title", "")) == "ハート −1" and bool(_bar().get("toast_visible", false)), 20.0)
-	_check(heart_toast, "the heart rule appears right after entering the wrong door")
-	await _wait(0.2)
-	await _shot("09b_heart_toast")
 
 	if not await _wait_step("free_wall", 25.0):
 		return
 	_check(gs.p1_hp == 2, "heart lesson costs exactly one heart (got %d)" % gs.p1_hp)
 	await _wait(0.4)
 	await _shot("10_free_wall")
-	# 本番の1問（6×3=18、右）はわざと左の16へ入り、本番と同じくハートが減って走り続けるのを確かめる。
-	await _steer(1, gs.tuning.left_door_x)
+	# 1問目（6×3=18、右）は正解、2問目（20-8=12、左）はわざと右のまま外してハートが減るのを確かめる。
+	await _steer(1, gs.tuning.right_door_x)
+	var first_wall := gs.current_wall_index
+	await _wait_until(func() -> bool: return gs.current_wall_index > first_wall, 20.0)
+	_check(gs.p1_hp == 2, "correct free answer keeps hearts")
 
 	if not await _wait_step("boss_wall", 25.0):
 		return
@@ -183,12 +159,6 @@ func _run_solo() -> void:
 		return
 	await _wait(1.2)
 	await _shot("13_stage_complete")
-	_expect_clear_card("SoloStageCompletionCard", 2)
-	# クリア画面は1秒見せた後なら Enter で待たずに次へ進める。
-	await _tap(KEY_ENTER, 0.05)
-	var skipped := await _wait_until(func() -> bool: return gs.has_pending_solo_customize_tour(), 1.5)
-	_check(skipped, "Enter on the clear screen moves on to the customize tour")
-	_course_seconds = _game_seconds
 	await _wait_until(func() -> bool: return gs.has_pending_solo_customize_tour(), 8.0)
 	_check(gs.has_pending_solo_customize_tour(), "solo course hands off to the customize tour")
 	await _wait(3.0)
@@ -202,9 +172,6 @@ func _run_duo() -> void:
 		return
 	await _wait(0.7)
 	await _shot("01_duo_move")
-	_expect_bar("4方向に動こう", "操作", false, "duo_move")
-	_check(_bar().get("keys", []).size() == 8, "duo_move bar shows both players' four keys")
-	_check((_bar().get("bar_rect", Rect2()) as Rect2).position.y < 120.0, "2P mission bar sits at the top while learning controls")
 	_expect_layout("P1", "cluster", "duo_move")
 	_expect_layout("P2", "cluster", "duo_move")
 	_expect_key("P1", "left", "A", "target", "duo_move")
@@ -243,10 +210,8 @@ func _run_duo() -> void:
 	_expect_key("P1", "jump", "Space", "target", "P1 jumps with Space")
 	_check(_clusters_apart(), "P1 and P2 key clusters never overlap on screen (jump)")
 	await _shot("04_duo_jump")
-	# 左Ctrlでは P2 のジャンプにならない。押したその場で右のCtrlを教える。
+	# 左Ctrlでは P2 のジャンプにならない。
 	await _tap_left_ctrl(0.15)
-	_check(str(_bar().get("mission", "")) == "P2は右のCtrlを使おう", "left Ctrl shows a one-line hint (%s)" % str(_bar().get("mission", "")))
-	await _shot("04b_left_ctrl_hint")
 	await _tap(KEY_SPACE, 0.15)
 	await _wait(0.3)
 	_check(gs.get_tutorial_step_id() == "duo_jump" and not gs.tutorial_flow.is_task_done(2, "jump"), "left Ctrl does not count as the P2 jump")
@@ -264,7 +229,6 @@ func _run_duo() -> void:
 	await _wait(0.8)
 	_check(gs.get_tutorial_step_id() == "duo_emote", "one emote each does not finish the 2P emote step")
 	_expect_key("P2", "emote_1", "8", "done", "P2 emote 8 turns done")
-	_check(_bar_key_look("P1:emote_1") == TutorialKeyChip.Look.DONE and _bar_key_look("P2:emote_1") == TutorialKeyChip.Look.DONE, "bar keys turn green with the 3D keys")
 	await _shot("05b_duo_emote_one_done")
 	await _tap(KEY_2, 0.25)
 	await _tap(KEY_3, 0.25)
@@ -333,7 +297,7 @@ func _run_duo() -> void:
 	if not await _wait_step("duo_free_wall", 25.0):
 		return
 	_check(gs.p1_hp == 2 and gs.p2_hp == 2, "both players lose one heart in the lesson (P1 %d / P2 %d)" % [gs.p1_hp, gs.p2_hp])
-	# 本番の1問（5×7=35、右）: P2は右のまま正解、P1は左へ外れて不正解。
+	# 1問目（5×7=35、右）: P2は正解、P1は左へ外れて不正解。2問目（30-12=18、左）: P1正解、P2不正解。
 	await _steer(1, 4.2)
 	await _wait(0.3)
 	await _shot("13_duo_free")
@@ -343,7 +307,7 @@ func _run_duo() -> void:
 
 	if not await _wait_step("duo_boss_wall", 25.0):
 		return
-	_check(gs.p1_hp == 1 and gs.p2_hp == 2, "free practice applies hearts per player (P1 %d / P2 %d)" % [gs.p1_hp, gs.p2_hp])
+	_check(gs.p1_hp == 1 and gs.p2_hp == 1, "free practice applies hearts per player (P1 %d / P2 %d)" % [gs.p1_hp, gs.p2_hp])
 	await _wait(0.3)
 	_check(gs.num_choices == 4, "2P boss wall has four doors")
 	await _shot("14_duo_boss")
@@ -410,9 +374,7 @@ func _run_duo() -> void:
 	_check(not bool(snapshot.get("actions_visible", true)), "the tutorial never shows the result buttons")
 	await _wait(1.4)
 	await _shot("21_duo_complete")
-	_expect_clear_card("DuoStageCompletionCard", 1)
 	await _wait_until(func() -> bool: return gs.has_pending_solo_customize_tour(), 8.0)
-	_course_seconds = _game_seconds
 	_check(gs.has_pending_solo_customize_tour(), "duo course hands off to the customize tour")
 	await _wait(3.0)
 	await _shot("22_customize_tour")
@@ -471,7 +433,6 @@ func _enter_world() -> bool:
 	_key(KEY_ENTER, false)
 	var playing := await _wait_until(func() -> bool: return gs.game_state == Constants.STATE_PLAYING, 20.0)
 	_check(playing, "countdown reaches the first lesson")
-	_play_started_ms = Time.get_ticks_msec()
 	return playing
 
 
@@ -633,41 +594,6 @@ func _keys_on_screen(player: String) -> bool:
 	return found
 
 
-## ミッションバー（V7）の見え方。
-func _bar() -> Dictionary:
-	if world == null or not is_instance_valid(world):
-		return {}
-	var overlay := world.get_node_or_null("GameplayHUD/" + ("DuoTutorialOverlay" if course == DUO else "SoloTutorialOverlay"))
-	return overlay.call("get_debug_snapshot") if overlay != null else {}
-
-
-func _expect_bar(mission: String, chapter: String, compact: bool, label: String) -> void:
-	var bar := _bar()
-	_check(bool(bar.get("visible", false)), "%s: mission bar is visible" % label)
-	_check(str(bar.get("mission", "")) == mission, "%s: mission reads %s (got %s)" % [label, mission, str(bar.get("mission", ""))])
-	if not chapter.is_empty():
-		_check(str(bar.get("chapter", "")) == chapter, "%s: chapter reads %s (got %s)" % [label, chapter, str(bar.get("chapter", ""))])
-	_check(bool(bar.get("compact", false)) == compact, "%s: bar is %s" % [label, "a compact pill" if compact else "full width"])
-
-
-func _bar_key_look(id: String) -> int:
-	for key: Dictionary in _bar().get("keys", []):
-		if str(key.get("id", "")) == id:
-			return int(key.get("look", -1))
-	return -1
-
-
-func _expect_clear_card(card_name: String, stats: int) -> void:
-	var card := world.get_node_or_null("GameplayHUD/" + card_name)
-	_check(card != null, "%s is shown" % card_name)
-	if card == null:
-		return
-	var snapshot: Dictionary = card.call("get_debug_snapshot")
-	_check(str(snapshot.get("title", "")) == "TUTORIAL CLEAR", "clear screen title")
-	_check(not snapshot.has("medals"), "clear screen has no medals")
-	_check(int(snapshot.get("stats", 0)) == stats, "clear screen shows %d stats (got %s)" % [stats, str(snapshot.get("stats", 0))])
-
-
 func _hud_hearts_visible() -> bool:
 	var health := world.get_node_or_null("GameplayHUD/PlayerHealthHUD") as Control
 	return health != null and health.is_visible_in_tree()
@@ -700,7 +626,6 @@ func _finish() -> void:
 		"failures": failures,
 		"passed": failures.is_empty(),
 		"steps_seen": steps_seen,
-		"course_seconds": snappedf(_course_seconds, 0.1),
 		"shots": shots,
 		"keys": _stringify_keys(key_log),
 	}
@@ -708,7 +633,7 @@ func _finish() -> void:
 	if file != null:
 		file.store_string(JSON.stringify(report, "\t"))
 		file.close()
-	print("TUTORIAL_RENEWAL_RUNTIME " + JSON.stringify({"course": course, "checks": checks.size(), "failures": failures, "passed": failures.is_empty(), "course_seconds": snappedf(_course_seconds, 0.1)}))
+	print("TUTORIAL_RENEWAL_RUNTIME " + JSON.stringify({"course": course, "checks": checks.size(), "failures": failures, "passed": failures.is_empty()}))
 	get_tree().quit(0 if failures.is_empty() else 1)
 
 

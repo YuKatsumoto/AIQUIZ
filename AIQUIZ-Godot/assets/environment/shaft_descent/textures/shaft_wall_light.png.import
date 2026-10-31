@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://ddxhiax5xey31"
 path.s3tc="res://.godot/imported/shaft_wall_light.png-915eb296699dfd4410ade5cf7ae67b9e.s3tc.ctex"
+path.etc2="res://.godot/imported/shaft_wall_light.png-915eb296699dfd4410ade5cf7ae67b9e.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/environment/shaft_descent/textures/shaft_wall_light.png"
-dest_files=["res://.godot/imported/shaft_wall_light.png-915eb296699dfd4410ade5cf7ae67b9e.s3tc.ctex"]
+dest_files=["res://.godot/imported/shaft_wall_light.png-915eb296699dfd4410ade5cf7ae67b9e.s3tc.ctex", "res://.godot/imported/shaft_wall_light.png-915eb296699dfd4410ade5cf7ae67b9e.etc2.ctex"]
 
 [params]
 

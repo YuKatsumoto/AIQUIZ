@@ -12,7 +12,7 @@ extends Node
 ## MatchHistory with its clips in
 ## HighlightStore: every moment of the match, up to MAX_CLIPS (the highest priority
 ## ones when there are more), which the menu replays in match order. GameWorld
-## creates one per match (not for replays or the tutorial) and forwards state changes.
+## creates one per match (not for replays) and forwards state changes.
 ## A match left through the pause menu is not recorded.
 
 const MAX_CLIPS := 16

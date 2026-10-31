@@ -67,7 +67,9 @@ const SFX_ROOT := "res://assets/audio/sfx/"
 ## A BaseButton may set this meta to the cue it plays instead of ui_click (see UI_CUES).
 const UI_SOUND_META := &"ui_sound_cue"
 ## Cues that use the dedicated UI voices, so UI sounds never steal gameplay voices.
-const UI_CUES: Array[StringName] = [&"ui_click", &"ui_start"]
+## The practice's bubble pop, task tick and clear stamp are UI feedback that also plays over the menus
+## (where the in-world effects are muted).
+const UI_CUES: Array[StringName] = [&"ui_click", &"ui_start", &"practice_pop", &"practice_tick", &"practice_stamp"]
 const SFX_CUES := {
 	# UI sounds come from the user-supplied 効果音ラボ files in se_lab/ (not in git; a missing file
 	# stays silent). ui_click: カーソル移動1 on every button. ui_start: 決定ボタンを押す53 on the
@@ -93,6 +95,16 @@ const SFX_CUES := {
 	&"jump_land": {"files": ["se_lab/jump_land.ogg"], "volume_db": -5.0, "pitch_jitter": 0.06, "min_interval": 0.05},
 	&"countdown_beep": {"files": ["game/countdown_beep.ogg"], "volume_db": -10.0, "pitch_jitter": 0.0, "min_interval": 0.3},
 	&"countdown_go": {"files": ["game/countdown_go.ogg"], "volume_db": -10.0, "pitch_jitter": 0.0, "min_interval": 0.5},
+	# The practice (tutorial, docs/new_tutorial/phase9_design.md 2章), synthesized for this game (tools/audio/make_practice_sfx.py):
+	# Hatena's speech bubble, a task's check mark, the clear card's stamp, the rewind after a miss, the 1-2 fence bounce,
+	# the sign wall flying back up and the 2-1 high five.
+	&"practice_pop": {"files": ["practice/practice_pop.ogg"], "volume_db": -12.0, "pitch_jitter": 0.04, "min_interval": 0.05},
+	&"practice_tick": {"files": ["practice/practice_tick.ogg"], "volume_db": -11.0, "pitch_jitter": 0.0, "min_interval": 0.05},
+	&"practice_stamp": {"files": ["practice/practice_stamp.ogg"], "volume_db": -6.0, "pitch_jitter": 0.0, "min_interval": 0.3},
+	&"practice_rewind": {"files": ["practice/practice_rewind.ogg"], "volume_db": -7.0, "pitch_jitter": 0.0, "min_interval": 0.3},
+	&"practice_fence": {"files": ["practice/practice_fence.ogg"], "volume_db": -16.0, "pitch_jitter": 0.05, "min_interval": 0.2},
+	&"practice_sign_fly": {"files": ["practice/practice_sign_fly.ogg"], "volume_db": -10.0, "pitch_jitter": 0.03, "min_interval": 0.3},
+	&"practice_high_five": {"files": ["practice/practice_high_five.ogg"], "volume_db": 0.0, "pitch_jitter": 0.04, "min_interval": 0.1},
 	# 2P score tower, from the user-supplied 効果音ラボ files in se_lab/ (not in git): a drum roll
 	# over the whole tally and climb (2.0-6.3 s, 4.3 s long), then the closing hit at the verdict (6.9 s).
 	&"score_drum_roll": {"files": ["se_lab/score_roll.ogg"], "volume_db": -5.0, "pitch_jitter": 0.0, "min_interval": 1.0},
@@ -132,6 +144,11 @@ const SFX_CUES := {
 	&"ghost_revive_gather": {"files": ["ghost_shark/ghost_revive_gather.ogg"], "volume_db": -8.0, "pitch_jitter": 0.0, "min_interval": 0.1},
 	&"ghost_revive_snap": {"files": ["ghost_shark/ghost_revive_snap.ogg"], "volume_db": -9.0, "pitch_jitter": 0.0, "min_interval": 0.0},
 	&"ghost_revive_burst": {"files": ["ghost_shark/ghost_revive_burst.ogg"], "volume_db": -5.0, "pitch_jitter": 0.0, "min_interval": 0.1},
+	# 両者脱落の投げ縄（EliminationLassoDirector、docs/elimination_lasso.md）。tools/audio/make_lasso_sfx.py で合成：
+	# 頭上で回す 1 周ごとのヒュン（回すほど速く・高く鳴らす）、投げて縄が手から出ていく音、2 人に巻きついて締まる音。
+	&"lasso_whirl": {"files": ["lasso/lasso_whirl.ogg"], "volume_db": -7.0, "pitch_jitter": 0.02, "min_interval": 0.08},
+	&"lasso_throw": {"files": ["lasso/lasso_throw.ogg"], "volume_db": -5.0, "pitch_jitter": 0.02, "min_interval": 0.2},
+	&"lasso_cinch": {"files": ["lasso/lasso_cinch.ogg"], "volume_db": -4.0, "pitch_jitter": 0.02, "min_interval": 0.1},
 	# サドンデス「つきやぶれ！スカイゲート」（docs/sound_effects.md「サドンデス」）。効果音ラボの素材を
 	# tools/audio/make_sudden_death_sfx.py で切り出した se_lab/ の音（git に入れない。ファイルがなければ鳴らない）。
 	# 分岐：審判の笛（8.4 秒）、「SUDDEN DEATH!」の警報（8.6 秒）、タワーが沈む・伸び直す／昇降台のモーター。
@@ -235,8 +252,8 @@ var bgm_volume: float = BGM_DEFAULT_VOLUME
 var _music_context: StringName = MUSIC_CONTEXT_MENU
 var _context_before_pause: StringName = MUSIC_CONTEXT_MENU
 var _context_tween: Tween = null
-var _tutorial_ducked: bool = false
 var _sfx_voices: Array[AudioStreamPlayer] = []
+var _tutorial_ducked: bool = false
 var _ui_voices: Array[AudioStreamPlayer] = []
 var _sfx_voice_cursor := 0
 var _ui_voice_cursor := 0

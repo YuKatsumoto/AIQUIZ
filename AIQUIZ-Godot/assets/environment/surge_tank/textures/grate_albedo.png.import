@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://chc61noyj0ie"
 path.bptc="res://.godot/imported/grate_albedo.png-aeb51d37d3b37dbf8d632f424718e8a5.bptc.ctex"
+path.astc="res://.godot/imported/grate_albedo.png-aeb51d37d3b37dbf8d632f424718e8a5.astc.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/environment/surge_tank/textures/grate_albedo.png"
-dest_files=["res://.godot/imported/grate_albedo.png-aeb51d37d3b37dbf8d632f424718e8a5.bptc.ctex"]
+dest_files=["res://.godot/imported/grate_albedo.png-aeb51d37d3b37dbf8d632f424718e8a5.bptc.ctex", "res://.godot/imported/grate_albedo.png-aeb51d37d3b37dbf8d632f424718e8a5.astc.ctex"]
 
 [params]
 

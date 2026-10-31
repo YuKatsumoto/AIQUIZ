@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://dmviee5n8ukx7"
 path.s3tc="res://.godot/imported/lecture_set_props_PRP_StudentBook_1_normal.webp-b7ee873d2d160a683c1dc0fb5d8ce339.s3tc.ctex"
+path.etc2="res://.godot/imported/lecture_set_props_PRP_StudentBook_1_normal.webp-b7ee873d2d160a683c1dc0fb5d8ce339.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/settings_hall/lecture_set_props_PRP_StudentBook_1_normal.webp"
-dest_files=["res://.godot/imported/lecture_set_props_PRP_StudentBook_1_normal.webp-b7ee873d2d160a683c1dc0fb5d8ce339.s3tc.ctex"]
+dest_files=["res://.godot/imported/lecture_set_props_PRP_StudentBook_1_normal.webp-b7ee873d2d160a683c1dc0fb5d8ce339.s3tc.ctex", "res://.godot/imported/lecture_set_props_PRP_StudentBook_1_normal.webp-b7ee873d2d160a683c1dc0fb5d8ce339.etc2.ctex"]
 
 [params]
 

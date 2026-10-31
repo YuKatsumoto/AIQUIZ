@@ -40,7 +40,10 @@ func run() -> Dictionary:
 	_camera.environment = environment
 	var light := DirectionalLight3D.new()
 	light.rotation_degrees = Vector3(-45, -30, 0)
-	light.shadow_enabled = true
+	# Compile the pipelines the stage really draws with: mobile matches have no sun shadow
+	# (GraphicsQuality.gameplay_shadow_enabled), so a shadowed sun would only warm variants
+	# that never show, and leave the unshadowed ones to hitch on first use.
+	light.shadow_enabled = not GraphicsQuality.is_mobile_target()
 	_world.add_child(light)
 	await _draw_frames()
 	var state := QuizGameState.new(QuizManager.provider)

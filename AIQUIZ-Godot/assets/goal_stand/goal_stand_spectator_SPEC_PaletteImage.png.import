@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://c81d4pr120m1s"
 path.s3tc="res://.godot/imported/goal_stand_spectator_SPEC_PaletteImage.png-0b2af3ccb7d0abdcc17df17e334c13b8.s3tc.ctex"
+path.etc2="res://.godot/imported/goal_stand_spectator_SPEC_PaletteImage.png-0b2af3ccb7d0abdcc17df17e334c13b8.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/goal_stand/goal_stand_spectator_SPEC_PaletteImage.png"
-dest_files=["res://.godot/imported/goal_stand_spectator_SPEC_PaletteImage.png-0b2af3ccb7d0abdcc17df17e334c13b8.s3tc.ctex"]
+dest_files=["res://.godot/imported/goal_stand_spectator_SPEC_PaletteImage.png-0b2af3ccb7d0abdcc17df17e334c13b8.s3tc.ctex", "res://.godot/imported/goal_stand_spectator_SPEC_PaletteImage.png-0b2af3ccb7d0abdcc17df17e334c13b8.etc2.ctex"]
 
 [params]
 

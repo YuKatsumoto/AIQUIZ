@@ -575,12 +575,16 @@ func _display_wall_clamp(slot: int, x: float, world_z: float) -> float:
 	var committed := gs.p1_fall_committed if slot == 1 else gs.p2_fall_committed
 	if not alive or committed or _display_passed_wall[slot] == gs.current_wall_index:
 		return world_z
-	if world_z < gs.wall_z - 0.4 or gs.is_in_wall_border_lane(x):
+	# 不正解で弾かれた相手は、問題が終わるまで扉の表面で止めて描く（表示のスクロールが先行しても埋めない）。
+	if gs.is_held_by_wall(slot):
+		return minf(world_z, gs.wall_z - QuizGameState.WALL_FACE_CONTACT_DISTANCE)
+	var contact_z := gs.wall_z - gs.wall_contact_distance()
+	if world_z < contact_z or gs.is_in_wall_border_lane(x):
 		return world_z
 	if gs.current_quiz != null and gs._check_player_door(x) == gs.current_quiz.a:
 		_display_passed_wall[slot] = gs.current_wall_index
 		return world_z
-	return gs.wall_z - 0.4
+	return contact_z
 
 
 func _on_snapshot_received(data: Dictionary) -> void:

@@ -460,7 +460,8 @@ func _find_room_props() -> void:
 		_lamp.light_color = Color(1.0, 0.82, 0.58)
 		_lamp.light_energy = 0.0
 		_lamp.omni_range = 3.2
-		_lamp.shadow_enabled = true
+		# モバイルでは影なし（点光源の影はキューブマップ 6 面を毎フレーム描き直す）。
+		_lamp.shadow_enabled = not GraphicsQuality.is_mobile_target()
 		_lamp.visible = false
 		_set.add_child(_lamp)
 
@@ -3427,7 +3428,8 @@ func _tick_cheer_all(teacher) -> bool:
 
 func _confetti(at: Vector3) -> void:
 	var p := CPUParticles3D.new()
-	p.amount = 160
+	# CPU の粒子なので、モバイルでは数を減らす（デスクトップは従来どおり 160）。
+	p.amount = 96 if GraphicsQuality.is_mobile_target() else 160
 	p.lifetime = 4.0
 	p.one_shot = true
 	p.explosiveness = 0.7

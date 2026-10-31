@@ -19,6 +19,9 @@ extends Node3D
 
 const SHAFT_SCENE_PATH := "res://scenes/sudden_death/shaft_descent.tscn"
 const Motion = preload("res://scripts/world/result_finale/result_finale_motion.gd")
+const TouchHud = preload("res://scripts/ui/touch_hud/touch_hud.gd")
+const TapToConfirmOverlay = preload("res://scripts/ui/touch_hud/tap_to_confirm_overlay.gd")
+const Haptics = preload("res://scripts/core/haptics.gd")
 
 enum Act { IDLE, BRANCH, DESCENT, INTRO, RUN, RETURN, ABORT, DONE }
 
@@ -227,6 +230,12 @@ func setup(state: QuizGameState, camera_rig: Node3D, ceremony_director: ResultCe
 	_surface_toggle = surface_toggle
 	name = "SuddenDeathDirector"
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	if TouchHud.is_touch() and get_node_or_null("TouchRulesOverlay") == null:
+		# スマホ：ルールカードは Enter の代わりにタップで閉じる（confirm_rules と同じ口）。
+		var overlay := TapToConfirmOverlay.new()
+		overlay.name = "TouchRulesOverlay"
+		overlay.setup(is_rules_card_waiting, confirm_rules)
+		add_child(overlay)
 
 
 func _notification(what: int) -> void:
@@ -388,6 +397,9 @@ func on_event(event: Dictionary) -> void:
 		"go":
 			_hud_call("set_countdown", [""])
 		"buzz":
+			# 振動はこの画面で操作している人の早押しだけ（オンラインは自分のスロット）。
+			if game_state == null or not game_state.net_online or player == game_state.local_slot:
+				Haptics.pulse(Haptics.TAP)
 			_hud_call("flash", [0.18, 0.18])
 			_hud_callout(("P%d BUZZ!" if english else "P%d 早押し！") % player, P1_COLOR if player == 1 else P2_COLOR, 1.0)
 		"answer":
@@ -403,6 +415,7 @@ func on_event(event: Dictionary) -> void:
 			_hud_callout("P%d OUT!" % player, Color(1.0, 0.35, 0.3), 1.4)
 		"decided":
 			if _act == Act.RUN:
+				Haptics.pulse(Haptics.SUCCESS)
 				_begin_return(int(event.get("winner", 0)))
 
 
@@ -848,6 +861,11 @@ func _update_intro() -> void:
 
 ## Enter on the rule card (GameWorld forwards the key): the card leaves and the countdown starts once the
 ## flood has reached the towers. Returns true when the key was taken.
+## ルールカードが出て、閉じる（confirm_rules）のを待っているか。スマホのタップの層と TouchControls の「OK」が見る。
+func is_rules_card_waiting() -> bool:
+	return _act == Act.INTRO and _rules_shown_at >= 0.0 and not _rules_confirmed
+
+
 func confirm_rules() -> bool:
 	if _act != Act.INTRO or _rules_confirmed or _rules_shown_at < 0.0:
 		return false

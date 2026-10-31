@@ -1,11 +1,12 @@
 extends SceneTree
-## Service-vessel triangles around the stowed davit towers while the vessel raises and transfers the
-## carriage, in the carriage's Blender frame (x across, y forward, z up). Read by the "transport"
-## stage of tools/saw_stow/build_stow.py, which tests them against the real tower meshes.
-const OUT := "res://artifacts/saw_stow/v2/dock/"
-const BOX_ABS_X := Vector2(11.5, 13.1)
-const BOX_ABS_Y := Vector2(0.8, 2.5)
-const BOX_Z := Vector2(-0.3, 2.9)
+## Service-vessel triangles around the folded side gantries while the vessel raises and transfers the
+## carriage (gantries upright) and while they swing down beside the conveyor after the transfer, in the
+## carriage's Blender frame (x across, y forward, z up). Read by the "transport" stage of
+## tools/saw_stow3/build_stow3.py, which tests them against the real gantry meshes.
+const OUT := "res://artifacts/saw_stow/v3/dock/"
+const BOX_ABS_X := Vector2(11.5, 16.6)
+const BOX_ABS_Y := Vector2(0.8, 2.6)
+const BOX_Z := Vector2(-4.0, 5.2)
 
 func _initialize() -> void:
 	call_deferred("run")
@@ -18,6 +19,7 @@ func run() -> void:
 	var times: Array[float] = []
 	for i in range(23, 44, 2): times.append(i / 10.0) # raising 2.3 .. 4.3
 	for i in range(44, 63): times.append(i / 10.0) # transfer 4.4 .. 6.2
+	for i in range(63, 81): times.append(i / 10.0) # gantries fold down 6.3 .. 8.0 (SawChaseController.GANTRY_FOLD_*)
 	var index: Array = []
 	var blob := PackedFloat32Array()
 	for time in times:

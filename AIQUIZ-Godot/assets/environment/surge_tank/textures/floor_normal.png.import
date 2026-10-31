@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://ddpyt4hutxuad"
 path.s3tc="res://.godot/imported/floor_normal.png-b95fcc18f4e230924cc86496b88a8bf7.s3tc.ctex"
+path.etc2="res://.godot/imported/floor_normal.png-b95fcc18f4e230924cc86496b88a8bf7.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/environment/surge_tank/textures/floor_normal.png"
-dest_files=["res://.godot/imported/floor_normal.png-b95fcc18f4e230924cc86496b88a8bf7.s3tc.ctex"]
+dest_files=["res://.godot/imported/floor_normal.png-b95fcc18f4e230924cc86496b88a8bf7.s3tc.ctex", "res://.godot/imported/floor_normal.png-b95fcc18f4e230924cc86496b88a8bf7.etc2.ctex"]
 
 [params]
 

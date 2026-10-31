@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://d07qtacjcqp86"
 path.s3tc="res://.godot/imported/flood_foam.png-fbe2e25533822255c02a5a8217bc6285.s3tc.ctex"
+path.etc2="res://.godot/imported/flood_foam.png-fbe2e25533822255c02a5a8217bc6285.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/hazards/flood_wave/textures/flood_foam.png"
-dest_files=["res://.godot/imported/flood_foam.png-fbe2e25533822255c02a5a8217bc6285.s3tc.ctex"]
+dest_files=["res://.godot/imported/flood_foam.png-fbe2e25533822255c02a5a8217bc6285.s3tc.ctex", "res://.godot/imported/flood_foam.png-fbe2e25533822255c02a5a8217bc6285.etc2.ctex"]
 
 [params]
 

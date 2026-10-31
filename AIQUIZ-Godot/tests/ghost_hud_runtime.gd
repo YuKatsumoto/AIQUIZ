@@ -93,14 +93,18 @@ func run() -> void:
 	await capture("windup")
 	var saw_charge := false
 	var saw_cooldown := false
+	var fill_alphas := {}
 	for i in range(900):
 		await frames(1)
 		saw_charge = saw_charge or ghost.phase == ghost.Phase.CHARGING
 		if ghost.phase == ghost.Phase.COOLDOWN:
 			saw_cooldown = true
+			if meter.value < 99.9:
+				fill_alphas[snappedf((ghost.get("_charge_fill_style") as StyleBoxFlat).bg_color.a, 0.01)] = true
 			if i % 12 == 0: await capture("cooldown", true)
 		if saw_cooldown and ghost.phase == ghost.Phase.AIMING: break
 	check(saw_charge and saw_cooldown, "real shot completes charging and cooldown phases")
+	check(fill_alphas.has(0.96) and fill_alphas.has(0.32), "refilling meter blinks while the shark returns: %s" % str(fill_alphas.keys()))
 	check(ghost.phase == ghost.Phase.AIMING and panel.is_visible_in_tree(), "HUD returns to aiming after shot")
 	# Long combo is a presentation boundary; normal charge values above came from gameplay.
 	ghost.set("_combo", 123)

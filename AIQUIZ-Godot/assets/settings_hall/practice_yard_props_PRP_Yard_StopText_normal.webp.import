@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://cn4mr8r54tguu"
 path.s3tc="res://.godot/imported/practice_yard_props_PRP_Yard_StopText_normal.webp-531866cf03ae6f1c24762a6563e2edfb.s3tc.ctex"
+path.etc2="res://.godot/imported/practice_yard_props_PRP_Yard_StopText_normal.webp-531866cf03ae6f1c24762a6563e2edfb.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/settings_hall/practice_yard_props_PRP_Yard_StopText_normal.webp"
-dest_files=["res://.godot/imported/practice_yard_props_PRP_Yard_StopText_normal.webp-531866cf03ae6f1c24762a6563e2edfb.s3tc.ctex"]
+dest_files=["res://.godot/imported/practice_yard_props_PRP_Yard_StopText_normal.webp-531866cf03ae6f1c24762a6563e2edfb.s3tc.ctex", "res://.godot/imported/practice_yard_props_PRP_Yard_StopText_normal.webp-531866cf03ae6f1c24762a6563e2edfb.etc2.ctex"]
 
 [params]
 

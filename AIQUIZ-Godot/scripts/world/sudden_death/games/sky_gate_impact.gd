@@ -14,6 +14,8 @@ extends RefCounted
 ##   体の上を通りすぎて消える）。1 人ずつなら、はね返った人が爆散してからボードが上へ抜けていく。全員まちがいなら、ボードは
 ##   たわむまで押し上がって止まり、爆散のあと少し沈みながら消える。
 ## 通りすぎたボードは、ゲーム中の問題の壁と同じく、文字を消してからだんだん透明になって消える（fade）。
+## 本編（2026-10-25 から。時間制限の無い列）：t は紙に触れた瞬間からの見せ方の時計の秒。まちがいがいれば wasted_scale の
+## 強いスロー（と色抜け）で、はね返り・爆散を見せる。全員が正解なら through_* の式で、ボードが列の速さのまま上へ抜ける。
 
 const ALL_BURST := 0
 const MIXED := 1
@@ -71,7 +73,8 @@ static func _ease_out(u: float) -> float:
 
 
 ## ボードが上へ抜けていく道のり（m）：start から PASS_UP_RAMP 秒で PASS_UP_SPEED になり、スローの間は遅い（見せ方の時計に合わせる）。
-static func _pass_up(start: float, t: float, mode := -1) -> float:
+## slowed = false（本編）は t がもうスローで遅くなる時計なので、道のりにスローを掛けない。
+static func _pass_up(start: float, t: float, mode := -1, slowed := true) -> float:
 	if t <= start:
 		return 0.0
 	var d := 0.0
@@ -79,7 +82,7 @@ static func _pass_up(start: float, t: float, mode := -1) -> float:
 	while tau < t:
 		var h := minf(_STEP, t - tau)
 		var mid := tau + h * 0.5
-		d += PASS_UP_SPEED * smoothstep(start, start + PASS_UP_RAMP, mid) * time_scale(mid, mode) * h
+		d += PASS_UP_SPEED * smoothstep(start, start + PASS_UP_RAMP, mid) * (time_scale(mid, mode) if slowed else 1.0) * h
 		tau += h
 	return d
 
@@ -90,7 +93,7 @@ static func pass_up_start(mode: int) -> float:
 
 
 ## 正解の人の、紙の面から体の中心までの高さ（m）。
-static func _burst_height(mode: int, t: float) -> float:
+static func _burst_height(mode: int, t: float, slowed := true) -> float:
 	if t <= 0.0:
 		return CONTACT
 	if t < PRESS_END:
@@ -98,7 +101,7 @@ static func _burst_height(mode: int, t: float) -> float:
 	var h := PRESS_DEPTH
 	if mode != ALL_BURST:
 		h -= MIXED_DROP * smoothstep(PRESS_END, EXPLODE_AT, t)
-	return h - _pass_up(pass_up_start(mode), t, mode)
+	return h - _pass_up(pass_up_start(mode), t, mode, slowed)
 
 
 ## まちがいの人の、紙の面から体の中心までの高さ（m）。
@@ -160,15 +163,15 @@ static func tumble(t: float) -> float:
 	return -TUMBLE * smoothstep(STRETCH_END, BOUNCE_END + 0.1, t)
 
 
-## ボードの紙の面の高さ（落ちる点から、m、上が +）。
-static func board_height(mode: int, t: float) -> float:
+## ボードの紙の面の高さ（落ちる点から、m、上が +）。slowed は _pass_up と同じ。
+static func board_height(mode: int, t: float, slowed := true) -> float:
 	if mode == ALL_BOOM:
 		var y := -_boom_height(minf(t, STRETCH_END))
 		var start := fade_start(mode)
 		if t > start:
 			y -= 0.5 * SINK_ACCEL * (t - start) * (t - start)
 		return y
-	return -_burst_height(mode, t)
+	return -_burst_height(mode, t, slowed)
 
 
 ## 体の中心の高さ（落ちる点から、m）。正解の人は落ちる点のまま。はね返された体はお腹が紙を離れたら紙とは別に飛ぶ。
@@ -189,7 +192,7 @@ static func board_alpha(mode: int, t: float) -> float:
 	return 1.0 - smoothstep(start, start + FADE_TIME, t)
 
 
-## 見せ方の時計の速さ（1 = ふつう）。t は時間切れからの秒（負は前）。
+## 見せ方の時計の速さ（1 = ふつう）。t は時間切れからの秒（負は前）。図解ルールカードの実演（SkyGateRuleDemo）が使う。
 ## 全員が正解（ALL_BURST）でくぐるときは減速せず、そのままの速さで突き抜ける（ユーザーの指示）。
 static func time_scale(t: float, mode := -1) -> float:
 	if mode == ALL_BURST:
@@ -199,3 +202,82 @@ static func time_scale(t: float, mode := -1) -> float:
 	if t < 0.0:
 		return lerpf(1.0, SLOW, smoothstep(-SLOW_IN, 0.0, t))
 	return lerpf(SLOW, 1.0, smoothstep(SLOW_OUT.x, SLOW_OUT.y, t))
+
+
+# ------------------------------------------------------------------ 本編：脱落のスロー（2026-10-25）
+
+## 本編の脱落（ユーザーの指示「カメラはそのままで、ぶつかったら GTA のように画面がスローモーションになって爆散」）：
+## まちがいの人がいたら、紙に触れた瞬間に見せ方の時計を WASTED_SLOW まで落とし（WASTED_IN 秒で）、爆散（EXPLODE_AT）のあとも
+## WASTED_HOLD 秒保ってから WASTED_OUT 秒で戻す。この間は画面の色も抜ける（wasted_amount）。全員が正解なら減速しない。
+## 本編ではこの節の式の t を「見せ方の時計（このスローで遅くなる時計）」の秒で読む。上の式の t も同じ時計で読み、
+## ボードが上へ抜ける道のりは slowed = false で数える（スローは時計の側で掛かっている）。
+const WASTED_SLOW := 0.35
+const WASTED_IN := 0.05
+const WASTED_HOLD := 0.25
+const WASTED_OUT := 0.35
+## まちがいがいるとき、ルールが判定を出す見せ方の時計の時刻（スローが戻りきった少しあと）。
+const BOOM_JUDGE_AT := EXPLODE_AT + WASTED_HOLD + WASTED_OUT + 0.05
+## 全員が正解（本編）：ボードは列の速さのまま上へ抜け、お腹が紙をこれだけ押したら破れる（m）。
+const THROUGH_TEAR_PRESS := 0.12
+
+
+## 本編の見せ方の時計の速さ（1 = ふつう）。t は紙に触れた瞬間からの見せ方の時計の秒。
+static func wasted_scale(t: float, mode: int) -> float:
+	if mode == ALL_BURST or t < 0.0:
+		return 1.0
+	if t < WASTED_IN:
+		return lerpf(1.0, WASTED_SLOW, smoothstep(0.0, WASTED_IN, t))
+	var hold_end := EXPLODE_AT + WASTED_HOLD
+	return lerpf(WASTED_SLOW, 1.0, smoothstep(hold_end, hold_end + WASTED_OUT, t))
+
+
+## 画面の色の抜け方（0〜1）：スローの深さに合わせる。
+static func wasted_amount(t: float, mode: int) -> float:
+	return clampf((1.0 - wasted_scale(t, mode)) / (1.0 - WASTED_SLOW), 0.0, 1.0)
+
+
+## 見せ方の時計で scene 秒進むのにかかる実時間（秒）。ルールが判定までの長さを決めるのに使う（同じ刻みで数えるので毎回同じ値）。
+static func wasted_real_time(scene: float, mode: int) -> float:
+	if mode == ALL_BURST:
+		return scene
+	var real := 0.0
+	var tau := 0.0
+	while tau < scene:
+		var h := minf(_STEP, scene - tau)
+		real += h / maxf(wasted_scale(tau + h * 0.5, mode), 0.01)
+		tau += h
+	return real
+
+
+## 実時間 real 秒のあいだに進む見せ方の時計の秒（wasted_real_time の逆）。
+static func wasted_scene_time(real: float, mode: int) -> float:
+	if mode == ALL_BURST:
+		return real
+	var scene := 0.0
+	var left := maxf(real, 0.0)
+	while left > 0.0:
+		var h := minf(_STEP, left)
+		scene += h * wasted_scale(scene + h * 0.5 * wasted_scale(scene, mode), mode)
+		left -= h
+	return scene
+
+
+## 全員が正解（本編）：触れてから紙が破れるまでの秒（列の速さ speed m/秒で紙が上がってくる）。
+static func through_tear_time(speed: float) -> float:
+	return maxf(CONTACT - BELLY + THROUGH_TEAR_PRESS, 0.0) / maxf(speed, 0.5)
+
+
+## 全員が正解（本編）の紙のへこみ（m、下が +）：お腹が紙を押し、破れたらすぐ平らに戻る。
+static func through_dent(t: float, speed: float) -> float:
+	if t <= 0.0:
+		return 0.0
+	var tear := through_tear_time(speed)
+	if t < tear:
+		return maxf(0.0, BELLY - (CONTACT - speed * t))
+	return THROUGH_TEAR_PRESS * exp(-(t - tear) / 0.035)
+
+
+## 全員が正解（本編）の通りすぎたボードの不透明さ（1 → 0）。
+static func through_alpha(t: float, speed: float) -> float:
+	var start := through_tear_time(speed) + FADE_AFTER_TEAR
+	return 1.0 - smoothstep(start, start + FADE_TIME, t)

@@ -46,10 +46,8 @@ Windows / Godot 4.7.2 / Forward+ の実ゲームで、オフライン問題を�
 | 通常2P | メニュー開始、出発ヘリ2機、到着ヘリ2機、待機→飛行→カウントダウン→プレイ→メニュー復帰 | 成功、エラー0。[記録](C:/AIQUIZ/AIQUIZ-Godot/artifacts/santorini_renovation/final_p2_sequence.json) |
 | 2Pリトライ | HUD のリトライ処理、待機→飛行→カウントダウン→プレイ→メニュー復帰 | 成功、エラー0。[記録](C:/AIQUIZ/AIQUIZ-Godot/artifacts/santorini_renovation/final_retry_p2_sequence.json) |
 | エンドレス2P | モードを指定してゲームへ直接進入、待機→飛行→カウントダウン→プレイ→メニュー復帰 | 成功、エラー0。[記録](C:/AIQUIZ/AIQUIZ-Godot/artifacts/santorini_renovation/final_endless_p2_sequence.json) |
-| チュートリアル1P | モードを指定してゲームへ直接進入、待機→カウントダウン→プレイ→メニュー復帰 | 開始確認成功、エラー0。[記録](C:/AIQUIZ/AIQUIZ-Godot/artifacts/santorini_renovation/final_tutorial_p1_sequence.json) |
-| チュートリアル2P | モードを指定してゲームへ直接進入、待機→カウントダウン→プレイ→メニュー復帰 | 開始確認成功、エラー0。[記録](C:/AIQUIZ/AIQUIZ-Godot/artifacts/santorini_renovation/final_tutorial_p2_sequence.json) |
 
-各シーケンスは開始直後の短い検証であり、10問完走、エンドレスの長時間連続プレイ、チュートリアル全課程の完了を証明するものではない。エンドレス・チュートリアルの記録は通常1P／2Pと異なりメニューの出発演出を含まない。チュートリアルでは元の開始経路どおり飛行状態を通らず、専用UIと背景の表示を実画面で確認した。エンドレス2Pでは実際の観客席長934.5m、倍率5.840625で、配置条件と街の見通しを確認した。
+各シーケンスは開始直後の短い検証であり、10問完走、エンドレスの長時間連続プレイの完了を証明するものではない。エンドレスの記録は通常1P／2Pと異なりメニューの出発演出を含まない。エンドレス2Pでは実際の観客席長934.5m、倍率5.840625で、配置条件と街の見通しを確認した。
 
 代表画面は [2Pメニュー](C:/AIQUIZ/AIQUIZ-Godot/artifacts/santorini_renovation/final_p2_menu.png)、[2Pヘリ到着](C:/AIQUIZ/AIQUIZ-Godot/artifacts/santorini_renovation/final_p2_WAITING_START_arrival_1.png)、[1Pプレイ](C:/AIQUIZ/AIQUIZ-Godot/artifacts/santorini_renovation/final_p1_playing_sample_end.png)、[2Pプレイ](C:/AIQUIZ/AIQUIZ-Godot/artifacts/santorini_renovation/final_p2_playing_sample_end.png)。各画像と同名の `_snapshot.json` にカメラ、形状、材質、観客、描画情報を併記している。
 

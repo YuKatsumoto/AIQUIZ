@@ -20,9 +20,14 @@ const FLOOR_Y := StageConstants.FLOOR_TOP_Y
 const EGG_SCALE := 1.6
 ## Without body proxies the egg breaks this far out from the aim point (the spine axis).
 const BODY_RADIUS := 0.22
-## How much the ray that finds where it breaks leans toward the camera, so the
-## splat lands on a side the audience sees.
-const CAMERA_FACING := 0.65
+## How much the ray that finds where it breaks leans toward the camera: all the
+## way, so the egg breaks on the surface the audience sees at the point it lands
+## on screen (eggs are lobbed high and come down onto the target).
+const CAMERA_FACING := 1.0
+## Where on screen a hit may land (fractions of the view): clear of the edges, the
+## result buttons along the bottom and the score panel at the top right.
+const SAFE_SCREEN := Rect2(0.06, 0.12, 0.88, 0.72)
+const SCORE_PANEL := Rect2(0.72, 0.0, 0.28, 0.5)
 ## Share of a body hit's shell pieces that stay stuck in the white.
 const CAPTURE_SHARE := 0.35
 const BURST_TIME := 0.05
@@ -86,6 +91,31 @@ func setup(egg: Mesh, shard: Mesh, shared_material: Material, seed_value: int, q
 	var length := egg_mesh.get_aabb().get_longest_axis_size() * EGG_SCALE if egg_mesh != null else 0.32
 	contents.setup(level, GoalStandEggRheology.scale_for_length(length), seed_value + 1, mobile)
 	contents.support = support
+
+
+## A point on `target`'s surface that `camera` sees, inside SAFE_SCREEN, for an
+## egg to land on (the biggest parts first: torso, head, upper limbs). `fallback`
+## when there is none.
+func visible_aim(target: Node3D, camera: Camera3D, fallback: Vector3) -> Vector3:
+	if contents == null or not is_instance_valid(camera) or not is_instance_valid(target):
+		return fallback
+	var body := contents.body_for(target)
+	if body.is_empty():
+		return fallback
+	var size := camera.get_viewport().get_visible_rect().size
+	var order := body.shapes_by_size()
+	var eye := camera.global_position
+	for _attempt in range(16):
+		var index: int = order[_rng.randi_range(0, mini(order.size(), 6) - 1)]
+		var probe := body.shape_centre(index) + Vector3(_rng.randf_range(-0.18, 0.18), _rng.randf_range(-0.12, 0.18), _rng.randf_range(-0.18, 0.18))
+		# The first surface on the line of sight is the one the camera shows.
+		var hit := body.raycast(eye, probe - eye, eye.distance_to(probe) + 1.0)
+		if hit.is_empty() or camera.is_position_behind(hit.point):
+			continue
+		var screen := camera.unproject_position(hit.point) / size
+		if SAFE_SCREEN.has_point(screen) and not SCORE_PANEL.has_point(screen):
+			return hit.point
+	return fallback
 
 
 ## The quality the eggs run at: mobile builds stop at BALANCED.

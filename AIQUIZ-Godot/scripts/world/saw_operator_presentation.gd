@@ -26,8 +26,9 @@ const IDLE_ORDER := [Idle.LOOK, Idle.DRUM, Idle.STRETCH, Idle.DOZE, Idle.SWING, 
 ## Running routine per 7.2s cycle: gauge check / hunt left / lift check, then dial / groove / none.
 const CHECK_ORDER := [0, 1, 2, 1, 0, 2, 2, 0, 1]
 const EXTRA_ORDER := [0, 1, 2, 0, 2, 1, 1, 0, 2]
-## Menu stow (wall speed tab) on the stow clock p: STOW on the BLADE stick, watch the rack rise,
-## duck while it passes overhead, look back as it parks behind the deck, nod at the lock.
+## Menu stow (wall speed tab) on the stow clock p: STOW on the BLADE stick, watch the gantry rise and
+## lift the bunch, duck while it swings overhead (the sidecar's station_airspace, passed as
+## "stow_station"), look back as it is lowered behind the deck, nod at the lock.
 const STOW_REST_FADE := .6 # p span over which the stowed-rest vignettes fade in and out
 const RACK_UP := Vector3(.3,2.4,2.2)
 const OVERHEAD := Vector3(0.0,2.9,.5)
@@ -217,7 +218,7 @@ static func sample(entry: float, spin: float, drive: float, lift: float, deploye
 	var rpm := blend(0.0,SawChaseState.SPINUP_SECONDS,s) if rpm_override < 0.0 else clampf(rpm_override,0.0,1.0)
 	# Menu stow: p rises while stowing and falls while deploying; the chase clocks are frozen.
 	var stow_p := float(extra.get("stow", 0.0))
-	var stow_len := float(extra.get("stow_length", 12.4167))
+	var stow_len := float(extra.get("stow_length", 6.55))
 	var stow_rate := float(extra.get("stow_rate", 0.0))
 	var stow_idle := float(extra.get("stow_idle", -1.0))
 	var stow_w := blend(0.0,1.0,stow_p) if extra.has("stow") else 0.0
@@ -407,18 +408,22 @@ static func sample(entry: float, spin: float, drive: float, lift: float, deploye
 	if stow_w > 0.0:
 		var p := stow_p
 		var moving := stow_w * (1.0 - stow_rest)
-		# Right hand holds BLADE (the rack command); the left covers the crown under the rack.
+		# The bunch is over the deck between a and b (stow clock); without a sidecar, the v3 timing.
+		var station: Array = extra.get("stow_station", [])
+		var over_a := float(station[0]) if station.size() >= 2 else 4.00
+		var over_b := float(station[1]) if station.size() >= 2 else 5.08
+		# Right hand holds BLADE (the rack command); the left covers the crown under the bunch.
 		layer(hand_r, [{"grip": 1.0}, 0.0], moving)
-		layer(hand_l, path([[7.2,7.7,"cover",.02],[9.2,9.7,"grip",.03]], p), moving)
-		var duck := stow_w*window(7.3,8.1,8.9,9.6,p)
+		layer(hand_l, path([[over_a-.15,over_a+.25,"cover",.02],[over_b-.05,over_b+.35,"grip",.03]], p), moving)
+		var duck := stow_w*window(over_a-.10,over_a+.30,over_b-.30,over_b+.05,p)
 		pitch += .10*duck + .05*stow_w*window(0.0,.5,1.0,1.8,p)
-		head_pitch += .16*duck + .08*stow_w*arc(11.8,12.4,p)
+		head_pitch += .16*duck + .08*stow_w*arc(stow_len-.40,stow_len,p)
 		bob -= .02*duck
-		yaw += .07*stow_w*window(9.3,10.1,11.4,12.1,p)
-		look.rpm = float(look.get("rpm",0.0)) + stow_w*window(0.0,.5,.9,1.9,p)
-		look.rack_up = stow_w*window(1.0,2.0,5.2,6.0,p)
-		look.overhead = stow_w*window(5.5,6.4,7.0,7.8,p)
-		look.behind = stow_w*window(9.3,10.1,11.4,12.1,p)
+		yaw += .07*stow_w*window(over_b,over_b+.40,stow_len-.40,stow_len,p)
+		look.rpm = float(look.get("rpm",0.0)) + stow_w*window(0.0,.3,.6,1.2,p)
+		look.rack_up = stow_w*window(.20,.90,over_a-.80,over_a-.15,p)
+		look.overhead = stow_w*window(over_a-.80,over_a-.15,over_a+.10,over_a+.60,p)
+		look.behind = stow_w*window(over_b-.10,over_b+.50,stow_len-.40,stow_len,p)
 		# Locked and racked: a fist pump before the waiting vignettes take over.
 		if stow_rest > 0.0:
 			layer(hand_l, path([[.1,.4,"pump",.02],[1.0,1.4,"grip",.03]], stow_idle), stow_rest)

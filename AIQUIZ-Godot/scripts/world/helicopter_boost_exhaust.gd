@@ -51,6 +51,8 @@ func _ready() -> void:
 			particles.lifetime = 0.55
 			particles.preprocess = 0.12
 			particles.amount = GraphicsQuality.particle_amount(roundi((160 if particles.name == &"Flame" else 36) * clampf(size, 0.5, 1.0)), GameManager.graphics_quality)
+			# Sized above: keep the mobile scene-particle trim off this scene-instanced emitter.
+			GraphicsQuality.mark_particles_scaled(particles)
 			particles.visibility_aabb = AABB(Vector3(-4.0, -3.0, -4.0) * size, Vector3(8.0, 28.0, 8.0) * size)
 			if particles.name == &"Flame":
 				# Copy only the mesh and its material. A deep copy also clones the noise textures, and a

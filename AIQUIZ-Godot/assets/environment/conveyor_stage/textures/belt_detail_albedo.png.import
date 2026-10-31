@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://bbl76jt1kudci"
 path.bptc="res://.godot/imported/belt_detail_albedo.png-057d3829125ae64f1b9b9c7aa3c04763.bptc.ctex"
+path.astc="res://.godot/imported/belt_detail_albedo.png-057d3829125ae64f1b9b9c7aa3c04763.astc.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/environment/conveyor_stage/textures/belt_detail_albedo.png"
-dest_files=["res://.godot/imported/belt_detail_albedo.png-057d3829125ae64f1b9b9c7aa3c04763.bptc.ctex"]
+dest_files=["res://.godot/imported/belt_detail_albedo.png-057d3829125ae64f1b9b9c7aa3c04763.bptc.ctex", "res://.godot/imported/belt_detail_albedo.png-057d3829125ae64f1b9b9c7aa3c04763.astc.ctex"]
 
 [params]
 

@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://yveu5fjxi5ww"
 path.s3tc="res://.godot/imported/saw_service_vessel_VesselR2_Ivory_Roughness.png-1c2f2fe880febc9a19d302f755f4a0e4.s3tc.ctex"
+path.etc2="res://.godot/imported/saw_service_vessel_VesselR2_Ivory_Roughness.png-1c2f2fe880febc9a19d302f755f4a0e4.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/hazards/saw_service_vessel_VesselR2_Ivory_Roughness.png"
-dest_files=["res://.godot/imported/saw_service_vessel_VesselR2_Ivory_Roughness.png-1c2f2fe880febc9a19d302f755f4a0e4.s3tc.ctex"]
+dest_files=["res://.godot/imported/saw_service_vessel_VesselR2_Ivory_Roughness.png-1c2f2fe880febc9a19d302f755f4a0e4.s3tc.ctex", "res://.godot/imported/saw_service_vessel_VesselR2_Ivory_Roughness.png-1c2f2fe880febc9a19d302f755f4a0e4.etc2.ctex"]
 
 [params]
 

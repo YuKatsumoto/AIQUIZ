@@ -76,22 +76,31 @@ func run() -> void:
 	get_tree().quit(0 if failures.is_empty() else 1)
 
 
-## Each side has three neighbours on one tier holding "OH" "MY" "GOT" from screen
-## left (stand-local -X) to right, present at every quality.
+## Each side has five neighbours on one tier holding the signs, from screen left
+## (stand-local -X) to right: "P1 NICE" / "P2 NICE" for the winner, "OH" "MY" "GOT" on the
+## middle three for the loser. Present at every quality.
 func _check_sign_rows(stand: GoalStand, quality: String) -> void:
 	for team in [1, 2]:
 		var row: Array[GoalStand.Spectator] = []
 		for s: GoalStand.Spectator in stand.spectators:
 			if s.kind == GoalStand.Kind.SIGN and s.team == team:
 				row.append(s)
-		check(row.size() == 3, "%s: P%d has three sign holders" % [quality, team])
-		if row.size() != 3:
+		check(row.size() == GoalStand.SIGN_ROW, "%s: P%d has five sign holders" % [quality, team])
+		if row.size() != GoalStand.SIGN_ROW:
 			continue
 		row.sort_custom(func(a: GoalStand.Spectator, b: GoalStand.Spectator) -> bool: return a.root.position.x < b.root.position.x)
-		check(row.map(func(s: GoalStand.Spectator) -> int: return s.word) == [0, 1, 2], "%s: P%d signs read OH MY GOT" % [quality, team])
-		check(row[0].row == row[2].row and row[2].root.position.x - row[0].root.position.x < GoalStand.SPACING * 2.6,
-			"%s: P%d sign holders stand side by side" % [quality, team])
+		check(row.map(func(s: GoalStand.Spectator) -> int: return s.word) == [0, 1, 2, 3, 4], "%s: P%d signs are numbered left to right" % [quality, team])
+		check(row[0].row == row[4].row and row[4].root.position.x - row[0].root.position.x < GoalStand.SPACING * 1.3 * (GoalStand.SIGN_ROW - 1),
+			"%s: P%d sign holders stand side by side (span %.2f)" % [quality, team, row[4].root.position.x - row[0].root.position.x])
 		check(not row[0].props["GSP_SignBoo"].visible, "%s: word boards stay hidden before the verdict" % quality)
+		# What each holder's board reads for a win, a loss and a draw.
+		var other: int = 3 - team
+		check(GoalStand.verdict_sign_texture(team, 0, team) == GoalStand.NICE_TEAM_SIGNS[team - 1], "%s: P%d's winner row starts with its own P%d" % [quality, team, team])
+		for word in range(1, GoalStand.SIGN_ROW):
+			check(GoalStand.verdict_sign_texture(team, word, team) == GoalStand.NICE_LETTER_SIGNS[word - 1], "%s: P%d winner row letter %d is N I C E" % [quality, team, word])
+		check([1, 2, 3].all(func(word: int) -> bool: return GoalStand.verdict_sign_texture(team, word, other) == GoalStand.WORD_SIGNS[word - 1]), "%s: P%d loser row middle reads OH MY GOT" % [quality, team])
+		check(GoalStand.verdict_sign_texture(team, 0, other) == null and GoalStand.verdict_sign_texture(team, 4, other) == null, "%s: P%d loser row ends keep their boards" % [quality, team])
+		check(GoalStand.verdict_sign_texture(team, 2, 0) == null, "%s: a draw flips nothing" % quality)
 
 
 func _check_scoreboard(stand: GoalStand) -> void:
@@ -122,8 +131,20 @@ func _check_scoreboard(stand: GoalStand) -> void:
 	for s: GoalStand.Spectator in stand.spectators:
 		if s.kind == GoalStand.Kind.SIGN:
 			var word_board := s.props["GSP_SignBoo"] as MeshInstance3D
-			check(s.boo_sign == (s.team == 1) and word_board.visible == (s.team == 1), "only the loser's sign row flips")
-			check((word_board.material_override as BaseMaterial3D).albedo_texture == GoalStand.WORD_SIGNS[s.word], "flipped board shows its own word")
+			var expected := GoalStand.verdict_sign_texture(s.team, s.word, 2)
+			check(word_board.visible == (expected != null), "the winner's row and the loser's middle flip, nothing else")
+			check(s.nice_sign == (s.team == 2) and s.boo_sign == (s.team == 1 and expected != null), "winner flips to NICE, loser to boo")
+			if expected != null:
+				check((word_board.material_override as BaseMaterial3D).albedo_texture == expected, "flipped board shows its own picture")
+			var any_board_up := false
+			for prop: String in s.props:
+				if prop.begins_with("GSP_Sign") and (s.props[prop] as MeshInstance3D).visible:
+					any_board_up = true
+			var lowered := s.team == 1 and s.word in [0, 4]
+			check(s.sign_down == lowered and (not lowered or not any_board_up), "the loser's outer two put their signs away")
+			check(lowered or any_board_up, "everyone else still holds a board")
+			if lowered:
+				check(s.clip != &"SPEC_SignUp" and s.queued != &"SPEC_SignUp", "a lowered holder does not raise a sign")
 	state.goal_winner = 0
 	stand.update_stand(1.0 / 60.0, state, null, null)
 	check(stand.scoreboard.cutin_player == GoalStandScoreboard.DRAW, "a draw verdict shows the draw cut-in")
@@ -147,7 +168,7 @@ func _finale_clear_state(winner: int) -> QuizGameState:
 func _check_programme(stand: GoalStand) -> void:
 	var board := stand.scoreboard
 	var state := _finale_clear_state(1)
-	# A clear that is not the local finale (online, tutorial) keeps the cut-in.
+	# A clear that is not the local finale (online) keeps the cut-in.
 	for _frame in range(30):
 		stand.update_stand(1.0 / 60.0, state, null, null, true)
 	check(board.is_cutin_playing() and not board.is_programme_started(), "a clear outside the finale never starts the programme")

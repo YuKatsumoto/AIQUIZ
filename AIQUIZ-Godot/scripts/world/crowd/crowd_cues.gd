@@ -132,6 +132,21 @@ func on_shock(world_z: float) -> void:
 	shock_started = clock
 
 
+## 練習のクリア（docs/new_tutorial/phase4_design.md 2.6）：観客がゴールのときと同じように沸く。
+func on_celebrate(seconds := 3.5) -> void:
+	_fire(Cue.GOAL, 0, seconds)
+
+
+## 練習のクリア：いますぐウェーブを起こす（右のスタンドから。ウェーブの途中なら何もしない）。
+## 自動のウェーブの予定はずらすだけで、新しく作らない。
+func start_wave() -> void:
+	if wave_time() >= 0.0:
+		return
+	wave_started = clock
+	if _next_wave < INF:
+		_next_wave = maxf(_next_wave, clock + wave_seconds() + WAVE_GAP.x)
+
+
 func _fire(kind: Cue, team: int, seconds: float) -> void:
 	if cue_weight() > 0.05 and PRIORITY[kind] < PRIORITY[cue] and cue_until > clock:
 		return

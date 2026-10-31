@@ -31,6 +31,10 @@ var _cam_target: Vector3 = Vector3(0.0, 0.0, 0.0)
 var _cam_dragging: bool = false
 var _cam_panning: bool = false
 var _cam_last_mouse: Vector2 = Vector2.ZERO
+## スマホ：1 本指で回す・2 本指のピンチで寄る（右ドラッグ・ホイールと同じ範囲）。
+const MobileUi = preload("res://scripts/core/mobile_ui.gd")
+const PreviewTouchGestures = preload("res://scripts/ui/mobile/preview_touch_gestures.gd")
+var _gestures := PreviewTouchGestures.new()
 var _svc_node: Control  # 繝槭え繧ｹ繧､繝吶Φ繝育畑蜿ら・
 var _preview_texture_rect: TextureRect
 
@@ -106,6 +110,16 @@ func _update_orbit_camera() -> void:
 	_preview_camera.look_at(look, Vector3.UP)
 
 func _on_preview_gui_input(event: InputEvent) -> void:
+	if MobileUi.is_touch_ui():
+		var gesture := _gestures.feed(event)
+		if bool(gesture.handled):
+			var turn: Vector2 = gesture.rotate * 0.3
+			_cam_yaw -= turn.x
+			_cam_pitch = clampf(_cam_pitch - turn.y, -80.0, 80.0)
+			var zoom: float = gesture.zoom
+			if zoom > 0.0 and not is_equal_approx(zoom, 1.0):
+				_cam_distance = clampf(_cam_distance / zoom, 1.5, 12.0)
+			return
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
 		if mb.button_index == MOUSE_BUTTON_RIGHT:

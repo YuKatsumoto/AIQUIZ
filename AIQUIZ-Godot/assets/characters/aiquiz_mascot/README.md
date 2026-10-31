@@ -16,6 +16,8 @@
 | `mascot_pilot.glb` | 操縦士の動き（骨組み `Rig` とアクションだけ、メッシュなし）：`Pilot_SitIdle`（3.25 秒のループ）、`Pilot_Wave`（1.29 秒のループ）、`Pilot_Point`（前を指す）、`Pilot_Steer`（2.6 秒のループ）。トラックは `Rig/Skeleton3D:DEF-*` で `mascot_model.glb` と同じ |
 | `pilot_headset.glb` | 操縦士のヘッドセット（ハテナの空間で作ってある。頭の骨 `DEF-head` に付ける） |
 | `mascot_stand.glb` | 客席のハテナの動き（骨組み `Rig` とアクションだけ）：`Stand_Idle`（2 秒、客席に手を振る）、`Stand_Cheer`（0.75 秒、両手を上げて跳ぶ）、`Stand_Dance`（2 秒）、`Stand_WaveLead`（1.5 秒、ウェーブの合図）、`Stand_Clap`（0.5 秒、応援の拍）。`source/build_stand_mascot.py` で作る（[docs/crowd_extras.md](../../../docs/crowd_extras.md)） |
+| `mascot_practice.glb` | チュートリアル（練習）の案内役のハテナの動き（骨組み `Rig` とアクションだけ）：`Practice_OpenArms`（両手を広げる）、`Practice_Proud`（胸をはる）、`Practice_Cross`（だめ）、`Practice_Tilt`（首をかしげる）、`Practice_Oops`（あちゃー）、`Practice_Nod`（うなずく）、`Practice_Hop`・`Practice_Land`（跳ぶ・着地）、`Practice_Ride`（雲に乗る）、`Practice_Walk`・`Practice_DuckWalk`（歩く・かがんで歩く）、`Practice_Step`（段の上り下り）、`Practice_SitDown`・`Practice_StandUp`（座る・立つ。座った姿は `Pilot_SitIdle` と同じ）、`Practice_PushUp`・`Practice_PullDown`（ヘリのドアを押し上げる・引き下ろす）。`source/build_practice_mascot.py` をライブの Blender で実行して作る（`--preview` で確認の絵を `artifacts/practice_mascot/` に撮る）。使い方は `scripts/world/practice/hatena_guide.gd` と [docs/new_tutorial/phase9_design.md](../../../docs/new_tutorial/phase9_design.md) |
+| `mascot_cloud.glb` | 両者脱落の投げ縄でハテナが乗る雲（6,000 三角形、頂点色 Col に陰と高さ）。`source/build_mascot_cloud.py` をライブの Blender で実行して作る（開いている .blend は変えず、原本は `source/mascot_cloud.blend`）。見た目は `mascot_cloud.gdshader`。[docs/elimination_lasso.md](../../../docs/elimination_lasso.md) |
 | `mascot_model_lod.glb` | 軽い版（約 8,000 三角形、ウェイトはそのまま）。品質「低」の操縦士 |
 | `source/build_pilot.py` | 上の 3 つを作って書き出すスクリプト（オンライン対戦のマッチング演出 M2） |
 | `source/build_hatena.py` | ハテナの部品を組み立てるスクリプト |
@@ -62,6 +64,10 @@ exec(open(r'C:/AIQUIZ/AIQUIZ-Godot/assets/characters/aiquiz_mascot/source/fit_ha
   飛んでいるあいだは `Pilot_Steer`）。前の 0.35 倍のハテナ（`PILOT_SCALE`）はやめた（2026-10-11、計画書 M9）。
 - **客席のハテナ**：`scripts/world/crowd/stand_mascot.gd`（`StandMascot`）。ゴール観客席の前と左右のスタンドの通路に立ち、
   `mascot_stand.glb` の動きを観客の合図（`CrowdCues`）に合わせて再生する。作り直すときは `aiquiz_mascot.blend` を開いて `build_stand_mascot.py` を実行し、`.blend` を保存する。
+- **チュートリアルの案内役**：`scripts/world/practice/hatena_guide.gd`（`HatenaGuide`）。体と客席の動きは `StandMascot` のものを使い、
+  `mascot_practice.glb`（ライブラリ `practice`）と `mascot_pilot.glb` の `Pilot_SitIdle`（ライブラリ `pilot`。座った姿）を足して鳴らす。
+  客席のハテナと違って床に影を落とす。席のハテナ（ヘリの操縦士・ノコギリの操縦席）と入れ替わるときは、骨格を席のハテナに重ねて座る
+  （`scripts/practice/menu/practice_seat_moves.gd`）。
 - **審判・ノコギリ操縦席**：`scripts/world/mascot/mascot_dresser.gd`（`MascotDresser.dress()`）を使う。
   - `referee_finale.glb` と `saw_operator.glb` の骨格へ、本体メッシュとスキンを付け直す。
   - 両GLBの旧本体は、取り込み設定の `skip_import` で読み込まない。

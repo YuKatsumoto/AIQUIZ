@@ -1,6 +1,8 @@
 extends BaseButton
 class_name SkinPaletteSwatch
 
+const MobileUi = preload("res://scripts/core/mobile_ui.gd")
+
 ## パレットの1色。今の色と同じなら白い輪とチェックを付ける。
 
 var swatch_color: Color = Color.WHITE
@@ -12,6 +14,8 @@ func _init(p_color: Color = Color.WHITE, p_name: String = "") -> void:
 	swatch_color = p_color
 	focus_mode = Control.FOCUS_ALL
 	custom_minimum_size = Vector2(24, 24)
+	# スマホ：指で押せる大きさ（小さいほうの基準 56。SkinEditor も大きさを決めたあとに同じ下限をかける）
+	MobileUi.ensure_touch_size(self, true)
 	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	tooltip_text = p_name if not p_name.is_empty() else "この色にする"
 
@@ -46,6 +50,7 @@ func _draw() -> void:
 	if current:
 		var ink := SkinUiStyle.ink_on(swatch_color)
 		var c := rect.get_center()
-		draw_polyline(PackedVector2Array([c + Vector2(-5, 0), c + Vector2(-1.5, 4), c + Vector2(5, -4)]), ink, 2.2, true)
+		var k := 1.0 if size.x < 40.0 else 1.8
+		draw_polyline(PackedVector2Array([c + Vector2(-5, 0) * k, c + Vector2(-1.5, 4) * k, c + Vector2(5, -4) * k]), ink, 2.2 * k, true)
 	if has_focus():
 		SkinUiStyle.draw_focus_ring(self, rect, 8)

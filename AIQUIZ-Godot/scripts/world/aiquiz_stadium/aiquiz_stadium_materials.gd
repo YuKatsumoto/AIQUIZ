@@ -17,6 +17,14 @@ const SAIL_SHADER: Shader = preload("res://shaders/aiquiz_sail.gdshader")
 const GLOW_SHADER: Shader = preload("res://shaders/aiquiz_vertex_glow.gdshader")
 const BACKDROP_SHADER: Shader = preload("res://shaders/aiquiz_backdrop.gdshader")
 const PAINT_SHADER: Shader = preload("res://shaders/aiquiz_stand_surface.gdshader")
+## The paint and the glow that also cut a side stand block where the moved end cap
+## overlaps it (far_clipped(); aiquiz_stand_far_clip.gdshaderinc).
+const PAINT_CLIP_SHADER: Shader = preload("res://shaders/aiquiz_stand_surface_clipped.gdshader")
+const GLOW_CLIP_SHADER: Shader = preload("res://shaders/aiquiz_vertex_glow_clipped.gdshader")
+## Instance parameters of the cut (the spectators' shader reads FAR_CLIP_Z as well).
+const FAR_CLIP_Z := &"far_clip_z"
+const AISLE_CLIP_Z := &"aisle_clip_z"
+const AISLE_BAND := &"aisle_band"
 const QualityRules = preload("res://scripts/core/graphics_quality.gd")
 const OceanDetailScript = preload("res://scripts/world/ocean_detail.gd")
 ## Instance parameter of the paint shader: 1 = weathering in the object's own space.
@@ -43,6 +51,9 @@ static var _quality_watched := false
 ## The GameManager autoload (looked up once).
 static var _manager: WeakRef = null
 static var _glow: ShaderMaterial = null
+## far_clipped() twins of _painted and _glow.
+static var _painted_clip: ShaderMaterial = null
+static var _glow_clip: ShaderMaterial = null
 static var _sail: ShaderMaterial = null
 static var _textured := {}
 static var _backdrop := {}
@@ -74,6 +85,8 @@ static func apply_graphics_quality(quality: String) -> void:
 	_quality = q
 	if _painted != null:
 		_apply_paint_quality(_painted, q)
+	if _painted_clip != null:
+		_apply_paint_quality(_painted_clip, q)
 	var far_sea: ShaderMaterial = _backdrop.get("AQS_BG_Sea")
 	if far_sea != null:
 		far_sea.set_shader_parameter("edge_reflect", _far_sea_reflect(q))
@@ -161,6 +174,34 @@ static func glow() -> ShaderMaterial:
 		_glow.shader = GLOW_SHADER
 		_glow.set_shader_parameter("night_glow", _night)
 	return _glow
+
+
+## The twin of the shared paint or glow that can cut the side stand block under the
+## moved end cap (aiquiz_stadium_stand.gd); where it cuts is set per instance
+## (FAR_CLIP_Z, AISLE_CLIP_Z, AISLE_BAND). Other materials come back unchanged.
+## The cut discards pixels, which costs the depth prepass, so only that block uses it.
+static func far_clipped(material: Material) -> Material:
+	if material != null and material == _painted:
+		if _painted_clip == null:
+			_painted_clip = _twin(_painted, PAINT_CLIP_SHADER)
+		return _painted_clip
+	if material != null and material == _glow:
+		if _glow_clip == null:
+			_glow_clip = _twin(_glow, GLOW_CLIP_SHADER)
+		return _glow_clip
+	return material
+
+
+static func _twin(source: ShaderMaterial, shader: Shader) -> ShaderMaterial:
+	var twin := ShaderMaterial.new()
+	twin.resource_name = source.resource_name + "_FarClip"
+	twin.shader = shader
+	for uniform: Dictionary in source.shader.get_shader_uniform_list():
+		var key := StringName(uniform["name"])
+		var value: Variant = source.get_shader_parameter(key)
+		if value != null:
+			twin.set_shader_parameter(key, value)
+	return twin
 
 
 static func sail(imported: Material) -> ShaderMaterial:
@@ -278,6 +319,8 @@ static func set_night(amount: float) -> void:
 	_night = clampf(amount, 0.0, 1.0)
 	if _glow != null:
 		_glow.set_shader_parameter("night_glow", _night)
+	if _glow_clip != null:
+		_glow_clip.set_shader_parameter("night_glow", _night)
 	if _sail != null:
 		_sail.set_shader_parameter("night_glow", _night * SAIL_NIGHT_GLOW)
 	for material: ShaderMaterial in _backdrop.values():

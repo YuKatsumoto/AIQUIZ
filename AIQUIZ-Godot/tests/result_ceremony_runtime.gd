@@ -168,7 +168,8 @@ func run() -> void:
 	var director: Node3D = world.get("_result_ceremony_director")
 	var ceremony_frames := 0
 	var interactive_frames := 0
-	for frame in range(fps * 24):
+	# 両者脱落は、3 秒の保持と投げ縄の演出（約 13 秒）のあとに結果発表が始まる。
+	for frame in range(fps * (40 if eliminated else 24)):
 		await RenderingServer.frame_post_draw
 		if ghost_case:
 			await observe_ghost_leap(director)
@@ -462,6 +463,8 @@ func check_goal_stand(expected_winner: int, marks_z: float, raced := true) -> vo
 		if entry.body != null:
 			check((entry.frame as Transform3D).basis.determinant() > 0.0, "egg splat frames stay right-handed on the finale stage")
 	await capture_eggs(stand)
+	await capture_signs(stand, "signs", false)
+	await capture_signs(stand, "signs_loser", true)
 	var dancing := 0
 	for clip: String in (end.clips as Dictionary):
 		if clip.begins_with("SPEC_Dance"):
@@ -471,9 +474,10 @@ func check_goal_stand(expected_winner: int, marks_z: float, raced := true) -> vo
 	check(celebrating >= 5, "winning fans celebrate (%d)" % celebrating)
 	if expected_winner != 0:
 		check(int(end.boo_signs) >= 1, "losing fans flip their boards to boo")
+		check(int(end.nice_signs) == GoalStand.SIGN_ROW, "the winner's five sign holders spell P%d NICE (%d)" % [expected_winner, int(end.nice_signs)])
 		check(int(end.clips.get("SPEC_Despair", 0)) + int(end.clips.get("SPEC_ShakeHead", 0)) + int(end.clips.get("SPEC_FoldArms", 0)) >= 3, "losing fans despair")
 	else:
-		check(int(end.boo_signs) == 0, "a draw leaves every board cheering")
+		check(int(end.boo_signs) == 0 and int(end.nice_signs) == 0, "a draw leaves every board cheering")
 
 
 ## Pattern 1 setup: P2 falls into the sea during the goal race, the real shark
@@ -552,11 +556,17 @@ func eliminate_both_mid_quiz() -> void:
 	check(not gs.message_text.begins_with("GAME OVER"), "no GAME OVER text when both are out")
 
 
-## Watches the hold, the wipe and the reveal of the elimination finale.
+## Watches the hold, the lasso (Hatena carries both souls to the finish instead of a
+## wipe, EliminationLassoDirector) and the start of the elimination finale.
 func observe_elimination() -> void:
 	var hud := world.get_node("GameplayHUD")
 	if (hud.get("game_over_panel") as Control).visible:
 		elimination_seen["panel"] = true
+	var lasso: EliminationLassoDirector = world.get("_elimination_lasso")
+	if lasso != null and lasso.is_active() and not gs.result_presentation_active:
+		elimination_seen["lasso_frames"] = int(elimination_seen.get("lasso_frames", 0)) + 1
+		if int(elimination_seen.lasso_frames) == fps * 8:
+			await capture("elim_lasso")
 	if not is_instance_valid(world.get("_goal_stand")):
 		elimination_seen["stand_lost"] = true
 	if gs.is_elimination_result_pending():
@@ -568,6 +578,8 @@ func observe_elimination() -> void:
 	if gs.result_presentation_active and not elimination_seen.has("started"):
 		elimination_seen["started"] = true
 		elimination_seen["covered_at_start"] = SceneTransition.is_fully_covered()
+		var ghost: Node3D = (world.get("_result_ceremony_director") as Node).call("get_result_ghost", 1)
+		elimination_seen["soul_handed_over"] = ghost != null and float(ghost.get_meta("result_release_scale", 0.0)) == 1.0
 	var camera_rig: Node = world.get("camera_controller")
 	if gs.result_presentation_active and bool(camera_rig.get("_result_camera_active")) and not elimination_seen.has("camera_cut"):
 		# First finale camera frame: already on the Blender shot, no swoop from the death.
@@ -612,11 +624,13 @@ func check_ghost_finale(overlay: Control, director: Node) -> void:
 	else:
 		check(not elimination_seen.get("panel", false), "GAME OVER card never shows")
 		check(not elimination_seen.get("stand_lost", false), "goal stand stays through the hold")
-		check(int(elimination_seen.get("pending_frames", 0)) >= roundi(fps * 3.9), "deaths play out before the wipe (%d frames)" % int(elimination_seen.get("pending_frames", 0)))
-		check(bool(elimination_seen.get("covered_at_start", false)), "finale starts under the wipe")
+		check(int(elimination_seen.get("pending_frames", 0)) >= roundi(fps * 3.9), "deaths play out before the lasso (%d frames)" % int(elimination_seen.get("pending_frames", 0)))
+		check(not bool(elimination_seen.get("covered_at_start", true)), "finale starts without a screen wipe")
+		check(int(elimination_seen.get("lasso_frames", 0)) >= roundi(fps * 9.0), "Hatena lassoes both souls to the finish (%d frames)" % int(elimination_seen.get("lasso_frames", 0)))
+		check(bool(elimination_seen.get("soul_handed_over", false)), "the carried souls become the finale ghosts")
 		check(int(elimination_seen.get("walls", -1)) == 0 and int(elimination_seen.get("debris", -1)) == 0 and int(elimination_seen.get("ragdolls", -1)) == 0, "walls and bodies cleared for the finale")
 		check(float(elimination_seen.get("camera_cut", INF)) < 0.3, "finale opens on the finale camera (%.2f)" % float(elimination_seen.get("camera_cut", INF)))
-		check("elim_cover" in captured and "elim_reveal" in captured, "wipe observed")
+		check("elim_lasso" in captured and "elim_reveal" in captured, "lasso observed")
 
 
 ## HP value text and survival bonus visibility on each card (AE layers by name).
@@ -789,6 +803,10 @@ func capture_eggs(stand: GoalStand) -> void:
 	var game_camera: Camera3D = get_viewport().get_camera_3d()
 	if target == null or game_camera == null:
 		return
+	# What the players see: the game camera, a second apart.
+	for index in range(4):
+		await frames(fps)
+		get_viewport().get_texture().get_image().save_png(OUT + scenario + "_eggs_game_%d.png" % index)
 	var look := Camera3D.new()
 	look.fov = 40.0
 	world.add_child(look)
@@ -801,6 +819,34 @@ func capture_eggs(stand: GoalStand) -> void:
 	await frames(3)
 	get_viewport().get_texture().get_image().save_png(OUT + scenario + "_eggs_closeup.png")
 	print("GOAL_STAND_EGGS " + JSON.stringify(stand.eggs.active_counts()))
+	look.current = false
+	game_camera.current = true
+	look.queue_free()
+	await frames(1)
+
+
+## A sign row from in front of the stand, saved as <case>_<tag>_closeup.png: the winner's
+## ("signs", P1 NICE) or the loser's ("signs_loser", OH MY GOT with the outer two lowered).
+func capture_signs(stand: GoalStand, tag: String, loser: bool) -> void:
+	var row: Array[GoalStand.Spectator] = []
+	for s: GoalStand.Spectator in stand.spectators:
+		if s.kind == GoalStand.Kind.SIGN and (s.boo_sign or s.sign_down if loser else s.nice_sign):
+			row.append(s)
+	var game_camera: Camera3D = get_viewport().get_camera_3d()
+	if row.is_empty() or game_camera == null:
+		return
+	var middle := Vector3.ZERO
+	for s: GoalStand.Spectator in row:
+		middle += s.root.global_position + Vector3.UP * 1.3
+	middle /= row.size()
+	var front: Vector3 = row[0].root.global_transform.basis.z.normalized()
+	var look := Camera3D.new()
+	look.fov = 40.0
+	world.add_child(look)
+	look.look_at_from_position(middle + front * 7.0 + Vector3.UP * 0.4, middle, Vector3.UP)
+	look.current = true
+	await frames(3)
+	get_viewport().get_texture().get_image().save_png(OUT + scenario + "_" + tag + "_closeup.png")
 	look.current = false
 	game_camera.current = true
 	look.queue_free()

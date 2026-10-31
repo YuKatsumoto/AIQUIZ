@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://b0sjdw1886t4r"
 path.s3tc="res://.godot/imported/aiquiz_menu_city_city_facade_b_night.png-ccbc7e0d5e0d880d48c1e6c3088d848b.s3tc.ctex"
+path.etc2="res://.godot/imported/aiquiz_menu_city_city_facade_b_night.png-ccbc7e0d5e0d880d48c1e6c3088d848b.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/aiquiz_menu_stage/aiquiz_menu_city_city_facade_b_night.png"
-dest_files=["res://.godot/imported/aiquiz_menu_city_city_facade_b_night.png-ccbc7e0d5e0d880d48c1e6c3088d848b.s3tc.ctex"]
+dest_files=["res://.godot/imported/aiquiz_menu_city_city_facade_b_night.png-ccbc7e0d5e0d880d48c1e6c3088d848b.s3tc.ctex", "res://.godot/imported/aiquiz_menu_city_city_facade_b_night.png-ccbc7e0d5e0d880d48c1e6c3088d848b.etc2.ctex"]
 
 [params]
 

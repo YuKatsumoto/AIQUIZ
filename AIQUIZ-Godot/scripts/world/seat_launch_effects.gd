@@ -9,6 +9,9 @@ class_name SeatLaunchEffects
 ## 100-190 ms per effect, which froze the online VS cut-in while the match was built).
 const FIRE := preload("res://assets/BinbunVFX/fire_effects/effects/Fire/fire_04.tscn")
 const SMOKE := preload("res://assets/BinbunVFX/smoke_effects/effects/smoke_big/smoke_big_vfx_01.tscn")
+const SMOKE_SHADER := preload("res://shaders/chair_rocket_smoke.gdshader")
+## Mobile: the same smoke without the soft-particle depth read.
+const SMOKE_SHADER_MOBILE := preload("res://shaders/mobile/chair_rocket_smoke_mobile.gdshader")
 var nozzles: Array[Node3D] = []
 var jets: Array[Node3D] = []
 var flames: Array[GPUParticles3D] = []
@@ -48,6 +51,7 @@ func setup(kit: Node3D, fixed_socket: Node3D) -> void:
 			p.local_coords = true
 			p.lifetime = .35
 			p.amount = GraphicsQuality.particle_amount(64, GameManager.graphics_quality)
+			GraphicsQuality.mark_particles_scaled(p)
 			p.preprocess = .1
 			var flame_mesh := p.draw_pass_1.duplicate() as PrimitiveMesh
 			var flame_material := flame_mesh.material.duplicate() as ShaderMaterial
@@ -96,7 +100,7 @@ func _smoke(burst: bool) -> GPUParticles3D:
 	var material := p.material_override as ShaderMaterial
 	# The collection's billboard discards particle scale and draws its full 10m
 	# quad. Preserve each particle's growth curve in our private shader copy.
-	material.shader = preload("res://shaders/chair_rocket_smoke.gdshader")
+	material.shader = SMOKE_SHADER_MOBILE if GraphicsQuality.is_mobile_target() else SMOKE_SHADER
 	material.set_shader_parameter("primary_color", Color(.84,.86,.89))
 	material.set_shader_parameter("secondary_color", Color(.60,.64,.69))
 	material.set_shader_parameter("tertiary_color", Color(.32,.36,.42))
@@ -109,6 +113,7 @@ func _smoke(burst: bool) -> GPUParticles3D:
 	p.lifetime = 1.4 if burst else 1.7
 	p.preprocess = 0.0
 	p.amount = GraphicsQuality.particle_amount(20 if burst else 40, GameManager.graphics_quality)
+	GraphicsQuality.mark_particles_scaled(p)
 	p.visibility_aabb = AABB(Vector3(-12,-45,-12),Vector3(24,90,24))
 	return p
 

@@ -4,20 +4,26 @@ extends SuddenDeathGame
 ## サドンデス「つきやぶれ！スカイゲート」のルール（docs/sudden_death_v2/sky_gate.md 第2・3・8章、
 ## skygate_build_plan.md 1.1節・4.5節）。判定は全部ここ（見せ方 SkyGatePresenter は判定しない）。
 ##
-## 2人は落ちながら空中を前後左右に動き、下から近づく問題のボード（2×2 の4択の紙のパネル）の、正しいパネルの上へ行く。
-## ゲートの時刻（時間切れ。ボードが2人に届いた瞬間）に体の中心の真下にあるパネルが答え。そこで位置を止めて gate_impact を出し、
-## 見せ方が「つき破る」動き（正解は紙を破って抜ける。まちがいは破れずにはね返されて爆散）を IMPACT_TIME 秒見せたあとで
-## 判定（gate_pass・out・decided・both_out）を出す。正解は次のゲート、まちがいはアウト（相手が残れば相手の勝ち）。
-## 2人とも同じゲートでアウトなら、その場で復活（1.0 秒）して次のゲートから。
-## 1 ラウンドはゲート 4 枚（ROUND 1：8 秒、ROUND 2：6.5 秒・ボードが横へ動く、ROUND 3 以降：5 秒・ボードが小さく動きも速い）。
-## 2人とも突破したら着地台へ降りて（見せ方と監督）、begin_round() で次のラウンド。ROUND 5 のあとは着地せずに
-## ゲートが1枚ずつ（5→4→3 秒、以後 3 秒）続き、3 秒のゲートで2人とも正解なら早い者勝ち（正解のパネルの上に入って、
-## そのまま通過まで出なかった時刻が早い方。同じ時刻ならもう1枚）。
+## 2人は落ちながら空中を前後左右に動き、真下に一列に吊られた問題のボード（2×2 の4択の紙のパネル）の、正しいパネルの上へ行く。
+## 時間制限は無い（2026-10-25、ユーザーの指示「最初から問題4枚が用意されていて連続で答える」）：1 ラウンドの 4 枚は最初から
+## 下に並んでいて（列）、列は一定の速さで2人へ上がってくる。今のボードが2人の高さに届いた瞬間（board_depth が
+## SkyGateImpact.CONTACT）に体の中心の真下にあるパネルが答え。そこで位置を止めて gate_impact を出し、見せ方が「つき破る」動きを
+## 見せる間をおいて判定（gate_pass・out・decided・both_out）を出す。
+##   全員が正解：列は止まらずに上がり続け、BURST_IMPACT_TIME で判定 → すぐ次のボードへ動ける。
+##   まちがいがいる：列は止まり、見せ方の脱落のスロー（SkyGateImpact.wasted_scale）が判定の時刻に届くまでの実時間を待つ。
+## 正解は次のボード、まちがいはアウト（相手が残れば相手の勝ち）。2人とも同じボードでアウトなら、その場で復活（1.0 秒）して次のボードから。
+## ラウンドが進むほど列が速く上がる（ROUND 1：8 m/秒、ROUND 2：10 m/秒・ボードが横へ動く、ROUND 3 以降：13 m/秒・ボードが小さく
+## 動きも速い）。2人とも 4 枚を突破したら着地台へ降りて（見せ方と監督）、begin_round() で次のラウンド。ROUND 5 のあとは着地せずに
+## 列が下へ続き（延長。13 → 15.5 → 18 m/秒、以後 18 m/秒）、18 m/秒のボードで2人とも正解なら早い者勝ち（正解のパネルの上に入って、
+## そのまま当たるまで出なかった時刻が早い方。同じ時刻ならもう1枚）。
+##
+## 列の k 枚目（ラウンドの頭から 0, 1, 2, 3。延長は 4, 5…と続く）の深さは board_depth(k)（落ちる点から下へ m）、問題は column_quiz(k)。
+## 見せ方は始まる前（ルールカード・カウントダウン）からこれを読んで、4 枚とも問題を書いたボードを並べる。
 ##
 ## 空中の位置（pos）はボードの座標（m）：ボードが止まっているときの中心が原点、x＝右、y＝前（ゴールの側＝ボードの奥）。
-## ボードが横へ動く（ROUND 2 以降）と、ボードの中心は (board_offset(), 0) にずれる。真下のパネルはボードから見た位置で決める。
-## 動ける範囲は 4 枚のパネルの外のふち（ボードの外・問題文の看板の上へは出られない）。寸法は SkyGateBoard の定数
-## （PANEL_CENTERS・PANEL_SIZE）をそのまま使うので、ボードの素材が変わっても判定はボードと合う。
+## ボードが横へ動く（ROUND 2 以降）と、ボードの中心は (board_offset(), 0) にずれる（列は1つとして同じずれで揺れる）。
+## 真下のパネルはボードから見た位置で決める。動ける範囲は 4 枚のパネルの外のふち（ボードの外・問題文の看板の上へは出られない）。
+## 寸法は SkyGateBoard の定数（PANEL_CENTERS・PANEL_SIZE）をそのまま使うので、ボードの素材が変わっても判定はボードと合う。
 ##
 ## 入力（1フレーム）：基底の辞書に "move": [P1 の Vector2, P2 の Vector2]（押しっぱなしの向き。x＝右、y＝前。長さ 0〜1）。
 ## 答えのキー・アクションキー（Space）は使わない。時計は TICK（1/240 秒）ずつ進めるので、30 / 60 / 120fps で同じ結果になる。
@@ -26,17 +32,20 @@ const ROUNDS := 5
 const GATES_PER_ROUND := 4
 ## 確保する問題の数（5 ラウンド × 4 問）。足りなければ extra_question（算数の自動生成）。
 const QUESTION_COUNT := ROUNDS * GATES_PER_ROUND
-## 1 枚の時間（秒）：ROUND 1、2、3 以降。
-const GATE_TIMES: Array[float] = [8.0, 6.5, 5.0]
-## ROUND 5 のあとの1枚ずつのゲート（5 → 4 → 3 秒、以後 3 秒）。
-const OVERTIME_TIMES: Array[float] = [5.0, 4.0, 3.0]
-## この長さ以下のゲートで2人とも正解なら早い者勝ち。
-const SPEED_GATE_TIME := 3.0
-## 時間切れから判定まで：見せ方が「つき破る」動きを見せる間（skygate_impact.md。SkyGateImpact の時刻はこの中に収める）。
-const IMPACT_TIME := 1.3
-## 判定から次のゲートまで（通り抜けたボードが消えていくのを見せてから次へ。2026-10-19 夜：0.5 → 0.9）。
-const PASS_TIME := 0.9
-## 2人とも同じゲートでアウト → その場で復活するまで。
+## 列：ラウンドの頭の 1 枚目の深さと、ボードの間隔（m）。
+const FIRST_DEPTH := 72.0
+const BOARD_GAP := 64.0
+## 列が上がってくる速さ（m/秒）：ROUND 1、2、3 以降。1 枚の間隔がもとの制限時間（8・6.5・5 秒）に近くなる。
+const FALL_SPEEDS: Array[float] = [8.0, 10.0, 13.0]
+## ROUND 5 のあとの延長のボードごとの速さ（以後は最後の値）。
+const OVERTIME_SPEEDS: Array[float] = [13.0, 15.5, 18.0]
+## この速さ以上のボードで2人とも正解なら早い者勝ち。
+const SPEED_WIN_SPEED := 18.0
+## 延長の間、今のボードの下に見せておく先のボードの数。
+const OVERTIME_LOOKAHEAD := 3
+## 全員が正解のとき、当たってから判定まで（位置を止める間。列は上がり続ける）。
+const BURST_IMPACT_TIME := 0.3
+## 2人とも同じゲートでアウト → その場で復活するまで（列は止まったまま）。
 const REVIVE_TIME := 1.0
 ## ルールの時計の 1 刻み（秒）。どのフレームの長さでも同じ刻みで進める。
 const TICK := 1.0 / 240.0
@@ -61,18 +70,22 @@ const EDGE_MARGIN := 0.3
 ## ラウンドの頭の位置（ボードの座標、縮める前の値。P1 が左）。
 const SPAWN_X := 2.0
 
-## "idle"（導入）、"gate"（動いて選ぶ）、"impact"（時間切れ。つき破る動きを見せる間、判定はまだ出さない）、
-## "pass"（判定のあと）、"both_out"（2人ともアウト → 復活まで）、"landing"（2人とも突破 → 着地台へ。begin_round() を待つ）、"decided"
+## "idle"（導入）、"gate"（動いて選ぶ。列が上がってくる）、"impact"（当たった。つき破る動きを見せる間、判定はまだ出さない）、
+## "both_out"（2人ともアウト → 復活まで）、"landing"（2人とも突破 → 着地台へ。begin_round() を待つ）、"decided"
 var phase := "idle"
-## 今のラウンド（1〜5。ROUND 5 のあとの1枚ずつのゲートも 5 のまま、overtime が true）。
+## 今のラウンド（1〜5。ROUND 5 のあとの延長も 5 のまま、overtime が true）。
 var current_round := 0
-## ラウンドの中のゲートの番号（0〜3。ROUND 5 のあとは 4, 5, 6…と続く）。
+## 列の何枚目のボードか（ラウンドの頭から 0〜3。ROUND 5 のあとは 4, 5, 6…と続く）。
 var gate_index := -1
-## このゲートの時間（秒）。
-var gate_time := 0.0
+## 今のボードの列の速さ（m/秒）。
+var fall_speed := 0.0
 var overtime := false
-## 1枚ずつのゲートの何枚目か（0 から）。
+## 延長のボードの何枚目か（0 から）。
 var overtime_count := 0
+## 列がラウンドの頭から上がった長さ（m）と、列の 0 枚目の問題の番号（quizzes の）、列を用意したラウンド。
+var column_fall := 0.0
+var column_first := 0
+var column_round := 0
 ## 時計（刻み）。phase_ticks は今の段階の頭から、ticks は始めてから。
 var phase_ticks := 0
 var phase_length := 0
@@ -84,8 +97,10 @@ var move: Array[Vector2] = [Vector2.ZERO, Vector2.ZERO]
 ## 今の真下のパネル（-1 = ボードの外）と、そのパネルに入った刻み（ゲートの頭から。同じパネルの上にいる間は変えない）。
 var under: Array[int] = [-1, -1]
 var under_tick: Array[int] = [0, 0]
-## 最後のゲートの結果 "burst" / "boom"（ゲートの間は ""。時間切れ（impact）で決まり、判定はそのあと）。
+## 最後のゲートの結果 "burst" / "boom"（ゲートの間は ""。当たった瞬間（impact）で決まり、判定はそのあと）。
 var results: Array[String] = ["", ""]
+## 当たった場合（SkyGateImpact.ALL_BURST / MIXED / ALL_BOOM）。
+var impact_mode := 0
 ## 決着したゲートでアウトになった人（0 = なし）。
 var loser := 0
 ## 数（記録）：つき破った枚数、ドカンの回数、2人ともアウトで復活した回数。
@@ -100,6 +115,8 @@ var _sway := Vector3.ZERO  # 振れ幅・周期・位相
 var _sway_t := 0.0
 var _accel_k := 0.0
 var _brake_k := 0.0
+## 今のゲートの頭のボードの深さ（gate_progress の分母）。
+var _gate_start_depth := FIRST_DEPTH
 
 
 func _init() -> void:
@@ -112,8 +129,7 @@ func setup(questions: Array[QuizItem], seed_value: int) -> void:
 	super.setup(questions, seed_value)
 	phase = "idle"
 	current_round = 0
-	gate_index = -1
-	gate_time = 0.0
+	fall_speed = 0.0
 	overtime = false
 	overtime_count = 0
 	phase_ticks = 0
@@ -125,10 +141,11 @@ func setup(questions: Array[QuizItem], seed_value: int) -> void:
 	loser = 0
 	speed_times = [-1.0, -1.0]
 	results = ["", ""]
+	impact_mode = SkyGateImpact.ALL_BURST
 	move = [Vector2.ZERO, Vector2.ZERO]
 	_acc = 0.0
-	_sway = Vector3.ZERO
-	_sway_t = 0.0
+	# ROUND 1 の列は始まる前から見せる（ルールカード・カウントダウンの間）
+	_prepare_column(1)
 	_reset_positions()
 
 
@@ -146,7 +163,8 @@ func begin_round() -> bool:
 	return true
 
 
-## 次のラウンドのカウントダウンの間（着地のあと、begin_round() の前）：2人を次のラウンドの頭の位置に置く。時計は動かさない。
+## 次のラウンドのカウントダウンの間（着地のあと、begin_round() の前）：2人を次のラウンドの頭の位置に置き、次のラウンドの列を
+## 用意する（見せ方が 4 枚とも問題を書いて並べる）。時計は動かさない。
 func place_for_next_round() -> void:
 	if phase != "landing" or finished:
 		return
@@ -156,6 +174,8 @@ func place_for_next_round() -> void:
 		vel[slot] = Vector2.ZERO
 	under = [-1, -1]
 	under_tick = [0, 0]
+	if column_round != current_round + 1:
+		_prepare_column(current_round + 1)
 
 
 ## 一時停止はルールの時計を止めるだけ（step が呼ばれない）。押している向きは離したことにする。
@@ -184,27 +204,53 @@ func is_steering() -> bool:
 	return phase == "gate" and not finished
 
 
-## ゲートの頭からの秒。
+## ゲートの頭（前のボードの判定のあと）からの秒。ゲートの間でなければ 0。
 func gate_clock() -> float:
 	if phase == "gate":
 		return float(phase_ticks) * TICK
-	return gate_time
-
-
-## ゲートの残り（0〜1）。
-func time_left_ratio() -> float:
-	if phase != "gate" or phase_length <= 0:
-		return 0.0
-	return clampf(1.0 - float(phase_ticks) / float(phase_length), 0.0, 1.0)
-
-
-func time_left() -> float:
-	return time_left_ratio() * gate_time
+	return 0.0
 
 
 ## 今の段階の頭からの秒（見せ方のスロー・復活の進み）。
 func phase_clock() -> float:
 	return float(phase_ticks) * TICK
+
+
+## 列の k 枚目のボードの紙の面の深さ（落ちる点から下へ m。上へ抜けたら負）。
+func board_depth(k: int) -> float:
+	return FIRST_DEPTH + float(k) * BOARD_GAP - column_fall
+
+
+## 今の列に並べるボードの数（列の 0 枚目から）。延長の間は今のボードの下に OVERTIME_LOOKAHEAD 枚まで続ける。
+func board_count() -> int:
+	if overtime:
+		return gate_index + 1 + OVERTIME_LOOKAHEAD
+	return GATES_PER_ROUND
+
+
+## 列の k 枚目の問題。quizzes を番号で読む（始まる前に問題が差し替わっても追いつく）。足りなければ extra_question で足す。
+func column_quiz(k: int) -> QuizItem:
+	var index := column_first + k
+	if not _ensure_quiz(index):
+		return quizzes.back() if not quizzes.is_empty() else null
+	return quizzes[index]
+
+
+## 今のボードへの近づき（0 = ゲートの頭、1 = 当たる）。ゲートの間でなければ 1（まだ始まっていなければ 0）。
+func gate_progress() -> float:
+	if gate_index < 0:
+		return 0.0
+	if phase != "gate":
+		return 1.0
+	var span := maxf(_gate_start_depth - SkyGateImpact.CONTACT, 0.001)
+	return clampf(1.0 - (board_depth(gate_index) - SkyGateImpact.CONTACT) / span, 0.0, 1.0)
+
+
+## 今のボードに当たるまでの秒（列がこのままの速さで上がるとして）。ゲートの間でなければ 0。
+func time_to_contact() -> float:
+	if phase != "gate" or gate_index < 0:
+		return 0.0
+	return maxf(board_depth(gate_index) - SkyGateImpact.CONTACT, 0.0) / maxf(fall_speed, 0.001)
 
 
 func correct_choice() -> int:
@@ -221,7 +267,7 @@ func board_scale() -> Vector2:
 	return board_size() / BOARD_SIZE
 
 
-## ボードの中心の横のずれ（m、x）。ゲートの間は時計で動き、通りすぎたあとはその位置のまま。
+## ボードの中心の横のずれ（m、x）。ゲートの間は時計で動き、当たったあとはその位置のまま。
 func board_offset() -> float:
 	if _sway.x <= 0.0:
 		return 0.0
@@ -285,6 +331,11 @@ static func spawn_point(player: int, scale := Vector2.ONE) -> Vector2:
 	return Vector2(SPAWN_X * (-1.0 if player == 1 else 1.0), center.y) * scale
 
 
+## ラウンドの列の速さ（m/秒）。
+static func round_speed(round_number: int) -> float:
+	return FALL_SPEEDS[clampi(round_number - 1, 0, FALL_SPEEDS.size() - 1)]
+
+
 func record() -> Dictionary:
 	var data := super.record()
 	data["detail"] = {"round": current_round, "gate": gate_index, "overtime": overtime, "passes": passes.duplicate(),
@@ -294,8 +345,9 @@ func record() -> Dictionary:
 
 func get_debug_snapshot() -> Dictionary:
 	var data := super.get_debug_snapshot()
-	data.merge({"phase": phase, "round": current_round, "gate": gate_index, "gate_time": gate_time, "overtime": overtime,
-		"clock": snappedf(gate_clock(), 0.0001), "ticks": ticks,
+	data.merge({"phase": phase, "round": current_round, "gate": gate_index, "speed": fall_speed, "overtime": overtime,
+		"clock": snappedf(gate_clock(), 0.0001), "ticks": ticks, "fall": snappedf(column_fall, 0.0001),
+		"depth": snappedf(board_depth(maxi(gate_index, 0)), 0.0001),
 		"pos": [[snappedf(pos[0].x, 0.0001), snappedf(pos[0].y, 0.0001)], [snappedf(pos[1].x, 0.0001), snappedf(pos[1].y, 0.0001)]],
 		"under": under.duplicate(), "under_tick": under_tick.duplicate(), "results": results.duplicate(),
 		"offset": snappedf(board_offset(), 0.0001), "loser": loser}, true)
@@ -310,18 +362,21 @@ func _tick() -> void:
 		"gate":
 			phase_ticks += 1
 			_sway_t = float(phase_ticks) * TICK
+			column_fall += fall_speed * TICK
 			_move_players()
 			_track_under()
-			if phase_ticks >= phase_length:
+			var contact := FIRST_DEPTH + float(gate_index) * BOARD_GAP - SkyGateImpact.CONTACT
+			if column_fall >= contact - 0.000001:
+				# 当たった刻み：はみ出した分は戻して、ちょうど紙に触れる深さにする
+				column_fall = contact
 				_impact()
 		"impact":
 			phase_ticks += 1
+			if impact_mode == SkyGateImpact.ALL_BURST:
+				# 全員がつき破った：列は止まらずに上がり続ける（減速せずに突破）
+				column_fall += fall_speed * TICK
 			if phase_ticks >= phase_length:
 				_judge()
-		"pass":
-			phase_ticks += 1
-			if phase_ticks >= phase_length:
-				_after_gate()
 		"both_out":
 			phase_ticks += 1
 			if phase_ticks >= phase_length:
@@ -341,42 +396,68 @@ static func round_to_ticks(seconds: float) -> int:
 
 # ------------------------------------------------------------------ rounds and gates
 
-func _begin_round(number: int) -> void:
-	current_round = number
+## ラウンドの列を用意する：列の 0 枚目は次に使う問題。列は頭の深さへ戻す。
+func _prepare_column(round_number: int) -> void:
+	column_round = round_number
+	column_first = question_index + 1
+	column_fall = 0.0
 	gate_index = -1
 	_sway = Vector3.ZERO
 	_sway_t = 0.0
+	_gate_start_depth = FIRST_DEPTH
+
+
+func _begin_round(number: int) -> void:
+	current_round = number
+	if column_round != number:
+		_prepare_column(number)
 	_reset_positions()
-	_emit("round_start", {"round": current_round, "gates": GATES_PER_ROUND, "gate_time": _round_gate_time(),
-		"board_size": board_size()})
+	var questions: Array = []
+	for k in range(GATES_PER_ROUND):
+		questions.append(_quiz_event(column_quiz(k)))
+	_emit("round_start", {"round": current_round, "gates": GATES_PER_ROUND, "speed": round_speed(current_round),
+		"gap": BOARD_GAP, "first_depth": FIRST_DEPTH, "board_size": board_size(), "questions": questions})
 	_next_gate()
 
 
-func _round_gate_time() -> float:
-	return GATE_TIMES[clampi(current_round - 1, 0, GATE_TIMES.size() - 1)]
+func _quiz_event(quiz: QuizItem) -> Dictionary:
+	var choices: Array = []
+	if quiz != null:
+		for choice: String in quiz.c:
+			choices.append(choice)
+	return {"question": quiz.q if quiz != null else "", "choices": choices, "correct": quiz.a if quiz != null else -1}
+
+
+## 用意した問題に index 番が無ければ extra_question で足す。足せなければ false。
+func _ensure_quiz(index: int) -> bool:
+	while quizzes.size() <= index:
+		var extra: QuizItem = extra_question.call() if extra_question.is_valid() else null
+		if extra == null:
+			return false
+		quizzes.append(extra)
+	return true
 
 
 func _next_gate() -> void:
 	gate_index += 1
 	if overtime:
-		gate_time = OVERTIME_TIMES[mini(overtime_count, OVERTIME_TIMES.size() - 1)]
+		fall_speed = OVERTIME_SPEEDS[mini(overtime_count, OVERTIME_SPEEDS.size() - 1)]
 		overtime_count += 1
 	else:
-		gate_time = _round_gate_time()
-	_next_quiz()
+		fall_speed = round_speed(current_round)
+	question_index = column_first + gate_index
+	if not _ensure_quiz(question_index):
+		question_index = quizzes.size() - 1
 	_start_sway()
 	results = ["", ""]
-	_set_phase("gate", gate_time)
+	_set_phase("gate")
+	_gate_start_depth = board_depth(gate_index)
 	under = [-1, -1]
 	_track_under()
-	var quiz := current_quiz()
-	var choices: Array = []
-	if quiz != null:
-		for choice: String in quiz.c:
-			choices.append(choice)
-	_emit("gate", {"round": current_round, "index": gate_index, "question": quiz.q if quiz != null else "",
-		"choices": choices, "correct": correct_choice(), "time": gate_time, "overtime": overtime,
-		"board_size": board_size()})
+	var data := _quiz_event(current_quiz())
+	data.merge({"round": current_round, "index": gate_index, "depth": _gate_start_depth, "speed": fall_speed,
+		"overtime": overtime, "board_size": board_size()})
+	_emit("gate", data)
 
 
 ## ボードが横へ動く：前のゲートの最後のずれから続ける（向きはランダム）。ROUND 1 は動かない。
@@ -396,7 +477,7 @@ func _start_sway() -> void:
 func _start_overtime() -> void:
 	overtime = true
 	overtime_count = 0
-	_emit("overtime", {"gate_time": OVERTIME_TIMES[0], "round": current_round})
+	_emit("overtime", {"speed": OVERTIME_SPEEDS[0], "round": current_round})
 	_next_gate()
 
 
@@ -461,8 +542,8 @@ func _track_under() -> void:
 
 # ------------------------------------------------------------------ the gate
 
-## 時間切れ：位置を止めて、真下のパネルで正解かどうかを決める（判定を出すのは IMPACT_TIME のあとの _judge）。
-## gate_impact は見せ方が「つき破る」動き（正解は紙を破って抜ける、まちがいは破れずにはね返されて爆散）を始める合図。
+## 当たった：位置を止めて、真下のパネルで正解かどうかを決める（判定を出すのは見せる間のあとの _judge）。
+## gate_impact は見せ方が「つき破る」動き（正解は紙を破って抜ける、まちがいは破れずにはね返されてスローで爆散）を始める合図。
 func _impact() -> void:
 	_track_under()
 	var answer := correct_choice()
@@ -470,17 +551,22 @@ func _impact() -> void:
 		results[slot] = "burst" if under[slot] >= 0 and under[slot] == answer else "boom"
 		vel[slot] = Vector2.ZERO
 		move[slot] = Vector2.ZERO
+	impact_mode = SkyGateImpact.mode_of(results)
 	_emit("gate_impact", _gate_result(answer))
-	_set_phase("impact", IMPACT_TIME)
+	var length := BURST_IMPACT_TIME
+	if impact_mode != SkyGateImpact.ALL_BURST:
+		# まちがいがいる：見せ方の脱落のスローが判定の時刻（SkyGateImpact.BOOM_JUDGE_AT）に届くまで待つ
+		length = SkyGateImpact.wasted_real_time(SkyGateImpact.BOOM_JUDGE_AT, impact_mode)
+	_set_phase("impact", length)
 
 
 func _gate_result(answer: int) -> Dictionary:
 	return {"round": current_round, "index": gate_index, "panels": under.duplicate(), "results": results.duplicate(),
 		"correct": answer, "local": [local_point(0), local_point(1)], "since": [float(under_tick[0]) * TICK, float(under_tick[1]) * TICK],
-		"overtime": overtime}
+		"overtime": overtime, "mode": impact_mode, "speed": fall_speed}
 
 
-## つき破る動きを見せ終えた：判定を出す（中身は時間切れで止めた位置のまま）。
+## つき破る動きを見せ終えた：判定を出す（中身は当たった瞬間に止めた位置のまま）。
 func _judge() -> void:
 	var answer := correct_choice()
 	var outs: Array[int] = []
@@ -501,15 +587,15 @@ func _judge() -> void:
 		_set_phase("both_out", REVIVE_TIME)
 		_emit("both_out", {"index": gate_index, "round": current_round})
 		return
-	if overtime and gate_time <= SPEED_GATE_TIME + 0.0001 and under_tick[0] != under_tick[1]:
-		# 早い者勝ち：正解のパネルに入ってそのまま通過した時刻が早い方。同じ刻みならもう1枚。
+	if overtime and fall_speed >= SPEED_WIN_SPEED - 0.0001 and under_tick[0] != under_tick[1]:
+		# 早い者勝ち：正解のパネルに入ってそのまま当たった時刻が早い方。同じ刻みならもう1枚。
 		speed_times = [float(under_tick[0]) * TICK, float(under_tick[1]) * TICK]
 		_decide(1 if under_tick[0] < under_tick[1] else 2, "speed")
 		return
-	_set_phase("pass", PASS_TIME)
+	_after_gate()
 
 
-## 通りすぎた（または2人とも復活した）あと：次のゲート、ラウンドの終わり、ROUND 5 のあとの1枚ずつのゲート。
+## 判定のあと（または2人とも復活したあと）：次のボード、ラウンドの終わり、ROUND 5 のあとの延長。
 func _after_gate() -> void:
 	if overtime or gate_index < GATES_PER_ROUND - 1:
 		_next_gate()

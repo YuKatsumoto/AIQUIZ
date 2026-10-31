@@ -90,10 +90,13 @@ func run() -> void:
 	print("OPERATOR_MOTION_CAPTURE ",JSON.stringify({"shots":shots().size(),"frames":report.get("sequence_frames",0)}))
 	get_tree().quit()
 
-## Menu stow at full clip speed (p advances 1.3/s): stow, 16 s racked, then deploy.
+## Menu stow at full clip speed (p advances STOW_SPEED/s): stow, 16 s racked, then deploy (sidecar timing).
 static func stow_sequence() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
-	var length := 12.4167
+	var data := SawChaseController.load_stow_data(SawChaseController.STOW_DATA_PATH, 6.95)
+	var length := float(data.length)
+	var brake := float(data.brake_seconds)
+	var station: Array = data.station_airspace
 	var p := 0.0
 	var rate := 0.0
 	var idle := -1.0
@@ -107,12 +110,12 @@ static func stow_sequence() -> Array[Dictionary]:
 				if p >= length: idle = maxf(idle,0.0) + 1.0/30.0
 				if held >= float(leg[1]): break
 			else:
-				p = clampf(p + rate*1.3/30.0, 0.0, length)
+				p = clampf(p + rate*SawChaseController.STOW_SPEED/30.0, 0.0, length)
 				if p >= length: idle = maxf(idle,0.0)
 				elif p <= length - SawOperatorPresentation.STOW_REST_FADE: idle = -1.0
 				if (want > 0.0 and p >= float(leg[1])) or (want < 0.0 and p <= float(leg[1])): break
 			out.append(SawOperatorPresentation.sample(7.2,20.0,0.0,1.0,true,0.0,0.0,
-				{"rpm":1.0-smoothstep(0.0,1.3,p),"stow":p,"stow_length":length,"stow_rate":rate,"stow_idle":idle}))
+				{"rpm":1.0-smoothstep(0.0,brake,p),"stow":p,"stow_length":length,"stow_rate":rate,"stow_idle":idle,"stow_station":station}))
 	return out
 
 ## Transport, all six waiting vignettes, the start, one running cycle, a catch and the stop.

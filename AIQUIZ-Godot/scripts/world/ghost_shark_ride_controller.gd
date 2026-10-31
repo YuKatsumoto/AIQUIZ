@@ -2,10 +2,14 @@ class_name GhostSharkRideController
 extends Node3D
 
 signal aim_used(player_index: int)
+
 signal charge_resolved(player_index: int, hit: bool, power: float)
 signal result_rider_released(rider: Node3D)
 
 const SharkSwimmerScript = preload("res://scripts/world/shark_swimmer.gd")
+const TouchHud = preload("res://scripts/ui/touch_hud/touch_hud.gd")
+const MobileUi = preload("res://scripts/core/mobile_ui.gd")
+const Haptics = preload("res://scripts/core/haptics.gd")
 const GHOST_RETURN_PORTAL_P1_SCENE := preload(
 	"res://assets/BinbunVFX/portal_vfx/effects/portal/portal_vfx_01.tscn"
 )
@@ -64,6 +68,10 @@ const HIT_COOLDOWN_SECONDS: float = 3.45
 const MIN_COOLDOWN_SECONDS: float = 2.15
 const PERFECT_COOLDOWN_BONUS: float = 0.45
 const COMBO_COOLDOWN_STEP: float = 0.22
+## サメが戻ってくる（再突進まで貯まっていく）間のチャージバーの点滅。満タンに近づくほど速くなる。
+const COOLDOWN_BLINK_START_HZ: float = 2.2
+const COOLDOWN_BLINK_END_HZ: float = 6.0
+const COOLDOWN_BLINK_DIM_ALPHA: float = 0.32
 const MIN_HIT_HORIZONTAL_SPEED: float = 10.5
 const MAX_HIT_HORIZONTAL_SPEED: float = 18.5
 const MIN_HIT_VERTICAL_SPEED: float = 4.5
@@ -202,9 +210,12 @@ var _charging_input: bool = false
 var _charge_amount: float = 0.0
 var _last_charge_power: float = QUICK_CHARGE_FLOOR
 var _perfect_charge: bool = false
+## 長押し中にチャージが PERFECT 帯へ入ったか（入った瞬間だけ振動させる）。
+var _charge_in_perfect_band: bool = false
 var _combo: int = 0
 var _best_combo: int = 0
 var _current_cooldown_duration: float = MISS_COOLDOWN_SECONDS
+var _cooldown_blink_cycles: float = 0.0
 var _result_text: String = ""
 var _player_color: Color = Color.WHITE
 var _ghost_emote_id: int = 0
@@ -249,6 +260,8 @@ var _charge_tutorial_title: Label = null
 var _charge_tutorial_controls: VBoxContainer = null
 var _charge_tutorial_result: Label = null
 var _charge_tutorial_bar_slot: Control = null
+## スマホ：溜めの説明カードの「説明を閉じて操作開始 ▶」。TouchControls が同じ働きの「OK」を出している間は隠す。
+var _charge_tutorial_touch_button: Button = null
 var _charge_tutorial_active: bool = false
 var _charge_tutorial_handoff_active: bool = false
 var _charge_tutorial_elapsed: float = 0.0
@@ -366,6 +379,9 @@ func update_ghost_ride(
 ) -> void:
 	if game_state == null:
 		return
+	if _lasso_hold:
+		_update_lasso_hold(delta)
+		return
 	var fire_down := jump_p1 if dead_player_index == 1 else jump_p2
 	if _is_net_mirror():
 		# 相手が乗っているあいだ、自分のキーは使わない。チャージの音は相手の長押しに合わせる。
@@ -402,6 +418,7 @@ func update_ghost_ride(
 	# サメ移動・壁スクロール・カメラ更新の後に判定しないと透過切替が1フレーム遅れる。
 	call_deferred("_update_problem_wall_occlusion")
 	_update_hud_animation(delta)
+	_publish_practice_ghost_state()
 
 	_previous_fire_down = fire_down
 	_previous_p1_alive = game_state.p1_alive
@@ -410,10 +427,110 @@ func update_ghost_ride(
 
 func force_cleanup() -> void:
 	end_return_portal_render_prewarm()
+	_lasso_hold = false
 	_cleanup_ghost_ride()
 	if game_state:
 		_previous_p1_alive = game_state.p1_alive
 		_previous_p2_alive = game_state.p2_alive
+	_publish_practice_ghost_state()
+
+
+# ===========================================================================
+# 練習（docs/new_tutorial/phase6_design.md 2.4）
+# ===========================================================================
+
+## 脱落〜光の柱の演出のフェーズ（practice_skip_intro で飛ばせる間）。
+const PRACTICE_INTRO_PHASES: Array[int] = [
+	Phase.DEATH_DELAY, Phase.DEATH_HOLD, Phase.SOUL_RISE, Phase.SOUL_FLIGHT, Phase.MOUNTING, Phase.BEAM_REVEAL,
+]
+## practice_ghost_state へ最後に渡した乗り手（0 = 渡していない）。
+var _practice_published_rider := 0
+
+
+## 練習：脱落〜光の柱の演出を飛ばし、乗り手をサメの鞍に乗せて、海の中から待つ所へ上がる（ENTERING。約2.5秒で照準）。
+## 小窓（DeathWipe）は閉じ、乗り手はすぐ本画面に出す。演出の途中でなければ何もしない。飛ばしたら true。
+func practice_skip_intro() -> bool:
+	if phase not in PRACTICE_INTRO_PHASES or _shark == null or not is_instance_valid(_shark):
+		return false
+	if _rider == null or not is_instance_valid(_rider):
+		return false
+	for cue: StringName in GHOST_LONG_SFX_CUES:
+		AudioManager.fade_out_sfx(cue, 0.2)
+	_update_progress_follow()
+	var hover_target := _fixed_hover_target
+	var entry := _calculate_entry_position(hover_target)
+	if not _shark.is_ghost_mounted():
+		# まだ鞍に乗っていない（魂が飛んでいる途中）：乗る姿のまま鞍へ置く。
+		_rider.global_transform = Transform3D(
+			_shark.get_ghost_mount_world_basis().scaled(Vector3.ONE * _shark.get_ghost_rider_world_scale()),
+			_shark.get_ghost_mount_world_position()
+		)
+	if not _shark.practice_skip_mount_to_hover(dead_player_index, _rider, entry, hover_target, _current_aim_point()):
+		return false
+	player_controller.make_ghost_rider_opaque(_rider)
+	_shark.set_ghost_possession_pulse(0.0)
+	_shark.begin_ghost_possession(_presenter.player_color())
+	_ghost_rendezvous_released = true
+	_ghost_reveal_beams_started = true
+	_rider_revealed_to_main = true
+	_set_rider_presentation_only(false)
+	_sequence_elapsed = HEROIC_SEQUENCE_SECONDS - ENTRY_SECONDS
+	phase = Phase.ENTERING
+	_phase_timer = ENTRY_SECONDS
+	_presentation_focus = _shark.global_position
+	_clear_ghost_emote()
+	return true
+
+
+## 練習：ゴーストから戻したとき（practice_revive）。サメは海へもぐって元の泳ぎに戻り、乗り手・照準・メーターを片づける。
+func practice_end_ride() -> void:
+	retire_ride()
+	end_return_portal_render_prewarm()
+	if game_state:
+		_previous_p1_alive = game_state.p1_alive
+		_previous_p2_alive = game_state.p2_alive
+	_publish_practice_ghost_state()
+
+
+## 練習の CPU（game_state.practice_p2_cpu）がゴーストに乗っているか（照準の説明の代わりに「よけて」を出す）。
+func _is_practice_cpu_rider() -> bool:
+	return game_state != null and dead_player_index == 2 and game_state.practice_cpu_active()
+
+
+## 練習：乗っている間の様子（照準・ため）を game_state へ渡す（CPU が読む。game_state.practice_ghost_state）。
+func _publish_practice_ghost_state() -> void:
+	if game_state == null or game_state.practice_rules == null:
+		_practice_published_rider = 0
+		return
+	var rider := dead_player_index if phase != Phase.INACTIVE else 0
+	if _practice_published_rider != 0 and _practice_published_rider != rider:
+		game_state.notify_practice_ghost_state(_practice_published_rider, {})
+	_practice_published_rider = rider
+	if rider == 0:
+		return
+	var aim := _current_aim_point()
+	var aiming := phase == Phase.AIMING
+	var charging := aiming and _charging_input
+	var shark_position := Vector3.ZERO
+	if _shark != null and is_instance_valid(_shark):
+		var world := get_parent() as Node3D
+		shark_position = world.to_local(_shark.global_position) if world != null else _shark.global_position
+	game_state.notify_practice_ghost_state(rider, {
+		"phase": StringName(Phase.keys()[phase]),
+		"can_aim": aiming,
+		"aim": Vector2(aim.x, aim.z),
+		"charging": charging,
+		"charge": _charge_amount if charging else 0.0,
+		"perfect": charging and _is_perfect_power(_charge_amount),
+		"target": survivor_player_index,
+		"shark": shark_position,
+	})
+
+
+## 練習：照準を動かせるようになった（AIMING に入った）。
+func _notify_practice_ready() -> void:
+	if game_state != null:
+		game_state.notify_practice_ghost(&"ready", dead_player_index)
 
 
 ## auto_detect_deaths = false の画面が、乗せると決めた死亡で搭乗を始める（演出は本編の死亡時と同じ）。
@@ -462,6 +579,86 @@ func retire_ride(dismount_parent: Node = null) -> Node3D:
 	if shark != null and is_instance_valid(shark):
 		shark.retire_after_result_dismount()
 	return null
+
+
+## 両者脱落の投げ縄（EliminationLassoDirector）を待つあいだ（hold_for_elimination_lasso）：乗り手はサメに乗ったまま、
+## サメは今の所で浮いて待つ。
+var _lasso_hold := false
+var _lasso_hold_target := Vector3.ZERO
+var _lasso_hold_aim := Vector3.ZERO
+
+
+## もう一人も脱落して両者脱落の投げ縄が始まるとき（GameWorld）：照準・溜め・突進をやめ、乗り手をサメに乗せたまま、
+## サメをその場に浮かせて待たせる。投げ縄の演出が乗り手に縄を掛け、引き上げるときに take_lasso_rider で引き取る。
+## サメに乗って照準を合わせているとき（AIMING・WINDUP）だけ待たせられる。待たせたら true（ほかは今まで通り片付ける）。
+func hold_for_elimination_lasso() -> bool:
+	if _lasso_hold:
+		return true
+	if phase not in [Phase.AIMING, Phase.WINDUP]:
+		return false
+	if _rider == null or not is_instance_valid(_rider) or _shark == null or not is_instance_valid(_shark):
+		return false
+	if not _shark.is_ghost_mounted() or not _shark.is_ghost_hovering():
+		return false
+	_lasso_hold = true
+	phase = Phase.AIMING
+	_charging_input = false
+	_charge_amount = 0.0
+	_stop_charge_audio()
+	_clear_ghost_emote()
+	_hide_aim_visuals()
+	if _hud_panel:
+		_hud_panel.visible = false
+	if _shark.has_method("set_ghost_charge_tension"):
+		_shark.set_ghost_charge_tension(0.0)
+	_lasso_hold_target = _shark.position
+	_lasso_hold_aim = _current_aim_point()
+	return true
+
+
+func is_holding_for_lasso() -> bool:
+	return _lasso_hold
+
+
+## 待たせている乗り手（{"player": 乗り手のプレイヤー, "rider": 乗り手の見た目, "shark": サメ}。待たせていなければ空）。
+func get_lasso_hold() -> Dictionary:
+	if not _lasso_hold or _rider == null or not is_instance_valid(_rider):
+		return {}
+	return {"player": dead_player_index, "rider": _rider, "shark": _shark}
+
+
+## 投げ縄の演出が乗り手を引き取る（縄で引き上げた瞬間）：乗り手を new_parent の子へ移し（ワールドでの所・向き・大きさは
+## そのまま）、サメは海へ潜って元の泳ぎに戻る。引き取った乗り手を返す（呼んだ側が持つ）。
+func take_lasso_rider(new_parent: Node) -> Node3D:
+	if not _lasso_hold or new_parent == null:
+		return null
+	_lasso_hold = false
+	var released := _rider
+	if released == null or not is_instance_valid(released):
+		force_cleanup()
+		return null
+	_set_rider_presentation_only(false)
+	released.reparent(new_parent, true)
+	_rider = null
+	var shark := _shark
+	_cleanup_ghost_ride()
+	if shark != null and is_instance_valid(shark):
+		shark.retire_after_result_dismount()
+	return released
+
+
+func _update_lasso_hold(delta: float) -> void:
+	if _shark == null or not is_instance_valid(_shark) or _rider == null or not is_instance_valid(_rider):
+		_lasso_hold = false
+		_cleanup_ghost_ride()
+		return
+	# サメは今の所で浮いて待ち（小さく上下する）、乗り手は乗った姿のまま
+	_shark.set_ghost_hover_target(_lasso_hold_target, _lasso_hold_aim)
+	_update_rider_ride_pose(delta)
+	if _presenter != null:
+		_presenter.update_effects(delta, false)
+	_previous_p1_alive = game_state.p1_alive
+	_previous_p2_alive = game_state.p2_alive
 
 
 func get_aim_point() -> Vector3:
@@ -955,9 +1152,10 @@ func _detect_new_death(is_online: bool, is_replay: bool) -> void:
 		return
 	if not game_state.p1_alive and not game_state.p2_alive:
 		return
-	if _previous_p1_alive and not game_state.p1_alive and game_state.p2_alive:
+	# 練習でのこぎり（MatchRules.Saw.REPORT_ONLY）に捕まった人は、ゴーストに乗らない（監督が戻す）。
+	if _previous_p1_alive and not game_state.p1_alive and game_state.p2_alive and not game_state.is_practice_saw_caught(1):
 		_begin_death_delay(1, 2)
-	elif _previous_p2_alive and not game_state.p2_alive and game_state.p1_alive:
+	elif _previous_p2_alive and not game_state.p2_alive and game_state.p1_alive and not game_state.is_practice_saw_caught(2):
 		_begin_death_delay(2, 1)
 
 
@@ -1073,6 +1271,8 @@ func _base_mode_is_eligible(is_online: bool, is_replay: bool) -> bool:
 	return (
 		game_state.num_players == 2
 		and not game_state.is_coop_mode()
+		# 練習はレッスンのルール（MatchRules.ghost_ride_enabled）で乗れるときだけ。本編はいつも true。
+		and game_state.allows_ghost_ride()
 		# チュートリアルでは搭乗を許すステップ（海・ゴースト練習・実戦・最終レース）だけ。
 		and game_state.allows_tutorial_ghost_ride()
 		# オンラインは同期の準備（configure_network）ができているときだけ。
@@ -1202,8 +1402,10 @@ func _update_active_phase(
 				else:
 					_show_aim_visuals()
 					_start_hud_intro()
+				_notify_practice_ready()
 		Phase.AIMING:
 			if is_charge_tutorial_active():
+				_sync_charge_tutorial_touch_button()
 				if _charge_tutorial_handoff_active:
 					_update_charge_tutorial_handoff(delta)
 				else:
@@ -1261,6 +1463,7 @@ func _update_charge_input(
 	if fire_pressed:
 		_charging_input = true
 		_charge_amount = 0.0
+		_charge_in_perfect_band = false
 	if not _charging_input:
 		_set_meter(0.0, _player_color)
 		_update_hud("照準を合わせ、突進ボタンを長押し")
@@ -1270,7 +1473,12 @@ func _update_charge_input(
 		if _shark and _shark.has_method("set_ghost_charge_tension"):
 			_shark.set_ghost_charge_tension(_charge_amount)
 		_set_meter(_charge_amount, _charge_feedback_color(_charge_amount))
-		if _is_perfect_power(_charge_amount):
+		var in_band := _is_perfect_power(_charge_amount)
+		if in_band and not _charge_in_perfect_band and not _is_practice_cpu_rider():
+			# 練習の CPU が溜めているときは、この画面の人の手ごたえではないので振動させない。
+			Haptics.pulse(Haptics.CHARGE)
+		_charge_in_perfect_band = in_band
+		if in_band:
 			_update_hud("PERFECT 帯！ 今離すと強力")
 		else:
 			_update_hud("霊力チャージ %d%%" % roundi(_charge_amount * 100.0))
@@ -1986,6 +2194,8 @@ func _start_charge() -> void:
 	_hide_aim_visuals()
 	_set_meter(_last_charge_power, _charge_feedback_color(_last_charge_power))
 	_update_hud("PERFECT DASH！" if _perfect_charge else "直線突進中！")
+	if game_state != null:
+		game_state.notify_practice_ghost(&"dash", dead_player_index)
 
 
 func _update_charge_sweep() -> void:
@@ -2024,6 +2234,7 @@ func _apply_charge_hit() -> void:
 	if horizontal_direction.length_squared() < 0.001:
 		horizontal_direction = Vector2.RIGHT
 	_set_hit_result_text()
+	Haptics.pulse(Haptics.HIT)
 	if _net_enabled:
 		# オンライン：吹き飛ばしはホストだけ。ゲストが乗り手なら、命中をホストへ送る（同じ式で入れる）。
 		_net_out_events.append({
@@ -2042,6 +2253,7 @@ func _apply_charge_hit() -> void:
 	else:
 		_apply_hit_impulse(survivor_player_index, horizontal_direction, _last_charge_power, _perfect_charge)
 	_play_charge_hit_effects()
+	game_state.notify_practice_ghost(&"hit", dead_player_index, survivor_player_index)
 
 
 func _set_hit_result_text() -> void:
@@ -2148,6 +2360,7 @@ func _begin_cooldown() -> void:
 		RETURN_PORTAL_SEQUENCE_SECONDS
 	)
 	_phase_timer = _current_cooldown_duration
+	_cooldown_blink_cycles = 0.0
 	_cooldown_entry_started = false
 	_return_portal_elapsed = 0.0
 	_return_tail_clear_elapsed = 0.0
@@ -2167,6 +2380,8 @@ func _begin_cooldown() -> void:
 	_set_meter(0.0, _player_color)
 	_update_hud("%s  /  再突進 %.1f 秒" % [_result_text, _phase_timer])
 	charge_resolved.emit(dead_player_index, _hit_this_charge, _last_charge_power)
+	if not _hit_this_charge and game_state != null:
+		game_state.notify_practice_ghost(&"missed", dead_player_index)
 
 
 func _spawn_return_portal() -> void:
@@ -2500,7 +2715,10 @@ func _update_cooldown(delta: float) -> void:
 		0.0,
 		1.0
 	)
-	_set_meter(cooldown_progress, _player_color)
+	# 貯まっていく間は帯を点滅させ、まだ突進できないことを見せる。満タンになったら点けたままにする。
+	_cooldown_blink_cycles += delta * lerpf(COOLDOWN_BLINK_START_HZ, COOLDOWN_BLINK_END_HZ, cooldown_progress)
+	var blink_lit := cooldown_progress >= 1.0 or fmod(_cooldown_blink_cycles, 1.0) < 0.5
+	_set_meter(cooldown_progress, _player_color, 0.96 if blink_lit else COOLDOWN_BLINK_DIM_ALPHA)
 	_update_hud("%s  /  再突進 %.1f 秒" % [_result_text, _phase_timer])
 	var portal_finished := _return_portal == null or not is_instance_valid(_return_portal)
 	if not portal_finished:
@@ -2526,6 +2744,7 @@ func _update_cooldown(delta: float) -> void:
 		_update_hover_target()
 		phase = Phase.AIMING
 		_show_aim_visuals()
+		_notify_practice_ready()
 		if _is_net_mirror():
 			_net_try_start_pending_launch()
 
@@ -2806,6 +3025,10 @@ func _build_charge_tutorial_overlay() -> void:
 	_charge_tutorial_panel.offset_right = CHARGE_TUTORIAL_PANEL_SIZE.x * 0.5
 	_charge_tutorial_panel.offset_bottom = CHARGE_TUTORIAL_PANEL_SIZE.y * 0.5
 	_charge_tutorial_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if TouchHud.is_touch():
+		# スマホは文字とボタンが大きく、中身が決めた大きさを超えても真ん中から上下左右へ広がるように。
+		_charge_tutorial_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+		_charge_tutorial_panel.grow_vertical = Control.GROW_DIRECTION_BOTH
 	var panel_style := StyleBoxFlat.new()
 	panel_style.bg_color = Color(0.035, 0.07, 0.15, 0.98)
 	panel_style.border_color = Color(1.0, 0.86, 0.22, 0.96)
@@ -2896,6 +3119,17 @@ func _build_charge_tutorial_overlay() -> void:
 	_charge_tutorial_controls.add_theme_constant_override("separation", 8)
 	content.add_child(_charge_tutorial_controls)
 
+	if TouchHud.is_touch():
+		# スマホ：「何かキーを押す」の代わりに押せるボタン（キーと同じ dismiss_charge_tutorial）。
+		var confirm_button := TouchHud.make_button("説明を閉じて操作開始 ▶", 22, Color(1.0, 0.88, 0.24))
+		confirm_button.name = "ChargeTutorialConfirm"
+		confirm_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		confirm_button.pressed.connect(func() -> void: dismiss_charge_tutorial())
+		# 出すかどうかは _sync_charge_tutorial_touch_button が決める（TouchControls の「OK」と同じフレームに出さない）。
+		confirm_button.visible = false
+		content.add_child(confirm_button)
+		_charge_tutorial_touch_button = confirm_button
+		return
 	var confirm := KeyHintRow.new()
 	confirm.name = "ChargeTutorialConfirm"
 	confirm.add_theme_constant_override("separation", 8)
@@ -2942,6 +3176,17 @@ func _start_charge_tutorial() -> void:
 	_charge_tutorial_title.text = "GHOST RIDER · P%d  チャージ操作" % dead_player_index
 	_fill_charge_tutorial_controls()
 	_update_charge_tutorial(0.0)
+
+
+## スマホ：カードのボタンは、説明が出ていて TouchControls の「OK」（Enter）が出ていない間だけ見せる。
+## 同じ働きのボタンが2つ並ばないよう、TouchHud.own_button_allowed で同じフレームに両方は出さない。
+func _sync_charge_tutorial_touch_button() -> void:
+	if _charge_tutorial_touch_button == null or not is_instance_valid(_charge_tutorial_touch_button):
+		return
+	var wanted := _charge_tutorial_active and not _charge_tutorial_handoff_active
+	var shown := TouchHud.own_button_allowed(_charge_tutorial_touch_button, "ConfirmButton", wanted)
+	if _charge_tutorial_touch_button.visible != shown:
+		_charge_tutorial_touch_button.visible = shown
 
 
 func _update_charge_tutorial(delta: float) -> void:
@@ -3310,15 +3555,21 @@ func _refresh_hud_controls() -> void:
 	if _hud_controls == null:
 		return
 	# オンラインは乗り手か相手かで中身が変わるので、キーを分ける。
-	var controls_key := dead_player_index + (0 if not _net_enabled else (20 if _is_net_mirror() else 10))
+	# 練習の CPU が乗っているときは、オンラインの相手が乗っているときと同じく「よけて」を出す。
+	var controls_key := dead_player_index + (0 if not _net_enabled else (20 if _is_net_mirror() else 10)) \
+		+ (30 if _is_practice_cpu_rider() else 0)
 	if _hud_controls_for_player == controls_key and _hud_controls.get_child_count() > 0:
 		return
 	_hud_controls_for_player = controls_key
 	_hud_controls.reset()
 	var accent := Color(0.95, 0.55, 0.20) if dead_player_index == 1 else Color(0.20, 0.65, 0.90)
 	var hint := Color(0.88, 0.93, 1.0, 1.0)
-	if _is_net_mirror():
-		_hud_controls.add_text("あいてが ねらっているよ！ よけて！", hint, 12, true)
+	if _is_net_mirror() or _is_practice_cpu_rider():
+		_hud_controls.add_text("あいてが ねらっているよ！ よけて！", hint, MobileUi.font(12), true)
+		return
+	if TouchHud.is_touch():
+		# スマホ：キーの代わりに、スティックとジャンプボタンの呼び名。
+		_hud_controls.add_text("スティックで照準 | ジャンプボタンを長押し→離して発射", hint, MobileUi.font(12), true)
 		return
 	if _net_enabled:
 		# オンラインの自分の操作は、どちらのスロットでも WASD・矢印と Space。
@@ -3351,17 +3602,24 @@ func _fill_charge_tutorial_controls() -> void:
 	var accent := Color(0.95, 0.55, 0.20) if dead_player_index == 1 else Color(0.20, 0.65, 0.90)
 	var ink := Color(0.94, 0.97, 1.0)
 	var aim := KeyHintRow.new()
-	aim.add_text("① ", ink, 20, true)
-	aim.add_spec("WASD" if dead_player_index == 1 else "矢印", accent, KeycapChip.SizeClass.NORMAL)
-	aim.add_text("で照準を合わせる", ink, 20, true)
-	_charge_tutorial_controls.add_child(aim)
 	var charge := KeyHintRow.new()
-	charge.add_text("② ", ink, 20, true)
-	if dead_player_index != 1:
-		charge.add_text("右", ink, 20, true)
-	charge.add_spec("Space" if dead_player_index == 1 else "Ctrl", accent, KeycapChip.SizeClass.NORMAL)
-	charge.add_text("を長押ししてチャージ", ink, 20, true)
-	_charge_tutorial_controls.add_child(charge)
+	if TouchHud.is_touch():
+		# スマホ：キーキャップの代わりに、画面のスティックとジャンプボタンで言う。
+		aim.add_text("① スティックで照準を合わせる", ink, 20, true)
+		charge.add_text("② ジャンプボタンを長押ししてチャージ", ink, 20, true)
+		_charge_tutorial_controls.add_child(aim)
+		_charge_tutorial_controls.add_child(charge)
+	else:
+		aim.add_text("① ", ink, 20, true)
+		aim.add_spec("WASD" if dead_player_index == 1 else "矢印", accent, KeycapChip.SizeClass.NORMAL)
+		aim.add_text("で照準を合わせる", ink, 20, true)
+		_charge_tutorial_controls.add_child(aim)
+		charge.add_text("② ", ink, 20, true)
+		if dead_player_index != 1:
+			charge.add_text("右", ink, 20, true)
+		charge.add_spec("Space" if dead_player_index == 1 else "Ctrl", accent, KeycapChip.SizeClass.NORMAL)
+		charge.add_text("を長押ししてチャージ", ink, 20, true)
+		_charge_tutorial_controls.add_child(charge)
 	var perfect := KeyHintRow.new()
 	perfect.add_text("③ 黄色のPERFECT帯で離すと最大強度で突進", ink, 20, true)
 	_charge_tutorial_controls.add_child(perfect)
@@ -3393,14 +3651,15 @@ func _set_aim_color(color: Color) -> void:
 		_aim_outer_material.emission_energy_multiplier = 1.6
 
 
-func _set_meter(progress: float, color: Color) -> void:
+func _set_meter(progress: float, color: Color, alpha: float = 0.96) -> void:
 	if _charge_bar:
 		_charge_bar.value = clampf(progress, 0.0, 1.0) * 100.0
 	if _charge_fill_style:
-		_charge_fill_style.bg_color = Color(color.r, color.g, color.b, 0.96)
+		_charge_fill_style.bg_color = Color(color.r, color.g, color.b, alpha)
 
 
 func _cleanup_ghost_ride() -> void:
+	_lasso_hold = false
 	if phase != Phase.INACTIVE:
 		for cue: StringName in GHOST_LONG_SFX_CUES:
 			AudioManager.fade_out_sfx(cue, 0.3)

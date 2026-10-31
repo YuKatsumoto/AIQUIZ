@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://52aqxjm5uanl"
 path.s3tc="res://.godot/imported/online_heliport_ohp_net.png-fe5db42043ac94d0204c7f8efc79f455.s3tc.ctex"
+path.etc2="res://.godot/imported/online_heliport_ohp_net.png-fe5db42043ac94d0204c7f8efc79f455.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/online_heliport/online_heliport_ohp_net.png"
-dest_files=["res://.godot/imported/online_heliport_ohp_net.png-fe5db42043ac94d0204c7f8efc79f455.s3tc.ctex"]
+dest_files=["res://.godot/imported/online_heliport_ohp_net.png-fe5db42043ac94d0204c7f8efc79f455.s3tc.ctex", "res://.godot/imported/online_heliport_ohp_net.png-fe5db42043ac94d0204c7f8efc79f455.etc2.ctex"]
 
 [params]
 

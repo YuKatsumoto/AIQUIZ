@@ -14,8 +14,8 @@ extends Node3D
 ##
 ## The crowd throws for as long as the verdict holds, so every kind of piece has a
 ## cap per quality (DETAIL); over a cap the oldest fades out (thinning, never
-## popping) and the node goes back to a pool. World space (top_level, left at the
-## origin, so its children's transform is their global transform).
+## popping) and the node goes back to a pool. World space (top_level, held at the
+## world origin, so its children's transform is their global transform).
 
 const CONTENTS_SCENE := preload("res://assets/goal_stand/goal_stand_egg_contents.glb")
 const WHITE_SHADER := preload("res://shaders/goal_stand_egg_white.gdshader")
@@ -39,7 +39,7 @@ const MERGE_REACH := 0.6
 ## egg): more often on a body than on the floor, where the white cushions it less.
 const RUPTURE_SPEED := 14.0
 const RUPTURE_CHANCE := 0.35
-const BODY_RUPTURE_CHANCE := 0.55
+const BODY_RUPTURE_CHANCE := 0.35
 const DROP_MAX_LIFE := 3.0
 ## Rayleigh wobble of a free drop: damping ratio, and the stretch it pinches off with.
 const DROP_WOBBLE_ZETA := 0.18
@@ -117,6 +117,10 @@ var _rng := RandomNumberGenerator.new()
 func setup(level: String, egg_scale: float, seed_value: int, mobile: bool = false) -> void:
 	name = "EggContents"
 	top_level = true
+	# Every piece is placed with `transform` as its world transform, so this node
+	# must sit at the world origin: the stand that owns it is turned round, and a
+	# top_level node keeps the global transform it had when it was switched on.
+	global_transform = Transform3D.IDENTITY
 	_rng.seed = seed_value
 	model = GoalStandEggRheology.new(egg_scale)
 	detail = DETAIL.get(level, DETAIL[QualityRules.BALANCED])

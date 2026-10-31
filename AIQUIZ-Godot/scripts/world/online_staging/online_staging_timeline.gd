@@ -36,9 +36,10 @@ const REVEAL_SYNC_TIMEOUT := 4.0
 
 ## カメラ（H 座標）。pos＝位置、look＝注視点、fov＝縦の画角（度）
 ## S1〜S5 の実際のカメラは下の MOVE_*／CRUISE_SEQUENCE（動くカメラ）。CAM_Board・CAM_Cockpit・CAM_PadLow は
-## ヘリポートのビルダーが確認用のカメラとして読む代表の画（CAM_Idle は街の置き場所の基準にもなる。動かさない）
+## ヘリポートのビルダーが確認用のカメラとして読む代表の画（CAM_Idle は街の置き場所の基準にもなる。
+## CAM_Idle はヘリ全体が左の列の右に収まる引きの画。いまの街の位置は前の CAM_Idle で書き出したもので、ビルダーを回し直すと街もこの画へ合わせ直る）
 const CAMERAS := {
-	"CAM_Idle": {"pos": Vector3(-10.2, 3.1, -8.6), "look": Vector3(-1.0, 1.7, -0.6), "fov": 40.0},
+	"CAM_Idle": {"pos": Vector3(-15.7, 3.6, -8.5), "look": Vector3(2.4, 1.4, -3.1), "fov": 40.0},
 	"CAM_Board": {"pos": Vector3(-7.2, 1.45, -4.4), "look": Vector3(-1.3, 1.65, -1.3), "fov": 42.0},
 	"CAM_Cockpit": {"pos": Vector3(-0.3, 2.35, -6.6), "look": Vector3(0.0, 2.15, -1.2), "fov": 34.0},
 	"CAM_PadLow": {"pos": Vector3(-8.5, 0.55, -9.5), "look": Vector3(0.0, 2.4, 0.0), "fov": 50.0},

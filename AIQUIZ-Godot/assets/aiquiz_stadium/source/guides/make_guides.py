@@ -64,7 +64,7 @@ LAYOUT = CONSTANTS["json"]["goal_stand_layout"]
 DESIGN = {
     "stand_center_x": 28.0,       # stage_environment.gd layout_grandstand_side_offset
     "rows": 6,
-    "stand_back_x": 10.9,         # 6段目 x=7.40 の後ろに後方通路＋ブース
+    "stand_back_x": 12.3,         # 6段目 x=7.40 の後ろに後方通路＋ブース。2026-10-28 に 10.9 → 12.3（ブースの裏を客が通れるように、docs/crowd_sim.md）
     "booth": {"x0": 8.4, "x1": 10.6, "height": 2.6, "length": 4.6},
     "mast": {"x": 9.5, "top_y": 12.0},
     "sail": {"low_x": 1.4, "low_y": 5.2, "half_len": 7.0},

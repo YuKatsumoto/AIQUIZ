@@ -25,22 +25,26 @@ var _operator_elapsed := 0.0
 var _operator_lifts: Array[float] = []
 var _operator_idle := 0.0 # Waiting clock for the pre-start look-around; frozen once the start begins.
 var _menu_chase: MenuSawChaseState
-## Menu-only stow (wall speed tab): the blades brake to a stop, rams lift and tilt them, the
-## drive modules rack them at both ends, and four corner davit towers clamp each rack, carry it
-## over the bogie and the operator deck and hang it below the belt beside the conveyor.
-## Blender bakes two clips on one progress clock p in [0, length]: Stow is sampled at p and
-## Deploy at length - p. Deploy has its own forward-time sway, so a reversal slows the machine
-## to a stop, then cross-fades onto the other clip (source: linked_saw_carriage_source/README.md).
-## The clips play STOW_SPEED times faster than their Blender timing. At deployed rest the davit towers
-## hang down beside the conveyor; they stand up before the clip moves them and hang down again once the deploy ends.
+## Menu-only stow (wall speed tab, v3): the side gantries (門型クレーン) folded beside the conveyor
+## swing up, the blades brake, stand up on their rams and gather into a bunch at each belt end, and
+## each gantry clamps its bunch, lifts it, swings it out over the operator deck and lowers it on its
+## hoist below the belt. Blender bakes two clips on one progress clock p in [0, length]: Stow is
+## sampled at p and Deploy at length - p. Deploy is the same motion backwards with its own forward-time
+## sway, so a reversal slows the machine to a stop, then cross-fades onto the other clip
+## (source: tools/saw_stow3/build_stow3.py, linked_saw_carriage_source/README.md).
+## The rest pose is the folded gantry hanging beside the conveyor wall; the Gantry_Upright clip holds
+## it upright while the service vessel carries the carriage (see gantry_upright_weight).
 const STOW_CLIP := &"Stow"
 const DEPLOY_CLIP := &"Deploy"
+const UPRIGHT_CLIP := &"Gantry_Upright"
 const STOW_DATA_PATH := "res://assets/hazards/linked_saw_carriage_stow.json"
 const STOW_STEP := 1.0 / 240.0 # fixed step: 30/60/120 fps reach the same p(t)
-const STOW_SPEED := 1.3 # clip seconds per second
-const STOW_REVERSE_ACCEL := 4.5 # m/s^2 the moving machine may decelerate by when reversed
-const TOWER_LAY_SECONDS := 0.7 # davit towers swing between upright and hanging
-const TOWER_HANG_TILT := PI / 60.0 # 3 deg: hanging towers lean this far outboard of plumb
+const STOW_SPEED := 1.0 # clip seconds per second
+const STOW_REVERSE_ACCEL := 8.0 # m/s^2 the moving machine may decelerate by when reversed (the gantry tips swing at 9 m/s)
+## The folded gantries stand upright on the vessel and swing down beside the conveyor (outboard,
+## around the operator deck) once the carriage is on the belt.
+const GANTRY_FOLD_DELAY := 0.10
+const GANTRY_FOLD_SECONDS := 1.6
 const STOW_CROSSFADE := 0.35
 const STOW_LIFT_SETTLE := 1.5 # m/s a chase catch lift sinks back while the blades brake
 const STOW_RETREAT_SPEED := 2.5 # m/s the stowed carriage backs away to the end of the belt (and returns before deploying)
@@ -64,15 +68,18 @@ var _beacons: Array[Array] = [] # [MeshInstance3D, surface, lit material]
 var _beacon_time := 0.0
 var _lifts := PackedFloat32Array() # last chase lift per blade
 var _stow_lifts := PackedFloat32Array() # chase lifts held when the stow starts, sinking to zero
+var _lift_stages := PackedInt32Array() # chase lift stage per blade (SawChaseState.lift_stage)
+var _staged_lifts := PackedFloat32Array() # displayed chase lift per blade, travelling between stages
 var _stow_drive := 0.0 # operator's DRIVE input when the stow began; eases to zero on the stow clock
 var _stow_idle := -1.0 # seconds resting fully stowed (operator vignettes); -1 = not at rest
 var _retreat := 0.0 # metres the fully stowed carriage has backed (+Z) away from where it stowed; deploy waits for 0
 var _retreat_speed := 0.0 # signed m/s along +Z
 var _retreat_origin_z := 0.0 # carriage Z when this stow began
-var _tower_lay := 1.0 # 1 = davit towers hanging (deployed rest), 0 = upright as both clips start/end
-var _tower_hold_p := 0.0 # p below which neither clip moves a tower
-var _tower_bones: Array[int] = [] # Davit_* luff roots
-var _tower_turns: Array[Quaternion] = [] # per tower: local rotation that hangs it down
+var _gantry_bones: Array[int] = [] # Gantry_L/R hinge roots
+var _gantry_upright: Array[Quaternion] = [] # per hinge root: its rotation in the Gantry_Upright clip
+var _gantry_up := -1.0 # upright weight last applied (-1 = never); advance_stow refreshes the skeleton when it changes
+var _gantry_fold := GANTRY_FOLD_DELAY + GANTRY_FOLD_SECONDS # seconds the carriage has been on the belt (capped)
+var _operator_hidden := false # メニューの練習で席のハテナを隠している（set_operator_hidden）
 
 func configure_entrance(preview: bool, animate: bool) -> void:
 	if dock != null: return
@@ -81,13 +88,12 @@ func configure_entrance(preview: bool, animate: bool) -> void:
 	add_child(dock)
 	dock.setup(preview, animate)
 	position = dock.carriage_position()
-	# The towers stay upright between the vessel's lift-bay posts and lie down once the carriage is on the belt.
-	_tower_lay = 1.0 if dock.is_deployed() else 0.0
+	_gantry_fold = GANTRY_FOLD_DELAY + GANTRY_FOLD_SECONDS if dock.is_deployed() else 0.0
 
 func finish_entrance() -> void:
 	if dock != null and not dock.is_deployed():
 		dock.restore_deployed()
-	_tower_lay = 1.0
+	_gantry_fold = GANTRY_FOLD_DELAY + GANTRY_FOLD_SECONDS
 	if operator_arriving(): operator_seat.seat_transfer.finish_arrival()
 
 func prepare_operator_arrival() -> void:
@@ -97,7 +103,32 @@ func prepare_operator_arrival() -> void:
 func operator_arriving() -> bool:
 	return operator_seat != null and operator_seat.seat_transfer.is_arriving()
 
-## Load the carriage ahead of a mid-round appearance (the 2P tutorial's saw lesson)
+## メニューの練習（コース②の 2-6。scripts/practice/menu/practice_menu_guide.gd）：操縦席のハテナが雲で席を離れている間、
+## 席のハテナ（MascotDresser の体）を隠す。見た目だけで、席・のこぎり・追いかけの動きはそのまま。
+func set_operator_hidden(hidden: bool) -> void:
+	_operator_hidden = hidden
+	if model == null: _load_model()
+	var body := _operator_body()
+	if body != null: body.visible = not hidden
+
+func is_operator_hidden() -> bool:
+	return _operator_hidden
+
+## 席のハテナの体が入る箱（この世界の座標。座った姿）。席がまだなければ、台の位置の小さな箱。
+func operator_seat_bounds() -> AABB:
+	var body := _operator_body()
+	if body == null: return AABB(global_position, Vector3.ZERO)
+	return body.global_transform * body.get_aabb()
+
+## 席のハテナの体の真ん中（この世界の座標）
+func operator_seat_point() -> Vector3:
+	return operator_seat_bounds().get_center()
+
+func _operator_body() -> MeshInstance3D:
+	if operator_seat == null or operator_seat.skeleton == null: return null
+	return operator_seat.skeleton.get_node_or_null(MascotDresser.BODY_NAME) as MeshInstance3D
+
+## Load the carriage ahead of a mid-round appearance
 ## so the first visible frame does not stall on the GLB.
 func preload_model() -> void:
 	if model == null:
@@ -153,6 +184,8 @@ func _setup_stow() -> void:
 			var bone := skeleton.find_bone(str(anim.track_get_path(track).get_concatenated_subnames()))
 			# Carriage/Roll stay with the chase; everything else (Spin + stow rig) follows the clip.
 			if slot < 0 or bone < 0 or skeleton.get_bone_name(bone).get_slice("_", 0) in ["Carriage", "Roll"]: continue
+			# The clips are keyed at 24 fps; cubic interpolation keeps the velocity continuous between keys.
+			anim.track_set_interpolation_type(track, Animation.INTERPOLATION_CUBIC)
 			var entry: Vector3i = map.get(bone, Vector3i(-1, -1, -1))
 			entry[slot] = track
 			map[bone] = entry
@@ -162,17 +195,19 @@ func _setup_stow() -> void:
 	_stow_anims = anims
 	_stow_maps = maps
 	_stow_data = load_stow_data(STOW_DATA_PATH, anims[0].length)
-	for bone: int in skeleton.get_bone_count():
-		if not skeleton.get_bone_name(bone).begins_with("Davit_"): continue
-		# Swung outboard over the belt edge until it hangs down beside the conveyor. The luff hinge and its
-		# outboard sense come from the Stow clip's parked pose; TOWER_HANG_TILT keeps the mast's inner face
-		# off the conveyor side frame (|x| 12.0, top 0.08 m above the belt).
-		var rest_rotation := skeleton.get_bone_rest(bone).basis.get_rotation_quaternion()
-		var luff: int = (maps[0].get(bone, Vector3i(-1, -1, -1)) as Vector3i).y
-		var parked := anims[0].rotation_track_interpolate(luff, anims[0].length) if luff >= 0 else rest_rotation
-		_tower_bones.append(bone)
-		_tower_turns.append(Quaternion((rest_rotation.inverse() * parked).normalized().get_axis(), PI - TOWER_HANG_TILT))
-	_tower_hold_p = _tower_rest_span()
+	# The gantry hinge roots stand up by their rotation in Gantry_Upright (the folded gantry rides the
+	# hinge, so the stages, hook and spreader follow at rest).
+	var upright := animation.get_animation(UPRIGHT_CLIP) if animation.has_animation(UPRIGHT_CLIP) else null
+	for side: String in ["L", "R"]:
+		var bone := skeleton.find_bone("Gantry_" + side)
+		if bone < 0: continue
+		var turn := skeleton.get_bone_rest(bone).basis.get_rotation_quaternion()
+		if upright != null:
+			for track: int in upright.get_track_count():
+				if upright.track_get_type(track) == Animation.TYPE_ROTATION_3D and str(upright.track_get_path(track).get_concatenated_subnames()) == "Gantry_" + side:
+					turn = upright.rotation_track_interpolate(track, 0.0)
+		_gantry_bones.append(bone)
+		_gantry_upright.append(turn)
 	for node: Node in model.find_children("*", "MeshInstance3D", true, false):
 		var mesh_instance := node as MeshInstance3D
 		if mesh_instance.mesh == null: continue
@@ -186,7 +221,7 @@ func _setup_stow() -> void:
 			mesh_instance.set_surface_override_material(surface, lit)
 			_beacons.append([mesh_instance, surface, lit])
 
-## Sidecar written by tools/saw_stow/build_stow.py (stage "sidecar"): wall/chair intervals and the
+## Sidecar written by tools/saw_stow3/build_stow3.py (stage "sidecar"): wall/chair intervals and the
 ## 30 Hz speed curve on the stow clock p. Without it the stow still plays, conservatively: walls break
 ## for the whole move and the operator chair never launches while the rack is off its rest.
 static func load_stow_data(path: String, clip_length: float) -> Dictionary:
@@ -245,43 +280,25 @@ func chair_launch_clear(lookahead: float) -> bool:
 	var high := _stow_p + (span if stow_target or _stow_rate > 0.0 else 0.0)
 	return not _in_span(_stow_data.get("chair_column", []), low, high)
 
-## Clip time p below which neither clip moves any tower bone (Stow sampled at p, Deploy at length - p).
-func _tower_rest_span() -> float:
-	var hold := _stow_anims[0].length
-	for clip: int in 2:
-		var anim := _stow_anims[clip]
-		for track: int in anim.get_track_count():
-			var bone := skeleton.find_bone(str(anim.track_get_path(track).get_concatenated_subnames()))
-			if bone < 0 or skeleton.get_bone_name(bone).get_slice("_", 0) not in ["Davit", "DavitS2", "DavitS3", "DavitS4", "DavitS5", "DavitS6", "Knuckle", "BeamFlyP", "BeamFlyN", "Jaw"]: continue
-			var rest := skeleton.get_bone_rest(bone)
-			var p := 0.0
-			while p < hold:
-				var t := p if clip == 0 else anim.length - p
-				var moved := false
-				match anim.track_get_type(track):
-					Animation.TYPE_POSITION_3D: moved = anim.position_track_interpolate(track, t).distance_to(rest.origin) > 0.002
-					Animation.TYPE_ROTATION_3D: moved = anim.rotation_track_interpolate(track, t).angle_to(rest.basis.get_rotation_quaternion()) > 0.002
-				if moved:
-					hold = maxf(p - 1.0 / 48.0, 0.0)
-					break
-				p += 1.0 / 48.0
-	return hold
+## 1 while the service vessel carries the carriage (the folded gantries stand upright between its
+## lift-bay posts), easing to 0 once the carriage is on the belt and they hang beside the conveyor.
+func gantry_upright_weight() -> float:
+	return 1.0 - smoothstep(GANTRY_FOLD_DELAY, GANTRY_FOLD_DELAY + GANTRY_FOLD_SECONDS, _gantry_fold)
 
-func _tower_lay_target() -> float:
-	if dock != null and not dock.is_deployed(): return 0.0
-	return 0.0 if stow_target or _stow_p > _tower_hold_p else 1.0
+func _step_gantry_fold(dt: float) -> void:
+	if dock != null and not dock.is_deployed(): _gantry_fold = 0.0
+	else: _gantry_fold = minf(_gantry_fold + maxf(dt, 0.0), GANTRY_FOLD_DELAY + GANTRY_FOLD_SECONDS)
 
-func _step_tower_lay(dt: float) -> bool:
-	var before := _tower_lay
-	_tower_lay = move_toward(_tower_lay, _tower_lay_target(), maxf(dt, 0.0) / TOWER_LAY_SECONDS)
-	return _tower_lay != before
-
-func _apply_tower_lay() -> void:
-	var lay := smoothstep(0.0, 1.0, _tower_lay)
-	for i: int in _tower_bones.size():
-		var bone := _tower_bones[i]
-		var base: Quaternion = _stow_pose[bone][1] if _stow_pose.has(bone) else skeleton.get_bone_rest(bone).basis.get_rotation_quaternion()
-		skeleton.set_bone_pose_rotation(bone, base * Quaternion.IDENTITY.slerp(_tower_turns[i], lay))
+## The hinge roots between rest (hanging) and Gantry_Upright (2 deg inboard of plumb). Slerp takes the
+## 179 deg arc through the outboard horizontal, the way the Stow clip swings them, clear of the operator deck.
+func _apply_gantry_fold() -> void:
+	if skeleton == null or not is_stow_clear(): return
+	# Every time: seeking the spin clip (_apply_spin) puts the hinge roots back at rest.
+	var up := gantry_upright_weight()
+	_gantry_up = up
+	for i: int in _gantry_bones.size():
+		var rest := skeleton.get_bone_rest(_gantry_bones[i]).basis.get_rotation_quaternion()
+		skeleton.set_bone_pose_rotation(_gantry_bones[i], rest.slerp(_gantry_upright[i], up))
 
 static func _in_span(span: Array, low: float, high: float) -> bool:
 	return span.size() >= 2 and high > float(span[0]) and low < float(span[1])
@@ -304,11 +321,12 @@ func _stow_curve(key: String, p: float) -> float:
 func advance_stow(dt: float) -> void:
 	if model == null: _load_model()
 	if _stow_anims.is_empty(): return
+	_step_gantry_fold(dt)
 	if is_stow_clear() and not stow_target:
 		_stow_acc = 0.0
-		if _step_tower_lay(dt):
-			_apply_tower_lay()
-			skeleton.force_update_all_bone_transforms()
+		var before := _gantry_up
+		_apply_gantry_fold()
+		if _gantry_up != before: skeleton.force_update_all_bone_transforms()
 		return
 	var step := maxf(dt, 0.0)
 	_stow_acc += step / STOW_STEP
@@ -331,7 +349,8 @@ func advance_stow(dt: float) -> void:
 	if is_stow_clear():
 		for bone: int in _stow_bones:
 			if not spin_bones.has(bone): skeleton.reset_bone_pose(bone)
-		_apply_tower_lay()
+		_gantry_up = -1.0
+		_apply_gantry_fold()
 		skeleton.force_update_all_bone_transforms()
 	_update_operator_stow(step)
 	_update_start_sound(_preview_spin_rate(), step)
@@ -349,13 +368,15 @@ func _update_operator_stow(dt: float) -> void:
 	operator_seat.apply_sample(SawOperatorPresentation.sample(
 		dock.elapsed if dock != null else SawDockPresentation.FINISH_TIME, _preview_elapsed,
 		_stow_drive * (1.0 - smoothstep(0.0, .6, _stow_p)), 0.0, true, 0.0, 0.0,
-		{"rpm": _preview_spin_rate(), "stow": _stow_p, "stow_length": length, "stow_rate": _stow_rate, "stow_idle": _stow_idle}))
+		{"rpm": _preview_spin_rate(), "stow": _stow_p, "stow_length": length, "stow_rate": _stow_rate, "stow_idle": _stow_idle,
+		"stow_station": _stow_data.get("station_airspace", [])}))
 
 func _stow_tick() -> void:
 	var length := stow_length()
 	var want := 1.0 if stow_target else -1.0
 	if (want > 0.0 and _stow_p >= length) or (want < 0.0 and _stow_p <= 0.0): want = 0.0
 	if want < 0.0 and _retreat > 0.0: want = 0.0 # the carriage rolls back to where it stowed before the deploy starts
+	if want > 0.0 and _stow_p <= 0.0 and gantry_upright_weight() > 0.0: want = 0.0 # the gantries finish folding down first
 	var rate := move_toward(_stow_rate, want, STOW_REVERSE_ACCEL / maxf(stow_speed(_stow_p) * STOW_SPEED, 0.05) * STOW_STEP)
 	var clip := _stow_clip if rate == 0.0 else (0 if rate > 0.0 else 1)
 	if clip != _stow_clip:
@@ -367,14 +388,9 @@ func _stow_tick() -> void:
 			_stow_fade = 0.0
 	_spin_extra += _preview_spin_rate() * STOW_STEP
 	for i: int in _stow_lifts.size(): _stow_lifts[i] = move_toward(_stow_lifts[i], 0.0, STOW_LIFT_SETTLE * STOW_STEP)
-	_tower_lay = move_toward(_tower_lay, _tower_lay_target(), STOW_STEP / TOWER_LAY_SECONDS)
 	_stow_rate = rate
 	_stow_p = clampf(_stow_p + rate * STOW_SPEED * STOW_STEP, 0.0, length)
 	if (_stow_p >= length and rate > 0.0) or (_stow_p <= 0.0 and rate < 0.0): _stow_rate = 0.0
-	if _tower_lay > 0.0 and _stow_p > _tower_hold_p:
-		# The towers finish standing up before the clip moves them.
-		_stow_p = _tower_hold_p
-		_stow_rate = 0.0
 	_stow_fade = minf(1.0, _stow_fade + STOW_STEP / STOW_CROSSFADE)
 
 ## Once the blades are fully racked the carriage backs away to the end of the belt (the menu chase's
@@ -457,7 +473,7 @@ func _apply_stow() -> void:
 			skeleton.set_bone_pose_position(bone, pose[0])
 		skeleton.set_bone_pose_rotation(bone, rotation)
 		skeleton.set_bone_pose_scale(bone, pose[2])
-	_apply_tower_lay()
+	_apply_gantry_fold()
 
 func _blade_base(bone: int) -> Vector3:
 	if _stow_pose.has(bone): return _stow_pose[bone][0]
@@ -510,7 +526,7 @@ func apply_menu_chase(gs: QuizGameState, state: MenuSawChaseState, dt: float) ->
 	if dock!=null and not dock.is_deployed():return
 	position.z=state.local_z
 	_apply_spin(_preview_spin_seconds(),state.travel-(dock.wheel_distance() if dock else 0.0))
-	_update_lifts(gs)
+	_update_lifts(gs, dt)
 	# The operator celebrates a menu catch on the same clock as the blade's catch lift.
 	var catch_age := -1.0
 	if state.phase == MenuSawChaseState.Phase.CATCHING: catch_age = state.clock
@@ -630,12 +646,24 @@ func nearest_blade(point: Vector3) -> int:
 			nearest = i
 	return nearest
 
-func _update_lifts(gs: QuizGameState) -> void:
+## Moves blade index toward the stage for its continuous reach; a paused frame or seek (dt <= 0) jumps there.
+func _step_lift(index: int, reach: float, dt: float) -> void:
+	if _lift_stages.size() != spin_bones.size():
+		_lift_stages.resize(spin_bones.size())
+		_staged_lifts.resize(spin_bones.size())
+	var stage := SawChaseState.lift_stage(reach, _lift_stages[index])
+	_lift_stages[index] = stage
+	var target := stage * SawChaseState.LIFT_STAGE_STEP
+	if dt > 0.0: target = move_toward(_staged_lifts[index], target, SawChaseState.LIFT_STAGE_SPEED * dt)
+	_staged_lifts[index] = target
+	_set_lift(index, target)
+
+func _update_lifts(gs: QuizGameState, dt: float) -> void:
 	if gs.is_replay and gs.has_meta("saw_replay_lifts"):
 		var heights: PackedFloat32Array=gs.get_meta("saw_replay_lifts")
 		for i in spin_bones.size():
 			var x := -skeleton.get_bone_rest(spin_bones[i]).origin.x
-			_set_lift(i,heights[clampi(roundi(x/SawChaseState.BLADE_PITCH+3.5),0,7)])
+			_step_lift(i,heights[clampi(roundi(x/SawChaseState.BLADE_PITCH+3.5),0,7)],dt)
 		return
 	var new_catches: Dictionary = {}
 	for player_index: int in [1, 2]:
@@ -661,14 +689,16 @@ func _update_lifts(gs: QuizGameState) -> void:
 			var z := gs.player_local_z if player_index == 1 else gs.player2_local_z
 			var y := gs.player_y if player_index == 1 else gs.player2_y
 			var radius := SawChaseState.BLADE_RADIUS + QuizGameState.PLAYER_BODY_RADIUS
-			if absf(x - blade_x) > radius or y <= 0.05:
+			if absf(x - blade_x) > radius:
 				continue
 			var clearance := Vector2(x - blade_x, z - gs.saw.local_z).length() - radius
-			var reach := (y + 0.9) * (1.0 - smoothstep(0.0, 4.0, clearance))
+			var reach := SawChaseState.catch_reach(y, clearance, new_catches.has(player_index))
+			if reach <= 0.0:
+				continue
 			lift = maxf(lift, reach)
 			if new_catches.has(player_index):
 				new_catches[player_index][i] = reach
-		_set_lift(i, lift)
+		_step_lift(i, lift, dt)
 	# Keep each victim's impact pose separate when two players approach together.
 	_caught_lifts.merge(new_catches)
 	skeleton.force_update_all_bone_transforms()
@@ -687,7 +717,7 @@ func update_visual(gs: QuizGameState, dt: float = 0.0, players_landed: bool = fa
 		if dock.animated:
 			spin_dt = minf(maxf(dt, 0.0), maxf(0.0, dock.elapsed - dock.READY_TIME))
 	advance_landing_spin(gs, spin_dt, players_landed and not operator_arriving())
-	_step_tower_lay(dt)
+	_step_gantry_fold(dt)
 	position = Vector3(0.0, StageConstants.FLOOR_TOP_Y, gs.saw.local_z)
 	if dock != null and not dock.is_deployed(): position = dock.carriage_position()
 	basis = dock.carriage_basis() if dock != null else Basis.IDENTITY
@@ -696,7 +726,7 @@ func update_visual(gs: QuizGameState, dt: float = 0.0, players_landed: bool = fa
 	var spin_rate := smoothstep(0.0, SawChaseState.SPINUP_SECONDS, _landing_spin_elapsed + gs.saw.elapsed) * gs.saw.stop_speed_ratio()
 	_update_start_sound(spin_rate, dt)
 	if skeleton != null:
-		if dock == null or dock.is_deployed(): _update_lifts(gs)
+		if dock == null or dock.is_deployed(): _update_lifts(gs, dt)
 	_update_operator(gs, dt)
 	if operator_arriving():
 		# The chair rides the carriage's socket, so it needn't wait for the ship to finish

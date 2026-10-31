@@ -6,6 +6,8 @@ class_name SkinUiStyle
 
 const FONT_BOLD: Font = preload("res://resources/fonts/NotoSansJP-Bold.otf")
 const FONT_MEDIUM: Font = preload("res://resources/fonts/NotoSansJP-Medium.otf")
+## スマホ（タッチだけ）では文字を読める大きさへ（MobileUi.font。デスクトップはそのまま）。
+const MobileUi = preload("res://scripts/core/mobile_ui.gd")
 
 const GOLD := Color(1.0, 0.82, 0.26)
 const GOLD_SOFT := Color(1.0, 0.88, 0.42)
@@ -25,7 +27,7 @@ const FOCUS := Color(0.55, 0.85, 1.0, 1.0)
 static func label(text: String, font_size: int = 15, color: Color = TEXT, bold: bool = false) -> Label:
 	var node := Label.new()
 	node.text = text
-	node.add_theme_font_size_override(&"font_size", font_size)
+	node.add_theme_font_size_override(&"font_size", MobileUi.font(font_size))
 	node.add_theme_color_override(&"font_color", color)
 	if bold:
 		node.add_theme_font_override(&"font", FONT_BOLD)
@@ -42,7 +44,7 @@ static func section_header(number: String, title: String) -> HBoxContainer:
 	badge.name = "Badge"
 	badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	badge.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	badge.custom_minimum_size = Vector2(22, 22)
+	badge.custom_minimum_size = Vector2(22, 22) if not MobileUi.is_touch_ui() else Vector2(28, 28)
 	var badge_style := StyleBoxFlat.new()
 	badge_style.bg_color = GOLD
 	badge_style.set_corner_radius_all(11)
@@ -101,6 +103,7 @@ static func draw_focus_ring(item: CanvasItem, rect: Rect2, radius: int = 11) -> 
 ## 中央寄せの1行テキスト。
 static func draw_text_centered(item: CanvasItem, rect: Rect2, text: String, font_size: int, color: Color, bold: bool = false) -> void:
 	var font := FONT_BOLD if bold else FONT_MEDIUM
+	font_size = MobileUi.font(font_size)
 	var text_size := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size)
 	var baseline_y := rect.position.y + (rect.size.y - text_size.y) * 0.5 + font.get_ascent(font_size)
 	item.draw_string(

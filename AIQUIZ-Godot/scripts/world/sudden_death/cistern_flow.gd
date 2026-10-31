@@ -327,7 +327,8 @@ static func warm_up_step(p_quality: String) -> bool:
 
 static func ssr_steps(p_quality: String) -> int:
 	var q := GraphicsQualityRules.normalize(p_quality)
-	if not GraphicsQualityRules.is_at_least(q, GraphicsQualityRules.HIGH):
+	# Mobile: no ray march (each step re-reads the screen copy); the refraction stays.
+	if GraphicsQualityRules.is_mobile_target() or not GraphicsQualityRules.is_at_least(q, GraphicsQualityRules.HIGH):
 		return 0
 	return 20 if q == GraphicsQualityRules.ULTRA else 12
 

@@ -39,6 +39,7 @@ const DEVICE_TOKEN_RETRY_PAUSE_SEC := 30.0
 ## ラウンド開始時の「新作の数」の問い合わせを待つ上限（準備画面の間に返る想定）
 const ROUND_PLAN_TIMEOUT_SEC := 3.0
 const DeviceSessionScript := preload("res://scripts/core/device_session.gd")
+const EnvFile := preload("res://scripts/core/env_file.gd")
 var device_session: Node = null
 
 signal check_completed
@@ -62,15 +63,9 @@ func _ready() -> void:
 	add_child(device_session)
 
 func _load_env() -> void:
-	# Determine .env path: prefer external file next to exe (exported build),
-	# then fall back to res://.env (editor run).
-	var env_path := ""
-	var exe_dir := OS.get_executable_path().get_base_dir()
-	var external_env := exe_dir.path_join(".env")
-	if FileAccess.file_exists(external_env):
-		env_path = external_env
-	elif FileAccess.file_exists("res://.env"):
-		env_path = "res://.env"
+	# Determine .env path: prefer external file next to exe (desktop export; never on
+	# Android/iOS), then res://.env (editor run), then res://config/app_env.cfg (env_file.gd).
+	var env_path := EnvFile.resolve_path()
 
 	if env_path.is_empty():
 		return

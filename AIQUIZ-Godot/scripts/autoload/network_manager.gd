@@ -1,6 +1,7 @@
 extends Node
 
 const ToonPresets = preload("res://scripts/cosmetics/character_toon_presets.gd")
+const QualityRules = preload("res://scripts/core/graphics_quality.gd")
 
 ## ネットワーク管理Autoload（リレープロトコル v2）
 ## マッチング（ランダム／ともだちコード）、試合中メッセージの送受信、
@@ -66,6 +67,9 @@ const PING_INTERVAL := 1.0
 ## これだけ何も届かなければ回線が死んだとみなす（Cloud Run は切断を通知しないことがある）
 const SILENCE_TIMEOUT := 5.0
 const RECONNECT_BACKOFF: Array[float] = [0.5, 1.0, 2.0, 4.0]
+## スマホ：1フレームで沈黙に数える長さの上限。アプリが裏にいた間（フレームが回らない）の長い dt を
+## 「リレーが黙っていた」と数えると、戻った最初のフレームで自分から回線を切ってしまう。
+const MOBILE_SILENCE_FRAME_CAP := 0.25
 
 var _ws: WebSocketPeer = null
 var _greeted := false
@@ -79,11 +83,13 @@ var _reconnect_deadline_ms := 0
 var _reconnect_attempt := 0
 var _reconnect_wait := 0.0
 var _grace_s := 30.0
+var _mobile := false
 
 
 func _ready() -> void:
 	# ポーズ中も通信と生存確認を止めない（止めるとリレーに切断扱いされる）。
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	_mobile = QualityRules.is_mobile_target()
 	relay_url = _get_relay_url()
 	print("[NetworkManager] Relay URL: %s" % relay_url)
 
@@ -254,7 +260,7 @@ func _process(dt: float) -> void:
 			_handle_message(raw)
 		if _ws == null:
 			return
-		_silence += dt
+		_silence += minf(dt, MOBILE_SILENCE_FRAME_CAP) if _mobile else dt
 		if _silence > SILENCE_TIMEOUT:
 			print("[NetworkManager] Relay silent for %.1fs, dropping link" % _silence)
 			_ws.close()
@@ -270,6 +276,17 @@ func _process(dt: float) -> void:
 		print("[NetworkManager] Connection closed: code=%d" % _ws.get_close_code())
 		_ws = null
 		_on_socket_closed()
+
+
+## スマホ：裏から戻った（RESUMED / FOCUS_IN）。裏にいた間は受信も ping も止まっていたので、沈黙の時計を
+## 0 に戻して、すぐ ping を送る（リレーがまだつながっていれば応答で生きていると分かる）。
+func _notification(what: int) -> void:
+	if not _mobile:
+		return
+	if what == NOTIFICATION_APPLICATION_RESUMED or what == NOTIFICATION_APPLICATION_FOCUS_IN:
+		_silence = 0.0
+		if _greeted:
+			_ping_timer = PING_INTERVAL
 
 
 func _on_socket_closed() -> void:

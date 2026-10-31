@@ -25,6 +25,9 @@ uniform vec2 cloud_tiling = vec2(1.0, 1.0);
 // Lower values flatten the cloud layer: bigger clouds overhead, smaller near the horizon.
 uniform float cloud_dome_curve : hint_range(0.1, 1.5, 0.01) = 0.45;
 uniform vec2 wind_speed = vec2(0.024, 0.012);
+// Seconds of cloud drift, in place of the built-in time (a sky that reads it re-renders its radiance
+// every frame): scripts/core/sky_cloud_clock.gd advances it exactly like it on desktop and holds it on mobile.
+uniform float cloud_time = 0.0;
 uniform float cloud_density : hint_range(0.05, 1.0, 0.01) = 0.54;
 uniform float cloud_depth : hint_range(0.0, 4.0, 0.05) = 0.35;
 uniform float cloud_shape_exponent : hint_range(0.05, 4.0, 0.05) = 0.48;
@@ -87,7 +90,7 @@ void sky() {
 	float cloud_value = 0.0;
 	float cloud_detail = 0.0;
 	if (EYEDIR.y > 0.005) {
-		vec2 wind = wind_speed * TIME * 0.08;
+		vec2 wind = wind_speed * cloud_time * 0.08;
 		// Project onto a curved cloud layer instead of lat/long UVs, which pinch every
 		// texture column into the zenith and leave a seam where the azimuth wraps.
 		vec2 cloud_plane = EYEDIR.xz / (EYEDIR.y + cloud_dome_curve);

@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://clc753pxtl6n3"
 path.s3tc="res://.godot/imported/aiquiz_harbor_city_ivory_facade_windows.png-c4de327164755704e16d5a4d0ca6e172.s3tc.ctex"
+path.etc2="res://.godot/imported/aiquiz_harbor_city_ivory_facade_windows.png-c4de327164755704e16d5a4d0ca6e172.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/environment/harbor_city/aiquiz_harbor_city_ivory_facade_windows.png"
-dest_files=["res://.godot/imported/aiquiz_harbor_city_ivory_facade_windows.png-c4de327164755704e16d5a4d0ca6e172.s3tc.ctex"]
+dest_files=["res://.godot/imported/aiquiz_harbor_city_ivory_facade_windows.png-c4de327164755704e16d5a4d0ca6e172.s3tc.ctex", "res://.godot/imported/aiquiz_harbor_city_ivory_facade_windows.png-c4de327164755704e16d5a4d0ca6e172.etc2.ctex"]
 
 [params]
 

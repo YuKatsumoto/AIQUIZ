@@ -26,7 +26,7 @@ extends Node
 ##   06 507-619  スタート（PLAYING へ）。P2 はヒップホップ2 をその場で見せびらかしてから、踊りながら赤い扉へ斜めに突っ込む。P1 は腕を組んで見送る
 ##   07 620-661  引き。P2 がゴツン（ハート 1 なのでゲームどおり脱落）、吹き飛ぶ
 ##   07b 662-773 煽る：P1 が P2 のほうへ向き直って指さし、シリーダンスで煽る（倒れた P2 の向こうから撮る）。
-##               ゲームどおり激突の 2 秒後に P2 が爆散（このPVだけ破片の勢いを大きく、大爆発の演出つき）
+##               ゲームどおり激突の 2 秒後に P2 が爆散（ゲームどおり：破片が大きく飛び、大爆発の演出つき）
 ##   08 774-839  P1 が青い扉の正面へ寄って走る（低い追従）
 ##   09 840-956  壁の向こう側から。P1 がカンナムスタイルを踊りながら扉を突き破る（突破 846、0.6 秒だけ 0.5 倍のスロー）
 ##   ロゴ 957-1180 S03 と同じく胸の高さへ上がって引く（この上に AE で TESTOPIA のロゴを重ねる）
@@ -37,16 +37,8 @@ const GraphicsQualityRules := preload("res://scripts/core/graphics_quality.gd")
 const QuizWallScript := preload("res://scripts/world/quiz_wall.gd")
 ## 壁の着地の衝撃（地面の輪・筋・煙・破片）。元は炎の色なので、土ぼこりの灰色に塗り替えて 1 回だけ流す
 const IMPACT_VFX := preload("res://assets/BinbunVFX/impact_explosions/effects/impact/vfx_impact_01.tscn")
-## P2 の爆散に重ねる爆発（BinbunVFX。炎の色のまま）
-const BURST_VFX := preload("res://assets/BinbunVFX/impact_explosions/effects/explosion/vfx_explosion_01.tscn")
-const BURST_VFX_SCALE := 1.0
-## 爆発のうち、画面を覆う白い球（Core）と黒い煙の玉（Smoke）は使わない（大きさが絵の描き方で決まっていて小さくできない）
-const BURST_VFX_HIDE := ["Core", "Smoke"]
-## 爆散をこのPVだけ大きく：破片を体の中心から外へこの速さで飛ばす（ゲームは横 2〜4・上 5〜9 m/s ほど）
-const BURST_SPEED_MIN := 18.0
-const BURST_SPEED_MAX := 30.0
-const BURST_UP_MIN := 5.0
-const BURST_UP_MAX := 11.0
+## P2 の爆散（破片・爆発・揺れ・音はゲーム側 PlayerController._play_wall_burst）の乱数の seed
+const BURST_RNG_SEED := 20261015
 const DOOR_CENTER_Y := 0.59                    # 扉の中心の高さ（床 −1.2 と扉の上 2.38 の間）
 const VIEW := Vector2i(1920, 1080)
 const FPS := 60.0
@@ -192,7 +184,6 @@ var _dof_front: CameraAttributesPractical
 var _dof_faces: CameraAttributesPractical
 var _dof_taunt: CameraAttributesPractical
 var _taunt_anchor := Vector3.ZERO           # 煽りのカメラが追う、倒れた P2 の床の位置（なめらかに追う）
-var _burst_boosted := false
 var _p1_emote_cleared := false
 
 
@@ -344,6 +335,8 @@ func _build_world() -> void:
 	get_tree().current_scene = world
 	world.set("_replay_mode", true)
 	player = world.get_node("Player") as PlayerController
+	# P2 の爆散（大きな爆散はゲーム側の演出）の飛び方を毎回同じにする
+	player.wall_burst_rng.seed = BURST_RNG_SEED
 	player.prepare_for_loading(gs)
 	await _frames(30)
 	_set_station()
@@ -510,9 +503,6 @@ func _events_after_update(n: int, t: float) -> void:
 		_p2_hit_frame = n
 	if _p2_burst_frame < 0 and player.has_player_death_exploded(2):
 		_p2_burst_frame = n
-	if _p2_burst_frame >= 0 and not _burst_boosted:
-		_boost_burst()
-		_burst_boosted = true
 	# 煽りのシリーダンスは走り出す前にやめる（踊りはジャンプでしか止まらないので、状態を直接戻す）
 	if not _p1_emote_cleared and n >= F_S08:
 		gs.p1_emote = 0
@@ -521,36 +511,6 @@ func _events_after_update(n: int, t: float) -> void:
 	if not _reseeded and n >= F_P1_HIT - 3:
 		seed(pv_seed)
 		_reseeded = true
-
-
-## このPVだけ、P2 の爆散を大きく：ゲームが入れた破片の速さを、体の中心から外へ強く飛ぶ速さに書き直し、
-## ゲームの大爆発の演出（閃光・火花・煙）・強い揺れ・爆発音を重ねる。乱数は専用（ドアの破片の散り方を変えない）。
-func _boost_burst() -> void:
-	var bodies: Array = player.get("_p2_explosion_bodies")
-	if bodies.is_empty():
-		return
-	var center := Vector3.ZERO
-	for b: Variant in bodies:
-		center += (b as Node3D).global_position
-	center /= bodies.size()
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 20261015
-	for b: Variant in bodies:
-		var piece := b as RigidBody3D
-		if piece == null:
-			continue
-		var out := piece.global_position - center
-		out.y = 0.0
-		if out.length() < 0.05:
-			out = Vector3(rng.randf_range(-1.0, 1.0), 0.0, rng.randf_range(-1.0, 1.0))
-		var dir := (out.normalized() + Vector3(rng.randf_range(-0.35, 0.35), 0.0, rng.randf_range(-0.35, 0.35))).normalized()
-		piece.linear_velocity = dir * rng.randf_range(BURST_SPEED_MIN, BURST_SPEED_MAX) + Vector3.UP * rng.randf_range(BURST_UP_MIN, BURST_UP_MAX)
-		piece.angular_velocity = Vector3(rng.randf_range(-24.0, 24.0), rng.randf_range(-10.0, 10.0), rng.randf_range(-24.0, 24.0))
-		piece.gravity_scale = 1.6
-		piece.linear_damp = 0.02
-	_play_vfx(BURST_VFX, center + Vector3(0.0, 0.3, 0.0), BURST_VFX_SCALE, [], BURST_VFX_HIDE)
-	gs.camera_shake = maxf(gs.camera_shake, 1.6)
-	AudioManager.play_sfx(&"barrier_explosion")
 
 
 ## 踊りの最初のフレーム：踊りの骨格はまだ 1 度も動いていない（初期姿勢＝T ポーズ）ので、0 秒の位置を当ててから写し直す。

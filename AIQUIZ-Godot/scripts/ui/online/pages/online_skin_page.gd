@@ -9,12 +9,16 @@ extends OnlineMenuPage
 ## editor.select_part を呼ぶ。
 
 const PLAYER := 1
+const MobileUi = preload("res://scripts/core/mobile_ui.gd")
 
 var editor: SkinEditor
 var _hat_label: Label
 var _hat_prev: Button
 var _hat_next: Button
 var _done_button: Button
+## 帽子の行と、色のカード（練習のコーチが光らせる）
+var _hat_row: Control
+var _color_card: Control
 
 
 func _ready() -> void:
@@ -23,7 +27,8 @@ func _ready() -> void:
 	hat_row.name = "HatRow"
 	hat_row.add_theme_constant_override("separation", 10)
 	hat_card.add_child(hat_row)
-	var caption := OnlineMenuStyle.label("ぼうし", 18, OnlineMenuStyle.MUTED, HORIZONTAL_ALIGNMENT_LEFT)
+	_hat_row = hat_row
+	var caption := OnlineMenuStyle.label("ぼうし", MobileUi.font(18), OnlineMenuStyle.MUTED, HORIZONTAL_ALIGNMENT_LEFT)
 	caption.custom_minimum_size = Vector2(90, 0)
 	hat_row.add_child(caption)
 	_hat_prev = OnlineMenuStyle.arrow_button("◀")
@@ -39,6 +44,7 @@ func _ready() -> void:
 
 	# ① ぬるところ（左）と ② 色（右）を横に並べ、その下にツールバー
 	var color_card := OnlineMenuStyle.card(self, 10)
+	_color_card = color_card.get_parent()
 	var columns := HBoxContainer.new()
 	columns.name = "SkinColumns"
 	columns.add_theme_constant_override("separation", 14)
@@ -52,8 +58,10 @@ func _ready() -> void:
 	editor = SkinEditor.new()
 	add_child(editor)
 	editor.build_left(left, false)
-	var pick_hint := SkinUiStyle.label("キャラを クリックしても\nえらべるよ", 12, SkinUiStyle.MUTED)
+	var pick_hint := SkinUiStyle.label(MobileUi.prompt("キャラを クリックしても\nえらべるよ", "キャラを タップしても えらべるよ"), 12, SkinUiStyle.MUTED)
 	pick_hint.name = "PickHint"
+	if MobileUi.is_touch_ui():
+		pick_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	left.add_child(pick_hint)
 	editor.build_right(right, 20.0)
 	var toolbar := HBoxContainer.new()
@@ -68,7 +76,12 @@ func _ready() -> void:
 	_done_button = OnlineMenuStyle.button("✓ けってい", Vector2(0, 56), 22, true)
 	_done_button.tooltip_text = "この見た目で トップにもどります（もう ほぞんしてあります）"
 	_done_button.pressed.connect(func() -> void: request(&"skin_done"))
-	add_child(_done_button)
+	if MobileUi.is_touch_ui():
+		# スマホ：指の大きさの色の見本で縦が足りないので、けっていは ぼうしの行の右に置く
+		_done_button.custom_minimum_size.x = 200.0
+		hat_row.add_child(_done_button)
+	else:
+		add_child(_done_button)
 
 
 func page_title() -> String:
@@ -89,6 +102,19 @@ func leave() -> void:
 func default_focus() -> Control:
 	var chain := editor.focus_chain()
 	return chain[0] if not chain.is_empty() else _done_button
+
+
+## 練習の形で、画面のコーチが光らせる部品（docs/new_tutorial/phase7_design.md 1.1）。なければ null。
+##   &"skin_hat"（『ぼうし』の ◀ ▶ の行）・&"skin_colors"（色のカード）・&"skin_done"（✓ けってい）
+func practice_part(id: StringName) -> Control:
+	match id:
+		&"skin_hat":
+			return _hat_row
+		&"skin_colors":
+			return _color_card
+		&"skin_done":
+			return _done_button
+	return null
 
 
 func _unhandled_key_input(event: InputEvent) -> void:

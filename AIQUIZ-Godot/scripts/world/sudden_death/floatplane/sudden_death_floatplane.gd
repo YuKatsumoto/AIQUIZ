@@ -354,6 +354,7 @@ func apply_quality(value: String) -> void:
 	_refresh_cabin_lights()
 	for spray: GPUParticles3D in _sprays:
 		spray.amount = maxi(8, QualityRules.particle_amount(int(spray.get_meta("base_amount", 48)), quality))
+		QualityRules.mark_particles_scaled(spray)
 	var aniso := QualityRules.uses_anisotropic_material_filter(quality)
 	for mat: Variant in _materials.values():
 		if mat is ShaderMaterial:
@@ -362,9 +363,10 @@ func apply_quality(value: String) -> void:
 
 ## 機内の灯の表示・色・強さ・影を、照明（cabin_mode）と画質からまとめて決める。
 ## 低：ダウンライトは 3 つに 1 つ（そのぶん強く）。影は高から、座席の上の 4 つだけ。
+## モバイルでは影を使わない（点光源の影は 1 灯ごとにキューブマップ 6 面を描き直すため）。
 func _refresh_cabin_lights() -> void:
 	var low := quality == QualityRules.LOW
-	var high := QualityRules.is_at_least(quality, QualityRules.HIGH)
+	var high := QualityRules.is_at_least(quality, QualityRules.HIGH) and not QualityRules.is_mobile_target()
 	for i: int in range(_cabin_lights.size()):
 		var light := _cabin_lights[i]
 		var kind := _cabin_kinds[i]

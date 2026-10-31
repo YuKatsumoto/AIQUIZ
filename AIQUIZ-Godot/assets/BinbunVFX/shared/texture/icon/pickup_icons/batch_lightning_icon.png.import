@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://do15ygjmvkjkf"
 path.s3tc="res://.godot/imported/batch_lightning_icon.png-1261662c78033301572c0412f1620f12.s3tc.ctex"
+path.etc2="res://.godot/imported/batch_lightning_icon.png-1261662c78033301572c0412f1620f12.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/BinbunVFX/shared/texture/icon/pickup_icons/batch_lightning_icon.png"
-dest_files=["res://.godot/imported/batch_lightning_icon.png-1261662c78033301572c0412f1620f12.s3tc.ctex"]
+dest_files=["res://.godot/imported/batch_lightning_icon.png-1261662c78033301572c0412f1620f12.s3tc.ctex", "res://.godot/imported/batch_lightning_icon.png-1261662c78033301572c0412f1620f12.etc2.ctex"]
 
 [params]
 

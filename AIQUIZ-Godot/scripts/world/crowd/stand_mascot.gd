@@ -94,6 +94,25 @@ func play(next: StringName, restart := false) -> void:
 		player.play(clip, BLEND_SECONDS)
 
 
+## Adds another library of moves (the practice guide's mascot_practice.glb, HatenaGuide) to play with play_clip.
+func add_library(library_name: StringName, library: AnimationLibrary) -> bool:
+	if player == null or library == null:
+		return false
+	if not player.has_animation_library(library_name):
+		player.add_animation_library(library_name, library)
+	return true
+
+
+## Plays a clip by its full name ("library/Clip") instead of a crowd move. `action` becomes the clip name.
+func play_clip(clip: StringName, restart := false, blend := BLEND_SECONDS) -> void:
+	if player == null or not player.has_animation(clip) or (clip == action and not restart):
+		return
+	action = clip
+	player.play(clip, blend)
+	if restart:
+		player.seek(0.0, true)
+
+
 ## Plays `next` at `time` seconds (beat-synced moves: the chant's clap).
 func play_at(next: StringName, time: float) -> void:
 	if player == null:

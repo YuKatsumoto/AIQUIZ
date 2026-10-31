@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://b7in4hd4yrycc"
 path.s3tc="res://.godot/imported/lecture_set_props_PRP_Chalk_Blue_0_albedo.webp-e18428e13e3a6d23db55c257ed2d13ec.s3tc.ctex"
+path.etc2="res://.godot/imported/lecture_set_props_PRP_Chalk_Blue_0_albedo.webp-e18428e13e3a6d23db55c257ed2d13ec.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/settings_hall/lecture_set_props_PRP_Chalk_Blue_0_albedo.webp"
-dest_files=["res://.godot/imported/lecture_set_props_PRP_Chalk_Blue_0_albedo.webp-e18428e13e3a6d23db55c257ed2d13ec.s3tc.ctex"]
+dest_files=["res://.godot/imported/lecture_set_props_PRP_Chalk_Blue_0_albedo.webp-e18428e13e3a6d23db55c257ed2d13ec.s3tc.ctex", "res://.godot/imported/lecture_set_props_PRP_Chalk_Blue_0_albedo.webp-e18428e13e3a6d23db55c257ed2d13ec.etc2.ctex"]
 
 [params]
 

@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://bhnperqelw07u"
 path.bptc="res://.godot/imported/tank_line_04_light.png-d8d64b9937366d73abedbea056011cdb.bptc.ctex"
+path.astc="res://.godot/imported/tank_line_04_light.png-d8d64b9937366d73abedbea056011cdb.astc.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/environment/surge_tank/textures/tank_line_04_light.png"
-dest_files=["res://.godot/imported/tank_line_04_light.png-d8d64b9937366d73abedbea056011cdb.bptc.ctex"]
+dest_files=["res://.godot/imported/tank_line_04_light.png-d8d64b9937366d73abedbea056011cdb.bptc.ctex", "res://.godot/imported/tank_line_04_light.png-d8d64b9937366d73abedbea056011cdb.astc.ctex"]
 
 [params]
 

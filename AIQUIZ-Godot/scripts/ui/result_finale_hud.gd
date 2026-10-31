@@ -11,6 +11,8 @@ extends Control
 const HUD_PATH := "res://assets/result_finale/hud_motion.json"
 const FONT: Font = preload("res://resources/fonts/NotoSansJP-Bold.otf")
 const Motion = preload("res://scripts/world/result_finale/result_finale_motion.gd")
+const MobileUi = preload("res://scripts/core/mobile_ui.gd")
+const TouchHud = preload("res://scripts/ui/touch_hud/touch_hud.gd")
 const CANVAS := Vector2(1280, 720)
 const FPS := 60.0
 const FX_FPS := 30.0
@@ -21,6 +23,8 @@ const PALE := Color(0.961, 0.969, 1.0)
 const LOCK_POP := 0.24
 const HP_BONUS_LAYERS := ["HpBonusChip", "HpBonusText", "HpBonusRing"]
 const HP_BONUS_FALLBACK_TIME := 3.92
+## 練習のスコアタワー（MatchRules.finish_with_goal）で出さない、判定のあとのボタン。
+const PRACTICE_HIDDEN_LAYERS := ["BtnRetry", "BtnRetryText", "BtnHistory", "BtnHistoryText", "BtnMenu", "BtnMenuText"]
 static var _hp_bonus_time := -1.0
 const TEXT_JA := {
 	"TitleText": "スコアタワー", "RuleText": "正解数 × (残りHP+0.5) で勝負！",
@@ -45,6 +49,11 @@ const TEXT_EN := {
 	"NoteFormula": "CORRECT × (HEARTS + 0.5)",
 	"NoteGhost": "Eliminated: CORRECT only",
 	"NoteFooter": "Higher total wins\nEnter / Space / Right Ctrl: verdict",
+}
+## スマホでは得点説明の「キーで勝敗発表へ」をタップの案内に差し替える。
+const NOTE_FOOTER_TOUCH := {
+	"ja": "合計が大きい方の勝ち\nタップで勝敗発表へ",
+	"en": "Higher total wins\nTap: verdict",
 }
 ## 2Pチュートリアルの得点説明パネル（キャンバス座標）。タイトル（y 106 まで）の下で、
 ## タワーに立つ2人（左右）の間の列に収め、審判と下部の得点カード（y 512-688）にも掛けない。
@@ -229,6 +238,8 @@ var _note: PanelContainer
 var _note_lines: Array[Label] = []
 var _note_footer: Label
 var _note_elapsed := 0.0
+## スマホ：得点説明が出ている間、画面のどこをタップしても勝敗発表へ進める透明なボタン。
+var _note_tap: Button
 
 
 func setup(state: QuizGameState, retry_action: Callable, history_action: Callable, menu_action: Callable) -> void:
@@ -265,6 +276,10 @@ func _hidden_by_sudden_death() -> bool:
 	if game_state.result_return_hold:
 		return true
 	return game_state.sudden_death_pending and game_state.result_ceremony_elapsed >= GoalStandScoreboard.SUDDEN_DEATH_CUTIN
+
+
+func _is_practice() -> bool:
+	return game_state != null and game_state.practice_rules != null
 
 
 func set_suppressed(suppressed: bool) -> void:
@@ -344,7 +359,7 @@ func _build(winner: int) -> void:
 	_stats.position = Vector2(48, 692)
 	_stats.size = Vector2(520, 24)
 	_stats.add_theme_font_override("font", FONT)
-	_stats.add_theme_font_size_override("font_size", 14)
+	_stats.add_theme_font_size_override("font_size", MobileUi.font(14))
 	_stats.add_theme_color_override("font_color", PALE)
 	_stats.add_theme_color_override("font_outline_color", INK)
 	_stats.add_theme_constant_override("outline_size", 4)
@@ -376,11 +391,15 @@ func _add_button(layer: AeLayer, button_name: String) -> void:
 	var button := Button.new()
 	button.name = button_name
 	button.flat = true
-	button.focus_mode = Control.FOCUS_ALL
+	# スマホはフォーカスを持たせない（流し込んだ Enter/Space で押されないように）。
+	button.focus_mode = Control.FOCUS_NONE if MobileUi.is_touch_ui() else Control.FOCUS_ALL
 	var empty := StyleBoxEmpty.new()
 	for style in ["normal", "hover", "pressed", "focus", "disabled", "hover_pressed"]:
 		button.add_theme_stylebox_override(style, empty)
 	var size_value := Vector2(float(layer.shape.size[0]), float(layer.shape.size[1]))
+	if MobileUi.is_touch_ui():
+		# 見た目（AE の札）はそのまま、押せる範囲だけ指の大きさまで広げる。
+		size_value = Vector2(maxf(size_value.x, MobileUi.MIN_TOUCH_SIZE * 2.0), maxf(size_value.y, MobileUi.MIN_TOUCH_SIZE))
 	button.position = -size_value * 0.5
 	button.size = size_value
 	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
@@ -407,6 +426,9 @@ func _configure_content(winner: int) -> void:
 				layer.visible = false
 			elif short == "BtnMenuText":
 				layer.text = "ONLINE MENU" if game_state.use_english_ui else "オンラインメニューへ"
+		if _is_practice() and short in PRACTICE_HIDDEN_LAYERS:
+			# 練習（docs/new_tutorial/phase6_design.md 2.5）：判定のあとのボタンは出さない（監督がクリアへ進む）。
+			layer.visible = false
 	if winner > 0:
 		# 勝者のバッジは、そのキャラの 頭・胴・足 の色の縦グラデーション
 		var badge_colors := PlayerBadgePaint.colors_for(game_state, winner)
@@ -452,6 +474,10 @@ func update_overlay(delta: float) -> void:
 	var fit := minf(viewport_size.x / CANVAS.x, viewport_size.y / CANVAS.y)
 	_canvas.scale = Vector2.ONE * fit
 	_canvas.position = (viewport_size - CANVAS * fit) * 0.5
+	if _flash != null and MobileUi.is_touch_ui() and fit > 0.0:
+		# 21:9 では中央のキャンバスの外（左右）も光らせる。_root はキャンバスの原点にある。
+		_flash.position = -_canvas.position / fit
+		_flash.size = viewport_size / fit
 	var interactive := game_state.result_ceremony_phase == QuizGameState.ResultCeremonyPhase.INTERACTIVE
 	_interactive_elapsed = _interactive_elapsed + maxf(0.0, delta) if interactive else 0.0
 	var time := game_state.result_ceremony_elapsed + _interactive_elapsed
@@ -465,11 +491,11 @@ func update_overlay(delta: float) -> void:
 		var layer := button.get_parent() as AeLayer
 		button.visible = interactive and layer.visible
 		layer.highlight = 1.0 if interactive and (button.has_focus() or button.is_hovered()) else 0.0
-	_stats.visible = interactive
-	if interactive:
+	_stats.visible = interactive and not _is_practice()
+	if interactive and not _is_practice():
 		_stats.modulate.a = smoothstep(0.1, 0.5, _interactive_elapsed)
 		_stats.text = _text("StatsEliminated" if game_state.result_from_elimination else "StatsFinished") % game_state.play_time
-		if not _focused and not _suppressed:
+		if not _focused and not _suppressed and not MobileUi.is_touch_ui():
 			for button: Button in _buttons:
 				if button.visible:
 					button.grab_focus()
@@ -490,6 +516,8 @@ func _update_tutorial_note(delta: float) -> void:
 		_note_elapsed = 0.0
 		if _note != null:
 			_note.visible = false
+		if _note_tap != null:
+			_note_tap.visible = false
 		return
 	if _note == null:
 		_build_tutorial_note()
@@ -503,6 +531,10 @@ func _update_tutorial_note(delta: float) -> void:
 	for player_index in [1, 2]:
 		_note_lines[2 + player_index].text = game_state.get_result_formula_text(player_index)
 	_note_footer.text = _text("NoteFooter")
+	if MobileUi.is_touch_ui():
+		_note_footer.text = NOTE_FOOTER_TOUCH["en" if game_state.use_english_ui else "ja"]
+		_ensure_note_tap()
+		_note_tap.visible = game_state.can_resume_tutorial_score_pause()
 	# 再開を受け付ける前は薄く、受け付けたら点滅させてキーを促す。
 	_note_footer.modulate.a = (
 		0.75 + 0.25 * sin(_note_elapsed * 5.0)
@@ -546,6 +578,20 @@ func _build_tutorial_note() -> void:
 	_canvas.add_child(_note)
 
 
+## スマホ：得点説明の間だけ画面全体を覆う透明なボタン。キーの Enter・Space・右Ctrl と同じく勝敗発表へ進める。
+func _ensure_note_tap() -> void:
+	if _note_tap != null:
+		return
+	_note_tap = TouchHud.make_tap_catcher()
+	_note_tap.name = "TutorialScoreNoteTap"
+	_note_tap.visible = false
+	_note_tap.pressed.connect(func() -> void:
+		if game_state != null and game_state.can_resume_tutorial_score_pause():
+			game_state.resume_tutorial_score_pause()
+	)
+	add_child(_note_tap)
+
+
 func _make_note_label(font_size: int, color: Color) -> Label:
 	var label := Label.new()
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -553,7 +599,8 @@ func _make_note_label(font_size: int, color: Color) -> Label:
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	label.custom_minimum_size.x = NOTE_RECT.size.x - 28.0
 	label.add_theme_font_override("font", FONT)
-	label.add_theme_font_size_override("font_size", font_size)
+	# スマホでは小さい補足（脱落・案内）だけ読める大きさへ。パネルの幅は変えない。
+	label.add_theme_font_size_override("font_size", MobileUi.font(font_size) if font_size <= 16 else font_size)
 	label.add_theme_color_override("font_color", color)
 	label.add_theme_color_override("font_outline_color", INK)
 	label.add_theme_constant_override("outline_size", 4)

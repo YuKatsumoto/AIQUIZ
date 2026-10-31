@@ -1,18 +1,18 @@
 extends Node
-## Real menu, wall speed tab stow v2 (Blender Stow/Deploy clips on one stow clock), 2P ten-question config:
-##  A. open customize -> the davit towers rack the blades beside the conveyor; walls break short of the
-##     machine while it stands over the belt and flow to the cliff once the blades hang outside.
+## Real menu, wall speed tab stow v3 (side gantries; Blender Stow/Deploy clips on one stow clock), 2P ten-question config:
+##  A. open customize -> the gantries fold the blades into bunches and lower them beside the conveyor; walls
+##     break short of the machine while it stands over the belt and flow to the cliff once the blades hang outside.
 ##     Close -> the machine deploys, every bone returns to rest and the chase resumes.
 ##  B. close half way and reopen: the clock slows, turns around and turns back without a jump.
 ##  C. close after a full stow and press Start at once: the operator chair's launch waits while the
-##     returning rack crosses its column; chair and blades never meet and the game still starts.
+##     returning bunch and gantry cross its column; chair and blades never meet and the game still starts.
 var errors: Array[String]=[]
 var checks: Dictionary={}
 var notes: Dictionary={}
 var records: Array[Dictionary]=[]
-const OUT:="res://artifacts/saw_stow/v2/runtime/"
+const OUT:="res://artifacts/saw_stow/v3/runtime/"
 const CAPTURE_HZ:=12.0
-const HUB_SPEED:=5.0 # m of blade hub travel per second of stow clock (clips peak at 4.76 m/s)
+const HUB_SPEED:=7.5 # m of blade hub travel per second of stow clock (clips peak at 6.4 m/s)
 const BLEND_SLACK:=.02 # a reversal's 0.35 s cross-fade moves the pose a few mm per frame
 var menu: Node
 var preview: MenuWallBackgroundPreview
@@ -104,7 +104,8 @@ func scenario_full_stow() -> void:
 	var max_top:=-INF
 	var beacon_seen:=false
 	var shown:=true
-	while now()<opened+saw.stow_length()+3.5:
+	# Long enough after the wall block ends for the next walls to travel to the cliff.
+	while now()<opened+saw.stow_length()+7.0:
 		await frame()
 		shown=shown and saw.visible and not preview._customize_walls_hidden
 		if racked_at<0.0 and saw.is_fully_stowed():racked_at=now()
@@ -136,24 +137,26 @@ func scenario_full_stow() -> void:
 	var closed:=now()
 	menu._on_embedded_customize_close_requested()
 	var clear_at:=-1.0
+	var deploy_at:=-1.0 # the carriage first rolls back to where it stowed; then the stow clock runs backwards
 	var spin_clock:=INF
 	var chase_clock:=INF
 	var resumed:=false
-	while now()<closed+saw.stow_length()+3.5:
+	while now()<closed+saw.stow_length()+8.0:
 		await frame()
+		if deploy_at<0.0 and saw._stow_rate<0.0:deploy_at=now()
 		if clear_at<0.0 and saw.is_stow_clear():clear_at=now();spin_clock=saw._preview_elapsed;chase_clock=preview._menu_saw.clock
 		# The chase only closes in on runners that pull ahead, so its clocks (not its z) show it runs again.
 		if clear_at>0.0 and saw._preview_elapsed>spin_clock and preview._menu_saw.clock>chase_clock:resumed=true
-	checks.deploy_within_clip=clear_at>0.0 and clear_at-closed<=saw.stow_length()+.6
+	checks.deploy_within_clip=deploy_at>0.0 and clear_at>0.0 and clear_at-deploy_at<=saw.stow_length()+.6
 	checks.spin_and_chase_resume_after_deploy=resumed
 	checks.bones_back_at_rest=bones_at_rest()
 	checks.beacons_dark_after_deploy=not saw.beacons_lit()
-	notes.deploy={"clear_after":snappedf(clear_at-closed,.01)}
+	notes.deploy={"clear_after":snappedf(clear_at-closed,.01),"roll_back":snappedf(deploy_at-closed,.01),"deploy":snappedf(clear_at-deploy_at,.01)}
 
 func scenario_reversal() -> void:
 	stage="reverse"
 	menu._open_embedded_customize()
-	await wait_until(func():return saw.stow_time()>=5.0,12.0)
+	await wait_until(func():return saw.stow_time()>=4.3,12.0)
 	var p_close:=saw.stow_time()
 	menu._on_embedded_customize_close_requested()
 	await wait_until(func():return not menu._menu_exit_in_progress and saw._stow_rate<0.0,4.0)

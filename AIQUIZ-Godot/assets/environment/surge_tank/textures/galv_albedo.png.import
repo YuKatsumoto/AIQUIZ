@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://bnmeoetamfuwj"
 path.bptc="res://.godot/imported/galv_albedo.png-2d3983c3c7a1a6494d4b42164b607de3.bptc.ctex"
+path.astc="res://.godot/imported/galv_albedo.png-2d3983c3c7a1a6494d4b42164b607de3.astc.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/environment/surge_tank/textures/galv_albedo.png"
-dest_files=["res://.godot/imported/galv_albedo.png-2d3983c3c7a1a6494d4b42164b607de3.bptc.ctex"]
+dest_files=["res://.godot/imported/galv_albedo.png-2d3983c3c7a1a6494d4b42164b607de3.bptc.ctex", "res://.godot/imported/galv_albedo.png-2d3983c3c7a1a6494d4b42164b607de3.astc.ctex"]
 
 [params]
 

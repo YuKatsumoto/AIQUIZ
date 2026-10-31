@@ -5,12 +5,12 @@ class_name SoloTutorialGuides
 ## リング・板ポリ矢印・円柱が寄せ集めだった従来版に対し、
 ## ここでは全パーツを同じ加算発光マテリアル工場から作り、
 ## 明滅も1つの脈動値で揃える。
-## 操作キーは TutorialKeyGuides3D（res://scripts/world/tutorial_key_guides_3d.gd）が
+## 操作キーは KeyGuides3D（res://scripts/world/key_guides_3d.gd）が
 ## 頭上・肩の横に実物のキーキャップとして浮かべる。
 ## ローカル2Pコースは res://scripts/world/duo_tutorial_guides.gd が担当する。
 
 const SoloFlow = preload("res://scripts/core/tutorial/solo_tutorial_flow.gd")
-const KeyGuidesScript = preload("res://scripts/world/tutorial_key_guides_3d.gd")
+const KeyGuidesScript = preload("res://scripts/world/key_guides_3d.gd")
 
 const ACCENT := Color(1.0, 0.82, 0.24, 1.0)
 const EDGE_COLOR := Color(1.0, 0.32, 0.26, 1.0)
@@ -40,7 +40,7 @@ var _door_frame_material: StandardMaterial3D = null
 var _route_material: StandardMaterial3D = null
 var _goal_beacon: MeshInstance3D = null
 var _label: Label3D = null
-var _key_guides: TutorialKeyGuides3D = null
+var _key_guides: KeyGuides3D = null
 
 
 func setup(state: QuizGameState) -> void:
@@ -83,7 +83,7 @@ func update(delta: float) -> void:
 
 
 ## 検証用。3Dキーの状態を返す。
-func get_key_guides() -> TutorialKeyGuides3D:
+func get_key_guides() -> KeyGuides3D:
 	return _key_guides
 
 

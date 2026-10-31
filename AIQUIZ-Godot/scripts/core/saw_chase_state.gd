@@ -11,6 +11,13 @@ const STOP_SECONDS := 2.0
 const WALL_COLLISION_LAYER := 16
 const CUT_SCATTER_DELAY := 1.15
 const WHEEL_RADIUS := 0.18
+## The catch lift switches between a few fixed heights (0, 1.2, 2.4, 3.6 m) instead of
+## tracking the runner's height continuously.
+const LIFT_STAGE_STEP := 1.2
+const LIFT_STAGE_COUNT := 4
+const LIFT_STAGE_HYSTERESIS := 0.15 # in steps: a stage holds until the reach clearly passes the midpoint
+const LIFT_STAGE_SPEED := 12.0 # m/s a blade travels from one stage to the next (one step in 0.1 s)
+const LIFT_CATCH_MARGIN := 0.5 # m a just-caught runner may sit outside the blade after the swept contact test
 var enabled := false
 var local_z := INITIAL_Z
 var elapsed := 0.0
@@ -67,6 +74,25 @@ func advance_stop(dt: float) -> void:
 	local_z += distance
 	wheel_distance += distance
 	velocity = _stop_velocity * stop_speed_ratio()
+
+## Stage index for a continuous catch reach. With current >= 0 the stage only changes once the
+## reach is past the midpoint by LIFT_STAGE_HYSTERESIS, so a hovering runner doesn't make it flicker.
+static func lift_stage(reach: float, current: int = -1) -> int:
+	var level := reach / LIFT_STAGE_STEP
+	var stage := clampi(roundi(level), 0, LIFT_STAGE_COUNT - 1)
+	if current >= 0 and stage != current and absf(level - current) < 0.5 + LIFT_STAGE_HYSTERESIS:
+		return current
+	return stage
+
+## Height a blade rises to for a jumping runner. Contact ignores height, so death is certain only
+## once the runner's footprint overlaps the blade (clearance <= 0); before that the blade stays down.
+## A runner caught this frame may already be a hair past the blade after the swept test, hence the margin.
+static func catch_reach(player_y: float, clearance: float, caught: bool) -> float:
+	if player_y <= 0.05:
+		return 0.0
+	if clearance > (LIFT_CATCH_MARGIN if caught else 0.0):
+		return 0.0
+	return player_y + 0.9
 
 func clearance(point: Vector2, body_radius: float) -> float:
 	var nearest := INF

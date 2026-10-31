@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://dpqe2loi1mlxd"
 path.bptc="res://.godot/imported/steel_orm.png-ee12bf6eb3ef7b4a4c50f53b170b87c1.bptc.ctex"
+path.astc="res://.godot/imported/steel_orm.png-ee12bf6eb3ef7b4a4c50f53b170b87c1.astc.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/environment/surge_tank/textures/steel_orm.png"
-dest_files=["res://.godot/imported/steel_orm.png-ee12bf6eb3ef7b4a4c50f53b170b87c1.bptc.ctex"]
+dest_files=["res://.godot/imported/steel_orm.png-ee12bf6eb3ef7b4a4c50f53b170b87c1.bptc.ctex", "res://.godot/imported/steel_orm.png-ee12bf6eb3ef7b4a4c50f53b170b87c1.astc.ctex"]
 
 [params]
 

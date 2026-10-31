@@ -4,18 +4,19 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://ddndbp4a7xw16"
 path.bptc="res://.godot/imported/aiquiz_stadium_backdrop_lighthouse_sign.png-10684de552b48d6811a1d54a4e7c20d4.bptc.ctex"
+path.astc="res://.godot/imported/aiquiz_stadium_backdrop_lighthouse_sign.png-10684de552b48d6811a1d54a4e7c20d4.astc.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
-"md5": "70b3a6aa0655ed7b116e2dd1136f1b43"
+"md5": "46ba722b94b1b8d8c7d54412ce403c37"
 }
 
 [deps]
 
 source_file="res://assets/aiquiz_stadium/aiquiz_stadium_backdrop_lighthouse_sign.png"
-dest_files=["res://.godot/imported/aiquiz_stadium_backdrop_lighthouse_sign.png-10684de552b48d6811a1d54a4e7c20d4.bptc.ctex"]
+dest_files=["res://.godot/imported/aiquiz_stadium_backdrop_lighthouse_sign.png-10684de552b48d6811a1d54a4e7c20d4.bptc.ctex", "res://.godot/imported/aiquiz_stadium_backdrop_lighthouse_sign.png-10684de552b48d6811a1d54a4e7c20d4.astc.ctex"]
 
 [params]
 

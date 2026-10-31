@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://bm2powlttjp7e"
 path.bptc="res://.godot/imported/steel_orm.png-46128bf0ece0c206af54db6478678f0c.bptc.ctex"
+path.astc="res://.godot/imported/steel_orm.png-46128bf0ece0c206af54db6478678f0c.astc.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/environment/underground_temple/textures/steel_orm.png"
-dest_files=["res://.godot/imported/steel_orm.png-46128bf0ece0c206af54db6478678f0c.bptc.ctex"]
+dest_files=["res://.godot/imported/steel_orm.png-46128bf0ece0c206af54db6478678f0c.bptc.ctex", "res://.godot/imported/steel_orm.png-46128bf0ece0c206af54db6478678f0c.astc.ctex"]
 
 [params]
 

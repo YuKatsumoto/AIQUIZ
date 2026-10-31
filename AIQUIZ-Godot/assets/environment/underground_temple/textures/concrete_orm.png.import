@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://b6noax0axgk2d"
 path.bptc="res://.godot/imported/concrete_orm.png-9d840d0aa00d7070d45c9ae82a288b39.bptc.ctex"
+path.astc="res://.godot/imported/concrete_orm.png-9d840d0aa00d7070d45c9ae82a288b39.astc.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/environment/underground_temple/textures/concrete_orm.png"
-dest_files=["res://.godot/imported/concrete_orm.png-9d840d0aa00d7070d45c9ae82a288b39.bptc.ctex"]
+dest_files=["res://.godot/imported/concrete_orm.png-9d840d0aa00d7070d45c9ae82a288b39.bptc.ctex", "res://.godot/imported/concrete_orm.png-9d840d0aa00d7070d45c9ae82a288b39.astc.ctex"]
 
 [params]
 

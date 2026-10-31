@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://d4j3qma7to1hc"
 path.s3tc="res://.godot/imported/flood_spray.png-d8631d058d95df18c07ec5148f905e8c.s3tc.ctex"
+path.etc2="res://.godot/imported/flood_spray.png-d8631d058d95df18c07ec5148f905e8c.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/hazards/flood_wave/textures/flood_spray.png"
-dest_files=["res://.godot/imported/flood_spray.png-d8631d058d95df18c07ec5148f905e8c.s3tc.ctex"]
+dest_files=["res://.godot/imported/flood_spray.png-d8631d058d95df18c07ec5148f905e8c.s3tc.ctex", "res://.godot/imported/flood_spray.png-d8631d058d95df18c07ec5148f905e8c.etc2.ctex"]
 
 [params]
 

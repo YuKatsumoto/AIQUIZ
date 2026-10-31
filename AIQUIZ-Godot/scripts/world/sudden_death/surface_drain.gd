@@ -1011,6 +1011,7 @@ func _new_particles(key: String, at: Vector3, lifetime: float, explosiveness: fl
 	var particles := GPUParticles3D.new()
 	particles.name = key.capitalize().replace(" ", "")
 	particles.amount = _amount(key)
+	QualityRules.mark_particles_scaled(particles)
 	particles.lifetime = lifetime
 	particles.one_shot = true
 	particles.explosiveness = explosiveness

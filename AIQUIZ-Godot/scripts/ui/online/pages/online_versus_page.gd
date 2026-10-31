@@ -6,6 +6,8 @@ extends OnlineMenuPage
 ## 3D の背景があるときは、相手のヘリが着くまで名前を伏せ、OnlineMenu が reveal() で出す。
 ## カウントダウンは OnlineMenu が進める。
 
+const MobileUi = preload("res://scripts/core/mobile_ui.gd")
+
 var _card: Control
 var _me: Label
 var _them: Label
@@ -28,7 +30,7 @@ func _ready() -> void:
 	_me = OnlineMenuStyle.label("", 28, OnlineMenuStyle.ME, HORIZONTAL_ALIGNMENT_LEFT)
 	_me.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(_me)
-	_rules = OnlineMenuStyle.label("", 16, OnlineMenuStyle.MUTED)
+	_rules = OnlineMenuStyle.label("", MobileUi.font(16), OnlineMenuStyle.MUTED)
 	column.add_child(_rules)
 	_info = OnlineMenuStyle.label("", 22)
 	OnlineMenuStyle.shadow(_info)

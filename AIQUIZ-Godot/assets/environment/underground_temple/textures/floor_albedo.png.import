@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://bbkfnsxkrgb1w"
 path.bptc="res://.godot/imported/floor_albedo.png-c9ffa98e05e061c05cad19f84a44ba86.bptc.ctex"
+path.astc="res://.godot/imported/floor_albedo.png-c9ffa98e05e061c05cad19f84a44ba86.astc.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/environment/underground_temple/textures/floor_albedo.png"
-dest_files=["res://.godot/imported/floor_albedo.png-c9ffa98e05e061c05cad19f84a44ba86.bptc.ctex"]
+dest_files=["res://.godot/imported/floor_albedo.png-c9ffa98e05e061c05cad19f84a44ba86.bptc.ctex", "res://.godot/imported/floor_albedo.png-c9ffa98e05e061c05cad19f84a44ba86.astc.ctex"]
 
 [params]
 

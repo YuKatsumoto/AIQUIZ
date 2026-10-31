@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://dllcjbmywcylc"
 path.s3tc="res://.godot/imported/goal_stand_sb_bulbs.jpg-99df390b8bd46faa95b7a881cc371572.s3tc.ctex"
+path.etc2="res://.godot/imported/goal_stand_sb_bulbs.jpg-99df390b8bd46faa95b7a881cc371572.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/goal_stand/goal_stand_sb_bulbs.jpg"
-dest_files=["res://.godot/imported/goal_stand_sb_bulbs.jpg-99df390b8bd46faa95b7a881cc371572.s3tc.ctex"]
+dest_files=["res://.godot/imported/goal_stand_sb_bulbs.jpg-99df390b8bd46faa95b7a881cc371572.s3tc.ctex", "res://.godot/imported/goal_stand_sb_bulbs.jpg-99df390b8bd46faa95b7a881cc371572.etc2.ctex"]
 
 [params]
 

@@ -19,6 +19,8 @@ const CHANCE: float = 0.34
 const COOLDOWN_SEC: float = 50.0
 ## メニューを開いてから最初のライドまで（背景がいきなり物騒にならないように）
 const FIRST_RIDE_AFTER_SEC: float = 15.0
+## 乗ると決めてから始められるまで待つ長さ（復活で作り直した直後の PlayerController は乗り手の人形をまだ作れない）
+const BEGIN_RETRY_SEC: float = 2.0
 ## 本編の演出を読み込む時刻（最初のライドより前に、目立たないうちに済ませる）
 const SETUP_AFTER_SEC: float = 3.0
 ## ノコギリでの死亡（専用の復活の流れがある）と、2P の取り外しは対象外
@@ -33,7 +35,6 @@ const RESPAWN_DELAY_SEC: float = 0.7
 ## 本編の吹き飛び（10.5〜18.5 m/s）はメニューのコンベアには強すぎるので弱める
 const KNOCKBACK_SPEED_SCALE: float = 0.6
 const DODGE_CHANCE: float = 0.35
-const DODGE_ROLL_SHARE: float = 0.35
 const DODGE_REACTION_MIN: float = 0.06
 const DODGE_REACTION_MAX: float = 0.2
 ## 待つ場所はコンベアの右（メニューの UI は画面の左）。床の端（x=12）からこれだけ外、生き残った人より前（-z）。
@@ -63,6 +64,7 @@ var stats := {"armed": 0, "rides": 0, "dashes": 0, "hits": 0, "dodges": 0, "ocea
 
 var _armed := false
 var _armed_dead_is_p1 := false
+var _armed_at := 0.0
 var _riding := false
 var _ride_dead_is_p1 := false
 var _ride_started_at := 0.0
@@ -73,7 +75,6 @@ var _last_phase: int = Phase.INACTIVE
 var _retire_requested := false
 var _dodge_at := -1.0
 var _dodge_dir := Vector2.ZERO
-var _dodge_roll := false
 var _shards_scheduled := false
 ## 乗せ終えて海へ潜るまで隠しておくサメ
 var _hidden_sharks: Array[Node3D] = []
@@ -145,6 +146,7 @@ func on_actor_died(dead_is_p1: bool, reason: String) -> void:
 		return
 	_armed = true
 	_armed_dead_is_p1 = dead_is_p1
+	_armed_at = host._linger_time
 	host._ai.bundle_for(dead_is_p1).respawn_hold = true
 	stats.armed += 1
 
@@ -241,7 +243,8 @@ func _try_begin() -> void:
 	brain.reset()
 	brain.emotes = host._ai.bundle_for(dead_is_p1).available_emotes.duplicate()
 	if not controller.begin_for_dead_player(1 if dead_is_p1 else 2):
-		_disarm()
+		if host._linger_time - _armed_at >= BEGIN_RETRY_SEC:
+			_disarm()
 		return
 	_armed = false
 	_riding = true
@@ -327,7 +330,6 @@ func _plan_dodge(survivor_is_p1: bool) -> void:
 	var a := here + side * 2.0
 	var b := here - side * 2.0
 	_dodge_dir = side if _room_score(a) >= _room_score(b) else -side
-	_dodge_roll = rng.randf() < DODGE_ROLL_SHARE
 	_dodge_at = host._ai_time + rng.randf_range(DODGE_REACTION_MIN, DODGE_REACTION_MAX)
 
 
@@ -338,12 +340,9 @@ func _room_score(point: Vector2) -> float:
 
 
 func _update_survivor(survivor: MenuPreviewActorAIState, survivor_is_p1: bool) -> void:
-	var shark := controller.get_shark()
-	if shark != null and is_instance_valid(shark):
-		survivor.ghost_watch_target = shark.global_position
 	if _dodge_at >= 0.0 and host._ai_time >= _dodge_at:
 		_dodge_at = -1.0
-		if host._ai.start_dodge(survivor, survivor_is_p1, _dodge_dir, _dodge_roll):
+		if host._ai.start_dodge(survivor, survivor_is_p1, _dodge_dir):
 			stats.dodges += 1
 
 

@@ -295,7 +295,8 @@ func _ready() -> void:
 		_locomotion.name = "SharkLocomotion"
 		_jaw_skeleton.add_child(_locomotion)
 	_setup_attack_effects()
-	if is_instance_valid(ocean_surface) and not GraphicsQuality.is_mobile_target():
+	# The wake rides on the clear water; the opaque low-tier phone water has no surface for it.
+	if is_instance_valid(ocean_surface) and not GraphicsQuality.uses_lightweight_ocean(GameManager.graphics_quality):
 		_surface_wake = preload("res://scripts/world/shark_surface_wake.gd").new()
 		_surface_wake.name = "SurfaceWake"
 		_surface_wake.set("surface", ocean_surface)
@@ -1222,6 +1223,42 @@ func depart_ghost_rendezvous(
 	if _ghost_aura_particles != null:
 		_ghost_aura_particles.emitting = true
 		_ghost_aura_particles.amount_ratio = 0.24
+	return true
+
+
+## 練習（docs/new_tutorial/phase6_design.md 2.4）：乗せる前の浮上・着座・光の柱を飛ばす。まだなら乗り手を鞍に乗せ、
+## 光の柱を片づけて、entry_position の海の中から target_position へ上がって待つ（restart_ghost_hover と同じ）。
+func practice_skip_mount_to_hover(
+	player_index: int,
+	rider_visual: Node3D,
+	entry_position: Vector3,
+	target_position: Vector3,
+	aim_point: Vector3
+) -> bool:
+	if not is_ghost_ridden or _ghost_player_index != player_index:
+		return false
+	if _ghost_phase == GhostRidePhase.RENDEZVOUS_ASCENT:
+		_ghost_rendezvous_ascent_started = true
+		_ghost_rendezvous_elapsed = GHOST_RENDEZVOUS_ASCENT_DURATION
+		position = _ghost_rendezvous_position
+		_velocity = Vector3.ZERO
+		_ghost_phase = GhostRidePhase.RENDEZVOUS
+	if _ghost_phase == GhostRidePhase.RENDEZVOUS:
+		if not begin_ghost_ride(player_index, rider_visual):
+			return false
+	if _ghost_phase != GhostRidePhase.MOUNTING:
+		return false
+	_ghost_mount_settle_elapsed = GHOST_MOUNT_SETTLE_DURATION
+	if _ghost_rider != null and is_instance_valid(_ghost_rider):
+		_ghost_rider.transform = _ghost_rider.get_meta(
+			"ghost_mount_target_transform",
+			Transform3D(Basis.from_scale(Vector3.ONE * get_ghost_rider_local_scale()), Vector3.ZERO)
+		)
+	_clear_ghost_mount_beacons()
+	_ghost_mount_beam_sequence_started = false
+	_ghost_mount_beam_shutdown_started = false
+	_ghost_mount_beam_elapsed = 0.0
+	restart_ghost_hover(entry_position, target_position, aim_point)
 	return true
 
 

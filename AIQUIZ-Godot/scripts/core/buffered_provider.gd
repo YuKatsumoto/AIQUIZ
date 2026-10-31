@@ -82,6 +82,10 @@ func _init() -> void:
 	super._init()
 
 func _ready() -> void:
+	# A phone build ships without APP_SECRET (it would be readable from the APK): the proxy would
+	# answer 403 after a 15 s wait every round, so start on the built-in questions there.
+	if GraphicsQuality.is_mobile_target() and ApiStatusAutoload.get_env("APP_SECRET").is_empty():
+		llm_mode = "OFFLINE"
 	offline_provider = QuizProvider.new("res://offline_bank.json")
 	add_child(offline_provider)
 	if QuizManager.firebase_quiz_cache != null:

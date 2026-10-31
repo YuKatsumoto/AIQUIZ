@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://d0n74g0f22gqe"
 path.s3tc="res://.godot/imported/aiquiz_harbor_city_teal_facade_albedo.png-af42b8ac55f3d1999c1dba3aa76b12bc.s3tc.ctex"
+path.etc2="res://.godot/imported/aiquiz_harbor_city_teal_facade_albedo.png-af42b8ac55f3d1999c1dba3aa76b12bc.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/environment/harbor_city/aiquiz_harbor_city_teal_facade_albedo.png"
-dest_files=["res://.godot/imported/aiquiz_harbor_city_teal_facade_albedo.png-af42b8ac55f3d1999c1dba3aa76b12bc.s3tc.ctex"]
+dest_files=["res://.godot/imported/aiquiz_harbor_city_teal_facade_albedo.png-af42b8ac55f3d1999c1dba3aa76b12bc.s3tc.ctex", "res://.godot/imported/aiquiz_harbor_city_teal_facade_albedo.png-af42b8ac55f3d1999c1dba3aa76b12bc.etc2.ctex"]
 
 [params]
 

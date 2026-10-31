@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://ccufexlwbxro3"
 path.bptc="res://.godot/imported/shaft_wall_masks.png-2225531be5dc7e084188408f53fd7995.bptc.ctex"
+path.astc="res://.godot/imported/shaft_wall_masks.png-2225531be5dc7e084188408f53fd7995.astc.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/environment/shaft_descent/textures/shaft_wall_masks.png"
-dest_files=["res://.godot/imported/shaft_wall_masks.png-2225531be5dc7e084188408f53fd7995.bptc.ctex"]
+dest_files=["res://.godot/imported/shaft_wall_masks.png-2225531be5dc7e084188408f53fd7995.bptc.ctex", "res://.godot/imported/shaft_wall_masks.png-2225531be5dc7e084188408f53fd7995.astc.ctex"]
 
 [params]
 

@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://bsixdqwgtlrml"
 path.bptc="res://.godot/imported/landing_float_lf_tube_orm.png-643ba77669ee4778367cae8b60a12d47.bptc.ctex"
+path.astc="res://.godot/imported/landing_float_lf_tube_orm.png-643ba77669ee4778367cae8b60a12d47.astc.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/sudden_death/parachute/landing_float/landing_float_lf_tube_orm.png"
-dest_files=["res://.godot/imported/landing_float_lf_tube_orm.png-643ba77669ee4778367cae8b60a12d47.bptc.ctex"]
+dest_files=["res://.godot/imported/landing_float_lf_tube_orm.png-643ba77669ee4778367cae8b60a12d47.bptc.ctex", "res://.godot/imported/landing_float_lf_tube_orm.png-643ba77669ee4778367cae8b60a12d47.astc.ctex"]
 
 [params]
 

@@ -11,6 +11,11 @@
    "seconds": 3.0,
    "loop": true
   },
+  "SPEC_Buy": {
+   "frames": 60,
+   "seconds": 2.0,
+   "loop": false
+  },
   "SPEC_CarryKid": {
    "frames": 30,
    "seconds": 1.0,
@@ -190,6 +195,16 @@
    "seconds": 2.5,
    "loop": true
   },
+  "SPEC_PassItemL": {
+   "frames": 30,
+   "seconds": 1.0,
+   "loop": false
+  },
+  "SPEC_PassItemR": {
+   "frames": 30,
+   "seconds": 1.0,
+   "loop": false
+  },
   "SPEC_Phone": {
    "frames": 88,
    "seconds": 2.9333,
@@ -204,6 +219,17 @@
    "frames": 20,
    "seconds": 0.6667,
    "loop": true
+  },
+  "SPEC_RaiseHand": {
+   "frames": 30,
+   "seconds": 1.0,
+   "loop": true
+  },
+  "SPEC_Run": {
+   "frames": 28,
+   "seconds": 0.9333,
+   "loop": true,
+   "ground_speed": 1.6127
   },
   "SPEC_Selfie": {
    "frames": 60,
@@ -234,6 +260,28 @@
    "frames": 24,
    "seconds": 0.8,
    "loop": true
+  },
+  "SPEC_SitDown": {
+   "frames": 39,
+   "seconds": 1.3,
+   "loop": false,
+   "rise": [
+    -2.0,
+    -1.0,
+    0.4,
+    0.8333
+   ]
+  },
+  "SPEC_StandUp": {
+   "frames": 31,
+   "seconds": 1.0333,
+   "loop": false,
+   "rise": [
+    0.3,
+    0.7333,
+    99.0,
+    100.0
+   ]
   },
   "SPEC_StandWave": {
    "frames": 40,
@@ -267,6 +315,11 @@
    "seconds": 1.5,
    "loop": true
   },
+  "SPEC_VendorHand": {
+   "frames": 30,
+   "seconds": 1.0,
+   "loop": false
+  },
   "SPEC_VendorWalk": {
    "frames": 40,
    "seconds": 1.3333,
@@ -276,6 +329,12 @@
    "frames": 36,
    "seconds": 1.2,
    "loop": false
+  },
+  "SPEC_Walk": {
+   "frames": 40,
+   "seconds": 1.3333,
+   "loop": true,
+   "ground_speed": 0.9169
   },
   "SPEC_Wave": {
    "frames": 30,

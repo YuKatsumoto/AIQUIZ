@@ -61,7 +61,7 @@ const YOLK_STREAM_TRAIL := 0.009
 ## Liquid still coming down a rivulet that reached the edge goes to its drip in batches (m^3).
 const EDGE_BATCH := 1.0e-4
 ## Yolk: hold on the surface (m/s^2), drag inside the thick dome and in the film (1/s).
-const YOLK_STICK := Vector2(5.0, 12.0)
+const YOLK_STICK := Vector2(8.0, 16.0)
 const YOLK_DRAG_THICK := 7.0
 const YOLK_DRAG_THIN := 2.6
 const YOLK_SLIDE := 0.55

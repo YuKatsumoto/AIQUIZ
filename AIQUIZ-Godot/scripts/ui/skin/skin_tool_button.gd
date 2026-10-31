@@ -4,7 +4,9 @@ class_name SkinToolButton
 ## アイコン＋文字ラベルのボタン（ツールバー・小さな操作）。
 ## アイコンは絵文字に頼らず線で描く（フォントに無い記号で豆腐にならないように）。
 
-enum Icon { NONE, UNDO, RESET, DICE, COPY, CAMERA }
+enum Icon { NONE, UNDO, RESET, DICE, COPY, CAMERA, REDO }
+
+const MobileUi = preload("res://scripts/core/mobile_ui.gd")
 
 var icon_kind: Icon = Icon.NONE
 var text: String = ""
@@ -20,6 +22,8 @@ func _init(p_icon: Icon = Icon.NONE, p_text: String = "", p_tooltip: String = ""
 	focus_mode = Control.FOCUS_ALL
 	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	custom_minimum_size = Vector2(34, 34) if compact else Vector2(0, 42)
+	# スマホ：指で押せる大きさ（ツールバーの行を低く保つため、小さいほうの基準 56）
+	MobileUi.ensure_touch_size(self, true)
 
 
 func _ready() -> void:
@@ -39,7 +43,7 @@ func set_text(value: String) -> void:
 func _get_minimum_size() -> Vector2:
 	if compact or text.is_empty():
 		return Vector2.ZERO
-	var text_width := SkinUiStyle.FONT_BOLD.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x
+	var text_width := SkinUiStyle.FONT_BOLD.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, MobileUi.font(13)).x
 	var icon_width := 0.0 if icon_kind == Icon.NONE else 30.0
 	return Vector2(ceilf(text_width + icon_width + 16.0), 0.0)
 
@@ -84,6 +88,17 @@ func _draw_icon(c: Vector2, r: float, ink: Color) -> void:
 				tip + Vector2(-r * 0.45, -r * 0.05),
 				tip + Vector2(r * 0.45, -r * 0.05),
 				tip + Vector2(0.0, r * 0.55),
+			]), ink)
+		Icon.REDO:
+			# 「もどす」の左右反転（↷）。矢じりは右下向き。
+			var redo_center := c + Vector2(0, r * 0.35)
+			var redo_radius := r * 0.85
+			draw_arc(redo_center, redo_radius, PI, TAU, 18, ink, w, true)
+			var redo_tip := redo_center + Vector2(redo_radius, 0.0)
+			draw_colored_polygon(PackedVector2Array([
+				redo_tip + Vector2(-r * 0.45, -r * 0.05),
+				redo_tip + Vector2(r * 0.45, -r * 0.05),
+				redo_tip + Vector2(0.0, r * 0.55),
 			]), ink)
 		Icon.RESET:
 			draw_arc(c, r * 0.85, deg_to_rad(-60), deg_to_rad(250), 20, ink, w, true)

@@ -54,6 +54,12 @@ const QUALITY := {
 	"ultra": {"count": 1.0, "steps": 60, "light_steps": 5, "fine": true},
 }
 
+## モバイル：雲の数とレイマーチの歩数を半分に、光の歩数を 1 つ減らす（1 画素あたりの深度読みと
+## ノイズの読み出しが歩数に比例するため）。
+const MOBILE_COUNT_SCALE := 0.5
+const MOBILE_STEP_SCALE := 0.5
+const MOBILE_MIN_STEPS := 10
+
 enum Layer { SEA, RIM, MID, NEAR, THIN }
 
 var quality := ""
@@ -85,11 +91,23 @@ var _hole_t := 99.0
 var _visible_count := 0
 
 
+## 画質ごとの値（QUALITY）。モバイルでは数と歩数を減らした写しを返す（デスクトップはそのまま）。
+static func quality_params(p_quality: String) -> Dictionary:
+	var q: Dictionary = QUALITY.get(p_quality, QUALITY.balanced)
+	if not GraphicsQuality.is_mobile_target():
+		return q
+	var m := q.duplicate()
+	m["count"] = float(q.count) * MOBILE_COUNT_SCALE
+	m["steps"] = maxi(MOBILE_MIN_STEPS, roundi(float(q.steps) * MOBILE_STEP_SCALE))
+	m["light_steps"] = maxi(2, int(q.light_steps) - 1)
+	return m
+
+
 func build(p_quality: String) -> void:
 	for child: Node in get_children():
 		child.queue_free()
 	quality = GraphicsQuality.normalize(p_quality)
-	var q: Dictionary = QUALITY.get(quality, QUALITY.balanced)
+	var q: Dictionary = quality_params(quality)
 	var meta: Variant = JSON.parse_string(FileAccess.get_file_as_string(META))
 	var shapes: Array = (meta as Dictionary).get("shapes", []) if meta is Dictionary else []
 	_aspects = []
@@ -399,4 +417,4 @@ func stats() -> Dictionary:
 		by_layer[key] = int(by_layer.get(key, 0)) + 1
 	var draws := (1 if _node != null and _node.visible else 0) + (1 if _shadow_node != null and _shadow_node.visible else 0)
 	return {"draws": draws, "clouds": _pos.size(), "visible": _visible_count, "layers": by_layer, "shadows": _shadowed.size(),
-		"steps": int((QUALITY.get(quality, QUALITY.balanced) as Dictionary).steps)}
+		"steps": int(quality_params(quality).steps)}

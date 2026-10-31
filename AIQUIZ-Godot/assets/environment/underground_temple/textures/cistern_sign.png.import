@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://d1wep2q2yjfqp"
 path.bptc="res://.godot/imported/cistern_sign.png-e37a821504df5d1e7d62adcf8acba601.bptc.ctex"
+path.astc="res://.godot/imported/cistern_sign.png-e37a821504df5d1e7d62adcf8acba601.astc.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/environment/underground_temple/textures/cistern_sign.png"
-dest_files=["res://.godot/imported/cistern_sign.png-e37a821504df5d1e7d62adcf8acba601.bptc.ctex"]
+dest_files=["res://.godot/imported/cistern_sign.png-e37a821504df5d1e7d62adcf8acba601.bptc.ctex", "res://.godot/imported/cistern_sign.png-e37a821504df5d1e7d62adcf8acba601.astc.ctex"]
 
 [params]
 

@@ -68,7 +68,7 @@
 
 | ファイル | 中身 |
 | --- | --- |
-| `aiquiz_stadium_stand_blocks.glb` / `.json` | 側面スタンドの 20m ブロック `AQS_Stand_Bay` / `AQS_Stand_CapStart` / `AQS_Stand_CapEnd`（6段・114席、丸いブース。マスト・ヤード・シュラウドと「?」の画面は 2026-09-28 のユーザー指示で作らない）。JSON は座席・通路と帆の組み合わせ |
+| `aiquiz_stadium_stand_blocks.glb` / `.json` | 側面スタンドの 20m ブロック `AQS_Stand_Bay` / `AQS_Stand_CapStart` / `AQS_Stand_CapEnd`（6段・114席、丸いブース。マスト・ヤード・シュラウドと「?」の画面は 2026-09-28 のユーザー指示で作らない。2026-10-28 から後方通路が広く、ブースの両端が売店の窓口、通路の脇に客の下り口）。JSON は座席・通路と帆の組み合わせ、歩く客の道（`walk`、`docs/crowd_sim.md`） |
 | `aiquiz_stadium_sail_rigs.glb` | 帆の一式 `AQS_SailRig_R` / `AQS_SailRig_L`（布・ブーム・ブームの灯・トッピングリフト）。ブロックと同じ座標。UV2 に揺れの重み |
 | `aiquiz_stadium_goal_gate.glb` | GOAL ゲート `AQS_GoalGate`（柱 |x| 11.55、梁の下 5.0m、表裏に GOAL 看板） |
 | `aiquiz_stadium_goal_stand.glb` | ゴール観客席 B `GS_Stand` / `GS_Scoreboard`（LED 面 `GS_ScoreboardScreen` は元と同じ位置・向き・UV） |

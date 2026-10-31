@@ -11,6 +11,9 @@ extends Node3D
 ## 関数（本編の登場と同じ）と StagingPuppet（UAL のクリップを当てて好きな位置に置く）で毎フレーム置く。
 
 const Motion = preload("res://scripts/world/result_finale/result_finale_motion.gd")
+const TouchHud = preload("res://scripts/ui/touch_hud/touch_hud.gd")
+const TapToConfirmOverlay = preload("res://scripts/ui/touch_hud/tap_to_confirm_overlay.gd")
+const Haptics = preload("res://scripts/core/haptics.gd")
 
 enum Act { IDLE, BRANCH, REVEAL, PICKUP, CLIMB, SKY, DESCEND, VENUE, EXTRACT, HOME, ABORT, DONE, BOARD, DROP, REVIVE }
 
@@ -65,7 +68,7 @@ const REGROW_TIME := 1.6
 const HOME_MATCH := 0.8
 ## Fallbacks for a stuck step.
 const STEP_LIMIT := 9.0
-## A ghost at the draw gets its body back before the reveal (docs/sudden_death_v2/ghost_revive.md): the second of two
+## A ghost at the draw gets its body back right after the reveal (docs/sudden_death_v2/ghost_revive.md): the second of two
 ## ghosts starts this much later. The lens stays on the held finale shot (no push in, no caption: user's request).
 const REVIVE_LAG := 0.12
 const REVIVE_HOLD := 0.12
@@ -134,6 +137,10 @@ var _round_next := 1
 var _smooth_handover := false
 ## The live runners took over from the finale cast (once per sudden death: at the revival, otherwise at the pickup).
 var _live_cast := false
+## A ghost at the draw: the reveal pulls back to the finale shot and the revival follows it (then the pickup / boarding).
+var _reveal_then_revive := false
+## Seconds the revival took (the helicopters' clock keeps running through it).
+var _revive_span := 0.0
 ## Player -> pelvis position standing on the sunk pad (taken from the cast at the handover).
 var _pads := {}
 ## Player -> GhostRevival while a ghost's body comes back (docs/sudden_death_v2/ghost_revive.md).
@@ -154,6 +161,12 @@ func setup(state: QuizGameState, camera_rig: Node3D, ceremony_director: ResultCe
 	_surface_toggle = surface_toggle
 	name = "HeliSuddenDeathDirector"
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	if TouchHud.is_touch() and get_node_or_null("TouchRulesOverlay") == null:
+		# スマホ：種目のルールカードは Enter の代わりにタップで閉じる（confirm_rules と同じ口）。
+		var overlay := TapToConfirmOverlay.new()
+		overlay.name = "TouchRulesOverlay"
+		overlay.setup(is_rules_card_waiting, confirm_rules)
+		add_child(overlay)
 
 
 func _notification(what: int) -> void:
@@ -435,15 +448,36 @@ func on_event(event: Dictionary) -> void:
 	_events.append(event)
 	if _presenter != null and _act == Act.VENUE:
 		_presenter.on_event(event)
+		# スマホの手ごたえ：答え・早押しを受け付けた（短く）、決着した（長め）。
+		match str(event.get("kind", "")):
+			"answered", "buzz":
+				if _haptic_local(int(event.get("player", 0))):
+					Haptics.pulse(Haptics.TAP)
+			"decided":
+				Haptics.pulse(Haptics.SUCCESS)
+
+
+## 振動を返すのはこの画面で操作している人の受付だけ（オンラインは自分のスロット）。
+func _haptic_local(player: int) -> bool:
+	if game_state != null and game_state.net_online:
+		return player == game_state.local_slot
+	return true
+
+
+## 種目のルールカードが閉じる（confirm_rules）のを待っているか。スマホのタップの層と TouchControls の「OK」が見る。
+## 見せ方が rules_waiting() を持っていればそれに従い、なければ段階が "rules" の間。
+func is_rules_card_waiting() -> bool:
+	if _act != Act.VENUE or _presenter == null:
+		return false
+	if _presenter.has_method("rules_waiting"):
+		return bool(_presenter.call("rules_waiting"))
+	return str(_presenter.get("_phase")) == "rules"
 
 
 ## sudden_death_transition_requested: true when the finale reaches the hold (11.0 s).
 func on_transition_requested(entering: bool) -> void:
 	if entering and _act == Act.BRANCH:
-		if _ghosts_at_draw().is_empty():
-			_begin_reveal()
-		else:
-			_begin_revive()
+		_begin_reveal()
 
 
 ## Enter on the rule card (GameWorld forwards it).
@@ -602,6 +636,10 @@ func _pickup_hover(player: int) -> Vector3:
 func _begin_reveal() -> void:
 	_act = Act.REVEAL
 	_act_time = 0.0
+	# A ghost at the draw gets its body back right after the game is announced (docs/sudden_death_v2/ghost_revive.md):
+	# the lens pulls back to the held finale shot instead of the wide shot, and the revival plays from there.
+	_reveal_then_revive = not _ghosts_at_draw().is_empty()
+	_revive_span = 0.0
 	game_state.sudden_death_title = _presenter.title(game_state.use_english_ui)
 	_screen = _find_screen()
 	# The push starts from the lens as it is now (the finale camera; there is no wide shot before the screen).
@@ -622,16 +660,18 @@ func _begin_reveal() -> void:
 
 func _update_reveal() -> void:
 	var t := HOLD_TIME + _act_time
-	if _live_cast:
-		# Revived before the reveal: the live runners wait on their pads instead of the finale cast.
-		for player in [1, 2]:
-			_stand_idle(player, PI)
 	var wide := _wide_shot()
+	var wide_fov := WIDE_FOV
 	if _floatplane:
 		# Pull back to the boarding's first shot (the stand beside the podium and the open sea).
 		wide = _look(Vector3(-7.0, 7.0, _podium.z - 27.2), Vector3(26.0, 2.0, _podium.z + 4.8))
 	else:
 		_update_arriving_helis(t - HELI_IN_TIME)
+	if _reveal_then_revive:
+		# Back to the held finale shot, where the ghosts stand: the revival plays on it without moving the lens.
+		var finale := _finale_camera(HOLD_TIME)
+		wide = finale.transform
+		wide_fov = float(finale.fov)
 	var close := _screen_shot()
 	var push := smoothstep(0.0, REVEAL_PUSH, _act_time)
 	var pull := smoothstep(REVEAL_LENGTH - REVEAL_PULL, REVEAL_LENGTH, _act_time)
@@ -641,14 +681,16 @@ func _update_reveal() -> void:
 	var fov := lerpf(_reveal_from_fov, float(close.fov), push)
 	if pull > 0.0:
 		shot = _blend(close.transform, wide, pull)
-		fov = lerpf(float(close.fov), WIDE_FOV, pull)
+		fov = lerpf(float(close.fov), wide_fov, pull)
 	_cut(shot, fov, "reveal_screen", true)
 	if _act_time >= GoalStandScoreboard.TITLE_SPIN and _cue("title_land", true):
 		AudioManager.stop_sfx(&"score_drum_roll")
 		AudioManager.play_sfx(&"score_drum_finish", -2.0)
 		_hud_call("flash", [0.35, 0.18])
 	if _act_time >= REVEAL_LENGTH:
-		if _floatplane:
+		if _reveal_then_revive:
+			_begin_revive()
+		elif _floatplane:
 			_begin_board()
 		else:
 			_begin_pickup()
@@ -699,7 +741,7 @@ func _begin_pickup() -> void:
 
 
 ## The finale cast hands over to the live runners, pose for pose (common.md 5.2). Once per sudden death: before the
-## reveal when a ghost gets its body back (docs/sudden_death_v2/ghost_revive.md), at the pickup otherwise.
+## revival when a ghost gets its body back (docs/sudden_death_v2/ghost_revive.md), at the pickup otherwise.
 func _take_over_cast(blend: float) -> void:
 	if _live_cast:
 		return
@@ -724,18 +766,6 @@ func _take_over_cast(blend: float) -> void:
 		_pads[player] = pelvis.global_position if pelvis != null else _podium + Vector3(_side(player) * QuizGameState.SUDDEN_DEATH_START_X, GhostRevival.HIPS, 0.0)
 
 
-## A live runner idling on its sunk pad (the reveal after a revival).
-func _stand_idle(player: int, yaw: float) -> void:
-	var puppet := _puppets.get(player) as StagingPuppet
-	if puppet == null or not puppet.is_ready():
-		return
-	var pad: Vector3 = _pads.get(player, _podium)
-	var length := maxf(puppet.clip_length("Idle_Loop"), 0.1)
-	puppet.pose("Idle_Loop", fposmod((HOLD_TIME + _act_time) / length + 0.31 * float(player), 1.0))
-	puppet.stand_at(pad, yaw, pad.y - GhostRevival.HIPS)
-	puppet.apply_blend(_real_dt)
-
-
 # ------------------------------------------------------------------ revival (docs/sudden_death_v2/ghost_revive.md)
 
 ## Finalists who stand on the podium as ghosts when the draw branches.
@@ -749,9 +779,9 @@ func _ghosts_at_draw() -> Array[int]:
 	return out
 
 
-## The held draw (11.0 s): the live runners take over from the cast, and each ghost floats up and calls its body back
-## from off screen, part by part, then bursts into a hero landing. The lens holds the finale shot; the reveal pushes
-## in from it as before.
+## After the game reveal: the live runners take over from the cast, and each ghost floats up and calls its body back
+## from off screen, part by part, then bursts and lands standing. The lens holds the finale shot (the reveal pulled
+## back to it); the pickup / boarding eases away from it.
 func _begin_revive() -> void:
 	_act = Act.REVIVE
 	_act_time = 0.0
@@ -793,12 +823,17 @@ func _update_revive() -> void:
 		for beat: StringName in revival.take_beats():
 			_on_revival_beat(player, beat)
 		done = done and revival.is_done()
+	if not _floatplane:
+		_update_arriving_helis(HOLD_TIME + REVEAL_LENGTH + t - HELI_IN_TIME)
 	_cut(_revive_from, _revive_from_fov, "revive", true)
 	if done and t >= _revive_length() + REVIVE_HOLD:
 		_clear_revivals()
-		for player in [1, 2]:
-			(_puppets[player] as StagingPuppet).begin_blend(0.3)
-		_begin_reveal()
+		_revive_span = t
+		# Both runners stand on their pads now: the boarding / the pickup eases them from there (_begin_pickup).
+		if _floatplane:
+			_begin_board()
+		else:
+			_begin_pickup()
 
 
 func _revive_length() -> float:
@@ -851,7 +886,7 @@ func revival(player := 0) -> GhostRevival:
 
 func _update_pickup() -> void:
 	var t := _act_time
-	_update_arriving_helis(HOLD_TIME + REVEAL_LENGTH + t - HELI_IN_TIME)
+	_update_arriving_helis(HOLD_TIME + REVEAL_LENGTH + _revive_span + t - HELI_IN_TIME)
 	var captured := 0
 	for player in [1, 2]:
 		if _update_pickup_runner(player, t, _podium + Vector3(_side(player) * RUNG_X, 0.0, 0.0), RUN_START[player - 1]):

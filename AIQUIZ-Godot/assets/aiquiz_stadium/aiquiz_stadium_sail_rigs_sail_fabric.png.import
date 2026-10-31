@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://b2ofwpk786xfo"
 path.bptc="res://.godot/imported/aiquiz_stadium_sail_rigs_sail_fabric.png-a4197b6bcd80b9ac73cfc575c4f3b4fd.bptc.ctex"
+path.astc="res://.godot/imported/aiquiz_stadium_sail_rigs_sail_fabric.png-a4197b6bcd80b9ac73cfc575c4f3b4fd.astc.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/aiquiz_stadium/aiquiz_stadium_sail_rigs_sail_fabric.png"
-dest_files=["res://.godot/imported/aiquiz_stadium_sail_rigs_sail_fabric.png-a4197b6bcd80b9ac73cfc575c4f3b4fd.bptc.ctex"]
+dest_files=["res://.godot/imported/aiquiz_stadium_sail_rigs_sail_fabric.png-a4197b6bcd80b9ac73cfc575c4f3b4fd.bptc.ctex", "res://.godot/imported/aiquiz_stadium_sail_rigs_sail_fabric.png-a4197b6bcd80b9ac73cfc575c4f3b4fd.astc.ctex"]
 
 [params]
 

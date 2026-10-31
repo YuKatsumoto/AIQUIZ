@@ -1,6 +1,8 @@
 class_name OnlineHomePage
 extends OnlineMenuPage
 
+const MobileUi = preload("res://scripts/core/mobile_ui.gd")
+
 ## オンラインメニューのトップ。なまえ（入力かサイコロの二つ名）と、あそぶ問題の
 ## せってい（教科・学年・むずかしさ）を決めて、ランダムマッチか ともだちと あそぶ へ進む。
 ## メインメニューの設定画面を通らずに来るので、せっていはここで選べるようにしている。
@@ -11,6 +13,9 @@ var _dice: DiceButton
 var _find_button: Button
 var _friend_button: Button
 var _values: Dictionary = {}  # &"subject" / &"grade" / &"difficulty" -> Label
+## 「あそぶ もんだい」のカードと、きょうか・がくねん・むずかしさの行（練習のコーチが光らせる）
+var _rule_card: Control
+var _rows: Dictionary = {}  # &"subject" / &"grade" / &"difficulty" -> HBoxContainer
 
 
 func _ready() -> void:
@@ -25,12 +30,14 @@ func _ready() -> void:
 	name_row.add_child(_name_input)
 	_dice = DiceButton.new()
 	_dice.custom_minimum_size = Vector2(60, 60)
+	MobileUi.ensure_touch_size(_dice)
 	_dice.pressed.connect(roll_name)
 	name_row.add_child(_dice)
-	_name_hint = OnlineMenuStyle.wrap_label("", 15, OnlineMenuStyle.WARN)
+	_name_hint = OnlineMenuStyle.wrap_label("", MobileUi.font(15), OnlineMenuStyle.WARN)
 	name_card.add_child(_name_hint)
 
 	var rule_card := OnlineMenuStyle.card(self, 8)
+	_rule_card = rule_card.get_parent()
 	OnlineMenuStyle.section(rule_card, "あそぶ もんだい")
 	_add_stepper(rule_card, &"subject", "きょうか")
 	_add_stepper(rule_card, &"grade", "がくねん")
@@ -39,10 +46,21 @@ func _ready() -> void:
 	add_child(OnlineMenuStyle.spacer(4))
 	_find_button = OnlineMenuStyle.button("ランダムマッチ", Vector2(0, 72), 26, true)
 	_find_button.pressed.connect(func() -> void: request(&"find"))
-	add_child(_find_button)
 	_friend_button = OnlineMenuStyle.button("ともだちと あそぶ", Vector2(0, 52), 20)
 	_friend_button.pressed.connect(func() -> void: request(&"friend"))
-	add_child(_friend_button)
+	if MobileUi.is_touch_ui():
+		# スマホ：指の大きさのボタンを縦に 2 つ積むと 720 の高さに収まらないので、横に並べる
+		var actions := HBoxContainer.new()
+		actions.name = "Actions"
+		actions.add_theme_constant_override("separation", 12)
+		add_child(actions)
+		for button: Button in [_find_button, _friend_button]:
+			button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			actions.add_child(button)
+		_find_button.size_flags_stretch_ratio = 1.3
+	else:
+		add_child(_find_button)
+		add_child(_friend_button)
 
 
 func enter(_args: Dictionary) -> void:
@@ -56,6 +74,25 @@ func default_focus() -> Control:
 	return _find_button if not _find_button.disabled else _name_input
 
 
+## 練習の形で、画面のコーチが光らせる部品（docs/new_tutorial/phase7_design.md 1.1）。なければ null。
+##   &"name_field"・&"name_dice"・&"quiz_box"（あそぶ もんだい）・&"subject"・&"grade"・&"difficulty"・&"random_match"・&"friends"
+func practice_part(id: StringName) -> Control:
+	match id:
+		&"name_field":
+			return _name_input
+		&"name_dice":
+			return _dice
+		&"quiz_box":
+			return _rule_card
+		&"subject", &"grade", &"difficulty":
+			return _rows.get(id) as Control
+		&"random_match":
+			return _find_button
+		&"friends":
+			return _friend_button
+	return null
+
+
 ## サイコロ: 新しい二つ名をすぐ入れる（動きは付けない）。
 func roll_name() -> void:
 	_name_input.text = NetEpithets.roll()
@@ -67,7 +104,8 @@ func _add_stepper(parent: Control, key: StringName, title: String) -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	parent.add_child(row)
-	var name_label := OnlineMenuStyle.label(title, 18, OnlineMenuStyle.MUTED, HORIZONTAL_ALIGNMENT_LEFT)
+	_rows[key] = row
+	var name_label := OnlineMenuStyle.label(title, MobileUi.font(18), OnlineMenuStyle.MUTED, HORIZONTAL_ALIGNMENT_LEFT)
 	name_label.custom_minimum_size = Vector2(120, 0)
 	row.add_child(name_label)
 	var prev := OnlineMenuStyle.arrow_button("◀")

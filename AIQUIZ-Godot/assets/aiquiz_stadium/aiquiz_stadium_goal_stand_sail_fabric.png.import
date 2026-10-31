@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://4jxxfgdkotol"
 path.bptc="res://.godot/imported/aiquiz_stadium_goal_stand_sail_fabric.png-77e8e3d43a02dc445ada8c2f957bcc03.bptc.ctex"
+path.astc="res://.godot/imported/aiquiz_stadium_goal_stand_sail_fabric.png-77e8e3d43a02dc445ada8c2f957bcc03.astc.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/aiquiz_stadium/aiquiz_stadium_goal_stand_sail_fabric.png"
-dest_files=["res://.godot/imported/aiquiz_stadium_goal_stand_sail_fabric.png-77e8e3d43a02dc445ada8c2f957bcc03.bptc.ctex"]
+dest_files=["res://.godot/imported/aiquiz_stadium_goal_stand_sail_fabric.png-77e8e3d43a02dc445ada8c2f957bcc03.bptc.ctex", "res://.godot/imported/aiquiz_stadium_goal_stand_sail_fabric.png-77e8e3d43a02dc445ada8c2f957bcc03.astc.ctex"]
 
 [params]
 

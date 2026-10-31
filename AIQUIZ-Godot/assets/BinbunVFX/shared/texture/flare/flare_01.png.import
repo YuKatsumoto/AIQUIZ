@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://hxi4xo7j57d7"
 path.s3tc="res://.godot/imported/flare_01.png-aa50662a35ac6d88bf01382fc4cb33bb.s3tc.ctex"
+path.etc2="res://.godot/imported/flare_01.png-aa50662a35ac6d88bf01382fc4cb33bb.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/BinbunVFX/shared/texture/flare/flare_01.png"
-dest_files=["res://.godot/imported/flare_01.png-aa50662a35ac6d88bf01382fc4cb33bb.s3tc.ctex"]
+dest_files=["res://.godot/imported/flare_01.png-aa50662a35ac6d88bf01382fc4cb33bb.s3tc.ctex", "res://.godot/imported/flare_01.png-aa50662a35ac6d88bf01382fc4cb33bb.etc2.ctex"]
 
 [params]
 

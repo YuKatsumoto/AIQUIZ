@@ -24,7 +24,6 @@ const SETTLE_SECONDS := 6.5
 var gs: QuizGameState
 var menu: Control
 var preview: Node
-var _saved_tutorial_version := 0
 var _saved_skin_path := ""
 var _saved_skin_suspended := false
 
@@ -40,8 +39,6 @@ func _default_frames() -> int:
 func _setup() -> void:
 	QuizManager.set_meta("title_logo_intro_seen", true)
 	QuizManager.set_meta("saw_dock_menu_seen", true)
-	_saved_tutorial_version = GameManager.tutorial_prompt_seen_version
-	GameManager.tutorial_prompt_seen_version = GameManager.CURRENT_TUTORIAL_VERSION
 	_saved_skin_path = PlayerSkinStore.path
 	_saved_skin_suspended = PlayerSkinStore.suspended
 	PlayerSkinStore.path = "user://pv_capture_player_skins.json"
@@ -57,10 +54,8 @@ func _setup() -> void:
 	gs.subject = "算数"
 	gs.grade = 4
 	gs.difficulty = "普通"
-	# 撮影済みの素材と同じ見た目で撮る：メニュー背景の新しい歩様・ゴーストライダー・わざと起こす事故は使わない
-	MenuRunnerAnimator.globally_enabled = false
+	# 撮影済みの素材と同じ見た目で撮る：メニュー背景のゴーストライダーは使わない
 	MenuGhostRideDirector.globally_enabled = false
-	MenuActorAI.accidents_enabled = false
 	get_tree().change_scene_to_file("res://ui/main_menu.tscn")
 	while get_tree().current_scene == null or not get_tree().current_scene.is_node_ready():
 		await get_tree().process_frame
@@ -70,8 +65,6 @@ func _setup() -> void:
 	# （ロゴの下でキャラがバラバラになると、ロゴより目立つ）
 	preview.set("_saw_accident_cooldown", 1.0e9)
 	preview.set("_saw_next_trial", 1.0e9)
-	if gs.has_pending_solo_customize_tour():
-		failures.append("customize tour pending")
 	preview.call("sync_menu_player_count", 2)
 	await _frames(int(4.0 * FPS) * sub)                # 入場・ベルトが止まるまで
 	while menu.get("config_conveyor").is_moving():
@@ -104,6 +97,5 @@ func _check() -> void:
 
 
 func _cleanup() -> void:
-	GameManager.tutorial_prompt_seen_version = _saved_tutorial_version
 	PlayerSkinStore.path = _saved_skin_path
 	PlayerSkinStore.suspended = _saved_skin_suspended

@@ -179,17 +179,24 @@ func _apply_walls(scroll: float) -> void:
 	var world_z := scroll + lz
 	# World border: outside the wall's lanes the player is stopped and bounced.
 	var stop_z := wall_z - QuizGameState.WALL_WORLD_BORDER_STOP_DISTANCE
-	if gs.is_in_wall_border_lane(x) and world_z > stop_z and world_z <= wall_z + 1.0:
+	var in_border := gs.is_in_wall_border_lane(x) and world_z > stop_z and world_z <= wall_z + 1.0
+	if in_border:
 		lz = stop_z - scroll
 		if ext.y > -QuizGameState.WALL_WORLD_BORDER_PUSH_SPEED * 0.5:
 			ext.y = -QuizGameState.WALL_WORLD_BORDER_PUSH_SPEED
+	# Knocked back by a wrong door: held at the door face until the question ends.
+	if gs.is_held_by_wall(slot):
+		lz = minf(lz, wall_z - QuizGameState.WALL_FACE_CONTACT_DISTANCE - scroll)
 		return
-	if gs.current_wall_index == _passed_wall:
+	if in_border or gs.current_wall_index == _passed_wall:
 		return
-	if world_z < wall_z - 0.4 or not gs._is_on_track_floor(x, lz, slot):
+	var contact_z := wall_z - gs.wall_contact_distance()
+	if world_z < contact_z or not gs._is_on_track_floor(x, lz, slot):
 		return
 	var quiz := gs.current_quiz
 	if quiz != null and gs._check_player_door(x) == quiz.a:
 		_passed_wall = gs.current_wall_index
 		return
-	lz = wall_z - 0.4 - scroll
+	# Wrong door: stop at the contact line; the knockback and the recoil arrive
+	# with the host's snapshot.
+	lz = contact_z - scroll

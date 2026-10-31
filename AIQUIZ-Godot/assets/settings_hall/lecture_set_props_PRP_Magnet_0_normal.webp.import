@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://cmtohjf8fn13n"
 path.s3tc="res://.godot/imported/lecture_set_props_PRP_Magnet_0_normal.webp-3a6d1ec54e25e4526dfd5c113596d717.s3tc.ctex"
+path.etc2="res://.godot/imported/lecture_set_props_PRP_Magnet_0_normal.webp-3a6d1ec54e25e4526dfd5c113596d717.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/settings_hall/lecture_set_props_PRP_Magnet_0_normal.webp"
-dest_files=["res://.godot/imported/lecture_set_props_PRP_Magnet_0_normal.webp-3a6d1ec54e25e4526dfd5c113596d717.s3tc.ctex"]
+dest_files=["res://.godot/imported/lecture_set_props_PRP_Magnet_0_normal.webp-3a6d1ec54e25e4526dfd5c113596d717.s3tc.ctex", "res://.godot/imported/lecture_set_props_PRP_Magnet_0_normal.webp-3a6d1ec54e25e4526dfd5c113596d717.etc2.ctex"]
 
 [params]
 

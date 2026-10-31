@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://b8vhqd2ktj3ov"
 path.s3tc="res://.godot/imported/linked_saw_carriage_Steel_Concentric_Roughness_1536.png-b8cd8e6fa473d71a65c50cd81badbf4f.s3tc.ctex"
+path.etc2="res://.godot/imported/linked_saw_carriage_Steel_Concentric_Roughness_1536.png-b8cd8e6fa473d71a65c50cd81badbf4f.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/hazards/linked_saw_carriage_Steel_Concentric_Roughness_1536.png"
-dest_files=["res://.godot/imported/linked_saw_carriage_Steel_Concentric_Roughness_1536.png-b8cd8e6fa473d71a65c50cd81badbf4f.s3tc.ctex"]
+dest_files=["res://.godot/imported/linked_saw_carriage_Steel_Concentric_Roughness_1536.png-b8cd8e6fa473d71a65c50cd81badbf4f.s3tc.ctex", "res://.godot/imported/linked_saw_carriage_Steel_Concentric_Roughness_1536.png-b8cd8e6fa473d71a65c50cd81badbf4f.etc2.ctex"]
 
 [params]
 

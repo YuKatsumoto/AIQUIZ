@@ -694,7 +694,7 @@
    "aisle_z": [
     -10.0
    ],
-   "triangles": 5282
+   "triangles": 5874
   },
   "cap_start": {
    "node": "AQS_Stand_CapStart",
@@ -1387,7 +1387,7 @@
    "aisle_z": [
     -10.0
    ],
-   "triangles": 6336
+   "triangles": 6556
   },
   "cap_end": {
    "node": "AQS_Stand_CapEnd",
@@ -2771,10 +2771,60 @@
    "aisle_z": [
     -10.0
    ],
-   "triangles": 5282
+   "triangles": 5874
   }
  },
  "pergola_every": 3,
+ "walk": {
+  "note": "The walking crowd's walk (scripts/world/crowd/stand_paths.gd, docs/crowd_sim.md), Godot block space: x away from the course, y up, z along it (Blender y = -z). The aisle is the block's -Z edge (z -10). The stairwell (the crowd's way in and out) opens in the walkway floor beside every aisle but cap_end's, from_aisle metres towards +Z; its steps go down from the aisle's end to a landing on the deck and the door.",
+  "deck_y": 0.22,
+  "front_x": 0.6,
+  "row_tread": 1.25,
+  "row_base_y": 0.32,
+  "row_rise": 0.4,
+  "rows": 6,
+  "aisle": {
+   "half_width": 1.1,
+   "step_tread": 0.625,
+   "step_rise": 0.2,
+   "steps": 12
+  },
+  "walkway": {
+   "x": [
+    8.05,
+    12.3
+   ],
+   "y": 2.72
+  },
+  "booth": {
+   "kinds": [
+    "bay",
+    "bay_pergola"
+   ],
+   "x": [
+    8.35,
+    10.65
+   ],
+   "half_length": 1.7,
+   "window_x": [
+    9.0,
+    10.0
+   ],
+   "counter_depth": 0.28
+  },
+  "stairwell": {
+   "x": [
+    10.95,
+    12.05
+   ],
+   "from_aisle": [
+    0.6,
+    5.1
+   ],
+   "steps": 12,
+   "landing": 1.1
+  }
+ },
  "sail_rig": {
   "right": "AQS_SailRig_R",
   "left": "AQS_SailRig_L",

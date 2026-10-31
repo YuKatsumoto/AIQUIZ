@@ -292,7 +292,10 @@ static func make_environment(env_quality: String) -> Environment:
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED
 	env.tonemap_mode = Environment.TONE_MAPPER_AGX
 	env.tonemap_exposure = 1.0
-	env.glow_enabled = true
+	# Mobile: no glow pass (the Mobile renderer still runs it, unlike the volumetric fog,
+	# SSAO and SSIL below, which it ignores and which are therefore left off there too).
+	var mobile := GraphicsQualityRules.is_mobile_target()
+	env.glow_enabled = not mobile
 	env.glow_normalized = false
 	env.glow_intensity = 0.8
 	env.glow_strength = 1.0
@@ -309,7 +312,7 @@ static func make_environment(env_quality: String) -> Environment:
 	env.fog_density = 0.030
 	env.fog_sky_affect = 0.0
 	env.fog_sun_scatter = 0.0
-	if q != GraphicsQualityRules.LOW:
+	if q != GraphicsQualityRules.LOW and not mobile:
 		env.volumetric_fog_enabled = true
 		env.volumetric_fog_density = 0.010
 		env.volumetric_fog_albedo = Color(0.86, 0.80, 0.72)
@@ -321,12 +324,12 @@ static func make_environment(env_quality: String) -> Environment:
 		env.volumetric_fog_ambient_inject = 0.0
 		env.volumetric_fog_sky_affect = 0.0
 		env.volumetric_fog_temporal_reprojection_enabled = true
-	if GraphicsQualityRules.is_at_least(q, GraphicsQualityRules.HIGH):
+	if GraphicsQualityRules.is_at_least(q, GraphicsQualityRules.HIGH) and not mobile:
 		env.ssao_enabled = true
 		env.ssao_radius = 1.0
 		env.ssao_intensity = 1.6
 		env.ssao_power = 1.4
-	if q == GraphicsQualityRules.ULTRA:
+	if q == GraphicsQualityRules.ULTRA and not mobile:
 		env.ssil_enabled = true
 		env.ssil_radius = 3.0
 		env.ssil_intensity = 0.6

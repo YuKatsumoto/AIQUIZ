@@ -1,11 +1,13 @@
 extends CanvasLayer
 
 const OFFSCREEN_PLAYER_MARKER_SCRIPT := preload("res://scripts/ui/offscreen_player_marker.gd")
-const PLAYER_NAME_TAG_SCRIPT := preload("res://scripts/ui/player_name_tag.gd")
 const DuoTutorialOverlayScript := preload("res://scripts/ui/duo_tutorial_overlay.gd")
 const SoloTutorialOverlayScript := preload("res://scripts/ui/solo_tutorial_overlay.gd")
 const TutorialCompletionCardScript := preload("res://scripts/ui/tutorial_completion_card.gd")
+const PLAYER_NAME_TAG_SCRIPT := preload("res://scripts/ui/player_name_tag.gd")
 const ResultCeremonyOverlayScript := preload("res://scripts/ui/result_finale_hud.gd")
+const MobileUi = preload("res://scripts/core/mobile_ui.gd")
+const TouchHud = preload("res://scripts/ui/touch_hud/touch_hud.gd")
 const OFFSCREEN_MARKER_EDGE_MARGIN := 78.0
 const OFFSCREEN_MARKER_NEAR_SCALE := 0.82
 const OFFSCREEN_MARKER_FAR_SCALE := 1.24
@@ -51,6 +53,8 @@ var _rear_edge_warning_time: float = 0.0
 @onready var pl_status: Label = $PreloadPanel/Status
 @onready var start_prompt_label: Label = $PreloadPanel/StartPromptLabel
 var _start_prompt_row: KeyHintRow = null
+## スマホ：「Enter でスタート」の代わりに押す大きなボタン（Enter を流し込む）。
+var _start_touch_button: Button = null
 var _start_prompt_kind: String = ""
 ## 問題の生成待ちの演出：タイトルの回転アイコンと弾む数字（_create_generation_decor）。
 var _generation_title_decor: GenerationTitleDecor = null
@@ -83,6 +87,9 @@ var _history_built: bool = false
 var _stats_panel: PanelContainer = null
 
 var _score_anim_timer: float = 0.0
+## Phones: what the result card last showed. The card is rebuilt from fresh Labels each frame,
+## and reshaping all that text every frame halved the results screen's frame rate on a phone.
+var _result_card_key: Array = []
 var _displayed_score: float = 0.0
 var _target_score: int = 0
 var _confetti_fired: bool = false
@@ -94,6 +101,17 @@ var _player_name_tags: Array[Control] = []
 var _online_top_right_shifted := false
 var _gameplay_camera: Camera3D = null
 var _result_ceremony_overlay: Control = null
+
+## 練習：リザルトのカードで &"rated"・&"history_opened"・&"history_closed"（ゲーム画面が中継する）。
+signal practice_result_action(action: StringName)
+## リザルトのカードの部品（_build_result_card が作るたびに入れかわる。画面のコーチが光らせる）。
+var _card_score_row: Control = null
+## カードの数え上げる数字（[Label, 最後の値]。練習のカードは作り直さずに、この数字だけ進める）。
+var _card_score_labels: Array = []
+var _card_stats_row: Control = null
+var _card_explain: Control = null
+## 練習のカードは中身が変わったときだけ作り直す（毎フレーム作り直すと、コーチが光らせる部品が消えてしまう）。
+var _practice_card_key: Array = []
 
 
 func _ready() -> void:
@@ -108,6 +126,7 @@ func _ready() -> void:
 	game_over_panel.visible = false
 	history_panel.visible = false
 	_ensure_start_prompt_row()
+	_setup_touch_layout()
 
 	# プリロード用プログレスバーのスタイル設定（ダーク背景で見えるように）
 	var pl_bg_style := StyleBoxFlat.new()
@@ -137,26 +156,51 @@ func _ready() -> void:
 
 
 	btn_good.pressed.connect(func():
+		# 練習で記録しないとき（MatchRules.record_results が false）は、game_state が評価を送らない。画面の反応は本番どおり。
 		game_state.rate_last_question(true)
 		_show_feedback("◯ 良い問題として評価しました")
+		_notify_practice(&"rated")
 	)
 	btn_bad.pressed.connect(func():
 		game_state.rate_last_question(false)
 		_show_feedback("× 悪い問題として評価しました")
+		_notify_practice(&"rated")
 	)
 	btn_menu.pressed.connect(_return_to_main_menu)
 	btn_retry.pressed.connect(_retry_game)
 	btn_history.pressed.connect(func():
 		_open_history()
+		_notify_practice(&"history_opened")
 	)
 	history_back_btn.pressed.connect(func():
 		_close_history()
+		_notify_practice(&"history_closed")
 	)
 
 
+## 練習のときだけ、カードの出来事を監督へ知らせる（practice_result_action）。
+func _notify_practice(action: StringName) -> void:
+	if game_state != null and game_state.practice_rules != null:
+		practice_result_action.emit(action)
+
+
+## 練習の監督（ゲーム画面の practice_director）。練習でなければ null。
+func _practice_director() -> Node:
+	if game_state == null or game_state.practice_rules == null:
+		return null
+	var world := get_parent()
+	var director: Variant = world.get("practice_director") if world != null else null
+	return director as Node if director is Node and is_instance_valid(director) else null
+
+
 ## リザルトをワイプが覆い切るまで保持し、その後でメニュー状態へ戻す。
+## 練習は監督の leave_to_menu（なければ今までどおり）。
 func _return_to_main_menu() -> void:
 	if SceneTransition.is_transitioning():
+		return
+	var director := _practice_director()
+	if director != null and director.has_method("leave_to_menu"):
+		director.leave_to_menu()
 		return
 	var online := game_state.net_online
 	var wipe_style := SceneTransition.WipeStyle.DATA if online else SceneTransition.WipeStyle.CIRCLE
@@ -171,8 +215,14 @@ func _return_to_main_menu() -> void:
 
 
 ## リトライ時もリザルトをワイプが覆い切ってからゲーム状態を再初期化する。
+## 練習は監督の retry_run（同じ画面のままミニ本番の始めから。なければ何もしない）。start_game は呼ばない。
 func _retry_game() -> void:
 	if SceneTransition.is_transitioning():
+		return
+	if game_state.practice_rules != null:
+		var director := _practice_director()
+		if director != null and director.has_method("retry_run"):
+			director.retry_run()
 		return
 	await SceneTransition.fade_to_color_and_wait(Color.BLACK, true)
 	if not is_inside_tree():
@@ -194,7 +244,7 @@ func _create_generation_decor() -> void:
 	_generation_count_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_generation_count_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_generation_count_label.add_theme_font_override("font", GENERATION_COUNT_FONT)
-	_generation_count_label.add_theme_font_size_override("font_size", 20)
+	_generation_count_label.add_theme_font_size_override("font_size", MobileUi.font(20))
 	preload_panel.add_child(_generation_count_label)
 	_set_generation_decor_visible(false)
 
@@ -216,7 +266,12 @@ var _online_markers_labelled := false
 
 ## リザルトのスコア欄の呼び名（オンラインは「じぶん」と相手のニックネーム）。
 func _result_label(slot: int) -> String:
-	return game_state.slot_label(slot) if game_state.net_online else "P%d" % slot
+	return game_state.slot_label(slot) if _online_look() else "P%d" % slot
+
+
+## オンライン対戦の見せ方か（本物のオンラインと、練習のオンラインの見せ方。コース④の 4-6）。
+func _online_look() -> bool:
+	return game_state.net_online or game_state.is_practice_online_look()
 
 
 func _create_offscreen_player_markers() -> void:
@@ -236,7 +291,7 @@ func _create_offscreen_player_markers() -> void:
 func _update_offscreen_player_markers(delta: float) -> void:
 	if _p1_offscreen_marker == null or _p2_offscreen_marker == null:
 		return
-	if game_state.net_online and not _online_markers_labelled:
+	if _online_look() and not _online_markers_labelled:
 		# オンラインは「じぶん」と相手のニックネームで示す（1P/2P はローカル用の呼び名）。
 		_online_markers_labelled = true
 		_p1_offscreen_marker.call("configure", game_state.slot_label(1), Color(0.95, 0.55, 0.20))
@@ -337,7 +392,7 @@ func _update_single_offscreen_marker(
 		OFFSCREEN_MARKER_FAR_SCALE,
 		distance_ratio
 	)
-	if _health_hud != null and game_state.num_players == 2 and game_state.uses_hp():
+	if _health_hud != null and game_state.shows_duo_cards():
 		marker_center = _health_hud.reserve_marker_center(marker_center, 60.0 * OFFSCREEN_MARKER_FAR_SCALE)
 	marker.call(
 		"set_marker_state",
@@ -385,7 +440,20 @@ func _marker_edge_position(
 		distance_to_edge = minf(distance_to_edge, half_extents.x / absf(direction.x))
 	if absf(direction.y) > 0.0001:
 		distance_to_edge = minf(distance_to_edge, half_extents.y / absf(direction.y))
-	return viewport_center + direction * distance_to_edge
+	var edge_position := viewport_center + direction * distance_to_edge
+	if MobileUi.is_touch_ui():
+		# スマホ：カメラの穴と角丸（SafeArea）の内側にマーカーを止める。
+		edge_position.x = clampf(
+			edge_position.x,
+			OFFSCREEN_MARKER_EDGE_MARGIN + TouchHud.safe_left(),
+			viewport_size.x - OFFSCREEN_MARKER_EDGE_MARGIN - TouchHud.safe_right()
+		)
+		edge_position.y = clampf(
+			edge_position.y,
+			OFFSCREEN_MARKER_EDGE_MARGIN + TouchHud.safe_top(),
+			viewport_size.y - OFFSCREEN_MARKER_EDGE_MARGIN - TouchHud.safe_bottom()
+		)
+	return edge_position
 
 
 func _hide_offscreen_player_markers() -> void:
@@ -405,11 +473,15 @@ func _create_player_name_tags() -> void:
 
 ## オンライン対戦：両方のキャラの頭上に名前を小さく半透明で出し続ける。
 ## 画面の外にいるときはオフスクリーンマーカーに任せて隠す。
+## 練習の CPU（game_state.practice_p2_cpu）は、P2 の頭の上だけに同じ見た目で「CPU」と出す。
+## 練習のオンラインの見せ方（コース④の 4-6）は、オンラインと同じく自分の頭の上にも自分の名前を出す。
 func _update_player_name_tags(delta: float) -> void:
 	if _player_name_tags.is_empty():
 		return
+	var practice_cpu: bool = game_state.practice_cpu_active()
+	var both_tags: bool = game_state.is_practice_online_look()
 	var active: bool = (
-		game_state.net_online
+		(game_state.net_online or practice_cpu)
 		and game_state.num_players >= 2
 		and game_state.game_state in [
 			Constants.STATE_COUNTDOWN,
@@ -436,14 +508,15 @@ func _update_player_name_tags(delta: float) -> void:
 			(game_state.p1_alive if slot == 1 else game_state.p2_alive)
 			and not (game_state.p1_waiting_for_shark if slot == 1 else game_state.p2_waiting_for_shark)
 		)
-		if not can_draw or not alive:
+		if not can_draw or not alive or (practice_cpu and slot != 2 and not both_tags):
 			tag.call("hide_tag")
 			continue
 		var anchor: Vector3 = player.get_head_top_position(slot) + Vector3(0.0, NAME_TAG_HEAD_CLEARANCE, 0.0)
 		if _gameplay_camera.is_position_behind(anchor) or not _gameplay_camera.is_position_in_frustum(anchor):
 			tag.call("hide_tag")
 			continue
-		tag.call("configure", _online_player_name(slot), Color(0.95, 0.55, 0.20) if slot == 1 else Color(0.20, 0.65, 0.90))
+		var tag_name: String = "CPU" if practice_cpu and slot == 2 else _online_player_name(slot)
+		tag.call("configure", tag_name, Color(0.95, 0.55, 0.20) if slot == 1 else Color(0.20, 0.65, 0.90))
 		tag.call("point_at", _gameplay_camera.unproject_position(anchor), avoid_rects, delta)
 
 
@@ -460,6 +533,9 @@ func _shift_top_right_for_online_ping() -> void:
 	if _online_top_right_shifted or not game_state.net_online:
 		return
 	_online_top_right_shifted = true
+	if MobileUi.is_touch_ui():
+		_apply_safe_area_layout()
+		return
 	score_label.offset_top += ONLINE_PING_RESERVED_HEIGHT
 	score_label.offset_bottom += ONLINE_PING_RESERVED_HEIGHT
 
@@ -520,8 +596,9 @@ func _process(_dt: float) -> void:
 	if _sudden_death_panel_shown:
 		_sudden_death_panel_shown = false
 		preload_panel.visible = false
-	# The sudden death draws its own HUD (SuddenDeathDirector).
-	if ceremony_active or game_state.game_state == Constants.STATE_SUDDEN_DEATH:
+	# The sudden death draws its own HUD (SuddenDeathDirector). The elimination lasso
+	# (Hatena carrying both souls to the finish) plays without the score and message.
+	if ceremony_active or game_state.game_state == Constants.STATE_SUDDEN_DEATH or game_state.elimination_lasso_active:
 		score_label.visible = false
 		message_label.visible = false
 		progress_bar.visible = false
@@ -530,8 +607,9 @@ func _process(_dt: float) -> void:
 		_update_tutorial_overlay(_dt)
 		return
 
-	if game_state.is_elimination_result_pending():
+	if game_state.is_elimination_result_pending() or _is_practice_loss():
 		# Local 2P: no GAME OVER card; the verdict ceremony follows the wipe.
+		# 練習の負けも、ゲームオーバーの画面と結果のカードを出さない（監督がやり直す）。
 		_go_fade_timer = 0.0
 		game_over_panel.visible = false
 		history_panel.visible = false
@@ -540,12 +618,9 @@ func _process(_dt: float) -> void:
 		_show_game_over()
 	else:
 		_go_fade_timer = 0.0
-		_score_anim_timer = 0.0
-		_displayed_score = 0.0
-		_confetti_fired = false
+		_reset_result_card_state()
 		game_over_panel.visible = false
 		history_panel.visible = false
-		_history_built = false
 
 	_update_score()
 	_update_message()
@@ -561,39 +636,37 @@ func play_tutorial_completion_celebration() -> void:
 	_fire_confetti()
 
 
-## 1Pのクリア画面。クリアタイムと残りハートを出す。
-func show_solo_stage_tutorial_complete(duration: float = 4.0) -> void:
+func show_solo_stage_tutorial_complete(duration: float = 3.6) -> void:
 	_show_tutorial_completion_card("SoloStageCompletionCard", {
-		"course_label": "1P コース",
-		"stats": [
-			{"value": _format_play_time(game_state.play_time), "label": "クリアタイム"},
-			{"value": "%d / %d" % [game_state.p1_hp, QuizGameState.MAX_HP], "label": "残りハート"},
-		],
-		"next": "次はカスタマイズ紹介",
+		"step": "1 / 2  STAGE CLEAR",
+		"title": "ステージチュートリアル完了",
+		"body": "移動・ジャンプ・エモート、海の危険、ハート（HP）、2択と4択の壁を体験しました。\n本番は10問チャレンジとエンドレスで、ハート3つから始まります。",
+		"progress": "✓ ステージ実践　　次はカスタマイズ",
+		"footer": MobileUi.prompt(
+			"自動でカスタマイズ紹介へ進みます　（ゲーム中は Esc で一時停止）",
+			"自動でカスタマイズ紹介へ進みます　（ゲーム中は左上の Ⅱ で一時停止）"
+		),
 		"duration": duration,
 	})
 
 
-## 2Pのクリア画面。クリアタイムと、スコアタワーで決まった勝敗を1行で出す。
 func show_duo_stage_tutorial_complete(duration: float = 4.2) -> void:
 	_show_tutorial_completion_card("DuoStageCompletionCard", {
-		"course_label": "ローカル2P コース",
-		"stats": [
-			{"value": _format_play_time(game_state.play_time), "label": "クリアタイム"},
-		],
-		"result_line": _duo_score_tower_summary(),
-		"next": "次はカスタマイズ紹介",
+		"step": "1 / 2  STAGE CLEAR",
+		"title": "ステージチュートリアル完了",
+		"body": "2人の操作と押し合い、海とゴーストシャーク、回転のこぎり、ハートと先着の得点、4択の壁、スコアタワーの勝敗判定を体験しました。",
+		"progress": _duo_score_tower_summary(),
+		"footer": MobileUi.prompt(
+			"自動でカスタマイズ紹介へ進みます　（ゲーム中は Esc で一時停止）",
+			"自動でカスタマイズ紹介へ進みます　（ゲーム中は左上の Ⅱ で一時停止）"
+		),
 		"duration": duration,
 	})
-
-
-func _format_play_time(seconds: float) -> String:
-	var total := int(round(maxf(0.0, seconds)))
-	return "%d:%02d" % [total / 60, total % 60]
 
 
 ## 10問チャレンジの勝敗はスコアタワーで決まる。このチュートリアルの成績で計算例を見せる。
 func _duo_score_tower_summary() -> String:
+	var lines: Array[String] = ["スコアタワー（10問チャレンジの勝敗）＝ 正解数 ×（残りハート＋0.5）"]
 	var parts: Array[String] = []
 	if game_state.result_presentation_active:
 		# ゴール後に実際のスコアタワーで確定した得点（脱落した人は正解数だけ）と勝敗。
@@ -602,16 +675,17 @@ func _duo_score_tower_summary() -> String:
 		var verdict := (
 			"引き分け" if game_state.result_winner == 0 else "P%dの勝ち" % game_state.result_winner
 		)
-		return "　".join(parts) + "　→ " + verdict
+		lines.append("このコースの結果　" + "　　".join(parts) + "　→ " + verdict)
+		return "\n".join(lines)
 	for player_index: int in [1, 2]:
 		var correct: int = game_state.score if player_index == 1 else game_state.player2_score
 		var hp: int = game_state.get_player_hp(player_index)
 		var points := QuizGameState.result_half_points(correct, hp, true)
-		parts.append("P%d: %d × %s = %s" % [
-			player_index, correct, QuizGameState.format_result_hp_factor(hp),
-			QuizGameState.format_result_points(points)
+		parts.append("P%d  %d問 ×（%d＋0.5）＝ %s" % [
+			player_index, correct, hp, QuizGameState.format_result_points(points)
 		])
-	return "　".join(parts)
+	lines.append("このコースでは　" + "　　".join(parts))
+	return "\n".join(lines)
 
 
 ## コース完了カードは1P/2Pで文面だけが違う。生成と後片付けはここに集約する。
@@ -627,6 +701,80 @@ func _show_tutorial_completion_card(card_name: String, config: Dictionary) -> vo
 			_tutorial_completion_card = null
 	)
 	card.call("present", config)
+
+
+## 練習の負け（docs/new_tutorial/phase4_design.md 2.4）：GAME_OVER でもゲームオーバーの画面を出さない。
+## 本番どおりの画面（MatchRules.real_result_screens）のときは、本番と同じくカードを出す。
+func _is_practice_loss() -> bool:
+	return (
+		game_state.practice_rules != null
+		and game_state.game_state == Constants.STATE_GAME_OVER
+		and not game_state.practice_rules.real_result_screens
+	)
+
+
+## 練習のまきもどし・やり直し：サメの画面の光とゲームオーバーの画面の続き（カード・問題履歴）を消す。
+func practice_clear_flashes() -> void:
+	_shark_impact_flash = 0.0
+	_go_fade_timer = 0.0
+	game_over_panel.visible = false
+	history_panel.visible = false
+	_reset_result_card_state()
+
+
+## リザルトのカードの出し方を最初からにする（スコアの数え上げ・紙吹雪・問題履歴・練習のカードの中身）。
+func _reset_result_card_state() -> void:
+	_score_anim_timer = 0.0
+	_result_card_key = []
+	_displayed_score = 0.0
+	_confetti_fired = false
+	_history_built = false
+	_practice_card_key = []
+
+
+## 画面のコーチが光らせるリザルトのカードの部品（docs/new_tutorial/phase5_design.md 3.4。ゲーム画面の
+## practice_coach_target から呼ぶ）。なければ null。カードの中身の部品は、カードを作り直すと入れかわる。
+func practice_coach_target(id: StringName) -> Control:
+	match id:
+		&"result_card":
+			return _stats_panel
+		&"result_score":
+			return _card_score_row
+		&"result_stats":
+			return _card_stats_row
+		&"result_explain":
+			return _card_explain
+		&"result_rate":
+			# 「この問題の評価:」と「◯ 良い」「× 悪い」。押したあとは同じ場所に評価の反応が出る。
+			return go_rate_box if go_rate_box.visible else null
+		&"result_history":
+			return btn_history
+		&"result_retry":
+			return btn_retry
+		&"result_menu":
+			return btn_menu
+		&"history_back":
+			return history_back_btn
+	return null
+
+
+## リザルトのカードが出ているか（GAME OVER は死ぬ演出のあとのフェードが済んだら）。問題履歴を開いている間は false。
+func practice_result_card_visible() -> bool:
+	return (
+		game_state != null
+		and game_state.game_state in [Constants.STATE_GAME_OVER, Constants.STATE_CLEAR]
+		and game_over_panel.visible
+		and game_over_panel.modulate.a >= 0.999
+		and _stats_panel != null
+		and _stats_panel.visible
+		and not history_panel.visible
+	)
+
+
+## 練習（1-5）：ハートがポンと出て光り、そのあと1つずつ順に光る。
+func practice_hearts_intro(player_index := 1) -> void:
+	if _health_hud != null and _health_hud.has_method("play_practice_intro"):
+		_health_hud.play_practice_intro(player_index)
 
 
 func _rear_edge_warning_strength() -> float:
@@ -794,8 +942,8 @@ func _apply_generation_layout() -> void:
 	_set_offsets(_generation_count_label, 176.0, -94.0, 280.0, -56.0)
 	_set_offsets(pl_status, -280.0, -50.0, 280.0, -20.0)
 	pl_title.add_theme_font_size_override("font_size", 26)
-	pl_subtitle.add_theme_font_size_override("font_size", 18)
-	pl_status.add_theme_font_size_override("font_size", 16)
+	pl_subtitle.add_theme_font_size_override("font_size", MobileUi.font(18))
+	pl_status.add_theme_font_size_override("font_size", MobileUi.font(16))
 
 
 func _set_offsets(control: Control, left: float, top: float, right: float, bottom: float) -> void:
@@ -849,8 +997,14 @@ func _show_waiting_start(dt: float) -> void:
 	message_label.visible = false
 	progress_bar.visible = false
 	game_over_panel.visible = false
+	if game_state.is_practice_online_look():
+		# 練習のオンラインの見せ方：Enter では始めない（台本の言葉のあとで監督が始める）ので、準備のパネルと Enter の案内は出さない
+		preload_panel.visible = false
+		_set_start_prompt_visible(false)
+		return
 	pl_status.visible = true
-	pl_subtitle.visible = true
+	# 練習の問題は台本の手書きなので、設定の教科・学年（「算数・3年 の問題」）は出さない。
+	pl_subtitle.visible = game_state.practice_rules == null
 	var world := get_parent()
 	var arrival_locked := (
 		world != null
@@ -862,31 +1016,39 @@ func _show_waiting_start(dt: float) -> void:
 		and world.has_method("is_preload_construction_locked")
 		and bool(world.call("is_preload_construction_locked"))
 	)
+	var target := _generation_target()
 	if game_state.mode != Constants.MODE_TUTORIAL and (arrival_locked or construction_locked):
 		# 問題はそろい、キャラクターの到着待ち。「問題ができました！」と満タンのバーを出したままにする。
 		_set_start_prompt_visible(false)
 		pl_progress.visible = true
-		var target := _generation_target()
 		_show_generation_progress(dt, _generation_arrived(target), target, _generation_by_ai())
 		if construction_locked:
 			pl_status.text = game_state.status_text
 		else:
 			pl_status.text = "Characters arriving..." if game_state.use_english_ui else "キャラクター到着中..."
 		return
-	if game_state.mode != Constants.MODE_TUTORIAL:
+	if game_state.mode == Constants.MODE_TUTORIAL:
+		if not _show_tutorial_waiting_start(arrival_locked, construction_locked):
+			return
+	else:
 		# 到着がすんでも「問題ができました！」とチェックはそのまま。バーと数字と Status の代わりに
 		# Enter の案内だけを出し、同じことを言う文言（準備完了・Enterキーでスタート）は重ねない。
-		var target := _generation_target()
 		_show_generation_progress(dt, _generation_arrived(target), target, _generation_by_ai())
 		pl_progress.visible = false
 		_generation_count_label.visible = false
 		pl_status.visible = false
 		_refresh_start_prompt(false)
-		_blink_timer += dt
-		_start_prompt_row.modulate.a = 0.5 + 0.5 * sin(_blink_timer * 6.0)
-		return
-	_apply_preload_stage_preview_layout()
+	_blink_timer += dt
+	_start_prompt_row.modulate.a = 0.5 + 0.5 * sin(_blink_timer * 6.0)
+	if _start_touch_button != null:
+		# ボタンは押せることが分かるよう、薄くしすぎない。
+		_start_touch_button.modulate.a = 0.8 + 0.2 * sin(_blink_timer * 6.0)
 
+
+## チュートリアルの開始待ち（問題の生成はない）：コース名と「Enter でチュートリアル開始」を出す。
+## キャラクターの到着待ちなどで Enter の案内をまだ出さないときは false。
+func _show_tutorial_waiting_start(arrival_locked: bool, construction_locked: bool) -> bool:
+	_apply_preload_stage_preview_layout()
 	var is_duo := game_state.get_tutorial_course() == GameManager.TUTORIAL_COURSE_LOCAL_2P
 	pl_title.text = "ローカル2Pチュートリアル" if is_duo else "1Pチュートリアル"
 	pl_subtitle.text = (
@@ -898,19 +1060,17 @@ func _show_waiting_start(dt: float) -> void:
 		pl_status.text = game_state.status_text
 		pl_progress.visible = false
 		_set_start_prompt_visible(false)
-		return
+		return false
 	if arrival_locked:
 		pl_status.text = "Characters arriving..." if game_state.use_english_ui \
 			else "キャラクター到着中..."
 		pl_progress.visible = false
 		_set_start_prompt_visible(false)
-		return
+		return false
 	pl_status.text = "Ready" if game_state.use_english_ui else "準備完了"
 	pl_progress.visible = false
 	_refresh_start_prompt(true)
-	_blink_timer += dt
-	if _start_prompt_row != null:
-		_start_prompt_row.modulate.a = 0.5 + 0.5 * sin(_blink_timer * 6.0)
+	return true
 
 
 func _apply_preload_stage_preview_layout() -> void:
@@ -939,8 +1099,8 @@ func _apply_preload_stage_preview_layout() -> void:
 	pl_status.offset_bottom = -15.0
 	_layout_start_prompt_row()
 	pl_title.add_theme_font_size_override("font_size", 26)
-	pl_subtitle.add_theme_font_size_override("font_size", 18)
-	pl_status.add_theme_font_size_override("font_size", 16)
+	pl_subtitle.add_theme_font_size_override("font_size", MobileUi.font(18))
+	pl_status.add_theme_font_size_override("font_size", MobileUi.font(16))
 
 
 func _ensure_start_prompt_row() -> void:
@@ -962,11 +1122,23 @@ func _layout_start_prompt_row() -> void:
 	_start_prompt_row.offset_top = -104.0
 	_start_prompt_row.offset_right = 280.0
 	_start_prompt_row.offset_bottom = -58.0
+	if _start_touch_button != null:
+		_start_touch_button.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+		_start_touch_button.offset_left = -190.0
+		_start_touch_button.offset_top = -128.0
+		_start_touch_button.offset_right = 190.0
+		_start_touch_button.offset_bottom = -46.0
 
 
 func _set_start_prompt_visible(visible_now: bool) -> void:
 	_ensure_start_prompt_row()
 	start_prompt_label.visible = false
+	if _start_touch_button != null:
+		# スマホはキーキャップの行の代わりにボタンを出す。
+		_start_prompt_row.visible = false
+		# 画面のタッチ操作の層が同じ「スタート」（Enter）を下の真ん中に出しているときは重ねない（同じフレームに両方は出さない）。
+		_start_touch_button.visible = TouchHud.own_button_allowed(_start_touch_button, "ConfirmButton", visible_now)
+		return
 	_start_prompt_row.visible = visible_now
 
 
@@ -982,7 +1154,67 @@ func _refresh_start_prompt(is_tutorial: bool) -> void:
 			Color(1.0, 1.0, 0.5, 1.0),
 			20
 		)
+		if _start_touch_button != null:
+			_start_touch_button.text = "▶ チュートリアル開始" if is_tutorial else "▶ タップでスタート"
 	_set_start_prompt_visible(true)
+
+
+# ---------- スマホ（タッチ操作）の見せ方 ----------
+
+## スマホだけ：文字を大きく、ボタンを指の大きさに、端の部品をカメラの穴と角丸の内側へ。
+## デスクトップでは何もしない（PC の見た目は .tscn のまま）。
+func _setup_touch_layout() -> void:
+	if not MobileUi.is_touch_ui():
+		return
+	_start_touch_button = TouchHud.make_button("▶ タップでスタート", 24, Color(1.0, 1.0, 0.5, 1.0))
+	_start_touch_button.name = "StartTouchButton"
+	_start_touch_button.visible = false
+	# 開始の条件（到着待ちなど）は今までどおりゲーム画面の Enter の処理が決める。
+	_start_touch_button.pressed.connect(func() -> void: TouchHud.tap_key(KEY_ENTER))
+	start_prompt_label.add_sibling(_start_touch_button)
+	_layout_start_prompt_row()
+
+	score_label.add_theme_font_size_override("font_size", MobileUi.font(20))
+	pl_status.add_theme_font_size_override("font_size", MobileUi.font(16))
+	pl_subtitle.add_theme_font_size_override("font_size", MobileUi.font(18))
+	for button: Button in [btn_good, btn_bad, btn_menu, btn_retry, btn_history, history_back_btn]:
+		MobileUi.ensure_touch_size(button)
+		button.focus_mode = Control.FOCUS_NONE
+	TouchHud.on_safe_area_changed(_apply_safe_area_layout)
+	get_viewport().size_changed.connect(_apply_safe_area_layout)
+	_apply_safe_area_layout()
+
+
+## 右上のスコア・下端の進み具合・問題履歴を SafeArea の内側へ寄せる（スマホのみ）。
+## 問題履歴の戻るボタンは指の大きさに広がるので、見出しの帯と一覧もその分下げる。
+func _apply_safe_area_layout() -> void:
+	if not MobileUi.is_touch_ui():
+		return
+	# ping の札もスマホでは文字が大きいので、少し多めに空ける。
+	var ping_shift := ONLINE_PING_RESERVED_HEIGHT + 8.0 if _online_top_right_shifted else 0.0
+	score_label.offset_right = -16.0 - TouchHud.safe_right()
+	score_label.offset_left = -240.0 - TouchHud.safe_right()
+	score_label.offset_top = 16.0 + TouchHud.safe_top() + ping_shift
+	score_label.offset_bottom = 58.0 + TouchHud.safe_top() + ping_shift
+	progress_bar.offset_left = 100.0 + TouchHud.safe_left()
+	progress_bar.offset_right = -100.0 - TouchHud.safe_right()
+	progress_bar.offset_top = -24.0 - TouchHud.safe_bottom()
+	progress_bar.offset_bottom = -TouchHud.safe_bottom()
+	var header := history_back_btn.get_parent() as Control
+	if header != null:
+		# 左上には TouchControls のポーズボタン（練習のリザルトでは出る）があるので、戻るボタンをその右へ。
+		# 見出しが真ん中に残るよう、右も同じだけ空ける。
+		var pause_room := TouchHud.pause_clearance()
+		header.offset_left = 16.0 + TouchHud.safe_left() + pause_room
+		header.offset_right = -16.0 - TouchHud.safe_right() - pause_room
+		header.offset_top = 16.0 + TouchHud.safe_top()
+		header.offset_bottom = header.offset_top + MobileUi.MIN_TOUCH_SIZE
+	var scroll := history_panel.get_node_or_null("ScrollContainer") as Control
+	if scroll != null:
+		scroll.offset_left = 40.0 + TouchHud.safe_left()
+		scroll.offset_right = -40.0 - TouchHud.safe_right()
+		scroll.offset_top = 32.0 + TouchHud.safe_top() + MobileUi.MIN_TOUCH_SIZE
+		scroll.offset_bottom = -16.0 - TouchHud.safe_bottom()
 
 func _update_flyover_message() -> void:
 	message_label.visible = true
@@ -1028,6 +1260,10 @@ func _create_stats_panel() -> void:
 	_stats_panel.offset_top = -195.0
 	_stats_panel.offset_right = 340.0
 	_stats_panel.offset_bottom = 195.0
+	if MobileUi.is_touch_ui():
+		# The bottom buttons grow upward to the 80 px touch height; lift the card clear of them.
+		_stats_panel.offset_top = -235.0
+		_stats_panel.offset_bottom = 155.0
 	_stats_panel.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	game_over_panel.add_child(_stats_panel)
 
@@ -1102,23 +1338,46 @@ func _show_game_over() -> void:
 	raw_msg = raw_msg.strip_edges()
 
 	# Build the unified card content
-	_build_result_card(is_clear, raw_msg)
+	if game_state.practice_rules != null:
+		_refresh_practice_result_card(is_clear, raw_msg)
+	elif not _result_card_unchanged(is_clear, raw_msg):
+		_build_result_card(is_clear, raw_msg)
 
 	# NEW RECORD display
 
 
 	# Bottom buttons
 	btn_history.visible = game_state.quiz_history.size() > 0
-	if game_state.net_online:
+	if _online_look():
 		# オンラインは同じ相手ともう一度は始められないので、オンラインメニューへ戻して さがし直す。
+		# 練習のオンラインの見せ方も同じ（『オンラインメニューへ』は監督の leave_to_menu で練習の形のオンラインの画面へ）。
 		btn_retry.visible = false
 		btn_menu.text = "オンラインメニューへ"
+
+## Phones only: true once the score count-up is over and nothing on the card changed, so the
+## card keeps its Labels instead of being rebuilt this frame.
+func _result_card_unchanged(is_clear: bool, explanation: String) -> bool:
+	if not MobileUi.is_touch_ui():
+		return false
+	var key: Array = [
+		is_clear, explanation, game_state.score, game_state.player2_score, game_state.total_answered,
+		game_state.max_streak, int(game_state.play_time), game_state.rating_feedback,
+		game_state.rating_target_quiz != null, game_state.num_players, game_state.mode,
+	]
+	var unchanged := _score_anim_timer >= 1.5 and key == _result_card_key
+	_result_card_key = key
+	return unchanged
+
 
 func _build_result_card(is_clear: bool, explanation: String) -> void:
 	"""メインカード内に全リザルト情報を構築"""
 	_stats_panel.visible = true
 	for child in _stats_panel.get_children():
 		child.queue_free()
+	_card_score_row = null
+	_card_score_labels = []
+	_card_stats_row = null
+	_card_explain = null
 
 	var root_vbox := VBoxContainer.new()
 	root_vbox.add_theme_constant_override("separation", 10)
@@ -1144,10 +1403,12 @@ func _build_result_card(is_clear: bool, explanation: String) -> void:
 		score_row.alignment = BoxContainer.ALIGNMENT_CENTER
 		score_row.add_theme_constant_override("separation", 12)
 		root_vbox.add_child(score_row)
+		_card_score_row = score_row
 
 		var score_num := Label.new()
 		var displayed := int(anim_progress * current_score)
 		score_num.text = "%d" % displayed
+		_card_score_labels.append([score_num, current_score])
 		score_num.add_theme_font_size_override("font_size", 48)
 		score_num.add_theme_color_override("font_color",
 			Color(1.0, 0.85, 0.2) if is_clear else Color(0.9, 0.92, 0.95))
@@ -1155,7 +1416,7 @@ func _build_result_card(is_clear: bool, explanation: String) -> void:
 
 		var sub := Label.new()
 		sub.text = "協力成功 / %d問" % game_state.target_count
-		sub.add_theme_font_size_override("font_size", 16)
+		sub.add_theme_font_size_override("font_size", MobileUi.font(16))
 		sub.add_theme_color_override("font_color", Color(0.6, 0.65, 0.75))
 		sub.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		score_row.add_child(sub)
@@ -1163,7 +1424,7 @@ func _build_result_card(is_clear: bool, explanation: String) -> void:
 		var team_label := Label.new()
 		team_label.text = "COOP CLEAR" if is_clear else "協力失敗"
 		team_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		team_label.add_theme_font_size_override("font_size", 22)
+		team_label.add_theme_font_size_override("font_size", MobileUi.font(22))
 		team_label.add_theme_color_override("font_color",
 			Color(1.0, 0.85, 0.2) if is_clear else Color(1.0, 0.45, 0.35))
 		root_vbox.add_child(team_label)
@@ -1172,11 +1433,12 @@ func _build_result_card(is_clear: bool, explanation: String) -> void:
 		hbox_scores.alignment = BoxContainer.ALIGNMENT_CENTER
 		hbox_scores.add_theme_constant_override("separation", 30)
 		root_vbox.add_child(hbox_scores)
+		_card_score_row = hbox_scores
 		_add_player_score_column(hbox_scores, _result_label(1), current_score, anim_progress,
 			current_score > p2_score)
 		var vs_label := Label.new()
-		vs_label.text = "+" if is_tutorial else "vs"
-		vs_label.add_theme_font_size_override("font_size", 20)
+		vs_label.text = "vs"
+		vs_label.add_theme_font_size_override("font_size", MobileUi.font(20))
 		vs_label.add_theme_color_override("font_color", Color(0.5, 0.55, 0.65))
 		vs_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		hbox_scores.add_child(vs_label)
@@ -1184,29 +1446,22 @@ func _build_result_card(is_clear: bool, explanation: String) -> void:
 			p2_score > current_score)
 
 		# Winner
-		if is_tutorial:
-			var done_label := Label.new()
-			done_label.text = "チュートリアル完了"
-			done_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			done_label.add_theme_font_size_override("font_size", 22)
-			done_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
-			root_vbox.add_child(done_label)
-		elif current_score != p2_score:
+		if current_score != p2_score:
 			var wl := Label.new()
 			var winner_slot := 1 if current_score > p2_score else 2
-			if game_state.net_online:
+			if _online_look():
 				wl.text = "🏆 あなたの かち！" if game_state.is_local_slot(winner_slot) else "🏆 %s の かち" % game_state.slot_label(winner_slot)
 			else:
 				wl.text = "🏆 %s WIN!" % ("P1" if winner_slot == 1 else "P2")
 			wl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			wl.add_theme_font_size_override("font_size", 22)
+			wl.add_theme_font_size_override("font_size", MobileUi.font(22))
 			wl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
 			root_vbox.add_child(wl)
 		else:
 			var dl := Label.new()
 			dl.text = "🤝 DRAW!"
 			dl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			dl.add_theme_font_size_override("font_size", 22)
+			dl.add_theme_font_size_override("font_size", MobileUi.font(22))
 			dl.add_theme_color_override("font_color", Color(0.8, 0.82, 0.88))
 			root_vbox.add_child(dl)
 	else:
@@ -1215,6 +1470,7 @@ func _build_result_card(is_clear: bool, explanation: String) -> void:
 		score_row.alignment = BoxContainer.ALIGNMENT_CENTER
 		score_row.add_theme_constant_override("separation", 12)
 		root_vbox.add_child(score_row)
+		_card_score_row = score_row
 
 		var score_num := Label.new()
 		var displayed := int(anim_progress * current_score)
@@ -1223,18 +1479,13 @@ func _build_result_card(is_clear: bool, explanation: String) -> void:
 		score_num.add_theme_color_override("font_color",
 			Color(1.0, 0.85, 0.2) if is_clear else Color(0.9, 0.92, 0.95))
 		score_row.add_child(score_num)
+		_card_score_labels.append([score_num, current_score])
 
-		if game_state.mode == Constants.MODE_TEN:
+		if game_state.mode == Constants.MODE_TEN or game_state.practice_rules != null:
 			var sub := Label.new()
-			sub.text = "正解 / 10問"
-			sub.add_theme_font_size_override("font_size", 16)
-			sub.add_theme_color_override("font_color", Color(0.6, 0.65, 0.75))
-			sub.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-			score_row.add_child(sub)
-		elif is_tutorial:
-			var sub := Label.new()
-			sub.text = "チュートリアル完了"
-			sub.add_theme_font_size_override("font_size", 16)
+			# 練習は練習の問題の数（コース②のミニ本番は「正解 / 3問」）。
+			sub.text = "正解 / %d問" % (game_state.target_count if game_state.practice_rules != null else 10)
+			sub.add_theme_font_size_override("font_size", MobileUi.font(16))
 			sub.add_theme_color_override("font_color", Color(0.6, 0.65, 0.75))
 			sub.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 			score_row.add_child(sub)
@@ -1247,6 +1498,7 @@ func _build_result_card(is_clear: bool, explanation: String) -> void:
 	stats_hbox.alignment = BoxContainer.ALIGNMENT_CENTER
 	stats_hbox.add_theme_constant_override("separation", 16)
 	root_vbox.add_child(stats_hbox)
+	_card_stats_row = stats_hbox
 
 	var total := game_state.total_answered
 	var correct_count := maxi(current_score, p2_score) if is_2p else current_score
@@ -1272,6 +1524,7 @@ func _build_result_card(is_clear: bool, explanation: String) -> void:
 		scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 		scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		root_vbox.add_child(scroll)
+		_card_explain = scroll
 
 		var exp_vbox := VBoxContainer.new()
 		exp_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1280,7 +1533,7 @@ func _build_result_card(is_clear: bool, explanation: String) -> void:
 		var exp_label := Label.new()
 		exp_label.text = explanation
 		exp_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		exp_label.add_theme_font_size_override("font_size", 18)
+		exp_label.add_theme_font_size_override("font_size", MobileUi.font(18))
 		exp_label.add_theme_color_override("font_color", Color(0.82, 0.85, 0.92))
 		exp_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		exp_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1325,7 +1578,7 @@ func _build_tutorial_result(root: VBoxContainer, checklist_text: String) -> void
 	checklist.text = checklist_text
 	checklist.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	checklist.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	checklist.add_theme_font_size_override("font_size", 18)
+	checklist.add_theme_font_size_override("font_size", MobileUi.font(18))
 	checklist.add_theme_color_override("font_color", Color(0.82, 0.95, 0.88))
 	root.add_child(checklist)
 
@@ -1337,14 +1590,14 @@ func _build_tutorial_result(root: VBoxContainer, checklist_text: String) -> void
 		badge_text[GameManager.tutorial_course_badge(GameManager.TUTORIAL_COURSE_LOCAL_2P)],
 	]
 	badges.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	badges.add_theme_font_size_override("font_size", 17)
+	badges.add_theme_font_size_override("font_size", MobileUi.font(17))
 	badges.add_theme_color_override("font_color", Color(0.58, 0.78, 1.0))
 	root.add_child(badges)
 
 	var recap_title := Label.new()
 	recap_title.text = "次に試せる遊び方"
 	recap_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	recap_title.add_theme_font_size_override("font_size", 17)
+	recap_title.add_theme_font_size_override("font_size", MobileUi.font(17))
 	recap_title.add_theme_color_override("font_color", Color(0.72, 0.78, 0.90))
 	root.add_child(recap_title)
 	var recap := HBoxContainer.new()
@@ -1375,15 +1628,48 @@ func _add_tutorial_recap_card(parent: HBoxContainer, title: String, detail: Stri
 	var title_label := Label.new()
 	title_label.text = title
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title_label.add_theme_font_size_override("font_size", 16)
+	title_label.add_theme_font_size_override("font_size", MobileUi.font(16))
 	title_label.add_theme_color_override("font_color", Color(1.0, 0.86, 0.25))
 	box.add_child(title_label)
 	var detail_label := Label.new()
 	detail_label.text = detail
 	detail_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	detail_label.add_theme_font_size_override("font_size", 12)
+	detail_label.add_theme_font_size_override("font_size", MobileUi.font(12))
 	detail_label.add_theme_color_override("font_color", Color(0.70, 0.76, 0.88))
 	box.add_child(detail_label)
+
+
+## 練習のリザルトのカード：中身（CLEAR か・解説・スコア・統計・評価の的）が変わったときだけ作り直し、変わらない
+## フレームはスコアの数え上げと評価の欄だけ進める（本番の毎フレームの作り直しと同じ見た目のまま、部品を残す）。
+func _refresh_practice_result_card(is_clear: bool, explanation: String) -> void:
+	var key := [is_clear, explanation, game_state.score, game_state.player2_score, game_state.total_answered,
+		game_state.max_streak, int(game_state.play_time), game_state.target_count, game_state.num_players,
+		game_state.rating_target_quiz]
+	if key != _practice_card_key:
+		_practice_card_key = key
+		# 評価の欄は、作り直すカードへ移す。評価の的がないときに、消える前のカードといっしょに消えないよう先に外へ出す。
+		if go_rate_box.get_parent() != game_over_panel:
+			go_rate_box.get_parent().remove_child(go_rate_box)
+			game_over_panel.add_child(go_rate_box)
+		_build_result_card(is_clear, explanation)
+		return
+	_score_anim_timer += 0.016
+	var anim_progress := clampf(_score_anim_timer / 1.5, 0.0, 1.0)
+	anim_progress = 1.0 - pow(1.0 - anim_progress, 3.0)
+	for entry: Array in _card_score_labels:
+		var label: Variant = entry[0]
+		if is_instance_valid(label):
+			(label as Label).text = "%d" % int(anim_progress * int(entry[1]))
+	if game_state.rating_target_quiz:
+		go_rate_box.visible = true
+		if game_state.rating_feedback.is_empty():
+			btn_good.get_parent().visible = true
+			rate_feedback.visible = false
+		else:
+			_show_feedback(game_state.rating_feedback)
+	else:
+		go_rate_box.visible = false
+
 
 func _add_mini_stat(parent: HBoxContainer, title: String, value: String, color: Color) -> void:
 	"""統計ミニカード: タイトル + 値の縦並び"""
@@ -1395,14 +1681,14 @@ func _add_mini_stat(parent: HBoxContainer, title: String, value: String, color: 
 	var val_lbl := Label.new()
 	val_lbl.text = value
 	val_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	val_lbl.add_theme_font_size_override("font_size", 20)
+	val_lbl.add_theme_font_size_override("font_size", MobileUi.font(20))
 	val_lbl.add_theme_color_override("font_color", color)
 	col.add_child(val_lbl)
 
 	var title_lbl := Label.new()
 	title_lbl.text = title
 	title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title_lbl.add_theme_font_size_override("font_size", 12)
+	title_lbl.add_theme_font_size_override("font_size", MobileUi.font(12))
 	title_lbl.add_theme_color_override("font_color", Color(0.45, 0.5, 0.6))
 	col.add_child(title_lbl)
 
@@ -1420,7 +1706,7 @@ func _add_player_score_column(parent: HBoxContainer, label_text: String, score_v
 	var name_label := Label.new()
 	name_label.text = label_text
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	name_label.add_theme_font_size_override("font_size", 16)
+	name_label.add_theme_font_size_override("font_size", MobileUi.font(16))
 	name_label.add_theme_color_override("font_color",
 		Color(1.0, 0.85, 0.2) if is_winner else Color(0.6, 0.65, 0.75))
 	col.add_child(name_label)
@@ -1428,6 +1714,7 @@ func _add_player_score_column(parent: HBoxContainer, label_text: String, score_v
 	var val_label := Label.new()
 	var displayed := int(anim_progress * score_val)
 	val_label.text = "%d" % displayed
+	_card_score_labels.append([val_label, score_val])
 	val_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	val_label.add_theme_font_size_override("font_size", 40)
 	val_label.add_theme_color_override("font_color",
@@ -1437,13 +1724,13 @@ func _add_player_score_column(parent: HBoxContainer, label_text: String, score_v
 func _add_stat_row(grid: GridContainer, label_text: String, value_text: String, value_color: Color) -> void:
 	var lbl := Label.new()
 	lbl.text = label_text
-	lbl.add_theme_font_size_override("font_size", 17)
+	lbl.add_theme_font_size_override("font_size", MobileUi.font(17))
 	lbl.add_theme_color_override("font_color", Color(0.55, 0.6, 0.7))
 	grid.add_child(lbl)
 
 	var val := Label.new()
 	val.text = value_text
-	val.add_theme_font_size_override("font_size", 18)
+	val.add_theme_font_size_override("font_size", MobileUi.font(18))
 	val.add_theme_color_override("font_color", value_color)
 	val.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	grid.add_child(val)
@@ -1451,11 +1738,16 @@ func _add_stat_row(grid: GridContainer, label_text: String, value_text: String, 
 
 func _update_score() -> void:
 	# Normal 2P scores live directly above each player's HP in the corner cards.
-	if game_state.num_players == 2 and game_state.uses_hp():
+	# 練習の2人もカードを使う（右上の「正解・問題」は出さない）。
+	if game_state.shows_duo_cards():
 		score_label.visible = false
 		return
 	# チュートリアルの進行はコーチバー側で表示するため、スコア表示は出さない。
 	if game_state.mode == Constants.MODE_TUTORIAL:
+		score_label.visible = false
+		return
+	# 練習は、ルールで出すと決めたとき（コース②のミニ本番）だけ出す。
+	if game_state.practice_rules != null and not game_state.practice_rules.show_score:
 		score_label.visible = false
 		return
 	if game_state.game_state in [Constants.STATE_PLAYING, Constants.STATE_CORRECT, Constants.STATE_GOAL_RACE]:
@@ -1477,6 +1769,10 @@ func _update_score() -> void:
 		else:
 			if game_state.mode == Constants.MODE_TEN:
 				score_label.text = "正解: %d  問題: %d/10" % [game_state.score, game_state.current_index + 1]
+			elif game_state.practice_rules != null:
+				# 練習は練習の問題の数（コース②のミニ本番は「問題: 1/3」）。問題を使い切ったら最後の番号のまま。
+				var count := game_state.target_count
+				score_label.text = "正解: %d  問題: %d/%d" % [game_state.score, mini(game_state.current_index + 1, maxi(count, 1)), count]
 			else:
 				score_label.text = "正解: %d" % game_state.score
 	else:
@@ -1505,6 +1801,12 @@ func _update_progress() -> void:
 			game_state.game_state in [Constants.STATE_PLAYING, Constants.STATE_CORRECT]:
 		progress_bar.visible = true
 		progress_bar.max_value = 10
+		progress_bar.value = game_state.current_index
+	elif game_state.practice_rules != null and game_state.practice_rules.show_score and game_state.num_players == 1 \
+			and game_state.target_count > 0 and game_state.game_state in [Constants.STATE_PLAYING, Constants.STATE_CORRECT]:
+		# 練習で右上の数字を出すとき（コース②のミニ本番）は、本番の1人のときと同じく下の進み具合も出す。
+		progress_bar.visible = true
+		progress_bar.max_value = game_state.target_count
 		progress_bar.value = game_state.current_index
 	else:
 		progress_bar.visible = false
@@ -1545,7 +1847,7 @@ func _build_history_items() -> void:
 		var empty_label := Label.new()
 		empty_label.text = "出題された問題はありません"
 		empty_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		empty_label.add_theme_font_size_override("font_size", 20)
+		empty_label.add_theme_font_size_override("font_size", MobileUi.font(20))
 		empty_label.add_theme_color_override("font_color", Color(0.6, 0.65, 0.7))
 		history_list.add_child(empty_label)
 		return
@@ -1594,7 +1896,7 @@ func _create_history_card(index: int, quiz: QuizItem, correct: bool, rated: Stri
 		icon_color_tag = "Q%d  %s" % [index + 1, icon]
 	var question_text := quiz.coop_prompt if quiz.has_coop_data() and not quiz.coop_prompt.is_empty() else quiz.q
 	header.text = "%s  %s" % [icon_color_tag, FractionFormatter.format_question(question_text)]
-	header.add_theme_font_size_override("font_size", 20)
+	header.add_theme_font_size_override("font_size", MobileUi.font(20))
 	header.add_theme_color_override("font_color", Color(0.3, 1.0, 0.5) if correct else Color(1.0, 0.4, 0.3))
 	header.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vbox.add_child(header)
@@ -1620,7 +1922,7 @@ func _create_history_card(index: int, quiz: QuizItem, correct: bool, rated: Stri
 
 			var is_correct_choice := (ci == quiz.a)
 			choice_label.text = "  %s: %s %s" % [prefix, FractionFormatter.to_inline(quiz.c[ci]), "✓" if is_correct_choice else ""]
-			choice_label.add_theme_font_size_override("font_size", 17)
+			choice_label.add_theme_font_size_override("font_size", MobileUi.font(17))
 			if is_correct_choice:
 				choice_label.add_theme_color_override("font_color", Color(0.3, 1.0, 0.5))
 			else:
@@ -1632,7 +1934,7 @@ func _create_history_card(index: int, quiz: QuizItem, correct: bool, rated: Stri
 	if not quiz.e.is_empty():
 		var explain_label := Label.new()
 		explain_label.text = "📝 %s" % FractionFormatter.to_inline(quiz.e)
-		explain_label.add_theme_font_size_override("font_size", 16)
+		explain_label.add_theme_font_size_override("font_size", MobileUi.font(16))
 		explain_label.add_theme_color_override("font_color", Color(0.55, 0.6, 0.75))
 		explain_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		vbox.add_child(explain_label)
@@ -1653,21 +1955,21 @@ func _create_history_card(index: int, quiz: QuizItem, correct: bool, rated: Stri
 			rate_label.text = "AI評価:悪い | あなたの評価:"
 		else:
 			rate_label.text = "この問題の評価:"
-		rate_label.add_theme_font_size_override("font_size", 15)
+		rate_label.add_theme_font_size_override("font_size", MobileUi.font(15))
 		rate_label.add_theme_color_override("font_color", Color(0.5, 0.55, 0.65))
 		rate_container.add_child(rate_label)
 
 		var good_btn := Button.new()
 		good_btn.text = "◯ 良い"
-		good_btn.custom_minimum_size = Vector2(100, 36)
-		good_btn.add_theme_font_size_override("font_size", 16)
+		good_btn.custom_minimum_size = Vector2(100, MobileUi.touch(36))
+		good_btn.add_theme_font_size_override("font_size", MobileUi.font(16))
 		good_btn.add_theme_color_override("font_color", Color(0.2, 1.0, 0.4))
 		rate_container.add_child(good_btn)
 
 		var bad_btn := Button.new()
 		bad_btn.text = "× 悪い"
-		bad_btn.custom_minimum_size = Vector2(100, 36)
-		bad_btn.add_theme_font_size_override("font_size", 16)
+		bad_btn.custom_minimum_size = Vector2(100, MobileUi.touch(36))
+		bad_btn.add_theme_font_size_override("font_size", MobileUi.font(16))
 		bad_btn.add_theme_color_override("font_color", Color(1.0, 0.3, 0.2))
 		rate_container.add_child(bad_btn)
 
@@ -1690,7 +1992,7 @@ func _create_history_card(index: int, quiz: QuizItem, correct: bool, rated: Stri
 		else:
 			feedback.text = "× 悪い問題として評価しました"
 			feedback.add_theme_color_override("font_color", Color(1.0, 0.4, 0.3))
-		feedback.add_theme_font_size_override("font_size", 15)
+		feedback.add_theme_font_size_override("font_size", MobileUi.font(15))
 		rate_container.add_child(feedback)
 
 	return card
@@ -1705,7 +2007,7 @@ func _add_coop_history_role(choices_box: VBoxContainer, title: String,
 		choices: PackedStringArray, answer: int, chosen: int) -> void:
 	var title_label := Label.new()
 	title_label.text = title
-	title_label.add_theme_font_size_override("font_size", 16)
+	title_label.add_theme_font_size_override("font_size", MobileUi.font(16))
 	title_label.add_theme_color_override("font_color", Color(0.55, 0.62, 0.75))
 	choices_box.add_child(title_label)
 
@@ -1720,7 +2022,7 @@ func _add_coop_history_role(choices_box: VBoxContainer, title: String,
 			picked,
 			"✓" if is_correct_choice else ""
 		]
-		choice_label.add_theme_font_size_override("font_size", 17)
+		choice_label.add_theme_font_size_override("font_size", MobileUi.font(17))
 		choice_label.add_theme_color_override("font_color",
 			Color(0.3, 1.0, 0.5) if is_correct_choice else Color(0.65, 0.7, 0.75))
 		choice_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -1739,7 +2041,7 @@ func _replace_rate_buttons(container: HBoxContainer, good: bool) -> void:
 	else:
 		feedback.text = "× 悪い問題として評価しました"
 		feedback.add_theme_color_override("font_color", Color(1.0, 0.4, 0.3))
-	feedback.add_theme_font_size_override("font_size", 15)
+	feedback.add_theme_font_size_override("font_size", MobileUi.font(15))
 	container.add_child(feedback)
 
 func _fire_confetti() -> void:

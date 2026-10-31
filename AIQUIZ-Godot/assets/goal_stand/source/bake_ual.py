@@ -1,5 +1,8 @@
 """Bake the Quaternius UAL clips the crowd uses into SPEC_* actions on RIG_Spectator
 (kept bones only, 30 fps) and measure the egg release of the overhand throw.
+
+    ns = {"BAKE": False}; exec(open(".../bake_ual.py", encoding="utf-8").read(), ns)
+defines bake_clip() without baking (author_crowd_walks.py bakes more UAL clips with it).
 """
 import json
 
@@ -72,4 +75,5 @@ def bake_all():
     return out
 
 
-result = bake_all()
+if globals().get("BAKE", True):
+    result = bake_all()

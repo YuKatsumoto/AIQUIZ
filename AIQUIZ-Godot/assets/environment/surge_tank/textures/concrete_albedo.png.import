@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://b3ifcuhdyiips"
 path.bptc="res://.godot/imported/concrete_albedo.png-12dfe7a3ba2a48ab7f7498426016d53a.bptc.ctex"
+path.astc="res://.godot/imported/concrete_albedo.png-12dfe7a3ba2a48ab7f7498426016d53a.astc.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/environment/surge_tank/textures/concrete_albedo.png"
-dest_files=["res://.godot/imported/concrete_albedo.png-12dfe7a3ba2a48ab7f7498426016d53a.bptc.ctex"]
+dest_files=["res://.godot/imported/concrete_albedo.png-12dfe7a3ba2a48ab7f7498426016d53a.bptc.ctex", "res://.godot/imported/concrete_albedo.png-12dfe7a3ba2a48ab7f7498426016d53a.astc.ctex"]
 
 [params]
 

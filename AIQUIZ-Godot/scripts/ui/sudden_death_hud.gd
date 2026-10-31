@@ -15,6 +15,7 @@ const REFERENCE := Vector2(1280.0, 720.0)
 ## scene transition (100).
 const HUD_LAYER := 8
 const FONT_BOLD: Font = preload("res://resources/fonts/NotoSansJP-Bold.otf")
+const MobileUi = preload("res://scripts/core/mobile_ui.gd")
 
 const INK := Color(0.043, 0.071, 0.125)
 const PALE := Color(0.961, 0.969, 1.0)
@@ -85,6 +86,8 @@ const QUIZ_PANEL_WIDTH := 1040.0
 const QUIZ_TEXT_SIZE := 30
 const QUIZ_LINE := 42.0
 const CHOICE_Y := 0.835
+## スマホ：画面の下は TouchControls の答え・アクションのボタンが使うので、選択肢の列をその上へ上げる。
+const TOUCH_CHOICE_Y := 0.69
 const CHOICE_HEIGHT := 62.0
 const CHOICE_MAX_WIDTH := 300.0
 const CHOICE_TEXT_SIZE := 26
@@ -99,10 +102,12 @@ const WIN_SIZE := 140
 const TEXT_JA := {
 	"depth": "深度", "loading": "準備中", "arrived": "到着", "generating": "問題を生成中",
 	"referee": "審判", "rules": "ルール", "press": "でスタート",
+	"tap_start": "タップでスタート",
 }
 const TEXT_EN := {
 	"depth": "DEPTH", "loading": "LOADING", "arrived": "ARRIVED", "generating": "GENERATING",
 	"referee": "REFEREE", "rules": "RULES", "press": "TO START",
+	"tap_start": "TAP TO START",
 }
 ## Rule card lines as [text, tone] runs: tone "w" plain, "y" key word, "r" danger.
 const RULES_JA := [
@@ -114,6 +119,19 @@ const RULES_JA := [
 const RULES_EN := [
 	[["JUMP", "y"], [" to buzz in - only the buzzer answers", "w"]],
 	[["Answer with the ", "w"], ["ARROWS", "y"], [" (P1 W A S D, P2 ↑ ← ↓ →)", "w"]],
+	[["Right: the rival's lift ", "w"], ["SINKS", "r"], [". Wrong: yours does", "w"]],
+	[["Under the water = ", "w"], ["OUT", "r"], [". No buzz: both sink a little", "w"]],
+]
+## スマホ（タッチ操作）のルールカード：キーの名前は出さず、TouchControls のボタンの呼び名（アクション・A B C D）で言う。
+const RULES_TOUCH_JA := [
+	[["アクションボタン", "y"], ["で早押し。押した人だけが答えられる", "w"]],
+	[["答えは A B C D のボタン", "y"], ["（自分の側のボタンで答える）", "w"]],
+	[["正解", "y"], ["で相手のリフトが", "w"], ["沈む", "r"], ["。不正解なら自分が沈む", "w"]],
+	[["水に沈んだら", "w"], ["負け", "r"], ["。誰も押さないと両方が少し沈む", "w"]],
+]
+const RULES_TOUCH_EN := [
+	[["ACTION", "y"], [" to buzz in - only the buzzer answers", "w"]],
+	[["Answer with the ", "w"], ["A B C D", "y"], [" buttons on your side", "w"]],
 	[["Right: the rival's lift ", "w"], ["SINKS", "r"], [". Wrong: yours does", "w"]],
 	[["Under the water = ", "w"], ["OUT", "r"], [". No buzz: both sink a little", "w"]],
 ]
@@ -137,6 +155,9 @@ class Painter extends Control:
 var debug_manual_clock := false
 
 var _english := false
+## スマホ（タッチ操作）：ルールカードの案内は「タップでスタート」、選択肢の下のキーの札は出さない
+## （選択肢の A B C D が、そのまま TouchControls の答えのボタンの文字）。デスクトップは false のまま。
+var _touch := false
 ## P1/P2 のバッジをキャラの色でぬるのに使う（なければ QuizManager のもの）
 var game_state: QuizGameState = null
 ## スロットごとのバッジの色（頭・胴・足）と、そのもとになった見た目のキー
@@ -221,6 +242,10 @@ var _quiz_hide_at := INF
 func _init() -> void:
 	name = "SuddenDeathHud"
 	layer = HUD_LAYER
+	_touch = MobileUi.is_touch_ui()
+	if _touch:
+		rule_lines_ja = RULES_TOUCH_JA
+		rule_lines_en = RULES_TOUCH_EN
 	_build_fonts()
 	_build_textures()
 	_build_nodes()
@@ -1024,6 +1049,10 @@ func _paint_rule_prompt(ci: Control, rect: Rect2, t: float, alpha: float, base_h
 	var top := rect.position.y + base_height
 	ci.draw_line(Vector2(rect.position.x + 24.0, top - 2.0), Vector2(rect.end.x - 24.0, top - 2.0), _fade(PALE, 0.08 * appear), 1.0)
 	var y := top + RULE_PROMPT_HEIGHT * 0.5 - 3.0
+	if _touch:
+		# スマホ：キーの札は出さず「タップでスタート」だけ（画面のどこをタップしても閉じる）。
+		_text(ci, _font, _t("tap_start"), Vector2(0.0, y), 24, _fade(PALE, tone))
+		return
 	var cap := "ENTER"
 	var cap_width := _font_wide.get_string_size(cap, HORIZONTAL_ALIGNMENT_LEFT, -1, 17).x + 30.0
 	var label := _t("press")
@@ -1241,7 +1270,7 @@ func _paint_choices(ci: Control, viewport: Vector2, u: float, a: float, phase: S
 	var box := Vector2(minf(CHOICE_MAX_WIDTH, (QUIZ_PANEL_WIDTH + 120.0 - gap * float(count - 1)) / float(count)), CHOICE_HEIGHT)
 	var total := box.x * float(count) + gap * float(count - 1)
 	var fit := minf(1.0, (viewport.x / u * 0.96) / total)
-	var origin := Vector2(viewport.x * 0.5, viewport.y * CHOICE_Y)
+	var origin := Vector2(viewport.x * 0.5, viewport.y * (TOUCH_CHOICE_Y if _touch else CHOICE_Y))
 	var xf := Transform2D(0.0, Vector2(u, u) * fit, 0.0, origin)
 	ci.draw_set_transform_matrix(xf)
 	_record("choices", xf, Rect2(-total * 0.5, -box.y * 0.5, total, box.y + 44.0))
@@ -1279,6 +1308,9 @@ func _paint_choices(ci: Control, viewport: Vector2, u: float, a: float, phase: S
 			size -= 2
 		_text(ci, _font, choice, rect.position + Vector2(46.0 + room * 0.5, box.y * 0.5), size, _fade(text_color, a * appear))
 		# Answer keys under the box: both players' until someone buzzes, then only the answerer's.
+		# スマホはキーの札を出さない（箱の左の A B C D が、そのまま答えのボタンの文字）。
+		if _touch:
+			continue
 		var key := int(keys[index]) if index < keys.size() else -1
 		var caps_y := rect.end.y + 22.0
 		if phase == "answering" and buzzer > 0:

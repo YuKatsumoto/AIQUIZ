@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://dwq238kvbrm2l"
 path.s3tc="res://.godot/imported/ghost_shark_air_mount_tripo_image_32e26d43-4aef-4467-9415-bec32793c78a_0_0.jpg-8b3778fa2eaf092e57741117e9ccee1b.s3tc.ctex"
+path.etc2="res://.godot/imported/ghost_shark_air_mount_tripo_image_32e26d43-4aef-4467-9415-bec32793c78a_0_0.jpg-8b3778fa2eaf092e57741117e9ccee1b.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://TripoModels/ghost_shark_air_mount/ghost_shark_air_mount_tripo_image_32e26d43-4aef-4467-9415-bec32793c78a_0_0.jpg"
-dest_files=["res://.godot/imported/ghost_shark_air_mount_tripo_image_32e26d43-4aef-4467-9415-bec32793c78a_0_0.jpg-8b3778fa2eaf092e57741117e9ccee1b.s3tc.ctex"]
+dest_files=["res://.godot/imported/ghost_shark_air_mount_tripo_image_32e26d43-4aef-4467-9415-bec32793c78a_0_0.jpg-8b3778fa2eaf092e57741117e9ccee1b.s3tc.ctex", "res://.godot/imported/ghost_shark_air_mount_tripo_image_32e26d43-4aef-4467-9415-bec32793c78a_0_0.jpg-8b3778fa2eaf092e57741117e9ccee1b.etc2.ctex"]
 
 [params]
 

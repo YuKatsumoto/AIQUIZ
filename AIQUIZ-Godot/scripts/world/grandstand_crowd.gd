@@ -15,9 +15,26 @@ extends Node3D
 ## drum) who leads the chant, towel twirlers and pairs of friends who high-five
 ## and sway arm in arm. The mascot stands in the aisle of block 1 and starts the
 ## stadium wave (StandMascot).
+##
+## With enable_sim() the stand's crowd becomes a management sim (CrowdSim,
+## docs/crowd_sim.md): people come late, fetch snacks, go to the toilet and leave.
+## Each block's batches then keep room for all its people and draw the ones in
+## their seats first (visible_instance_count); the people on foot are one more
+## batch (Walkers). Without it every seat stays taken as built.
 
 const Kit = preload("res://scripts/world/seated_spectator_kit.gd")
+const QualityRules = preload("res://scripts/core/graphics_quality.gd")
+## Phones: every spectator is ~700 skinned triangles (all hair styles share one mesh) and both
+## stands held ~2.2 M of a match's 2.4 M triangles. Fewer seats are taken there, and the
+## snack holders use the plain body (the prop mesh carries every prop, 2150 triangles).
+const MOBILE_DENSITY_SCALE := 0.55
 const MascotScript = preload("res://scripts/world/crowd/stand_mascot.gd")
+## A block farther than this from the camera does not walk (people just appear).
+const WATCH_DISTANCE := 150.0
+## The side stands' beer vendors: a staff shirt and a cap.
+const VENDOR_SHIRT := Color(0.98, 0.80, 0.20)
+const VENDOR_HAIR := 2
+const FAR_CLIP_Z := &"far_clip_z"
 ## Hips sit this far behind the cushion centre, against the chair back.
 const HIP_BEHIND_SEAT := 0.06
 const HOME_SHARE := 0.55
@@ -56,14 +73,82 @@ var fan_count := 0
 var role_counts := {}
 var home_team := 1
 var mascot: Node3D = null
+## The management sim (enable_sim()), or null.
+var sim: CrowdSim = null
 var _density := 0.85
 var _seed := 0
+var _paths: StandPaths = null
+## Sim only, per person (the sim's index): block, batch (0 plain, 1 props, -1
+## not drawn), slot in it, transform, shirt, custom, prop, team, size.
+var _drawn: Array[Dictionary] = []
+## Sim only, per block: [plain, props] batches, their slot -> person lists, centre z.
+var _batches := {}
+var _slots := {}
+var _centers := {}
+var _walkers: MultiMeshInstance3D = null
+## Sim only: each vendor's look, drawn like a person (custom, shirt, team, size).
+var _vendor_drawn: Array[Dictionary] = []
 
 
 func setup(density: float, crowd_seed: int, team: int) -> void:
 	_density = clampf(density, 0.0, 1.0)
+	if QualityRules.is_mobile_target():
+		_density *= MOBILE_DENSITY_SCALE
 	_seed = crowd_seed
 	home_team = team
+
+
+## Turns the crowd into the management sim with `pool` walkers and `vendors` beer
+## vendors. Call before the first add_block().
+func enable_sim(pool: int, vendors := 0) -> void:
+	if sim != null:
+		return
+	_paths = StandPaths.new()
+	sim = CrowdSim.new(_paths, _seed * 31 + home_team, pool, vendors)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = _seed * 13 + home_team
+	for _k: int in range(vendors):
+		var look := VENDOR_HAIR \
+			+ 7 * rng.randi_range(0, GoalStand.SKINS.size() - 1) \
+			+ 42 * rng.randi_range(0, GoalStand.HAIR_COLORS.size() - 1) \
+			+ 252 * rng.randi_range(0, GoalStand.PANTS.size() - 1) \
+			+ 1260 * rng.randi_range(0, GoalStand.SHOES.size() - 1) \
+			+ 5040 * Kit.PROP_VENDOR
+		_vendor_drawn.append({"custom": Color(rng.randf(), float(look), float(8 * ROLE_CALM), 1.0), "shirt": VENDOR_SHIRT,
+			"team": 0, "size": 1.0})
+	_walkers = MultiMeshInstance3D.new()
+	_walkers.name = "Walkers"
+	var instances := MultiMesh.new()
+	instances.transform_format = MultiMesh.TRANSFORM_3D
+	instances.use_colors = true
+	instances.use_custom_data = true
+	instances.mesh = Kit.prop_mesh()
+	instances.instance_count = pool + vendors
+	instances.visible_instance_count = 0
+	# People walk the whole stand, both ways along it.
+	instances.custom_aabb = AABB(Vector3(-2.0, -1.0, -1000.0), Vector3(16.0, 8.0, 2000.0))
+	_walkers.multimesh = instances
+	_walkers.material_override = Kit.material()
+	_walkers.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_walkers.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+	add_child(_walkers)
+
+
+## Where the stand's blocks, booths and aisles are now (stand space; the stand
+## calls this whenever it grows), and the blocks' walk (StandPaths.configure()).
+func set_layout(centers: Array, kinds: Array, aisles: Array, walk: Dictionary = {}) -> void:
+	if sim == null:
+		return
+	_paths.configure(walk)
+	_paths.set_blocks(centers, kinds, aisles)
+	sim.refresh_aisles()
+
+
+## The stretch of the stand that is shown (stand space z, from < to); the beer
+## vendors keep to it (CrowdSim.set_walk_z()).
+func set_walk_z(from_z: float, to_z: float) -> void:
+	if sim != null:
+		sim.set_walk_z(Vector2(from_z, to_z))
 
 
 ## Seats come from the stand blocks' JSON: [x, cushion top, z, row] in block
@@ -81,6 +166,7 @@ func add_block(index: int, center_z: float, seats: Array) -> void:
 		var sb: Array = seats[b]
 		return sa[3] < sb[3] or (sa[3] == sb[3] and float(sa[2]) < float(sb[2])))
 	var people: Array[Dictionary] = []
+	var rows := PackedInt32Array()
 	var leader_seat := _leader_seat(seats, taken)
 	var paired := {}
 	for k: int in range(order.size() - 1):
@@ -118,6 +204,7 @@ func add_block(index: int, center_z: float, seats: Array) -> void:
 			var next_index: int = order[order.find(i) + 1]
 			pair_look[next_index] = {"phase": (person["custom"] as Color).r, "speed": (person["custom"] as Color).a}
 		people.append(person)
+		rows.append(int(seat[3]))
 	if people.is_empty():
 		return
 	# The shader moves arms well above the head and stands people up for the wave;
@@ -129,24 +216,33 @@ func add_block(index: int, center_z: float, seats: Array) -> void:
 		reach_x = maxf(reach_x, float(seat[0]) + HIP_BEHIND_SEAT + 1.6)
 		reach_y = maxf(reach_y, float(seat[1]) + 2.6)
 	var bounds := AABB(Vector3(-1.5, -0.5, center_z - 11.0), Vector3(reach_x + 1.5, reach_y + 0.5, 22.0))
+	spectator_count += people.size()
+	if sim != null:
+		_add_sim_block(index, center_z, people, rows, bounds)
+		return
+	if QualityRules.is_mobile_target():
+		_add_batch("Block%02d" % (index + 1), people, Kit.mesh(), bounds)
+		return
 	# Spectators holding a prop use the mesh with the props; the rest skip them.
 	var plain := people.filter(func(person: Dictionary) -> bool: return int(person["prop"]) == 0)
 	var holders := people.filter(func(person: Dictionary) -> bool: return int(person["prop"]) != 0)
 	_add_batch("Block%02d" % (index + 1), plain, Kit.mesh(), bounds)
 	_add_batch("Block%02dProps" % (index + 1), holders, Kit.prop_mesh(), bounds)
-	spectator_count += people.size()
 
 
-## One MultiMesh draw for `people` (one block keeps one or two draws).
-func _add_batch(batch_name: String, people: Array, mesh: Mesh, bounds: AABB) -> void:
-	if people.is_empty():
-		return
+## One MultiMesh draw for `people` (one block keeps one or two draws). `room`
+## (the sim) keeps that many instances and draws none until they are filled.
+func _add_batch(batch_name: String, people: Array, mesh: Mesh, bounds: AABB, room := 0) -> MultiMeshInstance3D:
+	if people.is_empty() and room == 0:
+		return null
 	var instances := MultiMesh.new()
 	instances.transform_format = MultiMesh.TRANSFORM_3D
 	instances.use_colors = true
 	instances.use_custom_data = true
 	instances.mesh = mesh
-	instances.instance_count = people.size()
+	instances.instance_count = maxi(people.size(), room)
+	if room > 0:
+		instances.visible_instance_count = people.size()
 	for i: int in range(people.size()):
 		var person: Dictionary = people[i]
 		instances.set_instance_transform(i, person["transform"])
@@ -160,6 +256,41 @@ func _add_batch(batch_name: String, people: Array, mesh: Mesh, bounds: AABB) -> 
 	batch.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	batch.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 	add_child(batch)
+	return batch
+
+
+## The sim's block: both batches with room for everybody (a snack moves a person
+## to the props batch), the people handed to the sim in row order.
+func _add_sim_block(index: int, center_z: float, people: Array[Dictionary], rows: PackedInt32Array,
+		bounds: AABB) -> void:
+	var batches: Array[MultiMeshInstance3D] = [
+		_add_batch("Block%02d" % (index + 1), [], Kit.mesh(), bounds, people.size()),
+		_add_batch("Block%02dProps" % (index + 1), [], Kit.mesh() if QualityRules.is_mobile_target() else Kit.prop_mesh(), bounds, people.size()),
+	]
+	_batches[index] = batches
+	_slots[index] = [[], []]
+	_centers[index] = center_z
+	var previous := -1
+	for k: int in range(people.size()):
+		var person: Dictionary = people[k]
+		var transform: Transform3D = person["transform"]
+		var role: int = person["role"]
+		var neighbour := -1
+		if k > 0 and rows[k] == rows[k - 1] \
+				and absf(transform.origin.z - (people[k - 1]["transform"] as Transform3D).origin.z - 0.92) < 0.05:
+			neighbour = previous
+		var drawn := person.duplicate()
+		drawn["block"] = index
+		drawn["batch"] = -1
+		drawn["slot"] = -1
+		_drawn.append(drawn)
+		previous = sim.add_person(index, transform.origin, transform * Kit.stand_floor(), rows[k], int(person["team"]),
+			role in [ROLE_LEADER, ROLE_PAIR_L, ROLE_PAIR_R],
+			int(person["prop"]) == 0 and role in [ROLE_CALM, ROLE_FAN, ROLE_DANCER], neighbour)
+		# A block added during a match opens empty (its people are on the way).
+		if sim.seat_view(previous).shown:
+			_put_in(previous, 0 if int(person["prop"]) == 0 else 1)
+		sim.changed.erase(previous)
 
 
 ## The cheer leader of a block sits mid-row near the front (row 1), if taken.
@@ -239,6 +370,9 @@ func _person(rng: RandomNumberGenerator, seat: Vector3, forced_role: int = -1) -
 		"shirt": shirts[rng.randi_range(0, shirts.size() - 1)],
 		"custom": Color(rng.randf(), float(look), float(habit), rng.randf_range(0.9, 1.12)),
 		"prop": prop,
+		"role": role,
+		"team": team,
+		"size": size,
 	}
 
 
@@ -357,3 +491,172 @@ static func prepare_dances(emote_p1: int, emote_p2: int) -> void:
 		if clip != _sync_slots[slot]:
 			_sync_slots[slot] = clip
 			Kit.prepare_sync(slot, clip)
+
+
+# ------------------------------------------------------------------ the sim
+
+## The sim's clock, shared by both stands (one material): scripts start on it.
+static var _sim_clock := 0.0
+
+
+## Advances the side stands' sims (docs/crowd_sim.md) and draws what changed.
+## `camera` decides which blocks walk; without one nobody walks.
+static func update_sim(mood: CrowdMood, delta: float, camera: Camera3D) -> void:
+	if mood == null or not Kit.is_built():
+		return
+	_sim_clock += delta
+	Kit.material().set_shader_parameter("sim_clock", _sim_clock)
+	for crowd: Variant in _crowds:
+		if is_instance_valid(crowd) and crowd.sim != null and crowd.is_inside_tree():
+			crowd._step_sim(mood, delta, camera)
+
+
+func _step_sim(mood: CrowdMood, delta: float, camera: Camera3D) -> void:
+	sim.tick(_sim_clock, delta, mood, _watched_blocks(camera))
+	for index: int in sim.changed:
+		_draw_seat(index)
+	sim.changed.clear()
+	_draw_walkers()
+
+
+## 1 for the blocks the camera sees: shown whole (not hidden or cut by the stand's
+## end), near enough and with some of the block (front deck to back rail) in view.
+func _watched_blocks(camera: Camera3D) -> PackedByteArray:
+	var watched := PackedByteArray()
+	for index: int in _centers:
+		if watched.size() <= index:
+			watched.resize(index + 1)
+	if camera == null or not is_instance_valid(camera) or not camera.is_inside_tree():
+		return watched
+	var eye := camera.global_position
+	var planes := camera.get_frustum()
+	for index: int in _centers:
+		var batch: MultiMeshInstance3D = _batches[index][0]
+		if not batch.is_visible_in_tree() or batch.position.z != 0.0:
+			continue
+		var clip: Variant = batch.get_instance_shader_parameter(FAR_CLIP_Z)
+		if clip != null and float(clip) < 1e8:
+			continue
+		var center: float = _centers[index]
+		if eye.distance_to(global_transform * Vector3(5.0, 1.5, center)) > WATCH_DISTANCE:
+			continue
+		if _in_view(planes, center):
+			watched[index] = 1
+	return watched
+
+
+## Some of the block around stand z `center` is inside the frustum `planes`
+## (their normals point out of it): no plane has all the block's corners outside.
+func _in_view(planes: Array[Plane], center: float) -> bool:
+	var corners: Array[Vector3] = []
+	for x: float in [-1.0, 12.5]:
+		for y: float in [-0.5, 5.5]:
+			for z: float in [center - 10.0, center + 10.0]:
+				corners.append(global_transform * Vector3(x, y, z))
+	for plane: Plane in planes:
+		var outside := true
+		for corner: Vector3 in corners:
+			if not plane.is_point_over(corner):
+				outside = false
+				break
+		if outside:
+			return false
+	return true
+
+
+## Puts person `index` in its seat as the sim has it: shown or not, in which
+## batch (a snack needs the props), standing up or sitting down.
+func _draw_seat(index: int) -> void:
+	var drawn := _drawn[index]
+	var view := sim.seat_view(index)
+	var food := int(view.food)
+	var want := -1
+	if view.shown:
+		want = 1 if int(drawn.prop) != 0 or food != 0 else 0
+	if int(drawn.batch) != want:
+		if int(drawn.batch) >= 0:
+			_take_out(index)
+		if want >= 0:
+			_put_in(index, want)
+	if want < 0:
+		return
+	var batch: MultiMeshInstance3D = _batches[drawn.block][want]
+	batch.multimesh.set_instance_custom_data(int(drawn.slot),
+		_custom(drawn, food, view.clip, float(view.start), 1.0, bool(view.get("loop", false))))
+
+
+func _put_in(index: int, which: int) -> void:
+	var drawn := _drawn[index]
+	var instances := (_batches[drawn.block][which] as MultiMeshInstance3D).multimesh
+	var slot := instances.visible_instance_count
+	instances.visible_instance_count = slot + 1
+	instances.set_instance_transform(slot, drawn.transform)
+	instances.set_instance_color(slot, drawn.shirt)
+	instances.set_instance_custom_data(slot, drawn.custom)
+	(_slots[drawn.block][which] as Array).append(index)
+	drawn.batch = which
+	drawn.slot = slot
+
+
+## Out of its batch: the batch's last person takes the slot, so the people in
+## their seats stay first.
+func _take_out(index: int) -> void:
+	var drawn := _drawn[index]
+	var slots: Array = _slots[drawn.block][drawn.batch]
+	var instances := (_batches[drawn.block][drawn.batch] as MultiMeshInstance3D).multimesh
+	var last := instances.visible_instance_count - 1
+	var slot: int = drawn.slot
+	if slot != last:
+		var moved: int = slots[last]
+		instances.set_instance_transform(slot, instances.get_instance_transform(last))
+		instances.set_instance_color(slot, instances.get_instance_color(last))
+		instances.set_instance_custom_data(slot, instances.get_instance_custom_data(last))
+		slots[slot] = moved
+		_drawn[moved].slot = slot
+	slots.pop_back()
+	instances.visible_instance_count = last
+	drawn.batch = -1
+	drawn.slot = -1
+
+
+## The person's custom data with a snack in hand (an eater, prop 0 before) and a
+## scripted clip (CrowdSim) from `start` on the sim's clock.
+func _custom(drawn: Dictionary, food: int, clip: StringName, start: float, rate: float, loop: bool) -> Color:
+	var base: Color = drawn.custom
+	var look := base.g
+	var habit := base.b
+	if food != 0:
+		look += 5040.0 * food
+		habit = float(int(habit) % 8 + 8 * ROLE_EATER + 128 * int(drawn.team))
+	if clip == &"":
+		return Color(base.r, look, habit, base.a)
+	var scripted := Kit.clip_index(clip) + 1 + (64 if loop else 0)
+	return Color(start, look, habit + 512.0 * scripted, rate)
+
+
+## The people on foot, from the sim's walkers, then the vendors.
+func _draw_walkers() -> void:
+	var instances := _walkers.multimesh
+	var count := mini(sim.walkers.size(), instances.instance_count - sim.vendors.size())
+	instances.visible_instance_count = count + sim.vendors.size()
+	var floor_point := Kit.stand_floor()
+	for k: int in range(sim.vendors.size()):
+		var v: CrowdSim.Vendor = sim.vendors[k]
+		var drawn := _vendor_drawn[k]
+		var basis := Basis(Vector3.UP, v.yaw)
+		instances.set_instance_transform(count + k, Transform3D(basis, v.position - basis * floor_point))
+		instances.set_instance_color(count + k, drawn.shirt)
+		var start := _sim_clock - v.phase / maxf(v.rate, 0.01)
+		instances.set_instance_custom_data(count + k, _custom(drawn, 0, v.clip, start, v.rate, v.loop))
+	for k: int in range(count):
+		var w: CrowdSim.Walker = sim.walkers[k]
+		var drawn := _drawn[w.person]
+		var basis := Basis(Vector3.UP, w.yaw).scaled(Vector3.ONE * float(drawn.size))
+		instances.set_instance_transform(k, Transform3D(basis, w.position - basis * floor_point))
+		instances.set_instance_color(k, drawn.shirt)
+		var start := _sim_clock - w.phase / maxf(w.rate, 0.01)
+		instances.set_instance_custom_data(k, _custom(drawn, sim.people[w.person].food, w.clip, start, w.rate, w.loop))
+
+
+func sim_snapshot() -> Dictionary:
+	return sim.snapshot() if sim != null else {}

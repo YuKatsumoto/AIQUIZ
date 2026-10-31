@@ -144,11 +144,20 @@ var _applied_skins: Dictionary = {1: {}, 2: {}}
 var _p1_exploding: bool = false
 var _p2_exploding: bool = false
 var _p1_result_exploded: bool = false
+## 両者脱落の投げ縄の演出（EliminationLassoDirector）で魂が抜けたあと、倒れた体（破片・ラグドール）を隠すプレイヤー
+## （ビット 1 = P1、2 = P2）。結果発表の幽霊（is_result_ghost）と同じ隠し方。
+var lasso_hidden_mask := 0
 var _p2_result_exploded: bool = false
 var _p1_result_explosion_elapsed: float = 0.0
 var _p2_result_explosion_elapsed: float = 0.0
 var _p1_explosion_bodies: Array[RigidBody3D] = []
 var _p2_explosion_bodies: Array[RigidBody3D] = []
+## 体が砕けた瞬間の破片の真ん中（グローバル。砕けていなければ INF）。両者脱落の投げ縄の演出で、魂はここ
+## （死んだ所）から出てくる（EliminationLassoDirector）。破片はそのあと海まで飛ぶことがあるので、今の位置は使わない。
+var _p1_death_point := Vector3.INF
+var _p2_death_point := Vector3.INF
+## 練習：かまれてから戻されるまでの秒数（P1、P2。爆散の破片の時計）。
+var _practice_bite_elapsed := [0.0, 0.0]
 
 const EXPLOSION_DEBRIS_LIFETIME: float = 4.5
 const EXPLOSION_SINK_SURFACE_Y: float = StageConstants.OCEAN_SURFACE_Y
@@ -171,6 +180,17 @@ const EXPLOSION_TORQUE_MIN: float = -22.0
 const EXPLOSION_TORQUE_MAX: float = 22.0
 const EXPLOSION_PHYSICS_FRICTION: float = 0.62
 const EXPLOSION_PHYSICS_BOUNCE: float = 0.32
+## 壁激突のあとの爆散（PV と同じ）：破片を体の中心から外へこの速さで飛ばし、爆発の演出を重ねる
+const WALL_BURST_SPEED_MIN: float = 18.0
+const WALL_BURST_SPEED_MAX: float = 30.0
+const WALL_BURST_UP_MIN: float = 5.0
+const WALL_BURST_UP_MAX: float = 11.0
+const WALL_BURST_CAMERA_SHAKE: float = 1.6
+const WALL_BURST_VFX := preload("res://assets/BinbunVFX/impact_explosions/effects/explosion/vfx_explosion_01.tscn")
+## 爆発のうち、画面を覆う白い球（Core）・黒い煙の玉（Smoke）・地面の跡（Decal）は使わない
+const WALL_BURST_VFX_HIDE := ["Decal", "Core", "Smoke"]
+## 爆散の飛び方の乱数（PV は seed を決めて同じ絵にする）
+var wall_burst_rng := RandomNumberGenerator.new()
 
 # Animation Rig (P1/P2蜈ｱ騾壹け繝ｩ繧ｹ縺ｧ邂｡逅・
 var _p1_rig: AnimationRig = AnimationRig.new("P1")
@@ -2405,8 +2425,70 @@ func update_intro_ladder_grab(
 	state["max_hand_error"] = maxf(left_error, right_error)
 	state["rung_position"] = rung_center
 	state["character_position"] = pelvis.global_position
+	var cheer := float(state.get("cheer", 0.0))
+	if cheer > 0.001:
+		_apply_intro_ladder_cheer(parts, state, cheer, horizontal)
 	_intro_ladder_grabs[player_index] = state
 	return true
+
+
+## Menu pickup (HelicopterArrivalDirector): 0..1 of a one-handed wave with happy leg kicks
+## while the aircraft hauls the passenger off the deck. 0 holds on with both hands.
+func set_intro_ladder_cheer(player_index: int, amount: float) -> void:
+	if _intro_ladder_grabs.has(player_index):
+		var state: Dictionary = _intro_ladder_grabs[player_index]
+		state["cheer"] = clampf(amount, 0.0, 1.0)
+
+
+## Lets go with the hand nearer the camera (so the wave reads) and kicks the legs. Runs after
+## the grip solve: the other hand stays locked to the rung.
+func _apply_intro_ladder_cheer(parts: Dictionary, state: Dictionary, cheer: float, horizontal: Vector3) -> void:
+	var left_shoulder := parts.get("l_shoulder") as Node3D
+	var right_shoulder := parts.get("r_shoulder") as Node3D
+	if left_shoulder == null or right_shoulder == null:
+		return
+	var camera := get_viewport().get_camera_3d() if is_inside_tree() else null
+	if not state.has("cheer_left"):
+		var use_left := true
+		if camera != null:
+			var eye := camera.global_position
+			use_left = eye.distance_squared_to(left_shoulder.global_position) <= eye.distance_squared_to(right_shoulder.global_position)
+		state["cheer_left"] = use_left
+	var is_left := bool(state["cheer_left"])
+	var prefix := "l_" if is_left else "r_"
+	var shoulder := left_shoulder if is_left else right_shoulder
+	var other_shoulder := right_shoulder if is_left else left_shoulder
+	var elbow := parts.get(prefix + "elbow") as Node3D
+	var wrist := parts.get(prefix + "wrist") as Node3D
+	if elbow != null and wrist != null:
+		var outward := shoulder.global_position - other_shoulder.global_position
+		outward.y = 0.0
+		outward = outward.normalized() if outward.length_squared() > 0.0001 else horizontal
+		var toward_camera := Vector3.ZERO
+		if camera != null:
+			toward_camera = camera.global_position - shoulder.global_position
+			toward_camera.y = 0.0
+			toward_camera = toward_camera.normalized() if toward_camera.length_squared() > 0.0001 else Vector3.ZERO
+		var wave := sin(_time * 11.0 + (0.0 if is_left else 1.3))
+		var upper := (outward * 0.78 + Vector3.UP * 0.58 + toward_camera * 0.22).normalized()
+		var lower := (Vector3.UP * 0.92 + outward * (0.18 + 0.48 * wave) + toward_camera * 0.12).normalized()
+		shoulder.global_basis = Basis(shoulder.global_basis.get_rotation_quaternion().slerp(_basis_with_negative_y(upper, horizontal).get_rotation_quaternion(), cheer))
+		elbow.global_basis = Basis(elbow.global_basis.get_rotation_quaternion().slerp(_basis_with_negative_y(lower, horizontal).get_rotation_quaternion(), cheer))
+		wrist.global_basis = Basis(wrist.global_basis.get_rotation_quaternion().slerp(_basis_with_negative_y(lower, horizontal).get_rotation_quaternion(), cheer))
+		# An open, waving hand instead of the rung grip.
+		for finger_name: String in ["index", "middle", "ring", "pinky"]:
+			for segment: String in ["prox", "mid", "dist"]:
+				var finger := parts.get(prefix + finger_name + "_" + segment) as Node3D
+				if finger != null:
+					finger.rotation.x = lerpf(finger.rotation.x, 0.0, cheer)
+	for leg: Array in [["l_", 0.0], ["r_", PI]]:
+		var phase := _time * 8.5 + float(leg[1])
+		var hip := parts.get(str(leg[0]) + "hip") as Node3D
+		var knee := parts.get(str(leg[0]) + "knee") as Node3D
+		if hip != null:
+			hip.rotation.x += sin(phase) * 0.42 * cheer
+		if knee != null:
+			knee.rotation.x += (sin(phase + 0.9) * 0.38 - 0.22) * cheer
 
 
 func get_intro_ladder_grab_state(player_index: int) -> Dictionary:
@@ -2704,7 +2786,8 @@ func _set_hat_visible(is_p1: bool, should_show: bool) -> void:
 
 
 ## Keep the caught physical body through staged separation and debris cleanup.
-func _update_saw_death(is_p1: bool, timer: float) -> void:
+## 巻き込みが終わって体がばらける瞬間に、壁激突と同じ爆発・揺れ・四肢爆散を重ねる。
+func _update_saw_death(is_p1: bool, timer: float, gs: QuizGameState) -> void:
 	var parts := p1_parts if is_p1 else p2_parts
 	var ragdoll := _p1_ragdoll if is_p1 else _p2_ragdoll
 	var exploding := _p1_exploding if is_p1 else _p2_exploding
@@ -2739,6 +2822,8 @@ func _update_saw_death(is_p1: bool, timer: float) -> void:
 				_p2_driver = null
 				_p2_exploding = true
 				_p2_explosion_bodies = debris
+			_remember_death_point(is_p1, debris)
+			_play_wall_burst(is_p1, gs)
 	_set_parts_visible(parts, false)
 	_set_hat_visible(is_p1, false)
 	_hide_rig_scenes(is_p1)
@@ -2769,6 +2854,48 @@ func _init_wall_ragdoll_explosion(ragdoll: Dictionary, fallback_parts: Dictionar
 	_teardown_ragdoll(ragdoll)
 
 
+## 壁激突のあとの爆散を PV と同じ大きさにする：入れた破片の速さを体の中心から外へ強く飛ぶ速さに書き直し、
+## 爆発の演出（閃光・火花）・強い揺れ・爆発音を重ねる。メニューのプレビューも同じ。
+func _play_wall_burst(is_p1: bool, gs: QuizGameState) -> void:
+	var bodies := _p1_explosion_bodies if is_p1 else _p2_explosion_bodies
+	if bodies.is_empty():
+		return
+	var center := Vector3.ZERO
+	for piece: RigidBody3D in bodies:
+		center += piece.global_position
+	center /= bodies.size()
+	var rng := wall_burst_rng
+	for piece: RigidBody3D in bodies:
+		var out := piece.global_position - center
+		out.y = 0.0
+		if out.length() < 0.05:
+			out = Vector3(rng.randf_range(-1.0, 1.0), 0.0, rng.randf_range(-1.0, 1.0))
+		var dir := (out.normalized() + Vector3(rng.randf_range(-0.35, 0.35), 0.0, rng.randf_range(-0.35, 0.35))).normalized()
+		piece.linear_velocity = dir * rng.randf_range(WALL_BURST_SPEED_MIN, WALL_BURST_SPEED_MAX) \
+			+ Vector3.UP * rng.randf_range(WALL_BURST_UP_MIN, WALL_BURST_UP_MAX)
+		piece.angular_velocity = Vector3(rng.randf_range(-24.0, 24.0), rng.randf_range(-10.0, 10.0), rng.randf_range(-24.0, 24.0))
+		piece.gravity_scale = 1.6
+		piece.linear_damp = 0.02
+	var fx := WALL_BURST_VFX.instantiate() as Node3D
+	fx.set("autoplay", false)
+	_get_explosion_spawn_root().add_child(fx)
+	fx.global_position = center + Vector3(0.0, 0.3, 0.0)
+	for node_name: String in WALL_BURST_VFX_HIDE:
+		var node := fx.get_node_or_null(node_name) as Node3D
+		if node != null:
+			node.visible = false
+	for child in fx.get_children():
+		if child is GPUParticles3D:
+			(child as GPUParticles3D).restart()
+	var anim := fx.get_node_or_null("AnimationPlayer") as AnimationPlayer
+	if anim != null:
+		anim.play("oneshot" if anim.has_animation("oneshot") else "main")
+	get_tree().create_timer(EXPLOSION_DEBRIS_LIFETIME).timeout.connect(fx.queue_free)
+	if gs != null:
+		gs.camera_shake = maxf(gs.camera_shake, WALL_BURST_CAMERA_SHAKE)
+	AudioManager.play_sfx(&"barrier_explosion")
+
+
 ## 頭のてっぺん（帽子の付け根）のワールド座標。アニメーションの姿勢に追従する。
 ## オンライン対戦で自分のキャラの頭上に出す矢印の基準点。
 func get_head_top_position(player_index: int) -> Vector3:
@@ -2784,6 +2911,19 @@ func get_head_top_position(player_index: int) -> Vector3:
 
 ## 死亡演出で現在見えている身体の中心を返す。
 ## 壁ラグドール中は胴体、四肢分散後は全破片の重心を優先する。
+## 体が砕けて、死んだ所が決まったか。
+func has_death_point(is_p1: bool) -> bool:
+	return (_p1_death_point if is_p1 else _p2_death_point).is_finite()
+
+
+## 死んだ所（グローバル）：体が砕けた瞬間の所。砕けていなければ、今の倒れた体の所。
+func get_death_origin_position(is_p1: bool) -> Vector3:
+	var point := _p1_death_point if is_p1 else _p2_death_point
+	if point.is_finite():
+		return point
+	return get_death_presentation_position(is_p1)
+
+
 func get_death_presentation_position(is_p1: bool) -> Vector3:
 	var ragdoll: Dictionary = _p1_ragdoll if is_p1 else _p2_ragdoll
 	var rag: Dictionary = ragdoll.get("rag", {})
@@ -2939,7 +3079,60 @@ static func is_ghost_soul_look(mesh_instance: MeshInstance3D) -> bool:
 	)
 
 
+## 練習（docs/new_tutorial/phase4_design.md 2.3）：その人の死んだ見た目（爆散の破片・ラグドール・隠した体と帽子・
+## 投げ縄で隠した印・結果の爆散・姿勢の受け渡し）を全部消し、次のフレームから普通に立って見えるようにする。
+## ゲームの状態は変えない（game_state.practice_revive などのあとに、ゲーム画面が呼ぶ）。
+func practice_reset_player(player_index: int) -> void:
+	var is_p1 := player_index == 1
+	if not is_p1 and player_index != 2:
+		return
+	var parts: Dictionary = p1_parts if is_p1 else p2_parts
+	var exploded := (
+		(_p1_exploding or _p1_result_exploded or not _p1_explosion_bodies.is_empty()) if is_p1
+		else (_p2_exploding or _p2_result_exploded or not _p2_explosion_bodies.is_empty())
+	)
+	_pose_handoffs.erase(player_index)
+	lasso_hidden_mask &= ~(1 if is_p1 else 2)
+	_practice_bite_elapsed[player_index - 1] = 0.0
+	if is_p1:
+		_p1_exploding = false
+		_p1_result_exploded = false
+		_p1_result_explosion_elapsed = 0.0
+		_teardown_ragdoll(_p1_ragdoll)
+		_p1_ragdoll = {}
+		_p1_driver = null
+	else:
+		_p2_exploding = false
+		_p2_result_exploded = false
+		_p2_result_explosion_elapsed = 0.0
+		_teardown_ragdoll(_p2_ragdoll)
+		_p2_ragdoll = {}
+		_p2_driver = null
+	_clear_explosion_bodies(is_p1)
+	if parts.is_empty():
+		return
+	# 爆散で隠した帽子のメッシュは戻らないので、帽子を作り直す（壁のラグドールは _teardown_ragdoll が戻す）。
+	var hat_id := _p1_hat_id if is_p1 else _p2_hat_id
+	if exploded and hat_id != HatData.HAT_NONE:
+		_set_hat_for_parts(parts, hat_id, is_p1)
+	_set_parts_visible(parts, true)
+	_set_hat_visible(is_p1, true)
+	_set_rig_scenes_visible(is_p1, true)
+
+
+## 練習（MatchRules.Ocean.REPORT_AFTER_BITE）でかまれた人は、戻されるまで爆散したまま見せる（本編のサメのアウトと同じ見た目）。
+func _hold_practice_bite(is_p1: bool, gs: QuizGameState) -> void:
+	var player_index := 1 if is_p1 else 2
+	begin_ocean_shark_explosion(player_index, gs)
+	_set_parts_visible(p1_parts if is_p1 else p2_parts, false)
+	_set_hat_visible(is_p1, false)
+	_practice_bite_elapsed[player_index - 1] += get_process_delta_time()
+	if not (_p1_explosion_bodies if is_p1 else _p2_explosion_bodies).is_empty():
+		_update_explosion(is_p1, _practice_bite_elapsed[player_index - 1], true)
+
+
 func reset_result_presentation() -> void:
+	lasso_hidden_mask = 0
 	_p1_result_exploded = false
 	_p2_result_exploded = false
 	_p1_result_explosion_elapsed = 0.0
@@ -3568,12 +3761,29 @@ func _sync_player_model_count(gs: QuizGameState) -> void:
 
 var _health_pose_restore: Array[Dictionary] = []
 var _health_mesh_restore: Array[Dictionary] = []
-const WALL_RECOIL_DISTANCE := 1.2
-const WALL_RECOIL_PEAK_TIME := 0.14
 const WALL_RECOIL_CLIP := "Hit_Chest"
+## 弾かれて下がるあいだの足。UAL1 の小走りを逆に回して後ずさりにする。
+const WALL_RECOIL_STEP_CLIP := "Jog_Fwd_Loop"
+## 後ずさりの1周期（2歩）で下がる距離。足の運びをノックバックの距離に合わせる。
+const WALL_RECOIL_STEP_STRIDE := 1.6
+const WALL_RECOIL_LEG_PARTS: Array[String] = [
+	"l_hip", "l_knee", "l_ankle", "l_toe", "r_hip", "r_knee", "r_ankle", "r_toe",
+]
+## 弾かれたあと迫ってきた壁に止められているあいだ（2P で相手の回答待ち）は、扉を押す姿にする。
+## 走りのままだと前へ振る足と手が扉に入る。
+const WALL_PRESS_CLIP := "Push_Loop"
+## 押す姿は腰が後ろに残る（クリップの腰の前後の動きは捨てているので、そのぶん体を後ろへ下げ、
+## 前へ倒した頭を扉の面の手前に収める）。
+const WALL_PRESS_HIP_BACK := 0.45
+## 扉の面までこの距離を切ると押す姿へ移り始める（m）。
+const WALL_PRESS_REACH := 0.5
+const WALL_PRESS_BLEND_TIME := 0.15
+var _wall_press_weight: Array[float] = [0.0, 0.0]
 
 func _restore_health_pose() -> void:
-	for saved: Dictionary in _health_pose_restore:
+	# Overlays stack (press, then recoil), so undo them newest first.
+	for i in range(_health_pose_restore.size() - 1, -1, -1):
+		var saved: Dictionary = _health_pose_restore[i]
 		if is_instance_valid(saved.node):
 			saved.node.transform = saved.transform
 	_health_pose_restore.clear()
@@ -3586,10 +3796,15 @@ func _apply_health_pose(gs: QuizGameState, parts: Dictionary, player_index: int)
 	var alive := gs.p1_alive if player_index == 1 else gs.p2_alive
 	var remaining := gs.get_damage_time(player_index)
 	var falling := gs.p1_fall_committed or gs.p1_waiting_for_shark if player_index == 1 else gs.p2_fall_committed or gs.p2_waiting_for_shark
-	if not gs.uses_hp() or not alive or falling or remaining <= 0.0 or gs.game_state not in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]:
+	if not gs.uses_hp() or not alive or falling or gs.game_state not in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]:
+		_wall_press_weight[player_index - 1] = 0.0
+		return
+	var rig := _p1_rig if player_index == 1 else _p2_rig
+	_apply_wall_press(gs, parts, rig, player_index)
+	if remaining <= 0.0:
 		return
 	var elapsed := QuizGameState.DAMAGE_FLASH_DURATION - remaining
-	_apply_wall_recoil(parts, _p1_rig if player_index == 1 else _p2_rig, elapsed)
+	_apply_wall_recoil(parts, rig, elapsed)
 	var fade := 0.58 if int(elapsed / 0.075) % 2 == 0 else 0.0
 	for mesh: MeshInstance3D in parts.get("meshes", []):
 		if not is_instance_valid(mesh):
@@ -3597,32 +3812,83 @@ func _apply_health_pose(gs: QuizGameState, parts: Dictionary, player_index: int)
 		_health_mesh_restore.append({"node": mesh, "transparency": mesh.transparency})
 		mesh.transparency = maxf(mesh.transparency, fade)
 
-func _apply_wall_recoil(parts: Dictionary, rig: AnimationRig, elapsed: float) -> void:
-	# Restore this overlay before the next base pose, including interruption/death.
+## Restore this overlay before the next base pose, including interruption/death.
+func _capture_health_base(parts: Dictionary) -> Array[Dictionary]:
 	var base_pose: Array[Dictionary] = []
 	for value: Variant in parts.values():
 		if value is Node3D:
 			base_pose.append({"node": value, "transform": value.transform})
 	_health_pose_restore.append_array(base_pose)
+	return base_pose
+
+func _apply_wall_press(gs: QuizGameState, parts: Dictionary, rig: AnimationRig, player_index: int) -> void:
+	var target := 0.0
+	if gs.is_held_by_wall(player_index):
+		var z := gs.player_z if player_index == 1 else gs.player2_z
+		var gap := gs.wall_z - QuizGameState.WALL_FACE_CONTACT_DISTANCE - z
+		target = 1.0 - smoothstep(0.0, WALL_PRESS_REACH, gap)
+	var index := player_index - 1
+	_wall_press_weight[index] = move_toward(_wall_press_weight[index], target, get_process_delta_time() / WALL_PRESS_BLEND_TIME)
+	var weight := _wall_press_weight[index]
+	var length := rig.get_ual_clip_length(WALL_PRESS_CLIP, AnimationRig.SLOT_UAL)
+	if weight <= 0.0 or length <= 0.0:
+		return
+	var base_pose := _capture_health_base(parts)
+	if not rig.seek_ual_clip(WALL_PRESS_CLIP, fposmod(gs.play_time / length, 1.0), AnimationRig.SLOT_UAL):
+		return
+	_apply_skeleton_pose(parts, rig.active_skeleton, rig.active_bone_indices, rig.mirror_x)
+	for saved: Dictionary in base_pose:
+		var node: Node3D = saved.node
+		node.transform = (saved.transform as Transform3D).interpolate_with(node.transform, weight)
+	var pelvis := parts.get("pelvis") as Node3D
+	if pelvis != null:
+		pelvis.global_position += Vector3.FORWARD * WALL_PRESS_HIP_BACK * weight
+
+func _apply_wall_recoil(parts: Dictionary, rig: AnimationRig, elapsed: float) -> void:
+	var base_pose := _capture_health_base(parts)
+	# The body itself is knocked back by QuizGameState (_knock_back_from_wall); this
+	# only poses it. Everything is a function of the damage time, so replays and
+	# online guests rebuild the same pose from the synchronized state.
 	var duration := QuizGameState.DAMAGE_FLASH_DURATION
-	var weight := smoothstep(0.0, 0.045, elapsed) * (1.0 - smoothstep(duration - 0.18, duration, elapsed))
+	# Half the pose lands on the impact frame itself, so the stride the run had
+	# swung forward never shows against the door.
+	var weight := smoothstep(-0.03, 0.03, elapsed) * (1.0 - smoothstep(duration - 0.2, duration, elapsed))
+	# Legs: the jog run backwards, its phase driven by the distance slid so the feet
+	# step back with the body instead of running in place. They take over on the
+	# impact frame itself: any of the run's forward stride left there reaches the door.
+	var legs := {}
+	var leg_weight := 1.0 - smoothstep(0.34, 0.5, elapsed)
+	# Start half a cycle in: of the phases measured by tests/wall_recoil_runtime.gd
+	# this keeps the feet nearest the hips on the impact frame, right at the door.
+	var step_ratio := 1.0 - fposmod(_wall_knockback_distance(elapsed) / WALL_RECOIL_STEP_STRIDE + 0.5, 1.0)
+	if leg_weight > 0.0 and rig.seek_ual_clip(WALL_RECOIL_STEP_CLIP, step_ratio, AnimationRig.SLOT_UAL):
+		_apply_skeleton_pose(parts, rig.active_skeleton, rig.active_bone_indices, rig.mirror_x)
+		for key: String in WALL_RECOIL_LEG_PARTS:
+			var leg := parts.get(key) as Node3D
+			if leg != null:
+				legs[leg] = leg.global_basis.get_rotation_quaternion()
 	if rig.seek_ual_clip(WALL_RECOIL_CLIP, elapsed / duration, AnimationRig.SLOT_UAL):
 		_apply_skeleton_pose(parts, rig.active_skeleton, rig.active_bone_indices, rig.mirror_x)
+		# World-space leg angles (hips before knees): the struck pelvis leans back, and
+		# legs kept local to it would swing the feet forward into the door.
+		for leg: Node3D in legs:
+			var current := leg.global_basis.get_rotation_quaternion()
+			leg.global_basis = Basis(current.slerp(legs[leg], leg_weight))
 		for saved: Dictionary in base_pose:
 			var node: Node3D = saved.node
-			node.transform = (saved.transform as Transform3D).interpolate_with(node.transform, weight)
+			var blend := maxf(weight, leg_weight) if legs.has(node) else weight
+			node.transform = (saved.transform as Transform3D).interpolate_with(node.transform, blend)
 	else:
 		var spine := parts.get("spine") as Node3D
 		if spine != null:
 			spine.global_basis = Basis(Vector3.RIGHT, deg_to_rad(-26.0) * weight) * spine.global_basis
-	# Only the struck avatar's visual root moves. P2 is parented beneath P1's
-	# controller, so moving that controller would incorrectly recoil both players.
-	# Authoritative movement, wall evaluation, push collisions and camera stay intact.
-	var pelvis := parts.get("pelvis") as Node3D
-	if pelvis != null:
-		var retreat := smoothstep(0.0, WALL_RECOIL_PEAK_TIME, elapsed)
-		var recovery := 1.0 - smoothstep(WALL_RECOIL_PEAK_TIME, duration, elapsed)
-		pelvis.global_position += Vector3.FORWARD * WALL_RECOIL_DISTANCE * retreat * recovery
+
+## How far the wall knockback has carried the body after `elapsed` seconds.
+static func _wall_knockback_distance(elapsed: float) -> float:
+	var speed := QuizGameState.WALL_HIT_KNOCKBACK_SPEED
+	var decel := QuizGameState.EXTERNAL_IMPULSE_DECELERATION
+	var t := clampf(elapsed, 0.0, speed / decel)
+	return speed * t - 0.5 * decel * t * t
 
 var _push_pose_restore: Array[Dictionary] = []
 
@@ -3696,11 +3962,13 @@ func update_from_state(gs: QuizGameState) -> void:
 	# P1ラグドールは位置確定後の初回に生成(アンカー瞬間移動を回避)。
 	# メニュープレビュー(SubViewport)では不要な物理負荷になるので生成しない
 	# (表示メッシュも隠さないため、プレビューはブロック四肢のまま正しく描画される)。
-	if USE_ACTIVE_RAGDOLL and not p1_visual_hidden and not _is_preview_subviewport() and _p1_ragdoll.is_empty() and not p1_parts.is_empty() and not gs.is_result_ghost(1):
+	if USE_ACTIVE_RAGDOLL and not p1_visual_hidden and not _is_preview_subviewport() and _p1_ragdoll.is_empty() and not p1_parts.is_empty() and not gs.is_result_ghost(1) and (lasso_hidden_mask & 1) == 0:
 		_p1_ragdoll = _setup_ragdoll(p1_parts, true)
 		_p1_driver = _p1_ragdoll.get("driver")
 
-	if gs.p1_alive:
+	if gs.p1_alive and gs.is_practice_bitten(1):
+		_hold_practice_bite(true, gs)
+	elif gs.p1_alive:
 		if not _p1_result_exploded and (
 			_p1_exploding or not _p1_explosion_bodies.is_empty() or not _p1_ragdoll.is_empty()
 		):
@@ -3773,11 +4041,11 @@ func update_from_state(gs: QuizGameState) -> void:
 			_set_hat_visible(true, false)
 			_set_rig_scenes_visible(true, false)
 			_update_explosion(true, _p1_result_explosion_elapsed)
-	elif gs.is_result_ghost(1):
+	elif gs.is_result_ghost(1) or (lasso_hidden_mask & 1) != 0:
 		_hide_result_ghost_body(true)
 	elif gs.game_over_timer > 0:
 		if gs.p1_shark_killed:
-			begin_ocean_shark_explosion(1)
+			begin_ocean_shark_explosion(1, gs)
 			_set_parts_visible(p1_parts, false)
 			if not _p1_explosion_bodies.is_empty():
 				_update_explosion(
@@ -3788,7 +4056,7 @@ func update_from_state(gs: QuizGameState) -> void:
 					-global_position.x
 				)
 		elif gs.p1_saw_killed:
-			_update_saw_death(true, gs.game_over_timer)
+			_update_saw_death(true, gs.game_over_timer, gs)
 		elif gs.p1_wall_impact:
 			# A body swept up by the sudden death flood stays whole and limp.
 			var scatter_delay := INF if gs.is_flood_caught(1) else QuizGameState.WALL_RAGDOLL_DURATION
@@ -3801,6 +4069,7 @@ func update_from_state(gs: QuizGameState) -> void:
 			elif not _p1_exploding:
 				_p1_exploding = true
 				_init_wall_ragdoll_explosion(_p1_ragdoll, p1_parts, true)
+				_play_wall_burst(true, gs)
 				_p1_ragdoll = {}
 				_p1_driver = null
 			# 吹き飛んでいる間は帽子が頭に付いている。爆散したら帽子も破片になる。
@@ -3846,11 +4115,13 @@ func update_from_state(gs: QuizGameState) -> void:
 
 		# P2ラグドールは位置確定後の初回に生成(アンカー瞬間移動を回避)。
 		# プレビュー(SubViewport)では生成しない(P1と同様)。
-		if USE_ACTIVE_RAGDOLL and not _is_preview_subviewport() and _p2_ragdoll.is_empty() and not p2_parts.is_empty() and not gs.is_result_ghost(2):
+		if USE_ACTIVE_RAGDOLL and not _is_preview_subviewport() and _p2_ragdoll.is_empty() and not p2_parts.is_empty() and not gs.is_result_ghost(2) and (lasso_hidden_mask & 2) == 0:
 			_p2_ragdoll = _setup_ragdoll(p2_parts, false)
 			_p2_driver = _p2_ragdoll.get("driver")
 
-		if gs.p2_alive:
+		if gs.p2_alive and gs.is_practice_bitten(2):
+			_hold_practice_bite(false, gs)
+		elif gs.p2_alive:
 			if not _p2_result_exploded and (
 				_p2_exploding or not _p2_explosion_bodies.is_empty() or not _p2_ragdoll.is_empty()
 			):
@@ -3921,11 +4192,11 @@ func update_from_state(gs: QuizGameState) -> void:
 				_set_hat_visible(false, false)
 				_set_rig_scenes_visible(false, false)
 				_update_explosion(false, _p2_result_explosion_elapsed)
-		elif gs.is_result_ghost(2):
+		elif gs.is_result_ghost(2) or (lasso_hidden_mask & 2) != 0:
 			_hide_result_ghost_body(false)
 		elif gs.player2_game_over_timer > 0:
 			if gs.p2_shark_killed:
-				begin_ocean_shark_explosion(2)
+				begin_ocean_shark_explosion(2, gs)
 				_set_parts_visible(p2_parts, false)
 				if not _p2_explosion_bodies.is_empty():
 					_update_explosion(
@@ -3936,7 +4207,7 @@ func update_from_state(gs: QuizGameState) -> void:
 						-global_position.x
 					)
 			elif gs.p2_saw_killed:
-				_update_saw_death(false, gs.player2_game_over_timer)
+				_update_saw_death(false, gs.player2_game_over_timer, gs)
 			elif gs.p2_wall_impact:
 				var scatter_delay := INF if gs.is_flood_caught(2) else QuizGameState.WALL_RAGDOLL_DURATION
 				if gs.player2_game_over_timer < scatter_delay:
@@ -3948,6 +4219,7 @@ func update_from_state(gs: QuizGameState) -> void:
 				elif not _p2_exploding:
 					_p2_exploding = true
 					_init_wall_ragdoll_explosion(_p2_ragdoll, p2_parts, false)
+					_play_wall_burst(false, gs)
 					_p2_ragdoll = {}
 					_p2_driver = null
 				_set_hat_visible(false, _p2_ragdoll.has("hat_restore"))
@@ -4460,6 +4732,26 @@ func _clear_explosion_bodies(is_p1: bool) -> void:
 		if is_instance_valid(body):
 			body.queue_free()
 	bodies.clear()
+	if is_p1:
+		_p1_death_point = Vector3.INF
+	else:
+		_p2_death_point = Vector3.INF
+
+
+## 砕けた瞬間の破片の真ん中を、死んだ所として覚える。
+func _remember_death_point(is_p1: bool, bodies: Array[RigidBody3D]) -> void:
+	var center := Vector3.ZERO
+	var count := 0
+	for body: RigidBody3D in bodies:
+		if body != null and is_instance_valid(body) and body.is_inside_tree():
+			center += body.global_position
+			count += 1
+	if count == 0:
+		return
+	if is_p1:
+		_p1_death_point = center / float(count)
+	else:
+		_p2_death_point = center / float(count)
 
 
 ## 破片の当たり判定の大きさ。visual_scale は画面で見えていた（ワールドの）scale。
@@ -4475,7 +4767,8 @@ func _mesh_box_size(mesh_inst: MeshInstance3D, visual_scale: Vector3) -> Vector3
 
 ## Called in the shark contact signal, so the visible body breaks apart in
 ## that same frame even when the world already updated the player this tick.
-func begin_ocean_shark_explosion(player_index: int) -> void:
+## 食われた体は壁激突と同じ爆発・揺れ・四肢爆散で砕く。
+func begin_ocean_shark_explosion(player_index: int, gs: QuizGameState = null) -> void:
 	var is_p1 := player_index == 1
 	if (_p1_exploding if is_p1 else _p2_exploding):
 		return
@@ -4488,6 +4781,7 @@ func begin_ocean_shark_explosion(player_index: int) -> void:
 		_p2_exploding = true
 	AudioManager.play_sfx(&"shark_bite")
 	_init_explosion(parts, is_p1, false, -5.0)
+	_play_wall_burst(is_p1, gs)
 	_set_parts_visible(parts, false)
 
 
@@ -4578,6 +4872,7 @@ func _init_explosion(parts: Dictionary, is_p1: bool, force_non_forward: bool = f
 		_p1_explosion_bodies = bodies
 	else:
 		_p2_explosion_bodies = bodies
+	_remember_death_point(is_p1, bodies)
 	if not bodies.is_empty():
 		AudioManager.play_sfx(&"body_burst", sound_trim_db)
 

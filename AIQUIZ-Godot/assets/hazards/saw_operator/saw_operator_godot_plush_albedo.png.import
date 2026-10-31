@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://lj0d53vpwsac"
 path.s3tc="res://.godot/imported/saw_operator_godot_plush_albedo.png-e1a65688664309b219303d1d0e66d61c.s3tc.ctex"
+path.etc2="res://.godot/imported/saw_operator_godot_plush_albedo.png-e1a65688664309b219303d1d0e66d61c.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/hazards/saw_operator/saw_operator_godot_plush_albedo.png"
-dest_files=["res://.godot/imported/saw_operator_godot_plush_albedo.png-e1a65688664309b219303d1d0e66d61c.s3tc.ctex"]
+dest_files=["res://.godot/imported/saw_operator_godot_plush_albedo.png-e1a65688664309b219303d1d0e66d61c.s3tc.ctex", "res://.godot/imported/saw_operator_godot_plush_albedo.png-e1a65688664309b219303d1d0e66d61c.etc2.ctex"]
 
 [params]
 

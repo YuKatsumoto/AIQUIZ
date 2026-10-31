@@ -30,6 +30,12 @@ const IMAGE_BORDER := 5.0
 ## 出入りの速さ（1 秒あたり）。
 const FADE_RATE := 6.0
 
+## スマホ（タッチ操作）では、キーの言葉だけを差し替える。
+const TEXT_TOUCH_JA := {"enter": "タップでスタート", "move": "スティックで動く", "emote_keys": "ボタンでエモート"}
+const TEXT_TOUCH_EN := {"enter": "Tap to start", "move": "stick to move", "emote_keys": "buttons to dance"}
+const TouchHud = preload("res://scripts/ui/touch_hud/touch_hud.gd")
+## スマホ：選択肢の札。TouchControls の答えのボタン（左から順に A・B・C・D）と同じ文字にする。
+const TOUCH_ANSWER_LABELS := ["A", "B", "C", "D"]
 const TEXT_JA := {
 	"answered": "回答済み", "shrunk": "しぼんだ…", "miss": "はずれ…", "opened": "ひらけ！", "final": "高度150m！ 最後の1問（先に正解した方の勝ち）",
 	"correct": "正解", "rules": "ルール", "how": "答え方", "order": "選択肢の左から順",
@@ -172,6 +178,10 @@ func _advance(dt: float) -> void:
 
 
 func _t(key: String) -> String:
+	if TouchHud.is_touch():
+		var touch_table: Dictionary = TEXT_TOUCH_EN if english else TEXT_TOUCH_JA
+		if touch_table.has(key):
+			return str(touch_table[key])
 	return str((TEXT_EN if english else TEXT_JA).get(key, key))
 
 
@@ -330,6 +340,9 @@ func _paint_choices(ci: Control, quiz: Dictionary, alpha: float) -> void:
 			var label := str(key_labels[side])
 			if label == "":
 				continue
+			if TouchHud.is_touch():
+				# スマホ：キーの文字の代わりに、画面の答えのボタン（TouchControls：左から A・B・C・D）と同じ文字。
+				label = TOUCH_ANSWER_LABELS[i] if i < TOUCH_ANSWER_LABELS.size() else label
 			var chip := Rect2(rect.position + Vector2(10, 9) if side == 0 else rect.position + Vector2(rect.size.x - 46, 9), Vector2(36, 30))
 			var chip_color := PLAYER_COLORS[side]
 			if bool(locked[side]):
@@ -440,6 +453,9 @@ func _paint_rules(ci: Control, alpha: float) -> void:
 	_text_left(ci, strip.position + Vector2(24, 30), _t("how"), 22, Color(INK, alpha))
 	var kx := strip.position.x + 150.0
 	var key_sets := [["A", "W", "S", "D"], ["←", "↑", "↓", "→"]]
+	if TouchHud.is_touch():
+		# スマホ：キーの代わりに、画面の答えのボタンの文字（左から A・B・C・D）。
+		key_sets = [TOUCH_ANSWER_LABELS, TOUCH_ANSWER_LABELS]
 	for side in [0, 1]:
 		var chip := Rect2(kx, strip.position.y + 13, 50, 34)
 		_box(ci, chip, Color(PLAYER_COLORS[side], alpha), 9.0)
@@ -483,7 +499,7 @@ func _paint_emote(ci: Control, alpha: float) -> void:
 	var data: Dictionary = state.get("emote", {})
 	var player := clampi(int(data.get("player", 1)), 1, 2)
 	var playing := int(data.get("playing", -1))
-	var keys := ["1", "2", "3"] if player == 1 else ["8", "9", "0"]
+	var keys := ["1", "2", "3"] if player == 1 or TouchHud.is_touch() else ["8", "9", "0"]
 	var color := PLAYER_COLORS[player - 1]
 	var label := _t("emote_keys")
 	var size := 18

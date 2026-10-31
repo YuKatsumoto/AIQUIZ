@@ -59,6 +59,9 @@ const MODE_TEN = "TEN_QUESTIONS"
 const MODE_ENDLESS = "ENDLESS"
 const MODE_COOP = "COOP"
 const MODE_TUTORIAL = "TUTORIAL"
+## チュートリアルの練習（docs/new_tutorial/foundation_design.md）。QuizGameState.start_practice_round で始め、
+## ルールは MatchRules（QuizGameState.practice_rules）で決める。本編のモードの分岐には入らない。
+const MODE_PRACTICE = "PRACTICE"
 
 const STATE_MENU = "MENU"
 const STATE_PRELOADING = "PRELOADING"

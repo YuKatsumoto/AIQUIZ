@@ -25,6 +25,11 @@ uniform float roller_depth : hint_range(0.0, 0.55) = 0.22;
 uniform float roughness_val : hint_range(0.0, 1.0) = 0.78;
 uniform float metallic_val : hint_range(0.0, 1.0) = 0.12;
 uniform float rim_metallic_boost : hint_range(0.0, 0.5) = 0.18;
+// BELT_NO_TOP_DETAIL (mobile only: StageMaterials.belt_detail compiles this variant): the belt top
+// and rollers keep the procedural belt and leave the detail layer below out; the pier walls keep
+// theirs. With that code compiled in, the Galaxy Z Flip 7 (Xclipse 950) hangs the whole GPU for
+// ~5.5 s again and again while the belt is on screen, even with detail_strength = 0 (the branch is
+// never taken), so it is left out of the shader rather than switched off by a uniform.
 #ifdef SHAFT_HOLE
 // Sudden death shaft (StageEnvironment.set_shaft_hole compiles this variant only while the hole
 // is open): (centre x, centre z, radius, active). Every face of the belt, pier box, rollers and
@@ -193,6 +198,7 @@ void fragment() {
 	if (detail_strength > 0.0) {
 		float d = detail_strength;
 		if (top_mask > 0.5) {
+#ifndef BELT_NO_TOP_DETAIL
 			// ---- Belt top and rollers: the cover texture moves with the belt ----------------
 			float inv_tile = 1.0 / detail_tile_m;
 			float scroll_m = scroll_z * scroll_sign;
@@ -279,6 +285,7 @@ void fragment() {
 				vec3 n_world = normalize(n_geo + t_u * nxy.x + t_up * nxy.y);
 				NORMAL = normalize((VIEW_MATRIX * vec4(n_world, 0.0)).xyz);
 			}
+#endif
 		} else {
 			// ---- Pier walls: fixed, side_color modulated by concrete, wet band, streaks -------
 			vec3 an = abs(world_normal);

@@ -27,7 +27,7 @@
         "placement_world_abs_x": 28.0,
         "block_length": 20.0,
         "front_face_x": -0.8,
-        "back_face_x": 10.9,
+        "back_face_x": 12.3,
         "deck_top_z": 0.22,
         "deck_underside_z": -1.0,
         "front_wall": {
@@ -82,9 +82,45 @@
           "top_z": 2.72,
           "x": [
             8.05,
-            10.9
+            12.3
           ],
-          "back_rail_top_z": 3.82
+          "back_rail_top_z": 3.82,
+          "note": "奥行き 4.25m。ブース（x 8.35〜10.65）の裏に幅 1.65m の通り道があり、スタンドの端から端までつながる（観客の経営シム、docs/crowd_sim.md）"
+        },
+        "stairwell": {
+          "x": [
+            10.95,
+            12.05
+          ],
+          "from_aisle": [
+            0.6,
+            5.1
+          ],
+          "steps": 12,
+          "landing": 1.1,
+          "door_width": 0.8,
+          "door_height": 2.1,
+          "rail_top_above": 1.0,
+          "note": "客の出入口：後方通路の床にあけた下り口。通路を持つブロックの +Y 端の通路の脇（Blender y = 通路 − 5.1〜−0.6、Godot では通路から +Z へ 0.6〜5.1m）。通路側から入り、12 段でデッキの上面まで下りて、突き当たりの扉へ。前と奥に手すり、背面の手すり側はそのまま"
+        },
+        "kiosk": {
+          "window_x": [
+            9.0,
+            10.0
+          ],
+          "window_z": [
+            0.9,
+            1.9
+          ],
+          "counter_depth": 0.28,
+          "counter_z": 0.9,
+          "awning_depth": 0.55,
+          "awning_z": 1.95,
+          "sign_z": [
+            2.2,
+            2.55
+          ],
+          "note": "ブースの両端（±Y の面）の売店の窓口（高さはブースの床＝後方通路の上面から）。行列は窓口から通路の方へ並ぶ"
         },
         "booth": {
           "center_y": 0.0,
@@ -188,7 +224,7 @@
           "runtime": "santorini_waterfront.gd の extend_stand_supports で海底 -129.2 まで伸ばす"
         },
         "variants": {
-          "bay": "標準（マスト・ヤード・ブースあり。帆は AQS_SailRig を重ねる）",
+          "bay": "標準（マスト・ヤード・ブースあり。帆は AQS_SailRig を重ねる。ブースの両端に売店の窓口）。cap_end 以外は +Y 端の通路の脇に下り口",
           "cap_start / cap_end": "端部：段に沿って下がる白い端壁、見張り塔（屋根上端 z 8.8、旗竿 10.0）、海側の船着き場（z -8.4）へ下りる階段。マスト・帆・ブースは立てない（後端はヘリの経路、前端も左右で入れ替わるため両方とも無し）"
         },
         "budget": {
@@ -205,8 +241,10 @@
         "rows": "const（段数 6 はユーザー決定）",
         "seats": "const",
         "aisle": "const",
-        "back_face_x": "design",
+        "back_face_x": "design（2026-10-28 に 10.9 → 12.3、docs/crowd_sim.md）",
         "rear_walkway": "design",
+        "stairwell": "design（docs/crowd_sim.md 段階2）",
+        "kiosk": "design（docs/crowd_sim.md 段階2）",
         "booth": "measured（奥行き・パネル幅）+ design",
         "mast": "design（P01 立面で 0.6% 以内に再現）+ measured（太さ）",
         "upper_yard": "measured",
@@ -675,7 +713,7 @@
   },
   "open_items": [
     "ヘリの開始位置（|x|36.5, Y13.7）とマスト（|x|37.5, 頂部灯の上端 12.5）は横 1.0m・縦 1.2m。両端のブロック（cap_start / cap_end）にはマストを立てない設計で回避したが、実機でローターとの干渉を確認する",
-    "観客の描画範囲（grandstand_crowd.gd:62、x≤8.0・y≤4.0）と背面位置 BACK_X を 6段・背面 10.9m に合わせて広げる",
+    "観客の描画範囲（grandstand_crowd.gd:62、x≤8.0・y≤4.0）と背面位置 BACK_X を 6段・背面 12.3m に合わせて広げる",
     "夜の帆は布の材質 AQS_Sail の発光（NightStrength × 0.12）で表す。Godot の昼夜切り替えにこの材質を加える"
   ],
   "verification": {

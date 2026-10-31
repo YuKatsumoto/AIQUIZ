@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://dhkcddj3ji82f"
 path.s3tc="res://.godot/imported/lecture_set_props_PRP_Binders_normal.webp-466e0eb9d3e6d0241d55d617f9db3df9.s3tc.ctex"
+path.etc2="res://.godot/imported/lecture_set_props_PRP_Binders_normal.webp-466e0eb9d3e6d0241d55d617f9db3df9.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/settings_hall/lecture_set_props_PRP_Binders_normal.webp"
-dest_files=["res://.godot/imported/lecture_set_props_PRP_Binders_normal.webp-466e0eb9d3e6d0241d55d617f9db3df9.s3tc.ctex"]
+dest_files=["res://.godot/imported/lecture_set_props_PRP_Binders_normal.webp-466e0eb9d3e6d0241d55d617f9db3df9.s3tc.ctex", "res://.godot/imported/lecture_set_props_PRP_Binders_normal.webp-466e0eb9d3e6d0241d55d617f9db3df9.etc2.ctex"]
 
 [params]
 

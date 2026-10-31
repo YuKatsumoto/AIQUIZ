@@ -72,12 +72,19 @@ func _prepare_and_kill(dead_is_p1: bool, survivor_z: float) -> void:
 	preview._set_actor_local_z(survivor_is_p1, survivor_z)
 	survivor.vel_x = 0.0
 	survivor.vel_z = 0.0
-	survivor.lane_shift_active = false
-	survivor.depth_shift_active = false
-	survivor.next_action_t = INF
+	_pin(survivor, survivor_is_p1)
 	preview._clear_learning_commit(survivor)
 	var dead := preview._p1_ai if dead_is_p1 else preview._p2_ai
 	preview._trigger_preview_death("crash", dead, dead_is_p1)
+
+
+## その場に留める：AI は横・前後の両方が着くとすぐ次へ走り出すので、前後を「今の位置へ速さ 0 で向かう途中」にしておく
+func _pin(bundle: MenuPreviewActorAIState, is_p1: bool) -> void:
+	bundle.next_action_t = INF
+	bundle.lane_shift_active = false
+	bundle.depth_shift_active = true
+	bundle.depth_shift_speed = 0.0
+	bundle.target_local_z = preview._actor_local_z(is_p1)
 
 
 func _ride_until_done(dead_is_p1: bool, label: String) -> void:
@@ -101,8 +108,8 @@ func _ride_until_done(dead_is_p1: bool, label: String) -> void:
 	while preview._linger_time - start < 70.0:
 		await get_tree().process_frame
 		# 生き残る方は狙われやすいよう、ゴーストが来てからも自分では動き回らない（扉も来ない）
-		if survivor.ai_state == AIState.STATE_NORMAL:
-			survivor.next_action_t = INF
+		if survivor.ai_state == AIState.STATE_NORMAL and not survivor.is_dodging(preview._ai_time):
+			_pin(survivor, survivor_is_p1)
 		var phase := ghost.ride_phase()
 		var t := preview._linger_time - start
 		if ghost.is_riding() and not phases.has(Phase.keys()[phase]):

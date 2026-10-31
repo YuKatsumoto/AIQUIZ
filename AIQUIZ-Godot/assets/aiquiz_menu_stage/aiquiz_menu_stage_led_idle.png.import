@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://c0f4e87tha6w3"
 path.bptc="res://.godot/imported/aiquiz_menu_stage_led_idle.png-6518e4e45acaf96514a8c58e61d14701.bptc.ctex"
+path.astc="res://.godot/imported/aiquiz_menu_stage_led_idle.png-6518e4e45acaf96514a8c58e61d14701.astc.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/aiquiz_menu_stage/aiquiz_menu_stage_led_idle.png"
-dest_files=["res://.godot/imported/aiquiz_menu_stage_led_idle.png-6518e4e45acaf96514a8c58e61d14701.bptc.ctex"]
+dest_files=["res://.godot/imported/aiquiz_menu_stage_led_idle.png-6518e4e45acaf96514a8c58e61d14701.bptc.ctex", "res://.godot/imported/aiquiz_menu_stage_led_idle.png-6518e4e45acaf96514a8c58e61d14701.astc.ctex"]
 
 [params]
 

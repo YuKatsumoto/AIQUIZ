@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://blkhagjor0l2m"
 path.s3tc="res://.godot/imported/godotkun_janitor_GK_PlushAlbedo.webp-b43b4abbfcc4d33c7d6ea9663259a74f.s3tc.ctex"
+path.etc2="res://.godot/imported/godotkun_janitor_GK_PlushAlbedo.webp-b43b4abbfcc4d33c7d6ea9663259a74f.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/settings_hall/godotkun_janitor_GK_PlushAlbedo.webp"
-dest_files=["res://.godot/imported/godotkun_janitor_GK_PlushAlbedo.webp-b43b4abbfcc4d33c7d6ea9663259a74f.s3tc.ctex"]
+dest_files=["res://.godot/imported/godotkun_janitor_GK_PlushAlbedo.webp-b43b4abbfcc4d33c7d6ea9663259a74f.s3tc.ctex", "res://.godot/imported/godotkun_janitor_GK_PlushAlbedo.webp-b43b4abbfcc4d33c7d6ea9663259a74f.etc2.ctex"]
 
 [params]
 

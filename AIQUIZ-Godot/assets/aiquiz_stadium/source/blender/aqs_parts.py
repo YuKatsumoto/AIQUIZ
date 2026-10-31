@@ -77,8 +77,15 @@ def build_stand_block(kind: str):
         x1 = front[i + 1] if i < rows - 1 else walk_x0
         m.box_lohi((front[i], left, deck_top), (x1, right, tops[i]), C["riser"], top=C["step"])
         m.box_lohi((front[i], left, tops[i]), (front[i] + 0.08, right, tops[i] + 0.02), C["white"])
-    # 後方通路と背面の手すり
-    m.box_lohi((walk_x0, y0, deck_top), (back_x, y1, walk_top), C["riser"], top=C["step"])
+    # 後方通路と背面の手すり。通路を持つブロックは +Y 端の通路の脇に下り口（客の出入口）の穴をあける
+    if next_aisle:
+        hx0, hx1 = ST["stairwell"]["x"]
+        hy0, hy1 = y1 - ST["stairwell"]["from_aisle"][1], y1 - ST["stairwell"]["from_aisle"][0]
+        for lo, hi in (((walk_x0, y0), (hx0, y1)), ((hx1, y0), (back_x, y1)), ((hx0, y0), (hx1, hy0)), ((hx0, hy1), (hx1, y1))):
+            m.box_lohi((lo[0], lo[1], deck_top), (hi[0], hi[1], walk_top), C["riser"], top=C["step"])
+        build_stairwell(m, hx0, hx1, hy0, hy1, deck_top, walk_top)
+    else:
+        m.box_lohi((walk_x0, y0, deck_top), (back_x, y1, walk_top), C["riser"], top=C["step"])
     rail_top = ST["rear_walkway"]["back_rail_top_z"]
     for k in range(8):
         yy = y0 + 1.25 + k * 2.5
@@ -128,9 +135,65 @@ def build_stand_block(kind: str):
     return m, seats, next_aisle
 
 
+def build_stairwell(m: Mesh, hx0, hx1, hy0, hy1, deck_top, walk_top):
+    """後方通路の下り口（docs/crowd_sim.md）：通路側（+Y）から入り、段を下りてデッキの上面の踊り場と突き当たりの扉へ。
+    穴の壁は周りの通路の箱の面。前（-X）と奥（-Y）に手すり、背面側は背面の手すりがそのまま囲う。"""
+    sw = ST["stairwell"]
+    steps = sw["steps"]
+    run = (hy1 - hy0) - sw["landing"]
+    tread = run / steps
+    rise = (walk_top - deck_top) / (steps + 1)
+    for j in range(steps):
+        ya, yb = hy1 - (j + 1) * tread, hy1 - j * tread
+        top = walk_top - (j + 1) * rise
+        m.box_lohi((hx0, ya, deck_top), (hx1, yb, top), C["riser"], top=C["step"], faces=["top", "-y"])
+    # 突き当たりの扉（スタンドの中の通路へ）と、その上の灯
+    cx = (hx0 + hx1) / 2
+    dw, dh = sw["door_width"] / 2, sw["door_height"]
+    m.box_lohi((cx - dw, hy0, deck_top), (cx + dw, hy0 + 0.02, deck_top + dh), C["dark"], faces=["+y"])
+    m.box_lohi((cx - dw - 0.08, hy0, deck_top + dh), (cx + dw + 0.08, hy0 + 0.05, deck_top + dh + 0.08), C["cobalt"])
+    m.box_lohi((cx - dw, hy0, deck_top + dh + 0.1), (cx + dw, hy0 + 0.03, deck_top + dh + 0.16), C["warm"], "night", faces=["+y"])
+    # 手すり：前の長辺（x = hx0）と奥の短辺（y = hy0）
+    rail = walk_top + sw["rail_top_above"]
+    for a, b in (((hx0, hy0), (hx0, hy1)), ((hx0, hy0), (hx1, hy0))):
+        length = math.dist(a, b)
+        n = max(1, round(length / 1.1))
+        for k in range(n + 1):
+            px, py = a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n
+            m.box((px, py, (walk_top + rail) / 2), (0.05, 0.05, rail - walk_top), C["white"])
+        m.beam((a[0], a[1], rail), (b[0], b[1], rail), 0.06, C["cobalt"])
+        m.beam((a[0], a[1], walk_top + 0.5), (b[0], b[1], walk_top + 0.5), 0.04, C["white"])
+
+
+def build_kiosk_end(m: Mesh, sgn: float):
+    """ブースの ±Y の面（sgn）の売店の窓口：暗いガラスの窓、木のカウンター、縞のひさしと夜の灯、看板。"""
+    b, k = ST["booth"], ST["kiosk"]
+    yf = sgn * b["length_y"] / 2
+    z0 = b["base_z"]
+    wx0, wx1 = k["window_x"]
+    out = lambda d: yf + sgn * d   # noqa: E731  面から外へ d
+    m.box_lohi((wx0, yf, z0 + k["window_z"][0]), (wx1, out(0.02), z0 + k["window_z"][1]), C["glass"])
+    m.box_lohi((wx0 - 0.08, yf, z0 + k["window_z"][0] - 0.06), (wx1 + 0.08, out(0.04), z0 + k["window_z"][0]), C["white"])
+    m.box_lohi((wx0 - 0.05, yf, z0 + k["counter_z"] - 0.04), (wx1 + 0.05, out(k["counter_depth"]), z0 + k["counter_z"] + 0.04), C["wood"])
+    # ひさし：オレンジと白の縞、先に垂れ
+    stripes = 6
+    az = z0 + k["awning_z"]
+    ax0, ax1 = wx0 - 0.15, wx1 + 0.15
+    for i in range(stripes):
+        xa, xb = ax0 + (ax1 - ax0) * i / stripes, ax0 + (ax1 - ax0) * (i + 1) / stripes
+        col = C["orange"] if i % 2 == 0 else C["white"]
+        m.box_lohi((xa, yf, az), (xb, out(k["awning_depth"]), az + 0.05), col)
+        m.box_lohi((xa, out(k["awning_depth"] - 0.03), az - 0.14), (xb, out(k["awning_depth"]), az), col)
+    m.box_lohi((wx0, out(0.05), az - 0.03), (wx1, out(0.09), az), C["warm"], "night", faces=["bottom"])
+    # 看板：コバルトの板に夜に灯る面
+    sz0, sz1 = k["sign_z"]
+    m.box_lohi((wx0 + 0.1, yf, z0 + sz0), (wx1 - 0.1, out(0.05), z0 + sz1), C["cobalt"])
+    m.box_lohi((wx0 + 0.18, out(0.05), z0 + sz0 + 0.06), (wx1 - 0.18, out(0.065), z0 + sz1 - 0.06), C["lantern"], "night")
+
+
 def build_booth(m: Mesh):
     """ブース（丸みのある箱と帯）。2026-09-28 のユーザー指示で、帆・マスト・ヤード・シュラウドと「?」の画面は作らない
-    （帆は aqs_sails で書き出しは続くが、ゲームでは置かない）。"""
+    （帆は aqs_sails で書き出しは続くが、ゲームでは置かない）。両端は売店の窓口（docs/crowd_sim.md）。"""
     b = ST["booth"]
     bx0, bx1 = b["x"]
     hy = b["length_y"] / 2
@@ -141,6 +204,8 @@ def build_booth(m: Mesh):
     m.extrude_poly(band, z1, z1 + 0.12, C["cobalt"], bottom=True)
     cap = rounded_rect(bx0 + 0.1, -hy + 0.1, bx1 - 0.1, hy - 0.1, b["corner_radius"] - 0.08, seg=4)
     m.extrude_poly(cap, z1 + 0.12, z1 + 0.24, shade(C["white"], 1.02), bottom=False)
+    for sgn in (-1.0, 1.0):
+        build_kiosk_end(m, sgn)
 
 
 def build_cap_end(m: Mesh, kind, front, tops, walk_x0, back_x, walk_top, deck_top, y0, y1):

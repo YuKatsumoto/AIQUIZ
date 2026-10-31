@@ -332,6 +332,11 @@ func venue_camera() -> Dictionary:
 	return _camera
 
 
+## スマホのタップの層（監督が見る）：ルールカードが出て、閉じるのを待っている間。
+func rules_waiting() -> bool:
+	return _phase == "rules"
+
+
 func confirm_rules() -> bool:
 	if _phase != "rules" or _t - _rules_at < RULE_HOLD:
 		return false

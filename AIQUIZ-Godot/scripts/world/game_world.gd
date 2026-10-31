@@ -5,10 +5,17 @@ const ResultCeremonyDirectorScript = preload("res://scripts/world/result_ceremon
 const TutorialPresentationDirectorScript = preload("res://scripts/world/tutorial_presentation_director.gd")
 const DuoTutorialGuidesScript = preload("res://scripts/world/duo_tutorial_guides.gd")
 const SoloTutorialGuidesScript = preload("res://scripts/world/solo_tutorial_guides.gd")
+const CountdownKeyHintsScript = preload("res://scripts/world/countdown_key_hints.gd")
 const HelicopterArrivalDirectorScript = preload("res://scripts/world/helicopter_arrival_director.gd")
 const GrandstandCrowdScript = preload("res://scripts/world/grandstand_crowd.gd")
 const AiquizStadiumMaterials = preload("res://scripts/world/aiquiz_stadium/aiquiz_stadium_materials.gd")
 const AIQUIZ_GOAL_GATE_SCENE: PackedScene = preload("res://assets/aiquiz_stadium/aiquiz_stadium_goal_gate.glb")
+const QualityRules = preload("res://scripts/core/graphics_quality.gd")
+const MobileUi = preload("res://scripts/core/mobile_ui.gd")
+const Haptics = preload("res://scripts/core/haptics.gd")
+## スマホ：アプリが裏から戻った最初のフレームなどの長い dt を、シミュレーションへ渡す前にこれで切る
+## （壁・ノコギリ・サメが一気に進まないように）。オンラインはロックステップの時計を変えないので切らない。
+const MOBILE_MAX_FRAME_DT := 0.1
 
 ## 3Dゲームワールド管理
 ## Python版 renderer.py の _draw_world + main_3d.py の入力処理に相当
@@ -32,8 +39,6 @@ const ONLINE_QUIZ_START_TIMEOUT := 6.0
 const ONLINE_REVEAL_LEAD_MS := 250.0
 ## オンラインのゲスト：2 人とも脱落したあと、暗転の下でホストの結果発表（result_begin）を待つ長さ。
 const ELIMINATION_RESULT_WAIT_MS := 6000
-## チュートリアルのクリア画面は、この秒数を見せた後なら Enter で次へ進められる。
-const TUTORIAL_CLEAR_MIN_SECONDS := 1.0
 var _online_start_wait := 0.0
 var _online_ready_sent := false
 var quiz_wall_scene: PackedScene
@@ -60,6 +65,15 @@ var _result_ceremony_director: Node3D = null
 var _elimination_transition_running := false
 var _tutorial_presentation_director: Node = null
 var _tutorial_world_guides: Node3D = null
+## 両者脱落のあと、雲に乗ったハテナが投げ縄で 2 人の魂をゴールへ運ぶ演出（暗転の代わり）。
+var _elimination_lasso: EliminationLassoDirector = null
+## 投げ縄の演出がコースを流しているあいだ（2 人を運ぶ雲の下を、出ていた壁が流れる）：壁は後ろの端で砕かずに消える
+## （結果発表が始まるまで）。
+var _elimination_flyover := false
+## コースを流し始めたときの world_scroll_z（チップソーを、流した分だけ後ろへ下げる）
+var _elimination_flyover_from := 0.0
+## 本編のカウントダウン中に頭上へうっすら出す操作キー（リプレイでは作らない）。
+var _countdown_key_hints: Node3D = null
 var _helicopter_arrival_director: Node = null
 var _tutorial_customize_handoff_in_progress: bool = false
 var _active_walls: Array[Node3D] = []
@@ -96,6 +110,8 @@ var _crowd_goal_mask: int = 0  # 観客がゴールの歓声をあげ終えた�
 ## 観客の合図（カウントダウン・スタート・失敗・HP・ノコギリやサメ・ウェーブ・応援・勝者のダンス）。
 ## ゴール観客席と左右のスタンドが毎フレーム読む（docs/crowd_extras.md）。
 var _crowd_cues := CrowdCues.new()
+## 左右のスタンドの客の気分（見どころ・応援の手応え）。客の出入りを決める（docs/crowd_sim.md）。
+var _crowd_mood := CrowdMood.new()
 var _crowd_shark_mask: int = 0
 const MAX_VISIBLE_WALLS := preload("res://scripts/core/game_state.gd").MAX_VISIBLE_WALLS
 const PREVIEW_WALLS_PER_FRAME := 1
@@ -127,6 +143,72 @@ var _recorder: ReplayRecorder = null
 var _replay_mode: bool = false
 ## Match record and highlight clips for the LED programme on the goal stand scoreboard (MatchReel).
 var _match_reel: MatchReel = null
+## 練習の台本を進める監督（docs/new_tutorial/foundation_design.md 7章）。まだ作られていないこともあるので、
+## スクリプトがあるときだけ読み込む。
+const PRACTICE_DIRECTOR_PATH := "res://scripts/practice/practice_director.gd"
+## 練習のモードのときだけ入る（PracticeDirector）。ほかのモードでは null。
+var practice_director: Node = null
+## 練習：ポーズ画面を開いた・閉じた（_toggle_pause。『タイトルに戻る』でメニューへ行くときは出さない）。
+signal practice_pause_changed(paused: bool)
+## 練習：リザルトのカードで &"rated"（「◯ 良い」「× 悪い」）・&"history_opened"・&"history_closed"（HUD から中継）。
+signal practice_result_action(action: StringName)
+## 練習のオンラインの見せ方（game_state.is_practice_online_look。コース④の 4-6）：Esc の「たいせんを やめますか？」を開いた・閉じた。
+signal practice_quit_confirm_changed(open: bool)
+## 画面のコーチが光らせる部品の名前（practice_coach_target）。result_ と history_ は HUD が返す。
+## quit_ は練習のオンラインの見せ方の「たいせんを やめますか？」（［つづける］・［やめる］）。
+const PRACTICE_COACH_TARGETS: Array[StringName] = [
+	&"pause_panel", &"pause_bgm", &"pause_sfx", &"pause_resume", &"pause_skip", &"pause_title",
+	&"result_card", &"result_score", &"result_stats", &"result_explain", &"result_rate",
+	&"result_history", &"result_retry", &"result_menu", &"history_back",
+	&"quit_continue", &"quit_leave",
+]
+## 練習のオンラインの見せ方で出す、本番と同じ「たいせんを やめますか？」（通信はしない）。ほかのときは null。
+var _practice_net_overlay: NetOverlay = null
+## ポーズ画面の部品（コーチが光らせる）。
+var _pause_column: Control = null
+var _pause_bgm_group: Control = null
+var _pause_sfx_group: Control = null
+var _pause_resume_button: Control = null
+var _pause_skip_button: Control = null
+var _pause_title_button: Control = null
+## 本番と同じ始まり方（WAITING_START → 空撮 → カウントダウン）を通った練習の回。その回の壁は空から落とさない
+## （開始の前の壁は本番どおり _update_preview_walls が落とし、カウントダウンの間にバリアの後ろへそのまま出る）。
+var _practice_real_start_round := -1
+## 壁を作った練習の回（QuizGameState.practice_round_serial）。回が変わったら壁を作り直す。
+var _practice_round_seen := -1
+## 壁の見た目を合わせた問題の差し替え（QuizGameState.practice_quizzes_serial）。変わったら選択肢の数とボスを作り直す。
+var _practice_quizzes_seen := -1
+## 練習で空から落ちている壁の印（壁のメタ。{"timer", "phase"}。phase 1 = 落ちる、2 = 着地の揺れ戻し）。
+const PRACTICE_DROP_META := &"practice_drop"
+## 練習の壁の着地の揺れ（本番の空撮より小さく）：揺れ = 距離に反比例、上限 PRACTICE_WALL_SHAKE_MAX。
+const PRACTICE_WALL_SHAKE_DISTANCE := 9.0
+const PRACTICE_WALL_SHAKE_MAX := 0.45
+## 練習の壁の着地の土ぼこり（壁ごとに1つ使う。何枚か続けて着地しても前のを消さない）。
+const PRACTICE_WALL_DUST_POOL := 3
+var _practice_wall_dust: Array[CPUParticles3D] = []
+var _practice_wall_dust_cursor := 0
+## 練習の実演のサメ（practice_shark_approach）。ほかのプレイヤーの番号と重ならない 0 番で襲う（かみつく前に止める）。
+const PRACTICE_SHARK_PLAYER := 0
+## 遠いときの速さ、近いときの速さ（m/s）と、近いとみなす距離（着く点から。本編の CHARGE_DISTANCE と同じ）。
+const PRACTICE_SHARK_FAST_SPEED := 28.0
+const PRACTICE_SHARK_NEAR_SPEED := 9.0
+const PRACTICE_SHARK_NEAR_DISTANCE := 24.0
+## かみつきの始まり（bite_distance + 速さ × 0.4 秒）より、これだけ手前で止める。
+const PRACTICE_SHARK_HOLD_MARGIN := 3.0
+## これより遠いサメは、着く点の先の水の中から出す（遠くの回遊から来ると間に合わない）。床と観客席の間の海を
+## まっすぐ泳いで来るように、横（x）にはずらさず前（+z）の深い所から出す（横から来ると観客席の柱に隠れる）。
+const PRACTICE_SHARK_START_OFFSET := Vector3(0.0, -3.0, 26.0)
+const PRACTICE_SHARK_TELEPORT_DISTANCE := 6.0
+## うろうろする輪の大きさ・速さと、止まるときの加速度。
+const PRACTICE_SHARK_LOITER_RADIUS := Vector2(1.8, 2.6)
+const PRACTICE_SHARK_LOITER_SPEED := 1.4
+const PRACTICE_SHARK_LOITER_ACCELERATION := 22.0
+var _practice_shark: SharkSwimmer = null
+## 練習：審判のハテナを隠している（practice_set_goal_referee_hidden）。
+var _practice_referee_hidden := false
+## 0 = なし、1 = 近づく、2 = その場でうろうろ
+var _practice_shark_phase := 0
+var _practice_shark_saved: Dictionary = {}
 var _saw_controller: Node3D
 ## Local 2P sudden death: helicopters and a game (docs/sudden_death_v2/). The underground
 ## director (SuddenDeathDirector, docs/sudden_death_underground.md) is kept but no longer used.
@@ -147,6 +229,12 @@ var _push_active_last := false
 ## P2のジャンプ／ゴーストシャークのチャージは右Ctrl専用。Godotのキー状態は左右を区別しないため、
 ## キーイベントのlocationで右Ctrlの押下を追跡する。
 var _right_ctrl_down := false
+## 振動（Haptics）の切り替わりを見る前のフレームの生死（P1, P2）。
+var _haptic_prev_alive: Array[bool] = [true, true]
+## 最後に HIT を返した時刻（ミリ秒。P1, P2）。壁の激突と、その直後の脱落で2回震えないように。
+var _haptic_hit_msec: Array[int] = [-100000, -100000]
+## 壁の激突から脱落までの間（この間の2回目の HIT は出さない）。
+const HAPTIC_HIT_MERGE_MSEC := 600
 
 func _is_right_ctrl_pressed() -> bool:
 	return _right_ctrl_down and Input.is_key_pressed(KEY_CTRL)
@@ -168,8 +256,13 @@ func _push_key_masks() -> Array:
 		masks[game_state.local_slot - 1] = _online_push_mask()
 		masks[game_state.remote_slot() - 1] = _net_state.remote_push_mask
 		return masks
-	return [(1 if Input.is_key_pressed(KEY_A) else 0) | (2 if Input.is_key_pressed(KEY_D) else 0),
-		(1 if Input.is_key_pressed(KEY_LEFT) else 0) | (2 if Input.is_key_pressed(KEY_RIGHT) else 0)]
+	# 練習の CPU（practice_p2_cpu）は、P2 の矢印の代わりに CPU の押しているキー。
+	var p2_mask: int = game_state.practice_cpu_push_mask() if game_state.practice_cpu_active() else \
+		(1 if Input.is_key_pressed(KEY_LEFT) else 0) | (2 if Input.is_key_pressed(KEY_RIGHT) else 0)
+	if game_state.is_practice_online_look():
+		# 練習のオンラインの見せ方：自分（P1）は WASD と矢印の合成（オンラインと同じ）
+		return [_online_push_mask(), p2_mask]
+	return [(1 if Input.is_key_pressed(KEY_A) else 0) | (2 if Input.is_key_pressed(KEY_D) else 0), p2_mask]
 
 
 func _online_push_mask() -> int:
@@ -180,13 +273,6 @@ func _input(event: InputEvent) -> void:
 		_right_ctrl_down = event.pressed
 	if not event is InputEventKey or event.echo or game_state == null:
 		return
-	# 2PのジャンプはP2が右Ctrlだけ。左Ctrlを押したときだけ、その場で短く教える。
-	if (
-		event.pressed
-		and (event.keycode == KEY_CTRL or event.physical_keycode == KEY_CTRL)
-		and event.location == KEY_LOCATION_LEFT
-	):
-		game_state.hint_tutorial_left_ctrl()
 	if game_state.is_tutorial_score_pause_active():
 		# 2Pチュートリアルの得点説明。Enter／Space／右Ctrlで勝敗発表へ進む。
 		# 最短表示時間の前に押されたキーも飲み込み、ほかの操作へ流さない。
@@ -215,6 +301,12 @@ func _input(event: InputEvent) -> void:
 		# オンラインは WASD と矢印のどちらでも自分（local_slot）を動かすので、押し合いも同じ。
 		var me := game_state.local_slot
 		mapping = {KEY_A: [me, 1], KEY_LEFT: [me, 1], KEY_D: [me, -1], KEY_RIGHT: [me, -1]}
+	elif game_state.practice_cpu_active():
+		# 練習の CPU：P2 の押し合いのキーは game_state が CPU の入力から渡す（矢印は使わない）。
+		mapping = {KEY_A: [1, 1], KEY_D: [1, -1]}
+		if game_state.is_practice_online_look():
+			# 練習のオンラインの見せ方：矢印でも自分（P1）が押す（オンラインと同じ）
+			mapping = {KEY_A: [1, 1], KEY_LEFT: [1, 1], KEY_D: [1, -1], KEY_RIGHT: [1, -1]}
 	if mapping.has(key):
 		_push_key_events.append({"player": mapping[key][0], "direction": mapping[key][1],
 			"pressed": event.pressed, "usec": Time.get_ticks_usec()})
@@ -296,6 +388,8 @@ func _update_crowd_reactions() -> void:
 
 
 func _exit_tree() -> void:
+	# タッチ操作は試合の外では出さない（押したままのキーも離す）。
+	TouchControls.detach_game_world(self)
 	# どの経路でゲーム画面を出ても、プレイ曲と観客の声は残さない。
 	_stop_countdown_rumble()
 	AudioManager.set_music_track(AudioManager.MUSIC_TRACK_MENU)
@@ -332,6 +426,8 @@ func _on_local_push_event(event: Dictionary) -> void:
 	# A push that lands, or both pushing at once (docs/sound_effects.md).
 	if event.kind in ["hit", "clash"]:
 		AudioManager.play_sfx(&"push_kick")
+		if not _replay_mode:
+			Haptics.pulse(Haptics.BUMP)
 
 func _on_window_size_changed() -> void:
 	GraphicsQuality.apply_text_viewport(get_viewport(), GameManager.graphics_quality)
@@ -361,6 +457,11 @@ func _ready() -> void:
 	game_state.health_changed.connect(_on_crowd_health_changed)
 	game_state.player_caught_by_saw.connect(_on_crowd_saw_catch)
 	game_state.question_winner_decided.connect(_on_crowd_question_decided)
+	# 練習だけが出す合図（本編では出ない）。
+	game_state.practice_player_reset.connect(_on_practice_player_reset)
+	game_state.practice_wall_drop_requested.connect(_on_practice_wall_drop_requested)
+	game_state.practice_ghost_requested.connect(_on_practice_ghost_requested)
+	game_state.practice_ghost_skip_requested.connect(practice_skip_ghost_intro)
 	# 勝者のダンスを観客が一緒に踊れるよう、両プレイヤーのエモートを先に焼いておく。
 	GrandstandCrowdScript.prepare_dances(game_state.get_result_winner_emote(1), game_state.get_result_winner_emote(2))
 
@@ -381,10 +482,18 @@ func _ready() -> void:
 		_net_overlay.setup(_net_state)
 		_net_overlay.quit_requested.connect(_leave_online_match)
 		_net_state.shark_impact.connect(_play_shark_impact)
+	elif game_state.is_practice_online_look():
+		# 練習のオンラインの見せ方：Esc で本番と同じ「たいせんを やめますか？」（ゲームは止めない。［やめる］は押せない）
+		_practice_net_overlay = NetOverlay.new()
+		_practice_net_overlay.name = "PracticeNetOverlay"
+		add_child(_practice_net_overlay)
+		_practice_net_overlay.setup_practice()
+		_practice_net_overlay.confirm_changed.connect(func(open: bool) -> void: practice_quit_confirm_changed.emit(open))
 	# ゴール掲示板の LED 番組（ハイライトと戦績）のための記録。テストのハーネス（スクリプトの
 	# SceneTree）は保存先を差し替えたときだけ記録し、プレイヤーの戦績に書かない。
 	var harness := get_tree().get_script() != null and MatchHistory.path_override.is_empty()
-	if not _replay_mode and not harness and game_state.mode != Constants.MODE_TUTORIAL:
+	# 練習は戦績にもハイライトにも入れない。
+	if not _replay_mode and not harness and not _is_practice() and game_state.mode != Constants.MODE_TUTORIAL:
 		_match_reel = MatchReel.new()
 		add_child(_match_reel)
 		_match_reel.setup(game_state, GameManager.graphics_quality, _net_state.is_online, NetworkManager.is_host)
@@ -407,7 +516,8 @@ func _ready() -> void:
 	# helicopter. Online, each screen plays its own arrival after the synced reveal and
 	# the start waits until both players have landed (_update_online_start). Replays keep
 	# their own presentation. Retry skips the drop so players spawn on the belt immediately.
-	var skip_helicopter_arrival := game_state.consume_skip_start_helicopter_arrival()
+	# 練習もヘリで着かず、最初から床の上に立つ（リトライと同じ扱い）。
+	var skip_helicopter_arrival := game_state.consume_skip_start_helicopter_arrival() or _is_practice()
 	var chair_arriving := SeatLaunchPresentation.consume_handoff(game_state, _net_state.is_online, skip_helicopter_arrival)
 	if game_state.uses_saw_chase() and not _replay_mode:
 		_saw_controller.configure_entrance(false, not skip_helicopter_arrival)
@@ -428,7 +538,10 @@ func _ready() -> void:
 			skip_pc.reveal_without_intro_arrival()
 
 	# Setup shared stage (environment / lighting / floor / conveyor / ocean)
-	stage_env.build(stage_env.gameplay_build_config())
+	var stage_config: Dictionary = stage_env.gameplay_build_config()
+	# 左右のスタンドの客は経営シムのように出入りする（docs/crowd_sim.md）。練習では動かさない（_update_crowd）。
+	stage_config["crowd_sim"] = true
+	stage_env.build(stage_config)
 	_setup_ocean_shark_signals()
 	_ghost_shark_ride_controller = GhostSharkRideControllerScript.new()
 	_ghost_shark_ride_controller.name = "GhostSharkRideController"
@@ -457,6 +570,11 @@ func _ready() -> void:
 		camera_controller,
 		_ghost_shark_ride_controller as GhostSharkRideController
 	)
+	if not _replay_mode:
+		_elimination_lasso = EliminationLassoDirector.new()
+		add_child(_elimination_lasso)
+		_elimination_lasso.setup(game_state, self, player_node as PlayerController, camera_controller)
+		(_result_ceremony_director as ResultCeremonyDirector).soul_source = _elimination_lasso
 	_sudden_death_director = HeliSuddenDeathDirector.new()
 	add_child(_sudden_death_director)
 	_sudden_death_director.setup(game_state, camera_controller, _result_ceremony_director as ResultCeremonyDirector,
@@ -478,12 +596,526 @@ func _ready() -> void:
 		_tutorial_world_guides.name = "SoloTutorialGuides"
 	add_child(_tutorial_world_guides)
 	_tutorial_world_guides.setup(game_state)
+	if not _replay_mode and not game_state.is_solo_tutorial() and not game_state.is_duo_tutorial():
+		_countdown_key_hints = CountdownKeyHintsScript.new()
+		_countdown_key_hints.name = "CountdownKeyHints"
+		add_child(_countdown_key_hints)
+		# オンライン（と練習のオンラインの見せ方）は自分のキーだけ
+		var online_keys := _net_state.is_online or game_state.is_practice_online_look()
+		_countdown_key_hints.setup(game_state, game_state.local_slot if online_keys else 0)
 	_warm_merge_effect_pool()
 
 	# Pause menu setup
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_build_pause_menu()
+	# スマホのタッチ操作（TouchControls）：touch_context() を毎フレーム読んで出すものを決める。リプレイでは出さない。
+	if not _replay_mode:
+		TouchControls.attach_game_world(self)
+	if _is_practice():
+		var gameplay_hud := get_node_or_null("GameplayHUD")
+		if gameplay_hud != null and gameplay_hud.has_signal("practice_result_action"):
+			gameplay_hud.connect("practice_result_action", func(action: StringName) -> void: practice_result_action.emit(action))
+		if game_state.num_players >= 2 and not _replay_mode:
+			# 2人の練習（コース③）は途中でのこぎりを出すので、出たときに止まらないよう覆いの下で読み込んでおく。
+			_saw_controller.preload_model()
+		_setup_practice_director()
 	call_deferred("_reveal_after_transition")
+
+
+## 練習のモード（メニューのコース選択から入る。ルールは game_state.practice_rules）。
+func _is_practice() -> bool:
+	return game_state != null and game_state.mode == Constants.MODE_PRACTICE
+
+
+## 練習で、GAME OVER と CLEAR を本番どおりの画面で見せるルール（MatchRules.real_result_screens）。
+func _practice_real_results() -> bool:
+	return _is_practice() and game_state.practice_rules != null and game_state.practice_rules.real_result_screens
+
+
+## 練習の監督（PracticeDirector）を作って子にし、setup で台本を始めてもらう（start_practice_round は監督が呼ぶ）。
+## 監督のスクリプトが無い・読み込めないときは、止まったコンベアの上に立つだけの練習で始める
+## （ポーズ画面の「タイトルに戻る」でメニューへ戻れる）。
+func _setup_practice_director() -> void:
+	var director_script: Script = null
+	if ResourceLoader.exists(PRACTICE_DIRECTOR_PATH):
+		director_script = load(PRACTICE_DIRECTOR_PATH) as Script
+	if director_script != null and director_script.can_instantiate():
+		practice_director = director_script.new() as Node
+	if practice_director == null:
+		push_warning("PracticeDirector is not available (%s); starting an empty practice round" % PRACTICE_DIRECTOR_PATH)
+		var rules := MatchRules.new()
+		rules.world_speed = 0.0
+		game_state.start_practice_round([], game_state.num_players, rules)
+		return
+	practice_director.name = "PracticeDirector"
+	# ゲーム画面は PROCESS_MODE_ALWAYS なので、監督はポーズ中に止める（ポーズ中も動かす表示は、監督の側で ALWAYS にする）。
+	practice_director.process_mode = Node.PROCESS_MODE_PAUSABLE
+	add_child(practice_director)
+	if practice_director.has_method("setup"):
+		practice_director.setup(game_state, self, camera_controller, player_node, stage_env)
+	else:
+		push_warning("PracticeDirector has no setup()")
+
+
+# ---------- 練習の道具（docs/new_tutorial/phase4_design.md 2.2〜2.6。監督が d.world から呼ぶ） ----------
+
+## その番号（current_wall_index と同じ数え方）の壁のノード。なければ null。
+## 壁は問題を入れた次のフレームに作られ、回のやり直し（start_practice_round）で作り直される。
+func practice_wall_node(wall_index: int) -> Node3D:
+	for wall: Node3D in _active_walls:
+		if is_instance_valid(wall) and not wall.is_queued_for_deletion() and int(wall.get_meta("wall_index", -1)) == wall_index:
+			return wall
+	return null
+
+
+## クリア：本番のクリアの花火と観客の歓声。
+func practice_celebrate() -> void:
+	if particle_spawner.has_method("spawn_fireworks"):
+		particle_spawner.spawn_fireworks(Vector3(0.0, 0.0, game_state.player_local_z + 18.0))
+	AudioManager.play_sfx(&"crowd_goal_cheer")
+	_crowd_cues.on_celebrate()
+
+
+## クリア：観客のウェーブを起こす（ウェーブの途中なら何もしない）。
+func practice_crowd_wave() -> void:
+	_crowd_cues.start_wave()
+
+
+## 遊ぶときのカメラのまま、point（ゲーム画面の座標）のほうへ seconds かけてなめらかに向ける（少し右を向く程度）。
+func practice_camera_look(point: Vector3, seconds: float) -> void:
+	if camera_controller != null and camera_controller.has_method("practice_look"):
+		camera_controller.practice_look(point, seconds)
+
+
+## 遊ぶときのカメラから、目 eye・注視点 target（ゲーム画面の座標。カメラそのものの位置で、床の上面は y = −1.2）へ
+## seconds かけてなめらかに移り、そこで止まる。海に落ちた所など、いつもの目の高さから床の土台に隠れる所を映す。
+## practice_camera_release で、いつものカメラへなめらかに戻る。
+func practice_camera_frame(eye: Vector3, target: Vector3, seconds: float) -> void:
+	if camera_controller != null and camera_controller.has_method("practice_frame"):
+		camera_controller.practice_frame(eye, target, seconds)
+
+
+## practice_camera_look の向きと practice_camera_frame の画を、seconds かけていつもの遊ぶときのカメラへ戻す。
+func practice_camera_release(seconds: float) -> void:
+	if camera_controller != null and camera_controller.has_method("practice_release"):
+		camera_controller.practice_release(seconds)
+
+
+## 少し高い所から舞台全体を見せ、seconds かけてプレイヤーの後ろ（いつもの位置）へ下りる。
+func practice_camera_intro(seconds := 2.0) -> void:
+	if camera_controller != null and camera_controller.has_method("practice_intro"):
+		camera_controller.practice_intro(seconds)
+
+
+## 海に落ちたときの水しぶき（本編の spawn_ocean_splash）と音。高さは海面にそろえる。近くの観客が息をのむ。
+func practice_splash(point: Vector3) -> void:
+	var at := Vector3(point.x, StageConstants.OCEAN_SURFACE_Y, point.z)
+	if particle_spawner.has_method("spawn_ocean_splash"):
+		particle_spawner.spawn_ocean_splash(at)
+	AudioManager.play_sfx(&"sg_float_splash")
+	_crowd_cues.on_shock(at.z)
+
+
+## ハートの登場（1-5）：ハートがポンと出て光り、そのあと1つずつ順に光る（約2秒）。
+## ハートが出ている間（game_state.uses_hp()）だけ見える。1人のときの表示だけ（2人のカードは今は光らない）。
+func practice_hearts_intro(player_index := 1) -> void:
+	var gameplay_hud := get_node_or_null("GameplayHUD")
+	if gameplay_hud != null and gameplay_hud.has_method("practice_hearts_intro"):
+		gameplay_hud.practice_hearts_intro(player_index)
+
+
+# ---------- 練習の道具：2人対戦（docs/new_tutorial/phase6_design.md 2章。監督が d.world から呼ぶ） ----------
+
+## game_state.practice_make_ghost と同じ（ゲーム画面から呼んでもよい）。
+func practice_make_ghost(player_index: int, skip_intro := false) -> void:
+	game_state.practice_make_ghost(player_index, skip_intro)
+
+
+## いま出ているゴーストシャークの脱落〜光の柱の演出を飛ばし、サメに乗って海から上がるところへ進める。
+## 飛ばしたら true（演出の途中でなければ false）。game_state.practice_skip_ghost_intro からも来る。
+func practice_skip_ghost_intro() -> bool:
+	if _ghost_shark_ride_controller == null or not _is_practice():
+		return false
+	var rider: int = _ghost_shark_ride_controller.dead_player_index
+	if not _ghost_shark_ride_controller.practice_skip_intro():
+		return false
+	# 脱落を映していた右下の小窓も閉じる（飛ばしたあとは本画面でサメが上がってくる）。
+	var death_wipe := get_node_or_null("DeathWipeLayer/DeathWipe")
+	if death_wipe != null and death_wipe.has_method("practice_reset"):
+		death_wipe.practice_reset(rider)
+	return true
+
+
+## game_state.practice_make_ghost：アウトにした人を、本番の脱落の演出からゴーストシャークに乗せる。
+func _on_practice_ghost_requested(player_index: int, skip_intro: bool) -> void:
+	if _ghost_shark_ride_controller == null:
+		return
+	if not _ghost_shark_ride_controller.begin_for_dead_player(player_index):
+		push_warning("practice_make_ghost: the ghost ride for P%d did not start (ghost_ride_enabled and the other player standing?)" % player_index)
+		return
+	if skip_intro:
+		practice_skip_ghost_intro()
+
+
+## のこぎりの操縦席のハテナの頭の上（ゲーム画面の座標。吹き出しの付け根や、案内役のハテナが雲で移る先）。
+## のこぎりが見えていなければ Vector3.INF。
+func practice_saw_operator_point() -> Vector3:
+	if _saw_controller == null or not _saw_controller.visible or _saw_controller.operator_seat == null:
+		return Vector3.INF
+	var bounds: AABB = _saw_controller.operator_seat_bounds()
+	if bounds.size == Vector3.ZERO:
+		return Vector3.INF
+	return to_local(bounds.get_center() + Vector3(0.0, bounds.size.y * 0.5, 0.0))
+
+
+## のこぎりの操縦席のハテナを隠す・出す（案内役のハテナが雲で席へ移る・席から出るとき。見た目だけ）。
+func practice_set_saw_operator_hidden(hidden: bool) -> void:
+	if _saw_controller != null:
+		_saw_controller.set_operator_hidden(hidden)
+
+
+## 審判のハテナの頭の上（ゲーム画面の座標）：ゴールの後ろで待つ審判、スコアタワーの演出の間は演出の審判。
+## いなければ（MatchRules.finish_with_goal でない・ゴールが出ていない）Vector3.INF。
+func practice_goal_referee_point() -> Vector3:
+	var referee: Node3D = null
+	if game_state.result_presentation_active and _result_ceremony_director != null:
+		var finale_stage: ResultFinaleStage = (_result_ceremony_director as ResultCeremonyDirector).stage()
+		referee = finale_stage.referee_node() if finale_stage != null else null
+	if referee == null and is_instance_valid(_goal_waiting_referee):
+		referee = _goal_waiting_referee
+	if referee == null:
+		return Vector3.INF
+	var body := referee.find_child(MascotDresser.BODY_NAME, true, false) as MeshInstance3D
+	if body == null:
+		return to_local(referee.global_position + Vector3.UP * 2.2)
+	var bounds := body.global_transform * body.get_aabb()
+	return to_local(bounds.get_center() + Vector3(0.0, bounds.size.y * 0.5, 0.0))
+
+
+## 審判のハテナ（ゴールで待つ審判とスコアタワーの演出の審判）を隠す・出す（案内役のハテナが雲で審判の所へ移るとき。見た目だけ）。
+func practice_set_goal_referee_hidden(hidden: bool) -> void:
+	var was_hidden := _practice_referee_hidden
+	_practice_referee_hidden = hidden
+	if was_hidden and not hidden:
+		_set_finale_referee_visible(true)
+	_apply_practice_referee_hidden()
+
+
+## 隠しているあいだ、毎フレーム隠し直す（スコアタワーの舞台は演出の始めに審判ごと作り直す）。待つ審判は _update_goal_line が見る。
+func _apply_practice_referee_hidden() -> void:
+	if not _practice_referee_hidden:
+		return
+	if is_instance_valid(_goal_waiting_referee):
+		_goal_waiting_referee.visible = false
+	_set_finale_referee_visible(false)
+
+
+func _set_finale_referee_visible(shown: bool) -> void:
+	if _result_ceremony_director == null:
+		return
+	var finale_stage: ResultFinaleStage = (_result_ceremony_director as ResultCeremonyDirector).stage()
+	var referee := finale_stage.referee_node() if finale_stage != null else null
+	if referee != null:
+		referee.visible = shown
+
+
+## 下のカード（2人のとき）を一度光らせる（例：P2 が参加した）。player_index は 1・2。
+func practice_card_shine(player_index: int) -> void:
+	var health := get_node_or_null("GameplayHUD/PlayerHealthHUD")
+	if health != null and health.has_method("practice_card_shine"):
+		health.practice_card_shine(player_index)
+
+
+## 画面のコーチが光らせる本物の部品（docs/new_tutorial/phase5_design.md 3.4）。なければ null。
+## ポーズ画面の部品はゲーム画面ができたときからあり（ポーズ中だけ見える）、リザルトのカードの部品はカードが出てから
+## （practice_result_card_visible）。カードの中身は、解説が届く・CLEAR と GAME OVER が変わるなど中身が変わったときだけ
+## 作り直す（そのとき前の部品は消えるので、もう一度呼ぶ）。
+func practice_coach_target(id: StringName) -> Control:
+	var target: Control = null
+	match id:
+		&"pause_panel":
+			target = _pause_column
+		&"pause_bgm":
+			target = _pause_bgm_group
+		&"pause_sfx":
+			target = _pause_sfx_group
+		&"pause_resume":
+			target = _pause_resume_button
+		&"pause_skip":
+			target = _pause_skip_button
+		&"pause_title":
+			target = _pause_title_button
+		&"quit_continue":
+			target = _practice_net_overlay.continue_button() if _practice_net_overlay != null and _practice_net_overlay.is_confirm_open() else null
+		&"quit_leave":
+			target = _practice_net_overlay.quit_button() if _practice_net_overlay != null and _practice_net_overlay.is_confirm_open() else null
+		_:
+			if id not in PRACTICE_COACH_TARGETS:
+				push_warning("practice_coach_target: unknown id %s" % id)
+				return null
+			var gameplay_hud := get_node_or_null("GameplayHUD")
+			if gameplay_hud != null and gameplay_hud.has_method("practice_coach_target"):
+				target = gameplay_hud.practice_coach_target(id)
+	if target == null or not is_instance_valid(target) or target.is_queued_for_deletion() or not target.is_inside_tree():
+		return null
+	return target
+
+
+## 本番と同じ始まり方（WAITING_START）で、開始の前の壁とバリアが着地し、Enter で始められるか（台本の「壁がそろう」）。
+func practice_start_ready() -> bool:
+	return _is_practice() and _can_trigger_start()
+
+
+## 練習のオンラインの見せ方で、「たいせんを やめますか？」が出ているか。
+func practice_quit_confirm_open() -> bool:
+	return _practice_net_overlay != null and _practice_net_overlay.is_confirm_open()
+
+
+## リザルトのカード（CLEAR・GAME OVER）が出ているか。GAME OVER は死ぬ演出のあと約4秒でフェードして出る（出しきったら true）。
+## 問題履歴を開いている間は false。
+func practice_result_card_visible() -> bool:
+	var gameplay_hud := get_node_or_null("GameplayHUD")
+	return gameplay_hud != null and gameplay_hud.has_method("practice_result_card_visible") \
+		and bool(gameplay_hud.practice_result_card_visible())
+
+
+## 実演：海のサメを1匹、target（海面の点）へ向かって泳がせる。ひれが見える。かみつかない（近くまで来たら、その場で
+## うろうろする）。返り値はそのサメ（いなければ null）。practice_shark_cancel で海の中へ帰す。
+## 遠くを泳いでいるサメは、着く点の少し外の水の中から出す。本当に海に落ちた人を襲いに行ったら、そちらに任せて手を離す。
+func practice_shark_approach(target: Vector3) -> Node3D:
+	practice_shark_cancel()
+	if stage_env == null:
+		return null
+	var side := signf(target.x)
+	var chosen: SharkSwimmer = null
+	var best_score := INF
+	for shark: SharkSwimmer in stage_env.get_ocean_sharks():
+		if not shark.is_available_for_ocean_attack():
+			continue
+		var score := shark.position.distance_to(target)
+		if not is_zero_approx(side) and signf(shark.position.x) != side:
+			score += 10000.0
+		if score < best_score:
+			best_score = score
+			chosen = shark
+	if chosen == null:
+		push_warning("practice_shark_approach: no shark is free")
+		return null
+	_practice_shark_saved = {
+		"attack_speed": chosen.attack_speed, "orbit_radius": chosen.orbit_radius,
+		"swim_speed": chosen.swim_speed, "ambient_acceleration": chosen.ambient_acceleration,
+	}
+	var start := Vector3(
+		target.x + PRACTICE_SHARK_START_OFFSET.x,
+		StageConstants.OCEAN_SURFACE_Y + PRACTICE_SHARK_START_OFFSET.y,
+		target.z + PRACTICE_SHARK_START_OFFSET.z)
+	if chosen.position.distance_to(start) > PRACTICE_SHARK_TELEPORT_DISTANCE:
+		chosen.position = start
+	chosen.attack_speed = PRACTICE_SHARK_FAST_SPEED
+	if not chosen.begin_attack(PRACTICE_SHARK_PLAYER, target, stage_env.get_floor_center_z(), stage_env.get_floor_length()):
+		_restore_practice_shark(chosen)
+		return null
+	_practice_shark = chosen
+	_practice_shark_phase = 1
+	return chosen
+
+
+## 実演のサメを海の中へ帰す（もぐって、いつもの回遊へ戻る）。サメがいなければ何もしない。
+func practice_shark_cancel() -> void:
+	var shark := _practice_shark
+	var managed := _practice_shark_phase != 0
+	_practice_shark = null
+	_practice_shark_phase = 0
+	if shark == null or not is_instance_valid(shark) or not managed:
+		return
+	if shark.is_attacking and shark.get_attack_player_index() == PRACTICE_SHARK_PLAYER:
+		shark.cancel_attack()
+	_restore_practice_shark(shark)
+	if not shark.is_attacking:
+		shark.retire_after_result_dismount()
+
+
+## 実演のサメ：かみつきの手前で止めて、その場でうろうろさせる。
+func _update_practice_shark() -> void:
+	var shark := _practice_shark
+	if shark == null or not is_instance_valid(shark):
+		_practice_shark = null
+		_practice_shark_phase = 0
+		return
+	if _practice_shark_phase == 2:
+		if shark.is_attacking:
+			# 本当に海に落ちた人を襲いに行った：泳ぎ方を戻して、そちらに任せる。
+			_restore_practice_shark(shark)
+			_practice_shark = null
+			_practice_shark_phase = 0
+		return
+	if not shark.is_attacking or shark.get_attack_player_index() != PRACTICE_SHARK_PLAYER:
+		_hold_practice_shark(shark)
+		return
+	var route := shark.get_attack_route()
+	var final_point: Vector3 = route[route.size() - 1] if not route.is_empty() else shark.position
+	var distance := shark.position.distance_to(final_point)
+	# 遠いうちは速く、近くでは遅く（かみつきの始まりの距離も速さで決まるので、止める位置も近くなる）。
+	shark.attack_speed = PRACTICE_SHARK_FAST_SPEED if distance > PRACTICE_SHARK_NEAR_DISTANCE else PRACTICE_SHARK_NEAR_SPEED
+	var bite_start := shark.bite_distance + shark.attack_speed * SharkSwimmer.BITE_LUNGE_DURATION
+	if distance <= bite_start + PRACTICE_SHARK_HOLD_MARGIN or shark.get_attack_phase() == SharkSwimmer.AttackPhase.BITE:
+		_hold_practice_shark(shark)
+
+
+func _hold_practice_shark(shark: SharkSwimmer) -> void:
+	var saved_speed := float(_practice_shark_saved.get("swim_speed", 1.0))
+	shark.orbit_radius = PRACTICE_SHARK_LOITER_RADIUS
+	shark.swim_speed = PRACTICE_SHARK_LOITER_SPEED * (signf(saved_speed) if not is_zero_approx(saved_speed) else 1.0)
+	shark.ambient_acceleration = PRACTICE_SHARK_LOITER_ACCELERATION
+	shark.attack_speed = float(_practice_shark_saved.get("attack_speed", shark.attack_speed))
+	# 襲うのをやめると、いまの位置のまわりの小さな輪を回り始める。
+	if shark.is_attacking and shark.get_attack_player_index() == PRACTICE_SHARK_PLAYER:
+		shark.cancel_attack()
+	_practice_shark_phase = 2
+
+
+func _restore_practice_shark(shark: SharkSwimmer) -> void:
+	for key: String in _practice_shark_saved:
+		shark.set(key, _practice_shark_saved[key])
+	_practice_shark_saved = {}
+
+
+## 練習：その壁を空から落とす（本番の空撮の壁と同じ落ち方・音・火花と土ぼこり。揺れは小さめ）。
+## delay 秒待ってから落ち始める。落ちている間は game_state が当たり判定から外し、着地で practice_wall_landed を出す。
+func _begin_practice_wall_drop(wall: Node3D, delay: float) -> void:
+	wall.set_meta(PRACTICE_DROP_META, {"timer": -maxf(delay, 0.0), "phase": 1})
+	wall.position.y = PREVIEW_WALL_DROP_START_Y
+	wall.scale = Vector3.ONE
+	game_state.notify_practice_wall_dropping(int(wall.get_meta("wall_index", -1)))
+
+
+func _advance_practice_wall_drop(wall: Node3D, dt: float) -> void:
+	var drop: Dictionary = wall.get_meta(PRACTICE_DROP_META)
+	var elapsed := float(drop.get("timer", 0.0)) + dt
+	drop["timer"] = elapsed
+	if int(drop.get("phase", 1)) == 1:
+		var fall := clampf(elapsed / PREVIEW_WALL_DROP_DURATION, 0.0, 1.0)
+		wall.position.y = lerpf(PREVIEW_WALL_DROP_START_Y, 0.0, fall * fall)
+		if fall >= 1.0:
+			drop["phase"] = 2
+			drop["timer"] = 0.0
+			wall.position.y = 0.0
+			wall.scale = Vector3(1.16, 0.78, 1.16)
+			_land_practice_wall(wall)
+		return
+	# 重い壁が一度つぶれて戻る（本番の空撮の壁と同じ）。
+	var settle := clampf(elapsed / PREVIEW_WALL_SETTLE_DURATION, 0.0, 1.0)
+	var eased := 1.0 - pow(1.0 - settle, 3.0)
+	wall.position.y = sin(settle * PI) * 0.12 * (1.0 - settle)
+	wall.scale = Vector3(lerpf(1.16, 1.0, eased), lerpf(0.78, 1.0, eased), lerpf(1.16, 1.0, eased))
+	if settle >= 1.0:
+		wall.position.y = 0.0
+		wall.scale = Vector3.ONE
+		wall.remove_meta(PRACTICE_DROP_META)
+
+
+func _land_practice_wall(wall: Node3D) -> void:
+	_spawn_merge_sparks(wall.global_position)
+	_spawn_practice_wall_dust(wall.global_position)
+	var camera := camera_controller.get_node_or_null("Camera3D") as Camera3D
+	var distance := wall.global_position.distance_to(camera.global_position) if camera != null else 20.0
+	var shake := clampf(PRACTICE_WALL_SHAKE_DISTANCE / maxf(1.0, distance), 0.12, PRACTICE_WALL_SHAKE_MAX)
+	game_state.camera_shake = maxf(game_state.camera_shake, shake)
+	AudioManager.play_sfx(&"wall_land", linear_to_db(clampf(shake / PRACTICE_WALL_SHAKE_MAX, 0.4, 1.0)))
+	game_state.notify_practice_wall_landed(int(wall.get_meta("wall_index", -1)))
+
+
+## 壁の足もとの土ぼこり（スタートバリアの着地と同じ見た目を、壁の幅で）。
+func _spawn_practice_wall_dust(foot: Vector3) -> void:
+	if _practice_wall_dust.is_empty():
+		for dust_index: int in range(PRACTICE_WALL_DUST_POOL):
+			var dust := CPUParticles3D.new()
+			dust.name = "PracticeWallDust%d" % dust_index
+			dust.emitting = false
+			dust.amount = GraphicsQuality.particle_amount(48, GameManager.graphics_quality)
+			dust.lifetime = 0.9
+			dust.one_shot = true
+			dust.explosiveness = 1.0
+			dust.randomness = 1.0
+			dust.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+			dust.emission_box_extents = Vector3(StageConstants.QUIZ_WALL_HALF_WIDTH, 0.3, 0.6)
+			dust.spread = 180.0
+			dust.initial_velocity_min = 2.5
+			dust.initial_velocity_max = 7.0
+			dust.gravity = Vector3(0, -3.0, 0)
+			dust.scale_amount_min = 0.3
+			dust.scale_amount_max = 0.9
+			dust.color = Color(0.5, 0.5, 0.6, 0.5)
+			var material := StandardMaterial3D.new()
+			material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			material.albedo_color = Color(0.6, 0.6, 0.7, 0.4)
+			material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			material.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+			material.billboard_keep_scale = true
+			var quad := QuadMesh.new()
+			quad.material = material
+			dust.mesh = quad
+			wall_container.add_child(dust)
+			_practice_wall_dust.append(dust)
+	var dust := _practice_wall_dust[_practice_wall_dust_cursor]
+	_practice_wall_dust_cursor = (_practice_wall_dust_cursor + 1) % _practice_wall_dust.size()
+	if not is_instance_valid(dust):
+		return
+	dust.global_position = foot + Vector3(0.0, StageConstants.FLOOR_TOP_Y + 0.25, -0.6)
+	dust.restart()
+	dust.emitting = true
+
+
+## 練習の問題の差し替え（set_practice_quizzes）のあと、まだ通っていない壁の選択肢の数（2・4）とボスの見た目を作り直す。
+## いまの壁の問題文と選択肢は _update_wall_labels が毎フレーム入れる。
+func _refresh_practice_wall_looks() -> void:
+	for wall: Node3D in _active_walls:
+		if not is_instance_valid(wall) or not wall.has_meta("wall_index"):
+			continue
+		var idx := int(wall.get_meta("wall_index"))
+		var retiring := wall.has_method("is_retiring_after_pass") and bool(wall.call("is_retiring_after_pass"))
+		if idx < game_state.current_wall_index or retiring:
+			continue
+		if idx != game_state.current_wall_index and wall.has_method("set_quiz"):
+			wall.set_quiz(null, game_state.num_choices_for_index(idx))
+		if wall.has_method("set_is_boss"):
+			wall.set_is_boss(game_state.is_boss_index(idx))
+
+
+## practice_drop_current_wall：いまの壁を空から落とし直す（まだ作っていない壁は、_update_walls が作るときに落とす）。
+func _on_practice_wall_drop_requested(wall_index: int) -> void:
+	var wall := practice_wall_node(wall_index)
+	if wall != null:
+		_begin_practice_wall_drop(wall, 0.0)
+
+
+## 練習のやり直し・生き返り（game_state.practice_player_reset）：その人の死んだ見た目を全部戻す。
+## 次のフレームから普通に立って見える（体の破片・ラグドール・サメの襲撃・サメの画面の光・カメラの死の演出）。
+func _on_practice_player_reset(player_index: int) -> void:
+	var attack_variant: Variant = _ocean_attack_sharks.get(player_index)
+	var attack_shark := attack_variant as SharkSwimmer
+	if attack_shark != null and is_instance_valid(attack_shark):
+		attack_shark.cancel_attack()
+	_ocean_attack_sharks.erase(player_index)
+	if _ghost_shark_ride_controller != null and bool(get_ghost_shark_presentation(player_index).get("active", false)):
+		# ゴーストから戻す：サメは海へもぐって泳ぎに戻り、乗り手・照準・メーターも片づく。
+		_ghost_shark_ride_controller.practice_end_ride()
+	# スコアタワーの演出のあとで回をやり直したら、演出の舞台と結果の見た目（隠した体・幽霊）も片づける。
+	if _result_ceremony_director != null and not game_state.result_presentation_active:
+		var finale_stage: ResultFinaleStage = (_result_ceremony_director as ResultCeremonyDirector).stage()
+		if finale_stage != null and finale_stage.is_built():
+			_result_ceremony_director.force_cleanup()
+	if camera_controller != null and camera_controller.has_method("practice_clear_death"):
+		camera_controller.practice_clear_death()
+	var gameplay_hud := get_node_or_null("GameplayHUD")
+	if gameplay_hud != null and gameplay_hud.has_method("practice_clear_flashes"):
+		gameplay_hud.practice_clear_flashes()
+	var death_wipe := get_node_or_null("DeathWipeLayer/DeathWipe")
+	if death_wipe != null and death_wipe.has_method("practice_reset"):
+		death_wipe.practice_reset(player_index)
+	var controller := player_node as PlayerController
+	if controller != null:
+		controller.practice_reset_player(player_index)
 
 func _setup_ocean_shark_signals() -> void:
 	if stage_env == null:
@@ -501,15 +1133,18 @@ func _on_player_entered_ocean(player_index: int, local_position: Vector3) -> voi
 	# 観客：落ちたプレイヤーのファンは頭を抱え、近くの席は息をのむ。
 	_crowd_cues.on_miss(player_index)
 	_crowd_cues.on_shock(local_position.z)
+	_crowd_mood.on_out(player_index)
 
 
 func _on_crowd_health_changed(player_index: int, previous_hp: int, hp: int) -> void:
 	if hp < previous_hp and hp > 0:
 		_crowd_cues.on_hurt(player_index)
+		_crowd_mood.on_hurt(player_index)
 
 
 func _on_crowd_saw_catch(player_index: int) -> void:
 	_crowd_cues.on_miss(player_index)
+	_crowd_mood.on_out(player_index)
 	_crowd_cues.on_shock(game_state.player_local_z if player_index == 1 else game_state.player2_local_z)
 
 
@@ -519,6 +1154,9 @@ func _on_crowd_question_decided(_question_index: int, winner_mask: int) -> void:
 	for player_index: int in [1, 2]:
 		if wrong & (1 << (player_index - 1)):
 			_crowd_cues.on_miss(player_index)
+			_crowd_mood.on_miss(player_index)
+		elif winner_mask & (1 << (player_index - 1)):
+			_crowd_mood.on_correct(player_index)
 
 
 ## 観客の合図を進め、ゴール観客席と左右のスタンド（座席の観客とマスコット）へ渡す。
@@ -543,7 +1181,23 @@ func _update_crowd(dt: float) -> void:
 		_goal_stand.update_stand(dt, game_state, _result_ceremony_director, camera,
 			_match_reel == null or _match_reel.is_ready(), _crowd_cues)
 	GrandstandCrowdScript.follow_cues(_crowd_cues)
-	GrandstandCrowdScript.update_mascots(_crowd_cues, dt, camera)
+	if _is_practice():
+		_hide_stand_mascots()
+	else:
+		GrandstandCrowdScript.update_mascots(_crowd_cues, dt, camera)
+		# 客の出入り：来る・売店へ行く・帰る。カメラに映るブロックの客だけが歩く。
+		_crowd_mood.update(dt, game_state, _crowd_cues)
+		GrandstandCrowdScript.update_sim(_crowd_mood, dt, camera)
+
+
+## 練習のときは客席のハテナ（StandMascot）を隠す。舞台に立つ案内役のハテナと2人いるように見えないように。
+## 客席は床の長さに合わせて後から伸び、マスコットもそのとき置かれるので、毎フレーム見る。
+func _hide_stand_mascots() -> void:
+	for crowd: Variant in GrandstandCrowdScript._crowds:
+		if is_instance_valid(crowd) and is_instance_valid(crowd.mascot):
+			crowd.mascot.visible = false
+	if is_instance_valid(_goal_stand) and is_instance_valid(_goal_stand.mascot):
+		_goal_stand.mascot.visible = false
 
 
 func _start_ocean_shark_attack(player_index: int, target_position: Vector3) -> void:
@@ -751,7 +1405,8 @@ func has_player_death_exploded(player_index: int) -> bool:
 func _update_ocean_shark_attacks() -> void:
 	var player_count: int = maxi(1, game_state.num_players)
 	for player_index: int in range(1, player_count + 1):
-		if game_state.is_player_waiting_for_shark(player_index):
+		# 練習でかまれたあと（REPORT_AFTER_BITE）は、戻されるまで次のサメを出さない。
+		if game_state.is_player_waiting_for_shark(player_index) and not game_state.is_practice_bitten(player_index):
 			var target_position: Vector3 = game_state.get_ocean_player_local_position(player_index)
 			if not _ocean_attack_sharks.has(player_index):
 				_start_ocean_shark_attack(player_index, target_position)
@@ -818,7 +1473,7 @@ func _play_shark_impact(player_index: int, attack_position: Vector3, attack_forw
 		if death_wipe != null and death_wipe.has_method("play_shark_impact_flash"):
 			death_wipe.play_shark_impact_flash(player_index)
 	if player_node is PlayerController:
-		player_node.begin_ocean_shark_explosion(player_index)
+		player_node.begin_ocean_shark_explosion(player_index, game_state)
 
 
 ## 重い表示系は黒画面内で予熱する。オンラインでヘリ投入が有効なときは準備画面を先に開示し、
@@ -830,6 +1485,13 @@ func _reveal_after_transition() -> void:
 		return
 	await _prepare_world_visuals_under_cover()
 	if not is_inside_tree():
+		return
+	if _is_practice():
+		# 練習は問題の生成を待たない（台本の問題だけを使う）。表示の予熱が済んだらすぐ開く。
+		# 予熱で組んだ空のプレビュー壁は、始まり方が本番と同じ（WAITING_START）ときだけ使う。
+		if game_state.game_state not in [Constants.STATE_PRELOADING, Constants.STATE_WAITING_START]:
+			_clear_preview_walls()
+		SceneTransition.reveal_current()
 		return
 	var online := _net_state != null and _net_state.is_online
 	# Online helicopter arrival may own the visible preparation window so quiz
@@ -905,6 +1567,8 @@ func _prepare_world_visuals_under_cover() -> void:
 	var sudden_death_prewarm_report: Dictionary = _sudden_death_director.begin_render_prewarm(prewarm_camera)
 	var wall_prewarm_report: Dictionary = _begin_preview_wall_render_prewarm(prewarm_camera)
 	var death_pieces: Node3D = player_controller.begin_death_render_prewarm(prewarm_camera)
+	if _elimination_lasso != null:
+		_elimination_lasso.begin_render_prewarm(prewarm_camera)
 	var death_wipe: Node = get_node_or_null("DeathWipeLayer/DeathWipe")
 	if death_wipe != null:
 		death_wipe.begin_render_prewarm(get_viewport().world_3d, prewarm_camera)
@@ -921,6 +1585,8 @@ func _prepare_world_visuals_under_cover() -> void:
 			return
 	if death_wipe != null:
 		death_wipe.end_render_prewarm()
+	if _elimination_lasso != null:
+		_elimination_lasso.end_render_prewarm()
 	death_pieces.queue_free()
 	_end_preview_wall_render_prewarm()
 	if _ghost_shark_ride_controller != null:
@@ -1171,6 +1837,8 @@ func _process(dt: float) -> void:
 	# --- Online mode: client skips game logic, only sends input ---
 	var _is_online: bool = _net_state and _net_state.is_online
 	var _is_client: bool = _is_online and _net_state.is_guest()
+	if not _is_online and QualityRules.is_mobile_target():
+		dt = minf(dt, MOBILE_MAX_FRAME_DT)
 
 	# Gather input
 	var axis_p1 := Vector2.ZERO
@@ -1179,7 +1847,7 @@ func _process(dt: float) -> void:
 	var jump_p2 := false
 	var emote_p1 := 0
 	var emote_p2 := 0
-	# 押されているエモートキーのビット（チュートリアルの「3つすべて再生」の判定用）。
+	# 押されているエモートキーのビット（チュートリアルの「3つすべて再生」の判定とサドンデスの勝者のダンスへ渡す）。
 	var emote_keys_p1 := 0
 	var emote_keys_p2 := 0
 	if game_state.game_state in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE, Constants.STATE_WAITING_START, Constants.STATE_FLYOVER, Constants.STATE_COUNTDOWN, Constants.STATE_SUDDEN_DEATH]:
@@ -1218,6 +1886,12 @@ func _process(dt: float) -> void:
 			if Input.is_key_pressed(KEY_UP): axis_p2.y += 1.0
 			if Input.is_key_pressed(KEY_DOWN): axis_p2.y -= 1.0
 			jump_p2 = _is_right_ctrl_pressed()
+			if game_state.is_practice_online_look():
+				# 練習のオンラインの見せ方：自分（P1）は矢印キーでも動く（オンラインと同じ。P2 は下で CPU の入力になる）
+				if Input.is_key_pressed(KEY_RIGHT): axis_p1.x -= 1.0
+				if Input.is_key_pressed(KEY_LEFT): axis_p1.x += 1.0
+				if Input.is_key_pressed(KEY_UP): axis_p1.y += 1.0
+				if Input.is_key_pressed(KEY_DOWN): axis_p1.y -= 1.0
 		else:
 			# 1P: Arrow keys also work for P1
 			if Input.is_key_pressed(KEY_RIGHT): axis_p1.x -= 1.0
@@ -1241,6 +1915,14 @@ func _process(dt: float) -> void:
 		0 if _replay_mode else emote_keys_p1,
 		0 if _replay_mode else emote_keys_p2
 	)
+	# 練習の CPU（practice_p2_cpu）：P2 のキーボードの代わりに CPU の入力を、移動・ジャンプ・エモートと
+	# ゴーストの照準・ためへ渡す（押し合いのキーは game_state が CPU の入力から渡す）。
+	if game_state.practice_cpu_active() and not _is_online:
+		var cpu := game_state.practice_cpu_frame_input()
+		axis_p2 = cpu.axis
+		jump_p2 = bool(cpu.jump)
+		emote_p2 = int(cpu.emote)
+		emote_keys_p2 = int(cpu.emote_keys)
 
 	# 1P uses a fixed third-person view, so gameplay never captures the mouse.
 	if Input.get_mouse_mode() == Input.MOUSE_MODE_CAPTURED:
@@ -1319,6 +2001,8 @@ func _process(dt: float) -> void:
 			_update_online_start()
 
 	_update_ocean_shark_attacks()
+	if _practice_shark_phase != 0:
+		_update_practice_shark()
 
 	# Update visuals
 	_update_floor_conveyor()
@@ -1334,6 +2018,15 @@ func _process(dt: float) -> void:
 	if _helicopter_arrival_director != null and not _helicopter_arrival_director.is_start_locked() and arrival_skipped:
 		_saw_controller.finish_entrance()
 	_saw_controller.update_visual(game_state, dt, players_landed, entrance_running)
+	if _elimination_flyover and _saw_controller.visible:
+		# チップソーはプレイヤー基準の位置にあるので、コースと一緒に後ろへ流し、床の後ろの端を越えたら隠す。
+		_saw_controller.position.z -= game_state.world_scroll_z - _elimination_flyover_from
+		if _saw_controller.position.z < StageConstants.FLOOR_BACK_Z - 3.0:
+			_saw_controller.visible = false
+	if _elimination_flyover and is_instance_valid(stage_env):
+		# 左右の客席もコースと一緒に後ろへ流す（止まっていると、ゴールへ飛んでいるように見えない）。結果発表のあいだは
+		# 流し終えた所のまま、次の試合の始まりで元へ戻す
+		stage_env.set_grandstand_shift(_elimination_flyover_from - game_state.world_scroll_z)
 	_update_flyover()
 	# The sudden death director runs first: it moves the deck, the finale stage drop
 	# and the runners' lift, and sets this frame's lens.
@@ -1350,16 +2043,26 @@ func _process(dt: float) -> void:
 		_tutorial_presentation_director.update(dt)
 	if _tutorial_world_guides:
 		_tutorial_world_guides.update(dt)
+	if _countdown_key_hints:
+		_countdown_key_hints.update(dt)
 	_update_wall_question()
+	if _elimination_lasso != null and _elimination_lasso.is_active():
+		_elimination_lasso.update(dt)
+		if _elimination_lasso.wants_ceremony():
+			_start_elimination_lasso_ceremony()
 	_update_camera(dt)
 	_check_particles()
 	_update_wall_hit_sfx()
 	_update_start_barrier()
 	if game_state.is_elimination_result_ready() and not _elimination_transition_running:
 		_run_elimination_result_transition()
+	elif _elimination_lasso_can_start_now() and not _elimination_transition_running:
+		# 投げ縄の演出は待たない：2 人とも死んだ瞬間（体が砕けた瞬間）に魂が抜け出し、すぐハテナが回収に来る
+		_run_elimination_result_transition()
 
 	# Handle R key for restart (ESC is handled in _unhandled_input)
-	if game_state.game_state in [Constants.STATE_GAME_OVER, Constants.STATE_CLEAR]:
+	# 練習の負けはメニューへ戻さない（監督がやり直す。メニューへはポーズ画面から）。
+	if game_state.game_state in [Constants.STATE_GAME_OVER, Constants.STATE_CLEAR] and not _is_practice():
 		if (
 			Input.is_key_pressed(KEY_R)
 			and game_state.is_wall_death_sequence_complete()
@@ -1368,9 +2071,14 @@ func _process(dt: float) -> void:
 			_return_to_main_menu_from_result()
 
 
-## Both local players are out: wipe the screen, move the round to the finish line
-## under the cover and open on the verdict ceremony with both ghosts.
+## Both local players are out: Hatena flies in on her cloud, lassoes both souls and
+## carries them to the finish line (EliminationLassoDirector), then the verdict
+## ceremony opens with both ghosts. Without the lasso rig, wipe the screen instead.
 func _run_elimination_result_transition() -> void:
+	if _elimination_lasso != null and not _elimination_lasso.is_active() and _elimination_lasso.begin():
+		_elimination_transition_running = true
+		_elimination_lasso_wait_started = -1
+		return
 	if SceneTransition.is_transitioning():
 		return
 	_elimination_transition_running = true
@@ -1390,6 +2098,53 @@ func _run_elimination_result_transition() -> void:
 	if is_inside_tree():
 		SceneTransition.reveal_current()
 	_elimination_transition_running = false
+
+
+var _elimination_lasso_wait_started := -1
+
+
+## 両者脱落の投げ縄を、結果発表の待ち時間（RESULT_ELIMINATION_HOLD）を待たずに始めてよいか：2 人とも死んだ所が決まった
+## （体が砕けた。先に脱落した人がサメに乗ったまま待っているなら、その人は決まっている）。
+func _elimination_lasso_can_start_now() -> bool:
+	if _elimination_lasso == null or _elimination_lasso.is_active() or not game_state.is_elimination_result_pending():
+		return false
+	if game_state.result_presentation_active or not _elimination_lasso.can_play():
+		return false
+	var pc := player_node as PlayerController
+	if pc == null:
+		return false
+	var rider := 0
+	if _ghost_shark_ride_controller != null and bool(_ghost_shark_ride_controller.call("is_holding_for_lasso")):
+		rider = int(_ghost_shark_ride_controller.get("dead_player_index"))
+	for player_index: int in [1, 2]:
+		if player_index != rider and not pc.has_death_point(player_index == 1):
+			return false
+	return true
+
+
+## 投げ縄の演出で 2 人がレーンに降りた：結果発表を始めて、カメラと魂を結果発表へ渡す。
+## オンラインのゲストはホストの result_begin を待つ（魂はレーンで待ち、届かなければ暗転と同じ時間で打ち切る）。
+func _start_elimination_lasso_ceremony() -> void:
+	var started := game_state.result_presentation_active
+	if _net_state != null and _net_state.is_guest():
+		if not started:
+			if _elimination_lasso_wait_started < 0:
+				_elimination_lasso_wait_started = Time.get_ticks_msec()
+			if Time.get_ticks_msec() - _elimination_lasso_wait_started < ELIMINATION_RESULT_WAIT_MS:
+				return
+	elif not started:
+		started = game_state.begin_elimination_result_ceremony()
+	_elimination_lasso.on_ceremony_started()
+	_elimination_transition_running = false
+	if started and _result_ceremony_director != null:
+		# 結果発表の舞台と幽霊（運ばれてきた魂）を、カメラが渡るこのフレームのうちに用意する。
+		_result_ceremony_director.update_result_ceremony(0.0)
+
+
+## 投げ縄の演出がコースを流し始めるときに呼ぶ（EliminationLassoDirector）。
+func set_elimination_flyover(active: bool) -> void:
+	_elimination_flyover = active
+	_elimination_flyover_from = game_state.world_scroll_z
 
 
 ## Underground only the director (shaft, cistern, HUD), the runners, the result
@@ -1557,22 +2312,13 @@ func _update_floor_conveyor() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	# クリア画面の間は他の操作を受け付けない。Enter だけは、画面を
-	# TUTORIAL_CLEAR_MIN_SECONDS 見せた後なら待たずにカスタマイズ紹介へ進める。
+	# 完了カードの演出中はEnterスキップを受け付けない。カードを見せ切ってから
+	# リザルトへ送るので、ここで先に進まれると祝いの演出が飛ぶ。
 	if (
 		game_state
 		and game_state.get_tutorial_step_id() in ["stage_complete", "duo_complete"]
 		and game_state.is_tutorial_presentation_locked()
 	):
-		if (
-			event is InputEventKey
-			and event.keycode in [KEY_ENTER, KEY_KP_ENTER]
-			and event.is_pressed()
-			and not event.is_echo()
-			and _tutorial_presentation_director
-			and _tutorial_presentation_director.elapsed_seconds() >= TUTORIAL_CLEAR_MIN_SECONDS
-		):
-			_tutorial_presentation_director.skip()
 		get_viewport().set_input_as_handled()
 		return
 	if event is InputEventKey and event.keycode == KEY_ESCAPE and event.is_pressed() and not event.is_echo():
@@ -1580,10 +2326,22 @@ func _unhandled_input(event: InputEvent) -> void:
 			# オンラインは時間を止められないので、ポーズではなく「やめる？」を出す。
 			_net_overlay.toggle_quit_confirm()
 			return
+		if _practice_net_overlay != null:
+			# 練習のオンラインの見せ方：本番のオンラインと同じく、ポーズではなく「やめる？」を出す（ゲームは止めない）。
+			# 試合が終わって結果のカードが出たあとは出さない。
+			if game_state and game_state.game_state in [
+				Constants.STATE_WAITING_START, Constants.STATE_FLYOVER, Constants.STATE_COUNTDOWN,
+				Constants.STATE_PLAYING, Constants.STATE_CORRECT, Constants.STATE_GOAL_RACE,
+			]:
+				_practice_net_overlay.toggle_quit_confirm()
+			return
 		if game_state and game_state.game_state in [
 			Constants.STATE_WAITING_START, Constants.STATE_COUNTDOWN,
 			Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE, Constants.STATE_SUDDEN_DEATH,
 		]:
+			_toggle_pause()
+		elif game_state and _is_practice() and game_state.game_state == Constants.STATE_GAME_OVER:
+			# 練習の負けの演出の間も、ポーズ画面（レッスンをとばす・タイトルに戻る）を開ける。
 			_toggle_pause()
 		return
 	if (
@@ -1638,6 +2396,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		if game_state and game_state.game_state == Constants.STATE_WAITING_START:
 			if _net_state != null and _net_state.is_online:
 				# オンラインは両者の準備がそろったら自動で始まる（Enter では始めない）。
+				return
+			if game_state.is_practice_online_look():
+				# 練習のオンラインの見せ方も Enter では始めない（台本の言葉のあとで監督が始める）。
 				return
 			if is_start_presentation_locked():
 				get_viewport().set_input_as_handled()
@@ -1748,6 +2509,17 @@ func _clear_flyover_walls() -> void:
 	_flyover_walls.clear()
 
 func _update_walls() -> void:
+	if _is_practice() and _practice_round_seen != game_state.practice_round_serial:
+		# 練習は同じ画面で回をやり直す（start_practice_round）。前の回の壁は、退場の記録ごと片づけて作り直す
+		# （本編は回の間にメニューや準備の状態を通るので、下の非表示で片づく）。
+		_practice_round_seen = game_state.practice_round_serial
+		_practice_quizzes_seen = game_state.practice_quizzes_serial
+		for wall: Node3D in _active_walls:
+			wall.queue_free()
+		_active_walls.clear()
+		_retired_wall_indices.clear()
+		# 前の回の実演のサメも海へ帰す。
+		practice_shark_cancel()
 	# プリロード中・ゴールレース中・クリア後・メニュー・フライオーバー中は通常壁を全て非表示
 	if game_state.game_state in [
 		Constants.STATE_MENU,
@@ -1818,10 +2590,14 @@ func _update_walls() -> void:
 			if game_state.mode == Constants.MODE_TUTORIAL
 			else game_state.target_count - 1
 		)
+	# 練習も、台本が用意した問題の数だけ壁を出す（問題が空なら1枚も出さない）。
+	var practice_walls := _is_practice()
+	if practice_walls:
+		max_wall_idx = game_state.target_count - 1
 	for i: int in range(MAX_VISIBLE_WALLS + 3):
 		var idx: int = start_idx + i
 		# 固定問数モードでは target_count 以降の壁をスキップ
-		if max_wall_idx >= 0 and idx > max_wall_idx:
+		if (max_wall_idx >= 0 or practice_walls) and idx > max_wall_idx:
 			continue
 		var wz: float = t.wall_start_z + idx * t.wall_spacing
 		var local_z: float = wz - game_state.world_scroll_z
@@ -1842,7 +2618,7 @@ func _update_walls() -> void:
 		var idx: int = wall.get_meta("wall_index") as int
 		var wz: float = t.wall_start_z + idx * t.wall_spacing
 		var local_z: float = wz - game_state.world_scroll_z
-		if local_z <= game_state.FLOOR_BACK_Z + 0.1:
+		if local_z <= game_state.FLOOR_BACK_Z + 0.1 and not _elimination_flyover:
 			if wall.has_method("shatter_wall"):
 				wall.shatter_wall()
 		wall.queue_free()
@@ -1854,12 +2630,24 @@ func _update_walls() -> void:
 		if wall.has_meta("wall_index"):
 			existing_indices.append(wall.get_meta("wall_index") as int)
 
+	# 練習で同じフレームに作った壁は、近いものから少しずつずらして落とす。
+	# 本番の始まり方（WAITING_START → 空撮 → カウントダウン）を通った回は、開始の前の壁がもう落ちて着地しているので、
+	# 本番と同じくカウントダウンの間にバリアの後ろへそのまま出す（二重に落とさない）。
+	var practice_drop := (
+		practice_walls
+		and _pw_walls.is_empty()
+		and _practice_real_start_round != game_state.practice_round_serial
+	)
+	var practice_drop_delay := 0.0
 	for idx: int in needed_indices:
 		if idx not in existing_indices and not _retired_wall_indices.has(idx):
 			var wz: float = t.wall_start_z + idx * t.wall_spacing
 			var wall_node: Node3D = quiz_wall_scene.instantiate()
 			wall_node.set_meta("wall_index", idx)
 			wall_node.position = Vector3(0, 0, wz - game_state.world_scroll_z)
+			if _is_practice() and "keep_question_lines" in wall_node:
+				# 練習の問題文は台本で行を決めてある（分かち書き・1行14文字まで）。行の途中で折り返さない。
+				wall_node.set("keep_question_lines", true)
 			wall_container.add_child(wall_node)
 			_active_walls.append(wall_node)
 
@@ -1868,13 +2656,23 @@ func _update_walls() -> void:
 				wall_node.set_quiz(null, wall_choices)
 			if wall_node.has_method("set_is_boss"):
 				wall_node.set_is_boss(game_state.is_boss_index(idx))
+			if practice_drop:
+				_begin_practice_wall_drop(wall_node, practice_drop_delay)
+				practice_drop_delay += PREVIEW_WALL_DROP_INTERVAL
+
+	if practice_walls and _practice_quizzes_seen != game_state.practice_quizzes_serial:
+		_practice_quizzes_seen = game_state.practice_quizzes_serial
+		_refresh_practice_wall_looks()
 
 		# Also MUST update positions of existing walls because they slide!
+	var drop_dt := get_process_delta_time()
 	for wall: Node3D in _active_walls:
 		if wall.has_meta("wall_index"):
 			var idx: int = wall.get_meta("wall_index") as int
 			var wz: float = t.wall_start_z + idx * t.wall_spacing
 			wall.position.z = wz - game_state.world_scroll_z
+			if wall.has_meta(PRACTICE_DROP_META):
+				_advance_practice_wall_drop(wall, drop_dt)
 
 			# Setup door labels if this is the current wall
 			if idx == game_state.current_wall_index and game_state.current_quiz:
@@ -1917,7 +2715,8 @@ func _update_wall_question() -> void:
 		if quiz != _display_question_quiz or source != _display_question_source:
 			_display_question_quiz = quiz
 			_display_question_source = source
-			_display_question_text = FractionFormatter.format_question(quiz.q)
+			# 練習の問題は台本の手書き（分かち書きの空白と2行の改行）なので、整形せずにそのまま出す。
+			_display_question_text = quiz.q if _is_practice() else FractionFormatter.format_question(quiz.q)
 			if game_state.is_coop_mode() and quiz.has_coop_data():
 				_display_question_text += "\n%s / %s" % [quiz.coop_p1_label, quiz.coop_p2_label]
 	for wall: Node3D in _active_walls:
@@ -1925,16 +2724,19 @@ func _update_wall_question() -> void:
 			continue
 		if show_question and int(wall.get_meta("wall_index", -1)) == game_state.current_wall_index:
 			wall.set_gameplay_question(_display_question_text, true)
-			_question_framing_wall = wall
+			# 練習で空から落ちている途中の壁には、カメラを向けない（着地してから問題文に合わせる）。
+			if not wall.has_meta(PRACTICE_DROP_META):
+				_question_framing_wall = wall
 		else:
 			wall.set_gameplay_question_visible(false)
 
 func _update_goal_line() -> void:
 	# Challenge flyovers may preview the finish. Tutorials reveal the goal only
 	# after the dedicated final step begins, so hazard instructions stay clear.
+	# 練習の MatchRules.finish_with_goal も、本番の2人の10問と同じく最後の壁の後ろにゴールとスタンドを出す。
 	var challenge_goal_visible := (
 		game_state.num_players >= 2
-		and game_state.mode == Constants.MODE_TEN
+		and (game_state.mode == Constants.MODE_TEN or game_state.practice_finishes_with_goal())
 		and (
 			# Kept through the elimination hold: the finale opens right here.
 			game_state.is_elimination_result_pending()
@@ -1969,6 +2771,8 @@ func _update_goal_line() -> void:
 		if is_instance_valid(_goal_stand):
 			_goal_stand.queue_free()
 		_goal_stand = null
+		if is_instance_valid(stage_env):
+			stage_env.set_grandstand_end_limit(INF)
 		return
 
 	# Calculate goal Z position
@@ -2025,6 +2829,9 @@ func _update_goal_line() -> void:
 		add_child(_goal_stand)
 		_goal_stand.setup(GameManager.graphics_quality)
 	_goal_stand.position = _goal_line_node.position + Vector3(0.0, StageConstants.FLOOR_TOP_Y, GoalStand.GOAL_OFFSET)
+	# 左右の客席は、ゴール観客席のモニターの位置で終える（そこまで伸ばし、奥へは出さない）。
+	if is_instance_valid(stage_env):
+		stage_env.set_grandstand_end_limit(_goal_stand.global_position.z + _goal_stand.monitor_z_offset())
 	if is_instance_valid(_goal_waiting_referee):
 		_goal_waiting_referee.visible = game_state.uses_local_result_ceremony() and not game_state.result_presentation_active
 		if _goal_waiting_referee.visible:
@@ -2035,6 +2842,8 @@ func _update_goal_line() -> void:
 		game_state.result_presentation_active
 		and game_state.result_ceremony_elapsed >= QuizGameState.RESULT_ASSEMBLE_DURATION
 	)
+	# 練習：案内役のハテナが審判の所へ移るまで、審判のハテナを隠しておける（practice_set_goal_referee_hidden）。
+	_apply_practice_referee_hidden()
 
 func _create_goal_box(box_size: Vector3, color: Color) -> MeshInstance3D:
 	var mesh_inst := MeshInstance3D.new()
@@ -2100,7 +2909,8 @@ func _update_camera(dt: float) -> void:
 			focus_player_index
 		)
 	else:
-		var keep_dead_shark_focus: bool = (
+		# 練習でかまれたあと（REPORT_AFTER_BITE）も、戻されるまでかまれた所を見せ続ける。
+		var keep_dead_shark_focus: bool = game_state.is_practice_bitten(1) or game_state.is_practice_bitten(2) or (
 			game_state.game_state == Constants.STATE_GAME_OVER
 			and (
 				(
@@ -2223,6 +3033,7 @@ func _update_wall_hit_sfx() -> void:
 		if damage > _sfx_prev_damage[index] + 0.25 and damage >= QuizGameState.DAMAGE_FLASH_DURATION * 0.8:
 			AudioManager.play_sfx(&"bonk")
 			AudioManager.play_sfx(&"door_wrong")
+			_haptic_hit(player)
 		_sfx_prev_damage[index] = damage
 
 		# The fatal crash (last heart, or the wall between doors) is a wrong answer too.
@@ -2230,16 +3041,23 @@ func _update_wall_hit_sfx() -> void:
 		if wall_impact and not _sfx_prev_wall_impact[index]:
 			AudioManager.play_sfx(&"wall_crash", 0.0, 0.85)
 			AudioManager.play_sfx(&"door_wrong")
+			_haptic_hit(player)
 		_sfx_prev_wall_impact[index] = wall_impact
 
 		# Correct door: each point a player scores is a door they ran through.
 		var points: int = game_state.score if player == 1 else game_state.player2_score
 		if racing and points > _sfx_prev_score[index]:
 			AudioManager.play_sfx(&"door_correct")
+			if _haptic_player(player):
+				Haptics.pulse(Haptics.SUCCESS)
 		_sfx_prev_score[index] = points
 
 		# Landing from a jump (or from the helicopter drop) while on the course.
 		var alive: bool = game_state.p1_alive if player == 1 else game_state.p2_alive
+		# Drop-out (ocean, saw, last heart) during the race: one buzz for the player who fell.
+		if racing and _haptic_prev_alive[index] and not alive:
+			_haptic_hit(player, true)
+		_haptic_prev_alive[index] = alive
 		var height: float = game_state.player_y if player == 1 else game_state.player2_y
 		if not (on_field and alive) or (player_node is PlayerController and player_node.has_intro_arrival()):
 			_sfx_airborne[index] = false
@@ -2275,8 +3093,37 @@ func _on_state_changed(new_state: String) -> void:
 	if new_state in [Constants.STATE_FLYOVER, Constants.STATE_COUNTDOWN, Constants.STATE_PLAYING]:
 		_finish_intro_arrival_for_gameplay()
 	if new_state in [Constants.STATE_CLEAR, Constants.STATE_GAME_OVER, Constants.STATE_MENU]:
-		if _ghost_shark_ride_controller:
+		# 両者脱落で投げ縄が始まるなら、サメに乗った幽霊は乗ったまま待たせる（投げ縄が乗ったまま縄を掛ける）
+		var keep_rider_for_lasso: bool = (
+			new_state == Constants.STATE_GAME_OVER
+			and _elimination_lasso != null
+			and _elimination_lasso.can_play()
+			and game_state.uses_local_result_ceremony()
+			and not game_state.p1_alive
+			and not game_state.p2_alive
+			and _ghost_shark_ride_controller != null
+			and _ghost_shark_ride_controller.hold_for_elimination_lasso()
+		)
+		if _ghost_shark_ride_controller and not keep_rider_for_lasso:
 			_ghost_shark_ride_controller.force_cleanup()
+		# 練習のオンラインの見せ方：試合が終わったら「やめる？」は閉じる（結果のカードを出す）
+		if _practice_net_overlay != null:
+			_practice_net_overlay.close_confirm()
+	if new_state != Constants.STATE_GAME_OVER:
+		_elimination_flyover = false
+	if new_state in [Constants.STATE_MENU, Constants.STATE_PRELOADING, Constants.STATE_WAITING_START]:
+		if is_instance_valid(stage_env):
+			stage_env.set_grandstand_shift(0.0)
+		if _elimination_lasso != null:
+			_elimination_lasso.force_cleanup()
+			_elimination_transition_running = false
+	if _is_practice() and new_state == Constants.STATE_GAME_OVER and not _practice_real_results():
+		# 練習の負け（docs/new_tutorial/phase4_design.md 2.4）：曲も観客の声も切り替えない。監督がすぐやり直す。
+		# 本番どおりの画面（MatchRules.real_result_screens）のときは、下で本番と同じく切り替える。
+		return
+	if _is_practice() and new_state == Constants.STATE_WAITING_START:
+		# この回は本番と同じ始まり方：カウントダウンで出す壁は落とさない（_update_walls）。
+		_practice_real_start_round = game_state.practice_round_serial
 	if new_state == Constants.STATE_SUDDEN_DEATH:
 		AudioManager.set_music_context(AudioManager.MUSIC_CONTEXT_SUDDEN_DEATH)
 	elif new_state in [
@@ -2337,8 +3184,11 @@ func _on_state_changed(new_state: String) -> void:
 		_fireworks_launched = false
 		_clear_preview_walls()
 		# カウントダウン終了 → バリア壁を爆散！
-		if not _barrier_exploded:
+		# 練習でカウントダウンを通らずに始めたとき（バリアが落ちていない）は、GO の音も爆散もない。
+		if not _barrier_exploded and (_barrier_spawned_for_session or not _is_practice()):
 			AudioManager.play_sfx(&"countdown_go")
+			if not _replay_mode:
+				Haptics.pulse(Haptics.COUNTDOWN)
 			_explode_start_barrier()
 	elif new_state == Constants.STATE_MENU:
 		_fireworks_launched = false
@@ -2352,6 +3202,12 @@ func _on_state_changed(new_state: String) -> void:
 			_result_ceremony_director.force_cleanup()
 	elif new_state == Constants.STATE_WAITING_START:
 		_clear_flyover_walls()
+		if _is_practice() and (_barrier_spawned_for_session or _barrier_exploded):
+			# 練習は同じ画面で本番の始まり方をもう一度することがあるので、プレビュー壁とバリアを最初からにする。
+			_clear_preview_walls()
+			_remove_start_barrier()
+			_barrier_spawned_for_session = false
+			_barrier_exploded = false
 		# バリアはプレビュー壁完了後に自動スポーンするので、ここでは何もしない
 	elif new_state == Constants.STATE_COUNTDOWN:
 		# チュートリアル等でプレビュー壁がない場合のフォールバック
@@ -2407,63 +3263,106 @@ func _build_pause_menu() -> void:
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	pause_menu.add_child(center)
 	
+	# スマホはボタンが 80 の高さになるので、間を詰めて 720 の高さに収める（練習はボタンが1つ多い）。
+	var pause_gap := 14 if MobileUi.is_touch_ui() else 24
 	var vbox = VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 24)
+	vbox.name = "PauseColumn"
+	vbox.add_theme_constant_override("separation", pause_gap)
 	center.add_child(vbox)
-	
+	_pause_column = vbox
+
 	var title = Label.new()
 	title.text = "PAUSE"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 64)
 	vbox.add_child(title)
-	
+
 	# --- BGM Volume ---
+	# 見出しとスライダーをひとまとめにする（画面のコーチが見出しごと光らせる）。間は列と同じ 24 なので並びは変わらない。
+	var bgm_group := VBoxContainer.new()
+	bgm_group.name = "PauseBgmGroup"
+	bgm_group.add_theme_constant_override("separation", pause_gap)
+	vbox.add_child(bgm_group)
+	_pause_bgm_group = bgm_group
 	var bgm_label = Label.new()
 	bgm_label.text = "BGM Volume"
 	bgm_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vbox.add_child(bgm_label)
-	
+	bgm_group.add_child(bgm_label)
+
 	var bgm_slider = HSlider.new()
 	bgm_slider.min_value = 0.0
 	bgm_slider.max_value = 1.0
 	bgm_slider.step = 0.05
 	bgm_slider.value = AudioManager.bgm_volume
 	bgm_slider.custom_minimum_size = Vector2(400, 40)
+	MobileUi.ensure_touch_size(bgm_slider, true)
 	bgm_slider.value_changed.connect(func(val: float):
 		game_state.set_bgm_volume(val)
 	)
-	vbox.add_child(bgm_slider)
-	
+	bgm_group.add_child(bgm_slider)
+
 	# --- SFX Volume ---
+	var sfx_group := VBoxContainer.new()
+	sfx_group.name = "PauseSfxGroup"
+	sfx_group.add_theme_constant_override("separation", pause_gap)
+	vbox.add_child(sfx_group)
+	_pause_sfx_group = sfx_group
 	var sfx_label = Label.new()
 	sfx_label.text = "SFX Volume"
 	sfx_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vbox.add_child(sfx_label)
-	
+	sfx_group.add_child(sfx_label)
+
 	var sfx_slider = HSlider.new()
 	sfx_slider.min_value = 0.0
 	sfx_slider.max_value = 1.0
 	sfx_slider.step = 0.05
 	sfx_slider.value = AudioManager.sfx_volume
 	sfx_slider.custom_minimum_size = Vector2(400, 40)
+	MobileUi.ensure_touch_size(sfx_slider, true)
 	sfx_slider.value_changed.connect(func(val: float):
 		game_state.set_sfx_volume(val)
 	)
-	vbox.add_child(sfx_slider)
-	
+	sfx_group.add_child(sfx_slider)
+
 	# --- Buttons ---
 	var btn_resume = Button.new()
+	btn_resume.name = "PauseResumeButton"
+	_pause_resume_button = btn_resume
 	btn_resume.text = "ゲームに戻る"
-	btn_resume.add_theme_font_size_override("font_size", 28)
+	btn_resume.add_theme_font_size_override("font_size", MobileUi.font(28))
 	btn_resume.custom_minimum_size = Vector2(0, 60)
+	MobileUi.ensure_touch_size(btn_resume)
 	btn_resume.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	btn_resume.pressed.connect(func(): _toggle_pause())
 	vbox.add_child(btn_resume)
-	
+
+	if _is_practice():
+		# 練習だけ：いまのレッスンを飛ばして次へ（監督が進め、ポーズは解く）。
+		var btn_skip = Button.new()
+		btn_skip.name = "PracticeSkipButton"
+		btn_skip.text = "このレッスンをスキップ"
+		btn_skip.add_theme_font_size_override("font_size", MobileUi.font(28))
+		btn_skip.custom_minimum_size = Vector2(0, 60)
+		MobileUi.ensure_touch_size(btn_skip)
+		btn_skip.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+		btn_skip.pressed.connect(func():
+			if SceneTransition.is_transitioning():
+				return
+			if is_instance_valid(practice_director) and practice_director.has_method("skip_step"):
+				practice_director.skip_step()
+			if get_tree().paused:
+				_toggle_pause()
+		)
+		vbox.add_child(btn_skip)
+		_pause_skip_button = btn_skip
+
 	var btn_title = Button.new()
+	btn_title.name = "PauseTitleButton"
+	_pause_title_button = btn_title
 	btn_title.text = "タイトルに戻る"
-	btn_title.add_theme_font_size_override("font_size", 28)
+	btn_title.add_theme_font_size_override("font_size", MobileUi.font(28))
 	btn_title.custom_minimum_size = Vector2(0, 60)
+	MobileUi.ensure_touch_size(btn_title)
 	btn_title.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	btn_title.pressed.connect(func():
 		if SceneTransition.is_transitioning():
@@ -2471,6 +3370,10 @@ func _build_pause_menu() -> void:
 		get_tree().paused = false
 		AudioManager.set_music_paused(false)
 		AudioManager.set_music_context(AudioManager.MUSIC_CONTEXT_MENU)
+		if is_instance_valid(practice_director) and practice_director.has_method("quit_course"):
+			# 練習はコースをやめる（スタンプなし）。reset_to_menu とメニューへの移動は監督がする。
+			practice_director.quit_course()
+			return
 		game_state.reset_to_menu()
 		SceneTransition.change_scene("res://ui/main_menu.tscn")
 	)
@@ -2488,6 +3391,194 @@ func _toggle_pause() -> void:
 	AudioManager.set_music_paused(new_paused)
 	pause_menu.visible = new_paused
 	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+	if _is_practice():
+		practice_pause_changed.emit(new_paused)
+
+
+# ============================================================
+# スマホ（タッチ操作・アプリのライフサイクル）
+# ============================================================
+
+## 試合の操作を出す状態（_process が入力を集める状態と、その間の CORRECT。出したり消したりでちらつかないように）。
+const TOUCH_CONTROL_STATES: Array[String] = [
+	Constants.STATE_WAITING_START, Constants.STATE_FLYOVER, Constants.STATE_COUNTDOWN,
+	Constants.STATE_PLAYING, Constants.STATE_CORRECT, Constants.STATE_GOAL_RACE, Constants.STATE_SUDDEN_DEATH,
+]
+## Esc でポーズを開ける状態（_unhandled_input の Esc の分岐と同じ）。
+const TOUCH_PAUSE_STATES: Array[String] = [
+	Constants.STATE_WAITING_START, Constants.STATE_COUNTDOWN,
+	Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE, Constants.STATE_SUDDEN_DEATH,
+]
+## 練習のオンラインの見せ方で Esc の「やめる？」を出す状態。
+const TOUCH_PRACTICE_QUIT_STATES: Array[String] = [
+	Constants.STATE_WAITING_START, Constants.STATE_FLYOVER, Constants.STATE_COUNTDOWN,
+	Constants.STATE_PLAYING, Constants.STATE_CORRECT, Constants.STATE_GOAL_RACE,
+]
+
+
+## タッチ操作レイヤー（TouchControls）が毎フレーム読む、いまの試合の様子（読むだけで何も変えない）。
+## local_players：この画面で操作する人数（オンライン・練習の CPU 戦・オンラインの見せ方は 1）。
+## confirm：Enter を送るボタンの文字（"" なら出さない）。skip：Space で演出を飛ばせる（サドンデスの監督）。
+## sd_answer_keys：サドンデスで答えのボタンを出すときの、左から順の選択肢のキー（QuizGameState.SUDDEN_DEATH_KEY_*）。
+func touch_context() -> Dictionary:
+	if game_state == null or not is_inside_tree():
+		return {}
+	var online: bool = _net_state != null and _net_state.is_online
+	var state: String = game_state.game_state
+	var local_players := 1
+	if (
+		not online
+		and game_state.num_players >= 2
+		and not game_state.practice_cpu_active()
+		and not game_state.is_practice_online_look()
+	):
+		local_players = 2
+	var mode := "solo"
+	if online:
+		mode = "online"
+	elif _is_practice():
+		mode = "practice"
+	elif local_players >= 2:
+		mode = "duo"
+	var overlay_open := (
+		(_net_overlay != null and _net_overlay.is_confirm_open())
+		or (_practice_net_overlay != null and _practice_net_overlay.is_confirm_open())
+	)
+	var can_pause := false
+	if _net_overlay != null:
+		can_pause = true
+	elif _practice_net_overlay != null:
+		can_pause = state in TOUCH_PRACTICE_QUIT_STATES
+	else:
+		can_pause = state in TOUCH_PAUSE_STATES or (_is_practice() and state == Constants.STATE_GAME_OVER)
+	var sudden_death := state == Constants.STATE_SUDDEN_DEATH
+	var rules_card_open := _touch_rules_card_open()
+	# カードや台詞で操作が止まっている間（ルールカード・溜め撃ちの説明・得点説明・練習の相手選び・練習の台詞）。
+	# 移動のボタンを隠して、下の層のタップでとじる仕組み（各カードの「タップでとじる」など）へ指を通す。
+	var modal: bool = (
+		rules_card_open
+		or game_state.is_tutorial_score_pause_active()
+		or (_ghost_shark_ride_controller != null and _ghost_shark_ride_controller.is_charge_tutorial_active())
+		or (game_state.practice_rules != null and game_state.practice_rules.input_locked)
+		or _touch_practice_card_open()
+	)
+	var answer_keys: Array = []
+	if sudden_death and game_state.sudden_death_kind != "sky_gate" and game_state.sudden_death_game != null:
+		# スカイゲートはスティックだけで遊ぶ（答えとアクションのキーは使わない）。ほかの種目は答えのボタンを出す。
+		var choices := game_state.sudden_death_game.current_choices()
+		answer_keys = (QuizGameState.SUDDEN_DEATH_CHOICE_KEYS.get(choices, []) as Array).duplicate()
+	var ghost: Array[bool] = [false, false]
+	var eliminated: Array[bool] = [not game_state.p1_alive, not game_state.p2_alive]
+	if _ghost_shark_ride_controller != null:
+		var first_seat := game_state.local_slot if online else 1
+		ghost[0] = _ghost_shark_ride_controller.is_control_active_for_player(first_seat)
+		ghost[1] = local_players >= 2 and _ghost_shark_ride_controller.is_control_active_for_player(2)
+	return {
+		"mode": mode,
+		"local_players": local_players,
+		"num_players": game_state.num_players,
+		"state": state,
+		"paused": get_tree().paused,
+		"controls": state in TOUCH_CONTROL_STATES,
+		"can_pause": can_pause,
+		"can_start": _touch_can_start(online),
+		"confirm": _touch_confirm_label(online),
+		"skip": sudden_death and _sudden_death_director != null and _sudden_death_director.can_skip(),
+		"rules_card_open": rules_card_open,
+		"modal": modal,
+		"sudden_death": sudden_death,
+		"sudden_death_kind": game_state.sudden_death_kind if sudden_death else "",
+		"sd_answer_keys": answer_keys,
+		"results": state in [Constants.STATE_RESULT_CEREMONY, Constants.STATE_CLEAR, Constants.STATE_GAME_OVER],
+		"overlay_open": overlay_open,
+		"eliminated": eliminated,
+		"ghost": ghost,
+	}
+
+
+## Enter で始められる（オンラインと練習のオンラインの見せ方は自動・監督が始めるので出さない）。
+func _touch_can_start(online: bool) -> bool:
+	return not online and not game_state.is_practice_online_look() and _can_trigger_start()
+
+
+## Enter が効く場面のボタンの文字（_input と _unhandled_input の Enter の分岐、練習の監督の台詞送りと同じ順）。
+func _touch_confirm_label(online: bool) -> String:
+	if game_state.is_tutorial_score_pause_active():
+		return "つぎへ"
+	if _tutorial_presentation_director != null and _tutorial_presentation_director.is_active():
+		return "スキップ"
+	if _ghost_shark_ride_controller != null and _ghost_shark_ride_controller.is_charge_tutorial_active():
+		return "OK"
+	if _touch_rules_card_open():
+		return "OK"
+	if is_instance_valid(practice_director):
+		if practice_director.get("allow_ghost_skip") == true:
+			return "スキップ"
+		var rules: Variant = practice_director.get("rules")
+		if practice_director.get("_say") != null and rules is Object and (rules as Object).get("input_locked") == true:
+			return "つぎへ"
+	if _touch_can_start(online):
+		return "スタート"
+	return ""
+
+
+## サドンデスのルールカードが出ている（Enter で閉じる）。監督が is_rules_card_waiting() を持っていればそれに従い、
+## なければ種目の見せ方の _phase が "rules" の間。
+func _touch_rules_card_open() -> bool:
+	if _sudden_death_director == null or game_state.game_state != Constants.STATE_SUDDEN_DEATH:
+		return false
+	var director: Object = _sudden_death_director
+	if director.has_method("is_rules_card_waiting"):
+		return bool(director.call("is_rules_card_waiting"))
+	var presenter: Variant = director.get("_presenter")
+	if not (presenter is Object) or not is_instance_valid(presenter):
+		return false
+	return str((presenter as Object).get("_phase")) == "rules"
+
+
+## 練習の相手選びのカード（コース③の PracticePickCard。監督の子）が開いている。カードに自分の「P2 参加」ボタンがある。
+func _touch_practice_card_open() -> bool:
+	if not is_instance_valid(practice_director):
+		return false
+	var card := practice_director.get_node_or_null("PracticePickCard")
+	return card != null and card.has_method("is_open") and bool(card.call("is_open"))
+
+
+## スマホでアプリが裏へ回った・カバー画面へ移った（MobileLifecycle / TouchControls）：オフラインの試合なら
+## ふつうのポーズ画面を開く。オンライン（と練習のオンラインの見せ方）は時間を止められないので何もしない。
+func pause_for_background() -> void:
+	if game_state == null or _replay_mode or pause_menu == null or not is_inside_tree() or get_tree().paused:
+		return
+	if (_net_state != null and _net_state.is_online) or _practice_net_overlay != null:
+		return
+	if SceneTransition.is_transitioning():
+		return
+	if game_state.game_state in TOUCH_PAUSE_STATES:
+		_toggle_pause()
+
+
+## 振動を返すプレイヤー：この画面で操作している人だけ（オンラインは自分のスロット、練習の CPU は除く）。
+func _haptic_player(player: int) -> bool:
+	if _replay_mode:
+		return false
+	if _net_state != null and _net_state.is_online:
+		return player == game_state.local_slot
+	if game_state.practice_cpu_active() or game_state.is_practice_online_look():
+		# 練習の CPU 戦・オンラインの見せ方：P2 は CPU（この画面の人は P1 だけ）。
+		return player == 1
+	return player <= game_state.num_players
+
+
+## ダメージ・激突・脱落の HIT。[param merge] は、直前（HAPTIC_HIT_MERGE_MSEC 以内）に同じ人へ返していれば出さない。
+func _haptic_hit(player: int, merge: bool = false) -> void:
+	if not _haptic_player(player):
+		return
+	var index := clampi(player - 1, 0, 1)
+	var now := Time.get_ticks_msec()
+	if merge and now - _haptic_hit_msec[index] < HAPTIC_HIT_MERGE_MSEC:
+		return
+	_haptic_hit_msec[index] = now
+	Haptics.pulse(Haptics.HIT)
 
 
 # ============================================================
@@ -2744,8 +3835,12 @@ func _update_preview_walls(dt: float) -> void:
 		var configured_wall: Node3D = _pw_walls[config_index]
 		var configured_visual_index := int(configured_wall.get_meta("wall_index", config_index))
 		var configured_choices := game_state.num_choices_for_index(configured_visual_index)
+		var configured_quiz: QuizItem = game_state.quiz_list[config_index]
+		if _is_practice() and configured_visual_index >= 0 and configured_visual_index < quiz_count:
+			# 練習の問題は始めからそろっているので、どの壁にもその番号の問題の選択肢を出す（ボス壁は4つ）。
+			configured_quiz = game_state.quiz_list[configured_visual_index]
 		if configured_wall.has_method("set_quiz"):
-			configured_wall.set_quiz(game_state.quiz_list[config_index], configured_choices)
+			configured_wall.set_quiz(configured_quiz, configured_choices)
 		_pw_anims[config_index]["configured"] = true
 		_pw_anims[config_index]["ready_frame"] = (
 			Engine.get_process_frames()

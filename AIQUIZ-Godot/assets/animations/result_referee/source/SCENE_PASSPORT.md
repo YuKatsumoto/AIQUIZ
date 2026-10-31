@@ -10,7 +10,7 @@ SCENE
 HIERARCHY
 - collection/object naming: REF_Studio, RIG_Referee, PRP_Bat, WIN_*, LOSE_*, CAM_Result.
 - parent/child relationships: existing plush skin/armature, bat grip controls and arm IK; existing block-player articulated nodes remain independent and editable.
-- protected existing objects: every object in TutorialKeyboardStudio and all existing source assets. Work in a new scene; recovery copy before changes.
+- protected existing objects: every object in the existing scenes and all existing source assets. Work in a new scene; recovery copy before changes.
 
 ASSETS
 - A01 GodotPlush | [EXISTING] | detailed | approximately 1.65 m tall, centered, original skin retained | feet on floor | RIG_Referee | referee.

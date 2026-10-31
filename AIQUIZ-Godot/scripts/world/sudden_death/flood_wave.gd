@@ -289,7 +289,9 @@ static func body_material(p_quality: String) -> ShaderMaterial:
 	material.set_shader_parameter("water_normal", _shared.water_normal)
 	material.set_shader_parameter("foam_tex", _shared.foam)
 	var q := GraphicsQualityRules.normalize(p_quality)
-	material.set_shader_parameter("ssr_steps", 0 if not GraphicsQualityRules.is_at_least(q, GraphicsQualityRules.HIGH) else (20 if q == GraphicsQualityRules.ULTRA else 12))
+	# Same steps as the hall surface (CisternFlow.ssr_steps): none on mobile, where the march
+	# re-reads the screen copy up to 12 times per water pixel.
+	material.set_shader_parameter("ssr_steps", 0 if GraphicsQualityRules.is_mobile_target() or not GraphicsQualityRules.is_at_least(q, GraphicsQualityRules.HIGH) else (20 if q == GraphicsQualityRules.ULTRA else 12))
 	return material
 
 

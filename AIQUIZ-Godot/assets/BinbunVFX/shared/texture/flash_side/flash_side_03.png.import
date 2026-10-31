@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://dcunkeno8d80l"
 path.s3tc="res://.godot/imported/flash_side_03.png-a85776dfeeaf04433e61c0297537fec1.s3tc.ctex"
+path.etc2="res://.godot/imported/flash_side_03.png-a85776dfeeaf04433e61c0297537fec1.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/BinbunVFX/shared/texture/flash_side/flash_side_03.png"
-dest_files=["res://.godot/imported/flash_side_03.png-a85776dfeeaf04433e61c0297537fec1.s3tc.ctex"]
+dest_files=["res://.godot/imported/flash_side_03.png-a85776dfeeaf04433e61c0297537fec1.s3tc.ctex", "res://.godot/imported/flash_side_03.png-a85776dfeeaf04433e61c0297537fec1.etc2.ctex"]
 
 [params]
 

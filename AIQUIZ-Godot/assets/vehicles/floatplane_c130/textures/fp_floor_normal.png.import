@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://cdvr75ejokeng"
 path.s3tc="res://.godot/imported/fp_floor_normal.png-7e90dd77949769a474b7bd2c386f5ff9.s3tc.ctex"
+path.etc2="res://.godot/imported/fp_floor_normal.png-7e90dd77949769a474b7bd2c386f5ff9.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/vehicles/floatplane_c130/textures/fp_floor_normal.png"
-dest_files=["res://.godot/imported/fp_floor_normal.png-7e90dd77949769a474b7bd2c386f5ff9.s3tc.ctex"]
+dest_files=["res://.godot/imported/fp_floor_normal.png-7e90dd77949769a474b7bd2c386f5ff9.s3tc.ctex", "res://.godot/imported/fp_floor_normal.png-7e90dd77949769a474b7bd2c386f5ff9.etc2.ctex"]
 
 [params]
 

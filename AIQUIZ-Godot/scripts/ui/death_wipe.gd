@@ -118,6 +118,23 @@ func play_shark_impact_flash(player_index: int) -> void:
 	_shark_impact_flash = 1.0
 
 
+## 練習のまきもどし（docs/new_tutorial/phase4_design.md 2.3）：その人を映している小窓とサメの光を、すぐ消す。
+func practice_reset(player_index: int) -> void:
+	_shark_impact_flash = 0.0
+	_ghost_flash = 0.0
+	_ghost_punch = 0.0
+	if _impact_overlay != null:
+		_impact_overlay.color = Color(0.72, 0.94, 1.0, 0.0)
+	if not _active or _dead_player != player_index:
+		return
+	_active = false
+	_is_hiding = false
+	_fade_out = 0.0
+	_explosion_hold_elapsed = 0.0
+	scale = Vector2.ONE
+	visible = false
+
+
 func is_settled_for_player(player_index: int) -> bool:
 	return (
 		_active

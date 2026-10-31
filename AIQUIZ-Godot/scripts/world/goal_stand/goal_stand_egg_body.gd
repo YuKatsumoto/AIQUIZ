@@ -271,7 +271,7 @@ func shape_node(index: int) -> Node3D:
 func pack_for_gpu(limit: int) -> PackedFloat32Array:
 	var data := PackedFloat32Array()
 	var count := 0
-	for index in _by_size():
+	for index in shapes_by_size():
 		if count >= limit:
 			break
 		var xform: Variant = shape_transform(index)
@@ -300,7 +300,7 @@ func pack_for_gpu(limit: int) -> PackedFloat32Array:
 # ------------------------------------------------------------------ helpers
 
 ## Shape indices, largest first (cached: the proxies never change).
-func _by_size() -> Array[int]:
+func shapes_by_size() -> Array[int]:
 	if _order.size() == shapes.size():
 		return _order
 	var sized: Array[Vector2] = []

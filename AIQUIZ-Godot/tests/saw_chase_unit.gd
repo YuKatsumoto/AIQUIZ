@@ -103,6 +103,14 @@ func run() -> void:
 	grace._update_saw_chase(1.0, Vector2(-2,0), Vector2(2,0))
 	check(not grace.p1_alive and not grace.p2_alive and grace.saw.local_z == 0, "initial grace delays travel but contact kills")
 	_start_and_stop_cases()
+	# The blade only rises once the jumper is inside the death range (clearance <= 0).
+	check(SawChaseState.catch_reach(1.0, 0.01, false) == 0.0, "no lift just outside the death range")
+	check(SawChaseState.catch_reach(1.0, 3.0, false) == 0.0, "no lift while approaching")
+	check(is_equal_approx(SawChaseState.catch_reach(1.0, 0.0, false), 1.9), "lift on entering the death range")
+	check(is_equal_approx(SawChaseState.catch_reach(1.0, -0.5, false), 1.9), "lift while inside the death range")
+	check(SawChaseState.catch_reach(0.0, -0.5, false) == 0.0, "no lift for a grounded runner")
+	check(is_equal_approx(SawChaseState.catch_reach(1.0, 0.2, true), 1.9), "just-caught runner keeps the lift after the swept test")
+	check(SawChaseState.catch_reach(1.0, 2.0, true) == 0.0, "just-caught margin is small")
 	var excluded := fixture()
 	excluded.saw.elapsed = 3
 	excluded.saw.local_z = 0

@@ -18,7 +18,7 @@
 
 - 試合の記録とハイライトは `STATE_CLEAR` に入ってから保存される（`MatchReel._commit`）。保存が終わるのを待つので、**今の試合**が「前回の対戦」と履歴の先頭に出る。
   `MatchReel.is_ready()` が真になると切り替わる。保存が終わらなくても `GoalStand.PROGRAMME_WAIT_MAX`（6 秒）で切り替える（`MatchReel` が無いとき＝テストのハーネスは待たない）
-- 起動条件は `state.result_presentation_active`（ローカルのフィナーレ）だけ。オンライン・チュートリアル・リプレイの `CLEAR` は今までどおりカットインのまま
+- 起動条件は `state.result_presentation_active`（ローカルのフィナーレ）だけ。オンライン・リプレイの `CLEAR` は今までどおりカットインのまま
 - 掲示板は 1400×600、番組は 1296×588。横に 8％伸ばして全面に貼る。LED の粒（448×192）にするのも、遠くのちらつきを抑える 7 段のミップも、掲示板側（`goal_stand_scoreboard_led.gdshader`）が受け持つので、番組側のミップは作らない（`MenuLedProgram.setup(null, null, 0)`）
 - 掲示板から遠いとき（`ACTIVE_DISTANCE` 170 m より外）は、番組と掲示板の描き直しを止める（`MenuLedProgram.set_active(false)`）
 - 一度番組に入ったらカットインには戻らない（判定は出たままなので、戻さないよう `GoalStandScoreboard` が抑えている）
@@ -58,7 +58,7 @@
 
 ## ハイライトの録画（`scripts/world/match_reel/`）
 
-`GameWorld` が試合ごとに `MatchReel` を作る（リプレイ・チュートリアル・テストのハーネスでは作らない。テストは保存先を差し替えたときだけ記録する）。
+`GameWorld` が試合ごとに `MatchReel` を作る（リプレイ・テストのハーネスでは作らない。テストは保存先を差し替えたときだけ記録する）。
 
 - `HighlightCapture`：試合の World3D を共有する小さな SubViewport（432×243）が、いまのカメラ（フィナーレの演出カメラも含む）を毎秒 12 枚（画質：高・最高 15、標準 12、低 8、モバイルは録画しない）描き直す。HUD は写らない。
   GPU からの読み戻しは `RenderingDevice.texture_get_data_async` で非同期に行い、ゲームは待たない（Compatibility では小さい画像の直接読み出し）。直前 2.5 秒をリングバッファに持つ。

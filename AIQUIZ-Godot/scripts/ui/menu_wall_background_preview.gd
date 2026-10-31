@@ -22,7 +22,6 @@ const MenuActorEmotesScript = preload("res://scripts/ui/menu_preview/menu_actor_
 const MenuActorAccidentsScript = preload("res://scripts/ui/menu_preview/menu_actor_accidents.gd")
 const MenuDoorLearningScript = preload("res://scripts/ui/menu_preview/menu_door_learning.gd")
 const MenuGhostRideDirectorScript = preload("res://scripts/ui/menu_preview/menu_ghost_ride_director.gd")
-const MenuRunnerAnimatorScript = preload("res://scripts/ui/menu_preview/menu_runner_animator.gd")
 
 const WALL_SPACING := 30.0
 const MENU_INTRO_WALL_START_Z := -72.0
@@ -85,7 +84,6 @@ var _saw_accident_cooldown := SAW_INITIAL_GRACE
 var _saw_next_trial := SAW_INITIAL_GRACE
 var _saw_near_miss := false
 var _saw_events: Array[Dictionary] = []
-var _vessel_camera_owned := false
 var _preview_walls: Array[Node3D] = []
 var _menu_pickup_retracted_walls: Array[Dictionary] = []
 var _wall_merge: PreviewWallMergeAnimator = null
@@ -110,8 +108,6 @@ var _accidents: MenuActorAccidentsScript
 var _door_learning: MenuDoorLearningScript
 ## 2P で死んだランナーがときどきゴーストシャークに乗って相手を襲う（_ready で作る）
 var _ghost: MenuGhostRideDirectorScript = null
-## ランナーの見た目の仕上げ（歩様・向き・ジャンプ・吹き飛び）。[P1, P2]
-var _runner_animators: Array = []
 ## 本物の問題を壁に載せるためのオフライン問題プロバイダ (API不要)
 var _quiz_provider: QuizProvider = null
 var _preview_subject_idx: int = 0
@@ -139,7 +135,6 @@ func _init() -> void:
 	_ai_emotes = MenuActorEmotesScript.new(self)
 	_accidents = MenuActorAccidentsScript.new(self)
 	_door_learning = MenuDoorLearningScript.new(self)
-	_runner_animators = [MenuRunnerAnimatorScript.new(self, true), MenuRunnerAnimatorScript.new(self, false)]
 
 
 func _ready() -> void:
@@ -247,10 +242,6 @@ func _start_camera_return_to_menu() -> void:
 	if not _preview_camera:
 		return
 	var d := _menu_cam_pose if not _menu_cam_pose.is_empty() else MenuPreviewCameraSettingsScript.code_default_settings()
-	if _preview_saw != null and _preview_saw.dock != null:
-		var vessel_weight := _preview_saw.dock.menu_framing_weight()
-		d["position"] = PREVIEW_CAM_POS
-		d["rotation_degrees"] = menu_camera_rotation_degrees().lerp(PREVIEW_CAM_ROT_DEG, vessel_weight)
 	var tw := create_tween()
 	tw.set_ease(Tween.EASE_IN_OUT)
 	tw.set_trans(Tween.TRANS_CUBIC)
@@ -314,7 +305,6 @@ func _process(dt: float) -> void:
 		if _seat_departure_requested and _menu_start_departure_active and not seat_waiting_dock:
 			var transfer := _preview_saw.operator_seat.seat_transfer
 			if transfer.phase == SeatLaunchPresentation.Phase.IDLE: transfer.begin_buckle()
-		_apply_vessel_camera_return()
 		if not presented:
 			# The reveal pauses preview AI, but its visible actors still need a pose.
 			if not _customize_active and not _menu_start_departure_active and not _menu_departure_hold:
@@ -408,25 +398,20 @@ func _process(dt: float) -> void:
 		_update_preview_actor_ai(dt)
 		if _is_local_2p_active():
 			_update_preview_actor2_ai(dt)
-			var ai_end1 := Vector2(_actor_x(true), _actor_local_z(true))
-			var ai_end2 := Vector2(_actor_x(false), _actor_local_z(false))
 			_update_menu_push(dt, p1_body_start, p2_body_start)
 			# 本編と同じ2Pカプセル判定で、メニュー背景のAI同士も重なり・すり抜けを防ぐ。
 			_preview_gs._resolve_two_player_body_collision(p1_body_start, p2_body_start)
 			_preview_gs._flush_local_push_events()
-			_ai.absorb_external_correction(true, ai_end1)
-			_ai.absorb_external_correction(false, ai_end2)
 		elif _preview_gs.local_push.time > 0.0:
 			_reset_menu_push()
 		_update_menu_saw(dt,saw_start1,saw_start2)
 	if _preview_player and _preview_gs and not _customize_active:
 		_preview_gs._active_wall_speed = effective_speed
-		_ai.update_run_anim_speed_multipliers(effective_speed)
+		_ai.update_run_anim_speed_multipliers()
 		_preview_player.update_from_state(_preview_gs)
 		_sync_preview_player_cosmetics()
 		_preview_player.visible = true
 		_force_preview_player_facing_away()
-		_update_runner_animators(dt, effective_speed)
 		if _ghost:
 			_ghost.update(dt)
 	elif _preview_player and _customize_active:
@@ -643,7 +628,6 @@ func _build_3d_scene() -> void:
 	_preview_saw.name = "MenuSawCarriage"
 	_viewport.add_child(_preview_saw)
 	_preview_saw.configure_entrance(true, not QuizManager.has_meta("saw_dock_menu_seen"))
-	_apply_vessel_camera_return()
 	_stage_env.build({
 		"floor_center_z": -64.0,
 		"floor_length": 144.0,
@@ -1342,17 +1326,6 @@ func _shatter_preview_wall_after_pass(wall: Node3D) -> void:
 		wall.shatter_wall(PREVIEW_WALL_SHATTER_DIR_Z)
 
 
-## 本編と同じ描画（update_from_state）のあとに、ふつうに動いているランナーの姿勢を歩様・ジャンプなどで上書きする。
-func _update_runner_animators(dt: float, belt_speed: float) -> void:
-	var pc := _preview_player as PlayerController
-	for i in _runner_animators.size():
-		if i == 1 and not _is_local_2p_active():
-			continue
-		var animator: MenuRunnerAnimatorScript = _runner_animators[i]
-		animator.bind(pc)
-		animator.update(dt, belt_speed)
-
-
 func _force_preview_player_facing_away() -> void:
 	var pc := _preview_player as PlayerController
 	if not pc:
@@ -1544,7 +1517,6 @@ func _trigger_preview_death(
 	bundle.vel_x = 0.0
 	bundle.vel_z = 0.0
 	bundle.dodge_until = -1.0
-	bundle.jump_prep_until = -1.0
 	bundle.ghost_mode = MenuPreviewActorAIStateScript.GHOST_MODE_NONE
 	bundle.blocking_wall = null
 	_clear_pending_accident(bundle)
@@ -1608,23 +1580,3 @@ func _rebuild_preview_player() -> void:
 	_reload_preview_emote_rigs()
 	if _ghost:
 		_ghost.on_player_controller_rebuilt(_preview_player as PlayerController)
-
-
-func _apply_vessel_camera_return() -> void:
-	if _preview_camera == null or _preview_saw == null or _preview_saw.dock == null:
-		return
-	if _customize_active or _menu_start_departure_active or _menu_departure_hold:
-		_vessel_camera_owned = false
-		return
-	var weight := _preview_saw.dock.menu_framing_weight()
-	var menu_rotation := menu_camera_rotation_degrees()
-	if weight > 0.0:
-		# 船の入港で位置は引かない（俯角だけ寄せる）
-		_preview_camera.position = PREVIEW_CAM_POS
-		# 保守船の入港は従来の俯角で映す（メニュー専用ステージの浅い俯角では船が画面の下へ外れる）
-		_preview_camera.rotation_degrees = menu_rotation.lerp(PREVIEW_CAM_ROT_DEG, weight)
-		_vessel_camera_owned = true
-	elif _vessel_camera_owned:
-		_preview_camera.position = PREVIEW_CAM_POS
-		_preview_camera.rotation_degrees = menu_rotation
-		_vessel_camera_owned = false

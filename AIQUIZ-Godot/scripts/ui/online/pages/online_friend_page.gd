@@ -7,12 +7,14 @@ extends OnlineMenuPage
 enum Mode { CHOOSE, JOIN }
 
 const CODE_LENGTH := 5
+const MobileUi = preload("res://scripts/core/mobile_ui.gd")
 
 var _mode: Mode = Mode.CHOOSE
 var _boxes: Dictionary = {}  # Mode -> Control
 var _code_input: LineEdit
 var _create_button: Button
 var _join_button: Button
+var _to_join_button: Button
 
 
 func _ready() -> void:
@@ -24,11 +26,14 @@ func _ready() -> void:
 	var to_join := OnlineMenuStyle.button("コードを いれる", Vector2(0, 56), 22)
 	to_join.pressed.connect(func() -> void: _set_mode(Mode.JOIN))
 	choose.add_child(to_join)
+	_to_join_button = to_join
 	_boxes[Mode.CHOOSE] = choose.get_parent()
 
 	var join := OnlineMenuStyle.card(self, 12)
 	OnlineMenuStyle.section(join, "ともだちの コード", "%dもじ" % CODE_LENGTH)
 	_code_input = OnlineMenuStyle.line_edit("ABCDE", CODE_LENGTH, Vector2(0, 60), 32)
+	# 英字のコードなので、かな入力や予測変換の出ない英数字のキーボードを出す（大文字は _on_code_changed で直す）
+	_code_input.virtual_keyboard_type = LineEdit.KEYBOARD_TYPE_URL
 	_code_input.text_changed.connect(_on_code_changed)
 	_code_input.text_submitted.connect(func(_text: String) -> void: _submit_code())
 	join.add_child(_code_input)
@@ -60,6 +65,24 @@ func default_focus() -> Control:
 	return _create_button
 
 
+## 練習の形で、画面のコーチが光らせる部品（docs/new_tutorial/phase7_design.md 1.1）。なければ null。
+##   &"code_make"（コードを つくる）・&"code_enter"（コードを いれる）・&"code_field"（ともだちの コードの欄。いれる側のときだけ見える）
+func practice_part(id: StringName) -> Control:
+	match id:
+		&"code_make":
+			return _create_button
+		&"code_enter":
+			return _to_join_button
+		&"code_field":
+			return _code_input
+	return null
+
+
+## 練習の形で、コードの欄（いれる側）を見せる・選ぶ側へ戻す（押さずに見せるだけ）。
+func practice_show_join(on: bool) -> void:
+	_set_mode(Mode.JOIN if on else Mode.CHOOSE)
+
+
 func _set_mode(mode: Mode) -> void:
 	_mode = mode
 	for key in _boxes:
@@ -67,7 +90,8 @@ func _set_mode(mode: Mode) -> void:
 	if mode == Mode.JOIN:
 		_code_input.text = ""
 	var focus := default_focus()
-	if focus != null and is_visible_in_tree():
+	# タッチでは、コードの欄（ソフトキーボードを出す）だけにフォーカスを当てる
+	if focus != null and is_visible_in_tree() and (not MobileUi.is_touch_ui() or focus == _code_input):
 		focus.grab_focus.call_deferred()
 
 

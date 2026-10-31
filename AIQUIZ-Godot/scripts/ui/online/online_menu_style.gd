@@ -5,6 +5,7 @@ extends RefCounted
 ## デザインを作り直すときは、まずここを差し替える（docs/online_menu.md）。
 
 const FONT := preload("res://resources/fonts/NotoSansJP-Bold.otf")
+const MobileUi = preload("res://scripts/core/mobile_ui.gd")
 
 const BG_TOP := Color("#0f2a44")
 const BG_BOTTOM := Color("#081420")
@@ -50,6 +51,8 @@ static func button(text: String, min_size: Vector2, font_size: int, featured := 
 	node.accent = ACCENT_ONLINE
 	node.custom_minimum_size = min_size
 	node.add_theme_font_size_override("font_size", font_size)
+	# スマホ：指で押せる高さ（論理 80px）
+	MobileUi.ensure_touch_size(node)
 	return node
 
 
@@ -60,7 +63,9 @@ static func arrow_button(text: String) -> MenuMetalButton:
 	node.arrow_button = true
 	node.accent = ACCENT_ONLINE
 	node.custom_minimum_size = Vector2(52, 48)
-	node.add_theme_font_size_override("font_size", 18)
+	node.add_theme_font_size_override("font_size", MobileUi.font(18))
+	# スマホ：行の高さを抑えつつ指で押せる大きさ（小さいほうの基準 56）
+	MobileUi.ensure_touch_size(node, true)
 	return node
 
 
@@ -102,7 +107,7 @@ static func section(parent: Control, title: String, hint := "") -> HBoxContainer
 	heading.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(heading)
 	if not hint.is_empty():
-		var note := label(hint, 14, MUTED, HORIZONTAL_ALIGNMENT_RIGHT)
+		var note := label(hint, MobileUi.font(14), MUTED, HORIZONTAL_ALIGNMENT_RIGHT)
 		note.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		row.add_child(note)
 	return row
@@ -128,6 +133,7 @@ static func line_edit(placeholder: String, max_length: int, min_size: Vector2, f
 	node.custom_minimum_size = min_size
 	node.add_theme_font_override("font", FONT)
 	node.add_theme_font_size_override("font_size", font_size)
+	MobileUi.ensure_touch_size(node)
 	node.add_theme_stylebox_override("normal", _field_box(FIELD_EDGE, 2))
 	node.add_theme_stylebox_override("focus", _field_box(ACCENT_ONLINE, 2, true))
 	node.add_theme_stylebox_override("read_only", _field_box(FIELD_EDGE, 2))

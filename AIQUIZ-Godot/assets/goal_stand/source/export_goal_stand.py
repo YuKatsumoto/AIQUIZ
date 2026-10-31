@@ -16,7 +16,8 @@ ns = {}
 exec(open("C:/AIQUIZ/AIQUIZ-Godot/assets/goal_stand/source/gs_common.py", encoding="utf-8").read(), ns)
 G = type("G", (), ns)
 
-ONE_SHOT = {"SPEC_Throw", "SPEC_WakeUp"}
+ONE_SHOT = {"SPEC_Throw", "SPEC_WakeUp", "SPEC_StandUp", "SPEC_SitDown", "SPEC_Buy", "SPEC_PassItemL", "SPEC_PassItemR",
+            "SPEC_VendorHand"}
 THROW_RELEASE = 9           # frame measured by bake_ual.py (fastest forward hand speed)
 # Crowd extras (author_crowd_extras.py) that Godot needs as numbers, in seconds.
 WAVE_RISE = [4 / 30.0, 14 / 30.0, 26 / 30.0, 38 / 30.0]   # stand_wave_rise(): up 4..14, down 26..38
@@ -52,6 +53,9 @@ def spectator_clips():
 
 
 def export_spectator():
+    # The palette is a generated image, not saved with the .blend: reopened, it is
+    # black until its colours are written again.
+    G.palette_image()
     rig = bpy.data.objects[G.RIG]
     ad = rig.animation_data or rig.animation_data_create()
     ad.action = None
@@ -70,6 +74,11 @@ def export_spectator():
                        "loop": name not in ONE_SHOT}
         if action.get("source_seconds") is not None:
             clips[name]["source_seconds"] = float(action["source_seconds"])
+        # The walking crowd (author_crowd_walks.py): hips rising off the seat, the walk's pace.
+        if action.get("rise") is not None:
+            clips[name]["rise"] = [round(float(t), 4) for t in action["rise"]]
+        if action.get("ground_speed") is not None:
+            clips[name]["ground_speed"] = float(action["ground_speed"])
     clips["SPEC_Throw"]["release"] = round(THROW_RELEASE / G.FPS, 4)
     rig.data.pose_position = "POSE"
     for pb in rig.pose.bones:

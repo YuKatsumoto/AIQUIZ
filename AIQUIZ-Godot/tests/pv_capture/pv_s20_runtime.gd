@@ -44,7 +44,6 @@ var customize                               # customize_settings.gd（メニュ�
 var _change_frames: Dictionary = {}         # PV フレーム → 帽子
 var _applied: Array = []
 var _real_skin_hash := ""
-var _saved_tutorial_version := 0
 var _saved_skin_path := ""
 var _saved_skin_suspended := false
 
@@ -84,8 +83,6 @@ func _setup() -> void:
 	_real_skin_hash = FileAccess.get_sha256(PlayerSkinStore.DEFAULT_PATH) if FileAccess.file_exists(PlayerSkinStore.DEFAULT_PATH) else "absent"
 	QuizManager.set_meta("title_logo_intro_seen", true)
 	QuizManager.set_meta("saw_dock_menu_seen", true)
-	_saved_tutorial_version = GameManager.tutorial_prompt_seen_version
-	GameManager.tutorial_prompt_seen_version = GameManager.CURRENT_TUTORIAL_VERSION
 	_saved_skin_path = PlayerSkinStore.path
 	_saved_skin_suspended = PlayerSkinStore.suspended
 	PlayerSkinStore.path = "user://pv_capture_player_skins.json"
@@ -103,8 +100,6 @@ func _setup() -> void:
 	while get_tree().current_scene == null or not get_tree().current_scene.is_node_ready():
 		await get_tree().process_frame
 	menu = get_tree().current_scene
-	if gs.has_pending_solo_customize_tour():
-		failures.append("customize tour pending")
 	var preview: Node = menu.get("_menu_wall_preview")
 	preview.call("sync_menu_player_count", 1)
 	await _frames(int(4.0 * FPS) * sub)                # 入場・ベルトが止まるまで
@@ -174,6 +169,5 @@ func _check() -> void:
 func _cleanup() -> void:
 	# 保留中の保存タイマー（SAVE_DELAY_SEC）が、戻したあとの本当のファイルへ書かないように、先に捨てる
 	PlayerSkinStore.reset_memory()
-	GameManager.tutorial_prompt_seen_version = _saved_tutorial_version
 	PlayerSkinStore.path = _saved_skin_path
 	PlayerSkinStore.suspended = _saved_skin_suspended

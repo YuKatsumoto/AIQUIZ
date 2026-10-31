@@ -210,10 +210,10 @@ func _game_state() -> void:
 				gs.quiz_list.append(hard if i % 2 == 0 else easy)
 		gs.load_current_quiz()
 		var first_hard := gs._active_wall_speed
-		var expected_distance := gs.wall_z - 0.4 - gs.player_z
+		var expected_distance := gs.wall_z - gs.wall_contact_distance() - gs.player_z
 		check(is_equal_approx(gs._distance_to_current_wall(), expected_distance), "distance from the front player %dP" % players)
-		gs.player_z = gs.wall_z - 0.4
-		gs.player2_z = gs.wall_z - 0.4
+		gs.player_z = gs.wall_z - gs.wall_contact_distance()
+		gs.player2_z = gs.wall_z - gs.wall_contact_distance()
 		gs.advance_after_correct()
 		var then_easy := gs._active_wall_speed
 		check(first_hard < then_easy * 0.8, "hard question slower than the next easy one %dP" % players)
@@ -221,8 +221,8 @@ func _game_state() -> void:
 		rows.append({"case": "game_%dp" % players, "hard": snappedf(first_hard, 0.001), "easy": snappedf(then_easy, 0.001)})
 		# 最後の問題まで進めても、難問の速さは「余裕を縮めた分」しか上がらない。
 		for i in range(7):
-			gs.player_z = gs.wall_z - 0.4
-			gs.player2_z = gs.wall_z - 0.4
+			gs.player_z = gs.wall_z - gs.wall_contact_distance()
+			gs.player2_z = gs.wall_z - gs.wall_contact_distance()
 			gs.advance_after_correct()
 		check(gs.current_index == 8 and gs.current_quiz == hard, "reached the late hard question")
 		var late_hard := gs._active_wall_speed
@@ -248,7 +248,7 @@ func _game_state() -> void:
 	check(is_equal_approx(adapt.wall_speed_planner._elapsed, 0.3), "playing frames are timed for the planner")
 	adapt.wall_speed_planner.track(before_budget * 0.9, false)
 	adapt._record_answer_timing(false)
-	adapt.player_z = adapt.wall_z - 0.4
+	adapt.player_z = adapt.wall_z - adapt.wall_contact_distance()
 	adapt.advance_after_correct()
 	check(adapt.wall_speed_planner.pace > 1.0, "late wrong answer in play raises the pace")
 	check(adapt.wall_speed_planner.last_budget_seconds > before_budget, "the next wall gives more time after a struggle")

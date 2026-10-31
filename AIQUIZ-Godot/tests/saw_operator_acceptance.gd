@@ -247,14 +247,19 @@ func operating_pass(op: SawOperatorPresentation) -> void:
 
 ## Menu stow on the stow clock: stow, rest racked (vignettes), deploy, and a mid-way reversal.
 func stow_pass(op: SawOperatorPresentation) -> void:
-	var length := 12.4167
+	# The sidecar gives the clip length, the brake and when the bunch passes over the deck.
+	var data := SawChaseController.load_stow_data(SawChaseController.STOW_DATA_PATH, 6.95)
+	var length := float(data.length)
+	var brake := float(data.brake_seconds)
+	var station: Array = data.station_airspace
 	var frames: Array[Dictionary] = []
 	var p := 0.0
 	var rate := 0.0
 	var idle := -1.0
-	# Stow with a reversal at p=5 and back, then the full stow, 12 s racked, then deploy.
-	var script := [[1.0,5.0],[-1.0,2.0],[1.0,length],[0.0,12.0],[-1.0,0.0]]
-	var step := 1.3/30.0
+	# Stow with a reversal while the bunch is over the deck and back, then the full stow, 12 s racked, then deploy.
+	var turn_at := (float(station[0])+float(station[1]))/2.0 if station.size() >= 2 else length*.7
+	var script := [[1.0,turn_at],[-1.0,1.0],[1.0,length],[0.0,12.0],[-1.0,0.0]]
+	var step := SawChaseController.STOW_SPEED/30.0
 	for leg: Array in script:
 		var want: float = leg[0]
 		var guard := 0
@@ -269,8 +274,8 @@ func stow_pass(op: SawOperatorPresentation) -> void:
 				if p >= length: idle = maxf(idle,0.0)
 				elif p <= length - SawOperatorPresentation.STOW_REST_FADE: idle = -1.0
 				if (want > 0.0 and p >= float(leg[1])) or (want < 0.0 and p <= float(leg[1])): break
-			frames.append(SawOperatorPresentation.sample(7,20,0,0,true,0,0,{"rpm":1.0-smoothstep(0.0,1.3,p),"stow":p,"stow_length":length,"stow_rate":rate,"stow_idle":idle}))
-	frames.append(SawOperatorPresentation.sample(7,20,0,0,true,0,0,{"rpm":1.0,"stow":0.0,"stow_length":length,"stow_rate":0.0,"stow_idle":-1.0}))
+			frames.append(SawOperatorPresentation.sample(7,20,0,0,true,0,0,{"rpm":1.0-smoothstep(0.0,brake,p),"stow":p,"stow_length":length,"stow_rate":rate,"stow_idle":idle,"stow_station":station}))
+	frames.append(SawOperatorPresentation.sample(7,20,0,0,true,0,0,{"rpm":1.0,"stow":0.0,"stow_length":length,"stow_rate":0.0,"stow_idle":-1.0,"stow_station":station}))
 	var max_error := 0.0
 	var max_step := 0.0
 	var max_turn := 0.0

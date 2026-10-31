@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://c3bito4jygotc"
 path.s3tc="res://.godot/imported/aiquiz_menu_city_harbor_facade_loggia_night.png-76aa3bc0f86be2f29ca72adfdf51f94d.s3tc.ctex"
+path.etc2="res://.godot/imported/aiquiz_menu_city_harbor_facade_loggia_night.png-76aa3bc0f86be2f29ca72adfdf51f94d.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/aiquiz_menu_stage/aiquiz_menu_city_harbor_facade_loggia_night.png"
-dest_files=["res://.godot/imported/aiquiz_menu_city_harbor_facade_loggia_night.png-76aa3bc0f86be2f29ca72adfdf51f94d.s3tc.ctex"]
+dest_files=["res://.godot/imported/aiquiz_menu_city_harbor_facade_loggia_night.png-76aa3bc0f86be2f29ca72adfdf51f94d.s3tc.ctex", "res://.godot/imported/aiquiz_menu_city_harbor_facade_loggia_night.png-76aa3bc0f86be2f29ca72adfdf51f94d.etc2.ctex"]
 
 [params]
 

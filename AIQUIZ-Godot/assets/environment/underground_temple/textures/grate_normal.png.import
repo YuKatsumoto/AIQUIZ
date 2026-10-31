@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://dkpbcqmbjsmbi"
 path.s3tc="res://.godot/imported/grate_normal.png-437ec00123c663d32ae81ef7ddb1062c.s3tc.ctex"
+path.etc2="res://.godot/imported/grate_normal.png-437ec00123c663d32ae81ef7ddb1062c.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/environment/underground_temple/textures/grate_normal.png"
-dest_files=["res://.godot/imported/grate_normal.png-437ec00123c663d32ae81ef7ddb1062c.s3tc.ctex"]
+dest_files=["res://.godot/imported/grate_normal.png-437ec00123c663d32ae81ef7ddb1062c.s3tc.ctex", "res://.godot/imported/grate_normal.png-437ec00123c663d32ae81ef7ddb1062c.etc2.ctex"]
 
 [params]
 

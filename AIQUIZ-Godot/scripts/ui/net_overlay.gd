@@ -9,6 +9,8 @@ extends CanvasLayer
 ## ・右上に今の通信状況（ping）を常に表示
 
 signal quit_requested
+## 「たいせんを やめますか？」を開いた・閉じた（練習の試合で、監督が見る）
+signal confirm_changed(open: bool)
 
 ## ping の色分けのさかい目（ミリ秒）。これ未満なら良好（緑）／ふつう（黄）、以上は悪い（赤）。
 const PING_GOOD_MS := 80.0
@@ -18,6 +20,10 @@ const PING_FAIR_COLOR := Color(1.0, 0.82, 0.25)
 const PING_BAD_COLOR := Color(1.0, 0.36, 0.3)
 const PING_UNKNOWN_COLOR := Color(0.62, 0.66, 0.72)
 const PING_REFRESH_SECONDS := 0.5
+const MobileUi = preload("res://scripts/core/mobile_ui.gd")
+const TouchHud = preload("res://scripts/ui/touch_hud/touch_hud.gd")
+## スマホ：回線表示（デバッグ）の上端。左上の P1 のカード（1.4 倍）の下。
+const TOUCH_STATS_TOP := 150.0
 
 var _net: NetGameState
 var _dim: ColorRect
@@ -38,6 +44,9 @@ var _mode := ""  # "", "pause", "over", "confirm"
 var _stats_timer := 0.0
 var _last_snap_bytes := 0
 var _last_cmd_bytes := 0
+## 練習の試合（オンラインの見せ方。docs/new_tutorial/phase7_design.md 1.2）：つながないので通信の札（ping）は出さず、
+## 「やめる」は押せない。setup の代わりに setup_practice を呼ぶ。
+var practice := false
 
 
 func _ready() -> void:
@@ -45,6 +54,10 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_build()
 	_hide_panel()
+	if MobileUi.is_touch_ui():
+		# スマホ：右上の ping と左上の回線表示をカメラの穴と角丸（SafeArea）の内側へ。
+		TouchHud.on_safe_area_changed(_apply_safe_area)
+		_apply_safe_area()
 
 
 func setup(net: NetGameState) -> void:
@@ -53,6 +66,32 @@ func setup(net: NetGameState) -> void:
 	net.match_over.connect(_on_match_over)
 	if net.paused:
 		_on_pause_changed(true, net.pause_message)
+
+
+## 練習の試合で使う（通信の相手がいない）。Esc の「たいせんを やめますか？」だけを本番と同じ見た目で出す。
+func setup_practice() -> void:
+	practice = true
+	if _ping_panel != null:
+		_ping_panel.visible = false
+
+
+func is_confirm_open() -> bool:
+	return _mode == "confirm"
+
+
+## 「たいせんを やめますか？」の［やめる］と［つづける］（画面のコーチが光らせる）
+func quit_button() -> Button:
+	return _primary
+
+
+func continue_button() -> Button:
+	return _secondary
+
+
+## 「たいせんを やめますか？」が出ていたら閉じる（［つづける］と同じ）。
+func close_confirm() -> void:
+	if _mode == "confirm":
+		_restore_after_confirm()
 
 
 func _build() -> void:
@@ -102,7 +141,7 @@ func _build() -> void:
 
 	_stats = Label.new()
 	_stats.position = Vector2(12, 12)
-	_stats.add_theme_font_size_override("font_size", 14)
+	_stats.add_theme_font_size_override("font_size", MobileUi.font(14))
 	_stats.add_theme_color_override("font_color", Color(0.7, 1.0, 0.7))
 	_stats.add_theme_color_override("font_outline_color", Color.BLACK)
 	_stats.add_theme_constant_override("outline_size", 4)
@@ -141,7 +180,7 @@ func _build_ping() -> void:
 	_ping_bars.draw.connect(_draw_ping_bars)
 	row.add_child(_ping_bars)
 	_ping_label = Label.new()
-	_ping_label.add_theme_font_size_override("font_size", 17)
+	_ping_label.add_theme_font_size_override("font_size", MobileUi.font(17))
 	_ping_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
 	_ping_label.add_theme_constant_override("outline_size", 3)
 	row.add_child(_ping_label)
@@ -181,10 +220,21 @@ func _draw_ping_bars() -> void:
 		_ping_bars.draw_rect(rect, _ping_color if lit else Color(1, 1, 1, 0.22))
 
 
+## スマホ：端に置く札を SafeArea の分だけ内側へ寄せる（デスクトップでは呼ばれない）。
+func _apply_safe_area() -> void:
+	# 左上は TouchControls のポーズボタンと P1 のカードが使うので、回線表示はその下（ポーズボタンの右）へ。
+	_stats.position = Vector2(TouchHud.pause_clearance() + TouchHud.safe_left(), TOUCH_STATS_TOP + TouchHud.safe_top())
+	if _ping_panel != null:
+		_ping_panel.offset_right = -12.0 - TouchHud.safe_right()
+		_ping_panel.offset_top = 10.0 + TouchHud.safe_top()
+
+
 func _make_button() -> Button:
 	var button := Button.new()
-	button.custom_minimum_size = Vector2(200, 56)
-	button.add_theme_font_size_override("font_size", 22)
+	button.custom_minimum_size = Vector2(200, MobileUi.touch(56))
+	if MobileUi.is_touch_ui():
+		button.focus_mode = Control.FOCUS_NONE
+	button.add_theme_font_size_override("font_size", MobileUi.font(22))
 	_button_row.add_child(button)
 	return button
 
@@ -240,6 +290,9 @@ func toggle_quit_confirm() -> void:
 		return
 	_mode = "confirm"
 	_show_panel("たいせんを やめますか？\n（あいての かちに なります）", ["やめる", "つづける"])
+	# 練習の試合では［やめる］は押せない（台本④の 4-6）
+	_primary.disabled = practice
+	confirm_changed.emit(true)
 
 
 func _restore_after_confirm() -> void:
@@ -247,6 +300,8 @@ func _restore_after_confirm() -> void:
 		_on_pause_changed(true, _net.pause_message)
 	else:
 		_hide_panel()
+	if _mode != "confirm":
+		confirm_changed.emit(false)
 
 
 func _on_pause_changed(is_paused: bool, message: String) -> void:

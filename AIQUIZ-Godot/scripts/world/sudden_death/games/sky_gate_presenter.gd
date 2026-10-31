@@ -10,9 +10,10 @@ extends SuddenDeathPresenter
 ## 監督なしでも動く（setup_solo。デバッグの入口 sky_gate_debug.gd とテスト）。
 ##
 ## 空中：2人は空のセットの下の「落ちる点」のまわりに留め（位置はルールのボードの座標）、雲を下から上へ流して落ちているように
-## 見せる。ボードはドローンで吊られて下から近づき（はじめ 320 m 下 → 1.6 秒でボードが読める近さ → ゆっくり寄る → 最後の 0.9 秒で
-## 一気に）、ゲートの時刻にちょうど2人の高さに来る。ボードの x（右）はワールドの −X、y（前）は +Z。カメラは +Z を向くので
-## P1（+X）は常に画面の左。
+## 見せる。ボードはドローンで吊られて真下に一列に並び（列。2026-10-25 から時間制限なし）、ルールの board_depth(k) のとおりに
+## 一定の速さで上がってきて、今のボードが2人の高さに届いた瞬間に当たる。ラウンドの頭は斜め上からの引きの画（G4_Column）で
+## 4 枚の列を見せてから、見下ろし（G2_TopDown）へ寄せる。ボードの x（右）はワールドの −X、y（前）は +Z。カメラは +Z を向くので
+## P1（+X）は常に画面の左。まちがえた人がいても画は切り替えず、見下ろしのまま強いスローと色抜けで爆散を見せる（GTA 風）。
 ## 人物は、プレイヤーの見た目を写した人形（build_player_skeleton）。空中の腹ばいは DropMotion（SD_Box_Loop と傾き 4 つ）、
 ## パラシュート（ParachuteCanopy）・着地・勝ちの姿は関節の角度の表（ParachutePresenter と同じ作り）。
 ## ボードと効果は SkyGateBoard・SkyGateEffects（W5）。空の演出は W7 の SkyFallScenery（体積雲・島・海のサングリント・風切り）と
@@ -27,24 +28,16 @@ const FORWARD := Vector3(0.0, 0.0, 1.0)
 ## ボードのノードの向き（ボードのローカルの +X が右、−Z が奥なので、Y まわりに半回転）。
 const BOARD_TURN := Basis(Vector3(-1, 0, 0), Vector3(0, 1, 0), Vector3(0, 0, -1))
 
-# ボードの近づき方（2人から見たボードの深さ m。sky_gate.md 3.2）
-## 2026-10-19 夜（ユーザーの指示「最初の高度を上げて問題どうしの間隔を広げる」）：出始め 320 → 540 m、次のボードの間隔 300 → 520 m。
-const BOARD_FAR := 540.0
-const BOARD_HOVER_FAR := 26.0
-const BOARD_HOVER_NEAR := 9.0
-const RISE_TIME := 1.6
-const PLUNGE_TIME := 0.9
-## 時間切れの瞬間にボードが体に届くときの近づく速さ（m/秒。SkyGateImpact の押し込みの初めの速さに合わせる）。
-const CONTACT_SPEED := 4.0
-## 次のボードは今のボードのこれだけ下に見せる（ゲートが下へ続く）。次のゲートが無いときは、この速さで下へ離れて消える。
-const BOARD_NEXT_GAP := 520.0
-const BOARD_NEXT_SINK := 140.0
-const BOARD_POOL := 3
+# ボードの列（深さはルールの board_depth。sky_gate.md 3.2）
+## 列の 4 枚と、当たって消えていく 1 枚（延長は今のボードの下に 3 枚）。
+const BOARD_POOL := 5
+## 決着したとき・本戦が終わったとき、残りのボードが消えるまでの秒。
+const BOARD_LEAVE_TIME := 0.5
 ## ラウンドの頭の海の深さ（SkyFallScenery.sea_depth の遠い側をこの倍に。最後のあたり（近い側 75 m）は同じ）。
 const SEA_START_SCALE := 1.6
 ## 落ちる速さ（雲を流す速さ、m/秒。空の演出の雲海の高さは ROUND 1 の毎秒 40 m で作ってある）。
 const FALL_SPEED := 40.0
-## ボードの出始めは海よりこれだけ上（最後のゲートのあたりは海が近いので、320 m より浅く出す）。
+## ボードは海よりこれだけ上にあるときだけ見せる（列の深いボードが海の中に見えないように）。
 const BOARD_SEA_CLEAR := 30.0
 ## 海の高さを寄せる速さの上限（m/秒）。ラウンドの頭など行き先が変わっても、海と島は飛ばずに動く。
 const SEA_RATE := 420.0
@@ -66,24 +59,35 @@ const FIT_IN_RATE := 1.4
 ## ボードの四隅を画に入れ始める深さ（これより遠いとボードの中心だけ）。
 const FIT_BOARD_FAR := 70.0
 const FIT_BOARD_NEAR := 24.0
-## ゲートの終わりに2人へ寄る（2026-10-20、ユーザーの指示「選択肢に近づいたらカメラも近づく」）：残り時間が
-## ゲートの時間の PUSH_SHARE（最大 PUSH_LEAD 秒）を切ったら、ボードと問題文の看板を画に収めるのをやめて、2人の体だけを
-## 収める近さ（PUSH_NEAR m まで）へ寄せる。ボードは下から画いっぱいに迫ってくる。つき破ったあとの判定の間に元の距離へ戻す。
+## ボードに近づいたら2人へ寄る（2026-10-20、ユーザーの指示「選択肢に近づいたらカメラも近づく」）：当たるまでが
+## ゲートの長さの PUSH_SHARE（最大 PUSH_LEAD 秒）を切ったら、ボードと問題文の看板を画に収めるのをやめて、2人の体だけを
+## 収める近さ（PUSH_NEAR m まで）へ寄せる。当たる PUSH_DONE 秒前に寄りきる。ボードは下から画いっぱいに迫ってくる。
+## つき破ったあとは元の距離へ戻す。
 const PUSH_SHARE := 0.3
 const PUSH_LEAD := 2.4
+const PUSH_DONE := 0.45
 const PUSH_NEAR := 8.5
 const PUSH_RATE := 3.2
 ## 通り抜けるとき（全員が正解）は見下ろし（G2）のまま。ボードは体の上を通りすぎながら消える（ユーザーの指示）。
-## G6_Death：まちがえた人がいたら、時間切れの瞬間にその人の近くの画へ切り替える（ユーザーの指示「死んだプレイヤーに近づいた
-## 画角にして、ラグドールになってからバウンドして爆散するカットを入れる」）。爆散の DEATH_HOLD 秒あとから DEATH_OUT 秒で
-## 見下ろしへ戻る（決着したときは、着地の画がこの画から寄せる）。目の位置は切り替えたときの体から見た位置で止め、体を追って向きを変える。
-const DEATH_FOV := 50.0
-## 1 人のとき：体から見た目の位置（外へ・上へ・うしろへ m）。2 人とも：2 人の真ん中から。
-const DEATH_OFFSET := Vector3(2.2, 2.0, -4.4)
-const DEATH_PAIR_OFFSET := Vector3(0.0, 3.0, -8.0)
-const DEATH_HOLD := 0.55
-const DEATH_OUT := 0.9
-const DEATH_AIM_RATE := 10.0
+## まちがえた人がいても画は切り替えない（2026-10-25、ユーザーの指示「今のカメラの切り替えから、そのままの降りるカメラで
+## ぶつかったら GTA のように画面がスローモーションになって爆散」）：見下ろしのまま、色抜けの強さ（SkyGateImpact.wasted_amount）を
+## WASTED_CAM_RATE（1/秒、実時間）でならした重さで、注視点をぶつかった人へ WASTED_AIM だけ寄せ、距離を WASTED_PULL 倍へゆっくり
+## 引く（寄ったままだとボードが画いっぱいで、はね返りと爆散が見えない）。画面の色は彩度・明るさ・コントラストを WASTED_* へ、
+## まわりは HUD が暗くする。はね返り・爆発の音は WASTED_PITCH まで音程を下げる。
+const WASTED_AIM := 0.75
+const WASTED_PULL := 1.35
+const WASTED_CAM_RATE := 2.5
+const WASTED_SATURATION := 0.1
+const WASTED_BRIGHTNESS := 0.92
+const WASTED_CONTRAST := 1.12
+const WASTED_PITCH := 0.7
+## G4_Column（2026-10-25、ユーザーの指示「4 枚が下へ続く列を最初に見せる」）：ラウンドの頭に、斜め上から下へ続く列を収める
+## 引きの画。目は落ちる点から COLUMN_EYE（右は −X）、落ちる点の COLUMN_LOOK_DEPTH m 下を見る。ROUND 1 は降下のあと
+## RULES_DELAY 秒この画を見せてからルールカードを出し、カウントダウンの「2」から GO までに見下ろしへ寄せる。
+const COLUMN_FOV := 52.0
+const COLUMN_EYE := Vector3(-34.0, 18.0, -58.0)
+const COLUMN_LOOK_DEPTH := 120.0
+const RULES_DELAY := 1.4
 ## 真下の印（ボードの紙の上の、自分の色の輪）。
 const MARKER_RADIUS := 0.62
 const MARKER_RANGE := 90.0
@@ -133,8 +137,6 @@ const EXTRACT_DELAY := 3.6
 const ORBIT_SPEED := 12.0
 ## パラシュートのあと、布が落ちる床の点（着地した人の後ろ、m）。
 const GROUND_BEHIND := 0.45
-## 札（セーフ・ドカン）を出しておく秒。
-const TAG_TIME := 1.3
 ## 2人とも同じゲートでアウト：ブロックが体に戻り始める（復活の 1.0 秒のうち）。
 const GATHER_AT := 0.5
 const GATHER_TIME := 0.45
@@ -271,7 +273,8 @@ var _markers := {}
 var _boards: Array[SkyGateBoard] = []
 ## 図解ルールカードの実演（ゲーム内の 3D をカードの絵にする）。
 var _rule_demos: Array[SkyGateRuleDemo] = []
-## ボードごと：{"role": "idle"/"next"/"cur"/"old", "d": 深さ, "offset": 横のずれ, "scale": Vector2}
+## ボードごと：{"role": "idle"/"column"（列の k 枚目。まだ当たっていない）/"hit"（当たって消えていく）/"leaving"（決着で消える）,
+## "k", "d": 深さ, "offset": 横のずれ, "scale": Vector2, "q": 書いた問題文, "hit_at": 当たった見せ方の時計, "mode", "speed", "leave_at"}
 var _board_state: Array[Dictionary] = []
 var _built := false
 
@@ -288,8 +291,13 @@ var _solo_emotes := [0, 0]
 var _phase := "idle"
 var _t := 0.0
 var _phase_t := 0.0
-## 見せ方の時計の速さ（時間切れの前後のスロー。SkyGateImpact.time_scale）。
+## 見せ方の時計の速さ（脱落のスロー。SkyGateImpact.wasted_scale）と、その速さで進む見せ方の時計（つき破る動きはこの時計で読む）。
 var _slow := 1.0
+var _scene_t := 0.0
+## 脱落の色抜けの強さ（0〜1。SkyGateImpact.wasted_amount）と、色を戻すための本戦の環境のもとの値。
+var _wasted := 0.0
+var _wasted_cam := 0.0
+var _env_base := {}
 var _camera := {}
 var _shot := ""
 var _sea_y := 0.0
@@ -303,12 +311,9 @@ var _pending_round := 0
 var _round := 1
 var _gate := 0
 var _overtime := false
-var _gate_time := 8.0
-var _quiz_choices: Array = []
 var _lean := [Vector2.ZERO, Vector2.ZERO]
 var _lit := [-1, -1]
-var _tags := {1: ["", "", -INF, INF], 2: ["", "", -INF, INF]}
-## 時間切れ（gate_impact）の中身と時刻、判定（gate_pass）の時刻。次の時間切れまで残す。
+## 当たった（gate_impact）の中身と見せ方の時計の時刻、判定（gate_pass）の時刻。次に当たるまで残す。
 var _impact := {}
 var _impact_at := -INF
 var _impact_sync := false
@@ -324,16 +329,10 @@ var _cam_aim := Vector3.ZERO
 var _cam_ready := false
 ## 見下ろしの画の寄り（0 = ボードと看板を収める、1 = 2人へ寄る。_push_weight）。
 var _cam_push := 0.0
-## G3_Impact の注視点・距離（なめらかに寄せる）。
-## G6_Death の目の位置と注視点、ラグドール（player -> SkyGateLimp）。
-var _death_eye := Vector3.ZERO
-var _death_aim := Vector3.ZERO
-var _death_ready := false
+## ラグドール（player -> SkyGateLimp）。
 var _limps := {}
 var _banner := {}
 var _banner_until := -INF
-var _notice := {}
-var _notice_until := -INF
 var _fall_distance := 0.0
 ## 空中の腹ばいの時計（スローで遅くなる）。
 var _air_t := 0.0
@@ -418,7 +417,26 @@ func set_solo_emote_keys(p1_mask: int, p2_mask: int) -> void:
 func environment() -> Environment:
 	if _venue_env == null:
 		_venue_env = SkyFallScenery.venue_environment(_quality())
+		_env_base = {"enabled": _venue_env.adjustment_enabled, "saturation": _venue_env.adjustment_saturation,
+			"brightness": _venue_env.adjustment_brightness, "contrast": _venue_env.adjustment_contrast}
 	return _venue_env
+
+
+## 脱落の色抜け（w = 0〜1）を本戦の環境に当てる。0 ならもとの値へ戻す。
+func _apply_wasted(w: float) -> void:
+	_wasted = clampf(w, 0.0, 1.0)
+	if _venue_env == null or _env_base.is_empty():
+		return
+	if _wasted <= 0.0001:
+		_venue_env.adjustment_enabled = bool(_env_base.enabled)
+		_venue_env.adjustment_saturation = float(_env_base.saturation)
+		_venue_env.adjustment_brightness = float(_env_base.brightness)
+		_venue_env.adjustment_contrast = float(_env_base.contrast)
+		return
+	_venue_env.adjustment_enabled = true
+	_venue_env.adjustment_saturation = lerpf(float(_env_base.saturation), WASTED_SATURATION, _wasted)
+	_venue_env.adjustment_brightness = lerpf(float(_env_base.brightness), float(_env_base.brightness) * WASTED_BRIGHTNESS, _wasted)
+	_venue_env.adjustment_contrast = lerpf(float(_env_base.contrast), float(_env_base.contrast) * WASTED_CONTRAST, _wasted)
 
 
 # ------------------------------------------------------------------ build (one step a frame)
@@ -484,7 +502,7 @@ func _build_boards() -> void:
 		board.build(_quality())
 		board.visible = false
 		_boards.append(board)
-		_board_state.append(_new_board_state("idle", BOARD_FAR + BOARD_NEXT_GAP, Vector2.ONE))
+		_board_state.append(_new_board_state())
 
 
 func _build_float() -> void:
@@ -532,6 +550,9 @@ func _build_effects() -> void:
 	_fx.name = "SkyGateFx"
 	_world.add_child(_fx)
 	_fx.build(_quality())
+	# 効果の座標はこのノードのローカルで、描くかどうかはノードのまわり ±60 m の箱で決まる：落ちる点に置く（世界の原点に置くと、
+	# 見下ろしの画では箱が画の外になり、人形の爆散が描かれない）
+	_fx.global_position = _fall_center()
 	_built = true
 
 
@@ -684,6 +705,7 @@ func set_venue_active(active: bool) -> void:
 		_world.visible = active
 	if not active:
 		_stop_wind_audio()
+		_apply_wasted(0.0)
 		_restore_sea()
 		_scenery_camera(false)
 		_show_cruise_clouds(true)
@@ -695,7 +717,7 @@ func set_venue_active(active: bool) -> void:
 			_flotilla.reset_show()
 
 
-## 降下が終わった：図解ルールカードから（2人は本戦の見下ろしの画で落ち続ける）。
+## 降下が終わった：4 枚の列の引きの画（RULES_DELAY 秒）から図解ルールカードへ（2人はその間も落ち続ける）。
 func begin_venue() -> void:
 	_phase = "rules"
 	_t = 0.0
@@ -717,7 +739,6 @@ func begin_venue() -> void:
 	_finish_at = INF
 	_ghost_shown = false
 	_banner = {}
-	_notice = {}
 	_canopy_ground.clear()
 	_landed_canopy.clear()
 	if _flotilla != null:
@@ -757,34 +778,37 @@ func _reset_sky(round_number: int) -> void:
 		(_ghosts[player].root as Node3D).visible = false
 		_set_body_hidden(player, false)
 		_lean[player - 1] = Vector2.ZERO
-		_tags[player] = ["", "", -INF, INF]
 		_lit[player - 1] = -1
 		_lift[player - 1] = 0.0
 		_tumble[player - 1] = 0.0
 		_exploded[player - 1] = false
+	# ボードは _update_boards がルールの列（4 枚とも問題を書いて）から並べ直す
 	for i in range(_boards.size()):
 		_boards[i].reset()
 		_boards[i].visible = false
-		_board_state[i] = _new_board_state("next" if i == 0 else "idle", BOARD_FAR + BOARD_NEXT_GAP, _round_scale(round_number))
+		_board_state[i] = _new_board_state()
 	_landers.clear()
 	_land_plan = {}
-	# 降下から渡された直後は、監督が 1.6 秒かけてこの見下ろしへ寄せる（ここで画を決め直してよい）
+	# 降下から渡された直後は、監督が 1.6 秒かけてこの画（列の引き）へ寄せる（ここで画を決め直してよい）
 	_cam_ready = false
-	_death_ready = false
 	for limp: Variant in _limps.values():
 		(limp as SkyGateLimp).reset()
 	_impact = {}
 	_impact_at = -INF
 	_verdict_at = -INF
+	_apply_wasted(0.0)
+	_wasted_cam = 0.0
 
 
 func update_venue(delta: float) -> void:
 	if not _built or _phase == "idle":
 		return
 	_t += delta
-	_sync_impact_clock()
 	_slow = _time_scale_now()
 	var sd := delta * _slow
+	_scene_t += sd
+	_sync_impact_clock()
+	_apply_wasted(_wasted_now())
 	_air_t += sd
 	_phase_t += delta
 	match _phase:
@@ -811,8 +835,14 @@ func venue_camera() -> Dictionary:
 	return _camera
 
 
+## ルールカードが画面に出て、閉じるのを待っている（列の引きの画を RULES_DELAY 秒見せたあと、_update_hud と同じ条件）。
+## スマホのタップの層（tap_to_confirm_overlay）と TouchControls の「OK」は、これが true の間だけ出る。
+func rules_waiting() -> bool:
+	return _phase == "rules" and _t - _rules_at >= RULES_DELAY
+
+
 func confirm_rules() -> bool:
-	if _phase != "rules" or _t - _rules_at < RULE_HOLD:
+	if _phase != "rules" or _t - _rules_at < RULES_DELAY + RULE_HOLD:
 		return false
 	_phase = "countdown"
 	_count_at = _t
@@ -859,7 +889,7 @@ func round_cleared() -> bool:
 
 ## 降下が終わって次のラウンドを始める（監督。監督なしではデバッグの入口が呼ぶ）。ROUND 1 と同じく、カウントダウン
 ## 「3・2・1・GO」のあとでルールの時計を始める（2026-10-20、ユーザーの指示）。カウントダウンの前に「ROUND n」の見出し
-## （1枚の秒数・むずかしさ）を ROUND_INTRO 秒見せる。2人はその間、次のラウンドの頭の位置で落ち続ける。
+## （むずかしさ）を ROUND_INTRO 秒見せる。その間は次のラウンドの 4 枚の列の引きの画で、2人は次のラウンドの頭の位置で落ち続ける。
 func begin_round(round_number: int) -> void:
 	var game := _game()
 	if game == null or game.phase != "landing":
@@ -879,7 +909,7 @@ func begin_round(round_number: int) -> void:
 	if _flotilla != null:
 		_flotilla.reset_show()
 	if _cue("round_intro_%d" % next, true):
-		_show_round_banner(next, SkyGateGame.GATE_TIMES[clampi(next - 1, 0, SkyGateGame.GATE_TIMES.size() - 1)], ROUND_INTRO - 0.3)
+		_show_round_banner(next, ROUND_INTRO - 0.3)
 
 
 ## 降下が終わったときに2人が落ちている位置（腹ばいの体の中心。basis の +Z が頭＝前、+Y が背中）。降下のカメラがここへつながる。
@@ -924,20 +954,15 @@ func on_event(event: Dictionary) -> void:
 			_round = int(event.get("round", 1))
 			# ふつうはカウントダウンの前（begin_round）に見せてある
 			if _round > 1 and _cue("round_intro_%d" % _round, true):
-				_show_round_banner(_round, float(event.get("gate_time", 6.5)), 1.6)
+				_show_round_banner(_round, 1.6)
 		"gate":
 			_on_gate(event)
 		"gate_impact":
 			_on_gate_impact(event)
 		"gate_pass":
 			_on_gate_pass(event)
-		"out":
-			var player := int(event.get("player", 0))
-			_set_tag(player, _hud_text("out"), "bad", INF)
 		"both_out":
 			_both_out_at = _t
-			for player: int in [1, 2]:
-				_set_tag(player, _hud_text("boom"), "bad", INF)
 		"revive":
 			_revive()
 		"round_clear":
@@ -945,82 +970,48 @@ func on_event(event: Dictionary) -> void:
 		"overtime":
 			_overtime = true
 			var text := "OVERTIME!" if _english() else "延長戦！"
-			var sub := "no landing - one gate at a time (5 → 4 → 3 s)" if _english() else "着地せずに1枚ずつ（5→4→3秒）"
+			var sub := "no landing - faster and faster (fastest wins at the end)" if _english() \
+				else "着地せずに続く・だんだん速く（最後は早い者勝ち）"
 			_show_banner(text, sub, Color(0.91, 0.28, 0.28), 2.2)
 			AudioManager.play_sfx(&"sg_overtime")
 		"decided":
 			_begin_finish(int(event.get("winner", 1)), str(event.get("by", "out")))
 
 
+## 次のボード（列の今のボード）。ボードは列のまま _update_boards が並べている。
 func _on_gate(event: Dictionary) -> void:
 	_gate = int(event.get("index", 0))
 	_round = int(event.get("round", _round))
 	_overtime = bool(event.get("overtime", false))
-	_gate_time = float(event.get("time", 8.0))
-	_quiz_choices = event.get("choices", [])
-	var size: Vector2 = event.get("board_size", SkyGateGame.BOARD_SIZE)
-	# ボードの役を回す：今のボード → 運び去るボード（画の外へ出るまで動かしてから消す）、次のボード → 今のボード、
-	# 空いたボード → 次のボード。前の前のボードはもう画の外。
-	var cur := _board_with("cur")
-	var next := _board_with("next")
-	var old := _board_with("old")
-	if old >= 0:
-		_board_state[old].role = "idle"
-		_boards[old].visible = false
-	if cur >= 0:
-		_lit_off(cur)
-		if is_finite(float(_board_state[cur].hit_at)):
-			_board_state[cur].role = "old"
-		else:
-			_board_state[cur].role = "idle"
-			_boards[cur].visible = false
-	if next < 0:
-		next = _board_with("idle")
-	# 次のボードとして下に見えていたものをそのまま今のボードにする（深さは近づき方の式が引き継ぐ）
-	var was_next := str(_board_state[next].role) == "next" and _boards[next].visible
-	_board_state[next] = _new_board_state("cur", float(_board_state[next].d) if was_next else _far_depth(), size / SkyGateBoard.BOARD_SIZE)
-	var board := _boards[next]
-	board.reset()
-	board.set_question(str(event.get("question", "")), _quiz_choices)
-	board.visible = true
-	_scenery_gate(board)
-	var spare := _board_with("idle")
-	if spare >= 0:
-		_board_state[spare] = _new_board_state("next", BOARD_FAR + BOARD_NEXT_GAP, _board_state[next].scale)
-		_boards[spare].reset()
-		_boards[spare].set_question("", ["", "", "", ""])
 	for player: int in [1, 2]:
-		# 「ドカン！」など出しっぱなしの札だけ消す（「セーフ！」「復活！」は時間で消える）
-		if is_inf(float(_tags[player][3])):
-			_tags[player] = ["", "", -INF, INF]
 		_lit[player - 1] = -1
-	if _round == SkyGateGame.SWAY_FROM_ROUND and _gate == 0 and not _overtime:
-		_show_notice("BOARD ON THE MOVE!" if _english() else "ボードが動く！", Color(1.0, 0.69, 0.18), 2.4)
-		AudioManager.play_sfx(&"sg_notice")
-	elif _round == SkyGateGame.SMALL_FROM_ROUND and _gate == 0 and not _overtime:
-		_show_notice("SMALLER AND FASTER!" if _english() else "ボードが小さく・速く！", Color(1.0, 0.69, 0.18), 2.4)
-		AudioManager.play_sfx(&"sg_notice")
-	if _overtime and _gate_time <= SkyGateGame.SPEED_GATE_TIME + 0.001:
-		_show_notice("FASTEST WINS!" if _english() else "早い者勝ち！", Color(0.91, 0.28, 0.28), _gate_time)
-		AudioManager.play_sfx(&"sg_notice", 0.0, 1.12)
+	var game := _game()
+	if game != null:
+		_update_boards(game, 0.0, 0.0)
+	var cur := _current_board()
+	if cur >= 0:
+		_scenery_gate(_boards[cur])
 
 
-## 時間切れ（skygate_impact.md）：位置はもう動かない。ここから SkyGateImpact の時刻で、正解の人は紙を破って抜け、
-## まちがいの人は破れない紙にはね返されて爆散する（_update_impact）。判定（札・アウト・決着）はまだ出さない。
+## 当たった（skygate_impact.md）：位置はもう動かない。ここから SkyGateImpact の時刻（見せ方の時計）で、正解の人は紙を破って抜け、
+## まちがいの人は破れない紙にはね返され、強いスローで爆散する（_update_impact）。判定（アウト・決着）はまだ出さない。
 func _on_gate_impact(event: Dictionary) -> void:
 	_impact = event
-	_impact_at = _t
+	_impact_at = _scene_t
 	_impact_sync = true
 	_verdict_at = -INF
-	var cur := _board_with("cur")
+	var results: Array = event.get("results", [])
+	var mode := int(event.get("mode", SkyGateImpact.mode_of(results)))
+	_impact["mode"] = mode
+	var cur := _board_for(int(event.get("index", -1)))
 	if cur < 0:
 		return
-	var results: Array = event.get("results", [])
 	var st: Dictionary = _board_state[cur]
-	st.hit_at = _t
-	st.mode = SkyGateImpact.mode_of(results)
-	# まちがえた人は紙に当たった瞬間から力が抜ける（ラグドール）。寄りの画は _air_camera が切り替える
-	_death_ready = false
+	st.role = "hit"
+	st.hit_at = _scene_t
+	st.mode = mode
+	st.speed = float(event.get("speed", SkyGateGame.FALL_SPEEDS[0]))
+	# まちがえた人は紙に当たった瞬間から力が抜ける（ラグドール）。画は見下ろしのまま（_air_camera）
 	for player: int in [1, 2]:
 		var limp := _limps.get(player) as SkyGateLimp
 		if limp != null:
@@ -1032,58 +1023,62 @@ func _on_gate_impact(event: Dictionary) -> void:
 	AudioManager.play_sfx(&"sg_gate_rush")
 
 
-## 時間切れの時刻をルールの時計に合わせる：知らせはフレームの途中の刻みで出るので、見せ方の時計の上の時刻を
-## 「今 − ルールの impact の段階の秒」に直す（直さないと最初のフレームで最大 1 フレームぶん先へ飛ぶ）。
+## 当たった時刻をルールの時計に合わせる：知らせはフレームの途中の刻みで出るので、見せ方の時計の上の時刻を
+## 「今 − ルールの impact の段階の秒（見せ方の時計の秒に直す）」にする（直さないと最初のフレームで最大 1 フレームぶん先へ飛ぶ）。
 func _sync_impact_clock() -> void:
 	if not _impact_sync:
 		return
 	var game := _game()
 	if game != null and game.phase == "impact" and int(_impact.get("index", -1)) == game.gate_index:
-		var at := _t - game.phase_clock()
+		var at := _scene_t - SkyGateImpact.wasted_scene_time(game.phase_clock(), _impact_mode())
 		_impact_at = at
-		var cur := _board_with("cur")
-		if cur >= 0 and is_finite(float(_board_state[cur].hit_at)):
-			_board_state[cur].hit_at = at
+		var hit := _hit_board(int(_impact.get("index", -1)))
+		if hit >= 0:
+			_board_state[hit].hit_at = at
 	_impact_sync = false
 
 
-## 判定（つき破る動きを見せ終えた）：札と音。アウト・決着・2人ともアウトは続く出来事が知らせる。
+## 当たってからの見せ方の時計の秒（当たっていなければ負）。
+func _impact_clock() -> float:
+	return _scene_t - _impact_at if not _impact.is_empty() else -INF
+
+
+func _impact_mode() -> int:
+	return int(_impact.get("mode", SkyGateImpact.mode_of(_impact.get("results", []))))
+
+
+## 判定（つき破る動きを見せ終えた）：音。アウト・決着・2人ともアウトは続く出来事が知らせる。
 func _on_gate_pass(event: Dictionary) -> void:
 	if _impact.is_empty() or int(_impact.get("index", -1)) != int(event.get("index", -2)):
-		# 時間切れの知らせが無かった（古い呼び方）：ここで動きを始める
+		# 当たった知らせが無かった（古い呼び方）：ここで動きを始める
 		_on_gate_impact(event)
-		_impact_at = _t - SkyGateGame.IMPACT_TIME
+		_impact_at = _scene_t - SkyGateImpact.BOOM_JUDGE_AT
 	_verdict_at = _t
-	var cur := _board_with("cur")
-	if cur >= 0:
-		_lit_off(cur)
+	var hit := _hit_board(int(event.get("index", -1)))
+	if hit >= 0:
+		_lit_off(hit)
 	var results: Array = event.get("results", [])
-	var any_boom := false
-	for player: int in [1, 2]:
-		if str(results[player - 1]) == "burst":
-			_set_tag(player, _hud_text("safe"), "good", TAG_TIME)
-		else:
-			any_boom = true
-			_set_tag(player, _hud_text("boom"), "bad", INF)
-	if any_boom:
+	if results.has("boom"):
 		AudioManager.play_sfx(&"door_wrong", -6.0)
 	else:
 		AudioManager.play_sfx(&"sg_safe")
 
 
-## 時間切れからの「つき破る」動き：体の高さ・回転・ラグドール、紙のへこみと張りつめ、破れる・はね返る・爆散のきっかけ。
-## ボードの高さと消え方は _board_motion（ボードの役ごとに同じ式）。
+## 当たってからの「つき破る」動き：体の高さ・回転・ラグドール、紙のへこみと張りつめ、破れる・はね返る・爆散のきっかけ。
+## 時刻は見せ方の時計（まちがいがいれば強いスローで遅くなる）。ボードの高さと消え方は _board_motion。
 func _update_impact(delta := 0.0) -> void:
 	if _impact.is_empty():
 		return
-	var it := _t - _impact_at
+	var it := _impact_clock()
 	var results: Array = _impact.get("results", [])
 	var panels: Array = _impact.get("panels", [])
 	var locals: Array = _impact.get("local", [])
-	var mode := SkyGateImpact.mode_of(results)
-	var cur := _board_with("cur")
-	var board: SkyGateBoard = _boards[cur] if cur >= 0 and float(_board_state[cur].hit_at) == _impact_at else null
+	var mode := _impact_mode()
+	var speed := float(_impact.get("speed", SkyGateGame.FALL_SPEEDS[0]))
+	var hit := _hit_board(int(_impact.get("index", -1)))
+	var board: SkyGateBoard = _boards[hit] if hit >= 0 and float(_board_state[hit].hit_at) == _impact_at else null
 	var key := "%d_%d" % [_round, _gate]
+	var sd := delta * _slow
 	for player: int in [1, 2]:
 		var slot := player - 1
 		var burst := str(results[slot]) == "burst"
@@ -1099,7 +1094,7 @@ func _update_impact(delta := 0.0) -> void:
 			if SkyGateImpact.limp(it):
 				var h := 1.0 / 120.0
 				var v := (SkyGateImpact.body_height(false, mode, it) - SkyGateImpact.body_height(false, mode, it - h)) / h
-				limp.step(delta, v)
+				limp.step(sd, v)
 			elif SkyGateImpact.exploded(it):
 				limp.reset()
 		# 爆散したあとは体が見えないので、復活したときはまっすぐな腹ばいに戻っている
@@ -1109,36 +1104,43 @@ func _update_impact(delta := 0.0) -> void:
 			continue
 		var local: Vector2 = locals[slot] if slot < locals.size() else Vector2.ZERO
 		var at := board.board_point(local)
-		board.set_dent(panel, slot, at, SkyGateImpact.dent(burst, it))
+		var through := mode == SkyGateImpact.ALL_BURST
+		board.set_dent(panel, slot, at, SkyGateImpact.through_dent(it, speed) if through else SkyGateImpact.dent(burst, it))
 		if burst:
-			if SkyGateImpact.torn(it) and _cue("tear_%s_%d" % [key, player], true):
+			var torn := it >= SkyGateImpact.through_tear_time(speed) if through else SkyGateImpact.torn(it)
+			if torn and _cue("tear_%s_%d" % [key, player], true):
 				board.burst(panel, at)
-				AudioManager.play_sfx(&"sg_tear")
+				AudioManager.play_sfx(&"sg_tear", 0.0, _wasted_pitch())
 				AudioManager.play_sfx(&"door_correct", -6.0)
 		else:
 			var tense := smoothstep(0.04, 0.26, it) * (1.0 - smoothstep(SkyGateImpact.EXPLODE_AT, SkyGateImpact.EXPLODE_AT + 0.4, it))
 			board.set_strain(panel, tense)
 			if it >= SkyGateImpact.STRETCH_END and _cue("bounce_%s_%d" % [key, player], true):
 				board.bounce(panel, at)
-				# 破れない紙にボヨンとはね返される（体が当たる鈍い音を少し重ねる）
-				AudioManager.play_sfx(&"sg_bounce")
-				AudioManager.play_sfx(&"wall_crash", -8.0, 0.8)
+				# 破れない紙にボヨンとはね返される（体が当たる鈍い音を少し重ねる。スローの間は音程を下げる）
+				AudioManager.play_sfx(&"sg_bounce", 0.0, _wasted_pitch())
+				AudioManager.play_sfx(&"wall_crash", -8.0, 0.8 * _wasted_pitch())
 			if SkyGateImpact.exploded(it) and _cue("explode_%s_%d" % [key, player], true):
 				_explode(player)
 
 
-## まちがい：はね返された上で、体がブロックにばらけて爆散する（漫画の爆発。血や怖さはない）。
+## まちがい：はね返された上で、体がブロックにばらけて爆散する（漫画の爆発。血や怖さはない）。スローの中で起きるので音程を下げる。
 func _explode(player: int) -> void:
 	var center := _body_center(player)
 	_exploded[player - 1] = true
 	if _fx != null:
 		_fx.player_burst(_actors[player].parts, center)
-		_fx.puffs(center, 1.25, 12, true, 0.6)
-		_fx.stars(center, 8, 3.4)
+		_fx.puffs(_fx.to_local(center), 1.25, 12, true, 0.6)
+		_fx.stars(_fx.to_local(center), 8, 3.4)
 	_set_body_hidden(player, true)
-	AudioManager.play_sfx(&"barrier_explosion", -4.0)
-	AudioManager.play_sfx(&"body_burst", -6.0)
+	AudioManager.play_sfx(&"barrier_explosion", -4.0, _wasted_pitch())
+	AudioManager.play_sfx(&"body_burst", -6.0, _wasted_pitch())
 	_shake()
+
+
+## 脱落のスローの間の効果音の音程（色抜けの強さに合わせて WASTED_PITCH まで下げる）。
+func _wasted_pitch() -> float:
+	return lerpf(1.0, WASTED_PITCH, _wasted)
 
 
 ## 2人とも同じゲートでアウト → その場で復活（ばらけたブロックが体に戻る）。
@@ -1150,10 +1152,9 @@ func _revive() -> void:
 		var pelvis := _actors[player].parts.get("pelvis") as Node3D
 		if pelvis != null:
 			pelvis.visible = true
-		_set_tag(player, _hud_text("revive"), "good", 1.0)
 		if _fx != null:
-			_fx.flash(_body_center(player), 1.4, 0.3, Color(1, 1, 1))
-			_fx.stars(_body_center(player), 6, 3.0)
+			_fx.flash(_fx.to_local(_body_center(player)), 1.4, 0.3, Color(1, 1, 1))
+			_fx.stars(_fx.to_local(_body_center(player)), 6, 3.0)
 	AudioManager.play_sfx(&"sg_revive")
 
 
@@ -1264,7 +1265,7 @@ func _update_air(delta: float, sd: float) -> void:
 		_pose_skydiver(player, game, delta)
 	_update_gathers(game, sd)
 	if _fx != null:
-		_fx.global_position = Vector3.ZERO
+		_fx.global_position = _fall_center()
 		_fx.advance(sd)
 	_fall_distance += FALL_SPEED * sd
 	_update_sea_air(game, delta)
@@ -1273,45 +1274,63 @@ func _update_air(delta: float, sd: float) -> void:
 	_air_camera(game, delta)
 
 
-## ボードの深さ・横のずれ・大きさを今のルールの時計から決めて置く。どのボードも消えたり飛んだりせずに動く：
-## 今のボードは近づいて時間切れで2人に届き（_approach）、時間切れのあとは SkyGateImpact の高さで動き、ゲーム中の問題の壁のように
-## だんだん透明になって消える（通り抜けたら体の上を通りすぎながら）。次のボードは今のボードの下に続き、このラウンドに次の
-## ゲートが無ければ下へ離れて消える。
+## ボードを列のとおりに並べる（どのボードも消えたり飛んだりせずに動く）：
+## まだ当たっていない列のボード（column）は、ルールの board_depth(k) の深さと board_offset() の横のずれ（列は1つとして揺れる）。
+## 列の今のボードから board_count() までの k に空いたボードを当てて問題を書く（始まる前に問題が差し替わったら書き直す）。
+## 当たったボード（hit）は SkyGateImpact の高さで動き、ゲーム中の問題の壁のようにだんだん透明になって消える（通り抜けたら
+## 体の上を通りすぎながら）。決着したら・本戦が終わったら、残りのボードは BOARD_LEAVE_TIME 秒で消える（leaving）。
 func _update_boards(game: SkyGateGame, delta: float, sd: float) -> void:
-	var cur := _board_with("cur")
-	var far := _far_depth()
+	var first := 0
+	var last := 0
+	var column_on := game != null and _phase in ["rules", "countdown", "main"] and not game.finished
+	if column_on:
+		if game.gate_index >= 0:
+			first = game.gate_index if game.phase == "gate" else game.gate_index + 1
+		last = game.board_count()
+	var scale := Vector2.ONE
+	if game != null:
+		scale = _round_scale(SkyGateGame.SMALL_FROM_ROUND if game.overtime else game.column_round)
+	# 列から外れたボードは消す（決着・本戦の終わり）。今のボードより前のもの（当たった知らせを待つ）は残す
+	for i in range(_board_state.size()):
+		var st: Dictionary = _board_state[i]
+		if str(st.role) == "column" and (not column_on or int(st.k) >= last):
+			st.role = "leaving"
+			st.leave_at = _t
+	for k in range(first, last):
+		if _board_for(k) >= 0:
+			continue
+		var spare := _board_with("idle")
+		if spare < 0:
+			break
+		_board_state[spare] = _new_board_state("column", k, scale)
+		_boards[spare].reset()
+		_write_question(spare, game.column_quiz(k))
 	for i in range(_boards.size()):
 		var st: Dictionary = _board_state[i]
 		match str(st.role):
-			"cur", "old":
-				if is_finite(float(st.hit_at)):
-					_board_motion(i)
-					if _boards[i].fade() <= 0.001:
-						# 消えきった：今のボードはそのまま（見えない）、前のボードは片づける
-						_boards[i].visible = false
-						if str(st.role) == "old":
-							st.role = "idle"
-				elif str(st.role) == "cur" and game != null and game.phase == "gate":
-					st.d = _approach(game.gate_clock(), game.gate_time, float(st.start_d))
+			"column":
+				var quiz := game.column_quiz(int(st.k)) if game != null else null
+				if quiz != null and quiz.q != str(st.q):
+					_write_question(i, quiz)
+				if game != null:
+					st.d = game.board_depth(int(st.k))
 					st.offset = game.board_offset()
-				elif str(st.role) == "old":
-					st.role = "idle"
-					_boards[i].visible = false
-			"next":
-				if _next_gate_coming(game):
-					var base := float(_board_state[cur].d) if cur >= 0 and not is_finite(float(_board_state[cur].hit_at)) else far
-					var target := maxf(base, 0.0) + BOARD_NEXT_GAP
-					if cur >= 0 and is_finite(float(_board_state[cur].hit_at)):
-						# 時間切れのあと：次のゲートの出始めの深さへ寄せておく（次のゲートの頭で、そのまま今のボードになる）
-						target = far
-					st.d = move_toward(float(st.d), target, 160.0 * delta) if _boards[i].visible else target
-				else:
-					st.d = float(st.d) + BOARD_NEXT_SINK * delta
-				_boards[i].visible = _phase == "main" and float(st.d) < _sea_depth_now() - BOARD_SEA_CLEAR
-		if str(st.role) != "idle":
+				st.scale = scale
+				_boards[i].visible = float(st.d) < _sea_depth_now() - BOARD_SEA_CLEAR
+			"hit":
+				_board_motion(i)
+				if _boards[i].fade() <= 0.001:
+					_retire_board(i)
+			"leaving":
+				var alpha := 1.0 - smoothstep(0.0, BOARD_LEAVE_TIME, _t - float(st.leave_at))
+				_boards[i].set_fade(minf(alpha, _boards[i].fade()))
+				if alpha <= 0.001:
+					_retire_board(i)
+		if str(_board_state[i].role) != "idle":
 			_place_board(i)
-			_boards[i].advance(sd if str(st.role) != "next" else delta)
+			_boards[i].advance(sd)
 	# 真下のパネルを自分の色の光る枠で
+	var cur := _current_board()
 	if cur >= 0 and game != null and game.phase == "gate":
 		for player: int in [1, 2]:
 			var panel := game.under[player - 1]
@@ -1336,56 +1355,40 @@ func _update_markers(game: SkyGateGame, cur: int) -> void:
 			marker.global_position = board.board_point(game.local_point(player - 1)) + Vector3.UP * 0.07
 
 
-## ボードの深さ（2人から下へ m）：はるか下（far、ふだん 320 m）→ 1.6 秒で読める近さ（26 m）→ ゆっくり寄る（9 m）→ 最後の 0.9 秒で
-## 一気に寄って、時間切れの瞬間に体のお腹に届く（SkyGateImpact.CONTACT）。届く直前はスローに入るので、近づく速さを
-## CONTACT_SPEED まで落として「つき破る」動き（押し込みの初めの速さ）へつなぐ。
-## ボードはドローンで吊られているので、落ちる2人に合わせて下りながら近づく。
-static func _approach(clock: float, gate_time: float, far := BOARD_FAR) -> float:
-	var left := gate_time - clock
-	var rise := minf(RISE_TIME, maxf(gate_time - PLUNGE_TIME - 0.3, 0.3))
-	var hover := maxf(gate_time - rise - PLUNGE_TIME, 0.001)
-	if left <= PLUNGE_TIME:
-		# 3 次のエルミート：寄ってくる速さ（ゆっくり寄る速さ）から、届くときの CONTACT_SPEED へ
-		var u := clampf(1.0 - left / PLUNGE_TIME, 0.0, 1.0)
-		var v0 := (BOARD_HOVER_FAR - BOARD_HOVER_NEAR) / hover * PLUNGE_TIME
-		var v1 := CONTACT_SPEED * PLUNGE_TIME
-		var u2 := u * u
-		var u3 := u2 * u
-		return (2.0 * u3 - 3.0 * u2 + 1.0) * BOARD_HOVER_NEAR - (u3 - 2.0 * u2 + u) * v0 \
-			+ (-2.0 * u3 + 3.0 * u2) * SkyGateImpact.CONTACT - (u3 - u2) * v1
-	if clock < rise:
-		var w := clampf(clock / rise, 0.0, 1.0)
-		return lerpf(far, BOARD_HOVER_FAR, 1.0 - pow(1.0 - w, 3.0))
-	var k := clampf((clock - rise) / hover, 0.0, 1.0)
-	return lerpf(BOARD_HOVER_FAR, BOARD_HOVER_NEAR, k)
-
-
-## 時間切れのあとのボード（今のボードと前のボード）：紙の面の高さと消え方は SkyGateImpact。
+## 当たったあとのボード：紙の面の高さと消え方（見せ方の時計で読む）。全員が正解なら列の速さのまま上へ抜けていく
+## （減速せずに突破）。まちがいがいれば SkyGateImpact のたわみ・はね返し・運び去り（スローは時計の側で掛かっている）。
 func _board_motion(i: int) -> void:
 	var st: Dictionary = _board_state[i]
-	var it := _t - float(st.hit_at)
+	var it := _scene_t - float(st.hit_at)
 	var mode := int(st.mode)
-	st.d = -SkyGateImpact.board_height(mode, it)
+	if mode == SkyGateImpact.ALL_BURST:
+		st.d = SkyGateImpact.CONTACT - float(st.speed) * it
+		_boards[i].set_fade(SkyGateImpact.through_alpha(it, float(st.speed)))
+		return
+	st.d = -SkyGateImpact.board_height(mode, it, false)
 	_boards[i].set_fade(SkyGateImpact.board_alpha(mode, it))
 
 
-## 次のボードの出始めの深さ（海より下からは出さない。最後のゲートのあたりは海が近い）。
-func _far_depth() -> float:
-	return clampf(_sea_depth_now() - BOARD_SEA_CLEAR, BOARD_HOVER_FAR + 20.0, BOARD_FAR)
+func _new_board_state(role := "idle", k := -1, scale := Vector2.ONE) -> Dictionary:
+	return {"role": role, "k": k, "d": SkyGateGame.FIRST_DEPTH, "offset": 0.0, "scale": scale, "side": 0.0, "bank": 0.0,
+		"q": "", "hit_at": -INF, "mode": SkyGateImpact.ALL_BURST, "speed": SkyGateGame.FALL_SPEEDS[0], "leave_at": -INF}
 
 
-## このあとにもう1枚ゲートが来るか（来ないなら次のボードは見せない）。
-func _next_gate_coming(game: SkyGateGame) -> bool:
-	if game == null or game.finished or _phase != "main":
-		return false
-	if game.overtime or game.current_round >= SkyGateGame.ROUNDS:
-		return true
-	return game.gate_index < SkyGateGame.GATES_PER_ROUND - 1
+func _write_question(i: int, quiz: QuizItem) -> void:
+	var text := ""
+	var choices: Array = []
+	if quiz != null:
+		text = quiz.q
+		for choice: String in quiz.c:
+			choices.append(choice)
+	_boards[i].set_question(text, choices)
+	_board_state[i].q = text
 
 
-func _new_board_state(role: String, depth: float, scale: Vector2) -> Dictionary:
-	return {"role": role, "d": depth, "start_d": depth, "offset": 0.0, "scale": scale, "side": 0.0, "bank": 0.0,
-		"hit_at": -INF, "mode": SkyGateImpact.ALL_BURST}
+func _retire_board(i: int) -> void:
+	_board_state[i].role = "idle"
+	_board_state[i].k = -1
+	_boards[i].visible = false
 
 
 func _place_board(i: int) -> void:
@@ -1401,6 +1404,30 @@ func _board_with(role: String) -> int:
 		if str(_board_state[i].role) == role:
 			return i
 	return -1
+
+
+## 列の k 枚目を受け持つ、まだ当たっていないボード（無ければ -1）。
+func _board_for(k: int) -> int:
+	for i in range(_board_state.size()):
+		if str(_board_state[i].role) == "column" and int(_board_state[i].k) == k:
+			return i
+	return -1
+
+
+## 列の k 枚目の、当たって消えていくボード（無ければ -1）。
+func _hit_board(k: int) -> int:
+	for i in range(_board_state.size()):
+		if str(_board_state[i].role) == "hit" and int(_board_state[i].k) == k:
+			return i
+	return -1
+
+
+## 今のボード（ルールの今のゲートの、まだ当たっていないボード。始まる前は列の 0 枚目）。
+func _current_board() -> int:
+	var game := _game()
+	if game == null:
+		return -1
+	return _board_for(maxi(game.gate_index, 0))
 
 
 func _lit_off(i: int) -> void:
@@ -1445,7 +1472,7 @@ func _place_box(player: int, center: Vector3, lean: Vector2, time: float, spin :
 		root.global_position += center - pelvis.global_position
 
 
-## 2人の体の中心（ワールド）：ルールの位置＋風の小さなゆれ＋時間切れの高さのずれ（はね返り）。
+## 2人の体の中心（ワールド）：ルールの位置＋風の小さなゆれ＋当たったあとの高さのずれ（はね返り）。
 func _body_center(player: int) -> Vector3:
 	var game := _game()
 	var p := SkyGateGame.spawn_point(player)
@@ -1483,45 +1510,53 @@ func _round_progress(game: SkyGateGame) -> float:
 		return 0.0
 	if game.overtime:
 		return 0.5
-	var within := 1.0 - game.time_left_ratio() if game.phase == "gate" else 1.0
+	var within := game.gate_progress() if game.phase == "gate" else 1.0
 	return clampf((float(maxi(game.gate_index, 0)) + within) / float(SkyGateGame.GATES_PER_ROUND), 0.0, 1.0)
 
 
-## 風切りの強さ（sky_fx.md 2）：ふだん 1.0、ゲートが近づいてから 0.5、つき破る瞬間に 1.4（スローが戻るにつれて 1.0 へ）。
+## 風切りの強さ（sky_fx.md 2）：ふだん 1.0、ボードの半分まで近づいてから 0.5、つき破る瞬間に 1.4（すぐ 1.0 へ）。
+## まちがいのスローの間は弱く（音程はスローで下がる）。
 func _wind(game: SkyGateGame) -> float:
-	if not _impact.is_empty() and _t - _impact_at < SkyGateImpact.SLOW_OUT.y:
-		return lerpf(1.4, 1.0, smoothstep(SkyGateImpact.SLOW_OUT.x, SkyGateImpact.SLOW_OUT.y, _t - _impact_at))
-	if game != null and game.phase == "gate" and game.time_left_ratio() < 0.5:
+	var it := _impact_clock()
+	if it >= 0.0 and it < 0.5:
+		if _impact_mode() == SkyGateImpact.ALL_BURST:
+			return lerpf(1.4, 1.0, smoothstep(0.1, 0.5, it))
+		return lerpf(1.0, 0.6, _wasted)
+	if game != null and game.phase == "gate" and game.gate_progress() > 0.5:
 		return 0.5
-	return 1.0
+	return lerpf(1.0, 0.6, _wasted)
 
 
-## 見せ方の時計の速さ：時間切れの少し前からスロー、はね返り・爆散を見せたら戻す（SkyGateImpact.time_scale）。
+## 見せ方の時計の速さ：まちがいの人がいたら、紙に触れた瞬間から強いスロー、爆散を見せたら戻す（SkyGateImpact.wasted_scale）。
 func _time_scale_now() -> float:
-	var game := _game()
 	if _phase != "main" and _phase != "finish":
 		return 1.0
-	if game != null and game.phase == "gate":
-		return 1.0 if _all_safe(game) else SkyGateImpact.time_scale(game.gate_clock() - game.gate_time)
 	if not _impact.is_empty():
-		return SkyGateImpact.time_scale(_t - _impact_at, SkyGateImpact.mode_of(_impact.get("results", [])))
+		return SkyGateImpact.wasted_scale(_impact_clock(), _impact_mode())
 	return 1.0
 
 
-## 今のまま時間切れになったら全員が正解のパネルの上か（ユーザーの指示「くぐるときは減速せず・カメラの拡大を変えず突破」：
-## その間はスローも寄りも入れない。誰かがまちがえるなら、これまでどおりスローと寄りで見せる）。
+## 脱落の色抜けの強さ（0〜1）。
+func _wasted_now() -> float:
+	if (_phase != "main" and _phase != "finish") or _impact.is_empty():
+		return 0.0
+	return SkyGateImpact.wasted_amount(_impact_clock(), _impact_mode())
+
+
+## 今のまま当たったら全員が正解のパネルの上か（ユーザーの指示「くぐるときは減速せず・カメラの拡大を変えず突破」：
+## その間は寄りを入れない。誰かがまちがえるなら、これまでどおり寄りで見せる）。
 func _all_safe(game: SkyGateGame) -> bool:
 	var answer := game.correct_choice()
 	return answer >= 0 and game.under[0] == answer and game.under[1] == answer
 
 
-## 全員が正解でつき破っている最中（時間切れから判定のあとの通過まで）。画の距離は変えずに通りすぎる。
+## 全員が正解でつき破っている最中（当たってから判定まで）。画の距離は変えずに通りすぎる。
 func _bursting_through(game: SkyGateGame) -> bool:
 	if game == null or _impact.is_empty() or int(_impact.get("index", -1)) != game.gate_index:
 		return false
-	if game.phase != "impact" and game.phase != "pass":
+	if game.phase != "impact":
 		return false
-	return SkyGateImpact.mode_of(_impact.get("results", [])) == SkyGateImpact.ALL_BURST
+	return _impact_mode() == SkyGateImpact.ALL_BURST
 
 
 ## 海の深さ：空の演出の帯に合わせたおすすめ（round_sea_depth。進み 0 で約 1840 m、1 で 75 m、延長は 520 m）。
@@ -1547,85 +1582,79 @@ func _sea_depth_now() -> float:
 
 # ------------------------------------------------------------------ camera (air)
 
-## 空中の画：ふだんも、全員が通り抜けるときも見下ろし（G2_TopDown）。まちがえた人がいたら、時間切れの瞬間にその人の寄り
-## （G6_Death）へ切り替え、はね返り・爆散を見せたら見下ろしへなめらかに戻る（決着したときは着地の画がこの画から寄せる）。
+## 空中の画：ふだんも、全員が通り抜けるときも、まちがえた人がいるときも見下ろし（G2_TopDown。画は切り替えない）。
+## まちがいの脱落のスローの間は、色抜けの強さに合わせて注視点をぶつかった人へ寄せ、少し近づく（決着したときは着地の画が
+## この画から寄せる）。ラウンドの頭は 4 枚の列の引き（G4_Column）から見下ろしへ寄せる。
 func _air_camera(game: SkyGateGame, delta: float) -> void:
 	_cam_push = _push_weight(game)
 	_fit_topdown(delta)
-	var top := _orbit_pose(_cam_aim, PITCH, _cam_dist)
-	var w := _death_weight(game)
-	if w <= 0.0:
-		_death_ready = false
+	var aim := _cam_aim
+	var dist := _cam_dist
+	_wasted_cam = move_toward(_wasted_cam, _wasted, delta * WASTED_CAM_RATE)
+	if _wasted_cam > 0.0:
+		var w := smoothstep(0.0, 1.0, _wasted_cam)
+		aim = aim.lerp(_dead_center(), WASTED_AIM * w)
+		dist *= lerpf(1.0, WASTED_PULL, w)
+	var top := _orbit_pose(aim, PITCH, dist)
+	var col := _column_weight()
+	if col <= 0.0:
 		_set_camera(top, MAIN_FOV, "g2_topdown")
 		return
-	var death := _death_pose(delta)
-	if w >= 1.0:
-		_set_camera(death, DEATH_FOV, "g6_death")
+	var column := _column_pose()
+	if col >= 1.0:
+		_set_camera(column, COLUMN_FOV, "g4_column")
 		return
-	_set_camera(top.interpolate_with(death, w), lerpf(MAIN_FOV, DEATH_FOV, w), "g6_death" if w > 0.5 else "g2_topdown")
+	_set_camera(top.interpolate_with(column, col), lerpf(MAIN_FOV, COLUMN_FOV, col), "g4_column" if col > 0.5 else "g2_topdown")
 
 
-## 見下ろしの画の寄り（0〜1）：ゲートの残りが PUSH_SHARE（最大 PUSH_LEAD 秒）を切ってから、一気に寄る直前
-## （PLUNGE_TIME の半分）までに 1。つき破る間は 1 のまま、判定のあと（PASS_TIME・復活）で 0 へ戻す。
+## 見下ろしの画の寄り（0〜1）：当たるまでがゲートの長さの PUSH_SHARE（最大 PUSH_LEAD 秒）を切ってから、当たる PUSH_DONE 秒前
+## までに 1。まちがいのつき破る間と決着は 1 のまま、全員が正解なら寄らない。復活は REVIVE_TIME で 0 へ戻す。
 func _push_weight(game: SkyGateGame) -> float:
-	if game == null or _phase != "main":
+	if game == null or (_phase != "main" and _phase != "finish"):
 		return 0.0
 	match game.phase:
 		"gate":
 			if _all_safe(game):
 				return 0.0
-			var lead := minf(PUSH_LEAD, game.gate_time * PUSH_SHARE)
-			var left := game.gate_time - game.gate_clock()
-			return 1.0 - smoothstep(PLUNGE_TIME * 0.5, maxf(lead, PLUNGE_TIME * 0.5 + 0.1), left)
+			var left := game.time_to_contact()
+			var lead := minf(PUSH_LEAD, (game.gate_clock() + left) * PUSH_SHARE)
+			return 1.0 - smoothstep(PUSH_DONE, maxf(lead, PUSH_DONE + 0.1), left)
 		"impact":
 			return 0.0 if _bursting_through(game) else 1.0
-		"pass":
-			return 0.0
+		"decided":
+			return 1.0
 		"both_out":
-			return 1.0 - smoothstep(0.0, SkyGateGame.PASS_TIME, game.phase_clock())
+			return 1.0 - smoothstep(0.0, SkyGateGame.REVIVE_TIME, game.phase_clock())
 	return 0.0
 
 
-## G6_Death の重さ：まちがえた人がいる時間切れのあいだ 1（切り替え）。決着したら着地まで 1、そうでなければ爆散の DEATH_HOLD 秒あとから
-## DEATH_OUT 秒で 0 へ。
-func _death_weight(game: SkyGateGame) -> float:
-	if _impact.is_empty() or not (_impact.get("results", []) as Array).has("boom"):
-		return 0.0
-	if _phase != "main" and _phase != "finish":
-		return 0.0
-	var it := _t - _impact_at
-	if it < 0.0:
-		return 0.0
-	if game != null and game.finished:
-		return 1.0
-	return 1.0 - smoothstep(SkyGateImpact.EXPLODE_AT + DEATH_HOLD, SkyGateImpact.EXPLODE_AT + DEATH_HOLD + DEATH_OUT, it)
-
-
-## まちがえた人（2 人ともなら 2 人）の寄りの画：目は切り替えたときの体から見た位置で止め、体（はね上がり・爆散したブロックの中心）を追って向きを変える。
-func _death_pose(delta: float) -> Transform3D:
+## ぶつかった人（2 人ともなら 2 人の真ん中）の体の中心（はね上がり・爆散したブロックの中心）。
+func _dead_center() -> Vector3:
 	var results: Array = _impact.get("results", [])
-	var dead: Array[int] = []
+	var sum := Vector3.ZERO
+	var count := 0
 	for player: int in [1, 2]:
-		if str(results[player - 1]) == "boom":
-			dead.append(player)
-	var target := Vector3.ZERO
-	for player: int in dead:
-		target += _body_center(player) / float(dead.size())
-	target += Vector3(0.0, 0.35, 0.0)
-	if not _death_ready:
-		_death_ready = true
-		_death_aim = target
-		if dead.size() >= 2:
-			_death_eye = target + DEATH_PAIR_OFFSET
-		else:
-			# 外の側（P1 は +X、P2 は −X）の少しうしろの上から。P1 が画面の左のまま
-			var out := 1.0 if dead[0] == 1 else -1.0
-			_death_eye = target + Vector3(DEATH_OFFSET.x * out, DEATH_OFFSET.y, DEATH_OFFSET.z)
-	else:
-		_death_aim = _death_aim.lerp(target, 1.0 - exp(-delta * DEATH_AIM_RATE))
-		# 高く上がる体に少しついていく（見上げすぎない）
-		_death_eye.y = lerpf(_death_eye.y, target.y + DEATH_OFFSET.y, 1.0 - exp(-delta * 2.0))
-	return _look(_death_eye, _death_aim, Vector3.UP)
+		if player - 1 < results.size() and str(results[player - 1]) == "boom":
+			sum += _body_center(player)
+			count += 1
+	return sum / float(count) if count > 0 else _players_mid()
+
+
+## G4_Column の重さ：列の引きを見せる間（ルールカードの間、ROUND 2 からの「ROUND n」の見出しの間）は 1、
+## カウントダウンの「2」から GO までに 0 へ（見下ろしへ寄せる）。
+func _column_weight() -> float:
+	match _phase:
+		"rules":
+			return 1.0
+		"countdown":
+			return 1.0 - smoothstep(COUNT_STEP, COUNT_STEP * 3.0, _t - _count_at)
+	return 0.0
+
+
+## G4_Column：斜め上から、2人の下へ真下に続くボードの列（ルールの列の 0〜3 枚目）を収める引きの画。
+func _column_pose() -> Transform3D:
+	var center := _fall_center()
+	return _look(center + COLUMN_EYE, center + Vector3.DOWN * COLUMN_LOOK_DEPTH, Vector3.UP)
 
 
 ## 注視点のまわりの画（前＝+Z へ向き、pitch 度で見下ろす。P1 は画面の左）。爆発のゆれを足す。
@@ -1656,8 +1685,8 @@ func framing_points() -> Array[Vector3]:
 		for dx: float in [-BODY_PAD, BODY_PAD]:
 			for dz: float in [-BODY_PAD, BODY_PAD]:
 				points.append(c + RIGHT * dx + FORWARD * dz)
-	var cur := _board_with("cur")
-	# ゲートの終わりは2人へ寄る（_push_weight）：ボードと看板は画に収めない。時間切れのあとのボード（上へ抜けて消えていく）も
+	var cur := _current_board()
+	# ボードに近づいたら2人へ寄る（_push_weight）：ボードと看板は画に収めない。当たったあとのボード（上へ抜けて消えていく）も
 	# 収めない（寄った画のまま判定を見せ、次のボードへ向けて2人だけの画へ戻る）。
 	var keep := 1.0 - _cam_push
 	if cur >= 0 and _boards[cur].visible and not is_finite(float(_board_state[cur].hit_at)) and keep > 0.001:
@@ -1703,7 +1732,7 @@ func _fit_topdown(delta: float) -> void:
 	var tan_h := tan_v * _aspect()
 	var mid := _players_mid()
 	var aim := mid
-	var cur := _board_with("cur")
+	var cur := _current_board()
 	if cur >= 0 and _boards[cur].visible and not is_finite(float(_board_state[cur].hit_at)):
 		var w := (1.0 - smoothstep(FIT_BOARD_NEAR, FIT_BOARD_FAR, float(_board_state[cur].d))) * (1.0 - _cam_push)
 		var board_center := _boards[cur].board_point(SkyGateGame.panels_rect().get_center())
@@ -1762,10 +1791,9 @@ func _begin_round_land() -> void:
 	_land_plan = {}
 	_landers = [1, 2]
 	_next_round = _round + 1
-	for player: int in [1, 2]:
-		_set_tag(player, "", "player", 0.0)
 
 
+## 決着：勝者だけが着地台へ。列の残りのボードは消える（_update_boards）。
 func _begin_finish(player: int, by: String) -> void:
 	_winner = player
 	_loser = 3 - player
@@ -1777,9 +1805,6 @@ func _begin_finish(player: int, by: String) -> void:
 	_land_plan = {}
 	_landers = [player]
 	_ghost_shown = false
-	_set_tag(_winner, _hud_text("win"), "good", INF)
-	if by == "speed":
-		_set_tag(_loser, _hud_text("slow"), "dim", INF)
 	AudioManager.play_sfx(&"score_drum_finish", -6.0)
 	# 勝者の装備の 3 つの踊りを先に読んでおく（ダンスで止まらないように）。
 	var state := _state()
@@ -1930,7 +1955,7 @@ func _update_landing(delta: float, sd: float) -> void:
 	_update_boards(game, delta, sd)
 	_update_impact(delta)
 	if _fx != null:
-		_fx.global_position = Vector3.ZERO
+		_fx.global_position = _fall_center()
 		_fx.advance(sd)
 	for player: int in [1, 2]:
 		if not _landers.has(player) and not _hidden[player]:
@@ -2075,7 +2100,7 @@ func _update_ghost(f: float, top: Vector3, sd: float) -> void:
 	if f >= GHOST_AT + GATHER_TIME * 0.9 and not _ghost_shown:
 		_ghost_shown = true
 		if _fx != null:
-			_fx.flash(at, 1.2, 0.3, Color(0.8, 0.9, 1.0))
+			_fx.flash(_fx.to_local(at), 1.2, 0.3, Color(0.8, 0.9, 1.0))
 	root.visible = _ghost_shown
 	if _ghost_shown:
 		_pose_doll(ghost, _upright_basis(Vector3(0, 0, -1)), at, _with_wobble(POSE_GHOST, _loser, 1.5))
@@ -2181,6 +2206,9 @@ func extract_camera(player: int, heli_position: Vector3) -> Dictionary:
 
 # ------------------------------------------------------------------ HUD
 
+## HUD は削ぎ落とす（2026-10-25、ユーザーの指示「無駄な UI を削ぎ落とす。端の選んでる選択肢やセーフは要らない」）：
+## 本戦は上の真ん中の小さな「ROUND n」とゲートの丸、ROUND 1 の 1 枚目の間だけ下の操作キー。2人の札・残り時間の帯・
+## 小さな知らせは出さない。ほかはルールカード（列の引きを RULES_DELAY 秒見せてから）、見出し、勝者の札、ダンスのキー、脱落の暗がり。
 func _update_hud() -> void:
 	if _hud == null:
 		return
@@ -2188,49 +2216,30 @@ func _update_hud() -> void:
 	var english := _english()
 	_hud.english = english
 	var hud_state := {}
-	_set_rule_demos_playing(_phase == "rules" or (_phase == "countdown" and _pending_round == 0 and _t - _count_at < 0.6))
-	if _phase == "rules":
+	var card := _phase == "rules" and _t - _rules_at >= RULES_DELAY
+	_set_rule_demos_playing(card or (_phase == "countdown" and _pending_round == 0 and _t - _count_at < 0.6))
+	if card:
 		hud_state["rules"] = true
-		hud_state["rules_prompt"] = _t - _rules_at >= RULE_HOLD
+		hud_state["rules_prompt"] = _t - _rules_at >= RULES_DELAY + RULE_HOLD
 	var in_game := _phase in ["countdown", "main"] or (_phase == "finish" and _land_clock() < 0.0)
 	if in_game and game != null:
-		var gates := SkyGateGame.GATES_PER_ROUND
 		var pending := _pending_round > 0
-		hud_state["round"] = {"visible": true, "round": _pending_round if pending else maxi(game.current_round, 1),
-			"gate": 0 if pending else maxi(game.gate_index, 0), "gates": gates,
-			"timer": game.time_left_ratio(), "overtime": game.overtime, "gate_time": game.gate_time}
-		hud_state["keys"] = _phase != "finish"
-		var tags := []
-		for player: int in [1, 2]:
-			tags.append(_player_tag(player, game))
-		hud_state["players"] = {"visible": true, "tags": tags}
+		var round_number := _pending_round if pending else maxi(game.current_round, 1)
+		hud_state["round"] = {"visible": true, "round": round_number, "gate": 0 if pending else maxi(game.gate_index, 0),
+			"gates": SkyGateGame.GATES_PER_ROUND, "overtime": game.overtime}
+		# 動かし方のキーは ROUND 1 の 1 枚目に当たるまで
+		hud_state["keys"] = _phase != "finish" and round_number == 1 and not pending and game.gate_index <= 0 \
+			and (game.waiting_for_start or game.phase == "gate")
 	if _t < _banner_until and not _banner.is_empty():
 		hud_state["banner"] = _banner
-	if _t < _notice_until and not _notice.is_empty() and in_game:
-		hud_state["notice"] = _notice
 	if _winner > 0 and ((_phase == "finish" and _land_clock() >= _land_time()) or _phase == "dance"):
 		hud_state["winner"] = _winner
 	if _phase == "dance" and not _released:
 		var left := int(ceil(maxf(EXTRACT_DELAY + 2.4 - _dance_t, 0.0)))
 		hud_state["emote"] = {"visible": true, "player": _winner, "names": _dance_names, "playing": _dance_slot, "seconds": left}
+	if _wasted > 0.0001:
+		hud_state["wasted"] = _wasted
 	_hud.set_state(hud_state)
-
-
-## 札：選んでいる間は「15 の上」（真下のパネルの選択肢）。判定のあとは「セーフ！」「ドカン！」など。
-func _player_tag(player: int, game: SkyGateGame) -> Dictionary:
-	var tag: Array = _tags[player]
-	if str(tag[0]) != "" and _t >= float(tag[2]) and _t < float(tag[3]):
-		return {"text": str(tag[0]), "tone": str(tag[1])}
-	# 時間切れのあと（つき破る動きの間）も、選んだ答えを出したまま判定を待つ
-	if game.phase == "gate" or game.phase == "impact":
-		var panel := game.under[player - 1]
-		if panel >= 0 and panel < _quiz_choices.size():
-			return {"text": _hud_text("on") % _short(str(_quiz_choices[panel])), "tone": "player"}
-	return {"text": "", "tone": "player"}
-
-
-func _set_tag(player: int, text: String, tone: String, seconds: float) -> void:
-	_tags[player] = [text, tone, _t, _t + seconds]
 
 
 ## 監督（W6）：ラウンドの間の迎えが始まったら「ROUND n」の見出しを after 秒で下げる（水上機が見えるように）。
@@ -2238,13 +2247,12 @@ func hide_banner(after := 0.0) -> void:
 	_banner_until = minf(_banner_until, _t + after)
 
 
-## 「ROUND n」の見出し（ROUND 2 から。1枚の秒数とむずかしさ）と銅鑼。
-func _show_round_banner(round_number: int, gate_time: float, seconds: float) -> void:
-	var sub := "1枚 %s秒・ボードが動く" % _secs(gate_time)
-	if round_number >= SkyGateGame.SMALL_FROM_ROUND:
-		sub = "1枚 %s秒・ボードが小さく速い" % _secs(gate_time)
+## 「ROUND n」の見出し（ROUND 2 から。むずかしさ）と銅鑼。
+func _show_round_banner(round_number: int, seconds: float) -> void:
+	var small := round_number >= SkyGateGame.SMALL_FROM_ROUND
+	var sub := "ボードが小さく・もっと速く" if small else "落ちるのが速く・ボードが動く"
 	if _english():
-		sub = "%ss a gate - %s" % [_secs(gate_time), "the board moves" if round_number < SkyGateGame.SMALL_FROM_ROUND else "smaller and faster"]
+		sub = "smaller boards, even faster" if small else "faster fall - the boards move"
 	_show_banner("ROUND %d" % round_number, sub, PLAYER_COLORS[0].darkened(0.1), seconds)
 	AudioManager.play_sfx(&"sg_round_gong")
 
@@ -2252,24 +2260,6 @@ func _show_round_banner(round_number: int, gate_time: float, seconds: float) -> 
 func _show_banner(text: String, sub: String, color: Color, seconds: float) -> void:
 	_banner = {"text": text, "sub": sub, "color": color}
 	_banner_until = _t + seconds
-
-
-func _show_notice(text: String, color: Color, seconds: float) -> void:
-	_notice = {"text": text, "color": color}
-	_notice_until = _t + seconds
-
-
-func _hud_text(key: String) -> String:
-	return str((SkyGateHud.TEXT_EN if _english() else SkyGateHud.TEXT_JA).get(key, key))
-
-
-static func _short(text: String) -> String:
-	var one := text.replace("\n", " ")
-	return one if one.length() <= 10 else one.substr(0, 9) + "…"
-
-
-static func _secs(value: float) -> String:
-	return str(int(value)) if is_equal_approx(value, roundf(value)) else "%.1f" % value
 
 
 # ------------------------------------------------------------------ pieces
@@ -2467,6 +2457,7 @@ func _cue(cue_name: String, when: bool) -> bool:
 func teardown() -> void:
 	_set_rule_demos_playing(false)
 	_stop_wind_audio()
+	_apply_wasted(0.0)
 	_restore_sea()
 	# 速さの線の板はカメラの子なので、見せ方を消す前にかならず外す
 	_scenery_camera(false)
@@ -2506,7 +2497,7 @@ func boards() -> Array[SkyGateBoard]:
 
 
 func current_board() -> SkyGateBoard:
-	var cur := _board_with("cur")
+	var cur := _current_board()
 	return _boards[cur] if cur >= 0 else null
 
 
@@ -2522,8 +2513,10 @@ func get_debug_snapshot() -> Dictionary:
 			centers.append([snappedf(root.global_position.x, 0.01), snappedf(root.global_position.y, 0.01), snappedf(root.global_position.z, 0.01)])
 	var board_list := []
 	for i in range(_board_state.size()):
-		board_list.append({"role": _board_state[i].role, "d": snappedf(float(_board_state[i].d), 0.01), "visible": _boards[i].visible})
+		board_list.append({"role": _board_state[i].role, "k": int(_board_state[i].k), "d": snappedf(float(_board_state[i].d), 0.01),
+			"visible": _boards[i].visible, "q": str(_board_state[i].q)})
 	return {"phase": _phase, "t": snappedf(_t, 0.01), "shot": _shot, "slow": snappedf(_slow, 0.01), "round": _round, "gate": _gate,
+		"wasted": snappedf(_wasted, 0.01), "scene_t": snappedf(_scene_t, 0.01),
 		"centers": centers, "boards": board_list, "sea_y": snappedf(_sea_y, 0.01), "winner": _winner, "loser": _loser, "by": _decided_by,
 		"cam_dist": snappedf(_cam_dist, 0.01), "hidden": _hidden.duplicate(), "ghost": _ghost_shown, "dance_slot": _dance_slot,
 		"released": _released, "built": _built, "scenery": _scenery.name if _scenery != null else "",

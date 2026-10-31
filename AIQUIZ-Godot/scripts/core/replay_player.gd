@@ -218,9 +218,11 @@ func _saw_lifts_at(time: float) -> PackedFloat32Array:
 		for i in 8:
 			var dx := x-(i-3.5)*SawChaseState.BLADE_PITCH
 			var radius := SawChaseState.BLADE_RADIUS+QuizGameState.PLAYER_BODY_RADIUS
-			if absf(dx)>radius or y<=.05:continue
+			if absf(dx)>radius:continue
 			var clearance := Vector2(dx,z-saw_z).length()-radius
-			heights[i]=maxf(heights[i],(y+.9)*(1.0-smoothstep(0.0,4.0,clearance))*fade)
+			heights[i]=maxf(heights[i],SawChaseState.catch_reach(y,clearance,killed)*fade)
+	# Same fixed stages as the live chase; the carriage glides between them.
+	for i in 8:heights[i]=SawChaseState.lift_stage(heights[i])*SawChaseState.LIFT_STAGE_STEP
 	return heights
 
 func get_time_label() -> String:

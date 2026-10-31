@@ -35,6 +35,8 @@ var _interactive_elapsed := 0.0
 var _cues: Dictionary = {}
 var _render_prewarm_active := false
 var _ghost_ride: GhostSharkRideController = null
+## 両者脱落の投げ縄の演出（EliminationLassoDirector）。ゴールへ運ばれた魂を、そのまま結果発表の幽霊にする。
+var soul_source: Node = null
 var _ghost_root: Node3D
 ## Player index -> released ghost, its transform at release and its riding scale.
 var _ghosts: Dictionary = {}
@@ -162,9 +164,11 @@ func _update_result_ghosts(delta: float) -> void:
 
 func _release_ghost(player_index: int) -> Node3D:
 	var ghost: Node3D = null
-	if _ghost_ride != null and is_instance_valid(_ghost_ride):
+	if soul_source != null and is_instance_valid(soul_source) and soul_source.has_method("release_result_soul"):
+		ghost = soul_source.call("release_result_soul", player_index, _ghost_root) as Node3D
+	if ghost == null and _ghost_ride != null and is_instance_valid(_ghost_ride):
 		ghost = _ghost_ride.release_result_ghost(player_index, _ghost_root)
-	elif player_controller != null:
+	elif ghost == null and player_controller != null:
 		ghost = player_controller.create_ghost_rider_visual(player_index)
 		if ghost != null:
 			_ghost_root.add_child(ghost)
@@ -265,7 +269,9 @@ func _update_beats(elapsed: float) -> void:
 ## ceremony frame does not compile them.
 func begin_render_prewarm() -> Dictionary:
 	var started_usec := Time.get_ticks_usec()
-	if game_state == null or not game_state.uses_local_result_ceremony():
+	# 2人の練習（コース③）は最後のレッスンでスコアタワーを出すので、ルールがまだ入っていなくても予熱する。
+	var practice_duo := game_state != null and game_state.mode == Constants.MODE_PRACTICE and game_state.num_players == 2
+	if game_state == null or not (game_state.uses_local_result_ceremony() or practice_duo):
 		return {"ready": true, "skipped": true, "elapsed_msec": 0.0}
 	_render_prewarm_active = true
 	_ensure_lights()

@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://dk41nohasjn8l"
 path.bptc="res://.godot/imported/tank_end_pump_light.png-caf454258300c8dc8ba5fa0597178dc6.bptc.ctex"
+path.astc="res://.godot/imported/tank_end_pump_light.png-caf454258300c8dc8ba5fa0597178dc6.astc.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/environment/surge_tank/textures/tank_end_pump_light.png"
-dest_files=["res://.godot/imported/tank_end_pump_light.png-caf454258300c8dc8ba5fa0597178dc6.bptc.ctex"]
+dest_files=["res://.godot/imported/tank_end_pump_light.png-caf454258300c8dc8ba5fa0597178dc6.bptc.ctex", "res://.godot/imported/tank_end_pump_light.png-caf454258300c8dc8ba5fa0597178dc6.astc.ctex"]
 
 [params]
 

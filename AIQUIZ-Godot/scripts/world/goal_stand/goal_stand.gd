@@ -4,9 +4,9 @@ extends Node3D
 ## Finish-line grandstand at the far end of the conveyor (assets/goal_stand, built
 ## in Blender through the Higgsfield connector). Three standing tiers of block
 ## spectators react to the finish: team fans cheer or despair, hotheads pelt the
-## loser with eggs, party people dance the game's own emotes, and three sign
-## holders standing side by side flip their boards to "OH" "MY" "GOT" when their
-## player loses.
+## loser with eggs, party people dance the game's own emotes, and five sign
+## holders standing side by side flip their boards when the match ends: the winner's
+## row spells "P1 NICE" / "P2 NICE", the loser's middle three read "OH" "MY" "GOT".
 ##
 ## Blender builds the stand facing -Y (glTF +Z); this node turns it PI so the crowd
 ## looks back down the conveyor. Spectators live in the same stand space.
@@ -50,6 +50,8 @@ const FAR_STEP := 1.0 / 10.0
 const ANIM_GROUPS := 3
 const EGG_SPEED := 19.0
 const MISS_CHANCE := 0.25
+## Eggs the whole crowd throws per verdict: a few, not a barrage.
+const MAX_EGGS := 5
 const P1_COLOR := Color(0.95, 0.55, 0.20)
 const P2_COLOR := Color(0.20, 0.65, 0.90)
 ## Rotating red beacons on the scoreboard's top edge while it shows "SUDDEN DEATH!"
@@ -60,11 +62,29 @@ const PATROL_COUNT := 3
 const PATROL_LIFT := 0.45
 const LED_ENERGY := 2.2
 const LED_ENERGY_SUDDEN_DEATH := 3.4
+## Sign holders per side, standing side by side. The winning side spells "P1 NICE" /
+## "P2 NICE" with one board each.
+const SIGN_ROW := 5
 ## Boards the losing side's sign row flips to, left to right on screen.
 const WORD_SIGNS: Array[Texture2D] = [
 	preload("res://assets/goal_stand/goal_stand_spectator_sign_oh.png"),
 	preload("res://assets/goal_stand/goal_stand_spectator_sign_my.png"),
 	preload("res://assets/goal_stand/goal_stand_spectator_sign_got.png"),
+]
+## Index into WORD_SIGNS for each holder of the row (left to right), or -1: the middle
+## three flip to "OH" "MY" "GOT" on a loss, the outer two keep their own board.
+const LOSS_WORDS: Array[int] = [-1, 0, 1, 2, -1]
+## Boards the winning side's sign row flips to, left to right on screen: the team's
+## own "P1" / "P2" (by team, 1 or 2), then the letters "N" "I" "C" "E".
+const NICE_TEAM_SIGNS: Array[Texture2D] = [
+	preload("res://assets/goal_stand/goal_stand_spectator_sign_nice_p1.png"),
+	preload("res://assets/goal_stand/goal_stand_spectator_sign_nice_p2.png"),
+]
+const NICE_LETTER_SIGNS: Array[Texture2D] = [
+	preload("res://assets/goal_stand/goal_stand_spectator_sign_nice_n.png"),
+	preload("res://assets/goal_stand/goal_stand_spectator_sign_nice_i.png"),
+	preload("res://assets/goal_stand/goal_stand_spectator_sign_nice_c.png"),
+	preload("res://assets/goal_stand/goal_stand_spectator_sign_nice_e.png"),
 ]
 
 enum Kind { FAN, HOTHEAD, DANCER, SIGN, FLAG, FOAM, SLEEPER, EATER, SELFIE, BINOCULARS, LEADER, TOWEL, PAIR,
@@ -127,12 +147,17 @@ class Spectator:
 	var anger_sent := -1.0
 	var yaw := 0.0
 	var hand_bone := -1
-	## A hothead pelting the loser (or the referee): throws until the verdict ends.
+	## A hothead pelting the loser (or the referee): throws until the verdict ends or
+	## the crowd's MAX_EGGS are used up.
 	var throwing := false
 	var throw_started := -1.0
 	var released := false
 	var next_throw := 0.0
 	var boo_sign := false
+	## The winner's board flipped to its letter of "P1 NICE" / "P2 NICE".
+	var nice_sign := false
+	## The loser's outer holder: board and stick put away, no sign raised.
+	var sign_down := false
 	var word := -1
 	## Crowd extras.
 	var prop_names: Array = []
@@ -160,15 +185,19 @@ var eggs: GoalStandEggs
 var scoreboard: GoalStandScoreboard
 var quality := "balanced"
 
+var _monitor_z_offset := NAN
 var _layout := {}
 var _clips := {}
 var _material: ShaderMaterial
-var _word_materials: Array[Material] = []
+## Flip-side board material per picture (texture -> material).
+var _word_materials := {}
 var _crowd: Node3D
 var _structure: Node3D
 var _slots: Array[Dictionary] = []
 var _rng := RandomNumberGenerator.new()
 var _clock := 0.0
+## The camera the finale is seen through (eggs aim where it sees the target).
+var _camera: Camera3D
 ## Seconds the result screen (STATE_CLEAR of the finale) has been open.
 var _clear_age := 0.0
 var _anim_accumulators := PackedFloat32Array([0.0, NEAR_STEP / 3.0, NEAR_STEP * 2.0 / 3.0])
@@ -181,6 +210,8 @@ var _update_usec := 0.0
 var _sudden_death_refreshed := false
 ## The director's egg target was there last frame.
 var _target_armed := false
+## Eggs the crowd may still throw this verdict (MAX_EGGS, refilled when they are cleared).
+var _eggs_left := MAX_EGGS
 var _cues: CrowdCues = null
 ## Carrier rest space -> the kid's root (goal_stand_clips.json "kid").
 var _kid_seat := Vector3(0.0, 1.47, -0.19)
@@ -274,6 +305,15 @@ func screen_frame() -> Dictionary:
 	var center := global_transform * bounds.get_center()
 	var extent := global_transform.basis * bounds.size
 	return {"center": center, "width": maxf(absf(extent.x), absf(extent.z)), "height": absf(extent.y)}
+
+
+## The LED face (the monitor) centre's world-Z distance from the stand origin; 0 when the
+## face is missing. The side stands stop at this depth. Measured once (it never moves).
+func monitor_z_offset() -> float:
+	if is_nan(_monitor_z_offset):
+		var frame := screen_frame()
+		_monitor_z_offset = (frame["center"] as Vector3).z - global_position.z if not frame.is_empty() else 0.0
+	return _monitor_z_offset
 
 
 ## LED face bounds in stand space (empty AABB when the face is missing).
@@ -534,12 +574,13 @@ func _assign(candidates: Array, kind: int, amount: int, team: int) -> void:
 		_slots[pick].team = team
 
 
-## Three neighbours on one tier hold the signs; on a loss their boards read
-## "OH" "MY" "GOT". Screen left is stand-local -X (the stand is turned around).
+## SIGN_ROW neighbours on one tier hold the signs; on a win their boards spell
+## "P1 NICE" / "P2 NICE", on a loss the middle three read "OH" "MY" "GOT". Screen left
+## is stand-local -X (the stand is turned around).
 func _assign_sign_row(candidates: Array, team: int) -> void:
 	var runs: Array = []
 	for i: int in candidates:
-		var row := [i, i + 1, i + 2]
+		var row := range(i, i + SIGN_ROW)
 		var free := true
 		for j: int in row:
 			# Consecutive slots on one span of one tier are neighbours.
@@ -639,10 +680,7 @@ func _spawn(slot: Dictionary, parent: Node3D = null) -> Spectator:
 			s.shaded.append(mesh)
 		else:
 			_sharpen_sign(mesh)
-	if s.word >= 0 and s.props.has("GSP_SignBoo"):
-		var board := s.props["GSP_SignBoo"] as MeshInstance3D
-		board.material_override = _word_material(board, s.word)
-	s.body = s.props["SPEC_Body_" + s.hair]
+	s.body =s.props["SPEC_Body_" + s.hair]
 	s.body.mesh = SeatedSpectatorKit.fixed_body(s.body.mesh, s.body.skin)
 	_set_visible(s, "GSP_Egg", false)
 	_set_visible(s, "GSP_SignBoo", false)
@@ -704,14 +742,49 @@ static func _sharpen_sign(board: MeshInstance3D) -> void:
 
 
 ## The flip-side board keeps the imported sign material; only its picture changes.
-func _word_material(board: MeshInstance3D, word: int) -> Material:
-	if _word_materials.is_empty():
+func _word_material(board: MeshInstance3D, texture: Texture2D) -> Material:
+	if not _word_materials.has(texture):
 		var source := board.mesh.surface_get_material(0)
-		for texture: Texture2D in WORD_SIGNS:
-			var material := (source.duplicate() if source is BaseMaterial3D else StandardMaterial3D.new()) as BaseMaterial3D
-			material.albedo_texture = texture
-			_word_materials.append(material)
-	return _word_materials[word]
+		var material := (source.duplicate() if source is BaseMaterial3D else StandardMaterial3D.new()) as BaseMaterial3D
+		material.albedo_texture = texture
+		_word_materials[texture] = material
+	return _word_materials[texture]
+
+
+## The picture a holder's flip-side board shows for this verdict, or null when the
+## board stays as it is (a draw, or a loser's outer holder).
+static func verdict_sign_texture(team: int, word: int, winner: int) -> Texture2D:
+	if winner == 0 or team == 0 or word < 0 or word >= SIGN_ROW:
+		return null
+	if team == winner:
+		return NICE_TEAM_SIGNS[team - 1] if word == 0 else NICE_LETTER_SIGNS[word - 1]
+	var loss_word: int = LOSS_WORDS[word]
+	return WORD_SIGNS[loss_word] if loss_word >= 0 else null
+
+
+## Whether this holder raises no sign at all once `winner` has won: the loser's outer two.
+static func lowers_sign(team: int, word: int, winner: int) -> bool:
+	return winner != 0 and team != 0 and team != winner and word >= 0 and word < SIGN_ROW and LOSS_WORDS[word] < 0
+
+
+## Puts a holder's boards away (the team board and the flip side, sticks included).
+func _lower_sign(s: Spectator) -> void:
+	var key := "P1" if s.team == 1 else "P2"
+	for prop: String in ["GSP_Sign" + key, "GSP_SignStick" + key, "GSP_SignBoo", "GSP_SignStickBoo"]:
+		_set_visible(s, prop, false)
+
+
+## Flips a holder's board over to `texture`, or back to the team board when null.
+func _flip_board(s: Spectator, texture: Texture2D) -> void:
+	var key := "P1" if s.team == 1 else "P2"
+	var flipped := texture != null
+	if flipped:
+		var board := s.props["GSP_SignBoo"] as MeshInstance3D
+		board.material_override = _word_material(board, texture)
+	_set_visible(s, "GSP_Sign" + key, not flipped)
+	_set_visible(s, "GSP_SignStick" + key, not flipped)
+	_set_visible(s, "GSP_SignBoo", flipped)
+	_set_visible(s, "GSP_SignStickBoo", flipped)
 
 
 func _pick_hair(s: Spectator) -> String:
@@ -823,6 +896,7 @@ func update_stand(delta: float, state: QuizGameState, director: Node, camera: Ca
 
 func _update(delta: float, state: QuizGameState, director: Node, camera: Camera3D, reel_ready: bool) -> void:
 	_clock += delta
+	_camera = camera
 	_spawn_some(SPAWN_PER_FRAME)
 	if state == null:
 		return
@@ -830,8 +904,8 @@ func _update(delta: float, state: QuizGameState, director: Node, camera: Camera3
 	var mood := _read_mood(state, director)
 	# The board shows the winner's cut-in from the moment the verdict "WIN" is out.
 	var verdict_winner := int(mood.get("winner", 0)) if mood.key == "verdict" else -1
-	# Only the local finale (result_presentation_active) plays the programme: online,
-	# tutorial and replay clears keep the cut-in.
+	# Only the local finale (result_presentation_active) plays the programme: online
+	# and replay clears keep the cut-in.
 	var on_result_screen := state.result_presentation_active and state.game_state == Constants.STATE_CLEAR
 	_clear_age = _clear_age + delta if on_result_screen else 0.0
 	var programme_ready := on_result_screen and (reel_ready or _clear_age > PROGRAMME_WAIT_MAX)
@@ -1130,7 +1204,7 @@ func _choose(s: Spectator, key: String) -> StringName:
 			if winner == 0:
 				return pick.call([&"SPEC_Clap", &"SPEC_Cheer", &"SPEC_Nod"])
 			return pick.call([&"SPEC_Cheer", &"SPEC_Cheer", &"SPEC_PointLaugh", &"SPEC_Wave", &"SPEC_Clap"])
-		if s.kind == Kind.SIGN:
+		if s.kind == Kind.SIGN and not lowers_sign(s.team, s.word, winner):
 			return &"SPEC_SignUp"
 		return pick.call([&"SPEC_Despair", &"SPEC_ShakeHead", &"SPEC_Despair", &"SPEC_FoldArms"])
 	return s.idle_clip
@@ -1201,14 +1275,17 @@ func _choose_extra(s: Spectator, key: String, pick: Callable) -> StringName:
 ## egg target (it can take a moment, e.g. back from the sudden death) before the first.
 func _on_verdict(s: Spectator, winner: int, eggs: bool) -> void:
 	var lost := winner != 0 and s.team != 0 and s.team != winner
-	if s.kind == Kind.SIGN and lost and not s.boo_sign:
-		# The fan's board flips over: "OH" "MY" "GOT" along the sign row.
-		s.boo_sign = true
-		var key := "P1" if s.team == 1 else "P2"
-		_set_visible(s, "GSP_Sign" + key, false)
-		_set_visible(s, "GSP_SignStick" + key, false)
-		_set_visible(s, "GSP_SignBoo", true)
-		_set_visible(s, "GSP_SignStickBoo", true)
+	if s.kind == Kind.SIGN and not s.sign_down and lowers_sign(s.team, s.word, winner):
+		s.sign_down = true
+		_lower_sign(s)
+	if s.kind == Kind.SIGN and not s.boo_sign and not s.nice_sign:
+		# The fan's board flips over: "P1 NICE" / "P2 NICE" along the winner's sign row,
+		# "OH" "MY" "GOT" along the middle of the loser's.
+		var texture := verdict_sign_texture(s.team, s.word, winner)
+		if texture != null:
+			s.boo_sign = lost
+			s.nice_sign = not lost
+			_flip_board(s, texture)
 	if s.kind == Kind.HOTHEAD and (lost or winner == 0) and eggs:
 		s.throwing = true
 		s.next_throw = _clock + _rng.randf_range(0.5, 1.6)
@@ -1253,7 +1330,12 @@ func _update_thrower(s: Spectator, target: Node3D) -> void:
 			s.next_throw = _clock + _rng.randf_range(0.5, 1.3)
 			_play(s, &"SPEC_Rage", 0.2)
 		return
+	if _eggs_left <= 0:
+		# The crowd is out of eggs: the hothead just rages on.
+		s.throwing = false
+		return
 	if _clock >= s.next_throw and s.queued == &"":
+		_eggs_left -= 1
 		s.throw_started = _clock
 		s.released = false
 		_set_visible(s, "GSP_Egg", true)
@@ -1270,6 +1352,10 @@ func _launch_egg(s: Spectator, target: Node3D) -> void:
 	if miss:
 		var side := Vector3(_rng.randf_range(-1.0, 1.0), 0.0, _rng.randf_range(-1.0, 0.3)).normalized()
 		aim = Vector3(aim.x, StageConstants.FLOOR_TOP_Y, aim.z) + side * _rng.randf_range(0.9, 1.6)
+	else:
+		# Land where the audience sees it: on a part of the target the camera shows,
+		# clear of the result screen's panels and buttons.
+		aim = eggs.visible_aim(target, _camera, aim)
 	var flight := clampf(start.distance_to(aim) / EGG_SPEED, 0.8, 1.5)
 	eggs.launch(start, aim, flight, target, miss)
 
@@ -1305,16 +1391,15 @@ func _reset_reactions() -> void:
 		s.throwing = false
 		s.throw_started = -1.0
 		_set_visible(s, "GSP_Egg", false)
-		if s.boo_sign:
+		if s.boo_sign or s.nice_sign or s.sign_down:
 			s.boo_sign = false
-			var key := "P1" if s.team == 1 else "P2"
-			_set_visible(s, "GSP_Sign" + key, true)
-			_set_visible(s, "GSP_SignStick" + key, true)
-			_set_visible(s, "GSP_SignBoo", false)
-			_set_visible(s, "GSP_SignStickBoo", false)
+			s.nice_sign = false
+			s.sign_down = false
+			_flip_board(s, null)
 
 
 func clear_eggs() -> void:
+	_eggs_left = MAX_EGGS
 	if eggs != null:
 		eggs.clear()
 
@@ -1323,19 +1408,22 @@ func get_debug_snapshot() -> Dictionary:
 	var kinds := {}
 	var clips := {}
 	var boo_signs := 0
+	var nice_signs := 0
 	var words := []
 	var angry := 0
 	for s: Spectator in spectators:
 		kinds[Kind.keys()[s.kind]] = int(kinds.get(Kind.keys()[s.kind], 0)) + 1
 		clips[String(s.clip)] = int(clips.get(String(s.clip), 0)) + 1
 		boo_signs += 1 if s.boo_sign else 0
+		nice_signs += 1 if s.nice_sign else 0
 		if s.word >= 0:
-			words.append({"team": s.team, "word": s.word, "row": s.row, "world": s.root.global_position, "flipped": s.boo_sign})
+			words.append({"team": s.team, "word": s.word, "row": s.row, "world": s.root.global_position,
+				"flipped": s.boo_sign or s.nice_sign})
 		angry += 1 if s.anger > 0.5 else 0
 	return {"spectators": spectators.size(), "pending": _slots.size(), "kinds": kinds, "clips": clips,
 		"mood": _mood.get("key", ""), "eggs_launched": eggs.launched if eggs else 0,
 		"eggs_hit": eggs.hits if eggs else 0, "eggs_missed": eggs.misses if eggs else 0,
-		"eggs_in_flight": eggs.in_flight() if eggs else 0, "egg_debris": eggs.active_counts() if eggs else {}, "boo_signs": boo_signs, "word_signs": words, "angry": angry,
+		"eggs_in_flight": eggs.in_flight() if eggs else 0, "egg_debris": eggs.active_counts() if eggs else {}, "boo_signs": boo_signs, "nice_signs": nice_signs, "signs_down": spectators.filter(func(s: Spectator) -> bool: return s.sign_down).size(), "word_signs": words, "angry": angry,
 		"world": global_position, "update_usec": _update_usec,
 		"kids": kids.size(), "overlays": spectators.filter(func(s: Spectator) -> bool: return s.overlay != &"").size(),
 		"mascot": String(mascot.action) if mascot != null else "",

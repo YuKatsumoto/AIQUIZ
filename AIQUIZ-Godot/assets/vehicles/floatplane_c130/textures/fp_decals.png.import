@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://bw04kic2rcum5"
 path.bptc="res://.godot/imported/fp_decals.png-606e208deabed88314f8af4ca03a6488.bptc.ctex"
+path.astc="res://.godot/imported/fp_decals.png-606e208deabed88314f8af4ca03a6488.astc.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/vehicles/floatplane_c130/textures/fp_decals.png"
-dest_files=["res://.godot/imported/fp_decals.png-606e208deabed88314f8af4ca03a6488.bptc.ctex"]
+dest_files=["res://.godot/imported/fp_decals.png-606e208deabed88314f8af4ca03a6488.bptc.ctex", "res://.godot/imported/fp_decals.png-606e208deabed88314f8af4ca03a6488.astc.ctex"]
 
 [params]
 

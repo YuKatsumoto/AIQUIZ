@@ -14,11 +14,22 @@ extends Control
 const SCENE_PATH := "res://ui/online_menu.tscn"
 const MAIN_MENU_PATH := "res://ui/main_menu.tscn"
 const GAME_WORLD_PATH := "res://scenes/game_world.tscn"
+const MobileUi = preload("res://scripts/core/mobile_ui.gd")
+const MobileMenu = preload("res://scripts/ui/mobile/mobile_menu.gd")
 ## 3D の背景が作れなかったときの VS の長さ（旧 VS の下の帯で始める）
 const VS_CARD_SECONDS := 3.0
 const PAGE_WIDTH := 520.0
 const WIDE_PAGE_WIDTH := 860.0
 const CHROME_SLIDE_SECONDS := 0.25
+## スマホ：背景 3D の描画の高さの上限（物理 px）。幅で削ると 21:9 で論理解像度より粗くなるので高さで決める。
+const MOBILE_STAGE_VIEW_MAX_HEIGHT := 1080.0
+## スマホ：ソフトキーボードの上に入力欄を残すすき間（論理 px）と、ずらすときの追いつく速さ。
+const KEYBOARD_FIELD_GAP := 24.0
+const KEYBOARD_SHIFT_RATE := 14.0
+## わく（Frame）の外側の余白（デスクトップの値。スマホはセーフエリアを足す）。
+const FRAME_MARGIN_X := 40
+const FRAME_MARGIN_Y := 24
+const TOUCH_FRAME_MARGIN_Y := 8
 ## 乗り込みが始まったとき、ヘリポートの曲を消していく長さ。
 const DEPARTURE_MUSIC_FADE_SECONDS := 0.6
 
@@ -102,12 +113,31 @@ var _skin_outline_shown: StringName = &""
 var _skin_hover_3d: StringName = &""
 var _skin_hover_map: StringName = &""
 var _skin_hover_shown: StringName = &""
+## 練習の形（コース④。docs/new_tutorial/phase7_design.md 1.1）：PracticeSession.resume_in_menu が c4 のときに開く。
+## リレーにつながず（NetworkManager の接続を始めない）、接続の表示は c4.status。案内（PracticeOnlineGuide）が台本を進める。
+## 『ランダムマッチ』は本物のマッチングの演出（短い形）のあと、CPU との練習試合（ゲーム画面）へ移る。
+## 練習を終えたら（クリアの［ランダムマッチで遊ぶ］［あとで］）false に戻り、ふだんのオンラインの画面になる。
+var practice := false
+## 練習の形で、3D の看板・スキン設定の立っているキャラを押せるか（案内が光らせている間だけ true）
+var practice_sign_enabled := false
+var practice_pick_enabled := false
+var _practice_guide: PracticeOnlineGuide = null
+## 練習の『ランダムマッチ』で見つかる相手（CPU）のプロフィール
+var _practice_opponent: Dictionary = {}
+## コーチが光らせる 3D の物（看板・立っているキャラ）の画面の範囲を写す、見えない部品（id → Control）
+var _practice_proxies: Dictionary = {}
+## スマホ：ソフトキーボードで隠れないよう、ページの列を上へずらしている量（論理 px）。
+var _keyboard_shift := 0.0
 
 
 func _ready() -> void:
 	game_state = QuizManager.game_state
 	# 前の試合で入れ替えた見た目を、メニューで選んだ自分のものへ戻す。
 	game_state.reset_net_view()
+	var practice_resume := _take_practice_resume()
+	practice = not practice_resume.is_empty()
+	if not practice:
+		game_state.practice_online_look = false
 	if NetworkManager.state != NetworkManager.State.OFFLINE and NetworkManager.state != NetworkManager.State.IDLE:
 		# 前の試合の接続が残っていたら閉じてから始める。
 		NetworkManager.disconnect_from_relay()
@@ -137,6 +167,8 @@ func _ready() -> void:
 	# VS 演出の効果音は鳴らすときに読み込むと演出が止まるので、ここで読んでおく
 	AudioManager.preload_sfx(AudioManager.VERSUS_SFX_CUES)
 	SceneTransition.reveal_current()
+	if practice:
+		_start_practice_guide(practice_resume)
 
 
 ## 試合のあと（結果画面・切断パネル）からこの画面へ戻る。呼ぶ側で先に画面を覆っておく。
@@ -147,10 +179,16 @@ static func return_from_match(tree: SceneTree) -> void:
 
 
 func _process(dt: float) -> void:
+	if MobileUi.is_touch_ui():
+		_update_keyboard_shift(dt)
+		# 空の知らせの行は高さを取らない（指の大きさのボタンで縦が足りないため）
+		_status.visible = not _status.text.is_empty()
 	_update_skin_sign()
 	_update_skin_highlight(dt)
 	_update_skin_closeup()
 	_poll_loading()
+	if not _practice_proxies.is_empty():
+		_update_practice_proxies()
 	if _debug_label != null and _debug_label.visible and director != null:
 		_debug_label.text = "%s  %.2f s
 %s
@@ -170,8 +208,12 @@ load %d (%.0f%%)  fps %d" % [director.state_name(), director.state_time, directo
 	_vs_elapsed += dt
 	var versus := page(VERSUS) as OnlineVersusPage
 	var left := maxi(0, ceili(VS_CARD_SECONDS - _vs_elapsed))
-	versus.set_info("まもなく スタート！ %d" % left if left > 0 else ("スタート！" if NetworkManager.is_host else "じゅんび中…"))
-	if NetworkManager.is_host and _vs_elapsed >= VS_CARD_SECONDS and not _start_sent:
+	versus.set_info("まもなく スタート！ %d" % left if left > 0 else ("スタート！" if NetworkManager.is_host or practice else "じゅんび中…"))
+	if practice and _vs_elapsed >= VS_CARD_SECONDS and not _start_sent:
+		# 練習の形：開始の合図は送らない
+		_start_sent = true
+		_transition_to_game()
+	elif NetworkManager.is_host and _vs_elapsed >= VS_CARD_SECONDS and not _start_sent:
 		_start_online_game()
 		_transition_to_game()
 
@@ -184,21 +226,55 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		_debug_fake_match()
 		return
-	if event.is_action_pressed("ui_cancel"):
+	# Esc／ui_cancel（Android の戻るジェスチャーは Esc として届く。1 回で 1 段だけ戻る）
+	if MobileMenu.is_back_event(event):
 		get_viewport().set_input_as_handled()
 		back()
-	elif event.is_action_pressed("ui_accept") and director != null and director.state in [
-			OnlineStagingDirector.State.BOARDING, OnlineStagingDirector.State.COCKPIT,
-			OnlineStagingDirector.State.TAKEOFF, OnlineStagingDirector.State.CLIMB]:
-		# Enter／A：その状態の終わりまで 2 倍速（仕様書 14）
+	elif event.is_action_pressed("ui_accept") and _can_hurry():
+		# Enter／A：その状態の終わりまで 2 倍速（仕様書 14）。スマホの画面のタップは _input（_try_touch_hurry）
 		get_viewport().set_input_as_handled()
 		director.hurry()
+
+
+## 乗り込み〜上昇の演出中で、早送り（director.hurry）できるか。
+func _can_hurry() -> bool:
+	return director != null and director.state in [
+			OnlineStagingDirector.State.BOARDING, OnlineStagingDirector.State.COCKPIT,
+			OnlineStagingDirector.State.TAKEOFF, OnlineStagingDirector.State.CLIMB]
+
+
+## スマホ：演出の上のタップで早送り（Enter／A と同じ）。この画面の根は MOUSE_FILTER_STOP で、
+## 背景へのタップも GUI が受けて _unhandled_input まで来ないので、_input で拾う。
+## ボタン（「やめる」など）の上のタップはそのまま GUI へ渡す。早送りしたら true。
+func _try_touch_hurry(event: InputEvent) -> bool:
+	if not _is_touch_hurry(event) or not _can_hurry():
+		return false
+	var point: Vector2 = (event as InputEventMouseButton).position if event is InputEventMouseButton else Vector2.ZERO
+	if event is InputEventScreenTouch:
+		point = (event as InputEventScreenTouch).position
+	if MobileMenu.point_over_controls(get_tree().root, point):
+		return false
+	get_viewport().set_input_as_handled()
+	director.hurry()
+	return true
+
+
+## スマホ：演出の上のタップか（タッチ画面のないプレビューでは左クリック）。
+func _is_touch_hurry(event: InputEvent) -> bool:
+	if not MobileUi.is_touch_ui():
+		return false
+	if event is InputEventScreenTouch:
+		return (event as InputEventScreenTouch).pressed
+	if event is InputEventMouseButton and not DisplayServer.is_touchscreen_available():
+		var button := event as InputEventMouseButton
+		return button.pressed and button.button_index == MOUSE_BUTTON_LEFT
+	return false
 
 
 ## L キー（デバッグ版だけ）：仮の相手とマッチしたことにして、合流 → 並走 → VS カットイン → ゲーム画面（カウントダウン）へ進む。
 ## 検索中（や乗り込み中・ホーム）から押せる。通信は閉じ、自分がホストの試合として始める。
 func _debug_fake_match() -> void:
-	if director == null or _fake_match or _matched or _leaving or _cancelling or SceneTransition.is_transitioning():
+	if practice or director == null or _fake_match or _matched or _leaving or _cancelling or SceneTransition.is_transitioning():
 		return
 	if director.is_committed() or current_id() in [FRIEND, VERSUS, SKIN]:
 		return
@@ -283,10 +359,7 @@ func _build_frame() -> void:
 	_frame_root = MarginContainer.new()
 	_frame_root.name = "Frame"
 	_frame_root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	for side in ["margin_left", "margin_right"]:
-		_frame_root.add_theme_constant_override(side, 40)
-	for side in ["margin_top", "margin_bottom"]:
-		_frame_root.add_theme_constant_override(side, 24)
+	_apply_frame_margins()
 	add_child(_frame_root)
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", 12)
@@ -296,20 +369,21 @@ func _build_frame() -> void:
 	_header.name = "Header"
 	_header.add_theme_constant_override("separation", 20)
 	column.add_child(_header)
-	_back_button = OnlineMenuStyle.button("← もどる", Vector2(170, 50), 18)
+	_back_button = OnlineMenuStyle.button("← もどる", Vector2(170, 50), MobileUi.font(18))
 	_back_button.pressed.connect(back)
+	MobileUi.ensure_touch_size(_back_button)
 	_header.add_child(_back_button)
 	var titles := VBoxContainer.new()
 	titles.add_theme_constant_override("separation", -4)
 	titles.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_header.add_child(titles)
-	var kicker := OnlineMenuStyle.label("ONLINE BATTLE", 14, OnlineMenuStyle.ACCENT_ONLINE, HORIZONTAL_ALIGNMENT_LEFT)
+	var kicker := OnlineMenuStyle.label("ONLINE BATTLE", MobileUi.font(14), OnlineMenuStyle.ACCENT_ONLINE, HORIZONTAL_ALIGNMENT_LEFT)
 	OnlineMenuStyle.shadow(kicker)
 	titles.add_child(kicker)
 	_title = OnlineMenuStyle.label("", 32, OnlineMenuStyle.ACCENT, HORIZONTAL_ALIGNMENT_LEFT)
 	OnlineMenuStyle.shadow(_title)
 	titles.add_child(_title)
-	_link = OnlineMenuStyle.label("", 15, OnlineMenuStyle.MUTED, HORIZONTAL_ALIGNMENT_RIGHT)
+	_link = OnlineMenuStyle.label("", MobileUi.font(15), OnlineMenuStyle.MUTED, HORIZONTAL_ALIGNMENT_RIGHT)
 	_link.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	OnlineMenuStyle.shadow(_link)
 	_header.add_child(_link)
@@ -337,7 +411,7 @@ func _build_frame() -> void:
 	_page_host = VBoxContainer.new()
 	_page_host.name = "Pages"
 	_page_wrap.add_child(_page_host)
-	_status = OnlineMenuStyle.wrap_label("", 16, OnlineMenuStyle.WARN)
+	_status = OnlineMenuStyle.wrap_label("", MobileUi.font(16), OnlineMenuStyle.WARN)
 	OnlineMenuStyle.shadow(_status)
 	_page_wrap.add_child(_status)
 
@@ -390,7 +464,12 @@ func _place_skin_sign(board: OnlineSkinSign) -> void:
 ## マウス（タッチ）で看板を指す・押す。スキン設定の間は、立っているキャラのパーツを指す・押す。
 ## ページの列やボタンの上では反応しない。
 func _input(event: InputEvent) -> void:
+	if MobileUi.is_touch_ui() and _try_touch_hurry(event):
+		return
 	if not (event is InputEventMouseMotion or event is InputEventMouseButton):
+		return
+	# A finger has no hover: only presses pick, so a drag does not walk the whole tree per event.
+	if MobileUi.is_touch_ui() and event is InputEventMouseMotion:
 		return
 	if current_id() == SKIN:
 		_skin_pick_input(event as InputEventMouse)
@@ -399,12 +478,12 @@ func _input(event: InputEvent) -> void:
 	var board := _skin_sign()
 	if board == null:
 		return
-	if not board.is_shown() or current_id() != HOME:
-		# 押せるのはトップのときだけ（スキン設定の間は立っているだけ）
+	if not board.is_shown() or current_id() != HOME or (practice and not practice_sign_enabled):
+		# 押せるのはトップのときだけ（スキン設定の間は立っているだけ）。練習の形では、案内が光らせている間だけ
 		_set_skin_sign_hover(false)
 		return
 	var point := (make_input_local(event) as InputEventMouse).position
-	var hit := not _pointer_over_ui() and _skin_sign_hit(point)
+	var hit := not _pointer_over_ui((event as InputEventMouse).position) and _skin_sign_hit(point)
 	_set_skin_sign_hover(hit)
 	var button := event as InputEventMouseButton
 	if hit and button != null and button.button_index == MOUSE_BUTTON_LEFT and button.pressed:
@@ -422,8 +501,11 @@ func _skin_sign_hit(screen_position: Vector2) -> bool:
 	return board.hit_test(stage.camera.project_ray_origin(view_position), stage.camera.project_ray_normal(view_position))
 
 
-## カーソルの下が左の列（ページ）やボタンなど、触れる UI か。
-func _pointer_over_ui() -> bool:
+## カーソルの下が左の列（ページ）やボタンなど、触れる UI か。point はビューポートの座標。
+## スマホでは指を離したあともホバーが最後の場所に残るので、point の上に見えている部品があるかで調べる。
+func _pointer_over_ui(point: Vector2) -> bool:
+	if MobileUi.is_touch_ui():
+		return MobileMenu.point_over_controls(get_tree().root, point, [_page_wrap])
 	var hovered := get_viewport().gui_get_hovered_control()
 	if hovered == null or hovered == self:
 		return false
@@ -458,7 +540,8 @@ func _update_skin_closeup() -> void:
 func _skin_pick_input(event: InputEventMouse) -> void:
 	var editor := (page(SKIN) as OnlineSkinPage).editor
 	var part: StringName = &""
-	if not _leaving and editor.input_enabled and not _pointer_over_ui():
+	# 練習の形では、案内が押してよいと言っている間だけ
+	if not _leaving and editor.input_enabled and not _pointer_over_ui(event.position) and (not practice or practice_pick_enabled):
 		part = _skin_part_at((make_input_local(event) as InputEventMouse).position)
 		if editor.is_part_locked(part):
 			part = &""
@@ -510,7 +593,7 @@ func _update_skin_highlight(dt: float) -> void:
 
 ## 演出の上に載せるもの：左下の小さな「やめる」、合流の文字、カットイン、暗転。
 func _build_overlays() -> void:
-	_small_cancel = OnlineMenuStyle.button("やめる", Vector2(130, 46), 18)
+	_small_cancel = OnlineMenuStyle.button("やめる", Vector2(130, 46), MobileUi.font(18))
 	_small_cancel.name = "StagingCancel"
 	_small_cancel.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	_small_cancel.position = Vector2(32, -78)
@@ -523,6 +606,9 @@ func _build_overlays() -> void:
 	_small_cancel.visible = false
 	_small_cancel.pressed.connect(cancel_search)
 	add_child(_small_cancel)
+	_apply_small_cancel_layout()
+	if MobileUi.is_touch_ui():
+		MobileMenu.connect_safe_area(_on_safe_area_changed)
 	_join_title = OnlineMenuStyle.label("あいてが みつかった！", 56, OnlineMenuStyle.ACCENT)
 	_join_title.name = "JoinTitle"
 	OnlineMenuStyle.shadow(_join_title)
@@ -593,9 +679,9 @@ func _setup_stage() -> void:
 		GameManager.graphics_quality_changed.connect(_on_graphics_quality_changed)
 
 
-## 設定「オンラインの えんしゅつ：みじかい」（D11）。
+## 設定「オンラインの えんしゅつ：みじかい」（D11）。練習の形はいつも短い形（台本④の 4-6）。
 func _short_staging() -> bool:
-	return GameManager.online_staging_short
+	return practice or GameManager.online_staging_short
 
 
 ## 3D の背景を画面の実解像度で描く（メインメニューと同じ。大きすぎる画面は上限まで）。
@@ -606,10 +692,12 @@ func _update_stage_viewport_quality() -> void:
 	if logical.x <= 0.0 or logical.y <= 0.0:
 		return
 	var target: Vector2 = logical * get_window().get_final_transform().get_scale()
-	var is_mobile := OS.has_feature("mobile") or OS.has_feature("android") or OS.has_feature("ios")
-	var max_w: float = 1280.0 if is_mobile else 3840.0
-	if target.x > max_w:
-		target *= max_w / target.x
+	if MobileUi.is_touch_ui():
+		# スマホは高さで上限を決める（重さは GraphicsQuality の 3D の描画倍率に任せる）
+		if target.y > MOBILE_STAGE_VIEW_MAX_HEIGHT:
+			target *= MOBILE_STAGE_VIEW_MAX_HEIGHT / target.y
+	elif target.x > 3840.0:
+		target *= 3840.0 / target.x
 	target.x = maxf(target.x, 640.0)
 	target.y = maxf(target.y, 360.0)
 	_stage_view.stretch_shrink = 1
@@ -630,6 +718,9 @@ func _on_graphics_quality_changed(quality: String) -> void:
 func _apply_layout(wide: bool) -> void:
 	_wide_spacer.visible = wide
 	_page_wrap.custom_minimum_size.x = WIDE_PAGE_WIDTH if wide else PAGE_WIDTH
+	if MobileUi.is_touch_ui() and not wide and current_id() == SKIN:
+		# スマホのスキン設定：指で押せる大きさの色の見本を並べるため、左の列を広げる
+		_page_wrap.custom_minimum_size.x = WIDE_PAGE_WIDTH
 	_page_wrap.size_flags_vertical = Control.SIZE_SHRINK_END if wide else Control.SIZE_SHRINK_CENTER
 	_set_chrome(CHROME_BAND if wide else CHROME_MENU)
 
@@ -676,6 +767,56 @@ func chrome() -> StringName:
 	return _chrome
 
 
+## わくの余白。スマホはパンチホールと角丸の内側（SafeArea）へ寄せる。
+func _apply_frame_margins() -> void:
+	if _frame_root == null:
+		return
+	_frame_root.add_theme_constant_override("margin_left", FRAME_MARGIN_X + int(MobileMenu.safe_inset(&"left")))
+	_frame_root.add_theme_constant_override("margin_right", FRAME_MARGIN_X + int(MobileMenu.safe_inset(&"right")))
+	# スマホは上下に SafeArea（角丸のぶん 20 以上）が入るので、元の余白は小さくして 720 の高さを空ける
+	var margin_y := FRAME_MARGIN_Y if not MobileUi.is_touch_ui() else TOUCH_FRAME_MARGIN_Y
+	_frame_root.add_theme_constant_override("margin_top", margin_y + int(MobileMenu.safe_inset(&"top")))
+	_frame_root.add_theme_constant_override("margin_bottom", margin_y + int(MobileMenu.safe_inset(&"bottom")))
+
+
+## 演出中の左下の「やめる」。スマホは指の大きさにし、セーフエリアの内側へ。
+func _apply_small_cancel_layout() -> void:
+	if _small_cancel == null or not MobileUi.is_touch_ui():
+		return
+	var cancel_size := Vector2(maxf(170.0, MobileUi.MIN_TOUCH_SIZE * 2.0), MobileUi.MIN_TOUCH_SIZE)
+	_small_cancel.offset_left = 32.0 + MobileMenu.safe_inset(&"left")
+	_small_cancel.offset_right = _small_cancel.offset_left + cancel_size.x
+	_small_cancel.offset_bottom = -32.0 - MobileMenu.safe_inset(&"bottom")
+	_small_cancel.offset_top = _small_cancel.offset_bottom - cancel_size.y
+
+
+func _on_safe_area_changed() -> void:
+	_apply_frame_margins()
+	_apply_small_cancel_layout()
+
+
+## スマホ：ソフトキーボードが出ているあいだ、入力中の欄がキーボードの上に見えるよう、わくごと上へずらす。
+## キーボードが閉じたら戻す。演出の飾り（menu 以外）のときは触らない。
+func _update_keyboard_shift(dt: float) -> void:
+	if _frame_root == null:
+		return
+	var target := 0.0
+	var keyboard := MobileMenu.virtual_keyboard_height(get_viewport())
+	var focused := get_viewport().gui_get_focus_owner() as LineEdit
+	if keyboard > 0.0 and focused != null and focused.is_visible_in_tree() and is_ancestor_of(focused):
+		var visible_bottom := get_viewport_rect().size.y - keyboard - KEYBOARD_FIELD_GAP
+		var field_bottom := focused.get_global_rect().end.y + _keyboard_shift
+		target = maxf(0.0, field_bottom - visible_bottom)
+	if is_equal_approx(target, _keyboard_shift) or _chrome != CHROME_MENU:
+		if _chrome != CHROME_MENU:
+			_keyboard_shift = 0.0
+		return
+	_keyboard_shift = lerpf(_keyboard_shift, target, 1.0 - exp(-KEYBOARD_SHIFT_RATE * dt))
+	if absf(_keyboard_shift - target) < 0.5:
+		_keyboard_shift = target
+	_frame_root.position.y = -_keyboard_shift
+
+
 func _add_page(id: StringName, new_page: OnlineMenuPage) -> void:
 	new_page.name = String(id).capitalize().replace(" ", "") + "Page"
 	new_page.visible = false
@@ -689,6 +830,11 @@ func set_status(text: String) -> void:
 
 
 func _update_link(state: int) -> void:
+	if practice:
+		# 練習の形：つながない
+		_link.text = PracticeTexts.get_text("c4.status")
+		_link.add_theme_color_override("font_color", OnlineMenuStyle.ACCENT)
+		return
 	var text := "● オフライン"
 	var color := OnlineMenuStyle.MUTED
 	match state:
@@ -733,7 +879,8 @@ func go(id: StringName, args: Dictionary = {}) -> void:
 	_apply_layout(shown.wide_layout())
 	shown.enter(args)
 	var focus := shown.default_focus()
-	if focus != null:
+	# タッチではフォーカスの枠は出さない（入力欄に当てるとソフトキーボードまで開いてしまう）
+	if focus != null and not MobileUi.is_touch_ui():
 		focus.grab_focus.call_deferred()
 
 
@@ -814,11 +961,17 @@ func _on_page_action(action: StringName, data: Dictionary) -> void:
 func find_match() -> void:
 	_search_kind = &"random"
 	_begin_departure()
+	if practice:
+		# 練習の形：通信しない。本物のマッチングの演出（短い形）だけを始め、相手（CPU）は案内が practice_fake_match で決める
+		set_status("")
+		return
 	set_status("サーバーに つないでいます…")
 	NetworkManager.find_match(_queue_settings(), _local_profile())
 
 
 func create_friend_room() -> void:
+	if practice:
+		return  # 練習の形では『コードを つくる』は見せるだけ（通信しない）
 	_search_kind = &"friend_host"
 	NetworkManager.friend_code = ""
 	_begin_departure()
@@ -827,6 +980,8 @@ func create_friend_room() -> void:
 
 
 func join_friend_room(code: String) -> void:
+	if practice:
+		return  # 練習の形では『コードを いれる』は見せるだけ（通信しない）
 	if code.length() != OnlineFriendPage.CODE_LENGTH:
 		set_status("コードは %dもじ です" % OnlineFriendPage.CODE_LENGTH)
 		return
@@ -863,10 +1018,12 @@ func cancel_search() -> void:
 func _cancel_staging(status: String) -> void:
 	if _cancelling:
 		return
-	if NetworkManager.is_in_match():
-		NetworkManager.leave_match()
-	else:
-		NetworkManager.cancel_search()
+	# 練習の形はつないでいないので、通信はしない
+	if not practice:
+		if NetworkManager.is_in_match():
+			NetworkManager.leave_match()
+		else:
+			NetworkManager.cancel_search()
 	_matched = false
 	_fake_match = false
 	if director == null or director.state == OnlineStagingDirector.State.IDLE:
@@ -916,7 +1073,8 @@ static func shown_own_name() -> String:
 
 
 func rules_text() -> String:
-	var s := NetworkManager.match_settings
+	# 練習の形は、この画面で選んでいる問題（相手は CPU）
+	var s := _queue_settings() if practice else NetworkManager.match_settings
 	return "%s ・ %d年 ・ %s" % [s.get("subject", game_state.subject), int(s.get("grade", game_state.grade)),
 		_difficulty_name(int(s.get("difficulty", 1)))]
 
@@ -961,6 +1119,8 @@ func _on_cutin_started() -> void:
 
 ## カットインに渡す中身（名前・ルール・帽子・スキン・踊るエモートの候補）。
 func _cutin_info() -> Dictionary:
+	if practice:
+		return _practice_cutin_info()
 	return {
 		"me": shown_own_name(),
 		"them": NetworkManager.opponent_name,
@@ -979,6 +1139,10 @@ func _cutin_info() -> Dictionary:
 
 
 func _on_hold_started() -> void:
+	if practice:
+		# 練習の形：開始の合図は送らない（相手は CPU。すぐ始めてよい）
+		director.start_ready = true
+		return
 	if NetworkManager.is_host:
 		_start_online_game()
 		director.start_ready = true
@@ -989,6 +1153,9 @@ func _on_hold_started() -> void:
 func _on_swap_ready() -> void:
 	if not NetworkManager.is_host and not _guest_start.is_empty():
 		_apply_guest_start(_guest_start)
+	if practice and _practice_guide != null:
+		# 練習の形：覆いに写す前に、案内の吹き出しと上のコース名を隠す
+		_practice_guide.hide_for_swap()
 	if cutin != null and cutin.visible:
 		# 覆い（静止画と、その上で動き続けるカットイン）を「準備ができた」絵にするため、
 		# ゲージを満たして 1 回描いてから写す
@@ -1300,6 +1467,9 @@ func _apply_guest_start(data: Dictionary) -> void:
 
 
 func _transition_to_game() -> void:
+	if practice:
+		_practice_transition_to_game()
+		return
 	if NetworkManager.is_host:
 		# ホストだけが問題生成をし、ゲストは同期された問題を受け取る。VS のあいだはステージの読み込みだけにする。
 		# ここでは試合の状態だけを整え、問題生成はゲーム画面の覆いが開ききってから始める（GameWorld）。
@@ -1333,3 +1503,239 @@ func _transition_to_game() -> void:
 
 func _difficulty_name(index: int) -> String:
 	return Constants.DIFFICULTY_LEVELS[clampi(index, 0, Constants.DIFFICULTY_LEVELS.size() - 1)]
+
+
+# ---------- 練習の形（コース④。docs/new_tutorial/phase7_design.md 1.1） ----------
+
+## PracticeSession.resume_in_menu が④（{"course": "c4", "step": "" か "clear", "first_run": …}）なら取り出して消す。ほかは {}。
+static func _take_practice_resume() -> Dictionary:
+	var resume: Dictionary = PracticeSession.resume_in_menu
+	if str(resume.get("course", "")) != PracticeOnlineGuide.COURSE_ID:
+		return {}
+	PracticeSession.resume_in_menu = {}
+	return resume.duplicate(true)
+
+
+func _start_practice_guide(resume: Dictionary) -> void:
+	_practice_guide = PracticeOnlineGuide.new()
+	_practice_guide.name = "PracticeOnlineGuide"
+	add_child(_practice_guide)
+	_practice_guide.setup(self, resume)
+
+
+## いま動いている練習の案内（練習の形でないときは null）
+func practice_guide() -> PracticeOnlineGuide:
+	return _practice_guide if is_instance_valid(_practice_guide) else null
+
+
+## 練習の形を終える（クリアの［ランダムマッチで遊ぶ］［あとで］）。ふだんのオンラインの画面に戻り、接続の表示も戻す。
+func practice_end() -> void:
+	if not practice:
+		return
+	practice = false
+	practice_sign_enabled = false
+	practice_pick_enabled = false
+	_practice_guide = null
+	for proxy: Control in _practice_proxies.values():
+		if is_instance_valid(proxy):
+			proxy.queue_free()
+	_practice_proxies.clear()
+	_update_link(NetworkManager.state)
+
+
+## 練習の『ランダムマッチ』：検索中の約3秒後に、相手（CPU）が見つかったことにする（案内が呼ぶ）。通信はしない。
+## ここから本番と同じく、合流 →「あいてが みつかった！」→ VS カットイン（あいて：CPU）→ ゲーム画面の練習試合。
+func practice_fake_match() -> void:
+	if not practice or _matched or _leaving or _cancelling:
+		return
+	_matched = true
+	_start_sent = false
+	_cutin_match_key = "practice-c4"
+	_guest_start = {}
+	_peer_waiting = false
+	if _small_cancel != null:
+		_small_cancel.visible = false
+	# CPU の見た目は練習の P2（ゲーム画面の CPU と同じ帽子とエモート、体は標準の色）
+	_practice_opponent = {
+		"name": "CPU",
+		"hat": game_state.p2_hat,
+		"toon": game_state.p2_toon_preset,
+		"emotes": Array(game_state.p2_emote_slots),
+		"skin": "",
+	}
+	set_status("")
+	_begin_loading()
+	if director == null:
+		# 3D の背景が作れなかったとき：旧 VS の下の帯で数えて始める（_process）
+		_vs_elapsed = 0.0
+		_stack.assign([HOME])
+		go(VERSUS, {"me": shown_own_name(), "them": str(_practice_opponent.name), "rules": rules_text(), "arriving": false})
+		return
+	director.on_matched(1, _practice_opponent)
+
+
+## 練習の形のカットインの中身（あいては CPU）
+func _practice_cutin_info() -> Dictionary:
+	return {
+		"me": shown_own_name(),
+		"them": str(_practice_opponent.get("name", "CPU")),
+		"rules": rules_text(),
+		"my_slot": 1,
+		"my_hat": game_state.p1_hat,
+		"their_hat": int(_practice_opponent.get("hat", 0)),
+		"my_skin": PlayerSkinStore.get_skin(1),
+		"their_skin": {},
+		"my_emotes": Array(game_state.p1_emote_slots),
+		"their_emotes": Array(_practice_opponent.get("emotes", [1, 2, 3])),
+		"match_key": _cutin_match_key,
+		"short": director.short_mode if director != null else true,
+	}
+
+
+## 練習の形：VS カットインの覆いのまま、ゲーム画面の練習試合（コース④の 4-6）へ移る。通信はしない。
+func _practice_transition_to_game() -> void:
+	game_state.num_players = 2
+	game_state.mode = Constants.MODE_PRACTICE
+	# ゲーム画面を組み立てる前から、オンラインと同じ見せ方にする（名札・2人のカード・結果のカード・Esc の「やめる？」）
+	game_state.practice_online_look = true
+	PracticeSession.course_id = PracticeOnlineGuide.COURSE_ID
+	PracticeSession.with_cpu = true
+	if director != null and cutin != null and cutin.visible:
+		# 本番と同じ SWAP：カットインの今の画面を写し、稲妻の線で割れて開く覆いにする
+		AudioManager.play_sfx(&"versus_charge")
+		var shot := get_viewport().get_texture().get_image()
+		if shot != null and not shot.is_empty():
+			cutin.detach_actors()
+			SceneTransition.hold_versus_split(ImageTexture.create_from_image(shot), cutin.seam_points(), director.duration("REVEAL"), cutin.side_colors(), cutin)
+	if _game_packed != null:
+		get_tree().change_scene_to_packed(_game_packed)
+	else:
+		get_tree().change_scene_to_file(GAME_WORLD_PATH)
+
+
+## 練習の形で、画面のコーチが光らせる本物の部品（docs/new_tutorial/phase7_design.md 1.1）。なければ null。
+##   &"status"（接続の表示）・&"back"（← もどる）
+##   トップ：&"name_field"・&"name_dice"・&"quiz_box"・&"subject"・&"grade"・&"difficulty"・&"random_match"・&"friends"・
+##   &"skin_sign"（3D の看板の画面の範囲）
+##   ともだち：&"code_make"・&"code_enter"・&"code_field"
+##   スキン設定：&"skin_hat"・&"skin_colors"・&"skin_character"（立っている自分のキャラの画面の範囲）・&"skin_done"
+func practice_coach_target(id: StringName) -> Control:
+	var target: Control = null
+	match id:
+		&"status":
+			target = _link
+		&"back":
+			target = _back_button
+		&"skin_sign", &"skin_character":
+			target = _practice_proxy(id)
+		&"code_make", &"code_enter", &"code_field":
+			target = (page(FRIEND) as OnlineFriendPage).practice_part(id)
+		&"skin_hat", &"skin_colors", &"skin_done":
+			target = (page(SKIN) as OnlineSkinPage).practice_part(id)
+		_:
+			target = (page(HOME) as OnlineHomePage).practice_part(id)
+	if target == null or not is_instance_valid(target) or not target.is_visible_in_tree():
+		return null
+	return target
+
+
+## 3D の物（看板・立っているキャラ）の画面の範囲を写す、見えない部品。毎フレーム位置と大きさを合わせる（_update_practice_proxies）。
+## 物が見えていないときは隠す（コーチは光らせない）。
+func _practice_proxy(id: StringName) -> Control:
+	var proxy := _practice_proxies.get(id) as Control
+	if proxy == null or not is_instance_valid(proxy):
+		proxy = Control.new()
+		proxy.name = "PracticeProxy_%s" % id
+		proxy.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		proxy.focus_mode = Control.FOCUS_NONE
+		add_child(proxy)
+		_practice_proxies[id] = proxy
+	_update_practice_proxies()
+	return proxy
+
+
+func _update_practice_proxies() -> void:
+	for id: StringName in _practice_proxies:
+		var proxy := _practice_proxies[id] as Control
+		if not is_instance_valid(proxy):
+			continue
+		var rect := _practice_object_rect(id)
+		proxy.visible = rect.has_area()
+		if proxy.visible:
+			proxy.position = rect.position
+			proxy.size = rect.size
+
+
+## 3D の物の画面の範囲（この画面の座標）。見えていないときは空の Rect2。
+func _practice_object_rect(id: StringName) -> Rect2:
+	if stage == null or stage.camera == null or _stage_view == null:
+		return Rect2()
+	var corners: Array[Vector3] = []
+	match id:
+		&"skin_sign":
+			var board := _skin_sign()
+			if board == null or not board.is_shown() or not board.visible:
+				return Rect2()
+			var half_w := OnlineSkinSign.BOARD_SIZE.x * 0.5 + OnlineSkinSign.FRAME_MARGIN
+			var top := OnlineSkinSign.BOARD_CENTER_Y + OnlineSkinSign.BOARD_SIZE.y * 0.5 + OnlineSkinSign.FRAME_MARGIN
+			var bottom := OnlineSkinSign.BOARD_CENTER_Y - OnlineSkinSign.BOARD_SIZE.y * 0.5 - OnlineSkinSign.FRAME_MARGIN
+			for x: float in [-half_w, half_w]:
+				for y: float in [bottom, top]:
+					corners.append(board.global_transform * Vector3(x, y, 0.0))
+		&"skin_character":
+			var puppet := stage.me()
+			if puppet == null or not puppet.is_ready() or not puppet.is_visible():
+				return Rect2()
+			var points: Array[Vector3] = []
+			for part: Variant in puppet.parts().values():
+				if part is Node3D and is_instance_valid(part):
+					points.append((part as Node3D).global_position)
+			if points.is_empty():
+				return Rect2()
+			var box := AABB(points[0], Vector3.ZERO)
+			for point: Vector3 in points:
+				box = box.expand(point)
+			# 体の部品の位置は関節なので、頭と手足の太さの分だけ広げる
+			box = box.grow(0.22)
+			for i in range(8):
+				corners.append(box.get_endpoint(i))
+		_:
+			return Rect2()
+	var camera := stage.camera
+	var result := Rect2()
+	var first := true
+	for corner: Vector3 in corners:
+		if camera.is_position_behind(corner):
+			return Rect2()
+		var point := _stage_view.position + camera.unproject_position(corner) * _stage_view.scale
+		if first:
+			result = Rect2(point, Vector2.ZERO)
+			first = false
+		else:
+			result = result.expand(point)
+	return result
+
+
+## 練習の案内の 3D の道具：背景の舞台・そのカメラ・自分のヘリの操縦士のハテナ
+func practice_stage() -> OnlineHeliportStage:
+	return stage
+
+
+func practice_camera() -> Camera3D:
+	return stage.camera if stage != null else null
+
+
+func practice_pilot() -> HatenaPilot:
+	return stage.my_heli.pilot if stage != null and stage.my_heli != null else null
+
+
+## 背景のカメラの画面の座標 → この画面の座標（背景は実の解像度で描いて縮めている）
+func practice_to_screen(view_point: Vector2) -> Vector2:
+	return _stage_view.position + view_point * _stage_view.scale
+
+
+## この画面の座標 → 背景のカメラの画面の座標
+func practice_from_screen(point: Vector2) -> Vector2:
+	if _stage_view.scale.x <= 0.0 or _stage_view.scale.y <= 0.0:
+		return point
+	return (point - _stage_view.position) / _stage_view.scale

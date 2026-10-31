@@ -2,13 +2,13 @@
  "version": 2,
  "modules": {
   "AQS_Stand_Bay": {
-   "triangles": 5282,
-   "vertices": 3441,
+   "triangles": 5874,
+   "vertices": 3811,
    "materials": [
     "AQS_Painted",
     "AQS_NightGlow"
    ],
-   "non_manifold_edges": 81,
+   "non_manifold_edges": 265,
    "bounds_blender": [
     [
      -0.8,
@@ -16,20 +16,20 @@
      -17.2
     ],
     [
-     10.9,
+     12.3,
      11.1,
      5.59
     ]
    ]
   },
   "AQS_Stand_CapStart": {
-   "triangles": 6336,
-   "vertices": 4016,
+   "triangles": 6556,
+   "vertices": 4200,
    "materials": [
     "AQS_Painted",
     "AQS_NightGlow"
    ],
-   "non_manifold_edges": 118,
+   "non_manifold_edges": 201,
    "bounds_blender": [
     [
      -0.8,
@@ -37,7 +37,7 @@
      -17.2
     ],
     [
-     14.5,
+     15.9,
      11.1,
      10.15
     ]
@@ -58,7 +58,7 @@
      -17.2
     ],
     [
-     14.5,
+     15.9,
      12.5,
      10.15
     ]
@@ -452,7 +452,7 @@
  "exports": [
   {
    "file": "assets/aiquiz_stadium/aiquiz_stadium_stand_blocks.glb",
-   "bytes": 1646008
+   "bytes": 1719508
   },
   {
    "file": "assets/aiquiz_stadium/aiquiz_stadium_sail_rigs.glb",
@@ -464,14 +464,48 @@
   },
   {
    "file": "assets/aiquiz_stadium/aiquiz_stadium_goal_stand.glb",
-   "bytes": 1842112
+   "bytes": 1652900
   },
   {
    "file": "assets/aiquiz_stadium/aiquiz_stadium_backdrop.glb",
-   "bytes": 7926420
+   "bytes": 7737208
   }
  ],
  "checks": [
+  {
+   "item": "下り口：ブロックの中（隣へはみ出さない）・通路の階段とブースに重ならない",
+   "pass": true,
+   "detail": {
+    "x": [
+     10.95,
+     12.05
+    ],
+    "from_aisle": [
+     0.6,
+     5.1
+    ],
+    "steps": 12,
+    "landing": 1.1,
+    "door_width": 0.8,
+    "door_height": 2.1,
+    "rail_top_above": 1.0,
+    "note": "客の出入口：後方通路の床にあけた下り口。通路を持つブロックの +Y 端の通路の脇（Blender y = 通路 − 5.1〜−0.6、Godot では通路から +Z へ 0.6〜5.1m）。通路側から入り、12 段でデッキの上面まで下りて、突き当たりの扉へ。前と奥に手すり、背面の手すり側はそのまま"
+   }
+  },
+  {
+   "item": "後方通路の奥行き 4.25（ブースの裏に 1.65 の通り道）",
+   "pass": true,
+   "detail": [
+    [
+     8.05,
+     12.3
+    ],
+    [
+     8.35,
+     10.65
+    ]
+   ]
+  },
   {
    "item": "AQS_Stand_Bay: 内側面 |x|≥27.2",
    "pass": true,
@@ -480,7 +514,7 @@
   {
    "item": "AQS_Stand_Bay: 三角形 15k 以下",
    "pass": true,
-   "detail": 5282
+   "detail": 5874
   },
   {
    "item": "AQS_Stand_Bay: 杭の下端 -17.2",
@@ -513,7 +547,7 @@
   {
    "item": "AQS_Stand_CapStart: 三角形 15k 以下",
    "pass": true,
-   "detail": 6336
+   "detail": 6556
   },
   {
    "item": "AQS_Stand_CapStart: 杭の下端 -17.2",
@@ -821,73 +855,100 @@
   }
  ],
  "wear": {
-  "note": "aqs_wear.bake_wear: AO・水際の汚れ・ムラを AQS_Painted の頂点色へ乗算（2026-10-03）。頂点・面・UV・法線は不変",
   "AQS_Stand_Bay": {
-   "corners": 10640,
-   "unique_corners": 10391,
-   "mean_luminance_before": 0.8041,
-   "mean_luminance_after": 0.7044,
-   "mean_multiplier": 0.8724,
-   "mean_multiplier_visible_up_side": 0.8804,
+   "object": "AQS_Stand_Bay",
+   "corners": 11764,
+   "unique_corners": 11461,
+   "loops_total": 11828,
+   "mean_luminance_before": 0.7792,
+   "mean_luminance_after": 0.6834,
+   "mean_multiplier": 0.8732,
+   "min_multiplier_rgb": [
+    0.55,
+    0.55,
+    0.55
+   ],
+   "mean_multiplier_visible_up_side": 0.8817,
    "multiplier_percentiles_visible": {
-    "p5": 0.642,
-    "p25": 0.742,
-    "p50": 0.943,
-    "p75": 0.989,
-    "p95": 1.009
-   },
-   "mean_multiplier_by_normal": {
-    "up": 0.9906,
-    "side": 0.8518,
-    "down": 0.8312
-   }
-  },
-  "AQS_Stand_CapStart": {
-   "corners": 12648,
-   "unique_corners": 12411,
-   "mean_luminance_before": 0.7885,
-   "mean_luminance_after": 0.686,
-   "mean_multiplier": 0.8652,
-   "mean_multiplier_visible_up_side": 0.8721,
-   "multiplier_percentiles_visible": {
-    "p5": 0.631,
-    "p25": 0.732,
-    "p50": 0.939,
-    "p75": 0.989,
+    "p5": 0.64,
+    "p25": 0.744,
+    "p50": 0.946,
+    "p75": 0.991,
     "p95": 1.011
    },
    "mean_multiplier_by_normal": {
-    "up": 0.9627,
-    "side": 0.8501,
-    "down": 0.8298
+    "up": 0.9752,
+    "side": 0.8568,
+    "down": 0.8295
+   }
+  },
+  "AQS_Stand_CapStart": {
+   "object": "AQS_Stand_CapStart",
+   "corners": 13084,
+   "unique_corners": 12831,
+   "loops_total": 13116,
+   "mean_luminance_before": 0.7836,
+   "mean_luminance_after": 0.6818,
+   "mean_multiplier": 0.8654,
+   "min_multiplier_rgb": [
+    0.55,
+    0.55,
+    0.55
+   ],
+   "mean_multiplier_visible_up_side": 0.8721,
+   "multiplier_percentiles_visible": {
+    "p5": 0.629,
+    "p25": 0.733,
+    "p50": 0.938,
+    "p75": 0.99,
+    "p95": 1.012
+   },
+   "mean_multiplier_by_normal": {
+    "up": 0.9564,
+    "side": 0.8513,
+    "down": 0.8304
    }
   },
   "AQS_Stand_CapEnd": {
+   "object": "AQS_Stand_CapEnd",
    "corners": 12168,
    "unique_corners": 12004,
+   "loops_total": 12196,
    "mean_luminance_before": 0.793,
-   "mean_luminance_after": 0.6894,
-   "mean_multiplier": 0.864,
-   "mean_multiplier_visible_up_side": 0.8716,
+   "mean_luminance_after": 0.6898,
+   "mean_multiplier": 0.8645,
+   "min_multiplier_rgb": [
+    0.55,
+    0.55,
+    0.55
+   ],
+   "mean_multiplier_visible_up_side": 0.8724,
    "multiplier_percentiles_visible": {
     "p5": 0.633,
-    "p25": 0.729,
+    "p25": 0.731,
     "p50": 0.939,
-    "p75": 0.988,
+    "p75": 0.989,
     "p95": 1.01
    },
    "mean_multiplier_by_normal": {
-    "up": 0.9643,
-    "side": 0.8492,
-    "down": 0.8248
+    "up": 0.9649,
+    "side": 0.8499,
+    "down": 0.8239
    }
   },
   "AQS_GoalGate": {
+   "object": "AQS_GoalGate",
    "corners": 7704,
    "unique_corners": 7688,
+   "loops_total": 7728,
    "mean_luminance_before": 0.2542,
    "mean_luminance_after": 0.2368,
    "mean_multiplier": 0.928,
+   "min_multiplier_rgb": [
+    0.55,
+    0.55,
+    0.55
+   ],
    "mean_multiplier_visible_up_side": 0.9147,
    "multiplier_percentiles_visible": {
     "p5": 0.666,
@@ -903,11 +964,18 @@
    }
   },
   "GS_Stand": {
+   "object": "GS_Stand",
    "corners": 3364,
    "unique_corners": 3194,
+   "loops_total": 3364,
    "mean_luminance_before": 0.5114,
    "mean_luminance_after": 0.4423,
    "mean_multiplier": 0.8469,
+   "min_multiplier_rgb": [
+    0.55,
+    0.55,
+    0.55
+   ],
    "mean_multiplier_visible_up_side": 0.8569,
    "multiplier_percentiles_visible": {
     "p5": 0.617,
@@ -923,18 +991,25 @@
    }
   },
   "GS_Scoreboard": {
+   "object": "GS_Scoreboard",
    "corners": 1508,
    "unique_corners": 1354,
+   "loops_total": 1558,
    "mean_luminance_before": 0.1969,
    "mean_luminance_after": 0.1748,
    "mean_multiplier": 0.8688,
+   "min_multiplier_rgb": [
+    0.55,
+    0.55,
+    0.55
+   ],
    "mean_multiplier_visible_up_side": 0.8859,
    "multiplier_percentiles_visible": {
     "p5": 0.662,
     "p25": 0.756,
     "p50": 0.979,
-    "p95": 1.008,
-    "p75": 0.998
+    "p75": 0.998,
+    "p95": 1.008
    },
    "mean_multiplier_by_normal": {
     "up": 0.8212,
@@ -943,7 +1018,7 @@
    }
   }
  },
- "build_seconds_modules": 2.7,
+ "build_seconds_modules": 7.6,
  "layout_scene": "AIQUIZ_Stadium_Layout",
  "previews": [
   "assets/aiquiz_stadium/source/previews/layout_2p_day.jpg",
@@ -1032,6 +1107,6 @@
   "flyover_120": "artifacts/aiquiz_stadium/blender/flyover_120.png"
  },
  "blend": "assets/aiquiz_stadium/source/blender/aiquiz_stadium.blend",
- "seconds_total": 21.2,
+ "seconds_total": 25.0,
  "all_checks_pass": true
 }

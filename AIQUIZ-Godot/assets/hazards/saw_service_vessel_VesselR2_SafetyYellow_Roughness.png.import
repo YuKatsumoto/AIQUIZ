@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://dne5fr5s1l6ox"
 path.s3tc="res://.godot/imported/saw_service_vessel_VesselR2_SafetyYellow_Roughness.png-d1850838618738b8ad5f25e3bc93bb9b.s3tc.ctex"
+path.etc2="res://.godot/imported/saw_service_vessel_VesselR2_SafetyYellow_Roughness.png-d1850838618738b8ad5f25e3bc93bb9b.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/hazards/saw_service_vessel_VesselR2_SafetyYellow_Roughness.png"
-dest_files=["res://.godot/imported/saw_service_vessel_VesselR2_SafetyYellow_Roughness.png-d1850838618738b8ad5f25e3bc93bb9b.s3tc.ctex"]
+dest_files=["res://.godot/imported/saw_service_vessel_VesselR2_SafetyYellow_Roughness.png-d1850838618738b8ad5f25e3bc93bb9b.s3tc.ctex", "res://.godot/imported/saw_service_vessel_VesselR2_SafetyYellow_Roughness.png-d1850838618738b8ad5f25e3bc93bb9b.etc2.ctex"]
 
 [params]
 

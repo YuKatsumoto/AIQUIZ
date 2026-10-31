@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://dhy6x2s26fvvx"
 path.s3tc="res://.godot/imported/lecture_set_props_PRP_SetSquare_45_albedo.webp-aeae41b3b26ba37057999b7fd23a1392.s3tc.ctex"
+path.etc2="res://.godot/imported/lecture_set_props_PRP_SetSquare_45_albedo.webp-aeae41b3b26ba37057999b7fd23a1392.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/settings_hall/lecture_set_props_PRP_SetSquare_45_albedo.webp"
-dest_files=["res://.godot/imported/lecture_set_props_PRP_SetSquare_45_albedo.webp-aeae41b3b26ba37057999b7fd23a1392.s3tc.ctex"]
+dest_files=["res://.godot/imported/lecture_set_props_PRP_SetSquare_45_albedo.webp-aeae41b3b26ba37057999b7fd23a1392.s3tc.ctex", "res://.godot/imported/lecture_set_props_PRP_SetSquare_45_albedo.webp-aeae41b3b26ba37057999b7fd23a1392.etc2.ctex"]
 
 [params]
 

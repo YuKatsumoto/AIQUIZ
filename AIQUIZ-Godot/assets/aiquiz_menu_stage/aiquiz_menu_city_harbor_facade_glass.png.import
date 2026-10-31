@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://hur2r3a0n6u0"
 path.bptc="res://.godot/imported/aiquiz_menu_city_harbor_facade_glass.png-a04037ad0e84024c7c2632a35032f4b0.bptc.ctex"
+path.astc="res://.godot/imported/aiquiz_menu_city_harbor_facade_glass.png-a04037ad0e84024c7c2632a35032f4b0.astc.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/aiquiz_menu_stage/aiquiz_menu_city_harbor_facade_glass.png"
-dest_files=["res://.godot/imported/aiquiz_menu_city_harbor_facade_glass.png-a04037ad0e84024c7c2632a35032f4b0.bptc.ctex"]
+dest_files=["res://.godot/imported/aiquiz_menu_city_harbor_facade_glass.png-a04037ad0e84024c7c2632a35032f4b0.bptc.ctex", "res://.godot/imported/aiquiz_menu_city_harbor_facade_glass.png-a04037ad0e84024c7c2632a35032f4b0.astc.ctex"]
 
 [params]
 

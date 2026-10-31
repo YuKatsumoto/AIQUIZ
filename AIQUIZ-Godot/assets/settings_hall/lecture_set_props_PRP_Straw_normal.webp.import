@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://du622n4soppxd"
 path.s3tc="res://.godot/imported/lecture_set_props_PRP_Straw_normal.webp-9a17e85d9aa050ccaebe8ffbf58b7ca6.s3tc.ctex"
+path.etc2="res://.godot/imported/lecture_set_props_PRP_Straw_normal.webp-9a17e85d9aa050ccaebe8ffbf58b7ca6.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/settings_hall/lecture_set_props_PRP_Straw_normal.webp"
-dest_files=["res://.godot/imported/lecture_set_props_PRP_Straw_normal.webp-9a17e85d9aa050ccaebe8ffbf58b7ca6.s3tc.ctex"]
+dest_files=["res://.godot/imported/lecture_set_props_PRP_Straw_normal.webp-9a17e85d9aa050ccaebe8ffbf58b7ca6.s3tc.ctex", "res://.godot/imported/lecture_set_props_PRP_Straw_normal.webp-9a17e85d9aa050ccaebe8ffbf58b7ca6.etc2.ctex"]
 
 [params]
 

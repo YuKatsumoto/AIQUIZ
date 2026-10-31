@@ -1,7 +1,6 @@
 extends Control
 ## Editable live HUD. Motion tracks are sampled from the supplied native AE project.
 ## 見た目はメニューの金属の押しボタン（MenuMetalButton）の板：下だけ厚い縁、四隅のボルト、ランプ、色の下線。
-## 正解数と連続正解は、地下神殿の水門の問題板と同じ琥珀色の LED 窓（shaders/duo_hud_led.gdshader）に灯す。
 
 const CARD_SIZE := Vector2(188, 80)
 const GHOST_CARD_SIZE := Vector2(320, 120)
@@ -22,17 +21,8 @@ const EMPTY_HEART := Color("#26313a")
 const EMPTY_HEART_LINE := Color("#3a4650")
 const STAMP_INK := Color("#4a1508")
 const STAMP_LINE := Color("#5a1d10")
-const LED_CORE := Color("#ffd79a")
-const LED_GLOW := Color("#ff8a1e")
-const LED_STREAK := Color("#ffc46a")
-const LED_STREAK_UNIT := Color("#ffb24d")
-const LED_SHADER := preload("res://shaders/duo_hud_led.gdshader")
-## LED の粒の間隔（画面の画素）。カードの拡大率で割ってカードの座標にする。
-const LED_DOT_PIXELS := 2.4
-## LED の文字のにじみ：縁取りの太さと濃さを重ねる。
-const LED_GLOW_LAYERS := [[9, 0.07], [5, 0.11], [2, 0.16]]
-## LED 窓の文字の並ぶ線（窓の上端から）。
-const LED_BASELINE := 20.5
+## 正解数と「正解」の文字の並ぶ線（カードの上端から）。
+const SCORE_BASELINE := 31.0
 const MOTION_PATH := "res://assets/ui/duo_hud/motion.json"
 const STREAK_BADGE := preload("res://scripts/ui/streak_flame_badge.gd")
 
@@ -41,8 +31,6 @@ var player_index := 1
 var accent := Color.WHITE
 var _motion: Dictionary
 var _surface: Control
-var _led_window: ColorRect
-var _led_glow: Control
 var _fx: Control
 var _score_label: Label
 var _score_unit: Label
@@ -53,12 +41,9 @@ var _heart_points := PackedVector2Array()
 var _frame: StyleBoxFlat
 var _face: StyleBoxFlat
 var _badge: StyleBoxFlat
-var _bezel: StyleBoxFlat
 var _socket: StyleBoxFlat
 var _meter: StyleBoxFlat
 var _stamp: StyleBoxFlat
-var _led_material: ShaderMaterial
-var _led_panel_material: ShaderMaterial
 var _row_state := -1
 var _shown_hp := 3
 var _last_score := 0
@@ -73,6 +58,9 @@ var _shine_time := 10.0
 var _impact_time := 10.0
 var _ghost_slot: Control
 var _ghost_hud_active := false
+## スマホ：カードが画面の上の隅にある（PlayerHealthHUD が決める）。得点の「+1」はカードの下へ浮かべ、
+## 登場は上からすべり込む（画面の上端から外へ出ないように）。デスクトップは false のまま（下の隅）。
+var top_anchored := false
 var _streak_badge: Control
 
 func setup(gs: QuizGameState, index: int, color: Color) -> void:
@@ -108,35 +96,17 @@ func _ready() -> void:
 	_frame.shadow_offset = Vector2(0, 2)
 	_face = _plate(MenuMetalButton.FACE, 5)
 	_badge = _plate(accent, 5)
-	_bezel = _plate(MenuMetalButton.FRAME_LIGHT, 3)
 	_socket = _plate(MenuMetalButton.FRAME_DARK, 5)
 	_meter = _plate(MenuMetalButton.FRAME_DARK, 5)
 	_meter.border_color = WARNING
 	_stamp = _plate(WARNING, 5)
-	# LED 窓：板（消えた粒）→ 文字のにじみ → 文字（灯った粒）の順に重ねる。
-	_led_panel_material = ShaderMaterial.new()
-	_led_panel_material.shader = LED_SHADER
-	_led_panel_material.set_shader_parameter("panel", true)
-	_led_material = ShaderMaterial.new()
-	_led_material.shader = LED_SHADER
-	_led_window = ColorRect.new()
-	_led_window.name = "LedWindow"
-	_led_window.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_led_window.material = _led_panel_material
-	_surface.add_child(_led_window)
-	_led_glow = Control.new()
-	_led_glow.name = "LedGlow"
-	_led_glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_led_glow.clip_contents = true
-	_led_glow.draw.connect(_draw_led_glow)
-	_surface.add_child(_led_glow)
-	_score_label = _label("Score", str(_last_score), Vector2.ZERO, Vector2(98, 25), 21, LED_CORE)
-	_score_label.material = _led_material
-	_score_unit = _label("ScoreUnit", "correct" if game_state.use_english_ui else "正解", Vector2.ZERO, Vector2(44, 15), 10, LED_CORE)
-	_score_unit.material = _led_material
+	_score_label = _label("Score", str(_last_score), Vector2.ZERO, Vector2(98, 25), 24, MenuMetalButton.INK)
+	_score_label.add_theme_color_override("font_outline_color", MenuMetalButton.FRAME_DARK)
+	_score_label.add_theme_constant_override("outline_size", 2)
+	_score_unit = _label("ScoreUnit", "correct" if game_state.use_english_ui else "正解", Vector2.ZERO, Vector2(44, 15), 10, MUTED)
 	var badge := _badge_rect()
-	if game_state.net_online:
-		# オンラインは自分のカードと相手のカードを言葉で分ける。
+	if _online_look():
+		# オンラインは自分のカードと相手のカードを言葉で分ける（練習のオンラインの見せ方も同じ）。
 		var tag := "じぶん" if game_state.is_local_slot(player_index) else "あいて"
 		_label("Player", tag, badge.position, badge.size, 10, BADGE_INK, true)
 	else:
@@ -148,12 +118,11 @@ func _ready() -> void:
 	_delta_label.add_theme_constant_override("outline_size", 3)
 	_delta_label.visible = false
 	_status_label = _label("Status", "", Vector2(126, 58), Vector2(51, 10), 9, WARNING, true)
-	# 連続正解は正解数の右に、炎（AE 製ループ）と回数で出す。LED 窓の粒で描く。
+	# 連続正解は正解数の右に、炎（AE 製ループ）と回数で出す。
 	_streak_badge = STREAK_BADGE.new()
 	_streak_badge.name = "StreakBadge"
 	_streak_badge.setup(game_state.use_english_ui)
 	_surface.add_child(_streak_badge)
-	_streak_badge.set_led_style(_led_material, MenuMetalButton.FONT, LED_STREAK, LED_STREAK_UNIT)
 	_streak_badge.snap(game_state.get_player_streak(player_index))
 	# 得点・被弾・回復の光は文字の上に出す。
 	_fx = Control.new()
@@ -166,6 +135,12 @@ func _ready() -> void:
 		_heart_points.append(Vector2(16.0 * pow(sin(t), 3), -(13.0 * cos(t) - 5.0 * cos(2.0 * t) - 2.0 * cos(3.0 * t) - cos(4.0 * t))) / 16.0)
 	_layout_window()
 	_update_text()
+
+## 練習：板を一度光らせる（正解のときと同じ光の帯とボルトの明るさ。ハートも一瞬明るく）。
+func practice_shine() -> void:
+	_shine_time = 0.0
+	_flash_time = 0.32
+
 
 func set_ghost_hud_active(active: bool) -> void:
 	if _ghost_hud_active == active:
@@ -208,16 +183,16 @@ func _label(node_name: String, value: String, pos: Vector2, bounds: Vector2, fon
 
 ## P1/P2 のバッジ（メニューの featured ボタンと同じ、色ベタの小さな板）。
 func _badge_rect() -> Rect2:
-	return Rect2(18, 11, 42, 21) if game_state.net_online else Rect2(20, 11, 33, 21)
+	return Rect2(18, 11, 42, 21) if _online_look() else Rect2(20, 11, 33, 21)
 
-## LED 窓の縁。バッジの右から、カードの右の縁まで。
-func _window_rect() -> Rect2:
-	var left := _badge_rect().end.x + 7.0
-	return Rect2(left, 9, size.x - 7.0 - left, 27)
 
-## LED の粒が並ぶ面（縁の内側）。
-func _led_rect() -> Rect2:
-	return _window_rect().grow(-1.0)
+## オンライン対戦の見せ方か（本物のオンラインと、練習のオンラインの見せ方。コース④の 4-6）。
+func _online_look() -> bool:
+	return game_state.net_online or game_state.is_practice_online_look()
+
+## 正解数・連続正解を並べられる右端。
+func _row_limit() -> float:
+	return size.x - 10.0
 
 ## HP の数字のメーター窓（右下）。
 func _meter_rect() -> Rect2:
@@ -227,19 +202,12 @@ func _heart_center(slot: int) -> Vector2:
 	return Vector2(43.0 + float(slot) * HEART_PITCH, 56.5)
 
 func _layout_window() -> void:
-	var led := _led_rect()
-	_led_window.position = led.position
-	_led_window.size = led.size
-	_led_glow.position = led.position
-	_led_glow.size = led.size
 	_fx.size = size
-	_score_label.position.x = led.position.x + 3.0
-	_set_baseline(_score_label, led.position.y + LED_BASELINE)
-	_set_baseline(_score_unit, led.position.y + LED_BASELINE)
-	_streak_badge.position.y = led.position.y - 8.5
-	var window := Vector4(led.position.x, led.position.y, led.size.x, led.size.y)
-	_led_material.set_shader_parameter("window", window)
-	_led_panel_material.set_shader_parameter("window", window)
+	_score_label.position.x = _badge_rect().end.x + 8.0
+	_set_baseline(_score_label, SCORE_BASELINE)
+	_set_baseline(_score_unit, SCORE_BASELINE)
+	# バッジの回数の並ぶ線（上端から約 29）を正解数にそろえる。
+	_streak_badge.position.y = SCORE_BASELINE - 29.0
 
 ## ラベルの文字の並ぶ線を y に合わせる（ラベルの高さはフォントで決まるので、上端から逆算する）。
 func _set_baseline(label: Label, y: float) -> void:
@@ -297,7 +265,7 @@ func _process(dt: float) -> void:
 			_delta_label.text = "+%d" % (score - _last_score)
 			_score_time = 0.0
 			_shine_time = 0.0
-			_spawn_burst("score", Vector2(_score_label.position.x + 9.0, _led_rect().get_center().y))
+			_spawn_burst("score", Vector2(_score_label.position.x + 10.0, SCORE_BASELINE - 8.0))
 		else:
 			_score_time = 10.0
 		_last_score = score
@@ -326,17 +294,17 @@ func _process(dt: float) -> void:
 	_streak_badge.advance(dt, game_state.get_player_streak(player_index))
 	_place_streak_badge()
 	_delta_label.visible = _score_time < 0.65
-	_delta_label.position.y = -19.0 - 22.0 * _sample("burst_progress", _score_time)
+	var burst := _sample("burst_progress", _score_time)
+	_delta_label.position.y = (size.y - 6.0 + 22.0 * burst) if top_anchored else (-19.0 - 22.0 * burst)
 	_delta_label.scale = Vector2.ONE * lerpf(0.8, 1.0, _sample("entrance_alpha", _score_time))
 	_delta_label.modulate.a = 1.0 - smoothstep(0.25, 0.65, _score_time)
 	_surface.position.x = _sample("impact_shake", _impact_time)
-	_surface.position.y = _sample("entrance_y", maxf(0.0, _entrance_time))
+	var entrance_y := _sample("entrance_y", maxf(0.0, _entrance_time))
+	_surface.position.y = -entrance_y if top_anchored else entrance_y
 	_surface.modulate.a = 0.0 if _entrance_time < 0.0 else _sample("entrance_alpha", _entrance_time)
 	var hp := game_state.get_player_hp(player_index)
 	_update_hp_row(hp)
-	_update_led(hp)
 	_surface.queue_redraw()
-	_led_glow.queue_redraw()
 	_fx.queue_redraw()
 
 ## HP の数字と状態。メーター窓に「3 / 3」、残り 1 は数字と「あと1回」を縦に、0 は「OUT」のスタンプ。
@@ -372,28 +340,16 @@ func _update_hp_row(hp: int) -> void:
 		_status_label.position = meter.position + Vector2(0, 9.5)
 		_status_label.rotation = 0.0
 
-## LED の粒の格子をカードの今の位置と大きさに合わせる（入場の動きや揺れの間も粒が窓に留まるように）。
-func _update_led(hp: int) -> void:
-	var to_card := _surface.get_global_transform().affine_inverse()
-	var screen := get_viewport().get_final_transform() * _surface.get_global_transform_with_canvas()
-	var pitch := clampf(LED_DOT_PIXELS / maxf(screen.get_scale().x, 0.01), 1.1, 2.4)
-	for led_material: ShaderMaterial in [_led_material, _led_panel_material]:
-		led_material.set_shader_parameter("card_x", to_card.x)
-		led_material.set_shader_parameter("card_y", to_card.y)
-		led_material.set_shader_parameter("card_origin", to_card.origin)
-		led_material.set_shader_parameter("pitch", pitch)
-	_led_material.set_shader_parameter("level", 0.6 if _is_out(hp) else 1.0)
-
 func _is_out(hp: int) -> bool:
 	return hp == 0 and not _ghost_hud_active
 
 func _update_text() -> void:
 	_score_label.text = str(_last_score)
 	var digits := _score_label.text.length()
-	var font_size := 21 if digits <= 3 else (18 if digits <= 5 else 15)
+	var font_size := 24 if digits <= 3 else (20 if digits <= 5 else 16)
 	_score_label.add_theme_font_size_override("font_size", font_size)
 	_score_label.size = Vector2(98, 0)
-	_set_baseline(_score_label, _led_rect().position.y + LED_BASELINE)
+	_set_baseline(_score_label, SCORE_BASELINE)
 	# 弾むときは数字の真ん中を軸にする。
 	_score_label.pivot_offset = Vector2(0, _baseline_offset(_score_label) - font_size * 0.36)
 	_place_score_unit(1.0)
@@ -401,13 +357,13 @@ func _update_text() -> void:
 
 func _place_score_unit(score_scale: float) -> void:
 	var width := _text_width(_score_label)
-	var limit := _led_rect().end.x - _text_width(_score_unit) - 3.0
+	var limit := _row_limit() - _text_width(_score_unit)
 	_score_unit.position.x = minf(limit, _score_label.position.x + 2.0 + width * score_scale)
 
 ## 正解の単位の直後に置く。幅が足りなければ「連続」を省き、それでも足りなければ「正解」を隠して
 ## 正解数の直後に詰める。
 func _place_streak_badge() -> void:
-	var limit := _led_rect().end.x - 3.0
+	var limit := _row_limit()
 	var unit_end := _score_unit.position.x + _text_width(_score_unit)
 	_streak_badge.set_compact(false)
 	if unit_end + 4.0 + float(_streak_badge.content_width()) > limit:
@@ -466,7 +422,6 @@ func _draw_surface() -> void:
 		s.draw_arc(lamp_center, 5.2, 0, TAU, 24, Color(WARNING, 0.5 * blink), 0.8, true)
 	_badge.bg_color = accent.darkened(0.45) if out else accent
 	s.draw_style_box(_badge, badge)
-	s.draw_style_box(_bezel, _window_rect())
 	# 板に彫った溝。
 	s.draw_line(Vector2(12, 39.5), Vector2(size.x - 12, 39.5), MenuMetalButton.FRAME_DARK, 1.2, true)
 	s.draw_line(Vector2(12, 40.8), Vector2(size.x - 12, 40.8), Color(MenuMetalButton.FRAME_LIGHT, 0.6), 0.8, true)
@@ -536,31 +491,6 @@ func _draw_shine() -> void:
 				colors.append(Color(0.8, 0.94, 1.0, alpha * clampf(1.0 - absf(point.x - center_x) / 14.0, 0.0, 1.0)))
 			_surface.draw_polygon(clipped, colors)
 	_surface.draw_line(Vector2(12, 1.5), Vector2(12 + (size.x - 24.0) * progress, 1.5), Color(accent, sin(PI * progress) * 0.85), 2.0, true)
-
-## LED の文字と炎のまわりの橙のにじみ（窓の中だけ）。
-func _draw_led_glow() -> void:
-	var dim := 0.45 if _is_out(game_state.get_player_hp(player_index)) else 1.0
-	var to_glow := _led_glow.get_global_transform().affine_inverse()
-	var labels: Array[Label] = [_score_label]
-	if _score_unit.visible:
-		labels.append(_score_unit)
-	if _streak_badge.visible:
-		labels.append_array(_streak_badge.glow_labels())
-	for label in labels:
-		var strength := dim * label.modulate.a
-		if strength <= 0.01:
-			continue
-		var font: Font = label.get_theme_font("font")
-		var font_size := label.get_theme_font_size("font_size")
-		_led_glow.draw_set_transform_matrix(to_glow * label.get_global_transform())
-		for layer in LED_GLOW_LAYERS:
-			_led_glow.draw_string_outline(font, Vector2(0, _baseline_offset(label)), label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, int(layer[0]), Color(LED_GLOW, float(layer[1]) * strength))
-	_led_glow.draw_set_transform_matrix(Transform2D.IDENTITY)
-	var flame: float = _streak_badge.flame_strength() * dim
-	if _streak_badge.visible and flame > 0.01:
-		var center: Vector2 = to_glow * _streak_badge.get_global_transform() * _streak_badge.flame_center()
-		for i in range(4):
-			_led_glow.draw_circle(center, 13.0 - float(i) * 3.0, Color(LED_GLOW, 0.06 * flame), true, -1.0, true)
 
 func _draw_bursts() -> void:
 	for burst in _bursts:

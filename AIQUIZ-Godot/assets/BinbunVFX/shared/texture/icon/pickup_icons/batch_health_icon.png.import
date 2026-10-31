@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://dedbad3dhcvw4"
 path.s3tc="res://.godot/imported/batch_health_icon.png-df1940b6935ded1be5692d6961d3f92c.s3tc.ctex"
+path.etc2="res://.godot/imported/batch_health_icon.png-df1940b6935ded1be5692d6961d3f92c.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/BinbunVFX/shared/texture/icon/pickup_icons/batch_health_icon.png"
-dest_files=["res://.godot/imported/batch_health_icon.png-df1940b6935ded1be5692d6961d3f92c.s3tc.ctex"]
+dest_files=["res://.godot/imported/batch_health_icon.png-df1940b6935ded1be5692d6961d3f92c.s3tc.ctex", "res://.godot/imported/batch_health_icon.png-df1940b6935ded1be5692d6961d3f92c.etc2.ctex"]
 
 [params]
 

@@ -106,20 +106,22 @@ void fragment() {
 	} else {
 		// Thick albumen is faintly milky, yellow-green and a little turbid; the film is clear.
 		float turbid = egg_noise(q * 22.0 + s.seed * 37.0) * 0.6 + egg_noise(q * 61.0 - s.seed * 19.0) * 0.4;
-		float cloud = mix(0.03, 0.08 + 0.07 * turbid, thick_part);
+		// Raw white is never quite water-clear: a faint milkiness in the film, more in the gel.
+		float cloud = mix(0.08, 0.2 + 0.1 * turbid, thick_part);
 #ifdef EGG_REFRACT
 		// Bent by the layer's own thickness (the gel dome bends it more than the film).
 		float layer = s.film * bead(fraction) + s.thick * thick_part;
 		vec2 offset = egg_refraction(NORMAL, layer, -VERTEX.z, PROJECTION_MATRIX[1][1]) * refraction / 0.05;
 		vec3 behind = textureLod(screen_tex, SCREEN_UV - offset, 0.0).rgb;
-		// Wetting darkens what is underneath a little; the gel tints it yellow-green.
-		vec3 through = behind * mix(vec3(0.86), vec3(0.9, 0.93, 0.8), thick_part);
+		// Wetting darkens what is underneath (it reads as a wet stain from afar); the gel
+		// tints it yellow-green.
+		vec3 through = behind * mix(vec3(0.74), vec3(0.8, 0.83, 0.7), thick_part);
 		ALBEDO = tint.rgb * cloud;
-		EMISSION = through * (1.0 - cloud) * (1.0 - fresnel) + vec3(bead_line * 0.05);
+		EMISSION = through * (1.0 - cloud) * (1.0 - fresnel) + vec3(bead_line * 0.14);
 		ALPHA = edge * s.alpha;
 #else
 		ALBEDO = tint.rgb * mix(0.6, 0.85, thick_part);
-		ALPHA = clamp(mix(0.28, 0.55, thick_part) + fresnel * 0.5 + bead_line * 0.25, 0.0, 1.0) * edge * s.alpha;
+		ALPHA = clamp(mix(0.38, 0.65, thick_part) + fresnel * 0.5 + bead_line * 0.3, 0.0, 1.0) * edge * s.alpha;
 #endif
 		ROUGHNESS = 0.05;
 		SPECULAR = 0.6;

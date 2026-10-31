@@ -129,12 +129,14 @@ func reset() -> void:
 
 
 ## 問題が出た瞬間に呼ぶ。distance は答える人が壁に当たるまでの距離。progress は回の進み具合 0〜1。
+## pace_override が正なら、その調子で計算する（練習の MatchRules.slow_auto_speed。pace そのものは変えない）。
 func plan(quiz: QuizItem, subject: String, grade: int, difficulty: String, num_choices: int,
-		distance: float, progress: float) -> float:
+		distance: float, progress: float, pace_override := -1.0) -> float:
 	last_answer_seconds = estimate_answer_seconds(quiz, subject, grade, difficulty, num_choices)
 	var move := MOVE_FOUR_CHOICES if num_choices >= 4 else MOVE_TWO_CHOICES
 	var margin := lerpf(MARGIN_START, MARGIN_END, clampf(progress, 0.0, 1.0))
-	last_budget_seconds = clampf(last_answer_seconds * pace + move + margin, FASTEST_SECONDS, SLOWEST_SECONDS)
+	var used_pace := pace_override if pace_override > 0.0 else pace
+	last_budget_seconds = clampf(last_answer_seconds * used_pace + move + margin, FASTEST_SECONDS, SLOWEST_SECONDS)
 	_elapsed = 0.0
 	_retreat_elapsed = 0.0
 	return (distance if distance >= MIN_DISTANCE else DEFAULT_DISTANCE) / last_budget_seconds

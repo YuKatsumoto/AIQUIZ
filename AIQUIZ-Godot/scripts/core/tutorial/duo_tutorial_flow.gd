@@ -1,13 +1,12 @@
-extends TutorialFlowBase
+extends RefCounted
 class_name DuoTutorialFlow
 
-## ローカル2P（デュオ）チュートリアルコース（V7）。
+## ローカル2P（デュオ）チュートリアルコース。
 ## 1Pコースは res://scripts/core/tutorial/solo_tutorial_flow.gd が担当する。
 ## 両クラスは QuizGameState から同じメソッド面で呼ばれるため、
-## 片方にクエリを足したらもう片方にも同名で足すこと。章・ルール表示・ミッションなど
-## 共通の仕組みは res://scripts/core/tutorial/tutorial_flow_base.gd にある。
+## 片方にクエリを足したらもう片方にも同名で足すこと。
 ##
-## 章は「操作 → キケン（海・ゴーストシャーク・のこぎり） → クイズ → ボス → ゴール」。
+## 学習順は「操作 → 危険 → ゴースト → のこぎり → 回答 → ハート → 実践 → ゴールと勝敗判定 → カスタマイズ紹介」。
 ## 本編のローカル2P（10問チャレンジ・エンドレス）に合わせ、
 ## - ハートは1人3つ。不正解や壁で1つ減り、0で脱落してゴーストシャークへ回る。
 ## - 先に正解したプレイヤーだけに1点が入り、壁は2人とも通れるように開く。
@@ -16,12 +15,14 @@ class_name DuoTutorialFlow
 ## 一度に提示する操作は各プレイヤー最大4つ（前後左右の移動）までに抑える。
 ##
 ## 操作を教えるステップでは、各タスクの "slots" をもとに 3D 空間へ操作キーを浮かべる
-## （res://scripts/world/tutorial_key_guides_3d.gd）。"key_layout" がその並べ方。
+## （res://scripts/world/key_guides_3d.gd）。"key_layout" がその並べ方。
 
 signal step_changed(step_id: String, step_index: int, step_count: int)
 signal task_completed(player_index: int, task_id: String)
 signal presentation_requested(presentation_id: String, context: Dictionary)
 signal presentation_finished(presentation_id: String)
+
+const MobileUi = preload("res://scripts/core/mobile_ui.gd")
 
 const COURSE_LOCAL_2P := "LOCAL_2P"
 
@@ -38,7 +39,7 @@ const GUIDE_FREE_DOOR := "free_door"
 const GUIDE_GOAL := "goal"
 const GUIDE_COMPLETE := "complete"
 
-## 3Dキーの並べ方（TutorialKeyGuides3D の LAYOUT_* と同じ値）。
+## 3Dキーの並べ方（KeyGuides3D の LAYOUT_* と同じ値）。
 const KEYS_CLUSTER := "cluster"
 const KEYS_SIDES := "sides"
 const KEYS_GHOST := "ghost"
@@ -46,32 +47,29 @@ const KEYS_GHOST := "ghost"
 ## エモートキーのビット（bit0 = 1/8、bit1 = 2/9、bit2 = 3/0）と、それぞれを練習するタスク。
 const EMOTE_TASKS: Array[String] = ["emote_1", "emote_2", "emote_3"]
 
-## タスクがそろってから次のステップへ移るまでの間。チェックが見えるだけの短さにする。
-const TASK_HOLD_SECONDS := 0.3
+const TASK_HOLD_SECONDS := 0.55
+const HINT_SECONDS := 3.4
 const GATE_GRACE_SECONDS := 0.7
-## 4択のボス壁で使う問題の番号（誘導・ハート体験・本番1問の次）。
-const BOSS_QUIZ_INDEX := 3
+## 4択のボス壁で使う問題の番号。
+const BOSS_QUIZ_INDEX := 4
 ## のこぎり体験: 警告が出る距離まで近づき、警告の外まで戻る。
 ## 危険度は 1 − 刃までの距離 ÷ 警告距離（6m）。
 const SAW_APPROACH_DANGER := 0.2
 const SAW_ESCAPE_DANGER := 0.0
 const SAW_ESCAPE_HOLD := 0.35
 
-const CHAPTERS: Array[Dictionary] = [
-	{"id": "controls", "label": "操作", "icon": "move"},
-	{"id": "danger", "label": "キケン", "icon": "wave"},
-	{"id": "quiz", "label": "クイズ", "icon": "door"},
-	{"id": "boss", "label": "ボス", "icon": "crown"},
-	{"id": "goal", "label": "ゴール", "icon": "flag"},
-]
-
 var course: String = COURSE_LOCAL_2P
+var step_index: int = 0
+var revision: int = 0
 var presentation_locked: bool = false
 var awaiting_neutral_input: bool = false
 
+var _steps: Array[Dictionary] = []
 var _tasks: Dictionary = {}
 var _quiz_cursor: int = 0
 var _task_hold: float = -1.0
+var _hint_text: String = ""
+var _hint_timer: float = 0.0
 var _gate_elapsed: float = 0.0
 var _death_recovery_active: bool = false
 var _death_recovery_duration: float = 0.0
@@ -81,10 +79,6 @@ var _quiz_items: Array[QuizItem] = []
 var _saw_escape_hold: Dictionary = {}
 
 
-func chapter_defs() -> Array[Dictionary]:
-	return CHAPTERS
-
-
 func start(_selected_course: String = COURSE_LOCAL_2P) -> void:
 	course = COURSE_LOCAL_2P
 	_steps = _build_steps()
@@ -92,18 +86,33 @@ func start(_selected_course: String = COURSE_LOCAL_2P) -> void:
 	step_index = 0
 	revision += 1
 	_clear_transient_state()
-	_reset_v7_state()
-	_enter_current_step(false)
+	_enter_current_step()
+
+
+func current_step() -> Dictionary:
+	if step_index < 0 or step_index >= _steps.size():
+		return {}
+	return _steps[step_index]
+
+
+func current_step_id() -> String:
+	return str(current_step().get("id", ""))
+
+
+func is_step(step_id: String) -> bool:
+	return current_step_id() == step_id
+
+
+func step_count() -> int:
+	return _steps.size()
 
 
 func advance_step() -> bool:
 	if step_index + 1 >= _steps.size():
 		return false
-	var previous_chapter := chapter_id()
 	step_index += 1
 	revision += 1
-	_queue_chapter_banner(previous_chapter)
-	_enter_current_step(not previous_chapter.is_empty() and previous_chapter == chapter_id())
+	_enter_current_step()
 	return true
 
 
@@ -153,7 +162,6 @@ func finish_presentation(_expected_id: String = "") -> bool:
 	presentation_locked = false
 	awaiting_neutral_input = true
 	revision += 1
-	_fire_step_toast(TOAST_ON_ENTER)
 	presentation_finished.emit(finished_id)
 	return true
 
@@ -202,7 +210,11 @@ func tick(delta: float) -> void:
 		_gate_elapsed += delta
 	else:
 		_gate_elapsed = 0.0
-	_tick_hint(delta)
+	if _hint_timer > 0.0:
+		_hint_timer = maxf(0.0, _hint_timer - delta)
+		if _hint_timer <= 0.0:
+			_hint_text = ""
+			revision += 1
 
 
 func is_input_practice_step() -> bool:
@@ -245,8 +257,6 @@ func complete_task(player_index: int, task_id: String) -> bool:
 		task["done"] = true
 		revision += 1
 		task_completed.emit(player_index, task_id)
-		if all_tasks_complete():
-			_fire_step_toast(TOAST_ON_DONE)
 		return true
 	return false
 
@@ -268,17 +278,6 @@ func is_task_done(player_index: int, task_id: String) -> bool:
 		if str(task.get("id", "")) == task_id:
 			return bool(task.get("done", false))
 	return false
-
-
-## そのプレイヤーのタスクがすべて終わったか（ミニバーで「OK」を付ける）。
-func player_tasks_complete(player_index: int) -> bool:
-	var player_tasks: Array = _tasks.get(player_index, [])
-	if player_tasks.is_empty():
-		return false
-	for task_variant: Variant in player_tasks:
-		if not bool((task_variant as Dictionary).get("done", false)):
-			return false
-	return true
 
 
 # ---------- クイズ ----------
@@ -539,8 +538,6 @@ func begin_death_recovery(duration: float, retry_same_step: bool, message: Strin
 	revision += 1
 
 
-## 復帰後にミッションの行へ出す短いヒント。体験として見せただけの落下は
-## ルール表示が説明を済ませているので、何も出さずに次のミッションへ移る。
 func finish_death_recovery() -> Dictionary:
 	if not _death_recovery_active:
 		return {"retry": false, "message": ""}
@@ -551,20 +548,31 @@ func finish_death_recovery() -> Dictionary:
 	_death_recovery_retry = false
 	_death_recovery_message = ""
 	revision += 1
-	if message.is_empty() and retry:
-		message = "2人とも脱落…もう一度"
+	if message.is_empty():
+		message = (
+			"2人とも脱落しました。同じ問題からやり直します。"
+			if retry
+			else "海に落ちた場合の動作を確認しました。次のステップに進みます。"
+		)
 	return {"retry": retry, "message": message}
 
 
-# ---------- まとめ ----------
+# ---------- ヒント ----------
+
+func set_hint(text: String, seconds: float = HINT_SECONDS) -> void:
+	_hint_text = text
+	_hint_timer = maxf(0.0, seconds)
+	revision += 1
+
 
 func clear_summary_lines() -> PackedStringArray:
 	return PackedStringArray([
-		"✓ 操作：2人分の前後左右の移動・ジャンプ・3つのエモート",
-		"✓ キケン：海（即脱落）、ゴーストシャークでの反撃、回転のこぎり（即脱落）",
-		"✓ クイズ：ハート3つと、先に正解した人だけの得点",
-		"✓ ボス：4択の壁",
-		"✓ ゴール：スコアタワーの勝敗判定",
+		"✓ 2人分の前後左右の移動・ジャンプ・3つのエモート",
+		"✓ 海（即脱落）とゴーストシャークでの反撃",
+		"✓ 後ろから迫る回転のこぎり（即脱落）",
+		"✓ ハート3つと、先に正解した人だけの得点",
+		"✓ 4択のボス壁、ゴールとスコアタワーの勝敗判定",
+		"✓ 壁速度・帽子・エモートのカスタマイズ",
 	])
 
 
@@ -584,15 +592,15 @@ func get_overlay_model() -> Dictionary:
 			"player": player_index,
 			"label": "P%d" % player_index,
 			"tasks": copied_tasks,
-			"complete": player_tasks_complete(player_index),
 		})
 	var indices := _quiz_indices()
 	var sub_label := ""
 	if indices.size() > 1:
 		sub_label = "問題 %d / %d" % [mini(_quiz_cursor + 1, indices.size()), indices.size()]
-	var pending := _pending_ordered_task()
-	var model := {
-		# クリア画面が画面全体を受け持つので、その間はミッションバーを出さない。
+	var hint := _hint_text
+	return {
+		# 完了カードが画面全体を使うので、コーチバーは隠して
+		# 使えない Enter スキップ行を出さないようにする。
 		"visible": current_step_id() != "duo_complete",
 		"course": course,
 		"step_id": current_step_id(),
@@ -600,13 +608,13 @@ func get_overlay_model() -> Dictionary:
 		"step_number": step_index + 1,
 		"step_count": _steps.size(),
 		"title": str(step.get("title", "チュートリアル")),
-		"body": _mission_text(pending),
-		"hint": _hint_text,
+		"body": str(step.get("body", "")),
+		"hint": hint,
 		"sub_label": sub_label,
 		"presentation_locked": presentation_locked,
 		"awaiting_neutral_input": awaiting_neutral_input,
 		"skip_text": (
-			"スキップ"
+			MobileUi.prompt("[Enter] スキップ", "タップでスキップ")
 			if presentation_locked and current_step_id() != "duo_complete"
 			else ""
 		),
@@ -621,8 +629,6 @@ func get_overlay_model() -> Dictionary:
 		# 順番に行うタスク（後退→前進）は、今やる分のキーだけを光らせる。
 		"ordered_tasks": bool(step.get("ordered_tasks", false)),
 	}
-	model.merge(_v7_model(pending), true)
-	return model
 
 
 # ---------- 内部 ----------
@@ -630,6 +636,8 @@ func get_overlay_model() -> Dictionary:
 func _clear_transient_state() -> void:
 	_quiz_cursor = 0
 	_task_hold = -1.0
+	_hint_text = ""
+	_hint_timer = 0.0
 	_death_recovery_active = false
 	_death_recovery_duration = 0.0
 	_death_recovery_retry = false
@@ -637,38 +645,18 @@ func _clear_transient_state() -> void:
 	_saw_escape_hold.clear()
 
 
-## continues_chapter = 同じ章の中で次のステップへ移った。世界を止めずに続けるため、
-## 中立入力待ち（押しっぱなしのキーで次のステップが進まないようにする間）を挟まない。
-func _enter_current_step(continues_chapter: bool) -> void:
+func _enter_current_step() -> void:
 	_quiz_cursor = 0
 	_task_hold = -1.0
-	_clear_hint()
+	_hint_text = ""
+	_hint_timer = 0.0
 	_saw_escape_hold.clear()
 	_rebuild_tasks()
 	presentation_locked = not presentation_id().is_empty()
-	awaiting_neutral_input = not presentation_locked and not continues_chapter
+	awaiting_neutral_input = not presentation_locked
 	step_changed.emit(current_step_id(), step_index, _steps.size())
 	if presentation_locked:
 		presentation_requested.emit(presentation_id(), presentation_context())
-	else:
-		_fire_step_toast(TOAST_ON_ENTER)
-
-
-## 順番に行うタスクのうち、まだ誰かが終えていない最初のもの。ミッションの文を切り替える。
-func _pending_ordered_task() -> String:
-	if not bool(current_step().get("ordered_tasks", false)):
-		return ""
-	var order: Array[String] = []
-	for player_tasks_variant: Variant in _tasks.values():
-		for task_variant: Variant in player_tasks_variant:
-			var id := str((task_variant as Dictionary).get("id", ""))
-			if id not in order:
-				order.append(id)
-	for id: String in order:
-		for player_index: Variant in _tasks.keys():
-			if not is_task_done(int(player_index), id):
-				return id
-	return ""
 
 
 func _rebuild_tasks() -> void:
@@ -741,12 +729,21 @@ func _build_quiz_items() -> Array[QuizItem]:
 			PackedStringArray(),
 			7.0
 		),
-		# 誘導なしの本番。正解は右に置き、ここまでの「左が正解」をなぞるだけにしない。
 		QuizItem.create(
 			"5 × 7 = ?",
 			PackedStringArray(["30", "35"]),
 			1,
 			"5を7回足すと35です。",
+			"TUTORIAL",
+			"",
+			PackedStringArray(),
+			7.0
+		),
+		QuizItem.create(
+			"30 - 12 = ?",
+			PackedStringArray(["18", "22"]),
+			0,
+			"30から12を引くと18です。",
 			"TUTORIAL",
 			"",
 			PackedStringArray(),
@@ -767,16 +764,15 @@ func _build_quiz_items() -> Array[QuizItem]:
 	return items
 
 
-## mission はミニバーの1行（12字以内）。説明の段落は持たない。
-## toast はそのステップで体験した直後に出すルール表示（見出し10字以内、補足16字以内）。
 func _build_steps() -> Array[Dictionary]:
 	return [
 		{
 			"id": "duo_move",
-			"chapter": "controls",
-			"icon": "move",
 			"title": "2人プレイの移動",
-			"mission": "4方向に動こう",
+			"body": MobileUi.prompt(
+				"P1はオレンジ、P2は水色です。左右でドアを選び、前後の移動で壁に着くタイミングを調整できます。頭の上のキーで、それぞれ4方向に動いてみましょう。",
+				"P1はオレンジ、P2は水色です。左右でドアを選び、前後の移動で壁に着くタイミングを調整できます。それぞれのスティックで4方向に動いてみましょう。"
+			),
 			"guide": GUIDE_LANE,
 			"key_layout": KEYS_CLUSTER,
 			"speed": 0.55,
@@ -799,10 +795,11 @@ func _build_steps() -> Array[Dictionary]:
 		},
 		{
 			"id": "duo_jump",
-			"chapter": "controls",
-			"icon": "jump",
 			"title": "ジャンプ",
-			"mission": "ジャンプしよう",
+			"body": MobileUi.prompt(
+				"P1はSpace、P2はキーボード右側のCtrlでジャンプします（左のCtrlは使えません）。それぞれジャンプしてみましょう。",
+				"P1・P2それぞれのジャンプボタンでジャンプします。それぞれジャンプしてみましょう。"
+			),
 			"guide": GUIDE_JUMP,
 			"key_layout": KEYS_CLUSTER,
 			"speed": 0.55,
@@ -815,10 +812,11 @@ func _build_steps() -> Array[Dictionary]:
 		},
 		{
 			"id": "duo_emote",
-			"chapter": "controls",
-			"icon": "emote",
 			"title": "エモート",
-			"mission": "エモートを3つ踊ろう",
+			"body": MobileUi.prompt(
+				"数字キーでエモートを踊れます（P2はテンキーの7・8・9でも可）。ジャンプで止まります。それぞれ3つすべてを再生してください。",
+				"エモートボタン1・2・3で踊れます。ジャンプで止まります。それぞれ3つすべてを再生してください。"
+			),
 			"guide": GUIDE_EMOTE,
 			"key_layout": KEYS_CLUSTER,
 			"speed": 0.4,
@@ -839,10 +837,8 @@ func _build_steps() -> Array[Dictionary]:
 		},
 		{
 			"id": "duo_ocean",
-			"chapter": "danger",
-			"icon": "wave",
 			"title": "コース外は海",
-			"mission": "P2は海へ飛び込もう",
+			"body": "コースの外は海です。落ちるとサメに襲われ、ハートの数に関係なく脱落します。P2は端から外へ出てみてください。",
 			"guide": GUIDE_OCEAN,
 			"key_layout": KEYS_SIDES,
 			"speed": 0.0,
@@ -851,20 +847,17 @@ func _build_steps() -> Array[Dictionary]:
 			"ghost_handoff": true,
 			"ghost_ride": true,
 			"split_camera": true,
-			"toast": {
-				"on": TOAST_ON_DONE, "icon": "wave", "tone": "danger",
-				"title": "海は即アウト", "sub": "ハートが残っていても脱落",
-			},
 			"tasks": {
 				2: [{"id": "ocean", "key": "← / →", "caption": "コースの外へ出る", "slots": ["toward_edge"]}],
 			},
 		},
 		{
 			"id": "duo_ghost",
-			"chapter": "danger",
-			"icon": "shark",
 			"title": "ゴーストシャークで反撃",
-			"mission": "サメでP1を弾こう",
+			"body": MobileUi.prompt(
+				"脱落した人はゴーストシャークに乗り、残った相手を体当たりで海やのこぎりへ弾き飛ばせます。照準をP1に合わせ、右Ctrlを長押しして黄色いPERFECTで離すと最大パワーです。",
+				"脱落した人はゴーストシャークに乗り、残った相手を体当たりで海やのこぎりへ弾き飛ばせます。スティックで照準をP1に合わせ、ジャンプボタンを長押しして黄色いPERFECTで離すと最大パワーです。"
+			),
 			"guide": GUIDE_GHOST,
 			"key_layout": KEYS_GHOST,
 			"speed": 0.0,
@@ -873,10 +866,6 @@ func _build_steps() -> Array[Dictionary]:
 			"ghost_player": 2,
 			"ghost_ride": true,
 			"split_camera": true,
-			"toast": {
-				"on": TOAST_ON_DONE, "icon": "shark", "tone": "info",
-				"title": "サメで反撃", "sub": "脱落しても相手を弾ける",
-			},
 			"tasks": {
 				2: [
 					{"id": "aim", "key": "矢印", "caption": "照準移動", "slots": ["left", "up", "down", "right"]},
@@ -887,14 +876,8 @@ func _build_steps() -> Array[Dictionary]:
 		},
 		{
 			"id": "duo_saw",
-			"chapter": "danger",
-			"icon": "saw",
 			"title": "回転のこぎりに注意",
-			"mission": "のこぎりから逃げよう",
-			"mission_by_task": {
-				"saw_approach": "少し下がってみよう",
-				"saw_escape": "前進で逃げよう",
-			},
+			"body": "2人プレイでは後ろから回転のこぎりが迫ります。先頭から約14m遅れると巻き込まれ、ハートに関係なく脱落します。少し後退して赤い警告を確かめたら、前進して離れてください。",
 			"guide": GUIDE_SAW,
 			"key_layout": KEYS_CLUSTER,
 			"speed": 0.55,
@@ -904,10 +887,6 @@ func _build_steps() -> Array[Dictionary]:
 			"ordered_tasks": true,
 			"presentation": "saw_reveal",
 			"duration": 2.4,
-			"toast": {
-				"on": TOAST_ON_ENTER, "icon": "saw", "tone": "danger",
-				"title": "遅れると即アウト", "sub": "のこぎりに巻き込まれる",
-			},
 			"tasks": {
 				1: [
 					{"id": "saw_approach", "key": "S", "caption": "後退して警告を見る", "slots": ["down"]},
@@ -921,10 +900,8 @@ func _build_steps() -> Array[Dictionary]:
 		},
 		{
 			"id": "duo_guided_wall",
-			"chapter": "quiz",
-			"icon": "door",
 			"title": "クイズの答え方",
-			"mission": "光るドアへ早い者勝ち",
+			"body": "光ったドアが正解です。先に正解した人だけに1点が入り、壁は2人とも通れるように開きます。",
 			"guide": GUIDE_GUIDED_DOOR,
 			"key_layout": KEYS_SIDES,
 			"speed": 1.0,
@@ -936,10 +913,6 @@ func _build_steps() -> Array[Dictionary]:
 			"highlight_answer": 0,
 			"presentation": "wall_reveal",
 			"duration": 0.9,
-			"toast": {
-				"on": TOAST_ON_DONE, "icon": "door", "tone": "good",
-				"title": "早い者勝ち", "sub": "先に正解した人に1点",
-			},
 			"tasks": {
 				1: [{"id": "answer", "key": "A / D", "caption": "光ったドアへ", "slots": ["toward_door"]}],
 				2: [{"id": "answer", "key": "← / →", "caption": "光ったドアへ", "slots": ["toward_door"]}],
@@ -947,10 +920,8 @@ func _build_steps() -> Array[Dictionary]:
 		},
 		{
 			"id": "duo_hp",
-			"chapter": "quiz",
-			"icon": "heart",
 			"title": "ハート（HP）のしくみ",
-			"mission": "2人とも「7」へ入ろう",
+			"body": "ハートは1人3つ。不正解や壁で1つ減り、0で脱落します。2人とも、わざと不正解の「7」へ入ってください。",
 			"guide": GUIDE_WRONG_DOOR,
 			"key_layout": KEYS_SIDES,
 			"speed": 1.0,
@@ -960,10 +931,6 @@ func _build_steps() -> Array[Dictionary]:
 			"saw": true,
 			"quiz_indices": [1],
 			"highlight_answer": -1,
-			"toast": {
-				"on": TOAST_ON_DONE, "icon": "heart_broken", "tone": "danger",
-				"title": "ハート −1", "sub": "0になるとサメに",
-			},
 			"tasks": {
 				1: [{"id": "wrong_door", "key": "A / D", "caption": "わざと不正解へ", "slots": ["toward_door"]}],
 				2: [{"id": "wrong_door", "key": "← / →", "caption": "わざと不正解へ", "slots": ["toward_door"]}],
@@ -971,10 +938,8 @@ func _build_steps() -> Array[Dictionary]:
 		},
 		{
 			"id": "duo_free_wall",
-			"chapter": "quiz",
-			"icon": "door",
 			"title": "誘導なしで回答",
-			"mission": "自分で答えよう",
+			"body": "本番と同じ判定です。不正解の人はハートが1つ減り、相手が答えるまで壁の前で止められます。",
 			"guide": GUIDE_FREE_DOOR,
 			"key_layout": KEYS_SIDES,
 			"speed": 1.0,
@@ -982,14 +947,10 @@ func _build_steps() -> Array[Dictionary]:
 			"hp": true,
 			"hp_rules": true,
 			"saw": true,
-			"quiz_indices": [2],
+			"quiz_indices": [2, 3],
 			"highlight_answer": -1,
 			"punish_mistakes": true,
 			"ghost_ride": true,
-			"toast": {
-				"on": TOAST_ON_ENTER, "icon": "door", "tone": "info",
-				"title": "ここから本番", "sub": "不正解なら相手を待つ",
-			},
 			"tasks": {
 				1: [{"id": "answer", "key": "A / D", "caption": "答えのドアへ", "slots": ["toward_door"]}],
 				2: [{"id": "answer", "key": "← / →", "caption": "答えのドアへ", "slots": ["toward_door"]}],
@@ -997,10 +958,8 @@ func _build_steps() -> Array[Dictionary]:
 		},
 		{
 			"id": "duo_boss_wall",
-			"chapter": "boss",
-			"icon": "crown",
 			"title": "4択のボス壁",
-			"mission": "正解のドアを選ぼう",
+			"body": "最後の問題と難易度「難しい」はドアが4つ（A〜D）。ここでも先に正解した人だけに1点です。",
 			"guide": GUIDE_FREE_DOOR,
 			"key_layout": KEYS_SIDES,
 			"speed": 1.0,
@@ -1015,10 +974,6 @@ func _build_steps() -> Array[Dictionary]:
 			"ghost_ride": true,
 			"presentation": "wall_reveal",
 			"duration": 1.6,
-			"toast": {
-				"on": TOAST_ON_ENTER, "icon": "crown", "tone": "boss",
-				"title": "BOSS 4択", "sub": "10問チャレンジの最終問題",
-			},
 			"tasks": {
 				1: [{"id": "answer", "key": "A / D", "caption": "4つから選ぶ", "slots": ["toward_door"]}],
 				2: [{"id": "answer", "key": "← / →", "caption": "4つから選ぶ", "slots": ["toward_door"]}],
@@ -1026,10 +981,8 @@ func _build_steps() -> Array[Dictionary]:
 		},
 		{
 			"id": "duo_goal",
-			"chapter": "goal",
-			"icon": "flag",
 			"title": "ゴールとスコアタワー",
-			"mission": "ゴールへ走ろう",
+			"body": "最後の問題の後はゴールへ向かいます。2人ともゴールすると、本番と同じスコアタワーで勝敗が決まります。得点が出そろったところで計算方法を説明します。",
 			"guide": GUIDE_GOAL,
 			"key_layout": KEYS_CLUSTER,
 			"speed": 1.0,
@@ -1039,10 +992,6 @@ func _build_steps() -> Array[Dictionary]:
 			"ghost_ride": true,
 			"presentation": "goal_sweep",
 			"duration": 1.15,
-			"toast": {
-				"on": TOAST_ON_ENTER, "icon": "flag", "tone": "info",
-				"title": "全員ゴールで勝敗", "sub": "スコアタワーで決まる",
-			},
 			"tasks": {
 				1: [{"id": "goal", "key": "W", "caption": "GOALへ", "slots": ["up"]}],
 				2: [{"id": "goal", "key": "↑", "caption": "GOALへ", "slots": ["up"]}],
@@ -1050,9 +999,8 @@ func _build_steps() -> Array[Dictionary]:
 		},
 		{
 			"id": "duo_complete",
-			"icon": "check",
-			"title": "チュートリアルクリア",
-			"mission": "クリア！",
+			"title": "ステージチュートリアル完了",
+			"body": "実践コースをクリアしました。続いてカスタマイズを紹介します。",
 			"guide": "",
 			"speed": 0.0,
 			"walls": false,
@@ -1063,9 +1011,8 @@ func _build_steps() -> Array[Dictionary]:
 		},
 		{
 			"id": "customize_tour",
-			"icon": "check",
 			"title": "カスタマイズの紹介",
-			"mission": "カスタマイズへ",
+			"body": "最後に実際のカスタマイズ画面へ移動します。",
 			"guide": "",
 			"speed": 0.0,
 			"walls": false,

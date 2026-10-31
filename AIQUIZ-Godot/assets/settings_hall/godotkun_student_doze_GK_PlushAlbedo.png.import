@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://bj5nc2eqb5cg6"
 path.s3tc="res://.godot/imported/godotkun_student_doze_GK_PlushAlbedo.png-fdc36b483b943728e8fd6e4293e5bc4a.s3tc.ctex"
+path.etc2="res://.godot/imported/godotkun_student_doze_GK_PlushAlbedo.png-fdc36b483b943728e8fd6e4293e5bc4a.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/settings_hall/godotkun_student_doze_GK_PlushAlbedo.png"
-dest_files=["res://.godot/imported/godotkun_student_doze_GK_PlushAlbedo.png-fdc36b483b943728e8fd6e4293e5bc4a.s3tc.ctex"]
+dest_files=["res://.godot/imported/godotkun_student_doze_GK_PlushAlbedo.png-fdc36b483b943728e8fd6e4293e5bc4a.s3tc.ctex", "res://.godot/imported/godotkun_student_doze_GK_PlushAlbedo.png-fdc36b483b943728e8fd6e4293e5bc4a.etc2.ctex"]
 
 [params]
 

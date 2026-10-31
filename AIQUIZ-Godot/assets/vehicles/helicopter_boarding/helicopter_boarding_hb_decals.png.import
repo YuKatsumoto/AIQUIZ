@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://qu05edkca5s5"
 path.bptc="res://.godot/imported/helicopter_boarding_hb_decals.png-6ded9438aa1f294f6cd4a13cf3d585b6.bptc.ctex"
+path.astc="res://.godot/imported/helicopter_boarding_hb_decals.png-6ded9438aa1f294f6cd4a13cf3d585b6.astc.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/vehicles/helicopter_boarding/helicopter_boarding_hb_decals.png"
-dest_files=["res://.godot/imported/helicopter_boarding_hb_decals.png-6ded9438aa1f294f6cd4a13cf3d585b6.bptc.ctex"]
+dest_files=["res://.godot/imported/helicopter_boarding_hb_decals.png-6ded9438aa1f294f6cd4a13cf3d585b6.bptc.ctex", "res://.godot/imported/helicopter_boarding_hb_decals.png-6ded9438aa1f294f6cd4a13cf3d585b6.astc.ctex"]
 
 [params]
 

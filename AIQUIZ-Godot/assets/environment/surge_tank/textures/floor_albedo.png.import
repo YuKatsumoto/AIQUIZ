@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://fsf1fuwul2vq"
 path.bptc="res://.godot/imported/floor_albedo.png-3eb2b3c5b93da92f4715ec30243bcecf.bptc.ctex"
+path.astc="res://.godot/imported/floor_albedo.png-3eb2b3c5b93da92f4715ec30243bcecf.astc.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/environment/surge_tank/textures/floor_albedo.png"
-dest_files=["res://.godot/imported/floor_albedo.png-3eb2b3c5b93da92f4715ec30243bcecf.bptc.ctex"]
+dest_files=["res://.godot/imported/floor_albedo.png-3eb2b3c5b93da92f4715ec30243bcecf.bptc.ctex", "res://.godot/imported/floor_albedo.png-3eb2b3c5b93da92f4715ec30243bcecf.astc.ctex"]
 
 [params]
 

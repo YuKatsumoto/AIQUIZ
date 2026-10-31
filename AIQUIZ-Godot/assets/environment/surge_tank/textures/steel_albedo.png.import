@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://cif80b2yxmm3i"
 path.bptc="res://.godot/imported/steel_albedo.png-a00ef2f5415a40d95cef894e553c96cd.bptc.ctex"
+path.astc="res://.godot/imported/steel_albedo.png-a00ef2f5415a40d95cef894e553c96cd.astc.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/environment/surge_tank/textures/steel_albedo.png"
-dest_files=["res://.godot/imported/steel_albedo.png-a00ef2f5415a40d95cef894e553c96cd.bptc.ctex"]
+dest_files=["res://.godot/imported/steel_albedo.png-a00ef2f5415a40d95cef894e553c96cd.bptc.ctex", "res://.godot/imported/steel_albedo.png-a00ef2f5415a40d95cef894e553c96cd.astc.ctex"]
 
 [params]
 

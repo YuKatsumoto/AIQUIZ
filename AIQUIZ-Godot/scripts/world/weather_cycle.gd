@@ -40,6 +40,10 @@ var ocean_material: ShaderMaterial = null
 var _forced: bool = false
 var _sun_dir: Vector3 = Vector3.UP
 var _ocean_sun_sent: Vector3 = Vector3.ZERO
+## Last sun direction written to sky_material. ShaderMaterial marks itself changed on every
+## set_shader_parameter, even with an equal value, and a changed sky material restarts the
+## INCREMENTAL radiance update (mobile), so only a new direction is sent.
+var _sky_sun_sent: Vector3 = Vector3.ZERO
 
 static var _shared_clock_initialized: bool = false
 static var _shared_clock_anchor_ticks_msec: int = 0
@@ -110,6 +114,7 @@ func setup(p_environment: Environment, p_light: DirectionalLight3D) -> void:
 	directional_light = p_light
 	sun_orbit_basis = _load_sun_orbit_basis()
 	sky_material = null
+	_sky_sun_sent = Vector3.ZERO
 	if environment != null and environment.sky != null:
 		sky_material = environment.sky.sky_material as ShaderMaterial
 	_setup_moon_light()
@@ -212,7 +217,8 @@ func _apply(p_day_phase: float) -> void:
 		# reset them every frame.
 		StageAtmosphereScript.apply_weather(environment, day_amount, twilight_amount, _graphics_quality())
 
-	if sky_material != null:
+	if sky_material != null and not sun_dir.is_equal_approx(_sky_sun_sent):
+		_sky_sun_sent = sun_dir
 		sky_material.set_shader_parameter("cycle_sun_direction", sun_dir)
 	_sun_dir = sun_dir
 	if ocean_material != null and not sun_dir.is_equal_approx(_ocean_sun_sent):

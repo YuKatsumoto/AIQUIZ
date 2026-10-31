@@ -551,7 +551,7 @@ func _play_keys(p: int) -> Dictionary:
 		wt -= float(step[1])
 	var door := _plan_door(plan["do"], index)
 	var dx := _door_x(door) - _x(p)
-	var dist := gs.wall_z - 0.4 - _z(p)                         # 壁の判定まで
+	var dist := gs.wall_z - gs.wall_contact_distance() - _z(p)                         # 壁の判定まで
 	var wall_speed := float(gs.get("_active_wall_speed"))
 	var run := true
 	if absf(dx) > ALIGN_TOL:
@@ -613,7 +613,7 @@ func _duel_keys(p: int, index: int) -> Dictionary:
 		_duel_contact_t = _game_time
 		_event("duel_contact", {"q": index + 1, "x": [snappedf(gs.player_x, 0.01), snappedf(gs.player2_x, 0.01)]})
 	var done := _duel_step >= DUEL_SHOVES.size()
-	var dist := gs.wall_z - 0.4 - _z(p)
+	var dist := gs.wall_z - gs.wall_contact_distance() - _z(p)
 	var give_up := (_duel_contact_t < 0.0 and _game_time - _q_shown_time > 3.0) or dist < 4.0
 	if (done and _game_time - _duel_last_t >= DUEL_RUN) or give_up:
 		want[keys[2]] = true                                    # 2 人並んで前へ
@@ -663,7 +663,7 @@ func _edge_push_keys(p: int, index: int) -> Dictionary:
 	var keys: Array = MOVE_KEYS[p]
 	var lp = gs.local_push
 	var q := index + 1
-	var dist := gs.wall_z - 0.4 - _z(p)
+	var dist := gs.wall_z - gs.wall_contact_distance() - _z(p)
 	if _edge_fall_t < 0.0 and gs.p2_fall_committed:
 		_edge_fall_t = _game_time
 	if _edge_fall_t >= 0.0:
@@ -886,7 +886,7 @@ func _update(n: int, _t: float, _dt: float) -> void:
 		for p in range(1, players + 1):
 			var y := gs.player_y if p == 1 else gs.player2_y
 			entry["p%d" % p] = [snappedf(_x(p), 0.01), snappedf(y, 0.01), snappedf(_z(p) - gs.world_scroll_z, 0.01),
-				snappedf(gs.wall_z - 0.4 - _z(p), 0.01)]
+				snappedf(gs.wall_z - gs.wall_contact_distance() - _z(p), 0.01)]
 		if players == 2:
 			entry["saw_lz"] = snappedf(gs.saw.local_z, 0.01)
 			entry["em"] = [gs.p1_emote, gs.p2_emote]

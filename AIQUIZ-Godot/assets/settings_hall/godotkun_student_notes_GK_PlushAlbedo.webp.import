@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://osrb3240ii78"
 path.s3tc="res://.godot/imported/godotkun_student_notes_GK_PlushAlbedo.webp-ba3a27d6389c697664a5509f7ac9c693.s3tc.ctex"
+path.etc2="res://.godot/imported/godotkun_student_notes_GK_PlushAlbedo.webp-ba3a27d6389c697664a5509f7ac9c693.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/settings_hall/godotkun_student_notes_GK_PlushAlbedo.webp"
-dest_files=["res://.godot/imported/godotkun_student_notes_GK_PlushAlbedo.webp-ba3a27d6389c697664a5509f7ac9c693.s3tc.ctex"]
+dest_files=["res://.godot/imported/godotkun_student_notes_GK_PlushAlbedo.webp-ba3a27d6389c697664a5509f7ac9c693.s3tc.ctex", "res://.godot/imported/godotkun_student_notes_GK_PlushAlbedo.webp-ba3a27d6389c697664a5509f7ac9c693.etc2.ctex"]
 
 [params]
 

@@ -1,11 +1,10 @@
 class_name MenuActorAI
 extends MenuActorComponent
 
-## メニュー背景ランナー 1 人ずつの AI：状態の切り替え、行動の実行、加減速つきの移動、ジャンプ、
+## メニュー背景ランナー 1 人ずつの AI：状態の切り替え、行動の実行、横・前後の移動、ジャンプ、
 ## 吹き飛び（ゴーストの体当たり）、海への落下、死亡から復活まで。
 ## 書く先は持ち主の _preview_gs（PlayerController がそれを描く）。
 
-const Picker = preload("res://scripts/ui/menu_preview/menu_actor_action_picker.gd")
 const Motor = preload("res://scripts/ui/menu_preview/menu_runner_motor.gd")
 
 const ACTION_INTERVAL_MIN: float = 1.1
@@ -18,8 +17,16 @@ const TARGET_SEPARATION_X_2P: float = 1.45
 const TARGET_SEPARATION_Z_2P: float = 1.10
 const P1_RUN_ANIM_MULT_2P: float = 0.92
 const P2_RUN_ANIM_MULT_2P: float = 1.08
-## 本編の走りのアニメは 1 倍でこの速さ（m/s）の走りに見える
-const RUN_ANIM_NATURAL_SPEED: float = 3.5
+## 前（壁の方）へ踏み出すあいだは本編で W を押したときと同じく走りのアニメを速める（update_from_state の mult=2.0 相当）
+const RUN_ANIM_SPEED_MULT: float = 2.0
+const RUN_ANIM_SPEED_BASE: float = 3.0
+const WEIGHT_IDLE: float = 0.20
+const WEIGHT_LANE_SHIFT: float = 0.22
+const WEIGHT_STEP_FORWARD: float = 0.10
+const WEIGHT_STEP_BACK: float = 0.10
+const WEIGHT_JUMP: float = 0.05
+const WEIGHT_EMOTE: float = 0.26
+const WEIGHT_ACROBATICS: float = 0.07
 const DEPTH_STEP_MIN: float = 1.0
 const DEPTH_STEP_MAX: float = 3.4
 ## 2P 中に左右ドア付近へ寄る確率
@@ -34,8 +41,6 @@ const DEPTH_SHIFT_SPEED_MIN: float = 2.0
 const DEPTH_SHIFT_SPEED_MAX: float = 4.0
 const JUMP_SPEED_MIN: float = 6.4
 const JUMP_SPEED_MAX: float = 7.4
-## 踏み切る前に一瞬沈む
-const JUMP_PREP_SECONDS: float = 0.1
 const GRAVITY: float = 26.0
 const DEAD_TO_RESPAWN_MIN: float = 3.2
 const DEAD_TO_RESPAWN_MAX: float = 4.1
@@ -43,18 +48,14 @@ const RESPAWN_START_Y_MIN: float = 5.5
 const RESPAWN_START_Y_MAX: float = 7.0
 const RESPAWN_DOWN_SPEED_MIN: float = 5.1
 const RESPAWN_DOWN_SPEED_MAX: float = 6.9
-## 復活して着地してから、この秒数かけて走り出す
-const RESPAWN_RAMP_SECONDS: float = 0.35
 const ACRO_DURATION_MIN: float = 2.4
 const ACRO_DURATION_MAX: float = 4.0
 const ACRO_JUMP_SPEED_MIN: float = 8.2
 const ACRO_JUMP_SPEED_MAX: float = 10.2
 const ACRO_BURST_INTERVAL_MIN: float = 1.15
 const ACRO_BURST_INTERVAL_MAX: float = 2.05
-const ACRO_RETARGET_MIN: float = 0.25
-const ACRO_RETARGET_MAX: float = 0.45
 ## アクロバット中に踊り出す割合（毎秒）と、その踊りの長さ
-const ACRO_EMOTE_BURST_RATE: float = 0.35
+const ACRO_EMOTE_BURST_CHANCE: float = 0.35
 const ACRO_EMOTE_BURST_DURATION_MIN: float = 2.8
 const ACRO_EMOTE_BURST_DURATION_MAX: float = 4.5
 ## 吹き飛びから立ち直る速さ（これより遅く、着地していて、操作できない時間が過ぎたら走りに戻る）
@@ -66,11 +67,7 @@ const DODGE_DISTANCE_MIN: float = 1.8
 const DODGE_DISTANCE_MAX: float = 2.4
 const DODGE_SECONDS: float = 0.75
 
-## わざと起こす事故（壁への激突・海への転落）を選ぶか。PV 撮影は止める（以前は事故が選ばれなかったので、その見た目で撮る）
-static var accidents_enabled: bool = true
-
 var rng := RandomNumberGenerator.new()
-var _picker_context := Picker.Context.new()
 
 
 func _init(p_host: MenuWallBackgroundPreview) -> void:
@@ -82,7 +79,6 @@ func update_actor(dt: float, is_p1: bool) -> void:
 	if not gs():
 		return
 	var bundle := bundle_for(is_p1)
-	_detect_teleport(bundle, is_p1)
 	_update_jump_trigger_ttl(dt, bundle, is_p1)
 	match bundle.ai_state:
 		AIState.STATE_NORMAL:
@@ -103,41 +99,32 @@ func update_actor(dt: float, is_p1: bool) -> void:
 			_update_taunt(dt, bundle, is_p1)
 	if bundle.ai_state not in [AIState.STATE_DEAD, AIState.STATE_OCEAN_FALL]:
 		enforce_floor_support(bundle, is_p1)
-	_remember_written(bundle, is_p1)
 
 
 func _update_normal(dt: float, bundle: MenuPreviewActorAIState, is_p1: bool) -> void:
 	host._avoid_saw(bundle, is_p1)
 	if bundle.pending_accident == AIState.PENDING_ACCIDENT_NONE:
 		host._door_learning.update_approach(bundle, is_p1)
-		_keep_door_commit_lane(bundle, is_p1)
-	_update_jump_prep(bundle, is_p1)
 	update_lane_shift(dt, bundle, is_p1)
 	update_depth_shift(dt, bundle, is_p1)
-	_update_moving_back(bundle, is_p1)
+	_reconcile_moving_back(bundle, is_p1)
 	update_ground_movement(dt, bundle, is_p1)
 	host._accidents.update_pending_wall(bundle, is_p1)
-	host._accidents.update_pending_ocean(bundle, is_p1)
+	host._accidents.update_pending_ocean(dt, bundle, is_p1)
 	host._update_pending_saw_accident(bundle, is_p1)
 	if bundle.ai_state != AIState.STATE_NORMAL:
 		return
+	# 横も前後も着いたら、すぐ次の目標へ走り出す
+	if (
+		bundle.pending_accident == AIState.PENDING_ACCIDENT_NONE
+		and not bundle.lane_shift_active
+		and not bundle.depth_shift_active
+	):
+		start_dash_move(false, bundle, is_p1)
 	host._ai_emotes.update_emote_timer(bundle, is_p1)
 	if now() >= bundle.next_action_t:
 		roll_next_action(bundle, is_p1)
 		bundle.next_action_t = now() + next_action_delay(is_p1)
-
-
-## 扉へ向かっているあいだは、ほかの行動が横の目標を書き換えても扉の位置へ戻す
-## （踊っているとき・よけているときは除く。踊りは壁に間に合う長さで切り上げる）。
-func _keep_door_commit_lane(bundle: MenuPreviewActorAIState, is_p1: bool) -> void:
-	if bundle.is_emoting or bundle.is_dodging(now()) or not host._door_learning.is_commit_active(bundle):
-		return
-	if absf(bundle.target_x - bundle.learn_target_x) > 0.001 or (
-		not bundle.lane_shift_active and absf(x(is_p1) - bundle.learn_target_x) > 0.05
-	):
-		bundle.target_x = bundle.learn_target_x
-		bundle.lane_shift_speed = maxf(bundle.lane_shift_speed, LANE_SHIFT_SPEED_MIN)
-		bundle.lane_shift_active = true
 
 
 func next_action_delay(is_p1: bool) -> float:
@@ -150,58 +137,47 @@ func next_action_delay(is_p1: bool) -> float:
 func roll_next_action(bundle: MenuPreviewActorAIState, is_p1: bool) -> void:
 	if not gs() or not alive(is_p1):
 		return
-	# 踊りは正解の扉をくぐった時だけ、事故は進行中のものを優先し、よけている最中は割り込まない
-	if bundle.is_emoting or bundle.pending_accident != AIState.PENDING_ACCIDENT_NONE or bundle.is_dodging(now()):
+	if bundle.is_emoting or bundle.pending_accident != AIState.PENDING_ACCIDENT_NONE:
 		return
-	# 相手のゴーストのサメが来るのを見ているあいだは、扉へ向かう以外は動かない
-	if bundle.ghost_mode == AIState.GHOST_MODE_WATCH:
+	# ゴーストの突進をよけている最中と、相手のゴーストのサメが来るのを見ているあいだは新しい行動をしない
+	if bundle.is_dodging(now()) or bundle.ghost_mode == AIState.GHOST_MODE_WATCH:
 		return
-	var ctx := _picker_context
-	ctx.skill = host._door_learning.skill(bundle)
-	ctx.is_2p = is_2p()
-	ctx.grounded = grounded(is_p1) and bundle.jump_prep_until < 0.0
-	ctx.ghost_alert = bundle.ghost_mode != AIState.GHOST_MODE_NONE
-	ctx.accident_allowed = (
-		accidents_enabled
-		and not ctx.ghost_alert
-		and not host._accidents.on_cooldown(bundle)
-		and not host._door_learning.is_commit_active(bundle)
-	)
-	ctx.acro_allowed = not ctx.ghost_alert
-	ctx.conveyor_paused = host._conveyor_paused
-	match Picker.pick(ctx, rng):
-		Picker.Action.HOLD:
-			hold(bundle)
-		Picker.Action.LANE_SHIFT:
+	var roll := rng.randf()
+	var accum := WEIGHT_IDLE
+	if roll < accum:
+		start_dash_move(false, bundle, is_p1)
+		return
+	accum += WEIGHT_LANE_SHIFT
+	if roll < accum:
+		start_lane_shift(bundle, is_p1)
+		return
+	accum += WEIGHT_STEP_FORWARD
+	if roll < accum:
+		if not start_depth_step(bundle, is_p1, true):
 			start_lane_shift(bundle, is_p1)
-		Picker.Action.DASH:
-			start_dash_move(false, bundle, is_p1)
-		Picker.Action.STEP_FORWARD:
-			if not start_depth_step(bundle, is_p1, true):
-				start_lane_shift(bundle, is_p1)
-		Picker.Action.STEP_BACK:
-			if not start_depth_step(bundle, is_p1, false):
-				start_lane_shift(bundle, is_p1)
-		Picker.Action.JUMP:
-			if not start_jump(bundle, is_p1):
-				start_lane_shift(bundle, is_p1)
-		Picker.Action.ACROBATICS:
-			if not start_acrobatics(bundle, is_p1):
-				start_dash_move(true, bundle, is_p1)
-		Picker.Action.ACCIDENT:
-			if not host._accidents.try_start(bundle, is_p1):
-				start_dash_move(false, bundle, is_p1)
+		return
+	accum += WEIGHT_STEP_BACK
+	if roll < accum:
+		if not start_depth_step(bundle, is_p1, false):
+			start_lane_shift(bundle, is_p1)
+		return
+	accum += WEIGHT_JUMP
+	if roll < accum:
+		if not start_jump(bundle, is_p1):
+			start_lane_shift(bundle, is_p1)
+		return
+	accum += WEIGHT_EMOTE
+	if roll < accum:
+		# エモートは正解の扉をくぐった時だけ再生するため、ここでは通常移動にする
+		start_dash_move(false, bundle, is_p1)
+		return
+	if not start_acrobatics(bundle, is_p1):
+		start_dash_move(true, bundle, is_p1)
 
 
-## その場でコンベアに合わせて走り続ける（横・前後の移動はブレーキで止める）。
-func hold(bundle: MenuPreviewActorAIState) -> void:
-	bundle.lane_shift_active = false
-	bundle.depth_shift_active = false
-
-
-## 横だけ動く。
+## 横へ動く（前後も新しい目標へ動く）。
 func start_lane_shift(bundle: MenuPreviewActorAIState, is_p1: bool) -> void:
-	_set_lane_target(bundle, is_p1, false)
+	start_dash_move(false, bundle, is_p1)
 
 
 ## 横と前後を同時に動く。
@@ -294,6 +270,8 @@ func start_depth_step(bundle: MenuPreviewActorAIState, is_p1: bool, forward: boo
 	bundle.target_local_z = target
 	bundle.depth_shift_speed = rng.randf_range(DEPTH_SHIFT_SPEED_MIN, DEPTH_SHIFT_SPEED_MAX)
 	bundle.depth_shift_active = true
+	bundle.lane_shift_active = false
+	_sync_moving_back_for_depth(bundle, is_p1)
 	return true
 
 
@@ -316,87 +294,62 @@ func clamp_depth_target_z(z: float, bundle: MenuPreviewActorAIState = null) -> f
 	return clampf(z, Geo.BELT_Z_MIN, max_depth_z_for_bundle(bundle))
 
 
-## 着地直後は少しずつ走り出す
-func _cruise_scale(bundle: MenuPreviewActorAIState) -> float:
-	return smoothstep(0.0, RESPAWN_RAMP_SECONDS, now() - bundle.landed_at_t)
-
-
 func update_lane_shift(dt: float, bundle: MenuPreviewActorAIState, is_p1: bool) -> void:
-	if not gs():
+	if not gs() or not bundle.lane_shift_active:
+		bundle.vel_x = 0.0
 		return
-	var pos := x(is_p1)
-	if bundle.lane_shift_active:
-		var accel := Motor.DODGE_ACCEL if bundle.is_dodging(now()) else Motor.LANE_ACCEL
-		var step := Motor.steer_axis(
-			pos, bundle.vel_x, bundle.target_x, bundle.lane_shift_speed * _cruise_scale(bundle),
-			accel, Motor.LANE_DECEL, dt
-		)
-		set_x(is_p1, step.x)
-		bundle.vel_x = step.y
-		if step.z > 0.5:
-			bundle.lane_shift_active = false
-	else:
-		var braked := Motor.brake_axis(pos, bundle.vel_x, Motor.LANE_DECEL, dt)
-		var limited := clampf(braked.x, PLAYER_X_MIN - 1.0, PLAYER_X_MAX + 1.0)
-		set_x(is_p1, limited)
-		bundle.vel_x = braked.y if is_equal_approx(limited, braked.x) else 0.0
+	var before := x(is_p1)
+	set_x(is_p1, move_toward(before, bundle.target_x, bundle.lane_shift_speed * dt))
+	bundle.vel_x = (x(is_p1) - before) / dt if dt > 0.0 else 0.0
+	if absf(x(is_p1) - bundle.target_x) <= 0.03:
+		set_x(is_p1, bundle.target_x)
+		bundle.lane_shift_active = false
 
 
 func update_depth_shift(dt: float, bundle: MenuPreviewActorAIState, is_p1: bool) -> void:
-	if not gs():
+	if not gs() or not bundle.depth_shift_active:
+		bundle.vel_z = 0.0
 		return
 	bundle.target_local_z = clamp_depth_target_z(bundle.target_local_z, bundle)
 	var before_z := local_z(is_p1)
-	var next_z := before_z
-	var next_vel := 0.0
-	var reached := false
-	if bundle.depth_shift_active:
-		var accel := Motor.DODGE_ACCEL if bundle.is_dodging(now()) else Motor.DEPTH_ACCEL
-		var step := Motor.steer_axis(
-			before_z, bundle.vel_z, bundle.target_local_z, bundle.depth_shift_speed * _cruise_scale(bundle),
-			accel, Motor.DEPTH_DECEL, dt
-		)
-		next_z = step.x
-		next_vel = step.y
-		reached = step.z > 0.5
-	else:
-		var braked := Motor.brake_axis(before_z, bundle.vel_z, Motor.DEPTH_DECEL, dt)
-		next_z = braked.x
-		next_vel = braked.y
+	var next_z := move_toward(before_z, bundle.target_local_z, bundle.depth_shift_speed * dt)
 	# 安全な範囲の外にいるランナーは、範囲へ戻る向きには歩ける（その場へ引き戻さない）
-	var clamped := clampf(next_z, Geo.BELT_Z_MIN, maxf(before_z, max_depth_z_for_bundle(bundle)))
-	if not is_equal_approx(clamped, next_z):
-		# 端に押し付けている：その向きの速さを捨てる。目標がその端の向こうなら、着いたことにする
-		# （止まりきれずに端へ当たっただけで、目標が反対側なら動きは続ける）
-		next_vel = 0.0
-		if (bundle.target_local_z - clamped) * (next_z - clamped) > 0.0:
-			reached = bundle.depth_shift_active
-	set_local_z(is_p1, clamped)
-	bundle.vel_z = next_vel
-	if reached:
+	next_z = clampf(next_z, Geo.BELT_Z_MIN, maxf(before_z, max_depth_z_for_bundle(bundle)))
+	set_local_z(is_p1, next_z)
+	bundle.vel_z = (next_z - before_z) / dt if dt > 0.0 else 0.0
+	var reached := absf(next_z - bundle.target_local_z) <= 0.04
+	var stuck := not reached and absf(next_z - before_z) < 0.0005
+	if reached or stuck:
+		if reached:
+			set_local_z(is_p1, bundle.target_local_z)
 		bundle.depth_shift_active = false
+		if bundle.ai_state == AIState.STATE_NORMAL:
+			set_moving_back(is_p1, false)
+	elif not bundle.is_emoting:
+		_sync_moving_back_for_depth(bundle, is_p1)
 
 
-## 進む向き：カメラ側（+z）へ下がっているときだけ moving_back
-func _update_moving_back(bundle: MenuPreviewActorAIState, is_p1: bool) -> void:
-	set_moving_back(is_p1, not bundle.is_emoting and bundle.vel_z > 0.2)
+func _reconcile_moving_back(bundle: MenuPreviewActorAIState, is_p1: bool) -> void:
+	if bundle.is_emoting:
+		return
+	if bundle.depth_shift_active:
+		_sync_moving_back_for_depth(bundle, is_p1)
+	elif host._actor_moving_back(is_p1):
+		set_moving_back(is_p1, false)
+
+
+## 前後の目標がカメラ側（+z）なら後ろ向きに下がっている
+func _sync_moving_back_for_depth(bundle: MenuPreviewActorAIState, is_p1: bool) -> void:
+	if not bundle.depth_shift_active or bundle.is_emoting:
+		return
+	set_moving_back(is_p1, bundle.target_local_z > local_z(is_p1) + 0.03)
 
 
 func start_jump(bundle: MenuPreviewActorAIState, is_p1: bool) -> bool:
-	if not gs() or bundle.is_emoting or not grounded(is_p1) or bundle.jump_prep_until >= 0.0:
+	if not gs() or bundle.is_emoting or not grounded(is_p1):
 		return false
-	bundle.jump_prep_until = now() + JUMP_PREP_SECONDS
-	bundle.jump_prep_speed = rng.randf_range(JUMP_SPEED_MIN, JUMP_SPEED_MAX)
+	_launch(bundle, is_p1, rng.randf_range(JUMP_SPEED_MIN, JUMP_SPEED_MAX), 0.09)
 	return true
-
-
-func _update_jump_prep(bundle: MenuPreviewActorAIState, is_p1: bool) -> void:
-	if bundle.jump_prep_until < 0.0 or now() < bundle.jump_prep_until:
-		return
-	bundle.jump_prep_until = -1.0
-	if bundle.is_emoting or not grounded(is_p1):
-		return
-	_launch(bundle, is_p1, bundle.jump_prep_speed, 0.09)
 
 
 func _launch(bundle: MenuPreviewActorAIState, is_p1: bool, speed: float, trigger_ttl: float) -> void:
@@ -442,39 +395,13 @@ func enforce_floor_support(bundle: MenuPreviewActorAIState, is_p1: bool) -> void
 		set_vel_y(is_p1, 0.0)
 
 
-## テストの位置固定・復活・2P の登場などで位置が飛んだら、それまでの速度を捨てる
-func _detect_teleport(bundle: MenuPreviewActorAIState, is_p1: bool) -> void:
-	if absf(x(is_p1) - bundle.last_written_x) > Motor.TELEPORT_DISTANCE:
-		bundle.vel_x = 0.0
-	if absf(local_z(is_p1) - bundle.last_written_z) > Motor.TELEPORT_DISTANCE:
-		bundle.vel_z = 0.0
-
-
-func _remember_written(bundle: MenuPreviewActorAIState, is_p1: bool) -> void:
-	bundle.last_written_x = x(is_p1)
-	bundle.last_written_z = local_z(is_p1)
-
-
-## 2P の押し合い・カプセルの重なり解消で押し戻された向きの速さは捨てる（押し返しと走りがぶつかって震えないように）
-func absorb_external_correction(is_p1: bool, before: Vector2) -> void:
-	var bundle := bundle_for(is_p1)
-	var dx := x(is_p1) - before.x
-	var dz := local_z(is_p1) - before.y
-	if absf(dx) > 0.0005 and signf(dx) != signf(bundle.vel_x):
-		bundle.vel_x = 0.0
-	if absf(dz) > 0.0005 and signf(dz) != signf(bundle.vel_z):
-		bundle.vel_z = 0.0
-	bundle.last_written_x = x(is_p1)
-	bundle.last_written_z = local_z(is_p1)
-
-
 func start_acrobatics(bundle: MenuPreviewActorAIState, is_p1: bool) -> bool:
 	if not gs() or not alive(is_p1) or bundle.is_emoting:
 		return false
 	bundle.ai_state = AIState.STATE_ACROBATICS
 	bundle.state_end_t = now() + rng.randf_range(ACRO_DURATION_MIN, ACRO_DURATION_MAX)
 	bundle.next_acro_jump_t = now() + rng.randf_range(0.08, 0.35)
-	bundle.next_acro_retarget_t = now() + rng.randf_range(ACRO_RETARGET_MIN, ACRO_RETARGET_MAX)
+	bundle.acro_seed = rng.randf_range(-12.0, 12.0)
 	start_dash_move(true, bundle, is_p1)
 	return true
 
@@ -482,44 +409,46 @@ func start_acrobatics(bundle: MenuPreviewActorAIState, is_p1: bool) -> bool:
 func _update_acrobatics(dt: float, bundle: MenuPreviewActorAIState, is_p1: bool) -> void:
 	update_lane_shift(dt, bundle, is_p1)
 	update_depth_shift(dt, bundle, is_p1)
-	_update_moving_back(bundle, is_p1)
 	update_ground_movement(dt, bundle, is_p1)
-	if not bundle.is_emoting:
-		if not bundle.lane_shift_active or not bundle.depth_shift_active or now() >= bundle.next_acro_retarget_t:
-			start_dash_move(true, bundle, is_p1)
-			bundle.next_acro_retarget_t = now() + rng.randf_range(ACRO_RETARGET_MIN, ACRO_RETARGET_MAX)
-		if grounded(is_p1) and now() >= bundle.next_acro_jump_t:
-			_launch(bundle, is_p1, rng.randf_range(ACRO_JUMP_SPEED_MIN, ACRO_JUMP_SPEED_MAX), 0.11)
-			bundle.next_acro_jump_t = now() + rng.randf_range(ACRO_BURST_INTERVAL_MIN, ACRO_BURST_INTERVAL_MAX)
-		elif grounded(is_p1) and rng.randf() < Motor.chance_per_frame(ACRO_EMOTE_BURST_RATE, dt):
-			host._ai_emotes.start_emote(
-				bundle, is_p1, rng.randf_range(ACRO_EMOTE_BURST_DURATION_MIN, ACRO_EMOTE_BURST_DURATION_MAX)
+	if not bundle.lane_shift_active or not bundle.depth_shift_active:
+		start_dash_move(true, bundle, is_p1)
+	elif rng.randf() < 0.055:
+		start_dash_move(true, bundle, is_p1)
+	if y(is_p1) <= 0.02 and now() >= bundle.next_acro_jump_t:
+		_launch(bundle, is_p1, rng.randf_range(ACRO_JUMP_SPEED_MIN, ACRO_JUMP_SPEED_MAX), 0.11)
+		bundle.next_acro_jump_t = now() + rng.randf_range(ACRO_BURST_INTERVAL_MIN, ACRO_BURST_INTERVAL_MAX)
+	if y(is_p1) <= 0.03 and not bundle.is_emoting and rng.randf() < ACRO_EMOTE_BURST_CHANCE * dt:
+		if host._ai_emotes.start_emote(bundle, is_p1):
+			bundle.emote_end_t = minf(
+				bundle.emote_end_t,
+				now() + rng.randf_range(ACRO_EMOTE_BURST_DURATION_MIN, ACRO_EMOTE_BURST_DURATION_MAX)
 			)
+	set_moving_back(is_p1, sin((now() + bundle.acro_seed) * 8.5) > 0.0 and not bundle.is_emoting)
 	host._ai_emotes.update_emote_timer(bundle, is_p1)
 	if now() >= bundle.state_end_t:
+		set_moving_back(is_p1, false)
 		bundle.ai_state = AIState.STATE_NORMAL
 		bundle.next_action_t = now() + rng.randf_range(0.55, 1.4)
 
 
-## 相手が死んだ：着地してから立ち止まり、飛んでいく相手を見ながら煽る。壁が迫ったら切り上げて扉へ。
-func _update_taunt(dt: float, bundle: MenuPreviewActorAIState, is_p1: bool) -> void:
+## 相手が死んだ：立ち止まり、飛んでいく相手を見ながら煽る。
+func _update_taunt(_dt: float, bundle: MenuPreviewActorAIState, is_p1: bool) -> void:
 	set_jump_trigger(is_p1, false)
 	set_moving_back(is_p1, false)
 	bundle.lane_shift_active = false
 	bundle.depth_shift_active = false
-	update_lane_shift(dt, bundle, is_p1)
-	update_depth_shift(dt, bundle, is_p1)
-	update_ground_movement(dt, bundle, is_p1)
-	if host._ai_emotes.must_leave_for_wall(is_p1):
-		host._ai_emotes.end_taunt(is_p1, 0.0)
-		return
+	bundle.vel_x = 0.0
+	bundle.vel_z = 0.0
 	# リグ読込直後などに初回開始が失敗しても、死亡演出中は必ず再試行する。
-	if grounded(is_p1) and emote(is_p1) == EmoteData.EMOTE_NONE:
+	if emote(is_p1) == EmoteData.EMOTE_NONE:
 		host._ai_emotes.start_taunt_emote(bundle, is_p1)
+	if y(is_p1) > 0.01 or vel_y(is_p1) != 0.0:
+		set_y(is_p1, Geo.FLOOR_Y)
+		set_vel_y(is_p1, 0.0)
 
 
-## ゴーストの突進をよける：dir（ローカル x, z）へ一気に踏み出す。roll なら前転。
-func start_dodge(bundle: MenuPreviewActorAIState, is_p1: bool, dir: Vector2, roll: bool) -> bool:
+## ゴーストの突進をよける：dir（ローカル x, z）へ一気に踏み出す。
+func start_dodge(bundle: MenuPreviewActorAIState, is_p1: bool, dir: Vector2) -> bool:
 	if not gs() or not alive(is_p1) or bundle.ai_state != AIState.STATE_NORMAL or not grounded(is_p1):
 		return false
 	if dir.length_squared() < 0.0001:
@@ -533,9 +462,7 @@ func start_dodge(bundle: MenuPreviewActorAIState, is_p1: bool, dir: Vector2, rol
 	bundle.depth_shift_speed = DODGE_SPEED
 	bundle.lane_shift_active = true
 	bundle.depth_shift_active = true
-	bundle.jump_prep_until = -1.0
 	bundle.dodge_until = now() + DODGE_SECONDS
-	bundle.dodge_roll = roll
 	bundle.next_action_t = maxf(bundle.next_action_t, bundle.dodge_until + 0.2)
 	return true
 
@@ -555,13 +482,11 @@ func start_knockback(bundle: MenuPreviewActorAIState, is_p1: bool, horizontal: V
 	bundle.lane_shift_active = false
 	bundle.depth_shift_active = false
 	bundle.dodge_until = -1.0
-	bundle.jump_prep_until = -1.0
 	bundle.knockback_vel_x = horizontal.x
 	bundle.knockback_vel_z = horizontal.y
 	bundle.vel_x = horizontal.x
 	bundle.vel_z = horizontal.y
 	bundle.knockback_lock_until = now() + lock
-	bundle.knockback_from = -horizontal.normalized() if horizontal.length_squared() > 0.0001 else Vector2(0.0, -1.0)
 	set_vel_y(is_p1, maxf(vel_y(is_p1), up_speed))
 	set_jump_trigger(is_p1, false)
 	set_moving_back(is_p1, false)
@@ -672,7 +597,6 @@ func start_respawn(bundle: MenuPreviewActorAIState, is_p1: bool) -> void:
 	bundle.vel_x = 0.0
 	bundle.vel_z = 0.0
 	bundle.dodge_until = -1.0
-	bundle.jump_prep_until = -1.0
 	bundle.ghost_mode = AIState.GHOST_MODE_NONE
 	bundle.respawn_hold = false
 	host._set_actor_wall_impact(is_p1, false)
@@ -694,7 +618,6 @@ func start_respawn(bundle: MenuPreviewActorAIState, is_p1: bool) -> void:
 	bundle.target_local_z = local_z(is_p1)
 	bundle.lane_shift_active = false
 	bundle.depth_shift_active = false
-	host._accidents.reset_cooldown(bundle)
 
 
 func _update_respawn_drop(dt: float, bundle: MenuPreviewActorAIState, is_p1: bool) -> void:
@@ -705,7 +628,6 @@ func _update_respawn_drop(dt: float, bundle: MenuPreviewActorAIState, is_p1: boo
 		set_vel_y(is_p1, 0.0)
 		set_moving_back(is_p1, false)
 		bundle.ai_state = AIState.STATE_NORMAL
-		bundle.landed_at_t = now()
 		bundle.next_action_t = now() + rng.randf_range(0.45, 1.2)
 		host._resume_preview_conveyor()
 
@@ -738,7 +660,7 @@ func min_wall_front_gap(player_local_z: float) -> float:
 	return min_gap
 
 
-## 位置と速度を初期化してすぐ走り出す（メニュー表示・出発の取りやめ・2P の登場）。
+## 状態を初期化してすぐ走り出す（メニュー表示・出発の取りやめ・2P の登場）。
 func reset_actor(bundle: MenuPreviewActorAIState, is_p1: bool, next_action_min: float, next_action_max: float) -> void:
 	bundle.ai_state = AIState.STATE_NORMAL
 	bundle.next_action_t = now() + rng.randf_range(next_action_min, next_action_max)
@@ -753,17 +675,12 @@ func reset_actor(bundle: MenuPreviewActorAIState, is_p1: bool, next_action_min: 
 	bundle.depth_shift_active = false
 	bundle.vel_x = 0.0
 	bundle.vel_z = 0.0
-	bundle.last_written_x = INF
-	bundle.last_written_z = INF
 	bundle.jump_trigger_ttl = 0.0
-	bundle.jump_prep_until = -1.0
-	bundle.landed_at_t = -INF
 	bundle.is_emoting = false
 	host._accidents.clear_pending(bundle)
 	bundle.blocking_wall = null
-	host._accidents.reset_cooldown(bundle)
 	bundle.next_acro_jump_t = 0.0
-	bundle.next_acro_retarget_t = 0.0
+	bundle.acro_seed = rng.randf_range(-10.0, 10.0)
 	bundle.knockback_vel_x = 0.0
 	bundle.knockback_vel_z = 0.0
 	bundle.knockback_lock_until = 0.0
@@ -775,23 +692,23 @@ func reset_actor(bundle: MenuPreviewActorAIState, is_p1: bool, next_action_min: 
 	start_dash_move(false, bundle, is_p1)
 
 
-## 本編の走りのアニメの速さ（PlayerController が pN_run_anim_speed_mult を掛ける）を、床に対する実際の速さに合わせる。
-func update_run_anim_speed_multipliers(belt_speed: float) -> void:
+## 本編の走りのアニメの速さ（PlayerController が pN_run_anim_speed_mult を掛ける）。2P は個体差を付け、前へ踏み出すあいだだけ速める。
+func update_run_anim_speed_multipliers() -> void:
 	if not gs():
 		return
-	gs().p1_run_anim_speed_mult = _run_anim_speed_mult(host._p1_ai, true, belt_speed)
-	gs().p2_run_anim_speed_mult = _run_anim_speed_mult(host._p2_ai, false, belt_speed)
+	gs().p1_run_anim_speed_mult = _run_anim_speed_mult(host._p1_ai, true)
+	gs().p2_run_anim_speed_mult = _run_anim_speed_mult(host._p2_ai, false)
 
 
-func _run_anim_speed_mult(bundle: MenuPreviewActorAIState, is_p1: bool, belt_speed: float) -> float:
+func _run_anim_speed_mult(bundle: MenuPreviewActorAIState, is_p1: bool) -> float:
 	if not gs() or not alive(is_p1):
 		return 1.0
 	var identity_mult := 1.0
 	if is_2p():
 		identity_mult = P1_RUN_ANIM_MULT_2P if is_p1 else P2_RUN_ANIM_MULT_2P
-	if bundle.is_emoting or bundle.ai_state not in [AIState.STATE_NORMAL, AIState.STATE_ACROBATICS]:
+	if bundle.is_emoting or bundle.ai_state != AIState.STATE_NORMAL or host._actor_moving_back(is_p1):
 		return identity_mult
-	var gait_speed := Motor.belt_relative_velocity(bundle.vel_x, bundle.vel_z, belt_speed).length()
-	# PlayerController 側は (wall_speed / 3.5) を下限 0.3 で掛けるので、その分を割り戻す
-	var base_ratio := maxf(0.3, belt_speed / RUN_ANIM_NATURAL_SPEED)
-	return clampf((gait_speed / RUN_ANIM_NATURAL_SPEED) / base_ratio, 0.2, 3.0) * identity_mult
+	if bundle.depth_shift_active and bundle.target_local_z < local_z(is_p1) - 0.03:
+		var depth_factor := bundle.depth_shift_speed / RUN_ANIM_SPEED_BASE
+		return clampf(RUN_ANIM_SPEED_MULT * (0.9 + depth_factor * 0.1) * identity_mult, 1.6, 2.8)
+	return identity_mult

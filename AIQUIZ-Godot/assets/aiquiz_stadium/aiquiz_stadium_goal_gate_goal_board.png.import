@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://1xjmafwj864x"
 path.bptc="res://.godot/imported/aiquiz_stadium_goal_gate_goal_board.png-6652a23e7af16f0c9f7993c0f9c9c5b8.bptc.ctex"
+path.astc="res://.godot/imported/aiquiz_stadium_goal_gate_goal_board.png-6652a23e7af16f0c9f7993c0f9c9c5b8.astc.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/aiquiz_stadium/aiquiz_stadium_goal_gate_goal_board.png"
-dest_files=["res://.godot/imported/aiquiz_stadium_goal_gate_goal_board.png-6652a23e7af16f0c9f7993c0f9c9c5b8.bptc.ctex"]
+dest_files=["res://.godot/imported/aiquiz_stadium_goal_gate_goal_board.png-6652a23e7af16f0c9f7993c0f9c9c5b8.bptc.ctex", "res://.godot/imported/aiquiz_stadium_goal_gate_goal_board.png-6652a23e7af16f0c9f7993c0f9c9c5b8.astc.ctex"]
 
 [params]
 

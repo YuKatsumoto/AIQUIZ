@@ -19,16 +19,21 @@ extends RefCounted
 ## - sync textures: the winner's dance for each side, baked a few frames at a time
 ##   once the match knows the emotes (prepare_sync / step_sync), so the side
 ##   stands can dance in step with the winner (docs/crowd_extras.md).
+## - the walking crowd (docs/crowd_sim.md): getting up and sitting down are seated
+##   clips whose hips follow their `rise`; walking, running, buying and waiting in
+##   a queue keep the clip's own legs (FREE_LEGS, SYNTHETIC), moved so the feet
+##   stand where a risen spectator's do.
 ##
 ## Model space: the seat contact under the hips is the origin and the spectator
-## faces +Z, the same way as the goal stand rig.
+## faces +Z, the same way as the goal stand rig. A standing spectator's feet rest
+## on the floor at stand_floor().
 
 const SPECTATOR_SCENE_PATH := "res://assets/goal_stand/goal_stand_spectator.glb"
 const CLIPS_PATH := "res://assets/goal_stand/goal_stand_clips.json"
 const SHADER: Shader = preload("res://shaders/seated_spectator.gdshader")
 const HAIRS: Array[String] = ["Short", "Long", "Cap", "Afro", "Bald", "Bun", "Headband"]
 const BAKE_FPS := 20.0
-const MAX_CLIPS := 40
+const MAX_CLIPS := 56
 ## Thighs point forward and slightly down, so the feet reach the terrace floor.
 const THIGH_PITCH := deg_to_rad(-78.0)
 const KNEE_SPREAD := 0.09
@@ -52,13 +57,33 @@ const CLIPS: Array[StringName] = [
 	&"SPEC_Doze", &"SPEC_WakeUp", &"SPEC_Eat", &"SPEC_Selfie", &"SPEC_Binoculars",     # 18..22
 	&"SPEC_Megaphone", &"SPEC_Drum", &"SPEC_ChantClap", &"SPEC_StandWave",             # 23..26
 	&"SPEC_TowelSpin", &"SPEC_HighFiveL", &"SPEC_HighFiveR", &"SPEC_ShoulderL", &"SPEC_ShoulderR",  # 27..31
+	&"SPEC_StandUp", &"SPEC_SitDown", &"SPEC_StandIdle", &"SPEC_Walk",                  # 32..35 the walking crowd
+	&"SPEC_Run", &"SPEC_StandPhone", &"SPEC_Buy", &"SPEC_RaiseHand",                     # 36..39
+	&"SPEC_PassItemL", &"SPEC_PassItemR", &"SPEC_VendorHand", &"SPEC_VendorWalk", &"SPEC_VendorCall",  # 40..44
 ]
 const IDLE_CLIP_COUNT := 2       # SPEC_Idle / SPEC_FoldArms are resting poses
+## The walking crowd's clips that keep their own legs (people on foot, the vendor).
+## The goal stand is a standing terrace, so its idles stand too: waiting in a
+## queue is one of them baked with its legs (SYNTHETIC). Getting up and sitting
+## down are seated clips whose hips follow the clip's `rise` (goal_stand_clips.json).
+const FREE_LEGS: Array[StringName] = [&"SPEC_Walk", &"SPEC_Run", &"SPEC_Buy", &"SPEC_VendorHand", &"SPEC_VendorWalk",
+	&"SPEC_VendorCall"]
+## Clips baked from another clip of the rig, with its own legs.
+const SYNTHETIC := {
+	&"SPEC_StandIdle": {"source": &"SPEC_FoldArms", "free_legs": true},
+	&"SPEC_StandPhone": {"source": &"SPEC_Phone", "free_legs": true},
+}
+## A walk at speed 1 covers this many metres a second when the clip does not say
+## (goal_stand_clips.json "ground_speed", the planted foot's speed).
+const WALK_CLIP_SPEED := 0.92
+## Walks measured here instead (the goal stand vendors' pace, GoalStand.VENDOR_SPEED).
+const GROUND_SPEEDS := {&"SPEC_VendorWalk": 0.85}
 ## Hand props merged into the seated mesh. A spectator's prop is 1 + its index
 ## here (0 = empty hands); the towel fan carries both towels and the shader shows
-## the one that fits the current clip.
+## the one that fits the current clip. "A+B" puts several meshes under one prop:
+## the side stands' beer vendor carries the keg and a cup, its customers the cup.
 const PROPS: Array[String] = ["GSP_Popcorn", "GSP_HotDog", "GSP_Phone", "GSP_Binoculars", "GSP_Megaphone",
-	"GSP_Drum", "GSP_Towel", "GSP_TowelNeck"]
+	"GSP_Drum", "GSP_Towel", "GSP_TowelNeck", "GSP_Keg+GSP_Cup", "GSP_Cup"]
 const PROP_POPCORN := 1
 const PROP_HOTDOG := 2
 const PROP_PHONE := 3
@@ -66,6 +91,8 @@ const PROP_BINOCULARS := 4
 const PROP_MEGAPHONE := 5
 const PROP_DRUM := 6
 const PROP_TOWEL := 7
+const PROP_VENDOR := 9
+const PROP_CUP := 10
 const PROP_BIT_BASE := 6         # prop p uses mask bit PROP_BIT_BASE + p
 
 static var _mesh: ArrayMesh = null
@@ -80,6 +107,10 @@ static var _frame_rows := 0
 static var _clip_meta := {}
 ## Source rig kept for the sync bakes: {root, skeleton, player, binds, bind_bones, seat}.
 static var _source := {}
+## Floor point under a risen spectator's feet, in model space (stand_floor()).
+static var _stand_floor := Vector3.ZERO
+## Free-legs poses move by this, so the rig's feet land on _stand_floor.
+static var _free_shift := Vector3.ZERO
 ## Per sync slot (1, 2): {clip, frames, rows, done}.
 static var _sync := {}
 
@@ -129,6 +160,19 @@ static func clip_seconds(clip: StringName) -> float:
 	return _clip_table[index].w
 
 
+## Metres a second a walking clip covers at speed 1 (its planted foot's speed).
+static func clip_ground_speed(clip: StringName) -> float:
+	var info: Dictionary = _clip_meta.get(String(clip), {})
+	return float(info.get("ground_speed", GROUND_SPEEDS.get(clip, WALK_CLIP_SPEED)))
+
+
+## Where a spectator that stood up from its seat has its feet: the floor point
+## between the ankles, in model space (y is the floor).
+static func stand_floor() -> Vector3:
+	_ensure()
+	return _stand_floor
+
+
 static func _ensure() -> void:
 	if _mesh != null:
 		return
@@ -141,9 +185,14 @@ static func _ensure() -> void:
 	var bodies: Array[MeshInstance3D] = []
 	for hair: String in HAIRS:
 		bodies.append(root.find_child("SPEC_Body_" + hair, true, false) as MeshInstance3D)
-	var props: Array[MeshInstance3D] = []
+	var props: Array = []
 	for prop: String in PROPS:
-		props.append(root.find_child(prop, true, false) as MeshInstance3D)
+		var parts: Array[MeshInstance3D] = []
+		for part: String in prop.split("+"):
+			var node := root.find_child(part, true, false) as MeshInstance3D
+			if node != null:
+				parts.append(node)
+		props.append(parts)
 	var skin: Skin = bodies[0].skin
 	_bone_count = skin.get_bind_count()
 	var bind_bones := PackedInt32Array()
@@ -158,17 +207,22 @@ static func _ensure() -> void:
 	_frame_rows = 0
 	var seat_offset := _seat_offset(skeleton)
 	_source = {"root": root, "skeleton": skeleton, "player": player, "binds": binds, "bind_bones": bind_bones, "seat": seat_offset}
+	_measure_stand_floor(skeleton, seat_offset)
 	for clip: StringName in CLIPS:
-		var animation := player.get_animation(clip) if player.has_animation(clip) else null
+		var spec: Dictionary = SYNTHETIC.get(clip, {})
+		var source: StringName = spec.get("source", clip)
+		var animation := player.get_animation(source) if player.has_animation(source) else null
 		if animation == null:
 			# An older GLB without the crowd extras: hold the first idle instead.
 			animation = player.get_animation(CLIPS[0])
-		var frames := maxi(1, int(round(animation.length * BAKE_FPS)))
-		_clip_table.append(Vector4(float(_frame_rows), float(frames), BAKE_FPS, animation.length))
-		var rise := _rise_curve(clip)
+		var seconds: float = spec.get("seconds", animation.length)
+		var frames := maxi(1, int(round(seconds * BAKE_FPS)))
+		_clip_table.append(Vector4(float(_frame_rows), float(frames), BAKE_FPS, seconds))
+		var rise := PackedFloat32Array(spec["rise"]) if spec.has("rise") else _rise_curve(clip)
+		var free_legs: bool = spec.get("free_legs", clip in FREE_LEGS)
 		for frame: int in range(frames):
 			var time := float(frame) / BAKE_FPS
-			rows.append_array(_bake_frame(animation, time, _rise_at(rise, time)))
+			rows.append_array(_bake_frame(animation, time, _rise_at(rise, time), free_legs))
 			_frame_rows += 1
 	var image := Image.create_from_data(_bone_count * 3, _frame_rows, false, Image.FORMAT_RGBAF, rows.to_byte_array())
 	_bone_texture = ImageTexture.create_from_image(image)
@@ -199,12 +253,12 @@ static func _colors(source: Array) -> Array[Color]:
 
 
 ## One baked frame: three texels (rows of the 3x4 skinning matrix) per bind.
-static func _bake_frame(animation: Animation, time: float, rise: float) -> PackedFloat32Array:
+static func _bake_frame(animation: Animation, time: float, rise: float, free_legs := false) -> PackedFloat32Array:
 	var skeleton := _source.skeleton as Skeleton3D
 	var binds: Array[Transform3D] = _source.binds
 	var bind_bones: PackedInt32Array = _source.bind_bones
 	var locals := _sample_locals(skeleton, animation, time)
-	var poses := _seated_globals(skeleton, locals, _source.seat, rise)
+	var poses := _free_globals(skeleton, locals) if free_legs else _seated_globals(skeleton, locals, _source.seat, rise)
 	var rows := PackedFloat32Array()
 	for bind: int in range(binds.size()):
 		var matrix: Transform3D = poses[bind_bones[bind]] * binds[bind]
@@ -233,6 +287,32 @@ static func _rise_at(rise: PackedFloat32Array, time: float) -> float:
 static func _seat_offset(skeleton: Skeleton3D) -> Vector3:
 	var hip := skeleton.get_bone_global_rest(skeleton.find_bone("thigh_l")).origin
 	return Vector3(0.0, -(hip.y - SEAT_BELOW_HIP), -hip.z)
+
+
+## A risen spectator keeps the seated ankles (_standing_legs); the floor is the
+## rest pose's ankle height below them. The rig stands on y = 0, so the walk's
+## feet move from under its rest ankles to that floor point.
+static func _measure_stand_floor(skeleton: Skeleton3D, seat_offset: Vector3) -> void:
+	var standing := _standing_legs(skeleton, 1.0)
+	var ankles: Vector3 = (standing.ankle_l + standing.ankle_r) * 0.5 + seat_offset
+	var rest_l := skeleton.get_bone_global_rest(skeleton.find_bone("foot_l")).origin
+	var rest_r := skeleton.get_bone_global_rest(skeleton.find_bone("foot_r")).origin
+	var rest := (rest_l + rest_r) * 0.5
+	_stand_floor = Vector3(ankles.x, ankles.y - rest.y, ankles.z)
+	_free_shift = _stand_floor - Vector3(rest.x, 0.0, rest.z)
+
+
+## Global bone transforms straight from the clip (the walk), moved by _free_shift.
+static func _free_globals(skeleton: Skeleton3D, locals: Array[Transform3D]) -> Array[Transform3D]:
+	var poses: Array[Transform3D] = []
+	poses.resize(skeleton.get_bone_count())
+	for bone: int in range(poses.size()):
+		var parent := skeleton.get_bone_parent(bone)
+		poses[bone] = locals[bone] if parent < 0 else poses[parent] * locals[bone]
+	var shift := Transform3D(Basis.IDENTITY, _free_shift)
+	for bone: int in range(poses.size()):
+		poses[bone] = shift * poses[bone]
+	return poses
 
 
 ## Global bone transforms for the current animation frame with the lower body
@@ -494,7 +574,7 @@ static func fixed_body(source: Mesh, skin: Skin) -> Mesh:
 ## Union of the hairstyle bodies plus the props. Identical body triangles are
 ## shared and tagged with every hairstyle that owns them; a prop triangle carries
 ## its prop bit. Bones are rewritten to the body skin's bind order.
-static func _merge(bodies: Array[MeshInstance3D], props: Array[MeshInstance3D], body_skin: Skin) -> ArrayMesh:
+static func _merge(bodies: Array[MeshInstance3D], props: Array, body_skin: Skin) -> ArrayMesh:
 	var owners := {}
 	var order: Array[String] = []
 	var data := {}
@@ -502,8 +582,8 @@ static func _merge(bodies: Array[MeshInstance3D], props: Array[MeshInstance3D], 
 	for style: int in range(bodies.size()):
 		sources.append([bodies[style], 1 << style, true])
 	for index: int in range(props.size()):
-		if props[index] != null:
-			sources.append([props[index], 1 << (PROP_BIT_BASE + index + 1), false])
+		for part: MeshInstance3D in props[index]:
+			sources.append([part, 1 << (PROP_BIT_BASE + index + 1), false])
 	var bind_of := {}
 	for bind: int in range(body_skin.get_bind_count()):
 		bind_of[body_skin.get_bind_name(bind)] = bind

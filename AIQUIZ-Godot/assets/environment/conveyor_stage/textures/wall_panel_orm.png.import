@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://qu6v6klkwrrv"
 path.bptc="res://.godot/imported/wall_panel_orm.png-dacbe8db152074e19f1cafec14e2d2d8.bptc.ctex"
+path.astc="res://.godot/imported/wall_panel_orm.png-dacbe8db152074e19f1cafec14e2d2d8.astc.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/environment/conveyor_stage/textures/wall_panel_orm.png"
-dest_files=["res://.godot/imported/wall_panel_orm.png-dacbe8db152074e19f1cafec14e2d2d8.bptc.ctex"]
+dest_files=["res://.godot/imported/wall_panel_orm.png-dacbe8db152074e19f1cafec14e2d2d8.bptc.ctex", "res://.godot/imported/wall_panel_orm.png-dacbe8db152074e19f1cafec14e2d2d8.astc.ctex"]
 
 [params]
 

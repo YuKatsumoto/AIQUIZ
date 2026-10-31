@@ -33,8 +33,7 @@ func update_approach(bundle: MenuPreviewActorAIState, is_p1: bool) -> void:
 		return
 	if not alive(is_p1) or bundle.ai_state != AIState.STATE_NORMAL:
 		return
-	# エモート中は立ち止まって踊る（壁が来る前に踊りを切り上げるので、そのあと扉へ向かう）
-	if bundle.is_emoting or is_commit_active(bundle):
+	if is_commit_active(bundle):
 		return
 	var candidate := pick_target_wall(local_z(is_p1))
 	if not candidate:

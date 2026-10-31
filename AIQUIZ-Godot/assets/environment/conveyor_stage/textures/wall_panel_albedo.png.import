@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://ded2buff8y1md"
 path.bptc="res://.godot/imported/wall_panel_albedo.png-51eb7e1279307c5bb08e3cdfea844b96.bptc.ctex"
+path.astc="res://.godot/imported/wall_panel_albedo.png-51eb7e1279307c5bb08e3cdfea844b96.astc.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/environment/conveyor_stage/textures/wall_panel_albedo.png"
-dest_files=["res://.godot/imported/wall_panel_albedo.png-51eb7e1279307c5bb08e3cdfea844b96.bptc.ctex"]
+dest_files=["res://.godot/imported/wall_panel_albedo.png-51eb7e1279307c5bb08e3cdfea844b96.bptc.ctex", "res://.godot/imported/wall_panel_albedo.png-51eb7e1279307c5bb08e3cdfea844b96.astc.ctex"]
 
 [params]
 

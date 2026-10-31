@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://dvpvd8pi2sc5r"
 path.s3tc="res://.godot/imported/fp_tread_normal.png-fff8710e2f3db7ebd546c421fd64f39e.s3tc.ctex"
+path.etc2="res://.godot/imported/fp_tread_normal.png-fff8710e2f3db7ebd546c421fd64f39e.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/vehicles/floatplane_c130/textures/fp_tread_normal.png"
-dest_files=["res://.godot/imported/fp_tread_normal.png-fff8710e2f3db7ebd546c421fd64f39e.s3tc.ctex"]
+dest_files=["res://.godot/imported/fp_tread_normal.png-fff8710e2f3db7ebd546c421fd64f39e.s3tc.ctex", "res://.godot/imported/fp_tread_normal.png-fff8710e2f3db7ebd546c421fd64f39e.etc2.ctex"]
 
 [params]
 

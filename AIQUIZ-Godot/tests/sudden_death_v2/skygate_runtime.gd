@@ -150,8 +150,8 @@ func _drive_inputs() -> void:
 		if act == "SKY" and director.act_time() > 1.2 and director.can_skip() and not _skipped.has("cruise"):
 			_skipped["cruise"] = director.act_time()
 			_tap(KEY_SPACE)
-	# ルールカードは 1.0 秒見せて Enter
-	if act == "VENUE" and presenter != null and presenter.phase_name() == "rules" and director.act_time() > 1.0 and not _skipped.has("rules"):
+	# ルールカードは列の引き（SkyGatePresenter.RULES_DELAY）のあとに出る：「Enter でスタート」が出てから押す
+	if act == "VENUE" and presenter != null and presenter.phase_name() == "rules" and not _skipped.has("rules") 			and bool(presenter.hud().state.get("rules_prompt", false)):
 		_skipped["rules"] = true
 		_tap(KEY_ENTER)
 	var game := gs.sudden_death_game as SkyGateGame
@@ -293,7 +293,8 @@ func _watch_round_turn(act: String) -> void:
 				seen[text] = _frame
 
 
-## 見下ろしのカメラ：ボードが読める近さ（ゲートの 2.0 秒）と、時間切れの直前の距離。終わりに寄っていること。
+## 見下ろしのカメラ：ゲートの 2.0 秒の距離と、当たる直前の距離。まちがいがいれば終わりに寄っていること（全員が正解のパネルの
+## 上なら寄らない：2026-10-23 のユーザーの指示。ボードが上がってくるにつれて、ボードと看板を収めるように引いていく）。
 func _watch_gate_camera() -> void:
 	var presenter := director.presenter() as SkyGatePresenter
 	var game := gs.sudden_death_game as SkyGateGame
@@ -304,15 +305,16 @@ func _watch_gate_camera() -> void:
 	var dist := cam.global_position.distance_to(mid)
 	var key := "r%d_g%d" % [game.current_round, game.gate_index]
 	if not _gate_cams.has(key):
-		_gate_cams[key] = {"hover": -1.0, "push": INF, "gate_time": game.gate_time}
+		_gate_cams[key] = {"hover": -1.0, "push": INF, "speed": game.fall_speed}
 	var row: Dictionary = _gate_cams[key]
 	var clock := game.gate_clock()
 	if float(row.hover) < 0.0 and clock >= 2.0:
 		row.hover = snappedf(dist, 0.01)
 		if take_shots and game.gate_index <= 1:
 			_pending_shots.append([_frame, "gate_%s_hover" % key])
-	if game.gate_time - clock <= 0.25:
+	if game.time_to_contact() <= 0.25:
 		row.push = minf(float(row.push), snappedf(dist, 0.01))
+		row["safe"] = bool(presenter.call("_all_safe", game))
 		if take_shots and game.gate_index <= 1 and not row.has("shot"):
 			row["shot"] = true
 			_pending_shots.append([_frame, "gate_%s_push" % key])
@@ -394,7 +396,7 @@ func _check_end(done_at: int) -> void:
 	elif case_name == "round2":
 		expected = ["BRANCH", "REVEAL", "BOARD", "SKY", "DROP", "VENUE", "DROP", "VENUE", "EXTRACT", "HOME", "DONE"]
 	if ghost_mask != 0:
-		expected.insert(1, "REVIVE")
+		expected.insert(2, "REVIVE")
 		_check_revived_looks()
 	var at := 0
 	for name: String in names:
@@ -415,6 +417,8 @@ func _check_end(done_at: int) -> void:
 	for key: String in _gate_cams.keys():
 		var row: Dictionary = _gate_cams[key]
 		# 2人が離れたパネルにいると、2人を収める距離で止まる（寄るが 8 割より遠いことがある）
+		if bool(row.get("safe", false)):
+			continue
 		if float(row.hover) > 0.0 and is_finite(float(row.push)) and float(row.push) > float(row.hover) * 0.95:
 			fail("the top-down lens does not close in at the end of gate %s (%.2f m -> %.2f m)" % [key, float(row.hover), float(row.push)])
 	if case_name == "round2":

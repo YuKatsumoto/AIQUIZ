@@ -232,12 +232,13 @@ func _motion() -> void:
 	var gs := fixture(1)
 	answer(gs, false)
 	check(gs.p1_damage_time == 0.6 and gs.is_damage_stunned(1), "damage starts stun/blink")
+	check(is_equal_approx(gs.p1_external_velocity.y, -QuizGameState.WALL_HIT_KNOCKBACK_SPEED), "wrong door knocks the body back")
 	gs.player_x = 0.0
 	gs.player_z = 0.0
 	var z := gs.player_z
 	gs.update(0.1, Vector2.RIGHT, Vector2.ZERO, true)
 	check(is_zero_approx(gs.player_x) and is_zero_approx(gs.player_y), "stun blocks lateral/jump")
-	check(gs.player_z > z, "stun preserves forward movement")
+	check(gs.player_z < z, "knockback carries the body away from the wall")
 	gs.update(0.26)
 	check(not gs.is_damage_stunned(1) and gs.p1_damage_time > 0.0, "stun ends before blink")
 	gs.update(0.25)
@@ -246,6 +247,48 @@ func _motion() -> void:
 	gs.game_state = Constants.STATE_CLEAR
 	gs.update(0.01)
 	check(gs.p1_damage_time == 0.0, "transition clears recoil")
+	_knockback()
+
+## 扉の表面で当たって弾かれ、相手を待つあいだは表面より前へ出ない。床の後ろ端から落ちるほどは弾かない。
+func _knockback() -> void:
+	var coop := fixture(2, Constants.MODE_COOP)
+	check(is_equal_approx(coop.wall_contact_distance(), 0.4), "modes without HP keep the old contact line")
+	var gs := fixture()
+	check(is_equal_approx(gs.wall_contact_distance(), QuizGameState.WALL_FACE_CONTACT_DISTANCE), "HP modes hit at the door face")
+	gs.player_x = door(gs, false)
+	gs.player2_x = door(gs, true)
+	gs.world_scroll_z = gs.wall_z - 3.0
+	gs.player_z = gs.world_scroll_z
+	gs.player2_z = gs.world_scroll_z - 6.0
+	var face := gs.wall_z - QuizGameState.WALL_FACE_CONTACT_DISTANCE
+	var touched := -1.0
+	for i in range(120):
+		gs.update(1.0 / 60.0)
+		if gs.p1_hp == 2:
+			touched = gs.player_z
+			break
+	check(is_equal_approx(touched, face), "wrong door is hit at the door face: %f" % (touched - face))
+	check(gs.is_held_by_wall(1) and not gs.is_held_by_wall(2), "wrong door holds only the player who missed")
+	for i in range(20):
+		gs.update(1.0 / 60.0)
+	check(gs.player_z < face - 0.5 and gs.p1_external_velocity.y < 0.0, "knocked back from the door face")
+	var deepest := -INF
+	for i in range(240):
+		gs.update(1.0 / 60.0)
+		if gs.current_wall_index == 0:
+			deepest = maxf(deepest, gs.player_z - face)
+	check(deepest <= 0.0001, "held at the door face while the wall comes: %f" % deepest)
+	check(gs.current_wall_index == 1 and gs.player2_score == 1 and not gs.is_held_by_wall(1), "the other player's answer releases the hold")
+	var edge := fixture(1)
+	edge.player_x = door(edge, false)
+	edge.world_scroll_z = 0.0
+	edge.player_z = QuizGameState.FLOOR_BACK_Z + QuizGameState.WALL_HIT_KNOCKBACK_BACK_MARGIN + 0.5
+	edge.resolve_collision(true, false)
+	var room_speed := sqrt(2.0 * QuizGameState.EXTERNAL_IMPULSE_DECELERATION * 0.5)
+	check(edge.p1_hp == 2 and is_equal_approx(-edge.p1_external_velocity.y, room_speed), "knockback eased near the back edge")
+	for i in range(90):
+		edge.update(1.0 / 60.0)
+	check(edge.p1_alive and not edge.p1_fall_committed, "knockback never throws the player off the back")
 
 func _sync_replay() -> void:
 	var host := fixture()
@@ -258,6 +301,12 @@ func _sync_replay() -> void:
 	NetworkManager.is_host = false
 	net._on_snapshot_received(host.to_snapshot())
 	check(guest.p1_hp == 2 and guest.p2_hp == 3 and guest.p1_damage_time == host.p1_damage_time, "NetGameState host/guest HP and motion")
+	check(is_equal_approx(guest.p1_external_velocity.y, host.p1_external_velocity.y), "guest receives the knockback")
+	var staggered_host := fixture()
+	staggered_host.player_x = door(staggered_host, false)
+	staggered_host.resolve_collision(true, false)
+	net._on_snapshot_received(staggered_host.to_snapshot())
+	check(staggered_host.is_held_by_wall(1) and guest.is_held_by_wall(1) and not guest.is_held_by_wall(2), "guest knows who the wall holds")
 	NetworkManager.is_host = previous_host
 	net.queue_free()
 	var recorder := ReplayRecorder.new()

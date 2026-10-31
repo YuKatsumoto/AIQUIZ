@@ -22,12 +22,11 @@ var current_score: int = 0
 var current_question_index: int = 0
 
 const USER_SETTINGS_PATH := "user://settings.json"
+const EnvFile := preload("res://scripts/core/env_file.gd")
 ## 5: ハート（HP）・4択のボス壁・回転のこぎり・スコアタワーに合わせ、操作キーを3Dで示す版。
 ## 6: 前後左右の移動を1ステップに、ジャンプを独立、エモートは3つすべて、
 ##    2Pはゴール後にスコアタワーの勝敗判定まで進み、得点の計算方法を説明する版。
-## 7: 説明の段落をなくし、1行のミッション・体験後のルール表示・章クリアのバナーで進める版。
-##    コース選択とキーボード説明を1画面にし、クリア画面に章メダルとクリアタイムを出す。
-const CURRENT_TUTORIAL_VERSION := 7
+const CURRENT_TUTORIAL_VERSION := 6
 ## コースごとの完了記録を持たない設定ファイルは、版4での完了として読む。
 const LEGACY_COURSE_COMPLETED_VERSION := 4
 const TUTORIAL_COURSE_SOLO := "SOLO"
@@ -43,9 +42,13 @@ var tutorial_local_2p_completed: bool = false
 ## コースを完了したときのチュートリアルの版。今の版より古ければ「更新あり」と表示する。
 var tutorial_solo_completed_version: int = 0
 var tutorial_local_2p_completed_version: int = 0
+
 var graphics_quality: String = GraphicsQuality.BALANCED
 ## 設定画面の「FPS上限」で選べる値（Engine.max_fps）。0 は制限なし（垂直同期だけが上限）。
 const MAX_FPS_CHOICES: Array[int] = [30, 60, 120, 144, 240, 0]
+## モバイル（GraphicsQuality.is_mobile_target()）で選べる値。パネルは最大 120Hz なので 144/240 は意味がなく、
+## 「制限なし」は発熱と電池を食うだけなので出さない。既定は DEFAULT_MAX_FPS（60）のまま。
+const MOBILE_MAX_FPS_CHOICES: Array[int] = [30, 60, 120]
 ## 「FPS上限」の既定値。プレイヤーが選ぶまではこの値で動く。
 const DEFAULT_MAX_FPS := 60
 ## 設定画面の「FPS上限」。起動時と変更時に Engine.max_fps へ渡す。
@@ -63,6 +66,15 @@ var online_staging_short: bool = false
 var online_nickname: int = -1
 ## オンライン対戦で相手に見せる名前（自分で入力するか、サイコロの二つ名）。空なら未設定。
 var online_name: String = ""
+## チュートリアルの練習コースのスタンプ（docs/new_tutorial/foundation_design.md 5章）。
+## コースID（"c1" など）→ {"star": bool}。押してあるコースだけ入る。
+var practice_stamps: Dictionary = {}
+## 初回起動の「はじめまして！ ハテナと れんしゅう する？」を出し終えたか。
+var practice_intro_seen := false
+## タッチ端末で、正解・ぶつかり・脱落などの手応えを短い振動で返す（設定画面でオン／オフ）。
+var haptics_enabled: bool = true
+## タッチ操作のボタンの大きさ（1.0 が標準）。設定画面で 0.8〜1.3 から選ぶ。
+var touch_controls_scale: float = 1.0
 ## Tests point the settings file somewhere else (never the player's own).
 var settings_path: String = USER_SETTINGS_PATH
 var _user_settings: Dictionary = {}
@@ -74,7 +86,7 @@ func _ready() -> void:
 	HighlightStore.clear()
 	_load_user_settings()
 	GraphicsQuality.apply_rendering_server(graphics_quality)
-	Engine.max_fps = max_fps
+	Engine.max_fps = effective_max_fps()
 	_load_env()
 
 func should_show_tutorial_on_start() -> bool:
@@ -168,7 +180,7 @@ func set_graphics_quality(value: String) -> void:
 	graphics_quality_changed.emit(graphics_quality)
 
 
-## 設定画面の「FPS上限」。MAX_FPS_CHOICES にない値は既定値として扱う。
+## 設定画面の「FPS上限」。available_max_fps_choices() にない値は既定値として扱う。
 func set_max_fps(value: int) -> void:
 	var normalized := normalize_max_fps(value)
 	Engine.max_fps = normalized
@@ -180,7 +192,18 @@ func set_max_fps(value: int) -> void:
 
 
 static func normalize_max_fps(value: int) -> int:
-	return value if MAX_FPS_CHOICES.has(value) else DEFAULT_MAX_FPS
+	return value if available_max_fps_choices().has(value) else DEFAULT_MAX_FPS
+
+
+## The saved value is kept as chosen (a desktop 144 must survive a phone-sized
+## preview session); only the cap handed to the engine follows this platform.
+func effective_max_fps() -> int:
+	return normalize_max_fps(max_fps)
+
+
+## 設定画面の「FPS上限」に並べる値。デスクトップは MAX_FPS_CHOICES、モバイルは MOBILE_MAX_FPS_CHOICES。
+static func available_max_fps_choices() -> Array[int]:
+	return MOBILE_MAX_FPS_CHOICES if GraphicsQuality.is_mobile_target() else MAX_FPS_CHOICES
 
 
 func set_online_name(value: String) -> void:
@@ -205,6 +228,21 @@ func set_online_staging_short(value: bool) -> void:
 	_save_user_settings()
 
 
+func set_haptics_enabled(value: bool) -> void:
+	if haptics_enabled == value:
+		return
+	haptics_enabled = value
+	_save_user_settings()
+
+
+func set_touch_controls_scale(value: float) -> void:
+	var clamped := clampf(value, 0.8, 1.3)
+	if is_equal_approx(touch_controls_scale, clamped):
+		return
+	touch_controls_scale = clamped
+	_save_user_settings()
+
+
 ## 設定画面のサドンデスのオン／オフ。保存し、進行中のゲーム状態にもすぐ反映する。
 func set_sudden_death_enabled(value: bool) -> void:
 	var changed := sudden_death_enabled != value
@@ -212,6 +250,46 @@ func set_sudden_death_enabled(value: bool) -> void:
 	_push_sudden_death_setting()
 	if changed:
 		_save_user_settings()
+
+
+func has_practice_stamp(course_id: String) -> bool:
+	return practice_stamps.has(course_id)
+
+
+func practice_stamp_star(course_id: String) -> bool:
+	var stamp: Variant = practice_stamps.get(course_id)
+	return stamp is Dictionary and bool((stamp as Dictionary).get("star", false))
+
+
+## コースのスタンプを押して保存する。★は一度付いたら消さない。
+func mark_practice_stamp(course_id: String, star: bool) -> void:
+	if course_id.is_empty():
+		return
+	var next_star := star or practice_stamp_star(course_id)
+	if has_practice_stamp(course_id) and practice_stamp_star(course_id) == next_star:
+		return
+	practice_stamps[course_id] = {"star": next_star}
+	_save_user_settings()
+
+
+## 初回の案内を出したことを保存する（［する］でも［あとで］でも呼ぶ）。
+func mark_practice_intro_seen() -> void:
+	if practice_intro_seen:
+		return
+	practice_intro_seen = true
+	_save_user_settings()
+
+
+## 設定ファイルのスタンプを読む。形の崩れた項目は捨て、{"star": bool} だけにそろえる。
+static func _parse_practice_stamps(source: Variant) -> Dictionary:
+	var stamps := {}
+	if not source is Dictionary:
+		return stamps
+	for key: Variant in (source as Dictionary).keys():
+		var entry: Variant = (source as Dictionary)[key]
+		if entry is Dictionary and not str(key).is_empty():
+			stamps[str(key)] = {"star": bool((entry as Dictionary).get("star", false))}
+	return stamps
 
 
 ## Hands the setting to the long-lived QuizGameState (QuizManager.game_state).
@@ -264,11 +342,17 @@ func _load_user_settings() -> void:
 	max_fps_chosen = bool(_user_settings.get("max_fps_chosen", false))
 	max_fps = DEFAULT_MAX_FPS
 	if max_fps_chosen:
-		max_fps = normalize_max_fps(int(_user_settings.get("max_fps", DEFAULT_MAX_FPS)))
+		var saved_fps := int(_user_settings.get("max_fps", DEFAULT_MAX_FPS))
+		var known := MAX_FPS_CHOICES.has(saved_fps) or MOBILE_MAX_FPS_CHOICES.has(saved_fps)
+		max_fps = saved_fps if known else DEFAULT_MAX_FPS
 	sudden_death_enabled = bool(_user_settings.get("sudden_death_enabled", true))
 	online_staging_short = bool(_user_settings.get("online_staging_short", false))
 	online_nickname = int(_user_settings.get("online_nickname", -1))
 	online_name = str(_user_settings.get("online_name", ""))
+	practice_stamps = _parse_practice_stamps(_user_settings.get("practice_stamps", {}))
+	practice_intro_seen = bool(_user_settings.get("practice_intro_seen", false))
+	haptics_enabled = bool(_user_settings.get("haptics_enabled", true))
+	touch_controls_scale = clampf(float(_user_settings.get("touch_controls_scale", 1.0)), 0.8, 1.3)
 
 func _save_user_settings() -> void:
 	_user_settings["tutorial_completed"] = tutorial_completed
@@ -287,6 +371,10 @@ func _save_user_settings() -> void:
 	_user_settings["online_staging_short"] = online_staging_short
 	_user_settings["online_nickname"] = online_nickname
 	_user_settings["online_name"] = online_name
+	_user_settings["practice_stamps"] = practice_stamps.duplicate(true)
+	_user_settings["practice_intro_seen"] = practice_intro_seen
+	_user_settings["haptics_enabled"] = haptics_enabled
+	_user_settings["touch_controls_scale"] = touch_controls_scale
 	var file := FileAccess.open(settings_path, FileAccess.WRITE)
 	if file:
 		file.store_string(JSON.stringify(_user_settings, "  "))
@@ -294,15 +382,9 @@ func _save_user_settings() -> void:
 
 func _load_env() -> void:
 	# .envファイルの簡易パース
-	# エクスポートビルド: exe と同じフォルダの .env を優先
-	# エディター実行: res://.env にフォールバック
-	var env_path := ""
-	var exe_dir := OS.get_executable_path().get_base_dir()
-	var external_env := exe_dir.path_join(".env")
-	if FileAccess.file_exists(external_env):
-		env_path = external_env
-	elif FileAccess.file_exists("res://.env"):
-		env_path = "res://.env"
+	# エクスポートビルド: exe と同じフォルダの .env を優先（Android/iOS では探さない）
+	# エディター実行: res://.env、無ければ res://config/app_env.cfg にフォールバック（env_file.gd）
+	var env_path := EnvFile.resolve_path()
 
 	if env_path.is_empty():
 		return

@@ -181,23 +181,6 @@ func begin_blend(seconds: float) -> void:
 	_blend_time = 0.0
 
 
-## begin_blend と同じだが、つなぐ元の姿を呼ぶ側が持っている（前のフレームの最後に capture_display で取った姿）。
-## 同じフレームで別の書き手（PlayerController.update_from_state など）が先に姿を変えてしまう場合に使う。
-func begin_blend_from(snapshot: Dictionary, seconds: float) -> void:
-	if not is_ready() or seconds <= 0.0 or snapshot.is_empty():
-		cancel_blend()
-		return
-	_blend_snapshot = snapshot
-	_blend_offsets = {}
-	_blend_seconds = seconds
-	_blend_time = 0.0
-
-
-## 今見えている姿（pelvis はワールド、ほかは親から）。begin_blend_from に渡す。
-func capture_display() -> Dictionary:
-	return _capture_display()
-
-
 func cancel_blend() -> void:
 	_blend_snapshot = {}
 	_blend_offsets = {}

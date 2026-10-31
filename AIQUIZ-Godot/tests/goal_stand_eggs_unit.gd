@@ -37,8 +37,13 @@ func run() -> void:
 	var target := parts.spine as Node3D
 	var nodes_under_target := target.find_children("*", "", true, false).size()
 	await get_tree().process_frame
+	# Owned by a stand that is turned round and moved, like GoalStand.
+	var stand := Node3D.new()
+	stand.name = "Stand"
+	add_child(stand)
+	stand.global_transform = Transform3D(Basis(Vector3.UP, PI), Vector3(3.0, 0.0, 20.0))
 	var eggs := GoalStandEggs.new()
-	add_child(eggs)
+	stand.add_child(eggs)
 	var shard := BoxMesh.new()
 	shard.size = Vector3(0.07, 0.012, 0.05)
 	var egg_mesh := SphereMesh.new()
@@ -59,6 +64,7 @@ func run() -> void:
 	var floor_splat_seen := false
 	var yolk_seen := false
 	var on_face := false
+	var drawn_in_place := false
 	for frame in range(int(8.0 / STEP)):
 		impacts.append_array(eggs.update(STEP, camera))
 		await get_tree().process_frame
@@ -81,6 +87,10 @@ func run() -> void:
 				for axis in range(3):
 					gap = minf(gap, minf(absf(local[axis] - aabb.position[axis]), absf(local[axis] - aabb.end[axis])))
 				on_face = gap < 0.002 and (entry.frame as Transform3D).basis.determinant() > 0.0
+				# Drawn where the model is, whatever the owner's transform.
+				drawn_in_place = (entry.node as Node3D).global_position.distance_to((entry.frame as Transform3D).origin) < 0.001
+				for yolk_node: Variant in entry.yolks:
+					drawn_in_place = drawn_in_place and (yolk_node as Node3D).global_position.distance_to((entry.frame as Transform3D).origin) < 0.6
 		if frame == int(3.0 / STEP):
 			var captured := int(eggs.active_counts().captured)
 			check(eggs.shards_rested + captured == shards_per_egg * 2, "every shell piece came to rest or stuck in the white (%d + %d / %d)" % [eggs.shards_rested, captured, shards_per_egg * 2])
@@ -95,6 +105,7 @@ func run() -> void:
 	check(floor_splat_seen, "the miss leaves a splat on the conveyor")
 	check(yolk_seen, "yolks come out")
 	check(on_face, "the body splat sits on the face of the part it hit, right-handed")
+	check(drawn_in_place, "the white and the yolks are drawn on the splat, under a turned-round owner")
 	check(target.find_children("*", "", true, false).size() == nodes_under_target, "nothing is parented under the target")
 	var end := eggs.active_counts()
 	check(int(end.shards) == 0, "shell pieces fade out: %s" % [end])

@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://b4g2ydhp4iitr"
 path.bptc="res://.godot/imported/aiquiz_stadium_backdrop_city_facade_c.png-c9ad1fb20dd99db147620925d58e4a3b.bptc.ctex"
+path.astc="res://.godot/imported/aiquiz_stadium_backdrop_city_facade_c.png-c9ad1fb20dd99db147620925d58e4a3b.astc.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/aiquiz_stadium/aiquiz_stadium_backdrop_city_facade_c.png"
-dest_files=["res://.godot/imported/aiquiz_stadium_backdrop_city_facade_c.png-c9ad1fb20dd99db147620925d58e4a3b.bptc.ctex"]
+dest_files=["res://.godot/imported/aiquiz_stadium_backdrop_city_facade_c.png-c9ad1fb20dd99db147620925d58e4a3b.bptc.ctex", "res://.godot/imported/aiquiz_stadium_backdrop_city_facade_c.png-c9ad1fb20dd99db147620925d58e4a3b.astc.ctex"]
 
 [params]
 

@@ -5,6 +5,7 @@ extends OnlineMenuPage
 ## ともだちコードで待つときは、帯にコードを大きく出す（enter({"code": ...}) か show_code）。
 
 const WIDEN_AFTER_S := 20.0
+const MobileUi = preload("res://scripts/core/mobile_ui.gd")
 
 var _elapsed := 0.0
 var _clock: Label
@@ -28,12 +29,12 @@ func _ready() -> void:
 	_code_row = HBoxContainer.new()
 	_code_row.add_theme_constant_override("separation", 14)
 	texts.add_child(_code_row)
-	_code_row.add_child(OnlineMenuStyle.label("この コードを ともだちに おしえてね：", 20, OnlineMenuStyle.TEXT, HORIZONTAL_ALIGNMENT_LEFT))
+	_code_row.add_child(OnlineMenuStyle.label("この コードを ともだちに おしえてね：", MobileUi.font(20), OnlineMenuStyle.TEXT, HORIZONTAL_ALIGNMENT_LEFT))
 	_code_label = OnlineMenuStyle.label("-----", 40, OnlineMenuStyle.ACCENT, HORIZONTAL_ALIGNMENT_LEFT)
 	_code_row.add_child(_code_label)
 	_clock = OnlineMenuStyle.label("", 24, OnlineMenuStyle.TEXT, HORIZONTAL_ALIGNMENT_LEFT)
 	texts.add_child(_clock)
-	_hint = OnlineMenuStyle.label("おなじ 学年の ほかの 教科の 人とも さがしています", 15, OnlineMenuStyle.MUTED, HORIZONTAL_ALIGNMENT_LEFT)
+	_hint = OnlineMenuStyle.label("おなじ 学年の ほかの 教科の 人とも さがしています", MobileUi.font(15), OnlineMenuStyle.MUTED, HORIZONTAL_ALIGNMENT_LEFT)
 	texts.add_child(_hint)
 	_cancel = OnlineMenuStyle.button("やめる", Vector2(150, 52), 20)
 	_cancel.pressed.connect(func() -> void: request(&"cancel"))

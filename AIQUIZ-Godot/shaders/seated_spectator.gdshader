@@ -12,17 +12,22 @@ render_mode cull_back, diffuse_burley, specular_schlick_ggx;
 //   COLOR.rgb          shirt (sRGB)
 //   INSTANCE_CUSTOM.x  phase 0..1 (pair partners share it, so they move together)
 //   INSTANCE_CUSTOM.y  look  = hairstyle + 7*skin + 42*hair colour + 252*pants + 1260*shoes + 5040*prop
-//   INSTANCE_CUSTOM.z  habit = idle clip + 8*role + 128*team (0, 1 P1, 2 P2)
+//   INSTANCE_CUSTOM.z  habit = idle clip + 8*role + 128*team (0, 1 P1, 2 P2) + 512*script
 //   INSTANCE_CUSTOM.w  animation speed
 //
+// script (CrowdSim, docs/crowd_sim.md): 0 none, else clip + 1, plus 64 when it
+// loops. A scripted spectator (standing up, sitting down, walking, waiting in a
+// queue) plays only that clip from INSTANCE_CUSTOM.x on sim_clock and ignores
+// every cue.
+//
 // What a spectator plays, highest priority first (docs/crowd_extras.md):
-//   the stadium wave passing its seat > a local shock (saw, shark, a fall) >
-//   the winner's dance > the game's cue (goal, verdict, countdown, start, a
-//   miss, lost HP) > the leaders' chant > its own occasional burst > rest.
+//   its script > the stadium wave passing its seat > a local shock (saw, shark,
+//   a fall) > the winner's dance > the game's cue (goal, verdict, countdown,
+//   start, a miss, lost HP) > the leaders' chant > its own occasional burst > rest.
 uniform sampler2D bone_texture : filter_nearest, repeat_disable;
 uniform sampler2D sync_bones_1 : filter_nearest, repeat_disable;
 uniform sampler2D sync_bones_2 : filter_nearest, repeat_disable;
-uniform vec4 clips[40];              // start row, frames, fps, seconds (SeatedSpectatorKit.CLIPS)
+uniform vec4 clips[56];              // start row, frames, fps, seconds (SeatedSpectatorKit.CLIPS, MAX_CLIPS)
 uniform vec4 sync_clip_1 = vec4(0.0); // the winner's dance per side; frames 0 = not baked yet
 uniform vec4 sync_clip_2 = vec4(0.0);
 // Share of burst cycles in which a spectator actually moves.
@@ -66,6 +71,11 @@ uniform float sync_time_1 = -1.0;
 uniform float sync_time_2 = -1.0;
 uniform float sync_weight = 0.0;
 uniform int sync_team = 0;           // the winner, 0 a draw (each side its own player's dance)
+// The walking crowd's clock (GrandstandCrowd.update_sim): scripts start on it.
+uniform float sim_clock = 0.0;
+// Spectators seated past this world z collapse to a point: the block under the
+// stand's moved end cap is cut there (aiquiz_stadium_stand.gd, fit_end()).
+instance uniform float far_clip_z = 1e9;
 
 varying vec3 v_skin;
 varying vec3 v_shirt;
@@ -217,7 +227,9 @@ void vertex() {
 	int look = int(INSTANCE_CUSTOM.y + 0.5);
 	int style = look % 7;
 	int prop = look / 5040;
-	int habit = int(INSTANCE_CUSTOM.z + 0.5);
+	int habit_full = int(INSTANCE_CUSTOM.z + 0.5);
+	int scripted = habit_full / 512;
+	int habit = habit_full % 512;
 	int idle = habit % 8;
 	int role = (habit / 8) % 16;
 	int team = habit / 128;
@@ -232,8 +244,15 @@ void vertex() {
 	// to a point, so their vertices skip the skinning below.
 	bool wanted = prop_triangle ? (prop > 0 && ((mask >> (PROP_BIT_BASE + prop)) & 1) != 0) : (((mask >> style) & 1) != 0);
 	bool neck_towel = prop_triangle && prop == P_TOWEL && ((mask >> (PROP_BIT_BASE + P_TOWEL_NECK)) & 1) != 0;
-	if (wanted || neck_towel) {
-		vec3 origin = (MODEL_MATRIX * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+	vec3 origin = (MODEL_MATRIX * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+	// The clip on show and how much of it, for the towel below.
+	int shown = -1;
+	float shown_weight = 0.0;
+	if ((wanted || neck_towel) && origin.z <= far_clip_z && scripted > 0) {
+		bool blend = length((MODELVIEW_MATRIX * vec4(0.0, 0.0, 0.0, 1.0)).xyz) < smooth_distance;
+		float script_time = max(sim_clock - INSTANCE_CUSTOM.x, 0.0) * INSTANCE_CUSTOM.w;
+		pose(scripted % 64 - 1, script_time, bone, blend, scripted < 64, VERTEX, NORMAL, point, normal);
+	} else if ((wanted || neck_towel) && origin.z <= far_clip_z) {
 		bool blend = length((MODELVIEW_MATRIX * vec4(0.0, 0.0, 0.0, 1.0)).xyz) < smooth_distance;
 		bool right_stand = origin.x > 0.0;
 		float along = origin.z - course_z;
@@ -407,12 +426,14 @@ void vertex() {
 			point = mix(idle_point, active_point, weight);
 			normal = mix(idle_normal, active_normal, weight);
 		}
-		// The towel fan twirls the hand towel; otherwise it hangs round the neck.
-		if (prop_triangle && prop == P_TOWEL) {
-			bool spinning = active == C_TOWEL && weight > 0.5;
-			if (spinning == neck_towel || (!wanted && !neck_towel)) {
-				point = vec3(0.0);
-			}
+		shown = active;
+		shown_weight = weight;
+	}
+	// The towel fan twirls the hand towel; otherwise it hangs round the neck.
+	if (prop_triangle && prop == P_TOWEL) {
+		bool spinning = shown == C_TOWEL && shown_weight > 0.5;
+		if (spinning == neck_towel || (!wanted && !neck_towel)) {
+			point = vec3(0.0);
 		}
 	}
 	VERTEX = point;

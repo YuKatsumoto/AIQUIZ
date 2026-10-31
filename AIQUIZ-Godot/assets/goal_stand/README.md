@@ -25,7 +25,7 @@
   | ゴールレース | 手振り・拍手・叫び・祈り。パーティ客は軽くノる。女性の「がんばれー！あとちょっと！」 |
   | 誰かがゴール | そのプレイヤーのファンが歓声ジャンプ、他は拍手（2.8秒）＋歓声 |
   | 演出 0–4.1秒 | 拍手と旗・プラカード。4.1秒〜判定までは息をのむ（祈り・腕組み） |
-  | 判定（6.9秒〜） | 勝者側：歓声・指さして笑う・旗振り。敗者側：頭を抱える・首振り・横並びのプラカードが「OH MY GOT」。歓声とブーイング |
+  | 判定（6.9秒〜） | 勝者側：歓声・指さして笑う・旗振り。勝者側の横並び5人のプラカードが「P1 NICE」/「P2 NICE」。敗者側：頭を抱える・首振り・横並びのプラカード中央3人が「OH MY GOT」（両端の2人は板を上げず、頭を抱える・首振りなどに回る）。歓声とブーイング |
   | 卵 | 敗者側ホットヘッドが激怒（顔が赤くなる）→判定が出ている間ずっと投げ続ける（数に上限なし）。25%は床に外れる。当たると殻が散り、生卵の中身が体と床に残る（下の「卵の割れ方」） |
   | 引き分け | 全員拍手・歓声、「えーっ！引き分けー？」、ホットヘッドは審判に卵 |
   | カウントダウン／スタート | 前のめりで身構え、スタートで歓声（居眠り客は飛び起きる） |
@@ -38,10 +38,10 @@
 | ファイル | 内容 |
 | --- | --- |
 | `goal_stand.glb` | スタンド本体 `GS_Stand`（段・青いベンチ・胸壁・ペナント・チーム旗・海中の柱とアーチ）と電光掲示板 `GS_Scoreboard`。ヘッダー看板・電球盤・鋼板の画像を埋め込み |
-| `goal_stand_spectator.glb` | 観客リグ（23ボーン）＋髪型7種のボディ＋手持ち小道具＋アニメーション52本 |
+| `goal_stand_spectator.glb` | 観客リグ（23ボーン）＋髪型7種のボディ＋手持ち小道具＋アニメーション61本 |
 | `goal_stand_props.glb` | 飛んでいく卵と殻の破片 |
 | `goal_stand_layout.json` | 段の高さ・立ち位置・通路（Blender空間。Godotでは (x, z, -y)） |
-| `goal_stand_clips.json` | クリップ長・ループ・卵を放す時刻（0.3秒）・ダンスの元の長さ（`source_seconds`）・ウェーブで立つ時刻（`rise`）・肩車の位置（`kid`）・応援の拍（`leader_beat`） |
+| `goal_stand_clips.json` | クリップ長・ループ・卵を放す時刻（0.3秒）・ダンスの元の長さ（`source_seconds`）・ウェーブで立つ時刻（`rise`）・肩車の位置（`kid`）・応援の拍（`leader_beat`）・席を立つ／座るときに腰が動く時刻（`rise`）・歩きの地面の速さ（`ground_speed`） |
 | `goal_stand_egg_contents.glb` | 生卵の中身の基準形（シェーダーが曲げて使う単位形）：白身 `GSE_White`（72本のスポークの放射状ディスク）、黄身 `GSE_Yolk`（UV球）、カラザ `GSE_Chalaza`（3本撚りの縄）、雫 `GSE_Drip`（旋盤）、糸 `GSE_Strand`（管）、筋 `GSE_Ribbon`（帯）。`source/build_egg_contents.py` をライブの Blender で実行して作る（`goal_stand_crowd.blend` の `GS_EggContents`）。glTF は V を反転するので、シェーダーは t = 1 − UV.y で読む |
 | `source/textures/sb_*.png` | 電光掲示板のヘッダー看板・鋼板（Higgsfield）と電球盤（手続き生成）。`prep_scoreboard_textures.py` で作成 |
 
@@ -54,6 +54,10 @@
 - 追加演出（`author_crowd_extras.py`）：`SPEC_Gasp` `SPEC_Doze` `SPEC_WakeUp`（一回だけ） `SPEC_Eat` `SPEC_HighFiveL/R`
   `SPEC_ShoulderL/R` `SPEC_Selfie` `SPEC_Binoculars` `SPEC_Megaphone` `SPEC_Drum` `SPEC_ChantClap` `SPEC_StandWave`
   `SPEC_TowelSpin` `SPEC_CarryKid` `SPEC_KidRide` `SPEC_KidSit` `SPEC_VendorWalk`（UAL `Walk_Loop` の脚） `SPEC_VendorCall`
+- 左右のスタンドの歩く客（`author_crowd_walks.py`、[docs/crowd_sim.md](../../docs/crowd_sim.md)）：UAL から `SPEC_Walk`（`Walk_Loop`）
+  `SPEC_Run`（`Jog_Fwd_Loop`）`SPEC_StandUp`（`Sitting_Exit`、一回だけ）`SPEC_SitDown`（`Sitting_Enter`、一回だけ）`SPEC_Buy`（`Interact`、一回だけ）、
+  IK で `SPEC_RaiseHand` `SPEC_PassItemL/R`（一回だけ）`SPEC_VendorHand`（一回だけ）。立つ・座るは骨盤の高さから腰の動く時刻（`rise`）を、
+  歩き・走りは踏んでいる足の速さ（`ground_speed`、0.92 / 1.61 m/s）を測って書き出す。
 - ゲームのエモート（Mixamo FBX）をリターゲット：`SPEC_Dance_YMCA` `Gangnam` `Silly` `HokeyPokey` `RunningMan`
   `WaveHipHop` `Swing` `StepHipHop` `SlideHipHop` `Moonwalk` `HipHop` `House` `HipHop2` `Thriller`（4部を連結）。
   FBX は 60fps なので元の 2 フレームを 1 フレームにして、実際の速さ・全長で作る（2026-10-14 までは半分の速さだった）。
@@ -66,7 +70,9 @@
 観客は1マテリアル（`shaders/goal_stand_spectator.gdshader`）。Blenderで各面の色の役割を UV.x
 （(役割+0.5)/16）に焼き、Godotでは肌・服・ズボン・髪・靴・チーム色・怒り度をインスタンスごとに渡す。
 プラカードの板だけは画像テクスチャのマテリアル。裏返し用の板（`GSP_SignBoo`）は GLB の「ブーー！」マテリアルを
-複製し、Godot 側で `goal_stand_spectator_sign_{oh,my,got}.png` に差し替える（`GoalStand.WORD_SIGNS`）。
+複製し、Godot 側で判定時に差し替える。負けた側は `goal_stand_spectator_sign_{oh,my,got}.png`（`GoalStand.WORD_SIGNS`、5人のうち中央3人。両端の2人は板と棒を隠し、看板を上げない）、
+勝った側は `goal_stand_spectator_sign_nice_{p1|p2,n,i,c,e}.png`（`GoalStand.NICE_TEAM_SIGNS` / `NICE_LETTER_SIGNS`、5人全員）。
+1チームの看板係は 5 人（`GoalStand.SIGN_ROW`）。
 
 ## 電光掲示板（Scoreboard）
 
@@ -174,6 +180,7 @@
 | 旧看板 `source/textures/banner.png`（電光掲示板に置き換えたため未使用） | seedream_5_0_flash | ゲームロゴ（icon.jpg）を参照画像に使用 |
 | プラカード P1「がんばれ！」/ P2「ファイト！」/「ブーー！」（「ブーー！」は GLB 内のみ、表示は下の OH/MY/GOT に置き換え） | seedream_5_0_flash | 単色背景で生成し `key_generated.py` で抜き |
 | プラカード「OH」「MY」「GOT」 | 手描き（`source/generated/sign_word_*_raw.png`） | `prep_word_signs.py` で看板比率（0.62:0.46）に整える |
+| プラカード「P1」「P2」「N」「I」「C」「E」（P1 NICE / P2 NICE） | 手描き（`source/generated/sign_nice_*_raw.png`、P1 は橙・P2 は青・文字は黒） | `prep_nice_signs.py` で同じ看板比率に整える |
 | 卵の飛び散り（3Dの黄身・白身に置き換えて削除） | z_image | マゼンタ背景から抜き |
 | 電光掲示板のヘッダー看板「AIQUIZ STADIUM」 | seedream_5_0_flash | ゲームロゴ（icon.jpg）を参照画像に使用。生成された看板枠（2.5:1）をそのまま使う |
 | 広告3枚（カモメ急便／ひらめきソーダ／マナブ文具） | seedream_5_0_flash | 広告帯をなくしたため未使用（元画像のみ `source/generated/` に残す） |
@@ -194,13 +201,18 @@ Higgsfield Blender コネクタ（Blender 5.1）で実行する。開いてい�
 - `author_crowd_extras.py` / `build_crowd_props.py` — 追加演出の動き 20 本と小道具 10 種
 - `preview_crowd_extras.py` — 動きを並べた確認用レンダー（`artifacts/crowd_extras/`）
 - `goal_stand_crowd.blend` — 観客の作業ファイル（`build_all.py` の観客部分を実行して保存したもの）
-- `bake_ual.py` — UAL クリップの焼き込みと卵を放す瞬間の計測
+- `bake_ual.py` — UAL クリップの焼き込みと卵を放す瞬間の計測（`{"BAKE": False}` で読むと焼かずに関数だけ使える）
+- `author_crowd_walks.py` — 左右のスタンドの歩く客の動き 9 本（UAL 5 本と IK 4 本、腰の `rise` と歩きの `ground_speed` を測る）。
+  `goal_stand_crowd.blend` を開いたライブの Blender で実行し、`export_goal_stand.py`（`EXPORT_ONLY = ["spectator"]`）で書き出す。
+  開いたのと同じ `bl_execute` の中で書き出すと、画面の情報が古いままで止まるので、呼び出しを分ける
 - `build_props.py` — 卵・卵パック・フォームフィンガー・旗・プラカード
 - `prep_word_signs.py` — 手描きの「OH」「MY」「GOT」を看板テクスチャに整える
+- `prep_nice_signs.py` — 手描きの「P1」「P2」「N」「I」「C」「E」を看板テクスチャに整える（`prep_word_signs.py` の寸法を使う。プロジェクトルートから実行）
 - `build_stand.py` — スタンド本体と `goal_stand_layout.json`
 - `build_scoreboard.py` — 電光掲示板 `GS_Scoreboard`（`goal_stand_layout.json` に画面位置 `scoreboard` を追記）
 - `prep_scoreboard_textures.py` — 掲示板のテクスチャ（ヘッダー看板の切り出し・鋼板のタイル化・電球盤の描画）を `textures/sb_*.png` に書き出す
-- `export_goal_stand.py` — GLB 3種と `goal_stand_clips.json`（`EXPORT_ONLY = ["spectator"]` で観客だけ）
+- `export_goal_stand.py` — GLB 3種と `goal_stand_clips.json`（`EXPORT_ONLY = ["spectator"]` で観客だけ）。パレット画像は `.blend` に保存されない
+  生成画像なので、観客を書き出す前に色を入れ直す（入れ直さないと開き直した `.blend` からは真っ黒で書き出される）
 - `preview.py` — 確認用レンダー（`artifacts/goal_stand/blender/`）
 - `key_generated.py` — 生成画像の背景抜き
 - `build_all.py` — 上の工程を順に実行

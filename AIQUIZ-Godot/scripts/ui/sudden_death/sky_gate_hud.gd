@@ -2,10 +2,11 @@ class_name SkyGateHud
 extends CanvasLayer
 
 ## サドンデス「つきやぶれ！スカイゲート」の HUD（docs/sudden_death_v2/sky_gate.md 3.1節、skygate_build_plan.md 4.5節）。
-## 上の真ん中に ROUND とゲートの数・残りの帯、左上と右上に 2 人の札（「15 の上」「セーフ！」「アウト」）、下に小さく動かし方のキー。
+## 削ぎ落とした形（2026-10-25、ユーザーの指示「無駄な UI を削ぎ落とす」）：上の真ん中に小さく ROUND とゲートの丸、下に小さく
+## 動かし方のキー（ROUND 1 の 1 枚目だけ。見せ方が決める）。2 人の札・残り時間の帯・小さな知らせは無い。
 ## 問題文は出さない（ボードの看板だけ）。図解ルールカード（3 枚の絵は、ゲーム内の 3D の実演 SkyGateRuleDemo を映す。
-## 見せ方が set_rule_textures で渡す）、ラウンドの大きな見出し（「ROUND 2」）、
-## 小さな知らせ（「ボードが動く！」「早い者勝ち！」）、勝者の札と勝者のダンスのキー。
+## 見せ方が set_rule_textures で渡す）、ラウンドの大きな見出し（「ROUND 2」）、勝者の札と勝者のダンスのキー、
+## 脱落のスローの間の画面のまわりの暗がり（"wasted"）。
 ## 見せ方（SkyGatePresenter）が毎フレーム set_state() で中身を渡し、出入りの動きはここの時計で付ける。
 ## 1280×720 を基準に、画面の大きさに合わせて縮める。カウントダウン・閃光は共通の SuddenDeathHud。マウスは受け取らない。
 
@@ -24,26 +25,32 @@ const PLAYER_COLORS: Array[Color] = [Color(0.95, 0.55, 0.20), Color(0.18, 0.59, 
 const IMAGE_RADIUS := 16.0
 const IMAGE_BORDER := 5.0
 const FADE_RATE := 6.0
-## 残りの帯が赤くなる（残り 3/8）。
-const WARN_RATIO := 0.375
+## 脱落のスローの間のまわりの暗がり（いっぱいのときの濃さ）。
+const WASTED_VIGNETTE := 0.85
 
+## スマホ（タッチ操作）では、キーの言葉だけを差し替える。
+const TEXT_TOUCH_JA := {
+	"enter": "タップでスタート", "move": "スティックで動く", "emote_keys": "ボタンでエモート",
+	"r1s": "P1 は左、P2 は右のスティック",
+}
+const TEXT_TOUCH_EN := {
+	"enter": "Tap to start", "move": "stick to move", "emote_keys": "buttons to dance",
+	"r1s": "P1: left stick, P2: right stick",
+}
+const TouchHud = preload("res://scripts/ui/touch_hud/touch_hud.gd")
 const TEXT_JA := {
-	"rules": "ルール", "enter": "Enter でスタート", "move": "で動く", "gate": "ゲート %d/%d", "overtime": "延長",
-	"one_by_one": "1枚ずつ %d秒", "on": "%s の上", "safe": "セーフ！", "boom": "ドカン！", "out": "アウト", "revive": "復活！",
-	"slow": "おそい…", "win": "勝ち！", "emote_keys": "キーでエモート",
+	"rules": "ルール", "enter": "Enter でスタート", "move": "で動く", "overtime": "延長", "emote_keys": "キーでエモート",
 	"r1": "動いて、正しい答えの\nパネルの上へ", "r1s": "P1 は WASD、P2 は 矢印",
-	"r2": "時間切れで、正解の\nパネルはつき破れる！", "r2s": "次のゲートへ",
+	"r2": "ボードに着いたら、正解の\nパネルはつき破れる！", "r2s": "4枚続けて次のボードへ",
 	"r3": "まちがいは破れない！\nはね返されてドカン", "r3s": "アウト。相手が残れば相手の勝ち",
-	"rule_bottom": "2人とも地上に着いたら、次のラウンド（だんだん速く・むずかしく）",
+	"rule_bottom": "4枚とも突破して2人とも地上に着いたら、次のラウンド（だんだん速く）",
 }
 const TEXT_EN := {
-	"rules": "RULES", "enter": "Enter to start", "move": "to move", "gate": "GATE %d/%d", "overtime": "OVERTIME",
-	"one_by_one": "ONE BY ONE %ds", "on": "ON %s", "safe": "SAFE!", "boom": "BOOM!", "out": "OUT", "revive": "BACK!",
-	"slow": "TOO SLOW…", "win": "WIN!", "emote_keys": "keys to dance",
+	"rules": "RULES", "enter": "Enter to start", "move": "to move", "overtime": "OVERTIME", "emote_keys": "keys to dance",
 	"r1": "Move over the panel\nwith the right answer", "r1s": "P1: WASD, P2: arrow keys",
-	"r2": "Time's up: the right\npanel breaks open!", "r2s": "on to the next gate",
+	"r2": "Reach the board: the right\npanel breaks open!", "r2s": "4 boards in a row",
 	"r3": "The wrong panel holds:\nbounce and BOOM!", "r3s": "you're out - if the other survives, they win",
-	"rule_bottom": "Both reach the ground: next round (faster and harder each time)",
+	"rule_bottom": "Break all 4 and both reach the ground: next round (faster each time)",
 }
 
 class Painter extends Control:
@@ -62,17 +69,16 @@ var _painter: Painter
 var _images: Array[Texture2D] = []
 var _clock := 0.0
 var _last_usec := 0
-var _alpha := {"round": 0.0, "players": 0.0, "keys": 0.0, "rules": 0.0, "banner": 0.0, "notice": 0.0, "emote": 0.0, "winner": 0.0}
+var _alpha := {"round": 0.0, "keys": 0.0, "rules": 0.0, "banner": 0.0, "emote": 0.0, "winner": 0.0}
 ## 消えていく間も描けるよう、最後に見えていた中身を覚えておく。
 var _last := {}
 var _rules_since := 0.0
 var _banner_since := 0.0
 var _banner_text := ""
-var _notice_since := 0.0
-var _notice_text := ""
-var _tag_since := [0.0, 0.0]
-var _tag_text := ["", ""]
 var _gate_since := 0.0
+## 脱落のまわりの暗がりの濃さ（0〜1。見せ方の "wasted" のとおり）と、その絵。
+var _wasted := 0.0
+var _vignette: GradientTexture2D = null
 var _gate_key := ""
 var _rects := {}
 
@@ -92,6 +98,7 @@ func _init() -> void:
 	_painter.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_painter.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	root.add_child(_painter)
+	_vignette = _make_vignette()
 
 
 ## 図解ルールカードの 3 枚の絵（見せ方の SkyGateRuleDemo の ViewportTexture。動く絵なので毎フレーム描き直される）。
@@ -101,15 +108,14 @@ func set_rule_textures(textures: Array[Texture2D]) -> void:
 
 ## 中身：
 ##   "rules": bool, "rules_prompt": bool（Enter を受け付ける）
-##   "round": {"visible", "round", "gate"（0 から）, "gates", "timer"（0〜1）, "overtime", "gate_time", "done": [P1 の枚数, P2]}
-##   "players": {"visible", "tags": [{"text", "tone"（"player" / "good" / "bad"）}, …]}
+##   "round": {"visible", "round", "gate"（0 から）, "gates", "overtime"}
 ##   "keys": bool（動かし方のキー）
-##   "banner": {"text", "sub", "color"}（大きな見出し）・"notice": {"text", "color"}（小さな知らせ）
+##   "banner": {"text", "sub", "color"}（大きな見出し）
 ##   "winner": 1 / 2・"emote": {"visible", "player", "names", "playing", "seconds"}
+##   "wasted": 0〜1（脱落のスローの間のまわりの暗がり）
 func set_state(next: Dictionary) -> void:
-	for key: String in ["round", "players"]:
-		if bool((next.get(key, {}) as Dictionary).get("visible", false)):
-			_last[key] = next[key]
+	if bool((next.get("round", {}) as Dictionary).get("visible", false)):
+		_last["round"] = next["round"]
 	if int(next.get("winner", 0)) > 0:
 		_last["winner"] = int(next.winner)
 	if bool(next.get("rules", false)) and not bool(state.get("rules", false)):
@@ -120,29 +126,19 @@ func set_state(next: Dictionary) -> void:
 			_banner_text = str(banner.get("text", ""))
 			_banner_since = _clock
 		_last["banner"] = banner
-	var notice: Dictionary = next.get("notice", {})
-	if not notice.is_empty():
-		if str(notice.get("text", "")) != _notice_text:
-			_notice_text = str(notice.get("text", ""))
-			_notice_since = _clock
-		_last["notice"] = notice
 	var round_state: Dictionary = next.get("round", {})
 	if bool(round_state.get("visible", false)):
 		var key := "%d|%d|%s" % [int(round_state.get("round", 0)), int(round_state.get("gate", 0)), str(round_state.get("overtime", false))]
 		if key != _gate_key:
 			_gate_key = key
 			_gate_since = _clock
-	var tags: Array = (next.get("players", {}) as Dictionary).get("tags", [])
-	for side: int in [0, 1]:
-		var text := str((tags[side] as Dictionary).get("text", "")) if side < tags.size() else ""
-		if text != str(_tag_text[side]):
-			_tag_text[side] = text
-			_tag_since[side] = _clock
+	_wasted = clampf(float(next.get("wasted", 0.0)), 0.0, 1.0)
 	state = next
 
 
 func hide_all() -> void:
 	state = {}
+	_wasted = 0.0
 
 
 func debug_step(seconds: float) -> void:
@@ -153,8 +149,8 @@ func get_debug_snapshot() -> Dictionary:
 	var alphas := {}
 	for key: String in _alpha:
 		alphas[key] = snappedf(float(_alpha[key]), 0.01)
-	return {"alpha": alphas, "rects": _rects.duplicate(), "state_keys": state.keys(), "banner": _banner_text, "notice": _notice_text,
-		"tags": _tag_text.duplicate()}
+	return {"alpha": alphas, "rects": _rects.duplicate(), "state_keys": state.keys(), "banner": _banner_text,
+		"wasted": snappedf(_wasted, 0.01)}
 
 
 func _process(_delta: float) -> void:
@@ -171,11 +167,9 @@ func _advance(dt: float) -> void:
 	_clock += dt
 	var targets := {
 		"round": bool((state.get("round", {}) as Dictionary).get("visible", false)),
-		"players": bool((state.get("players", {}) as Dictionary).get("visible", false)),
 		"keys": bool(state.get("keys", false)),
 		"rules": bool(state.get("rules", false)),
 		"banner": not (state.get("banner", {}) as Dictionary).is_empty(),
-		"notice": not (state.get("notice", {}) as Dictionary).is_empty(),
 		"emote": bool((state.get("emote", {}) as Dictionary).get("visible", false)),
 		"winner": int(state.get("winner", 0)) > 0,
 	}
@@ -185,6 +179,10 @@ func _advance(dt: float) -> void:
 
 
 func _t(key: String) -> String:
+	if TouchHud.is_touch():
+		var touch_table: Dictionary = TEXT_TOUCH_EN if english else TEXT_TOUCH_JA
+		if touch_table.has(key):
+			return str(touch_table[key])
 	return str((TEXT_EN if english else TEXT_JA).get(key, key))
 
 
@@ -201,16 +199,14 @@ func _paint(ci: Control) -> void:
 	var f := _frame(ci)
 	var s: float = f[0]
 	var o: Vector2 = f[1]
+	if _wasted > 0.001:
+		_paint_wasted(ci)
 	ci.draw_set_transform(o, 0.0, Vector2(s, s))
 	_rects.clear()
 	if _alpha.keys > 0.001:
 		_paint_keys(ci, float(_alpha.keys))
 	if _alpha.round > 0.001:
 		_paint_round(ci, float(_alpha.round))
-	if _alpha.players > 0.001:
-		_paint_players(ci, float(_alpha.players))
-	if _alpha.notice > 0.001:
-		_paint_notice(ci, float(_alpha.notice))
 	if _alpha.banner > 0.001:
 		_paint_banner(ci, float(_alpha.banner))
 	if _alpha.emote > 0.001:
@@ -281,7 +277,7 @@ func _paint_pill(ci: Control, center: Vector2, text: String, color: Color, size:
 	return rect
 
 
-## 上の真ん中：ROUND とゲートの数（4 つの印）・残りの帯。ROUND 5 のあとは「延長」と「1枚ずつ n 秒」。
+## 上の真ん中に小さく：ROUND とゲートの丸（通った・今・まだ）。ROUND 5 のあとは「延長」だけ。
 func _paint_round(ci: Control, alpha: float) -> void:
 	var data: Dictionary = state.get("round", {})
 	if not bool(data.get("visible", false)):
@@ -290,80 +286,35 @@ func _paint_round(ci: Control, alpha: float) -> void:
 	var gates := maxi(int(data.get("gates", 4)), 1)
 	var gate := int(data.get("gate", 0))
 	var slide := (1.0 - _ease_out(alpha)) * -30.0
-	var rect := Rect2(440.0, 14.0 + slide, 400.0, 74.0)
-	_shadow(ci, rect, alpha, 18.0)
-	_box(ci, rect, Color(DARK, DARK.a * alpha), 18.0)
-	var badge := Rect2(rect.position + Vector2(10, 10), Vector2(118, 38))
-	_box(ci, badge, Color(BAD if overtime else Color(1, 1, 1), alpha), 12.0)
 	var badge_text := _t("overtime") if overtime else "ROUND %d" % int(data.get("round", 1))
+	var dots_w := 0.0 if overtime else 12.0 + float(gates) * 26.0
+	var w := 132.0 + dots_w
+	var rect := Rect2(640.0 - w * 0.5, 14.0 + slide, w, 50.0)
+	_shadow(ci, rect, alpha, 16.0)
+	_box(ci, rect, Color(DARK, DARK.a * alpha), 16.0)
+	var badge := Rect2(rect.position + Vector2(8, 7), Vector2(116, 36))
+	_box(ci, badge, Color(BAD if overtime else Color(1, 1, 1), alpha), 12.0)
 	_text(ci, badge.get_center(), badge_text, 20, Color(1, 1, 1, alpha) if overtime else Color(INK, alpha), badge.size.x - 12.0)
-	var info_x := badge.end.x + 14.0
-	if overtime:
-		_text_left(ci, Vector2(info_x, badge.get_center().y), _t("one_by_one") % int(round(float(data.get("gate_time", 3.0)))), 19,
-			Color(1, 1, 1, alpha), rect.end.x - info_x - 12.0)
-	else:
-		_text_left(ci, Vector2(info_x, badge.get_center().y), _t("gate") % [mini(gate + 1, gates), gates], 19, Color(1, 1, 1, alpha))
-		# ゲートの印：通った（白）・今（明るく脈打つ）・まだ（うすい）
+	if not overtime:
+		# ゲートの丸：通った（白）・今（明るく脈打つ）・まだ（うすい）
 		var pop := _ease_out((_clock - _gate_since) / 0.3)
 		for i in range(gates):
-			var c := Vector2(rect.end.x - 26.0 - float(gates - 1 - i) * 30.0, badge.get_center().y)
+			var c := Vector2(badge.end.x + 22.0 + float(i) * 26.0, badge.get_center().y)
 			if i < gate:
-				ci.draw_circle(c, 9.0, Color(1, 1, 1, 0.95 * alpha))
+				ci.draw_circle(c, 8.0, Color(1, 1, 1, 0.95 * alpha))
 			elif i == gate:
-				ci.draw_circle(c, 9.0 + 3.0 * (1.0 - pop), Color(AMBER, alpha))
+				ci.draw_circle(c, 8.0 + 3.0 * (1.0 - pop), Color(AMBER, alpha))
 			else:
-				ci.draw_arc(c, 8.0, 0.0, TAU, 20, Color(1, 1, 1, 0.45 * alpha), 2.0, true)
-	var timer := clampf(float(data.get("timer", 0.0)), 0.0, 1.0)
-	var bar := Rect2(rect.position + Vector2(12, 56), Vector2(rect.size.x - 24.0, 8.0))
-	_box(ci, bar, Color(1, 1, 1, 0.18 * alpha), 4.0)
-	if timer > 0.0:
-		var warn := timer < WARN_RATIO
-		var color := BAD if warn else AMBER
-		if warn:
-			color = color.lerp(Color(1, 1, 1), 0.25 * (0.5 + 0.5 * sin(_clock * 18.0)))
-		_box(ci, Rect2(bar.position, Vector2(bar.size.x * timer, bar.size.y)), Color(color, alpha), 4.0)
+				ci.draw_arc(c, 7.0, 0.0, TAU, 20, Color(1, 1, 1, 0.45 * alpha), 2.0, true)
 	_rects["round"] = rect
-
-
-## 左上（P1）と右上（P2）の札：P の札と今の状態（「15 の上」「セーフ！」「ドカン！」「アウト」）。
-func _paint_players(ci: Control, alpha: float) -> void:
-	var data: Dictionary = state.get("players", {})
-	if not bool(data.get("visible", false)):
-		data = _last.get("players", {})
-	var tags: Array = data.get("tags", [])
-	for side: int in [0, 1]:
-		var tag: Dictionary = tags[side] if side < tags.size() else {}
-		var text := str(tag.get("text", ""))
-		var tone := str(tag.get("tone", "player"))
-		var color: Color = PLAYER_COLORS[side]
-		if tone == "good":
-			color = GOOD
-		elif tone == "bad":
-			color = BAD
-		elif tone == "dim":
-			color = Color(0.45, 0.48, 0.55)
-		var w := 300.0
-		var x := 18.0 if side == 0 else REFERENCE.x - 18.0 - w
-		var rect := Rect2(x, 16.0, w, 58.0)
-		_shadow(ci, rect, alpha, 18.0)
-		_box(ci, rect, Color(DARK, DARK.a * alpha), 18.0)
-		var chip := Rect2(rect.position + Vector2(8, 8), Vector2(56, 42))
-		_box(ci, chip, Color(PLAYER_COLORS[side], alpha), 12.0)
-		_text(ci, chip.get_center(), "P%d" % (side + 1), 22, Color(1, 1, 1, alpha))
-		if text != "":
-			# 中身が変わったら小さく跳ねる
-			var pop := _back_out((_clock - float(_tag_since[side])) / 0.28)
-			var tw := minf(FONT.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 22).x + 30.0, w - 84.0)
-			var tr := Rect2(chip.end.x + 10.0, rect.position.y + 10.0, tw, 38.0)
-			tr = Rect2(tr.get_center() - tr.size * 0.5 * pop, tr.size * pop)
-			_box(ci, tr, Color(color, 0.95 * alpha), 19.0)
-			_text(ci, tr.get_center(), text, 22, Color(1, 1, 1, alpha), tr.size.x - 18.0)
-		_rects["player_%d" % (side + 1)] = rect
 
 
 ## 下の真ん中に小さく：P1 W A S D、P2 ↑ ← ↓ → で動く。
 func _paint_keys(ci: Control, alpha: float) -> void:
 	var key_sets := [["W", "A", "S", "D"], ["↑", "←", "↓", "→"]]
+	if TouchHud.is_touch():
+		# スマホ：キーの代わりにスティックの向き。
+		key_sets = [["▲", "◀", "▼", "▶"], ["▲", "◀", "▼", "▶"]]
 	var chip_w := 40.0
 	var key_w := 28.0
 	var gap := 4.0
@@ -413,20 +364,6 @@ func _paint_banner(ci: Control, alpha: float) -> void:
 		var sub_rect := _paint_pill(ci, Vector2(640.0, rect.end.y + 26.0), sub, INK, 18, alpha * clampf((t - 0.15) / 0.2, 0.0, 1.0))
 		_rects["banner_sub"] = sub_rect
 	_rects["banner"] = rect
-
-
-## 小さな知らせ（「ボードが動く！」「早い者勝ち！」）。ROUND の札の下。
-func _paint_notice(ci: Control, alpha: float) -> void:
-	var data: Dictionary = state.get("notice", {})
-	if data.is_empty():
-		data = _last.get("notice", {})
-	var text := str(data.get("text", ""))
-	if text == "":
-		return
-	var pop := _back_out((_clock - _notice_since) / 0.3)
-	var color: Color = data.get("color", AMBER)
-	var rect := _paint_pill(ci, Vector2(640.0, 114.0 + (1.0 - pop) * -10.0), text, color, 20, alpha)
-	_rects["notice"] = rect
 
 
 func _paint_rules(ci: Control, alpha: float) -> void:
@@ -496,7 +433,7 @@ func _paint_emote(ci: Control, alpha: float) -> void:
 	var data: Dictionary = state.get("emote", {})
 	var player := clampi(int(data.get("player", 1)), 1, 2)
 	var playing := int(data.get("playing", -1))
-	var keys := ["1", "2", "3"] if player == 1 else ["8", "9", "0"]
+	var keys := ["1", "2", "3"] if player == 1 or TouchHud.is_touch() else ["8", "9", "0"]
 	var color := PLAYER_COLORS[player - 1]
 	var label := _t("emote_keys")
 	var size := 18
@@ -514,3 +451,26 @@ func _paint_emote(ci: Control, alpha: float) -> void:
 		x += chip + gap
 	_text_left(ci, Vector2(x + 4.0, rect.position.y + 20.0), label, size, Color(1, 1, 1, alpha))
 	_rects["emote"] = rect
+
+
+## 脱落のスローの間：画面のまわりを暗くする（色抜けは見せ方が本戦の環境で掛ける）。画面いっぱいに、縮めずに描く。
+func _paint_wasted(ci: Control) -> void:
+	if _vignette == null:
+		return
+	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	ci.draw_texture_rect(_vignette, Rect2(Vector2.ZERO, ci.size), false, Color(1, 1, 1, WASTED_VIGNETTE * _wasted))
+
+
+## 放射状の暗がりの絵（真ん中は透明、角は黒）。
+static func _make_vignette() -> GradientTexture2D:
+	var gradient := Gradient.new()
+	gradient.offsets = PackedFloat32Array([0.0, 0.35, 0.7, 1.0])
+	gradient.colors = PackedColorArray([Color(0, 0, 0, 0), Color(0, 0, 0, 0.12), Color(0, 0, 0, 0.65), Color(0, 0, 0, 1)])
+	var texture := GradientTexture2D.new()
+	texture.gradient = gradient
+	texture.fill = GradientTexture2D.FILL_RADIAL
+	texture.fill_from = Vector2(0.5, 0.5)
+	texture.fill_to = Vector2(1.08, 1.08)
+	texture.width = 256
+	texture.height = 144
+	return texture

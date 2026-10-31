@@ -75,9 +75,8 @@ static func lecture(visit: int) -> Dictionary:
 func _load_bank() -> void:
 	if not _bank.is_empty() or not FileAccess.file_exists(BANK_PATH):
 		return
-	var data: Variant = JSON.parse_string(FileAccess.get_file_as_string(BANK_PATH))
-	if data is Dictionary:
-		_bank = data
+	# 本編のプロバイダと同じ解析済みのバンクを使う（5 MB の JSON をもう一度読まない）。読むだけ。
+	_bank = QuizProvider.shared_bank(BANK_PATH)
 
 
 ## 教科の授業の周（3 周、問題は毎周ちがう）。

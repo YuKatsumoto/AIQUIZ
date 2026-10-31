@@ -106,6 +106,8 @@ var _strobe_material: StandardMaterial3D = null
 var _anisotropic := true
 var livery_slot := 1
 var _number_materials: Array[BaseMaterial3D] = []
+## 練習の案内のハテナが手で開け閉めしているドア（"L"/"R" → 0〜1）。ある間は set_door の値より優先する
+var practice_doors := {}
 
 
 static func load_layout() -> Dictionary:
@@ -237,11 +239,13 @@ func apply_quality(quality: String) -> void:
 
 
 ## side："L" / "R"、openness：0（閉じる）〜1（開く）。開き方はだんだん遅く（呼ぶ側で時間の割合を渡す）。
+## practice_doors にある側は、そちらの開き具合を使う（練習の案内のハテナが手で開け閉めしている間。オンラインの演出は待機中も
+## 毎フレーム左のドアを閉じるので、それより優先する。PracticeSeatMoves）。
 func set_door(side: String, openness: float) -> void:
 	if not _doors.has(side):
 		return
 	var door: Dictionary = _doors[side]
-	var t := clampf(openness, 0.0, 1.0)
+	var t := clampf(float(practice_doors.get(side, openness)), 0.0, 1.0)
 	_door_open[side] = t
 	(door.node as Node3D).basis = (door.rest as Basis) * Basis(Vector3(0, 0, 1), deg_to_rad(float(door.open_deg)) * t)
 	if sound != null:

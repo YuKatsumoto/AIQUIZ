@@ -16,12 +16,16 @@ signal view_toggled(practice: bool)
 signal sfx_tested
 
 const MenuMetalButtonScript := preload("res://scripts/ui/menu_metal_button.gd")
+const MobileUi = preload("res://scripts/core/mobile_ui.gd")
+const MobileMenu = preload("res://scripts/ui/mobile/mobile_menu.gd")
 const FONT_BOLD: Font = preload("res://resources/fonts/NotoSansJP-Bold.otf")
 const FONT_MEDIUM: Font = preload("res://resources/fonts/NotoSansJP-Medium.otf")
 
 const PANEL_LEFT := 48.0
 const PANEL_TOP := 28.0
 const PANEL_WIDTH := 460.0
+## スマホ：カードを左右 2 列に並べる（指の大きさの行でも 720 の高さに収める）。列のあいだ。
+const TOUCH_COLUMN_GAP := 16.0
 ## 入場・退場（main_menu._play_entrance と同じ値）。
 const SLIDE_OFFSET := 56.0
 const FADE_DURATION := 0.32
@@ -70,15 +74,14 @@ var _clock := 0.0
 var _subtitle: Label = null
 var _view_btn: Button = null
 var _practice_view := false
+var _haptics_option: OptionButton = null
+var _touch_scale_option: OptionButton = null
 
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_PASS
 	set_anchors_preset(Control.PRESET_LEFT_WIDE)
-	offset_left = PANEL_LEFT
-	offset_right = PANEL_LEFT + PANEL_WIDTH
-	offset_top = PANEL_TOP
-	offset_bottom = -PANEL_TOP
+	_apply_panel_offsets()
 	_column = VBoxContainer.new()
 	_column.name = "Column"
 	_column.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -90,6 +93,10 @@ func _ready() -> void:
 	_build_display_card()
 	_build_buttons()
 	_build_hint()
+	if MobileUi.is_touch_ui():
+		_arrange_touch_columns()
+		MobileMenu.grow_touch_targets(_column, true)
+		MobileMenu.connect_safe_area(_apply_panel_offsets)
 	_poll_timer = Timer.new()
 	_poll_timer.name = "ApiPoll"
 	_poll_timer.wait_time = API_POLL_INTERVAL
@@ -104,6 +111,48 @@ func _ready() -> void:
 func _exit_tree() -> void:
 	if ApiStatusAutoload != null and ApiStatusAutoload.check_completed.is_connected(refresh_api_status):
 		ApiStatusAutoload.check_completed.disconnect(refresh_api_status)
+	MobileMenu.disconnect_safe_area(_apply_panel_offsets)
+
+
+## 左の列の位置。スマホはパンチホールと角丸の内側（SafeArea）へずらし、2 列ぶんの幅にする。
+func _apply_panel_offsets() -> void:
+	var width := PANEL_WIDTH
+	if MobileUi.is_touch_ui():
+		width = PANEL_WIDTH * 2.0 + TOUCH_COLUMN_GAP
+	offset_left = PANEL_LEFT + MobileMenu.safe_inset(&"left")
+	offset_right = offset_left + width
+	offset_top = PANEL_TOP + MobileMenu.safe_inset(&"top")
+	offset_bottom = -PANEL_TOP - MobileMenu.safe_inset(&"bottom")
+
+
+## スマホ：タイトル・API・音量を左、画面（と操作）・ボタン・案内を右に並べる。
+## 入場の動き（_visible_items）は 2 列をまとめた 1 つの塊として動く。
+func _arrange_touch_columns() -> void:
+	var columns := HBoxContainer.new()
+	columns.name = "TouchColumns"
+	columns.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	columns.add_theme_constant_override("separation", int(TOUCH_COLUMN_GAP))
+	var left := VBoxContainer.new()
+	left.name = "Left"
+	var right := VBoxContainer.new()
+	right.name = "Right"
+	for side: VBoxContainer in [left, right]:
+		side.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		side.add_theme_constant_override("separation", 8)
+		columns.add_child(side)
+	for item_name: String in ["TitleBlock", "ApiCard", "AudioCard"]:
+		_reparent_item(item_name, left)
+	for item_name: String in ["DisplayCard", "ButtonRow", "Hint"]:
+		_reparent_item(item_name, right)
+	_column.add_child(columns)
+
+
+func _reparent_item(item_name: String, target: VBoxContainer) -> void:
+	var item := _column.get_node_or_null(item_name)
+	if item == null:
+		return
+	_column.remove_child(item)
+	target.add_child(item)
 
 
 # ------------------------------------------------------------------ build
@@ -136,7 +185,7 @@ func _build_title() -> void:
 	subtitle.text = SUBTITLE_LECTURE
 	_subtitle = subtitle
 	subtitle.add_theme_font_override("font", FONT_MEDIUM)
-	subtitle.add_theme_font_size_override("font_size", 15)
+	subtitle.add_theme_font_size_override("font_size", MobileUi.font(15))
 	subtitle.add_theme_color_override("font_color", BODY)
 	subtitle.add_theme_color_override("font_outline_color", Color(0.02, 0.05, 0.12, 0.85))
 	subtitle.add_theme_constant_override("outline_size", 5)
@@ -158,7 +207,7 @@ func _build_api_card() -> void:
 	_offline_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_offline_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_offline_label.add_theme_font_override("font", FONT_MEDIUM)
-	_offline_label.add_theme_font_size_override("font_size", 15)
+	_offline_label.add_theme_font_size_override("font_size", MobileUi.font(15))
 	_offline_label.add_theme_color_override("font_color", MUTED)
 	button_row.add_child(_offline_label)
 	_recheck_btn = _metal_button("RecheckBtn", "再チェック", false)
@@ -183,7 +232,7 @@ func _api_row(rows: VBoxContainer, key: String, node_name: String, title: String
 	name_label.text = title
 	name_label.custom_minimum_size = Vector2(124.0, 0.0)
 	name_label.add_theme_font_override("font", FONT_MEDIUM)
-	name_label.add_theme_font_size_override("font_size", 17)
+	name_label.add_theme_font_size_override("font_size", MobileUi.font(17))
 	name_label.add_theme_color_override("font_color", BODY)
 	row.add_child(name_label)
 	var msg := Label.new()
@@ -192,7 +241,7 @@ func _api_row(rows: VBoxContainer, key: String, node_name: String, title: String
 	msg.clip_text = true
 	msg.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	msg.add_theme_font_override("font", FONT_MEDIUM)
-	msg.add_theme_font_size_override("font_size", 16)
+	msg.add_theme_font_size_override("font_size", MobileUi.font(16))
 	msg.add_theme_color_override("font_color", MUTED)
 	row.add_child(msg)
 	_api_rows[key] = {"dot": dot, "msg": msg}
@@ -222,7 +271,7 @@ func _slider_row(rows: VBoxContainer, row_name: String, slider_name: String, tit
 	label.text = title
 	label.custom_minimum_size = Vector2(100.0, 0.0)
 	label.add_theme_font_override("font", FONT_MEDIUM)
-	label.add_theme_font_size_override("font_size", 17)
+	label.add_theme_font_size_override("font_size", MobileUi.font(17))
 	label.add_theme_color_override("font_color", BODY)
 	row.add_child(label)
 	var slider := HSlider.new()
@@ -240,7 +289,7 @@ func _slider_row(rows: VBoxContainer, row_name: String, slider_name: String, tit
 	pct.custom_minimum_size = Vector2(48.0, 0.0)
 	pct.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	pct.add_theme_font_override("font", FONT_MEDIUM)
-	pct.add_theme_font_size_override("font_size", 15)
+	pct.add_theme_font_size_override("font_size", MobileUi.font(15))
 	pct.add_theme_color_override("font_color", MUTED)
 	pct.text = _percent(value)
 	row.add_child(pct)
@@ -271,19 +320,24 @@ func _build_display_card() -> void:
 		else:
 			_res_option.select(0)
 	_res_option.item_selected.connect(_on_resolution_selected)
+	# スマホではウィンドウの大きさを変えられないので出さない（tests が行を探すので消さずに隠す）
+	res_row.visible = not MobileUi.is_touch_ui()
 	# FPS上限（項目 ID = Engine.max_fps の値。0 = 制限なし）
 	var fps_row := _option_row("MaxFpsBox", "FPS上限", "MaxFpsOption")
 	_max_fps_option = fps_row.get_node("MaxFpsOption") as OptionButton
-	for fps: int in GameManager.MAX_FPS_CHOICES:
+	for fps: int in MobileMenu.max_fps_choices():
 		_max_fps_option.add_item("制限なし" if fps == 0 else "%d FPS" % fps, fps)
-	_max_fps_option.select(_max_fps_option.get_item_index(GameManager.max_fps))
+	MobileMenu.select_fps_item(_max_fps_option, GameManager.max_fps)
 	_max_fps_option.item_selected.connect(_on_max_fps_selected)
 	# 画質（軽量 / 標準 / 高画質 / 最高画質。項目番号 = GraphicsQuality.rank）
 	var quality_row := _option_row("GraphicsQualityBox", "画質", "GraphicsQualityOption")
 	_quality_option = quality_row.get_node("GraphicsQualityOption") as OptionButton
+	# スマホの最高画質は高画質と同じ扱いになるので出さない（最後の項目なので番号はずれない）
 	for index: int in range(GraphicsQuality.VALID_QUALITIES.size()):
+		if MobileMenu.hide_ultra_quality() and GraphicsQuality.VALID_QUALITIES[index] == GraphicsQuality.ULTRA:
+			continue
 		_quality_option.add_item(GraphicsQuality.display_name(GraphicsQuality.VALID_QUALITIES[index]), index)
-	_quality_option.select(GraphicsQuality.rank(GameManager.graphics_quality))
+	_quality_option.select(mini(GraphicsQuality.rank(GameManager.graphics_quality), _quality_option.item_count - 1))
 	_quality_option.item_selected.connect(_on_quality_selected)
 	# サドンデス（廃止中は出さない。画質の行のすぐ下、同じ見た目）
 	if QuizGameState.sudden_death_available:
@@ -302,6 +356,14 @@ func _build_display_card() -> void:
 	_online_staging_option.select(_online_staging_option.get_item_index(
 		ONLINE_STAGING_SHORT if GameManager.online_staging_short else ONLINE_STAGING_NORMAL))
 	_online_staging_option.item_selected.connect(_on_online_staging_selected)
+	if MobileUi.is_touch_ui():
+		# スマホだけの「操作」：しんどう（バイブ）とタッチのボタンの大きさ
+		var haptics_row := _option_row("HapticsBox", "しんどう（バイブ）", "HapticsOption")
+		_haptics_option = haptics_row.get_node("HapticsOption") as OptionButton
+		MobileMenu.setup_haptics_option(_haptics_option)
+		var scale_row := _option_row("TouchScaleBox", "ボタンの大きさ", "TouchScaleOption")
+		_touch_scale_option = scale_row.get_node("TouchScaleOption") as OptionButton
+		MobileMenu.setup_touch_scale_option(_touch_scale_option)
 
 
 func _option_row(row_name: String, title: String, option_name: String) -> HBoxContainer:
@@ -314,14 +376,14 @@ func _option_row(row_name: String, title: String, option_name: String) -> HBoxCo
 	label.text = title
 	label.custom_minimum_size = Vector2(120.0, 0.0)
 	label.add_theme_font_override("font", FONT_MEDIUM)
-	label.add_theme_font_size_override("font_size", 18)
+	label.add_theme_font_size_override("font_size", MobileUi.font(18))
 	label.add_theme_color_override("font_color", BODY)
 	row.add_child(label)
 	var option := OptionButton.new()
 	option.name = option_name
 	option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	option.add_theme_font_override("font", FONT_MEDIUM)
-	option.add_theme_font_size_override("font_size", 18)
+	option.add_theme_font_size_override("font_size", MobileUi.font(18))
 	_style_plain_button(option)
 	row.add_child(option)
 	return row
@@ -334,6 +396,8 @@ func _build_buttons() -> void:
 	_column.add_child(row)
 	var dashboard := _metal_button("DashboardBtn", "ダッシュボードを開く", false)
 	dashboard.pressed.connect(_on_dashboard_pressed)
+	# 開発 PC の localhost のダッシュボードなので、スマホでは出さない
+	dashboard.visible = not MobileUi.is_touch_ui()
 	row.add_child(dashboard)
 	var back := _metal_button("BackBtn", "メニューへ戻る", true)
 	back.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -344,9 +408,9 @@ func _build_buttons() -> void:
 func _build_hint() -> void:
 	var hint := Label.new()
 	hint.name = "Hint"
-	hint.text = "Esc で戻る"
+	hint.text = MobileUi.prompt("Esc で戻る", "もどる操作（画面のはしからスワイプ）でも戻れます")
 	hint.add_theme_font_override("font", FONT_MEDIUM)
-	hint.add_theme_font_size_override("font_size", 13)
+	hint.add_theme_font_size_override("font_size", MobileUi.font(13))
 	hint.add_theme_color_override("font_color", MUTED)
 	_column.add_child(hint)
 
@@ -377,7 +441,7 @@ func _header(rows: VBoxContainer, text: String) -> void:
 	header.name = "Header"
 	header.text = text
 	header.add_theme_font_override("font", FONT_BOLD)
-	header.add_theme_font_size_override("font_size", 15)
+	header.add_theme_font_size_override("font_size", MobileUi.font(15))
 	header.add_theme_color_override("font_color", MUTED)
 	rows.add_child(header)
 
@@ -386,9 +450,11 @@ func _metal_button(node_name: String, text: String, featured: bool) -> Button:
 	var button := MenuMetalButtonScript.new() as Button
 	button.name = node_name
 	button.text = text
-	button.set("compact", true)
+	# スマホでは上下の余白の小さい compact をやめ、指で押せる高さにする
+	button.set("compact", not MobileUi.is_touch_ui())
 	button.set("featured", featured)
-	button.add_theme_font_size_override("font_size", 16)
+	button.add_theme_font_size_override("font_size", MobileUi.font(16))
+	MobileUi.ensure_touch_size(button)
 	return button
 
 

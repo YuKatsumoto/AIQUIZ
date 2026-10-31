@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://cuiv61221gue8"
 path.s3tc="res://.godot/imported/ghost_shark_air_mount_ghost_shark_air_mount_metallic-ghost_shark_air_mount_roughness.png-4db8afef6398f9fb67eccc7f195079be.s3tc.ctex"
+path.etc2="res://.godot/imported/ghost_shark_air_mount_ghost_shark_air_mount_metallic-ghost_shark_air_mount_roughness.png-4db8afef6398f9fb67eccc7f195079be.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://TripoModels/ghost_shark_air_mount/ghost_shark_air_mount_ghost_shark_air_mount_metallic-ghost_shark_air_mount_roughness.png"
-dest_files=["res://.godot/imported/ghost_shark_air_mount_ghost_shark_air_mount_metallic-ghost_shark_air_mount_roughness.png-4db8afef6398f9fb67eccc7f195079be.s3tc.ctex"]
+dest_files=["res://.godot/imported/ghost_shark_air_mount_ghost_shark_air_mount_metallic-ghost_shark_air_mount_roughness.png-4db8afef6398f9fb67eccc7f195079be.s3tc.ctex", "res://.godot/imported/ghost_shark_air_mount_ghost_shark_air_mount_metallic-ghost_shark_air_mount_roughness.png-4db8afef6398f9fb67eccc7f195079be.etc2.ctex"]
 
 [params]
 

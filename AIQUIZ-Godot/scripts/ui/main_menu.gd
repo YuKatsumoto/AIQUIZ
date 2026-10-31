@@ -1,7 +1,11 @@
 extends Control
 
 const TutorialCourseSelectorScript := preload("res://scripts/ui/tutorial_course_selector.gd")
+const TutorialKeyboardIntroScript := preload("res://scripts/ui/tutorial_keyboard_intro.gd")
 const MenuMetalButtonScript := preload("res://scripts/ui/menu_metal_button.gd")
+const TutorialCompletionCardScript := preload("res://scripts/ui/tutorial_completion_card.gd")
+const MobileUi = preload("res://scripts/core/mobile_ui.gd")
+const MobileMenu = preload("res://scripts/ui/mobile/mobile_menu.gd")
 
 ## メインメニュー画面 (STAGE A: 最低限のUI)
 ## Python版 hud.py のメニュー部分に相当
@@ -51,6 +55,9 @@ const SUDDEN_DEATH_OFF := 1
 ## 設定パネルの幅・行ラベルの幅・文字の大きさ（全部の行でそろえる）
 const SETTINGS_PANEL_WIDTH := 760.0
 const SETTINGS_LABEL_WIDTH := 300.0
+## スマホの設定パネル（左右 2 列）の幅と、行の見出しの幅。
+const TOUCH_SETTINGS_PANEL_WIDTH := 1160.0
+const TOUCH_SETTINGS_LABEL_WIDTH := 210.0
 const SETTINGS_FONT_SIZE := 18
 const SETTINGS_SECTION_COLOR := Color(1.0, 0.88, 0.25)
 const SETTINGS_MUTED_COLOR := Color(0.62, 0.68, 0.78)
@@ -61,8 +68,19 @@ const API_DOT_CHECKING := Color(1.0, 0.85, 0.3)
 var game_state: QuizGameState
 var _tutorial_row: HBoxContainer = null
 var _tutorial_main_btn: Button = null
+## 練習（新チュートリアル。scripts/practice/）のコース選択と初回の案内。いまのメニューからは開かない（チュートリアルは旧版の
+## コース選択。新版から使うのは、実践コースのあとのカスタマイズ紹介 _practice_customize_guide だけ）
+var _practice_select: PracticeCourseSelect = null
+var _practice_intro: PracticeIntroPrompt = null
 var _online_btn: Button = null
 var _tutorial_selector: Control = null
+var _tutorial_keyboard_intro: Control = null
+## メニューの上のレッスン（コース②の 2-6 とクリア。scripts/practice/menu/practice_menu_guide.gd）。動いている間だけ入る
+var _practice_menu_guide: PracticeMenuGuide = null
+## メニューの上のコース⑤（カスタマイズ。scripts/practice/menu/practice_customize_guide.gd）。動いている間だけ入る
+var _practice_customize_guide: PracticeCustomizeGuide = null
+## メニューが出てから、コース選択（戻ってきたとき）や初回の案内を出すまでの秒数
+const PRACTICE_OPEN_DELAY := 0.45
 
 const SHOW_COOP_MODE := false
 const GAME_WORLD_SCENE: PackedScene = preload("res://scenes/game_world.tscn")
@@ -81,6 +99,8 @@ const ANIM_STAGGER := 0.055
 const MENU_EXIT_DURATION := 0.34
 const MENU_EXIT_OFFSET_X := -520.0
 const MENU_HELICOPTER_EXIT_TIMEOUT_SEC := 12.0
+## スマホの背景 3D（LiveViewport）の描画の高さの上限（物理 px）。
+const MOBILE_LIVE_VIEW_MAX_HEIGHT := 1080.0
 
 var _prev_menu_step: String = ""
 var _entrance_done: bool = false
@@ -91,7 +111,10 @@ var _embedded_customize: Control = null
 var _embedded_customize_open: bool = false
 var _pending_customize_tutorial_on_ready: bool = false
 var _embedded_customize_close_pending: bool = false
+var _tutorial_completion_card: Control = null
 var _customize_tutorial_completion_showing: bool = false
+var _tutorial_completion_previous_mouse_mode: int = Input.MOUSE_MODE_VISIBLE
+var _tutorial_completion_mouse_mode_saved: bool = false
 var _heli_skip_hint: Control = null
 ## タイトルのロゴ（2D のベルトコンベアの上の TESTOPIA。作れないときは null で、画像のロゴのまま）
 var _title_logo_intro: TitleLogoIntro = null
@@ -103,6 +126,8 @@ var _heli_departure_skip_requested: bool = false
 ## ステップインジケータの各ピル {sb: StyleBoxFlat, lbl: Label}
 var _step_pills: Array[Dictionary] = []
 var _step_indicator_bright_sky: bool = false
+## スマホ：演出中に届いたセーフエリアの変化を、演出が終わってから当てる。
+var _safe_area_dirty: bool = false
 
 func _ready() -> void:
 	GraphicsQuality.reset_window_3d_quality(get_viewport())
@@ -164,6 +189,7 @@ func _ready() -> void:
 	_ensure_tutorial_button()
 	_ensure_tutorial_selector()
 	_style_all_buttons()
+	_apply_touch_layout()
 	prev_grade_btn.pressed.connect(_on_prev_grade_pressed)
 	next_grade_btn.pressed.connect(_on_next_grade_pressed)
 	prev_subject_btn.pressed.connect(_on_prev_subject_pressed)
@@ -181,15 +207,14 @@ func _ready() -> void:
 	if GameManager.startup_loading:
 		await GameManager.startup_finished
 	AudioManager.set_music_context(AudioManager.MUSIC_CONTEXT_MENU)
+	SceneTransition.reveal_current()
+	_play_initial_entrance()
+	_start_title_logo_intro()
 	if _pending_customize_tutorial_on_ready:
-		_entrance_done = true
-		call_deferred("_begin_pending_customize_tutorial")
-	else:
-		SceneTransition.reveal_current()
-		_play_initial_entrance()
-		_start_title_logo_intro()
-		if GameManager.should_show_tutorial_on_start():
-			call_deferred("_start_first_run_tutorial")
+		# 実践コースのあとのカスタマイズ紹介は、メニューの上のハテナの案内（PracticeCustomizeGuide）で行う。
+		_begin_pending_customize_tutorial()
+	elif GameManager.should_show_tutorial_on_start():
+		call_deferred("_start_first_run_tutorial")
 
 func _setup_live_background() -> void:
 	if not live_background or not live_viewport:
@@ -205,6 +230,55 @@ func _setup_live_background() -> void:
 	# 固定解像度のままだと大画面で引き伸ばされてボケるため、実サイズに追従させる。
 	_update_live_viewport_quality()
 	get_window().size_changed.connect(_update_live_viewport_quality)
+
+
+## スマホ（タッチだけ）の配置：押す部品を指の大きさに、右下の設定ボタンと演出の案内をセーフエリアの内側へ。
+## デスクトップでは何もしない。
+func _apply_touch_layout() -> void:
+	if not MobileUi.is_touch_ui():
+		return
+	# 設定の行（出題・人数・カスタマイズ）と戻る・スタート、モード選択の小さいボタン
+	for button: Button in [llm_toggle_btn, players_btn, customize_btn, start_button, get_node_or_null("%BackBtn") as Button,
+			_tutorial_main_btn, _online_btn, settings_btn]:
+		MobileUi.ensure_touch_size(button)
+	# 教科・学年・難易度の ◀ ▶：ベルトの行の高さ（52）を大きく崩さないよう、小さいほうの基準（56）
+	for button: Button in [prev_grade_btn, next_grade_btn, prev_subject_btn, next_subject_btn, prev_diff_btn, next_diff_btn]:
+		MobileUi.ensure_touch_size(button, true)
+		button.add_theme_font_size_override("font_size", MobileUi.font(24))
+		var lane := button.get_parent().get_parent() as Control
+		if lane != null and lane.get_parent() is VBoxContainer:
+			lane.custom_minimum_size.y = maxf(lane.custom_minimum_size.y, MobileUi.MIN_TOUCH_SIZE_COMPACT)
+	settings_btn.add_theme_font_size_override("font_size", MobileUi.font(16))
+	if status_label:
+		status_label.add_theme_font_size_override("font_size", MobileUi.font(14))
+	_apply_safe_area()
+	MobileMenu.connect_safe_area(_apply_safe_area)
+
+
+## 右下の設定ボタン・ヘリのスキップ案内を、パンチホールと角丸の内側へ（SafeArea.changed でも呼ぶ）。
+func _apply_safe_area() -> void:
+	if not MobileUi.is_touch_ui():
+		return
+	if _menu_exit_in_progress:
+		# 退場・カスタマイズの出入りの Tween と位置を取り合わないよう、終わってから当てる（_process）
+		_safe_area_dirty = true
+		return
+	_safe_area_dirty = false
+	settings_btn.offset_right = -16.0 - MobileMenu.safe_inset(&"right")
+	settings_btn.offset_bottom = -16.0 - MobileMenu.safe_inset(&"bottom")
+	settings_btn.offset_left = settings_btn.offset_right - maxf(settings_btn.get_combined_minimum_size().x, 159.0)
+	settings_btn.offset_top = settings_btn.offset_bottom - maxf(settings_btn.get_combined_minimum_size().y, 39.0)
+	if settings_btn.has_meta("base_position"):
+		settings_btn.set_meta("base_position", settings_btn.position)
+	if _heli_skip_hint != null:
+		_heli_skip_hint.offset_right = -24.0 - MobileMenu.safe_inset(&"right")
+		_heli_skip_hint.offset_bottom = -20.0 - MobileMenu.safe_inset(&"bottom")
+	if menu_vbox:
+		# 左端のメニュー列（offset_left 88）はホールより内側だが、念のため左の余白を足す
+		menu_vbox.offset_left = 88.0 + maxf(0.0, MobileMenu.safe_inset(&"left") - 40.0)
+		menu_vbox.offset_right = 760.0 + maxf(0.0, MobileMenu.safe_inset(&"left") - 40.0)
+		if menu_vbox.has_meta("base_position"):
+			menu_vbox.set_meta("base_position", menu_vbox.position)
 
 
 func _setup_helicopter_skip_hint() -> void:
@@ -229,6 +303,9 @@ func _setup_helicopter_skip_hint() -> void:
 	style.content_margin_left = 12
 	style.content_margin_right = 12
 	panel.add_theme_stylebox_override("panel", style)
+	if MobileUi.is_touch_ui():
+		_build_touch_skip_hint(panel, style)
+		return
 	var row := KeyHintRow.new()
 	row.name = "HintRow"
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -245,6 +322,42 @@ func _setup_helicopter_skip_hint() -> void:
 	add_child(panel)
 	panel.reset_size()
 	_heli_skip_hint = panel
+
+
+## スマホ：Space の案内の代わりに、押せる「タップでスキップ」の札（画面のどこをタップしても飛ばせる）。
+func _build_touch_skip_hint(panel: PanelContainer, style: StyleBoxFlat) -> void:
+	panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	style.set_content_margin_all(14)
+	style.content_margin_left = 24
+	style.content_margin_right = 24
+	style.border_color = Color(1.0, 0.88, 0.25, 0.85)
+	style.set_border_width_all(2)
+	var label := Label.new()
+	label.name = "HintLabel"
+	label.text = "タップでスキップ ▶▶"
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.add_theme_font_size_override("font_size", MobileUi.font(18))
+	label.add_theme_color_override("font_color", Color(0.94, 0.96, 1.0, 1.0))
+	panel.add_child(label)
+	MobileUi.ensure_touch_size(panel)
+	panel.gui_input.connect(func(event: InputEvent) -> void:
+		if _is_touch_press(event):
+			accept_event()
+			_skip_menu_helicopter_departure())
+	add_child(panel)
+	panel.reset_size()
+	_heli_skip_hint = panel
+
+
+func _is_touch_press(event: InputEvent) -> bool:
+	if event is InputEventScreenTouch:
+		return (event as InputEventScreenTouch).pressed
+	if event is InputEventMouseButton:
+		var button := event as InputEventMouseButton
+		return button.pressed and button.button_index == MOUSE_BUTTON_LEFT
+	return false
 
 
 func _set_helicopter_skip_hint_visible(visible_now: bool) -> void:
@@ -279,7 +392,7 @@ func _input(event: InputEvent) -> void:
 		_title_logo_intro.fast_forward()
 	if not _heli_departure_skippable:
 		return
-	if not _is_space_skip_event(event):
+	if not _is_space_skip_event(event) and not (MobileUi.is_touch_ui() and event is InputEventScreenTouch and _is_touch_press(event)):
 		return
 	_skip_menu_helicopter_departure()
 	get_viewport().set_input_as_handled()
@@ -302,11 +415,13 @@ func _update_live_viewport_quality() -> void:
 	var stretch_scale: Vector2 = get_window().get_final_transform().get_scale()
 	var target: Vector2 = logical * stretch_scale
 
-	var is_mobile := OS.has_feature("mobile") or OS.has_feature("android") or OS.has_feature("ios")
 	# 背景はあくまで演出用途のため、過大な負荷を避けるための上限（デスクトップは4K相当まで実解像度）
-	var max_w: float = 1280.0 if is_mobile else 3840.0
-	if target.x > max_w:
-		target *= max_w / target.x
+	if MobileUi.is_touch_ui():
+		# スマホは高さで上限を決める（横長 21:9 でも幅で削ると論理解像度より粗くなる）。重さは 3D の描画倍率に任せる
+		if target.y > MOBILE_LIVE_VIEW_MAX_HEIGHT:
+			target *= MOBILE_LIVE_VIEW_MAX_HEIGHT / target.y
+	elif target.x > 3840.0:
+		target *= 3840.0 / target.x
 	target.x = maxf(target.x, 640.0)
 	target.y = maxf(target.y, 360.0)
 
@@ -400,7 +515,7 @@ func _setup_title_logo_intro() -> void:
 	var accent := menu_vbox.get_node_or_null("TitleAccentBar") as CanvasItem
 	if accent != null:
 		accent.self_modulate.a = 0.0
-	_title_logo_play_pending = not _pending_customize_tutorial_on_ready and not QuizManager.has_meta(TITLE_LOGO_INTRO_SEEN_META)
+	_title_logo_play_pending = not QuizManager.has_meta(TITLE_LOGO_INTRO_SEEN_META)
 	if not _title_logo_play_pending:
 		intro.show_final()
 
@@ -479,7 +594,7 @@ func _setup_step_indicator() -> void:
 
 		var lbl := Label.new()
 		lbl.text = "%s %s" % [s[0], s[1]]
-		lbl.add_theme_font_size_override("font_size", 12)
+		lbl.add_theme_font_size_override("font_size", MobileUi.font(12))
 		lbl.add_theme_color_override("font_color", Color(0.70, 0.76, 0.86))
 		pill.add_child(lbl)
 
@@ -490,6 +605,8 @@ func _setup_step_indicator() -> void:
 	menu_vbox.move_child(row, status_label.get_index())
 
 func _process(_delta: float) -> void:
+	if _safe_area_dirty and not _menu_exit_in_progress:
+		_apply_safe_area()
 	var bright_sky := WeatherCycle.is_bright_sky()
 	if bright_sky == _step_indicator_bright_sky:
 		return
@@ -564,10 +681,6 @@ func _setup_embedded_customize() -> void:
 	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	if overlay.has_signal("request_close"):
 		overlay.connect("request_close", Callable(self, "_on_embedded_customize_close_requested"))
-	if overlay.has_signal("tutorial_tour_completed"):
-		overlay.connect("tutorial_tour_completed", Callable(self, "_on_customize_tutorial_completed"))
-	if overlay.has_signal("tutorial_tour_aborted"):
-		overlay.connect("tutorial_tour_aborted", Callable(self, "_on_customize_tutorial_aborted"))
 	add_child(overlay)
 	_embedded_customize = overlay
 	# 共有3Dワールド（メニュー背景）へカスタマイズ用キャラ等を事前構築し、開閉時のヒッチを防ぐ
@@ -606,79 +719,96 @@ func _open_embedded_customize() -> void:
 	)
 
 
+## 実践コース（1P・ローカル2P）のあとのカスタマイズ紹介。メニューが出てから、メニューの上でハテナが案内する
+## （新しいチュートリアルのコース⑤、scripts/practice/menu/practice_customize_guide.gd）。案内を終えたら完了カードを出して、
+## コースを完了にする（_on_customize_tutorial_completed）。
 func _begin_pending_customize_tutorial() -> void:
 	if not game_state.has_pending_solo_customize_tour() or not _embedded_customize:
 		game_state.abort_solo_customize_tour()
-		SceneTransition.reveal_current()
 		return
-	_open_embedded_customize()
-	if _embedded_customize.has_method("begin_tutorial_tour"):
-		_embedded_customize.call("begin_tutorial_tour")
-	else:
+	await _wait_scene_revealed()
+	if not is_inside_tree():
+		return
+	await get_tree().create_timer(PRACTICE_OPEN_DELAY).timeout
+	if not is_inside_tree():
+		return
+	if _menu_exit_in_progress or _practice_customize_guide != null or not game_state.has_pending_solo_customize_tour():
 		game_state.abort_solo_customize_tour()
-	SceneTransition.reveal_current()
+		return
+	_practice_customize_guide = PracticeCustomizeGuide.new()
+	_practice_customize_guide.name = "PracticeCustomizeGuide"
+	add_child(_practice_customize_guide)
+	_practice_customize_guide.finished.connect(func() -> void:
+		_practice_customize_guide = null
+		_on_customize_tutorial_completed()
+	)
+	_practice_customize_guide.setup(self, {"course": PracticeCustomizeGuide.COURSE_ID, "step": "", "first_run": false, "from_tutorial": true})
 
 
-## カスタマイズ紹介を最後まで見たら、すぐに完了として保存してメニューへ戻す。
-## 成績はゲーム中のクリア画面で見せているので、ここでは小さな通知だけを出す（入力は止めない）。
 func _on_customize_tutorial_completed() -> void:
-	if _customize_tutorial_completion_showing or not game_state.has_pending_solo_customize_tour():
+	if _customize_tutorial_completion_showing:
 		return
 	_customize_tutorial_completion_showing = true
+	_tutorial_completion_previous_mouse_mode = Input.get_mouse_mode()
+	_tutorial_completion_mouse_mode_saved = true
+	Input.set_mouse_mode(Input.MOUSE_MODE_HIDDEN)
+	var card := TutorialCompletionCardScript.new() as Control
+	card.name = "SoloTutorialCompletionCard"
+	add_child(card)
+	_tutorial_completion_card = card
+	card.tree_exited.connect(func() -> void:
+		if _tutorial_completion_card == card:
+			_tutorial_completion_card = null
+	)
+	card.connect(
+		"hold_completed",
+		Callable(self, "_on_customize_tutorial_completion_hold_finished"),
+		CONNECT_ONE_SHOT,
+	)
 	var is_duo := game_state.get_pending_customize_tour_course() == GameManager.TUTORIAL_COURSE_LOCAL_2P
-	# 閉じる処理より先に pending を解除し、通常の close が中断扱いにしないようにする。
+	card.call("present", {
+		"step": "2 / 2  TUTORIAL COMPLETE",
+		"title": "ローカル2Pチュートリアル完了" if is_duo else "1Pチュートリアル完了",
+		"body": (
+			"2人プレイの操作とカスタマイズの紹介が完了しました。"
+			if is_duo
+			else "ステージ操作とカスタマイズの紹介が完了しました。"
+		),
+		"progress": "✓ ステージ実践　　✓ カスタマイズ",
+		"footer": "まもなくメニューへ戻ります",
+		"duration": 3.8,
+	})
+
+
+func _on_customize_tutorial_completion_hold_finished() -> void:
+	if not _customize_tutorial_completion_showing:
+		return
+	if not game_state.has_pending_solo_customize_tour():
+		_dismiss_customize_tutorial_completion_card()
+		return
+	# 完了カードを十分に見せた後で初めて保存する。閉じる処理より先に
+	# pending を解除し、通常の close が中断扱いにしないようにする。
 	game_state.complete_solo_customize_tour()
 	_on_embedded_customize_close_requested()
 	while _menu_exit_in_progress and is_inside_tree():
 		await get_tree().process_frame
 	if not is_inside_tree():
 		return
-	_show_tutorial_complete_notice("ローカル2P コース" if is_duo else "1P コース")
+	_dismiss_customize_tutorial_completion_card()
+
+
+func _dismiss_customize_tutorial_completion_card() -> void:
 	_customize_tutorial_completion_showing = false
+	if _tutorial_completion_card and is_instance_valid(_tutorial_completion_card):
+		_tutorial_completion_card.call("dismiss")
+	_restore_tutorial_completion_mouse_mode()
 
 
-## 画面上端から降りてくる小さな完了通知。数秒で消える。
-func _show_tutorial_complete_notice(course_label: String) -> void:
-	var notice := PanelContainer.new()
-	notice.name = "TutorialCompleteNotice"
-	notice.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	notice.z_index = 500
-	var style := TutorialUiStyle.box(
-		TutorialUiStyle.PANEL_SOLID, Color(TutorialUiStyle.DONE, 0.7), 2, 30, 0.0, 8.0
-	)
-	style.content_margin_left = 10.0
-	style.content_margin_right = 26.0
-	style.shadow_color = Color(0.0, 0.0, 0.0, 0.35)
-	style.shadow_size = 12
-	notice.add_theme_stylebox_override("panel", style)
-	var row := HBoxContainer.new()
-	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_theme_constant_override("separation", 12)
-	notice.add_child(row)
-	row.add_child(TutorialUiStyle.glyph_disc("check", 38.0, TutorialUiStyle.DONE, Color("05301a")))
-	var column := VBoxContainer.new()
-	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	column.alignment = BoxContainer.ALIGNMENT_CENTER
-	column.add_theme_constant_override("separation", 0)
-	row.add_child(column)
-	column.add_child(TutorialUiStyle.make_label("チュートリアル完了", 19, Color.WHITE))
-	column.add_child(TutorialUiStyle.make_label(course_label, 12, TutorialUiStyle.MUTED, TutorialUiStyle.FONT_MEDIUM))
-	add_child(notice)
-	var notice_size := notice.get_combined_minimum_size()
-	notice.size = notice_size
-	notice.position = Vector2((get_viewport_rect().size.x - notice_size.x) * 0.5, -notice_size.y - 8.0)
-	var tween := notice.create_tween()
-	tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	tween.tween_property(notice, "position:y", 24.0, 0.32)
-	tween.tween_interval(2.6)
-	tween.set_ease(Tween.EASE_IN)
-	tween.tween_property(notice, "modulate:a", 0.0, 0.3)
-	tween.tween_callback(notice.queue_free)
-
-
-func _on_customize_tutorial_aborted() -> void:
-	game_state.abort_solo_customize_tour()
-	_on_embedded_customize_close_requested()
+func _restore_tutorial_completion_mouse_mode() -> void:
+	if not _tutorial_completion_mouse_mode_saved:
+		return
+	Input.set_mouse_mode(_tutorial_completion_previous_mouse_mode)
+	_tutorial_completion_mouse_mode_saved = false
 
 
 func _on_embedded_customize_close_requested() -> void:
@@ -694,8 +824,6 @@ func _on_embedded_customize_close_requested() -> void:
 	_embedded_customize_close_pending = false
 	if _embedded_customize.has_method("_prepare_embedded_close"):
 		_embedded_customize.call("_prepare_embedded_close")
-	if game_state.has_pending_solo_customize_tour():
-		game_state.abort_solo_customize_tour()
 	_menu_exit_in_progress = true
 	_embedded_customize_open = false
 
@@ -922,6 +1050,10 @@ func _set_all_buttons_disabled(disabled: bool) -> void:
 
 func _exit_tree() -> void:
 	AudioManager.set_menu_sfx_muted(self, false)
+	_restore_tutorial_completion_mouse_mode()
+	# カスタマイズ紹介の途中でメニューを離れたら、紹介は終わったことにしない（次にメニューへ来ても出さない）。
+	if _practice_customize_guide != null and game_state != null and game_state.has_pending_solo_customize_tour():
+		game_state.abort_solo_customize_tour()
 
 
 func _notification(what: int) -> void:
@@ -976,9 +1108,7 @@ func _style_all_buttons() -> void:
 			continue
 		# Dedicated tutorial views own all states, including their focus colors.
 		# Keep the traversal itself intact: transition locking also uses it.
-		if _tutorial_selector and _tutorial_selector.is_ancestor_of(btn):
-			continue
-		if btn.has_meta(&"tutorial_own_style"):
+		if _tutorial_keyboard_intro and _tutorial_keyboard_intro.is_ancestor_of(btn):
 			continue
 		btn.add_theme_stylebox_override("normal", normal_style.duplicate())
 		btn.add_theme_stylebox_override("hover", hover_style.duplicate())
@@ -1009,8 +1139,6 @@ func _style_all_buttons() -> void:
 	start_button.add_theme_stylebox_override("hover", start_hover)
 	start_button.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0))
 	start_button.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 1.0))
-
-	# チュートリアル系ボタンも他ボタンと同じ配色（上のループで既に適用済み）
 
 func _get_all_buttons(node: Node) -> Array[Button]:
 	var buttons: Array[Button] = []
@@ -1062,6 +1190,11 @@ func _ensure_tutorial_selector() -> void:
 	add_child(_tutorial_selector)
 	_tutorial_selector.connect("course_selected", _on_tutorial_course_selected)
 	_tutorial_selector.connect("dismissed", _on_tutorial_selector_dismissed)
+	_tutorial_keyboard_intro = TutorialKeyboardIntroScript.new()
+	_tutorial_keyboard_intro.name = "TutorialKeyboardIntro"
+	add_child(_tutorial_keyboard_intro)
+	_tutorial_keyboard_intro.connect("completed", _on_tutorial_keyboard_completed)
+	_tutorial_keyboard_intro.connect("cancelled", _show_tutorial_selector)
 
 
 func _show_tutorial_selector() -> void:
@@ -1080,6 +1213,331 @@ func _on_tutorial_selector_dismissed() -> void:
 	GameManager.dismiss_tutorial()
 
 
+## 練習のコース選択と初回の案内（docs/new_tutorial/foundation_design.md 9章）。メニューの上に重ねる。
+func _setup_practice_panels() -> void:
+	if _practice_select != null:
+		return
+	_practice_select = PracticeCourseSelect.new()
+	_practice_select.name = "PracticeCourseSelect"
+	_practice_select.z_index = 60
+	add_child(_practice_select)
+	_practice_select.course_chosen.connect(_on_practice_course_chosen)
+	_practice_intro = PracticeIntroPrompt.new()
+	_practice_intro.name = "PracticeIntroPrompt"
+	_practice_intro.z_index = 60
+	add_child(_practice_intro)
+	_practice_intro.accepted.connect(_on_practice_intro_accepted)
+
+
+## コースを最後まで遊んで戻ってきたらコース選択を、初めての起動なら初回の案内を、メニューが出たあとに出す。
+## クリアカードの［つぎの コースへ］（PracticeSession.launch_next）ならそのコースをすぐ始め、
+## コースの続きがメニューの上にあるとき（PracticeSession.resume_in_menu。②の 2-6）はメニューの上のレッスンを始める。
+func _open_practice_after_entrance() -> void:
+	if not PracticeSession.launch_next.is_empty():
+		var next_id := PracticeSession.launch_next
+		PracticeSession.launch_next = ""
+		PracticeSession.resume_in_menu = {}
+		PracticeSession.return_to_select = false
+		await _wait_scene_revealed()
+		if is_inside_tree() and not _menu_exit_in_progress:
+			# 初回の案内から続けているときは、次のコースもそのまま（②のクリアで［ほんばんを はじめる］を選んでおく）
+			PracticeSession.launch(self, next_id, false, PracticeSession.from_first_run)
+		return
+	if not PracticeSession.resume_in_menu.is_empty():
+		var resume: Dictionary = PracticeSession.resume_in_menu.duplicate(true)
+		PracticeSession.resume_in_menu = {}
+		PracticeSession.return_to_select = false
+		await _wait_scene_revealed()
+		if not is_inside_tree():
+			return
+		await get_tree().create_timer(PRACTICE_OPEN_DELAY).timeout
+		if is_inside_tree() and not _menu_exit_in_progress:
+			_start_practice_menu_guide(resume)
+		return
+	if PracticeSession.return_to_select:
+		PracticeSession.return_to_select = false
+		await get_tree().create_timer(PRACTICE_OPEN_DELAY).timeout
+		if _can_open_practice_panel():
+			_practice_select.open()
+		return
+	if GameManager.practice_intro_seen:
+		return
+	# 起動して最初のメニューは、タイトルの登場演出が終わってから
+	while is_inside_tree() and _title_logo_intro != null and _title_logo_intro.is_running():
+		await get_tree().process_frame
+	if not is_inside_tree():
+		return
+	await get_tree().create_timer(PRACTICE_OPEN_DELAY).timeout
+	# ほかの画面へ進んでいたら、今回は出さない（まだ見ていないので、次にメニューへ来たときに出す）
+	if _can_open_practice_panel() and not GameManager.practice_intro_seen:
+		_practice_intro.open()
+
+
+## 画面の切り替え（ワイプ）が開き終わるまで待つ。
+func _wait_scene_revealed() -> void:
+	while is_inside_tree() and SceneTransition.is_transitioning():
+		await get_tree().process_frame
+
+
+## メニューの上のレッスンを始める（②の 2-6 と、⑤）。
+func _start_practice_menu_guide(resume: Dictionary) -> void:
+	if _practice_menu_guide != null or _practice_customize_guide != null:
+		return
+	var course := str(resume.get("course", ""))
+	if course == PracticeCustomizeGuide.COURSE_ID:
+		if _practice_select != null and _practice_select.is_open():
+			_practice_select.close()
+		_practice_customize_guide = PracticeCustomizeGuide.new()
+		_practice_customize_guide.name = "PracticeCustomizeGuide"
+		add_child(_practice_customize_guide)
+		_practice_customize_guide.finished.connect(func() -> void: _practice_customize_guide = null)
+		_practice_customize_guide.setup(self, resume)
+		return
+	if course != PracticeMenuGuide.COURSE_ID or str(resume.get("step", "")) != PracticeMenuGuide.STEP_ID:
+		push_warning("MainMenu: no menu lesson for %s" % [resume])
+		return
+	if _practice_select != null and _practice_select.is_open():
+		_practice_select.close()
+	_practice_menu_guide = PracticeMenuGuide.new()
+	_practice_menu_guide.name = "PracticeMenuGuide"
+	add_child(_practice_menu_guide)
+	_practice_menu_guide.finished.connect(func(_started: bool) -> void: _practice_menu_guide = null)
+	_practice_menu_guide.setup(self, resume)
+
+
+## メニューの上で遊ぶコース（⑤。PracticeCatalog の scene がメインメニュー）を、画面を移らずに始める（PracticeSession.launch から）。
+func practice_start_here(course_id: String, first_run := false) -> void:
+	if _menu_exit_in_progress:
+		return
+	_start_practice_menu_guide({"course": course_id, "step": "", "first_run": first_run})
+
+
+## いま動いているメニューの上のレッスン（なければ null）
+func practice_menu_guide() -> PracticeMenuGuide:
+	return _practice_menu_guide
+
+
+## いま動いているメニューの上のコース⑤（なければ null）
+func practice_customize_guide() -> PracticeCustomizeGuide:
+	return _practice_customize_guide
+
+
+## 画面のコーチ（PracticeCoach）が光らせる本物の部品（docs/new_tutorial/phase5_design.md 5.2）。なければ null。
+##   モード選択：&"mode_ten"（10問チャレンジ）・&"mode_endless"・&"mode_online"・&"mode_practice"（チュートリアル）
+##   設定：&"subject"（教科の ◀ ▶ と文字）・&"grade"・&"difficulty"・&"llm"（出題）・&"players"・&"customize"・
+##   &"start"（ゲーム開始）・&"back"（戻る）、右下の &"settings"（設定 / API状態）
+##   設定パネル（コース⑤。docs/new_tutorial/phase8_design.md 1.2）：&"set_bgm"・&"set_sfx"・&"set_resolution"・&"set_fps"・
+##   &"set_quality"・&"set_sudden"（出ていなければ null）・&"set_connection"（接続状態）・&"set_back"（戻る）
+##   カスタマイズの画面の部品は、カスタマイズの画面（practice_customize）の practice_coach_target。
+func practice_coach_target(id: StringName) -> Control:
+	var settings_row: String = {&"set_bgm": "BgmVolBox", &"set_sfx": "VolBox", &"set_resolution": "ResolutionBox",
+		&"set_fps": "MaxFpsBox", &"set_quality": "GraphicsQualityBox", &"set_sudden": "SuddenDeathBox",
+		&"set_connection": "ApiBox", &"set_back": "ButtonRow/SettingsBackBtn"}.get(id, "")
+	if not settings_row.is_empty():
+		var row := settings_panel.get_node_or_null("VBox/" + settings_row) as Control
+		if row == null and MobileUi.is_touch_ui():
+			# スマホでは行を左右 2 列（VBox/TouchColumns/...）へ移している
+			row = settings_panel.find_child(settings_row.get_file(), true, false) as Control
+		return row
+	match id:
+		&"mode_ten":
+			return get_node_or_null("%TenQuestionsBtn") as Control
+		&"mode_endless":
+			return get_node_or_null("%EndlessBtn") as Control
+		&"mode_online":
+			return _online_btn
+		&"mode_practice":
+			return _tutorial_main_btn
+		&"subject":
+			return get_node_or_null("%SubjectCarousel") as Control
+		&"grade":
+			return get_node_or_null("%GradeCarousel") as Control
+		&"difficulty":
+			return get_node_or_null("%DiffCarousel") as Control
+		&"llm":
+			return llm_toggle_btn
+		&"players":
+			return players_btn
+		&"customize":
+			return customize_btn
+		&"start":
+			return start_button
+		&"back":
+			return get_node_or_null("%BackBtn") as Control
+		&"settings":
+			return settings_btn
+	return null
+
+
+## メニューの上のレッスンのハテナを置く 3D の背景（LiveViewport の世界）と、そのカメラ・のこぎり（操縦席）。
+func practice_menu_world() -> Node:
+	return live_viewport
+
+
+func practice_menu_camera() -> Camera3D:
+	if _menu_wall_preview != null and _menu_wall_preview.has_method("get_camera"):
+		return _menu_wall_preview.call("get_camera") as Camera3D
+	return live_camera
+
+
+func practice_menu_saw() -> SawChaseController:
+	if live_viewport == null:
+		return null
+	for child: Node in live_viewport.get_children():
+		if child is SawChaseController:
+			return child as SawChaseController
+	return null
+
+
+## 背景の画面の座標（LiveViewport の画素）→ メニューの画面の座標。LiveBackground は実の解像度で描いて縮めている。
+func practice_menu_to_screen(point: Vector2) -> Vector2:
+	return live_background.get_global_transform_with_canvas() * point
+
+
+## メニューの画面の座標 → 背景の画面の座標（LiveViewport の画素）
+func practice_menu_from_screen(point: Vector2) -> Vector2:
+	return live_background.get_global_transform_with_canvas().affine_inverse() * point
+
+
+## モード選択へ戻す（メニューの上のレッスンを設定の画面から始めるとき）。
+func practice_menu_show_mode() -> void:
+	if game_state.menu_step != Constants.MENU_STEP_MODE:
+		_on_back_pressed()
+
+
+## 設定の画面にする（『10問チャレンジ』を押したのと同じ）。
+func practice_menu_show_config() -> void:
+	if game_state.menu_step != Constants.MENU_STEP_CONFIG:
+		_on_ten_questions_pressed()
+
+
+## 『ゲーム開始』を押したのと同じ（本物の出発の演出から本番）。出発が始まったら true。
+func practice_menu_start_game() -> bool:
+	_on_start_pressed()
+	return _menu_exit_in_progress
+
+
+## カスタマイズの画面（メニューに埋め込んだもの。なければ null）と、その開け閉め（コース⑤。phase8_design.md 1.2）。
+func practice_customize() -> Control:
+	return _embedded_customize
+
+
+func practice_customize_open() -> bool:
+	return _embedded_customize_open
+
+
+## 開ききって（入場の動きが終わって）押せる
+func practice_customize_ready() -> bool:
+	return _embedded_customize_open and not _menu_exit_in_progress
+
+
+## カスタマイズを閉じきって、メニューのボタンが戻っている（閉じる動きの最中でない）
+func practice_menu_idle() -> bool:
+	return not _embedded_customize_open and not _menu_exit_in_progress
+
+
+## 『カスタマイズ』を押したのと同じ（とばしたときに練習が開く。設定の画面にしてから呼ぶ）
+func practice_open_customize() -> void:
+	if not _embedded_customize_open:
+		_open_embedded_customize()
+
+
+## 『✓ 決定して戻る』を押したのと同じ（とばしたときに練習が閉じる）
+func practice_close_customize() -> void:
+	if _embedded_customize_open:
+		_on_embedded_customize_close_requested()
+
+
+## 設定パネル（設定 / API状態）が開いているか・開く・閉じる
+func practice_settings_open() -> bool:
+	return settings_panel.visible
+
+
+func practice_open_settings() -> void:
+	if not settings_panel.visible:
+		_on_settings_btn_pressed()
+
+
+func practice_close_settings() -> void:
+	if settings_panel.visible:
+		_on_settings_back_btn_pressed()
+
+
+## スマホの「もどる」（Android の戻るジェスチャー。MobileLifecycle が Esc として流す）。
+## 開いているものを 1 つ閉じ、設定の手順ならモード選択へ、トップで何も開いていなければ終了の確認を出す。
+## 上に重ねる画面（チュートリアルの選択・操作紹介・カスタマイズ・練習のパネル）は自分で Esc を受ける。
+## デスクトップの Esc の動きは変えない。
+func _unhandled_input(event: InputEvent) -> void:
+	if not MobileUi.is_touch_ui() or not MobileMenu.is_back_event(event):
+		return
+	get_viewport().set_input_as_handled()
+	if _menu_exit_in_progress or SceneTransition.is_transitioning():
+		return
+	if _title_logo_intro != null and _title_logo_intro.is_running():
+		# ロゴの演出中の「もどる」は早送りだけ（_input で済んでいる）。終了の確認は出さない
+		return
+	if settings_panel.visible:
+		_on_settings_back_btn_pressed()
+		return
+	var intro_open := _tutorial_keyboard_intro != null and _tutorial_keyboard_intro.visible
+	if _tutorial_selector != null and _tutorial_selector.visible and not intro_open:
+		# コース選択の × と同じ（初回の案内も「見た」にする）
+		_tutorial_selector.emit_signal("dismissed")
+		_tutorial_selector.call("hide_selector")
+		return
+	if _menu_overlay_open():
+		return
+	if game_state != null and game_state.menu_step == Constants.MENU_STEP_CONFIG:
+		_on_back_pressed()
+		return
+	MobileMenu.request_quit_confirm()
+
+
+## メニューの上に何か重なっているか（そのときトップの「もどる」で終了の確認を出さない）。
+func _menu_overlay_open() -> bool:
+	if _embedded_customize_open or _customize_tutorial_completion_showing:
+		return true
+	if _practice_menu_guide != null or _practice_customize_guide != null:
+		return true
+	if _practice_select != null and _practice_select.is_open():
+		return true
+	if _practice_intro != null and _practice_intro.is_open():
+		return true
+	for overlay: Control in [_tutorial_selector, _tutorial_keyboard_intro]:
+		if overlay != null and overlay.visible:
+			return true
+	return false
+
+
+func _can_open_practice_panel() -> bool:
+	return (
+		is_inside_tree()
+		and _practice_select != null
+		and _practice_menu_guide == null
+		and _practice_customize_guide == null
+		and not _menu_exit_in_progress
+		and not _embedded_customize_open
+		and not settings_panel.visible
+		and game_state.menu_step == Constants.MENU_STEP_MODE
+		and not _practice_select.is_open()
+		and not _practice_intro.is_open()
+	)
+
+
+func _on_practice_pressed() -> void:
+	if _menu_exit_in_progress or _practice_select == null:
+		return
+	_practice_select.open()
+
+
+func _on_practice_course_chosen(course_id: String) -> void:
+	PracticeSession.launch(self, course_id)
+
+
+func _on_practice_intro_accepted() -> void:
+	PracticeSession.launch(self, "c1", false, true)
+
+
 const GAME_SCENE := "res://scenes/game_world.tscn"
 
 func _go_to_game(
@@ -1091,12 +1549,18 @@ func _go_to_game(
 	_play_exit_and_change_scene(GAME_SCENE, start_standard_round, tutorial_course)
 
 
-## コース選択の画面で操作キーも説明しているので、選んだらそのままゲームへ進む。
 func _start_tutorial_game(course: String = GameManager.TUTORIAL_COURSE_SOLO) -> void:
+	if _menu_exit_in_progress:
+		return
+	_tutorial_keyboard_intro.call("show_intro", course)
+
+
+func _on_tutorial_keyboard_completed(course: String) -> void:
 	_go_to_game(false, course)
 
 func _start_first_run_tutorial() -> void:
 	_show_tutorial_selector()
+
 
 func _update_ui() -> void:
 	if not game_state:
@@ -1145,6 +1609,9 @@ func _update_ui() -> void:
 			llm_toggle_btn.focus_mode = Control.FOCUS_NONE
 			llm_toggle_btn.mouse_default_cursor_shape = Control.CURSOR_ARROW
 			llm_toggle_btn.tooltip_text = "エンドレスモードはオフライン問題のみ対応しています"
+			if MobileUi.is_touch_ui():
+				# タッチではツールチップが出ないので、同じ説明を下の行に文字で出す
+				status_label.text = "エンドレスは オフライン問題のみ"
 			_set_llm_toggle_locked_style(true)
 		else:
 			llm_toggle_btn.disabled = false
@@ -1435,7 +1902,7 @@ func _layout_settings_panel() -> void:
 		_api_rows[entry[0]] = {"dot": dot, "msg": msg}
 	api_col.add_child(grid)
 	_offline_count_label = _settings_label("")
-	_offline_count_label.add_theme_font_size_override("font_size", 15)
+	_offline_count_label.add_theme_font_size_override("font_size", MobileUi.font(15))
 	_offline_count_label.add_theme_color_override("font_color", SETTINGS_MUTED_COLOR)
 	api_col.add_child(_offline_count_label)
 	api_box.add_child(api_col)
@@ -1475,13 +1942,84 @@ func _layout_settings_panel() -> void:
 		var row := vbox.get_node_or_null(row_name) as HBoxContainer
 		if row:
 			_style_settings_row(row)
+	if MobileUi.is_touch_ui():
+		_apply_touch_settings_layout(vbox, order)
 	_update_api_status_text()
+
+
+## スマホ：PC 用の行（解像度・フルスクリーン、開発 PC の管理ダッシュボード）を隠し、「操作」の行
+## （しんどう・ボタンの大きさ）を足して、左右 2 列に並べる（指の大きさの行でも 720 の高さに収める）。
+## order は _layout_settings_panel の並び：[見出し, 接続状態, ApiBox, サウンド, BGM, 効果音, 画面, 解像度, FPS, 画質,
+## (ゲーム, サドンデス), すき間, ボタンの行]。
+func _apply_touch_settings_layout(vbox: VBoxContainer, order: Array[Control]) -> void:
+	var resolution_row := vbox.get_node_or_null("ResolutionBox") as Control
+	if resolution_row:
+		resolution_row.visible = false
+	var button_row := order[order.size() - 1]
+	var dashboard := button_row.get_node_or_null("OpenDashboardBtn") as Control
+	if dashboard:
+		dashboard.visible = false
+	var haptics_row := _touch_option_row("HapticsBox", "しんどう（バイブ）", "HapticsOption")
+	MobileMenu.setup_haptics_option(haptics_row.get_node("HapticsOption") as OptionButton)
+	var scale_row := _touch_option_row("TouchScaleBox", "ボタンの大きさ", "TouchScaleOption")
+	MobileMenu.setup_touch_scale_option(scale_row.get_node("TouchScaleOption") as OptionButton)
+
+	var columns := HBoxContainer.new()
+	columns.name = "TouchColumns"
+	columns.add_theme_constant_override("separation", 40)
+	var left := VBoxContainer.new()
+	var right := VBoxContainer.new()
+	for column: VBoxContainer in [left, right]:
+		column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		column.add_theme_constant_override("separation", 10)
+		columns.add_child(column)
+	# 左：接続状態・サウンド（・ゲーム）、右：画面・操作
+	var left_items: Array[Control] = [order[1], order[2], order[3], order[4], order[5]]
+	var right_items: Array[Control] = [order[6], order[7], order[8], order[9]]
+	if order.size() > 12:
+		left_items.append_array([order[10], order[11]])
+	right_items.append_array([_settings_section("操作"), haptics_row, scale_row])
+	for item: Control in left_items:
+		_move_to_column(item, left)
+	for item: Control in right_items:
+		_move_to_column(item, right)
+	vbox.add_child(columns)
+	vbox.move_child(columns, 1)
+	vbox.offset_left = -TOUCH_SETTINGS_PANEL_WIDTH * 0.5
+	vbox.offset_right = TOUCH_SETTINGS_PANEL_WIDTH * 0.5
+	for row: HBoxContainer in [haptics_row, scale_row]:
+		_style_settings_row(row)
+	for column: VBoxContainer in [left, right]:
+		for item: Node in column.get_children():
+			var label := item.get_node_or_null("Label") as Label
+			if label:
+				label.custom_minimum_size.x = TOUCH_SETTINGS_LABEL_WIDTH
+	MobileMenu.grow_touch_targets(settings_panel)
+
+
+func _touch_option_row(row_name: String, title: String, option_name: String) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.name = row_name
+	var label := Label.new()
+	label.name = "Label"
+	label.text = title
+	row.add_child(label)
+	var option := OptionButton.new()
+	option.name = option_name
+	row.add_child(option)
+	return row
+
+
+func _move_to_column(item: Control, column: VBoxContainer) -> void:
+	if item.get_parent() != null:
+		item.get_parent().remove_child(item)
+	column.add_child(item)
 
 
 func _settings_label(text: String) -> Label:
 	var label := Label.new()
 	label.text = text
-	label.add_theme_font_size_override("font_size", SETTINGS_FONT_SIZE)
+	label.add_theme_font_size_override("font_size", MobileUi.font(SETTINGS_FONT_SIZE))
 	return label
 
 
@@ -1490,7 +2028,7 @@ func _settings_section(text: String) -> Control:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 2)
 	var label := _settings_label(text)
-	label.add_theme_font_size_override("font_size", 15)
+	label.add_theme_font_size_override("font_size", MobileUi.font(15))
 	label.add_theme_color_override("font_color", SETTINGS_SECTION_COLOR)
 	box.add_child(label)
 	var line := ColorRect.new()
@@ -1508,14 +2046,14 @@ func _style_settings_row(row: HBoxContainer) -> void:
 	if label:
 		label.text = label.text.trim_suffix(":")
 		label.custom_minimum_size.x = SETTINGS_LABEL_WIDTH
-		label.add_theme_font_size_override("font_size", SETTINGS_FONT_SIZE)
+		label.add_theme_font_size_override("font_size", MobileUi.font(SETTINGS_FONT_SIZE))
 	for child: Node in row.get_children():
 		if child == label or not (child is Control):
 			continue
 		var control := child as Control
 		control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		control.custom_minimum_size.x = 0.0
-		control.add_theme_font_size_override("font_size", SETTINGS_FONT_SIZE)
+		control.add_theme_font_size_override("font_size", MobileUi.font(SETTINGS_FONT_SIZE))
 		if control is HSlider:
 			var slider := control as HSlider
 			var value_label := _settings_label("")
@@ -1589,10 +2127,13 @@ func _setup_graphics_quality_option() -> void:
 	option.name = "GraphicsQualityOption"
 	option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	option.add_theme_font_size_override("font_size", 18)
-	# 軽量 / 標準 / 高画質 / 最高画質（項目番号 = GraphicsQuality.rank）
+	# 軽量 / 標準 / 高画質 / 最高画質（項目番号 = GraphicsQuality.rank）。
+	# スマホの最高画質は高画質と同じ扱いになるので出さない（最後の項目なので番号はずれない）
 	for index: int in range(GraphicsQuality.VALID_QUALITIES.size()):
+		if MobileMenu.hide_ultra_quality() and GraphicsQuality.VALID_QUALITIES[index] == GraphicsQuality.ULTRA:
+			continue
 		option.add_item(GraphicsQuality.display_name(GraphicsQuality.VALID_QUALITIES[index]), index)
-	option.select(GraphicsQuality.rank(GameManager.graphics_quality))
+	option.select(mini(GraphicsQuality.rank(GameManager.graphics_quality), option.item_count - 1))
 	option.item_selected.connect(_on_graphics_quality_selected)
 	row.add_child(label)
 	row.add_child(option)
@@ -1620,9 +2161,10 @@ func _setup_max_fps_option() -> void:
 	option.name = "MaxFpsOption"
 	option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	option.add_theme_font_size_override("font_size", 18)
-	for fps: int in GameManager.MAX_FPS_CHOICES:
+	# スマホは 30 / 60 / 120（GameManager.available_max_fps_choices）
+	for fps: int in MobileMenu.max_fps_choices():
 		option.add_item("制限なし" if fps == 0 else "%d FPS" % fps, fps)
-	option.select(option.get_item_index(GameManager.max_fps))
+	MobileMenu.select_fps_item(option, GameManager.max_fps)
 	option.item_selected.connect(_on_max_fps_selected)
 	row.add_child(label)
 	row.add_child(option)

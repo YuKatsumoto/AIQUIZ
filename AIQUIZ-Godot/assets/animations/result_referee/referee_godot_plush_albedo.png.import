@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://draj0v3jshd0h"
 path.s3tc="res://.godot/imported/referee_godot_plush_albedo.png-55d9e0d0930848b73f31c755e1f5633b.s3tc.ctex"
+path.etc2="res://.godot/imported/referee_godot_plush_albedo.png-55d9e0d0930848b73f31c755e1f5633b.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/animations/result_referee/referee_godot_plush_albedo.png"
-dest_files=["res://.godot/imported/referee_godot_plush_albedo.png-55d9e0d0930848b73f31c755e1f5633b.s3tc.ctex"]
+dest_files=["res://.godot/imported/referee_godot_plush_albedo.png-55d9e0d0930848b73f31c755e1f5633b.s3tc.ctex", "res://.godot/imported/referee_godot_plush_albedo.png-55d9e0d0930848b73f31c755e1f5633b.etc2.ctex"]
 
 [params]
 

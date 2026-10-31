@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://denescshff4ee"
 path.s3tc="res://.godot/imported/aiquiz_menu_city_harbor_facade_tile_night.png-d87fbea57c6de3162d5bc34948978873.s3tc.ctex"
+path.etc2="res://.godot/imported/aiquiz_menu_city_harbor_facade_tile_night.png-d87fbea57c6de3162d5bc34948978873.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/aiquiz_menu_stage/aiquiz_menu_city_harbor_facade_tile_night.png"
-dest_files=["res://.godot/imported/aiquiz_menu_city_harbor_facade_tile_night.png-d87fbea57c6de3162d5bc34948978873.s3tc.ctex"]
+dest_files=["res://.godot/imported/aiquiz_menu_city_harbor_facade_tile_night.png-d87fbea57c6de3162d5bc34948978873.s3tc.ctex", "res://.godot/imported/aiquiz_menu_city_harbor_facade_tile_night.png-d87fbea57c6de3162d5bc34948978873.etc2.ctex"]
 
 [params]
 

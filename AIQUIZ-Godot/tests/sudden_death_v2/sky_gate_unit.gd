@@ -1,7 +1,7 @@
 extends Node
 
 ## 「つきやぶれ！スカイゲート」のルール（SkyGateGame、docs/sudden_death_v2/sky_gate.md 第2・3章、skygate_build_plan.md 4.5）を
-## ヘッドレスで確かめる。
+## ヘッドレスで確かめる。2026-10-25 から時間制限は無く、4 枚のボードの列が一定の速さで上がってきて、当たった瞬間に判定する。
 ##   ./Godot_v4.7.2-stable_win64_console.exe --headless --path . --script res://tests/sudden_death_v2/sky_gate_unit_bootstrap.gd
 ## 結果は標準出力の SKY_GATE_UNIT {...}（checks・failures）。
 
@@ -22,6 +22,7 @@ func check(ok: bool, label: String) -> void:
 
 func _run() -> void:
 	_test_contract()
+	_test_column()
 	_test_correct()
 	_test_wrong()
 	_test_impact()
@@ -79,7 +80,7 @@ static func _panel_point(game: SkyGateGame, panel: int) -> Vector2:
 
 
 ## 2人がそれぞれのパネルへ向かいながら、今のゲートの判定まで進める（-1 = 動かない）。返り値はそのゲートの gate_pass。
-## 時間切れ（gate_impact）のあと、つき破る動きの間（impact）も進めて判定を待つ。
+## 当たった（gate_impact）あと、つき破る動きの間（impact）も進めて判定を待つ。
 func _play_gate(game: SkyGateGame, p1_panel: int, p2_panel: int, fps := 60, offsets := [Vector2.ZERO, Vector2.ZERO]) -> Dictionary:
 	var dt := 1.0 / float(fps)
 	var index := game.gate_index
@@ -126,7 +127,7 @@ func _wrong(game: SkyGateGame) -> int:
 	return (game.correct_choice() + 1) % 4
 
 
-## 2人とも正解してラウンドを終える（ROUND 5 は1枚ずつのゲートに入ったところで止める）。
+## 2人とも正解してラウンドを終える（ROUND 5 は延長に入ったところで止める）。
 func _clear_round(game: SkyGateGame) -> void:
 	while not game.finished and game.phase == "gate" and not game.overtime:
 		var right := game.correct_choice()
@@ -148,16 +149,83 @@ func _test_contract() -> void:
 	var kinds := _kinds(game.events)
 	check(kinds == ["round_start", "gate"], "start emits round_start and gate: %s" % str(kinds))
 	var rs: Dictionary = game.events[0]
-	check(int(rs.round) == 1 and int(rs.gates) == 4 and is_equal_approx(float(rs.gate_time), 8.0), "round_start fields")
+	check(int(rs.round) == 1 and int(rs.gates) == 4 and is_equal_approx(float(rs.speed), 8.0), "round_start fields")
+	check(is_equal_approx(float(rs.gap), SkyGateGame.BOARD_GAP) and is_equal_approx(float(rs.first_depth), SkyGateGame.FIRST_DEPTH),
+		"round_start carries the column")
 	check(rs.board_size == Vector2(17.0, 12.2), "round 1 board is 17 x 12.2")
+	var listed: Array = rs.get("questions", [])
+	check(listed.size() == 4 and str((listed[3] as Dictionary).question) == "問題3", "round_start lists the 4 questions: %d" % listed.size())
 	var gate: Dictionary = game.events[1]
-	for key: String in ["round", "index", "question", "choices", "correct", "time"]:
+	for key: String in ["round", "index", "question", "choices", "correct", "depth", "speed"]:
 		check(gate.has(key), "gate event has " + key)
+	check(not gate.has("time"), "no time limit in the gate event")
 	check(int(gate.index) == 0 and str(gate.question) == "問題0" and (gate.choices as Array).size() == 4, "gate carries the question")
 	check(int(gate.correct) == game.correct_choice(), "gate carries the correct choice")
 	check(game.pos[0].x < 0.0 and game.pos[1].x > 0.0, "P1 starts on the left, P2 on the right")
 	check(SkyGateGame.QUESTION_COUNT == 20, "5 rounds x 4 questions")
 	check(game.board_offset() == 0.0, "round 1 board does not move")
+
+
+## 4 枚の列：始まる前から問題がそろっていて、一定の速さで上がってきて、紙に触れた瞬間に当たる。
+func _test_column() -> void:
+	var game := SkyGateGame.new()
+	var quizzes := _quizzes()
+	game.setup(quizzes, 3)
+	check(game.board_count() == 4, "4 boards from the start")
+	for k in range(4):
+		check(game.column_quiz(k) == quizzes[k], "board %d carries question %d before the start" % [k, k])
+		check(is_equal_approx(game.board_depth(k), SkyGateGame.FIRST_DEPTH + float(k) * SkyGateGame.BOARD_GAP), "board %d hangs below in a column" % k)
+	game.step(2.0, _moves())
+	check(is_equal_approx(game.board_depth(0), SkyGateGame.FIRST_DEPTH), "the column waits before start()")
+	# 始まる前に問題が差し替わったら（AI の問題）、列はそれを読む
+	var swapped := _quizzes()
+	swapped[1] = QuizItem.create("差し替え", PackedStringArray(["a", "b", "c", "d"]), 0, "", "TEST")
+	game.quizzes = swapped.duplicate()
+	check(game.column_quiz(1).q == "差し替え", "the column reads swapped questions")
+	game.start()
+	game.events.clear()
+	var right := game.correct_choice()
+	var dt := 1.0 / 60.0
+	var t := 0.0
+	var start_depth := game.board_depth(0)
+	for _i in range(60):
+		game.step(dt, _moves(_steer(game, 0, _panel_point(game, right)), _steer(game, 1, _panel_point(game, right))))
+		t += dt
+	check(absf(start_depth - game.board_depth(0) - 8.0) < 0.01, "the column rises 8 m/s in round 1 (%.3f)" % (start_depth - game.board_depth(0)))
+	check(absf(game.board_depth(1) - game.board_depth(0) - SkyGateGame.BOARD_GAP) < 0.0001, "the boards keep their gap")
+	check(absf(game.time_to_contact() - (game.board_depth(0) - SkyGateImpact.CONTACT) / 8.0) < 0.0001, "time to contact")
+	var progress := game.gate_progress()
+	check(progress > 0.08 and progress < 0.14, "gate progress after 1 s (%.3f)" % progress)
+	var impact := {}
+	while game.phase == "gate" and t < 30.0:
+		game.step(dt, _moves(_steer(game, 0, _panel_point(game, right)), _steer(game, 1, _panel_point(game, right))))
+		t += dt
+		for event: Dictionary in game.events:
+			if str(event.kind) == "gate_impact":
+				impact = event
+		game.events.clear()
+	var expected := (SkyGateGame.FIRST_DEPTH - SkyGateImpact.CONTACT) / 8.0
+	check(not impact.is_empty() and absf(t - expected) < dt + 0.001, "contact after %.2f s (%.3f)" % [expected, t])
+	check(int(impact.get("mode", -1)) == SkyGateImpact.ALL_BURST, "both right: all burst")
+	check(game.board_depth(0) <= SkyGateImpact.CONTACT + 0.0001 and game.board_depth(0) > SkyGateImpact.CONTACT - 0.2,
+		"the board is at the bodies at contact (%.3f)" % game.board_depth(0))
+	# 全員が正解：列は止まらず、BURST_IMPACT_TIME で判定 → すぐ次のボード
+	var fall := game.column_fall
+	var waited := 0.0
+	var next := {}
+	while game.phase == "impact" and waited < 2.0:
+		game.step(dt, _moves())
+		waited += dt
+		for event: Dictionary in game.events:
+			if str(event.kind) == "gate":
+				next = event
+		game.events.clear()
+	check(absf(waited - SkyGateGame.BURST_IMPACT_TIME) < dt + 0.001, "all burst: verdict after %.1f s (%.3f)" % [SkyGateGame.BURST_IMPACT_TIME, waited])
+	check(game.column_fall > fall + 1.5, "the column keeps rising through the burst")
+	var next_depth := SkyGateGame.FIRST_DEPTH + SkyGateGame.BOARD_GAP - (SkyGateGame.FIRST_DEPTH - SkyGateImpact.CONTACT + 8.0 * SkyGateGame.BURST_IMPACT_TIME)
+	check(game.phase == "gate" and int(next.get("index", -1)) == 1, "the next board right after the verdict")
+	check(absf(float(next.get("depth", 0.0)) - next_depth) < 0.01, "the next board was already below (%.2f m)" % float(next.get("depth", 0.0)))
+	check(game.column_quiz(1).q == "差し替え" and str(next.get("question", "")) == "差し替え", "the next board is the second of the column")
 
 
 func _test_correct() -> void:
@@ -167,11 +235,8 @@ func _test_correct() -> void:
 	check(not pass_event.is_empty(), "gate_pass arrives")
 	check(pass_event.results == ["burst", "burst"], "both on the right panel burst: %s" % str(pass_event.get("results")))
 	check(pass_event.panels == [right, right], "panels are the panels under them")
-	var before := game.gate_index
-	check(game.phase == "pass", "pass phase after the gate")
-	var events := _until_next(game)
-	check(game.phase == "gate" and game.gate_index == before + 1, "next gate after %.1f s" % SkyGateGame.PASS_TIME)
-	check(_kinds(events) == ["gate"], "only the next gate: %s" % str(_kinds(events)))
+	check(game.phase == "gate" and game.gate_index == 1, "next gate right after the verdict (no waiting)")
+	check(_kinds(game.events) == ["gate"], "only the next gate: %s" % str(_kinds(game.events)))
 	check(game.passes == [1, 1], "passes counted")
 
 
@@ -198,8 +263,8 @@ func _test_wrong() -> void:
 	check(game2.winner == 2 and game2.decided_by == "out", "P2 wins when P1 booms")
 
 
-## 時間切れ → つき破る動きの間（IMPACT_TIME）→ 判定。時間切れで位置が止まり、正解かどうかは gate_impact で決まっているが、
-## 判定（gate_pass・out・decided）は動きを見せ終えてから出る。
+## 当たる → 脱落のスロー（SkyGateImpact.wasted_real_time）→ 判定。当たった瞬間に位置が止まり、正解かどうかは gate_impact で
+## 決まっているが、判定（gate_pass・out・decided）は動きを見せ終えてから出る。まちがいがいる間は列が止まる。
 func _test_impact() -> void:
 	var game := _game()
 	var right := game.correct_choice()
@@ -217,15 +282,17 @@ func _test_impact() -> void:
 			elif str(event.kind) in ["gate_pass", "out", "decided"]:
 				early_verdict = true
 		game.events.clear()
-	check(game.phase == "impact" and not impact.is_empty(), "time up: gate_impact and the impact phase")
-	check(not early_verdict and not game.finished, "no verdict at the time-up")
+	check(game.phase == "impact" and not impact.is_empty(), "contact: gate_impact and the impact phase")
+	check(not early_verdict and not game.finished, "no verdict at the contact")
+	check(int(impact.get("mode", -1)) == SkyGateImpact.MIXED, "one right, one wrong: mixed")
 	check(impact.get("results", []) == ["burst", "boom"], "the impact already knows who breaks through: %s" % str(impact.get("results")))
 	check(impact.get("panels", []) == [right, wrong], "the impact names the panels under them")
 	var at := [game.pos[0], game.pos[1]]
+	var fall := game.column_fall
 	var waited := 0.0
 	var verdict := {}
 	var kinds: Array[String] = []
-	while game.phase == "impact" and waited < 3.0:
+	while game.phase == "impact" and waited < 8.0:
 		game.step(dt, _moves(Vector2.RIGHT, Vector2.LEFT))
 		waited += dt
 		kinds.append_array(_kinds(game.events))
@@ -233,23 +300,34 @@ func _test_impact() -> void:
 			if str(event.kind) == "gate_pass":
 				verdict = event
 		game.events.clear()
-	check(absf(waited - SkyGateGame.IMPACT_TIME) < 0.02, "verdict %.1f s after the time-up (%.3f)" % [SkyGateGame.IMPACT_TIME, waited])
+	var boom_time := SkyGateImpact.wasted_real_time(SkyGateImpact.BOOM_JUDGE_AT, SkyGateImpact.MIXED)
+	check(absf(waited - boom_time) < 0.02, "verdict %.2f s after the contact (%.3f)" % [boom_time, waited])
+	check(boom_time > 2.5 and boom_time < 5.0, "the wasted slow-mo takes %.2f s" % boom_time)
+	check(game.column_fall == fall, "the column holds while someone is wrong")
 	check(kinds == ["gate_pass", "out", "decided"], "then the verdict: %s" % str(kinds))
 	check(verdict.get("results", []) == impact.get("results", []) and verdict.get("panels", []) == impact.get("panels", []),
 		"the verdict matches the impact")
 	check(game.pos[0] == at[0] and game.pos[1] == at[1], "positions frozen during the impact")
 	check(game.finished and game.winner == 1, "P1 wins after the verdict")
-	check(SkyGateImpact.THROUGH_END < SkyGateGame.IMPACT_TIME and SkyGateImpact.EXPLODE_AT < SkyGateGame.IMPACT_TIME,
-		"the break-through and the explosion finish before the verdict")
+	check(SkyGateImpact.EXPLODE_AT < SkyGateImpact.BOOM_JUDGE_AT, "the explosion comes before the verdict")
+	check(absf(SkyGateImpact.wasted_scale(0.4, SkyGateImpact.MIXED) - SkyGateImpact.WASTED_SLOW) < 0.001, "slow-mo right after the hit")
+	check(absf(SkyGateImpact.wasted_scale(SkyGateImpact.EXPLODE_AT, SkyGateImpact.ALL_BOOM) - SkyGateImpact.WASTED_SLOW) < 0.001,
+		"still slow at the explosion")
+	check(SkyGateImpact.wasted_scale(SkyGateImpact.BOOM_JUDGE_AT, SkyGateImpact.MIXED) > 0.999, "back to full speed by the verdict")
+	check(SkyGateImpact.wasted_scale(0.4, SkyGateImpact.ALL_BURST) == 1.0, "no slow-mo when all break through")
+	check(SkyGateImpact.wasted_amount(0.4, SkyGateImpact.MIXED) > 0.99 and SkyGateImpact.wasted_amount(0.4, SkyGateImpact.ALL_BURST) == 0.0,
+		"colour drains only with a boom")
+	var scene := SkyGateImpact.wasted_scene_time(boom_time, SkyGateImpact.MIXED)
+	check(absf(scene - SkyGateImpact.BOOM_JUDGE_AT) < 0.02, "scene time and real time agree (%.3f)" % scene)
+	check(SkyGateImpact.through_alpha(0.6, 8.0) < 0.01 and SkyGateImpact.through_alpha(0.05, 8.0) > 0.99, "an all-burst board fades as it passes")
 	check(SkyGateImpact.rel_height(true, SkyGateImpact.THROUGH_END) < -3.0, "the right panel lets the body through")
 	check(SkyGateImpact.body_height(true, SkyGateImpact.ALL_BURST, 0.8) == 0.0, "the body that breaks through stays in place (the board moves)")
-	check(SkyGateImpact.board_alpha(SkyGateImpact.ALL_BURST, SkyGateGame.IMPACT_TIME) < 0.01, "the passed board has faded out by the verdict")
 	check(SkyGateImpact.board_alpha(SkyGateImpact.MIXED, SkyGateImpact.EXPLODE_AT) > 0.99, "with a boom, the board stays until the explosion")
 	check(SkyGateImpact.rel_height(false, SkyGateImpact.BOUNCE_END) > 3.0, "the wrong panel throws the body back up")
 	check(SkyGateImpact.dent(false, SkyGateImpact.STRETCH_END) > 0.6, "the wrong panel stretches but holds")
 
 
-## 時間切れの位置で判定：正解のパネルにいても、最後に離れたら外れ。最後に入れば当たり。
+## 当たった瞬間の位置で判定：正解のパネルにいても、最後に離れたら外れ。最後に入れば当たり。
 func _test_timeout_position() -> void:
 	var game := _game()
 	var right := game.correct_choice()
@@ -260,7 +338,7 @@ func _test_timeout_position() -> void:
 	var pass_event := {}
 	while game.phase in ["gate", "impact"] and guard < 2000:
 		guard += 1
-		var late := game.time_left() < 1.2
+		var late := game.phase == "gate" and game.time_to_contact() < 1.2
 		var m1 := _steer(game, 0, _panel_point(game, wrong if late else right))
 		var m2 := _steer(game, 1, _panel_point(game, right if late else wrong))
 		game.step(dt, _moves(m1, m2))
@@ -268,7 +346,7 @@ func _test_timeout_position() -> void:
 			if str(event.kind) == "gate_pass":
 				pass_event = event
 		game.events.clear()
-	check(pass_event.get("results", []) == ["boom", "burst"], "judged where they are at the gate time: %s" % str(pass_event.get("results")))
+	check(pass_event.get("results", []) == ["boom", "burst"], "judged where they are at the contact: %s" % str(pass_event.get("results")))
 	check(game.winner == 2, "the late mover onto the right panel wins")
 	# 動かなければ真下のパネル（はじめの位置）で判定
 	var game2 := _game()
@@ -284,7 +362,7 @@ func _test_same_panel_push() -> void:
 	var min_gap := INF
 	var dt := 1.0 / 60.0
 	var pass_event := {}
-	while game.phase in ["gate", "impact"]:
+	while game.phase in ["gate", "impact"] and game.gate_index == 0:
 		var target := _panel_point(game, right)
 		game.step(dt, _moves(_steer(game, 0, target), _steer(game, 1, target)))
 		min_gap = minf(min_gap, game.pos[0].distance_to(game.pos[1]))
@@ -360,16 +438,20 @@ func _test_both_out_revive() -> void:
 	check(not game.finished and game.phase == "both_out", "nobody wins when both boom")
 	check(_kinds(game.events) == ["both_out"], "both_out emitted: %s" % str(_kinds(game.events)))
 	var at := [game.pos[0], game.pos[1]]
+	var fall := game.column_fall
 	game.events.clear()
 	var waited := 0.0
+	var held := true
 	while game.phase == "both_out" and waited < 3.0:
 		game.step(1.0 / 60.0, _moves(Vector2.RIGHT, Vector2.RIGHT))
 		waited += 1.0 / 60.0
 		if game.phase == "both_out":
 			check(game.events.is_empty(), "quiet while reviving")
+			held = held and game.column_fall == fall
 		else:
 			break
 	check(absf(waited - SkyGateGame.REVIVE_TIME) < 0.02, "revive after 1.0 s (%.3f)" % waited)
+	check(held, "the column holds while they revive")
 	var kinds := _kinds(game.events)
 	check(kinds == ["revive", "gate"], "revive then the next gate: %s" % str(kinds))
 	check(int(game.events[0].index) == 0, "revive names the gate")
@@ -399,11 +481,16 @@ func _test_round_flow() -> void:
 	game.events.clear()
 	game.step(5.0, _moves(Vector2.RIGHT, Vector2.RIGHT))
 	check(game.phase == "landing" and game.events.is_empty(), "waits on the float until begin_round()")
+	check(game.board_count() == 4 and game.column_round == 1, "the passed column stays until the next one is placed")
+	game.place_for_next_round()
+	check(game.column_round == 2 and game.column_quiz(0) == game.quizzes[4], "the next round's column is ready before its countdown")
+	check(is_equal_approx(game.board_depth(0), SkyGateGame.FIRST_DEPTH) and game.gate_index == -1, "the new column starts at the top")
 	check(game.begin_round(), "begin_round starts round 2")
 	check(not game.begin_round(), "begin_round only once")
 	var kinds := _kinds(game.events)
 	check(kinds == ["round_start", "gate"], "round 2 starts: %s" % str(kinds))
-	check(game.current_round == 2 and is_equal_approx(game.gate_time, 6.5), "round 2 gates are 6.5 s")
+	check(game.current_round == 2 and is_equal_approx(game.fall_speed, 10.0), "round 2 column rises 10 m/s")
+	check(game.current_quiz() == game.quizzes[4], "round 2 starts with its first board")
 	check(game.pos[0] == SkyGateGame.spawn_point(1) and game.pos[1] == SkyGateGame.spawn_point(2), "spawn again")
 	var moved := false
 	for _i in range(120):
@@ -419,7 +506,7 @@ func _test_round_flow() -> void:
 	_until_next(game)
 	_clear_round(game)
 	game.begin_round()
-	check(game.current_round == 3 and is_equal_approx(game.gate_time, 5.0), "round 3 gates are 5 s")
+	check(game.current_round == 3 and is_equal_approx(game.fall_speed, 13.0), "round 3 column rises 13 m/s")
 	check(game.board_size() == Vector2(12.2, 8.6), "round 3 board is 12.2 x 8.6")
 	check(game.play_rect().size.x < 12.2, "smaller play area")
 	game.events.clear()
@@ -437,19 +524,20 @@ func _test_overtime_and_speed() -> void:
 			check(game.phase == "landing", "round %d cleared" % number)
 			game.begin_round()
 	check(game.overtime and game.phase == "gate", "after round 5: overtime without landing")
-	var times: Array[float] = []
-	times.append(game.gate_time)
+	check(game.gate_index == 4 and game.board_count() == 8, "overtime: the column goes on below (%d boards)" % game.board_count())
+	check(game.column_quiz(7) != null, "overtime boards have questions ahead")
+	var speeds: Array[float] = []
+	speeds.append(game.fall_speed)
 	var right := game.correct_choice()
-	_play_gate(game, right, right)
-	var events := _until_next(game)
-	times.append(game.gate_time)
+	var pass_event := _play_gate(game, right, right)
+	var events := game.events.duplicate()
+	speeds.append(game.fall_speed)
 	right = game.correct_choice()
 	_play_gate(game, right, right)
-	_until_next(game)
-	times.append(game.gate_time)
-	check(times == [5.0, 4.0, 3.0], "overtime gates 5 → 4 → 3: %s" % str(times))
-	check(not _kinds(events).has("round_clear"), "no landing in overtime")
-	# 3 秒のゲート：2人とも正解。P2 は 1.0 秒まで別のパネル → P1 が早い
+	speeds.append(game.fall_speed)
+	check(speeds == [13.0, 15.5, 18.0], "overtime speeds 13 → 15.5 → 18: %s" % str(speeds))
+	check(not pass_event.is_empty() and not _kinds(events).has("round_clear"), "no landing in overtime")
+	# 18 m/秒のボード：2人とも正解。P2 は 1.0 秒まで別のパネル → P1 が早い
 	right = game.correct_choice()
 	var wrong := _wrong(game)
 	var dt := 1.0 / 60.0
@@ -459,7 +547,7 @@ func _test_overtime_and_speed() -> void:
 		var m1 := _steer(game, 0, _panel_point(game, right))
 		var m2 := _steer(game, 1, _panel_point(game, wrong if game.gate_clock() < 1.0 else right))
 		game.step(dt, _moves(m1, m2))
-	check(game.finished and game.decided_by == "speed" and game.winner == 1, "3 s gate: the earlier one wins by speed")
+	check(game.finished and game.decided_by == "speed" and game.winner == 1, "fastest board: the earlier one wins by speed")
 	check(game.speed_times[0] < game.speed_times[1], "speed times recorded %s" % str(game.speed_times))
 	var decided := {}
 	for event: Dictionary in game.events:
@@ -479,7 +567,7 @@ func _test_speed_tie() -> void:
 		var right := game.correct_choice()
 		_play_gate(game, right, right)
 		_until_next(game)
-	check(is_equal_approx(game.gate_time, 3.0), "on a 3 s gate")
+	check(is_equal_approx(game.fall_speed, SkyGateGame.SPEED_WIN_SPEED), "on the fastest board")
 	# 2人とも最初からずっと同じパネルの上（入った時刻が同じ）→ もう1枚
 	var right := game.correct_choice()
 	var center := SkyGateBoard.PANEL_CENTERS[right] * game.board_scale() + Vector2(game.board_offset(), 0.0)
@@ -491,17 +579,16 @@ func _test_speed_tie() -> void:
 	game.call("_track_under")
 	var guard := 0
 	var stayed := true
-	while game.phase in ["gate", "impact"] and guard < 2000:
+	while game.phase in ["gate", "impact"] and game.gate_index == index and guard < 2000:
 		guard += 1
 		# ボードは横へ動くので、パネルの上に居続けるようについていく
 		var c := SkyGateBoard.PANEL_CENTERS[right] * game.board_scale() + Vector2(game.board_offset(), 0.0)
 		game.step(1.0 / 60.0, _moves(_steer(game, 0, c + Vector2(-0.8, 0.0)), _steer(game, 1, c + Vector2(0.8, 0.0))))
-		if game.phase == "gate" and (game.under[0] != right or game.under[1] != right):
+		if game.phase == "gate" and game.gate_index == index and (game.under[0] != right or game.under[1] != right):
 			stayed = false
 	check(stayed, "both stayed on the right panel")
-	check(not game.finished and game.phase == "pass", "same time: no winner, another gate (%s %s)" % [game.phase, str(game.under_tick)])
-	_until_next(game)
-	check(game.gate_index == index + 1 and is_equal_approx(game.gate_time, 3.0), "another 3 s gate")
+	check(not game.finished and game.phase == "gate", "same time: no winner, another board (%s %s)" % [game.phase, str(game.under_tick)])
+	check(game.gate_index == index + 1 and is_equal_approx(game.fall_speed, SkyGateGame.SPEED_WIN_SPEED), "another fastest board")
 
 
 ## 同じ入力（1/30 秒ごとに変わる）なら、30 / 60 / 120fps で位置も出来事もまったく同じ。

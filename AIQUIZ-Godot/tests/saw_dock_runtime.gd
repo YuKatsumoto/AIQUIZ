@@ -36,7 +36,6 @@ func _process(dt: float) -> void:
 			saw.dock.begin()
 			saw._preview_elapsed = 0.0
 			saw.update_preview(0.0)
-			world._menu_wall_preview._apply_vessel_camera_return()
 	else:
 		if world.scene_file_path != "res://scenes/game_world.tscn": return
 		saw = world._saw_controller

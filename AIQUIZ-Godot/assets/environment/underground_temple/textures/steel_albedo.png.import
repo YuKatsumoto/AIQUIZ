@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://bl37tp8dvmf1n"
 path.bptc="res://.godot/imported/steel_albedo.png-35e98a168f904a7fc487ae2b38c9e0cd.bptc.ctex"
+path.astc="res://.godot/imported/steel_albedo.png-35e98a168f904a7fc487ae2b38c9e0cd.astc.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/environment/underground_temple/textures/steel_albedo.png"
-dest_files=["res://.godot/imported/steel_albedo.png-35e98a168f904a7fc487ae2b38c9e0cd.bptc.ctex"]
+dest_files=["res://.godot/imported/steel_albedo.png-35e98a168f904a7fc487ae2b38c9e0cd.bptc.ctex", "res://.godot/imported/steel_albedo.png-35e98a168f904a7fc487ae2b38c9e0cd.astc.ctex"]
 
 [params]
 

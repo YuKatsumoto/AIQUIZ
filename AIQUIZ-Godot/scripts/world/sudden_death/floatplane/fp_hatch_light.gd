@@ -69,14 +69,17 @@ func apply_quality(quality_value: String) -> void:
 	quality = QualityRules.normalize(quality_value)
 	var low := quality == QualityRules.LOW
 	var high := QualityRules.is_at_least(quality, QualityRules.HIGH)
+	# モバイル：光の筋は「標準」の歩数、ほこりは「標準」より少なく、照り返しは影なし（深度の読み直しと影の描き直しを減らす）。
+	var mobile := QualityRules.is_mobile_target()
 	if _shaft != null:
 		_shaft.visible = not low
-		_shaft_mat.set_shader_parameter("steps", 18 if high else 10)
+		_shaft_mat.set_shader_parameter("steps", 18 if high and not mobile else 10)
 	if _dust != null:
 		_dust.visible = not low
-		_dust.amount = 220 if high else 120
+		_dust.amount = (220 if high else 120) if not mobile else (90 if high else 70)
+		QualityRules.mark_particles_scaled(_dust)
 	if _spot != null:
-		_spot.shadow_enabled = high
+		_spot.shadow_enabled = high and not mobile
 
 
 ## 場面の外の明るさ（1 ＝ 晴れた空の上）と光の色、光の筋の濃さ（空気のほこり。0 で筋なし）。

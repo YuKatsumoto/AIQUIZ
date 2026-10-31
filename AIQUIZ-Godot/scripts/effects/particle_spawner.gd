@@ -201,11 +201,9 @@ func spawn_shark_impact(pos: Vector3, attack_forward: Vector3 = Vector3.FORWARD)
 	ring_tween.tween_property(shock_ring, "transparency", 1.0, 0.52).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	ring_tween.finished.connect(shock_ring.queue_free)
 
-	var cleanup_timer: SceneTreeTimer = get_tree().create_timer(2.4)
-	cleanup_timer.timeout.connect(func() -> void:
-		if is_instance_valid(column):
-			column.queue_free()
-	)
+	# 消す物のメソッドへ直接つなぐ（先に消えていれば、つながりも消える。self を使わない lambda は画面が変わっても残り、
+	# 消えた物を握ったまま呼ばれて「Lambda capture at index 0 was freed」を出していた）
+	get_tree().create_timer(2.4).timeout.connect(column.queue_free)
 
 
 func _create_shark_water_column() -> GPUParticles3D:
@@ -363,11 +361,7 @@ func _launch_single_firework(pos: Vector3, color: Color, height: float) -> void:
 	burst_timer.timeout.connect(func(): _spawn_firework_burst(pos + Vector3(0, height, 0), color))
 
 	# トレイルのクリーンアップ
-	var cleanup_timer := get_tree().create_timer(3.0)
-	cleanup_timer.timeout.connect(func():
-		if is_instance_valid(trail):
-			trail.queue_free()
-	)
+	get_tree().create_timer(3.0).timeout.connect(trail.queue_free)
 
 func _spawn_firework_burst(pos: Vector3, color: Color) -> void:
 	## 花火の爆発パーティクル
@@ -434,8 +428,4 @@ func _spawn_firework_burst(pos: Vector3, color: Color) -> void:
 	burst.emitting = true
 
 	# クリーンアップ
-	var cleanup_timer := get_tree().create_timer(4.0)
-	cleanup_timer.timeout.connect(func():
-		if is_instance_valid(burst):
-			burst.queue_free()
-	)
+	get_tree().create_timer(4.0).timeout.connect(burst.queue_free)

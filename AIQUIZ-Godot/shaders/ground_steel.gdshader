@@ -230,6 +230,9 @@ void fragment() {
 		slope += off / bolt_radius * head * 0.85;
 	}
 
+	// STEEL_NO_RELIEF: mobile build without the relief normals (StageMaterials._steel_shader: with
+	// this block compiled in, the Xclipse 950 of the Galaxy Z Flip 7 hangs the whole GPU now and then).
+#ifndef STEEL_NO_RELIEF
 	if (relief > 0.0) {
 		vec3 dir_b = mix(t_b, vec3(1.0, 0.0, 0.0), bolt_on_top);
 		vec3 tilt = t_a * slope.x + dir_b * slope.y;
@@ -253,6 +256,7 @@ void fragment() {
 			NORMAL = normalize((VIEW_MATRIX * vec4(n_world, 0.0)).xyz);
 		}
 	}
+#endif
 
 	ALBEDO = albedo;
 	ROUGHNESS = clamp(rough, 0.04, 1.0);

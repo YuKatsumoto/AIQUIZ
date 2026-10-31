@@ -5,11 +5,11 @@ class_name DuoTutorialGuides
 ## 1P版（solo_tutorial_guides.gd）と同じく全パーツを同じ加算発光マテリアル工場から
 ## 作り、明滅も1つの脈動値で揃える。2Pではこれをプレイヤー色で二重化し、
 ## どちらの誘導なのかを色で見分けられるようにする。
-## 操作キーは TutorialKeyGuides3D（res://scripts/world/tutorial_key_guides_3d.gd）が
+## 操作キーは KeyGuides3D（res://scripts/world/key_guides_3d.gd）が
 ## 各プレイヤーの頭上・肩の横、ゴーストシャークの上に実物のキーキャップとして浮かべる。
 
 const DuoFlow = preload("res://scripts/core/tutorial/duo_tutorial_flow.gd")
-const KeyGuidesScript = preload("res://scripts/world/tutorial_key_guides_3d.gd")
+const KeyGuidesScript = preload("res://scripts/world/key_guides_3d.gd")
 
 const P1_COLOR := Color(1.0, 0.48, 0.12, 1.0)
 const P2_COLOR := Color(0.18, 0.88, 1.0, 1.0)
@@ -48,7 +48,7 @@ var _target_ring: MeshInstance3D = null
 var _goal_beacon: MeshInstance3D = null
 var _saw_line: Array[MeshInstance3D] = []
 var _label: Label3D = null
-var _key_guides: TutorialKeyGuides3D = null
+var _key_guides: KeyGuides3D = null
 
 
 func setup(state: QuizGameState) -> void:
@@ -98,7 +98,7 @@ func update(delta: float) -> void:
 
 
 ## 検証用。3Dキーの状態を返す。
-func get_key_guides() -> TutorialKeyGuides3D:
+func get_key_guides() -> KeyGuides3D:
 	return _key_guides
 
 

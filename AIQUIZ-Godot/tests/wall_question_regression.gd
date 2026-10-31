@@ -336,10 +336,9 @@ func _validate(label: String, record: bool = true) -> void:
 	var camera: Camera3D = _world.camera_controller.camera
 	var points: PackedVector3Array = wall.get_gameplay_framing_points()
 	_check(points.size() >= 16, label + " measured glyph bounds")
-	if _gs.p1_alive:
+	# 2Pは2人の間隔でカメラを引かないため、問題文だけを画面内に収める。
+	if _gs.num_players < 2 and _gs.p1_alive:
 		_world.camera_controller._append_player_framing_points(points, Vector3(_gs.player_x, _gs.player_y, _gs.player_local_z))
-	if _gs.num_players >= 2 and _gs.p2_alive:
-		_world.camera_controller._append_player_framing_points(points, Vector3(_gs.player2_x, _gs.player2_y, _gs.player2_local_z))
 	var size := camera.get_viewport().get_visible_rect().size
 	var rect := Rect2(Vector2.INF, Vector2.ZERO)
 	var first := true

@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://bannls623tg47"
 path.bptc="res://.godot/imported/grate_albedo.png-cb8e5ccfcdfa0f9aa86dc0c0197afcd4.bptc.ctex"
+path.astc="res://.godot/imported/grate_albedo.png-cb8e5ccfcdfa0f9aa86dc0c0197afcd4.astc.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/environment/underground_temple/textures/grate_albedo.png"
-dest_files=["res://.godot/imported/grate_albedo.png-cb8e5ccfcdfa0f9aa86dc0c0197afcd4.bptc.ctex"]
+dest_files=["res://.godot/imported/grate_albedo.png-cb8e5ccfcdfa0f9aa86dc0c0197afcd4.bptc.ctex", "res://.godot/imported/grate_albedo.png-cb8e5ccfcdfa0f9aa86dc0c0197afcd4.astc.ctex"]
 
 [params]
 

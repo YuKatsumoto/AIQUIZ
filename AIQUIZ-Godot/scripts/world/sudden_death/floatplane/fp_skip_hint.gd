@@ -9,12 +9,15 @@ const LAYER := 9                 # サドンデスの HUD（8）の上、ポー�
 const FADE_IN := 0.25
 const FADE_OUT := 0.18
 const MARGIN := Vector2(28.0, 26.0)
+const TouchHud = preload("res://scripts/ui/touch_hud/touch_hud.gd")
 
 var _root: Control = null
 var _label: Label = null
 var _amount := 0.0
 var _shown := false
 var _english := false
+## スマホ：帯の代わりに押せるボタン（Space を流し込む。ゲーム画面の Space の処理が飛ばす）。
+var _touch_button: Button = null
 
 
 func _init() -> void:
@@ -28,6 +31,8 @@ func set_shown(shown: bool, english := false) -> void:
 	if english != _english:
 		_english = english
 		_label.text = "SKIP" if english else "でスキップ"
+		if _touch_button != null:
+			_touch_button.text = "SKIP ▶" if english else "スキップ ▶"
 
 
 func advance(delta: float) -> void:
@@ -36,6 +41,9 @@ func advance(delta: float) -> void:
 	_root.visible = _amount > 0.001
 	_root.modulate.a = _amount
 	_root.position.x = (1.0 - smoothstep(0.0, 1.0, _amount)) * 18.0
+	if _touch_button != null:
+		# 画面のタッチ操作の層が同じ「スキップ」（Space）を出しているときは重ねない（同じフレームに両方は出さない）。
+		_touch_button.visible = TouchHud.own_button_allowed(_touch_button, "SkipButton", _shown)
 
 
 func _build() -> void:
@@ -66,6 +74,9 @@ func _build() -> void:
 	bg.content_margin_bottom = 9.0
 	band.add_theme_stylebox_override("panel", bg)
 	_root.add_child(band)
+	if TouchHud.is_touch():
+		band.visible = false
+		_build_touch_button()
 	var row := HBoxContainer.new()
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_theme_constant_override("separation", 12)
@@ -100,3 +111,32 @@ func _build() -> void:
 	_label.add_theme_color_override("font_outline_color", Color(0.02, 0.03, 0.06, 0.8))
 	_label.add_theme_constant_override("outline_size", 4)
 	row.add_child(_label)
+
+
+## スマホ：右下（SafeArea の内側）に「スキップ ▶」のボタン。
+func _build_touch_button() -> void:
+	_touch_button = TouchHud.make_button("スキップ ▶", 22)
+	_touch_button.name = "SkipButton"
+	_touch_button.visible = false
+	_touch_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	_touch_button.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_touch_button.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	# 消えていく途中（_shown が false）の押下は、飛ばせない場面のジャンプにならないよう流さない。
+	_touch_button.pressed.connect(func() -> void:
+		if _shown:
+			TouchHud.tap_key(KEY_SPACE)
+	)
+	_root.add_child(_touch_button)
+	TouchHud.on_safe_area_changed(_layout_touch_button)
+	_layout_touch_button()
+
+
+func _layout_touch_button() -> void:
+	if _touch_button == null:
+		return
+	var right := -MARGIN.x - TouchHud.safe_right()
+	var bottom := -MARGIN.y - TouchHud.safe_bottom()
+	_touch_button.offset_left = right
+	_touch_button.offset_right = right
+	_touch_button.offset_top = bottom
+	_touch_button.offset_bottom = bottom

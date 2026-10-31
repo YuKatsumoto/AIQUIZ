@@ -124,6 +124,27 @@ def wet_test(gx, gz, yaw_deg, margin=25.0):
     return wet
 
 
+def walk_layout():
+    """歩く客の道（scripts/world/crowd/stand_paths.gd、docs/crowd_sim.md）を Godot のブロック空間で。"""
+    rows = ST["rows"]
+    sw, ks, bo = ST["stairwell"], ST["kiosk"], ST["booth"]
+    return {
+        "note": "The walking crowd's walk (scripts/world/crowd/stand_paths.gd, docs/crowd_sim.md), Godot block space: x away from "
+                "the course, y up, z along it (Blender y = -z). The aisle is the block's -Z edge (z -10). The stairwell (the "
+                "crowd's way in and out) opens in the walkway floor beside every aisle but cap_end's, from_aisle metres towards +Z; "
+                "its steps go down from the aisle's end to a landing on the deck and the door.",
+        "deck_y": ST["deck_top_z"],
+        "front_x": round(rows["first_seat_x"] - 0.55, 4),
+        "row_tread": rows["tread"], "row_base_y": rows["base_z"], "row_rise": rows["rise"], "rows": rows["count"],
+        "aisle": {"half_width": ST["aisle"]["width"] / 2, "step_tread": ST["aisle"]["step_tread"],
+                  "step_rise": ST["aisle"]["step_rise"], "steps": 12},
+        "walkway": {"x": ST["rear_walkway"]["x"], "y": ST["rear_walkway"]["top_z"]},
+        "booth": {"kinds": ["bay", "bay_pergola"], "x": bo["x"], "half_length": bo["length_y"] / 2,
+                  "window_x": ks["window_x"], "counter_depth": ks["counter_depth"]},
+        "stairwell": {"x": sw["x"], "from_aisle": sw["from_aisle"], "steps": sw["steps"], "landing": sw["landing"]},
+    }
+
+
 def place_world(obj, gpos, yaw_deg):
     obj.location = g2b(*gpos)
     obj.rotation_euler = (0, 0, math.radians(yaw_deg))
@@ -230,7 +251,7 @@ def build_all():
         report["exports"].append(export_glb(objs, ASSET / fname))
     seat_layout = {"block_length": ST["block_length"], "seat_rows": ST["rows"]["count"],
                    "note": "Godot block space: x away from the course, y up, z along it. The aisle of a block is on its -Z edge. Same schema as santorini_terrace_modules.json (bay_pergola reuses the bay block).",
-                   "blocks": blocks, "pergola_every": 3,
+                   "blocks": blocks, "pergola_every": 3, "walk": walk_layout(),
                    "sail_rig": {"right": "AQS_SailRig_R", "left": "AQS_SailRig_L", "on": ["bay", "bay_pergola"],
                                 "note": "Add one rig per bay block in the same block transform. R for the +X stand (unrotated), L for the -X stand (rotated PI). Both billow toward +Z."}}
     (ASSET / "aiquiz_stadium_stand_blocks.json").write_text(json.dumps(seat_layout, indent=1), encoding="utf-8")
@@ -258,6 +279,12 @@ def run_checks(parts, blocks):
     def chk(name, ok, detail):
         checks.append({"item": name, "pass": bool(ok), "detail": detail})
 
+    sw = ST["stairwell"]
+    chk("下り口：ブロックの中（隣へはみ出さない）・通路の階段とブースに重ならない",
+        0.0 < sw["from_aisle"][0] < sw["from_aisle"][1] < 10.0 - ST["booth"]["length_y"] / 2
+        and sw["x"][0] > max(ST["booth"]["x"][1], ST["rear_walkway"]["x"][0]) and sw["x"][1] < ST["back_face_x"] - 0.2, sw)
+    chk("後方通路の奥行き 4.25（ブースの裏に 1.65 の通り道）", abs(ST["back_face_x"] - ST["rear_walkway"]["x"][0] - 4.25) < 1e-6
+        and ST["back_face_x"] - ST["booth"]["x"][1] > 1.6, [ST["rear_walkway"]["x"], ST["booth"]["x"]])
     for kind, o in parts["stand"].items():
         st = mesh_stats(o)
         lo, hi = st["bounds_blender"]

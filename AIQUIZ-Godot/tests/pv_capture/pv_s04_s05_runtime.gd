@@ -31,10 +31,12 @@ const START_GRADE := 3
 const TELOP_END_BEAT := 6.5                 # 編集用の目安：UI が下がりきるころ（build_s04_s07.jsx）
 
 ## ヘリ（ゲームの秒、begin_game_start_departure からの経過。measure の等速で）：降りてきて縄ばしご 約 1.2 →
-## 揺れが収まって走り出す 約 2.95 → ジャンプ 約 3.33 → つかまる 約 3.95 → エンジンをためて 0.8 秒で打ち上がり
+## 揺れが収まって走り出す 約 2.95 → ジャンプ 約 3.33 → つかまる 約 3.95 → 甲板から吊り上げて 1.1 秒（手を振る）→
+## エンジンをためて 0.8 秒で打ち上がり
 const S05_PRE_SPEED := 1.45                 # S05 の頭から走り出すまでの早回し
 const GRAB_HOLD := 0.622                    # 走り終えてからつかまるまで（HelicopterArrivalDirector.MENU_LADDER_GRAB_DURATION ＋ 1 更新）
-const CHARGE := 0.8                         # つかまってから打ち上がりまで（MENU_BOOST_CHARGE_DURATION）
+## つかまってから打ち上がりまで（吊り上げ MENU_LIFT_DURATION ＋ ため MENU_BOOST_CHARGE_DURATION）
+const CHARGE := HelicopterArrivalDirector.MENU_LIFT_DURATION + HelicopterArrivalDirector.MENU_BOOST_CHARGE_DURATION
 const GRAB_BEAT := 13.0                     # S05 の 6 拍目の頭（テイクの頭から 13 拍）
 const LAUNCH_BEAT := 14.5
 
@@ -86,7 +88,6 @@ var _events := {}
 var _grab_frame := -1
 var _launch_frame := -1
 var _heli_at_grab := Vector3.INF
-var _saved_tutorial_version := 0
 var _saved_skin_path := ""
 var _saved_skin_suspended := false
 var _saved_provider_mode := ""
@@ -112,11 +113,9 @@ func _setup() -> void:
 	for e: Array in SHIFTS:
 		_shift_frames[bf(float(e[0]))] = e[1]
 	_press_frame = bf(PRESS_BEAT)
-	# メニューの起動演出・初回の案内・保守船の入港は飛ばす。見た目と設定は撮影用（保存しない）
+	# メニューの起動演出・保守船の入港は飛ばす。見た目と設定は撮影用（保存しない）
 	QuizManager.set_meta("title_logo_intro_seen", true)
 	QuizManager.set_meta("saw_dock_menu_seen", true)
-	_saved_tutorial_version = GameManager.tutorial_prompt_seen_version
-	GameManager.tutorial_prompt_seen_version = GameManager.CURRENT_TUTORIAL_VERSION
 	_saved_skin_path = PlayerSkinStore.path
 	_saved_skin_suspended = PlayerSkinStore.suspended
 	PlayerSkinStore.path = "user://pv_capture_player_skins.json"
@@ -135,17 +134,13 @@ func _setup() -> void:
 	gs.llm_mode = "ONLINE"
 	_saved_provider_mode = QuizManager.provider.llm_mode
 	QuizManager.provider.llm_mode = "ONLINE"
-	# 撮影済みの素材と同じ見た目で撮る：メニュー背景の新しい歩様・ゴーストライダー・わざと起こす事故は使わない
-	MenuRunnerAnimator.globally_enabled = false
+	# 撮影済みの素材と同じ見た目で撮る：メニュー背景のゴーストライダーは使わない
 	MenuGhostRideDirector.globally_enabled = false
-	MenuActorAI.accidents_enabled = false
 	get_tree().change_scene_to_file("res://ui/main_menu.tscn")
 	while get_tree().current_scene == null or not get_tree().current_scene.is_node_ready():
 		await get_tree().process_frame
 	menu = get_tree().current_scene
 	preview = menu.get("_menu_wall_preview")
-	if gs.has_pending_solo_customize_tour():
-		failures.append("customize tour pending")
 	# 待ちの演出の「チップソーに巻き込まれる」抽選を撮影のあいだだけ止める（menu_wall_background_preview.gd の SAW_*）
 	preview.set("_saw_accident_cooldown", 1.0e9)
 	preview.set("_saw_next_trial", 1.0e9)
@@ -431,6 +426,5 @@ func _cleanup() -> void:
 	if director != null and is_instance_valid(director):
 		preview.call("cancel_game_start_departure")
 	QuizManager.provider.llm_mode = _saved_provider_mode
-	GameManager.tutorial_prompt_seen_version = _saved_tutorial_version
 	PlayerSkinStore.path = _saved_skin_path
 	PlayerSkinStore.suspended = _saved_skin_suspended

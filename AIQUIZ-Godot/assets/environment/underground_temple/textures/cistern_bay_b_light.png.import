@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://d37uba81hw1hl"
 path.bptc="res://.godot/imported/cistern_bay_b_light.png-447b8a88e3546eab259f6632dc63102b.bptc.ctex"
+path.astc="res://.godot/imported/cistern_bay_b_light.png-447b8a88e3546eab259f6632dc63102b.astc.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/environment/underground_temple/textures/cistern_bay_b_light.png"
-dest_files=["res://.godot/imported/cistern_bay_b_light.png-447b8a88e3546eab259f6632dc63102b.bptc.ctex"]
+dest_files=["res://.godot/imported/cistern_bay_b_light.png-447b8a88e3546eab259f6632dc63102b.bptc.ctex", "res://.godot/imported/cistern_bay_b_light.png-447b8a88e3546eab259f6632dc63102b.astc.ctex"]
 
 [params]
 

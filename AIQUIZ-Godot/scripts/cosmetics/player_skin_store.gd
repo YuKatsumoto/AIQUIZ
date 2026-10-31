@@ -11,7 +11,7 @@ const SAVE_DELAY_SEC := 0.4
 const FRESH_PROFILE_ARG := "--fresh-profile"
 
 static var path: String = DEFAULT_PATH
-## true の間は変更をファイルへ書かない（チュートリアルの紹介中など）。
+## true の間は変更をファイルへ書かない（撮影・テストの間など）。
 static var suspended: bool = false
 static var _skins: Dictionary = {1: {}, 2: {}}
 static var _hats: Dictionary = {1: 0, 2: 0}

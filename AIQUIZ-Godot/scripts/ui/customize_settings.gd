@@ -1,39 +1,11 @@
 extends Control
 signal request_close
-signal tutorial_tour_completed
-signal tutorial_tour_aborted
 
 enum Section {
 	WALL_SPEED,
 	SKIN,
 	EMOTE,
 }
-
-## チュートリアルの最後に見せるカスタマイズ紹介（画像3枚）。
-## body は見出しの下の1行、note は補足。focus は画像の中で枠で囲む場所（画像に対する割合）。
-const TUTORIAL_TOUR_STEPS := [
-	{
-		"title": "壁の速さ",
-		"body": "壁が迫ってくる速さを、自分で決められます。",
-		"note": "「自動モードに戻す」で、問題ごとに合った速さに戻ります。",
-		"image": preload("res://assets/ui/tutorial/customize_wall_speed.png"),
-		"focus": Rect2(0.576, 0.366, 0.376, 0.296),
-	},
-	{
-		"title": "帽子",
-		"body": "P1・P2それぞれの帽子を選べます。",
-		"note": "プロペラ帽はジャンプ後の落下がゆっくりに。プレビューは右ドラッグで回転できます。",
-		"image": preload("res://assets/ui/tutorial/customize_skin_hat.png"),
-		"focus": Rect2(0.58, 0.455, 0.37, 0.16),
-	},
-	{
-		"title": "エモート",
-		"body": "数字キーで踊るエモートを選べます。",
-		"note": "1番のエモートは、2人対戦で勝ったときのダンスにもなります。",
-		"image": preload("res://assets/ui/tutorial/customize_emote.png"),
-		"focus": Rect2(0.502, 0.32, 0.448, 0.122),
-	},
-]
 
 const WALL_SCENE: PackedScene = preload("res://scenes/quiz_wall.tscn")
 const CONVEYOR_FLOOR_SHADER: Shader = preload("res://shaders/conveyor_belt_floor.gdshader")
@@ -45,6 +17,14 @@ const CustomizePreviewCameraSettingsScript = preload(
 const EmoteDancer2DScript = preload("res://scripts/ui/emote_dancer_2d.gd")
 const ThinkingGaugeSliderScript: Script = preload("res://scripts/ui/thinking_gauge_slider.gd")
 const ToonPresets = preload("res://scripts/cosmetics/character_toon_presets.gd")
+const MobileUi = preload("res://scripts/core/mobile_ui.gd")
+const MobileMenu = preload("res://scripts/ui/mobile/mobile_menu.gd")
+const PreviewTouchGestures = preload("res://scripts/ui/mobile/preview_touch_gestures.gd")
+## スマホ：エモートの一覧は 4 列（行を減らして 720 の高さに近づける）、そのぶんパネルを広げる。
+const TOUCH_EMOTE_GRID_COLUMNS := 4
+const TOUCH_SETTINGS_PANEL_EMOTE_WIDTH: float = 780.0
+## スマホ：1 本指ドラッグの回転の速さ（度 / 論理 px。右ドラッグの 0.3 と同じ手ざわり）。
+const TOUCH_ORBIT_DEG_PER_PX: float = 0.3
 const WALL_SPACING := 30.0
 ## 左レーンP1（壁速度プレビューと同じオフセット）／右レーンP2は対称配置
 const PREVIEW_PLAYER_P1_X: float = -3.5
@@ -157,24 +137,6 @@ var _back_button: Button
 var _back_separator: HSeparator
 var _body_scroll: ScrollContainer
 
-var _tutorial_tour_panel: PanelContainer
-var _tutorial_tour_progress: Label
-var _tutorial_tour_title: Label
-var _tutorial_tour_body: Label
-var _tutorial_tour_note: Label
-var _tutorial_tour_dots: HBoxContainer
-var _tutorial_tour_key_legend: Control
-var _tutorial_tour_focus: Control
-var _tutorial_tour_image: TextureRect
-var _tutorial_tour_back_button: Button
-var _tutorial_tour_next_button: Button
-var _tutorial_tour_overlay: Control
-var _tutorial_input_blocker: ColorRect
-var _tutorial_tour_active: bool = false
-var _tutorial_tour_index: int = 0
-var _tutorial_previous_mouse_mode: int = Input.MOUSE_MODE_VISIBLE
-var _tutorial_mouse_mode_saved: bool = false
-
 var _mode_label: Label
 var _speed_value_label: Label
 var _speed_slider: HSlider
@@ -228,6 +190,10 @@ var _skin_cam_dragging: bool = false
 var _preview_cam_tab_transition_active: bool = false
 var _back_to_menu_in_progress: bool = false
 var embedded_mode: bool = false
+## スマホ：プレビューの 1 本指の回転と 2 本指のピンチ。
+var _gestures := PreviewTouchGestures.new()
+## スマホ：壁速度タブでエモートを試すボタン（キーの 1・2・3 / Space の代わり）。
+var _touch_emote_row: HBoxContainer = null
 ## 埋め込み時に共有する MenuWallBackgroundPreview（メニュー背景の単一ワールド）
 var _menu_preview: MenuWallBackgroundPreview = null
 ## 埋め込み時にカスタマイズ専用キャラ等を載せる共有ビューポート内のルート
@@ -343,7 +309,7 @@ func _process(dt: float) -> void:
 		_spawn_preview_wall(furthest_z - WALL_SPACING)
 
 	if _preview_player and _preview_gs:
-		if _active_section == Section.WALL_SPEED and not _tutorial_tour_active:
+		if _active_section == Section.WALL_SPEED:
 			_poll_preview_emote_inputs()
 		_preview_gs._active_wall_speed = _belt_visual_speed
 		_preview_player.use_skin_preview_rest_pose = _active_section == Section.SKIN
@@ -389,21 +355,6 @@ func _process(dt: float) -> void:
 		_update_skin_preview_lighting()
 
 	_process_hat_slide(dt)
-
-
-func _input(event: InputEvent) -> void:
-	if not _tutorial_tour_active or not event is InputEventKey:
-		return
-	var key_event := event as InputEventKey
-	if key_event.pressed and not key_event.echo:
-		match key_event.keycode:
-			KEY_LEFT:
-				_show_previous_tutorial_tour_page()
-			KEY_RIGHT, KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
-				_show_next_tutorial_tour_page()
-			KEY_ESCAPE:
-				_abort_tutorial_tour()
-	get_viewport().set_input_as_handled()
 
 
 func _build_ui() -> void:
@@ -518,211 +469,99 @@ func _build_ui() -> void:
 	outer_vbox.add_child(_back_button)
 
 	_refresh_skin_player_button_styles()
-	_build_tutorial_tour_overlay()
+	# スマホのボタン（エモートを ためす の行）も 1 回の _style_all_buttons で見た目を当てるため先に作る
+	_apply_touch_layout()
 	_style_all_buttons()
 	_configure_emote_focus_navigation()
 
 
-## カスタマイズ紹介（V7）。大きな画像の該当箇所を枠で囲み、右に見出しと1行の説明を置く。
-## 形式（画像3枚・戻る／次へ）は以前のまま。色と文字はチュートリアル共通（TutorialUiStyle）。
-func _build_tutorial_tour_overlay() -> void:
-	_tutorial_tour_overlay = Control.new()
-	_tutorial_tour_overlay.name = "CustomizeTutorialOverlay"
-	_tutorial_tour_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_tutorial_tour_overlay.z_index = 180
-	_tutorial_tour_overlay.visible = false
-	add_child(_tutorial_tour_overlay)
-	_tutorial_tour_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-
-	_tutorial_input_blocker = ColorRect.new()
-	_tutorial_input_blocker.name = "InputShield"
-	_tutorial_input_blocker.color = Color(TutorialUiStyle.NAVY, 0.96)
-	_tutorial_input_blocker.mouse_filter = Control.MOUSE_FILTER_STOP
-	_tutorial_tour_overlay.add_child(_tutorial_input_blocker)
-	_tutorial_input_blocker.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-
-	_tutorial_tour_panel = PanelContainer.new()
-	_tutorial_tour_panel.name = "CustomizeTutorialGuide"
-	_tutorial_tour_panel.set_anchors_preset(Control.PRESET_CENTER)
-	_tutorial_tour_panel.offset_left = -606.0
-	_tutorial_tour_panel.offset_top = -266.0
-	_tutorial_tour_panel.offset_right = 606.0
-	_tutorial_tour_panel.offset_bottom = 266.0
-	_tutorial_tour_panel.mouse_filter = Control.MOUSE_FILTER_STOP
-	_tutorial_tour_panel.z_index = 200
-	var guide_style := TutorialUiStyle.box(
-		TutorialUiStyle.PANEL_SOLID, Color(TutorialUiStyle.ACCENT, 0.85), 2, 24, 22.0, 22.0
-	)
-	guide_style.shadow_color = Color(0.0, 0.0, 0.0, 0.42)
-	guide_style.shadow_size = 16
-	_tutorial_tour_panel.add_theme_stylebox_override("panel", guide_style)
-	_tutorial_tour_overlay.add_child(_tutorial_tour_panel)
-
-	var content_row := HBoxContainer.new()
-	content_row.name = "Content"
-	content_row.add_theme_constant_override("separation", 26)
-	_tutorial_tour_panel.add_child(content_row)
-
-	var image_frame := PanelContainer.new()
-	image_frame.name = "ImageFrame"
-	image_frame.custom_minimum_size = Vector2(848.0, 477.0)
-	image_frame.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	image_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	image_frame.clip_contents = true
-	image_frame.add_theme_stylebox_override(
-		"panel", TutorialUiStyle.box(Color(0.008, 0.018, 0.038, 1.0), Color(0.17, 0.25, 0.4), 2, 14, 3.0, 3.0)
-	)
-	content_row.add_child(image_frame)
-
-	_tutorial_tour_image = TextureRect.new()
-	_tutorial_tour_image.name = "PageImage"
-	_tutorial_tour_image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_tutorial_tour_image.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	_tutorial_tour_image.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
-	_tutorial_tour_image.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	image_frame.add_child(_tutorial_tour_image)
-
-	# 画像の該当箇所を枠で囲み、枠の外を少し暗くする。
-	_tutorial_tour_focus = Control.new()
-	_tutorial_tour_focus.name = "FocusRing"
-	_tutorial_tour_focus.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_tutorial_tour_focus.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_tutorial_tour_focus.draw.connect(_draw_tutorial_tour_focus)
-	_tutorial_tour_image.add_child(_tutorial_tour_focus)
-
-	var guide_box := VBoxContainer.new()
-	guide_box.name = "Guide"
-	guide_box.custom_minimum_size = Vector2(290.0, 0.0)
-	guide_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	guide_box.add_theme_constant_override("separation", 12)
-	content_row.add_child(guide_box)
-
-	_tutorial_tour_progress = TutorialUiStyle.make_label("", 14, TutorialUiStyle.MUTED)
-	guide_box.add_child(_tutorial_tour_progress)
-	_tutorial_tour_title = TutorialUiStyle.make_label("", 38, TutorialUiStyle.ACCENT)
-	guide_box.add_child(_tutorial_tour_title)
-	_tutorial_tour_body = TutorialUiStyle.make_label("", 19, Color.WHITE)
-	_tutorial_tour_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_tutorial_tour_body.add_theme_constant_override("line_spacing", 6)
-	guide_box.add_child(_tutorial_tour_body)
-	_tutorial_tour_note = TutorialUiStyle.make_label("", 14, TutorialUiStyle.MUTED, TutorialUiStyle.FONT_MEDIUM)
-	_tutorial_tour_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_tutorial_tour_note.add_theme_constant_override("line_spacing", 4)
-	guide_box.add_child(_tutorial_tour_note)
-
-	_tutorial_tour_key_legend = HBoxContainer.new()
-	_tutorial_tour_key_legend.name = "EmoteKeyLegend"
-	_tutorial_tour_key_legend.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_tutorial_tour_key_legend.add_theme_constant_override("separation", 14)
-	_tutorial_tour_key_legend.visible = false
-	guide_box.add_child(_tutorial_tour_key_legend)
-
-	var spacer := Control.new()
-	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	guide_box.add_child(spacer)
-
-	_tutorial_tour_dots = HBoxContainer.new()
-	_tutorial_tour_dots.name = "PageDots"
-	_tutorial_tour_dots.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_tutorial_tour_dots.add_theme_constant_override("separation", 8)
-	guide_box.add_child(_tutorial_tour_dots)
-	for page_index: int in range(TUTORIAL_TOUR_STEPS.size()):
-		var dot := Panel.new()
-		dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		dot.custom_minimum_size = Vector2(28.0, 6.0)
-		_tutorial_tour_dots.add_child(dot)
-
-	var input_hint := HBoxContainer.new()
-	input_hint.name = "TourInputHint"
-	input_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	input_hint.add_theme_constant_override("separation", 6)
-	guide_box.add_child(input_hint)
-	for key_text: String in ["←", "→"]:
-		var arrow := TutorialKeyChip.new()
-		arrow.setup(key_text, TutorialKeyChip.Look.IDLE, TutorialUiStyle.ACCENT, 22.0)
-		input_hint.add_child(arrow)
-	var page_label := TutorialUiStyle.make_label("ページ", 12, TutorialUiStyle.MUTED, TutorialUiStyle.FONT_MEDIUM)
-	page_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	input_hint.add_child(page_label)
-	var esc_chip := TutorialKeyChip.new()
-	esc_chip.setup("Esc", TutorialKeyChip.Look.IDLE, TutorialUiStyle.ACCENT, 22.0)
-	input_hint.add_child(esc_chip)
-	var abort_label := TutorialUiStyle.make_label("中断", 12, TutorialUiStyle.MUTED, TutorialUiStyle.FONT_MEDIUM)
-	abort_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	input_hint.add_child(abort_label)
-
-	var button_row := HBoxContainer.new()
-	button_row.add_theme_constant_override("separation", 10)
-	guide_box.add_child(button_row)
-
-	_tutorial_tour_back_button = _tutorial_tour_button("← 戻る", false)
-	_tutorial_tour_back_button.name = "PreviousPage"
-	_tutorial_tour_back_button.pressed.connect(_show_previous_tutorial_tour_page)
-	button_row.add_child(_tutorial_tour_back_button)
-
-	_tutorial_tour_next_button = _tutorial_tour_button("次へ →", true)
-	_tutorial_tour_next_button.name = "NextPage"
-	_tutorial_tour_next_button.pressed.connect(_show_next_tutorial_tour_page)
-	button_row.add_child(_tutorial_tour_next_button)
-
-
-func _tutorial_tour_button(text: String, primary: bool) -> Button:
-	var button := Button.new()
-	button.text = text
-	# メニュー側のボタン一括スタイル（main_menu.gd）に上書きされないようにする印。
-	button.set_meta(&"tutorial_own_style", true)
-	button.custom_minimum_size = Vector2(0.0, 50.0)
-	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	button.add_theme_font_override("font", TutorialUiStyle.FONT_BOLD)
-	button.add_theme_font_size_override("font_size", 17)
-	for state: String in ["normal", "hover", "pressed", "disabled"]:
-		var bg := TutorialUiStyle.ACCENT if primary else Color(1.0, 1.0, 1.0, 0.07)
-		if state == "hover":
-			bg = bg.lightened(0.12) if primary else Color(1.0, 1.0, 1.0, 0.12)
-		elif state == "pressed":
-			bg = bg.darkened(0.12)
-		elif state == "disabled":
-			bg = Color(1.0, 1.0, 1.0, 0.03)
-		button.add_theme_stylebox_override(state, TutorialUiStyle.box(bg, Color.TRANSPARENT, 0, 12, 12.0, 6.0))
-	var focus := TutorialUiStyle.box(Color.TRANSPARENT, Color.WHITE, 3, 14)
-	focus.expand_margin_left = 3
-	focus.expand_margin_top = 3
-	focus.expand_margin_right = 3
-	focus.expand_margin_bottom = 3
-	button.add_theme_stylebox_override("focus", focus)
-	var ink := Color("2a1d00") if primary else TutorialUiStyle.TEXT
-	for state: String in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
-		button.add_theme_color_override(state, ink)
-	button.add_theme_color_override("font_disabled_color", Color(TutorialUiStyle.MUTED, 0.45))
-	return button
-
-
-func _draw_tutorial_tour_focus() -> void:
-	if _tutorial_tour_focus == null or not _tutorial_tour_active:
+## スマホ（タッチだけ）：押す部品を指の大きさに、小さい文字を読める大きさに。キーの案内（1・2・3）は
+## 押せるボタンに置きかえる。デスクトップでは何もしない。
+func _apply_touch_layout() -> void:
+	if not MobileUi.is_touch_ui():
 		return
-	var page: Dictionary = TUTORIAL_TOUR_STEPS[_tutorial_tour_index]
-	var focus: Rect2 = page.get("focus", Rect2())
-	if focus.size == Vector2.ZERO:
+	for button: Button in _section_buttons.values():
+		MobileUi.ensure_touch_size(button, true)
+	for button: Button in [_skin_player_btn_p1, _skin_player_btn_p2, _emote_player_btn_p1, _emote_player_btn_p2, _wall_reset_button]:
+		MobileUi.ensure_touch_size(button, true)
+	for button: Button in [_hat_prev_button, _hat_next_button, _back_button]:
+		MobileUi.ensure_touch_size(button)
+	for button: Button in _emote_slot_btns:
+		MobileUi.ensure_touch_size(button)
+		# 「1」「2」「3」のキーの絵は出さない（タップで選び、選ぶと左のプレビューで踊る）
+		var key_chip := button.find_child("KeyLabel", true, false) as CanvasItem
+		if key_chip:
+			key_chip.visible = false
+		var name_label := button.find_child("NameLabel", true, false) as Label
+		if name_label:
+			name_label.add_theme_font_size_override("font_size", MobileUi.font(11))
+	if _emote_grid:
+		_emote_grid.columns = TOUCH_EMOTE_GRID_COLUMNS
+	for card: Button in _emote_grid_btns:
+		MobileUi.ensure_touch_size(card, true)
+		# 一覧の上でも指でたどって動かせるよう、ドラッグはスクロールへ渡す
+		card.mouse_filter = Control.MOUSE_FILTER_PASS
+		var card_name := card.find_child("NameLabel", true, false) as Label
+		if card_name:
+			card_name.add_theme_font_size_override("font_size", MobileUi.font(12))
+	_mode_label.add_theme_font_size_override("font_size", MobileUi.font(16))
+	_speed_slider.custom_minimum_size.y = maxf(_speed_slider.custom_minimum_size.y, MobileUi.MIN_TOUCH_SIZE_COMPACT)
+	_build_touch_emote_row()
+	if _body_scroll:
+		# 指で一覧をたどれるよう、スクロールバーも太くする
+		_body_scroll.get_v_scroll_bar().custom_minimum_size.x = 16.0
+
+
+## スマホ：壁速度タブで、キーの 1・2・3（エモート）と Space（とめる）の代わりに押すボタン。
+func _build_touch_emote_row() -> void:
+	if _touch_emote_row != null:
 		return
-	var area := _tutorial_tour_focus.size
-	var ring := Rect2(focus.position * area, focus.size * area)
-	var shade := Color(0.02, 0.04, 0.08, 0.45)
-	_tutorial_tour_focus.draw_rect(Rect2(0.0, 0.0, area.x, ring.position.y), shade)
-	_tutorial_tour_focus.draw_rect(Rect2(0.0, ring.end.y, area.x, area.y - ring.end.y), shade)
-	_tutorial_tour_focus.draw_rect(Rect2(0.0, ring.position.y, ring.position.x, ring.size.y), shade)
-	_tutorial_tour_focus.draw_rect(Rect2(ring.end.x, ring.position.y, area.x - ring.end.x, ring.size.y), shade)
-	var border := TutorialUiStyle.box(Color.TRANSPARENT, TutorialUiStyle.ACCENT, 4, 14)
-	border.draw_center = false
-	_tutorial_tour_focus.draw_style_box(border, ring.grow(4.0))
-	var badge := ring.position + Vector2(-2.0, -2.0)
-	_tutorial_tour_focus.draw_circle(badge, 17.0, TutorialUiStyle.ACCENT)
-	var font := TutorialUiStyle.FONT_BOLD
-	var number := str(_tutorial_tour_index + 1)
-	var text_size := font.get_string_size(number, HORIZONTAL_ALIGNMENT_LEFT, -1, 18)
-	_tutorial_tour_focus.draw_string(
-		font, badge + Vector2(-text_size.x * 0.5, 6.5), number, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color("2a1d00")
-	)
+	var caption := Label.new()
+	caption.text = "エモートを ためす"
+	caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	caption.add_theme_font_size_override("font_size", MobileUi.font(14))
+	caption.add_theme_color_override("font_color", Color(0.70, 0.76, 0.86))
+	_wall_panel.add_child(caption)
+	_touch_emote_row = HBoxContainer.new()
+	_touch_emote_row.name = "TouchEmoteRow"
+	_touch_emote_row.add_theme_constant_override("separation", 8)
+	_wall_panel.add_child(_touch_emote_row)
+	for slot: int in range(3):
+		var button := Button.new()
+		button.text = "エモート %d" % (slot + 1)
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		button.add_theme_font_size_override("font_size", MobileUi.font(16))
+		button.pressed.connect(_play_touch_preview_emote.bind(slot))
+		MobileUi.ensure_touch_size(button)
+		_touch_emote_row.add_child(button)
+	var stop := Button.new()
+	stop.text = "とめる"
+	stop.add_theme_font_size_override("font_size", MobileUi.font(16))
+	stop.pressed.connect(_stop_preview_wall_speed_emotes)
+	MobileUi.ensure_touch_size(stop)
+	_touch_emote_row.add_child(stop)
+
+
+## スマホ：壁速度タブのプレビューで、プレイヤー１のスロット slot のエモートを踊らせる（キーの 1・2・3 と同じ）。
+func _play_touch_preview_emote(slot: int) -> void:
+	if not _preview_gs or _active_section != Section.WALL_SPEED:
+		return
+	var slots: Array = QuizManager.game_state.p1_emote_slots
+	if slot >= slots.size() or int(slots[slot]) <= 0:
+		return
+	if _preview_gs.p1_alive and _preview_gs.player_vel_y == 0.0:
+		_preview_gs.p1_emote = int(slots[slot])
+
+
+## スマホの「もどる」（Android の戻るジェスチャー。MobileLifecycle が Esc として流す）：決定して戻る と同じ。
+## デスクトップの Esc の動きは変えない。
+func _unhandled_input(event: InputEvent) -> void:
+	if not MobileUi.is_touch_ui() or not MobileMenu.is_back_event(event):
+		return
+	if not is_visible_in_tree() or (embedded_mode and not _is_open) or _back_to_menu_in_progress:
+		return
+	get_viewport().set_input_as_handled()
+	_on_back_pressed()
 
 
 func _make_section_button(label: String, parent: Node, section: Section) -> Button:
@@ -1127,135 +966,6 @@ func _build_3d_preview() -> void:
 	_sub_viewport.add_child(_emote_preview_holder)
 
 
-func begin_tutorial_tour() -> void:
-	if not embedded_mode or TUTORIAL_TOUR_STEPS.is_empty() or _tutorial_tour_active:
-		return
-	_tutorial_previous_mouse_mode = Input.get_mouse_mode()
-	_tutorial_mouse_mode_saved = true
-	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
-	_tutorial_tour_active = true
-	_tutorial_tour_index = 0
-	_tutorial_tour_overlay.visible = true
-	_back_button.visible = false
-	_back_separator.visible = false
-	_set_tutorial_tour_page(0)
-	_refresh_section_button_states()
-
-
-func _set_tutorial_tour_page(step_index: int) -> void:
-	if not _tutorial_tour_active:
-		return
-	_tutorial_tour_index = clampi(step_index, 0, TUTORIAL_TOUR_STEPS.size() - 1)
-	var page: Dictionary = TUTORIAL_TOUR_STEPS[_tutorial_tour_index]
-	_tutorial_tour_progress.text = "カスタマイズ  %d / %d" % [
-		_tutorial_tour_index + 1,
-		TUTORIAL_TOUR_STEPS.size(),
-	]
-	_tutorial_tour_title.text = str(page.get("title", "カスタマイズ"))
-	_tutorial_tour_body.text = str(page.get("body", ""))
-	_tutorial_tour_note.text = str(page.get("note", ""))
-	_tutorial_tour_note.visible = not _tutorial_tour_note.text.is_empty()
-	_tutorial_tour_image.texture = page.get("image") as Texture2D
-	_tutorial_tour_focus.queue_redraw()
-	_refresh_tutorial_tour_key_legend()
-
-	var page_index := 0
-	for dot: Node in _tutorial_tour_dots.get_children():
-		(dot as Panel).add_theme_stylebox_override("panel", TutorialUiStyle.box(
-			TutorialUiStyle.ACCENT if page_index == _tutorial_tour_index else Color(1.0, 1.0, 1.0, 0.18),
-			Color.TRANSPARENT, 0, 3
-		))
-		page_index += 1
-
-	_tutorial_tour_back_button.disabled = _tutorial_tour_index == 0
-	_tutorial_tour_next_button.text = (
-		"紹介を終える"
-		if _tutorial_tour_index == TUTORIAL_TOUR_STEPS.size() - 1
-		else "次へ →"
-	)
-	_tutorial_tour_next_button.call_deferred("grab_focus")
-
-
-## エモートのページでは、踊るキーを実際の配列どおりに並べて見せる。
-func _refresh_tutorial_tour_key_legend() -> void:
-	if _tutorial_tour_key_legend == null:
-		return
-	var show_emote_keys := _tutorial_tour_index == 2
-	_tutorial_tour_key_legend.visible = show_emote_keys
-	if not show_emote_keys or _tutorial_tour_key_legend.get_child_count() > 0:
-		return
-	for player: int in [1, 2]:
-		var group := HBoxContainer.new()
-		group.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		group.add_theme_constant_override("separation", 6)
-		_tutorial_tour_key_legend.add_child(group)
-		var tag := TutorialUiStyle.make_label("P%d" % player, 15, TutorialUiStyle.player_color(player))
-		tag.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		group.add_child(tag)
-		var digits: Array = ["1", "2", "3"] if player == 1 else ["8", "9", "0"]
-		var row: Array = []
-		for digit: String in digits:
-			row.append({"text": digit})
-		group.add_child(TutorialUiStyle.key_cluster([row], TutorialUiStyle.player_color(player), 26.0))
-
-
-func _show_previous_tutorial_tour_page() -> void:
-	if not _tutorial_tour_active or _tutorial_tour_index <= 0:
-		return
-	_set_tutorial_tour_page(_tutorial_tour_index - 1)
-
-
-func _show_next_tutorial_tour_page() -> void:
-	if not _tutorial_tour_active:
-		return
-	if _tutorial_tour_index >= TUTORIAL_TOUR_STEPS.size() - 1:
-		_finish_tutorial_tour(true)
-		return
-	_set_tutorial_tour_page(_tutorial_tour_index + 1)
-
-
-
-
-func _abort_tutorial_tour() -> void:
-	_finish_tutorial_tour(false)
-
-
-func _finish_tutorial_tour(completed: bool) -> void:
-	if not _tutorial_tour_active:
-		return
-	_cleanup_tutorial_tour()
-	if completed:
-		tutorial_tour_completed.emit()
-	else:
-		tutorial_tour_aborted.emit()
-
-
-func _cleanup_tutorial_tour() -> void:
-	# Signal-free cleanup is also used by external close/scene teardown paths.
-	_tutorial_tour_active = false
-	if _tutorial_tour_overlay and is_instance_valid(_tutorial_tour_overlay):
-		_tutorial_tour_overlay.visible = false
-	if _tutorial_tour_next_button and is_instance_valid(_tutorial_tour_next_button):
-		_tutorial_tour_next_button.release_focus()
-	_skin_cam_dragging = false
-	_emote_cam_dragging = false
-	_emote_cam_panning = false
-	if _back_button and is_instance_valid(_back_button):
-		_back_button.visible = true
-	if _back_separator and is_instance_valid(_back_separator):
-		_back_separator.visible = true
-	if _tutorial_mouse_mode_saved:
-		Input.set_mouse_mode(_tutorial_previous_mouse_mode)
-		_tutorial_mouse_mode_saved = false
-	if is_inside_tree():
-		_refresh_section_button_states()
-
-
-func _exit_tree() -> void:
-	if _tutorial_tour_active or _tutorial_mouse_mode_saved:
-		_cleanup_tutorial_tour()
-
-
 func _set_section(section: Section) -> void:
 	var prev_section := _active_section
 	if prev_section == Section.SKIN and section != Section.SKIN:
@@ -1271,14 +981,15 @@ func _set_section(section: Section) -> void:
 
 	var target_height := 640.0
 	var target_width := SETTINGS_PANEL_EMOTE_WIDTH if section == Section.EMOTE else SETTINGS_PANEL_DEFAULT_WIDTH
-	if not _tutorial_tour_active:
-		match section:
-			Section.WALL_SPEED:
-				target_height = 480.0
-			Section.SKIN:
-				target_height = 420.0
-			Section.EMOTE:
-				target_height = 640.0
+	if MobileUi.is_touch_ui() and section == Section.EMOTE:
+		target_width = TOUCH_SETTINGS_PANEL_EMOTE_WIDTH
+	match section:
+		Section.WALL_SPEED:
+			target_height = 480.0
+		Section.SKIN:
+			target_height = 420.0
+		Section.EMOTE:
+			target_height = 640.0
 
 	if is_inside_tree():
 		var tween = create_tween().set_parallel(true)
@@ -1294,9 +1005,10 @@ func _set_section(section: Section) -> void:
 		_body_scroll.scroll_vertical = 0
 		_body_scroll.vertical_scroll_mode = (
 			ScrollContainer.SCROLL_MODE_DISABLED
-			if section == Section.EMOTE or section == Section.SKIN
+			if (section == Section.EMOTE or section == Section.SKIN) and not MobileUi.is_touch_ui()
 			else ScrollContainer.SCROLL_MODE_AUTO
 		)
+	_gestures.reset()
 
 	if _preview_input_catcher:
 		_preview_input_catcher.mouse_filter = (
@@ -1600,6 +1312,8 @@ func _on_emote_preview_gui_input(event: InputEvent) -> void:
 	var is_skin := _active_section == Section.SKIN
 	if _active_section != Section.EMOTE and not is_skin:
 		return
+	if MobileUi.is_touch_ui() and _apply_touch_orbit(event, is_skin):
+		return
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
 		if mb.button_index == MOUSE_BUTTON_RIGHT and is_skin:
@@ -1639,6 +1353,29 @@ func _on_emote_preview_gui_input(event: InputEvent) -> void:
 			var right_pan := Vector3(cos(yaw_rad_pan), 0, -sin(yaw_rad_pan))
 			_emote_cam_target += right_pan * mm.relative.x * -0.005
 			_emote_cam_target.y += mm.relative.y * 0.005
+
+
+## スマホ：1 本指のドラッグで回し（右ドラッグと同じ）、2 本指のピンチで寄る・離れる（ホイールと同じ範囲）。
+## 指の入力を使ったら true。
+func _apply_touch_orbit(event: InputEvent, is_skin: bool) -> bool:
+	var gesture := _gestures.feed(event)
+	if not bool(gesture.handled):
+		return false
+	var turn: Vector2 = gesture.rotate * TOUCH_ORBIT_DEG_PER_PX
+	var zoom: float = gesture.zoom
+	if is_skin:
+		_skin_cam_yaw -= turn.x
+		if SKIN_PREVIEW_ALLOW_VERTICAL_ORBIT:
+			_skin_cam_pitch = clampf(_skin_cam_pitch - turn.y, -80.0, 80.0)
+		if not is_equal_approx(zoom, 1.0) and zoom > 0.0:
+			_skin_cam_distance = clampf(_skin_cam_distance / zoom, 1.4, 6.5)
+	else:
+		_emote_cam_yaw -= turn.x
+		_emote_cam_pitch = clampf(_emote_cam_pitch - turn.y, -80.0, 80.0)
+		if not is_equal_approx(zoom, 1.0) and zoom > 0.0:
+			_emote_cam_distance = clampf(_emote_cam_distance / zoom, 1.5, 12.0)
+	accept_event()
+	return true
 
 
 func _refresh_all_labels() -> void:
@@ -2333,8 +2070,6 @@ func _on_back_pressed() -> void:
 
 
 func _prepare_embedded_close() -> void:
-	if _tutorial_tour_active:
-		_cleanup_tutorial_tour()
 	_back_to_menu_in_progress = true
 	_stop_preview_wall_speed_emotes()
 	PlayerSkinStore.flush()
@@ -2907,9 +2642,6 @@ func _style_all_buttons() -> void:
 	hover_style.bg_color = Color(0.18, 0.20, 0.28, 0.9)
 	hover_style.border_color = Color(0.4, 0.5, 0.7, 0.9)
 	for btn: Button in _get_all_buttons(self):
-		# カスタマイズ紹介のボタンはチュートリアル共通の見た目を自分で持つ。
-		if _tutorial_tour_overlay and _tutorial_tour_overlay.is_ancestor_of(btn):
-			continue
 		if _emote_grid and btn.get_parent() == _emote_grid:
 			continue
 		if btn == _skin_player_btn_p1 or btn == _skin_player_btn_p2:
@@ -2933,3 +2665,58 @@ func _get_all_buttons(node: Node) -> Array[Button]:
 	for child in node.get_children():
 		buttons.append_array(_get_all_buttons(child))
 	return buttons
+
+
+## 練習（コース⑤）の画面のコーチが光らせる部品（docs/new_tutorial/phase8_design.md 1.2）。なければ null。
+##   タブ：&"tab_wall"・&"tab_skin"・&"tab_emote"　スキン：&"skin_players"（プレイヤー１・２）・&"skin_hat"（◀ 名前 ▶）・
+##   &"preview"（左のプレビュー。右ドラッグ・ホイール）　エモート：&"emote_slots"（枠 1・2・3）・&"emote_slot1"・&"emote_grid"（踊りの一覧）
+##   壁速度：&"wall_mode"（自動／手動の表示）・&"wall_slider"・&"wall_reset"（自動モードに戻す）　&"done"（✓ 決定して戻る）
+func practice_coach_target(id: StringName) -> Control:
+	match id:
+		&"tab_wall":
+			return _section_buttons.get(Section.WALL_SPEED) as Control
+		&"tab_skin":
+			return _section_buttons.get(Section.SKIN) as Control
+		&"tab_emote":
+			return _section_buttons.get(Section.EMOTE) as Control
+		&"skin_players":
+			return _skin_player_btn_p1.get_parent() as Control if _skin_player_btn_p1 else null
+		&"skin_hat":
+			return _hat_prev_button.get_parent() as Control if _hat_prev_button else null
+		&"preview":
+			return _preview_input_catcher
+		&"emote_slots":
+			return _emote_slot_btns[0].get_parent() as Control if not _emote_slot_btns.is_empty() else null
+		&"emote_slot1":
+			return _emote_slot_btns[0] if not _emote_slot_btns.is_empty() else null
+		&"emote_grid":
+			return _emote_grid
+		&"wall_mode":
+			return _mode_label
+		&"wall_slider":
+			return _speed_slider
+		&"wall_reset":
+			return _wall_reset_button
+		&"done":
+			return _back_button
+	return null
+
+
+## いま開いているタブ（&"wall"・&"skin"・&"emote"）。練習の案内が待つ。
+func practice_section() -> StringName:
+	match _active_section:
+		Section.SKIN:
+			return &"skin"
+		Section.EMOTE:
+			return &"emote"
+	return &"wall"
+
+
+## 壁の速さを戻す（練習の 5-4 で、試したあと元の設定へ）。override が 0 以下なら『自動モードに戻す』と同じ、正ならその速さの手動。
+func practice_set_wall_speed(override: float) -> void:
+	if override <= 0.0:
+		_on_reset_pressed()
+		return
+	var value := clampf(override, GameTuning.WALL_SPEED_SLIDER_MIN, GameTuning.WALL_SPEED_SLIDER_MAX)
+	_speed_slider.set_value_no_signal(value)
+	_on_speed_changed(value)

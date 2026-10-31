@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://dylvvv6a6s0eu"
 path.s3tc="res://.godot/imported/online_heliport_ohp_pad_deck.png-e91f9f4000a73c01e9c9785eb8fcd2c2.s3tc.ctex"
+path.etc2="res://.godot/imported/online_heliport_ohp_pad_deck.png-e91f9f4000a73c01e9c9785eb8fcd2c2.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/online_heliport/online_heliport_ohp_pad_deck.png"
-dest_files=["res://.godot/imported/online_heliport_ohp_pad_deck.png-e91f9f4000a73c01e9c9785eb8fcd2c2.s3tc.ctex"]
+dest_files=["res://.godot/imported/online_heliport_ohp_pad_deck.png-e91f9f4000a73c01e9c9785eb8fcd2c2.s3tc.ctex", "res://.godot/imported/online_heliport_ohp_pad_deck.png-e91f9f4000a73c01e9c9785eb8fcd2c2.etc2.ctex"]
 
 [params]
 

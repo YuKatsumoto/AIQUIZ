@@ -2,6 +2,10 @@ extends CanvasLayer
 
 ## リプレイ再生HUD
 ## タイムライン、再生/停止、速度切替、カメラモードなどのUI
+## スマホ（タッチだけ）ではボタンとタイムラインを指の大きさにし、キーの案内を出さない
+## （自由カメラのタッチ操作は replay_camera 側で未対応）。
+
+const MobileUi = preload("res://scripts/core/mobile_ui.gd")
 
 var replay_player: ReplayPlayer
 var replay_camera: ReplayCamera
@@ -66,6 +70,7 @@ func _build_ui() -> void:
 	_timeline.max_value = 100.0
 	_timeline.step = 0.1
 	_timeline.custom_minimum_size = Vector2(0, 24)
+	MobileUi.ensure_touch_size(_timeline, true)
 
 	var slider_bg := StyleBoxFlat.new()
 	slider_bg.bg_color = Color(0.12, 0.15, 0.22, 0.8)
@@ -118,7 +123,7 @@ func _build_ui() -> void:
 	# 時間表示
 	_time_label = Label.new()
 	_time_label.text = "0:00 / 0:00"
-	_time_label.add_theme_font_size_override("font_size", 15)
+	_time_label.add_theme_font_size_override("font_size", MobileUi.font(15))
 	_time_label.add_theme_color_override("font_color", Color(0.7, 0.75, 0.85))
 	_time_label.custom_minimum_size = Vector2(120, 0)
 	_time_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -177,7 +182,7 @@ func _build_ui() -> void:
 	_score_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	_score_label.offset_right = -20.0
 	_score_label.offset_top = 16.0
-	_score_label.add_theme_font_size_override("font_size", 16)
+	_score_label.add_theme_font_size_override("font_size", MobileUi.font(16))
 	_score_label.add_theme_color_override("font_color", Color(0.7, 0.75, 0.85))
 	_score_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
 	_score_label.add_theme_constant_override("outline_size", 3)
@@ -197,13 +202,15 @@ func _build_ui() -> void:
 	hint.offset_top = 48.0
 	hint.offset_right = 520.0
 	hint.offset_bottom = 76.0
+	hint.visible = not MobileUi.is_touch_ui()
 	add_child(hint)
 
 func _create_btn(text: String, width: float, accent: Color) -> Button:
 	var btn := Button.new()
 	btn.text = text
 	btn.custom_minimum_size = Vector2(width, 36)
-	btn.add_theme_font_size_override("font_size", 15)
+	btn.add_theme_font_size_override("font_size", MobileUi.font(15))
+	MobileUi.ensure_touch_size(btn)
 
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color(0.10, 0.12, 0.18, 0.85)

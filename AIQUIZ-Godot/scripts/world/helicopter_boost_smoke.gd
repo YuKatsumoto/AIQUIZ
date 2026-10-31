@@ -65,6 +65,7 @@ func _ready() -> void:
 	_trail_motion.color_ramp = _hot_ramp(0.08)
 	_trail.lifetime = TRAIL_LIFETIME
 	_trail.amount = GraphicsQuality.particle_amount(roundi(240 * clampf(size, 0.5, 1.0)), GameManager.graphics_quality)
+	GraphicsQuality.mark_particles_scaled(_trail)
 	_burst = _make_particles(BURST_SCENE, "IgnitionSmoke")
 	_burst_motion = _burst.process_material as ParticleProcessMaterial
 	_burst_motion.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
@@ -84,6 +85,7 @@ func _ready() -> void:
 	_burst.one_shot = true
 	_burst.explosiveness = 0.9
 	_burst.amount = GraphicsQuality.particle_amount(roundi(18 * clampf(size, 0.5, 1.0)), GameManager.graphics_quality)
+	GraphicsQuality.mark_particles_scaled(_burst)
 	set_process(false)
 
 ## One of the pack's emitters with private copies of its look and motion, re-tuned for jet
