@@ -7,7 +7,9 @@ const SUBJECTS = new Set(['国語', '算数', '理科', '社会', '英語']);
 const DIFFICULTIES = new Set(['簡単', '普通', '難しい']);
 // GEMINI_POOL: 手元の生成プールから次のラウンドで再利用された Gemini 生成問題
 // CLAUDE_HAIKU: 補充ジョブ（bank-builder.js）が Claude Haiku で作った問題
-const ONLINE_SOURCES = new Set(['GEMINI', 'GEMINI_STREAM', 'GEMINI_POOL', 'OPENAI', 'CLAUDE_HAIKU']);
+// CLAUDE / CLAUDE_STREAM / CLAUDE_POOL: 試合中に Claude（/claude・/claude-stream）で作った問題とその再利用
+const ONLINE_SOURCES = new Set(['GEMINI', 'GEMINI_STREAM', 'GEMINI_POOL', 'OPENAI', 'CLAUDE_HAIKU',
+    'CLAUDE', 'CLAUDE_STREAM', 'CLAUDE_POOL']);
 const CONTENT_FIELDS = ['q', 'c', 'a', 'e'];
 
 // QUIZ_BANK_REQUIRE_REVIEW=1 のとき、クライアントの good は昇格させず票として数えるだけにする。

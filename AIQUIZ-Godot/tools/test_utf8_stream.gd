@@ -11,7 +11,7 @@ func _initialize() -> void:
 	var full_bytes := full_text.to_utf8_buffer()
 
 	# ── ケース1: 全バイトを1バイトずつ流し込む（最悪の分割） ──
-	var client = load("res://scripts/core/gemini_stream_client.gd").new()
+	var client = load("res://scripts/core/claude_stream_client.gd").new()
 	get_root().add_child(client)
 	client._byte_buffer = PackedByteArray()
 	var out1 := ""

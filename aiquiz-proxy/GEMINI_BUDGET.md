@@ -1,5 +1,8 @@
 # Gemini の上限と予算
 
+> **このブランチ（claude-live）では Gemini の入口を外した。** 試合中の生成は Claude（CLAUDE_LIVE.md）。
+> この文書は Gemini 系統（Cloud Run の `aiquiz-proxy`）の記録として残す。後半の「端末ごとの許可証と上限」は Claude 系統でもそのまま使う。
+
 プロキシの URL と `APP_SECRET` はゲームから取り出せる前提で、ゲーム以外から叩かれても費用が膨らまないように止める。
 
 ## 関所（gemini-guard.js）

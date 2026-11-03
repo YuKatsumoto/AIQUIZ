@@ -4,15 +4,14 @@ class_name OnlineFetch
 signal fetch_completed(quizzes: Array[QuizItem])
 signal fetch_partial(quizzes: Array[QuizItem])
 
-## オンライン問題生成（10問モード）
-const QUIZ_GENERATION_GEMINI_MODEL: String = "gemini-3.6-flash"
-## オンライン問題生成（エンドレスモード）
-const QUIZ_GENERATION_ENDLESS_GEMINI_MODEL: String = "gemini-3.1-flash-lite"
-## 解説生成（品質評価は quiz_optimizer 側）
-const EXPLANATION_GEMINI_MODEL: String = "gemini-3.5-flash-lite"
-const AUXILIARY_GEMINI_MODEL: String = "gemini-3.5-flash-lite"
-const THINKING_GENERATION: String = "low"
-const THINKING_EXPLANATION: String = "minimal"
+## 試合中の問題づくりはプロキシ経由の Claude（/claude・/claude-stream）。モデル・考える深さは
+## プロキシが用途（ClaudeRequest.TASK_*）ごとに決める。2026-11-03 の比較で、Sonnet 5.5（effort low）が
+## それまでの Gemini 3.6 Flash と同じ品質・速さだった（docs/evals/2026-11-03_quiz_generation_gemini_vs_claude.md）。
+## Claude は temperature を受け付けないので、難易度ごとの違いはプロンプトの指示だけで出す。
+## 生成の依頼の最後に付ける出力形式。t（予測解答時間）も例に入れて、付け忘れを減らす。
+const GENERATION_OUTPUT_FORMAT: String = "
+
+【出力形式】JSON配列のみ出力せよ。マークダウンや説明文は一切不要。例: [{\"q\":\"...\",\"c\":[\"A\",\"B\",\"C\",\"D\"],\"a\":0,\"e\":\"...\",\"g\":\"単元名\",\"t\":4.0}]"
 const UNIT_USAGE_PATH: String = "user://recent_unit_usage.json"
 const EXPLANATION_UNAVAILABLE_TEXT: String = "解説を取得できませんでした。通信状態を確認してください。"
 
@@ -135,7 +134,7 @@ func normalize_single(raw: Dictionary, src: String) -> QuizItem:
 	return item
 
 ## システムインストラクション（ロール設定）を生成
-## generationConfig.systemInstruction に渡す
+## /claude の system に渡す（プロキシが先頭に子ども向けの安全指示を付ける）
 func compose_system_instruction() -> String:
 	var sys := "あなたは日本の小学校で20年以上の指導経験を持つベテラン教員です。\n"
 	sys += "文部科学省の学習指導要領に完全準拠した、高品質なクイズ問題を生成します。\n"
@@ -144,22 +143,6 @@ func compose_system_instruction() -> String:
 	sys += "大きな桁数の計算・複雑な筆算を必要とする問題は禁止です。\n"
 	sys += "出力は常にJSON配列のみ。マークダウン装飾や説明文は一切含めないでください。\n"
 	return sys
-
-## 難易度に応じた temperature を返す
-func get_temperature_for_difficulty(difficulty: String, retry_count: int = 0) -> float:
-	var base: float
-	match difficulty:
-		"簡単":
-			base = 0.6
-		"普通":
-			base = 0.8
-		"難しい":
-			base = 0.95
-		_:
-			base = 0.7
-	# リトライ時は少し上げて多様性を出す
-	base += retry_count * 0.1
-	return clampf(base, 0.1, 1.2)
 
 func compose_prompt(subject: String, grade: int, difficulty: String, count: int,
 		history: Array[String], is_coop: bool = false,
@@ -1081,8 +1064,6 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 		exact_blocklist.size(), semantic_blocklist.size()
 	])
 	
-	# 案5: 難易度に応じた temperature
-	var temperature := get_temperature_for_difficulty(difficulty)
 
 	# ストリーミング・通常応答の両方が必ず通る共通の新規性ゲート。
 	# Dictionary は参照共有されるため、並列バッチ間でも unique_seen / answer_seen が維持される。
@@ -1176,10 +1157,10 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 					return
 				if is_streaming_available():
 					print("[OnlineFetch] 10-question mode - batch %d/%d: STREAMING %d questions%s" % [batch_idx + 1, TEN_PARALLEL, per_batch, proxy_msg])
-					_fetch_gemini_streaming(prompt, QUIZ_GENERATION_GEMINI_MODEL, temperature, on_complete, partial_filter)
+					_fetch_claude_streaming(prompt, on_complete, partial_filter)
 				else:
 					print("[OnlineFetch] 10-question mode - batch %d/%d: requesting %d questions%s" % [batch_idx + 1, TEN_PARALLEL, per_batch, proxy_msg])
-					_fetch_gemini_target(prompt, QUIZ_GENERATION_GEMINI_MODEL, temperature, on_complete)
+					_fetch_claude_target(prompt, on_complete)
 			if batch_idx == 0:
 				launch.call()
 			else:
@@ -1221,10 +1202,10 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 			var proxy_msg := " (via AI Gateway)"
 			if is_streaming_available():
 				print("[OnlineFetch] Endless mode - batch %d/%d: STREAMING %d questions%s" % [i+1, parallel_count, per_call, proxy_msg])
-				_fetch_gemini_streaming(prompt, QUIZ_GENERATION_ENDLESS_GEMINI_MODEL, temperature, on_complete, partial_filter)
+				_fetch_claude_streaming(prompt, on_complete, partial_filter)
 			else:
 				print("[OnlineFetch] Endless mode - batch %d/%d: requesting %d questions%s" % [i+1, parallel_count, per_call, proxy_msg])
-				_fetch_gemini_target(prompt, QUIZ_GENERATION_ENDLESS_GEMINI_MODEL, temperature, on_complete)
+				_fetch_claude_target(prompt, on_complete)
 
 ## 2Pサドンデス（docs/sudden_death_underground.md 第4章）用の専用生成。プロバイダーの
 ## バッファ（fetch_partial / fetch_completed）を通さず、本編と同じ新規性ゲートを通った候補を
@@ -1248,7 +1229,6 @@ func fetch_quiz_set(subject: String, grade: int, difficulty: String, count: int,
 	var exact_blocklist := _collect_exact_blocklist(subject, grade, history)
 	var semantic_blocklist: Array[String] = QuizDedup.tail_texts(history, QuizDedup.SEMANTIC_HISTORY_MAX)
 	var prompt_blocklist := QuizDedup.tail_texts(semantic_blocklist, QuizDedup.PROMPT_HISTORY_MAX)
-	var temperature := get_temperature_for_difficulty(difficulty)
 	var batches := clampi(parallel, 1, 4)
 	var per_call := maxi(1, ceili(float(count) / float(batches)))
 	var batch_units: Array[PackedStringArray] = _allocate_units_to_batches(subject, grade, batches, per_call)
@@ -1285,9 +1265,9 @@ func fetch_quiz_set(subject: String, grade: int, difficulty: String, count: int,
 		var prompt := compose_prompt(subject, grade, difficulty, per_call, prompt_blocklist, false, units, true, variation_focus)
 		print("[OnlineFetch] Sudden death set - batch %d/%d: %d questions" % [index + 1, batches, per_call])
 		if is_streaming_available():
-			_fetch_gemini_streaming(prompt, QUIZ_GENERATION_GEMINI_MODEL, temperature, on_complete, partial_filter, sink)
+			_fetch_claude_streaming(prompt, on_complete, partial_filter, sink)
 		else:
-			_fetch_gemini_target(prompt, QUIZ_GENERATION_GEMINI_MODEL, temperature, on_complete)
+			_fetch_claude_target(prompt, on_complete)
 
 
 ## CurriculumDB から全単元を取得し、batch_count 個のバッチに重複なく振り分ける。
@@ -1431,8 +1411,8 @@ func _sort_units_lru(subject: String, grade: int, units: Array[String]) -> Array
 	)
 	return units
 
-func _fetch_gemini_target(prompt: String, target_model: String, temperature: float, callback: Callable) -> void:
-	var url := ApiStatusAutoload.gemini_endpoint(target_model)
+func _fetch_claude_target(prompt: String, callback: Callable) -> void:
+	var url := ApiStatusAutoload.claude_endpoint()
 	if url.is_empty():
 		push_error("[OnlineFetch] PROXY_URL is not configured")
 		callback.call([])
@@ -1442,39 +1422,8 @@ func _fetch_gemini_target(prompt: String, target_model: String, temperature: flo
 	add_child(http)
 	http.timeout = 30.0
 	
-	# 案5: systemInstruction の分離
-	var sys_instruction := compose_system_instruction()
-	
-	# 案4: Structured Output (responseSchema)
-	var response_schema := {
-		"type": "ARRAY",
-		"items": {
-			"type": "OBJECT",
-			"required": ["q", "c", "a", "e", "g"],
-			"properties": {
-				"q": {"type": "STRING", "description": "問題文 (50文字以内)"},
-				"c": {
-					"type": "ARRAY",
-					"items": {"type": "STRING"},
-					"description": "選択肢 (必ず重複のない4個、各15文字以内)"
-				},
-				"a": {"type": "INTEGER", "description": "正解インデックス (0始まり)"},
-				"e": {"type": "STRING", "description": "解説 (空文字列でも可)"},
-				"g": {"type": "STRING", "description": "ジャンル/単元の短いラベル (例: つなぎ言葉)"}
-			}
-		}
-	}
-	
-	var body := JSON.stringify({
-		"systemInstruction": {"parts": [{"text": sys_instruction}]},
-		"contents": [{"parts": [{"text": prompt}]}],
-		"generationConfig": {
-			"temperature": temperature,
-			"responseMimeType": "application/json",
-			"responseSchema": response_schema,
-			"thinkingConfig": {"thinkingLevel": THINKING_GENERATION}
-		}
-	})
+	var body := ClaudeRequest.body(ClaudeRequest.TASK_GENERATE, prompt + GENERATION_OUTPUT_FORMAT,
+		compose_system_instruction())
 	
 	http.request_completed.connect(func(result: int, response_code: int, _h, b: PackedByteArray):
 		var out: Array[QuizItem] = []
@@ -1485,86 +1434,17 @@ func _fetch_gemini_target(prompt: String, target_model: String, temperature: flo
 		elif response_code == 401:
 			ApiStatusAutoload.notify_device_token_rejected()
 		elif result == HTTPRequest.RESULT_SUCCESS and response_code == 200:
-			var json = JSON.parse_string(b.get_string_from_utf8())
-			if json is Dictionary and json.has("candidates"):
-				var text: String = json["candidates"][0]["content"]["parts"][0].get("text", "")
-				var raw_arr = extract_quizzes_from_text(text)
-				for r in raw_arr:
-					var p = normalize_single(r, "GEMINI")
-					if p: out.append(p)
+			var text := ClaudeRequest.response_text(JSON.parse_string(b.get_string_from_utf8()))
+			for r in extract_quizzes_from_text(text):
+				var p = normalize_single(r, "CLAUDE")
+				if p: out.append(p)
 		http.queue_free()
 		callback.call(out)
 	)
-	http.request(url, ApiStatusAutoload.get_proxy_headers(), HTTPClient.METHOD_POST, body)
-
-func _fetch_openai(prompt: String, callback: Callable) -> void:
-	var model := ApiStatusAutoload.get_env("OPENAI_FAST_MODEL", "gpt-4o-mini")
-	var url := ApiStatusAutoload.openai_endpoint()
-	if url.is_empty():
+	var request_error := http.request(url, ApiStatusAutoload.get_proxy_headers(), HTTPClient.METHOD_POST, body)
+	if request_error != OK:
+		http.queue_free()
 		callback.call([])
-		return
-	var headers := ApiStatusAutoload.get_proxy_headers()
-	
-	var http := HTTPRequest.new()
-	add_child(http)
-	http.timeout = 15.0
-	
-	var body := JSON.stringify({
-		"model": model,
-		"messages": [{"role": "user", "content": prompt}],
-		"temperature": 0.45
-	})
-	
-	http.request_completed.connect(func(result: int, response_code: int, _h, b: PackedByteArray):
-		var out: Array[QuizItem] = []
-		if result == HTTPRequest.RESULT_SUCCESS and response_code == 200:
-			var json = JSON.parse_string(b.get_string_from_utf8())
-			if json is Dictionary and json.has("choices"):
-				var text: String = json["choices"][0]["message"].get("content", "")
-				var raw_arr = extract_quizzes_from_text(text)
-				for r in raw_arr:
-					var p = normalize_single(r, "OPENAI")
-					if p: out.append(p)
-		http.queue_free()
-		callback.call(out)
-	)
-	http.request(url, headers, HTTPClient.METHOD_POST, body)
-
-func fetch_explanation(_subject: String, grade: int, quiz_q: String, quiz_c: PackedStringArray, quiz_a: int, callback: Callable) -> void:
-	var model := EXPLANATION_GEMINI_MODEL
-	var url := ApiStatusAutoload.gemini_endpoint(model)
-	if url.is_empty():
-		callback.call("解説を取得できませんでした")
-		return
-	
-	var http := HTTPRequest.new()
-	add_child(http)
-	http.timeout = 10.0
-	
-	var q_str := "問題: " + quiz_q + "\n"
-	q_str += "選択肢: " + ", ".join(quiz_c) + "\n"
-	q_str += "正解: " + quiz_c[quiz_a] + "\n"
-	q_str += "この正解となる理由を、小学" + str(grade) + "年生向けに15文字以内で簡潔に説明してください。出力は解説のテキストのみにしてください。"
-	
-	var body := JSON.stringify({
-		"contents": [{"parts": [{"text": q_str}]}],
-		"generationConfig": {
-			"temperature": 0.2,
-			"thinkingConfig": {"thinkingLevel": THINKING_EXPLANATION}
-		}
-	})
-	
-	http.request_completed.connect(func(result: int, response_code: int, _h, b: PackedByteArray):
-		var ans := "解説を取得できませんでした"
-		if result == HTTPRequest.RESULT_SUCCESS and response_code == 200:
-			var json = JSON.parse_string(b.get_string_from_utf8())
-			if json is Dictionary and json.has("candidates"):
-				var text: String = json["candidates"][0]["content"]["parts"][0].get("text", "")
-				ans = text.strip_edges().trim_prefix('"').trim_suffix('"').strip_edges()
-		http.queue_free()
-		callback.call(ans)
-	)
-	http.request(url, ApiStatusAutoload.get_proxy_headers(), HTTPClient.METHOD_POST, body)
 
 ## 解説バッチ生成（バックグラウンド並列タスク）
 ## クイズ本体の生成後に呼び出し、複数問の解説を1つのAPIコールで一括生成する。
@@ -1581,8 +1461,7 @@ func fetch_explanations_batch(quizzes: Array[QuizItem], _subject: String, grade:
 	if targets.is_empty():
 		return
 	
-	var model := EXPLANATION_GEMINI_MODEL
-	var url := ApiStatusAutoload.gemini_endpoint(model)
+	var url := ApiStatusAutoload.claude_endpoint()
 	if url.is_empty():
 		_complete_explanation_batch(targets, "API endpoint is not configured")
 		return
@@ -1609,25 +1488,18 @@ func fetch_explanations_batch(quizzes: Array[QuizItem], _subject: String, grade:
 	prompt += "対象問題:\n"
 	prompt += JSON.stringify(items, "  ")
 	
-	var body := JSON.stringify({
-		"contents": [{"parts": [{"text": prompt}]}],
-		"generationConfig": {
-			"temperature": 0.3,
-			"responseMimeType": "application/json",
-			"thinkingConfig": {"thinkingLevel": THINKING_EXPLANATION}
-		}
-	})
+	var body := ClaudeRequest.body(ClaudeRequest.TASK_EXPLAIN, prompt)
 	
 	var http := HTTPRequest.new()
 	http.set_meta("preserve_on_round_end", true)
 	add_child(http)
-	http.timeout = 25.0
+	http.timeout = 40.0
 	
 	http.request_completed.connect(func(result: int, response_code: int, _h, b: PackedByteArray):
 		var response_parsed := false
 		if result == HTTPRequest.RESULT_SUCCESS and response_code == 200:
 			var json = JSON.parse_string(b.get_string_from_utf8())
-			var text := _extract_first_gemini_text(json)
+			var text := ClaudeRequest.response_text(json)
 			if not text.is_empty():
 				var res = extract_json_from_text(text)
 				if res is Array:
@@ -1679,26 +1551,6 @@ func _complete_explanation_batch(targets: Array[QuizItem], failure_reason: Strin
 	])
 	explanations_ready.emit(targets)
 
-
-func _extract_first_gemini_text(response: Variant) -> String:
-	if not response is Dictionary:
-		return ""
-	var candidates: Variant = response.get("candidates", [])
-	if not candidates is Array or candidates.is_empty():
-		return ""
-	var candidate: Variant = candidates[0]
-	if not candidate is Dictionary:
-		return ""
-	var content: Variant = candidate.get("content", {})
-	if not content is Dictionary:
-		return ""
-	var parts: Variant = content.get("parts", [])
-	if not parts is Array or parts.is_empty():
-		return ""
-	var first_part: Variant = parts[0]
-	if not first_part is Dictionary:
-		return ""
-	return str(first_part.get("text", "")).strip_edges()
 
 func _count_filled(quizzes: Array[QuizItem]) -> int:
 	var count := 0
@@ -1795,15 +1647,15 @@ func extract_complete_objects_from_stream(text: String, start_idx: int) -> Dicti
 	return { "objects": objects, "next_idx": idx }
 
 
-## ストリーミングを使用してGemini APIからクイズを取得する
-## GeminiStreamClient を使い、LLMのテキスト生成を受信しながら
+## ストリーミングを使用して Claude（プロキシの /claude-stream）からクイズを取得する
+## ClaudeStreamClient を使い、LLMのテキスト生成を受信しながら
 ## 完成したJSONオブジェクトを1問ずつリアルタイムで callback に渡す
 ##
 ## callback: func(items: Array[QuizItem]) — 既存の on_complete と同じシグネチャ
 ## partial_sink: 渡すと途中の採用候補を fetch_partial ではなくこちらへ送る（サドンデスの専用生成）。
-func _fetch_gemini_streaming(prompt: String, target_model: String, temperature: float,
-		callback: Callable, partial_filter: Callable = Callable(), partial_sink: Callable = Callable()) -> void:
-	var url := ApiStatusAutoload.gemini_endpoint(target_model, true)
+func _fetch_claude_streaming(prompt: String, callback: Callable,
+		partial_filter: Callable = Callable(), partial_sink: Callable = Callable()) -> void:
+	var url := ApiStatusAutoload.claude_endpoint(true)
 	if url.is_empty():
 		push_error("[OnlineFetch] PROXY_URL is not configured for streaming")
 		callback.call([] as Array[QuizItem])
@@ -1811,24 +1663,12 @@ func _fetch_gemini_streaming(prompt: String, target_model: String, temperature: 
 	var headers := ApiStatusAutoload.get_proxy_headers()
 	
 	# ── リクエストボディ（非ストリーミング版と同一）──
-	var sys_instruction := compose_system_instruction()
+	# 出力はプロンプトで JSON 配列に指定し、閉じた {...} を受信しながら 1 問ずつ取り出す
+	var body := ClaudeRequest.body(ClaudeRequest.TASK_GENERATE, prompt + GENERATION_OUTPUT_FORMAT,
+		compose_system_instruction())
 	
-	# ストリーミングでは responseSchema（Structured Output）を使わない
-	# ∵ SSEのチャンク分割とStructured Outputの組み合わせで
-	#   1チャンク=1完全JSONになる保証がないため、手動パースの方が安全
-	# 代わりにプロンプト側で JSON 出力を強制する
-	var body := JSON.stringify({
-		"systemInstruction": {"parts": [{"text": sys_instruction}]},
-		"contents": [{"parts": [{"text": prompt + "\n\n【出力形式】JSON配列のみ出力せよ。マークダウンや説明文は一切不要。例: [{\"q\":\"...\",\"c\":[\"A\",\"B\",\"C\",\"D\"],\"a\":0,\"e\":\"...\",\"g\":\"単元名\"}]"}]}],
-		"generationConfig": {
-			"temperature": temperature,
-			"responseMimeType": "application/json",
-			"thinkingConfig": {"thinkingLevel": THINKING_GENERATION}
-		}
-	})
-	
-	# ── GeminiStreamClient をインスタンス化 ──
-	var stream_client := GeminiStreamClient.new()
+	# ── ClaudeStreamClient をインスタンス化 ──
+	var stream_client := ClaudeStreamClient.new()
 	add_child(stream_client)
 	
 	# ストリーミングパース用の状態（クロージャでキャプチャ）
@@ -1842,7 +1682,7 @@ func _fetch_gemini_streaming(prompt: String, target_model: String, temperature: 
 		
 		var new_items: Array[QuizItem] = []
 		for raw_dict in result["objects"]:
-			var item := normalize_single(raw_dict, "GEMINI_STREAM")
+			var item := normalize_single(raw_dict, "CLAUDE_STREAM")
 			if item != null:
 				new_items.append(item)
 		
@@ -1879,10 +1719,14 @@ func _fetch_gemini_streaming(prompt: String, target_model: String, temperature: 
 				ApiStatusAutoload.notify_device_token_rejected()
 				callback.call([] as Array[QuizItem])
 				return
-			# 429 以外のストリーミング完全失敗 → 非ストリーミングにフォールバック
+			# Claude が断った・途中で止まった（ストリーミング自体は動いている）。このバッチは空で終える
+			if not stream_client.stream_error.is_empty():
+				callback.call([] as Array[QuizItem])
+				return
+			# それ以外のストリーミング完全失敗 → 非ストリーミングにフォールバック
 			_stream_available = false
 			print("[OnlineFetch] Streaming failed, disabling streaming for this session. Falling back...")
-			_fetch_gemini_target(prompt, target_model, temperature, callback)
+			_fetch_claude_target(prompt, callback)
 			return
 		
 		# 最終パース: ストリーム中に拾い切れなかったオブジェクトがあるかチェック
@@ -1890,7 +1734,7 @@ func _fetch_gemini_streaming(prompt: String, target_model: String, temperature: 
 			var final_result := extract_complete_objects_from_stream(accumulated, parse_state["next_idx"])
 			var final_items: Array[QuizItem] = []
 			for raw_dict in final_result["objects"]:
-				var item := normalize_single(raw_dict, "GEMINI_STREAM")
+				var item := normalize_single(raw_dict, "CLAUDE_STREAM")
 				if item != null:
 					final_items.append(item)
 			if final_items.size() > 0 and partial_filter.is_valid():
@@ -1913,7 +1757,7 @@ func _fetch_gemini_streaming(prompt: String, target_model: String, temperature: 
 
 
 ## ストリーミングが利用可能かどうかを判定する
-## プロキシ経由の場合: /gemini-stream エンドポイントが存在するか不明なので
+## プロキシ経由の場合: /claude-stream が使えないことがあるので
 ## _stream_available フラグで管理する（初回失敗時にfalseに設定）
 var _stream_available: bool = true
 
@@ -1933,6 +1777,6 @@ func cancel_all() -> void:
 			child.cancel_request()
 			child.queue_free()
 		elif child.has_method("cancel_request"):
-			# GeminiStreamClient 等の独自クライアント対応
+			# ClaudeStreamClient 等の独自クライアント対応
 			child.cancel_request()
 			child.queue_free()

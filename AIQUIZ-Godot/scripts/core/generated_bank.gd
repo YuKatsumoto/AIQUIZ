@@ -9,7 +9,7 @@ const SCHEMA_VERSION: int = 1
 const MAX_PER_CATEGORY: int = 40
 const MAX_PER_GENRE: int = 4
 const TTL_SEC: int = 30 * 24 * 60 * 60
-const SRC_TAG: String = "GEMINI_POOL"
+const SRC_TAG: String = "CLAUDE_POOL"
 
 var _data: Dictionary = {"version": SCHEMA_VERSION, "categories": {}}
 var _loaded: bool = false

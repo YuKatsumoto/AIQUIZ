@@ -1,4 +1,5 @@
-// Gemini の利用額を日・月で積み上げ、予算を超えたら生成を止める。
+// 試合中の AI の利用額を日・月で積み上げ、予算を超えたら生成を止める。
+// Claude の系統（/claude）は fromClaudeEnv で作り、別の場所（proxy_usage_claude/v1）に積む。
 //
 // 各インスタンスは返ってきた usageMetadata から費用を計算し、手元に貯めてから
 // FLUSH 間隔ごとに Realtime Database へ加算する（リクエストごとの書き込みはしない）。
@@ -12,6 +13,7 @@
 const { ServerValue } = require('firebase-admin/database');
 
 const USAGE_PATH = 'proxy_usage/v1';
+const CLAUDE_USAGE_PATH = 'proxy_usage_claude/v1';
 
 // 100万トークンあたりの標準料金（USD）。出力は思考トークンを含む。
 // 料金改定（3.6 Flash は 2027-01-01 から 2 倍）は GEMINI_PRICES_JSON で差し替える。
@@ -55,6 +57,7 @@ class UsageBudget {
         dailyBudgetUsd = 10,
         monthlyBudgetUsd = 100,
         prices = DEFAULT_PRICES,
+        usagePath = USAGE_PATH,
         flushMs = 10000,
         refreshMs = 30000,
         now = () => new Date(),
@@ -64,6 +67,7 @@ class UsageBudget {
         this.dailyBudgetUsd = dailyBudgetUsd;
         this.monthlyBudgetUsd = monthlyBudgetUsd;
         this.prices = prices;
+        this.usagePath = usagePath;
         this.flushMs = flushMs;
         this.refreshMs = refreshMs;
         this.now = now;
@@ -80,6 +84,18 @@ class UsageBudget {
             dailyBudgetUsd: Number(env.GEMINI_DAILY_BUDGET_USD || 10),
             monthlyBudgetUsd: Number(env.GEMINI_MONTHLY_BUDGET_USD || 100),
             prices: pricesFromEnv(env),
+        });
+    }
+
+    // Claude の系統。月 40 ドル・1 日 3 ドルが既定（月 100 ドル未満の全体予算のうち、試合中の生成の分）。
+    // 費用は claude-live.js が計算して record() の usd に渡す。
+    static fromClaudeEnv(env = process.env, databaseFactory = null) {
+        return new UsageBudget({
+            databaseFactory,
+            dailyBudgetUsd: Number(env.CLAUDE_DAILY_BUDGET_USD || 3),
+            monthlyBudgetUsd: Number(env.CLAUDE_MONTHLY_BUDGET_USD || 40),
+            prices: {},
+            usagePath: CLAUDE_USAGE_PATH,
         });
     }
 
@@ -104,9 +120,8 @@ class UsageBudget {
         return this.pending;
     }
 
-    // Gemini の応答 1 回分を記録し、その費用（USD）を返す。
-    record(model, usage) {
-        const usd = costUsd(this.prices, model, usage);
+    // 応答 1 回分を記録し、その費用（USD）を返す。usd を渡さなければ prices から計算する。
+    record(model, usage, usd = costUsd(this.prices, model, usage)) {
         const p = this._pendingFor(jstKeys(this.now()));
         p.usd += usd;
         p.requests += 1;
@@ -155,8 +170,8 @@ class UsageBudget {
             daily[`models/${key}/requests`] = ServerValue.increment(m.requests);
         }
         try {
-            await db.ref(`${USAGE_PATH}/daily/${p.day}`).update(daily);
-            await db.ref(`${USAGE_PATH}/monthly/${p.month}`).update({
+            await db.ref(`${this.usagePath}/daily/${p.day}`).update(daily);
+            await db.ref(`${this.usagePath}/monthly/${p.month}`).update({
                 usd: ServerValue.increment(p.usd),
                 requests: ServerValue.increment(p.requests),
             });
@@ -184,8 +199,8 @@ class UsageBudget {
         }
         try {
             const [daily, monthly] = await Promise.all([
-                db.ref(`${USAGE_PATH}/daily/${keys.day}/usd`).once('value'),
-                db.ref(`${USAGE_PATH}/monthly/${keys.month}/usd`).once('value'),
+                db.ref(`${this.usagePath}/daily/${keys.day}/usd`).once('value'),
+                db.ref(`${this.usagePath}/monthly/${keys.month}/usd`).once('value'),
             ]);
             this.stored = { day: keys.day, month: keys.month,
                 dailyUsd: Number(daily.val() || 0), monthlyUsd: Number(monthly.val() || 0) };
@@ -257,5 +272,5 @@ class UsageBudget {
 }
 
 module.exports = {
-    DEFAULT_PRICES, USAGE_PATH, UsageBudget, costUsd, jstKeys, pricesFromEnv, secondsUntilNextJstDay,
+    CLAUDE_USAGE_PATH, DEFAULT_PRICES, USAGE_PATH, UsageBudget, costUsd, jstKeys, pricesFromEnv, secondsUntilNextJstDay,
 };

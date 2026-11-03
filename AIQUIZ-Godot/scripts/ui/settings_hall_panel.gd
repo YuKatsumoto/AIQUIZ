@@ -501,8 +501,8 @@ func refresh_api_status() -> void:
 	var checked := _check_started or ApiStatusAutoload.internet_msg != "未チェック"
 	_set_api_row("internet", ApiStatusAutoload.internet_ok, ApiStatusAutoload.internet_msg, checked, true)
 	var gateway_msg: String = ApiStatusAutoload.proxy_msg
-	if ApiStatusAutoload.proxy_configured and not ApiStatusAutoload.gemini_model.is_empty():
-		gateway_msg += " · " + ApiStatusAutoload.gemini_model
+	if ApiStatusAutoload.proxy_configured and not ApiStatusAutoload.llm_label.is_empty():
+		gateway_msg += " · " + ApiStatusAutoload.llm_label
 	else:
 		gateway_msg += "（PROXY_URL %s）" % ("設定済" if ApiStatusAutoload.proxy_configured else "未設定")
 	_set_api_row("gateway", ApiStatusAutoload.proxy_status, gateway_msg, checked, ApiStatusAutoload.proxy_configured)
