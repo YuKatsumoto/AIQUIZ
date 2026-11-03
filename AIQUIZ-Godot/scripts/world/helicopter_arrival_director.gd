@@ -29,11 +29,6 @@ const HELICOPTER_GLB := OnlineHeliportHelicopter.HELICOPTER_SCENE
 const HATCH_ANCHOR := Vector3(0.0, -0.998, 0.0)
 const MENU_FLIGHT_PROFILE_SCENE := preload("res://scenes/menu_helicopter_sequence.tscn")
 const PhysicalRopeLadderScript := preload("res://scripts/world/physical_rope_ladder.gd")
-const MenuJetContrailScript := preload("res://scripts/world/menu_jet_contrail.gd")
-## Preloaded so the shock ring compiles with the menu, not at ignition.
-const MENU_SHOCK_RING_SHADER := preload("res://shaders/menu_heli_shock_ring.gdshader")
-## モバイル：画面のコピーを読まない輪（ゆがみなし、色だけ）。
-const MENU_SHOCK_RING_MOBILE_SHADER := preload("res://shaders/mobile/menu_heli_shock_ring_mobile.gdshader")
 const APPROACH_DURATION := 4.40
 const HOVER_BEFORE_FIRST_DROP := 0.70
 const P2_DROP_DELAY := 0.30
@@ -98,41 +93,11 @@ const MENU_LADDER_P2_DELAY := 0.104
 const MENU_LADDER_GRAB_DURATION := 0.62
 const MENU_LADDER_DEPART_PATH_TIME := 2.3075
 const MENU_BOOST_CHARGE_DURATION := 0.80
-const MENU_BOOST_FLIGHT_DURATION := 2.25
+const MENU_BOOST_FLIGHT_DURATION := 1.95
 const MENU_BOOST_ACCEL_TIME := 0.65
 const MENU_BOOST_SPEED := 78.0
 const MENU_BOOST_PITCH := deg_to_rad(-7.0)
 const MENU_BOOST_DIRECTION := Vector3(0.0, 0.10, -1.0)
-## Start-pickup extraction beats: once a passenger grips, the rope loads (a short sag), the
-## aircraft hauls them off the deck and holds there; the charge crouches before the jets fire.
-const MENU_LIFT_DURATION := 1.10
-const MENU_LIFT_HEIGHT := 2.40
-const MENU_LIFT_TENSION_DIP := 0.16
-const MENU_HOVER_BOB := 0.07
-const MENU_HOVER_WOBBLE := deg_to_rad(0.7)
-const MENU_CHARGE_CROUCH := 0.34
-## The jet climb: level at ignition, it bends over MENU_BOOST_BEND_DISTANCE metres into this
-## climb slope while a pair splits apart (rise and spread per metre flown forward).
-const MENU_BOOST_CLIMB := 0.46
-const MENU_BOOST_SPREAD := 0.17
-const MENU_BOOST_BEND_DISTANCE := 16.0
-const MENU_BOOST_BANK := deg_to_rad(18.0)
-## Passengers wave once they are off the deck and grab on with both hands for the charge.
-const MENU_CHEER_DELAY := 0.25
-const MENU_CHEER_FADE_IN := 0.35
-## Camera: rumble while charging, a wide punch and a hard shake at ignition, then it looks up after the pair.
-const MENU_CAMERA_LIFT_TILT_DEG := 2.5
-const MENU_CAMERA_CHARGE_PUSH_DEG := 2.5
-const MENU_CAMERA_CHARGE_RUMBLE := 0.035
-const MENU_CAMERA_LAUNCH_PUNCH_DEG := 8.0
-const MENU_CAMERA_LAUNCH_SHAKE_DURATION := 0.55
-const MENU_CAMERA_LAUNCH_SHAKE_POSITION := 0.16
-const MENU_CAMERA_LAUNCH_SHAKE_ROTATION_DEG := 0.65
-const MENU_CAMERA_FOLLOW_MAX_PITCH_DEG := 11.0
-const MENU_CAMERA_FOLLOW_MAX_YAW_DEG := 7.0
-## Rotor wash on the deck: rings rolling out under each hovering aircraft.
-const MENU_WASH_RING_COUNT := 3
-const MENU_WASH_RING_PERIOD := 1.2
 const GP_APPROACH_DURATION := 2.65
 const PASS_SPEED := 1.5
 const GP_LOWER_DURATION := 1.75
@@ -175,12 +140,7 @@ var _menu_camera_base_position := Vector3.ZERO
 var _menu_camera_base_rotation := Vector3.ZERO
 var _menu_camera_base_fov := 37.5
 var _menu_camera_shake_remaining := 0.0
-var _menu_camera_launch_shake := 0.0
-## Look-up after the departing pair, in degrees (x pitch, y yaw), eased toward its target.
-var _menu_camera_follow := Vector2.ZERO
-var _menu_camera_lift_tilt := 0.0
 var _menu_pickup_camera_intensity := 0.0
-var _menu_soft_dot_texture: GradientTexture2D = null
 var _menu_flight_profile: MenuHelicopterSequenceProfile = null
 var _menu_pickup_path_time := 0.0
 var _menu_launch_charge_elapsed := 0.0
@@ -1065,8 +1025,6 @@ func _update_authored_menu_departure(delta: float) -> bool:
 	for info: Dictionary in _helicopters:
 		var delay := MENU_LADDER_P2_DELAY if int(info.get("player_index", 1)) == 2 else 0.0
 		launch_ready = launch_ready and float(info.get("pickup_path_time", 0.0)) >= MENU_LADDER_DEPART_PATH_TIME + delay
-		# Every passenger is hauled clear of the deck before the jets charge.
-		launch_ready = launch_ready and _menu_lift_progress(info) >= 1.0
 
 	if _menu_boost_started:
 		_menu_launch_elapsed += delta
@@ -1075,7 +1033,7 @@ func _update_authored_menu_departure(delta: float) -> bool:
 		if _menu_launch_charge_elapsed >= MENU_BOOST_CHARGE_DURATION:
 			_menu_boost_started = true
 			_menu_launch_elapsed = 0.0
-			_menu_camera_launch_shake = MENU_CAMERA_LAUNCH_SHAKE_DURATION
+			_menu_camera_shake_remaining = MENU_CAMERA_SHAKE_DURATION
 			menu_boost_launched.emit()
 	var charge := clampf(_menu_launch_charge_elapsed / MENU_BOOST_CHARGE_DURATION, 0.0, 1.0)
 	_menu_pickup_path_time = _menu_flight_profile.get_runtime_duration()
@@ -1096,32 +1054,32 @@ func _update_authored_menu_departure(delta: float) -> bool:
 			if not info.has("launch_origin"):
 				info["launch_origin"] = state.get("position", holder.global_position)
 				info["charge_rotation"] = holder.global_basis.get_rotation_quaternion()
+			var launch_basis := Basis(Vector3.RIGHT, MENU_BOOST_PITCH)
+			var launch_position: Vector3 = info["launch_origin"]
 			if _menu_boost_started:
-				if not info.has("boost_origin"):
-					_begin_menu_boost(info)
-				holder.global_transform = _menu_boost_transform(info, _menu_launch_elapsed)
+				# A single straight acceleration path and one immutable attitude.
+				# Acceleration, path tangents and camera motion cannot steer the body.
+				var t := _menu_launch_elapsed
+				var accelerating := minf(t, MENU_BOOST_ACCEL_TIME)
+				var distance := 0.5 * MENU_BOOST_SPEED / MENU_BOOST_ACCEL_TIME * accelerating * accelerating
+				distance += MENU_BOOST_SPEED * maxf(t - MENU_BOOST_ACCEL_TIME, 0.0)
+				launch_position += MENU_BOOST_DIRECTION.normalized() * distance
+				var heli := info.get("heli") as OnlineHeliportHelicopter
+				if heli != null and not heli.jets_ignited:
+					heli.ignite_jets()
 			else:
 				var from_rotation: Quaternion = info["charge_rotation"]
-				var launch_rotation := Basis(Vector3.RIGHT, MENU_BOOST_PITCH).get_rotation_quaternion()
-				var attitude := Basis(from_rotation.slerp(launch_rotation, smoothstep(0.0, 1.0, charge)))
-				var hold_position: Vector3 = info["launch_origin"]
-				holder.global_transform = Transform3D(
-					attitude * _menu_hover_wobble(info, charge),
-					hold_position + _menu_extraction_offset(info, charge)
-				)
+				launch_basis = Basis(from_rotation.slerp(launch_basis.get_rotation_quaternion(), smoothstep(0.0, 1.0, charge)))
+			holder.global_transform = Transform3D(launch_basis, launch_position)
 		else:
 			_set_flight_transform(
-				holder, state.get("position", Vector3.ZERO) + _menu_extraction_offset(info, 0.0),
+				holder, state.get("position", Vector3.ZERO),
 				_menu_level_flight_direction(state.get("direction", Vector3.FORWARD)),
 				float(state.get("bank", 0.0)), float(state.get("pitch", 0.0))
 			)
 		_update_menu_engine_charge(info, charge)
-		_update_menu_charge_vfx(info, charge)
-		_update_menu_wash_rings(info, charge)
 		_set_hatch_openness(info, float(state.get("hatch", 0.0)))
 		_set_menu_downwash(info, not _menu_boost_started or _menu_launch_elapsed < 0.35)
-		if _player_controller.has_method("set_intro_ladder_cheer"):
-			_player_controller.set_intro_ladder_cheer(player_index, _menu_cheer_amount(info, charge))
 		var grab_progress := clampf(float(state.get("action_progress", 0.0)), 0.0, 1.0)
 		if not _update_menu_rope_ladder_actor(info, grab_progress, delta):
 			return true
@@ -1129,11 +1087,6 @@ func _update_authored_menu_departure(delta: float) -> bool:
 		_update_menu_screen_evidence(info)
 		_remember_helicopter_velocity(info)
 	_menu_pickup_camera_intensity = lerpf(_menu_pickup_camera_intensity, charge * 0.8, clampf(delta * 7.0, 0.0, 1.0))
-	var lift_sum := 0.0
-	for info: Dictionary in _helicopters:
-		lift_sum += _menu_lift_progress(info)
-	var lift_average := lift_sum / maxf(float(_helicopters.size()), 1.0)
-	_menu_camera_lift_tilt = lerpf(_menu_camera_lift_tilt, smoothstep(0.0, 1.0, lift_average), clampf(delta * 3.0, 0.0, 1.0))
 	if all_captured and _menu_boost_started and _menu_launch_elapsed >= MENU_BOOST_FLIGHT_DURATION and _is_scene_cover_complete():
 		_complete_menu_departure()
 	return true
@@ -1215,8 +1168,6 @@ func _update_menu_rope_ladder_actor(
 				var heli := info.get("heli") as OnlineHeliportHelicopter
 				if heli != null and heli.sound != null:
 					heli.sound.play_detail(&"grip")
-				if _menu_departure_mode:
-					_spawn_menu_grip_sparkle(ladder.get_grip_data().get("center", ladder.global_position), player_index)
 			info["captured"] = true
 	return true
 
@@ -1244,449 +1195,6 @@ func _menu_level_flight_direction(direction: Vector3) -> Vector3:
 	if leveled.length_squared() <= 0.0001:
 		return Vector3.FORWARD
 	return leveled.normalized()
-
-
-# ---------- Start pickup: lift, charge and jet climb ----------
-
-## Seconds since this aircraft's passenger gripped the rung, or -1 before that.
-func _menu_since_capture(info: Dictionary) -> float:
-	if not bool(info.get("captured", false)):
-		return -1.0
-	return _phase_elapsed - float(info.get("captured_at", _phase_elapsed))
-
-
-func _menu_lift_progress(info: Dictionary) -> float:
-	var since := _menu_since_capture(info)
-	return 0.0 if since < 0.0 else clampf(since / MENU_LIFT_DURATION, 0.0, 1.0)
-
-
-## Vertical offset on top of the authored hold: a living hover bob, the sag as the rope takes
-## the passenger's weight, the haul off the deck, and the crouch while the jets charge.
-func _menu_extraction_offset(info: Dictionary, charge: float) -> Vector3:
-	var player_index := int(info.get("player_index", 1))
-	var since := _menu_since_capture(info)
-	var tension := 0.0
-	if since >= 0.0:
-		tension = sin(clampf(since / 0.32, 0.0, 1.0) * PI) * MENU_LIFT_TENSION_DIP
-	var haul := smoothstep(0.18, 1.0, _menu_lift_progress(info)) * MENU_LIFT_HEIGHT
-	var bob := sin((_total_elapsed + player_index * 0.83) * 2.4) * MENU_HOVER_BOB * (1.0 - charge)
-	var crouch := smoothstep(0.0, 0.6, charge) * MENU_CHARGE_CROUCH
-	return Vector3.UP * (haul - tension + bob - crouch)
-
-
-## Small roll and pitch drift so a holding aircraft never reads as a frozen model.
-func _menu_hover_wobble(info: Dictionary, charge: float) -> Basis:
-	var phase := _total_elapsed + int(info.get("player_index", 1)) * 1.37
-	var weight := MENU_HOVER_WOBBLE * (1.0 - charge)
-	return Basis(Vector3.BACK, sin(phase * 1.9) * weight) * Basis(Vector3.RIGHT, sin(phase * 1.3 + 0.6) * weight * 0.6)
-
-
-## Passengers wave once they are clear of the deck and hold on with both hands for the charge.
-func _menu_cheer_amount(info: Dictionary, charge: float) -> float:
-	var since := _menu_since_capture(info)
-	if since < 0.0 or _menu_boost_started:
-		return 0.0
-	var cheer := smoothstep(MENU_CHEER_DELAY, MENU_CHEER_DELAY + MENU_CHEER_FADE_IN, since)
-	return cheer * (1.0 - smoothstep(0.0, 0.45, charge))
-
-
-func _menu_boost_distance(t: float) -> float:
-	var accelerating := minf(t, MENU_BOOST_ACCEL_TIME)
-	var distance := 0.5 * MENU_BOOST_SPEED / MENU_BOOST_ACCEL_TIME * accelerating * accelerating
-	return distance + MENU_BOOST_SPEED * maxf(t - MENU_BOOST_ACCEL_TIME, 0.0)
-
-
-func _begin_menu_boost(info: Dictionary) -> void:
-	var holder := info.get("holder") as Node3D
-	info["boost_origin"] = holder.global_position
-	# A pair splits apart (each away from the other); a single aircraft veers toward frame centre.
-	var side := -0.35
-	if _helicopters.size() >= 2:
-		var center_x := 0.0
-		for other: Dictionary in _helicopters:
-			center_x += (other.get("holder") as Node3D).global_position.x
-		center_x /= float(_helicopters.size())
-		side = signf(holder.global_position.x - center_x)
-		if is_zero_approx(side):
-			side = -1.0 if int(info.get("player_index", 1)) == 1 else 1.0
-	info["boost_side"] = side
-	var heli := info.get("heli") as OnlineHeliportHelicopter
-	if heli != null and not heli.jets_ignited:
-		heli.ignite_jets()
-	# Thin vapour trails rather than the billowing jet smoke, which would bank up over the city.
-	var contrails: Array[Node] = []
-	for exhaust: Node3D in _menu_exhausts(info):
-		var contrail := MenuJetContrailScript.new() as MeshInstance3D
-		contrail.name = "P%dContrail" % int(info.get("player_index", 1))
-		contrail.set("source", exhaust)
-		add_child(contrail)
-		contrails.append(contrail)
-	info["contrails"] = contrails
-	_spawn_menu_launch_blast(info)
-
-
-## One analytic path and attitude (no finite differences), so the climb, split and bank cannot
-## jitter with frame time, camera motion or the passenger's load. Level at ignition with the
-## charge's nose-down attitude, it bends into the climb and banks into the split.
-func _menu_boost_transform(info: Dictionary, t: float) -> Transform3D:
-	var s := _menu_boost_distance(t)
-	var bend := s * s / (s + MENU_BOOST_BEND_DISTANCE)
-	var bend_slope := s * (s + 2.0 * MENU_BOOST_BEND_DISTANCE) / pow(s + MENU_BOOST_BEND_DISTANCE, 2.0)
-	var side := float(info.get("boost_side", 0.0))
-	var base_climb := MENU_BOOST_DIRECTION.y / -MENU_BOOST_DIRECTION.z
-	var rise := base_climb * s + (MENU_BOOST_CLIMB - base_climb) * bend
-	var origin: Vector3 = info["boost_origin"]
-	var flight_position := origin + Vector3.FORWARD * s + Vector3.UP * rise + Vector3.RIGHT * side * MENU_BOOST_SPREAD * bend
-	var tangent := (
-		Vector3.FORWARD
-		+ Vector3.UP * (base_climb + (MENU_BOOST_CLIMB - base_climb) * bend_slope)
-		+ Vector3.RIGHT * side * MENU_BOOST_SPREAD * bend_slope
-	)
-	var heading := Vector3(tangent.x, 0.0, tangent.z).normalized()
-	var climb_angle := atan2(tangent.y, Vector2(tangent.x, tangent.z).length())
-	var turn := smoothstep(0.0, 1.0, bend_slope)
-	var pitch := lerpf(MENU_BOOST_PITCH, climb_angle * 0.8, turn)
-	var roll := -side * MENU_BOOST_BANK * smoothstep(0.0, 0.5, turn) * (1.0 - 0.45 * smoothstep(0.5, 1.0, turn))
-	var attitude := Basis.looking_at(heading) * Basis(Vector3.RIGHT, pitch) * Basis(Vector3.BACK, roll)
-	return Transform3D(attitude, flight_position)
-
-
-## Deck or sea height under a point (the pier deck is the only raised floor near the pickup).
-func _menu_surface_height(point: Vector3) -> float:
-	if absf(point.x) <= StageConstants.FLOOR_HALF_WIDTH and point.z >= StageConstants.FLOOR_BACK_Z:
-		return StageConstants.FLOOR_TOP_Y
-	return StageConstants.OCEAN_SURFACE_Y
-
-
-func _menu_glow_material(color: Color) -> StandardMaterial3D:
-	var material := StandardMaterial3D.new()
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	material.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	material.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
-	material.cull_mode = BaseMaterial3D.CULL_DISABLED
-	material.albedo_color = color
-	return material
-
-
-## Round, soft-edged sprite for every particle in the departure (sparks glow, dust does not).
-func _menu_spark_mesh(size: float, glowing: bool = true) -> QuadMesh:
-	var mesh := QuadMesh.new()
-	mesh.size = Vector2(size, size)
-	var material := _menu_glow_material(Color.WHITE) if glowing else StandardMaterial3D.new()
-	if not glowing:
-		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		material.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
-	material.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
-	material.vertex_color_use_as_albedo = true
-	material.albedo_texture = _menu_soft_dot()
-	mesh.material = material
-	return mesh
-
-
-func _menu_soft_dot() -> GradientTexture2D:
-	if _menu_soft_dot_texture == null:
-		var gradient := Gradient.new()
-		gradient.offsets = PackedFloat32Array([0.0, 0.35, 1.0])
-		gradient.colors = PackedColorArray([Color(1, 1, 1, 1), Color(1, 1, 1, 0.55), Color(1, 1, 1, 0)])
-		_menu_soft_dot_texture = GradientTexture2D.new()
-		_menu_soft_dot_texture.gradient = gradient
-		_menu_soft_dot_texture.fill = GradientTexture2D.FILL_RADIAL
-		_menu_soft_dot_texture.fill_from = Vector2(0.5, 0.5)
-		_menu_soft_dot_texture.fill_to = Vector2(1.0, 0.5)
-		_menu_soft_dot_texture.width = 64
-		_menu_soft_dot_texture.height = 64
-	return _menu_soft_dot_texture
-
-
-func _menu_ramp(colors: Array[Color], offsets: Array[float]) -> GradientTexture1D:
-	var gradient := Gradient.new()
-	gradient.offsets = PackedFloat32Array(offsets)
-	gradient.colors = PackedColorArray(colors)
-	var texture := GradientTexture1D.new()
-	texture.gradient = gradient
-	return texture
-
-
-## A one-shot burst that frees itself once its last particle has faded.
-func _spawn_menu_burst(
-	world_position: Vector3,
-	process_material: ParticleProcessMaterial,
-	amount: int,
-	lifetime: float,
-	draw_mesh: Mesh,
-	bounds: float
-) -> GPUParticles3D:
-	var particles := GPUParticles3D.new()
-	particles.one_shot = true
-	particles.explosiveness = 0.92
-	particles.amount = GraphicsQuality.particle_amount(amount, GameManager.graphics_quality)
-	particles.lifetime = lifetime
-	particles.randomness = 0.4
-	particles.local_coords = false
-	particles.visibility_aabb = AABB(Vector3.ONE * -bounds, Vector3.ONE * bounds * 2.0)
-	particles.process_material = process_material
-	particles.draw_pass_1 = draw_mesh
-	particles.emitting = false
-	add_child(particles)
-	particles.global_position = world_position
-	particles.restart()
-	particles.emitting = true
-	get_tree().create_timer(lifetime + 0.4).timeout.connect(particles.queue_free)
-	return particles
-
-
-## A flash of light that dies away (grip, ignition).
-func _spawn_menu_flash_light(world_position: Vector3, color: Color, energy: float, light_range: float, duration: float) -> void:
-	var light := OmniLight3D.new()
-	light.light_color = color
-	light.light_energy = energy
-	light.omni_range = light_range
-	light.shadow_enabled = false
-	add_child(light)
-	light.global_position = world_position
-	var fade := create_tween()
-	fade.tween_property(light, "light_energy", 0.0, duration).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
-	fade.tween_callback(light.queue_free)
-
-
-func _menu_shock_material(billboard: bool, tint: Color, distortion: float, width: float) -> ShaderMaterial:
-	var material := ShaderMaterial.new()
-	material.shader = MENU_SHOCK_RING_MOBILE_SHADER if GraphicsQuality.is_mobile_target() else MENU_SHOCK_RING_SHADER
-	material.set_shader_parameter("billboard", billboard)
-	material.set_shader_parameter("tint", tint)
-	material.set_shader_parameter("distortion", distortion)
-	material.set_shader_parameter("width", width)
-	return material
-
-
-## A soft shock front that rolls outward, bending the picture behind it, and fades. A ring in
-## the air faces the camera; one over the deck or sea lies flat.
-func _spawn_menu_shock_ring(
-	world_position: Vector3,
-	in_air: bool,
-	tint: Color,
-	start_radius: float,
-	end_radius: float,
-	duration: float,
-	distortion: float = 0.035
-) -> void:
-	var ring := MeshInstance3D.new()
-	if in_air:
-		var quad := QuadMesh.new()
-		quad.size = Vector2(2.0, 2.0)
-		ring.mesh = quad
-	else:
-		var plane := PlaneMesh.new()
-		plane.size = Vector2(2.0, 2.0)
-		ring.mesh = plane
-	ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	var material := _menu_shock_material(in_air, tint, distortion, 0.16)
-	ring.material_override = material
-	add_child(ring)
-	ring.global_position = world_position
-	ring.scale = Vector3.ONE * start_radius
-	var grow := create_tween().set_parallel(true)
-	grow.tween_property(ring, "scale", Vector3.ONE * end_radius, duration).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	grow.tween_method(func(value: float) -> void: material.set_shader_parameter("progress", value), 0.0, 1.0, duration)
-	grow.chain().tween_callback(ring.queue_free)
-
-
-## The grip lands: a team-coloured sparkle and a short glint at the hands.
-func _spawn_menu_grip_sparkle(world_position: Vector3, player_index: int) -> void:
-	var team := PlayerController.P1_BODY if player_index == 1 else PlayerController.P2_BODY
-	var motion := ParticleProcessMaterial.new()
-	motion.direction = Vector3.UP
-	motion.spread = 180.0
-	motion.initial_velocity_min = 2.6
-	motion.initial_velocity_max = 5.4
-	motion.gravity = Vector3(0.0, -3.0, 0.0)
-	motion.damping_min = 2.5
-	motion.damping_max = 4.5
-	motion.scale_min = 0.55
-	motion.scale_max = 1.25
-	motion.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
-	motion.emission_sphere_radius = 0.35
-	motion.color_ramp = _menu_ramp(
-		[Color(1.0, 1.0, 1.0, 1.0), team.lightened(0.35), Color(team.r, team.g, team.b, 0.0)],
-		[0.0, 0.35, 1.0]
-	)
-	_spawn_menu_burst(world_position, motion, 26, 0.6, _menu_spark_mesh(0.16), 6.0)
-	_spawn_menu_flash_light(world_position, team.lightened(0.4), 3.2, 5.0, 0.3)
-
-
-func _menu_exhausts(info: Dictionary) -> Array[Node3D]:
-	if info.has("exhausts"):
-		return info["exhausts"]
-	var found: Array[Node3D] = []
-	var heli := info.get("heli") as OnlineHeliportHelicopter
-	if heli != null:
-		for node: Node in heli.find_children("*Exhaust", "Node3D", true, false):
-			if node is HelicopterBoostExhaust:
-				found.append(node as Node3D)
-	info["exhausts"] = found
-	return found
-
-
-## The charge glows white-hot in each nozzle and spits sparks; ignition swallows it in a flash.
-func _update_menu_charge_vfx(info: Dictionary, charge: float) -> void:
-	var exhausts := _menu_exhausts(info)
-	if exhausts.is_empty():
-		return
-	if not info.has("charge_glows"):
-		var glows: Array[MeshInstance3D] = []
-		var sparks: Array[GPUParticles3D] = []
-		for exhaust: Node3D in exhausts:
-			var glow := MeshInstance3D.new()
-			glow.name = "ChargeGlow"
-			var sphere := SphereMesh.new()
-			sphere.radius = 0.42
-			sphere.height = 0.84
-			sphere.radial_segments = 16
-			sphere.rings = 8
-			glow.mesh = sphere
-			glow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			glow.material_override = _menu_glow_material(Color(1.0, 0.62, 0.26, 0.0))
-			glow.visible = false
-			exhaust.add_child(glow)
-			glow.position = Vector3(0.0, 0.0, 0.12)
-			glows.append(glow)
-			var spark := GPUParticles3D.new()
-			spark.name = "ChargeSparks"
-			spark.amount = GraphicsQuality.particle_amount(30, GameManager.graphics_quality)
-			spark.lifetime = 0.34
-			spark.randomness = 0.5
-			spark.local_coords = false
-			spark.visibility_aabb = AABB(Vector3(-4.0, -4.0, -4.0), Vector3(8.0, 8.0, 8.0))
-			var motion := ParticleProcessMaterial.new()
-			motion.direction = Vector3.BACK
-			motion.spread = 26.0
-			motion.initial_velocity_min = 3.5
-			motion.initial_velocity_max = 8.5
-			motion.gravity = Vector3(0.0, -6.0, 0.0)
-			motion.damping_min = 1.0
-			motion.damping_max = 2.5
-			motion.scale_min = 0.45
-			motion.scale_max = 1.0
-			motion.color_ramp = _menu_ramp(
-				[Color(1.0, 0.97, 0.80, 1.0), Color(1.0, 0.62, 0.20, 0.9), Color(1.0, 0.30, 0.05, 0.0)],
-				[0.0, 0.4, 1.0]
-			)
-			spark.process_material = motion
-			spark.draw_pass_1 = _menu_spark_mesh(0.10)
-			spark.emitting = false
-			exhaust.add_child(spark)
-			sparks.append(spark)
-		info["charge_glows"] = glows
-		info["charge_sparks"] = sparks
-	var charging := _menu_launch_charge_elapsed > 0.0 and not _menu_boost_started
-	var flicker := 0.86 + 0.14 * sin(_total_elapsed * 61.0 + int(info.get("player_index", 1)))
-	for glow: MeshInstance3D in info["charge_glows"]:
-		if not is_instance_valid(glow):
-			continue
-		if _menu_boost_started:
-			if not bool(info.get("ignition_flashed", false)):
-				# Ignition: the hot core blooms out and is gone before the flame settles.
-				glow.visible = true
-				var material := glow.material_override as StandardMaterial3D
-				material.albedo_color = Color(1.0, 0.78, 0.48, 0.7)
-				var bloom := create_tween().set_parallel(true)
-				bloom.tween_property(glow, "scale", Vector3.ONE * 2.2, 0.16).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
-				bloom.tween_property(material, "albedo_color:a", 0.0, 0.2).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-				bloom.chain().tween_callback(glow.hide)
-			continue
-		glow.visible = charging and charge > 0.04
-		if glow.visible:
-			var heat := charge * charge
-			glow.scale = Vector3.ONE * (0.25 + 1.35 * heat) * flicker
-			var material := glow.material_override as StandardMaterial3D
-			material.albedo_color = Color(1.0, lerpf(0.55, 0.92, heat), lerpf(0.2, 0.75, heat), 0.25 + 0.6 * charge)
-	if _menu_boost_started:
-		info["ignition_flashed"] = true
-	for spark: GPUParticles3D in info["charge_sparks"]:
-		if is_instance_valid(spark):
-			spark.emitting = charging and charge > 0.3
-			spark.amount_ratio = clampf(charge, 0.2, 1.0)
-
-
-## Ignition: a light flash, a shock front behind each aircraft and a blast over the deck below.
-func _spawn_menu_launch_blast(info: Dictionary) -> void:
-	var holder := info.get("holder") as Node3D
-	var origin := holder.global_position
-	var flight := (_menu_boost_transform(info, 0.25).origin - origin).normalized()
-	if flight.length_squared() <= 0.0001:
-		flight = Vector3.FORWARD
-	_spawn_menu_flash_light(origin - flight * 2.0, Color(1.0, 0.72, 0.42), 9.0, 16.0, 0.45)
-	_spawn_menu_shock_ring(origin - flight * 2.4, true, Color(1.0, 0.86, 0.70, 0.22), 1.0, 7.5, 0.5)
-	var ground := Vector3(origin.x, _menu_surface_height(origin) + 0.08, origin.z)
-	_spawn_menu_shock_ring(ground, false, Color(1.0, 1.0, 1.0, 0.16), 1.5, 9.0, 0.8, 0.025)
-	var motion := ParticleProcessMaterial.new()
-	motion.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_RING
-	motion.emission_ring_axis = Vector3.UP
-	motion.emission_ring_radius = 1.6
-	motion.emission_ring_inner_radius = 0.6
-	motion.emission_ring_height = 0.1
-	motion.direction = Vector3.UP
-	motion.spread = 30.0
-	motion.initial_velocity_min = 1.5
-	motion.initial_velocity_max = 3.5
-	motion.radial_velocity_min = 6.0
-	motion.radial_velocity_max = 12.0
-	motion.gravity = Vector3(0.0, -5.0, 0.0)
-	motion.damping_min = 2.5
-	motion.damping_max = 4.0
-	motion.scale_min = 0.8
-	motion.scale_max = 1.8
-	motion.color_ramp = _menu_ramp(
-		[Color(0.90, 0.92, 0.95, 0.0), Color(0.88, 0.90, 0.94, 0.40), Color(0.78, 0.80, 0.85, 0.0)],
-		[0.0, 0.12, 1.0]
-	)
-	_spawn_menu_burst(ground, motion, 48, 0.9, _menu_spark_mesh(0.7, false), 14.0)
-
-
-## Rotor wash rolling out over the deck (or sea) under each hovering aircraft; it builds with
-## the charge and is blown away at ignition.
-func _update_menu_wash_rings(info: Dictionary, charge: float) -> void:
-	var holder := info.get("holder") as Node3D
-	if holder == null or not is_instance_valid(holder):
-		return
-	if not info.has("wash_rings"):
-		var rings: Array[MeshInstance3D] = []
-		for ring_index: int in range(MENU_WASH_RING_COUNT):
-			var ring := MeshInstance3D.new()
-			ring.name = "P%dRotorWashRing%d" % [int(info.get("player_index", 1)), ring_index]
-			var plane := PlaneMesh.new()
-			plane.size = Vector2(2.0, 2.0)
-			ring.mesh = plane
-			ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			ring.material_override = _menu_shock_material(false, Color(1.0, 1.0, 1.0, 0.0), 0.0, 0.22)
-			ring.visible = false
-			add_child(ring)
-			rings.append(ring)
-		info["wash_rings"] = rings
-	var hover_position := holder.global_position
-	var surface := _menu_surface_height(hover_position)
-	var altitude := hover_position.y - surface
-	# Strongest close to the surface; the boost leaves the wash behind within a moment.
-	var strength := (1.0 - smoothstep(9.0, 17.0, altitude)) * (0.45 + 0.55 * charge)
-	if _menu_boost_started:
-		strength = 0.0
-	for ring_index: int in range(MENU_WASH_RING_COUNT):
-		var ring := (info["wash_rings"] as Array)[ring_index] as MeshInstance3D
-		if not is_instance_valid(ring):
-			continue
-		ring.visible = strength > 0.01 and holder.visible
-		if not ring.visible:
-			continue
-		var cycle := fposmod(_total_elapsed / MENU_WASH_RING_PERIOD * (1.0 + charge * 0.8) + float(ring_index) / MENU_WASH_RING_COUNT, 1.0)
-		var radius := lerpf(1.6, 7.0, cycle)
-		ring.global_position = Vector3(hover_position.x, surface + 0.07, hover_position.z)
-		ring.scale = Vector3(radius, 1.0, radius)
-		var material := ring.material_override as ShaderMaterial
-		var swell := strength * sin(cycle * PI)
-		material.set_shader_parameter("distortion", 0.016 * swell)
-		material.set_shader_parameter("tint", Color(1.0, 1.0, 1.0, 0.14 * swell))
 
 
 func _update_authored_menu_arrival() -> bool:
@@ -2607,15 +2115,6 @@ func _cleanup_helicopters(immediate: bool) -> void:
 			pickup_beam.queue_free()
 		if pickup_ring != null and is_instance_valid(pickup_ring):
 			pickup_ring.queue_free()
-		for ring: Variant in info.get("wash_rings", []):
-			if is_instance_valid(ring):
-				(ring as Node).queue_free()
-		for contrail: Variant in info.get("contrails", []):
-			if is_instance_valid(contrail):
-				if immediate:
-					(contrail as Node).queue_free()
-				else:
-					contrail.call("stop")
 		if downwash != null and is_instance_valid(downwash):
 			downwash.emitting = false
 			if immediate:
@@ -3061,19 +2560,12 @@ func _update_menu_camera(delta: float) -> void:
 		fov_delta = _menu_flight_profile.camera_fov_delta
 	elif not _menu_departure_mode:
 		tilt_up *= 1.0 - _menu_camera_return_weight()
-	var charge := clampf(_menu_launch_charge_elapsed / MENU_BOOST_CHARGE_DURATION, 0.0, 1.0)
 	if _menu_departure_mode:
 		# Leave headroom for the tail jet throughout the charge and launch.
 		tilt_up += 5.0 * smoothstep(0.0, 0.8, _phase_elapsed)
 		fov_delta += 3.0 * smoothstep(0.0, 0.8, _phase_elapsed)
-		# Crane up with the haul, lean in through the charge, then punch wide at ignition.
-		tilt_up += MENU_CAMERA_LIFT_TILT_DEG * _menu_camera_lift_tilt
 		if _menu_boost_started:
-			var t := _menu_launch_elapsed
-			var punch := smoothstep(0.0, 0.18, t) * (1.0 - 0.35 * smoothstep(0.25, 1.2, t))
-			fov_delta += lerpf(-MENU_CAMERA_CHARGE_PUSH_DEG, MENU_CAMERA_LAUNCH_PUNCH_DEG, punch)
-		else:
-			fov_delta -= MENU_CAMERA_CHARGE_PUSH_DEG * smoothstep(0.0, 1.0, charge)
+			fov_delta += 3.0 * smoothstep(0.0, 0.40, _menu_launch_elapsed)
 	_menu_camera.fov = _menu_camera_base_fov + fov_delta
 	var framing_rotation := _menu_camera_base_rotation + Vector3(
 		tilt_up,
@@ -3086,78 +2578,28 @@ func _update_menu_camera(delta: float) -> void:
 		cos(_total_elapsed * 1.85) * MENU_PICKUP_CAMERA_DRIFT * 0.55 * pickup_drift,
 		0.0
 	)
-	var follow_target := Vector2.ZERO
-	if _menu_departure_mode and _menu_boost_started:
-		follow_target = _menu_follow_angles(framing_rotation, cinematic_position) * smoothstep(0.05, 0.6, _menu_launch_elapsed)
-	_menu_camera_follow = _menu_camera_follow.lerp(follow_target, clampf(delta * 4.5, 0.0, 1.0))
 	var cinematic_rotation := framing_rotation + Vector3(
-		cos(_total_elapsed * 2.05) * 0.045 * pickup_drift + _menu_camera_follow.x,
-		sin(_total_elapsed * 1.70) * 0.035 * pickup_drift + _menu_camera_follow.y,
+		cos(_total_elapsed * 2.05) * 0.045 * pickup_drift,
+		sin(_total_elapsed * 1.70) * 0.035 * pickup_drift,
 		0.0
 	)
-	var shake_position := Vector3.ZERO
-	var shake_rotation := Vector3.ZERO
-	if _menu_camera_shake_remaining > 0.0:
-		_menu_camera_shake_remaining = maxf(0.0, _menu_camera_shake_remaining - delta)
-		var strength := _menu_camera_shake_remaining / MENU_CAMERA_SHAKE_DURATION
-		var phase := _total_elapsed * 58.0
-		shake_position += Vector3(sin(phase), cos(phase * 1.37) * 0.55, 0.0) * MENU_CAMERA_SHAKE_POSITION * strength
-		shake_rotation += Vector3(cos(phase * 1.11), sin(phase * 0.93), 0.0) * MENU_CAMERA_SHAKE_ROTATION_DEG * strength
-	if _menu_departure_mode:
-		# A rumble that builds with the charge, then the ignition kick decaying away.
-		var rumble := charge * charge if _menu_launch_charge_elapsed > 0.0 and not _menu_boost_started else 0.0
-		var position_amount := MENU_CAMERA_CHARGE_RUMBLE * rumble
-		var rotation_amount := 0.14 * rumble
-		if _menu_camera_launch_shake > 0.0:
-			_menu_camera_launch_shake = maxf(0.0, _menu_camera_launch_shake - delta)
-			var kick := pow(_menu_camera_launch_shake / MENU_CAMERA_LAUNCH_SHAKE_DURATION, 1.6)
-			position_amount += MENU_CAMERA_LAUNCH_SHAKE_POSITION * kick
-			rotation_amount += MENU_CAMERA_LAUNCH_SHAKE_ROTATION_DEG * kick
-		var rumble_phase := _total_elapsed * 47.0
-		shake_position += Vector3(
-			sin(rumble_phase) + sin(rumble_phase * 2.3) * 0.4,
-			cos(rumble_phase * 1.29) * 0.7,
-			0.0
-		) * position_amount
-		shake_rotation += Vector3(
-			cos(rumble_phase * 1.07),
-			sin(rumble_phase * 0.89) * 0.8,
-			sin(rumble_phase * 1.53) * 0.5
-		) * rotation_amount
-	_menu_camera.position = cinematic_position + shake_position
-	_menu_camera.rotation_degrees = cinematic_rotation + shake_rotation
-
-
-## Pitch/yaw (degrees) that keep the departing pair in view: the camera looks up only once
-## they climb past the upper third, and turns part of the way toward them.
-func _menu_follow_angles(rotation_deg: Vector3, local_position: Vector3) -> Vector2:
-	if _helicopters.is_empty():
-		return Vector2.ZERO
-	var centroid := Vector3.ZERO
-	for info: Dictionary in _helicopters:
-		var holder := info.get("holder") as Node3D
-		if holder == null or not is_instance_valid(holder):
-			return Vector2.ZERO
-		# Aim between the fuselage and the passenger hanging below it.
-		centroid += holder.global_position + Vector3.DOWN * 2.5
-	centroid /= float(_helicopters.size())
-	var parent_transform := Transform3D.IDENTITY
-	var parent := _menu_camera.get_parent() as Node3D
-	if parent != null:
-		parent_transform = parent.global_transform
-	var camera_transform := parent_transform * Transform3D(
-		Basis.from_euler(rotation_deg * (PI / 180.0), EULER_ORDER_YXZ),
-		local_position
+	if _menu_camera_shake_remaining <= 0.0:
+		_menu_camera.position = cinematic_position
+		_menu_camera.rotation_degrees = cinematic_rotation
+		return
+	_menu_camera_shake_remaining = maxf(0.0, _menu_camera_shake_remaining - delta)
+	var strength := _menu_camera_shake_remaining / MENU_CAMERA_SHAKE_DURATION
+	var phase := _total_elapsed * 58.0
+	_menu_camera.position = cinematic_position + Vector3(
+		sin(phase) * MENU_CAMERA_SHAKE_POSITION * strength,
+		cos(phase * 1.37) * MENU_CAMERA_SHAKE_POSITION * 0.55 * strength,
+		0.0
 	)
-	var local := camera_transform.affine_inverse() * centroid
-	var depth := -local.z
-	if depth <= 0.5:
-		return Vector2.ZERO
-	var pitch_error := rad_to_deg(atan2(local.y, depth))
-	var yaw_error := rad_to_deg(atan2(-local.x, depth))
-	var pitch := clampf(pitch_error - _menu_camera.fov * 0.5 * 0.35, 0.0, MENU_CAMERA_FOLLOW_MAX_PITCH_DEG)
-	var yaw := clampf(yaw_error * 0.5, -MENU_CAMERA_FOLLOW_MAX_YAW_DEG, MENU_CAMERA_FOLLOW_MAX_YAW_DEG)
-	return Vector2(pitch, yaw)
+	_menu_camera.rotation_degrees = cinematic_rotation + Vector3(
+		cos(phase * 1.11) * MENU_CAMERA_SHAKE_ROTATION_DEG * strength,
+		sin(phase * 0.93) * MENU_CAMERA_SHAKE_ROTATION_DEG * strength,
+		0.0
+	)
 
 
 func _menu_camera_return_weight() -> float:
@@ -3178,9 +2620,6 @@ func _reset_menu_camera() -> void:
 	if not _menu_preview_mode or _menu_camera == null or not is_instance_valid(_menu_camera):
 		return
 	_menu_camera_shake_remaining = 0.0
-	_menu_camera_launch_shake = 0.0
-	_menu_camera_follow = Vector2.ZERO
-	_menu_camera_lift_tilt = 0.0
 	_menu_pickup_camera_intensity = 0.0
 	_menu_camera.position = _menu_camera_base_position
 	_menu_camera.rotation_degrees = _menu_camera_base_rotation

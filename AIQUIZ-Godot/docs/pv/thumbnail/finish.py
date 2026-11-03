@@ -8,7 +8,11 @@ final/<shot>.jpg（1920x1080・2MB 以下）に書き出す。
   python docs/pv/thumbnail/finish.py sheet          # 撮れたコマを全部重ねて並べる（コマ選び用）→ final/_frames_<shot>.jpg
   python docs/pv/thumbnail/finish.py                # SHOTS の frame で仕上げる → final/<shot>.jpg と final/_final.jpg
   python docs/pv/thumbnail/finish.py t2=58 t3=50    # コマを指定して仕上げる
+
+ロゴの位置・大きさとロゴの下の暗さは、logo_layout.json（ロゴの調整の道具 logo_tuner.py で書く）があればその値を使う。
+仕上げるたびに、ロゴを重ねる前の絵を final/_base/<名前>.png に残す（道具はこれにロゴを重ねて見せる）。
 """
+import json
 import sys
 from pathlib import Path
 
@@ -43,6 +47,19 @@ SHOTS = {
     # 白い文字が明るい空に沈まないよう少しだけ暗くする。手前の破片が画面の 0.45 あたりから入るので、その手前で止める
     "t8": {"frame": 76, "shutter": 1, "zone_blur": 0, "zone_shade": 0.08, "zone_end": 0.45, "logo_x": 56, "logo_w": 740},
 }
+# ロゴの調整の道具（logo_tuner.py）で決めた値。名前は書き出す絵の名前（t8・t8_blender など）。
+# logo_x・logo_y（ロゴの左上、px。logo_y が無ければ上下の真ん中）・logo_w・zone_blur・zone_shade・zone_end を上書きする
+LAYOUT = HERE / "logo_layout.json"
+LAYOUT_KEYS = ("logo_x", "logo_y", "logo_w", "zone_blur", "zone_shade", "zone_end")
+SHARPEN = (1.2, 40, 3)            # 輪郭の強調（半径・強さ・しきい値）
+
+
+def config(name: str) -> dict:
+    """書き出す絵の名前（t8 や t8_blender）の設定：SHOTS のそのショットの値に、logo_layout.json の値を重ねたもの"""
+    cfg = dict(SHOTS[name.split("_")[0]])
+    if LAYOUT.exists():
+        cfg.update({k: v for k, v in json.loads(LAYOUT.read_text(encoding="utf-8")).get(name, {}).items() if k in LAYOUT_KEYS})
+    return cfg
 
 
 def merged(shot: str, n: int, shutter: int = 4) -> Image.Image:
@@ -90,12 +107,13 @@ def calm_title_zone(im: Image.Image, blur: float, shade: float, end: float) -> I
     return Image.fromarray(np.clip(out + 0.5, 0, 255).astype(np.uint8))
 
 
-def put_logo(im: Image.Image, x: int = LOGO_X, width: int = LOGO_W) -> Image.Image:
+def put_logo(im: Image.Image, x: int = LOGO_X, width: int = LOGO_W, y: int | None = None) -> Image.Image:
+    """ロゴ（幅 width、左上 (x, y)。y が None なら上下の真ん中）を影つきで重ねる"""
     base = im.convert("RGBA")
     logo = Image.open(LOGO).convert("RGBA")
     logo = logo.resize((width, round(logo.height * width / logo.width)), Image.LANCZOS)
     fg = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    fg.alpha_composite(logo, (x, (H - logo.height) // 2))
+    fg.alpha_composite(logo, (x, (H - logo.height) // 2 if y is None else y))
     shadow = Image.new("RGBA", (W, H), (10, 18, 40, 0))
     shadow.putalpha(fg.getchannel("A").point(lambda a: min(a, 170)))
     shadow = shadow.filter(ImageFilter.GaussianBlur(16))
@@ -104,13 +122,26 @@ def put_logo(im: Image.Image, x: int = LOGO_X, width: int = LOGO_W) -> Image.Ima
     return base.convert("RGB")
 
 
+def save_base(im: Image.Image, name: str, sharpen: tuple = SHARPEN) -> None:
+    """ロゴを重ねる前（色を整えたあと）の絵と輪郭の強調の値を final/_base に残す（logo_tuner.py が読む）"""
+    (OUT / "_base").mkdir(parents=True, exist_ok=True)
+    im.save(OUT / "_base" / f"{name}.png")
+    (OUT / "_base" / f"{name}.json").write_text(json.dumps({"sharpen": list(sharpen)}), encoding="utf-8")
+
+
+def finalize(im: Image.Image, cfg: dict, sharpen: tuple = SHARPEN) -> Image.Image:
+    """色を整えた絵に、ロゴの下を落ち着かせ、輪郭を締め、ロゴを重ねる"""
+    im = calm_title_zone(im, cfg["zone_blur"], cfg["zone_shade"], cfg["zone_end"])
+    im = im.filter(ImageFilter.UnsharpMask(radius=sharpen[0], percent=sharpen[1], threshold=sharpen[2]))
+    return put_logo(im, cfg.get("logo_x", LOGO_X), cfg.get("logo_w", LOGO_W), cfg.get("logo_y"))
+
+
 def finish(shot: str, n: int) -> Path:
-    cfg = SHOTS[shot]
+    cfg = config(shot)
     im = merged(shot, n, cfg["shutter"])
     im = grade(im)
-    im = calm_title_zone(im, cfg["zone_blur"], cfg["zone_shade"], cfg["zone_end"])
-    im = im.filter(ImageFilter.UnsharpMask(radius=1.2, percent=40, threshold=3))
-    im = put_logo(im, cfg.get("logo_x", LOGO_X), cfg.get("logo_w", LOGO_W))
+    save_base(im, shot)
+    im = finalize(im, cfg)
     OUT.mkdir(parents=True, exist_ok=True)
     dst = OUT / f"{shot}.jpg"
     im.save(dst, quality=93, optimize=True, subsampling=0)

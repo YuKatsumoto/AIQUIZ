@@ -529,6 +529,8 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 45)
 layout_mode = 2
 text = "再チェック"
+script = ExtResource("2_0dkrt")
+compact = true
 
 [node name="VolBox" type="HBoxContainer" parent="SettingsPanel/VBox" unique_id=1990753503]
 layout_mode = 2
@@ -558,18 +560,25 @@ text = "解像度:"
 unique_name_in_owner = true
 custom_minimum_size = Vector2(250, 0)
 layout_mode = 2
+script = ExtResource("2_0dkrt")
+compact = true
 
 [node name="OpenDashboardBtn" type="Button" parent="SettingsPanel/VBox" unique_id=412664169]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 45)
 layout_mode = 2
 text = "プロンプト&クイズ管理ダッシュボードを開く"
+script = ExtResource("2_0dkrt")
+compact = true
 
 [node name="SettingsBackBtn" type="Button" parent="SettingsPanel/VBox" unique_id=1174075518]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 45)
 layout_mode = 2
 text = "戻る"
+script = ExtResource("2_0dkrt")
+featured = true
+compact = true
 
 [connection signal="pressed" from="VBoxContainer/ModeContainer/ModeButtons/TenQuestionsBtn" to="." method="_on_ten_questions_pressed"]
 [connection signal="pressed" from="VBoxContainer/ModeContainer/ModeButtons/EndlessBtn" to="." method="_on_endless_pressed"]

@@ -1466,7 +1466,7 @@ func _update_charge_input(
 		_charge_in_perfect_band = false
 	if not _charging_input:
 		_set_meter(0.0, _player_color)
-		_update_hud("照準を合わせ、突進ボタンを長押し")
+		_update_hud("照準を合わせて突進ボタンを長押し")
 		return
 	if fire_down:
 		_charge_amount = fposmod(_charge_amount + delta / CHARGE_BUILD_SECONDS, 1.0)
@@ -3505,7 +3505,7 @@ func _show_aim_visuals() -> void:
 		_shark.set_ghost_charge_tension(0.0)
 	_update_aim_visuals(false)
 	_set_meter(0.0, _player_color)
-	_update_hud("照準を合わせ、突進ボタンを長押し")
+	_update_hud("照準を合わせて突進ボタンを長押し")
 
 
 func _hide_aim_visuals() -> void:

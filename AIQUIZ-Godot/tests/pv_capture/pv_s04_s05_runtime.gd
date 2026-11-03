@@ -31,12 +31,11 @@ const START_GRADE := 3
 const TELOP_END_BEAT := 6.5                 # 編集用の目安：UI が下がりきるころ（build_s04_s07.jsx）
 
 ## ヘリ（ゲームの秒、begin_game_start_departure からの経過。measure の等速で）：降りてきて縄ばしご 約 1.2 →
-## 揺れが収まって走り出す 約 2.95 → ジャンプ 約 3.33 → つかまる 約 3.95 → 甲板から吊り上げて 1.1 秒（手を振る）→
-## エンジンをためて 0.8 秒で打ち上がり
+## 揺れが収まって走り出す 約 2.95 → ジャンプ 約 3.33 → つかまる 約 3.95 → エンジンをためて 0.8 秒で打ち上がり
 const S05_PRE_SPEED := 1.45                 # S05 の頭から走り出すまでの早回し
 const GRAB_HOLD := 0.622                    # 走り終えてからつかまるまで（HelicopterArrivalDirector.MENU_LADDER_GRAB_DURATION ＋ 1 更新）
-## つかまってから打ち上がりまで（吊り上げ MENU_LIFT_DURATION ＋ ため MENU_BOOST_CHARGE_DURATION）
-const CHARGE := HelicopterArrivalDirector.MENU_LIFT_DURATION + HelicopterArrivalDirector.MENU_BOOST_CHARGE_DURATION
+## つかまってから打ち上がりまで（MENU_BOOST_CHARGE_DURATION）
+const CHARGE := HelicopterArrivalDirector.MENU_BOOST_CHARGE_DURATION
 const GRAB_BEAT := 13.0                     # S05 の 6 拍目の頭（テイクの頭から 13 拍）
 const LAUNCH_BEAT := 14.5
 

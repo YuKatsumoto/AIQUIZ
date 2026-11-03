@@ -104,7 +104,10 @@ func _run() -> void:
 	_check(_all_content_fits(), "The keyboard and all eight cards fit at 960 by 540")
 	await _shot("duo_960")
 	_intro._next.pressed.emit()
-	_check(not _intro.is_active() and _completed == ["SOLO", "LOCAL_2P"], "The explicit start button emits the selected duo course")
+	_check(_intro.is_active() and _intro.get_evidence().starting and _completed == ["SOLO"], "The duo start first turns the desk camera toward the monitor")
+	for _step: int in range(4):
+		_intro._process(0.5)
+	_check(not _intro.is_active() and _completed == ["SOLO", "LOCAL_2P"], "After entering the monitor the start button emits the selected duo course")
 	_intro.show_intro("SOLO")
 	_intro.set_process(false)
 	_intro._process(1.2)

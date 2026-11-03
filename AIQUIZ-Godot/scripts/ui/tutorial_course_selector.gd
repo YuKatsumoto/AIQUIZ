@@ -70,15 +70,15 @@ func _build_selector() -> void:
 	eyebrow.add_theme_color_override("font_color", Color(0.52, 0.68, 0.94))
 	root.add_child(eyebrow)
 	var title := Label.new()
-	title.text = "チュートリアルのコースを選択"
+	title.text = "コースを選ぼう"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 30)
 	title.add_theme_color_override("font_color", Color(1.0, 0.88, 0.24))
 	root.add_child(title)
 	var description := Label.new()
 	description.text = MobileUi.prompt(
-		"操作方法とゲームのルールを、実際にプレイしながら確認できます。\n操作するキーは、キャラクターの頭の上に3Dで表示されます。",
-		"操作方法とゲームのルールを、実際にプレイしながら確認できます。\n画面のスティックとボタンで操作します。"
+		"遊びながら操作とルールを覚えよう\n押すキーはキャラの頭の上に出る",
+		"遊びながら操作とルールを覚えよう\n画面のスティックとボタンで動かす"
 	)
 	description.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	description.add_theme_font_size_override("font_size", 16)
@@ -111,7 +111,8 @@ func _build_selector() -> void:
 	cards.add_child(duo)
 	_duo_badge = duo.get_node("Content/Badge") as Label
 
-	var later := Button.new()
+	var later := MenuMetalButton.new()
+	later.compact = true
 	later.text = "後で確認"
 	later.custom_minimum_size = Vector2(180.0, 42.0)
 	later.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -176,7 +177,10 @@ func _create_course_card(
 	time.add_theme_font_size_override("font_size", 13)
 	time.add_theme_color_override("font_color", Color(0.55, 0.68, 0.86))
 	content.add_child(time)
-	var start := Button.new()
+	var start := MenuMetalButton.new()
+	start.compact = true
+	start.accent = accent
+	start.featured = true
 	start.text = "このコースを開始"
 	start.custom_minimum_size.y = 42.0
 	start.add_theme_font_size_override("font_size", 17)
@@ -202,7 +206,7 @@ func _apply_badge(badge: Label, state: String) -> void:
 			badge.text = "✓ 完了"
 			badge.add_theme_color_override("font_color", Color(0.36, 1.0, 0.60))
 		"updated":
-			badge.text = "★ 内容を更新しました"
+			badge.text = "★ 内容を更新"
 			badge.add_theme_color_override("font_color", Color(1.0, 0.82, 0.30))
 		_:
 			badge.text = "未完了"

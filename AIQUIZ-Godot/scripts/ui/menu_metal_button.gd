@@ -19,6 +19,13 @@ class_name MenuMetalButton
 	set(value):
 		arrow_button = value
 		refresh_style()
+## Chosen tab / player / card: the lamp stays lit, the face takes a hint of the accent and gets an accent line.
+## A chosen button keeps this look while disabled (tabs disable the open section).
+## (Not named `selected`: OptionButtons carry this script too, and theirs is the item index.)
+@export var chosen: bool = false:
+	set(value):
+		chosen = value
+		refresh_style()
 
 var mechanical_pulse: float = 0.0:
 	set(value):
@@ -34,6 +41,12 @@ const FONT := preload("res://resources/fonts/NotoSansJP-Bold.otf")
 var _press_tween: Tween
 
 
+## Puts the metal plate on a Button made elsewhere (an OptionButton, too). Call before it enters the tree.
+static func adopt(button: Button, compact_plate: bool = true) -> void:
+	button.set_script(load("res://scripts/ui/menu_metal_button.gd"))
+	button.set("compact", compact_plate)
+
+
 func _ready() -> void:
 	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	add_theme_font_override("font", FONT)
@@ -46,6 +59,9 @@ func _ready() -> void:
 	resized.connect(_on_resized)
 	_on_resized()
 	refresh_style()
+	# The script also goes on OptionButtons (adopt or a scene script); give their list the same plate.
+	if is_class("OptionButton"):
+		_style_popup(call("get_popup") as PopupMenu)
 
 
 func _on_resized() -> void:
@@ -80,11 +96,11 @@ func _style(face: Color) -> StyleBoxFlat:
 func refresh_style() -> void:
 	if not is_inside_tree():
 		return
-	var face: Color = accent if featured else FACE
+	var face: Color = accent if featured else (FACE.lerp(accent, 0.22) if chosen else FACE)
 	add_theme_stylebox_override("normal", _style(face))
 	add_theme_stylebox_override("hover", _style(face.lightened(0.10)))
 	add_theme_stylebox_override("pressed", _style(face.darkened(0.10)))
-	add_theme_stylebox_override("disabled", _style(face.darkened(0.18)))
+	add_theme_stylebox_override("disabled", _style(face if chosen else face.darkened(0.18)))
 	var focus := StyleBoxFlat.new()
 	focus.bg_color = Color.TRANSPARENT
 	focus.border_color = accent.lightened(0.15)
@@ -95,8 +111,28 @@ func refresh_style() -> void:
 	var text_color: Color = Color("#182129") if featured else INK
 	for slot: String in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
 		add_theme_color_override(slot, text_color)
-	add_theme_color_override("font_disabled_color", Color("#8b969e"))
+	add_theme_color_override("font_disabled_color", text_color if chosen else Color("#8b969e"))
 	queue_redraw()
+
+
+func _style_popup(popup: PopupMenu) -> void:
+	var panel := _style(FRAME_DARK)
+	panel.set_border_width_all(2)
+	panel.border_color = FRAME_LIGHT
+	panel.content_margin_left = 6.0
+	panel.content_margin_right = 6.0
+	panel.content_margin_top = 6.0
+	panel.content_margin_bottom = 6.0
+	popup.add_theme_stylebox_override("panel", panel)
+	var hover := _style(FACE.lightened(0.10))
+	hover.content_margin_left = 0.0
+	hover.content_margin_right = 0.0
+	popup.add_theme_stylebox_override("hover", hover)
+	popup.add_theme_font_override("font", FONT)
+	popup.add_theme_color_override("font_color", INK)
+	popup.add_theme_color_override("font_hover_color", INK)
+	popup.add_theme_color_override("font_accelerator_color", Color("#8b969e"))
+	popup.add_theme_constant_override("v_separation", 10)
 
 
 func play_conveyor_press(direction: int) -> void:
@@ -111,7 +147,7 @@ func play_conveyor_press(direction: int) -> void:
 
 
 func _draw() -> void:
-	var active: bool = (
+	var active: bool = chosen or (
 		not disabled
 		and (has_focus() or is_hovered() or is_pressed() or mechanical_pulse > 0.01)
 	)
@@ -140,3 +176,5 @@ func _draw() -> void:
 	var lamp_x: float = 12.0 if compact else 16.0
 	draw_circle(Vector2(lamp_x, size.y * 0.5), 3.5 if compact else 4.5, FRAME_DARK)
 	draw_circle(Vector2(lamp_x, size.y * 0.5), 2.0 if compact else 2.8, lamp)
+	if chosen and not featured:
+		draw_line(Vector2(10.0, size.y - 3.0), Vector2(size.x - 10.0, size.y - 3.0), accent, 2.0, true)

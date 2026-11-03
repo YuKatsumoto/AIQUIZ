@@ -1,0 +1,9 @@
+/* 太さごとの Noto Sans JP（make_fonts.py が fonts/ に作る）。deck.css・doc.css が読み込む。
+   Windows の Noto Sans JP は可変フォントなので、そのまま使うと PDF の文字が図形（Type 3）になり、Acrobat で書き換えにくい。
+   ここで同じ名前を付けておくと、Windows のフォントより先にこちらが使われる。 */
+@font-face { font-family: "Noto Sans JP"; font-weight: 400; src: url("fonts/NotoSansJP-Regular.ttf"); }
+@font-face { font-family: "Noto Sans JP"; font-weight: 500; src: url("fonts/NotoSansJP-Medium.ttf"); }
+@font-face { font-family: "Noto Sans JP"; font-weight: 600; src: url("fonts/NotoSansJP-SemiBold.ttf"); }
+@font-face { font-family: "Noto Sans JP"; font-weight: 700; src: url("fonts/NotoSansJP-Bold.ttf"); }
+@font-face { font-family: "Noto Sans JP"; font-weight: 800; src: url("fonts/NotoSansJP-ExtraBold.ttf"); }
+@font-face { font-family: "Noto Sans JP"; font-weight: 900; src: url("fonts/NotoSansJP-Black.ttf"); }

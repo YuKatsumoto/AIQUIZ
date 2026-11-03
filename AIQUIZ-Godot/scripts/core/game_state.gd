@@ -13,8 +13,9 @@ signal question_completed(wall_index: int, correct: bool)
 signal question_winner_decided(question_index: int, winner_mask: int)
 
 const MAX_HP := 3
-const DAMAGE_STUN_DURATION := 0.35
-const DAMAGE_FLASH_DURATION := 0.6
+## 壁で弾かれてから、たたらを踏み終えるまで操作できない時間と、点滅（のけぞりの姿）の長さ。
+const DAMAGE_STUN_DURATION := 0.75
+const DAMAGE_FLASH_DURATION := 0.95
 var p1_hp := MAX_HP
 var p2_hp := MAX_HP
 var p1_damage_time := 0.0
@@ -622,8 +623,11 @@ const WALL_WORLD_BORDER_STOP_DISTANCE: float = 0.85
 ## 0.60 なので、従来の判定の線（wall_z - 0.4）では体が扉に沈んでから当たり、HP が残ると埋まったまま立つ。
 ## 体の前面が扉の表面に触れた所で当て、不正解で弾かれた人もその問題のあいだはここより前へ出さない。
 const WALL_FACE_CONTACT_DISTANCE: float = 1.05
-## 不正解で HP が残ったとき後ろへ弾く初速（EXTERNAL_IMPULSE_DECELERATION で減衰し約2.1m 下がる）。
+## 不正解で HP が残ったとき後ろへ弾く初速。WALL_HIT_STAGGER_SPEED までは EXTERNAL_IMPULSE_DECELERATION で
+## 速く減り（約1.8m 吹き飛ぶ）、そこから WALL_HIT_STAGGER_DECELERATION でゆっくり止まる（約0.6m たたらを踏む）。
 const WALL_HIT_KNOCKBACK_SPEED: float = 6.5
+const WALL_HIT_STAGGER_SPEED: float = 2.4
+const WALL_HIT_STAGGER_DECELERATION: float = 5.0
 ## 弾いても床の後ろ端からこれだけ内側に残す（弾かれて海へ落ちない）。
 const WALL_HIT_KNOCKBACK_BACK_MARGIN: float = 1.0
 const WALL_RAGDOLL_DURATION: float = 2.0
@@ -782,13 +786,27 @@ func wall_contact_distance() -> float:
 func _knock_back_from_wall(player_index: int) -> void:
 	var z := minf(player_z if player_index == 1 else player2_z, wall_z - WALL_FACE_CONTACT_DISTANCE)
 	var room := maxf(0.0, z - world_scroll_z - (FLOOR_BACK_Z + WALL_HIT_KNOCKBACK_BACK_MARGIN))
-	var speed := minf(WALL_HIT_KNOCKBACK_SPEED, sqrt(2.0 * EXTERNAL_IMPULSE_DECELERATION * room))
+	var speed := minf(WALL_HIT_KNOCKBACK_SPEED, wall_knockback_speed_for_room(room))
 	if player_index == 1:
 		player_z = z
 		p1_external_velocity = Vector2(p1_external_velocity.x, -speed)
 	else:
 		player2_z = z
 		p2_external_velocity = Vector2(p2_external_velocity.x, -speed)
+
+## 外からの勢いを減らす速さ。壁で弾かれた人（被ダメージ中に後ろへ流れている）は、勢いが
+## WALL_HIT_STAGGER_SPEED まで落ちたあとゆっくり減り、何歩かたたらを踏んで下がる。
+static func external_impulse_deceleration(velocity: Vector2, damage_time: float) -> float:
+	if damage_time > 0.0 and velocity.y < 0.0 and -velocity.y <= WALL_HIT_STAGGER_SPEED:
+		return WALL_HIT_STAGGER_DECELERATION
+	return EXTERNAL_IMPULSE_DECELERATION
+
+## 壁で弾かれて止まるまでに下がる距離が room に収まる初速。
+static func wall_knockback_speed_for_room(room: float) -> float:
+	var stagger_room := WALL_HIT_STAGGER_SPEED * WALL_HIT_STAGGER_SPEED / (2.0 * WALL_HIT_STAGGER_DECELERATION)
+	if room <= stagger_room:
+		return sqrt(2.0 * WALL_HIT_STAGGER_DECELERATION * room)
+	return sqrt(WALL_HIT_STAGGER_SPEED * WALL_HIT_STAGGER_SPEED + 2.0 * EXTERNAL_IMPULSE_DECELERATION * (room - stagger_room))
 
 ## HP の不正解で弾かれた人は、その問題が終わるまで今の壁の表面より前へ出ない
 ## （2P で相手の回答を待つあいだ、迫ってくる壁に体を埋めない）。オンラインの予測と表示も使う。
@@ -1147,18 +1165,18 @@ func _on_tutorial_saw_catch(hit_mask: int) -> void:
 			names.append("P%d" % index)
 	var who := "と".join(names)
 	if tutorial_flow.punishes_mistakes() and (p1_alive or p2_alive):
-		message_text = "%sがのこぎりに巻き込まれて脱落しました。残った人は答え続けてください。" % who
+		message_text = "%sがのこぎりで脱落\n残った人は答え続けよう" % who
 		tutorial_flow.set_hint(message_text, 3.6)
 		_try_finish_tutorial_hp_wall()
 		refresh_status_text()
 		return
 	choice_locked = true
-	message_text = "%sがのこぎりに巻き込まれました。ハートが残っていても即脱落です。" % who
+	message_text = "%sがのこぎりに巻き込まれた\nハートが残っていても即脱落" % who
 	tutorial_flow.set_hint(message_text, TUTORIAL_SAW_RECOVERY_DURATION)
 	tutorial_flow.begin_death_recovery(
 		TUTORIAL_SAW_RECOVERY_DURATION,
 		true,
-		"のこぎりから遅れすぎないように進みましょう。もう一度やってみます。"
+		"のこぎりから遅れないように進もう\nもう一度やってみよう"
 	)
 	refresh_status_text()
 	state_changed.emit(game_state)
@@ -3184,7 +3202,7 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 		player_z += p1_axis.y * tuning.player_speed * dt
 		player_x += p1_external_velocity.x * dt
 		player_z += p1_external_velocity.y * dt
-		p1_external_velocity = p1_external_velocity.move_toward(Vector2.ZERO, EXTERNAL_IMPULSE_DECELERATION * dt)
+		p1_external_velocity = p1_external_velocity.move_toward(Vector2.ZERO, external_impulse_deceleration(p1_external_velocity, p1_damage_time) * dt)
 
 		# Removed forward limit to allow running ahead
 		var loc1 := player_z - world_scroll_z
@@ -3210,10 +3228,10 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 
 		if player_y < StageConstants.OCEAN_ENTRY_Y:
 			if _is_tutorial_mode() and not _is_expected_tutorial_ocean_entry(1):
-				_recover_tutorial_unexpected_ocean_entry(1, "今は海の練習ではありません。安全な位置からこのステップをやり直します。")
+				_recover_tutorial_unexpected_ocean_entry(1, "海に落ちた\n安全な場所からやり直そう")
 				return
 			if _is_tutorial_mode():
-				message_text = "海に落ちました。サメが接近しています。"
+				message_text = "海に落ちた\nサメが近づいてくる"
 				tutorial_flow.set_hint(message_text, 4.0)
 				tutorial_ui_revision += 1
 			_begin_ocean_shark_wait(1)
@@ -3233,7 +3251,7 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 		player2_z += p2_axis.y * tuning.player_speed * dt
 		player2_x += p2_external_velocity.x * dt
 		player2_z += p2_external_velocity.y * dt
-		p2_external_velocity = p2_external_velocity.move_toward(Vector2.ZERO, EXTERNAL_IMPULSE_DECELERATION * dt)
+		p2_external_velocity = p2_external_velocity.move_toward(Vector2.ZERO, external_impulse_deceleration(p2_external_velocity, p2_damage_time) * dt)
 
 		# Removed forward limit
 		var loc2 := player2_z - world_scroll_z
@@ -3259,10 +3277,10 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 
 		if player2_y < StageConstants.OCEAN_ENTRY_Y:
 			if _is_tutorial_mode() and not _is_expected_tutorial_ocean_entry(2):
-				_recover_tutorial_unexpected_ocean_entry(2, "今はP2が海へ落ちるステップではありません。安全な位置からやり直します。")
+				_recover_tutorial_unexpected_ocean_entry(2, "P2が海に落ちた\n安全な場所からやり直そう")
 				return
 			if _is_tutorial_mode():
-				message_text = "P2は海でサメを待機中です。P1のメイン画面は継続し、右下のDeathWipeで演出を確認できます。"
+				message_text = "P2が海に落ちた\nサメの様子は右下の小さな画面で見られる"
 				tutorial_ui_revision += 1
 			_begin_ocean_shark_wait(2)
 	elif num_players >= 2 and p2_alive and p2_waiting_for_shark:
@@ -3297,7 +3315,7 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 		if player_z - player2_z > SCROLL_OUT_LIMIT:
 			# P2 が遅れて画面外に消えた
 			if _is_tutorial_mode():
-				_reset_tutorial_attempt("P2が画面外に取り残されました。2人ともスタート位置へ戻します。")
+				_reset_tutorial_attempt("P2が画面の外に取り残された\n2人ともスタート位置からやり直そう")
 				return
 			if is_coop_mode():
 				_fail_coop_immediately("P2が画面外に取り残されました。協力失敗です。")
@@ -3311,7 +3329,7 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 		elif player2_z - player_z > SCROLL_OUT_LIMIT:
 			# P1 が遅れて画面外に消えた
 			if _is_tutorial_mode():
-				_reset_tutorial_attempt("P1が画面外に取り残されました。2人ともスタート位置へ戻します。")
+				_reset_tutorial_attempt("P1が画面の外に取り残された\n2人ともスタート位置からやり直そう")
 				return
 			if is_coop_mode():
 				_fail_coop_immediately("P1が画面外に取り残されました。協力失敗です。")
@@ -3379,7 +3397,7 @@ func _update_tutorial_saw_lesson(dt: float) -> bool:
 func _recover_tutorial_unexpected_ocean_entry(player_index: int, hint: String) -> void:
 	if is_tutorial_ghost_practice() and player_index != get_tutorial_ghost_player():
 		_revive_tutorial_player(player_index)
-		var ghost_hint := "P%dがコースへ復帰しました。ゴーストシャークの操作を続けてください。" % player_index
+		var ghost_hint := "P%dがコースに戻った\nゴーストシャークの練習を続けよう" % player_index
 		message_text = ghost_hint
 		tutorial_flow.set_hint(ghost_hint, 3.0)
 		tutorial_ui_revision += 1
@@ -3416,7 +3434,7 @@ func _update_tutorial_special_step(dt: float) -> bool:
 			# 標的側が落ちてもゴーストの練習は続けたいので、標的だけを復帰させる。
 			# ステップ全体をやり直すとゴースト側も復活してしまい、練習が始められない。
 			_revive_tutorial_player(survivor_index)
-			var hint := "P%dが復帰しました。ゴーストシャークの操作を続けてください。" % survivor_index
+			var hint := "P%dがコースに戻った\nゴーストシャークの練習を続けよう" % survivor_index
 			message_text = hint
 			tutorial_flow.set_hint(hint, 3.0)
 			tutorial_ui_revision += 1
@@ -4016,7 +4034,7 @@ func _start_goal_race() -> void:
 	message_text = "GOAL へ走れ！" if not use_english_ui else "Race to the GOAL!"
 	if revived_players and tutorial_flow != null:
 		# 画面中央は本編と同じ「GOAL へ走れ！」のまま。復帰の説明はコーチバーに出す。
-		tutorial_flow.set_hint("脱落したプレイヤーもハート1つで復帰します。ゴールへ向かってください。", 4.0)
+		tutorial_flow.set_hint("脱落した人もハート1つで復活\nゴールへ走ろう", 4.0)
 	refresh_status_text()
 	state_changed.emit(game_state)
 
@@ -4060,7 +4078,7 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 		player_z += p1_axis.y * tuning.player_speed * dt
 		player_x += p1_external_velocity.x * dt
 		player_z += p1_external_velocity.y * dt
-		p1_external_velocity = p1_external_velocity.move_toward(Vector2.ZERO, EXTERNAL_IMPULSE_DECELERATION * dt)
+		p1_external_velocity = p1_external_velocity.move_toward(Vector2.ZERO, external_impulse_deceleration(p1_external_velocity, p1_damage_time) * dt)
 
 		var loc1 := player_z - world_scroll_z
 		var is_on_floor := (
@@ -4094,7 +4112,7 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 		player2_z += p2_axis.y * tuning.player_speed * dt
 		player2_x += p2_external_velocity.x * dt
 		player2_z += p2_external_velocity.y * dt
-		p2_external_velocity = p2_external_velocity.move_toward(Vector2.ZERO, EXTERNAL_IMPULSE_DECELERATION * dt)
+		p2_external_velocity = p2_external_velocity.move_toward(Vector2.ZERO, external_impulse_deceleration(p2_external_velocity, p2_damage_time) * dt)
 
 		var loc2 := player2_z - world_scroll_z
 		var p2_is_on_floor := (
@@ -4195,7 +4213,7 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 		goal_winner = 0
 		if _is_tutorial_mode() and tutorial_flow != null:
 			# チュートリアルのレースは失敗で終わらせず、2人を復活させて再スタートする。
-			_reset_tutorial_attempt("2人ともゴール前に脱落しました。もう一度レースします。")
+			_reset_tutorial_attempt("2人ともゴール前に脱落\nもう一度レースしよう")
 			return
 		var defeat_message := (
 			"全員がゴール前に脱落しました。"
@@ -4338,9 +4356,9 @@ func _goal_wait_message() -> String:
 	if goal_reached_mask == 3:
 		return "Both finished!" if use_english_ui else "二人ともゴール！"
 	if goal_reached_mask == 1:
-		return "P1 finished! Waiting for P2..." if use_english_ui else "P1 ゴール！ P2を待っています…"
+		return "P1 finished! Waiting for P2..." if use_english_ui else "P1 ゴール！\nP2を待っています…"
 	if goal_reached_mask == 2:
-		return "P2 finished! Waiting for P1..." if use_english_ui else "P2 ゴール！ P1を待っています…"
+		return "P2 finished! Waiting for P1..." if use_english_ui else "P2 ゴール！\nP1を待っています…"
 	return "GOAL へ走れ！"
 
 
@@ -5198,7 +5216,7 @@ func _resolve_tutorial_collision() -> void:
 		_resolve_tutorial_collision_2p()
 		return
 	if not tutorial_flow.is_quiz_step() or current_quiz == null:
-		_reset_tutorial_attempt("画面の案内に従って操作してください。")
+		_reset_tutorial_attempt("画面の案内どおりに動いてみよう")
 		return
 
 	var door := _check_player_door(player_x)
@@ -5228,7 +5246,7 @@ func _resolve_tutorial_collision() -> void:
 	if p1_alive:
 		# 本編と同じく、ハートが残っていれば壁が開いて次へ進める。
 		choice_locked = true
-		message_text = "%s ハートが1つ減りました（残り%d）。" % [hint, p1_hp]
+		message_text = "%s\nハートが1つ減った　残り%d" % [hint, p1_hp]
 		tutorial_flow.set_hint(message_text, 4.0)
 		tutorial_ui_revision += 1
 		wrong_answer.emit(message_text)
@@ -5236,12 +5254,12 @@ func _resolve_tutorial_collision() -> void:
 		return
 	# ハートが尽きた。本編と同じ激突演出を見せ切ってから、ハートを戻して同じ問題をやり直す。
 	choice_locked = true
-	message_text = "%s ハートが0になり脱落しました。" % hint
+	message_text = "%s\nハートが0になって脱落" % hint
 	tutorial_flow.set_hint(message_text, WALL_DEATH_SEQUENCE_DURATION)
 	tutorial_flow.begin_death_recovery(
 		WALL_DEATH_SEQUENCE_DURATION,
 		true,
-		"ハートを3つに戻して、同じ問題からやり直します。"
+		"ハートを3つに戻した\n同じ問題からやり直そう"
 	)
 	tutorial_ui_revision += 1
 	wrong_answer.emit(message_text)
@@ -5252,15 +5270,15 @@ func _resolve_tutorial_collision() -> void:
 func _resolve_tutorial_hp_lesson_solo(door: int) -> void:
 	if door == current_quiz.a:
 		_reset_tutorial_attempt(
-			"そこは正解のドアです。この練習では、わざと不正解の「%s」のドアに入ってください。"
+			"そこは正解のドア\nわざと不正解の「%s」に入ろう"
 			% _tutorial_lesson_choice_text()
 		)
 		return
 	choice_locked = true
 	_apply_tutorial_lesson_damage(1)
 	tutorial_flow.complete_task(1, "wrong_door")
-	var cause := "壁にぶつかっても" if door < 0 else "不正解のドアに入ると"
-	message_text = "%sハートが1つ減ります（残り%d）。0になるまでは走り続けられます。" % [cause, p1_hp]
+	var cause := "壁にぶつかっても" if door < 0 else "不正解だと"
+	message_text = "%sハートが1つ減る　残り%d\n0になるまでは走り続けられる" % [cause, p1_hp]
 	tutorial_flow.set_hint(message_text, 4.2)
 	tutorial_ui_revision += 1
 	wrong_answer.emit(message_text)
@@ -5269,10 +5287,10 @@ func _resolve_tutorial_hp_lesson_solo(door: int) -> void:
 
 func _tutorial_miss_hint(door: int, answer: int) -> String:
 	if door == -2:
-		return "ドアの境目に衝突しました。ドアの中央を通過してください。"
+		return "ドアの境目にぶつかった　真ん中を通ろう"
 	if door < 0:
-		return "ドアを外して壁に激突しました。正解は%sのドアでした。" % _tutorial_answer_label(answer)
-	return "不正解のドアでした。正解は%sのドアです。" % _tutorial_answer_label(answer)
+		return "壁にぶつかった　正解は%sのドア" % _tutorial_answer_label(answer)
+	return "残念　正解は%sのドア" % _tutorial_answer_label(answer)
 
 func _resolve_tutorial_collision_2p() -> void:
 	# 壁に当たったときは _update_playing が体を当たりの線（wall_contact_distance。HP のあるステップは扉の表面）で止めるので、
@@ -5282,7 +5300,7 @@ func _resolve_tutorial_collision_2p() -> void:
 	var p2_at_wall := p2_alive and not p2_waiting_for_shark and player2_z >= contact_z
 	if not tutorial_flow.is_quiz_step() or current_quiz == null:
 		# 壁を使わないステップで壁に触れてしまった場合は、案内の位置へ戻す。
-		_reset_tutorial_attempt("画面の案内に従って操作してください。")
+		_reset_tutorial_attempt("画面の案内どおりに動いてみよう")
 		tutorial_flow.restart_current_step(false)
 		return
 	if _tutorial_eval_wall != current_wall_index:
@@ -5319,9 +5337,9 @@ func _resolve_tutorial_guided_wall_2p(p1_at_wall: bool, p2_at_wall: bool) -> voi
 		correct_flash = 1.0
 		camera_shake = 0.18
 		var detail := (
-			"2人同時に正解！ 同時なら2人とも1点です。"
+			"2人同時に正解！\n同時なら2人とも1点"
 			if p1_correct and p2_correct
-			else "P%dが先に正解して1点！ 壁は2人とも通れるように開きます。" % (1 if p1_correct else 2)
+			else "P%dが先に正解して1点！\n壁は2人とも通れる" % (1 if p1_correct else 2)
 		)
 		# 画面中央の緑の文字は短く、詳しい説明はコーチバーに出す。
 		message_text = "2人とも正解！" if p1_correct and p2_correct else "P%d 正解！" % (1 if p1_correct else 2)
@@ -5339,7 +5357,7 @@ func _resolve_tutorial_guided_wall_2p(p1_at_wall: bool, p2_at_wall: bool) -> voi
 	for miss: String in misses:
 		if not miss.is_empty():
 			shown.append(miss)
-	var hint := "%s 正解は%sのドアです。光ったドアへ向かってください。" % [
+	var hint := "%s\n正解は光っている%sのドア" % [
 		" / ".join(shown), _tutorial_answer_label(answer)
 	]
 	_reset_tutorial_attempt(hint.strip_edges())
@@ -5364,7 +5382,7 @@ func _resolve_tutorial_hp_lesson_2p(p1_at_wall: bool, p2_at_wall: bool) -> void:
 			if (_tutorial_lesson_hint_mask & bit) == 0:
 				_tutorial_lesson_hint_mask |= bit
 				message_text = (
-					"P%dのそこは正解のドアです。わざと不正解の「%s」のドアへ移ってください。"
+					"P%dのそこは正解のドア\nわざと不正解の「%s」へ移ろう"
 					% [player_index, _tutorial_lesson_choice_text()]
 				)
 				tutorial_flow.set_hint(message_text, 3.6)
@@ -5379,14 +5397,14 @@ func _resolve_tutorial_hp_lesson_2p(p1_at_wall: bool, p2_at_wall: bool) -> void:
 	var answerable := (1 if _hp_answerable(1) else 0) | (2 if _hp_answerable(2) else 0)
 	if (answerable & ~_tutorial_eval_mask) == 0:
 		choice_locked = true
-		message_text = "2人ともハートが1つ減りました（P1 残り%d・P2 残り%d）。0になるまでは走り続けられます。" % [p1_hp, p2_hp]
+		message_text = "2人ともハートが1つ減った\n0になるまでは走り続けられる"
 		tutorial_flow.set_hint(message_text, 4.4)
 		tutorial_ui_revision += 1
 		wrong_answer.emit(message_text)
 		_complete_tutorial_quiz_step(false)
 		return
 	var other := 2 if newly_hit[0] == 1 else 1
-	message_text = "P%dのハートが1つ減りました。不正解の人は、相手が答えるまで壁の前で止まります。P%dも不正解のドアへ。" % [newly_hit[0], other]
+	message_text = "P%dのハートが1つ減った\nP%dも不正解のドアへ入ろう" % [newly_hit[0], other]
 	tutorial_flow.set_hint(message_text, 4.0)
 	tutorial_ui_revision += 1
 	wrong_answer.emit(message_text)
@@ -5439,12 +5457,12 @@ func _try_finish_tutorial_hp_wall(misses: Array[String] = []) -> void:
 		correct_flash = 1.0
 		camera_shake = 0.18
 		var scorer := (
-			"2人同時に正解。2人とも1点です。"
+			"2人同時に正解！ 2人とも1点"
 			if _tutorial_correct_mask == 3
 			else "P%dが先に正解して1点！" % (1 if (_tutorial_correct_mask & 1) != 0 else 2)
 		)
 		message_text = "2人とも正解！" if _tutorial_correct_mask == 3 else "P%d 正解！" % (1 if (_tutorial_correct_mask & 1) != 0 else 2)
-		tutorial_flow.set_hint(("%s %s" % [scorer, miss_summary]).strip_edges(), 4.0)
+		tutorial_flow.set_hint(("%s\n%s" % [scorer, miss_summary]).strip_edges(), 4.0)
 		tutorial_ui_revision += 1
 		correct_answer.emit()
 		_complete_tutorial_quiz_step(true)
@@ -5452,12 +5470,12 @@ func _try_finish_tutorial_hp_wall(misses: Array[String] = []) -> void:
 	if not p1_alive and not p2_alive:
 		# 2人とも倒れたときだけ、激突演出を見せ切ってから同じ問題をやり直す。
 		choice_locked = true
-		message_text = "2人とも脱落しました。正解は%sのドアでした。" % _tutorial_answer_label(answer)
+		message_text = "2人とも脱落\n正解は%sのドア" % _tutorial_answer_label(answer)
 		tutorial_flow.set_hint(message_text, WALL_DEATH_SEQUENCE_DURATION)
 		tutorial_flow.begin_death_recovery(
 			WALL_DEATH_SEQUENCE_DURATION,
 			true,
-			"ハートを戻して、同じ問題からやり直します。"
+			"ハートを戻した\n同じ問題からやり直そう"
 		)
 		tutorial_ui_revision += 1
 		wrong_answer.emit(message_text)
@@ -5466,8 +5484,8 @@ func _try_finish_tutorial_hp_wall(misses: Array[String] = []) -> void:
 	if _tutorial_eval_mask != 0 and (answerable & ~_tutorial_eval_mask) == 0:
 		# 答えられる全員が不正解。本編と同じく得点なしで壁を開けて次へ進む。
 		choice_locked = true
-		var nobody := "2人とも不正解。" if _tutorial_eval_mask == 3 else "不正解。"
-		message_text = ("%s正解は%sのドアでした。 %s" % [nobody, _tutorial_answer_label(answer), miss_summary]).strip_edges()
+		var nobody := "2人とも不正解" if _tutorial_eval_mask == 3 else "不正解"
+		message_text = ("%s　正解は%sのドア\n%s" % [nobody, _tutorial_answer_label(answer), miss_summary]).strip_edges()
 		tutorial_flow.set_hint(message_text, 4.2)
 		tutorial_ui_revision += 1
 		wrong_answer.emit(message_text)
@@ -5475,7 +5493,7 @@ func _try_finish_tutorial_hp_wall(misses: Array[String] = []) -> void:
 		return
 	if miss_summary.is_empty():
 		return
-	message_text = "%s 相手が答えるまで壁の前で待ちます。" % miss_summary
+	message_text = "%s\n相手が答えるまで壁の前で待とう" % miss_summary
 	tutorial_flow.set_hint(message_text, 3.6)
 	tutorial_ui_revision += 1
 	wrong_answer.emit(message_text)
@@ -5511,12 +5529,12 @@ func _tutorial_lesson_choice_text() -> String:
 
 func _tutorial_player_miss_text(player_label: String, door: int, answer: int) -> String:
 	if door == -2:
-		return "%sはドアの境目にぶつかりました" % player_label
+		return "%sはドアの境目に激突" % player_label
 	if door < 0:
-		return "%sは壁にぶつかりました" % player_label
+		return "%sは壁に激突" % player_label
 	if door == answer:
 		return ""
-	return "%sは不正解のドアでした" % player_label
+	return "%sは不正解" % player_label
 
 func _tutorial_answer_label(answer: int) -> String:
 	if num_choices == 4:
@@ -5756,7 +5774,7 @@ func complete_ocean_shark_attack(player_index: int) -> void:
 			and tutorial_flow.designated_hazard_player() == player_index
 			and tutorial_flow.designated_ghost_player() == player_index
 		):
-			message_text = "ゴーストシャークへの移行が完了するまでお待ちください。"
+			message_text = "ゴーストシャークの準備中"
 			refresh_status_text()
 			state_changed.emit(game_state)
 			return
@@ -5767,13 +5785,13 @@ func complete_ocean_shark_attack(player_index: int) -> void:
 			tutorial_flow.complete_task(player_index, "ocean")
 			if tutorial_flow.hands_off_to_ghost_after_hazard():
 				# 復活させず、そのままゴーストシャークの練習ステップへ引き継ぐ。
-				message_text = "サメに襲われて脱落。ここからはゴーストシャークで反撃します。"
+				message_text = "サメに襲われて脱落\nここからはゴーストシャークで反撃"
 				tutorial_flow.set_hint(message_text, 4.0)
 				_advance_tutorial_step()
 				return
 			# 壁への激突と同じく、サメ演出も最後まで見せてから復帰させる。
 			tutorial_flow.begin_death_recovery(TUTORIAL_OCEAN_RECOVERY_DURATION, false)
-			message_text = "サメに襲われました。コースの外は危険です。"
+			message_text = "サメに襲われた\nコースの外は危険"
 			tutorial_flow.set_hint(message_text, TUTORIAL_OCEAN_RECOVERY_DURATION)
 			refresh_status_text()
 			state_changed.emit(game_state)
@@ -5784,21 +5802,21 @@ func complete_ocean_shark_attack(player_index: int) -> void:
 			var all_defeated: bool = not p1_alive and (num_players < 2 or not p2_alive)
 			if all_defeated and tutorial_flow.punishes_mistakes():
 				message_text = (
-					"2人とも脱落しました。同じ問題をやり直します。"
+					"2人とも脱落\n同じ問題をやり直そう"
 					if num_players >= 2
-					else "海に落ちると、ハートに関係なく脱落します。同じ問題をやり直します。"
+					else "海に落ちるとハートが残っていても脱落\n同じ問題をやり直そう"
 				)
 				tutorial_flow.set_hint(message_text, WALL_DEATH_SEQUENCE_DURATION)
 				tutorial_flow.begin_death_recovery(WALL_DEATH_SEQUENCE_DURATION, true)
 			else:
-				message_text = "P%dが海でサメに襲われて脱落しました。" % player_index
+				message_text = "P%dが海に落ちて脱落" % player_index
 				tutorial_flow.set_hint(message_text, 3.4)
 				# 落ちた人はもう答えられない。残った人の回答だけで壁を閉じられるか確かめる。
 				_try_finish_tutorial_hp_wall()
 			refresh_status_text()
 			state_changed.emit(game_state)
 			return
-		_reset_tutorial_attempt("コースの外に落ちました。海に落ちるとハートに関係なく脱落します。安全な位置からやり直します。")
+		_reset_tutorial_attempt("海に落ちるとハートが残っていても脱落\n安全な場所からやり直そう")
 		return
 	# 片方が先にサメに倒されても、もう片方の海上・サメ襲撃演出を完走させる。
 	# 両者が倒れた後だけ、協力プレイの失敗処理へ進む。

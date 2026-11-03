@@ -182,6 +182,7 @@ func compose_prompt(subject: String, grade: int, difficulty: String, count: int,
 	else:
 		prompt += "- 解説文(e)はなぜその答えになるかを小学生にもわかるよう丁寧に説明すること（50〜100文字程度）。計算過程や考え方の手順を含めること\n"
 	prompt += "- 選択肢(c)は各15文字以内に収めること\n"
+	prompt += _compose_kanji_rule(grade)
 	prompt += "- 予測解答時間(t)を各問題に付けること。対象学年の生徒が問題を読んで答えるまでの秒数（小数第1位）\n"
 	prompt += "  目安: 即答=2.0, 標準=4.0, 思考問題=6.0, 難問=8.0\n"
 	prompt += "- ジャンル(g)を各問題に付けること。その問題が属する単元・ジャンルの短いラベル（例: つなぎ言葉、慣用句、面積、割合）。同じ単元の問題には必ず同じラベルを付けること\n\n"
@@ -353,6 +354,19 @@ func compose_prompt(subject: String, grade: int, difficulty: String, count: int,
 		prompt += "- ※出力フォーマットは通常のJSON（q, c, a, e）のままです。\n\n"
 
 	return prompt
+
+## 問題文と選択肢に使ってよい漢字（学年別漢字配当表）。守っていない問題は _filter_unique_candidates で捨てる。
+## 漢字を制限するのは KanjiGrade.CHECKED_UP_TO_GRADE 年生まで。
+func _compose_kanji_rule(grade: int) -> String:
+	if not KanjiGrade.checks_grade(grade):
+		return ""
+	var lines := KanjiGrade.allowed_kanji_lines(grade)
+	if lines.is_empty():
+		return ""
+	var p := "- 問題文(q)と選択肢(c)の漢字は、小学%d年生までに習う下の漢字だけを使うこと。ここにない漢字はひらがなで書くこと（例:「かん字」「えど時代」）。「漢字（よみ）」のようなふりがなは付けないこと。どの教科・難易度でも守ること\n" % grade
+	for line in lines:
+		p += "  %s\n" % line
+	return p
 
 # ── カリキュラムデータベース ──
 
@@ -923,7 +937,7 @@ func reset_rate_limit() -> void:
 func _filter_unique_candidates(items: Array[QuizItem], dedup_blocklist: Array,
 		semantic_blocklist: Array, unique_seen: Dictionary, answer_seen: Dictionary,
 		forced_units: PackedStringArray = PackedStringArray(), subject: String = "",
-		exact_blocklist: Dictionary = {}) -> Array[QuizItem]:
+		exact_blocklist: Dictionary = {}, grade: int = 0) -> Array[QuizItem]:
 	var candidates: Array[QuizItem] = []
 	var validator: QuizValidator = QuizManager.quiz_validator
 	if validator:
@@ -934,6 +948,17 @@ func _filter_unique_candidates(items: Array[QuizItem], dedup_blocklist: Array,
 			print("[OnlineFetch] Rule validation removed %d items" % rule_result["reasons"].size())
 	else:
 		candidates.assign(items)
+
+	# 学年外の漢字を使った問題は捨てる（漢字を制限しない学年と、grade が 0 のときは調べない）
+	if KanjiGrade.checks_grade(grade):
+		var within_grade: Array[QuizItem] = []
+		for item: QuizItem in candidates:
+			var over := KanjiGrade.over_grade_in_quiz(item.q, item.c, grade)
+			if over.is_empty():
+				within_grade.append(item)
+			else:
+				print("[OnlineFetch] Kanji above grade %d (%s): '%s'" % [grade, "".join(over), item.q.left(30)])
+		candidates = within_grade
 
 	var unique_items: Array[QuizItem] = []
 	candidates.shuffle()
@@ -1065,7 +1090,7 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 		generation_stats["candidates"] += items.size()
 		var unique_items: Array[QuizItem] = _filter_unique_candidates(
 			items, dedup_blocklist, semantic_blocklist,
-			unique_seen, answer_seen, batch_units, subject, exact_blocklist
+			unique_seen, answer_seen, batch_units, subject, exact_blocklist, grade
 		)
 		generation_stats["accepted"] += unique_items.size()
 		# Archive every structurally valid, deduplicated generated candidate before
@@ -1233,7 +1258,7 @@ func fetch_quiz_set(subject: String, grade: int, difficulty: String, count: int,
 			if item is QuizItem:
 				typed.append(item)
 		var unique_items: Array[QuizItem] = _filter_unique_candidates(
-			typed, dedup_blocklist, semantic_blocklist, unique_seen, answer_seen, units, subject, exact_blocklist)
+			typed, dedup_blocklist, semantic_blocklist, unique_seen, answer_seen, units, subject, exact_blocklist, grade)
 		if not unique_items.is_empty() and QuizManager.firebase_quiz_cache != null:
 			QuizManager.firebase_quiz_cache.queue_candidates(unique_items, subject, grade, difficulty)
 		return unique_items

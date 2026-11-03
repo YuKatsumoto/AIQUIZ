@@ -770,12 +770,12 @@ func _on_customize_tutorial_completed() -> void:
 		"step": "2 / 2  TUTORIAL COMPLETE",
 		"title": "ローカル2Pチュートリアル完了" if is_duo else "1Pチュートリアル完了",
 		"body": (
-			"2人プレイの操作とカスタマイズの紹介が完了しました。"
+			"2人プレイの準備はOK\n本番で遊んでみよう"
 			if is_duo
-			else "ステージ操作とカスタマイズの紹介が完了しました。"
+			else "これで準備はOK\n本番で遊んでみよう"
 		),
 		"progress": "✓ ステージ実践　　✓ カスタマイズ",
-		"footer": "まもなくメニューへ戻ります",
+		"footer": "まもなくメニューへ戻る",
 		"duration": 3.8,
 	})
 
@@ -1193,6 +1193,9 @@ func _ensure_tutorial_selector() -> void:
 	_tutorial_keyboard_intro = TutorialKeyboardIntroScript.new()
 	_tutorial_keyboard_intro.name = "TutorialKeyboardIntro"
 	add_child(_tutorial_keyboard_intro)
+	# ローカル2Pの説明の3Dの机のモニターに、この背景のステージを映す。
+	if live_viewport:
+		_tutorial_keyboard_intro.call("set_monitor_texture", live_viewport.get_texture())
 	_tutorial_keyboard_intro.connect("completed", _on_tutorial_keyboard_completed)
 	_tutorial_keyboard_intro.connect("cancelled", _show_tutorial_selector)
 
@@ -1556,7 +1559,29 @@ func _start_tutorial_game(course: String = GameManager.TUTORIAL_COURSE_SOLO) -> 
 
 
 func _on_tutorial_keyboard_completed(course: String) -> void:
+	# ローカル2Pの説明の3Dの机は、カメラがモニターへ寄り終えた画面を渡してくる。それを覆いにして本編へ入る。
+	var cover: Texture2D = _tutorial_keyboard_intro.call("take_start_cover")
+	if cover != null:
+		_go_to_game_through_monitor(course, cover)
+		return
 	_go_to_game(false, course)
+
+
+## モニターの映像だけになった画面を静止画の覆いにして、その下で本編を準備する。メニューが滑って消える動きや、
+## 丸い幕・LOADING は出さない。本編が準備できたら、いつもの reveal_current() で覆いから本編へ溶け込む。
+func _go_to_game_through_monitor(course: String, cover: Texture2D) -> void:
+	if _menu_exit_in_progress:
+		return
+	_menu_exit_in_progress = true
+	_set_all_buttons_disabled(true)
+	settings_panel.visible = false
+	SceneTransition.hold_image_texture(cover)
+	# 覆いを1フレーム描いてから、重い問題の準備とシーンの切り替えをする（_begin_scene_change と同じ順）。
+	await get_tree().process_frame
+	if not is_inside_tree():
+		return
+	game_state.start_tutorial(course)
+	get_tree().change_scene_to_packed(GAME_WORLD_SCENE)
 
 func _start_first_run_tutorial() -> void:
 	_show_tutorial_selector()
@@ -2005,6 +2030,7 @@ func _touch_option_row(row_name: String, title: String, option_name: String) -> 
 	label.text = title
 	row.add_child(label)
 	var option := OptionButton.new()
+	MenuMetalButton.adopt(option)
 	option.name = option_name
 	row.add_child(option)
 	return row
@@ -2124,6 +2150,7 @@ func _setup_graphics_quality_option() -> void:
 	label.custom_minimum_size = Vector2(120.0, 0.0)
 	label.add_theme_font_size_override("font_size", 18)
 	var option: OptionButton = OptionButton.new()
+	MenuMetalButton.adopt(option)
 	option.name = "GraphicsQualityOption"
 	option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	option.add_theme_font_size_override("font_size", 18)
@@ -2158,6 +2185,7 @@ func _setup_max_fps_option() -> void:
 	label.custom_minimum_size = Vector2(120.0, 0.0)
 	label.add_theme_font_size_override("font_size", 18)
 	var option: OptionButton = OptionButton.new()
+	MenuMetalButton.adopt(option)
 	option.name = "MaxFpsOption"
 	option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	option.add_theme_font_size_override("font_size", 18)
@@ -2190,6 +2218,7 @@ func _setup_sudden_death_option(after_row: Control) -> void:
 	label.custom_minimum_size = Vector2(120.0, 0.0)
 	label.add_theme_font_size_override("font_size", 18)
 	var option: OptionButton = OptionButton.new()
+	MenuMetalButton.adopt(option)
 	option.name = "SuddenDeathOption"
 	option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	option.add_theme_font_size_override("font_size", 18)

@@ -1,6 +1,7 @@
 [gd_scene format=3 uid="uid://cv7m3xlap2t5w"]
 
 [ext_resource type="Script" uid="uid://dtpct3bgk44oq" path="res://scripts/ui/gameplay_hud.gd" id="1_hud"]
+[ext_resource type="Script" uid="uid://bxl23bmmkgof8" path="res://scripts/ui/menu_metal_button.gd" id="2_metal"]
 
 [node name="GameplayHUD" type="CanvasLayer" unique_id=718694522]
 script = ExtResource("1_hud")
@@ -242,16 +243,20 @@ alignment = 1
 [node name="RateGoodBtn" type="Button" parent="GameOverPanel/RateBox/HBoxContainer" unique_id=392005815]
 custom_minimum_size = Vector2(140, 48)
 layout_mode = 2
-theme_override_colors/font_color = Color(0.2, 1, 0.4, 1)
 theme_override_font_sizes/font_size = 22
 text = "◯ 良い"
+script = ExtResource("2_metal")
+accent = Color(0.2, 1, 0.4, 1)
+compact = true
 
 [node name="RateBadBtn" type="Button" parent="GameOverPanel/RateBox/HBoxContainer" unique_id=730195825]
 custom_minimum_size = Vector2(140, 48)
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.3, 0.2, 1)
 theme_override_font_sizes/font_size = 22
 text = "× 悪い"
+script = ExtResource("2_metal")
+accent = Color(1, 0.3, 0.2, 1)
+compact = true
 
 [node name="RateFeedback" type="Label" parent="GameOverPanel/RateBox" unique_id=192063537]
 visible = false
@@ -277,6 +282,8 @@ grow_horizontal = 2
 grow_vertical = 0
 theme_override_font_sizes/font_size = 22
 text = "問題履歴"
+script = ExtResource("2_metal")
+compact = true
 
 [node name="RetryBtn" type="Button" parent="GameOverPanel" unique_id=1921700725]
 custom_minimum_size = Vector2(200, 56)
@@ -294,6 +301,9 @@ grow_horizontal = 2
 grow_vertical = 0
 theme_override_font_sizes/font_size = 22
 text = "リトライ"
+script = ExtResource("2_metal")
+featured = true
+compact = true
 
 [node name="MenuBtn" type="Button" parent="GameOverPanel" unique_id=1128276033]
 custom_minimum_size = Vector2(200, 56)
@@ -311,6 +321,8 @@ grow_horizontal = 2
 grow_vertical = 0
 theme_override_font_sizes/font_size = 22
 text = "メニュー"
+script = ExtResource("2_metal")
+compact = true
 
 [node name="HistoryPanel" type="Panel" parent="." unique_id=1737822005]
 visible = false
@@ -344,6 +356,8 @@ custom_minimum_size = Vector2(100, 44)
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
 text = "◀ 戻る"
+script = ExtResource("2_metal")
+compact = true
 
 [node name="HeaderTitle" type="Label" parent="HistoryPanel/HeaderBar" unique_id=1207971905]
 layout_mode = 2

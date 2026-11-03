@@ -10,11 +10,17 @@ const KeyboardScript = preload("res://scripts/ui/tutorial_keyboard.gd")
 const MobileUi = preload("res://scripts/core/mobile_ui.gd")
 ## スマホ（タッチだけ）では、キーボードの絵の代わりに画面のボタンの図を出す。
 const TouchDiagramScript = preload("res://scripts/ui/mobile/touch_controls_diagram.gd")
+## ローカル2Pでは、キーボードの絵の代わりに机を見下ろす3Dの場面を出す。
+const DeskScript = preload("res://scripts/ui/tutorial_keyboard_desk_3d.gd")
 const DESIGN_SIZE := Vector2(1280, 720)
+## 3Dの机のときの説明カードの列（P1は左手なので左、P2は右手なので右）と幅。
+const DESK_COLUMNS := [24.0, 1044.0]
+const DESK_CARD_WIDTH := 212.0
+## 3Dの机でチュートリアルを始めるとき、モニターへ寄る演出の始めに文字とカードを消す時間。
+const START_FADE_SECONDS := 0.3
 const SOLO := "SOLO"
 const LOCAL_2P := "LOCAL_2P"
 const NAVY := Color("0c1728")
-const INK := Color("14243b")
 const IVORY := Color("f5f1e8")
 const MUTED := Color("b4c4d8")
 const P1 := Color("ffa440")
@@ -39,6 +45,12 @@ var _card_roles: Array[Label] = []
 var _next: Button
 var _close: Button
 var _touch_diagram: Control = null
+var _desk_3d: DeskScript = null
+## 3Dの机でモニターへ寄る演出の途中（入力を受け付けず、二重に始めない）と、その経過秒。
+var _starting := false
+var _start_elapsed := 0.0
+## 寄り終えた画面の静止画（メインメニューが take_start_cover() で受け取り、本編へ移る間の覆いにする）。
+var _start_cover: Texture2D = null
 
 
 func _ready() -> void:
@@ -55,19 +67,24 @@ func show_intro(course: String) -> void:
 	_course = LOCAL_2P if course == LOCAL_2P else SOLO
 	_build_key_map()
 	_active_group = ""
+	_starting = false
+	_start_cover = null
+	_deck.modulate.a = 1.0
 	_eyebrow.text = "ローカル2Pの操作方法" if _course == LOCAL_2P else "1Pの操作方法"
 	_title.text = "キーボード操作"
-	_body.text = "P1はオレンジ、P2は水色で表示しています。各プレイヤーの操作キーを確認してください。" if _course == LOCAL_2P else "移動にはW・A・S・D、または矢印キーを使用します。実際にキーを押して確認できます。"
-	_status.text = "P2のエモートはテンキー7・8・9にも対応。" if _course == LOCAL_2P else "キーを押すと、対応する操作が強調表示されます。"
+	_body.text = "P1は左手でオレンジのキー\nP2は両手で水色のキー" if _course == LOCAL_2P else "移動はWASDか矢印キー"
+	_status.text = "P2のエモートは左手で押す\nテンキー7・8・9でもOK" if _course == LOCAL_2P else "キーを押すと対応するカードが光る"
 	if _touch_diagram != null:
 		_eyebrow.text = "操作方法"
 		_title.text = "タッチ操作"
-		_body.text = "画面のボタンで操作します。左のスティックで移動、右のボタンでジャンプとエモート。"
-		_status.text = "左上の Ⅱ で いちじ ていし できます。"
+		_body.text = "左のスティックで移動　右のボタンでジャンプとエモート"
+		_status.text = "左上のⅡで一時停止できる"
 	_rebuild_cards()
 	_configure_keyboard()
+	_apply_presentation()
 	show()
-	_update_active_card()
+	# 作り直したカードは、まだ何も押されていなくても配色を付ける。
+	_update_active_card(true)
 	_layout()
 	_next.grab_focus()
 
@@ -80,16 +97,33 @@ func get_start_button() -> Button:
 	return _next
 
 
+## 3Dの机のモニターに映す映像（メインメニューの背景の LiveViewport）。
+func set_monitor_texture(texture: Texture2D) -> void:
+	if not _built:
+		_build_ui()
+	if _desk_3d != null:
+		_desk_3d.set_monitor_texture(texture)
+
+
 func _process(delta: float) -> void:
 	if not is_active():
 		return
 	_keyboard.advance(delta)
+	if _starting:
+		_start_elapsed += delta
+		_deck.modulate.a = 1.0 - clampf(_start_elapsed / START_FADE_SECONDS, 0.0, 1.0)
+	if _desk_3d != null and _desk_3d.visible:
+		_desk_3d.advance(delta)
 	_update_active_card()
 	_layout()
 
 
 func _input(event: InputEvent) -> void:
 	if not is_active() or not event is InputEventKey:
+		return
+	if _starting:
+		# モニターへ寄っている間は、Esc も含めてキーを下のメニューへ渡さない。
+		get_viewport().set_input_as_handled()
 		return
 	var key := event as InputEventKey
 	if key.pressed and not key.echo and key.keycode == KEY_ESCAPE:
@@ -114,6 +148,13 @@ func _build_ui() -> void:
 	background.color = NAVY
 	background.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(background)
+	if not MobileUi.is_touch_ui():
+		# カードや文字より奥に置く。
+		_desk_3d = DeskScript.new()
+		_desk_3d.name = "KeyboardDesk3D"
+		_desk_3d.visible = false
+		add_child(_desk_3d)
+		_desk_3d.monitor_entered.connect(_on_monitor_entered)
 	_deck = Control.new()
 	_deck.name = "KeyboardIntroduction"
 	_deck.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -121,7 +162,7 @@ func _build_ui() -> void:
 	_eyebrow = _label("", 16, MUTED)
 	_title = _label("", 35, IVORY)
 	_body = _label("", 18, IVORY)
-	_status = _label("キーを押すと、対応する操作が強調表示されます。", 16, MUTED)
+	_status = _label("キーを押すと対応するカードが光る", 16, MUTED)
 	_keyboard = KeyboardScript.new()
 	_keyboard.name = "PhysicalKeyboard"
 	_keyboard.show_footnote = false
@@ -135,7 +176,7 @@ func _build_ui() -> void:
 		_deck.add_child(_touch_diagram)
 	_next = _button("チュートリアル開始", _start_practice)
 	_next.name = "StartPractice"
-	_style_button(_next, true)
+	(_next as MenuMetalButton).featured = true
 	_close = _button(MobileUi.prompt("Esc  コース選択", "◀ コース選択"), _cancel)
 	_close.add_theme_font_size_override("font_size", MobileUi.font(16))
 
@@ -150,44 +191,16 @@ func _label(text: String, font_size: int, color: Color, host: Control = null) ->
 	return label
 
 
+## メニュー画面と同じ金属プレートのボタン（MenuMetalButton）。
 func _button(text: String, callback: Callable) -> Button:
-	var button := Button.new()
+	var button := MenuMetalButton.new()
+	button.compact = true
 	button.text = text
 	button.focus_mode = Control.FOCUS_ALL
-	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	button.add_theme_font_size_override("font_size", MobileUi.font(19))
 	button.pressed.connect(callback)
 	_deck.add_child(button)
-	_style_button(button, false)
 	return button
-
-
-func _style_button(button: Button, primary: bool) -> void:
-	for state: String in ["normal", "hover", "pressed", "disabled"]:
-		var style := StyleBoxFlat.new()
-		style.bg_color = P1 if primary else Color("21344d")
-		if state == "hover":
-			style.bg_color = style.bg_color.lightened(0.12)
-		elif state == "pressed":
-			style.bg_color = style.bg_color.darkened(0.12)
-		style.border_color = P1 if primary else Color("4c647f")
-		style.set_border_width_all(1)
-		style.set_corner_radius_all(10)
-		style.content_margin_left = 14
-		style.content_margin_right = 14
-		button.add_theme_stylebox_override(state, style)
-	var focus := StyleBoxFlat.new()
-	focus.bg_color = Color.TRANSPARENT
-	focus.border_color = IVORY
-	focus.set_border_width_all(3)
-	focus.set_corner_radius_all(10)
-	focus.expand_margin_left = 4
-	focus.expand_margin_top = 4
-	focus.expand_margin_right = 4
-	focus.expand_margin_bottom = 4
-	button.add_theme_stylebox_override("focus", focus)
-	for state: String in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
-		button.add_theme_color_override(state, INK if primary else IVORY)
 
 
 func _rebuild_cards() -> void:
@@ -272,14 +285,31 @@ func _configure_keyboard() -> void:
 		"players": _players}, _course == LOCAL_2P)
 
 
-func _update_active_card() -> void:
+## ローカル2Pでは2Dのキーボードの絵を隠して3Dの机を出す。2Dのほうは入力の判定役として動かし続ける。
+func _apply_presentation() -> void:
+	var desk := _uses_desk()
+	_keyboard.visible = _touch_diagram == null and not desk
+	if _desk_3d != null:
+		_desk_3d.visible = desk
+		if desk:
+			_desk_3d.bind_keyboard(_keyboard)
+	# 机のときは、本文をモニターの左に収まる大きさにし、補足は右の列の幅で折り返す。
+	_body.add_theme_font_size_override("font_size", MobileUi.font(16 if desk else 18))
+	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART if desk else TextServer.AUTOWRAP_OFF
+
+
+func _uses_desk() -> bool:
+	return _desk_3d != null and _course == LOCAL_2P
+
+
+func _update_active_card(force: bool = false) -> void:
 	var state: Dictionary = _keyboard.get_action_state()
 	var active := ""
 	for task: Dictionary in _tasks:
 		if str(task["id"]) == str(state.get("id", "")) and int(task["player"]) == int(state.get("player", 1)):
 			active = str(task["group"])
 			break
-	if active == _active_group:
+	if active == _active_group and not force:
 		return
 	_active_group = active
 	for index: int in range(_cards.size()):
@@ -295,14 +325,37 @@ func _update_active_card() -> void:
 
 
 func _start_practice() -> void:
-	if not is_active():
+	if not is_active() or _starting:
+		return
+	if _uses_desk() and not bool(_keyboard.get_action_state().get("reduced_motion", false)):
+		# 3Dの机では、文字とカードを消しながらカメラをモニターへ寄せ、画面いっぱいになってから始める（_on_monitor_entered）。
+		_starting = true
+		_start_elapsed = 0.0
+		_desk_3d.enter_monitor()
 		return
 	hide()
 	completed.emit(_course)
 
 
+## モニターへ寄り終えた。その画面を静止画にしてから閉じ、始める（受け取った側が覆いにして、そのまま本編へ移る）。
+func _on_monitor_entered() -> void:
+	if not _starting:
+		return
+	_start_cover = _desk_3d.capture_frame()
+	_starting = false
+	hide()
+	completed.emit(_course)
+
+
+## モニターへ寄り終えた画面の静止画（一度だけ渡す）。なければ null。
+func take_start_cover() -> Texture2D:
+	var cover := _start_cover
+	_start_cover = null
+	return cover
+
+
 func _cancel() -> void:
-	if not is_active():
+	if not is_active() or _starting:
 		return
 	hide()
 	cancelled.emit()
@@ -314,6 +367,9 @@ func _layout() -> void:
 	_deck.size = DESIGN_SIZE
 	_deck.scale = Vector2.ONE * factor
 	_deck.position = (view - DESIGN_SIZE * factor) * 0.5
+	if _uses_desk():
+		_layout_desk(view)
+		return
 	_place(_eyebrow, Vector2(64, 23), Vector2(950, 24))
 	_place(_title, Vector2(64, 48), Vector2(1050, 50))
 	_place(_body, Vector2(64, 99), Vector2(1152, 27))
@@ -341,6 +397,23 @@ func _layout() -> void:
 		_place(_next, Vector2(880, 626), Vector2(336, 84))
 
 
+## 3Dの机の並び。P1の説明を左、P2を右の列に縦に並べ（手と同じ側）、開始ボタンは両腕の間の下の中央に置く。
+func _layout_desk(view: Vector2) -> void:
+	_desk_3d.fit_to_view(view)
+	_place(_eyebrow, Vector2(64, 23), Vector2(420, 24))
+	_place(_title, Vector2(64, 48), Vector2(420, 50))
+	_place(_body, Vector2(64, 102), Vector2(290, 52))
+	_place(_close, Vector2(1040, 24), Vector2(176, 38))
+	for index: int in range(_cards.size()):
+		_place(_cards[index], Vector2(DESK_COLUMNS[int(index / 4)], 236 + (index % 4) * 80), Vector2(DESK_CARD_WIDTH, 70))
+		_place(_card_keys[index], Vector2(14, 5), Vector2(DESK_CARD_WIDTH - 28, 38))
+		_place(_card_roles[index], Vector2(14, 41), Vector2(DESK_CARD_WIDTH - 28, 26))
+	for index: int in range(_player_labels.size()):
+		_place(_player_labels[index], Vector2(DESK_COLUMNS[index], 190), Vector2(62, 40))
+	_place(_status, Vector2(DESK_COLUMNS[1], 560), Vector2(DESK_CARD_WIDTH, 48))
+	_place(_next, Vector2(507, 654), Vector2(266, 52))
+
+
 func _place(node: Control, at: Vector2, extent: Vector2) -> void:
 	node.position = at
 	node.size = extent
@@ -360,6 +433,17 @@ func get_evidence() -> Dictionary:
 	return {"active": is_active(), "course": _course, "page_index": 0, "page_count": 1,
 		"players": players, "shown_actions": shown_actions, "action_labels": action_labels,
 		"demo_focus": _active_group, "title": _title.text, "next_text": _next.text,
-		"deck_rect": _deck.get_global_rect(), "keyboard_rect": _keyboard.get_global_rect(),
+		"deck_rect": _deck.get_global_rect(), "keyboard_rect": _keyboard_rect(),
 		"keyboard": _keyboard.get_evidence(), "navigation": "single screen / Tab+Enter / Esc",
-		"uses_character_demo": false, "animated_demo": false}
+		"uses_character_demo": false, "animated_demo": false,
+		"presentation": "desk_3d" if _uses_desk() else "flat", "starting": _starting,
+		"desk": _desk_3d.get_evidence() if _uses_desk() else {}}
+
+
+## 画面のキーボードの範囲（3Dの机のときは、3Dのキーボードが映る範囲）。
+func _keyboard_rect() -> Rect2:
+	if not _uses_desk():
+		return _keyboard.get_global_rect()
+	var rect := _desk_3d.get_keyboard_screen_rect()
+	var xform := _desk_3d.get_global_transform()
+	return Rect2(xform * rect.position, xform.basis_xform(rect.size))

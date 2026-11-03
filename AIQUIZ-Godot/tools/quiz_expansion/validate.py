@@ -19,6 +19,7 @@ from collections import Counter, defaultdict
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 BANK_PATH = os.path.normpath(os.path.join(HERE, "..", "..", "offline_bank.json"))
+KANJI_TABLE_PATH = os.path.normpath(os.path.join(HERE, "..", "..", "assets", "curriculum", "kanji_grades.json"))
 SHARD_DIR = os.path.join(HERE, "shards")
 
 SUBJECT_SLUGS = {"算数": "math", "理科": "science", "国語": "japanese", "社会": "social", "英語": "english"}
@@ -29,6 +30,31 @@ MAX_Q, MAX_C, MAX_EXP, MAX_G = 90, 30, 120, 12
 NEAR_DUP = 0.85
 _STRIP = re.compile(r"[\s　【】「」『』（）()［］\[\]、。，．,.？?！!・：:〜~ー－\-]")
 _FIGURE = re.compile(r"(図|表|写真|グラフ|イラスト)(のように|を見て|で示|の中|から読み)|下の(図|表)|右の(図|表)|左の(図|表)")
+
+
+_KANJI = re.compile(r"[㐀-䶿一-鿿豈-﫿]")
+# Kanji are only restricted up to this grade (KanjiGrade.CHECKED_UP_TO_GRADE in scripts/core/kanji_grade.gd).
+KANJI_CHECKED_UP_TO_GRADE = 3
+_KANJI_GRADE = None
+
+
+def over_grade_kanji(text, grade):
+    """Kanji in text that grade-N pupils have not learned yet (SPEC 2.5; scripts/core/kanji_grade.gd)."""
+    global _KANJI_GRADE
+    if not 1 <= grade <= KANJI_CHECKED_UP_TO_GRADE:
+        return ""
+    if _KANJI_GRADE is None:
+        with open(KANJI_TABLE_PATH, encoding="utf-8") as f:
+            data = json.load(f)
+        _KANJI_GRADE = {ch: int(g) for g, chars in data["grades"].items() for ch in chars}
+        # Map symbols and radical shapes are fine at any grade.
+        _KANJI_GRADE.update({ch: 0 for ch in data.get("symbols", "")})
+    found = []
+    for ch in _KANJI.findall(text):
+        # Kanji missing from the table are taught after primary school.
+        if _KANJI_GRADE.get(ch, 7) > grade and ch not in found:
+            found.append(ch)
+    return "".join(found)
 
 
 _DECIMAL = re.compile(r"(?<=\d)\.(?=\d)")
@@ -179,6 +205,15 @@ def validate(paths, bank=None, quiet=False):
             if _FIGURE.search(it["q"]):
                 warns.append("#%d: looks like it needs a figure/table: %s" % (i, it["q"]))
             c, a = it.get("c"), it.get("a")
+            if isinstance(grade, int):
+                shown = it["q"] + " " + " ".join(x for x in c if isinstance(x, str)) if isinstance(c, list) else it["q"]
+                over = over_grade_kanji(shown, grade)
+                if over:
+                    errs.append("#%d: kanji not learned by grade %d (write them in hiragana): %s in %s"
+                                % (i, grade, over, it["q"]))
+                if isinstance(it.get("exp"), str) and over_grade_kanji(it["exp"], grade):
+                    warns.append("#%d: exp uses kanji not learned by grade %d: %s"
+                                 % (i, grade, over_grade_kanji(it["exp"], grade)))
             if isinstance(c, list) and isinstance(a, int) and 0 <= a < len(c) and isinstance(c[a], str):
                 ans = norm(c[a])
                 if len(ans) >= 2 and not ans.isdigit() and ans in norm(it["q"]):

@@ -255,7 +255,8 @@ func _build_quit_dialog() -> void:
 
 
 func _make_dialog_button(text: String, font: Font) -> Button:
-	var button := Button.new()
+	# メニュー画面と同じ金属プレート（MenuMetalButton）
+	var button := MenuMetalButton.new()
 	button.text = text
 	button.focus_mode = Control.FOCUS_NONE
 	button.custom_minimum_size = Vector2(240, 96)

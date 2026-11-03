@@ -753,14 +753,25 @@ func _sync_grandstands_to_floor() -> void:
 		return
 	_grandstand_synced_length = _floor_length
 	container.position.z = _floor_center_z - _floor_length * 0.5 + _grandstand_shift
-	var blocks: int = _stand_script().blocks_for_length(_floor_length)
-	for child: Node in container.get_children():
+	_ensure_grandstand_blocks(_stand_script().blocks_for_length(_floor_length))
+	_apply_grandstand_end_limit()
+	_sync_waterfront_to_stands()
+
+
+## 左右の客席を少なくとも blocks ブロックまで伸ばす（減らさない）。伸びたら true。
+func _ensure_grandstand_blocks(blocks: int) -> bool:
+	var grew := false
+	for child: Node in _grandstands_container.get_children():
 		if child.has_method("ensure_blocks") and child.ensure_blocks(blocks):
 			_configure_grandstand_geometry(child as Node3D)
-	_apply_grandstand_end_limit()
+			grew = true
+	return grew
+
+
+func _sync_waterfront_to_stands() -> void:
 	if is_instance_valid(_waterfront) and _stadium_style == STADIUM_SANTORINI:
 		# Routes are keyed on the stand layout, so an unchanged stand is a no-op.
-		_waterfront.sync_to_stands(container)
+		_waterfront.sync_to_stands(_grandstands_container)
 
 
 ## 左右の客席を、コースの流れと一緒に z へずらす（両者脱落の投げ縄でハテナが 2 人を運ぶあいだ、コースを流した分だけ
@@ -786,7 +797,8 @@ func get_grandstand_shift() -> float:
 ## 左右の客席を world_z（ゴール観客席のモニターの Z）で終える。INF で制限を外す。
 ## AIQUIZ STADIUM の客席は前端のキャップを world_z まで下げ、間のブロックをそこで切って、モニターまで
 ## 途切れずに続ける（aiquiz_stadium_stand.gd の fit_end()）。それ以外の客席はブロックが 20 m 単位なので、
-## 奥の端が world_z を越えるブロックを座席ごと隠す。毎フレーム呼んでよい（変わったときだけ触る）。
+## 奥の端が world_z を越えるブロックを座席ごと隠す。客席が world_z に届かなければブロックを足す。
+## 毎フレーム呼んでよい（変わったときだけ触る）。
 func set_grandstand_end_limit(world_z: float) -> void:
 	if world_z == _grandstand_end_limit_z:
 		return
@@ -794,10 +806,19 @@ func set_grandstand_end_limit(world_z: float) -> void:
 	_apply_grandstand_end_limit()
 
 
+## 客席 1 ブロックの長さ（m）。
+func grandstand_block_length() -> float:
+	return float(_stand_script().BLOCK_LENGTH)
+
+
 func _apply_grandstand_end_limit() -> void:
 	if _grandstands_container == null or not _grandstands_container.is_inside_tree():
 		return
-	var half_block: float = float(_stand_script().BLOCK_LENGTH) * 0.5
+	if is_finite(_grandstand_end_limit_z):
+		var reach: float = _grandstand_end_limit_z - _grandstands_container.global_position.z
+		if _ensure_grandstand_blocks(_stand_script().blocks_for_length(reach)):
+			_sync_waterfront_to_stands()
+	var half_block: float = grandstand_block_length() * 0.5
 	for stand: Node in _grandstands_container.get_children():
 		if stand.has_method(&"fit_end"):
 			stand.fit_end(_grandstand_end_limit_z)

@@ -230,7 +230,9 @@ func _apply_safe_area() -> void:
 
 
 func _make_button() -> Button:
-	var button := Button.new()
+	# メニュー画面と同じ金属プレート（MenuMetalButton）
+	var button := MenuMetalButton.new()
+	button.compact = true
 	button.custom_minimum_size = Vector2(200, MobileUi.touch(56))
 	if MobileUi.is_touch_ui():
 		button.focus_mode = Control.FOCUS_NONE

@@ -462,16 +462,14 @@ func _build_ui() -> void:
 
 	_back_separator = HSeparator.new()
 	outer_vbox.add_child(_back_separator)
-	_back_button = Button.new()
-	_back_button.text = "✓ 決定して戻る"
+	_back_button = _metal_button("✓ 決定して戻る", true)
 	_back_button.custom_minimum_size = Vector2(0, 52)
+	_back_button.add_theme_font_size_override("font_size", 20)
 	_back_button.pressed.connect(_on_back_pressed)
 	outer_vbox.add_child(_back_button)
 
 	_refresh_skin_player_button_styles()
-	# スマホのボタン（エモートを ためす の行）も 1 回の _style_all_buttons で見た目を当てるため先に作る
 	_apply_touch_layout()
-	_style_all_buttons()
 	_configure_emote_focus_navigation()
 
 
@@ -527,15 +525,13 @@ func _build_touch_emote_row() -> void:
 	_touch_emote_row.add_theme_constant_override("separation", 8)
 	_wall_panel.add_child(_touch_emote_row)
 	for slot: int in range(3):
-		var button := Button.new()
-		button.text = "エモート %d" % (slot + 1)
+		var button := _metal_button("エモート %d" % (slot + 1))
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		button.add_theme_font_size_override("font_size", MobileUi.font(16))
 		button.pressed.connect(_play_touch_preview_emote.bind(slot))
 		MobileUi.ensure_touch_size(button)
 		_touch_emote_row.add_child(button)
-	var stop := Button.new()
-	stop.text = "とめる"
+	var stop := _metal_button("とめる")
 	stop.add_theme_font_size_override("font_size", MobileUi.font(16))
 	stop.pressed.connect(_stop_preview_wall_speed_emotes)
 	MobileUi.ensure_touch_size(stop)
@@ -564,28 +560,38 @@ func _unhandled_input(event: InputEvent) -> void:
 	_on_back_pressed()
 
 
+## メニュー画面と同じ金属プレートのボタン（MenuMetalButton）。
+func _metal_button(text: String, featured: bool = false) -> MenuMetalButton:
+	var btn := MenuMetalButton.new()
+	btn.compact = true
+	btn.featured = featured
+	btn.text = text
+	btn.add_theme_font_size_override("font_size", 17)
+	return btn
+
+
+## プレイヤー１・２の切り替え。ランプと選択中の線をプレイヤーの色にする。
+func _player_button(text: String, player_color: Color) -> MenuMetalButton:
+	var btn := _metal_button(text)
+	btn.accent = player_color
+	return btn
+
+
+## メニューの教科・学年の ◀ ▶ と同じボルト留めの板。
+func _arrow_button(text: String) -> MenuMetalButton:
+	var btn := _metal_button(text)
+	btn.arrow_button = true
+	btn.add_theme_font_size_override("font_size", 20)
+	return btn
+
+
 func _make_section_button(label: String, parent: Node, section: Section) -> Button:
-	var btn := Button.new()
-	btn.text = label
+	var btn := _metal_button(label)
 	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	btn.custom_minimum_size = Vector2(0, 42)
 	btn.pressed.connect(func() -> void: _set_section(section))
 	parent.add_child(btn)
 	return btn
-
-
-func _focus_ring_style(accent: Color) -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.0, 0.0, 0.0, 0.0)
-	style.border_color = accent.lightened(0.35)
-	style.border_color.a = 1.0
-	style.set_border_width_all(3)
-	style.set_corner_radius_all(10)
-	style.expand_margin_left = 2.0
-	style.expand_margin_right = 2.0
-	style.expand_margin_top = 2.0
-	style.expand_margin_bottom = 2.0
-	return style
 
 
 func _set_focus_target(source: Control, property_name: StringName, target: Control) -> void:
@@ -644,7 +650,6 @@ func _configure_emote_focus_navigation() -> void:
 
 	_set_focus_target(_back_button, &"focus_neighbor_up", _emote_grid_btns[grid_count - 1])
 	_set_focus_target(_back_button, &"focus_neighbor_down", _emote_player_btn_p1)
-	_back_button.add_theme_stylebox_override("focus", _focus_ring_style(Color(1.0, 0.80, 0.24)))
 
 
 func _configure_skin_focus_navigation() -> void:
@@ -679,7 +684,6 @@ func _configure_skin_focus_navigation() -> void:
 	_set_focus_target(_hat_next_button, &"focus_neighbor_down", _back_button)
 	_set_focus_target(_back_button, &"focus_neighbor_up", _hat_prev_button)
 	_set_focus_target(_back_button, &"focus_neighbor_down", _skin_player_btn_p1)
-	_back_button.add_theme_stylebox_override("focus", _focus_ring_style(Color(1.0, 0.80, 0.24)))
 
 
 func _build_wall_panel() -> void:
@@ -702,8 +706,7 @@ func _build_wall_panel() -> void:
 	_speed_slider.value_changed.connect(_on_speed_changed)
 	_wall_panel.add_child(_speed_slider)
 
-	_wall_reset_button = Button.new()
-	_wall_reset_button.text = "自動モードに戻す"
+	_wall_reset_button = _metal_button("自動モードに戻す")
 	_wall_reset_button.custom_minimum_size.y = 44.0
 	_wall_reset_button.pressed.connect(_on_reset_pressed)
 	_wall_panel.add_child(_wall_reset_button)
@@ -718,15 +721,13 @@ func _build_skin_panel() -> void:
 	player_row.add_theme_constant_override("separation", 8)
 	_skin_panel.add_child(player_row)
 
-	_skin_player_btn_p1 = Button.new()
-	_skin_player_btn_p1.text = "プレイヤー１"
+	_skin_player_btn_p1 = _player_button("プレイヤー１", PlayerController.P1_BODY)
 	_skin_player_btn_p1.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_skin_player_btn_p1.custom_minimum_size = Vector2(0, 44)
 	_skin_player_btn_p1.pressed.connect(func() -> void: _set_skin_editing_player(1))
 	player_row.add_child(_skin_player_btn_p1)
 
-	_skin_player_btn_p2 = Button.new()
-	_skin_player_btn_p2.text = "プレイヤー２"
+	_skin_player_btn_p2 = _player_button("プレイヤー２", PlayerController.P2_BODY)
 	_skin_player_btn_p2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_skin_player_btn_p2.custom_minimum_size = Vector2(0, 44)
 	_skin_player_btn_p2.pressed.connect(func() -> void: _set_skin_editing_player(2))
@@ -736,8 +737,7 @@ func _build_skin_panel() -> void:
 	hat_row.add_theme_constant_override("separation", 8)
 	_skin_panel.add_child(hat_row)
 
-	_hat_prev_button = Button.new()
-	_hat_prev_button.text = "◀"
+	_hat_prev_button = _arrow_button("◀")
 	_hat_prev_button.custom_minimum_size = Vector2(56.0, 46.0)
 	_hat_prev_button.pressed.connect(_on_hat_prev)
 	hat_row.add_child(_hat_prev_button)
@@ -748,8 +748,7 @@ func _build_skin_panel() -> void:
 	_hat_name_label.add_theme_font_size_override("font_size", 18)
 	hat_row.add_child(_hat_name_label)
 
-	_hat_next_button = Button.new()
-	_hat_next_button.text = "▶"
+	_hat_next_button = _arrow_button("▶")
 	_hat_next_button.custom_minimum_size = Vector2(56.0, 46.0)
 	_hat_next_button.pressed.connect(_on_hat_next)
 	hat_row.add_child(_hat_next_button)
@@ -759,16 +758,14 @@ func _build_emote_panel() -> void:
 	player_row.add_theme_constant_override("separation", 8)
 	_emote_panel.add_child(player_row)
 
-	_emote_player_btn_p1 = Button.new()
-	_emote_player_btn_p1.text = "プレイヤー１"
+	_emote_player_btn_p1 = _player_button("プレイヤー１", PlayerController.P1_BODY)
 	_emote_player_btn_p1.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_emote_player_btn_p1.custom_minimum_size = Vector2(0, 40)
 	_emote_player_btn_p1.focus_mode = Control.FOCUS_ALL
 	_emote_player_btn_p1.pressed.connect(func() -> void: _set_emote_editing_player(1))
 	player_row.add_child(_emote_player_btn_p1)
 
-	_emote_player_btn_p2 = Button.new()
-	_emote_player_btn_p2.text = "プレイヤー２"
+	_emote_player_btn_p2 = _player_button("プレイヤー２", PlayerController.P2_BODY)
 	_emote_player_btn_p2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_emote_player_btn_p2.custom_minimum_size = Vector2(0, 40)
 	_emote_player_btn_p2.focus_mode = Control.FOCUS_ALL
@@ -782,7 +779,7 @@ func _build_emote_panel() -> void:
 
 	_emote_slot_btns.clear()
 	for i in range(3):
-		var slot_btn := Button.new()
+		var slot_btn := _metal_button("")
 		slot_btn.custom_minimum_size = Vector2(0, 78)
 		slot_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		slot_btn.focus_mode = Control.FOCUS_ALL
@@ -793,9 +790,10 @@ func _build_emote_panel() -> void:
 
 		var slot_vbox := VBoxContainer.new()
 		slot_vbox.set_anchors_preset(Control.PRESET_FULL_RECT)
-		slot_vbox.offset_left = 4.0
+		# 左のランプ（MenuMetalButton）に名前がかからないよう、左右を同じだけあける
+		slot_vbox.offset_left = 20.0
 		slot_vbox.offset_top = 2.0
-		slot_vbox.offset_right = -4.0
+		slot_vbox.offset_right = -20.0
 		slot_vbox.offset_bottom = -2.0
 		slot_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
 		slot_vbox.add_theme_constant_override("separation", 2)
@@ -834,7 +832,7 @@ func _build_emote_panel() -> void:
 		var eid: int = entry["id"]
 		var ename: String = entry["name"]
 
-		var card := Button.new()
+		var card := _metal_button("")
 		card.custom_minimum_size = Vector2(0, 40)
 		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		card.focus_mode = Control.FOCUS_ALL
@@ -842,7 +840,7 @@ func _build_emote_panel() -> void:
 
 		var card_row := HBoxContainer.new()
 		card_row.set_anchors_preset(Control.PRESET_FULL_RECT)
-		card_row.offset_left = 8.0
+		card_row.offset_left = 22.0
 		card_row.offset_right = -8.0
 		card_row.add_theme_constant_override("separation", 4)
 		card_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1066,25 +1064,12 @@ func _set_section(section: Section) -> void:
 
 
 func _refresh_section_button_states() -> void:
-	var active_style := StyleBoxFlat.new()
-	active_style.bg_color = Color(0.12, 0.22, 0.30, 0.96)
-	active_style.border_color = Color(1.0, 0.80, 0.24, 0.98)
-	active_style.set_border_width_all(2)
-	active_style.set_corner_radius_all(10)
-	active_style.content_margin_left = 14.0
-	active_style.content_margin_right = 14.0
-	active_style.content_margin_top = 8.0
-	active_style.content_margin_bottom = 8.0
+	# 開いているタブは押せないまま、ランプと下の線で「選択中」に見せる（MenuMetalButton.chosen）
 	for key in _section_buttons.keys():
-		var btn: Button = _section_buttons[key]
+		var btn: MenuMetalButton = _section_buttons[key]
 		var is_active: bool = key == _active_section
 		btn.disabled = is_active
-		if is_active:
-			btn.add_theme_stylebox_override("disabled", active_style.duplicate())
-			btn.add_theme_color_override("font_disabled_color", Color(1.0, 0.88, 0.42))
-		else:
-			btn.remove_theme_stylebox_override("disabled")
-			btn.remove_theme_color_override("font_disabled_color")
+		btn.chosen = is_active
 
 
 func _preview_editing_lane_x() -> float:
@@ -1442,41 +1427,18 @@ func _set_skin_editing_player(which: int) -> void:
 		_update_skin_preview_lighting()
 		_sync_skin_orbit_lane_x()
 
-func _player_accent_btn_theme(btn: Button, accent: Color, selected: bool) -> void:
-	var normal := StyleBoxFlat.new()
-	normal.bg_color = accent.darkened(0.52 if selected else 0.62)
-	normal.bg_color.a = 0.94
-	normal.border_color = accent.lightened(0.28 if selected else 0.08)
-	normal.border_color.a = 1.0 if selected else 0.82
-	normal.set_border_width_all(2 if selected else 1)
-	normal.set_corner_radius_all(10)
-	normal.content_margin_left = 12.0
-	normal.content_margin_right = 12.0
-	normal.content_margin_top = 8.0
-	normal.content_margin_bottom = 8.0
-	var hover := normal.duplicate() as StyleBoxFlat
-	hover.bg_color = accent.darkened(0.44 if selected else 0.54)
-	hover.bg_color.a = 0.97
-	btn.add_theme_stylebox_override("normal", normal)
-	btn.add_theme_stylebox_override("hover", hover)
-	btn.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
-	btn.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.96))
-	btn.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 1.0, 1.0))
-
 func _refresh_skin_player_button_styles() -> void:
 	if not _skin_player_btn_p1 or not _skin_player_btn_p2:
 		return
-	_player_accent_btn_theme(_skin_player_btn_p1, PlayerController.P1_BODY, _editing_player == 1)
-	_player_accent_btn_theme(_skin_player_btn_p2, PlayerController.P2_BODY, _editing_player == 2)
+	(_skin_player_btn_p1 as MenuMetalButton).chosen = _editing_player == 1
+	(_skin_player_btn_p2 as MenuMetalButton).chosen = _editing_player == 2
 
 
 func _refresh_emote_player_button_styles() -> void:
 	if not _emote_player_btn_p1 or not _emote_player_btn_p2:
 		return
-	_player_accent_btn_theme(_emote_player_btn_p1, PlayerController.P1_BODY, _editing_player == 1)
-	_player_accent_btn_theme(_emote_player_btn_p2, PlayerController.P2_BODY, _editing_player == 2)
-	_emote_player_btn_p1.add_theme_stylebox_override("focus", _focus_ring_style(PlayerController.P1_BODY))
-	_emote_player_btn_p2.add_theme_stylebox_override("focus", _focus_ring_style(PlayerController.P2_BODY))
+	(_emote_player_btn_p1 as MenuMetalButton).chosen = _editing_player == 1
+	(_emote_player_btn_p2 as MenuMetalButton).chosen = _editing_player == 2
 
 func _on_hat_prev() -> void:
 	if _hat_slide_active:
@@ -1547,63 +1509,6 @@ func _update_emote_browse_detail() -> void:
 		_emote_dancer.set_emote(active_id, _editing_player == 1)
 
 
-func _slot_card_style(selected: bool, accent: Color) -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	if selected:
-		style.bg_color = accent.darkened(0.58)
-		style.bg_color.a = 0.98
-		style.border_color = accent.lightened(0.30)
-		style.set_border_width_all(3)
-	else:
-		style.bg_color = Color(0.10, 0.12, 0.18, 0.94)
-		style.border_color = Color(0.25, 0.30, 0.40, 0.88)
-		style.set_border_width_all(1)
-	style.set_corner_radius_all(10)
-	style.content_margin_left = 6.0
-	style.content_margin_right = 6.0
-	style.content_margin_top = 6.0
-	style.content_margin_bottom = 8.0
-	return style
-
-
-func _grid_card_normal_style() -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.105, 0.12, 0.175, 0.98)
-	style.border_color = Color(0.25, 0.29, 0.39, 0.92)
-	style.set_border_width_all(1)
-	style.set_corner_radius_all(9)
-	style.content_margin_left = 4.0
-	style.content_margin_right = 4.0
-	style.content_margin_top = 4.0
-	style.content_margin_bottom = 4.0
-	return style
-
-
-func _grid_card_used_style(accent: Color) -> StyleBoxFlat:
-	var style := _grid_card_normal_style()
-	style.bg_color = accent.darkened(0.70)
-	style.bg_color.a = 0.94
-	style.border_color = accent.darkened(0.10)
-	style.border_color.a = 0.88
-	return style
-
-
-func _grid_card_selected_style(accent: Color) -> StyleBoxFlat:
-	var style := _grid_card_normal_style()
-	style.bg_color = accent.darkened(0.56)
-	style.bg_color.a = 0.98
-	style.border_color = accent.lightened(0.32)
-	style.set_border_width_all(3)
-	return style
-
-
-func _grid_card_hover_style(base_style: StyleBoxFlat) -> StyleBoxFlat:
-	var hover := base_style.duplicate() as StyleBoxFlat
-	hover.bg_color = hover.bg_color.lightened(0.10)
-	hover.border_color = hover.border_color.lightened(0.12)
-	return hover
-
-
 func _refresh_emote_grid_cards() -> void:
 	if not _emote_grid:
 		return
@@ -1621,17 +1526,9 @@ func _refresh_emote_grid_cards() -> void:
 				assigned_keys.append(keys[slot_idx])
 
 		var is_active := emote_id == active_id
-		var base_style := (
-			_grid_card_selected_style(accent)
-			if is_active
-			else _grid_card_used_style(accent)
-			if not assigned_keys.is_empty()
-			else _grid_card_normal_style()
-		)
-		card.add_theme_stylebox_override("normal", base_style)
-		card.add_theme_stylebox_override("hover", _grid_card_hover_style(base_style))
-		card.add_theme_stylebox_override("pressed", base_style)
-		card.add_theme_stylebox_override("focus", _focus_ring_style(accent))
+		var metal_card := card as MenuMetalButton
+		metal_card.accent = accent
+		metal_card.chosen = is_active
 
 		var card_row := card.get_child(0) as HBoxContainer
 		if card_row:
@@ -1665,13 +1562,9 @@ func _update_emote_panel_ui() -> void:
 	var accent := PlayerController.P1_BODY if _editing_player == 1 else PlayerController.P2_BODY
 
 	for i in range(_emote_slot_btns.size()):
-		var slot_btn: Button = _emote_slot_btns[i]
-		var selected := i == _active_assign_slot_idx
-		var slot_style := _slot_card_style(selected, accent)
-		slot_btn.add_theme_stylebox_override("normal", slot_style)
-		slot_btn.add_theme_stylebox_override("hover", _grid_card_hover_style(slot_style))
-		slot_btn.add_theme_stylebox_override("pressed", slot_style)
-		slot_btn.add_theme_stylebox_override("focus", _focus_ring_style(accent))
+		var slot_btn := _emote_slot_btns[i] as MenuMetalButton
+		slot_btn.accent = accent
+		slot_btn.chosen = i == _active_assign_slot_idx
 
 		var emote_id := EmoteData.normalize_emote_id(
 			int(slots[i]) if i < slots.size() else EmoteData.EMOTE_NONE
@@ -2627,45 +2520,6 @@ func _setup_conveyor_extras() -> void:
 	rails.name = "ConveyorRunningRails"
 	_sub_viewport.add_child(rails)
 	rails.build(floor_center_z, floor_length, FLOOR_TOP_Y)
-
-func _style_all_buttons() -> void:
-	var normal_style := StyleBoxFlat.new()
-	normal_style.bg_color = Color(0.14, 0.16, 0.22, 0.8)
-	normal_style.border_color = Color(0.28, 0.32, 0.42, 0.8)
-	normal_style.set_border_width_all(1)
-	normal_style.set_corner_radius_all(10)
-	normal_style.content_margin_left = 14.0
-	normal_style.content_margin_right = 14.0
-	normal_style.content_margin_top = 8.0
-	normal_style.content_margin_bottom = 8.0
-	var hover_style := normal_style.duplicate()
-	hover_style.bg_color = Color(0.18, 0.20, 0.28, 0.9)
-	hover_style.border_color = Color(0.4, 0.5, 0.7, 0.9)
-	for btn: Button in _get_all_buttons(self):
-		if _emote_grid and btn.get_parent() == _emote_grid:
-			continue
-		if btn == _skin_player_btn_p1 or btn == _skin_player_btn_p2:
-			continue
-		if btn == _emote_player_btn_p1 or btn == _emote_player_btn_p2:
-			continue
-		if btn in _emote_slot_btns:
-			continue
-		if btn in _grid_card_by_id.values():
-			continue
-		btn.add_theme_stylebox_override("normal", normal_style.duplicate())
-		btn.add_theme_stylebox_override("hover", hover_style.duplicate())
-		btn.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
-		btn.add_theme_color_override("font_color", Color(0.82, 0.85, 0.92))
-		btn.add_theme_color_override("font_hover_color", Color(0.95, 0.97, 1.0))
-
-func _get_all_buttons(node: Node) -> Array[Button]:
-	var buttons: Array[Button] = []
-	if node is Button:
-		buttons.append(node)
-	for child in node.get_children():
-		buttons.append_array(_get_all_buttons(child))
-	return buttons
-
 
 ## 練習（コース⑤）の画面のコーチが光らせる部品（docs/new_tutorial/phase8_design.md 1.2）。なければ null。
 ##   タブ：&"tab_wall"・&"tab_skin"・&"tab_emote"　スキン：&"skin_players"（プレイヤー１・２）・&"skin_hat"（◀ 名前 ▶）・

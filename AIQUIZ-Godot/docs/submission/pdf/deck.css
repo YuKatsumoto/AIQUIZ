@@ -1,0 +1,320 @@
+/* 02 アピール資料（16:9・1920×1080）の見た目。色はゲームと PV の絵コンテにそろえる。 */
+@import url("fonts.css");
+@page { size: 1920px 1080px; margin: 0; }
+
+:root {
+  --navy: #0b1630;
+  --navy-2: #1b2d5c;
+  --yellow: #f2c21b;
+  --ink: #121a2e;
+  --muted: #5a6680;
+  --paper: #f4f6fb;
+  --card: #ffffff;
+  --line: #d6dce7;
+  --blue: #3d9df2;
+  --red: #e5393b;
+  --green: #2fae68;
+  --teal: #1798b8;
+  --heart: #ff5a6e;
+  --font: "Noto Sans JP", "Yu Gothic UI", "Meiryo", sans-serif;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  font-family: var(--font);
+  color: var(--ink);
+  background: #2b3245;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.slide {
+  position: relative;
+  width: 1920px;
+  height: 1080px;
+  padding: 80px 104px 120px;
+  overflow: hidden;
+  background: var(--paper);
+  break-after: page;
+}
+@media screen {
+  .slide { margin: 0 auto 32px; }
+  body.solo { background: var(--paper); }
+  body.solo .slide { margin: 0; }
+  body.solo .slide:not(.on) { display: none; }
+}
+body.final .draft-only { display: none !important; }
+
+/* 見出し */
+.tag {
+  display: inline-block;
+  padding: 8px 22px;
+  border-radius: 999px;
+  background: var(--yellow);
+  color: var(--navy);
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: .04em;
+}
+.title { margin: 20px 0 0; font-size: 74px; line-height: 1.16; font-weight: 900; color: var(--navy); }
+.lead { margin: 16px 0 0; font-size: 34px; line-height: 1.45; font-weight: 700; color: var(--navy-2); }
+
+/* 下の帯 */
+.foot {
+  position: absolute;
+  left: 104px;
+  right: 104px;
+  bottom: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 22px;
+  font-weight: 600;
+}
+.foot img { height: 30px; padding: 7px 14px; border-radius: 9px; background: var(--navy); box-sizing: content-box; }
+.foot .draft-only { color: #b86b0c; }
+
+/* 本文 */
+.body { position: absolute; left: 104px; right: 104px; top: 330px; bottom: 120px; }
+.body.high { top: 270px; }
+ul.pts { margin: 0; padding: 0; list-style: none; }
+ul.pts li { position: relative; margin: 0 0 20px; padding-left: 42px; font-size: 31px; line-height: 1.5; font-weight: 500; }
+ul.pts li::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: .5em;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  background: var(--yellow);
+  box-shadow: inset 0 0 0 3px var(--navy);
+}
+ul.pts b { font-weight: 800; color: var(--navy); }
+ul.pts.small li { font-size: 27px; margin-bottom: 14px; }
+
+.shot {
+  position: relative;
+  overflow: hidden;
+  border-radius: 18px;
+  background: #dfe4ee;
+  box-shadow: 0 10px 26px rgba(11, 22, 48, .18);
+}
+.shot img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.shot.contain { background: #0f1830; }
+.shot.contain img { object-fit: contain; }
+.num {
+  position: absolute;
+  left: 16px;
+  top: 16px;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--yellow);
+  color: var(--navy);
+  font-size: 38px;
+  font-weight: 900;
+  line-height: 64px;
+  text-align: center;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, .25);
+}
+.cap { margin-top: 14px; font-size: 27px; line-height: 1.4; font-weight: 800; color: var(--navy); }
+.cap small { display: block; margin-top: 4px; font-size: 22px; font-weight: 500; color: var(--muted); }
+
+.ph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  border: 4px dashed #aab4c8;
+  border-radius: 18px;
+  background: repeating-linear-gradient(45deg, #eef1f7 0 18px, #e6eaf2 18px 36px);
+  color: var(--muted);
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.card {
+  padding: 28px 30px;
+  border-radius: 20px;
+  background: var(--card);
+  box-shadow: 0 8px 22px rgba(11, 22, 48, .10);
+}
+.card h3 { margin: 0 0 12px; font-size: 36px; font-weight: 900; color: var(--navy); }
+.card p { margin: 0; font-size: 26px; line-height: 1.55; }
+.card .k { display: inline-block; margin-bottom: 14px; padding: 4px 16px; border-radius: 8px; color: #fff; font-size: 24px; font-weight: 800; }
+
+.row { display: flex; gap: 32px; }
+.col { display: flex; flex-direction: column; }
+
+/* 表紙 */
+.cover { padding: 0; background: var(--navy); }
+.cover > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.cover .band {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 330px;
+  padding: 0 104px 56px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 40px;
+  background: linear-gradient(180deg, rgba(11, 22, 48, 0) 0%, rgba(11, 22, 48, .86) 38%, rgba(11, 22, 48, .97) 100%);
+}
+.cover .catch { margin: 0; font-size: 86px; line-height: 1.1; font-weight: 900; color: var(--yellow); letter-spacing: .02em; }
+.cover .meta { margin: 18px 0 0; font-size: 29px; font-weight: 700; color: #fff; }
+.cover .meta span { margin: 0 12px; color: var(--yellow); }
+.cover .entry { margin: 0; font-size: 22px; line-height: 1.5; font-weight: 600; color: #c9d2e6; text-align: right; white-space: nowrap; }
+
+/* p5 の小さな図（費用） */
+.mini { display: flex; flex-direction: column; align-items: stretch; gap: 0; }
+.mini .pill { padding: 12px 18px; border-radius: 12px; background: #eef1f7; font-size: 24px; font-weight: 800; color: var(--navy); text-align: center; }
+.mini .pill.strong { background: var(--navy); color: #fff; }
+.mini .pill small { display: block; font-size: 20px; font-weight: 600; color: #c9d2e6; }
+.mini .down { height: 30px; display: flex; justify-content: center; }
+.mini .down::after { content: ""; border-left: 16px solid transparent; border-right: 16px solid transparent; border-top: 20px solid var(--navy); margin-top: 5px; }
+.mini .ok { margin-top: 16px; padding: 12px 18px; border-radius: 12px; background: #e3f5ea; color: #1d6b40; font-size: 22px; font-weight: 800; text-align: center; }
+
+/* p4 問題生成ライン（運用の管理ソフトの「生成ライン」の図を描き直したもの）
+   .pipe の中は px の座標（幅 1712・高さ 720。矢印の svg も同じ座標）。
+   箱は幅 280 で、左から 64・406・748・1090・1432（あいだ 62）。上の段は 0、夜の段は 280、下の段は 528 から。
+   箱の文は 1 行 12 字までに収まるよう、改行の位置を <br> で決める。 */
+.title small { margin-left: 18px; font-size: 34px; font-weight: 800; color: var(--navy-2); }
+.pipe { position: absolute; left: 104px; right: 104px; top: 262px; height: 720px; }
+.pipe > svg { position: absolute; left: 0; top: 0; width: 1712px; height: 720px; }
+.pipe .night { position: absolute; left: 0; right: 0; top: 258px; height: 418px; border-radius: 22px; background: #e3e8f3; }
+.pipe .lane {
+  position: absolute;
+  left: 0;
+  width: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  writing-mode: vertical-rl;
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: .14em;
+}
+.pipe .lane.day { top: 0; height: 200px; background: var(--yellow); color: var(--navy); }
+.pipe .lane.nightly { top: 280px; height: 384px; background: var(--navy); color: var(--yellow); }
+.pn {
+  position: absolute;
+  width: 280px;
+  height: 200px;
+  padding: 12px 14px;
+  border-top: 8px solid var(--c);
+  border-radius: 14px;
+  background: var(--card);
+  box-shadow: 0 6px 18px rgba(11, 22, 48, .10);
+}
+.pn.low { height: 136px; }
+.pn.wide { width: 622px; }
+.pn .who { display: flex; align-items: center; gap: 10px; height: 36px; margin-bottom: 6px; }
+.pn .who .icon { width: 34px; height: 34px; }
+.pn .who .name { font-size: 20px; font-weight: 800; color: #3b4660; }
+.pn .tlogo { display: flex; align-items: center; height: 34px; padding: 0 12px; border-radius: 8px; background: var(--navy); }
+.pn .tlogo img { height: 18px; }
+.pn .chip { padding: 0 12px; border-radius: 8px; background: var(--c); color: #fff; font-size: 20px; font-weight: 800; line-height: 34px; white-space: nowrap; }
+.pn b { display: block; font-size: 27px; line-height: 1.15; font-weight: 900; color: var(--navy); }
+.pn p { margin: 6px 0 0; font-size: 20.5px; line-height: 1.45; }
+.pn p strong { font-weight: 900; color: var(--navy); }
+.pn .thumb { height: 92px; margin-top: 8px; border-radius: 10px; overflow: hidden; }
+.pn .thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.k-pc { --c: var(--navy-2); }
+.k-srv { --c: #4a5672; }
+.k-gem { --c: var(--teal); }
+.k-cl { --c: #d9772b; }
+.k-db { --c: var(--green); }
+.k-off { --c: #8a94a8; }
+.k-ops { --c: #7b61d1; }
+.pl { position: absolute; color: var(--navy); font-size: 18px; font-weight: 800; line-height: 28px; white-space: nowrap; }
+.pl.ops { color: #5b43b8; }
+.pipe .src { position: absolute; left: 64px; right: 0; top: 690px; display: flex; justify-content: space-between; font-size: 17px; font-weight: 600; color: var(--muted); }
+
+/* p5 の 3 つの守り */
+.card ul.pts li { font-size: 24.5px; line-height: 1.5; margin-bottom: 14px; padding-left: 36px; }
+.card ul.pts li::before { width: 15px; height: 15px; }
+
+.catchline { margin: auto 0 0; font-size: 54px; font-weight: 900; color: var(--navy); }
+.catchline img { display: block; height: 64px; margin-bottom: 18px; padding: 16px 26px; border-radius: 16px; background: var(--navy); box-sizing: content-box; }
+
+/* 図（p4） */
+.flow { display: flex; align-items: stretch; gap: 0; }
+.flow .box {
+  flex: 1;
+  padding: 26px 28px;
+  border-radius: 18px;
+  background: var(--card);
+  border-top: 12px solid var(--teal);
+  box-shadow: 0 8px 22px rgba(11, 22, 48, .10);
+}
+.flow .box b { display: block; font-size: 34px; font-weight: 900; color: var(--navy); }
+.flow .box span { display: block; margin-top: 8px; font-size: 25px; line-height: 1.5; color: var(--ink); }
+.flow .arrow { flex: 0 0 76px; display: flex; align-items: center; justify-content: center; }
+.flow .arrow::after {
+  content: "";
+  width: 0;
+  height: 0;
+  border-top: 22px solid transparent;
+  border-bottom: 22px solid transparent;
+  border-left: 30px solid var(--navy);
+}
+.note { margin-top: 18px; font-size: 27px; font-weight: 800; color: var(--green); }
+
+/* p6 のルールの帯 */
+.rule {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  padding: 22px 34px;
+  border-radius: 18px;
+  background: var(--navy);
+  color: #fff;
+  font-size: 30px;
+  font-weight: 700;
+}
+.rule .hearts { color: var(--heart); font-size: 40px; letter-spacing: 6px; }
+
+/* p13 最初のころ → いま。段（メニュー・ステージ）の名前を左に、2 枚のあいだに矢印。説明は画像の左下に重ねる */
+.evo {
+  position: absolute; left: 104px; right: 104px; top: 330px; bottom: 120px;
+  display: grid; grid-template-columns: 52px 1fr 64px 1fr; grid-template-rows: 1fr 1fr; gap: 22px 14px;
+}
+.evo .lane {
+  display: flex; align-items: center; justify-content: center; border-radius: 12px;
+  background: var(--navy); color: var(--yellow); writing-mode: vertical-rl; font-size: 26px; font-weight: 900; letter-spacing: .14em;
+}
+.evo .arrow { align-self: center; justify-self: center; font-size: 60px; font-weight: 900; line-height: 1; color: var(--navy); }
+.evo .label {
+  position: absolute; left: 16px; bottom: 16px; margin: 0; padding: 6px 16px; border-radius: 10px;
+  background: rgba(11, 22, 48, .86); color: #fff; font-size: 25px; font-weight: 800; line-height: 1.4;
+}
+.evo .label b { margin-right: 14px; color: var(--yellow); font-weight: 900; }
+
+/* p13 の表 */
+table.split { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 22.5px; line-height: 1.45; }
+table.split th, table.split td { padding: 11px 18px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+table.split thead th { background: var(--navy); color: #fff; font-weight: 800; font-size: 24px; }
+table.split thead th:first-child { border-radius: 14px 0 0 0; }
+table.split thead th:last-child { border-radius: 0 14px 0 0; }
+table.split tbody td { background: var(--card); }
+table.split tbody td:first-child { width: 230px; font-weight: 800; color: var(--navy); }
+table.split tbody td:nth-child(3) { color: #3b4660; }
+.badge {
+  position: absolute;
+  right: 104px;
+  top: 84px;
+  padding: 10px 20px;
+  border-radius: 10px;
+  background: #ffe58a;
+  color: #6b5200;
+  font-size: 24px;
+  font-weight: 800;
+}

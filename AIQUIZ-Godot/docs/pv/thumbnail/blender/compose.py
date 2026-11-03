@@ -22,7 +22,9 @@
 """
 import json
 import math
+import os
 import sys
+import time
 from pathlib import Path
 
 import numpy as np
@@ -329,9 +331,24 @@ def compose(shot: str, folder: Path, tag: str, plate: str = "plate_dof.png", nea
     return {"image": out, "layers": layers, "depth": depth}
 
 
-def save(img: np.ndarray, path: Path) -> None:
+def write_image(im: Image.Image, path: Path, **kw) -> None:
+    """一時ファイルに書いてから差し替える。前の絵を画像のビューアで開いたままだと、上書きが OSError（Errno 22）で
+    失敗することがある（2026-11-02、パネルの「確認の絵」を続けて押して起きた）ので、少し待ってやり直す"""
     path.parent.mkdir(parents=True, exist_ok=True)
-    Image.fromarray(np.clip(img * 255.0 + 0.5, 0, 255).astype(np.uint8)).save(path)
+    tmp = path.with_name(path.stem + ".tmp" + path.suffix)
+    im.save(tmp, **kw)
+    for i in range(10):
+        try:
+            os.replace(tmp, path)
+            return
+        except OSError:
+            if i == 9:
+                raise
+            time.sleep(0.5)
+
+
+def save(img: np.ndarray, path: Path) -> None:
+    write_image(Image.fromarray(np.clip(img * 255.0 + 0.5, 0, 255).astype(np.uint8)), path)
     print(path.relative_to(ROOT) if path.is_relative_to(ROOT) else path)
 
 
@@ -356,18 +373,16 @@ def finish_thumbnail(shot: str, img: np.ndarray, dst_stem: Path) -> None:
     """docs/pv/thumbnail/finish.py と同じ仕上げ（そのショットの設定）：色、周辺、ロゴの下、輪郭、ロゴ"""
     sys.path.insert(0, str(HERE.parent))
     import finish as F
-    from PIL import ImageFilter
-    cfg = F.SHOTS[shot]
+    cfg = F.config(dst_stem.name)       # SHOTS の値に、ロゴの調整の道具（logo_layout.json）の値を重ねたもの
+    sharpen = (1.0, 25, 3)              # 輪郭の強調は弱め（4K から縮めたので）
     # 8 bit にするときに ±0.5 段のディザを入れる（空のなめらかな色の変化に縞が出ないように）
     dither = np.random.default_rng(7).uniform(-0.5, 0.5, img.shape)
     im = Image.fromarray(np.clip(img * 255.0 + 0.5 + dither, 0, 255).astype(np.uint8))
     im = F.grade(im)
-    im = F.calm_title_zone(im, cfg["zone_blur"], cfg["zone_shade"], cfg["zone_end"])
-    im = im.filter(ImageFilter.UnsharpMask(radius=1.0, percent=25, threshold=3))   # 4K から縮めたので弱め
-    im = F.put_logo(im, cfg.get("logo_x", F.LOGO_X), cfg.get("logo_w", F.LOGO_W))
-    dst_stem.parent.mkdir(parents=True, exist_ok=True)
-    im.save(dst_stem.with_suffix(".png"))
-    im.save(dst_stem.with_suffix(".jpg"), quality=95, optimize=True, subsampling=0)
+    F.save_base(im, dst_stem.name, sharpen)
+    im = F.finalize(im, cfg, sharpen)
+    write_image(im, dst_stem.with_suffix(".png"))
+    write_image(im, dst_stem.with_suffix(".jpg"), quality=95, optimize=True, subsampling=0)
     for suffix in (".png", ".jpg"):
         p = dst_stem.with_suffix(suffix)
         print(f"{p.relative_to(ROOT)}  {p.stat().st_size / 1024:.0f} KB")

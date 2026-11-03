@@ -153,7 +153,7 @@ func _step(cmd: Dictionary) -> void:
 		lz += gs._active_wall_speed * dt
 	x += ext.x * dt
 	lz += ext.y * dt
-	ext = ext.move_toward(Vector2.ZERO, QuizGameState.EXTERNAL_IMPULSE_DECELERATION * dt)
+	ext = ext.move_toward(Vector2.ZERO, QuizGameState.external_impulse_deceleration(ext, hurt) * dt)
 
 	var on_floor := gs._is_on_track_floor(x, lz, slot, front)
 	if jump and y <= 0.0 and on_floor:

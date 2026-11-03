@@ -53,6 +53,11 @@ var accent: Color = Color("ffa440")
 var translucent: bool = false
 ## translucent のときの濃さ（0〜1）。
 var opacity: float = 1.0
+## false にすると台座（Plate）を作らない。キーボードの台にすき間なく並べるとき、
+## 隣のキーの台座と重なってちらつかないようにする。setup() より前に決める。
+var show_plate: bool = true
+## true にすると、押すべきキー（TARGET）の光と枠を脈打たせず一定にする（動きのない説明画面用）。
+var steady_glow: bool = false
 
 var _look: int = Look.IDLE
 var _pressed: bool = false
@@ -171,12 +176,13 @@ func _build() -> void:
 	if translucent:
 		_plate_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 
-	_plate = MeshInstance3D.new()
-	_plate.name = "Plate"
-	_plate.mesh = _plate_mesh(width_units)
-	_plate.material_override = _plate_material
-	_plate.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(_plate)
+	if show_plate:
+		_plate = MeshInstance3D.new()
+		_plate.name = "Plate"
+		_plate.mesh = _plate_mesh(width_units)
+		_plate.material_override = _plate_material
+		_plate.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(_plate)
 
 	_frame_material = StandardMaterial3D.new()
 	_frame_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -321,7 +327,7 @@ func _base_cap_color() -> Color:
 func _animate_materials() -> void:
 	if _cap_material == null:
 		return
-	var pulse := 0.5 + 0.5 * sin(_time * 4.4)
+	var pulse := 0.5 if steady_glow else 0.5 + 0.5 * sin(_time * 4.4)
 	var flash := clampf(_done_flash / DONE_FLASH_SECONDS, 0.0, 1.0)
 	# 夜のステージでも刻印が読めるよう、どの状態でも少しだけ自発光させる。
 	var glow := 0.16

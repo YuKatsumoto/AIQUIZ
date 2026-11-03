@@ -3765,23 +3765,32 @@ const WALL_RECOIL_CLIP := "Hit_Chest"
 ## 弾かれて下がるあいだの足。UAL1 の小走りを逆に回して後ずさりにする。
 const WALL_RECOIL_STEP_CLIP := "Jog_Fwd_Loop"
 ## 後ずさりの1周期（2歩）で下がる距離。足の運びをノックバックの距離に合わせる。
-const WALL_RECOIL_STEP_STRIDE := 1.6
+## 走りの歩幅より狭くして、たたらを踏む小刻みな歩数にする。
+const WALL_RECOIL_STEP_STRIDE := 1.0
+## Hit_Chest を流す時間（秒）。被ダメージ時間はたたらを踏むぶん長いので、のけぞりはこの速さで終える。
+const WALL_RECOIL_HIT_TIME := 0.6
 const WALL_RECOIL_LEG_PARTS: Array[String] = [
 	"l_hip", "l_knee", "l_ankle", "l_toe", "r_hip", "r_knee", "r_ankle", "r_toe",
 ]
-## 弾かれたあと迫ってきた壁に止められているあいだ（2P で相手の回答待ち）は、扉を押す姿にする。
-## 走りのままだと前へ振る足と手が扉に入る。
-const WALL_PRESS_CLIP := "Push_Loop"
-## 押す姿は腰が後ろに残る（クリップの腰の前後の動きは捨てているので、そのぶん体を後ろへ下げ、
-## 前へ倒した頭を扉の面の手前に収める）。
-const WALL_PRESS_HIP_BACK := 0.45
-## 扉の面までこの距離を切ると押す姿へ移り始める（m）。
-const WALL_PRESS_REACH := 0.5
-const WALL_PRESS_BLEND_TIME := 0.15
-var _wall_press_weight: Array[float] = [0.0, 0.0]
+## Hit_Chest に重ねるのけぞりの量（度）。胸が反り、首と頭が遅れてさらに反って弓なりになる。
+const WALL_RECOIL_ARCH_SPINE := 34.0
+const WALL_RECOIL_ARCH_NECK := 14.0
+const WALL_RECOIL_ARCH_HEAD := 18.0
+## 弾かれた勢いで投げ出される二の腕の向き。上・体の外側（x は肩のある側へ反転）・少し前。
+const WALL_RECOIL_ARM_DIRECTION := Vector3(0.55, 0.75, 0.35)
+## たたらを踏むあいだ、バランスを取って横へ広げる二の腕の向き。
+const WALL_RECOIL_BALANCE_ARM_DIRECTION := Vector3(0.85, -0.1, 0.35)
+## たたらを踏むあいだの上体：後ろへ残る傾き、1歩ごとの前後の揺れ、左右の重心移動（度）。
+const WALL_RECOIL_STAGGER_LEAN := 12.0
+const WALL_RECOIL_STAGGER_WOBBLE := 7.0
+const WALL_RECOIL_STAGGER_SWAY := 6.0
+## 弾かれた瞬間に体が浮く高さ（m）と、そのあいだ前へ投げ出す脚の角度（度）。
+const WALL_RECOIL_HOP_HEIGHT := 0.13
+const WALL_RECOIL_HOP_THIGH := 28.0
+const WALL_RECOIL_HOP_KNEE := 40.0
 
 func _restore_health_pose() -> void:
-	# Overlays stack (press, then recoil), so undo them newest first.
+	# Overlays may stack, so undo them newest first.
 	for i in range(_health_pose_restore.size() - 1, -1, -1):
 		var saved: Dictionary = _health_pose_restore[i]
 		if is_instance_valid(saved.node):
@@ -3797,12 +3806,10 @@ func _apply_health_pose(gs: QuizGameState, parts: Dictionary, player_index: int)
 	var remaining := gs.get_damage_time(player_index)
 	var falling := gs.p1_fall_committed or gs.p1_waiting_for_shark if player_index == 1 else gs.p2_fall_committed or gs.p2_waiting_for_shark
 	if not gs.uses_hp() or not alive or falling or gs.game_state not in [Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE]:
-		_wall_press_weight[player_index - 1] = 0.0
 		return
-	var rig := _p1_rig if player_index == 1 else _p2_rig
-	_apply_wall_press(gs, parts, rig, player_index)
 	if remaining <= 0.0:
 		return
+	var rig := _p1_rig if player_index == 1 else _p2_rig
 	var elapsed := QuizGameState.DAMAGE_FLASH_DURATION - remaining
 	_apply_wall_recoil(parts, rig, elapsed)
 	var fade := 0.58 if int(elapsed / 0.075) % 2 == 0 else 0.0
@@ -3821,29 +3828,6 @@ func _capture_health_base(parts: Dictionary) -> Array[Dictionary]:
 	_health_pose_restore.append_array(base_pose)
 	return base_pose
 
-func _apply_wall_press(gs: QuizGameState, parts: Dictionary, rig: AnimationRig, player_index: int) -> void:
-	var target := 0.0
-	if gs.is_held_by_wall(player_index):
-		var z := gs.player_z if player_index == 1 else gs.player2_z
-		var gap := gs.wall_z - QuizGameState.WALL_FACE_CONTACT_DISTANCE - z
-		target = 1.0 - smoothstep(0.0, WALL_PRESS_REACH, gap)
-	var index := player_index - 1
-	_wall_press_weight[index] = move_toward(_wall_press_weight[index], target, get_process_delta_time() / WALL_PRESS_BLEND_TIME)
-	var weight := _wall_press_weight[index]
-	var length := rig.get_ual_clip_length(WALL_PRESS_CLIP, AnimationRig.SLOT_UAL)
-	if weight <= 0.0 or length <= 0.0:
-		return
-	var base_pose := _capture_health_base(parts)
-	if not rig.seek_ual_clip(WALL_PRESS_CLIP, fposmod(gs.play_time / length, 1.0), AnimationRig.SLOT_UAL):
-		return
-	_apply_skeleton_pose(parts, rig.active_skeleton, rig.active_bone_indices, rig.mirror_x)
-	for saved: Dictionary in base_pose:
-		var node: Node3D = saved.node
-		node.transform = (saved.transform as Transform3D).interpolate_with(node.transform, weight)
-	var pelvis := parts.get("pelvis") as Node3D
-	if pelvis != null:
-		pelvis.global_position += Vector3.FORWARD * WALL_PRESS_HIP_BACK * weight
-
 func _apply_wall_recoil(parts: Dictionary, rig: AnimationRig, elapsed: float) -> void:
 	var base_pose := _capture_health_base(parts)
 	# The body itself is knocked back by QuizGameState (_knock_back_from_wall); this
@@ -3856,8 +3840,10 @@ func _apply_wall_recoil(parts: Dictionary, rig: AnimationRig, elapsed: float) ->
 	# Legs: the jog run backwards, its phase driven by the distance slid so the feet
 	# step back with the body instead of running in place. They take over on the
 	# impact frame itself: any of the run's forward stride left there reaches the door.
+	# They keep stepping until the stagger has slowed to a stop.
 	var legs := {}
-	var leg_weight := 1.0 - smoothstep(0.34, 0.5, elapsed)
+	var stop := _wall_knockback_stop_time()
+	var leg_weight := 1.0 - smoothstep(stop - 0.25, stop, elapsed)
 	# Start half a cycle in: of the phases measured by tests/wall_recoil_runtime.gd
 	# this keeps the feet nearest the hips on the impact frame, right at the door.
 	var step_ratio := 1.0 - fposmod(_wall_knockback_distance(elapsed) / WALL_RECOIL_STEP_STRIDE + 0.5, 1.0)
@@ -3867,7 +3853,7 @@ func _apply_wall_recoil(parts: Dictionary, rig: AnimationRig, elapsed: float) ->
 			var leg := parts.get(key) as Node3D
 			if leg != null:
 				legs[leg] = leg.global_basis.get_rotation_quaternion()
-	if rig.seek_ual_clip(WALL_RECOIL_CLIP, elapsed / duration, AnimationRig.SLOT_UAL):
+	if rig.seek_ual_clip(WALL_RECOIL_CLIP, minf(elapsed / WALL_RECOIL_HIT_TIME, 1.0), AnimationRig.SLOT_UAL):
 		_apply_skeleton_pose(parts, rig.active_skeleton, rig.active_bone_indices, rig.mirror_x)
 		# World-space leg angles (hips before knees): the struck pelvis leans back, and
 		# legs kept local to it would swing the feet forward into the door.
@@ -3882,13 +3868,79 @@ func _apply_wall_recoil(parts: Dictionary, rig: AnimationRig, elapsed: float) ->
 		var spine := parts.get("spine") as Node3D
 		if spine != null:
 			spine.global_basis = Basis(Vector3.RIGHT, deg_to_rad(-26.0) * weight) * spine.global_basis
+	_apply_wall_recoil_arch(parts, elapsed)
 
-## How far the wall knockback has carried the body after `elapsed` seconds.
+## Hit_Chest alone is only a small flinch. On top of it the body is thrown back off
+## the door: the chest arches back and the head whips after it, the arms fly up, and
+## the blow lifts the feet for a moment so the slide reads as a blast, not a jog.
+## Then it totters back a few steps, rocking with each one, arms out for balance.
+## Each curve is back to zero before the overlay fades out at the end of the damage time.
+func _apply_wall_recoil_arch(parts: Dictionary, elapsed: float) -> void:
+	var arch := _recoil_pulse(elapsed, 0.01, 0.12, 0.26, 0.52)
+	# The head trails the chest by a few frames and overshoots before settling.
+	var whip := _recoil_pulse(elapsed, 0.05, 0.16, 0.28, 0.55)
+	var snap := _recoil_pulse(elapsed, 0.11, 0.17, 0.18, 0.27)
+	# Stagger: phase in steps (one cycle is two steps), so the rocking keeps time with the feet.
+	var stop := _wall_knockback_stop_time()
+	var stagger := _recoil_pulse(elapsed, 0.3, 0.45, stop - 0.35, stop)
+	var step := _wall_knockback_distance(elapsed) / WALL_RECOIL_STEP_STRIDE
+	var rock := WALL_RECOIL_STAGGER_LEAN + WALL_RECOIL_STAGGER_WOBBLE * sin(step * TAU * 2.0)
+	_lean_back(parts.get("spine"), WALL_RECOIL_ARCH_SPINE * arch + rock * stagger)
+	var spine := parts.get("spine") as Node3D
+	if spine != null and stagger > 0.0:
+		spine.global_basis = Basis(Vector3.FORWARD, deg_to_rad(WALL_RECOIL_STAGGER_SWAY * stagger * sin(step * TAU))) * spine.global_basis
+	_lean_back(parts.get("neck"), WALL_RECOIL_ARCH_NECK * whip)
+	_lean_back(parts.get("head_pivot"), WALL_RECOIL_ARCH_HEAD * (whip + 0.4 * snap))
+	# Arms: flung up and out by the blow, then held out and flapping to catch the balance.
+	var arms_up := _recoil_pulse(elapsed, 0.04, 0.17, 0.3, 0.5)
+	var balance := _recoil_pulse(elapsed, 0.3, 0.45, stop - 0.3, stop)
+	var arms := maxf(arms_up, balance)
+	for side: String in ["l", "r"]:
+		var shoulder := parts.get(side + "_shoulder") as Node3D
+		var elbow := parts.get(side + "_elbow") as Node3D
+		if arms <= 0.0 or spine == null or shoulder == null or elbow == null:
+			continue
+		var outward := signf(shoulder.global_position.x - spine.global_position.x)
+		var current := (elbow.global_position - shoulder.global_position).normalized()
+		var target := (WALL_RECOIL_ARM_DIRECTION * arms_up + WALL_RECOIL_BALANCE_ARM_DIRECTION * balance) * Vector3(outward, 1.0, 1.0)
+		target.y += 0.5 * balance * sin(step * TAU * 2.0 + (0.0 if outward > 0.0 else PI))
+		var swing := Quaternion.IDENTITY.slerp(Quaternion(current, target.normalized()), arms)
+		shoulder.global_basis = Basis(swing) * shoulder.global_basis
+	# Feet off the floor: the hips rise on a short arc while the legs swing forward
+	# loose (only once the body has left the door, so the feet never reach it).
+	var hop := clampf((elapsed - 0.03) / 0.24, 0.0, 1.0)
+	var pelvis := parts.get("pelvis") as Node3D
+	if pelvis != null:
+		pelvis.position.y += WALL_RECOIL_HOP_HEIGHT * 4.0 * hop * (1.0 - hop)
+	var kick := _recoil_pulse(elapsed, 0.06, 0.16, 0.2, 0.3)
+	for side: String in ["l", "r"]:
+		_lean_back(parts.get(side + "_hip"), WALL_RECOIL_HOP_THIGH * kick)
+		_lean_back(parts.get(side + "_knee"), -WALL_RECOIL_HOP_KNEE * kick)
+
+## Rotates a joint backwards about world X: the part above it tips back, below it swings forward.
+static func _lean_back(node: Node3D, degrees: float) -> void:
+	if node != null and not is_zero_approx(degrees):
+		node.global_basis = Basis(Vector3.RIGHT, deg_to_rad(-degrees)) * node.global_basis
+
+## 0 before `rise_start`, 1 from `rise_end` to `fall_start`, back to 0 at `fall_end`.
+static func _recoil_pulse(t: float, rise_start: float, rise_end: float, fall_start: float, fall_end: float) -> float:
+	return smoothstep(rise_start, rise_end, t) * (1.0 - smoothstep(fall_start, fall_end, t))
+
+## How far the wall knockback has carried the body after `elapsed` seconds: the fast
+## blast down to the stagger speed, then the slow stagger (QuizGameState.external_impulse_deceleration).
 static func _wall_knockback_distance(elapsed: float) -> float:
 	var speed := QuizGameState.WALL_HIT_KNOCKBACK_SPEED
+	var tail := QuizGameState.WALL_HIT_STAGGER_SPEED
 	var decel := QuizGameState.EXTERNAL_IMPULSE_DECELERATION
-	var t := clampf(elapsed, 0.0, speed / decel)
-	return speed * t - 0.5 * decel * t * t
+	var stagger_decel := QuizGameState.WALL_HIT_STAGGER_DECELERATION
+	var blast := clampf(elapsed, 0.0, (speed - tail) / decel)
+	var t := clampf(elapsed - blast, 0.0, tail / stagger_decel)
+	return speed * blast - 0.5 * decel * blast * blast + tail * t - 0.5 * stagger_decel * t * t
+
+## When the full wall knockback comes to rest.
+static func _wall_knockback_stop_time() -> float:
+	return ((QuizGameState.WALL_HIT_KNOCKBACK_SPEED - QuizGameState.WALL_HIT_STAGGER_SPEED) / QuizGameState.EXTERNAL_IMPULSE_DECELERATION
+		+ QuizGameState.WALL_HIT_STAGGER_SPEED / QuizGameState.WALL_HIT_STAGGER_DECELERATION)
 
 var _push_pose_restore: Array[Dictionary] = []
 

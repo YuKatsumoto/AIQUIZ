@@ -8,6 +8,9 @@ const CLIP_TOLERANCE := 0.03
 ## 足が扉の面へ触れてよい量（m）。走りの歩幅で前へ出たつま先が当たる直前に、
 ## ぶつかった足のすねが衝突の1フレームだけ、この程度まで触れる。
 const LEG_CLIP_TOLERANCE := 0.18
+## 迫る壁に止められているあいだは走りのまま見せるので、前へ振った足が扉へこの程度まで入る
+## （後ろからのゲームカメラでは体の陰になる）。
+const HELD_LEG_CLIP_TOLERANCE := 0.3
 var gs: QuizGameState
 var world: Node3D
 var pc: PlayerController
@@ -109,9 +112,12 @@ func scenario(tag: String, players: int, correct1: bool, correct2: bool, solid :
 	world.set("_replay_mode", false)
 	var clip := [{}, {}]
 	var crossed := false
+	var floor_y := [INF, INF]
 	for i in range(120):
 		await frames(1)
 		_track_clip(clip, 0)
+		for player in range(1, players + 1):
+			floor_y[player - 1] = minf(floor_y[player - 1], _lowest_foot(pc.p1_parts if player == 1 else pc.p2_parts))
 		if i % 2 == 0: await sample(tag)
 		if gs.current_wall_index > 0:
 			crossed = true
@@ -123,8 +129,9 @@ func scenario(tag: String, players: int, correct1: bool, correct2: bool, solid :
 	var authored := [false, false]
 	var max_spine_angle := [0.0, 0.0]
 	var max_leg_angle := [0.0, 0.0]
+	var airborne := [INF, INF]
 	var pelvis_offset := 0.0
-	for i in range(48):
+	for i in range(90):
 		await frames(1)
 		_track_clip(clip, 0)
 		for player in range(1, players + 1):
@@ -135,6 +142,9 @@ func scenario(tag: String, players: int, correct1: bool, correct2: bool, solid :
 			if gs.get_damage_time(player) > 0.05:
 				var rig: AnimationRig = pc.get("_p1_rig" if player == 1 else "_p2_rig")
 				authored[player - 1] = authored[player - 1] or rig.active_skeleton == rig.skeletons[AnimationRig.SLOT_UAL]
+			var hurt_elapsed := QuizGameState.DAMAGE_FLASH_DURATION - gs.get_damage_time(player)
+			if gs.get_damage_time(player) > 0.0 and hurt_elapsed >= 0.1 and hurt_elapsed <= 0.2:
+				airborne[player - 1] = minf(airborne[player - 1], _lowest_foot(parts) - floor_y[player - 1])
 			for saved: Dictionary in pc.get("_health_pose_restore"):
 				var baseline: Transform3D = saved.transform
 				var angle := rad_to_deg(baseline.basis.get_rotation_quaternion().angle_to((saved.node as Node3D).quaternion))
@@ -145,6 +155,7 @@ func scenario(tag: String, players: int, correct1: bool, correct2: bool, solid :
 		if i % 2 == 0: await sample(tag)
 		if i == 2: await capture(tag + "_impact")
 		if i == 12: await capture(tag + "_peak")
+		if i == 45: await capture(tag + "_stagger")
 	await capture(tag + "_returned")
 	check(pelvis_offset < 0.001, tag + " no visual-only offset: %f" % pelvis_offset)
 	for player in range(1, players + 1):
@@ -152,8 +163,9 @@ func scenario(tag: String, players: int, correct1: bool, correct2: bool, solid :
 		check(gs.get_player_hp(player) == (3 if correct else 2), tag + " one HP only on wrong contact P%d" % player)
 		_check_clip(tag, player, clip[player - 1])
 		if not correct:
-			check(retreat[player - 1] > 1.9 and retreat[player - 1] < 2.3, tag + " knocked back from the door face P%d: %f" % [player, retreat[player - 1]])
-			check(authored[player - 1] and max_spine_angle[player - 1] > 5.0, tag + " authored recoil pose P%d: %f" % [player, max_spine_angle[player - 1]])
+			check(retreat[player - 1] > 2.25 and retreat[player - 1] < 2.55, tag + " knocked back and staggers a few steps from the door face P%d: %f" % [player, retreat[player - 1]])
+			check(authored[player - 1] and max_spine_angle[player - 1] > 30.0, tag + " body arches back off the door P%d: %f" % [player, max_spine_angle[player - 1]])
+			check(airborne[player - 1] > 0.05 and airborne[player - 1] < INF, tag + " blow lifts the feet off the floor P%d: %f" % [player, airborne[player - 1]])
 			check(max_leg_angle[player - 1] > 15.0, tag + " legs step back P%d: %f" % [player, max_leg_angle[player - 1]])
 		else:
 			check(retreat[player - 1] < 0.01 and not authored[player - 1], tag + " correct player unaffected P%d" % player)
@@ -190,12 +202,12 @@ func stagger_hold() -> void:
 	check(held_frames > 20, tag + " P1 was held by the wall while waiting: %d" % held_frames)
 	check(beyond <= 0.0001, tag + " held body stays at the door face: %f" % beyond)
 	for player in [1, 2]:
-		_check_clip(tag, player, clip[player - 1])
+		_check_clip(tag, player, clip[player - 1], HELD_LEG_CLIP_TOLERANCE if player == 1 else LEG_CLIP_TOLERANCE)
 
-func _check_clip(tag: String, player: int, clip: Dictionary) -> void:
+func _check_clip(tag: String, player: int, clip: Dictionary, leg_tolerance := LEG_CLIP_TOLERANCE) -> void:
 	clip_summary["%s P%d" % [tag, player]] = clip
 	check(float(clip.get("trunk", 0.0)) <= CLIP_TOLERANCE, tag + " torso and head never sink into the wall P%d: %s" % [player, str(clip)])
-	check(float(clip.get("legs", 0.0)) <= LEG_CLIP_TOLERANCE, tag + " legs only touch the wall P%d: %s" % [player, str(clip)])
+	check(float(clip.get("legs", 0.0)) <= leg_tolerance, tag + " legs only touch the wall P%d: %s" % [player, str(clip)])
 
 ## 壁端より外のボーダーの列は、判定の線を越えても被弾しない。
 func border_lane() -> void:
@@ -257,6 +269,15 @@ func _track_clip(clip: Array, wall_index: int) -> void:
 						"solid": solid_names[s], "solid_box": str(solid), "box": str(box), "time": gs.play_time,
 						"z": (gs.player_z if player == 1 else gs.player2_z) - gs.world_scroll_z, "wall_local": gs.wall_z - gs.world_scroll_z,
 						"hurt": gs.get_damage_time(player), "wall": gs.current_wall_index})
+
+## 足（足先を含む）のメッシュの一番低いところの高さ。
+func _lowest_foot(parts: Dictionary) -> float:
+	var lowest := INF
+	for key: String in ["l_foot", "r_foot", "l_toe_mesh", "r_toe_mesh"]:
+		var mesh := parts.get(key) as MeshInstance3D
+		if mesh != null and mesh.is_visible_in_tree():
+			lowest = minf(lowest, (mesh.global_transform * mesh.get_aabb()).position.y)
+	return lowest
 
 ## メッシュが属する体の部位の名前（parts の鍵。指などの小部品は親をたどる）。
 func _part_key(parts: Dictionary, mesh: Node) -> String:

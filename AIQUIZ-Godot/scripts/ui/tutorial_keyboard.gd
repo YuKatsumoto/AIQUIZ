@@ -231,6 +231,26 @@ func get_evidence() -> Dictionary:
 	}
 
 
+## Every key with its id, legend and design-space rect. The 3D desk
+## (tutorial_keyboard_desk_3d.gd) builds the same layout from this table.
+func get_key_layout() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for key: Dictionary in _keys:
+		out.append(key.duplicate())
+	return out
+
+
+## The player (1 or 2) whose action uses this key; 0 for unused keys.
+func get_key_player(key_id: String) -> int:
+	var task: Dictionary = _highlights.get(key_id, {})
+	return 0 if task.is_empty() else int(task.get("player", 1))
+
+
+## Real input read by the last advance(), never a demonstration.
+func is_key_down(key_id: String) -> bool:
+	return key_id in _actual_keys
+
+
 ## Local on-screen bounds, useful to locate a demonstrated key in captures.
 func get_key_rect(key_id: String) -> Rect2:
 	if not _key_by_id.has(key_id) or size.x <= 0.0 or size.y <= 0.0:
@@ -418,13 +438,13 @@ func _draw() -> void:
 	draw_line(Vector2(566, 94), Vector2(566, 119), Color("405976"), 1.0, true)
 	if not demo_key.is_empty() and _input_grace <= 0.0 and not _reduced_motion:
 		_draw_demo_hand(demo_key)
-	var footnote := "表示されたキーを押して操作を確認できます。"
+	var footnote := "色のついたキーを押して試してみよう"
 	if _highlights.has("CtrlR"):
-		footnote = "右Ctrlキーを使います（左Ctrlでは反応しません）。"
+		footnote = "右のCtrlを使う（左のCtrlでは動かない）"
 	elif _duo and (_highlights.has("8") or _highlights.has("9")):
-		footnote = "数字キーで再生します。P2はテンキー7・8・9にも対応。"
+		footnote = "数字キーで踊る　P2はテンキー7・8・9でもOK"
 	elif not _duo and (_highlights.has("←") or _highlights.has("↑")):
-		footnote = "移動には文字キーと矢印キーのどちらも使用できます。"
+		footnote = "移動は文字キーでも矢印キーでもOK"
 	if show_footnote:
 		_draw_text(font, Vector2(8, 214), footnote, 609, 12, MUTED)
 	draw_set_transform(Vector2.ZERO)

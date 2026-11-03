@@ -205,32 +205,15 @@ func _build_ui() -> void:
 	hint.visible = not MobileUi.is_touch_ui()
 	add_child(hint)
 
+## メニュー画面と同じ金属プレート（MenuMetalButton）。accent はランプの色。
 func _create_btn(text: String, width: float, accent: Color) -> Button:
-	var btn := Button.new()
+	var btn := MenuMetalButton.new()
+	btn.compact = true
+	btn.accent = accent
 	btn.text = text
 	btn.custom_minimum_size = Vector2(width, 36)
 	btn.add_theme_font_size_override("font_size", MobileUi.font(15))
 	MobileUi.ensure_touch_size(btn)
-
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.10, 0.12, 0.18, 0.85)
-	style.border_color = accent.lerp(Color.WHITE, 0.1)
-	style.set_border_width_all(1)
-	style.set_corner_radius_all(10)
-	style.content_margin_left = 10.0
-	style.content_margin_right = 10.0
-	style.content_margin_top = 4.0
-	style.content_margin_bottom = 4.0
-
-	var hover := style.duplicate() as StyleBoxFlat
-	hover.bg_color = Color(0.15, 0.18, 0.25, 0.95)
-	hover.border_color = accent.lerp(Color.WHITE, 0.3)
-
-	btn.add_theme_stylebox_override("normal", style)
-	btn.add_theme_stylebox_override("hover", hover)
-	btn.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
-	btn.add_theme_color_override("font_color", Color(0.88, 0.90, 0.95))
-	btn.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 1.0))
 	return btn
 
 func _update_play_btn() -> void:

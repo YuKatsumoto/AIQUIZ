@@ -509,9 +509,9 @@ func finish_death_recovery() -> Dictionary:
 	revision += 1
 	if message.is_empty():
 		message = (
-			"同じ問題をやり直します。問題を確認し、正解のドアを選んでください。"
+			"同じ問題をもう一度\n正解のドアを選ぼう"
 			if retry
-			else "海に落ちた場合の動作を確認しました。次のステップに進みます。"
+			else "海のルールはOK\n次のステップへ"
 		)
 	return {"retry": retry, "message": message}
 
@@ -528,7 +528,7 @@ func clear_summary_lines() -> PackedStringArray:
 	return PackedStringArray([
 		"✓ 前後左右の移動・ジャンプ・3つのエモート",
 		"✓ コース外の海とサメ（ハートに関係なく脱落）",
-		"✓ ハート3つ：不正解で1つ減り、0で脱落",
+		"✓ ハート3つ　不正解で1つ減って0で脱落",
 		"✓ 2択の壁と4択のボス壁",
 		"✓ 壁速度・帽子・エモートのカスタマイズ",
 	])
@@ -682,8 +682,8 @@ func _build_steps() -> Array[Dictionary]:
 			"id": "move_lane",
 			"title": "前後左右の移動",
 			"body": MobileUi.prompt(
-				"自動で前に進みます。左右でドアを選び、前後で壁に着くタイミングを調整します。4方向に動いてみましょう（矢印キーも可）。",
-				"自動で前に進みます。左右でドアを選び、前後で壁に着くタイミングを調整します。スティックで4方向に動いてみましょう。"
+				"左右でドアを選ぶ　前後でタイミングを調整\n4方向に動いてみよう",
+				"左右でドアを選ぶ　前後でタイミングを調整\nスティックで4方向に動いてみよう"
 			),
 			"guide": GUIDE_LANE,
 			"key_layout": KEYS_CLUSTER,
@@ -701,8 +701,8 @@ func _build_steps() -> Array[Dictionary]:
 			"id": "jump_lesson",
 			"title": "ジャンプ",
 			"body": MobileUi.prompt(
-				"Spaceでジャンプします。ジャンプするとエモートも止まります。試しにジャンプしてみましょう。",
-				"ジャンプボタンでジャンプします。ジャンプするとエモートも止まります。試しにジャンプしてみましょう。"
+				"Spaceでジャンプしてみよう",
+				"ジャンプボタンを押してみよう"
 			),
 			"guide": GUIDE_JUMP,
 			"key_layout": KEYS_CLUSTER,
@@ -717,8 +717,8 @@ func _build_steps() -> Array[Dictionary]:
 			"id": "solo_emote",
 			"title": "エモート",
 			"body": MobileUi.prompt(
-				"数字キー1・2・3でエモートを踊れます。走りながら踊れ、ジャンプで止まります。3つすべてを再生してください。",
-				"エモートボタン1・2・3で踊れます。走りながら踊れ、ジャンプで止まります。3つすべてを再生してください。"
+				"1・2・3キーで踊れる　ジャンプで止まる\n3つとも踊ってみよう",
+				"エモートボタンで踊れる　ジャンプで止まる\n3つとも踊ってみよう"
 			),
 			"guide": GUIDE_EMOTE,
 			"key_layout": KEYS_CLUSTER,
@@ -734,7 +734,7 @@ func _build_steps() -> Array[Dictionary]:
 		{
 			"id": "ocean_lesson",
 			"title": "コース外は海",
-			"body": "コースの左右の端から外に出ると海に落ち、サメに襲われます。海に落ちるとハートの数に関係なく脱落します。試しに端から外へ出てください。",
+			"body": "海に落ちるとハートが残っていても脱落\n試しに端から外へ出てみよう",
 			"guide": GUIDE_OCEAN,
 			"key_layout": KEYS_SIDES,
 			"speed": 0.0,
@@ -746,7 +746,7 @@ func _build_steps() -> Array[Dictionary]:
 		{
 			"id": "guided_wall",
 			"title": "クイズの答え方",
-			"body": "壁の問題を読み、正解だと思うドアをくぐります。この問題では正解のドアが光ります。光ったドアへ移動してください。",
+			"body": "問題を読んで答えのドアをくぐろう\n今回は正解のドアが光っている",
 			"guide": GUIDE_GUIDED_DOOR,
 			"key_layout": KEYS_SIDES,
 			"speed": 1.0,
@@ -764,7 +764,7 @@ func _build_steps() -> Array[Dictionary]:
 		{
 			"id": "hp_lesson",
 			"title": "ハート（HP）のしくみ",
-			"body": "左上のハートは3つ。不正解のドアや壁にぶつかると1つ減り、0になると脱落します。試しに、わざと不正解の「5」のドアに入ってください。",
+			"body": "左上のハートは3つ　0になると脱落\nわざと不正解の「5」に入ってみよう",
 			"guide": GUIDE_WRONG_DOOR,
 			"key_layout": KEYS_SIDES,
 			"speed": 1.0,
@@ -780,7 +780,7 @@ func _build_steps() -> Array[Dictionary]:
 		{
 			"id": "free_wall",
 			"title": "誘導なしで回答",
-			"body": "ここからは本番と同じです。ドアは光りません。不正解や壁への衝突でハートが1つ減ります。ハートが残っていれば走り続けられます。",
+			"body": "ここからは本番と同じ　ドアは光らない\n不正解や壁にぶつかるとハートが1つ減る",
 			"guide": GUIDE_FREE_DOOR,
 			"key_layout": KEYS_SIDES,
 			"speed": 1.0,
@@ -797,7 +797,7 @@ func _build_steps() -> Array[Dictionary]:
 		{
 			"id": "boss_wall",
 			"title": "4択のボス壁",
-			"body": "10問チャレンジの最後の問題と、難易度「難しい」の壁はドアが4つ（A〜D）です。左右の移動で答えのドアの前に合わせてください。",
+			"body": "ボス壁はドアが4つ\n10問チャレンジの最後と「難しい」で出る",
 			"guide": GUIDE_FREE_DOOR,
 			"key_layout": KEYS_SIDES,
 			"speed": 1.0,
@@ -816,7 +816,7 @@ func _build_steps() -> Array[Dictionary]:
 		{
 			"id": "stage_complete",
 			"title": "ステージチュートリアル完了",
-			"body": "実践問題をクリアしました。続いてカスタマイズを紹介します。",
+			"body": "実践クリア　次はカスタマイズ",
 			"guide": "",
 			"speed": 0.0,
 			"walls": false,
@@ -828,7 +828,7 @@ func _build_steps() -> Array[Dictionary]:
 		{
 			"id": "customize_tour",
 			"title": "カスタマイズの紹介",
-			"body": "最後に実際のカスタマイズ画面へ移動します。",
+			"body": "カスタマイズの画面へ移動",
 			"guide": "",
 			"speed": 0.0,
 			"walls": false,

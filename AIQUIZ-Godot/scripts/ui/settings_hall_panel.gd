@@ -380,11 +380,11 @@ func _option_row(row_name: String, title: String, option_name: String) -> HBoxCo
 	label.add_theme_color_override("font_color", BODY)
 	row.add_child(label)
 	var option := OptionButton.new()
+	# ボタンと同じ金属プレート（スマホでは指で押せる高さにするため compact をやめる）
+	MenuMetalButton.adopt(option, not MobileUi.is_touch_ui())
 	option.name = option_name
 	option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	option.add_theme_font_override("font", FONT_MEDIUM)
 	option.add_theme_font_size_override("font_size", MobileUi.font(18))
-	_style_plain_button(option)
 	row.add_child(option)
 	return row
 
@@ -456,31 +456,6 @@ func _metal_button(node_name: String, text: String, featured: bool) -> Button:
 	button.add_theme_font_size_override("font_size", MobileUi.font(16))
 	MobileUi.ensure_touch_size(button)
 	return button
-
-
-## OptionButton に main_menu._style_all_buttons と同じ暗い配色。
-func _style_plain_button(button: Button) -> void:
-	var normal := StyleBoxFlat.new()
-	normal.bg_color = Color(0.14, 0.16, 0.22)
-	normal.border_color = Color(0.28, 0.32, 0.42)
-	normal.set_border_width_all(1)
-	normal.set_corner_radius_all(10)
-	normal.content_margin_left = 14.0
-	normal.content_margin_right = 14.0
-	normal.content_margin_top = 4.0
-	normal.content_margin_bottom = 4.0
-	var hover := normal.duplicate() as StyleBoxFlat
-	hover.bg_color = Color(0.18, 0.20, 0.28)
-	hover.border_color = Color(0.4, 0.5, 0.7)
-	var pressed := normal.duplicate() as StyleBoxFlat
-	pressed.bg_color = Color(0.10, 0.12, 0.18)
-	pressed.border_color = Color(0.35, 0.45, 0.65)
-	button.add_theme_stylebox_override("normal", normal)
-	button.add_theme_stylebox_override("hover", hover)
-	button.add_theme_stylebox_override("pressed", pressed)
-	button.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
-	button.add_theme_color_override("font_color", Color(0.82, 0.85, 0.92))
-	button.add_theme_color_override("font_hover_color", Color(0.95, 0.97, 1.0))
 
 
 # ------------------------------------------------------------------ API status

@@ -640,11 +640,11 @@ func show_solo_stage_tutorial_complete(duration: float = 3.6) -> void:
 	_show_tutorial_completion_card("SoloStageCompletionCard", {
 		"step": "1 / 2  STAGE CLEAR",
 		"title": "ステージチュートリアル完了",
-		"body": "移動・ジャンプ・エモート、海の危険、ハート（HP）、2択と4択の壁を体験しました。\n本番は10問チャレンジとエンドレスで、ハート3つから始まります。",
+		"body": "操作・海・ハート・4択の壁をひと通り体験\n本番もハート3つからスタート",
 		"progress": "✓ ステージ実践　　次はカスタマイズ",
 		"footer": MobileUi.prompt(
-			"自動でカスタマイズ紹介へ進みます　（ゲーム中は Esc で一時停止）",
-			"自動でカスタマイズ紹介へ進みます　（ゲーム中は左上の Ⅱ で一時停止）"
+			"自動でカスタマイズの紹介へ進む\nゲーム中はEscで一時停止できる",
+			"自動でカスタマイズの紹介へ進む\nゲーム中は左上のⅡで一時停止できる"
 		),
 		"duration": duration,
 	})
@@ -654,11 +654,11 @@ func show_duo_stage_tutorial_complete(duration: float = 4.2) -> void:
 	_show_tutorial_completion_card("DuoStageCompletionCard", {
 		"step": "1 / 2  STAGE CLEAR",
 		"title": "ステージチュートリアル完了",
-		"body": "2人の操作と押し合い、海とゴーストシャーク、回転のこぎり、ハートと先着の得点、4択の壁、スコアタワーの勝敗判定を体験しました。",
+		"body": "2人プレイのルールをひと通り体験",
 		"progress": _duo_score_tower_summary(),
 		"footer": MobileUi.prompt(
-			"自動でカスタマイズ紹介へ進みます　（ゲーム中は Esc で一時停止）",
-			"自動でカスタマイズ紹介へ進みます　（ゲーム中は左上の Ⅱ で一時停止）"
+			"自動でカスタマイズの紹介へ進む\nゲーム中はEscで一時停止できる",
+			"自動でカスタマイズの紹介へ進む\nゲーム中は左上のⅡで一時停止できる"
 		),
 		"duration": duration,
 	})
@@ -666,7 +666,7 @@ func show_duo_stage_tutorial_complete(duration: float = 4.2) -> void:
 
 ## 10問チャレンジの勝敗はスコアタワーで決まる。このチュートリアルの成績で計算例を見せる。
 func _duo_score_tower_summary() -> String:
-	var lines: Array[String] = ["スコアタワー（10問チャレンジの勝敗）＝ 正解数 ×（残りハート＋0.5）"]
+	var lines: Array[String] = ["スコアタワー ＝ 正解数 ×（残りハート＋0.5）"]
 	var parts: Array[String] = []
 	if game_state.result_presentation_active:
 		# ゴール後に実際のスコアタワーで確定した得点（脱落した人は正解数だけ）と勝敗。
@@ -1052,9 +1052,9 @@ func _show_tutorial_waiting_start(arrival_locked: bool, construction_locked: boo
 	var is_duo := game_state.get_tutorial_course() == GameManager.TUTORIAL_COURSE_LOCAL_2P
 	pl_title.text = "ローカル2Pチュートリアル" if is_duo else "1Pチュートリアル"
 	pl_subtitle.text = (
-		"2人の操作・ゴースト・のこぎり・ハート・ゴールを順番に練習します"
+		"2人の操作・ゴースト・のこぎり・ハート・ゴールを練習しよう"
 		if is_duo
-		else "操作・海の危険・ハート・4択の壁を順番に練習します"
+		else "操作・海の危険・ハート・4択の壁を練習しよう"
 	)
 	if construction_locked:
 		pl_status.text = game_state.status_text
@@ -1959,18 +1959,21 @@ func _create_history_card(index: int, quiz: QuizItem, correct: bool, rated: Stri
 		rate_label.add_theme_color_override("font_color", Color(0.5, 0.55, 0.65))
 		rate_container.add_child(rate_label)
 
-		var good_btn := Button.new()
+		# メニューと同じ金属プレート。良い・悪いはランプの色で分ける
+		var good_btn := MenuMetalButton.new()
+		good_btn.compact = true
+		good_btn.accent = Color(0.2, 1.0, 0.4)
 		good_btn.text = "◯ 良い"
 		good_btn.custom_minimum_size = Vector2(100, MobileUi.touch(36))
 		good_btn.add_theme_font_size_override("font_size", MobileUi.font(16))
-		good_btn.add_theme_color_override("font_color", Color(0.2, 1.0, 0.4))
 		rate_container.add_child(good_btn)
 
-		var bad_btn := Button.new()
+		var bad_btn := MenuMetalButton.new()
+		bad_btn.compact = true
+		bad_btn.accent = Color(1.0, 0.3, 0.2)
 		bad_btn.text = "× 悪い"
 		bad_btn.custom_minimum_size = Vector2(100, MobileUi.touch(36))
 		bad_btn.add_theme_font_size_override("font_size", MobileUi.font(16))
-		bad_btn.add_theme_color_override("font_color", Color(1.0, 0.3, 0.2))
 		rate_container.add_child(bad_btn)
 
 		# Capture index for closure

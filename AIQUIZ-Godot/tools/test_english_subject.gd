@@ -9,6 +9,8 @@ const ENGLISH_MAX_QUESTION_LENGTH := 90
 const ENGLISH_MAX_CHOICE_LENGTH := 30
 ## 【基本】【標準】【応用】タグ付きの問題は各段階これ以上（タグなしの問題は文の長さ等で難易度を振り分ける）
 const ENGLISH_MIN_PER_TIER := 50
+## 3年は「基」「準」「応」をまだ習わないので、同じタグをひらがなで書く
+const TIER_KANA_TAGS := {"基本": "【きほん】", "標準": "【ひょうじゅん】", "応用": "【おうよう】"}
 
 var _failures: int = 0
 
@@ -87,7 +89,7 @@ func _test_english_data(provider: Variant, fetcher: Variant) -> void:
 				continue
 			var q := str(item_raw.get("q", ""))
 			for tier: String in tier_counts:
-				if q.begins_with("【%s】" % tier):
+				if q.begins_with("【%s】" % tier) or q.begins_with(TIER_KANA_TAGS[tier]):
 					tier_counts[tier] += 1
 			var choices: Variant = item_raw.get("c", [])
 			var answer := int(item_raw.get("a", -1))
@@ -145,12 +147,12 @@ func _test_english_data(provider: Variant, fetcher: Variant) -> void:
 				selected_seen[quiz.q] = true
 			_assert_true(selected_seen.size() == selected.size(), "英語%d年/%sの10問が一意" % [grade, difficulty])
 			# タグなしの問題が混ざるため、出題候補の帯で見る。簡単に【応用】、難しいに【基本】を入れない。
-			var forbidden_tier: String = {"簡単": "【応用】", "普通": "", "難しい": "【基本】"}[difficulty]
+			var forbidden_tier: String = {"簡単": "応用", "普通": "", "難しい": "基本"}[difficulty]
 			if forbidden_tier.is_empty():
 				continue
 			var leaked := 0
 			for quiz: QuizItem in provider.offline_candidates("英語", grade, difficulty):
-				if quiz.q.begins_with(forbidden_tier):
+				if quiz.q.begins_with("【%s】" % forbidden_tier) or quiz.q.begins_with(TIER_KANA_TAGS[forbidden_tier]):
 					leaked += 1
 			_assert_true(leaked == 0, "英語%d年/%sの候補に%sが混ざらない" % [grade, difficulty, forbidden_tier])
 

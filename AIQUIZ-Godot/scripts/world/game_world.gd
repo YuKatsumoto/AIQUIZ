@@ -2829,9 +2829,10 @@ func _update_goal_line() -> void:
 		add_child(_goal_stand)
 		_goal_stand.setup(GameManager.graphics_quality)
 	_goal_stand.position = _goal_line_node.position + Vector3(0.0, StageConstants.FLOOR_TOP_Y, GoalStand.GOAL_OFFSET)
-	# 左右の客席は、ゴール観客席のモニターの位置で終える（そこまで伸ばし、奥へは出さない）。
+	# 左右の客席は、ゴール観客席のモニターを 1 ブロック越えたところで終える（そこまで伸ばし、奥へは出さない）。
 	if is_instance_valid(stage_env):
-		stage_env.set_grandstand_end_limit(_goal_stand.global_position.z + _goal_stand.monitor_z_offset())
+		stage_env.set_grandstand_end_limit(_goal_stand.global_position.z + _goal_stand.monitor_z_offset()
+			+ stage_env.grandstand_block_length())
 	if is_instance_valid(_goal_waiting_referee):
 		_goal_waiting_referee.visible = game_state.uses_local_result_ceremony() and not game_state.result_presentation_active
 		if _goal_waiting_referee.visible:
@@ -3325,26 +3326,28 @@ func _build_pause_menu() -> void:
 	sfx_group.add_child(sfx_slider)
 
 	# --- Buttons ---
-	var btn_resume = Button.new()
+	# ボタンはメニュー画面と同じ金属プレート（MenuMetalButton）。戻るのが主なので「ゲームに戻る」を金色にする。
+	var btn_resume := MenuMetalButton.new()
+	btn_resume.compact = true
+	btn_resume.featured = true
 	btn_resume.name = "PauseResumeButton"
 	_pause_resume_button = btn_resume
 	btn_resume.text = "ゲームに戻る"
 	btn_resume.add_theme_font_size_override("font_size", MobileUi.font(28))
 	btn_resume.custom_minimum_size = Vector2(0, 60)
 	MobileUi.ensure_touch_size(btn_resume)
-	btn_resume.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	btn_resume.pressed.connect(func(): _toggle_pause())
 	vbox.add_child(btn_resume)
 
 	if _is_practice():
 		# 練習だけ：いまのレッスンを飛ばして次へ（監督が進め、ポーズは解く）。
-		var btn_skip = Button.new()
+		var btn_skip := MenuMetalButton.new()
+		btn_skip.compact = true
 		btn_skip.name = "PracticeSkipButton"
 		btn_skip.text = "このレッスンをスキップ"
 		btn_skip.add_theme_font_size_override("font_size", MobileUi.font(28))
 		btn_skip.custom_minimum_size = Vector2(0, 60)
 		MobileUi.ensure_touch_size(btn_skip)
-		btn_skip.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 		btn_skip.pressed.connect(func():
 			if SceneTransition.is_transitioning():
 				return
@@ -3356,14 +3359,14 @@ func _build_pause_menu() -> void:
 		vbox.add_child(btn_skip)
 		_pause_skip_button = btn_skip
 
-	var btn_title = Button.new()
+	var btn_title := MenuMetalButton.new()
+	btn_title.compact = true
 	btn_title.name = "PauseTitleButton"
 	_pause_title_button = btn_title
 	btn_title.text = "タイトルに戻る"
 	btn_title.add_theme_font_size_override("font_size", MobileUi.font(28))
 	btn_title.custom_minimum_size = Vector2(0, 60)
 	MobileUi.ensure_touch_size(btn_title)
-	btn_title.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	btn_title.pressed.connect(func():
 		if SceneTransition.is_transitioning():
 			return

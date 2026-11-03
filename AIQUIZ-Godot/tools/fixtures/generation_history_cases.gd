@@ -141,7 +141,9 @@ func run() -> int:
 	QuizManager.quiz_optimizer.ratings = {"good": [], "bad": []}
 
 	provider.buffer.assign([quiz("日本の首都は？"), quiz("三角形の内角の和は？")])
-	var unused := quiz("月は地球の衛星です。正しい？")
+	# 生成プールは学年外の漢字を使った問題を返さないので、算数3年までの字で書く
+	var unused := quiz("月は地球のまわりを回っています。正しい？")
+	unused.c = PackedStringArray(["正しい", "まちがい", "半分だけ正しい", "夜だけ正しい"])
 	provider._on_fetch_partial([unused] as Array[QuizItem])
 	check(not provider._recent_exact_keys.has(QuizDedup.exact_key(unused.q)),
 		"ジャンル上限で採用しなかった候補を出題済みにしない")

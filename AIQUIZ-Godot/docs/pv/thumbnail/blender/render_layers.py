@@ -23,7 +23,7 @@ import bpy
 import numpy as np
 
 def find_root():
-    """プロジェクト（project.godot のあるフォルダ）。開いている .blend から上へたどり、無ければ環境変数 AIQUIZ_ROOT、
+    r"""プロジェクト（project.godot のあるフォルダ）。開いている .blend から上へたどり、無ければ環境変数 AIQUIZ_ROOT、
     メインPC の C:\AIQUIZ\AIQUIZ-Godot・G:\AIQUIZ-Main\AIQUIZ-Godot、ノートPC の デスクトップ\AIQUIZ\AIQUIZ-Godot の順に探す"""
     p = bpy.data.filepath
     while p and os.path.dirname(p) != p:
@@ -186,18 +186,31 @@ def render_async(layer, tag="final", res=(1920, 1080), samples=None, out=None, t
     st.exr_codec = 'ZIP'
     r.filepath = exr
     started = time.time()
-    state = {"seen_running": False}
+    state = {"seen_running": False, "stats": ""}
+
+    # 止まったときの Blender の言い分（GPU のメモリ不足など）は、レンダーの窓の見出しにしか出ないので、最後の進み具合の文を取っておく
+    # （2026-11-02、確認の絵・本番が 10 秒ほどで書き出さずに止まったが、理由が残らなかった）
+    def on_stats(stats, *args):
+        state["stats"] = str(stats)
+
+    bpy.app.handlers.render_stats.append(on_stats)
+
+    def unhook():
+        if on_stats in bpy.app.handlers.render_stats:
+            bpy.app.handlers.render_stats.remove(on_stats)
 
     def watch():
         running = bpy.app.is_job_running('RENDER')
         if running:
             state["seen_running"] = True
             return 1.0
+        unhook()
         if not os.path.exists(exr) or os.path.getmtime(exr) < started:
             if state["seen_running"] or time.time() - started > 30:
                 restore()
                 with open(err, "w", encoding="utf-8") as f:
-                    f.write("render stopped without writing %s (cancelled or failed)" % exr)
+                    f.write("%s を書かずに止まった（中止か失敗）。Blender の最後の表示：%s"
+                            % (os.path.basename(exr), state["stats"] or "なし"))
                 return None
             return 1.0
         try:

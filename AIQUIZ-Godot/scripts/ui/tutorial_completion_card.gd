@@ -127,7 +127,7 @@ func present(config: Dictionary) -> void:
 	_title_label.text = str(config.get("title", "チュートリアル完了"))
 	_body_label.text = str(config.get("body", ""))
 	_progress_label.text = str(config.get("progress", ""))
-	_footer_label.text = str(config.get("footer", "自動で次へ進みます"))
+	_footer_label.text = str(config.get("footer", "自動で次へ進む"))
 	_auto_seconds = maxf(0.1, float(config.get("duration", 3.0)))
 	# シーンが切り替わらない呼び出し元（2Pコース完了→リザルト）では、
 	# カードが入力を飲み込んだまま残らないよう自分で閉じる。

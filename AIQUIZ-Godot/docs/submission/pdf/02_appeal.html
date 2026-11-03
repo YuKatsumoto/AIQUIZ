@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>TESTOPIA アピール資料</title>
+<!-- 原稿は ../02_appeal_script.md。画像は build.py が img/ に用意する。【】は提出前に埋める印（build.py --final で検査）。
+     数字と単位のあいだは &nbsp; にして、そこで改行されないようにする。 -->
+<link rel="stylesheet" href="deck.css">
+</head>
+<body class="draft">
+
+<!-- p1 表紙 -->
+<section class="slide cover">
+  <img src="img/cover.jpg" alt="">
+  <div class="band">
+    <div>
+      <p class="catch">AIが出す。キミが走る。</p>
+      <p class="meta">小学生向け 3Dクイズランナー<span>｜</span>1人・ローカル2人・オンライン対戦<span>｜</span>Windows</p>
+    </div>
+    <p class="entry">ゲームクリエイター甲子園2026 応募作品<br>審査用資料</p>
+  </div>
+</section>
+
+<!-- p2 30 秒でわかる -->
+<section class="slide">
+  <span class="tag">わかりやすさ</span>
+  <h2 class="title">迫りくる壁の、正解のドアを突き破れ！</h2>
+  <p class="lead">説明を読まなくても、最初の壁で遊び方がわかる。</p>
+  <div class="body row">
+    <div class="col" style="flex:1">
+      <div class="shot" style="height:300px"><img src="img/pv_wall_fall.jpg" alt=""><div class="num">1</div></div>
+      <p class="cap">空から問題の壁が落ちてくる</p>
+    </div>
+    <div class="col" style="flex:1">
+      <div class="shot" style="height:300px"><img src="img/pv_choose.jpg" alt=""><div class="num">2</div></div>
+      <p class="cap">答えのドアを選んで走る</p>
+    </div>
+    <div class="col" style="flex:1">
+      <div class="shot" style="height:300px"><img src="img/pv_bonk.jpg" alt=""><div class="num">3</div></div>
+      <p class="cap">まちがえるとゴツン<small>ハートが 1&nbsp;つ減る</small></p>
+    </div>
+    <div class="col" style="flex:1">
+      <div class="shot" style="height:300px"><img src="img/pv_break.jpg" alt=""><div class="num">4</div></div>
+      <p class="cap">正解のドアを突き破る！</p>
+    </div>
+  </div>
+  <footer class="foot"><img src="img/logo.png" alt="TESTOPIA"><span class="draft-only">下書き 2026-11-01</span><span>2 / 15</span></footer>
+</section>
+
+<!-- p3 問題をつくるのは AI -->
+<section class="slide">
+  <span class="tag">独自性</span>
+  <h2 class="title">問題をつくるのは AI</h2>
+  <p class="lead">学年・教科・難易度を選ぶと、AI がその場で 10&nbsp;問をつくる。</p>
+  <div class="body row">
+    <div class="col" style="flex:0 0 800px">
+      <ul class="pts">
+        <li><b>小1〜小6 × 5&nbsp;教科 × 3&nbsp;つの難易度</b><br>算数・国語・理科・社会・英語（理科・社会・英語は 3〜6&nbsp;年）</li>
+        <li><b>遊ぶたびに、ちがう問題</b><br>出題済みの問題とくらべて、似た問題は出さない</li>
+        <li><b>壁のスピードは、問題ごとに自動で決まる</b><br>文の長さ・学年・計算の手数・プレイヤーの調子から</li>
+      </ul>
+    </div>
+    <div class="col" style="flex:1">
+      <div class="shot" style="height:380px"><img src="img/preload.jpg" alt=""></div>
+      <p class="cap" style="margin-top:12px">準備画面：AI が問題をつくっているところ</p>
+      <div class="ph" style="height:150px;margin-top:auto">【撮影予定】同じ設定で 2&nbsp;回遊んだときの壁を並べて「毎回ちがう」を見せる</div>
+    </div>
+  </div>
+  <footer class="foot"><img src="img/logo.png" alt="TESTOPIA"><span class="draft-only">下書き 2026-11-01</span><span>3 / 15</span></footer>
+</section>
+
+<!-- p4 問題生成ライン：運用の管理ソフト（aiquiz-ops）の「生成ライン」の図を、審査用にロゴを入れて描き直したもの。
+     ロゴは TESTOPIA（自作）と、Google の公式素材の Cloud Run・Firebase だけ（logos/README.md）。Gemini と Claude は名前の札にする。
+     数字は 2026-11-01 に管理ソフトで見た値。箱の座標は deck.css の .pipe の説明を見る。 -->
+<section class="slide">
+  <span class="tag">独自性・突き詰め</span>
+  <h2 class="title">問題生成ライン<small>その場でつくり、毎晩たしかめて、みんなに届ける</small></h2>
+  <div class="pipe">
+    <div class="night"></div>
+    <div class="lane day">試合ごと</div>
+    <div class="lane nightly">毎晩</div>
+    <svg viewBox="0 0 1712 720" aria-hidden="true">
+      <defs>
+        <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#0b1630"/></marker>
+        <marker id="ah-ops" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#7b61d1"/></marker>
+      </defs>
+      <g fill="none" stroke="#0b1630" stroke-width="5" marker-end="url(#ah)">
+        <path d="M346 100H402"/><path d="M688 100H744"/><path d="M1030 100H1086"/><path d="M1372 100H1428"/>
+        <path d="M1572 202V276"/>
+        <path d="M1430 380H1374"/><path d="M1088 380H1032"/><path d="M746 380H690"/><path d="M404 380H348"/>
+        <path d="M204 278V204"/>
+        <path d="M888 482V524"/><path d="M1230 526V484"/>
+      </g>
+      <path d="M546 526V486" fill="none" stroke="#7b61d1" stroke-width="4" stroke-dasharray="9 7" marker-end="url(#ah-ops)"/>
+    </svg>
+
+    <!-- 試合ごと（左から右へ） -->
+    <div class="pn k-pc" style="left:64px;top:0">
+      <div class="who"><span class="tlogo"><img src="img/logo.png" alt="TESTOPIA"></span></div>
+      <b>試合開始</b>
+      <p>学年・教科・難易度を選ぶ<br>新作は 10&nbsp;問中 N&nbsp;問</p>
+    </div>
+    <div class="pn k-srv" style="left:406px;top:0">
+      <div class="who"><img class="icon" src="logos/cloud-run.svg" alt=""><span class="name">Cloud Run</span></div>
+      <b>関所（サーバー）</b>
+      <p>月の予算の進み具合で<br>新作の数 N を決める<br>AI の鍵はここだけ</p>
+    </div>
+    <div class="pn k-gem" style="left:748px;top:0">
+      <div class="who"><span class="chip">Gemini 3.6 Flash</span></div>
+      <b>新作をつくる</b>
+      <p>143&nbsp;単元の設計図で、<br>6&nbsp;本同時に 24&nbsp;候補</p>
+    </div>
+    <div class="pn k-pc" style="left:1090px;top:0">
+      <div class="who"><span class="tlogo"><img src="img/logo.png" alt="TESTOPIA"></span></div>
+      <b>端末でチェック</b>
+      <p>形式・重複・偏りを検査<br>正解を伏せて<br>Gemini が解き直す</p>
+    </div>
+    <div class="pn k-pc" style="left:1432px;top:0">
+      <b>出題（壁）</b>
+      <div class="thumb"><img src="img/wall_thumb.jpg" alt=""></div>
+      <p>解説も AI が書く</p>
+    </div>
+
+    <!-- 毎晩（右から左へ） -->
+    <div class="pn k-pc" style="left:1432px;top:280px">
+      <div class="who"><span class="tlogo"><img src="img/logo.png" alt="TESTOPIA"></span></div>
+      <b>候補として送る</b>
+      <p>つくった問題と<br>「良い・悪い」の評価を<br>通信の合間に送る</p>
+    </div>
+    <div class="pn k-db" style="left:1090px;top:280px">
+      <b>判定待ち</b>
+      <p>試合と補充の問題が並ぶ<br>「悪い」がつけばすぐ外し<br>「良い」が多い順に判定へ</p>
+    </div>
+    <div class="pn k-cl" style="left:748px;top:280px">
+      <div class="who"><span class="chip">Claude Opus 5.5</span></div>
+      <b>毎晩 4:00 判定</b>
+      <p>正解を伏せて解き直し、<br>合えば合格<br>これまでの合格率 <strong>89.1%</strong></p>
+    </div>
+    <div class="pn k-db" style="left:406px;top:280px">
+      <div class="who"><img class="icon" src="logos/firebase-logomark.svg" alt=""><span class="name">Firebase</span></div>
+      <b>共有バンク</b>
+      <p>いま <strong>16,663&nbsp;問</strong><br>うち 4,456&nbsp;問は試合から<br>変わった分を各端末へ</p>
+    </div>
+    <div class="pn k-pc" style="left:64px;top:280px">
+      <div class="who"><span class="tlogo"><img src="img/logo.png" alt="TESTOPIA"></span></div>
+      <b>ストック</b>
+      <p>共有バンク → 端末の問題<br>→ 同梱の 12,601&nbsp;問<br>AI が止まっても続く</p>
+    </div>
+
+    <!-- 下の段 -->
+    <div class="pn k-ops low wide" style="left:64px;top:528px">
+      <b>見守る：自作の管理ソフト</b>
+      <p>費用・判定・在庫を毎分たしかめる。<br>端末のブロックや、問題の取り下げもここから</p>
+    </div>
+    <div class="pn k-off low" style="left:748px;top:528px">
+      <b>使わない</b>
+      <p><strong>2,189&nbsp;問</strong><br>不合格や「悪い」の問題</p>
+    </div>
+    <div class="pn k-cl low wide" style="left:1090px;top:528px">
+      <div class="who"><span class="chip">Claude Haiku 5.5</span><b>毎晩 3:00 補充</b></div>
+      <p>足りない区分（教科×学年×難易度）の問題をつくる<br>共有バンクの 12,207&nbsp;問がここから</p>
+    </div>
+
+    <span class="pl" style="left:355px;top:56px">N&nbsp;問</span>
+    <span class="pl" style="left:218px;top:226px">のこり 10−N&nbsp;問</span>
+    <span class="pl" style="left:1446px;top:226px">つくった問題</span>
+    <span class="pl" style="left:1041px;top:334px">判定</span>
+    <span class="pl" style="left:699px;top:334px">合格</span>
+    <span class="pl" style="left:357px;top:334px">同期</span>
+    <span class="pl" style="left:900px;top:490px">不合格</span>
+    <span class="pl" style="left:1242px;top:490px">足りない区分</span>
+    <span class="pl ops" style="left:558px;top:490px">外す・戻す</span>
+
+    <div class="src"><span>数字は 2026&nbsp;年 11&nbsp;月 1&nbsp;日時点（自作の管理ソフトより）</span><span>Gemini・Cloud Run・Firebase は Google LLC の、Claude は Anthropic, PBC の商標です</span></div>
+  </div>
+  <footer class="foot"><img src="img/logo.png" alt="TESTOPIA"><span class="draft-only">下書き 2026-11-01</span><span>4 / 15</span></footer>
+</section>
+
+<!-- p5 3 つの守り -->
+<section class="slide">
+  <span class="tag">突き詰め・完成度</span>
+  <h2 class="title">止まらない・かぶらない・まちがえない</h2>
+  <p class="lead">子どもが遊ぶゲームで、AI の問題を安心して出すための 3&nbsp;つの守り。</p>
+  <div class="body col">
+    <div class="row" style="flex:1">
+      <div class="card col" style="flex:1">
+        <span class="k" style="background:#4a5672;align-self:flex-start">止まらない</span>
+        <ul class="pts">
+          <li>AI → 共有バンク → 端末の問題 → 同梱の 12,601&nbsp;問 → 自動の計算問題の順に切り替える</li>
+          <li>生成は 30&nbsp;秒で打ち切り、届いた問題で先へ進む</li>
+          <li>月の予算の進み具合で、新しくつくる数（10&nbsp;問中 0〜10）をサーバーが決め、残りはストックで埋める</li>
+        </ul>
+      </div>
+      <div class="card col" style="flex:1">
+        <span class="k" style="background:var(--blue);align-self:flex-start">かぶらない</span>
+        <ul class="pts">
+          <li>これまでの問題（最大&nbsp;1000&nbsp;件）と同じ問題は出さない。同じ単元をずっと禁止にはしない</li>
+          <li>同じ設定の直近 2&nbsp;回とは、数字を変えただけ・言い換えただけの問題も外す</li>
+          <li>1&nbsp;回の 10&nbsp;問の中でも似た問題を外し、同じジャンルは 2&nbsp;問まで</li>
+        </ul>
+      </div>
+      <div class="card col" style="flex:1">
+        <span class="k" style="background:var(--red);align-self:flex-start">まちがえない</span>
+        <ul class="pts">
+          <li>問題 60&nbsp;字・選択肢 20&nbsp;字以内、2&nbsp;択か 4&nbsp;択、選択肢の重複なし</li>
+          <li>正解を伏せ、別の AI 呼び出し（温度&nbsp;0.1）で解き直す</li>
+          <li>答えが合わない・学年に合わない問題は、直さずに外す</li>
+        </ul>
+      </div>
+    </div>
+    <div class="rule" style="margin-top:26px;background:var(--green)"><span style="flex:none">よくなる</span><span style="font-weight:600">プレイヤーと AI の「良い / 悪い」を集め、「悪い」はすぐ外して次の問題づくりでも避け、<br>「良い」が多い問題から Claude が先に判定する</span></div>
+  </div>
+  <footer class="foot"><img src="img/logo.png" alt="TESTOPIA"><span class="draft-only">下書き 2026-11-01</span><span>5 / 15</span></footer>
+</section>
+
+<!-- p6 子どもに安心して出せる工夫 -->
+<section class="slide">
+  <span class="tag">完成度</span>
+  <h2 class="title">学年に合った問題を、安全に</h2>
+  <p class="lead">子どもが遊ぶことを前提に、問題・名前・費用の 3&nbsp;つを守る。</p>
+  <div class="body row">
+    <div class="card col" style="flex:1">
+      <span class="k" style="background:var(--teal);align-self:flex-start">問題</span>
+      <p>学年ごとの単元・考え方・よくある間違いを AI に渡す。正解は別の AI 呼び出しで確かめ、全問に解説をつける。</p>
+      <div class="shot contain" style="height:260px;margin-top:auto"><img src="img/result_card.jpg" alt=""></div>
+    </div>
+    <div class="card col" style="flex:1">
+      <span class="k" style="background:var(--blue);align-self:flex-start">名前</span>
+      <p>オンラインの名前は 12&nbsp;文字まで、NG ワードを検査。サイコロで決める二つ名（5000&nbsp;通り以上）でも遊べる。</p>
+      <div class="shot" style="height:260px;margin-top:auto"><img src="img/online_home.jpg" alt="" style="object-position:0% 20%"></div>
+    </div>
+    <div class="card col" style="flex:1">
+      <span class="k" style="background:var(--green);align-self:flex-start">費用</span>
+      <p>AI の鍵はゲームに置かず、自前のサーバーで 1&nbsp;日・1&nbsp;台ごとの使用量を管理する。</p>
+      <div class="mini" style="margin-top:auto">
+        <div class="pill">ゲーム</div>
+        <div class="down"></div>
+        <div class="pill strong">自前のサーバー<small>AI の鍵・1&nbsp;日と 1&nbsp;台ごとの上限</small></div>
+        <div class="down"></div>
+        <div class="pill">AI（Gemini）</div>
+        <div class="ok">上限に達しても、用意した問題で続けられる</div>
+      </div>
+    </div>
+  </div>
+  <footer class="foot"><img src="img/logo.png" alt="TESTOPIA"><span class="draft-only">下書き 2026-11-01</span><span>6 / 15</span></footer>
+</section>
+
+<!-- p7 1 ゲームの流れ -->
+<section class="slide">
+  <span class="tag">わかりやすさ・成立</span>
+  <h2 class="title">準備 → 10&nbsp;問 → ボス壁 → ふりかえり</h2>
+  <div class="body high col">
+    <div class="row" style="gap:0;align-items:flex-start">
+      <div class="col" style="flex:1">
+        <div class="shot" style="height:290px"><img src="img/preload_done.jpg" alt=""><div class="num">1</div></div>
+        <p class="cap">AI が 10&nbsp;問を準備<small>そろうまでの進み具合を見せる</small></p>
+      </div>
+      <div class="flow" style="flex:0 0 64px;align-self:flex-start;margin-top:123px"><div class="arrow" style="flex:0 0 64px;height:44px"></div></div>
+      <div class="col" style="flex:1">
+        <div class="shot" style="height:290px"><img src="img/wall_q.jpg" alt=""><div class="num">2</div></div>
+        <p class="cap">2&nbsp;択の壁を 9&nbsp;つ<small>正解のドアを突き破って進む</small></p>
+      </div>
+      <div class="flow" style="flex:0 0 64px;align-self:flex-start;margin-top:123px"><div class="arrow" style="flex:0 0 64px;height:44px"></div></div>
+      <div class="col" style="flex:1">
+        <div class="shot" style="height:290px"><img src="img/boss.jpg" alt=""><div class="num">3</div></div>
+        <p class="cap">10&nbsp;問目は 4&nbsp;択のボス壁<small>大きな壁を最後に突破</small></p>
+      </div>
+      <div class="flow" style="flex:0 0 64px;align-self:flex-start;margin-top:123px"><div class="arrow" style="flex:0 0 64px;height:44px"></div></div>
+      <div class="col" style="flex:1">
+        <div class="shot contain" style="height:290px"><img src="img/result_card.jpg" alt=""><div class="num">4</div></div>
+        <p class="cap">ふりかえり<small>正答率・連続正解・タイム・解説</small></p>
+      </div>
+    </div>
+    <div class="rule" style="margin-top:auto"><span class="hearts">♥♥♥</span><span>ハートは 3&nbsp;つ。不正解のドアと壁で 1&nbsp;つ減り、0 になるか海に落ちると脱落。</span></div>
+  </div>
+  <footer class="foot"><img src="img/logo.png" alt="TESTOPIA"><span class="draft-only">下書き 2026-11-01</span><span>7 / 15</span></footer>
+</section>
+
+<!-- p8 2 人で遊ぶ -->
+<section class="slide">
+  <span class="tag">面白さ・成立</span>
+  <h2 class="title">答えで競って、体でぶつかる</h2>
+  <p class="lead">ローカル 2&nbsp;人プレイは、1&nbsp;台のキーボードで。</p>
+  <div class="body row">
+    <div class="col" style="flex:1">
+      <div class="shot" style="height:330px"><img src="img/push.jpg" alt=""></div>
+      <p class="cap">押し合い<small>相手のほうへ踏ん張って、一押し</small></p>
+    </div>
+    <div class="col" style="flex:1">
+      <div class="shot" style="height:330px"><img src="img/saw.jpg" alt=""></div>
+      <p class="cap">8&nbsp;連チップソー<small>遅れると、後ろの刃に巻き込まれる</small></p>
+    </div>
+    <div class="col" style="flex:1">
+      <div class="shot" style="height:330px"><img src="img/ghost.jpg" alt="" style="object-position:40% 50%"></div>
+      <p class="cap">ゴーストシャーク<small>脱落した人は、サメに乗って相手を狙う</small></p>
+    </div>
+    <div class="col" style="flex:1">
+      <div class="shot" style="height:330px"><img src="img/pv_tower.jpg" alt=""></div>
+      <p class="cap">スコアタワー<small>正解数と残りのハートで点数が決まる</small></p>
+    </div>
+  </div>
+  <footer class="foot"><img src="img/logo.png" alt="TESTOPIA"><span class="draft-only">下書き 2026-11-01</span><span>8 / 15</span></footer>
+</section>
+
+<!-- p9 オンライン対戦 -->
+<section class="slide">
+  <span class="tag">面白さ・完成度</span>
+  <h2 class="title">はなれていても、同じ壁に挑む</h2>
+  <p class="lead">オンライン対戦は、ランダムマッチとともだちコードの 2&nbsp;つ。</p>
+  <div class="body row">
+    <div class="col" style="flex:0 0 680px">
+      <ul class="pts small">
+        <li><b>ランダムマッチ</b><br>同じ教科・学年の近い相手を探す（20&nbsp;秒で条件を広げる）</li>
+        <li><b>ともだちと あそぶ</b><br>5&nbsp;文字のコードで待ち合わせ</li>
+        <li><b>ヘリで合流して VS</b><br>乗り込み → 離陸 → 合流 → VS カットイン</li>
+        <li><b>なめらかな通信</b><br>ホストが判定し、相手は予測と補間で動く。切れても再接続</li>
+      </ul>
+    </div>
+    <div class="col" style="flex:1">
+      <div class="row" style="gap:28px">
+        <div class="col" style="flex:1"><div class="shot" style="height:240px"><img src="img/online_home.jpg" alt=""></div><p class="cap" style="font-size:23px;margin-top:10px">トップ：教科と学年を選ぶ</p></div>
+        <div class="col" style="flex:1"><div class="shot" style="height:240px"><img src="img/online_friend.jpg" alt=""></div><p class="cap" style="font-size:23px;margin-top:10px">ともだちコード</p></div>
+      </div>
+      <div class="row" style="gap:28px;margin-top:22px">
+        <div class="col" style="flex:1"><div class="shot" style="height:240px"><img src="img/online_heli.jpg" alt=""></div><p class="cap" style="font-size:23px;margin-top:10px">ヘリで合流</p></div>
+        <div class="col" style="flex:1"><div class="shot" style="height:240px"><img src="img/online_vs.jpg" alt=""></div><p class="cap" style="font-size:23px;margin-top:10px">VS カットイン</p></div>
+      </div>
+    </div>
+  </div>
+  <footer class="foot"><img src="img/logo.png" alt="TESTOPIA"><span class="draft-only">下書き 2026-11-01</span><span>9 / 15</span></footer>
+</section>
+
+<!-- p10 さわって気持ちいい -->
+<section class="slide">
+  <span class="tag">プレイ体感</span>
+  <h2 class="title">突き破る手ごたえ</h2>
+  <p class="lead">体の物理と、壊れる壁。ぶつかるのも、突き破るのも気持ちいい。</p>
+  <div class="body row">
+    <div class="col" style="flex:0 0 1000px">
+      <div class="shot" style="height:560px"><img src="img/pv_break.jpg" alt=""></div>
+      <p class="cap">正解のドアは、物理の破片になって砕ける</p>
+    </div>
+    <div class="col" style="flex:1">
+      <ul class="pts small">
+        <li><b>アクティブラグドール</b><br>体の物理で走り、ぶつかるとのけぞる</li>
+        <li><b>壊れる壁</b><br>壁の合体で火花、クリアで花火</li>
+        <li><b>効果音</b><br>正解・不正解・ハート・カウントダウン</li>
+      </ul>
+      <div class="row" style="gap:20px;margin-top:auto">
+        <div class="col" style="flex:1"><div class="shot" style="height:170px"><img src="img/pv_bonk.jpg" alt=""></div><p class="cap" style="font-size:22px;margin-top:8px">まちがえるとゴツン</p></div>
+        <div class="col" style="flex:1"><div class="shot" style="height:170px"><img src="img/pv_wall_fall.jpg" alt=""></div><p class="cap" style="font-size:22px;margin-top:8px">壁の合体の火花</p></div>
+      </div>
+    </div>
+  </div>
+  <footer class="foot"><img src="img/logo.png" alt="TESTOPIA"><span class="draft-only">下書き 2026-11-01</span><span>10 / 15</span></footer>
+</section>
+
+<!-- p11 迷わず始められる -->
+<section class="slide">
+  <span class="tag">わかりやすさ</span>
+  <h2 class="title">説明書いらずのチュートリアル</h2>
+  <p class="lead">1P 実践コース（約 3&nbsp;分）と、ローカル 2P 実践コース（約 6&nbsp;分）。</p>
+  <div class="body row">
+    <div class="col" style="flex:1">
+      <div class="shot" style="height:340px"><img src="img/tut_keyboard.jpg" alt=""><div class="num">1</div></div>
+      <p class="cap">使うキーを 1&nbsp;画面で<small>キーボードの絵で、押すキーを示す</small></p>
+    </div>
+    <div class="col" style="flex:1">
+      <div class="shot" style="height:340px"><img src="img/tut_keys3d.jpg" alt=""><div class="num">2</div></div>
+      <p class="cap">押すキーを頭の上に 3D で<small>体を動かしながら 1&nbsp;つずつ覚える</small></p>
+    </div>
+    <div class="col" style="flex:1">
+      <div class="shot" style="height:340px"><img src="img/tut_hatena.jpg" alt=""><div class="num">3</div></div>
+      <p class="cap">ハテナが本物のメニューで案内<small>カスタマイズの画面を光らせて紹介</small></p>
+    </div>
+  </div>
+  <footer class="foot"><img src="img/logo.png" alt="TESTOPIA"><span class="draft-only">下書き 2026-11-01</span><span>11 / 15</span></footer>
+</section>
+
+<!-- p12 作り込み -->
+<section class="slide">
+  <span class="tag">突き詰め・完成度</span>
+  <h2 class="title">ステージまるごと、遊びの舞台に</h2>
+  <div class="body high col">
+    <div class="row" style="gap:28px">
+      <div class="col" style="flex:1"><div class="shot" style="height:262px"><img src="img/crowd.jpg" alt=""></div><p class="cap" style="font-size:24px;margin-top:10px">試合に合わせて動く観客</p></div>
+      <div class="col" style="flex:1"><div class="shot" style="height:262px"><img src="img/pv_heli.jpg" alt=""></div><p class="cap" style="font-size:24px;margin-top:10px">ヘリのお迎え</p></div>
+      <div class="col" style="flex:1"><div class="shot" style="height:262px"><img src="img/pv_logo.jpg" alt=""></div><p class="cap" style="font-size:24px;margin-top:10px">ベルトコンベアで組み立つタイトルロゴ</p></div>
+    </div>
+    <div class="row" style="gap:28px;margin-top:26px">
+      <div class="col" style="flex:1"><div class="shot" style="height:262px"><img src="img/goal.jpg" alt=""></div><p class="cap" style="font-size:24px;margin-top:10px">ゴールで待つハテナ</p></div>
+      <div class="col" style="flex:1"><div class="shot" style="height:262px"><img src="img/custom.jpg" alt="" style="object-position:50% 10%"></div><p class="cap" style="font-size:24px;margin-top:10px">帽子とエモートで、自分だけのキャラに</p></div>
+      <div class="col" style="flex:1"><div class="shot" style="height:262px"><img src="img/pv_end.jpg" alt=""></div><p class="cap" style="font-size:24px;margin-top:10px">海の上のスタジアム</p></div>
+    </div>
+  </div>
+  <footer class="foot"><img src="img/logo.png" alt="TESTOPIA"><span class="draft-only">下書き 2026-11-01</span><span>12 / 15</span></footer>
+</section>
+
+<!-- p13 どう作ったか -->
+<section class="slide">
+  <span class="tag">突き詰め</span>
+  <h2 class="title">つくる → 撮って確かめる → 直す</h2>
+  <p class="lead">ゲームを動かして画面を撮り、前と後をくらべてから次へ進む。</p>
+  <!-- 最初のころの版（コミット 64ca140・2026-04-11）と今の版を、同じ手順で撮って並べる。撮り方は artifacts/submission_p13/README.md -->
+  <div class="evo">
+    <div class="lane">メニュー</div>
+    <div class="shot"><img src="img/menu_before.jpg" alt=""><p class="label"><b>2026&nbsp;年 4&nbsp;月</b>文字だけのメニュー</p></div>
+    <div class="arrow">→</div>
+    <div class="shot"><img src="img/menu_after.jpg" alt="" style="object-position:50% 0%"><p class="label"><b>いま</b>後ろで試合が動くメニュー</p></div>
+    <div class="lane">ステージ</div>
+    <div class="shot"><img src="img/stage_before.jpg" alt="" style="object-position:50% 35%"><p class="label"><b>2026&nbsp;年 4&nbsp;月</b>マグマの上の灰色の台</p></div>
+    <div class="arrow">→</div>
+    <div class="shot"><img src="img/stage_after.jpg" alt=""><p class="label"><b>いま</b>海の上のスタジアムとベルトコンベア</p></div>
+  </div>
+  <footer class="foot"><img src="img/logo.png" alt="TESTOPIA"><span class="draft-only">下書き 2026-11-01</span><span>13 / 15</span></footer>
+</section>
+
+<!-- p14 AI との分担 -->
+<section class="slide">
+  <span class="tag">AI の使用箇所</span>
+  <span class="badge draft-only">下書き：実際の作り方に合わせて直す</span>
+  <h2 class="title" style="font-size:60px">AI は道具。決めて、確かめて、直したのは自分たち</h2>
+  <div class="body high" style="top:250px">
+    <table class="split">
+      <thead><tr><th>分野</th><th>自分たちが決めた・確かめた・直したこと</th><th>AI に任せたこと</th></tr></thead>
+      <tbody>
+        <tr><td>企画・ルール</td><td>「壁の正解のドアを突き破る」遊び。ハート・押し合い・チップソーなどのルール、対象の学年と教科</td><td>―</td></tr>
+        <tr><td>問題</td><td>出題の範囲と禁止事項、検査と重複を除く決まり、問題の評価</td><td>ゲーム中の問題・解説・正解の確認（Gemini）。共有バンクの判定と補充（Claude）。内蔵の問題の多く（Claude・Gemini）</td></tr>
+        <tr><td>プログラム</td><td>仕様と設計（設計メモ）、動作の確認、直す点の指示</td><td>コードの多く（Claude Code・Cursor・Codex など）</td></tr>
+        <tr><td>3D・動き</td><td>形・寸法・見た目・演出を決め、画面で確かめる</td><td>Blender で組み立てるスクリプト（3D の生成 AI は使っていない）</td></tr>
+        <tr><td>音</td><td>曲の選定と要望（テンポ・音の数）、ループの切り出しと音量</td><td>BGM 6&nbsp;曲（Suno）</td></tr>
+        <tr><td>画像</td><td>看板とプラカードの使い方、プラカードの手描きの文字</td><td>火花・GOAL の看板・看板の下地・プラカードの絵</td></tr>
+        <tr><td>文章</td><td>台詞の方向づけ（「もっと大人向けに」など）と直し</td><td>チュートリアルとハテナの台詞の下書き（Claude）</td></tr>
+        <tr><td>PV・サムネイル</td><td>カットと構図を決めてゲームで撮影。サムネイルは Blender で描き直し</td><td>構図の案（画像生成）、PV の曲（Suno）</td></tr>
+      </tbody>
+    </table>
+    <p style="margin:14px 0 0;font-size:22px;color:var(--muted)">くわしくは「05_外部素材とAIの使用箇所」へ。算数の 2,262&nbsp;問は AI を使わない自動生成。</p>
+  </div>
+  <footer class="foot"><img src="img/logo.png" alt="TESTOPIA"><span class="draft-only">下書き 2026-11-01</span><span>14 / 15</span></footer>
+</section>
+
+<!-- p15 これから -->
+<section class="slide">
+  <span class="tag">展望</span>
+  <h2 class="title">教室でも、スマホでも</h2>
+  <p class="lead">遊びながら学べる場所を、もっと広げたい。</p>
+  <div class="body row">
+    <div class="col" style="flex:0 0 820px">
+      <ul class="pts">
+        <li><b>Android 版の試作</b><br>タッチ操作（仮想スティックとボタン）と、折りたたみスマホの画面に対応して動いている</li>
+        <li><b>教室での利用</b><br>AI の使用量の上限は「1&nbsp;回線で 40&nbsp;人 × 2〜3&nbsp;クラス」でも止まらない設計</li>
+      </ul>
+      <p class="catchline"><img src="img/logo.png" alt="TESTOPIA">AIが出す。キミが走る。</p>
+    </div>
+    <div class="col" style="flex:1"><div class="ph" style="height:100%">【撮影予定】Android の実機で遊んでいるところ</div></div>
+  </div>
+  <footer class="foot"><img src="img/logo.png" alt="TESTOPIA"><span class="draft-only">下書き 2026-11-01</span><span>15 / 15</span></footer>
+</section>
+
+<script>
+  // #only=N：N ページだけを表示（build.py の確認用の撮影）。#final：書きかけの印を消す
+  (function () {
+    var only = location.hash.match(/only=(\d+)/);
+    if (only) {
+      document.body.classList.add("solo");
+      var slides = document.querySelectorAll(".slide");
+      var i = parseInt(only[1], 10) - 1;
+      if (slides[i]) slides[i].classList.add("on");
+    }
+    if (location.hash.indexOf("final") >= 0) {
+      document.body.classList.remove("draft");
+      document.body.classList.add("final");
+    }
+  })();
+</script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+{
+ "t8_blender": {
+  "logo_x": 14,
+  "logo_w": 1120,
+  "zone_blur": 2.0,
+  "zone_shade": 0.1,
+  "zone_end": 0.57,
+  "logo_y": 382
+ }
+}

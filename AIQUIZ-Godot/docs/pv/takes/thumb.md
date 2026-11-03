@@ -106,6 +106,23 @@ ThumbnailCameraTuner.cmd t5 63 ultra cam=7.3,1.1,-12,3.4,2.57,1.44,42   # 前に
   この `cam=`・`dof=`・`only=` を撮影の本番の引数に足す（`take=thumb shot=t5 quality=ultra sub=8 png tag=thumb_t5_sub8 only=63 cam=… dof=…`）。
 - 確かめ方：`selftest=1` を付けると、止めたあと本物の入力イベント（ドラッグ・ホイール・キー）を順に流して値の変化を出力し、終わる。
 
+## ロゴを自分で置く（`LogoTuner.cmd`、2026-10-31）
+
+仕上げた絵の上でタイトルロゴをマウスで動かして決める道具（台本は `docs/pv/thumbnail/logo_tuner.py`）。
+
+```
+LogoTuner.cmd                 # t8_blender（既定）
+LogoTuner.cmd t5_blender      # 書き出す絵の名前（final/ の名前）
+```
+
+- 操作：左ドラッグ 動かす（上下の真ん中に吸い付く。Shift で吸い付かない）／ホイール 大きさ（Shift でこまかく。ロゴの真ん中は動かない）／
+  矢印 1 px（Shift で 10 px）／つまみ ロゴの下の暗さ・ぼかし・暗さが消える位置（オレンジの線）／G ガイド／S 小さく表示（384 px）／
+  R 開いたときの値／Ctrl+S 保存。
+- 保存すると `docs/pv/thumbnail/logo_layout.json` に値を書き、`final/<名前>.png`・`.jpg` を書き直す（描き直しは要らない）。
+  `finish.py` と `compose.py` もこの値を使うので、描き直したあとも同じ位置になる。
+- 道具が見る絵は、ロゴを重ねる前の `final/_base/<名前>.png`。`finish.py`・`compose.py ... final` が仕上げるたびに書く
+  （まだ無い名前は、先に一度仕上げを動かす）。
+
 ## t8（肩タックルで扉を突き破る。ゲーム内撮影版、2026-10-31）
 
 ユーザーが画角調整ツールで選んだ t5 の 76 フレーム（壁の向こう、P1 の正面の床から 1.8 m・縦 120° の広角）に、Codex の絵コンテ
@@ -127,27 +144,37 @@ Godot_v4.7.2-stable_win64_console.exe --path . --resolution 1920x1080 --fixed-fp
 python -c "import sys; sys.path.insert(0, 'docs/pv/thumbnail'); import finish; finish.finish('t8', 76)"
 ```
 
-## 残りの 4 枚（PV のコマから、2026-10-31）
+## 作品ページのサムネイル 2〜5 枚目（実機の撮影から、2026-11-02）
 
-1〜3 枚目は通しの PV（`docs/pv/previz/v6/PV_full_720p.mp4`）のテロップが出ているコマ、4 枚目は勝利のコマ。
-台本：`docs/pv/thumbnail/pv_stills.py`。できあがり：`docs/pv/thumbnail/final/pv_1_ai`・`pv_2_wall`・`pv_3_shark`・`pv_4_win`
-（.jpg と .png、1920×1080。並べたものは `final/_pv_stills.jpg`）。
+応募フォームの「サムネイル画像 2〜5」（作品掲載ページで使う。16:9・100MB 以下・JPG か PNG、1920×1080 推奨）。1 枚目は `final/t8_blender`。
+2〜5 枚目は遊びの中身を 1 枚に 1 つずつ見せる。台本：`docs/pv/thumbnail/pv_stills.py`。
+できあがり：`docs/pv/thumbnail/final/thumb2_wall`・`thumb3_subjects`・`thumb4_shark`・`thumb5_online`（.jpg と .png、1920×1080）、
+テロップ無しの `*_clean`、1 枚目と並べたもの `final/_thumbs_2to5.jpg`。
+（10/31 に 720p の PV から作った版 `pv_1_ai` などは、ファイルが残っていなかったので作り直した。）
 
-| | PV のフレーム | 中身 |
+| | 絵 | テロップ |
 |---|---|---|
-| 1 | 2001（S06） | 「AIが毎回違う問題を作る」：準備画面 9/10、空で壁ができていくところ |
-| 2 | 2728（S09） | 「迫りくる壁の問題に答えよう！」：壁が目の前で 2 人が扉を選ぶ |
-| 3 | 3678（S09） | 「脱落した人は、サメに乗って相手を狙う」：サメに乗った P2 が P1 を襲う |
-| 4 | 4568（S21） | スコアタワーの「P1 WIN!」（王冠・紙吹雪・光の筋） |
+| 2 | s09_play の 1102 コマ目（1 問目。P1 は青い扉、P2 は赤い扉へ。ゲームの画面そのまま、HUD あり） | 迫りくる壁の[問題に答えよう！] ／ 正解のドアを突き破れ！ |
+| 3 | s06_s07 の S07 の 6 問（370・425・480・535・590・650 コマ目）を 3×2 に並べる。教科と学年の札はカードの上の縁に | [小1〜小6]の5教科から出題！ ／ 学年に合わせて、AIが問題を作る |
+| 4 | s09_play の 4759 コマ目（脱落した P2 がサメに乗って P1 を襲う。後ろは 10 問目の 4 択のボス壁） | 脱落した人は、[サメに乗って相手を狙う] |
+| 5 | オンライン対戦の VS カットイン（下の `take=thumbvs`。相手は「プリン好きの大根」・海賊帽） | [オンライン対戦]で勝負！ |
 
-- PV の 1080p の書き出しと撮影の連番は残っておらず、After Effects もこの PC に無いので、720p のコマを Lanczos で 1080p へ拡大し、
-  輪郭を少し締めた。1080p の通し（`PV_full.mp4`）が手に入れば `src=` で渡すと拡大せずに作り直せる。
-- 3 枚目：テロップが出ているあいだ（3460〜3642）はサメが遠くに小さいだけで、襲うのは消えた直後（3665〜）。襲うコマに同じテロップを
-  `pv_telop.jsxinc` の決まりで描き直して重ねた。AE は仮名を詰めて組むので、字間・上下の位置・影の濃さは PV 2728 のテロップに合わせた
-  （黄色い字の箱が 1〜2 px でそろう）。
-- 応募の上限（2MB）に収まるのは .jpg（370〜610 KB）。.png の `pv_4_win` は約 2.0 MB でぎりぎりなので .jpg を使う。
+- 絵は PV のテロップの無い撮影の連番（`artifacts/pv_capture/*_frames/`。1920×1080・本番画質）から取る。PV の動画から抜くより鮮明。
+- テロップは `pv_telop.jsxinc` の決まりで描き直した。AE は仮名と約物を詰めて組むので、仮名・約物は字形の幅に左右 0.055 em を足して送る
+  （「迫りくる壁の問題に答えよう！」が PV 2720 と同じ幅 約 1063 px になる）。位置は PV 2720・2150 の書き出しを測った値
+  （上の真ん中の本文は字の上端が y 約 97、補足の帯は y 214〜266）。5 枚目だけ、2 人の帽子に重ならないよう本文を上へ寄せた。
+- 3 枚目の 6 問は、S07 の撮影と同じく内蔵の問題集（`offline_bank.json`。AI が作った問題）から。
+- 使っていないもの：スコアタワーの勝利（S21）は看板の「AIQUIZ STADIUM」（旧タイトル）が大きく写る。S06 の準備画面は、問題の届く時刻を
+  台本で再現したもの（審査用のスクリーンショットと同じ扱い）。
 
 ```
-python docs/pv/thumbnail/pv_stills.py                    # 書き出し
-python docs/pv/thumbnail/pv_stills.py shark=3675 win=4578  # コマを変える
+Godot_v4.7.2-stable_win64_console.exe --path . --resolution 1920x1080 --script res://tests/pv_capture/pv_take_bootstrap.gd -- take=thumbvs
+python docs/pv/thumbnail/pv_stills.py                                              # 書き出し
+python docs/pv/thumbnail/pv_stills.py wall=1090 shark=4762 online=vs_05_cutin_hold   # コマを変える
 ```
+
+- VS カットインの台本 `tests/pv_capture/pv_thumbvs_runtime.gd`：本物のオンラインメニュー（`ui/online_menu.tscn`）で、L キー（デバッグ版の
+  仮の相手とのマッチ）と同じ手順を踏み、相手の名前と帽子だけを決める（`them=`・`hat=`）。通信はしない（リレーは閉じたアドレス）。
+  `artifacts/pv_capture/thumb_vs/vs_NN_<状態>.png` に保存する（ultra で約 0.5 秒おき、カットインの入り → 待ち → ゲーム画面への切り替え中）。
+  `vs_06` 以降は「じゅんびOK！」で 2 人の姿勢が止まる。自分の名前・帽子・スキンはこの PC の設定のまま（撮ったときは「キラキラペガサス」・角帽）。
+  撮影のあいだは `user://settings.json` を使わない（画質を ultra にしても書き換えない）。

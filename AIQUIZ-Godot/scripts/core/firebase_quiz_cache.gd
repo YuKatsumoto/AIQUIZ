@@ -401,6 +401,7 @@ func _is_valid_cache_item(item: Dictionary) -> bool:
 	if difficulty not in ["簡単", "普通", "難しい"]:
 		return false
 	var seen: Dictionary = {}
+	var choice_texts := PackedStringArray()
 	for choice: Variant in choices:
 		var text := str(choice).strip_edges()
 		if text.is_empty() or text.length() > 20 or text.contains("�"):
@@ -409,7 +410,9 @@ func _is_valid_cache_item(item: Dictionary) -> bool:
 		if seen.has(normalized):
 			return false
 		seen[normalized] = true
-	return true
+		choice_texts.append(text)
+	# 学年外の漢字を使った問題は、受け取らず送りもしない
+	return KanjiGrade.over_grade_in_quiz(q, choice_texts, grade).is_empty()
 
 
 func _is_online_source(source: String) -> bool:

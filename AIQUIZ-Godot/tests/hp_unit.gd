@@ -231,7 +231,7 @@ func _hazards() -> void:
 func _motion() -> void:
 	var gs := fixture(1)
 	answer(gs, false)
-	check(gs.p1_damage_time == 0.6 and gs.is_damage_stunned(1), "damage starts stun/blink")
+	check(gs.p1_damage_time == QuizGameState.DAMAGE_FLASH_DURATION and gs.is_damage_stunned(1), "damage starts stun/blink")
 	check(is_equal_approx(gs.p1_external_velocity.y, -QuizGameState.WALL_HIT_KNOCKBACK_SPEED), "wrong door knocks the body back")
 	gs.player_x = 0.0
 	gs.player_z = 0.0
@@ -239,9 +239,9 @@ func _motion() -> void:
 	gs.update(0.1, Vector2.RIGHT, Vector2.ZERO, true)
 	check(is_zero_approx(gs.player_x) and is_zero_approx(gs.player_y), "stun blocks lateral/jump")
 	check(gs.player_z < z, "knockback carries the body away from the wall")
-	gs.update(0.26)
+	gs.update(QuizGameState.DAMAGE_STUN_DURATION - 0.1 + 0.01)
 	check(not gs.is_damage_stunned(1) and gs.p1_damage_time > 0.0, "stun ends before blink")
-	gs.update(0.25)
+	gs.update(QuizGameState.DAMAGE_FLASH_DURATION - QuizGameState.DAMAGE_STUN_DURATION)
 	check(gs.p1_damage_time == 0.0, "blink ends")
 	gs.p1_damage_time = 0.6
 	gs.game_state = Constants.STATE_CLEAR
@@ -284,7 +284,7 @@ func _knockback() -> void:
 	edge.world_scroll_z = 0.0
 	edge.player_z = QuizGameState.FLOOR_BACK_Z + QuizGameState.WALL_HIT_KNOCKBACK_BACK_MARGIN + 0.5
 	edge.resolve_collision(true, false)
-	var room_speed := sqrt(2.0 * QuizGameState.EXTERNAL_IMPULSE_DECELERATION * 0.5)
+	var room_speed := QuizGameState.wall_knockback_speed_for_room(0.5)
 	check(edge.p1_hp == 2 and is_equal_approx(-edge.p1_external_velocity.y, room_speed), "knockback eased near the back edge")
 	for i in range(90):
 		edge.update(1.0 / 60.0)
@@ -323,7 +323,7 @@ func _sync_replay() -> void:
 	player.setup(copy)
 	player.current_time = 0.0
 	player.apply_to_game_state(guest)
-	check(guest.p1_hp == 2 and is_equal_approx(guest.p1_damage_time, 0.6) and guest.uses_hp(), "replay restores recoil/HP")
+	check(guest.p1_hp == 2 and is_equal_approx(guest.p1_damage_time, QuizGameState.DAMAGE_FLASH_DURATION) and guest.uses_hp(), "replay restores recoil/HP")
 	player.current_time = 1.0
 	player.apply_to_game_state(guest)
 	check(guest.p1_hp == 1 and guest.p1_damage_time == 0.0, "replay seeking restores state")

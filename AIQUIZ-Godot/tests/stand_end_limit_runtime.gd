@@ -59,6 +59,13 @@ func _run() -> void:
 	for stand: Node3D in stands.get_children():
 		_check_fitted(stand, limit, "増えたあと")
 
+	# 制限が客席の奥の端より先なら、ブロックを足してそこまで伸ばす（モニターを 1 ブロック越えるまで）。
+	for stand: Node3D in stands.get_children():
+		limit = maxf(limit, stand.global_position.z + stand.length() + 27.0)
+	stage.set_grandstand_end_limit(limit)
+	for stand: Node3D in stands.get_children():
+		_check_fitted(stand, limit, "客席より先の制限")
+
 	# 制限を外すと全ブロックが元の場所に戻り、切られたブロックもなくなる。
 	stage.set_grandstand_end_limit(INF)
 	for stand: Node3D in stands.get_children():

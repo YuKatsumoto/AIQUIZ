@@ -10,6 +10,7 @@ var spin_clip: StringName
 var wheel_bones: Array[int] = []
 var spin_bones: Array[int] = []
 var lift_posts: Array[MeshInstance3D] = []
+var wheel_sparks: SawWheelSparks # grinding sparks behind each roller while the carriage travels
 var _preview_elapsed := 0.0
 var _caught_lifts: Dictionary = {}
 var _landing_spin_elapsed := 0.0
@@ -169,6 +170,11 @@ func _load_model() -> void:
 					Color(0.32, 0.36, 0.40), 0.85, 0.28)
 				add_child(post)
 				lift_posts.append(post)
+	if skeleton != null and not wheel_bones.is_empty():
+		wheel_sparks = SawWheelSparks.new()
+		wheel_sparks.name = "WheelSparks"
+		add_child(wheel_sparks)
+		wheel_sparks.setup(self)
 	_setup_stow()
 
 func _setup_stow() -> void:
@@ -606,6 +612,10 @@ func _update_operator(gs: QuizGameState, dt: float, menu: bool=false, drive_over
 	# The waiting clock starts once the deck is down, so the first vignette never pops in.
 	if spin<=0.0 and dt>0.0 and deployed:_operator_idle+=dt
 	operator_seat.apply_sample(SawOperatorPresentation.sample(entry,spin,drive,lift,deployed,rate,_operator_idle,extra))
+
+## Wheel travel last applied to the rollers (chase, dock entrance, menu chase or stow retreat).
+func rolled_distance() -> float:
+	return _last_wheel_distance
 
 func _apply_spin(seconds: float, wheel_distance: float) -> void:
 	_last_wheel_distance = wheel_distance

@@ -244,9 +244,12 @@ func _complexity_score(item: QuizItem, subject: String, grade: int) -> float:
 	regex_bracket.compile("[()（）]")
 	score += regex_bracket.search_all(text).size() * 0.2
 
-	if "【応用】" in q_text:
+	# 英語3年は「応」「基」をまだ習わないので、ひらがなのタグを使う
+	var is_advanced := "【応用】" in q_text or "【おうよう】" in q_text
+	var is_basic := "【基本】" in q_text or "【きほん】" in q_text
+	if is_advanced:
 		score += 1.2
-	if "【基本】" in q_text:
+	if is_basic:
 		score -= 0.6
 
 	if subject == "算数":
@@ -280,9 +283,9 @@ func _complexity_score(item: QuizItem, subject: String, grade: int) -> float:
 		for token: String in ["会話", "語順", "空欄", "文脈", "自然な", "答え方", "過去", "将来", "理由"]:
 			if token in text:
 				score += 0.7
-		if "【基本】" in q_text:
+		if is_basic:
 			score -= 1.0
-		elif "【応用】" in q_text:
+		elif is_advanced:
 			score += 1.0
 
 	score -= maxf(0.0, float(grade - 1)) * 0.08

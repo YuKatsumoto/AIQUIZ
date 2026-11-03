@@ -67,6 +67,9 @@ func take_items(subject: String, grade: int, difficulty: String) -> Array[QuizIt
 			continue
 		if item.a < 0 or item.a >= item.c.size():
 			continue
+		# 漢字の学年チェックを入れる前に貯めた問題も弾く
+		if not KanjiGrade.over_grade_in_quiz(item.q, item.c, grade).is_empty():
+			continue
 		out.append(item)
 	return out
 

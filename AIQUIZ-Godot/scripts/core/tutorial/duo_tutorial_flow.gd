@@ -550,9 +550,9 @@ func finish_death_recovery() -> Dictionary:
 	revision += 1
 	if message.is_empty():
 		message = (
-			"2人とも脱落しました。同じ問題からやり直します。"
+			"2人とも脱落\n同じ問題からやり直そう"
 			if retry
-			else "海に落ちた場合の動作を確認しました。次のステップに進みます。"
+			else "海のルールはOK\n次のステップへ"
 		)
 	return {"retry": retry, "message": message}
 
@@ -570,8 +570,8 @@ func clear_summary_lines() -> PackedStringArray:
 		"✓ 2人分の前後左右の移動・ジャンプ・3つのエモート",
 		"✓ 海（即脱落）とゴーストシャークでの反撃",
 		"✓ 後ろから迫る回転のこぎり（即脱落）",
-		"✓ ハート3つと、先に正解した人だけの得点",
-		"✓ 4択のボス壁、ゴールとスコアタワーの勝敗判定",
+		"✓ ハート3つと先に正解した人だけの得点",
+		"✓ 4択のボス壁とスコアタワーの勝敗判定",
 		"✓ 壁速度・帽子・エモートのカスタマイズ",
 	])
 
@@ -770,8 +770,8 @@ func _build_steps() -> Array[Dictionary]:
 			"id": "duo_move",
 			"title": "2人プレイの移動",
 			"body": MobileUi.prompt(
-				"P1はオレンジ、P2は水色です。左右でドアを選び、前後の移動で壁に着くタイミングを調整できます。頭の上のキーで、それぞれ4方向に動いてみましょう。",
-				"P1はオレンジ、P2は水色です。左右でドアを選び、前後の移動で壁に着くタイミングを調整できます。それぞれのスティックで4方向に動いてみましょう。"
+				"左右でドアを選ぶ　前後でタイミングを調整\n頭の上のキーで2人とも4方向に動こう",
+				"左右でドアを選ぶ　前後でタイミングを調整\nそれぞれのスティックで4方向に動こう"
 			),
 			"guide": GUIDE_LANE,
 			"key_layout": KEYS_CLUSTER,
@@ -797,8 +797,8 @@ func _build_steps() -> Array[Dictionary]:
 			"id": "duo_jump",
 			"title": "ジャンプ",
 			"body": MobileUi.prompt(
-				"P1はSpace、P2はキーボード右側のCtrlでジャンプします（左のCtrlは使えません）。それぞれジャンプしてみましょう。",
-				"P1・P2それぞれのジャンプボタンでジャンプします。それぞれジャンプしてみましょう。"
+				"P1はSpace　P2は右Ctrlでジャンプしよう\n左のCtrlでは跳べないので注意",
+				"2人ともジャンプボタンを押してみよう"
 			),
 			"guide": GUIDE_JUMP,
 			"key_layout": KEYS_CLUSTER,
@@ -814,8 +814,8 @@ func _build_steps() -> Array[Dictionary]:
 			"id": "duo_emote",
 			"title": "エモート",
 			"body": MobileUi.prompt(
-				"数字キーでエモートを踊れます（P2はテンキーの7・8・9でも可）。ジャンプで止まります。それぞれ3つすべてを再生してください。",
-				"エモートボタン1・2・3で踊れます。ジャンプで止まります。それぞれ3つすべてを再生してください。"
+				"数字キーで踊れる　ジャンプで止まる\n2人とも3つずつ踊ってみよう",
+				"エモートボタンで踊れる　ジャンプで止まる\n2人とも3つずつ踊ってみよう"
 			),
 			"guide": GUIDE_EMOTE,
 			"key_layout": KEYS_CLUSTER,
@@ -838,7 +838,7 @@ func _build_steps() -> Array[Dictionary]:
 		{
 			"id": "duo_ocean",
 			"title": "コース外は海",
-			"body": "コースの外は海です。落ちるとサメに襲われ、ハートの数に関係なく脱落します。P2は端から外へ出てみてください。",
+			"body": "海に落ちるとハートが残っていても脱落\nP2は端から外へ出てみよう",
 			"guide": GUIDE_OCEAN,
 			"key_layout": KEYS_SIDES,
 			"speed": 0.0,
@@ -855,8 +855,8 @@ func _build_steps() -> Array[Dictionary]:
 			"id": "duo_ghost",
 			"title": "ゴーストシャークで反撃",
 			"body": MobileUi.prompt(
-				"脱落した人はゴーストシャークに乗り、残った相手を体当たりで海やのこぎりへ弾き飛ばせます。照準をP1に合わせ、右Ctrlを長押しして黄色いPERFECTで離すと最大パワーです。",
-				"脱落した人はゴーストシャークに乗り、残った相手を体当たりで海やのこぎりへ弾き飛ばせます。スティックで照準をP1に合わせ、ジャンプボタンを長押しして黄色いPERFECTで離すと最大パワーです。"
+				"脱落した人はサメで相手を弾き飛ばせる\n右Ctrlを長押し　黄色のPERFECTで離そう",
+				"脱落した人はサメで相手を弾き飛ばせる\nジャンプを長押し　黄色のPERFECTで離そう"
 			),
 			"guide": GUIDE_GHOST,
 			"key_layout": KEYS_GHOST,
@@ -877,7 +877,7 @@ func _build_steps() -> Array[Dictionary]:
 		{
 			"id": "duo_saw",
 			"title": "回転のこぎりに注意",
-			"body": "2人プレイでは後ろから回転のこぎりが迫ります。先頭から約14m遅れると巻き込まれ、ハートに関係なく脱落します。少し後退して赤い警告を確かめたら、前進して離れてください。",
+			"body": "遅れるとのこぎりに巻き込まれて即脱落\n少し下がって赤い警告を見たら前へ逃げよう",
 			"guide": GUIDE_SAW,
 			"key_layout": KEYS_CLUSTER,
 			"speed": 0.55,
@@ -901,7 +901,7 @@ func _build_steps() -> Array[Dictionary]:
 		{
 			"id": "duo_guided_wall",
 			"title": "クイズの答え方",
-			"body": "光ったドアが正解です。先に正解した人だけに1点が入り、壁は2人とも通れるように開きます。",
+			"body": "光っているドアが正解\n先に正解した人だけに1点",
 			"guide": GUIDE_GUIDED_DOOR,
 			"key_layout": KEYS_SIDES,
 			"speed": 1.0,
@@ -921,7 +921,7 @@ func _build_steps() -> Array[Dictionary]:
 		{
 			"id": "duo_hp",
 			"title": "ハート（HP）のしくみ",
-			"body": "ハートは1人3つ。不正解や壁で1つ減り、0で脱落します。2人とも、わざと不正解の「7」へ入ってください。",
+			"body": "ハートは1人3つ　0になると脱落\n2人ともわざと不正解の「7」に入ろう",
 			"guide": GUIDE_WRONG_DOOR,
 			"key_layout": KEYS_SIDES,
 			"speed": 1.0,
@@ -939,7 +939,7 @@ func _build_steps() -> Array[Dictionary]:
 		{
 			"id": "duo_free_wall",
 			"title": "誘導なしで回答",
-			"body": "本番と同じ判定です。不正解の人はハートが1つ減り、相手が答えるまで壁の前で止められます。",
+			"body": "ここからは本番と同じ　ドアは光らない\n間違えた人は相手が答えるまで足止め",
 			"guide": GUIDE_FREE_DOOR,
 			"key_layout": KEYS_SIDES,
 			"speed": 1.0,
@@ -959,7 +959,7 @@ func _build_steps() -> Array[Dictionary]:
 		{
 			"id": "duo_boss_wall",
 			"title": "4択のボス壁",
-			"body": "最後の問題と難易度「難しい」はドアが4つ（A〜D）。ここでも先に正解した人だけに1点です。",
+			"body": "ボス壁はドアが4つ\nここでも先に正解した人だけに1点",
 			"guide": GUIDE_FREE_DOOR,
 			"key_layout": KEYS_SIDES,
 			"speed": 1.0,
@@ -982,7 +982,7 @@ func _build_steps() -> Array[Dictionary]:
 		{
 			"id": "duo_goal",
 			"title": "ゴールとスコアタワー",
-			"body": "最後の問題の後はゴールへ向かいます。2人ともゴールすると、本番と同じスコアタワーで勝敗が決まります。得点が出そろったところで計算方法を説明します。",
+			"body": "2人ともゴールへ走ろう\nゴールしたらスコアタワーで勝敗が決まる",
 			"guide": GUIDE_GOAL,
 			"key_layout": KEYS_CLUSTER,
 			"speed": 1.0,
@@ -1000,7 +1000,7 @@ func _build_steps() -> Array[Dictionary]:
 		{
 			"id": "duo_complete",
 			"title": "ステージチュートリアル完了",
-			"body": "実践コースをクリアしました。続いてカスタマイズを紹介します。",
+			"body": "実践クリア　次はカスタマイズ",
 			"guide": "",
 			"speed": 0.0,
 			"walls": false,
@@ -1012,7 +1012,7 @@ func _build_steps() -> Array[Dictionary]:
 		{
 			"id": "customize_tour",
 			"title": "カスタマイズの紹介",
-			"body": "最後に実際のカスタマイズ画面へ移動します。",
+			"body": "カスタマイズの画面へ移動",
 			"guide": "",
 			"speed": 0.0,
 			"walls": false,
