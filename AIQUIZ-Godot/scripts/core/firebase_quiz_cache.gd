@@ -416,7 +416,7 @@ func _is_valid_cache_item(item: Dictionary) -> bool:
 
 
 func _is_online_source(source: String) -> bool:
-	return source.strip_edges().to_upper() in ["GEMINI", "GEMINI_STREAM", "GEMINI_POOL", "OPENAI"]
+	return ClaudeRequest.is_online_source(source)
 
 
 func _local_question_key(payload: Dictionary) -> String:

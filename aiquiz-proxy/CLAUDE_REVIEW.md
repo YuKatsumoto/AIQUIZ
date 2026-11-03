@@ -1,7 +1,21 @@
 # 共有バンクの Claude 確認
 
-ゲーム中に Gemini が作った問題は、共有アーカイブ（`quiz_archive/v1/items`）に「保留（pending）」で入ります。
-この仕組みは、保留の問題を1日1回 Claude にまとめて確認させ、合格したものだけを共有バンク（`quiz_bank/v1/items`）へ入れます。
+ゲーム中に AI が作った問題と、補充ジョブ（bank-builder.js）が作った問題は、共有アーカイブ（`quiz_archive/v1/items`）に「保留（pending）」で入ります。
+この仕組みは、保留の問題を週1回 Claude にまとめて確認させ、合格したものだけを共有バンク（`quiz_bank/v1/items`）へ入れます。
+
+## 動かす日時（2026-11-03 から週1回）
+
+月の費用を 100 ドル未満に収めるため、毎日から週1回に変えた（Cloud Scheduler の名前は `-daily` のまま）。
+
+| ジョブ | スケジュール（日本時間） | 月の上限 |
+|---|---|---|
+| 補充 `quiz-bank-builder`（`quiz-bank-builder-daily`） | 毎週月曜 3:00（`0 3 * * 1`） | `BANK_BUILDER_MONTHLY_BUDGET_USD=5` |
+| 確認 `quiz-claude-review`（`quiz-claude-review-daily`） | 毎週月曜 4:00 と 12:00（`0 4,12 * * 1`） | `CLAUDE_REVIEW_MONTHLY_BUDGET_USD=20` |
+
+- どちらのジョブも「前回の Batch を回収してから、新しい分を出す」。確認を月曜に 2 回動かすのは、4:00 に出した分を 12:00 に回収し、その日のうちに共有バンクへ入れるため。
+- 補充が月曜 3:00 に出した Batch は翌週の月曜 3:00 に回収され、続く 4:00 の確認に回る（共有バンクに入るまで約 1 週間）。
+- 1 回あたりの上限（確認 1200 問・補充 300 回）はそのまま。週 1 回で、確認は月 約 17 ドル、補充は月 約 2 ドルの見込み。
+- 試合中の Claude の予算は CLAUDE_LIVE.md。
 
 - 確認は Message Batches API（通常の半額）で行います。正解と解説は伏せ、Claude に自分で解かせます。
 - **合格**: Claude の答えが登録の正解と一致し、指摘がなく、自信が low でない → `good` にして共有バンクへ。
@@ -14,7 +28,7 @@
 
 | 環境変数 | 既定値 | 意味 |
 |---|---|---|
-| `CLAUDE_REVIEW_MONTHLY_BUDGET_USD` | 25 | 月の上限（USD）。回収済みの実費＋未回収分の見込みが超えそうなら送信しない |
+| `CLAUDE_REVIEW_MONTHLY_BUDGET_USD` | 25 | 月の上限（USD）。回収済みの実費＋未回収分の見込みが超えそうなら送信しない。本番は 20（2026-11-03 に 70 から変更） |
 | `CLAUDE_REVIEW_MAX_PER_RUN` | 300 | 1回の実行で送る最大件数 |
 | `CLAUDE_REVIEW_EST_USD_PER_ITEM` | 0.005 | 未回収分の1問あたり見込み。2026-10 のお試し50問の実費は $0.004/問（Opus 5.5・medium）。実費（`quiz_review/v1/spend/<月>`）を見て合わせる |
 | `CLAUDE_REVIEW_MODEL` | `claude-opus-5-5` | 確認に使うモデル |

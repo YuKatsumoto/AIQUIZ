@@ -1,6 +1,6 @@
 extends Node
 
-## ONLINEモードがOFFLINE系クイズを一切払い出さず、旧OnlineFetchを使う回帰テスト。
+## ONLINEモードがOFFLINE系クイズを一切払い出さず、OnlineFetchを使う回帰テスト。
 
 var _failures: int = 0
 
@@ -30,9 +30,10 @@ func _run() -> void:
 		_make_quiz("offline", "OFFLINE"),
 		_make_quiz("fallback", "OFFLINE_FALLBACK"),
 		_make_quiz("offline alias", "OFFLINE_CACHE"),
-		_make_quiz("legacy gemini", "GEMINI"),
+		_make_quiz("claude stream", "CLAUDE_STREAM"),
 		_make_quiz("legacy stream", "GEMINI_STREAM"),
 	])
+	# 同じジャンルは 2 問までなので、オンライン生成の問題は 2 問にしておく
 	var online_items := provider.get_quizzes("算数", 3, "普通", Constants.MODE_TEN, 10)
 	_assert_true(online_items.size() == 2, "ONLINE払い出しではオンライン生成問題だけが残る")
 	for quiz: QuizItem in online_items:
@@ -61,25 +62,13 @@ func _run() -> void:
 		"ONLINE待機中にオフライン緊急キャッシュを消費しない"
 	)
 
-	var net_state := NetGameState.new()
-	_assert_false(
-		net_state._is_online_quiz_source("OFFLINE"),
-		"ネットワーク送受信でもOFFLINEを拒否する"
-	)
-	_assert_false(
-		net_state._is_online_quiz_source("OFFLINE_FALLBACK"),
-		"ネットワーク送受信でもOFFLINE_FALLBACKを拒否する"
-	)
-	_assert_false(
-		net_state._is_online_quiz_source(""),
-		"ネットワーク送受信では出典不明も拒否する"
-	)
-	_assert_true(
-		net_state._is_online_quiz_source("GEMINI_STREAM"),
-		"旧オンライン生成ソースは許可する"
-	)
+	# 共有バンクへの候補・評価の対象になる出どころ
+	_assert_false(ClaudeRequest.is_online_source("OFFLINE"), "OFFLINEはAI生成として扱わない")
+	_assert_false(ClaudeRequest.is_online_source("OFFLINE_FALLBACK"), "OFFLINE_FALLBACKはAI生成として扱わない")
+	_assert_false(ClaudeRequest.is_online_source(""), "出典不明はAI生成として扱わない")
+	_assert_true(ClaudeRequest.is_online_source("CLAUDE_STREAM"), "Claudeの生成はAI生成として扱う")
+	_assert_true(ClaudeRequest.is_online_source("gemini_stream"), "切り替え前に保存されたGeminiの問題も扱う")
 
-	net_state.free()
 	provider.queue_free()
 	await get_tree().process_frame
 	# Autoloadの起動時設定取得が解放されるまで待ち、テスト終了時の偽リーク警告を避ける。

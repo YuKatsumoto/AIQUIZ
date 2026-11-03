@@ -13,8 +13,6 @@ var _eval_queue: Array[Dictionary] = []
 var _is_evaluating: bool = false
 const EVAL_EVERY_N_ROUNDS: int = 4
 const MIN_ITEMS_FOR_EVAL: int = 5
-const EVALUATION_GEMINI_MODEL: String = "gemini-3.5-flash-lite"
-const THINKING_EVALUATION: String = "minimal"
 
 func _ready() -> void:
 	_load_ratings()
@@ -42,7 +40,7 @@ func _is_evaluable(entry: Dictionary) -> bool:
 	var q: QuizItem = entry.get("quiz")
 	if not q or entry.get("rated", "") != "":
 		return false
-	if not (q.src == "GEMINI" or q.src == "OPENAI" or q.src == "GEMINI_STREAM" or q.src == "GEMINI_POOL"):
+	if not ClaudeRequest.is_online_source(q.src):
 		return false
 	# 正解チェックで不合格になった問題は良問として共有バンクへ送らない
 	var validator: QuizValidator = QuizManager.quiz_validator
@@ -128,31 +126,22 @@ func _take_same_context_batch(max_size: int) -> Array[Dictionary]:
 	return picked
 
 func _fetch_evaluation(prompt: String, to_evaluate: Array[Dictionary], subject: String, grade: int, difficulty: String) -> void:
-	var target_model := EVALUATION_GEMINI_MODEL
-	
-	var url := ApiStatusAutoload.gemini_endpoint(target_model)
+	var url := ApiStatusAutoload.claude_endpoint()
 	if url.is_empty():
 		return
 	
 	var http := HTTPRequest.new()
 	add_child(http)
-	http.timeout = 20.0
+	http.timeout = 40.0
 	
-	var body := JSON.stringify({
-		"contents": [{"parts": [{"text": prompt}]}],
-		"generationConfig": {
-			"temperature": 0.2,
-			"responseMimeType": "application/json",
-			"thinkingConfig": {"thinkingLevel": THINKING_EVALUATION}
-		}
-	})
+	# プロキシが structured outputs で [{"id", "rating", "reason"}] にそろえる
+	var body := ClaudeRequest.body(ClaudeRequest.TASK_EVALUATE, prompt)
 	
 	http.request_completed.connect(func(result: int, response_code: int, _h, b: PackedByteArray):
 		var unrated: Array[Dictionary] = to_evaluate
 		if result == HTTPRequest.RESULT_SUCCESS and response_code == 200:
-			var json = JSON.parse_string(b.get_string_from_utf8())
-			if json is Dictionary and json.has("candidates"):
-				var text: String = json["candidates"][0]["content"]["parts"][0].get("text", "")
+			var text := ClaudeRequest.response_text(JSON.parse_string(b.get_string_from_utf8()))
+			if not text.is_empty():
 				var res = _extract_json_array(text)
 				if res:
 					_process_evaluation_results(res, to_evaluate, subject, grade, difficulty)

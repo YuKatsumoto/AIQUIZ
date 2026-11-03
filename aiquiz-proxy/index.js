@@ -1,8 +1,9 @@
 const express = require('express');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
+const Anthropic = require('@anthropic-ai/sdk').default;
 const { createFirebaseDatabase, createQuizBankRouter } = require('./quiz-bank-service');
-const { GuardError, sanitizeGeminiRequest } = require('./gemini-guard');
+const { budgetUsage, costUsd, createClaudeHandlers } = require('./claude-live');
 const { UsageBudget } = require('./usage-budget');
 const { DeviceAuth } = require('./device-auth');
 const { DeviceLimits } = require('./device-limits');
@@ -36,7 +37,7 @@ function authMiddleware(req, res, next) {
 // ========================================
 // Layer 2: レート制限（IPごと）
 // ========================================
-// Gemini と共有バンクで枠を分ける。共有バンクのページ取得が Gemini の枠を食わないように。
+// AI と共有バンクで枠を分ける。共有バンクのページ取得が AI の枠を食わないように。
 function limiter(max) {
     return rateLimit({
         windowMs: 60 * 1000,
@@ -53,7 +54,7 @@ function limiter(max) {
         },
     });
 }
-const geminiLimiter = limiter(30);
+const llmLimiter = limiter(30);
 const bankLimiter = limiter(120);
 // 許可証の発行。学校の教室（1 つの IP から数十台）でも足りるよう 1 時間 200 回まで。
 const sessionLimiter = rateLimit({
@@ -70,26 +71,11 @@ const sessionLimiter = rateLimit({
 });
 
 // ========================================
-// Layer 3: モデル・本文の制限（gemini-guard.js）
-// ========================================
-function guardGemini(req, res, next) {
-    const model = String(req.query.model || '');
-    try {
-        req.geminiModel = model;
-        req.geminiBody = sanitizeGeminiRequest(model, req.body);
-    } catch (error) {
-        if (error instanceof GuardError) {
-            return res.status(400).json({ error: `Bad Request: ${error.message}` });
-        }
-        throw error;
-    }
-    next();
-}
-
-// ========================================
 // Layer 4: 日・月の予算（usage-budget.js）
 // ========================================
-const budget = UsageBudget.fromEnv(process.env, process.env.FIREBASE_DB_URL ? createFirebaseDatabase : null);
+// 試合中の Claude の分。月 100 ドル未満の全体予算のうち、既定で月 40 ドル・1 日 3 ドル
+// （CLAUDE_MONTHLY_BUDGET_USD / CLAUDE_DAILY_BUDGET_USD）。夜のジョブはそれぞれ別の上限を持つ。
+const budget = UsageBudget.fromClaudeEnv(process.env, process.env.FIREBASE_DB_URL ? createFirebaseDatabase : null);
 
 async function budgetGate(req, res, next) {
     let verdict;
@@ -99,7 +85,7 @@ async function budgetGate(req, res, next) {
         return res.status(500).json({ error: `Budget check failed: ${error.message}` });
     }
     if (!verdict.ok) {
-        console.warn(JSON.stringify({ type: 'gemini_budget_block', reason: verdict.reason,
+        console.warn(JSON.stringify({ type: 'claude_budget_block', reason: verdict.reason,
             daily_usd: verdict.dailyUsd, monthly_usd: verdict.monthlyUsd }));
         deviceLimits.recordDenial(verdict.reason);
         res.setHeader('Retry-After', String(verdict.retryAfterSec));
@@ -147,162 +133,39 @@ async function deviceGate(req, res, next) {
     next();
 }
 
-function extractUsageMetadata(payload) {
-    if (!payload || typeof payload !== 'object') {
-        return null;
-    }
-    const usage = payload.usageMetadata || payload.usage_metadata;
-    if (!usage || typeof usage !== 'object') {
-        return null;
-    }
-    return {
-        promptTokenCount: Number(usage.promptTokenCount || usage.prompt_token_count || 0),
-        candidatesTokenCount: Number(usage.candidatesTokenCount || usage.candidates_token_count || 0),
-        thoughtsTokenCount: Number(usage.thoughtsTokenCount || usage.thoughts_token_count || 0),
-        totalTokenCount: Number(usage.totalTokenCount || usage.total_token_count || 0),
-        cachedContentTokenCount: Number(usage.cachedContentTokenCount || usage.cached_content_token_count || 0)
-    };
+// ========================================
+// Claude（claude-live.js）
+// ========================================
+// ANTHROPIC_API_KEY は Secret Manager から入る。クライアントは最初の呼び出しで作る（テストでは差し替える）。
+let anthropicClient = null;
+function useAnthropicClient(client) {
+    anthropicClient = client;
+}
+const lazyClient = {
+    beta: {
+        messages: {
+            create: params => (anthropicClient ||= new Anthropic()).beta.messages.create(params),
+            stream: params => (anthropicClient ||= new Anthropic()).beta.messages.stream(params),
+        },
+    },
+};
+
+function recordUsage(model, usage, req) {
+    const usd = budget.record(model, budgetUsage(usage), costUsd(model, usage));
+    if (req.device) deviceLimits.record(req.device, usd);
+    return usd;
 }
 
-function logGeminiUsage(kind, model, usage, extra, device) {
-    if (!usage) {
-        return;
-    }
-    const usd = budget.record(model, usage);
-    if (device) deviceLimits.record(device, usd);
-    console.log(JSON.stringify({
-        type: 'gemini_usage',
-        kind: kind,
-        model: model,
-        promptTokenCount: usage.promptTokenCount,
-        candidatesTokenCount: usage.candidatesTokenCount,
-        thoughtsTokenCount: usage.thoughtsTokenCount,
-        totalTokenCount: usage.totalTokenCount,
-        cachedContentTokenCount: usage.cachedContentTokenCount,
-        usd: Number(usd.toFixed(6)),
-        ts: new Date().toISOString(),
-        ...(extra || {})
-    }));
-}
-
-function extractUsageFromSseChunk(chunk, lastUsage) {
-    let usage = lastUsage;
-    const lines = String(chunk).split(/\r?\n/);
-    for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed.startsWith('data:')) {
-            if (trimmed.startsWith('{')) {
-                try {
-                    const parsed = JSON.parse(trimmed);
-                    const found = extractUsageMetadata(parsed);
-                    if (found) {
-                        usage = found;
-                    }
-                } catch (_ignored) {}
-            }
-            continue;
-        }
-        const jsonText = trimmed.slice(5).trim();
-        if (!jsonText || jsonText === '[DONE]') {
-            continue;
-        }
-        try {
-            const parsed = JSON.parse(jsonText);
-            const found = extractUsageMetadata(parsed);
-            if (found) {
-                usage = found;
-            }
-        } catch (_e) {
-            // 途中チャンクは不完全なことがあるので無視
-        }
-    }
-    return usage;
-}
-
-function geminiUrl(model, method) {
-    const base = process.env.GEMINI_API_BASE || 'https://generativelanguage.googleapis.com';
-    const sse = method === 'streamGenerateContent' ? 'alt=sse&' : '';
-    return `${base}/v1beta/models/${model}:${method}?${sse}key=${process.env.GEMINI_API_KEY}`;
-}
-
-const geminiChain = [authMiddleware, geminiLimiter, guardGemini, deviceGate, budgetGate];
+const claude = createClaudeHandlers({ client: lazyClient, recordUsage });
+const claudeChain = [authMiddleware, llmLimiter, claude.guard, deviceGate, budgetGate];
 
 // ========================================
 // エンドポイント
 // ========================================
-app.post('/gemini', ...geminiChain, async (req, res) => {
-    try {
-        const model = req.geminiModel;
-        const response = await fetch(geminiUrl(model, 'generateContent'), {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: req.geminiBody
-        });
-        const data = await response.text();
-        try {
-            const parsed = JSON.parse(data);
-            logGeminiUsage('generate', model, extractUsageMetadata(parsed), {
-                status: response.status
-            }, req.device);
-        } catch (_e) {
-            // 非JSONエラー応答は計測対象外
-        }
-        res.status(response.status).send(data);
-    } catch (err) {
-        res.status(500).send("Proxy Error: " + err.message);
-    }
-});
-
-// ========================================
-// SSE ストリーミング（Gemini streamGenerateContent パススルー）
-// ========================================
-app.post('/gemini-stream', ...geminiChain, async (req, res) => {
-    try {
-        const model = req.geminiModel;
-        const response = await fetch(geminiUrl(model, 'streamGenerateContent'), {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: req.geminiBody
-        });
-
-        if (!response.ok) {
-            const errText = await response.text();
-            return res.status(response.status).send(errText);
-        }
-
-        // SSEヘッダーを設定してストリームをパイプする
-        res.setHeader('Content-Type', 'text/event-stream');
-        res.setHeader('Cache-Control', 'no-cache');
-        res.setHeader('Connection', 'keep-alive');
-        res.setHeader('X-Accel-Buffering', 'no'); // nginx/Cloud Run バッファリング無効化
-
-        // レスポンスボディをそのまま転送
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-
-        let lastUsage = null;
-        try {
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                const chunk = decoder.decode(value, { stream: true });
-                lastUsage = extractUsageFromSseChunk(chunk, lastUsage);
-                res.write(chunk);
-            }
-        } catch (streamErr) {
-            console.error('Stream pipe error:', streamErr.message);
-        } finally {
-            logGeminiUsage('stream', model, lastUsage, { status: response.status }, req.device);
-            res.end();
-        }
-    } catch (err) {
-        res.status(500).send("Proxy Stream Error: " + err.message);
-    }
-});
+// 本文は {task, prompt, system?}。task は generate / explain / validate / evaluate。
+app.post('/claude', ...claudeChain, claude.generate);
+// generate をストリーミングで返す。data: {"type":"text"|"done"|"error", ...}
+app.post('/claude-stream', ...claudeChain, claude.stream);
 
 // ========================================
 // Firebase shared quiz bank
@@ -344,8 +207,8 @@ app.post('/session', authMiddleware, sessionLimiter, (req, res) => {
 // ========================================
 // ラウンドの作り方（round-plan.js）
 // ========================================
-// ゲームはラウンド開始時に呼び、10 問のうち何問を Gemini で新しく作るかを受け取る。
-// 残りは共有バンクなどで埋める。Gemini は呼ばない。
+// ゲームはラウンド開始時に呼び、10 問のうち何問を Claude で新しく作るかを受け取る。
+// 残りは共有バンクなどで埋める。Claude は呼ばない。
 app.post('/round-plan', authMiddleware, bankLimiter, async (req, res) => {
     let device = null;
     if (deviceAuth) {
@@ -378,15 +241,15 @@ app.post('/round-plan', authMiddleware, bankLimiter, async (req, res) => {
     }
 });
 
-// 接続確認。Gemini は呼ばない。APP_SECRET が正しいかもここで分かる。
+// 接続確認。Claude は呼ばない。APP_SECRET が正しいかもここで分かる。
 app.get('/health', authMiddleware, bankLimiter, async (req, res) => {
     // 起動直後のインスタンスでも DB の合計を見せる（30 秒ごとの読み直しと同じ間隔で）
     await budget.refresh();
-    res.json({ ok: true, budget: budget.status() });
+    res.json({ ok: true, provider: 'claude', budget: budget.status() });
 });
 
 app.get('/', (req, res) => {
-    res.send('AIQUIZ Proxy Server is running! (Secured v5 + Quiz Bank)');
+    res.send('AIQUIZ Proxy Server is running! (Claude + Quiz Bank)');
 });
 
 const PORT = process.env.PORT || 8080;
@@ -396,4 +259,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { app, authMiddleware, budget, deviceAuth, deviceLimits };
+module.exports = { app, authMiddleware, budget, deviceAuth, deviceLimits, useAnthropicClient };

@@ -12,8 +12,6 @@ class_name QuizValidator
 signal validation_completed(valid: Array[QuizItem], invalid_reasons: Array[String])
 
 const MAX_RETRY: int = 2
-const FLASH_MODEL: String = "gemini-3.6-flash"
-const THINKING_VALIDATION: String = "low"
 const MAX_REJECTED: int = 500
 
 ## LLM チェックで不合格になった問題文（QuizDedup.exact_key → 理由）。
@@ -108,7 +106,7 @@ func validate_answers_llm(items: Array[QuizItem], subject: String, grade: int,
 		callback.call(items, [])
 		return
 	
-	var url := ApiStatusAutoload.gemini_endpoint(FLASH_MODEL)
+	var url := ApiStatusAutoload.claude_endpoint()
 	if url.is_empty():
 		callback.call(items, [])
 		return
@@ -137,25 +135,19 @@ func validate_answers_llm(items: Array[QuizItem], subject: String, grade: int,
 	
 	var http := HTTPRequest.new()
 	add_child(http)
-	http.timeout = 15.0
+	# 10 問モードは 20 問前後をまとめて確かめる。Claude は考えてから答えるので長めに待つ
+	http.timeout = 40.0
 	
-	var body := JSON.stringify({
-		"contents": [{"parts": [{"text": prompt}]}],
-		"generationConfig": {
-			"temperature": 0.1,
-			"responseMimeType": "application/json",
-			"thinkingConfig": {"thinkingLevel": THINKING_VALIDATION}
-		}
-	})
+	# プロキシが structured outputs で [{"id", "correct_answer", "claimed_ok", "grade_ok", "issue"}] にそろえる
+	var body := ClaudeRequest.body(ClaudeRequest.TASK_VALIDATE, prompt)
 	
 	http.request_completed.connect(func(result: int, response_code: int, _h, b: PackedByteArray):
 		var valid_items: Array[QuizItem] = []
 		var invalid_reasons: Array[String] = []
 		
 		if result == HTTPRequest.RESULT_SUCCESS and response_code == 200:
-			var json = JSON.parse_string(b.get_string_from_utf8())
-			if json is Dictionary and json.has("candidates"):
-				var text: String = json["candidates"][0]["content"]["parts"][0].get("text", "")
+			var text := ClaudeRequest.response_text(JSON.parse_string(b.get_string_from_utf8()))
+			if not text.is_empty():
 				var results = _parse_validation_results(text)
 				
 				for i in range(items.size()):
@@ -178,7 +170,7 @@ func validate_answers_llm(items: Array[QuizItem], subject: String, grade: int,
 						_mark_rejected(item, issue)
 			else:
 				valid_items = items
-				print("[QuizValidator] LLM validation returned no candidates; items stay unvalidated")
+				print("[QuizValidator] LLM validation returned no text; items stay unvalidated")
 		else:
 			# 通信失敗: 出題は止めないが、確認済みにはしない
 			valid_items = items
@@ -187,7 +179,9 @@ func validate_answers_llm(items: Array[QuizItem], subject: String, grade: int,
 		http.queue_free()
 		callback.call(valid_items, invalid_reasons)
 	)
-	http.request(url, ApiStatusAutoload.get_proxy_headers(), HTTPClient.METHOD_POST, body)
+	if http.request(url, ApiStatusAutoload.get_proxy_headers(), HTTPClient.METHOD_POST, body) != OK:
+		http.queue_free()
+		callback.call(items, [])
 
 
 func _parse_validation_results(text: String) -> Array:

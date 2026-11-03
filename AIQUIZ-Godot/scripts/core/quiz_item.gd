@@ -55,7 +55,7 @@ func to_pool_dict() -> Dictionary:
 		"c": Array(c),
 		"a": a,
 		"e": e,
-		"src": src if not src.is_empty() else "GEMINI_POOL",
+		"src": src if not src.is_empty() else "CLAUDE_POOL",
 		"genre": genre,
 		"estimated_seconds": estimated_seconds,
 		"validated": validated,
@@ -80,9 +80,9 @@ static func from_pool_dict(raw: Dictionary) -> QuizItem:
 	elif typeof(answer) == TYPE_STRING and (answer as String).is_valid_int():
 		item.a = int(answer)
 	item.e = str(raw.get("e", "")).strip_edges()
-	var src_text := str(raw.get("src", "GEMINI_POOL")).strip_edges()
+	var src_text := str(raw.get("src", "CLAUDE_POOL")).strip_edges()
 	if src_text.is_empty() or src_text.begins_with("OFFLINE"):
-		src_text = "GEMINI_POOL"
+		src_text = "CLAUDE_POOL"
 	item.src = src_text
 	item.genre = str(raw.get("genre", raw.get("g", ""))).strip_edges()
 	var est: Variant = raw.get("estimated_seconds", 4.0)

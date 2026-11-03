@@ -14,11 +14,11 @@ var openai_model: String = "gpt-4o"
 var openai_status: Variant = null
 var openai_msg: String = "未チェック"
 
-var gemini_key_set: bool = false
-var gemini_model: String = "gemini-3-flash-preview"
-var user_selected_gemini_model: String = ""
-var gemini_status: Variant = null
-var gemini_msg: String = "未チェック"
+var llm_key_set: bool = false
+## 問題をつくる AI の名前（モデルはプロキシが決める）
+var llm_label: String = ClaudeRequest.PROVIDER_LABEL
+var llm_status: Variant = null
+var llm_msg: String = "未チェック"
 
 var firebase_configured: bool = false
 var firebase_status: Variant = null
@@ -97,13 +97,11 @@ func get_env(key: String, default_val: String = "") -> String:
 	# Fallbacks for running without .env
 	# APP_SECRET は公開リポジトリに置かない。.env（書き出し時に同梱）か環境変数で渡す。
 	match key:
-		"PROXY_URL": return "https://aiquiz-proxy-818033448758.asia-northeast1.run.app"
+		"PROXY_URL": return "https://aiquiz-proxy-claude-818033448758.asia-northeast1.run.app"
 		"FIREBASE_DB_URL": return "https://aiquiz-a12f6-default-rtdb.asia-southeast1.firebasedatabase.app"
 		"FIREBASE_RATINGS_PATH": return "quiz_ratings/shared"
 		"OPENAI_MODEL": return "gpt-4o"
 		"OPENAI_FAST_MODEL": return "gpt-4o-mini"
-		"GEMINI_MODEL": return "gemini-3-flash-preview"
-		"GEMINI_IMAGE_MODEL": return "gemini-2.5-flash-image"
 		
 	return default_val
 
@@ -115,20 +113,14 @@ func is_proxy_available() -> bool:
 	return not get_proxy_url().is_empty()
 
 
-func gemini_endpoint(model: String, streaming: bool = false) -> String:
+## 試合中の AI（Claude）の入口。本文は ClaudeRequest.body() で作る。
+func claude_endpoint(streaming: bool = false) -> String:
 	var base := get_proxy_url()
 	if base.is_empty():
 		return ""
 	if streaming:
-		return base + "/gemini-stream?model=" + model
-	return base + "/gemini?model=" + model
-
-
-func openai_endpoint() -> String:
-	var base := get_proxy_url()
-	if base.is_empty():
-		return ""
-	return base + "/openai"
+		return base + "/claude-stream"
+	return base + "/claude"
 
 
 ## プロキシリクエスト用のヘッダー（APP_SECRET と、あれば端末の許可証）
@@ -202,13 +194,9 @@ func notify_device_token_rejected() -> void:
 func _update_config() -> void:
 	proxy_configured = is_proxy_available()
 	openai_key_set = proxy_configured
-	gemini_key_set = proxy_configured
+	llm_key_set = proxy_configured
 	
 	openai_model = get_env("OPENAI_MODEL", "gpt-4o")
-	if user_selected_gemini_model.is_empty():
-		gemini_model = get_env("GEMINI_MODEL", "gemini-3-flash-preview")
-	else:
-		gemini_model = user_selected_gemini_model
 	firebase_configured = not get_env("FIREBASE_DB_URL").is_empty()
 
 func set_offline_count(count: int) -> void:
@@ -294,8 +282,8 @@ func _check_proxy_gateway() -> void:
 		proxy_msg = "PROXY_URL未設定"
 		openai_status = false
 		openai_msg = "PROXY_URL未設定"
-		gemini_status = false
-		gemini_msg = "PROXY_URL未設定"
+		llm_status = false
+		llm_msg = "PROXY_URL未設定"
 		_on_check_done.call_deferred()
 		return
 
@@ -303,8 +291,8 @@ func _check_proxy_gateway() -> void:
 	proxy_status = null
 	openai_msg = "チェック中..."
 	openai_status = null
-	gemini_msg = "チェック中..."
-	gemini_status = null
+	llm_msg = "チェック中..."
+	llm_status = null
 
 	var http := HTTPRequest.new()
 	add_child(http)
@@ -315,27 +303,27 @@ func _check_proxy_gateway() -> void:
 	http.request_completed.connect(func(result: int, response_code: int, _h, _b: PackedByteArray):
 		var ok := result == HTTPRequest.RESULT_SUCCESS and response_code == 200
 		proxy_status = ok
-		gemini_status = ok
+		llm_status = ok
 		openai_status = ok
 		if ok:
 			proxy_msg = "接続OK"
 			_mark_internet_reachable()
-			gemini_msg = "接続OK (Gateway)"
+			llm_msg = "接続OK (Gateway)"
 			openai_msg = "接続OK (Gateway)"
 		else:
 			var err_txt := "エラー: " + str(response_code) if response_code >= 400 else "応答なし"
 			proxy_msg = err_txt
-			gemini_msg = err_txt
+			llm_msg = err_txt
 			openai_msg = err_txt
 		http.queue_free()
 		_on_check_done()
 	)
 	if http.request(url, headers, HTTPClient.METHOD_GET) != OK:
 		proxy_status = false
-		gemini_status = false
+		llm_status = false
 		openai_status = false
 		proxy_msg = "接続失敗"
-		gemini_msg = "接続失敗"
+		llm_msg = "接続失敗"
 		openai_msg = "接続失敗"
 		http.queue_free()
 		_on_check_done()

@@ -87,7 +87,7 @@ test('an exhausted budget or device gives bank-only rounds', async () => {
         assert.equal(capped.body.new_count, 0);
 
         const saved = budget.dailyBudgetUsd;
-        budget.record('gemini-3.6-flash', { promptTokenCount: 1000 });
+        budget.record('claude-sonnet-5-5', {}, 0.01);
         budget.dailyBudgetUsd = budget.totals().dailyUsd;
         try {
             const stopped = await plan(base, tokenFor(crypto.randomBytes(16).toString('hex')));

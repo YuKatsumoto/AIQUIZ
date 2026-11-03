@@ -1644,7 +1644,7 @@ func _update_ui() -> void:
 			llm_toggle_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 			llm_toggle_btn.tooltip_text = ""
 			_set_llm_toggle_locked_style(false)
-			var llm_text: String = "出題: ONLINE (AI生成)" if QuizManager.provider.llm_mode == "ONLINE" else "出題: OFFLINE (内蔵問題)"
+			var llm_text: String = "出題: ONLINE (AI生成・Claude)" if QuizManager.provider.llm_mode == "ONLINE" else "出題: OFFLINE (内蔵問題)"
 			llm_toggle_btn.text = llm_text
 		_update_stock_counter()
 

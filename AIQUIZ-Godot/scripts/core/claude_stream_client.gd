@@ -1,14 +1,18 @@
 extends Node
-class_name GeminiStreamClient
+class_name ClaudeStreamClient
 
-## Gemini API SSE ストリーミングクライアント
+## プロキシの /claude-stream を受け取る SSE ストリーミングクライアント
 ##
 ## HTTPClient を使ってチャンク単位でレスポンスを受信し、
 ## SSE (Server-Sent Events) の `data: {...}` 行をリアルタイムにパースして
-## テキスト差分を即座に通知する。
+## テキスト差分を即座に通知する。プロキシが送る行は次の 3 種類（aiquiz-proxy/claude-live.js）:
+##   data: {"type":"text","text":"..."}   … 本文の続き
+##   data: {"type":"done","stop_reason":"..."}
+##   data: {"type":"error","error":"..."} … 途中で止まった（それまでの本文は使ってよい）
+## 考えているあいだはプロキシが `: keep-alive` のコメント行を送るので、無通信タイムアウトにはならない。
 ##
 ## 使い方:
-##   var client = GeminiStreamClient.new()
+##   var client = ClaudeStreamClient.new()
 ##   add_child(client)
 ##   client.text_chunk_received.connect(_on_text_chunk)
 ##   client.stream_finished.connect(_on_finished)
@@ -61,8 +65,9 @@ var _byte_buffer: PackedByteArray = PackedByteArray()  # UTF-8デコード途中
 var _start_time: float = 0.0
 var _last_chunk_time: float = 0.0
 
-var _is_proxy: bool = false  # プロキシ経由かどうか
 var _http_ok: bool = false
+## プロキシが error を送ってきた（拒否・途中の失敗）
+var stream_error: String = ""
 ## 最後に受信した HTTP ステータス（429 判定などに使用）
 var response_code: int = 0
 
@@ -75,13 +80,13 @@ var response_code: int = 0
 ## body: リクエストボディ (JSON文字列)
 func start_stream(url: String, headers: PackedStringArray, body: String) -> void:
 	if _state != State.IDLE:
-		push_error("[GeminiStreamClient] Already running, cannot start another stream")
+		push_error("[ClaudeStreamClient] Already running, cannot start another stream")
 		return
 
 	# URL をパースする
 	var parsed := _parse_url(url)
 	if parsed.is_empty():
-		push_error("[GeminiStreamClient] Failed to parse URL: " + url)
+		push_error("[ClaudeStreamClient] Failed to parse URL: " + url)
 		_finish(false)
 		return
 
@@ -103,7 +108,7 @@ func start_stream(url: String, headers: PackedStringArray, body: String) -> void
 	# チャンクサイズを大きめに設定して効率化
 	_http.read_chunk_size = 4096
 
-	print("[%d] [GeminiStreamClient] Connecting to %s:%d (TLS=%s)..." % [Time.get_ticks_msec(), _host, _port, str(_use_tls)])
+	print("[%d] [ClaudeStreamClient] Connecting to %s:%d (TLS=%s)..." % [Time.get_ticks_msec(), _host, _port, str(_use_tls)])
 	var err: int
 	if _use_tls:
 		var tls_opts := TLSOptions.client()
@@ -111,7 +116,7 @@ func start_stream(url: String, headers: PackedStringArray, body: String) -> void
 	else:
 		err = _http.connect_to_host(_host, _port)
 	if err != OK:
-		push_error("[GeminiStreamClient] connect_to_host failed: %d" % err)
+		push_error("[ClaudeStreamClient] connect_to_host failed: %d" % err)
 		_finish(false)
 		return
 
@@ -125,7 +130,7 @@ func _process(_delta: float) -> void:
 	# HTTPClient をポーリング
 	var err := _http.poll()
 	if err != OK:
-		push_error("[GeminiStreamClient] poll() error: %d" % err)
+		push_error("[ClaudeStreamClient] poll() error: %d" % err)
 		_finish(false)
 		return
 
@@ -133,7 +138,7 @@ func _process(_delta: float) -> void:
 
 	# グローバルタイムアウト
 	if now - _start_time > TIMEOUT_SECONDS:
-		push_warning("[GeminiStreamClient] Global timeout (%.1f s)" % TIMEOUT_SECONDS)
+		push_warning("[ClaudeStreamClient] Global timeout (%.1f s)" % TIMEOUT_SECONDS)
 		_finish(false)
 		return
 
@@ -150,6 +155,16 @@ func _process(_delta: float) -> void:
 			_handle_body(status, now)
 
 
+## 途中でやめる（ラウンド終了時の OnlineFetch.cancel_all から）。stream_finished は出さない。
+func cancel_request() -> void:
+	if _state == State.DONE or _state == State.ERROR:
+		return
+	_state = State.DONE
+	if _http:
+		_http.close()
+		_http = null
+
+
 ## ── 内部状態ハンドラ ──
 
 func _handle_connecting(status: int, _now: float) -> void:
@@ -159,7 +174,7 @@ func _handle_connecting(status: int, _now: float) -> void:
 			pass
 		HTTPClient.STATUS_CONNECTED:
 			# 接続完了 → リクエスト送信
-			print("[%d] [GeminiStreamClient] Connected, sending request..." % Time.get_ticks_msec())
+			print("[%d] [ClaudeStreamClient] Connected, sending request..." % Time.get_ticks_msec())
 			var err := _http.request(
 				HTTPClient.METHOD_POST,
 				_path,
@@ -167,17 +182,17 @@ func _handle_connecting(status: int, _now: float) -> void:
 				_body
 			)
 			if err != OK:
-				push_error("[GeminiStreamClient] request() failed: %d" % err)
+				push_error("[ClaudeStreamClient] request() failed: %d" % err)
 				_finish(false)
 				return
 			_state = State.REQUESTING
 		HTTPClient.STATUS_CANT_CONNECT, HTTPClient.STATUS_CANT_RESOLVE:
-			push_error("[GeminiStreamClient] Connection failed: status=%d" % status)
+			push_error("[ClaudeStreamClient] Connection failed: status=%d" % status)
 			_finish(false)
 		_:
 			# 予期しない状態
 			if status == HTTPClient.STATUS_CONNECTION_ERROR:
-				push_error("[GeminiStreamClient] Connection error")
+				push_error("[ClaudeStreamClient] Connection error")
 				_finish(false)
 
 
@@ -191,9 +206,9 @@ func _handle_requesting(status: int, _now: float) -> void:
 			var resp_code := _http.get_response_code()
 			response_code = resp_code
 			_http_ok = resp_code == 200
-			print("[%d] [GeminiStreamClient] Response code: %d" % [Time.get_ticks_msec(), resp_code])
+			print("[%d] [ClaudeStreamClient] Response code: %d" % [Time.get_ticks_msec(), resp_code])
 			if not _http_ok:
-				push_error("[GeminiStreamClient] Non-200 response: %d" % resp_code)
+				push_error("[ClaudeStreamClient] Non-200 response: %d" % resp_code)
 				_state = State.BODY  # ボディを読みきってから finish
 				return
 			_last_chunk_time = _now
@@ -203,7 +218,7 @@ func _handle_requesting(status: int, _now: float) -> void:
 			_state = State.HEADERS
 		_:
 			if status == HTTPClient.STATUS_CONNECTION_ERROR:
-				push_error("[GeminiStreamClient] Connection error during request")
+				push_error("[ClaudeStreamClient] Connection error during request")
 				_finish(false)
 
 
@@ -213,20 +228,20 @@ func _handle_headers(status: int, _now: float) -> void:
 			var resp_code := _http.get_response_code()
 			response_code = resp_code
 			_http_ok = resp_code == 200
-			print("[%d] [GeminiStreamClient] Response code (headers): %d" % [Time.get_ticks_msec(), resp_code])
+			print("[%d] [ClaudeStreamClient] Response code (headers): %d" % [Time.get_ticks_msec(), resp_code])
 			if not _http_ok:
-				push_error("[GeminiStreamClient] Non-200 response: %d" % resp_code)
+				push_error("[ClaudeStreamClient] Non-200 response: %d" % resp_code)
 			_last_chunk_time = _now
 			_state = State.BODY
 		_:
 			if status == HTTPClient.STATUS_CONNECTION_ERROR:
-				push_error("[GeminiStreamClient] Connection error during headers")
+				push_error("[ClaudeStreamClient] Connection error during headers")
 				_finish(false)
 
 
 func _handle_body(status: int, now: float) -> void:
 	if status == HTTPClient.STATUS_CONNECTION_ERROR:
-		push_error("[GeminiStreamClient] Connection error during body read")
+		push_error("[ClaudeStreamClient] Connection error during body read")
 		_finish(false)
 		return
 
@@ -244,7 +259,7 @@ func _handle_body(status: int, now: float) -> void:
 		else:
 			# チャンクがまだ来ていない → アイドルタイムアウトをチェック
 			if now - _last_chunk_time > MAX_IDLE_SECONDS:
-				push_warning("[GeminiStreamClient] Idle timeout (%.1f s without data)" % MAX_IDLE_SECONDS)
+				push_warning("[ClaudeStreamClient] Idle timeout (%.1f s without data)" % MAX_IDLE_SECONDS)
 				_finish(not _accumulated_text.is_empty())
 				return
 
@@ -262,7 +277,7 @@ func _handle_body(status: int, now: float) -> void:
 		if not _line_buffer.is_empty():
 			_process_sse_line(_line_buffer)
 			_line_buffer = ""
-		print("[%d] [GeminiStreamClient] Stream completed. Total text length: %d" % [Time.get_ticks_msec(), _accumulated_text.length()])
+		print("[%d] [ClaudeStreamClient] Stream completed. Total text length: %d" % [Time.get_ticks_msec(), _accumulated_text.length()])
 		var ok := _http_ok and not _accumulated_text.is_empty()
 		_finish(ok)
 
@@ -333,59 +348,37 @@ func _process_sse_chunk(chunk: String) -> void:
 
 
 ## 1つのSSE行を処理する
-## SSE形式: "data: {JSON}" → candidates[0].content.parts[0].text を抽出
+## SSE形式: "data: {JSON}" → type が text なら本文に足す
 func _process_sse_line(line: String) -> void:
 	if not line.begins_with("data: "):
-		# "data:" 以外の行（"event:", "id:", コメント行 等）は無視
+		# "data:" 以外の行（": keep-alive" のコメント、"event:" 等）は無視
 		return
 
 	var json_str := line.substr(6).strip_edges()  # "data: " の後を取得
-
-	# "[DONE]" などの終了マーカー
-	if json_str == "[DONE]":
-		return
 
 	# JSONパース
 	var json := JSON.new()
 	var parse_err := json.parse(json_str)
 	if parse_err != OK:
 		# パースに失敗しても致命的ではない（部分データの場合がある）
-		push_warning("[GeminiStreamClient] JSON parse warning on SSE line (ignoring): %s" % json_str.left(100))
+		push_warning("[ClaudeStreamClient] JSON parse warning on SSE line (ignoring): %s" % json_str.left(100))
 		return
 
 	var data = json.get_data()
 	if not (data is Dictionary):
 		return
 
-	# Gemini API の SSE レスポンス構造:
-	# { "candidates": [{ "content": { "parts": [{ "text": "..." }] } }] }
-	var candidates = data.get("candidates", [])
-	if not (candidates is Array) or candidates.is_empty():
-		return
-
-	var candidate = candidates[0]
-	if not (candidate is Dictionary):
-		return
-
-	var content = candidate.get("content", {})
-	if not (content is Dictionary):
-		return
-
-	var parts = content.get("parts", [])
-	if not (parts is Array) or parts.is_empty():
-		return
-
-	var first_part = parts[0]
-	if not (first_part is Dictionary):
-		return
-
-	var text = first_part.get("text", "")
-	if not (text is String) or text.is_empty():
-		return
-
-	# テキストチャンクを蓄積してシグナルを発行
-	_accumulated_text += text
-	text_chunk_received.emit(_accumulated_text, text)
+	match str(data.get("type", "")):
+		"text":
+			var text = data.get("text", "")
+			if not (text is String) or text.is_empty():
+				return
+			# テキストチャンクを蓄積してシグナルを発行
+			_accumulated_text += text
+			text_chunk_received.emit(_accumulated_text, text)
+		"error":
+			stream_error = str(data.get("error", "error"))
+			push_warning("[ClaudeStreamClient] Proxy reported an error: %s" % stream_error)
 
 
 ## ── 完了処理 ──
@@ -419,7 +412,7 @@ func _parse_url(url: String) -> Dictionary:
 		tls = false
 		working = working.substr(7)
 	else:
-		push_error("[GeminiStreamClient] URL must start with http:// or https://")
+		push_error("[ClaudeStreamClient] URL must start with http:// or https://")
 		return {}
 
 	# パスを分離
