@@ -1,0 +1,16 @@
+@tool
+extends RefCounted
+
+func run(ctx) -> void:
+	var root: Node = ctx.instantiate_imported_scene()
+	if root == null:
+		ctx.error("Could not instantiate shark asset")
+		return
+	var skeleton: Skeleton3D = root.find_child("Skeleton3D", true, false) as Skeleton3D
+	if skeleton == null:
+		ctx.log("skeleton=none")
+		return
+	var names: PackedStringArray = PackedStringArray()
+	for index: int in range(skeleton.get_bone_count()):
+		names.append(skeleton.get_bone_name(index))
+	ctx.log("bones=%d names=%s" % [skeleton.get_bone_count(), str(names)])
