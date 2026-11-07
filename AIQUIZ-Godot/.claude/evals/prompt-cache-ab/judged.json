@@ -1,0 +1,3604 @@
+{
+ "solve": {
+  "s-new-7-2-0": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "白い湯気は水蒸気が冷やされてできた小さな水のつぶ。4年「水のすがた」で学習する内容。"
+  },
+  "s-old-1-5-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "矛盾は「つじつまが合わない」意。他は蛇足・漁夫の利・五十歩百歩の意味。"
+  },
+  "s-old-1-1-3": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "寒いことが原因で上着を着たので、順接の「だから」が入る。他は意味が合わない。"
+  },
+  "s-old-10-2-3": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "太平洋沿いに工業地帯・地域が帯状に連なる地域は太平洋ベルトで、5年生の学習内容。"
+  },
+  "s-new-4-2-2": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "同じ分母の分数のたし算で1/5+2/5=3/5。3年で学ぶ内容で、正解は1つ。"
+  },
+  "s-old-2-4-3": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "「顔から火が出る」は恥ずかしくて顔が赤くなる意味で、大勢の前で転んだ場面が正しい。"
+  },
+  "s-old-6-3-2": {
+   "verdict": "fail",
+   "answer": 2,
+   "issues": [
+    "ambiguous"
+   ],
+   "confidence": "high",
+   "note": "影は太陽の反対側の北にできる。問題文の「右のどちら」は意味不明な誤記。"
+  },
+  "s-old-8-4-0": {
+   "verdict": "fail",
+   "answer": 0,
+   "issues": [
+    "ambiguous"
+   ],
+   "confidence": "medium",
+   "note": "作用点を支点に近づけると小さい力で持ち上がる。ただし「おもり」が力側か荷物か曖昧。"
+  },
+  "s-old-9-0-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "図書館の地図記号は開いた本の形。〒は郵便局、⊗は警察署、卍は寺院を表す。"
+  },
+  "s-old-10-0-2": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "冬の季節風が日本海側に雪を降らせ、太平洋側は乾いた晴天が多いため太平洋側が正解。"
+  },
+  "s-old-10-1-2": {
+   "verdict": "pass",
+   "answer": 2,
+   "issues": [],
+   "confidence": "high",
+   "note": "高原の夏の涼しさを生かし出荷時期を遅らせる抑制栽培（高冷地農業）が正解。"
+  },
+  "s-new-11-5-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "裁判所が法律の憲法適合性を判断する権限は違憲審査権。他は国会の権限で誤り。"
+  },
+  "s-old-2-3-1": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "社外の人には身内の上司に謙譲語を使うので「申しておりました」が適切。"
+  },
+  "s-new-9-4-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "駅の周りは人が多く集まり交通が便利なため店や会社が多い。他の選択肢は理由にならない。"
+  },
+  "s-new-5-2-0": {
+   "verdict": "pass",
+   "answer": 3,
+   "issues": [],
+   "confidence": "high",
+   "note": "外角の和は360°なので360÷45=8で八角形。内角135°から考えても解ける。"
+  },
+  "s-old-8-0-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "アルミニウムは塩酸と反応し、水素のあわを出して溶ける。6年の学習内容どおり。"
+  },
+  "s-new-1-0-3": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "「本」はホン（音）、「箱」ははこ（訓）で重箱読み。選択肢1が正しい。"
+  },
+  "s-new-5-5-1": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "裏返して重なる図形も合同。形も大きさも同じで、面積や角度は変わらない。"
+  },
+  "s-new-7-3-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "並列回路では片方の豆電球をゆるめても、もう片方の回路は切れないのでそのままつく。"
+  },
+  "s-new-2-0-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "「急行」は「急いで行く」で、上の字が下の字を修飾する構成。他の選択肢は当てはまらない。"
+  },
+  "s-old-10-3-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "情報リテラシーでは発信元（出どころ）の確認が基本。他の選択肢は信頼性と無関係。"
+  },
+  "s-old-1-0-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "「新聞」はシン（音）＋ブン（音）で音読み同士。正解は音＋音の1つに決まる。"
+  },
+  "s-new-8-1-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "30×10=300、300÷15=20gで水平になる。正解は20gの1つだけ。"
+  },
+  "s-old-1-3-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "繰り返し出る言葉（キーワード）に注目して中心文を探すのが基本。他の選択肢は不適切。"
+  },
+  "s-new-7-3-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "直列つなぎでは電流が大きくなり、豆電球は1個のときより明るくなる。4年の学習内容。"
+  },
+  "s-old-8-3-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "夕方の上弦の月は南に見え、右（西）側が光る。太陽は西の地平線近くにある。"
+  },
+  "s-new-1-2-2": {
+   "verdict": "pass",
+   "answer": 2,
+   "issues": [],
+   "confidence": "high",
+   "note": "「せいては事をし損じる」は急ぐと失敗するという教えで、「急がば回れ」と同じ趣旨。"
+  },
+  "s-old-6-0-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "ゴムは元にもどろうとしてちぢむ向きに力がはたらき、車はその向きへ進む。"
+  },
+  "s-new-5-0-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "12と18の公約数は1,2,3,6。4は18の約数でなく、選択肢3は1が抜けている。"
+  },
+  "s-old-3-2-1": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "7×8=56で、正解は選択肢1のみ。2年生で習う九九の範囲内。"
+  },
+  "s-old-11-5-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "1868年に新政府の方針として出されたのは五箇条の御誓文。他の選択肢は時代や目的が異なる。"
+  },
+  "s-old-8-3-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "満月は地球をはさんで太陽と反対側に月があり、太陽・地球・月の順に並ぶ。"
+  },
+  "s-new-13-4-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "「好き」はlikeで表し、複数形applesを使う。I like apples.が正しい文になる。"
+  },
+  "s-new-9-1-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "田や畑が広がる地域は農業に使われる土地。やや自明だが正解は一つに決まる。"
+  },
+  "s-new-0-5-1": {
+   "verdict": "fail",
+   "answer": 1,
+   "issues": [
+    "ambiguous"
+   ],
+   "confidence": "high",
+   "note": "正しい表記は「とおい・こおり」。ただし問題文に答えの表記が示されていて問い方が不自然。"
+  },
+  "s-new-2-3-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "「言う」の尊敬語は「おっしゃる」。申し上げるは謙譲語、他は二重敬語や誤用。"
+  },
+  "s-old-4-3-2": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "40000−6000=34000で、正解は1つだけ。3年「大きな数」の範囲内で問題なし。"
+  },
+  "s-new-14-5-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "動物好きなら獣医(vet)が自然。他は動物と無関係で正解は一つ。"
+  },
+  "s-old-2-3-2": {
+   "verdict": "fail",
+   "answer": 0,
+   "issues": [
+    "ambiguous"
+   ],
+   "confidence": "medium",
+   "note": "尊敬語はご覧になる。ただ先生が身内なら拝見するとも解釈でき、お客様への場面設定があいまい。"
+  },
+  "s-old-7-1-2": {
+   "verdict": "fail",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "夕方南に見える右側が光る半月は上弦の月。数日後は満月に近づき丸くなる。"
+  },
+  "s-old-1-3-3": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "要約は各段落の中心となる語や文をつないでまとめる。ほかの選択肢は要約の方法として不適切。"
+  },
+  "s-old-8-0-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "炭酸水のあわは二酸化炭素で、石灰水を白くにごらせる。6年の学習内容。"
+  },
+  "s-new-10-3-2": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "放送局や新聞社は事実を正確に伝えることを大切にしている。他の選択肢は不適切で正解は1つ。"
+  },
+  "s-new-5-5-2": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "3つの角だけでは形は同じでも大きさが決まらず、拡大・縮小した三角形ができるので合同にならない。"
+  },
+  "s-old-10-1-0": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "新潟県は中部地方（北陸）に属する。東北と混同しやすいが正解は中部地方で一つに決まる。"
+  },
+  "s-new-8-0-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "塩酸や炭酸水、アンモニア水は気体がとけているので、蒸発させても何も残らない。"
+  },
+  "s-old-12-0-1": {
+   "verdict": "pass",
+   "answer": 2,
+   "issues": [],
+   "confidence": "high",
+   "note": "アルファベット順でRのすぐ後ろはS。正解は1つで、3年生の大文字学習の範囲内。"
+  },
+  "s-old-7-4-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "月は太陽と同じく東から出て南の空を通り西へ動く。4年の学習内容。"
+  },
+  "s-new-8-0-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "塩酸は気体の塩化水素が溶けた水溶液なので、蒸発させると何も残らない。他は固体が溶けており固体が残る。"
+  },
+  "s-old-13-1-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "underは「〜の下」の意味で、正解はテーブルの下。5年生で習う位置の表現で問題なし。"
+  },
+  "s-new-12-3-0": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "おなかがぺこぺこはhungry。3年の外国語活動で扱う気分・体調の表現で、正解は1つ。"
+  },
+  "s-new-3-3-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "3時20分の20分前が3時、さらに20分前で2時40分。正解は1つに決まる。"
+  },
+  "s-old-7-2-3": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "沸騰時のあわは水が気体になった水蒸気。4年で学習する内容で、湯気や空気は誤り。"
+  },
+  "s-old-2-2-3": {
+   "verdict": "pass",
+   "answer": 2,
+   "issues": [],
+   "confidence": "high",
+   "note": "「雨が降り」と「風も強くなった」の二つの主述が対等に並んでいるので重文。"
+  },
+  "s-new-12-5-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "green＝みどり、circle＝円なので「みどりの円」が正解。3年生の色と形の学習範囲内。"
+  },
+  "s-old-10-2-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "部品を組み立てて車を完成させるのは組み立て工場。5年の教科書で学ぶ用語で、正解は1つに決まる。"
+  },
+  "s-old-1-0-3": {
+   "verdict": "fail",
+   "answer": 0,
+   "issues": [
+    "no_correct",
+    "multiple_correct"
+   ],
+   "confidence": "low",
+   "note": "荷物・場所はともに訓＋音の湯桶読みで、音＋訓の重箱読みの熟語は選択肢にない。"
+  },
+  "s-new-6-4-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "こん虫の6本の足はすべてむねから出ている。3年の学習内容どおりで正解は1つ。"
+  },
+  "s-old-8-5-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "青色リトマス紙が赤に変わり、赤色リトマス紙が変わらないのは酸性の性質。正解は1つに決まる。"
+  },
+  "s-new-1-4-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "漢字の左側の部分は「へん」。「扌」はてへんで、右側の「寺」はつくりにあたる。"
+  },
+  "s-old-11-4-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "鎖国中のオランダ貿易は長崎の出島で行われた。平戸の商館は1641年に出島へ移転済み。"
+  },
+  "s-new-0-1-0": {
+   "verdict": "fail",
+   "answer": 0,
+   "issues": [
+    "no_correct",
+    "ambiguous"
+   ],
+   "confidence": "low",
+   "note": "問題文が「space」のみで選択肢もa〜dの記号だけで、主語と述語の問題として成立せず正解を決められない。"
+  },
+  "s-old-10-1-3": {
+   "verdict": "pass",
+   "answer": 2,
+   "issues": [],
+   "confidence": "high",
+   "note": "宮崎・高知は温暖な気候を生かしピーマンを早く出荷する促成栽培で知られる。"
+  },
+  "s-new-12-1-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "Openは「開ける」の意味なので、Open your book.は「本を開く」。他の選択肢は誤り。"
+  },
+  "s-old-10-3-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "防災無線やテレビは公的な避難情報を受け取る手段。他の選択肢は信頼性や即時性に欠ける。"
+  },
+  "s-old-7-5-0": {
+   "verdict": "pass",
+   "answer": 3,
+   "issues": [],
+   "confidence": "high",
+   "note": "閉じ込めた空気は押すと縮むが、水はほとんど縮まない。4年の学習内容どおりで、正解は「空気のほう」。"
+  },
+  "s-old-4-3-3": {
+   "verdict": "pass",
+   "answer": 2,
+   "issues": [],
+   "confidence": "high",
+   "note": "12+15+9=36、40-36=4で4組は4人。正解は1つに決まる。"
+  },
+  "s-old-5-1-1": {
+   "verdict": "pass",
+   "answer": 3,
+   "issues": [],
+   "confidence": "high",
+   "note": "2×2×2=8m³で、正解は8m³の1つだけ。5年の体積単元の範囲内。"
+  },
+  "s-old-2-2-2": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "「私が歌い、妹が踊った」は対等に並ぶ重文。他は従属節を含む複文。"
+  },
+  "s-old-13-1-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "7月4日はJuly 4th。他は曜日や誤った語順・前置詞で不正解。"
+  },
+  "s-new-2-4-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "もめごとの後にかえって良い状態になる意味で、けんか後に仲が深まる場面が合う。"
+  },
+  "s-old-13-4-3": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "want+名詞で「欲しい」。他は語順や三単現sの誤り。単数a dogへの変化も自然。"
+  },
+  "s-new-3-0-0": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "百の位がすべて4以下で、4の410と401を十の位で比べると410が最大。"
+  },
+  "s-new-11-0-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "第9条は戦争の放棄と戦力の不保持を定める。他の選択肢は条文にない内容。"
+  },
+  "s-old-8-0-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "食塩水は固体が溶けているため蒸発後に食塩が残る。他の3つは気体が溶けた水溶液で何も残らない。"
+  },
+  "s-new-14-3-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "疑問詞＋does＋主語＋動詞の原形の語順が正しいのは0のみ。3はlikesが誤り。"
+  },
+  "s-new-2-1-3": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "切れ字「や」が初句にあり、初句切れとなる。他の選択肢は当てはまらない。"
+  },
+  "s-old-5-3-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "1/2+1/3=3/6+2/6=5/6。つなぎ目の重なりは考えない前提で妥当。"
+  },
+  "s-new-4-2-0": {
+   "verdict": "fail",
+   "answer": 1,
+   "issues": [
+    "multiple_correct"
+   ],
+   "confidence": "high",
+   "note": "1kg500g=1500gで1700gが重い。ただし選択肢3の1kg700gも1700gと同じ量で正解になり得る。"
+  },
+  "s-new-4-1-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "0.7−0.3+0.2=0.6mとなる。3年の小数の加減の範囲内で解ける。"
+  },
+  "s-new-12-3-2": {
+   "verdict": "pass",
+   "answer": 3,
+   "issues": [],
+   "confidence": "high",
+   "note": "大すきなおもちゃをなくしたら悲しい気もちになるので、I'm sad.が正解。"
+  },
+  "s-old-7-5-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "同じ電池なら、豆電球を直列につなぐと流れる電流が減り、1個ずつ暗くなる。4年の学習内容の少し発展程度。"
+  },
+  "s-new-2-5-3": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "推敲の仕上げは音読して意味が通じるか確かめるのが適切。他の選択肢は推敲の目的に合わない。"
+  },
+  "s-old-13-2-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "月曜と水曜の2日に体育があるので週2回。5年生の曜日・教科の学習内容に合う。"
+  },
+  "s-new-10-2-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "豊田市は中京工業地帯の中心で自動車工業が盛ん。5年生の工業学習の範囲内。"
+  },
+  "s-old-8-5-0": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "medium",
+   "note": "夕方の三日月は、地平線の下の太陽がある側、つまり西寄りの下側が光る。"
+  },
+  "s-new-9-0-2": {
+   "verdict": "fail",
+   "answer": 3,
+   "issues": [
+    "out_of_grade"
+   ],
+   "confidence": "high",
+   "note": "等高線の間がせまいと傾斜が急。等高線は中学地理で詳しく扱い、3年の地図記号の単元外。"
+  },
+  "s-new-2-1-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "短歌は上の句5・7・5、下の句7・7の計三十一音で、正解は1つに定まる。"
+  },
+  "s-old-13-4-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "I want a のあとには名詞が入るのでpenが正解。playとswimは動詞、Mondayは冠詞aと合わない。"
+  },
+  "s-new-8-2-1": {
+   "verdict": "pass",
+   "answer": 3,
+   "issues": [],
+   "confidence": "high",
+   "note": "空気の約78%は窒素で、酸素は約21%。6年の燃焼の単元で学ぶ内容。"
+  },
+  "s-new-7-1-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "星の並び方は時間がたっても変わらず、星座全体が位置を変える。4年の学習内容どおり。"
+  },
+  "s-old-4-0-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "6×7＋2＝44で、あまり2は6より小さく適切。正解は44のみ。"
+  },
+  "s-new-4-3-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "10000×7=70000、100×4=400で、合わせると70400になる。"
+  },
+  "s-old-1-2-1": {
+   "verdict": "pass",
+   "answer": 2,
+   "issues": [],
+   "confidence": "high",
+   "note": "「口がかたい」は秘密を他人にもらさない意味。口数が少ないは「口が重い」で別の意味。"
+  },
+  "s-new-13-3-0": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "I can't dance.と言っているので、ミカができないことは踊ること。走る・泳ぐは話に出てこない。"
+  },
+  "s-new-7-5-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "満月は夕方東から出て、真夜中に南の空高く見え、明け方西に沈むため南が正しい。"
+  },
+  "s-old-5-3-0": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "3/4-1/6=9/12-2/12=7/12L。2/3と8/12は同じ値だが正解ではない。"
+  },
+  "s-old-2-1-3": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "「柿くへば鐘が鳴るなり法隆寺」は正岡子規の有名な句。他の選択肢は別の俳人で、正解は一つ。"
+  },
+  "s-old-2-2-0": {
+   "verdict": "fail",
+   "answer": 0,
+   "issues": [
+    "multiple_correct"
+   ],
+   "confidence": "medium",
+   "note": "文節単位なら「花が」だが、語単位では「花」も正解と言え、二つの選択肢が紛らわしい。"
+  },
+  "s-new-8-3-2": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "満月は太陽・地球・月の順に並ぶため、太陽は地球をはさんで月の反対側にある。"
+  },
+  "s-old-6-1-0": {
+   "verdict": "pass",
+   "answer": 2,
+   "issues": [],
+   "confidence": "high",
+   "note": "アリは頭・胸・腹に分かれ足6本で昆虫。クモ・ダンゴムシ・ミミズは昆虫ではない。"
+  },
+  "s-old-11-0-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "憲法96条で国民投票は過半数の賛成が必要。国民投票法では有効投票総数の過半数と規定。"
+  },
+  "s-new-2-2-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "「ゆっくり」は様子を表し動作「歩く」を直接修飾する。「歩く犬を」は文節が二つで直接ではない。"
+  },
+  "s-new-0-0-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "花火の正しい読みは「はなび」。火花は「ひばな」なので3も誤りで、正解は0のみ。"
+  },
+  "s-old-9-2-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "春に田へ水を入れ、しろかきをして稲の苗を植える。ほかの選択肢は秋の作業や水と無関係。"
+  },
+  "s-old-2-4-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "立ち去る者は後始末をきれいにすべきという意味で、部屋をきれいにして去るが合う。"
+  },
+  "s-old-9-0-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "田の記号は稲を刈った跡を表す「Ⅱ」形。∨は畑、◎は市役所、♨は温泉。"
+  },
+  "s-old-7-4-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "季節によって夜に見える星座は変わり、冬の夜にはオリオン座がよく見える。他の選択肢は誤り。"
+  },
+  "s-new-8-2-2": {
+   "verdict": "pass",
+   "answer": 2,
+   "issues": [],
+   "confidence": "high",
+   "note": "ろうそくが燃えると酸素が使われて減り、二酸化炭素が増える。6年の学習内容どおり。"
+  },
+  "s-old-7-0-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "閉じこめた水は押しても体積がほとんど変わらないため、ピストンは押し下げられない。"
+  },
+  "s-new-14-4-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "enjoyedは過去形で「楽しんだ」。主語Weの訳はないが意味として0が正しい。"
+  },
+  "s-new-3-1-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "1cm=10mmなので6cm=60mm、5mmを足して65mmになる。2年の学習内容。"
+  },
+  "s-new-7-5-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "並列では電流が2個の電池に分かれ、1個あたりの負担が小さいので長持ちする。他の選択肢は誤り。"
+  },
+  "s-new-14-1-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "いつもは6時、今日は7時に起きたので、いつもより遅く起きた。正解は1つに決まる。"
+  },
+  "s-new-5-2-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "六角形の内角の和は720°で、6でわると1つの内角は120°になる。5年の多角形の角の学習内容。"
+  },
+  "s-new-12-0-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "Do you ～?にはYes, I do.で答える。他の選択肢は文法的に不適切。"
+  },
+  "s-new-10-3-0": {
+   "verdict": "pass",
+   "answer": 2,
+   "issues": [],
+   "confidence": "high",
+   "note": "放送は多くの人に同時に速く情報を届けられる。ほかの選択肢は遅いか不確か。"
+  },
+  "s-new-1-1-1": {
+   "verdict": "pass",
+   "answer": 2,
+   "issues": [],
+   "confidence": "high",
+   "note": "雨がふったことが理由でかさをさすので、順接の「だから」が正しい。"
+  },
+  "s-new-3-2-1": {
+   "verdict": "pass",
+   "answer": 2,
+   "issues": [],
+   "confidence": "high",
+   "note": "4×6=24で24こ。2年生の九九の範囲で、正解は1つに決まる。"
+  },
+  "s-old-12-2-2": {
+   "verdict": "pass",
+   "answer": 3,
+   "issues": [],
+   "confidence": "high",
+   "note": "How are you?に元気だと答えるのはI'm great.で、3年の外国語活動の範囲内。"
+  },
+  "s-new-2-5-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "medium",
+   "note": "他の選択肢は明らかに不適切。読点と語順の調整が妥当だが、例文自体はすでに読点があり改善点はやや曖昧。"
+  },
+  "s-old-5-4-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "100円×1.5=150円、150円×0.5=75円。5年の割合の学習範囲で解ける。"
+  },
+  "s-new-10-1-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "越後平野と信濃川、秋田平野と雄物川など、広い平野と豊かな水が米づくりの共通条件。"
+  },
+  "s-new-4-4-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "9時50分から10時までが10分、10時から10時20分までが20分で、合わせて30分。"
+  },
+  "s-new-8-5-1": {
+   "verdict": "fail",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "三日月の翌日は同時刻に約12度東へ移動し、光る部分が太くなる。"
+  },
+  "s-new-12-4-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "7はseven。How many?への答えとしてSeven apples.が適切で、他は数や応答が誤り。"
+  },
+  "s-new-13-0-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "I'd like ~.は欲しい物を丁寧に伝える表現で、5年生の注文単元で学習する。"
+  },
+  "s-old-11-0-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "第9条は戦争放棄・戦力不保持・交戦権否認を定める。自衛戦争を積極的に認める規定はない。"
+  },
+  "s-old-1-2-2": {
+   "verdict": "fail",
+   "answer": 1,
+   "issues": [
+    "multiple_correct"
+   ],
+   "confidence": "medium",
+   "note": "正解は「かたをならべる」だが、「猫の手も借りたい」も「手」を含み、体の部分と取れる。"
+  },
+  "s-old-0-1-0": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "「何が」にあたる主語は「春が」。述語は「来た」で、他の選択肢は誤り。"
+  },
+  "s-new-9-1-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "店が多く交通が集まる駅前は、市のにぎやかな中心で、3年生の学習内容に合う。"
+  },
+  "s-old-1-1-1": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "兄と妹の好みを比べて述べる対比の文なので「一方」が合う。他の三つは意味が通らない。"
+  },
+  "s-old-3-3-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "1時間は60分で、2年生の「時刻と時間」で習う基本事項。他の選択肢は誤り。"
+  },
+  "s-new-11-1-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "命令・規則・処分の違憲審査の終審裁判所は最高裁判所（憲法81条）。三権分立で学ぶ内容。"
+  },
+  "s-old-11-1-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "内閣不信任決議が可決されると、内閣は10日以内に衆議院を解散するか総辞職する。参議院に解散はない。"
+  },
+  "s-old-10-4-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "自給率が低いと輸入に頼るため、輸入が止まると食料不足になる。他の選択肢は不適切。"
+  },
+  "s-old-11-3-3": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "鎖国中に出島で貿易を許された西洋の国はオランダのみで、6年の学習範囲内。"
+  },
+  "s-old-0-5-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "王様は「おうさま」と書く。ただし問題文に正解の表記がそのまま書かれており、答えがわかってしまう。"
+  },
+  "s-old-7-3-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "並列回路で片方だけ操作するには、その豆電球と直列の枝にスイッチを置く。他は全体が切れる。"
+  },
+  "s-old-3-0-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "100が3こで300、10が5こで50、1が2こで2。合わせて352になる。"
+  },
+  "s-new-2-4-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "矛盾はつじつまが合わない意味。問いは「使い方」だが選択肢は意味で、0が正解と判断できる。"
+  },
+  "s-old-4-5-0": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "35×2=70、12×3=36で、合計は70+36=106円になる。"
+  },
+  "s-new-1-1-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "二つのうちどちらかを選ぶ問いかけなので、選択の「それとも」が入る。他の三つは文意に合わない。"
+  },
+  "s-old-4-3-1": {
+   "verdict": "pass",
+   "answer": 3,
+   "issues": [],
+   "confidence": "high",
+   "note": "7目もり−4目もり＝3目もり。1目もり10こなので3×10＝30こ。"
+  },
+  "s-old-4-4-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "8時50分−8時20分＝30分。時刻と時間の区別を問う良問で、正解は一つに決まる。"
+  },
+  "s-new-4-5-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "1km200mは1200m、500mを足すと1700mになる。3年の長さの単元の範囲内。"
+  },
+  "s-old-11-3-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "1925年に普通選挙法が成立し、25歳以上の男子に選挙権が与えられた。他の選択肢は該当しない。"
+  },
+  "s-new-13-1-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "10月の2か月後は12月なのでDecemberが正解。月の英語名は5年生で学習する範囲。"
+  },
+  "s-old-11-1-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "違憲立法審査権の最終判断は最高裁判所で「憲法の番人」と呼ばれる。正解は一つに決まる。"
+  },
+  "s-old-5-0-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "12と18の公約数は1,2,3,6で、最大公約数は6。36は最小公倍数なので誤り。"
+  },
+  "s-old-5-2-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "四角形の内角の和は360°なので、360−(90+100+80)=90°。"
+  },
+  "s-old-5-0-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "公倍数は6の倍数のうち8で割り切れる数を探せば求められる。他の手順は誤り。"
+  },
+  "s-old-13-4-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "I want a new cap.が正しい語順。他は語順が誤り。5年の学習内容に合う。"
+  },
+  "s-new-13-4-3": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "欲しいはwantで、likeは好きという意味。0だけが「欲しい」を表していない。"
+  },
+  "s-old-10-0-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "北西の季節風が日本海で湿気を含み、山地にぶつかって雪を降らせるため0が正解。"
+  },
+  "s-new-13-5-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "I'm from Italy.とあるので、ミカの出身国はイタリア。日本は行きたい国なので誤り。"
+  },
+  "s-old-12-1-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "Openは「あける」なので本をあけるが正解。他の選択肢は意味が違い、正解は1つに決まる。"
+  },
+  "s-old-8-3-3": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "月のクレーターは主にいん石の衝突でできたと教科書で学ぶ。他の選択肢は当たる物ではない。"
+  },
+  "s-new-5-1-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "2×2×2=8で8m³。立方体の体積は5年で学習する内容で問題なし。"
+  },
+  "s-new-1-5-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "蛇の絵に足を描き足した故事から「蛇足」。他の選択肢は意味が異なる。"
+  },
+  "s-new-8-1-0": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "作用点を支点に近づけると小さな力で大きな力が加わるため、刃の根元に紙を入れると切りやすい。"
+  },
+  "s-new-5-0-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "12と18の最大公約数は6なので、正方形の最大の1辺は6cmになる。"
+  },
+  "s-new-2-2-3": {
+   "verdict": "pass",
+   "answer": 2,
+   "issues": [],
+   "confidence": "high",
+   "note": "主語・述語の組が二つ対等に並ぶので重文。6年の文の構造で扱う内容。"
+  },
+  "s-old-1-1-0": {
+   "verdict": "pass",
+   "answer": 2,
+   "issues": [],
+   "confidence": "high",
+   "note": "走ったのに間に合わないという予想と逆の結果なので、逆接の「しかし」が入る。"
+  },
+  "s-new-0-0-1": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "「石」は「いし」と読む1年生の漢字。右・白・百は形が似ているが読みが違う。"
+  },
+  "s-new-11-1-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "最高裁長官は内閣が指名し天皇が任命、他の裁判官は内閣が任命する。選択肢は長官の指名のみ述べるが、正解は内閣で一意。"
+  },
+  "s-new-11-3-0": {
+   "verdict": "pass",
+   "answer": 2,
+   "issues": [],
+   "confidence": "high",
+   "note": "黒船来航1853→日米和親条約1854→大政奉還1867→版籍奉還1869の順で2番目は和親条約。"
+  },
+  "s-old-2-1-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "芭蕉の句で季語は「蛙」、季節は春。「蛙・夏」は誤りで、正解は一つに定まる。"
+  },
+  "s-new-8-5-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "左のうでの働きは3×10=30。右は6目盛りなので30÷6=5gでつり合う。"
+  },
+  "s-new-12-1-2": {
+   "verdict": "fail",
+   "answer": 0,
+   "issues": [
+    "ambiguous"
+   ],
+   "confidence": "high",
+   "note": "pencilはえんぴつで0が正解。ただし「正しい行動」を問うのに選択肢は英語の指示文で、問いと合っていない。"
+  },
+  "s-old-7-3-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "豆電球を直列につなぐと電流が減り、2個とも同じように暗くなるため正解は0。4年の電気の範囲内。"
+  },
+  "s-new-8-2-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "石灰水は二酸化炭素で白くにごる。6年「燃焼の仕組み」で学ぶ基本事項で、他の選択肢はにごらせない。"
+  },
+  "s-new-10-2-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "太平洋ベルトは海沿いで原料輸入・製品輸出に船を使いやすい。他の選択肢は誤り。"
+  },
+  "s-new-1-3-3": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "問題文がほぼ答えを含むが、正解は段落のまとめをつなぐ方法で一つに定まる。"
+  },
+  "s-new-11-2-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "十七条の憲法は聖徳太子が役人の心得として定めた。他は鎌倉・江戸幕府や律令の法で別物。"
+  },
+  "s-old-1-5-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "五十歩百歩は少しの違いはあっても本質的には差がないという意味。正解は0のみ。"
+  },
+  "s-new-14-2-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "How was～?は感想を尋ねる表現で、It was fun.が唯一の適切な返事。他は日時・手段・所持の応答。"
+  },
+  "s-old-10-1-1": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "米の自給率はほぼ100%で、小麦・大豆・とうもろこしは低い。5年生の学習内容に合う。"
+  },
+  "s-new-8-5-2": {
+   "verdict": "pass",
+   "answer": 3,
+   "issues": [],
+   "confidence": "high",
+   "note": "食塩水は中性、炭酸水は酸性なので、どちらも赤色リトマス紙を青く変えない。"
+  },
+  "s-new-11-5-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "国会が決めた予算を使って実際に仕事を進めるのは行政を担う内閣なので、正解は内閣。"
+  },
+  "s-new-10-1-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "田に水を入れて土をかきまぜ平らにする作業は代かき（しろかき）。他の選択肢は別の作業。"
+  },
+  "s-new-5-3-3": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "3/4−1/6=9/12−2/12=7/12m。他の選択肢はすべて値が異なり、正解は1つに決まる。"
+  },
+  "s-new-10-4-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "太平洋ベルトは関東から九州北部の海沿いに帯状に続く工業地域。他は誤り。"
+  },
+  "s-new-2-1-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "芭蕉の句で季語は「夏草」、季節は夏。ほかの選択肢は季語ではない。"
+  },
+  "s-new-7-4-1": {
+   "verdict": "fail",
+   "answer": 0,
+   "issues": [
+    "ambiguous"
+   ],
+   "confidence": "medium",
+   "note": "沸とう時のあわは水蒸気だが、沸とうと明記がなく、温め始めの小さなあわ（空気）とも取れる。"
+  },
+  "s-new-3-4-0": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "三角形は3本の直線で囲まれた形で、頂点は3つ。2年生の学習内容である。"
+  },
+  "s-new-5-4-3": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "500円の2割は100円で、500−100＝400円。または500×0.8＝400円となる。"
+  },
+  "s-new-11-3-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "1925年に普通選挙法と同じ年に治安維持法が制定された。治安警察法は1900年、国家総動員法は1938年。"
+  },
+  "s-new-8-2-3": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "ろうそくが燃えると酸素が使われて減り、燃え続けられなくなる。6年の燃焼単元の基本内容。"
+  },
+  "s-new-1-1-2": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "犬もねこも好きという並べる関係なので「また」が適切。逆接や理由のつなぎ言葉は合わない。"
+  },
+  "s-old-10-0-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "日本の川は山地が海に迫るため短く急流。5年の国土学習で扱う内容。"
+  },
+  "s-old-10-2-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "関連工場は必要な部品を必要な時間に届けるため組み立て工場の近くにある。5年の学習内容。"
+  },
+  "s-old-13-3-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "I can sing.で歌える、I can't dance.でおどれないため、正解は歌うこと。"
+  },
+  "s-new-12-3-1": {
+   "verdict": "pass",
+   "answer": 2,
+   "issues": [],
+   "confidence": "high",
+   "note": "走った後ぐったりは「疲れた」でI'm tired.が最適。3年の気分の表現で学習済み。"
+  },
+  "s-old-7-5-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "並列つなぎは回路が別々なので、1個をはずしてももう1個はつき続ける。"
+  },
+  "s-old-1-5-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "二者が争う間に第三者が利益を得るのは漁夫の利。他の選択肢は意味が異なる。"
+  },
+  "s-old-2-1-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "小林一茶の句。季語「雪とけて（雪解け）」は春の季語。"
+  },
+  "s-old-7-2-1": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "白く見える湯気は水蒸気が冷やされてできた小さな水のつぶ。水蒸気は目に見えない。"
+  },
+  "s-old-1-0-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "medium",
+   "note": "「箱」を「ばこ」と読むのは本箱の「ばこ」のみ。ふで箱も同様だが選択肢は「ふで」部分。問題文はやや分かりにくい。"
+  },
+  "s-new-3-3-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "1時間は60分なので60+20=80分。2年で1時間=60分を学習済み。"
+  },
+  "s-old-7-1-3": {
+   "verdict": "fail",
+   "answer": 0,
+   "issues": [
+    "ambiguous"
+   ],
+   "confidence": "medium",
+   "note": "満月は東→南の高い所→西へ動く。「何時間か」が曖昧で、約12時間後なら西の低い所も当てはまる。"
+  },
+  "s-new-13-1-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "5月はMay、3日は序数でthird。May thirdが正しく、他は月か序数が誤り。"
+  },
+  "s-old-3-3-1": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "「いつ」を表すのは時刻で、時間は長さを表す。2年の学習内容どおり。"
+  },
+  "s-new-8-0-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "アルミニウムはうすい塩酸に水素のあわを出してとける。6年の学習内容どおり。"
+  },
+  "s-new-3-2-0": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "7×6=42で正解は1つ。他は35、49、56で誤り。2年の九九の範囲内。"
+  },
+  "s-old-6-0-2": {
+   "verdict": "fail",
+   "answer": 2,
+   "issues": [
+    "multiple_correct"
+   ],
+   "confidence": "medium",
+   "note": "条件をそろえ伸ばす長さだけ変えるのが正解。ただ選択肢1も同じ操作で、正解とも読める。"
+  },
+  "s-new-5-4-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "30÷40=0.75で75%。5年の割合と百分率の範囲で解け、正解は1つに決まる。"
+  },
+  "s-new-1-5-3": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "漁夫の利は二者が争う隙に第三者が利益を得る意。他の選択肢は意味が異なり、4年の故事成語学習の範囲内。"
+  },
+  "s-old-11-3-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "ペリー来航1853、大政奉還1867、廃藩置県1871、西南戦争1877の順で2番目は大政奉還。"
+  },
+  "s-new-1-0-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "手（て）は訓、紙（がみ）は訓。訓＋訓で正しく、正解は一つに決まる。"
+  },
+  "s-new-9-4-1": {
+   "verdict": "fail",
+   "answer": 0,
+   "issues": [
+    "factual_error"
+   ],
+   "confidence": "medium",
+   "note": "田の記号は縦二本線(||)で、横線の「二」と表すのは不正確。畑の∨は正しい。"
+  },
+  "s-new-7-1-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "夕方東に見える満月は真夜中ごろ南の高い空に移動する。月は東から南を通り西へ動く。"
+  },
+  "s-new-4-4-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "□＋278＝500なので□＝500－278。ひき算で求めるのが正しく、他の式は誤り。"
+  },
+  "s-new-1-2-3": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "「手を焼く」は扱いに困る意味。弟のいたずらに手を焼くが正しい用法。"
+  },
+  "s-new-14-1-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "yesterdayの質問には過去形で答えるのが自然。played が正解で、他は時制が合わない。"
+  },
+  "s-old-1-0-1": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "「あさ」も「ひ」も訓読みなので訓＋訓。音読みはチョウ・ニチで別の読み方。"
+  },
+  "s-old-4-5-3": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "1km200m＝1200m、往復で2倍して2400m。3年の長さの単元の範囲内。"
+  },
+  "s-new-5-4-0": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "0.5×0.8=0.4で元の値段の40%。70%引きと誤る30%との区別を問う良問。"
+  },
+  "s-old-14-2-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "Do you ~?にはYes, I do.で答える。獣医になりたい流れにも合う。"
+  },
+  "s-old-6-3-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "太陽の動きにつれ、かげは西から東へ少しずつ動く。問題文に英語「changes」が混入しているので修正が必要。"
+  },
+  "s-old-3-1-3": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "1m=100cmなので100+30=130cm。2年生で学ぶ単位換算で、正解は一つに決まる。"
+  },
+  "s-new-7-1-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "夕方に南の空で右半分が光る半月は上弦の月。下弦の月は明け方に南に見え、左半分が光る。"
+  },
+  "s-old-11-4-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "憲法第3条・7条で天皇は内閣の助言と承認により国事行為を行う。他の選択肢は誤り。"
+  },
+  "s-old-3-5-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "3時20分に40分を足すと3時60分となり、60分は1時間なので4時。正解は1つで問題なし。"
+  },
+  "s-new-1-2-1": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "「顔が広い」は交際範囲が広く知り合いが多いという意味の慣用句。正解は1つで、4年生の学習内容に合う。"
+  },
+  "s-old-14-2-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "体育の授業には汗をふくタオルを持っていくのが自然で、他の選択肢は体育と関係が薄い。"
+  },
+  "s-old-12-4-1": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "twelveが12、twentyは20。正解は1つで3年の数の学習範囲内。"
+  },
+  "s-old-3-3-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "3時20分に30分を足すと3時50分。正解は1つで問題なし。"
+  },
+  "s-old-7-3-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "並列つなぎは明るさが1個と同じで電池が長持ちするため、光る時間は長くなる。"
+  },
+  "s-new-10-2-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "部品を取りつけて車を完成させるのは組み立て工場で、部品工場は部品を作る工場。5年の学習内容。"
+  },
+  "s-old-8-2-2": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "ものが燃えると酸素が使われて減り、二酸化炭素が増える。6年の燃焼の学習内容どおり。"
+  },
+  "s-old-12-4-0": {
+   "verdict": "pass",
+   "answer": 2,
+   "issues": [],
+   "confidence": "high",
+   "note": "Sevenは7なので「えんぴつが7本」が正解。問題文が少し不自然だが解答は一意に決まる。"
+  },
+  "s-old-3-5-1": {
+   "verdict": "pass",
+   "answer": 2,
+   "issues": [],
+   "confidence": "high",
+   "note": "1m＝100cm、100−30＝70cmで正解は70cm。2年生の長さの単位で学習する範囲。"
+  },
+  "s-old-5-5-2": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "平行四辺形はどちらの対角線で分けても合同な三角形2つになる。たこ形のみは誤り。"
+  },
+  "s-new-5-5-3": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "角C=180-50-60=70°。CとFが対応するので角Fは70°。"
+  },
+  "s-old-8-1-0": {
+   "verdict": "pass",
+   "answer": 2,
+   "issues": [],
+   "confidence": "high",
+   "note": "左は20×30=600。右は10×□=600なので□=60g。正解は1つに決まる。"
+  },
+  "s-new-2-3-3": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "「お〜する」が謙譲語。他は尊敬語や二重敬語で、自分の動作には使わない。"
+  },
+  "s-old-10-3-3": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "情報の真偽を他の情報源で確かめることが適切。他は拡散を促す誤った行動。"
+  },
+  "s-new-1-5-1": {
+   "verdict": "pass",
+   "answer": 3,
+   "issues": [],
+   "confidence": "high",
+   "note": "五十歩百歩は少しの違いはあっても本質的には変わらない意。4年生で学ぶ故事成語の範囲内。"
+  },
+  "s-new-5-1-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "10×10×10=1000立方cm=1Lで、5年の体積単元の内容。正解は1つに決まる。"
+  },
+  "s-old-14-1-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "普段6:30、今日は7:00に起きたので、いつもより遅く起きたことになる。"
+  },
+  "s-new-0-3-1": {
+   "verdict": "pass",
+   "answer": 3,
+   "issues": [],
+   "confidence": "high",
+   "note": "「日曜日」は最初の字が「日」、「月曜日」は「月」なので正解は日曜日。"
+  },
+  "s-new-8-4-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "支点から力点までの距離が長いほど、小さな力で持ち上げられる。6年のてこの学習内容。"
+  },
+  "s-old-8-1-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "はさみは支点が中央のしん（ねもと）、力点が持つ所、作用点が紙に当たる刃。"
+  },
+  "s-new-1-4-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "体はにんべん。池はさんずい、話はごんべん、打はてへんで、正解は体の1つだけ。"
+  },
+  "s-old-5-4-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "500円の2割は100円なので、代金は500−100で400円。正解は1つに決まる。"
+  },
+  "s-new-0-4-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "「白い」という様子を表す言葉を加えた文は0だけ。他は不自然な文か意味の違う文。"
+  },
+  "s-new-1-0-0": {
+   "verdict": "pass",
+   "answer": 3,
+   "issues": [],
+   "confidence": "high",
+   "note": "朝（チョウ）も食（ショク）も音読みなので、組み合わせは音＋音となる。"
+  },
+  "s-new-11-2-3": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "御恩は将軍が御家人の領地を保護し、新たな領地を与えること。他は奉公などに当たる。"
+  },
+  "s-old-11-3-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "1853年に浦賀へ黒船で来航し開国を求めたのはペリー。ハリスは1856年来日、ビッドルは1846年来航。"
+  },
+  "s-old-8-2-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "ろうそくが燃えると二酸化炭素ができ、石灰水が白くにごる。6年の学習内容どおり。"
+  },
+  "s-old-1-4-0": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "「休」の左側のイはにんべん（へん）で、右側の木がつくりにあたるため。"
+  },
+  "s-old-2-0-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "植樹は「樹を植える」で、下の字が上の字の目的語になる構成。正解は0のみ。"
+  },
+  "s-new-4-0-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "5×6+2=32で、わられる数は32。あまり2はわる数5より小さく、条件も正しい。"
+  },
+  "s-old-8-4-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "満ち欠けは太陽光を反射して光る部分の見え方が変わるため。他の選択肢は根拠にならない。"
+  },
+  "s-new-7-1-3": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "北極星は天の北極近くにあり、時間がたってもほとんど位置が変わらない。4年の学習内容。"
+  },
+  "s-old-2-1-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "短歌は上の句5・7・5、下の句7・7の31音。選択肢0のみ正しい。"
+  },
+  "s-old-11-0-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "天皇は内閣の助言と承認により国事行為を行う。他は憲法に反し誤り。"
+  },
+  "s-old-11-0-3": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "裁判所は違憲立法審査権で国会をおさえる。解散は内閣の権限、法律案提出も内閣、議員は選挙で選ぶ。"
+  },
+  "s-old-11-5-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "国会（立法）と裁判所（司法）が互いに抑制し合う仕組みは三権分立。他の選択肢は当てはまらない。"
+  },
+  "s-old-2-4-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "五十歩百歩は大差がないという意味。問は「使い方」だが選択肢は意味で、解答に支障なし。"
+  },
+  "s-new-2-2-0": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "「弟が泣く」という主語・述語が文の一部に含まれるので複文。0と3は重文、2は単文。"
+  },
+  "s-new-5-3-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "5/6−1/2=5/6−3/6=2/6=1/3で、正解は1/3のみ。5年の異分母分数の内容。"
+  },
+  "s-old-2-5-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "主語「夢は」に対応する述語は「～ことだ」が適切。他はねじれが残るか不自然。"
+  },
+  "s-new-3-0-2": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "100を10こ集めると1000。2年生の1000までの数で学ぶ内容で、正解は1つ。"
+  },
+  "s-new-8-1-3": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "力点を支点から遠くすると小さな力で抜ける。てこの規則性は6年の学習内容。"
+  },
+  "s-old-3-1-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "1m=100cmで最も長い。90cm、80cm、100mm=10cmより長い。2年で習う単位。"
+  },
+  "s-new-1-2-0": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "百回聞くより一度自分の目で見るほうが確かでよくわかるという意味。選択肢1が正しく、他は誤り。"
+  },
+  "s-new-10-4-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "北西の季節風が日本海で湿気を含み、山地にぶつかって雪を降らせる。正解は0のみ。"
+  },
+  "s-old-5-0-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "12と18の最大公約数は6なので、最大6人に余りなく分けられる。"
+  },
+  "s-new-2-5-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "主語「夢は」に対応する述語は「なることです」が正しく、他はねじれが残る。"
+  },
+  "s-old-4-2-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "1kg=1000gなので1kg200g=1200g。正解は1つで3年の学習範囲内。"
+  },
+  "s-old-13-1-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "on the chairは「いすの上」。5年生の位置を表す前置詞の学習内容に合っている。"
+  },
+  "s-old-14-1-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "after dinnerは「夕食の後」なので、夕食の後に宿題をするという順番が正解。"
+  },
+  "s-old-8-3-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "月と太陽の位置関係が変わり、光が当たる部分の見え方（満ち欠け）が変わる。月は自ら光を出さない。"
+  },
+  "s-new-14-2-1": {
+   "verdict": "fail",
+   "answer": 0,
+   "issues": [
+    "ambiguous"
+   ],
+   "confidence": "medium",
+   "note": "獣医になりたい人は動物好きと推測できるが、会話中に「好き」の明示はなく、推論に頼る問題。"
+  },
+  "s-new-9-0-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "学校の地図記号は文字の「文」が由来。小3の地図記号学習の範囲内で正解は一つ。"
+  },
+  "s-new-13-2-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "P.E.は体育を表す。火曜日に体育があるので正解は体育。5年の教科単元に合う。"
+  },
+  "s-new-2-1-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "「柿くへば鐘が鳴るなり法隆寺」は正岡子規の代表的な俳句で、正解は一つに決まる。"
+  },
+  "s-old-5-4-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "400÷(1−0.2)=500円。正解は1つで、5年の割合の学習範囲内。"
+  },
+  "s-new-13-3-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "Can you～?には Yes, I can. で答えるのが正しい。他の選択肢は文法的に不適切。"
+  },
+  "s-new-4-5-3": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "往復は700m×2=1400mで、1km400mになる。正解は1つに決まり、3年の内容。"
+  },
+  "s-old-9-1-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "大きな船が入れる海辺には港や工場が多い。他の選択肢は海辺の特徴に合わない。"
+  },
+  "s-new-11-2-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "894年の遣唐使停止後、日本独自の国風文化が発達した。ほかの選択肢は時代が異なる。"
+  },
+  "s-new-0-0-0": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "「三」は横画三本で三画。1年生で習う漢字で、2年生の範囲として適切。"
+  },
+  "s-old-2-4-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "「猫の手も借りたい」は非常に忙しい様子を表す慣用句で、正解は0のみ。"
+  },
+  "s-old-8-2-1": {
+   "verdict": "pass",
+   "answer": 2,
+   "issues": [],
+   "confidence": "high",
+   "note": "空気の体積の約78%が窒素で、約21%は酸素。6年「燃焼の仕組み」で学ぶ内容。"
+  },
+  "s-new-6-3-0": {
+   "verdict": "pass",
+   "answer": 2,
+   "issues": [],
+   "confidence": "high",
+   "note": "日光が当たる日なたの地面は、日かげの地面よりあたたかい。3年の学習内容どおりで問題なし。"
+  },
+  "s-new-10-0-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "北西の季節風が日本海で水蒸気を含み、山地にぶつかって日本海側に雪を降らせる。"
+  },
+  "s-new-1-4-3": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "「顔」は左が「彦」、右のつくりが「頁（おおがい）」。正解は頁で一つに決まる。"
+  },
+  "s-new-2-4-3": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "唐の賈島が「僧は推す/敲く月下の門」の字句を練り直した故事が由来。正解は0のみ。"
+  },
+  "s-old-13-3-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "canの後は動詞の原形が来るのでplayが正解。5年の「できること」の単元に合う。"
+  },
+  "s-old-5-2-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "五角形の内角の和は540°で、正五角形なら540÷5=108°。5年の学習範囲内。"
+  },
+  "s-new-0-2-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "雨がふってきたので、ぬれないように走ったと読み取れる。ほかの選択肢は本文に根拠がない。"
+  },
+  "s-old-12-0-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "Eの一番下の横線がない形がFで、正解は1つに決まる。Lは横線が2本足りない。"
+  },
+  "s-new-13-2-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "math・science・musicは教科名で、Fridayだけが曜日なので仲間はずれ。"
+  },
+  "s-new-10-3-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "情報の確かめ方として複数の情報源と比べるのが適切。他は確認方法ではない。"
+  },
+  "s-old-11-5-1": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "源頼朝は1192年に征夷大将軍に任じられ、鎌倉幕府を開いて武士をまとめた。"
+  },
+  "s-new-5-0-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "公倍数は最小公倍数12の倍数なので、選択肢のうち12の倍数である36だけが必ず公倍数になる。"
+  },
+  "s-new-0-3-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "曜日は月・火・水・木・金の順なので、木のつぎは金曜日。2年の曜日の漢字で学ぶ内容。"
+  },
+  "s-old-5-2-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "六角形は対角線で4つの三角形に分けられ、180°×4＝720°。5年の学習範囲内。"
+  },
+  "s-old-3-1-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "1m＝100cmなので、100−40＝60cmが残る。2年生で習うmとcmの単位換算の範囲内。"
+  },
+  "s-old-12-5-0": {
+   "verdict": "pass",
+   "answer": 3,
+   "issues": [],
+   "confidence": "high",
+   "note": "yellowは黄色。3年生の外国語活動で色の名前を扱うので学年相応。"
+  },
+  "s-new-4-5-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "14×3=42円、50−42=8円でおつりは8円。正解は1つで、3年生の学習範囲内。"
+  },
+  "s-new-12-0-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "medium",
+   "note": "EとFの違いは下の横線の有無。他の選択肢はEの特徴として誤り。比較対象Fが明示されずやや不明確。"
+  },
+  "s-old-3-0-2": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "999に1をたすと1000になる。正解は1つで、2年生の「1000までの数」の範囲内。"
+  },
+  "s-new-7-2-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "氷がとけている間は温度が0℃のまま変わらない。4年の水のすがたの学習内容。"
+  },
+  "s-old-4-5-1": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "24×3=72で72こが正解。3年のかけ算の筆算の範囲内。"
+  },
+  "s-new-9-1-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "「文」は小・中学校の地図記号なので、毎日通うのは学校の子ども。"
+  },
+  "s-old-1-3-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "要約では具体例など細部を省き、主張や中心文、話題は残すため0が正解。"
+  },
+  "s-new-0-2-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "あとずさりは怖さや警戒を表す行動で、選択肢の中では「こわい」が最も適切。"
+  },
+  "s-old-11-2-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "御恩は将軍が領地を保障し、手柄に恩賞を与えること。1と2は奉公にあたる。"
+  },
+  "s-new-1-3-2": {
+   "verdict": "pass",
+   "answer": 2,
+   "issues": [],
+   "confidence": "high",
+   "note": "要約では細かい具体例は省き、中心・結論・筆者の考えを残すため。"
+  },
+  "s-old-4-4-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "75−48＝27で□は27。正解は1つだけで、3年生の筆算の範囲内。"
+  },
+  "s-new-4-2-1": {
+   "verdict": "pass",
+   "answer": 2,
+   "issues": [],
+   "confidence": "high",
+   "note": "同じ分母7同士では分子が大きいほど大きく5/7が正解。3/9は1/3で3/7より小さい。"
+  },
+  "s-old-1-3-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "要旨は筆者が最も伝えたい考えの中心。他の選択肢は明らかに誤り。"
+  },
+  "s-old-12-3-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "おなかがぺこぺこは英語でhungry。3年生の気分・体調の表現で習う語で、正解は一つに決まる。"
+  },
+  "s-new-2-2-1": {
+   "verdict": "pass",
+   "answer": 3,
+   "issues": [],
+   "confidence": "high",
+   "note": "述語「食べた」に対応する主語は「弟が」。「姉が」は修飾部の中の主語にすぎない。"
+  },
+  "s-new-10-5-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "関東から九州北部の太平洋沿いに工業地域が連なる帯は太平洋ベルトで、5年生の学習内容。"
+  },
+  "s-old-5-1-0": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "60÷(4×5)=3cmで、正解は3cmの1つだけ。5年の体積の学習範囲内。"
+  },
+  "s-new-10-3-3": {
+   "verdict": "pass",
+   "answer": 3,
+   "issues": [],
+   "confidence": "high",
+   "note": "情報を広める前に発信元や出どころを確かめることが情報モラルの基本。他の選択肢は不適切。"
+  },
+  "s-new-1-4-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "「教」は左が「孝」、右が部首の「攵（ぼくづくり・のぶん）」に分けられる。"
+  },
+  "s-old-12-4-3": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "Threeは3なので、りんごは3こ。13(thirteen)や30(thirty)とまぎらわしい選択肢も適切。"
+  },
+  "s-old-7-2-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "氷がとけている間は温度が0℃のまま変わらない。4年の学習内容。"
+  },
+  "s-new-9-0-0": {
+   "verdict": "pass",
+   "answer": 2,
+   "issues": [],
+   "confidence": "high",
+   "note": "お寺の地図記号は卍。〒は郵便局で正しくは〒を丸で囲む形、文は小中学校、♨は温泉。"
+  },
+  "s-old-11-2-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "縄文→弥生→古墳→飛鳥が正しい時代順。他の選択肢はいずれも順序が入れ替わっている。"
+  },
+  "s-old-11-2-3": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "遣唐使停止後に国風文化が発達しかな文字が広まった。他の選択肢は時代や事実が誤り。"
+  },
+  "s-new-11-1-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "内閣不信任決議後は10日以内に衆議院を解散するか総辞職する。厳密には決議するのは衆議院。"
+  },
+  "s-new-13-4-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "What do you want?にはI want ~.で答えるのが自然。他は不自然か文法的に不適切。"
+  },
+  "s-new-12-4-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "数を尋ねるHow many pens?の答えとしてNine.が自然。他は色・調子・物を問う。"
+  },
+  "s-old-5-4-3": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "40人は20人の200%で、もとにする量が入れ替わっているため誤り。正解は0のみ。"
+  },
+  "s-old-2-2-1": {
+   "verdict": "pass",
+   "answer": 2,
+   "issues": [],
+   "confidence": "medium",
+   "note": "「弟が泣いたので」は理由を表す従属節で対等な並列ではないため複文。教材により重文扱いの例もある。"
+  },
+  "s-new-9-3-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "駅の近くは交通が便利で家や店が集まる。他の選択肢は不適切で正解は一つ。"
+  },
+  "s-old-1-4-1": {
+   "verdict": "fail",
+   "answer": 1,
+   "issues": [
+    "factual_error"
+   ],
+   "confidence": "medium",
+   "note": "右側の部分はつくりで正解は明確。ただし林の右の木をつくりと呼ぶ例は一般的でなく不適切。"
+  },
+  "s-old-2-3-0": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "「お～いたす」は謙譲語。他は尊敬語や二重敬語で、自分の動作には不適切。"
+  },
+  "s-old-7-1-1": {
+   "verdict": "fail",
+   "answer": 2,
+   "issues": [
+    "multiple_correct"
+   ],
+   "confidence": "medium",
+   "note": "想定の正解は2だが、2月ごろは明け方に東の空でさそり座が見えるため、0も正しいと言える。"
+  },
+  "s-new-2-3-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "「お〜になる」と「られる」を重ねた0が二重敬語。他は単一の尊敬表現で正しい。"
+  },
+  "s-old-3-1-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "1cmは10mm。2年生の長さの単位で学習する内容で、正解は1つに決まる。"
+  },
+  "s-old-5-3-1": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "5/6−1/4＝10/12−3/12＝7/12。他の選択肢は誤りで正解は一つ。"
+  },
+  "s-new-7-2-2": {
+   "verdict": "fail",
+   "answer": 0,
+   "issues": [
+    "ambiguous"
+   ],
+   "confidence": "medium",
+   "note": "沸騰時のあわは水蒸気。ただ「熱したとき」だけだと、熱し始めのあわ（空気）とも読める。"
+  },
+  "s-new-5-2-1": {
+   "verdict": "fail",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "四角形の内角の和は360°。360−(90+100+80)=90°となる。"
+  },
+  "s-new-13-4-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "I want ...は欲しい物を伝える表現。好きな物はI like ...で区別できる。"
+  },
+  "s-old-7-4-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "湯気は水蒸気が冷えてできた小さな水のつぶ（液体）で、水蒸気は目に見えない気体。4年の学習内容。"
+  },
+  "s-old-13-5-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "I want to visitは「行きたい」の意味。京都は日本の都市なので0が正しい。"
+  },
+  "s-new-13-0-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "My name is ~は「私の名前は~です」で、自分の名前を伝える表現。正解は1つだけ。"
+  },
+  "s-new-11-3-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "鎖国中、長崎の出島でオランダ、唐人屋敷で中国（清）との貿易が認められていた。"
+  },
+  "s-old-12-1-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "「これは何？」への答えは「It's a pencil.」。他は物違い・好み・指示で不適。"
+  },
+  "s-old-7-0-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "閉じ込めた空気は押すと縮むが水は縮まないことは4年の学習内容で、正解は0のみ。"
+  },
+  "s-new-5-3-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "1/2+1/3=3/6+2/6=5/6Lで、正解は5/6L。他の選択肢は誤り。"
+  },
+  "s-new-10-5-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "田植えの後に田に水を張って稲を育てる。他の選択肢は収穫以降の作業なので当てはまらない。"
+  },
+  "s-old-11-4-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "地租改正は地価の3%を土地所有者に現金で納めさせた。他は誤り。"
+  },
+  "s-new-8-3-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "月の表面の円形のくぼみはクレーターと呼ばれ、6年「月と太陽」で学習する内容。"
+  },
+  "s-old-6-0-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "ゴムを長くのばすほど元に戻ろうとする力が大きくなり、車は遠くまで走る。"
+  },
+  "s-new-7-4-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "月は一晩のうちに東からのぼり、南の空を通って西へしずむ。友達の考えは誤りである。"
+  },
+  "s-new-0-5-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "助詞の「は」「へ」を正しく使っているのは0だけ。問題文に答えがそのまま出ているが誤りではない。"
+  },
+  "s-old-2-5-0": {
+   "verdict": "fail",
+   "answer": 0,
+   "issues": [
+    "ambiguous"
+   ],
+   "confidence": "medium",
+   "note": "読点や語順で係り方を明確にするのが定石。ただ、どう読み違えるのかが示されておらず条件が不足している。"
+  },
+  "s-new-6-0-0": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "のばしたゴムは元にもどろうとする力がはたらき、その向きに車が動くため選択肢1が正解。"
+  },
+  "s-old-4-1-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "0.6+0.9=1.5で1.5mが正解。つなぎ目の重なりは考えない一般的な問題。"
+  },
+  "s-new-11-0-3": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "首相の指名は国会の仕事。任命・憲法改正の公布・国会召集は天皇の国事行為と憲法に規定。"
+  },
+  "s-old-13-3-2": {
+   "verdict": "fail",
+   "answer": 0,
+   "issues": [
+    "multiple_correct"
+   ],
+   "confidence": "medium",
+   "note": "Canの疑問文にはYes, I can.で答える。選択肢3も末尾の誤字を除けば正しい英文で、正解になりうる。"
+  },
+  "s-new-11-5-0": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "1854年の日米和親条約で開港したのは下田と函館。他の選択肢は修好通商条約関連の港を含む。"
+  },
+  "s-new-0-4-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "「ごはんを」に続く動きの言葉は「食べる」だけ。他は様子の言葉で文に合わない。"
+  },
+  "s-old-8-1-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "支点から力点が遠いほど小さい力で持ち上げられる。6年のてこの学習内容どおり。"
+  },
+  "s-old-13-4-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "「犬が好き」は一般的に複数形でI like dogs.。他は意味違いや文法誤り。"
+  },
+  "s-new-0-5-2": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "オ段の長音は「う」と書くため、正しい表記は「おうさま」「おとうさん」。"
+  },
+  "s-new-6-4-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "昆虫は体が頭・胸・腹の3つに分かれ、あしが6本。羽の数は昆虫により異なるので判断基準にならない。"
+  },
+  "s-new-10-2-3": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "必要な部品を必要な時に必要な数だけ届けるのはジャスト・イン・タイム方式で、5年の教科書にも載る。"
+  },
+  "s-new-2-0-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "「温」も「暖」もあたたかいという意味で、似た意味の漢字を組み合わせた熟語。"
+  },
+  "s-old-0-5-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "方向を表す助詞の「へ」は「え」と読む。2年生のかなづかい学習の範囲内。"
+  },
+  "s-old-0-2-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "主語「はるかは」が入れた人。手紙・ポストは物、先生は文中に登場しない。"
+  },
+  "s-old-5-5-1": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "2辺とその間の角が決まれば三角形は1つに決まる。角だけでは大きさが決まらず、間でない角では2通りになることがある。"
+  },
+  "s-new-4-5-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "35×4=140で、140まいが正解。3年のかけ算の筆算の範囲内。"
+  },
+  "s-new-1-3-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "要旨は筆者が文章で最も伝えたい中心となる考えをまとめたもので、選択肢0のみが正しい。"
+  },
+  "s-old-2-3-3": {
+   "verdict": "pass",
+   "answer": 2,
+   "issues": [],
+   "confidence": "high",
+   "note": "「おっしゃる」に尊敬の「られる」を重ねた二重敬語。他は正しい尊敬表現。"
+  },
+  "s-new-12-5-1": {
+   "verdict": "pass",
+   "answer": 3,
+   "issues": [],
+   "confidence": "high",
+   "note": "blueは青。3年の外国語活動で扱う色の表現で、正解は1つに決まる。"
+  },
+  "s-new-12-1-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "\"It's an apple.\"と答えているので、正解はりんご。3年生の外国語活動で扱う語彙で問題ない。"
+  },
+  "s-new-1-5-2": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "杞憂は杞の国の人が天が落ちるのを心配した故事で、無用な心配の意味。他は意味が違う。"
+  },
+  "s-new-12-2-0": {
+   "verdict": "pass",
+   "answer": 2,
+   "issues": [],
+   "confidence": "high",
+   "note": "Thank you.への返事はYou're welcome.が適切。他はお礼への返事として不自然。"
+  },
+  "s-new-13-3-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "canの後は動詞の原形なのでplayが正解。他の形は文法的に誤りで、5年生の学習範囲内。"
+  },
+  "s-new-2-3-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "「召し上がる」は尊敬語。「いただく」は謙譲語、「お食べになられる」は二重敬語。"
+  },
+  "s-new-7-2-3": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "洗たく物がかわくのは水が蒸発し水蒸気として空気中へ出ていくため。湯気は液体の粒で誤り。"
+  },
+  "s-old-1-4-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "海・波はさんずい。校・板はきへん、持・投はてへん、姉・妹はおんなへん。"
+  },
+  "s-old-7-2-2": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "水が氷になると体積は約1.1倍に増えるが、重さは変わらない。4年で学習する内容。"
+  },
+  "s-new-2-5-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "medium",
+   "note": "「まず初めに」の重複を除いたのは0だけ。ただし「初めに…始めます」の音の重なりは少し残る。"
+  },
+  "s-old-4-5-2": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "1km700m=1700m、1700m−800m=900mで、正解は900mのみ。"
+  },
+  "s-old-14-1-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "ateはeatの過去形で、昨日7時に朝食を食べたという意味。正解は0のみ。"
+  },
+  "s-old-12-2-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "夜寝る前のあいさつはGood night.が適切で、他の選択肢は場面に合わない。"
+  },
+  "s-old-5-5-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "合同なので角B=角E=60°となり、角Cは180°-50°-60°=70°。正解は一つに決まる。"
+  },
+  "s-old-4-1-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "飲んだ0.7Lと残り0.2Lを合わせて0.7+0.2=0.9L。小数第一位のたし算で3年生の範囲内。"
+  },
+  "s-new-1-0-1": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "植（う・訓）＋木（き・訓）で訓＋訓。音読みはショク・ボクなので該当しない。"
+  },
+  "s-old-1-1-2": {
+   "verdict": "pass",
+   "answer": 3,
+   "issues": [],
+   "confidence": "high",
+   "note": "歌が上手なことにダンスも得意を付け加えるので、累加の「そのうえ」が適切。"
+  },
+  "s-new-10-1-1": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "高原の涼しい気候で出荷時期を遅らせる栽培は抑制栽培で、嬬恋村のキャベツなどが代表例。"
+  },
+  "s-old-1-4-3": {
+   "verdict": "pass",
+   "answer": 2,
+   "issues": [],
+   "confidence": "high",
+   "note": "「話」の左側にある「言」は「ごんべん」で、へんにあたる。正解は「へん」の1つだけ。"
+  },
+  "s-old-10-2-0": {
+   "verdict": "pass",
+   "answer": 2,
+   "issues": [],
+   "confidence": "high",
+   "note": "自動車工場の工程はプレス→溶接→塗装→組み立て→検査の順で、教科書通りの流れ。"
+  },
+  "s-new-6-1-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "アリは頭・胸・腹の3つに分かれる昆虫。クモは体が2つで足8本。働きアリにははねがない。"
+  },
+  "s-new-5-4-2": {
+   "verdict": "pass",
+   "answer": 2,
+   "issues": [],
+   "confidence": "high",
+   "note": "もとにする量は6÷0.2＝30。正解は30の1つだけで、問題文にも不備はない。"
+  },
+  "s-new-6-3-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "かげは太陽と反対側にできる。朝、太陽が東にあるので、かげは西にのびる。"
+  },
+  "s-new-6-4-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "日かげは日光が当たらず地面があたためられないため。3年の学習内容どおり。"
+  },
+  "s-new-12-3-3": {
+   "verdict": "pass",
+   "answer": 3,
+   "issues": [],
+   "confidence": "high",
+   "note": "ニコニコ顔はhappy。他はsad・tired・hungryで笑顔に合わない。3年の外国語活動の範囲内。"
+  },
+  "s-new-1-3-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "要約ではまず中心となる大事な文やキーワードを探す。他の選択肢は明らかに不適切。"
+  },
+  "s-new-9-2-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "田に水を入れて土をかきならす作業は「しろかき」。他の選択肢は別の作業で、正解は一つに決まる。"
+  },
+  "s-old-3-0-0": {
+   "verdict": "pass",
+   "answer": 2,
+   "issues": [],
+   "confidence": "high",
+   "note": "10ずつ増える数の並びなので、720の次は730になる。"
+  },
+  "s-new-4-3-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "60000÷6000=10なので、6000を10こ集めた数。正解は1つで問題なし。"
+  },
+  "s-old-10-3-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "マスメディアは同じ情報を一度に多くの人へ伝える特ちょうがあり、0が正解。他は誤り。"
+  },
+  "s-new-10-0-1": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "日本の川は山地が多く国土が狭いため、短く流れが急。教科書の定番内容。"
+  },
+  "s-old-4-2-1": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "同分母の分数のたし算で分子を足し5/7。3年で学習する範囲内。"
+  },
+  "s-new-11-3-3": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "1872年に公布された学制により全国に小学校がつくられた。教育勅語は1890年、徴兵令は1873年。"
+  },
+  "s-old-13-0-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "名前のつづりを聞かれているので、出身を答えるI'm from Canada.だけが不適切な返事。"
+  },
+  "s-old-6-3-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "日光で地面があたためられるので日なたがあたたかい。選択肢1と3は同じ内容だが、どちらも誤答なので正解は一つに決まる。"
+  },
+  "s-old-11-1-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "条約の締結は内閣が行い、その承認は国会の仕事である（憲法73条・61条）。"
+  },
+  "s-new-11-4-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "地租改正は地価の3%を現金で納めさせ、豊凶に左右されない安定財源を得る目的。他は誤り。"
+  },
+  "s-new-11-2-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "防衛戦で新しい領地を得られず、御家人に十分な恩賞が与えられなかったため。刀狩りは豊臣秀吉の政策。"
+  },
+  "s-new-10-5-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "情報を伝える前に複数の情報源で確かめることが情報リテラシーの基本。他は不適切な行動。"
+  },
+  "s-old-9-1-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "駅周辺は人が集まり交通が便利なため店やビルが多い。他の選択肢は明らかに誤り。"
+  },
+  "s-old-0-3-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "東西南北は2年で習う方角の漢字。残りの方角は「北」で、ほかの選択肢は方角ではない。"
+  },
+  "s-old-3-2-0": {
+   "verdict": "pass",
+   "answer": 2,
+   "issues": [],
+   "confidence": "high",
+   "note": "6×4=24で正解は1つ。他は18、30、36で誤り。2年の九九の範囲内。"
+  },
+  "s-new-11-0-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "憲法第96条により、国会の発議、国民投票での承認、天皇による公布の順。正解は0のみ。"
+  },
+  "s-new-5-3-0": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "通分すると3/12+2/12=5/12となる。5/12はこれ以上約分できない。"
+  },
+  "s-new-4-1-1": {
+   "verdict": "fail",
+   "answer": 0,
+   "issues": [
+    "ambiguous"
+   ],
+   "confidence": "high",
+   "note": "0.3+0.5−0.4=0.4L。ただし問題文に英語「use」が混ざり、3年生には意味が伝わりにくい。"
+  },
+  "s-new-5-5-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "合同な図形では対応する辺の長さは等しく、ABに重なるDEも5cmになる。"
+  },
+  "s-old-7-1-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "北の空の星は北極星を中心に反時計回りに回って見える。4年の星の動きの学習内容。"
+  },
+  "s-old-2-0-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "前後・左右は意味が対になる漢字の組み合わせ。温暖は似た意味、急行は修飾、読書は動詞＋目的語。"
+  },
+  "s-new-6-0-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "ゴムを長くのばすほど元に戻ろうとする力が大きくなり、車は遠くまで走る。3年の学習内容。"
+  },
+  "s-new-3-0-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "300+50+2=352。2年生の1000までの数の範囲内で問題なし。"
+  },
+  "s-new-8-3-0": {
+   "verdict": "pass",
+   "answer": 3,
+   "issues": [],
+   "confidence": "high",
+   "note": "月の満ち欠けは月と太陽の位置関係の変化によるもので、教科書の内容に合う。"
+  },
+  "s-new-7-5-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "閉じこめた空気は押すと縮むが、水はほとんど縮まない。4年の学習内容どおり。"
+  },
+  "s-old-10-4-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "田に水を入れて土をかきまぜ平らにする作業は「しろかき」。他の選択肢は別の作業。"
+  },
+  "s-new-13-1-2": {
+   "verdict": "pass",
+   "answer": 3,
+   "issues": [],
+   "confidence": "high",
+   "note": "「箱の下」はunder。on=上、in=中、by=そば。5年生の位置を表す語の範囲内。"
+  },
+  "s-new-8-1-2": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "せんぬきはふたのふちに引っかけた部分が作用点で、ふたの上に当たる部分が支点、持ち手が力点になる。"
+  },
+  "s-old-4-3-0": {
+   "verdict": "pass",
+   "answer": 2,
+   "issues": [],
+   "confidence": "high",
+   "note": "8600÷10=860。10倍の逆は10でわる。3年の大きな数の範囲内。"
+  },
+  "s-new-10-0-2": {
+   "verdict": "pass",
+   "answer": 2,
+   "issues": [],
+   "confidence": "high",
+   "note": "太平洋側は夏の南東季節風で雨が多く、冬は北西季節風が山を越え乾いた晴天が多い。"
+  },
+  "s-old-0-2-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "犬を見てにげた行動から、こわいという気もちが読み取れる。他の選択肢は合わない。"
+  },
+  "s-new-14-0-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "寿司は日本の代表的な料理なので、行きたい国はJapanが最も合う。"
+  },
+  "s-new-14-1-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "after dinnerは「夕食のあと」の意味で、正解は1つに決まる。学年相応の内容。"
+  },
+  "s-old-12-2-1": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "Thank you.への返事はYou're welcome.で、他の選択肢は場面に合わない。"
+  },
+  "s-new-14-1-3": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "Last Sundayは先週の日曜、sawとateは過去形で、見て食べたが正しい。"
+  },
+  "s-old-2-0-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "「急行」は急いで行く意で、上の字「急」が下の字「行」を修飾する構成。"
+  },
+  "s-new-14-5-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "because I like cookingは「料理が好きだから」の意味。他の選択肢は本文にない。"
+  },
+  "s-new-12-4-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "fifteenは15。50はfifty、14はfourteen、16はsixteenで、正解は1つに決まる。"
+  },
+  "s-new-1-1-3": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "早起きしたのに乗り遅れたという予想に反する結果なので、逆接の「しかし」が入る。"
+  },
+  "s-old-6-1-1": {
+   "verdict": "pass",
+   "answer": 3,
+   "issues": [],
+   "confidence": "high",
+   "note": "バッタのはらはふしがあり、のびちぢみして呼吸などをする。3年の昆虫の体の学習内容。"
+  },
+  "s-old-12-1-1": {
+   "verdict": "fail",
+   "answer": 0,
+   "issues": [
+    "ambiguous"
+   ],
+   "confidence": "high",
+   "note": "好きな動物を聞かれた返答はI like dogs.。ただ問題文の冒頭に答えが混入し、構成が不自然。"
+  },
+  "s-new-2-0-1": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "高低は反対の意味の組み合わせ。強弱も同じ。温暖は似た意味、急行は修飾、登山は動作と対象。"
+  },
+  "s-old-3-5-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "6×4=24で24こが正解。2年生のかけ算の範囲内。"
+  },
+  "s-old-12-4-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "How manyは数をたずねる表現で、答えるのはりんごの数。3年生の数の単元に合う。"
+  },
+  "s-old-0-0-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "「石ころ」は一般的な言葉。他の選択肢はふつう使わない言葉で、正解は一つに決まる。"
+  },
+  "s-new-10-0-3": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "日本は国土の約4分の3が山地で平地は少ない。川は短く急流なので他は誤り。"
+  },
+  "s-old-14-4-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "school tripは修学旅行、Naraは奈良。正解は0のみで、6年生の学習範囲内。"
+  },
+  "s-old-11-2-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "十七条の憲法は役人の心構えを示したもの。冠位十二階は位の制度で、他の二つは時代が違う。"
+  },
+  "s-old-2-5-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "「まず」と「最初に」は意味が重なる。片方を残した選択肢0だけが重複を直している。"
+  },
+  "s-old-8-5-1": {
+   "verdict": "pass",
+   "answer": 1,
+   "issues": [],
+   "confidence": "high",
+   "note": "力点が支点から遠いほど小さな力で済む。他の選択肢は力が大きくなる。"
+  },
+  "s-old-1-2-0": {
+   "verdict": "pass",
+   "answer": 2,
+   "issues": [],
+   "confidence": "high",
+   "note": "ちりも積もれば山となるは小さなことの積み重ねが大きくなる意味。選択肢2が該当。"
+  },
+  "s-new-11-0-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "国民主権は政治のあり方を最終的に決める力が国民にあるという原則で、0が正解。"
+  },
+  "s-new-3-5-0": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "1m=100cmなので100-30=70cm。2年生の長さの単位で学習する内容。"
+  },
+  "s-old-6-1-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "昆虫のはねとあしはむねについている。3年の学習内容どおり。"
+  },
+  "s-new-2-4-2": {
+   "verdict": "pass",
+   "answer": 0,
+   "issues": [],
+   "confidence": "high",
+   "note": "本来の意味は、人への親切はめぐりめぐって自分に返ってくるということ。"
+  }
+ },
+ "pair": {
+  "p-2-5-NO": {
+   "winner": "B",
+   "reason": "Aの2問目は「まず初めに、発表をします」も重複を直しており、正解が一つに決まらない。Bは正解が明確で、推敲の順序など単元の要点を押さえている。"
+  },
+  "p-9-2-NO": {
+   "winner": "A",
+   "reason": "Bは「小麦こを原料に作る食品」で、しょうゆも小麦を使うため正解があいまいになる。Aは工程の順番やしろかきなど内容が正確で、変化もあるため良い。"
+  },
+  "p-12-1-NO": {
+   "winner": "tie",
+   "reason": "Aは4問目で「行動」を問うのに選択肢が英文でずれている。Bは3問目の問題文が乱れて答えが見えている。欠点は同程度で、他の問題はどちらも良い。"
+  },
+  "p-10-0-ON": {
+   "winner": "tie",
+   "reason": "両組とも正確で学年・単元に合い、扱う内容もほぼ同じ。Aは理由を問う問題で変化があり、Bは誤答がややもっともらしい。はっきりした差はない。"
+  },
+  "p-3-1-ON": {
+   "winner": "tie",
+   "reason": "両組とも正解は明確で誤りがない。Aは「簡単」に合うが1mの計算が重なる。Bは単位換算に変化があるがやや難しめで、はっきりした差はない。"
+  },
+  "p-1-5-ON": {
+   "winner": "B",
+   "reason": "Aは正解が全て1番目で予測しやすく、問3は「使い方」と問いながら選択肢が意味になっている。Bは正解の位置がばらけ、扱う故事成語にも変化がある。"
+  },
+  "p-10-1-NO": {
+   "winner": "A",
+   "reason": "Aは作業・地形・自給率・栽培と内容に幅があり、正確でわかりやすい。Bは栽培方法の問題が2問重なり、新潟の地方を問う問題も単元から少しずれる。"
+  },
+  "p-4-5-NO": {
+   "winner": "B",
+   "reason": "両組とも計算は正しく単元にも合う。Aは正解がすべて1番目に偏っているが、Bは正解の位置がばらばらで、誤答もくり上がりミスなどもっともらしいのでBが良い。"
+  },
+  "p-14-3-NO": {
+   "winner": "B",
+   "reason": "Aの4問目「I went last summer to Nagano.」は誤りと言い切りにくく、正解があいまいになる。Bは4問とも正解が1つに決まり、疑問文や並べかえなど形式にも変化がある。"
+  },
+  "p-8-0-ON": {
+   "winner": "A",
+   "reason": "両組とも正確だが、Bは蒸発の問題が2問重なり選択肢も長い。Aは蒸発・リトマス・金属・気体と内容に変化があり、問題文も読みやすい。"
+  },
+  "p-14-4-ON": {
+   "winner": "A",
+   "reason": "Aは説明文・行事と場所の読み取り・応答・語順と形式に変化がある。Bは奈良の問題が2問重なり、\"We eat Nara.\"など明らかに不自然な誤答が目立つ。"
+  },
+  "p-14-2-ON": {
+   "winner": "tie",
+   "reason": "両組とも会話の流れから正解を選ぶ形式で、正しさや難易度はほぼ同等。Aのタオル、Bの獣医から好きなものを推測する問題は、どちらも推測頼みで少しあいまい。"
+  },
+  "p-2-0-ON": {
+   "winner": "B",
+   "reason": "両組とも正解は確かだが、Aは「上が下の目的語」など選択肢の表現が不自然。Bは選択肢が標準的な分類の言い方でそろい、読みやすい。"
+  },
+  "p-3-5-ON": {
+   "winner": "tie",
+   "reason": "両組とも正解が一つに決まり、2年生の簡単な内容に合っている。Bは図形も含み分野が広いが、Aの時刻問題も良問で、はっきりした差はない。"
+  },
+  "p-4-1-NO": {
+   "winner": "A",
+   "reason": "Bの1問目は半径2cm（直径4cm）のボールが直径10cmに入る数を5ことしており、正しくは2こで誤り。Aは「use」の混入や1問目の文のぎこちなさがあるが、正解はすべて正しい。"
+  },
+  "p-5-3-ON": {
+   "winner": "A",
+   "reason": "両組とも正答は正しい。Aは3つの分数のたし算など「難しい」に合う。Bは問4の「約分前の分母12」という表現が不自然で、ヒントにもなり易しい。"
+  },
+  "p-8-1-NO": {
+   "winner": "A",
+   "reason": "どちらも正答に誤りはない。Bは計算問題が2問重なり、はさみの支点を「ねもと」とする表現もあいまい。Aは身近な道具と計算をバランスよく出題している。"
+  },
+  "p-0-2-ON": {
+   "winner": "A",
+   "reason": "Bの3問目に英語が混入した壊れた問題文があり、使えない。Aは4問とも正確で短く、2年生の簡単な読み取りとして適切。"
+  },
+  "p-10-2-ON": {
+   "winner": "tie",
+   "reason": "両組とも正確で5年の単元に沿う。Aは工程順の問題に変化があり、Bは中京工業地帯などの定番知識を問う。Bは正解位置が偏るが、大きな差はない。"
+  },
+  "p-7-5-ON": {
+   "winner": "A",
+   "reason": "Bは直列の電池を1個外すと回路が切れて消えるため、正解の「暗くなる」があいまい。Q4も問いと選択肢がかみ合わない。Aは正解が明確で問題として安定している。"
+  },
+  "p-1-4-NO": {
+   "winner": "A",
+   "reason": "Bは「林」の木を右側とする例があいまいで、「イ」をカタカナで表すなど不正確な点がある。問2と問4も内容が重なる。Aは「教」の分け方にやや難があるが、全体では上回る。"
+  },
+  "p-7-2-NO": {
+   "winner": "B",
+   "reason": "Aの1問目は「熱したとき」のあわで、空気とも取れてあいまい。Bは「沸騰」と明記して正解が1つに決まり、体積と重さの問題で変化もある。"
+  },
+  "p-3-3-ON": {
+   "winner": "A",
+   "reason": "両方正確だが、Bは正時をまたぐ計算を含み3年生の内容で「簡単」に合わない。Aは2年の基本に合い易しい。ただしAには「33時」など弱い誤答がある。"
+  },
+  "p-4-3-NO": {
+   "winner": "B",
+   "reason": "両組とも正答は正しい。Bは2段階の思考を要する問題が多く「普通」の難易度に合い、誤答もありがちなミスを反映している。Aは正解が全問1番目で、「40この」に誤字もある。"
+  },
+  "p-8-5-NO": {
+   "winner": "B",
+   "reason": "Aの月の問題は正解が誤り。翌日の同時刻の月は太くなり東寄りに見えるはずだ。Bは全問が正しく、6年の普通レベルにも合っているためBが良い。"
+  },
+  "p-11-2-NO": {
+   "winner": "tie",
+   "reason": "両組とも正確で6年の古代〜中世に沿う。Aは元寇の恩賞問題、Bは時代順や冠位十二階の誤答が良く、質に明確な差はない。"
+  },
+  "p-13-5-ON": {
+   "winner": "A",
+   "reason": "Aは全問で正解が明確で、自然な単元の練習になっている。Bは3問目の注記が答えを示しており、4問目は都市名か国名かを問う不自然な内容で、正解もあいまい。"
+  },
+  "p-9-1-ON": {
+   "winner": "A",
+   "reason": "Aは「けいさつ書」の誤字があるが、理由を考える良問がそろう。Bは答えが問題文から分かる問いや単元外の119番の問いがあり、記号の問いもあいまい。"
+  },
+  "p-1-0-NO": {
+   "winner": "A",
+   "reason": "Aは4問とも正確。Bは重箱読みの問題で「場所」を正解としているが、実際は訓＋音（湯桶読み）で誤り。第3問もわかりにくい。"
+  },
+  "p-14-0-ON": {
+   "winner": "tie",
+   "reason": "Aは4問とも同じ形式で誤答が不自然。Bは語順問題があり変化はあるが、4問目の問い方があいまい。どちらも難しいとは言いにくく、はっきりした差はない。"
+  },
+  "p-11-3-ON": {
+   "winner": "B",
+   "reason": "両組とも正確だが、Bは組み合わせや同時期の法律を問うなど難しいレベルに合い、誤答も巧妙。Aはペリーなど基本的な問題が多く難易度が低め。"
+  },
+  "p-8-4-ON": {
+   "winner": "B",
+   "reason": "Bは燃焼、てこの性質、てこの計算、水溶液と内容に幅があり、すべて正確。Aは月の満ち欠けを扱う問題が2問あって重なりがあるため、Bが良い。"
+  },
+  "p-5-5-ON": {
+   "winner": "B",
+   "reason": "Aは1問目の問題文に答えのヒントがあり、選択肢の辺DFと辺FDが同じ辺で重複している。Bは全問正確で、誤答も概念的でもっともらしい。"
+  },
+  "p-10-4-ON": {
+   "winner": "tie",
+   "reason": "両組とも正答は明確で事実の誤りもなく、5年の学習内容に合っている。Aはやや易しく、Bは理由を問う問題を含むが、質にはっきりした差はない。"
+  },
+  "p-9-3-ON": {
+   "winner": "B",
+   "reason": "Aは問題文に「tà」という文字化けがあり、等高線も3年生には難しい。Bは地図記号・方位・工場の仕事など3年生の内容に合い、おおむね正確だ。"
+  },
+  "p-11-0-NO": {
+   "winner": "A",
+   "reason": "両組とも正確だが、Aは三原則と改正手続きを学年相応に扱い、指名と任命の区別など難易度も適切。Bは国民投票の細かな条件や三権分立を含み、単元からややずれる。"
+  },
+  "p-11-4-NO": {
+   "winner": "B",
+   "reason": "両方とも正確だが、Bは御恩と奉公の区別や平戸と出島の区別など誤答がもっともらしい。Aは誤答に不自然なものがあり、Q1も裁判所全体の権限で少しあいまい。"
+  },
+  "p-0-1-NO": {
+   "winner": "B",
+   "reason": "Aの2問目は問題文が「space」、選択肢がa〜dだけで、問題として成り立っていない。Bは主語と述語を色々な形で問い、2年生向けの簡単な難易度に合っている。"
+  },
+  "p-12-2-ON": {
+   "winner": "tie",
+   "reason": "両組とも正解は明確で3年生の挨拶単元に合う。Aは問題に変化があるが1問目の文が不自然で、Bは文が読みやすいが誤答が重複しがち。差は小さい。"
+  },
+  "p-6-4-ON": {
+   "winner": "B",
+   "reason": "Aは1問目の文が複雑で簡単向きでなく、4問目の誤答「風を後ろからさけて当てる」も不自然。Bは昆虫が2問重なるが、どの問題も正解が明確で読みやすい。"
+  },
+  "p-10-3-NO": {
+   "winner": "A",
+   "reason": "Aは正解の位置がばらけ、誤答も適度にもっともらしい。Bは正解がすべて1番目で、Q2は文がぎこちなく、誤答が不自然なものが多い。"
+  },
+  "p-0-0-ON": {
+   "winner": "B",
+   "reason": "Aの1問目は問いと正解が合わず誤り。Bは4問目の「虫」の説明がややあいまいだが、全体として正確で2年生に合う。"
+  },
+  "p-13-3-ON": {
+   "winner": "B",
+   "reason": "Aの1問目に「Yes, I can play it.s」という誤字があり、これも正解になり得てあいまいです。Bは正解が一つに決まり、文の形にも変化があります。"
+  },
+  "p-13-2-NO": {
+   "winner": "A",
+   "reason": "Aは誤答がもっともらしく問題に変化がある。Bは第2問の誤答が明らかに不自然で易しすぎ、第4問は語順だけで正誤が決まり紛らわしい。"
+  },
+  "p-8-3-NO": {
+   "winner": "B",
+   "reason": "Aの問2は「反射する量が変わる」も正解に見えてあいまい。Bは4問とも正確で、上弦の月や並び順など単元に合った良問がそろう。"
+  },
+  "p-10-5-NO": {
+   "winner": "B",
+   "reason": "Aの米作りの問題は、田植え前にも田に水を入れるため、問い方があいまいになる。Bは4問とも正確で、季節風の問題が入って内容にも変化があり、良い。"
+  },
+  "p-12-0-ON": {
+   "winner": "A",
+   "reason": "Bは1問目で「だれ？」と問うのに選択肢が人になっておらず、2問目も比べる文字が示されずあいまいだ。Aは4問とも正解が明確で、3年生の簡単レベルに合う。"
+  },
+  "p-13-4-NO": {
+   "winner": "A",
+   "reason": "Aはlikeとwantの使い分けを多様な形式で問えている。Bは犬の問題が重なり、Q1の書きかえでdogsがa dogに変わる点が不自然。"
+  },
+  "p-6-0-ON": {
+   "winner": "B",
+   "reason": "Aの4問目は「のばす長さを毎回かえる」と「のばす長さだけをかえる」の区別があいまいで、正解が決めにくい。Bは表記ゆれ「方ほう」や長めの4問目があるが、正誤は明確。"
+  },
+  "p-12-5-NO": {
+   "winner": "tie",
+   "reason": "両組とも正解は明確で、3年生の色と形に合う簡単な問題。Aは誤答に実質同じ組み合わせがあり、Bは色を問う問題が重なる。はっきりした差はない。"
+  },
+  "p-2-4-ON": {
+   "winner": "B",
+   "reason": "Bは矛盾・推敲など故事成語を含み、誤解されやすい「情けは人のためならず」もあって難しい設定と単元に合う。Aは慣用句のみでやや易しい。"
+  },
+  "p-6-2-ON": {
+   "winner": "tie",
+   "reason": "両組とも正確で3年の磁石単元に沿う。Aは鉄が磁石になる問題、Bは引きつけられる物の問題があり、質に大きな差はない。"
+  },
+  "p-5-2-NO": {
+   "winner": "B",
+   "reason": "Aの四角形の問題は正解が90°なのに110°となっており誤りがある。外角の問題も5年生の範囲外である。Bは全問正確で単元に沿っている。"
+  },
+  "p-1-3-ON": {
+   "winner": "A",
+   "reason": "Bは問2で問題文が答えをそのまま示し、問1と問3の内容が重なる。Aは要約・要旨を多角的に問えており、普通の難易度にも合っている。"
+  },
+  "p-13-1-ON": {
+   "winner": "B",
+   "reason": "Bは月日の言い方や前置詞の選択など形式に変化があり、普通の難易度に合う。Aは位置の和訳問題が重なり、正解もすべて1番目で単調。"
+  },
+  "p-11-5-ON": {
+   "winner": "B",
+   "reason": "両組とも正確だが、Bは開港地や出来事の並べ替えなど難しい指定に合う。Aは基本的な問題が多く、問4の説明もややあいまい。"
+  },
+  "p-2-3-NO": {
+   "winner": "B",
+   "reason": "両組とも正確だが、Aは正解が全て1番目で予想しやすい。Bは正解位置に変化があり、身内を謙譲語で話す問いなど難しい難易度に合う。"
+  },
+  "p-0-5-NO": {
+   "winner": "A",
+   "reason": "両組とも問題文に正解が見えてしまう欠点がある。Bは「ゃ」を問うのに正解が「きんぎょ」で誤りがあり、正解位置もすべて同じ。Aのほうが正確。"
+  },
+  "p-12-4-ON": {
+   "winner": "A",
+   "reason": "Bの2問目「よくある間違い」は問い方が不自然で、正解の根拠もあいまい。Aは全問の正解が明確で、3年生の簡単な数の問題として安定している。"
+  },
+  "p-0-4-ON": {
+   "winner": "A",
+   "reason": "Bの2問目は雲を「さわった感じ」とする点が不正確。両組とも動きの言葉の問題があり単元からややずれるが、正しさの面でAが上。"
+  },
+  "p-6-3-NO": {
+   "winner": "A",
+   "reason": "Bは「右のどちら」「changes」など文の誤りや重複選択肢があり、1問目と4問目の内容も重なる。Aは正確で問題にも変化がある。"
+  },
+  "p-7-4-NO": {
+   "winner": "B",
+   "reason": "Aは電池を外すと回路が切れて消えるとも読め、あわの問題も空気と紛らわしい。Bは正解が明確で単元も多様。"
+  },
+  "p-9-5-ON": {
+   "winner": "A",
+   "reason": "Aは記号の組み合わせや理由を問い、普通の難易度に合う。Bは問題文に答えの手がかりがあり、2択の問いに4択を付けるなど誤答が弱い。"
+  },
+  "p-6-1-NO": {
+   "winner": "B",
+   "reason": "Aは問3の選択肢「胸と腹」「腹と胸」が実質重複し、問2と内容も重なる。Bは簡単な難易度に合い、部位・仲間分けなど問題に変化がある。"
+  },
+  "p-4-2-ON": {
+   "winner": "A",
+   "reason": "Bの4問目は選択肢「1kg700g」が1700gと同じ重さで、正解が2つに読めてあいまい。Aは全問正確で単元にも合い、誤答も考えられている。"
+  },
+  "p-13-0-NO": {
+   "winner": "B",
+   "reason": "Bは「I like hamburgers.」など紛らわしい誤答があり、正解位置も変化している。Aは正解がすべて1番目で、説明問題の誤答も見破りやすい。"
+  },
+  "p-5-0-NO": {
+   "winner": "B",
+   "reason": "Aの2問目は「かけて6でわる」も18×24÷6＝72で最小公倍数になり、正解が2つある。Bは全問正解が1つに決まるため、Bが良い。"
+  },
+  "p-7-1-ON": {
+   "winner": "B",
+   "reason": "Aは問2の正解が誤りで、本来は「もっと丸くなる」が正しい。問3も明け方に見える場合がありあいまい。Bは4問とも正確で単元に沿っている。"
+  },
+  "p-5-1-ON": {
+   "winner": "B",
+   "reason": "両組とも正確だが、Bは立方体の容積をLに換算する問題や水位上昇の問題があり、難しいに合う。Aは基本計算が中心で、ヒント付きの問題もあり易しすぎる。"
+  },
+  "p-14-5-NO": {
+   "winner": "tie",
+   "reason": "どちらも正確で単元に沿う。Aは誤答がもっともらしく、Bはsoを使った文で難度が高めだが一部の誤答が不自然。総合的に大きな差はない。"
+  },
+  "p-5-4-NO": {
+   "winner": "B",
+   "reason": "両方とも正確。Bは定価を逆に求める問題や値上げ後に値下げする問題があり、難しいに合う。Q2の誤答は弱いが、Aは基本問題が多い。"
+  },
+  "p-1-1-ON": {
+   "winner": "tie",
+   "reason": "両方とも正解が一つに決まり、順接・逆接・添加・対比や選択など種類にも変化がある。4年生の普通レベルに合っていて、質にはっきりした差はない。"
+  },
+  "p-14-1-NO": {
+   "winner": "A",
+   "reason": "Bは問4で「宿題の後に夕食」と「夕食の前に宿題」が同じ意味で重なる。問1も時刻を問うのに選択肢は時制の違いでずれている。Aの方が誤答の質がやや高い。"
+  },
+  "p-3-2-NO": {
+   "winner": "A",
+   "reason": "両方とも正解は正しい。ただしBの選択肢「4×11」は九九の範囲外で、2年生には不適切。Aはすべて九九の範囲内に収まっており、やや良い。"
+  },
+  "p-9-4-NO": {
+   "winner": "B",
+   "reason": "Aは田の地図記号を「二」としていて不正確なうえ、問題文に答えが書かれている。Bは正解が明確で誤答の選択肢も適切であり、全体の質が高い。"
+  },
+  "p-8-2-ON": {
+   "winner": "B",
+   "reason": "Aの4問目は、酸素だけのびんでは激しく燃えるが「一番長く燃える」かは明確でなく、あいまいさが残る。Bは2問目と4問目の内容が重なるものの、どの問題も正解がはっきりしている。"
+  },
+  "p-4-4-ON": {
+   "winner": "A",
+   "reason": "Aは全問の正解が明確で、時刻と筆算の内容もバランスが良い。Bは3桁同士の筆算で位がずれる場面が不自然で、正解もあいまいな問題がある。"
+  },
+  "p-1-2-NO": {
+   "winner": "A",
+   "reason": "Bの4問目は「猫の手も借りたい」にも体の部分「手」が入っており、正解が1つに決まらない。Aは4問とも正解が明確で、意味や使い方を問う形にも変化がある。"
+  },
+  "p-9-0-NO": {
+   "winner": "A",
+   "reason": "Aの等高線は単元外だが正しい。Bの「絵からできた記号」は、警察しょ（×）も警棒が元で正解があいまいなうえ、記号の表記にも誤りがあるため。"
+  },
+  "p-11-1-ON": {
+   "winner": "A",
+   "reason": "Aは4問とも正確で問いと選択肢がよく対応している。Bは4問目の問いと選択肢がかみ合わず、2問目は正解だけ詳しく長いので答えが見抜きやすい。"
+  },
+  "p-7-3-ON": {
+   "winner": "A",
+   "reason": "Aはスイッチの位置など思考を要する問題があり「難しい」に合い、内容にも変化がある。Bは基本的な問題が多く、選択肢にも重なりがある。"
+  },
+  "p-0-3-NO": {
+   "winner": "B",
+   "reason": "Bはどの問題も正解が明確で、なかまの言葉という単元に沿っている。Aは問3の問い方が不自然で、問4は単元から外れた不自然な問題のため、Bが良い。"
+  },
+  "p-12-3-NO": {
+   "winner": "B",
+   "reason": "両方とも正確で簡単だが、Aは4問とも同じ4語の選択肢で単調。Bは英語から顔を選ぶ問題や質問文を選ぶ問題があり、出題形式に変化がある。"
+  },
+  "p-6-5-NO": {
+   "winner": "B",
+   "reason": "Bは全問正確で、方位や磁石につく物など3年の学習内容に合う。Aは左右を使ったかげの問いがややあいまいで、日かげの選択肢も重なっている。"
+  },
+  "p-2-2-ON": {
+   "winner": "B",
+   "reason": "Aの3問目は「花が」と「花」が両方選択肢にあり、文節で考えると正解があいまい。Bは全問の正解が明確で、6年の文の構造の学習に合っている。"
+  },
+  "p-3-4-NO": {
+   "winner": "A",
+   "reason": "Aは全問が正確で2年生に合う。Bは2年生で習わないひし形・平行四辺形を選択肢に使い、長方形を切る問題の文と選択肢がわかりにくく、答えがあいまい。"
+  },
+  "p-2-1-NO": {
+   "winner": "B",
+   "reason": "どちらも正確だが、Bは「蛙・夏」や雪とけて（春）など迷いやすい誤答があり難しいに合う。Aの季語問題は誤答が見え透いている。"
+  },
+  "p-3-0-NO": {
+   "winner": "tie",
+   "reason": "両組とも正解は明確で誤りがなく、2年生の1000までの数の簡単な問題として適切です。数の構成・位・大小や数の並びと出題も多様で、はっきりした差はありません。"
+  },
+  "p-4-0-ON": {
+   "winner": "B",
+   "reason": "A問3の選択肢「あまりは商より大きくてよい」も事実として正しく、正解が2つになる。Bの問題は正解が1つに決まり、わり算のあまりの扱いも適切に問えている。"
+  }
+ },
+ "usd": 1.1477749000000004,
+ "errors": 0
+}

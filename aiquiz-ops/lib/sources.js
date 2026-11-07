@@ -1,12 +1,12 @@
 // 本番のデータを読む部分（読むだけ。書き込みはしない）。
-//   Firebase Realtime Database … プロキシと夜のジョブの記録
-//   Cloud Run / Cloud Scheduler … 予算などの設定値、夜のジョブの実行履歴と次回予定
+//   Firebase Realtime Database … プロキシと毎週のジョブの記録
+//   Cloud Run / Cloud Scheduler … 予算などの設定値、毎週のジョブの実行履歴と次回予定
 // PC の gcloud のログイン（Application Default Credentials）で読む。
 const {
-    BLOCKLIST_PATH, BUILDER_PATH, DeviceLimits, USAGE_PATH, UsageBudget,
+    BLOCKLIST_PATH, BUILDER_PATH, CLAUDE_USAGE_PATH, DeviceLimits, USAGE_PATH, UsageBudget,
     builderConfigFromEnv, jstKeys, loadPrompts, reviewConfigFromEnv,
 } = require('./proxy-shared');
-const { bankSummary, claudeSummary, jobsSummary, moneySummary, playersSummary } = require('./summaries');
+const { bankSummary, batchSummary, jobsSummary, moneySummary, playersSummary } = require('./summaries');
 
 const REVIEW_PATH = 'quiz_review/v1';
 const BANK_ITEMS_PATH = 'quiz_bank/v1/items';
@@ -16,11 +16,14 @@ const LEVELS = ['green', 'yellow', 'orange', 'red', 'stop'];
 const DEFAULT_CONFIG = {
     gcpProject: 'gen-lang-client-0828350684',
     region: 'asia-northeast1',
-    service: 'aiquiz-proxy',
+    // 試合中の生成のサービス。2026-11-03 に Gemini の aiquiz-proxy から Claude のこのサービスに切り替えた
+    service: 'aiquiz-proxy-claude',
     jobs: [
-        { name: 'quiz-bank-builder', label: '夜の補充（Claude Haiku）' },
-        { name: 'quiz-claude-review', label: '判定（Claude Opus）' },
+        { name: 'quiz-bank-builder', label: '補充（Claude Haiku・毎週）' },
+        { name: 'quiz-claude-review', label: '判定（Claude Opus・毎週）' },
     ],
+    // Claude Console の支出上限（手で設定する最後の歯止め）。API では読めないのでここに持つ
+    claudeSpendCapUsd: 100,
     jpyPerUsd: 150,
     // 共有バンクの全件（約 5MB）は重いので、この間は前回の結果を使う
     heavyCacheMs: 10 * 60 * 1000,
@@ -93,12 +96,14 @@ class OpsSources {
                 }
             }
             const limits = DeviceLimits.fromEnv(proxyEnv);
+            // 試合中の Claude の予算（CLAUDE_DAILY_BUDGET_USD / CLAUDE_MONTHLY_BUDGET_USD とプロキシの既定値）
+            const live = UsageBudget.fromClaudeEnv(proxyEnv);
             return {
                 revision: String(service.latestReadyRevision || '').split('/').pop(),
                 proxyEnv,
                 budgets: {
-                    dailyUsd: Number(proxyEnv.GEMINI_DAILY_BUDGET_USD || 10),
-                    monthlyUsd: Number(proxyEnv.GEMINI_MONTHLY_BUDGET_USD || 100),
+                    dailyUsd: live.dailyBudgetUsd,
+                    monthlyUsd: live.monthlyBudgetUsd,
                 },
                 forcedLevel: LEVELS.includes(proxyEnv.ROUND_PLAN_FORCE_LEVEL) ? proxyEnv.ROUND_PLAN_FORCE_LEVEL : null,
                 caps: {
@@ -133,18 +138,21 @@ class OpsSources {
             databaseFactory: () => this.db,
             dailyBudgetUsd: settings.budgets.dailyUsd,
             monthlyBudgetUsd: settings.budgets.monthlyUsd,
+            usagePath: CLAUDE_USAGE_PATH,
             refreshMs: 5000,
             now: () => now,
             log: this.log,
         });
-        const [check, pace, daily, monthly, builderSpend, reviewSpend, batches] = await Promise.all([
+        const [check, pace, daily, monthly, builderSpend, reviewSpend, batches, legacyGemini] = await Promise.all([
             budget.check(),
             budget.paceLevel(),
-            this._val(`${USAGE_PATH}/daily`, ref => ref.orderByKey().limitToLast(62)),
-            this._val(`${USAGE_PATH}/monthly`, ref => ref.orderByKey().limitToLast(3)),
+            this._val(`${CLAUDE_USAGE_PATH}/daily`, ref => ref.orderByKey().limitToLast(62)),
+            this._val(`${CLAUDE_USAGE_PATH}/monthly`, ref => ref.orderByKey().limitToLast(3)),
             this._val(`${BUILDER_PATH}/spend`, ref => ref.orderByKey().limitToLast(3)),
             this._val(`${REVIEW_PATH}/spend`, ref => ref.orderByKey().limitToLast(3)),
             this._batches(),
+            // 切り替え前の Gemini 系統（aiquiz-proxy）。古いゲームから呼ばれて費用が出ていないかを見る
+            this._val(`${USAGE_PATH}/monthly/${month}/usd`),
         ]);
         let level = 'stop';
         if (check.ok) level = settings.forcedLevel || pace.level;
@@ -158,7 +166,9 @@ class OpsSources {
             daily: daily || {},
             monthly: monthly || {},
             jpyPerUsd: this.config.jpyPerUsd,
-            claude: claudeSummary({
+            spendCapUsd: this.config.claudeSpendCapUsd,
+            legacyGeminiUsd: Number(legacyGemini || 0),
+            batch: batchSummary({
                 month,
                 builderSpend,
                 builderBatches: batches.builder,
@@ -174,12 +184,13 @@ class OpsSources {
         const now = this.now();
         const settings = await this.settings();
         const { day } = jstKeys(now);
+        // 端末・回線・試合・止めた回数は、Claude の系統も proxy_usage/v1 に数える（device-limits.js）
         const [devices, ips, roundsHistory, blocked, todayUsd, denials] = await Promise.all([
             this._val(`${USAGE_PATH}/devices/${day}`),
             this._val(`${USAGE_PATH}/ips/${day}`),
             this._val(`${USAGE_PATH}/rounds`, ref => ref.orderByKey().limitToLast(14)),
             this._val(BLOCKLIST_PATH),
-            this._val(`${USAGE_PATH}/daily/${day}/usd`),
+            this._val(`${CLAUDE_USAGE_PATH}/daily/${day}/usd`),
             this._val(`${USAGE_PATH}/denials/${day}`),
         ]);
         const history = roundsHistory || {};
@@ -192,7 +203,7 @@ class OpsSources {
             blocked: blocked || {},
             denials: denials || {},
             caps: settings.caps,
-            geminiTodayUsd: Number(todayUsd || 0),
+            liveTodayUsd: Number(todayUsd || 0),
         });
     }
 
@@ -307,6 +318,7 @@ class OpsSources {
             service: this.config.service,
             revision: settings.revision,
             budgets: settings.budgets,
+            spendCapUsd: this.config.claudeSpendCapUsd,
             caps: settings.caps,
             forcedLevel: settings.forcedLevel,
             builder: {

@@ -24,13 +24,32 @@ test('only {task, prompt, system} with a known task and bounded lengths is accep
     }
 });
 
+// system は文字列か、text ブロックの配列（キャッシュの印つき）
+function systemText(params) {
+    return typeof params.system === 'string' ? params.system : params.system.map(block => block.text).join('');
+}
+
 test('every request starts its system prompt with the child-safety instruction', () => {
     for (const task of Object.keys(tasks)) {
         const withSystem = buildParams({ task, prompt: 'p', system: 'ゲームの指示' }, tasks);
-        assert.ok(withSystem.system.startsWith(CHILD_SAFETY), task);
-        assert.ok(withSystem.system.endsWith('ゲームの指示'), task);
-        assert.equal(buildParams({ task, prompt: 'p', system: '' }, tasks).system, CHILD_SAFETY);
+        assert.ok(systemText(withSystem).startsWith(CHILD_SAFETY), task);
+        assert.ok(systemText(withSystem).endsWith('ゲームの指示'), task);
+        assert.equal(systemText(buildParams({ task, prompt: 'p', system: '' }, tasks)), CHILD_SAFETY);
     }
+});
+
+test('generate marks the whole system prompt for caching; the one-off tasks do not', () => {
+    const params = buildParams({ task: 'generate', prompt: 'このバッチの単元', system: '6本で同じルール' }, tasks);
+    assert.deepEqual(params.system, [{
+        type: 'text', text: `${CHILD_SAFETY}\n\n6本で同じルール`, cache_control: { type: 'ephemeral' },
+    }]);
+    assert.deepEqual(params.messages, [{ role: 'user', content: 'このバッチの単元' }]);
+    for (const task of ['validate', 'explain', 'evaluate']) {
+        assert.equal(typeof buildParams({ task, prompt: 'p', system: 's' }, tasks).system, 'string', task);
+    }
+    // 運用のスイッチ: CLAUDE_TASK_MODELS_JSON で外せる
+    const off = tasksFromEnv({ CLAUDE_TASK_MODELS_JSON: '{"generate":{"cacheSystem":false}}' });
+    assert.equal(typeof buildParams({ task: 'generate', prompt: 'p', system: 's' }, off).system, 'string');
 });
 
 test('the server picks the model; Sonnet 5.5 at effort low, with the default fallback and no sampling knobs', () => {

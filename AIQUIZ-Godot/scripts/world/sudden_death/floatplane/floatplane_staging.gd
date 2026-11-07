@@ -417,10 +417,14 @@ func restore_gate() -> void:
 func prepare_gate(stage_env: Node, podium: Vector3) -> void:
 	_podium = podium
 	if gate == null:
-		gate = StandGate.new()
-		add_child(gate)
-		if not gate.setup(stage_env, podium, 1.0):
-			gate.queue_free()
+		# 結果発表アリーナ（ResultArena）ではコースの客席を隠しているので、客席の水門は作らない（水上機は沖からそのまま入る）。
+		var stands_shown: bool = stage_env == null or not stage_env.has_method("is_course_visible") or bool(stage_env.call("is_course_visible"))
+		if stands_shown:
+			gate = StandGate.new()
+			add_child(gate)
+		if gate == null or not gate.setup(stage_env, podium, 1.0):
+			if gate != null:
+				gate.queue_free()
 			gate = null
 			_gap_z = podium.z
 		else:

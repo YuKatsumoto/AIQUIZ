@@ -2,8 +2,15 @@ extends Node
 
 class TestProvider extends QuizProvider:
 	var submitted: Array[bool] = []
+	## true のあいだは問題を 1 つも返さない（補充が届かない状態）。
+	var dry := false
 	func _load_bank() -> Dictionary:
 		return {}
+	func get_quizzes(subject: String, grade: int, difficulty: String,
+			mode: String, count: int, exclude_texts: Array[String] = []) -> Array[QuizItem]:
+		if dry:
+			return []
+		return super.get_quizzes(subject, grade, difficulty, mode, count, exclude_texts)
 	func submit_result(_quiz: QuizItem, correct: bool) -> void:
 		submitted.append(correct)
 
@@ -34,6 +41,23 @@ func fixture(players := 2, mode := Constants.MODE_TEN) -> QuizGameState:
 		gs.quiz_list.append(QuizItem.create("HP検証 %d" % i, choices, 0, "テスト問題です。", "OFFLINE"))
 	gs.load_current_quiz()
 	return gs
+
+## エンドレスの途中で問題が尽きて「次の問題を準備中」になっても、補充が届いたら試合に戻る。
+## エンドレスは current_index が増えないので、以前はスタート前の画面（WAITING_START）に戻ってしまっていた。
+func _endless_mid_game_refill() -> void:
+	var gs := fixture(1, Constants.MODE_ENDLESS)
+	answer(gs, true)
+	answer(gs, true)
+	check(gs.game_state == Constants.STATE_PLAYING and gs.current_wall_index == 2, "endless refill: two walls passed")
+	(gs.provider as TestProvider).dry = true
+	gs.quiz_list.clear()
+	gs.load_current_quiz()
+	check(gs.game_state == Constants.STATE_PRELOADING, "endless refill: an empty queue waits for questions")
+	gs.quiz_list.append(QuizItem.create("HP検証 補充", PackedStringArray(["正解", "不正解"]), 0, "テスト問題です。", "OFFLINE"))
+	gs._update_preloading(gs.min_preload_sec + 0.1)
+	check(gs.game_state == Constants.STATE_PLAYING, "endless refill resumes play, not the start screen")
+	check(gs.current_quiz != null and gs.current_quiz.q == "HP検証 補充", "endless refill shows the new question")
+
 
 func door(gs: QuizGameState, correct: bool) -> float:
 	var index := gs.current_quiz.a if correct else (gs.current_quiz.a + 1) % gs.num_choices
@@ -78,6 +102,7 @@ func run() -> void:
 	_motion()
 	_sync_replay()
 	_question_winners()
+	_endless_mid_game_refill()
 	for mode in [Constants.MODE_TUTORIAL, Constants.MODE_COOP]:
 		var gs := fixture(2, mode)
 		check(not gs.uses_hp(), "excluded mode keeps rules: " + mode)

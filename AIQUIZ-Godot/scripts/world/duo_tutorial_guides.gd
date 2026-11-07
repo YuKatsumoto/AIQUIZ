@@ -27,7 +27,9 @@ const DOOR_FRAME_HALF_WIDTH := 1.8
 const SAW_LINE_DASH_COUNT := 9
 const LABEL_PIXEL_SIZE := 0.008
 const DOOR_LABEL_PIXEL_SIZE := 0.018
-const SAW_LABEL_PIXEL_SIZE := 0.0065
+## のこぎり体験はカメラが引いて刃まで映すので、危険ラインの札は大きめにする。
+const SAW_LABEL_PIXEL_SIZE := 0.011
+const SAW_LABEL_BEHIND_LINE := 2.6
 ## 危険ラインの札がカメラの直前で大きくなりすぎないよう、これより近ければ出さない。
 const SAW_LABEL_MIN_CAMERA_DISTANCE := 5.5
 const SAW_LABEL_BOTTOM_MARGIN := 90.0
@@ -122,6 +124,10 @@ func _ghost_shark_position(model: Dictionary) -> Variant:
 	if not bool(world.call("is_ghost_shark_control_active", ghost_player)):
 		return null
 	var presentation: Dictionary = world.call("get_ghost_shark_presentation", ghost_player)
+	# 狙いを付けている間（照準・長押し）だけ出す。離して突進の向きが決まった後・プレイヤーへ直進している突進中・
+	# 突進後に消えて戻ってくる間は、キーがサメと一緒に飛んで邪魔になるので出さない。
+	if str(presentation.get("phase", "")) != "AIMING":
+		return null
 	var shark_position: Variant = presentation.get("shark_position", null)
 	return shark_position if shark_position is Vector3 else null
 
@@ -532,7 +538,8 @@ func _update_label(model: Dictionary, guide: String) -> void:
 			if _saw_line.is_empty() or not _saw_line[0].visible:
 				_label.visible = false
 				return
-			var label_position := Vector3(0.0, base_y + 1.1, _saw_line[0].position.z)
+			# 札は線の少し後ろ（刃の側）に置く。線の上に立つ2人と重ならず、「この線より後ろ」の範囲を指して読める。
+			var label_position := Vector3(0.0, base_y + 0.3, _saw_line[0].position.z - SAW_LABEL_BEHIND_LINE)
 			var camera := get_viewport().get_camera_3d()
 			if camera == null or camera.global_position.distance_to(label_position) < SAW_LABEL_MIN_CAMERA_DISTANCE:
 				_label.visible = false

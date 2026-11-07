@@ -23,6 +23,8 @@ var death := "wall"
 var spread := "same"
 ## 先に脱落してサメに乗る人（rider=1|2）。0 なら 2 人同時に脱落する
 var rider_first := 0
+## もう 1 人が脱落するときのサメ：aiming（照準中）、charging（突進の途中）、cooldown（突進のあと戻りのポータルの途中）
+var rider_phase := "aiming"
 var view := ""
 var from_t := 0.0
 var to_t := 99.0
@@ -56,6 +58,7 @@ func run() -> void:
 		if arg.begins_with("death="): death = arg.trim_prefix("death=")
 		if arg.begins_with("spread="): spread = arg.trim_prefix("spread=")
 		if arg.begins_with("rider="): rider_first = int(arg.trim_prefix("rider="))
+		if arg.begins_with("rider_phase="): rider_phase = arg.trim_prefix("rider_phase=")
 		if arg.begins_with("view="): view = arg.trim_prefix("view=")
 		if arg.begins_with("from="): from_t = float(arg.trim_prefix("from="))
 		if arg.begins_with("to="): to_t = float(arg.trim_prefix("to="))
@@ -395,6 +398,39 @@ func eliminate_with_shark_rider(rider_index: int) -> void:
 			break
 	check(aiming, "P%d rides the ghost shark" % rider_index)
 	await frames(fps / 2)
+	if ride != null and rider_phase in ["charging", "cooldown"]:
+		# サメに突進させ、突進の途中（charging）か戻りのポータルの途中（cooldown）でもう 1 人を脱落させる
+		ride.set("_last_charge_power", 0.6)
+		ride.set("_perfect_charge", false)
+		ride.call("_start_charge")
+		var want := GhostSharkRideController.Phase.CHARGING if rider_phase == "charging" else GhostSharkRideController.Phase.COOLDOWN
+		var reached := false
+		for _i in range(fps * 5):
+			if int(ride.get("phase")) == want:
+				reached = true
+				break
+			await get_tree().process_frame
+		check(reached, "the shark is %s when the survivor goes out" % rider_phase)
+		if rider_phase == "cooldown":
+			await frames(fps / 4)
+		if rider_phase == "cooldown":
+			# 突進で吹き飛ばした生き残りが海に落ちるまで少し待つ
+			for _i in range(fps * 2):
+				if gs.is_player_waiting_for_shark(survivor) or gs.game_state == Constants.STATE_GAME_OVER:
+					break
+				await get_tree().process_frame
+		if gs.is_player_waiting_for_shark(survivor):
+			# 突進で海へ落とされた：サメに食べられて両者脱落になるまで、乗り手はサメに乗ったまま待つ
+			var held_while_sinking := true
+			for _i in range(fps * 20):
+				if gs.game_state == Constants.STATE_GAME_OVER:
+					break
+				held_while_sinking = held_while_sinking and bool(ride.call("is_holding_for_lasso"))
+				await get_tree().process_frame
+			check(held_while_sinking, "the shark rider stays on the shark while the survivor sinks")
+			check(gs.game_state == Constants.STATE_GAME_OVER and gs.is_elimination_result_pending(), "both out hold for the finale")
+			check(bool(ride.call("is_holding_for_lasso")), "the shark rider waits on the shark for the lasso")
+			return
 	# もう 1 人も次の壁で脱落させる
 	gs.current_index = 4
 	gs.current_wall_index = 4

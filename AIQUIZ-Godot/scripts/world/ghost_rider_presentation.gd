@@ -28,6 +28,10 @@ const SOUL_BANK_PER_TURN := 0.16
 const SOUL_BANK_LIMIT := 0.55
 ## 飛び終わりの割合のここから、ソケットの向きへそろえ始める。
 const SOUL_ALIGN_START := 0.78
+## 搭乗の極太ビーム（柱）は突き上げた右の拳から撃つ。肘 → 拳の向きを、どれだけ真上へ寄せるか（腕が少し傾いていても空へ撃つ）。
+const FIST_BEAM_UP_BIAS := 0.5
+## 拳の中心から、腕の向きへこれだけ先（world_scale あたり）から撃つ。
+const FIST_BEAM_OFFSET := 0.14
 
 var player_controller: PlayerController = null
 
@@ -543,3 +547,27 @@ func _update_spawned(delta: float) -> void:
 
 func _has_rider() -> bool:
 	return _rider != null and is_instance_valid(_rider) and player_controller != null
+
+
+# ------------------------------------------------------------------ 拳のビーム
+
+## 極太ビーム（サメの搭乗の柱）を撃つ根元と向き。{"origin", "direction"}、乗り手がいなければ空。
+func fist_beam_origin() -> Dictionary:
+	if not _has_rider():
+		return {}
+	var parts: Dictionary = _rider.get_meta("ghost_mount_parts", {})
+	var fist := parts.get("r_hand") as Node3D
+	if fist == null:
+		fist = parts.get("r_wrist") as Node3D
+	if fist == null:
+		return {}
+	var elbow := parts.get("r_elbow") as Node3D
+	var direction := Vector3.UP
+	if elbow != null:
+		var arm := fist.global_position - elbow.global_position
+		if arm.length_squared() > 0.000001:
+			direction = arm.normalized().lerp(Vector3.UP, FIST_BEAM_UP_BIAS).normalized()
+	return {
+		"origin": fist.global_position + direction * FIST_BEAM_OFFSET * _world_scale,
+		"direction": direction,
+	}

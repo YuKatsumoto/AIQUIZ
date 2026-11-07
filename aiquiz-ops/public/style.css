@@ -191,10 +191,10 @@ dialog textarea { width: 100%; margin-top: 4px; resize: vertical; }
 .toast.bad { background: var(--red); color: #fff; }
 
 /* ---- 生成ライン ---- */
-:root { --pipe-player: #3b6fe0; --pipe-proxy: #6b7385; --pipe-gemini: #e2712b; --pipe-claude: #b5651d;
+:root { --pipe-player: #3b6fe0; --pipe-proxy: #6b7385; --pipe-claude: #b5651d;
   --pipe-store: #2f9e5b; --pipe-ops: #8a4fd6; --pipe-muted: #9aa1ae; }
 @media (prefers-color-scheme: dark) {
-  :root { --pipe-player: #6d97f2; --pipe-proxy: #949bab; --pipe-gemini: #f08a4b; --pipe-claude: #d9924f;
+  :root { --pipe-player: #6d97f2; --pipe-proxy: #949bab; --pipe-claude: #d9924f;
     --pipe-store: #4cc27a; --pipe-ops: #b08af0; --pipe-muted: #6b7385; }
 }
 .pipe-wrap { overflow-x: auto; margin: 8px 0 6px; }
@@ -205,7 +205,6 @@ dialog textarea { width: 100%; margin-top: 4px; resize: vertical; }
 .pipe-node .stripe { stroke: none; }
 .pipe-node.player .stripe { fill: var(--pipe-player); }
 .pipe-node.proxy .stripe { fill: var(--pipe-proxy); }
-.pipe-node.gemini .stripe { fill: var(--pipe-gemini); }
 .pipe-node.claude .stripe { fill: var(--pipe-claude); }
 .pipe-node.store .stripe { fill: var(--pipe-store); }
 .pipe-node.ops .stripe { fill: var(--pipe-ops); }
@@ -225,5 +224,5 @@ dialog textarea { width: 100%; margin-top: 4px; resize: vertical; }
 .pipe-label-bg { fill: var(--panel); }
 .pipe-label { fill: var(--muted); font-size: 12px; }
 .pipe-sw.player { background: var(--pipe-player); } .pipe-sw.proxy { background: var(--pipe-proxy); }
-.pipe-sw.gemini { background: var(--pipe-gemini); } .pipe-sw.claude { background: var(--pipe-claude); }
+.pipe-sw.claude { background: var(--pipe-claude); }
 .pipe-sw.store { background: var(--pipe-store); } .pipe-sw.ops { background: var(--pipe-ops); }

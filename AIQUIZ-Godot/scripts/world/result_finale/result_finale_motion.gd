@@ -152,6 +152,13 @@ static func lock_time(total: int, max_total: int) -> float:
 	return float(window[1])
 
 
+## Tiers a column needs so a tower of `max_total` (half points) still stands on the
+## floor: TIER_COUNT at least, one tier past the total beyond it (endless totals run
+## past the ten-question 35).
+static func tier_count_for(max_total: int) -> int:
+	return maxi(TIER_COUNT, ceili(float(maxi(max_total, 0)) / float(TIER_POINTS_HALF)) + 1)
+
+
 ## Resting height for a total: the pad pop plus one TIER_HEIGHT per point,
 ## whatever the other player scored (half a tier shows half a tier).
 static func stop_height(total: int) -> float:

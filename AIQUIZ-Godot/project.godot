@@ -18,13 +18,13 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 
 [application]
 
-config/name="AIQUIZ 3D"
+config/name="TESTOPIA"
 run/main_scene="res://ui/startup_loading.tscn"
 config/quit_on_go_back=false
 config/features=PackedStringArray("4.7", "Forward Plus")
 boot_splash/bg_color=Color(0, 0, 0, 1)
 boot_splash/show_image=false
-config/icon="res://icon.jpg"
+config/icon="res://assets/branding/icon/testopia_icon.png"
 
 [autoload]
 
@@ -46,6 +46,8 @@ _mcp_game_helper="*res://addons/godot_ai/runtime/game_helper.gd"
 
 window/size/viewport_width=1280
 window/size/viewport_height=720
+window/size/window_width_override=1920
+window/size/window_height_override=1080
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 window/handheld/orientation=4
@@ -128,4 +130,4 @@ cistern_wet_z={
 
 [tripo_bridge]
 
-last_cleanup="2026-11-02T23:35:49"
+last_cleanup="2026-11-06T20:45:08"

@@ -4,6 +4,8 @@ extends Node3D
 signal attack_reached(player_index: int)
 signal attack_phase_changed(player_index: int, attack_phase: int)
 signal ghost_charge_finished()
+## 突進中、このフレームの移動を終えたところ（グローバル座標）。命中は動いた後の位置で判定する（docs/ghost_hit_ragdoll_plan.md 段階 1）。
+signal ghost_charge_stepped(from_position: Vector3, to_position: Vector3)
 signal ghost_mount_beam_fired(beam_index: int)
 ## The ghost shark's rendezvous ascent broke the ocean surface (the breach splash starts).
 signal ghost_breached()
@@ -83,8 +85,11 @@ const OCEAN_ATTACK_PORTAL_DEPTH: float = 2.8
 const OCEAN_ATTACK_PORTAL_SIZE := Vector2(4.2, 4.2)
 const WAKE_OFFSET_SCALE: float = 4.35
 const GHOST_RIDE_SCALE_MULTIPLIER: float = 0.62
+const GHOST_CHARGE_ANIMATION_SPEED: float = 2.35
+## 命中（begin_ghost_charge_impact）で鼻先を体に触れた位置へ戻す最大の距離（m）。
+const GHOST_IMPACT_MAX_PULL_BACK: float = 1.5
 const GHOST_ENTRY_DURATION: float = 2.4
-const GHOST_PORTAL_ENTRY_DURATION: float = 2.25
+const GHOST_PORTAL_ENTRY_DURATION: float = 1.5
 const GHOST_PORTAL_ENTRY_START_SCALE: float = 1.0
 const GHOST_RENDEZVOUS_ASCENT_DURATION: float = 2.45
 const GHOST_RENDEZVOUS_DEPTH: float = 4.2
@@ -117,7 +122,8 @@ const GHOST_MOUNT_BEAM_RENDER_LAYER: int = 19
 # It closes completely, then the camera vibration is allowed to decay before
 # the shark begins its ascent.
 const GHOST_MOUNT_BEAM_RADIUS: float = 1.40
-const GHOST_MOUNT_BEAM_START_RADIUS: float = GHOST_MOUNT_BEAM_RADIUS * 1.5
+## 根元の光の玉。拳から撃つので、柱より大きいと乗り手が玉に飲まれて見えなくなる（2026-11-04 に 1.5 倍 → 0.3 倍）。
+const GHOST_MOUNT_BEAM_START_RADIUS: float = GHOST_MOUNT_BEAM_RADIUS * 0.3
 const GHOST_MOUNT_BEAM_START_DELAY: float = 0.20
 const GHOST_MOUNT_BEAM_OPEN_DURATION: float = 0.34
 const GHOST_MOUNT_BEAM_FORMATION_DURATION: float = (
@@ -244,6 +250,13 @@ var _ghost_charge_direction: Vector3 = Vector3.ZERO
 var _ghost_charge_speed: float = 0.0
 var _ghost_charge_distance: float = 0.0
 var _ghost_charge_max_distance: float = 0.0
+## 突進を始めてからの時間と、当たらなかったら終わる時刻（最大距離 / 速さ）。当たって止まっても終わりの時刻は変えない。
+var _ghost_charge_elapsed: float = 0.0
+var _ghost_charge_duration: float = 0.0
+## 命中後（begin_ghost_charge_impact）：ヒットストップの間止まり、明けたら同じ速さでまっすぐ進む（体を突き抜けてよい）。
+var _ghost_impact_active: bool = false
+var _ghost_impact_elapsed: float = 0.0
+var _ghost_impact_hold: float = 0.0
 var _ghost_mount: Node3D = null
 var _ghost_mount_socket: Node3D = null
 var _ghost_mount_base_position: Vector3 = Vector3.ZERO
@@ -746,6 +759,7 @@ func prepare_ghost_rendezvous(
 	_ghost_entry_progress = 0.0
 	_ghost_breach_triggered = false
 	_ghost_charge_distance = 0.0
+	_reset_ghost_charge_impact()
 	_ghost_charge_tension = 0.0
 	position = _ghost_rendezvous_start
 	_velocity = Vector3.ZERO
@@ -869,6 +883,19 @@ func is_ghost_reveal_beam_firing() -> bool:
 		and _ghost_mount_beam_elapsed >= GHOST_MOUNT_BEAM_START_DELAY
 		and _ghost_mount_beam_elapsed < GHOST_MOUNT_BEAM_OFF_TIME
 	)
+
+
+## 搭乗の極太ビーム（柱）の根元と向き。乗り手の突き上げた拳から撃つよう、柱がある間は毎フレーム呼ぶ。
+func set_ghost_reveal_beam_origin(origin: Vector3, direction: Vector3) -> void:
+	if direction.length_squared() <= 0.000001:
+		return
+	var fire_direction := direction.normalized()
+	var roll_reference := Vector3.FORWARD if absf(fire_direction.y) > 0.7 else Vector3.UP
+	# ビームの素材は -Z へ撃つ。
+	var beam_transform := Transform3D(Basis.looking_at(fire_direction, roll_reference), origin)
+	for beam: Node3D in _ghost_mount_beacons:
+		if beam != null and is_instance_valid(beam):
+			beam.global_transform = beam_transform
 
 
 func is_ghost_reveal_sequence_complete() -> bool:
@@ -1104,12 +1131,57 @@ func launch_ghost_charge(direction: Vector3, speed: float, max_distance: float) 
 	_ghost_charge_speed = maxf(1.0, speed)
 	_ghost_charge_max_distance = maxf(1.0, max_distance)
 	_ghost_charge_distance = 0.0
+	_reset_ghost_charge_impact()
+	_ghost_charge_duration = _ghost_charge_max_distance / _ghost_charge_speed
 	_ghost_charge_tension = 1.0
 	_velocity = _ghost_charge_direction * _ghost_charge_speed
 	quaternion = _quat_look_at(position, position + _ghost_charge_direction)
 	_attack_intensity = 1.0
-	animation_player.speed_scale = 2.35
+	animation_player.speed_scale = GHOST_CHARGE_ANIMATION_SPEED
 	return true
+
+
+## 突進が当たった（GOSTRIDER の命中。docs/ghost_hit_ragdoll_plan.md 段階 2）。
+## pull_back だけ下がって鼻先を体に触れた位置へ戻し、hold 秒止まる（ヒットストップ）。明けたら同じ速さ・同じ向きで進み、
+## 体を突き抜ける（急ブレーキはしない。2026-11-06）。ghost_charge_finished は当たらなかったときと同じ時刻に出す。
+func begin_ghost_charge_impact(pull_back: float, hold: float) -> void:
+	if not is_ghost_charging() or _ghost_impact_active:
+		return
+	_ghost_impact_active = true
+	_ghost_impact_elapsed = 0.0
+	_ghost_impact_hold = maxf(0.0, hold)
+	if pull_back > 0.0:
+		position -= _ghost_charge_direction * minf(pull_back, GHOST_IMPACT_MAX_PULL_BACK)
+	_velocity = Vector3.ZERO
+
+
+func is_ghost_charge_impact_active() -> bool:
+	return _ghost_impact_active
+
+
+## 突進があと何 m 進むと終わるか（当たらなかったときの最大距離まで）。
+func get_ghost_charge_remaining_distance() -> float:
+	return maxf(0.0, _ghost_charge_max_distance - _ghost_charge_distance)
+
+
+func _reset_ghost_charge_impact() -> void:
+	_ghost_charge_elapsed = 0.0
+	_ghost_charge_duration = 0.0
+	_ghost_impact_active = false
+	_ghost_impact_elapsed = 0.0
+	_ghost_impact_hold = 0.0
+
+
+## 命中後の動き：hold の間止まる（アニメも止める）→ 明けたら突進の速さでまっすぐ進む。
+func _update_ghost_charge_impact(delta: float) -> void:
+	_ghost_impact_elapsed += delta
+	if _ghost_impact_elapsed < _ghost_impact_hold:
+		animation_player.speed_scale = 0.0
+		_velocity = Vector3.ZERO
+		return
+	animation_player.speed_scale = GHOST_CHARGE_ANIMATION_SPEED
+	position += _ghost_charge_direction * _ghost_charge_speed * delta
+	_velocity = _ghost_charge_direction * _ghost_charge_speed
 
 
 func restart_ghost_hover(entry_position: Vector3, target_position: Vector3, aim_point: Vector3) -> void:
@@ -1275,6 +1347,7 @@ func end_ghost_ride() -> void:
 	_ghost_player_index = 0
 	_ghost_charge_distance = 0.0
 	_ghost_charge_max_distance = 0.0
+	_reset_ghost_charge_impact()
 	_ghost_charge_tension = 0.0
 	_ghost_entry_progress = 0.0
 	_ghost_breach_triggered = false
@@ -2089,13 +2162,24 @@ func _update_ghost_ride(delta: float) -> void:
 			)
 		GhostRidePhase.CHARGING:
 			_ghost_charge_tension = move_toward(_ghost_charge_tension, 1.0, delta * 8.0)
-			var remaining := maxf(0.0, _ghost_charge_max_distance - _ghost_charge_distance)
-			var travel := minf(remaining, _ghost_charge_speed * delta)
-			position += _ghost_charge_direction * travel
-			_ghost_charge_distance += travel
-			_velocity = _ghost_charge_direction * _ghost_charge_speed
+			var step_from := global_position
+			_ghost_charge_elapsed += delta
+			if _ghost_impact_active:
+				_update_ghost_charge_impact(delta)
+			else:
+				var remaining := maxf(0.0, _ghost_charge_max_distance - _ghost_charge_distance)
+				var travel := minf(remaining, _ghost_charge_speed * delta)
+				position += _ghost_charge_direction * travel
+				_ghost_charge_distance += travel
+				_velocity = _ghost_charge_direction * _ghost_charge_speed
 			_attack_intensity = 1.0
-			if _ghost_charge_distance >= _ghost_charge_max_distance - 0.001:
+			ghost_charge_stepped.emit(step_from, global_position)
+			var finished := (
+				_ghost_charge_elapsed >= _ghost_charge_duration
+				if _ghost_impact_active
+				else _ghost_charge_distance >= _ghost_charge_max_distance - 0.001
+			)
+			if _ghost_phase == GhostRidePhase.CHARGING and finished:
 				_ghost_phase = GhostRidePhase.FINISHED
 				ghost_charge_finished.emit()
 		GhostRidePhase.FINISHED:

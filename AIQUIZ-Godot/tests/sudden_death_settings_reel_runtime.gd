@@ -59,6 +59,8 @@ func run() -> void:
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(STORE))
 	MatchHistory.path_override = STORE + "/match_history.json"
 	HighlightStore.dir_override = STORE + "/highlights"
+	# いまのビルドはクリップを流す先がないので撮らない（HighlightCapture.has_consumer()）。撮る側を確かめるために撮らせる。
+	HighlightCapture.force_record = true
 	MatchHistory.clear()
 	HighlightStore.clear()
 	var real_settings := GameManager.settings_path
@@ -85,9 +87,12 @@ func _check_settings() -> void:
 	if FileAccess.file_exists(GameManager.settings_path):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(GameManager.settings_path))
 	GameManager._load_user_settings()
-	check("settings: on by default (no file)", GameManager.sudden_death_enabled == true)
+	check("settings: off by default (no file)", GameManager.sudden_death_enabled == false)
 	var state: QuizGameState = QuizManager.game_state
-	check("settings: the quiz state starts on", state != null and state.sudden_death_enabled)
+	check("settings: the quiz state starts off", state != null and not state.sudden_death_enabled)
+	# 既定がオフなので、いったんオンにしてから切り替える（同じ値では保存しない）。
+	GameManager.set_sudden_death_enabled(true)
+	check("settings: on reaches the long-lived state", state.sudden_death_enabled)
 	GameManager.set_sudden_death_enabled(false)
 	check("settings: off reaches the long-lived state", not state.sudden_death_enabled and not state.uses_sudden_death())
 	check("settings: off is saved", _read_settings_file().get("sudden_death_enabled", true) == false, _read_settings_file())

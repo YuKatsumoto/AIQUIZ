@@ -48,8 +48,12 @@ const SCHEMAS = {
     }, ['id', 'rating', 'reason']),
 };
 
+// cacheSystem: system にプロンプトキャッシュの印を付ける。問題づくりは 1 ラウンドに同じ system で
+// 6 本（エンドレスは 1〜3 本）呼ぶので、2 本目からは system を 1 割の値段で読める（書き込みは 1.25 倍）。
+// ゲームは 6 本で同じ部分（ルール・出題済みリスト）を system に、その 1 本だけの部分を prompt に入れて送る。
+// 1 回きりの呼び出しが多い用途では書き込みの割増しだけになるので付けない。
 const DEFAULT_TASKS = {
-    generate: { model: 'claude-sonnet-5-5', effort: 'low', maxTokens: 8000 },
+    generate: { model: 'claude-sonnet-5-5', effort: 'low', maxTokens: 8000, cacheSystem: true },
     explain: { model: 'claude-sonnet-5-5', effort: 'low', maxTokens: 4000 },
     validate: { model: 'claude-sonnet-5-5', effort: 'low', maxTokens: 8000 },
     evaluate: { model: 'claude-sonnet-5-5', effort: 'low', maxTokens: 4000 },
@@ -112,10 +116,14 @@ function buildParams(request, tasks) {
     if (SCHEMAS[request.task]) {
         outputConfig.format = { type: 'json_schema', schema: SCHEMAS[request.task] };
     }
+    const systemText = request.system ? `${CHILD_SAFETY}\n\n${request.system}` : CHILD_SAFETY;
     const params = {
         model: config.model,
         max_tokens: config.maxTokens,
-        system: request.system ? `${CHILD_SAFETY}\n\n${request.system}` : CHILD_SAFETY,
+        // 短すぎる system（Sonnet 5.5 で 512 トークン未満）は印があっても保存されず、費用も変わらない
+        system: config.cacheSystem
+            ? [{ type: 'text', text: systemText, cache_control: { type: 'ephemeral' } }]
+            : systemText,
         messages: [{ role: 'user', content: request.prompt }],
         output_config: outputConfig,
     };
@@ -190,6 +198,7 @@ function createClaudeHandlers({ client, tasks = tasksFromEnv(), recordUsage, log
         log.log(JSON.stringify({
             type: 'claude_usage', kind, task: request.task, model,
             input_tokens: message.usage.input_tokens, output_tokens: message.usage.output_tokens,
+            cache_creation_input_tokens: message.usage.cache_creation_input_tokens,
             cache_read_input_tokens: message.usage.cache_read_input_tokens,
             stop_reason: message.stop_reason, usd: Number(usd.toFixed(6)),
             ts: new Date().toISOString(), ...(extra || {}),

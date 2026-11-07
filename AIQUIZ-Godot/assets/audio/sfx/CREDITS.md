@@ -43,7 +43,8 @@ peak, loops −6 dBFS, Ogg Vorbis q6, 48 kHz stereo). **Confirm the source** bef
 All files in `ghost_shark/` (`ghost_soul_rise`, `ghost_shark_rise`, `ghost_shark_breach`,
 `ghost_mount_beam`, `ghost_charge_loop`, `ghost_charge_perfect`, `ghost_dash`, `ghost_hit`,
 `ghost_vanish`, `ghost_portal_open`, `ghost_portal_cross`, and the sudden death revival's
-`ghost_revive_gather`, `ghost_revive_snap`, `ghost_revive_burst` added 2026-10-21) were synthesized for this project
+`ghost_revive_gather`, `ghost_revive_snap`, `ghost_revive_burst` added 2026-10-21, and the survivor's
+`ghost_hit_body`, `ghost_body_land`, `ghost_body_tumble` added 2026-11-06) were synthesized for this project
 without external samples. No third-party license restrictions. Rebuild with
 `tools/audio/make_ghost_shark_sfx.py` (deterministic noise seeds, 48 kHz stereo, Ogg Vorbis q7;
 −3 dBFS peaks, the charge loop −6 dBFS). Runtime gains are in `AudioManager.SFX_CUES` and

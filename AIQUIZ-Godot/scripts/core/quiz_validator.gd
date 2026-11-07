@@ -103,12 +103,12 @@ func _has_mojibake(text: String) -> bool:
 func validate_answers_llm(items: Array[QuizItem], subject: String, grade: int,
 		callback: Callable) -> void:
 	if items.is_empty():
-		callback.call(items, [])
+		callback.call(items, [] as Array[String])
 		return
 	
 	var url := ApiStatusAutoload.claude_endpoint()
 	if url.is_empty():
-		callback.call(items, [])
+		callback.call(items, [] as Array[String])
 		return
 	
 	# Build the verification prompt
@@ -181,7 +181,7 @@ func validate_answers_llm(items: Array[QuizItem], subject: String, grade: int,
 	)
 	if http.request(url, ApiStatusAutoload.get_proxy_headers(), HTTPClient.METHOD_POST, body) != OK:
 		http.queue_free()
-		callback.call(items, [])
+		callback.call(items, [] as Array[String])
 
 
 func _parse_validation_results(text: String) -> Array:

@@ -57,6 +57,8 @@ const BOSS_QUIZ_INDEX := 4
 const SAW_APPROACH_DANGER := 0.2
 const SAW_ESCAPE_DANGER := 0.0
 const SAW_ESCAPE_HOLD := 0.35
+## 2人とも逃げ切った後、「セーフ」の声かけを読めるだけ待ってから次へ進む。
+const SAW_SAFE_HOLD_SECONDS := 1.5
 
 var course: String = COURSE_LOCAL_2P
 var step_index: int = 0
@@ -403,6 +405,11 @@ func update_saw_lesson(danger_p1: float, danger_p2: float, delta: float = 0.0) -
 			if danger >= SAW_APPROACH_DANGER:
 				complete_task(player_index, "saw_approach")
 				_saw_escape_hold[player_index] = 0.0
+				# 赤い線を越えた瞬間に、いま起きていること（画面が赤い＝危険）と次の行動を言葉にする。
+				set_hint(MobileUi.prompt(
+					"危ない！画面が赤いのは、のこぎりが近いサイン\nW・↑で前へ走って逃げよう",
+					"危ない！画面が赤いのは、のこぎりが近いサイン\n前へ走って逃げよう"
+				), 4.0)
 			continue
 		if is_task_done(player_index, "saw_escape"):
 			continue
@@ -410,9 +417,15 @@ func update_saw_lesson(danger_p1: float, danger_p2: float, delta: float = 0.0) -
 			_saw_escape_hold[player_index] = float(_saw_escape_hold.get(player_index, 0.0)) + delta
 			if float(_saw_escape_hold[player_index]) >= SAW_ESCAPE_HOLD:
 				complete_task(player_index, "saw_escape")
+				var other := 2 if player_index == 1 else 1
+				if is_task_done(other, "saw_escape"):
+					set_hint("2人ともセーフ！\n赤い線より前にいれば、のこぎりには捕まらない", 4.0)
+				else:
+					set_hint("P%dはセーフ！\nP%dも赤い線より前へ逃げよう" % [player_index, other], 4.0)
 		else:
 			_saw_escape_hold[player_index] = 0.0
-	return _hold_after_all_tasks(delta)
+	return _hold_after_all_tasks(delta, SAW_SAFE_HOLD_SECONDS)
+
 
 
 # ---------- ワールド挙動クエリ ----------
@@ -454,6 +467,9 @@ func blocks_scroll_out_death() -> bool:
 func allows_ocean_entry(player_index: int) -> bool:
 	if is_ocean_hazard_step():
 		return designated_hazard_player() == player_index
+	if is_ghost_practice():
+		# 体当たりで落とされた標的は、本編と同じくサメに食べられるところまで見せる。
+		return designated_ghost_player() != player_index
 	# 実践と最終レースでは本編と同じく、誰が落ちても本当の脱落として扱う。
 	return punishes_mistakes() or starts_goal_race()
 
@@ -678,15 +694,15 @@ func _quiz_indices() -> Array[int]:
 	return result
 
 
-func _hold_after_all_tasks(delta: float) -> bool:
+func _hold_after_all_tasks(delta: float, hold_seconds: float = TASK_HOLD_SECONDS) -> bool:
 	if not all_tasks_complete():
 		_task_hold = -1.0
 		return false
 	if _task_hold < 0.0:
 		_task_hold = 0.0
 		return false
-	_task_hold = minf(TASK_HOLD_SECONDS, _task_hold + delta)
-	return _task_hold >= TASK_HOLD_SECONDS
+	_task_hold = minf(hold_seconds, _task_hold + delta)
+	return _task_hold >= hold_seconds
 
 
 func _update_player_controls(player_index: int, axis: Vector2, jump: bool, emote_keys: int) -> void:
@@ -876,8 +892,8 @@ func _build_steps() -> Array[Dictionary]:
 		},
 		{
 			"id": "duo_saw",
-			"title": "回転のこぎりに注意",
-			"body": "遅れるとのこぎりに巻き込まれて即脱落\n少し下がって赤い警告を見たら前へ逃げよう",
+			"title": "回転のこぎりから逃げよう",
+			"body": "後ろから回転のこぎりが追ってくる　触れたら即脱落\n① 赤い線まで下がる　→　② 前へ走って逃げる",
 			"guide": GUIDE_SAW,
 			"key_layout": KEYS_CLUSTER,
 			"speed": 0.55,
@@ -889,12 +905,12 @@ func _build_steps() -> Array[Dictionary]:
 			"duration": 2.4,
 			"tasks": {
 				1: [
-					{"id": "saw_approach", "key": "S", "caption": "後退して警告を見る", "slots": ["down"]},
-					{"id": "saw_escape", "key": "W", "caption": "前進で離れる", "slots": ["up"]},
+					{"id": "saw_approach", "key": "S", "caption": "① 赤い線まで下がる", "slots": ["down"]},
+					{"id": "saw_escape", "key": "W", "caption": "② 前へ逃げる", "slots": ["up"]},
 				],
 				2: [
-					{"id": "saw_approach", "key": "↓", "caption": "後退して警告を見る", "slots": ["down"]},
-					{"id": "saw_escape", "key": "↑", "caption": "前進で離れる", "slots": ["up"]},
+					{"id": "saw_approach", "key": "↓", "caption": "① 赤い線まで下がる", "slots": ["down"]},
+					{"id": "saw_escape", "key": "↑", "caption": "② 前へ逃げる", "slots": ["up"]},
 				],
 			},
 		},

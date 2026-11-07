@@ -257,8 +257,12 @@ func _test_saw_lesson(flow: RefCounted) -> void:
 	flow.update_saw_lesson(0.0, 0.0, 0.4)
 	flow.update_saw_lesson(0.0, 0.0, 0.4)
 	_check(flow.is_task_done(1, "saw_escape") and flow.is_task_done(2, "saw_escape"), "Both escape after backing away")
+	_check(str(flow.get_overlay_model().get("hint", "")).contains("セーフ"), "Escaping says the players are safe")
 	var finished := false
 	for i: int in range(4):
+		finished = finished or flow.update_saw_lesson(0.0, 0.0, 0.2)
+	_check(not finished, "Saw lesson leaves time to read the safe message")
+	for i: int in range(8):
 		finished = finished or flow.update_saw_lesson(0.0, 0.0, 0.2)
 	_check(finished, "Saw lesson completes after the hold")
 

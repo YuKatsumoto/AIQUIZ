@@ -111,6 +111,8 @@ var _preview_scroll_z: float = 0.0
 
 var _preview_player: Node3D
 var _preview_gs: QuizGameState
+## プレビューのキャラに読み込んだ踊り（[P1 の枠, P2 の枠]）。枠が変わったら壁速度タブで読み直す。
+var _preview_rig_slots: Array = []
 var _preview_speed: float = AUTO_WALL_SPEED
 ## プレビュー上のコンベア／壁の実際の移動速度（エモートタブではゆっくり 0 に落とす）
 var _belt_visual_speed: float = AUTO_WALL_SPEED
@@ -970,6 +972,8 @@ func _set_section(section: Section) -> void:
 		_finish_hat_slide_immediate()
 	if prev_section == Section.WALL_SPEED and section != Section.WALL_SPEED:
 		_stop_preview_wall_speed_emotes()
+	if section == Section.WALL_SPEED and prev_section != Section.WALL_SPEED:
+		_reload_preview_emote_rigs_if_changed()
 	_active_section = section
 	if prev_section != section:
 		_preview_cam_tab_transition_active = true
@@ -1587,6 +1591,19 @@ func _highlight_grid_card_for_emote(emote_id: int) -> void:
 	_refresh_emote_grid_cards()
 
 
+## エモートタブで枠を変えたあと、壁速度タブで「1」などを押して試したとき、新しい踊りで踊るように読み直す。
+## プレビューのキャラは開いたときの枠の踊りだけを読み込んでいて、読んでいない踊りは走る動きに戻ってしまう。
+func _reload_preview_emote_rigs_if_changed() -> void:
+	if _preview_player == null or not _preview_player.has_method("reload_emote_rigs"):
+		return
+	var gm := QuizManager.game_state
+	var key := [gm.p1_emote_slots.duplicate(), gm.p2_emote_slots.duplicate()]
+	if key == _preview_rig_slots:
+		return
+	_preview_rig_slots = key
+	_preview_player.reload_emote_rigs(gm.p1_emote_slots, gm.p2_emote_slots)
+
+
 func _on_grid_emote_selected(emote_id: int, _card: Button) -> void:
 	_browsing_emote_id = EmoteData.normalize_emote_id(emote_id)
 	var game_state := QuizManager.game_state
@@ -2024,6 +2041,10 @@ func _build_embedded_world() -> void:
 	_cust_world_root.add_child(_preview_player)
 
 	var gm := QuizManager.game_state
+	_preview_rig_slots = [gm.p1_emote_slots.duplicate(), gm.p2_emote_slots.duplicate()]
+	# P2 の体を先に作っておく。作る前に帽子を付けると何もせずに終わり、最初に開いたとき P2 が帽子なしで出る。
+	if _preview_player.has_method("_sync_player_model_count"):
+		_preview_player.call("_sync_player_model_count", _preview_gs)
 	if _preview_player.has_method("set_hat"):
 		_preview_player.set_hat(1, gm.p1_hat)
 		_preview_player.set_hat(2, gm.p2_hat)

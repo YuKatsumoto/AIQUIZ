@@ -1,14 +1,14 @@
 {
  "out": "docs/pv/previz/v6/PV_full_audio.wav",
  "seconds": 85.3167,
- "gain_db": 2.6,
+ "gain_db": 1.6,
  "music_db": -4.0,
- "music_db_final": -1.4,
- "sfx_db_final": 2.6,
+ "music_db_final": -2.4,
+ "sfx_db_final": 1.6,
  "true_peak": -1.5,
- "sample_peak": -2.0,
- "sfx_only_peak": -2.69,
- "lufs": -16.6,
- "events": 90,
+ "sample_peak": -1.99,
+ "sfx_only_peak": -2.89,
+ "lufs": -17.5,
+ "events": 99,
  "missing": []
 }

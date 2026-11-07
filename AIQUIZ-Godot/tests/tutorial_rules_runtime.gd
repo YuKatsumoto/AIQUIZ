@@ -24,8 +24,10 @@ func _ready() -> void:
 func run() -> void:
 	QuizManager.player_analytics = null
 	_test_solo_state_rules()
+	_test_solo_ocean_mid_free_wall()
 	_test_duo_state_rules()
 	_test_duo_ghost_target_falls()
+	_test_duo_ghost_hit_stays_on_course()
 	_test_duo_saw_and_goal()
 	_test_duo_score_tower()
 	_test_duo_score_tower_draw()
@@ -99,6 +101,33 @@ func _test_solo_state_rules() -> void:
 	_check(gs.get_tutorial_step_id() == "stage_complete", "Boss answer completes the solo stage")
 
 
+## 誘導なしの実践（2問続く free_wall）の2問目の途中で海へ落ちても、いまの問題を出し直す。
+## ステップごとやり直すと問題の順番だけが 0 に戻り、同じ問題がもう一度出て、ボス壁が作られなくなっていた。
+func _test_solo_ocean_mid_free_wall() -> void:
+	var gs := _tutorial_state("SOLO", 1)
+	if not _seek_state(gs, "free_wall"):
+		return
+	var first_wall := gs.current_wall_index
+	_hit_wall(gs, _two_door_x(gs, gs.current_quiz.a))
+	_check(gs.get_tutorial_step_id() == "free_wall" and gs.current_wall_index == first_wall + 1,
+		"Ocean regression: first free question answered")
+	var second_index := gs.current_index
+	var second_quiz := gs.current_quiz
+	gs._recover_tutorial_unexpected_ocean_entry(1, "海に落ちた\n安全な場所からやり直そう")
+	_check(gs.get_tutorial_step_id() == "free_wall" and gs.current_index == second_index
+		and gs.current_quiz == second_quiz and gs.current_wall_index == first_wall + 1,
+		"Ocean fall mid-step keeps the second question and its wall")
+	_hit_wall(gs, _two_door_x(gs, gs.current_quiz.a))
+	_check(gs.get_tutorial_step_id() == "boss_wall" and gs.current_wall_index == first_wall + 2,
+		"After the ocean fall the second answer reaches the boss wall")
+	_check(gs.num_choices == 4 and gs.is_boss_index(gs.current_index) and gs.current_index == second_index + 1,
+		"The boss wall asks the boss question, not the second question again")
+
+
+func _two_door_x(gs: QuizGameState, answer: int) -> float:
+	return gs.tuning.left_door_x if answer == 0 else gs.tuning.right_door_x
+
+
 func _test_duo_state_rules() -> void:
 	var gs := _tutorial_state("LOCAL_2P", 2)
 	if not _seek_state(gs, "duo_guided_wall"):
@@ -139,13 +168,52 @@ func _test_duo_ghost_target_falls() -> void:
 	gs.register_tutorial_ghost_aim(2)
 	gs.register_tutorial_ghost_charge(2, false, 0.5)
 	gs.player_x = 30.0
-	_check(_step_until(gs, func() -> bool: return gs.player_x < 10.0, 6.0), "Knocked-off P1 comes back to the course")
+	# 標的も本編と同じく海でサメを待ち、食べられる。
+	_check(_step_until(gs, func() -> bool: return gs.p1_waiting_for_shark, 6.0), "Knocked-off P1 floats in the ocean waiting for a shark")
+	gs.complete_ocean_shark_attack(1)
+	_check(not gs.p1_alive and gs.p1_shark_killed, "The shark eats the knocked-off P1")
+	_check(gs.get_tutorial_ghost_eaten_player() == 1, "Camera can hold on the eaten P1")
+	_step(gs, QuizGameState.TUTORIAL_GHOST_EATEN_HOLD * 0.5)
+	_check(not gs.p1_alive and gs.get_tutorial_step_id() == "duo_ghost", "The eaten P1 stays on screen for a while")
+	_check(_step_until(gs, func() -> bool: return gs.p1_alive, QuizGameState.TUTORIAL_GHOST_EATEN_HOLD + 1.0), "Eaten P1 comes back to the course")
 	_step(gs, 0.5)
 	_check(gs.get_tutorial_step_id() == "duo_ghost", "Ghost practice continues after P1 falls")
-	_check(gs.p1_alive and not gs.p1_fall_committed, "P1 is back on the course")
+	_check(gs.p1_alive and not gs.p1_fall_committed and gs.player_x < 10.0, "P1 is back on the course")
 	_check(not gs.p2_alive, "P2 stays a ghost so the shark keeps flying")
 	_check(gs.tutorial_flow.is_task_done(2, "aim") and gs.tutorial_flow.is_task_done(2, "charge"), "Ghost tasks already done are kept")
-	_check(gs.register_tutorial_ghost_charge(2, true, 0.8), "A later hit still finishes the ghost practice")
+	_check(gs.register_tutorial_ghost_charge(2, true, 0.8), "A later hit completes the ghost tasks")
+	# 命中で海へ落ちた標的が食べられるまで、次の項目へ進まない。
+	var ready := [0]
+	gs.tutorial_ghost_practice_ready.connect(func() -> void: ready[0] += 1)
+	gs.player_x = 30.0
+	_check(_step_until(gs, func() -> bool: return gs.p1_waiting_for_shark, 6.0), "Hit P1 drops into the ocean")
+	_step(gs, 1.0)
+	_check(ready[0] == 0 and gs.get_tutorial_step_id() == "duo_ghost", "Practice waits while the shark swims to P1")
+	gs.complete_ocean_shark_attack(1)
+	_step(gs, QuizGameState.TUTORIAL_GHOST_EATEN_HOLD * 0.5)
+	_check(ready[0] == 0, "Practice still shows P1 being eaten")
+	_check(_step_until(gs, func() -> bool: return ready[0] > 0, QuizGameState.TUTORIAL_GHOST_EATEN_HOLD + 1.0), "Practice ends after P1 is eaten")
+	_step(gs, 0.2)
+	_check(ready[0] == 1, "Practice end is announced once")
+	gs.finish_tutorial_ghost_step()
+	_check(gs.get_tutorial_step_id() == "duo_saw" and gs.p1_alive and gs.p2_alive, "Next lesson starts with both players back")
+
+
+## 命中しても標的がコースに残ったときは、吹き飛びが落ち着いてから次へ進む。
+func _test_duo_ghost_hit_stays_on_course() -> void:
+	var gs := _tutorial_state("LOCAL_2P", 2)
+	if not _seek_state(gs, "duo_ocean"):
+		return
+	gs.player2_x = -30.0
+	_step_until(gs, func() -> bool: return gs.p2_waiting_for_shark, 6.0)
+	gs.complete_ocean_shark_attack(2)
+	var ready := [0]
+	gs.tutorial_ghost_practice_ready.connect(func() -> void: ready[0] += 1)
+	gs.register_tutorial_ghost_aim(2)
+	_check(gs.register_tutorial_ghost_charge(2, true, 0.8), "Ghost tasks complete on a hit")
+	_step(gs, QuizGameState.TUTORIAL_GHOST_HIT_SETTLE * 0.5)
+	_check(ready[0] == 0, "Hit that keeps P1 on the course waits a moment")
+	_check(_step_until(gs, func() -> bool: return ready[0] > 0, QuizGameState.TUTORIAL_GHOST_HIT_SETTLE + 0.5), "Hit that keeps P1 on the course still ends the practice")
 
 
 func _test_duo_saw_and_goal() -> void:

@@ -256,7 +256,7 @@ func _run_duo() -> void:
 	await _shot("08_saw_reveal")
 	if not await _wait_step("duo_saw", 6.0):
 		return
-	await _wait(0.5)
+	await _wait(1.2)
 	_expect_key("P1", "down", "S", "target", "saw lesson: back up first")
 	_expect_key("P1", "up", "W", "idle", "saw lesson: forward waits its turn")
 	await _shot("09_saw_lesson")
@@ -271,6 +271,10 @@ func _run_duo() -> void:
 	_expect_key("P1", "up", "W", "target", "saw lesson: now move forward")
 	_key(KEY_W, true)
 	_key(KEY_UP, true)
+	if await _wait_until(func() -> bool:
+		return gs.tutorial_flow.is_task_done(1, "saw_escape") and gs.tutorial_flow.is_task_done(2, "saw_escape"), 6.0):
+		await _wait(0.3)
+		await _shot("10b_saw_safe")
 	if not await _wait_step_any(["duo_guided_wall"], 8.0, true):
 		_key(KEY_W, false)
 		_key(KEY_UP, false)
@@ -408,7 +412,24 @@ func _ghost_practice() -> void:
 		_key(KEY_CTRL, true)
 		await _wait(0.42)
 		_key(KEY_CTRL, false)
-		await _wait_until(func() -> bool: return gs.get_tutorial_step_id() != "duo_ghost", 8.0)
+		# 突進中（プレイヤーへ直進している間）は、サメの上の操作キーを出さない。
+		if await _wait_until(func() -> bool: return ghost.phase == ghost.Phase.CHARGING, 3.0):
+			await _wait(0.25)
+			_check((_keys().get("P2", {}).get("keys", {}) as Dictionary).is_empty(), "ghost keys hide while the shark dashes")
+			await _shot("07b_ghost_dash")
+		# 命中して海へ落ちた P1 が食べられるところまで映してから次へ進む。
+		var fell := await _wait_until(func() -> bool: return gs.p1_waiting_for_shark or gs.get_tutorial_step_id() != "duo_ghost", 6.0)
+		if fell and gs.p1_waiting_for_shark:
+			await _wait(0.6)
+			await _shot("07c_p1_in_ocean")
+			var eaten := await _wait_until(func() -> bool: return gs.p1_shark_killed or gs.get_tutorial_step_id() != "duo_ghost", 8.0)
+			_check(eaten and gs.get_tutorial_step_id() == "duo_ghost", "practice stays until the shark eats P1")
+			await _wait(0.3)
+			await _shot("07d_p1_eaten")
+			await _wait(1.0)
+			_check(gs.get_tutorial_step_id() == "duo_ghost", "eaten P1 stays on screen before the next lesson")
+			await _shot("07e_p1_eaten_hold")
+		await _wait_until(func() -> bool: return gs.get_tutorial_step_id() != "duo_ghost", 10.0)
 
 
 # ---------- 起動 ----------

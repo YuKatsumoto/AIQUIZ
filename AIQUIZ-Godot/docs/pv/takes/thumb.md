@@ -156,7 +156,7 @@ python -c "import sys; sys.path.insert(0, 'docs/pv/thumbnail'); import finish; f
 |---|---|---|
 | 2 | s09_play の 1102 コマ目（1 問目。P1 は青い扉、P2 は赤い扉へ。ゲームの画面そのまま、HUD あり） | 迫りくる壁の[問題に答えよう！] ／ 正解のドアを突き破れ！ |
 | 3 | s06_s07 の S07 の 6 問（370・425・480・535・590・650 コマ目）を 3×2 に並べる。教科と学年の札はカードの上の縁に | [小1〜小6]の5教科から出題！ ／ 学年に合わせて、AIが問題を作る |
-| 4 | s09_play の 4759 コマ目（脱落した P2 がサメに乗って P1 を襲う。後ろは 10 問目の 4 択のボス壁） | 脱落した人は、[サメに乗って相手を狙う] |
+| 4 | 脱落した P2 がゴーストシャークで突っ込み、P1 が吹っ飛ぶところ（今の吹っ飛び。`take=thumbshark` で撮る。下の「4 枚目：サメの突進と吹っ飛び」） | 脱落した人は、[サメに乗って相手を狙う] |
 | 5 | オンライン対戦の VS カットイン（下の `take=thumbvs`。相手は「プリン好きの大根」・海賊帽） | [オンライン対戦]で勝負！ |
 
 - 絵は PV のテロップの無い撮影の連番（`artifacts/pv_capture/*_frames/`。1920×1080・本番画質）から取る。PV の動画から抜くより鮮明。
@@ -170,7 +170,7 @@ python -c "import sys; sys.path.insert(0, 'docs/pv/thumbnail'); import finish; f
 ```
 Godot_v4.7.2-stable_win64_console.exe --path . --resolution 1920x1080 --script res://tests/pv_capture/pv_take_bootstrap.gd -- take=thumbvs
 python docs/pv/thumbnail/pv_stills.py                                              # 書き出し
-python docs/pv/thumbnail/pv_stills.py wall=1090 shark=4762 online=vs_05_cutin_hold   # コマを変える
+python docs/pv/thumbnail/pv_stills.py wall=1090 shark=93 online=vs_05_cutin_hold     # コマを変える
 ```
 
 - VS カットインの台本 `tests/pv_capture/pv_thumbvs_runtime.gd`：本物のオンラインメニュー（`ui/online_menu.tscn`）で、L キー（デバッグ版の
@@ -178,3 +178,45 @@ python docs/pv/thumbnail/pv_stills.py wall=1090 shark=4762 online=vs_05_cutin_ho
   `artifacts/pv_capture/thumb_vs/vs_NN_<状態>.png` に保存する（ultra で約 0.5 秒おき、カットインの入り → 待ち → ゲーム画面への切り替え中）。
   `vs_06` 以降は「じゅんびOK！」で 2 人の姿勢が止まる。自分の名前・帽子・スキンはこの PC の設定のまま（撮ったときは「キラキラペガサス」・角帽）。
   撮影のあいだは `user://settings.json` を使わない（画質を ultra にしても書き換えない）。
+
+### 6 枚目：決着（スコアタワーの結果発表、2026-11-07）
+
+PV S21「決着はスコアタワー」の本物の結果発表（`s21_play_frames_1106a`・本番画質）の 230 コマ目：王冠をかぶった勝者（P1）がタワーのてっぺんで
+紙吹雪を浴び、右上に「WIN!」と得点カード（9 × 2.5 = 22.5）。テロップ「決着は、[スコアタワー]で」は王冠・WIN! に重ならないよう、
+タワーと得点カードの間（`main_cx`=1110・`main_y`=540）に置いた。できあがり：`final/thumb6_result.jpg`・`.png`、テロップ無しの `_clean`。
+
+- 看板の「AIQUIZ STADIUM」（旧タイトル）が右下に写る（ゲーム本体の素材）。気になるときは別のコマ（`result=…`）か、看板を直したあとに撮り直す。
+
+```
+python docs/pv/thumbnail/pv_stills.py only=result            # 書き出し
+python docs/pv/thumbnail/pv_stills.py only=result result=250 # コマを変える
+```
+
+### 4 枚目：サメの突進と吹っ飛び（2026-11-06）
+
+今のゲームの、ゴーストシャークの突進が当たったときの吹っ飛び（ラグドールで打ち上がって回り、着地して転がる。
+`docs/ghost_hit_ragdoll_plan.md`）で撮り直した。PV の s09_play の連番は吹っ飛びを作る前の版なので使わない。
+（11/05 に s09_play の 4759 コマ目へ 2D でブラーを足した版は、この版に置き換えた。）
+
+- 台本：`tests/pv_capture/pv_thumbshark_runtime.gd`（`take=thumbshark`）。本物の GameWorld（ローカル 2P）で P2 を壁で脱落させ、
+  ゴーストの搭乗の演出から照準まで進めて（撮らない。4 倍速）、P1 へ強さ 0.85（PERFECT）で突進させる。突進の作りは
+  `tests/ghost_hit_capture_runtime.gd` と同じ。見た目は PV と同じ（P1 プロペラ帽子・オレンジ、P2 キツネ帽子）。壁はほとんど動かさない。
+- 構図：P1 の足元から目 (6.0, 0.5, −14.5)・注視点 (5.2, 2.0, −2.4)・縦 42°。サメは右奥から左手前へ斜めに突っ込み、
+  口を開けた顔と乗っている P2 が見える。P1 は尾のすぐ後ろで逆さまに打ち上がり、奥に問題の看板と扉。HUD はゲームのまま。
+  命中は 41 コマ目、使うのは 94 コマ目（等速に直すと命中の約 0.35 秒後）。構図は `alts=`（ほかのカメラからも 960×540 で撮る）で比べて決めた。
+- 動きのブレ：48 コマ目から 1/4 倍速・sub=8・`shutter=8`（1 コマの 8 刻みをすべて保存。1 刻み = ゲームの 1/1920 秒）。
+  `pv_stills.py` が刻みを光の強さ（リニア）で平均する。サメ（約 49 m/s）は 8 刻みでも顔と P2 が溶けるので全体は 4 刻み、
+  吹っ飛ぶ P1（約 18 m/s。そのままだとほとんどぶれない）のまわりだけ 24 刻みの絵に差し替える（カメラも背景も止まっているので
+  つなぎ目は出ない。P1 はオレンジの体と、動いた赤＝帽子で拾い、止まっている赤い扉は入れない）。
+- 物理はゲームと同じ 60 Hz。sub=8 の撮影は物理を 60×sub Hz で進めるが、それだと吹っ飛ぶ P1 が丸まった姿になる（ゲームでは手足を
+  広げて回る）。ゲームは物理の補間を使わないので、撮影のあいだだけ物理の補間を入れ、ラグドールの木（`RagdollLimbsP1/P2`）だけを
+  補間する（描く刻みの間もラグドールがなめらかに動く。補間のぶん 1 刻み遅れて見える）。
+- 撮影の土台（`pv_take_base.gd`）に `shutter=<n>`（1 コマのうしろから何刻みを保存するか。既定は今までどおり sub の半分）を足した。
+
+```
+Godot_v4.7.2-stable_win64_console.exe --path . --resolution 1920x1080 --fixed-fps 480 --script res://tests/pv_capture/pv_take_bootstrap.gd -- take=thumbshark quality=ultra sub=8 shutter=8 png tag=thumbshark_sub8 frames=98 slow_from=48 slow=0.25 only=88,89,90,91,92,93,94,95,96 cam=6.0,0.5,-14.5,5.2,2.0,-2.4,42
+python docs/pv/thumbnail/pv_stills.py only=shark                    # 4 枚目だけ書き出す
+python docs/pv/thumbnail/pv_stills.py only=shark shark=93 shark_subs=6   # コマ・サメのブレの長さ（刻みの数）を変える
+```
+
+- 本番画質で約 90 秒。構図探しは `quality=low`（約 40 秒）で。ただし低画質と ultra では吹っ飛び方が少し変わる。

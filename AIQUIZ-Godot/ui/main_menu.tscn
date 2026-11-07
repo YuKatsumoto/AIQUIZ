@@ -64,7 +64,7 @@ theme_override_constants/separation = 16
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.88, 0.25, 1)
 theme_override_font_sizes/font_size = 48
-text = "AIQUIZ"
+text = "TESTOPIA"
 vertical_alignment = 1
 
 [node name="AnnouncementLabel" type="RichTextLabel" parent="VBoxContainer" unique_id=1585822199]
@@ -386,23 +386,10 @@ theme_override_constants/separation = 12
 layout_mode = 2
 theme_override_constants/separation = 16
 
-[node name="LlmToggleBtn" type="Button" parent="VBoxContainer/ConfigContainer/SettingsRows/Row1" unique_id=1347026621]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 44)
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_stretch_ratio = 1.3
-theme_override_font_sizes/font_size = 18
-text = "出題: OFFLINE (内蔵問題)"
-script = ExtResource("2_0dkrt")
-compact = true
-
 [node name="PlayersToggleBtn" type="Button" parent="VBoxContainer/ConfigContainer/SettingsRows/Row1" unique_id=1489732854]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 44)
+custom_minimum_size = Vector2(230, 44)
 layout_mode = 2
-size_flags_horizontal = 3
-size_flags_stretch_ratio = 0.85
 theme_override_font_sizes/font_size = 18
 text = "2人プレイ"
 script = ExtResource("2_0dkrt")
@@ -410,10 +397,8 @@ compact = true
 
 [node name="CustomizeBtn" type="Button" parent="VBoxContainer/ConfigContainer/SettingsRows/Row1" unique_id=422108296]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 44)
+custom_minimum_size = Vector2(230, 44)
 layout_mode = 2
-size_flags_horizontal = 3
-size_flags_stretch_ratio = 0.85
 theme_override_font_sizes/font_size = 18
 text = "カスタマイズ"
 script = ExtResource("2_0dkrt")
@@ -582,7 +567,6 @@ compact = true
 
 [connection signal="pressed" from="VBoxContainer/ModeContainer/ModeButtons/TenQuestionsBtn" to="." method="_on_ten_questions_pressed"]
 [connection signal="pressed" from="VBoxContainer/ModeContainer/ModeButtons/EndlessBtn" to="." method="_on_endless_pressed"]
-[connection signal="pressed" from="VBoxContainer/ConfigContainer/SettingsRows/Row1/LlmToggleBtn" to="." method="_on_llm_toggle_pressed"]
 [connection signal="pressed" from="VBoxContainer/ConfigContainer/SettingsRows/Row1/PlayersToggleBtn" to="." method="_on_players_toggle_pressed"]
 [connection signal="pressed" from="VBoxContainer/ConfigContainer/SettingsRows/Row1/CustomizeBtn" to="." method="_on_customize_pressed"]
 [connection signal="pressed" from="VBoxContainer/ConfigContainer/ConfigBtnRow/BackBtn" to="." method="_on_back_pressed"]

@@ -53,6 +53,8 @@ const GHOST_CAMERA_AIM_RATE := 20.0
 const GHOST_CAMERA_MIN_SIDE_X := StageConstants.FLOOR_HALF_WIDTH + 0.45
 const GHOST_CAMERA_MIN_WATER_CLEARANCE := 0.28
 const GHOST_CAMERA_DECK_CLEARANCE := 0.35
+## 力みのショット（拳から極太ビーム）で、カメラを乗り手からこれだけ離す（m）。ビームの半径 1.4 m の外に置く。
+const POWER_SHOT_DISTANCE := 6.2
 const GHOST_SHAKE_DECAY := 2.6
 const GHOST_SHAKE_DISTANCE := 0.16
 const GHOST_FLASH_DECAY := 3.4
@@ -89,10 +91,8 @@ func _ready() -> void:
 	wipe_camera.near = 0.1
 	wipe_camera.far = 160.0
 	wipe_camera.set_cull_mask_value(SOUL_PRESENTATION_RENDER_LAYER, true)
-	# The survivor camera owns the beacon reveal. Keep it out of the wipe feed
-	# even after the wipe has reached its settled corner position.
-	# （小窓のカメラは柱のすぐ外に寄るので、映すと画面が柱の色で埋まり乗り手が隠れる）
-	wipe_camera.set_cull_mask_value(GHOST_MOUNT_BEAM_RENDER_LAYER, false)
+	# 搭乗の極太ビームは乗り手の突き上げた拳から撃つので、小窓にも映す（拳から空へ抜ける）。
+	wipe_camera.set_cull_mask_value(GHOST_MOUNT_BEAM_RENDER_LAYER, true)
 
 	# Container size (viewport + border)
 	custom_minimum_size = Vector2(WIPE_W + BORDER * 2, WIPE_H + BORDER * 2)
@@ -598,16 +598,18 @@ func _ghost_shot(death_position: Vector3, p: Dictionary) -> Dictionary:
 			"fov": lerpf(38.0, 47.0, smoothstep(0.0, 0.6, local)),
 		}
 	elif t < 7.05:
-		# 力み：下からあおり、ゆっくり横へ回り込む。突き上げた拳と空・観客席を入れる。
+		# 力み：下からあおり、ゆっくり横へ回り込む。突き上げた拳から空へ抜ける極太ビームと乗り手を入れる。
+		# 極太ビーム（半径 1.4 m）は拳から撃つので、近いとカメラがビームの中に入って小窓が一色になる。
+		# ビームの外から全体が入るよう、乗り手からは POWER_SHOT_DISTANCE 離して、少し上を見る。
 		var local := t - 4.90
 		var angle := deg_to_rad(lerpf(28.0, 62.0, smoothstep(0.0, 2.15, local)))
 		var around := shark_forward.rotated(shark_up, angle * signf(shark_side.dot(shark_up.cross(shark_forward)) + 0.0001))
-		var eye := mount + around * 2.9 * k - shark_up * 0.25 * k
+		var eye := mount + around * maxf(2.9 * k, POWER_SHOT_DISTANCE) - shark_up * 0.6 * k
 		result = {
 			"name": "power",
 			"eye": eye,
-			"target": mount + shark_up * 0.8 * k,
-			"fov": 52.0,
+			"target": mount + shark_up * 0.9 * k,
+			"fov": 64.0,
 		}
 	elif t < 8.49:
 		# 縦に立って昇る：背中（乗り手）の側の下から見上げる。昇り始めの位置に据えて、首を振って追う。

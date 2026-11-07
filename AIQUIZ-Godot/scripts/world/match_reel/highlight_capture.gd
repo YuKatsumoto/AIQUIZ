@@ -11,17 +11,24 @@ extends Node
 ## moment into a clip; overlapping moments share one clip and each keeps its own
 ## second in it (the menu replay slows down and names every one). Clips are
 ## JPEG-encoded on worker threads and handed to MatchReel through clip_ready.
+## クリップを流す先がないビルドでは撮らない（has_consumer()。MatchReel は記録だけ残す）。
 
 signal clip_ready(clip: Dictionary)
 
 const QualityRules = preload("res://scripts/core/graphics_quality.gd")
 
 const SIZE := Vector2i(432, 243)
+## メニューの発射台の LED がクリップを流すか。AiquizMenuStage.BUILD_LAUNCH_DECK と同じ値にしておく
+## （試合中は発射台のスクリプトが読み込まれているとは限らず、街の GLB まで読み込むので直接は見ない）。
+const LAUNCH_DECK_PLAYS_CLIPS := false
 const PRE_ROLL_MAX := 2.5
 ## A fall into the sea runs on until the shark bites: moments keep extending a clip.
 const MAX_CLIP_SECONDS := 8.0
 const MIN_FRAMES := 4
 const JPEG_QUALITY := 0.75
+
+## クリップを流す先がなくても撮る（撮る側を確かめるテスト。tests/match_reel_runtime.gd など）。
+static var force_record := false
 
 ## MatchReel turns this on while there is something worth recording.
 var recording := false
@@ -76,8 +83,15 @@ class FrameSink extends RefCounted:
 		return count
 
 
+## 撮ったクリップを流す先があるか。ゴール観客席の掲示板（GoalStandScoreboard.PLAY_REPLAY）も
+## メニューの発射台の LED（LAUNCH_DECK_PLAYS_CLIPS）も切ってあるあいだは、だれも見ないので撮らない。
+## 実行時に読む（定数の式で参照すると GoalStandScoreboard -> MenuLedProgram -> MatchReel の循環になる）。
+static func has_consumer() -> bool:
+	return force_record or GoalStandScoreboard.PLAY_REPLAY or LAUNCH_DECK_PLAYS_CLIPS
+
+
 static func frames_per_second(quality: String) -> float:
-	if QualityRules.is_mobile_target():
+	if QualityRules.is_mobile_target() or not has_consumer():
 		return 0.0
 	match QualityRules.normalize(quality):
 		QualityRules.LOW:

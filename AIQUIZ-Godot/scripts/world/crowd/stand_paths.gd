@@ -57,6 +57,8 @@ var stairwell_landing := 1.1
 
 ## Stand z of every aisle, sorted.
 var aisles := PackedFloat32Array()
+## set_blocks() で増えた・なくなった通路（stand z、昇順）。CrowdSim.refresh_aisles() はこの近くの人だけを見直して空にする。
+var changed_aisles := PackedFloat32Array()
 ## Stand z of every block with a booth.
 var booths := PackedFloat32Array()
 
@@ -103,11 +105,34 @@ static func _pair(value: Variant, fallback: Vector2) -> Vector2:
 func set_blocks(centers: Array, kinds: Array, aisle_list: Array) -> void:
 	var sorted: Array = aisle_list.duplicate()
 	sorted.sort()
+	var previous := aisles
 	aisles = PackedFloat32Array(sorted)
+	var difference := _difference(previous, aisles)
+	if not difference.is_empty():
+		changed_aisles.append_array(difference)
+		changed_aisles.sort()
 	booths = PackedFloat32Array()
 	for index: int in range(mini(centers.size(), kinds.size())):
 		if String(kinds[index]) in booth_kinds:
 			booths.append(float(centers[index]))
+
+
+## 昇順の a と b の片方にだけある値（昇順）。
+static func _difference(a: PackedFloat32Array, b: PackedFloat32Array) -> PackedFloat32Array:
+	var out := PackedFloat32Array()
+	var i := 0
+	var j := 0
+	while i < a.size() or j < b.size():
+		if i < a.size() and j < b.size() and a[i] == b[j]:
+			i += 1
+			j += 1
+		elif j >= b.size() or (i < a.size() and a[i] < b[j]):
+			out.append(a[i])
+			i += 1
+		else:
+			out.append(b[j])
+			j += 1
+	return out
 
 
 func row_y(row: int) -> float:
@@ -128,7 +153,11 @@ func queue_x() -> float:
 
 func nearest_aisle(z: float) -> float:
 	var best := INF
-	for aisle: float in aisles:
+	# aisles は昇順なので、z の前後（z と同じ値の並びとその両隣）だけ見れば、前から全部見たときと同じ答えになる。
+	var first := maxi(aisles.bsearch(z, true) - 1, 0)
+	var last := mini(aisles.bsearch(z, false) + 1, aisles.size())
+	for index: int in range(first, last):
+		var aisle: float = aisles[index]
 		if absf(aisle - z) < absf(best - z):
 			best = aisle
 	return best

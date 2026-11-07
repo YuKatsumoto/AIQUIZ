@@ -17,11 +17,15 @@ const _SUB := {
 	"5": "\u2085", "6": "\u2086", "7": "\u2087", "8": "\u2088", "9": "\u2089"
 }
 
-## 分数パターン (数字/数字) を検出するRegExを生成
+## 分数パターン (数字/数字) を検出するRegEx。
+## 壁の選択肢の整形などで頻繁に呼ばれるので、1回だけコンパイルして使い回す。
+static var _fraction_regex: RegEx = null
+
 static func _make_regex() -> RegEx:
-	var r := RegEx.new()
-	r.compile("(\\d+)/(\\d+)")
-	return r
+	if _fraction_regex == null:
+		_fraction_regex = RegEx.new()
+		_fraction_regex.compile("(\\d+)/(\\d+)")
+	return _fraction_regex
 
 ## テキストに分数パターンが含まれるかチェック
 static func has_fraction(text: String) -> bool:

@@ -185,9 +185,6 @@ func _config_lesson() -> void:
 	_point(&"difficulty", false)
 	if not await _line("c2.menu.11"):
 		return
-	_point(&"llm", false)
-	if not await _line("c2.menu.12"):
-		return
 	_point(&"players", false)
 	if not await _line("c2.menu.13"):
 		return

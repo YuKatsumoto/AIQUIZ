@@ -104,6 +104,99 @@ const _RAGDOLL_HIDE_KEYS := [
 ]
 var _p1_ragdoll: Dictionary = {}
 var _p2_ragdoll: Dictionary = {}
+## GOSTRIDER の被弾で吹っ飛ぶ間のラグドール（docs/ghost_hit_ragdoll_plan.md 段階 3）。player_index → 状態。
+## _p1_ragdoll / _p2_ragdoll（死亡用。生きている間は毎フレーム壊される）とは別に持つ。
+var _ghost_hit_ragdolls: Dictionary = {}
+## 当たった部位へ足す速さ（m/s。突進の強さで MIN〜MAX、PERFECT は + GHOST_HIT_PERFECT_EXTRA）。部位が先に持っていかれて関節が曲がる。
+const GHOST_HIT_CONTACT_EXTRA_MIN := 6.0
+const GHOST_HIT_CONTACT_EXTRA_MAX := 10.0
+const GHOST_HIT_PERFECT_EXTRA := 1.5
+## 胴の回転（rad/s）：当たった高さで前回り / 後ろ回り、横ずれで縦の軸に回る。
+const GHOST_HIT_PITCH_SPIN_MIN := 7.0
+const GHOST_HIT_PITCH_SPIN_MAX := 12.0
+const GHOST_HIT_YAW_SPIN := 8.0
+## 飛び出す速さの割合（胴 = 1）。先端ほど遅らせて、手足が引っぱられてしなるようにする（重心の回転は別に足す）。
+const GHOST_HIT_LAUNCH_LAG := {
+	"torso": 1.0,
+	"head": 0.88,
+	"l_upp_arm": 0.85, "r_upp_arm": 0.85,
+	"l_low_arm": 0.75, "r_low_arm": 0.75,
+	"l_hand": 0.68, "r_hand": 0.68,
+	"l_thigh": 0.88, "r_thigh": 0.88,
+	"l_calf": 0.78, "r_calf": 0.78,
+	"l_foot": 0.7, "r_foot": 0.7,
+}
+## 飛んでいる間、胴の位置をゲームの点へ寄せる硬さ（ActiveRagdollDriver.torso_pos_gain_scale）。
+const GHOST_HIT_FLIGHT_TETHER := 0.35
+## 転倒で床に着いたあと、胴を（横だけ）ゲームの点へ寄せる硬さ。滑っていく点へ体を引きずる。
+const GHOST_HIT_GROUND_TETHER := 0.8
+## ゲームの重力（m/s²）。ラグドールの体もこれで落とす（物理の既定 9.8 のままだと、ゲームの点より遅れて落ちる）。
+const GHOST_HIT_GRAVITY := 18.0
+## 段階 4：戻り方（docs/ghost_hit_ragdoll_plan.md）。どちらの戻り方かと操作ロックは GhostHitContact.recovery_plan が決める。
+## 立て直し：当たってから GHOST_HIT_RECOVER_LIMP 秒は脱力して回り、そのあと着地の GHOST_HIT_FEET_DOWN_BEFORE_LAND 秒前までに
+## 物理の姿勢から空中の姿勢（Jump_Loop）へ混ぜる（GHOST_HIT_BLEND_MIN〜MAX 秒）。回っている向きのまま回り切る
+## （逆へ戻すのは、回り切るのに GHOST_HIT_LONG_TURN_MAX rad より多く要るときだけ）。
+const GHOST_HIT_RECOVER_LIMP := 0.25
+## 操作ロックが短いときの脱力の最短（ロックの GHOST_HIT_BLEND_MIN 秒前には混ぜ始め、操作が戻るまでに空中の姿勢へそろえる）。
+const GHOST_HIT_RECOVER_LIMP_MIN := 0.1
+const GHOST_HIT_FEET_DOWN_BEFORE_LAND := 0.15
+const GHOST_HIT_BLEND_MIN := 0.15
+const GHOST_HIT_BLEND_MAX := 0.35
+const GHOST_HIT_LONG_TURN_MAX := 4.4
+## 着地：Jump_Land をこの速さで再生する。受け身の転がり（Roll）は GHOST_HIT_ROLL_SECONDS で 1 回。
+## 空中の姿勢から着地の動きへは GHOST_HIT_LAND_CROSSFADE 秒で移る。
+const GHOST_HIT_LAND_SPEED := 1.4
+const GHOST_HIT_ROLL_SECONDS := 0.75
+const GHOST_HIT_LAND_CROSSFADE := 0.08
+## 体の演出の終わり（立て直しは操作が戻る時刻、転倒は起き上がりが GHOST_HIT_GETUP_DONE_AT 済んだ時刻）から、ふだんの動きへ戻す時間。
+const GHOST_HIT_RELEASE_FADE := 0.25
+## どの命中も、空中では立て直さず、床に落ちて転がってから起き上がる（空中で姿勢が戻るのは不自然だった。2026-11-06）。
+## 体の演出は操作ロック（0.25〜0.48 秒。GhostHitContact）とは別の時計で進め、起き上がる前に自分で動いた・跳んだら切り上げる。
+## false にすると段階 4 の「空中で立て直して着地」に戻る（操作ロックが着地より長いときに向いた見せ方）。
+const GHOST_HIT_ALWAYS_FALL := true
+## 転倒：起き上がり（UAL2 の LayToIdle）の速さ。寝た姿勢へは GHOST_HIT_GETUP_BLEND 秒で混ぜる。
+## 着地から GHOST_HIT_GETUP_MIN_AFTER_LAND 秒は必ず転がり、滑る速さが GHOST_HIT_GETUP_SLIDE_SPEED（m/s）を切ったら
+## （遅くとも着地から GHOST_HIT_GETUP_MAX_SLIDE 秒で）起き上がる。
+const GHOST_HIT_GETUP_CLIP := "LayToIdle"
+const GHOST_HIT_GETUP_SPEED := 1.5
+const GHOST_HIT_GETUP_DONE_AT := 0.8
+const GHOST_HIT_GETUP_BLEND := 0.3
+const GHOST_HIT_GETUP_MIN_AFTER_LAND := 0.3
+const GHOST_HIT_GETUP_SLIDE_SPEED := 2.5
+const GHOST_HIT_GETUP_MAX_SLIDE := 0.9
+## 操作が戻ったあと、着地してから自分で動いた（吹き飛ばしの速さを除いて GHOST_HIT_CANCEL_SPEED m/s より速く動いた）・跳んだら、
+## 起き上がりを切り上げる：寝ていれば GHOST_HIT_CANCEL_BLEND 秒で起き上がりの途中（進み GHOST_HIT_CANCEL_SKIP）の姿勢へ移し、
+## そこから（起き上がりの途中なら、すぐに）GHOST_HIT_CANCEL_FADE 秒でふだんの動きへ。
+const GHOST_HIT_CANCEL_SPEED := 1.5
+const GHOST_HIT_CANCEL_BLEND := 0.15
+const GHOST_HIT_CANCEL_SKIP := 0.45
+const GHOST_HIT_CANCEL_FADE := 0.18
+## 起き上がりながら前（ゲームの向き）へ向き直る区間（起き上がりの進み 0〜1）。
+const GHOST_HIT_GETUP_TURN_FROM := 0.3
+const GHOST_HIT_GETUP_TURN_TO := 0.85
+## これを過ぎたら必ず外す（吹き飛ばしから）。
+const GHOST_HIT_MAX_SECONDS := 4.0
+## 被弾の段：ヒットストップ → 脱力（物理）→ 物理の姿勢からアニメの姿勢へ混ぜる → アニメの体（ふだんの体へ戻していく）。
+const GHOST_HIT_PHASE_HOLD := 0
+const GHOST_HIT_PHASE_LIMP := 1
+const GHOST_HIT_PHASE_BLEND := 2
+const GHOST_HIT_PHASE_ANIM := 3
+## 段階 6：着地の音と砂ぼこり。転倒の転がりの音は着地の音（ドサッ）からこれだけ遅らせる（受け身の前転は少し早く・小さく・高く）。
+const GhostHitDustScript = preload("res://scripts/effects/ghost_hit_dust.gd")
+const GHOST_HIT_TUMBLE_SFX_DELAY := 0.1
+const GHOST_HIT_ROLL_SFX_DELAY := 0.08
+const GHOST_HIT_ROLL_SFX_DB := -6.0
+const GHOST_HIT_ROLL_SFX_PITCH := 1.18
+## 転倒して床を滑っている間、この速さ（m/s）より速ければ、この間隔で体の下に砂ぼこりを残す（起き上がりを始めたらやめる）。
+const GHOST_HIT_TRAIL_MIN_SPEED := 1.5
+const GHOST_HIT_TRAIL_INTERVAL := 0.06
+const GHOST_HIT_LANDING_TIMEOUT := 3.0
+## 被弾のアニメを重ねた部品の元の姿勢（次の update_from_state の始めに戻す。後に重ねたものから戻す）。
+var _ghost_hit_pose_restore: Array[Dictionary] = []
+var _ghost_hit_dust: Node3D = null
+## 被弾した人の着地待ち（player_index → {t, airborne, tumble, roll}）。体の演出（_ghost_hit_ragdolls）は操作が戻ると終わるが、
+## 着地の音と砂ぼこりはそのあとの着地でも出す。GHOST_HIT_LANDING_TIMEOUT 秒・落水・脱落でやめる。
+var _ghost_hit_landing: Dictionary = {}
 var _p1_driver: ActiveRagdollDriver = null
 var _p2_driver: ActiveRagdollDriver = null
 
@@ -322,6 +415,654 @@ func _launch_wall_ragdoll(ragdoll: Dictionary, is_p1: bool, saw_hit := false, fl
 		(ragdoll.container as Node3D).add_child(tumble)
 		tumble.setup(limbs, ragdoll.container as Node3D, torso.global_position.y - 1.0, 1 if is_p1 else 2)
 		ragdoll["flood_tumble"] = tumble
+
+
+## GOSTRIDER の突進が当たった体をラグドールにする（GhostSharkRideController._present_charge_impact。段階 3・4）。
+## info：part（当たったラグドールの体）・point（当たった点）・radial・s（横ずれ）・direction（突進の向き）・
+## launch_velocity（体が飛び出す速さ。ゲームの吹き飛ばしと同じ）・power・perfect・hold（ヒットストップ）・
+## tumble・roll・control_lock（戻り方と操作ロック。GhostHitContact.recovery_plan）。
+## ヒットストップの間は当たった瞬間の姿勢のまま止め、そのあと飛ばす。ゲームの点（位置）は今まで通り game_state が持ち、
+## 胴はその点へゆるいばねで寄せる（回転は自由）。
+func begin_ghost_hit_ragdoll(player_index: int, info: Dictionary) -> void:
+	if player_index not in [1, 2] or _is_preview_subviewport():
+		return
+	var is_p1 := player_index == 1
+	var parts: Dictionary = p1_parts if is_p1 else p2_parts
+	if parts.is_empty() or parts.get("pelvis") == null:
+		return
+	var state: Dictionary = _ghost_hit_ragdolls.get(player_index, {})
+	var ragdoll: Dictionary = state.get("ragdoll", {})
+	if ragdoll.is_empty():
+		# 起き上がりの途中（アニメの体）でまた当たったときも、今見えている姿勢から作る。
+		ragdoll = _setup_ragdoll(parts, is_p1)
+		if ragdoll.is_empty():
+			return
+		_attach_ragdoll_hat(ragdoll, is_p1)
+		state["ragdoll"] = ragdoll
+		state["pivots"] = _ghost_hit_pivots(ragdoll, parts)
+	_ghost_hit_ragdolls[player_index] = state
+	# 吹っ飛んでいる途中でまた当たったら、今の姿勢のまま止めて飛ばし直す。
+	# 体の演出の転倒（床に落ちて起き上がる）。ゲームの転倒（info.tumble）に加えて、GHOST_HIT_ALWAYS_FALL ならどの命中も。
+	var tumble := bool(info.get("tumble", false)) or GHOST_HIT_ALWAYS_FALL
+	var roll := bool(info.get("roll", false)) and not tumble
+	state["info"] = info
+	state["elapsed"] = 0.0
+	state["hold"] = maxf(0.0, float(info.get("hold", 0.0)))
+	state["phase"] = GHOST_HIT_PHASE_HOLD
+	state["landed_at"] = -1.0
+	state["tumble"] = tumble
+	state["roll"] = roll
+	state["lock"] = float(info.get("control_lock", 1.0))
+	state["yaw"] = 0.0 if tumble else _ghost_hit_landing_yaw(info, parts, roll)
+	state["getup_at"] = -1.0
+	state["getup_yaw"] = 0.0
+	state["blend"] = {}
+	state["tumble_sfx_at"] = -1.0
+	state["trail_at"] = 0.0
+	# 体の演出の終わり（転倒は起き上がりを始めたときに決める）と、自分で動いたときの切り上げ。
+	state["release"] = INF if tumble else float(state.lock)
+	state["release_fade"] = GHOST_HIT_RELEASE_FADE
+	state["cancel"] = false
+	state.erase("prev_xz")
+	_ghost_hit_landing[player_index] = {"t": 0.0, "airborne": false, "tumble": tumble, "roll": roll}
+	_hide_for_ghost_hit(parts, is_p1)
+	var driver := ragdoll.get("driver") as ActiveRagdollDriver
+	if driver != null:
+		driver.enabled = true
+		driver.limb_gain_scale = 0.0
+		driver.torso_rot_gain_scale = 0.0
+		driver.torso_pos_gain_scale = GHOST_HIT_FLIGHT_TETHER
+		# 転倒は縦をゲームの点へ寄せない（着地のあと床に寝る）。立て直しは縦も寄せる（混ぜる先の姿勢と高さがそろう）。
+		driver.torso_follow_vertical = not tumble
+	for body: RigidBody3D in _ghost_hit_bodies(ragdoll):
+		body.freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
+		body.freeze = true
+	if float(state.hold) <= 0.0:
+		_release_ghost_hit_ragdoll(state)
+
+
+## 被弾のラグドールがある（物理の体が見えている）か。起き上がりのアニメに移ったあとは false。
+func has_ghost_hit_ragdoll(player_index: int) -> bool:
+	return not (_ghost_hit_ragdolls.get(player_index, {}) as Dictionary).get("ragdoll", {}).is_empty()
+
+
+## 被弾の段（GHOST_HIT_PHASE_*）。被弾していなければ −1。
+func get_ghost_hit_phase(player_index: int) -> int:
+	var state: Dictionary = _ghost_hit_ragdolls.get(player_index, {})
+	return int(state.get("phase", -1)) if not state.is_empty() else -1
+
+
+## 被弾のラグドールの体（テスト・計測用）。
+func get_ghost_hit_bodies(player_index: int) -> Array[RigidBody3D]:
+	return _ghost_hit_bodies((_ghost_hit_ragdolls.get(player_index, {}) as Dictionary).get("ragdoll", {}))
+
+
+## 被弾を終えて、アニメの体へ戻す。
+func end_ghost_hit_ragdoll(player_index: int, restore_visuals: bool = true) -> void:
+	var state: Dictionary = _ghost_hit_ragdolls.get(player_index, {})
+	if state.is_empty():
+		return
+	_ghost_hit_ragdolls.erase(player_index)
+	var ragdoll: Dictionary = state.get("ragdoll", {})
+	if not ragdoll.is_empty():
+		_teardown_ragdoll(ragdoll)
+	var is_p1 := player_index == 1
+	# リグの場面は死亡の分岐では戻さないので、ここで必ず戻す。体と帽子は、死亡のときは死亡の分岐に任せる。
+	_set_rig_scenes_visible(is_p1, true)
+	if restore_visuals:
+		_set_parts_visible(p1_parts if is_p1 else p2_parts, true)
+		_set_hat_visible(is_p1, true)
+
+
+func _hide_for_ghost_hit(parts: Dictionary, is_p1: bool) -> void:
+	_set_parts_visible(parts, false)
+	_set_rig_scenes_visible(is_p1, false)
+
+
+func _ghost_hit_bodies(ragdoll: Dictionary) -> Array[RigidBody3D]:
+	var list: Array[RigidBody3D] = []
+	var rag: Dictionary = ragdoll.get("rag", {})
+	var bodies: Dictionary = rag.get("bodies", {})
+	for key: Variant in bodies:
+		if str(key) == "anchor":
+			continue
+		var body := bodies[key] as RigidBody3D
+		if body != null and is_instance_valid(body):
+			list.append(body)
+	return list
+
+
+## 各関節の回転の中心（子の体のローカル）。ラグドールを作った瞬間の、表示の関節の位置から求める。
+func _ghost_hit_pivots(ragdoll: Dictionary, parts: Dictionary) -> Dictionary:
+	var pivots := {}
+	var bodies: Dictionary = (ragdoll.get("rag", {}) as Dictionary).get("bodies", {})
+	for spec: Dictionary in RagdollBuilderScript.LIMB_SPECS:
+		var body := bodies.get(spec.key) as RigidBody3D
+		var joint := parts.get(spec.joint) as Node3D
+		if body != null and joint != null:
+			pivots[spec.key] = body.global_transform.affine_inverse() * joint.global_position
+	return pivots
+
+
+## ヒットストップが明けたところ：全身を飛び出す速さにし、当たった部位へ衝撃、胴へ回転を入れる。
+func _release_ghost_hit_ragdoll(state: Dictionary) -> void:
+	state.phase = GHOST_HIT_PHASE_LIMP
+	var info: Dictionary = state.info
+	var ragdoll: Dictionary = state.ragdoll
+	var rag: Dictionary = ragdoll.get("rag", {})
+	var bodies: Dictionary = rag.get("bodies", {})
+	var launch: Vector3 = info.get("launch_velocity", Vector3.ZERO)
+	var power := clampf(float(info.get("power", 0.5)), 0.0, 1.0)
+	var perfect := bool(info.get("perfect", false))
+	var direction: Vector3 = info.get("direction", Vector3.ZERO)
+	var flat := Vector3(launch.x, 0.0, launch.z)
+	if flat.length_squared() < 0.0001:
+		flat = Vector3(direction.x, 0.0, direction.z)
+	flat = flat.normalized() if flat.length_squared() > 0.0001 else Vector3.RIGHT
+	if direction.length_squared() < 0.0001:
+		direction = flat
+	var point: Vector3 = info.get("point", Vector3.ZERO)
+	# 全身の回転：重心より上に当たれば上体が先に飛んで後ろ回り、下（脚）なら脚がすくわれて前へ回る。横ずれは縦の軸に回る。
+	# 胴だけを回すと、関節でつながった手足の重さに吸われてほとんど回らないので、全身をひとかたまりとして回す
+	# （各部位に「重心まわりの回転」の速さを足す）。先端ほど飛び出しを少し遅らせて、手足が引っぱられてしなるようにする。
+	var torso := bodies.get("torso") as RigidBody3D
+	var center := torso.global_transform * Vector3(0.0, 0.31, 0.0) if torso != null else point
+	var height := clampf((point.y - center.y) / 0.45, -1.0, 1.0)
+	var pitch_axis := Vector3.UP.cross(flat).normalized()
+	var lateral := clampf(float(info.get("s", 0.0)), -1.0, 1.0)
+	var spin := (
+		pitch_axis * lerpf(GHOST_HIT_PITCH_SPIN_MIN, GHOST_HIT_PITCH_SPIN_MAX, power) * height
+		+ Vector3.UP * (-GHOST_HIT_YAW_SPIN * lateral)
+	)
+	# ゲームの点と同じ重力で落とす（胴も。立て直しは縦のばねで点に寄せ、転倒は重さだけで床へ落ちる）。
+	var gravity_scale := GHOST_HIT_GRAVITY / maxf(float(ProjectSettings.get_setting("physics/3d/default_gravity", 9.8)), 0.1)
+	for key: Variant in bodies:
+		if str(key) == "anchor":
+			continue
+		var body := bodies[key] as RigidBody3D
+		if body == null or not is_instance_valid(body):
+			continue
+		body.freeze = false
+		body.sleeping = false
+		body.continuous_cd = true
+		body.gravity_scale = gravity_scale
+		var lag := float(GHOST_HIT_LAUNCH_LAG.get(str(key), 1.0))
+		body.linear_velocity = launch * lag + spin.cross(body.global_position - center)
+		body.angular_velocity = spin
+	# 当たった部位：サメの進む向き（と、サメの軸から外へ少し）に、ほかより速く持っていく。
+	var part_body := bodies.get(str(info.get("part", "torso"))) as RigidBody3D
+	if part_body == null or not is_instance_valid(part_body):
+		part_body = bodies.get("torso") as RigidBody3D
+	if part_body != null:
+		var radial: Vector3 = info.get("radial", Vector3.ZERO)
+		var push := (direction.normalized() + radial * 0.35).normalized()
+		var extra := lerpf(GHOST_HIT_CONTACT_EXTRA_MIN, GHOST_HIT_CONTACT_EXTRA_MAX, power) + (GHOST_HIT_PERFECT_EXTRA if perfect else 0.0)
+		part_body.apply_impulse(push * part_body.mass * extra, point - part_body.global_position)
+
+
+## 毎フレーム（update_from_state の生きている分岐から）：ヒットストップ → 脱力して飛ぶ →（立て直し）空中で姿勢を立てて着地 /
+## （転倒）床を転がって起き上がる → 操作が戻ったらふだんの動きへ戻す。
+func _update_ghost_hit_ragdoll(player_index: int, gs: QuizGameState) -> void:
+	var state: Dictionary = _ghost_hit_ragdolls.get(player_index, {})
+	if state.is_empty():
+		return
+	var is_p1 := player_index == 1
+	var parts: Dictionary = p1_parts if is_p1 else p2_parts
+	var rig: AnimationRig = _p1_rig if is_p1 else _p2_rig
+	state.elapsed = float(state.elapsed) + get_process_delta_time()
+	var phase := int(state.phase)
+	if phase == GHOST_HIT_PHASE_HOLD:
+		_hide_for_ghost_hit(parts, is_p1)
+		if float(state.elapsed) >= float(state.hold):
+			_release_ghost_hit_ragdoll(state)
+		return
+	var t := float(state.elapsed) - float(state.hold)
+	var y := gs.player_y if is_p1 else gs.player2_y
+	var vy := gs.player_vel_y if is_p1 else gs.player2_vel_y
+	var off_stage := y < -0.05
+	var on_ground := not off_stage and y <= 0.001 and vy <= 0.0
+	if on_ground and float(state.landed_at) < 0.0 and t > 0.05:
+		state.landed_at = t
+	_update_ghost_hit_effects(player_index, state, parts, gs, t, on_ground)
+	var landed_at := float(state.landed_at)
+	var lock := float(state.lock)
+	var tumble := bool(state.tumble)
+	var ext: Vector2 = gs.p1_external_velocity if is_p1 else gs.p2_external_velocity
+	_detect_ghost_hit_cancel(state, gs, is_p1, ext, y, landed_at)
+	# 体の演出の終わり（release）から GHOST_HIT_RELEASE_FADE（切り上げは GHOST_HIT_CANCEL_FADE）でふだんの動きへ戻す。
+	var release := float(state.release)
+	if tumble and phase == GHOST_HIT_PHASE_ANIM and bool(state.cancel) and t < release:
+		state.release = t
+		state.release_fade = GHOST_HIT_CANCEL_FADE
+		release = t
+	var weight := 1.0 if t < release else 1.0 - smoothstep(release, release + float(state.release_fade), t)
+	if t >= GHOST_HIT_MAX_SECONDS or (phase == GHOST_HIT_PHASE_ANIM and (off_stage or weight <= 0.0)):
+		end_ghost_hit_ragdoll(player_index)
+		return
+	if phase == GHOST_HIT_PHASE_LIMP:
+		_hide_for_ghost_hit(parts, is_p1)
+		var driver := (state.ragdoll as Dictionary).get("driver") as ActiveRagdollDriver
+		if driver != null and tumble and landed_at >= 0.0:
+			driver.torso_pos_gain_scale = GHOST_HIT_GROUND_TETHER
+		if off_stage:
+			return  # 海へ落ちていく：脱力のまま（落水・脱落の演出へ渡る）
+		if not rig.is_rigged or weight <= 0.0:
+			end_ghost_hit_ragdoll(player_index)
+			return
+		var duration := -1.0
+		if tumble:
+			if landed_at >= 0.0:
+				var getup_seconds := _ghost_hit_getup_seconds(rig)
+				var settled := t >= landed_at + GHOST_HIT_GETUP_MIN_AFTER_LAND and (
+					ext.length() < GHOST_HIT_GETUP_SLIDE_SPEED or t >= landed_at + GHOST_HIT_GETUP_MAX_SLIDE
+				)
+				if bool(state.cancel):
+					# 寝ている間に動いた：起き上がりの途中の姿勢へすばやく移し、そこからふだんの動きへ。
+					duration = GHOST_HIT_CANCEL_BLEND
+					state.getup_at = t - GHOST_HIT_CANCEL_SKIP * getup_seconds
+					state.release = t + GHOST_HIT_CANCEL_BLEND
+					state.release_fade = GHOST_HIT_CANCEL_FADE
+				elif settled:
+					duration = GHOST_HIT_GETUP_BLEND
+					state.getup_at = t
+					state.release = t + GHOST_HIT_GETUP_DONE_AT * getup_seconds
+		else:
+			var time_to_land := 0.0 if landed_at >= 0.0 else _ghost_hit_time_to_land(y, vy)
+			# 操作ロックが短い（0.25〜0.48 秒）ので、操作が戻るまでに空中の姿勢へ混ぜ終えるよう、脱力を短くする。
+			var limp_end := clampf(lock - GHOST_HIT_BLEND_MIN, GHOST_HIT_RECOVER_LIMP_MIN, GHOST_HIT_RECOVER_LIMP)
+			if (
+				landed_at >= 0.0
+				or t >= limp_end
+				or time_to_land <= GHOST_HIT_FEET_DOWN_BEFORE_LAND + GHOST_HIT_BLEND_MIN
+			):
+				var by_land := time_to_land - GHOST_HIT_FEET_DOWN_BEFORE_LAND
+				duration = clampf(minf(by_land, lock - t), GHOST_HIT_BLEND_MIN, GHOST_HIT_BLEND_MAX)
+		if duration < 0.0:
+			return
+		if tumble:
+			# 寝ている向き（頭の向き）に起き上がりの姿勢を合わせ、起き上がりながら前へ向き直る。
+			_apply_ghost_hit_pose(state, parts, rig, t, 1.0)
+			state.getup_yaw = _ghost_hit_getup_yaw(state, parts)
+		_apply_ghost_hit_pose(state, parts, rig, t, 1.0)
+		_begin_ghost_hit_blend(state, parts, t, duration)
+		phase = GHOST_HIT_PHASE_BLEND
+	if phase == GHOST_HIT_PHASE_BLEND and off_stage:
+		# 起き上がりの途中で床の端から落ちた：物理の脱力に戻して落とす。
+		_resume_ghost_hit_limp(state, gs, is_p1)
+		return
+	if phase == GHOST_HIT_PHASE_BLEND:
+		_hide_for_ghost_hit(parts, is_p1)
+		_apply_ghost_hit_pose(state, parts, rig, t, 1.0)
+		var blend: Dictionary = state.blend
+		var u := clampf((t - float(blend.start)) / maxf(float(blend.duration), 0.001), 0.0, 1.0)
+		_pose_ghost_hit_blend(state, parts, u)
+		if u >= 1.0:
+			# 物理の体がアニメの姿勢にそろった：アニメの体へ入れ替える（同じ姿勢なので見た目は変わらない）。
+			_teardown_ragdoll(state.ragdoll)
+			state.ragdoll = {}
+			state.phase = GHOST_HIT_PHASE_ANIM
+			_set_rig_scenes_visible(is_p1, true)
+			_set_parts_visible(parts, true)
+			_set_hat_visible(is_p1, true)
+		return
+	_apply_ghost_hit_pose(state, parts, rig, t, weight)
+
+
+## 起き上がりの切り上げ：操作が戻ったあと、着地してから自分で動いた（ゲームの点の動きから吹き飛ばしの速さを除いた分が
+## GHOST_HIT_CANCEL_SPEED より速い）・跳んだら state.cancel を立てる。前後は床に対する位置（ベルトの流れを含まない）で測る。
+func _detect_ghost_hit_cancel(state: Dictionary, gs: QuizGameState, is_p1: bool, ext: Vector2, y: float, landed_at: float) -> void:
+	var xz := Vector2(gs.player_x if is_p1 else gs.player2_x, gs.player_local_z if is_p1 else gs.player2_local_z)
+	var dt := get_process_delta_time()
+	var previous: Variant = state.get("prev_xz")
+	state["prev_xz"] = xz
+	if bool(state.cancel) or landed_at < 0.0 or previous == null or dt <= 0.0:
+		return
+	var locked := (gs.p1_external_control_lock if is_p1 else gs.p2_external_control_lock) > 0.0
+	if locked:
+		return
+	var own := ((xz - (previous as Vector2)) / dt - ext).length()
+	if own > GHOST_HIT_CANCEL_SPEED or y > 0.05:
+		state.cancel = true
+
+
+## 被弾した人の着地を待つ（体の演出が先に終わっていても、吹き飛ばされたあとの最初の着地で音と砂ぼこりを出す）。
+func _update_ghost_hit_landing(player_index: int, gs: QuizGameState) -> void:
+	var pending: Dictionary = _ghost_hit_landing.get(player_index, {})
+	if pending.is_empty():
+		return
+	pending.t = float(pending.t) + get_process_delta_time()
+	var is_p1 := player_index == 1
+	var alive := gs.p1_alive if is_p1 else gs.p2_alive
+	var y := gs.player_y if is_p1 else gs.player2_y
+	var vy := gs.player_vel_y if is_p1 else gs.player2_vel_y
+	if not alive or y < -0.05 or float(pending.t) > GHOST_HIT_LANDING_TIMEOUT:
+		_ghost_hit_landing.erase(player_index)
+		return
+	if y > 0.05:
+		pending.airborne = true
+		return
+	if bool(pending.airborne) and y <= 0.001 and vy <= 0.0:
+		_ghost_hit_landing.erase(player_index)
+		_on_ghost_hit_landed(player_index, pending, _ghost_hit_ragdolls.get(player_index, {}), p1_parts if is_p1 else p2_parts, gs)
+
+
+## 被弾の体が床に着いた（段階 6）：音と砂ぼこり。転倒は「ドサッ」と転がりの音、立て直しは足の着地
+## （ふだんのジャンプの着地音に軽いドサッを重ねる。受け身の前転は、体の演出が続いていれば転がりの音を小さく高く足す）。
+## 両方の画面の PlayerController がそれぞれ鳴らす（ゲームの jump_land は、被弾の間は game_world が鳴らさない）。
+func _on_ghost_hit_landed(player_index: int, pending: Dictionary, state: Dictionary, parts: Dictionary, gs: QuizGameState) -> void:
+	var ext: Vector2 = gs.p1_external_velocity if player_index == 1 else gs.p2_external_velocity
+	var speed := ext.length()
+	var direction := ext / speed if speed > 0.01 else Vector2.ZERO
+	var strength := clampf(speed / 9.0, 0.35, 1.4)
+	var landed_at := float(state.get("landed_at", -1.0))
+	if bool(pending.get("tumble", false)):
+		AudioManager.play_sfx(&"ghost_body_land", lerpf(-3.0, 1.0, clampf(speed / 12.0, 0.0, 1.0)))
+		if landed_at >= 0.0:
+			state.tumble_sfx_at = landed_at + GHOST_HIT_TUMBLE_SFX_DELAY
+			state["tumble_sfx_db"] = lerpf(-4.0, 0.0, clampf(speed / 10.0, 0.0, 1.0))
+			state["tumble_sfx_pitch"] = 1.0
+	else:
+		AudioManager.play_sfx(&"jump_land")
+		AudioManager.play_sfx(&"ghost_body_land", -9.0, 1.2)
+		strength *= 0.65
+		if bool(pending.get("roll", false)) and landed_at >= 0.0:
+			state.tumble_sfx_at = landed_at + GHOST_HIT_ROLL_SFX_DELAY
+			state["tumble_sfx_db"] = GHOST_HIT_ROLL_SFX_DB
+			state["tumble_sfx_pitch"] = GHOST_HIT_ROLL_SFX_PITCH
+	_ensure_ghost_hit_dust().burst(_ghost_hit_floor_point(state, parts), direction, strength)
+
+
+## 被弾の着地のあとの音と砂ぼこり：遅らせた転がりの音、転倒で床を滑っている間の跡。
+func _update_ghost_hit_effects(
+	player_index: int, state: Dictionary, parts: Dictionary, gs: QuizGameState, t: float, on_ground: bool
+) -> void:
+	if float(state.landed_at) < 0.0:
+		return
+	var sfx_at := float(state.get("tumble_sfx_at", -1.0))
+	if sfx_at >= 0.0 and t >= sfx_at:
+		state.tumble_sfx_at = -1.0
+		AudioManager.play_sfx(&"ghost_body_tumble", float(state.get("tumble_sfx_db", 0.0)), float(state.get("tumble_sfx_pitch", 1.0)))
+	if not bool(state.tumble) or not on_ground or float(state.getup_at) >= 0.0 or t < float(state.get("trail_at", 0.0)):
+		return
+	var ext: Vector2 = gs.p1_external_velocity if player_index == 1 else gs.p2_external_velocity
+	var speed := ext.length()
+	if speed < GHOST_HIT_TRAIL_MIN_SPEED:
+		return
+	state.trail_at = t + GHOST_HIT_TRAIL_INTERVAL
+	_ensure_ghost_hit_dust().trail(_ghost_hit_floor_point(state, parts), ext / speed, clampf(speed / 10.0, 0.3, 1.2))
+
+
+## 被弾の体の下の床の点（ワールド）。物理の体があれば胴、なければアニメの体の骨盤。
+func _ghost_hit_floor_point(state: Dictionary, parts: Dictionary) -> Vector3:
+	var point := Vector3.ZERO
+	var bodies: Dictionary = ((state.get("ragdoll", {}) as Dictionary).get("rag", {}) as Dictionary).get("bodies", {})
+	var torso := bodies.get("torso") as RigidBody3D
+	var pelvis := parts.get("pelvis") as Node3D
+	if torso != null and is_instance_valid(torso):
+		point = torso.global_position
+	elif pelvis != null and pelvis.is_inside_tree():
+		point = pelvis.global_position
+	point.y = StageConstants.FLOOR_TOP_Y
+	return point
+
+
+func _ensure_ghost_hit_dust() -> Node3D:
+	if _ghost_hit_dust == null or not is_instance_valid(_ghost_hit_dust):
+		_ghost_hit_dust = GhostHitDustScript.new()
+		_ghost_hit_dust.name = "GhostHitDust"
+		add_child(_ghost_hit_dust)
+	return _ghost_hit_dust
+
+
+## 被弾の演出（ヒットストップ〜ふだんの体へ戻すまで）か、そのあとの着地待ちの途中か。game_world はこの間、ふだんのジャンプの着地音を
+## 鳴らさない（着地の音はここで鳴らす）。
+func is_ghost_hit_active(player_index: int) -> bool:
+	return _ghost_hit_ragdolls.has(player_index) or _ghost_hit_landing.has(player_index)
+
+
+## 被弾の砂ぼこり（テスト用。まだ出ていなければ null）。
+func get_ghost_hit_dust() -> Node3D:
+	return _ghost_hit_dust
+
+
+## 混ぜている途中の体を、物理の脱力へ戻す（ゲームの点の速さで動き出す）。
+func _resume_ghost_hit_limp(state: Dictionary, gs: QuizGameState, is_p1: bool) -> void:
+	var ragdoll: Dictionary = state.ragdoll
+	var ext: Vector2 = gs.p1_external_velocity if is_p1 else gs.p2_external_velocity
+	var velocity := Vector3(ext.x, gs.player_vel_y if is_p1 else gs.player2_vel_y, ext.y)
+	for body: RigidBody3D in _ghost_hit_bodies(ragdoll):
+		body.freeze = false
+		body.sleeping = false
+		body.linear_velocity = velocity
+	var driver := ragdoll.get("driver") as ActiveRagdollDriver
+	if driver != null:
+		driver.enabled = true
+		driver.limb_gain_scale = 0.0
+		driver.torso_rot_gain_scale = 0.0
+		driver.torso_pos_gain_scale = GHOST_HIT_FLIGHT_TETHER
+	state.phase = GHOST_HIT_PHASE_LIMP
+	state.blend = {}
+
+
+## 立て直しの着地で向く向き（ゲームの向きからの回転、rad）。Jump_Land は飛ばされてきた側（サメ）を向いて後ろへ滑り、
+## 受け身の転がりは滑る向きへ前転する。
+func _ghost_hit_landing_yaw(info: Dictionary, parts: Dictionary, roll: bool) -> float:
+	var launch: Vector3 = info.get("launch_velocity", Vector3.ZERO)
+	var desired := Vector3(launch.x, 0.0, launch.z) * (1.0 if roll else -1.0)
+	var pelvis := parts.get("pelvis") as Node3D
+	if desired.length_squared() < 0.0001 or pelvis == null or pelvis.get_parent() == null:
+		return 0.0
+	var root := pelvis.get_parent() as Node3D
+	var front := root.global_basis.z if root != null else Vector3.BACK
+	front.y = 0.0
+	if front.length_squared() < 0.0001:
+		return 0.0
+	return _signed_yaw(front.normalized(), desired.normalized())
+
+
+## 水平の向き a から b への、上向きの軸まわりの回転（rad）。
+static func _signed_yaw(a: Vector3, b: Vector3) -> float:
+	return atan2(a.cross(b).y, a.dot(b))
+
+
+## 起き上がりの寝た姿勢を、ラグドールが寝ている向き（骨盤から頭への向き）に合わせる回転。
+func _ghost_hit_getup_yaw(state: Dictionary, parts: Dictionary) -> float:
+	var bodies: Dictionary = ((state.ragdoll as Dictionary).get("rag", {}) as Dictionary).get("bodies", {})
+	var torso := bodies.get("torso") as RigidBody3D
+	var pelvis := parts.get("pelvis") as Node3D
+	if torso == null or pelvis == null:
+		return 0.0
+	var lying := torso.global_basis.y
+	var target := pelvis.global_basis.y
+	lying.y = 0.0
+	target.y = 0.0
+	if lying.length_squared() < 0.09 or target.length_squared() < 0.09:
+		return 0.0
+	return _signed_yaw(target.normalized(), lying.normalized())
+
+
+func _ghost_hit_getup_seconds(rig: AnimationRig) -> float:
+	var length := rig.get_ual_clip_length(GHOST_HIT_GETUP_CLIP, AnimationRig.SLOT_UAL2) if rig != null else 0.0
+	return (length if length > 0.0 else 1.53) / GHOST_HIT_GETUP_SPEED
+
+
+func _ghost_hit_time_to_land(y: float, vy: float) -> float:
+	return (vy + sqrt(maxf(0.0, vy * vy + 2.0 * GHOST_HIT_GRAVITY * maxf(y, 0.0)))) / GHOST_HIT_GRAVITY
+
+
+## 被弾のアニメの姿勢を部品に重ねる（weight で、ふだんの動きの姿勢と混ぜる）。立て直しは Jump_Loop → 着地（Jump_Land か Roll）、
+## 転倒は LayToIdle。向き（yaw）も weight と一緒に戻す。ラグドールの間は、これが物理の体を混ぜる先の姿勢になる。
+func _apply_ghost_hit_pose(state: Dictionary, parts: Dictionary, rig: AnimationRig, t: float, weight: float) -> void:
+	var pelvis := parts.get("pelvis") as Node3D
+	if rig == null or not rig.is_rigged or pelvis == null or weight <= 0.0:
+		return
+	var base := _ghost_hit_capture_pose(parts)
+	_ghost_hit_pose_restore.append_array(base)
+	var mixed: Array[Dictionary] = []
+	for layer: Dictionary in _ghost_hit_clip_layers(state, rig, t):
+		if not rig.seek_ual_clip(str(layer.clip), float(layer.ratio), int(layer.slot)):
+			continue
+		_apply_skeleton_pose(parts, rig.active_skeleton, rig.active_bone_indices, rig.mirror_x)
+		var pose := _ghost_hit_capture_pose(parts)
+		if mixed.is_empty():
+			mixed = pose
+			continue
+		var w := float(layer.weight)
+		for i in range(mini(mixed.size(), pose.size())):
+			mixed[i].transform = (mixed[i].transform as Transform3D).interpolate_with(pose[i].transform, w)
+	for i in range(base.size()):
+		var node := base[i].node as Node3D
+		var target: Transform3D = mixed[i].transform if i < mixed.size() else base[i].transform
+		node.transform = (base[i].transform as Transform3D).interpolate_with(target, weight if not mixed.is_empty() else 0.0)
+	var yaw := (float(state.getup_yaw) * _ghost_hit_getup_turn(state, rig, t) if bool(state.tumble) else float(state.yaw)) * weight
+	if absf(yaw) > 0.0001 and not mixed.is_empty():
+		pelvis.global_basis = Basis(Vector3.UP, yaw) * pelvis.global_basis
+
+
+## 起き上がりの間、寝た向きから前へ向き直る残り（1 = 寝た向きのまま、0 = 前）。
+func _ghost_hit_getup_turn(state: Dictionary, rig: AnimationRig, t: float) -> float:
+	var getup_at := float(state.getup_at)
+	if getup_at < 0.0:
+		return 1.0
+	var progress := (t - getup_at) / maxf(_ghost_hit_getup_seconds(rig), 0.01)
+	return 1.0 - smoothstep(GHOST_HIT_GETUP_TURN_FROM, GHOST_HIT_GETUP_TURN_TO, progress)
+
+
+## 今の時刻に重ねるクリップ（先頭は全部、2 つ目からは weight で混ぜる）。
+func _ghost_hit_clip_layers(state: Dictionary, rig: AnimationRig, t: float) -> Array[Dictionary]:
+	var layers: Array[Dictionary] = []
+	if bool(state.tumble):
+		var getup_at := float(state.getup_at)
+		var progress := 0.0 if getup_at < 0.0 else (t - getup_at) / maxf(_ghost_hit_getup_seconds(rig), 0.01)
+		layers.append({"clip": GHOST_HIT_GETUP_CLIP, "slot": AnimationRig.SLOT_UAL2, "ratio": clampf(progress, 0.0, 1.0), "weight": 1.0})
+		return layers
+	var air_length := maxf(rig.get_ual_clip_length(AnimationRig.UAL_JUMP_AIR), 0.1)
+	layers.append({"clip": AnimationRig.UAL_JUMP_AIR, "slot": AnimationRig.SLOT_UAL, "ratio": fposmod(t / air_length, 1.0), "weight": 1.0})
+	var landed_at := float(state.landed_at)
+	if landed_at < 0.0:
+		return layers
+	var since := t - landed_at
+	var cross := smoothstep(0.0, GHOST_HIT_LAND_CROSSFADE, since)
+	if bool(state.roll):
+		layers.append({"clip": "Roll", "slot": AnimationRig.SLOT_UAL, "ratio": clampf(since / GHOST_HIT_ROLL_SECONDS, 0.0, 1.0), "weight": cross})
+	else:
+		var land_length := maxf(rig.get_ual_clip_length(AnimationRig.UAL_JUMP_LAND), 0.1)
+		layers.append({"clip": AnimationRig.UAL_JUMP_LAND, "slot": AnimationRig.SLOT_UAL, "ratio": clampf(since * GHOST_HIT_LAND_SPEED / land_length, 0.0, 1.0), "weight": cross})
+	return layers
+
+
+func _ghost_hit_capture_pose(parts: Dictionary) -> Array[Dictionary]:
+	var pose: Array[Dictionary] = []
+	for value: Variant in parts.values():
+		if value is Node3D and is_instance_valid(value):
+			pose.append({"node": value, "transform": (value as Node3D).transform})
+	return pose
+
+
+func _restore_ghost_hit_pose() -> void:
+	for i in range(_ghost_hit_pose_restore.size() - 1, -1, -1):
+		var saved: Dictionary = _ghost_hit_pose_restore[i]
+		var node: Variant = saved.get("node")
+		if is_instance_valid(node):
+			(node as Node3D).transform = saved.transform
+	_ghost_hit_pose_restore.clear()
+
+
+## 物理の体をアニメの姿勢へ混ぜ始める：体を止めて（キネマ）、今の姿勢を覚える。胴の回り方は、回っている向きのまま回り切る道を選ぶ。
+func _begin_ghost_hit_blend(state: Dictionary, parts: Dictionary, t: float, duration: float) -> void:
+	var ragdoll: Dictionary = state.ragdoll
+	var bodies: Dictionary = (ragdoll.get("rag", {}) as Dictionary).get("bodies", {})
+	var pivots: Dictionary = state.get("pivots", {})
+	var torso := bodies.get("torso") as RigidBody3D
+	var pelvis := parts.get("pelvis") as Node3D
+	var driver := ragdoll.get("driver") as ActiveRagdollDriver
+	if driver != null:
+		driver.enabled = false
+	var target := pelvis.global_transform
+	var torso_xf := torso.global_transform if torso != null else target
+	var spin := torso.angular_velocity if torso != null else Vector3.ZERO
+	var delta := (target.basis.get_rotation_quaternion() * torso_xf.basis.get_rotation_quaternion().inverse()).normalized()
+	if delta.w < 0.0:
+		delta = -delta
+	var angle := 2.0 * acos(clampf(delta.w, -1.0, 1.0))
+	var axis := Vector3(delta.x, delta.y, delta.z)
+	axis = axis.normalized() if axis.length_squared() > 0.0000001 else Vector3.UP
+	var along := spin.dot(axis)
+	if not bool(state.tumble) and along < 0.0 and TAU - angle <= GHOST_HIT_LONG_TURN_MAX:
+		axis = -axis
+		angle = TAU - angle
+		along = -along
+	var locals := {}
+	for spec: Dictionary in RagdollBuilderScript.LIMB_SPECS:
+		var body := bodies.get(spec.key) as RigidBody3D
+		var parent := bodies.get(spec.parent) as RigidBody3D
+		if body == null or parent == null:
+			continue
+		var pivot: Vector3 = pivots.get(spec.key, Vector3.ZERO)
+		locals[spec.key] = {
+			"q": (parent.global_basis.get_rotation_quaternion().inverse() * body.global_basis.get_rotation_quaternion()).normalized(),
+			"pip": parent.global_transform.affine_inverse() * (body.global_transform * pivot),
+		}
+	for body: RigidBody3D in _ghost_hit_bodies(ragdoll):
+		body.freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
+		body.freeze = true
+		body.linear_velocity = Vector3.ZERO
+		body.angular_velocity = Vector3.ZERO
+	state.phase = GHOST_HIT_PHASE_BLEND
+	state.blend = {
+		"start": t,
+		"duration": duration,
+		"offset": torso_xf.origin - target.origin,
+		"axis": axis,
+		"angle": angle,
+		# 始めの回る速さを、物理で回っていた速さにそろえる（エルミート曲線の始めの傾き）。
+		"lead": clampf(along * duration / maxf(angle, 0.05), 0.0, 3.0),
+		"locals": locals,
+	}
+
+
+## 物理の体を u（0〜1）だけアニメの姿勢へ寄せて置く。胴は覚えた道で回し、手足は親の体からの回転と関節の位置を混ぜて、
+## 関節でつながったまま動かす（u = 1 でアニメの部品とぴったり重なる）。
+func _pose_ghost_hit_blend(state: Dictionary, parts: Dictionary, u: float) -> void:
+	var blend: Dictionary = state.blend
+	var bodies: Dictionary = ((state.ragdoll as Dictionary).get("rag", {}) as Dictionary).get("bodies", {})
+	var pivots: Dictionary = state.get("pivots", {})
+	var pelvis := parts.get("pelvis") as Node3D
+	if blend.is_empty() or pelvis == null:
+		return
+	var target := pelvis.global_transform
+	var s := smoothstep(0.0, 1.0, u)
+	var p := u * u * (3.0 - 2.0 * u) + float(blend.lead) * u * (1.0 - u) * (1.0 - u)
+	var turn := Quaternion(blend.axis as Vector3, float(blend.angle) * (p - 1.0))
+	var placed := {
+		"torso": Transform3D(
+			Basis((turn * target.basis.get_rotation_quaternion()).normalized()),
+			target.origin + (blend.offset as Vector3) * (1.0 - s)
+		),
+	}
+	var targets := {"torso": target}
+	var torso := bodies.get("torso") as RigidBody3D
+	if torso != null:
+		torso.global_transform = placed.torso
+	for spec: Dictionary in RagdollBuilderScript.LIMB_SPECS:
+		var key := str(spec.key)
+		var body := bodies.get(key) as RigidBody3D
+		var mesh := parts.get(spec.mesh) as Node3D
+		var start: Dictionary = (blend.locals as Dictionary).get(key, {})
+		if body == null or mesh == null or start.is_empty() or not placed.has(spec.parent):
+			continue
+		var parent_xf: Transform3D = placed[spec.parent]
+		var parent_target: Transform3D = targets[spec.parent]
+		var child_target := mesh.global_transform
+		targets[key] = child_target
+		var pivot: Vector3 = pivots.get(key, Vector3.ZERO)
+		var local_target := (parent_target.basis.get_rotation_quaternion().inverse() * child_target.basis.get_rotation_quaternion()).normalized()
+		var pip_target := parent_target.affine_inverse() * (child_target * pivot)
+		var local := (start.q as Quaternion).slerp(local_target, s)
+		var basis := Basis((parent_xf.basis.get_rotation_quaternion() * local).normalized())
+		var xf := Transform3D(basis, parent_xf * (start.pip as Vector3).lerp(pip_target, s) - basis * pivot)
+		placed[key] = xf
+		body.global_transform = xf
 
 
 ## 壁に激突したラグドールの頭へ帽子を付け替える。表示用の体は隠れるので、
@@ -1889,7 +2630,10 @@ func _blend_intro_fall_pose(parts: Dictionary, from_pose: Dictionary, weight: fl
 			continue
 		var from: Transform3D = from_pose[key]
 		# Root position belongs to the flight path / existing foot planting.
-		part.basis = from.basis.slerp(part.basis, weight)
+		# 骨の basis は拡大を含むことがあり、Basis.slerp() はそれを四元数にできずエラーを出すので、回転と拡大を分けて補間する。
+		var blended := from.basis.get_rotation_quaternion().slerp(part.basis.get_rotation_quaternion(), weight)
+		var blended_scale := from.basis.get_scale().lerp(part.basis.get_scale(), weight)
+		part.basis = Basis(blended).scaled_local(blended_scale)
 
 
 ## The hang IK and the Mixamo clip disagree by up to ~170 degrees per arm, most of
@@ -3133,6 +3877,8 @@ func _hold_practice_bite(is_p1: bool, gs: QuizGameState) -> void:
 
 func reset_result_presentation() -> void:
 	lasso_hidden_mask = 0
+	var p1_was_exploded := _p1_result_exploded or _p1_exploding or not _p1_explosion_bodies.is_empty()
+	var p2_was_exploded := _p2_result_exploded or _p2_exploding or not _p2_explosion_bodies.is_empty()
 	_p1_result_exploded = false
 	_p2_result_exploded = false
 	_p1_result_explosion_elapsed = 0.0
@@ -3142,12 +3888,27 @@ func reset_result_presentation() -> void:
 	_clear_explosion_bodies(true)
 	_clear_explosion_bodies(false)
 	_set_parts_visible(p1_parts, true)
+	if p1_was_exploded:
+		_rebuild_hat_after_explosion(true)
 	_set_hat_visible(true, true)
 	_set_rig_scenes_visible(true, true)
 	if not p2_parts.is_empty():
 		_set_parts_visible(p2_parts, true)
+		if p2_was_exploded:
+			_rebuild_hat_after_explosion(false)
 		_set_hat_visible(false, true)
 		_set_rig_scenes_visible(false, true)
+
+
+## 爆散（_init_explosion）で隠した帽子のメッシュは _set_hat_visible では戻らないので、帽子を作り直す
+## （practice_reset_player と同じ）。サメに食べられた・海で沈んだ・結果発表で爆散したあとに生き返ったとき。
+## メッシュを一律に表示へ戻すと、帽子によってはもとから隠しているメッシュまで見えてしまうので作り直す。
+func _rebuild_hat_after_explosion(is_p1: bool) -> void:
+	var parts := p1_parts if is_p1 else p2_parts
+	var hat_id := _p1_hat_id if is_p1 else _p2_hat_id
+	if parts.is_empty() or hat_id == HatData.HAT_NONE:
+		return
+	_set_hat_for_parts(parts, hat_id, is_p1)
 
 
 func _exit_tree() -> void:
@@ -3215,6 +3976,9 @@ func _clear_rig_scene_nodes() -> void:
 	for child in get_children():
 		var n := str(child.name)
 		if n.begins_with("P1") or n.begins_with("P2"):
+			# 先に外してから解放する。queue_free だけだとフレームの終わりまで残り、すぐ後に作る同じ名前の
+			# 新しいリグが「@Node3D@…」の仮名になって、次の読み直しで見つけられず解放されずにたまっていく。
+			remove_child(child)
 			child.queue_free()
 
 
@@ -3980,6 +4744,7 @@ func _apply_push_pose(parts: Dictionary, pose: Dictionary) -> void:
 
 func update_from_state(gs: QuizGameState) -> void:
 	_restore_health_pose()
+	_restore_ghost_hit_pose()
 	_restore_push_pose()
 	_p1_rig.use_rest_pose = use_skin_preview_rest_pose
 	_p2_rig.use_rest_pose = use_skin_preview_rest_pose
@@ -4018,15 +4783,22 @@ func update_from_state(gs: QuizGameState) -> void:
 		_p1_ragdoll = _setup_ragdoll(p1_parts, true)
 		_p1_driver = _p1_ragdoll.get("driver")
 
+	if _ghost_hit_ragdolls.has(1) and (
+		not gs.p1_alive or gs.p1_waiting_for_shark or gs.is_practice_bitten(1) or gs.is_result_ghost(1)
+	):
+		end_ghost_hit_ragdoll(1, false)
 	if gs.p1_alive and gs.is_practice_bitten(1):
 		_hold_practice_bite(true, gs)
 	elif gs.p1_alive:
 		if not _p1_result_exploded and (
 			_p1_exploding or not _p1_explosion_bodies.is_empty() or not _p1_ragdoll.is_empty()
 		):
+			var p1_was_exploded := _p1_exploding or not _p1_explosion_bodies.is_empty()
 			_p1_exploding = false
 			_clear_explosion_bodies(true)
 			_set_rig_scenes_visible(true, true)
+			if p1_was_exploded:
+				_rebuild_hat_after_explosion(true)
 			_set_hat_visible(true, true)
 			# 脱力崩壊したラグドールを破棄→次フレームで直立状態に再生成(復活)
 			if not _p1_ragdoll.is_empty():
@@ -4087,6 +4859,10 @@ func update_from_state(gs: QuizGameState) -> void:
 			# FBXリグモードでもボブルヘッドを更新
 			_update_bobblehead(p1_parts, false, is_active, walk_phase)
 		_apply_push_pose(p1_parts, push1)
+		if _ghost_hit_ragdolls.has(1):
+			_update_ghost_hit_ragdoll(1, gs)
+		if _ghost_hit_landing.has(1):
+			_update_ghost_hit_landing(1, gs)
 		if _p1_result_exploded:
 			_p1_result_explosion_elapsed += get_process_delta_time()
 			_set_parts_visible(p1_parts, false)
@@ -4171,15 +4947,22 @@ func update_from_state(gs: QuizGameState) -> void:
 			_p2_ragdoll = _setup_ragdoll(p2_parts, false)
 			_p2_driver = _p2_ragdoll.get("driver")
 
+		if _ghost_hit_ragdolls.has(2) and (
+			not gs.p2_alive or gs.p2_waiting_for_shark or gs.is_practice_bitten(2) or gs.is_result_ghost(2)
+		):
+			end_ghost_hit_ragdoll(2, false)
 		if gs.p2_alive and gs.is_practice_bitten(2):
 			_hold_practice_bite(false, gs)
 		elif gs.p2_alive:
 			if not _p2_result_exploded and (
 				_p2_exploding or not _p2_explosion_bodies.is_empty() or not _p2_ragdoll.is_empty()
 			):
+				var p2_was_exploded := _p2_exploding or not _p2_explosion_bodies.is_empty()
 				_p2_exploding = false
 				_clear_explosion_bodies(false)
 				_set_rig_scenes_visible(false, true)
+				if p2_was_exploded:
+					_rebuild_hat_after_explosion(false)
 				_set_hat_visible(false, true)
 				# 脱力崩壊したラグドールを破棄→次フレームで直立状態に再生成(復活)
 				if not _p2_ragdoll.is_empty():
@@ -4238,6 +5021,10 @@ func update_from_state(gs: QuizGameState) -> void:
 				# FBXリグモードでもボブルヘッドを更新
 				_update_bobblehead(p2_parts, true, is_active, walk_phase * 1.1)
 			_apply_push_pose(p2_parts, push2)
+			if _ghost_hit_ragdolls.has(2):
+				_update_ghost_hit_ragdoll(2, gs)
+			if _ghost_hit_landing.has(2):
+				_update_ghost_hit_landing(2, gs)
 			if _p2_result_exploded:
 				_p2_result_explosion_elapsed += get_process_delta_time()
 				_set_parts_visible(p2_parts, false)

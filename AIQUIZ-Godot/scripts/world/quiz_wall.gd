@@ -32,6 +32,16 @@ var _scaled_beam_mesh: BoxMesh = null
 var _boss_scale_lift: float = 0.0
 var _shattered: bool = false
 var _saw_collision_shapes: Dictionary = {}
+## false にすると、のこぎりで飛んだ体用の当たり（SawBodyCollision）を新しく作らない。
+## GameWorld がのこぎりの追跡のない試合（1P など）で切る。メニューのプレビューなどでは従来どおり作る。
+var saw_collision_enabled: bool = true
+## 壁・扉を作り直したあと、消えた部品の当たりの記録を次の物理フレームで片づける。
+var _saw_collision_dirty: bool = false
+## _ready で組む扉の数。GameWorld は add_child の前に入れ、2択で組んでから4択に作り直さないようにする。
+var initial_num_choices: int = 2
+## 前回 set_quiz に渡された問題と選択肢（同じなら選択肢の整形と比較を毎フレームやり直さない）。
+var _set_quiz_item: QuizItem = null
+var _set_quiz_choices: PackedStringArray = PackedStringArray()
 ## 問題文と選択肢を AI が書いているように出す演出（docs/ai_question_typing.md）。壁ごとに 1 回だけ。
 var _ai_text_reveal: WallAiTextReveal = null
 var _ai_text_reveal_started: bool = false
@@ -39,33 +49,47 @@ var _ai_text_reveal_started: bool = false
 func _physics_process(_dt: float) -> void:
 	# Only saw-launched bodies opt into this layer. Match each visible solid so
 	# broken doors stay open and retired walls never leave an invisible barrier.
-	for mesh: MeshInstance3D in wall_parts + doors:
-		if not is_instance_valid(mesh) or mesh.is_queued_for_deletion():
-			continue
-		if not _saw_collision_shapes.has(mesh.get_instance_id()):
-			var body := AnimatableBody3D.new()
-			body.name = "SawBodyCollision"
-			body.collision_layer = SawChaseState.WALL_COLLISION_LAYER
-			body.collision_mask = 0
-			body.sync_to_physics = false
-			mesh.add_child(body)
-			var collision := CollisionShape3D.new()
-			var box := BoxShape3D.new()
-			box.size = mesh.get_aabb().size
-			collision.shape = box
-			collision.position = mesh.get_aabb().get_center()
-			body.add_child(collision)
-			_saw_collision_shapes[mesh.get_instance_id()] = collision
-		var shape: CollisionShape3D = _saw_collision_shapes[mesh.get_instance_id()]
-		var size := mesh.get_aabb().size
-		if (shape.shape as BoxShape3D).size != size:
-			(shape.shape as BoxShape3D).size = size
-		var disabled := not mesh.is_visible_in_tree() or _retiring_after_pass or _shattered
-		if shape.disabled != disabled:
-			shape.disabled = disabled
-	for id: int in _saw_collision_shapes.keys():
-		if not is_instance_valid(_saw_collision_shapes[id]):
-			_saw_collision_shapes.erase(id)
+	if not saw_collision_enabled and _saw_collision_shapes.is_empty():
+		return
+	for mesh: MeshInstance3D in wall_parts:
+		_sync_saw_collision(mesh)
+	for mesh: MeshInstance3D in doors:
+		_sync_saw_collision(mesh)
+	if _saw_collision_dirty:
+		_saw_collision_dirty = false
+		for id: int in _saw_collision_shapes.keys():
+			if not is_instance_valid(_saw_collision_shapes[id]):
+				_saw_collision_shapes.erase(id)
+
+
+func _sync_saw_collision(mesh: MeshInstance3D) -> void:
+	if not is_instance_valid(mesh) or mesh.is_queued_for_deletion():
+		return
+	var mesh_id := mesh.get_instance_id()
+	var bounds := mesh.get_aabb()
+	if not _saw_collision_shapes.has(mesh_id):
+		if not saw_collision_enabled:
+			return
+		var body := AnimatableBody3D.new()
+		body.name = "SawBodyCollision"
+		body.collision_layer = SawChaseState.WALL_COLLISION_LAYER
+		body.collision_mask = 0
+		body.sync_to_physics = false
+		mesh.add_child(body)
+		var collision := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = bounds.size
+		collision.shape = box
+		collision.position = bounds.get_center()
+		body.add_child(collision)
+		_saw_collision_shapes[mesh_id] = collision
+	var shape: CollisionShape3D = _saw_collision_shapes[mesh_id]
+	var box_shape := shape.shape as BoxShape3D
+	if box_shape.size != bounds.size:
+		box_shape.size = bounds.size
+	var disabled := not mesh.is_visible_in_tree() or _retiring_after_pass or _shattered
+	if shape.disabled != disabled:
+		shape.disabled = disabled
 
 
 
@@ -124,6 +148,30 @@ const CHOICE_VISIBLE_DOOR_HEIGHT: float = DOOR_TOP_Y - StageConstants.FLOOR_TOP_
 const WALL_FONT_MSDF_SIZE: int = 64
 const WALL_FONT_MSDF_PIXEL_RANGE: int = 16
 static var _wall_font: FontFile = null
+## 選択肢・問題文の組版結果（文字列ごと）。壁の切り替えのフレームで組み直さないよう全壁で共有し、上限を超えたら捨てる。
+const TEXT_LAYOUT_CACHE_LIMIT := 4096
+static var _choice_layout_cache: Dictionary = {}
+static var _choice_measure_cache: Dictionary = {}
+static var _question_width_cache: Dictionary = {}
+## 新しい字の MSDF は初めて組むときにメインスレッドで作られる（漢字1字で数ミリ秒）。
+## 壁の切り替えのフレームに重ならないよう、これから出す字を少しずつ先に描いておく（prime_queued_wall_glyphs）。
+## urgent はこれから出す問題文・選択肢の字、もう一方は試合前にまとめて描くかな・英数字。
+## _glyph_prime_seen は字 → 描いたか urgent に並べたなら true、試合前の待ち行列でまだ描いていなければ false。
+static var _glyph_prime_seen: Dictionary = {}
+static var _glyph_prime_urgent: PackedInt32Array = PackedInt32Array()
+static var _glyph_prime_urgent_cursor: int = 0
+static var _glyph_prime_queue: PackedInt32Array = PackedInt32Array()
+static var _glyph_prime_queue_cursor: int = 0
+## 描いた字が載ったアトラスのページ（ページ番号 → そのページの字）。GPU へ送るまで覚えておく。
+static var _glyph_prime_pages: Dictionary = {}
+## 試合前に描いておく字の範囲（英数字・記号、ひらがな、カタカナ・長音、全角の記号と数字）と、そのほかの字。
+const WALL_GLYPH_PRIME_RANGES: Array[Vector2i] = [
+	Vector2i(0x21, 0x7E),
+	Vector2i(0x3041, 0x3096),
+	Vector2i(0x30A1, 0x30FC),
+	Vector2i(0xFF01, 0xFF1F),
+]
+const WALL_GLYPH_PRIME_EXTRA := "、。「」『』（）〜～…×÷±≠○△□℃→⁄─⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉"
 ## 等倍⇔拡大表示の切り替えにかける時間 (秒)。
 const TEXT_SCALE_SWITCH_DURATION: float = 0.5
 
@@ -145,10 +193,27 @@ var _retirement_finished: bool = false
 ## 同じサイズ・色の箱はRIDを再利用し、枚ごとのGPUアップロードを避ける。
 static var _box_mesh_cache: Dictionary = {}
 static var _opaque_material_cache: Dictionary = {}
+## 問題文の高さで梁の大きさは問題ごとに変わるので、エンドレスで増え続けないよう上限を超えたら作り直す
+## （使用中の壁は自分のメッシュを持ち続ける）。
+const BOX_MESH_CACHE_LIMIT := 512
+## 通過後のフェードの出発点になる、共有の不透明材質ごとの半透明版（色はそのまま）。
+## これを持ち続けると半透明のシェーダーが解放されず、壁を抜けるたびにパイプラインを作り直さない。
+static var _fade_material_cache: Dictionary = {}
+## 問題文の背景パネルと縁は全壁で1枚の板と色ごとの材質を共有する（大きさはノードの拡大で合わせる）。
+static var _question_panel_materials: Dictionary = {}
+static var _question_panel_quad: QuadMesh = null
+static var _boss_spark_mesh: QuadMesh = null
+## 扉・壁の破片は大きさ・色ごとに箱・当たり・材質を共有する。破片ごとに作ると転送が増え、
+## 破片が消えるたびに材質のシェーダーが解放されて次の正解で作り直しになる。
+## 大きさと白への寄せ具合の乱数は DEBRIS_VARIATION_STEPS 段に丸めて共有できるようにする。
+const DEBRIS_VARIATION_STEPS := 8
+const DEBRIS_CACHE_LIMIT := 256
+static var _debris_shape_cache: Dictionary = {}
+static var _debris_material_cache: Dictionary = {}
 
 func _ready() -> void:
 	wall_top_y = _minimum_wall_top_y()
-	_build_doors(2)
+	_build_doors(initial_num_choices)
 
 
 
@@ -158,6 +223,7 @@ func _build_wall_around_doors(num_choices: int) -> void:
 		if is_instance_valid(part):
 			part.queue_free()
 	wall_parts.clear()
+	_saw_collision_dirty = true
 
 	# Wall dimensions (matching original single box)
 	var total_width: float = StageConstants.QUIZ_WALL_HALF_WIDTH * 2.0
@@ -230,6 +296,7 @@ func _build_doors(num_choices: int) -> void:
 	for d: MeshInstance3D in doors:
 		d.queue_free()
 	doors.clear()
+	_saw_collision_dirty = true
 	for l: Label3D in door_labels:
 		l.queue_free()
 	door_labels.clear()
@@ -293,46 +360,73 @@ func _set_door_label_text(index: int, text: String) -> bool:
 ## ただし極端に長い選択肢がほかを CHOICE_UNIFORM_MIN_FONT_SIZE より小さくすることはさせない
 ## (その長い選択肢だけが自分の枠に収まるサイズまで小さくなる)。
 func _fit_door_labels() -> void:
+	var boxes: Array[Vector2] = []
+	for i: int in range(door_labels.size()):
+		boxes.append(_door_label_box(i))
+	var font: Font = door_labels[0].font if not door_labels.is_empty() else _wall_label_font()
+	var fitted := _fit_choice_texts(_door_label_texts, boxes, font)
+	var laid_texts: Array = fitted["texts"]
+	var font_sizes: Array = fitted["font_sizes"]
+	for i: int in range(door_labels.size()):
+		door_labels[i].text = laid_texts[i]
+		_set_choice_font_size(door_labels[i], font_sizes[i])
+	_door_label_max_scale = fitted["max_scale"]
+	_apply_door_label_scale()
+
+
+## _fit_door_labels の計算部分: 扉ごとの表示文字列・文字サイズと、2P拡大の倍率上限を返す。
+## 壁を持たずに呼べるので、GameWorld は次の問題の組版を先に済ませておける (prepare_wall_text_layout)。
+static func _fit_choice_texts(texts: Array[String], boxes: Array[Vector2], font: Font) -> Dictionary:
 	var fits: Array[int] = []
 	var shared := CHOICE_FONT_SIZE_MAX
-	for i: int in range(door_labels.size()):
-		var text := _door_label_texts[i]
-		var fit := CHOICE_FONT_SIZE_MIN if text.is_empty() else int(_layout_choice(text, door_labels[i].font, _door_label_box(i), CHOICE_FONT_SIZE_MAX).font_size)
+	for i: int in range(texts.size()):
+		var text := texts[i]
+		var fit := CHOICE_FONT_SIZE_MIN if text.is_empty() else int(_layout_choice(text, font, boxes[i], CHOICE_FONT_SIZE_MAX).font_size)
 		fits.append(fit)
 		if not text.is_empty():
 			shared = mini(shared, maxi(fit, CHOICE_UNIFORM_MIN_FONT_SIZE))
 	# 2P拡大も全扉で同じ倍率にし、どの選択肢も自分の枠からはみ出さない倍率までに抑える。
-	_door_label_max_scale = TEXT_ENLARGED_SCALE
-	for i: int in range(door_labels.size()):
-		var label := door_labels[i]
-		var text := _door_label_texts[i]
+	var max_scale := TEXT_ENLARGED_SCALE
+	var laid_texts: Array[String] = []
+	var font_sizes: Array[int] = []
+	for i: int in range(texts.size()):
+		var text := texts[i]
 		if text.is_empty():
-			label.text = ""
-			_set_choice_font_size(label, mini(shared, fits[i]))
+			laid_texts.append("")
+			font_sizes.append(mini(shared, fits[i]))
 			continue
 		# 揃えたサイズで改行位置を選び直す (小さくなったぶん1行に収まることがある)。
-		var box := _door_label_box(i)
-		var laid := _layout_choice(text, label.font, box, mini(shared, fits[i]))
-		label.text = laid.text
-		_set_choice_font_size(label, laid.font_size)
-		var fitted := _measure_choice_text(label.text, label.font, label.font_size, box.x, true)
-		_door_label_max_scale = minf(_door_label_max_scale, minf(box.x / maxf(fitted.x, 1.0), box.y / maxf(fitted.y, 1.0)))
-	_door_label_max_scale = maxf(_door_label_max_scale, 1.0)
-	_apply_door_label_scale()
+		var box := boxes[i]
+		var laid := _layout_choice(text, font, box, mini(shared, fits[i]))
+		var laid_text: String = laid.text
+		var laid_size: int = laid.font_size
+		laid_texts.append(laid_text)
+		font_sizes.append(laid_size)
+		var fitted := _measure_choice_text(laid_text, font, laid_size, box.x, true)
+		max_scale = minf(max_scale, minf(box.x / maxf(fitted.x, 1.0), box.y / maxf(fitted.y, 1.0)))
+	return {"texts": laid_texts, "font_sizes": font_sizes, "max_scale": maxf(max_scale, 1.0)}
 
 
 ## 選択肢を max_size 以下で内枠に収める: {"text": 改行を入れた表示文字列, "font_size": int}。
 ## 文節の切れ目で改行できない選択肢 (縦積みの分数・長い英単語など) は従来どおり Label3D の自動折り返しに任せる。
 ## max_size より小さい場合 (壁の中で揃えたサイズ) は、まずそのサイズちょうどで最も良い改行位置を探す。
-func _layout_choice(text: String, font: Font, box: Vector2, max_size: int) -> Dictionary:
+## 結果は文字列・枠・上限ごとに覚えておく (同じ選択肢を次の壁や次の試合で組み直さない)。
+static func _layout_choice(text: String, font: Font, box: Vector2, max_size: int) -> Dictionary:
+	var key := "%d|%.3f|%.3f|%d|%s" % [font.get_instance_id(), box.x, box.y, max_size, text]
+	var cached: Variant = _choice_layout_cache.get(key)
+	if cached != null:
+		return cached
 	var laid := {}
 	if max_size < CHOICE_FONT_SIZE_MAX:
 		laid = ChoiceLineBreaker.layout(text, font, box, max_size, max_size)
 	if laid.is_empty():
 		laid = ChoiceLineBreaker.layout(text, font, box, CHOICE_FONT_SIZE_MIN, max_size)
-	if not laid.is_empty():
-		return laid
-	return {"text": text, "font_size": mini(max_size, _fit_choice_size(text, font, box))}
+	if laid.is_empty():
+		laid = {"text": text, "font_size": mini(max_size, _fit_choice_size(text, font, box))}
+	if _choice_layout_cache.size() >= TEXT_LAYOUT_CACHE_LIMIT:
+		_choice_layout_cache.clear()
+	_choice_layout_cache[key] = laid
+	return laid
 
 
 ## 選択肢を収める扉の内枠 (幅 CHOICE_FIT_WIDTH_RATIO・高さ CHOICE_FIT_HEIGHT_RATIO、ラベルのピクセル単位)。
@@ -346,14 +440,14 @@ func _door_label_box(index: int) -> Vector2:
 ## 内枠に収まる最大の文字サイズ。
 ## 日本語は漢字の間でも折り返せるので、短い答えは「富|士山」のように割れないよう、
 ## 改行なしで CHOICE_SINGLE_LINE_MIN_FONT_SIZE 以上に出せる限り1行のまま表示する。
-func _fit_choice_size(text: String, font: Font, box: Vector2) -> int:
+static func _fit_choice_size(text: String, font: Font, box: Vector2) -> int:
 	var font_size := _largest_fitting_choice_size(text, font, box, false)
 	if font_size < CHOICE_SINGLE_LINE_MIN_FONT_SIZE:
 		font_size = _largest_fitting_choice_size(text, font, box, true)
 	return font_size
 
 
-func _largest_fitting_choice_size(text: String, font: Font, box: Vector2, wrap: bool) -> int:
+static func _largest_fitting_choice_size(text: String, font: Font, box: Vector2, wrap: bool) -> int:
 	var low := CHOICE_FONT_SIZE_MIN
 	var high := CHOICE_FONT_SIZE_MAX
 	while low < high:
@@ -367,15 +461,23 @@ func _largest_fitting_choice_size(text: String, font: Font, box: Vector2, wrap: 
 
 
 ## 輪郭を含む文字列の外寸 (ラベルのピクセル単位)。wrap=false では明示的な改行 (縦積みの分数) だけで改行する。
-## wrap=true の折り返しは Label3D の AUTOWRAP_WORD_SMART と同じ規則。
-func _measure_choice_text(text: String, font: Font, font_size: int, width: float, wrap: bool) -> Vector2:
+## wrap=true の折り返しは Label3D の AUTOWRAP_WORD_SMART と同じ規則。結果は文字列・大きさ・幅ごとに覚えておく。
+static func _measure_choice_text(text: String, font: Font, font_size: int, width: float, wrap: bool) -> Vector2:
+	var key := "%d|%d|%.3f|%d|%s" % [font.get_instance_id(), font_size, width if wrap else -1.0, int(wrap), text]
+	var cached: Variant = _choice_measure_cache.get(key)
+	if cached != null:
+		return cached
 	var tp := TextParagraph.new()
 	tp.width = width if wrap else -1.0
 	tp.break_flags = TextServer.BREAK_MANDATORY
 	if wrap:
 		tp.break_flags |= TextServer.BREAK_WORD_BOUND | TextServer.BREAK_ADAPTIVE
 	tp.add_string(text, font, font_size)
-	return tp.get_size() + Vector2.ONE * _choice_outline_size(font_size) * 2.0
+	var measured := tp.get_size() + Vector2.ONE * _choice_outline_size(font_size) * 2.0
+	if _choice_measure_cache.size() >= TEXT_LAYOUT_CACHE_LIMIT:
+		_choice_measure_cache.clear()
+	_choice_measure_cache[key] = measured
+	return measured
 
 
 func _set_choice_font_size(label: Label3D, font_size: int) -> void:
@@ -384,7 +486,7 @@ func _set_choice_font_size(label: Label3D, font_size: int) -> void:
 
 
 ## 等倍の 48px で 8px だった輪郭の太さを、文字サイズに比例させる。
-func _choice_outline_size(font_size: int) -> int:
+static func _choice_outline_size(font_size: int) -> int:
 	return maxi(1, roundi(float(font_size) / 6.0))
 
 
@@ -394,6 +496,11 @@ func _apply_door_label_scale() -> void:
 			label.scale = Vector3.ONE * minf(_text_scale, _door_label_max_scale)
 
 func set_quiz(quiz: QuizItem, num_choices: int) -> void:
+	# GameWorld は現在の壁へ毎フレーム呼ぶので、前回と同じなら選択肢の整形もしない。
+	if num_choices == _current_num_choices and quiz == _set_quiz_item and (quiz == null or quiz.c == _set_quiz_choices):
+		return
+	_set_quiz_item = quiz
+	_set_quiz_choices = quiz.c.duplicate() if quiz else PackedStringArray()
 	if num_choices != _current_num_choices:
 		_build_doors(num_choices)
 
@@ -447,6 +554,7 @@ func begin_ai_text_reveal(delay: float = 0.0) -> void:
 	if _ai_text_reveal_started:
 		return
 	_ai_text_reveal_started = true
+	_use_own_question_border_material()
 	var question: Label3D = gameplay_question_label if is_instance_valid(gameplay_question_label) else null
 	var choices: Array[Label3D] = []
 	for label: Label3D in door_labels:
@@ -475,12 +583,16 @@ func _update_gameplay_question_panel() -> void:
 	if not is_instance_valid(_gameplay_question_panel):
 		_gameplay_question_border = _create_question_panel_quad("QuestionBorder", QUESTION_BORDER_COLOR)
 		_gameplay_question_panel = _create_question_panel_quad("QuestionBackground", QUESTION_PANEL_COLOR)
+		if _ai_text_reveal_started:
+			_use_own_question_border_material()
 	var glyph_bounds := gameplay_question_label.get_aabb()
 	var center := glyph_bounds.get_center()
 	var padding := Vector2(0.28, 0.18)
 	var panel_size := Vector2(glyph_bounds.size.x, glyph_bounds.size.y) + padding * 2.0
-	(_gameplay_question_panel.mesh as QuadMesh).size = panel_size
-	(_gameplay_question_border.mesh as QuadMesh).size = panel_size + Vector2.ONE * 0.05
+	# 板は全壁で共有する 1m 角なので、大きさはノードの拡大で合わせる。
+	var border_size := panel_size + Vector2.ONE * 0.05
+	_gameplay_question_panel.scale = Vector3(panel_size.x, panel_size.y, 1.0)
+	_gameplay_question_border.scale = Vector3(border_size.x, border_size.y, 1.0)
 	# Negative local Z is behind the text, on both the -Z and +Z wall faces.
 	_gameplay_question_panel.position = Vector3(center.x, center.y, -0.035)
 	_gameplay_question_border.position = Vector3(center.x, center.y, -0.045)
@@ -570,15 +682,40 @@ func _update_question_wall_height() -> void:
 func _create_question_panel_quad(node_name: String, color: Color) -> MeshInstance3D:
 	var panel := MeshInstance3D.new()
 	panel.name = node_name
-	panel.mesh = QuadMesh.new()
+	panel.mesh = _shared_question_panel_quad()
 	panel.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	panel.material_override = _shared_question_panel_material(color)
+	gameplay_question_label.add_child(panel)
+	return panel
+
+
+static func _shared_question_panel_quad() -> QuadMesh:
+	if _question_panel_quad == null:
+		_question_panel_quad = QuadMesh.new()
+	return _question_panel_quad
+
+
+## 背景パネルと縁の材質（UNSHADED・霧なし）。色ごとに1枚だけ作り、試合をまたいで持ち続ける。
+static func _shared_question_panel_material(color: Color) -> StandardMaterial3D:
+	var key := color.to_html()
+	var cached: StandardMaterial3D = _question_panel_materials.get(key) as StandardMaterial3D
+	if cached != null:
+		return cached
 	var material := StandardMaterial3D.new()
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	material.albedo_color = color
 	material.disable_fog = true
-	panel.material_override = material
-	gameplay_question_label.add_child(panel)
-	return panel
+	_question_panel_materials[key] = material
+	return material
+
+
+## AI の書き出し演出（WallAiTextReveal）は縁の色を書き換えるので、この壁の縁だけ共有の材質を複製して使う。
+func _use_own_question_border_material() -> void:
+	if not is_instance_valid(_gameplay_question_border):
+		return
+	var shared := _shared_question_panel_material(QUESTION_BORDER_COLOR)
+	if _gameplay_question_border.material_override == shared:
+		_gameplay_question_border.material_override = shared.duplicate() as StandardMaterial3D
 
 
 ## Actual glyph bounds, including the outline, for camera framing.
@@ -684,10 +821,12 @@ func retire_after_player_pass(fade_duration: float = 0.28) -> void:
 			sparks.visible = false
 	if keep_after_pass_for_capture:
 		return
+	# 同じ材質の部品は、この壁の中で1枚の半透明の複製と1本のTweenを共有する（どれも同じ速さで消える）。
+	var fading: Dictionary = {}
 	for part: MeshInstance3D in wall_parts:
-		_fade_mesh_to_transparent(part, fade_duration)
+		_fade_mesh_to_transparent(part, fade_duration, fading)
 	for door: MeshInstance3D in doors:
-		_fade_mesh_to_transparent(door, fade_duration)
+		_fade_mesh_to_transparent(door, fade_duration, fading)
 	var finish_tween: Tween = create_tween()
 	finish_tween.tween_interval(fade_duration)
 	finish_tween.tween_callback(_mark_retirement_finished)
@@ -697,17 +836,29 @@ func retire_after_player_pass(fade_duration: float = 0.28) -> void:
 func set_world_border_active(active: bool) -> void:
 	var show := active and not _retiring_after_pass and not _shattered
 	if show and _world_border == null:
-		_world_border = WallWorldBorder.new()
-		_world_border.name = "WorldBorder"
-		_world_border.build(
-			StageConstants.QUIZ_WALL_HALF_WIDTH,
-			StageConstants.WALL_WORLD_BORDER_OUTER_X,
-			StageConstants.FLOOR_TOP_Y - 0.3,
-			wall_top_y
-		)
-		add_child(_world_border)
+		_build_world_border(true)
 	if _world_border != null:
 		_world_border.visible = show
+
+
+## 次の問題の壁は、切り替えのフレームより前にワールドボーダーを隠したまま組んでおく
+## （問題文を入れる前の壁の高さで組むので、切り替えのフレームで組むのと同じ形になる）。
+func prepare_world_border() -> void:
+	if _world_border == null and not _retiring_after_pass and not _shattered:
+		_build_world_border(false)
+
+
+func _build_world_border(shown: bool) -> void:
+	_world_border = WallWorldBorder.new()
+	_world_border.name = "WorldBorder"
+	_world_border.visible = shown
+	_world_border.build(
+		StageConstants.QUIZ_WALL_HALF_WIDTH,
+		StageConstants.WALL_WORLD_BORDER_OUTER_X,
+		StageConstants.FLOOR_TOP_Y - 0.3,
+		wall_top_y
+	)
+	add_child(_world_border)
 
 
 func is_retiring_after_pass() -> bool:
@@ -721,6 +872,8 @@ func is_retirement_finished() -> bool:
 ## Render prewarm: gives every part the transparent material the retirement fade starts
 ## from (alpha 1, nothing hidden), so the textured panel's alpha variant is compiled
 ## before the first wall is passed instead of at that moment.
+## The transparent copies are shared and kept (_shared_fade_material), so the compiled
+## variant also stays alive for every later pass instead of being freed with each wall.
 func prewarm_retirement_fade() -> void:
 	for mesh_inst: MeshInstance3D in wall_parts + doors:
 		if not is_instance_valid(mesh_inst):
@@ -728,24 +881,39 @@ func prewarm_retirement_fade() -> void:
 		var material: StandardMaterial3D = mesh_inst.material_override as StandardMaterial3D
 		if material == null:
 			continue
-		var unique_material: StandardMaterial3D = material.duplicate() as StandardMaterial3D
-		unique_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		mesh_inst.material_override = unique_material
+		mesh_inst.material_override = _shared_fade_material(material)
 
 
-func _fade_mesh_to_transparent(mesh_inst: MeshInstance3D, fade_duration: float) -> void:
+func _fade_mesh_to_transparent(mesh_inst: MeshInstance3D, fade_duration: float, fading: Dictionary) -> void:
 	if not is_instance_valid(mesh_inst):
 		return
 	var material: StandardMaterial3D = mesh_inst.material_override as StandardMaterial3D
 	if material == null:
 		return
-	var unique_material: StandardMaterial3D = material.duplicate() as StandardMaterial3D
+	var unique_material: StandardMaterial3D = fading.get(material) as StandardMaterial3D
+	if unique_material == null:
+		unique_material = _shared_fade_material(material).duplicate() as StandardMaterial3D
+		fading[material] = unique_material
+		var color: Color = unique_material.albedo_color
+		var target_color := Color(color.r, color.g, color.b, 0.0)
+		var fade_tween: Tween = create_tween()
+		fade_tween.tween_property(unique_material, "albedo_color", target_color, fade_duration)
 	mesh_inst.material_override = unique_material
-	unique_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	var color: Color = unique_material.albedo_color
-	var target_color := Color(color.r, color.g, color.b, 0.0)
-	var fade_tween: Tween = create_tween()
-	fade_tween.tween_property(unique_material, "albedo_color", target_color, fade_duration)
+
+
+## material の半透明版（色はそのまま、alpha 1）。共有の不透明材質ごとに1枚だけ作って持ち続ける。
+## もともと半透明の材質（予熱で入れたもの）はそのまま使う。
+static func _shared_fade_material(material: StandardMaterial3D) -> StandardMaterial3D:
+	if material.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA:
+		return material
+	var key := material.get_instance_id()
+	var cached: StandardMaterial3D = _fade_material_cache.get(key) as StandardMaterial3D
+	if cached != null:
+		return cached
+	cached = material.duplicate() as StandardMaterial3D
+	cached.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_fade_material_cache[key] = cached
+	return cached
 
 
 func _mark_retirement_finished() -> void:
@@ -771,29 +939,41 @@ func _fit_question_label_to_two_lines(label: Label3D, text: String) -> void:
 	if not label:
 		return
 	var font: Font = label.font if label.font else ThemeDB.fallback_font
-	var break_flags := TextServer.BREAK_MANDATORY | TextServer.BREAK_WORD_BOUND | TextServer.BREAK_ADAPTIVE
 	var font_size := QUESTION_LABEL_FONT_SIZE
 	label.font_size = font_size
 	label.text = text
-
-	var max_lines := QUESTION_LABEL_MAX_LINES
-	if keep_question_lines:
-		max_lines = mini(text.count("\n") + 1, QUESTION_LABEL_MAX_LINES)
-	var width := QUESTION_LABEL_BASE_WIDTH
-	while width < QUESTION_LABEL_MAX_WIDTH and _measure_line_count(text, font, font_size, width, break_flags) > max_lines:
-		width = minf(width + QUESTION_LABEL_WIDTH_STEP, QUESTION_LABEL_MAX_WIDTH)
-	label.width = width
+	label.width = _question_label_width(text, font, _question_max_lines(text, keep_question_lines))
 
 	# 行数によらず、問題文を扉のすぐ上に揃える。
 	label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
 	label.position.y = DOOR_TOP_Y + QUESTION_LABEL_DOOR_CLEARANCE
 
-func _measure_line_count(text: String, font: Font, font_size: int, width: float, break_flags: int) -> int:
+
+static func _question_max_lines(text: String, keep_lines: bool) -> int:
+	if keep_lines:
+		return mini(text.count("\n") + 1, QUESTION_LABEL_MAX_LINES)
+	return QUESTION_LABEL_MAX_LINES
+
+
+## max_lines 行に収まるまで広げた問題文ラベルの幅。段落は1回だけ組み、幅を変えて行分けだけやり直す。
+## 結果は問題文ごとに覚えておく (GameWorld が次の問題の分を先に求めておく)。
+static func _question_label_width(text: String, font: Font, max_lines: int) -> float:
+	var key := "%d|%d|%s" % [font.get_instance_id(), max_lines, text]
+	var cached: Variant = _question_width_cache.get(key)
+	if cached != null:
+		return cached
 	var tp := TextParagraph.new()
-	tp.width = width
-	tp.break_flags = break_flags
-	tp.add_string(text, font, font_size)
-	return maxi(1, tp.get_line_count())
+	tp.width = QUESTION_LABEL_BASE_WIDTH
+	tp.break_flags = TextServer.BREAK_MANDATORY | TextServer.BREAK_WORD_BOUND | TextServer.BREAK_ADAPTIVE
+	tp.add_string(text, font, QUESTION_LABEL_FONT_SIZE)
+	var width := QUESTION_LABEL_BASE_WIDTH
+	while width < QUESTION_LABEL_MAX_WIDTH and maxi(1, tp.get_line_count()) > max_lines:
+		width = minf(width + QUESTION_LABEL_WIDTH_STEP, QUESTION_LABEL_MAX_WIDTH)
+		tp.width = width
+	if _question_width_cache.size() >= TEXT_LAYOUT_CACHE_LIMIT:
+		_question_width_cache.clear()
+	_question_width_cache[key] = width
+	return width
 
 
 func set_is_boss(boss: bool) -> void:
@@ -851,20 +1031,25 @@ func _create_boss_sparks(pos_x: float) -> CPUParticles3D:
 	sparks.gravity = Vector3(0, -12.0, 0)
 	sparks.scale_amount_min = 0.08
 	sparks.scale_amount_max = 0.25
-	
-	# ピカピカ光るマテリアル
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.albedo_color = Color(1.0, 0.8, 0.2)
-	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
-	mat.billboard_keep_scale = true
-	
-	var mesh := QuadMesh.new()
-	mesh.material = mat
-	sparks.mesh = mesh
-	
+
+	sparks.mesh = _shared_boss_spark_mesh()
+
 	sparks.position = Vector3(pos_x, 0.5, 0.0)
 	return sparks
+
+
+## 火花の板と材質は全ボス壁で共有する（ボス壁が消えるたびにシェーダーを解放しない）。
+static func _shared_boss_spark_mesh() -> QuadMesh:
+	if _boss_spark_mesh == null:
+		# ピカピカ光るマテリアル
+		var mat := StandardMaterial3D.new()
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat.albedo_color = Color(1.0, 0.8, 0.2)
+		mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+		mat.billboard_keep_scale = true
+		_boss_spark_mesh = QuadMesh.new()
+		_boss_spark_mesh.material = mat
+	return _boss_spark_mesh
 
 
 func break_door(door_index: int) -> void:
@@ -915,22 +1100,14 @@ func break_door(door_index: int) -> void:
 
 			# Collision shape
 			var col := CollisionShape3D.new()
-			var shape := BoxShape3D.new()
-			var size_variation: float = randf_range(0.7, 1.0)
-			shape.size = chunk_size * 0.9 * size_variation
-			col.shape = shape
+			var piece_size := chunk_size * 0.9 * _debris_variation(0.7, 1.0)
+			col.shape = _shared_debris_shape(piece_size)
 			chunk.add_child(col)
 
 			# Mesh
 			var mesh_inst := MeshInstance3D.new()
-			var box := BoxMesh.new()
-			box.size = chunk_size * 0.9 * size_variation
-			mesh_inst.mesh = box
-			var mat := StandardMaterial3D.new()
-			mat.albedo_color = door_color.lerp(Color.WHITE, randf() * 0.2)
-			mat.roughness = 0.6
-			mat.metallic = 0.05
-			mesh_inst.material_override = mat
+			mesh_inst.mesh = _shared_box_mesh(piece_size)
+			mesh_inst.material_override = _shared_debris_material(door_color, _debris_variation(0.0, 0.2))
 			chunk.add_child(mesh_inst)
 
 			# Position: offset from door center
@@ -1022,10 +1199,48 @@ static func _shared_box_mesh(size: Vector3) -> BoxMesh:
 	var cached: BoxMesh = _box_mesh_cache.get(key) as BoxMesh
 	if cached != null:
 		return cached
+	if _box_mesh_cache.size() >= BOX_MESH_CACHE_LIMIT:
+		_box_mesh_cache.clear()
 	var box := BoxMesh.new()
 	box.size = size
 	_box_mesh_cache[key] = box
 	return box
+
+
+## 破片の大きさ・色の乱数 (low〜high の一様乱数) を DEBRIS_VARIATION_STEPS 段の中央値に丸める。
+static func _debris_variation(low: float, high: float) -> float:
+	var step := randi_range(0, DEBRIS_VARIATION_STEPS - 1)
+	return lerpf(low, high, (float(step) + 0.5) / DEBRIS_VARIATION_STEPS)
+
+
+## 破片の当たり。同じ大きさの破片で1つの BoxShape3D を共有する。
+static func _shared_debris_shape(size: Vector3) -> BoxShape3D:
+	var key := "%0.4f_%0.4f_%0.4f" % [size.x, size.y, size.z]
+	var cached: BoxShape3D = _debris_shape_cache.get(key) as BoxShape3D
+	if cached != null:
+		return cached
+	if _debris_shape_cache.size() >= DEBRIS_CACHE_LIMIT:
+		_debris_shape_cache.clear()
+	var shape := BoxShape3D.new()
+	shape.size = size
+	_debris_shape_cache[key] = shape
+	return shape
+
+
+## 破片の材質（元の色を白へ tint だけ寄せる）。色と寄せ具合ごとに1枚だけ作って持ち続ける。
+static func _shared_debris_material(color: Color, tint: float) -> StandardMaterial3D:
+	var key := "%0.4f_%0.4f_%0.4f_%0.4f_%0.4f" % [color.r, color.g, color.b, color.a, tint]
+	var cached: StandardMaterial3D = _debris_material_cache.get(key) as StandardMaterial3D
+	if cached != null:
+		return cached
+	if _debris_material_cache.size() >= DEBRIS_CACHE_LIMIT:
+		_debris_material_cache.clear()
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color.lerp(Color.WHITE, tint)
+	mat.roughness = 0.6
+	mat.metallic = 0.05
+	_debris_material_cache[key] = mat
+	return mat
 
 
 ## 色（と扉の番号・画質）ごとに1枚だけ作って共有する。画質は作成時の GameManager.graphics_quality
@@ -1077,6 +1292,146 @@ static func _wall_label_font() -> FontFile:
 		_wall_font.allow_system_fallback = source.allow_system_fallback
 	return _wall_font
 
+
+## text の字のうち、まだ壁のフォントに描いていないものを先描きの待ち行列に入れる（空白は除く）。
+## urgent はこれから出す問題文・選択肢（試合前のかな・英数字より先に描く。試合前の待ち行列でまだ描いていない字も並べ直す）。
+static func queue_wall_glyphs(text: String, urgent: bool = false) -> void:
+	for i: int in range(text.length()):
+		var codepoint := text.unicode_at(i)
+		if codepoint <= 0x20 or codepoint == 0x3000 or codepoint == 0xA0 or (codepoint >= 0xD800 and codepoint <= 0xDFFF) \
+				or codepoint > 0x10FFFF:
+			continue
+		if _glyph_prime_seen.has(codepoint) and (not urgent or bool(_glyph_prime_seen[codepoint])):
+			continue
+		_glyph_prime_seen[codepoint] = urgent
+		if urgent:
+			_glyph_prime_urgent.append(codepoint)
+		else:
+			_glyph_prime_queue.append(codepoint)
+
+
+## 試合前にまとめて描いておく、かな・英数字・記号（WALL_GLYPH_PRIME_RANGES と WALL_GLYPH_PRIME_EXTRA）。
+static func queue_wall_glyph_base_set() -> void:
+	for glyph_range: Vector2i in WALL_GLYPH_PRIME_RANGES:
+		for codepoint: int in range(glyph_range.x, glyph_range.y + 1):
+			if not _glyph_prime_seen.has(codepoint):
+				_glyph_prime_seen[codepoint] = false
+				_glyph_prime_queue.append(codepoint)
+	queue_wall_glyphs(WALL_GLYPH_PRIME_EXTRA)
+
+
+## 待ち行列の字を budget_usec の間だけ壁のフォントに描く（1回に少なくとも1字。メインスレッドから呼ぶ）。
+## これから出す問題文・選択肢の字（urgent）が残っていなければ true。
+## urgent_only はプレイ中：試合前の待ち行列は描かない（問題の字のページへ書き足して、送ったページを汚したままにしない）。
+static func prime_queued_wall_glyphs(budget_usec: int, urgent_only: bool = false) -> bool:
+	var has_urgent := _glyph_prime_urgent_cursor < _glyph_prime_urgent.size()
+	if not has_urgent and (urgent_only or _glyph_prime_queue_cursor >= _glyph_prime_queue.size()):
+		# 試合前に書き足していたページが残っていれば、ここで送っておく。
+		_flush_primed_glyph_pages(-1)
+		return true
+	var rids := _wall_label_font().get_rids()
+	if rids.is_empty():
+		return true
+	var font_rid: RID = rids[0]
+	var ts := TextServerManager.get_primary_interface()
+	# MSDF は文字サイズによらず1字1回なので、どの大きさのラベルもこの1つのキャッシュを使う。
+	var cache_size := Vector2i(WALL_FONT_MSDF_SIZE, 0)
+	var started := Time.get_ticks_usec()
+	var last_page := -1
+	var rendered_urgent := false
+	while Time.get_ticks_usec() - started < budget_usec:
+		var codepoint := -1
+		if _glyph_prime_urgent_cursor < _glyph_prime_urgent.size():
+			codepoint = _glyph_prime_urgent[_glyph_prime_urgent_cursor]
+			_glyph_prime_urgent_cursor += 1
+			rendered_urgent = true
+		elif not urgent_only and _glyph_prime_queue_cursor < _glyph_prime_queue.size():
+			codepoint = _glyph_prime_queue[_glyph_prime_queue_cursor]
+			_glyph_prime_queue_cursor += 1
+			if bool(_glyph_prime_seen.get(codepoint, false)):
+				# 問題の字として先に描いた字。
+				continue
+			_glyph_prime_seen[codepoint] = true
+		else:
+			break
+		var glyph := ts.font_get_glyph_index(font_rid, WALL_FONT_MSDF_SIZE, codepoint, 0)
+		ts.font_render_glyph(font_rid, cache_size, glyph)
+		var page := ts.font_get_glyph_texture_idx(font_rid, cache_size, glyph)
+		if page >= 0:
+			_glyph_prime_pages[page] = glyph
+			last_page = page
+	if _glyph_prime_urgent_cursor >= _glyph_prime_urgent.size():
+		_glyph_prime_urgent.clear()
+		_glyph_prime_urgent_cursor = 0
+	if _glyph_prime_queue_cursor >= _glyph_prime_queue.size():
+		_glyph_prime_queue.clear()
+		_glyph_prime_queue_cursor = 0
+	var urgent_done := _glyph_prime_urgent.is_empty()
+	# 書き終えたページだけを GPU へ送る（書き足し中のページは、問題の字が揃ったときか全部描き終えたときに送る）。
+	var all_done := urgent_done and (urgent_only or _glyph_prime_queue.is_empty())
+	_flush_primed_glyph_pages(-1 if all_done or (rendered_urgent and urgent_done) else last_page)
+	return urgent_done
+
+
+## 描いた字の載ったページを取り出して、TextServer に書き換えた画像を GPU へ送らせる
+## （送らずにおくと、次に字を組むラベル＝切り替えのフレームでまとめて送ることになる）。keep_page は送らずに残す。
+static func _flush_primed_glyph_pages(keep_page: int) -> void:
+	if _glyph_prime_pages.is_empty():
+		return
+	var rids := _wall_label_font().get_rids()
+	if rids.is_empty():
+		_glyph_prime_pages.clear()
+		return
+	var ts := TextServerManager.get_primary_interface()
+	var cache_size := Vector2i(WALL_FONT_MSDF_SIZE, 0)
+	for page: int in _glyph_prime_pages.keys():
+		if page == keep_page:
+			continue
+		ts.font_get_glyph_texture_rid(rids[0], cache_size, int(_glyph_prime_pages[page]))
+		_glyph_prime_pages.erase(page)
+
+
+## 次に壁へ入れる問題文と選択肢の組版を先に済ませる（結果は文字列ごとに覚えるので、壁に入れるときは計算しない）。
+## choices は扉に出す整形済みの選択肢（FractionFormatter.format_choice）、keep_lines は練習の keep_question_lines。
+static func prepare_wall_text_layout(question: String, choices: PackedStringArray, num_choices: int, keep_lines: bool) -> void:
+	var font := _wall_label_font()
+	if not question.is_empty():
+		_question_label_width(question, font, _question_max_lines(question, keep_lines))
+	var door_half_width := 1.8
+	if num_choices == 4:
+		door_half_width = 1.45
+	elif num_choices == 3:
+		door_half_width = DOOR3_HALF_WIDTH
+	# _door_label_box と同じ内枠。
+	var box := Vector2(
+		door_half_width * 2.0 * CHOICE_FIT_WIDTH_RATIO,
+		CHOICE_VISIBLE_DOOR_HEIGHT * CHOICE_FIT_HEIGHT_RATIO
+	) / CHOICE_PIXEL_SIZE
+	var texts: Array[String] = []
+	var boxes: Array[Vector2] = []
+	for i: int in range(num_choices):
+		texts.append(choices[i] if i < choices.size() else "")
+		boxes.append(box)
+	_fit_choice_texts(texts, boxes, font)
+
+
+## Render prewarm: 正解・通過で初めて出るもの（扉の破片の材質と、ワールドボーダーの面）を壁の手前に小さく置いて
+## 描かせ、最初の壁の切り替えでシェーダーを作らないようにする。どちらの材質も共有なので、以後も解放されない。
+func prewarm_pass_effects() -> void:
+	var debris := MeshInstance3D.new()
+	debris.name = "PrewarmDoorDebris"
+	debris.mesh = _shared_box_mesh(Vector3.ONE * 0.6)
+	debris.material_override = _shared_debris_material(DOOR_COLORS_2[0], 0.0)
+	debris.position = Vector3(-0.8, 1.0, 0.9)
+	add_child(debris)
+	var border := MeshInstance3D.new()
+	border.name = "PrewarmWorldBorder"
+	border.mesh = WallWorldBorder.shared_quad(Vector2(1.2, 1.2))
+	border.material_override = WallWorldBorder.shared_material()
+	border.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	border.position = Vector3(0.8, 1.0, 0.9)
+	add_child(border)
+
 func shatter_wall(direction_z: float = -1.0) -> void:
 	_shattered = true
 	_finish_ai_text_reveal()
@@ -1126,21 +1481,13 @@ func _shatter_mesh(mesh_inst: MeshInstance3D, direction_z: float) -> void:
 			chunk.collision_mask = 1
 			
 			var col := CollisionShape3D.new()
-			var shape := BoxShape3D.new()
-			var size_variation: float = randf_range(0.7, 0.95)
-			shape.size = chunk_size * size_variation
-			col.shape = shape
+			var piece_size := chunk_size * _debris_variation(0.7, 0.95)
+			col.shape = _shared_debris_shape(piece_size)
 			chunk.add_child(col)
-			
+
 			var cmi := MeshInstance3D.new()
-			var cbox := BoxMesh.new()
-			cbox.size = chunk_size * size_variation
-			cmi.mesh = cbox
-			var mat := StandardMaterial3D.new()
-			mat.albedo_color = base_color.lerp(Color.WHITE, randf() * 0.2)
-			mat.roughness = 0.6
-			mat.metallic = 0.05
-			cmi.material_override = mat
+			cmi.mesh = _shared_box_mesh(piece_size)
+			cmi.material_override = _shared_debris_material(base_color, _debris_variation(0.0, 0.2))
 			chunk.add_child(cmi)
 			
 			var offset_x: float = (cx - (chunks_x - 1) * 0.5) * chunk_size.x

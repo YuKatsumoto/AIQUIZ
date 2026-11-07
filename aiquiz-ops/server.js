@@ -1,6 +1,6 @@
 // AIQUIZ 運用の管理ソフト。
 //   段階1: 見るだけ（お金・共有バンク・プレイヤー）
-//   段階2: 操作（端末・回線のブロック、問題を外す・戻す、夜のジョブを今すぐ実行）と、その記録
+//   段階2: 操作（端末・回線のブロック、問題を外す・戻す、毎週のジョブを今すぐ実行）と、その記録
 //   npm start → http://localhost:3002
 // この PC からだけ開けるように 127.0.0.1 で待ち受ける。データは gcloud のログインで読み書きする。
 const path = require('path');
@@ -86,6 +86,7 @@ async function createServices() {
         gcpRequest,
         config: {
             gcpProject: process.env.GCP_PROJECT || DEFAULT_CONFIG.gcpProject,
+            claudeSpendCapUsd: Number(process.env.CLAUDE_SPEND_CAP_USD || DEFAULT_CONFIG.claudeSpendCapUsd),
             jpyPerUsd: Number(process.env.JPY_PER_USD || DEFAULT_CONFIG.jpyPerUsd),
         },
     });

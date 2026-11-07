@@ -238,9 +238,9 @@ func _run() -> void:
 	add_child(warmup)
 	warmup.step_completed.connect(_on_warmup_step)
 	var effects_report: Dictionary = await warmup.run()
+	# 試し描きは初回のカクつきを減らすための前準備。足りなくてもゲームは遊べるので、止めずに進む。
 	if not bool(effects_report.get("ready", false)):
-		_fail("演出を準備できませんでした", str(effects_report))
-		return
+		push_warning("[StartupLoading] Visual warm-up incomplete; continuing: " + str(effects_report))
 	warmup.queue_free()
 	await _draw_frame()
 	await _set_stage("メニューを準備しています", 90)
@@ -259,12 +259,14 @@ func _run() -> void:
 		previous = current
 		if stable_frames >= 3:
 			break
-	if stable_frames < 3:
-		_fail("描画の準備を完了できませんでした", "Menu pipelines did not settle")
-		return
+	# 遅い PC の初回起動では、パイプラインを裏で作り続けて 120 フレームでは落ち着かないことがある。
+	# メニューは読み込み済みなので、止めずに覆いを外して進む（少しカクつくほうが、起動できないよりよい）。
+	var pipelines_settled := stable_frames >= 3
+	if not pipelines_settled:
+		push_warning("[StartupLoading] Menu pipelines did not settle within 120 frames; continuing")
 	await _set_stage("準備ができました", 100)
 	GameManager.startup_report = {
-		"ready": true, "emote_id": EmoteData.EMOTE_FLAIR,
+		"ready": true, "pipelines_settled": pipelines_settled, "emote_id": EmoteData.EMOTE_FLAIR,
 		"resources": _retained_paths, "effects": effects_report,
 		"elapsed_ms": (Time.get_ticks_usec() - _started_usec) / 1000.0,
 		"covered_max_frame_ms": _max_frame_ms, "frames": _render_frames,

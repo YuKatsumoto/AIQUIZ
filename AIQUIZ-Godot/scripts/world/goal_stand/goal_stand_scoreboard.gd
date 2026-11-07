@@ -2,7 +2,7 @@ class_name GoalStandScoreboard
 extends Node
 
 ## Baseball-style electric scoreboard on the goal stand's LED face. One column
-## per question (1-10) plus R: the player who took a question gets a lit ring in
+## per question (1-10; endless shows the latest ten, R counts them all) plus R: the player who took a question gets a lit ring in
 ## their colour, a question nobody got shows "−" on both rows. When the match
 ## winner is settled and the verdict "WIN" comes up, the board switches to that
 ## player's cut-in and holds it: a band in their colour, their own block figure
@@ -22,7 +22,7 @@ extends Node
 
 const FONT: Font = preload("res://resources/fonts/NotoSansJP-Bold.otf")
 ## ゲームのロゴ（白・透過。見出しでは琥珀色に染める。tools/logo_editor で作り直される）
-const LOGO: Texture2D = preload("res://assets/ui/branding/aiquiz_logo.png")
+const LOGO: Texture2D = preload("res://assets/ui/branding/testopia_logo.png")
 const SIZE := Vector2i(1400, 600)   # the LED face is 11.2 x 4.8 m (7:3)
 const COLUMNS := 10
 const P_COLORS: Array[Color] = [Color(0.95, 0.55, 0.20), Color(0.20, 0.65, 0.90)]
@@ -66,7 +66,8 @@ const PORTRAIT := Vector2i(560, 560)
 const MIP_LEVELS := 7
 ## Whether the programme's HIGHLIGHTS title and the highlight replay play on the board.
 ## Off: the programme gets no clips, so its round starts at RECORDS (MatchReel still
-## records the clips; MenuLedProgram plays them when it is given any).
+## records the match; MenuLedProgram plays clips when it is given any).
+## 切ってあり、メニューの発射台もないあいだは、HighlightCapture はクリップを撮らない（has_consumer()）。
 const PLAY_REPLAY := false
 ## NONE: the grid / cut-in. LEAD_IN: the programme's wipe strokes cover the cut-in.
 ## PLAYING: the programme on its own. FAILED: it could not start, the cut-in stays.
@@ -77,6 +78,8 @@ var viewport: SubViewport
 var mips: Array[SubViewport] = []
 var marks := PackedInt32Array()
 var current := -1
+## いちばん左の列の問題（0 始まり）。エンドレスは問題の数が決まっていないので、直近の COLUMNS 問を出す。
+var first := 0
 ## Cut-in on the board: 0 = score grid, 1/2 = that player won, DRAW = draw,
 ## SUDDEN_DEATH = the draw goes to the sudden death.
 var cutin_player := 0
@@ -97,6 +100,9 @@ var _programme: MenuLedProgram = null
 var _programme_phase := Programme.NONE
 ## 種目発表の種目名（GAME_TITLE の間）。
 var _title_text := ""
+## エンドレス：列は直近の問題だけ、R と見出しの「Q n」は最初からの通し（_all_marks）。
+var _endless := false
+var _all_marks := PackedInt32Array()
 
 
 func setup() -> void:
@@ -160,8 +166,31 @@ func sync(state: QuizGameState, clock: float, animate: bool = true, verdict_winn
 		programme_ready: bool = false) -> void:
 	_clock = clock
 	var dirty := false
+	var playing := state.game_state == Constants.STATE_PLAYING
+	var endless := state.mode == Constants.MODE_ENDLESS
+	# エンドレスは何問目かを壁の番号で数える（QuizGameState.record_question_winner）。
+	var question := state.current_wall_index if endless else state.current_index
+	var window_first := 0
+	if endless:
+		var latest := maxi(state.question_winners.size(), question + 1 if playing else 0)
+		window_first = maxi(0, latest - COLUMNS)
+		if state.question_winners != _all_marks:
+			_all_marks = state.question_winners.duplicate()
+			dirty = true
+	if endless != _endless or window_first != first:
+		# 列が左へずれた：点灯中の光もいっしょにずらし、ずれただけの印は光らせない。
+		var moved := {}
+		for index: int in _flash_started.keys():
+			if index - (window_first - first) >= 0:
+				moved[index - (window_first - first)] = _flash_started[index]
+		_flash_started = moved
+		_endless = endless
+		first = window_first
+		for index in range(COLUMNS):
+			marks[index] = state.get_question_winner(first + index)
+		dirty = true
 	for index in range(COLUMNS):
-		var mark := state.get_question_winner(index)
+		var mark := state.get_question_winner(first + index)
 		if mark != marks[index]:
 			if mark >= 0 and marks[index] < 0:
 				_flash_started[index] = clock
@@ -189,8 +218,7 @@ func sync(state: QuizGameState, clock: float, animate: bool = true, verdict_winn
 		for player in _cutin_players():
 			_pose_actor(player, clock - _cutin_started)
 		dirty = true
-	var playing := state.game_state == Constants.STATE_PLAYING
-	var now := state.current_index if playing and state.current_index < COLUMNS else -1
+	var now := question - first if playing and question >= first and question - first < COLUMNS else -1
 	if now != current:
 		current = now
 		dirty = true
@@ -270,7 +298,7 @@ func _start_programme() -> void:
 
 func totals() -> Array[int]:
 	var result: Array[int] = [0, 0]
-	for mark in marks:
+	for mark in (_all_marks if _endless else marks):
 		if mark > 0:
 			result[0] += 1 if mark & 1 else 0
 			result[1] += 1 if mark & 2 else 0
@@ -651,10 +679,12 @@ func _draw_board() -> void:
 	var logo_h := 58.0
 	var logo_rect := Rect2(MARGIN + 14.0, 46.0, logo_h * LOGO.get_width() / LOGO.get_height(), logo_h)
 	_canvas.draw_texture_rect(LOGO, logo_rect, false, AMBER)
-	_canvas.draw_string(FONT, Vector2(MARGIN + 300.0, 100.0), "SCOREBOARD", HORIZONTAL_ALIGNMENT_LEFT, -1, 38, DIM)
-	var shown := current + 1 if current >= 0 else _played()
+	# ロゴ（TESTOPIA）は横に長いので、SCOREBOARD はロゴの右端から並べる。
+	_canvas.draw_string(FONT, Vector2(logo_rect.end.x + 36.0, 100.0), "SCOREBOARD", HORIZONTAL_ALIGNMENT_LEFT, -1, 38, DIM)
+	var shown := first + current + 1 if current >= 0 else (_all_marks.size() if _endless else _played())
 	var right := float(SIZE.x) - MARGIN - 14.0
-	_canvas.draw_string(FONT, Vector2(right - 360.0, 100.0), "Q %d / %d" % [shown, COLUMNS],
+	# エンドレスは終わりの問題がないので、何問目かだけ出す。
+	_canvas.draw_string(FONT, Vector2(right - 360.0, 100.0), ("Q %d" % shown) if _endless else ("Q %d / %d" % [shown, COLUMNS]),
 		HORIZONTAL_ALIGNMENT_RIGHT, 360.0, 56, Color.WHITE)
 	_canvas.draw_line(Vector2(MARGIN, HEADER_Y - 10.0), Vector2(float(SIZE.x) - MARGIN, HEADER_Y - 10.0), GRID, 4.0)
 	var cw := _column_w()
@@ -664,10 +694,11 @@ func _draw_board() -> void:
 		_canvas.draw_rect(column, Color(1.0, 0.85, 0.35, 0.10 if _blink else 0.05))
 	# Column headings.
 	for index in range(COLUMNS):
-		var color := AMBER if index == COLUMNS - 1 else Color(0.85, 0.9, 0.86)
+		# 琥珀色は最後の問題（10問目）の印。エンドレスには最後がない。
+		var color := AMBER if index == COLUMNS - 1 and not _endless else Color(0.85, 0.9, 0.86)
 		if index == current:
 			color = Color.WHITE if _blink else AMBER.darkened(0.35)
-		_text(Vector2(_column_x(index), HEADER_Y + 56.0), cw, str(index + 1), 52, color)
+		_text(Vector2(_column_x(index), HEADER_Y + 56.0), cw, str(first + index + 1), 52, color)
 	var total_x := float(SIZE.x) - MARGIN - TOTAL_W
 	_text(Vector2(total_x, HEADER_Y + 56.0), TOTAL_W, "R", 56, AMBER)
 	var sums := totals()

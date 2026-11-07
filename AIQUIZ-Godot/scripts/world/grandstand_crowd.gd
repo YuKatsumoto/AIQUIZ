@@ -31,6 +31,9 @@ const MOBILE_DENSITY_SCALE := 0.55
 const MascotScript = preload("res://scripts/world/crowd/stand_mascot.gd")
 ## A block farther than this from the camera does not walk (people just appear).
 const WATCH_DISTANCE := 150.0
+## People in a block farther than this from the camera along the stand keep what they
+## are doing (CrowdSim.tick()'s `awake`): a spectator there is about a pixel tall.
+const AWAKE_DISTANCE := 600.0
 ## The side stands' beer vendors: a staff shirt and a cap.
 const VENDOR_SHIRT := Color(0.98, 0.80, 0.20)
 const VENDOR_HAIR := 2
@@ -85,6 +88,12 @@ var _drawn: Array[Dictionary] = []
 var _batches := {}
 var _slots := {}
 var _centers := {}
+## The same centres in rising order with their blocks, and the highest block: the
+## per-frame checks look up the blocks near the camera instead of going over all of
+## them (an endless course keeps adding blocks).
+var _center_z := PackedFloat32Array()
+var _center_block := PackedInt32Array()
+var _last_block := -1
 var _walkers: MultiMeshInstance3D = null
 ## Sim only: each vendor's look, drawn like a person (custom, shirt, team, size).
 var _vendor_drawn: Array[Dictionary] = []
@@ -269,7 +278,15 @@ func _add_sim_block(index: int, center_z: float, people: Array[Dictionary], rows
 	]
 	_batches[index] = batches
 	_slots[index] = [[], []]
+	if _centers.has(index):
+		var old := _center_block.find(index)
+		_center_z.remove_at(old)
+		_center_block.remove_at(old)
 	_centers[index] = center_z
+	var at := _center_z.bsearch(center_z)
+	_center_z.insert(at, center_z)
+	_center_block.insert(at, index)
+	_last_block = maxi(_last_block, index)
 	var previous := -1
 	for k: int in range(people.size()):
 		var person: Dictionary = people[k]
@@ -512,7 +529,7 @@ static func update_sim(mood: CrowdMood, delta: float, camera: Camera3D) -> void:
 
 
 func _step_sim(mood: CrowdMood, delta: float, camera: Camera3D) -> void:
-	sim.tick(_sim_clock, delta, mood, _watched_blocks(camera))
+	sim.tick(_sim_clock, delta, mood, _watched_blocks(camera), _awake_blocks(camera))
 	for index: int in sim.changed:
 		_draw_seat(index)
 	sim.changed.clear()
@@ -523,26 +540,49 @@ func _step_sim(mood: CrowdMood, delta: float, camera: Camera3D) -> void:
 ## end), near enough and with some of the block (front deck to back rail) in view.
 func _watched_blocks(camera: Camera3D) -> PackedByteArray:
 	var watched := PackedByteArray()
-	for index: int in _centers:
-		if watched.size() <= index:
-			watched.resize(index + 1)
+	watched.resize(_last_block + 1)
 	if camera == null or not is_instance_valid(camera) or not camera.is_inside_tree():
 		return watched
-	var eye := camera.global_position
+	# The eye in stand space (the stand only moves and turns, so distances match).
+	var eye := global_transform.affine_inverse() * camera.global_position
 	var planes := camera.get_frustum()
-	for index: int in _centers:
+	# A block within WATCH_DISTANCE is within it along the stand too (+1 m for the
+	# rounded centres).
+	var near := _blocks_near(eye.z, WATCH_DISTANCE + 1.0)
+	for k: int in range(near.x, near.y):
+		var index := _center_block[k]
+		var center: float = _centers[index]
+		# 遠いブロックを先に除く（客席が長くても、毎フレームの確認は近くのブロックだけ）。
+		if eye.distance_to(Vector3(5.0, 1.5, center)) > WATCH_DISTANCE:
+			continue
 		var batch: MultiMeshInstance3D = _batches[index][0]
 		if not batch.is_visible_in_tree() or batch.position.z != 0.0:
 			continue
 		var clip: Variant = batch.get_instance_shader_parameter(FAR_CLIP_Z)
 		if clip != null and float(clip) < 1e8:
 			continue
-		var center: float = _centers[index]
-		if eye.distance_to(global_transform * Vector3(5.0, 1.5, center)) > WATCH_DISTANCE:
-			continue
 		if _in_view(planes, center):
 			watched[index] = 1
 	return watched
+
+
+## 1 for the blocks within AWAKE_DISTANCE of the camera along the stand. Empty
+## without a camera: then every block stays awake.
+func _awake_blocks(camera: Camera3D) -> PackedByteArray:
+	var awake := PackedByteArray()
+	if camera == null or not is_instance_valid(camera) or not camera.is_inside_tree():
+		return awake
+	awake.resize(_last_block + 1)
+	var near := _blocks_near((global_transform.affine_inverse() * camera.global_position).z, AWAKE_DISTANCE)
+	for k: int in range(near.x, near.y):
+		awake[_center_block[k]] = 1
+	return awake
+
+
+## The blocks whose centre is within `reach` of stand z `z`, as a range of
+## _center_z: Vector2i(first, past the last).
+func _blocks_near(z: float, reach: float) -> Vector2i:
+	return Vector2i(_center_z.bsearch(z - reach), _center_z.bsearch(z + reach, false))
 
 
 ## Some of the block around stand z `center` is inside the frustum `planes`

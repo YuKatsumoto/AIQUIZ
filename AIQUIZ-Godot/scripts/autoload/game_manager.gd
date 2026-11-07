@@ -43,7 +43,8 @@ var tutorial_local_2p_completed: bool = false
 var tutorial_solo_completed_version: int = 0
 var tutorial_local_2p_completed_version: int = 0
 
-var graphics_quality: String = GraphicsQuality.BALANCED
+## 画質の既定は PC が「高」、スマホが「バランス」（default_graphics_quality()）。
+var graphics_quality: String = GraphicsQuality.HIGH
 ## 設定画面の「FPS上限」で選べる値（Engine.max_fps）。0 は制限なし（垂直同期だけが上限）。
 const MAX_FPS_CHOICES: Array[int] = [30, 60, 120, 144, 240, 0]
 ## モバイル（GraphicsQuality.is_mobile_target()）で選べる値。パネルは最大 120Hz なので 144/240 は意味がなく、
@@ -56,10 +57,10 @@ var max_fps: int = DEFAULT_MAX_FPS
 ## プレイヤーが設定画面で FPS上限を選んだか。選ぶ前の設定ファイルに残る max_fps
 ## （既定が「制限なし」だった頃に自動で書かれた 0）は使わず、既定値で動かす。
 var max_fps_chosen: bool = false
-## ローカル2P「10問」の引き分けを地下神殿のサドンデスで決着させる（既定オン、
+## ローカル2P「10問」の引き分けをサドンデスで決着させる（既定オフ。設定画面でオンにした人だけ、
 ## docs/sudden_death_underground.md 第1章）。メインメニューが試合開始の直前に
 ## QuizGameState.sudden_death_enabled へ渡す。
-var sudden_death_enabled: bool = true
+var sudden_death_enabled: bool = false
 ## オンライン対戦のマッチング演出を「みじかい」にする（docs/online_match_staging/spec.md D11。既定は「ふつう」）。
 var online_staging_short: bool = false
 ## オンライン対戦で相手に見せるプリセットのニックネーム ID（NetNicknames）。-1 は未選択。
@@ -87,7 +88,59 @@ func _ready() -> void:
 	_load_user_settings()
 	GraphicsQuality.apply_rendering_server(graphics_quality)
 	Engine.max_fps = effective_max_fps()
+	_fit_window_to_screen()
 	_load_env()
+
+
+## 見た目（帽子・スキン）は 0.4 秒待ってから保存する（PlayerSkinStore.schedule_save）。その前にウィンドウを
+## 閉じたりアプリが裏に回ったりしても、選んだ帽子が消えないように、すぐ書き出す。
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_APPLICATION_PAUSED:
+		PlayerSkinStore.flush()
+
+
+## 設定ファイルに画質が無いとき（はじめての起動）の画質。PC は「高」、スマホは発熱と電池のため「バランス」。
+static func default_graphics_quality() -> String:
+	return GraphicsQuality.BALANCED if GraphicsQuality.is_mobile_target() else GraphicsQuality.HIGH
+
+
+## 起動時のウィンドウは 1920x1080（project.godot の window_width_override / window_height_override）。
+## 画面に収まらないとき（1080p の画面ではタイトルバーとタスクバーの分だけはみ出す）は最大化して画面の中に収める。
+## エディタから動かすとき（テストの --resolution を含む）は変えない。
+func _fit_window_to_screen() -> void:
+	if OS.has_feature("mobile") or OS.has_feature("editor") or DisplayServer.get_name() == "headless":
+		return
+	if DisplayServer.window_get_mode() != DisplayServer.WINDOW_MODE_WINDOWED:
+		return
+	if not _window_fits_screen():
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_MAXIMIZED)
+
+
+## 設定で解像度を選んだあと（window_set_size のあと）に呼ぶ。画面のうちタスクバーを除いた所に、
+## タイトルバーを含めたウィンドウが収まらなければ最大化する。収まれば、タイトルバーごと中央に置く
+## （中身の大きさで中央に置くと、1080p の画面で 1920x1080 を選んだときにタイトルバーが画面の上に消える）。
+func place_window_on_screen() -> void:
+	if OS.has_feature("mobile") or DisplayServer.get_name() == "headless":
+		return
+	if DisplayServer.window_get_mode() != DisplayServer.WINDOW_MODE_WINDOWED:
+		return
+	if not _window_fits_screen():
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_MAXIMIZED)
+		return
+	var usable := DisplayServer.screen_get_usable_rect(DisplayServer.window_get_current_screen())
+	var outer := DisplayServer.window_get_size_with_decorations()
+	var target := usable.position + (usable.size - outer) / 2
+	DisplayServer.window_set_position(target)
+	# window_set_position が枠を含まない位置として扱う環境でも、枠の左上が target に来るように直す
+	var actual := DisplayServer.window_get_position_with_decorations()
+	if actual != target:
+		DisplayServer.window_set_position(DisplayServer.window_get_position() + (target - actual))
+
+
+static func _window_fits_screen() -> bool:
+	var usable := DisplayServer.screen_get_usable_rect(DisplayServer.window_get_current_screen())
+	var outer := DisplayServer.window_get_size_with_decorations()
+	return outer.x <= usable.size.x and outer.y <= usable.size.y
 
 func should_show_tutorial_on_start() -> bool:
 	return tutorial_prompt_seen_version < CURRENT_TUTORIAL_VERSION
@@ -338,14 +391,16 @@ func _load_user_settings() -> void:
 	))
 	tutorial_completed = tutorial_solo_completed and tutorial_local_2p_completed
 	tutorial_dismissed = tutorial_prompt_seen_version >= CURRENT_TUTORIAL_VERSION
-	graphics_quality = GraphicsQuality.normalize(str(_user_settings.get("graphics_quality", GraphicsQuality.BALANCED)))
+	graphics_quality = GraphicsQuality.normalize(str(_user_settings.get("graphics_quality", default_graphics_quality())))
 	max_fps_chosen = bool(_user_settings.get("max_fps_chosen", false))
 	max_fps = DEFAULT_MAX_FPS
 	if max_fps_chosen:
 		var saved_fps := int(_user_settings.get("max_fps", DEFAULT_MAX_FPS))
 		var known := MAX_FPS_CHOICES.has(saved_fps) or MOBILE_MAX_FPS_CHOICES.has(saved_fps)
 		max_fps = saved_fps if known else DEFAULT_MAX_FPS
-	sudden_death_enabled = bool(_user_settings.get("sudden_death_enabled", true))
+	sudden_death_enabled = bool(_user_settings.get("sudden_death_enabled", false))
+	# 起動時は QuizManager（後ろの autoload）がまだ無いので、できてから長く使う QuizGameState に渡す
+	_push_sudden_death_setting.call_deferred()
 	online_staging_short = bool(_user_settings.get("online_staging_short", false))
 	online_nickname = int(_user_settings.get("online_nickname", -1))
 	online_name = str(_user_settings.get("online_name", ""))
@@ -375,10 +430,9 @@ func _save_user_settings() -> void:
 	_user_settings["practice_intro_seen"] = practice_intro_seen
 	_user_settings["haptics_enabled"] = haptics_enabled
 	_user_settings["touch_controls_scale"] = touch_controls_scale
-	var file := FileAccess.open(settings_path, FileAccess.WRITE)
-	if file:
-		file.store_string(JSON.stringify(_user_settings, "  "))
-		file.close()
+	# 一時ファイルに書いてから置き換える（PlayerSkinStore・MatchHistory と同じ）。直接上書きすると、書いている
+	# 途中で終了したとき空のファイルが残り、チュートリアルの完了や練習のスタンプが黙って初期値に戻る。
+	MatchHistory.write_json(settings_path, _user_settings)
 
 func _load_env() -> void:
 	# .envファイルの簡易パース

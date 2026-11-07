@@ -41,6 +41,9 @@ var _players: Array[Dictionary] = []
 var _near: Array[float] = [INF, INF]
 var _ended := false
 var _end_state := ""
+## 試合が終わった瞬間の記録（build_record）。保存（_commit）はハイライトの撮影が終わってからなので、
+## その間に「もう一度」やメニューへ戻ると状態がリセットされ、0 点・0 秒の記録が残っていた。
+var _end_record: Dictionary = {}
 var _end_age := 0.0
 var _committed := false
 var _clips: Array[Dictionary] = []
@@ -86,6 +89,7 @@ func notify_state(new_state: String) -> void:
 		_ended = true
 		_end_state = new_state
 		_mark_ending()
+		_end_record = build_record()
 
 
 func _process(delta: float) -> void:
@@ -323,7 +327,7 @@ func build_record() -> Dictionary:
 ## writing runs on a worker thread.
 func _commit() -> void:
 	_committed = true
-	var record := build_record()
+	var record := _end_record if not _end_record.is_empty() else build_record()
 	var chosen := _clips.duplicate()
 	chosen.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a.priority) > int(b.priority))
 	chosen = chosen.slice(0, MAX_CLIPS)

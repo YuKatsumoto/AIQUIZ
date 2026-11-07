@@ -14,6 +14,9 @@ const FAR_AWAY := Vector3(100000.0, 100000.0, 100000.0)
 ## 全壁で共有する材質。プレイヤー位置と押し戻しの閃光を1か所で更新する。
 static var _material: ShaderMaterial = null
 static var _flash: float = 0.0
+## 面のメッシュも大きさごとに全壁で共有する（壁ごとに作らない）。大きさは壁の高さの数種類だけ。
+static var _quad_cache: Dictionary = {}
+const QUAD_CACHE_LIMIT := 64
 
 
 static func shared_material() -> ShaderMaterial:
@@ -21,6 +24,19 @@ static func shared_material() -> ShaderMaterial:
 		_material = ShaderMaterial.new()
 		_material.shader = BORDER_SHADER
 	return _material
+
+
+static func shared_quad(size: Vector2) -> QuadMesh:
+	var key := "%0.4f_%0.4f" % [size.x, size.y]
+	var cached: QuadMesh = _quad_cache.get(key) as QuadMesh
+	if cached != null:
+		return cached
+	if _quad_cache.size() >= QUAD_CACHE_LIMIT:
+		_quad_cache.clear()
+	var quad := QuadMesh.new()
+	quad.size = size
+	_quad_cache[key] = quad
+	return quad
 
 
 ## 毎フレーム、プレイヤーのワールド座標を渡す（いないプレイヤーは FAR_AWAY）。
@@ -48,9 +64,7 @@ func build(inner_x: float, outer_x: float, bottom_y: float, top_y: float) -> voi
 	for side: int in [-1, 1]:
 		var plane := MeshInstance3D.new()
 		plane.name = "LeftBorder" if side < 0 else "RightBorder"
-		var quad := QuadMesh.new()
-		quad.size = Vector2(width, height)
-		plane.mesh = quad
+		plane.mesh = shared_quad(Vector2(width, height))
 		plane.material_override = shared_material()
 		plane.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		# QuadMesh は XY 平面のまま。壁の正面と同じ面に、壁端から外側へ張る。

@@ -31,6 +31,29 @@
 - 失敗の返し方: Anthropic の 429 は 429（ゲームは待つ）、529・5xx・接続失敗は 503（そのラウンドを共有バンクで続ける）、
   拒否（`stop_reason: refusal`）は `/claude` で 422、`/claude-stream` で `error` の行。
 - 用途ごとのモデルは `CLAUDE_TASK_MODELS_JSON` で差し替えられる。例: `{"explain":{"model":"claude-haiku-5-5","effort":"low"}}`。
+
+## プロンプトキャッシュ（generate、2026-11-05〜）
+
+10 問モードは 1 試合に `generate` を 6 本呼ぶ。6 本の違いは出題アプローチと担当単元だけで、ほかのルールや出題済みリストは同じ。
+
+- ゲームは、6 本で同じ部分を `system` に入れ、その 1 本だけの部分を `prompt` に入れて送る（`online_fetch.gd` の `compose_prompt_parts`・`_generation_body`）。
+  2026-11-05 に書き出した 6 区分では、1 本のうち 77〜85% が `system` に入った。
+- プロキシは `generate` の `system` に `cache_control: {type: "ephemeral"}` を付ける（`DEFAULT_TASKS.generate.cacheSystem`）。
+  キャッシュは 5 分間有効。1 本目で書き込み（入力の 1.25 倍）、2 本目からは 1 割（$0.20/MTok）で読む。
+- キャッシュが読めるのは、1 本目の返事が流れ始めてから。そのためゲームは 1 本目だけ先に送り、返事のヘッダーが届いたら残りを送る（`_launch_fanout`）。
+  返事が来ないときも 2 秒で残りを送る。
+- 見込みは、問題づくりの入力の費用が約 58% 減、1 試合 約 0.11 ドル → 約 0.07〜0.08 ドル。
+  並び替えで問題の質が落ちないことは、本番に出す前に確かめた（`AIQUIZ-Godot/docs/evals/2026-11-05_prompt_cache_order_ab.md`）。
+- 2026-11-05 にリビジョン `aiquiz-proxy-claude-00002-5g5` へデプロイし、`tests/claude_live_runtime.gd`（算数 3 年・普通）で実測した。
+  - generate 6 本: 1 本目が 3,984 トークンを書き込み、2〜6 本目が 3,984 トークンずつ読み込んで、合計 $0.044。
+    切り替え前の本番は同じ 6 本で約 $0.083 だった。
+  - 1 試合（正解の確かめ・解説を含む）は $0.062。11/3 の同じテストは $0.097 だった。
+  効いているかは Cloud Logging の `claude_usage`（`task: generate`）の `cache_creation_input_tokens`・`cache_read_input_tokens` で見る。
+  1 試合で書き込み 1 本・読み込み 5 本になっていればよい。
+- 止めるときは `CLAUDE_TASK_MODELS_JSON={"generate":{"cacheSystem":false}}`。
+- `explain`・`validate`・`evaluate` は 1 回きりの呼び出しが多く、書き込みの割増しだけになるので付けていない。
+- デプロイはプロキシが先。古いゲームは今までどおり全文を `prompt` で送るので、キャッシュに載らないだけで動く。
+  新しいゲームと古いプロキシの組み合わせも動くが、キャッシュは効かない。`system` が 7500 字を超えたら、ゲームは全文を `prompt` に戻す。
   Haiku 5.5 は effort low でも考える時間が長く（最初の 1 問まで約 17 秒）、思考を切ると合格率が 70% に下がったので、問題づくりには使わない。
 
 ## 予算（月 100 ドル未満の全体予算のうち）

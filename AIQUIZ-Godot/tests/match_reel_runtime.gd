@@ -36,6 +36,8 @@ func run() -> void:
 	_clear_store()
 	MatchHistory.path_override = STORE + "/match_history.json"
 	HighlightStore.dir_override = STORE + "/highlights"
+	# いまのビルドはクリップを流す先がないので撮らない（HighlightCapture.has_consumer()）。撮る側を確かめるために撮らせる。
+	HighlightCapture.force_record = true
 	GameManager.graphics_quality = "balanced"
 	var helper: Node = load("res://tests/hp_unit.gd").new()
 	gs = helper.fixture()

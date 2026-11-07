@@ -51,3 +51,29 @@
 
 - `mode=record test_driver`（人の代わりに乱数でキーを押す）を ultra で記録：2996 フレーム、キー 248 回、1 秒 58.4 コマ（遅れたコマ 30）。
 - それを ultra で流し直す：キー 248 回がすべて同じフレームで届き、毎フレームの状態の要約 2996 フレームがすべて一致。low で流し直しても一致した。
+
+## 撮り直した試合（2026-11-06、`s09_play_rec_1106b` → `s09_play_frames`）
+
+10/22 の記録を今のゲームで流し直すと、壁の当たり判定の線（HP のあるモードは 0.4 m → 1.05 m 手前）が変わったため、PLAYING の最初のフレームから
+ずれて 2 人とも 6 問目で脱落する。ユーザーの決定で、今のゲームで遊び直して記録した（10/22 の記録 `s09_play_rec` と連番 `s09_play_frames_pre1106` は残してある）。
+
+```
+Godot_v4.7.2-stable_win64_console.exe --path . --resolution 1920x1080 --fixed-fps 60 --script res://tests/pv_capture/pv_take_bootstrap.gd -- take=s09_play mode=record quality=ultra tag=s09_play_rec_1106b
+Godot_v4.7.2-stable_win64_console.exe --path . --resolution 1920x1080 --fixed-fps 60 --script res://tests/pv_capture/pv_take_bootstrap.gd -- take=s09_play mode=replay inputs=s09_play_rec_1106b quality=ultra tag=s09_play_frames
+Godot_v4.7.2-stable_win64_console.exe --path . --resolution 1920x1080 --fixed-fps 60 --script res://tests/pv_capture/pv_take_bootstrap.gd -- take=s21_play inputs=s09_play_rec_1106b quality=ultra tag=s21_play_frames
+```
+
+- **記録の窓は開いてから 2 分（7200 フレーム）で打ち切る**。試合に 65〜85 秒かかるので、窓を開いたら 20 秒ほどのうちに Enter でスタートする。
+  2 人の準備ができてから開く（準備の前に開いた 1 回は、キー 0 回のまま打ち切られた：`s09_play_rec_1106b_empty`）。
+- 1 回目の試合 `s09_play_rec_1106`（4457 フレーム・74 秒）：命中のあと P1 がすぐ起き上がり、チップソーは 4 問目に迷ったときにしか映らなかった。
+  これで一度通しを書き出した（`docs/pv/previz/v6/PV_full_1106a.mp4`、連番は `s09_play_frames_1106a`・`s21_play_frames_1106a`）あと、ユーザーの指示で遊び直した。
+- 使っている試合 `s09_play_rec_1106b`：3969 フレーム（66 秒）、キー 526 回、1 秒 58.7 コマ（遅れたコマ 49）。頭上の操作キーと P1/P2 の札は、
+  記録のときも撮影の台本が隠す。
+  P2 が 1 問目（901）・2 問目（1247）・3 問目（1619）に不正解のドアにぶつかってハートが 0 になり脱落（魂が飛ぶ 1705）→ 幽霊のサメ（ビーム 1926・
+  サメが見える 2131・照準 2278・発射 2350・5 問目に命中 2391、PERFECT ではない）→ 弾かれて遅れた P1 の後ろにチップソー（2430〜2510）。
+  P1 は 4 問目にゴツン（1967）してハート 2 で 10 問目のボス壁を突破（3789）。結果発表は P1 9 × 2.5 = 22.5、P2 0（脱落）。
+- 流し直し（ultra）：キー 526 回がすべて同じフレームで届き、毎フレームの状態の要約 3969 フレームがすべて記録と一致（S09・S21 とも）。
+  **流し直しの間はほかの窓を開かない**：1 回目の試合の流し直しの途中で確認用の Godot の窓を開いたら、フォーカスが移って 2518 フレームからずれた
+  （`s09_play_frames_1106_focuslost`）。
+- 最後に押していたキーが W でなくても、GOAL_RACE ではゲームがゴールまで走らせるので、S21 は結果発表まで届く（WIN! は 155 フレーム目で予定どおり）。
+- 通し（v1.10）：切り方は v1.9 と同じ 22・8・26・20 拍。テロップは 4 つ動かした（`docs/pv/capture.md`「11/06 の撮り直し」）。

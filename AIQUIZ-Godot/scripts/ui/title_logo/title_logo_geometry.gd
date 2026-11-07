@@ -1,7 +1,9 @@
 class_name TitleLogoGeometry
 extends RefCounted
 
-## タイトルのロゴ（assets/branding/logo/testopia_logo.json）の形を、立体の文字に使える多角形に直す。
+## タイトルのロゴ（assets/ui/title_logo/testopia_logo.json）の形を、立体の文字に使える多角形に直す。
+## 元データは assets/branding/logo/testopia_logo.json。あのフォルダは .gdignore で書き出しに入らないので、
+## ロゴを作るスクリプト（tools/logo_editor/build_testopia_logo*.mjs）がゲーム用の写しもここへ書く。
 ## TESTOPIA のロゴは tools/logo_editor/build_testopia_logo.mjs が作る（AIQUIZ のロゴと同じ部品と書式）。
 ## 形の計算は tools/logo_editor/logo_geometry.js と同じ（線は中心線と太さ、輪は中心・半径・太さ、
 ## 多角形（poly）は頂点を順に結んだ形、cut はそれまでに塗った白を消す）。ロゴエディタで形を直すと、メニューの立体ロゴも同じ形になる。
@@ -10,7 +12,7 @@ extends RefCounted
 ## 消す要素（cut）は、それより前に塗った要素だけから引く（エディタの描く順と同じ）。
 ## 返す座標は「リグ座標」：ロゴの外接矩形の中心が原点、x 右・y 上、単位はロゴのピクセル（1024 の画用紙）。
 
-const LOGO_JSON := "res://assets/branding/logo/testopia_logo.json"
+const LOGO_JSON := "res://assets/ui/title_logo/testopia_logo.json"
 const ARC_STEP := PI / 90.0
 const MITER_LIMIT := 4.0
 const CIRCLE_STEPS := 180

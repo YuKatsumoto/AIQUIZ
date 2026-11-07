@@ -6,6 +6,8 @@ class_name PlayerAnalytics
 
 const SAVE_PATH := "user://player_analytics.json"
 const MAX_ENTRIES := 500
+## 保存は回答のたびではなく、試合の外でこの間隔ごとにまとめて行う（終了時にも保存する）
+const SAVE_CHECK_SECONDS := 2.0
 
 ## 各問題の行動データ
 ## {q: String, response_time: float, correct: bool, chosen: int, 
@@ -15,9 +17,23 @@ var entries: Array[Dictionary] = []
 ## 集計キャッシュ: "subject_grade_difficulty" -> {total: int, correct_count: int, ...}
 var _stats_cache: Dictionary = {}
 var _cache_dirty: bool = true
+## まだ保存していない記録がある
+var _save_pending: bool = false
+var _save_timer: Timer
 
 func _ready() -> void:
 	_load()
+	_save_timer = Timer.new()
+	_save_timer.name = "AnalyticsSaveTimer"
+	_save_timer.wait_time = SAVE_CHECK_SECONDS
+	_save_timer.timeout.connect(_on_save_timer_timeout)
+	add_child(_save_timer)
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_EXIT_TREE \
+			or what == NOTIFICATION_APPLICATION_PAUSED:
+		_flush_save()
 
 
 # ── データ記録 ──
@@ -44,8 +60,31 @@ func record(quiz: QuizItem, response_time: float, correct: bool,
 	if entries.size() > MAX_ENTRIES:
 		entries = entries.slice(entries.size() - MAX_ENTRIES)
 	
-	_save()
+	_request_save()
 	_send_to_firebase(entry)
+
+
+## 保存を予約する。試合中は待ち、試合が終わってからまとめて書き出す。
+func _request_save() -> void:
+	_save_pending = true
+	if _save_timer == null:
+		_flush_save()
+	elif _save_timer.is_stopped():
+		_save_timer.start()
+
+
+func _on_save_timer_timeout() -> void:
+	if BufferedQuizProvider.is_match_in_progress():
+		return
+	_save_timer.stop()
+	_flush_save()
+
+
+func _flush_save() -> void:
+	if not _save_pending:
+		return
+	_save_pending = false
+	_save()
 
 func _send_to_firebase(entry: Dictionary) -> void:
 	var db_url := ApiStatusAutoload.get_env("FIREBASE_DB_URL", "")
@@ -54,6 +93,8 @@ func _send_to_firebase(entry: Dictionary) -> void:
 	
 	var url := "%s/telemetry/sessions.json" % db_url.trim_suffix("/")
 	var http := HTTPRequest.new()
+	# 接続・TLS のやりとりをメインスレッドから外す（Web はスレッドを使えない）
+	http.use_threads = not OS.has_feature("web")
 	add_child(http)
 	http.timeout = 5.0
 	
@@ -187,7 +228,8 @@ func _filter_entries(subject: String, grade: int, difficulty: String,
 func _save() -> void:
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f:
-		f.store_string(JSON.stringify(entries, "  "))
+		# 字下げなしで書く（_load はどちらでも読める）
+		f.store_string(JSON.stringify(entries))
 
 
 func _load() -> void:

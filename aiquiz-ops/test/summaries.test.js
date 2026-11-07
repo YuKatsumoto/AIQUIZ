@@ -1,67 +1,88 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { bankSummary, claudeSummary, jobsSummary, moneySummary, playersSummary } = require('../lib/summaries');
+const {
+    bankSummary, batchSummary, jobsSummary, moneySummary, playersSummary, scheduleText,
+} = require('../lib/summaries');
 
 // 2026-10-18 12:00 JST
 const NOW = new Date('2026-10-18T03:00:00Z');
 
-test('money: totals, model names, 30-day history and month-end projection', () => {
+const BATCH_ARGS = {
+    month: '2026-10',
+    builderSpend: { '2026-10': { usd: 1.25, requests: 600 }, '2026-09': { usd: 9 } },
+    builderBatches: { a: { state: 'submitted', count: 300 }, b: { state: 'collected', count: 300 } },
+    builderConfig: { monthlyBudgetUsd: 5, estimatedUsdPerCall: 0.002, model: 'claude-haiku-5-5' },
+    reviewSpend: { '2026-10': { usd: 3.5, requests: 900 } },
+    reviewBatches: { c: { state: 'submitted', count: 1200 } },
+    reviewConfig: { monthlyBudgetUsd: 20, estimatedUsdPerItem: 0.005, model: 'claude-opus-5-5' },
+};
+
+test('money: in-match Claude totals, model names, 30-day history and month-end projection', () => {
     const daily = {
-        '2026-09-30': { usd: 9, requests: 100, models: { 'gemini-3_6-flash': { usd: 9, requests: 100 } } },
-        '2026-10-17': { usd: 2, requests: 40, models: { 'gemini-3_6-flash': { usd: 1.5, requests: 30 },
-            'gemini-3_1-flash-lite': { usd: 0.5, requests: 10 } } },
-        '2026-10-18': { usd: 1, requests: 20, models: { 'gemini-3_6-flash': { usd: 1, requests: 20 } } },
+        '2026-09-30': { usd: 9, requests: 100, models: { 'claude-sonnet-5-5': { usd: 9, requests: 100 } } },
+        '2026-10-17': { usd: 2, requests: 40, models: { 'claude-sonnet-5-5': { usd: 1.5, requests: 30 },
+            'claude-sonnet-5': { usd: 0.5, requests: 10 } } },
+        '2026-10-18': { usd: 1, requests: 20, models: { 'claude-sonnet-5-5': { usd: 1, requests: 20 } } },
     };
     const m = moneySummary({
         now: NOW,
-        budgets: { dailyUsd: 10, monthlyUsd: 85 },
+        budgets: { dailyUsd: 3, monthlyUsd: 40 },
         level: 'yellow',
-        pace: { level: 'yellow', targetUsd: 5, timeFrac: 0.5 },
+        pace: { level: 'yellow', targetUsd: 1.5, timeFrac: 0.5 },
         daily,
         monthly: { '2026-10': { usd: 30, requests: 600 } },
-        claude: { totalUsd: 0 },
+        batch: batchSummary(BATCH_ARGS),
     });
     assert.equal(m.day, '2026-10-18');
-    assert.equal(m.gemini.today.usd, 1);
-    assert.equal(m.gemini.month.usd, 30);
+    assert.equal(m.live.today.usd, 1);
+    assert.equal(m.live.today.budgetUsd, 3);
+    assert.equal(m.live.month.usd, 30);
     // 17.5 日で $30 → 31 日では約 $53
-    assert.ok(Math.abs(m.gemini.month.projectedUsd - 30 / (17.5 / 31)) < 0.01);
-    assert.deepEqual(m.gemini.newCount, { first: 10, later: 3, priorityRounds: 2 });
+    assert.ok(Math.abs(m.live.month.projectedUsd - 30 / (17.5 / 31)) < 0.01);
+    assert.deepEqual(m.live.newCount, { first: 10, later: 3, priorityRounds: 2 });
     // 先月の日は今月のモデル別に入らない
-    assert.deepEqual(m.gemini.modelsMonth.map(x => [x.model, x.usd]),
-        [['gemini-3.6-flash', 2.5], ['gemini-3.1-flash-lite', 0.5]]);
-    assert.equal(m.gemini.history.length, 30);
-    assert.equal(m.gemini.history.at(-1).day, '2026-10-18');
-    assert.equal(m.gemini.history.at(-2).models['gemini-3.1-flash-lite'], 0.5);
-    assert.equal(m.gemini.history[0].usd, 0);
+    assert.deepEqual(m.live.modelsMonth.map(x => [x.model, x.usd]),
+        [['claude-sonnet-5-5', 2.5], ['claude-sonnet-5', 0.5]]);
+    assert.equal(m.live.history.length, 30);
+    assert.equal(m.live.history.at(-1).day, '2026-10-18');
+    assert.equal(m.live.history.at(-2).models['claude-sonnet-5'], 0.5);
+    assert.equal(m.live.history[0].usd, 0);
+});
+
+test('money: Claude total of the in-match line and the weekly jobs against the Console cap', () => {
+    const m = moneySummary({
+        now: NOW,
+        budgets: { dailyUsd: 3, monthlyUsd: 40 },
+        level: 'green',
+        pace: { level: 'green', targetUsd: 1.5, timeFrac: 0.5 },
+        monthly: { '2026-10': { usd: 12 } },
+        batch: batchSummary(BATCH_ARGS),
+        spendCapUsd: 100,
+        legacyGeminiUsd: 0.42,
+    });
+    // 試合中 12 + 判定 3.5 + 補充 1.25
+    assert.deepEqual(m.total, { usd: 16.75, inflightUsd: 6.6, budgetUsd: 65, capUsd: 100 });
+    assert.equal(m.legacyGeminiUsd, 0.42);
 });
 
 test('money: no projection on the first day of the month', () => {
     const m = moneySummary({
         now: new Date('2026-11-01T03:00:00Z'),
-        budgets: { dailyUsd: 10, monthlyUsd: 85 },
+        budgets: { dailyUsd: 3, monthlyUsd: 40 },
         level: 'green',
-        pace: { level: 'green', targetUsd: 2.7, timeFrac: 0.5 },
-        claude: {},
+        pace: { level: 'green', targetUsd: 1.3, timeFrac: 0.5 },
     });
-    assert.equal(m.gemini.month.projectedUsd, null);
+    assert.equal(m.live.month.projectedUsd, null);
+    assert.deepEqual(m.total, { usd: 0, inflightUsd: 0, budgetUsd: 40, capUsd: 100 });
 });
 
-test('claude: spend for the month and the estimate for batches not collected yet', () => {
-    const c = claudeSummary({
-        month: '2026-10',
-        builderSpend: { '2026-10': { usd: 1.25, requests: 600 }, '2026-09': { usd: 9 } },
-        builderBatches: { a: { state: 'submitted', count: 300 }, b: { state: 'collected', count: 300 } },
-        builderConfig: { monthlyBudgetUsd: 15, estimatedUsdPerCall: 0.002, model: 'claude-haiku-5-5' },
-        reviewSpend: null,
-        reviewBatches: { c: { state: 'submitted', count: 1200 } },
-        reviewConfig: { monthlyBudgetUsd: 70, estimatedUsdPerItem: 0.005, model: 'claude-opus-5-5' },
-    });
+test('batch: spend for the month and the estimate for batches not collected yet', () => {
+    const c = batchSummary({ ...BATCH_ARGS, reviewSpend: null });
     assert.equal(c.builder.usd, 1.25);
     assert.deepEqual(c.builder.inflight, { batches: 1, items: 300, estUsd: 0.6 });
     assert.equal(c.review.usd, 0);
     assert.equal(c.review.inflight.estUsd, 6);
-    assert.equal(c.totalBudgetUsd, 85);
+    assert.equal(c.totalBudgetUsd, 25);
 });
 
 test('players: devices from spend and rounds, caps, blocked ids and 14-day history', () => {
@@ -74,7 +95,7 @@ test('players: devices from spend and rounds, caps, blocked ids and 14-day histo
         blocked: { d2: true, fJCicjuEcwuyAOpz6hBddp: { kind: 'ip', reason: '連打', at: 100, by: 'me' } },
         denials: { daily_budget: { count: 3, requests: 3 }, device_blocked: { count: 7, requests: 7 } },
         caps: { deviceUsd: 0.3, ipUsd: 30 },
-        geminiTodayUsd: 0.28,
+        liveTodayUsd: 0.28,
     });
     assert.deepEqual(p.denials, [{ reason: 'device_blocked', count: 7 }, { reason: 'daily_budget', count: 3 }]);
     assert.deepEqual(p.blockedList.map(b => [b.key, b.kind, b.reason]),
@@ -137,7 +158,7 @@ test('bank: stock per bucket, pending states, origins and per-batch verdicts', (
     assert.equal(cell('英語', 1, '簡単').planned, false);
     assert.equal(cell('英語', 1, '簡単').bank, 1);
     assert.deepEqual(b.totals, { bank: 3, plannedBuckets: 3, bucketsAtTarget: 1, emptyBuckets: 2, shortfall: 4 });
-    assert.deepEqual(b.origins, { claude: 1, player: 1, unknown: 1 });
+    assert.deepEqual(b.origins, { builder: 1, match: 1, unknown: 1 });
     assert.deepEqual(b.pending, { waiting: 1, inReview: 1, unsure: 0, errored: 1 });
     assert.equal(b.review.passRate, 0.5);
     assert.deepEqual(b.reviewBatches.map(x => [x.id, x.pass, x.fail, x.error]), [['rb2', 0, 0, 0], ['rb1', 1, 1, 1]]);
@@ -157,14 +178,25 @@ test('jobs: last run state and the scheduler entry that runs each job', () => {
             'quiz-claude-review': [{ name: 'x/e3', startTime: 't3', completionTime: 't3b', failedCount: 1 }],
         },
         schedulers: [
-            { schedule: '0 3 * * *', timeZone: 'Asia/Tokyo', state: 'ENABLED', scheduleTime: 'next',
+            { schedule: '0 3 * * 1', timeZone: 'Asia/Tokyo', state: 'ENABLED', scheduleTime: 'next',
                 httpTarget: { uri: 'https://run.googleapis.com/v2/.../jobs/quiz-bank-builder:run' } },
         ],
     });
+    assert.equal(jobs[0].scheduleText, '毎週月曜 3:00');
+    assert.equal(jobs[1].scheduleText, null);
     assert.equal(jobs[0].lastRun.state, 'running');
     assert.equal(jobs[0].recent[1].state, 'succeeded');
     assert.equal(jobs[0].nextRunAt, 'next');
     assert.equal(jobs[0].lastAttemptOk, null);
     assert.equal(jobs[1].lastRun.state, 'failed');
     assert.equal(jobs[1].schedule, null);
+});
+
+test('jobs: the scheduler line reads as a weekly or daily time', () => {
+    assert.equal(scheduleText('0 4,12 * * 1'), '毎週月曜 4:00・12:00');
+    assert.equal(scheduleText('30 3 * * *'), '毎日 3:30');
+    assert.equal(scheduleText('0 3 * * 1,4'), '毎週月・木曜 3:00');
+    // 読めない形はそのまま
+    assert.equal(scheduleText('*/15 * * * *'), '*/15 * * * *');
+    assert.equal(scheduleText(''), null);
 });

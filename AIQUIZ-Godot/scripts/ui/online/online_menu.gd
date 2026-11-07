@@ -219,10 +219,10 @@ load %d (%.0f%%)  fps %d" % [director.state_name(), director.state_time, directo
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if OS.is_debug_build() and event is InputEventKey and (event as InputEventKey).pressed and not (event as InputEventKey).echo 			and (event as InputEventKey).keycode == KEY_F7:
+	if OS.has_feature("editor") and event is InputEventKey and (event as InputEventKey).pressed and not (event as InputEventKey).echo 			and (event as InputEventKey).keycode == KEY_F7:
 		_toggle_debug()
 		return
-	if OS.is_debug_build() and event is InputEventKey and (event as InputEventKey).pressed and not (event as InputEventKey).echo 			and (event as InputEventKey).keycode == KEY_L:
+	if OS.has_feature("editor") and event is InputEventKey and (event as InputEventKey).pressed and not (event as InputEventKey).echo 			and (event as InputEventKey).keycode == KEY_L:
 		get_viewport().set_input_as_handled()
 		_debug_fake_match()
 		return
@@ -982,6 +982,10 @@ func create_friend_room() -> void:
 func join_friend_room(code: String) -> void:
 	if practice:
 		return  # 練習の形では『コードを いれる』は見せるだけ（通信しない）
+	code = OnlineFriendPage.normalize_code(code)
+	if not OnlineFriendPage.is_code_text(code):
+		set_status("コードは えいすう（ABC と 123）で いれてね")
+		return
 	if code.length() != OnlineFriendPage.CODE_LENGTH:
 		set_status("コードは %dもじ です" % OnlineFriendPage.CODE_LENGTH)
 		return

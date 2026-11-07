@@ -1,7 +1,8 @@
 'use strict';
 
 // 「生成ライン」のタブ: 問題がどこで作られ、どう確かめられ、どこから出題されるかの図。
-// 箱には今の数字（お金・プレイヤー・共有バンク・夜のジョブの各 API から）を載せる。
+// 箱には今の数字（お金・プレイヤー・共有バンク・毎週のジョブの各 API から）を載せる。
+// 試合中の AI は 2026-11-03 から Claude（aiquiz-proxy-claude。モデルはプロキシが用途ごとに決める）。
 // app.js の共通部品（$, esc, usd, int, pct, when, getJson, LEVELS, DENIAL_LABELS）を使う。
 
 const PIPE = {
@@ -18,7 +19,7 @@ const PIPE_NODES = [
     lines: d => [`今日 ${int(d.players?.today.rounds)} 試合`, `端末 ${int(d.players?.today.devices)} 台`] },
   { id: 'plan', x: 230, y: 50, kind: 'proxy', tab: 'money', title: '新作の数を決める',
     lines: d => {
-      const g = d.money?.gemini;
+      const g = d.money?.live;
       if (!g) return ['—'];
       const level = LEVELS[g.level] || LEVELS.stop;
       return [`段階: ${level.label}（${level.text}）`,
@@ -29,36 +30,36 @@ const PIPE_NODES = [
   { id: 'gate', x: 650, y: 50, kind: 'proxy', tab: 'players', title: 'プロキシの関所',
     lines: d => ['合言葉・許可証・上限・予算',
       `今日止めた ${int((d.players?.denials || []).filter(x => x.reason !== 'round_no_new').reduce((s, x) => s + x.count, 0))} 回`] },
-  { id: 'gemini', x: 860, y: 50, kind: 'gemini', tab: 'money', title: 'Gemini（新作）',
-    lines: d => [`今日 ${usd(d.money?.gemini.today.usd)}・${int(d.money?.gemini.today.requests)} 回`,
-      '3.6-flash 6本・lite で補充'] },
+  { id: 'live', x: 860, y: 50, kind: 'claude', tab: 'money', title: 'Claude（新作）',
+    lines: d => [`今日 ${usd(d.money?.live.today.usd)}・${int(d.money?.live.today.requests)} 回`,
+      'Sonnet 5.5・6本同時に作る'] },
   { id: 'check', x: 1070, y: 50, kind: 'player', title: '端末でチェック',
-    lines: () => ['重複・形式・ジャンル', '正解を 3.6-flash で確認'] },
+    lines: () => ['重複・形式・ジャンル', '正解を Sonnet 5.5 で確認'] },
 
   { id: 'stock', x: 440, y: 190, kind: 'store', tab: 'bank', title: 'ストックで埋める',
     lines: () => ['共有バンク → 端末内', '→ 同梱 → 別の難易度'] },
   { id: 'play', x: 1070, y: 190, kind: 'player', tab: 'players', title: '出題（壁）',
     lines: d => [`1試合あたり ${d.players?.today.usdPerRound == null ? '—' : usd(d.players.today.usdPerRound)}`,
-      '解説は 3.5-flash-lite'] },
+      '解説も Sonnet 5.5'] },
 
   { id: 'sync', x: 20, y: 340, kind: 'store', title: '差分同期',
     lines: () => ['変わった分だけ', '各端末へ届ける'] },
   { id: 'bank', x: 230, y: 340, kind: 'store', tab: 'bank', title: '共有バンク',
     lines: d => (d.bank ? [`${int(d.bank.totals.bank)} 問`,
       `目標達成 ${d.bank.totals.bucketsAtTarget}/${d.bank.totals.plannedBuckets} 区分`] : ['読み込み中…']) },
-  { id: 'review', x: 440, y: 340, kind: 'claude', tab: 'bank', title: '判定 4:00（Opus）',
+  { id: 'review', x: 440, y: 340, kind: 'claude', tab: 'bank', title: '判定（Opus・毎週）',
     lines: d => [`合格率 ${d.bank ? pct(d.bank.review.passRate, 1) : '—'}`,
-      `今月 ${usd(d.money?.claude.review.usd)} / ${usd(d.money?.claude.review.budgetUsd)}`, jobLine(d, 'quiz-claude-review')] },
+      `今月 ${usd(d.money?.batch.review.usd)} / ${usd(d.money?.batch.review.budgetUsd)}`, jobLine(d, 'quiz-claude-review')] },
   { id: 'archive', x: 650, y: 340, kind: 'store', tab: 'bank', title: 'アーカイブ（候補）',
     lines: d => (d.bank ? [`判定待ち ${int(d.bank.pending.waiting)} 問`, `判定中 ${int(d.bank.pending.inReview)} 問`]
       : ['読み込み中…']) },
   { id: 'outbox', x: 1070, y: 340, kind: 'player', title: '候補として送る',
-    lines: () => ['プレイヤーが作った問題を', '通信の合間に送信'] },
+    lines: () => ['試合中に作った問題を', '通信の合間に送信'] },
 
   { id: 'rejected', x: 440, y: 480, kind: 'muted', tab: 'bank', title: '不合格（使わない）',
     lines: d => [d.bank ? `${int(d.bank.archive.bad)} 問` : '—'] },
-  { id: 'builder', x: 650, y: 480, kind: 'claude', tab: 'bank', title: '夜の補充 3:00（Haiku）',
-    lines: d => [`今月 ${usd(d.money?.claude.builder.usd)} / ${usd(d.money?.claude.builder.budgetUsd)}`,
+  { id: 'builder', x: 650, y: 480, kind: 'claude', tab: 'bank', title: '補充（Haiku・毎週）',
+    lines: d => [`今月 ${usd(d.money?.batch.builder.usd)} / ${usd(d.money?.batch.builder.budgetUsd)}`,
       jobLine(d, 'quiz-bank-builder')] },
   { id: 'ops', x: 1070, y: 480, kind: 'ops', tab: 'log', title: '管理ソフト（この画面）',
     lines: d => [`ブロック中 ${int(d.players?.today.blockedCount)} 件`, '問題を外す・戻す'] },
@@ -69,8 +70,8 @@ const PIPE_EDGES = [
   { from: 'game', fs: 'right', to: 'plan', ts: 'left' },
   { from: 'plan', fs: 'right', to: 'split', ts: 'left' },
   { from: 'split', fs: 'right', to: 'gate', ts: 'left', label: '新作' },
-  { from: 'gate', fs: 'right', to: 'gemini', ts: 'left' },
-  { from: 'gemini', fs: 'right', to: 'check', ts: 'left' },
+  { from: 'gate', fs: 'right', to: 'live', ts: 'left' },
+  { from: 'live', fs: 'right', to: 'check', ts: 'left' },
   { from: 'check', fs: 'bottom', to: 'play', ts: 'top' },
   { from: 'split', fs: 'bottom', to: 'stock', ts: 'top', label: 'ストック' },
   { from: 'stock', fs: 'right', to: 'play', ts: 'left', label: 'すぐ出せる問題' },
@@ -88,7 +89,7 @@ const PIPE_EDGES = [
 
 const PIPE_SECTIONS = [
   { y: 30, text: '試合ごと（プレイヤーの端末とプロキシ）' },
-  { y: 320, text: '共有バンクを育てる（夜のジョブ）' },
+  { y: 320, text: '共有バンクを育てる（毎週のジョブ）' },
 ];
 
 function jobLine(d, name) {

@@ -279,6 +279,9 @@ func _process(dt: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	# 通信の数値（F8）は開発用。エディタから動かしたときだけ（書き出した製品版では出さない）
+	if not OS.has_feature("editor"):
+		return
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_F8:
 		_stats.visible = not _stats.visible
 		get_viewport().set_input_as_handled()
@@ -291,13 +294,20 @@ func toggle_quit_confirm() -> void:
 		_restore_after_confirm()
 		return
 	_mode = "confirm"
-	_show_panel("たいせんを やめますか？\n（あいての かちに なります）", ["やめる", "つづける"])
+	if _net != null and _net.result_decided:
+		# 結果発表に入ったあとは、もう勝ち負けは決まっている（抜けても相手の かちには ならない）
+		_show_panel("メニューへ もどりますか？", ["メニューへ", "つづける"])
+	else:
+		_show_panel("たいせんを やめますか？\n（あいての かちに なります）", ["やめる", "つづける"])
 	# 練習の試合では［やめる］は押せない（台本④の 4-6）
 	_primary.disabled = practice
 	confirm_changed.emit(true)
 
 
 func _restore_after_confirm() -> void:
+	# 先に確認を解く。"confirm" のままだと、一時停止中に開いた確認を［つづける］で閉じようとしても
+	# _on_pause_changed が何もせずに戻り、確認のパネルが閉じなくなる。
+	_mode = ""
 	if _net != null and _net.paused:
 		_on_pause_changed(true, _net.pause_message)
 	else:

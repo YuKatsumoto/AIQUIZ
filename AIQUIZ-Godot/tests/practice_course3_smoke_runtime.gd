@@ -1,6 +1,7 @@
 extends Node
 
 ## コース③（2人対戦）の実機の通しテスト（docs/new_tutorial/phase6_design.md 4.2）。メニューのコース選択から③を始め、キー入力とクリックで通す。
+## 今のメニューにはコース選択への入口がないので、メニューの関数でコース選択を作って開く（_launch。2026-11-06）。
 ## CPU と（3-0 から クリアまで）：
 ##   3-0 ［CPUと］ → 3-1 矢印キーの声かけ → W A S D で左右・前後とスペース → 3-2 壁1を先に取る・壁2は CPU が先 → 3-3 CPU が間違えて
 ##   P1 が正解 → 3-4 押し合い → 離して押し直して一押し → 3-5 のこぎりへ下がって捕まる → まきもどし → 逃げ切る → 3-6 一度外して当てる
@@ -34,10 +35,16 @@ var _director: PracticeDirector = null
 var _held := {}
 ## PRACTICE_C3_FROM（とちゅうのレッスンから始めたとき。前のレッスンの結果を見る確かめはしない）
 var _from := ""
+## ゲームの時間（_process の delta の和）。狙いの先読みと、ため・離したあとの待ちに使う。
+var _clock := 0.0
 
 
 func _ready() -> void:
 	call_deferred("run")
+
+
+func _process(delta: float) -> void:
+	_clock += delta
 
 
 func run() -> void:
@@ -136,26 +143,31 @@ func _on_said(text_id: String) -> void:
 # ---------- メニューから③へ ----------
 
 ## メインメニューを開き（cpu の回）・コース選択から③を選ぶ。2回目（人どうし）は、クリアのあとに開いたコース選択から。
+## 今のメニューには練習のコース選択への入口がない（「チュートリアル」は新しいチュートリアルの TutorialCourseSelector を開き、
+## コース選択を作る _setup_practice_panels もどこからも呼ばれていない。2026-11-06 に確かめた）。
+## そこで、メニューの持つ組み立て（_setup_practice_panels）と開く処理（_on_practice_pressed）をテストから呼んで、コース選択から③を選ぶ。
 func _launch(first: bool) -> bool:
 	var select: PracticeCourseSelect = null
 	if first:
 		get_tree().change_scene_to_file(MAIN_MENU)
 	var ready := await _wait(func() -> bool:
 		var scene := get_tree().current_scene
-		return scene != null and scene.scene_file_path == MAIN_MENU and scene.find_child("PracticeBtn", true, false) != null \
-			and not SceneTransition.is_transitioning(), 25000)
+		return scene != null and scene.scene_file_path == MAIN_MENU and scene.has_method("_setup_practice_panels") \
+			and scene.has_method("_on_practice_pressed") and not SceneTransition.is_transitioning(), 25000)
 	check(ready, "the main menu opens")
 	if not ready:
 		return false
 	await _seconds(1.5)
+	if _menu_node("PracticeCourseSelect") == null:
+		notes.append("the menu has no entry to the practice course select; the test built it with _setup_practice_panels")
+		get_tree().current_scene.call("_setup_practice_panels")
 	select = _menu_node("PracticeCourseSelect") as PracticeCourseSelect
 	if select == null or not select.is_open():
-		var button := get_tree().current_scene.find_child("PracticeBtn", true, false) as Button
-		button.pressed.emit()
+		get_tree().current_scene.call("_on_practice_pressed")
 		select = _menu_node("PracticeCourseSelect") as PracticeCourseSelect
 	elif not first:
 		check(true, "the course select is open again after the clear")
-	check(select != null and select.is_open(), "the tutorial button opens the course select")
+	check(select != null and select.is_open(), "the menu opens the course select")
 	if select == null:
 		return false
 	await _seconds(0.4)
@@ -714,25 +726,26 @@ func _ghost_shot(player: int, aim: Callable, perfect: bool, dodge_key: Key = KEY
 		await _key_event(KEY_CTRL, true, KEY_LOCATION_RIGHT)
 	if dodge_key != KEY_NONE:
 		_press(dodge_key)
-	var deadline := Time.get_ticks_msec() + 3000
-	var held_ms := 0
-	var start := Time.get_ticks_msec()
-	while Time.get_ticks_msec() < deadline:
+	# ためる長さ・離したあとの待ちはゲームの時間で測る（--fixed-fps 60 ではゲームが実時間より速く進むので、実時間で測ると
+	# マシンの速さで狙いがずれて、当たったり外れたりした。2026-11-06）。
+	var deadline := _clock + 3.0
+	var start := _clock
+	while _clock < deadline:
 		await get_tree().process_frame
 		_steer(player, keys, aim)
 		var state: Dictionary = gs.call(&"practice_ghost_state", player)
-		held_ms = Time.get_ticks_msec() - start
+		var held := _clock - start
 		if perfect and bool(state.get("perfect", false)):
 			break
-		if not perfect and held_ms >= 450 and not bool(state.get("perfect", false)):
+		if not perfect and held >= 0.45 and not bool(state.get("perfect", false)):
 			break
 	if player == 1:
 		_release(KEY_SPACE)
 	else:
 		await _key_event(KEY_CTRL, false, KEY_LOCATION_RIGHT)
 	# 突進の向きは、離して少しあとの照準で決まる
-	var lock := Time.get_ticks_msec() + 500
-	while Time.get_ticks_msec() < lock:
+	var lock := _clock + 0.5
+	while _clock < lock:
 		await get_tree().process_frame
 		_steer(player, keys, aim)
 	_release_all(keys)
@@ -780,13 +793,14 @@ func _miss_point(ghost: int, target: int) -> Vector2:
 	return Vector2(clampf(point.x, -7.5, 7.5), point.y)
 
 
-## 動いている的の先を狙う（突進の向きは離して 0.34 秒後に決まり、突進はそこから約 0.3 秒で届く）
+## 動いている的の先を狙う（突進の向きは離して 0.34 秒後に決まり、突進はそこから約 0.3 秒で届く）。
+## 的の速さはゲームの時間（_clock）で測る（実時間で割ると、ゲームが速く回るマシンほど速さを大きく見積もって先を狙いすぎる）。
 func _lead_aim(player: int, lead: float) -> Callable:
-	var memo := {"pos": _player_xz(player), "vel": Vector2.ZERO, "t": Time.get_ticks_usec()}
+	var memo := {"pos": _player_xz(player), "vel": Vector2.ZERO, "t": _clock}
 	return func() -> Vector2:
 		var now := _player_xz(player)
-		var t := Time.get_ticks_usec()
-		var dt := float(t - int(memo.t)) / 1000000.0
+		var t := _clock
+		var dt := t - float(memo.t)
 		if dt > 0.005:
 			memo.vel = (memo.vel as Vector2).lerp((now - (memo.pos as Vector2)) / dt, 0.3)
 			memo.pos = now

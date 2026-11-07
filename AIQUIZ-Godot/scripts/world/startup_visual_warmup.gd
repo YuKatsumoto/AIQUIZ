@@ -111,6 +111,12 @@ func run() -> Dictionary:
 		wall.set_quiz(quiz, choice_count)
 		wall.set_is_boss(choice_count == 4)
 		wall.set_gameplay_question(quiz.q, true)
+		# 正解・通過で初めて出るもの（扉の破片・ワールドボーダー、4択の壁は通過後のフェードの半透明）も描いておく。
+		# どれも材質を共有して持ち続けるので、試合の最初の壁の切り替えでシェーダーを作らない。
+		if choice_count == 2:
+			wall.prewarm_pass_effects()
+		else:
+			wall.prewarm_retirement_fade()
 		await _draw_frames()
 		wall.queue_free()
 	_report["question_variants"] = 2

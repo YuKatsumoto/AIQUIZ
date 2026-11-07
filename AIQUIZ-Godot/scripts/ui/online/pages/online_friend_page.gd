@@ -96,13 +96,36 @@ func _set_mode(mode: Mode) -> void:
 
 
 func _on_code_changed(text: String) -> void:
-	var upper := text.to_upper()
-	if upper != text:
-		var caret := _code_input.caret_column
-		_code_input.text = upper
+	var fixed := normalize_code(text)
+	if fixed != text:
+		var caret := mini(_code_input.caret_column, fixed.length())
+		_code_input.text = fixed
 		_code_input.caret_column = caret
 
 
 func _submit_code() -> void:
-	var code := _code_input.text.strip_edges().to_upper()
+	var code := normalize_code(_code_input.text)
 	request(&"friend_join", {"code": code})
+
+
+## 日本語入力が ON のまま打った全角の英数字（Ｋ７ＸＱＭ）を半角に直し、空白（全角の空白も）を取り、大文字にする。
+## 直さないと 5 文字のまま送られ、サーバーで「その コードの へやは みつかりません」になる。
+static func normalize_code(text: String) -> String:
+	var out := ""
+	for ch: String in text:
+		var code := ch.unicode_at(0)
+		if code >= 0xFF01 and code <= 0xFF5E:
+			code -= 0xFEE0
+		if code == 0x20 or code == 0x3000 or code == 0x09:
+			continue
+		out += String.chr(code)
+	return out.to_upper()
+
+
+## コードに使える文字（半角の英字と数字）だけか。かな（日本語入力で母音を打つと「あ」などになる）は false。
+static func is_code_text(code: String) -> bool:
+	for ch: String in code:
+		var c := ch.unicode_at(0)
+		if not ((c >= 0x41 and c <= 0x5A) or (c >= 0x30 and c <= 0x39)):
+			return false
+	return true

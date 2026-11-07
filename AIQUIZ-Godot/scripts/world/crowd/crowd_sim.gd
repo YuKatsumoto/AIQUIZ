@@ -77,6 +77,8 @@ const MAX_WAIT := 2.0
 const STILL_SECONDS := 0.3
 ## Every person is looked at this often.
 const CHECK_SECONDS := 0.5
+## refresh_aisles() がブロックを見直すかを決める範囲の余裕（_block_reach は float32 なので丸めの分）。
+const REACH_MARGIN := 0.01
 const GROUP_CHANCE := 0.3
 const GROUP_MAX := 4
 const FOOD_POPCORN := 1
@@ -228,6 +230,20 @@ var _calls: Array[int] = []
 var call_share := CALL_SHARE
 var _passing: Array[int] = []
 var _rows := {}
+## ブロックごとの人（block -> 番号の並び）と、その席の z の範囲と通路までの一番遠い距離
+## （Vector3(最小 z, 最大 z, 距離)）。refresh_aisles() が見直すブロックを選ぶのに使う。
+var _block_people := {}
+var _block_reach := {}
+## 通路が変わったとき歩いていて見直せなかった人（番号 -> true）。次の refresh_aisles() で見直す。
+var _stale_aisles := {}
+## tick()'s last `awake` and people count, the awake blocks and how many people they
+## hold, and the check cursor among them (Vector2i(position in _awake_blocks, index
+## in that block's people)).
+var _awake_key := PackedByteArray()
+var _awake_people := -1
+var _awake_blocks: Array[int] = []
+var _awake_count := 0
+var _awake_cursor := Vector2i.ZERO
 ## This frame's wish to leave per team (_leave_wish()).
 var _wish := PackedFloat32Array([0.0, 0.0, 0.0])
 ## The clips' timing (_learn_clips()): getting up, sitting down, the gaits' paces.
@@ -274,6 +290,11 @@ func add_person(block: int, seat: Vector3, spot: Vector3, row: int, team: int, f
 	if not _rows.has(row_key):
 		_rows[row_key] = []
 	(_rows[row_key] as Array).append(index)
+	if not _block_people.has(block):
+		_block_people[block] = []
+		_block_reach[block] = Vector3(INF, -INF, 0.0)
+	(_block_people[block] as Array).append(index)
+	_widen_reach(p)
 	var joined := false
 	if neighbour >= 0 and not fixed and _rng.randf() < GROUP_CHANCE:
 		var other := people[neighbour]
@@ -296,11 +317,45 @@ func add_person(block: int, seat: Vector3, spot: Vector3, row: int, team: int, f
 
 
 ## The aisles changed (the stand grew): everybody takes the nearest one again.
+## 増えた・なくなった通路（StandPaths.changed_aisles）が今の通路より遠い人は答えが変わらないので、その近くの
+## ブロックの人と、前に歩いていて見直せなかった人だけを見直す（全員を見直すと、客席が長いほど重くなる）。
 func refresh_aisles() -> void:
-	for p: Person in people:
+	var changed_aisles := paths.changed_aisles
+	paths.changed_aisles = PackedFloat32Array()
+	if not changed_aisles.is_empty():
+		for block: int in _block_people:
+			var span: Vector3 = _block_reach[block]
+			if not _any_within(changed_aisles, span.x - span.z - REACH_MARGIN, span.y + span.z + REACH_MARGIN):
+				continue
+			_block_reach[block] = Vector3(INF, -INF, 0.0)
+			for index: int in _block_people[block]:
+				var p := people[index]
+				if p.state != State.WALKING:
+					p.aisle = paths.nearest_aisle(p.seat.z)
+					_stale_aisles.erase(index)
+				else:
+					_stale_aisles[index] = true
+				_widen_reach(p)
+	for index: int in _stale_aisles.keys():
+		var p := people[index]
 		if p.state != State.WALKING:
 			p.aisle = paths.nearest_aisle(p.seat.z)
+			_stale_aisles.erase(index)
+			_widen_reach(p)
 	_assign_vendor_ranges()
+
+
+## _block_reach を p の席と通路まで広げる。
+func _widen_reach(p: Person) -> void:
+	var span: Vector3 = _block_reach[p.block]
+	_block_reach[p.block] = Vector3(minf(span.x, p.seat.z), maxf(span.y, p.seat.z), maxf(span.z, absf(p.aisle - p.seat.z)))
+
+
+static func _any_within(values: PackedFloat32Array, low: float, high: float) -> bool:
+	for value: float in values:
+		if value >= low and value <= high:
+			return true
+	return false
 
 
 ## A fresh match: who is in, who is on the way, who stays home for now.
@@ -346,13 +401,24 @@ func _roll_arrival(p: Person, roll: float) -> void:
 
 
 ## One frame. `watched[block]` is 1 for the blocks the camera sees: people walk
-## there only.
-func tick(time: float, delta: float, mood: CrowdMood, watched: PackedByteArray) -> void:
+## there only. `awake[block]` is 1 for the blocks near enough to the camera for
+## their people's comings and goings to show; the others keep what they are doing
+## until the camera comes back (an endless course keeps adding blocks, and checking
+## everybody would cost more every wall). Empty: every block is awake.
+func tick(time: float, delta: float, mood: CrowdMood, watched: PackedByteArray,
+		awake := PackedByteArray()) -> void:
 	if serial != mood.match_serial:
 		start(time, mood.match_serial)
 	now = time
-	var leaving := EXODUS_PER_SECOND if mood.exodus_team >= 0 else LEAVE_PER_SECOND
-	_leave_budget = minf(_leave_budget + leaving * delta, leaving * 2.0)
+	var checked := people.size()
+	if not awake.is_empty():
+		_sync_awake(awake)
+		checked = _awake_count
+	# The people checked get the share of the leaving budget they would get if
+	# everybody were checked.
+	var share := float(checked) / float(people.size()) if not people.is_empty() else 1.0
+	var leaving := (EXODUS_PER_SECOND if mood.exodus_team >= 0 else LEAVE_PER_SECOND) * share
+	_leave_budget = minf(_leave_budget + leaving * delta, maxf(leaving * 2.0, 1.0))
 	for team: int in range(3):
 		_wish[team] = _leave_wish(team, mood)
 	_step_walkers(delta, mood, watched)
@@ -361,10 +427,38 @@ func tick(time: float, delta: float, mood: CrowdMood, watched: PackedByteArray) 
 	_step_passing()
 	if people.is_empty():
 		return
-	var count := mini(people.size(), ceili(people.size() * delta / CHECK_SECONDS))
-	for _k: int in range(count):
-		_cursor = (_cursor + 1) % people.size()
-		_check(_cursor, mood, watched)
+	if awake.is_empty():
+		var count := mini(people.size(), ceili(people.size() * delta / CHECK_SECONDS))
+		for _k: int in range(count):
+			_cursor = (_cursor + 1) % people.size()
+			_check(_cursor, mood, watched)
+		return
+	if _awake_blocks.is_empty():
+		return
+	for _k: int in range(mini(_awake_count, ceili(_awake_count * delta / CHECK_SECONDS))):
+		var block: Array = _block_people[_awake_blocks[_awake_cursor.x]]
+		_awake_cursor.y += 1
+		if _awake_cursor.y >= block.size():
+			_awake_cursor = Vector2i((_awake_cursor.x + 1) % _awake_blocks.size(), 0)
+			block = _block_people[_awake_blocks[_awake_cursor.x]]
+		_check(block[_awake_cursor.y], mood, watched)
+
+
+## Rebuilds the awake blocks when tick()'s `awake` or the people change (the course
+## adds blocks as it grows): a pass over the blocks, not the people.
+func _sync_awake(awake: PackedByteArray) -> void:
+	if awake == _awake_key and people.size() == _awake_people:
+		return
+	_awake_key = awake
+	_awake_people = people.size()
+	_awake_blocks.clear()
+	_awake_count = 0
+	for block: int in _block_people:
+		if block < awake.size() and awake[block] != 0:
+			_awake_blocks.append(block)
+			_awake_count += (_block_people[block] as Array).size()
+	if _awake_cursor.x >= _awake_blocks.size():
+		_awake_cursor = Vector2i.ZERO
 
 
 ## Share of the stand's people in, or on the way to, their seats.

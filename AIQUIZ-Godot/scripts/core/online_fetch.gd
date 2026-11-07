@@ -22,7 +22,15 @@ var _rate_limit_strikes: int = 0
 ## 長期履歴との一致と、直近・ラウンド内の意味重複を除き、不足分だけ補充する。
 const TEN_PARALLEL: int = 6
 const TEN_BATCH_SIZE: int = 4
-const TEN_BATCH_STAGGER_SEC: float = 0.35
+## 並列で作るときは 1 本目だけ先に送り、その返事が流れ始めてから残りを送る。プロキシは共通部分（system）を
+## プロンプトキャッシュに載せるが、キャッシュが読めるのは 1 本目の返事が流れ始めてからなので、同時に送ると
+## 全部が書き込みの値段（1.25 倍）になる。返事が来ないときもこの秒数で残りを送る（2026-11-05 の手元のログで、
+## 1 本目の返事が流れ始めるまで 0.35〜1.4 秒）。
+const FANOUT_WAIT_MAX_SEC: float = 2.0
+## system に入れる長さの上限（プロキシの MAX_SYSTEM_CHARS 8000 字より少し短く）。超えたら全文を prompt に入れる
+const GENERATION_SYSTEM_MAX_CHARS: int = 7500
+## cancel_all のたびに進める。待っているあいだにラウンドが終わったら、残りは送らない
+var _fanout_epoch: int = 0
 
 func extract_json_from_text(text: String) -> Variant:
 	text = text.strip_edges()
@@ -144,11 +152,27 @@ func compose_system_instruction() -> String:
 	sys += "出力は常にJSON配列のみ。マークダウン装飾や説明文は一切含めないでください。\n"
 	return sys
 
+## 生成プロンプトの全文（共通部分のあとにバッチの部分）。共有バンクの補充用の書き出しやテストが使う。
 func compose_prompt(subject: String, grade: int, difficulty: String, count: int,
 		history: Array[String], is_coop: bool = false,
 		forced_units: PackedStringArray = [], defer_explanations: bool = false,
 		variation_focus: String = "") -> String:
+	var parts := compose_prompt_parts(subject, grade, difficulty, count, history, is_coop,
+		forced_units, defer_explanations, variation_focus)
+	return str(parts["shared"]) + str(parts["batch"])
+
+
+## 生成プロンプトを、同じラウンドの全バッチで同じ部分（shared）と、そのバッチだけの部分（batch）に分けて組み立てる。
+##   shared … 基本条件・禁止事項・難易度・プレイヤーデータ・出題済みリスト（同じラウンドなら全バッチで同じ文字列）
+##   batch  … 出題アプローチ・担当単元のカリキュラム
+## shared はプロキシで system に入り、プロンプトキャッシュに載る（aiquiz-proxy/claude-live.js の cacheSystem）。
+## 2 本目からは shared を 1 割の値段で読めるので、バッチごとに変わるものを shared に入れないこと。
+func compose_prompt_parts(subject: String, grade: int, difficulty: String, count: int,
+		history: Array[String], is_coop: bool = false,
+		forced_units: PackedStringArray = [], defer_explanations: bool = false,
+		variation_focus: String = "") -> Dictionary:
 	var prompt := ""
+	var batch := ""
 
 	# ── 基本条件 ──
 	prompt += "【基本条件】\n"
@@ -181,9 +205,9 @@ func compose_prompt(subject: String, grade: int, difficulty: String, count: int,
 			prompt += "- 5・6年生は日本語の指示と短い英文・二往復以内の会話を混ぜ、読む力も問うこと\n"
 			prompt += "- 中学校で扱う高度な文法知識を前提にせず、小学校の表現範囲に限定すること\n\n"
 	if not variation_focus.is_empty():
-		prompt += "【このバッチ固有の出題アプローチ】\n"
-		prompt += variation_focus + "\n"
-		prompt += "単純な一問一答や数値差し替えではなく、このアプローチを問題の中心にすること。\n\n"
+		batch += "【このバッチ固有の出題アプローチ】\n"
+		batch += variation_focus + "\n"
+		batch += "単純な一問一答や数値差し替えではなく、このアプローチを問題の中心にすること。\n\n"
 
 	# ── 学年×教科別カリキュラムデータ（forced_units 指定時は担当単元に限定） ──
 	var curriculum := _get_curriculum(grade, subject, forced_units)
@@ -195,53 +219,57 @@ func compose_prompt(subject: String, grade: int, difficulty: String, count: int,
 		for b in feedback["bad"]:
 			curriculum["bad_examples"].append(b)
 			
-	prompt += "【小学%d年生・%sのカリキュラム情報】\n" % [grade, subject]
-	prompt += "＜学習単元＞ %s\n" % curriculum["topics"]
-	prompt += "＜この学年のキーワード＞ %s\n" % curriculum["keywords"]
-	
+	# カリキュラム情報は担当単元ごとに変わるので batch に入れる
+	batch += "【小学%d年生・%sのカリキュラム情報】\n" % [grade, subject]
+	batch += "＜学習単元＞ %s\n" % curriculum["topics"]
+	batch += "＜この学年のキーワード＞ %s\n" % curriculum["keywords"]
+
 	# ── 案6: 重要概念（JSONデータから注入） ──
 	if curriculum.has("key_concepts") and curriculum["key_concepts"].size() > 0:
-		prompt += "＜重要概念・公式＞\n"
+		batch += "＜重要概念・公式＞\n"
 		for kc: String in curriculum["key_concepts"]:
-			prompt += "  ・%s\n" % kc
-		prompt += "→ 上記の概念を問う問題を出してください\n"
-	
+			batch += "  ・%s\n" % kc
+		batch += "→ 上記の概念を問う問題を出してください\n"
+
 	# ── 案6: 出題範囲の明示 ──
 	# forced_units 指定時は「このバッチの担当単元」を最優先制約として明示する。
 	# （バッチごとに異なる単元を割り当てることで、全体として同ジャンルの偏りを防ぐ）
 	if forced_units.size() > 0:
-		prompt += "＜★このバッチの担当単元（最重要・ここからのみ出題）＞\n"
+		batch += "＜★このバッチの担当単元（最重要・ここからのみ出題）＞\n"
 		for uname in forced_units:
-			prompt += "  - %s\n" % str(uname)
+			batch += "  - %s\n" % str(uname)
 		if forced_units.size() == 1:
-			prompt += "→ %d問すべてを単元『%s』から出題すること。他の単元からは絶対に出題しないこと。\n" % [count, str(forced_units[0])]
-			prompt += "→ ただし%d問は互いに異なる観点・問い方にし、同じ知識の繰り返しにしないこと。\n" % count
+			batch += "→ %d問すべてを単元『%s』から出題すること。他の単元からは絶対に出題しないこと。\n" % [count, str(forced_units[0])]
+			batch += "→ ただし%d問は互いに異なる観点・問い方にし、同じ知識の繰り返しにしないこと。\n" % count
 		else:
-			prompt += "→ %d問を上記%d単元へできるだけ均等に割り振ること。各単元から最低1問を出すこと。\n" % [count, forced_units.size()]
-			prompt += "→ 同じ単元から複数問出す場合も、問う知識・問題形式・場面設定を完全に変えること。\n"
-			prompt += "→ 上記以外の単元からは出題しないこと。\n"
+			batch += "→ %d問を上記%d単元へできるだけ均等に割り振ること。各単元から最低1問を出すこと。\n" % [count, forced_units.size()]
+			batch += "→ 同じ単元から複数問出す場合も、問う知識・問題形式・場面設定を完全に変えること。\n"
+			batch += "→ 上記以外の単元からは出題しないこと。\n"
 	elif curriculum.has("selected_unit_names") and curriculum["selected_unit_names"].size() > 0:
-		prompt += "＜★出題範囲（以下の単元から出題せよ）＞\n"
+		batch += "＜★出題範囲（以下の単元から出題せよ）＞\n"
 		for uname in curriculum["selected_unit_names"]:
-			prompt += "  - %s\n" % str(uname)
-	
+			batch += "  - %s\n" % str(uname)
+	# 算数の「普通」の出題指針のうち単元名の 1 行（難易度の節は shared なので、ここへ移す）
+	if subject == "算数" and difficulty == "普通":
+		batch += "→ 上記の単元から満遍なく出題すること: %s\n" % curriculum["topics"]
+
 	# ── 案6: ありがちな間違い ──
 	if curriculum["typical_mistakes"].size() > 0:
-		prompt += "＜生徒がよくやる間違い（誤答のヒント）＞\n"
+		batch += "＜生徒がよくやる間違い（誤答のヒント）＞\n"
 		for m: String in curriculum["typical_mistakes"]:
-			prompt += "  - %s\n" % m
-		prompt += "→ 上記の間違いを誤答選択肢に反映してください\n"
-	
-	prompt += "＜良い問題の例＞\n"
+			batch += "  - %s\n" % m
+		batch += "→ 上記の間違いを誤答選択肢に反映してください\n"
+
+	batch += "＜良い問題の例＞\n"
 	for ex: String in curriculum["examples"]:
-		prompt += "  - %s\n" % ex
-	
+		batch += "  - %s\n" % ex
+
 	# ── 案1: JSON形式の良問例（Few-Shot） ──
 	if curriculum["good_json_examples"].size() > 0:
-		prompt += "\n＜出力参考例（JSON）＞\n"
+		batch += "\n＜出力参考例（JSON）＞\n"
 		for json_ex: String in curriculum["good_json_examples"]:
-			prompt += "%s\n" % json_ex
-	prompt += "\n"
+			batch += "%s\n" % json_ex
+	batch += "\n"
 
 	# ── 絶対禁止事項（全難易度共通） ──
 	prompt += "【絶対禁止事項 ― 違反すると不合格】\n"
@@ -270,7 +298,7 @@ func compose_prompt(subject: String, grade: int, difficulty: String, count: int,
 	if difficulty == "簡単":
 		prompt += _compose_easy_instructions(grade, subject, curriculum)
 	elif difficulty == "普通":
-		prompt += _compose_normal_instructions(grade, subject, curriculum)
+		prompt += _compose_normal_instructions(grade, subject, curriculum, false)
 	elif difficulty == "難しい":
 		prompt += _compose_hard_instructions(grade, subject, curriculum)
 
@@ -336,7 +364,7 @@ func compose_prompt(subject: String, grade: int, difficulty: String, count: int,
 				prompt += "- 問題文(q)の最も重要なキーワードや条件は、必ず「」で囲んで強調すること。\n"
 		prompt += "- ※出力フォーマットは通常のJSON（q, c, a, e）のままです。\n\n"
 
-	return prompt
+	return {"shared": prompt, "batch": batch}
 
 ## 問題文と選択肢に使ってよい漢字（学年別漢字配当表）。守っていない問題は _filter_unique_candidates で捨てる。
 ## 漢字を制限するのは KanjiGrade.CHECKED_UP_TO_GRADE 年生まで。
@@ -767,7 +795,10 @@ func _compose_easy_instructions(grade: int, subject: String, curriculum: Diction
 	p += "\n"
 	return p
 
-func _compose_normal_instructions(grade: int, subject: String, curriculum: Dictionary) -> String:
+## include_unit_line: 算数の「以下の単元から満遍なく」の 1 行を入れるか。compose_prompt_parts は単元名が
+## バッチごとに変わるので false にし、その行を batch 側に入れる。
+func _compose_normal_instructions(grade: int, subject: String, curriculum: Dictionary,
+		include_unit_line: bool = true) -> String:
 	var p := ""
 	p += "【難易度：普通 ― %d年生の標準問題（最重要ルール）】\n" % grade
 	p += "目的：小学%d年生が授業で扱う教科書の標準問題〜章末問題レベルを出す。\n\n" % grade
@@ -790,7 +821,8 @@ func _compose_normal_instructions(grade: int, subject: String, curriculum: Dicti
 	p += "\n＜%sの具体的な出題指針＞\n" % subject
 	match subject:
 		"算数":
-			p += "- 以下の単元から満遍なく出題すること: %s\n" % curriculum["topics"]
+			if include_unit_line:
+				p += "- 以下の単元から満遍なく出題すること: %s\n" % curriculum["topics"]
 			p += "- 計算用紙なしで暗算で解ける範囲の数値を使うこと（3桁以上の計算は禁止）\n"
 			p += "- 面積、角度、グラフの読み取り等%d年生で実際に学ぶ内容\n" % grade
 			p += "- 数値は暗算しやすい小さめの値にすること\n"
@@ -915,6 +947,24 @@ func notify_rate_limit() -> void:
 func reset_rate_limit() -> void:
 	_rate_limit_strikes = 0
 	_rate_limit_until_ms = 0
+
+
+## プロキシに届かなかった（つながらない・名前が引けない・時間切れ）回数。返事が 1 回でも届けば 0 に戻る。
+## ネットにつながっていない PC で、AI の問題を 12 秒待たずに問題バンクへ切り替えるのに使う。
+var transport_failures: int = 0
+const UNREACHABLE_AFTER_FAILURES := 2
+
+
+func note_transport_result(result: int) -> void:
+	if result == HTTPRequest.RESULT_SUCCESS:
+		transport_failures = 0
+	else:
+		transport_failures += 1
+
+
+## プロキシに続けて届かなかったか（このラウンドで数える。BufferedQuizProvider.begin_round で 0 に戻す）。
+func proxy_unreachable() -> bool:
+	return transport_failures >= UNREACHABLE_AFTER_FAILURES
 
 
 func _filter_unique_candidates(items: Array[QuizItem], dedup_blocklist: Array,
@@ -1124,7 +1174,12 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 		var completed_ref := [0]
 		
 		var timer := get_tree().create_timer(30.0)
+		# 回が終わって cancel_all したあと（_fanout_epoch が進んだあと）の時間切れは、次の回の生成中の数を
+		# 減らしてしまい、追加の生成を二重に送らせるので何もしない。
+		var timer_epoch := _fanout_epoch
 		timer.timeout.connect(func():
+			if timer_epoch != _fanout_epoch:
+				return
 			if completed_ref[0] < expected_ref[0]:
 				completed_ref[0] = 999
 				fetch_completed.emit([] as Array[QuizItem])
@@ -1138,11 +1193,12 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 			"図や具体物を頭の中で操作し、結果を予想する問題や、条件から逆算する問題を中心にする。",
 		]
 		
+		var launchers: Array[Callable] = []
 		for i in range(TEN_PARALLEL):
 			var batch_idx := i
 			var forced_units: PackedStringArray = batch_units[batch_idx]
 			var on_complete: Callable = _make_on_complete.call(expected_ref, completed_ref, forced_units)
-			var prompt := compose_prompt(
+			var parts := compose_prompt_parts(
 				subject, grade, difficulty, per_batch, prompt_blocklist,
 				QuizManager.game_state.is_coop_mode(), forced_units, true,
 				variation_focuses[batch_idx % variation_focuses.size()]
@@ -1150,21 +1206,21 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 			var partial_filter := func(items: Array[QuizItem]) -> Array[QuizItem]:
 				return _filter_batch.call(items, forced_units)
 			var proxy_msg := " (via AI Gateway)"
-			var launch := func():
+			launchers.append(func(on_started: Callable) -> void:
 				if is_rate_limited():
 					print("[OnlineFetch] Batch %d skipped — rate limit active" % (batch_idx + 1))
+					if on_started.is_valid():
+						on_started.call()
 					on_complete.call([] as Array[QuizItem])
 					return
 				if is_streaming_available():
 					print("[OnlineFetch] 10-question mode - batch %d/%d: STREAMING %d questions%s" % [batch_idx + 1, TEN_PARALLEL, per_batch, proxy_msg])
-					_fetch_claude_streaming(prompt, on_complete, partial_filter)
+					_fetch_claude_streaming(parts, on_complete, partial_filter, Callable(), on_started)
 				else:
 					print("[OnlineFetch] 10-question mode - batch %d/%d: requesting %d questions%s" % [batch_idx + 1, TEN_PARALLEL, per_batch, proxy_msg])
-					_fetch_claude_target(prompt, on_complete)
-			if batch_idx == 0:
-				launch.call()
-			else:
-				get_tree().create_timer(float(batch_idx) * TEN_BATCH_STAGGER_SEC).timeout.connect(launch)
+					_fetch_claude_target(parts, on_complete, on_started)
+			)
+		_launch_fanout(launchers)
 	else:
 		# ═══ エンドレスモード: 必要なだけ細かくリクエスト ═══
 		# 過剰な並列リクエストによるコストを防ぐため、最小限の並列数（バッチ）でリクエストする
@@ -1175,7 +1231,12 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 		var completed_ref := [0]
 		
 		var timer := get_tree().create_timer(30.0)
+		# 回が終わって cancel_all したあと（_fanout_epoch が進んだあと）の時間切れは、次の回の生成中の数を
+		# 減らしてしまい、追加の生成を二重に送らせるので何もしない。
+		var timer_epoch := _fanout_epoch
 		timer.timeout.connect(func():
+			if timer_epoch != _fanout_epoch:
+				return
 			if completed_ref[0] < expected_ref[0]:
 				completed_ref[0] = 999
 				fetch_completed.emit([] as Array[QuizItem])
@@ -1189,23 +1250,28 @@ func fetch_quiz_parallel(subject: String, grade: int, difficulty: String, count:
 			"既出の図形・単位問題を避け、比較、分類、規則性、成立条件を考える形式にする。",
 		]
 		
+		var launchers: Array[Callable] = []
 		for i in range(parallel_count):
+			var batch_idx := i
 			var forced_units: PackedStringArray = batch_units[i] if i < batch_units.size() else PackedStringArray()
 			var on_complete: Callable = _make_on_complete.call(expected_ref, completed_ref, forced_units)
 			var partial_filter := func(items: Array[QuizItem]) -> Array[QuizItem]:
 				return _filter_batch.call(items, forced_units)
-			var prompt := compose_prompt(
+			var parts := compose_prompt_parts(
 				subject, grade, difficulty, per_call, prompt_blocklist,
 				QuizManager.game_state.is_coop_mode(), forced_units, true,
 				themes[i % themes.size()]
 			)
 			var proxy_msg := " (via AI Gateway)"
-			if is_streaming_available():
-				print("[OnlineFetch] Endless mode - batch %d/%d: STREAMING %d questions%s" % [i+1, parallel_count, per_call, proxy_msg])
-				_fetch_claude_streaming(prompt, on_complete, partial_filter)
-			else:
-				print("[OnlineFetch] Endless mode - batch %d/%d: requesting %d questions%s" % [i+1, parallel_count, per_call, proxy_msg])
-				_fetch_claude_target(prompt, on_complete)
+			launchers.append(func(on_started: Callable) -> void:
+				if is_streaming_available():
+					print("[OnlineFetch] Endless mode - batch %d/%d: STREAMING %d questions%s" % [batch_idx + 1, parallel_count, per_call, proxy_msg])
+					_fetch_claude_streaming(parts, on_complete, partial_filter, Callable(), on_started)
+				else:
+					print("[OnlineFetch] Endless mode - batch %d/%d: requesting %d questions%s" % [batch_idx + 1, parallel_count, per_call, proxy_msg])
+					_fetch_claude_target(parts, on_complete, on_started)
+			)
+		_launch_fanout(launchers)
 
 ## 2Pサドンデス（docs/sudden_death_underground.md 第4章）用の専用生成。プロバイダーの
 ## バッファ（fetch_partial / fetch_completed）を通さず、本編と同じ新規性ゲートを通った候補を
@@ -1247,7 +1313,9 @@ func fetch_quiz_set(subject: String, grade: int, difficulty: String, count: int,
 			print("[OnlineFetch] Sudden death set timed out after %.0fs" % timeout_sec)
 			finish.call()
 	)
+	var launchers: Array[Callable] = []
 	for index in range(batches):
+		var batch_idx := index
 		var units: PackedStringArray = batch_units[index] if index < batch_units.size() else PackedStringArray()
 		var on_complete := func(items: Array) -> void:
 			# Streaming already delivered its items through the sink; the plain request lands here.
@@ -1262,12 +1330,36 @@ func fetch_quiz_set(subject: String, grade: int, difficulty: String, count: int,
 		var sink := func(items: Array[QuizItem]) -> void:
 			if not bool(state["done"]):
 				on_items.call(items)
-		var prompt := compose_prompt(subject, grade, difficulty, per_call, prompt_blocklist, false, units, true, variation_focus)
-		print("[OnlineFetch] Sudden death set - batch %d/%d: %d questions" % [index + 1, batches, per_call])
-		if is_streaming_available():
-			_fetch_claude_streaming(prompt, on_complete, partial_filter, sink)
-		else:
-			_fetch_claude_target(prompt, on_complete)
+		var parts := compose_prompt_parts(subject, grade, difficulty, per_call, prompt_blocklist, false, units, true, variation_focus)
+		launchers.append(func(on_started: Callable) -> void:
+			print("[OnlineFetch] Sudden death set - batch %d/%d: %d questions" % [batch_idx + 1, batches, per_call])
+			if is_streaming_available():
+				_fetch_claude_streaming(parts, on_complete, partial_filter, sink, on_started)
+			else:
+				_fetch_claude_target(parts, on_complete, on_started)
+		)
+	_launch_fanout(launchers)
+
+
+## 並列の生成を始める。1 本目だけ先に送り、その返事が流れ始めたら（失敗で終わったときも）残りを送る。
+## 返事を待つのは最長 FANOUT_WAIT_MAX_SEC。launchers は Callable(on_started: Callable) の配列で、
+## 1 本目には残りを送る Callable を、2 本目からは空の Callable を渡す。
+func _launch_fanout(launchers: Array[Callable]) -> void:
+	if launchers.is_empty():
+		return
+	var epoch := _fanout_epoch
+	var state := {"rest_sent": launchers.size() <= 1}
+	var send_rest := func() -> void:
+		if bool(state["rest_sent"]):
+			return
+		state["rest_sent"] = true
+		if epoch != _fanout_epoch:
+			return  # 待っているあいだにラウンドが終わった
+		for i in range(1, launchers.size()):
+			launchers[i].call(Callable())
+	launchers[0].call(send_rest)
+	if not bool(state["rest_sent"]):
+		get_tree().create_timer(FANOUT_WAIT_MAX_SEC).timeout.connect(send_rest)
 
 
 ## CurriculumDB から全単元を取得し、batch_count 個のバッチに重複なく振り分ける。
@@ -1345,7 +1437,27 @@ func _collect_dedup_blocklist(subject: String, grade: int, difficulty: String, h
 	return blocklist
 
 
+## 単元の使用履歴は一度だけ読み込んで覚えておき、補充のたびにファイルを読み書きしない。
+## 書き換えたものはラウンドの終わり（flush_unit_usage）と終了時に保存する。
+static var _unit_usage_cache: Array = []
+static var _unit_usage_loaded: bool = false
+static var _unit_usage_dirty: bool = false
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_EXIT_TREE \
+			or what == NOTIFICATION_APPLICATION_PAUSED:
+		flush_unit_usage()
+
+
 func _load_unit_usage() -> Array:
+	if not _unit_usage_loaded:
+		_unit_usage_cache = _read_unit_usage_file()
+		_unit_usage_loaded = true
+	return _unit_usage_cache
+
+
+func _read_unit_usage_file() -> Array:
 	if not FileAccess.file_exists(UNIT_USAGE_PATH):
 		return []
 	var f := FileAccess.open(UNIT_USAGE_PATH, FileAccess.READ)
@@ -1361,6 +1473,14 @@ func _save_unit_usage(entries: Array) -> void:
 	if f:
 		f.store_string(JSON.stringify(entries))
 		f.close()
+
+
+## 覚えている単元の使用履歴を保存する（BufferedQuizProvider.end_round から呼ぶ）。
+func flush_unit_usage() -> void:
+	if not _unit_usage_dirty:
+		return
+	_unit_usage_dirty = false
+	_save_unit_usage(_unit_usage_cache)
 
 
 func record_adopted_units(subject: String, grade: int, unit_names: Array[String]) -> void:
@@ -1395,7 +1515,7 @@ func record_adopted_units(subject: String, grade: int, unit_names: Array[String]
 	)
 	while entries.size() > 200:
 		entries.pop_front()
-	_save_unit_usage(entries)
+	_unit_usage_dirty = true
 
 
 func _sort_units_lru(subject: String, grade: int, units: Array[String]) -> Array[String]:
@@ -1411,22 +1531,39 @@ func _sort_units_lru(subject: String, grade: int, units: Array[String]) -> Array
 	)
 	return units
 
-func _fetch_claude_target(prompt: String, callback: Callable) -> void:
+## 問題づくりの本文。parts は compose_prompt_parts の返り値。
+## 共通部分（shared）は system に入れてプロキシでキャッシュさせ、バッチの部分と出力形式を prompt にする。
+## system が長すぎるとき（プロキシは 8000 字まで）は、全文を prompt に入れる（キャッシュは効かない）。
+func _generation_body(parts: Dictionary) -> String:
+	var shared := str(parts.get("shared", ""))
+	var batch := str(parts.get("batch", ""))
+	var system := compose_system_instruction()
+	if not shared.is_empty() and system.length() + 1 + shared.length() <= GENERATION_SYSTEM_MAX_CHARS:
+		return ClaudeRequest.body(ClaudeRequest.TASK_GENERATE, batch + GENERATION_OUTPUT_FORMAT,
+			system + "\n" + shared)
+	return ClaudeRequest.body(ClaudeRequest.TASK_GENERATE, shared + batch + GENERATION_OUTPUT_FORMAT, system)
+
+
+## on_started: 返事が届いたら 1 回呼ぶ（_launch_fanout の残りを送る合図）。ストリーミングでないので
+## 返事の全体が届いてからになる。
+func _fetch_claude_target(parts: Dictionary, callback: Callable, on_started: Callable = Callable()) -> void:
 	var url := ApiStatusAutoload.claude_endpoint()
 	if url.is_empty():
 		push_error("[OnlineFetch] PROXY_URL is not configured")
-		callback.call([])
+		if on_started.is_valid():
+			on_started.call()
+		callback.call([] as Array[QuizItem])
 		return
-	
+
 	var http := HTTPRequest.new()
 	add_child(http)
 	http.timeout = 30.0
-	
-	var body := ClaudeRequest.body(ClaudeRequest.TASK_GENERATE, prompt + GENERATION_OUTPUT_FORMAT,
-		compose_system_instruction())
-	
+
+	var body := _generation_body(parts)
+
 	http.request_completed.connect(func(result: int, response_code: int, _h, b: PackedByteArray):
 		var out: Array[QuizItem] = []
+		note_transport_result(result)
 		if response_code == 429:
 			notify_rate_limit()
 		elif response_code == 503:
@@ -1439,12 +1576,18 @@ func _fetch_claude_target(prompt: String, callback: Callable) -> void:
 				var p = normalize_single(r, "CLAUDE")
 				if p: out.append(p)
 		http.queue_free()
+		# 429 などの判定を済ませてから残りを送らせる（残りは送る前に is_rate_limited を見る）
+		if on_started.is_valid():
+			on_started.call()
 		callback.call(out)
 	)
 	var request_error := http.request(url, ApiStatusAutoload.get_proxy_headers(), HTTPClient.METHOD_POST, body)
 	if request_error != OK:
+		note_transport_result(HTTPRequest.RESULT_CANT_CONNECT)
 		http.queue_free()
-		callback.call([])
+		if on_started.is_valid():
+			on_started.call()
+		callback.call([] as Array[QuizItem])
 
 ## 解説バッチ生成（バックグラウンド並列タスク）
 ## クイズ本体の生成後に呼び出し、複数問の解説を1つのAPIコールで一括生成する。
@@ -1653,19 +1796,23 @@ func extract_complete_objects_from_stream(text: String, start_idx: int) -> Dicti
 ##
 ## callback: func(items: Array[QuizItem]) — 既存の on_complete と同じシグネチャ
 ## partial_sink: 渡すと途中の採用候補を fetch_partial ではなくこちらへ送る（サドンデスの専用生成）。
-func _fetch_claude_streaming(prompt: String, callback: Callable,
-		partial_filter: Callable = Callable(), partial_sink: Callable = Callable()) -> void:
+## parts: compose_prompt_parts の返り値。
+## on_started: 返事が流れ始めたら（失敗で終わったときも）1 回呼ぶ（_launch_fanout の残りを送る合図）。
+func _fetch_claude_streaming(parts: Dictionary, callback: Callable,
+		partial_filter: Callable = Callable(), partial_sink: Callable = Callable(),
+		on_started: Callable = Callable()) -> void:
 	var url := ApiStatusAutoload.claude_endpoint(true)
 	if url.is_empty():
 		push_error("[OnlineFetch] PROXY_URL is not configured for streaming")
+		if on_started.is_valid():
+			on_started.call()
 		callback.call([] as Array[QuizItem])
 		return
 	var headers := ApiStatusAutoload.get_proxy_headers()
-	
+
 	# ── リクエストボディ（非ストリーミング版と同一）──
 	# 出力はプロンプトで JSON 配列に指定し、閉じた {...} を受信しながら 1 問ずつ取り出す
-	var body := ClaudeRequest.body(ClaudeRequest.TASK_GENERATE, prompt + GENERATION_OUTPUT_FORMAT,
-		compose_system_instruction())
+	var body := _generation_body(parts)
 	
 	# ── ClaudeStreamClient をインスタンス化 ──
 	var stream_client := ClaudeStreamClient.new()
@@ -1726,9 +1873,9 @@ func _fetch_claude_streaming(prompt: String, callback: Callable,
 			# それ以外のストリーミング完全失敗 → 非ストリーミングにフォールバック
 			_stream_available = false
 			print("[OnlineFetch] Streaming failed, disabling streaming for this session. Falling back...")
-			_fetch_claude_target(prompt, callback)
+			_fetch_claude_target(parts, callback)
 			return
-		
+
 		# 最終パース: ストリーム中に拾い切れなかったオブジェクトがあるかチェック
 		if not accumulated.is_empty():
 			var final_result := extract_complete_objects_from_stream(accumulated, parse_state["next_idx"])
@@ -1750,7 +1897,21 @@ func _fetch_claude_streaming(prompt: String, callback: Callable,
 		# callback を呼んで fetch_completed のカウンタを進める（空配列を渡す — 問題はfetch_partialで既に送信済み）
 		callback.call([] as Array[QuizItem])
 	)
-	
+
+	# ── 返事が流れ始めた合図（_launch_fanout の残りを送る）──
+	# 失敗で終わったときも、上の stream_finished の処理（429 などの判定）のあとに 1 回だけ呼ぶ
+	if on_started.is_valid():
+		var started := {"fired": false}
+		var fire_started := func() -> void:
+			if bool(started["fired"]):
+				return
+			started["fired"] = true
+			on_started.call()
+		stream_client.response_started.connect(fire_started)
+		stream_client.stream_finished.connect(func(_success: bool, _text: String) -> void:
+			fire_started.call()
+		)
+
 	# ── ストリーミング開始 ──
 	print("[OnlineFetch] 🚀 Starting SSE streaming to %s" % url.left(80))
 	stream_client.start_stream(url, headers, body)
@@ -1761,6 +1922,12 @@ func _fetch_claude_streaming(prompt: String, callback: Callable,
 ## _stream_available フラグで管理する（初回失敗時にfalseに設定）
 var _stream_available: bool = true
 
+
+## 回の始めにストリーミングを試し直す（BufferedQuizProvider.begin_round）。一時的な通信の失敗で 1 回止めたまま
+## その起動の間ずっと使わないと、1 問目が返事の全部がそろうまで届かず、補充の待ちが長くなる。
+func reset_stream_availability() -> void:
+	_stream_available = true
+
 func is_streaming_available() -> bool:
 	if not _stream_available:
 		return false
@@ -1770,6 +1937,7 @@ func is_streaming_available() -> bool:
 ## 結果画面で必要な解説リクエストは preserve_on_round_end メタデータで継続させる。
 func cancel_all() -> void:
 	print("[OnlineFetch] Cancelling all active requests...")
+	_fanout_epoch += 1  # 1 本目の返事を待っている並列の生成は、残りを送らない
 	for child in get_children():
 		if child is HTTPRequest:
 			if bool(child.get_meta("preserve_on_round_end", false)):

@@ -63,9 +63,9 @@ const MIN_CHARGE_SPEED: float = 31.0
 const MAX_CHARGE_SPEED: float = 49.0
 const MIN_CHARGE_DISTANCE: float = 46.0
 const MAX_CHARGE_DISTANCE: float = 66.0
-const MISS_COOLDOWN_SECONDS: float = 4.2
-const HIT_COOLDOWN_SECONDS: float = 3.45
-const MIN_COOLDOWN_SECONDS: float = 2.15
+const MISS_COOLDOWN_SECONDS: float = 4.0
+const HIT_COOLDOWN_SECONDS: float = 3.0
+const MIN_COOLDOWN_SECONDS: float = 2.0
 const PERFECT_COOLDOWN_BONUS: float = 0.45
 const COMBO_COOLDOWN_STEP: float = 0.22
 ## サメが戻ってくる（再突進まで貯まっていく）間のチャージバーの点滅。満タンに近づくほど速くなる。
@@ -76,8 +76,12 @@ const MIN_HIT_HORIZONTAL_SPEED: float = 10.5
 const MAX_HIT_HORIZONTAL_SPEED: float = 18.5
 const MIN_HIT_VERTICAL_SPEED: float = 4.5
 const MAX_HIT_VERTICAL_SPEED: float = 7.2
-const MIN_HIT_CONTROL_LOCK: float = 0.25
-const MAX_HIT_CONTROL_LOCK: float = 0.48
+## 命中の当たり方（鼻先の接触・横ずれ・飛ばし方）。docs/ghost_hit_ragdoll_plan.md 段階 1・2
+const HitContact := preload("res://scripts/world/ghost_hit_contact.gd")
+## 命中のヒットストップ（docs/ghost_hit_ragdoll_plan.md 段階 2）：サメと体の見た目をこの間止める。吹き飛ばしもこの分遅らせて入れる
+## （ゲームの時計は止めない）。60 fps の 4 フレーム。操作はこの間も止め（HIT_STOP_CONTROL_MARGIN だけ長めに）、吹き飛ばしの操作ロックへ引き継ぐ。
+const HIT_STOP_SECONDS: float = 0.066
+const HIT_STOP_CONTROL_MARGIN: float = 0.05
 const AIM_VISUAL_DARKEN_FACTOR: float = 0.82
 const AIM_SIDE_LIMIT: float = 8.0
 const AIM_BACK_LIMIT: float = 8.0
@@ -107,10 +111,12 @@ const SOUL_PRESENTATION_RENDER_LAYER: int = 20
 const GHOST_MOUNT_BEAM_RENDER_LAYER: int = 19
 const GHOST_MOUNT_BEAM_LAUNCH_CAMERA_SHAKE: float = 1.15
 const GHOST_MOUNT_BEAM_SUSTAINED_CAMERA_SHAKE: float = 0.82
-const RETURN_PORTAL_SEQUENCE_SECONDS: float = 6.0
-const RETURN_PORTAL_SHARK_REVEAL_SECONDS: float = 1.15
-const RETURN_PORTAL_TAIL_CLEAR_HOLD_SECONDS: float = 0.70
-const RETURN_PORTAL_ANIMATION_SPEED: float = 0.72
+## 戻りのポータル（開く → サメが出る → 閉じる）の長さ。クールタイムはこれより短くならない。
+## 2026-11-04：6.0 秒だと再突進まで待たされすぎたので、ポータルの開閉とサメの出る速さごと縮めて 3.4 秒に。
+const RETURN_PORTAL_SEQUENCE_SECONDS: float = 3.4
+const RETURN_PORTAL_SHARK_REVEAL_SECONDS: float = 0.55
+const RETURN_PORTAL_TAIL_CLEAR_HOLD_SECONDS: float = 0.30
+const RETURN_PORTAL_ANIMATION_SPEED: float = 1.3
 const RETURN_PORTAL_CLOSED_THRESHOLD: float = 0.02
 const RETURN_PORTAL_TAIL_DISTANCE: float = 2.25
 const RETURN_PORTAL_GRANDSTAND_OFFSET: float = 2.15
@@ -204,6 +210,15 @@ var _rider_revealed_to_main: bool = false
 var _hover_side: float = 1.0
 var _sweep_previous_position: Vector3 = Vector3.ZERO
 var _hit_this_charge: bool = false
+## 突進の速さと、サメの中心から鼻先までの距離（命中の時刻を鼻先に合わせるための先読みの長さ、m）。
+var _charge_speed: float = 0.0
+var _charge_lookahead: float = 0.0
+## このフレームで届いたときの当たり方（HitContact.find_contact の戻り値）。
+var _pending_contact: Dictionary = {}
+## 最後の命中の当たり方（部位・点・横ずれ・飛ぶ速さ。体のラグドールへ渡したもの）。
+var _last_hit_info: Dictionary = {}
+## ヒットストップの間待たせている吹き飛ばし [{t, target, dir, power, perfect, s}]。
+var _pending_hit_impulses: Array[Dictionary] = []
 var _charge_finished_pending: bool = false
 var _cooldown_entry_started: bool = false
 var _charging_input: bool = false
@@ -379,7 +394,8 @@ func update_ghost_ride(
 ) -> void:
 	if game_state == null:
 		return
-	if _lasso_hold:
+	_update_pending_hit_impulses(delta)
+	if _lasso_hold and not _release_lasso_hold_if_play_resumes():
 		_update_lasso_hold(delta)
 		return
 	var fire_down := jump_p1 if dead_player_index == 1 else jump_p2
@@ -395,6 +411,10 @@ func update_ghost_ride(
 			_detect_new_death(is_online, is_replay)
 	else:
 		if not _can_continue(is_online, is_replay):
+			if _should_hold_while_survivor_sinks(is_online, is_replay) and hold_for_elimination_lasso():
+				# 生き残りが海に落ちてサメに食べられるのを待つ（両者脱落が決まった）：乗り手は乗ったまま投げ縄を待つ
+				_update_lasso_hold(delta)
+				return
 			_cleanup_ghost_ride()
 		else:
 			_update_active_phase(
@@ -428,6 +448,7 @@ func update_ghost_ride(
 func force_cleanup() -> void:
 	end_return_portal_render_prewarm()
 	_lasso_hold = false
+	_lasso_hold_pending = false
 	_cleanup_ghost_ride()
 	if game_state:
 		_previous_p1_alive = game_state.p1_alive
@@ -586,22 +607,31 @@ func retire_ride(dismount_parent: Node = null) -> Node3D:
 var _lasso_hold := false
 var _lasso_hold_target := Vector3.ZERO
 var _lasso_hold_aim := Vector3.ZERO
+## 待たせると決めたが、サメがまだ待つ所にいない（突進の途中・戻りのポータルの途中・海から上がってくる途中）。
+## 戻ってきて浮いたら待たせ終わり（get_lasso_hold が乗り手を返す）。戻れないまま LASSO_HOLD_MAX_WAIT を過ぎたら片付ける。
+var _lasso_hold_pending := false
+var _lasso_hold_wait := 0.0
+const LASSO_HOLD_MAX_WAIT: float = 6.0
+## 両者脱落の投げ縄を使う試合か（GameWorld が渡す。生き残りが海に落ちたとき、乗り手を片付けずに待たせるかを決める）
+var lasso_hold_check: Callable = Callable()
 
 
 ## もう一人も脱落して両者脱落の投げ縄が始まるとき（GameWorld）：照準・溜め・突進をやめ、乗り手をサメに乗せたまま、
 ## サメをその場に浮かせて待たせる。投げ縄の演出が乗り手に縄を掛け、引き上げるときに take_lasso_rider で引き取る。
-## サメに乗って照準を合わせているとき（AIMING・WINDUP）だけ待たせられる。待たせたら true（ほかは今まで通り片付ける）。
+## サメに乗っていれば（上がってくる途中・照準・溜め・突進・戻りのポータル）待たせられる。突進や戻りの途中なら、
+## 待つ所へ戻ってくるまで待ち（is_lasso_hold_ready が true になるまで）、それから縄を受ける。待たせたら true
+## （ほかは今まで通り片付ける）。
 func hold_for_elimination_lasso() -> bool:
 	if _lasso_hold:
 		return true
-	if phase not in [Phase.AIMING, Phase.WINDUP]:
+	if phase not in [Phase.ENTERING, Phase.AIMING, Phase.WINDUP, Phase.CHARGING, Phase.COOLDOWN]:
+		return false
+	if _result_departure_only:
 		return false
 	if _rider == null or not is_instance_valid(_rider) or _shark == null or not is_instance_valid(_shark):
 		return false
-	if not _shark.is_ghost_mounted() or not _shark.is_ghost_hovering():
-		return false
 	_lasso_hold = true
-	phase = Phase.AIMING
+	_lasso_hold_wait = 0.0
 	_charging_input = false
 	_charge_amount = 0.0
 	_stop_charge_audio()
@@ -609,10 +639,18 @@ func hold_for_elimination_lasso() -> bool:
 	_hide_aim_visuals()
 	if _hud_panel:
 		_hud_panel.visible = false
-	if _shark.has_method("set_ghost_charge_tension"):
+	if phase != Phase.CHARGING and _shark.has_method("set_ghost_charge_tension"):
 		_shark.set_ghost_charge_tension(0.0)
-	_lasso_hold_target = _shark.position
-	_lasso_hold_aim = _current_aim_point()
+	if not _rider_revealed_to_main:
+		# 上がってくる途中：乗り手を本画面にも出す（投げ縄の画で見えるように）
+		_rider_revealed_to_main = true
+		_set_rider_presentation_only(false)
+	if phase in [Phase.AIMING, Phase.WINDUP] and _shark.is_ghost_mounted() and _shark.is_ghost_hovering():
+		_settle_lasso_hold()
+		return true
+	_lasso_hold_pending = true
+	if phase == Phase.COOLDOWN:
+		_hurry_return_portal()
 	return true
 
 
@@ -620,23 +658,109 @@ func is_holding_for_lasso() -> bool:
 	return _lasso_hold
 
 
-## 待たせている乗り手（{"player": 乗り手のプレイヤー, "rider": 乗り手の見た目, "shark": サメ}。待たせていなければ空）。
+## 生き残りが海に落ちて（サメに食べられるのを待って）もう助からないとき、片付けずに投げ縄を待たせるか。
+## 投げ縄を使う試合か（lasso_hold_check。GameWorld が渡す）を見る。
+func _should_hold_while_survivor_sinks(is_online: bool, is_replay: bool) -> bool:
+	if not lasso_hold_check.is_valid() or not bool(lasso_hold_check.call()):
+		return false
+	if not _base_mode_is_eligible(is_online, is_replay) or _is_player_alive(dead_player_index):
+		return false
+	if game_state.game_state not in [Constants.STATE_PLAYING, Constants.STATE_CORRECT, Constants.STATE_GOAL_RACE]:
+		return false
+	return _is_player_alive(survivor_player_index) and game_state.is_player_waiting_for_shark(survivor_player_index)
+
+
+## 生き残りが海で食べられる前に待たせた乗り手：試合が続くことになったら（生き残りが戻った・乗り手が生き返った）待つのをやめる。
+## 乗り手が生き返ったら片付け、生き残りが戻ったなら照準へ戻す。やめたら true。
+func _release_lasso_hold_if_play_resumes() -> bool:
+	if game_state.game_state not in [Constants.STATE_PLAYING, Constants.STATE_CORRECT, Constants.STATE_GOAL_RACE]:
+		return false
+	if _is_player_alive(dead_player_index):
+		force_cleanup()
+		return true
+	if not _is_player_alive(survivor_player_index) or game_state.is_player_waiting_for_shark(survivor_player_index):
+		return false
+	_lasso_hold = false
+	_lasso_hold_pending = false
+	if phase == Phase.AIMING:
+		_show_aim_visuals()
+		_notify_practice_ready()
+	return true
+
+
+## 待たせている乗り手が、待つ所で浮いているか（突進や戻りの途中なら false。投げ縄はこれを待って始める）。
+func is_lasso_hold_ready() -> bool:
+	return _lasso_hold and not _lasso_hold_pending
+
+
+## 待たせている乗り手（{"player": 乗り手のプレイヤー, "rider": 乗り手の見た目, "shark": サメ}。待たせていない、
+## またはまだ待つ所へ戻ってきていなければ空）。
 func get_lasso_hold() -> Dictionary:
-	if not _lasso_hold or _rider == null or not is_instance_valid(_rider):
+	if not is_lasso_hold_ready() or _rider == null or not is_instance_valid(_rider):
 		return {}
 	return {"player": dead_player_index, "rider": _rider, "shark": _shark}
+
+
+## サメが待つ所で浮いた：ここで待たせる（照準の姿のまま。戻りのポータルが閉じきっていなければ閉じ終えるまで COOLDOWN）。
+func _settle_lasso_hold() -> void:
+	_lasso_hold_pending = false
+	if phase != Phase.COOLDOWN:
+		phase = Phase.AIMING
+	_lasso_hold_target = _shark.position
+	_lasso_hold_aim = _return_locked_aim_point if _return_animation_locked else _current_aim_point()
+
+
+## 突進のあとの戻り（COOLDOWN）を急ぐ：再突進までの待ちを飛ばして、戻りのポータルをすぐ開く。
+func _hurry_return_portal() -> void:
+	if _return_portal == null and not _cooldown_entry_started:
+		_phase_timer = minf(_phase_timer, RETURN_PORTAL_SEQUENCE_SECONDS)
+
+
+## 待たせると決めたが、まだ待つ所にいないあいだ：突進は走りきらせ（もう当てる相手はいない）、戻りのポータルから
+## 待つ所へ戻らせる。上がってくる途中なら、そのまま上がらせる。浮いたら待たせ終わり。
+func _update_lasso_hold_pending(delta: float) -> void:
+	_lasso_hold_wait += delta
+	match phase:
+		Phase.CHARGING:
+			if _charge_finished_pending:
+				_begin_cooldown()
+				_hurry_return_portal()
+		Phase.COOLDOWN:
+			_update_cooldown(delta)
+		Phase.ENTERING:
+			_advance_heroic_sequence(delta)
+			_update_hover_target()
+		_:
+			_update_hover_target()
+	if not _lasso_hold:
+		return
+	var back_in_place := (
+		phase != Phase.CHARGING
+		and (phase != Phase.COOLDOWN or _cooldown_entry_started)
+		and _shark.is_ghost_mounted()
+		and _shark.is_ghost_hovering()
+	)
+	if back_in_place:
+		_settle_lasso_hold()
+	elif _lasso_hold_wait > LASSO_HOLD_MAX_WAIT:
+		# 戻ってこられない：今まで通り片付ける（投げ縄は死んだ所から魂を出す）
+		force_cleanup()
 
 
 ## 投げ縄の演出が乗り手を引き取る（縄で引き上げた瞬間）：乗り手を new_parent の子へ移し（ワールドでの所・向き・大きさは
 ## そのまま）、サメは海へ潜って元の泳ぎに戻る。引き取った乗り手を返す（呼んだ側が持つ）。
 func take_lasso_rider(new_parent: Node) -> Node3D:
-	if not _lasso_hold or new_parent == null:
+	if not is_lasso_hold_ready() or new_parent == null:
 		return null
 	_lasso_hold = false
 	var released := _rider
 	if released == null or not is_instance_valid(released):
 		force_cleanup()
 		return null
+	if _rider_portal_safe:
+		# 戻りのポータルを通った直後なら、乗り手の材質を元に戻す
+		player_controller.set_ghost_rider_portal_safe(released, false)
+		_rider_portal_safe = false
 	_set_rider_presentation_only(false)
 	released.reparent(new_parent, true)
 	_rider = null
@@ -652,8 +776,16 @@ func _update_lasso_hold(delta: float) -> void:
 		_lasso_hold = false
 		_cleanup_ghost_ride()
 		return
-	# サメは今の所で浮いて待ち（小さく上下する）、乗り手は乗った姿のまま
-	_shark.set_ghost_hover_target(_lasso_hold_target, _lasso_hold_aim)
+	if _lasso_hold_pending:
+		_update_lasso_hold_pending(delta)
+		if not _lasso_hold:
+			return
+	elif phase == Phase.COOLDOWN:
+		# 戻りのポータルを閉じ終えるまで（サメは待つ所で浮いている）
+		_update_cooldown(delta)
+	else:
+		# サメは今の所で浮いて待ち（小さく上下する）、乗り手は乗った姿のまま
+		_shark.set_ghost_hover_target(_lasso_hold_target, _lasso_hold_aim)
 	_update_rider_ride_pose(delta)
 	if _presenter != null:
 		_presenter.update_effects(delta, false)
@@ -1025,6 +1157,8 @@ func apply_net_incoming(state: Dictionary, events: Array) -> void:
 					"power": clampf(float(event.get("p", QUICK_CHARGE_FLOOR)), QUICK_CHARGE_FLOOR, 1.0),
 					"perfect": bool(event.get("pf", false)),
 					"dir": direction,
+					"s": clampf(float(event.get("s", 0.0)), -1.0, 1.0),
+					"part": str(event.get("pt", "")),
 					"combo": clampi(int(event.get("cb", 1)), 1, 99),
 					"at": Time.get_ticks_msec(),
 				}
@@ -1110,19 +1244,23 @@ func _net_present_confirmed_hit() -> void:
 	_last_charge_power = float(hit.power)
 	_perfect_charge = bool(hit.perfect)
 	_set_hit_result_text()
-	_net_apply_remote_impulse(id, hit)
+	_net_apply_remote_impulse(id, hit, HIT_STOP_SECONDS)
 	_play_charge_hit_effects()
+	# 当たり方（部位・点）はこの画面の今の体とサメで求め、飛ぶ向きは乗り手の画面の横ずれ s で決める（ホストの吹き飛ばしと同じ式）。
+	# 届いた後に命中が届いたときは、届いたフレームの当たり方が古いので、見せるフレームで求め直す。
+	var contact := _find_survivor_contact()
+	_present_charge_impact(contact, float(hit.get("s", 0.0)), hit.dir)
 	net_stats.hits_presented += 1
 
 
-## ホスト：ゲストが当てた突進の吹き飛ばしを入れる（突進ごとに 1 回）。
-func _net_apply_remote_impulse(id: int, hit: Dictionary) -> void:
+## ホスト：ゲストが当てた突進の吹き飛ばしを入れる（突進ごとに 1 回）。この画面で命中を見せるときは delay（ヒットストップ）だけ遅らせる。
+func _net_apply_remote_impulse(id: int, hit: Dictionary, delay: float = 0.0) -> void:
 	if not _net_is_host or _net_applied_hit_ids.has(id):
 		return
 	if phase == Phase.INACTIVE or dead_player_index != 3 - _net_local_slot:
 		return
 	_net_applied_hit_ids[id] = true
-	_apply_hit_impulse(_net_local_slot, hit.dir, float(hit.power), bool(hit.perfect))
+	_queue_hit_impulse(_net_local_slot, hit.dir, float(hit.power), bool(hit.perfect), float(hit.get("s", 0.0)), delay)
 
 
 ## ホスト：届いた命中を、この画面の突進が見せられないまま待たせすぎない。
@@ -1367,6 +1505,7 @@ func _update_active_phase(
 			)
 			var beam_firing := _shark.is_ghost_reveal_beam_firing()
 			_shark.set_ghost_possession_pulse(1.0 if beam_firing else 0.0)
+			_aim_reveal_beam_from_fist()
 			if game_state != null and beam_firing:
 				game_state.camera_shake = maxf(
 					game_state.camera_shake,
@@ -1788,6 +1927,9 @@ func _begin_mounting() -> void:
 	phase = Phase.MOUNTING
 	_phase_timer = MOUNTING_SECONDS
 	_presentation_focus = _rider.global_position
+	# サメに乗ったら、メインの画面にも乗り手を出す（柱・上昇はメインの画面にも映るので、鞍だけのサメにしない）。
+	# 小窓を閉じる合図（_rider_revealed_to_main）は今までどおり発進の途中で立てる。
+	_set_rider_presentation_only(false)
 	_play_mount_impact()
 
 
@@ -1849,6 +1991,17 @@ func _begin_post_mount_beam_reveal() -> void:
 	phase = Phase.BEAM_REVEAL
 	_phase_timer = POST_MOUNT_BEAM_REVEAL_SECONDS
 	_presentation_focus = _rider.global_position
+	_aim_reveal_beam_from_fist()
+
+
+## 搭乗の極太ビームを、乗り手の突き上げた右の拳から撃つ（海からの柱ではなく）。メインの画面も小窓も同じ 1 本。
+func _aim_reveal_beam_from_fist() -> void:
+	if _shark == null or not is_instance_valid(_shark) or _presenter == null:
+		return
+	var fist := _presenter.fist_beam_origin()
+	if fist.is_empty():
+		return
+	_shark.set_ghost_reveal_beam_origin(fist.origin, fist.direction)
 
 
 func _begin_authored_entry() -> void:
@@ -2187,6 +2340,10 @@ func _start_charge() -> void:
 	_hit_this_charge = false
 	_charge_finished_pending = false
 	_net_mirror_swept = false
+	_charge_speed = charge_speed
+	_charge_lookahead = maxf(0.0, (_shark.get_ocean_attack_head_position() - _shark.global_position).dot(_locked_direction))
+	_pending_contact = {}
+	_last_hit_info = {}
 	if _perfect_charge:
 		AudioManager.play_sfx(&"ghost_dash", 1.5, 1.08)
 	else:
@@ -2198,21 +2355,64 @@ func _start_charge() -> void:
 		game_state.notify_practice_ghost(&"dash", dead_player_index)
 
 
+## 命中の判定はサメが動いた直後（_on_shark_charge_stepped）に行う。ここはサメが消えていないかだけ見る。
 func _update_charge_sweep() -> void:
 	if _shark == null or not is_instance_valid(_shark):
 		_cleanup_ghost_ride()
 		return
-	var current_position := _shark.global_position
+
+
+## サメがこのフレームの移動を終えたところ（SharkSwimmer.ghost_charge_stepped）。判定を動いた後の位置で行い、
+## GameWorld._process の後でサメが動くことによる 1 フレームの遅れをなくす（docs/ghost_hit_ragdoll_plan.md 段階 1）。
+func _on_shark_charge_stepped(from_position: Vector3, to_position: Vector3) -> void:
+	if phase != Phase.CHARGING or _shark == null or not is_instance_valid(_shark):
+		return
+	_sweep_previous_position = to_position
+	if _shark.is_ghost_charge_impact_active():
+		return
 	if _is_net_mirror():
 		# 当たったかどうかは乗り手の画面が決める。ここでは、決まった命中を
-		# このサメが相手を通り過ぎた瞬間に見せる（見た目の当たりと合わせる）。
-		if not _net_mirror_swept and _segment_hits_survivor(_sweep_previous_position, current_position):
+		# このサメが相手に届いた瞬間（乗り手の画面と同じ基準）に見せる。届いた後に命中が届いたら、届いたときに見せる。
+		if not _net_mirror_swept and _charge_reaches_survivor(from_position, to_position):
 			_net_mirror_swept = true
 		if _net_mirror_swept:
 			_net_present_confirmed_hit()
-	elif not _hit_this_charge and _segment_hits_survivor(_sweep_previous_position, current_position):
+	elif not _hit_this_charge and _charge_reaches_survivor(from_position, to_position):
 		_apply_charge_hit()
-	_sweep_previous_position = current_position
+
+
+## 突進がこのフレームで生き残りに届いたか（届いたら当たり方を _pending_contact に入れる）。
+## 当たる / 外れるは今までの基準（サメの中心の通り道が横 1.45 m・縦 1.35 m 以内）のまま、時刻だけを鼻先に合わせる：
+## 中心の通り道を鼻先の分だけ先まで見て基準に入り、かつサメの胴が体の点に触れたら届いた。
+## 触れないまま中心の通り道が基準に入ったとき（横をかすめた）は、今まで通りそこで届いたことにする。
+func _charge_reaches_survivor(from_position: Vector3, to_position: Vector3) -> bool:
+	_pending_contact = {}
+	if _segment_hits_survivor(from_position, to_position):
+		_pending_contact = _find_survivor_contact()
+		return true
+	var ahead := minf(_charge_lookahead, _shark.get_ghost_charge_remaining_distance())
+	if ahead <= 0.0:
+		return false
+	var direction := _locked_direction.normalized()
+	if not _segment_hits_survivor(from_position, to_position + direction * ahead):
+		return false
+	var contact := _find_survivor_contact()
+	if float(contact.lead) > 0.0:
+		return false
+	_pending_contact = contact
+	return true
+
+
+## 生き残りの体のうち、サメが最初に触れる点（HitContact.find_contact）。体の見た目がないとき（テスト）は触れたことにする。
+func _find_survivor_contact() -> Dictionary:
+	var fallback := {"lead": 0.0, "part": "torso", "point": _player_position(survivor_player_index) + Vector3.UP * 0.85, "radial": Vector3.ZERO}
+	if player_controller == null or not is_instance_valid(player_controller) or _shark == null:
+		return fallback
+	var parts: Dictionary = player_controller.p1_parts if survivor_player_index == 1 else player_controller.p2_parts
+	var contact := HitContact.find_contact(_shark, parts)
+	if float(contact.lead) == INF:
+		return fallback
+	return contact
 
 
 func _segment_hits_survivor(from_position: Vector3, to_position: Vector3) -> bool:
@@ -2233,6 +2433,12 @@ func _apply_charge_hit() -> void:
 	var horizontal_direction := Vector2(_locked_direction.x, _locked_direction.z).normalized()
 	if horizontal_direction.length_squared() < 0.001:
 		horizontal_direction = Vector2.RIGHT
+	var contact := _pending_contact if not _pending_contact.is_empty() else _find_survivor_contact()
+	var lateral := HitContact.lateral_offset(
+		_shark.global_position if _shark != null else _sweep_previous_position,
+		_locked_direction,
+		_player_position(survivor_player_index) + Vector3.UP * 0.85
+	)
 	_set_hit_result_text()
 	Haptics.pulse(Haptics.HIT)
 	if _net_enabled:
@@ -2244,16 +2450,48 @@ func _apply_charge_hit() -> void:
 			"pf": _perfect_charge,
 			"dx": snappedf(horizontal_direction.x, 0.001),
 			"dz": snappedf(horizontal_direction.y, 0.001),
+			"s": snappedf(lateral, 0.001),
+			"pt": str(contact.get("part", "")),
 			"cb": _combo,
 		})
 		net_stats.hits_sent += 1
 		if _net_is_host:
 			_net_applied_hit_ids[_net_launch_id] = true
-			_apply_hit_impulse(survivor_player_index, horizontal_direction, _last_charge_power, _perfect_charge)
+			_queue_hit_impulse(survivor_player_index, horizontal_direction, _last_charge_power, _perfect_charge, lateral, HIT_STOP_SECONDS)
 	else:
-		_apply_hit_impulse(survivor_player_index, horizontal_direction, _last_charge_power, _perfect_charge)
+		_queue_hit_impulse(survivor_player_index, horizontal_direction, _last_charge_power, _perfect_charge, lateral, HIT_STOP_SECONDS)
 	_play_charge_hit_effects()
+	_present_charge_impact(contact, lateral, horizontal_direction)
 	game_state.notify_practice_ghost(&"hit", dead_player_index, survivor_player_index)
+
+
+## 命中の見た目（段階 2・3）：サメは鼻先が体に触れた位置で止まり（ヒットストップ）、明けたらそのまま突き抜けて進む
+## （急ブレーキはしない。2026-11-06）。体はラグドールになり、当たった部位から先に持っていかれる（PlayerController.begin_ghost_hit_ragdoll）。
+func _present_charge_impact(contact: Dictionary, lateral: float, horizontal_direction: Vector2) -> void:
+	var deflected := HitContact.deflect(horizontal_direction, lateral)
+	var launch := _hit_launch_velocity(deflected.direction, _last_charge_power, _perfect_charge, float(deflected.vertical_bonus))
+	if _shark != null and is_instance_valid(_shark) and _shark.is_ghost_charging():
+		_shark.begin_ghost_charge_impact(maxf(0.0, -float(contact.get("lead", 0.0))), HIT_STOP_SECONDS)
+	var plan := HitContact.recovery_plan(_last_charge_power, _perfect_charge, Vector2(launch.x, launch.z).length(), launch.y)
+	_last_hit_info = {
+		"part": str(contact.get("part", "torso")),
+		"point": contact.get("point", _player_position(survivor_player_index) + Vector3.UP * 0.85),
+		"radial": contact.get("radial", Vector3.ZERO),
+		"lead": float(contact.get("lead", 0.0)),
+		"s": lateral,
+		"direction": _locked_direction.normalized(),
+		"launch_velocity": launch,
+		"power": _last_charge_power,
+		"perfect": _perfect_charge,
+		"hold": HIT_STOP_SECONDS,
+		"shark_speed": _charge_speed,
+		# 戻り方（段階 4。ゲームの操作ロックと同じ式）
+		"tumble": bool(plan.tumble),
+		"roll": bool(plan.roll),
+		"control_lock": float(plan.control_lock),
+	}
+	if player_controller != null and is_instance_valid(player_controller):
+		player_controller.begin_ghost_hit_ragdoll(survivor_player_index, _last_hit_info)
 
 
 func _set_hit_result_text() -> void:
@@ -2265,42 +2503,89 @@ func _set_hit_result_text() -> void:
 
 
 ## 突進の強さから吹き飛ばしを入れる。オフラインとオンラインのホストが使う（ゲストからの命中も同じ式）。
-func _apply_hit_impulse(target_index: int, horizontal_direction: Vector2, power: float, perfect: bool) -> void:
-	var horizontal_speed := lerpf(
-		MIN_HIT_HORIZONTAL_SPEED,
-		MAX_HIT_HORIZONTAL_SPEED,
-		power
+## 横ずれ lateral で飛ぶ向きをふり、真ん中なら縦を上乗せする（HitContact.deflect。段階 2）。
+func _apply_hit_impulse(target_index: int, horizontal_direction: Vector2, power: float, perfect: bool, lateral: float = 0.0) -> void:
+	var deflected := HitContact.deflect(horizontal_direction, lateral)
+	var values := _hit_impulse_values(power, perfect)
+	var vertical := float(values.vertical) + float(deflected.vertical_bonus)
+	# 操作ロックと戻り方は HitContact.recovery_plan（強さで 0.25〜0.48 秒。空中で操作が戻るので、どの命中も空中で立て直す）。
+	var plan := HitContact.recovery_plan(
+		power, perfect, minf(float(values.horizontal), QuizGameState.EXTERNAL_IMPULSE_MAX_SPEED), vertical
 	)
-	var vertical_speed := lerpf(
-		MIN_HIT_VERTICAL_SPEED,
-		MAX_HIT_VERTICAL_SPEED,
-		power
-	)
-	var control_lock := lerpf(
-		MIN_HIT_CONTROL_LOCK,
-		MAX_HIT_CONTROL_LOCK,
-		power
-	)
-	if perfect:
-		horizontal_speed += 1.8
-		vertical_speed += 0.6
 	game_state.apply_external_impulse(
 		target_index,
-		horizontal_direction * horizontal_speed,
-		vertical_speed,
-		control_lock
+		(deflected.direction as Vector2) * float(values.horizontal),
+		vertical,
+		float(plan.control_lock),
+		bool(plan.tumble)
 	)
 	if _net_enabled:
 		net_stats.impulses_applied += 1
+
+
+## 吹き飛ばしの横の速さ・縦の速さ（突進の強さと PERFECT から）。操作ロックは HitContact.recovery_plan。
+static func _hit_impulse_values(power: float, perfect: bool) -> Dictionary:
+	var horizontal_speed := lerpf(MIN_HIT_HORIZONTAL_SPEED, MAX_HIT_HORIZONTAL_SPEED, power)
+	var vertical_speed := lerpf(MIN_HIT_VERTICAL_SPEED, MAX_HIT_VERTICAL_SPEED, power)
+	if perfect:
+		horizontal_speed += 1.8
+		vertical_speed += 0.6
+	return {"horizontal": horizontal_speed, "vertical": vertical_speed}
+
+
+## 体が飛び出す速さ（ワールド）。game_state.apply_external_impulse と同じ上限で横を切る（見た目とゲームの点をそろえる）。
+func _hit_launch_velocity(direction: Vector2, power: float, perfect: bool, vertical_bonus: float) -> Vector3:
+	var values := _hit_impulse_values(power, perfect)
+	var horizontal := (direction * float(values.horizontal)).limit_length(QuizGameState.EXTERNAL_IMPULSE_MAX_SPEED)
+	return Vector3(horizontal.x, float(values.vertical) + vertical_bonus, horizontal.y)
+
+
+## 吹き飛ばしを delay 秒後に入れる（ヒットストップの間は体を飛ばさない）。
+## 待つ間も操作は止める（命中した瞬間に押したジャンプが、吹き飛ばしの前に入らない）。
+func _queue_hit_impulse(target_index: int, direction: Vector2, power: float, perfect: bool, lateral: float, delay: float) -> void:
+	if delay <= 0.0:
+		_apply_hit_impulse(target_index, direction, power, perfect, lateral)
+		return
+	game_state.hold_external_control(target_index, delay + HIT_STOP_CONTROL_MARGIN)
+	_pending_hit_impulses.append({
+		"t": delay, "target": target_index, "dir": direction, "power": power, "perfect": perfect, "s": lateral,
+	})
+
+
+## ここ（GameWorld._process の game_state.update の後）で入れた吹き飛ばしは、次のフレームの game_state.update から効く。
+## サメとラグドールはヒットストップが明けたフレームに動き出すので、残りが 1 フレーム以下になったら入れて、体も同じフレームに動かす。
+func _update_pending_hit_impulses(delta: float) -> void:
+	for i in range(_pending_hit_impulses.size() - 1, -1, -1):
+		var entry: Dictionary = _pending_hit_impulses[i]
+		entry.t = float(entry.t) - delta
+		if float(entry.t) <= delta + 0.0001:
+			_pending_hit_impulses.remove_at(i)
+			_apply_hit_impulse(int(entry.target), entry.dir, float(entry.power), bool(entry.perfect), float(entry.s))
+
+
+## 待たせている吹き飛ばしをすぐ入れる（演出を片付けるとき。命中は決まっているので吹き飛ばしは落とさない）。
+func _flush_pending_hit_impulses() -> void:
+	var entries := _pending_hit_impulses.duplicate()
+	_pending_hit_impulses.clear()
+	if game_state == null:
+		return
+	for entry: Dictionary in entries:
+		_apply_hit_impulse(int(entry.target), entry.dir, float(entry.power), bool(entry.perfect), float(entry.s))
 
 
 func _play_charge_hit_effects() -> void:
 	var survivor_position := _player_position(survivor_player_index) + Vector3.UP * 0.85
 	if particle_spawner and particle_spawner.has_method("spawn_shark_impact"):
 		particle_spawner.spawn_shark_impact(survivor_position, _locked_direction)
+	var heavy := HitContact.is_tumble(_last_charge_power, _perfect_charge)
 	if camera_controller and camera_controller.has_method("trigger_ocean_attack_impact"):
 		camera_controller.trigger_ocean_attack_impact()
+	# メインのカメラ：ヒットストップに合わせた寄り・揺れと、吹き飛ぶ体を画面に収める引き（段階 6）。
+	if camera_controller and camera_controller.has_method("trigger_ghost_hit"):
+		camera_controller.trigger_ghost_hit(survivor_player_index, _locked_direction, 1.3 if heavy else 0.8 + 0.3 * _last_charge_power)
 	AudioManager.play_sfx(&"ghost_hit", 1.5 if _perfect_charge else 0.0)
+	# 体に当たる鈍い音を重ねる（docs/ghost_hit_ragdoll_plan.md 段階 6）。転倒する強さなら大きく、少し低く。
+	AudioManager.play_sfx(&"ghost_hit_body", 0.0 if heavy else -3.0, 0.92 if heavy else 1.0)
 	if _shark:
 		_shark.play_ghost_impact()
 
@@ -2314,6 +2599,8 @@ func _connect_shark_signals() -> void:
 		return
 	if not _shark.ghost_charge_finished.is_connected(_on_shark_charge_finished):
 		_shark.ghost_charge_finished.connect(_on_shark_charge_finished)
+	if not _shark.ghost_charge_stepped.is_connected(_on_shark_charge_stepped):
+		_shark.ghost_charge_stepped.connect(_on_shark_charge_stepped)
 	if not _shark.ghost_mount_beam_fired.is_connected(_on_ghost_mount_beam_fired):
 		_shark.ghost_mount_beam_fired.connect(_on_ghost_mount_beam_fired)
 	if not _shark.ghost_breached.is_connected(_on_shark_ghost_breached):
@@ -2737,6 +3024,10 @@ func _update_cooldown(delta: float) -> void:
 		if _rider_portal_safe and _rider != null and is_instance_valid(_rider):
 			player_controller.set_ghost_rider_portal_safe(_rider, false)
 			_rider_portal_safe = false
+		if _lasso_hold:
+			# 両者脱落の投げ縄を待っている：照準は出さず、そのまま待つ
+			phase = Phase.AIMING
+			return
 		if _result_departure_only:
 			_cleanup_ghost_ride()
 			return
@@ -3537,7 +3828,7 @@ func _update_aim_visuals(blink: bool) -> void:
 func _update_hud(_status: String) -> void:
 	if _hud_panel == null:
 		return
-	if _result_departure_only:
+	if _result_departure_only or _lasso_hold:
 		_hud_panel.visible = false
 		return
 	if phase not in [Phase.AIMING, Phase.WINDUP, Phase.CHARGING, Phase.COOLDOWN]:
@@ -3660,6 +3951,7 @@ func _set_meter(progress: float, color: Color, alpha: float = 0.96) -> void:
 
 func _cleanup_ghost_ride() -> void:
 	_lasso_hold = false
+	_lasso_hold_pending = false
 	if phase != Phase.INACTIVE:
 		for cue: StringName in GHOST_LONG_SFX_CUES:
 			AudioManager.fade_out_sfx(cue, 0.3)
@@ -3690,10 +3982,13 @@ func _cleanup_ghost_ride() -> void:
 	if _hud_panel:
 		_hud_panel.visible = false
 		_hud_panel.modulate.a = 1.0
+	_flush_pending_hit_impulses()
 	_cleanup_return_portal()
 	if _shark and is_instance_valid(_shark):
 		if _shark.ghost_charge_finished.is_connected(_on_shark_charge_finished):
 			_shark.ghost_charge_finished.disconnect(_on_shark_charge_finished)
+		if _shark.ghost_charge_stepped.is_connected(_on_shark_charge_stepped):
+			_shark.ghost_charge_stepped.disconnect(_on_shark_charge_stepped)
 		if _shark.ghost_mount_beam_fired.is_connected(_on_ghost_mount_beam_fired):
 			_shark.ghost_mount_beam_fired.disconnect(_on_ghost_mount_beam_fired)
 		if _shark.ghost_breached.is_connected(_on_shark_ghost_breached):

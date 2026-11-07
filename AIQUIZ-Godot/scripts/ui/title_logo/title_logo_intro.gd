@@ -962,10 +962,10 @@ static func _shape_color(rgb: Array, alpha: float) -> Color:
 	return Color(float(rgb[0]), float(rgb[1]), float(rgb[2]), alpha)
 
 
-# ---------- デバッグ（デバッグビルドだけ） ----------
+# ---------- デバッグ（エディタから動かしたときだけ。書き出した製品版では効かない） ----------
 
 func _input(event: InputEvent) -> void:
-	if not OS.is_debug_build() or not is_visible_in_tree():
+	if not OS.has_feature("editor") or not is_visible_in_tree():
 		return
 	var key := event as InputEventKey
 	if key == null or not key.pressed or key.echo:

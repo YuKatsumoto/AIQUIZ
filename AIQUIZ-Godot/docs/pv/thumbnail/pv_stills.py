@@ -10,12 +10,13 @@ VS カットインを本物のメニューで撮ったもの（tests/pv_capture/
 |---|---|---|---|
 | 2 | wall | s09_play の 1 問目で、2 人がそれぞれの扉へ向かうところ（ゲームの画面そのまま） | 迫りくる壁の[問題に答えよう！] / 正解のドアを突き破れ！ |
 | 3 | subjects | s06_s07 の S07 の 6 問（算数・国語・理科・社会・英語、3〜6 年）を 3x2 に並べる | [小1〜小6]の5教科から出題！ / 学年に合わせて、AIが問題を作る |
-| 4 | shark | s09_play の脱落した P2 がサメに乗って P1 を襲うところ（後ろは 10 問目のボス壁） | 脱落した人は、[サメに乗って相手を狙う] |
+| 4 | shark | 脱落した P2 がゴーストシャークで突っ込み、P1 が吹っ飛ぶところ（take=thumbshark。今の吹っ飛び。8 刻みを重ねた動きのブレ） | 脱落した人は、[サメに乗って相手を狙う] |
 | 5 | online | thumb_vs の VS カットイン（相手は「プリン好きの大根」・海賊帽） | [オンライン対戦]で勝負！ |
 
   python docs/pv/thumbnail/pv_stills.py                       # 書き出し → final/thumb<番号>_<名前>.jpg・.png、
                                                               #   テロップ無しの final/thumb<番号>_<名前>_clean.jpg、並べたもの final/_thumbs_2to5.jpg
-  python docs/pv/thumbnail/pv_stills.py wall=1072 shark=4762   # コマを変える（online は vs_05_cutin_hold のような名前）
+  python docs/pv/thumbnail/pv_stills.py wall=1072 shark=92     # コマを変える（online は vs_05_cutin_hold のような名前）
+  python docs/pv/thumbnail/pv_stills.py only=shark shark_subs=12   # 1 枚だけ書き出す・サメの動きのブレの長さ（刻みの数）を変える
 
 テロップの組み方は PV（After Effects）の書き出しを測って合わせた：本文 4.4cqw の Noto Sans JP Black・紺のふち 0.55cqw・
 下へ 0.35cqw の影（紺 40%）・字間 +20/1000 em。AE は仮名と約物を詰めて組むので、仮名・約物は字形の幅に左右 0.055 em を
@@ -62,9 +63,18 @@ STILLS = {
     "wall": {"no": 2, "take": "s09_play_frames", "frame": 1102,
              "telop": "迫りくる壁の[問題に答えよう！]", "sub": "正解のドアを突き破れ！"},
     "subjects": {"no": 3, "take": "s06_s07_frames", "telop": "[小1〜小6]の5教科から出題！", "sub": "学年に合わせて、AIが問題を作る"},
-    "shark": {"no": 4, "take": "s09_play_frames", "frame": 4759, "telop": "脱落した人は、[サメに乗って相手を狙う]"},
+    # tests/pv_capture/pv_thumbshark_runtime.gd を 1/4 倍速・sub=8・shutter=8 で撮った刻み（pv_<コマ>_<0〜7>）の、
+    # そのコマの最後の刻みから前へ subs 枚を重ねる（1 刻みはゲームの 1/1920 秒。8 枚 = 1/240 秒 = 60 fps の 90° シャッター）。
+    # サメ（約 49 m/s）はすぐ溶けるので短く、吹っ飛ぶ P1（約 18 m/s）のまわりだけ長いシャッター（subject_subs）の絵にする
+    # （カメラも背景も止まっているので、差し替えたところのつなぎ目は出ない）。P1 はオレンジの体と、動いた赤（帽子）で拾う
+    "shark": {"no": 4, "take": "thumbshark_sub8", "frame": 94, "subs": 4, "subject_subs": 24,
+              "subject_box": (1000, 250, 1500, 760), "telop": "脱落した人は、[サメに乗って相手を狙う]"},
     # 2 人の帽子（角帽と海賊帽）が上の真ん中の近くまであるので、本文だけ上へ寄せる（main_y：文字の原点の y）
     "online": {"no": 5, "take": "thumb_vs", "frame": "vs_06_gone", "telop": "[オンライン対戦]で勝負！", "main_y": 36},
+    # 決着（スコアタワーの結果発表）：s21_play の 230 コマ目（結果発表の約 9.4 秒）。王冠をかぶった勝者がタワーのてっぺんで紙吹雪を浴びる。
+    # 上の真ん中は王冠・「WIN!」と重なるので、本文はタワーと得点カードの間（main_cx・main_y）へ置く
+    "result": {"no": 6, "take": "s21_play_frames_1106a", "frame": 230, "telop": "決着は、[スコアタワー]で",
+               "main_cx": 1110, "main_y": 540},
 }
 # S07 の 6 問（tests/pv_capture/pv_s06_s07_runtime.gd の S07_QUIZZES の順。各 2 拍 = 56 コマの真ん中あたり）
 SUBJECTS = [("算数 4年", 370), ("国語 6年", 425), ("理科 3年", 480), ("社会 6年", 535), ("英語 3年", 590), ("算数 6年", 650)]
@@ -204,6 +214,56 @@ def frame(take: str, n) -> Image.Image:
     raise FileNotFoundError(CAPTURE / take / name)
 
 
+def srgb_to_linear(a: np.ndarray) -> np.ndarray:
+    return np.where(a <= 0.04045, a / 12.92, ((a + 0.055) / 1.055) ** 2.4)
+
+
+def linear_to_srgb(a: np.ndarray) -> np.ndarray:
+    return np.where(a <= 0.0031308, a * 12.92, 1.055 * np.power(np.clip(a, 0, None), 1 / 2.4) - 0.055)
+
+
+def blended(take: str, n: int, subs: int, per_frame: int = 8) -> Image.Image:
+    """撮った刻み（pv_<n>_<0〜per_frame-1>）を、コマ n の最後の刻みから前へ subs 枚、光の強さ（リニア）で平均する。
+    足りなければ前のコマの刻みも使う（動きのブレの長さ = subs 刻み）"""
+    acc = None
+    for i in range(subs):
+        f, k = n - (i // per_frame), per_frame - 1 - (i % per_frame)
+        im = frame(take, f"pv_{f:04d}_{k}")
+        a = srgb_to_linear(np.asarray(im, np.float32) / 255.0)
+        acc = a if acc is None else acc + a
+    out = linear_to_srgb(acc / subs)
+    return Image.fromarray((np.clip(out, 0, 1) * 255 + 0.5).astype(np.uint8))
+
+
+def sub_frames(take: str, n: int, subs: int, per_frame: int = 8) -> list[Image.Image]:
+    return [frame(take, f"pv_{n - i // per_frame:04d}_{per_frame - 1 - i % per_frame}") for i in range(subs)]
+
+
+def subject_shutter(take: str, n: int, base_subs: int, subject_subs: int, box: tuple) -> Image.Image:
+    """全体は base_subs 枚、box の中の P1（オレンジの体と、動いた赤＝帽子）のまわりだけ subject_subs 枚を重ねた絵"""
+    base = blended(take, n, base_subs)
+    long = blended(take, n, subject_subs)
+    x0, y0, x1, y1 = box
+    hits = np.zeros((H, W), bool)
+    red_any = np.zeros((H, W), bool)
+    red_all = np.ones((H, W), bool)
+    for im in sub_frames(take, n, subject_subs):
+        hsv = np.asarray(im.convert("HSV"), np.int32)
+        h, s, v = hsv[..., 0], hsv[..., 1], hsv[..., 2]
+        orange = (h >= 11) & (h <= 35) & (s > 90) & (v > 90)
+        red = ((h >= 241) | (h <= 6)) & (s > 120) & (v > 90)
+        hits |= orange
+        red_any |= red
+        red_all &= red
+    hits |= red_any & ~red_all                      # 止まっている赤（壁の扉）は入れない
+    inside = np.zeros((H, W), bool)
+    inside[y0:y1, x0:x1] = True
+    mask = Image.fromarray(((hits & inside) * 255).astype(np.uint8))
+    mask = mask.filter(ImageFilter.MaxFilter(9)).filter(ImageFilter.MaxFilter(9)).filter(ImageFilter.MaxFilter(9))
+    mask = mask.filter(ImageFilter.GaussianBlur(6))
+    return Image.composite(long, base, mask)
+
+
 def subjects_board(with_telop: bool) -> Image.Image:
     """S07 の 6 問を 3x2 に並べる。後ろは S07 の 1 問を大きくぼかしたもの（空と壁の色）。
     教科の札は、問題の文に重ならないよう、カードの上の縁にまたがる見出しにする"""
@@ -238,10 +298,14 @@ def still(name: str, pick, with_telop: bool) -> Image.Image:
     cfg = STILLS[name]
     if name == "subjects":
         im = subjects_board(with_telop)
+    elif cfg.get("subject_subs"):
+        im = subject_shutter(cfg["take"], int(pick), int(cfg["subs"]), int(cfg["subject_subs"]), cfg["subject_box"])
+    elif cfg.get("subs"):
+        im = blended(cfg["take"], int(pick), int(cfg["subs"]))
     else:
         im = frame(cfg["take"], pick)
     if with_telop:
-        draw_main(im, cfg["telop"], W / 2, cfg.get("main_y", MAIN_TOP))
+        draw_main(im, cfg["telop"], cfg.get("main_cx", W / 2), cfg.get("main_y", MAIN_TOP))
         if cfg.get("sub"):
             draw_sub(im, cfg["sub"], W / 2)
     return im
@@ -272,15 +336,22 @@ def overview(paths: list[Path], dst: Path) -> None:
 
 def main() -> None:
     picks = {name: cfg.get("frame") for name, cfg in STILLS.items()}
+    only = set(STILLS)
     for arg in sys.argv[1:]:
         key, _, value = arg.partition("=")
         if key in picks and value:
             picks[key] = value if key == "online" else int(value)
+        elif key == "only" and value:
+            only = set(value.split(","))
+        elif key.endswith("_subs") and key[:-5] in STILLS and value:
+            STILLS[key[:-5]]["subs"] = int(value)
     made = []
     for name, cfg in STILLS.items():
         stem = f"thumb{cfg['no']}_{name}"
-        made.append(save(still(name, picks[name], True), stem))
-        save(still(name, picks[name], False), f"{stem}_clean")
+        if name in only:
+            save(still(name, picks[name], True), stem)
+            save(still(name, picks[name], False), f"{stem}_clean")
+        made.append(OUT / f"{stem}.jpg")
     overview([OUT / "t8_blender.jpg"] + made, OUT / "_thumbs_2to5.jpg")
 
 

@@ -12,6 +12,14 @@ const PRELOAD_ACCEPT_HISTORY_MAX: int = 1000
 ## 同じ教科・学年・難易度の直近2ラウンド分は、数値違い・言い換えも拒否する。
 ## 現在のラウンド内の類似判定は、この窓とは別に全問へ適用する。
 const SEMANTIC_HISTORY_MAX: int = 20
+## 同じ問題文の解析結果を覚えておく件数の上限（履歴・候補の照合で同じ文を何度も解析するため）。
+const MEMO_MAX: int = 4096
+
+## 問題文 → 解析結果。結果は共有なので、取り出した辞書は書き換えないこと。
+static var _exact_key_cache: Dictionary = {}
+static var _core_cache: Dictionary = {}
+static var _keyword_cache: Dictionary = {}
+static var _bigram_cache: Dictionary = {}
 
 
 static func tail_texts(candidates: Array, max_count: int) -> Array[String]:
@@ -26,12 +34,18 @@ static func tail_texts(candidates: Array, max_count: int) -> Array[String]:
 
 ## 数値や演算子を残した一致キー。長期履歴を O(1) で照合する。
 static func exact_key(question: String) -> String:
+	if _exact_key_cache.has(question):
+		return _exact_key_cache[question]
 	var key := question.to_lower().replace("　", " ") \
 		.replace("\n", " ").replace("\r", " ").replace("\t", " ")
 	while key.contains("  "):
 		key = key.replace("  ", " ")
 	# 英語の単語間の空白は保持する（"a long" と "along" を同じ問題にしない）。
-	return key.replace("？", "").replace("?", "").replace("。", "").strip_edges()
+	key = key.replace("？", "").replace("?", "").replace("。", "").strip_edges()
+	if _exact_key_cache.size() > MEMO_MAX:
+		_exact_key_cache.clear()
+	_exact_key_cache[question] = key
+	return key
 
 
 static func make_exact_index(candidates: Array) -> Dictionary:
@@ -159,6 +173,8 @@ static func make_history_entry(question: String, genre: String = "") -> Dictiona
 
 
 static func extract_core_concept(text: String) -> String:
+	if _core_cache.has(text):
+		return _core_cache[text]
 	var result := ""
 	for i in range(text.length()):
 		var c := text[i]
@@ -176,10 +192,16 @@ static func extract_core_concept(text: String) -> String:
 		"?", ".", ",", "(", ")", "=", "+", "-", " ", "　"]
 	for nw: String in noise:
 		result = result.replace(nw, "")
+	if _core_cache.size() > MEMO_MAX:
+		_core_cache.clear()
+	_core_cache[text] = result
 	return result
 
 
+## 返す辞書は覚えておいたものと共有なので、書き換えないこと。
 static func extract_keywords(text: String) -> Dictionary:
+	if _keyword_cache.has(text):
+		return _keyword_cache[text]
 	var normalized := text
 	var noise_words := ["は", "の", "が", "を", "に", "で", "と", "も", "へ", "から",
 		"まで", "より", "など", "たり", "って", "です", "ます", "した", "する",
@@ -212,13 +234,22 @@ static func extract_keywords(text: String) -> Dictionary:
 			continue
 		if bigram.strip_edges().length() == 2:
 			keywords[bigram] = true
+	if _keyword_cache.size() > MEMO_MAX:
+		_keyword_cache.clear()
+	_keyword_cache[text] = keywords
 	return keywords
 
 
+## 返す辞書は覚えておいたものと共有なので、書き換えないこと。
 static func _extract_bigrams(text: String) -> Dictionary:
+	if _bigram_cache.has(text):
+		return _bigram_cache[text]
 	var bigrams := {}
 	for i in range(maxi(0, text.length() - 1)):
 		bigrams[text.substr(i, 2)] = true
+	if _bigram_cache.size() > MEMO_MAX:
+		_bigram_cache.clear()
+	_bigram_cache[text] = bigrams
 	return bigrams
 
 

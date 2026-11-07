@@ -85,11 +85,15 @@
 | チャージの唸り（ループ） | 突進ボタンを押しているあいだ（照準中に本当に溜めているときだけ）。メーターに合わせて音程 0.75〜1.7 倍、音量 −14〜−6 dB。メーターが一周して 0 に戻ると音程も下がる | 専用プレイヤー |
 | `ghost_dash` | 溜めを離し、構え（WINDUP）のあとに突進が始まる瞬間（`_start_charge()`）。PERFECT は +1.5 dB・1.08 倍の音程、それ以外は溜めの強さで 0.94〜1.04 倍 | −6 dB |
 | `ghost_hit` | 突進が生き残った側に当たった瞬間（`_apply_charge_hit()`）。PERFECT は +1.5 dB | −5 dB |
+| `ghost_hit_body` | `ghost_hit` に重ねる、鼻先が体に当たる鈍い音（深い打撃・胴のこもった「ボスッ」・服のはたき）。転倒する強さ（PERFECT・強さ 0.8 以上）は 0 dB・0.92 倍の音程、それ以外は −3 dB（2026-11-06 追加。`docs/ghost_hit_ragdoll_plan.md` 段階 6） | −6 dB |
+| `ghost_body_land` | 吹き飛んだ体が床に着いた瞬間（`PlayerController._on_ghost_hit_landed`。両方の画面で鳴る）。転倒は「ドサッ」（重い低音・こもった中音・床板の響き・砂粒）を着地の横の速さで −3〜+1 dB。立て直しの足の着地は、ふだんのジャンプの着地音（`jump_land`）に −9 dB・1.2 倍の音程で重ねる。被弾の間は `game_world` のふだんの `jump_land` は鳴らさない（2026-11-06 追加）。いまはどの命中も体が床に落ちるので、転倒の鳴らし方になる（`docs/ghost_hit_ragdoll_plan.md` 10 章） | −5 dB |
+| `ghost_body_tumble` | 転倒で床を転がって滑る音（肩と腰の柔らかいどすん 4 つ・止まっていく擦れ）。着地の 0.1 秒後に −4〜0 dB。立て直しの受け身の前転は着地の 0.08 秒後に −6 dB・1.18 倍の音程（2026-11-06 追加） | −9 dB |
 | `ghost_vanish` | 突進を終えたサメが消える瞬間（クールダウンの開始） | −11 dB |
 | `ghost_portal_open` | 戻りのポータルが開く瞬間（`_spawn_return_portal()`） | −9 dB |
 | `ghost_portal_cross` | サメがポータルから飛び出す瞬間（ポータルの閃光・カメラの揺れと同じ） | −8 dB |
 
 - 2026-10-21 の 2 音は `python tools/audio/make_ghost_shark_sfx.py --only ghost_awaken.ogg ghost_mount_land.ogg` で作った（ほかの音を作り直さない。この 2 音は音ごとの乱数で、作る順に左右されない）。搭乗の見せ方は `docs/ghost_rider_mount.md`。
+- 2026-11-06 の 3 音（体に当たる・ドサッ・転がり）は `python tools/audio/make_ghost_shark_sfx.py --only ghost_hit_body.ogg ghost_body_land.ogg ghost_body_tumble.ogg` で作った（音ごとの乱数。ほかの音は作り直さない）。ノートの小さいスピーカーでも聞こえるよう、低音だけにせず 200 Hz〜2 kHz を残してある。
 
 ### サドンデスへ行くときの幽霊の復活（2026-10-21）
 

@@ -78,7 +78,8 @@ func ensure_blocks(count: int) -> bool:
 	_reset_fit()
 	var previous := block_count
 	block_count = count
-	for index: int in range(block_count):
+	# Only the old front cap changes kind; the blocks behind it keep theirs.
+	for index: int in range(maxi(previous - 1, 0), block_count):
 		var block: MeshInstance3D = null
 		if index < previous:
 			block = _blocks.get_child(index) as MeshInstance3D

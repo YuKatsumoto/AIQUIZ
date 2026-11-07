@@ -120,7 +120,10 @@ func run() -> void:
 	legacy.result_ceremony_enabled = false
 	legacy.update(1.0 / 60.0)
 	check(legacy.game_state == Constants.STATE_CLEAR and legacy.goal_winner == 1, "transport excluded keeps first-goal contract")
-	for mode in [Constants.MODE_ENDLESS, Constants.MODE_TUTORIAL, Constants.MODE_COOP]:
+	var endless_gs := fixture()
+	endless_gs.mode = Constants.MODE_ENDLESS
+	check(endless_gs.uses_local_result_ceremony(), "endless 2P uses the finale")
+	for mode in [Constants.MODE_TUTORIAL, Constants.MODE_COOP]:
 		var gs := fixture()
 		gs.mode = mode
 		check(not gs.uses_local_result_ceremony(), "mode excluded " + mode)
@@ -301,8 +304,18 @@ func check_elimination() -> void:
 		race.update(1.0 / 60.0)
 	check(race.is_elimination_result_ready(), "shark deaths hold %.1f s" % QuizGameState.RESULT_ELIMINATION_HOLD)
 	check(race.begin_elimination_result_ceremony() and is_equal_approx(race.goal_z, goal_before) and race.result_winner == 1, "race elimination finale")
+	# Endless 2P: both out also leads to the finale, at a finish line placed past the visible walls.
+	var endless: QuizGameState = helper.fixture(2, Constants.MODE_ENDLESS)
+	endless.result_ceremony_enabled = true
+	endless.current_wall_index = 5
+	endless._set_player_hp(1, 1)
+	endless._set_player_hp(2, 1)
+	helper.answer(endless, false, false)
+	check(endless.game_state == Constants.STATE_GAME_OVER and endless.is_elimination_result_pending() and not endless.message_text.begins_with("GAME OVER"), "endless elimination holds for the finale")
+	check(endless.endless_result_wall_count == 5 + QuizGameState.MAX_VISIBLE_WALLS and is_equal_approx(endless.goal_z, endless.get_local_result_goal_z()), "endless finish placed past the visible walls")
+	check(endless.get_question_winner(5) == 0, "endless records the question by its wall number")
 	# Other modes keep the GAME OVER card.
-	for setup in [[2, Constants.MODE_ENDLESS, true], [1, Constants.MODE_TEN, true], [2, Constants.MODE_TEN, false]]:
+	for setup in [[1, Constants.MODE_ENDLESS, true], [1, Constants.MODE_TEN, true], [2, Constants.MODE_TEN, false]]:
 		var other: QuizGameState = helper.fixture(setup[0], setup[1])
 		other.result_ceremony_enabled = setup[2]
 		other._set_player_hp(1, 1)

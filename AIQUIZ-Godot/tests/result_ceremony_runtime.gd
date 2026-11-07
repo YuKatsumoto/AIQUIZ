@@ -3,7 +3,7 @@ extends Node
 ## Score Tower Finale in the real GameWorld: ten-question finish -> goal walk ->
 ## towers climb with the real totals -> verdict, confetti, crown / sinking tower,
 ## controls. Captures beats and optional frames for review.
-## Args: case=p1|p2|draw|landslide|ghost_p2|ghost_win|elimination fps=30|60|120
+## Args: case=p1|p2|draw|landslide|ghost_p2|ghost_win|elimination|endless fps=30|60|120
 ##       quality=low|balanced|high record hats skins
 ##       sizes routes emote=<id> all_emotes audible out=<folder>
 ##       programme (1080p; keeps the result screen open and captures the scoreboard's
@@ -45,6 +45,9 @@ const SCENARIOS := {
 	"ghost_p2": [8, 2, 9, 0, 1],    # 20 vs ghost 9 (P2 drowned, rides the ghost shark)
 	"ghost_win": [3, 1, 7, 0, 2],   # 4.5 vs ghost 7: the ghost takes the crown
 	"elimination": [5, 0, 3, 0, 1], # both out mid-quiz: ghosts 5 vs 3
+	"endless": [5, 0, 3, 0, 1],     # endless: both out, the finish line is placed past the visible walls
+	"endless_tall": [60, 0, 40, 0, 1], # endless: totals far past the ten-question maximum (35)
+	"endless_huge": [150, 0, 100, 0, 1], # endless: a 45 m tower
 }
 
 const BEATS := [[0.2, "assemble"], [1.2, "walk"], [2.3, "hop"], [2.9, "correct"], [3.6, "formula"],
@@ -96,7 +99,7 @@ func run() -> void:
 	get_tree().root.size = Vector2i(1920, 1080) if verify_programme else Vector2i(1280, 720)
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT + scenario + "_frames"))
 	helper = load("res://tests/hp_unit.gd").new()
-	gs = helper.fixture()
+	gs = helper.fixture(2, Constants.MODE_ENDLESS if scenario.begins_with("endless") else Constants.MODE_TEN)
 	# The draw finale as it plays when the sudden death is off; the branch into the
 	# sudden death is covered by tests/sudden_death_runtime.gd.
 	gs.sudden_death_enabled = false
@@ -121,9 +124,12 @@ func run() -> void:
 	pc.prepare_for_loading(gs)
 	await frames(fps)
 	world.call("_clear_preview_walls")
+	# エンドレスはプレビュー壁がすぐ終わり、スタートの仕切りが先に降りる。本番はカウントダウンの GO で
+	# 爆散するが、このテストはカウントダウンを通らないので、ここで片づける。
+	world.call("_remove_start_barrier")
 	var setup: Array = SCENARIOS.get(scenario, SCENARIOS.p1)
 	var ghost_case := scenario.begins_with("ghost")
-	var eliminated := scenario == "elimination"
+	var eliminated := scenario == "elimination" or scenario.begins_with("endless")
 	gs.score = setup[0]
 	gs.player2_score = setup[2]
 	var expected_winner: int = setup[4]
@@ -199,6 +205,12 @@ func run() -> void:
 		await get_tree().process_frame
 	var final: Dictionary = director.get_debug_snapshot()
 	var hud: Dictionary = overlay.get_debug_snapshot()
+	# The tier column hangs from the platform; however tall the total, it reaches down into the conveyor.
+	var finale_stage: ResultFinaleStage = director.get("_stage")
+	for player_index in [1, 2]:
+		var column := ((finale_stage.get("_towers") as Dictionary)[player_index].lift as Node3D).find_child("TierColumn", true, false) as MeshInstance3D
+		var bottom := (column.global_transform * column.get_aabb()).position.y
+		check(bottom <= ResultFinaleMotion.FLOOR_TOP_Y + 0.01, "P%d tier column reaches the conveyor (bottom %.2f)" % [player_index, bottom])
 	var programme_report := {}
 	if verify_programme:
 		programme_report = await observe_programme()
@@ -217,7 +229,15 @@ func run() -> void:
 	check(hud.verdict == ("DRAW!" if expected_winner == 0 else "WIN!"), "verdict word matches outcome")
 	check(final.built and final.visible and final.cast_visible and final.winner == expected_winner, "finale stage built in the game world")
 	check(final.referee_animation == ["FinaleDraw", "FinaleWin", "FinaleWinP2"][expected_winner], "referee plays the outcome's animation")
-	check(world.get_node("StageEnvironment/Floor").visible and world.get_node("StageEnvironment/Grandstands").visible, "real conveyor and stadium stay visible")
+	if eliminated and gs.mode == Constants.MODE_ENDLESS:
+		# エンドレスの両者脱落の結果発表は海上の結果発表アリーナ（ResultArena）：コースの床と左右の客席は隠れる
+		# （10問の両者脱落はハテナの投げ縄で運ばれ、コースの先のゴール観客席で結果発表する）
+		var arena := world.get("_result_arena") as Node3D
+		check(arena != null and arena.visible and not world.get_node("StageEnvironment/Floor").visible
+			and not world.get_node("StageEnvironment/Grandstands").visible, "the elimination finale plays in the result arena, course hidden")
+		check(arena != null and world.get("_goal_stand") == arena.get("stand"), "the arena's front stand holds the crowd and the board")
+	else:
+		check(world.get_node("StageEnvironment/Floor").visible and world.get_node("StageEnvironment/Grandstands").visible, "real conveyor and stadium stay visible")
 	check(absf(float(final.stage_origin.y) + 1.2) < 0.01 and absf(float(final.stage_origin.z) - marks_z) < 0.05, "stage anchored at the finishing marks")
 	check(bool(final.mirrored) == (expected_winner == 2), "only a P2 win mirrors the stage")
 	var unmirrored := samples.all(func(sample: Dictionary) -> bool:
@@ -550,14 +570,43 @@ func eliminate_both_mid_quiz() -> void:
 	var wrong_b := (gs.current_quiz.a + 2) % gs.num_choices if gs.num_choices > 2 else wrong_a
 	gs.player_x = gs.tuning.door4_xs[wrong_a] if gs.num_choices == 4 else (gs.tuning.left_door_x if wrong_a == 0 else gs.tuning.right_door_x)
 	gs.player2_x = gs.tuning.door4_xs[wrong_b] if gs.num_choices == 4 else (gs.tuning.left_door_x if wrong_b == 0 else gs.tuning.right_door_x)
+	var correct_before := [gs.score, gs.player2_score]
 	gs.resolve_collision(true, true)
-	check(gs.score == 5 and gs.player2_score == 3, "scripted wrong answers keep the correct counts")
+	check([gs.score, gs.player2_score] == correct_before, "scripted wrong answers keep the correct counts")
 	check(gs.game_state == Constants.STATE_GAME_OVER and gs.is_elimination_result_pending(), "both out mid-quiz hold for the finale")
 	check(not gs.message_text.begins_with("GAME OVER"), "no GAME OVER text when both are out")
+	if gs.mode == Constants.MODE_ENDLESS:
+		# GameWorld は壁 0〜6（現在の壁 3 + MAX_VISIBLE_WALLS - 1）まで出しているので、ゴールはその次の壁の位置の先。
+		check(gs.endless_result_wall_count == 3 + QuizGameState.MAX_VISIBLE_WALLS, "endless finish sits past the visible walls (%d)" % gs.endless_result_wall_count)
+		check(is_equal_approx(gs.goal_z, gs.tuning.wall_start_z + gs.endless_result_wall_count * gs.tuning.wall_spacing + 15.0), "endless finish line is fixed at the elimination")
+		var furthest := -1
+		for wall: Node3D in world.get("_active_walls"):
+			furthest = maxi(furthest, int(wall.get_meta("wall_index", -1)))
+		check(furthest < gs.endless_result_wall_count, "no wall stands past the endless finish (%d)" % furthest)
+		# エンドレスのスコアボード：12問ぶんの勝ちを入れると、直近の10問（3〜12問目）が並び、R は全問の数。
+		# 掲示板は結果発表アリーナの正面スタンドにあるので、暗転が明けたときに確かめる（check_endless_board）。
+		for index in range(4, 12):
+			gs.record_question_winner(index, 1 if index % 3 == 0 else 2)
 
 
-## Watches the hold, the lasso (Hatena carries both souls to the finish instead of a
-## wipe, EliminationLassoDirector) and the start of the elimination finale.
+## The endless scoreboard on the result arena's monitor (after the reveal).
+func check_endless_board() -> void:
+	var stand := world.get("_goal_stand") as GoalStand
+	var board: GoalStandScoreboard = stand.scoreboard if stand != null else null
+	check(board != null and board.first == 2, "endless scoreboard shows the latest ten questions (first %d)" % (board.first if board != null else -1))
+	if board != null:
+		var expected := [0, 0]
+		for mark in gs.question_winners:
+			if mark > 0:
+				expected[0] += 1 if mark & 1 else 0
+				expected[1] += 1 if mark & 2 else 0
+		check(board.totals()[0] == expected[0] and board.totals()[1] == expected[1], "endless scoreboard R counts every question (%s / %s)" % [board.totals(), expected])
+		check(board.marks[1] == gs.get_question_winner(3) and board.marks[9] == gs.get_question_winner(11), "endless scoreboard columns follow the window")
+
+
+## Watches the hold, then (ten questions) the lasso: Hatena carries both souls to the
+## finish instead of a wipe (EliminationLassoDirector), or (endless) the screen wipe into
+## the result arena (ResultArena), and the start of the elimination finale.
 func observe_elimination() -> void:
 	var hud := world.get_node("GameplayHUD")
 	if (hud.get("game_over_panel") as Control).visible:
@@ -591,6 +640,9 @@ func observe_elimination() -> void:
 		elimination_seen["walls"] = (world.get("_active_walls") as Array).size()
 		elimination_seen["debris"] = (pc.get("_p1_explosion_bodies") as Array).size() + (pc.get("_p2_explosion_bodies") as Array).size()
 		elimination_seen["ragdolls"] = int(not (pc.get("_p1_ragdoll") as Dictionary).is_empty()) + int(not (pc.get("_p2_ragdoll") as Dictionary).is_empty())
+		elimination_seen["arena_at_reveal"] = world.get("_result_arena") != null
+		if gs.mode == Constants.MODE_ENDLESS:
+			check_endless_board()
 		await capture("elim_reveal")
 
 
@@ -621,16 +673,29 @@ func check_ghost_finale(overlay: Control, director: Node) -> void:
 		check(not ghost_leap.get("portal", false), "shark never returns through a portal by the podium")
 		var shark: Node3D = ghost_leap.get("shark")
 		check(shark != null and is_instance_valid(shark) and shark.global_position.y < StageConstants.OCEAN_SURFACE_Y, "ghost shark dives back under")
-	else:
+	elif gs.mode == Constants.MODE_TEN:
+		# 10問：暗転の代わりに、ハテナが投げ縄で 2 人の魂をコースのゴールへ運ぶ（EliminationLassoDirector）
 		check(not elimination_seen.get("panel", false), "GAME OVER card never shows")
 		check(not elimination_seen.get("stand_lost", false), "goal stand stays through the hold")
 		check(int(elimination_seen.get("pending_frames", 0)) >= roundi(fps * 3.9), "deaths play out before the lasso (%d frames)" % int(elimination_seen.get("pending_frames", 0)))
 		check(not bool(elimination_seen.get("covered_at_start", true)), "finale starts without a screen wipe")
 		check(int(elimination_seen.get("lasso_frames", 0)) >= roundi(fps * 9.0), "Hatena lassoes both souls to the finish (%d frames)" % int(elimination_seen.get("lasso_frames", 0)))
 		check(bool(elimination_seen.get("soul_handed_over", false)), "the carried souls become the finale ghosts")
+		check(not bool(elimination_seen.get("arena_at_reveal", true)), "the ten-question finale stays on the course (no result arena)")
 		check(int(elimination_seen.get("walls", -1)) == 0 and int(elimination_seen.get("debris", -1)) == 0 and int(elimination_seen.get("ragdolls", -1)) == 0, "walls and bodies cleared for the finale")
 		check(float(elimination_seen.get("camera_cut", INF)) < 0.3, "finale opens on the finale camera (%.2f)" % float(elimination_seen.get("camera_cut", INF)))
 		check("elim_lasso" in captured and "elim_reveal" in captured, "lasso observed")
+	else:
+		# エンドレス：死にざまを見せたあと暗転し、結果発表アリーナで結果発表する（投げ縄は使わない）
+		check(not elimination_seen.get("panel", false), "GAME OVER card never shows")
+		check(int(elimination_seen.get("pending_frames", 0)) >= roundi(fps * QuizGameState.RESULT_ELIMINATION_HOLD),
+			"deaths play out before the wipe (%d frames)" % int(elimination_seen.get("pending_frames", 0)))
+		check(int(elimination_seen.get("lasso_frames", 0)) == 0, "no lasso in endless")
+		check(bool(elimination_seen.get("covered_at_start", false)), "the finale starts under the screen wipe")
+		check(bool(elimination_seen.get("arena_at_reveal", false)), "the wipe reveals the result arena")
+		check(int(elimination_seen.get("walls", -1)) == 0 and int(elimination_seen.get("debris", -1)) == 0 and int(elimination_seen.get("ragdolls", -1)) == 0, "walls and bodies cleared for the finale")
+		check(float(elimination_seen.get("camera_cut", INF)) < 0.3, "finale opens on the finale camera (%.2f)" % float(elimination_seen.get("camera_cut", INF)))
+		check("elim_cover" in captured and "elim_reveal" in captured, "wipe and reveal observed")
 
 
 ## HP value text and survival bonus visibility on each card (AE layers by name).

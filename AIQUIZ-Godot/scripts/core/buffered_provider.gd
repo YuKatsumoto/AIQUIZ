@@ -18,7 +18,10 @@ var llm_mode: String = "ONLINE"
 
 var recent_questions: Array[String] = []
 var recent_history_entries: Array[Dictionary] = []
+## 一致キー → recent_history_entries に入っている数。追加・押し出しのたびに差分だけ更新する。
 var _recent_exact_keys: Dictionary = {}
+## recent_questions・_recent_exact_keys に反映済みの履歴の件数（外から書き換えられたら作り直す）
+var _indexed_history_size: int = 0
 var play_history: Array[String] = []
 ## オフラインは払い出し直後から記録し、プリロード中の追加補充でも同じ問題を避ける。
 var _offline_dispatched_questions: Array[String] = []
@@ -31,6 +34,10 @@ const HISTORY_SAVE_DEBOUNCE_SEC: float = 0.2
 ## 履歴が多い条件では候補の大半が新規性ゲートで落ちるため、
 ## 10問プリロードの不足補充は1〜2候補だけでなく余裕を持って生成する。
 const TEN_PRELOAD_MIN_CANDIDATES: int = 6
+## AI の問題がこの秒数届かなければ、そのラウンドの残りを問題バンクで出題する
+## （ふだん・試合の途中で次の問題を待たせているとき）
+const ONLINE_STALL_FALLBACK_SEC: float = 12.0
+const ONLINE_STALL_FALLBACK_MID_SEC: float = 6.0
 
 ## オフラインモードで同期払い出しに使う緊急キャッシュ
 var _emergency_cache: Array[QuizItem] = []
@@ -59,10 +66,18 @@ var _dedup_retry_count: int = 0
 var _fetch_scheduled: bool = false
 var _last_refetch_ms: int = 0
 var _history_save_scheduled: bool = false
+## ラウンド中に保存を見送った履歴がある（end_round か終了時に保存する）
+var _history_save_pending: bool = false
 var _initial_ten_fetch_started: bool = false
 var generated_bank: GeneratedBank
 ## このラウンドは予算切れで共有バンクに切り替えた（ラウンドの途中で戻さない）
 var _round_bank_fallback: bool = false
+## このラウンドは始まりから問題バンクだけで出題する（uses_bank_only）
+var _round_started_bank_only: bool = false
+## AI の問題が届くのを待ち始めた時刻（待っていなければ 0）。長く届かなければバンクへ切り替える
+var _online_wait_started_ms: int = 0
+## 待ち始めたときに届いていた問題の数（増えたら待ち直す）
+var _online_wait_progress: int = 0
 ## フェーズ C1: プロキシの /round-plan が決めたこのラウンドの新作の数。
 ## 10問モードは新作 _round_new_target 問＋共有バンクなど、エンドレスは補充の _endless_new_ratio を新作にする。
 ## -1 は制限なし（プロキシから計画を受け取れなかったときの従来どおりの動き）。
@@ -74,18 +89,29 @@ var _endless_generated: int = 0
 var _endless_banked: int = 0
 ## 計画で新作以外の枠に入れたバンクの問題（オンライン中でも払い出してよい OFFLINE 系）
 var _planned_bank_keys: Dictionary = {}
+## 生成の上限などで、AI が作る見せ方のラウンドを問題バンクで埋めた問題（一致キー）。
+## バンクの問題は一瞬で揃ってしまい「作っている」感じが出ないので、開始前の準備中は
+## 1問ずつランダムな間隔で払い出す（_paced_release_allowed）。
+var _paced_bank_keys: Dictionary = {}
+## 次にバンクの問題を払い出してよい時刻（0 はまだ決めていない）
+var _next_paced_release_ms: int = 0
+const PACED_RELEASE_MIN_SEC: float = 0.25
+const PACED_RELEASE_MAX_SEC: float = 1.15
 var _round_candidates_seen: int = 0
 var _round_candidates_blocked: int = 0
 var _quality_stats_logged: bool = false
+
+## 試合の最中とみなす画面の状態（出題ラウンドの前後の待ち・演出も含む）
+const MATCH_STATES: Array[String] = [
+	Constants.STATE_WAITING_START, Constants.STATE_FLYOVER, Constants.STATE_COUNTDOWN,
+	Constants.STATE_PLAYING, Constants.STATE_CORRECT, Constants.STATE_GOAL_RACE,
+	Constants.STATE_SUDDEN_DEATH,
+]
 
 func _init() -> void:
 	super._init()
 
 func _ready() -> void:
-	# A phone build ships without APP_SECRET (it would be readable from the APK): the proxy would
-	# answer 403 after a 15 s wait every round, so start on the built-in questions there.
-	if GraphicsQuality.is_mobile_target() and ApiStatusAutoload.get_env("APP_SECRET").is_empty():
-		llm_mode = "OFFLINE"
 	offline_provider = QuizProvider.new("res://offline_bank.json")
 	add_child(offline_provider)
 	if QuizManager.firebase_quiz_cache != null:
@@ -109,6 +135,29 @@ func _ready() -> void:
 	_poll_timer.autostart = true
 	_poll_timer.timeout.connect(_on_poll)
 	add_child(_poll_timer)
+
+
+func _notification(what: int) -> void:
+	# ラウンドの途中で終了・中断しても、保存を見送っていた履歴は残す
+	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_EXIT_TREE \
+			or what == NOTIFICATION_APPLICATION_PAUSED:
+		if _history_save_pending:
+			_save_cross_round_history()
+
+
+## QuizManager の試合（出題ラウンド）の最中か。共有バンクの同期や記録の保存のような
+## 重い後処理を試合の外へずらすのに使う（FirebaseQuizCache・PlayerAnalytics）。
+static func is_match_in_progress() -> bool:
+	var buffered := QuizManager.provider as BufferedQuizProvider
+	if buffered != null and buffered.is_active_round:
+		return true
+	var gs: QuizGameState = QuizManager.game_state
+	if gs == null:
+		return false
+	# 途中で問題が尽きたときの準備中は試合の続き
+	if gs.game_state == Constants.STATE_PRELOADING:
+		return gs.current_index > 0
+	return gs.game_state in MATCH_STATES
 
 func total_count() -> int:
 	return offline_provider.total_count()
@@ -138,15 +187,37 @@ func _online_api_available() -> bool:
 	return ApiStatusAutoload.is_proxy_available()
 
 
+## AI に問題を作らせられる設定か。APP_SECRET がないとプロキシは 403 を返すので
+## （スマホ版は APK から読めてしまうので同梱しない）、そのときは最初から問題バンクで出題する。
+func _online_generation_configured() -> bool:
+	return _online_api_available() and not ApiStatusAutoload.get_env("APP_SECRET").is_empty()
+
+
+## 出した AI の問題の解説を取りに行けるか。ラウンドの途中で問題バンクに切り替えても（_round_bank_fallback）、
+## すでに届いた AI の問題の解説は取りに行く。取りに行かないと、その問題で脱落したときの解説が
+## 「解説を読み込み中…」のまま変わらない。予算切れでプロキシが止めているときは取りに行かない。
+func _can_fetch_explanations() -> bool:
+	return llm_mode == "ONLINE" and _online_generation_configured() 		and not ApiStatusAutoload.is_online_generation_paused()
+
+
+## このラウンド（ラウンドの外では次のラウンド）を問題バンクだけで出題するか。
+## バンクだけのラウンドは問題が同期で揃うので、GameState・GameWorld は待たずに始める。
+## 途中で生成が止まってバンクへ切り替えても、ラウンドの始まりの判定のままにする。
+func uses_bank_only() -> bool:
+	if is_active_round:
+		return _round_started_bank_only
+	return llm_mode != "ONLINE" or not _online_generation_configured()
+
+
 func _should_use_offline_quizzes() -> bool:
 	return not _uses_online_generation()
 
 
-## オンラインモードで、このラウンドの問題を Gemini に作らせるか。
-## プロキシが予算切れ（503）で生成を止めたら、そのラウンドの残りは共有バンク
-## （Firebase から同期した確認済みの問題を含むオフライン問題）で出題する。
+## このラウンドの問題を AI（Claude）に作らせるか。作れない設定のとき、
+## プロキシが予算切れ（503）で生成を止めたとき、生成が届かず止まったときは、
+## そのラウンドの残りを共有バンク（Firebase から同期した確認済みの問題を含むオフライン問題）で出題する。
 func _uses_online_generation() -> bool:
-	if llm_mode != "ONLINE" or _round_bank_fallback:
+	if llm_mode != "ONLINE" or _round_bank_fallback or not _online_generation_configured():
 		return false
 	if ApiStatusAutoload.is_online_generation_paused():
 		if is_active_round:
@@ -178,6 +249,10 @@ func begin_round(subject: String, grade: int, difficulty: String,
 	current_mode = mode
 	target_count = t_count
 	is_active_round = true
+	# プロキシに届かなかった数はラウンドごとに数え直す（ネットが戻れば次のラウンドから AI の問題を試す）
+	if is_instance_valid(online_fetcher):
+		online_fetcher.transport_failures = 0
+		online_fetcher.reset_stream_availability()
 	
 	buffer.clear()
 	inflight = 0
@@ -200,6 +275,7 @@ func begin_round(subject: String, grade: int, difficulty: String,
 	_round_candidates_blocked = 0
 	_quality_stats_logged = false
 	_round_bank_fallback = false
+	_online_wait_started_ms = 0
 	_round_plan_pending = false
 	_round_plan_serial += 1
 	_round_new_target = -1
@@ -207,23 +283,31 @@ func begin_round(subject: String, grade: int, difficulty: String,
 	_endless_generated = 0
 	_endless_banked = 0
 	_planned_bank_keys.clear()
+	_paced_bank_keys.clear()
+	_next_paced_release_ms = 0
+	_round_started_bank_only = _should_use_offline_quizzes()
 
 	# オフライン問題は直後の同期フェッチで取得できるため、開始時の緊急キャッシュ生成は不要。
 	# ここで過去履歴との意味比較を走らせると、準備画面を長時間ブロックしてしまう。
 	if _should_use_offline_quizzes():
 		_emergency_cache.clear()
+		# 出題プールの下ごしらえは準備画面のうちに済ませる（プレイ中の補充を軽くする）
+		if offline_provider != null:
+			# エンドレスの緊急キャッシュは10問の条件で引くので、そのプールも作っておく。
+			# 先に作る（後だと覚えておく数の上限でエンドレスのプールが押し出されることがある）
+			if mode == Constants.MODE_ENDLESS and difficulty != "難しい":
+				offline_provider.warm_pool(subject, grade, difficulty, Constants.MODE_TEN)
+			offline_provider.warm_pool(subject, grade, difficulty, mode)
 	else:
 		_emergency_cache.clear()
 		buffer = _filter_online_only(buffer)
 		_overflow_buffer = _filter_online_only(_overflow_buffer)
 	
 	# ★★★ 速度最適化: ポーリング待ちを廃止し、即座に最初のリクエストを発火 ★★★
-	if llm_mode == "ONLINE" and not _online_api_available():
-		print("[BufferedProvider] Online mode selected but PROXY_URL is not configured — waiting (no offline fallback)")
-	elif _uses_online_generation():
+	if _uses_online_generation():
 		# 新作の数をプロキシに聞いてから、バンクで埋めて生成を始める
 		_start_round_plan()
-	elif _should_use_offline_quizzes() or _online_api_available():
+	else:
 		if llm_mode == "ONLINE":
 			_seed_from_generated_bank()
 		# オフライン10問はジャンル上限超過も初回から overflow へ回し、
@@ -245,12 +329,15 @@ func end_round() -> void:
 	for q_text: String in play_history:
 		_append_history_entry(q_text, "")
 	_save_cross_round_history()
+	# 補充のたびに覚えておいた単元の使用履歴も、ここでまとめて保存する
+	if is_instance_valid(online_fetcher) and online_fetcher.has_method("flush_unit_usage"):
+		online_fetcher.flush_unit_usage()
 
 
 ## ラウンド終了時、出題済み（プレイヤーが実際に見た）問題のうち
 ## 解説が未充填かつ未リクエストのものをまとめて充填依頼する
 func _flush_pending_explanations_on_end() -> void:
-	if _should_use_offline_quizzes() or not _online_api_available():
+	if not _can_fetch_explanations():
 		return
 	var pending: Array[QuizItem] = []
 	for q in _dispatched_items:
@@ -316,8 +403,6 @@ func _fire_immediate_fetch() -> void:
 func _schedule_fetch(delay_sec: float = 0.0) -> void:
 	if not is_active_round or _fetch_scheduled:
 		return
-	if llm_mode == "ONLINE" and not _online_api_available():
-		return
 	var wait_sec := delay_sec
 	if online_fetcher.has_method("get_rate_limit_wait_sec"):
 		wait_sec = maxf(wait_sec, online_fetcher.get_rate_limit_wait_sec())
@@ -342,6 +427,7 @@ func _on_poll() -> void:
 	# 補充とは独立して、解説充填と正解検証のバックグラウンド処理を進める
 	_kick_explanation_batch()
 	_run_answer_validation_once()
+	_check_online_stall()
 	# 失敗後の遅延フェッチを予約している間は、0.25秒タイマーから重複実行しない。
 	if _fetch_scheduled:
 		return
@@ -349,8 +435,6 @@ func _on_poll() -> void:
 	if not _worker_should_fill():
 		return
 
-	if llm_mode == "ONLINE" and not _online_api_available():
-		return
 	# レート制限・予算切れで待つのはオンライン生成だけ。共有バンクからの補充は止めない。
 	if _uses_online_generation() and online_fetcher.has_method("is_rate_limited") \
 			and online_fetcher.is_rate_limited():
@@ -386,14 +470,82 @@ func _on_poll() -> void:
 			fetch_count, full_history, is_initial_ten
 		)
 	else:
-		print("[BufferedProvider] Using offline bank (llm_mode=%s)" % llm_mode)
+		print("[BufferedProvider] Filling from the question bank (llm_mode=%s)" % llm_mode)
 		var b_size := 6
 		if current_mode == Constants.MODE_TEN:
 			b_size = clampi(target_count, 6, 10)
+		elif current_mode == Constants.MODE_ENDLESS:
+			# エンドレスは足りない数をまとめて受け取り、1回の補充でバッファを埋める
+			b_size = fetch_count
 		var out = offline_provider.get_quizzes(
 			current_subject, current_grade, current_difficulty, current_mode, b_size,
 			_collect_offline_question_texts())
-		_on_fetch_completed(out)
+		# 途中でバンクへ切り替えたラウンド（予算切れ・生成が届かない）も、準備中は間隔を空けて出す
+		for q: QuizItem in out:
+			_mark_paced_bank_item(q)
+		if current_mode == Constants.MODE_ENDLESS:
+			# 受け入れは従来どおり1問ずつ（まとめるとジャンルの並べ替えで出題順が変わる）
+			inflight = maxi(0, inflight - 1)
+			for q: QuizItem in out:
+				var single: Array[QuizItem] = [q]
+				_on_fetch_partial(single)
+			_kick_explanation_batch()
+		else:
+			_on_fetch_completed(out)
+
+
+## AI の問題を待っているのに長く届かなければ（通信の失敗・プロキシの不調）、そのラウンドの残りを
+## 問題バンクで出題する。問題が1問でも届けば数え直し、待っていない間は時計を止める。
+func _check_online_stall() -> void:
+	if not is_active_round or not _uses_online_generation() or not _is_waiting_for_online():
+		_online_wait_started_ms = 0
+		return
+	var now_ms := Time.get_ticks_msec()
+	var progress := yielded_count + buffer.size() + _overflow_buffer.size()
+	if _online_wait_started_ms == 0 or progress != _online_wait_progress:
+		_online_wait_started_ms = now_ms
+		_online_wait_progress = progress
+		return
+	# 試合の途中で次の問題を待たせているときは、プレイヤーが止まっているので早めに切り替える
+	var gs: QuizGameState = QuizManager.game_state
+	# エンドレスは current_index が増えないので、通った壁の数でも見る（GameState._update_preloading と同じ）
+	var player_blocked := gs != null and gs.game_state == Constants.STATE_PRELOADING \
+		and (gs.current_index > 0 or gs.current_wall_index > 0)
+	# ネットにつながらない（プロキシに続けて届かない）なら、待たずにバンクへ切り替える。
+	# 待つとオフラインの PC では毎ラウンド「AIクイズ生成中 (0/10)」のまま 12 秒止まる。
+	if progress == 0 and is_instance_valid(online_fetcher) and online_fetcher.proxy_unreachable():
+		_switch_round_to_bank("the proxy is unreachable")
+		return
+	var limit_sec := ONLINE_STALL_FALLBACK_MID_SEC if player_blocked else ONLINE_STALL_FALLBACK_SEC
+	if float(now_ms - _online_wait_started_ms) / 1000.0 >= limit_sec:
+		_switch_round_to_bank("no AI questions for %.0fs" % limit_sec)
+
+
+## まだ届いていない AI の問題を待っているか（10問はラウンドの数に足りない、エンドレスは手持ちが空）
+func _is_waiting_for_online() -> bool:
+	if _round_plan_pending:
+		return true
+	if current_mode == Constants.MODE_TEN:
+		return yielded_count + buffer.size() < target_count
+	return buffer.is_empty()
+
+
+## このラウンドの残りを問題バンクで出題する（予算切れのときと同じ経路）。補充は呼び出し元の
+## _on_poll がこのあと続けて行う。遅れて届いた AI の問題は、そのまま受け入れる。
+func _switch_round_to_bank(reason: String) -> void:
+	if _round_bank_fallback:
+		return
+	_round_bank_fallback = true
+	_online_wait_started_ms = 0
+	# 返事を待っている round-plan は捨てる（届いても計画を当てはめない）
+	_round_plan_pending = false
+	_round_plan_serial += 1
+	# 届かない生成の数え上げとレート制限の待ちで、バンクからの補充を止めない
+	inflight = 0
+	_fetch_scheduled = false
+	if current_mode == Constants.MODE_TEN:
+		_dedup_retry_count = maxi(_dedup_retry_count, 2)
+	print("[BufferedProvider] Switched this round to the question bank (%s)" % reason)
 
 
 func _calculate_fetch_candidate_count() -> int:
@@ -656,8 +808,14 @@ func get_quizzes(_subject: String, _grade: int, _difficulty: String,
 	# 10問モード: 連続同ジャンルを避けるようバッファを並べ替えてから払い出す
 	if current_mode == Constants.MODE_TEN and buffer.size() > 1:
 		_reorder_buffer_for_genre_spread()
+	# 間隔を空けて払い出すバンクの問題のうち、まだ時刻が来ていないもの（バッファへ戻す）
+	var held: Array[QuizItem] = []
 	while buffer.size() > 0 and out.size() < count:
-		var picked := _prepare_round_candidate(buffer.pop_front())
+		var raw: QuizItem = buffer.pop_front()
+		if _is_paced_bank_item(raw) and not _take_paced_release():
+			held.append(raw)
+			continue
+		var picked := _prepare_round_candidate(raw)
 		if picked == null:
 			continue
 		if _is_unplanned_offline(picked):
@@ -669,12 +827,19 @@ func get_quizzes(_subject: String, _grade: int, _difficulty: String,
 		_last_dispatched_genre = picked.genre
 		_track_dispatched_unexplained(picked)
 		out.append(picked)
+	if not held.is_empty():
+		held.append_array(buffer)
+		buffer = held
 
 	# バッファが足りない場合、ジャンル上限で控えに回した問題から補充する
 	if current_mode == Constants.MODE_TEN and out.size() < count:
 		var skipped: Array[QuizItem] = []
 		while _overflow_buffer.size() > 0 and out.size() < count:
-			var ov := _prepare_round_candidate(_overflow_buffer.pop_front())
+			var raw_ov: QuizItem = _overflow_buffer.pop_front()
+			if _is_paced_bank_item(raw_ov) and not _take_paced_release():
+				skipped.append(raw_ov)
+				continue
+			var ov := _prepare_round_candidate(raw_ov)
 			if ov == null:
 				continue
 			if _is_unplanned_offline(ov):
@@ -712,9 +877,9 @@ func get_quizzes(_subject: String, _grade: int, _difficulty: String,
 		else:
 			if inflight == 0 and _online_api_available():
 				_schedule_fetch()
-			# ONLINEはモードを問わず、オンライン問題が届くまで待機する。
-			# オフライン問題による一時補完は行わない。
-			print("[BufferedProvider] Online buffer empty, waiting for AI fetch (no offline fallback)")
+			# AI 生成中はモードを問わず、まず AI の問題を待つ。緊急キャッシュでは補わず、
+			# 長く届かなければ _check_online_stall がラウンドの残りを問題バンクへ切り替える。
+			print("[BufferedProvider] Online buffer empty, waiting for AI fetch")
 
 	if _should_use_offline_quizzes():
 		for q in out:
@@ -842,7 +1007,7 @@ func _kick_explanation_batch() -> void:
 		return
 	if not is_active_round:
 		return
-	if _should_use_offline_quizzes():
+	if not _can_fetch_explanations():
 		return
 
 	# 解説が空のオンライン生成問題を収集（バッファ・控え・払い出し済みすべて対象）
@@ -986,6 +1151,7 @@ func _seed_from_generated_bank(limit: int = -1) -> int:
 			continue
 		batch_accepted.append(q.q)
 		_append_history_entry(q.q, q.genre)
+		_mark_paced_bank_item(q)
 		buffer.append(q)
 		used.append(q.q)
 		if not q.genre.is_empty() and q.genre not in adopted_units:
@@ -1063,11 +1229,52 @@ func _take_bank_tier(tier: String, limit: int) -> int:
 		batch_accepted.append(q.q)
 		_append_history_entry(q.q, q.genre)
 		_planned_bank_keys[QuizDedup.exact_key(q.q)] = true
+		_mark_paced_bank_item(q)
 		buffer.append(q)
 		added += 1
 	if added > 0:
 		_schedule_history_save()
 	return added
+
+
+## AI が作る見せ方のラウンド（10問）でバンクから埋めた問題を、間隔を空けて払い出す対象にする。
+## 始まりからバンクだけのラウンドは「問題を準備しています」の見せ方なので対象にしない。
+func _mark_paced_bank_item(q: QuizItem) -> void:
+	if q == null or _round_started_bank_only or current_mode != Constants.MODE_TEN:
+		return
+	_paced_bank_keys[QuizDedup.exact_key(q.q)] = true
+
+
+func _is_paced_bank_item(q: QuizItem) -> bool:
+	return q != null and not _paced_bank_keys.is_empty() \
+		and _paced_bank_keys.has(QuizDedup.exact_key(q.q))
+
+
+## 間隔を空けて払い出すのは、試合が始まる前の準備中（AIクイズ生成中... の画面）だけ。
+## 試合の途中の補充はプレイヤーを待たせているので、すぐに出す。
+func _is_paced_release_active() -> bool:
+	if not is_active_round or current_mode != Constants.MODE_TEN or _round_started_bank_only:
+		return false
+	var gs: QuizGameState = QuizManager.game_state
+	return gs != null and gs.game_state == Constants.STATE_PRELOADING and gs.current_index == 0
+
+
+## バンクの問題を1問払い出してよいか。よければ次の1問までのランダムな間隔を決める。
+func _take_paced_release() -> bool:
+	if not _is_paced_release_active():
+		return true
+	var now_ms := Time.get_ticks_msec()
+	if _next_paced_release_ms == 0:
+		# 最初の1問も、すぐには出さない
+		_next_paced_release_ms = now_ms + _random_paced_interval_ms()
+	if now_ms < _next_paced_release_ms:
+		return false
+	_next_paced_release_ms = now_ms + _random_paced_interval_ms()
+	return true
+
+
+func _random_paced_interval_ms() -> int:
+	return int(randf_range(PACED_RELEASE_MIN_SEC, PACED_RELEASE_MAX_SEC) * 1000.0)
 
 
 ## オンライン生成中に混ざった、計画にないオフライン問題か（払い出さない）
@@ -1170,20 +1377,50 @@ func _append_history_entry(question: String, genre: String) -> bool:
 	history_entry["grade"] = current_grade
 	history_entry["difficulty"] = current_difficulty
 	history_entry["reserved_at"] = int(Time.get_unix_time_from_system())
+	# 1,000件を毎回作り直さず、足した分と押し出した分だけ反映する
+	var indexed := _indexed_history_size == recent_history_entries.size()
 	recent_history_entries.append(history_entry)
+	if indexed:
+		_index_history_entry(history_entry)
 	while recent_history_entries.size() > CROSS_ROUND_HISTORY_MAX:
-		recent_history_entries.pop_front()
-	_sync_recent_questions_from_entries()
+		var dropped: Dictionary = recent_history_entries.pop_front()
+		if indexed:
+			_unindex_history_entry(dropped)
+	if not indexed:
+		_sync_recent_questions_from_entries()
 	return true
 
 func _sync_recent_questions_from_entries() -> void:
 	recent_questions.clear()
 	_recent_exact_keys.clear()
+	_indexed_history_size = 0
 	for entry in recent_history_entries:
-		var text := QuizDedup.history_entry_text(entry)
-		if not text.is_empty():
-			recent_questions.append(text)
-			_recent_exact_keys[QuizDedup.exact_key(text)] = true
+		_index_history_entry(entry)
+
+
+func _index_history_entry(entry: Dictionary) -> void:
+	_indexed_history_size += 1
+	var text := QuizDedup.history_entry_text(entry)
+	if text.is_empty():
+		return
+	recent_questions.append(text)
+	var key := QuizDedup.exact_key(text)
+	_recent_exact_keys[key] = int(_recent_exact_keys.get(key, 0)) + 1
+
+
+## 履歴の先頭から押し出した1件を外す（recent_questions の先頭がその問題文にあたる）。
+func _unindex_history_entry(entry: Dictionary) -> void:
+	_indexed_history_size -= 1
+	var text := QuizDedup.history_entry_text(entry)
+	if text.is_empty():
+		return
+	recent_questions.pop_front()
+	var key := QuizDedup.exact_key(text)
+	var left := int(_recent_exact_keys.get(key, 0)) - 1
+	if left > 0:
+		_recent_exact_keys[key] = left
+	else:
+		_recent_exact_keys.erase(key)
 
 
 func _load_cross_round_history() -> void:
@@ -1214,6 +1451,7 @@ func _load_cross_round_history() -> void:
 			print("[BufferedProvider] Loaded %d cross-round history entries from disk" % recent_questions.size())
 
 func _save_cross_round_history() -> void:
+	_history_save_pending = false
 	var save_data: Array = []
 	for entry in recent_history_entries:
 		if entry is Dictionary:
@@ -1222,14 +1460,25 @@ func _save_cross_round_history() -> void:
 			var text := QuizDedup.history_entry_text(entry)
 			if not text.is_empty():
 				save_data.append(QuizDedup.make_history_entry(text, ""))
-	var f := FileAccess.open(HISTORY_SAVE_PATH, FileAccess.WRITE)
+	# 一時ファイルに書いてから置き換える。直接上書きすると、書いている途中の終了や、1 台で 2 つ起動した
+	# ゲームが同時に書いたときに壊れたファイルが残り、次の起動で出題履歴（重複よけ）が消える。
+	var temp_path := HISTORY_SAVE_PATH + ".tmp"
+	var f := FileAccess.open(temp_path, FileAccess.WRITE)
 	if f:
 		f.store_string(JSON.stringify(save_data))
 		f.close()
+		var target := ProjectSettings.globalize_path(HISTORY_SAVE_PATH)
+		if FileAccess.file_exists(HISTORY_SAVE_PATH):
+			DirAccess.remove_absolute(target)
+		DirAccess.rename_absolute(ProjectSettings.globalize_path(temp_path), target)
 		print("[BufferedProvider] Saved %d cross-round history entries to disk" % save_data.size())
 
 
 func _schedule_history_save() -> void:
+	# ラウンド中は書き出さない（end_round で必ず保存する。途中終了は _notification で保存）
+	if is_active_round:
+		_history_save_pending = true
+		return
 	if _history_save_scheduled:
 		return
 	_history_save_scheduled = true

@@ -76,6 +76,21 @@ function bar(value, max, { marker = null, soft = 0 } = {}) {
   return `<div class="bar ${cls}"><i style="width:${width}%"></i>${softHtml}${markerHtml}</div>`;
 }
 
+// 区分ごとに積んだ横棒。parts は [{ value, color }]。soft はその後ろに薄い色で足す見込み
+function stackBar(parts, max, { marker = null, soft = 0 } = {}) {
+  let left = 0;
+  let html = '';
+  for (const p of parts) {
+    const width = max > 0 ? Math.min(100 - left, (Number(p.value || 0) / max) * 100) : 0;
+    if (width > 0) html += `<i style="left:${left}%;width:${width}%;background:${p.color}"></i>`;
+    left += Math.max(0, width);
+  }
+  const softWidth = max > 0 ? Math.min(100 - left, (soft / max) * 100) : 0;
+  if (softWidth > 0) html += `<i class="soft" style="left:${left}%;width:${softWidth}%"></i>`;
+  if (marker !== null && max > 0) html += `<b style="left:${Math.min(100, (marker / max) * 100)}%"></b>`;
+  return `<div class="bar">${html}</div>`;
+}
+
 function miniBar(frac) {
   const f = Number(frac || 0);
   const cls = f >= 1 ? 'over' : f >= 0.8 ? 'warn' : '';
@@ -178,19 +193,39 @@ function barChart({ labels, series, line = null, format = v => v, lineFormat = v
 // ---- お金 ----
 
 function renderMoney(m) {
-  const g = m.gemini;
+  const g = m.live;
   const level = LEVELS[g.level] || LEVELS.stop;
   const first = g.newCount.first;
   const later = g.newCount.later;
-  let note = `新作は、各端末のその日の最初の${g.newCount.priorityRounds}試合が10問中${first}問、3試合目からは${later}問。残りは共有バンクなどで埋めます。`;
+  let note = `試合中の Claude の新作は、各端末のその日の最初の${g.newCount.priorityRounds}試合が10問中${first}問、3試合目からは${later}問。残りは共有バンクなどで埋めます。`;
   if (g.forcedLevel) note += `（プロキシの設定 ROUND_PLAN_FORCE_LEVEL で「${LEVELS[g.forcedLevel].label}」に固定中）`;
   if (g.stopReason) note += `（${STOP_REASONS[g.stopReason] || g.stopReason}に達しています）`;
   $('money-level').className = `level-card level-${g.level}`;
   $('money-level').innerHTML = `<span class="level-badge badge-${g.level}">${level.label}</span>`
     + `<div><div><b>今の段階: ${esc(level.text)}</b></div><div class="muted small">${esc(note)}</div></div>`;
 
+  // Claude 全体（試合中＋毎週のジョブ）を Claude Console の支出上限に対して見る
+  const total = m.total;
+  const c = m.batch;
+  const totalParts = [
+    { name: '試合中', value: g.month.usd, budget: g.month.budgetUsd, color: 'var(--accent)' },
+    { name: '判定', value: c.review.usd, budget: c.review.budgetUsd, color: 'var(--orange)' },
+    { name: '補充', value: c.builder.usd, budget: c.builder.budgetUsd, color: 'var(--green)' },
+  ];
+  const legacy = m.legacyGeminiUsd > 0
+    ? `<div class="row" style="margin-top:6px"><span>旧 Gemini 系統（aiquiz-proxy）からも今月 ${usd(m.legacyGeminiUsd)} 使われています。Google の請求で、上の合計には入りません</span></div>` : '';
+  $('money-total').innerHTML = `<h2>Claude 今月の合計（${esc(m.month)}・Claude Console の支出上限 ${usd(total.capUsd)}）</h2>`
+    + `<div class="big">${usd(total.usd)} <small>/ ${usd(total.capUsd)}　${yen(total.usd)} / ${yen(total.capUsd)}</small></div>`
+    + stackBar(totalParts, total.capUsd, { marker: total.budgetUsd, soft: total.inflightUsd })
+    + `<div class="legend" style="margin-top:4px">${totalParts.map(p => `<span><i class="swatch" style="background:${p.color}"></i>`
+      + `${esc(p.name)} ${usd(p.value)} / ${usd(p.budget)}</span>`).join('')}`
+    + `<span><i class="swatch" style="background:var(--accent-soft)"></i>回収待ちの見込み ${usd(total.inflightUsd)}</span></div>`
+    + `<div class="row" style="margin-top:4px"><span>縦線: 3つの上限の合計 ${usd(total.budgetUsd)}（それぞれの上限でも止まります）</span>`
+    + `<span>${total.usd + total.inflightUsd > total.budgetUsd ? '上限の合計を超えそうです' : `残り ${usd(total.budgetUsd - total.usd - total.inflightUsd)}`}</span></div>`
+    + legacy;
+
   const t = g.today;
-  $('money-today').innerHTML = `<h2>Gemini 今日（${esc(shortDay(m.day))}）</h2>`
+  $('money-today').innerHTML = `<h2>試合中の Claude 今日（${esc(shortDay(m.day))}）</h2>`
     + `<div class="big">${usd(t.usd)} <small>/ ${usd(t.budgetUsd)}　${yen(t.usd)}</small></div>`
     + bar(t.usd, t.budgetUsd, { marker: t.targetUsd })
     + `<div class="row"><span>今日の目安 ${usd(t.targetUsd)}（縦線）</span><span>${int(t.requests)} 回</span></div>`
@@ -199,20 +234,19 @@ function renderMoney(m) {
   const mo = g.month;
   const projection = mo.projectedUsd === null ? '月の初日はまだ出しません'
     : `このペースだと月末 ${usd(mo.projectedUsd)}（${yen(mo.projectedUsd)}）${mo.projectedUsd > mo.budgetUsd ? '→ 上限で止まります' : ''}`;
-  $('money-month').innerHTML = `<h2>Gemini 今月（${esc(m.month)}）</h2>`
+  $('money-month').innerHTML = `<h2>試合中の Claude 今月（${esc(m.month)}）</h2>`
     + `<div class="big">${usd(mo.usd)} <small>/ ${usd(mo.budgetUsd)}　${yen(mo.usd)} / ${yen(mo.budgetUsd)}</small></div>`
     + bar(mo.usd, mo.budgetUsd, { marker: mo.budgetUsd * (mo.elapsedDays / mo.daysInMonth) })
     + `<div class="row"><span>縦線: 今日までの予定額</span><span>${int(mo.requests)} 回</span></div>`
     + `<div class="row"><span>${esc(projection)}</span></div>`;
 
-  const c = m.claude;
   const part = (title, p) => `<div class="row" style="margin-top:6px"><span><b style="color:var(--text)">${esc(title)}</b> ${esc(p.model)}</span>`
     + `<span>${usd(p.usd)} / ${usd(p.budgetUsd)}</span></div>`
     + bar(p.usd, p.budgetUsd, { soft: p.inflight.estUsd })
     + `<div class="row"><span>${p.inflight.batches ? `回収待ち ${p.inflight.batches} 件（見込み ${usd(p.inflight.estUsd)}、薄い色）` : '回収待ちなし'}</span></div>`;
-  $('money-claude').innerHTML = `<h2>Claude 今月（Max のクレジット $100 から）</h2>`
-    + `<div class="big">${usd(c.totalUsd)} <small>/ ${usd(c.totalBudgetUsd)}</small></div>`
-    + part('夜の補充', c.builder) + part('判定', c.review);
+  $('money-batch').innerHTML = `<h2>毎週のジョブ 今月（Batch）</h2>`
+    + `<div class="big">${usd(c.totalUsd)} <small>/ ${usd(c.totalBudgetUsd)}　${yen(c.totalUsd)}</small></div>`
+    + part('判定', c.review) + part('補充', c.builder);
 
   const models = [...new Set(g.history.flatMap(h => Object.keys(h.models)))].sort();
   const series = models.map((name, i) => ({
@@ -246,9 +280,9 @@ function renderBank(b) {
   const t = b.totals;
   const r = b.review;
   $('bank-totals').innerHTML = [
-    stat('共有バンクの問題', int(t.bank), `Claude 補充 ${int(b.origins.claude)}／プレイヤー生成 ${int(b.origins.player)}`),
+    stat('共有バンクの問題', int(t.bank), `補充 ${int(b.origins.builder)}／試合中の生成 ${int(b.origins.match)}`),
     stat('目標に届いた区分', `${t.bucketsAtTarget} <small class="muted">/ ${t.plannedBuckets}</small>`, `空の区分 ${t.emptyBuckets}／不足 ${int(t.shortfall)} 問`),
-    stat('判定待ち', int(b.pending.waiting), `次の 4:00 に判定へ（1回 ${int(state.overview?.review?.maxPerRun || 0)} 問まで）`),
+    stat('判定待ち', int(b.pending.waiting), `次の判定のジョブで送る（1回 ${int(state.overview?.review?.maxPerRun || 0)} 問まで）`),
     stat('判定中', int(b.pending.inReview), `保留 ${int(b.pending.unsure)}／エラー ${int(b.pending.errored)}`),
     stat('Claude の合格率', pct(r.passRate, 1), `直近7日 ${pct(r.week.passRate, 1)}（合格 ${int(r.week.pass)}・不合格 ${int(r.week.fail)}）`),
   ].join('');
@@ -301,7 +335,7 @@ function renderJobs(jobs) {
     return '<span class="tag bad">失敗</span>';
   };
   $('jobs').innerHTML = jobs.map(job => {
-    const schedule = job.schedule ? `毎日 ${job.schedule.split(' ')[1].padStart(2, '0')}:${job.schedule.split(' ')[0].padStart(2, '0')}` : '予定なし';
+    const schedule = job.scheduleText || '予定なし';
     const recent = job.recent.map(r => `${runTag(r)} <span class="small muted">${esc(when(r.startedAt))}</span>`).join('　');
     return `<div class="card"><h2>${esc(job.label)}</h2>`
       + `<div class="row"><span>前回 ${runTag(job.lastRun)} ${esc(when(job.lastRun && job.lastRun.startedAt))}</span>`
@@ -382,8 +416,9 @@ function fillSearchFilters(b) {
 }
 
 const ORIGIN_LABELS = {
-  CLAUDE_HAIKU: 'Claude 補充', GEMINI: 'プレイヤー生成', GEMINI_STREAM: 'プレイヤー生成',
-  GEMINI_POOL: 'プレイヤー生成', OPENAI: 'プレイヤー生成（旧）',
+  CLAUDE_HAIKU: '補充（Haiku）', CLAUDE: '試合中の生成（Claude）', CLAUDE_STREAM: '試合中の生成（Claude）',
+  CLAUDE_POOL: '試合中の生成（Claude）', GEMINI: '試合中の生成（Gemini・旧）', GEMINI_STREAM: '試合中の生成（Gemini・旧）',
+  GEMINI_POOL: '試合中の生成（Gemini・旧）', OPENAI: '試合中の生成（OpenAI・旧）',
 };
 const VERDICT_LABELS = { pass: '合格', fail: '不合格', unsure: '保留' };
 
@@ -609,7 +644,7 @@ function setUpdated() {
 async function loadOverview() {
   state.overview = await getJson('/api/overview');
   const o = state.overview;
-  $('foot').textContent = `プロキシ ${o.revision}（${o.gcpProject}）／ 1ドル ${state.jpy} 円で換算`
+  $('foot').textContent = `プロキシ ${o.service} ${o.revision}（${o.gcpProject}）／ 1ドル ${state.jpy} 円で換算`
     + ` ／ 端末の上限 1日 ${usd(o.caps.deviceUsd)}（最初の24時間は ${usd(o.caps.newDeviceUsd)}）・回線 ${usd(o.caps.ipUsd)}`;
 }
 

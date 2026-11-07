@@ -32,7 +32,6 @@ const MobileMenu = preload("res://scripts/ui/mobile/mobile_menu.gd")
 @onready var current_diff_label: Label = %CurrentDiffLabel
 @onready var next_diff_btn: Button = %NextDiffBtn
 @onready var players_btn: Button = %PlayersToggleBtn
-@onready var llm_toggle_btn: Button = %LlmToggleBtn
 @onready var customize_btn: Button = %CustomizeBtn
 
 @onready var settings_panel: Panel = $SettingsPanel
@@ -210,7 +209,14 @@ func _ready() -> void:
 	SceneTransition.reveal_current()
 	_play_initial_entrance()
 	_start_title_logo_intro()
-	if _pending_customize_tutorial_on_ready:
+	if (
+		not PracticeSession.launch_next.is_empty()
+		or not PracticeSession.resume_in_menu.is_empty()
+		or PracticeSession.return_to_select
+	):
+		# 練習のコースから戻ってきたら、その続き（つぎのコース・②の 2-6）を初回の案内より先に進める
+		_open_practice_after_entrance()
+	elif _pending_customize_tutorial_on_ready:
 		# 実践コースのあとのカスタマイズ紹介は、メニューの上のハテナの案内（PracticeCustomizeGuide）で行う。
 		_begin_pending_customize_tutorial()
 	elif GameManager.should_show_tutorial_on_start():
@@ -238,7 +244,7 @@ func _apply_touch_layout() -> void:
 	if not MobileUi.is_touch_ui():
 		return
 	# 設定の行（出題・人数・カスタマイズ）と戻る・スタート、モード選択の小さいボタン
-	for button: Button in [llm_toggle_btn, players_btn, customize_btn, start_button, get_node_or_null("%BackBtn") as Button,
+	for button: Button in [players_btn, customize_btn, start_button, get_node_or_null("%BackBtn") as Button,
 			_tutorial_main_btn, _online_btn, settings_btn]:
 		MobileUi.ensure_touch_size(button)
 	# 教科・学年・難易度の ◀ ▶：ベルトの行の高さ（52）を大きく崩さないよう、小さいほうの基準（56）
@@ -270,6 +276,7 @@ func _apply_safe_area() -> void:
 	settings_btn.offset_top = settings_btn.offset_bottom - maxf(settings_btn.get_combined_minimum_size().y, 39.0)
 	if settings_btn.has_meta("base_position"):
 		settings_btn.set_meta("base_position", settings_btn.position)
+		settings_btn.set_meta("base_parent_size", settings_btn.get_parent_area_size())
 	if _heli_skip_hint != null:
 		_heli_skip_hint.offset_right = -24.0 - MobileMenu.safe_inset(&"right")
 		_heli_skip_hint.offset_bottom = -20.0 - MobileMenu.safe_inset(&"bottom")
@@ -279,6 +286,7 @@ func _apply_safe_area() -> void:
 		menu_vbox.offset_right = 760.0 + maxf(0.0, MobileMenu.safe_inset(&"left") - 40.0)
 		if menu_vbox.has_meta("base_position"):
 			menu_vbox.set_meta("base_position", menu_vbox.position)
+			menu_vbox.set_meta("base_parent_size", menu_vbox.get_parent_area_size())
 
 
 func _setup_helicopter_skip_hint() -> void:
@@ -537,7 +545,7 @@ func _title_logo_holder() -> Control:
 func _is_title_logo_skip_event(event: InputEvent) -> bool:
 	if event is InputEventKey:
 		var key := event as InputEventKey
-		return key.pressed and not key.echo and not (OS.is_debug_build() and key.keycode in [KEY_PAGEUP, KEY_PAGEDOWN, KEY_END])
+		return key.pressed and not key.echo and not (OS.has_feature("editor") and key.keycode in [KEY_PAGEUP, KEY_PAGEDOWN, KEY_END])
 	if event is InputEventMouseButton:
 		return (event as InputEventMouseButton).pressed
 	if event is InputEventJoypadButton:
@@ -657,6 +665,31 @@ func _setup_menu_exit_targets() -> void:
 	for target in _menu_exit_targets:
 		if not target.has_meta("base_position"):
 			target.set_meta("base_position", target.position)
+		target.set_meta("base_parent_size", target.get_parent_area_size())
+	if not get_viewport().size_changed.is_connected(_on_menu_viewport_resized):
+		get_viewport().size_changed.connect(_on_menu_viewport_resized)
+
+
+## ウィンドウの大きさが変わったら、覚えている元の位置（base_position）も、アンカーの分だけ動かす。
+## 右下の「設定」ボタンは右端が基準なので、動かさないと、最大化・フルスクリーン・解像度の変更のあとに
+## カスタマイズを開いて閉じたとき、古い位置へ戻って画面の外にはみ出す。開いている最中に変わっても正しく戻る。
+func _on_menu_viewport_resized() -> void:
+	# レイアウトが新しい大きさになってから測る
+	_shift_menu_exit_bases.call_deferred()
+
+
+func _shift_menu_exit_bases() -> void:
+	for target in _menu_exit_targets:
+		if not is_instance_valid(target) or not target.has_meta("base_position"):
+			continue
+		var old_size: Vector2 = target.get_meta("base_parent_size", target.get_parent_area_size())
+		var new_size := target.get_parent_area_size()
+		if old_size == new_size:
+			continue
+		var base: Vector2 = target.get_meta("base_position")
+		var shift := Vector2(target.anchor_left * (new_size.x - old_size.x), target.anchor_top * (new_size.y - old_size.y))
+		target.set_meta("base_position", base + shift)
+		target.set_meta("base_parent_size", new_size)
 
 func _reset_menu_visual_state() -> void:
 	_menu_exit_in_progress = false
@@ -1327,7 +1360,7 @@ func practice_customize_guide() -> PracticeCustomizeGuide:
 
 ## 画面のコーチ（PracticeCoach）が光らせる本物の部品（docs/new_tutorial/phase5_design.md 5.2）。なければ null。
 ##   モード選択：&"mode_ten"（10問チャレンジ）・&"mode_endless"・&"mode_online"・&"mode_practice"（チュートリアル）
-##   設定：&"subject"（教科の ◀ ▶ と文字）・&"grade"・&"difficulty"・&"llm"（出題）・&"players"・&"customize"・
+##   設定：&"subject"（教科の ◀ ▶ と文字）・&"grade"・&"difficulty"・&"players"・&"customize"・
 ##   &"start"（ゲーム開始）・&"back"（戻る）、右下の &"settings"（設定 / API状態）
 ##   設定パネル（コース⑤。docs/new_tutorial/phase8_design.md 1.2）：&"set_bgm"・&"set_sfx"・&"set_resolution"・&"set_fps"・
 ##   &"set_quality"・&"set_sudden"（出ていなければ null）・&"set_connection"（接続状態）・&"set_back"（戻る）
@@ -1357,8 +1390,6 @@ func practice_coach_target(id: StringName) -> Control:
 			return get_node_or_null("%GradeCarousel") as Control
 		&"difficulty":
 			return get_node_or_null("%DiffCarousel") as Control
-		&"llm":
-			return llm_toggle_btn
 		&"players":
 			return players_btn
 		&"customize":
@@ -1624,28 +1655,6 @@ func _update_ui() -> void:
 		else:
 			p_text = "2人プレイ"
 		players_btn.text = p_text
-
-		# エンドレスモードはオフライン問題のみ対応（オンラインAI生成は選択不可）
-		if game_state.mode == Constants.MODE_ENDLESS:
-			if QuizManager.provider.llm_mode != "OFFLINE":
-				QuizManager.provider.set_llm_mode("OFFLINE")
-			llm_toggle_btn.text = "出題: OFFLINE 固定 🔒"
-			llm_toggle_btn.disabled = true
-			llm_toggle_btn.focus_mode = Control.FOCUS_NONE
-			llm_toggle_btn.mouse_default_cursor_shape = Control.CURSOR_ARROW
-			llm_toggle_btn.tooltip_text = "エンドレスモードはオフライン問題のみ対応しています"
-			if MobileUi.is_touch_ui():
-				# タッチではツールチップが出ないので、同じ説明を下の行に文字で出す
-				status_label.text = "エンドレスは オフライン問題のみ"
-			_set_llm_toggle_locked_style(true)
-		else:
-			llm_toggle_btn.disabled = false
-			llm_toggle_btn.focus_mode = Control.FOCUS_ALL
-			llm_toggle_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-			llm_toggle_btn.tooltip_text = ""
-			_set_llm_toggle_locked_style(false)
-			var llm_text: String = "出題: ONLINE (AI生成・Claude)" if QuizManager.provider.llm_mode == "ONLINE" else "出題: OFFLINE (内蔵問題)"
-			llm_toggle_btn.text = llm_text
 		_update_stock_counter()
 
 		if customize_btn:
@@ -1668,39 +1677,6 @@ func _on_endless_pressed() -> void:
 func _on_back_pressed() -> void:
 	game_state.back_to_mode_select()
 	_update_ui()
-
-func _on_llm_toggle_pressed() -> void:
-	if game_state.mode == Constants.MODE_ENDLESS:
-		return  # エンドレスモードはオフライン固定のため切り替え不可
-	var new_mode := "ONLINE" if QuizManager.provider.llm_mode == "OFFLINE" else "OFFLINE"
-	QuizManager.provider.set_llm_mode(new_mode)
-	_update_ui()
-
-func _set_llm_toggle_locked_style(locked: bool) -> void:
-	## エンドレスモードでオフライン固定のとき、ボタンをグレーアウトして操作不可を明示する
-	if not llm_toggle_btn:
-		return
-	if llm_toggle_btn is MenuMetalButton:
-		(llm_toggle_btn as MenuMetalButton).refresh_style()
-		llm_toggle_btn.modulate = Color(1, 1, 1, 0.85 if locked else 1.0)
-		return
-	if locked:
-		var disabled_style := StyleBoxFlat.new()
-		disabled_style.bg_color = Color(0.10, 0.11, 0.14)
-		disabled_style.border_color = Color(0.20, 0.22, 0.28)
-		disabled_style.set_border_width_all(1)
-		disabled_style.set_corner_radius_all(10)
-		disabled_style.content_margin_left = 16.0
-		disabled_style.content_margin_right = 16.0
-		disabled_style.content_margin_top = 8.0
-		disabled_style.content_margin_bottom = 8.0
-		llm_toggle_btn.add_theme_stylebox_override("disabled", disabled_style)
-		llm_toggle_btn.add_theme_color_override("font_disabled_color", Color(0.45, 0.48, 0.55))
-		llm_toggle_btn.modulate = Color(1, 1, 1, 0.85)
-	else:
-		llm_toggle_btn.remove_theme_stylebox_override("disabled")
-		llm_toggle_btn.remove_theme_color_override("font_disabled_color")
-		llm_toggle_btn.modulate = Color(1, 1, 1, 1)
 
 ## オンライン対戦はモード選択の専用ボタンへ移したので、ここは 1人 / 2人（ローカル）だけを回す。
 func _on_players_toggle_pressed() -> void:
@@ -1772,12 +1748,13 @@ func _commit_config_shift(row_key: StringName, direction: int) -> void:
 			game_state.cycle_difficulty(direction)
 	_update_ui()
 
-## オフライン出題のときだけ、選択中の教科×学年×難易度で出題できる問題数をコンベア右上に出す。
+## 問題バンクだけで出題するとき（AI 生成を使えない設定）だけ、選択中の教科×学年×難易度で
+## 出題できる問題数をコンベア右上に出す。
 func _update_stock_counter() -> void:
 	if config_conveyor == null or game_state == null:
 		return
-	var provider := QuizManager.provider
-	if provider == null or provider.llm_mode != "OFFLINE":
+	var provider := QuizManager.provider as BufferedQuizProvider
+	if provider == null or not provider.uses_bank_only():
 		config_conveyor.set_stock_count(-1)
 		return
 	config_conveyor.set_stock_count(provider.offline_count_for(
@@ -1867,7 +1844,7 @@ func _update_api_status_text() -> void:
 	_set_api_row("gateway", ApiStatusAutoload.proxy_status, gateway_msg)
 	_set_api_row("firebase", ApiStatusAutoload.firebase_status, firebase_msg)
 	if _offline_count_label:
-		_offline_count_label.text = "オフライン問題数: %d問" % ApiStatusAutoload.offline_count
+		_offline_count_label.text = "問題バンク: %d問" % ApiStatusAutoload.offline_count
 	if _recheck_btn:
 		_recheck_btn.disabled = ApiStatusAutoload.checking
 		_recheck_btn.text = "チェック中…" if ApiStatusAutoload.checking else "再チェック"
@@ -1945,7 +1922,10 @@ func _layout_settings_panel() -> void:
 		var btn := vbox.get_node(btn_name) as Button
 		btn.reparent(button_row, false)
 		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	(button_row.get_node("OpenDashboardBtn") as Button).text = "管理ダッシュボードを開く"
+	var dashboard_btn := button_row.get_node("OpenDashboardBtn") as Button
+	dashboard_btn.text = "管理ダッシュボードを開く"
+	# 開発 PC の localhost のダッシュボードなので、エディタから動かしたときだけ出す（書き出した製品版では出さない）
+	dashboard_btn.visible = OS.has_feature("editor")
 	vbox.add_child(button_row)
 
 	var order: Array[Control] = [title, _settings_section("接続状態"), api_box,
@@ -2102,7 +2082,10 @@ func _on_bgm_vol_slider_changed(value: float) -> void:
 func _setup_audio_settings() -> void:
 	game_state.sfx_volume = AudioManager.sfx_volume
 	game_state.bgm_volume = AudioManager.bgm_volume
-	vol_slider.value = AudioManager.sfx_volume
+	# ポーズ画面と BGM のスライダーと同じ 0.05 刻み。シーンの 0.1 刻みのままだと、メニューを開くたびに
+	# ポーズ画面で選んだ 5% や 35% が丸められ、その値で保存されてしまう。表示の反映では保存しない。
+	vol_slider.step = 0.05
+	vol_slider.set_value_no_signal(AudioManager.sfx_volume)
 
 	var sfx_row := $SettingsPanel/VBox/VolBox as HBoxContainer
 	var sfx_label := sfx_row.get_node_or_null("Label") as Label
@@ -2205,7 +2188,7 @@ func _on_max_fps_selected(index: int) -> void:
 	GameManager.set_max_fps(max_fps_option.get_item_id(index))
 
 
-## ローカル2P「10問」の引き分けを地下神殿のサドンデスで決着させるか（既定オン）。
+## ローカル2P「10問」の引き分けをサドンデスで決着させるか（既定オフ）。
 ## 画質の行のすぐ下に、同じ見た目の行で置く。
 func _setup_sudden_death_option(after_row: Control) -> void:
 	var settings_vbox: VBoxContainer = $SettingsPanel/VBox
@@ -2262,12 +2245,8 @@ func _on_resolution_selected(index: int) -> void:
 			3:
 				DisplayServer.window_set_size(Vector2i(3840, 2160))
 
-		# Center the window on the current screen
-		var screen_idx = DisplayServer.window_get_current_screen()
-		var screen_pos = DisplayServer.screen_get_position(screen_idx)
-		var screen_size = DisplayServer.screen_get_size(screen_idx)
-		var win_size = DisplayServer.window_get_size()
-		DisplayServer.window_set_position(screen_pos + (screen_size - win_size) / 2)
+		# タスクバーを除いた所にタイトルバーごと収める（収まらなければ最大化）
+		GameManager.place_window_on_screen()
 
 
 

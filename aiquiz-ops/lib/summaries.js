@@ -63,7 +63,8 @@ function inflight(batches, perItemUsd) {
     return { batches: n, items: count, estUsd: round(count * perItemUsd) };
 }
 
-function claudeSummary({ month, builderSpend, builderBatches, builderConfig, reviewSpend, reviewBatches, reviewConfig }) {
+// 毎週のジョブ（補充・判定。どちらも Claude の Message Batches）の今月の実費と予算
+function batchSummary({ month, builderSpend, builderBatches, builderConfig, reviewSpend, reviewBatches, reviewConfig }) {
     const part = (spend, batches, budgetUsd, perItemUsd, model) => {
         const s = (spend || {})[month] || {};
         return {
@@ -86,9 +87,9 @@ function claudeSummary({ month, builderSpend, builderBatches, builderConfig, rev
     };
 }
 
-// お金: Gemini（プロキシの記録）と Claude（夜のジョブの記録）
-function moneySummary({ now, budgets, level, pace, forcedLevel = null, stopReason = null, daily = {}, monthly = {}, claude,
-    jpyPerUsd = 150 }) {
+// お金: 試合中の Claude（プロキシの記録）と毎週のジョブ（Batch の記録）、その合計と Claude Console の支出上限
+function moneySummary({ now, budgets, level, pace, forcedLevel = null, stopReason = null, daily = {}, monthly = {}, batch = {},
+    spendCapUsd = 100, legacyGeminiUsd = 0, jpyPerUsd = 150 }) {
     const { day, month } = jstKeys(now);
     const today = daily[day] || {};
     const thisMonth = monthly[month] || {};
@@ -96,6 +97,7 @@ function moneySummary({ now, budgets, level, pace, forcedLevel = null, stopReaso
     const progress = monthProgress(now);
     // 月の初日はまだ見込みを出さない（数時間分から1か月を伸ばすと大きくぶれる）
     const projectedUsd = progress.elapsedDays >= 1 ? round(monthUsd / progress.frac, 2) : null;
+    const inflightUsd = part => num(part && part.inflight && part.inflight.estUsd);
 
     const todayModels = {};
     addModels(todayModels, today.models);
@@ -120,7 +122,7 @@ function moneySummary({ now, budgets, level, pace, forcedLevel = null, stopReaso
         day,
         month,
         jpyPerUsd,
-        gemini: {
+        live: {
             level,
             forcedLevel,
             stopReason,
@@ -148,13 +150,22 @@ function moneySummary({ now, budgets, level, pace, forcedLevel = null, stopReaso
             modelsMonth: sortedModels(monthModels),
             history,
         },
-        claude,
+        batch,
+        total: {
+            usd: round(monthUsd + num(batch.totalUsd)),
+            inflightUsd: round(inflightUsd(batch.builder) + inflightUsd(batch.review)),
+            // 試合中・判定・補充の月の上限の合計（この内側に収める計画）
+            budgetUsd: round(num(budgets.monthlyUsd) + num(batch.totalBudgetUsd)),
+            capUsd: spendCapUsd,
+        },
+        // 切り替え前の Gemini 系統の今月の額（Google の請求。Claude の合計には入れない）
+        legacyGeminiUsd: round(legacyGeminiUsd),
     };
 }
 
 // プレイヤー: 端末・回線ごとの今日の使用額と試合数
 function playersSummary({ now, devices = {}, ips = {}, rounds = {}, roundsHistory = {}, blocked = {}, denials = {},
-    caps, geminiTodayUsd = 0, top = 15 }) {
+    caps, liveTodayUsd = 0, top = 15 }) {
     const ids = new Set([...Object.keys(devices), ...Object.keys(rounds)]);
     let totalRounds = 0;
     for (const value of Object.values(rounds)) totalRounds += num(value && value.rounds);
@@ -198,7 +209,7 @@ function playersSummary({ now, devices = {}, ips = {}, rounds = {}, roundsHistor
             devices: ids.size,
             generatingDevices: deviceRows.filter(d => d.usd > 0).length,
             ips: ipRows.length,
-            usdPerRound: totalRounds > 0 ? round(geminiTodayUsd / totalRounds) : null,
+            usdPerRound: totalRounds > 0 ? round(liveTodayUsd / totalRounds) : null,
             nearCapDevices: deviceRows.filter(d => d.capPct !== null && d.capPct >= 0.8).length,
             atCapDevices: deviceRows.filter(d => d.capPct !== null && d.capPct >= 1).length,
             blockedCount: Object.values(blocked).filter(Boolean).length,
@@ -269,15 +280,16 @@ function bankSummary({ now, prompts, bank = {}, archive = {}, builderBatches = {
         }
     }
 
-    const origins = { claude: 0, player: 0, unknown: 0 };
+    // builder: 補充ジョブ（CLAUDE_HAIKU）、match: 試合中に作った問題（CLAUDE*。切り替え前は GEMINI*）
+    const origins = { builder: 0, match: 0, unknown: 0 };
     let bankCount = 0;
     for (const [id, item] of Object.entries(bank)) {
         if (!item || !item.subject) continue;
         bankCount += 1;
         cellFor(item.subject, num(item.grade), item.difficulty).bank += 1;
         const src = (archive[id] || {}).original_src || '';
-        if (src === 'CLAUDE_HAIKU') origins.claude += 1;
-        else if (src) origins.player += 1;
+        if (src === 'CLAUDE_HAIKU') origins.builder += 1;
+        else if (src) origins.match += 1;
         else origins.unknown += 1;
     }
 
@@ -306,7 +318,7 @@ function bankSummary({ now, prompts, bank = {}, archive = {}, builderBatches = {
         else if (review.state === 'error') pending.errored += 1;
         else if (review.state === 'done' && review.verdict === 'unsure') pending.unsure += 1;
         else pending.waiting += 1;
-        // 夜の補充と同じく、確認でつまずいたものは在庫に数えない
+        // 補充ジョブと同じく、確認でつまずいたものは在庫に数えない
         if (!(review && review.state === 'error') && item.subject) {
             cellFor(item.subject, num(item.grade), item.difficulty).pending += 1;
         }
@@ -356,7 +368,21 @@ function executionState(execution) {
     return num(execution.succeededCount) > 0 ? 'succeeded' : 'failed';
 }
 
-// 夜のジョブ: Cloud Run Jobs の実行履歴と Cloud Scheduler の次回予定
+const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
+
+// Cloud Scheduler の「分 時 日 月 曜日」を「毎週月曜 4:00・12:00」のように読む。
+// 使っている形（分は1つ、時と曜日は数字の並び）だけを読み、それ以外はそのまま返す
+function scheduleText(cron) {
+    if (!cron) return null;
+    const [min, hour, dom, mon, dow] = String(cron).trim().split(/\s+/);
+    if (!/^\d+$/.test(min) || !/^\d+(,\d+)*$/.test(hour) || dom !== '*' || mon !== '*') return cron;
+    const times = hour.split(',').map(h => `${Number(h)}:${min.padStart(2, '0')}`).join('・');
+    if (dow === '*') return `毎日 ${times}`;
+    if (!/^\d+(,\d+)*$/.test(dow || '')) return cron;
+    return `毎週${dow.split(',').map(d => WEEKDAYS[Number(d) % 7]).join('・')}曜 ${times}`;
+}
+
+// 毎週のジョブ: Cloud Run Jobs の実行履歴と Cloud Scheduler の次回予定
 function jobsSummary({ jobs, executions = {}, schedulers = [] }) {
     return jobs.map(job => {
         const scheduler = schedulers.find(s => String((s.httpTarget || {}).uri || '').includes(`/jobs/${job.name}:run`));
@@ -370,6 +396,7 @@ function jobsSummary({ jobs, executions = {}, schedulers = [] }) {
             name: job.name,
             label: job.label,
             schedule: scheduler ? scheduler.schedule : null,
+            scheduleText: scheduler ? scheduleText(scheduler.schedule) : null,
             timeZone: scheduler ? scheduler.timeZone : null,
             schedulerState: scheduler ? scheduler.state : null,
             nextRunAt: scheduler ? scheduler.scheduleTime || null : null,
@@ -383,10 +410,11 @@ function jobsSummary({ jobs, executions = {}, schedulers = [] }) {
 
 module.exports = {
     bankSummary,
-    claudeSummary,
+    batchSummary,
     jobsSummary,
     lastDays,
     modelName,
     moneySummary,
     playersSummary,
+    scheduleText,
 };

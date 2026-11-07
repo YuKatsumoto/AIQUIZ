@@ -54,7 +54,9 @@ const P1_START_X := 1.5
 const P2_START_X := -1.5
 const WALL_SPEED := 1.0                         # このPVだけ遅く（上の注記）
 const PLAYER_SPEED := 7.6
-const HIT_OFFSET := 0.4
+# 壁に当たったとみなす体の中心の位置（壁の中心から手前へ）。HP のあるモードはゲームと同じ値を使う（11/06 まで 0.4。
+# ゲームが体を扉にめり込ませないよう 1.05 に変えたので、0.4 のままだとゴツンと突破が 5 フレーム早まった）
+const HIT_OFFSET: float = QuizGameState.WALL_FACE_CONTACT_DISTANCE
 const FIRST_WALL_Z := 22.0
 const FLOOR_Y := -1.2
 const P2_START_HP := 1
@@ -166,6 +168,7 @@ var _held: Dictionary = {}
 var _trace: Array = []
 var _saved := 0
 var _overlays: Array[CanvasLayer] = []
+var _key_hints: Array[Node3D] = []   # 頭上の操作キーと P1/P2 の札（CountdownKeyHints）。PV では出さない（11/06）
 var _impact_frame := -1
 var _impact_game_time := -1.0
 var _p2_hit_frame := -1
@@ -407,6 +410,13 @@ func _hide_overlays() -> void:
 	get_tree().node_added.connect(func(node: Node) -> void:
 		if node is CanvasLayer:
 			_overlays.append(node as CanvasLayer))
+	# 本編のカウントダウンからキャラクターの頭上に出る操作キーと P1/P2 の札も隠す（2026-11-06、ユーザーの指示。見た目だけ）
+	for node: Node in get_tree().root.find_children("*", "Node3D", true, false):
+		if node is CountdownKeyHints:
+			_key_hints.append(node as Node3D)
+	get_tree().node_added.connect(func(node: Node) -> void:
+		if node is CountdownKeyHints:
+			_key_hints.append(node as Node3D))
 	_keep_overlays_hidden()
 
 
@@ -414,6 +424,9 @@ func _keep_overlays_hidden() -> void:
 	for layer: CanvasLayer in _overlays:
 		if is_instance_valid(layer):
 			layer.visible = false
+	for hints: Node3D in _key_hints:
+		if is_instance_valid(hints):
+			hints.visible = false
 
 
 func _frames(count: int) -> void:

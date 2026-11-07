@@ -2,6 +2,7 @@
 
 作品登録フォームの「（審査用のみ）作品素材フォルダURL」に入れる Google ドライブのフォルダの中身を、ここで下書きする。
 フォルダは審査にだけ使われ、みんなのゲームパレードには載らない。要項は <https://game.creators-guild.com/gck2026-terms/>。
+フォームの文章の欄（バージョン情報・作品の短い説明・詳細な作品紹介・スタッフクレジット・自チームで制作していない部分）の下書きは `form_entry.md`（字数は `python docs/submission/form_count.py`）。
 
 ## できあがりのフォルダと、このディレクトリの対応
 
@@ -67,7 +68,8 @@ python docs/submission/pdf/build.py --final    # 提出用。PDF に出る部分
 - [ ] ソースコードを入れるか
 - [ ] Suno の生成時のプラン（`assets/audio/bgm/LICENSE.md` が TODO のまま）
 - [ ] AI を使った箇所の書き方（`05_credits_ai.md` と `02_appeal_script.md` の p18）
-- [ ] PV のテロップ「壁のスピードも、AIが決める」を直すか（今のしくみでは、AI の予測は速さの下限にしか使っていない）
+- [x] PV のテロップ「壁のスピードも、AIが決める」を直すか（今のしくみでは、AI の予測は速さの下限にしか使っていない）
+  （2026-11-05：外すことに決定。`tools/pv/pv_master.py` の `TELOP_SKIP` に `S09_1`）
 - [ ] サメとキリン帽の出典、Stereofunk（ロゴの字形）の利用条件
 - [ ] 公開リポジトリに入っている Mixamo の FBX と Stereofunk の `.ttf`
 - [x] 本番のプロキシで、端末ごとの上限（`DEVICE_TOKEN_KEY`）とサーバー側の Claude のジョブが動いているか

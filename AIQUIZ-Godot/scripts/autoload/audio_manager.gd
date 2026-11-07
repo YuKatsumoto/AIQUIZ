@@ -133,6 +133,11 @@ const SFX_CUES := {
 	&"ghost_mount_beam": {"files": ["ghost_shark/ghost_mount_beam.ogg"], "volume_db": -9.0, "pitch_jitter": 0.0, "min_interval": 0.5},
 	&"ghost_dash": {"files": ["ghost_shark/ghost_dash.ogg"], "volume_db": -6.0, "pitch_jitter": 0.03, "min_interval": 0.2},
 	&"ghost_hit": {"files": ["ghost_shark/ghost_hit.ogg"], "volume_db": -5.0, "pitch_jitter": 0.04, "min_interval": 0.2},
+	# 突進が当たった生き残りの体（docs/ghost_hit_ragdoll_plan.md 段階 6）：鼻先が体に当たる鈍い音（ghost_hit に重ねる）、
+	# 吹き飛んだ体が床に落ちる「ドサッ」、転倒して床を転がって擦れる音（受け身の前転は小さく高めに鳴らす）。
+	&"ghost_hit_body": {"files": ["ghost_shark/ghost_hit_body.ogg"], "volume_db": -6.0, "pitch_jitter": 0.04, "min_interval": 0.2},
+	&"ghost_body_land": {"files": ["ghost_shark/ghost_body_land.ogg"], "volume_db": -5.0, "pitch_jitter": 0.05, "min_interval": 0.3},
+	&"ghost_body_tumble": {"files": ["ghost_shark/ghost_body_tumble.ogg"], "volume_db": -9.0, "pitch_jitter": 0.05, "min_interval": 0.3},
 	&"ghost_vanish": {"files": ["ghost_shark/ghost_vanish.ogg"], "volume_db": -11.0, "pitch_jitter": 0.03, "min_interval": 0.3},
 	&"ghost_portal_open": {"files": ["ghost_shark/ghost_portal_open.ogg"], "volume_db": -9.0, "pitch_jitter": 0.0, "min_interval": 0.5},
 	&"ghost_portal_cross": {"files": ["ghost_shark/ghost_portal_cross.ogg"], "volume_db": -8.0, "pitch_jitter": 0.03, "min_interval": 0.3},

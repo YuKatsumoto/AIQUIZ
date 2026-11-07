@@ -27,6 +27,8 @@ const ROOT = path.resolve(HERE, "../..");
 const LG = require("./logo_geometry.js");
 const GLYPHS = path.join(HERE, "testopia_font_glyphs.json");
 const OUT_JSON = path.join(ROOT, "assets/branding/logo/testopia_logo.json");
+// ゲームが読む写し（assets/branding/logo は .gdignore で書き出しに入らない）。
+const GAME_JSON = path.join(ROOT, "assets/ui/title_logo/testopia_logo.json");
 const OUT_SVG = path.join(ROOT, "assets/branding/logo/testopia_logo.svg");
 
 // 字の高さ（T の高さ、1024 の画用紙のピクセル）と上の端。部品で組んでいたころと同じ
@@ -247,6 +249,7 @@ LETTERS.forEach(([ch, key, label], n) => {
 
 const model = { version: 1, canvas: [1024, 1024], background: "#0e0e0e", color: "#ffffff", font: font.family, elements };
 fs.writeFileSync(OUT_JSON, JSON.stringify(model, null, "\t") + "\n");
+fs.copyFileSync(OUT_JSON, GAME_JSON);
 fs.writeFileSync(OUT_SVG, LG.toSVG(model));
 const b = LG.bounds(model);
 console.log(`wrote ${path.relative(ROOT, OUT_JSON)} / .svg  elements=${elements.length}  bounds=${JSON.stringify(b)}`);

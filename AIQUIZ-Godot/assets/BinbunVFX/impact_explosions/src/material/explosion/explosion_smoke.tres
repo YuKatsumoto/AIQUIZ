@@ -1,4 +1,4 @@
-[gd_resource type="ShaderMaterial" load_steps=6 format=3 uid="uid://dnw08mtonx63d"]
+[gd_resource type="ShaderMaterial" format=3 uid="uid://dnw08mtonx63d"]
 
 [ext_resource type="Shader" uid="uid://b1sjgiq8o4tvd" path="res://assets/BinbunVFX/impact_explosions/src/shader/explosion_smoke.gdshader" id="1_5yu7f"]
 
@@ -15,9 +15,9 @@ domain_warp_fractal_octaves = 2
 domain_warp_fractal_lacunarity = 4.165
 
 [sub_resource type="NoiseTexture2D" id="NoiseTexture2D_plj08"]
+noise = SubResource("FastNoiseLite_msnhc")
 seamless = true
 normalize = false
-noise = SubResource("FastNoiseLite_msnhc")
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_plj08"]
 noise_type = 2
@@ -27,9 +27,9 @@ fractal_octaves = 2
 [sub_resource type="NoiseTexture2D" id="NoiseTexture2D_msnhc"]
 width = 128
 height = 128
-invert = true
-seamless = true
 noise = SubResource("FastNoiseLite_plj08")
+seamless = true
+invert = true
 
 [resource]
 render_priority = 0

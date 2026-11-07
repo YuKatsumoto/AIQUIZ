@@ -113,8 +113,8 @@ func _arrive(guide: PracticeMenuGuide) -> void:
 	await _click(_target(&"mode_practice"))
 	await _frames(5)
 	check(gs.menu_step == Constants.MENU_STEP_MODE, "the menu is blocked while Hatena talks")
-	var select := _menu().find_child("PracticeCourseSelect", true, false) as PracticeCourseSelect
-	check(select != null and not select.is_open(), "the tutorial button is blocked too")
+	var selector := _menu().find_child("TutorialCourseSelector", true, false) as Control
+	check(selector != null and not selector.visible, "the tutorial button is blocked too")
 
 
 func _mode_select(guide: PracticeMenuGuide) -> bool:
@@ -186,14 +186,11 @@ func _config(guide: PracticeMenuGuide) -> void:
 	check(_lit(guide) == [_target(&"grade")], "the grade row is lit")
 	await _seconds(0.4)
 	await _shot("09_config_grade")
-	for entry: Array in [["c2.menu.11", &"difficulty"], ["c2.menu.12", &"llm"], ["c2.menu.13", &"players"],
+	for entry: Array in [["c2.menu.11", &"difficulty"], ["c2.menu.13", &"players"],
 			["c2.menu.14", &"customize"], ["c2.menu.15", &"start"]]:
 		check(await _wait_said(entry[0], 6000), "Hatena says %s" % entry[0])
 		check(_lit(guide) == [_target(entry[1])] and not guide.coach.is_clickable(),
 			"%s is lit (show only)" % entry[1])
-		if entry[1] == &"llm":
-			await _seconds(0.4)
-			await _shot("10_config_llm")
 	await _seconds(0.4)
 	await _shot("11_config_start")
 	await _click(_target(&"start"))

@@ -55,6 +55,10 @@ const GAME_FLOOR_CENTER_Z: float = 4.0
 const GAME_FLOOR_LENGTH: float = 160.0
 const WALL_START_Z: float = 22.0
 const WALL_SPACING: float = 30.0
+## エンドレスでコースを地平線まで続いて見せる、床の前端から先の見た目だけの延長（StageEnvironment.set_floor_runout）。
+## プレイ中の床の前端（約 170 m）から約 4.6 km 先、カメラの far（5000 m）の内側で、遠景の街（z 3800〜4760 m、x 22 m〜）の
+## 左脇の水平線に消える。
+const COURSE_HORIZON_RUNOUT: float = 4400.0
 
 ## メニュープレビュー壁ループ（本編座標系）
 const MENU_WALL_DESPAWN_Z: float = 8.0

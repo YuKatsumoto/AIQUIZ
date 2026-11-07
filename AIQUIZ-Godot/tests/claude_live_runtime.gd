@@ -1,7 +1,8 @@
 extends Node
 
 ## 本物のプロキシ（PROXY_URL、既定は aiquiz-proxy-claude）に、ゲームと同じコードで 10 問モードの 1 ラウンドを頼む実機テスト。
-## 許可証の取得 → 6 本同時のストリーミング生成 → 正解の確かめ → 解説の補充 を通し、かかった時間と費用（/health の差）を出す。
+## 許可証の取得 → 6 本のストリーミング生成（1 本目の返事が流れ始めてから残り 5 本）→ 正解の確かめ → 解説の補充 を通し、
+## かかった時間と費用（/health の差）を出す。
 ## Claude を呼ぶので費用がかかる（1 回 約 0.1 ドル）。APP_SECRET が要る（.env）。
 ## Godot --headless --path . --script res://tests/claude_live_bootstrap.gd
 

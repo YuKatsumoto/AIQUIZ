@@ -198,7 +198,7 @@ func _build_api_card() -> void:
 	_api_row(rows, "internet", "InternetRow", "インターネット")
 	_api_row(rows, "gateway", "GatewayRow", "AI Gateway")
 	_api_row(rows, "firebase", "FirebaseRow", "Firebase")
-	# オフライン問題数と再チェックは同じ行（画面の行を増やしても 720p に収まるように）。
+	# 問題バンクの数と再チェックは同じ行（画面の行を増やしても 720p に収まるように）。
 	var button_row := HBoxContainer.new()
 	button_row.name = "RecheckRow"
 	rows.add_child(button_row)
@@ -396,8 +396,8 @@ func _build_buttons() -> void:
 	_column.add_child(row)
 	var dashboard := _metal_button("DashboardBtn", "ダッシュボードを開く", false)
 	dashboard.pressed.connect(_on_dashboard_pressed)
-	# 開発 PC の localhost のダッシュボードなので、スマホでは出さない
-	dashboard.visible = not MobileUi.is_touch_ui()
+	# 開発 PC の localhost のダッシュボードなので、エディタから動かしたときだけ（スマホと書き出した製品版では出さない）
+	dashboard.visible = OS.has_feature("editor") and not MobileUi.is_touch_ui()
 	row.add_child(dashboard)
 	var back := _metal_button("BackBtn", "メニューへ戻る", true)
 	back.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -508,7 +508,7 @@ func refresh_api_status() -> void:
 	_set_api_row("gateway", ApiStatusAutoload.proxy_status, gateway_msg, checked, ApiStatusAutoload.proxy_configured)
 	var firebase_msg: String = "%s（DB URL %s）" % [ApiStatusAutoload.firebase_msg, "設定済" if ApiStatusAutoload.firebase_configured else "未設定"]
 	_set_api_row("firebase", ApiStatusAutoload.firebase_status, firebase_msg, checked, ApiStatusAutoload.firebase_configured)
-	_offline_label.text = "オフライン問題数: %d問" % ApiStatusAutoload.offline_count
+	_offline_label.text = "問題バンク: %d問" % ApiStatusAutoload.offline_count
 	if _recheck_btn != null:
 		_recheck_btn.disabled = _checking
 		_recheck_btn.text = "チェック中…" if _checking else "再チェック"
@@ -619,12 +619,8 @@ func _on_resolution_selected(index: int) -> void:
 			DisplayServer.window_set_size(Vector2i(2560, 1440))
 		3:
 			DisplayServer.window_set_size(Vector2i(3840, 2160))
-	# ウィンドウを今の画面の中央へ
-	var screen_idx := DisplayServer.window_get_current_screen()
-	var screen_pos := DisplayServer.screen_get_position(screen_idx)
-	var screen_size := DisplayServer.screen_get_size(screen_idx)
-	var win_size := DisplayServer.window_get_size()
-	DisplayServer.window_set_position(screen_pos + (screen_size - win_size) / 2)
+	# タスクバーを除いた所にタイトルバーごと収める（収まらなければ最大化）
+	GameManager.place_window_on_screen()
 
 
 func _on_dashboard_pressed() -> void:

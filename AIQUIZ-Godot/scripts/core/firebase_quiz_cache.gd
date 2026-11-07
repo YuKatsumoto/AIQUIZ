@@ -30,6 +30,9 @@ const MAX_RETRY_SECONDS: float = 300.0
 const CHANGES_VERSION: int = 2
 ## 差分が無くても、起点がこれだけ進んだら保存し直す（次回の差分を小さく保つ）
 const RESAVE_AFTER_MS: int = 6 * 3600 * 1000
+## 試合中は同期・送信を始めず、この間隔で試合の終わりを待つ。取り込み（解析・保存・
+## 出題プールの差し替え）は数百 ms 止まるので、試合の外でまとめて行う。
+const MATCH_WAIT_SECONDS: float = 1.0
 
 var _cache_items: Array[Dictionary] = []
 var _cache_revision: int = 0
@@ -59,8 +62,9 @@ func _start_background_work() -> void:
 	flush_outbox()
 
 
+## 中の辞書は共有なので書き換えないこと（受け取る QuizProvider.set_external_items が複製する）。
 func get_all_items() -> Array[Dictionary]:
-	return _cache_items.duplicate(true)
+	return _cache_items.duplicate()
 
 
 func get_cached_count() -> int:
@@ -110,10 +114,14 @@ func sync_now() -> void:
 	if _syncing or ApiStatusAutoload.get_proxy_url().is_empty():
 		return
 	_syncing = true
+	# 試合中に頼まれた同期は、試合が終わってから取りに行く
+	await _wait_for_match_end()
 	# 手元に保存があり、前回同期した時刻を覚えていれば、その後の差分だけを取る
 	if _sync_since_ms > 0 and not _cache_items.is_empty():
 		var changes: Dictionary = await _download_changes(_sync_since_ms)
 		if changes.get("ok", false):
+			# 取りに行く間に試合が始まったら、取り込みは試合のあとにする
+			await _wait_for_match_end()
 			_syncing = false
 			_apply_changes(changes)
 			return
@@ -123,6 +131,8 @@ func sync_now() -> void:
 			return
 		# /changes が無い古いプロキシ: 全件で取り直す
 	var snapshot: Dictionary = await _download_snapshot()
+	if snapshot.get("ok", false):
+		await _wait_for_match_end()
 	_syncing = false
 	if not snapshot.get("ok", false):
 		_schedule_retry()
@@ -158,6 +168,8 @@ func flush_outbox() -> void:
 	if _candidate_outbox.is_empty() and _evaluation_outbox.is_empty():
 		return
 	_flushing = true
+	# 試合中に積んだ候補・評価は保存だけしておき、試合が終わってからまとめて送る
+	await _wait_for_match_end()
 	var all_ok := true
 
 	while not _candidate_outbox.is_empty():
@@ -223,6 +235,8 @@ func _download_changes(since: int) -> Dictionary:
 		var response: Dictionary = await _request_json(HTTPClient.METHOD_GET, url, {})
 		if not response.get("ok", false):
 			return {"ok": false, "code": int(response.get("code", 0))}
+		# 受け取る間に試合が始まったら、ページの検査（と次のページ）は試合のあとにする
+		await _wait_for_match_end()
 		var data: Dictionary = response.get("data")
 		if int(data.get("version", 0)) != CHANGES_VERSION:
 			return {"ok": false, "code": 0}
@@ -295,6 +309,7 @@ func _download_snapshot() -> Dictionary:
 		var revision := 0
 		var sync_since := 0
 		var restart := false
+		var skipped := 0
 		for _page: int in range(MAX_SYNC_PAGES):
 			var url := ApiStatusAutoload.get_proxy_url().trim_suffix("/") \
 				+ "/quiz-bank/snapshot?limit=%d" % PAGE_SIZE
@@ -308,6 +323,8 @@ func _download_snapshot() -> Dictionary:
 				break
 			if not response.get("ok", false):
 				return {"ok": false}
+			# 受け取る間に試合が始まったら、ページの検査（と次のページ）は試合のあとにする
+			await _wait_for_match_end()
 			var data: Variant = response.get("data")
 			if not data is Dictionary or int(data.get("version", 0)) != CACHE_VERSION:
 				return {"ok": false}
@@ -323,11 +340,17 @@ func _download_snapshot() -> Dictionary:
 			if not raw_items is Array:
 				return {"ok": false}
 			for raw: Variant in raw_items:
+				# 1 件おかしくても全体は止めない（その問題だけ取り込まない。差分の _download_changes と同じ）。
+				# 全体を失敗にすると、はじめて起動した PC（必ずここを通る）で共有バンクが一度も入らず、
+				# 再試行がずっと続く（手元の判定、たとえば学年外の漢字はサーバーにはない）。
 				if not raw is Dictionary or not _is_valid_cache_item(raw):
-					return {"ok": false}
+					skipped += 1
+					continue
 				collected.append((raw as Dictionary).duplicate(true))
 			cursor = str(data.get("next_cursor", ""))
 			if cursor.is_empty():
+				if skipped > 0:
+					print("[FirebaseQuizCache] Snapshot: skipped %d items that fail the local checks" % skipped)
 				return {"ok": true, "revision": revision, "items": collected, "sync_since": sync_since}
 		if not restart:
 			push_warning("[FirebaseQuizCache] Snapshot exceeded %d pages" % MAX_SYNC_PAGES)
@@ -338,6 +361,8 @@ func _download_snapshot() -> Dictionary:
 func _request_json(method: int, url: String, payload: Dictionary) -> Dictionary:
 	var http := HTTPRequest.new()
 	http.timeout = 15.0
+	# 接続・TLS・受信をメインスレッドから外す（Web はスレッドを使えない）
+	http.use_threads = not OS.has_feature("web")
 	add_child(http)
 	var body := "" if method == HTTPClient.METHOD_GET else JSON.stringify(payload)
 	var err := http.request(url, ApiStatusAutoload.get_proxy_headers(), method, body)
@@ -505,11 +530,13 @@ func _write_json_atomically(target_path: String, temp_path: String,
 	var file := FileAccess.open(temp_path, FileAccess.WRITE)
 	if file == null:
 		return false
-	file.store_string(JSON.stringify(data, "  "))
+	# 字下げなしで書き、書けたかは大きさで確かめる（数 MB を読み直して解析し直さない）
+	var bytes := JSON.stringify(data).to_utf8_buffer()
+	file.store_buffer(bytes)
+	file.flush()
+	var written := file.get_length()
 	file.close()
-
-	var verify := _read_json_dictionary(temp_path)
-	if int(verify.get("version", 0)) != CACHE_VERSION:
+	if bytes.is_empty() or written != bytes.size():
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(temp_path))
 		return false
 
@@ -541,6 +568,12 @@ func _read_json_dictionary(path: String) -> Dictionary:
 	var data: Variant = JSON.parse_string(file.get_as_text())
 	file.close()
 	return data if data is Dictionary else {}
+
+
+## 試合が終わるまで待つ（試合中でなければすぐ戻る）。
+func _wait_for_match_end() -> void:
+	while is_inside_tree() and BufferedQuizProvider.is_match_in_progress():
+		await get_tree().create_timer(MATCH_WAIT_SECONDS).timeout
 
 
 func _schedule_retry() -> void:

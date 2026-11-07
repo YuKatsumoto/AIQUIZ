@@ -135,10 +135,19 @@ func join_friend_room(code: String, profile: Dictionary) -> void:
 
 
 func cancel_search() -> void:
-	send("cancel")
+	_pending = {}
 	friend_code = ""
+	if not _greeted:
+		# まだ挨拶が済んでいない（接続中）。cancel は送れず、残した要求が welcome のあとで送られて
+		# 勝手に待ち行列へ入ってしまうので、接続ごと閉じる。
+		if _ws != null:
+			disconnect_from_relay()
+		elif state in [State.QUEUED, State.CONNECTING]:
+			_set_state(State.OFFLINE)
+		return
+	send("cancel")
 	if state in [State.QUEUED, State.CONNECTING]:
-		_set_state(State.IDLE if _greeted else State.OFFLINE)
+		_set_state(State.IDLE)
 
 
 ## 試合を自分から抜ける（相手は不戦勝になる）。
@@ -181,6 +190,10 @@ func debug_fake_match(profile: Dictionary, settings: Dictionary) -> void:
 func enter_game() -> void:
 	if state == State.IN_LOBBY:
 		_set_state(State.IN_GAME)
+	elif state == State.RECONNECTING and _resume_state == State.IN_LOBBY:
+		# 試合画面へ切り替わる瞬間につなぎ直し中だったとき。戻ったときにロビーのままだと、ホストは
+		# スナップショットを送らず（IN_GAME のときだけ送る）、ゲストの試合が始まらない。
+		_resume_state = State.IN_GAME
 
 
 func send(msg_type: String, data: Dictionary = {}) -> void:

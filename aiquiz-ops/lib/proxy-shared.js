@@ -24,6 +24,7 @@ const quizBank = load('quiz-bank-service.js');
 module.exports = {
     BLOCKLIST_PATH: deviceLimits.BLOCKLIST_PATH,
     BUILDER_PATH: bankBuilder.BUILDER_PATH,
+    CLAUDE_USAGE_PATH: usageBudget.CLAUDE_USAGE_PATH,
     DeviceLimits: deviceLimits.DeviceLimits,
     NEW_COUNT_TABLE: roundPlan.NEW_COUNT_TABLE,
     PRIORITY_ROUNDS: roundPlan.PRIORITY_ROUNDS,

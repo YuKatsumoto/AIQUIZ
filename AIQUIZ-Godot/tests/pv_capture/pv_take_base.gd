@@ -32,6 +32,7 @@ var frame_count := 0
 var only_frames: Dictionary = {}
 var use_png := false
 var sub := 1
+var shutter_subs := 0                 # 1 フレームのうち、うしろから何回ぶんを保存するか（0 = sub の半分。shutter=<n>）
 var pv_seed := PV_SEED
 var out := ""
 
@@ -52,6 +53,7 @@ var _saved := 0
 var _held: Dictionary = {}
 var _overlays: Array[CanvasLayer] = []
 var _overlay_keep: Array[CanvasLayer] = []
+var _key_hints: Array[Node3D] = []
 
 
 ## 拍 → その拍の頭の PV フレーム（1 始まり）
@@ -85,6 +87,8 @@ func run() -> void:
 			use_png = true
 		elif arg.begins_with("sub="):
 			sub = clampi(int(arg.trim_prefix("sub=")), 1, 8)
+		elif arg.begins_with("shutter="):
+			shutter_subs = maxi(1, int(arg.trim_prefix("shutter=")))
 		elif arg.begins_with("seed="):
 			pv_seed = int(arg.trim_prefix("seed="))
 		else:
@@ -100,6 +104,7 @@ func run() -> void:
 	report["quality"] = quality
 	report["sub"] = sub
 	report["args"] = Array(OS.get_cmdline_user_args())
+	_watch_key_hints()
 	await _setup()
 	_running = true
 	_step = 0
@@ -205,6 +210,20 @@ func _keep_overlays_hidden() -> void:
 	for layer: CanvasLayer in _overlays:
 		if is_instance_valid(layer) and not _overlay_keep.has(layer):
 			layer.visible = false
+	for hints: Node3D in _key_hints:
+		if is_instance_valid(hints):
+			hints.visible = false
+
+
+## 本編のカウントダウンからキャラクターの頭上に出る操作キーと P1/P2 の札（CountdownKeyHints）は、PV では出さない
+## （2026-11-06、ユーザーの指示）。どのテイクでも、HUD を残すテイク（S09）でも隠す。見た目だけなので試合は変わらない。
+func _watch_key_hints() -> void:
+	for node: Node in get_tree().root.find_children("*", "Node3D", true, false):
+		if node is CountdownKeyHints:
+			_key_hints.append(node as Node3D)
+	get_tree().node_added.connect(func(node: Node) -> void:
+		if node is CountdownKeyHints:
+			_key_hints.append(node as Node3D))
 
 
 func _on_sfx(cue: StringName) -> void:
@@ -254,7 +273,7 @@ func _process(dt: float) -> void:
 	_keep_overlays_hidden()
 	var last_sub := (_step % sub) == 0
 	var s_in := ((_step - 1) % sub) + 1                 # このフレームの何回目か（1〜sub）
-	var shutter := maxi(1, sub / 2)
+	var shutter := mini(shutter_subs, sub) if shutter_subs > 0 else maxi(1, sub / 2)
 	if s_in > sub - shutter and (only_frames.is_empty() or only_frames.has(n)):
 		var suffix := "" if sub == 1 else "_%d" % (s_in - (sub - shutter) - 1)
 		RenderingServer.frame_post_draw.connect(_capture.bind(n, suffix), CONNECT_ONE_SHOT)

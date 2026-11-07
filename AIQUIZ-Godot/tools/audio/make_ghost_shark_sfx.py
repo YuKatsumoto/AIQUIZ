@@ -1,5 +1,6 @@
 """Ghost shark ride effects: soul rise, ocean ascent and breach, mount beam, charge loop,
-perfect tick, dash, hit, vanish and the return portal (docs/sound_effects.md).
+perfect tick, dash, hit (and the body blow, landing and tumble of the survivor), vanish and the return portal
+(docs/sound_effects.md).
 
 Run from any directory with Python/numpy and ffmpeg. No external samples; deterministic seeds.
 Output: assets/audio/sfx/ghost_shark/*.ogg (48 kHz stereo, Ogg Vorbis q7).
@@ -485,6 +486,62 @@ def revive_burst():
     return stereo(body, seconds=1.2, mix=0.3, width_seed=1621)
 
 
+def hit_body():
+    """Layered under ghost_hit (docs/ghost_hit_ragdoll_plan.md stage 6): the dull blow of the shark's nose on the
+    body (~0.45 s). A deep punch, a muffled mid 'whump' of the torso and a short slap of clothes."""
+    length = 0.5
+    t = tt(length)
+    punch = np.sin(phase(105 * np.exp(-t / 0.05) + 52)) * env_ad(t, 0.0015, 0.06)
+    whump = sweep_bandpass(seeded_noise(len(t), 150, 6000, 2101), 1100 * np.exp(-t / 0.04) + 380, q=1.1)
+    whump = whump / np.max(np.abs(whump)) * env_ad(t, 0.001, 0.055)
+    slap = sweep_bandpass(seeded_noise(len(t), 600, 9000, 2103), 2600 * np.exp(-t / 0.03) + 900, q=1.8)
+    slap = slap / np.max(np.abs(slap)) * env_ad(t, 0.0008, 0.018)
+    body = 0.42 * punch + 0.85 * whump + 0.32 * slap
+    return stereo(body, seconds=0.5, mix=0.1, width_seed=2111)
+
+
+def body_land():
+    """The knocked-out survivor slams onto the deck ('dosa', ~0.7 s): a heavy low thud with a dull mid thwack,
+    the wooden boards ringing for a moment and a little grit scattering away."""
+    length = 0.75
+    t = tt(length)
+    thud = np.sin(phase(78 * np.exp(-t / 0.07) + 46)) * env_ad(t, 0.002, 0.09)
+    thwack = sweep_bandpass(seeded_noise(len(t), 120, 5000, 2201), 900 * np.exp(-t / 0.05) + 320, q=1.2)
+    thwack = thwack / np.max(np.abs(thwack)) * env_ad(t, 0.001, 0.06)
+    boards = np.zeros_like(t)
+    for hz, decay, gain in [(176, 0.08, 1.0), (297, 0.06, 0.8), (463, 0.05, 0.65), (689, 0.035, 0.45), (1010, 0.025, 0.3)]:
+        boards += np.sin(2 * np.pi * hz * t) * np.exp(-t / decay) * gain
+    boards *= np.minimum(1, t / 0.002)
+    grit = seeded_noise(len(t), 2500, 12000, 2203)
+    grains = (np.random.default_rng(2207).random(len(t)) < 0.004).astype(float)
+    grains = np.convolve(grains, np.exp(-np.arange(int(0.004 * SR)) / (0.0012 * SR)), mode='same')
+    grit = grit * grains * np.exp(-t / 0.22)
+    body = 0.42 * thud + 0.8 * thwack + 0.36 * boards + 0.14 * grit
+    return stereo(body, seconds=0.6, mix=0.12, width_seed=2211)
+
+
+def body_tumble():
+    """The survivor rolls and slides over the deck after the landing (~1.0 s): a few softer thumps of the
+    shoulders and hips and a scrape that slows down and stops. The game plays it softer and higher for the
+    short break-fall roll of a recovering hit."""
+    length = 1.05
+    t = tt(length)
+    thumps = np.zeros_like(t)
+    for at, gain, hz in [(0.0, 1.0, 70), (0.2, 0.62, 82), (0.42, 0.4, 92), (0.62, 0.22, 100)]:
+        age = np.maximum(0, t - at)
+        on = t >= at
+        thumps += np.where(on, np.sin(2 * np.pi * (hz * age + 18 * (1 - np.exp(-age / 0.03)))) * env_ad(age, 0.002, 0.07) * gain, 0)
+        knock = lowpass(seeded_noise(len(t), 80, 1600, 2301 + int(at * 100)), 600)
+        thumps += np.where(on, knock / np.max(np.abs(knock)) * env_ad(age, 0.001, 0.035) * gain * 0.45, 0)
+    speed = np.clip(1 - t / 0.95, 0, 1) ** 1.4
+    scrape = sweep_bandpass(seeded_noise(len(t), 300, 9000, 2311), 900 + 1800 * speed, q=1.4)
+    scrape = scrape / np.max(np.abs(scrape))
+    flutter = 0.65 + 0.35 * np.sin(2 * np.pi * (7 + 9 * speed) * t)
+    scrape *= speed * flutter * np.minimum(1, t / 0.02)
+    body = 0.75 * thumps + 0.3 * scrape
+    return stereo(body, seconds=0.6, mix=0.12, width_seed=2321)
+
+
 CUES = {
     'ghost_soul_rise.ogg': (soul_rise, {'fade_in': 0.02}),
     'ghost_shark_rise.ogg': (shark_rise, {'fade_in': 0.02}),
@@ -500,6 +557,10 @@ CUES = {
     # GOSTRIDER mount presentation (seeded per cue, independent of build order).
     'ghost_awaken.ogg': (awaken, {'fade_in': 0.01}),
     'ghost_mount_land.ogg': (mount_land, {}),
+    # The charge's hit on the survivor (docs/ghost_hit_ragdoll_plan.md stage 6, seeded per cue).
+    'ghost_hit_body.ogg': (hit_body, {}),
+    'ghost_body_land.ogg': (body_land, {}),
+    'ghost_body_tumble.ogg': (body_tumble, {'fade_out': 0.12}),
     # Sudden death: a ghost at the draw gets its body back (docs/sudden_death_v2/ghost_revive.md).
     'ghost_revive_gather.ogg': (revive_gather, {'fade_in': 0.05}),
     'ghost_revive_snap.ogg': (revive_snap, {'fade_out': 0.03}),

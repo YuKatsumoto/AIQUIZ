@@ -1,5 +1,10 @@
 # 両者脱落の投げ縄（ハテナが2人をゴールへ運ぶ）
 
+> **10問だけで使う（2026-11-04）**：ユーザーの指示で、この演出は10問チャレンジ（ローカル・オンライン）に残す。
+> エンドレスの2人の両者脱落は投げ縄を使わず、暗転のあと海上の結果発表アリーナで結果発表する
+> （`assets/result_arena/README.md`、`ResultArena`）。分かれ目は `GameWorld._uses_elimination_lasso`（エンドレスでは false）と
+> `GameWorld._uses_result_arena`（エンドレスの両者脱落の結果発表だけ true）。
+
 2人の10問（ローカル・オンライン）で2人とも脱落したとき、暗転で結果発表へ切り替える代わりに見せる演出。
 結果発表の待ち時間（`RESULT_ELIMINATION_HOLD`）は待たず、2人とも体が砕けた瞬間（死んだ所が決まった瞬間。サメに乗って待っている人は
 もう決まっている）に始める（`GameWorld._elimination_lasso_can_start_now`）。

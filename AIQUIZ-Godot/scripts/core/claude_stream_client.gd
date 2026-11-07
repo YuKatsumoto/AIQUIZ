@@ -33,6 +33,10 @@ signal text_chunk_received(accumulated_text: String, chunk_text: String)
 ## accumulated_text: 最終的に累積されたテキスト全体
 signal stream_finished(success: bool, accumulated_text: String)
 
+## 200 の返事のヘッダーが届いた（プロキシは Claude の返事が流れ始めてからヘッダーを送る）。
+## この時点でプロンプトキャッシュが読めるようになるので、OnlineFetch はこれを合図に残りの並列を送る。
+signal response_started
+
 ## ── 定数 ──
 const TIMEOUT_SECONDS: float = 90.0
 const MAX_IDLE_SECONDS: float = 20.0  # チャンクが来なくなってから切断するまで
@@ -213,6 +217,7 @@ func _handle_requesting(status: int, _now: float) -> void:
 				return
 			_last_chunk_time = _now
 			_state = State.BODY
+			response_started.emit()
 		HTTPClient.STATUS_CONNECTED:
 			# リクエスト完了→ヘッダー待ち遷移（一部環境でこの状態になる場合がある）
 			_state = State.HEADERS
@@ -233,6 +238,8 @@ func _handle_headers(status: int, _now: float) -> void:
 				push_error("[ClaudeStreamClient] Non-200 response: %d" % resp_code)
 			_last_chunk_time = _now
 			_state = State.BODY
+			if _http_ok:
+				response_started.emit()
 		_:
 			if status == HTTPClient.STATUS_CONNECTION_ERROR:
 				push_error("[ClaudeStreamClient] Connection error during headers")

@@ -10,6 +10,14 @@ var bank_path: String
 var bank: Dictionary = {}
 var external_bank_items: Array[Dictionary] = []
 var _count_cache: Dictionary = {}
+## get_quizzes の下ごしらえ（_pool_for）を条件ごとに覚えておく。問題の元データが変わったら捨てる。
+var _pool_cache: Dictionary = {}
+var _pool_cache_bank: Dictionary = {}
+## 覚えておく条件の数（メニュー背景のように条件を次々に変える使い方でもメモリを使いすぎない）
+const POOL_CACHE_MAX := 3
+
+## コンパイル済みの正規表現（パターン → RegEx）。問題ごとに作り直さない。
+static var _regex_cache: Dictionary = {}
 
 ## 読み込んだバンク（パス → Dictionary）。offline_bank.json は 5 MB あり、プロバイダは
 ## 本編・バッファ・メニュー背景などで何度も作られるので、解析は 1 回だけにして中身を共有する。
@@ -74,6 +82,7 @@ func total_count() -> int:
 func set_external_items(items: Array[Dictionary]) -> void:
 	external_bank_items = items.duplicate(true)
 	_count_cache.clear()
+	_pool_cache.clear()
 
 
 func offline_count_for(subject: String, grade: int, difficulty: String, mode: String) -> int:
@@ -86,30 +95,22 @@ func count_for(subject: String, grade: int, difficulty: String, mode: String) ->
 	var cache_key := "%s|%d|%s|%s" % [subject, grade, difficulty, require_four]
 	if _count_cache.has(cache_key):
 		return int(_count_cache[cache_key])
-	var items: Array[QuizItem] = []
-	var subj_data: Variant = bank.get(subject, {})
-	var raw_items: Variant = (subj_data as Dictionary).get(str(grade), []) if subj_data is Dictionary else []
-	if raw_items is Array:
-		for raw: Variant in raw_items:
-			var item := _normalize(raw)
-			if item != null:
-				items.append(item)
-	for raw: Dictionary in external_bank_items:
-		if str(raw.get("subject", "")) != subject or int(raw.get("grade", 0)) != grade:
-			continue
-		if str(raw.get("difficulty", "")) != difficulty:
-			continue
-		var item := _normalize(raw)
-		if item != null:
-			items.append(item)
-	if require_four:
-		items = _four_choice_pool(items)
+	# get_quizzes と同じ下ごしらえを使う（メニューで選んだ条件のプールがそのまま温まる）
 	var unique_texts: Dictionary = {}
-	if not items.is_empty():
-		for item: QuizItem in _bucket_by_difficulty(items, subject, grade, difficulty):
-			unique_texts[item.q.strip_edges()] = true
+	for entry: Dictionary in _pool_for(subject, grade, difficulty, require_four)["bucket"]:
+		unique_texts[(entry["source"] as QuizItem).q.strip_edges()] = true
 	_count_cache[cache_key] = unique_texts.size()
 	return unique_texts.size()
+
+
+## ラウンドの準備中に、この条件のプールを作っておく（プレイ中に初回の下ごしらえが来ないように）。
+func warm_pool(subject: String, grade: int, difficulty: String, mode: String) -> void:
+	var require_four := difficulty == "難しい" or mode == Constants.MODE_TEN
+	# 2択を4択に広げた候補があるプールは、ラウンドごとに広げ直して帯分けし直す（従来と同じ）
+	var cache_key := "%s|%d|%s|%s" % [subject, grade, difficulty, require_four]
+	if _pool_cache.has(cache_key) and bool(_pool_cache[cache_key]["expanded"]):
+		_pool_cache.erase(cache_key)
+	_pool_for(subject, grade, difficulty, require_four)
 
 func begin_round(_subject: String, _grade: int, _difficulty: String,
 		_mode: String, _target_count: int) -> void:
@@ -176,6 +177,13 @@ func _normalize(raw: Variant) -> QuizItem:
 	item.estimated_seconds = clampf(estimated, 1.5, 10.0)
 	return item
 
+static func _regex(pattern: String) -> RegEx:
+	var cached: RegEx = _regex_cache.get(pattern)
+	if cached == null:
+		cached = RegEx.create_from_string(pattern)
+		_regex_cache[pattern] = cached
+	return cached
+
 # ---------- Estimated solving time (heuristic for offline) ----------
 
 func _estimate_seconds(item: QuizItem, subject: String, difficulty: String) -> float:
@@ -196,9 +204,7 @@ func _estimate_seconds(item: QuizItem, subject: String, difficulty: String) -> f
 	# 教科ごとの思考時間加算
 	if subject == "算数":
 		# 計算記号が含まれる場合は+1秒
-		var regex := RegEx.new()
-		regex.compile("[＋\\+\\-×÷＝]")
-		if regex.search(item.q):
+		if _regex("[＋\\+\\-×÷＝]").search(item.q):
 			base += 1.0
 	elif subject == "国語":
 		# 漢字の読み問題は速い
@@ -206,10 +212,8 @@ func _estimate_seconds(item: QuizItem, subject: String, difficulty: String) -> f
 			base -= 0.5
 	elif subject == "英語":
 		# 英文は日本語より読み取りに時間がかかるため、複数語の文だけ少し加算する。
-		var latin_word_regex := RegEx.new()
-		latin_word_regex.compile("[A-Za-z]+(?:'[A-Za-z]+)?")
 		var english_text := "%s %s" % [item.q, " ".join(item.c)]
-		var english_word_count := latin_word_regex.search_all(english_text).size()
+		var english_word_count := _regex("[A-Za-z]+(?:'[A-Za-z]+)?").search_all(english_text).size()
 		if english_word_count >= 4:
 			base += minf(1.2, float(english_word_count - 3) * 0.15)
 	
@@ -230,19 +234,13 @@ func _complexity_score(item: QuizItem, subject: String, grade: int) -> float:
 	score += float(item.e.length()) / 80.0
 
 	# Count digits
-	var regex_digit := RegEx.new()
-	regex_digit.compile("\\d")
-	score += regex_digit.search_all(text).size() * 0.08
+	score += _regex("\\d").search_all(text).size() * 0.08
 
 	# Count operators
-	var regex_op := RegEx.new()
-	regex_op.compile("[\\+\\-\\*/÷×%]")
-	score += regex_op.search_all(text).size() * 0.25
+	score += _regex("[\\+\\-\\*/÷×%]").search_all(text).size() * 0.25
 
 	# Count brackets
-	var regex_bracket := RegEx.new()
-	regex_bracket.compile("[()（）]")
-	score += regex_bracket.search_all(text).size() * 0.2
+	score += _regex("[()（）]").search_all(text).size() * 0.2
 
 	# 英語3年は「応」「基」をまだ習わないので、ひらがなのタグを使う
 	var is_advanced := "【応用】" in q_text or "【おうよう】" in q_text
@@ -261,9 +259,7 @@ func _complexity_score(item: QuizItem, subject: String, grade: int) -> float:
 			if token in text:
 				score += 0.5
 		# 3桁以上の数字を含む問題は暗算困難 → ハードバケットから除外
-		var regex_big_num := RegEx.new()
-		regex_big_num.compile("\\d{3,}")
-		var big_matches := regex_big_num.search_all(text)
+		var big_matches := _regex("\\d{3,}").search_all(text)
 		if big_matches.size() > 0:
 			# 大きな数が多いほどペナルティを強くする
 			score -= big_matches.size() * 1.5
@@ -296,29 +292,43 @@ func _bucket_by_difficulty(items: Array[QuizItem], subject: String,
 	if items.size() <= 2:
 		return items
 
-	# Score and sort
-	var scored: Array = []
-	for it: QuizItem in items:
-		scored.append({"score": _complexity_score(it, subject, grade), "item": it})
-	scored.sort_custom(func(a_val: Dictionary, b_val: Dictionary) -> bool:
-		return a_val["score"] < b_val["score"])
-
-	var n: int = scored.size()
-	var low_end: int = maxi(1, n / 3)
-	var high_start: int = maxi(low_end, (2 * n) / 3)
-
 	var bucket: Array[QuizItem] = []
-	if difficulty == "簡単":
-		for i: int in range(low_end):
-			bucket.append(scored[i]["item"])
-	elif difficulty == "難しい":
-		for i: int in range(high_start, n):
-			bucket.append(scored[i]["item"])
-	else:
-		for i: int in range(low_end, high_start):
-			bucket.append(scored[i]["item"])
+	for i: int in _bucket_indices(items, subject, grade, difficulty):
+		bucket.append(items[i])
 
 	return bucket if not bucket.is_empty() else items
+
+
+## _bucket_by_difficulty と同じ帯分けを、items の添字で返す（2問以下・帯が空なら全部）。
+func _bucket_indices(items: Array[QuizItem], subject: String,
+		grade: int, difficulty: String) -> PackedInt32Array:
+	var indices := PackedInt32Array()
+	if items.size() > 2:
+		# Score and sort
+		var scored: Array = []
+		for i: int in range(items.size()):
+			scored.append({"score": _complexity_score(items[i], subject, grade), "index": i})
+		scored.sort_custom(func(a_val: Dictionary, b_val: Dictionary) -> bool:
+			return a_val["score"] < b_val["score"])
+
+		var n: int = scored.size()
+		var low_end: int = maxi(1, n / 3)
+		var high_start: int = maxi(low_end, (2 * n) / 3)
+
+		if difficulty == "簡単":
+			for i: int in range(low_end):
+				indices.append(int(scored[i]["index"]))
+		elif difficulty == "難しい":
+			for i: int in range(high_start, n):
+				indices.append(int(scored[i]["index"]))
+		else:
+			for i: int in range(low_end, high_start):
+				indices.append(int(scored[i]["index"]))
+
+	if indices.is_empty():
+		for i: int in range(items.size()):
+			indices.append(i)
+	return indices
 
 # ---------- Hard distractor enhancement ----------
 
@@ -365,10 +375,29 @@ func _extract_unit(text: String) -> String:
 			return u
 	return ""
 
+## 選択肢の数から性質や大きさで選ばせる問題（「〜でない数はどれ」「3の倍数はどれ」「いちばん大きい」「およそ」など）。
+## 誤答を「正解±数」に置き換えると、置き換えた数も条件に当てはまり、正解がいくつもある問題になる
+## （例：「16と40の公約数でない数はどれ」が 13・15・16・18 になると、4つとも公約数でない）。
+const HARDEN_SKIP_WORDS: Array[String] = [
+	"どれ", "どの", "でない", "ではない", "じゃない", "ちがう", "違う", "まちがい", "間違", "正しくない",
+	"いちばん", "一番", "最も", "もっとも", "およそ", "約", "がい数", "概数", "倍数", "約数", "偶数", "奇数",
+	"素数", "四捨五入", "切り上げ", "切り捨て", "以上", "以下", "未満", "より大きい", "より小さい",
+]
+
+
+static func _is_selection_question(text: String) -> bool:
+	for word: String in HARDEN_SKIP_WORDS:
+		if text.contains(word):
+			return true
+	return false
+
+
 func _harden_distractors(item: QuizItem) -> QuizItem:
 	## Replace obviously wrong choices with more plausible near-miss values
 	if item.c.size() < 4 or not item.choice_img.is_empty():
 		return item  # Image choices must retain their original labels and order.
+	if _is_selection_question(item.q):
+		return item  # 選ばせ方の問題は、作った人の選択肢のまま（近い数で正解が増えないように）。
 
 	var correct_text: String = item.c[item.a]
 
@@ -707,44 +736,17 @@ func get_quizzes(subject: String, grade: int, difficulty: String,
 		mode: String, count: int, exclude_texts: Array[String] = []) -> Array[QuizItem]:
 	# オフラインバンクは有限。同じ書式の計算問題を残し、問題文の一致だけを高速に除外する。
 	var excluded := QuizDedup.make_exact_index(exclude_texts)
-	var grade_str := str(grade)
-	var subj_data: Variant = bank.get(subject, {})
-	var raw_items_data: Variant
-	if subj_data is Dictionary:
-		raw_items_data = subj_data.get(grade_str, [])
-	else:
-		raw_items_data = []
-
-	var items: Array[QuizItem] = []
-	if raw_items_data is Array:
-		for raw: Variant in raw_items_data:
-			var n := _normalize(raw)
-			if n:
-				# オフライン問題にはヒューリスティクスで解答時間を推定
-				n.estimated_seconds = _estimate_seconds(n, subject, difficulty)
-				items.append(n)
-
-	# Firebase cache items with the exact requested difficulty join the normal
-	# shuffled pool. Other difficulties remain a fallback for sparse categories.
-	var external_fallback: Array[QuizItem] = []
-	for raw: Dictionary in external_bank_items:
-		if str(raw.get("subject", "")) != subject or int(raw.get("grade", 0)) != grade:
-			continue
-		var n := _normalize(raw)
-		if n == null:
-			continue
-		n.src = "OFFLINE_FIREBASE"
-		if str(raw.get("difficulty", "")) == difficulty:
-			items.append(n)
-		else:
-			external_fallback.append(n)
-
 	# Keep canonical four-choice candidates for hard rounds and the final boss.
 	# Reduce normal/easy questions only after their final position is known.
 	var require_four := difficulty == "難しい" or mode == Constants.MODE_TEN
-	if require_four:
-		items = _four_choice_pool(items)
-		external_fallback = _four_choice_pool(external_fallback)
+	# 正規化・解答時間の推定・難易度の帯分けは条件ごとに覚えたもの（_pool_for）を使う。
+	# 候補は {source, sample, key} で、払い出す問題だけを _pool_item で複製して作る。
+	var prepared := _pool_for(subject, grade, difficulty, require_four)
+	var entries: Array[Dictionary] = prepared["entries"]
+	var bucket: Array[Dictionary] = prepared["bucket"]
+	var fallback_entries: Array[Dictionary] = prepared["fallback"]
+	var items: Array[Dictionary] = entries.duplicate()
+	var external_fallback: Array[Dictionary] = fallback_entries.duplicate()
 
 	if items.is_empty() and external_fallback.is_empty():
 		if mode == Constants.MODE_TEN:
@@ -755,51 +757,52 @@ func get_quizzes(subject: String, grade: int, difficulty: String,
 		var single: Array[QuizItem] = [_fallback_question(subject, grade, require_four)]
 		return single
 
-	var pool := _bucket_by_difficulty(items, subject, grade, difficulty)
+	var pool: Array[Dictionary] = bucket.duplicate()
 	pool.shuffle()
 	external_fallback.shuffle()
 	pool.append_array(external_fallback)
+	# 候補が2問以下で帯分けしないときは、プールと全体が同じ配列なので
+	# 別難易度の控えが2回ずつ入る（従来の選ばれやすさをそのまま保つ）。
+	if bool(prepared["unbucketed"]):
+		pool.append_array(external_fallback)
 	items.append_array(external_fallback)
+	var has_fresh := true
 	if exclude_texts.size() > 0:
-		var filtered: Array[QuizItem] = []
-		for q_item: QuizItem in pool:
-			if excluded.has(QuizDedup.exact_key(q_item.q)):
+		var filtered: Array[Dictionary] = []
+		for entry: Dictionary in pool:
+			if excluded.has(entry["key"]):
 				continue
-			filtered.append(q_item)
+			filtered.append(entry)
 		if not filtered.is_empty():
 			pool = filtered
+		else:
+			has_fresh = false
 
-	# 難しい難易度の場合、選択肢をより紛らわしくする
-	if difficulty == "難しい":
-		var hardened: Array[QuizItem] = []
-		for q_item: QuizItem in pool:
-			hardened.append(_harden_distractors(q_item))
-		pool = hardened
+	# 難しい難易度の場合、選択肢をより紛らわしくする（払い出す問題ごとに _pool_item で行う）
 
 	if mode == Constants.MODE_TEN:
 		var uniq: Array[QuizItem] = []
 		var seen: Dictionary = {}
-		for q_item: QuizItem in pool:
-			if q_item.q in seen:
+		for entry: Dictionary in pool:
+			var q_text: String = (entry["source"] as QuizItem).q
+			if q_text in seen:
 				continue
-			if excluded.has(QuizDedup.exact_key(q_item.q)):
+			if excluded.has(entry["key"]):
 				continue
-			seen[q_item.q] = true
-			uniq.append(q_item)
+			seen[q_text] = true
+			uniq.append(_pool_item(entry, require_four, difficulty))
 			if uniq.size() >= count:
 				break
 		# Also check from full items if pool was too small
 		if uniq.size() < count:
-			for q_item: QuizItem in items:
-				if q_item.q in seen:
+			for entry: Dictionary in items:
+				var q_text: String = (entry["source"] as QuizItem).q
+				if q_text in seen:
 					continue
-				if excluded.has(QuizDedup.exact_key(q_item.q)):
+				if excluded.has(entry["key"]):
 					continue
-				seen[q_item.q] = true
-				if difficulty == "難しい":
-					uniq.append(_harden_distractors(q_item))
-				else:
-					uniq.append(q_item)
+				seen[q_text] = true
+				uniq.append(_pool_item(entry, require_four, difficulty))
 				if uniq.size() >= count:
 					break
 		while uniq.size() < count:
@@ -832,9 +835,118 @@ func get_quizzes(subject: String, grade: int, difficulty: String,
 
 		return uniq
 
+	# エンドレスの補充は1回で count 問まで返す。1問ずつ返して、選んだ問題を除外に足しながら
+	# 呼び直すのと同じ選び方（除外されていない候補から、同じ問題文を重ねずに一様に選ぶ）。
+	if mode == Constants.MODE_ENDLESS and count > 1 and has_fresh:
+		var picked: Array[QuizItem] = []
+		var picked_keys: Dictionary = {}
+		for i: int in range(pool.size()):
+			if picked.size() >= count:
+				break
+			var j := randi_range(i, pool.size() - 1)
+			var entry: Dictionary = pool[j]
+			pool[j] = pool[i]
+			pool[i] = entry
+			if picked_keys.has(entry["key"]):
+				continue
+			picked_keys[entry["key"]] = true
+			picked.append(_pool_item(entry, require_four, difficulty))
+		return picked
+
 	var result: Array[QuizItem] = []
 	if pool.size() > 0:
-		result.append(pool.pick_random())
+		result.append(_pool_item(pool.pick_random(), require_four, difficulty))
 	else:
 		result.append(_fallback_question(subject, grade, require_four))
 	return result
+
+
+## get_quizzes の下ごしらえを条件ごとに1回だけ行って覚えておく。
+##   entries  … 通常の候補（同梱の問題＋指定の難易度の共有バンク）。並びは元データの順
+##   bucket   … entries のうち、難易度の帯に入るもの
+##   fallback … 共有バンクの別の難易度（少ない条件の補い）
+##   expanded … 2択を乱数で4択に広げた候補がある（warm_pool でラウンドごとに作り直す）
+## 候補は {source: 正規化した QuizItem, sample: 4択にしたもの（4択が要らなければ source）,
+## key: 問題文の一致キー}。中の QuizItem は共有なので、払い出すときは _pool_item で複製する。
+func _pool_for(subject: String, grade: int, difficulty: String, require_four: bool) -> Dictionary:
+	# offline_bank.json の中身は書き換えない約束なので、差し替えられたときだけ捨てる
+	if not is_same(_pool_cache_bank, bank):
+		_pool_cache.clear()
+		_pool_cache_bank = bank
+	var cache_key := "%s|%d|%s|%s" % [subject, grade, difficulty, require_four]
+	if _pool_cache.has(cache_key):
+		return _pool_cache[cache_key]
+
+	var entries: Array[Dictionary] = []
+	var subj_data: Variant = bank.get(subject, {})
+	var raw_items_data: Variant = (subj_data as Dictionary).get(str(grade), []) if subj_data is Dictionary else []
+	if raw_items_data is Array:
+		for raw: Variant in raw_items_data:
+			var n := _normalize(raw)
+			if n:
+				# オフライン問題にはヒューリスティクスで解答時間を推定
+				n.estimated_seconds = _estimate_seconds(n, subject, difficulty)
+				_append_pool_entry(entries, n, require_four)
+
+	# Firebase cache items with the exact requested difficulty join the normal
+	# shuffled pool. Other difficulties remain a fallback for sparse categories.
+	var external_fallback: Array[Dictionary] = []
+	for raw: Dictionary in external_bank_items:
+		if str(raw.get("subject", "")) != subject or int(raw.get("grade", 0)) != grade:
+			continue
+		var n := _normalize(raw)
+		if n == null:
+			continue
+		n.src = "OFFLINE_FIREBASE"
+		if str(raw.get("difficulty", "")) == difficulty:
+			_append_pool_entry(entries, n, require_four)
+		else:
+			_append_pool_entry(external_fallback, n, require_four)
+
+	# 帯分けは表示する形（4択なら4択にしたもの）で採点する
+	var samples: Array[QuizItem] = []
+	for entry: Dictionary in entries:
+		samples.append(entry["sample"])
+	var bucket: Array[Dictionary] = []
+	for i: int in _bucket_indices(samples, subject, grade, difficulty):
+		bucket.append(entries[i])
+	# 帯に入るかが広げ方で変わるので、乱数で4択に広げた候補があるかを覚えておく
+	var expanded := false
+	for entry: Dictionary in entries:
+		if not is_same(entry["sample"], entry["source"]):
+			expanded = true
+			break
+
+	var prepared := {
+		"entries": entries,
+		"bucket": bucket,
+		"fallback": external_fallback,
+		"unbucketed": entries.size() <= 2,
+		"expanded": expanded,
+	}
+	if _pool_cache.size() >= POOL_CACHE_MAX:
+		_pool_cache.erase(_pool_cache.keys()[0])
+	_pool_cache[cache_key] = prepared
+	return prepared
+
+
+## 4択が要る条件では、4択にできる問題だけを候補にする（_four_choice_pool と同じ判定）。
+func _append_pool_entry(entries: Array[Dictionary], source: QuizItem, require_four: bool) -> void:
+	var sample := source
+	if require_four:
+		sample = prepare_choice_count(source, 4)
+		if sample == null:
+			return
+	entries.append({"source": source, "sample": sample, "key": QuizDedup.exact_key(source.q)})
+
+
+## 候補から払い出す1問を作る。呼び出し側が genre・src などを書き換えるので必ず複製する。
+## 4択への拡張と紛らわしい選択肢づくりは乱数を使うので、覚えておかずに毎回ここで行う。
+func _pool_item(entry: Dictionary, require_four: bool, difficulty: String) -> QuizItem:
+	var item := (entry["source"] as QuizItem).duplicate(true) as QuizItem
+	if require_four:
+		var four := prepare_choice_count(item, 4)
+		item = four if four != null else (entry["sample"] as QuizItem).duplicate(true) as QuizItem
+	if difficulty == "難しい":
+		item = _harden_distractors(item)
+	return item

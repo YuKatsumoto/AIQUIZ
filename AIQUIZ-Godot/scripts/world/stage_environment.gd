@@ -30,6 +30,11 @@ const GRANDSTAND_SIDE_OFFSET: float = 28.0
 const STADIUM_AIQUIZ := "aiquiz"
 const STADIUM_SANTORINI := "santorini"
 const GENERATED_STAGE_META: StringName = &"stage_environment_generated"
+## 床が少し伸びただけ（エンドレスで壁を 1 枚進めたとき）なら、客席のブロックはそのフレームでは足さず、
+## 次のフレームから 1 つずつ足す（壁が進むフレームを重くしない）。これより多く伸びたらその場で足す。
+const GRANDSTAND_DEFERRED_BLOCKS := 2
+## 床の延長（set_floor_runout）を床の前端より少し手前から始め、継ぎ目に隙間を作らない（重なる上面は同じ材質で同じ色）。
+const FLOOR_RUNOUT_OVERLAP: float = 0.1
 
 @export_category("Stage Layout")
 @export var layout_floor_center_z: float = 4.0:
@@ -142,6 +147,11 @@ var _conveyor_roller_front_material: ShaderMaterial = null
 var _conveyor_roller_back_material: ShaderMaterial = null
 var _conveyor_side_frame_left: MeshInstance3D = null
 var _conveyor_side_frame_right: MeshInstance3D = null
+## 床の前端から先の、見た目だけのコースの延長（set_floor_runout）。使うまで作らない。
+var _floor_runout: MeshInstance3D = null
+var _floor_runout_length: float = 0.0
+## コースの部品を見せているか（set_course_visible。結果発表アリーナのあいだは隠す）。
+var _course_visible := true
 
 ## Sudden death shaft hole (set_shaft_hole). Kept across rebuilds and quality changes.
 const SHAFT_HOLE_PARAM: StringName = &"shaft_hole"
@@ -158,8 +168,13 @@ var _shaft_crossing_nodes: Array[String] = []
 
 var _floor_center_z: float = 0.0
 var _floor_length: float = 144.0
+## 床ボックスなどに最後に反映した中心と長さ（set_floor_geometry()。同じなら作り直さない）。NAN は未反映。
+var _applied_floor_center_z: float = NAN
+var _applied_floor_length: float = NAN
 ## 観客スタンドが最後に同期した床長。動的床の縮小ではブロックを減らさない。
 var _grandstand_synced_length: float = 0.0
+## 後回しにした客席のブロック数（_grow_pending_grandstands() が 1 フレームに 1 つずつ足す）。0 なら何もない。
+var _grandstand_pending_blocks: int = 0
 ## 左右の客席の奥の端（ワールド Z）。ゴール観客席のモニターより奥へ座席を出さない。INF なら制限なし。
 var _grandstand_end_limit_z: float = INF
 ## 左右の客席をずらしている量（set_grandstand_shift）
@@ -240,10 +255,16 @@ func _clear_built_stage() -> void:
 	_conveyor_return_belt = null
 	_conveyor_side_frame_left = null
 	_conveyor_side_frame_right = null
+	_floor_runout = null
+	_floor_runout_length = 0.0
+	_course_visible = true
 	_conveyor_return_material = null
 	_conveyor_roller_front_material = null
 	_conveyor_roller_back_material = null
 	_grandstand_synced_length = 0.0
+	_grandstand_pending_blocks = 0
+	_applied_floor_center_z = NAN
+	_applied_floor_length = NAN
 	_shaft_hidden_nodes.clear()
 	_shaft_crossing_nodes.clear()
 
@@ -730,9 +751,32 @@ static func crowd_walkers(quality: String) -> int:
 
 
 func _configure_grandstand_geometry(stand: Node3D) -> void:
+	_configure_grandstand_meshes(stand.find_children("*", "MeshInstance3D", true, false))
+
+
+## 伸びた客席のうち、増えたブロックだけを _configure_grandstand_geometry() と同じに設定する（毎回スタンド全体を
+## 探さない）。最初の構築・マスコットが増えたとき・AIQUIZ STADIUM 以外はスタンド全体。
+func _configure_grown_grandstand(stand: Node3D, blocks_before: int, mascot_before: Variant) -> void:
+	var blocks := stand.get_node_or_null("Blocks")
+	if blocks_before <= 0 or blocks == null or _stadium_style != STADIUM_AIQUIZ or _stand_mascot(stand) != mascot_before:
+		_configure_grandstand_geometry(stand)
+		return
+	# 増えたブロックは Blocks の末尾に並ぶ。
+	var children := blocks.get_children()
+	var added: int = int(stand.get("block_count")) - blocks_before
+	_configure_grandstand_meshes(children.slice(maxi(children.size() - added, 0)))
+
+
+## スタンドのマスコット（なければ null）。
+static func _stand_mascot(stand: Node3D) -> Variant:
+	var crowd: Variant = stand.get("crowd")
+	return crowd.get("mascot") if crowd is Node else null
+
+
+func _configure_grandstand_meshes(nodes: Array) -> void:
 	var quality: String = _graphics_quality()
 	var casts_shadows: bool = QualityRules.is_at_least(quality, QualityRules.HIGH) and not QualityRules.is_mobile_target()
-	for node: Node in stand.find_children("*", "MeshInstance3D", true, false):
+	for node: Node in nodes:
 		var mesh_instance := node as MeshInstance3D
 		mesh_instance.lod_bias = QualityRules.grandstand_lod_bias(quality)
 		mesh_instance.cast_shadow = (
@@ -753,17 +797,50 @@ func _sync_grandstands_to_floor() -> void:
 		return
 	_grandstand_synced_length = _floor_length
 	container.position.z = _floor_center_z - _floor_length * 0.5 + _grandstand_shift
-	_ensure_grandstand_blocks(_stand_script().blocks_for_length(_floor_length))
+	var blocks: int = _stand_script().blocks_for_length(_floor_length)
+	var built := _grandstand_block_count()
+	if built > 0 and blocks > built and blocks - built <= GRANDSTAND_DEFERRED_BLOCKS:
+		_grandstand_pending_blocks = maxi(_grandstand_pending_blocks, blocks)
+	else:
+		_ensure_grandstand_blocks(blocks)
 	_apply_grandstand_end_limit()
 	_sync_waterfront_to_stands()
+
+
+## 後回しにした客席のブロックを 1 つ足す（set_floor_geometry() が毎フレーム呼ぶ）。
+func _grow_pending_grandstands() -> void:
+	if _grandstand_pending_blocks <= 0 or _grandstands_container == null:
+		return
+	var built := _grandstand_block_count()
+	if built >= _grandstand_pending_blocks:
+		_grandstand_pending_blocks = 0
+		return
+	_ensure_grandstand_blocks(built + 1)
+	_apply_grandstand_end_limit()
+	_sync_waterfront_to_stands()
+
+
+## 左右の客席のうち短いほうのブロック数（客席がなければ 0）。
+func _grandstand_block_count() -> int:
+	var count := -1
+	for child: Node in _grandstands_container.get_children():
+		if child.has_method("ensure_blocks"):
+			var blocks: int = child.get("block_count")
+			count = blocks if count < 0 else mini(count, blocks)
+	return maxi(count, 0)
 
 
 ## 左右の客席を少なくとも blocks ブロックまで伸ばす（減らさない）。伸びたら true。
 func _ensure_grandstand_blocks(blocks: int) -> bool:
 	var grew := false
 	for child: Node in _grandstands_container.get_children():
-		if child.has_method("ensure_blocks") and child.ensure_blocks(blocks):
-			_configure_grandstand_geometry(child as Node3D)
+		if not child.has_method("ensure_blocks"):
+			continue
+		var stand := child as Node3D
+		var blocks_before: int = stand.get("block_count")
+		var mascot_before: Variant = _stand_mascot(stand)
+		if stand.ensure_blocks(blocks):
+			_configure_grown_grandstand(stand, blocks_before, mascot_before)
 			grew = true
 	return grew
 
@@ -847,6 +924,9 @@ func _apply_grandstand_end_limit() -> void:
 func _setup_sharks() -> void:
 	var school: Node3D = Node3D.new()
 	school.name = "OceanSharks"
+	# GameWorld は一時停止の画面のために PROCESS_MODE_ALWAYS。そのまま受け継ぐと、Esc で止めても
+	# 海に落ちた人へのサメの襲撃だけが進み、一時停止の裏で脱落・GAME OVER になる。
+	school.process_mode = Node.PROCESS_MODE_PAUSABLE
 	_shark_school = school
 	_add_generated_stage_child(school)
 
@@ -963,6 +1043,11 @@ func prepare_shaft_hole() -> void:
 		var variant: Shader = _shaft_hole_variant(_shaft_hole_base_shader(entry[1] as ShaderMaterial))
 		# Waits for the rendering server to parse and compile it now rather than when the hole opens.
 		variant.get_shader_uniform_list()
+
+
+## サドンデスの縦穴が開いているか（結果発表アリーナは、開いているあいだ舞台の中央のフタを外す）。
+func is_shaft_hole_active() -> bool:
+	return _shaft_hole_active
 
 
 func get_shaft_hole_debug() -> Dictionary:
@@ -1200,30 +1285,105 @@ static func _ocean_noise_textures(noise_size: int) -> Array[NoiseTexture2D]:
 
 
 ## 床ボックスのサイズ・位置と、それに追従するレール／ローラー／サイドフレームを更新する。
+## 毎フレーム呼ばれる。前と同じ床なら何も作り直さず、長さが変わったときだけメッシュとコリジョンの大きさを変える。
 func set_floor_geometry(center_z: float, length: float) -> void:
+	# 前のフレームで後回しにした客席のブロックを足す（床が変わらないフレームでも）。
+	_grow_pending_grandstands()
+	if floor_mesh and center_z == _applied_floor_center_z and length == _applied_floor_length:
+		return
+	var resize := length != _applied_floor_length
 	_floor_center_z = center_z
 	_floor_length = length
 	_sync_grandstands_to_floor()
 	if not floor_mesh:
 		return
+	_applied_floor_center_z = center_z
+	_applied_floor_length = length
 	var box: BoxMesh = floor_mesh.mesh as BoxMesh
-	if box:
+	if box and resize:
 		box.size = Vector3(StageConstants.FLOOR_WIDTH, StageConstants.FLOOR_THICKNESS, length)
 	floor_mesh.position = Vector3(0, StageConstants.FLOOR_CENTER_Y, center_z)
-	if _floor_collision_body:
+	if _floor_collision_body and resize:
 		var col := _floor_collision_body.get_child(0) as CollisionShape3D
 		if col and col.shape is BoxShape3D:
 			(col.shape as BoxShape3D).size = Vector3(StageConstants.FLOOR_WIDTH, 0.5, length)
 	_update_floor_rails()
+	_update_conveyor_loop_geometry(resize)
+	_update_floor_runout()
+
+
+## 床の前端から先へ、コースを length m だけ見た目だけ延ばす（エンドレスで地平線まで続いて見せる。GameWorld が毎フレーム呼ぶ）。
+## ベルトと土台・レール・サイドフレームがそのまま続き、前のローラーは隠す。当たり判定・客席・サメの回り道は
+## 床（set_floor_geometry）の長さのまま。0 で延長しない。変わったときだけ触る。
+func set_floor_runout(length: float) -> void:
+	length = maxf(length, 0.0)
+	if length == _floor_runout_length:
+		return
+	_floor_runout_length = length
+	if length > 0.0 and _floor_runout == null and _floor_belt_material != null:
+		_floor_runout = MeshInstance3D.new()
+		_floor_runout.name = "FloorRunout"
+		_floor_runout.mesh = BoxMesh.new()
+		# 床と同じ材質（同じインスタンス）なので、ベルトの流れも画質も床と一緒に変わる。
+		_floor_runout.material_override = _floor_belt_material
+		_add_generated_stage_child(_floor_runout)
+	if _floor_runout != null:
+		(_floor_runout.mesh as BoxMesh).size = Vector3(
+			StageConstants.FLOOR_WIDTH, StageConstants.FLOOR_THICKNESS, length + FLOOR_RUNOUT_OVERLAP)
+	_update_floor_rails()
 	_update_conveyor_loop_geometry()
+	_update_floor_runout()
+
+
+func get_floor_runout_length() -> float:
+	return _floor_runout_length
+
+
+## コースの部品（ベルトと土台・延長・レール・ローラー・側枠・左右の客席・サメ）を見せるか隠す。空・海・光・遠景はそのまま。
+## 両者脱落の結果発表を海上の結果発表アリーナ（ResultArena）で行うあいだ、GameWorld が隠す。当たり判定はそのまま。
+func set_course_visible(course_visible: bool) -> void:
+	if course_visible == _course_visible:
+		return
+	_course_visible = course_visible
+	for node: Node3D in [floor_mesh, _running_rails, _conveyor_roller_back, _conveyor_return_belt,
+			_conveyor_side_frame_left, _conveyor_side_frame_right, _grandstands_container, _shark_school]:
+		if is_instance_valid(node):
+			node.visible = course_visible
+	_update_conveyor_loop_geometry(false)
+	_update_floor_runout()
+
+
+func is_course_visible() -> bool:
+	return _course_visible
+
+
+## 見た目のコースの前端（延長を含む）。
+func get_visual_floor_front_z() -> float:
+	return _floor_center_z + _floor_length * 0.5 + _floor_runout_length
+
+
+## 延長の箱は長さを変えず、床の前端に付けて動かすだけ（床の前端は壁が流れるあいだ毎フレーム動く）。
+func _update_floor_runout() -> void:
+	if _floor_runout == null:
+		return
+	_floor_runout.visible = _course_visible and _floor_runout_length > 0.0
+	if not _floor_runout.visible:
+		return
+	var start_z: float = _floor_center_z + _floor_length * 0.5 - FLOOR_RUNOUT_OVERLAP
+	var length: float = _floor_runout_length + FLOOR_RUNOUT_OVERLAP
+	_floor_runout.position = Vector3(0.0, StageConstants.FLOOR_CENTER_Y, start_z + length * 0.5)
 
 
 func _update_floor_rails() -> void:
 	if is_instance_valid(_running_rails):
-		_running_rails.set_geometry(_floor_center_z, _floor_length, StageConstants.FLOOR_TOP_Y)
+		# 線路は当たり判定を持たないので、延長の先まで 1 本で通す。
+		var back_z: float = _floor_center_z - _floor_length * 0.5
+		var front_z: float = get_visual_floor_front_z()
+		_running_rails.set_geometry((back_z + front_z) * 0.5, front_z - back_z, StageConstants.FLOOR_TOP_Y)
 
 
-func _update_conveyor_loop_geometry() -> void:
+## resize が false（床の長さが前と同じ）なら、メッシュの大きさは変えずに位置だけ合わせる。
+func _update_conveyor_loop_geometry(resize: bool = true) -> void:
 	var half_len: float = _floor_length * 0.5
 	var front_z: float = _floor_center_z + half_len
 	var back_z: float = _floor_center_z - half_len
@@ -1233,6 +1393,8 @@ func _update_conveyor_loop_geometry() -> void:
 
 	if _conveyor_roller_front:
 		_conveyor_roller_front.position = Vector3(0.0, roller_center_y, front_z)
+		# コースが先へ続いて見える間（set_floor_runout）は、ベルトの折り返しを見せない。
+		_conveyor_roller_front.visible = _course_visible and _floor_runout_length <= 0.0
 		if _conveyor_roller_front_material:
 			_conveyor_roller_front_material.set_shader_parameter("roller_contact_z", top_front_contact_z)
 	if _conveyor_roller_back:
@@ -1243,24 +1405,26 @@ func _update_conveyor_loop_geometry() -> void:
 	if _conveyor_return_belt:
 		var return_len: float = maxf(0.2, _floor_length - 0.12)
 		var return_mesh: BoxMesh = _conveyor_return_belt.mesh as BoxMesh
-		if return_mesh:
+		if return_mesh and resize:
 			return_mesh.size = Vector3(StageConstants.CONVEYOR_ROLLER_LENGTH, StageConstants.CONVEYOR_RETURN_BELT_THICKNESS, return_len)
 		var return_y: float = roller_center_y - StageConstants.CONVEYOR_ROLLER_RADIUS - StageConstants.CONVEYOR_RETURN_BELT_GAP - StageConstants.CONVEYOR_RETURN_BELT_THICKNESS * 0.5
 		_conveyor_return_belt.position = Vector3(0.0, return_y, _floor_center_z)
 
-	var frame_len: float = _floor_length + StageConstants.CONVEYOR_SIDE_FRAME_OVERHANG * 2.0
+	# サイドフレームは延長（set_floor_runout）の先まで 1 本で通す。
+	var frame_len: float = _floor_length + _floor_runout_length + StageConstants.CONVEYOR_SIDE_FRAME_OVERHANG * 2.0
+	var frame_center_z: float = _floor_center_z + _floor_runout_length * 0.5
 	var frame_center_y: float = StageConstants.FLOOR_TOP_Y + StageConstants.CONVEYOR_SIDE_FRAME_TOP_CLEARANCE - StageConstants.CONVEYOR_SIDE_FRAME_HEIGHT * 0.5
 	var frame_x: float = StageConstants.FLOOR_HALF_WIDTH - StageConstants.CONVEYOR_SIDE_FRAME_WIDTH * 0.5
 	if _conveyor_side_frame_left:
 		var fl := _conveyor_side_frame_left.mesh as BoxMesh
-		if fl:
+		if fl and resize:
 			fl.size = Vector3(StageConstants.CONVEYOR_SIDE_FRAME_WIDTH, StageConstants.CONVEYOR_SIDE_FRAME_HEIGHT, frame_len)
-		_conveyor_side_frame_left.position = Vector3(-frame_x, frame_center_y, _floor_center_z)
+		_conveyor_side_frame_left.position = Vector3(-frame_x, frame_center_y, frame_center_z)
 	if _conveyor_side_frame_right:
 		var fr := _conveyor_side_frame_right.mesh as BoxMesh
-		if fr:
+		if fr and resize:
 			fr.size = Vector3(StageConstants.CONVEYOR_SIDE_FRAME_WIDTH, StageConstants.CONVEYOR_SIDE_FRAME_HEIGHT, frame_len)
-		_conveyor_side_frame_right.position = Vector3(frame_x, frame_center_y, _floor_center_z)
+		_conveyor_side_frame_right.position = Vector3(frame_x, frame_center_y, frame_center_z)
 
 
 ## ベルトのスクロール量（world_scroll_z 相当）を反映する。

@@ -49,6 +49,10 @@ var paused := false
 var pause_message := ""
 var resume_countdown := 0.0
 var finished := false
+## 結果発表に入った（結果の中身が決まった）。このあと相手が抜けても、一時停止せず、不戦勝（あなたの かち）も
+## 出さずに、自分の画面の結果発表を最後まで進める。試合の終わり（finish）は CLEAR のときに送るので、
+## それまでに相手がウィンドウを閉じると、リレーは不戦勝を送ってくる（負けていても「かち」が出ていた）。
+var result_decided := false
 ## ホスト: ゲストの開始準備（壁の構築など）が整った。
 var guest_ready := false
 ## ホスト: ゲストのゲーム画面の準備の描画が終わった（ready の phase が "loaded"。マッチング演出 M6）。
@@ -393,6 +397,7 @@ func _on_host_state_changed(new_state: String) -> void:
 	if new_state == Constants.STATE_RESULT_CEREMONY and game_state.result_presentation_active:
 		# 結果発表の始まり：確定した中身を送る（ゲストは自分の時計で同じ結果発表を進める）。
 		# スナップショットより先に届くので、ゲストの状態はこれで結果発表に入る。
+		result_decided = true
 		send_game_event("result_begin", game_state.result_net_payload())
 		return
 	if new_state == Constants.STATE_GAME_OVER and game_state.elimination_result_pending:
@@ -652,6 +657,21 @@ func _sync_client_current_quiz() -> void:
 	game_state.quiz_loaded.emit(quiz)
 
 
+## ゲストが受け取った問題を使えるか。ホストは同じ問題で扉を判定するので、ゲストは中身の決まり
+## （QuizValidator.validate_rules の 60 字・20 字など）では捨てず、そのまま使う。捨てるとゲストだけ
+## 前の問題のまま走り、違う問題・違う扉で判定される（内蔵の問題の約 6% がその字数を超える）。
+## 壁を作れない壊れたデータ（空の問題文・選択肢の数・空の選択肢・正解の番号が範囲外）だけを弾く。
+static func is_playable_network_quiz(quiz: QuizItem) -> bool:
+	if quiz == null or quiz.q.strip_edges().is_empty():
+		return false
+	if quiz.c.size() < 2 or quiz.c.size() > 4:
+		return false
+	for choice: String in quiz.c:
+		if choice.strip_edges().is_empty():
+			return false
+	return quiz.a >= 0 and quiz.a < quiz.c.size()
+
+
 func _on_quiz_received(data: Dictionary) -> void:
 	"""クライアント: ホストからのクイズデータを受信"""
 	if is_host or game_state == null:
@@ -666,9 +686,7 @@ func _on_quiz_received(data: Dictionary) -> void:
 		PackedStringArray(),
 		float(data.get("est", 4.0))
 	)
-	var validator: QuizValidator = QuizManager.quiz_validator
-	var validation := validator.validate_rules([quiz]) if validator != null else {"valid": [quiz]}
-	if (validation.get("valid", []) as Array).is_empty():
+	if not is_playable_network_quiz(quiz):
 		push_warning("Rejected invalid network quiz payload")
 		return
 	var quiz_index := int(data.get("index", game_state.quiz_list.size()))
@@ -710,6 +728,7 @@ func _on_event_received(data: Dictionary) -> void:
 			_begin_resume_countdown()
 		"result_begin":
 			if not is_host:
+				result_decided = true
 				game_state.begin_net_result_ceremony(data)
 		"reveal":
 			reveal_at_ms = float(data.get("at", -1.0))
@@ -818,13 +837,15 @@ func _set_paused(value: bool, message: String = "") -> void:
 
 
 func _on_peer_paused(_who: String, _grace: float) -> void:
-	if finished:
+	if finished or result_decided:
 		return
 	_set_paused(true, "あいての つうしんを まっています…")
 
 
 func _on_peer_resumed(_who: String) -> void:
-	if finished:
+	# 結果発表に入ったあとは、ホストもゲストも自分の時計で発表を進める。戻ってきても止めない
+	# （ホストだけ止めると、ゲストは "resume" を待ったまま「じゅんびしています…」で残る。両方とも止めない）。
+	if finished or result_decided:
 		return
 	if is_host:
 		_send_resync()
@@ -833,7 +854,7 @@ func _on_peer_resumed(_who: String) -> void:
 
 
 func _on_self_resumed(_info: Dictionary) -> void:
-	if finished:
+	if finished or result_decided:
 		return
 	if is_host:
 		if NetworkManager.opponent_present:
@@ -848,7 +869,7 @@ func _on_self_resumed(_info: Dictionary) -> void:
 
 
 func _on_network_state_changed(state: int) -> void:
-	if state == NetworkManager.State.RECONNECTING and not finished:
+	if state == NetworkManager.State.RECONNECTING and not finished and not result_decided:
 		_set_paused(true, "つながりなおしています…")
 
 
@@ -869,6 +890,10 @@ func _tick_resume_countdown(dt: float) -> void:
 
 func _on_forfeit(winner_role: String, _reason: String) -> void:
 	finished = true
+	if result_decided:
+		# 結果はもう決まっている。相手が結果発表の途中で抜けても、結果と逆の「かち」は出さない。
+		_set_paused(false)
+		return
 	var won := winner_role == NetworkManager.role()
 	_set_paused(false)
 	match_over.emit("あいてが いなくなったので\nあなたの かち！" if won else "しあいが おわりました")
@@ -878,6 +903,10 @@ func _on_reconnect_failed(reason: String) -> void:
 	if finished:
 		return
 	finished = true
+	if result_decided:
+		# 結果はもう決まっていて、発表は自分の画面で最後まで進む。切れたカードを重ねない。
+		_set_paused(false)
+		return
 	_set_paused(false)
 	match_over.emit("つうしんが きれました\n" + reason)
 

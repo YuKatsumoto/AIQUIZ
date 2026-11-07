@@ -29,6 +29,8 @@ var y := 0.0
 var vy := 0.0
 var ext := Vector2.ZERO
 var lock := 0.0
+## ゴーストの突進で転倒した（QuizGameState.is_external_tumbling_on_ground と同じ条件で床の減速を強める）。
+var tumble := false
 var hurt := 0.0
 var jump_count := 0
 
@@ -62,6 +64,7 @@ func _load(m: Dictionary) -> void:
 	vy = float(m.get("vy", vy))
 	ext = Vector2(float(m.get("ex", ext.x)), float(m.get("ez", ext.y)))
 	lock = float(m.get("lock", lock))
+	tumble = bool(m.get("tb", tumble))
 	hurt = float(m.get("hurt", hurt))
 
 
@@ -153,7 +156,7 @@ func _step(cmd: Dictionary) -> void:
 		lz += gs._active_wall_speed * dt
 	x += ext.x * dt
 	lz += ext.y * dt
-	ext = ext.move_toward(Vector2.ZERO, QuizGameState.external_impulse_deceleration(ext, hurt) * dt)
+	ext = ext.move_toward(Vector2.ZERO, QuizGameState.external_impulse_deceleration(ext, hurt, tumble and lock > 0.0 and y <= 0.0) * dt)
 
 	var on_floor := gs._is_on_track_floor(x, lz, slot, front)
 	if jump and y <= 0.0 and on_floor:

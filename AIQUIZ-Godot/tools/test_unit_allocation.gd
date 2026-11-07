@@ -109,12 +109,105 @@ func _initialize() -> void:
 		"共通新規性ゲート: 並列バッチ間の言い換えを拒否"
 	)
 
+	failures += _test_prompt_parts(fetcher)
+	failures += await _test_fanout(fetcher)
+
 	if failures == 0:
 		print("[UnitAllocationTest] ALL PASSED")
 		quit(0)
 	else:
 		print("[UnitAllocationTest] FAILED: %d assertion(s)" % failures)
 		quit(1)
+
+
+## ── プロンプトキャッシュ用の分け方: 同じラウンドのバッチで shared は同じ文字列、単元は batch だけ ──
+func _test_prompt_parts(fetcher: Node) -> int:
+	var failures := 0
+	var hist: Array[String] = ["9+6はいくつ？", "1kg＝□g"]
+	var cases := [["算数", 3, "普通"], ["国語", 5, "難しい"], ["英語", 6, "簡単"]]
+	for c: Array in cases:
+		var label := "%s%d年%s" % [c[0], c[1], c[2]]
+		var batches = fetcher._allocate_units_to_batches(c[0], c[1], 3, 4)
+		var parts_list: Array = []
+		for i in range(batches.size()):
+			parts_list.append(fetcher.compose_prompt_parts(c[0], c[1], c[2], 4, hist, false,
+				PackedStringArray(batches[i]), true, "アプローチ%d" % i))
+		var same := true
+		for p: Dictionary in parts_list:
+			same = same and p["shared"] == parts_list[0]["shared"]
+		failures += _assert_true(same, "%s: shared が全バッチで同じ" % label)
+		var units_in_batch := true
+		var units_in_shared := false
+		for i in range(batches.size()):
+			for u in batches[i]:
+				units_in_batch = units_in_batch and str(parts_list[i]["batch"]).contains(str(u))
+				units_in_shared = units_in_shared or str(parts_list[i]["shared"]).contains("- %s\n" % str(u))
+		failures += _assert_true(units_in_batch, "%s: 担当単元は batch に入る" % label)
+		failures += _assert_false(units_in_shared, "%s: 担当単元は shared に入らない" % label)
+		failures += _assert_true(str(parts_list[0]["batch"]).contains("アプローチ0")
+			and not str(parts_list[0]["shared"]).contains("アプローチ0"), "%s: 出題アプローチは batch" % label)
+		failures += _assert_true(str(parts_list[0]["shared"]).contains("1kg＝□g"), "%s: 出題済みリストは shared" % label)
+		var whole: String = fetcher.compose_prompt(c[0], c[1], c[2], 4, hist, false,
+			PackedStringArray(batches[0]), true, "アプローチ0")
+		failures += _assert_true(whole == str(parts_list[0]["shared"]) + str(parts_list[0]["batch"]),
+			"%s: compose_prompt は shared + batch" % label)
+		# 送る本文: shared は system、batch と出力形式は prompt
+		var body: Dictionary = JSON.parse_string(fetcher._generation_body(parts_list[0]))
+		failures += _assert_true(str(body["system"]).ends_with(str(parts_list[0]["shared"]))
+			and str(body["system"]).begins_with(fetcher.compose_system_instruction()), "%s: system = 指示 + shared" % label)
+		failures += _assert_true(str(body["prompt"]) == str(parts_list[0]["batch"]) + fetcher.GENERATION_OUTPUT_FORMAT,
+			"%s: prompt = batch + 出力形式" % label)
+	# 算数「普通」の単元名の 1 行は batch へ移る
+	var math_batches = fetcher._allocate_units_to_batches("算数", 3, 2, 4)
+	var math: Dictionary = fetcher.compose_prompt_parts("算数", 3, "普通", 4, hist, false,
+		PackedStringArray(math_batches[0]), true, "")
+	failures += _assert_false(str(math["shared"]).contains("以下の単元から満遍なく"), "算数普通: 単元名の行は shared に無い")
+	failures += _assert_true(str(math["batch"]).contains("上記の単元から満遍なく出題すること"), "算数普通: 単元名の行は batch にある")
+	# system が長すぎるときは全文を prompt に入れる（プロキシは system 8000 字まで）
+	var long_parts := {"shared": "あ".repeat(fetcher.GENERATION_SYSTEM_MAX_CHARS), "batch": "単元"}
+	var long_body: Dictionary = JSON.parse_string(fetcher._generation_body(long_parts))
+	failures += _assert_true(str(long_body["system"]) == fetcher.compose_system_instruction()
+		and str(long_body["prompt"]).begins_with(str(long_parts["shared"]) + "単元"), "長い shared は prompt に戻す")
+	return failures
+
+
+## ── 並列の送り方: 1 本目の返事が流れ始めるまで残りを送らない ──
+func _test_fanout(fetcher: Node) -> int:
+	var failures := 0
+	var calls: Array[int] = []
+	var first_started: Array[Callable] = []
+	var launchers: Array[Callable] = []
+	for i in range(4):
+		var idx := i
+		launchers.append(func(on_started: Callable) -> void:
+			calls.append(idx)
+			if idx == 0:
+				first_started.append(on_started)
+		)
+	fetcher._launch_fanout(launchers)
+	failures += _assert_true(calls == [0], "fanout: 最初は 1 本目だけ送る")
+	first_started[0].call()
+	failures += _assert_true(calls == [0, 1, 2, 3], "fanout: 1 本目の返事で残りを送る")
+	first_started[0].call()
+	await create_timer(fetcher.FANOUT_WAIT_MAX_SEC + 0.2).timeout
+	failures += _assert_true(calls == [0, 1, 2, 3], "fanout: 合図や時間切れが重なっても 2 回は送らない")
+
+	# 返事が来なくても時間切れで残りを送る
+	calls.clear()
+	first_started.clear()
+	fetcher._launch_fanout(launchers)
+	await create_timer(fetcher.FANOUT_WAIT_MAX_SEC + 0.2).timeout
+	failures += _assert_true(calls == [0, 1, 2, 3], "fanout: 返事が来なければ時間切れで残りを送る")
+
+	# 待っているあいだにラウンドが終わったら残りは送らない
+	calls.clear()
+	first_started.clear()
+	fetcher._launch_fanout(launchers)
+	fetcher.cancel_all()
+	first_started[0].call()
+	await create_timer(fetcher.FANOUT_WAIT_MAX_SEC + 0.2).timeout
+	failures += _assert_true(calls == [0], "fanout: cancel_all のあとは残りを送らない")
+	return failures
 
 
 func _assert_true(cond: bool, label: String) -> int:

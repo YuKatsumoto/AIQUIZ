@@ -203,6 +203,9 @@ signal tutorial_presentation_requested(presentation_id: String, context: Diction
 signal tutorial_presentation_finished(presentation_id: String)
 signal tutorial_task_completed(player_index: int, task_id: String)
 signal tutorial_customize_handoff_requested
+## ゴーストシャーク練習のタスクが揃い、落とされた標的が食べられる様子まで見せ終えた。
+## ゲーム画面はサメを畳んでから finish_tutorial_ghost_step() を呼ぶ。
+signal tutorial_ghost_practice_ready
 
 signal result_ceremony_phase_changed(phase: int)
 
@@ -229,6 +232,8 @@ enum TutorialCeremonyStage {
 }
 
 var provider: QuizProvider
+## _init() で自分で作ったプロバイダ（渡されなかったとき）。PREDELETE で消す。
+var _owned_provider: QuizProvider = null
 var use_english_ui: bool = false
 var tuning: GameTuning
 
@@ -257,6 +262,12 @@ var _tutorial_backup_valid: bool = false
 const TUTORIAL_OCEAN_RECOVERY_DURATION := 2.4
 ## 刃に巻き込まれた身体が切り離されて散るまで（SawCatchRagdoll 約1.15秒）を見せてから戻す。
 const TUTORIAL_SAW_RECOVERY_DURATION := 2.6
+## ゴーストシャーク練習：体当たりで海へ落ちた標的がサメに食べられた後、その様子を見せ続ける長さ。
+const TUTORIAL_GHOST_EATEN_HOLD := 2.4
+## 命中しても標的がコースに残ったときは、吹き飛びが落ち着くまで待ってから次へ進む。
+const TUTORIAL_GHOST_HIT_SETTLE := 1.6
+## 標的が海で待ってもサメが来ない（空きがない）ときの打ち切り。
+const TUTORIAL_GHOST_SHARK_WAIT_LIMIT := 6.0
 
 var tutorial_ui_revision: int = 0
 ## 1Pは SoloTutorialFlow、ローカル2Pは DuoTutorialFlow。同じメソッド面を持つ。
@@ -270,6 +281,10 @@ var _tutorial_eval_mask: int = 0
 var _tutorial_correct_mask: int = 0
 ## ハート体験で正解ドアに触れたときの案内を、触れている間に1回だけ出すための記録。
 var _tutorial_lesson_hint_mask: int = 0
+## ゴーストシャーク練習の締め。タスクが揃ってからの秒（-1 = まだ）と、標的が脱落してからの秒。
+var _tutorial_ghost_outro_elapsed: float = -1.0
+var _tutorial_ghost_victim_timer: float = 0.0
+var _tutorial_ghost_ready_sent: bool = false
 ## 実践終了後、メニュー内カスタマイズツアーへ引き継ぐセッション内フラグ。
 var _pending_solo_customize_tour: bool = false
 var _pending_customize_tour_course: String = ""
@@ -371,6 +386,9 @@ var p1_external_velocity: Vector2 = Vector2.ZERO
 var p2_external_velocity: Vector2 = Vector2.ZERO
 var p1_external_control_lock: float = 0.0
 var p2_external_control_lock: float = 0.0
+## ゴーストの突進で「転倒」した（docs/ghost_hit_ragdoll_plan.md 段階 4）。操作ロックの間、床では横の勢いを TUMBLE_GROUND_DECELERATION で減らす。
+var p1_external_tumble: bool = false
+var p2_external_tumble: bool = false
 ## 走行FBXの speed_scale 倍率（メニュープレビュー前進時など）
 var p1_run_anim_speed_mult: float = 1.0
 var p2_run_anim_speed_mult: float = 1.0
@@ -464,6 +482,9 @@ var result_from_elimination: bool = false
 var elimination_result_pending: bool = false
 var _elimination_result_ready: bool = false
 var _elimination_hold_elapsed: float = 0.0
+## エンドレスの2人：両者脱落の時点で決めた、結果発表のゴールより手前に並ぶ壁の数（0 = まだゴールがない）。
+## 10問の target_count の代わり（get_result_wall_count / _place_endless_result_goal）。
+var endless_result_wall_count: int = 0
 ## 両者脱落のあと、雲に乗ったハテナが投げ縄で 2 人の魂をゴールへ運ぶ演出（EliminationLassoDirector）の最中。
 ## 見せ方だけの印（HUD が得点や文字を隠す）。
 var elimination_lasso_active: bool = false
@@ -615,6 +636,11 @@ const PLAYER_BODY_RADIUS: float = 0.62
 const PLAYER_BODY_HEIGHT: float = 1.9
 const PLAYER_BODY_COLLISION_EPSILON: float = 0.0001
 const EXTERNAL_IMPULSE_DECELERATION: float = 10.0
+## apply_external_impulse（ゴーストの突進の吹き飛ばし）の横の速さの上限。ゲームの元の数値。
+## 段階 5 で 21 に上げて PERFECT を遠くへ飛ばしたが、サメが強すぎたので戻した（docs/ghost_hit_ragdoll_plan.md 10 章。2026-11-06）。
+const EXTERNAL_IMPULSE_MAX_SPEED: float = 18.0
+## 転倒（apply_external_impulse の tumble）した人が、操作ロックの間に床で横の勢いを減らす速さ。転がって早めに止まる。
+const TUMBLE_GROUND_DECELERATION: float = 18.0
 ## ワールドボーダーが壁の手前から後ろへ弾き返す初速（EXTERNAL_IMPULSE_DECELERATION で減衰し約3m戻る）。
 const WALL_WORLD_BORDER_PUSH_SPEED: float = 8.0
 ## ボーダーで止める体の中心の位置（壁の中心から手前へ）。壁の衝突判定の 0.4 より手前に置く。
@@ -640,9 +666,17 @@ func _init(quiz_provider: QuizProvider = null) -> void:
 		provider = quiz_provider
 	else:
 		provider = QuizProvider.new()
+		_owned_provider = provider
 	tuning = GameTuning.new()
 	_install_tutorial_flow(GameManager.TUTORIAL_COURSE_SOLO)
 	refresh_status_text()
+
+
+## 自分で作った問題プロバイダ（Node）は、ツリーに入れられていなければこの状態と一緒に消す
+## （メニューのプレビューなどが QuizGameState.new() を作るたびに残っていた）。
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE and is_instance_valid(_owned_provider) and _owned_provider.get_parent() == null:
+		_owned_provider.free()
 
 
 ## コースに対応したフロー実装へ差し替える。1Pと2Pは別クラスだが、
@@ -796,7 +830,10 @@ func _knock_back_from_wall(player_index: int) -> void:
 
 ## 外からの勢いを減らす速さ。壁で弾かれた人（被ダメージ中に後ろへ流れている）は、勢いが
 ## WALL_HIT_STAGGER_SPEED まで落ちたあとゆっくり減り、何歩かたたらを踏んで下がる。
-static func external_impulse_deceleration(velocity: Vector2, damage_time: float) -> float:
+## tumbling_on_ground：ゴーストの突進で転倒して床にいる間（is_external_tumbling_on_ground）。
+static func external_impulse_deceleration(velocity: Vector2, damage_time: float, tumbling_on_ground: bool = false) -> float:
+	if tumbling_on_ground:
+		return TUMBLE_GROUND_DECELERATION
 	if damage_time > 0.0 and velocity.y < 0.0 and -velocity.y <= WALL_HIT_STAGGER_SPEED:
 		return WALL_HIT_STAGGER_DECELERATION
 	return EXTERNAL_IMPULSE_DECELERATION
@@ -902,7 +939,8 @@ func _try_finish_hp_question() -> void:
 		camera_shake = maxf(camera_shake, 0.22)
 		correct_answer.emit()
 	if num_players >= 2:
-		record_question_winner(current_index, _hp_correct_mask)
+		# エンドレスは current_index が進まない（問題を手元の列から消費する）ので、何問目かは壁の番号で数える。
+		record_question_winner(current_index if _is_fixed_count_mode() else completed_wall, _hp_correct_mask)
 	if p1_alive or num_players >= 2 and p2_alive:
 		question_completed.emit(completed_wall, any_correct)
 		hp_questions_completed += 1
@@ -912,7 +950,12 @@ func _try_finish_hp_question() -> void:
 					_set_player_hp(player_index, get_player_hp(player_index) + 1)
 		advance_after_correct()
 	else:
-		var answer_label := String.chr(65 + current_quiz.a) if num_choices == 4 else (("Left" if current_quiz.a == 0 else "Right") if use_english_ui else ("左" if current_quiz.a == 0 else "右"))
+		# 壁の扉に記号（A〜D）はないので、3〜4択は正解の選択肢そのものを示す（ハートのない経路と同じ）。
+		var answer_label: String
+		if num_choices >= 3:
+			answer_label = FractionFormatter.to_inline(current_quiz.c[current_quiz.a]) if current_quiz.a >= 0 and current_quiz.a < current_quiz.c.size() else "?"
+		else:
+			answer_label = ("Left" if current_quiz.a == 0 else "Right") if use_english_ui else ("左" if current_quiz.a == 0 else "右")
 		_end_round_all_eliminated(("Wrong! Answer was %s" if use_english_ui else "不正解！ 正解は %s") % answer_label)
 		wrong_answer.emit(message_text)
 
@@ -1191,6 +1234,11 @@ func is_tutorial_presentation_locked() -> bool:
 	return _is_tutorial_mode() and tutorial_flow != null and tutorial_flow.presentation_locked
 
 
+## 2Pチュートリアルの回転のこぎり体験の最中か（カメラが刃と危険ラインを画面に入れ続ける）。
+func is_tutorial_saw_lesson() -> bool:
+	return _is_tutorial_mode() and tutorial_flow != null and tutorial_flow.is_saw_lesson()
+
+
 func is_tutorial_ghost_practice() -> bool:
 	return _is_tutorial_mode() and tutorial_flow != null and tutorial_flow.is_ghost_practice()
 
@@ -1228,7 +1276,10 @@ func register_tutorial_ghost_aim(player_index: int) -> bool:
 	if not is_tutorial_ghost_practice() or player_index != get_tutorial_ghost_player():
 		return false
 	var task_completed: bool = tutorial_flow.complete_task(player_index, "aim")
-	return task_completed and tutorial_flow.all_tasks_complete()
+	var all_done: bool = task_completed and tutorial_flow.all_tasks_complete()
+	if all_done:
+		_begin_tutorial_ghost_outro()
+	return all_done
 
 
 func register_tutorial_ghost_charge(player_index: int, hit: bool, _power: float) -> bool:
@@ -1237,7 +1288,47 @@ func register_tutorial_ghost_charge(player_index: int, hit: bool, _power: float)
 	tutorial_flow.complete_task(player_index, "charge")
 	if hit:
 		tutorial_flow.complete_task(player_index, "hit")
-	return tutorial_flow.all_tasks_complete()
+	var all_done: bool = tutorial_flow.all_tasks_complete()
+	if all_done:
+		_begin_tutorial_ghost_outro()
+	return all_done
+
+
+## タスクが揃ってもすぐには次へ進まない。体当たりで海へ落ちた標的がサメに食べられるところまで
+## 見せてから tutorial_ghost_practice_ready を出す（_update_tutorial_ghost_practice）。
+func _begin_tutorial_ghost_outro() -> void:
+	if _tutorial_ghost_outro_elapsed < 0.0:
+		_tutorial_ghost_outro_elapsed = 0.0
+		_tutorial_ghost_ready_sent = false
+
+
+## ゴーストシャーク練習の締めを待っている間か（タスクは揃い、次へ進む前）。
+func is_tutorial_ghost_outro_active() -> bool:
+	return is_tutorial_ghost_practice() and _tutorial_ghost_outro_elapsed >= 0.0
+
+
+## ゴーストシャーク練習で、体当たりで落ちた標的がサメに食べられた後を見せている間なら、その標的の番号（なければ 0）。
+## カメラはこの間もサメの噛みつきの構図を保つ。
+func get_tutorial_ghost_eaten_player() -> int:
+	if not is_tutorial_ghost_practice():
+		return 0
+	var survivor_index: int = 2 if get_tutorial_ghost_player() == 1 else 1
+	var eaten: bool = p1_shark_killed if survivor_index == 1 else p2_shark_killed
+	var alive: bool = p1_alive if survivor_index == 1 else p2_alive
+	return survivor_index if eaten and not alive else 0
+
+
+func _clear_tutorial_ghost_outro() -> void:
+	_tutorial_ghost_outro_elapsed = -1.0
+	_tutorial_ghost_victim_timer = 0.0
+	_tutorial_ghost_ready_sent = false
+
+
+func _emit_tutorial_ghost_ready() -> void:
+	if _tutorial_ghost_ready_sent:
+		return
+	_tutorial_ghost_ready_sent = true
+	tutorial_ghost_practice_ready.emit()
 
 
 ## ゴーストシャーク練習を終えた後の後片付け。脱落していたプレイヤーを復活させ、
@@ -1245,6 +1336,7 @@ func register_tutorial_ghost_charge(player_index: int, hit: bool, _power: float)
 func finish_tutorial_ghost_step() -> void:
 	if not is_tutorial_ghost_practice() or not tutorial_flow.all_tasks_complete():
 		return
+	_clear_tutorial_ghost_outro()
 	_reset_tutorial_players_for_step(false)
 	# 次のステップ（のこぎり体験など）の準備は通常の進行と同じ処理に任せる。
 	_advance_tutorial_step()
@@ -1325,7 +1417,22 @@ func get_floor_front_z() -> float:
 func get_local_result_goal_z() -> float:
 	if goal_z > 0.0:
 		return goal_z
-	return tuning.wall_start_z + target_count * tuning.wall_spacing + 15.0
+	return tuning.wall_start_z + get_result_wall_count() * tuning.wall_spacing + 15.0
+
+
+## 結果発表のゴールより手前に並ぶ壁の数。10問は問題の数、エンドレスは両者脱落の時点で決めた数。
+func get_result_wall_count() -> int:
+	return endless_result_wall_count if mode == Constants.MODE_ENDLESS else target_count
+
+
+## エンドレスの2人：両者脱落したら、いま出ている壁のすぐ先にゴールを置く。GameWorld は
+## maxi(0, 現在の壁 - 3) から MAX_VISIBLE_WALLS + 3 枚を出すので、その最後の壁の次をゴールの手前の壁の数にする。
+## 10問の最後の壁とゴールの間と同じ間隔になり、出ている壁は消えない。
+func _place_endless_result_goal() -> void:
+	if mode != Constants.MODE_ENDLESS or endless_result_wall_count > 0:
+		return
+	endless_result_wall_count = maxi(current_wall_index, 3) + MAX_VISIBLE_WALLS
+	goal_z = tuning.wall_start_z + endless_result_wall_count * tuning.wall_spacing + 15.0
 
 
 ## 問題の壁は線路の内側までしか幅がないので、壁の延長線上（壁端より外側）をワールドボーダーで塞ぐ。
@@ -1643,8 +1750,11 @@ func _begin_quiz_generation() -> void:
 	var count := target_count
 	var provider_mode := _provider_mode()
 	provider.begin_round(subject, grade, difficulty, provider_mode, count)
-	# オフラインは同期バンクで問題が揃うので、min_preload の0.35秒は待たない。
-	if llm_mode == "OFFLINE":
+	# 問題バンクだけのラウンドは同期で問題が揃うので、min_preload の0.35秒は待たない。
+	var buffered_provider := provider as BufferedQuizProvider
+	var bank_only: bool = buffered_provider.uses_bank_only() if buffered_provider != null \
+		else llm_mode == "OFFLINE"
+	if bank_only:
 		var missing := maxi(0, target_count - quiz_list.size())
 		if missing > 0:
 			quiz_list.append_array(
@@ -1702,6 +1812,7 @@ func start_tutorial(course: String = GameManager.TUTORIAL_COURSE_SOLO) -> void:
 	_clear_practice_state()
 	_reset_saw_chase()
 	_reset_health()
+	_clear_tutorial_ghost_outro()
 	skip_start_helicopter_arrival = false
 	_reset_ocean_shark_state()
 	_reset_external_impulses()
@@ -1793,6 +1904,7 @@ func _advance_tutorial_step() -> void:
 	var saw_was_running: bool = uses_saw_chase()
 	if not tutorial_flow.advance_step():
 		return
+	_clear_tutorial_ghost_outro()
 	tutorial_ui_revision += 1
 	if uses_saw_chase() and not saw_was_running:
 		# のこぎり体験の始まり。本編の開始位置（コンベア後端寄り）から刃を走らせる。
@@ -3027,7 +3139,9 @@ func _update_preloading(dt: float) -> void:
 	var ready: bool = false
 	# ゲーム開始前（current_index == 0）は全問揃うのを待つ
 	# ゲーム中の再プレロード（current_index > 0）は次の1問があれば即再開
-	var is_mid_game: bool = current_index > 0
+	# エンドレスは current_index が増えない（残りの列だけを持つ）ので、通った壁の数で試合中かを見る。
+	# これが無いと、エンドレスの途中で問題が尽きたとき、補充のあとスタート前の画面（WAITING_START）に戻ってしまう。
+	var is_mid_game: bool = current_index > 0 or (not _is_fixed_count_mode() and current_wall_index > 0)
 
 	var has_next_quiz := quiz_list.size() > current_index if _is_fixed_count_mode() else not quiz_list.is_empty()
 	if is_mid_game:
@@ -3202,7 +3316,7 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 		player_z += p1_axis.y * tuning.player_speed * dt
 		player_x += p1_external_velocity.x * dt
 		player_z += p1_external_velocity.y * dt
-		p1_external_velocity = p1_external_velocity.move_toward(Vector2.ZERO, external_impulse_deceleration(p1_external_velocity, p1_damage_time) * dt)
+		p1_external_velocity = p1_external_velocity.move_toward(Vector2.ZERO, external_impulse_deceleration(p1_external_velocity, p1_damage_time, is_external_tumbling_on_ground(1)) * dt)
 
 		# Removed forward limit to allow running ahead
 		var loc1 := player_z - world_scroll_z
@@ -3231,7 +3345,11 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 				_recover_tutorial_unexpected_ocean_entry(1, "海に落ちた\n安全な場所からやり直そう")
 				return
 			if _is_tutorial_mode():
-				message_text = "海に落ちた\nサメが近づいてくる"
+				message_text = (
+					"命中！P1が海へ落ちた\nサメが近づいてくる"
+					if is_tutorial_ghost_practice()
+					else "海に落ちた\nサメが近づいてくる"
+				)
 				tutorial_flow.set_hint(message_text, 4.0)
 				tutorial_ui_revision += 1
 			_begin_ocean_shark_wait(1)
@@ -3251,7 +3369,7 @@ func _update_playing(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: boo
 		player2_z += p2_axis.y * tuning.player_speed * dt
 		player2_x += p2_external_velocity.x * dt
 		player2_z += p2_external_velocity.y * dt
-		p2_external_velocity = p2_external_velocity.move_toward(Vector2.ZERO, external_impulse_deceleration(p2_external_velocity, p2_damage_time) * dt)
+		p2_external_velocity = p2_external_velocity.move_toward(Vector2.ZERO, external_impulse_deceleration(p2_external_velocity, p2_damage_time, is_external_tumbling_on_ground(2)) * dt)
 
 		# Removed forward limit
 		var loc2 := player2_z - world_scroll_z
@@ -3405,7 +3523,17 @@ func _recover_tutorial_unexpected_ocean_entry(player_index: int, hint: String) -
 		state_changed.emit(game_state)
 		return
 	_reset_tutorial_attempt(hint)
-	tutorial_flow.restart_current_step(false)
+	# 問題のステップは、死んだときの復帰（_recover_tutorial_from_death）と同じく、いまの問題を出し直す。
+	# ステップごとやり直すと、2問続くステップ（free_wall）の2問目で落ちたとき、問題の順番だけが 0 に戻り、
+	# 問題番号と壁の番号は進んだまま残る。同じ問題がもう一度出て、そのあとのボス壁が作られなくなる。
+	if tutorial_flow.is_quiz_step():
+		_prepare_tutorial_quiz_step(false)
+		# restart_current_step と同じく、キーを離すまで（または猶予の秒数まで）止めて待つ。
+		# 押したまま落ちたとき、戻った直後にそのまま走り出さないように。
+		tutorial_flow.awaiting_neutral_input = true
+		tutorial_flow.revision += 1
+	else:
+		tutorial_flow.restart_current_step(false)
 
 
 func _is_expected_tutorial_ocean_entry(player_index: int) -> bool:
@@ -3426,23 +3554,65 @@ func _update_tutorial_special_step(dt: float) -> bool:
 			_recover_tutorial_from_death()
 		return true
 	if tutorial_flow.is_ghost_practice():
-		var ghost_player: int = tutorial_flow.designated_ghost_player()
-		var ghost_alive: bool = p1_alive if ghost_player == 1 else p2_alive
-		var survivor_index: int = 2 if ghost_player == 1 else 1
-		var survivor_alive: bool = p2_alive if ghost_player == 1 else p1_alive
-		if not survivor_alive:
-			# 標的側が落ちてもゴーストの練習は続けたいので、標的だけを復帰させる。
-			# ステップ全体をやり直すとゴースト側も復活してしまい、練習が始められない。
-			_revive_tutorial_player(survivor_index)
-			var hint := "P%dがコースに戻った\nゴーストシャークの練習を続けよう" % survivor_index
-			message_text = hint
-			tutorial_flow.set_hint(hint, 3.0)
-			tutorial_ui_revision += 1
-			refresh_status_text()
-			state_changed.emit(game_state)
+		return _update_tutorial_ghost_practice(dt)
+	return false
+
+
+## ゴーストシャーク練習の標的（体当たりされる側）の扱いと、練習の締め。
+## 標的が海へ落ちたら本編と同じくサメに食べられ、その様子を TUTORIAL_GHOST_EATEN_HOLD 秒見せる。
+## タスクが揃っていれば締めの合図（tutorial_ghost_practice_ready）を出し、まだなら標的だけを戻して練習を続ける。
+## ステップ全体をやり直すとゴースト側も復活してしまい、練習が始められない。
+func _update_tutorial_ghost_practice(dt: float) -> bool:
+	var ghost_player: int = tutorial_flow.designated_ghost_player()
+	var ghost_alive: bool = p1_alive if ghost_player == 1 else p2_alive
+	var survivor_index: int = 2 if ghost_player == 1 else 1
+	var survivor_alive: bool = p2_alive if ghost_player == 1 else p1_alive
+	var outro_active: bool = _tutorial_ghost_outro_elapsed >= 0.0
+	if outro_active:
+		_tutorial_ghost_outro_elapsed += dt
+	if not survivor_alive:
+		# 食べられて爆散した標的を、カメラがサメの噛みつきの構図のまま見せる。
+		_tutorial_ghost_victim_timer += dt
+		if survivor_index == 1:
+			game_over_timer += dt
+		else:
+			player2_game_over_timer += dt
+		_process_dead_player_physics(dt)
+		_sink_ocean_players(dt)
+		if _tutorial_ghost_victim_timer < TUTORIAL_GHOST_EATEN_HOLD:
 			return true
-		if not ghost_alive:
-			_process_dead_player_physics(dt)
+		if tutorial_flow.all_tasks_complete():
+			_emit_tutorial_ghost_ready()
+			return true
+		_tutorial_ghost_victim_timer = 0.0
+		_revive_tutorial_player(survivor_index)
+		var hint := "P%dがコースに戻った\nゴーストシャークの練習を続けよう" % survivor_index
+		message_text = hint
+		tutorial_flow.set_hint(hint, 3.0)
+		tutorial_ui_revision += 1
+		refresh_status_text()
+		state_changed.emit(game_state)
+		return true
+	_tutorial_ghost_victim_timer = 0.0
+	var survivor_waiting: bool = is_player_waiting_for_shark(survivor_index)
+	if survivor_waiting:
+		var float_time: float = p1_ocean_float_time if survivor_index == 1 else p2_ocean_float_time
+		if float_time >= TUTORIAL_GHOST_SHARK_WAIT_LIMIT:
+			# サメが来られなかった（空きがない）。食べられたことにして同じ流れで見せる。
+			complete_ocean_shark_attack(survivor_index)
+			return true
+	if not ghost_alive:
+		_process_dead_player_physics(dt)
+	if outro_active and not survivor_waiting:
+		var survivor_falling: bool = p1_fall_committed if survivor_index == 1 else p2_fall_committed
+		var survivor_y: float = player_y if survivor_index == 1 else player2_y
+		if (
+			not survivor_falling
+			and survivor_y >= -0.05
+			and _tutorial_ghost_outro_elapsed >= TUTORIAL_GHOST_HIT_SETTLE
+		):
+			# 命中しても標的がコースに残った。吹き飛びが落ち着いたので次へ進む。
+			_emit_tutorial_ghost_ready()
 	return false
 
 
@@ -3714,13 +3884,20 @@ func _update_game_over(dt: float) -> void:
 		message_text = _game_over_message_text()
 
 
+## いまの問題の解説。まだ無いとき、AI がその場で作った問題（解説はあとから届く）は「読み込み中」、
+## 問題バンクの問題（解説を取りに行かない）は「解説はありません」。共有バンクには解説が空の問題があり、
+## 「読み込み中…」のままずっと変わらなかった。
+func _explanation_text() -> String:
+	if current_quiz and not current_quiz.e.strip_edges().is_empty():
+		return current_quiz.e
+	if current_quiz and ClaudeRequest.is_online_source(current_quiz.src):
+		return "解説を読み込み中…" if not use_english_ui else "Loading explanation..."
+	return "（この問題の解説はありません）" if not use_english_ui else "(No explanation for this question)"
+
+
 ## GAME OVER の文字（game_over_base_msg と、いまの問題の解説。解説が後から届いたら作り直す）。
 func _game_over_message_text() -> String:
-	var explain: String
-	if current_quiz and current_quiz.e and not current_quiz.e.strip_edges().is_empty():
-		explain = current_quiz.e
-	else:
-		explain = ("解説を読み込み中…" if not use_english_ui else "Loading explanation...")
+	var explain := _explanation_text()
 	var msg: String = "%s\n%s" % [game_over_base_msg, explain]
 	if num_players >= 2:
 		var score_line := "P1: %d  P2: %d" % [score, player2_score]
@@ -3757,6 +3934,7 @@ func _reset_result_ceremony_state() -> void:
 	elimination_result_pending = false
 	_elimination_result_ready = false
 	_elimination_hold_elapsed = 0.0
+	endless_result_wall_count = 0
 	elimination_lasso_active = false
 	p1_emote_lock_timer = 0.0
 	p2_emote_lock_timer = 0.0
@@ -3772,7 +3950,8 @@ func uses_local_result_ceremony() -> bool:
 		and num_players == 2
 		and not is_coop_mode()
 		and (
-			(mode == Constants.MODE_TEN and not _is_tutorial_mode())
+			# エンドレスはゴールレースがないので、両者脱落（_end_round_all_eliminated）からだけ結果発表へ進む。
+			(mode in [Constants.MODE_TEN, Constants.MODE_ENDLESS] and not _is_tutorial_mode())
 			or uses_tutorial_result_ceremony()
 			or practice_finishes_with_goal()
 		)
@@ -4078,7 +4257,7 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 		player_z += p1_axis.y * tuning.player_speed * dt
 		player_x += p1_external_velocity.x * dt
 		player_z += p1_external_velocity.y * dt
-		p1_external_velocity = p1_external_velocity.move_toward(Vector2.ZERO, external_impulse_deceleration(p1_external_velocity, p1_damage_time) * dt)
+		p1_external_velocity = p1_external_velocity.move_toward(Vector2.ZERO, external_impulse_deceleration(p1_external_velocity, p1_damage_time, is_external_tumbling_on_ground(1)) * dt)
 
 		var loc1 := player_z - world_scroll_z
 		var is_on_floor := (
@@ -4112,7 +4291,7 @@ func _update_goal_race(dt: float, axis_p1: Vector2, axis_p2: Vector2, jump_p1: b
 		player2_z += p2_axis.y * tuning.player_speed * dt
 		player2_x += p2_external_velocity.x * dt
 		player2_z += p2_external_velocity.y * dt
-		p2_external_velocity = p2_external_velocity.move_toward(Vector2.ZERO, external_impulse_deceleration(p2_external_velocity, p2_damage_time) * dt)
+		p2_external_velocity = p2_external_velocity.move_toward(Vector2.ZERO, external_impulse_deceleration(p2_external_velocity, p2_damage_time, is_external_tumbling_on_ground(2)) * dt)
 
 		var loc2 := player2_z - world_scroll_z
 		var p2_is_on_floor := (
@@ -5134,6 +5313,7 @@ func debug_force_draw_finish(ghost_mask := 0) -> bool:
 		# A ghost scores its answers ×1, the living ×(HP + 0.5): (2 HP + 1) answers against 2 tie.
 		score = 2 * hp + 1 if ghost_mask == 1 else 2
 		player2_score = 2 if ghost_mask == 1 else 2 * hp + 1
+	_place_endless_result_goal()
 	goal_z = get_local_result_goal_z()
 	world_scroll_z = maxf(world_scroll_z, goal_z - RESULT_ELIMINATION_GOAL_AHEAD)
 	player_x = RESULT_PLAYER_X
@@ -5537,9 +5717,10 @@ func _tutorial_player_miss_text(player_label: String, door: int, answer: int) ->
 	return "%sは不正解" % player_label
 
 func _tutorial_answer_label(answer: int) -> String:
-	if num_choices == 4:
-		if answer >= 0 and answer < 4:
-			return String.chr(65 + answer)
+	if num_choices >= 3:
+		# 扉に記号（A〜D）はないので、正解の選択肢そのものを「」で示す。
+		if current_quiz != null and answer >= 0 and answer < current_quiz.c.size():
+			return "「%s」" % FractionFormatter.to_inline(current_quiz.c[answer])
 		return "正解"
 	var labels := ["左", "右"]
 	if answer >= 0 and answer < labels.size():
@@ -5548,6 +5729,7 @@ func _tutorial_answer_label(answer: int) -> String:
 
 ## やり直し。死亡演出を挟まずに安全な位置へ戻す軽いリセット。
 func _reset_tutorial_attempt(hint: String) -> void:
+	_clear_tutorial_ghost_outro()
 	_reset_tutorial_stage(_tutorial_reset_z())
 	wrong_flash = 1.0
 	camera_shake = 0.16
@@ -5632,25 +5814,46 @@ func _coop_failure_message(p1_door: int, p2_door: int) -> String:
 		])
 	return "\n".join(lines)
 
+## tumble：ゴーストの突進の「転倒」（docs/ghost_hit_ragdoll_plan.md 段階 4）。操作ロックの間、床で早めに止まる。
 func apply_external_impulse(
 	player_index: int,
 	horizontal_velocity: Vector2,
 	vertical_velocity: float,
-	control_lock_seconds: float
+	control_lock_seconds: float,
+	tumble: bool = false
 ) -> void:
 	if player_index == 1:
 		if not p1_alive or p1_waiting_for_shark:
 			return
-		p1_external_velocity = horizontal_velocity.limit_length(18.0)
+		p1_external_velocity = horizontal_velocity.limit_length(EXTERNAL_IMPULSE_MAX_SPEED)
 		player_vel_y = maxf(player_vel_y, vertical_velocity)
 		p1_external_control_lock = maxf(p1_external_control_lock, control_lock_seconds)
+		p1_external_tumble = tumble
 	else:
 		if not p2_alive or p2_waiting_for_shark:
 			return
-		p2_external_velocity = horizontal_velocity.limit_length(18.0)
+		p2_external_velocity = horizontal_velocity.limit_length(EXTERNAL_IMPULSE_MAX_SPEED)
 		player2_vel_y = maxf(player2_vel_y, vertical_velocity)
 		p2_external_control_lock = maxf(p2_external_control_lock, control_lock_seconds)
+		p2_external_tumble = tumble
 	camera_shake = maxf(camera_shake, 0.45)
+
+
+## ゴーストの突進の命中から吹き飛ばしを入れるまで（ヒットストップの間）、操作だけを止める（その間にジャンプ・移動が入らない）。
+## 吹き飛ばしを入れると apply_external_impulse の操作ロックに引き継がれる。
+func hold_external_control(player_index: int, seconds: float) -> void:
+	if player_index == 1:
+		p1_external_control_lock = maxf(p1_external_control_lock, seconds)
+	else:
+		p2_external_control_lock = maxf(p2_external_control_lock, seconds)
+
+
+## 転倒した人が操作ロックの間、床にいる（横の勢いを TUMBLE_GROUND_DECELERATION で減らす）。
+## 操作ロックが切れれば、フラグが残っていても効かない（リセットの場所ごとに消さなくてよい）。
+func is_external_tumbling_on_ground(player_index: int) -> bool:
+	if player_index == 1:
+		return p1_external_tumble and p1_external_control_lock > 0.0 and player_y <= 0.0
+	return p2_external_tumble and p2_external_control_lock > 0.0 and player2_y <= 0.0
 
 
 func _reset_external_impulses() -> void:
@@ -5775,6 +5978,14 @@ func complete_ocean_shark_attack(player_index: int) -> void:
 			and tutorial_flow.designated_ghost_player() == player_index
 		):
 			message_text = "ゴーストシャークの準備中"
+			refresh_status_text()
+			state_changed.emit(game_state)
+			return
+		if is_tutorial_ghost_practice() and tutorial_flow.designated_ghost_player() != player_index:
+			# 体当たりで落とされた標的。食べられた様子を見せた後の扱いは _update_tutorial_ghost_practice が決める。
+			_tutorial_ghost_victim_timer = 0.0
+			message_text = "P%dがサメに食べられた\n海に落とせば一発で脱落" % player_index
+			tutorial_flow.set_hint(message_text, TUTORIAL_GHOST_EATEN_HOLD + 0.6)
 			refresh_status_text()
 			state_changed.emit(game_state)
 			return
@@ -6154,7 +6365,8 @@ func advance_after_correct() -> void:
 # ---------- Game over / clear ----------
 
 ## Every "all players are out" ending passes through here. The local 2P
-## ten-question finale replaces the GAME OVER card with the verdict ceremony:
+## ten-question and endless finales replace the GAME OVER card with the verdict ceremony
+## (endless first places its finish line just past the visible walls):
 ## the deaths play out, GameWorld wipes the screen and the ghosts meet on the
 ## podium (begin_elimination_result_ceremony).
 ## 練習は _practice_round_over へ（reason は practice_round_lost の理由）。
@@ -6169,6 +6381,7 @@ func _end_round_all_eliminated(msg: String, reason: StringName = &"hp") -> void:
 		return
 	if uses_saw_chase():
 		saw.begin_stop()
+	_place_endless_result_goal()
 	game_state = Constants.STATE_GAME_OVER
 	result_ghost_arrival_player = 0
 	result_ghost_arrival_elapsed = 0.0
@@ -6231,11 +6444,7 @@ func _game_over(msg: String) -> void:
 	rating_target_quiz = current_quiz
 	rating_feedback = ""
 	game_over_base_msg = msg
-	var explain: String
-	if current_quiz and current_quiz.e and not current_quiz.e.strip_edges().is_empty():
-		explain = current_quiz.e
-	else:
-		explain = ("解説を読み込み中…" if not use_english_ui else "Loading explanation...")
+	var explain := _explanation_text()
 	var full_msg: String = "%s\n%s" % [msg, explain]
 	if num_players >= 2:
 		var score_line := "P1: %d  P2: %d" % [score, player2_score]
@@ -6631,12 +6840,12 @@ func get_slot_motion(slot: int) -> Dictionary:
 		return {
 			"x": player_x, "lz": player_z - world_scroll_z, "y": player_y, "vy": player_vel_y,
 			"ex": p1_external_velocity.x, "ez": p1_external_velocity.y,
-			"lock": p1_external_control_lock, "hurt": p1_damage_time,
+			"lock": p1_external_control_lock, "hurt": p1_damage_time, "tb": p1_external_tumble,
 		}
 	return {
 		"x": player2_x, "lz": player2_z - world_scroll_z, "y": player2_y, "vy": player2_vel_y,
 		"ex": p2_external_velocity.x, "ez": p2_external_velocity.y,
-		"lock": p2_external_control_lock, "hurt": p2_damage_time,
+		"lock": p2_external_control_lock, "hurt": p2_damage_time, "tb": p2_external_tumble,
 	}
 
 
@@ -6662,6 +6871,7 @@ func to_snapshot() -> Dictionary:
 		"p1ex": p1_external_velocity.x,
 		"p1ez": p1_external_velocity.y,
 		"p1lk": p1_external_control_lock,
+		"p1tb": p1_external_tumble,
 		"p1a": p1_alive,
 		"p1wi": p1_wall_impact,
 		"p1fc": p1_fall_committed,
@@ -6681,6 +6891,7 @@ func to_snapshot() -> Dictionary:
 		"p2ex": p2_external_velocity.x,
 		"p2ez": p2_external_velocity.y,
 		"p2lk": p2_external_control_lock,
+		"p2tb": p2_external_tumble,
 		"p2a": p2_alive,
 		"p2wi": p2_wall_impact,
 		"p2fc": p2_fall_committed,
@@ -6779,6 +6990,8 @@ func apply_snapshot(data: Dictionary, skip_positions: bool = false) -> void:
 	p2_external_velocity = Vector2(float(data.get("p2ex", p2_external_velocity.x)), float(data.get("p2ez", p2_external_velocity.y)))
 	p1_external_control_lock = float(data.get("p1lk", p1_external_control_lock))
 	p2_external_control_lock = float(data.get("p2lk", p2_external_control_lock))
+	p1_external_tumble = bool(data.get("p1tb", p1_external_tumble))
+	p2_external_tumble = bool(data.get("p2tb", p2_external_tumble))
 	p1_alive = data.get("p1a", p1_alive)
 	p1_wall_impact = data.get("p1wi", p1_wall_impact)
 	p1_fall_committed = data.get("p1fc", p1_fall_committed)

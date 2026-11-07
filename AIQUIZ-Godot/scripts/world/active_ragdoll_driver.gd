@@ -55,6 +55,17 @@ var _torso_kd_rot: float = 0.0
 var _torso_tgt_prev_pos: Vector3 = Vector3.ZERO
 var _torso_has_prev: bool = false
 
+# 外から押されて吹っ飛ぶ間（GOSTRIDER の被弾。docs/ghost_hit_ragdoll_plan.md 段階 3）の効き具合。1 = ふだん。
+# limb_gain_scale：四肢を目標の姿勢へ戻す強さ（0 = 脱力。減衰は少しだけ残す）。
+# torso_rot_gain_scale：胴の向きを目標へ戻す強さ（0 = 自由に回る）。
+# torso_pos_gain_scale：胴の位置を目標へ寄せる硬さ（自然角周波数の倍率）。
+# torso_follow_vertical：false で胴の上下は寄せない（重力で落ちる。gravity_scale は呼ぶ側で入れる）。
+var limb_gain_scale: float = 1.0
+var torso_rot_gain_scale: float = 1.0
+var torso_pos_gain_scale: float = 1.0
+var torso_follow_vertical: bool = true
+const LIMP_DAMPING_SCALE := 0.12
+
 # 駆動対象の事前展開: [{body, parent, pivot, kp, kd}]
 var _drives: Array = []
 
@@ -156,7 +167,11 @@ func _drive_torso(delta: float) -> void:
 	# 位置PD(定位置維持: ゲーム進行を壊さない)。減衰は目標相対速度基準=移動目標に
 	# 定常ラグ無く追従(H7)。
 	var pos_err := tgt.origin - _torso.global_position
-	_torso.apply_central_force(pos_err * _torso_kp_pos - (_torso.linear_velocity - tgt_vel) * _torso_kd_pos)
+	var pos_scale := maxf(torso_pos_gain_scale, 0.0)
+	var pos_force := pos_err * (_torso_kp_pos * pos_scale * pos_scale) - (_torso.linear_velocity - tgt_vel) * (_torso_kd_pos * pos_scale)
+	if not torso_follow_vertical:
+		pos_force.y = 0.0
+	_torso.apply_central_force(pos_force)
 	# 回転PD(よろめき: 目標姿勢へ柔らかく追従。誤差はワールド系なので軸変換不要)
 	var tq := tgt.basis.get_rotation_quaternion()
 	var bq := _torso.global_transform.basis.get_rotation_quaternion()
@@ -166,11 +181,14 @@ func _drive_torso(delta: float) -> void:
 	var axis := Vector3(q_err.x, q_err.y, q_err.z)
 	var sh := axis.length()
 	var torque: Vector3
+	var rot_scale := clampf(torso_rot_gain_scale, 0.0, 1.0)
+	var kp_rot := _torso_kp_rot * rot_scale * rot_scale
+	var kd_rot := _torso_kd_rot * rot_scale
 	if sh < 1e-6:
-		torque = -_torso.angular_velocity * _torso_kd_rot
+		torque = -_torso.angular_velocity * kd_rot
 	else:
 		var angle := 2.0 * atan2(sh, q_err.w)
-		torque = (axis / sh) * (angle * _torso_kp_rot) - _torso.angular_velocity * _torso_kd_rot
+		torque = (axis / sh) * (angle * kp_rot) - _torso.angular_velocity * kd_rot
 	_torso.apply_torque(torque.limit_length(max_torque))
 	if _torso.angular_velocity.length() > MAX_ANG_VEL:
 		_torso.angular_velocity = _torso.angular_velocity.normalized() * MAX_ANG_VEL
@@ -210,24 +228,27 @@ func _drive_one(d: Dictionary) -> void:
 	var sin_half := axis.length()
 
 	var torque := Vector3.ZERO
+	var limb_scale := clampf(limb_gain_scale, 0.0, 1.0)
+	var kp := float(d["kp"]) * limb_scale
+	var kd := float(d["kd"]) * lerpf(LIMP_DAMPING_SCALE, 1.0, limb_scale)
 	if sin_half < 1e-6:
 		# 誤差ほぼ無し: 減衰のみ印加(acos/atan2 特異点を回避)
-		torque = -body.angular_velocity * float(d["kd"])
+		torque = -body.angular_velocity * kd
 	else:
 		# angle = 2*atan2(|v|, w): w≈1 近傍でも安定(acos の傾き発散を回避)
 		var angle := 2.0 * atan2(sin_half, q_err.w)
 		var axis_world := parent_q * (axis / sin_half)  # 親ローカル軸→ワールド(単位)
-		torque = axis_world * (angle * float(d["kp"])) - body.angular_velocity * float(d["kd"])
+		torque = axis_world * (angle * kp) - body.angular_velocity * kd
 
 	# 重力フィードフォワード: ジョイント連結点周りの重力トルク τ_g=r×(m·g) の逆符号を
 	# 保持トルクとして加算し、自重に負けた定常垂れ(ヘタり)を消す。モーメント腕 r は
 	# ボディローカル固定ベクトル(joint_local)を現姿勢へ回したもの=物理体に追従し、
-	# 表示ピボットとの乖離による誤差を生まない。
+	# 表示ピボットとの乖離による誤差を生まない。脱力中（limb_gain_scale < 1）はその分だけ弱める。
 	if gravity_ff:
 		var jl: Vector3 = d["joint_local"]
 		var r := -(body.global_transform.basis * jl)
 		var tau_g := r.cross(body.mass * Vector3(0.0, -GRAVITY_MAG, 0.0))
-		torque += -tau_g * gravity_ff_sign
+		torque += -tau_g * gravity_ff_sign * limb_scale
 
 	torque = torque.limit_length(max_torque)
 	body.apply_torque(torque)

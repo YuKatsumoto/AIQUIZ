@@ -34,7 +34,9 @@ const FINGERS := ["index", "middle", "ring", "pinky"]
 const COLUMN_TOP := -0.30
 const MILESTONE_EVERY := 5
 
-static var _tier_column: ArrayMesh
+## Tier count -> column mesh. Ten-question finales use TIER_COUNT; an endless total
+## past it gets a longer column (Motion.tier_count_for).
+static var _tier_columns := {}
 
 var _state: QuizGameState
 var _players: PlayerController
@@ -159,7 +161,9 @@ func _side_x(player_index: int) -> float:
 
 
 func _build_tower(player_index: int) -> void:
-	var built := create_tower(player_index, self)
+	# Both columns share one mesh, long enough for the taller tower.
+	var t := totals()
+	var built := create_tower(player_index, self, Motion.tier_count_for(maxi(t.x, t.y)))
 	var tower := built.root as Node3D
 	tower.position = Vector3(_side_x(player_index), 0.0, 0.0)
 	_towers[player_index] = built
@@ -168,7 +172,7 @@ func _build_tower(player_index: int) -> void:
 ## One score tower (column of tier modules, player-coloured accents, gold trim, no
 ## shadows) under `parent`: {"root", "lift", "accent", "muzzles"}. The sudden death
 ## elevator deck carries the same towers, sunk to the collar, down the shaft.
-static func create_tower(player_index: int, parent: Node3D) -> Dictionary:
+static func create_tower(player_index: int, parent: Node3D, tier_count := Motion.TIER_COUNT) -> Dictionary:
 	var tower := TOWER_SCENE.instantiate() as Node3D
 	tower.name = "ScoreTowerP%d" % player_index
 	parent.add_child(tower)
@@ -191,7 +195,7 @@ static func create_tower(player_index: int, parent: Node3D) -> Dictionary:
 		column.visible = false
 	var tiers := MeshInstance3D.new()
 	tiers.name = "TierColumn"
-	tiers.mesh = tier_column_mesh()
+	tiers.mesh = tier_column_mesh(tier_count)
 	for surface in range(tiers.mesh.get_surface_count()):
 		var material := tiers.mesh.surface_get_material(surface)
 		if material != null and material.resource_name == "FIN_TowerAccent":
@@ -249,15 +253,15 @@ func _sync_actor_look(player_index: int) -> void:
 
 
 ## The whole column as one mesh (one surface per material), shared by both towers.
-static func tier_column_mesh() -> ArrayMesh:
-	if _tier_column != null:
-		return _tier_column
+static func tier_column_mesh(tier_count := Motion.TIER_COUNT) -> ArrayMesh:
+	if _tier_columns.has(tier_count):
+		return _tier_columns[tier_count]
 	var modules := TIERS_SCENE.instantiate()
 	var tier := (modules.find_child("TWR_Tier", true, false) as MeshInstance3D).mesh
 	var milestone := (modules.find_child("TWR_TierMilestone", true, false) as MeshInstance3D).mesh
 	modules.free()
 	var tools := {}
-	for index in range(Motion.TIER_COUNT):
+	for index in range(tier_count):
 		var module := milestone if (index + 1) % MILESTONE_EVERY == 0 else tier
 		var place := Transform3D(Basis(), Vector3(0.0, COLUMN_TOP - index * Motion.TIER_HEIGHT, 0.0))
 		for surface in range(module.get_surface_count()):
@@ -269,10 +273,11 @@ static func tier_column_mesh() -> ArrayMesh:
 				tool.set_material(material)
 				tools[key] = tool
 			(tools[key] as SurfaceTool).append_from(module, surface, place)
-	_tier_column = ArrayMesh.new()
+	var column := ArrayMesh.new()
 	for key: String in tools:
-		(tools[key] as SurfaceTool).commit(_tier_column)
-	return _tier_column
+		(tools[key] as SurfaceTool).commit(column)
+	_tier_columns[tier_count] = column
+	return column
 
 
 ## The towers neither cast nor receive shadows: a 10 m column threw a long shadow
@@ -737,6 +742,14 @@ func clear() -> void:
 	visible = false
 	if is_instance_valid(_players):
 		_players.visible = true
+
+
+## 2 人のタワーの持ち上がった高さ（get_debug_snapshot の "heights" と同じ値）。結果発表の照明が毎フレーム読む。
+## get_debug_snapshot はメッシュの角の画面座標や文字列まで作るので、毎フレームには使わない。
+func lift_heights() -> Dictionary:
+	if not is_built():
+		return {}
+	return {1: (_towers[1].lift as Node3D).position.y, 2: (_towers[2].lift as Node3D).position.y}
 
 
 func get_debug_snapshot() -> Dictionary:

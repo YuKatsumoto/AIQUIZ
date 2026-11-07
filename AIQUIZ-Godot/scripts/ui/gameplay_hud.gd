@@ -869,9 +869,16 @@ func _generation_arrived(target: int) -> int:
 	return mini(arrived, target)
 
 
-## オンラインのAI生成か（オフラインの問題集とチュートリアルは違う）。
+## オンラインのAI生成か（問題バンクだけのラウンドとチュートリアルは違う）。
 func _generation_by_ai() -> bool:
-	return game_state.mode != Constants.MODE_TUTORIAL 		and (game_state.llm_mode != "OFFLINE" or game_state.net_online)
+	if game_state.mode == Constants.MODE_TUTORIAL:
+		return false
+	if game_state.net_online:
+		return true
+	var buffered_provider := QuizManager.provider as BufferedQuizProvider
+	if buffered_provider != null:
+		return not buffered_provider.uses_bank_only()
+	return game_state.llm_mode != "OFFLINE"
 
 
 ## 問題の生成待ちのパネル：タイトル（回転アイコンと動く点、そろったらチェック）と、バーの右の弾む数字。
@@ -1354,11 +1361,10 @@ func _show_game_over() -> void:
 		btn_retry.visible = false
 		btn_menu.text = "オンラインメニューへ"
 
-## Phones only: true once the score count-up is over and nothing on the card changed, so the
-## card keeps its Labels instead of being rebuilt this frame.
+## True once the score count-up is over and nothing on the card changed, so the card keeps its
+## Labels instead of being rebuilt this frame. PC も同じ：毎フレーム作り直すと、カードの中の評価ボタン
+## （◯ 良い / × 悪い）が毎フレーム木から外れ、押した次のフレームでマウスのつかみが消えてクリックが効かない。
 func _result_card_unchanged(is_clear: bool, explanation: String) -> bool:
-	if not MobileUi.is_touch_ui():
-		return false
 	var key: Array = [
 		is_clear, explanation, game_state.score, game_state.player2_score, game_state.total_answered,
 		game_state.max_streak, int(game_state.play_time), game_state.rating_feedback,

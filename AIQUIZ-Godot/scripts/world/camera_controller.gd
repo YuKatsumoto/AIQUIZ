@@ -52,10 +52,27 @@ var _saw_question_framing_points := PackedVector3Array()
 var _question_pitch: float = 0.0
 var _question_back: float = 0.0
 var _saw_back: float = 0.0
+## ゴーストの突進の命中（trigger_ghost_hit）：当たった人・命中からの秒（−1 は無し）・強さ・飛ぶ向き・体を収める引き。
+var _ghost_hit_player: int = 0
+var _ghost_hit_elapsed: float = -1.0
+var _ghost_hit_strength: float = 1.0
+var _ghost_hit_direction: Vector3 = Vector3.ZERO
+var _ghost_hit_back: float = 0.0
+var _ghost_hit_pan: float = 0.0
 var saw_dock_framing: float = 0.0
 var _final_death_player: int = 0
 var _final_death_focus := Vector3.ZERO
 var _final_death_exploded: bool = false
+## 2Pで片方だけが壁・のこぎりで脱落したとき、吹き飛ぶ体が爆散し終わるまで生存者と一緒に画面へ収める。
+var _first_death_player: int = 0
+var _first_death_focus := Vector3.ZERO
+var _first_death_exploded: bool = false
+var _first_death_burst_elapsed: float = 0.0
+var _first_death_weight: float = 0.0
+var _first_death_back: float = 0.0
+var _first_death_rise: float = 0.0
+var _first_death_look: float = 0.0
+var _first_death_reported: bool = false
 var _wall_text_scale_active: bool = false
 var _wall_text_base_eye := Vector3.ZERO
 var _wall_text_pulled_eye := Vector3.ZERO
@@ -103,6 +120,34 @@ const WALL_TEXT_ENLARGE_RATIO := 1.12
 ## 拡大表示中は、見かけの縮みがこの比率まで戻ったら等倍へ戻す (境界でのちらつき防止)。
 const WALL_TEXT_RESTORE_RATIO := 1.05
 const QUESTION_SCREEN_MARGIN := 0.08
+## ゴーストの突進の命中（trigger_ghost_hit、docs/ghost_hit_ragdoll_plan.md 段階 6）。
+## ヒットストップに合わせて生き残りへ寄り（寄りきる・寄ったまま・戻す秒）、画角も少し狭め、飛ぶ向きへはじいて揺らす。
+const GHOST_HIT_PUSH_IN := 1.0
+const GHOST_HIT_PUSH_IN_TIME := 0.05
+const GHOST_HIT_PUSH_HOLD := 0.1
+const GHOST_HIT_PUSH_OUT := 0.35
+const GHOST_HIT_FOV_PUNCH := 3.0
+const GHOST_HIT_JOLT := 0.3
+const GHOST_HIT_JOLT_HZ := 13.0
+const GHOST_HIT_JOLT_DECAY := 0.12
+## 吹き飛ぶ体を画面に収める：体の箱（見た目の足元から。ゲームの y = 0 は床 StageConstants.FLOOR_TOP_Y）が、横と上は画面の端から
+## GHOST_HIT_SCREEN_MARGIN、下は GHOST_HIT_SCREEN_BOTTOM の内側に入るまで、水平に後ろへ引く（ふだん立っている位置では引かない大きさ）。
+## 引く速さ・戻す速さ（指数の追従率）。
+const GHOST_HIT_BODY_BOX := AABB(Vector3(-0.8, 0.0, -0.6), Vector3(1.6, 2.3, 1.2))
+const GHOST_HIT_SCREEN_MARGIN := 0.06
+const GHOST_HIT_SCREEN_BOTTOM := 0.07
+const GHOST_HIT_FRAME_FOLLOW := 10.0
+## 体が横の端へ寄ったら、カメラも横へ寄せる（|x| が GHOST_HIT_PAN_FREE を超えた分の GHOST_HIT_PAN_RATIO 倍、最大 GHOST_HIT_PAN_MAX m）。
+const GHOST_HIT_PAN_FREE := 3.0
+const GHOST_HIT_PAN_RATIO := 0.6
+const GHOST_HIT_PAN_MAX := 5.0
+const GHOST_HIT_FRAME_RELEASE := 1.5
+const GHOST_HIT_FRAME_MAX_BACK := 16.0
+## 命中からこの秒までは操作ロックがなくても収める（ヒットストップの間はまだロックがないことがある）。最長でもこの秒で終える。
+const GHOST_HIT_FRAME_MIN_SECONDS := 0.3
+const GHOST_HIT_FRAME_MAX_SECONDS := 4.0
+## 床からこれより下へ落ちた体（海へ落ちていく）は収めない。
+const GHOST_HIT_FRAME_FALL_DEPTH := 0.3
 const QUESTION_FRAMING_FOLLOW := 8.0
 const SAW_FRAMING_FOLLOW := 2.5
 const SAW_FRAMING_MAX_SPEED := 10.0
@@ -139,6 +184,21 @@ const TWO_PLAYER_REAR_PULL_FULL_DISTANCE := 0.5
 const TWO_PLAYER_REAR_MAX_BACK := 13.0
 const TWO_PLAYER_REAR_BLEND_SPEED := 1.2
 const SUDDEN_DEATH_FOLLOW := 4.0
+## 片方の脱落：爆散のあと、破片が散るのを見せてから生存者のカメラへ戻すまでの秒数。
+const FIRST_DEATH_BURST_HOLD := 1.4
+## 脱落した体を収める構図へ寄せる速さと、生存者のカメラへ戻す速さ（指数の追従率）。
+const FIRST_DEATH_BLEND_IN := 8.0
+const FIRST_DEATH_BLEND_OUT := 1.8
+## 生存者と体が離れるほど後ろへ引く量（離れた距離あたり）と、その上限。
+const FIRST_DEATH_BACK_PER_SEPARATION := 0.75
+const FIRST_DEATH_BACK_FREE_SEPARATION := 2.0
+const FIRST_DEATH_MAX_EXTRA_BACK := 12.0
+## 生存者と体がこれだけ離れたら、注視点を2人の中間（+FIRST_DEATH_LOOK_AHEAD）まで戻す。
+const FIRST_DEATH_LOOK_FULL_SEPARATION := 6.0
+const FIRST_DEATH_LOOK_AHEAD := 1.0
+## 体が高く飛んだとき、目を上げる量（体の高さあたり）と上限。
+const FIRST_DEATH_RISE_PER_HEIGHT := 0.5
+const FIRST_DEATH_MAX_RISE := 4.0
 
 func _ready() -> void:
 	if not camera:
@@ -172,6 +232,129 @@ func clear_ocean_attack_focus(keep_focus: bool = false) -> void:
 
 func trigger_ocean_attack_impact() -> void:
 	_ocean_attack_impact_timer = 0.35
+
+
+## ゴーストの突進が player_index に当たった（両方の画面で、命中を見せる瞬間に呼ぶ）。launch_direction は体が飛ぶ向き、
+## strength は 0.8〜1.3 くらい（転倒する強さほど大きい）。寄り・揺れと、吹き飛ぶ体を画面に収める引きを始める。
+func trigger_ghost_hit(player_index: int, launch_direction: Vector3, strength: float) -> void:
+	if player_index not in [1, 2]:
+		return
+	_ghost_hit_player = player_index
+	_ghost_hit_elapsed = 0.0
+	_ghost_hit_strength = clampf(strength, 0.0, 1.6)
+	var flat := Vector3(launch_direction.x, 0.0, launch_direction.z)
+	_ghost_hit_direction = flat.normalized() if flat.length_squared() > 0.0001 else Vector3.ZERO
+
+
+func _clear_ghost_hit() -> void:
+	_ghost_hit_player = 0
+	_ghost_hit_elapsed = -1.0
+	_ghost_hit_back = 0.0
+	_ghost_hit_pan = 0.0
+
+
+## 命中の寄りの重み（0〜1）：寄りきる → 寄ったまま → 戻す。
+func _ghost_hit_push_weight() -> float:
+	var t := _ghost_hit_elapsed
+	if t < 0.0:
+		return 0.0
+	if t < GHOST_HIT_PUSH_IN_TIME:
+		var u := t / GHOST_HIT_PUSH_IN_TIME
+		return 1.0 - (1.0 - u) * (1.0 - u)
+	var release := t - GHOST_HIT_PUSH_IN_TIME - GHOST_HIT_PUSH_HOLD
+	if release <= 0.0:
+		return 1.0
+	return 1.0 - smoothstep(0.0, GHOST_HIT_PUSH_OUT, release)
+
+
+## 命中の寄り・揺れと、吹き飛ぶ体を収める引きを重ねる。戻り値は [目, 注視点, 画角の差]。
+func _frame_ghost_hit(gs: QuizGameState, eye: Vector3, target: Vector3, fov: float, dt: float) -> Array:
+	var step := maxf(dt, 0.0)
+	if _ghost_hit_elapsed < 0.0 and _ghost_hit_back < 0.01 and absf(_ghost_hit_pan) < 0.01:
+		return [eye, target, 0.0]
+	var player := _ghost_hit_player
+	var alive := player != 0 and (gs.p1_alive if player == 1 else gs.p2_alive)
+	var feet := Vector3.ZERO
+	if player == 1:
+		feet = Vector3(gs.player_x, gs.player_y + StageConstants.FLOOR_TOP_Y, gs.player_local_z)
+	elif player == 2:
+		feet = Vector3(gs.player2_x, gs.player2_y + StageConstants.FLOOR_TOP_Y, gs.player2_local_z)
+	var lock := 0.0
+	if player != 0:
+		lock = gs.p1_external_control_lock if player == 1 else gs.p2_external_control_lock
+	var framing := (
+		alive
+		and _ghost_hit_elapsed >= 0.0
+		and _ghost_hit_elapsed < GHOST_HIT_FRAME_MAX_SECONDS
+		and (_ghost_hit_elapsed < GHOST_HIT_FRAME_MIN_SECONDS or lock > 0.0 or feet.y > StageConstants.FLOOR_TOP_Y)
+		# 床の端を越えて海へ落ちていく体は追わない（落水のカメラへ渡る）。
+		and feet.y > StageConstants.FLOOR_TOP_Y - GHOST_HIT_FRAME_FALL_DEPTH
+	)
+	# 横へ寄せてから、まだはみ出す分だけ後ろへ引く。
+	var desired_pan := 0.0
+	if framing:
+		desired_pan = signf(feet.x) * clampf((absf(feet.x) - GHOST_HIT_PAN_FREE) * GHOST_HIT_PAN_RATIO, 0.0, GHOST_HIT_PAN_MAX)
+	var pan_rate := GHOST_HIT_FRAME_FOLLOW if absf(desired_pan) > absf(_ghost_hit_pan) else GHOST_HIT_FRAME_RELEASE
+	_ghost_hit_pan = lerpf(_ghost_hit_pan, desired_pan, 1.0 - exp(-pan_rate * step))
+	eye.x += _ghost_hit_pan
+	target.x += _ghost_hit_pan
+	var desired_back := _ghost_hit_fit_back(eye, target, fov, feet) if framing else 0.0
+	var rate := GHOST_HIT_FRAME_FOLLOW if desired_back > _ghost_hit_back else GHOST_HIT_FRAME_RELEASE
+	_ghost_hit_back = lerpf(_ghost_hit_back, desired_back, 1.0 - exp(-rate * step))
+	if not framing and _ghost_hit_back < 0.01 and absf(_ghost_hit_pan) < 0.01 and _ghost_hit_elapsed > GHOST_HIT_PUSH_IN_TIME + GHOST_HIT_PUSH_HOLD + GHOST_HIT_PUSH_OUT:
+		_clear_ghost_hit()
+		return [eye, target, 0.0]
+	var retreat := ((target - eye) * Vector3(1.0, 0.0, 1.0)).normalized()
+	eye -= retreat * _ghost_hit_back
+	var push := _ghost_hit_push_weight() * _ghost_hit_strength if alive else 0.0
+	if push > 0.0:
+		var toward := (feet + Vector3.UP * 1.0 - eye).normalized()
+		eye += toward * GHOST_HIT_PUSH_IN * push
+	var t := maxf(_ghost_hit_elapsed, 0.0)
+	var jolt := _ghost_hit_direction * GHOST_HIT_JOLT * _ghost_hit_strength * exp(-t / GHOST_HIT_JOLT_DECAY) * sin(TAU * GHOST_HIT_JOLT_HZ * t)
+	return [eye + jolt, target + jolt * 0.5, -GHOST_HIT_FOV_PUNCH * push]
+
+
+## 体の箱（feet から GHOST_HIT_BODY_BOX）が画面の安全な枠に入るまで、目を水平に後ろへ引く距離（注視点はそのまま）。
+func _ghost_hit_fit_back(eye: Vector3, target: Vector3, fov: float, feet: Vector3) -> float:
+	var viewport_size := camera.get_viewport().get_visible_rect().size
+	var aspect := viewport_size.x / maxf(viewport_size.y, 1.0)
+	var tan_y := tan(deg_to_rad(fov) * 0.5)
+	if camera.keep_aspect == Camera3D.KEEP_WIDTH:
+		tan_y /= aspect
+	var tan_x := tan_y * aspect
+	var side := 1.0 - GHOST_HIT_SCREEN_MARGIN * 2.0
+	var top := 1.0 - GHOST_HIT_SCREEN_MARGIN * 2.0
+	var bottom := 1.0 - GHOST_HIT_SCREEN_BOTTOM * 2.0
+	var box := AABB(feet + GHOST_HIT_BODY_BOX.position, GHOST_HIT_BODY_BOX.size)
+	var retreat := ((target - eye) * Vector3(1.0, 0.0, 1.0)).normalized()
+	var lower := 0.0
+	var upper := GHOST_HIT_FRAME_MAX_BACK
+	if _ghost_hit_box_fits(eye, target, box, tan_x, tan_y, side, top, bottom):
+		return 0.0
+	for iteration: int in range(12):
+		var back := (lower + upper) * 0.5
+		if _ghost_hit_box_fits(eye - retreat * back, target, box, tan_x, tan_y, side, top, bottom):
+			upper = back
+		else:
+			lower = back
+	return upper
+
+
+func _ghost_hit_box_fits(
+	eye: Vector3, target: Vector3, box: AABB, tan_x: float, tan_y: float, side: float, top: float, bottom: float
+) -> bool:
+	var view := Basis.looking_at(target - eye, Vector3.UP)
+	for corner: int in range(8):
+		var relative := box.get_endpoint(corner) - eye
+		var depth := -relative.dot(view.z)
+		if depth < camera.near + 0.1:
+			return false
+		var x := relative.dot(view.x) / (depth * tan_x)
+		var y := relative.dot(view.y) / (depth * tan_y)
+		if absf(x) > side or y > top or y < -bottom:
+			return false
+	return true
 
 
 func set_tutorial_override_pose(eye: Vector3, target: Vector3, fov: float) -> void:
@@ -272,7 +455,19 @@ func practice_clear_death() -> void:
 	_ocean_attack_burst_offset = Vector3.ZERO
 	_final_death_player = 0
 	_final_death_exploded = false
+	_clear_first_death()
+	_clear_ghost_hit()
 	_go_timer = 0.0
+
+
+func _clear_first_death() -> void:
+	_first_death_player = 0
+	_first_death_exploded = false
+	_first_death_burst_elapsed = 0.0
+	_first_death_weight = 0.0
+	_first_death_back = 0.0
+	_first_death_rise = 0.0
+	_first_death_look = 0.0
 
 
 ## 練習の向きと入りの時間を進める。
@@ -363,6 +558,85 @@ func set_final_death_focus(player_index: int, focus: Vector3, exploded: bool) ->
 		_final_death_focus = focus
 	_final_death_player = player_index
 	_final_death_exploded = exploded
+
+
+## 2Pで片方だけが体ごと吹き飛んで脱落したとき（GameWorld が毎フレーム渡す。対象がなければ 0）。
+## 爆散までは体を追い、爆散したらその場所で止める。0 が来ても、生存者のカメラへはなめらかに戻す。
+func set_first_death_focus(player_index: int, focus: Vector3, exploded: bool) -> void:
+	if player_index == 0:
+		_first_death_reported = false
+		return
+	if player_index != _first_death_player or not _first_death_reported:
+		_first_death_reported = true
+		_first_death_player = player_index
+		_first_death_exploded = false
+		_first_death_burst_elapsed = 0.0
+		# 当たった瞬間の体は2人の中間の構図にもともと入っているので、注視点はそのまま引き継ぐ。
+		_first_death_weight = 1.0
+		_first_death_back = 0.0
+		_first_death_rise = 0.0
+		_first_death_look = 0.0
+	if not _first_death_exploded:
+		_first_death_focus = focus
+	_first_death_exploded = exploded
+
+
+## 爆散を見せている（または生存者のカメラへ戻している）間の、構図の重み（0〜1）。
+func get_first_death_weight() -> float:
+	return _first_death_weight
+
+
+## 生存者の z と、脱落した体を収めるための [z の注視点, 後ろへの追加, 上への追加] を返し、重みを進める。
+func _update_first_death_framing(gs: QuizGameState, survivor_z: float, dt: float) -> Vector3:
+	if _first_death_player == 0:
+		_first_death_weight = 0.0
+		return Vector3(survivor_z, 0.0, 0.0)
+	var dead_alive: bool = gs.p1_alive if _first_death_player == 1 else gs.p2_alive
+	var survivor_alive: bool = gs.p2_alive if _first_death_player == 1 else gs.p1_alive
+	if dead_alive or not survivor_alive:
+		# 復活した・もう一人も落ちた（最後の死のカメラが引き継ぐ）。
+		_clear_first_death()
+		return Vector3(survivor_z, 0.0, 0.0)
+	if _first_death_exploded:
+		_first_death_burst_elapsed += dt
+	var want := 1.0 if _first_death_burst_elapsed < FIRST_DEATH_BURST_HOLD else 0.0
+	var step := maxf(dt, 0.0)
+	if want == 0.0:
+		_first_death_weight = lerpf(_first_death_weight, 0.0, 1.0 - exp(-FIRST_DEATH_BLEND_OUT * step))
+		if _first_death_weight < 0.002:
+			# 戻し終えた。脱落者は覚えたままにして、同じ脱落でもう一度寄らない。
+			_first_death_weight = 0.0
+			_first_death_back = 0.0
+			_first_death_rise = 0.0
+			_first_death_look = 0.0
+			return Vector3(survivor_z, 0.0, 0.0)
+	var separation := absf(survivor_z - _first_death_focus.z)
+	var extra_back := clampf(
+		(separation - FIRST_DEATH_BACK_FREE_SEPARATION) * FIRST_DEATH_BACK_PER_SEPARATION,
+		0.0,
+		FIRST_DEATH_MAX_EXTRA_BACK
+	)
+	var rise := clampf(
+		(_first_death_focus.y - TWO_PLAYER_LOOK_Y) * FIRST_DEATH_RISE_PER_HEIGHT,
+		0.0,
+		FIRST_DEATH_MAX_RISE
+	)
+	# 体がうしろへ離れるほど、先を見る注視点を2人の中間へ戻して下を向け、手前の体を画面の下端から上げる。
+	var look := clampf(
+		(separation - FIRST_DEATH_BACK_FREE_SEPARATION) / FIRST_DEATH_LOOK_FULL_SEPARATION,
+		0.0,
+		1.0
+	)
+	var follow := 1.0 - exp(-FIRST_DEATH_BLEND_IN * step)
+	_first_death_back = lerpf(_first_death_back, extra_back, follow)
+	_first_death_rise = lerpf(_first_death_rise, rise, follow)
+	_first_death_look = lerpf(_first_death_look, look, follow)
+	var w := _first_death_weight
+	return Vector3(
+		lerpf(survivor_z, (survivor_z + _first_death_focus.z) * 0.5, w),
+		_first_death_back * w,
+		_first_death_rise * w
+	)
 
 
 func _third_person_camera_height(gs: QuizGameState) -> float:
@@ -516,6 +790,11 @@ func _update_camera_pose(gs: QuizGameState, dt: float) -> void:
 
 	_time += dt
 	_ocean_attack_impact_timer = maxf(0.0, _ocean_attack_impact_timer - dt)
+	# 命中の時計はどのカメラの段でも進める（海のカメラなどへ移っている間に止まって、あとで古い寄りが出ないように）。
+	if _ghost_hit_elapsed >= 0.0:
+		_ghost_hit_elapsed += dt
+		if _ghost_hit_elapsed > GHOST_HIT_FRAME_MAX_SECONDS + 1.0:
+			_clear_ghost_hit()
 	var bob: float = sin(_time * 1.2) * 0.04
 
 	var eye: Vector3
@@ -579,6 +858,10 @@ func _update_camera_pose(gs: QuizGameState, dt: float) -> void:
 		elif gs.p2_waiting_for_shark and not gs.p1_alive:
 			final_coop_ocean_wait = true
 			_ocean_attack_player_index = 2
+		elif gs.get_tutorial_ghost_eaten_player() > 0:
+			# ゴーストシャーク練習：体当たりで落ちた標的が食べられた後も、次の項目へ進むまで噛みつきの構図を保つ。
+			final_coop_ocean_wait = true
+			_ocean_attack_player_index = gs.get_tutorial_ghost_eaten_player()
 	var final_coop_ocean_game_over: bool = (
 		gs.num_players >= 2
 		and _final_death_player == 0
@@ -622,6 +905,7 @@ func _update_camera_pose(gs: QuizGameState, dt: float) -> void:
 			z_focus = gs.player2_local_z
 
 		if all_dead and gs.game_state == Constants.STATE_GAME_OVER:
+			_clear_first_death()
 			_go_timer += dt
 			var t_val: float = minf(1.0, _go_timer * 0.5)
 			var ease_t: float = 1.0 - pow(1.0 - t_val, 3)
@@ -672,11 +956,19 @@ func _update_camera_pose(gs: QuizGameState, dt: float) -> void:
 				)
 			else:
 				var back := _update_smoothed_rear_back(gs, dt)
-				eye = Vector3(0.0, TWO_PLAYER_EYE_Y + bob, z_focus - back)
+				# 片方が吹き飛んで脱落したら、爆散して破片が散るまで体も画面に入れ、そのあと生存者へ戻す。
+				var first_death := _update_first_death_framing(gs, z_focus, dt)
+				z_focus = first_death.x
+				back += first_death.y
+				eye = Vector3(0.0, TWO_PLAYER_EYE_Y + bob + first_death.z, z_focus - back)
 				target = Vector3(
 					0.0,
 					TWO_PLAYER_LOOK_Y,
-					z_focus + TWO_PLAYER_LOOK_AHEAD
+					z_focus + lerpf(
+						TWO_PLAYER_LOOK_AHEAD,
+						FIRST_DEATH_LOOK_AHEAD,
+						_first_death_look * _first_death_weight
+					)
 				)
 	else:
 		# === 1-PLAYER: fixed third-person follow view ===
@@ -720,6 +1012,11 @@ func _update_camera_pose(gs: QuizGameState, dt: float) -> void:
 	_update_wall_text_scale_pose(gs, framing_start_eye + (saw_pose[0] - eye), fov)
 	eye = saw_pose[0]
 	target = saw_pose[1]
+	# ゴーストの突進の命中：寄り・揺れと、吹き飛ぶ体を収める引き（docs/ghost_hit_ragdoll_plan.md 段階 6）。
+	var ghost_hit_pose := _frame_ghost_hit(gs, eye, target, fov, dt)
+	eye = ghost_hit_pose[0]
+	target = ghost_hit_pose[1]
+	fov += float(ghost_hit_pose[2])
 	# 練習の監督が重ねる向きと入り（ふだんは何もしない）。
 	if _practice_look_weight > 0.0 or _practice_look_seconds > 0.0 or _practice_intro_seconds > 0.0 or _practice_frame_mode != 0:
 		_advance_practice_camera(dt)
@@ -880,6 +1177,10 @@ func _frame_saw(gs: QuizGameState, eye: Vector3, target: Vector3, fov: float, dt
 	retreat = retreat.normalized()
 	var clearance := minf(gs.get_saw_clearance(1), gs.get_saw_clearance(2))
 	var weight := 1.0 - smoothstep(SAW_FRAMING_FULL_DISTANCE, SAW_FRAMING_START_DISTANCE, clearance)
+	if gs.is_tutorial_saw_lesson():
+		# のこぎり体験では、刃と赤い危険ラインがずっと画面に入るように引いて見せる。
+		# 下がる前から何に近づくのかが見えないと、「赤い線まで下がる」の意味が伝わらない。
+		weight = 1.0
 	if gs.is_saw_visible() and weight > 0.0:
 		var points := _saw_question_framing_points.duplicate() if gs.game_state == Constants.STATE_PLAYING else PackedVector3Array()
 		var saw_points_start := points.size()

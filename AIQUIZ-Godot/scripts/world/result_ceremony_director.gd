@@ -320,8 +320,7 @@ func _ensure_lights() -> void:
 
 func _update_lights(delta: float, elapsed: float) -> void:
 	var origin := stage_origin(game_state)
-	var snapshot := _stage.get_debug_snapshot()
-	var heights: Dictionary = snapshot.get("heights", {})
+	var heights: Dictionary = _stage.lift_heights()
 	var focus := origin + Vector3(0.0, 2.2, 0.0)
 	_key_light.global_position = origin + Vector3(4.8, 7.2, -5.0)
 	_key_light.look_at(focus, Vector3.UP)

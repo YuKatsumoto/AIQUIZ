@@ -27,13 +27,14 @@
   <main>
     <section id="tab-money" class="tab" hidden>
       <div id="money-level" class="level-card"></div>
+      <div class="card" id="money-total"></div>
       <div class="grid cards-3">
         <div class="card" id="money-today"></div>
         <div class="card" id="money-month"></div>
-        <div class="card" id="money-claude"></div>
+        <div class="card" id="money-batch"></div>
       </div>
       <div class="card">
-        <h2>Gemini の日ごとの使用額（30日）</h2>
+        <h2>試合中の Claude の日ごとの使用額（30日）</h2>
         <div id="money-chart" class="chart"></div>
         <div id="money-legend" class="legend"></div>
       </div>
@@ -50,7 +51,6 @@
           <div class="legend" style="margin:0">
             <span><i class="swatch pipe-sw player"></i>ゲーム（端末）</span>
             <span><i class="swatch pipe-sw proxy"></i>プロキシ</span>
-            <span><i class="swatch pipe-sw gemini"></i>Gemini</span>
             <span><i class="swatch pipe-sw claude"></i>Claude</span>
             <span><i class="swatch pipe-sw store"></i>問題のたまり場</span>
             <span><i class="swatch pipe-sw ops"></i>管理ソフト</span>
@@ -88,7 +88,7 @@
         <div id="q-results"></div>
       </div>
       <div class="grid cards-2">
-        <div class="card"><h2>夜の補充の Batch</h2><div id="builder-batches"></div></div>
+        <div class="card"><h2>補充の Batch</h2><div id="builder-batches"></div></div>
         <div class="card"><h2>判定の Batch</h2><div id="review-batches"></div></div>
       </div>
     </section>

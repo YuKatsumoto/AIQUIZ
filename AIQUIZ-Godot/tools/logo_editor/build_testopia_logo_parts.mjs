@@ -21,6 +21,8 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "../..");
 const LG = require("./logo_geometry.js");
 const OUT_JSON = path.join(ROOT, "assets/branding/logo/testopia_logo.json");
+// ゲームが読む写し（assets/branding/logo は .gdignore で書き出しに入らない）。
+const GAME_JSON = path.join(ROOT, "assets/ui/title_logo/testopia_logo.json");
 const OUT_SVG = path.join(ROOT, "assets/branding/logo/testopia_logo.svg");
 
 const WEIGHT = 1.18;
@@ -162,6 +164,7 @@ for (const letter of LETTERS) {
 
 const model = { version: 1, canvas: [1024, 1024], background: "#0e0e0e", color: "#ffffff", weight: WEIGHT, elements };
 fs.writeFileSync(OUT_JSON, JSON.stringify(model, null, "\t") + "\n");
+fs.copyFileSync(OUT_JSON, GAME_JSON);
 fs.writeFileSync(OUT_SVG, LG.toSVG(model));
 const b = LG.bounds(model);
 console.log(`wrote ${path.relative(ROOT, OUT_JSON)} / .svg  elements=${elements.length}  bounds=${JSON.stringify(b)}`);

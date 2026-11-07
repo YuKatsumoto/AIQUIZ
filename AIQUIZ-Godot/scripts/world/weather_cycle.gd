@@ -148,7 +148,7 @@ func _process(_delta: float) -> void:
 
 
 func _poll_debug_time_shortcut() -> void:
-	if LOCK_DAYTIME or not OS.is_debug_build():
+	if LOCK_DAYTIME or not OS.has_feature("editor"):
 		return
 	var shortcut_down: bool = (
 		(

@@ -14,6 +14,12 @@ var _is_evaluating: bool = false
 const EVAL_EVERY_N_ROUNDS: int = 4
 const MIN_ITEMS_FOR_EVAL: int = 5
 
+## evaluate_history は回答のたびに呼ばれ、エンドレスでは履歴が伸び続ける。
+## 先頭から続く「評価の対象にならないと決まった項目」の数を覚えておき、次からは飛ばす。
+var _scanned_history: Array[Dictionary] = []
+var _scanned_skip: int = 0
+var _scanned_last_entry: Dictionary = {}
+
 func _ready() -> void:
 	_load_ratings()
 
@@ -47,10 +53,31 @@ func _is_evaluable(entry: Dictionary) -> bool:
 	return validator == null or not validator.is_rejected(q.q)
 
 
+## 問題が無い・オフラインの問題は、あとから評価の対象になることがない（出どころは払い出し後に変わらない）。
+func _never_evaluable(entry: Dictionary) -> bool:
+	var q: QuizItem = entry.get("quiz")
+	return q == null or not ClaudeRequest.is_online_source(q.src)
+
+
+## history のうち、先頭から続く評価の対象にならない項目を飛ばした位置を返す。
+## 別の配列・空にされた・入れ替えられた履歴なら最初から数え直す。
+func _skip_never_evaluable(history: Array[Dictionary]) -> int:
+	if not is_same(history, _scanned_history) or _scanned_skip > history.size() \
+			or (_scanned_skip > 0 and not is_same(history[_scanned_skip - 1], _scanned_last_entry)):
+		_scanned_history = history
+		_scanned_skip = 0
+	while _scanned_skip < history.size() and _never_evaluable(history[_scanned_skip]):
+		_scanned_skip += 1
+	if _scanned_skip > 0:
+		_scanned_last_entry = history[_scanned_skip - 1]
+	return _scanned_skip
+
+
 func evaluate_history(history: Array[Dictionary], subject: String, grade: int, difficulty: String) -> void:
+	var start := _skip_never_evaluable(history)
 	var unrated := 0
-	for entry in history:
-		if _is_evaluable(entry):
+	for i: int in range(start, history.size()):
+		if _is_evaluable(history[i]):
 			unrated += 1
 	if unrated < MIN_ITEMS_FOR_EVAL:
 		return
@@ -58,7 +85,8 @@ func evaluate_history(history: Array[Dictionary], subject: String, grade: int, d
 	if (_eval_round_counter % EVAL_EVERY_N_ROUNDS) != 1:
 		print("[QuizOptimizer] Skipping evaluation (round %d, every %d)" % [_eval_round_counter, EVAL_EVERY_N_ROUNDS])
 		return
-	for entry in history:
+	for i: int in range(start, history.size()):
+		var entry := history[i]
 		if _is_evaluable(entry):
 			entry["rated"] = "queued"
 			entry["_eval_ctx"] = {"subject": subject, "grade": grade, "difficulty": difficulty}

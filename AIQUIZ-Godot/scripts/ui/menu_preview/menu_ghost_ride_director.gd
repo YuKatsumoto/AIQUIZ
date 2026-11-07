@@ -15,6 +15,9 @@ static var globally_enabled: bool = true
 
 ## 乗れる死亡のうち実際に乗る割合
 const CHANCE: float = 0.34
+## メニューの吹き飛びの操作ロックの上限（秒）。本編のロック（強さで 0.25〜0.48 秒）と同じ上限。
+## 本編のロックをまた延ばしても、ラグドールも起き上がりもないメニューでは長くならないよう残しておく。
+const KNOCKBACK_LOCK_MAX: float = 0.48
 ## ライドの終わりから次のライドまで
 const COOLDOWN_SEC: float = 50.0
 ## メニューを開いてから最初のライドまで（背景がいきなり物騒にならないように）
@@ -353,7 +356,7 @@ func _consume_hit(survivor_is_p1: bool) -> void:
 	var impulse := gs.p1_external_velocity if survivor_is_p1 else gs.p2_external_velocity
 	if impulse.length_squared() < 0.0001:
 		return
-	var lock := gs.p1_external_control_lock if survivor_is_p1 else gs.p2_external_control_lock
+	var lock := minf(gs.p1_external_control_lock if survivor_is_p1 else gs.p2_external_control_lock, KNOCKBACK_LOCK_MAX)
 	if survivor_is_p1:
 		gs.p1_external_velocity = Vector2.ZERO
 		gs.p1_external_control_lock = 0.0

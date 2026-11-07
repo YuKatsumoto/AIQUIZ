@@ -1,7 +1,7 @@
 // 段階2: 管理ソフトからの操作（本番を書き換える）。
 //   端末・回線のブロックと解除 … device_blocklist/v1/{iid または ipKey}（プロキシが 1 分ごとに読み直す）
 //   問題を共有バンクから外す・戻す … quiz_bank/v1/items と removed（差分同期で各端末からも消える）
-//   夜のジョブを今すぐ動かす … Cloud Run Jobs の :run
+//   毎週のジョブを今すぐ動かす … Cloud Run Jobs の :run
 // どの操作も ops_log/v1 に「いつ・誰が・何を」を残す。
 const os = require('os');
 const { BLOCKLIST_PATH, putBankItem, removeBankItem } = require('./proxy-shared');
@@ -141,7 +141,7 @@ class OpsActions {
         return { id, q: restored.q };
     }
 
-    // ---- 夜のジョブ ----
+    // ---- 毎週のジョブ ----
 
     async runJob({ name } = {}) {
         const job = this.jobs.find(j => j.name === name);

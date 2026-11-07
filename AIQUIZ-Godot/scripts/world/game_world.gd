@@ -65,19 +65,34 @@ var _result_ceremony_director: Node3D = null
 var _elimination_transition_running := false
 var _tutorial_presentation_director: Node = null
 var _tutorial_world_guides: Node3D = null
-## 両者脱落のあと、雲に乗ったハテナが投げ縄で 2 人の魂をゴールへ運ぶ演出（暗転の代わり）。
+## 10問の両者脱落のあと、雲に乗ったハテナが投げ縄で 2 人の魂をゴールへ運ぶ演出（暗転の代わり）。エンドレスは使わない
+## （暗転して結果発表アリーナへ。_uses_elimination_lasso）。
 var _elimination_lasso: EliminationLassoDirector = null
 ## 投げ縄の演出がコースを流しているあいだ（2 人を運ぶ雲の下を、出ていた壁が流れる）：壁は後ろの端で砕かずに消える
 ## （結果発表が始まるまで）。
 var _elimination_flyover := false
 ## コースを流し始めたときの world_scroll_z（チップソーを、流した分だけ後ろへ下げる）
 var _elimination_flyover_from := 0.0
+## エンドレスの両者脱落の結果発表を行う海上の専用アリーナ（ResultArena、assets/result_arena）。暗転のあいだに
+## 舞台の中心へ出してコースを隠し、次の試合の始まりで片付ける。10問はコースの先のゴール観客席で結果発表する。
+var _result_arena: ResultArena = null
+## サドンデスの地下（_set_surface_visible）で地上を隠しているか。アリーナの出し入れと重ねて決める。
+var _surface_shown := true
 ## 本編のカウントダウン中に頭上へうっすら出す操作キー（リプレイでは作らない）。
 var _countdown_key_hints: Node3D = null
 var _helicopter_arrival_director: Node = null
 var _tutorial_customize_handoff_in_progress: bool = false
 var _active_walls: Array[Node3D] = []
+## 表示する範囲の1枚先に、隠したまま先に組んでおいた壁（範囲に入ったら見せて _active_walls へ移す）。
+## _active_walls には入れないので、壁を読むほかの処理（カメラ・演出・判定）には出てこない。
+var _prebuilt_walls: Array[Node3D] = []
 var _retired_wall_indices: Dictionary = {}
+## 壁の切り替え（正解・通過・次の問題の読み込み）が起きたフレーム。このフレームでは壁を作らない（壁が1枚もないときを除く）。
+var _wall_switch_frame: int = -1
+## 壁の字の先描き（QuizWall.queue_wall_glyphs）と組版の先取り（prepare_wall_text_layout）を済ませた問題。
+var _wall_glyph_quiz_ids: Dictionary = {}
+var _wall_layout_quiz_ids: Dictionary = {}
+var _wall_glyph_base_queued: bool = false
 var _question_framing_wall: Node3D = null
 var _display_question_quiz: QuizItem = null
 var _display_question_source: String = ""
@@ -114,6 +129,14 @@ var _crowd_cues := CrowdCues.new()
 var _crowd_mood := CrowdMood.new()
 var _crowd_shark_mask: int = 0
 const MAX_VISIBLE_WALLS := preload("res://scripts/core/game_state.gd").MAX_VISIBLE_WALLS
+const QuizWallScript = preload("res://scripts/world/quiz_wall.gd")
+## 壁の字の先描きに使う1フレームの時間（マイクロ秒）。黒い覆いの下、開始前（準備・待機・空撮・カウントダウン）、プレイ中。
+const WALL_GLYPH_PRIME_COVER_USEC := 8000
+const WALL_GLYPH_PRIME_PREP_USEC := 4000
+const WALL_GLYPH_PRIME_PLAY_USEC := 1500
+## 供給元の待ち行列から先描きする問題の数と、済ませた問題の記録の上限。
+const WALL_GLYPH_BUFFER_LOOKAHEAD := 6
+const WALL_TEXT_PREP_MEMORY := 512
 const PREVIEW_WALLS_PER_FRAME := 1
 const COVER_PREVIEW_WALLS_PER_FRAME := 2
 const PREVIEW_WALL_CONFIGS_PER_FRAME := 1
@@ -429,6 +452,10 @@ func _on_local_push_event(event: Dictionary) -> void:
 		if not _replay_mode:
 			Haptics.pulse(Haptics.BUMP)
 
+## 壁の延長線上のワールドボーダーでプレイヤーを押し戻した瞬間に光らせる。
+func _on_world_border_pushed(_player_index: int) -> void:
+	WallWorldBorder.pulse()
+
 func _on_window_size_changed() -> void:
 	GraphicsQuality.apply_text_viewport(get_viewport(), GameManager.graphics_quality)
 
@@ -451,7 +478,8 @@ func _ready() -> void:
 	game_state.state_changed.connect(_on_state_changed)
 	game_state.quiz_loaded.connect(_on_quiz_loaded)
 	game_state.correct_answer.connect(_on_correct)
-	game_state.world_border_pushed.connect(func(_player_index: int) -> void: WallWorldBorder.pulse())
+	# 試合をまたいで残る game_state へは、このシーンと一緒に外れるよう自分のメソッドでつなぐ（ラムダは残り続ける）。
+	game_state.world_border_pushed.connect(_on_world_border_pushed)
 	game_state.question_completed.connect(_on_question_completed)
 	game_state.player_entered_ocean.connect(_on_player_entered_ocean)
 	game_state.health_changed.connect(_on_crowd_health_changed)
@@ -561,7 +589,9 @@ func _ready() -> void:
 		_match_reel.watch_ghost_rides(_ghost_shark_ride_controller)
 	_ghost_shark_ride_controller.aim_used.connect(_on_tutorial_ghost_aim_used)
 	_ghost_shark_ride_controller.charge_resolved.connect(_on_tutorial_ghost_charge_resolved)
-	_result_ceremony_director = ResultCeremonyDirectorScript.new()
+	if not game_state.tutorial_ghost_practice_ready.is_connected(_on_tutorial_ghost_practice_ready):
+		game_state.tutorial_ghost_practice_ready.connect(_on_tutorial_ghost_practice_ready)
+	_result_ceremony_director =ResultCeremonyDirectorScript.new()
 	_result_ceremony_director.name = "ResultCeremonyDirector"
 	add_child(_result_ceremony_director)
 	_result_ceremony_director.setup(
@@ -575,6 +605,10 @@ func _ready() -> void:
 		add_child(_elimination_lasso)
 		_elimination_lasso.setup(game_state, self, player_node as PlayerController, camera_controller)
 		(_result_ceremony_director as ResultCeremonyDirector).soul_source = _elimination_lasso
+		# 生き残りが海に落ちて両者脱落が決まったとき、サメに乗った幽霊を片付けずに投げ縄を待たせる
+		_ghost_shark_ride_controller.set("lasso_hold_check", func() -> bool:
+			return _uses_elimination_lasso() and game_state.uses_local_result_ceremony()
+		)
 	_sudden_death_director = HeliSuddenDeathDirector.new()
 	add_child(_sudden_death_director)
 	_sudden_death_director.setup(game_state, camera_controller, _result_ceremony_director as ResultCeremonyDirector,
@@ -1333,16 +1367,20 @@ func is_ghost_charge_tutorial_active() -> bool:
 	)
 
 
+## タスクが揃っても、ここでは次へ進めない。体当たりで海へ落ちた標的がサメに食べられるところまで見せてから、
+## game_state が tutorial_ghost_practice_ready を出す（_on_tutorial_ghost_practice_ready）。
 func _on_tutorial_ghost_aim_used(player_index: int) -> void:
-	if game_state and game_state.register_tutorial_ghost_aim(player_index):
-		call_deferred("_finish_tutorial_ghost_practice")
+	if game_state:
+		game_state.register_tutorial_ghost_aim(player_index)
 
 
 func _on_tutorial_ghost_charge_resolved(player_index: int, hit: bool, power: float) -> void:
-	if game_state == null:
-		return
-	if game_state.register_tutorial_ghost_charge(player_index, hit, power):
-		call_deferred("_finish_tutorial_ghost_practice")
+	if game_state:
+		game_state.register_tutorial_ghost_charge(player_index, hit, power)
+
+
+func _on_tutorial_ghost_practice_ready() -> void:
+	call_deferred("_finish_tutorial_ghost_practice")
 
 
 func _finish_tutorial_ghost_practice() -> void:
@@ -1567,7 +1605,7 @@ func _prepare_world_visuals_under_cover() -> void:
 	var sudden_death_prewarm_report: Dictionary = _sudden_death_director.begin_render_prewarm(prewarm_camera)
 	var wall_prewarm_report: Dictionary = _begin_preview_wall_render_prewarm(prewarm_camera)
 	var death_pieces: Node3D = player_controller.begin_death_render_prewarm(prewarm_camera)
-	if _elimination_lasso != null:
+	if _uses_elimination_lasso():
 		_elimination_lasso.begin_render_prewarm(prewarm_camera)
 	var death_wipe: Node = get_node_or_null("DeathWipeLayer/DeathWipe")
 	if death_wipe != null:
@@ -1711,7 +1749,7 @@ func _collect_world_visual_prep_report(player_controller: PlayerController) -> D
 
 func _uses_offline_quiz_source() -> bool:
 	var buffered_provider := QuizManager.provider as BufferedQuizProvider
-	return buffered_provider != null and buffered_provider.llm_mode == "OFFLINE"
+	return buffered_provider != null and buffered_provider.uses_bank_only()
 
 
 func _should_defer_ten_wall_drop_until_reveal() -> bool:
@@ -2027,6 +2065,9 @@ func _process(dt: float) -> void:
 		# 左右の客席もコースと一緒に後ろへ流す（止まっていると、ゴールへ飛んでいるように見えない）。結果発表のあいだは
 		# 流し終えた所のまま、次の試合の始まりで元へ戻す
 		stage_env.set_grandstand_shift(_elimination_flyover_from - game_state.world_scroll_z)
+	if is_instance_valid(_result_arena):
+		# アリーナにはチップソーは出さない（update_visual が毎フレーム見せ直すので、そのあとで隠す）
+		_saw_controller.visible = false
 	_update_flyover()
 	# The sudden death director runs first: it moves the deck, the finale stage drop
 	# and the runners' lift, and sets this frame's lens.
@@ -2050,15 +2091,27 @@ func _process(dt: float) -> void:
 		_elimination_lasso.update(dt)
 		if _elimination_lasso.wants_ceremony():
 			_start_elimination_lasso_ceremony()
+	_prepare_upcoming_wall_text()
 	_update_camera(dt)
 	_check_particles()
 	_update_wall_hit_sfx()
 	_update_start_barrier()
-	if game_state.is_elimination_result_ready() and not _elimination_transition_running:
+	if _guest_match_abandoned():
+		# ホストが結果発表の前に抜けた（不戦勝のダイアログが出ている）。ホストの最後のスナップショットの
+		# 「両者脱落の結果待ち」が残ったままなので、暗転と投げ縄をくり返し始めないようにする。
+		pass
+	elif (
+		game_state.is_elimination_result_ready()
+		and not _elimination_transition_running
+		and not (_uses_elimination_lasso() and _ghost_rider_returning_for_lasso())
+	):
 		_run_elimination_result_transition()
 	elif _elimination_lasso_can_start_now() and not _elimination_transition_running:
 		# 投げ縄の演出は待たない：2 人とも死んだ瞬間（体が砕けた瞬間）に魂が抜け出し、すぐハテナが回収に来る
 		_run_elimination_result_transition()
+	elif _uses_result_arena() and not is_instance_valid(_result_arena) and not _elimination_transition_running:
+		# エンドレス：暗転を通らずに両者脱落の結果発表が始まったとき（オンラインのゲストなど）も、会場はアリーナ
+		_enter_result_arena()
 
 	# Handle R key for restart (ESC is handled in _unhandled_input)
 	# 練習の負けはメニューへ戻さない（監督がやり直す。メニューへはポーズ画面から）。
@@ -2071,11 +2124,13 @@ func _process(dt: float) -> void:
 			_return_to_main_menu_from_result()
 
 
-## Both local players are out: Hatena flies in on her cloud, lassoes both souls and
-## carries them to the finish line (EliminationLassoDirector), then the verdict
-## ceremony opens with both ghosts. Without the lasso rig, wipe the screen instead.
+## Both players are out. Ten questions: Hatena flies in on her cloud, lassoes both souls
+## and carries them to the finish line (EliminationLassoDirector), then the verdict
+## ceremony opens with both ghosts at the goal stand. Endless (or without the lasso rig):
+## once the deaths have played out, wipe the screen and open the verdict ceremony; endless
+## holds it in the result arena out at sea (ResultArena).
 func _run_elimination_result_transition() -> void:
-	if _elimination_lasso != null and not _elimination_lasso.is_active() and _elimination_lasso.begin():
+	if _uses_elimination_lasso() and not _elimination_lasso.is_active() and _elimination_lasso.begin():
 		_elimination_transition_running = true
 		_elimination_lasso_wait_started = -1
 		return
@@ -2088,12 +2143,14 @@ func _run_elimination_result_transition() -> void:
 		var deadline := Time.get_ticks_msec() + ELIMINATION_RESULT_WAIT_MS
 		while is_inside_tree() and not game_state.result_presentation_active and Time.get_ticks_msec() < deadline:
 			await get_tree().process_frame
-		for _frame in range(3):
-			if is_inside_tree():
-				await get_tree().process_frame
-	elif is_inside_tree() and game_state.begin_elimination_result_ceremony():
-		# Let walls retire, ghosts spawn, the goal stand and the finale camera settle.
-		for _frame in range(3):
+	elif is_inside_tree():
+		game_state.begin_elimination_result_ceremony()
+	if is_inside_tree() and _uses_result_arena():
+		# 覆っているうちにアリーナを出して観客を並べ終える（重いのは暗転の下で済ませる）
+		_enter_result_arena()
+	# Let walls retire, ghosts spawn, the goal stand (or the arena's crowd) and the finale camera settle.
+	for _frame in range(3):
+		if is_inside_tree():
 			await get_tree().process_frame
 	if is_inside_tree():
 		SceneTransition.reveal_current()
@@ -2103,15 +2160,32 @@ func _run_elimination_result_transition() -> void:
 var _elimination_lasso_wait_started := -1
 
 
+## 両者脱落の投げ縄を使う試合か：10問（ローカル・オンライン）だけ。エンドレスは暗転して結果発表アリーナへ。
+func _uses_elimination_lasso() -> bool:
+	return (
+		_elimination_lasso != null
+		and game_state.mode != Constants.MODE_ENDLESS
+		and _elimination_lasso.can_play()
+	)
+
+
 ## 両者脱落の投げ縄を、結果発表の待ち時間（RESULT_ELIMINATION_HOLD）を待たずに始めてよいか：2 人とも死んだ所が決まった
 ## （体が砕けた。先に脱落した人がサメに乗ったまま待っているなら、その人は決まっている）。
+## オンラインのゲストで、結果発表が始まる前に試合が終わった（ホストが抜けた・切れた）か。
+func _guest_match_abandoned() -> bool:
+	return _net_state != null and _net_state.is_online and not _net_state.is_host \
+		and _net_state.finished and not _net_state.result_decided
+
+
 func _elimination_lasso_can_start_now() -> bool:
-	if _elimination_lasso == null or _elimination_lasso.is_active() or not game_state.is_elimination_result_pending():
+	if not _uses_elimination_lasso() or _elimination_lasso.is_active() or not game_state.is_elimination_result_pending():
 		return false
-	if game_state.result_presentation_active or not _elimination_lasso.can_play():
+	if game_state.result_presentation_active:
 		return false
 	var pc := player_node as PlayerController
 	if pc == null:
+		return false
+	if _ghost_rider_returning_for_lasso():
 		return false
 	var rider := 0
 	if _ghost_shark_ride_controller != null and bool(_ghost_shark_ride_controller.call("is_holding_for_lasso")):
@@ -2120,6 +2194,16 @@ func _elimination_lasso_can_start_now() -> bool:
 		if player_index != rider and not pc.has_death_point(player_index == 1):
 			return false
 	return true
+
+
+## 先に脱落してサメに乗っている幽霊を投げ縄のために待たせると決めたが、まだ突進や戻りのポータルの途中で、待つ所へ
+## 戻ってきていない（投げ縄は戻ってくるのを待って始める。戻れなければ乗り手の監督が片付けて待ちは終わる）。
+func _ghost_rider_returning_for_lasso() -> bool:
+	return (
+		_ghost_shark_ride_controller != null
+		and bool(_ghost_shark_ride_controller.call("is_holding_for_lasso"))
+		and not bool(_ghost_shark_ride_controller.call("is_lasso_hold_ready"))
+	)
 
 
 ## 投げ縄の演出で 2 人がレーンに降りた：結果発表を始めて、カメラと魂を結果発表へ渡す。
@@ -2147,6 +2231,55 @@ func set_elimination_flyover(active: bool) -> void:
 	_elimination_flyover_from = game_state.world_scroll_z
 
 
+## 結果発表アリーナを使っているか：エンドレスの両者脱落の結果発表だけ（10問はコースの先のゴール観客席）。
+func _uses_result_arena() -> bool:
+	return (
+		game_state.mode == Constants.MODE_ENDLESS
+		and game_state.result_presentation_active
+		and game_state.result_from_elimination
+	)
+
+
+## エンドレスの両者脱落の結果発表：舞台の中心に海上のアリーナ（ResultArena）を出し、コース（床・左右の客席・サメ・
+## ゴール・壁）を隠す。観客の応援・卵・LED の掲示板はアリーナの正面スタンド（アリーナの建物で組んだ GoalStand）が受け持つ。
+func _enter_result_arena() -> void:
+	if is_instance_valid(_result_arena):
+		return
+	_result_arena = ResultArena.new()
+	add_child(_result_arena)
+	_result_arena.setup(GameManager.graphics_quality, stage_env)
+	_result_arena.position = ResultCeremonyDirector.podium_center(game_state)
+	if is_instance_valid(_goal_stand):
+		_goal_stand.queue_free()
+	_goal_stand = _result_arena.stand
+	_free_goal_line()
+	_result_arena.fill_crowd()
+	_apply_result_arena_visibility()
+
+
+## 次の試合の始まり：アリーナを片付けてコースを戻す（ゴールの門とゴール観客席は _update_goal_line が作り直す）。
+func _exit_result_arena() -> void:
+	if not is_instance_valid(_result_arena):
+		return
+	if _goal_stand == _result_arena.stand:
+		_goal_stand = null
+	_result_arena.queue_free()
+	_result_arena = null
+	_apply_result_arena_visibility()
+
+
+## 結果発表アリーナが出ているあいだはコース（床・左右の客席・サメ・壁）を隠し、アリーナは地上と一緒に見せる
+## （サドンデスの地下では地上ごと隠れる。_set_surface_visible）。
+func _apply_result_arena_visibility() -> void:
+	var arena := is_instance_valid(_result_arena)
+	if is_instance_valid(stage_env):
+		stage_env.set_course_visible(not arena)
+	if is_instance_valid(wall_container):
+		wall_container.visible = _surface_shown and not arena
+	if arena:
+		_result_arena.visible = _surface_shown
+
+
 ## Underground only the director (shaft, cistern, HUD), the runners, the result
 ## director (which clears the surface podium) and the camera update; the surface
 ## waits as it was. No screen cover: the director cuts between shots instead.
@@ -2159,9 +2292,11 @@ func _process_sudden_death(dt: float) -> void:
 
 
 func _set_surface_visible(surface_visible: bool) -> void:
+	_surface_shown = surface_visible
 	for node: Node3D in [stage_env, _goal_line_node, _goal_stand, _saw_controller, wall_container, _start_barrier]:
 		if is_instance_valid(node):
 			node.visible = surface_visible
+	_apply_result_arena_visibility()
 
 
 ## Debug builds: F9 ends a local 2P ten-question round as a draw at the goal.
@@ -2335,7 +2470,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			]:
 				_practice_net_overlay.toggle_quit_confirm()
 			return
-		if game_state and game_state.game_state in [
+		if get_tree().paused and pause_menu != null and pause_menu.visible:
+			# 開いているポーズは、試合の状態に関係なく Esc で閉じられる（ポーズ中に状態が変わっても閉じ込めない）。
+			_toggle_pause()
+		elif game_state and game_state.game_state in [
 			Constants.STATE_WAITING_START, Constants.STATE_COUNTDOWN,
 			Constants.STATE_PLAYING, Constants.STATE_GOAL_RACE, Constants.STATE_SUDDEN_DEATH,
 		]:
@@ -2349,7 +2487,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		and event.keycode == KEY_F9
 		and event.is_pressed()
 		and not event.is_echo()
-		and OS.is_debug_build()
+		and OS.has_feature("editor")
 	):
 		var key_event := event as InputEventKey
 		_debug_force_draw_finish((1 if key_event.shift_pressed else 0) | (2 if key_event.ctrl_pressed else 0))
@@ -2421,6 +2559,9 @@ func _update_floor() -> void:
 	var floor_length: float = floor_front - floor_back
 	var floor_center_z: float = (floor_front + floor_back) / 2.0
 	stage_env.set_floor_geometry(floor_center_z, floor_length)
+	# エンドレスはコースに終わりがないので、地平線まで続いて見せる（ゴールは出さない。2人の結果発表は結果発表アリーナ）。
+	var endless_horizon: bool = game_state.mode == Constants.MODE_ENDLESS
+	stage_env.set_floor_runout(StageConstants.COURSE_HORIZON_RUNOUT if endless_horizon else 0.0)
 
 
 func _local_result_goal_z() -> float:
@@ -2480,14 +2621,18 @@ func _update_flyover() -> void:
 			_clear_preview_walls()
 			if _flyover_walls.is_empty():
 				var t := game_state.tuning
+				var flyover_saw_collisions := _wall_saw_collisions_enabled()
 				for i: int in range(game_state.flyover_total_walls):
 					var wz: float = t.wall_start_z + i * t.wall_spacing
+					var flyover_choices: int = game_state.num_choices_for_index(i)
 					var wall_node: Node3D = quiz_wall_scene.instantiate()
 					wall_node.set_meta("wall_index", i)
 					wall_node.position = Vector3(0, 0, wz)
+					# _ready で最初から正しい数の扉を組む（2択で組んでから4択に作り直さない）。
+					wall_node.set("initial_num_choices", flyover_choices)
+					wall_node.set("saw_collision_enabled", flyover_saw_collisions)
 					wall_container.add_child(wall_node)
 					_flyover_walls.append(wall_node)
-					var flyover_choices: int = game_state.num_choices_for_index(i)
 					if i < game_state.quiz_list.size() and wall_node.has_method("set_quiz"):
 						wall_node.set_quiz(game_state.quiz_list[i], flyover_choices)
 					elif wall_node.has_method("set_quiz"):
@@ -2533,6 +2678,9 @@ func _update_walls() -> void:
 		for wall: Node3D in _active_walls:
 			wall.queue_free()
 		_active_walls.clear()
+		for wall: Node3D in _prebuilt_walls:
+			wall.queue_free()
+		_prebuilt_walls.clear()
 		_retired_wall_indices.clear()
 		WallWorldBorder.hide_all()
 		return
@@ -2590,6 +2738,9 @@ func _update_walls() -> void:
 			if game_state.mode == Constants.MODE_TUTORIAL
 			else game_state.target_count - 1
 		)
+	# エンドレスの2人の結果発表：両者脱落の時点で置いたゴールの先には壁を出さない。
+	if game_state.mode == Constants.MODE_ENDLESS and game_state.endless_result_wall_count > 0:
+		max_wall_idx = game_state.endless_result_wall_count - 1
 	# 練習も、台本が用意した問題の数だけ壁を出す（問題が空なら1枚も出さない）。
 	var practice_walls := _is_practice()
 	if practice_walls:
@@ -2603,6 +2754,14 @@ func _update_walls() -> void:
 		var local_z: float = wz - game_state.world_scroll_z
 		if local_z > game_state.FLOOR_BACK_Z:
 			needed_indices.append(idx)
+	# 壁の切り替え（正解・次の問題の読み込み）と同じフレームに壁を作らないよう、表示する範囲の1枚先を
+	# 隠したまま先に組んでおき、範囲が進んだら見せるだけにする（練習とチュートリアルは従来どおり）。
+	var use_prebuild := _uses_wall_prebuild()
+	var prebuild_idx := -1
+	if use_prebuild:
+		prebuild_idx = start_idx + MAX_VISIBLE_WALLS + 3
+		if max_wall_idx >= 0 and prebuild_idx > max_wall_idx:
+			prebuild_idx = -1
 
 	# Remove walls no longer needed
 	var to_remove: Array[Node3D] = []
@@ -2623,12 +2782,28 @@ func _update_walls() -> void:
 				wall.shatter_wall()
 		wall.queue_free()
 
+	# 先に組んでおいた壁は、表示する範囲に入ったら見せて通常の壁に加える。範囲にも先組みの番号にもないものは捨てる。
+	for wall: Node3D in _prebuilt_walls.duplicate():
+		var prebuilt_index: int = int(wall.get_meta("wall_index", -1))
+		if prebuilt_index in needed_indices:
+			_prebuilt_walls.erase(wall)
+			wall.visible = true
+			_active_walls.append(wall)
+		elif prebuilt_index != prebuild_idx:
+			_prebuilt_walls.erase(wall)
+			wall.queue_free()
 
 	# Add walls that are missing
 	var existing_indices: Array[int] = []
 	for wall: Node3D in _active_walls:
 		if wall.has_meta("wall_index"):
 			existing_indices.append(wall.get_meta("wall_index") as int)
+	# 壁を全部作り直すフレーム（途中補充から PLAYING に戻ったときなど）は、壁が消えないよう従来どおりその場で作る。
+	var on_switch_frame := (
+		use_prebuild
+		and Engine.get_process_frames() == _wall_switch_frame
+		and not existing_indices.is_empty()
+	)
 
 	# 練習で同じフレームに作った壁は、近いものから少しずつずらして落とす。
 	# 本番の始まり方（WAITING_START → 空撮 → カウントダウン）を通った回は、開始の前の壁がもう落ちて着地しているので、
@@ -2639,26 +2814,27 @@ func _update_walls() -> void:
 		and _practice_real_start_round != game_state.practice_round_serial
 	)
 	var practice_drop_delay := 0.0
+	var built_this_frame := false
 	for idx: int in needed_indices:
 		if idx not in existing_indices and not _retired_wall_indices.has(idx):
-			var wz: float = t.wall_start_z + idx * t.wall_spacing
-			var wall_node: Node3D = quiz_wall_scene.instantiate()
-			wall_node.set_meta("wall_index", idx)
-			wall_node.position = Vector3(0, 0, wz - game_state.world_scroll_z)
-			if _is_practice() and "keep_question_lines" in wall_node:
-				# 練習の問題文は台本で行を決めてある（分かち書き・1行14文字まで）。行の途中で折り返さない。
-				wall_node.set("keep_question_lines", true)
-			wall_container.add_child(wall_node)
-			_active_walls.append(wall_node)
-
-			var wall_choices: int = game_state.num_choices_for_index(idx)
-			if wall_node.has_method("set_quiz"):
-				wall_node.set_quiz(null, wall_choices)
-			if wall_node.has_method("set_is_boss"):
-				wall_node.set_is_boss(game_state.is_boss_index(idx))
+			if on_switch_frame:
+				# 先組みが間に合わなかった壁も、切り替えのフレームは避けて次のフレームで作る。
+				continue
+			var wall_node := _create_course_wall(idx, false)
+			built_this_frame = true
 			if practice_drop:
 				_begin_practice_wall_drop(wall_node, practice_drop_delay)
 				practice_drop_delay += PREVIEW_WALL_DROP_INTERVAL
+	# 先組みは1フレームに1枚まで。ほかの壁を作ったフレームと切り替えのフレームでは作らない。
+	if (
+		prebuild_idx >= 0
+		and not on_switch_frame
+		and not built_this_frame
+		and _prebuilt_walls.is_empty()
+		and prebuild_idx not in existing_indices
+		and not _retired_wall_indices.has(prebuild_idx)
+	):
+		_create_course_wall(prebuild_idx, true)
 
 	if practice_walls and _practice_quizzes_seen != game_state.practice_quizzes_serial:
 		_practice_quizzes_seen = game_state.practice_quizzes_serial
@@ -2666,6 +2842,7 @@ func _update_walls() -> void:
 
 		# Also MUST update positions of existing walls because they slide!
 	var drop_dt := get_process_delta_time()
+	var saw_collisions := _wall_saw_collisions_enabled()
 	for wall: Node3D in _active_walls:
 		if wall.has_meta("wall_index"):
 			var idx: int = wall.get_meta("wall_index") as int
@@ -2673,13 +2850,57 @@ func _update_walls() -> void:
 			wall.position.z = wz - game_state.world_scroll_z
 			if wall.has_meta(PRACTICE_DROP_META):
 				_advance_practice_wall_drop(wall, drop_dt)
+			# のこぎりで飛んだ体用の当たりは、のこぎりの死がある試合（とそのリプレイ）だけ作る。
+			wall.set(&"saw_collision_enabled", saw_collisions)
 
 			# Setup door labels if this is the current wall
 			if idx == game_state.current_wall_index and game_state.current_quiz:
 				_update_wall_labels(wall)
 			if wall.has_method("set_world_border_active"):
 				wall.call("set_world_border_active", idx == game_state.current_wall_index)
+			if use_prebuild and not on_switch_frame and idx == game_state.current_wall_index + 1 and wall.has_method("prepare_world_border"):
+				wall.call("prepare_world_border")
 	_update_wall_world_border()
+
+
+## 通常の壁を1枚作って _active_walls に加える。prebuilt は先組み（隠したまま _prebuilt_walls に置き、
+## 表示する範囲に入ったら _update_walls が見せて _active_walls へ移す）。
+func _create_course_wall(idx: int, prebuilt: bool) -> Node3D:
+	var t := game_state.tuning
+	var wz: float = t.wall_start_z + idx * t.wall_spacing
+	var wall_choices: int = game_state.num_choices_for_index(idx)
+	var wall_node: Node3D = quiz_wall_scene.instantiate()
+	wall_node.set_meta("wall_index", idx)
+	wall_node.position = Vector3(0, 0, wz - game_state.world_scroll_z)
+	# _ready で最初から正しい数の扉を組む（2択で組んでから4択に作り直さない）。
+	wall_node.set("initial_num_choices", wall_choices)
+	wall_node.set("saw_collision_enabled", _wall_saw_collisions_enabled())
+	if prebuilt:
+		wall_node.visible = false
+	if _is_practice() and "keep_question_lines" in wall_node:
+		# 練習の問題文は台本で行を決めてある（分かち書き・1行14文字まで）。行の途中で折り返さない。
+		wall_node.set("keep_question_lines", true)
+	wall_container.add_child(wall_node)
+	if prebuilt:
+		_prebuilt_walls.append(wall_node)
+	else:
+		_active_walls.append(wall_node)
+
+	if wall_node.has_method("set_quiz"):
+		wall_node.set_quiz(null, wall_choices)
+	if wall_node.has_method("set_is_boss"):
+		wall_node.set_is_boss(game_state.is_boss_index(idx))
+	return wall_node
+
+
+## 壁の先組みを使うか。練習とチュートリアルは壁の出し方を台本が決めるので、従来どおりその場で作る。
+func _uses_wall_prebuild() -> bool:
+	return not _is_practice() and game_state.mode != Constants.MODE_TUTORIAL
+
+
+## のこぎりで飛んだ体が当たる壁の当たりを作るか（リプレイものこぎりの死を再生するので作る）。
+func _wall_saw_collisions_enabled() -> bool:
+	return game_state.uses_saw_chase() or (game_state.is_replay and game_state.num_players >= 2)
 
 
 ## 壁の延長線上のワールドボーダーに、プレイヤーの位置を渡す（近くだけ浮かび上がる）。
@@ -2715,10 +2936,7 @@ func _update_wall_question() -> void:
 		if quiz != _display_question_quiz or source != _display_question_source:
 			_display_question_quiz = quiz
 			_display_question_source = source
-			# 練習の問題は台本の手書き（分かち書きの空白と2行の改行）なので、整形せずにそのまま出す。
-			_display_question_text = quiz.q if _is_practice() else FractionFormatter.format_question(quiz.q)
-			if game_state.is_coop_mode() and quiz.has_coop_data():
-				_display_question_text += "\n%s / %s" % [quiz.coop_p1_label, quiz.coop_p2_label]
+			_display_question_text = _wall_question_text(quiz)
 	for wall: Node3D in _active_walls:
 		if not is_instance_valid(wall):
 			continue
@@ -2729,6 +2947,131 @@ func _update_wall_question() -> void:
 				_question_framing_wall = wall
 		else:
 			wall.set_gameplay_question_visible(false)
+
+
+## 壁に出す問題文。
+func _wall_question_text(quiz: QuizItem) -> String:
+	# 練習の問題は台本の手書き（分かち書きの空白と2行の改行）なので、整形せずにそのまま出す。
+	var text := quiz.q if _is_practice() else FractionFormatter.format_question(quiz.q)
+	if game_state.is_coop_mode() and quiz.has_coop_data():
+		text += "\n%s / %s" % [quiz.coop_p1_label, quiz.coop_p2_label]
+	return text
+
+
+## 壁の文字の下ごしらえ：これから出す問題文・選択肢の字を壁の MSDF フォントへ先に描き、組版も先に済ませておく。
+## 新しい漢字の MSDF 生成と組版を、壁の切り替えのフレームに重ねないため。切り替えのフレームでは何もしない。
+func _prepare_upcoming_wall_text() -> void:
+	if Engine.get_process_frames() == _wall_switch_frame:
+		return
+	var budget := _wall_glyph_prime_budget_usec()
+	if budget <= 0:
+		return
+	_queue_upcoming_wall_glyphs()
+	var playing := game_state.game_state == Constants.STATE_PLAYING
+	if not _wall_glyph_base_queued and not playing:
+		# 問題の字を先に、続けて試合前にかな・英数字をまとめて描いておく。
+		_wall_glyph_base_queued = true
+		QuizWallScript.queue_wall_glyph_base_set()
+	# プレイ中は問題の字だけを描く（かな・英数字の残りは次の試合前に回す）。
+	if QuizWallScript.prime_queued_wall_glyphs(budget, playing):
+		_prepare_upcoming_wall_layout()
+
+
+func _wall_glyph_prime_budget_usec() -> int:
+	var state := game_state.game_state
+	if state == Constants.STATE_PLAYING:
+		return WALL_GLYPH_PRIME_PLAY_USEC
+	if state in [Constants.STATE_PRELOADING, Constants.STATE_WAITING_START, Constants.STATE_FLYOVER, Constants.STATE_COUNTDOWN]:
+		return WALL_GLYPH_PRIME_COVER_USEC if SceneTransition.is_transitioning() else WALL_GLYPH_PRIME_PREP_USEC
+	return 0
+
+
+## 問題の待ち行列と、供給元の待ち行列の先頭（エンドレスで次に引き出される問題。読むだけで変えない）の字を先描きに回す。
+func _queue_upcoming_wall_glyphs() -> void:
+	for quiz: QuizItem in game_state.quiz_list:
+		_queue_quiz_wall_glyphs(quiz)
+	var pending: Variant = QuizManager.provider.get("buffer") if QuizManager.provider != null else null
+	if pending is Array:
+		var pending_quizzes: Array = pending
+		for i: int in range(mini(pending_quizzes.size(), WALL_GLYPH_BUFFER_LOOKAHEAD)):
+			var item: Variant = pending_quizzes[i]
+			if item is QuizItem:
+				_queue_quiz_wall_glyphs(item as QuizItem)
+
+
+func _queue_quiz_wall_glyphs(quiz: QuizItem) -> void:
+	if quiz == null:
+		return
+	var quiz_id := quiz.get_instance_id()
+	if _wall_glyph_quiz_ids.has(quiz_id):
+		return
+	if _wall_glyph_quiz_ids.size() >= WALL_TEXT_PREP_MEMORY:
+		_wall_glyph_quiz_ids.clear()
+	_wall_glyph_quiz_ids[quiz_id] = true
+	QuizWallScript.queue_wall_glyphs(_wall_question_text(quiz), true)
+	for choice: String in quiz.c:
+		QuizWallScript.queue_wall_glyphs(FractionFormatter.format_choice(choice), true)
+
+
+## いまの問題とその次の2問の組版（問題文の幅・選択肢の改行と文字サイズ）を、1フレームに1問ずつ先に済ませる。
+## 選択肢の数は、その問題が壁に入るときに _update_wall_labels が渡す数（game_state.num_choices）に合わせる。
+func _prepare_upcoming_wall_layout() -> void:
+	var fixed_count := game_state._is_fixed_count_mode()
+	var first := game_state.current_index if fixed_count else 0
+	for list_index: int in range(first, mini(game_state.quiz_list.size(), first + 3)):
+		var quiz := game_state.quiz_list[list_index]
+		if not _mark_wall_layout_quiz(quiz):
+			continue
+		var num_choices := game_state.num_choices_for_index(list_index if fixed_count else game_state.current_index)
+		_prepare_wall_layout(_wall_question_text(quiz), quiz.c, num_choices)
+		return
+	if fixed_count:
+		return
+	# エンドレスは待ち行列が空になったフレーム（正解の切り替え）で供給元の先頭から補充するので、
+	# 3問に足りないぶんは供給元の待ち行列の先頭も先に組む（読むだけで変えない）。
+	var pending: Variant = QuizManager.provider.get("buffer") if QuizManager.provider != null else null
+	if not pending is Array:
+		return
+	var pending_quizzes: Array = pending
+	var pending_choices := game_state.num_choices
+	for i: int in range(mini(pending_quizzes.size(), 3 - game_state.quiz_list.size())):
+		var item: Variant = pending_quizzes[i]
+		if not item is QuizItem or not _mark_wall_layout_quiz(item as QuizItem):
+			continue
+		var quiz := item as QuizItem
+		var question := _wall_question_text(quiz)
+		if quiz.c.size() == pending_choices:
+			_prepare_wall_layout(question, quiz.c, pending_choices)
+		elif pending_choices == 2 and quiz.a >= 0 and quiz.a < quiz.c.size():
+			# 払い出すときに正解と誤答1つへ絞られる（QuizProvider.prepare_choice_count）。どの誤答でも当たるよう組ごとに組む。
+			for wrong: int in range(quiz.c.size()):
+				if wrong != quiz.a:
+					_prepare_wall_layout(question, PackedStringArray([quiz.c[quiz.a], quiz.c[wrong]]), pending_choices)
+		else:
+			# 4択へ広げる選択肢は払い出すときに決まるので、問題文だけ組んでおく。
+			_prepare_wall_layout(question, PackedStringArray(), pending_choices)
+		return
+
+
+## 組版の先取りをまだ済ませていない問題なら記録して true。
+func _mark_wall_layout_quiz(quiz: QuizItem) -> bool:
+	if quiz == null:
+		return false
+	var quiz_id := quiz.get_instance_id()
+	if _wall_layout_quiz_ids.has(quiz_id):
+		return false
+	if _wall_layout_quiz_ids.size() >= WALL_TEXT_PREP_MEMORY:
+		_wall_layout_quiz_ids.clear()
+	_wall_layout_quiz_ids[quiz_id] = true
+	return true
+
+
+## choices は問題の元の選択肢（扉に出すように整形してから組む）。
+func _prepare_wall_layout(question: String, choices: PackedStringArray, num_choices: int) -> void:
+	var door_texts := PackedStringArray()
+	for i: int in range(num_choices):
+		door_texts.append(FractionFormatter.format_choice(choices[i]) if i < choices.size() else "")
+	QuizWallScript.prepare_wall_text_layout(question, door_texts, num_choices, _is_practice())
 
 func _update_goal_line() -> void:
 	# Challenge flyovers may preview the finish. Tutorials reveal the goal only
@@ -2760,14 +3103,15 @@ func _update_goal_line() -> void:
 			Constants.STATE_CLEAR,
 		]
 	)
+	# エンドレスの2人はゴールを出さない：終わるのは両者脱落だけで、結果発表は結果発表アリーナ（ResultArena）。
 	var should_show := challenge_goal_visible or tutorial_goal_visible
 
+	if is_instance_valid(_result_arena):
+		# 両者脱落の結果発表はアリーナ：コースのゴールの門は出さず、観客と掲示板はアリーナの正面スタンド（_goal_stand）
+		_free_goal_line()
+		return
 	if not should_show:
-		if _goal_line_node and is_instance_valid(_goal_line_node):
-			_goal_line_node.queue_free()
-			_goal_line_node = null
-			_goal_waiting_referee = null
-			_goal_waiting_animation = null
+		_free_goal_line()
 		if is_instance_valid(_goal_stand):
 			_goal_stand.queue_free()
 		_goal_stand = null
@@ -2846,6 +3190,15 @@ func _update_goal_line() -> void:
 	# 練習：案内役のハテナが審判の所へ移るまで、審判のハテナを隠しておける（practice_set_goal_referee_hidden）。
 	_apply_practice_referee_hidden()
 
+## ゴールの門（とゴールで待つ審判）を片付ける。
+func _free_goal_line() -> void:
+	if _goal_line_node and is_instance_valid(_goal_line_node):
+		_goal_line_node.queue_free()
+		_goal_line_node = null
+		_goal_waiting_referee = null
+		_goal_waiting_animation = null
+
+
 func _create_goal_box(box_size: Vector3, color: Color) -> MeshInstance3D:
 	var mesh_inst := MeshInstance3D.new()
 	var box := BoxMesh.new()
@@ -2889,6 +3242,30 @@ func _update_camera(dt: float) -> void:
 			death_focus = controller.get_death_presentation_position(last_player == 1)
 			death_exploded = controller.has_player_death_exploded(last_player)
 	camera_controller.set_final_death_focus(death_player, death_focus, death_exploded)
+	# 2Pで片方だけが壁・のこぎりで脱落したら、生存者のカメラへ移る前に体の爆散まで映す。
+	var first_death_player := 0
+	var first_death_focus := Vector3.ZERO
+	var first_death_exploded := false
+	if (
+		controller != null
+		and game_state.num_players >= 2
+		and game_state.game_state in [
+			Constants.STATE_PLAYING,
+			Constants.STATE_CORRECT,
+			Constants.STATE_GOAL_RACE,
+		]
+		and game_state.p1_alive != game_state.p2_alive
+	):
+		var dead_player := 2 if game_state.p1_alive else 1
+		var physical_death := (
+			(game_state.p1_wall_impact or game_state.p1_saw_killed) if dead_player == 1
+			else (game_state.p2_wall_impact or game_state.p2_saw_killed)
+		)
+		if physical_death and not game_state.is_flood_caught(dead_player):
+			first_death_player = dead_player
+			first_death_focus = controller.get_death_presentation_position(dead_player == 1)
+			first_death_exploded = controller.has_player_death_exploded(dead_player)
+	camera_controller.set_first_death_focus(first_death_player, first_death_focus, first_death_exploded)
 
 	var focus_shark: SharkSwimmer = null
 	var focus_player_index: int = 0
@@ -2911,7 +3288,7 @@ func _update_camera(dt: float) -> void:
 		)
 	else:
 		# 練習でかまれたあと（REPORT_AFTER_BITE）も、戻されるまでかまれた所を見せ続ける。
-		var keep_dead_shark_focus: bool = game_state.is_practice_bitten(1) or game_state.is_practice_bitten(2) or (
+		var keep_dead_shark_focus: bool = game_state.is_practice_bitten(1) or game_state.is_practice_bitten(2) or game_state.get_tutorial_ghost_eaten_player() > 0 or (
 			game_state.game_state == Constants.STATE_GAME_OVER
 			and (
 				(
@@ -3060,7 +3437,9 @@ func _update_wall_hit_sfx() -> void:
 			_haptic_hit(player, true)
 		_haptic_prev_alive[index] = alive
 		var height: float = game_state.player_y if player == 1 else game_state.player2_y
-		if not (on_field and alive) or (player_node is PlayerController and player_node.has_intro_arrival()):
+		# ゴーストの突進で吹き飛んだ間は、PlayerController が着地の音（ドサッ・転がり）を鳴らす。
+		var ghost_hit_landing: bool = player_node is PlayerController and player_node.is_ghost_hit_active(player)
+		if not (on_field and alive) or ghost_hit_landing or (player_node is PlayerController and player_node.has_intro_arrival()):
 			_sfx_airborne[index] = false
 		elif height > SFX_AIRBORNE_HEIGHT:
 			_sfx_airborne[index] = true
@@ -3094,11 +3473,10 @@ func _on_state_changed(new_state: String) -> void:
 	if new_state in [Constants.STATE_FLYOVER, Constants.STATE_COUNTDOWN, Constants.STATE_PLAYING]:
 		_finish_intro_arrival_for_gameplay()
 	if new_state in [Constants.STATE_CLEAR, Constants.STATE_GAME_OVER, Constants.STATE_MENU]:
-		# 両者脱落で投げ縄が始まるなら、サメに乗った幽霊は乗ったまま待たせる（投げ縄が乗ったまま縄を掛ける）
+		# 10問の両者脱落で投げ縄が始まるなら、サメに乗った幽霊は乗ったまま待たせる（投げ縄が乗ったまま縄を掛ける）
 		var keep_rider_for_lasso: bool = (
 			new_state == Constants.STATE_GAME_OVER
-			and _elimination_lasso != null
-			and _elimination_lasso.can_play()
+			and _uses_elimination_lasso()
 			and game_state.uses_local_result_ceremony()
 			and not game_state.p1_alive
 			and not game_state.p2_alive
@@ -3118,6 +3496,8 @@ func _on_state_changed(new_state: String) -> void:
 		if _elimination_lasso != null:
 			_elimination_lasso.force_cleanup()
 			_elimination_transition_running = false
+		# 次の試合は元のコースで：結果発表アリーナを片付ける
+		_exit_result_arena()
 	if _is_practice() and new_state == Constants.STATE_GAME_OVER and not _practice_real_results():
 		# 練習の負け（docs/new_tutorial/phase4_design.md 2.4）：曲も観客の声も切り替えない。監督がすぐやり直す。
 		# 本番どおりの画面（MatchRules.real_result_screens）のときは、下で本番と同じく切り替える。
@@ -3216,6 +3596,7 @@ func _on_state_changed(new_state: String) -> void:
 			_begin_barrier_drop()
 
 func _on_quiz_loaded(quiz: QuizItem) -> void:
+	_wall_switch_frame = Engine.get_process_frames()
 	# Update labels on the current wall
 	for wall: Node3D in _active_walls:
 		if wall.has_meta("wall_index") and wall.get_meta("wall_index") == game_state.current_wall_index:
@@ -3223,6 +3604,7 @@ func _on_quiz_loaded(quiz: QuizItem) -> void:
 			
 
 func _on_correct() -> void:
+	_wall_switch_frame = Engine.get_process_frames()
 	if game_state.uses_hp():
 		return  # HP rounds retire the explicitly completed wall on every peer.
 	if game_state.current_quiz:
@@ -3239,6 +3621,7 @@ func _on_correct() -> void:
 					wall.retire_after_player_pass(0.28)
 
 func _on_question_completed(wall_index: int, correct: bool) -> void:
+	_wall_switch_frame = Engine.get_process_frames()
 	if _retired_wall_indices.has(wall_index):
 		return
 	for wall: Node3D in _active_walls:
@@ -3600,14 +3983,17 @@ func _try_build_preview_walls(max_to_build: int) -> void:
 	for _build_index: int in range(walls_to_build):
 		var visual_idx: int = _pw_count if is_endless else (total_expected - 1 - _pw_count)
 		var wz: float = t.wall_start_z + visual_idx * t.wall_spacing
+		var preview_choices: int = game_state.num_choices_for_index(visual_idx)
 		var wall_final: Node3D = quiz_wall_scene.instantiate()
 		wall_final.set_meta("wall_index", visual_idx)
 		wall_final.position = Vector3(0, PREVIEW_WALL_DROP_START_Y, wz)
 		wall_final.visible = false
+		# _ready で最初から正しい数の扉を組む（2択で組んでから4択に作り直さない）。
+		wall_final.set("initial_num_choices", preview_choices)
+		wall_final.set("saw_collision_enabled", _wall_saw_collisions_enabled())
 		wall_container.add_child(wall_final)
 		_pw_walls.append(wall_final)
 
-		var preview_choices: int = game_state.num_choices_for_index(visual_idx)
 		if (
 			is_endless
 			and _pw_count < game_state.quiz_list.size()
@@ -3682,8 +4068,14 @@ func _begin_preview_wall_render_prewarm(prewarm_camera: Camera3D) -> Dictionary:
 		_wall_prewarm_root.add_child(dummy_two)
 		dummy_two.position = Vector3(-1.8, 0.0, -6.0)
 		dummy_two.visible = true
+		var prewarm_quiz := _make_prewarm_quiz(2)
 		if dummy_two.has_method("set_quiz"):
-			dummy_two.set_quiz(_make_prewarm_quiz(2), 2)
+			dummy_two.set_quiz(prewarm_quiz, 2)
+		# 問題文の背景パネル・扉の破片・ワールドボーダーも、最初の壁の切り替えでシェーダーを作らないよう一緒に描く。
+		if dummy_two.has_method("set_gameplay_question"):
+			dummy_two.set_gameplay_question(prewarm_quiz.q, true)
+		if dummy_two.has_method("prewarm_pass_effects"):
+			dummy_two.prewarm_pass_effects()
 		if dummy_two.has_method("prewarm_retirement_fade"):
 			dummy_two.prewarm_retirement_fade()
 		report["dummies"] = int(report["dummies"]) + 1
@@ -3847,7 +4239,7 @@ func _update_preview_walls(dt: float) -> void:
 		_pw_anims[config_index]["configured"] = true
 		_pw_anims[config_index]["ready_frame"] = (
 			Engine.get_process_frames()
-			+ (0 if QuizManager.provider.llm_mode == "OFFLINE" else ONLINE_PREVIEW_WALL_PREWARM_FRAMES)
+			+ (0 if _uses_offline_quiz_source() else ONLINE_PREVIEW_WALL_PREWARM_FRAMES)
 		)
 		_pw_configured_count += 1
 		configs_remaining -= 1
@@ -3855,7 +4247,7 @@ func _update_preview_walls(dt: float) -> void:
 	# ── 落下アニメーション順次開始 ──
 	# オフライン固定枚数モードでは、全壁の構築完了後に演出を開始する。
 	# 壁生成・ラベル初期化と着地演出を同じフレーム帯に重ねない。
-	var is_offline: bool = QuizManager.provider.llm_mode == "OFFLINE"
+	var is_offline: bool = _uses_offline_quiz_source()
 	var total_walls: int = _pw_anims.size()
 	var wall_set_ready: bool = is_endless or not is_offline or (
 		quiz_count >= game_state.target_count
@@ -3951,9 +4343,15 @@ func _update_preview_walls(dt: float) -> void:
 				_pw_walls[i].scale = Vector3.ONE
 
 	# ── 全壁のアニメ完了を検出 → バリア壁を落下開始 ──
+	# 問題の読み込み（PRELOADING）が終わるまでは落とさない。エンドレスは最初の壁がすぐに出そろうので、待たないと
+	# 「AIが問題をつくっています」の表示のうちにカウントダウンの壁が落ちてしまう。
 	var required_walls: int = 1 if is_endless else game_state.target_count
 
-	if _pw_anims.size() >= required_walls and not _barrier_spawned_for_session:
+	if (
+		_pw_anims.size() >= required_walls
+		and not _barrier_spawned_for_session
+		and game_state.game_state != Constants.STATE_PRELOADING
+	):
 		var all_done := true
 		for anim: Dictionary in _pw_anims:
 			if anim.get("phase", 0) < 3:

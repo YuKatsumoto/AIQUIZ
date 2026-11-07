@@ -84,7 +84,7 @@
    "beats": 76,
    "start": 2250,
    "frames": 2138,
-   "source": "撮影を詰めた：カウントダウンから1問目まで=s09_play event:countdown_burst@786、ハートが0で脱落=s09_play event:ghost_phase_death_hold@2578、ビームから体当たりまで=s09_play cue_first:ghost_mount_beam@2885、ボス壁=s09_play event:boss_break@4872",
+   "source": "撮影を詰めた：カウントダウンから1問目まで=s09_play event:countdown_burst@613、ハートが0で脱落=s09_play event:ghost_phase_death_hold@1619、ビームから体当たりまで=s09_play cue_first:ghost_mount_beam@1926、ボス壁=s09_play event:boss_break@3789",
    "placeholder": false
   },
   {
@@ -200,34 +200,34 @@
   {
    "kind": "seq",
    "first": "artifacts/pv_capture/s09_play_frames/pv_0001.jpg",
-   "src_in": 605,
+   "src_in": 432,
    "start": 2250,
    "frames": 619,
-   "name": "S09 カウントダウンから1問目まで（s09_play 606〜1224）"
+   "name": "S09 カウントダウンから1問目まで（s09_play 433〜1051）"
   },
   {
    "kind": "seq",
    "first": "artifacts/pv_capture/s09_play_frames/pv_0001.jpg",
-   "src_in": 2445,
+   "src_in": 1486,
    "start": 2869,
    "frames": 225,
-   "name": "S09 ハートが0で脱落（s09_play 2446〜2670）"
+   "name": "S09 ハートが0で脱落（s09_play 1487〜1711）"
   },
   {
    "kind": "seq",
    "first": "artifacts/pv_capture/s09_play_frames/pv_0001.jpg",
-   "src_in": 2884,
+   "src_in": 1925,
    "start": 3094,
    "frames": 731,
-   "name": "S09 ビームから体当たりまで（s09_play 2885〜3615）"
+   "name": "S09 ビームから体当たりまで（s09_play 1926〜2656）"
   },
   {
    "kind": "seq",
    "first": "artifacts/pv_capture/s09_play_frames/pv_0001.jpg",
-   "src_in": 4365,
+   "src_in": 3282,
    "start": 3825,
    "frames": 563,
-   "name": "S09 ボス壁（s09_play 4366〜4928）"
+   "name": "S09 ボス壁（s09_play 3283〜3845）"
   },
   {
    "kind": "seq",
@@ -431,23 +431,12 @@
   },
   {
    "kind": "telop",
-   "label": "S09_1",
-   "text": "壁のスピードも、[AIが決める]",
-   "sub": "答えるのにかかる時間を、AIが予測",
-   "pos": "bl",
-   "t0": 2250,
-   "t1": 2423,
-   "subFrom": null,
-   "bottom": 0.21
-  },
-  {
-   "kind": "telop",
    "label": "S09_2",
    "text": "迫りくる壁の[問題に答えよう！]",
    "sub": null,
    "pos": "tc",
    "t0": 2458,
-   "t1": 2816,
+   "t1": 2753,
    "subFrom": null
   },
   {
@@ -466,8 +455,8 @@
    "text": "脱落した人は、[サメに乗って相手を狙う]",
    "sub": null,
    "pos": "tc",
-   "t0": 3460,
-   "t1": 3642,
+   "t0": 3361,
+   "t1": 3513,
    "subFrom": null
   },
   {
@@ -475,11 +464,10 @@
    "label": "S09_5",
    "text": "遅れると、[チップソーに巻き込まれる！]",
    "sub": null,
-   "pos": "bl",
-   "t0": 3713,
-   "t1": 3820,
-   "subFrom": null,
-   "bottom": 0.21
+   "pos": "tc",
+   "t0": 3589,
+   "t1": 3696,
+   "subFrom": null
   },
   {
    "kind": "telop",
@@ -487,7 +475,7 @@
    "text": "10問目は、[4択の大きなボス壁]",
    "sub": null,
    "pos": "bl",
-   "t0": 4065,
+   "t0": 4163,
    "t1": 4318,
    "subFrom": null,
    "bottom": 0.21
@@ -604,6 +592,13 @@
   },
   {
    "kind": "oneshot",
+   "file": "assets/audio/sfx/ghost_shark/ghost_awaken.ogg",
+   "at": 11.5313,
+   "db": -9.0,
+   "why": "S01-S03 ghost_awaken"
+  },
+  {
+   "kind": "oneshot",
    "file": "assets/audio/sfx/ghost_shark/ghost_shark_breach.ogg",
    "at": 12.0479,
    "db": -6.0,
@@ -619,7 +614,7 @@
   {
    "kind": "oneshot",
    "file": "assets/audio/sfx/se_lab/barrier_explosion.ogg",
-   "at": 12.4229,
+   "at": 12.4208,
    "db": -7.0,
    "why": "S01-S03 barrier_explosion"
   },
@@ -629,6 +624,13 @@
    "at": 14.0979,
    "db": -6.0,
    "why": "S01-S03 door_correct"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/ghost_shark/ghost_mount_land.ogg",
+   "at": 14.8063,
+   "db": -6.0,
+   "why": "S01-S03 ghost_mount_land"
   },
   {
    "kind": "oneshot",
@@ -741,7 +743,7 @@
   {
    "kind": "oneshot",
    "file": "assets/audio/sfx/helicopter/grip.ogg",
-   "at": 27.3167,
+   "at": 27.4667,
    "db": -4.0,
    "why": "S05 つかまる 1"
   },
@@ -885,6 +887,13 @@
   {
    "kind": "oneshot",
    "file": "assets/audio/sfx/game/countdown_beep.ogg",
+   "at": 37.5,
+   "db": -10.0,
+   "why": "S09 カウントダウンから1問目まで countdown_beep"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/game/countdown_beep.ogg",
    "at": 38.5,
    "db": -10.0,
    "why": "S09 カウントダウンから1問目まで countdown_beep"
@@ -913,21 +922,21 @@
   {
    "kind": "oneshot",
    "file": "assets/audio/sfx/se_lab/wall_hit.ogg",
-   "at": 46.0834,
+   "at": 45.3,
    "db": -11.0,
    "why": "S09 カウントダウンから1問目まで bonk"
   },
   {
    "kind": "oneshot",
    "file": "assets/audio/sfx/game/door_wrong.ogg",
-   "at": 46.0834,
+   "at": 45.3,
    "db": -6.0,
    "why": "S09 カウントダウンから1問目まで door_wrong"
   },
   {
    "kind": "oneshot",
    "file": "assets/audio/sfx/game/door_correct.ogg",
-   "at": 46.7834,
+   "at": 45.7333,
    "db": -6.0,
    "why": "S09 カウントダウンから1問目まで door_correct"
   },
@@ -947,6 +956,13 @@
   },
   {
    "kind": "oneshot",
+   "file": "assets/audio/sfx/game/door_correct.ogg",
+   "at": 50.0333,
+   "db": -6.0,
+   "why": "S09 ハートが0で脱落 door_correct"
+  },
+  {
+   "kind": "oneshot",
    "file": "assets/audio/sfx/ghost_shark/ghost_shark_rise.ogg",
    "at": 50.5167,
    "db": -8.0,
@@ -955,16 +971,9 @@
   {
    "kind": "oneshot",
    "file": "assets/audio/sfx/ghost_shark/ghost_soul_rise.ogg",
-   "at": 50.5834,
+   "at": 50.5833,
    "db": -10.0,
    "why": "S09 ハートが0で脱落 ghost_soul_rise"
-  },
-  {
-   "kind": "oneshot",
-   "file": "assets/audio/sfx/game/door_correct.ogg",
-   "at": 50.85,
-   "db": -6.0,
-   "why": "S09 ハートが0で脱落 door_correct"
   },
   {
    "kind": "oneshot",
@@ -983,107 +992,149 @@
   {
    "kind": "oneshot",
    "file": "assets/audio/sfx/se_lab/wall_hit.ogg",
-   "at": 54.25,
+   "at": 52.25,
    "db": -11.0,
    "why": "S09 ビームから体当たりまで bonk"
   },
   {
    "kind": "oneshot",
    "file": "assets/audio/sfx/game/door_wrong.ogg",
-   "at": 54.25,
+   "at": 52.25,
    "db": -6.0,
    "why": "S09 ビームから体当たりまで door_wrong"
   },
   {
    "kind": "oneshot",
    "file": "assets/audio/sfx/ghost_shark/ghost_dash.ogg",
-   "at": 60.9,
+   "at": 58.9833,
    "db": -6.0,
    "why": "S09 ビームから体当たりまで ghost_dash"
   },
   {
    "kind": "oneshot",
    "file": "assets/audio/sfx/ghost_shark/ghost_hit.ogg",
-   "at": 61.25,
+   "at": 59.3166,
    "db": -5.0,
    "why": "S09 ビームから体当たりまで ghost_hit"
   },
   {
    "kind": "oneshot",
-   "file": "assets/audio/sfx/se_lab/jump_land.ogg",
-   "at": 62.1333,
+   "file": "assets/audio/sfx/ghost_shark/ghost_hit_body.ogg",
+   "at": 59.3166,
+   "db": -6.0,
+   "why": "S09 ビームから体当たりまで ghost_hit_body"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/ghost_shark/ghost_body_land.ogg",
+   "at": 60.2166,
    "db": -5.0,
-   "why": "S09 ビームから体当たりまで jump_land"
+   "why": "S09 ビームから体当たりまで ghost_body_land"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/ghost_shark/ghost_body_tumble.ogg",
+   "at": 60.3166,
+   "db": -9.0,
+   "why": "S09 ビームから体当たりまで ghost_body_tumble"
   },
   {
    "kind": "oneshot",
    "file": "assets/audio/sfx/ghost_shark/ghost_vanish.ogg",
-   "at": 62.1833,
+   "at": 60.3666,
    "db": -11.0,
    "why": "S09 ビームから体当たりまで ghost_vanish"
   },
   {
    "kind": "oneshot",
    "file": "assets/audio/sfx/ghost_shark/ghost_portal_open.ogg",
-   "at": 62.2,
+   "at": 60.3833,
    "db": -9.0,
    "why": "S09 ビームから体当たりまで ghost_portal_open"
   },
   {
    "kind": "oneshot",
-   "file": "assets/audio/sfx/se_lab/jump_land.ogg",
-   "at": 63.3333,
-   "db": -5.0,
-   "why": "S09 ビームから体当たりまで jump_land"
-  },
-  {
-   "kind": "oneshot",
-   "file": "assets/audio/sfx/se_lab/jump_land.ogg",
-   "at": 65.1833,
-   "db": -5.0,
-   "why": "S09 ボス壁 jump_land"
+   "file": "assets/audio/sfx/ghost_shark/ghost_portal_cross.ogg",
+   "at": 61.7333,
+   "db": -8.0,
+   "why": "S09 ビームから体当たりまで ghost_portal_cross"
   },
   {
    "kind": "oneshot",
    "file": "assets/audio/sfx/game/door_correct.ogg",
-   "at": 67.2333,
+   "at": 61.75,
+   "db": -6.0,
+   "why": "S09 ビームから体当たりまで door_correct"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/game/door_correct.ogg",
+   "at": 63.8333,
    "db": -6.0,
    "why": "S09 ボス壁 door_correct"
   },
   {
    "kind": "oneshot",
    "file": "assets/audio/sfx/ghost_shark/ghost_dash.ogg",
-   "at": 69.8667,
+   "at": 65.3833,
    "db": -6.0,
    "why": "S09 ボス壁 ghost_dash"
   },
   {
    "kind": "oneshot",
    "file": "assets/audio/sfx/ghost_shark/ghost_hit.ogg",
-   "at": 70.3167,
+   "at": 65.6667,
    "db": -5.0,
    "why": "S09 ボス壁 ghost_hit"
   },
   {
    "kind": "oneshot",
-   "file": "assets/audio/sfx/se_lab/jump_land.ogg",
-   "at": 71.0667,
+   "file": "assets/audio/sfx/ghost_shark/ghost_hit_body.ogg",
+   "at": 65.6667,
+   "db": -6.0,
+   "why": "S09 ボス壁 ghost_hit_body"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/ghost_shark/ghost_body_land.ogg",
+   "at": 66.4833,
    "db": -5.0,
-   "why": "S09 ボス壁 jump_land"
+   "why": "S09 ボス壁 ghost_body_land"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/ghost_shark/ghost_body_tumble.ogg",
+   "at": 66.5833,
+   "db": -9.0,
+   "why": "S09 ボス壁 ghost_body_tumble"
   },
   {
    "kind": "oneshot",
    "file": "assets/audio/sfx/ghost_shark/ghost_vanish.ogg",
-   "at": 71.2667,
+   "at": 66.7833,
    "db": -11.0,
    "why": "S09 ボス壁 ghost_vanish"
   },
   {
    "kind": "oneshot",
    "file": "assets/audio/sfx/ghost_shark/ghost_portal_open.ogg",
-   "at": 71.2833,
+   "at": 66.8,
    "db": -9.0,
    "why": "S09 ボス壁 ghost_portal_open"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/ghost_shark/ghost_portal_cross.ogg",
+   "at": 68.1667,
+   "db": -8.0,
+   "why": "S09 ボス壁 ghost_portal_cross"
+  },
+  {
+   "kind": "oneshot",
+   "file": "assets/audio/sfx/game/door_correct.ogg",
+   "at": 68.9667,
+   "db": -6.0,
+   "why": "S09 ボス壁 door_correct"
   },
   {
    "kind": "oneshot",
@@ -1117,28 +1168,28 @@
   {
    "kind": "oneshot",
    "file": "assets/audio/sfx/se_lab/score_roll_finish.ogg",
-   "at": 75.7166,
+   "at": 75.7167,
    "db": -5.0,
    "why": "S21 score_drum_finish"
   },
   {
    "kind": "oneshot",
    "file": "assets/audio/sfx/crowd/crowd_win_cheer.ogg",
-   "at": 75.7166,
+   "at": 75.7167,
    "db": -6.0,
    "why": "S21 crowd_win_cheer"
   },
   {
    "kind": "oneshot",
    "file": "assets/audio/sfx/crowd/crowd_applause.ogg",
-   "at": 75.7166,
+   "at": 75.7167,
    "db": -9.0,
    "why": "S21 crowd_applause"
   },
   {
    "kind": "oneshot",
    "file": "assets/audio/sfx/crowd/crowd_aww.ogg",
-   "at": 76.1166,
+   "at": 76.1167,
    "db": -8.0,
    "why": "S21 crowd_aww"
   },
@@ -1225,7 +1276,9 @@
    "ready": true,
    "reason": "",
    "frames": 679,
-   "warnings": []
+   "warnings": [
+    "report.json の failures：bank: 理科 3年「【昆虫】昆虫の足は全部で何本？」が見つからない"
+   ]
   },
   "s04_s05": {
    "ready": true,
@@ -1236,10 +1289,8 @@
   "s09_play": {
    "ready": true,
    "reason": "",
-   "frames": 5052,
-   "warnings": [
-    "report.json の failures：replay: ゲームの状態が記録と違う（2578 フレーム目から、1025 フレーム）"
-   ]
+   "frames": 3969,
+   "warnings": []
   },
   "s09": {
    "ready": true,
@@ -1259,9 +1310,7 @@
    "ready": true,
    "reason": "",
    "frames": 285,
-   "warnings": [
-    "report.json の failures：replay: ゲームの状態が記録と違う（2578 フレーム目から、1025 フレーム）"
-   ]
+   "warnings": []
   },
   "s20": {
    "ready": true,
@@ -1299,6 +1348,7 @@
  },
  "unknown_cues": [],
  "skipped_telops": [
+  "S09_1「壁のスピードも、[AIが決める]」：「壁のスピードも、AIが決める（答えるのにかかる時間を、AIが予測）」は今のしくみより言いすぎ（AI の予測は速さの下限にしか使っていない）。11/05、ユーザーの指示で外した",
   "S21_1「[正解数と残りのハート]で点数が決まる」：ゲームの見出し「スコアタワー」「正解数 × (残りHP+0.5) で勝負！」が上の中央に 2 秒ほど出て重なり、下は得点のカード。見出しがテロップの代わりになる（docs/pv/takes/s21.md、レーン 3 の案。10/20 夜も出さないままと決定）"
  ],
  "shakes": [

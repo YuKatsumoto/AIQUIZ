@@ -50,8 +50,10 @@ const FAR_STEP := 1.0 / 10.0
 const ANIM_GROUPS := 3
 const EGG_SPEED := 19.0
 const MISS_CHANCE := 0.25
-## Eggs the whole crowd throws per verdict: a few, not a barrage.
-const MAX_EGGS := 5
+## The crowd throws without end while the verdict holds, one egg every EGG_INTERVAL
+## seconds (the hotheads take turns), the first EGG_FIRST_DELAY after the target shows.
+const EGG_INTERVAL := 0.6
+const EGG_FIRST_DELAY := 0.6
 const P1_COLOR := Color(0.95, 0.55, 0.20)
 const P2_COLOR := Color(0.20, 0.65, 0.90)
 ## Rotating red beacons on the scoreboard's top edge while it shows "SUDDEN DEATH!"
@@ -147,8 +149,8 @@ class Spectator:
 	var anger_sent := -1.0
 	var yaw := 0.0
 	var hand_bone := -1
-	## A hothead pelting the loser (or the referee): throws until the verdict ends or
-	## the crowd's MAX_EGGS are used up.
+	## A hothead pelting the loser (or the referee): throws, taking turns with the
+	## other hotheads, until the verdict ends.
 	var throwing := false
 	var throw_started := -1.0
 	var released := false
@@ -210,8 +212,10 @@ var _update_usec := 0.0
 var _sudden_death_refreshed := false
 ## The director's egg target was there last frame.
 var _target_armed := false
-## Eggs the crowd may still throw this verdict (MAX_EGGS, refilled when they are cleared).
-var _eggs_left := MAX_EGGS
+## When the crowd's next egg may go (every EGG_INTERVAL seconds).
+var _next_egg := 0.0
+## The hothead whose turn it is to throw this frame (null: nobody yet).
+var _egg_turn: Spectator = null
 var _cues: CrowdCues = null
 ## Carrier rest space -> the kid's root (goal_stand_clips.json "kid").
 var _kid_seat := Vector3(0.0, 1.47, -0.19)
@@ -223,7 +227,10 @@ var _patrol_on := false
 var _patrol_phase := 0.0
 
 
-func setup(graphics_quality: String, crowd_seed: int = 0x51AD) -> void:
+## `structure_scene`: the stand's building. Any building with the same tiers and aisles
+## (goal_stand_layout.json) and an LED face on GS_ScoreboardScreen works, e.g. the
+## result arena's stand (ResultArena, assets/result_arena/result_arena_stand.glb).
+func setup(graphics_quality: String, crowd_seed: int = 0x51AD, structure_scene: PackedScene = STAND_SCENE) -> void:
 	name = "GoalStand"
 	quality = QualityRules.normalize(graphics_quality)
 	rotation.y = PI
@@ -238,7 +245,7 @@ func setup(graphics_quality: String, crowd_seed: int = 0x51AD) -> void:
 		_kid_scale = float(kid.get("scale", _kid_scale))
 	_material = ShaderMaterial.new()
 	_material.shader = SPECTATOR_SHADER
-	_structure = STAND_SCENE.instantiate() as Node3D
+	_structure = structure_scene.instantiate() as Node3D
 	_structure.name = "Structure"
 	add_child(_structure)
 	StadiumMaterials.apply(_structure)
@@ -603,6 +610,12 @@ func is_populated() -> bool:
 	return _slots.is_empty()
 
 
+## Seats the whole crowd at once, for a stand that appears under a screen cover
+## (the result arena) instead of filling in over the first frames.
+func fill_crowd() -> void:
+	_spawn_some(_slots.size())
+
+
 func _spawn_some(amount: int) -> void:
 	while amount > 0 and not _slots.is_empty():
 		var slot: Dictionary = _slots.pop_front()
@@ -920,6 +933,7 @@ func _update(delta: float, state: QuizGameState, director: Node, camera: Camera3
 	var target := _egg_target(director) if bool(mood.get("eggs", false)) else null
 	eggs.support = _egg_support(director) if is_instance_valid(target) else {}
 	_arm_waiting_throwers(is_instance_valid(target))
+	_egg_turn = _pick_egg_turn() if is_instance_valid(target) else null
 	var focus := _focus_point(state, target)
 	for s: Spectator in spectators:
 		if s.kind == Kind.VENDOR:
@@ -1288,17 +1302,30 @@ func _on_verdict(s: Spectator, winner: int, eggs: bool) -> void:
 			_flip_board(s, texture)
 	if s.kind == Kind.HOTHEAD and (lost or winner == 0) and eggs:
 		s.throwing = true
-		s.next_throw = _clock + _rng.randf_range(0.5, 1.6)
+		# Only the order the hotheads take turns in; the crowd's clock sets the pace.
+		s.next_throw = _clock + _rng.randf_range(0.0, 0.3)
+		_next_egg = maxf(_next_egg, _clock + EGG_FIRST_DELAY)
 
 
-## Hotheads that had their verdict before the egg target existed start throwing,
-## staggered, from the moment it shows up.
+## Hotheads that had their verdict before the egg target existed start throwing
+## EGG_FIRST_DELAY after it shows up.
 func _arm_waiting_throwers(armed: bool) -> void:
 	if armed and not _target_armed:
-		for s: Spectator in spectators:
-			if s.kind == Kind.HOTHEAD and s.throwing and s.throw_started < 0.0:
-				s.next_throw = maxf(s.next_throw, _clock + _rng.randf_range(0.4, 1.3))
+		_next_egg = maxf(_next_egg, _clock + EGG_FIRST_DELAY)
 	_target_armed = armed
+
+
+## Once the crowd's next egg is due: the free hothead who has waited longest.
+func _pick_egg_turn() -> Spectator:
+	if _clock < _next_egg:
+		return null
+	var pick: Spectator = null
+	for s: Spectator in spectators:
+		if s.kind != Kind.HOTHEAD or not s.throwing or s.throw_started >= 0.0 or s.queued != &"":
+			continue
+		if pick == null or s.next_throw < pick.next_throw:
+			pick = s
+	return pick
 
 
 ## Back from the sudden death the verdict is out again, now with a winner
@@ -1327,15 +1354,12 @@ func _update_thrower(s: Spectator, target: Node3D) -> void:
 			_launch_egg(s, target)
 		if t >= _clip_length(&"SPEC_Throw") - 0.05:
 			s.throw_started = -1.0
-			s.next_throw = _clock + _rng.randf_range(0.5, 1.3)
 			_play(s, &"SPEC_Rage", 0.2)
 		return
-	if _eggs_left <= 0:
-		# The crowd is out of eggs: the hothead just rages on.
-		s.throwing = false
-		return
-	if _clock >= s.next_throw and s.queued == &"":
-		_eggs_left -= 1
+	if s == _egg_turn and s.queued == &"":
+		_egg_turn = null
+		_next_egg = _clock + EGG_INTERVAL
+		s.next_throw = _clock     # back of the queue
 		s.throw_started = _clock
 		s.released = false
 		_set_visible(s, "GSP_Egg", true)
@@ -1399,7 +1423,8 @@ func _reset_reactions() -> void:
 
 
 func clear_eggs() -> void:
-	_eggs_left = MAX_EGGS
+	_next_egg = 0.0
+	_egg_turn = null
 	if eggs != null:
 		eggs.clear()
 
