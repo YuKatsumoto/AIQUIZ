@@ -17,6 +17,11 @@ const RESEND_AFTER_FRAMES := 3
 
 var enabled := false
 var rush := true
+## 0 = always the correct door. N = every Nth wall steer into a wrong door (ocean, sharks, HP loss).
+var wrong_every := 0
+var wrong_targets := 0
+## >= 0: from this wall on, run off the side of the floor into the sea (the shark attack).
+var ocean_at := -1
 var steering_frames := 0
 var targets_set := 0
 var resends := 0
@@ -24,6 +29,7 @@ var resends := 0
 var _down := {KEY_A: false, KEY_D: false, KEY_W: false}
 var _mismatch := {KEY_A: 0, KEY_D: 0, KEY_W: 0}
 var _last_target_wall := -1
+var _last_wrong_wall := -1
 
 
 func _ready() -> void:
@@ -97,7 +103,15 @@ func _process(_delta: float) -> void:
 		if _last_target_wall != gs.current_wall_index:
 			_last_target_wall = gs.current_wall_index
 			targets_set += 1
-		var err := door_x(gs, quiz.a) - gs.player_x
+		var target := quiz.a
+		if wrong_every > 0 and gs.current_wall_index % wrong_every == wrong_every - 1:
+			target = (quiz.a + 1) % maxi(gs.num_choices, 2)
+			if _last_wrong_wall != gs.current_wall_index:
+				_last_wrong_wall = gs.current_wall_index
+				wrong_targets += 1
+		var err := door_x(gs, target) - gs.player_x
+		if ocean_at >= 0 and gs.current_wall_index >= ocean_at:
+			err = 100.0
 		if err > DEADBAND:
 			want = 1
 		elif err < -DEADBAND:
@@ -110,4 +124,4 @@ func _process(_delta: float) -> void:
 
 
 func report() -> Dictionary:
-	return {"rush": rush, "steering_frames": steering_frames, "targets_set": targets_set, "key_resends": resends}
+	return {"rush": rush, "wrong_every": wrong_every, "wrong_targets": wrong_targets, "steering_frames": steering_frames, "targets_set": targets_set, "key_resends": resends}

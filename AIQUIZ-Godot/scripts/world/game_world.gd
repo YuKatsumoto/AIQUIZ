@@ -1,6 +1,7 @@
 extends Node3D
 
 const GhostSharkRideControllerScript = preload("res://scripts/world/ghost_shark_ride_controller.gd")
+const PipelineWatch = preload("res://scripts/core/pipeline_watch.gd")
 const ResultCeremonyDirectorScript = preload("res://scripts/world/result_ceremony_director.gd")
 const TutorialPresentationDirectorScript = preload("res://scripts/world/tutorial_presentation_director.gd")
 const DuoTutorialGuidesScript = preload("res://scripts/world/duo_tutorial_guides.gd")
@@ -150,6 +151,8 @@ const OFFLINE_QUIZ_WAIT_TIMEOUT_MSEC := 60000
 const OFFLINE_TRANSITION_SETTLE_FRAMES := 1
 const WORLD_VISUAL_PREP_MIN_MSEC := 800
 const WORLD_VISUAL_PREP_RENDER_FRAMES := 2
+## 部品作りが落ち着くまで待つ上限（60fps で約 10 秒）。これを超えたら、止まるよりはと覆いを外す。
+const WORLD_VISUAL_PREP_SETTLE_MAX_FRAMES := 600
 
 var pause_menu: CanvasLayer = null
 var _world_visual_prep_started_msec: int = 0
@@ -1549,7 +1552,46 @@ func _reveal_after_transition() -> void:
 		await _begin_deferred_quiz_generation_after_reveal()
 
 
-## VS の覆い（稲妻で割れて開く）が開ききってから問題生成を始める。開く演出を問題生成の処理で止めないため。
+## ゴール観客席（10 問のゴールと、2 人エンドレスの両者脱落の結果発表アリーナ）：観客・掲示板と、観客が投げる卵、
+## 体や床で割れた中身（白身・黄身・したたり・糸・筋）。どれも試合の終わりに初めて出て、新しい PC では 1 回に
+## 1〜2 秒止まっていた。覆いの下で、カメラの前に一時的な観客席と体を置き、体と床に 1 個ずつ卵を当てて描く。
+## 観客席は大きいので、起動してから 1 回だけ（描き方の部品は、シェーダーが残るあいだ使い回される）。
+static var _goal_stand_prewarmed := false
+
+func _begin_goal_stand_render_prewarm(camera: Camera3D) -> Dictionary:
+	if _goal_stand_prewarmed or camera == null or not is_instance_valid(camera):
+		return {}
+	if not (game_state.mode == Constants.MODE_TEN or (game_state.mode == Constants.MODE_ENDLESS and game_state.num_players >= 2)):
+		return {}
+	_goal_stand_prewarmed = true
+	var stand := GoalStand.new()
+	stand.setup(GameManager.graphics_quality)
+	stand.name = "GoalStandPrewarm"
+	camera.add_child(stand)
+	stand.position = Vector3(0.0, -10.0, -60.0)
+	var body_root := Node3D.new()
+	body_root.name = "EggTargetPrewarm"
+	camera.add_child(body_root)
+	body_root.position = Vector3(1.4, -0.9, -5.5)
+	var parts := EmoteBlockmanPreview.build_player_skeleton(true, body_root, game_state.p1_hat, 0, game_state.get_display_skin(1))
+	var target := parts.get("lower_torso") as Node3D
+	var from := camera.global_transform * Vector3(-1.0, 0.6, -3.0)
+	if target != null and stand.eggs != null:
+		stand.eggs.launch(from, target.global_position, 0.12, target, false)
+		stand.eggs.launch(from, camera.global_transform * Vector3(-1.6, -1.5, -6.0), 0.12, null, true)
+		if stand.eggs.contents != null:
+			stand.eggs.contents.begin_render_prewarm(camera)
+	return {"stand": stand, "body": body_root}
+
+
+func _drive_goal_stand_render_prewarm(delta: float, prewarm: Dictionary, camera: Camera3D) -> void:
+	var stand := prewarm.get("stand") as GoalStand
+	if stand != null and is_instance_valid(stand) and stand.eggs != null:
+		stand.eggs.update(delta, camera)
+
+
+## 画面遷移の覆い（ワイプ、オンラインは稲妻で割れて開く VS）が開ききってから問題生成を始める。
+## 開く演出を問題生成の処理で止めないため。メニューからの開始・リトライ・オンラインのホストで共通。
 ## 覆いが閉じたまま残っても始められるよう、ONLINE_QUIZ_START_TIMEOUT 秒で待つのをやめる。
 func _begin_deferred_quiz_generation_after_reveal() -> void:
 	if not game_state.quiz_generation_deferred:
@@ -1584,7 +1626,9 @@ func _sync_online_reveal() -> void:
 
 
 ## 問題生成やプレビュー壁の状態機械には触れず、表示系だけを黒画面中に準備する。
-## 実際のゲーム用ノードを2フレーム描画して、メッシュ転送とシェーダー生成も開示前に済ませる。
+## 試合中に出るもの（壁・扉の破片・死亡演出・半透明の点滅体・爆発・粒子・サメの水柱など）を実際のステージと
+## カメラで描き、描画の部品（パイプライン）を作り終えるまで待ってから覆いを外す。新しい PC では、ここで作らずに
+## 試合中に初めて出すと、作り終えるまで画面が止まる（間違えたとき約 1 秒・サメにかまれたとき約 2 秒）。
 func _prepare_world_visuals_under_cover() -> void:
 	var player_controller := player_node as PlayerController
 	if player_controller != null:
@@ -1600,16 +1644,38 @@ func _prepare_world_visuals_under_cover() -> void:
 		)
 	var result_prewarm_report: Dictionary = {}
 	if _result_ceremony_director != null:
-		result_prewarm_report = _result_ceremony_director.begin_render_prewarm()
+		result_prewarm_report = _result_ceremony_director.begin_render_prewarm(prewarm_camera)
 	# The sudden death shaft is small: built and drawn once with the match (docs 5.5).
 	var sudden_death_prewarm_report: Dictionary = _sudden_death_director.begin_render_prewarm(prewarm_camera)
 	var wall_prewarm_report: Dictionary = _begin_preview_wall_render_prewarm(prewarm_camera)
 	var death_pieces: Node3D = player_controller.begin_death_render_prewarm(prewarm_camera)
+	if game_state.num_players >= 2:
+		player_controller.begin_duo_render_prewarm(prewarm_camera, death_pieces)
+		# 脱落した人がサメに乗るときの光の柱の素材（複製が重いので、覆いの下で先に作る。2 回目からは作らない）。
+		SharkSwimmer.prewarm_localized_ghost_mount_beams()
 	if _uses_elimination_lasso():
 		_elimination_lasso.begin_render_prewarm(prewarm_camera)
 	var death_wipe: Node = get_node_or_null("DeathWipeLayer/DeathWipe")
 	if death_wipe != null:
 		death_wipe.begin_render_prewarm(get_viewport().world_3d, prewarm_camera)
+	var particle_prewarm_count := 0
+	if particle_spawner != null and particle_spawner.has_method("begin_render_prewarm"):
+		particle_prewarm_count = int(particle_spawner.call("begin_render_prewarm", prewarm_camera))
+	var key_hints_prewarmed := false
+	if _countdown_key_hints != null:
+		key_hints_prewarmed = bool(_countdown_key_hints.call("begin_render_prewarm"))
+	# ゴール観客席と、観客が投げる卵（起動してから 1 回だけ）。
+	var stand_prewarm: Dictionary = _begin_goal_stand_render_prewarm(prewarm_camera)
+	# ゴール観客席の掲示板で勝った人を映す小さな画面（結果発表で初めて映す）。
+	var portrait_prewarm: Array[SubViewport] = []
+	for player_index: int in range(1, mini(game_state.num_players, 2) + 1):
+		var portrait: Dictionary = GoalStandScoreboard.build_portrait(
+			self, player_index, game_state.p1_hat if player_index == 1 else game_state.p2_hat,
+			game_state.get_display_skin(player_index))
+		var portrait_viewport := portrait.viewport as SubViewport
+		portrait_viewport.name = "PortraitPrewarmP%d" % player_index
+		portrait_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+		portrait_prewarm.append(portrait_viewport)
 
 	var pipeline_compilations_before: int = RenderingServer.get_rendering_info(
 		RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_DRAW
@@ -1621,6 +1687,27 @@ func _prepare_world_visuals_under_cover() -> void:
 			await RenderingServer.frame_post_draw
 		if not is_inside_tree():
 			return
+	# 決まったフレーム数では足りない（新しい PC では裏で作る部品が数秒かかる）。作る数が増えなくなるまで描き続ける。
+	# 観客席の卵は、割れてからしたたり・筋が出るまで少しかかるので、最低でもその分（約 2.5 秒）は描き続ける。
+	var settle: Dictionary = await PipelineWatch.wait_until_settled(self, WORLD_VISUAL_PREP_SETTLE_MAX_FRAMES, 3,
+		_drive_goal_stand_render_prewarm.bind(stand_prewarm, prewarm_camera), 150 if not stand_prewarm.is_empty() else 0)
+	if not is_inside_tree():
+		return
+	# 試し描きした物を捨てる前に、描いた材質を持ち続ける（捨てると描き方ごと消えて、試合中に作り直す）。
+	var kept_materials := PipelineWatch.keep_materials(self)
+	var stand_report := {}
+	var stand_node := stand_prewarm.get("stand") as GoalStand
+	if stand_node != null and is_instance_valid(stand_node) and stand_node.eggs != null:
+		stand_report = {"hits": stand_node.eggs.hits, "misses": stand_node.eggs.misses, "active": stand_node.eggs.active_counts()}
+	if particle_spawner != null and particle_spawner.has_method("end_render_prewarm"):
+		particle_spawner.call("end_render_prewarm")
+	if _countdown_key_hints != null:
+		_countdown_key_hints.call("end_render_prewarm")
+	for portrait_viewport: SubViewport in portrait_prewarm:
+		portrait_viewport.queue_free()
+	for prewarm_node: Variant in stand_prewarm.values():
+		if prewarm_node is Node and is_instance_valid(prewarm_node):
+			(prewarm_node as Node).queue_free()
 	if death_wipe != null:
 		death_wipe.end_render_prewarm()
 	if _elimination_lasso != null:
@@ -1651,7 +1738,12 @@ func _prepare_world_visuals_under_cover() -> void:
 	_world_visual_prep_report["elapsed_msec"] = (
 		Time.get_ticks_msec() - _world_visual_prep_started_msec
 	)
-	_world_visual_prep_report["render_frames"] = WORLD_VISUAL_PREP_RENDER_FRAMES
+	_world_visual_prep_report["render_frames"] = WORLD_VISUAL_PREP_RENDER_FRAMES + int(settle.get("frames", 0))
+	_world_visual_prep_report["pipelines_settled"] = bool(settle.get("settled", false))
+	_world_visual_prep_report["particle_prewarm"] = particle_prewarm_count
+	_world_visual_prep_report["key_hints_prewarm"] = key_hints_prewarmed
+	_world_visual_prep_report["kept_materials"] = kept_materials
+	_world_visual_prep_report["goal_stand_prewarm"] = stand_report
 	_world_visual_prep_report["ghost_portal_prewarm"] = portal_prewarm_report
 	_world_visual_prep_report["result_ceremony_prewarm"] = result_prewarm_report
 	_world_visual_prep_report["sudden_death_prewarm"] = sudden_death_prewarm_report

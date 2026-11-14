@@ -32,6 +32,8 @@ var _key_guides: KeyGuides3D = null
 var _fades: Dictionary = {}
 ## プレイヤー番号 → 消し始めたか。
 var _dismissed: Dictionary = {}
+## 試合の準備（覆いの下）で一度描いているあいだ。
+var _prewarming := false
 
 
 ## online_slot はオンラインの自分のスロット（ローカルプレイは 0）。
@@ -49,6 +51,9 @@ func setup(state: QuizGameState, online_slot: int = 0) -> void:
 
 func update(delta: float) -> void:
 	if game_state == null:
+		return
+	if _prewarming:
+		_key_guides.update(delta, _model(), true)
 		return
 	if MobileUi.is_touch_ui():
 		# スマホ：画面のスティックとボタンがいつも見えているので、頭上のキーは出さない。
@@ -71,6 +76,32 @@ func update(delta: float) -> void:
 		_key_guides.set_opacity(MAX_OPACITY * fade, player_index)
 		any_shown = any_shown or fade > 0.0
 	_key_guides.update(delta, _model(), any_shown)
+
+
+## 試合の準備（GameWorld._prepare_world_visuals_under_cover）で、キーを一度うっすら出して描く。
+## キーの材質（半透明・発光）は試合中にはカウントダウンで初めて出るので、新しい PC ではそこで止まる。
+func begin_render_prewarm() -> bool:
+	if _key_guides == null or MobileUi.is_touch_ui():
+		return false
+	_prewarming = true
+	_key_guides.prewarm_pressed = true
+	for player_index: int in _fades.keys():
+		_fades[player_index] = 1.0
+		_key_guides.set_opacity(MAX_OPACITY, player_index)
+	_key_guides.update(0.0, _model(), true)
+	return true
+
+
+func end_render_prewarm() -> void:
+	if _key_guides == null or not _prewarming:
+		return
+	_prewarming = false
+	_key_guides.prewarm_pressed = false
+	for player_index: int in _fades.keys():
+		_fades[player_index] = 0.0
+		_dismissed[player_index] = true
+		_key_guides.set_opacity(0.0, player_index)
+	_key_guides.update(0.0, _model(), false)
 
 
 ## 検証用。

@@ -9,6 +9,11 @@ var explosion_particles: GPUParticles3D
 var ocean_splash_pool: Array[GPUParticles3D] = []
 var _ocean_splash_cursor: int = 0
 var local_push_effects: Node3D
+## サメにかまれたときの水柱と広がる輪は作り置きして使い回す。毎回作って捨てると、新しい PC では
+## 初めて出す瞬間に描画の部品（パイプライン）を作るまで止まり、捨てる瞬間（約 2.4 秒後）にも止まる。
+var _shark_impact_pool: Array[Dictionary] = []
+var _shark_impact_cursor: int = 0
+const SHARK_RING_START_SCALE := Vector3(0.48, 0.18, 0.48)
 
 func spawn_local_push(event: Dictionary) -> void:
 	local_push_effects.spawn(event)
@@ -21,6 +26,9 @@ func _ready() -> void:
 	_create_explosion_particles()
 	for i: int in range(2):
 		_create_ocean_splash_particles()
+	# 2 人と、ゴーストライダーのサメの体当たりが重なっても足りる数。
+	for i: int in range(3):
+		_create_shark_impact_set(i)
 
 func _create_correct_particles() -> void:
 	correct_particles = GPUParticles3D.new()
@@ -109,12 +117,14 @@ func _create_explosion_particles() -> void:
 
 func spawn_correct(pos: Vector3) -> void:
 	correct_particles.global_position = pos + Vector3(0, 1.0, 0)
+	correct_particles.visible = true
 	correct_particles.restart()
 	correct_particles.emitting = true
 
 func spawn_explosion(pos: Vector3) -> void:
 	# 呼び出し側から実際の身体中心が渡されるため、固定オフセットを足さない。
 	explosion_particles.global_position = pos
+	explosion_particles.visible = true
 	explosion_particles.restart()
 	explosion_particles.emitting = true
 
@@ -176,34 +186,106 @@ func spawn_ocean_splash(pos: Vector3) -> void:
 	var splash: GPUParticles3D = ocean_splash_pool[_ocean_splash_cursor]
 	_ocean_splash_cursor = (_ocean_splash_cursor + 1) % ocean_splash_pool.size()
 	splash.global_position = pos
+	splash.visible = true
 	splash.restart()
 	splash.emitting = true
 
 
 func spawn_shark_impact(pos: Vector3, attack_forward: Vector3 = Vector3.FORWARD) -> void:
-	var column: GPUParticles3D = _create_shark_water_column()
-	column.name = "SharkImpactColumn"
+	if _shark_impact_pool.is_empty():
+		return
+	var impact: Dictionary = _shark_impact_pool[_shark_impact_cursor]
+	_shark_impact_cursor = (_shark_impact_cursor + 1) % _shark_impact_pool.size()
+	var column: GPUParticles3D = impact.column
 	var horizontal_forward: Vector3 = Vector3(attack_forward.x, 0.0, attack_forward.z)
 	if horizontal_forward.length_squared() > 0.001:
 		column.rotation.y = atan2(horizontal_forward.x, horizontal_forward.z)
-	add_child(column, true)
 	column.global_position = Vector3(pos.x, StageConstants.OCEAN_SURFACE_Y, pos.z)
+	column.visible = true
 	column.restart()
 	column.emitting = true
 
-	var shock_ring: MeshInstance3D = _create_shark_shock_ring()
-	shock_ring.name = "SharkImpactRing"
-	add_child(shock_ring, true)
+	var shock_ring: MeshInstance3D = impact.ring
 	shock_ring.global_position = Vector3(pos.x, StageConstants.OCEAN_SURFACE_Y + 0.06, pos.z)
+	_play_shark_ring(impact)
+
+
+## 輪を小さく不透明な形から広げて消す。前の回の動きが残っていれば止めてから始める。
+func _play_shark_ring(impact: Dictionary) -> void:
+	var shock_ring: MeshInstance3D = impact.ring
+	var previous: Tween = impact.get("tween")
+	if previous != null and previous.is_valid():
+		previous.kill()
+	shock_ring.scale = SHARK_RING_START_SCALE
+	shock_ring.transparency = 0.0
+	shock_ring.visible = true
 	var ring_tween: Tween = create_tween()
 	ring_tween.set_parallel(true)
 	ring_tween.tween_property(shock_ring, "scale", Vector3(5.4, 0.18, 5.4), 0.52).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	ring_tween.tween_property(shock_ring, "transparency", 1.0, 0.52).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-	ring_tween.finished.connect(shock_ring.queue_free)
+	ring_tween.finished.connect(shock_ring.hide)
+	impact["tween"] = ring_tween
 
-	# 消す物のメソッドへ直接つなぐ（先に消えていれば、つながりも消える。self を使わない lambda は画面が変わっても残り、
-	# 消えた物を握ったまま呼ばれて「Lambda capture at index 0 was freed」を出していた）
-	get_tree().create_timer(2.4).timeout.connect(column.queue_free)
+
+func _create_shark_impact_set(index: int) -> void:
+	var column: GPUParticles3D = _create_shark_water_column()
+	column.name = "SharkImpactColumn%d" % index
+	add_child(column)
+	var shock_ring: MeshInstance3D = _create_shark_shock_ring()
+	shock_ring.name = "SharkImpactRing%d" % index
+	shock_ring.visible = false
+	add_child(shock_ring)
+	_shark_impact_pool.append({"column": column, "ring": shock_ring, "tween": null})
+
+
+## 試合の準備（覆いの下）で、試合中に初めて出る粒子の演出をカメラの前で一度描く（GameWorld._prepare_world_visuals_under_cover）。
+## 正解の光・爆発・水しぶき・サメの水柱と輪（輪は半透明にしながら消すので、半透明の途中の形も描く）。
+## end_render_prewarm で元に戻す。
+func begin_render_prewarm(camera: Camera3D) -> int:
+	if camera == null or not is_instance_valid(camera) or not camera.is_inside_tree():
+		return 0
+	var drawn := 0
+	var origin: Transform3D = camera.global_transform
+	var spots: Array[GPUParticles3D] = [correct_particles, explosion_particles]
+	spots.append_array(ocean_splash_pool)
+	for impact: Dictionary in _shark_impact_pool:
+		spots.append(impact.column)
+	for index: int in range(spots.size()):
+		var particles := spots[index]
+		if particles == null or not is_instance_valid(particles):
+			continue
+		particles.global_position = origin * Vector3(-3.0 + index * 1.2, -0.5, -9.0)
+		particles.visible = true
+		particles.restart()
+		particles.emitting = true
+		drawn += 1
+	for index: int in range(_shark_impact_pool.size()):
+		var ring: MeshInstance3D = _shark_impact_pool[index].ring
+		ring.global_position = origin * Vector3(-1.5 + index * 3.0, 0.6, -9.0)
+		ring.scale = SHARK_RING_START_SCALE * 3.0
+		ring.transparency = 0.0 if index == 0 else 0.5
+		ring.visible = true
+		drawn += 1
+	return drawn
+
+
+## begin_render_prewarm で出した粒子を消し、輪をしまう。粒子は次に使うときに restart で出し直す。
+func end_render_prewarm() -> void:
+	var spots: Array[GPUParticles3D] = [correct_particles, explosion_particles]
+	spots.append_array(ocean_splash_pool)
+	for impact: Dictionary in _shark_impact_pool:
+		spots.append(impact.column)
+	for particles: GPUParticles3D in spots:
+		if particles == null or not is_instance_valid(particles):
+			continue
+		particles.emitting = false
+		# one_shot の粒子は止めても飛んでいる分が残るので、次に restart するまで隠しておく。
+		particles.visible = false
+	for impact: Dictionary in _shark_impact_pool:
+		var ring: MeshInstance3D = impact.ring
+		ring.visible = false
+		ring.transparency = 0.0
+		ring.scale = SHARK_RING_START_SCALE
 
 
 func _create_shark_water_column() -> GPUParticles3D:

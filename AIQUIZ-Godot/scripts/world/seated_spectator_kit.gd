@@ -10,7 +10,9 @@ extends RefCounted
 ##   seated hand props for the spectators that hold one. UV keeps the palette
 ##   role, UV2.x is the bone, UV2.y a bit mask: bits 0..6 the hairstyles that use
 ##   the triangle, bit 6 + prop for a prop triangle (the shader collapses
-##   everything a spectator does not wear or hold).
+##   everything a spectator does not wear or hold). Every face is flat, so the
+##   shader takes the face normal from screen derivatives and a box's corners are
+##   shared between its faces (a third of the vertices to skin, see _merge).
 ## - bone texture: one row per baked frame, three texels (a 3x4 matrix) per bone.
 ##   The legs are posed seated on top of each clip, the hips stay on the seat
 ##   and only the upper body plays the goal stand's own animation. The stadium
@@ -624,13 +626,30 @@ static func _merge(bodies: Array[MeshInstance3D], props: Array, body_skin: Skin)
 				order.append(key)
 				data[key] = corners
 			owners[key] = int(owners[key]) | bit
+	# Every face is flat and the shader lights it with the face normal it takes from screen
+	# derivatives, so the vertex normal no longer has to differ per face: a box's faces share
+	# its corners (about a third of the vertices, each skinned twice a frame: depth prepass and
+	# colour pass). The vertex normal is left only for the shadow normal bias: the corner's
+	# average face normal, which points out of the box like each face's own.
+	# Corners with the same position, palette role, bone and mask become one vertex.
+	var corner_keys: Array[Array] = []
+	var corner_normals := {}
+	for key: String in order:
+		var mask := int(owners[key])
+		for corner: Array in data[key]:
+			var corner_key := [corner[0], corner[2], corner[3], mask]
+			corner_keys.append(corner_key)
+			corner_normals[corner_key] = (corner_normals.get(corner_key, Vector3.ZERO) as Vector3) + (corner[1] as Vector3)
 	var surface := SurfaceTool.new()
 	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var next := 0
 	for key: String in order:
 		var mask := float(owners[key])
 		for corner: Array in data[key]:
+			var normal := corner_normals[corner_keys[next]] as Vector3
+			next += 1
 			surface.set_color(Color.WHITE)
-			surface.set_normal(corner[1])
+			surface.set_normal(normal.normalized() if normal.length_squared() > 1e-12 else (corner[1] as Vector3))
 			surface.set_uv(corner[2])
 			surface.set_uv2(Vector2(float(corner[3]), mask))
 			surface.add_vertex(corner[0])

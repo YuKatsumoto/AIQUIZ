@@ -1,7 +1,7 @@
 extends RefCounted
 class_name PlayerSkinStore
 
-## このPCの P1/P2 の見た目（体の塗りと帽子）を user://player_skins.json に保存する。
+## このPCの P1/P2 の見た目（体の塗り・帽子・乗り物）を user://player_skins.json に保存する。
 ## ゲーム状態はリプレイやオンライン対戦で一時的に書き換わるので、保存はここからだけ行う。
 ## --fresh-profile 付きで起動したとき（テスト）は読み込みも書き込みもしない。
 
@@ -15,6 +15,8 @@ static var path: String = DEFAULT_PATH
 static var suspended: bool = false
 static var _skins: Dictionary = {1: {}, 2: {}}
 static var _hats: Dictionary = {1: 0, 2: 0}
+## 乗り物（RideData の番号。0 = なし）。
+static var _rides: Dictionary = {1: 0, 2: 0}
 static var _dirty: bool = false
 static var _save_generation: int = 0
 
@@ -26,6 +28,7 @@ static func is_fresh_profile() -> bool:
 static func reset_memory() -> void:
 	_skins = {1: {}, 2: {}}
 	_hats = {1: 0, 2: 0}
+	_rides = {1: 0, 2: 0}
 	_dirty = false
 	_save_generation += 1
 
@@ -52,6 +55,7 @@ static func load_from_disk() -> void:
 		var code: Variant = (entry as Dictionary).get("skin", "")
 		_skins[slot] = normalized(slot, PlayerSkin.from_code(code if code is String else ""))
 		_hats[slot] = _sanitize_hat((entry as Dictionary).get("hat", 0))
+		_rides[slot] = _sanitize_ride((entry as Dictionary).get("ride", 0))
 
 
 static func load_into(gs: QuizGameState) -> void:
@@ -66,6 +70,8 @@ static func apply_to_state(gs: QuizGameState) -> void:
 		gs.set_player_skin(slot, _skins[slot])
 	gs.p1_hat = int(_hats[1])
 	gs.p2_hat = int(_hats[2])
+	gs.p1_ride = int(_rides[1])
+	gs.p2_ride = int(_rides[2])
 
 
 static func get_skin(slot: int) -> Dictionary:
@@ -78,6 +84,10 @@ static func get_skin_code(slot: int) -> String:
 
 static func get_hat(slot: int) -> int:
 	return int(_hats.get(_slot(slot), 0))
+
+
+static func get_ride(slot: int) -> int:
+	return int(_rides.get(_slot(slot), 0))
 
 
 static func set_skin(slot: int, skin: Dictionary) -> void:
@@ -96,6 +106,16 @@ static func set_hat(slot: int, hat_id: int) -> void:
 	if hat == int(_hats[key]):
 		return
 	_hats[key] = hat
+	schedule_save()
+
+
+## まだ解放していない乗り物は「なし」になる。
+static func set_ride(slot: int, ride_id: int) -> void:
+	var key := _slot(slot)
+	var ride := _sanitize_ride(ride_id)
+	if ride == int(_rides[key]):
+		return
+	_rides[key] = ride
 	schedule_save()
 
 
@@ -120,7 +140,11 @@ static func flush() -> void:
 	_dirty = false
 	var players := {}
 	for slot: int in [1, 2]:
-		players[str(slot)] = {"skin": PlayerSkin.to_code(_skins[slot], slot), "hat": int(_hats[slot])}
+		players[str(slot)] = {
+			"skin": PlayerSkin.to_code(_skins[slot], slot),
+			"hat": int(_hats[slot]),
+			"ride": int(_rides[slot]),
+		}
 	var text := JSON.stringify({"version": FILE_VERSION, "players": players}, "  ")
 	var temp_path := path + ".tmp"
 	var file := FileAccess.open(temp_path, FileAccess.WRITE)
@@ -162,3 +186,8 @@ static func _slot(slot: int) -> int:
 static func _sanitize_hat(value: Variant) -> int:
 	var hat := int(value) if (value is int or value is float) else 0
 	return hat if HatData.is_selectable(hat) else HatData.HAT_NONE
+
+
+static func _sanitize_ride(value: Variant) -> int:
+	var ride := int(value) if (value is int or value is float) else 0
+	return ride if RideData.is_selectable(ride) else RideData.RIDE_NONE

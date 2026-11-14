@@ -34,6 +34,10 @@ var _rims: Array[OmniLight3D] = []
 var _interactive_elapsed := 0.0
 var _cues: Dictionary = {}
 var _render_prewarm_active := false
+## 試合の準備で、P2 が勝ったとき（左右反転した舞台）や、タワーが伸びきったあとの描き方も一度描くための舞台。
+## 起動してから 1 回だけ（描き方の部品は使い回される）。
+var _prewarm_extra_stages: Array[ResultFinaleStage] = []
+static var _extra_stages_prewarmed := false
 var _ghost_ride: GhostSharkRideController = null
 ## 両者脱落の投げ縄の演出（EliminationLassoDirector）。ゴールへ運ばれた魂を、そのまま結果発表の幽霊にする。
 var soul_source: Node = null
@@ -267,7 +271,7 @@ func _update_beats(elapsed: float) -> void:
 
 ## Prepare the finale meshes and materials under the loading cover so the first
 ## ceremony frame does not compile them.
-func begin_render_prewarm() -> Dictionary:
+func begin_render_prewarm(camera: Camera3D = null) -> Dictionary:
 	var started_usec := Time.get_ticks_usec()
 	# 2人の練習（コース③）は最後のレッスンでスコアタワーを出すので、ルールがまだ入っていなくても予熱する。
 	var practice_duo := game_state != null and game_state.mode == Constants.MODE_PRACTICE and game_state.num_players == 2
@@ -276,16 +280,44 @@ func begin_render_prewarm() -> Dictionary:
 	_render_prewarm_active = true
 	_ensure_lights()
 	_stage.build(1)
-	_stage.update_stage(Motion.VERDICT + 1.0, Vector3(0.0, Motion.FLOOR_TOP_Y, 0.0))
+	# カメラがあれば、カメラの前に置いて本当に描く（舞台の位置ではカメラに映らず、結果発表で初めて描いていた）。
+	# P2 が勝つと舞台を左右反転して置くので、反転した描き方も 2 つ目の舞台で一度描く。
+	var origin := Vector3(0.0, Motion.FLOOR_TOP_Y, 0.0)
+	if camera != null:
+		origin = camera.global_transform * Vector3(-4.0, -3.5, -18.0)
+	_stage.update_stage(Motion.VERDICT + 1.0, origin)
+	if camera != null and not _extra_stages_prewarmed:
+		_extra_stages_prewarmed = true
+		# [勝者, 時刻, カメラから見た位置]：P2 の勝ち（反転）と、タワーが伸びきったあと。
+		var extras := [
+			[2, Motion.VERDICT + 1.0, Vector3(4.0, -3.5, -18.0)],
+			[1, Motion.end_time(), Vector3(-4.0, -3.5, -30.0)],
+			[2, Motion.end_time(), Vector3(4.0, -3.5, -30.0)],
+		]
+		for extra: Array in extras:
+			var stage := ResultFinaleStage.new()
+			add_child(stage)
+			stage.setup(game_state, player_controller, camera, _effects)
+			stage.build(int(extra[0]))
+			stage.update_stage(float(extra[1]), camera.global_transform * (extra[2] as Vector3))
+			_prewarm_extra_stages.append(stage)
+	var effects := _effects.begin_render_prewarm(camera) if camera != null else 0
 	return {
 		"ready": _stage.is_built(),
 		"skipped": false,
+		"effects": effects,
 		"elapsed_msec": float(Time.get_ticks_usec() - started_usec) / 1000.0,
 	}
 
 
 func end_render_prewarm() -> void:
 	_render_prewarm_active = false
+	for stage: ResultFinaleStage in _prewarm_extra_stages:
+		if is_instance_valid(stage):
+			stage.clear()
+			stage.queue_free()
+	_prewarm_extra_stages.clear()
+	_effects.end_render_prewarm()
 	_reset_presentation()
 
 

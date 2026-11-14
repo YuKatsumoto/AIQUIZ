@@ -15,7 +15,7 @@ const WALL_LINE_MAX := 14
 const DOOR_MAX := 5
 const SIGN_LINES_MAX := 2
 ## 特例：吹き出しの文字数の決まり（BUBBLE_MAX）を超えても1つの吹き出しのまま出すセリフの ID（吹き出しは折り返さず1行で出る）。
-const BUBBLE_LONG_OK := ["c5.speed.4"]
+const BUBBLE_LONG_OK: Array[String] = []
 
 static var _entry_re := RegEx.create_from_string(r'^\t"([^"]+)": "((?:[^"\\]|\\.)*)",(.*)$')
 static var _doc_row_re := RegEx.create_from_string(r'^\| (\S+) \| ([^|]*) \| (.*) \|$')

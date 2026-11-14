@@ -1330,8 +1330,10 @@ func _force_preview_player_facing_away() -> void:
 	var pc := _preview_player as PlayerController
 	if not pc:
 		return
-	_ai_emotes.apply_legacy_facing(pc.p1_parts, _p1_ai, true)
-	if _is_local_2p_active():
+	# 体当たりで吹っ飛んでいるあいだの向きは、本編の体の演出が決める（PlayerController.ghost_hit_facing_yaw）
+	if pc.get_ghost_hit_phase(1) < 0:
+		_ai_emotes.apply_legacy_facing(pc.p1_parts, _p1_ai, true)
+	if _is_local_2p_active() and pc.get_ghost_hit_phase(2) < 0:
 		_ai_emotes.apply_legacy_facing(pc.p2_parts, _p2_ai, false)
 
 

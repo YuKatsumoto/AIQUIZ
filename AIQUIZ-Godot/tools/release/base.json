@@ -1,0 +1,7 @@
+{
+  "version": "1.0.3",
+  "pck": "build/TESTOPIA_v1.0.3_Windows/TESTOPIA_v1.0.3/TESTOPIA.pck",
+  "pck_size": 1128370964,
+  "pck_sha256": "f5572059d3220f6167e5dd97a05d1b0f0ebb184fb5fb9eb8faa593d10f0cf811",
+  "patch_boot_sha256": "9e88dca00bc3db4251f8d37cf8b48bd61808267615343c1a2af96ecc2190d08c"
+}

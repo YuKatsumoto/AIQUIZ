@@ -217,7 +217,7 @@ func _ready() -> void:
 		# 練習のコースから戻ってきたら、その続き（つぎのコース・②の 2-6）を初回の案内より先に進める
 		_open_practice_after_entrance()
 	elif _pending_customize_tutorial_on_ready:
-		# 実践コースのあとのカスタマイズ紹介は、メニューの上のハテナの案内（PracticeCustomizeGuide）で行う。
+		# 実践コースのあとのカスタマイズ紹介は、メニューの上の画像カード（PracticeCustomizeGuide）で行う。
 		_begin_pending_customize_tutorial()
 	elif GameManager.should_show_tutorial_on_start():
 		call_deferred("_start_first_run_tutorial")
@@ -752,7 +752,7 @@ func _open_embedded_customize() -> void:
 	)
 
 
-## 実践コース（1P・ローカル2P）のあとのカスタマイズ紹介。メニューが出てから、メニューの上でハテナが案内する
+## 実践コース（1P・ローカル2P）のあとのカスタマイズ紹介。メニューが出てから、メニューの上に画像カードで紹介する
 ## （新しいチュートリアルのコース⑤、scripts/practice/menu/practice_customize_guide.gd）。案内を終えたら完了カードを出して、
 ## コースを完了にする（_on_customize_tutorial_completed）。
 func _begin_pending_customize_tutorial() -> void:
@@ -1070,7 +1070,7 @@ func _begin_scene_change(
 		# The settings value goes to the state here only, so tests that set it on the
 		# state directly keep theirs.
 		game_state.sudden_death_enabled = GameManager.sudden_death_enabled
-		game_state.start_game()
+		game_state.start_game_under_transition()
 	if path.ends_with("game_world.tscn"):
 		get_tree().change_scene_to_packed(GAME_WORLD_SCENE)
 	else:

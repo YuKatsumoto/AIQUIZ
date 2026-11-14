@@ -18,6 +18,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 from PIL import Image
@@ -307,11 +308,26 @@ def edge(*args: str) -> None:
     )
 
 
+def wait_written(path: Path, timeout: float = 90.0) -> None:
+    """Edge は、起動済みの Edge に処理を渡してすぐ戻ることがある。ファイルが書き終わるまで待つ。"""
+    deadline = time.monotonic() + timeout
+    last = -1
+    while time.monotonic() < deadline:
+        size = path.stat().st_size if path.exists() else -1
+        if size > 0 and size == last:
+            return
+        last = size
+        time.sleep(1.0)
+    sys.exit(f"Edge が {path.name} を書き出さなかった")
+
+
 def to_pdf(html_path: Path, pdf_name: str, final: bool) -> Path:
     OUT.mkdir(exist_ok=True)
     tmp = OUT / "_printing.pdf"
     url = html_path.as_uri() + ("#final" if final else "")
+    tmp.unlink(missing_ok=True)
     edge("--no-pdf-header-footer", "--print-to-pdf-no-header", f"--print-to-pdf={tmp}", url)
+    wait_written(tmp)
     target = OUT / pdf_name
     tmp.replace(target)
     data = target.read_bytes()

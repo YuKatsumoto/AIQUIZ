@@ -23,6 +23,7 @@ var current_question_index: int = 0
 
 const USER_SETTINGS_PATH := "user://settings.json"
 const EnvFile := preload("res://scripts/core/env_file.gd")
+const PipelineWatchScript := preload("res://scripts/core/pipeline_watch.gd")
 ## 5: ハート（HP）・4択のボス壁・回転のこぎり・スコアタワーに合わせ、操作キーを3Dで示す版。
 ## 6: 前後左右の移動を1ステップに、ジャンプを独立、エモートは3つすべて、
 ##    2Pはゴール後にスコアタワーの勝敗判定まで進み、得点の計算方法を説明する版。
@@ -90,6 +91,16 @@ func _ready() -> void:
 	Engine.max_fps = effective_max_fps()
 	_fit_window_to_screen()
 	_load_env()
+	# 固まり記録（user://logs/hitches.log）。画面のない実行（テスト）では書かない。
+	if DisplayServer.get_name() != "headless":
+		var recorder: Node = preload("res://scripts/autoload/hitch_recorder.gd").new()
+		recorder.name = "HitchRecorder"
+		add_child(recorder)
+
+
+## 試合の準備で持ち続けた材質・光の柱の見本などを、描画の仕組みが止まる前に放す（終了時のリーク報告を出さない）。
+func _exit_tree() -> void:
+	PipelineWatchScript.release_all()
 
 
 ## 見た目（帽子・スキン）は 0.4 秒待ってから保存する（PlayerSkinStore.schedule_save）。その前にウィンドウを
@@ -104,16 +115,36 @@ static func default_graphics_quality() -> String:
 	return GraphicsQuality.BALANCED if GraphicsQuality.is_mobile_target() else GraphicsQuality.HIGH
 
 
-## 起動時のウィンドウは 1920x1080（project.godot の window_width_override / window_height_override）。
-## 画面に収まらないとき（1080p の画面ではタイトルバーとタスクバーの分だけはみ出す）は最大化して画面の中に収める。
+## 起動時のウィンドウの大きさの候補（16:9、大きい順）。1920x1080 は project.godot の
+## window_width_override / window_height_override と同じ。
+const STARTUP_WINDOW_SIZES: Array[Vector2i] = [
+	Vector2i(1920, 1080), Vector2i(1600, 900), Vector2i(1280, 720), Vector2i(1024, 576), Vector2i(960, 540),
+]
+
+## 起動時は、いつもふつうのウィンドウで開く（最大化・全画面にはしない）。
+## 1920x1080 が画面に収まらないとき（1080p の画面ではタイトルバーとタスクバーの分だけはみ出す）は、
+## タイトルバーごと収まるいちばん大きい 16:9 の大きさに縮めて、画面の中央に置く。
 ## エディタから動かすとき（テストの --resolution を含む）は変えない。
 func _fit_window_to_screen() -> void:
 	if OS.has_feature("mobile") or OS.has_feature("editor") or DisplayServer.get_name() == "headless":
 		return
 	if DisplayServer.window_get_mode() != DisplayServer.WINDOW_MODE_WINDOWED:
 		return
+	var usable := DisplayServer.screen_get_usable_rect(DisplayServer.window_get_current_screen())
 	if not _window_fits_screen():
-		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_MAXIMIZED)
+		DisplayServer.window_set_size(startup_window_size(
+			usable.size, DisplayServer.window_get_size_with_decorations() - DisplayServer.window_get_size()))
+	_center_window_on_screen()
+	print("[GameManager] Window %s (screen usable %s)" % [DisplayServer.window_get_size(), usable.size])
+
+
+## 画面のうちタスクバーを除いた大きさ（usable）に、タイトルバーと枠（decorations）を足しても収まる
+## いちばん大きい候補。どれも収まらなければいちばん小さい候補。
+static func startup_window_size(usable: Vector2i, decorations: Vector2i) -> Vector2i:
+	for size: Vector2i in STARTUP_WINDOW_SIZES:
+		if size.x + decorations.x <= usable.x and size.y + decorations.y <= usable.y:
+			return size
+	return STARTUP_WINDOW_SIZES[STARTUP_WINDOW_SIZES.size() - 1]
 
 
 ## 設定で解像度を選んだあと（window_set_size のあと）に呼ぶ。画面のうちタスクバーを除いた所に、
@@ -127,6 +158,11 @@ func place_window_on_screen() -> void:
 	if not _window_fits_screen():
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_MAXIMIZED)
 		return
+	_center_window_on_screen()
+
+
+## タイトルバーを含めたウィンドウを、タスクバーを除いた所の中央に置く。
+func _center_window_on_screen() -> void:
 	var usable := DisplayServer.screen_get_usable_rect(DisplayServer.window_get_current_screen())
 	var outer := DisplayServer.window_get_size_with_decorations()
 	var target := usable.position + (usable.size - outer) / 2

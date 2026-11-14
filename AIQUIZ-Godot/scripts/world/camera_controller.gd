@@ -52,6 +52,8 @@ var _saw_question_framing_points := PackedVector3Array()
 var _question_pitch: float = 0.0
 var _question_back: float = 0.0
 var _saw_back: float = 0.0
+## 1Pでうしろのコンベア端へ寄ったときの水平の後退（_frame_solo_rear_edge）。
+var _solo_rear_back: float = 0.0
 ## ゴーストの突進の命中（trigger_ghost_hit）：当たった人・命中からの秒（−1 は無し）・強さ・飛ぶ向き・体を収める引き。
 var _ghost_hit_player: int = 0
 var _ghost_hit_elapsed: float = -1.0
@@ -154,6 +156,12 @@ const SAW_FRAMING_MAX_SPEED := 10.0
 const SAW_FRAMING_START_DISTANCE := 8.0
 const SAW_FRAMING_FULL_DISTANCE := 4.0
 const SAW_SCREEN_SIDE_MARGIN := 0.01
+## 1P：うしろのコンベア端までの距離がこれを切ると下がり始め、FULL で引き切る（2Pのうしろ端の引きと同じ距離）。
+## 下がる速さ・追従はチップソー接近（SAW_FRAMING_FOLLOW / SAW_FRAMING_MAX_SPEED）と同じ。
+const SOLO_REAR_EDGE_FRAMING_START_DISTANCE := 3.5
+const SOLO_REAR_EDGE_FRAMING_FULL_DISTANCE := 0.5
+## 画面に収めるうしろ端の幅：体の左右この m だけ。床の端から端までは収めない（横へ動くたびに引きが変わらないように）。
+const SOLO_REAR_EDGE_FRAMING_HALF_WIDTH := 2.0
 
 const ENTRY_BLEND_DURATION := 0.95
 const PRELOAD_CAMERA_FOV := 66.0
@@ -782,6 +790,7 @@ func _update_camera_pose(gs: QuizGameState, dt: float) -> void:
 		_question_pitch = 0.0
 		_question_back = 0.0
 		_saw_back = 0.0
+		_solo_rear_back = 0.0
 	# フライオーバー→カウントダウン遷移時にbobタイマーをリセット
 	# (bobが途中の位相だとカメラのY座標がジャンプするため)
 	if _prev_state == Constants.STATE_FLYOVER and gs.game_state != Constants.STATE_FLYOVER:
@@ -1012,6 +1021,9 @@ func _update_camera_pose(gs: QuizGameState, dt: float) -> void:
 	_update_wall_text_scale_pose(gs, framing_start_eye + (saw_pose[0] - eye), fov)
 	eye = saw_pose[0]
 	target = saw_pose[1]
+	var solo_rear_pose := _frame_solo_rear_edge(gs, eye, target, fov, dt)
+	eye = solo_rear_pose[0]
+	target = solo_rear_pose[1]
 	# ゴーストの突進の命中：寄り・揺れと、吹き飛ぶ体を収める引き（docs/ghost_hit_ragdoll_plan.md 段階 6）。
 	var ghost_hit_pose := _frame_ghost_hit(gs, eye, target, fov, dt)
 	eye = ghost_hit_pose[0]
@@ -1191,39 +1203,96 @@ func _frame_saw(gs: QuizGameState, eye: Vector3, target: Vector3, fov: float, dt
 			_append_player_framing_points(points, Vector3(gs.player_x, gs.player_y, gs.player_local_z))
 		if gs.p2_alive:
 			_append_player_framing_points(points, Vector3(gs.player2_x, gs.player2_y, gs.player2_local_z))
-		var viewport_size := camera.get_viewport().get_visible_rect().size
-		var aspect := viewport_size.x / maxf(viewport_size.y, 1.0)
-		var safe_y := tan(deg_to_rad(fov) * 0.5) * (1.0 - QUESTION_SCREEN_MARGIN * 2.0)
-		if camera.keep_aspect == Camera3D.KEEP_WIDTH:
-			safe_y /= aspect
-		var safe_x := safe_y * aspect
 		# The wide carriage should nearly touch the sides; keep the larger
 		# question/player inset only for their own framing points.
-		var saw_safe_x := safe_x * (1.0 - SAW_SCREEN_SIDE_MARGIN * 2.0) / (1.0 - QUESTION_SCREEN_MARGIN * 2.0)
-		# Looking at the existing target flattens the view as we retreat.
-		# Solve the smallest horizontal distance that fits the measured points.
-		var lower := 0.0
-		var upper := 80.0
-		for iteration: int in range(14):
-			var back := (lower + upper) * 0.5
-			var candidate := eye - retreat * back
-			var view := Basis.looking_at(target - candidate, Vector3.UP)
-			var fits := true
-			for point_index: int in range(points.size()):
-				var relative := points[point_index] - candidate
-				var depth := -relative.dot(view.z)
-				var horizontal_limit := saw_safe_x if point_index >= saw_points_start and point_index < saw_points_start + 8 else safe_x
-				if depth < camera.near + 0.1 or absf(relative.dot(view.x)) > depth * horizontal_limit or absf(relative.dot(view.y)) > depth * safe_y:
-					fits = false
-					break
-			if fits:
-				upper = back
-			else:
-				lower = back
-		desired_back = (upper + 0.05) * weight
+		var fitted_back := _fit_horizontal_retreat(
+			eye, target, retreat, points, fov, saw_points_start, saw_points_start + 8, SAW_SCREEN_SIDE_MARGIN
+		)
+		desired_back = (fitted_back + 0.05) * weight
 	var follow := 1.0 - exp(-SAW_FRAMING_FOLLOW * maxf(dt, 0.0))
 	_saw_back = move_toward(_saw_back, lerpf(_saw_back, desired_back, follow), SAW_FRAMING_MAX_SPEED * maxf(dt, 0.0))
 	return PackedVector3Array([eye - retreat * _saw_back, target])
+
+
+## 1P：うしろのコンベア端（ローラー）へ寄ったら、2Pのチップソー接近（_frame_saw）と同じように
+## 高さと注視点を保ったまま水平に下がり、端のローラーとその手前の落ちる先が画面に入るまで引く。
+## 端を越えて落ち始めたら引きはそのまま保つ（落ちていく体を追って引き続けない）。
+func _frame_solo_rear_edge(gs: QuizGameState, eye: Vector3, target: Vector3, fov: float, dt: float) -> PackedVector3Array:
+	if gs.num_players != 1 or not gs.p1_alive or gs.game_state not in [Constants.STATE_PLAYING, Constants.STATE_CORRECT]:
+		_solo_rear_back = 0.0
+		return PackedVector3Array([eye, target])
+	var retreat := ((target - eye) * Vector3(1.0, 0.0, 1.0)).normalized()
+	var desired_back := _solo_rear_back
+	if not gs.p1_fall_committed:
+		desired_back = 0.0
+		var clearance: float = gs.player_local_z - StageConstants.FLOOR_BACK_Z
+		var weight := 1.0 - smoothstep(
+			SOLO_REAR_EDGE_FRAMING_FULL_DISTANCE, SOLO_REAR_EDGE_FRAMING_START_DISTANCE, clearance
+		)
+		if weight > 0.0:
+			var points := _question_framing_points.duplicate() if gs.game_state == Constants.STATE_PLAYING else PackedVector3Array()
+			# うしろのローラーの奥半分（ベルトが折り返して落ちる角）を、体の左右だけ収める。
+			var roller_radius := StageConstants.CONVEYOR_ROLLER_RADIUS
+			var edge := AABB(
+				Vector3(
+					gs.player_x - SOLO_REAR_EDGE_FRAMING_HALF_WIDTH,
+					StageConstants.FLOOR_TOP_Y - roller_radius * 2.0,
+					StageConstants.FLOOR_BACK_Z - roller_radius
+				),
+				Vector3(SOLO_REAR_EDGE_FRAMING_HALF_WIDTH * 2.0, roller_radius * 2.0, roller_radius)
+			)
+			for corner: int in range(8):
+				points.append(edge.get_endpoint(corner))
+			_append_player_framing_points(points, Vector3(gs.player_x, gs.player_y, gs.player_local_z))
+			desired_back = (_fit_horizontal_retreat(eye, target, retreat, points, fov) + 0.05) * weight
+	var follow := 1.0 - exp(-SAW_FRAMING_FOLLOW * maxf(dt, 0.0))
+	_solo_rear_back = move_toward(
+		_solo_rear_back, lerpf(_solo_rear_back, desired_back, follow), SAW_FRAMING_MAX_SPEED * maxf(dt, 0.0)
+	)
+	return PackedVector3Array([eye - retreat * _solo_rear_back, target])
+
+
+## eye から retreat の向きへ水平に下がりながら target を見続けたとき、points がすべて画面の安全枠
+## （QUESTION_SCREEN_MARGIN の内側）に入る最小の後退距離。[wide_start, wide_end) の点だけは
+## 左右の余白を wide_side_margin まで詰める（チップソーの台車を左右いっぱいに見せるため）。
+func _fit_horizontal_retreat(
+	eye: Vector3,
+	target: Vector3,
+	retreat: Vector3,
+	points: PackedVector3Array,
+	fov: float,
+	wide_start: int = 0,
+	wide_end: int = 0,
+	wide_side_margin: float = QUESTION_SCREEN_MARGIN
+) -> float:
+	var viewport_size := camera.get_viewport().get_visible_rect().size
+	var aspect := viewport_size.x / maxf(viewport_size.y, 1.0)
+	var safe_y := tan(deg_to_rad(fov) * 0.5) * (1.0 - QUESTION_SCREEN_MARGIN * 2.0)
+	if camera.keep_aspect == Camera3D.KEEP_WIDTH:
+		safe_y /= aspect
+	var safe_x := safe_y * aspect
+	var wide_safe_x := safe_x * (1.0 - wide_side_margin * 2.0) / (1.0 - QUESTION_SCREEN_MARGIN * 2.0)
+	# Looking at the existing target flattens the view as we retreat.
+	# Solve the smallest horizontal distance that fits the measured points.
+	var lower := 0.0
+	var upper := 80.0
+	for iteration: int in range(14):
+		var back := (lower + upper) * 0.5
+		var candidate := eye - retreat * back
+		var view := Basis.looking_at(target - candidate, Vector3.UP)
+		var fits := true
+		for point_index: int in range(points.size()):
+			var relative := points[point_index] - candidate
+			var depth := -relative.dot(view.z)
+			var horizontal_limit := wide_safe_x if point_index >= wide_start and point_index < wide_end else safe_x
+			if depth < camera.near + 0.1 or absf(relative.dot(view.x)) > depth * horizontal_limit or absf(relative.dot(view.y)) > depth * safe_y:
+				fits = false
+				break
+		if fits:
+			upper = back
+		else:
+			lower = back
+	return upper
 
 
 func _append_player_framing_points(points: PackedVector3Array, feet: Vector3) -> void:

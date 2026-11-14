@@ -974,15 +974,11 @@ func _create_ghost_mount_beacon(beam_index: int, beam_origin: Vector3) -> Node3D
 		if _ghost_player_index == 1
 		else GHOST_MOUNT_BEAM_P2_SCENE
 	)
-	var beam := beam_scene.instantiate() as Node3D
+	var beam := localized_ghost_mount_beam(beam_scene).instantiate() as Node3D
 	if beam == null:
 		push_warning("Ghost mount beam scene could not be instantiated")
 		return null
 	beam.name = "GhostMountBeacon%02d" % (beam_index + 1)
-	# The purchased presets keep shared embedded meshes and materials. Localize
-	# only this gameplay instance before its controller enters the tree so the
-	# extreme in-game dimensions never leak back into the template showcase.
-	_localize_ghost_mount_beam_resources(beam)
 	add_child(beam)
 	_set_ghost_mount_beam_render_layer(beam)
 	beam.top_level = true
@@ -1001,7 +997,39 @@ func _create_ghost_mount_beacon(beam_index: int, beam_origin: Vector3) -> Node3D
 	return beam
 
 
-func _localize_ghost_mount_beam_resources(node: Node) -> void:
+## The purchased presets keep shared embedded meshes and materials. Gameplay beams use
+## localized copies so the extreme in-game dimensions never leak back into the template
+## showcase. 複製（duplicate(true)）は重く（約 0.13 秒）、脱落した瞬間に毎回止まっていたので、
+## 一度複製した物を PackedScene にして持っておき、2 回目からはそれを写すだけにする
+## （試合の準備で GameWorld が prewarm_localized_ghost_mount_beams を呼んで先に作る）。
+static var _localized_beams := {}
+const PipelineWatchScript = preload("res://scripts/core/pipeline_watch.gd")
+
+
+static func localized_ghost_mount_beam(beam_scene: PackedScene) -> PackedScene:
+	var key := beam_scene.resource_path
+	var packed: PackedScene = _localized_beams.get(key)
+	if packed == null:
+		var prototype := beam_scene.instantiate() as Node3D
+		if prototype == null:
+			return beam_scene
+		_localize_ghost_mount_beam_resources(prototype)
+		packed = PackedScene.new()
+		var err := packed.pack(prototype)
+		prototype.free()
+		if err != OK:
+			return beam_scene
+		_localized_beams[key] = packed
+		PipelineWatchScript.register_cache(_localized_beams)
+	return packed
+
+
+static func prewarm_localized_ghost_mount_beams() -> void:
+	localized_ghost_mount_beam(GHOST_MOUNT_BEAM_P1_SCENE)
+	localized_ghost_mount_beam(GHOST_MOUNT_BEAM_P2_SCENE)
+
+
+static func _localize_ghost_mount_beam_resources(node: Node) -> void:
 	if node is MeshInstance3D:
 		var mesh_instance := node as MeshInstance3D
 		if mesh_instance.mesh != null:

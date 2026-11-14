@@ -38,6 +38,12 @@ const SKIN_PREVIEW_CAM_H_OFFSET: float = 0.30
 ## エモートタブ: look_at のまま画面内フレームだけ左寄せ（レンズシフト、大きいほどキャラが左）
 const EMOTE_PREVIEW_CAM_H_OFFSET: float = 1.25
 const SKIN_PREVIEW_FOV: float = 34.0
+## スキンタブで乗り物（ママチャリ）に乗っているときのカメラ：向き（度。180 = 真後ろ）・見下ろし・距離・注視点の高さ。
+const SKIN_RIDE_CAM_YAW: float = 128.0
+const SKIN_RIDE_CAM_PITCH: float = 12.0
+const SKIN_RIDE_CAM_DISTANCE: float = 6.5
+const SKIN_RIDE_CAM_LOOK_Y: float = 0.15
+const SKIN_RIDE_CAM_TARGET_SHIFT := Vector3(-0.55, 0.0, -0.8)
 ## true で縦方向(ピッチ)ドラッグとホイールズームも有効化。false なら横回転のみ(既定)。
 const SKIN_PREVIEW_ALLOW_VERTICAL_ORBIT: bool = true
 ## 通常時のプレビューカメラ追従（エモート操作の反応）
@@ -48,6 +54,11 @@ const PREVIEW_DOOR_HALF_DEPTH_Z: float = 0.30
 const PREVIEW_BLUE_DOOR_INDEX: int = 0
 const PREVIEW_RED_DOOR_INDEX: int = 1
 const AUTO_WALL_SPEED: float = GameTuning.WALL_SPEED_AUTO_DEFAULT
+## 壁速度のモードの色（ラベル・数字・ボタン。自動のバーとつまみは thinking_gauge_slider.gd）。
+const WALL_AUTO_COLOR := Color(0.4, 0.75, 1.0)
+const WALL_MANUAL_COLOR := Color(1.0, 0.7, 0.3)
+const WALL_RESET_TEXT_AUTO := "自動で調整中"
+const WALL_RESET_TEXT_MANUAL := "自動モードに戻す"
 ## エモートタブ時にベルト表示速度が 0 に近づく時間感（小さいほど早く減速）
 const BELT_VISUAL_RAMP_TAU_SEC: float = 1.25
 ## game_world の「次の問題を準備中」壁合体プレビューに合わせたパラメータ
@@ -143,6 +154,11 @@ var _mode_label: Label
 var _speed_value_label: Label
 var _speed_slider: HSlider
 var _wall_reset_button: Button
+## 自動モードのあいだ、ボタンの文字の左で回るしるし。
+var _wall_auto_spinner: AutoModeSpinner
+## いま表示している壁速度のモード（-1 = まだ出していない、0 = 手動、1 = 自動）。切り替わった瞬間だけ弾ませる。
+var _wall_mode_shown: int = -1
+var _wall_mode_pop_tween: Tween
 
 var _skin_player_label: Label
 var _skin_player_btn_p1: Button
@@ -150,6 +166,10 @@ var _skin_player_btn_p2: Button
 var _hat_name_label: Label
 var _hat_prev_button: Button
 var _hat_next_button: Button
+## シークレットの乗り物（ママチャリ）。解放前は「？？？」で、押すと解放の条件が出る。
+var _secret_ride_button: Button
+var _secret_hint_label: Label
+var _secret_hint_shown: bool = false
 var _hat_slide_active: bool = false
 var _hat_slide_t: float = 0.0
 var _hat_slide_dir: int = 0
@@ -253,6 +273,7 @@ func _apply_transition_start_camera_pose() -> bool:
 func _process(dt: float) -> void:
 	if embedded_mode and not _is_open:
 		return
+	_update_wall_auto_beat()
 	var belt_target := 0.0 if _active_section == Section.EMOTE else _preview_speed
 	var alpha := 1.0 - exp(-dt / BELT_VISUAL_RAMP_TAU_SEC)
 	_belt_visual_speed = lerpf(_belt_visual_speed, belt_target, alpha)
@@ -315,6 +336,8 @@ func _process(dt: float) -> void:
 			_poll_preview_emote_inputs()
 		_preview_gs._active_wall_speed = _belt_visual_speed
 		_preview_player.use_skin_preview_rest_pose = _active_section == Section.SKIN
+		# プレビューは前が -Z（キャラも下で後ろ向きにしている）。乗り物も同じ向きにする。
+		_preview_player.ride_yaw = PI
 		_preview_player.update_from_state(_preview_gs)
 		_preview_player.visible = _active_section != Section.EMOTE
 		_force_preview_player_facing_away()
@@ -484,7 +507,7 @@ func _apply_touch_layout() -> void:
 		MobileUi.ensure_touch_size(button, true)
 	for button: Button in [_skin_player_btn_p1, _skin_player_btn_p2, _emote_player_btn_p1, _emote_player_btn_p2, _wall_reset_button]:
 		MobileUi.ensure_touch_size(button, true)
-	for button: Button in [_hat_prev_button, _hat_next_button, _back_button]:
+	for button: Button in [_hat_prev_button, _hat_next_button, _secret_ride_button, _back_button]:
 		MobileUi.ensure_touch_size(button)
 	for button: Button in _emote_slot_btns:
 		MobileUi.ensure_touch_size(button)
@@ -668,8 +691,10 @@ func _configure_skin_focus_navigation() -> void:
 		_skin_player_btn_p2,
 		_hat_prev_button,
 		_hat_next_button,
-		_back_button,
 	]
+	if _secret_ride_button:
+		tab_order.append(_secret_ride_button)
+	tab_order.append(_back_button)
 	for index: int in range(tab_order.size()):
 		_set_focus_target(tab_order[index], &"focus_previous", tab_order[(index - 1 + tab_order.size()) % tab_order.size()])
 		_set_focus_target(tab_order[index], &"focus_next", tab_order[(index + 1) % tab_order.size()])
@@ -686,6 +711,13 @@ func _configure_skin_focus_navigation() -> void:
 	_set_focus_target(_hat_next_button, &"focus_neighbor_down", _back_button)
 	_set_focus_target(_back_button, &"focus_neighbor_up", _hat_prev_button)
 	_set_focus_target(_back_button, &"focus_neighbor_down", _skin_player_btn_p1)
+	if _secret_ride_button:
+		# 帽子の行と「決定して戻る」のあいだに、シークレットのボタンをはさむ。
+		_set_focus_target(_hat_prev_button, &"focus_neighbor_down", _secret_ride_button)
+		_set_focus_target(_hat_next_button, &"focus_neighbor_down", _secret_ride_button)
+		_set_focus_target(_secret_ride_button, &"focus_neighbor_up", _hat_prev_button)
+		_set_focus_target(_secret_ride_button, &"focus_neighbor_down", _back_button)
+		_set_focus_target(_back_button, &"focus_neighbor_up", _secret_ride_button)
 
 
 func _build_wall_panel() -> void:
@@ -708,10 +740,19 @@ func _build_wall_panel() -> void:
 	_speed_slider.value_changed.connect(_on_speed_changed)
 	_wall_panel.add_child(_speed_slider)
 
-	_wall_reset_button = _metal_button("自動モードに戻す")
+	var reset_button := _metal_button(WALL_RESET_TEXT_MANUAL)
+	# ランプと選択中の線を自動モードの青にする（自動のあいだ点いたままになる）。
+	reset_button.accent = WALL_AUTO_COLOR
+	_wall_reset_button = reset_button
 	_wall_reset_button.custom_minimum_size.y = 44.0
 	_wall_reset_button.pressed.connect(_on_reset_pressed)
 	_wall_panel.add_child(_wall_reset_button)
+
+	_wall_auto_spinner = AutoModeSpinner.new()
+	_wall_auto_spinner.color = WALL_AUTO_COLOR
+	_wall_auto_spinner.visible = false
+	_wall_reset_button.add_child(_wall_auto_spinner)
+	_wall_auto_spinner.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 func _build_skin_panel() -> void:
 	_skin_player_label = Label.new()
@@ -754,6 +795,99 @@ func _build_skin_panel() -> void:
 	_hat_next_button.custom_minimum_size = Vector2(56.0, 46.0)
 	_hat_next_button.pressed.connect(_on_hat_next)
 	hat_row.add_child(_hat_next_button)
+
+	_skin_panel.add_child(HSeparator.new())
+
+	var secret_caption := Label.new()
+	secret_caption.text = "シークレット"
+	secret_caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	secret_caption.add_theme_font_size_override("font_size", 15)
+	secret_caption.add_theme_color_override("font_color", Color(1.0, 0.88, 0.25, 0.85))
+	_skin_panel.add_child(secret_caption)
+
+	_secret_ride_button = _metal_button("")
+	_secret_ride_button.name = "SecretRideButton"
+	_secret_ride_button.custom_minimum_size = Vector2(0, 46)
+	_secret_ride_button.pressed.connect(_on_secret_ride_pressed)
+	_skin_panel.add_child(_secret_ride_button)
+
+	_secret_hint_label = Label.new()
+	_secret_hint_label.name = "SecretRideHint"
+	_secret_hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_secret_hint_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_secret_hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_secret_hint_label.add_theme_font_size_override("font_size", 14)
+	_secret_hint_label.add_theme_color_override("font_color", Color(0.70, 0.76, 0.86))
+	# 2行ぶんを空けておく（条件を出したときにパネルの高さが変わらないように）。
+	_secret_hint_label.custom_minimum_size = Vector2(0, 46)
+	_skin_panel.add_child(_secret_hint_label)
+
+
+func _get_current_ride() -> int:
+	var gs := QuizManager.game_state
+	return gs.p1_ride if _editing_player == 1 else gs.p2_ride
+
+
+func _set_current_ride(ride_id: int) -> void:
+	PlayerSkinStore.set_ride(_editing_player, ride_id)
+	# 保存側が通した値（未解放なら「なし」）をゲームの状態にも入れる。
+	var stored := PlayerSkinStore.get_ride(_editing_player)
+	var gs := QuizManager.game_state
+	if _editing_player == 1:
+		gs.p1_ride = stored
+	else:
+		gs.p2_ride = stored
+
+
+## 解放前：解放の条件を出す。解放後：乗る／降りるを切り替える。
+func _on_secret_ride_pressed() -> void:
+	var ride := RideData.RIDE_MAMACHARI
+	if not RideData.is_unlocked(ride):
+		_secret_hint_shown = true
+		_refresh_secret_ride()
+		return
+	UnlockStore.mark_seen(RideData.unlock_id(ride))
+	_set_current_ride(RideData.RIDE_NONE if _get_current_ride() == ride else ride)
+	_refresh_secret_ride()
+	if _active_section == Section.SKIN:
+		# 乗る・降りるに合わせて、カメラを引く・寄せる。
+		_reset_skin_orbit_default()
+
+
+## プレビューのキャラにも、選んだ乗り物を映す（プレビューは別の QuizGameState を見ている）。
+func _sync_preview_ride() -> void:
+	if _preview_gs == null:
+		return
+	var gs := QuizManager.game_state
+	_preview_gs.p1_ride = gs.p1_ride
+	_preview_gs.p2_ride = gs.p2_ride
+
+
+func _refresh_secret_ride() -> void:
+	_sync_preview_ride()
+	if not _secret_ride_button or not _secret_hint_label:
+		return
+	var ride := RideData.RIDE_MAMACHARI
+	var unlock_id := RideData.unlock_id(ride)
+	var button := _secret_ride_button as MenuMetalButton
+	if not RideData.is_unlocked(ride):
+		button.text = "🔒 ？？？"
+		button.chosen = false
+		_secret_hint_label.text = (
+			# 「、」のあとで行を分ける（2行に収め、言葉の途中で折り返さない）。
+			"解放の条件：%s" % UnlockStore.hint(unlock_id).replace("、", "、\n")
+			if _secret_hint_shown
+			else "押すと、解放の条件が見られます"
+		)
+		return
+	var riding := _get_current_ride() == ride
+	button.text = "🚲 %s%s" % [RideData.ride_name(ride), "　NEW!" if UnlockStore.is_unseen(unlock_id) else ""]
+	button.chosen = riding
+	_secret_hint_label.text = (
+		"乗っています（もう一度押すと降ります）"
+		if riding
+		else "押すと、%sに乗ります" % RideData.ride_name(ride)
+	)
 
 func _build_emote_panel() -> void:
 	var player_row := HBoxContainer.new()
@@ -989,7 +1123,7 @@ func _set_section(section: Section) -> void:
 		Section.WALL_SPEED:
 			target_height = 480.0
 		Section.SKIN:
-			target_height = 420.0
+			target_height = 560.0
 		Section.EMOTE:
 			target_height = 640.0
 
@@ -1291,6 +1425,13 @@ func _reset_skin_orbit_default() -> void:
 	_skin_cam_pitch = rad_to_deg(asin(clampf(offset_sk.y / maxf(_skin_cam_distance, 0.001), -1.0, 1.0)))
 	_skin_cam_yaw = rad_to_deg(atan2(offset_sk.x, offset_sk.z))
 	_skin_cam_dragging = false
+	if _get_current_ride() != RideData.RIDE_NONE:
+		# 乗り物に乗っているときは、ななめ前へ引いて自転車の全体（チェーンケースの側）を見せる。
+		_skin_cam_yaw = SKIN_RIDE_CAM_YAW
+		_skin_cam_pitch = SKIN_RIDE_CAM_PITCH
+		_skin_cam_distance = SKIN_RIDE_CAM_DISTANCE
+		# 注視点を画面の右へずらして、自転車を設定パネルの左に収める。
+		_skin_cam_target = Vector3(tx_sk, SKIN_RIDE_CAM_LOOK_Y, 0.0) + SKIN_RIDE_CAM_TARGET_SHIFT
 
 
 func _sync_skin_orbit_lane_x() -> void:
@@ -1369,11 +1510,14 @@ func _apply_touch_orbit(event: InputEvent, is_skin: bool) -> bool:
 
 func _refresh_all_labels() -> void:
 	var gs := QuizManager.game_state
-	_speed_slider.set_value_no_signal(_preview_speed)
+	# 自動に戻したあとは、つまみをその場に残す（最初の表示と、手動のときだけ速さに合わせる）。
+	if _wall_mode_shown == -1 or not _is_wall_auto_mode():
+		_speed_slider.set_value_no_signal(_preview_speed)
 	_update_mode_label()
 	_update_speed_value()
 	_skin_player_label.text = "対象プレイヤー: P%d" % _editing_player
 	_hat_name_label.text = HatData.get_hat_name(_get_current_hat())
+	_refresh_secret_ride()
 	_update_emote_panel_ui()
 	_refresh_skin_player_button_styles()
 	_refresh_emote_player_button_styles()
@@ -1382,16 +1526,126 @@ func _refresh_all_labels() -> void:
 		_sync_preview_hat()
 	_sync_preview_toon_presets()
 
+## 『自動で調整中』のボタンに重ねる飾り：文字の左の矢印つきの輪、ランプのにじみ、下線の光。
+## ボタンの子に全面で置く（入力は受けない）。動きはバーの明滅と同じ拍（set_beat で毎フレーム渡す）。
+class AutoModeSpinner extends Control:
+	const RADIUS: float = 7.0
+	const GAP_TO_TEXT: float = 10.0
+	const ARC_SPAN: float = PI * 0.72
+	## ひと拍のうち、輪が回っている割合。半回転して止まる（矢印は 2 本なので、半回転で元の形に戻る）。
+	const TURN_FRACTION: float = 0.6
+	## MenuMetalButton（compact）のランプの位置と、選択中の線の位置。
+	const LAMP_X: float = 12.0
+	const LINE_INSET_X: float = 10.0
+	const LINE_FROM_BOTTOM: float = 3.0
+
+	var color := Color.WHITE
+	var _phase: float = 0.0
+	var _pulse: float = 0.0
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	## phase：明滅の位相（0〜1）。pulse：明滅の強さ（0〜1）。
+	func set_beat(phase: float, pulse: float) -> void:
+		_phase = phase
+		_pulse = pulse
+		queue_redraw()
+
+	func _draw() -> void:
+		var button := get_parent() as Button
+		if button == null:
+			return
+		var lamp := Vector2(LAMP_X, size.y * 0.5)
+		draw_circle(lamp, 5.0 + 3.0 * _pulse, Color(color, 0.10 + 0.22 * _pulse), true, -1.0, true)
+		var line_y := size.y - LINE_FROM_BOTTOM
+		draw_line(
+			Vector2(LINE_INSET_X, line_y),
+			Vector2(size.x - LINE_INSET_X, line_y),
+			Color(color.lightened(0.45), 0.7 * _pulse),
+			2.0,
+			true
+		)
+		var angle := -PI * 0.25 + PI * smoothstep(0.0, TURN_FRACTION, _phase)
+		# ボタンの文字は余白の内側で中央ぞろえ。その左どなりに置く。
+		var text_width := button.get_theme_font(&"font").get_string_size(
+			button.text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, button.get_theme_font_size(&"font_size")
+		).x
+		var box := button.get_theme_stylebox(&"normal")
+		var text_center_x := (box.get_margin(SIDE_LEFT) + size.x - box.get_margin(SIDE_RIGHT)) * 0.5
+		var center := Vector2(text_center_x - text_width * 0.5 - GAP_TO_TEXT - RADIUS, size.y * 0.5)
+		for half: int in range(2):
+			var start := angle + PI * float(half)
+			var tip_angle := start + ARC_SPAN
+			draw_arc(center, RADIUS, start, tip_angle, 16, color, 2.0, true)
+			# 弧の先に矢印の頭を付けて、回る向きがわかるようにする。
+			var tip := center + Vector2.from_angle(tip_angle) * RADIUS
+			var forward := Vector2.from_angle(tip_angle + PI * 0.5)
+			var outward := Vector2.from_angle(tip_angle)
+			draw_colored_polygon(
+				PackedVector2Array([tip + forward * 4.5, tip + outward * 3.2, tip - outward * 3.2]),
+				color
+			)
+
+
+func _is_wall_auto_mode() -> bool:
+	return QuizManager.game_state.tuning.wall_speed_override <= 0.0
+
+
+## 自動／手動の見た目をそろえて切り替える：ラベル、バーとつまみ、『自動モードに戻す』ボタン。
 func _update_mode_label() -> void:
-	var gs := QuizManager.game_state
-	if gs.tuning.wall_speed_override > 0:
-		_mode_label.text = "手動モード"
-		_mode_label.add_theme_color_override("font_color", Color(1.0, 0.7, 0.3))
-	else:
-		_mode_label.text = "自動モード"
-		_mode_label.add_theme_color_override("font_color", Color(0.4, 0.75, 1.0))
+	var is_auto := _is_wall_auto_mode()
+	_mode_label.text = "自動モード" if is_auto else "手動モード"
+	_mode_label.add_theme_color_override("font_color", WALL_AUTO_COLOR if is_auto else WALL_MANUAL_COLOR)
+	_speed_slider.set(&"auto_mode", is_auto)
+
+	# 自動のあいだは押しても何も変わらないので、ボタンは「いま自動」の表示にして押せなくする。
+	if is_auto and _wall_reset_button.has_focus():
+		_speed_slider.grab_focus()
+	_wall_reset_button.text = WALL_RESET_TEXT_AUTO if is_auto else WALL_RESET_TEXT_MANUAL
+	_wall_reset_button.disabled = is_auto
+	_wall_reset_button.set(&"chosen", is_auto)
+	_wall_reset_button.mouse_default_cursor_shape = (
+		Control.CURSOR_ARROW if is_auto else Control.CURSOR_POINTING_HAND
+	)
+	_wall_auto_spinner.visible = is_auto
+	if not is_auto:
+		_speed_value_label.self_modulate = Color.WHITE
+
+	var mode_now := 1 if is_auto else 0
+	if _wall_mode_shown != -1 and _wall_mode_shown != mode_now:
+		_play_wall_mode_pop()
+	_wall_mode_shown = mode_now
+
+
+## 自動モードのあいだ、「AUTO」の文字とボタンの飾りを、バーの明滅と同じ拍で動かす。
+func _update_wall_auto_beat() -> void:
+	if _wall_mode_shown != 1 or not _wall_panel.is_visible_in_tree():
+		return
+	var pulse: float = _speed_slider.call(&"auto_pulse")
+	_speed_value_label.self_modulate = Color(1.0, 1.0, 1.0, lerpf(0.68, 1.0, pulse))
+	_wall_auto_spinner.set_beat(_speed_slider.call(&"auto_phase"), pulse)
+
+
+## モードが切り替わった瞬間、ラベルと数字を軽く弾ませる。
+func _play_wall_mode_pop() -> void:
+	if _wall_mode_pop_tween != null and _wall_mode_pop_tween.is_valid():
+		_wall_mode_pop_tween.kill()
+	_wall_mode_pop_tween = create_tween().set_parallel(true)
+	for label: Label in [_mode_label, _speed_value_label]:
+		label.pivot_offset = label.size * 0.5
+		label.scale = Vector2(1.22, 1.22)
+		_wall_mode_pop_tween.tween_property(label, "scale", Vector2.ONE, 0.32).set_trans(
+			Tween.TRANS_BACK
+		).set_ease(Tween.EASE_OUT)
+
 
 func _update_speed_value() -> void:
+	if _is_wall_auto_mode():
+		# 自動の速さは問題ごとに変わるので、数字は出さずに「AUTO」とし、色もモードの青にする。
+		_speed_value_label.text = "AUTO"
+		_speed_value_label.add_theme_color_override("font_color", WALL_AUTO_COLOR)
+		return
 	_speed_value_label.text = "%.1f" % _preview_speed
 	var span: float = GameTuning.WALL_SPEED_SLIDER_MAX - GameTuning.WALL_SPEED_SLIDER_MIN
 	var t: float = (_preview_speed - GameTuning.WALL_SPEED_SLIDER_MIN) / span
@@ -1413,7 +1667,7 @@ func _on_reset_pressed() -> void:
 	_preview_speed = AUTO_WALL_SPEED
 	if _active_section != Section.EMOTE:
 		_belt_visual_speed = _preview_speed
-	_speed_slider.set_value_no_signal(_preview_speed)
+	# つまみとバーは動かさない（自動のあいだ、バーの位置は速さを表さない）。
 	if embedded_mode and _menu_preview and _active_section == Section.WALL_SPEED:
 		_menu_preview.set_belt_speed(_preview_speed)
 	_update_mode_label()
@@ -1429,7 +1683,8 @@ func _set_skin_editing_player(which: int) -> void:
 	_refresh_all_labels()
 	if _active_section == Section.SKIN:
 		_update_skin_preview_lighting()
-		_sync_skin_orbit_lane_x()
+		# 人によって乗り物の有無が違うので、その人に合ったカメラへ戻す。
+		_reset_skin_orbit_default()
 
 func _refresh_skin_player_button_styles() -> void:
 	if not _skin_player_btn_p1 or not _skin_player_btn_p2:

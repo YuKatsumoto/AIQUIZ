@@ -197,6 +197,9 @@ var _ghost_hit_dust: Node3D = null
 ## 被弾した人の着地待ち（player_index → {t, airborne, tumble, roll}）。体の演出（_ghost_hit_ragdolls）は操作が戻ると終わるが、
 ## 着地の音と砂ぼこりはそのあとの着地でも出す。GHOST_HIT_LANDING_TIMEOUT 秒・落水・脱落でやめる。
 var _ghost_hit_landing: Dictionary = {}
+## 被弾のアニメの姿勢（起き上がりなど）に足す向き（rad）。本編は 0。メニュー背景はランナーを逆向き（PI）に立たせるので、
+## 被弾の間は自分で向きを上書きせず、ここに入れる（MenuGhostRideDirector）。
+var ghost_hit_facing_yaw: float = 0.0
 var _p1_driver: ActiveRagdollDriver = null
 var _p2_driver: ActiveRagdollDriver = null
 
@@ -284,10 +287,35 @@ const WALL_BURST_VFX := preload("res://assets/BinbunVFX/impact_explosions/effect
 const WALL_BURST_VFX_HIDE := ["Decal", "Core", "Smoke"]
 ## 爆散の飛び方の乱数（PV は seed を決めて同じ絵にする）
 var wall_burst_rng := RandomNumberGenerator.new()
+## 爆発の演出（WALL_BURST_VFX）は作り置きして使い回す。毎回作って捨てると、新しい PC では
+## 初めて出す瞬間に描画の部品（パイプライン）を作り終えるまで画面が止まり（サメにかまれた瞬間に約 2 秒）、
+## 捨てる瞬間にも止まる。試合の準備（begin_death_render_prewarm）で 2 人分を作って一度描いておく。
+const WALL_BURST_POOL_SIZE := 2
+var _wall_burst_pool: Array[Node3D] = []
+## 間違えたときの点滅（_apply_health_pose）で体を半透明にする濃さ。半透明の体は描き方が別なので、
+## 試合の準備で同じ濃さの体を一度描いておく（begin_death_render_prewarm）。
+const DAMAGE_FLASH_TRANSPARENCY := 0.58
 
 # Animation Rig (P1/P2蜈ｱ騾壹け繝ｩ繧ｹ縺ｧ邂｡逅・
 var _p1_rig: AnimationRig = AnimationRig.new("P1")
 var _p2_rig: AnimationRig = AnimationRig.new("P2")
+
+## 乗り物（ママチャリ）。{player_index: MamachariRig}。入れ物（自分か Player2）の子で、足もとが原点。
+var _ride_rigs: Dictionary = {}
+## 乗り方（座る・立ちこぎ・片足をつく・空中）。{player_index: MamachariRide}。降りると捨てる。
+var _ride_controls: Dictionary = {}
+## 乗っているあいだの、前のフレームの位置。{player_index: {local_z, x}}
+var _ride_motion: Dictionary = {}
+## 乗り物に乗ったまま進める状態（それ以外の特殊な場面では降りて、今までどおりの姿になる）。
+const RIDE_STATES: Array[String] = [
+	Constants.STATE_WAITING_START, Constants.STATE_FLYOVER, Constants.STATE_COUNTDOWN,
+	Constants.STATE_PLAYING, Constants.STATE_CORRECT, Constants.STATE_GOAL_RACE,
+]
+## 乗り物と乗り手の向き（入れ物の中での、上向きの軸まわりの回転）。試合は 0（前 = +Z）。
+## メニューやカスタマイズのプレビューは前が -Z なので PI を入れる（キャラを後ろ向きにする処理と同じ向き）。
+var ride_yaw: float = 0.0
+## これより速い動きは位置の飛び（リスポーンなど）とみなして、車輪を回さない（m/s）。
+const RIDE_MAX_SPEED := 30.0
 
 var _time: float = 0.0
 const BASE_Y: float = -1.2
@@ -423,8 +451,9 @@ func _launch_wall_ragdoll(ragdoll: Dictionary, is_p1: bool, saw_hit := false, fl
 ## tumble・roll・control_lock（戻り方と操作ロック。GhostHitContact.recovery_plan）。
 ## ヒットストップの間は当たった瞬間の姿勢のまま止め、そのあと飛ばす。ゲームの点（位置）は今まで通り game_state が持ち、
 ## 胴はその点へゆるいばねで寄せる（回転は自由）。
+## メニュー背景（SubViewport）でも同じ演出を出す（ふだんの常時ラグドールと違い、被弾の間だけの体なので負荷は一時的）。
 func begin_ghost_hit_ragdoll(player_index: int, info: Dictionary) -> void:
-	if player_index not in [1, 2] or _is_preview_subviewport():
+	if player_index not in [1, 2]:
 		return
 	var is_p1 := player_index == 1
 	var parts: Dictionary = p1_parts if is_p1 else p2_parts
@@ -915,7 +944,10 @@ func _apply_ghost_hit_pose(state: Dictionary, parts: Dictionary, rig: AnimationR
 		var target: Transform3D = mixed[i].transform if i < mixed.size() else base[i].transform
 		node.transform = (base[i].transform as Transform3D).interpolate_with(target, weight if not mixed.is_empty() else 0.0)
 	var yaw := (float(state.getup_yaw) * _ghost_hit_getup_turn(state, rig, t) if bool(state.tumble) else float(state.yaw)) * weight
-	if absf(yaw) > 0.0001 and not mixed.is_empty():
+	if mixed.is_empty():
+		yaw = 0.0
+	yaw += ghost_hit_facing_yaw
+	if absf(yaw) > 0.0001:
 		pelvis.global_basis = Basis(Vector3.UP, yaw) * pelvis.global_basis
 
 
@@ -3620,24 +3652,82 @@ func _play_wall_burst(is_p1: bool, gs: QuizGameState) -> void:
 		piece.angular_velocity = Vector3(rng.randf_range(-24.0, 24.0), rng.randf_range(-10.0, 10.0), rng.randf_range(-24.0, 24.0))
 		piece.gravity_scale = 1.6
 		piece.linear_damp = 0.02
+	var fx := _acquire_wall_burst_fx()
+	var serial := _fire_wall_burst_fx(fx, center + Vector3(0.0, 0.3, 0.0))
+	get_tree().create_timer(EXPLOSION_DEBRIS_LIFETIME).timeout.connect(_release_wall_burst_fx.bind(fx, serial))
+	if gs != null:
+		gs.camera_shake = maxf(gs.camera_shake, WALL_BURST_CAMERA_SHAKE)
+	AudioManager.play_sfx(&"barrier_explosion")
+
+
+## 作り置きの爆発の演出を 1 つ借りる（使っていない物がなければ足す）。爆散の破片と同じ所（_get_explosion_spawn_root）に置く。
+func _acquire_wall_burst_fx() -> Node3D:
+	var root := _get_explosion_spawn_root()
+	for fx: Node3D in _wall_burst_pool:
+		if is_instance_valid(fx) and fx.get_parent() == root and not bool(fx.get_meta("burst_in_use", false)):
+			return fx
+	return _new_wall_burst_fx(root)
+
+
+## 試合の準備で、爆発の演出を作り置きしておく（2 人同時に爆散しても足りる数）。
+func _ensure_wall_burst_pool() -> void:
+	_wall_burst_pool = _wall_burst_pool.filter(func(fx: Node3D) -> bool: return is_instance_valid(fx))
+	var root := _get_explosion_spawn_root()
+	var ready_count := 0
+	for fx: Node3D in _wall_burst_pool:
+		if fx.get_parent() == root:
+			ready_count += 1
+	while ready_count < WALL_BURST_POOL_SIZE:
+		_new_wall_burst_fx(root)
+		ready_count += 1
+
+
+func _new_wall_burst_fx(root: Node) -> Node3D:
 	var fx := WALL_BURST_VFX.instantiate() as Node3D
+	fx.name = "WallBurstVfx%d" % _wall_burst_pool.size()
 	fx.set("autoplay", false)
-	_get_explosion_spawn_root().add_child(fx)
-	fx.global_position = center + Vector3(0.0, 0.3, 0.0)
+	fx.visible = false
+	root.add_child(fx)
 	for node_name: String in WALL_BURST_VFX_HIDE:
 		var node := fx.get_node_or_null(node_name) as Node3D
 		if node != null:
 			node.visible = false
 	for child in fx.get_children():
 		if child is GPUParticles3D:
+			(child as GPUParticles3D).emitting = false
+	_wall_burst_pool.append(fx)
+	return fx
+
+
+## 爆発の演出を position で鳴らす。返す番号は、片付けるときに「その回の物か」を確かめるのに使う。
+func _fire_wall_burst_fx(fx: Node3D, position_at: Vector3) -> int:
+	var serial := int(fx.get_meta("burst_serial", 0)) + 1
+	fx.set_meta("burst_serial", serial)
+	fx.set_meta("burst_in_use", true)
+	fx.global_position = position_at
+	fx.visible = true
+	for child in fx.get_children():
+		if child is GPUParticles3D:
 			(child as GPUParticles3D).restart()
 	var anim := fx.get_node_or_null("AnimationPlayer") as AnimationPlayer
 	if anim != null:
+		anim.stop()
 		anim.play("oneshot" if anim.has_animation("oneshot") else "main")
-	get_tree().create_timer(EXPLOSION_DEBRIS_LIFETIME).timeout.connect(fx.queue_free)
-	if gs != null:
-		gs.camera_shake = maxf(gs.camera_shake, WALL_BURST_CAMERA_SHAKE)
-	AudioManager.play_sfx(&"barrier_explosion")
+	return serial
+
+
+## 爆発の演出をしまう（捨てずに隠して、次に使う）。そのあとでもう一度使われていたら何もしない。
+func _release_wall_burst_fx(fx: Node3D, serial: int) -> void:
+	if not is_instance_valid(fx) or int(fx.get_meta("burst_serial", 0)) != serial:
+		return
+	fx.visible = false
+	fx.set_meta("burst_in_use", false)
+	var anim := fx.get_node_or_null("AnimationPlayer") as AnimationPlayer
+	if anim != null:
+		anim.stop()
+	for child in fx.get_children():
+		if child is GPUParticles3D:
+			(child as GPUParticles3D).emitting = false
 
 
 ## 頭のてっぺん（帽子の付け根）のワールド座標。アニメーションの姿勢に追従する。
@@ -3919,6 +4009,13 @@ func _exit_tree() -> void:
 	cancel_intro_drops()
 	_teardown_ragdoll(_p1_ragdoll)
 	_teardown_ragdoll(_p2_ragdoll)
+	# 被弾のラグドールも別ツリー（メニュー背景は、復活のたびにこのノードだけを作り直す）。
+	# 帽子は体ごと消えるので、付け根へは戻さない（ツリーを出る途中の付け替えを避ける）。
+	for state: Dictionary in _ghost_hit_ragdolls.values():
+		var container: Variant = (state.get("ragdoll", {}) as Dictionary).get("container")
+		if is_instance_valid(container):
+			(container as Node).queue_free()
+	_ghost_hit_ragdolls.clear()
 
 
 func _load_mixamo_rig(gs: QuizGameState) -> void:
@@ -4487,6 +4584,12 @@ func prepare_for_loading(gs: QuizGameState) -> void:
 		set_hat(2, gs.p2_hat)
 		set_toon_preset(2, ToonPresets.resolve_player_preset(gs, 2))
 	_sync_skins_from_state(gs)
+	# 乗り物のモデルも黒画面のうちに作っておく（試合中に初めて出すと、そのフレームが重くなる）。
+	if not gs.net_online and not gs.is_replay:
+		if gs.p1_ride == RideData.RIDE_MAMACHARI:
+			_ensure_ride_rig(1)
+		if gs.num_players >= 2 and gs.p2_ride == RideData.RIDE_MAMACHARI:
+			_ensure_ride_rig(2)
 	if not has_intro_arrival():
 		return
 	var count := 2 if gs.num_players >= 2 else 1
@@ -4576,7 +4679,7 @@ func _apply_health_pose(gs: QuizGameState, parts: Dictionary, player_index: int)
 	var rig := _p1_rig if player_index == 1 else _p2_rig
 	var elapsed := QuizGameState.DAMAGE_FLASH_DURATION - remaining
 	_apply_wall_recoil(parts, rig, elapsed)
-	var fade := 0.58 if int(elapsed / 0.075) % 2 == 0 else 0.0
+	var fade := DAMAGE_FLASH_TRANSPARENCY if int(elapsed / 0.075) % 2 == 0 else 0.0
 	for mesh: MeshInstance3D in parts.get("meshes", []):
 		if not is_instance_valid(mesh):
 			continue
@@ -4749,6 +4852,7 @@ func update_from_state(gs: QuizGameState) -> void:
 	_p1_rig.use_rest_pose = use_skin_preview_rest_pose
 	_p2_rig.use_rest_pose = use_skin_preview_rest_pose
 	if has_intro_arrival():
+		_hide_rides()
 		return
 	var push1: Dictionary = gs.get_local_push_pose(1)
 	var push2: Dictionary = gs.get_local_push_pose(2) if gs.num_players >= 2 else {}
@@ -5098,11 +5202,129 @@ func update_from_state(gs: QuizGameState) -> void:
 	_apply_result_camera_facing(gs)
 	_apply_sudden_death_facing(gs)
 	_apply_pose_handoffs()
+	# 乗り物は最後に重ねる（通常のアニメが書いた関節を、乗った姿勢で書き直す）。
+	_update_rides(gs)
 
 	# The solo player root must remain visible for the third-person camera.
 	# Individual meshes still control death/explosion visibility above.
 	if gs.num_players == 1:
 		visible = true
+
+
+# ---------------------------------------------------------------------------
+# 乗り物（ママチャリ）
+# ---------------------------------------------------------------------------
+
+## その人が、いま乗り物に乗った姿で出るか。見た目だけで、当たり判定や速さは変えない。
+func _ride_is_mounted(gs: QuizGameState, player_index: int) -> bool:
+	var is_p1 := player_index == 1
+	if (gs.p1_ride if is_p1 else gs.p2_ride) != RideData.RIDE_MAMACHARI:
+		return false
+	# オンライン対戦とリプレイは、乗り物の番号をまだ送り・記録していない。
+	if gs.net_online or gs.is_replay or not (gs.game_state in RIDE_STATES):
+		return false
+	if not (gs.p1_alive if is_p1 else gs.p2_alive):
+		return false
+	if (gs.p1_waiting_for_shark if is_p1 else gs.p2_waiting_for_shark) or gs.is_practice_bitten(player_index):
+		return false
+	if gs.is_result_ghost(player_index) or (lasso_hidden_mask & (1 if is_p1 else 2)) != 0:
+		return false
+	if _ghost_hit_ragdolls.has(player_index) or _ghost_hit_landing.has(player_index) or has_pose_handoff(player_index):
+		return false
+	if (_p1_result_exploded if is_p1 else _p2_result_exploded):
+		return false
+	# エモートのあいだと、コースから落ちたあとは降りる。
+	if (gs.p1_emote if is_p1 else gs.p2_emote) > 0:
+		return false
+	return (gs.player_y if is_p1 else gs.player2_y) > -0.5
+
+
+func _ride_rig(player_index: int) -> MamachariRig:
+	var rig := _ride_rigs.get(player_index) as MamachariRig
+	if rig != null and not is_instance_valid(rig):
+		_ride_rigs.erase(player_index)
+		return null
+	return rig
+
+
+## 乗り物のモデルを用意する（見えない状態で作る）。入れ物がまだ無ければ何もしない。
+func _ensure_ride_rig(player_index: int) -> MamachariRig:
+	var rig := _ride_rig(player_index)
+	if rig != null:
+		return rig
+	var container: Node3D = self if player_index == 1 else p2_container
+	if container == null:
+		return null
+	rig = MamachariRig.new()
+	rig.position = Vector3(0.0, BASE_Y, 0.0)
+	rig.visible = false
+	container.add_child(rig)
+	_ride_rigs[player_index] = rig
+	return rig
+
+
+func _hide_rides() -> void:
+	for player_index: int in [1, 2]:
+		_dismount_ride(player_index)
+
+
+func _dismount_ride(player_index: int) -> void:
+	var rig := _ride_rig(player_index)
+	if rig != null and rig.visible:
+		rig.visible = false
+		MamachariRider.release_hands(p1_parts if player_index == 1 else p2_parts)
+	_ride_motion.erase(player_index)
+	_ride_controls.erase(player_index)
+
+
+func _update_rides(gs: QuizGameState) -> void:
+	var dt := get_process_delta_time()
+	for player_index: int in [1, 2]:
+		var is_p1 := player_index == 1
+		var parts: Dictionary = p1_parts if is_p1 else p2_parts
+		var container: Node3D = self if is_p1 else p2_container
+		if container == null or parts.is_empty() or not _ride_is_mounted(gs, player_index):
+			_dismount_ride(player_index)
+			continue
+		var rig := _ensure_ride_rig(player_index)
+		if rig == null:
+			continue
+		rig.visible = true
+		var ride := _ride_controls.get(player_index) as MamachariRide
+		if ride == null or ride.rig != rig:
+			ride = MamachariRide.new(rig)
+			_ride_controls[player_index] = ride
+		_drive_ride(gs, player_index, ride, dt)
+		MamachariRider.apply(parts, rig, container, ride.pose())
+
+
+## 進み具合を乗り方（MamachariRide）へ渡して、自転車を動かす。
+func _drive_ride(gs: QuizGameState, player_index: int, ride: MamachariRide, dt: float) -> void:
+	var is_p1 := player_index == 1
+	var local_z := gs.player_local_z if is_p1 else gs.player2_local_z
+	var side := gs.player_x if is_p1 else gs.player2_x
+	var height := gs.player_y if is_p1 else gs.player2_y
+	var rise := gs.player_vel_y if is_p1 else gs.player2_vel_y
+	var moving_back := gs.p1_moving_back if is_p1 else gs.p2_moving_back
+	var motion: Dictionary = _ride_motion.get(player_index, {})
+	# 画面の中での動き（コンベアに対してではなく、カメラに対して）。前へ押すと正になる。
+	var push_speed := 0.0
+	var side_speed := 0.0
+	if not motion.is_empty() and dt > 0.0:
+		push_speed = (local_z - float(motion.local_z)) / dt
+		side_speed = (side - float(motion.x)) / dt
+		if absf(push_speed) > RIDE_MAX_SPEED or absf(side_speed) > RIDE_MAX_SPEED:
+			push_speed = 0.0
+			side_speed = 0.0
+	_ride_motion[player_index] = {"local_z": local_z, "x": side}
+	# コンベアが流れているあいだは、その速さで地面が後ろへ動く。
+	var ground_speed := push_speed
+	if gs.game_state == Constants.STATE_PLAYING:
+		ground_speed += gs._active_wall_speed
+	ride.yaw = ride_yaw
+	ride.base_position = Vector3(0.0, BASE_Y, 0.0)
+	# 向きを反転しているプレビューでは、左右も反転する。
+	ride.update(dt, ground_speed, push_speed, side_speed * cos(ride_yaw), rise, height <= 0.02, moving_back)
 
 
 ## Start [param player_index]'s parts at [param pose] (part key -> global Transform3D, the same
@@ -5757,6 +5979,68 @@ func _create_explosion_piece(mesh: MeshInstance3D, is_p1: bool) -> RigidBody3D:
 	return piece
 
 
+## 2 人プレイで脱落したときのラグドール（手足がばらける）と、乗り移るゴースト（半透明・不透明）と
+## その演出。どれも試合中に初めて出るので、試合の準備でカメラの前に一度出して描く。holder を捨てるとき片付く。
+func begin_duo_render_prewarm(camera: Camera3D, holder: Node3D) -> int:
+	var drawn := 0
+	var ragdolls: Array[Dictionary] = []
+	var limb_visibility: Array[Dictionary] = []
+	for is_p1: bool in [true, false]:
+		var parts: Dictionary = p1_parts if is_p1 else p2_parts
+		if parts.is_empty() or not parts.has("pelvis"):
+			continue
+		# _setup_ragdoll は本物の手足を隠すので、片付けるときに元の見え方へ戻す。
+		var shown := {}
+		for key: String in _RAGDOLL_HIDE_KEYS:
+			var limb := parts.get(key) as Node3D
+			if limb != null and is_instance_valid(limb):
+				shown[limb] = limb.visible
+		var ragdoll := _setup_ragdoll(parts, is_p1)
+		ragdolls.append(ragdoll)
+		limb_visibility.append(shown)
+		var container := ragdoll.container as Node3D
+		container.process_mode = Node.PROCESS_MODE_DISABLED
+		for body: Variant in (ragdoll.rag.bodies as Dictionary).values():
+			if body is RigidBody3D:
+				(body as RigidBody3D).freeze = true
+			if body is CollisionObject3D:
+				(body as CollisionObject3D).collision_layer = 0
+				(body as CollisionObject3D).collision_mask = 0
+		var pelvis := parts["pelvis"] as Node3D
+		container.global_position += camera.global_transform * Vector3(-2.4 if is_p1 else 2.4, -1.2, -8.0) - pelvis.global_position
+		drawn += 1
+	# 片付けは holder を捨てるときにまとめて 1 回（同じ関数を 2 回つなぐと 2 回目がつながらない）。
+	holder.tree_exiting.connect(_end_duo_render_prewarm.bind(ragdolls, limb_visibility), CONNECT_ONE_SHOT)
+	for player_index: int in [1, 2]:
+		var ghost := create_ghost_rider_visual(player_index)
+		holder.add_child(ghost)
+		ghost.global_position = camera.global_transform * Vector3(-1.2 if player_index == 1 else 1.2, -0.8, -6.5)
+		var solid := create_ghost_rider_visual(player_index)
+		holder.add_child(solid)
+		solid.global_position = camera.global_transform * Vector3(-1.2 if player_index == 1 else 1.2, 0.6, -6.5)
+		make_ghost_rider_opaque(solid)
+		drawn += 2
+	var presenter := GhostRiderPresentation.new()
+	presenter.player_controller = self
+	holder.add_child(presenter)
+	var rider := holder.get_child(holder.get_child_count() - 2) as Node3D
+	presenter.begin(rider, 2, 0.6, 0.0)
+	presenter.play_awaken(camera.global_transform * Vector3(0.0, 0.0, -6.0), Vector3.BACK)
+	presenter.play_mount_impact(camera.global_transform * Vector3(0.6, -0.4, -6.0), Vector3.UP)
+	for _step: int in range(3):
+		presenter.update_effects(1.0 / 60.0, true)
+	return drawn
+
+
+func _end_duo_render_prewarm(ragdolls: Array[Dictionary], limb_visibility: Array[Dictionary]) -> void:
+	for ragdoll: Dictionary in ragdolls:
+		_teardown_ragdoll(ragdoll)
+	for shown: Dictionary in limb_visibility:
+		for limb: Variant in shown:
+			if is_instance_valid(limb):
+				(limb as Node3D).visible = bool(shown[limb])
+
+
 ## Render the exact death mesh/material combinations without killing a player,
 ## hiding the live rig, emitting signals, or enabling any physics collisions.
 func begin_death_render_prewarm(camera: Camera3D) -> Node3D:
@@ -5780,6 +6064,31 @@ func begin_death_render_prewarm(camera: Camera3D) -> Node3D:
 				floorf(float(index) / 8.0) * 0.4 - 0.5,
 				-5.0 - player_index
 			)
+		# 間違えたときの点滅（_apply_health_pose）で半透明になった体。体の部品と同じメッシュ・材質で描く。
+		var body_meshes: Array = parts.get("meshes", [])
+		for index: int in range(body_meshes.size()):
+			var mesh := body_meshes[index] as MeshInstance3D
+			if not is_instance_valid(mesh) or mesh.mesh == null:
+				continue
+			var flash := MeshInstance3D.new()
+			flash.name = "DamageFlashPrewarm%d_%d" % [player_index, index]
+			flash.mesh = mesh.mesh
+			flash.material_override = mesh.material_override
+			flash.transparency = DAMAGE_FLASH_TRANSPARENCY
+			flash.scale = mesh.scale
+			holder.add_child(flash)
+			flash.position = Vector3(
+				(index % 8 - 4) * 0.35,
+				floorf(float(index) / 8.0) * 0.4 + 0.9,
+				-5.5 - player_index
+			)
+	# サメにかまれたとき・壁に激突したときの爆発の演出（作り置きの物を、カメラの前で一度鳴らす）。
+	# 準備の覆いを外すとき（holder を捨てるとき）にしまう。
+	_ensure_wall_burst_pool()
+	if not _wall_burst_pool.is_empty():
+		var fx := _wall_burst_pool[0]
+		var serial := _fire_wall_burst_fx(fx, camera.global_transform * Vector3(0.0, -0.4, -7.0))
+		holder.tree_exiting.connect(_release_wall_burst_fx.bind(fx, serial), CONNECT_ONE_SHOT)
 	return holder
 
 

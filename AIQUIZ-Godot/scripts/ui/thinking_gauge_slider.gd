@@ -17,6 +17,21 @@ const TRACK_BORDER_COLOR := Color(1.0, 1.0, 1.0, 0.07)
 const KNOB_BORDER_COLOR := Color(0.78, 0.81, 0.86, 1.0)
 const KNOB_COLOR := Color(0.985, 0.985, 0.98, 1.0)
 
+## 自動モードの見た目：バーは青一色になり、つまみのランプが明滅して、つまみから波紋が広がる。
+const AUTO_FILL_COLOR := Color(0.24, 0.61, 0.88, 1.0)
+const AUTO_FILL_BRIGHT_COLOR := Color(0.42, 0.76, 1.0, 1.0)
+const AUTO_ACCENT_COLOR := Color(0.47, 0.78, 1.0, 1.0)
+## 明滅ひとまわりの秒数。波紋もこの拍で出る（数字やボタンは auto_phase / auto_pulse で合わせる）。
+const AUTO_PULSE_SEC: float = 1.8
+const AUTO_RIPPLE_COUNT: int = 2
+## 波紋がつまみの外へ広がる距離。
+const AUTO_RIPPLE_REACH: float = 17.0
+## 自動に戻した瞬間に 1 回だけ出る、大きな波紋。
+const AUTO_BURST_SEC: float = 0.5
+const AUTO_BURST_REACH: float = 34.0
+## 自動と手動の見た目が入れ替わるのにかかる秒数。
+const AUTO_BLEND_SEC: float = 0.22
+
 ## x 初期位相、y 正規化位置、横移動速度、明滅位相。
 const PARTICLE_SEEDS: Array[Vector4] = [
 	Vector4(0.04, -0.48, 0.036, 0.2),
@@ -37,6 +52,22 @@ var _invisible_grabber: GradientTexture2D
 var _elapsed: float = 0.0
 var _hovered: bool = false
 var _dragging: bool = false
+## 0 = 手動の見た目、1 = 自動の見た目。_process でなめらかに寄せる。
+var _auto_blend: float = 0.0
+## 自動に戻した瞬間の大きな波紋（1 → 0 へ減る。0 = 出ていない）。
+var _auto_burst: float = 0.0
+
+## 自動モードの見た目にする。値・入力は変えない（つまみを動かせば、呼び出し側が手動へ切り替える）。
+var auto_mode: bool = false:
+	set(value):
+		var turned_on := value and not auto_mode
+		auto_mode = value
+		# まだ画面に出ていないときは、切り替えの動きを見せずにその見た目で始める。
+		if _elapsed <= 0.0 or not is_visible_in_tree():
+			_auto_blend = 1.0 if auto_mode else 0.0
+		elif turned_on:
+			_auto_burst = 1.0
+		queue_redraw()
 
 
 func _ready() -> void:
@@ -57,6 +88,8 @@ func _process(delta: float) -> void:
 	if not is_visible_in_tree():
 		return
 	_elapsed = fmod(_elapsed + delta, 1000.0)
+	_auto_blend = move_toward(_auto_blend, 1.0 if auto_mode else 0.0, delta / AUTO_BLEND_SEC)
+	_auto_burst = move_toward(_auto_burst, 0.0, delta / AUTO_BURST_SEC)
 	queue_redraw()
 
 
@@ -83,7 +116,10 @@ func _draw() -> void:
 	)
 	var fill_width := maxf(0.0, knob_x - track_rect.position.x)
 	var fill_rect := Rect2(track_rect.position, Vector2(fill_width, TRACK_HEIGHT))
-	var fill_color := _fill_color_for_value(value)
+	var pulse := auto_pulse()
+	var auto_color := AUTO_FILL_COLOR.lerp(AUTO_FILL_BRIGHT_COLOR, pulse)
+	# バーそのものは明滅させない（光るのは、つまみのランプと波紋だけ）。
+	var fill_color := _fill_color_for_value(value).lerp(AUTO_FILL_COLOR, _auto_blend)
 	draw_set_transform(_current_shake_offset())
 
 	# 奥行きを感じる控えめな影と、暗い未到達トラック。
@@ -117,8 +153,18 @@ func _draw() -> void:
 		knob_center - Vector2(KNOB_RADIUS, KNOB_RADIUS),
 		Vector2(KNOB_DIAMETER, KNOB_DIAMETER)
 	)
+	if _auto_blend > 0.0 or _auto_burst > 0.0:
+		_draw_auto_ripples(knob_center)
+	_knob_style.border_color = KNOB_BORDER_COLOR.lerp(AUTO_ACCENT_COLOR, _auto_blend)
+	_knob_style.set_border_width_all(2 if _auto_blend >= 0.5 else 1)
 	draw_style_box(_knob_style, knob_rect)
 	draw_circle(knob_center + Vector2(-4.5, -5.0), KNOB_RADIUS * 0.38, Color(1.0, 1.0, 1.0, 0.22), true, -1.0, true)
+	if _auto_blend > 0.0:
+		# 自動モード：つまみの真ん中に、バーと同じ拍で光るランプ。
+		draw_circle(
+			knob_center, 6.5 + 2.0 * pulse, Color(AUTO_ACCENT_COLOR, 0.28 * _auto_blend), true, -1.0, true
+		)
+		draw_circle(knob_center, 4.5, Color(auto_color, _auto_blend), true, -1.0, true)
 	draw_set_transform(Vector2.ZERO)
 
 
@@ -134,6 +180,49 @@ func _fill_color_for_value(speed_value: float) -> Color:
 	var span := max_value - min_value
 	var color_ratio := 0.0 if is_zero_approx(span) else (speed_value - min_value) / span
 	return Color(0.3, 1.0, 0.5).lerp(Color(1.0, 0.3, 0.2), color_ratio)
+
+
+## 自動モードの明滅の位相（0〜1 をくり返す）。時計から決めるので、ほかの部品も同じ拍で動かせる。
+func auto_phase() -> float:
+	return fposmod(float(Time.get_ticks_msec()) / 1000.0 / AUTO_PULSE_SEC, 1.0)
+
+
+## 自動モードの明滅の強さ（0 = いちばん暗い、1 = いちばん明るい。位相 0.5 で最大）。
+func auto_pulse() -> float:
+	return 0.5 - 0.5 * cos(TAU * auto_phase())
+
+
+## 自動モード：つまみから外へ広がって消える波紋。バーがいちばん明るい瞬間に 1 つめが出る。
+func _draw_auto_ripples(knob_center: Vector2) -> void:
+	var phase := auto_phase()
+	for ripple_index: int in range(AUTO_RIPPLE_COUNT):
+		var travel := fposmod(phase - 0.5 + float(ripple_index) / float(AUTO_RIPPLE_COUNT), 1.0)
+		var reach := 1.0 - pow(1.0 - travel, 2.0)
+		var alpha := 0.75 * pow(1.0 - travel, 1.6) * _auto_blend
+		draw_arc(
+			knob_center,
+			KNOB_RADIUS + 1.0 + AUTO_RIPPLE_REACH * reach,
+			0.0,
+			TAU,
+			64,
+			Color(AUTO_ACCENT_COLOR, alpha),
+			lerpf(2.6, 1.0, travel),
+			true
+		)
+	if _auto_burst > 0.0:
+		var burst_travel := 1.0 - _auto_burst
+		var burst_radius := KNOB_RADIUS + 2.0 + AUTO_BURST_REACH * (1.0 - pow(1.0 - burst_travel, 3.0))
+		draw_circle(knob_center, burst_radius, Color(AUTO_ACCENT_COLOR, 0.16 * _auto_burst), true, -1.0, true)
+		draw_arc(
+			knob_center,
+			burst_radius,
+			0.0,
+			TAU,
+			96,
+			Color(AUTO_ACCENT_COLOR.lightened(0.3), 0.9 * _auto_burst),
+			lerpf(4.0, 1.0, burst_travel),
+			true
+		)
 
 
 func _draw_fill_particles(fill_rect: Rect2, center_y: float) -> void:

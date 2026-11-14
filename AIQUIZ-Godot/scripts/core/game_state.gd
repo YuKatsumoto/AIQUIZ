@@ -395,6 +395,9 @@ var p2_run_anim_speed_mult: float = 1.0
 var p1_emote_lock_timer: float = 0.0
 var p2_emote_lock_timer: float = 0.0
 var p1_hat: int = 0
+## 乗り物（RideData の番号。0 = なし）。見た目だけで、当たり判定や速さは変えない。
+var p1_ride: int = 0
+var p2_ride: int = 0
 var p2_hat: int = 0
 var p1_toon_preset: int = ToonPresets.STANDARD
 var p2_toon_preset: int = ToonPresets.STANDARD
@@ -611,8 +614,8 @@ var local_slot: int = 1
 var net_authority: bool = true
 ## オンライン対戦中か（HUD の表記などに使う）。
 var net_online: bool = false
-## オンラインのホスト：試合の状態は整えたが、問題生成（provider.begin_round）はまだ始めていない。
-## VS の演出を問題生成で止めないよう、ゲーム画面が開いてから begin_deferred_quiz_generation() で始める。
+## 試合の状態は整えたが、問題生成（provider.begin_round）はまだ始めていない。
+## 画面遷移の演出を問題生成で止めないよう、ゲーム画面が開ききってから begin_deferred_quiz_generation() で始める。
 var quiz_generation_deferred: bool = false
 var _net_cosmetic_backup: Dictionary = {}
 
@@ -1733,6 +1736,18 @@ func start_game(defer_quiz_generation: bool = false) -> void:
 		state_changed.emit(game_state)
 		return
 	_begin_quiz_generation()
+
+
+## 画面遷移の覆いの下から始める回（メニューからの開始・リトライ）。AI に問題を作らせる回は、問題生成を
+## 後回しにして、遷移のアニメーションが終わりきってから GameWorld が begin_deferred_quiz_generation() で始める。
+## 問題バンクだけの回は生成がなく、覆いの下で問題をそろえてから開くので、今までどおりすぐそろえる。
+func start_game_under_transition() -> void:
+	start_game(true)
+	var buffered_provider := provider as BufferedQuizProvider
+	var bank_only: bool = buffered_provider.uses_bank_only() if buffered_provider != null \
+		else llm_mode == "OFFLINE"
+	if bank_only:
+		begin_deferred_quiz_generation()
 
 
 ## start_game(true) で後回しにした問題生成を始める。後回しにしていなければ何もしない。

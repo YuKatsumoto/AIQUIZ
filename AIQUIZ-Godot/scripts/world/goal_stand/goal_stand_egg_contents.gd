@@ -163,6 +163,27 @@ func setup(level: String, egg_scale: float, seed_value: int, mobile: bool = fals
 			fluid = null
 
 
+## 試合の準備（GameWorld の覆いの下）で、中身の部品（白身・筋・黄身・したたり・糸・カラザ）を 1 つずつ
+## カメラの前に出して描く。筋や糸は割れてから時間がたって出るので、卵を当てるだけでは描けない。
+## 出した物は、この観客席ごと捨てる。
+func begin_render_prewarm(camera: Camera3D) -> int:
+	var kinds := [
+		["white", _white_mesh, _white_material], ["rivulet", _ribbon_mesh, _rivulet_material],
+		["yolk", _yolk_mesh, _yolk_material], ["drip", _drip_mesh, _drip_material],
+		["strand", _strand_mesh, _strand_material], ["chalaza", _chalaza_mesh, _chalaza_material],
+	]
+	var drawn := 0
+	for index: int in range(kinds.size()):
+		var kind: Array = kinds[index]
+		if kind[1] == null or kind[2] == null:
+			continue
+		var node := _take(String(kind[0]), kind[1] as Mesh, kind[2] as Material)
+		node.global_transform = Transform3D(camera.global_basis.scaled(Vector3.ONE * 0.6),
+			camera.global_transform * Vector3(-1.5 + index * 0.6, -0.9, -5.0))
+		drawn += 1
+	return drawn
+
+
 static func _mesh_of(root: Node, mesh_name: String) -> Mesh:
 	var node := root.find_child(mesh_name, true, false) as MeshInstance3D
 	return node.mesh if node != null else null

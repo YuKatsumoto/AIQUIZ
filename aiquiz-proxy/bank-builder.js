@@ -104,7 +104,9 @@ class BankBuilderJob {
 
     async collect() {
         const summary = { batches: 0, requests: 0, questions: 0, archived: 0, duplicates: 0, invalid: 0,
-            errored: 0, usd: 0 };
+            errored: 0, unplanned: 0, usd: 0 };
+        // いまのプロンプトに無い区分（ゲームで選べない学年など）。出したあとで対象から外した区分の返事は捨てる
+        const planned = new Set(this.prompts.prompts.map(p => bucketKey(p.subject, Number(p.grade), p.difficulty)));
         const batches = (await this.db.ref(`${BUILDER_PATH}/batches`).once('value')).val() || {};
         for (const [batchId, record] of Object.entries(batches)) {
             if (!record || record.state !== 'submitted') continue;
@@ -122,6 +124,10 @@ class BankBuilderJob {
                 usage.input_tokens += Number((message.usage || {}).input_tokens || 0);
                 usage.output_tokens += Number((message.usage || {}).output_tokens || 0);
                 usage.usd += costUsd(record.model, message.usage);
+                if (!planned.has(bucketKey(request.subject, Number(request.grade), request.difficulty))) {
+                    summary.unplanned += 1;
+                    continue;
+                }
                 const text = (message.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
                 const outcome = await this._archive(parseQuestions(text), request);
                 usage.questions += outcome.archived;

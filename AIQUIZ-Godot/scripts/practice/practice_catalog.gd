@@ -19,7 +19,7 @@ const COURSES: Array[Dictionary] = [
 	{"id": "c4", "number": 4, "title": PracticeTexts.TEXTS["c4.title"], "players": 1, "minutes": 3,
 		"course_script": "res://scripts/practice/courses/course_4.gd", "available": true,
 		"scene": "res://ui/online_menu.tscn", "round_players": 2},
-	{"id": "c5", "number": 5, "title": PracticeTexts.TEXTS["c5.title"], "players": 1, "minutes": 3,
+	{"id": "c5", "number": 5, "title": PracticeTexts.TEXTS["c5.title"], "players": 1, "minutes": 1,
 		"course_script": "", "available": true, "scene": "res://ui/main_menu.tscn"},
 ]
 

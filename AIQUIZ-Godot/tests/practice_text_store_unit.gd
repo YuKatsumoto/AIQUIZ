@@ -113,7 +113,8 @@ func _check_usage(store: RefCounted) -> void:
 	check(_used_in(index, "c1.move.1", "res://scripts/practice/courses/course_1.gd"), "direct id in course_1.gd")
 	check(_used_in(index, "c1.clear.1", "res://scripts/practice/practice_director.gd"), "text_id(\"clear.1\") in the director")
 	check(_used_in(index, "select.players.2", "res://scripts/practice/ui/practice_course_select.gd"), "select.players.%d")
-	check(_used_in(index, "c5.go.1", "res://scripts/practice/menu/practice_customize_guide.gd"), "course 5 lines in the customize guide")
+	check(_used_in(index, "c5.tour.hat.note", "res://scripts/practice/menu/practice_customize_guide.gd"), "course 5 pages in the customize guide")
+	check(_used_in(index, "c5.tour.buttons", "res://scripts/practice/ui/practice_image_tour.gd"), "course 5 buttons in the image tour")
 
 
 func _used_in(index: Dictionary, id: String, path: String) -> bool:

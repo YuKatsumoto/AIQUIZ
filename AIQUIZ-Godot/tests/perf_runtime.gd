@@ -103,6 +103,11 @@ func _run() -> void:
 	autoplay = AutoplayScript.new()
 	autoplay.name = "PerfAutoplay"
 	autoplay.rush = String(args.get("rush", "1")) != "0"
+	autoplay.wrong_every = Util.arg_int(args, "wrong_every", 0)
+	autoplay.ocean_at = Util.arg_int(args, "ocean_at", -1)
+	var recorder := GameManager.get_node_or_null("HitchRecorder")
+	if recorder != null and String(args.get("trace_visuals", "0")) == "1":
+		recorder.set("trace_new_visuals", true)
 	get_tree().root.add_child(autoplay)
 	result["environment"] = _environment()
 	_log("measure=%s label=%s env=%s" % [measure(), label(), JSON.stringify(result["environment"])])
@@ -166,8 +171,12 @@ func _environment() -> Dictionary:
 
 func _boot_to_menu() -> bool:
 	var started := Time.get_ticks_msec()
-	_log("booting through %s" % STARTUP_PATH)
-	get_tree().change_scene_to_file(STARTUP_PATH)
+	if String(args.get("boot", "")) == "running":
+		# Exported build (tests/perf_probe_entry.gd): the real boot is already on screen.
+		_log("waiting for the running boot (%s)" % STARTUP_PATH)
+	else:
+		_log("booting through %s" % STARTUP_PATH)
+		get_tree().change_scene_to_file(STARTUP_PATH)
 	if not await _wait_until(_menu_ready, 240.0):
 		_err("main menu did not become ready after boot")
 		return false
@@ -226,8 +235,8 @@ func _press_key(key: Key) -> void:
 
 
 func _configure_round() -> void:
-	gs.mode = Constants.MODE_ENDLESS
-	gs.num_players = 1
+	gs.mode = Constants.MODE_TEN if String(args.get("mode", "endless")) == "ten" else Constants.MODE_ENDLESS
+	gs.num_players = clampi(Util.arg_int(args, "players", 1), 1, 2)
 	QuizManager.provider.set_llm_mode("OFFLINE")
 	gs.llm_mode = "OFFLINE"
 	if args.has("subject"):
@@ -359,6 +368,11 @@ func _run_endless() -> void:
 			break
 	autoplay.set_enabled(false)
 	var play_seconds := float(Time.get_ticks_msec() - start_ms) / 1000.0
+	# Keep recording what follows the end (explosion, lasso, game over screen) when asked.
+	var tail := Util.arg_float(args, "tail_seconds", 0.0)
+	if tail > 0.0 and not _aborted:
+		_log("recording %.0fs after the end (%s)" % [tail, end_reason])
+		await _wait_seconds(tail)
 	var end_snapshot := _snapshot(true, "endless_end")
 	sampler.recording = false
 	result["endless"] = _summarize_endless(end_reason, play_seconds, target_walls, end_snapshot)
@@ -1153,6 +1167,9 @@ func _finish() -> void:
 	result["timings"] = timings
 	result["wall_clock_s"] = Util.r2(float(Time.get_ticks_msec() - _t0_ms) / 1000.0)
 	result["unfocused_frames"] = _unfocused_frames
+	var hitch_recorder := GameManager.get_node_or_null("HitchRecorder")
+	if hitch_recorder != null:
+		result["match_compile_events"] = hitch_recorder.get("match_compile_events")
 	result["user_data_leftover_moved_to"] = info.get("user_data_leftover_moved_to", "")
 	var base := Util.OUT_DIR + "%s_%s" % [measure(), label()]
 	var frames_written := ""

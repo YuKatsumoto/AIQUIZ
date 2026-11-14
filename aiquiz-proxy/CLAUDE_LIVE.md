@@ -61,8 +61,8 @@
 | 何に | 上限 | 設定 |
 |---|---|---|
 | 試合中の Claude（このサービス） | 月 40 ドル・1 日 3 ドル | `CLAUDE_MONTHLY_BUDGET_USD` / `CLAUDE_DAILY_BUDGET_USD` |
-| 毎週の判定（quiz-claude-review） | 月 20 ドル | `CLAUDE_REVIEW_MONTHLY_BUDGET_USD`（CLAUDE_REVIEW.md） |
-| 毎週の補充（quiz-bank-builder） | 月 5 ドル | `BANK_BUILDER_MONTHLY_BUDGET_USD` |
+| 週3回の判定（quiz-claude-review） | 月 45 ドル | `CLAUDE_REVIEW_MONTHLY_BUDGET_USD`（CLAUDE_REVIEW.md） |
+| 週3回の補充（quiz-bank-builder） | 月 8 ドル | `BANK_BUILDER_MONTHLY_BUDGET_USD` |
 | 最後の歯止め | 月 100 ドル | Claude Console の「支出上限」（手で設定する） |
 
 - 実費は `proxy_usage_claude/v1/daily/<YYYY-MM-DD>`・`proxy_usage_claude/v1/monthly/<YYYY-MM>` に積み上がる（Gemini 系統の `proxy_usage/v1` とは別）。

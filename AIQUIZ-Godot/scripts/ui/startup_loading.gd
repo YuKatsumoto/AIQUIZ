@@ -5,6 +5,8 @@ extends CanvasLayer
 ## 2D lettering and the progress bar paint before the 3D flair is constructed.
 ## The live Label is the source of truth; do not snapshot it into a SubViewport.
 const MobileMenu = preload("res://scripts/ui/mobile/mobile_menu.gd")
+const GameUpdater = preload("res://scripts/core/game_updater.gd")
+const UpdatePrompt = preload("res://scripts/ui/update_prompt.gd")
 const MENU_PATH := "res://ui/main_menu.tscn"
 const PROGRESS_HEIGHT := 8.0
 var _cover: ColorRect
@@ -20,6 +22,9 @@ var _render_frames := 0
 var _failed := false
 var _retained_paths: Array[String] = []
 var _progress: ProgressBar
+## アップデートの案内を出しているあいだは、ボタンを押せるように入力を止めない。
+var _update_prompt_open := false
+var _update_check_ms := 0.0
 
 func _ready() -> void:
 	layer = 120
@@ -128,6 +133,8 @@ func _process(_delta: float) -> void:
 
 func _input(event: InputEvent) -> void:
 	# Keep controller/keyboard shortcuts from reaching the covered menu.
+	if _update_prompt_open:
+		return
 	if not event is InputEventMouseMotion:
 		get_viewport().set_input_as_handled()
 
@@ -194,6 +201,38 @@ func _fail(message: String, detail: String) -> void:
 	GameManager.startup_report = {"ready": false, "error": detail}
 	push_error("[StartupLoading] " + detail)
 
+## 新しい版があれば案内を出す（Windows の書き出し版で、.env に UPDATE_MANIFEST_URL があるときだけ）。
+## 素材を読み込む前に確かめる。更新するとゲームを立ち上げ直すので、先に読んだ素材がむだになる。
+## 戻り値が true のときは、もう再起動（または終了）に入っている。
+func _offer_update() -> bool:
+	if not GameUpdater.is_supported() or GameUpdater.manifest_url().is_empty():
+		return false
+	var check_started := Time.get_ticks_usec()
+	var updater: Node = GameUpdater.new()
+	updater.name = "GameUpdater"
+	add_child(updater)
+	var offer: Dictionary = await updater.check()
+	_update_check_ms = (Time.get_ticks_usec() - check_started) / 1000.0
+	if offer.is_empty():
+		updater.queue_free()
+		return false
+	var prompt: Control = UpdatePrompt.new()
+	prompt.name = "UpdatePrompt"
+	prompt.setup(updater, offer)
+	_holder.visible = false
+	_progress.visible = false
+	_cover.add_child(prompt)
+	_update_prompt_open = true
+	var restarting: bool = await prompt.finished
+	if restarting:
+		return true
+	_update_prompt_open = false
+	prompt.queue_free()
+	updater.queue_free()
+	_holder.visible = true
+	_progress.visible = true
+	return false
+
 func _run() -> void:
 	_status.reset_size()
 	# Paint the 2D cover, lettering, and bar before constructing the 3D flair.
@@ -201,6 +240,8 @@ func _run() -> void:
 	await _draw_frame()
 	_spawn_flair_character()
 	await _draw_frame()
+	if await _offer_update():
+		return
 	await _set_stage("ゲームの素材を読み込んでいます", 5)
 	var menu := await _load_resource(MENU_PATH) as PackedScene
 	if _failed or menu == null:
@@ -269,6 +310,9 @@ func _run() -> void:
 		"ready": true, "pipelines_settled": pipelines_settled, "emote_id": EmoteData.EMOTE_FLAIR,
 		"resources": _retained_paths, "effects": effects_report,
 		"elapsed_ms": (Time.get_ticks_usec() - _started_usec) / 1000.0,
+		# アップデートの確認にかかった時間（案内を出したときは、選ぶまでの待ち時間は入らない）。
+		"update_check_ms": _update_check_ms,
+		"version": ProjectSettings.get_setting("application/config/version", ""),
 		"covered_max_frame_ms": _max_frame_ms, "frames": _render_frames,
 		"renderer": RenderingServer.get_current_rendering_method(),
 	}

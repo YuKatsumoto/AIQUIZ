@@ -140,10 +140,41 @@ test('collected questions enter the archive as pending; duplicates and broken on
     assert.equal(spend.questions, 1);
 });
 
-test('the bundled prompts cover every bucket the game offers', () => {
+test('answers for a bucket that is no longer in the prompts are dropped, but still paid for', async () => {
+    const db = fakeDatabase({
+        bank_builder: { v1: { batches: { msgbatch_1: { state: 'submitted', model: 'claude-haiku-5-5', count: 2,
+            requests: { r0: { subject: '理科', grade: 1, difficulty: '簡単' },
+                r1: { subject: '国語', grade: 2, difficulty: '簡単' } } } } } },
+    });
+    const answer = q => ({ type: 'succeeded', message: { usage: { input_tokens: 1000, output_tokens: 1000 },
+        content: [{ type: 'text', text: JSON.stringify([{ q, c: ['あ', 'い', 'う', 'え'], a: 0, e: '', g: '単元' }]) }] } });
+    const anthropic = { messages: { batches: {
+        async retrieve() { return { processing_status: 'ended' }; },
+        async results() {
+            return (async function* () {
+                yield { custom_id: 'r0', result: answer('あさがおの たねは どれ？') };
+                yield { custom_id: 'r1', result: answer('「空」の読みは？') };
+            })();
+        },
+    } } };
+    const job = new BankBuilderJob({ db, anthropic, config: config(), prompts: PROMPTS });
+    const summary = await job.collect();
+    assert.equal(summary.unplanned, 1);
+    assert.equal(summary.archived, 1);
+    const items = db.root.quiz_archive.v1.items;
+    assert.deepEqual(Object.values(items).map(item => item.subject), ['国語']);
+    const spend = Object.values(db.root.bank_builder.v1.spend)[0];
+    assert.equal(spend.requests, 2);
+});
+
+test('the bundled prompts cover exactly the buckets the game offers', () => {
     const { loadPrompts } = require('../bank-builder');
     const prompts = loadPrompts();
     const buckets = new Set(prompts.prompts.map(p => `${p.subject}|${p.grade}|${p.difficulty}`));
-    assert.equal(buckets.size, 84);
+    // 国語・算数は 1〜6 年、理科・社会・英語は 3〜6 年（AIQUIZ-Godot の Constants.SUBJECT_GRADE_OPTIONS）。各 3 難易度
+    assert.equal(buckets.size, (6 + 6 + 4 + 4 + 4) * 3);
+    for (const p of prompts.prompts) {
+        if (['理科', '社会', '英語'].includes(p.subject)) assert.ok(p.grade >= 3, `${p.subject} ${p.grade}年`);
+    }
     assert.ok(prompts.system.length > 0);
 });

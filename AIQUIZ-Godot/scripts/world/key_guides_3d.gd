@@ -90,6 +90,8 @@ const FOLLOW_RATE := 14.0
 
 var game_state: QuizGameState = null
 var duo: bool = false
+## 試合の準備（覆いの下）で、押したときの見た目（キーの沈み・光る枠）も一度描くために、全部押した扱いにする。
+var prewarm_pressed := false
 
 var _rigs: Dictionary = {}
 var _right_ctrl_down: bool = false
@@ -455,6 +457,8 @@ func _resolve_slots(player_index: int, task: Dictionary, model: Dictionary) -> A
 
 
 func _is_slot_pressed(player_index: int, slot: String) -> bool:
+	if prewarm_pressed:
+		return true
 	if _keyset(player_index) == 2:
 		match slot:
 			SLOT_LEFT: return Input.is_key_pressed(KEY_LEFT)

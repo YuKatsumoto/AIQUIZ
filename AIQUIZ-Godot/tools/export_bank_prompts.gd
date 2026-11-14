@@ -40,6 +40,9 @@ func _initialize() -> void:
 		grades.sort_custom(func(a, b): return int(a) < int(b))
 		for grade_text: Variant in grades:
 			var grade := int(grade_text)
+			# ゲームで選べない学年（理科・社会の 1・2 年、英語の 1・2 年）は補充しない
+			if not Constants.is_grade_supported(subject, grade):
+				continue
 			for difficulty: String in DIFFICULTIES:
 				var batches: Array = fetcher._allocate_units_to_batches(
 					subject, grade, PROMPTS_PER_BUCKET, QUESTIONS_PER_PROMPT)

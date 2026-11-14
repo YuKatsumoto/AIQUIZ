@@ -3,6 +3,7 @@ extends Node3D
 
 ## メニュー背景（2P）で、死んだランナーがときどきゴーストシャークに乗って生き残った方を襲う。
 ## 演出は本編の GhostSharkRideController をそのまま使う（死亡 → 魂がサメへ → 光の柱 → 登場 → 照準・突進の繰り返し）。
+## 体当たりで吹っ飛ぶ体（ラグドール → 床を転がる → 起き上がり）も本編の PlayerController.begin_ghost_hit_ragdoll のまま。
 ## ここは、乗るかどうかの抽選、死んだ側の入力（MenuGhostRiderBrain）、体当たりをメニューの吹き飛びへ直すこと、
 ## 生き残った側の見物・警戒・回避、ライド中のノコギリの退避、画面の構図、途中で終わるときの後始末を受け持つ。
 
@@ -16,7 +17,7 @@ static var globally_enabled: bool = true
 ## 乗れる死亡のうち実際に乗る割合
 const CHANCE: float = 0.34
 ## メニューの吹き飛びの操作ロックの上限（秒）。本編のロック（強さで 0.25〜0.48 秒）と同じ上限。
-## 本編のロックをまた延ばしても、ラグドールも起き上がりもないメニューでは長くならないよう残しておく。
+## 本編のロックをまた延ばしても、メニューの吹き飛び（ゲームの点）は長くならないよう残しておく。
 const KNOCKBACK_LOCK_MAX: float = 0.48
 ## ライドの終わりから次のライドまで
 const COOLDOWN_SEC: float = 50.0
@@ -36,6 +37,7 @@ const HARD_TIMEOUT_SEC: float = 48.0
 ## ライドが終わってから死んだ側が空から降ってくるまで
 const RESPAWN_DELAY_SEC: float = 0.7
 ## 本編の吹き飛び（10.5〜18.5 m/s）はメニューのコンベアには強すぎるので弱める
+## （GhostSharkRideController.hit_horizontal_speed_scale。ゲームの点とラグドールの飛び出しの両方に掛かる）
 const KNOCKBACK_SPEED_SCALE: float = 0.6
 const DODGE_CHANCE: float = 0.35
 const DODGE_REACTION_MIN: float = 0.06
@@ -49,6 +51,8 @@ const RENDEZVOUS_SIDE: float = 1.5
 const RENDEZVOUS_DEPTH: float = 5.0
 ## サメと光の柱を収めたい画面の範囲（0〜1。左のメニュー UI にかからない右側）
 const SCREEN_SAFE_RECT := Rect2(0.64, 0.12, 0.30, 0.76)
+## 体当たりの体の演出が終わってから、死んだ側が復活する（PlayerController を作り直す）まで
+const RESPAWN_AFTER_HIT_SEC: float = 0.1
 ## 降りた乗り手が浮かんで消えるまで
 const DISMOUNT_FLOAT_SECONDS: float = 0.7
 const DISMOUNT_FLOAT_HEIGHT: float = 1.2
@@ -128,6 +132,8 @@ func ensure_controller() -> bool:
 	controller.rendezvous_side_distance = RENDEZVOUS_SIDE
 	controller.rendezvous_depth_offset = RENDEZVOUS_DEPTH
 	controller.heroic_follow_survivor = false
+	controller.hit_horizontal_speed_scale = KNOCKBACK_SPEED_SCALE
+	pc.ghost_hit_facing_yaw = PI
 	controller.charge_resolved.connect(_on_charge_resolved)
 	return true
 
@@ -176,6 +182,15 @@ func _can_arm(dead_is_p1: bool, reason: String) -> bool:
 
 
 func update(dt: float) -> void:
+	# 前のフレームに写した吹き飛びを消してから進める（新しい体当たりは _consume_hit が game_state から取り出す）
+	_clear_external(true)
+	_clear_external(false)
+	_update_ride(dt)
+	_publish_knockback()
+	_hold_for_hit_presentation()
+
+
+func _update_ride(dt: float) -> void:
 	_update_hidden_sharks()
 	_update_floating_riders(dt)
 	if controller == null:
@@ -232,6 +247,8 @@ func update(dt: float) -> void:
 	if _retire_requested:
 		_retire_requested = false
 		_retire(true)
+		# 畳むときに本編の制御が入れた、ヒットストップ待ちの吹き飛ばし
+		_consume_hit(survivor_is_p1)
 		return
 	if host._linger_time - _ride_started_at >= HARD_TIMEOUT_SEC:
 		abort(true)
@@ -357,16 +374,59 @@ func _consume_hit(survivor_is_p1: bool) -> void:
 	if impulse.length_squared() < 0.0001:
 		return
 	var lock := minf(gs.p1_external_control_lock if survivor_is_p1 else gs.p2_external_control_lock, KNOCKBACK_LOCK_MAX)
-	if survivor_is_p1:
+	_clear_external(survivor_is_p1)
+	host._ai.start_knockback(
+		host._ai.bundle_for(survivor_is_p1), survivor_is_p1, impulse, host._actor_vel_y(survivor_is_p1), lock
+	)
+
+
+func _clear_external(is_p1: bool) -> void:
+	var gs := host._preview_gs
+	if gs == null:
+		return
+	if is_p1:
 		gs.p1_external_velocity = Vector2.ZERO
 		gs.p1_external_control_lock = 0.0
 	else:
 		gs.p2_external_velocity = Vector2.ZERO
 		gs.p2_external_control_lock = 0.0
-	host._ai.start_knockback(
-		host._ai.bundle_for(survivor_is_p1), survivor_is_p1, impulse * KNOCKBACK_SPEED_SCALE,
-		host._actor_vel_y(survivor_is_p1), lock
-	)
+
+
+## 本編の体の演出（PlayerController の被弾のラグドール〜起き上がり）は、吹き飛ばしの速さと操作ロックを game_state から読む。
+## メニューは game_state.update() を回さないので、メニューの吹き飛び（MenuActorAI）の今の値を毎フレーム写す。
+func _publish_knockback() -> void:
+	var gs := host._preview_gs
+	if gs == null:
+		return
+	for is_p1: bool in [true, false]:
+		var bundle := host._ai.bundle_for(is_p1)
+		if bundle == null or bundle.ai_state != AIState.STATE_KNOCKBACK:
+			continue
+		var velocity := Vector2(bundle.knockback_vel_x, bundle.knockback_vel_z)
+		var lock := maxf(0.0, bundle.knockback_lock_until - host._ai_time)
+		if is_p1:
+			gs.p1_external_velocity = velocity
+			gs.p1_external_control_lock = lock
+		else:
+			gs.p2_external_velocity = velocity
+			gs.p2_external_control_lock = lock
+
+
+## 体当たりの体の演出が続いているあいだ：起き上がるまで自分からは動き出さず（よけるのは別）、
+## 死んだ側の復活（PlayerController ごと作り直すので、演出の途中の体が消える）も待たせる。
+func _hold_for_hit_presentation() -> void:
+	var pc := host._preview_player as PlayerController
+	if stats.rides == 0 or pc == null:
+		return
+	var survivor_is_p1 := not _ride_dead_is_p1
+	if pc.get_ghost_hit_phase(1 if survivor_is_p1 else 2) < 0:
+		return
+	var survivor := host._ai.bundle_for(survivor_is_p1)
+	if survivor.ai_state == AIState.STATE_NORMAL:
+		survivor.next_action_t = maxf(survivor.next_action_t, host._ai_time + 0.2)
+	if not _riding:
+		var dead := host._ai.bundle_for(_ride_dead_is_p1)
+		dead.dead_end_t = maxf(dead.dead_end_t, host._ai_time + RESPAWN_AFTER_HIT_SEC)
 
 
 ## ライドを途中でやめる。dismount なら乗り手を降ろして浮かべて消し、そうでなければ静かに消す。
@@ -496,6 +556,7 @@ func is_problem_wall_occluding_segment(segment_start: Vector3, segment_end: Vect
 func on_player_controller_rebuilt(pc: PlayerController) -> void:
 	if controller != null and pc != null:
 		controller.rebind_player_controller(pc)
+		pc.ghost_hit_facing_yaw = PI
 
 
 func shutdown() -> void:

@@ -5,6 +5,7 @@ const DuoTutorialOverlayScript := preload("res://scripts/ui/duo_tutorial_overlay
 const SoloTutorialOverlayScript := preload("res://scripts/ui/solo_tutorial_overlay.gd")
 const TutorialCompletionCardScript := preload("res://scripts/ui/tutorial_completion_card.gd")
 const PLAYER_NAME_TAG_SCRIPT := preload("res://scripts/ui/player_name_tag.gd")
+const SecretUnlockToastScript := preload("res://scripts/ui/secret_unlock_toast.gd")
 const ResultCeremonyOverlayScript := preload("res://scripts/ui/result_finale_hud.gd")
 const MobileUi = preload("res://scripts/core/mobile_ui.gd")
 const TouchHud = preload("res://scripts/ui/touch_hud/touch_hud.gd")
@@ -152,6 +153,7 @@ func _ready() -> void:
 	_create_tutorial_overlay()
 	_create_offscreen_player_markers()
 	_create_player_name_tags()
+	QuizManager.secret_unlocked.connect(_show_secret_unlock_toast)
 
 
 
@@ -176,6 +178,13 @@ func _ready() -> void:
 		_close_history()
 		_notify_practice(&"history_closed")
 	)
+
+
+## シークレットを解放した瞬間に、画面の上へ知らせを出す（試合はそのまま続く）。
+func _show_secret_unlock_toast(id: StringName) -> void:
+	var toast := SecretUnlockToastScript.new()
+	add_child(toast)
+	toast.present(id)
 
 
 ## 練習のときだけ、カードの出来事を監督へ知らせる（practice_result_action）。
@@ -230,7 +239,7 @@ func _retry_game() -> void:
 	if game_state.mode == Constants.MODE_TUTORIAL:
 		game_state.restart_tutorial()
 	else:
-		game_state.start_game()
+		game_state.start_game_under_transition()
 	game_state.skip_start_helicopter_arrival = true
 	get_tree().change_scene_to_file("res://scenes/game_world.tscn")
 

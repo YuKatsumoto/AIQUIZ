@@ -448,6 +448,12 @@ void vertex() {
 }
 
 void fragment() {
+	// Every face is flat and its corners are shared with the box's other faces
+	// (SeatedSpectatorKit._merge), so the face normal comes from the screen
+	// derivatives of the view-space position. Only front faces are drawn
+	// (cull_back): turn it towards the camera.
+	vec3 face = normalize(cross(dFdx(VERTEX), dFdy(VERTEX)));
+	NORMAL = dot(face, VERTEX) > 0.0 ? -face : face;
 	int role = int(floor(UV.x * 16.0));
 	vec3 color = v_skin;
 	float rough = 0.78;

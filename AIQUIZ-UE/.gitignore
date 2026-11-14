@@ -1,0 +1,12 @@
+# Unreal Engine の生成物 (再生成できるのでコミットしない)
+Binaries/
+Intermediate/
+Saved/
+DerivedDataCache/
+.vs/
+*.sln
+*.slnx
+*.suo
+*.VC.db
+*.opensdf
+*.sdf

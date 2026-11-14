@@ -252,6 +252,9 @@ var _return_locked_aim_point: Vector3 = Vector3.ZERO
 var _portal_prewarm_root: Node3D = null
 var _portal_prewarm_sharks: Array[SharkSwimmerScript] = []
 var _portal_prewarm_instances: Dictionary = {}
+const PREWARM_SHARK_SCENE: PackedScene = preload("res://scenes/shark_swimmer.tscn")
+## 試合の準備で照準の輪を一度描くあいだ、元の置き場所と表示を覚えておく。
+var _aim_prewarm_restore: Array[Dictionary] = []
 var _return_portal_cache: Dictionary = {}
 
 var _aim_ring: MeshInstance3D = null
@@ -340,6 +343,8 @@ var rendezvous_side_distance: float = RENDEZVOUS_SIDE_DISTANCE
 var rendezvous_depth_offset: float = RENDEZVOUS_REVEAL_DEPTH_OFFSET - RENDEZVOUS_BACK_DISTANCE
 ## false なら、死亡〜登場の演出を生き残った人の前後の動きに付いて動かさない（カメラが止まっている画面用）。
 var heroic_follow_survivor: bool = true
+## 命中の吹き飛ばしの横の速さに掛ける倍率（ゲームの点と、ラグドールが飛び出す速さの両方）。本編は 1。
+var hit_horizontal_speed_scale: float = 1.0
 ## camera_controller がないときに、戻りのポータルの向きと壁の透過の判定に使うカメラ。
 var view_camera: Camera3D = null
 
@@ -906,6 +911,40 @@ func begin_return_portal_render_prewarm(prewarm_camera: Camera3D) -> Dictionary:
 			_portal_prewarm_sharks.append(shark)
 			report["stencil_surfaces"] = int(report["stencil_surfaces"]) + surface_count
 
+	# 脱落した人がサメに乗るときに立つ光の柱（P1・P2 で別の見た目）と、乗っているあいだの照準の輪。
+	# どちらも試合中に初めて出るので、新しい PC ではそこで止まる（光の柱で約 0.4 秒）。カメラの前で一度描く。
+	report["mount_beams"] = 0
+	var beam_scenes: Array[PackedScene] = [
+		SharkSwimmerScript.GHOST_MOUNT_BEAM_P1_SCENE,
+		SharkSwimmerScript.GHOST_MOUNT_BEAM_P2_SCENE,
+	]
+	for beam_index: int in range(beam_scenes.size()):
+		var beam := beam_scenes[beam_index].instantiate() as Node3D
+		if beam == null:
+			continue
+		beam.name = "MountBeamP%d" % (beam_index + 1)
+		_portal_prewarm_root.add_child(beam)
+		beam.position = Vector3(-0.9 if beam_index == 0 else 0.9, -1.2, -7.0)
+		beam.set("open_amount", 1.0)
+		report["mount_beams"] = int(report["mount_beams"]) + 1
+	# ゴーストが乗り移ったサメ（体に重ねる色の膜）。海のサメはカメラに映らないことがあるので、
+	# 一時的なサメをカメラの前に置いて描く。
+	var possessed := PREWARM_SHARK_SCENE.instantiate() as SharkSwimmerScript
+	if possessed != null:
+		possessed.name = "PossessedSharkPrewarm"
+		possessed.process_mode = Node.PROCESS_MODE_DISABLED
+		_portal_prewarm_root.add_child(possessed)
+		possessed.position = Vector3(0.0, -1.6, -9.0)
+		possessed.begin_ghost_possession(PlayerController.P2_BODY)
+		report["possessed_shark"] = true
+	_aim_prewarm_restore.clear()
+	for ring: MeshInstance3D in [_aim_ring, _aim_outer_ring]:
+		if ring == null or not is_instance_valid(ring):
+			continue
+		_aim_prewarm_restore.append({"ring": ring, "transform": ring.global_transform, "visible": ring.visible})
+		ring.global_position = prewarm_camera.global_transform * Vector3(0.0, -0.4, -6.0)
+		ring.visible = true
+
 	report["ready"] = (
 		int(report["portals"]) == portal_scenes.size()
 		and int(report["stencil_surfaces"]) > 0
@@ -914,6 +953,12 @@ func begin_return_portal_render_prewarm(prewarm_camera: Camera3D) -> Dictionary:
 
 
 func end_return_portal_render_prewarm() -> void:
+	for saved: Dictionary in _aim_prewarm_restore:
+		var ring := saved.ring as MeshInstance3D
+		if ring != null and is_instance_valid(ring):
+			ring.global_transform = saved.transform
+			ring.visible = bool(saved.visible)
+	_aim_prewarm_restore.clear()
 	for shark: SharkSwimmerScript in _portal_prewarm_sharks:
 		if shark != null and is_instance_valid(shark):
 			shark.end_ghost_portal_render_prewarm()
@@ -2514,7 +2559,8 @@ func _apply_hit_impulse(target_index: int, horizontal_direction: Vector2, power:
 	)
 	game_state.apply_external_impulse(
 		target_index,
-		(deflected.direction as Vector2) * float(values.horizontal),
+		((deflected.direction as Vector2) * float(values.horizontal)).limit_length(QuizGameState.EXTERNAL_IMPULSE_MAX_SPEED)
+			* hit_horizontal_speed_scale,
 		vertical,
 		float(plan.control_lock),
 		bool(plan.tumble)
@@ -2536,7 +2582,9 @@ static func _hit_impulse_values(power: float, perfect: bool) -> Dictionary:
 ## 体が飛び出す速さ（ワールド）。game_state.apply_external_impulse と同じ上限で横を切る（見た目とゲームの点をそろえる）。
 func _hit_launch_velocity(direction: Vector2, power: float, perfect: bool, vertical_bonus: float) -> Vector3:
 	var values := _hit_impulse_values(power, perfect)
-	var horizontal := (direction * float(values.horizontal)).limit_length(QuizGameState.EXTERNAL_IMPULSE_MAX_SPEED)
+	var horizontal := (
+		(direction * float(values.horizontal)).limit_length(QuizGameState.EXTERNAL_IMPULSE_MAX_SPEED) * hit_horizontal_speed_scale
+	)
 	return Vector3(horizontal.x, float(values.vertical) + vertical_bonus, horizontal.y)
 
 

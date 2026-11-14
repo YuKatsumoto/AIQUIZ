@@ -345,6 +345,16 @@ func _end_cutin() -> void:
 
 
 func _build_actor(player: int, hat: int, skin: Dictionary = {}, skin_code: String = "") -> Dictionary:
+	var actor := build_portrait(self, player, hat, skin)
+	actor["hat"] = hat
+	actor["skin"] = skin_code
+	return actor
+
+
+## 勝った人のカットインに映す小さな画面（自分だけの世界・霧や陰影のない環境）を parent の下に作る。
+## 試合の準備（GameWorld._prepare_world_visuals_under_cover）でも同じ物を一度描く。描き方が試合の画面と
+## 違うので、新しい PC では結果発表で初めて映した瞬間に描画の部品を作り、1 秒以上止まっていた。
+static func build_portrait(parent: Node, player: int, hat: int, skin: Dictionary = {}) -> Dictionary:
 	var portrait := SubViewport.new()
 	portrait.name = "P%dPortrait" % player
 	portrait.size = PORTRAIT
@@ -352,7 +362,7 @@ func _build_actor(player: int, hat: int, skin: Dictionary = {}, skin_code: Strin
 	portrait.own_world_3d = true
 	portrait.msaa_3d = Viewport.MSAA_4X
 	portrait.render_target_update_mode = SubViewport.UPDATE_DISABLED
-	add_child(portrait)
+	parent.add_child(portrait)
 	var environment := WorldEnvironment.new()
 	environment.environment = Environment.new()
 	environment.environment.background_mode = Environment.BG_CLEAR_COLOR
@@ -373,7 +383,7 @@ func _build_actor(player: int, hat: int, skin: Dictionary = {}, skin_code: Strin
 	root.rotation.y = 0.35 if player == 1 else -0.35
 	portrait.add_child(root)
 	var parts := EmoteBlockmanPreview.build_player_skeleton(player == 1, root, hat, 0, skin)
-	return {"viewport": portrait, "root": root, "parts": parts, "hat": hat, "skin": skin_code}
+	return {"viewport": portrait, "root": root, "parts": parts}
 
 
 ## Both arms thrown up with a hop, then fist pumps for as long as the board holds.

@@ -22,6 +22,12 @@ void fragment() {
 }
 """
 
+const PipelineWatchScript = preload("res://scripts/core/pipeline_watch.gd")
+## 勝者のスポットライトの光の柱のシェーダー（コードで作るので書き出しの焼き込みに入らない。"beam_shader"）と、
+## 試合の準備で一度描いた材質（"keep"）。捨てると描き方（シェーダー）も消え、結果発表で作り直すことになるので
+## 持ち続ける（ゲームを終えるときに PipelineWatch.release_all が空にする）。
+static var _cache := {}
+
 var events: Array[Dictionary] = []
 var _quality := GraphicsQuality.BALANCED
 var _nodes: Array[Node] = []
@@ -229,9 +235,12 @@ func set_spotlight(target: Vector3, amount: float, color: Color) -> void:
 		_beam.mesh = cone
 		_beam.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_beam_material = ShaderMaterial.new()
-		var shader := Shader.new()
-		shader.code = BEAM_SHADER
-		_beam_material.shader = shader
+		if not _cache.has("beam_shader"):
+			var shader := Shader.new()
+			shader.code = BEAM_SHADER
+			_cache["beam_shader"] = shader
+			PipelineWatchScript.register_cache(_cache)
+		_beam_material.shader = _cache["beam_shader"]
 		_beam.material_override = _beam_material
 	var source := target + Vector3(0.0, 7.5, 0.0)
 	_spot.global_position = source
@@ -245,6 +254,38 @@ func set_spotlight(target: Vector3, amount: float, color: Color) -> void:
 	_beam_material.set_shader_parameter("tint", Color(color, 1.0))
 	_beam_material.set_shader_parameter("strength", 0.12 * amount)
 	_beam.visible = amount > 0.001
+
+
+## 試合の準備（GameWorld._prepare_world_visuals_under_cover の覆いの下）で、紙吹雪（大砲・降る紙吹雪）・
+## 花火・勝者のスポットライトをカメラの前で一度描く。どれも結果発表で初めて出るので、新しい PC では
+## そこで描画の部品を作り、1 回に 1〜2 秒止まっていた。end_render_prewarm で片付ける。
+func begin_render_prewarm(camera: Camera3D) -> int:
+	if camera == null or not is_instance_valid(camera) or not camera.is_inside_tree():
+		return 0
+	var front := camera.global_transform
+	var muzzle := Node3D.new()
+	muzzle.name = "PrewarmMuzzle"
+	_track(muzzle)
+	muzzle.global_transform = Transform3D(front.basis, front * Vector3(-1.6, -0.6, -7.0))
+	var colors := [GOLD, WHITE, PINK, MINT]
+	burst_confetti([muzzle] as Array[Node3D], colors, 0.0)
+	start_confetti_rain(front * Vector3(1.6, 1.2, -8.0), 2.0, colors, 0.0, 2.0)
+	firework(front * Vector3(0.0, 0.6, -8.0), GOLD, 0.0)
+	set_spotlight(front * Vector3(0.6, -1.2, -8.0), 1.0, GOLD)
+	var keep: Array = _cache.get_or_add("keep", [])
+	PipelineWatchScript.register_cache(_cache)
+	for node: Node in _nodes:
+		if node is GPUParticles3D:
+			var particles := node as GPUParticles3D
+			keep.append(particles.process_material)
+			keep.append(particles.draw_pass_1)
+		elif node is MeshInstance3D and (node as MeshInstance3D).material_override != null:
+			keep.append((node as MeshInstance3D).material_override)
+	return particle_count()
+
+
+func end_render_prewarm() -> void:
+	clear()
 
 
 func clear() -> void:

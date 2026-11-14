@@ -143,7 +143,8 @@ func _ride_until_done(dead_is_p1: bool, label: String) -> void:
 	checks["%s_full_sequence" % label] = phases.has("SOUL_FLIGHT") and phases.has("MOUNTING") and phases.has("BEAM_REVEAL") and phases.has("ENTERING")
 	checks["%s_aiming_after_full_intro" % label] = aiming_at >= 9.9 and aiming_at <= 12.5
 	checks["%s_ended" % label] = ended_at > 0.0
-	checks["%s_respawned_after_ride" % label] = respawned_at > 0.0 and respawned_at - ended_at <= 2.5
+	# 体当たりで倒れた生き残りが起き上がるまで、死んだ側の復活は待つ（MenuGhostRideDirector._hold_for_hit_presentation）
+	checks["%s_respawned_after_ride" % label] = respawned_at > 0.0 and respawned_at - ended_at <= 3.5
 	checks["%s_controller_idle" % label] = ghost.ride_phase() == Phase.INACTIVE
 	if survivor_died:
 		# 吹き飛ばされて海へ落ちたか、扉の外へ飛ばされて壁に当たった：どちらでもライドはそこで終わる

@@ -145,6 +145,9 @@ var _st_wall_index := -1
 var _st_qlist := -1
 var _st_scene: Node = null
 var _st_pipe := 0
+## Frame index -> which pipeline kinds were compiled in it ({canvas, mesh, surface, draw, specialization}).
+var pipe_kinds := {}
+var _st_pipe_kinds: Array[int] = [0, 0, 0, 0, 0]
 var _st_phase := 0
 var _st_match := -1
 var _st_play_t := -1.0
@@ -245,6 +248,16 @@ func wall_child_count() -> int:
 	return (wc as Node).get_child_count() if wc is Node and is_instance_valid(wc) else -1
 
 
+func _pipeline_kinds() -> Array[int]:
+	return [
+		RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_CANVAS),
+		RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_MESH),
+		RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_SURFACE),
+		RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_DRAW),
+		RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_SPECIALIZATION),
+	]
+
+
 func _pipeline_total() -> int:
 	return (
 		RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_CANVAS)
@@ -313,6 +326,14 @@ func _close_record(now: int, state: String, walls_now: int, wall_idx: int, qlist
 	if qlist != _st_qlist:
 		ev |= EV_QUIZ_LIST
 	var pipe_delta := maxi(0, pipe - _st_pipe)
+	var kinds_now := _pipeline_kinds()
+	var kinds_delta := {}
+	for k: int in range(kinds_now.size()):
+		if kinds_now[k] > _st_pipe_kinds[k]:
+			kinds_delta[["canvas", "mesh", "surface", "draw", "specialization"][k]] = kinds_now[k] - _st_pipe_kinds[k]
+	_st_pipe_kinds = kinds_now
+	if not kinds_delta.is_empty():
+		pipe_kinds[str(pipelines.size())] = kinds_delta
 	if pipe_delta > 0:
 		ev |= EV_PIPELINE
 	if _added >= NODE_BURST:
@@ -427,6 +448,7 @@ func export_frames() -> Dictionary:
 		"quiz_list": Array(quiz_list_size),
 		"events": Array(events),
 		"pipelines": Array(pipelines),
+		"pipe_kinds": pipe_kinds,
 		"phase": Array(phase_code),
 		"match": Array(match_code),
 	}
